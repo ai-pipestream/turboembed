@@ -55,6 +55,9 @@ async fn gpu_golden_cosine_at_least_0_999() {
         _ => Pooling::Mean,
     };
     let normalize = golden["normalize"].as_bool().unwrap_or(true);
+    // Truncation length the golden was generated with (e.g. the serving
+    // config's max_seq_len). Absent = engine default.
+    let max_seq_len = golden["max_seq_len"].as_u64().map(|v| v as usize);
     let expected: Vec<f32> = golden["vector"]
         .as_array()
         .expect("golden.vector")
@@ -66,7 +69,7 @@ async fn gpu_golden_cosine_at_least_0_999() {
         model_path,
         tokenizer_path: std::env::var("INFERSTREAM_ORT_TOKENIZER").ok(),
         device,
-        max_seq_len: None,
+        max_seq_len,
         pooling,
         normalize: Some(normalize),
     })

@@ -15,6 +15,8 @@ One JSON file per `(model, text, params)` tuple:
   "text": "hello world",          // exact input text
   "pooling": null,                // "mean" | "cls" | null (backend default)
   "normalize": false,             // whether L2 normalization was requested
+  "max_seq_len": 256,             // truncation length used at generation time
+                                  // (optional; omit for backend default)
   "dim": 8,                       // embedding dimension
   "l2": 2.0574267,                // L2 norm of the stored vector
   "vector": [0.886, ...]          // full vector (small dims)
@@ -35,6 +37,12 @@ full little-endian FP32 blob, and compare `l2` + head/tail cosine instead.
 | `mock_empty.json` | empty-string edge case |
 | `mock_unicode.json` | multi-script + emoji input |
 | `mock_long_truncation.json` | 600 repeated tokens — exercises `max_seq_len` truncation on real models |
+
+The GPU goldens (`ort_cuda_minilm_*.json`) cover the same five prompts for
+`minilm-l6-v2` on the ORT CUDA EP, generated on krick with the
+`config/nvidia.toml` parameters (`pooling = "mean"`, `normalize = true`,
+`max_seq_len = 256`). The short-prompt golden was cross-checked against the
+independent TEI serving stack for the same model (cosine 0.999998).
 
 ## Mock goldens (always-on in CI)
 
@@ -68,11 +76,17 @@ grpcurl -plaintext -proto crates/protocol/proto/inferstream_extension.proto \
   > /tmp/minilm_hello.json
 # then fill the schema above and save as ort_cuda_minilm_short.json
 
-# 2. Verify against the stored golden:
+# 2. Verify against the stored golden (use an ABSOLUTE golden path — the
+#    test binary's working directory is the crate, not the repo root):
 INFERSTREAM_ORT_MODEL=/path/to/model.onnx \
-INFERSTREAM_ORT_GOLDEN=testdata/reference_embeddings/ort_cuda_minilm_short.json \
+INFERSTREAM_ORT_GOLDEN=$PWD/testdata/reference_embeddings/ort_cuda_minilm_short.json \
+INFERSTREAM_ORT_DEVICE=cuda \
 cargo test -p inferstream-backend-ort --features cuda -- --ignored gpu_golden
 ```
+
+The test builds its engine from the golden's own `text` / `pooling` /
+`normalize` / `max_seq_len` fields, so one invocation per golden file verifies
+that exact `(model, text, params)` tuple.
 
 On **krick-1** (Intel, OVMS client) the OVMS pipelines embed server-side; use
 the `Embed` RPC through `inferstream-intel` against `minilm_pipeline` /
