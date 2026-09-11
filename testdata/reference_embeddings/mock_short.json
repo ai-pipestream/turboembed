@@ -1,0 +1,10 @@
+{
+  "model": "mock-embed",
+  "backend": "mock",
+  "text": "hello world",
+  "pooling": null,
+  "normalize": false,
+  "dim": 8,
+  "l2": 2.0574267,
+  "vector": [0.8861718, 0.7549186, 0.9992045, -0.5364268, -0.27719486, 0.782446, -0.80269074, -0.50819993]
+}

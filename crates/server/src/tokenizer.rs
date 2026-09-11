@@ -174,7 +174,7 @@ mod tests {
         let mut tokenizer = Tokenizer::new(model);
         // Register the frame tokens as specials so skip_special_tokens
         // decoding drops them (matching real HF tokenizer.json files).
-        tokenizer.add_special_tokens([
+        let _ = tokenizer.add_special_tokens([
             tokenizers::AddedToken::from("[PAD]", true),
             tokenizers::AddedToken::from("[CLS]", true),
             tokenizers::AddedToken::from("[SEP]", true),
@@ -217,14 +217,17 @@ mod tests {
             .tokenize(&texts, &TokenizeOptions::default())
             .unwrap();
         assert_eq!(encodings[0].input_ids, vec![1, 4, 5, 2]);
-        assert_eq!(encodings[0].tokens, vec!["[CLS]", "hello", "world", "[SEP]"]);
+        assert_eq!(
+            encodings[0].tokens,
+            vec!["[CLS]", "hello", "world", "[SEP]"]
+        );
         assert!(encodings[0].attention_mask.iter().all(|&m| m == 1));
 
         let sequences: Vec<Vec<u32>> = encodings.iter().map(|e| e.input_ids.clone()).collect();
         let decoded = tokenizer.detokenize(&sequences, true).unwrap();
         assert_eq!(decoded, texts);
         // With specials kept, the frame tokens come back too.
-        let raw = tokenizer.detokenize(&sequences[..1].to_vec(), false).unwrap();
+        let raw = tokenizer.detokenize(&sequences[..1], false).unwrap();
         assert!(raw[0].contains("[CLS]") && raw[0].contains("[SEP]"));
     }
 
@@ -232,10 +235,7 @@ mod tests {
     fn unknown_words_map_to_unk_and_still_decode() {
         let tokenizer = LocalTokenizer::from_path(write_test_tokenizer()).unwrap();
         let encodings = tokenizer
-            .tokenize(
-                &["hello quixotic".to_string()],
-                &TokenizeOptions::default(),
-            )
+            .tokenize(&["hello quixotic".to_string()], &TokenizeOptions::default())
             .unwrap();
         assert_eq!(encodings[0].input_ids, vec![1, 4, 3, 2]);
         assert_eq!(encodings[0].tokens[2], "[UNK]");
@@ -293,7 +293,10 @@ mod tests {
             .unwrap();
         let longest = encodings[1].input_ids.len();
         assert_eq!(encodings[0].input_ids.len(), longest);
-        assert!(encodings[0].input_ids.ends_with(&[0, 0]), "padded with [PAD]");
+        assert!(
+            encodings[0].input_ids.ends_with(&[0, 0]),
+            "padded with [PAD]"
+        );
         assert!(encodings[0].attention_mask.ends_with(&[0, 0]));
         assert_eq!(
             encodings[0].attention_mask.iter().sum::<u32>(),
@@ -317,8 +320,14 @@ mod tests {
             .unwrap();
         let offsets = &encodings[0].offsets;
         assert_eq!(offsets.len(), encodings[0].input_ids.len());
-        assert_eq!(&text[offsets[1].start as usize..offsets[1].end as usize], "hello");
-        assert_eq!(&text[offsets[2].start as usize..offsets[2].end as usize], "world");
+        assert_eq!(
+            &text[offsets[1].start as usize..offsets[1].end as usize],
+            "hello"
+        );
+        assert_eq!(
+            &text[offsets[2].start as usize..offsets[2].end as usize],
+            "world"
+        );
         // Without the flag, offsets stay empty (cheap default).
         let plain = tokenizer
             .tokenize(std::slice::from_ref(&text), &TokenizeOptions::default())

@@ -114,7 +114,13 @@ pub mod pool {
     ///
     /// `hidden` is row-major `[batch, seq, dim]`, `mask` is `[batch, seq]`
     /// (1 = real token). Returns `[batch, dim]`.
-    pub fn mean_pool(hidden: &[f32], mask: &[i64], batch: usize, seq: usize, dim: usize) -> Vec<f32> {
+    pub fn mean_pool(
+        hidden: &[f32],
+        mask: &[i64],
+        batch: usize,
+        seq: usize,
+        dim: usize,
+    ) -> Vec<f32> {
         debug_assert_eq!(hidden.len(), batch * seq * dim);
         debug_assert_eq!(mask.len(), batch * seq);
         let mut out = vec![0.0f32; batch * dim];

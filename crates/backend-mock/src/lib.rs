@@ -338,10 +338,7 @@ impl Backend for MockBackend {
         query: &str,
         documents: &[String],
     ) -> Result<Vec<f32>, BackendError> {
-        let query_words: Vec<String> = query
-            .split_whitespace()
-            .map(|w| w.to_lowercase())
-            .collect();
+        let query_words: Vec<String> = query.split_whitespace().map(|w| w.to_lowercase()).collect();
         Ok(documents
             .iter()
             .map(|doc| {
@@ -583,7 +580,10 @@ mod tests {
         // Content offsets slice the original text; specials carry (0, 0).
         assert_eq!((offsets[0].start, offsets[0].end), (0, 0));
         assert_eq!((offsets[1].start, offsets[1].end), (0, 1));
-        assert_eq!(&text[offsets[2].start as usize..offsets[2].end as usize], "b");
+        assert_eq!(
+            &text[offsets[2].start as usize..offsets[2].end as usize],
+            "b"
+        );
     }
 
     #[tokio::test]
@@ -601,18 +601,12 @@ mod tests {
             "cooking pasta at home".to_string(),
             "fast rust gRPC inference".to_string(),
         ];
-        let scores = backend
-            .rerank("m", "rust inference", &docs)
-            .await
-            .unwrap();
+        let scores = backend.rerank("m", "rust inference", &docs).await.unwrap();
         assert_eq!(scores.len(), 3);
         assert_eq!(scores[0], 1.0, "both query words hit");
         assert_eq!(scores[1], 0.0, "no query words hit");
         assert_eq!(scores[2], 1.0);
-        let again = backend
-            .rerank("m", "rust inference", &docs)
-            .await
-            .unwrap();
+        let again = backend.rerank("m", "rust inference", &docs).await.unwrap();
         assert_eq!(scores, again);
     }
 

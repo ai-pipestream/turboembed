@@ -916,6 +916,7 @@ dependencies = [
  "inferstream-backend",
  "inferstream-protocol",
  "ort",
+ "serde_json",
  "thiserror",
  "tokenizers",
  "tokio",

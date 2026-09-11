@@ -327,14 +327,23 @@ mod tests {
 
     #[test]
     fn fp32_special_values_roundtrip_bitwise() {
-        let values = [0.0f32, -0.0, f32::INFINITY, f32::NEG_INFINITY, f32::MIN_POSITIVE];
+        let values = [
+            0.0f32,
+            -0.0,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::MIN_POSITIVE,
+        ];
         let out = unpack_fp32(&pack_fp32(&values)).unwrap();
         for (a, b) in values.iter().zip(&out) {
             assert_eq!(a.to_bits(), b.to_bits());
         }
         // NaN preserves its payload bit-pattern through the wire format.
         let nan = f32::from_bits(0x7fc0_1234);
-        assert_eq!(unpack_fp32(&pack_fp32(&[nan])).unwrap()[0].to_bits(), nan.to_bits());
+        assert_eq!(
+            unpack_fp32(&pack_fp32(&[nan])).unwrap()[0].to_bits(),
+            nan.to_bits()
+        );
     }
 
     #[test]

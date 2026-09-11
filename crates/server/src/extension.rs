@@ -235,8 +235,7 @@ impl InferstreamService for ExtensionService {
                 None => continue,
             };
             let ready = backend.model_ready(name, "").await;
-            let (platform, versions, embedding_dim) = match backend.model_metadata(name, "").await
-            {
+            let (platform, versions, embedding_dim) = match backend.model_metadata(name, "").await {
                 Ok(metadata) => {
                     let dim = metadata
                         .outputs

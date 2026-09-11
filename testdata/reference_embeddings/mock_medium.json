@@ -1,0 +1,10 @@
+{
+  "model": "mock-embed",
+  "backend": "mock",
+  "text": "The quick brown fox jumps over the lazy dog while the inference server streams embeddings back to its clients.",
+  "pooling": null,
+  "normalize": false,
+  "dim": 8,
+  "l2": 1.1956902,
+  "vector": [0.74001265, 0.12634504, 0.47750616, 0.16261125, -0.12440646, -0.44174945, 0.54794014, 0.3174597]
+}

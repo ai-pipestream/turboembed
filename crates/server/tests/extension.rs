@@ -277,9 +277,9 @@ async fn rerank_orders_by_score_and_honors_top_n() {
             model_name: "mock-embed".into(),
             query: "rust inference".into(),
             documents: vec![
-                "cooking pasta".into(),          // 0 hits
-                "rust inference server".into(),  // 2 hits
-                "some rust code".into(),         // 1 hit
+                "cooking pasta".into(),         // 0 hits
+                "rust inference server".into(), // 2 hits
+                "some rust code".into(),        // 1 hit
             ],
             top_n: 0,
         })
