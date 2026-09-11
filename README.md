@@ -11,7 +11,7 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 | `inferstream-apple` | **native macOS host** (Mac worker) | **MLX**, llama.cpp-Metal for GGUF | engine links stubbed; macOS-only by design; needs a Mac "My Machines" worker for real builds |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
-**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Two real engine paths are live.** NVIDIA: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. Intel: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). TRT-LLM, llama.cpp, in-process OpenVINO, and MLX remain stubs with full config surface; routing to them still fails at startup with the exact feature named.
+**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Two real engine paths are live.** NVIDIA: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. Intel: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). TRT-LLM, llama.cpp, in-process OpenVINO, and MLX remain stubs with full config surface; routing to them still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
 
 ## Architecture
 
@@ -98,13 +98,23 @@ The `ort` crate's prebuilt CUDA bundle (ONNX Runtime 1.28) is built against **CU
 - NVIDIA driver new enough for CUDA 13 (krick's 595.84 → CUDA 13.2: OK).
 - CUDA 13 user-space runtime libs: `libcublasLt.so.13`, `libcublas.so.13`, `libcudart.so.13`, `libnvrtc.so.13`, and a cuDNN 9 built for CUDA 13. A CUDA **12** toolkit (krick's 12.4) does **not** satisfy this.
 
-Two ways to provide them:
+**Bundled route (recommended, no sudo)** — the repo scripts fetch pinned
+NVIDIA pip wheels (~1.6 GB) into `.libs/nvidia/lib` and set the loader path
+for you:
 
 ```bash
-# No sudo — NVIDIA's pip wheels, ~1.6 GB, then point the loader at them:
+scripts/fetch-runtime-libs.sh nvidia          # once per host; pinned wheel versions
+cargo build -p inferstream-arch-nvidia --release --features ort-cuda
+scripts/run-nvidia.sh --config config/nvidia.toml   # sets LD_LIBRARY_PATH, execs the binary
+```
+
+Alternatives, if you prefer to manage the libs yourself:
+
+```bash
+# Manual pip wheels (what the script automates):
 python3 -m venv .venv-cuda-libs
 .venv-cuda-libs/bin/pip install --only-binary :all: \
-    nvidia-cublas-cu13 nvidia-cuda-runtime nvidia-cudnn-cu13
+    nvidia-cublas nvidia-cuda-runtime nvidia-cuda-nvrtc nvidia-cudnn-cu13
 NV=$PWD/.venv-cuda-libs/lib/python3*/site-packages/nvidia
 LD_LIBRARY_PATH=$NV/cu13/lib:$NV/cudnn/lib \
     ./target/release/inferstream-nvidia --config config/nvidia.toml
@@ -112,6 +122,15 @@ LD_LIBRARY_PATH=$NV/cu13/lib:$NV/cudnn/lib \
 # With sudo — system install (NVIDIA apt repo):
 sudo apt install cuda-runtime-13-2 libcudnn9-cuda-13
 ```
+
+libonnxruntime itself is fetched at **build time** by `ort`'s
+`download-binaries` feature, so no system ORT install is ever needed.
+
+**Intel bundling:** nothing to fetch — `backend = "ovms"` is a pure
+tonic/prost gRPC client to the OpenVINO Model Server already running on the
+host; it links zero OpenVINO libraries (`scripts/fetch-runtime-libs.sh intel`
+prints exactly this). Runtime libs for the in-process OpenVINO backend will
+be added to the script when its FFI link lands.
 
 EP registration uses `error_on_failure`: if these libs are missing the binary **fails at startup** with the loader's actual error instead of silently serving on CPU. `device = "tensorrt"` (build feature `ort-tensorrt`) additionally requires TensorRT 10 (`sudo apt install tensorrt-libs` from the NVIDIA repo) — not installed on krick today, so stay on `device = "cuda"`.
 
@@ -151,7 +170,52 @@ Upstream OIP defines only unary `ModelInfer`. inferstream adds a clearly marked 
 
 - `rpc ModelStreamInfer(stream ModelInferRequest) returns (stream ModelStreamInferResponse)` — the de-facto streaming shape established by NVIDIA Triton's `grpc_service.proto`, so existing streaming clients interoperate.
 - Multiple requests can be multiplexed on one stream; every response chunk **echoes the request `id`** for correlation, and a backend may emit many chunks per request (one per generated token). Per-request failures are reported in `error_message` without tearing down the stream.
-- `ServerMetadata.extensions` advertises `model_stream_infer`.
+- `ServerMetadata.extensions` advertises `model_stream_infer` and `inferstream.v1`.
+
+## INFERSTREAM EXTENSION: `inferstream.v1.InferstreamService`
+
+A second, clearly separated gRPC service (`crates/protocol/proto/inferstream_extension.proto`) runs on the same endpoint with the same bearer auth. The vendored OIP service is untouched — clients that only speak OIP lose nothing (every `Embed` is expressible as `ModelInfer` with a BYTES `text` tensor plus the `pooling` / `normalize` / `truncate` InferParameters).
+
+| RPC | what it does |
+|---|---|
+| `Tokenize` | batch tokenization with the model's server-side tokenizer: `input_ids`, `attention_mask`, token strings, byte offsets on request, optional truncation and pad-to-longest |
+| `Detokenize` | inverse of Tokenize; `skip_special_tokens` drops CLS/SEP/PAD frames |
+| `Embed` | typed convenience wrapper over ModelInfer — send strings, get `float` vectors back; pooling/normalize/truncate forwarded as InferParameters |
+| `ListModels` | one call for the whole repository: name, backend id, readiness, platform, embedding dim, tokenizer availability |
+| `Rerank` | query/document relevance scores, sorted, with `top_n`; engines without a reranker answer `UNAVAILABLE` (the mock implements a deterministic scorer so the wire path tests everywhere) |
+
+Tokenizer resolution: when a model's config sets `tokenizer_dir` (a `tokenizer.json` file or a directory containing one), the server loads a local HuggingFace fast tokenizer at startup and answers Tokenize/Detokenize itself — including for `backend = "ovms"` models whose upstream pipelines tokenize server-side on the Model Server. Without a configured tokenizer the request is delegated to the backend (the ORT engine reuses its own HF tokenizer; the mock ships a lossless byte-level tokenizer; everything else reports `UNAVAILABLE` with the config fix named).
+
+grpcurl examples (mock server from `config/example.toml`):
+
+```bash
+PROTO="-proto crates/protocol/proto/inferstream_extension.proto"
+
+# Repository listing: names, backends, readiness, dims
+grpcurl -plaintext $PROTO 127.0.0.1:8461 inferstream.v1.InferstreamService/ListModels
+
+# Batch tokenize with offsets and padding
+grpcurl -plaintext $PROTO \
+  -d '{"model_name":"mock-embed","texts":["hello world","hi"],"with_offsets":true,"pad_to_longest":true}' \
+  127.0.0.1:8461 inferstream.v1.InferstreamService/Tokenize
+
+# Detokenize (skip special tokens)
+grpcurl -plaintext $PROTO \
+  -d '{"model_name":"mock-embed","sequences":[{"ids":[1,107,108,2]}],"skip_special_tokens":true}' \
+  127.0.0.1:8461 inferstream.v1.InferstreamService/Detokenize
+
+# Embed without touching raw tensors
+grpcurl -plaintext $PROTO \
+  -d '{"model_name":"mock-embed","texts":["hello world"],"pooling":"mean","normalize":true}' \
+  127.0.0.1:8461 inferstream.v1.InferstreamService/Embed
+
+# Rerank with top_n
+grpcurl -plaintext $PROTO \
+  -d '{"model_name":"mock-embed","query":"rust inference","documents":["cooking pasta","rust inference server"],"top_n":1}' \
+  127.0.0.1:8461 inferstream.v1.InferstreamService/Rerank
+```
+
+With bearer auth enabled add `-H 'authorization: Bearer <key>'` — the extension service sits behind the same interceptor.
 
 Raw tensor rules (helpers in `inferstream_protocol::tensor`):
 
@@ -160,6 +224,14 @@ Raw tensor rules (helpers in `inferstream_protocol::tensor`):
 - `FP16` / `BF16` exist only in raw form — one more reason raw is the primary path.
 
 Generation contract (all engines, identical to what the mock emits today): input `text` (BYTES) or `input_ids` (INT32); each stream chunk carries `token` (BYTES) and sets the bool parameter `final` on the terminal chunk. Embeddings: unary, output `embedding` FP32 `[d]`. Clients don't change between the mock and a GPU engine.
+
+## Testing & reference embeddings (goldens)
+
+```bash
+cargo test --workspace          # 90+ tests, passes with zero GPU libraries
+```
+
+Fixed prompts (short / medium / empty / unicode / long-truncation) live as JSON goldens in `testdata/reference_embeddings/`. The deterministic-mock goldens run on every `cargo test` (cosine ≥ 0.999 plus exact-value and L2 checks, both directly and end-to-end through the `Embed` RPC); regenerate them with `cargo run -p inferstream-server --example gen_reference_embeddings`. GPU goldens for the real engines are `#[ignore]`d and feature-gated (`cargo test -p inferstream-backend-ort --features cuda -- --ignored gpu_golden` on krick) — see [`testdata/reference_embeddings/README.md`](testdata/reference_embeddings/README.md) for the schema and the krick/krick-1 regeneration walkthrough.
 
 ## Trying it now
 
