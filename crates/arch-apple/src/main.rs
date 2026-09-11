@@ -1,11 +1,13 @@
 //! `inferstream-apple`: the Apple arch binary — **native macOS hosts only**.
 //!
-//! Serves MLX models (`backend = "mlx"`) and GGUF models via llama.cpp-Metal
+//! Serves MLX models (`backend = "mlx"`, via the persistent Python bridge
+//! worker in `backend-apple`) and GGUF models via llama.cpp-Metal
 //! (`backend = "llama-cpp"`, `device = "metal"`). Metal and the Neural
 //! Engine do not pass through Linux containers, so this binary is deployed
 //! directly on the Mac (launchd service or plain process), not
-//! containerized. It still compiles on Linux as a stub so CI can type-check
-//! the wiring; at runtime on non-macOS every engine reports Unavailable.
+//! containerized. It still compiles on Linux so CI can type-check the
+//! wiring; at runtime on non-macOS the MLX bridge spawn fails and every MLX
+//! call reports Unavailable.
 
 use std::sync::Arc;
 
@@ -24,15 +26,32 @@ fn invalid(model: &ModelConfig, message: String) -> ServerError {
 
 fn factory() -> impl inferstream_server::BackendFactory {
     let mock: Arc<MockBackend> = Arc::new(MockBackend::default());
+    // One persistent Python worker shared by every MLX model, so all models
+    // stay hot in the same process (see backend-apple's bridge module).
+    // Location comes from INFERSTREAM_MLX_PYTHON / INFERSTREAM_MLX_BRIDGE
+    // (defaults: .venv/bin/python, python/mlx_bridge.py — scripts/setup-mlx.sh
+    // creates the venv).
+    let mlx_worker: Arc<inferstream_backend_apple::MlxWorker> = Arc::new(
+        inferstream_backend_apple::MlxWorker::new(
+            inferstream_backend_apple::MlxWorkerConfig::from_env(),
+        ),
+    );
     move |model: &ModelConfig| -> Result<Arc<dyn Backend>, ServerError> {
         match model.backend {
             BackendKind::Mock => Ok(mock.clone()),
             BackendKind::Mlx => {
+                let defaults = inferstream_backend_apple::MlxConfig::default();
                 let backend = inferstream_backend_apple::MlxBackend::new(
                     inferstream_backend_apple::MlxConfig {
-                        model_path: model.path.clone().unwrap_or_default(),
-                        max_output_tokens: None,
+                        model: model.path.clone().unwrap_or_default(),
+                        max_batch: model
+                            .max_batch_size
+                            .map(|n| n as usize)
+                            .unwrap_or(defaults.max_batch),
+                        normalize: model.normalize.unwrap_or(defaults.normalize),
+                        max_output_tokens: defaults.max_output_tokens,
                     },
+                    Arc::clone(&mlx_worker),
                 )
                 .map_err(|e| invalid(model, e.to_string()))?;
                 Ok(Arc::new(backend))

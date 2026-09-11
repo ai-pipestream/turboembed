@@ -1,3 +1,6 @@
 /target
 .venv-cuda-libs/
 /.libs/
+# MLX venv + fetched tokenizer artifacts (scripts/setup-mlx.sh)
+/.venv/
+/models/
