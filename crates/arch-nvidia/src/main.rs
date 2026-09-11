@@ -1,10 +1,13 @@
 //! `inferstream-nvidia`: the NVIDIA arch binary.
 //!
-//! Peak path is the in-process TensorRT-LLM Executor (`backend = "trt-llm"`,
-//! routing surface behind feature `trtllm`, real runtime link behind
-//! `trtllm-sys`). llama.cpp-CUDA serves GGUF models as the fallback path, and
-//! ONNX Runtime covers plain ONNX models. The mock backend is always
-//! available for wire-path smoke tests before engines are loaded.
+//! The **primary path today is ONNX Runtime on GPU** (`backend = "ort"`,
+//! `device = "cuda"`; real link behind feature `ort-cuda`, CPU-only link
+//! behind `ort-runtime`) serving encoder embedding models (BGE, MiniLM).
+//! TensorRT-LLM (`backend = "trt-llm"`, routing surface behind `trtllm`,
+//! real runtime link behind `trtllm-sys`) is the optional later peak path
+//! for generative models; llama.cpp-CUDA serves GGUF models as the
+//! secondary/fallback path. The mock backend is always available for
+//! wire-path smoke tests before engines are loaded.
 
 use std::sync::Arc;
 
@@ -73,9 +76,31 @@ fn factory() -> impl inferstream_server::BackendFactory {
             BackendKind::Ort => {
                 #[cfg(feature = "ort")]
                 {
-                    Ok(Arc::new(inferstream_backend_ort::OrtBackend::new(
-                        model.path.clone(),
-                    )))
+                    use inferstream_backend_ort::{OrtBackend, OrtConfig, OrtDevice, Pooling};
+                    let device = model
+                        .device
+                        .as_deref()
+                        .map(OrtDevice::from_config)
+                        .transpose()
+                        .map_err(|e| invalid(model, e.to_string()))?
+                        .unwrap_or_default();
+                    let pooling = model
+                        .pooling
+                        .as_deref()
+                        .map(Pooling::from_config)
+                        .transpose()
+                        .map_err(|e| invalid(model, e.to_string()))?
+                        .unwrap_or_default();
+                    let backend = OrtBackend::new(OrtConfig {
+                        model_path: model.path.clone().unwrap_or_default(),
+                        tokenizer_path: model.tokenizer_dir.clone(),
+                        device,
+                        max_seq_len: model.max_seq_len.map(|v| v as usize),
+                        pooling,
+                        normalize: model.normalize,
+                    })
+                    .map_err(|e| invalid(model, e.to_string()))?;
+                    Ok(Arc::new(backend))
                 }
                 #[cfg(not(feature = "ort"))]
                 Err(unsupported(model, "rebuild with --features ort"))

@@ -1,6 +1,6 @@
 [package]
 name = "inferstream-backend-ort"
-description = "ONNX Runtime backend stub for inferstream"
+description = "ONNX Runtime embedding backend for inferstream (CPU / CUDA / TensorRT EPs)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,7 +8,24 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
+[features]
+# Real ONNX Runtime link via the maintained `ort` crate (pykeio/ort).
+# `ort`'s default `download-binaries` feature fetches a matching ONNX Runtime
+# build at compile time, so no system libonnxruntime is required.
+runtime = ["dep:ort", "dep:tokenizers"]
+# CUDA execution provider (needs NVIDIA driver + CUDA 12 + cuDNN 9 on the host).
+cuda = ["runtime", "ort/cuda"]
+# TensorRT execution provider (needs TensorRT 10 libs on the host in addition
+# to CUDA; registration fails cleanly at startup when they are missing).
+tensorrt = ["runtime", "ort/tensorrt"]
+
 [dependencies]
 inferstream-protocol = { workspace = true }
 inferstream-backend = { workspace = true }
 async-trait = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+
+ort = { version = "2.0.0-rc.13", optional = true }
+tokenizers = { version = "0.23", optional = true }

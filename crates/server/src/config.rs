@@ -123,6 +123,19 @@ pub struct ModelConfig {
     /// omit for full offload.
     #[serde(default)]
     pub n_gpu_layers: Option<u32>,
+
+    /// Embedding backends (ort): pooling strategy, `"mean"` (default) or
+    /// `"cls"`.
+    #[serde(default)]
+    pub pooling: Option<String>,
+
+    /// Embedding backends (ort): L2-normalize outputs (default true).
+    #[serde(default)]
+    pub normalize: Option<bool>,
+
+    /// Embedding backends (ort): tokenizer truncation length (default 512).
+    #[serde(default)]
+    pub max_seq_len: Option<u32>,
 }
 
 /// Backend kinds a model can route to.

@@ -1,9 +1,17 @@
 # inferstream-nvidia example configuration (krick-class NVIDIA host).
 #
-#   cargo build -p inferstream-arch-nvidia --release            # stub surface
-#   cargo build -p inferstream-arch-nvidia --release --features trtllm-sys
-#                                # real Executor link; CUDA + TRT-LLM host only
+# Primary path today: ONNX Runtime with the CUDA execution provider serving
+# encoder embedding models (BGE / MiniLM). TensorRT-LLM stays an optional
+# later feature for generative models.
+#
+#   cargo build -p inferstream-arch-nvidia --release                        # stub surface
+#   cargo build -p inferstream-arch-nvidia --release --features ort-runtime # real ORT, CPU EP
+#   cargo build -p inferstream-arch-nvidia --release --features ort-cuda    # real ORT, CUDA EP
 #   ./target/release/inferstream-nvidia --config config/nvidia.toml
+#
+# Host requirements for ort-cuda: NVIDIA driver + CUDA 12 + cuDNN 9 (present
+# on krick). No TensorRT needed. `device = "tensorrt"` additionally needs
+# TensorRT 10 libs and a build with --features ort-tensorrt.
 
 listen = "0.0.0.0:8461"
 
@@ -12,30 +20,47 @@ mode = "bearer"
 # Prefer INFERSTREAM_API_KEYS=key-a,key-b in the environment.
 bearer_tokens = ["change-me"]
 
-# Wire-path smoke test target; remove once engines are live.
+# Wire-path smoke test target; keep until all engines are live.
 [[models]]
 name = "mock-embed"
 backend = "mock"
 
-# Peak path: in-process TensorRT-LLM Executor. engine_dir comes from
-# trtllm-build; tokenizer_dir enables server-side text <-> ids.
+# PRIMARY: real ONNX embedding model already on krick (TEI's HF cache).
+# The tokenizer.json is auto-discovered one directory above the onnx file.
+# Flip device = "cpu" to bring the model up before the CUDA EP is validated.
 [[models]]
-name = "llama-70b"
-backend = "trt-llm"
-engine_dir = "/engines/llama-70b-fp8"
-tokenizer_dir = "/engines/llama-70b-fp8/tokenizer"
-max_batch_size = 64
-dtype = "fp8"
-
-# Fallback/GGUF path: llama.cpp built with GGML_CUDA.
-[[models]]
-name = "nomic-embed-text"
-backend = "llama-cpp"
+name = "minilm-l6-v2"
+backend = "ort"
 device = "cuda"
-path = "/models/nomic-embed-text-v1.5.Q8_0.gguf"
+path = "/work/tei-model-cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/onnx/model.onnx"
+pooling = "mean"
+normalize = true
+max_seq_len = 256
 
-# Plain ONNX models via ONNX Runtime (CUDA EP once wired).
+# BGE under /work/models is safetensors-only today; export ONNX first, e.g.:
+#   optimum-cli export onnx --model BAAI/bge-large-en-v1.5 /work/models/bge-large-en-v1.5-onnx
+# then route it:
 # [[models]]
-# name = "reranker"
+# name = "bge-large-en-v1.5"
 # backend = "ort"
-# path = "/models/bge-reranker.onnx"
+# device = "cuda"
+# path = "/work/models/bge-large-en-v1.5-onnx/model.onnx"
+# pooling = "cls"          # BGE uses CLS pooling
+# normalize = true
+
+# Fallback/GGUF path: llama.cpp built with GGML_CUDA (link pending).
+# [[models]]
+# name = "nomic-embed-text"
+# backend = "llama-cpp"
+# device = "cuda"
+# path = "/models/nomic-embed-text-v1.5.Q8_0.gguf"
+
+# OPTIONAL LATER: in-process TensorRT-LLM Executor for generative models.
+# Requires --features trtllm-sys plus CUDA + TRT-LLM engines on the host.
+# [[models]]
+# name = "llama-70b"
+# backend = "trt-llm"
+# engine_dir = "/engines/llama-70b-fp8"
+# tokenizer_dir = "/engines/llama-70b-fp8/tokenizer"
+# max_batch_size = 64
+# dtype = "fp8"

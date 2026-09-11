@@ -14,14 +14,23 @@ path = "src/main.rs"
 
 [features]
 # The stub crates compile everywhere, so the routing surface is enabled by
-# default; only the actual GPU runtime link (trtllm-sys) needs a CUDA +
-# TensorRT-LLM host and is opt-in.
+# default; only the actual engine links need GPU-host toolchains and are
+# opt-in.
 default = ["trtllm", "llamacpp", "ort"]
 trtllm = ["dep:inferstream-backend-trtllm"]
 # Real Executor link — requires CUDA toolchain + TRT-LLM libs; not in CI.
+# Optional later feature: ORT (below) is the current primary embedding path.
 trtllm-sys = ["trtllm", "inferstream-backend-trtllm/trtllm-sys"]
 llamacpp = ["dep:inferstream-backend-llamacpp"]
 ort = ["dep:inferstream-backend-ort"]
+# Real ONNX Runtime link (CPU EP). `ort`'s download-binaries fetches a
+# matching ONNX Runtime at build time — no system libonnxruntime needed.
+ort-runtime = ["ort", "inferstream-backend-ort/runtime"]
+# CUDA EP — the primary embedding path on krick-class hosts. Needs the
+# NVIDIA driver + CUDA 12 + cuDNN 9 at runtime (no TensorRT required).
+ort-cuda = ["ort-runtime", "inferstream-backend-ort/cuda"]
+# TensorRT EP — additionally needs TensorRT 10 libs on the host.
+ort-tensorrt = ["ort-cuda", "inferstream-backend-ort/tensorrt"]
 
 [dependencies]
 inferstream-server = { workspace = true }
