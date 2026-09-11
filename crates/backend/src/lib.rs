@@ -73,10 +73,7 @@ pub trait Backend: Send + Sync + 'static {
     ) -> Result<ModelMetadata, BackendError>;
 
     /// Unary inference. The returned response must echo the request `id`.
-    async fn infer(
-        &self,
-        request: ModelInferRequest,
-    ) -> Result<ModelInferResponse, BackendError>;
+    async fn infer(&self, request: ModelInferRequest) -> Result<ModelInferResponse, BackendError>;
 
     /// Streaming inference: zero or more response chunks for one request
     /// (e.g. one chunk per generated token). Every chunk must echo the
@@ -146,11 +143,7 @@ mod tests {
         async fn model_ready(&self, _: &str, _: &str) -> bool {
             true
         }
-        async fn model_metadata(
-            &self,
-            name: &str,
-            _: &str,
-        ) -> Result<ModelMetadata, BackendError> {
+        async fn model_metadata(&self, name: &str, _: &str) -> Result<ModelMetadata, BackendError> {
             Ok(ModelMetadata {
                 name: name.to_string(),
                 ..Default::default()

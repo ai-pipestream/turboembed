@@ -145,10 +145,12 @@ pub async fn serve(
         .listen
         .parse()
         .map_err(|_| ServerError::InvalidAddr(config.listen.clone()))?;
-    let listener = TcpListener::bind(addr).await.map_err(|source| ServerError::Bind {
-        addr: config.listen.clone(),
-        source,
-    })?;
+    let listener = TcpListener::bind(addr)
+        .await
+        .map_err(|source| ServerError::Bind {
+            addr: config.listen.clone(),
+            source,
+        })?;
     let local_addr = listener.local_addr().map_err(|source| ServerError::Bind {
         addr: config.listen.clone(),
         source,

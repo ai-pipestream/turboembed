@@ -51,10 +51,7 @@ impl Backend for OpenVinoBackend {
         Err(Self::unavailable())
     }
 
-    async fn infer(
-        &self,
-        _request: ModelInferRequest,
-    ) -> Result<ModelInferResponse, BackendError> {
+    async fn infer(&self, _request: ModelInferRequest) -> Result<ModelInferResponse, BackendError> {
         Err(Self::unavailable())
     }
 }

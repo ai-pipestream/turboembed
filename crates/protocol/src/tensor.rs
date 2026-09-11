@@ -229,8 +229,7 @@ pub fn unpack_bytes(raw: &[u8]) -> Result<Vec<Vec<u8>>, TensorError> {
                 raw.len()
             )));
         }
-        let len = u32::from_le_bytes(raw[cursor..cursor + 4].try_into().expect("4 bytes"))
-            as usize;
+        let len = u32::from_le_bytes(raw[cursor..cursor + 4].try_into().expect("4 bytes")) as usize;
         cursor += 4;
         if cursor + len > raw.len() {
             return Err(TensorError::TruncatedBytes(format!(
@@ -295,7 +294,10 @@ mod tests {
         let elements: Vec<&[u8]> = vec![b"hello", b"", b"inference"];
         let raw = pack_bytes(&elements);
         let back = unpack_bytes(&raw).unwrap();
-        assert_eq!(back, elements.iter().map(|e| e.to_vec()).collect::<Vec<_>>());
+        assert_eq!(
+            back,
+            elements.iter().map(|e| e.to_vec()).collect::<Vec<_>>()
+        );
         assert!(validate_raw(DataType::Bytes, &[3], &raw).is_ok());
         assert!(validate_raw(DataType::Bytes, &[2], &raw).is_err());
     }

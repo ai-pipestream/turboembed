@@ -10,7 +10,12 @@ use inferstream_server::config::Config;
 #[command(name = "inferstream", version)]
 struct Args {
     /// Path to the TOML config file.
-    #[arg(long, short, env = "INFERSTREAM_CONFIG", default_value = "config/example.toml")]
+    #[arg(
+        long,
+        short,
+        env = "INFERSTREAM_CONFIG",
+        default_value = "config/example.toml"
+    )]
     config: String,
 
     /// Override the listen address from the config file.

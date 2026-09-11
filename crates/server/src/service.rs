@@ -139,9 +139,8 @@ impl GrpcInferenceService for InferenceService {
     ) -> Result<Response<Self::ModelStreamInferStream>, Status> {
         let mut incoming = request.into_inner();
         let registry = Arc::clone(&self.registry);
-        let (tx, rx) = mpsc::channel::<Result<ModelStreamInferResponse, Status>>(
-            STREAM_CHANNEL_CAPACITY,
-        );
+        let (tx, rx) =
+            mpsc::channel::<Result<ModelStreamInferResponse, Status>>(STREAM_CHANNEL_CAPACITY);
 
         // Driver task: pull requests off the stream and fan each one out to
         // its backend. Responses for concurrent requests are multiplexed onto

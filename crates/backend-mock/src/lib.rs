@@ -18,8 +18,7 @@ use async_trait::async_trait;
 use inferstream_backend::{Backend, BackendError, ModelMetadata, ResponseStream};
 use inferstream_protocol::inference::{
     infer_parameter::ParameterChoice, model_infer_response::InferOutputTensor,
-    model_metadata_response::TensorMetadata, InferParameter, ModelInferRequest,
-    ModelInferResponse,
+    model_metadata_response::TensorMetadata, InferParameter, ModelInferRequest, ModelInferResponse,
 };
 use inferstream_protocol::tensor::{pack_bytes, pack_fp32, unpack_bytes, DataType};
 
@@ -141,10 +140,7 @@ impl Backend for MockBackend {
         })
     }
 
-    async fn infer(
-        &self,
-        request: ModelInferRequest,
-    ) -> Result<ModelInferResponse, BackendError> {
+    async fn infer(&self, request: ModelInferRequest) -> Result<ModelInferResponse, BackendError> {
         let text = Self::text_input(&request)?;
         let embedding = self.embed(&text);
         Ok(ModelInferResponse {
@@ -233,7 +229,10 @@ mod tests {
         let embedding = unpack_fp32(&a.raw_output_contents[0]).unwrap();
         assert_eq!(embedding.len(), backend.embedding_dim());
         assert!(embedding.iter().all(|v| (-1.0..1.0).contains(v)));
-        let c = backend.infer(text_request("r3", "different")).await.unwrap();
+        let c = backend
+            .infer(text_request("r3", "different"))
+            .await
+            .unwrap();
         assert_ne!(a.raw_output_contents, c.raw_output_contents);
     }
 
@@ -261,7 +260,9 @@ mod tests {
             .iter()
             .map(|c| {
                 matches!(
-                    c.parameters.get("final").and_then(|p| p.parameter_choice.as_ref()),
+                    c.parameters
+                        .get("final")
+                        .and_then(|p| p.parameter_choice.as_ref()),
                     Some(ParameterChoice::BoolParam(true))
                 )
             })

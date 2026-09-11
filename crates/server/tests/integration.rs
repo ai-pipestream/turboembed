@@ -234,10 +234,7 @@ async fn bearer_auth_gates_all_rpcs() {
     let (mut client, guard) = start_server(BEARER_CONFIG).await;
 
     // No token: rejected.
-    let error = client
-        .server_live(ServerLiveRequest {})
-        .await
-        .unwrap_err();
+    let error = client.server_live(ServerLiveRequest {}).await.unwrap_err();
     assert_eq!(error.code(), tonic::Code::Unauthenticated);
 
     // Wrong token: rejected.

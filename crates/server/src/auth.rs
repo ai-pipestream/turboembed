@@ -75,7 +75,9 @@ mod tests {
 
     #[test]
     fn accepts_valid_token() {
-        assert!(auth().check(request_with_header(Some("Bearer good-key"))).is_ok());
+        assert!(auth()
+            .check(request_with_header(Some("Bearer good-key")))
+            .is_ok());
     }
 
     #[test]
