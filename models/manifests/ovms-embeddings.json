@@ -321,8 +321,8 @@
       "files": [
         {
           "path": "tokenizer_gte_base/1/openvino_tokenizer.xml",
-          "sha256": "80df8238083095bdbbdd07268db84a1282fa6d04f5a1b7ccb70eca8dd62b0d8d",
-          "size": 33601
+          "sha256": "fcf9346db208e5ce116b610543fbf6863cf1c7a60299f75ec0782a9be3ff3e7c",
+          "size": 33538
         },
         {
           "path": "tokenizer_gte_base/1/openvino_tokenizer.bin",
@@ -331,13 +331,13 @@
         },
         {
           "path": "embedding_gte_base/1/openvino_model.xml",
-          "sha256": "649f4680fa650bc9a64d29ff7eadd832526029cd072d1115385274b46a9e3078",
-          "size": 401111
+          "sha256": "1913cc5a13af0129312502d1730bffcbccc618aa4bf4a3b498920cc97825b1df",
+          "size": 506533
         },
         {
           "path": "embedding_gte_base/1/openvino_model.bin",
-          "sha256": "2a76b7ca861618a5676a78d4f68f164c96f171c75eb7a89de57021c7c88f54d5",
-          "size": 217791617
+          "sha256": "60cbf7adbe79df276bfffa352ac72f7862defd9ff54165a154df316a214c5b22",
+          "size": 217791623
         },
         {
           "path": "hf_tokenizer_gte_base/tokenizer.json",
@@ -364,8 +364,8 @@
       "files": [
         {
           "path": "tokenizer_gte_small/1/openvino_tokenizer.xml",
-          "sha256": "92b4955fc16d98a9c19a1f37e8346aef8206b0be07f0a6f06e917093eb66c8f1",
-          "size": 33601
+          "sha256": "19fe789b7d900e3fd3839f1cee8fcc1d1e81f03b5eda644d4b6396f551058806",
+          "size": 33538
         },
         {
           "path": "tokenizer_gte_small/1/openvino_tokenizer.bin",
@@ -374,13 +374,13 @@
         },
         {
           "path": "embedding_gte_small/1/openvino_model.xml",
-          "sha256": "ef4995d2b783734fb4b26fd9778dbc43657ca0e885db84090679b1918cb46b8d",
-          "size": 400820
+          "sha256": "c006724332ed9b132c73b6ece496bcd106efd3bc217f5c020c9c30f31d74ad3c",
+          "size": 505747
         },
         {
           "path": "embedding_gte_small/1/openvino_model.bin",
-          "sha256": "9eeccdedf00f9c514737288e387db281a06ad1b1ffff32f48ea4ce16a4556453",
-          "size": 66432641
+          "sha256": "68a1ddd872d7d6f8ec33eed2d4cd2ed2fe7f2258362ae7dd8d113ea7436c6d32",
+          "size": 66432649
         },
         {
           "path": "hf_tokenizer_gte_small/tokenizer.json",

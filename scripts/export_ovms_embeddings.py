@@ -187,7 +187,12 @@ def export_alias(alias: str, revision: str, out: Path, hf_out: Path) -> None:
         example = hf_tok(["inferstream export smoke"], return_tensors="pt")
         return finish_export(alias, spec, ov_model, hf_tok, example, out, hf_out)
 
-    model = AutoModel.from_pretrained(repo, revision=revision)
+    # dtype=float32 explicitly: transformers 5.x defaults to the checkpoint
+    # dtype, and some repos (e.g. thenlper/gte-*) ship fp16 weights — tracing
+    # those yields an fp16-in/out graph, and OVMS then answers Embed with an
+    # FP16 tensor the inferstream backend rejects. FP16 compression of the
+    # IR happens at save_model time regardless; graph IO must stay FP32.
+    model = AutoModel.from_pretrained(repo, revision=revision, dtype=torch.float32)
     model = model.eval()
 
     class Wrapper(torch.nn.Module):
