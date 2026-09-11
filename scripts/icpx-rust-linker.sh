@@ -19,9 +19,10 @@ command -v icpx >/dev/null || {
     echo "error: icpx not on PATH (source /opt/intel/oneapi/setvars.sh)" >&2
     exit 1
 }
-# Prefer bfd if present: rust-lld rejects R_X86_64_64 in SYCL offload wrappers.
+# -fuse-ld after rustc's args so a trailing -fuse-ld=lld does not win.
+# bfd accepts SYCL offload wrappers that rust-lld rejects (R_X86_64_64).
 FUSE_LD=()
 if [ -x /usr/bin/ld.bfd ] || command -v ld.bfd >/dev/null 2>&1; then
     FUSE_LD=(-fuse-ld=bfd)
 fi
-exec icpx -fsycl -fPIC "${FUSE_LD[@]}" "$@"
+exec icpx -fsycl -fPIC "$@" "${FUSE_LD[@]}"

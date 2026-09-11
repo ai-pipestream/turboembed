@@ -50,6 +50,10 @@ fn link_sycl() {
     // Host SYCL runtime. Device-image extraction is icpx -fsycl (linker wrapper).
     dylib("sycl");
     dylib("OpenCL");
+    // icx compiles ggml-cpu with OpenMP (`__kmpc_*`).
+    if compiler_lib.join("libiomp5.so").exists() {
+        dylib("iomp5");
+    }
     // Intel compiler helper libs (needed when rust-lld is the driver).
     for lib in ["svml", "irng", "imf", "intlc"] {
         if compiler_lib.join(format!("lib{lib}.so")).exists() {
