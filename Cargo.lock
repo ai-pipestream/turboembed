@@ -1114,8 +1114,14 @@ name = "inferstream-backend-apple"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "futures",
  "inferstream-backend",
  "inferstream-protocol",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-stream",
+ "tracing",
 ]
 
 [[package]]
