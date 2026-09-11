@@ -1,28 +1,11 @@
 #!/usr/bin/env bash
-# Smoke-test Tokenize + ModelStreamInfer for every *generation* alias a
-# running inferstream binary serves. Works against any arch (nvidia
-# llama.cpp-CUDA, intel llama.cpp-SYCL server-client, apple mlx-lm): the
-# whole point of logical model names is that this script does not care
-# which engine answers.
-#
-# Live GPU is the acceptance path. This script talks to an already-running
-# server — it does not start one, and it does not download weights.
+# Smoke-test Tokenize + ModelStreamInfer for every generation alias a
+# running inferstream binary serves. Works against any arch.
 #
 # Usage:
 #   scripts/smoke-llms.sh [host:port] [bearer-token] [model ...]
 #
-#   host:port      default 127.0.0.1:8461
-#   bearer-token   default "change-me" (pass "" for auth mode = none)
-#   model ...      subset to test; default = catalog LLM aliases present
-#                  in ListModels (default-llm, qwen-0.5b, qwen-7b)
-#
-# Examples:
-#   scripts/smoke-llms.sh                                # local, known aliases
-#   scripts/smoke-llms.sh krick:8461 "$KEY"              # nvidia host
-#   scripts/smoke-llms.sh krick-1:8461 "$KEY" default-llm qwen-7b
-#
-# Needs grpcurl, jq, python3. Exits nonzero if Tokenize or StreamInfer
-# fails for any tested model.
+# Needs grpcurl, jq, perl (pack BYTES). No python3.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -41,6 +24,10 @@ command -v grpcurl >/dev/null || { echo "error: grpcurl not installed" >&2; exit
 command -v jq >/dev/null || { echo "error: jq not installed" >&2; exit 1; }
 
 KNOWN_LLM='default-llm qwen-0.5b qwen-7b'
+
+now_ms() {
+    perl -MTime::HiRes=time -e 'printf("%d\n", time*1000)'
+}
 
 echo "--- ListModels @ $ADDR ---"
 LISTING=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
@@ -68,11 +55,9 @@ fi
 
 if [ ${#MODELS[@]} -eq 0 ]; then
     echo "error: no LLM aliases to smoke (served: ${SERVED[*]:-none})" >&2
-    echo "pass model names, or add default-llm / qwen-0.5b / qwen-7b to serve" >&2
     exit 1
 fi
 
-# Tokenize one prompt; prints "<n_ids> <n_tokens> <first_token>" or fails.
 tokenize_once() {
     local model="$1" out
     local req
@@ -80,67 +65,50 @@ tokenize_once() {
         '{model_name:$m, texts:["Hello, inferstream!"]}')
     out=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" -d "$req" "$ADDR" \
         inferstream.v1.InferstreamService/Tokenize) || return 1
-    printf '%s' "$out" | python3 -c '
-import json, sys
-r = json.load(sys.stdin)
-encs = r.get("encodings", [])
-if not encs:
-    sys.exit("no encodings")
-ids = encs[0].get("ids") or encs[0].get("inputIds") or []
-toks = encs[0].get("tokens") or []
-print(len(ids), len(toks), (toks[0] if toks else "-"))
-'
+    printf '%s' "$out" | jq -r '
+        .encodings[0] as $e
+        | (($e.ids // $e.inputIds // []) | length) as $n
+        | (($e.tokens // []) | length) as $t
+        | "\($n) \($t) \($e.tokens[0] // "-")"
+    '
 }
 
-# One short streamed completion; prints "<n_chunks> <final> <latency_ms>".
 stream_once() {
-    local model="$1" t0 t1
+    local model="$1"
     local b64
-    b64=$(python3 -c 'import base64,struct; t=b"Say hello in five words or fewer."; print(base64.b64encode(struct.pack("<I",len(t))+t).decode())')
+    b64=$(printf '%s' 'Say hello in five words or fewer.' \
+        | perl -e 'undef $/; $t=<>; print pack("V", length($t)).$t' | base64)
     local req
     req=$(jq -n --arg m "$model" --arg b64 "$b64" \
-        '{model_name:$m, id:"smoke-llms", inputs:[{name:"text", datatype:"BYTES", shape:[1]}], raw_input_contents:[$b64], parameters:{max_tokens:{int64Param:"16"}}}')
-    t0=$(python3 -c 'import time; print(time.time_ns())')
-    local out
+        '{model_name:$m, id:"smoke-llms", inputs:[{name:"text", datatype:"BYTES", shape:[1]}], raw_input_contents:[$b64], parameters:{max_tokens:{int64Param:"32"}}}')
+    local t0 t1 out
+    t0=$(now_ms)
     out=$(grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" -d "$req" "$ADDR" \
         inference.GRPCInferenceService/ModelStreamInfer) || return 1
-    t1=$(python3 -c 'import time; print(time.time_ns())')
-    printf '%s' "$out" | python3 -c '
-import json, sys
-raw = sys.stdin.read().strip()
-if not raw:
-    sys.exit("empty stream")
-# grpcurl may emit one JSON object per chunk, or a JSON array.
-if raw.startswith("["):
-    objs = json.loads(raw)
-else:
-    objs = json.loads("[" + raw.replace("}\n{", "},{") + "]")
-chunks, final = 0, False
-for obj in objs:
-    r = obj.get("inferResponse", obj)
-    if r.get("errorMessage"):
-        sys.exit(r["errorMessage"])
-    if r.get("parameters", {}).get("final", {}).get("boolParam"):
-        final = True
-    if r.get("rawOutputContents"):
-        chunks += 1
-print(chunks, str(final).lower(), end=" ")
-'
-    echo $(( (t1 - t0) / 1000000 ))
+    t1=$(now_ms)
+    local parsed
+    parsed=$(printf '%s' "$out" | jq -s -r '
+        (map(.inferResponse // .) ) as $objs
+        | ($objs | map(select((.rawOutputContents // []) | length > 0)) | length) as $chunks
+        | ([$objs[] | .parameters.final.boolParam // false] | any) as $final
+        | ([$objs[] | .parameters.decode_tokens_per_second.doubleParam // empty] | .[0] // 0) as $tps
+        | "\($chunks) \(if $final then "true" else "false" end) \($tps)"
+    ')
+    echo "$parsed $((t1 - t0))"
 }
 
-# tok/s from chunk count / wall seconds (generation tokens, not prompt).
 tok_s() {
-    python3 -c 'import sys; n=float(sys.argv[1]); ms=float(sys.argv[2]); print(f"{(n/(ms/1000.0)):.1f}" if ms>0 else "inf")' "$1" "$2"
+    awk -v n="$1" -v ms="$2" 'BEGIN { if (ms > 0) printf "%.1f", n / (ms/1000.0); else print "inf" }'
 }
 
 PASS=0
 FAIL=0
 FAILED_MODELS=()
-printf '\n%-16s %8s %8s %8s %10s %10s %9s %9s\n' MODEL TOK_IDS CHUNKS FINAL COLD_MS WARM_MS COLD_T/S WARM_T/S
+printf '\n%-16s %8s %8s %8s %10s %10s %9s %9s %10s\n' \
+    MODEL TOK_IDS CHUNKS FINAL COLD_MS WARM_MS COLD_T/S WARM_T/S ENG_T/S
 for model in "${MODELS[@]}"; do
     if ! tok_run=$(tokenize_once "$model"); then
-        printf '%-16s FAIL (Tokenize error; rerun grpcurl by hand for detail)\n' "$model"
+        printf '%-16s FAIL (Tokenize error)\n' "$model"
         FAIL=$((FAIL + 1)); FAILED_MODELS+=("$model")
         continue
     fi
@@ -161,16 +129,19 @@ for model in "${MODELS[@]}"; do
         FAIL=$((FAIL + 1)); FAILED_MODELS+=("$model")
         continue
     fi
-    cold_ms=${cold_run##* }
+    set -- ${cold_run}
+    cold_ms=$4
     set -- ${warm_run}
     chunks=$1
     final=$2
-    warm_ms=$3
+    eng_tps=$3
+    warm_ms=$4
     if [ "$chunks" -ge 1 ] && [ "$final" = "true" ]; then
         cold_tps=$(tok_s "$chunks" "$cold_ms")
         warm_tps=$(tok_s "$chunks" "$warm_ms")
-        printf '%-16s %8s %8s %8s %10s %10s %9s %9s\n' \
-            "$model" "$tok_ids" "$chunks" "$final" "$cold_ms" "$warm_ms" "$cold_tps" "$warm_tps"
+        printf '%-16s %8s %8s %8s %10s %10s %9s %9s %10s\n' \
+            "$model" "$tok_ids" "$chunks" "$final" "$cold_ms" "$warm_ms" \
+            "$cold_tps" "$warm_tps" "$eng_tps"
         PASS=$((PASS + 1))
     else
         printf '%-16s FAIL: stream shape chunks=%s final=%s\n' "$model" "$chunks" "$final"

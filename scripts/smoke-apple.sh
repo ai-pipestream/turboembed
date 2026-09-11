@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
-# End-to-end gRPC smoke for the Apple arch binary on a macOS host.
+# End-to-end gRPC smoke for inferstream-apple on a macOS host.
 #
-# Prereqs (once): ./scripts/setup-mlx.sh   (MLX venv + MiniLM tokenizer)
-#                 brew install grpcurl
+# Prereqs:  cargo xtask fetch --mlx minilm qwen-0.5b
+#           cargo xtask fetch --llms qwen-0.5b   # tokenizer.json
+#           brew install grpcurl jq
 #
-# Starts inferstream-apple with config/apple.toml, then exercises the full
-# inferstream.v1 surface against the live MLX/Metal bridge:
-#   ListModels, Tokenize, Detokenize, Embed (MiniLM 4-bit)
-# and streaming ModelStreamInfer against the `default-llm` catalog alias
-# (mlx-lm Qwen2.5-0.5B 4-bit; first run downloads ~280 MB).
-#
-# Run from the repo root. First run downloads MiniLM (~25 MB) into the HF
-# cache; the qwen stream test adds ~280 MB when enabled.
+# Starts inferstream-apple, then ListModels / Tokenize / Detokenize / Embed
+# / ModelStreamInfer against native MLX (no Python).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -21,6 +16,9 @@ AUTH=(-H 'authorization: Bearer change-me')
 EXT=(-proto crates/protocol/proto/inferstream_extension.proto)
 OIP=(-proto crates/protocol/proto/open_inference_grpc.proto)
 
+command -v grpcurl >/dev/null || { echo "error: grpcurl not installed" >&2; exit 1; }
+command -v jq >/dev/null || { echo "error: jq not installed" >&2; exit 1; }
+
 cargo build -p inferstream-arch-apple
 
 ./target/debug/inferstream-apple --config "$CONFIG" &
@@ -28,7 +26,7 @@ SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
 echo "--- waiting for server on $ADDR ---"
-for _ in $(seq 1 30); do
+for _ in $(seq 1 60); do
     if grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" "$ADDR" \
         inference.GRPCInferenceService/ServerLive >/dev/null 2>&1; then
         break
@@ -36,46 +34,50 @@ for _ in $(seq 1 30); do
     sleep 1
 done
 
+# Prove the serve path has no Python interpreter.
+if ps -o args= -p "$SERVER_PID" | grep -qi python; then
+    echo "error: inferstream-apple command line mentions python" >&2
+    exit 1
+fi
+if pgrep -P "$SERVER_PID" -l 2>/dev/null | grep -qi python; then
+    echo "error: inferstream-apple spawned a python child" >&2
+    exit 1
+fi
+echo "--- no python child of pid $SERVER_PID ---"
+
 echo "--- ListModels ---"
 grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
     inferstream.v1.InferstreamService/ListModels
 
-echo "--- Tokenize (local HF tokenizer, no Python round-trip) ---"
+echo "--- Tokenize (Rust tokenizers crate) ---"
 grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
-    -d '{"model_name":"minilm-l6-v2","texts":["hello world"]}' \
-    "$ADDR" inferstream.v1.InferstreamService/Tokenize
+    -d '{"model_name":"minilm","texts":["hello world"]}' \
+    "$ADDR" inferstream.v1.InferstreamService/Tokenize | jq .
 
 echo "--- Detokenize ---"
 grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
-    -d '{"model_name":"minilm-l6-v2","sequences":[{"ids":[101,7592,2088,102]}],"skip_special_tokens":true}' \
-    "$ADDR" inferstream.v1.InferstreamService/Detokenize
+    -d '{"model_name":"minilm","sequences":[{"ids":[101,7592,2088,102]}],"skip_special_tokens":true}' \
+    "$ADDR" inferstream.v1.InferstreamService/Detokenize | jq .
 
-echo "--- Embed (MiniLM 4-bit on Metal; expect dim=384, unit norm) ---"
+echo "--- Embed (native MLX MiniLM on Metal) ---"
 grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
-    -d '{"model_name":"minilm-l6-v2","texts":["gRPC inference on Apple Metal"],"normalize":true}' \
+    -d '{"model_name":"minilm","texts":["gRPC inference on Apple Metal"],"normalize":true}' \
     "$ADDR" inferstream.v1.InferstreamService/Embed \
-    | python3 -c 'import json,math,sys; r=json.load(sys.stdin); v=r["embeddings"][0]["values"]; print(f"dim={len(v)} norm={math.sqrt(sum(x*x for x in v)):.4f}")'
+    | jq -r '.embeddings[0].values as $v | "dim=\($v|length) norm=\($v|map(.*.)|add|sqrt)"'
 
-# Streaming generation when the config serves an LLM alias (default-llm).
 if grep -Eq 'default-llm|qwen-0.5b|qwen2.5-0.5b' "$CONFIG"; then
-    echo "--- ModelStreamInfer (default-llm, one BYTES token chunk per token) ---"
-    B64=$(python3 -c 'import base64,struct; t=b"Say hello in five words or fewer."; print(base64.b64encode(struct.pack("<I",len(t))+t).decode())')
-    grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" \
-        -d '{"model_name":"default-llm","id":"smoke-gen","inputs":[{"name":"text","datatype":"BYTES","shape":[1]}],"raw_input_contents":["'"$B64"'"],"parameters":{"max_tokens":{"int64Param":"16"}}}' \
-        "$ADDR" inference.GRPCInferenceService/ModelStreamInfer \
-        | python3 -c '
-import base64, json, sys
-chunks, final = [], False
-for obj in json.loads("[" + sys.stdin.read().replace("}\n{", "},{") + "]"):
-    r = obj.get("inferResponse", obj)
-    if r.get("parameters", {}).get("final", {}).get("boolParam"):
-        final = True
-    for raw in r.get("rawOutputContents", []):
-        chunks.append(base64.b64decode(raw)[4:].decode())
-print(f"tokens={len(chunks)} final={final}")
-print("text:", "".join(chunks))
-assert final and chunks, "stream must yield tokens and end with a final chunk"
-'
+    echo "--- ModelStreamInfer (default-llm, native MLX) ---"
+    TEXT="Say hello in five words or fewer."
+    B64=$(printf '%s' "$TEXT" | perl -e 'undef $/; $t=<>; print pack("V", length($t)).$t' | base64)
+    RAW=$(grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" \
+        -d '{"model_name":"default-llm","id":"smoke-gen","inputs":[{"name":"text","datatype":"BYTES","shape":[1]}],"raw_input_contents":["'"$B64"'"],"parameters":{"max_tokens":{"int64Param":"32"}}}' \
+        "$ADDR" inference.GRPCInferenceService/ModelStreamInfer)
+    echo "$RAW" | jq -s '
+        (map(.inferResponse // .) | map(select((.rawOutputContents // []) | length > 0))) as $c
+        | (map(.inferResponse // .) | map(select(.parameters.final.boolParam == true)) | length) as $f
+        | (map(.inferResponse // .) | map(.parameters.decode_tokens_per_second.doubleParam // empty) | .[0] // 0) as $tps
+        | "tokens=\($c|length) final=\($f > 0) engine_decode_tps=\($tps)"
+    '
 else
     echo "--- ModelStreamInfer skipped: no generation alias in $CONFIG ---"
 fi

@@ -5,28 +5,31 @@
 #   make verify-embeddings [ALIASES=...]        # offline SHA-256 check, no network
 #   make list-embeddings                        # aliases, repos, pinned revisions
 #   make update-embedding-manifest              # maintainers: re-pin + re-hash
-#   make test-fetch                             # unit tests for the fetch tooling
+#   make test-fetch                             # unit tests for crates/xtask
 #
 #   make fetch-llms                             # GGUF + tokenizer.json (qwen-0.5b, qwen-7b)
-#   make fetch-llms ALIASES=qwen-0.5b           # smoke-sized 0.5B only (~650 MiB)
-#   make verify-llms [ALIASES=...]              # offline SHA-256 check, no network
+#   make fetch-llms ALIASES=qwen-0.5b           # smoke-sized 0.5B only
+#   make verify-llms [ALIASES=...]
 #   make list-llms
-#   make update-llm-manifest                    # maintainers: re-pin + re-hash
+#   make update-llm-manifest
 #
-# Intel (OVMS) equivalents — export OpenVINO IR + tokenizers at pinned HF
-# revisions and verify SHA-256 against models/manifests/ovms-embeddings.json
-# (scripts/export_ovms_embeddings.py; needs a venv with torch/transformers/
-# openvino/openvino-tokenizers — see the script docstring):
+#   make fetch-mlx                              # Apple MLX safetensors (native engine)
+#   make fetch-mlx ALIASES=minilm,qwen-0.5b
+#   make verify-mlx [ALIASES=...]
+#   make list-mlx
+#   make update-mlx-manifest
 #
-#   make fetch-embeddings-intel [ALIASES=...] [OVMS_DIR=...] [HF_TOK_DIR=...]
-#   make verify-embeddings-intel [ALIASES=...]
+# Intel OVMS IR is pre-exported (OpenVINO's own toolchain). xtask only
+# verifies SHA-256 against models/manifests/ovms-embeddings.json:
+#
+#   make verify-embeddings-intel [ALIASES=...] [OVMS_DIR=...]
 #   make list-embeddings-intel
-#   make update-embedding-manifest-intel        # maintainers: re-pin + re-export
 #
-# Everything is driven against committed manifests (pinned HF revisions +
-# SHA-256 per file). See docs/fetching-models.md. Weights stay out of git.
+# Everything is driven against committed JSON manifests (pinned HF revisions
+# + SHA-256 per file). See docs/fetching-models.md. Weights stay out of git.
+# Make never invokes python3.
 
-PYTHON ?= python3
+CARGO_XTASK ?= cargo xtask
 ALIASES ?=
 
 comma := ,
@@ -35,50 +38,64 @@ space := $(empty) $(empty)
 ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 
 OVMS_DIR ?= /work/models/ovms-embedder
-HF_TOK_DIR ?= $(HOME)/ovms-models
-INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 
 .PHONY: fetch-embeddings verify-embeddings list-embeddings \
 	update-embedding-manifest test-fetch \
 	fetch-llms verify-llms list-llms update-llm-manifest \
+	fetch-mlx verify-mlx list-mlx update-mlx-manifest \
 	fetch-embeddings-intel verify-embeddings-intel list-embeddings-intel \
 	update-embedding-manifest-intel
 
 fetch-embeddings:
-	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS)
+	$(CARGO_XTASK) fetch --embeddings $(ALIAS_ARGS)
 
 verify-embeddings:
-	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS) --verify-only
+	$(CARGO_XTASK) verify --embeddings $(ALIAS_ARGS)
 
 list-embeddings:
-	$(PYTHON) scripts/fetch_models.py --list
+	$(CARGO_XTASK) list --embeddings
 
 update-embedding-manifest:
-	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS) --update-manifest
+	$(CARGO_XTASK) update-manifest --embeddings $(ALIAS_ARGS)
 
 test-fetch:
-	$(PYTHON) -m unittest discover -s scripts -p 'test_*.py' -v
+	cargo test -p inferstream-xtask
 
 fetch-llms:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS)
+	$(CARGO_XTASK) fetch --llms $(ALIAS_ARGS)
 
 verify-llms:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS) --verify-only
+	$(CARGO_XTASK) verify --llms $(ALIAS_ARGS)
 
 list-llms:
-	$(PYTHON) scripts/fetch_models.py --llms --list
+	$(CARGO_XTASK) list --llms
 
 update-llm-manifest:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS) --update-manifest
+	$(CARGO_XTASK) update-manifest --llms $(ALIAS_ARGS)
+
+fetch-mlx:
+	$(CARGO_XTASK) fetch --mlx $(ALIAS_ARGS)
+
+verify-mlx:
+	$(CARGO_XTASK) verify --mlx $(ALIAS_ARGS)
+
+list-mlx:
+	$(CARGO_XTASK) list --mlx
+
+update-mlx-manifest:
+	$(CARGO_XTASK) update-manifest --mlx $(ALIAS_ARGS)
 
 fetch-embeddings-intel:
-	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) $(INTEL_ARGS)
+	@echo "Intel OVMS IR is not downloaded by xtask; verify pre-exported artifacts:"
+	$(CARGO_XTASK) verify --ovms $(ALIAS_ARGS) --out $(OVMS_DIR)
 
 verify-embeddings-intel:
-	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) --verify-only $(INTEL_ARGS)
+	$(CARGO_XTASK) verify --ovms $(ALIAS_ARGS) --out $(OVMS_DIR)
 
 list-embeddings-intel:
-	$(PYTHON) scripts/export_ovms_embeddings.py --list
+	$(CARGO_XTASK) list --ovms
 
 update-embedding-manifest-intel:
-	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) --update-manifest $(INTEL_ARGS)
+	@echo "error: OpenVINO IR re-export is not invoked from Make (no Python)." >&2
+	@echo "Use OpenVINO's official conversion tools, then cargo xtask verify --ovms." >&2
+	@exit 1

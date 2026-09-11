@@ -32,29 +32,16 @@
 #           Every other alias points at models/onnx/<alias>/ (relative to the
 #           server cwd) — populate with
 #               make fetch-embeddings [ALIASES=alias1,alias2]
-#           (scripts/fetch_models.py) which downloads a prebuilt ONNX export
-#           + tokenizer from HF at a pinned revision and verifies SHA-256
-#           against models/manifests/embeddings.json (see
-#           docs/fetching-models.md); then add the alias to `serve` in
-#           config/nvidia.toml. LLM GGUFs: make fetch-llms against
-#           models/manifests/llms.json into models/gguf/<alias>/.
-#   intel   OVMS DAG pipelines on the Battlemage GPU (krick-1 container
-#           "protomolt-embedder-ovms"). Only pipelines that exist upstream
-#           are mapped — currently every embedding alias in this catalog.
-#           IR + tokenizer artifacts are exported and SHA-256-pinned with
-#               make fetch-embeddings-intel [ALIASES=alias1,alias2]
-#           (scripts/export_ovms_embeddings.py against
-#           models/manifests/ovms-embeddings.json). To add a new one:
-#           export, register in the OVMS config (config-gpu.json graph:
-#           tokenizer -> embedding model -> "sentence_embedding"), reload,
-#           then add a [models.<alias>.intel] table here with
-#           `upstream_model` set to the new pipeline name. Full walkthrough:
+#           (cargo xtask fetch --embeddings) which downloads a prebuilt
+#           ONNX export + tokenizer from HF at a pinned revision and
+#           verifies SHA-256 against models/manifests/embeddings.json.
+#           LLM GGUFs: make fetch-llms into models/gguf/<alias>/.
+#   intel   OVMS DAG pipelines. IR is pre-exported (OpenVINO toolchain);
+#           verify with `make verify-embeddings-intel`. Walkthrough:
 #           docs/adding-ovms-embedding-pipelines.md.
-#   apple   MLX through the persistent Python bridge (mlx-embeddings). The
-#           bridge downloads the HF repo into the cache on first use.
-#           mlx-embeddings implements BERT and XLM-RoBERTa forward passes,
-#           which covers MiniLM / BGE (en v1.5 + m3) / multilingual-E5 /
-#           thenlper GTE. It does NOT implement MPNet or NomicBERT, so
+#   apple   native MLX (Swift MLXEmbedders / MLXLLM, in-process FFI).
+#           Weights from `make fetch-mlx` into models/mlx/<alias>/.
+#           BERT / XLM-RoBERTa covers MiniLM / BGE / E5 / GTE.
 #           `mpnet` and `nomic-embed-text` have no apple resolution.
 
 # ---------------------------------------------------------------------------
@@ -87,12 +74,11 @@ endpoint = "http://172.22.0.2:8000"
 upstream_model = "minilm_pipeline"
 tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_minilm"
 
-# MLX 4-bit MiniLM (~25 MB; downloads into the HF cache on first use).
-# tokenizer_dir is populated by scripts/setup-mlx.sh.
+# Native MLX MiniLM (models/mlx/minilm from `cargo xtask fetch --mlx`).
 [models.minilm.apple]
 backend = "mlx"
-path = "mlx-community/all-MiniLM-L6-v2-4bit"
-tokenizer_dir = "models/minilm"
+path = "models/mlx/minilm"
+tokenizer_dir = "models/mlx/minilm"
 normalize = true
 max_batch_size = 32
 
@@ -121,7 +107,8 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_minilm_l12"
 
 [models.minilm-l12.apple]
 backend = "mlx"
-path = "sentence-transformers/all-MiniLM-L12-v2"
+path = "models/mlx/minilm-l12"
+tokenizer_dir = "models/mlx/minilm-l12"
 normalize = true
 max_batch_size = 32
 
@@ -171,10 +158,10 @@ endpoint = "http://172.22.0.2:8000"
 upstream_model = "bge_small_pipeline"
 tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_small"
 
-# Verified mlx-community 4-bit conversion (~19 MB).
 [models.bge-small.apple]
 backend = "mlx"
-path = "mlx-community/bge-small-en-v1.5-4bit"
+path = "models/mlx/bge-small"
+tokenizer_dir = "models/mlx/bge-small"
 normalize = true
 max_batch_size = 32
 
@@ -196,10 +183,10 @@ endpoint = "http://172.22.0.2:8000"
 upstream_model = "bge_base_pipeline"
 tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_base"
 
-# Original BAAI safetensors (vanilla BERT); mlx-embeddings loads it directly.
 [models.bge-base.apple]
 backend = "mlx"
-path = "BAAI/bge-base-en-v1.5"
+path = "models/mlx/bge-base"
+tokenizer_dir = "models/mlx/bge-base"
 normalize = true
 max_batch_size = 32
 
@@ -223,7 +210,8 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_large"
 
 [models.bge-large.apple]
 backend = "mlx"
-path = "BAAI/bge-large-en-v1.5"
+path = "models/mlx/bge-large"
+tokenizer_dir = "models/mlx/bge-large"
 normalize = true
 max_batch_size = 16
 
@@ -249,7 +237,8 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_m3"
 
 [models.bge-m3.apple]
 backend = "mlx"
-path = "BAAI/bge-m3"
+path = "models/mlx/bge-m3"
+tokenizer_dir = "models/mlx/bge-m3"
 normalize = true
 max_batch_size = 8
 
@@ -280,7 +269,8 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_small"
 
 [models.e5-small.apple]
 backend = "mlx"
-path = "intfloat/multilingual-e5-small"
+path = "models/mlx/e5-small"
+tokenizer_dir = "models/mlx/e5-small"
 normalize = true
 max_batch_size = 32
 
@@ -304,7 +294,8 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_base"
 
 [models.e5-base.apple]
 backend = "mlx"
-path = "intfloat/multilingual-e5-base"
+path = "models/mlx/e5-base"
+tokenizer_dir = "models/mlx/e5-base"
 normalize = true
 max_batch_size = 16
 
@@ -328,7 +319,8 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_large"
 
 [models.e5-large.apple]
 backend = "mlx"
-path = "intfloat/multilingual-e5-large"
+path = "models/mlx/e5-large"
+tokenizer_dir = "models/mlx/e5-large"
 normalize = true
 max_batch_size = 8
 
@@ -358,7 +350,8 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_gte_small"
 
 [models.gte-small.apple]
 backend = "mlx"
-path = "thenlper/gte-small"
+path = "models/mlx/gte-small"
+tokenizer_dir = "models/mlx/gte-small"
 normalize = true
 max_batch_size = 32
 
@@ -382,7 +375,8 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_gte_base"
 
 [models.gte-base.apple]
 backend = "mlx"
-path = "thenlper/gte-base"
+path = "models/mlx/gte-base"
+tokenizer_dir = "models/mlx/gte-base"
 normalize = true
 max_batch_size = 16
 
@@ -430,7 +424,7 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_nomic_embed_text"
 #           StreamInfer on that host). `qwen-0.5b` / `qwen-7b` point at
 #           models/gguf/<alias>/ — populate with
 #               make fetch-llms [ALIASES=qwen-0.5b,qwen-7b]
-#           (scripts/fetch_models.py --llms) which downloads the official
+#           (cargo xtask fetch --llms) which downloads the official
 #           Qwen GGUF + tokenizer.json at a pinned HF revision and verifies
 #           SHA-256 against models/manifests/llms.json. Tokenize answers
 #           from the GGUF vocabulary (no tokenizer_dir required).
@@ -443,10 +437,10 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_nomic_embed_text"
 #           has no intel resolution (no dedicated 0.5B SYCL server; do not
 #           pretend the VL-7B endpoint is a 0.5B). Override `endpoint` per
 #           host with INFERSTREAM_LLAMACPP_ENDPOINT.
-#   apple   mlx-lm through the persistent Python bridge (real Metal
-#           stream_generate, not GGUF-on-MLX). tokenizer_dir is the HF
-#           tokenizer.json fetched by `make fetch-llms` / setup-mlx.sh so
-#           Tokenize/Detokenize answer locally without a Python hop.
+#   apple   native MLX (Swift mlx-swift-lm, in-process FFI). Weights from
+#           `make fetch-mlx` into models/mlx/<alias>. tokenizer_dir is the
+#           HF tokenizer.json fetched by `make fetch-llms` so Tokenize
+#           answers in Rust (`tokenizers` crate).
 # ---------------------------------------------------------------------------
 
 # default-llm — the recommended default generation alias. Smoke-sized on
@@ -469,7 +463,7 @@ endpoint = "http://127.0.0.1:8085"
 
 [models.default-llm.apple]
 backend = "mlx"
-path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+path = "models/mlx/qwen-0.5b"
 tokenizer_dir = "models/gguf/qwen-0.5b"
 max_batch_size = 1
 
@@ -489,7 +483,7 @@ n_ctx = 4096
 
 [models."qwen-0.5b".apple]
 backend = "mlx"
-path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+path = "models/mlx/qwen-0.5b"
 tokenizer_dir = "models/gguf/qwen-0.5b"
 max_batch_size = 1
 
@@ -515,6 +509,6 @@ endpoint = "http://127.0.0.1:8085"
 
 [models.qwen-7b.apple]
 backend = "mlx"
-path = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+path = "models/mlx/qwen-7b"
 tokenizer_dir = "models/gguf/qwen-7b"
 max_batch_size = 1

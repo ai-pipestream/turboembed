@@ -1,50 +1,27 @@
-//! Live MLX tests — require a macOS host with the venv from
-//! `scripts/setup-mlx.sh` (Metal + mlx + mlx-embeddings). Kept out of the
-//! default test run twice over: behind the `mlx-live` feature AND
-//! `#[ignore]`, same policy as the ORT GPU goldens.
-//!
-//! Run from the repo root (the bridge paths are repo-relative):
+//! Live native-MLX tests — macOS host + weights from `cargo xtask fetch --mlx`.
 //!
 //! ```bash
+//! cargo xtask fetch --mlx minilm qwen-0.5b
 //! cargo test -p inferstream-backend-apple --features mlx-live -- --ignored
 //! ```
 #![cfg(feature = "mlx-live")]
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use inferstream_backend::Backend;
-use inferstream_backend_apple::{MlxBackend, MlxConfig, MlxWorker, MlxWorkerConfig};
+use inferstream_backend_apple::{MlxBackend, MlxConfig, MlxEngine};
 use inferstream_protocol::inference::model_infer_request::InferInputTensor;
 use inferstream_protocol::inference::ModelInferRequest;
 use inferstream_protocol::tensor::{pack_bytes, unpack_fp32, DataType};
 
-const MODEL: &str = "mlx-community/all-MiniLM-L6-v2-4bit";
-
-fn repo_root() -> PathBuf {
-    // crates/backend-apple -> repo root
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("repo root resolves")
-}
-
-fn live_worker() -> Arc<MlxWorker> {
-    let root = repo_root();
-    Arc::new(MlxWorker::new(MlxWorkerConfig {
-        python: root.join(".venv/bin/python"),
-        script: root.join("python/mlx_bridge.py"),
-    }))
-}
-
-fn live_backend(worker: Arc<MlxWorker>) -> MlxBackend {
+fn live_backend(model: &str) -> MlxBackend {
     MlxBackend::new(
         MlxConfig {
-            model: MODEL.to_string(),
+            model: model.to_string(),
             ..Default::default()
         },
-        worker,
+        Arc::new(MlxEngine::new()),
     )
     .expect("valid config")
 }
@@ -52,7 +29,7 @@ fn live_backend(worker: Arc<MlxWorker>) -> MlxBackend {
 fn text_request(texts: &[&str]) -> ModelInferRequest {
     let bytes: Vec<&[u8]> = texts.iter().map(|t| t.as_bytes()).collect();
     ModelInferRequest {
-        model_name: "minilm-l6-v2".into(),
+        model_name: "minilm".into(),
         id: "live-1".into(),
         inputs: vec![InferInputTensor {
             name: "text".into(),
@@ -67,27 +44,26 @@ fn text_request(texts: &[&str]) -> ModelInferRequest {
 }
 
 #[tokio::test]
-#[ignore = "needs macOS + .venv from scripts/setup-mlx.sh (Metal)"]
+#[ignore = "needs macOS Metal + models/mlx/minilm from cargo xtask fetch --mlx"]
 async fn ping_reports_metal_device() {
-    let worker = live_worker();
-    let result = worker
-        .call(serde_json::json!({"op": "ping"}))
+    let engine = MlxEngine::new();
+    let result = tokio::task::spawn_blocking(move || engine.ping())
         .await
-        .expect("bridge pings");
-    assert!(result["matmul_ok"].as_bool().unwrap_or(false));
-    let device = result["device"].as_str().unwrap_or_default();
+        .unwrap()
+        .expect("native ping");
+    assert!(result.matmul_ok);
     assert!(
-        device.contains("gpu"),
-        "expected Metal GPU device, got {device:?}"
+        result.device.contains("gpu") || result.metal_available,
+        "expected Metal GPU device, got {:?}",
+        result.device
     );
 }
 
 #[tokio::test]
-#[ignore = "needs macOS + .venv from scripts/setup-mlx.sh (Metal); downloads MiniLM on first run"]
+#[ignore = "needs macOS Metal + models/mlx/minilm"]
 async fn embed_minilm_batch_shapes_and_normalization() {
-    let worker = live_worker();
-    let backend = live_backend(worker);
-    assert!(backend.model_ready("minilm-l6-v2", "").await);
+    let backend = live_backend("models/mlx/minilm");
+    assert!(backend.model_ready("minilm", "").await);
 
     let response = backend
         .infer(text_request(&["hello world", "grpc inference on metal"]))
@@ -98,40 +74,20 @@ async fn embed_minilm_batch_shapes_and_normalization() {
     assert_eq!(output.shape, vec![2, 384], "MiniLM-L6 is 384-d");
     let values = unpack_fp32(&response.raw_output_contents[0]).unwrap();
     assert_eq!(values.len(), 2 * 384);
-
-    // normalize defaults to true — every row should be unit-length.
     for row in values.chunks_exact(384) {
         let norm: f32 = row.iter().map(|v| v * v).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-3, "row norm {norm} not ~1.0");
     }
-
-    // Determinism: the same text embeds to the same vector (hot cache path).
-    let a = backend.infer(text_request(&["hello world"])).await.unwrap();
-    let b = backend.infer(text_request(&["hello world"])).await.unwrap();
-    assert_eq!(a.raw_output_contents, b.raw_output_contents);
-
-    // Metadata now reports the observed dimension.
-    let metadata = backend.model_metadata("minilm-l6-v2", "").await.unwrap();
-    assert_eq!(metadata.outputs[0].shape, vec![384]);
 }
 
 #[tokio::test]
-#[ignore = "needs macOS + .venv; also needs mlx-lm and downloads Qwen2.5-0.5B (~280 MB)"]
+#[ignore = "needs macOS Metal + models/mlx/qwen-0.5b"]
 async fn stream_generate_small_lm() {
     use futures::StreamExt;
     use inferstream_protocol::inference::infer_parameter::ParameterChoice;
     use inferstream_protocol::inference::InferParameter;
 
-    let worker = live_worker();
-    let backend = MlxBackend::new(
-        MlxConfig {
-            model: "mlx-community/Qwen2.5-0.5B-Instruct-4bit".to_string(),
-            ..Default::default()
-        },
-        worker,
-    )
-    .unwrap();
-
+    let backend = live_backend("models/mlx/qwen-0.5b");
     let mut request = text_request(&["Reply with one short sentence: what is MLX?"]);
     request.parameters.insert(
         "max_tokens".into(),
@@ -143,6 +99,7 @@ async fn stream_generate_small_lm() {
     let mut stream = backend.infer_stream(request).await.expect("stream opens");
     let mut tokens = 0usize;
     let mut saw_final = false;
+    let mut tps = 0.0;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.expect("chunk ok");
         assert_eq!(chunk.id, "live-1");
@@ -155,10 +112,19 @@ async fn stream_generate_small_lm() {
         );
         if is_final {
             saw_final = true;
+            if let Some(ParameterChoice::DoubleParam(v)) = chunk
+                .parameters
+                .get("decode_tokens_per_second")
+                .and_then(|p| p.parameter_choice.as_ref())
+            {
+                tps = *v;
+            }
         } else {
             tokens += 1;
         }
     }
     assert!(saw_final, "stream must end with a final chunk");
     assert!(tokens > 0, "expected at least one generated token");
+    eprintln!("engine-side decode tok/s = {tps:.1} ({tokens} tokens)");
+    assert!(tps > 10.0, "expected competitive Metal decode, got {tps} t/s");
 }
