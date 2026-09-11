@@ -77,6 +77,12 @@ async fn health_and_metadata() {
         .unwrap();
     assert_eq!(metadata.platform, "llama_cpp");
     assert!(metadata.properties.contains_key("endpoint"));
+    // Honesty: report the weight the server loaded, not the client alias.
+    assert!(
+        metadata.properties.contains_key("model_path")
+            || metadata.properties.contains_key("model_alias"),
+        "server-client metadata should surface /props model_path or model_alias"
+    );
 }
 
 #[tokio::test]
