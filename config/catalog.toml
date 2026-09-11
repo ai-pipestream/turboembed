@@ -29,9 +29,12 @@
 #   nvidia  ORT (CUDA EP). `minilm` uses the TEI HF cache already on krick.
 #           Every other alias points at models/onnx/<alias>/ (relative to the
 #           server cwd) — populate with
-#               scripts/fetch-embedding-models.sh <alias> [<alias> ...]
-#           which downloads a prebuilt ONNX export + tokenizer from HF, then
-#           add the alias to `serve` in config/nvidia.toml.
+#               make fetch-embeddings [ALIASES=alias1,alias2]
+#           (scripts/fetch_models.py) which downloads a prebuilt ONNX export
+#           + tokenizer from HF at a pinned revision and verifies SHA-256
+#           against models/manifests/embeddings.json (see
+#           docs/fetching-models.md); then add the alias to `serve` in
+#           config/nvidia.toml.
 #   intel   OVMS DAG pipelines on the Battlemage GPU (krick-1 container
 #           "protomolt-embedder-ovms"). Only pipelines that exist upstream
 #           are mapped (minilm, mpnet). To add one: register the model in
