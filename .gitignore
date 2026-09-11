@@ -4,3 +4,4 @@
 # MLX venv + fetched tokenizer artifacts (scripts/setup-mlx.sh)
 /.venv/
 /models/
+.DS_Store
