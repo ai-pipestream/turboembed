@@ -242,10 +242,7 @@ struct CompletionChunk {
 /// event) and return their `data:` payloads in arrival order.
 fn drain_sse_events(buf: &mut Vec<u8>) -> Vec<String> {
     let mut payloads = Vec::new();
-    loop {
-        let Some(boundary) = buf.windows(2).position(|w| w == b"\n\n") else {
-            break;
-        };
+    while let Some(boundary) = buf.windows(2).position(|w| w == b"\n\n") {
         let event: Vec<u8> = buf.drain(..boundary + 2).collect();
         for line in event.split(|&b| b == b'\n') {
             let line = String::from_utf8_lossy(line);
