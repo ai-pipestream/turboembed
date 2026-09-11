@@ -15,8 +15,11 @@ if [ ! -f "$ROOT/vendor/llama-cpp-sys-2/llama.cpp/ggml/src/ggml-sycl/CMakeLists.
 fi
 
 if [ -f /opt/intel/oneapi/setvars.sh ]; then
+    # setvars writes OCL_ICD_FILENAMES and similar; nounset cannot be on.
+    set +u
     # shellcheck disable=SC1091
     source /opt/intel/oneapi/setvars.sh --force >/dev/null
+    set -u
 fi
 
 command -v icpx >/dev/null || {

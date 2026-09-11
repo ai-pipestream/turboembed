@@ -10,8 +10,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [ -f /opt/intel/oneapi/setvars.sh ]; then
+    # setvars writes OCL_ICD_FILENAMES and similar; nounset cannot be on.
+    set +u
     # shellcheck disable=SC1091
     source /opt/intel/oneapi/setvars.sh --force >/dev/null
+    set -u
 fi
 
 BIN="${INFERSTREAM_BIN:-}"

@@ -5,8 +5,10 @@
 set -euo pipefail
 if ! command -v icpx >/dev/null 2>&1; then
     if [ -f /opt/intel/oneapi/setvars.sh ]; then
+        set +u
         # shellcheck disable=SC1091
         source /opt/intel/oneapi/setvars.sh --force >/dev/null
+        set -u
     fi
 fi
 command -v icpx >/dev/null || {
