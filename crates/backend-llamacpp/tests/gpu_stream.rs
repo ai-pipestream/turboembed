@@ -52,9 +52,8 @@ fn backend() -> Option<LlamaCppBackend> {
         LlamaCppBackend::new(LlamaCppConfig {
             model_path,
             device: device(),
-            n_gpu_layers: None,
-            max_batch_size: None,
             n_ctx: Some(2048),
+            ..Default::default()
         })
         .expect("gguf model loads"),
     )

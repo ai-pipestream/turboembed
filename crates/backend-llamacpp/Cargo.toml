@@ -1,6 +1,6 @@
 [package]
 name = "inferstream-backend-llamacpp"
-description = "llama.cpp (GGUF) backend for inferstream — token streaming and GGUF tokenization"
+description = "llama.cpp (GGUF) backend for inferstream — llama-server client mode and in-process FFI (runtime/cuda features), both with token streaming"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,17 +9,12 @@ authors.workspace = true
 rust-version.workspace = true
 
 [features]
-# Real llama.cpp link via the maintained `llama-cpp-2` crate (utilityai).
-# Builds llama.cpp from source with cmake at compile time, so a C/C++
-# toolchain is required (plus nvcc for `cuda`). Without this feature the
-# crate stays pure Rust and reports Unavailable at request time.
-runtime = [
-    "dep:llama-cpp-2",
-    "dep:tokio",
-    "dep:tokio-stream",
-    "dep:futures",
-    "dep:tracing",
-]
+# In-process llama.cpp link via the maintained `llama-cpp-2` crate
+# (utilityai). Builds llama.cpp from source with cmake at compile time, so a
+# C/C++ toolchain is required (plus nvcc for `cuda`). Without this feature
+# the crate stays pure Rust: server-client mode (`endpoint`) still works
+# everywhere, and path-only models report Unavailable at request time.
+runtime = ["dep:llama-cpp-2", "dep:tokio", "dep:tokio-stream"]
 # CUDA build of llama.cpp (GGML_CUDA). Needs the CUDA toolkit (nvcc) at build
 # time and the NVIDIA driver at runtime. On hosts where the default gcc is
 # newer than nvcc supports, point cmake at a compatible host compiler, e.g.:
@@ -32,12 +27,16 @@ metal = ["runtime", "llama-cpp-2/metal"]
 inferstream-protocol = { workspace = true }
 inferstream-backend = { workspace = true }
 async-trait = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
 
 llama-cpp-2 = { version = "0.1.156", optional = true, features = ["sampler"] }
 tokio = { workspace = true, optional = true }
 tokio-stream = { workspace = true, optional = true }
-futures = { workspace = true, optional = true }
-tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

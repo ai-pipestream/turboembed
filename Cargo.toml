@@ -56,6 +56,10 @@ bytes = "1"
 # tokenizer.json models.
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 serde_json = "1"
+# HTTP client for backends that forward to an engine's HTTP server (llama.cpp
+# server mode). default-features off: local plaintext endpoints only, no TLS
+# stack pulled into the build.
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream"] }
 
 # workspace crates
 inferstream-protocol = { path = "crates/protocol" }

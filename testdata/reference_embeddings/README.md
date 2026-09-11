@@ -88,10 +88,31 @@ The test builds its engine from the golden's own `text` / `pooling` /
 `normalize` / `max_seq_len` fields, so one invocation per golden file verifies
 that exact `(model, text, params)` tuple.
 
-On **krick-1** (Intel, OVMS client) the OVMS pipelines embed server-side; use
-the `Embed` RPC through `inferstream-intel` against `minilm_pipeline` /
-`mpnet_pipeline` and store the response in the same schema with
-`"backend": "ovms"`.
+On **krick-1** (Intel, OVMS client) the OVMS pipelines embed server-side on
+the Battlemage GPU. The `Embed` RPC packs texts as a BYTES tensor named
+`text` and unwraps output `embedding`; the OVMS backend adapts those to the
+pipelines' declared `strings` / `sentence_embedding` names on the typed
+protobuf messages (see `crates/backend-ovms`). Regenerate all
+`ovms_minilm_*` / `ovms_mpnet_*` goldens through the running façade:
+
+```bash
+cargo build -p inferstream-arch-intel --release
+./target/release/inferstream-intel --config config/intel.toml &
+INFERSTREAM_API_KEY=change-me \
+  cargo run -p inferstream-arch-intel --release --example gen_ovms_goldens
+```
+
+Verify against the stored goldens (talks to OVMS gRPC directly — on krick-1
+that is the container's bridge IP, since only REST is published to the host):
+
+```bash
+INFERSTREAM_OVMS_ENDPOINT=http://172.22.0.2:8000 \
+cargo test -p inferstream-backend-ovms -- --ignored ovms_golden
+```
+
+Both pipelines L2-normalize server-side (stored `l2` ≈ 1.0). GPU execution
+can differ in the low-order bits across driver/OVMS versions, so the test
+gates on cosine ≥ 0.999 and L2 tolerance rather than exact values.
 
 Do **not** stop the OVMS or TEI services on either host to regenerate goldens
 — the façade only reads from them.

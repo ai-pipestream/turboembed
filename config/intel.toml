@@ -42,17 +42,25 @@ backend = "mock"
 #     protomolt-embedder-ovms
 # Override per-host without editing this file via INFERSTREAM_OVMS_ENDPOINT.
 
+# The OVMS DAG pipelines tokenize server-side with openvino_tokenizer, so
+# Tokenize/Detokenize are answered locally from the matching HuggingFace
+# tokenizer.json (`tokenizer_dir`), kept next to the OVMS model dirs:
+#   ~/ovms-models/hf_tokenizer_minilm/tokenizer.json  (all-MiniLM-L6-v2)
+#   ~/ovms-models/hf_tokenizer_mpnet/tokenizer.json   (all-mpnet-base-v2)
+
 # all-MiniLM-L6-v2 embeddings (384 dims).
 [[models]]
 name = "minilm_pipeline"
 backend = "ovms"
 endpoint = "http://172.22.0.2:8000"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_minilm"
 
 # all-mpnet-base-v2 embeddings (768 dims).
 [[models]]
 name = "mpnet_pipeline"
 backend = "ovms"
 endpoint = "http://172.22.0.2:8000"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_mpnet"
 
 # --- Bake-off candidates (in-process; need host runtimes) -------------------
 
@@ -63,8 +71,21 @@ backend = "openvino"
 device = "GPU"
 path = "/models/qwen2.5-7b-int4-ov/openvino_model.xml"
 
-# Candidate B: llama.cpp built with GGML_SYCL
-# (Level Zero / oneAPI; Docker-proven on this host).
+# Candidate B: llama.cpp built with GGML_SYCL — live today as a *server
+# client*: the krick-1 container "vlm-server"
+# (ghcr.io/ggml-org/llama.cpp:server-intel, SYCL build on the Battlemage GPU)
+# publishes the llama.cpp HTTP server on host port 8085. With `endpoint` set,
+# the llama-cpp backend forwards generation (unary + token streaming via
+# ModelStreamInfer) and Tokenize/Detokenize to that server instead of linking
+# the engine in-process. On other hosts, omit `endpoint` and set
+# INFERSTREAM_LLAMACPP_ENDPOINT instead (path-less models fall back to it).
+[[models]]
+name = "qwen2.5-vl-7b-sycl"
+backend = "llama-cpp"
+device = "sycl"
+endpoint = "http://127.0.0.1:8085"
+
+# Candidate B': in-process llama.cpp FFI (stub until the engine link lands).
 [[models]]
 name = "qwen-7b-sycl"
 backend = "llama-cpp"
