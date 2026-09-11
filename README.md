@@ -289,7 +289,7 @@ Same client, same contract, heterogeneous fleet: krick (NVIDIA) + krick-1 (Intel
 1. ~~ONNX Runtime session wiring (`backend-ort`)~~ — **done**: CPU + CUDA EPs, embeddings live on krick; TensorRT EP wired but blocked on host TensorRT libs.
 2. ~~**OVMS client backend**~~ — **done**: `backend = "ovms"` serves real Battlemage-GPU embeddings on krick-1 through the façade today (see `config/intel.toml` and `crates/arch-intel/examples/ovms_embed.rs`).
 3. **OpenVINO runtime link** (`backend-openvino`) — krick-1's in-process path (the live OVMS route as oracle); llama.cpp-SYCL as the Docker-proven secondary.
-4. **llama.cpp FFI** (`backend-llamacpp`) — one binding, all devices (CUDA secondary on krick, SYCL secondary on krick-1, Metal on Mac).
+4. ~~**llama.cpp FFI** (`backend-llamacpp`)~~ — **done for CPU/CUDA** via `llama-cpp-2` (features `runtime` / `cuda`, `metal` wired but unbuilt): GGUF token streaming live on krick (Qwen2.5-0.5B Q8_0, full GPU offload). SYCL and Vulkan flavors still pending.
 5. **MLX** (`backend-apple`) via `mlx-rs` — needs the Mac "My Machines" worker for real builds.
 6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — optional later feature for generative models; cxx/bindgen layer over `tensorrt_llm::executor`.
 7. **TLS / mTLS** in `serve()`; per-key model ACLs after.
