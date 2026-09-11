@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 # Launch inferstream-intel with the oneAPI / SYCL runtime on the loader path.
 #
-#   scripts/setup-llamacpp-sycl.sh
-#   source /opt/intel/oneapi/setvars.sh
-#   GGML_SYCL=ON CMAKE_C_COMPILER=icx CMAKE_CXX_COMPILER=icpx \
-#     cargo build -p inferstream-arch-intel --release --features llamacpp-sycl
-#   scripts/run-intel.sh --config config/intel.toml --listen 127.0.0.1:8471
+#   scripts/build-intel.sh
+#   scripts/run-intel.sh --config config/intel.toml --listen 127.0.0.1:8473
 #
 # Does not start python. Does not talk to vlm-server :8085.
 set -euo pipefail
@@ -26,9 +23,7 @@ if [ -z "$BIN" ]; then
 fi
 if [ -z "$BIN" ] || [ ! -x "$BIN" ]; then
     echo "error: inferstream-intel binary not found; build first:" >&2
-    echo "  source /opt/intel/oneapi/setvars.sh" >&2
-    echo "  GGML_SYCL=ON CMAKE_C_COMPILER=icx CMAKE_CXX_COMPILER=icpx \\" >&2
-    echo "    cargo build -p inferstream-arch-intel --release --features llamacpp-sycl" >&2
+    echo "  scripts/build-intel.sh" >&2
     exit 1
 fi
 

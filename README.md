@@ -101,10 +101,7 @@ cargo build -p inferstream-arch-nvidia --release --features trtllm-sys   # optio
 # ort-cuda build loads at startup.
 
 # Intel (krick-1): stub surface builds anywhere. Real SYCL generation:
-scripts/setup-llamacpp-sycl.sh          # inject ggml-sycl (crates.io omits it)
-source /opt/intel/oneapi/setvars.sh     # build shell AND service unit
-GGML_SYCL=ON CMAKE_C_COMPILER=icx CMAKE_CXX_COMPILER=icpx \
-    cargo build -p inferstream-arch-intel --release --features llamacpp-sycl
+scripts/build-intel.sh                  # ggml-sycl + icpx rustc link; no python3
 make fetch-llms                         # SHA-256-pinned GGUF; no python3
 scripts/run-intel.sh --config config/intel.toml
 

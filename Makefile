@@ -44,7 +44,7 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 	fetch-llms verify-llms list-llms update-llm-manifest \
 	fetch-embeddings-intel verify-embeddings-intel list-embeddings-intel \
 	update-embedding-manifest-intel \
-	setup-sycl
+	setup-sycl build-intel-sycl
 
 fetch-embeddings:
 	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS)
@@ -85,6 +85,11 @@ update-llm-manifest:
 # GGML_SYCL=ON cmake succeeds. No python3. Needed before llamacpp-sycl.
 setup-sycl:
 	scripts/setup-llamacpp-sycl.sh
+
+# In-process SYCL binary. icpx drives the rustc link (device images).
+# No python3.
+build-intel-sycl: setup-sycl
+	scripts/build-intel.sh
 
 fetch-embeddings-intel:
 	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) $(INTEL_ARGS)

@@ -24,12 +24,17 @@ SHA-256 pins: `models/manifests/llms.json`. Fetch: `make fetch-llms`.
 ## Build
 
 ```bash
-scripts/setup-llamacpp-sycl.sh
-source /opt/intel/oneapi/setvars.sh
-GGML_SYCL=ON CMAKE_C_COMPILER=icx CMAKE_CXX_COMPILER=icpx \
-  cargo build -p inferstream-arch-intel --release --features llamacpp-sycl
-scripts/run-intel.sh --config config/intel.toml --listen 127.0.0.1:8471
+scripts/build-intel.sh          # setup-llamacpp-sycl + icpx rustc link; no python3
+make fetch-llms                 # curl + sha256sum; no python3
+scripts/run-intel.sh --config config/intel.toml --listen 127.0.0.1:8473
+scripts/prove-intel-sycl.sh 127.0.0.1:8473 change-me
 ```
+
+`scripts/build-intel.sh` sets `GGML_SYCL=ON` and uses `icpx -fsycl` as the
+rustc linker so device images in `libggml-sycl.a` are extracted. rust-lld
+alone cannot. `crates/backend-llamacpp/build.rs` then pulls in `libsycl`,
+Level Zero, oneMKL SYCL BLAS, and oneDNN — static `libggml-sycl.a` does
+not.
 
 ## Results
 

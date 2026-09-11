@@ -92,7 +92,5 @@ fi
 echo
 echo "ok: SYCL-capable llama-cpp-sys-2 at $VENDOR"
 echo "    ggml-sycl from llama.cpp $LLAMA_CPP_COMMIT"
-echo "build with:"
-echo "  source /opt/intel/oneapi/setvars.sh"
-echo "  export GGML_SYCL=ON CMAKE_C_COMPILER=icx CMAKE_CXX_COMPILER=icpx"
-echo "  cargo build -p inferstream-arch-intel --release --features llamacpp-sycl"
+echo "build with (icpx as rustc linker; no python3):"
+echo "  scripts/build-intel.sh"
