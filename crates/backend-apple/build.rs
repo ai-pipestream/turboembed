@@ -49,4 +49,38 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", search.display());
     println!("cargo:rustc-link-lib=dylib=MlxEngine");
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", search.display());
+
+    // This package's tests pick up rustc-link-arg. The inferstream-apple
+    // binary does not, so also drop the dylib + metallib next to cargo
+    // artifacts (`@loader_path`) and emit the profile dir as metadata.
+    if let Some(profile) = profile_dir() {
+        stage_runtime(&search, &profile);
+        let deps = profile.join("deps");
+        if deps.is_dir() {
+            stage_runtime(&search, &deps);
+        }
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", profile.display());
+    }
+}
+
+fn profile_dir() -> Option<PathBuf> {
+    let out = PathBuf::from(std::env::var("OUT_DIR").ok()?);
+    out.ancestors().nth(3).map(PathBuf::from)
+}
+
+fn stage_runtime(from: &std::path::Path, dest: &std::path::Path) {
+    let _ = std::fs::create_dir_all(dest);
+    let _ = std::fs::create_dir_all(dest.join("Resources"));
+    for name in ["libMlxEngine.dylib", "mlx.metallib", "default.metallib"] {
+        let src = from.join(name);
+        if src.is_file() {
+            let _ = std::fs::copy(&src, dest.join(name));
+        }
+    }
+    for name in ["mlx.metallib", "default.metallib"] {
+        let src = from.join(name);
+        if src.is_file() {
+            let _ = std::fs::copy(&src, dest.join("Resources").join(name));
+        }
+    }
 }

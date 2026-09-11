@@ -13,9 +13,8 @@ name = "inferstream-apple"
 path = "src/main.rs"
 
 [dependencies]
-# The MLX backend crate is pure Rust until mlx-rs lands, so this binary
-# compiles (as a stub) on Linux too — CI type-checks the wiring, but the
-# functional server only exists on a native macOS host.
+# Compiles as a stub on Linux (CI type-checks the wiring). Functional
+# server is macOS-only: in-process Swift MLX via inferstream-backend-apple.
 inferstream-server = { workspace = true }
 inferstream-backend = { workspace = true }
 inferstream-backend-mock = { workspace = true }

@@ -26,13 +26,24 @@ SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
 echo "--- waiting for server on $ADDR ---"
+ready=0
 for _ in $(seq 1 60); do
-    if grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" "$ADDR" \
-        inference.GRPCInferenceService/ServerLive >/dev/null 2>&1; then
+    if kill -0 "$SERVER_PID" 2>/dev/null \
+        && grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" "$ADDR" \
+            inference.GRPCInferenceService/ServerLive >/dev/null 2>&1; then
+        ready=1
         break
+    fi
+    if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+        echo "error: inferstream-apple exited before becoming live" >&2
+        exit 1
     fi
     sleep 1
 done
+if [ "$ready" != 1 ]; then
+    echo "error: server never became live on $ADDR" >&2
+    exit 1
+fi
 
 # Prove the serve path has no Python interpreter.
 if ps -o args= -p "$SERVER_PID" | grep -qi python; then
