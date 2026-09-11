@@ -1,0 +1,21 @@
+[package]
+name = "inferstream-backend-ovms"
+description = "OVMS/KServe gRPC client backend for inferstream — forwards OIP V2 requests to a running OpenVINO Model Server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+inferstream-protocol = { workspace = true }
+inferstream-backend = { workspace = true }
+async-trait = { workspace = true }
+tonic = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }

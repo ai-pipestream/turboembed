@@ -7,11 +7,11 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 | binary | host class | engines | status |
 |---|---|---|---|
 | `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime CUDA EP** (primary today — encoder embeddings), llama.cpp-CUDA (GGUF, later), TensorRT-LLM Executor (optional later feature for generative) | **ORT engine real** (`ort-runtime` / `ort-cuda`), validated on krick against TEI; TRT-LLM + llama.cpp links stubbed |
-| `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO** (primary — already running as OVMS on the host today), llama.cpp-SYCL (secondary, Docker-proven) | engine links stubbed |
+| `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO** (primary): `ovms` gRPC client to the host's Model Server (**live — real GPU embeddings today**) + in-process runtime (stubbed); llama.cpp-SYCL (secondary, Docker-proven) | ovms client working; in-process links stubbed |
 | `inferstream-apple` | **native macOS host** (Mac worker) | **MLX**, llama.cpp-Metal for GGUF | engine links stubbed; macOS-only by design; needs a Mac "My Machines" worker for real builds |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
-**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). The **first real engine is live**: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. TRT-LLM, llama.cpp, OpenVINO, and MLX remain stubs with full config surface; routing to them still fails at startup with the exact feature named.
+**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Two real engine paths are live.** NVIDIA: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. Intel: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). TRT-LLM, llama.cpp, in-process OpenVINO, and MLX remain stubs with full config surface; routing to them still fails at startup with the exact feature named.
 
 ## Architecture
 
@@ -27,8 +27,9 @@ flowchart TB
         N3[TensorRT-LLM Executor - optional later, generative]
     end
 
-    subgraph intel [inferstream-intel - krick-1, Linux, oneAPI env]
-        I1[OpenVINO - CPU/GPU/NPU, primary - OVMS already runs here]
+    subgraph intel [inferstream-intel - krick-1, Linux]
+        I0[OVMS gRPC client - LIVE, forwards OIP to host Model Server]
+        I1[OpenVINO in-process - CPU/GPU/NPU, needs oneAPI env]
         I2[llama.cpp SYCL - Level Zero, secondary]
     end
 
@@ -52,7 +53,8 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/backend-trtllm` | TensorRT-LLM **Executor** skeleton: config + OIP mapping (runtime link behind `trtllm-sys`) |
 | `crates/backend-llamacpp` | llama.cpp for all flavors — device = `cuda` / `sycl` / `metal` / `vulkan` / `cpu` |
 | `crates/backend-ort` | **ONNX Runtime embedding engine** (feature `runtime`; EPs: CPU / `cuda` / `tensorrt`) — tokenizes server-side, mean/CLS pooling + L2 norm; stub without the feature |
-| `crates/backend-openvino` | OpenVINO stub (Intel CPU/GPU/NPU) |
+| `crates/backend-openvino` | OpenVINO in-process stub (Intel CPU/GPU/NPU) |
+| `crates/backend-ovms` | **Working** OVMS/KServe gRPC client — forwards OIP requests to a running OpenVINO Model Server (typed protobuf, no JSON hop) |
 | `crates/backend-apple` | MLX stub (`MlxBackend`) — functional only on macOS |
 | `crates/server` | Shared: tonic service, auth, config, registry, CLI runner + mock-only `inferstream` bin |
 | `crates/arch-nvidia` | `inferstream-nvidia` binary |
@@ -118,7 +120,7 @@ EP registration uses `error_on_failure`: if these libs are missing the binary **
 - **Latency and $/token, not portability theater.** Each accelerator's peak path is a different runtime (TRT-LLM Executor vs Level Zero vs Metal/MLX). One fat binary linking all of them means compromise flags, giant images, and driver conflicts. Three lean binaries mean each host runs exactly its optimum and nothing else.
 - **No Java/Python hop.** Unlike DJL (JVM) or Python servers, the socket-to-engine path is a single Rust process; streaming tokens don't cross an interpreter.
 - **Not NIM.** NVIDIA NIM wraps engines in an OpenAI-style HTTP service. inferstream keeps engines in-process under its own gRPC (ORT EPs now; TRT-LLM Executor when generative LLMs are mandated). **NIM is used as a benchmark oracle only**: we run NIM beside `inferstream-nvidia` on the same GPU and model to sanity-check our tokens/sec and TTFT — if we're slower than the HTTP wrapper, that's a bug to fix, not a product to adopt.
-- **Not OVMS/Triton/TEI.** Those own the process and the protocol; adding an engine or changing streaming/auth policy means forking C++ serving infrastructure. Here the protocol layer is ours, engines are leaf dependencies behind one trait — and clients speak the same OIP V2 they'd speak to Triton anyway. (krick-1 runs OVMS today; `inferstream-intel` embeds the same OpenVINO runtime directly, and OVMS doubles as the Intel-side benchmark oracle.)
+- **Not OVMS/Triton/TEI.** Those own the process and the protocol; adding an engine or changing streaming/auth policy means forking C++ serving infrastructure. Here the protocol layer is ours, engines are leaf dependencies behind one trait — and clients speak the same OIP V2 they'd speak to Triton anyway. (krick-1 runs OVMS today; because it speaks the same OIP V2 family, `backend = "ovms"` forwards to it as a leaf engine while inferstream keeps auth/routing/streaming — and it doubles as the Intel-side benchmark oracle for the future in-process OpenVINO link.)
 
 ## Bake-off methodology (upcoming, per arch)
 
@@ -208,13 +210,14 @@ Same client, same contract, heterogeneous fleet: krick (NVIDIA) + krick-1 (Intel
 ## Roadmap
 
 1. ~~ONNX Runtime session wiring (`backend-ort`)~~ — **done**: CPU + CUDA EPs, embeddings live on krick; TensorRT EP wired but blocked on host TensorRT libs.
-2. **OpenVINO runtime link** (`backend-openvino`) — krick-1's primary path (OVMS on the host as oracle); llama.cpp-SYCL as the Docker-proven secondary.
-3. **llama.cpp FFI** (`backend-llamacpp`) — one binding, all devices (CUDA secondary on krick, SYCL secondary on krick-1, Metal on Mac).
-4. **MLX** (`backend-apple`) via `mlx-rs` — needs the Mac "My Machines" worker for real builds.
-5. **TLS / mTLS** in `serve()`; per-key model ACLs after.
+2. ~~**OVMS client backend**~~ — **done**: `backend = "ovms"` serves real Battlemage-GPU embeddings on krick-1 through the façade today (see `config/intel.toml` and `crates/arch-intel/examples/ovms_embed.rs`).
+3. **OpenVINO runtime link** (`backend-openvino`) — krick-1's in-process path (the live OVMS route as oracle); llama.cpp-SYCL as the Docker-proven secondary.
+4. **llama.cpp FFI** (`backend-llamacpp`) — one binding, all devices (CUDA secondary on krick, SYCL secondary on krick-1, Metal on Mac).
+5. **MLX** (`backend-apple`) via `mlx-rs` — needs the Mac "My Machines" worker for real builds.
 6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — optional later feature for generative models; cxx/bindgen layer over `tensorrt_llm::executor`.
-7. Optional adapters: TEI-compatible proto (lowest priority), shared-memory tensor hints, richer stream metadata.
-8. ORT session pooling (today one session per model behind a mutex; ONNX Runtime's intra-op threads still parallelize each request).
+7. **TLS / mTLS** in `serve()`; per-key model ACLs after.
+8. Optional adapters: TEI-compatible proto (lowest priority), shared-memory tensor hints, richer stream metadata.
+9. ORT session pooling (today one session per model behind a mutex; ONNX Runtime's intra-op threads still parallelize each request).
 
 Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.
 

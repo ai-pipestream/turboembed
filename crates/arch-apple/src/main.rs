@@ -55,11 +55,13 @@ fn factory() -> impl inferstream_server::BackendFactory {
                 .map_err(|e| invalid(model, e.to_string()))?;
                 Ok(Arc::new(backend))
             }
-            BackendKind::TrtLlm | BackendKind::Ort | BackendKind::Openvino => Err(unsupported(
-                model,
-                "not an Apple-arch engine; use inferstream-nvidia (trt-llm, ort) or \
-                 inferstream-intel (openvino, ort)",
-            )),
+            BackendKind::TrtLlm | BackendKind::Ort | BackendKind::Openvino | BackendKind::Ovms => {
+                Err(unsupported(
+                    model,
+                    "not an Apple-arch engine; use inferstream-nvidia (trt-llm, ort) or \
+                     inferstream-intel (openvino, ovms, ort)",
+                ))
+            }
         }
     }
 }

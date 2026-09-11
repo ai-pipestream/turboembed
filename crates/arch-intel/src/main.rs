@@ -1,13 +1,17 @@
 //! `inferstream-intel`: the Intel arch binary.
 //!
-//! Primary engine: OpenVINO for CPU/GPU/NPU graphs (the host already runs
-//! OVMS, which doubles as the benchmark oracle). Secondary: llama.cpp built
-//! with `GGML_SYCL` (oneAPI / Level Zero, Docker-proven) for GGUF models.
-//! Both are kept side by side for the planned Battlemage bake-off (see
-//! README). Both need the oneAPI environment sourced
+//! Primary engine path: OpenVINO, reached two ways. `backend = "ovms"`
+//! forwards to a running OpenVINO Model Server over gRPC (same KServe OIP V2
+//! family; no host OpenVINO install needed — this is the first working path
+//! on OVMS-in-Docker hosts like krick-1). `backend = "openvino"` is the
+//! in-process runtime (stub until the OpenVINO runtime is linked). Secondary:
+//! llama.cpp built with `GGML_SYCL` (oneAPI / Level Zero, Docker-proven) for
+//! GGUF models — the other side of the planned Battlemage bake-off (see
+//! README). In-process engines need the oneAPI environment sourced
 //! (`source /opt/intel/oneapi/setvars.sh`) in the build shell and in the
-//! service unit that launches this binary. ONNX Runtime covers plain ONNX
-//! models; the mock backend is always available for wire-path smoke tests.
+//! service unit that launches this binary; the ovms client backend does not.
+//! ONNX Runtime covers plain ONNX models; the mock backend is always
+//! available for wire-path smoke tests.
 
 use std::sync::Arc;
 
@@ -53,6 +57,29 @@ fn factory() -> impl inferstream_server::BackendFactory {
                 }
                 #[cfg(not(feature = "llamacpp"))]
                 Err(unsupported(model, "rebuild with --features llamacpp"))
+            }
+            BackendKind::Ovms => {
+                #[cfg(feature = "ovms")]
+                {
+                    let endpoint = model
+                        .endpoint
+                        .clone()
+                        .or_else(|| std::env::var("INFERSTREAM_OVMS_ENDPOINT").ok())
+                        .ok_or_else(|| {
+                            invalid(
+                                model,
+                                "backend \"ovms\" needs an upstream gRPC endpoint: set \
+                                 `endpoint` in the model entry or INFERSTREAM_OVMS_ENDPOINT \
+                                 in the environment"
+                                    .to_string(),
+                            )
+                        })?;
+                    let backend = inferstream_backend_ovms::OvmsBackend::new(endpoint)
+                        .map_err(|e| invalid(model, e.to_string()))?;
+                    Ok(Arc::new(backend))
+                }
+                #[cfg(not(feature = "ovms"))]
+                Err(unsupported(model, "rebuild with --features ovms"))
             }
             BackendKind::Openvino => {
                 #[cfg(feature = "openvino")]

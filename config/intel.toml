@@ -1,17 +1,21 @@
 # inferstream-intel example configuration (krick-1-class Intel host,
 # Arc/Battlemage GPU).
 #
-# Primary engine: OpenVINO — the host already runs OVMS, which doubles as the
-# benchmark oracle while inferstream embeds the same OpenVINO runtime
-# in-process. Secondary: llama.cpp built with GGML_SYCL (Docker-proven).
+# Primary engine: OpenVINO. Two routes:
+#   * backend = "ovms"     — gRPC client to the OpenVINO Model Server already
+#                            running in Docker (same KServe OIP V2 protocol;
+#                            no host OpenVINO runtime install needed). This is
+#                            the first working real-inference path.
+#   * backend = "openvino" — in-process OpenVINO runtime (stub until the
+#                            runtime is linked; needs oneAPI sourced).
+# Secondary: llama.cpp built with GGML_SYCL (Docker-proven).
 #
-# oneAPI environment must be sourced in the build shell AND the service unit:
-#   source /opt/intel/oneapi/setvars.sh
+# Build & run (ovms/mock routes need no oneAPI environment):
 #   cargo build -p inferstream-arch-intel --release
 #   ./target/release/inferstream-intel --config config/intel.toml
 #
-# The OpenVINO and SYCL entries below are the two sides of the planned
-# Battlemage bake-off: same model, two engines, switch by config.
+# For the in-process openvino/SYCL routes, source oneAPI in the build shell
+# AND the service unit: source /opt/intel/oneapi/setvars.sh
 
 listen = "0.0.0.0:8461"
 
@@ -23,14 +27,43 @@ bearer_tokens = ["change-me"]
 name = "mock-embed"
 backend = "mock"
 
-# Primary (bake-off candidate A): OpenVINO on the GPU plugin.
+# --- OVMS client route (primary, works today) -------------------------------
+# The krick-1 OVMS container (openvino/model_server:latest-gpu, container
+# "protomolt-embedder-ovms") serves these DAG pipelines from
+# /work/models/ovms-embedder/config-gpu.json: string input "strings" ->
+# tokenizer (CPU) -> embedding model (Battlemage GPU) -> "sentence_embedding".
+#
+# Model names must match what OVMS serves (GET <rest>/v1/config to list).
+# The endpoint is the OVMS gRPC listener (--port, not --rest_port). On
+# krick-1 only REST is published to the host, so gRPC goes to the container's
+# bridge IP:
+#   docker inspect -f \
+#     '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+#     protomolt-embedder-ovms
+# Override per-host without editing this file via INFERSTREAM_OVMS_ENDPOINT.
+
+# all-MiniLM-L6-v2 embeddings (384 dims).
+[[models]]
+name = "minilm_pipeline"
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+
+# all-mpnet-base-v2 embeddings (768 dims).
+[[models]]
+name = "mpnet_pipeline"
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+
+# --- Bake-off candidates (in-process; need host runtimes) -------------------
+
+# Candidate A: in-process OpenVINO on the GPU plugin (stub today).
 [[models]]
 name = "qwen-7b-ov"
 backend = "openvino"
 device = "GPU"
 path = "/models/qwen2.5-7b-int4-ov/openvino_model.xml"
 
-# Secondary (bake-off candidate B): llama.cpp built with GGML_SYCL
+# Candidate B: llama.cpp built with GGML_SYCL
 # (Level Zero / oneAPI; Docker-proven on this host).
 [[models]]
 name = "qwen-7b-sycl"
