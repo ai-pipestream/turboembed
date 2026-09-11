@@ -20,6 +20,8 @@ default = ["llamacpp", "openvino", "ort"]
 llamacpp = ["dep:inferstream-backend-llamacpp"]
 openvino = ["dep:inferstream-backend-openvino"]
 ort = ["dep:inferstream-backend-ort"]
+# Real ONNX Runtime link, CPU EP (Intel GPU EPs come later via OpenVINO EP).
+ort-runtime = ["ort", "inferstream-backend-ort/runtime"]
 
 [dependencies]
 inferstream-server = { workspace = true }

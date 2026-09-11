@@ -6,12 +6,12 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 
 | binary | host class | engines | status |
 |---|---|---|---|
-| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime + CUDA/TensorRT EP for embeddings** (primary), llama.cpp-CUDA (secondary, GGUF); TensorRT-LLM Executor **deferred** until generative LLMs are mandated (skeleton kept) | engine links stubbed; config + tensor contract final |
+| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime CUDA EP** (primary today — encoder embeddings), llama.cpp-CUDA (GGUF, later), TensorRT-LLM Executor (optional later feature for generative) | **ORT engine real** (`ort-runtime` / `ort-cuda`), validated on krick against TEI; TRT-LLM + llama.cpp links stubbed |
 | `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO** (primary — already running as OVMS on the host today), llama.cpp-SYCL (secondary, Docker-proven) | engine links stubbed |
 | `inferstream-apple` | **native macOS host** (Mac worker) | **MLX**, llama.cpp-Metal for GGUF | engine links stubbed; macOS-only by design; needs a Mac "My Machines" worker for real builds |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
-**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). Every *engine* is still a stub: full config surface and OIP tensor contracts are in place, but no FFI links yet. The next unit of work per arch is the engine binding, not server redesign.
+**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). The **first real engine is live**: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. TRT-LLM, llama.cpp, OpenVINO, and MLX remain stubs with full config surface; routing to them still fails at startup with the exact feature named.
 
 ## Architecture
 
@@ -22,9 +22,9 @@ flowchart TB
     end
 
     subgraph nvidia [inferstream-nvidia - krick, Linux container OK]
-        N1[ONNX Runtime - CUDA/TensorRT EP, embeddings primary]
-        N2[llama.cpp CUDA - GGUF secondary]
-        N3[TensorRT-LLM Executor - deferred until gen LLMs mandated]
+        N1[ONNX Runtime CUDA EP - primary, embeddings live]
+        N2[llama.cpp CUDA - GGUF fallback]
+        N3[TensorRT-LLM Executor - optional later, generative]
     end
 
     subgraph intel [inferstream-intel - krick-1, Linux, oneAPI env]
@@ -51,7 +51,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/backend-mock` | Deterministic mock (embeddings + chunked token streaming) — in every binary |
 | `crates/backend-trtllm` | TensorRT-LLM **Executor** skeleton: config + OIP mapping (runtime link behind `trtllm-sys`) |
 | `crates/backend-llamacpp` | llama.cpp for all flavors — device = `cuda` / `sycl` / `metal` / `vulkan` / `cpu` |
-| `crates/backend-ort` | ONNX Runtime stub |
+| `crates/backend-ort` | **ONNX Runtime embedding engine** (feature `runtime`; EPs: CPU / `cuda` / `tensorrt`) — tokenizes server-side, mean/CLS pooling + L2 norm; stub without the feature |
 | `crates/backend-openvino` | OpenVINO stub (Intel CPU/GPU/NPU) |
 | `crates/backend-apple` | MLX stub (`MlxBackend`) — functional only on macOS |
 | `crates/server` | Shared: tonic service, auth, config, registry, CLI runner + mock-only `inferstream` bin |
@@ -67,11 +67,15 @@ Everything below builds on a plain Linux box today (engines are stubs); the extr
 # Dev / client validation (mock only) — anywhere
 cargo run -p inferstream-server -- --config config/example.toml
 
-# NVIDIA (krick): stub surface builds anywhere. Primary engine will be the
-# ONNX Runtime CUDA/TensorRT execution provider (embeddings); the deferred
-# TRT-LLM Executor link stays opt-in behind trtllm-sys (GPU host only).
-cargo build -p inferstream-arch-nvidia --release
+# NVIDIA (krick): stub surface builds anywhere. The real embedding engine is
+# ONNX Runtime — `ort`'s download-binaries fetches a matching libonnxruntime
+# at build time, so no system ORT install is needed:
+cargo build -p inferstream-arch-nvidia --release --features ort-runtime  # CPU EP, anywhere
+cargo build -p inferstream-arch-nvidia --release --features ort-cuda     # CUDA EP, GPU host
+cargo build -p inferstream-arch-nvidia --release --features trtllm-sys   # optional later: TRT-LLM
 ./target/release/inferstream-nvidia --config config/nvidia.toml
+# See "NVIDIA GPU host requirements" below for the CUDA 13 runtime libs the
+# ort-cuda build loads at startup.
 
 # Intel (krick-1): source oneAPI first (build shell AND service unit)
 source /opt/intel/oneapi/setvars.sh
@@ -84,6 +88,30 @@ cargo build -p inferstream-arch-apple --release
 ```
 
 Routing a model to an engine a binary doesn't ship fails **at startup** with the exact feature flag or the right binary named — never at request time.
+
+### NVIDIA GPU host requirements (ort-cuda)
+
+The `ort` crate's prebuilt CUDA bundle (ONNX Runtime 1.28) is built against **CUDA 13**, so the CUDA EP needs at runtime:
+
+- NVIDIA driver new enough for CUDA 13 (krick's 595.84 → CUDA 13.2: OK).
+- CUDA 13 user-space runtime libs: `libcublasLt.so.13`, `libcublas.so.13`, `libcudart.so.13`, `libnvrtc.so.13`, and a cuDNN 9 built for CUDA 13. A CUDA **12** toolkit (krick's 12.4) does **not** satisfy this.
+
+Two ways to provide them:
+
+```bash
+# No sudo — NVIDIA's pip wheels, ~1.6 GB, then point the loader at them:
+python3 -m venv .venv-cuda-libs
+.venv-cuda-libs/bin/pip install --only-binary :all: \
+    nvidia-cublas-cu13 nvidia-cuda-runtime nvidia-cudnn-cu13
+NV=$PWD/.venv-cuda-libs/lib/python3*/site-packages/nvidia
+LD_LIBRARY_PATH=$NV/cu13/lib:$NV/cudnn/lib \
+    ./target/release/inferstream-nvidia --config config/nvidia.toml
+
+# With sudo — system install (NVIDIA apt repo):
+sudo apt install cuda-runtime-13-2 libcudnn9-cuda-13
+```
+
+EP registration uses `error_on_failure`: if these libs are missing the binary **fails at startup** with the loader's actual error instead of silently serving on CPU. `device = "tensorrt"` (build feature `ort-tensorrt`) additionally requires TensorRT 10 (`sudo apt install tensorrt-libs` from the NVIDIA repo) — not installed on krick today, so stay on `device = "cuda"`.
 
 ## Why per-arch binaries (and why a façade at all)
 
@@ -179,13 +207,14 @@ Same client, same contract, heterogeneous fleet: krick (NVIDIA) + krick-1 (Intel
 
 ## Roadmap
 
-1. **ONNX Runtime session wiring** (`backend-ort`) with the CUDA / TensorRT execution providers — krick's primary embedding path.
+1. ~~ONNX Runtime session wiring (`backend-ort`)~~ — **done**: CPU + CUDA EPs, embeddings live on krick; TensorRT EP wired but blocked on host TensorRT libs.
 2. **OpenVINO runtime link** (`backend-openvino`) — krick-1's primary path (OVMS on the host as oracle); llama.cpp-SYCL as the Docker-proven secondary.
 3. **llama.cpp FFI** (`backend-llamacpp`) — one binding, all devices (CUDA secondary on krick, SYCL secondary on krick-1, Metal on Mac).
 4. **MLX** (`backend-apple`) via `mlx-rs` — needs the Mac "My Machines" worker for real builds.
-5. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — deferred until generative LLMs are mandated; skeleton and tensor contract stay ready.
-6. **TLS / mTLS** in `serve()`; per-key model ACLs after.
+5. **TLS / mTLS** in `serve()`; per-key model ACLs after.
+6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — optional later feature for generative models; cxx/bindgen layer over `tensorrt_llm::executor`.
 7. Optional adapters: TEI-compatible proto (lowest priority), shared-memory tensor hints, richer stream metadata.
+8. ORT session pooling (today one session per model behind a mutex; ONNX Runtime's intra-op threads still parallelize each request).
 
 Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.
 
