@@ -462,11 +462,15 @@ impl Backend for LlamaCppBackend {
             ("endpoint".to_string(), server.base.clone()),
             ("device".to_string(), format!("{:?}", self.config.device)),
         ]);
-        // Best-effort: surface the GGUF the server actually loaded.
+        // Best-effort: surface the GGUF the server actually loaded so
+        // logical aliases (default-llm / qwen-7b) stay honest when the
+        // host llama-server is a different weight (e.g. Qwen2.5-VL-7B).
         if let Ok(response) = server.http.get(server.url("/props")).send().await {
             if let Ok(props) = response.json::<serde_json::Value>().await {
-                if let Some(path) = props.get("model_path").and_then(|v| v.as_str()) {
-                    properties.insert("model_path".to_string(), path.to_string());
+                for key in ["model_path", "model_alias", "model_ftype"] {
+                    if let Some(value) = props.get(key).and_then(|v| v.as_str()) {
+                        properties.insert(key.to_string(), value.to_string());
+                    }
                 }
             }
         }
