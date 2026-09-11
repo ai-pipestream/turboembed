@@ -118,3 +118,77 @@ fn factory() -> impl inferstream_server::BackendFactory {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     inferstream_server::run_cli("inferstream-nvidia", &factory()).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inferstream_server::{build_registry, config::Config};
+
+    #[test]
+    fn routes_mock_and_rejects_foreign_arch_backends() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "smoke"
+            backend = "mock"
+            "#,
+        )
+        .unwrap();
+        let registry = build_registry(&config, &factory()).unwrap();
+        assert!(registry.lookup("smoke").is_some());
+
+        for backend in ["openvino", "mlx"] {
+            let config = Config::from_toml(&format!(
+                "[[models]]\nname = \"m\"\nbackend = \"{backend}\"\npath = \"/models/x\"\n"
+            ))
+            .unwrap();
+            let result = build_registry(&config, &factory());
+            assert!(
+                matches!(result, Err(ServerError::UnsupportedBackend { .. })),
+                "backend {backend} must be rejected by the NVIDIA binary"
+            );
+        }
+    }
+
+    #[cfg(all(feature = "ort", not(feature = "ort-runtime")))]
+    #[test]
+    fn ort_stub_builds_but_reports_not_ready() {
+        // Without the runtime feature the ORT surface still routes; readiness
+        // is false and inference reports Unavailable naming the feature.
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "minilm"
+            backend = "ort"
+            path = "/models/minilm.onnx"
+            pooling = "mean"
+            "#,
+        )
+        .unwrap();
+        let registry = build_registry(&config, &factory()).unwrap();
+        let backend = registry.lookup("minilm").unwrap();
+        let ready = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(backend.model_ready("minilm", ""));
+        assert!(!ready);
+    }
+
+    #[cfg(feature = "ort")]
+    #[test]
+    fn ort_invalid_device_fails_at_startup() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "minilm"
+            backend = "ort"
+            device = "npu"
+            path = "/models/minilm.onnx"
+            "#,
+        )
+        .unwrap();
+        assert!(matches!(
+            build_registry(&config, &factory()),
+            Err(ServerError::InvalidModelConfig { .. })
+        ));
+    }
+}

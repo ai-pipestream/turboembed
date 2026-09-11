@@ -303,6 +303,48 @@ mod tests {
     }
 
     #[test]
+    fn int64_and_uint32_roundtrip() {
+        let ids: Vec<i64> = vec![0, 1, -1, i64::MAX, i64::MIN];
+        assert_eq!(unpack_i64(&pack_i64(&ids)).unwrap(), ids);
+        let mask: Vec<u32> = vec![1, 0, 1, u32::MAX];
+        assert_eq!(unpack_u32(&pack_u32(&mask)).unwrap(), mask);
+    }
+
+    #[test]
+    fn empty_slices_pack_to_empty_blobs() {
+        assert!(pack_fp32(&[]).is_empty());
+        assert_eq!(unpack_fp32(&[]).unwrap(), Vec::<f32>::new());
+        assert!(pack_bytes::<&[u8]>(&[]).is_empty());
+        assert_eq!(unpack_bytes(&[]).unwrap(), Vec::<Vec<u8>>::new());
+    }
+
+    #[test]
+    fn bytes_empty_elements_survive_roundtrip() {
+        let elements: Vec<&[u8]> = vec![b"", b"x", b""];
+        let unpacked = unpack_bytes(&pack_bytes(&elements)).unwrap();
+        assert_eq!(unpacked, vec![b"".to_vec(), b"x".to_vec(), b"".to_vec()]);
+    }
+
+    #[test]
+    fn fp32_special_values_roundtrip_bitwise() {
+        let values = [0.0f32, -0.0, f32::INFINITY, f32::NEG_INFINITY, f32::MIN_POSITIVE];
+        let out = unpack_fp32(&pack_fp32(&values)).unwrap();
+        for (a, b) in values.iter().zip(&out) {
+            assert_eq!(a.to_bits(), b.to_bits());
+        }
+        // NaN preserves its payload bit-pattern through the wire format.
+        let nan = f32::from_bits(0x7fc0_1234);
+        assert_eq!(unpack_fp32(&pack_fp32(&[nan])).unwrap()[0].to_bits(), nan.to_bits());
+    }
+
+    #[test]
+    fn element_count_rejects_negative_dims() {
+        assert!(element_count(&[2, -1]).is_err());
+        assert_eq!(element_count(&[2, 3, 4]).unwrap(), 24);
+        assert_eq!(element_count(&[]).unwrap(), 1, "scalar shape");
+    }
+
+    #[test]
     fn truncated_bytes_rejected() {
         let mut raw = pack_bytes(&[b"hello".as_slice()]);
         raw.truncate(raw.len() - 1);

@@ -249,6 +249,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn default_extension_surface_is_unavailable() {
+        let backend = NullBackend;
+        assert!(matches!(
+            backend
+                .tokenize("m", &["x".to_string()], &TokenizeOptions::default())
+                .await,
+            Err(BackendError::Unavailable(_))
+        ));
+        assert!(matches!(
+            backend.detokenize("m", &[vec![1, 2]], false).await,
+            Err(BackendError::Unavailable(_))
+        ));
+        assert!(matches!(
+            backend.rerank("m", "q", &["d".to_string()]).await,
+            Err(BackendError::Unavailable(_))
+        ));
+    }
+
+    #[test]
+    fn tokenize_options_default_adds_special_tokens() {
+        let options = TokenizeOptions::default();
+        assert!(options.add_special_tokens);
+        assert!(!options.with_offsets);
+        assert!(options.truncate_to.is_none());
+        assert!(!options.pad_to_longest);
+    }
+
+    #[tokio::test]
     async fn default_infer_stream_adapts_unary() {
         use futures::StreamExt;
         let backend = NullBackend;

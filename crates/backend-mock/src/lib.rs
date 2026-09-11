@@ -434,6 +434,199 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn batch_infer_returns_n_by_d() {
+        let backend = MockBackend::default();
+        let dim = backend.embedding_dim();
+        let request = ModelInferRequest {
+            model_name: "mock-embed".into(),
+            id: "batch-1".into(),
+            inputs: vec![InferInputTensor {
+                name: "text".into(),
+                datatype: "BYTES".into(),
+                shape: vec![3],
+                parameters: HashMap::new(),
+                contents: None,
+            }],
+            raw_input_contents: vec![pack_bytes(&[
+                b"alpha".as_slice(),
+                b"beta",
+                b"alpha", // duplicate of the first: rows must match
+            ])],
+            ..Default::default()
+        };
+        let response = backend.infer(request).await.unwrap();
+        assert_eq!(response.outputs[0].shape, vec![3, dim as i64]);
+        let values = unpack_fp32(&response.raw_output_contents[0]).unwrap();
+        assert_eq!(values.len(), 3 * dim);
+        assert_eq!(values[..dim], values[2 * dim..], "same text, same row");
+        assert_ne!(values[..dim], values[dim..2 * dim]);
+    }
+
+    #[tokio::test]
+    async fn single_text_keeps_flat_shape() {
+        let backend = MockBackend::default();
+        let response = backend.infer(text_request("r1", "solo")).await.unwrap();
+        assert_eq!(
+            response.outputs[0].shape,
+            vec![backend.embedding_dim() as i64],
+            "single-text shape stays [d] for backwards compatibility"
+        );
+    }
+
+    #[tokio::test]
+    async fn tokenize_detokenize_round_trip() {
+        use inferstream_backend::TokenizeOptions;
+        let backend = MockBackend::default();
+        let texts = vec!["hello world".to_string(), "λ unicode ✓".to_string()];
+        let encodings = backend
+            .tokenize("m", &texts, &TokenizeOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(encodings.len(), 2);
+        // Specials framed around content.
+        assert_eq!(encodings[0].input_ids.first(), Some(&MOCK_BOS_ID));
+        assert_eq!(encodings[0].input_ids.last(), Some(&MOCK_EOS_ID));
+        assert!(encodings[0].attention_mask.iter().all(|&m| m == 1));
+
+        let sequences: Vec<Vec<u32>> = encodings.iter().map(|e| e.input_ids.clone()).collect();
+        let decoded = backend.detokenize("m", &sequences, true).await.unwrap();
+        assert_eq!(decoded, texts, "skip-specials decode round-trips exactly");
+
+        let with_specials = backend.detokenize("m", &sequences, false).await.unwrap();
+        assert_eq!(with_specials[0], "<s>hello world</s>");
+    }
+
+    #[tokio::test]
+    async fn tokenize_no_special_tokens() {
+        use inferstream_backend::TokenizeOptions;
+        let backend = MockBackend::default();
+        let encodings = backend
+            .tokenize(
+                "m",
+                &["ab".to_string()],
+                &TokenizeOptions {
+                    add_special_tokens: false,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            encodings[0].input_ids,
+            vec![u32::from(b'a') + 3, u32::from(b'b') + 3]
+        );
+        assert_eq!(encodings[0].tokens, vec!["a", "b"]);
+    }
+
+    #[tokio::test]
+    async fn tokenize_truncation_counts_specials() {
+        use inferstream_backend::TokenizeOptions;
+        let backend = MockBackend::default();
+        let encodings = backend
+            .tokenize(
+                "m",
+                &["abcdef".to_string()],
+                &TokenizeOptions {
+                    truncate_to: Some(4),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        // 4 total = BOS + 2 content + EOS.
+        assert_eq!(encodings[0].input_ids.len(), 4);
+        assert_eq!(encodings[0].tokens, vec!["<s>", "a", "b", "</s>"]);
+    }
+
+    #[tokio::test]
+    async fn tokenize_pads_batch_to_longest() {
+        use inferstream_backend::TokenizeOptions;
+        let backend = MockBackend::default();
+        let encodings = backend
+            .tokenize(
+                "m",
+                &["hi".to_string(), "longer text".to_string()],
+                &TokenizeOptions {
+                    pad_to_longest: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        let longest = encodings[1].input_ids.len();
+        assert_eq!(encodings[0].input_ids.len(), longest);
+        assert_eq!(encodings[0].input_ids.last(), Some(&MOCK_PAD_ID));
+        // Mask marks padding with 0, real tokens with 1.
+        let real: u32 = encodings[0].attention_mask.iter().sum();
+        assert_eq!(real, 4, "BOS + 'h' + 'i' + EOS");
+        assert!(encodings[0].attention_mask.ends_with(&[0]));
+    }
+
+    #[tokio::test]
+    async fn tokenize_offsets_map_back_into_text() {
+        use inferstream_backend::TokenizeOptions;
+        let backend = MockBackend::default();
+        let text = "abc".to_string();
+        let encodings = backend
+            .tokenize(
+                "m",
+                std::slice::from_ref(&text),
+                &TokenizeOptions {
+                    with_offsets: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        let offsets = &encodings[0].offsets;
+        assert_eq!(offsets.len(), encodings[0].input_ids.len());
+        // Content offsets slice the original text; specials carry (0, 0).
+        assert_eq!((offsets[0].start, offsets[0].end), (0, 0));
+        assert_eq!((offsets[1].start, offsets[1].end), (0, 1));
+        assert_eq!(&text[offsets[2].start as usize..offsets[2].end as usize], "b");
+    }
+
+    #[tokio::test]
+    async fn detokenize_rejects_out_of_range_ids() {
+        let backend = MockBackend::default();
+        let result = backend.detokenize("m", &[vec![9999]], false).await;
+        assert!(matches!(result, Err(BackendError::InvalidRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn rerank_scores_are_deterministic_and_ordered() {
+        let backend = MockBackend::default();
+        let docs = vec![
+            "rust inference server".to_string(),
+            "cooking pasta at home".to_string(),
+            "fast rust gRPC inference".to_string(),
+        ];
+        let scores = backend
+            .rerank("m", "rust inference", &docs)
+            .await
+            .unwrap();
+        assert_eq!(scores.len(), 3);
+        assert_eq!(scores[0], 1.0, "both query words hit");
+        assert_eq!(scores[1], 0.0, "no query words hit");
+        assert_eq!(scores[2], 1.0);
+        let again = backend
+            .rerank("m", "rust inference", &docs)
+            .await
+            .unwrap();
+        assert_eq!(scores, again);
+    }
+
+    #[tokio::test]
+    async fn rerank_empty_query_scores_zero() {
+        let backend = MockBackend::default();
+        let scores = backend
+            .rerank("m", "", &["anything".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(scores, vec![0.0]);
+    }
+
+    #[tokio::test]
     async fn missing_text_input_is_invalid() {
         let backend = MockBackend::default();
         let request = ModelInferRequest {

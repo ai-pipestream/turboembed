@@ -139,3 +139,58 @@ fn factory() -> impl inferstream_server::BackendFactory {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     inferstream_server::run_cli("inferstream-intel", &factory()).await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use inferstream_server::{build_registry, config::Config};
+
+    #[test]
+    fn routes_mock_and_rejects_foreign_arch_backends() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "smoke"
+            backend = "mock"
+            "#,
+        )
+        .unwrap();
+        let registry = build_registry(&config, &factory()).unwrap();
+        assert!(registry.lookup("smoke").is_some());
+
+        for (backend, snippet) in [
+            ("trt-llm", "engine_dir = \"/engines/x\""),
+            ("mlx", "path = \"/models/x\""),
+        ] {
+            let config = Config::from_toml(&format!(
+                "[[models]]\nname = \"m\"\nbackend = \"{backend}\"\n{snippet}\n"
+            ))
+            .unwrap();
+            let result = build_registry(&config, &factory());
+            assert!(
+                matches!(result, Err(ServerError::UnsupportedBackend { .. })),
+                "backend {backend} must be rejected by the Intel binary"
+            );
+        }
+    }
+
+    #[cfg(feature = "ovms")]
+    #[test]
+    fn ovms_without_endpoint_fails_at_startup() {
+        // No `endpoint` and no INFERSTREAM_OVMS_ENDPOINT: actionable error.
+        std::env::remove_var("INFERSTREAM_OVMS_ENDPOINT");
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "minilm_pipeline"
+            backend = "ovms"
+            "#,
+        )
+        .unwrap();
+        let result = build_registry(&config, &factory());
+        assert!(matches!(
+            result,
+            Err(ServerError::InvalidModelConfig { .. })
+        ));
+    }
+}

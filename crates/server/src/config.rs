@@ -301,6 +301,97 @@ mod tests {
     }
 
     #[test]
+    fn parses_nvidia_ort_embedding_model() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "minilm-l6-v2"
+            backend = "ort"
+            device = "cuda"
+            path = "/models/minilm/onnx/model.onnx"
+            pooling = "mean"
+            normalize = true
+            max_seq_len = 256
+            tokenizer_dir = "/models/minilm"
+            "#,
+        )
+        .unwrap();
+        let model = &config.models[0];
+        assert_eq!(model.backend, BackendKind::Ort);
+        assert_eq!(model.device.as_deref(), Some("cuda"));
+        assert_eq!(model.pooling.as_deref(), Some("mean"));
+        assert_eq!(model.normalize, Some(true));
+        assert_eq!(model.max_seq_len, Some(256));
+        assert_eq!(model.tokenizer_dir.as_deref(), Some("/models/minilm"));
+    }
+
+    #[test]
+    fn parses_apple_mlx_model() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "mlx-embed"
+            backend = "mlx"
+            path = "/models/mlx-embed"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(config.models[0].backend, BackendKind::Mlx);
+        assert_eq!(config.models[0].backend.as_str(), "mlx");
+    }
+
+    #[test]
+    fn rejects_unknown_model_fields() {
+        let result = Config::from_toml(
+            r#"
+            [[models]]
+            name = "m"
+            backend = "mock"
+            not_a_field = true
+            "#,
+        );
+        assert!(matches!(result, Err(ConfigError::Parse(_))));
+    }
+
+    #[test]
+    fn rejects_unknown_backend_kind() {
+        let result = Config::from_toml(
+            r#"
+            [[models]]
+            name = "m"
+            backend = "not-a-backend"
+            "#,
+        );
+        assert!(matches!(result, Err(ConfigError::Parse(_))));
+    }
+
+    #[test]
+    fn default_listen_and_empty_models_parse() {
+        let config = Config::from_toml("").unwrap();
+        assert_eq!(config.listen, "127.0.0.1:8461");
+        assert!(config.models.is_empty());
+        assert_eq!(config.auth.mode, AuthMode::None);
+    }
+
+    #[test]
+    fn env_api_keys_merge_with_config_tokens() {
+        // Serialize env mutation: cargo runs tests in parallel threads.
+        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_LOCK.lock().unwrap();
+        std::env::set_var("INFERSTREAM_API_KEYS", "env-a, env-b,,");
+        let auth = AuthConfig {
+            mode: AuthMode::Bearer,
+            bearer_tokens: vec!["file-key".into(), String::new()],
+        };
+        let tokens = auth.effective_tokens();
+        std::env::remove_var("INFERSTREAM_API_KEYS");
+        assert!(tokens.contains("file-key"));
+        assert!(tokens.contains("env-a"));
+        assert!(tokens.contains("env-b"));
+        assert_eq!(tokens.len(), 3, "empty entries are dropped");
+    }
+
+    #[test]
     fn rejects_duplicate_models() {
         let result = Config::from_toml(
             r#"
