@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::Stream;
+use inferstream_protocol::extension::Encoding;
 use inferstream_protocol::inference::{
     model_metadata_response::TensorMetadata, ModelInferRequest, ModelInferResponse,
 };
@@ -52,6 +53,32 @@ pub struct ModelMetadata {
 pub type ResponseStream =
     Pin<Box<dyn Stream<Item = Result<ModelInferResponse, BackendError>> + Send>>;
 
+/// Options for [`Backend::tokenize`], mirroring the
+/// `inferstream.v1.TokenizeRequest` fields.
+#[derive(Debug, Clone)]
+pub struct TokenizeOptions {
+    /// Add the tokenizer's special tokens (CLS/SEP/BOS/…). Defaults to true —
+    /// what embedding inference feeds the model.
+    pub add_special_tokens: bool,
+    /// Also return per-token byte offsets into the original text.
+    pub with_offsets: bool,
+    /// Truncate each sequence to at most this many tokens.
+    pub truncate_to: Option<usize>,
+    /// Pad every sequence in the batch to the longest sequence's length.
+    pub pad_to_longest: bool,
+}
+
+impl Default for TokenizeOptions {
+    fn default() -> Self {
+        Self {
+            add_special_tokens: true,
+            with_offsets: false,
+            truncate_to: None,
+            pad_to_longest: false,
+        }
+    }
+}
+
 /// A pluggable inference backend.
 ///
 /// Implementations must be cheap to share (`Arc<dyn Backend>`) and safe to
@@ -88,6 +115,58 @@ pub trait Backend: Send + Sync + 'static {
     ) -> Result<ResponseStream, BackendError> {
         let response = self.infer(request).await;
         Ok(Box::pin(futures::stream::once(async move { response })))
+    }
+
+    // ------------------------------------------------------------------
+    // INFERSTREAM EXTENSION surface (`inferstream.v1.InferstreamService`).
+    // Every method defaults to `Unavailable`, so existing backends compile
+    // unchanged and the server reports an honest gRPC status until the
+    // engine wires a real implementation. The server layer may also satisfy
+    // Tokenize/Detokenize from a locally configured `tokenizer.json`
+    // without consulting the backend at all.
+    // ------------------------------------------------------------------
+
+    /// Tokenize a batch of texts with the model's tokenizer.
+    async fn tokenize(
+        &self,
+        model_name: &str,
+        _texts: &[String],
+        _options: &TokenizeOptions,
+    ) -> Result<Vec<Encoding>, BackendError> {
+        Err(BackendError::Unavailable(format!(
+            "backend {:?} has no server-side tokenizer for model {model_name:?}; \
+             configure tokenizer_dir (tokenizer.json) for the model",
+            self.id()
+        )))
+    }
+
+    /// Decode batches of token ids back into text (inverse of
+    /// [`Backend::tokenize`]).
+    async fn detokenize(
+        &self,
+        model_name: &str,
+        _sequences: &[Vec<u32>],
+        _skip_special_tokens: bool,
+    ) -> Result<Vec<String>, BackendError> {
+        Err(BackendError::Unavailable(format!(
+            "backend {:?} has no server-side tokenizer for model {model_name:?}; \
+             configure tokenizer_dir (tokenizer.json) for the model",
+            self.id()
+        )))
+    }
+
+    /// Score `documents` against `query`; returns one relevance score per
+    /// document, in input order (higher = more relevant).
+    async fn rerank(
+        &self,
+        model_name: &str,
+        _query: &str,
+        _documents: &[String],
+    ) -> Result<Vec<f32>, BackendError> {
+        Err(BackendError::Unavailable(format!(
+            "backend {:?} has no reranker for model {model_name:?}",
+            self.id()
+        )))
     }
 }
 

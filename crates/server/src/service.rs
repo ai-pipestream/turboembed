@@ -95,7 +95,12 @@ impl GrpcInferenceService for InferenceService {
         Ok(Response::new(ServerMetadataResponse {
             name: SERVER_NAME.to_string(),
             version: SERVER_VERSION.to_string(),
-            extensions: vec!["model_stream_infer".to_string()],
+            extensions: vec![
+                "model_stream_infer".to_string(),
+                // Second service on this endpoint: inferstream.v1.InferstreamService
+                // (Tokenize / Detokenize / Embed / ListModels / Rerank).
+                "inferstream.v1".to_string(),
+            ],
         }))
     }
 

@@ -43,3 +43,25 @@ jobs:
         run: cargo build -p inferstream-arch-intel
       - name: inferstream-apple (compiles as stub on Linux; functional only on macOS)
         run: cargo build -p inferstream-arch-apple
+
+  ort-runtime:
+    name: Build nvidia binary with real ORT (CPU EP) + bundling scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Shell scripts parse
+        run: bash -n scripts/fetch-runtime-libs.sh && bash -n scripts/run-nvidia.sh
+      # Real ONNX Runtime link, CPU execution provider: `ort`'s
+      # download-binaries feature fetches libonnxruntime at build time, so
+      # this proves the non-stub engine path compiles and its unit tests pass
+      # with zero GPU libraries. The CUDA EP (ort-cuda) additionally needs the
+      # CUDA 13 user-space libs from scripts/fetch-runtime-libs.sh nvidia and
+      # a GPU host, so it is not exercised in CI.
+      - name: Build with ort-runtime (CPU EP)
+        run: cargo build -p inferstream-arch-nvidia --features ort-runtime
+      - name: Test backend-ort with runtime feature
+        run: cargo test -p inferstream-backend-ort --features runtime

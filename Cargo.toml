@@ -49,6 +49,13 @@ clap = { version = "4", features = ["derive", "env"] }
 # misc
 thiserror = "2"
 bytes = "1"
+# HF fast tokenizers: server-side Tokenize/Detokenize (inferstream.v1) and
+# the ORT embedding path share this version. default-features are disabled to
+# drop the C/C++ deps (onig, esaxx) — the pure-Rust fancy-regex path builds on
+# any host/CI without a C++ toolchain and is fully compatible with
+# tokenizer.json models.
+tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
+serde_json = "1"
 
 # workspace crates
 inferstream-protocol = { path = "crates/protocol" }

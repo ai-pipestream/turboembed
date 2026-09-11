@@ -164,6 +164,9 @@ pub mod pool {
 }
 
 /// Extract the batch of UTF-8 texts from the OIP request's `text` tensor.
+/// (Only the real engine calls this at runtime; the stub build keeps it for
+/// its unit tests.)
+#[cfg_attr(not(feature = "runtime"), allow(dead_code))]
 fn text_inputs(request: &ModelInferRequest) -> Result<Vec<String>, BackendError> {
     use inferstream_protocol::tensor::{unpack_bytes, DataType};
     let (index, tensor) = request

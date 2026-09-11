@@ -13,7 +13,9 @@
 
 pub mod auth;
 pub mod config;
+pub mod extension;
 pub mod service;
+pub mod tokenizer;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -25,11 +27,14 @@ use tracing::info;
 
 use inferstream_backend::{Backend, Registry};
 use inferstream_backend_mock::MockBackend;
+use inferstream_protocol::extension::inferstream_service_server::InferstreamServiceServer;
 use inferstream_protocol::inference::grpc_inference_service_server::GrpcInferenceServiceServer;
 
 use auth::BearerAuth;
 use config::{AuthMode, BackendKind, Config, ModelConfig};
+use extension::ExtensionService;
 use service::InferenceService;
+use tokenizer::build_tokenizers;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
@@ -126,7 +131,10 @@ pub async fn serve(
     bound_tx: tokio::sync::oneshot::Sender<SocketAddr>,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<(), ServerError> {
-    let service = InferenceService::new(Arc::new(registry));
+    let tokenizers = Arc::new(build_tokenizers(&config)?);
+    let registry = Arc::new(registry);
+    let service = InferenceService::new(Arc::clone(&registry));
+    let extension_service = ExtensionService::new(registry, tokenizers);
 
     let addr: SocketAddr = config
         .listen
@@ -155,14 +163,22 @@ pub async fn serve(
         "inferstream listening"
     );
 
+    let auth_for_extension = auth.clone();
     let interceptor = move |request: tonic::Request<()>| match &auth {
         Some(bearer) => bearer.check(request),
         None => Ok(request),
     };
+    let extension_interceptor = move |request: tonic::Request<()>| match &auth_for_extension {
+        Some(bearer) => bearer.check(request),
+        None => Ok(request),
+    };
     let server = GrpcInferenceServiceServer::with_interceptor(service, interceptor);
+    let extension_server =
+        InferstreamServiceServer::with_interceptor(extension_service, extension_interceptor);
 
     Server::builder()
         .add_service(server)
+        .add_service(extension_server)
         .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
         .await?;
     Ok(())

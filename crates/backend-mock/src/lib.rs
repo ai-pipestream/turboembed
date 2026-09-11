@@ -15,12 +15,18 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use inferstream_backend::{Backend, BackendError, ModelMetadata, ResponseStream};
+use inferstream_backend::{Backend, BackendError, ModelMetadata, ResponseStream, TokenizeOptions};
+use inferstream_protocol::extension::{Encoding, Offset};
 use inferstream_protocol::inference::{
     infer_parameter::ParameterChoice, model_infer_response::InferOutputTensor,
     model_metadata_response::TensorMetadata, InferParameter, ModelInferRequest, ModelInferResponse,
 };
 use inferstream_protocol::tensor::{pack_bytes, pack_fp32, unpack_bytes, DataType};
+
+/// Mock tokenizer special token ids (byte `b` maps to `b + 3`).
+pub const MOCK_PAD_ID: u32 = 0;
+pub const MOCK_BOS_ID: u32 = 1;
+pub const MOCK_EOS_ID: u32 = 2;
 
 /// Deterministic mock backend.
 #[derive(Debug, Clone)]
@@ -76,7 +82,8 @@ impl MockBackend {
             .collect()
     }
 
-    fn text_input(request: &ModelInferRequest) -> Result<Vec<u8>, BackendError> {
+    /// All elements of the `text` input tensor (batch support).
+    fn text_batch(request: &ModelInferRequest) -> Result<Vec<Vec<u8>>, BackendError> {
         let (index, tensor) = request
             .inputs
             .iter()
@@ -98,9 +105,16 @@ impl MockBackend {
         })?;
         let elements = unpack_bytes(raw)
             .map_err(|e| BackendError::InvalidRequest(format!("malformed BYTES payload: {e}")))?;
-        elements.into_iter().next().ok_or_else(|| {
-            BackendError::InvalidRequest("input \"text\" contained no elements".into())
-        })
+        if elements.is_empty() {
+            return Err(BackendError::InvalidRequest(
+                "input \"text\" contained no elements".into(),
+            ));
+        }
+        Ok(elements)
+    }
+
+    fn text_input(request: &ModelInferRequest) -> Result<Vec<u8>, BackendError> {
+        Ok(Self::text_batch(request)?.remove(0))
     }
 }
 
@@ -141,8 +155,19 @@ impl Backend for MockBackend {
     }
 
     async fn infer(&self, request: ModelInferRequest) -> Result<ModelInferResponse, BackendError> {
-        let text = Self::text_input(&request)?;
-        let embedding = self.embed(&text);
+        let texts = Self::text_batch(&request)?;
+        let batch = texts.len();
+        let mut values = Vec::with_capacity(batch * self.embedding_dim);
+        for text in &texts {
+            values.extend(self.embed(text));
+        }
+        // Contract: [d] for a single text (backwards compatible), [n, d] for
+        // a batch — the same shape convention as the real ORT engine.
+        let shape = if batch == 1 {
+            vec![self.embedding_dim as i64]
+        } else {
+            vec![batch as i64, self.embedding_dim as i64]
+        };
         Ok(ModelInferResponse {
             model_name: request.model_name,
             model_version: request.model_version,
@@ -151,11 +176,11 @@ impl Backend for MockBackend {
             outputs: vec![InferOutputTensor {
                 name: "embedding".to_string(),
                 datatype: DataType::Fp32.as_oip().to_string(),
-                shape: vec![self.embedding_dim as i64],
+                shape,
                 parameters: HashMap::new(),
                 contents: None,
             }],
-            raw_output_contents: vec![pack_fp32(&embedding)],
+            raw_output_contents: vec![pack_fp32(&values)],
         })
     }
 
@@ -193,6 +218,144 @@ impl Backend for MockBackend {
             })
             .collect();
         Ok(Box::pin(futures::stream::iter(responses)))
+    }
+
+    /// Deterministic byte-level tokenizer: id 0 = `<pad>`, 1 = `<s>`,
+    /// 2 = `</s>`, byte `b` = `b + 3`. Round-trips losslessly, so CI can
+    /// exercise the Tokenize/Detokenize wire path with no tokenizer.json.
+    async fn tokenize(
+        &self,
+        _model_name: &str,
+        texts: &[String],
+        options: &TokenizeOptions,
+    ) -> Result<Vec<Encoding>, BackendError> {
+        let special = usize::from(options.add_special_tokens) * 2;
+        let mut encodings: Vec<Encoding> = texts
+            .iter()
+            .map(|text| {
+                let mut content: Vec<(u32, String, (u32, u32))> = text
+                    .bytes()
+                    .enumerate()
+                    .map(|(i, b)| {
+                        let display = if b.is_ascii_graphic() || b == b' ' {
+                            (b as char).to_string()
+                        } else {
+                            format!("<0x{b:02X}>")
+                        };
+                        (u32::from(b) + 3, display, (i as u32, i as u32 + 1))
+                    })
+                    .collect();
+                if let Some(limit) = options.truncate_to {
+                    content.truncate(limit.saturating_sub(special));
+                }
+                let mut encoding = Encoding::default();
+                if options.add_special_tokens {
+                    encoding.input_ids.push(MOCK_BOS_ID);
+                    encoding.tokens.push("<s>".to_string());
+                    encoding.offsets.push(Offset { start: 0, end: 0 });
+                }
+                for (id, token, (start, end)) in content {
+                    encoding.input_ids.push(id);
+                    encoding.tokens.push(token);
+                    encoding.offsets.push(Offset { start, end });
+                }
+                if options.add_special_tokens {
+                    encoding.input_ids.push(MOCK_EOS_ID);
+                    encoding.tokens.push("</s>".to_string());
+                    encoding.offsets.push(Offset { start: 0, end: 0 });
+                }
+                encoding.attention_mask = vec![1; encoding.input_ids.len()];
+                if !options.with_offsets {
+                    encoding.offsets.clear();
+                }
+                encoding
+            })
+            .collect();
+
+        if options.pad_to_longest {
+            let longest = encodings
+                .iter()
+                .map(|e| e.input_ids.len())
+                .max()
+                .unwrap_or(0);
+            for encoding in &mut encodings {
+                while encoding.input_ids.len() < longest {
+                    encoding.input_ids.push(MOCK_PAD_ID);
+                    encoding.attention_mask.push(0);
+                    encoding.tokens.push("<pad>".to_string());
+                    if options.with_offsets {
+                        encoding.offsets.push(Offset { start: 0, end: 0 });
+                    }
+                }
+            }
+        }
+        Ok(encodings)
+    }
+
+    async fn detokenize(
+        &self,
+        _model_name: &str,
+        sequences: &[Vec<u32>],
+        skip_special_tokens: bool,
+    ) -> Result<Vec<String>, BackendError> {
+        sequences
+            .iter()
+            .map(|ids| {
+                let mut bytes = Vec::with_capacity(ids.len());
+                for &id in ids {
+                    match id {
+                        MOCK_PAD_ID | MOCK_BOS_ID | MOCK_EOS_ID => {
+                            if !skip_special_tokens {
+                                let token = match id {
+                                    MOCK_PAD_ID => "<pad>",
+                                    MOCK_BOS_ID => "<s>",
+                                    _ => "</s>",
+                                };
+                                bytes.extend_from_slice(token.as_bytes());
+                            }
+                        }
+                        3..=258 => bytes.push((id - 3) as u8),
+                        other => {
+                            return Err(BackendError::InvalidRequest(format!(
+                                "token id {other} is out of the mock tokenizer's range (0..=258)"
+                            )))
+                        }
+                    }
+                }
+                String::from_utf8(bytes).map_err(|e| {
+                    BackendError::InvalidRequest(format!("decoded bytes are not UTF-8: {e}"))
+                })
+            })
+            .collect()
+    }
+
+    /// Deterministic mock reranker: score = fraction of the query's
+    /// lowercase words that appear in the document. Stable across runs, so
+    /// tests can assert ordering.
+    async fn rerank(
+        &self,
+        _model_name: &str,
+        query: &str,
+        documents: &[String],
+    ) -> Result<Vec<f32>, BackendError> {
+        let query_words: Vec<String> = query
+            .split_whitespace()
+            .map(|w| w.to_lowercase())
+            .collect();
+        Ok(documents
+            .iter()
+            .map(|doc| {
+                if query_words.is_empty() {
+                    return 0.0;
+                }
+                let doc_lower = doc.to_lowercase();
+                let hits = query_words
+                    .iter()
+                    .filter(|w| doc_lower.contains(w.as_str()))
+                    .count();
+                hits as f32 / query_words.len() as f32
+            })
+            .collect())
     }
 }
 
