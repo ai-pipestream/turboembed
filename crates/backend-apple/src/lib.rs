@@ -211,12 +211,37 @@ pub fn resolve_model_dir(model: &str) -> PathBuf {
         return as_path;
     }
     if let Some(name) = alias_from_model(model) {
-        let local = PathBuf::from("models/mlx").join(&name);
-        if local.is_dir() {
-            return local;
+        for root in search_roots() {
+            let local = root.join("models/mlx").join(&name);
+            if local.is_dir() {
+                return local;
+            }
+        }
+    }
+    if !as_path.is_absolute() {
+        for root in search_roots() {
+            let candidate = root.join(&as_path);
+            if candidate.is_dir() {
+                return candidate;
+            }
         }
     }
     as_path
+}
+
+fn search_roots() -> Vec<PathBuf> {
+    let mut roots = vec![PathBuf::from(".")];
+    if let Ok(cwd) = std::env::current_dir() {
+        roots.push(cwd);
+    }
+    // crates/backend-apple → workspace root, so `cargo test -p` finds models/.
+    if let Ok(ws) = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+    {
+        roots.push(ws);
+    }
+    roots
 }
 
 fn alias_from_model(model: &str) -> Option<String> {

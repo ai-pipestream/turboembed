@@ -51,6 +51,10 @@ async fn ping_reports_metal_device() {
         .await
         .unwrap()
         .expect("native ping");
+    eprintln!(
+        "native ping: device={} metal={} mem={} peak={}",
+        result.device, result.metal_available, result.active_memory, result.peak_memory
+    );
     assert!(result.matmul_ok);
     assert!(
         result.device.contains("gpu") || result.metal_available,
