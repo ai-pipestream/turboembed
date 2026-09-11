@@ -11,6 +11,27 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 | `inferstream-apple` | **native macOS host** (Mac worker) | **MLX**, llama.cpp-Metal for GGUF | engine links stubbed; macOS-only by design; needs a Mac "My Machines" worker for real builds |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
+## Per-arch gap status (honest)
+
+Every arch binary serves **both** gRPC services on one port behind one bearer interceptor: the vendored OIP V2 `inference.GRPCInferenceService` and the `inferstream.v1.InferstreamService` extension (Tokenize / Detokenize / Embed / ListModels / Rerank). Registration lives in the shared `serve()` in `crates/server/src/lib.rs`, and all three binaries reach it through the same `run_cli` path — audited: none of them can start without exposing the extension service.
+
+| capability | `inferstream-nvidia` | `inferstream-intel` | `inferstream-apple` |
+|---|---|---|---|
+| Embed (real accelerator) | **LIVE** — ORT CUDA EP (CPU EP anywhere), TEI-parity validated on krick | **LIVE** — `ovms` gRPC client to the host Model Server, Battlemage GPU verified on krick-1 | not in-repo — MLX embed CLI exists only on an unpushed Mac branch (see below); `MlxBackend` here is a stub that reports `Unavailable` |
+| Tokenize / Detokenize | **LIVE** — ORT engine's own HF tokenizer, or `tokenizer_dir` server-side | **LIVE** — `tokenizer_dir` set for both OVMS pipelines on krick-1 (HF tokenizer.json next to the OVMS model dirs); llama.cpp server-client models also answer via llama-server `/tokenize` + `/detokenize` | via `tokenizer_dir` only (works today — tokenization is engine-independent); backend delegation is stub |
+| Generative infer / stream | mock only — TRT-LLM (`trtllm-sys`) and llama.cpp-CUDA are stubs | **LIVE** — llama.cpp-SYCL in server-client mode (`endpoint` → running `llama-server`): unary `ModelInfer` + real per-token `ModelStreamInfer` chunks, verified on krick-1 (`docs/intel-full-surface-krick-1.md`). OVMS upstream still has no `ModelStreamInfer` (streamed requests adapt to unary); in-process llama.cpp FFI and OpenVINO are stubs | mock only — MLX generation and llama.cpp-Metal are stubs |
+| `InferstreamService` registered in `serve()` | yes (shared) | yes (shared) | yes (shared) — binary compiles on Linux for CI, functions only on macOS |
+| Rerank | mock scorer only | mock scorer only | mock scorer only |
+
+### Apple MLX branch: not on the remote
+
+The `ai-pipestream/apple-mlx-3ea5` branch (MLX embed CLI work) was never pushed — the Mac worker's push was blocked — so it is **not** integrated here. Integration plan once it can be pushed from the Mac:
+
+1. Push the branch, then rebase it onto current `main` (expected touch points: `crates/backend-apple/src/lib.rs` replacing the stub `MlxBackend`, `crates/arch-apple/src/main.rs` factory wiring, `config/apple.toml`, and this README's apple rows — no shared-crate changes should be needed, the `BackendFactory` seam is designed for exactly this).
+2. Gate the real `mlx-rs` link behind a cargo feature (mirroring `ort-runtime` / `ovms`) so Linux CI keeps type-checking the stub.
+3. Wire `Embed` through the existing extension service (nothing to add server-side — the typed `Embed` RPC already adapts to any backend's `infer`), and add MLX rows to the GPU-golden harness (`#[ignore]`d, feature-gated, same pattern as `backend-ort/tests/gpu_goldens.rs`).
+4. Merge to `main` after `cargo test --workspace` on Linux and a real `cargo test` on the Mac worker.
+
 **Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Two real engine paths are live.** NVIDIA: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. Intel: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). Intel also has **real generation with token streaming**: `backend = "llama-cpp"` with `endpoint` forwards to a running llama-server (krick-1: the GGML_SYCL `server-intel` container) — unary `ModelInfer`, per-token `ModelStreamInfer` chunks, and Tokenize/Detokenize, verified live (see `docs/intel-full-surface-krick-1.md`). TRT-LLM, in-process llama.cpp FFI, in-process OpenVINO, and MLX remain stubs with full config surface; routing to them still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
 
 ## Architecture
