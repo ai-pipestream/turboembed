@@ -1,6 +1,6 @@
 [package]
 name = "inferstream-arch-nvidia"
-description = "inferstream-nvidia: NVIDIA arch binary — TensorRT-LLM Executor peak path, llama.cpp-CUDA fallback, ONNX Runtime"
+description = "inferstream-nvidia: NVIDIA arch binary — ONNX Runtime CUDA/TRT-EP embeddings primary, llama.cpp-CUDA secondary, TRT-LLM Executor deferred"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

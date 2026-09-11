@@ -1,10 +1,13 @@
 //! `inferstream-nvidia`: the NVIDIA arch binary.
 //!
-//! Peak path is the in-process TensorRT-LLM Executor (`backend = "trt-llm"`,
+//! Primary engine: ONNX Runtime with the CUDA / TensorRT execution provider
+//! for embeddings (`backend = "ort"`). Secondary: llama.cpp-CUDA for GGUF
+//! models. The in-process TensorRT-LLM Executor (`backend = "trt-llm"`,
 //! routing surface behind feature `trtllm`, real runtime link behind
-//! `trtllm-sys`). llama.cpp-CUDA serves GGUF models as the fallback path, and
-//! ONNX Runtime covers plain ONNX models. The mock backend is always
-//! available for wire-path smoke tests before engines are loaded.
+//! `trtllm-sys`) is deferred until generative LLMs are mandated; the
+//! skeleton stays wired so enabling it is a build flag plus config entry.
+//! The mock backend is always available for wire-path smoke tests before
+//! engines are loaded.
 
 use std::sync::Arc;
 

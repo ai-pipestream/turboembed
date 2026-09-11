@@ -1,6 +1,6 @@
 [package]
 name = "inferstream-arch-intel"
-description = "inferstream-intel: Intel arch binary — llama.cpp-SYCL (oneAPI/Level Zero) and OpenVINO for CPU/GPU/NPU"
+description = "inferstream-intel: Intel arch binary — OpenVINO primary (CPU/GPU/NPU), llama.cpp-SYCL (oneAPI/Level Zero) secondary"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

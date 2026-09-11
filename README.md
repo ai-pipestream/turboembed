@@ -6,9 +6,9 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 
 | binary | host class | engines | status |
 |---|---|---|---|
-| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **TensorRT-LLM Executor in-process** (peak path), llama.cpp-CUDA (GGUF fallback), ONNX Runtime | engine links stubbed; config + tensor contract final |
-| `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **llama.cpp-SYCL** (oneAPI/Level Zero) and **OpenVINO** — bake-off pending | engine links stubbed |
-| `inferstream-apple` | **native macOS host** (Mac worker) | **MLX**, llama.cpp-Metal for GGUF | engine links stubbed; macOS-only by design |
+| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime + CUDA/TensorRT EP for embeddings** (primary), llama.cpp-CUDA (secondary, GGUF); TensorRT-LLM Executor **deferred** until generative LLMs are mandated (skeleton kept) | engine links stubbed; config + tensor contract final |
+| `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO** (primary — already running as OVMS on the host today), llama.cpp-SYCL (secondary, Docker-proven) | engine links stubbed |
+| `inferstream-apple` | **native macOS host** (Mac worker) | **MLX**, llama.cpp-Metal for GGUF | engine links stubbed; macOS-only by design; needs a Mac "My Machines" worker for real builds |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
 **Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). Every *engine* is still a stub: full config surface and OIP tensor contracts are in place, but no FFI links yet. The next unit of work per arch is the engine binding, not server redesign.
@@ -22,14 +22,14 @@ flowchart TB
     end
 
     subgraph nvidia [inferstream-nvidia - krick, Linux container OK]
-        N1[TensorRT-LLM Executor - in-process, peak path]
-        N2[llama.cpp CUDA - GGUF fallback]
-        N3[ONNX Runtime]
+        N1[ONNX Runtime - CUDA/TensorRT EP, embeddings primary]
+        N2[llama.cpp CUDA - GGUF secondary]
+        N3[TensorRT-LLM Executor - deferred until gen LLMs mandated]
     end
 
     subgraph intel [inferstream-intel - krick-1, Linux, oneAPI env]
-        I1[llama.cpp SYCL - Level Zero]
-        I2[OpenVINO - CPU/GPU/NPU]
+        I1[OpenVINO - CPU/GPU/NPU, primary - OVMS already runs here]
+        I2[llama.cpp SYCL - Level Zero, secondary]
     end
 
     subgraph apple [inferstream-apple - native macOS host, NOT containerized]
@@ -67,10 +67,10 @@ Everything below builds on a plain Linux box today (engines are stubs); the extr
 # Dev / client validation (mock only) — anywhere
 cargo run -p inferstream-server -- --config config/example.toml
 
-# NVIDIA (krick): stub surface builds anywhere; the real Executor link is
-# opt-in and needs CUDA + TensorRT-LLM on the host
+# NVIDIA (krick): stub surface builds anywhere. Primary engine will be the
+# ONNX Runtime CUDA/TensorRT execution provider (embeddings); the deferred
+# TRT-LLM Executor link stays opt-in behind trtllm-sys (GPU host only).
 cargo build -p inferstream-arch-nvidia --release
-cargo build -p inferstream-arch-nvidia --release --features trtllm-sys   # GPU host only
 ./target/release/inferstream-nvidia --config config/nvidia.toml
 
 # Intel (krick-1): source oneAPI first (build shell AND service unit)
@@ -89,8 +89,8 @@ Routing a model to an engine a binary doesn't ship fails **at startup** with the
 
 - **Latency and $/token, not portability theater.** Each accelerator's peak path is a different runtime (TRT-LLM Executor vs Level Zero vs Metal/MLX). One fat binary linking all of them means compromise flags, giant images, and driver conflicts. Three lean binaries mean each host runs exactly its optimum and nothing else.
 - **No Java/Python hop.** Unlike DJL (JVM) or Python servers, the socket-to-engine path is a single Rust process; streaming tokens don't cross an interpreter.
-- **Not NIM.** NVIDIA NIM wraps engines in an OpenAI-style HTTP service. inferstream embeds the **TensorRT-LLM Executor in-process** under its own gRPC. **NIM is used as a benchmark oracle only**: we run NIM beside `inferstream-nvidia` on the same GPU and model to sanity-check our tokens/sec and TTFT — if we're slower than the HTTP wrapper, that's a bug to fix, not a product to adopt.
-- **Not OVMS/Triton/TEI.** Those own the process and the protocol; adding an engine or changing streaming/auth policy means forking C++ serving infrastructure. Here the protocol layer is ours, engines are leaf dependencies behind one trait — and clients speak the same OIP V2 they'd speak to Triton anyway.
+- **Not NIM.** NVIDIA NIM wraps engines in an OpenAI-style HTTP service. inferstream keeps engines in-process under its own gRPC (ORT EPs now; TRT-LLM Executor when generative LLMs are mandated). **NIM is used as a benchmark oracle only**: we run NIM beside `inferstream-nvidia` on the same GPU and model to sanity-check our tokens/sec and TTFT — if we're slower than the HTTP wrapper, that's a bug to fix, not a product to adopt.
+- **Not OVMS/Triton/TEI.** Those own the process and the protocol; adding an engine or changing streaming/auth policy means forking C++ serving infrastructure. Here the protocol layer is ours, engines are leaf dependencies behind one trait — and clients speak the same OIP V2 they'd speak to Triton anyway. (krick-1 runs OVMS today; `inferstream-intel` embeds the same OpenVINO runtime directly, and OVMS doubles as the Intel-side benchmark oracle.)
 
 ## Bake-off methodology (upcoming, per arch)
 
@@ -107,9 +107,9 @@ Metrics collected per engine/model/host, same client, same prompts:
 
 Planned matchups:
 
-- **krick (NVIDIA):** TRT-LLM Executor vs llama.cpp-CUDA vs **NIM (oracle)** — same model, same quantization class.
-- **krick-1 (Intel Battlemage):** llama.cpp-SYCL vs OpenVINO-GPU, both via `inferstream-intel` — winner becomes the default `backend` in `config/intel.toml`; both stay compiled in, so switching is a config edit.
-- **Mac:** MLX vs llama.cpp-Metal on the same GGUF/MLX model pair.
+- **krick (NVIDIA):** embeddings first — ORT CUDA EP vs ORT TensorRT EP vs llama.cpp-CUDA, with **NIM as oracle** where a comparable NIM exists. TRT-LLM Executor enters the generation matchup only once generative LLMs are mandated.
+- **krick-1 (Intel Battlemage):** OpenVINO-GPU (primary; compare against the OVMS instance already on the host as oracle) vs llama.cpp-SYCL (Docker-proven), both via `inferstream-intel` — winner becomes the default `backend` in `config/intel.toml`; both stay compiled in, so switching is a config edit.
+- **Mac:** MLX vs llama.cpp-Metal on the same GGUF/MLX model pair (needs the Mac "My Machines" worker for real builds).
 
 Results land in `docs/bakeoff/` as they happen; no numbers are published until they come from these builds on this contract (no vendor-quoted numbers).
 
@@ -179,12 +179,12 @@ Same client, same contract, heterogeneous fleet: krick (NVIDIA) + krick-1 (Intel
 
 ## Roadmap
 
-1. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — cxx/bindgen layer over `tensorrt_llm::executor`; streaming generation + embeddings on krick.
-2. **llama.cpp FFI** (`backend-llamacpp`) — one binding, all devices (CUDA on krick, SYCL on krick-1, Metal on Mac).
-3. **Intel bake-off** on Battlemage: llama.cpp-SYCL vs OpenVINO (`backend-openvino` runtime link).
-4. **MLX** (`backend-apple`) via `mlx-rs` on the Mac worker.
-5. **TLS / mTLS** in `serve()`; per-key model ACLs after.
-6. ONNX Runtime session wiring (`backend-ort`) where ONNX models are needed.
+1. **ONNX Runtime session wiring** (`backend-ort`) with the CUDA / TensorRT execution providers — krick's primary embedding path.
+2. **OpenVINO runtime link** (`backend-openvino`) — krick-1's primary path (OVMS on the host as oracle); llama.cpp-SYCL as the Docker-proven secondary.
+3. **llama.cpp FFI** (`backend-llamacpp`) — one binding, all devices (CUDA secondary on krick, SYCL secondary on krick-1, Metal on Mac).
+4. **MLX** (`backend-apple`) via `mlx-rs` — needs the Mac "My Machines" worker for real builds.
+5. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — deferred until generative LLMs are mandated; skeleton and tensor contract stay ready.
+6. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 7. Optional adapters: TEI-compatible proto (lowest priority), shared-memory tensor hints, richer stream metadata.
 
 Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.

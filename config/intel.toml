@@ -1,12 +1,16 @@
 # inferstream-intel example configuration (krick-1-class Intel host,
 # Arc/Battlemage GPU).
 #
+# Primary engine: OpenVINO — the host already runs OVMS, which doubles as the
+# benchmark oracle while inferstream embeds the same OpenVINO runtime
+# in-process. Secondary: llama.cpp built with GGML_SYCL (Docker-proven).
+#
 # oneAPI environment must be sourced in the build shell AND the service unit:
 #   source /opt/intel/oneapi/setvars.sh
 #   cargo build -p inferstream-arch-intel --release
 #   ./target/release/inferstream-intel --config config/intel.toml
 #
-# The SYCL and OpenVINO entries below are the two sides of the planned
+# The OpenVINO and SYCL entries below are the two sides of the planned
 # Battlemage bake-off: same model, two engines, switch by config.
 
 listen = "0.0.0.0:8461"
@@ -19,19 +23,20 @@ bearer_tokens = ["change-me"]
 name = "mock-embed"
 backend = "mock"
 
-# Candidate A: llama.cpp built with GGML_SYCL (Level Zero / oneAPI).
-[[models]]
-name = "qwen-7b-sycl"
-backend = "llama-cpp"
-device = "sycl"
-path = "/models/qwen2.5-7b-instruct-q5_k_m.gguf"
-
-# Candidate B: OpenVINO on the GPU plugin.
+# Primary (bake-off candidate A): OpenVINO on the GPU plugin.
 [[models]]
 name = "qwen-7b-ov"
 backend = "openvino"
 device = "GPU"
 path = "/models/qwen2.5-7b-int4-ov/openvino_model.xml"
+
+# Secondary (bake-off candidate B): llama.cpp built with GGML_SYCL
+# (Level Zero / oneAPI; Docker-proven on this host).
+[[models]]
+name = "qwen-7b-sycl"
+backend = "llama-cpp"
+device = "sycl"
+path = "/models/qwen2.5-7b-instruct-q5_k_m.gguf"
 
 # NPU embeddings example.
 # [[models]]

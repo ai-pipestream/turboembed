@@ -1,9 +1,10 @@
 //! `inferstream-intel`: the Intel arch binary.
 //!
-//! Two engine candidates for Arc/Battlemage-class hardware, kept side by
-//! side for the planned bake-off (see README): llama.cpp built with
-//! `GGML_SYCL` (oneAPI / Level Zero) for GGUF models, and OpenVINO for
-//! CPU/GPU/NPU graphs. Both need the oneAPI environment sourced
+//! Primary engine: OpenVINO for CPU/GPU/NPU graphs (the host already runs
+//! OVMS, which doubles as the benchmark oracle). Secondary: llama.cpp built
+//! with `GGML_SYCL` (oneAPI / Level Zero, Docker-proven) for GGUF models.
+//! Both are kept side by side for the planned Battlemage bake-off (see
+//! README). Both need the oneAPI environment sourced
 //! (`source /opt/intel/oneapi/setvars.sh`) in the build shell and in the
 //! service unit that launches this binary. ONNX Runtime covers plain ONNX
 //! models; the mock backend is always available for wire-path smoke tests.
