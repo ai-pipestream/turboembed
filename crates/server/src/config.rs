@@ -679,37 +679,36 @@ mod tests {
                 "{file} must serve the minilm alias"
             );
         }
-        // Multi-alias defaults: intel serves both live OVMS pipelines plus
-        // the llama-server LLM aliases; apple serves the small-download
+        // Multi-alias defaults: intel serves OVMS embed pipelines plus
+        // in-process SYCL LLM aliases; apple serves the small-download
         // embedding trio plus default-llm + qwen-0.5b (same MLX 4-bit);
-        // nvidia serves default-llm (0.5B GGUF already on krick) but not
-        // qwen-7b (fetch first).
+        // nvidia serves default-llm + qwen-0.5b + qwen-7b (fetch first).
         let mut nvidia = Config::from_file(format!("{config_dir}/nvidia.toml")).unwrap();
         nvidia.expand_serve(Some(Arch::Nvidia)).unwrap();
-        assert!(
-            nvidia.models.iter().any(|m| m.name == "default-llm"),
-            "nvidia.toml must serve default-llm"
-        );
-        assert!(
-            nvidia.models.iter().all(|m| m.name != "qwen-7b"),
-            "nvidia.toml must not serve qwen-7b until the GGUF is fetched"
-        );
+        for alias in ["default-llm", "qwen-0.5b", "qwen-7b"] {
+            assert!(
+                nvidia.models.iter().any(|m| m.name == alias),
+                "nvidia.toml must serve {alias}"
+            );
+        }
         let mut intel = Config::from_file(format!("{config_dir}/intel.toml")).unwrap();
         intel.expand_serve(Some(Arch::Intel)).unwrap();
         assert!(intel.models.iter().any(|m| m.name == "mpnet"));
-        for alias in ["default-llm", "qwen-7b"] {
+        for alias in ["default-llm", "qwen-0.5b", "qwen-7b"] {
             assert!(
                 intel.models.iter().any(|m| m.name == alias),
                 "intel.toml must serve {alias}"
             );
         }
-        assert!(
-            intel.models.iter().all(|m| m.name != "qwen-0.5b"),
-            "intel.toml must not serve qwen-0.5b (unsupported on intel)"
-        );
         let mut apple = Config::from_file(format!("{config_dir}/apple.toml")).unwrap();
         apple.expand_serve(Some(Arch::Apple)).unwrap();
-        for alias in ["minilm", "minilm-l12", "bge-small", "default-llm", "qwen-0.5b"] {
+        for alias in [
+            "minilm",
+            "minilm-l12",
+            "bge-small",
+            "default-llm",
+            "qwen-0.5b",
+        ] {
             assert!(
                 apple.models.iter().any(|m| m.name == alias),
                 "apple.toml must serve {alias}"

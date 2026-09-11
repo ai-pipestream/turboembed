@@ -15,9 +15,15 @@ path = "src/main.rs"
 [features]
 # Stub crates compile everywhere; the routing surface is on by default. Real
 # engine links (SYCL llama.cpp build, OpenVINO runtime) are host requirements
-# documented in the backend crates, not extra cargo features yet.
+# documented in the backend crates.
 default = ["llamacpp", "openvino", "ovms", "ort"]
 llamacpp = ["dep:inferstream-backend-llamacpp"]
+# Real llama.cpp link (CPU). Builds llama.cpp from source via cmake.
+llamacpp-runtime = ["llamacpp", "inferstream-backend-llamacpp/runtime"]
+# llama.cpp with GGML_SYCL — GGUF generation with full Level Zero offload.
+# Needs Intel oneAPI (icx/icpx) at build time, GGML_SYCL=ON, and
+# scripts/setup-llamacpp-sycl.sh so ggml-sycl sources are on the cmake path.
+llamacpp-sycl = ["llamacpp-runtime", "inferstream-backend-llamacpp/sycl"]
 openvino = ["dep:inferstream-backend-openvino"]
 # Pure-Rust gRPC client to a running OpenVINO Model Server; no host OpenVINO
 # runtime required, so it is on by default.

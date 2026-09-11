@@ -8,7 +8,8 @@
 #                            the first working real-inference path.
 #   * backend = "openvino" — in-process OpenVINO runtime (stub until the
 #                            runtime is linked; needs oneAPI sourced).
-# Secondary: llama.cpp built with GGML_SYCL (Docker-proven).
+# Secondary: llama.cpp built with GGML_SYCL, in-process (same shape as
+# nvidia's llama.cpp-CUDA). Build with --features llamacpp-sycl.
 #
 # Build & run (ovms/mock routes need no oneAPI environment):
 #   cargo build -p inferstream-arch-intel --release
@@ -35,10 +36,11 @@ listen = "0.0.0.0:8461"
 # Every embedding alias in the catalog resolves on intel.
 # Smoke every serving embedder with scripts/smoke-embeddings.sh.
 #
-# LLM aliases: `default-llm` and `qwen-7b` are server-client to the host
-# llama-server (krick-1: vlm-server on :8085, currently Qwen2.5-VL-7B).
-# `qwen-0.5b` has no intel resolution — do not add it. Smoke generation
-# with scripts/smoke-llms.sh.
+# LLM aliases: in-process llama.cpp SYCL (Level Zero / Battlemage).
+# `make fetch-llms` lands the matching GGUFs (Qwen2.5-0.5B Q8_0 and
+# Qwen2.5-7B-Instruct Q5_K_M — text, not VL). Tokenize is the GGUF vocab.
+# The host vlm-server on :8085 is not on this path. Smoke with
+# scripts/smoke-llms.sh (no python3).
 serve = [
   "minilm",
   "mpnet",
@@ -54,6 +56,7 @@ serve = [
   "gte-base",
   "nomic-embed-text",
   "default-llm",
+  "qwen-0.5b",
   "qwen-7b",
 ]
 
@@ -113,26 +116,14 @@ backend = "openvino"
 device = "GPU"
 path = "/models/qwen2.5-7b-int4-ov/openvino_model.xml"
 
-# Candidate B: llama.cpp built with GGML_SYCL — live today as a *server
-# client*: the krick-1 container "vlm-server"
-# (ghcr.io/ggml-org/llama.cpp:server-intel, SYCL build on the Battlemage GPU)
-# publishes the llama.cpp HTTP server on host port 8085. With `endpoint` set,
-# the llama-cpp backend forwards generation (unary + token streaming via
-# ModelStreamInfer) and Tokenize/Detokenize to that server instead of linking
-# the engine in-process. On other hosts, omit `endpoint` and set
-# INFERSTREAM_LLAMACPP_ENDPOINT instead (path-less models fall back to it).
-[[models]]
-name = "qwen2.5-vl-7b-sycl"
-backend = "llama-cpp"
-device = "sycl"
-endpoint = "http://127.0.0.1:8085"
-
-# Candidate B': in-process llama.cpp FFI (stub until the engine link lands).
-[[models]]
-name = "qwen-7b-sycl"
-backend = "llama-cpp"
-device = "sycl"
-path = "/models/qwen2.5-7b-instruct-q5_k_m.gguf"
+# Optional: server-client to the host vlm-server (Qwen2.5-VL-7B on :8085).
+# Not a default-llm / qwen-0.5b / qwen-7b alias — those are in-process
+# GGUF on SYCL. Leave commented unless a client needs the VL endpoint.
+# [[models]]
+# name = "qwen2.5-vl-7b-sycl"
+# backend = "llama-cpp"
+# device = "sycl"
+# endpoint = "http://127.0.0.1:8085"
 
 # NPU embeddings example.
 # [[models]]

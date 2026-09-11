@@ -24,6 +24,8 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test (default features — no engine/Apple deps)
         run: cargo test --workspace
+      - name: LLM fetch tooling (no python3)
+        run: bash scripts/test-fetch-llms.sh
 
   arch-binaries:
     name: Build arch binaries (Linux, stub engines)
@@ -54,7 +56,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Shell scripts parse
-        run: bash -n scripts/fetch-runtime-libs.sh && bash -n scripts/run-nvidia.sh
+        run: |
+          bash -n scripts/fetch-runtime-libs.sh
+          bash -n scripts/run-nvidia.sh
+          bash -n scripts/fetch-llms.sh
+          bash -n scripts/test-fetch-llms.sh
+          bash -n scripts/smoke-llms.sh
+          bash -n scripts/setup-llamacpp-sycl.sh
+          bash -n scripts/run-intel.sh
       # Real ONNX Runtime link, CPU execution provider: `ort`'s
       # download-binaries feature fetches libonnxruntime at build time, so
       # this proves the non-stub engine path compiles and its unit tests pass

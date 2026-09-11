@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Thin wrapper around inferstream-fetch --llms (Rust). Downloads
 # revision-pinned GGUF + tokenizer.json and verifies SHA-256 against
-# models/manifests/llms.json.
+# models/manifests/llms.json. No python3.
 #
 # Usage:
 #   scripts/fetch-llm-models.sh <alias> [<alias> ...]

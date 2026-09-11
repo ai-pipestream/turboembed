@@ -21,6 +21,7 @@
 #
 # Fetch / verify are `cargo run -p inferstream-fetch`. Weights stay out of git.
 # OVMS IR *export* is a one-off in contrib/offline-once/ (not invoked here).
+# `make fetch-llms` / smoke do not need python3.
 
 CARGO ?= cargo
 FETCH := $(CARGO) run -q -p inferstream-fetch --
@@ -39,7 +40,8 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 	fetch-embeddings verify-embeddings list-embeddings \
 	update-embedding-manifest \
 	fetch-llms verify-llms list-llms update-llm-manifest \
-	verify-embeddings-intel list-embeddings-intel
+	verify-embeddings-intel list-embeddings-intel \
+	setup-sycl build-intel-sycl
 
 test:
 	$(CARGO) test --workspace
@@ -70,6 +72,16 @@ list-llms:
 
 update-llm-manifest:
 	$(FETCH) --llms $(ALIAS_ARGS) --update-manifest
+
+# Inject ggml-sycl sources into a local llama-cpp-sys-2 checkout so
+# GGML_SYCL=ON cmake succeeds. No python3. Needed before llamacpp-sycl.
+setup-sycl:
+	scripts/setup-llamacpp-sycl.sh
+
+# In-process SYCL binary. icpx drives the rustc link (device images).
+# No python3.
+build-intel-sycl: setup-sycl
+	scripts/build-intel.sh
 
 verify-embeddings-intel:
 	$(FETCH) --ovms $(ALIAS_ARGS) --verify-only $(INTEL_ARGS)

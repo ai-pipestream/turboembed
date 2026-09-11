@@ -68,6 +68,7 @@ struct Inner {
     /// Effective context window (config `n_ctx` capped to the model's
     /// training context).
     n_ctx: u32,
+    n_gpu_layers: u32,
 }
 
 impl std::fmt::Debug for LlamaEngine {
@@ -138,11 +139,33 @@ impl LlamaEngine {
                 #[cfg(feature = "metal")]
                 config.n_gpu_layers.unwrap_or(u32::MAX)
             }
-            LlamaDevice::Sycl | LlamaDevice::Vulkan => {
+            LlamaDevice::Sycl => {
+                #[cfg(not(feature = "sycl"))]
+                return Err(BackendError::Unavailable(
+                    "device = \"sycl\" but this binary was built without the llama.cpp SYCL \
+                     backend; rebuild with --features llamacpp-sycl (and GGML_SYCL=ON, \
+                     scripts/setup-llamacpp-sycl.sh)"
+                        .into(),
+                ));
+                #[cfg(feature = "sycl")]
+                {
+                    #[cfg(not(llama_sycl))]
+                    return Err(BackendError::Unavailable(
+                        "device = \"sycl\" but GGML_SYCL was not ON when this binary was \
+                         compiled — llama.cpp would silently run on CPU. Rebuild with \
+                         GGML_SYCL=ON CMAKE_C_COMPILER=icx CMAKE_CXX_COMPILER=icpx after \
+                         scripts/setup-llamacpp-sycl.sh (see docs/intel-sycl-inprocess-krick-1.md)"
+                            .into(),
+                    ));
+                    #[cfg(llama_sycl)]
+                    config.n_gpu_layers.unwrap_or(u32::MAX)
+                }
+            }
+            LlamaDevice::Vulkan => {
                 return Err(BackendError::Unavailable(format!(
                     "llama.cpp device {:?} is not compiled in-process by this crate \
-                     (supported: cpu, cuda, metal); use server-client mode: set `endpoint` \
-                     to a llama-server built for that device",
+                     (supported: cpu, cuda, metal, sycl); use server-client mode: set \
+                     `endpoint` to a llama-server built for that device",
                     config.device
                 )));
             }
@@ -173,6 +196,7 @@ impl LlamaEngine {
                 model_path: config.model_path.clone(),
                 device: config.device,
                 n_ctx,
+                n_gpu_layers,
             }),
         })
     }
@@ -205,6 +229,10 @@ impl LlamaEngine {
                 ("device".to_string(), format!("{:?}", self.inner.device)),
                 ("mode".to_string(), "in-process".to_string()),
                 ("n_ctx".to_string(), self.inner.n_ctx.to_string()),
+                (
+                    "n_gpu_layers".to_string(),
+                    self.inner.n_gpu_layers.to_string(),
+                ),
             ]),
         }
     }
@@ -267,9 +295,18 @@ impl LlamaEngine {
             TOKEN_CHANNEL_CAPACITY,
         );
         tokio::task::spawn_blocking(move || {
+            let mut produced = 0i64;
             let result = inner.generate(&prompt, &params, |piece, is_final| {
-                tx.blocking_send(Ok(Inner::token_chunk(&meta, piece, is_final)))
-                    .is_ok()
+                if !piece.is_empty() {
+                    produced += 1;
+                }
+                let mut chunk = Inner::token_chunk(&meta, piece, is_final);
+                if is_final {
+                    chunk
+                        .parameters
+                        .insert("tokens_predicted".to_string(), int_param(produced));
+                }
+                tx.blocking_send(Ok(chunk)).is_ok()
             });
             if let Err(error) = result {
                 let _ = tx.blocking_send(Err(error));

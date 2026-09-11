@@ -1,5 +1,9 @@
 /target
 /.libs/
+# Local llama-cpp-sys-2 checkout with ggml-sycl injected
+# (scripts/setup-llamacpp-sycl.sh). Not committed — generated per host.
+/vendor/
+/.cargo/
 # Local toolchain leftovers + fetched tokenizer artifacts
 /.venv/
 .venv-cuda-libs/
