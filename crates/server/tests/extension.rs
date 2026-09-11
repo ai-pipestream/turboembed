@@ -359,7 +359,10 @@ const MINILM_SNAPSHOT: &str = "/work/tei-model-cache/\
 async fn minilm_local_tokenizer_e2e_over_grpc() {
     let snapshot =
         std::env::var("INFERSTREAM_MINILM_SNAPSHOT").unwrap_or_else(|_| MINILM_SNAPSHOT.into());
-    if !std::path::Path::new(&snapshot).join("tokenizer.json").is_file() {
+    if !std::path::Path::new(&snapshot)
+        .join("tokenizer.json")
+        .is_file()
+    {
         eprintln!("skipping: no MiniLM snapshot at {snapshot} (set INFERSTREAM_MINILM_SNAPSHOT)");
         return;
     }
@@ -426,7 +429,10 @@ async fn minilm_local_tokenizer_e2e_over_grpc() {
         .await
         .unwrap()
         .into_inner();
-    assert!(models.models.iter().any(|m| m.name == "minilm-l6-v2" && m.has_tokenizer));
+    assert!(models
+        .models
+        .iter()
+        .any(|m| m.name == "minilm-l6-v2" && m.has_tokenizer));
 
     guard.stop().await;
 }

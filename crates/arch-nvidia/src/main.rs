@@ -125,7 +125,12 @@ fn factory() -> impl inferstream_server::BackendFactory {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    inferstream_server::run_cli("inferstream-nvidia", &factory()).await
+    inferstream_server::run_cli(
+        "inferstream-nvidia",
+        Some(inferstream_server::Arch::Nvidia),
+        &factory(),
+    )
+    .await
 }
 
 #[cfg(test)]

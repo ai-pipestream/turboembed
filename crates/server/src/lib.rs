@@ -12,6 +12,7 @@
 #![allow(clippy::result_large_err)]
 
 pub mod auth;
+pub mod catalog;
 pub mod config;
 pub mod extension;
 pub mod service;
@@ -31,6 +32,7 @@ use inferstream_protocol::extension::inferstream_service_server::InferstreamServ
 use inferstream_protocol::inference::grpc_inference_service_server::GrpcInferenceServiceServer;
 
 use auth::BearerAuth;
+pub use catalog::Arch;
 use config::{AuthMode, BackendKind, Config, ModelConfig};
 use extension::ExtensionService;
 use service::InferenceService;
@@ -198,10 +200,13 @@ pub async fn serve_with_factory(
 
 /// Shared CLI entry point for every inferstream binary.
 ///
-/// Parses `--config` / `--listen`, initializes tracing, builds the registry
+/// Parses `--config` / `--listen`, initializes tracing, expands `serve`
+/// catalog aliases for `arch` (arch binaries pass theirs; the dev binary
+/// passes `None` and rejects configs that use `serve`), builds the registry
 /// through the binary's factory, and serves until Ctrl-C.
 pub async fn run_cli(
     binary_name: &'static str,
+    arch: Option<Arch>,
     factory: &dyn BackendFactory,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use clap::Parser;
@@ -233,6 +238,7 @@ pub async fn run_cli(
 
     let args = Args::parse();
     let mut config = Config::from_file(&args.config)?;
+    config.expand_serve(arch)?;
     if let Some(listen) = args.listen {
         config.listen = listen;
     }
@@ -270,6 +276,34 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    /// A catalog alias expands into a registry entry keyed by the logical
+    /// name, so clients route with `model_name: "<alias>"`.
+    #[test]
+    fn expanded_alias_is_routable_by_logical_name() {
+        let path = std::env::temp_dir().join(format!(
+            "inferstream-lib-catalog-test-{}.toml",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"
+            [models.smoke-alias.nvidia]
+            backend = "mock"
+            "#,
+        )
+        .unwrap();
+        let mut config = Config::from_toml(&format!(
+            "serve = [\"smoke-alias\"]\ncatalog = {:?}\n",
+            path.to_str().unwrap()
+        ))
+        .unwrap();
+        config.expand_serve(Some(Arch::Nvidia)).unwrap();
+        std::fs::remove_file(&path).ok();
+
+        let registry = build_registry(&config, &mock_factory()).unwrap();
+        assert!(registry.lookup("smoke-alias").is_some());
     }
 
     #[test]

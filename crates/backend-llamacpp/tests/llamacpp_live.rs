@@ -67,8 +67,14 @@ fn prompt_request(id: &str, prompt: &str, max_tokens: i64) -> ModelInferRequest 
 #[ignore = "needs INFERSTREAM_LLAMACPP_ENDPOINT and a running llama-server"]
 async fn health_and_metadata() {
     let backend = live_backend().expect("INFERSTREAM_LLAMACPP_ENDPOINT must be set");
-    assert!(backend.model_ready("any", "").await, "server /health not ok");
-    let metadata = backend.model_metadata("qwen2.5-vl-7b-sycl", "").await.unwrap();
+    assert!(
+        backend.model_ready("any", "").await,
+        "server /health not ok"
+    );
+    let metadata = backend
+        .model_metadata("qwen2.5-vl-7b-sycl", "")
+        .await
+        .unwrap();
     assert_eq!(metadata.platform, "llama_cpp");
     assert!(metadata.properties.contains_key("endpoint"));
 }
@@ -83,10 +89,9 @@ async fn unary_completion_returns_text() {
         .unwrap();
     assert_eq!(response.id, "unary-1");
     assert_eq!(response.outputs[0].name, "text");
-    let text = String::from_utf8(
-        unpack_bytes(&response.raw_output_contents[0]).unwrap()[0].clone(),
-    )
-    .unwrap();
+    let text =
+        String::from_utf8(unpack_bytes(&response.raw_output_contents[0]).unwrap()[0].clone())
+            .unwrap();
     assert!(
         text.to_lowercase().contains("paris"),
         "greedy completion should mention Paris, got {text:?}"
@@ -125,18 +130,22 @@ async fn streaming_emits_token_chunks_with_final_flag() {
         .iter()
         .map(|c| {
             matches!(
-                c.parameters.get("final").and_then(|p| p.parameter_choice.as_ref()),
+                c.parameters
+                    .get("final")
+                    .and_then(|p| p.parameter_choice.as_ref()),
                 Some(ParameterChoice::BoolParam(true))
             )
         })
         .collect();
     assert_eq!(finals.iter().filter(|&&f| f).count(), 1);
-    assert!(finals.last().copied().unwrap(), "last chunk carries final=true");
+    assert!(
+        finals.last().copied().unwrap(),
+        "last chunk carries final=true"
+    );
     let text: String = chunks
         .iter()
         .map(|c| {
-            String::from_utf8(unpack_bytes(&c.raw_output_contents[0]).unwrap()[0].clone())
-                .unwrap()
+            String::from_utf8(unpack_bytes(&c.raw_output_contents[0]).unwrap()[0].clone()).unwrap()
         })
         .collect();
     assert!(!text.trim().is_empty(), "streamed text is non-empty");

@@ -88,8 +88,11 @@ fn factory() -> impl inferstream_server::BackendFactory {
                                     .to_string(),
                             )
                         })?;
-                    let backend = inferstream_backend_ovms::OvmsBackend::new(endpoint)
+                    let mut backend = inferstream_backend_ovms::OvmsBackend::new(endpoint)
                         .map_err(|e| invalid(model, e.to_string()))?;
+                    if let Some(upstream) = &model.upstream_model {
+                        backend = backend.with_upstream_model(upstream.clone());
+                    }
                     Ok(Arc::new(backend))
                 }
                 #[cfg(not(feature = "ovms"))]
@@ -151,7 +154,12 @@ fn factory() -> impl inferstream_server::BackendFactory {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    inferstream_server::run_cli("inferstream-intel", &factory()).await
+    inferstream_server::run_cli(
+        "inferstream-intel",
+        Some(inferstream_server::Arch::Intel),
+        &factory(),
+    )
+    .await
 }
 
 #[cfg(test)]

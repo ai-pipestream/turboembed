@@ -51,14 +51,11 @@ use std::collections::{HashMap, VecDeque};
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use inferstream_backend::{
-    Backend, BackendError, ModelMetadata, ResponseStream, TokenizeOptions,
-};
+use inferstream_backend::{Backend, BackendError, ModelMetadata, ResponseStream, TokenizeOptions};
 use inferstream_protocol::extension::Encoding;
 use inferstream_protocol::inference::{
     infer_parameter::ParameterChoice, model_infer_response::InferOutputTensor,
-    model_metadata_response::TensorMetadata, InferParameter, ModelInferRequest,
-    ModelInferResponse,
+    model_metadata_response::TensorMetadata, InferParameter, ModelInferRequest, ModelInferResponse,
 };
 use inferstream_protocol::tensor::{pack_bytes, unpack_bytes, DataType};
 use serde::Deserialize;
@@ -153,15 +150,24 @@ struct GenParams {
 }
 
 fn gen_params(parameters: &HashMap<String, InferParameter>) -> GenParams {
-    let int = |key: &str| match parameters.get(key).and_then(|p| p.parameter_choice.as_ref()) {
+    let int = |key: &str| match parameters
+        .get(key)
+        .and_then(|p| p.parameter_choice.as_ref())
+    {
         Some(ParameterChoice::Int64Param(v)) => Some(*v),
         _ => None,
     };
-    let double = |key: &str| match parameters.get(key).and_then(|p| p.parameter_choice.as_ref()) {
+    let double = |key: &str| match parameters
+        .get(key)
+        .and_then(|p| p.parameter_choice.as_ref())
+    {
         Some(ParameterChoice::DoubleParam(v)) => Some(*v),
         _ => None,
     };
-    let string = |key: &str| match parameters.get(key).and_then(|p| p.parameter_choice.as_ref()) {
+    let string = |key: &str| match parameters
+        .get(key)
+        .and_then(|p| p.parameter_choice.as_ref())
+    {
         Some(ParameterChoice::StringParam(v)) => Some(v.clone()),
         _ => None,
     };
@@ -882,7 +888,9 @@ mod tests {
         assert_eq!(mid.id, "req-9");
         assert_eq!(mid.outputs[0].name, "token");
         assert!(matches!(
-            mid.parameters.get("final").and_then(|p| p.parameter_choice.as_ref()),
+            mid.parameters
+                .get("final")
+                .and_then(|p| p.parameter_choice.as_ref()),
             Some(ParameterChoice::BoolParam(false))
         ));
         let last = token_chunk(
@@ -895,7 +903,9 @@ mod tests {
             },
         );
         assert!(matches!(
-            last.parameters.get("final").and_then(|p| p.parameter_choice.as_ref()),
+            last.parameters
+                .get("final")
+                .and_then(|p| p.parameter_choice.as_ref()),
             Some(ParameterChoice::BoolParam(true))
         ));
         assert!(matches!(

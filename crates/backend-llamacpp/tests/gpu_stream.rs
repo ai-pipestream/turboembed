@@ -109,7 +109,11 @@ async fn llama_stream_emits_tokens_with_final_flag() {
             i + 1 == chunks.len(),
             "final flag only on the last chunk"
         );
-        text.extend(unpack_bytes(&chunk.raw_output_contents[0]).unwrap().remove(0));
+        text.extend(
+            unpack_bytes(&chunk.raw_output_contents[0])
+                .unwrap()
+                .remove(0),
+        );
     }
     let text = String::from_utf8_lossy(&text);
     eprintln!("streamed completion: {text:?}");
@@ -129,7 +133,9 @@ async fn llama_unary_infer_returns_full_text() {
         .expect("unary generation");
     assert_eq!(response.id, "unary-1");
     assert_eq!(response.outputs[0].name, "text");
-    let text = unpack_bytes(&response.raw_output_contents[0]).unwrap().remove(0);
+    let text = unpack_bytes(&response.raw_output_contents[0])
+        .unwrap()
+        .remove(0);
     let text = String::from_utf8_lossy(&text);
     assert!(text.to_lowercase().contains("paris"), "got {text:?}");
 }

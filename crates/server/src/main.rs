@@ -5,5 +5,7 @@
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    inferstream_server::run_cli("inferstream", &inferstream_server::mock_factory()).await
+    // No arch: catalog `serve` aliases are rejected with an actionable
+    // error; the dev binary serves explicit [[models]] entries only.
+    inferstream_server::run_cli("inferstream", None, &inferstream_server::mock_factory()).await
 }
