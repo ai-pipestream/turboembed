@@ -33,3 +33,7 @@ inferstream-backend-openvino = { workspace = true, optional = true }
 inferstream-backend-ovms = { workspace = true, optional = true }
 inferstream-backend-ort = { workspace = true, optional = true }
 tokio = { workspace = true }
+
+[dev-dependencies]
+inferstream-protocol = { workspace = true }
+tonic = { workspace = true }

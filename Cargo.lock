@@ -558,8 +558,10 @@ dependencies = [
  "inferstream-backend-openvino",
  "inferstream-backend-ort",
  "inferstream-backend-ovms",
+ "inferstream-protocol",
  "inferstream-server",
  "tokio",
+ "tonic",
 ]
 
 [[package]]
