@@ -226,13 +226,108 @@ impl Catalog {
 mod tests {
     use super::*;
 
+    /// Support matrix for the built-in catalog: every alias × arch, true
+    /// where a real backend path exists. Keep in sync with
+    /// config/catalog.toml — this is the executable version of the README
+    /// alias table.
+    const BUILTIN_MATRIX: &[(&str, [bool; 3])] = &[
+        // alias                (nvidia, intel, apple)
+        ("minilm", [true, true, true]),
+        ("minilm-l12", [true, false, true]),
+        ("mpnet", [true, true, false]),
+        ("bge-small", [true, false, true]),
+        ("bge-base", [true, false, true]),
+        ("bge-large", [true, false, true]),
+        ("bge-m3", [true, false, true]),
+        ("e5-small", [true, false, true]),
+        ("e5-base", [true, false, true]),
+        ("e5-large", [true, false, true]),
+        ("gte-small", [true, false, true]),
+        ("gte-base", [true, false, true]),
+        ("nomic-embed-text", [true, false, false]),
+    ];
+
     #[test]
-    fn builtin_catalog_parses_and_defines_starters() {
+    fn builtin_catalog_defines_exactly_the_documented_aliases() {
         let catalog = Catalog::builtin();
-        let aliases: Vec<&str> = catalog.aliases().collect();
-        assert!(aliases.contains(&"minilm"), "aliases: {aliases:?}");
-        assert!(aliases.contains(&"mpnet"), "aliases: {aliases:?}");
-        assert!(aliases.contains(&"default-llm"), "aliases: {aliases:?}");
+        let expected: Vec<&str> = {
+            let mut v: Vec<&str> = BUILTIN_MATRIX.iter().map(|(alias, _)| *alias).collect();
+            v.sort_unstable();
+            v
+        };
+        let actual: Vec<&str> = catalog.aliases().collect();
+        assert_eq!(actual, expected, "catalog aliases drifted from the matrix");
+    }
+
+    /// Every alias × arch: supported combinations resolve to a config named
+    /// by the alias; unsupported ones fail with NotAvailableOnArch (never
+    /// UnknownAlias, never a fake resolution).
+    #[test]
+    fn builtin_matrix_resolves_supported_and_rejects_unsupported() {
+        let catalog = Catalog::builtin();
+        for (alias, supported) in BUILTIN_MATRIX {
+            for (arch, expect) in [Arch::Nvidia, Arch::Intel, Arch::Apple]
+                .into_iter()
+                .zip(supported)
+            {
+                match catalog.resolve(alias, arch) {
+                    Ok(model) if *expect => {
+                        assert_eq!(model.name, *alias, "registered under the logical name");
+                    }
+                    Ok(model) => panic!(
+                        "{alias} must NOT resolve on {arch:?} but got backend {:?}",
+                        model.backend
+                    ),
+                    Err(CatalogError::NotAvailableOnArch { available, .. }) if !expect => {
+                        assert!(!available.is_empty(), "{alias}: available list empty");
+                    }
+                    Err(e) => panic!("{alias} on {arch:?}: unexpected error {e:?}"),
+                }
+            }
+        }
+    }
+
+    /// Embedding entries must carry the settings the engines need: ORT
+    /// entries a path + tokenizer_dir + pooling, OVMS entries an endpoint,
+    /// MLX entries a model path. Pooling matches each family's convention.
+    #[test]
+    fn builtin_embedding_entries_are_engine_complete() {
+        let catalog = Catalog::builtin();
+        for (alias, [nvidia, intel, apple]) in BUILTIN_MATRIX {
+            if *nvidia {
+                let m = catalog.resolve(alias, Arch::Nvidia).unwrap();
+                assert_eq!(m.backend, BackendKind::Ort, "{alias} nvidia");
+                assert!(m.path.is_some(), "{alias} nvidia needs a path");
+                assert!(m.tokenizer_dir.is_some(), "{alias} nvidia tokenizer");
+                let expected_pooling = if alias.starts_with("bge") {
+                    "cls"
+                } else {
+                    "mean"
+                };
+                assert_eq!(
+                    m.pooling.as_deref(),
+                    Some(expected_pooling),
+                    "{alias} nvidia pooling"
+                );
+            }
+            if *intel {
+                let m = catalog.resolve(alias, Arch::Intel).unwrap();
+                assert_eq!(m.backend, BackendKind::Ovms, "{alias} intel");
+                assert!(m.endpoint.is_some(), "{alias} intel needs an endpoint");
+                assert!(
+                    m.upstream_model
+                        .as_deref()
+                        .unwrap_or_default()
+                        .ends_with("_pipeline"),
+                    "{alias} intel maps to an OVMS pipeline"
+                );
+            }
+            if *apple {
+                let m = catalog.resolve(alias, Arch::Apple).unwrap();
+                assert_eq!(m.backend, BackendKind::Mlx, "{alias} apple");
+                assert!(m.path.is_some(), "{alias} apple needs an HF repo/path");
+            }
+        }
     }
 
     #[test]
@@ -261,23 +356,15 @@ mod tests {
         );
     }
 
+    /// LLM aliases are deferred: default-llm exists only as a commented
+    /// stub, so it must NOT resolve (it would silently serve an unvetted
+    /// generation path).
     #[test]
-    fn default_llm_resolves_on_all_three_arches() {
-        let catalog = Catalog::builtin();
-        assert_eq!(
-            catalog
-                .resolve("default-llm", Arch::Nvidia)
-                .unwrap()
-                .backend,
-            BackendKind::LlamaCpp
-        );
-        let intel = catalog.resolve("default-llm", Arch::Intel).unwrap();
-        assert_eq!(intel.backend, BackendKind::LlamaCpp);
-        assert!(intel.endpoint.is_some(), "intel forwards to llama-server");
-        assert_eq!(
-            catalog.resolve("default-llm", Arch::Apple).unwrap().backend,
-            BackendKind::Mlx
-        );
+    fn llm_aliases_are_deferred() {
+        let error = Catalog::builtin()
+            .resolve("default-llm", Arch::Nvidia)
+            .unwrap_err();
+        assert!(matches!(error, CatalogError::UnknownAlias { .. }));
     }
 
     #[test]
@@ -296,9 +383,9 @@ mod tests {
 
     #[test]
     fn alias_missing_on_arch_names_available_arches() {
-        // mpnet only has an intel resolution in the built-in catalog.
+        // mpnet has no apple resolution (mlx-embeddings lacks MPNet).
         let error = Catalog::builtin()
-            .resolve("mpnet", Arch::Nvidia)
+            .resolve("mpnet", Arch::Apple)
             .unwrap_err();
         match error {
             CatalogError::NotAvailableOnArch {
@@ -307,8 +394,8 @@ mod tests {
                 available,
             } => {
                 assert_eq!(alias, "mpnet");
-                assert_eq!(arch, "nvidia");
-                assert_eq!(available, "intel");
+                assert_eq!(arch, "apple");
+                assert_eq!(available, "nvidia, intel");
             }
             other => panic!("expected NotAvailableOnArch, got {other:?}"),
         }

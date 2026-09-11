@@ -22,7 +22,16 @@ listen = "0.0.0.0:8461"
 # ORT-CUDA artifact the catalog maps it to — same client call works against
 # the Intel (OVMS) and Apple (MLX) binaries. Override the built-in catalog
 # per host with `catalog = "/path/to/catalog.toml"`.
-serve = ["minilm", "default-llm"]
+#
+# `minilm` is served out of the box (TEI's HF cache already on krick). The
+# catalog defines many more embedding aliases for this arch — minilm-l12,
+# mpnet, bge-small/base/large, bge-m3, e5-small/base/large, gte-small/base,
+# nomic-embed-text — each resolving to models/onnx/<alias>/. Download the
+# artifacts first, then extend this list:
+#   scripts/fetch-embedding-models.sh bge-small e5-small ...
+#   serve = ["minilm", "bge-small", "e5-small"]
+# Smoke every serving model with scripts/smoke-embeddings.sh (see --help).
+serve = ["minilm"]
 
 [auth]
 mode = "bearer"
@@ -52,19 +61,20 @@ backend = "mock"
 # pooling = "cls"          # BGE uses CLS pooling
 # normalize = true
 
-# GENERATIVE: the catalog's `default-llm` alias serves GGUF token streaming
-# through llama.cpp with GGML_CUDA (build with --features full-cuda, or
-# llamacpp-cuda alone; see /work/models/gguf/README.md for the model
-# provenance). Streaming rides the OIP ModelStreamInfer RPC: one BYTES
+# GENERATIVE (deferred from the alias catalog for now — the `default-llm`
+# stub in config/catalog.toml documents the alias route): GGUF token
+# streaming through llama.cpp with GGML_CUDA (build with --features
+# full-cuda, or llamacpp-cuda alone; see /work/models/gguf/README.md for the
+# model provenance). Streaming rides the OIP ModelStreamInfer RPC: one BYTES
 # "token" chunk per decoded piece with a bool "final" parameter on the last
 # chunk; request parameters max_tokens (int64), temperature (double), seed
-# (int64). Equivalent explicit entry:
-# [[models]]
-# name = "qwen2.5-0.5b-instruct"
-# backend = "llama-cpp"
-# device = "cuda"
-# path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
-# n_ctx = 4096
+# (int64).
+[[models]]
+name = "qwen2.5-0.5b-instruct"
+backend = "llama-cpp"
+device = "cuda"
+path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
+n_ctx = 4096
 
 # OPTIONAL LATER: in-process TensorRT-LLM Executor for generative models.
 # Requires --features trtllm-sys plus CUDA + TRT-LLM engines on the host.

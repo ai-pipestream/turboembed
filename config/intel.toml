@@ -22,11 +22,15 @@ listen = "0.0.0.0:8461"
 # Logical model aliases from the catalog (config/catalog.toml, compiled into
 # the binary). Clients say `model_name: "minilm"` / `"mpnet"` and this arch
 # forwards to the OVMS DAG pipelines (`minilm_pipeline` / `mpnet_pipeline`
-# via the catalog's `upstream_model` remap); `"default-llm"` forwards to the
-# SYCL llama-server. Same client calls work against the NVIDIA (ORT-CUDA)
-# and Apple (MLX) binaries. Override the built-in catalog per host with
-# `catalog = "/path/to/catalog.toml"`.
-serve = ["minilm", "mpnet", "default-llm"]
+# via the catalog's `upstream_model` remap). Same client calls work against
+# the NVIDIA (ORT-CUDA) and Apple (MLX) binaries. Override the built-in
+# catalog per host with `catalog = "/path/to/catalog.toml"`.
+#
+# Other embedding aliases (bge-*, e5-*, gte-*, minilm-l12) have no OVMS
+# pipeline on this host yet — the catalog header documents how to register
+# one and map it. Smoke every serving model with
+# scripts/smoke-embeddings.sh.
+serve = ["minilm", "mpnet"]
 
 [auth]
 mode = "bearer"

@@ -19,16 +19,41 @@
 #   backend = "..."                    # same fields as a [[models]] entry,
 #   path / endpoint / tokenizer_dir…   # minus `name` (the alias is the name)
 #
-# An alias may resolve on a subset of arches; serving it elsewhere fails at
-# startup with an actionable error. `upstream_model` remaps the alias to the
-# name a proxy upstream (ovms) actually serves.
+# An alias resolves only on arches with a REAL backend path — no fakes. An
+# unsupported arch simply has no sub-table; serving the alias there fails at
+# startup naming the arches that do have it. `upstream_model` remaps the
+# alias to the name a proxy upstream (ovms) actually serves.
+#
+# Per-arch artifact conventions in this catalog:
+#
+#   nvidia  ORT (CUDA EP). `minilm` uses the TEI HF cache already on krick.
+#           Every other alias points at models/onnx/<alias>/ (relative to the
+#           server cwd) — populate with
+#               scripts/fetch-embedding-models.sh <alias> [<alias> ...]
+#           which downloads a prebuilt ONNX export + tokenizer from HF, then
+#           add the alias to `serve` in config/nvidia.toml.
+#   intel   OVMS DAG pipelines on the Battlemage GPU (krick-1 container
+#           "protomolt-embedder-ovms"). Only pipelines that exist upstream
+#           are mapped (minilm, mpnet). To add one: register the model in
+#           the OVMS config (config-gpu.json graph: tokenizer -> embedding
+#           model -> "sentence_embedding"), restart the container, then add
+#           a [models.<alias>.intel] table here with `upstream_model` set to
+#           the new pipeline name.
+#   apple   MLX through the persistent Python bridge (mlx-embeddings). The
+#           bridge downloads the HF repo into the cache on first use.
+#           mlx-embeddings implements BERT and XLM-RoBERTa forward passes,
+#           which covers MiniLM / BGE (en v1.5 + m3) / multilingual-E5 /
+#           thenlper GTE. It does NOT implement MPNet or NomicBERT, so
+#           `mpnet` and `nomic-embed-text` have no apple resolution.
 
 # ---------------------------------------------------------------------------
-# minilm — all-MiniLM-L6-v2 sentence embeddings, 384 dims. The smallest
-# fully-live embedding path on every arch.
+# MiniLM family
 # ---------------------------------------------------------------------------
+
+# minilm — all-MiniLM-L6-v2, 384 dims. The smallest fully-live embedding
+# path on every arch; serve this first when bringing a host up.
 [models.minilm]
-description = "all-MiniLM-L6-v2 sentence embeddings (384 dims)"
+description = "all-MiniLM-L6-v2 sentence embeddings (384 dims, mean pooling)"
 
 # ORT with the CUDA EP over TEI's HF snapshot cache on krick. The snapshot
 # hash is stable for sentence-transformers/all-MiniLM-L6-v2; adjust if your
@@ -42,18 +67,17 @@ pooling = "mean"
 normalize = true
 max_seq_len = 256
 
-# OVMS DAG pipeline on the Battlemage GPU (krick-1 container
-# "protomolt-embedder-ovms"). `upstream_model` maps the logical name to the
-# pipeline name OVMS actually serves; override the endpoint per host with
-# INFERSTREAM_OVMS_ENDPOINT.
+# OVMS DAG pipeline on the Battlemage GPU. `upstream_model` maps the logical
+# name to the pipeline name OVMS actually serves; override the endpoint per
+# host with INFERSTREAM_OVMS_ENDPOINT.
 [models.minilm.intel]
 backend = "ovms"
 endpoint = "http://172.22.0.2:8000"
 upstream_model = "minilm_pipeline"
 tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_minilm"
 
-# MLX 4-bit MiniLM (~25 MB; the bridge worker downloads it into the HF cache
-# on first use). tokenizer_dir is populated by scripts/setup-mlx.sh.
+# MLX 4-bit MiniLM (~25 MB; downloads into the HF cache on first use).
+# tokenizer_dir is populated by scripts/setup-mlx.sh.
 [models.minilm.apple]
 backend = "mlx"
 path = "mlx-community/all-MiniLM-L6-v2-4bit"
@@ -61,16 +85,43 @@ tokenizer_dir = "models/minilm"
 normalize = true
 max_batch_size = 32
 
+# minilm-l12 — all-MiniLM-L12-v2, 384 dims: same dim as minilm, deeper and
+# more accurate. Intel: no OVMS pipeline yet (see the intel convention note).
+[models.minilm-l12]
+description = "all-MiniLM-L12-v2 sentence embeddings (384 dims, mean pooling)"
+
+[models.minilm-l12.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/minilm-l12/onnx/model.onnx"
+tokenizer_dir = "models/onnx/minilm-l12"
+pooling = "mean"
+normalize = true
+max_seq_len = 256
+
+[models.minilm-l12.apple]
+backend = "mlx"
+path = "sentence-transformers/all-MiniLM-L12-v2"
+normalize = true
+max_batch_size = 32
+
 # ---------------------------------------------------------------------------
-# mpnet — all-mpnet-base-v2 sentence embeddings, 768 dims. Live on Intel via
-# the OVMS pipeline today. NVIDIA route: export ONNX first
-#   optimum-cli export onnx --model sentence-transformers/all-mpnet-base-v2 \
-#     /work/models/mpnet-onnx
-# then add [models.mpnet.nvidia] backend = "ort" path = ".../model.onnx"
-# pooling = "mean" in a catalog override (or here once the export exists).
+# MPNet
 # ---------------------------------------------------------------------------
+
+# mpnet — all-mpnet-base-v2, 768 dims. No apple resolution: mlx-embeddings
+# has no MPNet forward pass (BERT/XLM-R only); route Macs to bge-base for a
+# comparable 768-dim English model.
 [models.mpnet]
-description = "all-mpnet-base-v2 sentence embeddings (768 dims)"
+description = "all-mpnet-base-v2 sentence embeddings (768 dims, mean pooling)"
+
+[models.mpnet.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/mpnet/onnx/model.onnx"
+tokenizer_dir = "models/onnx/mpnet"
+pooling = "mean"
+normalize = true
 
 [models.mpnet.intel]
 backend = "ovms"
@@ -79,29 +130,222 @@ upstream_model = "mpnet_pipeline"
 tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_mpnet"
 
 # ---------------------------------------------------------------------------
-# default-llm — small instruct model for token-streaming generation
-# (ModelStreamInfer). Qwen2.5-0.5B-Instruct everywhere it runs in-process;
-# Intel forwards to the SYCL llama-server already running on the host.
+# BGE (BAAI) — CLS pooling. English v1.5 line + multilingual bge-m3.
 # ---------------------------------------------------------------------------
-[models.default-llm]
-description = "small instruct LLM for streaming generation (Qwen2.5 class)"
 
-# GGUF through llama.cpp with GGML_CUDA (build with --features full-cuda).
-[models.default-llm.nvidia]
-backend = "llama-cpp"
+[models.bge-small]
+description = "bge-small-en-v1.5 embeddings (384 dims, CLS pooling)"
+
+[models.bge-small.nvidia]
+backend = "ort"
 device = "cuda"
-path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
-n_ctx = 4096
+path = "models/onnx/bge-small/onnx/model.onnx"
+tokenizer_dir = "models/onnx/bge-small"
+pooling = "cls"
+normalize = true
 
-# Server-client mode against the SYCL llama-server container ("vlm-server",
-# ghcr.io/ggml-org/llama.cpp:server-intel) on host port 8085. Override with
-# INFERSTREAM_LLAMACPP_ENDPOINT by dropping `endpoint` in a catalog copy.
-[models.default-llm.intel]
-backend = "llama-cpp"
-device = "sycl"
-endpoint = "http://127.0.0.1:8085"
-
-# MLX 4-bit Qwen2.5-0.5B-Instruct (~280 MB) through the Python bridge.
-[models.default-llm.apple]
+# Verified mlx-community 4-bit conversion (~19 MB).
+[models.bge-small.apple]
 backend = "mlx"
-path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+path = "mlx-community/bge-small-en-v1.5-4bit"
+normalize = true
+max_batch_size = 32
+
+[models.bge-base]
+description = "bge-base-en-v1.5 embeddings (768 dims, CLS pooling)"
+
+[models.bge-base.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/bge-base/onnx/model.onnx"
+tokenizer_dir = "models/onnx/bge-base"
+pooling = "cls"
+normalize = true
+
+# Original BAAI safetensors (vanilla BERT); mlx-embeddings loads it directly.
+[models.bge-base.apple]
+backend = "mlx"
+path = "BAAI/bge-base-en-v1.5"
+normalize = true
+max_batch_size = 32
+
+[models.bge-large]
+description = "bge-large-en-v1.5 embeddings (1024 dims, CLS pooling)"
+
+[models.bge-large.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/bge-large/onnx/model.onnx"
+tokenizer_dir = "models/onnx/bge-large"
+pooling = "cls"
+normalize = true
+
+[models.bge-large.apple]
+backend = "mlx"
+path = "BAAI/bge-large-en-v1.5"
+normalize = true
+max_batch_size = 16
+
+# bge-m3 — multilingual, 1024-dim dense vectors (XLM-RoBERTa base, ~2.2 GB).
+# Intel: no OVMS pipeline yet; the dense path would slot into the same DAG
+# shape as minilm_pipeline (see the intel convention note at the top).
+[models.bge-m3]
+description = "bge-m3 multilingual embeddings (1024 dims, CLS pooling, dense vectors)"
+
+[models.bge-m3.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/bge-m3/onnx/model.onnx"
+tokenizer_dir = "models/onnx/bge-m3"
+pooling = "cls"
+normalize = true
+
+[models.bge-m3.apple]
+backend = "mlx"
+path = "BAAI/bge-m3"
+normalize = true
+max_batch_size = 8
+
+# ---------------------------------------------------------------------------
+# E5 (intfloat, multilingual line) — mean pooling, XLM-RoBERTa.
+# NOTE: E5 models are trained with "query: " / "passage: " text prefixes;
+# clients should prepend them for best retrieval quality (the server does
+# not inject prefixes).
+# ---------------------------------------------------------------------------
+
+[models.e5-small]
+description = "multilingual-e5-small embeddings (384 dims, mean pooling; use query:/passage: prefixes)"
+
+[models.e5-small.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/e5-small/onnx/model.onnx"
+tokenizer_dir = "models/onnx/e5-small"
+pooling = "mean"
+normalize = true
+
+[models.e5-small.apple]
+backend = "mlx"
+path = "intfloat/multilingual-e5-small"
+normalize = true
+max_batch_size = 32
+
+[models.e5-base]
+description = "multilingual-e5-base embeddings (768 dims, mean pooling; use query:/passage: prefixes)"
+
+[models.e5-base.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/e5-base/onnx/model.onnx"
+tokenizer_dir = "models/onnx/e5-base"
+pooling = "mean"
+normalize = true
+
+[models.e5-base.apple]
+backend = "mlx"
+path = "intfloat/multilingual-e5-base"
+normalize = true
+max_batch_size = 16
+
+[models.e5-large]
+description = "multilingual-e5-large embeddings (1024 dims, mean pooling; use query:/passage: prefixes)"
+
+[models.e5-large.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/e5-large/onnx/model.onnx"
+tokenizer_dir = "models/onnx/e5-large"
+pooling = "mean"
+normalize = true
+
+[models.e5-large.apple]
+backend = "mlx"
+path = "intfloat/multilingual-e5-large"
+normalize = true
+max_batch_size = 8
+
+# ---------------------------------------------------------------------------
+# GTE (thenlper v1 line — vanilla BERT, mean pooling). The newer Alibaba
+# gte-*-en-v1.5 line uses a custom "NewModel" architecture that neither ORT
+# tokenization defaults nor mlx-embeddings cover; stick to the v1 repos.
+# ---------------------------------------------------------------------------
+
+[models.gte-small]
+description = "gte-small embeddings (384 dims, mean pooling)"
+
+[models.gte-small.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/gte-small/onnx/model.onnx"
+tokenizer_dir = "models/onnx/gte-small"
+pooling = "mean"
+normalize = true
+
+[models.gte-small.apple]
+backend = "mlx"
+path = "thenlper/gte-small"
+normalize = true
+max_batch_size = 32
+
+[models.gte-base]
+description = "gte-base embeddings (768 dims, mean pooling)"
+
+[models.gte-base.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/gte-base/onnx/model.onnx"
+tokenizer_dir = "models/onnx/gte-base"
+pooling = "mean"
+normalize = true
+
+[models.gte-base.apple]
+backend = "mlx"
+path = "thenlper/gte-base"
+normalize = true
+max_batch_size = 16
+
+# ---------------------------------------------------------------------------
+# Nomic
+# ---------------------------------------------------------------------------
+
+# nomic-embed-text — nomic-embed-text-v1.5, 768 dims (Matryoshka-capable).
+# nvidia only: the official repo ships an ONNX export with standard
+# transformers inputs (fetch script downloads it). No apple resolution —
+# mlx-embeddings has no NomicBERT forward pass; no intel pipeline yet.
+# Untested on krick: if the export's graph inputs differ, startup fails
+# naming the offending input (never at request time).
+[models.nomic-embed-text]
+description = "nomic-embed-text-v1.5 embeddings (768 dims, mean pooling)"
+
+[models.nomic-embed-text.nvidia]
+backend = "ort"
+device = "cuda"
+path = "models/onnx/nomic-embed-text/onnx/model.onnx"
+tokenizer_dir = "models/onnx/nomic-embed-text"
+pooling = "mean"
+normalize = true
+
+# ---------------------------------------------------------------------------
+# Generative LLM aliases — DEFERRED (stub). Embedding aliases are the current
+# scope; the generation catalog lands in a later pass. The engine paths below
+# were validated in the previous iteration and can be re-enabled by
+# uncommenting and adding "default-llm" to an arch config's `serve` list.
+# ---------------------------------------------------------------------------
+
+# [models.default-llm]
+# description = "small instruct LLM for streaming generation (Qwen2.5 class)"
+#
+# [models.default-llm.nvidia]
+# backend = "llama-cpp"
+# device = "cuda"
+# path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
+# n_ctx = 4096
+#
+# [models.default-llm.intel]
+# backend = "llama-cpp"
+# device = "sycl"
+# endpoint = "http://127.0.0.1:8085"
+#
+# [models.default-llm.apple]
+# backend = "mlx"
+# path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"

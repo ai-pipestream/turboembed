@@ -157,19 +157,35 @@ EP registration uses `error_on_failure`: if these libs are missing the binary **
 
 ## Logical model names (alias catalog)
 
-Clients address models by **logical name** — `model_name: "minilm"` works against all three arch binaries, and each host loads its own optimized artifact. Clients never learn whether that's an ORT CUDA session, an OVMS DAG pipeline, or an MLX model:
+Clients address models by **logical name** — `model_name: "minilm"` works against all three arch binaries, and each host loads its own optimized artifact. Clients never learn whether that's an ORT CUDA session, an OVMS DAG pipeline, or an MLX model.
 
-| alias | `inferstream-nvidia` | `inferstream-intel` | `inferstream-apple` |
-|---|---|---|---|
-| `minilm` | ORT + CUDA EP over the TEI HF ONNX snapshot | OVMS client → `minilm_pipeline` (Battlemage GPU) | MLX `mlx-community/all-MiniLM-L6-v2-4bit` |
-| `mpnet` | — (export ONNX first; recipe in the catalog) | OVMS client → `mpnet_pipeline` | — |
-| `default-llm` | llama.cpp-CUDA, Qwen2.5-0.5B GGUF | llama.cpp-SYCL server-client → llama-server :8085 | MLX `mlx-community/Qwen2.5-0.5B-Instruct-4bit` |
+The catalog covers the popular embedding families. An alias resolves only on arches with a **real** backend path (no fakes); `—` means unsupported there today, with the add-recipe documented in `config/catalog.toml`:
+
+| alias | dims | `inferstream-nvidia` (ORT CUDA) | `inferstream-intel` (OVMS) | `inferstream-apple` (MLX) |
+|---|---|---|---|---|
+| `minilm` | 384 | TEI HF ONNX snapshot (on krick today) | → `minilm_pipeline` (live) | `mlx-community/all-MiniLM-L6-v2-4bit` (live) |
+| `minilm-l12` | 384 | fetch† | — | `sentence-transformers/all-MiniLM-L12-v2` |
+| `mpnet` | 768 | fetch† | → `mpnet_pipeline` (live) | — (no MPNet in mlx-embeddings) |
+| `bge-small` | 384 | fetch† | — | `mlx-community/bge-small-en-v1.5-4bit` |
+| `bge-base` | 768 | fetch† | — | `BAAI/bge-base-en-v1.5` |
+| `bge-large` | 1024 | fetch† | — | `BAAI/bge-large-en-v1.5` |
+| `bge-m3` | 1024 | fetch† | — | `BAAI/bge-m3` |
+| `e5-small` | 384 | fetch† | — | `intfloat/multilingual-e5-small` |
+| `e5-base` | 768 | fetch† | — | `intfloat/multilingual-e5-base` |
+| `e5-large` | 1024 | fetch† | — | `intfloat/multilingual-e5-large` |
+| `gte-small` | 384 | fetch† | — | `thenlper/gte-small` |
+| `gte-base` | 768 | fetch† | — | `thenlper/gte-base` |
+| `nomic-embed-text` | 768 | fetch† (untested) | — | — (no NomicBERT in mlx-embeddings) |
+
+† `scripts/fetch-embedding-models.sh <alias> ...` downloads a prebuilt ONNX export + tokenizer into `models/onnx/<alias>/` (the path the catalog's nvidia entries point at); then add the alias to `serve`. Apple entries download into the HF cache on first use through the MLX bridge. Pooling follows each family's convention (BGE = CLS, everything else mean); E5 models expect `query:` / `passage:` text prefixes from the client. **Generative/LLM aliases are deferred** — `default-llm` sits in the catalog as a commented stub, and generation still works through explicit `[[models]]` entries (see `config/nvidia.toml`).
 
 The mapping lives in the **catalog** (`config/catalog.toml`, compiled into every binary): one table per alias, one sub-table per arch with the same fields as a `[[models]]` entry, minus `name`. Arch configs opt in with a top-level `serve` list:
 
 ```toml
-# config/nvidia.toml / intel.toml / apple.toml
-serve = ["minilm", "default-llm"]     # aliases resolved for this arch at startup
+# defaults shipped today:
+serve = ["minilm"]                           # nvidia (TEI cache is already there)
+serve = ["minilm", "mpnet"]                  # intel (both OVMS pipelines live)
+serve = ["minilm", "minilm-l12", "bge-small"] # apple (small first-run downloads)
 ```
 
 At startup each alias expands into a regular registry entry **named by the alias**, so `ListModels` and `ModelMetadata` report `minilm` (with the resolved backend and artifact in `backend` / `platform` / properties like `model_path` or `upstream_model`), and every RPC — `ModelInfer`, `ModelStreamInfer`, `Tokenize`, `Embed` — routes by it:
@@ -181,7 +197,9 @@ grpcurl -plaintext -proto crates/protocol/proto/inferstream_extension.proto \
   <any-arch-host>:8461 inferstream.v1.InferstreamService/Embed
 ```
 
-**Adding an alias:** add a `[models.<alias>]` table to `config/catalog.toml` with a `[models.<alias>.<arch>]` sub-table per arch that can serve it (arches: `nvidia`, `intel`, `apple`), rebuild, and list the alias in `serve`. For proxy backends (`ovms`) set `upstream_model` when the upstream pipeline name differs from the alias — requests are forwarded under the upstream name and responses report the logical one. To change resolutions per host **without rebuilding**, point the config at a catalog copy: `catalog = "/etc/inferstream/catalog.toml"`.
+**Adding an alias:** add a `[models.<alias>]` table to `config/catalog.toml` with a `[models.<alias>.<arch>]` sub-table per arch that can serve it (arches: `nvidia`, `intel`, `apple`), rebuild, and list the alias in `serve`. For proxy backends (`ovms`) set `upstream_model` when the upstream pipeline name differs from the alias — requests are forwarded under the upstream name and responses report the logical one. To change resolutions per host **without rebuilding**, point the config at a catalog copy: `catalog = "/etc/inferstream/catalog.toml"`. The built-in matrix is enforced by a unit test (`BUILTIN_MATRIX` in `crates/server/src/catalog.rs`) — extend it when the catalog changes.
+
+**Smoking the surface:** `scripts/smoke-embeddings.sh [host:port] [bearer-token] [model ...]` runs `ListModels` and then `Embed` through every serving model (or the subset you name), on any arch — exits nonzero if any model fails to return vectors. That plus the fetch script is the whole bring-up loop for a new host: fetch (nvidia only) → extend `serve` → restart → smoke.
 
 Failures are startup-time and actionable: an unknown alias lists what the catalog defines; an alias with no resolution for this arch names the arches that have one. Explicit `[[models]]` entries keep working alongside `serve` (collisions are rejected), and the arch-neutral dev `inferstream` binary rejects `serve` since it has no arch.
 
