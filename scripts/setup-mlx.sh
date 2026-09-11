@@ -39,5 +39,14 @@ if [ ! -f models/gguf/qwen-0.5b/tokenizer.json ]; then
     echo "fetched models/gguf/qwen-0.5b/tokenizer.json"
 fi
 
+# tokenizer.json for qwen-7b (mlx-community Qwen2.5-7B 4-bit). Same dest
+# the catalog's apple tokenizer_dir points at. Tokenizer only (~7 MB).
+mkdir -p models/gguf/qwen-7b
+if [ ! -f models/gguf/qwen-7b/tokenizer.json ]; then
+    curl -fsSL -o models/gguf/qwen-7b/tokenizer.json \
+        "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/tokenizer.json"
+    echo "fetched models/gguf/qwen-7b/tokenizer.json"
+fi
+
 echo "--- Metal sanity check (mlx.core matmul via the persistent bridge) ---"
 echo '{"op":"ping"}' | .venv/bin/python python/mlx_bridge.py

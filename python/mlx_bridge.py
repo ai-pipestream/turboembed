@@ -94,11 +94,18 @@ def op_ping() -> dict:
     b = mx.random.normal((64, 64))
     c = (a @ b).sum()
     mx.eval(c)  # forces the Metal kernel to actually run
-    return {
+    metal = getattr(mx, "metal", None)
+    metal_available = bool(metal is not None and metal.is_available())
+    result = {
         "mlx_version": mx.__version__,
         "matmul_ok": bool(c.item() == c.item()),  # not NaN
         "device": str(mx.default_device()),
+        "metal_available": metal_available,
     }
+    if metal_available:
+        result["active_memory"] = int(metal.get_active_memory())
+        result["peak_memory"] = int(metal.get_peak_memory())
+    return result
 
 
 def _embed_vectors(model_id: str, texts: list[str], normalize: bool) -> list[list[float]]:

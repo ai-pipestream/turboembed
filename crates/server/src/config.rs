@@ -681,8 +681,9 @@ mod tests {
         }
         // Multi-alias defaults: intel serves both live OVMS pipelines plus
         // the llama-server LLM aliases; apple serves the small-download
-        // embedding trio plus default-llm; nvidia serves default-llm (0.5B
-        // GGUF already on krick) but not qwen-7b (fetch first).
+        // embedding trio plus default-llm + qwen-0.5b (same MLX 4-bit);
+        // nvidia serves default-llm (0.5B GGUF already on krick) but not
+        // qwen-7b (fetch first).
         let mut nvidia = Config::from_file(format!("{config_dir}/nvidia.toml")).unwrap();
         nvidia.expand_serve(Some(Arch::Nvidia)).unwrap();
         assert!(
@@ -708,7 +709,7 @@ mod tests {
         );
         let mut apple = Config::from_file(format!("{config_dir}/apple.toml")).unwrap();
         apple.expand_serve(Some(Arch::Apple)).unwrap();
-        for alias in ["minilm", "minilm-l12", "bge-small", "default-llm"] {
+        for alias in ["minilm", "minilm-l12", "bge-small", "default-llm", "qwen-0.5b"] {
             assert!(
                 apple.models.iter().any(|m| m.name == alias),
                 "apple.toml must serve {alias}"

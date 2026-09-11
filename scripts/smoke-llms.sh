@@ -129,10 +129,15 @@ print(chunks, str(final).lower(), end=" ")
     echo $(( (t1 - t0) / 1000000 ))
 }
 
+# tok/s from chunk count / wall seconds (generation tokens, not prompt).
+tok_s() {
+    python3 -c 'import sys; n=float(sys.argv[1]); ms=float(sys.argv[2]); print(f"{(n/(ms/1000.0)):.1f}" if ms>0 else "inf")' "$1" "$2"
+}
+
 PASS=0
 FAIL=0
 FAILED_MODELS=()
-printf '\n%-16s %8s %8s %8s %10s %10s\n' MODEL TOK_IDS CHUNKS FINAL COLD_MS WARM_MS
+printf '\n%-16s %8s %8s %8s %10s %10s %9s %9s\n' MODEL TOK_IDS CHUNKS FINAL COLD_MS WARM_MS COLD_T/S WARM_T/S
 for model in "${MODELS[@]}"; do
     if ! tok_run=$(tokenize_once "$model"); then
         printf '%-16s FAIL (Tokenize error; rerun grpcurl by hand for detail)\n' "$model"
@@ -162,7 +167,10 @@ for model in "${MODELS[@]}"; do
     final=$2
     warm_ms=$3
     if [ "$chunks" -ge 1 ] && [ "$final" = "true" ]; then
-        printf '%-16s %8s %8s %8s %10s %10s\n' "$model" "$tok_ids" "$chunks" "$final" "$cold_ms" "$warm_ms"
+        cold_tps=$(tok_s "$chunks" "$cold_ms")
+        warm_tps=$(tok_s "$chunks" "$warm_ms")
+        printf '%-16s %8s %8s %8s %10s %10s %9s %9s\n' \
+            "$model" "$tok_ids" "$chunks" "$final" "$cold_ms" "$warm_ms" "$cold_tps" "$warm_tps"
         PASS=$((PASS + 1))
     else
         printf '%-16s FAIL: stream shape chunks=%s final=%s\n' "$model" "$chunks" "$final"

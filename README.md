@@ -195,7 +195,7 @@ The mapping lives in the **catalog** (`config/catalog.toml`, compiled into every
 # defaults shipped today:
 serve = ["minilm", …, "default-llm"]                    # nvidia (0.5B GGUF on krick)
 serve = ["minilm", "mpnet", …, "default-llm", "qwen-7b"] # intel (OVMS + llama-server)
-serve = ["minilm", "minilm-l12", "bge-small", "default-llm"] # apple (small downloads)
+serve = ["minilm", "minilm-l12", "bge-small", "default-llm", "qwen-0.5b"] # apple (0.5B MLX)
 ```
 
 At startup each alias expands into a regular registry entry **named by the alias**, so `ListModels` and `ModelMetadata` report `minilm` (with the resolved backend and artifact in `backend` / `platform` / properties like `model_path` or `upstream_model`), and every RPC — `ModelInfer`, `ModelStreamInfer`, `Tokenize`, `Embed` — routes by it:
