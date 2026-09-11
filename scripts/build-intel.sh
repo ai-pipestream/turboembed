@@ -4,7 +4,8 @@
 #   scripts/build-intel.sh
 #
 # Sources oneAPI, injects ggml-sycl if needed, and uses icpx as the rustc
-# linker so -fsycl can finish the device-image link. No python3.
+# linker *only for the final binary* so -fsycl can finish the device-image
+# link without breaking crate build scripts. No python3.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -38,20 +39,29 @@ export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 
 LINKER="$ROOT/scripts/icpx-rust-linker.sh"
 chmod +x "$LINKER"
-export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C linker=${LINKER}"
 
 echo "--- inferstream-intel SYCL build ---"
 echo "    GGML_SYCL=$GGML_SYCL"
 echo "    CMAKE_C_COMPILER=$CMAKE_C_COMPILER"
 echo "    CMAKE_CXX_COMPILER=$CMAKE_CXX_COMPILER"
-echo "    linker=$LINKER"
+echo "    final-linker=$LINKER"
 echo "    ONEAPI_ROOT=${ONEAPI_ROOT:-unset}"
 
-cargo build -p inferstream-arch-intel --release --features llamacpp-sycl "$@"
+# Deps and build scripts keep the default rustc linker. Only the intel
+# binary is driven by icpx -fsycl (device-image extraction).
+cargo rustc -p inferstream-arch-intel --release --features llamacpp-sycl \
+    --bin inferstream-intel -- \
+    -C "linker=${LINKER}"
+
 ls -lh "$ROOT/target/release/inferstream-intel"
 if ldd "$ROOT/target/release/inferstream-intel" | grep -Eiq 'libpython'; then
     echo "error: inferstream-intel linked libpython — forbidden on the intel hot path" >&2
     ldd "$ROOT/target/release/inferstream-intel" | grep -i python >&2
     exit 1
 fi
-echo "ok: no libpython in inferstream-intel"
+if ! ldd "$ROOT/target/release/inferstream-intel" | grep -Eq 'libsycl\.so'; then
+    echo "error: inferstream-intel did not link libsycl.so — not a SYCL build" >&2
+    ldd "$ROOT/target/release/inferstream-intel" >&2
+    exit 1
+fi
+echo "ok: libsycl linked, no libpython"
