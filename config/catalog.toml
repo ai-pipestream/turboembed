@@ -16,6 +16,8 @@
 #   description = "..."                # optional, surfaced in docs/errors
 #
 #   [models.<alias>.<arch>]            # arch: nvidia | intel | apple
+#   # Quote aliases that contain '.' — TOML otherwise splits the key
+#   # (qwen-0.5b must be written [models."qwen-0.5b"]).
 #   backend = "..."                    # same fields as a [[models]] entry,
 #   path / endpoint / tokenizer_dir…   # minus `name` (the alias is the name)
 #
@@ -475,16 +477,17 @@ max_batch_size = 1
 # default-llm on nvidia/apple (fetched dest on nvidia; MLX 4-bit on apple).
 # Unsupported on intel: there is no live 0.5B SYCL server, and pointing this
 # alias at the 7B llama-server would be a lie.
-[models.qwen-0.5b]
+# Quoted: a bare [models.qwen-0.5b] is parsed as models.qwen-0 . 5b.
+[models."qwen-0.5b"]
 description = "Qwen2.5-0.5B-Instruct (smoke-sized; GGUF Q8_0 / MLX 4-bit)"
 
-[models.qwen-0.5b.nvidia]
+[models."qwen-0.5b".nvidia]
 backend = "llama-cpp"
 device = "cuda"
 path = "models/gguf/qwen-0.5b/qwen2.5-0.5b-instruct-q8_0.gguf"
 n_ctx = 4096
 
-[models.qwen-0.5b.apple]
+[models."qwen-0.5b".apple]
 backend = "mlx"
 path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
 tokenizer_dir = "models/gguf/qwen-0.5b"
