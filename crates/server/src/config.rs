@@ -100,6 +100,14 @@ pub struct ModelConfig {
     #[serde(default)]
     pub device: Option<String>,
 
+    /// Upstream gRPC endpoint for client backends (`backend = "ovms"`), e.g.
+    /// `"http://172.22.0.2:8000"`. Falls back to `INFERSTREAM_OVMS_ENDPOINT`
+    /// from the environment when omitted. For OVMS this is the `--port`
+    /// (gRPC) listener, not `--rest_port`; the model `name` must match a
+    /// model or pipeline the upstream server serves.
+    #[serde(default)]
+    pub endpoint: Option<String>,
+
     /// TensorRT-LLM: directory containing the compiled engine
     /// (`rank0.engine` + `config.json`). Required for `backend = "trt-llm"`.
     #[serde(default)]
@@ -145,6 +153,9 @@ pub enum BackendKind {
     Ort,
     /// OpenVINO (Intel CPU / GPU / NPU).
     Openvino,
+    /// OpenVINO Model Server (or any KServe V2 gRPC server) reached over the
+    /// network; inferstream forwards requests instead of executing in-process.
+    Ovms,
     /// Apple MLX (native macOS host only).
     Mlx,
 }
@@ -158,6 +169,7 @@ impl BackendKind {
             Self::LlamaCpp => "llama-cpp",
             Self::Ort => "ort",
             Self::Openvino => "openvino",
+            Self::Ovms => "ovms",
             Self::Mlx => "mlx",
         }
     }
@@ -254,6 +266,25 @@ mod tests {
         );
         assert_eq!(config.models[2].max_batch_size, Some(64));
         assert!(config.auth.effective_tokens().contains("secret-1"));
+    }
+
+    #[test]
+    fn parses_ovms_client_backend() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "minilm_pipeline"
+            backend = "ovms"
+            endpoint = "http://172.22.0.2:8000"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(config.models[0].backend, BackendKind::Ovms);
+        assert_eq!(config.models[0].backend.as_str(), "ovms");
+        assert_eq!(
+            config.models[0].endpoint.as_deref(),
+            Some("http://172.22.0.2:8000")
+        );
     }
 
     #[test]

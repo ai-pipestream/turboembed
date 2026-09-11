@@ -83,9 +83,9 @@ fn factory() -> impl inferstream_server::BackendFactory {
                 #[cfg(not(feature = "ort"))]
                 Err(unsupported(model, "rebuild with --features ort"))
             }
-            BackendKind::Openvino | BackendKind::Mlx => Err(unsupported(
+            BackendKind::Openvino | BackendKind::Ovms | BackendKind::Mlx => Err(unsupported(
                 model,
-                "not an NVIDIA-arch engine; use inferstream-intel (openvino) or \
+                "not an NVIDIA-arch engine; use inferstream-intel (openvino, ovms) or \
                  inferstream-apple (mlx)",
             )),
         }

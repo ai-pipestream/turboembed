@@ -16,9 +16,12 @@ path = "src/main.rs"
 # Stub crates compile everywhere; the routing surface is on by default. Real
 # engine links (SYCL llama.cpp build, OpenVINO runtime) are host requirements
 # documented in the backend crates, not extra cargo features yet.
-default = ["llamacpp", "openvino", "ort"]
+default = ["llamacpp", "openvino", "ovms", "ort"]
 llamacpp = ["dep:inferstream-backend-llamacpp"]
 openvino = ["dep:inferstream-backend-openvino"]
+# Pure-Rust gRPC client to a running OpenVINO Model Server; no host OpenVINO
+# runtime required, so it is on by default.
+ovms = ["dep:inferstream-backend-ovms"]
 ort = ["dep:inferstream-backend-ort"]
 
 [dependencies]
@@ -27,5 +30,6 @@ inferstream-backend = { workspace = true }
 inferstream-backend-mock = { workspace = true }
 inferstream-backend-llamacpp = { workspace = true, optional = true }
 inferstream-backend-openvino = { workspace = true, optional = true }
+inferstream-backend-ovms = { workspace = true, optional = true }
 inferstream-backend-ort = { workspace = true, optional = true }
 tokio = { workspace = true }

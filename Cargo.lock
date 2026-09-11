@@ -557,6 +557,7 @@ dependencies = [
  "inferstream-backend-mock",
  "inferstream-backend-openvino",
  "inferstream-backend-ort",
+ "inferstream-backend-ovms",
  "inferstream-server",
  "tokio",
 ]
@@ -631,6 +632,20 @@ dependencies = [
  "async-trait",
  "inferstream-backend",
  "inferstream-protocol",
+]
+
+[[package]]
+name = "inferstream-backend-ovms"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures",
+ "inferstream-backend",
+ "inferstream-protocol",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tracing",
 ]
 
 [[package]]
