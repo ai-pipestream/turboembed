@@ -53,12 +53,18 @@ max_seq_len = 256
 # pooling = "cls"          # BGE uses CLS pooling
 # normalize = true
 
-# Fallback/GGUF path: llama.cpp built with GGML_CUDA (link pending).
-# [[models]]
-# name = "nomic-embed-text"
-# backend = "llama-cpp"
-# device = "cuda"
-# path = "/models/nomic-embed-text-v1.5.Q8_0.gguf"
+# GENERATIVE: GGUF token streaming through llama.cpp with GGML_CUDA
+# (build with --features full-cuda, or llamacpp-cuda alone; see
+# /work/models/gguf/README.md for the model provenance). Streaming rides the
+# OIP ModelStreamInfer RPC: one BYTES "token" chunk per decoded piece with a
+# bool "final" parameter on the last chunk; request parameters max_tokens
+# (int64), temperature (double), seed (int64).
+[[models]]
+name = "qwen2.5-0.5b-instruct"
+backend = "llama-cpp"
+device = "cuda"
+path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
+n_ctx = 4096
 
 # OPTIONAL LATER: in-process TensorRT-LLM Executor for generative models.
 # Requires --features trtllm-sys plus CUDA + TRT-LLM engines on the host.

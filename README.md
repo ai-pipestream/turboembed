@@ -6,12 +6,12 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 
 | binary | host class | engines | status |
 |---|---|---|---|
-| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime CUDA EP** (primary today — encoder embeddings), llama.cpp-CUDA (GGUF, later), TensorRT-LLM Executor (optional later feature for generative) | **ORT engine real** (`ort-runtime` / `ort-cuda`), validated on krick against TEI; TRT-LLM + llama.cpp links stubbed |
+| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime CUDA EP** (primary — encoder embeddings) + **llama.cpp-CUDA** (GGUF generative token streaming), TensorRT-LLM Executor (optional later feature) | **ORT engine real** (`ort-runtime` / `ort-cuda`), validated on krick against TEI; **llama.cpp engine real** (`llamacpp-runtime` / `llamacpp-cuda`, or `full-cuda` for both), streaming Qwen2.5-0.5B GGUF on krick; TRT-LLM link stubbed |
 | `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO** (primary): `ovms` gRPC client to the host's Model Server (**live — real GPU embeddings today**) + in-process runtime (stubbed); llama.cpp-SYCL (secondary, Docker-proven) | ovms client working; in-process links stubbed |
 | `inferstream-apple` | **native macOS host** (Mac worker) | **MLX**, llama.cpp-Metal for GGUF | engine links stubbed; macOS-only by design; needs a Mac "My Machines" worker for real builds |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
-**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Two real engine paths are live.** NVIDIA: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. Intel: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). TRT-LLM, llama.cpp, in-process OpenVINO, and MLX remain stubs with full config surface; routing to them still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
+**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Three real engine paths are live.** NVIDIA embeddings: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. NVIDIA generation: `backend-llamacpp` (features `llamacpp-runtime` / `llamacpp-cuda`) loads GGUF models through `llama-cpp-2`, streaming one `token` BYTES chunk per decoded piece over `ModelStreamInfer` with a `final` flag on the last chunk; unary `ModelInfer` returns the whole completion, and Tokenize/Detokenize answer from the GGUF vocabulary. Intel: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). TRT-LLM, in-process OpenVINO, and MLX remain stubs with full config surface; routing to them still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
 
 ## Architecture
 
@@ -74,6 +74,11 @@ cargo run -p inferstream-server -- --config config/example.toml
 # at build time, so no system ORT install is needed:
 cargo build -p inferstream-arch-nvidia --release --features ort-runtime  # CPU EP, anywhere
 cargo build -p inferstream-arch-nvidia --release --features ort-cuda     # CUDA EP, GPU host
+# Full krick surface: ORT-CUDA embeddings + llama.cpp-CUDA GGUF generation.
+# llama.cpp compiles from source with nvcc; when the host's default gcc is
+# newer than nvcc supports, name a compatible host compiler:
+CUDAHOSTCXX=/usr/bin/g++-13 CUDAARCHS=89 \
+    cargo build -p inferstream-arch-nvidia --release --features full-cuda
 cargo build -p inferstream-arch-nvidia --release --features trtllm-sys   # optional later: TRT-LLM
 ./target/release/inferstream-nvidia --config config/nvidia.toml
 # See "NVIDIA GPU host requirements" below for the CUDA 13 runtime libs the
