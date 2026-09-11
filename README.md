@@ -1,66 +1,117 @@
 # inferstream
 
-A thin, multi-backend **gRPC streaming inference / embedding server façade** in Rust.
+Lean, arch-specific **gRPC streaming inference / embedding servers** in Rust, sharing one wire contract: [KServe Open Inference Protocol (OIP) V2](https://github.com/kserve/open-inference-protocol) with raw byte tensors, bidirectional `ModelStreamInfer`, and bearer auth. Optimized for **raw latency and $/token** — a native, thread-safe alternative to DJL-style serving with no Java or Python hop between the socket and the engine.
 
-inferstream speaks the [KServe Open Inference Protocol (OIP) V2](https://github.com/kserve/open-inference-protocol) over gRPC — `ServerLive`, `ServerReady`, `ModelReady`, `ModelMetadata`, unary `ModelInfer`, and bidirectional-streaming `ModelStreamInfer` — and routes each model to a pluggable backend (llama.cpp, ONNX Runtime, OpenVINO, TensorRT-LLM, Apple MLX/Metal). Tensor payloads travel as **raw little-endian bytes** (`raw_input_contents` / `raw_output_contents`) with dtype/shape metadata, not as repeated scalar fields.
+One shared core (protocol, auth, routing), **three arch binaries**:
 
-**v0.1 status:** solid protocol skeleton + deterministic mock backend, bearer-token auth, model routing config, integration-tested unary and bidi round-trips. Engine backends are compile-gated stubs with defined crate boundaries.
+| binary | host class | engines | status |
+|---|---|---|---|
+| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **TensorRT-LLM Executor in-process** (peak path), llama.cpp-CUDA (GGUF fallback), ONNX Runtime | engine links stubbed; config + tensor contract final |
+| `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **llama.cpp-SYCL** (oneAPI/Level Zero) and **OpenVINO** — bake-off pending | engine links stubbed |
+| `inferstream-apple` | **native macOS host** (Mac worker) | **MLX**, llama.cpp-Metal for GGUF | engine links stubbed; macOS-only by design |
+| `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
+
+**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). Every *engine* is still a stub: full config surface and OIP tensor contracts are in place, but no FFI links yet. The next unit of work per arch is the engine binding, not server redesign.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph clients [Clients]
-        C1[Rust / Python / any OIP client]
-        C2[grpcurl]
+flowchart TB
+    subgraph clients [Clients - one OIP V2 contract for all hosts]
+        C[gRPC: raw tensors + ModelStreamInfer + bearer auth]
     end
 
-    subgraph inferstream [inferstream server]
-        AUTH[Auth interceptor - bearer API keys]
-        SVC[GRPCInferenceService - OIP V2]
-        REG[Registry - model name to backend]
+    subgraph nvidia [inferstream-nvidia - krick, Linux container OK]
+        N1[TensorRT-LLM Executor - in-process, peak path]
+        N2[llama.cpp CUDA - GGUF fallback]
+        N3[ONNX Runtime]
     end
 
-    subgraph backends [Backends - one trait, pluggable]
-        MOCK[mock - deterministic, always built]
-        LLAMA[llama-cpp - GGUF, stub]
-        ORT[ort - ONNX Runtime, stub]
-        OV[openvino - Intel CPU/GPU/NPU, stub]
-        TRT[tensorrt-llm - planned]
-        APPLE[apple - MLX/Metal, macOS host only, stub]
+    subgraph intel [inferstream-intel - krick-1, Linux, oneAPI env]
+        I1[llama.cpp SYCL - Level Zero]
+        I2[OpenVINO - CPU/GPU/NPU]
     end
 
-    C1 -->|gRPC h2| AUTH
-    C2 -->|gRPC h2| AUTH
-    AUTH --> SVC
-    SVC --> REG
-    REG --> MOCK
-    REG --> LLAMA
-    REG --> ORT
-    REG --> OV
-    REG -.-> TRT
-    REG --> APPLE
+    subgraph apple [inferstream-apple - native macOS host, NOT containerized]
+        A1[MLX]
+        A2[llama.cpp Metal]
+    end
+
+    C --> nvidia
+    C --> intel
+    C --> apple
 ```
 
-Crate layout:
+Shared plumbing lives in `crates/server` (service, auth interceptor, config, registry) behind a `BackendFactory` seam; each arch binary is a ~100-line factory that wires only its own engines. Nothing engine-specific leaks into the shared layer.
 
 | Crate | Purpose |
 |---|---|
 | `crates/protocol` | Vendored OIP V2 proto + generated tonic types + raw tensor wire helpers |
 | `crates/backend` | `Backend` trait, error types, model → backend `Registry` |
-| `crates/backend-mock` | Deterministic mock backend (embeddings + chunked token streaming) |
-| `crates/backend-llamacpp` | llama.cpp stub (feature `llamacpp`) |
-| `crates/backend-ort` | ONNX Runtime stub (feature `ort`) |
-| `crates/backend-openvino` | OpenVINO stub (feature `openvino`) |
-| `crates/backend-apple` | Apple MLX/Metal stub (feature `apple`, macOS host only) |
-| `crates/server` | tonic server, auth interceptor, config, CLI, examples, integration tests |
+| `crates/backend-mock` | Deterministic mock (embeddings + chunked token streaming) — in every binary |
+| `crates/backend-trtllm` | TensorRT-LLM **Executor** skeleton: config + OIP mapping (runtime link behind `trtllm-sys`) |
+| `crates/backend-llamacpp` | llama.cpp for all flavors — device = `cuda` / `sycl` / `metal` / `vulkan` / `cpu` |
+| `crates/backend-ort` | ONNX Runtime stub |
+| `crates/backend-openvino` | OpenVINO stub (Intel CPU/GPU/NPU) |
+| `crates/backend-apple` | MLX stub (`MlxBackend`) — functional only on macOS |
+| `crates/server` | Shared: tonic service, auth, config, registry, CLI runner + mock-only `inferstream` bin |
+| `crates/arch-nvidia` | `inferstream-nvidia` binary |
+| `crates/arch-intel` | `inferstream-intel` binary |
+| `crates/arch-apple` | `inferstream-apple` binary |
 
-## Why a façade (vs OVMS / TEI / Triton / DJL)
+## Building each arch binary
 
-- **OpenVINO Model Server / Triton** are excellent engines-with-servers, but they own the process and the protocol surface; adding a new engine (llama.cpp, MLX) or a custom auth/streaming policy means forking C++ serving infrastructure. inferstream inverts that: the **protocol layer is the product**, engines are leaf dependencies behind one Rust trait.
-- **TEI (text-embeddings-inference)** is embedding-specific with its own proto. inferstream speaks the vendor-neutral OIP V2 that KServe, Triton, and OVMS clients already understand; a TEI-compatible adapter is a possible later addition, lowest priority.
-- **DJL** is a JVM model-serving framework. inferstream deliberately is not a framework: no Python or JVM in the hot path, no model zoo, no training — a tokio/tonic binary that routes tensors.
-- One wire surface across heterogeneous hardware: the same client code hits a CUDA Linux box, an Intel NPU box, or a Mac serving via MLX.
+Everything below builds on a plain Linux box today (engines are stubs); the extra host requirements kick in when the real engine links land.
+
+```bash
+# Dev / client validation (mock only) — anywhere
+cargo run -p inferstream-server -- --config config/example.toml
+
+# NVIDIA (krick): stub surface builds anywhere; the real Executor link is
+# opt-in and needs CUDA + TensorRT-LLM on the host
+cargo build -p inferstream-arch-nvidia --release
+cargo build -p inferstream-arch-nvidia --release --features trtllm-sys   # GPU host only
+./target/release/inferstream-nvidia --config config/nvidia.toml
+
+# Intel (krick-1): source oneAPI first (build shell AND service unit)
+source /opt/intel/oneapi/setvars.sh
+cargo build -p inferstream-arch-intel --release
+./target/release/inferstream-intel --config config/intel.toml
+
+# Apple: build and run ON THE MAC, never in a container
+cargo build -p inferstream-arch-apple --release
+./target/release/inferstream-apple --config config/apple.toml
+```
+
+Routing a model to an engine a binary doesn't ship fails **at startup** with the exact feature flag or the right binary named — never at request time.
+
+## Why per-arch binaries (and why a façade at all)
+
+- **Latency and $/token, not portability theater.** Each accelerator's peak path is a different runtime (TRT-LLM Executor vs Level Zero vs Metal/MLX). One fat binary linking all of them means compromise flags, giant images, and driver conflicts. Three lean binaries mean each host runs exactly its optimum and nothing else.
+- **No Java/Python hop.** Unlike DJL (JVM) or Python servers, the socket-to-engine path is a single Rust process; streaming tokens don't cross an interpreter.
+- **Not NIM.** NVIDIA NIM wraps engines in an OpenAI-style HTTP service. inferstream embeds the **TensorRT-LLM Executor in-process** under its own gRPC. **NIM is used as a benchmark oracle only**: we run NIM beside `inferstream-nvidia` on the same GPU and model to sanity-check our tokens/sec and TTFT — if we're slower than the HTTP wrapper, that's a bug to fix, not a product to adopt.
+- **Not OVMS/Triton/TEI.** Those own the process and the protocol; adding an engine or changing streaming/auth policy means forking C++ serving infrastructure. Here the protocol layer is ours, engines are leaf dependencies behind one trait — and clients speak the same OIP V2 they'd speak to Triton anyway.
+
+## Bake-off methodology (upcoming, per arch)
+
+Metrics collected per engine/model/host, same client, same prompts:
+
+| metric | definition |
+|---|---|
+| TTFT | request sent → first `ModelStreamInfer` chunk (p50/p95/p99) |
+| ITL | inter-token latency between stream chunks (p50/p95) |
+| tokens/sec | steady-state decode throughput, per stream and aggregate |
+| embed p95 | unary `ModelInfer` latency for the embedding model |
+| max concurrent streams | before p95 TTFT doubles |
+| watts + $/1M tokens | wall power (or cloud $/hr) ÷ aggregate throughput |
+
+Planned matchups:
+
+- **krick (NVIDIA):** TRT-LLM Executor vs llama.cpp-CUDA vs **NIM (oracle)** — same model, same quantization class.
+- **krick-1 (Intel Battlemage):** llama.cpp-SYCL vs OpenVINO-GPU, both via `inferstream-intel` — winner becomes the default `backend` in `config/intel.toml`; both stay compiled in, so switching is a config edit.
+- **Mac:** MLX vs llama.cpp-Metal on the same GGUF/MLX model pair.
+
+Results land in `docs/bakeoff/` as they happen; no numbers are published until they come from these builds on this contract (no vendor-quoted numbers).
 
 ## Protocol notes
 
@@ -74,108 +125,69 @@ Upstream OIP defines only unary `ModelInfer`. inferstream adds a clearly marked 
 
 Raw tensor rules (helpers in `inferstream_protocol::tensor`):
 
-- Fixed-size dtypes (`FP32`, `INT64`, …) are flat, row-major, **little-endian** byte blobs; blob length must equal `element_count(shape) * element_size`.
+- Fixed-size dtypes (`FP32`, `INT64`, …) are flat, row-major, **little-endian** byte blobs in `raw_input_contents` / `raw_output_contents`; blob length must equal `element_count(shape) * element_size`.
 - `BYTES` elements are length-prefixed with a little-endian `u32`.
-- `FP16` / `BF16` exist only in raw form (no repeated scalar field), which is one more reason the raw path is the primary path.
+- `FP16` / `BF16` exist only in raw form — one more reason raw is the primary path.
 
-## Running locally
+Generation contract (all engines, identical to what the mock emits today): input `text` (BYTES) or `input_ids` (INT32); each stream chunk carries `token` (BYTES) and sets the bool parameter `final` on the terminal chunk. Embeddings: unary, output `embedding` FP32 `[d]`. Clients don't change between the mock and a GPU engine.
 
-Requires Rust ≥ 1.85 and `protoc` (e.g. `apt install protobuf-compiler` or a [release binary](https://github.com/protocolbuffers/protobuf/releases)).
+## Trying it now
 
 ```bash
-# Start the server with the example config (mock models, no auth, port 8461)
+cargo test --workspace          # passes with no GPU libs
 cargo run -p inferstream-server -- --config config/example.toml
-```
-
-Hit it with the bundled example client (unary embedding + bidi token stream):
-
-```bash
+# in another shell — unary embed + two multiplexed bidi streams:
 cargo run -p inferstream-server --example client -- http://127.0.0.1:8461
 ```
 
-Or with grpcurl, using the vendored proto:
+grpcurl works against any binary with the vendored proto:
 
 ```bash
 grpcurl -plaintext -proto crates/protocol/proto/open_inference_grpc.proto \
   127.0.0.1:8461 inference.GRPCInferenceService/ServerLive
 
-grpcurl -plaintext -proto crates/protocol/proto/open_inference_grpc.proto \
-  -d '{"name": "mock-embed"}' \
-  127.0.0.1:8461 inference.GRPCInferenceService/ModelMetadata
-
-# Unary infer: "hi" as a length-prefixed BYTES tensor
-# (raw_input_contents is base64 in grpcurl's JSON encoding: 02 00 00 00 68 69)
+# Unary infer: "hi" as a length-prefixed BYTES tensor (base64 of 02 00 00 00 68 69)
 grpcurl -plaintext -proto crates/protocol/proto/open_inference_grpc.proto \
   -d '{"model_name":"mock-embed","id":"r1","inputs":[{"name":"text","datatype":"BYTES","shape":[1]}],"raw_input_contents":["AgAAAGhp"]}' \
   127.0.0.1:8461 inference.GRPCInferenceService/ModelInfer
 ```
 
-Run the test suite (default features — no engine or Apple deps):
-
-```bash
-cargo test --workspace
-```
-
 ## Auth
 
-v0.1 ships static **bearer tokens (API keys)** enforced by a tonic interceptor on every RPC:
+Static **bearer tokens (API keys)** enforced by a tonic interceptor on every RPC, on every binary:
 
 ```toml
 [auth]
 mode = "bearer"
-bearer_tokens = ["dev-key-change-me"]   # and/or use the env var below
+bearer_tokens = ["change-me"]     # and/or the env var below
 ```
-
-Prefer supplying keys via environment so they stay out of config files:
 
 ```bash
-INFERSTREAM_API_KEYS="key-a,key-b" cargo run -p inferstream-server -- --config config/example.toml
+INFERSTREAM_API_KEYS="key-a,key-b" ./target/release/inferstream-nvidia --config config/nvidia.toml
 ```
 
-Clients send standard gRPC metadata: `authorization: Bearer <key>` (see `crates/server/examples/client.rs`, or `grpcurl -H 'authorization: Bearer key-a' …`). Token comparison is constant-time per candidate.
-
-Bearer tokens are only meaningful over an encrypted transport. TLS/mTLS is the designated next auth step: tonic's `ServerTlsConfig` (with `client_ca_root` for mTLS) slots into `serve()` in `crates/server/src/lib.rs` without touching the service layer; until then, terminate TLS in front (or stay on localhost/private networks). No quotas or rate limits in v0.1 by design.
+Clients send gRPC metadata `authorization: Bearer <key>` (`grpcurl -H 'authorization: Bearer key-a' …`). Comparison is constant-time per candidate. Bearer keys need an encrypted transport: TLS/mTLS is the next auth step — tonic's `ServerTlsConfig` (with `client_ca_root` for mTLS) slots into `serve()` in `crates/server/src/lib.rs` without touching the service layer. Until then terminate TLS in front or stay on trusted networks. No quotas by design.
 
 ## Deployment: Apple hosts vs Linux containers
 
-NVIDIA CUDA passes into Linux containers via the NVIDIA container toolkit. **Apple GPU (Metal) and the Apple Neural Engine do not** — there is no macOS container GPU passthrough, and Linux containers on a Mac run inside a VM without Metal. Therefore:
+NVIDIA CUDA passes into Linux containers via the NVIDIA container toolkit. **Apple GPU (Metal) and the Neural Engine do not** — there is no macOS container GPU passthrough, and Linux containers on a Mac run inside a VM without Metal. Therefore:
 
-- **Linux containers** serve the llama.cpp (CUDA/Vulkan/CPU), ONNX Runtime, OpenVINO, and TensorRT-LLM backends.
-- **The Apple backend runs natively on a macOS host** (Mac server or Mac worker node) — same binary, same gRPC surface, built with `--features apple` on macOS.
-- Linux CI builds default features only and never needs Apple frameworks; the `apple` crate compiles everywhere but is only expected to function on macOS.
+- `inferstream-nvidia` and `inferstream-intel` deploy as Linux containers (or bare processes) on their GPU hosts.
+- `inferstream-apple` deploys **natively on the Mac** (launchd service or plain process). It compiles on Linux as a stub so CI type-checks the wiring, but it only functions on macOS.
 
-A typical fleet is heterogeneous: Linux GPU boxes + Mac minis behind the same OIP endpoint contract.
-
-## Configuration
-
-Model → backend routing lives in TOML (`config/example.toml`):
-
-```toml
-listen = "127.0.0.1:8461"
-
-[[models]]
-name = "mock-embed"
-backend = "mock"
-
-[[models]]
-name = "nomic-embed-text"
-backend = "llama-cpp"          # requires: cargo build --features llamacpp
-path = "/models/nomic-embed-text-v1.5.Q8_0.gguf"
-```
-
-Routing a model to a backend that was not compiled in fails **at startup** with the feature flag to enable — never at request time.
+Same client, same contract, heterogeneous fleet: krick (NVIDIA) + krick-1 (Intel) + Mac workers behind one OIP endpoint shape.
 
 ## Roadmap
 
-1. **llama.cpp** (`backend-llamacpp`) — primary engine: GGUF embeddings (unary `FP32` tensor) and token generation (`infer_stream`, one `BYTES` chunk per token, `final` flag on the last). Portable CUDA / Metal / Vulkan / CPU.
-2. **ONNX Runtime** (`backend-ort`) — session-per-model via the `ort` crate; execution providers by config.
-3. **OpenVINO** (`backend-openvino`) — Intel CPU/GPU/NPU device selection; a backend, not an OVMS dependency.
-4. **TensorRT-LLM** — later NVIDIA peak-throughput path; interface reserved, no crate yet.
-5. **Apple MLX / Metal** (`backend-apple`) — macOS-host-native embeddings and generation via MLX; Core ML / ANE offload as a follow-up.
-6. **TLS / mTLS termination** in `serve()`; then per-key model ACLs.
+1. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — cxx/bindgen layer over `tensorrt_llm::executor`; streaming generation + embeddings on krick.
+2. **llama.cpp FFI** (`backend-llamacpp`) — one binding, all devices (CUDA on krick, SYCL on krick-1, Metal on Mac).
+3. **Intel bake-off** on Battlemage: llama.cpp-SYCL vs OpenVINO (`backend-openvino` runtime link).
+4. **MLX** (`backend-apple`) via `mlx-rs` on the Mac worker.
+5. **TLS / mTLS** in `serve()`; per-key model ACLs after.
+6. ONNX Runtime session wiring (`backend-ort`) where ONNX models are needed.
 7. Optional adapters: TEI-compatible proto (lowest priority), shared-memory tensor hints, richer stream metadata.
 
-Out of scope for v0.1: dual independent pub/sub subscribe streams ("Surface 1") — only request-scoped bidi streaming is supported.
+Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.
 
 ## License
 

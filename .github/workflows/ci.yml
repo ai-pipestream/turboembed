@@ -25,8 +25,8 @@ jobs:
       - name: Test (default features — no engine/Apple deps)
         run: cargo test --workspace
 
-  feature-stubs:
-    name: Build with engine stub features (Linux)
+  arch-binaries:
+    name: Build arch binaries (Linux, stub engines)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,8 +34,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # The apple feature also compiles on Linux (pure-Rust stub); it only
-      # becomes functional on a macOS host. Building it here keeps the gate
-      # honest without requiring Apple frameworks.
-      - name: Build all features
-        run: cargo build --workspace --all-features
+      # Default features build the full routing surface with stub engines —
+      # no CUDA, TensorRT-LLM, oneAPI, or Apple frameworks required. The real
+      # GPU link (e.g. --features trtllm-sys) is deliberately NOT built here.
+      - name: inferstream-nvidia
+        run: cargo build -p inferstream-arch-nvidia
+      - name: inferstream-intel
+        run: cargo build -p inferstream-arch-intel
+      - name: inferstream-apple (compiles as stub on Linux; functional only on macOS)
+        run: cargo build -p inferstream-arch-apple

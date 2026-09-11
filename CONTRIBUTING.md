@@ -19,8 +19,10 @@ cargo fmt --all
 ## Ground rules
 
 - **Default features must build and test on Linux with no engine or Apple
-  dependencies.** New backends go behind cargo features on
-  `inferstream-server`.
+  dependencies.** Engine backends are wired only in the arch binaries
+  (`crates/arch-nvidia`, `crates/arch-intel`, `crates/arch-apple`); the
+  shared `crates/server` stays engine-free. Real GPU runtime links go behind
+  opt-in features (e.g. `trtllm-sys`) that CI never enables.
 - The vendored proto in `crates/protocol/proto/` tracks upstream
   [kserve/open-inference-protocol](https://github.com/kserve/open-inference-protocol);
   local extensions must be clearly marked `INFERSTREAM EXTENSION` and kept
@@ -36,9 +38,11 @@ cargo fmt --all
 ## Adding a backend (sketch)
 
 1. Create `crates/backend-<name>` implementing `inferstream_backend::Backend`.
-2. Add an optional dependency + feature to `crates/server/Cargo.toml` and a
-   `BackendKind` variant in `crates/server/src/config.rs`.
-3. Wire construction in `build_registry` (`crates/server/src/lib.rs`).
+2. Add a `BackendKind` variant (and any typed config fields) in
+   `crates/server/src/config.rs`.
+3. Wire construction in the factory of the arch binary that should ship it
+   (`crates/arch-*/src/main.rs`), behind a cargo feature if it pulls native
+   deps.
 4. Add tests against the trait; only integration-test with real models behind
    an opt-in feature or ignored test.
 
