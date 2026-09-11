@@ -2,16 +2,13 @@
 #
 # Metal / the Neural Engine do not pass through Linux containers; run this
 # binary directly on the Mac (launchd or plain process):
-#   ./scripts/setup-mlx.sh                       # once: MLX venv + tokenizer
+#   ./scripts/setup-mlx.sh                       # once: tokenizers for Tokenize
 #   cargo build -p inferstream-arch-apple --release
 #   ./target/release/inferstream-apple --config config/apple.toml
 #
-# MLX models are served through one persistent Python bridge worker
-# (python/mlx_bridge.py inside the .venv created by setup-mlx.sh); models
-# stay hot in the worker across requests. Override the worker location with
-# INFERSTREAM_MLX_PYTHON / INFERSTREAM_MLX_BRIDGE. Relative paths resolve
-# against the cwd the binary is started from — start it from the repo root
-# or set the env vars to absolute paths.
+# MLX models stay hot in the native Metal backend across requests.
+# Relative paths resolve against the cwd the binary is started from —
+# start it from the repo root.
 
 listen = "0.0.0.0:8461"
 

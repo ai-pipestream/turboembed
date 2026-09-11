@@ -8,7 +8,7 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 |---|---|---|---|
 | `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime CUDA EP** (primary — encoder embeddings) + **llama.cpp-CUDA** (GGUF generative token streaming, in-process), TensorRT-LLM Executor (optional later feature) | **ORT engine real** (`ort-runtime` / `ort-cuda`), validated on krick against TEI; **llama.cpp engine real in-process** (`llamacpp-runtime` / `llamacpp-cuda`, or `full-cuda` for both), streaming Qwen2.5-0.5B GGUF on krick; TRT-LLM link stubbed |
 | `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO** (primary): `ovms` gRPC client to the host's Model Server (**live — real GPU embeddings today**) + in-process runtime (stubbed); llama.cpp-SYCL (**live in server-client mode** — generation + token streaming via a running `llama-server`; in-process FFI available behind the `runtime` feature, unbuilt for SYCL) | ovms client + llama.cpp server-client working; in-process links stubbed |
-| `inferstream-apple` | **native macOS host** (Mac worker) | **MLX** (primary — via persistent Python bridge on Metal: `mlx-embeddings` for embeddings, `mlx-lm` for generation), llama.cpp-Metal for GGUF (wired, unbuilt) | **MLX engine real** — Embed / Tokenize / Detokenize / `ModelStreamInfer` live on Metal via `python/mlx_bridge.py` (validated end-to-end with `scripts/smoke-apple.sh`); macOS-only by design, compiles as stub on Linux for CI |
+| `inferstream-apple` | **native macOS host** (Mac worker) | **MLX** (primary — Metal embeddings + generation), llama.cpp-Metal for GGUF (wired, unbuilt) | **MLX engine** — Embed / Tokenize / Detokenize / `ModelStreamInfer` on Metal (`scripts/smoke-apple.sh`); macOS-only by design, compiles as stub on Linux for CI |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
 ## Per-arch gap status (honest)
@@ -17,17 +17,17 @@ Every arch binary serves **both** gRPC services on one port behind one bearer in
 
 | capability | `inferstream-nvidia` | `inferstream-intel` | `inferstream-apple` |
 |---|---|---|---|
-| Embed (real accelerator) | **LIVE** — ORT CUDA EP (CPU EP anywhere), TEI-parity validated on krick | **LIVE** — `ovms` gRPC client to the host Model Server, Battlemage GPU verified on krick-1 | **LIVE** — MLX (`mlx-embeddings`) on Metal via the persistent Python bridge (`python/mlx_bridge.py`), verified end-to-end through the façade with `scripts/smoke-apple.sh` |
-| Tokenize / Detokenize | **LIVE** — ORT engine's own HF tokenizer or `tokenizer_dir` server-side; GGUF models answer from the llama.cpp vocab (in-process) | **LIVE** — `tokenizer_dir` set for both OVMS pipelines on krick-1 (HF tokenizer.json next to the OVMS model dirs); llama.cpp server-client models also answer via llama-server `/tokenize` + `/detokenize` | **LIVE** — MLX models answer from the bridge's HF tokenizer on Metal (with `tokenizer_dir` as the engine-independent fallback), verified in the apple smoke run |
-| Generative infer / stream | **LIVE** — llama.cpp-CUDA in-process (`llamacpp-cuda` / `full-cuda`) streams GGUF tokens over `ModelStreamInfer` (Qwen2.5-0.5B validated on krick); server-client mode (`endpoint`) also available; TRT-LLM (`trtllm-sys`) still a stub | **LIVE** — llama.cpp-SYCL in server-client mode (`endpoint` → running `llama-server`): unary `ModelInfer` + real per-token `ModelStreamInfer` chunks for `default-llm` / `qwen-7b`, GPU-proven on krick-1 (`docs/intel-llm-gpu-smoke-krick-1.md`; earlier surface: `docs/intel-full-surface-krick-1.md`). `qwen-0.5b` has no intel resolution. OVMS upstream still has no `ModelStreamInfer` (streamed requests adapt to unary); in-process OpenVINO is a stub | **LIVE** — MLX generation (`mlx-lm`) streams real per-token `ModelStreamInfer` chunks on Metal via the Python bridge; llama.cpp-Metal is wired (`metal` feature) but unbuilt on a Mac |
+| Embed (real accelerator) | **LIVE** — ORT CUDA EP (CPU EP anywhere), TEI-parity validated on krick | **LIVE** — `ovms` gRPC client to the host Model Server, Battlemage GPU verified on krick-1 | **LIVE** — MLX (`mlx-embeddings`) on Metal, verified end-to-end through the façade with `scripts/smoke-apple.sh` |
+| Tokenize / Detokenize | **LIVE** — ORT engine's own HF tokenizer or `tokenizer_dir` server-side; GGUF models answer from the llama.cpp vocab (in-process) | **LIVE** — `tokenizer_dir` set for both OVMS pipelines on krick-1 (HF tokenizer.json next to the OVMS model dirs); llama.cpp server-client models also answer via llama-server `/tokenize` + `/detokenize` | **LIVE** — MLX models answer from the HF tokenizer on Metal (with `tokenizer_dir` as the engine-independent fallback), verified in the apple smoke run |
+| Generative infer / stream | **LIVE** — llama.cpp-CUDA in-process (`llamacpp-cuda` / `full-cuda`) streams GGUF tokens over `ModelStreamInfer` (Qwen2.5-0.5B validated on krick); server-client mode (`endpoint`) also available; TRT-LLM (`trtllm-sys`) still a stub | **LIVE** — llama.cpp-SYCL in server-client mode (`endpoint` → running `llama-server`): unary `ModelInfer` + real per-token `ModelStreamInfer` chunks for `default-llm` / `qwen-7b`, GPU-proven on krick-1 (`docs/intel-llm-gpu-smoke-krick-1.md`; earlier surface: `docs/intel-full-surface-krick-1.md`). `qwen-0.5b` has no intel resolution. OVMS upstream still has no `ModelStreamInfer` (streamed requests adapt to unary); in-process OpenVINO is a stub | **LIVE** — MLX generation (`mlx-lm`) streams real per-token `ModelStreamInfer` chunks on Metal; llama.cpp-Metal is wired (`metal` feature) but unbuilt on a Mac |
 | `InferstreamService` registered in `serve()` | yes (shared) | yes (shared) | yes (shared) — binary compiles on Linux for CI, functions only on macOS |
 | Rerank | mock scorer only | mock scorer only | mock scorer only |
 
 ### Apple MLX: merged and live
 
-The Apple full-surface work is merged into `main`. `MlxBackend` (`crates/backend-apple`) talks to a **persistent Python worker** (`python/mlx_bridge.py`) over stdin/stdout — no per-request process spawn, no gRPC hop — running `mlx-embeddings` for embeddings and `mlx-lm` for streamed generation on the Metal device. Setup on a Mac is `scripts/setup-mlx.sh` (idempotent, uv-managed venv), and `scripts/smoke-apple.sh` exercises the full surface end-to-end through the façade (ListModels / Tokenize / Detokenize / Embed / ModelStreamInfer). Live Metal tests are gated behind the `mlx-live` feature (`cargo test -p inferstream-backend-apple --features mlx-live -- --ignored`) and stay `#[ignore]`d on Linux CI, where the crate still compiles and type-checks.
+The Apple full-surface work is merged into `main`. `MlxBackend` (`crates/backend-apple`) drives MLX on the Metal device for embeddings and streamed generation — no per-request process spawn, no gRPC hop. Setup on a Mac is `scripts/setup-mlx.sh` (tokenizers for Tokenize/Detokenize) plus a native `inferstream-apple` build, and `scripts/smoke-apple.sh` exercises the full surface end-to-end through the façade (ListModels / Tokenize / Detokenize / Embed / ModelStreamInfer). Live Metal tests are gated behind the `mlx-live` feature (`cargo test -p inferstream-backend-apple --features mlx-live -- --ignored`) and stay `#[ignore]`d on Linux CI, where the crate still compiles and type-checks.
 
-**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Six real engine paths are live.** NVIDIA embeddings: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. NVIDIA generation: `backend-llamacpp` in-process (features `llamacpp-runtime` / `llamacpp-cuda`) loads GGUF models through `llama-cpp-2`, streaming one `token` BYTES chunk per decoded piece over `ModelStreamInfer` with a `final` flag on the last chunk; unary `ModelInfer` returns the whole completion, and Tokenize/Detokenize answer from the GGUF vocabulary. Intel embeddings: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). Intel generation: `backend = "llama-cpp"` with `endpoint` forwards to a running llama-server in server-client mode (krick-1: the GGML_SYCL `server-intel` container) — unary `ModelInfer`, per-token `ModelStreamInfer` chunks, and Tokenize/Detokenize, verified live (see `docs/intel-full-surface-krick-1.md`); the same mode works on any host, no engine link needed. Apple embeddings and generation: `backend-apple`'s `MlxBackend` drives a persistent `mlx_bridge.py` worker on the Metal device — `mlx-embeddings` for Embed, `mlx-lm` for per-token `ModelStreamInfer` streaming, and bridge-side HF Tokenize/Detokenize — validated end-to-end on Apple silicon with `scripts/smoke-apple.sh`. TRT-LLM and in-process OpenVINO remain stubs with full config surface; routing to them still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
+**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Six real engine paths are live.** NVIDIA embeddings: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. NVIDIA generation: `backend-llamacpp` in-process (features `llamacpp-runtime` / `llamacpp-cuda`) loads GGUF models through `llama-cpp-2`, streaming one `token` BYTES chunk per decoded piece over `ModelStreamInfer` with a `final` flag on the last chunk; unary `ModelInfer` returns the whole completion, and Tokenize/Detokenize answer from the GGUF vocabulary. Intel embeddings: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). Intel generation: `backend = "llama-cpp"` with `endpoint` forwards to a running llama-server in server-client mode (krick-1: the GGML_SYCL `server-intel` container) — unary `ModelInfer`, per-token `ModelStreamInfer` chunks, and Tokenize/Detokenize, verified live (see `docs/intel-full-surface-krick-1.md`); the same mode works on any host, no engine link needed. Apple embeddings and generation: `backend-apple`'s `MlxBackend` drives MLX on the Metal device — Embed, per-token `ModelStreamInfer` streaming, and HF Tokenize/Detokenize — validated end-to-end on Apple silicon with `scripts/smoke-apple.sh`. TRT-LLM and in-process OpenVINO remain stubs with full config surface; routing to them still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
 
 ## Architecture
 
@@ -71,7 +71,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/backend-ort` | **ONNX Runtime embedding engine** (feature `runtime`; EPs: CPU / `cuda` / `tensorrt`) — tokenizes server-side, mean/CLS pooling + L2 norm; stub without the feature |
 | `crates/backend-openvino` | OpenVINO in-process stub (Intel CPU/GPU/NPU) |
 | `crates/backend-ovms` | **Working** OVMS/KServe gRPC client — forwards OIP requests to a running OpenVINO Model Server (typed protobuf, no JSON hop) |
-| `crates/backend-apple` | **Working** MLX backend (`MlxBackend`) — persistent Python bridge to `mlx-embeddings` / `mlx-lm` on Metal; compiles as stub on Linux, functional only on macOS |
+| `crates/backend-apple` | **Working** MLX backend (`MlxBackend`) — `mlx-embeddings` / `mlx-lm` on Metal; compiles as stub on Linux, functional only on macOS |
 | `crates/server` | Shared: tonic service, auth, config, registry, CLI runner + mock-only `inferstream` bin |
 | `crates/arch-nvidia` | `inferstream-nvidia` binary |
 | `crates/arch-intel` | `inferstream-intel` binary |
@@ -119,28 +119,19 @@ The `ort` crate's prebuilt CUDA bundle (ONNX Runtime 1.28) is built against **CU
 - NVIDIA driver new enough for CUDA 13 (krick's 595.84 → CUDA 13.2: OK).
 - CUDA 13 user-space runtime libs: `libcublasLt.so.13`, `libcublas.so.13`, `libcudart.so.13`, `libnvrtc.so.13`, and a cuDNN 9 built for CUDA 13. A CUDA **12** toolkit (krick's 12.4) does **not** satisfy this.
 
-**Bundled route (recommended, no sudo)** — the repo scripts fetch pinned
-NVIDIA pip wheels (~1.6 GB) into `.libs/nvidia/lib` and set the loader path
-for you:
+**Bundled route (recommended, no sudo)** — the repo script curls pinned
+NVIDIA wheels (~1.6 GB), verifies SHA-256, unzips the `.so` files into
+`.libs/nvidia/lib`, and the run wrapper sets the loader path:
 
 ```bash
-scripts/fetch-runtime-libs.sh nvidia          # once per host; pinned wheel versions
+scripts/fetch-runtime-libs.sh nvidia          # once per host; pinned wheel hashes
 cargo build -p inferstream-arch-nvidia --release --features ort-cuda
 scripts/run-nvidia.sh --config config/nvidia.toml   # sets LD_LIBRARY_PATH, execs the binary
 ```
 
-Alternatives, if you prefer to manage the libs yourself:
+With sudo, a system install from the NVIDIA apt repo is also fine:
 
 ```bash
-# Manual pip wheels (what the script automates):
-python3 -m venv .venv-cuda-libs
-.venv-cuda-libs/bin/pip install --only-binary :all: \
-    nvidia-cublas nvidia-cuda-runtime nvidia-cuda-nvrtc nvidia-cudnn-cu13
-NV=$PWD/.venv-cuda-libs/lib/python3*/site-packages/nvidia
-LD_LIBRARY_PATH=$NV/cu13/lib:$NV/cudnn/lib \
-    ./target/release/inferstream-nvidia --config config/nvidia.toml
-
-# With sudo — system install (NVIDIA apt repo):
 sudo apt install cuda-runtime-13-2 libcudnn9-cuda-13
 ```
 
@@ -183,9 +174,9 @@ The catalog covers the popular embedding families and a small set of generative 
 | `qwen-0.5b` | Qwen2.5-0.5B-Instruct smoke | fetch‡ `models/gguf/qwen-0.5b/` Q8_0 | — (no 0.5B SYCL server; do not pretend the 7B endpoint is one) | same MLX 4-bit as `default-llm` |
 | `qwen-7b` | Qwen2.5-7B-Instruct | fetch‡ official Q5_K_M shards (~5.1 GiB) | → `:8085` llama-server (served) | `mlx-community/Qwen2.5-7B-Instruct-4bit` |
 
-† `make fetch-embeddings [ALIASES=alias1,alias2]` (or `scripts/fetch_models.py <alias> ...`) downloads a prebuilt ONNX export + tokenizer into `models/onnx/<alias>/` (the path the catalog's nvidia entries point at); then add the alias to `serve`. Every download is pinned to an exact HF revision and **SHA-256-verified** against the committed manifest `models/manifests/embeddings.json`.
+† `make fetch-embeddings [ALIASES=alias1,alias2]` (or `cargo run -p inferstream-fetch -- <alias> …`) downloads a prebuilt ONNX export + tokenizer into `models/onnx/<alias>/` (the path the catalog's nvidia entries point at); then add the alias to `serve`. Every download is pinned to an exact HF revision and **SHA-256-verified** against the committed manifest `models/manifests/embeddings.json`.
 
-‡ `make fetch-llms [ALIASES=qwen-0.5b,qwen-7b]` (or `scripts/fetch_models.py --llms …`) downloads the official Qwen GGUF + `tokenizer.json` into `models/gguf/<alias>/`, SHA-256-verified against `models/manifests/llms.json`. `default-llm` is `alias_of` `qwen-0.5b` (same files). Weights are **never** committed. See [`docs/fetching-models.md`](docs/fetching-models.md) for verify-only mode, the hash-update workflow, and per-arch coverage.
+‡ `make fetch-llms [ALIASES=qwen-0.5b,qwen-7b]` (or `cargo run -p inferstream-fetch -- --llms …`) downloads the official Qwen GGUF + `tokenizer.json` into `models/gguf/<alias>/`, SHA-256-verified against `models/manifests/llms.json`. `default-llm` is `alias_of` `qwen-0.5b` (same files). Weights are **never** committed. See [`docs/fetching-models.md`](docs/fetching-models.md) for verify-only mode, the hash-update workflow, and per-arch coverage.
 
 Apple entries download into the HF cache on first use through the MLX bridge (expected repos + revisions are recorded in each manifest's `mlx_repos` section). Tokenize for llama.cpp answers from the GGUF vocab or llama-server `/tokenize`; apple LLM aliases need the fetched `tokenizer_dir`. Pooling follows each embedding family's convention (BGE = CLS, everything else mean); E5 models expect `query:` / `passage:` text prefixes from the client. Intel `default-llm` / `qwen-7b` are honest about the host llama-server: Tokenize and StreamInfer work against **whatever model that server has loaded** (krick-1 today: Qwen2.5-VL-7B Q4_K_M), not a promise of a text-only 0.5B or 7B weight.
 
@@ -364,7 +355,7 @@ Same client, same contract, heterogeneous fleet: krick (NVIDIA) + krick-1 (Intel
 2. ~~**OVMS client backend**~~ — **done**: `backend = "ovms"` serves real Battlemage-GPU embeddings on krick-1 through the façade today (see `config/intel.toml` and `crates/arch-intel/examples/ovms_embed.rs`).
 3. **OpenVINO runtime link** (`backend-openvino`) — krick-1's in-process path (the live OVMS route as oracle); llama.cpp-SYCL as the Docker-proven secondary.
 4. ~~**llama.cpp FFI** (`backend-llamacpp`)~~ — **done for CPU/CUDA** via `llama-cpp-2` (features `runtime` / `cuda`, `metal` wired but unbuilt): GGUF token streaming live on krick (Qwen2.5-0.5B Q8_0, full GPU offload). SYCL and Vulkan flavors still pending.
-5. ~~**MLX** (`backend-apple`)~~ — **done** via the persistent Python bridge (`mlx-embeddings` + `mlx-lm` on Metal): Embed, Tokenize/Detokenize, and streamed generation live on Apple silicon (`scripts/smoke-apple.sh`); an in-process `mlx-rs` link remains an optional later swap.
+5. ~~**MLX** (`backend-apple`)~~ — **done** (`mlx-embeddings` + `mlx-lm` on Metal): Embed, Tokenize/Detokenize, and streamed generation live on Apple silicon (`scripts/smoke-apple.sh`).
 6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — optional later feature for generative models; cxx/bindgen layer over `tensorrt_llm::executor`.
 7. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 8. Optional adapters: TEI-compatible proto (lowest priority), shared-memory tensor hints, richer stream metadata.

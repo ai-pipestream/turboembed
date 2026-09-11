@@ -1,11 +1,10 @@
 /target
-.venv-cuda-libs/
 /.libs/
-# MLX venv + fetched tokenizer artifacts (scripts/setup-mlx.sh)
+# Local toolchain leftovers + fetched tokenizer artifacts
 /.venv/
+.venv-cuda-libs/
 # Fetched model artifacts stay out of git — but the SHA-256 manifests are
-# committed (scripts/fetch_models.py verifies downloads against them).
+# committed (cargo run -p inferstream-fetch verifies downloads against them).
 /models/*
 !/models/manifests/
-__pycache__/
 .DS_Store

@@ -1,13 +1,13 @@
 # Fetching model artifacts (reproducible, SHA-256 verified)
 
 All model artifacts the built-in catalog (`config/catalog.toml`) expects on
-the **nvidia** arch are fetched by one Python script against a committed
+the **nvidia** arch are fetched by a Rust binary against a committed
 manifest, so every byte that lands on a host is revision-pinned and
 hash-verified:
 
-- **Script:** `scripts/fetch_models.py` (stdlib only — no `huggingface_hub`
-  needed; `scripts/fetch-embedding-models.sh` and
-  `scripts/fetch-llm-models.sh` survive as thin wrappers).
+- **Tool:** `cargo run -p inferstream-fetch` (also `make fetch-*` /
+  `scripts/fetch-embedding-models.sh` / `scripts/fetch-llm-models.sh`).
+  HTTPS to Hugging Face; no extra interpreter.
 - **Embedding manifest:** `models/manifests/embeddings.json` — for every
   alias, the Hugging Face repo, the **exact commit revision** (never a
   floating branch), and per-file **SHA-256 + size** for `onnx/model.onnx`
@@ -20,19 +20,20 @@ hash-verified:
 - **Destination:** `models/onnx/<alias>/…` (embeddings) and
   `models/gguf/<alias>/…` (LLMs) relative to the repo root — the paths the
   catalog's nvidia fetch entries point at. The binaries are **never
-  committed** to git; only the manifests, script, Makefile, and docs are.
+  committed** to git; only the manifests, fetcher crate, Makefile, and docs
+  are.
 
 ## Fetching
 
 ```bash
 make fetch-embeddings                        # everything in the embedding manifest
 make fetch-embeddings ALIASES=minilm,mpnet   # a subset
-scripts/fetch_models.py bge-m3               # direct invocation, same thing
+cargo run -p inferstream-fetch -- bge-m3     # direct invocation, same thing
 make list-embeddings                         # aliases, repos, pinned revisions
 
 make fetch-llms                              # qwen-0.5b + qwen-7b GGUF + tokenizers
 make fetch-llms ALIASES=qwen-0.5b            # smoke-sized 0.5B only (~650 MiB + tokenizer)
-scripts/fetch_models.py --llms default-llm   # same files as qwen-0.5b (alias_of)
+cargo run -p inferstream-fetch -- --llms default-llm   # same files as qwen-0.5b (alias_of)
 make list-llms
 ```
 
@@ -40,7 +41,7 @@ Fetches are **idempotent**: a file already on disk with a matching SHA-256
 is skipped; a stale or tampered file is re-downloaded. Downloads are written
 atomically (temp file + rename) and hashed while streaming; a post-download
 hash or size mismatch is a **hard error** — the bad file is deleted and the
-script exits non-zero, telling you to re-pin with `--update-manifest` if
+tool exits non-zero, telling you to re-pin with `--update-manifest` if
 upstream legitimately changed.
 
 After fetching embeddings, add the aliases to `serve` in `config/nvidia.toml`,
@@ -56,15 +57,16 @@ not start a server or download weights.
 ```bash
 make verify-embeddings                       # every embedding alias
 make verify-embeddings ALIASES=bge-m3        # subset
-scripts/fetch_models.py --all --verify-only  # same, direct
+cargo run -p inferstream-fetch -- --all --verify-only
 make verify-llms                             # every LLM alias
 make verify-llms ALIASES=qwen-0.5b
-scripts/fetch_models.py --llms --all --verify-only
+cargo run -p inferstream-fetch -- --llms --all --verify-only
 ```
 
 No network: checks that every manifest file exists on disk with a matching
 SHA-256 and exits non-zero listing anything missing or mismatched. Suitable
-for provisioning checks and CI.
+for provisioning checks and CI (`make test-fetch` / `cargo test -p inferstream-fetch`
+exercises the same verify path on offline fixtures).
 
 (This replaces the interim `SHA256SUMS.models` / `sha256sum -c` flow — that
 file folded into `models/manifests/embeddings.json`; every hash and pinned
@@ -77,17 +79,17 @@ the TEI HF cache, at the same pinned snapshot `1110a243…`.)
 When adding an alias or deliberately moving to newer upstream artifacts:
 
 1. If it's a new embedding alias, add it to `ONNX_REPOS` in
-   `scripts/fetch_models.py` (and `MLX_REPOS` if the apple arch serves it)
+   `crates/fetch/src/lib.rs` (and `MLX_REPOS` if the apple arch serves it)
    and to `config/catalog.toml`. For an LLM, add it to `LLM_SOURCES` /
    `LLM_ALIASES` / `LLM_MLX_REPOS` instead.
 2. Re-pin and re-hash:
 
    ```bash
    make update-embedding-manifest ALIASES=<alias>   # or omit ALIASES for all
-   # add --no-store via direct invocation to hash without keeping ~9 GB:
-   scripts/fetch_models.py --all --update-manifest --no-store
+   # hash without keeping ~9 GB on disk:
+   cargo run -p inferstream-fetch -- --all --update-manifest --no-store
    make update-llm-manifest ALIASES=<alias>         # GGUF + tokenizer
-   scripts/fetch_models.py --llms --all --update-manifest --no-store
+   cargo run -p inferstream-fetch -- --llms --all --update-manifest --no-store
    ```
 
    This resolves each repo's current `main` commit, downloads every file at
@@ -108,8 +110,8 @@ When adding an alias or deliberately moving to newer upstream artifacts:
 |---|---|
 | **nvidia (ORT embeddings)** | **Fully pinned + hashed** — all 13 embedding aliases (`minilm`, `minilm-l12`, `mpnet`, `bge-small/base/large/m3`, `e5-small/base/large`, `gte-small/base`, `nomic-embed-text`). Note: the built-in catalog resolves `minilm` on krick to the TEI HF-cache path, but the manifest fetches the **same pinned revision** (`1110a243…`) into `models/onnx/minilm/` for hosts without that cache — point a catalog copy at it. |
 | **nvidia (llama.cpp LLMs)** | **Fully pinned + hashed** — `qwen-0.5b` (Q8_0, ~644 MiB) and `qwen-7b` (official Q5_K_M split into two shards, ~5.1 GiB). `default-llm` on nvidia uses the GGUF already on krick (`/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf`); `make fetch-llms ALIASES=qwen-0.5b` puts the same pin into `models/gguf/qwen-0.5b/` for other hosts. The 7B catalog path is the first shard; llama.cpp loads the second from the same directory. |
-| **apple (MLX)** | Runtime-fetched by design: the MLX bridge downloads HF repos through `huggingface_hub` into the HF cache on first use (4-bit conversions can't be pre-fetched as single files the same way). Each manifest's `mlx_repos` section records each alias's repo and the **expected pinned revision** for auditability; re-pin with `--update-manifest` / `--llms --update-manifest`. LLM Tokenize on apple uses the fetched `tokenizer.json` (`models/gguf/<alias>/`), which `scripts/setup-mlx.sh` also writes for `qwen-0.5b` and `qwen-7b`. |
-| **intel (OVMS embeddings)** | **Fully pinned + hashed** — all 13 embedding aliases, via `scripts/export_ovms_embeddings.py` against `models/manifests/ovms-embeddings.json`. Unlike nvidia there is no prebuilt IR to download: the script **exports** the OpenVINO FP16 IR + openvino tokenizer + HF `tokenizer.json` from the pinned HF revision (pooling + L2 normalize baked into the graph; `nomic-embed-text` is imported from Nomic's official ONNX export because NomicBERT can't be torch-traced) and verifies every produced file's SHA-256 against the manifest. The manifest also records the exact export command and package versions (`export_environment`) — a hash mismatch with a different toolchain is a signal to inspect, not necessarily corruption. Run `make fetch-embeddings-intel [ALIASES=…] [OVMS_DIR=…] [HF_TOK_DIR=…]` (needs an export venv — see the script docstring) and `make verify-embeddings-intel` for the offline check. Registration + GPU-placement walkthrough: `docs/adding-ovms-embedding-pipelines.md`. |
+| **apple (MLX)** | Runtime-fetched by design: the MLX backend downloads HF repos into the HF cache on first use (4-bit conversions can't be pre-fetched as single files the same way). Each manifest's `mlx_repos` section records each alias's repo and the **expected pinned revision** for auditability; re-pin with `--update-manifest` / `--llms --update-manifest`. LLM Tokenize on apple uses the fetched `tokenizer.json` (`models/gguf/<alias>/`), which `scripts/setup-mlx.sh` also writes for `qwen-0.5b` and `qwen-7b`. |
+| **intel (OVMS embeddings)** | **Fully pinned + hashed** — all 13 embedding aliases against `models/manifests/ovms-embeddings.json`. Unlike nvidia there is no prebuilt IR to download: IR export is a **one-off** (OpenVINO + torch) documented in `contrib/offline-once/` — not invoked by Make or CI. Offline **verify** of already-exported artifacts is Rust: `make verify-embeddings-intel [ALIASES=…] [OVMS_DIR=…] [HF_TOK_DIR=…]`. The manifest records the exact export command and package versions (`export_environment`) — a hash mismatch with a different toolchain is a signal to inspect, not necessarily corruption. Registration + GPU-placement walkthrough: `docs/adding-ovms-embedding-pipelines.md`. |
 | **intel (llama.cpp LLMs)** | No GGUF fetch: `default-llm` and `qwen-7b` are server-client to the host llama-server (`endpoint`, krick-1 `:8085`). `qwen-0.5b` is **unsupported** on intel (no dedicated 0.5B SYCL server). Fetch the GGUF on nvidia (or any host that will run its own `llama-server`) if you want to point a catalog override at a different weight. |
 
 ## Manifest format

@@ -1,32 +1,29 @@
 # Convenience targets for inferstream model artifact management.
+# No target requires an interpreter other than the Rust toolchain + Make.
 #
-#   make fetch-embeddings                       # all nvidia ONNX embedding aliases
-#   make fetch-embeddings ALIASES=minilm,mpnet  # a subset
-#   make verify-embeddings [ALIASES=...]        # offline SHA-256 check, no network
-#   make list-embeddings                        # aliases, repos, pinned revisions
-#   make update-embedding-manifest              # maintainers: re-pin + re-hash
-#   make test-fetch                             # unit tests for the fetch tooling
+#   make test                               # cargo test --workspace
+#   make test-fetch                         # fetch-crate unit tests (offline)
 #
-#   make fetch-llms                             # GGUF + tokenizer.json (qwen-0.5b, qwen-7b)
-#   make fetch-llms ALIASES=qwen-0.5b           # smoke-sized 0.5B only (~650 MiB)
-#   make verify-llms [ALIASES=...]              # offline SHA-256 check, no network
+#   make fetch-embeddings                   # all nvidia ONNX embedding aliases
+#   make fetch-embeddings ALIASES=minilm,mpnet
+#   make verify-embeddings [ALIASES=...]    # offline SHA-256 check, no network
+#   make list-embeddings                    # aliases, repos, pinned revisions
+#   make update-embedding-manifest          # maintainers: re-pin + re-hash
+#
+#   make fetch-llms                         # GGUF + tokenizer.json
+#   make fetch-llms ALIASES=qwen-0.5b
+#   make verify-llms [ALIASES=...]
 #   make list-llms
-#   make update-llm-manifest                    # maintainers: re-pin + re-hash
+#   make update-llm-manifest
 #
-# Intel (OVMS) equivalents — export OpenVINO IR + tokenizers at pinned HF
-# revisions and verify SHA-256 against models/manifests/ovms-embeddings.json
-# (scripts/export_ovms_embeddings.py; needs a venv with torch/transformers/
-# openvino/openvino-tokenizers — see the script docstring):
-#
-#   make fetch-embeddings-intel [ALIASES=...] [OVMS_DIR=...] [HF_TOK_DIR=...]
-#   make verify-embeddings-intel [ALIASES=...]
+#   make verify-embeddings-intel            # offline SHA-256 of exported OVMS IR
 #   make list-embeddings-intel
-#   make update-embedding-manifest-intel        # maintainers: re-pin + re-export
 #
-# Everything is driven against committed manifests (pinned HF revisions +
-# SHA-256 per file). See docs/fetching-models.md. Weights stay out of git.
+# Fetch / verify are `cargo run -p inferstream-fetch`. Weights stay out of git.
+# OVMS IR *export* is a one-off in contrib/offline-once/ (not invoked here).
 
-PYTHON ?= python3
+CARGO ?= cargo
+FETCH := $(CARGO) run -q -p inferstream-fetch --
 ALIASES ?=
 
 comma := ,
@@ -38,47 +35,44 @@ OVMS_DIR ?= /work/models/ovms-embedder
 HF_TOK_DIR ?= $(HOME)/ovms-models
 INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 
-.PHONY: fetch-embeddings verify-embeddings list-embeddings \
-	update-embedding-manifest test-fetch \
+.PHONY: test test-fetch \
+	fetch-embeddings verify-embeddings list-embeddings \
+	update-embedding-manifest \
 	fetch-llms verify-llms list-llms update-llm-manifest \
-	fetch-embeddings-intel verify-embeddings-intel list-embeddings-intel \
-	update-embedding-manifest-intel
+	verify-embeddings-intel list-embeddings-intel
 
-fetch-embeddings:
-	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS)
-
-verify-embeddings:
-	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS) --verify-only
-
-list-embeddings:
-	$(PYTHON) scripts/fetch_models.py --list
-
-update-embedding-manifest:
-	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS) --update-manifest
+test:
+	$(CARGO) test --workspace
 
 test-fetch:
-	$(PYTHON) -m unittest discover -s scripts -p 'test_*.py' -v
+	$(CARGO) test -p inferstream-fetch
+
+fetch-embeddings:
+	$(FETCH) $(ALIAS_ARGS)
+
+verify-embeddings:
+	$(FETCH) $(ALIAS_ARGS) --verify-only
+
+list-embeddings:
+	$(FETCH) --list
+
+update-embedding-manifest:
+	$(FETCH) $(ALIAS_ARGS) --update-manifest
 
 fetch-llms:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS)
+	$(FETCH) --llms $(ALIAS_ARGS)
 
 verify-llms:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS) --verify-only
+	$(FETCH) --llms $(ALIAS_ARGS) --verify-only
 
 list-llms:
-	$(PYTHON) scripts/fetch_models.py --llms --list
+	$(FETCH) --llms --list
 
 update-llm-manifest:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS) --update-manifest
-
-fetch-embeddings-intel:
-	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) $(INTEL_ARGS)
+	$(FETCH) --llms $(ALIAS_ARGS) --update-manifest
 
 verify-embeddings-intel:
-	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) --verify-only $(INTEL_ARGS)
+	$(FETCH) --ovms $(ALIAS_ARGS) --verify-only $(INTEL_ARGS)
 
 list-embeddings-intel:
-	$(PYTHON) scripts/export_ovms_embeddings.py --list
-
-update-embedding-manifest-intel:
-	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) --update-manifest $(INTEL_ARGS)
+	$(FETCH) --ovms --list

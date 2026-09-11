@@ -37,6 +37,17 @@ fi
 command -v grpcurl >/dev/null || { echo "error: grpcurl not installed" >&2; exit 1; }
 command -v jq >/dev/null || { echo "error: jq not installed" >&2; exit 1; }
 
+# Nanoseconds: GNU date has %N; BSD date (macOS) does not.
+now_ns() {
+    local t
+    t=$(date +%s%N 2>/dev/null || true)
+    if echo "$t" | grep -Eq '^[0-9]{16,}$'; then
+        echo "$t"
+    else
+        echo $(($(date +%s) * 1000000000))
+    fi
+}
+
 echo "--- ListModels @ $ADDR ---"
 LISTING=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
     inferstream.v1.InferstreamService/ListModels)
@@ -54,22 +65,21 @@ fi
 
 # One Embed call: prints "<count> <dim> <norm> <latency_ms>" or fails.
 embed_once() {
-    local model="$1" t0 t1 out
-    # E5-family models want a task prefix; harmless elsewhere in a smoke.
+    local model="$1" t0 t1 out stats
     local req
     req=$(jq -n --arg m "$model" \
         '{model_name:$m, texts:["query: hello embeddings","query: the quick brown fox"], normalize:true}')
-    t0=$(python3 -c 'import time; print(time.time_ns())')
+    t0=$(now_ns)
     out=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" -d "$req" "$ADDR" \
         inferstream.v1.InferstreamService/Embed) || return 1
-    t1=$(python3 -c 'import time; print(time.time_ns())')
-    printf '%s' "$out" | python3 -c '
-import json, math, sys
-r = json.load(sys.stdin)
-embs = r.get("embeddings", [])
-v = embs[0]["values"] if embs else []
-print(len(embs), len(v), f"{math.sqrt(sum(x*x for x in v)):.4f}", end=" ")'
-    echo $(( (t1 - t0) / 1000000 ))
+    t1=$(now_ns)
+    stats=$(printf '%s' "$out" | jq -r '
+        (.embeddings // []) as $e
+        | ($e[0].values // []) as $v
+        | ($v | map(. * .) | add | sqrt) as $n
+        | "\($e|length) \($v|length) \($n * 10000 | round / 10000)"
+    ')
+    echo "$stats $(( (t1 - t0) / 1000000 ))"
 }
 
 PASS=0
