@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Smoke-test Tokenize + ModelStreamInfer for every *generation* alias a
 # running inferstream binary serves. Works against any arch (nvidia
-# llama.cpp-CUDA in-process, intel llama.cpp-SYCL in-process, apple mlx-lm):
+# llama.cpp-CUDA in-process, intel llama.cpp-SYCL in-process, apple native MLX):
 # the whole point of logical model names is that this script does not care
 # which engine answers.
 #

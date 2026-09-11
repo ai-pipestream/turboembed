@@ -343,7 +343,7 @@ mod tests {
     }
 
     /// LLM entries must carry a real generation path: llama.cpp-CUDA + GGUF
-    /// on nvidia, llama.cpp-SYCL in-process + GGUF on intel, mlx-lm on apple.
+    /// on nvidia, llama.cpp-SYCL in-process + GGUF on intel, native MLX on apple.
     /// Default aliases never use HTTP to a llama-server.
     #[test]
     fn builtin_llm_entries_are_engine_complete() {
