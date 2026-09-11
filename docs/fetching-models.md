@@ -47,6 +47,12 @@ No network: checks that every manifest file exists on disk with a matching
 SHA-256 and exits non-zero listing anything missing or mismatched. Suitable
 for provisioning checks and CI.
 
+(This replaces the interim `SHA256SUMS.models` / `sha256sum -c` flow — that
+file folded into `models/manifests/embeddings.json`; every hash and pinned
+revision it recorded was cross-checked identical before removal. The
+manifest additionally records the `minilm` artifacts that krick serves from
+the TEI HF cache, at the same pinned snapshot `1110a243…`.)
+
 ## Updating the manifest (maintainers)
 
 When adding an alias or deliberately moving to newer upstream artifacts:
