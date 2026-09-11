@@ -709,7 +709,7 @@ mod tests {
         );
         let mut apple = Config::from_file(format!("{config_dir}/apple.toml")).unwrap();
         apple.expand_serve(Some(Arch::Apple)).unwrap();
-        for alias in ["minilm", "minilm-l12", "bge-small", "default-llm", "qwen-0.5b"] {
+        for alias in ["minilm", "default-llm", "qwen-0.5b"] {
             assert!(
                 apple.models.iter().any(|m| m.name == alias),
                 "apple.toml must serve {alias}"

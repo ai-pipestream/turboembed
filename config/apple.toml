@@ -1,44 +1,26 @@
 # inferstream-apple example configuration — NATIVE macOS HOST ONLY.
 #
-# Metal / the Neural Engine do not pass through Linux containers; run this
-# binary directly on the Mac (launchd or plain process):
-#   ./scripts/setup-mlx.sh                       # once: MLX venv + tokenizer
+# Metal does not pass through Linux containers; run this binary on the Mac:
+#   ./scripts/setup-mlx.sh                       # cargo xtask fetch --mlx
 #   cargo build -p inferstream-arch-apple --release
 #   ./target/release/inferstream-apple --config config/apple.toml
 #
-# MLX models are served through one persistent Python bridge worker
-# (python/mlx_bridge.py inside the .venv created by setup-mlx.sh); models
-# stay hot in the worker across requests. Override the worker location with
-# INFERSTREAM_MLX_PYTHON / INFERSTREAM_MLX_BRIDGE. Relative paths resolve
-# against the cwd the binary is started from — start it from the repo root
-# or set the env vars to absolute paths.
+# MLX models are served in-process through native MLX (Swift mlx-swift +
+# mlx-swift-lm linked via FFI). There is no Python worker. Weights live
+# under models/mlx/<alias> (SHA-256 verified by cargo xtask fetch --mlx).
 
 listen = "0.0.0.0:8461"
 
-# Logical model aliases from the catalog (config/catalog.toml, compiled into
-# the binary). Clients say `model_name: "minilm"` and this arch serves the
-# MLX 4-bit MiniLM (~25 MB; the bridge worker downloads it into the HF cache
-# on first use, tokenizer_dir from setup-mlx.sh answers Tokenize/Detokenize
-# locally). The same client calls work against the NVIDIA (ORT-CUDA) and
-# Intel (OVMS) binaries. Override the built-in catalog per host with
-# `catalog = "/path/to/catalog.toml"`.
+# Logical model aliases from the catalog. Clients say `model_name: "minilm"`
+# and this arch serves native MLX MiniLM. Tokenize uses tokenizer.json from
+# the same directory (Rust `tokenizers` crate).
 #
-# The default list keeps first-run downloads small: minilm (~25 MB 4-bit),
-# minilm-l12 (~130 MB), bge-small (~19 MB 4-bit). The catalog also resolves
-# bge-base/large, bge-m3, e5-small/base/large, and gte-small/base on this
-# arch (BERT / XLM-RoBERTa models mlx-embeddings loads directly from HF);
-# append any of them here — the bridge downloads on first use. `mpnet` and
-# `nomic-embed-text` have NO apple resolution (mlx-embeddings lacks those
-# architectures). Smoke every serving embedder with
-# scripts/smoke-embeddings.sh.
-#
-# `default-llm` and `qwen-0.5b` share mlx-lm Qwen2.5-0.5B 4-bit (~280 MB
-# on first StreamInfer; one MLX load, two aliases). Tokenize needs
-# models/gguf/qwen-0.5b/tokenizer.json — `scripts/setup-mlx.sh` or
-# `make fetch-llms ALIASES=qwen-0.5b` writes it. Do not add qwen-7b here
-# until that tokenizer + the ~4 GB MLX repo are wanted (24 GB hosts should
-# serve it alone). Smoke generation with scripts/smoke-llms.sh.
-serve = ["minilm", "minilm-l12", "bge-small", "default-llm", "qwen-0.5b"]
+# Default serve list matches `scripts/setup-mlx.sh` (minilm + qwen-0.5b).
+# Add minilm-l12 / bge-small / qwen-7b after `cargo xtask update-manifest
+# --mlx <alias>` then `cargo xtask fetch --mlx <alias>` (qwen-7b wants a
+# 24 GB host). Tokenize for the LLM aliases uses
+# models/gguf/qwen-0.5b/tokenizer.json (`make fetch-llms ALIASES=qwen-0.5b`).
+serve = ["minilm", "default-llm", "qwen-0.5b"]
 
 [auth]
 mode = "bearer"
@@ -47,28 +29,3 @@ bearer_tokens = ["change-me"]
 [[models]]
 name = "mock-embed"
 backend = "mock"
-
-# Explicit [[models]] entries still work alongside `serve`, e.g. the old
-# route (clients would then address "minilm-l6-v2" instead of "minilm"):
-# [[models]]
-# name = "minilm-l6-v2"
-# backend = "mlx"
-# path = "mlx-community/all-MiniLM-L6-v2-4bit"
-# tokenizer_dir = "models/minilm"
-# normalize = true
-# max_batch_size = 32
-
-# MLX generation is the `default-llm` alias above (mlx-lm stream_generate
-# on Metal, not GGUF-on-MLX). The previous explicit name:
-#[[models]]
-#name = "qwen2.5-0.5b"
-#backend = "mlx"
-#path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
-#tokenizer_dir = "models/gguf/qwen-0.5b"
-
-# GGUF via llama.cpp-Metal on the same host.
-#[[models]]
-#name = "nomic-embed-gguf"
-#backend = "llama-cpp"
-#device = "metal"
-#path = "/models/nomic-embed-text-v1.5.Q8_0.gguf"
