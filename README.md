@@ -155,6 +155,36 @@ be added to the script when its FFI link lands.
 
 EP registration uses `error_on_failure`: if these libs are missing the binary **fails at startup** with the loader's actual error instead of silently serving on CPU. `device = "tensorrt"` (build feature `ort-tensorrt`) additionally requires TensorRT 10 (`sudo apt install tensorrt-libs` from the NVIDIA repo) — not installed on krick today, so stay on `device = "cuda"`.
 
+## Logical model names (alias catalog)
+
+Clients address models by **logical name** — `model_name: "minilm"` works against all three arch binaries, and each host loads its own optimized artifact. Clients never learn whether that's an ORT CUDA session, an OVMS DAG pipeline, or an MLX model:
+
+| alias | `inferstream-nvidia` | `inferstream-intel` | `inferstream-apple` |
+|---|---|---|---|
+| `minilm` | ORT + CUDA EP over the TEI HF ONNX snapshot | OVMS client → `minilm_pipeline` (Battlemage GPU) | MLX `mlx-community/all-MiniLM-L6-v2-4bit` |
+| `mpnet` | — (export ONNX first; recipe in the catalog) | OVMS client → `mpnet_pipeline` | — |
+| `default-llm` | llama.cpp-CUDA, Qwen2.5-0.5B GGUF | llama.cpp-SYCL server-client → llama-server :8085 | MLX `mlx-community/Qwen2.5-0.5B-Instruct-4bit` |
+
+The mapping lives in the **catalog** (`config/catalog.toml`, compiled into every binary): one table per alias, one sub-table per arch with the same fields as a `[[models]]` entry, minus `name`. Arch configs opt in with a top-level `serve` list:
+
+```toml
+# config/nvidia.toml / intel.toml / apple.toml
+serve = ["minilm", "default-llm"]     # aliases resolved for this arch at startup
+```
+
+At startup each alias expands into a regular registry entry **named by the alias**, so `ListModels` and `ModelMetadata` report `minilm` (with the resolved backend and artifact in `backend` / `platform` / properties like `model_path` or `upstream_model`), and every RPC — `ModelInfer`, `ModelStreamInfer`, `Tokenize`, `Embed` — routes by it:
+
+```bash
+grpcurl -plaintext -proto crates/protocol/proto/inferstream_extension.proto \
+  -H 'authorization: Bearer <key>' \
+  -d '{"model_name":"minilm","texts":["hello world"]}' \
+  <any-arch-host>:8461 inferstream.v1.InferstreamService/Embed
+```
+
+**Adding an alias:** add a `[models.<alias>]` table to `config/catalog.toml` with a `[models.<alias>.<arch>]` sub-table per arch that can serve it (arches: `nvidia`, `intel`, `apple`), rebuild, and list the alias in `serve`. For proxy backends (`ovms`) set `upstream_model` when the upstream pipeline name differs from the alias — requests are forwarded under the upstream name and responses report the logical one. To change resolutions per host **without rebuilding**, point the config at a catalog copy: `catalog = "/etc/inferstream/catalog.toml"`.
+
+Failures are startup-time and actionable: an unknown alias lists what the catalog defines; an alias with no resolution for this arch names the arches that have one. Explicit `[[models]]` entries keep working alongside `serve` (collisions are rejected), and the arch-neutral dev `inferstream` binary rejects `serve` since it has no arch.
+
 ## Why per-arch binaries (and why a façade at all)
 
 - **Latency and $/token, not portability theater.** Each accelerator's peak path is a different runtime (TRT-LLM Executor vs Level Zero vs Metal/MLX). One fat binary linking all of them means compromise flags, giant images, and driver conflicts. Three lean binaries mean each host runs exactly its optimum and nothing else.

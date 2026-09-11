@@ -47,8 +47,7 @@ use async_trait::async_trait;
 use inferstream_backend::{Backend, BackendError, ModelMetadata, ResponseStream};
 use inferstream_protocol::inference::{
     infer_parameter::ParameterChoice, model_infer_response::InferOutputTensor,
-    model_metadata_response::TensorMetadata, InferParameter, ModelInferRequest,
-    ModelInferResponse,
+    model_metadata_response::TensorMetadata, InferParameter, ModelInferRequest, ModelInferResponse,
 };
 use inferstream_protocol::tensor::{pack_bytes, pack_fp32, unpack_bytes, DataType};
 use serde::Deserialize;
@@ -130,9 +129,7 @@ impl MlxBackend {
             .enumerate()
             .find(|(_, t)| t.name == name)
             .ok_or_else(|| {
-                BackendError::InvalidRequest(format!(
-                    "expected an input tensor named {name:?}"
-                ))
+                BackendError::InvalidRequest(format!("expected an input tensor named {name:?}"))
             })?;
         if tensor.datatype != DataType::Bytes.as_oip() {
             return Err(BackendError::InvalidRequest(format!(

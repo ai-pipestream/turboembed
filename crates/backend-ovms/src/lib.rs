@@ -15,9 +15,13 @@
 //! default unary adaptation in [`Backend::infer_stream`] (one chunk per
 //! request).
 //!
-//! **Model naming:** the config `name` is forwarded as-is, so it must match
-//! a model or DAG pipeline name the upstream server actually serves (check
-//! `GET <rest_port>/v1/config` on the OVMS host).
+//! **Model naming:** by default the config `name` is forwarded as-is, so it
+//! must match a model or DAG pipeline name the upstream server actually
+//! serves (check `GET <rest_port>/v1/config` on the OVMS host). With
+//! [`OvmsBackend::with_upstream_model`] (config `upstream_model`), requests
+//! are forwarded under the upstream's real name while clients keep using
+//! the logical name — how catalog aliases like `minilm` front pipelines
+//! like `minilm_pipeline`.
 //!
 //! **Endpoint discovery:** OVMS publishes gRPC on `--port` (REST is the
 //! separate `--rest_port`). In Docker, the gRPC port may only be reachable on
@@ -58,6 +62,10 @@ pub struct OvmsBackend {
     embed_input_name: String,
     /// Upstream output tensor name renamed back to `"embedding"`.
     embed_output_name: String,
+    /// Upstream model/pipeline name forwarded in place of the logical name
+    /// clients use (alias support: `minilm` fronting `minilm_pipeline`).
+    /// Responses report the name the client asked for.
+    upstream_model: Option<String>,
 }
 
 /// Input tensor name the façade `Embed` RPC produces.
@@ -100,12 +108,27 @@ impl OvmsBackend {
             client: GrpcInferenceServiceClient::new(channel),
             embed_input_name: embed_input_name.into(),
             embed_output_name: embed_output_name.into(),
+            upstream_model: None,
         })
+    }
+
+    /// Forward requests under `upstream_model` instead of the name clients
+    /// use, so a logical alias (`"minilm"`) can front an upstream pipeline
+    /// with a different name (`"minilm_pipeline"`). Responses keep reporting
+    /// the client-facing name.
+    pub fn with_upstream_model(mut self, upstream_model: impl Into<String>) -> Self {
+        self.upstream_model = Some(upstream_model.into());
+        self
     }
 
     /// The upstream endpoint this backend forwards to.
     pub fn endpoint(&self) -> &str {
         &self.endpoint
+    }
+
+    /// The name forwarded upstream for the model clients call `model_name`.
+    fn upstream_name<'a>(&'a self, model_name: &'a str) -> &'a str {
+        self.upstream_model.as_deref().unwrap_or(model_name)
     }
 
     fn map_status(&self, status: Status) -> BackendError {
@@ -135,7 +158,7 @@ impl Backend for OvmsBackend {
 
     async fn model_ready(&self, model_name: &str, model_version: &str) -> bool {
         let request = Request::new(ModelReadyRequest {
-            name: model_name.to_string(),
+            name: self.upstream_name(model_name).to_string(),
             version: model_version.to_string(),
         });
         match self.client.clone().model_ready(request).await {
@@ -158,7 +181,7 @@ impl Backend for OvmsBackend {
         model_version: &str,
     ) -> Result<ModelMetadata, BackendError> {
         let request = Request::new(ModelMetadataRequest {
-            name: model_name.to_string(),
+            name: self.upstream_name(model_name).to_string(),
             version: model_version.to_string(),
         });
         let response = self
@@ -168,13 +191,20 @@ impl Backend for OvmsBackend {
             .await
             .map_err(|status| self.map_status(status))?
             .into_inner();
+        // Clients addressed the logical name; report it back, and surface
+        // the resolved upstream artifact in properties.
+        let mut properties: std::collections::HashMap<String, String> =
+            [("upstream_endpoint".to_string(), self.endpoint.clone())].into();
+        if let Some(upstream) = &self.upstream_model {
+            properties.insert("upstream_model".to_string(), upstream.clone());
+        }
         Ok(ModelMetadata {
-            name: response.name,
+            name: model_name.to_string(),
             versions: response.versions,
             platform: response.platform,
             inputs: response.inputs,
             outputs: response.outputs,
-            properties: [("upstream_endpoint".to_string(), self.endpoint.clone())].into(),
+            properties,
         })
     }
 
@@ -182,6 +212,10 @@ impl Backend for OvmsBackend {
         &self,
         mut request: ModelInferRequest,
     ) -> Result<ModelInferResponse, BackendError> {
+        // Alias support: forward under the upstream pipeline's real name,
+        // then restore the name the client addressed in the response.
+        let requested_name = request.model_name.clone();
+        request.model_name = self.upstream_name(&requested_name).to_string();
         // Adapt the façade Embed convention (one BYTES tensor named "text")
         // to the upstream pipeline's declared tensor names. Anything else is
         // a raw OIP proxy call and passes through untouched.
@@ -199,6 +233,7 @@ impl Backend for OvmsBackend {
             .await
             .map(tonic::Response::into_inner)
             .map_err(|status| self.map_status(status))?;
+        response.model_name = requested_name;
         if adapted {
             for output in &mut response.outputs {
                 if output.name == self.embed_output_name {
@@ -431,6 +466,35 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.outputs[0].name, "sentence_embedding");
+    }
+
+    /// With `upstream_model` set, clients address the logical alias while
+    /// the wire carries the upstream pipeline name; responses and metadata
+    /// report the alias back.
+    #[tokio::test]
+    async fn upstream_model_remaps_alias_to_pipeline_name() {
+        let addr = spawn_fake_ovms().await;
+        let backend = OvmsBackend::new(format!("http://{addr}"))
+            .unwrap()
+            .with_upstream_model("upstream-embed");
+
+        // FakeOvms only serves "upstream-embed"; readiness under the alias
+        // proves the remap happened.
+        assert!(backend.model_ready("minilm", "").await);
+
+        let response = backend
+            .infer(embed_request("minilm", "alias-1"))
+            .await
+            .unwrap();
+        assert_eq!(response.model_name, "minilm", "client-facing name restored");
+        assert_eq!(response.raw_output_contents.len(), 1);
+
+        let metadata = backend.model_metadata("minilm", "").await.unwrap();
+        assert_eq!(metadata.name, "minilm");
+        assert_eq!(
+            metadata.properties.get("upstream_model").unwrap(),
+            "upstream-embed"
+        );
     }
 
     #[tokio::test]

@@ -262,9 +262,7 @@ impl MlxWorker {
                 };
                 match reply {
                     Ok(BridgeReply::Chunk(value)) => {
-                        if !client_gone
-                            && tx.send(Ok(BridgeReply::Chunk(value))).await.is_err()
-                        {
+                        if !client_gone && tx.send(Ok(BridgeReply::Chunk(value))).await.is_err() {
                             client_gone = true;
                         }
                     }

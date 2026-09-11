@@ -15,6 +15,17 @@
 
 listen = "0.0.0.0:8461"
 
+# Logical model aliases from the catalog (config/catalog.toml, compiled into
+# the binary). Clients say `model_name: "minilm"` and this arch serves the
+# MLX 4-bit MiniLM (~25 MB; the bridge worker downloads it into the HF cache
+# on first use, tokenizer_dir from setup-mlx.sh answers Tokenize/Detokenize
+# locally). `"default-llm"` is MLX 4-bit Qwen2.5-0.5B-Instruct (~280 MB)
+# with streaming ModelStreamInfer, one BYTES "token" chunk per decoded
+# token. The same client calls work against the NVIDIA (ORT-CUDA /
+# llama.cpp) and Intel (OVMS / SYCL) binaries. Override the built-in catalog
+# per host with `catalog = "/path/to/catalog.toml"`.
+serve = ["minilm", "default-llm"]
+
 [auth]
 mode = "bearer"
 bearer_tokens = ["change-me"]
@@ -23,24 +34,15 @@ bearer_tokens = ["change-me"]
 name = "mock-embed"
 backend = "mock"
 
-# MLX embedding model. The MLX-community 4-bit MiniLM is ~25 MB — safe for
-# smoke tests; the worker downloads it into the HF cache on first use.
-# tokenizer_dir serves inferstream.v1 Tokenize/Detokenize locally from the
-# Rust server (setup-mlx.sh fetches the tokenizer.json).
-[[models]]
-name = "minilm-l6-v2"
-backend = "mlx"
-path = "mlx-community/all-MiniLM-L6-v2-4bit"
-tokenizer_dir = "models/minilm"
-normalize = true
-max_batch_size = 32
-
-# MLX generation model (streaming ModelStreamInfer, one BYTES "token" chunk
-# per decoded token). Qwen2.5-0.5B 4-bit is ~280 MB. Uncomment to serve it.
-#[[models]]
-#name = "qwen2.5-0.5b"
-#backend = "mlx"
-#path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+# Explicit [[models]] entries still work alongside `serve`, e.g. the old
+# route (clients would then address "minilm-l6-v2" instead of "minilm"):
+# [[models]]
+# name = "minilm-l6-v2"
+# backend = "mlx"
+# path = "mlx-community/all-MiniLM-L6-v2-4bit"
+# tokenizer_dir = "models/minilm"
+# normalize = true
+# max_batch_size = 32
 
 # GGUF via llama.cpp-Metal on the same host.
 #[[models]]

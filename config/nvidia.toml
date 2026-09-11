@@ -17,6 +17,13 @@
 
 listen = "0.0.0.0:8461"
 
+# Logical model aliases from the catalog (config/catalog.toml, compiled into
+# the binary). Clients say `model_name: "minilm"` and this arch loads the
+# ORT-CUDA artifact the catalog maps it to — same client call works against
+# the Intel (OVMS) and Apple (MLX) binaries. Override the built-in catalog
+# per host with `catalog = "/path/to/catalog.toml"`.
+serve = ["minilm", "default-llm"]
+
 [auth]
 mode = "bearer"
 # Prefer INFERSTREAM_API_KEYS=key-a,key-b in the environment.
@@ -27,20 +34,12 @@ bearer_tokens = ["change-me"]
 name = "mock-embed"
 backend = "mock"
 
-# PRIMARY: real ONNX embedding model already on krick (TEI's HF cache).
-# tokenizer_dir points at the snapshot root so the server answers
-# inferstream.v1 Tokenize/Detokenize locally with the model's real HF
-# tokenizer (the ORT engine also finds it for the embedding path).
-# Flip device = "cpu" to bring the model up before the CUDA EP is validated.
-[[models]]
-name = "minilm-l6-v2"
-backend = "ort"
-device = "cuda"
-path = "/work/tei-model-cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/onnx/model.onnx"
-tokenizer_dir = "/work/tei-model-cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
-pooling = "mean"
-normalize = true
-max_seq_len = 256
+# Explicit [[models]] entries still work alongside `serve` — use them for
+# host-specific artifacts the catalog does not cover. The catalog's
+# `minilm` entry is what the previous explicit minilm-l6-v2 route was:
+# ORT + CUDA EP over TEI's HF snapshot cache, tokenizer_dir at the snapshot
+# root so Tokenize/Detokenize answer locally. Flip its device to "cpu" via a
+# catalog override to bring the model up before the CUDA EP is validated.
 
 # BGE under /work/models is safetensors-only today; export ONNX first, e.g.:
 #   optimum-cli export onnx --model BAAI/bge-large-en-v1.5 /work/models/bge-large-en-v1.5-onnx
@@ -53,18 +52,19 @@ max_seq_len = 256
 # pooling = "cls"          # BGE uses CLS pooling
 # normalize = true
 
-# GENERATIVE: GGUF token streaming through llama.cpp with GGML_CUDA
-# (build with --features full-cuda, or llamacpp-cuda alone; see
-# /work/models/gguf/README.md for the model provenance). Streaming rides the
-# OIP ModelStreamInfer RPC: one BYTES "token" chunk per decoded piece with a
-# bool "final" parameter on the last chunk; request parameters max_tokens
-# (int64), temperature (double), seed (int64).
-[[models]]
-name = "qwen2.5-0.5b-instruct"
-backend = "llama-cpp"
-device = "cuda"
-path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
-n_ctx = 4096
+# GENERATIVE: the catalog's `default-llm` alias serves GGUF token streaming
+# through llama.cpp with GGML_CUDA (build with --features full-cuda, or
+# llamacpp-cuda alone; see /work/models/gguf/README.md for the model
+# provenance). Streaming rides the OIP ModelStreamInfer RPC: one BYTES
+# "token" chunk per decoded piece with a bool "final" parameter on the last
+# chunk; request parameters max_tokens (int64), temperature (double), seed
+# (int64). Equivalent explicit entry:
+# [[models]]
+# name = "qwen2.5-0.5b-instruct"
+# backend = "llama-cpp"
+# device = "cuda"
+# path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
+# n_ctx = 4096
 
 # OPTIONAL LATER: in-process TensorRT-LLM Executor for generative models.
 # Requires --features trtllm-sys plus CUDA + TRT-LLM engines on the host.

@@ -30,7 +30,9 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use inferstream_backend::ModelMetadata;
 
-use crate::{bool_param, gen_params, int_param, prompt_from, GenParams, LlamaCppConfig, LlamaDevice};
+use crate::{
+    bool_param, gen_params, int_param, prompt_from, GenParams, LlamaCppConfig, LlamaDevice,
+};
 
 /// Default context window when the config does not set one; capped to the
 /// model's training context at load.
@@ -88,7 +90,12 @@ fn token_piece(
     use llama_cpp_2::TokenToStringError;
     match model.token_to_piece_bytes(token, 32, special, None) {
         Err(TokenToStringError::InsufficientBufferSpace(needed)) => model
-            .token_to_piece_bytes(token, usize::try_from(-needed).unwrap_or(256), special, None)
+            .token_to_piece_bytes(
+                token,
+                usize::try_from(-needed).unwrap_or(256),
+                special,
+                None,
+            )
             .map_err(|e| BackendError::Internal(format!("token decode failed: {e}"))),
         Ok(bytes) => Ok(bytes),
         Err(e) => Err(BackendError::Internal(format!("token decode failed: {e}"))),
@@ -292,11 +299,10 @@ impl LlamaEngine {
         };
         let mut encodings = Vec::with_capacity(texts.len());
         for text in texts {
-            let mut tokens = self
-                .inner
-                .model
-                .str_to_token(text, add_bos)
-                .map_err(|e| BackendError::InvalidRequest(format!("tokenization failed: {e}")))?;
+            let mut tokens =
+                self.inner.model.str_to_token(text, add_bos).map_err(|e| {
+                    BackendError::InvalidRequest(format!("tokenization failed: {e}"))
+                })?;
             if let Some(limit) = options.truncate_to {
                 tokens.truncate(limit);
             }

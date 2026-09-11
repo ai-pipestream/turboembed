@@ -76,7 +76,10 @@ async fn ping_reports_metal_device() {
         .expect("bridge pings");
     assert!(result["matmul_ok"].as_bool().unwrap_or(false));
     let device = result["device"].as_str().unwrap_or_default();
-    assert!(device.contains("gpu"), "expected Metal GPU device, got {device:?}");
+    assert!(
+        device.contains("gpu"),
+        "expected Metal GPU device, got {device:?}"
+    );
 }
 
 #[tokio::test]
@@ -144,7 +147,10 @@ async fn stream_generate_small_lm() {
         let chunk = chunk.expect("chunk ok");
         assert_eq!(chunk.id, "live-1");
         let is_final = matches!(
-            chunk.parameters.get("final").and_then(|p| p.parameter_choice.as_ref()),
+            chunk
+                .parameters
+                .get("final")
+                .and_then(|p| p.parameter_choice.as_ref()),
             Some(ParameterChoice::BoolParam(true))
         );
         if is_final {

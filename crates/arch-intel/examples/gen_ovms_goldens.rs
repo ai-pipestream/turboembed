@@ -110,7 +110,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             let path = out_dir.join(format!("{prefix}_{name}.json"));
             std::fs::write(&path, json)?;
-            println!("wrote {} (dim {}, l2 {l2:.6})", path.display(), vector.len());
+            println!(
+                "wrote {} (dim {}, l2 {l2:.6})",
+                path.display(),
+                vector.len()
+            );
         }
     }
     Ok(())

@@ -8,6 +8,8 @@ use std::path::Path;
 
 use serde::Deserialize;
 
+use crate::catalog::{Arch, Catalog, CatalogError};
+
 /// Top-level server configuration.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -19,7 +21,21 @@ pub struct Config {
     #[serde(default)]
     pub auth: AuthConfig,
 
-    /// Model routing table.
+    /// Logical model aliases to serve from the catalog (`"minilm"`,
+    /// `"default-llm"`, ...). Each alias is resolved for the binary's arch
+    /// at startup ([`Config::expand_serve`]) into a regular model entry, so
+    /// clients address the alias directly in `model_name`.
+    #[serde(default)]
+    pub serve: Vec<String>,
+
+    /// Path to a catalog file overriding the built-in
+    /// [`Catalog::builtin`] (compiled from `config/catalog.toml`). Only
+    /// consulted when `serve` is non-empty.
+    #[serde(default)]
+    pub catalog: Option<String>,
+
+    /// Model routing table. Explicit entries; `serve` aliases are appended
+    /// here after catalog expansion.
     #[serde(default)]
     pub models: Vec<ModelConfig>,
 }
@@ -109,6 +125,14 @@ pub struct ModelConfig {
     /// fall back to `INFERSTREAM_LLAMACPP_ENDPOINT`).
     #[serde(default)]
     pub endpoint: Option<String>,
+
+    /// Proxy backends (`ovms`): the model/pipeline name the upstream server
+    /// actually serves, when it differs from `name`. Lets a logical name
+    /// like `"minilm"` front an OVMS DAG pipeline named
+    /// `"minilm_pipeline"` — requests are forwarded under the upstream name
+    /// and responses report the logical one.
+    #[serde(default)]
+    pub upstream_model: Option<String>,
 
     /// TensorRT-LLM: directory containing the compiled engine
     /// (`rank0.engine` + `config.json`). Required for `backend = "trt-llm"`.
@@ -208,6 +232,20 @@ pub enum ConfigError {
     DuplicateModel(String),
     #[error("auth mode is \"bearer\" but no tokens are configured (set [auth] bearer_tokens or INFERSTREAM_API_KEYS)")]
     NoBearerTokens,
+    #[error(
+        "model {model:?}: upstream_model is only meaningful for proxy \
+         backends (backend = \"ovms\"), not {backend:?}"
+    )]
+    UpstreamModelNotProxy { model: String, backend: String },
+    #[error(transparent)]
+    Catalog(#[from] CatalogError),
+    #[error(
+        "config lists serve = [...] catalog aliases, but this binary has no \
+         arch catalog (the dev `inferstream` binary serves only explicit \
+         [[models]] entries); use inferstream-nvidia / inferstream-intel / \
+         inferstream-apple, or list models explicitly"
+    )]
+    ServeNeedsArch,
 }
 
 impl Config {
@@ -226,11 +264,50 @@ impl Config {
         Self::from_toml(&text)
     }
 
+    /// Expand `serve` catalog aliases into regular model entries for `arch`.
+    ///
+    /// Loads the `catalog` file when set (otherwise the built-in catalog),
+    /// resolves every alias for `arch`, and appends the results to `models`
+    /// under the alias name — so the registry, `ListModels`, and
+    /// `ModelMetadata` expose the logical name clients use. Call once at
+    /// startup, before building the registry. A config with a non-empty
+    /// `serve` list but no arch (`None`, the dev binary) is an error.
+    pub fn expand_serve(&mut self, arch: Option<Arch>) -> Result<(), ConfigError> {
+        if self.serve.is_empty() {
+            return Ok(());
+        }
+        let arch = arch.ok_or(ConfigError::ServeNeedsArch)?;
+        let catalog = match &self.catalog {
+            Some(path) => Catalog::from_file(path)?,
+            None => Catalog::builtin(),
+        };
+        // Drain the alias list: each alias becomes a concrete model entry.
+        for alias in std::mem::take(&mut self.serve) {
+            self.models.push(catalog.resolve(&alias, arch)?);
+        }
+        // Re-check invariants: an alias may collide with an explicit
+        // [[models]] entry or a repeated serve item.
+        self.validate()
+    }
+
     fn validate(&self) -> Result<(), ConfigError> {
         let mut seen = HashSet::new();
         for model in &self.models {
             if !seen.insert(model.name.as_str()) {
                 return Err(ConfigError::DuplicateModel(model.name.clone()));
+            }
+            if model.upstream_model.is_some() && model.backend != BackendKind::Ovms {
+                return Err(ConfigError::UpstreamModelNotProxy {
+                    model: model.name.clone(),
+                    backend: model.backend.as_str().to_string(),
+                });
+            }
+        }
+        // serve aliases must not collide with explicit model names even
+        // before expansion, so the error appears at parse time too.
+        for alias in &self.serve {
+            if !seen.insert(alias.as_str()) {
+                return Err(ConfigError::DuplicateModel(alias.clone()));
             }
         }
         if self.auth.mode == AuthMode::Bearer && self.auth.effective_tokens().is_empty() {
@@ -411,6 +488,196 @@ mod tests {
             "#,
         );
         assert!(matches!(result, Err(ConfigError::DuplicateModel(_))));
+    }
+
+    #[test]
+    fn expand_serve_resolves_aliases_for_the_arch() {
+        let mut config = Config::from_toml(
+            r#"
+            serve = ["minilm", "default-llm"]
+
+            [[models]]
+            name = "mock-embed"
+            backend = "mock"
+            "#,
+        )
+        .unwrap();
+        config.expand_serve(Some(Arch::Nvidia)).unwrap();
+
+        assert!(config.serve.is_empty(), "aliases drained into models");
+        let names: Vec<&str> = config.models.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["mock-embed", "minilm", "default-llm"]);
+
+        let minilm = &config.models[1];
+        assert_eq!(minilm.backend, BackendKind::Ort);
+        assert_eq!(minilm.device.as_deref(), Some("cuda"));
+        assert!(minilm.tokenizer_dir.is_some(), "tokenizer rides along");
+    }
+
+    #[test]
+    fn expand_serve_same_alias_resolves_differently_per_arch() {
+        let toml = r#"serve = ["minilm"]"#;
+
+        let mut intel = Config::from_toml(toml).unwrap();
+        intel.expand_serve(Some(Arch::Intel)).unwrap();
+        assert_eq!(intel.models[0].backend, BackendKind::Ovms);
+        assert_eq!(
+            intel.models[0].upstream_model.as_deref(),
+            Some("minilm_pipeline")
+        );
+
+        let mut apple = Config::from_toml(toml).unwrap();
+        apple.expand_serve(Some(Arch::Apple)).unwrap();
+        assert_eq!(apple.models[0].backend, BackendKind::Mlx);
+        assert_eq!(apple.models[0].name, "minilm", "clients use the alias");
+    }
+
+    #[test]
+    fn expand_serve_unknown_alias_fails_with_catalog_error() {
+        let mut config = Config::from_toml(r#"serve = ["not-in-catalog"]"#).unwrap();
+        let error = config.expand_serve(Some(Arch::Nvidia)).unwrap_err();
+        assert!(
+            matches!(
+                error,
+                ConfigError::Catalog(CatalogError::UnknownAlias { .. })
+            ),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn expand_serve_alias_missing_on_arch_fails() {
+        // mpnet resolves only on intel in the built-in catalog.
+        let mut config = Config::from_toml(r#"serve = ["mpnet"]"#).unwrap();
+        assert!(config.expand_serve(Some(Arch::Intel)).is_ok());
+
+        let mut config = Config::from_toml(r#"serve = ["mpnet"]"#).unwrap();
+        let error = config.expand_serve(Some(Arch::Apple)).unwrap_err();
+        assert!(
+            matches!(
+                error,
+                ConfigError::Catalog(CatalogError::NotAvailableOnArch { .. })
+            ),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn expand_serve_without_arch_is_rejected() {
+        let mut config = Config::from_toml(r#"serve = ["minilm"]"#).unwrap();
+        assert!(matches!(
+            config.expand_serve(None),
+            Err(ConfigError::ServeNeedsArch)
+        ));
+
+        // No serve list: the dev binary path is unaffected.
+        let mut config = Config::from_toml("").unwrap();
+        assert!(config.expand_serve(None).is_ok());
+    }
+
+    #[test]
+    fn serve_alias_colliding_with_explicit_model_is_rejected_at_parse() {
+        let result = Config::from_toml(
+            r#"
+            serve = ["minilm"]
+
+            [[models]]
+            name = "minilm"
+            backend = "mock"
+            "#,
+        );
+        assert!(matches!(result, Err(ConfigError::DuplicateModel(_))));
+
+        let result = Config::from_toml(r#"serve = ["minilm", "minilm"]"#);
+        assert!(matches!(result, Err(ConfigError::DuplicateModel(_))));
+    }
+
+    #[test]
+    fn catalog_file_override_replaces_builtin() {
+        let path = std::env::temp_dir().join(format!(
+            "inferstream-catalog-test-{}.toml",
+            std::process::id()
+        ));
+        std::fs::write(
+            &path,
+            r#"
+            [models.minilm.nvidia]
+            backend = "ort"
+            device = "cpu"
+            path = "/custom/minilm.onnx"
+            "#,
+        )
+        .unwrap();
+        let mut config = Config::from_toml(&format!(
+            "serve = [\"minilm\"]\ncatalog = {:?}\n",
+            path.to_str().unwrap()
+        ))
+        .unwrap();
+        config.expand_serve(Some(Arch::Nvidia)).unwrap();
+        std::fs::remove_file(&path).ok();
+        assert_eq!(config.models[0].device.as_deref(), Some("cpu"));
+        assert_eq!(
+            config.models[0].path.as_deref(),
+            Some("/custom/minilm.onnx")
+        );
+    }
+
+    #[test]
+    fn upstream_model_requires_proxy_backend() {
+        let result = Config::from_toml(
+            r#"
+            [[models]]
+            name = "m"
+            backend = "ort"
+            path = "/models/m.onnx"
+            upstream_model = "other"
+            "#,
+        );
+        assert!(matches!(
+            result,
+            Err(ConfigError::UpstreamModelNotProxy { .. })
+        ));
+
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "minilm"
+            backend = "ovms"
+            endpoint = "http://127.0.0.1:8000"
+            upstream_model = "minilm_pipeline"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            config.models[0].upstream_model.as_deref(),
+            Some("minilm_pipeline")
+        );
+    }
+
+    /// The example configs shipped in config/ must parse and expand for
+    /// their arch, so `model_name: "minilm"` works on all three.
+    #[test]
+    fn shipped_arch_configs_serve_minilm() {
+        let config_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../config");
+        for (file, arch) in [
+            ("nvidia.toml", Arch::Nvidia),
+            ("intel.toml", Arch::Intel),
+            ("apple.toml", Arch::Apple),
+        ] {
+            let mut config = Config::from_file(format!("{config_dir}/{file}"))
+                .unwrap_or_else(|e| panic!("{file} must parse: {e}"));
+            config
+                .expand_serve(Some(arch))
+                .unwrap_or_else(|e| panic!("{file} must expand for {arch:?}: {e}"));
+            assert!(
+                config.models.iter().any(|m| m.name == "minilm"),
+                "{file} must serve the minilm alias"
+            );
+        }
+        // The dev config has no serve list and stays arch-neutral.
+        let mut example = Config::from_file(format!("{config_dir}/example.toml")).unwrap();
+        assert!(example.serve.is_empty());
+        example.expand_serve(None).unwrap();
     }
 
     #[test]

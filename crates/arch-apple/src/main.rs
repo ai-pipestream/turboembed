@@ -31,11 +31,10 @@ fn factory() -> impl inferstream_server::BackendFactory {
     // Location comes from INFERSTREAM_MLX_PYTHON / INFERSTREAM_MLX_BRIDGE
     // (defaults: .venv/bin/python, python/mlx_bridge.py — scripts/setup-mlx.sh
     // creates the venv).
-    let mlx_worker: Arc<inferstream_backend_apple::MlxWorker> = Arc::new(
-        inferstream_backend_apple::MlxWorker::new(
+    let mlx_worker: Arc<inferstream_backend_apple::MlxWorker> =
+        Arc::new(inferstream_backend_apple::MlxWorker::new(
             inferstream_backend_apple::MlxWorkerConfig::from_env(),
-        ),
-    );
+        ));
     move |model: &ModelConfig| -> Result<Arc<dyn Backend>, ServerError> {
         match model.backend {
             BackendKind::Mock => Ok(mock.clone()),
@@ -96,5 +95,10 @@ fn factory() -> impl inferstream_server::BackendFactory {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    inferstream_server::run_cli("inferstream-apple", &factory()).await
+    inferstream_server::run_cli(
+        "inferstream-apple",
+        Some(inferstream_server::Arch::Apple),
+        &factory(),
+    )
+    .await
 }
