@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "_comment": "Pinned NVIDIA CUDA 13 user-space wheels for scripts/fetch-runtime-libs.sh (ort-cuda). Wheels are zip archives; the script curls + unzip + sha256, no interpreter. Bump url and sha256 together.",
+  "wheels": [
+    {
+      "name": "nvidia-cublas",
+      "url": "https://files.pythonhosted.org/packages/f0/87/50def43754663bd51812e244ff391a1fbadff35aa92e7c0bf703762d7302/nvidia_cublas-13.6.2.16-py3-none-manylinux_2_27_x86_64.whl",
+      "sha256": "3968bb7940ed0690769b2918132ca1368b2806321b7c9d94a89c649a03e3b788"
+    },
+    {
+      "name": "nvidia-cuda-runtime",
+      "url": "https://files.pythonhosted.org/packages/70/c6/8f8c5e893d183082ea78f973aebc7ebc845ee219d68bddac73b0f62490fe/nvidia_cuda_runtime-13.2.86-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "3498247680dfddce31bad102af7e3e26fc795342a3cac64722bb0fa95e7f60f0"
+    },
+    {
+      "name": "nvidia-cuda-nvrtc",
+      "url": "https://files.pythonhosted.org/packages/1e/39/c58835ec8392a91b8d7bad83760eafc3085f64788b722ec2b44a27b3ca3e/nvidia_cuda_nvrtc-13.2.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl",
+      "sha256": "8111c5130e967b78222ea2124145f8efe9ce201b752b2579a2513100a53be1c5"
+    },
+    {
+      "name": "nvidia-cudnn-cu13",
+      "url": "https://files.pythonhosted.org/packages/ac/1b/ea72dd62f26ce3e0a7870b85148b75a5987507629b712deebeb87f7cce9a/nvidia_cudnn_cu13-9.26.0.51-py3-none-manylinux_2_27_x86_64.whl",
+      "sha256": "9c976d539786698c71d6bcdbe2053b7485fae062ff7e1215d2f2ff67b1a2149a"
+    }
+  ]
+}

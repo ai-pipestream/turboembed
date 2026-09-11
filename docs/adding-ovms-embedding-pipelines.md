@@ -40,22 +40,21 @@ RPCs, outside the mount: `~/ovms-models/hf_tokenizer_<name>/tokenizer.json`.
 
 ## Steps
 
-1. **Export + stage + hash with the committed tooling.** For every alias in
-   the catalog this is one command (it exports the FP16 IR with pooling +
-   L2 normalize baked in, converts the tokenizer, copies the HF
-   `tokenizer.json`, and verifies SHA-256 against
-   `models/manifests/ovms-embeddings.json`):
+1. **Export is a one-off; verify is Rust.** Offline SHA-256 of already-
+   exported IR + tokenizers (no network, no extra toolchain):
 
    ```bash
-   make fetch-embeddings-intel ALIASES=<alias> \
-       PYTHON=/path/to/export-venv/bin/python
+   make verify-embeddings-intel ALIASES=<alias> \
+       OVMS_DIR=/work/models/ovms-embedder \
+       HF_TOK_DIR=$HOME/ovms-models
    ```
 
-   The venv needs torch (CPU is fine), transformers, openvino,
-   openvino-tokenizers, sentencepiece — see the docstring of
-   `scripts/export_ovms_embeddings.py`. For a NEW alias, add it to `SPECS`
-   in that script (repo, pooling per the model card, dims), export with
-   `--update-manifest`, and commit the manifest diff.
+   Producing new IR is **not** a Make target. It needs OpenVINO + torch and
+   lives under `contrib/offline-once/` (banner: not part of runtime or
+   fetch). See that README for the export venv and the re-pin command.
+   For a NEW alias, add it to `SPECS` in the one-off exporter (repo,
+   pooling per the model card, dims), export with `--update-manifest`, and
+   commit the manifest diff.
 
    Hard-won details the script already handles — keep them if you ever
    export by hand:

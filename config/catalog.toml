@@ -32,26 +32,26 @@
 #           Every other alias points at models/onnx/<alias>/ (relative to the
 #           server cwd) — populate with
 #               make fetch-embeddings [ALIASES=alias1,alias2]
-#           (scripts/fetch_models.py) which downloads a prebuilt ONNX export
-#           + tokenizer from HF at a pinned revision and verifies SHA-256
-#           against models/manifests/embeddings.json (see
+#           (cargo run -p inferstream-fetch) which downloads a prebuilt ONNX
+#           export + tokenizer from HF at a pinned revision and verifies
+#           SHA-256 against models/manifests/embeddings.json (see
 #           docs/fetching-models.md); then add the alias to `serve` in
 #           config/nvidia.toml. LLM GGUFs: make fetch-llms against
 #           models/manifests/llms.json into models/gguf/<alias>/.
 #   intel   OVMS DAG pipelines on the Battlemage GPU (krick-1 container
 #           "protomolt-embedder-ovms"). Only pipelines that exist upstream
 #           are mapped — currently every embedding alias in this catalog.
-#           IR + tokenizer artifacts are exported and SHA-256-pinned with
-#               make fetch-embeddings-intel [ALIASES=alias1,alias2]
-#           (scripts/export_ovms_embeddings.py against
-#           models/manifests/ovms-embeddings.json). To add a new one:
+#           IR + tokenizer artifacts are SHA-256-pinned in
+#           models/manifests/ovms-embeddings.json; verify offline with
+#           `make verify-embeddings-intel`. Export is a one-off in
+#           contrib/offline-once/. To add a new one:
 #           export, register in the OVMS config (config-gpu.json graph:
 #           tokenizer -> embedding model -> "sentence_embedding"), reload,
 #           then add a [models.<alias>.intel] table here with
 #           `upstream_model` set to the new pipeline name. Full walkthrough:
 #           docs/adding-ovms-embedding-pipelines.md.
-#   apple   MLX through the persistent Python bridge (mlx-embeddings). The
-#           bridge downloads the HF repo into the cache on first use.
+#   apple   MLX on Metal (mlx-embeddings). The backend downloads the HF
+#           repo into the cache on first use.
 #           mlx-embeddings implements BERT and XLM-RoBERTa forward passes,
 #           which covers MiniLM / BGE (en v1.5 + m3) / multilingual-E5 /
 #           thenlper GTE. It does NOT implement MPNet or NomicBERT, so
@@ -111,8 +111,8 @@ normalize = true
 max_seq_len = 256
 
 # OVMS pipeline (mean pooling + L2 normalize in-graph); artifacts exported
-# and SHA-256-pinned by scripts/export_ovms_embeddings.py
-# (models/manifests/ovms-embeddings.json).
+# and SHA-256-pinned in models/manifests/ovms-embeddings.json
+# (verify: make verify-embeddings-intel).
 [models.minilm-l12.intel]
 backend = "ovms"
 endpoint = "http://172.22.0.2:8000"
@@ -430,9 +430,9 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_nomic_embed_text"
 #           StreamInfer on that host). `qwen-0.5b` / `qwen-7b` point at
 #           models/gguf/<alias>/ — populate with
 #               make fetch-llms [ALIASES=qwen-0.5b,qwen-7b]
-#           (scripts/fetch_models.py --llms) which downloads the official
-#           Qwen GGUF + tokenizer.json at a pinned HF revision and verifies
-#           SHA-256 against models/manifests/llms.json. Tokenize answers
+#           (cargo run -p inferstream-fetch -- --llms) which downloads the
+#           official Qwen GGUF + tokenizer.json at a pinned HF revision and
+#           verifies SHA-256 against models/manifests/llms.json. Tokenize answers
 #           from the GGUF vocabulary (no tokenizer_dir required).
 #   intel   llama.cpp-SYCL in *server-client* mode (in-process SYCL is not
 #           compiled). `default-llm` and `qwen-7b` both forward to the host
@@ -443,10 +443,10 @@ tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_nomic_embed_text"
 #           has no intel resolution (no dedicated 0.5B SYCL server; do not
 #           pretend the VL-7B endpoint is a 0.5B). Override `endpoint` per
 #           host with INFERSTREAM_LLAMACPP_ENDPOINT.
-#   apple   mlx-lm through the persistent Python bridge (real Metal
-#           stream_generate, not GGUF-on-MLX). tokenizer_dir is the HF
-#           tokenizer.json fetched by `make fetch-llms` / setup-mlx.sh so
-#           Tokenize/Detokenize answer locally without a Python hop.
+#   apple   mlx-lm on Metal (real stream_generate, not GGUF-on-MLX).
+#           tokenizer_dir is the HF tokenizer.json fetched by
+#           `make fetch-llms` / setup-mlx.sh so Tokenize/Detokenize
+#           answer locally.
 # ---------------------------------------------------------------------------
 
 # default-llm — the recommended default generation alias. Smoke-sized on

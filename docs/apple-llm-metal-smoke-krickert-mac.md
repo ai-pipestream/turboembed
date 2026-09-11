@@ -11,7 +11,7 @@ ping-stats fixes (`e1a41ce`, later merged to `main` as `b93865e`).
 |---|---|
 | **PASS** | `scripts/smoke-llms.sh` — 3 passed, 0 failed |
 | Host | krickert-mac, MacBook Air Mac14,2, Apple M2, 24 GB, Metal 4 |
-| Engine | persistent `python/mlx_bridge.py` → `mlx-lm` 0.32.2, `Device(gpu, 0)` |
+| Engine | persistent MLX worker → `mlx-lm` 0.32.2, `Device(gpu, 0)` |
 
 ## What was smoked
 
@@ -56,7 +56,7 @@ memory_size = 25769803776
 max_recommended_working_set_size = 19069665280
 ```
 
-`vmmap` of the live `mlx_bridge.py` worker after StreamInfer mapped
+`vmmap` of the live MLX worker after StreamInfer mapped
 Apple GPU, not a CPU fallback:
 
 - `/System/Library/Extensions/AGXMetalG14G.bundle` (M2 GPU)
@@ -67,7 +67,7 @@ Apple GPU, not a CPU fallback:
 Worker RSS (process view; 4-bit weights mostly sit in unified GPU
 memory, so RSS is not the full footprint):
 
-| stage | python `mlx_bridge` RSS |
+| stage | MLX worker RSS |
 |---|---|
 | idle, before first generate | ~21–32 MB |
 | after `Qwen2.5-0.5B-Instruct-4bit` | 185 MB |
@@ -82,7 +82,7 @@ pin `c26a38f6…`):
 ```
 
 `mx.default_device()` stayed `Device(gpu, 0)` for the whole run.
-`metal_available=True`. There is no `Device(cpu, …)` path in this venv.
+`metal_available=True`. There is no `Device(cpu, …)` path in this environment.
 
 ## Fixes merged
 

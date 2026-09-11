@@ -21,7 +21,7 @@
 #   scripts/smoke-llms.sh krick:8461 "$KEY"              # nvidia host
 #   scripts/smoke-llms.sh krick-1:8461 "$KEY" default-llm qwen-7b
 #
-# Needs grpcurl, jq, python3. Exits nonzero if Tokenize or StreamInfer
+# Needs grpcurl and jq. Exits nonzero if Tokenize or StreamInfer
 # fails for any tested model.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -41,6 +41,36 @@ command -v grpcurl >/dev/null || { echo "error: grpcurl not installed" >&2; exit
 command -v jq >/dev/null || { echo "error: jq not installed" >&2; exit 1; }
 
 KNOWN_LLM='default-llm qwen-0.5b qwen-7b'
+
+now_ns() {
+    local t
+    t=$(date +%s%N 2>/dev/null || true)
+    if echo "$t" | grep -Eq '^[0-9]{16,}$'; then
+        echo "$t"
+    else
+        echo $(($(date +%s) * 1000000000))
+    fi
+}
+
+# Length-prefixed BYTES tensor → base64 (OIP raw contents).
+oip_text_b64() {
+    local t="$1" n=${#t}
+    {
+        printf '%b' "$(printf '\\%03o\\%03o\\%03o\\%03o' \
+            $((n & 255)) $(((n >> 8) & 255)) $(((n >> 16) & 255)) $(((n >> 24) & 255)))"
+        printf '%s' "$t"
+    } | base64 | tr -d '\n\r'
+}
+
+# grpcurl may emit one JSON object per chunk, or a JSON array.
+stream_objs() {
+    local raw="$1"
+    if printf '%s' "$raw" | jq -e 'type == "array"' >/dev/null 2>&1; then
+        printf '%s' "$raw"
+    else
+        printf '%s' "$raw" | jq -s '.'
+    fi
+}
 
 echo "--- ListModels @ $ADDR ---"
 LISTING=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
@@ -80,58 +110,45 @@ tokenize_once() {
         '{model_name:$m, texts:["Hello, inferstream!"]}')
     out=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" -d "$req" "$ADDR" \
         inferstream.v1.InferstreamService/Tokenize) || return 1
-    printf '%s' "$out" | python3 -c '
-import json, sys
-r = json.load(sys.stdin)
-encs = r.get("encodings", [])
-if not encs:
-    sys.exit("no encodings")
-ids = encs[0].get("ids") or encs[0].get("inputIds") or []
-toks = encs[0].get("tokens") or []
-print(len(ids), len(toks), (toks[0] if toks else "-"))
-'
+    printf '%s' "$out" | jq -r '
+        (.encodings // []) as $encs
+        | if ($encs | length) == 0 then "no encodings" | halt_error(1) else . end
+        | $encs[0] as $e
+        | ($e.ids // $e.inputIds // []) as $ids
+        | ($e.tokens // []) as $toks
+        | "\($ids|length) \($toks|length) \($toks[0] // "-")"
+    '
 }
 
 # One short streamed completion; prints "<n_chunks> <final> <latency_ms>".
 stream_once() {
-    local model="$1" t0 t1
+    local model="$1" t0 t1 out arr stats
     local b64
-    b64=$(python3 -c 'import base64,struct; t=b"Say hello in five words or fewer."; print(base64.b64encode(struct.pack("<I",len(t))+t).decode())')
+    b64=$(oip_text_b64 "Say hello in five words or fewer.")
     local req
     req=$(jq -n --arg m "$model" --arg b64 "$b64" \
         '{model_name:$m, id:"smoke-llms", inputs:[{name:"text", datatype:"BYTES", shape:[1]}], raw_input_contents:[$b64], parameters:{max_tokens:{int64Param:"16"}}}')
-    t0=$(python3 -c 'import time; print(time.time_ns())')
-    local out
+    t0=$(now_ns)
     out=$(grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" -d "$req" "$ADDR" \
         inference.GRPCInferenceService/ModelStreamInfer) || return 1
-    t1=$(python3 -c 'import time; print(time.time_ns())')
-    printf '%s' "$out" | python3 -c '
-import json, sys
-raw = sys.stdin.read().strip()
-if not raw:
-    sys.exit("empty stream")
-# grpcurl may emit one JSON object per chunk, or a JSON array.
-if raw.startswith("["):
-    objs = json.loads(raw)
-else:
-    objs = json.loads("[" + raw.replace("}\n{", "},{") + "]")
-chunks, final = 0, False
-for obj in objs:
-    r = obj.get("inferResponse", obj)
-    if r.get("errorMessage"):
-        sys.exit(r["errorMessage"])
-    if r.get("parameters", {}).get("final", {}).get("boolParam"):
-        final = True
-    if r.get("rawOutputContents"):
-        chunks += 1
-print(chunks, str(final).lower(), end=" ")
-'
-    echo $(( (t1 - t0) / 1000000 ))
+    t1=$(now_ns)
+    arr=$(stream_objs "$out")
+    stats=$(printf '%s' "$arr" | jq -r '
+        map(.inferResponse // .) as $objs
+        | ([$objs[] | select((.errorMessage // "") != "") | .errorMessage] | first) as $err
+        | if $err then $err | halt_error(1) else . end
+        | ([ $objs[] | select((.rawOutputContents // []) | length > 0) ] | length) as $chunks
+        | ([$objs[] | .parameters.final.boolParam // false] | any) as $final
+        | "\($chunks) \($final | tostring)"
+    ')
+    echo "$stats $(( (t1 - t0) / 1000000 ))"
 }
 
-# tok/s from chunk count / wall seconds (generation tokens, not prompt).
 tok_s() {
-    python3 -c 'import sys; n=float(sys.argv[1]); ms=float(sys.argv[2]); print(f"{(n/(ms/1000.0)):.1f}" if ms>0 else "inf")' "$1" "$2"
+    awk -v n="$1" -v ms="$2" 'BEGIN {
+        if (ms+0 > 0) printf "%.1f\n", n / (ms / 1000.0);
+        else print "inf";
+    }'
 }
 
 PASS=0

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Thin compatibility wrapper — the real fetcher is scripts/fetch_models.py,
-# which downloads revision-pinned artifacts and verifies a SHA-256 hash for
-# every file against the committed manifest models/manifests/embeddings.json.
+# Thin wrapper around inferstream-fetch (Rust). Downloads revision-pinned
+# ONNX + tokenizer artifacts and verifies SHA-256 against
+# models/manifests/embeddings.json.
 #
-# Usage (unchanged):
+# Usage:
 #   scripts/fetch-embedding-models.sh <alias> [<alias> ...]
 #   scripts/fetch-embedding-models.sh --all
 #   scripts/fetch-embedding-models.sh --list
 #
-# Or use make: `make fetch-embeddings [ALIASES=minilm,mpnet]`.
+# Or: `make fetch-embeddings [ALIASES=minilm,mpnet]`.
 set -euo pipefail
-exec python3 "$(dirname "$0")/fetch_models.py" "$@"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+exec cargo run -q -p inferstream-fetch -- "$@"

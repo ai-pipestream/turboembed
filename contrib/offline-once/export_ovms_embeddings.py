@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# NOT PART OF RUNTIME OR FETCH.
+# Quarantined one-off: OpenVINO IR export for Intel OVMS pipelines.
+# Default CI, `make test`, `make fetch-*`, and `make verify-*` never invoke this.
 """Export + SHA-256-pin OVMS embedding pipeline artifacts (Intel arch).
 
 Produces, for each catalog alias, the artifacts an OpenVINO Model Server
