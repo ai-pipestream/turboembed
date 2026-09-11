@@ -9,9 +9,11 @@
 #   cargo build -p inferstream-arch-nvidia --release --features ort-cuda    # real ORT, CUDA EP
 #   ./target/release/inferstream-nvidia --config config/nvidia.toml
 #
-# Host requirements for ort-cuda: NVIDIA driver + CUDA 12 + cuDNN 9 (present
-# on krick). No TensorRT needed. `device = "tensorrt"` additionally needs
-# TensorRT 10 libs and a build with --features ort-tensorrt.
+# Host requirements for ort-cuda: NVIDIA driver supporting CUDA 13 plus the
+# CUDA 13 user-space runtime libs (see README "NVIDIA GPU host requirements"
+# for the no-sudo pip-wheel route and the LD_LIBRARY_PATH to set). No
+# TensorRT needed. `device = "tensorrt"` additionally needs TensorRT 10 libs
+# and a build with --features ort-tensorrt.
 
 listen = "0.0.0.0:8461"
 

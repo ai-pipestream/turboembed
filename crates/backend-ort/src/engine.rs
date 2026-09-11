@@ -150,9 +150,8 @@ impl OrtBackend {
             OrtDevice::Cuda => {
                 #[cfg(feature = "cuda")]
                 {
-                    use ort::execution_providers::CUDAExecutionProvider;
                     builder = builder
-                        .with_execution_providers([CUDAExecutionProvider::default()
+                        .with_execution_providers([ort::ep::CUDA::default()
                             .build()
                             .error_on_failure()])
                         .map_err(|e| load_error("CUDA execution provider unavailable", e))?;
@@ -167,9 +166,8 @@ impl OrtBackend {
             OrtDevice::TensorRt => {
                 #[cfg(feature = "tensorrt")]
                 {
-                    use ort::execution_providers::TensorRTExecutionProvider;
                     builder = builder
-                        .with_execution_providers([TensorRTExecutionProvider::default()
+                        .with_execution_providers([ort::ep::TensorRT::default()
                             .build()
                             .error_on_failure()])
                         .map_err(|e| {
