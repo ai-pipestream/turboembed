@@ -22,6 +22,15 @@ trtllm = ["dep:inferstream-backend-trtllm"]
 # Optional later feature: ORT (below) is the current primary embedding path.
 trtllm-sys = ["trtllm", "inferstream-backend-trtllm/trtllm-sys"]
 llamacpp = ["dep:inferstream-backend-llamacpp"]
+# Real llama.cpp link (CPU). Builds llama.cpp from source via cmake — needs a
+# C/C++ toolchain; no GPU stack required.
+llamacpp-runtime = ["llamacpp", "inferstream-backend-llamacpp/runtime"]
+# llama.cpp with GGML_CUDA — GGUF generation with full GPU offload. Needs the
+# CUDA toolkit (nvcc) at build time; if the host's default gcc is newer than
+# nvcc supports, set CUDAHOSTCXX (e.g. /usr/bin/g++-13).
+llamacpp-cuda = ["llamacpp-runtime", "inferstream-backend-llamacpp/cuda"]
+# Convenience: everything real on a krick-class NVIDIA host.
+full-cuda = ["ort-cuda", "llamacpp-cuda"]
 ort = ["dep:inferstream-backend-ort"]
 # Real ONNX Runtime link (CPU EP). `ort`'s download-binaries fetches a
 # matching ONNX Runtime at build time — no system libonnxruntime needed.

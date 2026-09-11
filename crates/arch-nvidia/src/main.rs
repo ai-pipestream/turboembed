@@ -74,6 +74,7 @@ fn factory() -> impl inferstream_server::BackendFactory {
                         device,
                         n_gpu_layers: model.n_gpu_layers,
                         max_batch_size: model.max_batch_size,
+                        n_ctx: model.n_ctx,
                     })
                     .map_err(|e| invalid(model, e.to_string()))?;
                     Ok(Arc::new(backend))

@@ -34,13 +34,17 @@
 //! `n_predict`, default 128), `temperature` (double), `top_p` (double),
 //! `seed` (int64), `stop` (string, single stop sequence).
 //!
-//! **In-process FFI mode (planned).** With `path` (a GGUF file) and no
-//! `endpoint`, the engine link through a maintained wrapper (`llama-cpp-2`)
-//! or direct FFI has not landed yet; the backend constructs but reports
-//! `Unavailable` at runtime. Building and *running* the SYCL flavor
-//! in-process requires the Intel oneAPI environment
-//! (`source /opt/intel/oneapi/setvars.sh`) in the build shell and in the
-//! service unit that launches `inferstream-intel`.
+//! **In-process FFI mode (crate features `runtime` / `cuda` / `metal`).**
+//! With `path` (a GGUF file) and no `endpoint`, the engine links llama.cpp
+//! in-process through the maintained `llama-cpp-2` crate: eager model load at
+//! startup, per-request context in `spawn_blocking`, live token streaming
+//! with the same wire shapes as server-client mode, and Tokenize/Detokenize
+//! from the GGUF vocabulary (no byte offsets; `pad_to_longest` unsupported).
+//! The `stop` parameter is server-client-only today. Without the `runtime`
+//! feature, path-only models construct but report `Unavailable` at request
+//! time, naming the feature to enable. SYCL/Vulkan in-process flavors are
+//! not compiled by this crate yet — use server-client mode for those (e.g.
+//! krick-1's `server-intel` llama-server container).
 
 use std::collections::{HashMap, VecDeque};
 
@@ -104,7 +108,13 @@ pub struct LlamaCppConfig {
     pub n_gpu_layers: Option<u32>,
     /// Concurrent sequences the context schedules (`n_parallel`).
     pub max_batch_size: Option<u32>,
+    /// In-process mode: context window (`n_ctx`); `None` = 4096 capped to
+    /// the model's training context.
+    pub n_ctx: Option<u32>,
 }
+
+#[cfg(feature = "runtime")]
+mod engine;
 
 /// HTTP client onto one running `llama-server`.
 #[derive(Debug, Clone)]
@@ -120,11 +130,13 @@ impl ServerClient {
 }
 
 /// llama.cpp backend: server-client mode when `endpoint` is configured,
-/// in-process FFI stub otherwise.
+/// in-process engine (feature `runtime`) or stub otherwise.
 #[derive(Debug, Default, Clone)]
 pub struct LlamaCppBackend {
     config: LlamaCppConfig,
     server: Option<ServerClient>,
+    #[cfg(feature = "runtime")]
+    engine: Option<engine::LlamaEngine>,
 }
 
 /// Default `n_predict` when the request carries no `max_tokens` parameter.
@@ -369,7 +381,20 @@ impl LlamaCppBackend {
                     .into(),
             ));
         }
-        Ok(Self { config, server })
+        // In-process engine: only when no endpoint routes the model to a
+        // llama-server. Loads eagerly so a bad GGUF fails at startup.
+        #[cfg(feature = "runtime")]
+        let engine = if server.is_none() {
+            Some(engine::LlamaEngine::new(&config)?)
+        } else {
+            None
+        };
+        Ok(Self {
+            config,
+            server,
+            #[cfg(feature = "runtime")]
+            engine,
+        })
     }
 
     pub fn config(&self) -> &LlamaCppConfig {
@@ -380,10 +405,18 @@ impl LlamaCppBackend {
         self.server.as_ref().ok_or_else(Self::unavailable)
     }
 
+    /// The in-process engine, when this model runs in FFI mode.
+    #[cfg(feature = "runtime")]
+    fn engine(&self) -> Option<&engine::LlamaEngine> {
+        self.engine.as_ref()
+    }
+
     fn unavailable() -> BackendError {
         BackendError::Unavailable(
-            "llama.cpp in-process mode is a stub (engine FFI has not landed); \
-             configure `endpoint` to forward to a running llama-server"
+            "llama.cpp in-process mode is not compiled into this binary; rebuild with \
+             the crate's `runtime` (CPU) or `cuda` feature (nvidia: llamacpp-runtime / \
+             llamacpp-cuda / full-cuda), or configure `endpoint` to forward to a \
+             running llama-server"
                 .into(),
         )
     }
@@ -396,6 +429,10 @@ impl Backend for LlamaCppBackend {
     }
 
     async fn model_ready(&self, _model_name: &str, _model_version: &str) -> bool {
+        #[cfg(feature = "runtime")]
+        if self.engine().is_some() {
+            return true;
+        }
         let Some(server) = &self.server else {
             return false;
         };
@@ -410,6 +447,10 @@ impl Backend for LlamaCppBackend {
         model_name: &str,
         _model_version: &str,
     ) -> Result<ModelMetadata, BackendError> {
+        #[cfg(feature = "runtime")]
+        if let Some(engine) = self.engine() {
+            return Ok(engine.metadata(model_name));
+        }
         let server = self.server()?;
         let mut properties = HashMap::from([
             ("endpoint".to_string(), server.base.clone()),
@@ -450,6 +491,10 @@ impl Backend for LlamaCppBackend {
     }
 
     async fn infer(&self, request: ModelInferRequest) -> Result<ModelInferResponse, BackendError> {
+        #[cfg(feature = "runtime")]
+        if let Some(engine) = self.engine() {
+            return engine.infer(request).await;
+        }
         let server = self.server()?;
         let prompt = prompt_from(&request)?;
         let params = gen_params(&request.parameters);
@@ -493,6 +538,10 @@ impl Backend for LlamaCppBackend {
         &self,
         request: ModelInferRequest,
     ) -> Result<ResponseStream, BackendError> {
+        #[cfg(feature = "runtime")]
+        if let Some(engine) = self.engine() {
+            return engine.infer_stream(request);
+        }
         let server = self.server()?.clone();
         let prompt = prompt_from(&request)?;
         let params = gen_params(&request.parameters);
@@ -586,6 +635,10 @@ impl Backend for LlamaCppBackend {
         texts: &[String],
         options: &TokenizeOptions,
     ) -> Result<Vec<Encoding>, BackendError> {
+        #[cfg(feature = "runtime")]
+        if let Some(engine) = self.engine() {
+            return engine.tokenize(texts, options);
+        }
         let server = self.server()?;
         let mut encodings = Vec::with_capacity(texts.len());
         for text in texts {
@@ -642,6 +695,10 @@ impl Backend for LlamaCppBackend {
         sequences: &[Vec<u32>],
         _skip_special_tokens: bool,
     ) -> Result<Vec<String>, BackendError> {
+        #[cfg(feature = "runtime")]
+        if let Some(engine) = self.engine() {
+            return engine.detokenize(sequences, _skip_special_tokens);
+        }
         let server = self.server()?;
         let mut texts = Vec::with_capacity(sequences.len());
         for ids in sequences {
@@ -677,11 +734,16 @@ mod tests {
     #[test]
     fn requires_model_path_or_endpoint() {
         assert!(LlamaCppBackend::new(LlamaCppConfig::default()).is_err());
-        assert!(LlamaCppBackend::new(LlamaCppConfig {
+        // Path-only construction succeeds in the stub build; with `runtime`
+        // the engine loads eagerly, so a nonexistent GGUF fails at startup.
+        let path_only = LlamaCppBackend::new(LlamaCppConfig {
             model_path: "/models/x.gguf".into(),
             ..Default::default()
-        })
-        .is_ok());
+        });
+        #[cfg(not(feature = "runtime"))]
+        assert!(path_only.is_ok());
+        #[cfg(feature = "runtime")]
+        assert!(matches!(path_only, Err(BackendError::Unavailable(_))));
         let server_mode = LlamaCppBackend::new(LlamaCppConfig {
             endpoint: Some("http://127.0.0.1:8085/".into()),
             ..Default::default()
@@ -700,6 +762,7 @@ mod tests {
         .is_err());
     }
 
+    #[cfg(not(feature = "runtime"))]
     #[tokio::test]
     async fn path_only_mode_is_a_stub() {
         let backend = LlamaCppBackend::new(LlamaCppConfig {
