@@ -130,5 +130,8 @@ async fn stream_generate_small_lm() {
     assert!(saw_final, "stream must end with a final chunk");
     assert!(tokens > 0, "expected at least one generated token");
     eprintln!("engine-side decode tok/s = {tps:.1} ({tokens} tokens)");
-    assert!(tps > 10.0, "expected competitive Metal decode, got {tps} t/s");
+    assert!(
+        tps > 10.0,
+        "expected competitive Metal decode, got {tps} t/s"
+    );
 }

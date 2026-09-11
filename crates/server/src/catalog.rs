@@ -464,7 +464,10 @@ mod tests {
             apple.path.as_deref(),
             Some("mlx-community/Qwen2.5-0.5B-Instruct-4bit")
         );
-        assert_eq!(apple.tokenizer_dir.as_deref(), Some("models/gguf/qwen-0.5b"));
+        assert_eq!(
+            apple.tokenizer_dir.as_deref(),
+            Some("models/gguf/qwen-0.5b")
+        );
     }
 
     #[test]

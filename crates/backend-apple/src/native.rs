@@ -1,7 +1,7 @@
 //! Native MLX runtime handle. On macOS this is in-process Swift MLX via FFI.
 //! Off-macOS every call is `Unavailable` so Linux CI still type-checks.
 
-use std::ffi::{CString, c_void};
+use std::ffi::{c_void, CString};
 use std::os::raw::c_char;
 use std::sync::Mutex;
 
@@ -118,7 +118,8 @@ impl MlxEngine {
             let mut err = std::ptr::null_mut();
             let handle = unsafe { mlx_engine_create(&mut err) };
             if handle.is_null() {
-                let msg = unsafe { take_cstr(err) }.unwrap_or_else(|| "mlx_engine_create failed".into());
+                let msg =
+                    unsafe { take_cstr(err) }.unwrap_or_else(|| "mlx_engine_create failed".into());
                 return Err(BackendError::Unavailable(msg));
             }
             *guard = Some(NativeSession { handle });
@@ -216,7 +217,9 @@ impl MlxEngine {
                 return;
             }
             let ctx = &*(user as *const Ctx);
-            let s = std::ffi::CStr::from_ptr(token).to_string_lossy().into_owned();
+            let s = std::ffi::CStr::from_ptr(token)
+                .to_string_lossy()
+                .into_owned();
             if let Ok(mut f) = ctx.cb.lock() {
                 f(s);
             }
@@ -265,4 +268,3 @@ impl Drop for MlxEngine {
         }
     }
 }
-

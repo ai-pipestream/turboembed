@@ -160,7 +160,10 @@ impl MlxBackend {
             || request.inputs.iter().any(|t| t.name == "prompt")
     }
 
-    fn final_chunk_params(is_final: bool, decode_tps: Option<f64>) -> HashMap<String, InferParameter> {
+    fn final_chunk_params(
+        is_final: bool,
+        decode_tps: Option<f64>,
+    ) -> HashMap<String, InferParameter> {
         let mut map = HashMap::from([(
             "final".to_string(),
             InferParameter {

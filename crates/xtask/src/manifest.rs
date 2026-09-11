@@ -116,7 +116,9 @@ pub fn resolve_model_entry<'a>(
         .ok_or_else(|| Error::Msg(format!("unknown alias {alias:?}")))?;
     if let Some(target) = &entry.alias_of {
         let target_entry = manifest.models.get(target).ok_or_else(|| {
-            Error::Msg(format!("{alias}: alias_of {target:?} is not in the manifest"))
+            Error::Msg(format!(
+                "{alias}: alias_of {target:?} is not in the manifest"
+            ))
         })?;
         if target_entry.alias_of.is_some() {
             return Err(Error::Msg(format!(
@@ -239,7 +241,11 @@ pub fn repo_info(repo: &str) -> Result<(String, Vec<String>), Error> {
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
-                .filter_map(|s| s.get("rfilename").and_then(|v| v.as_str()).map(str::to_string))
+                .filter_map(|s| {
+                    s.get("rfilename")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -335,7 +341,10 @@ pub fn cmd_verify(aliases: &[String], manifest: &Manifest, root: &Path) -> Resul
         }
         for spec in artifact_specs(entry)? {
             let path = root.join(&spec.dest).join(&spec.file.path);
-            let label = format!("{key}: {}", path.strip_prefix(root).unwrap_or(&path).display());
+            let label = format!(
+                "{key}: {}",
+                path.strip_prefix(root).unwrap_or(&path).display()
+            );
             if !path.exists() {
                 failures.push(format!("{label} — MISSING"));
                 println!("  missing   {label}");
@@ -471,7 +480,10 @@ pub fn hash_remote(
 
 pub fn pin_mlx_repo(alias: &str, repo: &str) -> Result<MlxRepo, Error> {
     let (revision, _) = repo_info(repo)?;
-    println!("  mlx runtime repo {alias}: {repo}@{}", &revision[..12.min(revision.len())]);
+    println!(
+        "  mlx runtime repo {alias}: {repo}@{}",
+        &revision[..12.min(revision.len())]
+    );
     Ok(MlxRepo {
         repo: repo.to_string(),
         revision,

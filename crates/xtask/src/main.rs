@@ -20,9 +20,9 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 use manifest::{
-    artifact_specs, cmd_fetch, cmd_list, cmd_verify, empty_manifest, hash_remote, known_from_manifest,
-    load_manifest, pin_mlx_repo, repo_info, resolve_model_entry, select_aliases, write_manifest,
-    FileEntry, ModelEntry, TokenizerEntry, Error,
+    artifact_specs, cmd_fetch, cmd_list, cmd_verify, empty_manifest, hash_remote,
+    known_from_manifest, load_manifest, pin_mlx_repo, repo_info, resolve_model_entry,
+    select_aliases, write_manifest, Error, FileEntry, ModelEntry, TokenizerEntry,
 };
 use sources::{
     keep_mlx_file, llm_aliases, llm_known_aliases, llm_sources, mlx_embed_repos, mlx_llm_repos,
@@ -30,7 +30,10 @@ use sources::{
 };
 
 #[derive(Parser)]
-#[command(name = "inferstream-xtask", about = "Hash-verified model fetch / verify")]
+#[command(
+    name = "inferstream-xtask",
+    about = "Hash-verified model fetch / verify"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -441,7 +444,10 @@ fn update_llms(
             .filter(|f| !repo_files.iter().any(|r| r == f))
             .collect();
         if !missing.is_empty() {
-            eprintln!("error: {}: required file(s) not in repo: {missing:?}", spec.repo);
+            eprintln!(
+                "error: {}: required file(s) not in repo: {missing:?}",
+                spec.repo
+            );
             return Ok(1);
         }
         let dest = spec.dest.to_string();
@@ -585,7 +591,10 @@ fn update_mlx(
         println!("  revision {revision}");
         let dest = format!("models/mlx/{alias}");
         let rels: Vec<String> = {
-            let mut v: Vec<String> = repo_files.into_iter().filter(|f| keep_mlx_file(f)).collect();
+            let mut v: Vec<String> = repo_files
+                .into_iter()
+                .filter(|f| keep_mlx_file(f))
+                .collect();
             v.sort();
             v
         };
@@ -623,9 +632,7 @@ fn update_mlx(
             },
         );
     }
-    if aliases.iter().any(|a| a == "default-llm")
-        || families.iter().any(|f| f == "qwen-0.5b")
-    {
+    if aliases.iter().any(|a| a == "default-llm") || families.iter().any(|f| f == "qwen-0.5b") {
         manifest.models.insert(
             "default-llm".into(),
             ModelEntry {
@@ -677,9 +684,15 @@ mod tests {
         let actual: std::collections::BTreeSet<_> = m.models.keys().cloned().collect();
         assert_eq!(actual, expected);
         for (alias, entry) in &m.models {
-            assert_eq!(entry.repo.as_deref(), Some(*onnx_repos().get(alias.as_str()).unwrap()));
+            assert_eq!(
+                entry.repo.as_deref(),
+                Some(*onnx_repos().get(alias.as_str()).unwrap())
+            );
             assert!(hex40(entry.revision.as_deref().unwrap()));
-            assert_eq!(entry.dest.as_deref(), Some(format!("models/onnx/{alias}").as_str()));
+            assert_eq!(
+                entry.dest.as_deref(),
+                Some(format!("models/onnx/{alias}").as_str())
+            );
             let paths: Vec<_> = entry.files.iter().map(|f| f.path.as_str()).collect();
             for req in sources::ONNX_FILES {
                 assert!(paths.contains(req), "{alias} missing {req}");
@@ -690,7 +703,11 @@ mod tests {
             }
         }
         for alias in ["bge-m3", "e5-large"] {
-            let paths: Vec<_> = m.models[alias].files.iter().map(|f| f.path.as_str()).collect();
+            let paths: Vec<_> = m.models[alias]
+                .files
+                .iter()
+                .map(|f| f.path.as_str())
+                .collect();
             assert!(paths.contains(&"onnx/model.onnx_data"), "{alias}");
         }
     }
@@ -699,7 +716,10 @@ mod tests {
     fn llm_manifest_structure() {
         let m = load_manifest(&root().join("models/manifests/llms.json")).unwrap();
         assert_eq!(m.schema_version, 1);
-        assert_eq!(m.models["default-llm"].alias_of.as_deref(), Some("qwen-0.5b"));
+        assert_eq!(
+            m.models["default-llm"].alias_of.as_deref(),
+            Some("qwen-0.5b")
+        );
         let (key, entry) = resolve_model_entry(&m, "default-llm").unwrap();
         assert_eq!(key, "qwen-0.5b");
         let specs = artifact_specs(entry).unwrap();
@@ -716,13 +736,18 @@ mod tests {
     fn catalog_nvidia_ort_paths_are_fetched() {
         let m = load_manifest(&root().join("models/manifests/embeddings.json")).unwrap();
         let catalog: toml::Value =
-            toml::from_str(&fs::read_to_string(root().join("config/catalog.toml")).unwrap()).unwrap();
+            toml::from_str(&fs::read_to_string(root().join("config/catalog.toml")).unwrap())
+                .unwrap();
         for (alias, tables) in catalog["models"].as_table().unwrap() {
-            let Some(nvidia) = tables.get("nvidia") else { continue };
+            let Some(nvidia) = tables.get("nvidia") else {
+                continue;
+            };
             if nvidia.get("backend").and_then(|v| v.as_str()) != Some("ort") {
                 continue;
             }
-            let Some(path) = nvidia.get("path").and_then(|v| v.as_str()) else { continue };
+            let Some(path) = nvidia.get("path").and_then(|v| v.as_str()) else {
+                continue;
+            };
             if !path.starts_with("models/onnx/") {
                 continue;
             }
@@ -740,9 +765,12 @@ mod tests {
     fn catalog_apple_llm_tokenizer_is_in_llm_manifest() {
         let m = load_manifest(&root().join("models/manifests/llms.json")).unwrap();
         let catalog: toml::Value =
-            toml::from_str(&fs::read_to_string(root().join("config/catalog.toml")).unwrap()).unwrap();
+            toml::from_str(&fs::read_to_string(root().join("config/catalog.toml")).unwrap())
+                .unwrap();
         for (alias, tables) in catalog["models"].as_table().unwrap() {
-            let Some(apple) = tables.get("apple") else { continue };
+            let Some(apple) = tables.get("apple") else {
+                continue;
+            };
             if apple.get("backend").and_then(|v| v.as_str()) != Some("mlx") {
                 continue;
             }
@@ -762,7 +790,9 @@ mod tests {
                 .map(|s| format!("{}/{}", s.dest, s.file.path))
                 .collect();
             assert!(
-                fetched.iter().any(|f| f == &format!("{tok_dir}/tokenizer.json")),
+                fetched
+                    .iter()
+                    .any(|f| f == &format!("{tok_dir}/tokenizer.json")),
                 "{alias} tokenizer_dir {tok_dir} not fetched: {fetched:?}"
             );
         }
@@ -817,7 +847,8 @@ mod tests {
 
     #[test]
     fn unknown_schema_rejected() {
-        let tmp = std::env::temp_dir().join(format!("inferstream-xtask-schema-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("inferstream-xtask-schema-{}", std::process::id()));
         fs::create_dir_all(&tmp).unwrap();
         let path = tmp.join("bad.json");
         fs::write(&path, r#"{"schema_version":99,"models":{}}"#).unwrap();
