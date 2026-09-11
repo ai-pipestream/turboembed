@@ -15,6 +15,8 @@ One JSON file per `(model, text, params)` tuple:
   "text": "hello world",          // exact input text
   "pooling": null,                // "mean" | "cls" | null (backend default)
   "normalize": false,             // whether L2 normalization was requested
+  "max_seq_len": 256,             // truncation length used at generation time
+                                  // (optional; omit for backend default)
   "dim": 8,                       // embedding dimension
   "l2": 2.0574267,                // L2 norm of the stored vector
   "vector": [0.886, ...]          // full vector (small dims)
@@ -35,6 +37,12 @@ full little-endian FP32 blob, and compare `l2` + head/tail cosine instead.
 | `mock_empty.json` | empty-string edge case |
 | `mock_unicode.json` | multi-script + emoji input |
 | `mock_long_truncation.json` | 600 repeated tokens — exercises `max_seq_len` truncation on real models |
+
+The GPU goldens (`ort_cuda_minilm_*.json`) cover the same five prompts for
+`minilm-l6-v2` on the ORT CUDA EP, generated on krick with the
+`config/nvidia.toml` parameters (`pooling = "mean"`, `normalize = true`,
+`max_seq_len = 256`). The short-prompt golden was cross-checked against the
+independent TEI serving stack for the same model (cosine 0.999998).
 
 ## Mock goldens (always-on in CI)
 
@@ -68,16 +76,43 @@ grpcurl -plaintext -proto crates/protocol/proto/inferstream_extension.proto \
   > /tmp/minilm_hello.json
 # then fill the schema above and save as ort_cuda_minilm_short.json
 
-# 2. Verify against the stored golden:
+# 2. Verify against the stored golden (use an ABSOLUTE golden path — the
+#    test binary's working directory is the crate, not the repo root):
 INFERSTREAM_ORT_MODEL=/path/to/model.onnx \
-INFERSTREAM_ORT_GOLDEN=testdata/reference_embeddings/ort_cuda_minilm_short.json \
+INFERSTREAM_ORT_GOLDEN=$PWD/testdata/reference_embeddings/ort_cuda_minilm_short.json \
+INFERSTREAM_ORT_DEVICE=cuda \
 cargo test -p inferstream-backend-ort --features cuda -- --ignored gpu_golden
 ```
 
-On **krick-1** (Intel, OVMS client) the OVMS pipelines embed server-side; use
-the `Embed` RPC through `inferstream-intel` against `minilm_pipeline` /
-`mpnet_pipeline` and store the response in the same schema with
-`"backend": "ovms"`.
+The test builds its engine from the golden's own `text` / `pooling` /
+`normalize` / `max_seq_len` fields, so one invocation per golden file verifies
+that exact `(model, text, params)` tuple.
+
+On **krick-1** (Intel, OVMS client) the OVMS pipelines embed server-side on
+the Battlemage GPU. The `Embed` RPC packs texts as a BYTES tensor named
+`text` and unwraps output `embedding`; the OVMS backend adapts those to the
+pipelines' declared `strings` / `sentence_embedding` names on the typed
+protobuf messages (see `crates/backend-ovms`). Regenerate all
+`ovms_minilm_*` / `ovms_mpnet_*` goldens through the running façade:
+
+```bash
+cargo build -p inferstream-arch-intel --release
+./target/release/inferstream-intel --config config/intel.toml &
+INFERSTREAM_API_KEY=change-me \
+  cargo run -p inferstream-arch-intel --release --example gen_ovms_goldens
+```
+
+Verify against the stored goldens (talks to OVMS gRPC directly — on krick-1
+that is the container's bridge IP, since only REST is published to the host):
+
+```bash
+INFERSTREAM_OVMS_ENDPOINT=http://172.22.0.2:8000 \
+cargo test -p inferstream-backend-ovms -- --ignored ovms_golden
+```
+
+Both pipelines L2-normalize server-side (stored `l2` ≈ 1.0). GPU execution
+can differ in the low-order bits across driver/OVMS versions, so the test
+gates on cosine ≥ 0.999 and L2 tolerance rather than exact values.
 
 Do **not** stop the OVMS or TEI services on either host to regenerate goldens
 — the façade only reads from them.

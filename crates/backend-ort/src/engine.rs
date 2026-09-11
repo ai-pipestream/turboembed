@@ -11,7 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use inferstream_backend::{Backend, BackendError, ModelMetadata};
+use inferstream_backend::{Backend, BackendError, ModelMetadata, TokenizeOptions};
+use inferstream_protocol::extension::{Encoding, Offset};
 use inferstream_protocol::inference::{
     model_infer_response::InferOutputTensor, model_metadata_response::TensorMetadata,
     ModelInferRequest, ModelInferResponse,
@@ -318,6 +319,62 @@ impl Inner {
         }
         Ok((dim, pooled))
     }
+
+    /// Tokenize with request-scoped options. The session tokenizer is
+    /// configured for embedding inference (fixed truncation, pad-to-longest),
+    /// so the Tokenize RPC works on a clone with the caller's options applied.
+    fn tokenize_with_options(
+        &self,
+        texts: &[String],
+        options: &TokenizeOptions,
+    ) -> Result<Vec<Encoding>, BackendError> {
+        use tokenizers::{PaddingParams, PaddingStrategy, TruncationParams};
+
+        let mut tokenizer = self.tokenizer.clone();
+        let truncation = options.truncate_to.map(|len| TruncationParams {
+            max_length: len,
+            ..Default::default()
+        });
+        tokenizer
+            .with_truncation(truncation)
+            .map_err(|e| BackendError::InvalidRequest(format!("invalid truncation: {e}")))?;
+        if options.pad_to_longest {
+            tokenizer.with_padding(Some(PaddingParams {
+                strategy: PaddingStrategy::BatchLongest,
+                ..Default::default()
+            }));
+        } else {
+            tokenizer.with_padding(None);
+        }
+
+        let encodings = tokenizer
+            .encode_batch(texts.to_vec(), options.add_special_tokens)
+            .map_err(|e| BackendError::InvalidRequest(format!("tokenization failed: {e}")))?;
+
+        Ok(encodings
+            .into_iter()
+            .map(|encoding| {
+                let offsets = if options.with_offsets {
+                    encoding
+                        .get_offsets()
+                        .iter()
+                        .map(|&(start, end)| Offset {
+                            start: start as u32,
+                            end: end as u32,
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                Encoding {
+                    input_ids: encoding.get_ids().to_vec(),
+                    attention_mask: encoding.get_attention_mask().to_vec(),
+                    tokens: encoding.get_tokens().to_vec(),
+                    offsets,
+                }
+            })
+            .collect())
+    }
 }
 
 #[async_trait]
@@ -387,5 +444,44 @@ impl Backend for OrtBackend {
             }],
             raw_output_contents: vec![pack_fp32(&embeddings)],
         })
+    }
+
+    /// The engine's own HF tokenizer answers Tokenize when the server has no
+    /// `tokenizer_dir`-configured local tokenizer for the model.
+    async fn tokenize(
+        &self,
+        _model_name: &str,
+        texts: &[String],
+        options: &TokenizeOptions,
+    ) -> Result<Vec<Encoding>, BackendError> {
+        let inner = self.inner.clone();
+        let texts = texts.to_vec();
+        let options = options.clone();
+        tokio::task::spawn_blocking(move || inner.tokenize_with_options(&texts, &options))
+            .await
+            .map_err(|e| BackendError::Internal(format!("tokenize task panicked: {e}")))?
+    }
+
+    async fn detokenize(
+        &self,
+        _model_name: &str,
+        sequences: &[Vec<u32>],
+        skip_special_tokens: bool,
+    ) -> Result<Vec<String>, BackendError> {
+        let inner = self.inner.clone();
+        let sequences = sequences.to_vec();
+        tokio::task::spawn_blocking(move || {
+            sequences
+                .iter()
+                .map(|ids| {
+                    inner
+                        .tokenizer
+                        .decode(ids, skip_special_tokens)
+                        .map_err(|e| BackendError::InvalidRequest(format!("decode failed: {e}")))
+                })
+                .collect()
+        })
+        .await
+        .map_err(|e| BackendError::Internal(format!("detokenize task panicked: {e}")))?
     }
 }

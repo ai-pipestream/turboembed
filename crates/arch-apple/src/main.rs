@@ -65,11 +65,20 @@ fn factory() -> impl inferstream_server::BackendFactory {
                     .transpose()
                     .map_err(|e| invalid(model, e.to_string()))?
                     .unwrap_or(LlamaDevice::Metal);
+                let endpoint = model.endpoint.clone().or_else(|| {
+                    model
+                        .path
+                        .is_none()
+                        .then(|| std::env::var("INFERSTREAM_LLAMACPP_ENDPOINT").ok())
+                        .flatten()
+                });
                 let backend = LlamaCppBackend::new(LlamaCppConfig {
                     model_path: model.path.clone().unwrap_or_default(),
+                    endpoint,
                     device,
                     n_gpu_layers: model.n_gpu_layers,
                     max_batch_size: model.max_batch_size,
+                    n_ctx: model.n_ctx,
                 })
                 .map_err(|e| invalid(model, e.to_string()))?;
                 Ok(Arc::new(backend))

@@ -346,6 +346,91 @@ async fn server_metadata_advertises_extension_and_both_services_answer() {
     guard.stop().await;
 }
 
+/// Default krick location of the MiniLM HF snapshot (TEI's model cache);
+/// override with `INFERSTREAM_MINILM_SNAPSHOT`.
+const MINILM_SNAPSHOT: &str = "/work/tei-model-cache/\
+     models--sentence-transformers--all-MiniLM-L6-v2/snapshots/\
+     1110a243fdf4706b3f48f1d95db1a4f5529b4d41";
+
+/// E2E: the real MiniLM `tokenizer.json` served through the local-tokenizer
+/// path (`tokenizer_dir`) over gRPC — the exact wiring `config/nvidia.toml`
+/// uses for the ORT model. Skips (passing) on hosts without the snapshot.
+#[tokio::test]
+async fn minilm_local_tokenizer_e2e_over_grpc() {
+    let snapshot =
+        std::env::var("INFERSTREAM_MINILM_SNAPSHOT").unwrap_or_else(|_| MINILM_SNAPSHOT.into());
+    if !std::path::Path::new(&snapshot).join("tokenizer.json").is_file() {
+        eprintln!("skipping: no MiniLM snapshot at {snapshot} (set INFERSTREAM_MINILM_SNAPSHOT)");
+        return;
+    }
+    let config = format!(
+        r#"
+        listen = "127.0.0.1:0"
+
+        [[models]]
+        name = "minilm-l6-v2"
+        backend = "mock"
+        tokenizer_dir = "{snapshot}"
+        "#
+    );
+    let (channel, guard) = start_server(&config).await;
+    let mut client = InferstreamServiceClient::new(channel);
+
+    let response = client
+        .tokenize(TokenizeRequest {
+            model_name: "minilm-l6-v2".into(),
+            texts: vec![
+                "The quick brown fox jumps over the lazy dog.".into(),
+                "Streaming inference with gRPC".into(),
+            ],
+            with_offsets: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(response.encodings.len(), 2);
+    let first = &response.encodings[0];
+    // BERT-style frame from the real tokenizer.json: [CLS] … [SEP].
+    assert_eq!(first.input_ids.first(), Some(&101), "[CLS]");
+    assert_eq!(first.input_ids.last(), Some(&102), "[SEP]");
+    assert_eq!(first.tokens.first().map(String::as_str), Some("[CLS]"));
+    assert_eq!(first.input_ids.len(), first.offsets.len());
+    assert!(first.attention_mask.iter().all(|&m| m == 1));
+
+    let decoded = client
+        .detokenize(DetokenizeRequest {
+            model_name: "minilm-l6-v2".into(),
+            sequences: response
+                .encodings
+                .iter()
+                .map(|e| TokenIds {
+                    ids: e.input_ids.clone(),
+                })
+                .collect(),
+            skip_special_tokens: true,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    // BERT wordpiece decoding lowercases (uncased model); content survives.
+    assert_eq!(
+        decoded.texts[0],
+        "the quick brown fox jumps over the lazy dog."
+    );
+    assert_eq!(decoded.texts[1], "streaming inference with grpc");
+
+    // ListModels reports the local tokenizer.
+    let models = client
+        .list_models(ListModelsRequest {})
+        .await
+        .unwrap()
+        .into_inner();
+    assert!(models.models.iter().any(|m| m.name == "minilm-l6-v2" && m.has_tokenizer));
+
+    guard.stop().await;
+}
+
 #[tokio::test]
 async fn bearer_auth_gates_extension_rpcs() {
     let (channel, guard) = start_server(BEARER_CONFIG).await;

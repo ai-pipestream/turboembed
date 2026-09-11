@@ -100,11 +100,13 @@ pub struct ModelConfig {
     #[serde(default)]
     pub device: Option<String>,
 
-    /// Upstream gRPC endpoint for client backends (`backend = "ovms"`), e.g.
-    /// `"http://172.22.0.2:8000"`. Falls back to `INFERSTREAM_OVMS_ENDPOINT`
-    /// from the environment when omitted. For OVMS this is the `--port`
-    /// (gRPC) listener, not `--rest_port`; the model `name` must match a
-    /// model or pipeline the upstream server serves.
+    /// Upstream endpoint for client backends. `backend = "ovms"`: the gRPC
+    /// listener, e.g. `"http://172.22.0.2:8000"` (OVMS `--port`, not
+    /// `--rest_port`; the model `name` must match a model or pipeline the
+    /// upstream serves; falls back to `INFERSTREAM_OVMS_ENDPOINT`).
+    /// `backend = "llama-cpp"`: a running llama-server's HTTP base URL, e.g.
+    /// `"http://127.0.0.1:8085"` (server-client mode; models without `path`
+    /// fall back to `INFERSTREAM_LLAMACPP_ENDPOINT`).
     #[serde(default)]
     pub endpoint: Option<String>,
 
@@ -131,6 +133,11 @@ pub struct ModelConfig {
     /// omit for full offload.
     #[serde(default)]
     pub n_gpu_layers: Option<u32>,
+
+    /// llama.cpp: context window (`n_ctx`); omit for 4096 capped to the
+    /// model's training context.
+    #[serde(default)]
+    pub n_ctx: Option<u32>,
 
     /// Embedding backends (ort): pooling strategy, `"mean"` (default) or
     /// `"cls"`.
