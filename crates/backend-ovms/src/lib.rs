@@ -23,6 +23,16 @@
 //! separate `--rest_port`). In Docker, the gRPC port may only be reachable on
 //! the container's bridge IP — `docker inspect -f
 //! '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' <container>`.
+//!
+//! **Embed-convention adaptation:** the façade's `inferstream.v1.Embed` RPC
+//! wraps texts as a single BYTES tensor named `"text"` and unwraps an FP32
+//! output named `"embedding"`. OVMS embedding DAG pipelines instead declare
+//! `"strings"` in and `"sentence_embedding"` out. When a forwarded request
+//! matches the façade convention exactly (one BYTES input named `"text"`),
+//! this backend renames the input tensor to the pipeline's name and renames
+//! the matching FP32 output back to `"embedding"` — a pure field rename on
+//! the typed protobuf messages, never a re-encode. Raw OIP proxy calls that
+//! already use the upstream tensor names pass through untouched.
 
 use async_trait::async_trait;
 use tonic::transport::{Channel, Endpoint};
@@ -44,15 +54,41 @@ use inferstream_protocol::inference::{
 pub struct OvmsBackend {
     endpoint: String,
     client: GrpcInferenceServiceClient<Channel>,
+    /// Upstream input tensor name substituted for the façade's `"text"`.
+    embed_input_name: String,
+    /// Upstream output tensor name renamed back to `"embedding"`.
+    embed_output_name: String,
 }
+
+/// Input tensor name the façade `Embed` RPC produces.
+const FACADE_EMBED_INPUT: &str = "text";
+/// Output tensor name the façade `Embed` RPC consumes.
+const FACADE_EMBED_OUTPUT: &str = "embedding";
+/// Default input name of OVMS embedding DAG pipelines (`config-gpu.json`).
+const OVMS_EMBED_INPUT: &str = "strings";
+/// Default output name of OVMS embedding DAG pipelines.
+const OVMS_EMBED_OUTPUT: &str = "sentence_embedding";
 
 impl OvmsBackend {
     /// Create a backend that forwards to `endpoint`
-    /// (e.g. `"http://172.22.0.2:8000"`).
+    /// (e.g. `"http://172.22.0.2:8000"`), adapting façade `Embed` requests to
+    /// the standard OVMS pipeline tensor names
+    /// (`"strings"` / `"sentence_embedding"`).
     ///
     /// The connection is established lazily on first use, so this succeeds
     /// even while the upstream server is down.
     pub fn new(endpoint: impl Into<String>) -> Result<Self, BackendError> {
+        Self::with_embed_names(endpoint, OVMS_EMBED_INPUT, OVMS_EMBED_OUTPUT)
+    }
+
+    /// Like [`OvmsBackend::new`] but with explicit upstream tensor names for
+    /// the embed-convention adaptation, for KServe upstreams whose embedding
+    /// graphs use different input/output names.
+    pub fn with_embed_names(
+        endpoint: impl Into<String>,
+        embed_input_name: impl Into<String>,
+        embed_output_name: impl Into<String>,
+    ) -> Result<Self, BackendError> {
         let endpoint = endpoint.into();
         let channel = Endpoint::from_shared(endpoint.clone())
             .map_err(|e| {
@@ -62,6 +98,8 @@ impl OvmsBackend {
         Ok(Self {
             endpoint,
             client: GrpcInferenceServiceClient::new(channel),
+            embed_input_name: embed_input_name.into(),
+            embed_output_name: embed_output_name.into(),
         })
     }
 
@@ -140,13 +178,35 @@ impl Backend for OvmsBackend {
         })
     }
 
-    async fn infer(&self, request: ModelInferRequest) -> Result<ModelInferResponse, BackendError> {
-        self.client
+    async fn infer(
+        &self,
+        mut request: ModelInferRequest,
+    ) -> Result<ModelInferResponse, BackendError> {
+        // Adapt the façade Embed convention (one BYTES tensor named "text")
+        // to the upstream pipeline's declared tensor names. Anything else is
+        // a raw OIP proxy call and passes through untouched.
+        let adapted = matches!(
+            request.inputs.as_slice(),
+            [input] if input.name == FACADE_EMBED_INPUT && input.datatype == "BYTES"
+        );
+        if adapted {
+            request.inputs[0].name = self.embed_input_name.clone();
+        }
+        let mut response = self
+            .client
             .clone()
             .model_infer(Request::new(request))
             .await
             .map(tonic::Response::into_inner)
-            .map_err(|status| self.map_status(status))
+            .map_err(|status| self.map_status(status))?;
+        if adapted {
+            for output in &mut response.outputs {
+                if output.name == self.embed_output_name {
+                    output.name = FACADE_EMBED_OUTPUT.to_string();
+                }
+            }
+        }
+        Ok(response)
     }
 
     // infer_stream: default unary adaptation. OVMS implements only the
@@ -231,6 +291,7 @@ mod tests {
             &self,
             request: Request<ModelInferRequest>,
         ) -> Result<Response<ModelInferResponse>, Status> {
+            use inferstream_protocol::inference::model_infer_response::InferOutputTensor;
             let request = request.into_inner();
             if request.model_name != "upstream-embed" {
                 return Err(Status::not_found(format!(
@@ -238,9 +299,25 @@ mod tests {
                     request.model_name
                 )));
             }
+            // Like a real OVMS DAG pipeline: the input tensor name must
+            // match the pipeline's declared input exactly.
+            match request.inputs.as_slice() {
+                [input] if input.name == "strings" => {}
+                _ => {
+                    return Err(Status::invalid_argument(
+                        "Missing input with specific name - Required input: strings",
+                    ));
+                }
+            }
             Ok(Response::new(ModelInferResponse {
                 model_name: request.model_name,
                 id: request.id,
+                outputs: vec![InferOutputTensor {
+                    name: "sentence_embedding".into(),
+                    datatype: "FP32".into(),
+                    shape: vec![1, 3],
+                    ..Default::default()
+                }],
                 raw_output_contents: vec![pack_fp32(&[0.25, -0.5, 1.0])],
                 ..Default::default()
             }))
@@ -313,6 +390,47 @@ mod tests {
             metadata.properties.get("upstream_endpoint").unwrap(),
             &format!("http://{addr}")
         );
+    }
+
+    /// Requests using the façade Embed convention (one BYTES tensor named
+    /// "text") are renamed to the pipeline's input, and the pipeline's
+    /// output is renamed back to "embedding".
+    #[tokio::test]
+    async fn adapts_facade_embed_convention_to_pipeline_names() {
+        use inferstream_protocol::inference::model_infer_request::InferInputTensor;
+        let addr = spawn_fake_ovms().await;
+        let backend = OvmsBackend::new(format!("http://{addr}")).unwrap();
+
+        let request = ModelInferRequest {
+            model_name: "upstream-embed".to_string(),
+            id: "embed-1".to_string(),
+            inputs: vec![InferInputTensor {
+                name: "text".into(),
+                datatype: "BYTES".into(),
+                shape: vec![1],
+                ..Default::default()
+            }],
+            raw_input_contents: vec![pack_bytes(&[b"hello world".as_slice()])],
+            ..Default::default()
+        };
+        let response = backend.infer(request).await.unwrap();
+        assert_eq!(response.outputs.len(), 1);
+        assert_eq!(response.outputs[0].name, "embedding");
+        assert_eq!(response.outputs[0].datatype, "FP32");
+        assert_eq!(response.raw_output_contents.len(), 1);
+    }
+
+    /// Raw OIP proxy calls that already use the upstream tensor names pass
+    /// through with no renaming in either direction.
+    #[tokio::test]
+    async fn raw_proxy_calls_pass_through_unadapted() {
+        let addr = spawn_fake_ovms().await;
+        let backend = OvmsBackend::new(format!("http://{addr}")).unwrap();
+        let response = backend
+            .infer(embed_request("upstream-embed", "raw-1"))
+            .await
+            .unwrap();
+        assert_eq!(response.outputs[0].name, "sentence_embedding");
     }
 
     #[tokio::test]
