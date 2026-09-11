@@ -494,7 +494,7 @@ mod tests {
     fn expand_serve_resolves_aliases_for_the_arch() {
         let mut config = Config::from_toml(
             r#"
-            serve = ["minilm", "default-llm"]
+            serve = ["minilm", "bge-small", "e5-small"]
 
             [[models]]
             name = "mock-embed"
@@ -506,12 +506,16 @@ mod tests {
 
         assert!(config.serve.is_empty(), "aliases drained into models");
         let names: Vec<&str> = config.models.iter().map(|m| m.name.as_str()).collect();
-        assert_eq!(names, ["mock-embed", "minilm", "default-llm"]);
+        assert_eq!(names, ["mock-embed", "minilm", "bge-small", "e5-small"]);
 
         let minilm = &config.models[1];
         assert_eq!(minilm.backend, BackendKind::Ort);
         assert_eq!(minilm.device.as_deref(), Some("cuda"));
         assert!(minilm.tokenizer_dir.is_some(), "tokenizer rides along");
+
+        // Family pooling conventions survive expansion.
+        assert_eq!(config.models[2].pooling.as_deref(), Some("cls"));
+        assert_eq!(config.models[3].pooling.as_deref(), Some("mean"));
     }
 
     #[test]
@@ -547,7 +551,8 @@ mod tests {
 
     #[test]
     fn expand_serve_alias_missing_on_arch_fails() {
-        // mpnet resolves only on intel in the built-in catalog.
+        // mpnet resolves on nvidia and intel, but not apple (mlx-embeddings
+        // has no MPNet forward pass).
         let mut config = Config::from_toml(r#"serve = ["mpnet"]"#).unwrap();
         assert!(config.expand_serve(Some(Arch::Intel)).is_ok());
 
@@ -672,6 +677,19 @@ mod tests {
             assert!(
                 config.models.iter().any(|m| m.name == "minilm"),
                 "{file} must serve the minilm alias"
+            );
+        }
+        // Multi-alias defaults: intel serves both live OVMS pipelines; apple
+        // serves the small-download embedding trio.
+        let mut intel = Config::from_file(format!("{config_dir}/intel.toml")).unwrap();
+        intel.expand_serve(Some(Arch::Intel)).unwrap();
+        assert!(intel.models.iter().any(|m| m.name == "mpnet"));
+        let mut apple = Config::from_file(format!("{config_dir}/apple.toml")).unwrap();
+        apple.expand_serve(Some(Arch::Apple)).unwrap();
+        for alias in ["minilm", "minilm-l12", "bge-small"] {
+            assert!(
+                apple.models.iter().any(|m| m.name == alias),
+                "apple.toml must serve {alias}"
             );
         }
         // The dev config has no serve list and stays arch-neutral.

@@ -267,6 +267,96 @@ async fn list_models_reports_backend_and_dims() {
     guard.stop().await;
 }
 
+/// Catalog aliases end-to-end: several logical names expand from a catalog
+/// into the registry, ListModels reports the alias (what clients use), and
+/// Embed routes by it — the client never sees a backend-specific name.
+#[tokio::test]
+async fn catalog_aliases_list_and_embed_by_logical_name() {
+    let catalog_path = std::env::temp_dir().join(format!(
+        "inferstream-extension-catalog-{}.toml",
+        std::process::id()
+    ));
+    // Mock-backed stand-ins for the embedding alias set, so the wire path
+    // is exercised without GPU artifacts.
+    std::fs::write(
+        &catalog_path,
+        r#"
+        [models.minilm.nvidia]
+        backend = "mock"
+
+        [models.bge-small.nvidia]
+        backend = "mock"
+
+        [models.e5-small.nvidia]
+        backend = "mock"
+        "#,
+    )
+    .unwrap();
+    let config_text = format!(
+        "listen = \"127.0.0.1:0\"\nserve = [\"minilm\", \"bge-small\", \"e5-small\"]\ncatalog = {:?}\n",
+        catalog_path.to_str().unwrap()
+    );
+
+    let mut config = Config::from_toml(&config_text).expect("test config parses");
+    config
+        .expand_serve(Some(inferstream_server::Arch::Nvidia))
+        .expect("aliases expand");
+    std::fs::remove_file(&catalog_path).ok();
+    let registry = inferstream_server::build_registry(&config, &inferstream_server::mock_factory())
+        .expect("registry builds");
+    let (bound_tx, bound_rx) = tokio::sync::oneshot::channel();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(inferstream_server::serve(
+        config,
+        registry,
+        bound_tx,
+        async {
+            let _ = shutdown_rx.await;
+        },
+    ));
+    let addr = bound_rx.await.expect("server reports bound address");
+    let channel = Channel::from_shared(format!("http://{addr}"))
+        .unwrap()
+        .connect()
+        .await
+        .expect("client connects");
+    let guard = ServerGuard {
+        shutdown: Some(shutdown_tx),
+        handle,
+    };
+    let mut client = InferstreamServiceClient::new(channel);
+
+    // ListModels exposes the logical names, sorted.
+    let listing = client
+        .list_models(ListModelsRequest {})
+        .await
+        .unwrap()
+        .into_inner();
+    let names: Vec<&str> = listing.models.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(names, ["bge-small", "e5-small", "minilm"]);
+    for model in &listing.models {
+        assert!(model.ready, "{} must be ready", model.name);
+        assert!(model.embedding_dim > 0, "{} reports a dim", model.name);
+    }
+
+    // Embed routes by each alias.
+    for alias in ["minilm", "bge-small", "e5-small"] {
+        let response = client
+            .embed(EmbedRequest {
+                model_name: alias.into(),
+                texts: vec!["hello embeddings".into()],
+                ..Default::default()
+            })
+            .await
+            .unwrap_or_else(|e| panic!("Embed via alias {alias} failed: {e}"))
+            .into_inner();
+        assert_eq!(response.embeddings.len(), 1, "{alias}");
+        assert!(!response.embeddings[0].values.is_empty(), "{alias}");
+    }
+
+    guard.stop().await;
+}
+
 #[tokio::test]
 async fn rerank_orders_by_score_and_honors_top_n() {
     let (channel, guard) = start_server(BASE_CONFIG).await;
