@@ -1,65 +1,102 @@
 #!/usr/bin/env bash
-# Embed smoke against a RUNNING inferstream server: for every served alias
-# (or the aliases passed as arguments), issue two Embed calls and report
-# dimension, L2 norm, and cold vs warm latency. The first call on a fresh
-# server is "cold" (model load + possible HF download); the second is "warm"
-# (model hot in the backend).
+# Smoke-test the Embed surface for every model a running inferstream binary
+# serves — catalog aliases and explicit entries alike. Works against any
+# arch (nvidia / intel / apple / dev mock): the whole point of logical model
+# names is that this script does not care which engine answers.
 #
-#   ./scripts/smoke-embeddings.sh                       # every ListModels entry
-#   ./scripts/smoke-embeddings.sh minilm bge-small      # just these aliases
+# Each model is embedded TWICE: the first call on a fresh server is "cold"
+# (model load + possible HF download), the second is "warm" (model hot in
+# the backend). Both latencies are reported alongside dims.
 #
-# Env: INFERSTREAM_ADDR (default 127.0.0.1:8461),
-#      INFERSTREAM_TOKEN (default change-me).
-# Run from the repo root (proto paths are relative). Requires grpcurl.
+# Usage:
+#   scripts/smoke-embeddings.sh [host:port] [bearer-token] [model ...]
+#
+#   host:port      default 127.0.0.1:8461
+#   bearer-token   default "change-me" (pass "" for auth mode = none)
+#   model ...      subset to test; default = every model from ListModels
+#
+# Examples:
+#   scripts/smoke-embeddings.sh                                # local, all
+#   scripts/smoke-embeddings.sh krick:8461 "$KEY"              # nvidia host
+#   scripts/smoke-embeddings.sh krick-1:8461 "$KEY" minilm mpnet
+#
+# Needs grpcurl and jq. Exits nonzero if any tested model fails to embed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-ADDR="${INFERSTREAM_ADDR:-127.0.0.1:8461}"
-TOKEN="${INFERSTREAM_TOKEN:-change-me}"
-AUTH=(-H "authorization: Bearer $TOKEN")
+ADDR="${1:-127.0.0.1:8461}"
+TOKEN="${2-change-me}"
+shift $(( $# > 2 ? 2 : $# )) || true
+
 EXT=(-proto crates/protocol/proto/inferstream_extension.proto)
+AUTH=()
+if [ -n "$TOKEN" ]; then
+    AUTH=(-H "authorization: Bearer $TOKEN")
+fi
 
-if [ "$#" -gt 0 ]; then
-    ALIASES=("$@")
+command -v grpcurl >/dev/null || { echo "error: grpcurl not installed" >&2; exit 1; }
+command -v jq >/dev/null || { echo "error: jq not installed" >&2; exit 1; }
+
+echo "--- ListModels @ $ADDR ---"
+LISTING=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
+    inferstream.v1.InferstreamService/ListModels)
+echo "$LISTING" | jq -r '.models[] | "\(.name)\tbackend=\(.backend)\tready=\(.ready // false)\tdim=\(.embeddingDim // 0)"'
+
+if [ $# -gt 0 ]; then
+    MODELS=("$@")
 else
-    # Every model the server lists; mock/generation models fail Embed loudly,
-    # which is the point of a smoke. (No mapfile: macOS ships bash 3.2.)
-    ALIASES=()
+    # No mapfile: macOS ships bash 3.2.
+    MODELS=()
     while IFS= read -r name; do
-        ALIASES+=("$name")
-    done < <(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
-        inferstream.v1.InferstreamService/ListModels \
-        | python3 -c 'import json,sys; [print(m["name"]) for m in json.load(sys.stdin).get("models",[])]')
+        MODELS+=("$name")
+    done < <(echo "$LISTING" | jq -r '.models[].name')
 fi
 
-if [ "${#ALIASES[@]}" -eq 0 ]; then
-    echo "no models to smoke (server listed none and no aliases given)" >&2
-    exit 1
-fi
-
-embed_once() { # alias -> "<dim> <norm> <latency_ms>" on stdout
-    local alias="$1" t0 t1 out
+# One Embed call: prints "<count> <dim> <norm> <latency_ms>" or fails.
+embed_once() {
+    local model="$1" t0 t1 out
+    # E5-family models want a task prefix; harmless elsewhere in a smoke.
+    local req
+    req=$(jq -n --arg m "$model" \
+        '{model_name:$m, texts:["query: hello embeddings","query: the quick brown fox"], normalize:true}')
     t0=$(python3 -c 'import time; print(time.time_ns())')
-    out=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
-        -d '{"model_name":"'"$alias"'","texts":["inferstream embedding smoke"],"normalize":true}' \
-        "$ADDR" inferstream.v1.InferstreamService/Embed)
+    out=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" -d "$req" "$ADDR" \
+        inferstream.v1.InferstreamService/Embed) || return 1
     t1=$(python3 -c 'import time; print(time.time_ns())')
-    printf '%s' "$out" | python3 -c 'import json,math,sys; v=json.load(sys.stdin)["embeddings"][0]["values"]; print(len(v), f"{math.sqrt(sum(x*x for x in v)):.4f}", end=" ")'
+    printf '%s' "$out" | python3 -c '
+import json, math, sys
+r = json.load(sys.stdin)
+embs = r.get("embeddings", [])
+v = embs[0]["values"] if embs else []
+print(len(embs), len(v), f"{math.sqrt(sum(x*x for x in v)):.4f}", end=" ")'
     echo $(( (t1 - t0) / 1000000 ))
 }
 
+PASS=0
 FAIL=0
-printf '%-18s %6s %8s %10s %10s\n' ALIAS DIM NORM COLD_MS WARM_MS
-for alias in "${ALIASES[@]}"; do
-    if ! cold_run=$(embed_once "$alias"); then
-        printf '%-18s FAIL (see grpcurl error above)\n' "$alias"
-        FAIL=1
+FAILED_MODELS=()
+printf '\n%-20s %6s %6s %8s %10s %10s\n' MODEL COUNT DIM NORM COLD_MS WARM_MS
+for model in "${MODELS[@]}"; do
+    if ! cold_run=$(embed_once "$model"); then
+        printf '%-20s FAIL (Embed error; rerun grpcurl by hand for detail)\n' "$model"
+        FAIL=$((FAIL + 1)); FAILED_MODELS+=("$model")
         continue
     fi
-    warm_run=$(embed_once "$alias")   # warm pass; dim/norm must be stable
+    warm_run=$(embed_once "$model")   # warm pass; count/dim must be stable
     cold_ms=${cold_run##* }
-    set -- ${warm_run}                # -> dim norm warm_ms
-    printf '%-18s %6s %8s %10s %10s\n' "$alias" "$1" "$2" "$cold_ms" "$3"
+    set -- ${warm_run}                # -> count dim norm warm_ms
+    if [ "$1" = "2" ] && [ "$2" -gt 0 ]; then
+        printf '%-20s %6s %6s %8s %10s %10s\n' "$model" "$1" "$2" "$3" "$cold_ms" "$4"
+        PASS=$((PASS + 1))
+    else
+        printf '%-20s FAIL: unexpected shape (count=%s dim=%s)\n' "$model" "$1" "$2"
+        FAIL=$((FAIL + 1)); FAILED_MODELS+=("$model")
+    fi
 done
 
-[ "$FAIL" -eq 0 ] && echo "EMBED SMOKE OK" || { echo "EMBED SMOKE FAILED"; exit 1; }
+echo
+echo "=== embed smoke: $PASS passed, $FAIL failed ==="
+if [ "$FAIL" -gt 0 ]; then
+    echo "failed models: ${FAILED_MODELS[*]}" >&2
+    exit 1
+fi
