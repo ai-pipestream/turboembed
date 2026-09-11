@@ -1,0 +1,28 @@
+[package]
+name = "inferstream-fetch"
+description = "Hash-verified fetch of inferstream model artifacts (no Python)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "inferstream-fetch"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+sha2 = "0.10"
+# HTTPS to Hugging Face. Isolated from the workspace reqwest (plaintext-only
+# for llama-server clients) so this tool can pin rustls without pulling a TLS
+# stack into the serving binaries.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+
+[dev-dependencies]
+tempfile = "3"

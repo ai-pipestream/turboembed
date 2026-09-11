@@ -10,12 +10,10 @@
 # nvidia: the `ort` crate's prebuilt CUDA bundle (ONNX Runtime 1.28) is built
 #   against CUDA 13, so the CUDA EP dlopens libcublasLt.so.13, libcublas.so.13,
 #   libcudart.so.13, libnvrtc.so.13 and a cuDNN 9 built for CUDA 13 at startup.
-#   This script fetches them from NVIDIA's official pip wheels (the strategy
-#   already validated on krick) into a throwaway venv and symlinks the lib
-#   directories under .libs/nvidia — no sudo, no system CUDA install, and the
-#   wheel versions are pinned below for reproducibility. libonnxruntime itself
-#   is downloaded by `ort`'s `download-binaries` feature at cargo build time;
-#   nothing to do here.
+#   This script curls pinned NVIDIA *wheels* (zip archives — no pip, no venv)
+#   and links the .so files under .libs/nvidia. Wheel versions and SHA-256
+#   are pinned below. libonnxruntime itself is downloaded by `ort`'s
+#   `download-binaries` feature at cargo build time; nothing to do here.
 #
 # intel: the OVMS path (`backend = "ovms"`) is a pure tonic/prost gRPC client
 #   to a running OpenVINO Model Server — it links NO OpenVINO libraries, so
@@ -27,32 +25,66 @@
 # NVIDIA apt repo). Keep it opt-in on hosts that already carry TensorRT.
 set -euo pipefail
 
-# Pinned wheel versions (CUDA 13 line, for ort 2.0.0-rc.13 / ONNX Runtime
-# 1.28). Note the naming: the CUDA-13 generation ships the core libs under the
-# UNSUFFIXED wheel names (nvidia-cublas, nvidia-cuda-runtime, …, landing in
-# site-packages/nvidia/cu13/lib), while cuDNN keeps the -cu13 suffix. Bump
-# deliberately, together.
-NVIDIA_CUBLAS_WHEEL="nvidia-cublas==13.6.2.16"
-NVIDIA_CUDA_RUNTIME_WHEEL="nvidia-cuda-runtime==13.2.86"
-NVIDIA_NVRTC_WHEEL="nvidia-cuda-nvrtc==13.2.86"
-NVIDIA_CUDNN_WHEEL="nvidia-cudnn-cu13==9.26.0.51"
+# Pinned manylinux x86_64 wheels (CUDA 13 line, for ort 2.0.0-rc.13 / ONNX
+# Runtime 1.28). URL + sha256 live in models/manifests/cuda-runtime-wheels.json
+# so this script stays free of host-specific installer names. Wheels are zip
+# files; we only extract the shared libraries.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIBS_DIR="$ROOT/.libs"
 
-fetch_nvidia() {
-    local venv="$LIBS_DIR/.venv-cuda-libs"
-    local dest="$LIBS_DIR/nvidia"
-    echo "==> nvidia: fetching CUDA 13 user-space libs via pinned NVIDIA pip wheels (~1.6 GB)"
-    mkdir -p "$LIBS_DIR"
-    if [ ! -x "$venv/bin/pip" ]; then
-        python3 -m venv "$venv"
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    else
+        echo "error: need sha256sum or shasum" >&2
+        exit 1
     fi
-    "$venv/bin/pip" install --quiet --only-binary :all: \
-        "$NVIDIA_CUBLAS_WHEEL" \
-        "$NVIDIA_CUDA_RUNTIME_WHEEL" \
-        "$NVIDIA_CUDNN_WHEEL" \
-        "$NVIDIA_NVRTC_WHEEL"
+}
+
+fetch_nvidia() {
+    local dest="$LIBS_DIR/nvidia"
+    local work="$LIBS_DIR/.wheels-nvidia"
+    echo "==> nvidia: fetching CUDA 13 user-space libs via pinned NVIDIA wheels (~1.6 GB)"
+    mkdir -p "$work" "$dest/lib"
+    command -v unzip >/dev/null || { echo "error: unzip is required to extract wheels" >&2; exit 1; }
+    command -v curl >/dev/null || { echo "error: curl is required" >&2; exit 1; }
+    command -v jq >/dev/null || { echo "error: jq is required to read the wheel manifest" >&2; exit 1; }
+
+    local manifest="$ROOT/models/manifests/cuda-runtime-wheels.json"
+    [ -f "$manifest" ] || { echo "error: missing $manifest" >&2; exit 1; }
+
+    local n i
+    n=$(jq '.wheels | length' "$manifest")
+    i=0
+    while [ "$i" -lt "$n" ]; do
+        local name url expect wheel
+        name=$(jq -r --argjson i "$i" '.wheels[$i].name' "$manifest")
+        url=$(jq -r --argjson i "$i" '.wheels[$i].url' "$manifest")
+        expect=$(jq -r --argjson i "$i" '.wheels[$i].sha256' "$manifest")
+        wheel="$work/${name}.whl"
+        if [ -f "$wheel" ] && [ "$(sha256_of "$wheel")" = "$expect" ]; then
+            echo "  cached     $name"
+        else
+            echo "  downloading $name ..."
+            curl -fL --retry 3 -o "$wheel.part" "$url"
+            mv "$wheel.part" "$wheel"
+            local actual
+            actual=$(sha256_of "$wheel")
+            if [ "$actual" != "$expect" ]; then
+                rm -f "$wheel"
+                echo "error: SHA-256 mismatch for $name" >&2
+                echo "  expected $expect" >&2
+                echo "  got      $actual" >&2
+                exit 1
+            fi
+            echo "  verified   $name"
+        fi
+        unzip -qo "$wheel" -d "$work/extract-$name"
+        i=$((i + 1))
+    done
 
     # Collect every wheel lib dir under a stable path the run wrapper and CI
     # can point LD_LIBRARY_PATH at: .libs/nvidia/lib
@@ -65,9 +97,9 @@ fetch_nvidia() {
             [ -e "$so" ] || continue
             ln -sf "$so" "$dest/lib/$(basename "$so")"
         done
-    done < <(find "$venv"/lib/python*/site-packages/nvidia -type d -name lib -print0)
+    done < <(find "$work" -type d -name lib -print0)
     if [ "$found" -eq 0 ]; then
-        echo "error: no nvidia wheel lib directories found under $venv" >&2
+        echo "error: no nvidia wheel lib directories found under $work" >&2
         exit 1
     fi
     echo "==> nvidia: libs linked under $dest/lib"

@@ -1,8 +1,17 @@
 /target
-.venv-cuda-libs/
 /.libs/
+# Local llama-cpp-sys-2 checkout with ggml-sycl injected
+# (scripts/setup-llamacpp-sycl.sh). Not committed — generated per host.
+/vendor/
+# Host-local cargo overrides (llama-cpp-sys-2). Keep .cargo/config.toml
+# (committed: `cargo xtask` alias).
+/.cargo/*
+!.cargo/config.toml
+# Local toolchain leftovers + fetched tokenizer artifacts
+/.venv/
+.venv-cuda-libs/
 # Fetched model artifacts stay out of git — SHA-256 manifests are committed
-# (cargo xtask fetch / verify).
+# (cargo run -p inferstream-fetch / cargo xtask fetch --mlx).
 /models/*
 !/models/manifests/
 native/mlx-engine/.build/

@@ -20,10 +20,13 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 use manifest::{
-    artifact_specs, cmd_fetch, cmd_list, cmd_verify, empty_manifest, hash_remote,
-    known_from_manifest, load_manifest, pin_mlx_repo, repo_info, resolve_model_entry,
-    select_aliases, write_manifest, Error, FileEntry, ModelEntry, TokenizerEntry,
+    cmd_fetch, cmd_list, cmd_verify, empty_manifest, hash_remote, known_from_manifest,
+    load_manifest, pin_mlx_repo, repo_info, select_aliases, write_manifest, Error, FileEntry,
+    ModelEntry, TokenizerEntry,
 };
+
+#[cfg(test)]
+use manifest::{artifact_specs, resolve_model_entry};
 use sources::{
     keep_mlx_file, llm_aliases, llm_known_aliases, llm_sources, mlx_embed_repos, mlx_llm_repos,
     onnx_file_list, onnx_repos,

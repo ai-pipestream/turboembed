@@ -246,7 +246,7 @@ mod tests {
         ("gte-base", [true, true, true]),
         ("nomic-embed-text", [true, true, false]),
         ("default-llm", [true, true, true]),
-        ("qwen-0.5b", [true, false, true]),
+        ("qwen-0.5b", [true, true, true]),
         ("qwen-7b", [true, true, true]),
     ];
 
@@ -343,8 +343,8 @@ mod tests {
     }
 
     /// LLM entries must carry a real generation path: llama.cpp-CUDA + GGUF
-    /// on nvidia, llama.cpp-SYCL server-client on intel, mlx-lm on apple.
-    /// qwen-0.5b has no intel resolution (honest: no 0.5B SYCL server).
+    /// on nvidia, llama.cpp-SYCL in-process + GGUF on intel, mlx-lm on apple.
+    /// Default aliases never use HTTP to a llama-server.
     #[test]
     fn builtin_llm_entries_are_engine_complete() {
         let catalog = Catalog::builtin();
@@ -365,15 +365,21 @@ mod tests {
                     .unwrap_or_else(|| panic!("{alias} nvidia needs a GGUF path"));
                 assert!(path.ends_with(".gguf"), "{alias} nvidia path={path}");
                 assert_eq!(m.n_ctx, Some(4096), "{alias} nvidia n_ctx");
+                assert!(m.endpoint.is_none(), "{alias} nvidia must be in-process");
             }
             if intel {
                 let m = catalog.resolve(alias, Arch::Intel).unwrap();
                 assert_eq!(m.backend, BackendKind::LlamaCpp, "{alias} intel");
                 assert_eq!(m.device.as_deref(), Some("sycl"), "{alias} intel device");
-                assert!(m.endpoint.is_some(), "{alias} intel needs llama-server");
+                let path = m
+                    .path
+                    .as_deref()
+                    .unwrap_or_else(|| panic!("{alias} intel needs a GGUF path"));
+                assert!(path.ends_with(".gguf"), "{alias} intel path={path}");
+                assert_eq!(m.n_ctx, Some(4096), "{alias} intel n_ctx");
                 assert!(
-                    m.path.is_none(),
-                    "{alias} intel is server-client (no in-process SYCL GGUF)"
+                    m.endpoint.is_none(),
+                    "{alias} intel must be in-process SYCL (no llama-server HTTP)"
                 );
             }
             if apple {
@@ -383,31 +389,12 @@ mod tests {
                     .path
                     .as_deref()
                     .unwrap_or_else(|| panic!("{alias} apple needs an MLX repo"));
-                assert!(
-                    path.starts_with("mlx-community/Qwen"),
-                    "{alias} apple path={path}"
-                );
+                assert!(path.starts_with("models/mlx/"), "{alias} apple path={path}");
                 assert!(
                     m.tokenizer_dir.is_some(),
                     "{alias} apple Tokenize needs tokenizer_dir"
                 );
             }
-        }
-
-        // Named 0.5B is unsupported on intel — do not silently route it at
-        // the 7B llama-server.
-        let error = catalog.resolve("qwen-0.5b", Arch::Intel).unwrap_err();
-        match error {
-            CatalogError::NotAvailableOnArch {
-                alias,
-                arch,
-                available,
-            } => {
-                assert_eq!(alias, "qwen-0.5b");
-                assert_eq!(arch, "intel");
-                assert_eq!(available, "nvidia, apple");
-            }
-            other => panic!("expected NotAvailableOnArch, got {other:?}"),
         }
     }
 
@@ -431,10 +418,7 @@ mod tests {
         let apple = catalog.resolve("minilm", Arch::Apple).unwrap();
         assert_eq!(apple.name, "minilm");
         assert_eq!(apple.backend, BackendKind::Mlx);
-        assert_eq!(
-            apple.path.as_deref(),
-            Some("mlx-community/all-MiniLM-L6-v2-4bit")
-        );
+        assert_eq!(apple.path.as_deref(), Some("models/mlx/minilm"));
     }
 
     #[test]
@@ -455,19 +439,36 @@ mod tests {
         assert_eq!(intel.name, "default-llm");
         assert_eq!(intel.backend, BackendKind::LlamaCpp);
         assert_eq!(intel.device.as_deref(), Some("sycl"));
-        assert_eq!(intel.endpoint.as_deref(), Some("http://127.0.0.1:8085"));
+        assert!(intel
+            .path
+            .as_deref()
+            .unwrap()
+            .ends_with("qwen2.5-0.5b-instruct-q8_0.gguf"));
+        assert!(intel.endpoint.is_none());
 
         let apple = catalog.resolve("default-llm", Arch::Apple).unwrap();
         assert_eq!(apple.name, "default-llm");
         assert_eq!(apple.backend, BackendKind::Mlx);
-        assert_eq!(
-            apple.path.as_deref(),
-            Some("mlx-community/Qwen2.5-0.5B-Instruct-4bit")
-        );
+        assert_eq!(apple.path.as_deref(), Some("models/mlx/qwen-0.5b"));
         assert_eq!(
             apple.tokenizer_dir.as_deref(),
             Some("models/gguf/qwen-0.5b")
         );
+    }
+
+    #[test]
+    fn qwen_05b_resolves_on_intel_to_the_05b_gguf() {
+        let intel = Catalog::builtin()
+            .resolve("qwen-0.5b", Arch::Intel)
+            .unwrap();
+        assert_eq!(intel.device.as_deref(), Some("sycl"));
+        assert!(intel
+            .path
+            .as_deref()
+            .unwrap()
+            .ends_with("qwen2.5-0.5b-instruct-q8_0.gguf"));
+        assert!(!intel.path.as_deref().unwrap().contains("7b"));
+        assert!(intel.endpoint.is_none());
     }
 
     #[test]
@@ -480,12 +481,14 @@ mod tests {
             .unwrap()
             .contains("qwen2.5-7b-instruct-q5_k_m"));
         let intel = catalog.resolve("qwen-7b", Arch::Intel).unwrap();
-        assert_eq!(intel.endpoint.as_deref(), Some("http://127.0.0.1:8085"));
+        assert!(intel
+            .path
+            .as_deref()
+            .unwrap()
+            .contains("qwen2.5-7b-instruct-q5_k_m"));
+        assert!(intel.endpoint.is_none());
         let apple = catalog.resolve("qwen-7b", Arch::Apple).unwrap();
-        assert_eq!(
-            apple.path.as_deref(),
-            Some("mlx-community/Qwen2.5-7B-Instruct-4bit")
-        );
+        assert_eq!(apple.path.as_deref(), Some("models/mlx/qwen-7b"));
     }
 
     #[test]

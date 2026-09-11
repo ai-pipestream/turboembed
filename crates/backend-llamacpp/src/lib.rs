@@ -34,7 +34,7 @@
 //! `n_predict`, default 128), `temperature` (double), `top_p` (double),
 //! `seed` (int64), `stop` (string, single stop sequence).
 //!
-//! **In-process FFI mode (crate features `runtime` / `cuda` / `metal`).**
+//! **In-process FFI mode (crate features `runtime` / `cuda` / `sycl` / `metal`).**
 //! With `path` (a GGUF file) and no `endpoint`, the engine links llama.cpp
 //! in-process through the maintained `llama-cpp-2` crate: eager model load at
 //! startup, per-request context in `spawn_blocking`, live token streaming
@@ -42,9 +42,10 @@
 //! from the GGUF vocabulary (no byte offsets; `pad_to_longest` unsupported).
 //! The `stop` parameter is server-client-only today. Without the `runtime`
 //! feature, path-only models construct but report `Unavailable` at request
-//! time, naming the feature to enable. SYCL/Vulkan in-process flavors are
-//! not compiled by this crate yet — use server-client mode for those (e.g.
-//! krick-1's `server-intel` llama-server container).
+//! time, naming the feature to enable. `device = "sycl"` requires feature
+//! `sycl` **and** `GGML_SYCL=ON` at compile time (Intel oneAPI icx/icpx;
+//! `scripts/setup-llamacpp-sycl.sh` injects the ggml-sycl sources crates.io
+//! omits). Vulkan in-process is still server-client only.
 
 use std::collections::{HashMap, VecDeque};
 
@@ -420,9 +421,9 @@ impl LlamaCppBackend {
     fn unavailable() -> BackendError {
         BackendError::Unavailable(
             "llama.cpp in-process mode is not compiled into this binary; rebuild with \
-             the crate's `runtime` (CPU) or `cuda` feature (nvidia: llamacpp-runtime / \
-             llamacpp-cuda / full-cuda), or configure `endpoint` to forward to a \
-             running llama-server"
+             the crate's `runtime` (CPU), `cuda` (nvidia: llamacpp-cuda / full-cuda), \
+             or `sycl` (intel: llamacpp-sycl, GGML_SYCL=ON), or configure `endpoint` \
+             to forward to a running llama-server"
                 .into(),
         )
     }

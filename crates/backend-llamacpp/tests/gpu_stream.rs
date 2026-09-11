@@ -10,8 +10,8 @@
 //!
 //! Environment:
 //! * `INFERSTREAM_GGUF` — model path (default: the krick Qwen2.5-0.5B Q8_0)
-//! * `INFERSTREAM_LLAMA_DEVICE` — `cuda` / `cpu` (default: cuda when the
-//!   crate was built with the `cuda` feature, else cpu)
+//! * `INFERSTREAM_LLAMA_DEVICE` — `cuda` / `sycl` / `cpu` (default: cuda
+//!   when built with `cuda`, sycl when built with `sycl`, else cpu)
 
 #![cfg(feature = "runtime")]
 
@@ -42,6 +42,7 @@ fn device() -> LlamaDevice {
     match std::env::var("INFERSTREAM_LLAMA_DEVICE") {
         Ok(value) => LlamaDevice::from_config(&value).expect("valid device"),
         Err(_) if cfg!(feature = "cuda") => LlamaDevice::Cuda,
+        Err(_) if cfg!(feature = "sycl") => LlamaDevice::Sycl,
         Err(_) => LlamaDevice::Cpu,
     }
 }

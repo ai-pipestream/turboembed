@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
-# Thin wrapper around cargo xtask fetch --llms.
+# Thin wrapper around inferstream-fetch --llms (Rust). Downloads
+# revision-pinned GGUF + tokenizer.json and verifies SHA-256 against
+# models/manifests/llms.json. No python3.
+#
+# Usage:
+#   scripts/fetch-llm-models.sh <alias> [<alias> ...]
+#   scripts/fetch-llm-models.sh --all
+#   scripts/fetch-llm-models.sh --list
+#
+# Or: `make fetch-llms [ALIASES=qwen-0.5b]`.
 set -euo pipefail
-cd "$(dirname "$0")/.."
-if [ $# -eq 0 ]; then
-    exec cargo xtask fetch --llms --all
-fi
-exec cargo xtask fetch --llms "$@"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+exec cargo run -q -p inferstream-fetch -- --llms "$@"

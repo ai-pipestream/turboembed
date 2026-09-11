@@ -1,34 +1,37 @@
 # Convenience targets for inferstream model artifact management.
+# No target requires an interpreter other than the Rust toolchain + Make.
 #
-#   make fetch-embeddings                       # all nvidia ONNX embedding aliases
-#   make fetch-embeddings ALIASES=minilm,mpnet  # a subset
-#   make verify-embeddings [ALIASES=...]        # offline SHA-256 check, no network
-#   make list-embeddings                        # aliases, repos, pinned revisions
-#   make update-embedding-manifest              # maintainers: re-pin + re-hash
-#   make test-fetch                             # unit tests for crates/xtask
+#   make test                               # cargo test --workspace
+#   make test-fetch                         # fetch-crate + xtask unit tests
 #
-#   make fetch-llms                             # GGUF + tokenizer.json (qwen-0.5b, qwen-7b)
-#   make fetch-llms ALIASES=qwen-0.5b           # smoke-sized 0.5B only
+#   make fetch-embeddings                   # all nvidia ONNX embedding aliases
+#   make fetch-embeddings ALIASES=minilm,mpnet
+#   make verify-embeddings [ALIASES=...]    # offline SHA-256 check, no network
+#   make list-embeddings                    # aliases, repos, pinned revisions
+#   make update-embedding-manifest          # maintainers: re-pin + re-hash
+#
+#   make fetch-llms                         # GGUF + tokenizer.json
+#   make fetch-llms ALIASES=qwen-0.5b
 #   make verify-llms [ALIASES=...]
 #   make list-llms
 #   make update-llm-manifest
 #
-#   make fetch-mlx                              # Apple MLX safetensors (native engine)
+#   make fetch-mlx                          # Apple native-MLX safetensors
 #   make fetch-mlx ALIASES=minilm,qwen-0.5b
 #   make verify-mlx [ALIASES=...]
 #   make list-mlx
 #   make update-mlx-manifest
 #
-# Intel OVMS IR is pre-exported (OpenVINO's own toolchain). xtask only
-# verifies SHA-256 against models/manifests/ovms-embeddings.json:
-#
-#   make verify-embeddings-intel [ALIASES=...] [OVMS_DIR=...]
+#   make verify-embeddings-intel            # offline SHA-256 of exported OVMS IR
 #   make list-embeddings-intel
 #
-# Everything is driven against committed JSON manifests (pinned HF revisions
-# + SHA-256 per file). See docs/fetching-models.md. Weights stay out of git.
+# Embeddings / LLMs / OVMS: `cargo run -p inferstream-fetch`.
+# Apple MLX weights: `cargo xtask` (crates/xtask) against models/manifests/mlx.json.
+# OVMS IR *export* is a one-off in contrib/offline-once/ (not invoked here).
 # Make never invokes python3.
 
+CARGO ?= cargo
+FETCH := $(CARGO) run -q -p inferstream-fetch --
 CARGO_XTASK ?= cargo xtask
 ALIASES ?=
 
@@ -38,40 +41,48 @@ space := $(empty) $(empty)
 ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 
 OVMS_DIR ?= /work/models/ovms-embedder
+HF_TOK_DIR ?= $(HOME)/ovms-models
+INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 
-.PHONY: fetch-embeddings verify-embeddings list-embeddings \
-	update-embedding-manifest test-fetch \
+.PHONY: test test-fetch \
+	fetch-embeddings verify-embeddings list-embeddings \
+	update-embedding-manifest \
 	fetch-llms verify-llms list-llms update-llm-manifest \
 	fetch-mlx verify-mlx list-mlx update-mlx-manifest \
-	fetch-embeddings-intel verify-embeddings-intel list-embeddings-intel \
-	update-embedding-manifest-intel
+	verify-embeddings-intel list-embeddings-intel \
+	update-embedding-manifest-intel \
+	setup-sycl build-intel-sycl
 
-fetch-embeddings:
-	$(CARGO_XTASK) fetch --embeddings $(ALIAS_ARGS)
-
-verify-embeddings:
-	$(CARGO_XTASK) verify --embeddings $(ALIAS_ARGS)
-
-list-embeddings:
-	$(CARGO_XTASK) list --embeddings
-
-update-embedding-manifest:
-	$(CARGO_XTASK) update-manifest --embeddings $(ALIAS_ARGS)
+test:
+	$(CARGO) test --workspace
 
 test-fetch:
-	cargo test -p inferstream-xtask
+	$(CARGO) test -p inferstream-fetch
+	$(CARGO) test -p inferstream-xtask
+
+fetch-embeddings:
+	$(FETCH) $(ALIAS_ARGS)
+
+verify-embeddings:
+	$(FETCH) $(ALIAS_ARGS) --verify-only
+
+list-embeddings:
+	$(FETCH) --list
+
+update-embedding-manifest:
+	$(FETCH) $(ALIAS_ARGS) --update-manifest
 
 fetch-llms:
-	$(CARGO_XTASK) fetch --llms $(ALIAS_ARGS)
+	$(FETCH) --llms $(ALIAS_ARGS)
 
 verify-llms:
-	$(CARGO_XTASK) verify --llms $(ALIAS_ARGS)
+	$(FETCH) --llms $(ALIAS_ARGS) --verify-only
 
 list-llms:
-	$(CARGO_XTASK) list --llms
+	$(FETCH) --llms --list
 
 update-llm-manifest:
-	$(CARGO_XTASK) update-manifest --llms $(ALIAS_ARGS)
+	$(FETCH) --llms $(ALIAS_ARGS) --update-manifest
 
 fetch-mlx:
 	$(CARGO_XTASK) fetch --mlx $(ALIAS_ARGS)
@@ -85,17 +96,23 @@ list-mlx:
 update-mlx-manifest:
 	$(CARGO_XTASK) update-manifest --mlx $(ALIAS_ARGS)
 
-fetch-embeddings-intel:
-	@echo "Intel OVMS IR is not downloaded by xtask; verify pre-exported artifacts:"
-	$(CARGO_XTASK) verify --ovms $(ALIAS_ARGS) --out $(OVMS_DIR)
+# Inject ggml-sycl sources into a local llama-cpp-sys-2 checkout so
+# GGML_SYCL=ON cmake succeeds. No python3. Needed before llamacpp-sycl.
+setup-sycl:
+	scripts/setup-llamacpp-sycl.sh
+
+# In-process SYCL binary. icpx drives the rustc link (device images).
+# No python3.
+build-intel-sycl: setup-sycl
+	scripts/build-intel.sh
 
 verify-embeddings-intel:
-	$(CARGO_XTASK) verify --ovms $(ALIAS_ARGS) --out $(OVMS_DIR)
+	$(FETCH) --ovms $(ALIAS_ARGS) --verify-only $(INTEL_ARGS)
 
 list-embeddings-intel:
-	$(CARGO_XTASK) list --ovms
+	$(FETCH) --ovms --list
 
 update-embedding-manifest-intel:
 	@echo "error: OpenVINO IR re-export is not invoked from Make (no Python)." >&2
-	@echo "Use OpenVINO's official conversion tools, then cargo xtask verify --ovms." >&2
+	@echo "See contrib/offline-once/; then cargo run -p inferstream-fetch -- --ovms --verify-only." >&2
 	@exit 1
