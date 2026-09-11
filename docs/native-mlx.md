@@ -17,8 +17,18 @@ inferstream-apple (Rust)
 
 `crates/backend-apple/build.rs` runs `swift build -c release` in
 `native/mlx-engine` on macOS and links `libMlxEngine.dylib` with an rpath
-into `.build/release`. Linux CI skips the Swift build; the crate compiles
-as a stub and every call is `Unavailable`.
+into `.build/release`. It then runs `native/mlx-engine/build-metallib.sh`
+(POSIX + `xcrun metal` / `metallib`, no Python) so `mlx.metallib` sits
+next to the dylib. MLX's C++ `current_binary_dir()` (`dladdr` on the Cmlx
+image) loads that file — SwiftPM does not emit it for a dylib consumed
+from Rust. Linux CI skips the Swift build; the crate compiles as a stub
+and every call is `Unavailable`.
+
+On a Mac whose `xcode-select` points at Command Line Tools, `build-metallib.sh`
+sets `DEVELOPER_DIR` to `/Applications/Xcode.app/Contents/Developer` (Xcode 26
+also needs `xcodebuild -downloadComponent MetalToolchain` once). `fence.metal`
+is skipped when the Metal dialect is older than MLX expects; the other
+default kernels still load.
 
 Weights are **local directories** (`models/mlx/<alias>/`) produced by
 `cargo xtask fetch --mlx` against `models/manifests/mlx.json` (pinned HF

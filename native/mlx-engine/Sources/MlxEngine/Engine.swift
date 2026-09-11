@@ -198,12 +198,11 @@ public func mlx_engine_create(_ err: UnsafeMutablePointer<UnsafeMutablePointer<C
     -> OpaquePointer?
 {
     do {
-        _ = try runBlocking {
+        let engine = try runBlocking {
             let engine = Engine()
             _ = try engine.ping()
             return engine
         }
-        let engine = Engine()
         return OpaquePointer(Unmanaged.passRetained(engine).toOpaque())
     } catch {
         err?.pointee = strdupError(String(describing: error))

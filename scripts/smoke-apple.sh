@@ -45,6 +45,24 @@ if pgrep -P "$SERVER_PID" -l 2>/dev/null | grep -qi python; then
 fi
 echo "--- no python child of pid $SERVER_PID ---"
 
+BIN=./target/debug/inferstream-apple
+if command -v otool >/dev/null; then
+    if otool -L "$BIN" | grep -qi python; then
+        echo "error: inferstream-apple links a Python dylib" >&2
+        otool -L "$BIN" >&2
+        exit 1
+    fi
+    echo "--- otool -L (no Python) ---"
+    otool -L "$BIN" | head -20
+fi
+if command -v vmmap >/dev/null; then
+    if vmmap "$SERVER_PID" 2>/dev/null | grep -qiE 'Python\.framework|libpython|python[0-9]'; then
+        echo "error: vmmap shows a Python image in inferstream-apple" >&2
+        exit 1
+    fi
+    echo "--- vmmap: no Python image ---"
+fi
+
 echo "--- ListModels ---"
 grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
     inferstream.v1.InferstreamService/ListModels
