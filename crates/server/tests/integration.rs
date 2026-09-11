@@ -46,11 +46,18 @@ backend = "mock"
 /// guard that shuts the server down on drop.
 async fn start_server(config_text: &str) -> (GrpcInferenceServiceClient<Channel>, ServerGuard) {
     let config = Config::from_toml(config_text).expect("test config parses");
+    let registry = inferstream_server::build_registry(&config, &inferstream_server::mock_factory())
+        .expect("registry builds");
     let (bound_tx, bound_rx) = tokio::sync::oneshot::channel();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-    let handle = tokio::spawn(inferstream_server::serve(config, bound_tx, async move {
-        let _ = shutdown_rx.await;
-    }));
+    let handle = tokio::spawn(inferstream_server::serve(
+        config,
+        registry,
+        bound_tx,
+        async move {
+            let _ = shutdown_rx.await;
+        },
+    ));
     let addr = bound_rx.await.expect("server reports bound address");
     let channel = Channel::from_shared(format!("http://{addr}"))
         .unwrap()

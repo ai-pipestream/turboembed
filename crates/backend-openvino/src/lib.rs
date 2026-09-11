@@ -1,9 +1,20 @@
 //! OpenVINO backend stub for inferstream.
 //!
-//! Targets Intel CPU / integrated & discrete GPU / NPU through the OpenVINO
-//! runtime (via the `openvino` Rust bindings). This is a *backend* inside the
-//! inferstream façade, not a dependency on OpenVINO Model Server — inferstream
-//! owns the gRPC surface, auth, and routing; OpenVINO only executes graphs.
+//! Targets Intel CPU / integrated & discrete GPU (Arc/Battlemage) / NPU
+//! through the OpenVINO runtime (via the `openvino` Rust bindings). This is
+//! a *backend* inside the inferstream façade, not a dependency on OpenVINO
+//! Model Server — inferstream owns the gRPC surface, auth, and routing;
+//! OpenVINO only executes graphs.
+//!
+//! **Environment:** the OpenVINO runtime resolves its plugins at load time.
+//! On oneAPI installs, `source /opt/intel/oneapi/setvars.sh` (or the
+//! standalone OpenVINO `setupvars.sh`) must run in the shell/service unit
+//! that builds and launches `inferstream-intel`, and GPU/NPU targets need the
+//! Level Zero + compute-runtime packages on the host.
+//!
+//! On `inferstream-intel`, this backend competes with llama.cpp-SYCL in the
+//! planned Battlemage bake-off (see README); both stay feature-gated so the
+//! bake-off is a config change, not a rebuild of the façade.
 //!
 //! This crate currently compiles without the OpenVINO runtime and reports
 //! `Unavailable` at runtime.

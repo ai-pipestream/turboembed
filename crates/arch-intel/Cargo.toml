@@ -1,0 +1,31 @@
+[package]
+name = "inferstream-arch-intel"
+description = "inferstream-intel: Intel arch binary — llama.cpp-SYCL (oneAPI/Level Zero) and OpenVINO for CPU/GPU/NPU"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "inferstream-intel"
+path = "src/main.rs"
+
+[features]
+# Stub crates compile everywhere; the routing surface is on by default. Real
+# engine links (SYCL llama.cpp build, OpenVINO runtime) are host requirements
+# documented in the backend crates, not extra cargo features yet.
+default = ["llamacpp", "openvino", "ort"]
+llamacpp = ["dep:inferstream-backend-llamacpp"]
+openvino = ["dep:inferstream-backend-openvino"]
+ort = ["dep:inferstream-backend-ort"]
+
+[dependencies]
+inferstream-server = { workspace = true }
+inferstream-backend = { workspace = true }
+inferstream-backend-mock = { workspace = true }
+inferstream-backend-llamacpp = { workspace = true, optional = true }
+inferstream-backend-openvino = { workspace = true, optional = true }
+inferstream-backend-ort = { workspace = true, optional = true }
+tokio = { workspace = true }

@@ -89,26 +89,78 @@ pub struct ModelConfig {
     /// Backend kind serving this model.
     pub backend: BackendKind,
 
-    /// Filesystem path to model artifacts (unused by `mock`).
+    /// Filesystem path to model artifacts (GGUF file, `.onnx`, IR `.xml`,
+    /// MLX model directory; unused by `mock` and `trt-llm`).
     #[serde(default)]
     pub path: Option<String>,
 
-    /// Backend-specific device hint (e.g. OpenVINO `"CPU"` / `"GPU"` / `"NPU"`).
+    /// Backend-specific device hint. OpenVINO: `"CPU"` / `"GPU"` / `"NPU"` /
+    /// `"AUTO"`. llama.cpp: `"cuda"` / `"sycl"` / `"metal"` / `"vulkan"` /
+    /// `"cpu"` (must match how the llama.cpp library was built).
     #[serde(default)]
     pub device: Option<String>,
+
+    /// TensorRT-LLM: directory containing the compiled engine
+    /// (`rank0.engine` + `config.json`). Required for `backend = "trt-llm"`.
+    #[serde(default)]
+    pub engine_dir: Option<String>,
+
+    /// Tokenizer artifacts directory (TRT-LLM and other engines that
+    /// tokenize server-side when clients send `text` instead of ids).
+    #[serde(default)]
+    pub tokenizer_dir: Option<String>,
+
+    /// Maximum concurrent batch size the engine schedules (TRT-LLM
+    /// `max_batch_size`; llama.cpp `n_parallel`).
+    #[serde(default)]
+    pub max_batch_size: Option<u32>,
+
+    /// Engine compute dtype hint, e.g. `"fp16"`, `"bf16"`, `"fp8"`, `"int8"`.
+    #[serde(default)]
+    pub dtype: Option<String>,
+
+    /// llama.cpp: layers to offload to the accelerator (`n_gpu_layers`);
+    /// omit for full offload.
+    #[serde(default)]
+    pub n_gpu_layers: Option<u32>,
 }
 
-/// Backend kinds a model can route to. Engine backends are compile-gated;
-/// routing to one that was not compiled in fails at startup with a clear
-/// error instead of at request time.
+/// Backend kinds a model can route to.
+///
+/// Which kinds are actually constructible depends on the binary: each arch
+/// binary (`inferstream-nvidia` / `inferstream-intel` / `inferstream-apple`)
+/// registers a factory for the engines it compiled in. Routing to a kind the
+/// binary does not support fails at startup with a clear error, never at
+/// request time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum BackendKind {
+    /// Deterministic mock; available in every binary.
     Mock,
+    /// TensorRT-LLM in-process Executor (NVIDIA peak path).
+    TrtLlm,
+    /// llama.cpp / GGUF; device chosen by `device` + how the lib was built.
     LlamaCpp,
+    /// ONNX Runtime.
     Ort,
+    /// OpenVINO (Intel CPU / GPU / NPU).
     Openvino,
-    Apple,
+    /// Apple MLX (native macOS host only).
+    Mlx,
+}
+
+impl BackendKind {
+    /// The kebab-case name used in config files, for error messages.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Mock => "mock",
+            Self::TrtLlm => "trt-llm",
+            Self::LlamaCpp => "llama-cpp",
+            Self::Ort => "ort",
+            Self::Openvino => "openvino",
+            Self::Mlx => "mlx",
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -178,12 +230,29 @@ mod tests {
             name = "llama"
             backend = "llama-cpp"
             path = "/models/llama.gguf"
+            device = "cuda"
+            n_gpu_layers = 99
+
+            [[models]]
+            name = "llama-70b"
+            backend = "trt-llm"
+            engine_dir = "/engines/llama-70b-fp8"
+            tokenizer_dir = "/engines/llama-70b-fp8/tokenizer"
+            max_batch_size = 64
+            dtype = "fp8"
             "#,
         )
         .unwrap();
         assert_eq!(config.listen, "127.0.0.1:9000");
-        assert_eq!(config.models.len(), 2);
+        assert_eq!(config.models.len(), 3);
         assert_eq!(config.models[1].backend, BackendKind::LlamaCpp);
+        assert_eq!(config.models[1].device.as_deref(), Some("cuda"));
+        assert_eq!(config.models[2].backend, BackendKind::TrtLlm);
+        assert_eq!(
+            config.models[2].engine_dir.as_deref(),
+            Some("/engines/llama-70b-fp8")
+        );
+        assert_eq!(config.models[2].max_batch_size, Some(64));
         assert!(config.auth.effective_tokens().contains("secret-1"));
     }
 

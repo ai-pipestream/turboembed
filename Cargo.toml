@@ -4,11 +4,15 @@ members = [
     "crates/protocol",
     "crates/backend",
     "crates/backend-mock",
+    "crates/backend-trtllm",
     "crates/backend-llamacpp",
     "crates/backend-ort",
     "crates/backend-openvino",
     "crates/backend-apple",
     "crates/server",
+    "crates/arch-nvidia",
+    "crates/arch-intel",
+    "crates/arch-apple",
 ]
 
 [workspace.package]
@@ -49,10 +53,12 @@ bytes = "1"
 inferstream-protocol = { path = "crates/protocol" }
 inferstream-backend = { path = "crates/backend" }
 inferstream-backend-mock = { path = "crates/backend-mock" }
+inferstream-backend-trtllm = { path = "crates/backend-trtllm" }
 inferstream-backend-llamacpp = { path = "crates/backend-llamacpp" }
 inferstream-backend-ort = { path = "crates/backend-ort" }
 inferstream-backend-openvino = { path = "crates/backend-openvino" }
 inferstream-backend-apple = { path = "crates/backend-apple" }
+inferstream-server = { path = "crates/server" }
 
 [profile.release]
 lto = "thin"

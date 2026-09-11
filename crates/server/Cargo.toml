@@ -12,24 +12,12 @@ rust-version.workspace = true
 name = "inferstream"
 path = "src/main.rs"
 
-[features]
-default = []
-# Optional engine backends. All are compile-time stubs in v0.1 but the feature
-# gates establish the build matrix: Linux CI builds default features only.
-llamacpp = ["dep:inferstream-backend-llamacpp"]
-ort = ["dep:inferstream-backend-ort"]
-openvino = ["dep:inferstream-backend-openvino"]
-# macOS-host-only backend; never enabled in Linux CI.
-apple = ["dep:inferstream-backend-apple"]
-
 [dependencies]
+# Engine backends live in the arch binaries (crates/arch-*); this shared
+# crate only knows the mock backend and the BackendFactory seam.
 inferstream-protocol = { workspace = true }
 inferstream-backend = { workspace = true }
 inferstream-backend-mock = { workspace = true }
-inferstream-backend-llamacpp = { workspace = true, optional = true }
-inferstream-backend-ort = { workspace = true, optional = true }
-inferstream-backend-openvino = { workspace = true, optional = true }
-inferstream-backend-apple = { workspace = true, optional = true }
 
 tonic = { workspace = true }
 prost = { workspace = true }

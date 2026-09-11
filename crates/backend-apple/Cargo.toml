@@ -1,6 +1,6 @@
 [package]
 name = "inferstream-backend-apple"
-description = "Apple MLX / Metal backend stub for inferstream — macOS host only"
+description = "Apple MLX backend for inferstream — native macOS hosts only"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

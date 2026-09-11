@@ -1,0 +1,33 @@
+[package]
+name = "inferstream-arch-nvidia"
+description = "inferstream-nvidia: NVIDIA arch binary — TensorRT-LLM Executor peak path, llama.cpp-CUDA fallback, ONNX Runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "inferstream-nvidia"
+path = "src/main.rs"
+
+[features]
+# The stub crates compile everywhere, so the routing surface is enabled by
+# default; only the actual GPU runtime link (trtllm-sys) needs a CUDA +
+# TensorRT-LLM host and is opt-in.
+default = ["trtllm", "llamacpp", "ort"]
+trtllm = ["dep:inferstream-backend-trtllm"]
+# Real Executor link — requires CUDA toolchain + TRT-LLM libs; not in CI.
+trtllm-sys = ["trtllm", "inferstream-backend-trtllm/trtllm-sys"]
+llamacpp = ["dep:inferstream-backend-llamacpp"]
+ort = ["dep:inferstream-backend-ort"]
+
+[dependencies]
+inferstream-server = { workspace = true }
+inferstream-backend = { workspace = true }
+inferstream-backend-mock = { workspace = true }
+inferstream-backend-trtllm = { workspace = true, optional = true }
+inferstream-backend-llamacpp = { workspace = true, optional = true }
+inferstream-backend-ort = { workspace = true, optional = true }
+tokio = { workspace = true }
