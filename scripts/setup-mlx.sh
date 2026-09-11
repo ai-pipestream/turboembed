@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 uv python install 3.12
-uv venv --python 3.12 .venv
+uv venv --python 3.12 --allow-existing .venv
 uv pip install --python .venv/bin/python mlx mlx-lm
 
 # Embedding models (MiniLM & friends) need mlx-embeddings; best-effort since
