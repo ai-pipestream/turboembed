@@ -28,13 +28,16 @@ name = "mock-embed"
 backend = "mock"
 
 # PRIMARY: real ONNX embedding model already on krick (TEI's HF cache).
-# The tokenizer.json is auto-discovered one directory above the onnx file.
+# tokenizer_dir points at the snapshot root so the server answers
+# inferstream.v1 Tokenize/Detokenize locally with the model's real HF
+# tokenizer (the ORT engine also finds it for the embedding path).
 # Flip device = "cpu" to bring the model up before the CUDA EP is validated.
 [[models]]
 name = "minilm-l6-v2"
 backend = "ort"
 device = "cuda"
 path = "/work/tei-model-cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/onnx/model.onnx"
+tokenizer_dir = "/work/tei-model-cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
 pooling = "mean"
 normalize = true
 max_seq_len = 256
