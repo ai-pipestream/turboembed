@@ -132,6 +132,11 @@ pub struct ModelConfig {
     #[serde(default)]
     pub n_gpu_layers: Option<u32>,
 
+    /// llama.cpp: context window (`n_ctx`); omit for 4096 capped to the
+    /// model's training context.
+    #[serde(default)]
+    pub n_ctx: Option<u32>,
+
     /// Embedding backends (ort): pooling strategy, `"mean"` (default) or
     /// `"cls"`.
     #[serde(default)]
