@@ -1,0 +1,48 @@
+[package]
+name = "inferstream-server"
+description = "inferstream: multi-backend KServe OIP V2 gRPC streaming inference façade"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "inferstream"
+path = "src/main.rs"
+
+[features]
+default = []
+# Optional engine backends. All are compile-time stubs in v0.1 but the feature
+# gates establish the build matrix: Linux CI builds default features only.
+llamacpp = ["dep:inferstream-backend-llamacpp"]
+ort = ["dep:inferstream-backend-ort"]
+openvino = ["dep:inferstream-backend-openvino"]
+# macOS-host-only backend; never enabled in Linux CI.
+apple = ["dep:inferstream-backend-apple"]
+
+[dependencies]
+inferstream-protocol = { workspace = true }
+inferstream-backend = { workspace = true }
+inferstream-backend-mock = { workspace = true }
+inferstream-backend-llamacpp = { workspace = true, optional = true }
+inferstream-backend-ort = { workspace = true, optional = true }
+inferstream-backend-openvino = { workspace = true, optional = true }
+inferstream-backend-apple = { workspace = true, optional = true }
+
+tonic = { workspace = true }
+prost = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+clap = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

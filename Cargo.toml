@@ -1,0 +1,58 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/protocol",
+    "crates/backend",
+    "crates/backend-mock",
+    "crates/backend-llamacpp",
+    "crates/backend-ort",
+    "crates/backend-openvino",
+    "crates/backend-apple",
+    "crates/server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://example.invalid/inferstream"
+authors = ["inferstream contributors"]
+rust-version = "1.85"
+
+[workspace.dependencies]
+# gRPC / protobuf
+tonic = "0.12"
+tonic-build = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+
+# async runtime
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "net", "signal"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# config / cli
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+clap = { version = "4", features = ["derive", "env"] }
+
+# misc
+thiserror = "2"
+bytes = "1"
+
+# workspace crates
+inferstream-protocol = { path = "crates/protocol" }
+inferstream-backend = { path = "crates/backend" }
+inferstream-backend-mock = { path = "crates/backend-mock" }
+inferstream-backend-llamacpp = { path = "crates/backend-llamacpp" }
+inferstream-backend-ort = { path = "crates/backend-ort" }
+inferstream-backend-openvino = { path = "crates/backend-openvino" }
+inferstream-backend-apple = { path = "crates/backend-apple" }
+
+[profile.release]
+lto = "thin"

@@ -1,0 +1,14 @@
+[package]
+name = "inferstream-backend-llamacpp"
+description = "llama.cpp (GGUF) backend stub for inferstream — embeddings and token streaming"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+inferstream-protocol = { workspace = true }
+inferstream-backend = { workspace = true }
+async-trait = { workspace = true }

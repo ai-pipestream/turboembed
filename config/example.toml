@@ -1,0 +1,50 @@
+# inferstream example configuration.
+#
+# Run with:  cargo run -p inferstream-server -- --config config/example.toml
+
+# Address the gRPC server binds. Pick an uncommon port to avoid clashes.
+listen = "127.0.0.1:8461"
+
+[auth]
+# "none" for local development, "bearer" for static API keys.
+# With mode = "bearer", tokens come from bearer_tokens below and/or the
+# INFERSTREAM_API_KEYS environment variable (comma-separated) — prefer the
+# env var so secrets stay out of files.
+mode = "none"
+# bearer_tokens = ["dev-key-change-me"]
+
+# Model routing table: model name -> backend that serves it.
+# Backends: "mock" (always built), "llama-cpp", "ort", "openvino", "apple"
+# (each compile-gated behind the same-named cargo feature; "llama-cpp" uses
+# feature "llamacpp"). Routing to a backend that was not compiled in fails at
+# startup with the feature flag to enable.
+
+[[models]]
+name = "mock-embed"
+backend = "mock"
+
+[[models]]
+name = "mock-generate"
+backend = "mock"
+
+# [[models]]
+# name = "nomic-embed-text"
+# backend = "llama-cpp"
+# path = "/models/nomic-embed-text-v1.5.Q8_0.gguf"
+
+# [[models]]
+# name = "resnet50"
+# backend = "ort"
+# path = "/models/resnet50.onnx"
+
+# [[models]]
+# name = "bert-intel"
+# backend = "openvino"
+# path = "/models/bert.xml"
+# device = "NPU"
+
+# macOS host only — see README "Apple host vs Linux containers".
+# [[models]]
+# name = "mlx-llama"
+# backend = "apple"
+# path = "/models/mlx-llama"

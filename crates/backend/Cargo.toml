@@ -1,0 +1,18 @@
+[package]
+name = "inferstream-backend"
+description = "Backend trait, error types, and model routing registry for inferstream"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+inferstream-protocol = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
