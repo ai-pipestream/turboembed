@@ -1,6 +1,10 @@
 /target
 .venv-cuda-libs/
 /.libs/
+# Local llama-cpp-sys-2 checkout with ggml-sycl injected
+# (scripts/setup-llamacpp-sycl.sh). Not committed — generated per host.
+/vendor/
+/.cargo/
 # MLX venv + fetched tokenizer artifacts (scripts/setup-mlx.sh)
 /.venv/
 # Fetched model artifacts stay out of git — but the SHA-256 manifests are

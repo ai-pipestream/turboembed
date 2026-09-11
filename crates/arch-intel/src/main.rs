@@ -5,11 +5,11 @@
 //! family; no host OpenVINO install needed — this is the first working path
 //! on OVMS-in-Docker hosts like krick-1). `backend = "openvino"` is the
 //! in-process runtime (stub until the OpenVINO runtime is linked). Secondary:
-//! llama.cpp built with `GGML_SYCL` (oneAPI / Level Zero, Docker-proven) for
-//! GGUF models — the other side of the planned Battlemage bake-off (see
-//! README). In-process engines need the oneAPI environment sourced
-//! (`source /opt/intel/oneapi/setvars.sh`) in the build shell and in the
-//! service unit that launches this binary; the ovms client backend does not.
+//! llama.cpp built with `GGML_SYCL` (oneAPI / Level Zero) for GGUF models,
+//! **in-process** behind `--features llamacpp-sycl` (same shape as nvidia
+//! CUDA). Tokenize is the GGUF vocabulary. In-process SYCL needs the oneAPI
+//! environment sourced (`source /opt/intel/oneapi/setvars.sh`) in the build
+//! shell and in the service unit; the ovms client backend does not.
 //! ONNX Runtime covers plain ONNX models; the mock backend is always
 //! available for wire-path smoke tests.
 

@@ -22,6 +22,10 @@ runtime = ["dep:llama-cpp-2", "dep:tokio", "dep:tokio-stream"]
 cuda = ["runtime", "llama-cpp-2/cuda"]
 # Metal build (macOS).
 metal = ["runtime", "llama-cpp-2/metal"]
+# In-process SYCL (Intel oneAPI / Level Zero). llama-cpp-2 forwards
+# GGML_SYCL=ON via env (see scripts/setup-llamacpp-sycl.sh); this feature
+# only unblocks device = "sycl" so we never silently fall back to CPU.
+sycl = ["runtime"]
 
 [dependencies]
 inferstream-protocol = { workspace = true }

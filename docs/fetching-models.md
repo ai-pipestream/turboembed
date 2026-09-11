@@ -5,9 +5,13 @@ the **nvidia** arch are fetched by one Python script against a committed
 manifest, so every byte that lands on a host is revision-pinned and
 hash-verified:
 
-- **Script:** `scripts/fetch_models.py` (stdlib only — no `huggingface_hub`
-  needed; `scripts/fetch-embedding-models.sh` and
-  `scripts/fetch-llm-models.sh` survive as thin wrappers).
+- **Embedding script:** `scripts/fetch_models.py` (stdlib only — no
+  `huggingface_hub`; nvidia ONNX path). `scripts/fetch-embedding-models.sh`
+  is a thin wrapper.
+- **LLM script:** `scripts/fetch-llms.sh` (curl + `sha256sum` + jq — **no
+  python3**). `scripts/fetch-llm-models.sh` is a thin wrapper. `make
+  fetch-llms` / `verify-llms` / `list-llms` and `scripts/smoke-llms.sh`
+  must not need python3.
 - **Embedding manifest:** `models/manifests/embeddings.json` — for every
   alias, the Hugging Face repo, the **exact commit revision** (never a
   floating branch), and per-file **SHA-256 + size** for `onnx/model.onnx`
@@ -32,7 +36,7 @@ make list-embeddings                         # aliases, repos, pinned revisions
 
 make fetch-llms                              # qwen-0.5b + qwen-7b GGUF + tokenizers
 make fetch-llms ALIASES=qwen-0.5b            # smoke-sized 0.5B only (~650 MiB + tokenizer)
-scripts/fetch_models.py --llms default-llm   # same files as qwen-0.5b (alias_of)
+scripts/fetch-llms.sh default-llm            # same files as qwen-0.5b (alias_of)
 make list-llms
 ```
 
@@ -59,7 +63,7 @@ make verify-embeddings ALIASES=bge-m3        # subset
 scripts/fetch_models.py --all --verify-only  # same, direct
 make verify-llms                             # every LLM alias
 make verify-llms ALIASES=qwen-0.5b
-scripts/fetch_models.py --llms --all --verify-only
+scripts/fetch-llms.sh --all --verify-only
 ```
 
 No network: checks that every manifest file exists on disk with a matching
@@ -110,7 +114,7 @@ When adding an alias or deliberately moving to newer upstream artifacts:
 | **nvidia (llama.cpp LLMs)** | **Fully pinned + hashed** — `qwen-0.5b` (Q8_0, ~644 MiB) and `qwen-7b` (official Q5_K_M split into two shards, ~5.1 GiB). `default-llm` on nvidia uses the GGUF already on krick (`/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf`); `make fetch-llms ALIASES=qwen-0.5b` puts the same pin into `models/gguf/qwen-0.5b/` for other hosts. The 7B catalog path is the first shard; llama.cpp loads the second from the same directory. |
 | **apple (MLX)** | Runtime-fetched by design: the MLX bridge downloads HF repos through `huggingface_hub` into the HF cache on first use (4-bit conversions can't be pre-fetched as single files the same way). Each manifest's `mlx_repos` section records each alias's repo and the **expected pinned revision** for auditability; re-pin with `--update-manifest` / `--llms --update-manifest`. LLM Tokenize on apple uses the fetched `tokenizer.json` (`models/gguf/<alias>/`), which `scripts/setup-mlx.sh` also writes for `qwen-0.5b` and `qwen-7b`. |
 | **intel (OVMS embeddings)** | **Fully pinned + hashed** — all 13 embedding aliases, via `scripts/export_ovms_embeddings.py` against `models/manifests/ovms-embeddings.json`. Unlike nvidia there is no prebuilt IR to download: the script **exports** the OpenVINO FP16 IR + openvino tokenizer + HF `tokenizer.json` from the pinned HF revision (pooling + L2 normalize baked into the graph; `nomic-embed-text` is imported from Nomic's official ONNX export because NomicBERT can't be torch-traced) and verifies every produced file's SHA-256 against the manifest. The manifest also records the exact export command and package versions (`export_environment`) — a hash mismatch with a different toolchain is a signal to inspect, not necessarily corruption. Run `make fetch-embeddings-intel [ALIASES=…] [OVMS_DIR=…] [HF_TOK_DIR=…]` (needs an export venv — see the script docstring) and `make verify-embeddings-intel` for the offline check. Registration + GPU-placement walkthrough: `docs/adding-ovms-embedding-pipelines.md`. |
-| **intel (llama.cpp LLMs)** | No GGUF fetch: `default-llm` and `qwen-7b` are server-client to the host llama-server (`endpoint`, krick-1 `:8085`). `qwen-0.5b` is **unsupported** on intel (no dedicated 0.5B SYCL server). Fetch the GGUF on nvidia (or any host that will run its own `llama-server`) if you want to point a catalog override at a different weight. |
+| **intel (llama.cpp LLMs)** | **Same GGUF fetch as nvidia** — `make fetch-llms` lands Qwen2.5-0.5B Q8_0 and Qwen2.5-7B-Instruct Q5_K_M into `models/gguf/<alias>/`. Catalog intel entries are **in-process SYCL** (`path`, no `endpoint`). The host `vlm-server` on `:8085` is not on this path. |
 
 ## Manifest format
 

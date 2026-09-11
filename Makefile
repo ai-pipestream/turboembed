@@ -13,10 +13,9 @@
 #   make list-llms
 #   make update-llm-manifest                    # maintainers: re-pin + re-hash
 #
-# Intel (OVMS) equivalents — export OpenVINO IR + tokenizers at pinned HF
-# revisions and verify SHA-256 against models/manifests/ovms-embeddings.json
-# (scripts/export_ovms_embeddings.py; needs a venv with torch/transformers/
-# openvino/openvino-tokenizers — see the script docstring):
+# Intel OVMS embedding export is an optional offline contrib (Python +
+# torch/openvino). Not a Make default and not on the runtime/hot path.
+# `make fetch-llms` / smoke do not call it.
 #
 #   make fetch-embeddings-intel [ALIASES=...] [OVMS_DIR=...] [HF_TOK_DIR=...]
 #   make verify-embeddings-intel [ALIASES=...]
@@ -26,6 +25,8 @@
 # Everything is driven against committed manifests (pinned HF revisions +
 # SHA-256 per file). See docs/fetching-models.md. Weights stay out of git.
 
+# Embedding ONNX fetch still uses the stdlib Python helper (nvidia hosts).
+# LLM fetch / verify / list are shell + sha256sum — no python3.
 PYTHON ?= python3
 ALIASES ?=
 
@@ -42,7 +43,8 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 	update-embedding-manifest test-fetch \
 	fetch-llms verify-llms list-llms update-llm-manifest \
 	fetch-embeddings-intel verify-embeddings-intel list-embeddings-intel \
-	update-embedding-manifest-intel
+	update-embedding-manifest-intel \
+	setup-sycl
 
 fetch-embeddings:
 	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS)
@@ -57,19 +59,32 @@ update-embedding-manifest:
 	$(PYTHON) scripts/fetch_models.py $(ALIAS_ARGS) --update-manifest
 
 test-fetch:
+	scripts/test-fetch-llms.sh
 	$(PYTHON) -m unittest discover -s scripts -p 'test_*.py' -v
 
 fetch-llms:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS)
+	scripts/fetch-llms.sh $(ALIAS_ARGS)
 
 verify-llms:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS) --verify-only
+	scripts/fetch-llms.sh --verify-only $(ALIAS_ARGS)
 
 list-llms:
-	$(PYTHON) scripts/fetch_models.py --llms --list
+	scripts/fetch-llms.sh --list
 
+# Re-pin is a maintainer action. The committed manifest is the source of
+# truth; this target is intentionally not a Python default path. Use the
+# offline optional helper only when deliberately moving pins:
+#   python3 scripts/fetch_models.py --llms --update-manifest
 update-llm-manifest:
-	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS) --update-manifest
+	@echo "error: make update-llm-manifest is not a runtime/default path." >&2
+	@echo "Re-pin offline with: python3 scripts/fetch_models.py --llms --update-manifest" >&2
+	@echo "(optional contrib; fetch-llms / smoke do not need python3)" >&2
+	@exit 1
+
+# Inject ggml-sycl sources into a local llama-cpp-sys-2 checkout so
+# GGML_SYCL=ON cmake succeeds. No python3. Needed before llamacpp-sycl.
+setup-sycl:
+	scripts/setup-llamacpp-sycl.sh
 
 fetch-embeddings-intel:
 	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) $(INTEL_ARGS)
