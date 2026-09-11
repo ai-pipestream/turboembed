@@ -29,9 +29,15 @@ listen = "0.0.0.0:8461"
 # arch (BERT / XLM-RoBERTa models mlx-embeddings loads directly from HF);
 # append any of them here — the bridge downloads on first use. `mpnet` and
 # `nomic-embed-text` have NO apple resolution (mlx-embeddings lacks those
-# architectures). Smoke every serving model with
+# architectures). Smoke every serving embedder with
 # scripts/smoke-embeddings.sh.
-serve = ["minilm", "minilm-l12", "bge-small"]
+#
+# `default-llm` is mlx-lm Qwen2.5-0.5B 4-bit (~280 MB on first StreamInfer).
+# Tokenize needs models/gguf/qwen-0.5b/tokenizer.json — `scripts/setup-mlx.sh`
+# or `make fetch-llms ALIASES=qwen-0.5b` writes it. Do not add qwen-7b here
+# until that tokenizer + the ~4 GB MLX repo are wanted. Smoke generation
+# with scripts/smoke-llms.sh.
+serve = ["minilm", "minilm-l12", "bge-small", "default-llm"]
 
 [auth]
 mode = "bearer"
@@ -51,14 +57,13 @@ backend = "mock"
 # normalize = true
 # max_batch_size = 32
 
-# MLX generation model (streaming ModelStreamInfer, one BYTES "token" chunk
-# per decoded token) — LLM aliases are deferred from the catalog for now
-# (see the default-llm stub in config/catalog.toml). Qwen2.5-0.5B 4-bit is
-# ~280 MB. Uncomment to serve it explicitly.
+# MLX generation is the `default-llm` alias above (mlx-lm stream_generate
+# on Metal, not GGUF-on-MLX). The previous explicit name:
 #[[models]]
 #name = "qwen2.5-0.5b"
 #backend = "mlx"
 #path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+#tokenizer_dir = "models/gguf/qwen-0.5b"
 
 # GGUF via llama.cpp-Metal on the same host.
 #[[models]]

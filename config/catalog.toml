@@ -34,7 +34,8 @@
 #           + tokenizer from HF at a pinned revision and verifies SHA-256
 #           against models/manifests/embeddings.json (see
 #           docs/fetching-models.md); then add the alias to `serve` in
-#           config/nvidia.toml.
+#           config/nvidia.toml. LLM GGUFs: make fetch-llms against
+#           models/manifests/llms.json into models/gguf/<alias>/.
 #   intel   OVMS DAG pipelines on the Battlemage GPU (krick-1 container
 #           "protomolt-embedder-ovms"). Only pipelines that exist upstream
 #           are mapped — currently every embedding alias in this catalog.
@@ -415,26 +416,102 @@ upstream_model = "nomic_embed_text_pipeline"
 tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_nomic_embed_text"
 
 # ---------------------------------------------------------------------------
-# Generative LLM aliases — DEFERRED (stub). Embedding aliases are the current
-# scope; the generation catalog lands in a later pass. The engine paths below
-# were validated in the previous iteration and can be re-enabled by
-# uncommenting and adding "default-llm" to an arch config's `serve` list.
+# Generative LLM aliases
+#
+# Clients say `model_name: "default-llm"` / `"qwen-0.5b"` / `"qwen-7b"` and
+# each arch loads its real generation engine. No fakes: an unsupported arch
+# has no sub-table and serving the alias there fails at startup naming the
+# arches that do have it.
+#
+#   nvidia  llama.cpp-CUDA in-process GGUF. `default-llm` uses the Qwen2.5-
+#           0.5B Q8_0 already on krick at /work/models/gguf/ (validated
+#           StreamInfer on that host). `qwen-0.5b` / `qwen-7b` point at
+#           models/gguf/<alias>/ — populate with
+#               make fetch-llms [ALIASES=qwen-0.5b,qwen-7b]
+#           (scripts/fetch_models.py --llms) which downloads the official
+#           Qwen GGUF + tokenizer.json at a pinned HF revision and verifies
+#           SHA-256 against models/manifests/llms.json. Tokenize answers
+#           from the GGUF vocabulary (no tokenizer_dir required).
+#   intel   llama.cpp-SYCL in *server-client* mode (in-process SYCL is not
+#           compiled). `default-llm` and `qwen-7b` both forward to the host
+#           llama-server (krick-1: container vlm-server on :8085). That
+#           server today loads Qwen2.5-VL-7B Q4_K_M — Tokenize / StreamInfer
+#           work against whatever model the server has loaded; they are
+#           *not* a promise of a 0.5B or text-only 7B weight. `qwen-0.5b`
+#           has no intel resolution (no dedicated 0.5B SYCL server; do not
+#           pretend the VL-7B endpoint is a 0.5B). Override `endpoint` per
+#           host with INFERSTREAM_LLAMACPP_ENDPOINT.
+#   apple   mlx-lm through the persistent Python bridge (real Metal
+#           stream_generate, not GGUF-on-MLX). tokenizer_dir is the HF
+#           tokenizer.json fetched by `make fetch-llms` / setup-mlx.sh so
+#           Tokenize/Detokenize answer locally without a Python hop.
 # ---------------------------------------------------------------------------
 
-# [models.default-llm]
-# description = "small instruct LLM for streaming generation (Qwen2.5 class)"
-#
-# [models.default-llm.nvidia]
-# backend = "llama-cpp"
-# device = "cuda"
-# path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
-# n_ctx = 4096
-#
-# [models.default-llm.intel]
-# backend = "llama-cpp"
-# device = "sycl"
-# endpoint = "http://127.0.0.1:8085"
-#
-# [models.default-llm.apple]
-# backend = "mlx"
-# path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+# default-llm — the recommended default generation alias. Smoke-sized on
+# nvidia/apple (Qwen2.5-0.5B); on intel the only live path is the host
+# llama-server (currently a 7B-class SYCL model). Same client name, honest
+# per-arch artifact.
+[models.default-llm]
+description = "default instruct LLM for streaming generation (Qwen2.5-0.5B on nvidia/apple; host llama-server on intel)"
+
+[models.default-llm.nvidia]
+backend = "llama-cpp"
+device = "cuda"
+path = "/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf"
+n_ctx = 4096
+
+[models.default-llm.intel]
+backend = "llama-cpp"
+device = "sycl"
+endpoint = "http://127.0.0.1:8085"
+
+[models.default-llm.apple]
+backend = "mlx"
+path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+tokenizer_dir = "models/gguf/qwen-0.5b"
+max_batch_size = 1
+
+# qwen-0.5b — named smoke-friendly Qwen2.5-0.5B-Instruct. Same weights as
+# default-llm on nvidia/apple (fetched dest on nvidia; MLX 4-bit on apple).
+# Unsupported on intel: there is no live 0.5B SYCL server, and pointing this
+# alias at the 7B llama-server would be a lie.
+[models.qwen-0.5b]
+description = "Qwen2.5-0.5B-Instruct (smoke-sized; GGUF Q8_0 / MLX 4-bit)"
+
+[models.qwen-0.5b.nvidia]
+backend = "llama-cpp"
+device = "cuda"
+path = "models/gguf/qwen-0.5b/qwen2.5-0.5b-instruct-q8_0.gguf"
+n_ctx = 4096
+
+[models.qwen-0.5b.apple]
+backend = "mlx"
+path = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
+tokenizer_dir = "models/gguf/qwen-0.5b"
+max_batch_size = 1
+
+# qwen-7b — Qwen2.5-7B-Instruct. Official Qwen GGUF ships Q5_K_M as two
+# shards; nvidia in-process loads the first shard (llama.cpp finds the
+# second next to it). intel is server-client to the host llama-server.
+# apple is mlx-community 4-bit (~4 GB first-run download). Do not add this
+# to `serve` until the host has the artifact / VRAM — it is catalogued so
+# clients can ask for it after `make fetch-llms ALIASES=qwen-7b`.
+[models.qwen-7b]
+description = "Qwen2.5-7B-Instruct (GGUF Q5_K_M shards / MLX 4-bit / intel llama-server)"
+
+[models.qwen-7b.nvidia]
+backend = "llama-cpp"
+device = "cuda"
+path = "models/gguf/qwen-7b/qwen2.5-7b-instruct-q5_k_m-00001-of-00002.gguf"
+n_ctx = 4096
+
+[models.qwen-7b.intel]
+backend = "llama-cpp"
+device = "sycl"
+endpoint = "http://127.0.0.1:8085"
+
+[models.qwen-7b.apple]
+backend = "mlx"
+path = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+tokenizer_dir = "models/gguf/qwen-7b"
+max_batch_size = 1

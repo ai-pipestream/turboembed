@@ -1,12 +1,12 @@
 """Offline unit tests for scripts/fetch_models.py and the committed
-SHA-256 manifest (models/manifests/embeddings.json).
+SHA-256 manifests (models/manifests/embeddings.json and llms.json).
 
 Run with:  make test-fetch
       or:  python3 -m unittest discover -s scripts -p 'test_*.py'
 
 No network access: verification and idempotence are exercised against tiny
-temp-dir fixtures, and the real manifest is checked structurally and against
-config/catalog.toml.
+temp-dir fixtures, and the real manifests are checked structurally and
+against config/catalog.toml.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ import fetch_models  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = REPO_ROOT / "models" / "manifests" / "embeddings.json"
+LLM_MANIFEST_PATH = REPO_ROOT / "models" / "manifests" / "llms.json"
 CATALOG_PATH = REPO_ROOT / "config" / "catalog.toml"
 
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
@@ -102,6 +103,128 @@ class ManifestMatchesCatalog(unittest.TestCase):
                 tok_dir = nvidia.get("tokenizer_dir", "")
                 self.assertIn(f"{tok_dir}/tokenizer.json", fetched,
                               "catalog tokenizer_dir has no fetched tokenizer.json")
+
+
+class LlmManifestStructure(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.manifest = fetch_models.load_manifest(LLM_MANIFEST_PATH)
+
+    def test_schema_version(self):
+        self.assertEqual(self.manifest["schema_version"], 1)
+
+    def test_covers_every_script_alias(self):
+        known = set(fetch_models.LLM_SOURCES) | set(fetch_models.LLM_ALIASES)
+        self.assertEqual(
+            set(self.manifest["models"]), known,
+            "LLM manifest aliases must match LLM_SOURCES + LLM_ALIASES",
+        )
+
+    def test_default_llm_is_alias_of_qwen_05b(self):
+        self.assertEqual(
+            self.manifest["models"]["default-llm"],
+            {"alias_of": "qwen-0.5b"},
+        )
+
+    def test_entries_are_pinned_and_hashed(self):
+        for alias, spec in fetch_models.LLM_SOURCES.items():
+            entry = self.manifest["models"][alias]
+            with self.subTest(alias=alias):
+                self.assertEqual(entry["repo"], spec["repo"])
+                self.assertRegex(entry["revision"], HEX40)
+                self.assertEqual(entry["dest"], spec["dest"])
+                paths = [f["path"] for f in entry["files"]]
+                for required in spec["files"]:
+                    self.assertIn(required, paths)
+                for f in entry["files"]:
+                    self.assertRegex(f["sha256"], HEX64)
+                    self.assertGreater(f["size"], 0)
+                tok = entry.get("tokenizer")
+                self.assertIsNotNone(tok, f"{alias} must pin a tokenizer.json")
+                self.assertEqual(tok["repo"], spec["tokenizer"]["repo"])
+                self.assertRegex(tok["revision"], HEX40)
+                tok_paths = [f["path"] for f in tok["files"]]
+                self.assertIn("tokenizer.json", tok_paths)
+                for f in tok["files"]:
+                    self.assertRegex(f["sha256"], HEX64)
+                    self.assertGreater(f["size"], 0)
+
+    def test_qwen_7b_pins_both_gguf_shards(self):
+        paths = [f["path"] for f in self.manifest["models"]["qwen-7b"]["files"]]
+        self.assertIn("qwen2.5-7b-instruct-q5_k_m-00001-of-00002.gguf", paths)
+        self.assertIn("qwen2.5-7b-instruct-q5_k_m-00002-of-00002.gguf", paths)
+
+    def test_mlx_repos_recorded(self):
+        for alias, repo in fetch_models.LLM_MLX_REPOS.items():
+            with self.subTest(alias=alias):
+                entry = self.manifest["mlx_repos"][alias]
+                self.assertEqual(entry["repo"], repo)
+                self.assertRegex(entry["revision"], HEX40)
+
+    def test_resolve_alias_of(self):
+        key, entry = fetch_models.resolve_model_entry(
+            self.manifest, "default-llm"
+        )
+        self.assertEqual(key, "qwen-0.5b")
+        self.assertEqual(entry["dest"], "models/gguf/qwen-0.5b")
+
+    def test_artifact_specs_include_tokenizer(self):
+        _, entry = fetch_models.resolve_model_entry(self.manifest, "qwen-0.5b")
+        specs = list(fetch_models.artifact_specs(entry))
+        repos = {s[0] for s in specs}
+        paths = {s[3]["path"] for s in specs}
+        self.assertIn("Qwen/Qwen2.5-0.5B-Instruct-GGUF", repos)
+        self.assertIn("Qwen/Qwen2.5-0.5B-Instruct", repos)
+        self.assertIn("qwen2.5-0.5b-instruct-q8_0.gguf", paths)
+        self.assertIn("tokenizer.json", paths)
+
+
+class LlmManifestMatchesCatalog(unittest.TestCase):
+    """Every nvidia llama-cpp alias that points into models/gguf/ must be
+    fetchable from the LLM manifest, at the same path."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.manifest = fetch_models.load_manifest(LLM_MANIFEST_PATH)
+        with CATALOG_PATH.open("rb") as f:
+            cls.catalog = tomllib.load(f)
+
+    def test_catalog_nvidia_llamacpp_fetch_paths_covered(self):
+        for alias, tables in self.catalog["models"].items():
+            nvidia = tables.get("nvidia")
+            if not nvidia or nvidia.get("backend") != "llama-cpp":
+                continue
+            path = nvidia.get("path", "")
+            if not path.startswith("models/gguf/"):
+                continue  # e.g. default-llm's absolute krick path
+            with self.subTest(alias=alias):
+                self.assertIn(alias, self.manifest["models"])
+                _key, entry = fetch_models.resolve_model_entry(
+                    self.manifest, alias
+                )
+                fetched = {f"{dest}/{f['path']}" for _r, _v, dest, f
+                           in fetch_models.artifact_specs(entry)}
+                self.assertIn(path, fetched, "catalog GGUF path not fetched")
+
+    def test_catalog_apple_llm_tokenizer_dir_is_fetched(self):
+        for alias, tables in self.catalog["models"].items():
+            apple = tables.get("apple")
+            if not apple or apple.get("backend") != "mlx":
+                continue
+            tok_dir = apple.get("tokenizer_dir", "")
+            if not tok_dir.startswith("models/gguf/"):
+                continue
+            with self.subTest(alias=alias):
+                self.assertIn(alias, self.manifest["models"])
+                _key, entry = fetch_models.resolve_model_entry(
+                    self.manifest, alias
+                )
+                fetched = {f"{dest}/{f['path']}" for _r, _v, dest, f
+                           in fetch_models.artifact_specs(entry)}
+                self.assertIn(
+                    f"{tok_dir}/tokenizer.json", fetched,
+                    "apple tokenizer_dir has no fetched tokenizer.json",
+                )
 
 
 class FixtureVerification(unittest.TestCase):

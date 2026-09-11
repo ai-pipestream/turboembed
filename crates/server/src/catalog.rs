@@ -233,19 +233,28 @@ mod tests {
     const BUILTIN_MATRIX: &[(&str, [bool; 3])] = &[
         // alias                (nvidia, intel, apple)
         ("minilm", [true, true, true]),
-        ("minilm-l12", [true, false, true]),
+        ("minilm-l12", [true, true, true]),
         ("mpnet", [true, true, false]),
-        ("bge-small", [true, false, true]),
-        ("bge-base", [true, false, true]),
-        ("bge-large", [true, false, true]),
-        ("bge-m3", [true, false, true]),
-        ("e5-small", [true, false, true]),
-        ("e5-base", [true, false, true]),
-        ("e5-large", [true, false, true]),
-        ("gte-small", [true, false, true]),
-        ("gte-base", [true, false, true]),
-        ("nomic-embed-text", [true, false, false]),
+        ("bge-small", [true, true, true]),
+        ("bge-base", [true, true, true]),
+        ("bge-large", [true, true, true]),
+        ("bge-m3", [true, true, true]),
+        ("e5-small", [true, true, true]),
+        ("e5-base", [true, true, true]),
+        ("e5-large", [true, true, true]),
+        ("gte-small", [true, true, true]),
+        ("gte-base", [true, true, true]),
+        ("nomic-embed-text", [true, true, false]),
+        ("default-llm", [true, true, true]),
+        ("qwen-0.5b", [true, false, true]),
+        ("qwen-7b", [true, true, true]),
     ];
+
+    const LLM_ALIASES: &[&str] = &["default-llm", "qwen-0.5b", "qwen-7b"];
+
+    fn is_llm(alias: &str) -> bool {
+        LLM_ALIASES.contains(&alias)
+    }
 
     #[test]
     fn builtin_catalog_defines_exactly_the_documented_aliases() {
@@ -294,6 +303,9 @@ mod tests {
     fn builtin_embedding_entries_are_engine_complete() {
         let catalog = Catalog::builtin();
         for (alias, [nvidia, intel, apple]) in BUILTIN_MATRIX {
+            if is_llm(alias) {
+                continue;
+            }
             if *nvidia {
                 let m = catalog.resolve(alias, Arch::Nvidia).unwrap();
                 assert_eq!(m.backend, BackendKind::Ort, "{alias} nvidia");
@@ -330,6 +342,75 @@ mod tests {
         }
     }
 
+    /// LLM entries must carry a real generation path: llama.cpp-CUDA + GGUF
+    /// on nvidia, llama.cpp-SYCL server-client on intel, mlx-lm on apple.
+    /// qwen-0.5b has no intel resolution (honest: no 0.5B SYCL server).
+    #[test]
+    fn builtin_llm_entries_are_engine_complete() {
+        let catalog = Catalog::builtin();
+        for alias in LLM_ALIASES {
+            let (nvidia, intel, apple) = BUILTIN_MATRIX
+                .iter()
+                .find(|(name, _)| name == alias)
+                .map(|(_, flags)| (flags[0], flags[1], flags[2]))
+                .expect("LLM alias listed in BUILTIN_MATRIX");
+
+            if nvidia {
+                let m = catalog.resolve(alias, Arch::Nvidia).unwrap();
+                assert_eq!(m.backend, BackendKind::LlamaCpp, "{alias} nvidia");
+                assert_eq!(m.device.as_deref(), Some("cuda"), "{alias} nvidia device");
+                let path = m
+                    .path
+                    .as_deref()
+                    .unwrap_or_else(|| panic!("{alias} nvidia needs a GGUF path"));
+                assert!(path.ends_with(".gguf"), "{alias} nvidia path={path}");
+                assert_eq!(m.n_ctx, Some(4096), "{alias} nvidia n_ctx");
+            }
+            if intel {
+                let m = catalog.resolve(alias, Arch::Intel).unwrap();
+                assert_eq!(m.backend, BackendKind::LlamaCpp, "{alias} intel");
+                assert_eq!(m.device.as_deref(), Some("sycl"), "{alias} intel device");
+                assert!(m.endpoint.is_some(), "{alias} intel needs llama-server");
+                assert!(
+                    m.path.is_none(),
+                    "{alias} intel is server-client (no in-process SYCL GGUF)"
+                );
+            }
+            if apple {
+                let m = catalog.resolve(alias, Arch::Apple).unwrap();
+                assert_eq!(m.backend, BackendKind::Mlx, "{alias} apple");
+                let path = m
+                    .path
+                    .as_deref()
+                    .unwrap_or_else(|| panic!("{alias} apple needs an MLX repo"));
+                assert!(
+                    path.starts_with("mlx-community/Qwen"),
+                    "{alias} apple path={path}"
+                );
+                assert!(
+                    m.tokenizer_dir.is_some(),
+                    "{alias} apple Tokenize needs tokenizer_dir"
+                );
+            }
+        }
+
+        // Named 0.5B is unsupported on intel — do not silently route it at
+        // the 7B llama-server.
+        let error = catalog.resolve("qwen-0.5b", Arch::Intel).unwrap_err();
+        match error {
+            CatalogError::NotAvailableOnArch {
+                alias,
+                arch,
+                available,
+            } => {
+                assert_eq!(alias, "qwen-0.5b");
+                assert_eq!(arch, "intel");
+                assert_eq!(available, "nvidia, apple");
+            }
+            other => panic!("expected NotAvailableOnArch, got {other:?}"),
+        }
+    }
+
     #[test]
     fn minilm_resolves_per_arch_to_the_optimized_backend() {
         let catalog = Catalog::builtin();
@@ -356,15 +437,52 @@ mod tests {
         );
     }
 
-    /// LLM aliases are deferred: default-llm exists only as a commented
-    /// stub, so it must NOT resolve (it would silently serve an unvetted
-    /// generation path).
     #[test]
-    fn llm_aliases_are_deferred() {
-        let error = Catalog::builtin()
-            .resolve("default-llm", Arch::Nvidia)
-            .unwrap_err();
-        assert!(matches!(error, CatalogError::UnknownAlias { .. }));
+    fn default_llm_resolves_per_arch_to_the_generation_backend() {
+        let catalog = Catalog::builtin();
+
+        let nvidia = catalog.resolve("default-llm", Arch::Nvidia).unwrap();
+        assert_eq!(nvidia.name, "default-llm");
+        assert_eq!(nvidia.backend, BackendKind::LlamaCpp);
+        assert_eq!(nvidia.device.as_deref(), Some("cuda"));
+        assert!(nvidia
+            .path
+            .as_deref()
+            .unwrap()
+            .ends_with("qwen2.5-0.5b-instruct-q8_0.gguf"));
+
+        let intel = catalog.resolve("default-llm", Arch::Intel).unwrap();
+        assert_eq!(intel.name, "default-llm");
+        assert_eq!(intel.backend, BackendKind::LlamaCpp);
+        assert_eq!(intel.device.as_deref(), Some("sycl"));
+        assert_eq!(intel.endpoint.as_deref(), Some("http://127.0.0.1:8085"));
+
+        let apple = catalog.resolve("default-llm", Arch::Apple).unwrap();
+        assert_eq!(apple.name, "default-llm");
+        assert_eq!(apple.backend, BackendKind::Mlx);
+        assert_eq!(
+            apple.path.as_deref(),
+            Some("mlx-community/Qwen2.5-0.5B-Instruct-4bit")
+        );
+        assert_eq!(apple.tokenizer_dir.as_deref(), Some("models/gguf/qwen-0.5b"));
+    }
+
+    #[test]
+    fn qwen_7b_resolves_on_every_arch() {
+        let catalog = Catalog::builtin();
+        let nvidia = catalog.resolve("qwen-7b", Arch::Nvidia).unwrap();
+        assert!(nvidia
+            .path
+            .as_deref()
+            .unwrap()
+            .contains("qwen2.5-7b-instruct-q5_k_m"));
+        let intel = catalog.resolve("qwen-7b", Arch::Intel).unwrap();
+        assert_eq!(intel.endpoint.as_deref(), Some("http://127.0.0.1:8085"));
+        let apple = catalog.resolve("qwen-7b", Arch::Apple).unwrap();
+        assert_eq!(
+            apple.path.as_deref(),
+            Some("mlx-community/Qwen2.5-7B-Instruct-4bit")
+        );
     }
 
     #[test]

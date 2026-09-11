@@ -7,8 +7,8 @@
 # Starts inferstream-apple with config/apple.toml, then exercises the full
 # inferstream.v1 surface against the live MLX/Metal bridge:
 #   ListModels, Tokenize, Detokenize, Embed (MiniLM 4-bit)
-# and, when a generation model is configured (uncomment qwen2.5-0.5b in the
-# config), streaming ModelStreamInfer.
+# and streaming ModelStreamInfer against the `default-llm` catalog alias
+# (mlx-lm Qwen2.5-0.5B 4-bit; first run downloads ~280 MB).
 #
 # Run from the repo root. First run downloads MiniLM (~25 MB) into the HF
 # cache; the qwen stream test adds ~280 MB when enabled.
@@ -56,12 +56,12 @@ grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
     "$ADDR" inferstream.v1.InferstreamService/Embed \
     | python3 -c 'import json,math,sys; r=json.load(sys.stdin); v=r["embeddings"][0]["values"]; print(f"dim={len(v)} norm={math.sqrt(sum(x*x for x in v)):.4f}")'
 
-# Streaming generation only when the config serves a generation model.
-if grep -Eq '^name = "qwen2.5-0.5b"' "$CONFIG"; then
-    echo "--- ModelStreamInfer (qwen2.5-0.5b, one BYTES token chunk per token) ---"
+# Streaming generation when the config serves an LLM alias (default-llm).
+if grep -Eq 'default-llm|qwen-0.5b|qwen2.5-0.5b' "$CONFIG"; then
+    echo "--- ModelStreamInfer (default-llm, one BYTES token chunk per token) ---"
     B64=$(python3 -c 'import base64,struct; t=b"Say hello in five words or fewer."; print(base64.b64encode(struct.pack("<I",len(t))+t).decode())')
     grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" \
-        -d '{"model_name":"qwen2.5-0.5b","id":"smoke-gen","inputs":[{"name":"text","datatype":"BYTES","shape":[1]}],"raw_input_contents":["'"$B64"'"],"parameters":{"max_tokens":{"int64Param":"16"}}}' \
+        -d '{"model_name":"default-llm","id":"smoke-gen","inputs":[{"name":"text","datatype":"BYTES","shape":[1]}],"raw_input_contents":["'"$B64"'"],"parameters":{"max_tokens":{"int64Param":"16"}}}' \
         "$ADDR" inference.GRPCInferenceService/ModelStreamInfer \
         | python3 -c '
 import base64, json, sys
@@ -77,7 +77,7 @@ print("text:", "".join(chunks))
 assert final and chunks, "stream must yield tokens and end with a final chunk"
 '
 else
-    echo "--- ModelStreamInfer skipped: no generation model in $CONFIG (uncomment qwen2.5-0.5b) ---"
+    echo "--- ModelStreamInfer skipped: no generation alias in $CONFIG ---"
 fi
 
 echo "SMOKE OK"

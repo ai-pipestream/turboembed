@@ -32,7 +32,12 @@ listen = "0.0.0.0:8461"
 # (scripts/export_ovms_embeddings.py, models/manifests/ovms-embeddings.json);
 # registration walkthrough: docs/adding-ovms-embedding-pipelines.md.
 # Every embedding alias in the catalog resolves on intel.
-# Smoke every serving model with scripts/smoke-embeddings.sh.
+# Smoke every serving embedder with scripts/smoke-embeddings.sh.
+#
+# LLM aliases: `default-llm` and `qwen-7b` are server-client to the host
+# llama-server (krick-1: vlm-server on :8085, currently Qwen2.5-VL-7B).
+# `qwen-0.5b` has no intel resolution — do not add it. Smoke generation
+# with scripts/smoke-llms.sh.
 serve = [
   "minilm",
   "mpnet",
@@ -47,6 +52,8 @@ serve = [
   "gte-small",
   "gte-base",
   "nomic-embed-text",
+  "default-llm",
+  "qwen-7b",
 ]
 
 [auth]

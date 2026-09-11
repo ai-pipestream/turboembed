@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "_comment": "SHA-256 manifest for inferstream LLM artifacts. Generated / re-pinned by scripts/fetch_models.py --llms --update-manifest; do not edit hashes by hand. Revisions are exact HF commit hashes (never floating branches). GGUF sha256 values are the Hugging Face LFS oids at the pinned revision (verified 2026-09-11). tokenizer.json hashes are streamed SHA-256 of the file at the pinned revision. mlx_repos records the repos+revisions the apple/MLX runtime pulls via huggingface_hub at runtime (informational). default-llm is alias_of qwen-0.5b (same GGUF + tokenizer).",
+  "models": {
+    "default-llm": {
+      "alias_of": "qwen-0.5b"
+    },
+    "qwen-0.5b": {
+      "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+      "revision": "9217f5db79a29953eb74d5343926648285ec7e67",
+      "dest": "models/gguf/qwen-0.5b",
+      "files": [
+        {
+          "path": "qwen2.5-0.5b-instruct-q8_0.gguf",
+          "sha256": "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e",
+          "size": 675710816
+        }
+      ],
+      "tokenizer": {
+        "repo": "Qwen/Qwen2.5-0.5B-Instruct",
+        "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+        "files": [
+          {
+            "path": "tokenizer.json",
+            "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+            "size": 7031645
+          }
+        ]
+      }
+    },
+    "qwen-7b": {
+      "repo": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+      "revision": "bb5d59e06d9551d752d08b292a50eb208b07ab1f",
+      "dest": "models/gguf/qwen-7b",
+      "files": [
+        {
+          "path": "qwen2.5-7b-instruct-q5_k_m-00001-of-00002.gguf",
+          "sha256": "42f6693004793ee6cf1b2b723f0273b10f86a3bb2a949bd9128d4cda5fb866cd",
+          "size": 3989841792
+        },
+        {
+          "path": "qwen2.5-7b-instruct-q5_k_m-00002-of-00002.gguf",
+          "sha256": "beba9d4f2f5a1fe7d144dcae332e68b52c26705c5310dece2e5d1997e091e134",
+          "size": 1454989568
+        }
+      ],
+      "tokenizer": {
+        "repo": "Qwen/Qwen2.5-7B-Instruct",
+        "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+        "files": [
+          {
+            "path": "tokenizer.json",
+            "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+            "size": 7031645
+          }
+        ]
+      }
+    }
+  },
+  "mlx_repos": {
+    "default-llm": {
+      "repo": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+      "revision": "a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3"
+    },
+    "qwen-0.5b": {
+      "repo": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+      "revision": "a5339a4131f135d0fdc6a5c8b5bbed2753bbe0f3"
+    },
+    "qwen-7b": {
+      "repo": "mlx-community/Qwen2.5-7B-Instruct-4bit",
+      "revision": "c26a38f6a37d0a51b4e9a1eb3026530fa35d9fed"
+    }
+  }
+}

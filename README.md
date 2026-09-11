@@ -159,33 +159,43 @@ EP registration uses `error_on_failure`: if these libs are missing the binary **
 
 Clients address models by **logical name** — `model_name: "minilm"` works against all three arch binaries, and each host loads its own optimized artifact. Clients never learn whether that's an ORT CUDA session, an OVMS DAG pipeline, or an MLX model.
 
-The catalog covers the popular embedding families. An alias resolves only on arches with a **real** backend path (no fakes); `—` means unsupported there today, with the add-recipe documented in `config/catalog.toml`:
+The catalog covers the popular embedding families and a small set of generative LLM aliases. An alias resolves only on arches with a **real** backend path (no fakes); `—` means unsupported there today, with the add-recipe documented in `config/catalog.toml`:
 
 | alias | dims | `inferstream-nvidia` (ORT CUDA) | `inferstream-intel` (OVMS) | `inferstream-apple` (MLX) |
 |---|---|---|---|---|
 | `minilm` | 384 | TEI HF ONNX snapshot (on krick today) | → `minilm_pipeline` (live) | `mlx-community/all-MiniLM-L6-v2-4bit` (live) |
-| `minilm-l12` | 384 | fetch† | — | `sentence-transformers/all-MiniLM-L12-v2` |
+| `minilm-l12` | 384 | fetch† | → `minilm_l12_pipeline` | `sentence-transformers/all-MiniLM-L12-v2` |
 | `mpnet` | 768 | fetch† | → `mpnet_pipeline` (live) | — (no MPNet in mlx-embeddings) |
-| `bge-small` | 384 | fetch† | — | `mlx-community/bge-small-en-v1.5-4bit` |
-| `bge-base` | 768 | fetch† | — | `BAAI/bge-base-en-v1.5` |
-| `bge-large` | 1024 | fetch† | — | `BAAI/bge-large-en-v1.5` |
-| `bge-m3` | 1024 | fetch† | — | `BAAI/bge-m3` |
-| `e5-small` | 384 | fetch† | — | `intfloat/multilingual-e5-small` |
-| `e5-base` | 768 | fetch† | — | `intfloat/multilingual-e5-base` |
-| `e5-large` | 1024 | fetch† | — | `intfloat/multilingual-e5-large` |
-| `gte-small` | 384 | fetch† | — | `thenlper/gte-small` |
-| `gte-base` | 768 | fetch† | — | `thenlper/gte-base` |
-| `nomic-embed-text` | 768 | fetch† (untested) | — | — (no NomicBERT in mlx-embeddings) |
+| `bge-small` | 384 | fetch† | → `bge_small_pipeline` | `mlx-community/bge-small-en-v1.5-4bit` |
+| `bge-base` | 768 | fetch† | → `bge_base_pipeline` | `BAAI/bge-base-en-v1.5` |
+| `bge-large` | 1024 | fetch† | → `bge_large_pipeline` | `BAAI/bge-large-en-v1.5` |
+| `bge-m3` | 1024 | fetch† | → `bge_m3_pipeline` | `BAAI/bge-m3` |
+| `e5-small` | 384 | fetch† | → `e5_small_pipeline` | `intfloat/multilingual-e5-small` |
+| `e5-base` | 768 | fetch† | → `e5_base_pipeline` | `intfloat/multilingual-e5-base` |
+| `e5-large` | 1024 | fetch† | → `e5_large_pipeline` | `intfloat/multilingual-e5-large` |
+| `gte-small` | 384 | fetch† | → `gte_small_pipeline` | `thenlper/gte-small` |
+| `gte-base` | 768 | fetch† | → `gte_base_pipeline` | `thenlper/gte-base` |
+| `nomic-embed-text` | 768 | fetch† (untested) | → `nomic_embed_text_pipeline` | — (no NomicBERT in mlx-embeddings) |
 
-† `make fetch-embeddings [ALIASES=alias1,alias2]` (or `scripts/fetch_models.py <alias> ...`) downloads a prebuilt ONNX export + tokenizer into `models/onnx/<alias>/` (the path the catalog's nvidia entries point at); then add the alias to `serve`. Every download is pinned to an exact HF revision and **SHA-256-verified** against the committed manifest `models/manifests/embeddings.json` — see [`docs/fetching-models.md`](docs/fetching-models.md) for verify-only mode, the hash-update workflow, and per-arch coverage. Apple entries download into the HF cache on first use through the MLX bridge (expected repos + revisions are recorded in the manifest's `mlx_repos` section). Pooling follows each family's convention (BGE = CLS, everything else mean); E5 models expect `query:` / `passage:` text prefixes from the client. **Generative/LLM aliases are deferred** — `default-llm` sits in the catalog as a commented stub, and generation still works through explicit `[[models]]` entries (see `config/nvidia.toml`).
+| alias | class | `inferstream-nvidia` (llama.cpp CUDA GGUF) | `inferstream-intel` (llama.cpp SYCL server-client) | `inferstream-apple` (mlx-lm) |
+|---|---|---|---|---|
+| `default-llm` | Qwen2.5-0.5B on nvidia/apple; host llama-server on intel | krick GGUF `/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf` (served) | → `:8085` llama-server (served; today Qwen2.5-VL-7B on krick-1) | `mlx-community/Qwen2.5-0.5B-Instruct-4bit` (served) |
+| `qwen-0.5b` | Qwen2.5-0.5B-Instruct smoke | fetch‡ `models/gguf/qwen-0.5b/` Q8_0 | — (no 0.5B SYCL server; do not pretend the 7B endpoint is one) | same MLX 4-bit as `default-llm` |
+| `qwen-7b` | Qwen2.5-7B-Instruct | fetch‡ official Q5_K_M shards (~5.1 GiB) | → `:8085` llama-server (served) | `mlx-community/Qwen2.5-7B-Instruct-4bit` |
+
+† `make fetch-embeddings [ALIASES=alias1,alias2]` (or `scripts/fetch_models.py <alias> ...`) downloads a prebuilt ONNX export + tokenizer into `models/onnx/<alias>/` (the path the catalog's nvidia entries point at); then add the alias to `serve`. Every download is pinned to an exact HF revision and **SHA-256-verified** against the committed manifest `models/manifests/embeddings.json`.
+
+‡ `make fetch-llms [ALIASES=qwen-0.5b,qwen-7b]` (or `scripts/fetch_models.py --llms …`) downloads the official Qwen GGUF + `tokenizer.json` into `models/gguf/<alias>/`, SHA-256-verified against `models/manifests/llms.json`. `default-llm` is `alias_of` `qwen-0.5b` (same files). Weights are **never** committed. See [`docs/fetching-models.md`](docs/fetching-models.md) for verify-only mode, the hash-update workflow, and per-arch coverage.
+
+Apple entries download into the HF cache on first use through the MLX bridge (expected repos + revisions are recorded in each manifest's `mlx_repos` section). Tokenize for llama.cpp answers from the GGUF vocab or llama-server `/tokenize`; apple LLM aliases need the fetched `tokenizer_dir`. Pooling follows each embedding family's convention (BGE = CLS, everything else mean); E5 models expect `query:` / `passage:` text prefixes from the client. Intel `default-llm` / `qwen-7b` are honest about the host llama-server: Tokenize and StreamInfer work against **whatever model that server has loaded** (krick-1 today: Qwen2.5-VL-7B Q4_K_M), not a promise of a text-only 0.5B or 7B weight.
 
 The mapping lives in the **catalog** (`config/catalog.toml`, compiled into every binary): one table per alias, one sub-table per arch with the same fields as a `[[models]]` entry, minus `name`. Arch configs opt in with a top-level `serve` list:
 
 ```toml
 # defaults shipped today:
-serve = ["minilm"]                           # nvidia (TEI cache is already there)
-serve = ["minilm", "mpnet"]                  # intel (both OVMS pipelines live)
-serve = ["minilm", "minilm-l12", "bge-small"] # apple (small first-run downloads)
+serve = ["minilm", …, "default-llm"]                    # nvidia (0.5B GGUF on krick)
+serve = ["minilm", "mpnet", …, "default-llm", "qwen-7b"] # intel (OVMS + llama-server)
+serve = ["minilm", "minilm-l12", "bge-small", "default-llm"] # apple (small downloads)
 ```
 
 At startup each alias expands into a regular registry entry **named by the alias**, so `ListModels` and `ModelMetadata` report `minilm` (with the resolved backend and artifact in `backend` / `platform` / properties like `model_path` or `upstream_model`), and every RPC — `ModelInfer`, `ModelStreamInfer`, `Tokenize`, `Embed` — routes by it:
@@ -199,7 +209,7 @@ grpcurl -plaintext -proto crates/protocol/proto/inferstream_extension.proto \
 
 **Adding an alias:** add a `[models.<alias>]` table to `config/catalog.toml` with a `[models.<alias>.<arch>]` sub-table per arch that can serve it (arches: `nvidia`, `intel`, `apple`), rebuild, and list the alias in `serve`. For proxy backends (`ovms`) set `upstream_model` when the upstream pipeline name differs from the alias — requests are forwarded under the upstream name and responses report the logical one. To change resolutions per host **without rebuilding**, point the config at a catalog copy: `catalog = "/etc/inferstream/catalog.toml"`. The built-in matrix is enforced by a unit test (`BUILTIN_MATRIX` in `crates/server/src/catalog.rs`) — extend it when the catalog changes.
 
-**Smoking the surface:** `scripts/smoke-embeddings.sh [host:port] [bearer-token] [model ...]` runs `ListModels` and then `Embed` through every serving model (or the subset you name), on any arch — exits nonzero if any model fails to return vectors. That plus the fetch script is the whole bring-up loop for a new host: `make fetch-embeddings` (nvidia only; hash-verified, `make verify-embeddings` re-checks offline) → extend `serve` → restart → smoke.
+**Smoking the surface:** `scripts/smoke-embeddings.sh [host:port] [bearer-token] [model ...]` runs `ListModels` and then `Embed` through every serving model (or the subset you name), on any arch — exits nonzero if any model fails to return vectors. `scripts/smoke-llms.sh` does the same for generation aliases: `Tokenize` plus a short `ModelStreamInfer` (live GPU is the acceptance path; the script talks to an already-running server and does not download weights). Bring-up: `make fetch-embeddings` / `make fetch-llms` (hash-verified; `make verify-embeddings` / `make verify-llms` re-check offline) → extend `serve` → restart → smoke.
 
 Failures are startup-time and actionable: an unknown alias lists what the catalog defines; an alias with no resolution for this arch names the arches that have one. Explicit `[[models]]` entries keep working alongside `serve` (collisions are rejected), and the arch-neutral dev `inferstream` binary rejects `serve` since it has no arch.
 
