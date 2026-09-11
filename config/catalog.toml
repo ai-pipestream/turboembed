@@ -38,7 +38,8 @@
 #           the OVMS config (config-gpu.json graph: tokenizer -> embedding
 #           model -> "sentence_embedding"), restart the container, then add
 #           a [models.<alias>.intel] table here with `upstream_model` set to
-#           the new pipeline name.
+#           the new pipeline name. Full walkthrough:
+#           docs/adding-ovms-embedding-pipelines.md.
 #   apple   MLX through the persistent Python bridge (mlx-embeddings). The
 #           bridge downloads the HF repo into the cache on first use.
 #           mlx-embeddings implements BERT and XLM-RoBERTa forward passes,

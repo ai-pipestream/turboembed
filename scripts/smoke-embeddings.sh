@@ -4,6 +4,10 @@
 # arch (nvidia / intel / apple / dev mock): the whole point of logical model
 # names is that this script does not care which engine answers.
 #
+# Each model is embedded TWICE: the first call on a fresh server is "cold"
+# (model load + possible HF download), the second is "warm" (model hot in
+# the backend). Both latencies are reported alongside dims.
+#
 # Usage:
 #   scripts/smoke-embeddings.sh [host:port] [bearer-token] [model ...]
 #
@@ -41,31 +45,51 @@ echo "$LISTING" | jq -r '.models[] | "\(.name)\tbackend=\(.backend)\tready=\(.re
 if [ $# -gt 0 ]; then
     MODELS=("$@")
 else
-    mapfile -t MODELS < <(echo "$LISTING" | jq -r '.models[].name')
+    # No mapfile: macOS ships bash 3.2.
+    MODELS=()
+    while IFS= read -r name; do
+        MODELS+=("$name")
+    done < <(echo "$LISTING" | jq -r '.models[].name')
 fi
+
+# One Embed call: prints "<count> <dim> <norm> <latency_ms>" or fails.
+embed_once() {
+    local model="$1" t0 t1 out
+    # E5-family models want a task prefix; harmless elsewhere in a smoke.
+    local req
+    req=$(jq -n --arg m "$model" \
+        '{model_name:$m, texts:["query: hello embeddings","query: the quick brown fox"], normalize:true}')
+    t0=$(python3 -c 'import time; print(time.time_ns())')
+    out=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" -d "$req" "$ADDR" \
+        inferstream.v1.InferstreamService/Embed) || return 1
+    t1=$(python3 -c 'import time; print(time.time_ns())')
+    printf '%s' "$out" | python3 -c '
+import json, math, sys
+r = json.load(sys.stdin)
+embs = r.get("embeddings", [])
+v = embs[0]["values"] if embs else []
+print(len(embs), len(v), f"{math.sqrt(sum(x*x for x in v)):.4f}", end=" ")'
+    echo $(( (t1 - t0) / 1000000 ))
+}
 
 PASS=0
 FAIL=0
 FAILED_MODELS=()
+printf '\n%-20s %6s %6s %8s %10s %10s\n' MODEL COUNT DIM NORM COLD_MS WARM_MS
 for model in "${MODELS[@]}"; do
-    echo
-    echo "--- Embed via $model ---"
-    # E5-family models want a task prefix; harmless elsewhere in a smoke.
-    REQUEST=$(jq -n --arg m "$model" \
-        '{model_name:$m, texts:["query: hello embeddings","query: the quick brown fox"], normalize:true}')
-    if RESPONSE=$(grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" -d "$REQUEST" "$ADDR" \
-        inferstream.v1.InferstreamService/Embed 2>&1); then
-        DIM=$(echo "$RESPONSE" | jq -r '.embeddings[0].values | length')
-        COUNT=$(echo "$RESPONSE" | jq -r '.embeddings | length')
-        if [ "$COUNT" = "2" ] && [ "$DIM" -gt 0 ]; then
-            echo "ok: $COUNT vectors, $DIM dims"
-            PASS=$((PASS + 1))
-        else
-            echo "FAIL: unexpected shape (count=$COUNT dim=$DIM)"
-            FAIL=$((FAIL + 1)); FAILED_MODELS+=("$model")
-        fi
+    if ! cold_run=$(embed_once "$model"); then
+        printf '%-20s FAIL (Embed error; rerun grpcurl by hand for detail)\n' "$model"
+        FAIL=$((FAIL + 1)); FAILED_MODELS+=("$model")
+        continue
+    fi
+    warm_run=$(embed_once "$model")   # warm pass; count/dim must be stable
+    cold_ms=${cold_run##* }
+    set -- ${warm_run}                # -> count dim norm warm_ms
+    if [ "$1" = "2" ] && [ "$2" -gt 0 ]; then
+        printf '%-20s %6s %6s %8s %10s %10s\n' "$model" "$1" "$2" "$3" "$cold_ms" "$4"
+        PASS=$((PASS + 1))
     else
-        echo "FAIL: $RESPONSE"
+        printf '%-20s FAIL: unexpected shape (count=%s dim=%s)\n' "$model" "$1" "$2"
         FAIL=$((FAIL + 1)); FAILED_MODELS+=("$model")
     fi
 done
