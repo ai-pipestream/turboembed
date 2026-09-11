@@ -37,11 +37,15 @@
 #           config/nvidia.toml.
 #   intel   OVMS DAG pipelines on the Battlemage GPU (krick-1 container
 #           "protomolt-embedder-ovms"). Only pipelines that exist upstream
-#           are mapped (minilm, mpnet). To add one: register the model in
-#           the OVMS config (config-gpu.json graph: tokenizer -> embedding
-#           model -> "sentence_embedding"), restart the container, then add
-#           a [models.<alias>.intel] table here with `upstream_model` set to
-#           the new pipeline name. Full walkthrough:
+#           are mapped — currently every embedding alias in this catalog.
+#           IR + tokenizer artifacts are exported and SHA-256-pinned with
+#               make fetch-embeddings-intel [ALIASES=alias1,alias2]
+#           (scripts/export_ovms_embeddings.py against
+#           models/manifests/ovms-embeddings.json). To add a new one:
+#           export, register in the OVMS config (config-gpu.json graph:
+#           tokenizer -> embedding model -> "sentence_embedding"), reload,
+#           then add a [models.<alias>.intel] table here with
+#           `upstream_model` set to the new pipeline name. Full walkthrough:
 #           docs/adding-ovms-embedding-pipelines.md.
 #   apple   MLX through the persistent Python bridge (mlx-embeddings). The
 #           bridge downloads the HF repo into the cache on first use.
@@ -90,7 +94,7 @@ normalize = true
 max_batch_size = 32
 
 # minilm-l12 — all-MiniLM-L12-v2, 384 dims: same dim as minilm, deeper and
-# more accurate. Intel: no OVMS pipeline yet (see the intel convention note).
+# more accurate.
 [models.minilm-l12]
 description = "all-MiniLM-L12-v2 sentence embeddings (384 dims, mean pooling)"
 
@@ -102,6 +106,15 @@ tokenizer_dir = "models/onnx/minilm-l12"
 pooling = "mean"
 normalize = true
 max_seq_len = 256
+
+# OVMS pipeline (mean pooling + L2 normalize in-graph); artifacts exported
+# and SHA-256-pinned by scripts/export_ovms_embeddings.py
+# (models/manifests/ovms-embeddings.json).
+[models.minilm-l12.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "minilm_l12_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_minilm_l12"
 
 [models.minilm-l12.apple]
 backend = "mlx"
@@ -148,6 +161,13 @@ tokenizer_dir = "models/onnx/bge-small"
 pooling = "cls"
 normalize = true
 
+# OVMS pipeline (CLS pooling + L2 normalize in-graph).
+[models.bge-small.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "bge_small_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_small"
+
 # Verified mlx-community 4-bit conversion (~19 MB).
 [models.bge-small.apple]
 backend = "mlx"
@@ -165,6 +185,13 @@ path = "models/onnx/bge-base/onnx/model.onnx"
 tokenizer_dir = "models/onnx/bge-base"
 pooling = "cls"
 normalize = true
+
+# OVMS pipeline (CLS pooling + L2 normalize in-graph).
+[models.bge-base.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "bge_base_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_base"
 
 # Original BAAI safetensors (vanilla BERT); mlx-embeddings loads it directly.
 [models.bge-base.apple]
@@ -184,6 +211,13 @@ tokenizer_dir = "models/onnx/bge-large"
 pooling = "cls"
 normalize = true
 
+# OVMS pipeline (CLS pooling + L2 normalize in-graph).
+[models.bge-large.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "bge_large_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_large"
+
 [models.bge-large.apple]
 backend = "mlx"
 path = "BAAI/bge-large-en-v1.5"
@@ -191,8 +225,6 @@ normalize = true
 max_batch_size = 16
 
 # bge-m3 — multilingual, 1024-dim dense vectors (XLM-RoBERTa base, ~2.2 GB).
-# Intel: no OVMS pipeline yet; the dense path would slot into the same DAG
-# shape as minilm_pipeline (see the intel convention note at the top).
 [models.bge-m3]
 description = "bge-m3 multilingual embeddings (1024 dims, CLS pooling, dense vectors)"
 
@@ -203,6 +235,14 @@ path = "models/onnx/bge-m3/onnx/model.onnx"
 tokenizer_dir = "models/onnx/bge-m3"
 pooling = "cls"
 normalize = true
+
+# OVMS pipeline (dense CLS vector + L2 normalize in-graph; FP16 IR ~1.1 GB
+# on the Battlemage GPU).
+[models.bge-m3.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "bge_m3_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_m3"
 
 [models.bge-m3.apple]
 backend = "mlx"
@@ -228,6 +268,13 @@ tokenizer_dir = "models/onnx/e5-small"
 pooling = "mean"
 normalize = true
 
+# OVMS pipeline (mean pooling + L2 normalize in-graph).
+[models.e5-small.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "e5_small_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_small"
+
 [models.e5-small.apple]
 backend = "mlx"
 path = "intfloat/multilingual-e5-small"
@@ -245,6 +292,13 @@ tokenizer_dir = "models/onnx/e5-base"
 pooling = "mean"
 normalize = true
 
+# OVMS pipeline (mean pooling + L2 normalize in-graph).
+[models.e5-base.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "e5_base_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_base"
+
 [models.e5-base.apple]
 backend = "mlx"
 path = "intfloat/multilingual-e5-base"
@@ -261,6 +315,13 @@ path = "models/onnx/e5-large/onnx/model.onnx"
 tokenizer_dir = "models/onnx/e5-large"
 pooling = "mean"
 normalize = true
+
+# OVMS pipeline (mean pooling + L2 normalize in-graph).
+[models.e5-large.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "e5_large_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_large"
 
 [models.e5-large.apple]
 backend = "mlx"
@@ -285,6 +346,13 @@ tokenizer_dir = "models/onnx/gte-small"
 pooling = "mean"
 normalize = true
 
+# OVMS pipeline (mean pooling + L2 normalize in-graph).
+[models.gte-small.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "gte_small_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_gte_small"
+
 [models.gte-small.apple]
 backend = "mlx"
 path = "thenlper/gte-small"
@@ -302,6 +370,13 @@ tokenizer_dir = "models/onnx/gte-base"
 pooling = "mean"
 normalize = true
 
+# OVMS pipeline (mean pooling + L2 normalize in-graph).
+[models.gte-base.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "gte_base_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_gte_base"
+
 [models.gte-base.apple]
 backend = "mlx"
 path = "thenlper/gte-base"
@@ -313,11 +388,13 @@ max_batch_size = 16
 # ---------------------------------------------------------------------------
 
 # nomic-embed-text — nomic-embed-text-v1.5, 768 dims (Matryoshka-capable).
-# nvidia only: the official repo ships an ONNX export with standard
-# transformers inputs (fetch script downloads it). No apple resolution —
-# mlx-embeddings has no NomicBERT forward pass; no intel pipeline yet.
-# Untested on krick: if the export's graph inputs differ, startup fails
-# naming the offending input (never at request time).
+# The official repo ships an ONNX export with standard transformers inputs
+# (fetch script downloads it for nvidia; the intel export imports the same
+# ONNX into OpenVINO and grafts pooling on, since NomicBERT's remote code
+# cannot be torch-traced). No apple resolution — mlx-embeddings has no
+# NomicBERT forward pass.
+# Untested on krick (nvidia): if the export's graph inputs differ, startup
+# fails naming the offending input (never at request time).
 [models.nomic-embed-text]
 description = "nomic-embed-text-v1.5 embeddings (768 dims, mean pooling)"
 
@@ -328,6 +405,14 @@ path = "models/onnx/nomic-embed-text/onnx/model.onnx"
 tokenizer_dir = "models/onnx/nomic-embed-text"
 pooling = "mean"
 normalize = true
+
+# OVMS pipeline (mean pooling + L2 normalize grafted onto Nomic's official
+# ONNX export; DAG also maps token_type_ids tokenizer->model).
+[models.nomic-embed-text.intel]
+backend = "ovms"
+endpoint = "http://172.22.0.2:8000"
+upstream_model = "nomic_embed_text_pipeline"
+tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_nomic_embed_text"
 
 # ---------------------------------------------------------------------------
 # Generative LLM aliases — DEFERRED (stub). Embedding aliases are the current

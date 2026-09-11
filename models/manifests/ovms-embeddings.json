@@ -1,0 +1,479 @@
+{
+  "schema_version": 1,
+  "_comment": "SHA-256 manifest for Intel OVMS embedding pipeline artifacts (OpenVINO IR + openvino_tokenizers + HF tokenizer.json), as exported by scripts/export_ovms_embeddings.py. Revisions are exact HF commit hashes. Hashes are of the FP16 IR produced with the recorded export_environment; a different toolchain may produce different (still correct) bytes \u2014 verify deliberately.",
+  "models": {
+    "bge-base": {
+      "repo": "BAAI/bge-base-en-v1.5",
+      "revision": "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a",
+      "name": "bge_base",
+      "pipeline": "bge_base_pipeline",
+      "pooling": "cls",
+      "dims": 768,
+      "export_command": "scripts/export_ovms_embeddings.py bge-base --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_bge_base/1/openvino_tokenizer.xml",
+          "sha256": "8c6bc02de123f81cfd2081f57f240246126cf5799a28fbf6c634a5f7ac774758",
+          "size": 33538
+        },
+        {
+          "path": "tokenizer_bge_base/1/openvino_tokenizer.bin",
+          "sha256": "de9cb4929a746992d4b81cbb0cf0d3633f9457d20f64d9a1b5b645da3fc42921",
+          "size": 445553
+        },
+        {
+          "path": "embedding_bge_base/1/openvino_model.xml",
+          "sha256": "038f2bdbd5e46e2a118316b8deb6d0caa440ffeec353de475661bc65d719435c",
+          "size": 504101
+        },
+        {
+          "path": "embedding_bge_base/1/openvino_model.bin",
+          "sha256": "f14f5224512ccea90e77a79f9cb5d28931fa79cf914df99f03c2cb43b4ab87bc",
+          "size": 217791619
+        },
+        {
+          "path": "hf_tokenizer_bge_base/tokenizer.json",
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "size": 711396
+        }
+      ]
+    },
+    "bge-large": {
+      "repo": "BAAI/bge-large-en-v1.5",
+      "revision": "d4aa6901d3a41ba39fb536a557fa166f842b0e09",
+      "name": "bge_large",
+      "pipeline": "bge_large_pipeline",
+      "pooling": "cls",
+      "dims": 1024,
+      "export_command": "scripts/export_ovms_embeddings.py bge-large --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_bge_large/1/openvino_tokenizer.xml",
+          "sha256": "8e6a30d5df2cf2321d7326f45d3d9d39940e4c11d1a3dede71bab253f20f57c1",
+          "size": 33538
+        },
+        {
+          "path": "tokenizer_bge_large/1/openvino_tokenizer.bin",
+          "sha256": "de9cb4929a746992d4b81cbb0cf0d3633f9457d20f64d9a1b5b645da3fc42921",
+          "size": 445553
+        },
+        {
+          "path": "embedding_bge_large/1/openvino_model.xml",
+          "sha256": "f87c6c81b9c4577343e2312d0707c9e2084ba1d24d0532f0ea92f83b5b0346d4",
+          "size": 962633
+        },
+        {
+          "path": "embedding_bge_large/1/openvino_model.bin",
+          "sha256": "39c4495d08422cfcff9b985c69d1f7d9e9317cd47e145dd42e56799b538aeaee",
+          "size": 668192899
+        },
+        {
+          "path": "hf_tokenizer_bge_large/tokenizer.json",
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "size": 711396
+        }
+      ]
+    },
+    "bge-m3": {
+      "repo": "BAAI/bge-m3",
+      "revision": "5617a9f61b028005a4858fdac845db406aefb181",
+      "name": "bge_m3",
+      "pipeline": "bge_m3_pipeline",
+      "pooling": "cls",
+      "dims": 1024,
+      "export_command": "scripts/export_ovms_embeddings.py bge-m3 --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_bge_m3/1/openvino_tokenizer.xml",
+          "sha256": "84644c72a02a5198b26bdaba2c291430fa9c251935b9115a7e951c5f903e3012",
+          "size": 27297
+        },
+        {
+          "path": "tokenizer_bge_m3/1/openvino_tokenizer.bin",
+          "sha256": "7b62ef1495ff3874ef7db63a73a44f95e47b09fb8cfd9b10189d4dd9a4a84ac6",
+          "size": 5819039
+        },
+        {
+          "path": "embedding_bge_m3/1/openvino_model.xml",
+          "sha256": "8398fecceb99feff2dd196b3ebcbe191f812f7848316e2360e22d47e226e6bef",
+          "size": 964946
+        },
+        {
+          "path": "embedding_bge_m3/1/openvino_model.bin",
+          "sha256": "e9f0c24d3709a62160723b50fda562cba255da69dd9d92e8899f7ff0359ffc36",
+          "size": 1133475987
+        },
+        {
+          "path": "hf_tokenizer_bge_m3/tokenizer.json",
+          "sha256": "5df1f55d60c9705a501ab9a75550728625740741fe4be308dac4806c16b7d51d",
+          "size": 17098085
+        }
+      ]
+    },
+    "bge-small": {
+      "repo": "BAAI/bge-small-en-v1.5",
+      "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "name": "bge_small",
+      "pipeline": "bge_small_pipeline",
+      "pooling": "cls",
+      "dims": 384,
+      "export_command": "scripts/export_ovms_embeddings.py bge-small --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_bge_small/1/openvino_tokenizer.xml",
+          "sha256": "35d20c7ea4e5357f665d4349ab819dcbc2936c12dd1c4104f29f107496a1d7bc",
+          "size": 33601
+        },
+        {
+          "path": "tokenizer_bge_small/1/openvino_tokenizer.bin",
+          "sha256": "de9cb4929a746992d4b81cbb0cf0d3633f9457d20f64d9a1b5b645da3fc42921",
+          "size": 445553
+        },
+        {
+          "path": "embedding_bge_small/1/openvino_model.xml",
+          "sha256": "74f481ee2ef24830f64d8fd66df916c01161fe73ab815f2a40517f24c16b5972",
+          "size": 503674
+        },
+        {
+          "path": "embedding_bge_small/1/openvino_model.bin",
+          "sha256": "b9c05b020023dec167f9176c9616bca8ddbda7c3b0868ccf4c374a90fe2080ac",
+          "size": 66432645
+        },
+        {
+          "path": "hf_tokenizer_bge_small/tokenizer.json",
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "size": 711396
+        }
+      ]
+    },
+    "e5-base": {
+      "repo": "intfloat/multilingual-e5-base",
+      "revision": "d128750597153bb5987e10b1c3493a34e5a4502a",
+      "name": "e5_base",
+      "pipeline": "e5_base_pipeline",
+      "pooling": "mean",
+      "dims": 768,
+      "export_command": "scripts/export_ovms_embeddings.py e5-base --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_e5_base/1/openvino_tokenizer.xml",
+          "sha256": "a3a38065f35315fef8b2202da4fdfd7cdcfba46977e8be95aac5c8bed0f22cb3",
+          "size": 27349
+        },
+        {
+          "path": "tokenizer_e5_base/1/openvino_tokenizer.bin",
+          "sha256": "9c7fcdd874f9226f6d10064afc4c57e04312c18b5ce9cd17b93403fe9742b8cb",
+          "size": 5819039
+        },
+        {
+          "path": "embedding_e5_base/1/openvino_model.xml",
+          "sha256": "66aa0bfb5d2257e847fea801e2b131ea8334475b2751830b7b0125b40f00e677",
+          "size": 508941
+        },
+        {
+          "path": "embedding_e5_base/1/openvino_model.bin",
+          "sha256": "42fba1a74cfccdfb833c85b74f0b46cd1cd4f9bb5fe86c13e9538713c35fc5d7",
+          "size": 554910359
+        },
+        {
+          "path": "hf_tokenizer_e5_base/tokenizer.json",
+          "sha256": "3a56def25aa40facc030ea8b0b87f3688e4b3c39eb8b45d5702b3a1300fe2a20",
+          "size": 17082734
+        }
+      ]
+    },
+    "e5-large": {
+      "repo": "intfloat/multilingual-e5-large",
+      "revision": "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3",
+      "name": "e5_large",
+      "pipeline": "e5_large_pipeline",
+      "pooling": "mean",
+      "dims": 1024,
+      "export_command": "scripts/export_ovms_embeddings.py e5-large --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_e5_large/1/openvino_tokenizer.xml",
+          "sha256": "95fffe00fcacdd7026308a512df4cd985d1be94d209082646a5e61b75f1a1d90",
+          "size": 27297
+        },
+        {
+          "path": "tokenizer_e5_large/1/openvino_tokenizer.bin",
+          "sha256": "9c7fcdd874f9226f6d10064afc4c57e04312c18b5ce9cd17b93403fe9742b8cb",
+          "size": 5819039
+        },
+        {
+          "path": "embedding_e5_large/1/openvino_model.xml",
+          "sha256": "dd08c89b40e06f0de8d70e92b26e886e4cde3684e0772fab24d6d4d7b261d76e",
+          "size": 967364
+        },
+        {
+          "path": "embedding_e5_large/1/openvino_model.bin",
+          "sha256": "6683152ccab12d55dcecdb0fa5bc31d65b697967e5bddcc7cc33a3aa6ae74c4d",
+          "size": 1117685911
+        },
+        {
+          "path": "hf_tokenizer_e5_large/tokenizer.json",
+          "sha256": "3a56def25aa40facc030ea8b0b87f3688e4b3c39eb8b45d5702b3a1300fe2a20",
+          "size": 17082734
+        }
+      ]
+    },
+    "e5-small": {
+      "repo": "intfloat/multilingual-e5-small",
+      "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+      "name": "e5_small",
+      "pipeline": "e5_small_pipeline",
+      "pooling": "mean",
+      "dims": 384,
+      "export_command": "scripts/export_ovms_embeddings.py e5-small --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_e5_small/1/openvino_tokenizer.xml",
+          "sha256": "a9e75b2f1be7427a38852680a9e778126929dcaa60d9b80707b01cb4500e2426",
+          "size": 27349
+        },
+        {
+          "path": "tokenizer_e5_small/1/openvino_tokenizer.bin",
+          "sha256": "64ad0aead0e7625edf94bb00536b5447b7b8d22fb6672a5a8ca4ca5d4985c6f9",
+          "size": 5819030
+        },
+        {
+          "path": "embedding_e5_small/1/openvino_model.xml",
+          "sha256": "67a3546b2cb3219481bae92c060a18831f491b6999d6685447b8e6b5cacace05",
+          "size": 506458
+        },
+        {
+          "path": "embedding_e5_small/1/openvino_model.bin",
+          "sha256": "59716b409862831897f7130480ab09ebaaef5ff5ef105e184b66d3ec9411e5bc",
+          "size": 235020169
+        },
+        {
+          "path": "hf_tokenizer_e5_small/tokenizer.json",
+          "sha256": "6040ba36e3e2f7b2fa6ae076b69d024a08666bea4c345105a32e542900fcc7e7",
+          "size": 17082735
+        }
+      ]
+    },
+    "gte-base": {
+      "repo": "thenlper/gte-base",
+      "revision": "c078288308d8dee004ab72c6191778064285ec0c",
+      "name": "gte_base",
+      "pipeline": "gte_base_pipeline",
+      "pooling": "mean",
+      "dims": 768,
+      "export_command": "scripts/export_ovms_embeddings.py gte-base --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_gte_base/1/openvino_tokenizer.xml",
+          "sha256": "80df8238083095bdbbdd07268db84a1282fa6d04f5a1b7ccb70eca8dd62b0d8d",
+          "size": 33601
+        },
+        {
+          "path": "tokenizer_gte_base/1/openvino_tokenizer.bin",
+          "sha256": "de9cb4929a746992d4b81cbb0cf0d3633f9457d20f64d9a1b5b645da3fc42921",
+          "size": 445553
+        },
+        {
+          "path": "embedding_gte_base/1/openvino_model.xml",
+          "sha256": "649f4680fa650bc9a64d29ff7eadd832526029cd072d1115385274b46a9e3078",
+          "size": 401111
+        },
+        {
+          "path": "embedding_gte_base/1/openvino_model.bin",
+          "sha256": "2a76b7ca861618a5676a78d4f68f164c96f171c75eb7a89de57021c7c88f54d5",
+          "size": 217791617
+        },
+        {
+          "path": "hf_tokenizer_gte_base/tokenizer.json",
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "size": 711396
+        }
+      ]
+    },
+    "gte-small": {
+      "repo": "thenlper/gte-small",
+      "revision": "17e1f347d17fe144873b1201da91788898c639cd",
+      "name": "gte_small",
+      "pipeline": "gte_small_pipeline",
+      "pooling": "mean",
+      "dims": 384,
+      "export_command": "scripts/export_ovms_embeddings.py gte-small --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_gte_small/1/openvino_tokenizer.xml",
+          "sha256": "92b4955fc16d98a9c19a1f37e8346aef8206b0be07f0a6f06e917093eb66c8f1",
+          "size": 33601
+        },
+        {
+          "path": "tokenizer_gte_small/1/openvino_tokenizer.bin",
+          "sha256": "e4cacab539e049b9768d4e2673eefdabeea07126a3a8d8c7f06af8bbaf59af25",
+          "size": 445553
+        },
+        {
+          "path": "embedding_gte_small/1/openvino_model.xml",
+          "sha256": "ef4995d2b783734fb4b26fd9778dbc43657ca0e885db84090679b1918cb46b8d",
+          "size": 400820
+        },
+        {
+          "path": "embedding_gte_small/1/openvino_model.bin",
+          "sha256": "9eeccdedf00f9c514737288e387db281a06ad1b1ffff32f48ea4ce16a4556453",
+          "size": 66432641
+        },
+        {
+          "path": "hf_tokenizer_gte_small/tokenizer.json",
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "size": 711396
+        }
+      ]
+    },
+    "minilm-l12": {
+      "repo": "sentence-transformers/all-MiniLM-L12-v2",
+      "revision": "a50ef00143b4d5391434df20ae11632588ac25be",
+      "name": "minilm_l12",
+      "pipeline": "minilm_l12_pipeline",
+      "pooling": "mean",
+      "dims": 384,
+      "export_command": "scripts/export_ovms_embeddings.py minilm-l12 --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_minilm_l12/1/openvino_tokenizer.xml",
+          "sha256": "619bc47476a378e8f6542ebd569813cefa8475fab07ac67c86678a2ba5f5ef44",
+          "size": 33601
+        },
+        {
+          "path": "tokenizer_minilm_l12/1/openvino_tokenizer.bin",
+          "sha256": "de9cb4929a746992d4b81cbb0cf0d3633f9457d20f64d9a1b5b645da3fc42921",
+          "size": 445553
+        },
+        {
+          "path": "embedding_minilm_l12/1/openvino_model.xml",
+          "sha256": "8bd6f02db2ebc5d13a68411678b086b55d3de67795ceea22e0b85ab213ba59b8",
+          "size": 506093
+        },
+        {
+          "path": "embedding_minilm_l12/1/openvino_model.bin",
+          "sha256": "20a227a5c5443d2837c11eb0b153ec1669643012a83b71ccaa021db13092cfd1",
+          "size": 66432649
+        },
+        {
+          "path": "hf_tokenizer_minilm_l12/tokenizer.json",
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "size": 711396
+        }
+      ]
+    },
+    "nomic-embed-text": {
+      "repo": "nomic-ai/nomic-embed-text-v1.5",
+      "revision": "e9b6763023c676ca8431644204f50c2b100d9aab",
+      "name": "nomic_embed_text",
+      "pipeline": "nomic_embed_text_pipeline",
+      "pooling": "mean",
+      "dims": 768,
+      "export_command": "scripts/export_ovms_embeddings.py nomic-embed-text --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_environment": {
+        "python": "3.12.13",
+        "torch": "2.14.0+cpu",
+        "transformers": "5.17.0",
+        "openvino": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+        "openvino_tokenizers": "2026.3.1.0-705-77e4637387c"
+      },
+      "files": [
+        {
+          "path": "tokenizer_nomic_embed_text/1/openvino_tokenizer.xml",
+          "sha256": "da1a18d3bf5ea1749ca9b1f366bd4cc801ab2449bd25cbf0f10157fa58f77c3f",
+          "size": 33475
+        },
+        {
+          "path": "tokenizer_nomic_embed_text/1/openvino_tokenizer.bin",
+          "sha256": "fe2f09d343fda58f178b993df32c0c3fe866aa9900a93ce705d079b0e1504b80",
+          "size": 445553
+        },
+        {
+          "path": "embedding_nomic_embed_text/1/openvino_model.xml",
+          "sha256": "1db526895f73b3d52f2bc783d0e0f197ac97c152cafeac9f542327ceaba577ec",
+          "size": 1141009
+        },
+        {
+          "path": "embedding_nomic_embed_text/1/openvino_model.bin",
+          "sha256": "1974d717d20f26492032d085e34d858dac327d9b2412c1929e73f4b397167e35",
+          "size": 273463588
+        },
+        {
+          "path": "hf_tokenizer_nomic_embed_text/tokenizer.json",
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "size": 711396
+        }
+      ]
+    }
+  }
+}

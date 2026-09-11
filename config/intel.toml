@@ -26,11 +26,28 @@ listen = "0.0.0.0:8461"
 # the NVIDIA (ORT-CUDA) and Apple (MLX) binaries. Override the built-in
 # catalog per host with `catalog = "/path/to/catalog.toml"`.
 #
-# Other embedding aliases (bge-*, e5-*, gte-*, minilm-l12) have no OVMS
-# pipeline on this host yet — see docs/adding-ovms-embedding-pipelines.md
-# for how to register one and map it. Smoke every serving model with
-# scripts/smoke-embeddings.sh.
-serve = ["minilm", "mpnet"]
+# All aliases below resolve to OVMS DAG pipelines running on the Battlemage
+# GPU (embedding model target_device GPU, tokenizer CPU). Artifacts are
+# exported + SHA-256-verified via `make fetch-embeddings-intel`
+# (scripts/export_ovms_embeddings.py, models/manifests/ovms-embeddings.json);
+# registration walkthrough: docs/adding-ovms-embedding-pipelines.md.
+# Every embedding alias in the catalog resolves on intel.
+# Smoke every serving model with scripts/smoke-embeddings.sh.
+serve = [
+  "minilm",
+  "mpnet",
+  "minilm-l12",
+  "bge-small",
+  "bge-base",
+  "bge-large",
+  "bge-m3",
+  "e5-small",
+  "e5-base",
+  "e5-large",
+  "gte-small",
+  "gte-base",
+  "nomic-embed-text",
+]
 
 [auth]
 mode = "bearer"
