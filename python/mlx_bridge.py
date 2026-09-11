@@ -103,8 +103,11 @@ def op_ping() -> dict:
         "metal_available": metal_available,
     }
     if metal_available:
-        result["active_memory"] = int(metal.get_active_memory())
-        result["peak_memory"] = int(metal.get_peak_memory())
+        # mlx 0.32+ prefers mx.get_*_memory; older wheels keep mx.metal.*.
+        active = getattr(mx, "get_active_memory", None) or metal.get_active_memory
+        peak = getattr(mx, "get_peak_memory", None) or metal.get_peak_memory
+        result["active_memory"] = int(active())
+        result["peak_memory"] = int(peak())
     return result
 
 
