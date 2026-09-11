@@ -7,6 +7,12 @@
 #   make update-embedding-manifest              # maintainers: re-pin + re-hash
 #   make test-fetch                             # unit tests for the fetch tooling
 #
+#   make fetch-llms                             # GGUF + tokenizer.json (qwen-0.5b, qwen-7b)
+#   make fetch-llms ALIASES=qwen-0.5b           # smoke-sized 0.5B only (~650 MiB)
+#   make verify-llms [ALIASES=...]              # offline SHA-256 check, no network
+#   make list-llms
+#   make update-llm-manifest                    # maintainers: re-pin + re-hash
+#
 # Intel (OVMS) equivalents — export OpenVINO IR + tokenizers at pinned HF
 # revisions and verify SHA-256 against models/manifests/ovms-embeddings.json
 # (scripts/export_ovms_embeddings.py; needs a venv with torch/transformers/
@@ -18,7 +24,7 @@
 #   make update-embedding-manifest-intel        # maintainers: re-pin + re-export
 #
 # Everything is driven against committed manifests (pinned HF revisions +
-# SHA-256 per file). See docs/fetching-models.md.
+# SHA-256 per file). See docs/fetching-models.md. Weights stay out of git.
 
 PYTHON ?= python3
 ALIASES ?=
@@ -34,6 +40,7 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 
 .PHONY: fetch-embeddings verify-embeddings list-embeddings \
 	update-embedding-manifest test-fetch \
+	fetch-llms verify-llms list-llms update-llm-manifest \
 	fetch-embeddings-intel verify-embeddings-intel list-embeddings-intel \
 	update-embedding-manifest-intel
 
@@ -51,6 +58,18 @@ update-embedding-manifest:
 
 test-fetch:
 	$(PYTHON) -m unittest discover -s scripts -p 'test_*.py' -v
+
+fetch-llms:
+	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS)
+
+verify-llms:
+	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS) --verify-only
+
+list-llms:
+	$(PYTHON) scripts/fetch_models.py --llms --list
+
+update-llm-manifest:
+	$(PYTHON) scripts/fetch_models.py --llms $(ALIAS_ARGS) --update-manifest
 
 fetch-embeddings-intel:
 	$(PYTHON) scripts/export_ovms_embeddings.py $(ALIAS_ARGS) $(INTEL_ARGS)

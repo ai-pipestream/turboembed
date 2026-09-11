@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Reproducible, hash-verified fetch of inferstream model artifacts.
 
-Downloads the prebuilt ONNX embedding artifacts that the built-in catalog
-(config/catalog.toml) resolves for the nvidia arch (backend = "ort") into
-models/onnx/<alias>/, verifying a SHA-256 hash for every file against the
-committed manifest (models/manifests/embeddings.json). Every URL is pinned
-to an exact Hugging Face revision (commit hash), never a floating branch,
-so a fetch today and a fetch next year produce byte-identical artifacts —
-or fail loudly.
+Downloads the artifacts that the built-in catalog (config/catalog.toml)
+resolves for the nvidia arch:
+
+- embeddings (default): prebuilt ONNX + tokenizer into models/onnx/<alias>/
+  against models/manifests/embeddings.json.
+- LLMs (`--llms`): official Qwen GGUF (+ split shards) and tokenizer.json
+  into models/gguf/<alias>/ against models/manifests/llms.json.
+
+Every URL is pinned to an exact Hugging Face revision (commit hash), never
+a floating branch, so a fetch today and a fetch next year produce
+byte-identical artifacts — or fail loudly.
 
 Uses only the Python standard library (no huggingface_hub required).
 
@@ -17,6 +21,10 @@ Usage:
     scripts/fetch_models.py --all
     scripts/fetch_models.py --all --verify-only
     scripts/fetch_models.py --all --update-manifest [--no-store]
+    scripts/fetch_models.py --llms --list
+    scripts/fetch_models.py --llms --all
+    scripts/fetch_models.py --llms --all --verify-only
+    scripts/fetch_models.py --llms --update-manifest [--no-store]
 
 Modes:
     (default)          Download any missing/mismatched files for the given
@@ -52,6 +60,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MANIFEST = REPO_ROOT / "models" / "manifests" / "embeddings.json"
+DEFAULT_LLM_MANIFEST = REPO_ROOT / "models" / "manifests" / "llms.json"
 HF_BASE = "https://huggingface.co"
 USER_AGENT = "inferstream-fetch-models/1.0"
 CHUNK = 1 << 20  # 1 MiB
@@ -102,6 +111,87 @@ MLX_REPOS: dict[str, str] = {
     "gte-small": "thenlper/gte-small",
     "gte-base": "thenlper/gte-base",
 }
+
+# ---------------------------------------------------------------------------
+# LLM source of truth for --llms --update-manifest. Mirrors the nvidia
+# (backend = "llama-cpp") resolutions in config/catalog.toml. Official Qwen
+# GGUF repos + the matching instruct tokenizer.json (Tokenize on apple uses
+# the fetched tokenizer_dir; nvidia/intel Tokenize from GGUF / llama-server).
+# default-llm is a logical alias of qwen-0.5b (same artifacts).
+# ---------------------------------------------------------------------------
+LLM_SOURCES: dict[str, dict] = {
+    "qwen-0.5b": {
+        "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+        "files": ["qwen2.5-0.5b-instruct-q8_0.gguf"],
+        "dest": "models/gguf/qwen-0.5b",
+        "tokenizer": {
+            "repo": "Qwen/Qwen2.5-0.5B-Instruct",
+            "files": ["tokenizer.json"],
+        },
+    },
+    "qwen-7b": {
+        "repo": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+        "files": [
+            "qwen2.5-7b-instruct-q5_k_m-00001-of-00002.gguf",
+            "qwen2.5-7b-instruct-q5_k_m-00002-of-00002.gguf",
+        ],
+        "dest": "models/gguf/qwen-7b",
+        "tokenizer": {
+            "repo": "Qwen/Qwen2.5-7B-Instruct",
+            "files": ["tokenizer.json"],
+        },
+    },
+}
+
+# Logical catalog aliases that share a fetched artifact family.
+LLM_ALIASES: dict[str, str] = {
+    "default-llm": "qwen-0.5b",
+}
+
+LLM_MLX_REPOS: dict[str, str] = {
+    "default-llm": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+    "qwen-0.5b": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+    "qwen-7b": "mlx-community/Qwen2.5-7B-Instruct-4bit",
+}
+
+
+def llm_known_aliases() -> dict[str, str]:
+    """alias -> source repo (for --list / select_aliases in LLM mode)."""
+    known = {alias: spec["repo"] for alias, spec in LLM_SOURCES.items()}
+    for alias, target in LLM_ALIASES.items():
+        known[alias] = LLM_SOURCES[target]["repo"]
+    return known
+
+
+def resolve_model_entry(manifest: dict, alias: str) -> tuple[str, dict]:
+    """Return (canonical_alias, entry), following a single alias_of hop."""
+    entry = manifest["models"][alias]
+    if "alias_of" in entry:
+        target = entry["alias_of"]
+        if target not in manifest["models"]:
+            raise RuntimeError(f"{alias}: alias_of {target!r} is not in the manifest")
+        target_entry = manifest["models"][target]
+        if "alias_of" in target_entry:
+            raise RuntimeError(f"{alias}: nested alias_of is not supported")
+        return target, target_entry
+    return alias, entry
+
+
+def artifact_specs(entry: dict):
+    """Yield (repo, revision, dest, file_dict) for every pinned file.
+
+    GGUF / ONNX files come from the top-level repo. Optional `tokenizer`
+    (LLM manifests) is a second HF repo whose files land in the same dest
+    (or tokenizer.dest when set).
+    """
+    dest = entry["dest"]
+    for f in entry.get("files", []):
+        yield entry["repo"], entry["revision"], dest, f
+    tok = entry.get("tokenizer")
+    if tok:
+        tok_dest = tok.get("dest", dest)
+        for f in tok["files"]:
+            yield tok["repo"], tok["revision"], tok_dest, f
 
 
 def resolve_url(repo: str, revision: str, path: str) -> str:
@@ -217,27 +307,38 @@ def select_aliases(args, known: dict) -> list[str]:
     return list(dict.fromkeys(args.aliases))
 
 
-def cmd_list(manifest_path: Path) -> int:
+def cmd_list(manifest_path: Path, fallback_repos: dict[str, str] | None = None) -> int:
+    if fallback_repos is None:
+        fallback_repos = ONNX_REPOS
     if manifest_path.exists():
         manifest = load_manifest(manifest_path)
         print(f"{'alias':<18} {'repo':<42} revision")
         for alias, entry in sorted(manifest["models"].items()):
+            if "alias_of" in entry:
+                print(f"{alias:<18} alias_of {entry['alias_of']}")
+                continue
             print(f"{alias:<18} {entry['repo']:<42} {entry['revision'][:12]}")
     else:
         print(f"{'alias':<18} repo (manifest not generated yet)")
-        for alias, repo in sorted(ONNX_REPOS.items()):
+        for alias, repo in sorted(fallback_repos.items()):
             print(f"{alias:<18} {repo}")
     return 0
 
 
 def cmd_verify(aliases: list[str], manifest: dict, root: Path) -> int:
     failures = []
+    seen: set[str] = set()
     for alias in aliases:
-        entry = manifest["models"][alias]
-        dest_root = root / entry["dest"]
-        for f in entry["files"]:
-            path = dest_root / f["path"]
-            label = f"{alias}: {path.relative_to(root)}"
+        key, entry = resolve_model_entry(manifest, alias)
+        if key in seen:
+            print(f"  skip      {alias} (alias of {key}, already verified)")
+            continue
+        seen.add(key)
+        if alias != key:
+            print(f"--- {alias}  ->  {key} ---")
+        for _repo, _rev, dest, f in artifact_specs(entry):
+            path = root / dest / f["path"]
+            label = f"{key}: {path.relative_to(root)}"
             if not path.exists():
                 failures.append(f"{label} — MISSING")
                 print(f"  missing   {label}")
@@ -259,22 +360,30 @@ def cmd_verify(aliases: list[str], manifest: dict, root: Path) -> int:
     return 0
 
 
-def cmd_fetch(aliases: list[str], manifest: dict, root: Path) -> int:
+def cmd_fetch(
+    aliases: list[str], manifest: dict, root: Path, smoke_hint: str | None = None
+) -> int:
     downloaded = skipped = 0
+    seen: set[str] = set()
     for alias in aliases:
-        entry = manifest["models"][alias]
+        key, entry = resolve_model_entry(manifest, alias)
+        if key in seen:
+            print(f"--- {alias}  ->  {key} (already fetched) ---")
+            continue
+        seen.add(key)
         dest_root = root / entry["dest"]
-        print(f"--- {alias}  <-  {entry['repo']}@{entry['revision'][:12]}  ->  "
+        label = alias if alias == key else f"{alias} -> {key}"
+        print(f"--- {label}  <-  {entry['repo']}@{entry['revision'][:12]}  ->  "
               f"{dest_root.relative_to(root)} ---")
-        for f in entry["files"]:
-            path = dest_root / f["path"]
+        for repo, revision, dest, f in artifact_specs(entry):
+            path = root / dest / f["path"]
             if path.exists():
                 if sha256_file(path) == f["sha256"]:
                     print(f"  ok (cached)  {f['path']}  [{human(f['size'])}]")
                     skipped += 1
                     continue
                 print(f"  stale hash, re-downloading  {f['path']}")
-            url = resolve_url(entry["repo"], entry["revision"], f["path"])
+            url = resolve_url(repo, revision, f["path"])
             print(f"  downloading  {f['path']}  [{human(f['size'])}] ...", flush=True)
             try:
                 actual, size = stream_download(url, path)
@@ -284,7 +393,7 @@ def cmd_fetch(aliases: list[str], manifest: dict, root: Path) -> int:
             if actual != f["sha256"]:
                 path.unlink(missing_ok=True)
                 print(
-                    f"error: SHA-256 mismatch for {alias}/{f['path']}\n"
+                    f"error: SHA-256 mismatch for {key}/{f['path']}\n"
                     f"  expected {f['sha256']}\n"
                     f"  got      {actual}\n"
                     f"  url      {url}\n"
@@ -295,7 +404,7 @@ def cmd_fetch(aliases: list[str], manifest: dict, root: Path) -> int:
                 return 1
             if size != f["size"]:
                 print(
-                    f"error: size mismatch for {alias}/{f['path']} "
+                    f"error: size mismatch for {key}/{f['path']} "
                     f"(expected {f['size']}, got {size})",
                     file=sys.stderr,
                 )
@@ -303,8 +412,11 @@ def cmd_fetch(aliases: list[str], manifest: dict, root: Path) -> int:
             print(f"  verified     {f['path']}  sha256={actual[:16]}…")
             downloaded += 1
     print(f"\nDone: {downloaded} downloaded, {skipped} already present and verified.")
-    print("Add the aliases to `serve` in config/nvidia.toml and restart;")
-    print("verify with: scripts/smoke-embeddings.sh <host:port> <bearer-token>")
+    if smoke_hint:
+        print(smoke_hint)
+    else:
+        print("Add the aliases to `serve` in config/nvidia.toml and restart;")
+        print("verify with: scripts/smoke-embeddings.sh <host:port> <bearer-token>")
     return 0
 
 
@@ -369,13 +481,128 @@ def cmd_update_manifest(
     return 0
 
 
+def cmd_update_llm_manifest(
+    aliases: list[str], manifest_path: Path, root: Path, store: bool
+) -> int:
+    """Re-pin LLM GGUF + tokenizer artifacts and rewrite llms.json."""
+    if manifest_path.exists():
+        manifest = load_manifest(manifest_path)
+    else:
+        manifest = {
+            "schema_version": 1,
+            "_comment": (
+                "SHA-256 manifest for inferstream LLM artifacts. Generated by "
+                "scripts/fetch_models.py --llms --update-manifest; do not edit "
+                "hashes by hand. Revisions are exact HF commit hashes (never "
+                "floating branches). mlx_repos records the repos+revisions the "
+                "apple/MLX runtime pulls via huggingface_hub at runtime "
+                "(informational). default-llm is alias_of qwen-0.5b."
+            ),
+            "models": {},
+            "mlx_repos": {},
+        }
+
+    # Hash only concrete families; write alias_of entries afterwards.
+    families: list[str] = []
+    for alias in aliases:
+        families.append(LLM_ALIASES.get(alias, alias))
+    families = list(dict.fromkeys(families))
+
+    for alias in families:
+        spec = LLM_SOURCES[alias]
+        repo = spec["repo"]
+        print(f"--- pinning {alias}  <-  {repo} ---")
+        revision, repo_files = repo_info(repo)
+        print(f"  revision {revision}")
+        missing = [f for f in spec["files"] if f not in repo_files]
+        if missing:
+            print(f"error: {repo}: required file(s) not in repo: {missing}", file=sys.stderr)
+            return 1
+        dest = spec["dest"]
+        files = []
+        for rel in spec["files"]:
+            url = resolve_url(repo, revision, rel)
+            target = (root / dest / rel) if store else None
+            print(f"  hashing {rel} ...", flush=True)
+            try:
+                digest, size = stream_download(url, target)
+            except urllib.error.HTTPError as e:
+                print(f"error: {url}: HTTP {e.code} {e.reason}", file=sys.stderr)
+                return 1
+            print(f"    sha256={digest}  size={human(size)}")
+            files.append({"path": rel, "sha256": digest, "size": size})
+        entry: dict = {
+            "repo": repo,
+            "revision": revision,
+            "dest": dest,
+            "files": files,
+        }
+        tok_spec = spec.get("tokenizer")
+        if tok_spec:
+            tok_repo = tok_spec["repo"]
+            print(f"  pinning tokenizer  <-  {tok_repo}")
+            tok_rev, tok_files = repo_info(tok_repo)
+            print(f"    revision {tok_rev}")
+            tok_missing = [f for f in tok_spec["files"] if f not in tok_files]
+            if tok_missing:
+                print(
+                    f"error: {tok_repo}: required file(s) not in repo: {tok_missing}",
+                    file=sys.stderr,
+                )
+                return 1
+            tok_dest = tok_spec.get("dest", dest)
+            tok_hashed = []
+            for rel in tok_spec["files"]:
+                url = resolve_url(tok_repo, tok_rev, rel)
+                target = (root / tok_dest / rel) if store else None
+                print(f"  hashing {rel} ...", flush=True)
+                try:
+                    digest, size = stream_download(url, target)
+                except urllib.error.HTTPError as e:
+                    print(f"error: {url}: HTTP {e.code} {e.reason}", file=sys.stderr)
+                    return 1
+                print(f"    sha256={digest}  size={human(size)}")
+                tok_hashed.append({"path": rel, "sha256": digest, "size": size})
+            entry["tokenizer"] = {
+                "repo": tok_repo,
+                "revision": tok_rev,
+                "files": tok_hashed,
+            }
+        manifest["models"][alias] = entry
+
+    for alias, target in LLM_ALIASES.items():
+        if alias in aliases or target in families:
+            manifest["models"][alias] = {"alias_of": target}
+
+    for alias, mlx_repo in LLM_MLX_REPOS.items():
+        if alias not in aliases and LLM_ALIASES.get(alias) not in families and alias not in families:
+            continue
+        mlx_rev, _ = repo_info(mlx_repo)
+        manifest["mlx_repos"][alias] = {"repo": mlx_repo, "revision": mlx_rev}
+        print(f"  mlx runtime repo {alias}: {mlx_repo}@{mlx_rev[:12]}")
+
+    manifest["models"] = dict(sorted(manifest["models"].items()))
+    manifest["mlx_repos"] = dict(sorted(manifest["mlx_repos"].items()))
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    with manifest_path.open("w") as f:
+        json.dump(manifest, f, indent=2)
+        f.write("\n")
+    print(f"\nManifest written: {manifest_path.relative_to(root)} — review and commit it.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Hash-verified fetch of inferstream embedding model artifacts.",
+        description="Hash-verified fetch of inferstream model artifacts "
+        "(embeddings by default; LLMs with --llms).",
     )
     parser.add_argument("aliases", nargs="*", help="catalog aliases to fetch")
     parser.add_argument("--all", action="store_true", help="operate on every alias")
     parser.add_argument("--list", action="store_true", help="list aliases and sources")
+    parser.add_argument(
+        "--llms", action="store_true",
+        help="operate on generative LLM artifacts (models/manifests/llms.json)",
+    )
     parser.add_argument(
         "--verify-only", action="store_true",
         help="verify existing files against the manifest; no downloads",
@@ -389,8 +616,8 @@ def main() -> int:
         help="with --update-manifest: hash from the stream without writing files",
     )
     parser.add_argument(
-        "--manifest", type=Path, default=DEFAULT_MANIFEST,
-        help=f"manifest path (default: {DEFAULT_MANIFEST.relative_to(REPO_ROOT)})",
+        "--manifest", type=Path, default=None,
+        help="manifest path (default: embeddings.json, or llms.json with --llms)",
     )
     parser.add_argument(
         "--root", type=Path, default=REPO_ROOT,
@@ -398,10 +625,19 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.manifest is None:
+        args.manifest = DEFAULT_LLM_MANIFEST if args.llms else DEFAULT_MANIFEST
+
     if args.list:
-        return cmd_list(args.manifest)
+        fallback = llm_known_aliases() if args.llms else ONNX_REPOS
+        return cmd_list(args.manifest, fallback)
 
     if args.update_manifest:
+        if args.llms:
+            aliases = select_aliases(args, llm_known_aliases())
+            return cmd_update_llm_manifest(
+                aliases, args.manifest, args.root, not args.no_store
+            )
         aliases = select_aliases(args, ONNX_REPOS)
         return cmd_update_manifest(aliases, args.manifest, args.root, not args.no_store)
 
@@ -417,7 +653,13 @@ def main() -> int:
 
     if args.verify_only:
         return cmd_verify(aliases, manifest, args.root)
-    return cmd_fetch(aliases, manifest, args.root)
+    smoke = None
+    if args.llms:
+        smoke = (
+            "Add the aliases to `serve` in the arch config and restart;\n"
+            "verify with: scripts/smoke-llms.sh <host:port> <bearer-token>"
+        )
+    return cmd_fetch(aliases, manifest, args.root, smoke_hint=smoke)
 
 
 if __name__ == "__main__":
