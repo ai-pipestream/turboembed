@@ -62,6 +62,8 @@ jobs:
           bash -n scripts/fetch-llms.sh
           bash -n scripts/test-fetch-llms.sh
           bash -n scripts/smoke-llms.sh
+          bash -n scripts/smoke-embeddings.sh
+          bash -n scripts/smoke-apple.sh
           bash -n scripts/setup-llamacpp-sycl.sh
           bash -n scripts/run-intel.sh
           bash -n scripts/prove-intel-genai.sh

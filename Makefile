@@ -3,6 +3,8 @@
 #
 #   make test                               # cargo test --workspace
 #   make test-fetch                         # fetch-crate + xtask unit tests
+#   make e2e-nvidia / e2e-intel / e2e-apple # live harness (server already up)
+#   make e2e-all                            # each arch whose *_ADDR is set
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -58,7 +60,8 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 	verify-embeddings-intel list-embeddings-intel \
 	update-embedding-manifest-intel \
 	setup-sycl build-intel-sycl \
-	apple smoke-apple sync-proto
+	apple smoke-apple sync-proto \
+	e2e e2e-nvidia e2e-intel e2e-apple e2e-all e2e-mock
 
 test:
 	$(CARGO) test --workspace
@@ -135,6 +138,46 @@ setup-sycl:
 # No python3.
 build-intel-sycl: setup-sycl
 	scripts/build-intel.sh
+
+# Unified E2E harness (crates/e2e). Talks gRPC to an already-running server;
+# never starts remote GPUs. See docs/e2e.md.
+E2E := $(CARGO) run -q -p inferstream-e2e --
+INFERSTREAM_E2E_TOKEN ?= change-me
+INFERSTREAM_E2E_NVIDIA_ADDR ?=
+INFERSTREAM_E2E_INTEL_ADDR ?=
+INFERSTREAM_E2E_APPLE_ADDR ?=
+
+e2e-nvidia:
+	$(E2E) --target nvidia --addr $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),krick:8461) --token "$(INFERSTREAM_E2E_TOKEN)"
+
+e2e-intel:
+	$(E2E) --target intel --addr $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),krick-1:8461) --token "$(INFERSTREAM_E2E_TOKEN)"
+
+e2e-apple:
+	$(E2E) --target apple --addr $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),krickert-mac:8461) --token "$(INFERSTREAM_E2E_TOKEN)"
+
+# Local mock under the same logical names (config/e2e-mock.toml must be up).
+e2e-mock:
+	$(E2E) --target mock --addr $(or $(INFERSTREAM_E2E_ADDR),127.0.0.1:8461) --token "$(INFERSTREAM_E2E_TOKEN)"
+
+# Run each arch whose INFERSTREAM_E2E_<ARCH>_ADDR is set. CI cloud can call
+# this safely: with no addrs it prints a skip line and exits 0.
+e2e-all:
+	@ran=0; \
+	if [ -n "$(INFERSTREAM_E2E_NVIDIA_ADDR)" ]; then \
+	  $(MAKE) e2e-nvidia INFERSTREAM_E2E_NVIDIA_ADDR=$(INFERSTREAM_E2E_NVIDIA_ADDR); ran=1; \
+	fi; \
+	if [ -n "$(INFERSTREAM_E2E_INTEL_ADDR)" ]; then \
+	  $(MAKE) e2e-intel INFERSTREAM_E2E_INTEL_ADDR=$(INFERSTREAM_E2E_INTEL_ADDR); ran=1; \
+	fi; \
+	if [ -n "$(INFERSTREAM_E2E_APPLE_ADDR)" ]; then \
+	  $(MAKE) e2e-apple INFERSTREAM_E2E_APPLE_ADDR=$(INFERSTREAM_E2E_APPLE_ADDR); ran=1; \
+	fi; \
+	if [ "$$ran" = 0 ]; then \
+	  echo "e2e-all: no INFERSTREAM_E2E_{NVIDIA,INTEL,APPLE}_ADDR set; nothing to run (will not start remote GPUs)."; \
+	fi
+
+e2e: e2e-all
 
 verify-embeddings-intel:
 	$(FETCH) --ovms $(ALIAS_ARGS) --verify-only $(INTEL_ARGS)

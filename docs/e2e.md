@@ -1,0 +1,142 @@
+# Unified E2E harness
+
+One client, one suite, any of the three arch gRPC servers. The harness is
+`inferstream-e2e` (`crates/e2e`) — a Rust gRPC client. It does **not** start
+GPU servers and does **not** download weights. Point it at a host that is
+already serving.
+
+The same cases run against nvidia / intel / apple:
+
+| case | what it asserts |
+|---|---|
+| `server-live` / `list-models` | `ServerLive.live`, logical names present, `minilm` ready |
+| `embed:<alias>` | non-empty vectors; `minilm` dim 384 (required); others skip if not served |
+| `tokenize:<alias>` | Tokenize + Detokenize on `minilm` and the first served LLM |
+| `generate:<alias>` | short `ModelStreamInfer` for `default-llm` / `qwen-0.5b` / `qwen-7b` — non-empty tokens, `final=true` |
+
+Skip vs fail:
+
+- **Required** (`minilm`): missing from `ListModels` or a failed RPC is a hard fail.
+- **Catalog `NotAvailableOnArch`**: alias has no `[models.<alias>.<arch>]` row (e.g. `mpnet` on apple) **and** the host is not serving it → soft skip with that reason.
+- **Not served**: catalog supports it but this host did not put it on `serve` → soft skip.
+- A served alias is always exercised, even if the catalog omits it for that arch.
+
+Optional cosine check: if `testdata/e2e/goldens/<arch>/<alias>.json` exists
+(same schema as `testdata/reference_embeddings/`), the first vector must
+cosine-match at ≥ 0.99 (override with `--cosine-min`). Missing goldens are
+not an error.
+
+## Build / run
+
+```bash
+# Against a live worker (server already up):
+make e2e-nvidia          # default addr krick:8461
+make e2e-intel           # default addr krick-1:8461
+make e2e-apple           # default addr krickert-mac:8461
+
+# Or the binary directly:
+cargo run -p inferstream-e2e -- --target nvidia --addr krick:8461 --token "$KEY"
+```
+
+Environment / flags (equivalent):
+
+| flag | env | default |
+|---|---|---|
+| `--target` | `INFERSTREAM_E2E_TARGET` | inferred from `--addr` (`krick` / `krick-1` / `krickert-mac` / localhost) |
+| `--addr` | `INFERSTREAM_E2E_ADDR` | per-target live worker |
+| `--token` | `INFERSTREAM_E2E_TOKEN` | `change-me` (empty string = no auth) |
+| `--matrix` | `INFERSTREAM_E2E_MATRIX` | built-in `testdata/e2e/matrix.json` |
+| `--goldens` | `INFERSTREAM_E2E_GOLDENS` | `testdata/e2e/goldens/` if present |
+| `--only minilm,mpnet` | | all matrix aliases |
+| `--suite all\|list\|embed\|tokenize\|generate` | | `all` |
+
+`make e2e-all` runs each arch whose `INFERSTREAM_E2E_<ARCH>_ADDR` is set.
+With none set it prints a skip line and exits 0 — CI cloud must not start
+remote GPUs.
+
+```bash
+INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \
+INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 \
+  make e2e-all
+```
+
+## Live hosts
+
+Bearer token on all three example configs is `change-me` unless you overrode
+`INFERSTREAM_API_KEYS`.
+
+### krick (nvidia)
+
+```bash
+# on krick, or any box that can reach it:
+scripts/run-nvidia.sh --config config/nvidia.toml   # already running is fine
+make e2e-nvidia INFERSTREAM_E2E_ADDR=127.0.0.1:8461
+# from another machine:
+make e2e-nvidia INFERSTREAM_E2E_ADDR=krick:8461
+```
+
+Serves `minilm` + `default-llm` out of the box. Extra embed / `qwen-0.5b` /
+`qwen-7b` aliases skip until they are on `serve` and fetched.
+
+### krick-1 (intel)
+
+```bash
+scripts/run-intel.sh --config config/intel.toml
+make e2e-intel INFERSTREAM_E2E_ADDR=127.0.0.1:8461
+# remote:
+make e2e-intel INFERSTREAM_E2E_ADDR=krick-1:8461
+```
+
+In-process SYCL currently serves `default-llm` / `qwen-0.5b` (and `qwen-7b`
+when fetched). `qwen-0.5b` is **not** skipped: the catalog has an intel row.
+Only skip it if you pass a matrix JSON that drops intel from that alias.
+
+### krickert-mac (apple)
+
+```bash
+make apple
+./swift/.build/release/inferstream-apple --config config/apple.toml
+make e2e-apple INFERSTREAM_E2E_ADDR=127.0.0.1:8461
+# or the bring-up wrapper (starts the Swift server, then the harness):
+scripts/smoke-apple.sh
+```
+
+`mpnet` and `nomic-embed-text` skip with `NotAvailableOnArch` (no MLX path).
+
+## Local mock (CI / no GPU)
+
+`cargo test -p inferstream-e2e` starts an in-process mock registered as
+`minilm` / `default-llm` / `qwen-0.5b` and runs the **same** suite with
+`--target mock` (dims come from `ListModels`, not 384).
+
+To drive the binary by hand:
+
+```bash
+cargo run -p inferstream-server -- --config config/e2e-mock.toml
+cargo run -p inferstream-e2e -- --target mock --addr 127.0.0.1:8461 --token ""
+# or: make e2e-mock INFERSTREAM_E2E_TOKEN=
+```
+
+## Ad-hoc smoke scripts
+
+`scripts/smoke-embeddings.sh`, `scripts/smoke-llms.sh`, and the RPC half of
+`scripts/smoke-apple.sh` are thin wrappers around this harness. Prefer
+`inferstream-e2e` / `make e2e-*` as the canonical path.
+
+## Matrix JSON
+
+Override which aliases each arch must support:
+
+```json
+{
+  "embeds": [
+    {"alias": "minilm", "dim": 384, "required": true, "arches": ["nvidia", "intel", "apple"]}
+  ],
+  "llms": [
+    {"alias": "default-llm", "arches": ["nvidia", "intel", "apple"]}
+  ]
+}
+```
+
+`required: true` → missing from `ListModels` is a fail. LLM aliases default
+to not required so a host that has not fetched `qwen-7b` skips cleanly.

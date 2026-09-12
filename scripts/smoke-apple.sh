@@ -3,22 +3,19 @@
 #
 # Prereqs:  cargo xtask fetch --mlx minilm qwen-0.5b
 #           cargo xtask fetch --llms qwen-0.5b   # tokenizer.json
-#           brew install grpcurl jq
+#           brew install grpcurl
 #
 # Starts the Swift gRPC server (mlx-swift in-process — no Rust process,
-# no Python), then ListModels / Tokenize / Detokenize / Embed /
-# ModelStreamInfer.
+# no Python), then runs the canonical inferstream-e2e harness.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${1:-config/apple.toml}"
 ADDR="127.0.0.1:8461"
 AUTH=(-H 'authorization: Bearer change-me')
-EXT=(-proto proto/inferstream_extension.proto)
 OIP=(-proto proto/open_inference_grpc.proto)
 
 command -v grpcurl >/dev/null || { echo "error: grpcurl not installed" >&2; exit 1; }
-command -v jq >/dev/null || { echo "error: jq not installed" >&2; exit 1; }
 
 ./scripts/sync-proto.sh --check
 if [ ! -x swift/.build/release/inferstream-apple ]; then
@@ -90,41 +87,8 @@ if command -v vmmap >/dev/null; then
     echo "--- vmmap: no Python image ---"
 fi
 
-echo "--- ListModels ---"
-grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
-    inferstream.v1.InferstreamService/ListModels
-
-echo "--- Tokenize (swift-transformers, in-process) ---"
-grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
-    -d '{"model_name":"minilm","texts":["hello world"]}' \
-    "$ADDR" inferstream.v1.InferstreamService/Tokenize | jq .
-
-echo "--- Detokenize ---"
-grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
-    -d '{"model_name":"minilm","sequences":[{"ids":[101,7592,2088,102]}],"skip_special_tokens":true}' \
-    "$ADDR" inferstream.v1.InferstreamService/Detokenize | jq .
-
-echo "--- Embed (native MLX MiniLM on Metal) ---"
-grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
-    -d '{"model_name":"minilm","texts":["gRPC inference on Apple Metal"],"normalize":true}' \
-    "$ADDR" inferstream.v1.InferstreamService/Embed \
-    | jq -r '.embeddings[0].values as $v | "dim=\($v|length) norm=\($v|map(.*.)|add|sqrt)"'
-
-if grep -Eq 'default-llm|qwen-0.5b|qwen2.5-0.5b' "$CONFIG"; then
-    echo "--- ModelStreamInfer (default-llm, native MLX) ---"
-    TEXT="Say hello in five words or fewer."
-    B64=$(printf '%s' "$TEXT" | perl -e 'undef $/; $t=<>; print pack("V", length($t)).$t' | base64)
-    RAW=$(grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" \
-        -d '{"model_name":"default-llm","id":"smoke-gen","inputs":[{"name":"text","datatype":"BYTES","shape":[1]}],"raw_input_contents":["'"$B64"'"],"parameters":{"max_tokens":{"int64Param":"32"}}}' \
-        "$ADDR" inference.GRPCInferenceService/ModelStreamInfer)
-    echo "$RAW" | jq -s '
-        (map(.inferResponse // .) | map(select((.rawOutputContents // []) | length > 0))) as $c
-        | (map(.inferResponse // .) | map(select(.parameters.final.boolParam == true)) | length) as $f
-        | (map(.inferResponse // .) | map(.parameters.decodeTokensPerSecond.doubleParam // .parameters.decode_tokens_per_second.doubleParam // empty) | .[0] // 0) as $tps
-        | "tokens=\($c|length) final=\($f > 0) engine_decode_tps=\($tps)"
-    '
-else
-    echo "--- ModelStreamInfer skipped: no generation alias in $CONFIG ---"
-fi
+echo "--- inferstream-e2e (canonical Apple suite) ---"
+INFERSTREAM_E2E_TARGET=apple cargo run -q -p inferstream-e2e -- \
+    --target apple --addr "$ADDR" --token change-me
 
 echo "SMOKE OK"

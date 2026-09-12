@@ -1,0 +1,84 @@
+{
+  "embeds": [
+    {
+      "alias": "minilm",
+      "dim": 384,
+      "required": true,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "minilm-l12",
+      "dim": 384,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "mpnet",
+      "dim": 768,
+      "arches": ["nvidia", "intel"]
+    },
+    {
+      "alias": "bge-small",
+      "dim": 384,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "bge-base",
+      "dim": 768,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "bge-large",
+      "dim": 1024,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "bge-m3",
+      "dim": 1024,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "e5-small",
+      "dim": 384,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "e5-base",
+      "dim": 768,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "e5-large",
+      "dim": 1024,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "gte-small",
+      "dim": 384,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "gte-base",
+      "dim": 768,
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "nomic-embed-text",
+      "dim": 768,
+      "arches": ["nvidia", "intel"]
+    }
+  ],
+  "llms": [
+    {
+      "alias": "default-llm",
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "qwen-0.5b",
+      "arches": ["nvidia", "intel", "apple"]
+    },
+    {
+      "alias": "qwen-7b",
+      "arches": ["nvidia", "intel", "apple"]
+    }
+  ]
+}

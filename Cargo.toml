@@ -16,6 +16,7 @@ members = [
     "crates/arch-apple",
     "crates/fetch",
     "crates/xtask",
+    "crates/e2e",
 ]
 
 [workspace.package]

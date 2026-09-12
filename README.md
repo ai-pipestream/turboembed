@@ -25,7 +25,7 @@ Every arch binary serves **both** gRPC services on one port behind one bearer in
 
 ### Apple MLX: all-Swift gRPC server
 
-The supported Mac server is the Swift package in `swift/` — grpc-swift implements both `inference.GRPCInferenceService` and `inferstream.v1.InferstreamService` from the shared `proto/` files, and mlx-swift runs **in-process** (no Rust façade, no `libMlxEngine.dylib` FFI, no Python). Setup is `scripts/setup-mlx.sh` (`cargo xtask fetch --mlx`). Build/run: `make apple`. Smoke: `scripts/smoke-apple.sh`. Walkthrough: [`docs/swift-apple.md`](docs/swift-apple.md). The Rust `inferstream-apple` crate remains as a Linux-CI stub only.
+The supported Mac server is the Swift package in `swift/` — grpc-swift implements both `inference.GRPCInferenceService` and `inferstream.v1.InferstreamService` from the shared `proto/` files, and mlx-swift runs **in-process** (no Rust façade, no `libMlxEngine.dylib` FFI, no Python). Setup is `scripts/setup-mlx.sh` (`cargo xtask fetch --mlx`). Build/run: `make apple`. Smoke: `scripts/smoke-apple.sh` (starts the Swift server, then `inferstream-e2e --target apple`). Walkthrough: [`docs/swift-apple.md`](docs/swift-apple.md). The Rust `inferstream-apple` crate remains as a Linux-CI stub only.
 
 **Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Six real engine paths are live.** NVIDIA embeddings: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. NVIDIA generation: `backend-llamacpp` in-process (features `llamacpp-runtime` / `llamacpp-cuda`) loads GGUF models through `llama-cpp-2`, streaming one `token` BYTES chunk per decoded piece over `ModelStreamInfer` with a `final` flag on the last chunk; unary `ModelInfer` returns the whole completion, and Tokenize/Detokenize answer from the GGUF vocabulary. Intel embeddings: `inferstream-intel` with `backend = "openvino"` loads an in-process OpenVINO GenAI `TextEmbeddingPipeline` (cxx; plain strings; openvino-tokenizers; CLS/MEAN/LAST + L2; CPU/GPU/NPU). Default catalog device is GPU. **Code is landed; GPU live smoke is a krick-1 follow-up** (`docs/intel-genai-embed.md`). OVMS gRPC remains optional/legacy. Intel generation: `backend-llamacpp` in-process SYCL (`llamacpp-sycl`) streams GGUF on Battlemage (`docs/intel-sycl-inprocess-krick-1.md`). Apple embeddings and generation: `backend-apple`'s `MlxBackend` runs **native MLX in-process** (Swift mlx-swift-lm on Metal; see `docs/native-mlx.md`) — validated with `scripts/smoke-apple.sh`. TRT-LLM remains a stub with full config surface; routing to it still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
 
@@ -201,7 +201,17 @@ grpcurl -plaintext -proto proto/inferstream_extension.proto \
 
 **Adding an alias:** add a `[models.<alias>]` table to `config/catalog.toml` with a `[models.<alias>.<arch>]` sub-table per arch that can serve it (arches: `nvidia`, `intel`, `apple`), rebuild, and list the alias in `serve`. For proxy backends (`ovms`) set `upstream_model` when the upstream pipeline name differs from the alias — requests are forwarded under the upstream name and responses report the logical one. To change resolutions per host **without rebuilding**, point the config at a catalog copy: `catalog = "/etc/inferstream/catalog.toml"`. The built-in matrix is enforced by a unit test (`BUILTIN_MATRIX` in `crates/server/src/catalog.rs`) — extend it when the catalog changes.
 
-**Smoking the surface:** `scripts/smoke-embeddings.sh [host:port] [bearer-token] [model ...]` runs `ListModels` and then `Embed` through every serving model (or the subset you name), on any arch — exits nonzero if any model fails to return vectors. `scripts/smoke-llms.sh` does the same for generation aliases: `Tokenize` plus a short `ModelStreamInfer` (live GPU is the acceptance path; the script talks to an already-running server and does not download weights). Bring-up: `make fetch-embeddings` / `make fetch-llms` (hash-verified; `make verify-embeddings` / `make verify-llms` re-check offline) → extend `serve` → restart → smoke.
+**Parity gate (canonical):** `inferstream-e2e` (`crates/e2e`) is the unified client-side suite — same cases against nvidia / intel / apple. It talks gRPC to an already-running server and never starts remote GPUs. See [`docs/e2e.md`](docs/e2e.md).
+
+```bash
+make e2e-nvidia          # default krick:8461
+make e2e-intel           # default krick-1:8461
+make e2e-apple           # default krickert-mac:8461
+make e2e-all             # only arches whose INFERSTREAM_E2E_<ARCH>_ADDR is set
+cargo run -p inferstream-e2e -- --target nvidia --addr krick:8461 --token "$KEY"
+```
+
+`scripts/smoke-embeddings.sh` / `scripts/smoke-llms.sh` / the RPC half of `scripts/smoke-apple.sh` are thin wrappers around this harness. Bring-up: `make fetch-embeddings` / `make fetch-llms` (hash-verified; `make verify-embeddings` / `make verify-llms` re-check offline) → extend `serve` → restart → `make e2e-<arch>`.
 
 Failures are startup-time and actionable: an unknown alias lists what the catalog defines; an alias with no resolution for this arch names the arches that have one. Explicit `[[models]]` entries keep working alongside `serve` (collisions are rejected), and the arch-neutral dev `inferstream` binary rejects `serve` since it has no arch.
 
@@ -300,6 +310,8 @@ Generation contract (all engines, identical to what the mock emits today): input
 
 ```bash
 cargo test --workspace          # 90+ tests, passes with zero GPU libraries
+                                # (includes inferstream-e2e against the mock)
+make e2e-nvidia                 # live suite; server already up (see docs/e2e.md)
 ```
 
 Fixed prompts (short / medium / empty / unicode / long-truncation) live as JSON goldens in `testdata/reference_embeddings/`. The deterministic-mock goldens run on every `cargo test` (cosine ≥ 0.999 plus exact-value and L2 checks, both directly and end-to-end through the `Embed` RPC); regenerate them with `cargo run -p inferstream-server --example gen_reference_embeddings`. GPU goldens for the real engines are `#[ignore]`d and feature-gated (`cargo test -p inferstream-backend-ort --features cuda -- --ignored gpu_golden` on krick) — see [`testdata/reference_embeddings/README.md`](testdata/reference_embeddings/README.md) for the schema and the krick/krick-1 regeneration walkthrough.
