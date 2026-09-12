@@ -1409,6 +1409,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "inferstream-e2e"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "futures",
+ "inferstream-backend",
+ "inferstream-backend-mock",
+ "inferstream-protocol",
+ "inferstream-server",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "toml",
+ "tonic",
+]
+
+[[package]]
 name = "inferstream-fetch"
 version = "0.1.0"
 dependencies = [
