@@ -273,12 +273,6 @@ impl OrtCudaSession {
         Ok(loaded)
     }
 
-    pub fn embed(&self, text: &str) -> Result<Vec<f32>, Error> {
-        let (dim, values) = self.embed_batch(&[text.to_string()])?;
-        debug_assert_eq!(values.len(), dim);
-        Ok(values)
-    }
-
     pub(crate) fn embed_batch(&self, texts: &[String]) -> Result<(usize, Vec<f32>), Error> {
         let batch = texts.len();
         if batch == 0 {

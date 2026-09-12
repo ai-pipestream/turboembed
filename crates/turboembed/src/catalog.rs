@@ -21,6 +21,7 @@ pub enum Arch {
 }
 
 impl Arch {
+    #[allow(dead_code)]
     pub fn parse(s: &str) -> Result<Self, CatalogError> {
         match s.to_ascii_lowercase().as_str() {
             "nvidia" => Ok(Self::Nvidia),
@@ -52,6 +53,7 @@ pub struct Catalog {
 #[serde(deny_unknown_fields)]
 pub struct CatalogEntry {
     #[serde(default)]
+    #[allow(dead_code)]
     pub description: Option<String>,
     #[serde(default)]
     pub nvidia: Option<CatalogModelSpec>,
@@ -92,18 +94,24 @@ pub struct CatalogModelSpec {
     #[serde(default)]
     pub device: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub endpoint: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub engine_dir: Option<String>,
     #[serde(default)]
     pub tokenizer_dir: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub max_batch_size: Option<u32>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub dtype: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub n_gpu_layers: Option<u32>,
     #[serde(default)]
+    #[allow(dead_code)]
     pub n_ctx: Option<u32>,
     #[serde(default)]
     pub pooling: Option<String>,
@@ -123,6 +131,7 @@ pub enum CatalogError {
     #[error("failed to parse catalog: {0}")]
     Parse(#[from] toml::de::Error),
     #[error("unknown arch {arch:?}; expected \"nvidia\", \"intel\" or \"apple\"")]
+    #[allow(dead_code)]
     UnknownArch { arch: String },
     #[error("unknown model alias {alias:?}; catalog defines: {known}")]
     UnknownAlias { alias: String, known: String },

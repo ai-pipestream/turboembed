@@ -1,4 +1,6 @@
 {
+  "abi": "turboembed.h",
+  "abi_version": 1,
   "alias": "minilm",
   "arch": "nvidia",
   "commands": [
@@ -9,9 +11,16 @@
   "crate": "turboembed",
   "device": "CUDA",
   "dims": 384,
-  "git_sha": "c1f54e2b7685bca94ab3b70dcd50bee9cea690dd",
+  "git_sha": "5f44dc789f159f5fa4f4a7e336849e80fd3a9bf4",
   "golden": "testdata/e2e/goldens/nvidia/minilm.json",
+  "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+  "hello_world_cosine": 0.9999998211860657,
   "host": "krick",
+  "maps": {
+    "libcudart": true,
+    "libonnxruntime_providers_cuda": true,
+    "libpython": false
+  },
   "mean_cosine": 0.9999999403953552,
   "n_texts": 6,
   "normalize": true,
@@ -22,5 +31,5 @@
   "schema_version": 1,
   "subset": "parity:*",
   "threshold": 0.9900000095367432,
-  "worst_cosine": 0.9999995231628418
+  "worst_cosine": 0.9999998211860657
 }
