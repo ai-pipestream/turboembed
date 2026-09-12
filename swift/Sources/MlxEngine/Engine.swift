@@ -75,24 +75,42 @@ public final class Engine: @unchecked Sendable {
         )
     }
 
-    public func embed(modelPath: String, texts: [String], normalize: Bool) async throws -> EmbedResult
-    {
+    public func embed(
+        modelPath: String,
+        texts: [String],
+        normalize: Bool,
+        pooling: String = "mean",
+        maxSeqLen: Int? = nil
+    ) async throws -> EmbedResult {
+        let kind = try PoolingKind.parse(pooling)
         let container = try await loadEmbed(modelPath)
         return try await container.perform { context -> EmbedResult in
-            let encoded = texts.map {
+            let padId =
+                context.tokenizer.convertTokenToId("[PAD]")
+                ?? context.tokenizer.convertTokenToId("<pad>")
+                ?? 0
+            let sepId =
+                context.tokenizer.convertTokenToId("[SEP]")
+                ?? context.tokenizer.convertTokenToId("</s>")
+            var encoded = texts.map {
                 context.tokenizer.encode(text: $0, addSpecialTokens: true)
             }
+            if let maxSeqLen {
+                encoded = encoded.map { truncateEncoderIds($0, max: maxSeqLen, sepId: sepId) }
+            }
             let maxLength = encoded.map(\.count).max() ?? 0
-            let padId = context.tokenizer.eosTokenId ?? 0
             let padded = stacked(
                 encoded.map { ids in
                     MLXArray(ids + Array(repeating: padId, count: maxLength - ids.count))
                 })
-            let mask = padded .!= padId
+            // Boolean 1=token / 0=pad. BERT's forward turns this into an additive
+            // log-mask; we keep the boolean copy for mean pooling so pad rows
+            // do not enter the average.
+            let tokenMask = padded .!= padId
             let tokenTypes = MLXArray.zeros(like: padded)
             let output = context.model(
-                padded, positionIds: nil, tokenTypeIds: tokenTypes, attentionMask: mask)
-            let pooled = context.pooling(output, normalize: normalize, applyLayerNorm: true)
+                padded, positionIds: nil, tokenTypeIds: tokenTypes, attentionMask: tokenMask)
+            let pooled = poolHidden(output, mask: tokenMask, kind: kind, normalize: normalize)
             eval(pooled)
             let rows = pooled.map { $0.asArray(Float.self) }
             let dim = rows.first?.count ?? 0
@@ -168,4 +186,62 @@ public final class Engine: @unchecked Sendable {
         defer { lock.unlock() }
         return body()
     }
+}
+
+/// Catalog family pooling. MiniLM / MPNet / E5 / GTE use **mean** of last
+/// hidden states; BGE uses the first token (`[CLS]`) hidden state — not the
+/// BERT NSP pooler (`tanh(dense(CLS))`). That pooler is why a missing
+/// `1_Pooling/config.json` produced apple↔nvidia cosine ≈ 0.
+enum PoolingKind {
+    case mean
+    case cls
+
+    static func parse(_ raw: String) throws -> PoolingKind {
+        switch raw.lowercased() {
+        case "", "mean":
+            return .mean
+        case "cls", "first":
+            return .cls
+        default:
+            throw EngineError.internalError(
+                "unknown pooling \(raw); expected \"mean\" or \"cls\"")
+        }
+    }
+}
+
+/// HF BERT / MiniLM truncation: keep `[CLS] … [SEP]` inside `max`.
+func truncateEncoderIds(_ ids: [Int], max: Int, sepId: Int?) -> [Int] {
+    guard max > 0, ids.count > max else { return ids }
+    var out = Array(ids.prefix(max))
+    if let sepId {
+        out[max - 1] = sepId
+    }
+    return out
+}
+
+/// Attention-mask-weighted mean or first-token CLS, then optional L2.
+/// Never applies an extra LayerNorm — sentence-transformers MiniLM / BGE
+/// do not; `applyLayerNorm: true` was scrambling the 384-d space.
+func poolHidden(
+    _ output: EmbeddingModelOutput,
+    mask: MLXArray,
+    kind: PoolingKind,
+    normalize: Bool
+) -> MLXArray {
+    guard let hidden = output.hiddenStates else {
+        return output.pooledOutput ?? MLXArray([])
+    }
+    let weights = mask.asType(hidden.dtype)
+    let pooled: MLXArray
+    switch kind {
+    case .mean:
+        let weighted = hidden * weights.expandedDimensions(axes: [-1])
+        pooled = sum(weighted, axis: 1) / sum(weights, axis: -1, keepDims: true)
+    case .cls:
+        pooled = hidden[0..., 0, 0...]
+    }
+    if normalize {
+        return pooled.l2Normalized()
+    }
+    return pooled
 }

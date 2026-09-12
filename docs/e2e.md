@@ -115,9 +115,8 @@ cargo run -p inferstream-e2e -- --parity-cross \
   --dump intel=testdata/e2e/goldens/intel
 ```
 
-Thresholds: **0.99** same-arch and nvidia↔intel MiniLM FP; **0.97** for
-any pair involving apple 4-bit MLX. Rationale and the honest quant gap:
-[`e2e-parity.md`](e2e-parity.md).
+Thresholds: **0.99** same-arch, nvidia↔intel MiniLM FP, and apple FP MLX
+(mean/CLS + L2). Rationale: [`e2e-parity.md`](e2e-parity.md).
 
 ```bash
 INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \

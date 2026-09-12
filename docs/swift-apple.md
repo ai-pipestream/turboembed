@@ -74,7 +74,7 @@ link `libMlxEngine.dylib`, and has no Python image.
 
 ```toml
 listen = "0.0.0.0:8461"
-serve = ["minilm", "default-llm", "qwen-0.5b"]
+serve = ["minilm", "bge-small", "default-llm", "qwen-0.5b"]
 
 [auth]
 mode = "bearer"

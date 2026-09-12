@@ -86,12 +86,16 @@ pooling = "mean"
 normalize = true
 max_seq_len = 256
 
-# Native MLX MiniLM (models/mlx/minilm from `cargo xtask fetch --mlx`).
+# Native MLX MiniLM — FP sentence-transformers/all-MiniLM-L6-v2 (not the
+# 4-bit mlx-community port). Mean + L2 must match ORT; the 4-bit catalog
+# plus BERT pooler produced apple↔nvidia cosine ≈ 0.
 [models.minilm.apple]
 backend = "mlx"
 path = "models/mlx/minilm"
 tokenizer_dir = "models/mlx/minilm"
+pooling = "mean"
 normalize = true
+max_seq_len = 256
 max_batch_size = 32
 
 # minilm-l12 — all-MiniLM-L12-v2, 384 dims: same dim as minilm, deeper and
@@ -121,7 +125,9 @@ max_seq_len = 256
 backend = "mlx"
 path = "models/mlx/minilm-l12"
 tokenizer_dir = "models/mlx/minilm-l12"
+pooling = "mean"
 normalize = true
+max_seq_len = 256
 max_batch_size = 32
 
 # ---------------------------------------------------------------------------
@@ -177,6 +183,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/bge-small"
 tokenizer_dir = "models/mlx/bge-small"
+pooling = "cls"
 normalize = true
 max_batch_size = 32
 
@@ -203,6 +210,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/bge-base"
 tokenizer_dir = "models/mlx/bge-base"
+pooling = "cls"
 normalize = true
 max_batch_size = 32
 
@@ -229,6 +237,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/bge-large"
 tokenizer_dir = "models/mlx/bge-large"
+pooling = "cls"
 normalize = true
 max_batch_size = 16
 
@@ -256,6 +265,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/bge-m3"
 tokenizer_dir = "models/mlx/bge-m3"
+pooling = "cls"
 normalize = true
 max_batch_size = 8
 
@@ -289,6 +299,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/e5-small"
 tokenizer_dir = "models/mlx/e5-small"
+pooling = "mean"
 normalize = true
 max_batch_size = 32
 
@@ -315,6 +326,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/e5-base"
 tokenizer_dir = "models/mlx/e5-base"
+pooling = "mean"
 normalize = true
 max_batch_size = 16
 
@@ -341,6 +353,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/e5-large"
 tokenizer_dir = "models/mlx/e5-large"
+pooling = "mean"
 normalize = true
 max_batch_size = 8
 
@@ -373,6 +386,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/gte-small"
 tokenizer_dir = "models/mlx/gte-small"
+pooling = "mean"
 normalize = true
 max_batch_size = 32
 
@@ -399,6 +413,7 @@ normalize = true
 backend = "mlx"
 path = "models/mlx/gte-base"
 tokenizer_dir = "models/mlx/gte-base"
+pooling = "mean"
 normalize = true
 max_batch_size = 16
 

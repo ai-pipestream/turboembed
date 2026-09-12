@@ -352,6 +352,16 @@ mod tests {
                 let m = catalog.resolve(alias, Arch::Apple).unwrap();
                 assert_eq!(m.backend, BackendKind::Mlx, "{alias} apple");
                 assert!(m.path.is_some(), "{alias} apple needs an HF repo/path");
+                let expected_pooling = if alias.starts_with("bge") {
+                    "cls"
+                } else {
+                    "mean"
+                };
+                assert_eq!(
+                    m.pooling.as_deref(),
+                    Some(expected_pooling),
+                    "{alias} apple pooling"
+                );
             }
         }
     }
@@ -435,6 +445,8 @@ mod tests {
         assert_eq!(apple.name, "minilm");
         assert_eq!(apple.backend, BackendKind::Mlx);
         assert_eq!(apple.path.as_deref(), Some("models/mlx/minilm"));
+        assert_eq!(apple.pooling.as_deref(), Some("mean"));
+        assert_eq!(apple.max_seq_len, Some(256));
     }
 
     #[test]

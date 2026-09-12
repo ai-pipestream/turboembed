@@ -40,9 +40,9 @@ pub const ONNX_SIDECAR_PREFIX: &str = "onnx/model.onnx";
 
 /// apple/MLX runtime repos recorded in the embedding manifest (`mlx_repos`).
 pub const MLX_REPOS: &[(&str, &str)] = &[
-    ("minilm", "mlx-community/all-MiniLM-L6-v2-4bit"),
+    ("minilm", "sentence-transformers/all-MiniLM-L6-v2"),
     ("minilm-l12", "sentence-transformers/all-MiniLM-L12-v2"),
-    ("bge-small", "mlx-community/bge-small-en-v1.5-4bit"),
+    ("bge-small", "BAAI/bge-small-en-v1.5"),
     ("bge-base", "BAAI/bge-base-en-v1.5"),
     ("bge-large", "BAAI/bge-large-en-v1.5"),
     ("bge-m3", "BAAI/bge-m3"),

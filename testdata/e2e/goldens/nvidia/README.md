@@ -51,6 +51,6 @@ cargo run -p inferstream-e2e -- --parity-cross \
   --token change-me
 ```
 
-Thresholds: nvidia ↔ intel MiniLM FP **0.99**; any pair with apple 4-bit
-MLX **0.97**. See `docs/e2e-parity.md` and
-`docs/nvidia-e2e-parity-goldens-krick.md`.
+Thresholds: nvidia ↔ intel MiniLM FP **0.99**; apple FP MLX vs nvidia
+**0.99** (4-bit catalog retired after the pooler bug). See
+`docs/e2e-parity.md` and `docs/nvidia-e2e-parity-goldens-krick.md`.
