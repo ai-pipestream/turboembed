@@ -215,14 +215,3 @@ pub unsafe extern "C" fn turboembed_ort_cuda_dim(session: *const OrtCudaSession)
     }
     unsafe { &*session }.embedding_dim() as u32
 }
-
-/// Keep C hooks in the rlib so `--gc-sections` cannot drop them before
-/// the C++ stub (same crate) resolves the symbols.
-#[used]
-static ORT_CUDA_C_ABI: [*const (); 5] = [
-    turboembed_ort_cuda_open as *const (),
-    turboembed_ort_cuda_embed as *const (),
-    turboembed_ort_cuda_close as *const (),
-    turboembed_ort_cuda_free_values as *const (),
-    turboembed_ort_cuda_dim as *const (),
-];
