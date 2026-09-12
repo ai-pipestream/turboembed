@@ -7,8 +7,12 @@
 #   make e2e-nvidia FETCH=0                 # skip auto-download (CI / already fetched)
 #   make e2e-nvidia FETCH=all               # every matrix alias (includes qwen-7b)
 #   make e2e-nvidia FETCH=serve             # aliases in config/nvidia.toml serve
+#   make e2e-nvidia FETCH_CORPUS=1          # also pull Tiny Shakespeare + STS
 #   make e2e-all                            # each arch whose *_ADDR is set
 #   make fetch-e2e-nvidia                   # ensure artifacts only (no gRPC)
+#   make fetch-corpus                       # SHA-pinned soak/STS text (optional)
+#   make e2e-parity                         # cross-arch cosine when *_ADDR set
+#   make e2e-parity-goldens TARGET=nvidia WRITE=1
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -66,7 +70,9 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 	setup-sycl build-intel-sycl \
 	apple smoke-apple sync-proto \
 	e2e e2e-nvidia e2e-intel e2e-apple e2e-all e2e-mock \
-	fetch-e2e-nvidia fetch-e2e-intel fetch-e2e-apple fetch-e2e-mock
+	fetch-e2e-nvidia fetch-e2e-intel fetch-e2e-apple fetch-e2e-mock \
+	fetch-corpus verify-corpus list-corpus update-corpus-manifest \
+	e2e-parity e2e-parity-goldens
 
 test:
 	$(CARGO) test --workspace
@@ -157,6 +163,8 @@ INFERSTREAM_E2E_NVIDIA_ADDR ?=
 INFERSTREAM_E2E_INTEL_ADDR ?=
 INFERSTREAM_E2E_APPLE_ADDR ?=
 FETCH ?= 1
+# Optional soak/STS corpus. Default off — CI stays on committed micro fixtures.
+FETCH_CORPUS ?= 0
 
 # FETCH=0|false|no|off → no flag
 # FETCH=1|true|yes|on  → --fetch
@@ -167,15 +175,17 @@ E2E_FETCH_ARGS := $(strip \
 		$(if $(filter all,$(FETCH)),--fetch --fetch-all,\
 			$(if $(filter serve,$(FETCH)),--fetch --fetch-serve,\
 				--fetch))))
+E2E_CORPUS_ARGS := $(strip \
+	$(if $(filter 1 true yes on,$(FETCH_CORPUS)),--fetch-corpus,))
 
 e2e-nvidia:
-	$(E2E) --target nvidia --addr $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),krick:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS)
+	$(E2E) --target nvidia --addr $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),krick:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
 
 e2e-intel:
-	$(E2E) --target intel --addr $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),krick-1:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS)
+	$(E2E) --target intel --addr $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),krick-1:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
 
 e2e-apple:
-	$(E2E) --target apple --addr $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),krickert-mac:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS)
+	$(E2E) --target apple --addr $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),krickert-mac:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
 
 # Local mock under the same logical names (config/e2e-mock.toml must be up).
 # Auto-fetch is off: the mock has no on-disk weights.
@@ -213,6 +223,63 @@ e2e-all:
 	fi
 
 e2e: e2e-all
+
+# SHA-pinned text corpus (Tiny Shakespeare soak + STS pairs). Not pulled by
+# default CI. `sts-pairs.jsonl` is committed; shakespeare is downloaded.
+fetch-corpus:
+	$(FETCH) --corpus $(ALIAS_ARGS)
+
+verify-corpus:
+	$(FETCH) --corpus $(ALIAS_ARGS) --verify-only
+
+list-corpus:
+	$(FETCH) --corpus --list
+
+update-corpus-manifest:
+	$(FETCH) --corpus $(ALIAS_ARGS) --update-manifest
+
+# Cross-arch embedding parity. Never starts GPUs.
+#   make e2e-parity
+#     runs --parity-cross for every INFERSTREAM_E2E_{NVIDIA,INTEL,APPLE}_ADDR
+#     (and/or DUMP_NVIDIA / DUMP_INTEL / DUMP_APPLE). With none set, skip.
+#   make e2e-parity-goldens TARGET=nvidia WRITE=1
+#     capture testdata/e2e/goldens/nvidia/<alias>.json from a live server.
+WRITE ?= 0
+TARGET ?= nvidia
+DUMP_NVIDIA ?=
+DUMP_INTEL ?=
+DUMP_APPLE ?=
+ifeq ($(TARGET),intel)
+  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),krick-1:8461)
+else ifeq ($(TARGET),apple)
+  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),krickert-mac:8461)
+else ifeq ($(TARGET),mock)
+  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_ADDR),127.0.0.1:8461)
+else
+  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),krick:8461)
+endif
+
+e2e-parity-goldens:
+	$(E2E) --parity-goldens $(if $(filter 1 true yes on,$(WRITE)),--parity-write,) \
+	  --target $(TARGET) \
+	  --addr $(PARITY_GOLDEN_ADDR) \
+	  --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_CORPUS_ARGS)
+
+e2e-parity:
+	@peers=""; dumps=""; \
+	if [ -n "$(INFERSTREAM_E2E_NVIDIA_ADDR)" ]; then peers="$$peers --peer nvidia=$(INFERSTREAM_E2E_NVIDIA_ADDR)"; fi; \
+	if [ -n "$(INFERSTREAM_E2E_INTEL_ADDR)" ]; then peers="$$peers --peer intel=$(INFERSTREAM_E2E_INTEL_ADDR)"; fi; \
+	if [ -n "$(INFERSTREAM_E2E_APPLE_ADDR)" ]; then peers="$$peers --peer apple=$(INFERSTREAM_E2E_APPLE_ADDR)"; fi; \
+	if [ -n "$(DUMP_NVIDIA)" ]; then dumps="$$dumps --dump nvidia=$(DUMP_NVIDIA)"; fi; \
+	if [ -n "$(DUMP_INTEL)" ]; then dumps="$$dumps --dump intel=$(DUMP_INTEL)"; fi; \
+	if [ -n "$(DUMP_APPLE)" ]; then dumps="$$dumps --dump apple=$(DUMP_APPLE)"; fi; \
+	if [ -z "$$peers" ] && [ -z "$$dumps" ]; then \
+	  echo "e2e-parity: no INFERSTREAM_E2E_{NVIDIA,INTEL,APPLE}_ADDR or DUMP_* set; nothing to run (will not start remote GPUs)."; \
+	  echo "Capture: make e2e-parity-goldens TARGET=nvidia WRITE=1"; \
+	  echo "Three-way: INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 INFERSTREAM_E2E_APPLE_ADDR=krickert-mac:8461 make e2e-parity"; \
+	  exit 0; \
+	fi; \
+	$(E2E) --parity-cross $$peers $$dumps --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_CORPUS_ARGS)
 
 verify-embeddings-intel:
 	$(FETCH) --ovms $(ALIAS_ARGS) --verify-only $(INTEL_ARGS)

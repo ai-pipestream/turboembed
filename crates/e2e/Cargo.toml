@@ -29,3 +29,4 @@ toml = { workspace = true }
 inferstream-server = { workspace = true }
 inferstream-backend = { workspace = true }
 inferstream-backend-mock = { workspace = true }
+tempfile = "3"

@@ -6,7 +6,10 @@
 
 use std::collections::HashSet;
 
-use inferstream_e2e::{run_suite, CatalogIndex, Matrix, Outcome, SuiteConfig, SuiteFilter, Target};
+use inferstream_e2e::{
+    run_parity, run_suite, CatalogIndex, Matrix, Outcome, ParityConfig, ParityMode, SuiteConfig,
+    SuiteFilter, Target,
+};
 use inferstream_server::config::Config;
 use tonic::transport::Channel;
 
@@ -155,5 +158,90 @@ async fn apple_target_skips_mpnet_as_not_available_on_arch() {
         }
         other => panic!("expected mpnet skip, got {other:?}"),
     }
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn parity_goldens_write_and_compare_against_mock() {
+    let server = start_server(MOCK_CONFIG).await;
+    let tmp = tempfile::tempdir().expect("tmpdir");
+    let mut config = ParityConfig {
+        mode: ParityMode::Goldens { write: true },
+        goldens_dir: tmp.path().to_path_buf(),
+        aliases: vec!["minilm".into()],
+        workspace: tmp.path().to_path_buf(),
+        token: None,
+        catalog: CatalogIndex::builtin().unwrap(),
+        matrix: Matrix::builtin(),
+        peers: [(Target::Mock, server.addr.clone())].into_iter().collect(),
+        dumps: Default::default(),
+        soak_limit: 0,
+    };
+    let written = run_parity(config.clone()).await.expect("write");
+    assert!(
+        !written.failed(),
+        "{}",
+        written.format(Target::Mock, "parity-write")
+    );
+    assert!(is_pass(written.outcome("parity-golden:minilm")));
+
+    config.mode = ParityMode::Goldens { write: false };
+    let compared = run_parity(config).await.expect("compare");
+    assert!(
+        !compared.failed(),
+        "{}",
+        compared.format(Target::Mock, "parity-compare")
+    );
+    assert!(is_pass(compared.outcome("parity-golden:minilm")));
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn parity_cross_live_versus_dump() {
+    let server = start_server(MOCK_CONFIG).await;
+    let tmp = tempfile::tempdir().expect("tmpdir");
+    let write = ParityConfig {
+        mode: ParityMode::Goldens { write: true },
+        goldens_dir: tmp.path().to_path_buf(),
+        aliases: vec!["minilm".into()],
+        workspace: tmp.path().to_path_buf(),
+        token: None,
+        catalog: CatalogIndex::builtin().unwrap(),
+        matrix: Matrix::builtin(),
+        peers: [(Target::Mock, server.addr.clone())].into_iter().collect(),
+        dumps: Default::default(),
+        soak_limit: 0,
+    };
+    let written = run_parity(write).await.expect("write");
+    assert!(
+        !written.failed(),
+        "{}",
+        written.format(Target::Mock, "write")
+    );
+
+    let src = tmp.path().join("mock/minilm.json");
+    let dest_dir = tmp.path().join("nvidia");
+    std::fs::create_dir_all(&dest_dir).unwrap();
+    std::fs::copy(&src, dest_dir.join("minilm.json")).unwrap();
+
+    let cross = ParityConfig {
+        mode: ParityMode::Cross,
+        goldens_dir: tmp.path().to_path_buf(),
+        aliases: vec!["minilm".into()],
+        workspace: tmp.path().to_path_buf(),
+        token: None,
+        catalog: CatalogIndex::builtin().unwrap(),
+        matrix: Matrix::builtin(),
+        peers: [(Target::Mock, server.addr.clone())].into_iter().collect(),
+        dumps: [(Target::Nvidia, dest_dir)].into_iter().collect(),
+        soak_limit: 0,
+    };
+    let report = run_parity(cross).await.expect("cross");
+    assert!(
+        !report.failed(),
+        "{}",
+        report.format(Target::Mock, "parity-cross")
+    );
+    assert!(is_pass(report.outcome("parity-cross:minilm:mock-nvidia")));
     server.stop().await;
 }

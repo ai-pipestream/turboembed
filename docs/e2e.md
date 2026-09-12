@@ -91,6 +91,34 @@ not a hard error.
 With none set it prints a skip line and exits 0 — CI cloud must not start
 remote GPUs.
 
+Optional soak/STS corpus (`FETCH_CORPUS=1` / `--fetch-corpus`) is **off**
+by default so CI stays on committed micro fixtures. See
+[`testdata/corpus/README.md`](../testdata/corpus/README.md).
+
+## Cross-arch embedding parity
+
+Same alias + same texts → nearly identical vectors. Modes:
+
+```bash
+# Capture goldens on one arch, then replay:
+make e2e-parity-goldens TARGET=nvidia WRITE=1
+make e2e-parity-goldens TARGET=nvidia
+
+# Pairwise cosine across live addrs and/or dumps:
+INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \
+INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 \
+INFERSTREAM_E2E_APPLE_ADDR=krickert-mac:8461 \
+  make e2e-parity
+
+cargo run -p inferstream-e2e -- --parity-cross \
+  --peer nvidia=krick:8461 \
+  --dump intel=testdata/e2e/goldens/intel
+```
+
+Thresholds: **0.99** same-arch and nvidia↔intel MiniLM FP; **0.97** for
+any pair involving apple 4-bit MLX. Rationale and the honest quant gap:
+[`e2e-parity.md`](e2e-parity.md).
+
 ```bash
 INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \
 INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 \

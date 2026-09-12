@@ -50,6 +50,10 @@ make list-ov-genai
 make fetch-mlx                               # Apple native MLX weights
 make fetch-mlx ALIASES=minilm,qwen-0.5b
 cargo xtask fetch --mlx minilm
+
+make fetch-corpus                            # Tiny Shakespeare + STS pairs
+make verify-corpus                           # offline hash check (sts-pairs is committed)
+cargo run -p inferstream-fetch -- --corpus --list
 ```
 
 ## E2E / bring-up auto-fetch
@@ -69,7 +73,9 @@ cargo run -p inferstream-e2e -- --target intel --fetch-only --only minilm
 
 `make e2e-mock` never fetches. `--fetch` is idempotent: matching SHA-256
 on disk is a skip. Per-target alias tables and `FETCH=all` / `FETCH=serve`
-are documented in [`docs/e2e.md`](e2e.md).
+are documented in [`docs/e2e.md`](e2e.md). `FETCH_CORPUS=1` additionally
+pulls the soak/STS text corpus (`models/manifests/corpus.json`); default
+CI leaves this off.
 
 Fetches are **idempotent**: a file already on disk with a matching SHA-256
 is skipped; a stale or tampered file is re-downloaded. Downloads are written

@@ -1,0 +1,12 @@
+{"id":"sts-0001","score":5.0,"text_a":"A brown dog is running through the grass.","text_b":"A brown dog runs through the grass."}
+{"id":"sts-0007","score":4.5,"text_a":"Cross-architecture embeddings should stay nearly identical.","text_b":"Embeddings computed on different architectures ought to be almost the same."}
+{"id":"sts-0010","score":4.0,"text_a":"ONNX Runtime on CUDA produced the MiniLM vectors.","text_b":"The MiniLM embeddings came from ONNX Runtime using the CUDA execution provider."}
+{"id":"sts-0012","score":4.0,"text_a":"Mean pooling averages token states, then L2-normalizes.","text_b":"After mean-pooling the token states, the vector is L2-normalized."}
+{"id":"sts-0018","score":3.0,"text_a":"Apple Metal runs MiniLM as a 4-bit MLX model.","text_b":"On a Mac, MiniLM embeddings come from a quantized MLX graph."}
+{"id":"sts-0022","score":2.5,"text_a":"BGE models pool the CLS token rather than the mean.","text_b":"Some embedding families use the first special token as the sentence vector."}
+{"id":"sts-0028","score":2.0,"text_a":"FP16 OpenVINO IR can drift a little from FP32 ONNX.","text_b":"Lower-precision math may change the last bits of a vector."}
+{"id":"sts-0036","score":1.0,"text_a":"CLS pooling is required for BGE-small.","text_b":"Shakespeare’s Coriolanus opens with hungry citizens."}
+{"id":"sts-0041","score":0.0,"text_a":"A penguin slid across the ice.","text_b":"Protobuf messages carry raw little-endian tensors."}
+{"id":"sts-0054","score":5.0,"text_a":"Unicode check: café, naïve, 東京, emoji 🙂.","text_b":"Unicode check: café, naïve, 東京, emoji 🙂."}
+{"id":"sts-0073","score":5.0,"text_a":"Inference should not hop through Python or a JVM.","text_b":"There should be no Python or JVM hop on the inference path."}
+{"id":"sts-0088","score":0.0,"text_a":"Fishermen mended nets on the pier.","text_b":"Apple 4-bit MiniLM may miss a 0.99 cosine against FP32."}

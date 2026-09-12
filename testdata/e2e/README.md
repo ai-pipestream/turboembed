@@ -6,5 +6,10 @@
   artifacts to materialize (`minilm` + `default-llm` / `qwen-0.5b` by
   default; `--fetch-all` takes every alias on the target).
 - `goldens/<arch>/<alias>.json` — optional reference embeddings. Same schema
-  as `testdata/reference_embeddings/`. Missing files are ignored; when
-  present the harness requires cosine ≥ 0.99 against the first Embed vector.
+  as `testdata/reference_embeddings/` for the first vector, plus a parity
+  `items[]` array when captured by `--parity-goldens --parity-write`.
+  Missing files are ignored; when present the regular suite requires
+  cosine ≥ 0.99 against the first Embed vector. Cross-arch compare:
+  `docs/e2e-parity.md`.
+- Corpus used for parity / soak lives under `testdata/corpus/` (micro
+  fixtures committed; full Tiny Shakespeare via `make fetch-corpus`).

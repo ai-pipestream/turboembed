@@ -293,6 +293,10 @@ pub struct FileEntry {
     /// (e.g. ST `openvino/openvino_model.xml` → dest `openvino_model.xml`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote_path: Option<String>,
+    /// Absolute download URL when the file is not on Hugging Face
+    /// (`https://huggingface.co/<repo>/resolve/<revision>/<path>`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
     pub sha256: String,
     pub size: u64,
 }
@@ -377,6 +381,7 @@ pub enum ManifestKind {
     Embeddings,
     Llms,
     OvGenai,
+    Corpus,
 }
 
 impl ManifestKind {
@@ -385,6 +390,7 @@ impl ManifestKind {
             Self::Embeddings => "embeddings.json",
             Self::Llms => "llms.json",
             Self::OvGenai => "ov-genai-embeddings.json",
+            Self::Corpus => "corpus.json",
         }
     }
 
@@ -393,6 +399,7 @@ impl ManifestKind {
             Self::Embeddings => "embeddings",
             Self::Llms => "llms",
             Self::OvGenai => "ov-genai",
+            Self::Corpus => "corpus",
         }
     }
 }
@@ -417,7 +424,13 @@ pub fn ensure_aliases(
         )));
     }
     let manifest = load_manifest(&manifest_path)?;
-    cmd_fetch(aliases, &manifest, root, None, out, err)
+    let hint = match kind {
+        ManifestKind::Corpus => {
+            Some("Corpus ready under testdata/corpus/. See testdata/corpus/README.md.\n")
+        }
+        _ => None,
+    };
+    cmd_fetch(aliases, &manifest, root, hint, out, err)
 }
 
 /// Apple native-MLX aliases recorded in the embedding + LLM source tables.
@@ -474,6 +487,66 @@ pub fn ov_genai_known_aliases() -> BTreeMap<String, String> {
         .collect()
 }
 
+/// Text corpora for soak/chunking and STS-style embed quality.
+/// Dest paths are relative to the workspace root.
+pub const CORPUS_SOURCES: &[CorpusSource] = &[
+    CorpusSource {
+        alias: "tiny-shakespeare",
+        repo: "karpathy/char-rnn",
+        revision: "370cbcd448eb7daf32f21a6be560b70e0b33c4e3",
+        dest: "testdata/corpus",
+        files: CORPUS_SHAKESPEARE_FILES,
+    },
+    CorpusSource {
+        alias: "sts-pairs",
+        repo: "local/committed",
+        revision: "committed",
+        dest: "testdata/corpus",
+        files: CORPUS_STS_FILES,
+    },
+];
+
+pub const CORPUS_SHAKESPEARE_FILES: &[CorpusFile] = &[CorpusFile {
+    path: "tiny-shakespeare.txt",
+    remote_path: Some("data/tinyshakespeare/input.txt"),
+    url: Some(
+        "https://raw.githubusercontent.com/karpathy/char-rnn/370cbcd448eb7daf32f21a6be560b70e0b33c4e3/data/tinyshakespeare/input.txt",
+    ),
+}];
+
+pub const CORPUS_STS_FILES: &[CorpusFile] = &[CorpusFile {
+    path: "sts-pairs.jsonl",
+    remote_path: None,
+    url: None,
+}];
+
+#[derive(Debug, Clone, Copy)]
+pub struct CorpusSource {
+    pub alias: &'static str,
+    pub repo: &'static str,
+    pub revision: &'static str,
+    pub dest: &'static str,
+    pub files: &'static [CorpusFile],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CorpusFile {
+    pub path: &'static str,
+    pub remote_path: Option<&'static str>,
+    pub url: Option<&'static str>,
+}
+
+pub fn corpus_source(alias: &str) -> Option<&'static CorpusSource> {
+    CORPUS_SOURCES.iter().find(|s| s.alias == alias)
+}
+
+pub fn corpus_known_aliases() -> BTreeMap<String, String> {
+    CORPUS_SOURCES
+        .iter()
+        .map(|s| (s.alias.to_string(), s.repo.to_string()))
+        .collect()
+}
+
 pub fn load_manifest(path: &Path) -> Result<Manifest> {
     let text = fs::read_to_string(path)?;
     let manifest: Manifest = serde_json::from_str(&text)?;
@@ -523,24 +596,41 @@ pub fn resolve_model_entry<'a>(
     Ok((key.as_str(), entry))
 }
 
+/// Build the download URL for one artifact. Prefers an explicit `url`
+/// (GitHub raw, local `file://`, …). Hugging Face resolve URLs require
+/// `repo` + `revision`. Committed fixtures have neither and are verify-only.
+pub fn artifact_url(spec: &ArtifactSpec) -> Result<Option<String>> {
+    if let Some(url) = spec.file.url.as_deref() {
+        return Ok(Some(url.to_string()));
+    }
+    if spec.repo.is_empty()
+        || spec.revision.is_empty()
+        || spec.repo == "local/committed"
+        || spec.revision == "committed"
+    {
+        return Ok(None);
+    }
+    Ok(Some(resolve_url(
+        &spec.repo,
+        &spec.revision,
+        spec.file.remote_path(),
+    )))
+}
+
 pub fn artifact_specs(entry: &ModelEntry) -> Result<Vec<ArtifactSpec>> {
     let dest = entry
         .dest
         .as_deref()
         .ok_or_else(|| FetchError::msg("manifest entry is missing dest"))?;
-    let repo = entry
-        .repo
-        .as_deref()
-        .ok_or_else(|| FetchError::msg("manifest entry is missing repo"))?;
-    let revision = entry
-        .revision
-        .as_deref()
-        .ok_or_else(|| FetchError::msg("manifest entry is missing revision"))?;
+    // repo/revision may be empty or `local/committed` for hashed fixtures
+    // that live in git and have no download URL.
+    let repo = entry.repo.clone().unwrap_or_default();
+    let revision = entry.revision.clone().unwrap_or_default();
     let mut out = Vec::new();
     for f in &entry.files {
         out.push(ArtifactSpec {
-            repo: repo.to_string(),
-            revision: revision.to_string(),
+            repo: repo.clone(),
+            revision: revision.clone(),
             dest: dest.to_string(),
             file: f.clone(),
         });
@@ -986,7 +1076,14 @@ pub fn cmd_fetch(
                 }
                 writeln!(out, "  stale hash, re-downloading  {}", spec.file.path)?;
             }
-            let url = resolve_url(&spec.repo, &spec.revision, spec.file.remote_path());
+            let Some(url) = artifact_url(&spec)? else {
+                writeln!(
+                    err,
+                    "error: {}/{} is a committed fixture with no download URL and is missing or stale on disk.\nRestore it from git or re-pin with --update-manifest.",
+                    key, spec.file.path
+                )?;
+                return Ok(1);
+            };
             writeln!(
                 out,
                 "  downloading  {}  [{}] ...",
@@ -1104,6 +1201,7 @@ pub fn cmd_update_manifest(
             files.push(FileEntry {
                 path: rel,
                 remote_path: None,
+                url: None,
                 sha256: digest,
                 size,
             });
@@ -1217,6 +1315,7 @@ pub fn cmd_update_llm_manifest(
             files.push(FileEntry {
                 path: (*rel).to_string(),
                 remote_path: None,
+                url: None,
                 sha256: digest,
                 size,
             });
@@ -1258,6 +1357,7 @@ pub fn cmd_update_llm_manifest(
             tok_hashed.push(FileEntry {
                 path: (*rel).to_string(),
                 remote_path: None,
+                url: None,
                 sha256: digest,
                 size,
             });
@@ -1396,6 +1496,7 @@ pub fn cmd_update_ov_genai_manifest(
             files.push(FileEntry {
                 path: f.dest.to_string(),
                 remote_path,
+                url: None,
                 sha256: digest,
                 size,
             });
@@ -1406,6 +1507,101 @@ pub fn cmd_update_ov_genai_manifest(
                 alias_of: None,
                 repo: Some(spec.repo.to_string()),
                 revision: Some(revision),
+                dest: Some(dest),
+                files,
+                tokenizer: None,
+                name: None,
+            },
+        );
+    }
+
+    write_manifest(manifest_path, &manifest)?;
+    writeln!(
+        out,
+        "\nManifest written: {} — review and commit it.",
+        manifest_path
+            .strip_prefix(root)
+            .unwrap_or(manifest_path)
+            .display()
+    )?;
+    Ok(0)
+}
+
+const CORPUS_COMMENT: &str = "SHA-256 manifest for inferstream text corpora (soak/chunking + STS-style embed quality). Tiny Shakespeare is downloaded from a pinned GitHub commit; sts-pairs.jsonl is a committed fixture verified by hash. Generated/updated by cargo run -p inferstream-fetch -- --corpus --update-manifest; do not edit hashes by hand.";
+
+/// Re-hash corpus files. URLs are re-downloaded; committed fixtures are
+/// hashed from the file already at `dest/path` (must exist).
+pub fn cmd_update_corpus_manifest(
+    aliases: &[String],
+    manifest_path: &Path,
+    root: &Path,
+    store: bool,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> Result<i32> {
+    let mut manifest = if manifest_path.exists() {
+        load_manifest(manifest_path)?
+    } else {
+        Manifest {
+            schema_version: 1,
+            comment: Some(CORPUS_COMMENT.to_string()),
+            models: BTreeMap::new(),
+            mlx_repos: BTreeMap::new(),
+        }
+    };
+
+    for alias in aliases {
+        let spec = corpus_source(alias)
+            .ok_or_else(|| FetchError::msg(format!("{alias}: not in CORPUS_SOURCES")))?;
+        writeln!(
+            out,
+            "--- pinning {alias}  <-  {}@{} ---",
+            spec.repo, spec.revision
+        )?;
+        let dest = spec.dest.to_string();
+        let mut files = Vec::new();
+        for f in spec.files {
+            let dest_path = root.join(&dest).join(f.path);
+            let (digest, size) = if let Some(url) = f.url {
+                let target = if store { Some(dest_path) } else { None };
+                writeln!(out, "  hashing {} from {url} ...", f.path)?;
+                let _ = out.flush();
+                match stream_download(url, target.as_deref()) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        writeln!(err, "error: {url}: {e}")?;
+                        return Ok(1);
+                    }
+                }
+            } else {
+                if !dest_path.exists() {
+                    writeln!(
+                        err,
+                        "error: {alias}: committed fixture missing: {}",
+                        dest_path.display()
+                    )?;
+                    return Ok(1);
+                }
+                writeln!(out, "  hashing local {} ...", dest_path.display())?;
+                let digest = sha256_file(&dest_path)?;
+                let size = dest_path.metadata()?.len();
+                (digest, size)
+            };
+            writeln!(out, "    sha256={digest}  size={}", human(size))?;
+            files.push(FileEntry {
+                path: f.path.to_string(),
+                remote_path: f.remote_path.map(str::to_string),
+                url: f.url.map(str::to_string),
+                sha256: digest,
+                size,
+            });
+        }
+        manifest.models.insert(
+            alias.clone(),
+            ModelEntry {
+                alias_of: None,
+                repo: Some(spec.repo.to_string()),
+                revision: Some(spec.revision.to_string()),
                 dest: Some(dest),
                 files,
                 tokenizer: None,
@@ -1751,6 +1947,7 @@ mod tests {
                     files: vec![FileEntry {
                         path: "model.bin".into(),
                         remote_path: None,
+                        url: None,
                         sha256: digest,
                         size: payload.len() as u64,
                     }],
@@ -1972,6 +2169,144 @@ mod tests {
         assert_eq!(
             ovms_artifact_path("bge_base", ovms, hf, "hf_tokenizer_bge_base/tokenizer.json"),
             hf.join("hf_tokenizer_bge_base/tokenizer.json")
+        );
+    }
+
+    fn corpus_manifest() -> PathBuf {
+        repo_root().join("models/manifests/corpus.json")
+    }
+
+    #[test]
+    fn corpus_schema_and_pins() {
+        let m = load_manifest(&corpus_manifest()).unwrap();
+        assert_eq!(m.schema_version, 1);
+        let known: HashSet<&str> = CORPUS_SOURCES.iter().map(|s| s.alias).collect();
+        let have: HashSet<&str> = m.models.keys().map(|s| s.as_str()).collect();
+        assert_eq!(
+            have, known,
+            "corpus manifest aliases must match CORPUS_SOURCES"
+        );
+        for spec in CORPUS_SOURCES {
+            let entry = &m.models[spec.alias];
+            assert_eq!(entry.repo.as_deref(), Some(spec.repo));
+            assert_eq!(entry.revision.as_deref(), Some(spec.revision));
+            assert_eq!(entry.dest.as_deref(), Some(spec.dest));
+            let dest_names: Vec<&str> = entry.files.iter().map(|f| f.path.as_str()).collect();
+            for f in spec.files {
+                assert!(
+                    dest_names.contains(&f.path),
+                    "{} missing {}",
+                    spec.alias,
+                    f.path
+                );
+            }
+            for f in &entry.files {
+                assert!(hex64(&f.sha256), "{} {}", spec.alias, f.path);
+                assert!(f.size > 0);
+            }
+        }
+        let shake = &m.models["tiny-shakespeare"].files[0];
+        assert!(shake.url.as_deref().unwrap().contains("370cbcd"));
+        assert_eq!(shake.size, 1_115_394);
+        let sts = &m.models["sts-pairs"].files[0];
+        assert!(sts.url.is_none());
+        assert_eq!(sts.path, "sts-pairs.jsonl");
+    }
+
+    #[test]
+    fn corpus_sts_committed_verifies() {
+        let m = load_manifest(&corpus_manifest()).unwrap();
+        let mut out = Cursor::new(Vec::new());
+        let mut err = Cursor::new(Vec::new());
+        let rc = cmd_verify(&["sts-pairs".into()], &m, &repo_root(), &mut out, &mut err).unwrap();
+        assert_eq!(rc, 0, "err={}", String::from_utf8_lossy(&err.into_inner()));
+    }
+
+    #[test]
+    fn artifact_url_prefers_explicit_and_skips_committed() {
+        let url_file = FileEntry {
+            path: "tiny-shakespeare.txt".into(),
+            remote_path: Some("data/tinyshakespeare/input.txt".into()),
+            url: Some("https://example.test/shake.txt".into()),
+            sha256: "0".repeat(64),
+            size: 1,
+        };
+        let spec = ArtifactSpec {
+            repo: "karpathy/char-rnn".into(),
+            revision: "370cbcd448eb7daf32f21a6be560b70e0b33c4e3".into(),
+            dest: "testdata/corpus".into(),
+            file: url_file,
+        };
+        assert_eq!(
+            artifact_url(&spec).unwrap().as_deref(),
+            Some("https://example.test/shake.txt")
+        );
+
+        let local = FileEntry {
+            path: "sts-pairs.jsonl".into(),
+            remote_path: None,
+            url: None,
+            sha256: "0".repeat(64),
+            size: 1,
+        };
+        let spec = ArtifactSpec {
+            repo: "local/committed".into(),
+            revision: "committed".into(),
+            dest: "testdata/corpus".into(),
+            file: local,
+        };
+        assert_eq!(artifact_url(&spec).unwrap(), None);
+    }
+
+    #[test]
+    fn fetch_url_file_scheme_writes_corpus_dest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let payload = b"First Citizen:\nHear me speak.\n";
+        let src = tmp.path().join("src.txt");
+        fs::write(&src, payload).unwrap();
+        let digest = {
+            let mut h = Sha256::new();
+            h.update(payload);
+            format!("{:x}", h.finalize())
+        };
+        let manifest = Manifest {
+            schema_version: 1,
+            comment: None,
+            models: BTreeMap::from([(
+                "tiny-shakespeare".into(),
+                ModelEntry {
+                    alias_of: None,
+                    repo: Some("karpathy/char-rnn".into()),
+                    revision: Some("370cbcd448eb7daf32f21a6be560b70e0b33c4e3".into()),
+                    dest: Some("testdata/corpus".into()),
+                    files: vec![FileEntry {
+                        path: "tiny-shakespeare.txt".into(),
+                        remote_path: None,
+                        url: Some(format!("file://{}", src.display())),
+                        sha256: digest,
+                        size: payload.len() as u64,
+                    }],
+                    tokenizer: None,
+                    name: None,
+                },
+            )]),
+            mlx_repos: BTreeMap::new(),
+        };
+        let mut out = Cursor::new(Vec::new());
+        let mut err = Cursor::new(Vec::new());
+        let rc = cmd_fetch(
+            &["tiny-shakespeare".into()],
+            &manifest,
+            tmp.path(),
+            Some("corpus fetch ok\n"),
+            &mut out,
+            &mut err,
+        )
+        .unwrap();
+        assert_eq!(rc, 0, "err={}", String::from_utf8_lossy(&err.into_inner()));
+        assert_eq!(
+            fs::read(tmp.path().join("testdata/corpus/tiny-shakespeare.txt")).unwrap(),
+            payload
         );
     }
 }

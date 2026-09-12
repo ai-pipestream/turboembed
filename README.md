@@ -212,7 +212,7 @@ make e2e-all             # only arches whose INFERSTREAM_E2E_<ARCH>_ADDR is set
 cargo run -p inferstream-e2e -- --target nvidia --addr krick:8461 --token "$KEY" --fetch
 ```
 
-`scripts/smoke-embeddings.sh` / `scripts/smoke-llms.sh` / the RPC half of `scripts/smoke-apple.sh` are thin wrappers around this harness. Bring-up: `make e2e-<arch>` (`FETCH=1` default) or `make fetch-e2e-<arch>` / `scripts/ensure-models.sh <arch>` downloads only missing or hash-mismatched files via `inferstream-fetch` (SHA-256 manifests; no python3), then the suite. `make e2e-mock` does not fetch. See [`docs/e2e.md`](docs/e2e.md).
+`scripts/smoke-embeddings.sh` / `scripts/smoke-llms.sh` / the RPC half of `scripts/smoke-apple.sh` are thin wrappers around this harness. Bring-up: `make e2e-<arch>` (`FETCH=1` default) or `make fetch-e2e-<arch>` / `scripts/ensure-models.sh <arch>` downloads only missing or hash-mismatched files via `inferstream-fetch` (SHA-256 manifests; no python3), then the suite. `make e2e-mock` does not fetch. Optional soak/STS corpus: `make fetch-corpus` / `FETCH_CORPUS=1` (off in CI). Cross-arch embedding parity: `make e2e-parity` / `make e2e-parity-goldens` — cosine **0.99** for MiniLM FP paths, **0.97** when apple 4-bit MLX is in the pair; see [`docs/e2e-parity.md`](docs/e2e-parity.md). See [`docs/e2e.md`](docs/e2e.md).
 
 Failures are startup-time and actionable: an unknown alias lists what the catalog defines; an alias with no resolution for this arch names the arches that have one. Explicit `[[models]]` entries keep working alongside `serve` (collisions are rejected), and the arch-neutral dev `inferstream` binary rejects `serve` since it has no arch.
 
@@ -313,6 +313,8 @@ Generation contract (all engines, identical to what the mock emits today): input
 cargo test --workspace          # 90+ tests, passes with zero GPU libraries
                                 # (includes inferstream-e2e against the mock)
 make e2e-nvidia                 # live suite; FETCH=1 pulls missing weights first
+make fetch-corpus               # optional Tiny Shakespeare + STS (off in CI)
+make e2e-parity                 # cross-arch cosine when *_ADDR / DUMP_* set
 ```
 
 Fixed prompts (short / medium / empty / unicode / long-truncation) live as JSON goldens in `testdata/reference_embeddings/`. The deterministic-mock goldens run on every `cargo test` (cosine ≥ 0.999 plus exact-value and L2 checks, both directly and end-to-end through the `Embed` RPC); regenerate them with `cargo run -p inferstream-server --example gen_reference_embeddings`. GPU goldens for the real engines are `#[ignore]`d and feature-gated (`cargo test -p inferstream-backend-ort --features cuda -- --ignored gpu_golden` on krick) — see [`testdata/reference_embeddings/README.md`](testdata/reference_embeddings/README.md) for the schema and the krick/krick-1 regeneration walkthrough.

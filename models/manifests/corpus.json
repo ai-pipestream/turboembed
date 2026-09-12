@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "_comment": "SHA-256 manifest for inferstream text corpora (soak/chunking + STS-style embed quality). Tiny Shakespeare is downloaded from a pinned GitHub commit; sts-pairs.jsonl is a committed fixture verified by hash. Generated/updated by cargo run -p inferstream-fetch -- --corpus --update-manifest; do not edit hashes by hand.",
+  "models": {
+    "sts-pairs": {
+      "repo": "local/committed",
+      "revision": "committed",
+      "dest": "testdata/corpus",
+      "files": [
+        {
+          "path": "sts-pairs.jsonl",
+          "sha256": "53ded422b1ba4246afd6429b30468191c0700fdd5dc5ac1d12cd0576dd3e2eca",
+          "size": 14167
+        }
+      ]
+    },
+    "tiny-shakespeare": {
+      "repo": "karpathy/char-rnn",
+      "revision": "370cbcd448eb7daf32f21a6be560b70e0b33c4e3",
+      "dest": "testdata/corpus",
+      "files": [
+        {
+          "path": "tiny-shakespeare.txt",
+          "remote_path": "data/tinyshakespeare/input.txt",
+          "url": "https://raw.githubusercontent.com/karpathy/char-rnn/370cbcd448eb7daf32f21a6be560b70e0b33c4e3/data/tinyshakespeare/input.txt",
+          "sha256": "86c4e6aa9db7c042ec79f339dcb96d42b0075e16b8fc2e86bf0ca57e2dc565ed",
+          "size": 1115394
+        }
+      ]
+    }
+  }
+}

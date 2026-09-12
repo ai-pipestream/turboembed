@@ -143,9 +143,22 @@ pub async fn embed(
     texts: Vec<String>,
     normalize: bool,
 ) -> Result<inferstream_protocol::extension::EmbedResponse, Status> {
+    embed_with(ext, model, texts, normalize, None).await
+}
+
+/// Embed with an optional pooling override (`mean` / `cls`) so every arch
+/// receives the same family convention the catalog documents.
+pub async fn embed_with(
+    ext: &mut ExtClient,
+    model: &str,
+    texts: Vec<String>,
+    normalize: bool,
+    pooling: Option<&str>,
+) -> Result<inferstream_protocol::extension::EmbedResponse, Status> {
     ext.embed(timed(EmbedRequest {
         model_name: model.to_string(),
         texts,
+        pooling: pooling.unwrap_or("").to_string(),
         normalize: Some(normalize),
         ..Default::default()
     }))

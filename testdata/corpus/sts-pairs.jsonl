@@ -1,0 +1,96 @@
+{"id":"sts-0001","score":5.0,"text_a":"A brown dog is running through the grass.","text_b":"A brown dog runs through the grass."}
+{"id":"sts-0002","score":5.0,"text_a":"The server embeds each sentence into a fixed-length vector.","text_b":"Each sentence is embedded by the server into a fixed-length vector."}
+{"id":"sts-0003","score":5.0,"text_a":"Rain fell steadily on the tin roof all night.","text_b":"All night, rain fell steadily on the tin roof."}
+{"id":"sts-0004","score":5.0,"text_a":"She locked the bicycle to the iron railing.","text_b":"The bicycle was locked to the iron railing by her."}
+{"id":"sts-0005","score":4.5,"text_a":"The train arrived two minutes late.","text_b":"The train pulled in a couple of minutes behind schedule."}
+{"id":"sts-0006","score":4.5,"text_a":"He poured coffee into a chipped mug.","text_b":"He filled a chipped mug with coffee."}
+{"id":"sts-0007","score":4.5,"text_a":"Cross-architecture embeddings should stay nearly identical.","text_b":"Embeddings computed on different architectures ought to be almost the same."}
+{"id":"sts-0008","score":4.5,"text_a":"The library closed an hour earlier than usual.","text_b":"The library shut its doors one hour sooner than it normally does."}
+{"id":"sts-0009","score":4.0,"text_a":"A child flew a red kite on the hill.","text_b":"A kid was flying a crimson kite up on the hillside."}
+{"id":"sts-0010","score":4.0,"text_a":"ONNX Runtime on CUDA produced the MiniLM vectors.","text_b":"The MiniLM embeddings came from ONNX Runtime using the CUDA execution provider."}
+{"id":"sts-0011","score":4.0,"text_a":"They shared a loaf of bread beside the river.","text_b":"Beside the river they split a loaf of bread."}
+{"id":"sts-0012","score":4.0,"text_a":"Mean pooling averages token states, then L2-normalizes.","text_b":"After mean-pooling the token states, the vector is L2-normalized."}
+{"id":"sts-0013","score":3.5,"text_a":"The baker opened the shop before sunrise.","text_b":"The bakery was already serving customers at dawn."}
+{"id":"sts-0014","score":3.5,"text_a":"Intel GenAI loads an OpenVINO embedding pipeline.","text_b":"The Intel path runs embeddings through an in-process OpenVINO GenAI pipeline."}
+{"id":"sts-0015","score":3.5,"text_a":"A cat slept on the sunny windowsill.","text_b":"A tabby dozed in a patch of sun by the window."}
+{"id":"sts-0016","score":3.5,"text_a":"Tokenizers must emit the same ids for the same text.","text_b":"Identical input text should produce matching tokenizer ids on every host."}
+{"id":"sts-0017","score":3.0,"text_a":"The ferry crossed the harbor in a fog.","text_b":"A boat moved slowly through mist on the water."}
+{"id":"sts-0018","score":3.0,"text_a":"Apple Metal runs MiniLM as a 4-bit MLX model.","text_b":"On a Mac, MiniLM embeddings come from a quantized MLX graph."}
+{"id":"sts-0019","score":3.0,"text_a":"She wrote a letter and walked to the post office.","text_b":"After finishing a note she went out to mail it."}
+{"id":"sts-0020","score":3.0,"text_a":"Cosine similarity near one means the vectors agree.","text_b":"When two embeddings point the same way, their cosine is close to 1."}
+{"id":"sts-0021","score":2.5,"text_a":"The orchestra tuned before the concerto.","text_b":"Musicians warmed up their instruments in the hall."}
+{"id":"sts-0022","score":2.5,"text_a":"BGE models pool the CLS token rather than the mean.","text_b":"Some embedding families use the first special token as the sentence vector."}
+{"id":"sts-0023","score":2.5,"text_a":"Snow covered the abandoned railroad tracks.","text_b":"Winter weather had closed several mountain passes."}
+{"id":"sts-0024","score":2.5,"text_a":"A soak test chunks a long public-domain play.","text_b":"Long texts are split into stable paragraph ids before embedding."}
+{"id":"sts-0025","score":2.0,"text_a":"The chemist labeled every flask on the bench.","text_b":"Laboratory glassware needs clear markings to avoid mix-ups."}
+{"id":"sts-0026","score":2.0,"text_a":"Golden files store per-arch embedding dumps.","text_b":"Reference vectors are written once and compared later."}
+{"id":"sts-0027","score":2.0,"text_a":"Crowds gathered under the clock tower at noon.","text_b":"People often meet in the old town square."}
+{"id":"sts-0028","score":2.0,"text_a":"FP16 OpenVINO IR can drift a little from FP32 ONNX.","text_b":"Lower-precision math may change the last bits of a vector."}
+{"id":"sts-0029","score":1.5,"text_a":"The gardener pruned the rose bushes in March.","text_b":"Spring is a busy season for outdoor work."}
+{"id":"sts-0030","score":1.5,"text_a":"Four-bit quantization trades a little fidelity for size.","text_b":"Smaller weights are faster to load on a laptop GPU."}
+{"id":"sts-0031","score":1.5,"text_a":"A lighthouse blinked across the dark water.","text_b":"Ships rely on coastal markers in bad weather."}
+{"id":"sts-0032","score":1.5,"text_a":"The mock backend is deterministic for CI.","text_b":"Unit tests should not download multi-megabyte corpora."}
+{"id":"sts-0033","score":1.0,"text_a":"He repaired the broken bicycle chain.","text_b":"There was a long line at the hardware store."}
+{"id":"sts-0034","score":1.0,"text_a":"Rivers flow toward the sea.","text_b":"Maps show elevation with contour lines."}
+{"id":"sts-0035","score":1.0,"text_a":"The printer jammed on the third page.","text_b":"Someone had leftover cake in the break room."}
+{"id":"sts-0036","score":1.0,"text_a":"CLS pooling is required for BGE-small.","text_b":"Shakespeare’s Coriolanus opens with hungry citizens."}
+{"id":"sts-0037","score":0.5,"text_a":"A violinist practiced scales in the attic.","text_b":"The city approved a new bus route."}
+{"id":"sts-0038","score":0.5,"text_a":"Embedding parity fails when cosine drops below the threshold.","text_b":"The kettle whistled on the stove."}
+{"id":"sts-0039","score":0.5,"text_a":"Oak leaves turned copper in late October.","text_b":"The API key is sent as a bearer token."}
+{"id":"sts-0040","score":0.5,"text_a":"They measured the table with a folding ruler.","text_b":"MiniLM outputs 384-dimensional vectors."}
+{"id":"sts-0041","score":0.0,"text_a":"A penguin slid across the ice.","text_b":"Protobuf messages carry raw little-endian tensors."}
+{"id":"sts-0042","score":0.0,"text_a":"The soccer match ended in a draw.","text_b":"OpenVINO GenAI needs a tokenizer IR beside the model."}
+{"id":"sts-0043","score":0.0,"text_a":"Cinnamon rolls cooled on a wire rack.","text_b":"gRPC bidirectional streams multiplex request ids."}
+{"id":"sts-0044","score":0.0,"text_a":"Astronauts floated past the cupola window.","text_b":"Make fetch-corpus downloads Tiny Shakespeare."}
+{"id":"sts-0045","score":5.0,"text_a":"The moon rose over the quiet lake.","text_b":"Over the quiet lake, the moon rose."}
+{"id":"sts-0046","score":4.0,"text_a":"Students packed the lecture hall for the talk.","text_b":"The auditorium filled with students attending the lecture."}
+{"id":"sts-0047","score":3.0,"text_a":"A blacksmith hammered a glowing horseshoe.","text_b":"Sparks flew as metal was shaped on an anvil."}
+{"id":"sts-0048","score":0.0,"text_a":"A blacksmith hammered a glowing horseshoe.","text_b":"The embedding alias minilm is required on every arch."}
+{"id":"sts-0049","score":5.0,"text_a":"Please turn off the lights when you leave.","text_b":"Switch the lights off before you go."}
+{"id":"sts-0050","score":4.0,"text_a":"The recipe calls for two cloves of garlic.","text_b":"Add a couple of garlic cloves to the pan."}
+{"id":"sts-0051","score":3.0,"text_a":"Fog delayed every departure from the airport.","text_b":"Flights sat on the tarmac waiting for the weather to clear."}
+{"id":"sts-0052","score":2.0,"text_a":"Fog delayed every departure from the airport.","text_b":"Travelers checked the board for gate changes."}
+{"id":"sts-0053","score":0.0,"text_a":"Fog delayed every departure from the airport.","text_b":"BGE-small uses CLS pooling on nvidia, intel, and apple."}
+{"id":"sts-0054","score":5.0,"text_a":"Unicode check: café, naïve, 東京, emoji 🙂.","text_b":"Unicode check: café, naïve, 東京, emoji 🙂."}
+{"id":"sts-0055","score":4.0,"text_a":"The café near the station serves excellent espresso.","text_b":"There is a coffee shop by the station with very good espresso."}
+{"id":"sts-0056","score":3.0,"text_a":"東京の朝は通勤客で混雑する。","text_b":"Tokyo mornings are crowded with commuters."}
+{"id":"sts-0057","score":1.0,"text_a":"東京の朝は通勤客で混雑する。","text_b":"The river is shallow enough to wade in summer."}
+{"id":"sts-0058","score":0.0,"text_a":"東京の朝は通勤客で混雑する。","text_b":"llama.cpp streams one token chunk per decode step."}
+{"id":"sts-0059","score":5.0,"text_a":"Empty-adjacent: a single punctuation mark.","text_b":"Empty-adjacent: a single punctuation mark."}
+{"id":"sts-0060","score":4.5,"text_a":"How far is it from here to the harbor?","text_b":"What is the distance from this place to the harbor?"}
+{"id":"sts-0061","score":3.5,"text_a":"How far is it from here to the harbor?","text_b":"Can you tell me the way down to the waterfront?"}
+{"id":"sts-0062","score":2.0,"text_a":"How far is it from here to the harbor?","text_b":"The tide comes in after sunset."}
+{"id":"sts-0063","score":0.0,"text_a":"How far is it from here to the harbor?","text_b":"MPNet is 768 dimensions and is not served on apple."}
+{"id":"sts-0064","score":5.0,"text_a":"The checksum must match before the file is kept.","text_b":"A file is retained only when its checksum matches."}
+{"id":"sts-0065","score":4.0,"text_a":"SHA-256 pins every fetched corpus byte.","text_b":"The corpus manifest records a SHA-256 for each downloaded file."}
+{"id":"sts-0066","score":3.0,"text_a":"Tiny Shakespeare is about one megabyte of play text.","text_b":"The soak corpus is a small public-domain drama transcript."}
+{"id":"sts-0067","score":1.0,"text_a":"Tiny Shakespeare is about one megabyte of play text.","text_b":"Citizens demand corn in the opening of Coriolanus."}
+{"id":"sts-0068","score":0.0,"text_a":"Tiny Shakespeare is about one megabyte of play text.","text_b":"cuBLAS 13 is required for the ORT CUDA execution provider."}
+{"id":"sts-0069","score":5.0,"text_a":"A red fox sat at the edge of the meadow.","text_b":"At the meadow’s edge sat a red fox."}
+{"id":"sts-0070","score":4.0,"text_a":"The judge asked the witness to speak more slowly.","text_b":"The witness was told by the judge to slow down."}
+{"id":"sts-0071","score":3.0,"text_a":"A sudden gust slammed the barn door.","text_b":"Wind rattled the loose boards of the barn."}
+{"id":"sts-0072","score":0.0,"text_a":"A sudden gust slammed the barn door.","text_b":"Pairwise cosine compares live vectors across two hosts."}
+{"id":"sts-0073","score":5.0,"text_a":"Inference should not hop through Python or a JVM.","text_b":"There should be no Python or JVM hop on the inference path."}
+{"id":"sts-0074","score":4.0,"text_a":"The façade keeps auth and routing in one Rust process.","text_b":"A shared Rust server handles bearer auth and model routing."}
+{"id":"sts-0075","score":2.5,"text_a":"The façade keeps auth and routing in one Rust process.","text_b":"Clients speak the same gRPC contract to every architecture."}
+{"id":"sts-0076","score":0.0,"text_a":"The façade keeps auth and routing in one Rust process.","text_b":"A swan glided under the stone bridge."}
+{"id":"sts-0077","score":5.0,"text_a":"Numbers and units: 384 dims, cosine 0.99, 256 tokens.","text_b":"Numbers and units: 384 dims, cosine 0.99, 256 tokens."}
+{"id":"sts-0078","score":3.5,"text_a":"MiniLM uses 384 dimensions and a 256-token context.","text_b":"The small MiniLM model outputs 384-d vectors and truncates at 256 tokens."}
+{"id":"sts-0079","score":2.0,"text_a":"MiniLM uses 384 dimensions and a 256-token context.","text_b":"MPNet is wider, at 768 dimensions."}
+{"id":"sts-0080","score":0.0,"text_a":"MiniLM uses 384 dimensions and a 256-token context.","text_b":"Second Citizen asks whether they should target Marcius."}
+{"id":"sts-0081","score":5.0,"text_a":"She placed the compass on the worn map.","text_b":"The compass was placed on the worn map."}
+{"id":"sts-0082","score":4.0,"text_a":"Hikers reached the ridge before the storm.","text_b":"The group made the ridgeline just ahead of the weather."}
+{"id":"sts-0083","score":3.0,"text_a":"Thunder rolled over the valley.","text_b":"A storm was building in the hills."}
+{"id":"sts-0084","score":0.0,"text_a":"Thunder rolled over the valley.","text_b":"Detokenize skips special tokens when asked."}
+{"id":"sts-0085","score":4.5,"text_a":"The old radio crackled with a distant broadcast.","text_b":"A faint radio broadcast crackled from the old set."}
+{"id":"sts-0086","score":3.0,"text_a":"Fishermen mended nets on the pier.","text_b":"Nets were repaired beside the boats."}
+{"id":"sts-0087","score":1.5,"text_a":"Fishermen mended nets on the pier.","text_b":"The tide chart was posted on the shack wall."}
+{"id":"sts-0088","score":0.0,"text_a":"Fishermen mended nets on the pier.","text_b":"Apple 4-bit MiniLM may miss a 0.99 cosine against FP32."}
+{"id":"sts-0089","score":5.0,"text_a":"Write one sentence about rivers flowing to the sea.","text_b":"Write one sentence about rivers flowing to the sea."}
+{"id":"sts-0090","score":4.0,"text_a":"Rivers carry silt from the mountains to the delta.","text_b":"Mountain silt travels downriver and settles in the delta."}
+{"id":"sts-0091","score":2.0,"text_a":"Rivers carry silt from the mountains to the delta.","text_b":"Fresh water meets the tide at the river mouth."}
+{"id":"sts-0092","score":0.0,"text_a":"Rivers carry silt from the mountains to the delta.","text_b":"The e2e harness never starts remote GPUs."}
+{"id":"sts-0093","score":4.0,"text_a":"A moth circled the porch light.","text_b":"An insect flew loops around the lamp on the porch."}
+{"id":"sts-0094","score":3.0,"text_a":"The archive smelled of paper and dust.","text_b":"Old boxes of documents filled the basement shelves."}
+{"id":"sts-0095","score":5.0,"text_a":"query: the quick brown fox","text_b":"query: the quick brown fox"}
+{"id":"sts-0096","score":2.5,"text_a":"query: the quick brown fox","text_b":"A quick brown fox is a classic pangram subject."}

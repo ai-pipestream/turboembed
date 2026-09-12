@@ -102,6 +102,20 @@ impl CatalogIndex {
     }
 }
 
+/// Catalog pooling convention for an embedding family.
+///
+/// BGE (including `bge-m3`) uses **CLS**; MiniLM / MPNet / E5 / GTE / Nomic
+/// use **mean**. Apple catalog rows omit `pooling` (MLX default) so the
+/// parity client always sends this family value on `Embed` so all three
+/// arches get the same request.
+pub fn family_pooling(alias: &str) -> &'static str {
+    if alias.starts_with("bge-") {
+        "cls"
+    } else {
+        "mean"
+    }
+}
+
 /// Why an alias should not be exercised on this target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SkipReason {
@@ -157,5 +171,14 @@ mod tests {
         assert!(idx.available_on("qwen-0.5b", Target::Intel));
         assert!(idx.available_on("default-llm", Target::Apple));
         assert!(idx.available_on("minilm", Target::Mock));
+    }
+
+    #[test]
+    fn family_pooling_matches_catalog() {
+        assert_eq!(family_pooling("minilm"), "mean");
+        assert_eq!(family_pooling("mpnet"), "mean");
+        assert_eq!(family_pooling("e5-small"), "mean");
+        assert_eq!(family_pooling("bge-small"), "cls");
+        assert_eq!(family_pooling("bge-m3"), "cls");
     }
 }

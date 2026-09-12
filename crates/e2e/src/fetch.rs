@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use inferstream_fetch::{
-    embedding_known_aliases, ensure_aliases, llm_known_aliases, mlx_known_aliases,
-    ov_genai_known_aliases, workspace_root, ManifestKind,
+    corpus_known_aliases, embedding_known_aliases, ensure_aliases, llm_known_aliases,
+    mlx_known_aliases, ov_genai_known_aliases, workspace_root, ManifestKind,
 };
 
 use crate::matrix::Matrix;
@@ -49,6 +49,7 @@ pub enum ArtifactKind {
     LlmsGguf,
     OvGenai,
     Mlx,
+    Corpus,
 }
 
 impl ArtifactKind {
@@ -58,6 +59,7 @@ impl ArtifactKind {
             Self::LlmsGguf => "llms",
             Self::OvGenai => "ov-genai",
             Self::Mlx => "mlx",
+            Self::Corpus => "corpus",
         }
     }
 }
@@ -218,6 +220,27 @@ pub fn plan_fetches(
     plan
 }
 
+/// SHA-pinned soak/STS corpus (`models/manifests/corpus.json`). Independent
+/// of the arch target — optional (`FETCH_CORPUS=1` / `--fetch-corpus`).
+pub fn plan_corpus() -> FetchPlan {
+    let known = corpus_known_aliases();
+    FetchPlan {
+        batches: vec![FetchBatch {
+            kind: ArtifactKind::Corpus,
+            aliases: known.keys().cloned().collect(),
+        }],
+        skipped: Vec::new(),
+    }
+}
+
+/// Append corpus batches onto an existing plan (idempotent).
+pub fn with_corpus(mut plan: FetchPlan) -> FetchPlan {
+    let extra = plan_corpus();
+    plan.batches.extend(extra.batches);
+    plan.skipped.extend(extra.skipped);
+    plan
+}
+
 fn push_filtered(
     plan: &mut FetchPlan,
     kind: ArtifactKind,
@@ -319,6 +342,9 @@ pub fn ensure_plan_io(
             }
             ArtifactKind::Mlx => {
                 fetch_mlx(&batch.aliases, root, out, err)?;
+            }
+            ArtifactKind::Corpus => {
+                run_ensure(ManifestKind::Corpus, &batch.aliases, root, out, err)?;
             }
         }
     }
@@ -543,5 +569,16 @@ mod tests {
         let mut err = Vec::new();
         ensure_plan_io(&FetchPlan::default(), &tmp, &mut out, &mut err).unwrap();
         assert!(out.is_empty());
+    }
+
+    #[test]
+    fn corpus_plan_lists_shakespeare_and_sts() {
+        let plan = plan_corpus();
+        assert_eq!(plan.batches.len(), 1);
+        assert_eq!(plan.batches[0].kind, ArtifactKind::Corpus);
+        assert!(plan.batches[0]
+            .aliases
+            .contains(&"tiny-shakespeare".to_string()));
+        assert!(plan.batches[0].aliases.contains(&"sts-pairs".to_string()));
     }
 }

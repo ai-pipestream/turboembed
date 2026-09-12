@@ -4,7 +4,7 @@ use std::fmt;
 use std::str::FromStr;
 
 /// One of the three arch gRPC servers, plus the local mock used in CI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, clap::ValueEnum)]
 pub enum Target {
     Nvidia,
     Intel,

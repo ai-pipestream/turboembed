@@ -5,19 +5,26 @@
 //! resolve on that arch, or that the host did not put on `serve`, soft-skip.
 
 pub mod catalog;
+pub mod chunker;
 mod client;
+pub mod corpus;
 pub mod fetch;
 pub mod golden;
 pub mod matrix;
+pub mod parity;
 pub mod suite;
 pub mod target;
 
-pub use catalog::{CatalogIndex, SkipReason};
+pub use catalog::{family_pooling, CatalogIndex, SkipReason};
 pub use fetch::{
-    candidate_aliases, ensure_plan, plan_fetches, unclaimed_aliases, ArtifactKind, FetchPlan,
-    FetchScope,
+    candidate_aliases, ensure_plan, plan_corpus, plan_fetches, unclaimed_aliases, with_corpus,
+    ArtifactKind, FetchPlan, FetchScope,
 };
 pub use matrix::Matrix;
+pub use parity::{
+    pair_threshold, run_parity, ParityConfig, ParityDump, ParityMode, CROSS_FP_MIN,
+    CROSS_QUANT_MIN, DEFAULT_PARITY_ALIASES, SAME_ARCH_MIN,
+};
 pub use suite::{decide, run_suite, Decision, Outcome, Report, SuiteConfig, SuiteFilter};
 pub use target::{infer_target_from_addr, Target};
 
@@ -38,4 +45,6 @@ pub enum HarnessError {
     Catalog(String),
     #[error("fetch: {0}")]
     Fetch(String),
+    #[error("parity: {0}")]
+    Parity(String),
 }
