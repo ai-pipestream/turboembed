@@ -249,7 +249,7 @@ std::unique_ptr<Pipeline> load_gpu_pipeline(
      * Never "CPU", never "AUTO". */
     constexpr const char* kGpu = "GPU";
     auto out = std::unique_ptr<Pipeline>(new Pipeline(
-        std::unique_ptr<Impl>(new Impl(dir, kGpu, cfg))
+        std::unique_ptr<Pipeline::Impl>(new Pipeline::Impl(dir, kGpu, cfg))
     ));
     out->models_path_ = models_path;
     out->device_ = kGpu;

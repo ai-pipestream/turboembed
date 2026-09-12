@@ -26,7 +26,14 @@ const TEXT: &str = "hello world";
 const ALIAS: &str = "minilm";
 
 fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+    let from_build = PathBuf::from(env!("TURBOEMBED_WORKSPACE_ROOT"));
+    if from_build.join("testdata/e2e/goldens/nvidia/minilm.json").is_file() {
+        return from_build;
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("workspace root")
 }
 
 fn cosine(a: &[f32], b: &[f32]) -> f32 {

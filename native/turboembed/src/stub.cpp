@@ -367,11 +367,19 @@ turboembed_status turboembed_load_model(
         );
         return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
     }
+    if (engine->device == TURBOEMBED_DEVICE_CUDA ||
+        engine->device == TURBOEMBED_DEVICE_TENSORRT ||
+        engine->device == TURBOEMBED_DEVICE_METAL) {
+        engine->set_error(
+            "ORT CUDA / TensorRT / Metal providers are not wired in this "
+            "Intel GenAI build; use TURBOEMBED_DEVICE_OPENVINO_GPU for minilm"
+        );
+        return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+    }
     if (!wants_genai_gpu(engine->device)) {
         engine->set_error(
             "catalog alias requires TURBOEMBED_DEVICE_OPENVINO_GPU "
-            "(or AUTO that resolves to GPU); this engine device cannot "
-            "load TextEmbeddingPipeline"
+            "(or AUTO that resolves to GPU)"
         );
         return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
     }
