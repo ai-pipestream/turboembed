@@ -16,6 +16,7 @@
 #   make e2e-drift                          # popular models × arches (same floors)
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
+#   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on GPU
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -67,7 +68,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	fetch-e2e-nvidia fetch-e2e-intel fetch-e2e-apple fetch-e2e-mock \
 	fetch-corpus verify-corpus list-corpus update-corpus-manifest \
 	e2e-parity e2e-parity-goldens e2e-drift \
-	turboembed-stub test-turboembed
+	turboembed-stub test-turboembed test-turboembed-intel
 
 test:
 	$(CARGO) test --workspace
@@ -306,3 +307,12 @@ turboembed-stub:
 
 test-turboembed:
 	$(CARGO) test -p turboembed
+
+# Live TextEmbeddingPipeline on Intel GPU (Battlemage). Fails if GPU is missing.
+# Sources the host OpenVINO toolkit; no Python.
+OPENVINO_SETUPVARS ?= /work/opt/openvino_genai/setupvars.sh
+test-turboembed-intel:
+	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then \
+	  set +u; . "$(OPENVINO_SETUPVARS)"; set -u; \
+	fi; \
+	$(CARGO) test -p turboembed --features genai

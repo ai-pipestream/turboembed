@@ -8,8 +8,17 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
+[features]
+# Real in-process ov::genai::TextEmbeddingPipeline on Intel GPU.
+# No CPU fallback, no OVMS, no mock-as-done. Create/load fail if the
+# GPU plugin is missing. See docs/intel-genai-embed.md.
+genai = []
+
 [dependencies]
 thiserror = { workspace = true }
 
 [build-dependencies]
 cc = "1"
+
+[dev-dependencies]
+serde_json = { workspace = true }

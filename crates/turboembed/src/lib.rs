@@ -16,11 +16,13 @@
 //! * The ABI is **not thread-safe** on a single engine. `Engine` is `Send`
 //!   (move it to another thread) but not `Sync`.
 //!
-//! The linked implementation is the C++ stub (`native/turboembed`) unless
-//! a later provider (ORT / OpenVINO GenAI / MLX) is wired in. Catalog
-//! aliases such as `minilm` return [`Error::NotImplemented`] today; use
-//! `mock-embed` for ABI smoke, or keep calling the inferstream gRPC
-//! servers.
+//! Default link is the C++ stub (`native/turboembed`): `mock-embed` works,
+//! catalog aliases return [`Error::NotImplemented`].
+//!
+//! `--features genai` links `ov::genai::TextEmbeddingPipeline` on the
+//! literal device `"GPU"`. `Engine::create(Device::OpenVinoGpu)` then
+//! `load_model("minilm")` / `embed_one` is the Intel proof path. CPU is
+//! not accepted as success. No OVMS. No Python.
 
 #![allow(clippy::result_large_err)]
 
@@ -386,6 +388,8 @@ impl Engine {
     }
 
     /// Load a catalog alias. Stub: `mock-embed` / `mock` succeed.
+    /// `--features genai`: `minilm` (and other `models/ov/<alias>` dirs)
+    /// load `TextEmbeddingPipeline` on GPU.
     pub fn load_model(&self, alias: &str) -> Result<(), Error> {
         let status =
             unsafe { turboembed_load_model(self.as_ptr(), alias.as_ptr().cast(), alias.len()) };

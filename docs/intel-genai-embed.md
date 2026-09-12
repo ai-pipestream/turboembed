@@ -128,6 +128,24 @@ The golden file is produced on krick-1 after the first successful Embed
 (see `testdata/reference_embeddings/README.md`). It is **not** required
 for the default `cargo test --workspace`.
 
+## TurboEmbed C ABI (same pipeline, no gRPC)
+
+`include/turboembed.h` + `crates/turboembed --features genai` loads the
+same `ov::genai::TextEmbeddingPipeline` in-process:
+
+```bash
+# source OpenVINO setupvars (or rely on rpath to /work/opt/openvino_genai)
+make test-turboembed-intel
+# equivalent:
+cargo test -p turboembed --features genai
+```
+
+`Device::OpenVinoGpu` / `TURBOEMBED_DEVICE_OPENVINO_GPU` is required.
+Create/load **fails** if the GPU plugin is missing — CPU is not treated
+as success. Cosine vs `testdata/e2e/goldens/{intel,nvidia}/minilm.json`
+must be ≥ 0.99. Receipt:
+`testdata/receipts/turboembed/intel-minilm.json`.
+
 ## OVMS (removed)
 
 OVMS gRPC is not a serving path. `backend = "ovms"` does not parse.

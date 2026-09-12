@@ -1,24 +1,29 @@
 /* SPDX-License-Identifier: Apache-2.0
  *
- * TurboEmbed C ABI stub.
+ * TurboEmbed C ABI.
  *
- * Links on any host with a C++17 compiler. Implements a deterministic
- * mock alias (`mock-embed` / `mock`) so Rust / C clients can exercise
- * the ABI. Real devices (CUDA, OpenVINO, Metal) create an engine but
- * load/embed of catalog aliases returns NOT_IMPLEMENTED — wire those
- * to backend-ort / backend-openvino / MlxEngine later.
+ * Always: deterministic `mock-embed` / `mock`.
+ * With -DTURBOEMBED_GENAI: catalog aliases (minilm, …) load
+ * ov::genai::TextEmbeddingPipeline on the literal device string "GPU".
+ * CPU / AUTO compile is rejected — not accepted as success.
  *
- * No Python. Does not start or replace inferstream servers.
+ * No Python. No OVMS. Does not replace inferstream servers.
  */
 
 #include "turboembed.h"
+
+#ifdef TURBOEMBED_GENAI
+#include "genai.hpp"
+#endif
 
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <new>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -75,11 +80,19 @@ void mock_embed_row(const char *ptr, size_t len, float *out, uint32_t dim) {
 
 } // namespace
 
+#ifndef TURBOEMBED_WORKSPACE_ROOT
+#define TURBOEMBED_WORKSPACE_ROOT ""
+#endif
+
 struct turboembed_engine {
     turboembed_device device;
     std::string config_path;
     std::string last_error;
     bool mock_loaded;
+#ifdef TURBOEMBED_GENAI
+    std::unique_ptr<turboembed_genai::Pipeline> genai;
+    std::string genai_alias;
+#endif
 
     explicit turboembed_engine(turboembed_device device_, std::string config)
         : device(device_),
@@ -91,6 +104,34 @@ struct turboembed_engine {
 
     void set_error(const char *msg) { last_error = msg ? msg : ""; }
 };
+
+#ifdef TURBOEMBED_GENAI
+bool wants_genai_gpu(turboembed_device device) {
+    return device == TURBOEMBED_DEVICE_OPENVINO_GPU ||
+           device == TURBOEMBED_DEVICE_AUTO;
+}
+
+uint8_t pooling_for_alias(const char *alias, size_t len, uint8_t requested) {
+    if (requested == TURBOEMBED_POOLING_CLS) {
+        return 0;
+    }
+    if (requested == TURBOEMBED_POOLING_LAST) {
+        return 2;
+    }
+    if (requested == TURBOEMBED_POOLING_MEAN) {
+        return 1;
+    }
+    /* DEFAULT: catalog convention — BGE = CLS, everything else MEAN. */
+    if (len >= 3 && std::memcmp(alias, "bge", 3) == 0) {
+        return 0;
+    }
+    return 1;
+}
+
+bool alias_eq(const char *alias, size_t len, const std::string &loaded) {
+    return len == loaded.size() && std::memcmp(alias, loaded.data(), len) == 0;
+}
+#endif
 
 extern "C" {
 
@@ -176,6 +217,32 @@ turboembed_status turboembed_engine_create(
             g_create_error = "unknown device enum";
             return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
     }
+#ifdef TURBOEMBED_GENAI
+    if (device == TURBOEMBED_DEVICE_OPENVINO_GPU) {
+        try {
+            if (!turboembed_genai::runtime_has_gpu()) {
+                std::string listed;
+                for (const auto &d : turboembed_genai::available_devices()) {
+                    if (!listed.empty()) {
+                        listed += ", ";
+                    }
+                    listed += d;
+                }
+                g_create_error =
+                    "TURBOEMBED_DEVICE_OPENVINO_GPU requested but OpenVINO "
+                    "listed no GPU ([" +
+                    listed +
+                    "]); refusing CPU fallback. "
+                    "Need libopenvino_intel_gpu_plugin + Level Zero.";
+                return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+            }
+        } catch (const std::exception &e) {
+            g_create_error =
+                std::string("OpenVINO device query failed: ") + e.what();
+            return TURBOEMBED_ERR_UNAVAILABLE;
+        }
+    }
+#endif
     try {
         *out = new turboembed_engine(device, config_path ? config_path : "");
     } catch (const std::bad_alloc &) {
@@ -201,6 +268,37 @@ turboembed_status turboembed_list_models(
     }
     *out_infos = nullptr;
     *out_count = 0;
+
+#ifdef TURBOEMBED_GENAI
+    if (engine->genai) {
+        auto *infos = static_cast<turboembed_model_info *>(
+            std::calloc(1, sizeof(turboembed_model_info))
+        );
+        if (infos == nullptr) {
+            engine->set_error("model list allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        const std::string &name = engine->genai_alias;
+        char *alias = static_cast<char *>(std::malloc(name.size() + 1));
+        if (alias == nullptr) {
+            std::free(infos);
+            engine->set_error("alias allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        std::memcpy(alias, name.data(), name.size());
+        alias[name.size()] = '\0';
+        infos[0].alias.ptr = alias;
+        infos[0].alias.len = name.size();
+        infos[0].dim = engine->genai->embedding_dim();
+        infos[0].device = TURBOEMBED_DEVICE_OPENVINO_GPU;
+        infos[0].ready = 1;
+        *out_infos = infos;
+        *out_count = 1;
+        engine->set_error("");
+        return TURBOEMBED_OK;
+    }
+#endif
+
     auto *infos = static_cast<turboembed_model_info *>(
         std::calloc(1, sizeof(turboembed_model_info))
     );
@@ -259,12 +357,69 @@ turboembed_status turboembed_load_model(
         engine->set_error("");
         return TURBOEMBED_OK;
     }
-    /* Catalog aliases (minilm, bge-*, …) are reserved for ORT/GenAI/MLX. */
+
+#ifdef TURBOEMBED_GENAI
+    if (engine->device == TURBOEMBED_DEVICE_OPENVINO_CPU ||
+        engine->device == TURBOEMBED_DEVICE_OPENVINO_NPU) {
+        engine->set_error(
+            "TurboEmbed Intel GenAI is GPU-only; CPU/NPU are not accepted "
+            "as success. Create the engine with TURBOEMBED_DEVICE_OPENVINO_GPU."
+        );
+        return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+    }
+    if (!wants_genai_gpu(engine->device)) {
+        engine->set_error(
+            "catalog alias requires TURBOEMBED_DEVICE_OPENVINO_GPU "
+            "(or AUTO that resolves to GPU); this engine device cannot "
+            "load TextEmbeddingPipeline"
+        );
+        return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+    }
+    try {
+        if (!turboembed_genai::runtime_has_gpu()) {
+            engine->set_error(
+                "OpenVINO GPU plugin unavailable; refusing CPU fallback. "
+                "Need libopenvino_intel_gpu_plugin + Level Zero on Battlemage."
+            );
+            return TURBOEMBED_ERR_UNAVAILABLE;
+        }
+        const std::string alias_s(alias, alias_len);
+        const std::string path = turboembed_genai::resolve_models_path(
+            alias_s,
+            engine->config_path,
+            TURBOEMBED_WORKSPACE_ROOT
+        );
+        turboembed_genai::LoadConfig cfg;
+        cfg.pooling = pooling_for_alias(alias, alias_len, TURBOEMBED_POOLING_DEFAULT);
+        cfg.normalize = true;
+        cfg.max_length = 256;
+        engine->genai = turboembed_genai::load_gpu_pipeline(path, cfg);
+        if (engine->genai->device() != "GPU") {
+            engine->genai.reset();
+            engine->set_error(
+                "TextEmbeddingPipeline compiled for a non-GPU device; "
+                "refusing to treat this as success"
+            );
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        engine->genai_alias = alias_s;
+        engine->set_error("");
+        return TURBOEMBED_OK;
+    } catch (const std::exception &e) {
+        engine->genai.reset();
+        engine->genai_alias.clear();
+        engine->set_error(e.what());
+        return TURBOEMBED_ERR_UNAVAILABLE;
+    }
+#else
+    /* Catalog aliases (minilm, bge-*, …) need --features genai on Intel. */
     engine->set_error(
-        "provider not wired in the stub (ORT / OpenVINO GenAI / MLX); "
-        "load mock-embed or keep using inferstream arch servers"
+        "OpenVINO GenAI is not compiled into this TurboEmbed build; "
+        "rebuild crates/turboembed with --features genai "
+        "(TextEmbeddingPipeline on GPU; see docs/intel-genai-embed.md)"
     );
     return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+#endif
 }
 
 static turboembed_status embed_impl(
@@ -304,11 +459,103 @@ static turboembed_status embed_impl(
             return TURBOEMBED_ERR_INVALID_ARGUMENT;
         }
     }
+#ifdef TURBOEMBED_GENAI
+    if (engine->genai && alias_eq(alias, alias_len, engine->genai_alias)) {
+        if (engine->genai->device() != "GPU") {
+            engine->set_error(
+                "loaded pipeline device is not GPU; refusing embed"
+            );
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        if (opts != nullptr) {
+            if (opts->pooling == TURBOEMBED_POOLING_CLS ||
+                opts->pooling == TURBOEMBED_POOLING_LAST) {
+                const uint8_t want =
+                    pooling_for_alias(alias, alias_len, opts->pooling);
+                const uint8_t have =
+                    pooling_for_alias(alias, alias_len, TURBOEMBED_POOLING_DEFAULT);
+                if (want != have) {
+                    engine->set_error(
+                        "embed pooling overrides the catalog default; "
+                        "reload the pipeline with that pooling "
+                        "(constructor-time Config only)"
+                    );
+                    return TURBOEMBED_ERR_INVALID_ARGUMENT;
+                }
+            }
+            if (opts->normalize == 0) {
+                engine->set_error(
+                    "normalize=false is not the catalog MiniLM path "
+                    "(goldens are L2-normalized)"
+                );
+                return TURBOEMBED_ERR_INVALID_ARGUMENT;
+            }
+        }
+        try {
+            std::vector<std::string> input;
+            input.reserve(n_texts);
+            for (size_t i = 0; i < n_texts; ++i) {
+                input.emplace_back(
+                    texts[i].ptr == nullptr ? "" : texts[i].ptr,
+                    texts[i].len
+                );
+            }
+            std::vector<float> flat = engine->genai->embed_documents(input);
+            const uint32_t dim = engine->genai->embedding_dim();
+            if (dim == 0 || flat.size() != n_texts * static_cast<size_t>(dim)) {
+                engine->set_error("ragged GenAI embedding batch");
+                return TURBOEMBED_ERR_INTERNAL;
+            }
+            auto *result = static_cast<turboembed_embed_result *>(
+                std::calloc(1, sizeof(turboembed_embed_result))
+            );
+            if (result == nullptr) {
+                engine->set_error("result allocation failed");
+                return TURBOEMBED_ERR_OUT_OF_MEMORY;
+            }
+            auto *values = static_cast<float *>(
+                std::malloc(flat.size() * sizeof(float))
+            );
+            if (values == nullptr) {
+                std::free(result);
+                engine->set_error("values allocation failed");
+                return TURBOEMBED_ERR_OUT_OF_MEMORY;
+            }
+            std::memcpy(values, flat.data(), flat.size() * sizeof(float));
+            result->dim = dim;
+            result->count = static_cast<uint32_t>(n_texts);
+            result->values = values;
+            result->packed = reinterpret_cast<const uint8_t *>(values);
+            result->packed_len = flat.size() * sizeof(float);
+            *out = result;
+            engine->set_error("");
+            return TURBOEMBED_OK;
+        } catch (const std::exception &e) {
+            engine->set_error(e.what());
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+    }
     if (!is_mock_alias(alias, alias_len)) {
         engine->set_error(
-            "embed on catalog aliases is NOT_IMPLEMENTED in the stub"
+            engine->genai
+                ? "alias is not the loaded GenAI model"
+                : "catalog alias is not loaded; call turboembed_load_model first"
+        );
+        return TURBOEMBED_ERR_NOT_FOUND;
+    }
+#endif
+
+    if (!is_mock_alias(alias, alias_len)) {
+#ifndef TURBOEMBED_GENAI
+        engine->set_error(
+            "embed on catalog aliases needs --features genai "
+            "(TextEmbeddingPipeline on GPU)"
         );
         return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+#else
+        engine->set_error("catalog alias is not loaded");
+        return TURBOEMBED_ERR_NOT_FOUND;
+#endif
     }
     if (!engine->mock_loaded) {
         engine->set_error("mock-embed is not loaded");

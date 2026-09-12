@@ -95,11 +95,15 @@ on the existing `inferstream.v1.InferstreamService`.
 ```bash
 make turboembed-stub          # native/turboembed/build/libturboembed.a
 cargo test -p turboembed      # links the stub; ABI smoke (no GPU)
+make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on GPU
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 
-The stub answers `mock-embed` and returns `NOT_IMPLEMENTED` for catalog
-aliases (`minilm`, …) until ORT / GenAI / MLX providers are wired.
+Without `--features genai` the stub answers `mock-embed` and returns
+`NOT_IMPLEMENTED` for catalog aliases. On Intel, `--features genai`
+loads `ov::genai::TextEmbeddingPipeline` on **GPU** (no OVMS, no CPU
+fallback as success). Receipt:
+`testdata/receipts/turboembed/intel-minilm.json`.
 Inferstream servers are unchanged.
 
 ## Building each arch binary
