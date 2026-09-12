@@ -359,10 +359,10 @@ impl OrtCudaSession {
 
         let mut pooled = match (self.pooling, dims.as_slice()) {
             (Pooling::Mean, [b, s, d]) if *b as usize == batch && *s as usize == seq => {
-                mean_pool(hidden, &attention_mask, batch, seq, *d as usize)
+                mean_pool(&hidden, &attention_mask, batch, seq, *d as usize)
             }
             (Pooling::Cls, [b, s, d]) if *b as usize == batch && *s as usize == seq => {
-                cls_pool(hidden, batch, seq, *d as usize)
+                cls_pool(&hidden, batch, seq, *d as usize)
             }
             (_, [b, _d]) if *b as usize == batch => hidden.to_vec(),
             _ => {
