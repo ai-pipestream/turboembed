@@ -229,8 +229,13 @@ public func turboembed_engine_create(
             box.metalAvailable = true
             box.mockLoaded = false
             box.mlxAliases = MlxProvider.discover(catalog: box.catalog)
+            guard let minilm = box.mlxAliases["minilm"], minilm.dim == 384 else {
+                TLS.shared.createError =
+                    "requested \(cDeviceName(device)); Metal/AUTO create must list catalog minilm dim=384, not mock-embed — refusing CPU/mock fallback. Run `make fetch-mlx ALIASES=minilm`"
+                return TURBOEMBED_ERR_UNAVAILABLE
+            }
             fputs(
-                "[turboembed] mlx ping device=\(ping.device) metal=true matmul_ok=\(ping.matmulOk) — FP MiniLM path is live\n",
+                "[turboembed] mlx ping device=\(ping.device) metal=true matmul_ok=\(ping.matmulOk) aliases=\(box.mlxAliases.keys.sorted().joined(separator: ",")) — FP MiniLM path is live\n",
                 stderr)
         } catch {
             TLS.shared.createError =
@@ -258,20 +263,29 @@ public func turboembed_list_models(
     guard let box = bridge(engine), let outInfos, let outCount else {
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
-    var rows: [(String, UInt32, turboembed_device, Int32)] = [
-        (
-            mockAlias, mockDim, TURBOEMBED_DEVICE_MOCK,
-            box.mockLoaded ? 1 : 0
-        )
-    ]
-    let mlxRows = box.mlxAliases.values.sorted { $0.alias < $1.alias }
-    for model in mlxRows {
+    var rows: [(String, UInt32, turboembed_device, Int32)] = []
+    if wantsHostGpu(box.device) {
+        // Metal / AUTO never advertise mock-embed. Catalog aliases only.
+        let mlxRows = box.mlxAliases.values.sorted { $0.alias < $1.alias }
+        for model in mlxRows {
+            rows.append(
+                (
+                    model.alias,
+                    model.dim,
+                    TURBOEMBED_DEVICE_METAL,
+                    model.ready ? 1 : 0
+                ))
+        }
+        if rows.isEmpty || !rows.contains(where: { $0.0 == "minilm" && $0.1 == 384 }) {
+            box.lastError =
+                "Metal/AUTO listed no catalog minilm dim=384 — refusing mock-only catalog"
+            return TURBOEMBED_ERR_UNAVAILABLE
+        }
+    } else {
         rows.append(
             (
-                model.alias,
-                model.dim,
-                TURBOEMBED_DEVICE_METAL,
-                model.ready ? 1 : 0
+                mockAlias, mockDim, TURBOEMBED_DEVICE_MOCK,
+                box.mockLoaded ? 1 : 0
             ))
     }
     let infos = UnsafeMutablePointer<turboembed_model_info>.allocate(capacity: rows.count)

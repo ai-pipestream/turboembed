@@ -98,7 +98,7 @@ make turboembed-stub          # Linux: native/turboembed/build/libturboembed.a
 cargo test -p turboembed      # ABI smoke (mock-embed). macOS links MLX.
 make test-turboembed-nvidia   # --features ort-cuda; ORT CUDA IoBinding MiniLM
 make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on CPU and GPU
-make test-turboembed-apple    # Mac: turboembed_embed(minilm) on Metal vs goldens
+make test-turboembed-apple    # Mac: Metal create lists minilm (384) + embed vs goldens
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 

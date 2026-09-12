@@ -2,7 +2,7 @@
 //! on Apple Metal. No mock, no Python, no BERT CLS pooler.
 //!
 //! ```bash
-//! cargo test -p turboembed --features mlx-live -- --ignored --nocapture apple_minilm
+//! cargo test -p turboembed --features mlx-live -- --include-ignored --nocapture
 //! ```
 
 #![cfg(all(target_os = "macos", feature = "mlx-live"))]
@@ -202,6 +202,23 @@ fn metal_create_lists_minilm_not_only_mock() {
     set_workspace_env();
     let engine = Engine::create(Device::Metal).expect("Metal engine — must not fall back to stub");
     let models = engine.list_models().expect("list");
+    let listed: Vec<(String, Device, u32)> = models
+        .iter()
+        .map(|m| (m.alias.clone(), m.device, m.dim))
+        .collect();
+    eprintln!("Metal list_models: {listed:?}");
+    assert!(
+        models
+            .iter()
+            .all(|m| m.alias != "mock-embed" && m.alias != "mock"),
+        "FAKE: Metal advertised mock-embed — GPU/AUTO never list the 8-d FNV mock: {listed:?}"
+    );
+    assert!(
+        models
+            .iter()
+            .all(|m| m.device != Device::Cpu && m.device != Device::Mock),
+        "FAKE: Metal listed a CPU/mock device: {listed:?}"
+    );
     let minilm = models
         .iter()
         .find(|m| m.alias == "minilm")
@@ -210,16 +227,27 @@ fn metal_create_lists_minilm_not_only_mock() {
     assert_eq!(minilm.dim, MINILM_DIM as u32);
     assert!(
         !models.iter().all(|m| m.alias == "mock-embed"),
-        "FAKE: catalog is mock-only"
+        "FAKE: catalog is mock-only: {listed:?}"
     );
 
     let auto = Engine::create(Device::Auto).expect("AUTO is host GPU (Metal), not CPU");
     let auto_models = auto.list_models().expect("auto list");
+    let auto_listed: Vec<(String, Device, u32)> = auto_models
+        .iter()
+        .map(|m| (m.alias.clone(), m.device, m.dim))
+        .collect();
+    eprintln!("AUTO list_models: {auto_listed:?}");
     assert!(
         auto_models
             .iter()
-            .any(|m| m.alias == "minilm" && m.device == Device::Metal),
-        "AUTO must resolve to Metal MiniLM, never a CPU fallback"
+            .all(|m| m.alias != "mock-embed" && m.alias != "mock"),
+        "FAKE: AUTO advertised mock-embed: {auto_listed:?}"
+    );
+    assert!(
+        auto_models
+            .iter()
+            .any(|m| m.alias == "minilm" && m.device == Device::Metal && m.dim == MINILM_DIM as u32),
+        "AUTO must resolve to Metal MiniLM dim={MINILM_DIM}, never a CPU/mock fallback: {auto_listed:?}"
     );
 }
 

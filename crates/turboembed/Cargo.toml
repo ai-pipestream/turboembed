@@ -20,7 +20,7 @@ genai = []
 # feature. CUDA 13 user-space libs: .libs/nvidia/lib. See docs/turboembed.md.
 ort-cuda = ["dep:ort", "dep:tokenizers", "dep:inferstream-backend-ort", "dep:serde", "dep:toml"]
 # Live Metal MiniLM via libTurboEmbed.dylib (macOS only).
-# cargo test -p turboembed --features mlx-live -- --ignored --nocapture
+# cargo test -p turboembed --features mlx-live -- --include-ignored --nocapture
 mlx-live = []
 
 [dependencies]

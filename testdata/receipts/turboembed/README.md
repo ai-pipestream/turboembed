@@ -24,7 +24,8 @@ the GPU plugin is missing — that path never compiles `"CPU"`.
 no Intel NPU / no `libopenvino_intel_npu_plugin.so`. Do not treat it as
 a MiniLM success.
 
-Apple: `turboembed_embed(minilm)` on `Device(gpu, 0)`. Cosine vs nvidia
+Apple: `Engine::create(Metal|AUTO)` lists catalog `minilm` dim 384 (never
+mock-only). `turboembed_embed(minilm)` on `Device(gpu, 0)`. Cosine vs nvidia
 goldens ≥ 0.97 (CJK UNK floor) and apple goldens ≥ 0.99. Dim 384,
 mean+L2, not BERT `tanh(dense(CLS))`, not 8-d FNV mock.
 

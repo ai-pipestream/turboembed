@@ -18,7 +18,7 @@
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
 #   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU; NPU create fails loud if missing
-#   make test-turboembed-apple              # Mac: Metal MiniLM vs goldens + receipt
+#   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -326,7 +326,8 @@ test-turboembed-intel:
 	fi; \
 	$(CARGO) test -p turboembed --features genai
 
-# Real Metal MiniLM through turboembed.h. Writes
-# testdata/receipts/turboembed/apple-minilm.json. No Python.
+# Real Metal MiniLM through turboembed.h. No Python.
+# Runs metal_create_lists_minilm_not_only_mock (create lists 384-d minilm,
+# never mock-only) and apple_minilm_metal_cosine_vs_goldens (receipt).
 test-turboembed-apple:
-	$(CARGO) test -p turboembed --features mlx-live -- --ignored --nocapture apple_minilm
+	$(CARGO) test -p turboembed --features mlx-live -- --include-ignored --nocapture

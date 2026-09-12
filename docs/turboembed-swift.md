@@ -68,10 +68,11 @@ Weights: `make fetch-mlx ALIASES=minilm` → `models/mlx/minilm`
 (FP `sentence-transformers/all-MiniLM-L6-v2`, not 4-bit).
 
 ```bash
-# Rust → turboembed_embed(minilm) → Metal. Writes the receipt.
+# Rust → create lists minilm (384) + turboembed_embed(minilm) → Metal.
+# Includes metal_create_lists_minilm_not_only_mock. Writes the receipt.
 make test-turboembed-apple
 # or:
-cargo test -p turboembed --features mlx-live -- --ignored --nocapture apple_minilm
+cargo test -p turboembed --features mlx-live -- --include-ignored --nocapture
 ```
 
 Receipt: [`testdata/receipts/turboembed/apple-minilm.json`](../testdata/receipts/turboembed/apple-minilm.json).
