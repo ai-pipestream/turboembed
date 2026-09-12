@@ -140,11 +140,13 @@ make test-turboembed-intel
 cargo test -p turboembed --features genai
 ```
 
-`Device::OpenVinoGpu` / `TURBOEMBED_DEVICE_OPENVINO_GPU` is required.
-Create/load **fails** if the GPU plugin is missing — CPU is not treated
-as success. Cosine vs `testdata/e2e/goldens/{intel,nvidia}/minilm.json`
-must be ≥ 0.99. Receipt:
-`testdata/receipts/turboembed/intel-minilm.json`.
+`Device::OpenVinoGpu` compiles `TextEmbeddingPipeline(..., "GPU", config)`
+and **fails** if the GPU plugin is missing (no CPU swap).
+`Device::OpenVinoCpu` / `Device::Cpu` compiles
+`TextEmbeddingPipeline(..., "CPU", config)` and must produce real embeds.
+Cosine vs `testdata/e2e/goldens/{intel,nvidia}/minilm.json` ≥ 0.99.
+Receipts: `testdata/receipts/turboembed/intel-minilm.json` (GPU) and
+`intel-minilm-cpu.json` (CPU).
 
 ## OVMS (removed)
 

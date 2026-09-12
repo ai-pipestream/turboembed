@@ -106,9 +106,39 @@ struct turboembed_engine {
 };
 
 #ifdef TURBOEMBED_GENAI
-bool wants_genai_gpu(turboembed_device device) {
-    return device == TURBOEMBED_DEVICE_OPENVINO_GPU ||
-           device == TURBOEMBED_DEVICE_AUTO;
+/* Map the ABI device to the OpenVINO GenAI constructor string.
+ * AUTO picks GPU if the plugin is listed, else CPU — then that exact
+ * string is compiled. OPENVINO_GPU never becomes "CPU". */
+bool resolve_ov_device(turboembed_device device, std::string *out, std::string *err) {
+    switch (device) {
+        case TURBOEMBED_DEVICE_OPENVINO_GPU:
+            *out = "GPU";
+            return true;
+        case TURBOEMBED_DEVICE_OPENVINO_CPU:
+        case TURBOEMBED_DEVICE_CPU:
+            *out = "CPU";
+            return true;
+        case TURBOEMBED_DEVICE_AUTO:
+            try {
+                *out = turboembed_genai::runtime_has_gpu() ? "GPU" : "CPU";
+                return true;
+            } catch (const std::exception &e) {
+                *err = std::string("OpenVINO device query failed: ") + e.what();
+                return false;
+            }
+        default:
+            *err =
+                "catalog alias needs TURBOEMBED_DEVICE_OPENVINO_GPU, "
+                "TURBOEMBED_DEVICE_OPENVINO_CPU, TURBOEMBED_DEVICE_CPU, or AUTO";
+            return false;
+    }
+}
+
+turboembed_device abi_device_from_ov(const std::string &ov) {
+    if (ov == "CPU") {
+        return TURBOEMBED_DEVICE_OPENVINO_CPU;
+    }
+    return TURBOEMBED_DEVICE_OPENVINO_GPU;
 }
 
 uint8_t pooling_for_alias(const char *alias, size_t len, uint8_t requested) {
@@ -290,7 +320,7 @@ turboembed_status turboembed_list_models(
         infos[0].alias.ptr = alias;
         infos[0].alias.len = name.size();
         infos[0].dim = engine->genai->embedding_dim();
-        infos[0].device = TURBOEMBED_DEVICE_OPENVINO_GPU;
+        infos[0].device = abi_device_from_ov(engine->genai->device());
         infos[0].ready = 1;
         *out_infos = infos;
         *out_count = 1;
@@ -359,38 +389,30 @@ turboembed_status turboembed_load_model(
     }
 
 #ifdef TURBOEMBED_GENAI
-    if (engine->device == TURBOEMBED_DEVICE_OPENVINO_CPU ||
-        engine->device == TURBOEMBED_DEVICE_OPENVINO_NPU) {
+    if (engine->device == TURBOEMBED_DEVICE_OPENVINO_NPU) {
         engine->set_error(
-            "TurboEmbed Intel GenAI is GPU-only; CPU/NPU are not accepted "
-            "as success. Create the engine with TURBOEMBED_DEVICE_OPENVINO_GPU."
+            "NPU is not wired (GenAI has a distinct NPU compile path); "
+            "use TURBOEMBED_DEVICE_OPENVINO_GPU or "
+            "TURBOEMBED_DEVICE_OPENVINO_CPU / CPU"
         );
-        return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+        return TURBOEMBED_ERR_NOT_IMPLEMENTED;
     }
     if (engine->device == TURBOEMBED_DEVICE_CUDA ||
         engine->device == TURBOEMBED_DEVICE_TENSORRT ||
         engine->device == TURBOEMBED_DEVICE_METAL) {
         engine->set_error(
             "ORT CUDA / TensorRT / Metal providers are not wired in this "
-            "Intel GenAI build; use TURBOEMBED_DEVICE_OPENVINO_GPU for minilm"
+            "Intel GenAI build; use OPENVINO_GPU or OPENVINO_CPU / CPU"
         );
         return TURBOEMBED_ERR_NOT_IMPLEMENTED;
     }
-    if (!wants_genai_gpu(engine->device)) {
-        engine->set_error(
-            "catalog alias requires TURBOEMBED_DEVICE_OPENVINO_GPU "
-            "(or AUTO that resolves to GPU)"
-        );
+    std::string ov_device;
+    std::string resolve_err;
+    if (!resolve_ov_device(engine->device, &ov_device, &resolve_err)) {
+        engine->set_error(resolve_err.c_str());
         return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
     }
     try {
-        if (!turboembed_genai::runtime_has_gpu()) {
-            engine->set_error(
-                "OpenVINO GPU plugin unavailable; refusing CPU fallback. "
-                "Need libopenvino_intel_gpu_plugin + Level Zero on Battlemage."
-            );
-            return TURBOEMBED_ERR_UNAVAILABLE;
-        }
         const std::string alias_s(alias, alias_len);
         const std::string path = turboembed_genai::resolve_models_path(
             alias_s,
@@ -401,12 +423,20 @@ turboembed_status turboembed_load_model(
         cfg.pooling = pooling_for_alias(alias, alias_len, TURBOEMBED_POOLING_DEFAULT);
         cfg.normalize = true;
         cfg.max_length = 256;
-        engine->genai = turboembed_genai::load_gpu_pipeline(path, cfg);
-        if (engine->genai->device() != "GPU") {
+        engine->genai = turboembed_genai::load_pipeline(path, ov_device, cfg);
+        if (engine->genai->device() != ov_device) {
+            const std::string got = engine->genai->device();
+            engine->genai.reset();
+            engine->last_error =
+                "TextEmbeddingPipeline compiled for " + got + " but requested " +
+                ov_device + "; refusing a silent device swap";
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        if (ov_device == "GPU" && engine->genai->device() != "GPU") {
             engine->genai.reset();
             engine->set_error(
-                "TextEmbeddingPipeline compiled for a non-GPU device; "
-                "refusing to treat this as success"
+                "GPU was requested but the pipeline is not on GPU; "
+                "refusing CPU fallback"
             );
             return TURBOEMBED_ERR_INTERNAL;
         }
@@ -469,9 +499,17 @@ static turboembed_status embed_impl(
     }
 #ifdef TURBOEMBED_GENAI
     if (engine->genai && alias_eq(alias, alias_len, engine->genai_alias)) {
-        if (engine->genai->device() != "GPU") {
+        if (engine->device == TURBOEMBED_DEVICE_OPENVINO_GPU &&
+            engine->genai->device() != "GPU") {
+            engine->last_error =
+                "GPU was requested but the loaded pipeline is on " +
+                engine->genai->device() + "; refusing CPU fallback";
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        if (engine->genai->device() != "CPU" &&
+            engine->genai->device() != "GPU") {
             engine->set_error(
-                "loaded pipeline device is not GPU; refusing embed"
+                "loaded pipeline device is not CPU or GPU"
             );
             return TURBOEMBED_ERR_INTERNAL;
         }

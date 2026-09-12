@@ -3,20 +3,19 @@
   "abi_version": 1,
   "alias": "minilm",
   "cosine": {
-    "intel_golden": 0.9999998211860657,
-    "nvidia_golden": 0.9999997615814209,
+    "intel_golden": 0.9999784231185913,
+    "nvidia_golden": 0.999978244304657,
     "threshold": 0.9900000095367432
   },
-  "device": "GPU",
+  "device": "CPU",
   "dim": 384,
-  "gpu": "[level_zero:gpu][level_zero:0] Intel(R) oneAPI Unified Runtime over Level-Zero V2, Intel(R) Graphics [0xe223] 20.2.0 [1.14.37020]",
   "maps": {
     "libopenvino_genai": true,
-    "libopenvino_intel_gpu_plugin": true,
+    "libopenvino_intel_cpu_plugin": true,
     "libpython": false
   },
   "normalize": true,
-  "note": "explicit device=CPU is a separate real path: TextEmbeddingPipeline(models_path, \"CPU\", config). See intel-minilm-cpu.json. GPU requests still fail if the GPU plugin is missing.",
+  "note": "explicit TextEmbeddingPipeline(models_path, \"CPU\", config). GPU requests still fail-loud if the GPU plugin is missing.",
   "pipeline": "ov::genai::TextEmbeddingPipeline",
   "pooling": "mean",
   "schema_version": 1,

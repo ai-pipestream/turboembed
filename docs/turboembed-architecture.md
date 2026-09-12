@@ -63,7 +63,7 @@ flowchart TB
 | Layer | Who owns it | Status in this scaffold |
 |---|---|---|
 | C header `include/turboembed.h` | Frozen ABI v1 | landed |
-| C++ `native/turboembed` | nvidia / intel / Linux CI | mock always; `--features genai` wires `TextEmbeddingPipeline` on **GPU** |
+| C++ `native/turboembed` | nvidia / intel / Linux CI | mock always; `--features genai` wires `TextEmbeddingPipeline` on **GPU** or **CPU** (exact device string; GPU request never silently becomes CPU) |
 | Swift `@_cdecl` shim | Apple (same header) | stub symbols; MLX wiring is next |
 | Rust `crates/turboembed` | safe zero-copy wrapper | ABI smoke test |
 | gRPC `Embed` / `EmbedStream` | maps to existing InferstreamService | proto delta + server fill-in |

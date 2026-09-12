@@ -19,10 +19,11 @@
 //! Default link is the C++ stub (`native/turboembed`): `mock-embed` works,
 //! catalog aliases return [`Error::NotImplemented`].
 //!
-//! `--features genai` links `ov::genai::TextEmbeddingPipeline` on the
-//! literal device `"GPU"`. `Engine::create(Device::OpenVinoGpu)` then
-//! `load_model("minilm")` / `embed_one` is the Intel proof path. CPU is
-//! not accepted as success. No OVMS. No Python.
+//! `--features genai` links `ov::genai::TextEmbeddingPipeline` with the
+//! official device string (`"GPU"` or `"CPU"`).
+//! `Engine::create(Device::OpenVinoGpu)` fails if the GPU plugin is
+//! missing (no CPU swap). `Device::OpenVinoCpu` / `Device::Cpu` compile
+//! `"CPU"` and return real embeds. No OVMS. No Python.
 
 #![allow(clippy::result_large_err)]
 

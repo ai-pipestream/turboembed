@@ -7,8 +7,9 @@ Default compile is a **linkable stub**: deterministic `mock-embed` plus
 
 `--features genai` (Rust crate) also compiles `src/genai.cpp` and defines
 `TURBOEMBED_GENAI`. Catalog aliases such as `minilm` then construct
-`ov::genai::TextEmbeddingPipeline(models_path, "GPU", config)` and call
-`embed_documents`. CPU / AUTO compile is rejected. No OVMS. No Python.
+`ov::genai::TextEmbeddingPipeline(models_path, device, config)` with
+`device` `"GPU"` or `"CPU"` (official sample strings) and call
+`embed_documents`. A GPU request never compiles `"CPU"`. No OVMS. No Python.
 Apple still exports the same header from Swift (`docs/turboembed-swift.md`).
 
 ## Build the static stub (no Rust)

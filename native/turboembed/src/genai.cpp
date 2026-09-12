@@ -1,15 +1,19 @@
 /* SPDX-License-Identifier: Apache-2.0
  *
- * ov::genai::TextEmbeddingPipeline on Intel GPU.
+ * ov::genai::TextEmbeddingPipeline on Intel CPU or GPU.
  *
  * Official C++ usage (OpenVINO GenAI samples/cpp/rag/text_embeddings.cpp):
  *
+ *   std::string device = "CPU";  // GPU can be used as well
  *   ov::genai::TextEmbeddingPipeline::Config config;
  *   config.pooling_type = ov::genai::TextEmbeddingPipeline::PoolingType::MEAN;
  *   ov::genai::TextEmbeddingPipeline pipeline(models_path, device, config);
  *   ov::genai::EmbeddingResults rows = pipeline.embed_documents(documents);
  *
- * `device` here is the literal string `"GPU"`. CPU / AUTO are not used.
+ * The `device` argument is the OpenVINO plugin name passed through to
+ * ov::Core::compile_model (non-NPU). We pass the caller's string
+ * unchanged: "CPU" or "GPU". Never "AUTO". Asking for "GPU" when the
+ * GPU plugin is missing does not compile "CPU".
  * No OVMS. No Python.
  */
 
@@ -67,6 +71,30 @@ std::string missing_ir(const fs::path& dir) {
 
 bool starts_with_gpu(const std::string& d) {
     return d.size() >= 3 && d.compare(0, 3, "GPU") == 0;
+}
+
+bool is_cpu_device(const std::string& d) {
+    return d == "CPU" || (d.size() >= 3 && d.compare(0, 3, "CPU") == 0);
+}
+
+bool listed_has(const std::vector<std::string>& listed, bool (*pred)(const std::string&)) {
+    for (const auto& d : listed) {
+        if (pred(d)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string join_devices(const std::vector<std::string>& listed) {
+    std::string out;
+    for (const auto& d : listed) {
+        if (!out.empty()) {
+            out += ", ";
+        }
+        out += d;
+    }
+    return out;
 }
 
 ov::genai::TextEmbeddingPipeline::PoolingType pooling_from_u8(uint8_t pooling) {
@@ -152,28 +180,17 @@ std::vector<std::string> available_devices() {
 }
 
 bool runtime_has_gpu() {
-    for (const auto& d : available_devices()) {
-        if (starts_with_gpu(d)) {
-            return true;
-        }
-    }
-    return false;
+    return listed_has(available_devices(), starts_with_gpu);
 }
 
-std::string gpu_full_name() {
+bool runtime_has_cpu() {
+    return listed_has(available_devices(), is_cpu_device);
+}
+
+std::string device_full_name(const std::string& ov_device) {
     try {
         ov::Core core;
-        bool found = false;
-        for (const auto& d : core.get_available_devices()) {
-            if (starts_with_gpu(d)) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            return {};
-        }
-        return core.get_property("GPU", ov::device::full_name);
+        return core.get_property(ov_device, ov::device::full_name);
     } catch (...) {
         return {};
     }
@@ -189,8 +206,9 @@ Pipeline::Pipeline(std::unique_ptr<Impl> impl) : impl_(std::move(impl)), dim_(0)
 
 Pipeline::~Pipeline() = default;
 
-std::unique_ptr<Pipeline> load_gpu_pipeline(
+std::unique_ptr<Pipeline> load_pipeline(
     const std::string& models_path,
+    const std::string& ov_device,
     const LoadConfig& config
 ) {
     const fs::path dir(models_path);
@@ -214,26 +232,30 @@ std::unique_ptr<Pipeline> load_gpu_pipeline(
     } catch (const std::exception& e) {
         throw std::runtime_error(
             std::string("failed to query OpenVINO devices: ") + e.what() +
-            " (source OpenVINO setupvars.sh; GPU plugin must be on the loader path)"
+            " (source OpenVINO setupvars.sh)"
         );
     }
 
-    std::string listed_join;
-    bool has_gpu = false;
-    for (const auto& d : listed) {
-        if (!listed_join.empty()) {
-            listed_join += ", ";
-        }
-        listed_join += d;
-        if (starts_with_gpu(d)) {
-            has_gpu = true;
-        }
+    const std::string listed_join = join_devices(listed);
+    if (ov_device != "CPU" && ov_device != "GPU") {
+        throw std::runtime_error(
+            "unsupported OpenVINO GenAI device string '" + ov_device +
+            "' (pass \"CPU\" or \"GPU\"; never AUTO)"
+        );
     }
-    if (!has_gpu) {
+    if (ov_device == "GPU" && !listed_has(listed, starts_with_gpu)) {
         throw std::runtime_error(
             "OpenVINO GPU plugin unavailable (listed: [" + listed_join +
-            "]); TurboEmbed Intel GenAI refuses CPU fallback. "
-            "Need libopenvino_intel_gpu_plugin + Level Zero on Battlemage."
+            "]); GPU was requested so CPU fallback is refused. "
+            "Need libopenvino_intel_gpu_plugin + Level Zero, or create "
+            "the engine with TURBOEMBED_DEVICE_OPENVINO_CPU / "
+            "TextEmbeddingPipeline(..., \"CPU\", config)."
+        );
+    }
+    if (ov_device == "CPU" && !listed_has(listed, is_cpu_device)) {
+        throw std::runtime_error(
+            "OpenVINO CPU plugin unavailable (listed: [" + listed_join +
+            "]); CPU was requested. Need libopenvino_intel_cpu_plugin."
         );
     }
 
@@ -245,16 +267,14 @@ std::unique_ptr<Pipeline> load_gpu_pipeline(
         cfg.pad_to_max_length = true;
     }
 
-    /* Literal "GPU" — same string the official C++ sample documents.
-     * Never "CPU", never "AUTO". */
-    constexpr const char* kGpu = "GPU";
+    /* Exact plugin name from the official sample / docs: "CPU" or "GPU". */
     auto out = std::unique_ptr<Pipeline>(new Pipeline(
-        std::unique_ptr<Pipeline::Impl>(new Pipeline::Impl(dir, kGpu, cfg))
+        std::unique_ptr<Pipeline::Impl>(new Pipeline::Impl(dir, ov_device, cfg))
     ));
     out->models_path_ = models_path;
-    out->device_ = kGpu;
+    out->device_ = ov_device;
     out->available_ = std::move(listed);
-    out->gpu_full_name_ = gpu_full_name();
+    out->device_full_name_ = device_full_name(ov_device);
     out->dim_ = dim_from_config_json(dir);
     return out;
 }
@@ -263,10 +283,10 @@ std::vector<float> Pipeline::embed_documents(const std::vector<std::string>& tex
     if (texts.empty()) {
         throw std::invalid_argument("embed_documents called with no texts");
     }
-    if (device_ != "GPU") {
+    if (device_ != "CPU" && device_ != "GPU") {
         throw std::runtime_error(
             "internal error: TextEmbeddingPipeline device is " + device_ +
-            " (must be GPU)"
+            " (must be CPU or GPU)"
         );
     }
     auto rows = as_float_rows(impl_->pipe.embed_documents(texts));

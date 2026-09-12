@@ -1,12 +1,12 @@
-//! Live Intel GenAI GPU proof through the TurboEmbed C ABI.
+//! Live Intel GenAI proof through the TurboEmbed C ABI.
 //!
-//! Compiled only with `--features genai`. Loads MiniLM via
-//! `ov::genai::TextEmbeddingPipeline` on the literal device `"GPU"`.
-//! Fails loud if the GPU plugin is missing, if maps lack
-//! `libopenvino_genai` / `libopenvino_intel_gpu_plugin`, if `libpython`
-//! is mapped, or if cosine vs nvidia/intel goldens is below 0.99.
+//! `--features genai` loads MiniLM via
+//! `ov::genai::TextEmbeddingPipeline(models_path, device, config)` with
+//! the official device strings `"GPU"` and `"CPU"`.
+//! Asking for GPU when the GPU plugin is missing fails (no CPU swap).
+//! Explicit CPU compiles `"CPU"` and must produce real embeds.
 //!
-//! No OVMS. No mock. No CPU fallback.
+//! No OVMS. No mock-as-done. No Python.
 
 #![cfg(feature = "genai")]
 
@@ -19,7 +19,7 @@ use turboembed::ffi::{
     turboembed_engine, turboembed_engine_create, turboembed_engine_destroy, turboembed_last_error,
     turboembed_load_model, turboembed_status,
 };
-use turboembed::{Device, EmbedOptions, Engine, Error, Pooling};
+use turboembed::{Device, EmbedOptions, Engine, Pooling};
 
 const COSINE_FLOOR: f32 = 0.99;
 const TEXT: &str = "hello world";
@@ -178,17 +178,6 @@ fn minilm_text_embedding_pipeline_on_gpu() {
     require_mapped(&maps, "libopenvino_tokenizers");
     forbid_mapped(&maps, "libpython");
 
-    let cpu_engine = Engine::create(Device::OpenVinoCpu).expect("create CPU engine handle");
-    match cpu_engine.load_model(ALIAS) {
-        Err(Error::UnsupportedDevice(msg)) => {
-            assert!(
-                msg.to_ascii_lowercase().contains("gpu"),
-                "CPU load must fail loud about GPU-only, got {msg}"
-            );
-        }
-        other => panic!("CPU load must be UnsupportedDevice, got {other:?}"),
-    }
-
     let gpu_name = Command::new("sycl-ls")
         .output()
         .ok()
@@ -226,6 +215,7 @@ fn minilm_text_embedding_pipeline_on_gpu() {
             "libpython": false,
         },
         "gpu": gpu_name,
+        "note": "explicit device=CPU is a separate real path: TextEmbeddingPipeline(models_path, \"CPU\", config). See intel-minilm-cpu.json. GPU requests still fail if the GPU plugin is missing.",
     });
     let receipt_dir = root.join("testdata/receipts/turboembed");
     fs::create_dir_all(&receipt_dir).expect("receipts dir");
@@ -299,6 +289,189 @@ fn minilm_c_abi_embed_one_on_gpu() {
         let intel = golden_vector(&root.join("testdata/e2e/goldens/intel/minilm.json"));
         let c = cosine(live, &intel);
         assert!(c >= COSINE_FLOOR, "C ABI cosine vs intel golden {c} < {COSINE_FLOOR}");
+
+        turboembed_embed_result_free(out);
+        turboembed_engine_destroy(engine);
+    }
+}
+
+fn run_minilm_on(device: Device, ov_name: &str, plugin_needle: &str) -> (Vec<f32>, f32, f32) {
+    let root = workspace_root();
+    let intel_golden = golden_vector(&root.join("testdata/e2e/goldens/intel/minilm.json"));
+    let nvidia_golden = golden_vector(&root.join("testdata/e2e/goldens/nvidia/minilm.json"));
+
+    let engine = Engine::create(device).unwrap_or_else(|e| {
+        panic!("create({ov_name}) failed: {e:?}");
+    });
+    engine
+        .load_model(ALIAS)
+        .unwrap_or_else(|e| panic!("load_model minilm on {ov_name}: {e:?}"));
+
+    let info = engine.list_models().expect("list").get(0).expect("row");
+    assert_eq!(info.alias, ALIAS);
+    assert!(info.ready);
+    assert_eq!(info.dim, 384);
+
+    let opts = EmbedOptions {
+        pooling: Pooling::Mean,
+        normalize: Some(true),
+        ..Default::default()
+    };
+    let one = engine
+        .embed_one(ALIAS, TEXT, &opts)
+        .unwrap_or_else(|e| panic!("embed_one on {ov_name}: {e:?}"));
+    assert_eq!(one.dim(), 384);
+    let live = one.values().to_vec();
+    let cosine_intel = cosine(&live, &intel_golden);
+    let cosine_nvidia = cosine(&live, &nvidia_golden);
+    assert!(
+        cosine_intel >= COSINE_FLOOR,
+        "{ov_name} cosine vs intel {cosine_intel} < {COSINE_FLOOR}"
+    );
+    assert!(
+        cosine_nvidia >= COSINE_FLOOR,
+        "{ov_name} cosine vs nvidia {cosine_nvidia} < {COSINE_FLOOR}"
+    );
+
+    let maps = maps_blob();
+    require_mapped(&maps, "libopenvino_genai");
+    require_mapped(&maps, plugin_needle);
+    require_mapped(&maps, "libopenvino_tokenizers");
+    forbid_mapped(&maps, "libpython");
+    (live, cosine_intel, cosine_nvidia)
+}
+
+#[test]
+fn minilm_text_embedding_pipeline_on_cpu() {
+    let root = workspace_root();
+    let model_dir = root.join("models/ov/minilm");
+    assert!(
+        model_dir.join("openvino_model.xml").is_file(),
+        "missing {}",
+        model_dir.display()
+    );
+
+    let (_live, cosine_intel, cosine_nvidia) = run_minilm_on(
+        Device::OpenVinoCpu,
+        "CPU",
+        "libopenvino_intel_cpu_plugin",
+    );
+    assert_eq!(Device::OpenVinoCpu.as_str(), "openvino-cpu");
+
+    /* ABI device=CPU (not only OPENVINO_CPU) also compiles "CPU". */
+    let engine = Engine::create(Device::Cpu).expect("create Device::Cpu");
+    engine
+        .load_model(ALIAS)
+        .unwrap_or_else(|e| panic!("Device::Cpu load_model minilm: {e:?}"));
+    let one = engine
+        .embed_one(
+            ALIAS,
+            TEXT,
+            &EmbedOptions {
+                pooling: Pooling::Mean,
+                normalize: Some(true),
+                ..Default::default()
+            },
+        )
+        .expect("Device::Cpu embed_one");
+    assert_eq!(one.dim(), 384);
+    let intel = golden_vector(&root.join("testdata/e2e/goldens/intel/minilm.json"));
+    let c = cosine(one.values(), &intel);
+    assert!(c >= COSINE_FLOOR, "Device::Cpu cosine {c} < {COSINE_FLOOR}");
+
+    let receipt = serde_json::json!({
+        "schema_version": 1,
+        "alias": ALIAS,
+        "device": "CPU",
+        "pipeline": "ov::genai::TextEmbeddingPipeline",
+        "abi": "turboembed.h",
+        "abi_version": 1,
+        "pooling": "mean",
+        "normalize": true,
+        "dim": 384,
+        "text": TEXT,
+        "cosine": {
+            "intel_golden": cosine_intel,
+            "nvidia_golden": cosine_nvidia,
+            "threshold": COSINE_FLOOR,
+        },
+        "sha": {
+            "git": git_head(&root),
+            "openvino_model.bin": sha256_file(&model_dir.join("openvino_model.bin")),
+            "openvino_tokenizer.bin": sha256_file(&model_dir.join("openvino_tokenizer.bin")),
+        },
+        "maps": {
+            "libopenvino_genai": true,
+            "libopenvino_intel_cpu_plugin": true,
+            "libpython": false,
+        },
+        "note": "explicit TextEmbeddingPipeline(models_path, \"CPU\", config). GPU requests still fail-loud if the GPU plugin is missing.",
+    });
+    let receipt_dir = root.join("testdata/receipts/turboembed");
+    fs::create_dir_all(&receipt_dir).expect("receipts dir");
+    fs::write(
+        receipt_dir.join("intel-minilm-cpu.json"),
+        serde_json::to_string_pretty(&receipt).unwrap() + "\n",
+    )
+    .expect("write cpu receipt");
+}
+
+#[test]
+fn minilm_c_abi_embed_one_on_cpu() {
+    let root = workspace_root();
+    assert!(
+        root.join("models/ov/minilm/openvino_tokenizer.xml").is_file(),
+        "missing tokenizer IR"
+    );
+
+    unsafe {
+        let mut engine: *mut turboembed_engine = std::ptr::null_mut();
+        let st = turboembed_engine_create(
+            turboembed_device::TURBOEMBED_DEVICE_OPENVINO_CPU,
+            std::ptr::null(),
+            &mut engine,
+        );
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI create CPU: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(std::ptr::null())).to_string_lossy()
+        );
+        assert!(!engine.is_null());
+
+        let alias = ALIAS.as_bytes();
+        let st = turboembed_load_model(engine, alias.as_ptr().cast(), alias.len());
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI load minilm CPU: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(engine)).to_string_lossy()
+        );
+
+        let text = TEXT.as_bytes();
+        let mut out: *mut turboembed_embed_result = std::ptr::null_mut();
+        let st = turboembed_embed_one(
+            engine,
+            alias.as_ptr().cast(),
+            alias.len(),
+            text.as_ptr().cast(),
+            text.len(),
+            std::ptr::null(),
+            &mut out,
+        );
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI embed_one CPU: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(engine)).to_string_lossy()
+        );
+        assert!(!out.is_null());
+        assert_eq!((*out).dim, 384);
+
+        let live = std::slice::from_raw_parts((*out).values, 384);
+        let intel = golden_vector(&root.join("testdata/e2e/goldens/intel/minilm.json"));
+        let c = cosine(live, &intel);
+        assert!(c >= COSINE_FLOOR, "C ABI CPU cosine vs intel {c} < {COSINE_FLOOR}");
 
         turboembed_embed_result_free(out);
         turboembed_engine_destroy(engine);

@@ -3,8 +3,10 @@
  * Internal façade over ov::genai::TextEmbeddingPipeline.
  * The .cpp is the only translation unit that includes GenAI headers.
  *
- * GPU only. CPU / AUTO / NPU are rejected here — callers must not treat
- * a CPU compile as success.
+ * Device string is the OpenVINO GenAI constructor argument: "CPU" or
+ * "GPU" (see samples/cpp/rag/text_embeddings.cpp). The requested string
+ * is what we pass through — no silent swap. Asking for "GPU" when the
+ * GPU plugin is missing fails; it does not compile "CPU".
  */
 
 #pragma once
@@ -33,12 +35,13 @@ public:
     uint32_t embedding_dim() const { return dim_; }
     const std::string& device() const { return device_; }
     const std::string& models_path() const { return models_path_; }
-    const std::string& gpu_full_name() const { return gpu_full_name_; }
+    const std::string& device_full_name() const { return device_full_name_; }
     const std::vector<std::string>& available_devices() const { return available_; }
 
 private:
-    friend std::unique_ptr<Pipeline> load_gpu_pipeline(
+    friend std::unique_ptr<Pipeline> load_pipeline(
         const std::string& models_path,
+        const std::string& ov_device,
         const LoadConfig& config
     );
     struct Impl;
@@ -46,7 +49,7 @@ private:
     std::unique_ptr<Impl> impl_;
     std::string models_path_;
     std::string device_;
-    std::string gpu_full_name_;
+    std::string device_full_name_;
     std::vector<std::string> available_;
     mutable uint32_t dim_;
 };
@@ -54,23 +57,25 @@ private:
 /** Runtime OpenVINO device list (`CPU`, `GPU`, `GPU.0`, …). Throws on Core failure. */
 std::vector<std::string> available_devices();
 
-/** True iff any listed device starts with `GPU`. */
 bool runtime_has_gpu();
+bool runtime_has_cpu();
+
+/** `ov::device::full_name` for `ov_device` (`"CPU"` / `"GPU"`), or empty. */
+std::string device_full_name(const std::string& ov_device);
 
 /**
- * Full GPU name from the OpenVINO GPU plugin (empty if query fails).
- * Does not compile a model.
- */
-std::string gpu_full_name();
-
-/**
- * Construct TextEmbeddingPipeline on device `"GPU"`.
+ * Construct TextEmbeddingPipeline on the exact OpenVINO device string
+ * (`"CPU"` or `"GPU"`). Matches the official C++ sample:
  *
- * Fails (throws std::runtime_error) if the GPU plugin is missing.
- * Never falls back to CPU.
+ *   ov::genai::TextEmbeddingPipeline pipeline(models_path, device, config);
+ *
+ * `"GPU"` with no GPU plugin throws (no CPU fallback).
+ * `"CPU"` with no CPU plugin throws.
+ * Any other string is rejected here — we never pass `"AUTO"`.
  */
-std::unique_ptr<Pipeline> load_gpu_pipeline(
+std::unique_ptr<Pipeline> load_pipeline(
     const std::string& models_path,
+    const std::string& ov_device,
     const LoadConfig& config
 );
 
