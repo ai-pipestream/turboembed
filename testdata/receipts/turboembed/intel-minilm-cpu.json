@@ -20,7 +20,7 @@
   "pooling": "mean",
   "schema_version": 1,
   "sha": {
-    "git": "c3137eb46d693e2a305308ce380803de4f9bf164",
+    "git": "22f80e194b31485bed10eac8a57a4eb71ac817ec",
     "openvino_model.bin": "8b86cab4722e2aefab310cf96d4d5a9eb3b187f7d9670a082afc55c7fa0d392a",
     "openvino_tokenizer.bin": "80a46227495510dedab560d9eac9d4a9d43425b1aa754f9c7935fe70875e2cb2"
   },
