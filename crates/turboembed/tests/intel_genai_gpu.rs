@@ -529,6 +529,6 @@ fn gpu_request_never_silently_uses_cpu() {
                 "missing-GPU error must say CPU is not a fallback, got {msg}"
             );
         }
-        other => panic!("GPU create must succeed on GPU or fail loud, got {other:?}"),
+        Err(other) => panic!("GPU create must succeed on GPU or fail loud, got {other:?}"),
     }
 }
