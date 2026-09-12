@@ -56,7 +56,7 @@ golden within ~5e-5 — fp32 session noise, not a different vector.
 
 | peer | reach | result |
 |---|---|---|
-| apple / `kristians-macbook-air` | **yes** — `192.168.1.241:8461` and Tailscale `100.102.192.43:8461`, `ListModels` 4 ready, `minilm` `backend=mlx` dim 384 | **FAIL** `minilm` apple↔nvidia min cosine **-0.1404** mean **-0.0085** (n=237). Far below the 0.97 4-bit floor — not a quant gap; pooling/tokenizer/weight mismatch on the Mac side. `bge-small` not served on apple. |
+| apple / `kristians-macbook-air` | **yes** — live capture on krickert-mac after the pooling fix | **before:** minilm min **-0.1404** / mean **-0.0085** (BERT pooler). **after (FP + mean+L2):** minilm min **0.9795** / mean **0.9997** (n=213); bge-small min **0.9938** / mean **0.9999**. See `testdata/e2e/goldens/apple/README.md`. |
 | intel / krick-1 | host up (`192.168.1.195`, Tailscale `100.124.224.59`) | **no inferstream** on `:8461` / `:8471`. Only llama-server `:8085`. Goldens not on `origin/main` yet. |
 
 Retry when intel is serving:

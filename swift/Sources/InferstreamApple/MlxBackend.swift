@@ -62,8 +62,17 @@ final class MlxBackend: ModelBackend, Sendable {
                 "batch of \(texts.count) exceeds max_batch \(maxBatch); chunk upstream")
         }
         let normalize = boolParam(request, "normalize") ?? (config.normalize ?? true)
+        let pooling = stringParam(request, "pooling") ?? config.pooling ?? "mean"
+        let maxSeqLen =
+            intParam(request, "truncate").map { Int($0) }
+            ?? config.maxSeqLen.map { Int($0) }
         let embed = try await engine.embed(
-            modelPath: resolved.path, texts: texts, normalize: normalize)
+            modelPath: resolved.path,
+            texts: texts,
+            normalize: normalize,
+            pooling: pooling,
+            maxSeqLen: maxSeqLen
+        )
         cachedDim.withLock { $0 = embed.dimensions }
         var values: [Float] = []
         values.reserveCapacity(texts.count * embed.dimensions)
@@ -185,6 +194,14 @@ private func utf8Batch(_ request: Inference_ModelInferRequest, name: String) thr
         throw ServeError.invalid("input \(name) contained no elements")
     }
     return texts
+}
+
+private func stringParam(_ request: Inference_ModelInferRequest, _ name: String) -> String? {
+    if case .stringParam(let v) = request.parameters[name]?.parameterChoice, !v.isEmpty {
+        return v
+    }
+    let raw = request.parameters[name]?.stringParam ?? ""
+    return raw.isEmpty ? nil : raw
 }
 
 private func boolParam(_ request: Inference_ModelInferRequest, _ name: String) -> Bool? {

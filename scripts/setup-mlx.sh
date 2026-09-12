@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-cargo xtask fetch --mlx minilm qwen-0.5b
+cargo xtask fetch --mlx minilm bge-small qwen-0.5b
 # Tokenize RPCs for default-llm / qwen-0.5b use the GGUF-side tokenizer.json
 # (swift-transformers). Same file the LLM manifest already pins.
 if [ ! -f models/gguf/qwen-0.5b/tokenizer.json ]; then

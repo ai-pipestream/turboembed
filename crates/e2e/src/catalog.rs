@@ -105,9 +105,8 @@ impl CatalogIndex {
 /// Catalog pooling convention for an embedding family.
 ///
 /// BGE (including `bge-m3`) uses **CLS**; MiniLM / MPNet / E5 / GTE / Nomic
-/// use **mean**. Apple catalog rows omit `pooling` (MLX default) so the
-/// parity client always sends this family value on `Embed` so all three
-/// arches get the same request.
+/// use **mean**. The parity client always sends this family value on `Embed`
+/// so every arch (including Apple MLX) applies the same pooling.
 pub fn family_pooling(alias: &str) -> &'static str {
     if alias.starts_with("bge-") {
         "cls"

@@ -7,7 +7,7 @@
 //! |---|---|---|
 //! | same arch (live vs golden) | **0.99** | ORT MiniLM vs TEI on krick was 0.999998; replay must stay that tight |
 //! | nvidia ORT FP ↔ intel GenAI | **0.99** | same MiniLM family, mean pool, L2; Intel IR is often FP16 but MiniLM still lands ≥ 0.99 |
-//! | any pair involving apple | **0.97** | catalog MiniLM / BGE-small on apple are **4-bit MLX**; 0.99 is not honest |
+//! | any pair involving apple | **0.97** | FP MiniLM English is ~1.000; min 0.9795 is CJK WordPiece UNK drift on an English-only model |
 //!
 //! Failures print the worst text id, the two arches, and the score. Optional
 //! aliases (`bge-small`, `mpnet`) skip when an arch does not serve them.
@@ -29,7 +29,9 @@ use crate::{HarnessError, Matrix};
 pub const SAME_ARCH_MIN: f32 = 0.99;
 /// nvidia ORT FP32 ↔ intel GenAI (FP16 IR tolerated; MiniLM mean+L2).
 pub const CROSS_FP_MIN: f32 = 0.99;
-/// Any pair that includes apple 4-bit MLX (`all-MiniLM-L6-v2-4bit`, `bge-small-en-v1.5-4bit`).
+/// Apple FP MLX vs nvidia/intel FP. English MiniLM is ~1.0000; the live
+/// min (0.9795) is CJK WordPiece UNK drift on MiniLM-L6 (English-only).
+/// 0.97 still fails the old pooler bug (cosine ≈ 0).
 pub const CROSS_QUANT_MIN: f32 = 0.97;
 
 /// Default aliases: `minilm` is required everywhere; the others run when served.
@@ -93,7 +95,7 @@ pub fn pair_threshold(a: Target, b: Target) -> (f32, &'static str) {
     if a == Target::Apple || b == Target::Apple {
         return (
             CROSS_QUANT_MIN,
-            "apple MLX 4-bit vs FP path (0.99 is not honest)",
+            "apple MLX FP vs ORT/GenAI (English ~1.0; 0.97 floor for CJK UNK drift)",
         );
     }
     if matches!(
@@ -537,7 +539,7 @@ mod tests {
         assert!((n - 0.99).abs() < f32::EPSILON);
         let (a, why) = pair_threshold(Target::Nvidia, Target::Apple);
         assert!((a - 0.97).abs() < f32::EPSILON);
-        assert!(why.contains("4-bit"));
+        assert!(why.contains("CJK") || why.contains("0.97"));
         let (i, _) = pair_threshold(Target::Intel, Target::Apple);
         assert!((i - 0.97).abs() < f32::EPSILON);
         let (s, _) = pair_threshold(Target::Nvidia, Target::Nvidia);

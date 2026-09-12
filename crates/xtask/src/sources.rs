@@ -34,9 +34,9 @@ pub fn onnx_repos() -> BTreeMap<&'static str, &'static str> {
 /// Apple/MLX runtime repos (weights fetched into `models/mlx/<alias>/`).
 pub fn mlx_embed_repos() -> BTreeMap<&'static str, &'static str> {
     BTreeMap::from([
-        ("minilm", "mlx-community/all-MiniLM-L6-v2-4bit"),
+        ("minilm", "sentence-transformers/all-MiniLM-L6-v2"),
         ("minilm-l12", "sentence-transformers/all-MiniLM-L12-v2"),
-        ("bge-small", "mlx-community/bge-small-en-v1.5-4bit"),
+        ("bge-small", "BAAI/bge-small-en-v1.5"),
         ("bge-base", "BAAI/bge-base-en-v1.5"),
         ("bge-large", "BAAI/bge-large-en-v1.5"),
         ("bge-m3", "BAAI/bge-m3"),

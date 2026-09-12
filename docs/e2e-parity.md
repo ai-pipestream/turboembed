@@ -6,8 +6,10 @@ nvidia (ORT), intel (OpenVINO GenAI), and apple (MLX). The harness is
 already up, or at dumps captured earlier.
 
 Pooling is sent explicitly on `Embed` from the catalog family convention
-(BGE = **CLS**, MiniLM / MPNet / E5 / GTE / Nomic = **mean**) so Apple
-rows that omit `pooling` still get the same request as ORT / GenAI.
+(BGE = **CLS**, MiniLM / MPNet / E5 / GTE / Nomic = **mean**). Apple MLX
+honors that request (and the catalog `pooling` field): mean of last hidden
+states + L2 for MiniLM, first-token CLS + L2 for BGE — never the BERT NSP
+pooler.
 
 ## Cosine thresholds (defaults)
 
@@ -15,21 +17,22 @@ rows that omit `pooling` still get the same request as ORT / GenAI.
 |---|---|---|
 | same arch (live vs golden on that host) | **0.99** | ORT MiniLM vs TEI on krick measured **0.999998** (`testdata/reference_embeddings/README.md`). Replay of a golden captured on the same engine must stay in that band. |
 | nvidia ORT FP32 ↔ intel GenAI | **0.99** | Same MiniLM family, mean pool, L2. Intel IR is often FP16; MiniLM still lands ≥ 0.99 on the FP path. A miss prints the worst text id and both scores. |
-| any pair that includes **apple** | **0.97** | Catalog MiniLM is `mlx-community/all-MiniLM-L6-v2-4bit`; BGE-small is `bge-small-en-v1.5-4bit`. **4-bit vs FP32 cannot honestly be gated at 0.99.** 0.97 is the floor we still fail on a broken tokenizer/pooling mismatch. |
+| any pair that includes **apple** | **0.97** | Catalog MiniLM / BGE-small are **FP**. Live krickert-mac vs nvidia krick (2026-09-12): MiniLM **min 0.9795 / mean 0.9997** (n=213); BGE-small **min 0.9938 / mean 0.9999**. The MiniLM min is the same Japanese STS line (`東京の朝は…`) — CJK WordPiece UNKs on an English-only model, not pooling. **Before the pooler fix this pair was min -0.1404 / mean -0.0085.** |
 | mock ↔ mock (CI) | **0.99** | Deterministic backend; used only to exercise the harness. |
 
 Honest gaps:
 
-- **Apple 4-bit vs nvidia/intel FP** will often sit in 0.97–0.99. That is
-  quantization, not a routing bug. Maximize MiniLM **FP** parity
-  (nvidia ↔ intel) first.
-- **Different quant** (GGUF Q8 vs MLX 4-bit, INT8 ORT, …) is not claimed
-  at 0.99. Do not add those aliases to the default parity set.
+- **Apple MiniLM is FP** (`sentence-transformers/all-MiniLM-L6-v2` @
+  `1110a243`, the same TEI snapshot nvidia uses). After mean+L2 (not the
+  BERT NSP pooler) English texts are cosine **1.0000**. The 0.97 floor is
+  only for CJK WordPiece UNKs on this English-only model.
+- **Different quant** (GGUF Q8 vs leftover 4-bit MLX, INT8 ORT, …) is not
+  claimed at 0.99. Do not add those aliases to the default parity set.
 - **`mpnet`** has no apple catalog row (`NotAvailableOnArch`). Cross
   compares nvidia ↔ intel only when both serve it.
-- **`bge-small`** is CLS on every arch that serves it; intel still needs
-  a GenAI IR (not in the public fetch set today) so the case skips until
-  the host actually lists it.
+- **`bge-small`** is CLS + L2 on apple and nvidia; live min **0.9938**.
+  Intel still needs a GenAI IR (not in the public fetch set today) so the
+  intel case skips until the host lists it.
 
 Override is not offered as a silent weaken: if you need a looser gate for
 an experiment, capture dumps and inspect the printed min/mean rather than

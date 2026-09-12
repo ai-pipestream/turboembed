@@ -116,8 +116,8 @@ cargo run -p inferstream-e2e -- --parity-cross \
 ```
 
 Thresholds: **0.99** same-arch and nvidia↔intel MiniLM FP; **0.97** for
-any pair involving apple 4-bit MLX. Rationale and the honest quant gap:
-[`e2e-parity.md`](e2e-parity.md).
+any pair with apple (English MiniLM is ~1.000; min 0.9795 is CJK UNK
+drift). Rationale: [`e2e-parity.md`](e2e-parity.md).
 
 ```bash
 INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \
