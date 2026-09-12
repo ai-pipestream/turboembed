@@ -74,6 +74,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/arch-nvidia` | `inferstream-nvidia` binary |
 | `crates/arch-intel` | `inferstream-intel` binary |
 | `crates/arch-apple` | `inferstream-apple` binary |
+| `crates/turboembed` | Shared C ABI (`include/turboembed.h`): `embed("minilm", text)` via **ORT CUDA IoBinding** (`--features ort-cuda`). Catalog aliases error without the real feature — no mock. See [`docs/turboembed.md`](docs/turboembed.md). |
 
 ## Building each arch binary
 

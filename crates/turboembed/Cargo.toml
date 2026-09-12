@@ -1,0 +1,30 @@
+[package]
+name = "turboembed"
+description = "Shared C ABI (turboembed.h) for in-process catalog embeddings — NVIDIA ORT CUDA"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "turboembed"
+crate-type = ["rlib", "cdylib"]
+
+[features]
+# Real ONNX Runtime CUDA EP + IoBinding device buffers. Needs NVIDIA driver
+# and CUDA 13 user-space libs (see scripts/run-nvidia.sh / .libs/nvidia/lib).
+# Without this feature every catalog alias errors — there is no mock path.
+ort-cuda = ["dep:ort", "dep:tokenizers", "inferstream-backend-ort/cuda"]
+
+[dependencies]
+inferstream-backend-ort = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+ort = { version = "2.0.0-rc.13", optional = true, features = ["cuda"] }
+tokenizers = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

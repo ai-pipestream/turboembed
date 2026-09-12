@@ -166,25 +166,24 @@ mod tests {
 
     #[cfg(all(feature = "ort", not(feature = "ort-runtime")))]
     #[test]
-    fn ort_stub_builds_but_reports_not_ready() {
-        // Without the runtime feature the ORT surface still routes; readiness
-        // is false and inference reports Unavailable naming the feature.
+    fn catalog_ort_alias_fails_without_runtime_feature() {
+        // Catalog aliases must not sit behind a stub that only fails at
+        // request time. Construction names the feature to rebuild with.
         let config = Config::from_toml(
             r#"
             [[models]]
             name = "minilm"
             backend = "ort"
+            device = "cuda"
             path = "/models/minilm.onnx"
             pooling = "mean"
             "#,
         )
         .unwrap();
-        let registry = build_registry(&config, &factory()).unwrap();
-        let backend = registry.lookup("minilm").unwrap();
-        let ready = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(backend.model_ready("minilm", ""));
-        assert!(!ready);
+        assert!(matches!(
+            build_registry(&config, &factory()),
+            Err(ServerError::InvalidModelConfig { .. })
+        ));
     }
 
     #[cfg(feature = "ort")]

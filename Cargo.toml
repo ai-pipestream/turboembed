@@ -16,6 +16,7 @@ members = [
     "crates/fetch",
     "crates/xtask",
     "crates/e2e",
+    "crates/turboembed",
 ]
 
 [workspace.package]
@@ -74,6 +75,7 @@ inferstream-backend-openvino = { path = "crates/backend-openvino" }
 inferstream-backend-apple = { path = "crates/backend-apple" }
 inferstream-server = { path = "crates/server" }
 inferstream-fetch = { path = "crates/fetch" }
+turboembed = { path = "crates/turboembed" }
 
 [profile.release]
 lto = "thin"

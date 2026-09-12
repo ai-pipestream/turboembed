@@ -3,6 +3,7 @@
 #
 #   make test                               # cargo test --workspace
 #   make test-fetch                         # fetch-crate + xtask unit tests
+#   make test-turboembed-nvidia             # live ORT CUDA C ABI MiniLM (ignored)
 #   make e2e-nvidia / e2e-intel / e2e-apple # live harness (FETCH=1 by default)
 #   make e2e-nvidia FETCH=0                 # skip auto-download (CI / already fetched)
 #   make e2e-nvidia FETCH=all               # every matrix alias (includes qwen-7b)
@@ -52,7 +53,7 @@ empty :=
 space := $(empty) $(empty)
 ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 
-.PHONY: test test-fetch \
+.PHONY: test test-fetch test-turboembed-nvidia \
 	fetch-embeddings verify-embeddings list-embeddings \
 	update-embedding-manifest \
 	fetch-llms verify-llms list-llms update-llm-manifest \
@@ -71,6 +72,13 @@ test:
 test-fetch:
 	$(CARGO) test -p inferstream-fetch
 	$(CARGO) test -p inferstream-xtask
+
+# Live NVIDIA proof: C ABI embed("minilm", text) via ORT CUDA IoBinding.
+# Requires .libs/nvidia/lib (scripts/fetch-runtime-libs.sh nvidia) and the
+# MiniLM ONNX the catalog points at. See docs/turboembed.md.
+test-turboembed-nvidia:
+	LD_LIBRARY_PATH="$(CURDIR)/.libs/nvidia/lib:$(LD_LIBRARY_PATH)" \
+		$(CARGO) test -p turboembed --features ort-cuda -- --ignored --nocapture
 
 fetch-embeddings:
 	$(FETCH) $(ALIAS_ARGS)

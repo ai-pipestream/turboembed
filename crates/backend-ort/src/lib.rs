@@ -218,19 +218,15 @@ pub use engine::OrtBackend;
 /// `Unavailable` naming the feature to enable.
 #[cfg(not(feature = "runtime"))]
 #[derive(Debug, Default)]
-pub struct OrtBackend {
-    config: OrtConfig,
-}
+pub struct OrtBackend {}
 
 #[cfg(not(feature = "runtime"))]
 impl OrtBackend {
     pub fn new(config: OrtConfig) -> Result<Self, BackendError> {
-        tracing::warn!(
-            model_path = %config.model_path,
-            "ONNX Runtime backend compiled without the `runtime` feature; \
-             requests will fail — rebuild with --features ort-runtime (or ort-cuda)"
-        );
-        Ok(Self { config })
+        let _ = config;
+        // Fail at construction so catalog aliases never sit in a mock-shaped
+        // registry and only blow up at request time.
+        Err(Self::unavailable())
     }
 
     fn unavailable() -> BackendError {
@@ -258,7 +254,6 @@ impl Backend for OrtBackend {
         _model_name: &str,
         _model_version: &str,
     ) -> Result<ModelMetadata, BackendError> {
-        let _ = &self.config;
         Err(Self::unavailable())
     }
 
@@ -346,12 +341,10 @@ mod tests {
     }
 
     #[cfg(not(feature = "runtime"))]
-    #[tokio::test]
-    async fn stub_reports_unavailable() {
-        let backend = OrtBackend::new(OrtConfig::default()).unwrap();
-        assert!(!backend.model_ready("m", "1").await);
+    #[test]
+    fn stub_fails_at_construction() {
         assert!(matches!(
-            backend.infer(ModelInferRequest::default()).await,
+            OrtBackend::new(OrtConfig::default()),
             Err(BackendError::Unavailable(_))
         ));
     }
