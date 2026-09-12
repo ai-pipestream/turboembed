@@ -1,7 +1,11 @@
-//! Live NVIDIA proof: C ABI `embed("minilm", text)` via ORT CUDA IoBinding.
+//! Live NVIDIA proof through the official TurboEmbed C ABI.
 //!
-//! Ignored by default — needs the MiniLM ONNX on disk, CUDA 13 user-space
-//! libs, and a GPU. Run on krick:
+//! Compiled only with `--features ort-cuda`. Loads MiniLM via ONNX Runtime
+//! CUDA EP + IoBinding device buffers. Fails loud if the CUDA EP is missing,
+//! if outputs land on CPU, if `/proc/self/maps` lacks the CUDA provider, if
+//! `libpython` is mapped, or if cosine vs nvidia goldens is below 0.99.
+//!
+//! No mock. No CPU fallback. No Python.
 //!
 //! ```bash
 //! export LD_LIBRARY_PATH="$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}"
@@ -9,51 +13,97 @@
 //! ```
 //!
 //! Or: `make test-turboembed-nvidia`
-//!
-//! Cosine vs `testdata/e2e/goldens/nvidia/minilm.json` must be ≥ 0.99 on the
-//! fixed overlapping subset (all `parity:*` items). A CPU fallback or mock
-//! vector fails this gate (and the device-buffer checks in the engine).
 
 #![cfg(feature = "ort-cuda")]
 
-use std::ffi::{CStr, CString};
+use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use serde_json::Value;
-use turboembed::{cosine, ffi, Arch, Engine};
+use turboembed::ffi::{
+    turboembed_device, turboembed_embed_one, turboembed_embed_result, turboembed_embed_result_free,
+    turboembed_engine, turboembed_engine_create, turboembed_engine_destroy, turboembed_last_error,
+    turboembed_load_model, turboembed_status,
+};
+use turboembed::{Device, EmbedOptions, Engine, Error, Pooling};
 
+const COSINE_FLOOR: f32 = 0.99;
+const ALIAS: &str = "minilm";
 const GOLDEN: &str = "testdata/e2e/goldens/nvidia/minilm.json";
 const RECEIPT: &str = "testdata/receipts/turboembed/nvidia-minilm.json";
-const MIN_COSINE: f32 = 0.99;
-
-/// Fixed overlapping subset: every `parity:*` golden (short / medium / query /
-/// unicode / long / inferstream). These are the texts the e2e harness always
-/// embeds.
 const SUBSET_PREFIX: &str = "parity:";
 
 fn workspace_root() -> PathBuf {
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest
-        .parent()
-        .and_then(|p| p.parent())
-        .expect("crates/turboembed → repo root")
-        .to_path_buf()
+    let from_build = PathBuf::from(env!("TURBOEMBED_WORKSPACE_ROOT"));
+    if from_build.join(GOLDEN).is_file() {
+        return from_build;
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("workspace root")
 }
 
-fn git_sha(root: &Path) -> String {
-    std::process::Command::new("git")
+fn cosine(a: &[f32], b: &[f32]) -> f32 {
+    assert_eq!(a.len(), b.len(), "vector length");
+    let dot: f64 = a
+        .iter()
+        .zip(b)
+        .map(|(x, y)| f64::from(*x) * f64::from(*y))
+        .sum();
+    let na: f64 = a.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>().sqrt();
+    let nb: f64 = b.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>().sqrt();
+    assert!(na > 0.0 && nb > 0.0, "zero-norm vector");
+    (dot / (na * nb)) as f32
+}
+
+fn git_head(root: &Path) -> String {
+    let out = Command::new("git")
         .args(["rev-parse", "HEAD"])
         .current_dir(root)
         .output()
+        .expect("git rev-parse");
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+fn hostname() -> String {
+    fs::read_to_string("/etc/hostname")
         .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "unknown".into())
 }
 
-fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>) {
-    let raw = std::fs::read_to_string(path).unwrap_or_else(|e| {
+fn maps_blob() -> String {
+    fs::read_to_string("/proc/self/maps").expect("/proc/self/maps")
+}
+
+fn require_mapped(maps: &str, needle: &str) {
+    assert!(
+        maps.contains(needle),
+        "/proc/self/maps must contain {needle} (ORT CUDA proof). maps excerpt:\n{}",
+        maps.lines()
+            .filter(|l| {
+                let s = l.to_ascii_lowercase();
+                s.contains("onnx") || s.contains("cuda") || s.contains("python")
+            })
+            .take(40)
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+fn forbid_mapped(maps: &str, needle: &str) {
+    assert!(
+        !maps
+            .to_ascii_lowercase()
+            .contains(&needle.to_ascii_lowercase()),
+        "/proc/self/maps must not contain {needle}"
+    );
+}
+
+fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>, Vec<f32>) {
+    let raw = fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("golden unreadable at {}: {e}", path.display());
     });
     let golden: Value = serde_json::from_str(&raw).expect("golden JSON");
@@ -63,6 +113,15 @@ fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>) {
     assert_eq!(golden["normalize"], true);
     let dim = golden["dim"].as_u64().expect("dim") as usize;
     assert_eq!(dim, 384, "MiniLM is 384-d");
+
+    let hello: Vec<f32> = golden["vector"]
+        .as_array()
+        .expect("top-level vector")
+        .iter()
+        .map(|v| v.as_f64().unwrap() as f32)
+        .collect();
+    assert_eq!(hello.len(), dim);
+    assert_eq!(golden["text"].as_str(), Some("hello world"));
 
     let items = golden["items"].as_array().expect("items");
     let mut subset = Vec::new();
@@ -85,148 +144,219 @@ fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>) {
         !subset.is_empty(),
         "golden {GOLDEN} had no {SUBSET_PREFIX}* items"
     );
-    (dim, subset)
+    (dim, subset, hello)
 }
 
-fn write_receipt(
-    root: &Path,
-    dim: usize,
-    n: usize,
-    worst: f32,
-    mean: f32,
-    commands: &[&str],
-) {
-    let path = root.join(RECEIPT);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).expect("receipt dir");
+#[test]
+fn catalog_alias_on_cpu_is_not_cuda() {
+    let engine = Engine::create(Device::Cpu).expect("create CPU handle");
+    match engine.load_model(ALIAS) {
+        Err(Error::UnsupportedDevice(msg)) => {
+            assert!(
+                msg.to_ascii_lowercase().contains("cuda"),
+                "CPU load must name CUDA, got {msg}"
+            );
+        }
+        other => panic!("CPU load must be UnsupportedDevice, got {other:?}"),
     }
-    let receipt = serde_json::json!({
-        "schema_version": 1,
-        "crate": "turboembed",
-        "alias": "minilm",
-        "arch": "nvidia",
-        "device": "CUDA",
-        "provider": "ORT CUDA EP + IoBinding device buffers",
-        "pooling": "mean",
-        "normalize": true,
-        "dims": dim,
-        "n_texts": n,
-        "subset": "parity:*",
-        "golden": GOLDEN,
-        "worst_cosine": worst,
-        "mean_cosine": mean,
-        "threshold": MIN_COSINE,
-        "pass": true,
-        "git_sha": git_sha(root),
-        "host": hostname(),
-        "commands": commands,
-        "notes": "No mock. No CPU fallback. Output tensors must reside on AllocationDevice::CUDA before the host mean+L2 copy."
-    });
-    std::fs::write(&path, serde_json::to_string_pretty(&receipt).unwrap() + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
-    eprintln!("wrote {}", path.display());
-}
-
-fn hostname() -> String {
-    std::fs::read_to_string("/etc/hostname")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "unknown".into())
 }
 
 #[test]
 #[ignore = "needs MiniLM ONNX + CUDA 13 libs + GPU; see docs/turboembed.md"]
-fn nvidia_minilm_ort_cuda_matches_golden() {
+fn minilm_ort_cuda_iobinding_matches_golden() {
     let root = workspace_root();
-    let golden_path = root.join(GOLDEN);
-    let (dim, subset) = load_subset(&golden_path);
+    let (dim, subset, hello) = load_subset(&root.join(GOLDEN));
 
-    let engine = Engine::open(Arch::Nvidia).unwrap_or_else(|e| {
+    let engine = Engine::create(Device::Cuda).unwrap_or_else(|e| {
         panic!(
-            "Engine::open(nvidia) failed — this must be a real ORT CUDA session, \
-             not a stub. Set LD_LIBRARY_PATH to .libs/nvidia/lib and rebuild \
-             with --features ort-cuda. error: {e}"
+            "turboembed_engine_create(CUDA) failed: {e:?} — \
+             CUDA EP required, CPU is not success"
         );
     });
-    assert_eq!(engine.device().as_str(), "CUDA");
+    assert_eq!(Device::Cuda.as_str(), "cuda");
+
+    engine.load_model(ALIAS).unwrap_or_else(|e| {
+        panic!(
+            "load_model({ALIAS}) via ORT CUDA IoBinding failed: {e:?} — \
+             not a mock, not a CPU EP"
+        );
+    });
+
+    let models = engine.list_models().expect("list_models");
+    let info = models.get(0).expect("minilm row");
+    assert_eq!(info.alias, ALIAS);
+    assert_eq!(info.device, Device::Cuda, "list_models device must be CUDA");
+    assert!(info.ready);
+    assert_eq!(info.dim, dim as u32, "minilm dim");
+
+    let opts = EmbedOptions {
+        pooling: Pooling::Mean,
+        normalize: Some(true),
+        ..Default::default()
+    };
+
+    let hello_live = engine
+        .embed_one(ALIAS, "hello world", &opts)
+        .unwrap_or_else(|e| panic!("embed_one hello world on CUDA failed: {e:?}"));
+    assert_eq!(hello_live.dim(), dim);
+    assert_eq!(hello_live.count(), 1);
+    assert_eq!(hello_live.values().len(), dim);
+    assert_eq!(hello_live.packed().len(), dim * 4);
+    let hello_cos = cosine(hello_live.values(), &hello);
+    assert!(
+        hello_cos >= COSINE_FLOOR,
+        "cosine vs nvidia golden hello world {hello_cos} < {COSINE_FLOOR}"
+    );
 
     let mut worst = 1.0_f32;
     let mut sum = 0.0_f32;
     for (id, text, expected) in &subset {
-        let got = engine.embed("minilm", text).unwrap_or_else(|e| {
-            panic!("embed(\"minilm\", {id:?}) failed: {e}");
-        });
-        assert_eq!(got.len(), dim, "{id} live dim");
-        let sim = cosine(&got, expected);
+        let got = engine
+            .embed_one(ALIAS, text, &opts)
+            .unwrap_or_else(|e| panic!("embed_one({ALIAS}, {id:?}) failed: {e:?}"));
+        assert_eq!(got.dim(), dim, "{id} live dim");
+        let sim = cosine(got.values(), expected);
         assert!(
-            sim >= MIN_COSINE,
-            "{id}: cosine {sim} < {MIN_COSINE} — not a real MiniLM CUDA embed \
+            sim >= COSINE_FLOOR,
+            "{id}: cosine {sim} < {COSINE_FLOOR} — not a real MiniLM CUDA embed \
              (mock / CPU / wrong pooling would fail here)"
         );
         worst = worst.min(sim);
         sum += sim;
-        eprintln!("  {id}: cosine={sim:.6} dim={}", got.len());
+        eprintln!("  {id}: cosine={sim:.6} dim={}", got.dim());
     }
     let mean = sum / subset.len() as f32;
+
+    let maps = maps_blob();
+    require_mapped(&maps, "libonnxruntime_providers_cuda");
+    require_mapped(&maps, "libcudart");
+    forbid_mapped(&maps, "libpython");
+
+    let gpu_name = Command::new("nvidia-smi")
+        .args(["--query-gpu=name", "--format=csv,noheader"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    assert!(
+        !gpu_name.is_empty(),
+        "nvidia-smi returned no GPU name; this is not a real NVIDIA host"
+    );
+
     eprintln!(
-        "turboembed nvidia minilm: n={} dim={} worst={worst:.6} mean={mean:.6} device=CUDA",
+        "turboembed nvidia minilm: n={} dim={} min_cosine={worst:.6} mean={mean:.6} \
+         device=CUDA gpu={gpu_name}",
         subset.len(),
         dim
     );
-
-    // Also prove the C ABI `embed("minilm", text)` path.
-    unsafe {
-        let arch = CString::new("nvidia").unwrap();
-        let mut err: *mut i8 = std::ptr::null_mut();
-        let c_engine = ffi::turboembed_create(arch.as_ptr(), std::ptr::null(), &mut err);
-        assert!(
-            !c_engine.is_null(),
-            "turboembed_create failed: {}",
-            err_str(err)
-        );
-        let device = CStr::from_ptr(ffi::turboembed_device(c_engine))
-            .to_str()
-            .unwrap();
-        assert_eq!(device, "CUDA");
-
-        let (id, text, expected) = &subset[0];
-        let alias = CString::new("minilm").unwrap();
-        let text_c = CString::new(text.as_str()).unwrap();
-        let mut out: *mut f32 = std::ptr::null_mut();
-        let mut out_dim: usize = 0;
-        let rc = ffi::turboembed_embed(
-            c_engine,
-            alias.as_ptr(),
-            text_c.as_ptr(),
-            &mut out,
-            &mut out_dim,
-            &mut err,
-        );
-        assert_eq!(rc, 0, "turboembed_embed failed: {}", err_str(err));
-        assert_eq!(out_dim, dim);
-        let live = std::slice::from_raw_parts(out, out_dim);
-        let sim = cosine(live, expected);
-        assert!(
-            sim >= MIN_COSINE,
-            "C ABI {id}: cosine {sim} < {MIN_COSINE}"
-        );
-        ffi::turboembed_free(out.cast());
-        ffi::turboembed_destroy(c_engine);
-    }
 
     let commands = [
         "export LD_LIBRARY_PATH=\"$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}\"",
         "cargo test -p turboembed --features ort-cuda -- --ignored --nocapture",
         "make test-turboembed-nvidia",
     ];
-    write_receipt(&root, dim, subset.len(), worst, mean, &commands);
+    let receipt = serde_json::json!({
+        "schema_version": 1,
+        "crate": "turboembed",
+        "alias": ALIAS,
+        "arch": "nvidia",
+        "device": "CUDA",
+        "provider": "ORT CUDA EP + IoBinding device buffers",
+        "abi": "turboembed.h",
+        "abi_version": 1,
+        "pooling": "mean",
+        "normalize": true,
+        "dims": dim,
+        "n_texts": subset.len(),
+        "subset": "parity:*",
+        "golden": GOLDEN,
+        "hello_world_cosine": hello_cos,
+        "worst_cosine": worst,
+        "mean_cosine": mean,
+        "threshold": COSINE_FLOOR,
+        "pass": true,
+        "git_sha": git_head(&root),
+        "host": hostname(),
+        "gpu": gpu_name,
+        "maps": {
+            "libonnxruntime_providers_cuda": true,
+            "libcudart": true,
+            "libpython": false,
+        },
+        "commands": commands,
+        "notes": "No mock. No CPU fallback. Output tensors must reside on AllocationDevice::CUDA before the host mean+L2 copy."
+    });
+    let path = root.join(RECEIPT);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("receipt dir");
+    }
+    fs::write(&path, serde_json::to_string_pretty(&receipt).unwrap() + "\n")
+        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    eprintln!("wrote {}", path.display());
 }
 
-unsafe fn err_str(ptr: *mut i8) -> String {
-    if ptr.is_null() {
-        return "(null)".into();
+#[test]
+#[ignore = "needs MiniLM ONNX + CUDA 13 libs + GPU; see docs/turboembed.md"]
+fn minilm_c_abi_embed_one_on_cuda() {
+    let root = workspace_root();
+    let (_, _, hello) = load_subset(&root.join(GOLDEN));
+
+    unsafe {
+        let mut engine: *mut turboembed_engine = std::ptr::null_mut();
+        let st = turboembed_engine_create(
+            turboembed_device::TURBOEMBED_DEVICE_CUDA,
+            std::ptr::null(),
+            &mut engine,
+        );
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI create CUDA: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(std::ptr::null()))
+                .to_string_lossy()
+        );
+        assert!(!engine.is_null());
+
+        let alias = ALIAS.as_bytes();
+        let st = turboembed_load_model(engine, alias.as_ptr().cast(), alias.len());
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI load minilm: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(engine)).to_string_lossy()
+        );
+
+        let text = b"hello world";
+        let mut out: *mut turboembed_embed_result = std::ptr::null_mut();
+        let st = turboembed_embed_one(
+            engine,
+            alias.as_ptr().cast(),
+            alias.len(),
+            text.as_ptr().cast(),
+            text.len(),
+            std::ptr::null(),
+            &mut out,
+        );
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI embed_one: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(engine)).to_string_lossy()
+        );
+        assert!(!out.is_null());
+        assert_eq!((*out).dim, 384);
+        assert_eq!((*out).count, 1);
+        assert!(!(*out).values.is_null());
+
+        let live = std::slice::from_raw_parts((*out).values, 384);
+        let c = cosine(live, &hello);
+        assert!(
+            c >= COSINE_FLOOR,
+            "C ABI cosine vs nvidia golden {c} < {COSINE_FLOOR}"
+        );
+
+        turboembed_embed_result_free(out);
+        turboembed_engine_destroy(engine);
     }
-    let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
-    ffi::turboembed_free_str(ptr);
-    s
 }

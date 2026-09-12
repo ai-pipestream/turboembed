@@ -5,7 +5,7 @@ These two files are the **only** wire-contract source:
 | file | package | service |
 |---|---|---|
 | `open_inference_grpc.proto` | `inference` | KServe OIP V2 `GRPCInferenceService` + Triton-shaped `ModelStreamInfer` |
-| `inferstream_extension.proto` | `inferstream.v1` | `InferstreamService` (Tokenize / Detokenize / Embed / ListModels / Rerank) |
+| `inferstream_extension.proto` | `inferstream.v1` | `InferstreamService` (Tokenize / Detokenize / Embed / EmbedStream / ListModels / Rerank) |
 
 Do not fork these per language. Consumers:
 

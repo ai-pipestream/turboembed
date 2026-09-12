@@ -1,154 +1,195 @@
-//! C ABI matching `include/turboembed.h`.
+//! Raw `extern "C"` surface matching `include/turboembed.h`.
 //!
-//! Vectors are allocated as `[dim_tag, f32...]` so [`turboembed_free`] can
-//! recover the length without a side table.
+//! Keep this 1:1 with the header. Safe wrappers live in `lib.rs`.
 
-use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_int};
-use std::ptr;
+#![allow(non_camel_case_types)]
 
-use crate::catalog::Arch;
-use crate::engine::Engine;
-use crate::error::Error;
+use std::os::raw::{c_char, c_void};
 
-fn set_error(err: *mut *mut c_char, message: impl AsRef<str>) {
-    if err.is_null() {
-        return;
-    }
-    let cstr = CString::new(message.as_ref()).unwrap_or_else(|_| {
-        CString::new("turboembed error (message contained NUL)").expect("static")
-    });
-    unsafe {
-        *err = cstr.into_raw();
-    }
+pub const TURBOEMBED_ABI_VERSION: u32 = 1;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum turboembed_status {
+    TURBOEMBED_OK = 0,
+    TURBOEMBED_ERR_INVALID_ARGUMENT = 1,
+    TURBOEMBED_ERR_NOT_FOUND = 2,
+    TURBOEMBED_ERR_NOT_IMPLEMENTED = 3,
+    TURBOEMBED_ERR_UNAVAILABLE = 4,
+    TURBOEMBED_ERR_INTERNAL = 5,
+    TURBOEMBED_ERR_OUT_OF_MEMORY = 6,
+    TURBOEMBED_ERR_UNSUPPORTED_DEVICE = 7,
 }
 
-fn cstr<'a>(ptr: *const c_char, name: &str) -> Result<&'a str, Error> {
-    if ptr.is_null() {
-        return Err(Error::invalid(format!("{name} is NULL")));
-    }
-    unsafe { CStr::from_ptr(ptr) }
-        .to_str()
-        .map_err(|e| Error::invalid(format!("{name} is not UTF-8: {e}")))
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum turboembed_device {
+    TURBOEMBED_DEVICE_AUTO = 0,
+    TURBOEMBED_DEVICE_CPU = 1,
+    TURBOEMBED_DEVICE_CUDA = 2,
+    TURBOEMBED_DEVICE_TENSORRT = 3,
+    TURBOEMBED_DEVICE_OPENVINO_CPU = 4,
+    TURBOEMBED_DEVICE_OPENVINO_GPU = 5,
+    TURBOEMBED_DEVICE_OPENVINO_NPU = 6,
+    TURBOEMBED_DEVICE_METAL = 7,
+    TURBOEMBED_DEVICE_MOCK = 8,
 }
 
-fn alloc_vec(vector: Vec<f32>) -> *mut f32 {
-    let dim = vector.len();
-    let mut packed = Vec::with_capacity(1 + dim);
-    packed.push(f32::from_bits(dim as u32));
-    packed.extend(vector);
-    let mut boxed = packed.into_boxed_slice();
-    let base = boxed.as_mut_ptr();
-    std::mem::forget(boxed);
-    unsafe { base.add(1) }
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum turboembed_pooling {
+    TURBOEMBED_POOLING_DEFAULT = 0,
+    TURBOEMBED_POOLING_MEAN = 1,
+    TURBOEMBED_POOLING_CLS = 2,
+    TURBOEMBED_POOLING_LAST = 3,
 }
 
-/// Create a session for `arch` ("nvidia" / "intel" / "apple").
-///
-/// # Safety
-/// `arch` must be a valid C string. `catalog_path` may be null. `err` may be null.
-#[no_mangle]
-pub unsafe extern "C" fn turboembed_create(
-    arch: *const c_char,
-    catalog_path: *const c_char,
-    err: *mut *mut c_char,
-) -> *mut Engine {
-    let result = (|| -> Result<Engine, Error> {
-        let arch = Arch::parse(cstr(arch, "arch")?)?;
-        if catalog_path.is_null() {
-            Engine::open(arch)
-        } else {
-            Engine::open_file(arch, cstr(catalog_path, "catalog_path")?)
-        }
-    })();
-    match result {
-        Ok(engine) => Box::into_raw(Box::new(engine)),
-        Err(e) => {
-            set_error(err, e.to_string());
-            ptr::null_mut()
-        }
-    }
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum turboembed_output_format {
+    TURBOEMBED_OUTPUT_TYPED = 0,
+    TURBOEMBED_OUTPUT_PACKED_BYTES = 1,
 }
 
-/// # Safety
-/// `engine` must be a pointer from [`turboembed_create`] or null.
-#[no_mangle]
-pub unsafe extern "C" fn turboembed_destroy(engine: *mut Engine) {
-    if !engine.is_null() {
-        drop(Box::from_raw(engine));
-    }
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turboembed_str {
+    pub ptr: *const c_char,
+    pub len: usize,
 }
 
-/// `embed(alias, text)` — catalog alias + UTF-8 text → one FP32 vector.
-///
-/// # Safety
-/// `engine` must be a live [`turboembed_create`] pointer. `alias` and `text`
-/// must be valid C strings. `out` / `out_dim` must be writable. Caller frees
-/// `*out` with [`turboembed_free`].
-#[no_mangle]
-pub unsafe extern "C" fn turboembed_embed(
-    engine: *mut Engine,
-    alias: *const c_char,
-    text: *const c_char,
-    out: *mut *mut f32,
-    out_dim: *mut usize,
-    err: *mut *mut c_char,
-) -> c_int {
-    if engine.is_null() {
-        set_error(err, "engine is NULL");
-        return 1;
-    }
-    let result = (|| -> Result<Vec<f32>, Error> {
-        let alias = cstr(alias, "alias")?;
-        let text = cstr(text, "text")?;
-        (*engine).embed(alias, text)
-    })();
-    match result {
-        Ok(vector) => {
-            if !out_dim.is_null() {
-                *out_dim = vector.len();
-            }
-            if !out.is_null() {
-                *out = alloc_vec(vector);
-            }
-            0
-        }
-        Err(e) => {
-            set_error(err, e.to_string());
-            1
-        }
-    }
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turboembed_embed_options {
+    pub pooling: turboembed_pooling,
+    pub normalize: i32,
+    pub truncate_to: u32,
+    pub output_format: turboembed_output_format,
 }
 
-/// # Safety
-/// `engine` must be a live pointer or null.
-#[no_mangle]
-pub unsafe extern "C" fn turboembed_device(engine: *const Engine) -> *const c_char {
-    if engine.is_null() {
-        return ptr::null();
-    }
-    b"CUDA\0".as_ptr().cast()
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turboembed_model_info {
+    pub alias: turboembed_str,
+    pub dim: u32,
+    pub device: turboembed_device,
+    pub ready: i32,
 }
 
-/// # Safety
-/// `ptr` must be null or `*out` from a successful [`turboembed_embed`].
-#[no_mangle]
-pub unsafe extern "C" fn turboembed_free(ptr: *mut std::ffi::c_void) {
-    if ptr.is_null() {
-        return;
-    }
-    let payload = ptr.cast::<f32>();
-    let base = payload.sub(1);
-    let dim = (*base).to_bits() as usize;
-    let len = 1 + dim;
-    drop(Vec::from_raw_parts(base, len, len));
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turboembed_embed_result {
+    pub dim: u32,
+    pub count: u32,
+    pub values: *const f32,
+    pub packed: *const u8,
+    pub packed_len: usize,
 }
 
-/// # Safety
-/// `ptr` must be null or a string written to `*err`.
-#[no_mangle]
-pub unsafe extern "C" fn turboembed_free_str(ptr: *mut c_char) {
-    if !ptr.is_null() {
-        drop(CString::from_raw(ptr));
-    }
+#[repr(C)]
+pub struct turboembed_engine {
+    _opaque: [u8; 0],
+}
+
+pub type turboembed_stream_cb = Option<
+    unsafe extern "C" fn(
+        user_data: *mut c_void,
+        index: u32,
+        values: *const f32,
+        dim: u32,
+        is_final: i32,
+    ),
+>;
+
+#[repr(C)]
+pub struct turboembed_provider_vtbl {
+    pub id: *const c_char,
+    pub load: Option<
+        unsafe extern "C" fn(
+            ctx: *mut c_void,
+            alias: *const c_char,
+            alias_len: usize,
+        ) -> turboembed_status,
+    >,
+    pub embed: Option<
+        unsafe extern "C" fn(
+            ctx: *mut c_void,
+            texts: *const turboembed_str,
+            n_texts: usize,
+            opts: *const turboembed_embed_options,
+            out: *mut *mut turboembed_embed_result,
+        ) -> turboembed_status,
+    >,
+    pub ctx: *mut c_void,
+}
+
+unsafe extern "C" {
+    pub fn turboembed_engine_create(
+        device: turboembed_device,
+        config_path: *const c_char,
+        out: *mut *mut turboembed_engine,
+    ) -> turboembed_status;
+
+    pub fn turboembed_engine_destroy(engine: *mut turboembed_engine);
+
+    pub fn turboembed_abi_version() -> u32;
+
+    pub fn turboembed_status_name(status: turboembed_status) -> *const c_char;
+
+    pub fn turboembed_device_name(device: turboembed_device) -> *const c_char;
+
+    pub fn turboembed_last_error(engine: *const turboembed_engine) -> *const c_char;
+
+    pub fn turboembed_list_models(
+        engine: *mut turboembed_engine,
+        out_infos: *mut *mut turboembed_model_info,
+        out_count: *mut usize,
+    ) -> turboembed_status;
+
+    pub fn turboembed_model_list_free(infos: *mut turboembed_model_info, count: usize);
+
+    pub fn turboembed_load_model(
+        engine: *mut turboembed_engine,
+        alias: *const c_char,
+        alias_len: usize,
+    ) -> turboembed_status;
+
+    pub fn turboembed_embed_one(
+        engine: *mut turboembed_engine,
+        alias: *const c_char,
+        alias_len: usize,
+        text: *const c_char,
+        text_len: usize,
+        opts: *const turboembed_embed_options,
+        out: *mut *mut turboembed_embed_result,
+    ) -> turboembed_status;
+
+    pub fn turboembed_embed(
+        engine: *mut turboembed_engine,
+        alias: *const c_char,
+        alias_len: usize,
+        texts: *const turboembed_str,
+        n_texts: usize,
+        opts: *const turboembed_embed_options,
+        out: *mut *mut turboembed_embed_result,
+    ) -> turboembed_status;
+
+    pub fn turboembed_embed_stream(
+        engine: *mut turboembed_engine,
+        alias: *const c_char,
+        alias_len: usize,
+        texts: *const turboembed_str,
+        n_texts: usize,
+        opts: *const turboembed_embed_options,
+        cb: turboembed_stream_cb,
+        user_data: *mut c_void,
+        out: *mut *mut turboembed_embed_result,
+    ) -> turboembed_status;
+
+    pub fn turboembed_embed_result_free(result: *mut turboembed_embed_result);
+
+    pub fn turboembed_buffer_free(ptr: *mut c_void);
+
+    pub fn turboembed_register_provider(vtbl: *const turboembed_provider_vtbl)
+        -> turboembed_status;
 }

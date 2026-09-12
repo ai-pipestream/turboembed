@@ -1,6 +1,6 @@
 [package]
 name = "turboembed"
-description = "Shared C ABI (turboembed.h) for in-process catalog embeddings — NVIDIA ORT CUDA"
+description = "Safe zero-copy Rust wrapper over the TurboEmbed C ABI"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,23 +8,26 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
-[lib]
-name = "turboembed"
-crate-type = ["rlib", "cdylib"]
-
 [features]
-# Real ONNX Runtime CUDA EP + IoBinding device buffers. Needs NVIDIA driver
-# and CUDA 13 user-space libs (see scripts/run-nvidia.sh / .libs/nvidia/lib).
-# Without this feature every catalog alias errors — there is no mock path.
-ort-cuda = ["dep:ort", "dep:tokenizers", "inferstream-backend-ort/cuda"]
+# Real in-process ov::genai::TextEmbeddingPipeline on Intel GPU.
+# No CPU fallback, no OVMS, no mock-as-done. Create/load fail if the
+# GPU plugin is missing. See docs/intel-genai-embed.md.
+genai = []
+# Real ONNX Runtime CUDA EP + IoBinding device buffers on NVIDIA.
+# Catalog aliases error without this feature. No silent CPU fallback.
+# Needs CUDA 13 user-space libs (.libs/nvidia/lib). See docs/turboembed.md.
+ort-cuda = ["dep:ort", "dep:tokenizers", "dep:inferstream-backend-ort", "dep:serde", "dep:toml"]
 
 [dependencies]
-inferstream-backend-ort = { workspace = true }
 thiserror = { workspace = true }
-serde = { workspace = true }
-toml = { workspace = true }
+inferstream-backend-ort = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
 ort = { version = "2.0.0-rc.13", optional = true, features = ["cuda"] }
 tokenizers = { workspace = true, optional = true }
+
+[build-dependencies]
+cc = "1"
 
 [dev-dependencies]
 serde_json = { workspace = true }

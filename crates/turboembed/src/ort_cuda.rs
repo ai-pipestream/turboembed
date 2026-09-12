@@ -24,7 +24,8 @@ use ort::value::Tensor;
 use tokenizers::Tokenizer;
 
 use crate::catalog::CatalogModelSpec;
-use crate::error::Error;
+
+type Error = String;
 
 const DEFAULT_MAX_SEQ_LEN: usize = 512;
 
@@ -38,10 +39,12 @@ pub struct OrtCudaSession {
     /// Proven at load: CUDA device allocator exists for this session.
     #[allow(dead_code)]
     cuda_allocator: Allocator,
+    /// Sentence-embedding width after pooling (set by a CUDA warmup at load).
+    embedding_dim: usize,
 }
 
 fn fail_load(what: &str, detail: impl std::fmt::Display) -> Error {
-    Error::unavailable(format!("{what}: {detail}"))
+    format!("{what}: {detail}")
 }
 
 fn find_tokenizer(model_path: &str, tokenizer_dir: Option<&str>) -> Result<PathBuf, Error> {
@@ -82,49 +85,78 @@ fn find_tokenizer(model_path: &str, tokenizer_dir: Option<&str>) -> Result<PathB
 fn require_cuda_device(info: &MemoryInfo<'_>, what: &str) -> Result<(), Error> {
     let device = info.allocation_device();
     if device != AllocationDevice::CUDA {
-        return Err(Error::unavailable(format!(
-            "{what} landed on allocation device {:?} (cpu_accessible={}); \
+        return Err(format!(
+            "{what} is on allocation device {:?} (cpu_accessible={}); \
              expected CUDA. This is a CPU fallback, not a real NVIDIA embed. \
              Check LD_LIBRARY_PATH (.libs/nvidia/lib) and --features ort-cuda",
             device.as_str(),
             info.is_cpu_accessible()
-        )));
+        ));
     }
     if info.is_cpu_accessible() {
-        return Err(Error::unavailable(format!(
-            "{what} is CUDA-named but CPU-accessible; refusing a pinned/host \
-             buffer pretending to be a device buffer"
-        )));
+        return Err(format!(
+            "{what} is CUDA-named but CPU-accessible; a pinned/host \
+             buffer is not a device buffer"
+        ));
     }
     Ok(())
 }
 
+fn resolve_path(workspace_root: &Path, raw: &str) -> PathBuf {
+    let path = PathBuf::from(raw);
+    if path.is_absolute() {
+        path
+    } else {
+        workspace_root.join(path)
+    }
+}
+
 impl OrtCudaSession {
-    pub fn load(spec: &CatalogModelSpec) -> Result<Self, Error> {
+    pub fn embedding_dim(&self) -> usize {
+        self.embedding_dim
+    }
+
+    pub fn pooling(&self) -> Pooling {
+        self.pooling
+    }
+
+    pub fn normalize(&self) -> bool {
+        self.normalize
+    }
+
+    pub fn load(spec: &CatalogModelSpec, workspace_root: &Path) -> Result<Self, Error> {
         if !spec.backend.eq_ignore_ascii_case("ort") {
-            return Err(Error::unavailable(format!(
+            return Err(format!(
                 "nvidia turboembed requires catalog backend=\"ort\", got {:?}",
                 spec.backend
-            )));
+            ));
         }
         let device = spec.device.as_deref().unwrap_or("");
         if !device.eq_ignore_ascii_case("cuda") {
-            return Err(Error::unavailable(format!(
+            return Err(format!(
                 "nvidia turboembed requires catalog device=\"cuda\", got {device:?}; \
-                 refusing CPU or any other EP"
-            )));
-        }
-        let model_path = spec.path.as_deref().ok_or_else(|| {
-            Error::invalid("catalog nvidia entry is missing path to the .onnx file")
-        })?;
-        if !Path::new(model_path).is_file() {
-            return Err(fail_load(
-                "onnx model not found",
-                format!("{model_path} is not a file"),
+                 CPU or any other EP is not accepted"
             ));
         }
+        let model_path = spec.path.as_deref().ok_or_else(|| {
+            "catalog nvidia entry is missing path to the .onnx file".to_string()
+        })?;
+        let model_path = resolve_path(workspace_root, model_path);
+        if !model_path.is_file() {
+            return Err(fail_load(
+                "onnx model not found",
+                format!("{} is not a file", model_path.display()),
+            ));
+        }
+        let model_path = model_path
+            .to_str()
+            .ok_or_else(|| "onnx model path is not UTF-8".to_string())?;
 
-        let tokenizer_file = find_tokenizer(model_path, spec.tokenizer_dir.as_deref())?;
+        let tokenizer_hint = spec
+            .tokenizer_dir
+            .as_deref()
+            .map(|p| resolve_path(workspace_root, p).to_string_lossy().into_owned());
+        let tokenizer_file = find_tokenizer(model_path, tokenizer_hint.as_deref())?;
         let mut tokenizer = Tokenizer::from_file(&tokenizer_file)
             .map_err(|e| fail_load("failed to load tokenizer", e))?;
         let max_len = spec
@@ -147,7 +179,7 @@ impl OrtCudaSession {
             .as_deref()
             .map(Pooling::from_config)
             .transpose()
-            .map_err(|e| Error::invalid(e.to_string()))?
+            .map_err(|e| e.to_string())?
             .unwrap_or(Pooling::Mean);
 
         // error_on_failure: registration failure is a hard error, never a
@@ -193,9 +225,9 @@ impl OrtCudaSession {
             )
         })?;
         if gpu_id < 0 {
-            return Err(Error::unavailable(format!(
+            return Err(format!(
                 "ort GPU device id {gpu_id} is not a real CUDA device"
-            )));
+            ));
         }
 
         const KNOWN: [&str; 3] = ["input_ids", "attention_mask", "token_type_ids"];
@@ -222,7 +254,7 @@ impl OrtCudaSession {
             .map(|o| o.name().to_string())
             .ok_or_else(|| fail_load("unsupported model", "graph has no outputs"))?;
 
-        Ok(Self {
+        let mut loaded = Self {
             session: Mutex::new(session),
             tokenizer,
             pooling,
@@ -230,7 +262,15 @@ impl OrtCudaSession {
             input_names,
             output_name,
             cuda_allocator,
-        })
+            embedding_dim: 0,
+        };
+        // One CUDA IoBinding pass at load: prove device buffers + set dim.
+        let (dim, _) = loaded.embed_batch(&[String::from("x")])?;
+        if dim == 0 {
+            return Err("CUDA warmup produced embedding dim 0".into());
+        }
+        loaded.embedding_dim = dim;
+        Ok(loaded)
     }
 
     pub fn embed(&self, text: &str) -> Result<Vec<f32>, Error> {
@@ -239,18 +279,18 @@ impl OrtCudaSession {
         Ok(values)
     }
 
-    fn embed_batch(&self, texts: &[String]) -> Result<(usize, Vec<f32>), Error> {
+    pub(crate) fn embed_batch(&self, texts: &[String]) -> Result<(usize, Vec<f32>), Error> {
         let batch = texts.len();
         if batch == 0 {
-            return Err(Error::invalid("embed requires at least one text"));
+            return Err("embed requires at least one text".into());
         }
         let encodings = self
             .tokenizer
             .encode_batch(texts.to_vec(), true)
-            .map_err(|e| Error::invalid(format!("tokenization failed: {e}")))?;
+            .map_err(|e| format!("tokenization failed: {e}"))?;
         let seq = encodings.first().map(|e| e.len()).unwrap_or(0);
         if seq == 0 {
-            return Err(Error::invalid("tokenization produced an empty sequence"));
+            return Err("tokenization produced an empty sequence".into());
         }
 
         let mut input_ids = Vec::with_capacity(batch * seq);
@@ -272,13 +312,11 @@ impl OrtCudaSession {
                 _ => unreachable!("input names validated at load"),
             };
             let host = Tensor::from_array((shape, data))
-                .map_err(|e| Error::internal(format!("host tensor build failed: {e}")))?;
+                .map_err(|e| format!("host tensor build failed: {e}"))?;
             // Host → CUDA device buffer. `.to` uses ORT IoBinding internally
             // and fails if the CUDA EP cannot receive the copy.
             let device = host.to(AllocationDevice::CUDA, 0).map_err(|e| {
-                Error::unavailable(format!(
-                    "host→CUDA copy for {name} failed (not a real CUDA session): {e}"
-                ))
+                format!("host→CUDA copy for {name} failed (not a real CUDA session): {e}")
             })?;
             require_cuda_device(device.memory_info(), &format!("input {name}"))?;
             cuda_inputs.push((name.clone(), device));
@@ -290,33 +328,33 @@ impl OrtCudaSession {
             AllocatorType::Device,
             MemoryType::Default,
         )
-        .map_err(|e| Error::internal(format!("CUDA output MemoryInfo: {e}")))?;
+        .map_err(|e| format!("CUDA output MemoryInfo: {e}"))?;
 
         let mut session = self
             .session
             .lock()
-            .map_err(|_| Error::internal("ort session mutex poisoned"))?;
+            .map_err(|_| "ort session mutex poisoned".to_string())?;
         let mut binding = session
             .create_binding()
-            .map_err(|e| Error::internal(format!("IoBinding create failed: {e}")))?;
+            .map_err(|e| format!("IoBinding create failed: {e}"))?;
         for (name, tensor) in &cuda_inputs {
             binding
                 .bind_input(name.as_str(), tensor)
-                .map_err(|e| Error::internal(format!("IoBinding bind_input {name}: {e}")))?;
+                .map_err(|e| format!("IoBinding bind_input {name}: {e}"))?;
         }
         binding
             .bind_output_to_device(&self.output_name, &cuda_out_info)
-            .map_err(|e| Error::internal(format!("IoBinding bind_output_to_device CUDA: {e}")))?;
+            .map_err(|e| format!("IoBinding bind_output_to_device CUDA: {e}"))?;
 
         let mut outputs = session
             .run_binding(&binding)
-            .map_err(|e| Error::internal(format!("IoBinding CUDA run failed: {e}")))?;
+            .map_err(|e| format!("IoBinding CUDA run failed: {e}"))?;
         binding
             .synchronize_outputs()
-            .map_err(|e| Error::internal(format!("IoBinding synchronize_outputs: {e}")))?;
+            .map_err(|e| format!("IoBinding synchronize_outputs: {e}"))?;
 
         let hidden_gpu = outputs.remove(self.output_name.as_str()).ok_or_else(|| {
-            Error::internal(format!("missing output {:?}", self.output_name))
+            format!("missing output {:?}", self.output_name)
         })?;
         require_cuda_device(
             hidden_gpu.memory_info(),
@@ -325,12 +363,12 @@ impl OrtCudaSession {
 
         // Device → host for mean/L2. The graph ran on CUDA; pooling is the
         // documented MiniLM host reduction (mask-weighted mean + L2).
-        let hidden_cpu = hidden_gpu.to(AllocationDevice::CPU, 0).map_err(|e| {
-            Error::internal(format!("CUDA→CPU copy of hidden states failed: {e}"))
-        })?;
+        let hidden_cpu = hidden_gpu
+            .to(AllocationDevice::CPU, 0)
+            .map_err(|e| format!("CUDA→CPU copy of hidden states failed: {e}"))?;
         let (out_shape, hidden) = hidden_cpu
             .try_extract_tensor::<f32>()
-            .map_err(|e| Error::internal(format!("output extraction failed: {e}")))?;
+            .map_err(|e| format!("output extraction failed: {e}"))?;
         let dims: Vec<i64> = out_shape.iter().copied().collect();
 
         let mut pooled = match (self.pooling, dims.as_slice()) {
@@ -342,10 +380,10 @@ impl OrtCudaSession {
             }
             (_, [b, _d]) if *b as usize == batch => hidden.to_vec(),
             _ => {
-                return Err(Error::internal(format!(
+                return Err(format!(
                     "unexpected output shape {dims:?} from {:?} (batch={batch}, seq={seq})",
                     self.output_name
-                )))
+                ))
             }
         };
         let dim = pooled.len() / batch;
