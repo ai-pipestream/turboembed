@@ -29,8 +29,8 @@ ADDR="${1:-127.0.0.1:8461}"
 TOKEN="${2-change-me}"
 shift $(( $# > 2 ? 2 : $# )) || true
 
-EXT=(-proto crates/protocol/proto/inferstream_extension.proto)
-OIP=(-proto crates/protocol/proto/open_inference_grpc.proto)
+EXT=(-proto proto/inferstream_extension.proto)
+OIP=(-proto proto/open_inference_grpc.proto)
 AUTH=()
 if [ -n "$TOKEN" ]; then
     AUTH=(-H "authorization: Bearer $TOKEN")

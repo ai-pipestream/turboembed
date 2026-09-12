@@ -28,7 +28,7 @@ ADDR="${1:-127.0.0.1:8461}"
 TOKEN="${2-change-me}"
 shift $(( $# > 2 ? 2 : $# )) || true
 
-EXT=(-proto crates/protocol/proto/inferstream_extension.proto)
+EXT=(-proto proto/inferstream_extension.proto)
 AUTH=()
 if [ -n "$TOKEN" ]; then
     AUTH=(-H "authorization: Bearer $TOKEN")

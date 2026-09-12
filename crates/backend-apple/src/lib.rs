@@ -1,4 +1,8 @@
-//! Apple MLX backend for inferstream — native macOS hosts only.
+//! LEGACY Rust Apple MLX backend (FFI to `native/mlx-engine`).
+//!
+//! The supported Mac serve path is the all-Swift gRPC server in `swift/`,
+//! which links mlx-swift in-process with no C ABI. This crate remains so
+//! the legacy `inferstream-apple` Rust binary still type-checks.
 //!
 //! # Deployment model
 //!

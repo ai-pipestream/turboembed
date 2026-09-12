@@ -15,4 +15,5 @@
 /models/*
 !/models/manifests/
 native/mlx-engine/.build/
+swift/.build/
 .DS_Store

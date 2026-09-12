@@ -8,7 +8,7 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 |---|---|---|---|
 | `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime CUDA EP** (primary — encoder embeddings) + **llama.cpp-CUDA** (GGUF generative token streaming, in-process), TensorRT-LLM Executor (optional later feature) | **ORT engine real** (`ort-runtime` / `ort-cuda`), validated on krick against TEI; **llama.cpp engine real in-process** (`llamacpp-runtime` / `llamacpp-cuda`, or `full-cuda` for both), streaming Qwen2.5-0.5B GGUF on krick; TRT-LLM link stubbed |
 | `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO** (primary): `ovms` gRPC client to the host's Model Server (**live — real GPU embeddings today**) + in-process runtime (stubbed); **llama.cpp-SYCL in-process** (`llamacpp-sycl`, Level Zero / Battlemage) for GGUF generation | ovms client live; llama.cpp SYCL in-process live (`default-llm` / `qwen-0.5b` / `qwen-7b`) |
-| `inferstream-apple` | **native macOS host** (Mac worker) | **native MLX** (Swift mlx-swift + mlx-swift-lm linked in-process via FFI — no Python), llama.cpp-Metal for GGUF (wired, unbuilt) | **MLX engine real** — Embed / Tokenize / Detokenize / `ModelStreamInfer` on Metal; see `docs/native-mlx.md` |
+| `inferstream-apple` | **native macOS host** (Mac worker) | **all-Swift gRPC server** (grpc-swift + in-process mlx-swift / mlx-swift-lm — no Rust façade, no FFI, no Python) | **MLX engine real** — Embed / Tokenize / Detokenize / `ModelStreamInfer` on Metal; see `docs/swift-apple.md` |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
 ## Per-arch gap status (honest)
@@ -17,15 +17,15 @@ Every arch binary serves **both** gRPC services on one port behind one bearer in
 
 | capability | `inferstream-nvidia` | `inferstream-intel` | `inferstream-apple` |
 |---|---|---|---|
-| Embed (real accelerator) | **LIVE** — ORT CUDA EP (CPU EP anywhere), TEI-parity validated on krick | **LIVE** — `ovms` gRPC client to the host Model Server, Battlemage GPU verified on krick-1 | **LIVE** — native MLX (`MLXEmbedders`) on Metal, in-process Swift FFI |
-| Tokenize / Detokenize | **LIVE** — ORT engine's own HF tokenizer or `tokenizer_dir` server-side; GGUF models answer from the llama.cpp vocab (in-process) | **LIVE** — `tokenizer_dir` set for OVMS embed pipelines; GGUF models answer from the in-process llama.cpp vocab (no remote `/tokenize`) | **LIVE** — Rust `tokenizers` crate from `tokenizer_dir` / `tokenizer.json` (server-side); native MLX does not tokenize on the wire |
-| Generative infer / stream | **LIVE** — llama.cpp-CUDA in-process (`llamacpp-cuda` / `full-cuda`) streams GGUF tokens over `ModelStreamInfer` (Qwen2.5-0.5B validated on krick); server-client mode (`endpoint`) also available; TRT-LLM (`trtllm-sys`) still a stub | **LIVE** — llama.cpp-SYCL **in-process** (`llamacpp-sycl`, GGML_SYCL=ON): unary `ModelInfer` + per-token `ModelStreamInfer` for `default-llm` / `qwen-0.5b` (Qwen2.5-0.5B Q8_0) and `qwen-7b` (Qwen2.5-7B-Instruct Q5_K_M, text — not VL). GPU-proven on krick-1 (`docs/intel-sycl-inprocess-krick-1.md`). Default aliases do **not** HTTP to `:8085`. OVMS still has no `ModelStreamInfer`; in-process OpenVINO is a stub | **LIVE** — native MLX generation (`mlx-swift-lm`) streams real per-token `ModelStreamInfer` chunks on Metal in-process; llama.cpp-Metal is wired (`metal` feature) but unbuilt on a Mac |
+| Embed (real accelerator) | **LIVE** — ORT CUDA EP (CPU EP anywhere), TEI-parity validated on krick | **LIVE** — `ovms` gRPC client to the host Model Server, Battlemage GPU verified on krick-1 | **LIVE** — native MLX (`MLXEmbedders`) on Metal, in-process Swift server |
+| Tokenize / Detokenize | **LIVE** — ORT engine's own HF tokenizer or `tokenizer_dir` server-side; GGUF models answer from the llama.cpp vocab (in-process) | **LIVE** — `tokenizer_dir` set for OVMS embed pipelines; GGUF models answer from the in-process llama.cpp vocab (no remote `/tokenize`) | **LIVE** — swift-transformers from `tokenizer_dir` / `tokenizer.json` (in-process, no Rust) |
+| Generative infer / stream | **LIVE** — llama.cpp-CUDA in-process (`llamacpp-cuda` / `full-cuda`) streams GGUF tokens over `ModelStreamInfer` (Qwen2.5-0.5B validated on krick); server-client mode (`endpoint`) also available; TRT-LLM (`trtllm-sys`) still a stub | **LIVE** — llama.cpp-SYCL **in-process** (`llamacpp-sycl`, GGML_SYCL=ON): unary `ModelInfer` + per-token `ModelStreamInfer` for `default-llm` / `qwen-0.5b` (Qwen2.5-0.5B Q8_0) and `qwen-7b` (Qwen2.5-7B-Instruct Q5_K_M, text — not VL). GPU-proven on krick-1 (`docs/intel-sycl-inprocess-krick-1.md`). Default aliases do **not** HTTP to `:8085`. OVMS still has no `ModelStreamInfer`; in-process OpenVINO is a stub | **LIVE** — native MLX generation (`mlx-swift-lm`) streams real per-token `ModelStreamInfer` chunks on Metal in the Swift server |
 | `InferstreamService` registered in `serve()` | yes (shared) | yes (shared) | yes (shared) — binary compiles on Linux for CI, functions only on macOS |
 | Rerank | mock scorer only | mock scorer only | mock scorer only |
 
-### Apple MLX: merged and live
+### Apple MLX: all-Swift gRPC server
 
-The Apple full-surface work is merged into `main`. `MlxBackend` (`crates/backend-apple`) links **native MLX in-process** (Swift `mlx-swift` + `mlx-swift-lm` via the C ABI in `native/mlx-engine`) — no Python interpreter on Embed / Tokenize / StreamInfer. Setup is `scripts/setup-mlx.sh` (`cargo xtask fetch --mlx`). Smoke with `scripts/smoke-apple.sh`. Linking notes: `docs/native-mlx.md`. Live Metal tests stay behind `--features mlx-live -- --ignored`.
+The supported Mac server is the Swift package in `swift/` — grpc-swift implements both `inference.GRPCInferenceService` and `inferstream.v1.InferstreamService` from the shared `proto/` files, and mlx-swift runs **in-process** (no Rust façade, no `libMlxEngine.dylib` FFI, no Python). Setup is `scripts/setup-mlx.sh` (`cargo xtask fetch --mlx`). Build/run: `make apple`. Smoke: `scripts/smoke-apple.sh`. Walkthrough: [`docs/swift-apple.md`](docs/swift-apple.md). The Rust `inferstream-apple` crate remains as a Linux-CI stub only.
 
 **Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Six real engine paths are live.** NVIDIA embeddings: `backend-ort` loads ONNX embedding models (BGE/MiniLM class) through the `ort` crate with server-side tokenization, mean/CLS pooling, and L2 normalization — CPU EP anywhere, CUDA EP on the GPU host — and its output matches TEI on the same model to fp32 tolerance. NVIDIA generation: `backend-llamacpp` in-process (features `llamacpp-runtime` / `llamacpp-cuda`) loads GGUF models through `llama-cpp-2`, streaming one `token` BYTES chunk per decoded piece over `ModelStreamInfer` with a `final` flag on the last chunk; unary `ModelInfer` returns the whole completion, and Tokenize/Detokenize answer from the GGUF vocabulary. Intel embeddings: `inferstream-intel` with `backend = "ovms"` forwards typed OIP requests to the OpenVINO Model Server already running on krick-1 and returns real GPU embeddings (verified end-to-end: `minilm_pipeline` 384-dim / `mpnet_pipeline` 768-dim through the façade with bearer auth). Intel generation: `backend-llamacpp` in-process SYCL (`llamacpp-sycl`) streams GGUF on Battlemage (`docs/intel-sycl-inprocess-krick-1.md`). Apple embeddings and generation: `backend-apple`'s `MlxBackend` runs **native MLX in-process** (Swift mlx-swift-lm on Metal; see `docs/native-mlx.md`) — validated with `scripts/smoke-apple.sh`. TRT-LLM and in-process OpenVINO remain stubs with full config surface; routing to them still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
 
@@ -105,9 +105,10 @@ scripts/build-intel.sh                  # ggml-sycl + icpx rustc link; no python
 make fetch-llms                         # SHA-256-pinned GGUF; no python3
 scripts/run-intel.sh --config config/intel.toml
 
-# Apple: build and run ON THE MAC, never in a container
-cargo build -p inferstream-arch-apple --release
-./target/release/inferstream-apple --config config/apple.toml
+# Apple: build and run ON THE MAC, never in a container.
+# Supported path is the Swift server (no Rust process):
+make apple
+./swift/.build/release/inferstream-apple --config config/apple.toml
 ```
 
 Routing a model to an engine a binary doesn't ship fails **at startup** with the exact feature flag or the right binary named — never at request time.
@@ -192,7 +193,7 @@ serve = ["minilm", "minilm-l12", "bge-small", "default-llm", "qwen-0.5b"] # appl
 At startup each alias expands into a regular registry entry **named by the alias**, so `ListModels` and `ModelMetadata` report `minilm` (with the resolved backend and artifact in `backend` / `platform` / properties like `model_path` or `upstream_model`), and every RPC — `ModelInfer`, `ModelStreamInfer`, `Tokenize`, `Embed` — routes by it:
 
 ```bash
-grpcurl -plaintext -proto crates/protocol/proto/inferstream_extension.proto \
+grpcurl -plaintext -proto proto/inferstream_extension.proto \
   -H 'authorization: Bearer <key>' \
   -d '{"model_name":"minilm","texts":["hello world"]}' \
   <any-arch-host>:8461 inferstream.v1.InferstreamService/Embed
@@ -234,7 +235,7 @@ Results land in `docs/bakeoff/` as they happen; no numbers are published until t
 
 ## Protocol notes
 
-The proto is vendored at `crates/protocol/proto/open_inference_grpc.proto` from [kserve/open-inference-protocol](https://github.com/kserve/open-inference-protocol), pinned at commit `d49cc23f89d709d87b210ef9449e273ae243984e`.
+The proto source of truth is `proto/open_inference_grpc.proto`, vendored from [kserve/open-inference-protocol](https://github.com/kserve/open-inference-protocol), pinned at commit `d49cc23f89d709d87b210ef9449e273ae243984e`. Rust (`crates/protocol`) and the Swift Apple server both compile these files — see [`proto/README.md`](proto/README.md).
 
 Upstream OIP defines only unary `ModelInfer`. inferstream adds a clearly marked extension:
 
@@ -244,7 +245,7 @@ Upstream OIP defines only unary `ModelInfer`. inferstream adds a clearly marked 
 
 ## INFERSTREAM EXTENSION: `inferstream.v1.InferstreamService`
 
-A second, clearly separated gRPC service (`crates/protocol/proto/inferstream_extension.proto`) runs on the same endpoint with the same bearer auth. The vendored OIP service is untouched — clients that only speak OIP lose nothing (every `Embed` is expressible as `ModelInfer` with a BYTES `text` tensor plus the `pooling` / `normalize` / `truncate` InferParameters).
+A second, clearly separated gRPC service (`proto/inferstream_extension.proto`) runs on the same endpoint with the same bearer auth. The vendored OIP service is untouched — clients that only speak OIP lose nothing (every `Embed` is expressible as `ModelInfer` with a BYTES `text` tensor plus the `pooling` / `normalize` / `truncate` InferParameters).
 
 | RPC | what it does |
 |---|---|
@@ -259,7 +260,7 @@ Tokenizer resolution: when a model's config sets `tokenizer_dir` (a `tokenizer.j
 grpcurl examples (mock server from `config/example.toml`):
 
 ```bash
-PROTO="-proto crates/protocol/proto/inferstream_extension.proto"
+PROTO="-proto proto/inferstream_extension.proto"
 
 # Repository listing: names, backends, readiness, dims
 grpcurl -plaintext $PROTO 127.0.0.1:8461 inferstream.v1.InferstreamService/ListModels
@@ -315,11 +316,11 @@ cargo run -p inferstream-server --example client -- http://127.0.0.1:8461
 grpcurl works against any binary with the vendored proto:
 
 ```bash
-grpcurl -plaintext -proto crates/protocol/proto/open_inference_grpc.proto \
+grpcurl -plaintext -proto proto/open_inference_grpc.proto \
   127.0.0.1:8461 inference.GRPCInferenceService/ServerLive
 
 # Unary infer: "hi" as a length-prefixed BYTES tensor (base64 of 02 00 00 00 68 69)
-grpcurl -plaintext -proto crates/protocol/proto/open_inference_grpc.proto \
+grpcurl -plaintext -proto proto/open_inference_grpc.proto \
   -d '{"model_name":"mock-embed","id":"r1","inputs":[{"name":"text","datatype":"BYTES","shape":[1]}],"raw_input_contents":["AgAAAGhp"]}' \
   127.0.0.1:8461 inference.GRPCInferenceService/ModelInfer
 ```
@@ -355,7 +356,7 @@ Same client, same contract, heterogeneous fleet: krick (NVIDIA) + krick-1 (Intel
 2. ~~**OVMS client backend**~~ — **done**: `backend = "ovms"` serves real Battlemage-GPU embeddings on krick-1 through the façade today (see `config/intel.toml` and `crates/arch-intel/examples/ovms_embed.rs`).
 3. **OpenVINO runtime link** (`backend-openvino`) — krick-1's in-process path (the live OVMS route as oracle); llama.cpp-SYCL as the Docker-proven secondary.
 4. ~~**llama.cpp FFI** (`backend-llamacpp`)~~ — **done for CPU/CUDA** via `llama-cpp-2` (features `runtime` / `cuda`, `metal` wired but unbuilt): GGUF token streaming live on krick (Qwen2.5-0.5B Q8_0, full GPU offload). SYCL and Vulkan flavors still pending.
-5. ~~**MLX** (`backend-apple`)~~ — **done** (in-process Swift mlx-swift / mlx-swift-lm on Metal, no Python): Embed, Tokenize/Detokenize, and streamed generation live on Apple silicon (`scripts/smoke-apple.sh`).
+5. ~~**MLX** (`backend-apple`)~~ — **done**, then rebuilt as an **all-Swift gRPC server** (`swift/`, `make apple`): Embed, Tokenize/Detokenize, and streamed generation live on Apple silicon with no Rust serve process (`scripts/smoke-apple.sh`).
 6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — optional later feature for generative models; cxx/bindgen layer over `tensorrt_llm::executor`.
 7. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 8. Optional adapters: TEI-compatible proto (lowest priority), shared-memory tensor hints, richer stream metadata.

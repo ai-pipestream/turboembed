@@ -51,7 +51,8 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 	fetch-mlx verify-mlx list-mlx update-mlx-manifest \
 	verify-embeddings-intel list-embeddings-intel \
 	update-embedding-manifest-intel \
-	setup-sycl build-intel-sycl
+	setup-sycl build-intel-sycl \
+	apple smoke-apple sync-proto
 
 test:
 	$(CARGO) test --workspace
@@ -95,6 +96,17 @@ list-mlx:
 
 update-mlx-manifest:
 	$(CARGO_XTASK) update-manifest --mlx $(ALIAS_ARGS)
+
+# Apple serve path is the all-Swift gRPC server (no Rust façade).
+sync-proto:
+	./scripts/sync-proto.sh --check
+
+apple: sync-proto
+	swift build --package-path swift -c release
+	./scripts/build-apple-metallib.sh
+
+smoke-apple: apple
+	./scripts/smoke-apple.sh
 
 # Inject ggml-sycl sources into a local llama-cpp-sys-2 checkout so
 # GGML_SYCL=ON cmake succeeds. No python3. Needed before llamacpp-sycl.
