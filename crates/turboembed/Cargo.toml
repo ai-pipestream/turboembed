@@ -8,8 +8,17 @@ repository.workspace = true
 authors.workspace = true
 rust-version.workspace = true
 
+[features]
+# Live Metal MiniLM via libTurboEmbed.dylib (macOS only).
+# cargo test -p turboembed --features mlx-live -- --ignored --nocapture
+mlx-live = []
+
 [dependencies]
 thiserror = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [build-dependencies]
 cc = "1"

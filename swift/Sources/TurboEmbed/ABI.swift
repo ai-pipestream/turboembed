@@ -3,17 +3,24 @@ import TurboEmbedC
 #endif
 
 import Foundation
+import InferstreamCore
+import MlxEngine
 
 /// `@_cdecl` export of the frozen C ABI (`include/turboembed.h`).
 ///
-/// Linux CI does not build this target. On a Mac this is the Apple
-/// implementation of the same symbols the C++ stub provides on nvidia/intel.
-/// Today it is a mock (`mock-embed`); next step is calling `MlxEngine`.
-/// Do not also link `native/turboembed/src/stub.cpp` into this module.
+/// On a Mac this dylib is the Apple implementation of the same symbols
+/// the C++ stub provides on Linux. `TURBOEMBED_DEVICE_METAL` talks to
+/// `MlxEngine` (FP MiniLM, hidden-state mean+L2 on Metal). `mock-embed`
+/// stays for ABI smoke only. Do not also link `native/turboembed/src/stub.cpp`.
 
 private final class EngineBox: @unchecked Sendable {
     let device: turboembed_device
     var mockLoaded: Bool
+    var mlx: MlxEngine.Engine?
+    var mlxDevice: String = ""
+    var metalAvailable: Bool = false
+    var catalog: Catalog?
+    var mlxAliases: [String: MlxAlias] = [:]
     var lastError: String = "" {
         didSet { refreshErrorPtr() }
     }
@@ -151,8 +158,46 @@ public func turboembed_engine_create(
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
     out.pointee = nil
+    MlxProvider.ensureWorkspaceRoot()
     let box = EngineBox(device: device)
-    _ = configPath
+    if let configPath {
+        let path = String(cString: configPath)
+        if !path.isEmpty {
+            box.catalog = try? Catalog.load(path: path)
+        }
+    }
+    if box.catalog == nil {
+        box.catalog = try? Catalog.builtin()
+    }
+    let wantsMetal =
+        device == TURBOEMBED_DEVICE_METAL || device == TURBOEMBED_DEVICE_AUTO
+    if wantsMetal {
+        do {
+            let (engine, ping) = try MlxProvider.pingOrThrow()
+            if device == TURBOEMBED_DEVICE_METAL {
+                try MlxProvider.requireMetal(ping)
+            }
+            if ping.metalAvailable {
+                box.mlx = engine
+                box.mlxDevice = ping.device
+                box.metalAvailable = true
+                box.mlxAliases = MlxProvider.discover(catalog: box.catalog)
+                fputs(
+                    "[turboembed] mlx ping device=\(ping.device) metal=true matmul_ok=\(ping.matmulOk) — FP MiniLM path is live\n",
+                    stderr)
+            } else if device == TURBOEMBED_DEVICE_METAL {
+                TLS.createError =
+                    "TURBOEMBED_DEVICE_METAL but ping device=\(ping.device) metal=false — refusing mock"
+                return TURBOEMBED_ERR_UNAVAILABLE
+            }
+        } catch {
+            if device == TURBOEMBED_DEVICE_METAL {
+                TLS.createError =
+                    "MLX Metal create failed: \(error) — refusing C++/mock stub"
+                return TURBOEMBED_ERR_UNAVAILABLE
+            }
+        }
+    }
     out.pointee = OpaquePointer(Unmanaged.passRetained(box).toOpaque())
     TLS.createError = ""
     return TURBOEMBED_OK
@@ -173,19 +218,33 @@ public func turboembed_list_models(
     guard let box = bridge(engine), let outInfos, let outCount else {
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
-    let infos = UnsafeMutablePointer<turboembed_model_info>.allocate(capacity: 1)
-    let alias = UnsafeMutablePointer<CChar>.allocate(capacity: 11)
-    mockAlias.utf8CString.withUnsafeBufferPointer { src in
-        alias.assign(from: src.baseAddress!, count: 11)
+    var rows: [(String, UInt32, turboembed_device, Int32)] = [
+        (
+            mockAlias, mockDim, TURBOEMBED_DEVICE_MOCK,
+            box.mockLoaded ? 1 : 0
+        )
+    ]
+    let mlxRows = box.mlxAliases.values.sorted { $0.alias < $1.alias }
+    for model in mlxRows {
+        rows.append(
+            (
+                model.alias,
+                model.dim,
+                TURBOEMBED_DEVICE_METAL,
+                model.ready ? 1 : 0
+            ))
     }
-    infos.pointee = turboembed_model_info(
-        alias: turboembed_str(ptr: alias, len: 10),
-        dim: mockDim,
-        device: TURBOEMBED_DEVICE_MOCK,
-        ready: box.mockLoaded ? 1 : 0
-    )
+    let infos = UnsafeMutablePointer<turboembed_model_info>.allocate(capacity: rows.count)
+    for (i, row) in rows.enumerated() {
+        infos[i] = turboembed_model_info(
+            alias: allocCString(row.0),
+            dim: row.1,
+            device: row.2,
+            ready: row.3
+        )
+    }
     outInfos.pointee = infos
-    outCount.pointee = 1
+    outCount.pointee = rows.count
     box.lastError = ""
     return TURBOEMBED_OK
 }
@@ -218,8 +277,40 @@ public func turboembed_load_model(
         box.lastError = ""
         return TURBOEMBED_OK
     }
+    let name = aliasName(alias, aliasLen)
+    if let mlx = box.mlx {
+        var model = box.mlxAliases[name] ?? MlxProvider.resolve(alias: name, catalog: box.catalog)
+        guard var model else {
+            box.lastError = MlxProviderError.missingWeights(name).localizedDescription
+            return TURBOEMBED_ERR_NOT_FOUND
+        }
+        do {
+            let warm = try MlxProvider.embed(
+                engine: mlx,
+                model: model,
+                texts: ["hello world"],
+                pooling: model.pooling,
+                normalize: true,
+                maxSeqLen: model.maxSeqLen
+            )
+            if name == "minilm" && warm.dim != 384 {
+                throw MlxProviderError.fakeDim(alias: name, dim: warm.dim)
+            }
+            model.dim = UInt32(warm.dim)
+            model.ready = true
+            box.mlxAliases[name] = model
+            box.lastError = ""
+            fputs(
+                "[turboembed] loaded \(name) from \(model.path) dim=\(warm.dim) pooling=\(model.pooling) device=\(box.mlxDevice)\n",
+                stderr)
+            return TURBOEMBED_OK
+        } catch {
+            box.lastError = String(describing: error)
+            return TURBOEMBED_ERR_INTERNAL
+        }
+    }
     box.lastError =
-        "provider not wired in the stub (MLX); load mock-embed or keep using inferstream-apple"
+        "catalog alias \(name) needs TURBOEMBED_DEVICE_METAL (MLX). CUDA/ORT/GenAI are not on this dylib. mock-embed is the stub."
     return TURBOEMBED_ERR_NOT_IMPLEMENTED
 }
 
@@ -320,9 +411,8 @@ private func embedImpl(
         box.lastError = "null embed argument"
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
-    guard isMockAlias(alias, aliasLen) else {
-        box.lastError = "embed on catalog aliases is NOT_IMPLEMENTED in the stub"
-        return TURBOEMBED_ERR_NOT_IMPLEMENTED
+    if !isMockAlias(alias, aliasLen) {
+        return embedMlx(box, alias, aliasLen, texts, nTexts, opts, out)
     }
     guard box.mockLoaded else {
         box.lastError = "mock-embed is not loaded"
@@ -345,6 +435,91 @@ private func embedImpl(
     out.pointee = result
     box.lastError = ""
     return TURBOEMBED_OK
+}
+
+private func embedMlx(
+    _ box: EngineBox,
+    _ alias: UnsafePointer<CChar>?,
+    _ aliasLen: Int,
+    _ texts: UnsafePointer<turboembed_str>?,
+    _ nTexts: Int,
+    _ opts: UnsafePointer<turboembed_embed_options>?,
+    _ out: UnsafeMutablePointer<UnsafeMutablePointer<turboembed_embed_result>?>
+) -> turboembed_status {
+    guard let mlx = box.mlx else {
+        box.lastError =
+            "catalog embed requires a Metal MLX engine; create with TURBOEMBED_DEVICE_METAL"
+        return TURBOEMBED_ERR_NOT_IMPLEMENTED
+    }
+    let name = aliasName(alias, aliasLen)
+    guard var model = box.mlxAliases[name] ?? MlxProvider.resolve(alias: name, catalog: box.catalog)
+    else {
+        box.lastError = MlxProviderError.missingWeights(name).localizedDescription
+        return TURBOEMBED_ERR_NOT_FOUND
+    }
+    switch MlxProvider.poolingName(opts, fallback: model.pooling) {
+    case .failure(let err):
+        box.lastError = err.localizedDescription
+        return TURBOEMBED_ERR_INVALID_ARGUMENT
+    case .success(let pooling):
+        var batch = [String]()
+        batch.reserveCapacity(nTexts)
+        for i in 0..<nTexts {
+            let view = texts![i]
+            batch.append(stringView(view.ptr, view.len))
+        }
+        do {
+            let result = try MlxProvider.embed(
+                engine: mlx,
+                model: model,
+                texts: batch,
+                pooling: pooling,
+                normalize: MlxProvider.normalize(opts),
+                maxSeqLen: MlxProvider.truncate(opts, fallback: model.maxSeqLen)
+            )
+            if name == "minilm" && result.dim != 384 {
+                throw MlxProviderError.fakeDim(alias: name, dim: result.dim)
+            }
+            model.dim = UInt32(result.dim)
+            model.ready = true
+            box.mlxAliases[name] = model
+            let values = UnsafeMutablePointer<Float>.allocate(capacity: result.values.count)
+            values.initialize(from: result.values, count: result.values.count)
+            let packed = UnsafeMutablePointer<turboembed_embed_result>.allocate(capacity: 1)
+            packed.pointee = turboembed_embed_result(
+                dim: UInt32(result.dim),
+                count: UInt32(batch.count),
+                values: UnsafePointer(values),
+                packed: UnsafeRawPointer(values).assumingMemoryBound(to: UInt8.self),
+                packed_len: result.values.count * MemoryLayout<Float>.size
+            )
+            out.pointee = packed
+            box.lastError = ""
+            return TURBOEMBED_OK
+        } catch {
+            box.lastError = String(describing: error)
+            return TURBOEMBED_ERR_INTERNAL
+        }
+    }
+}
+
+private func aliasName(_ ptr: UnsafePointer<CChar>?, _ len: Int) -> String {
+    stringView(ptr, len == 0 && ptr != nil ? strlen(ptr!) : len)
+}
+
+private func stringView(_ ptr: UnsafePointer<CChar>?, _ len: Int) -> String {
+    guard let ptr, len > 0 else { return "" }
+    let bytes = UnsafeBufferPointer(start: ptr, count: len)
+    return String(decoding: bytes.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+}
+
+private func allocCString(_ value: String) -> turboembed_str {
+    let n = value.utf8.count + 1
+    let alias = UnsafeMutablePointer<CChar>.allocate(capacity: n)
+    value.utf8CString.withUnsafeBufferPointer { src in
+        alias.assign(from: src.baseAddress!, count: n)
+    }
+    return turboembed_str(ptr: alias, len: value.utf8.count)
 }
 
 private func bridge(_ engine: OpaquePointer?) -> EngineBox? {

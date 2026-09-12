@@ -34,7 +34,7 @@ flowchart TB
 
     subgraph impl [Arch implementations — same symbols]
         Cpp["C++ stub → later ORT CUDA + OpenVINO GenAI"]
-        Mlx["Swift @_cdecl → later MLXEmbedders"]
+        Mlx["Swift @_cdecl → MLXEmbedders mean+L2 (Metal)"]
     end
 
     subgraph engines [Existing inferstream engines — stay in place]
@@ -64,8 +64,8 @@ flowchart TB
 |---|---|---|
 | C header `include/turboembed.h` | Frozen ABI v1 | landed |
 | C++ `native/turboembed` | nvidia / intel / Linux CI stub | mock + `NOT_IMPLEMENTED` for real EPs |
-| Swift `@_cdecl` shim | Apple (same header) | stub symbols; MLX wiring is next |
-| Rust `crates/turboembed` | safe zero-copy wrapper | ABI smoke test |
+| Swift `@_cdecl` shim | Apple (same header) | **LIVE** — `libTurboEmbed.dylib` → `MlxEngine` mean+L2 on Metal |
+| Rust `crates/turboembed` | safe zero-copy wrapper | ABI smoke + `mlx-live` MiniLM receipt |
 | gRPC `Embed` / `EmbedStream` | maps to existing InferstreamService | proto delta + server fill-in |
 | inferstream arch servers | unchanged | do not rip out |
 
@@ -168,9 +168,9 @@ already talks to inferstream.
 ## What this scaffold does not do
 
 - Does not rip out or stop the inferstream arch servers.
-- Does not link ORT / OpenVINO / MLX into `libturboembed` yet — stub
-  returns `NOT_IMPLEMENTED` for those devices after create, except the
-  built-in mock alias.
+- Does not link ORT / OpenVINO into the Linux stub yet — those devices
+  still return `NOT_IMPLEMENTED` for catalog aliases.
+- **Does** link MLX on macOS: `Device::Metal` + `minilm` is FP mean+L2.
 - Does not add Python bindings.
 
 Build the stub and the Rust smoke test: see the [root README](../README.md#turboembed)

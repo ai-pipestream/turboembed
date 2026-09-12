@@ -16,6 +16,7 @@
 #   make e2e-drift                          # popular models × arches (same floors)
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
+#   make test-turboembed-apple              # Mac: Metal MiniLM vs goldens + receipt
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -67,7 +68,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	fetch-e2e-nvidia fetch-e2e-intel fetch-e2e-apple fetch-e2e-mock \
 	fetch-corpus verify-corpus list-corpus update-corpus-manifest \
 	e2e-parity e2e-parity-goldens e2e-drift \
-	turboembed-stub test-turboembed
+	turboembed-stub test-turboembed test-turboembed-apple
 
 test:
 	$(CARGO) test --workspace
@@ -306,3 +307,8 @@ turboembed-stub:
 
 test-turboembed:
 	$(CARGO) test -p turboembed
+
+# Real Metal MiniLM through turboembed.h. Writes
+# testdata/receipts/turboembed/apple-minilm.json. No Python.
+test-turboembed-apple:
+	$(CARGO) test -p turboembed --features mlx-live -- --ignored --nocapture apple_minilm

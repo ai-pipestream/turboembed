@@ -16,11 +16,15 @@
 //! * The ABI is **not thread-safe** on a single engine. `Engine` is `Send`
 //!   (move it to another thread) but not `Sync`.
 //!
-//! The linked implementation is the C++ stub (`native/turboembed`) unless
-//! a later provider (ORT / OpenVINO GenAI / MLX) is wired in. Catalog
-//! aliases such as `minilm` return [`Error::NotImplemented`] today; use
-//! `mock-embed` for ABI smoke, or keep calling the inferstream gRPC
-//! servers.
+//! The linked implementation is **arch-specific**:
+//!
+//! * **macOS:** `libTurboEmbed.dylib` (`@_cdecl` → mlx-swift `MlxEngine`).
+//!   `Device::Metal` + `minilm` is FP MiniLM, hidden-state **mean + L2**
+//!   on Apple GPU. Not the BERT NSP pooler (`tanh(dense(CLS))`), not the
+//!   8-d mock stub, not Python.
+//! * **elsewhere:** C++ stub (`native/turboembed`) — `mock-embed` works;
+//!   catalog aliases return [`Error::NotImplemented`] until ORT / GenAI
+//!   providers land.
 
 #![allow(clippy::result_large_err)]
 

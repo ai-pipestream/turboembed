@@ -74,7 +74,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/arch-nvidia` | `inferstream-nvidia` binary |
 | `crates/arch-intel` | `inferstream-intel` binary |
 | `crates/arch-apple` | `inferstream-apple` binary |
-| `crates/turboembed` | Safe zero-copy wrapper over the TurboEmbed C ABI (C++ stub today) |
+| `crates/turboembed` | Safe zero-copy wrapper over `include/turboembed.h` — macOS links `libTurboEmbed.dylib` (MLX Metal MiniLM mean+L2); Linux links the C++ mock stub |
 
 ## TurboEmbed
 
@@ -93,13 +93,16 @@ on the existing `inferstream.v1.InferstreamService`.
 | Drift matrix | [`docs/turboembed-drift.md`](docs/turboembed-drift.md) · `make e2e-drift` |
 
 ```bash
-make turboembed-stub          # native/turboembed/build/libturboembed.a
-cargo test -p turboembed      # links the stub; ABI smoke (no GPU)
+make turboembed-stub          # Linux: native/turboembed/build/libturboembed.a
+cargo test -p turboembed      # ABI smoke (mock-embed). macOS links MLX.
+make test-turboembed-apple    # Mac: turboembed_embed(minilm) on Metal vs goldens
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 
-The stub answers `mock-embed` and returns `NOT_IMPLEMENTED` for catalog
-aliases (`minilm`, …) until ORT / GenAI / MLX providers are wired.
+On Apple Silicon, `Device::Metal` + alias `minilm` is **real FP MiniLM**
+(hidden-state mean + L2 on Metal). Receipt:
+`testdata/receipts/turboembed/apple-minilm.json`. The C++ stub still
+answers `mock-embed` on Linux; ORT / GenAI providers are not wired yet.
 Inferstream servers are unchanged.
 
 ## Building each arch binary

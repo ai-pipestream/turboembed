@@ -38,5 +38,8 @@ c++ -std=c++17 -fPIC -shared -O2 -I include \
 cargo test -p turboembed
 ```
 
-`crates/turboembed/build.rs` compiles `src/stub.cpp` with the `cc` crate
-and links `libturboembed_stub.a`. Needs a C++17 compiler (`g++` / `clang++`).
+`crates/turboembed/build.rs` compiles `src/stub.cpp` **on non-macOS**
+and links `libturboembed_stub.a`. On macOS the crate links
+`libTurboEmbed.dylib` (Swift MLX) and never this stub — see
+`docs/turboembed-swift.md`. Needs a C++17 compiler (`g++` / `clang++`)
+on Linux.
