@@ -72,8 +72,19 @@ public final class LocalTokenizer: @unchecked Sendable {
         guard FileManager.default.fileExists(atPath: json.path) else {
             throw TokenizerError.missing(json.path)
         }
-        let tokenizer = try await AutoTokenizer.from(modelFolder: folder)
-        return LocalTokenizer(inner: tokenizer)
+        if FileManager.default.fileExists(atPath: folder.appending(path: "config.json").path)
+            || FileManager.default.fileExists(
+                atPath: folder.appending(path: "tokenizer_config.json").path)
+        {
+            do {
+                let tokenizer = try await AutoTokenizer.from(modelFolder: folder)
+                return LocalTokenizer(inner: tokenizer)
+            } catch {
+                // tokenizer.json-only folders (GGUF sidecar) have no model config.json
+            }
+        }
+        throw TokenizerError.missing(
+            "\(folder.path) (need tokenizer.json plus tokenizer_config.json or a sibling MLX dir)")
     }
 
     public func tokenize(_ texts: [String], options: TokenizeOptions) throws -> [TokenEncoding] {
@@ -132,12 +143,22 @@ public final class TokenizerMap: Sendable {
     public static func load(models: [ModelConfig], configURL: URL?) async -> TokenizerMap {
         var map: [String: LocalTokenizer] = [:]
         for model in models {
-            guard let dir = model.tokenizerDir, !dir.isEmpty else { continue }
-            do {
-                map[model.name] = try await LocalTokenizer.load(path: dir, configURL: configURL)
-            } catch {
+            let candidates = [model.tokenizerDir, model.path].compactMap { $0 }.filter { !$0.isEmpty }
+            var loaded: LocalTokenizer?
+            var lastError: (any Error)?
+            for dir in candidates {
+                do {
+                    loaded = try await LocalTokenizer.load(path: dir, configURL: configURL)
+                    break
+                } catch {
+                    lastError = error
+                }
+            }
+            if let loaded {
+                map[model.name] = loaded
+            } else if let lastError {
                 fputs(
-                    "[inferstream-apple] tokenizer for \(model.name) at \(dir) failed: \(error)\n",
+                    "[inferstream-apple] tokenizer for \(model.name) failed: \(lastError)\n",
                     stderr)
             }
         }

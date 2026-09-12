@@ -21,7 +21,10 @@ command -v grpcurl >/dev/null || { echo "error: grpcurl not installed" >&2; exit
 command -v jq >/dev/null || { echo "error: jq not installed" >&2; exit 1; }
 
 ./scripts/sync-proto.sh --check
-swift build --package-path swift -c release
+if [ ! -x swift/.build/release/inferstream-apple ]; then
+    swift build --package-path swift -c release
+fi
+./scripts/build-apple-metallib.sh
 BIN=swift/.build/release/inferstream-apple
 
 "$BIN" --config "$CONFIG" &

@@ -103,6 +103,7 @@ sync-proto:
 
 apple: sync-proto
 	swift build --package-path swift -c release
+	./scripts/build-apple-metallib.sh
 
 smoke-apple: apple
 	./scripts/smoke-apple.sh

@@ -45,9 +45,16 @@ On a Mac with Xcode / Swift 6.2+ and the fetched MLX weights:
 
 ```bash
 ./scripts/setup-mlx.sh                 # make fetch-mlx + qwen tokenizer.json
-make apple                             # swift build --package-path swift -c release
+make apple                             # swift build + mlx.metallib next to the binary
 ./swift/.build/release/inferstream-apple --config config/apple.toml
 ```
+
+`make apple` runs `scripts/build-apple-metallib.sh` after the Swift link.
+Cmlx is statically linked, so MLX's `dladdr` looks next to
+`inferstream-apple` for `mlx.metallib`. Without that file the process
+exits at Engine ping (`Failed to load the default metallib`). The
+`fence` kernel is skipped when the host Metal dialect is older than MLX
+expects — the other default kernels still load.
 
 Default listen is `0.0.0.0:8461`. Bearer token in `config/apple.toml` is
 `change-me` (or `INFERSTREAM_API_KEYS`).
