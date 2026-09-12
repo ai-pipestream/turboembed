@@ -93,7 +93,7 @@ impl CatalogIndex {
     pub fn available_arches(&self, alias: &str) -> Vec<&str> {
         self.models
             .get(alias)
-            .map(|v| v.iter().copied().collect())
+            .map(|v| v.to_vec())
             .unwrap_or_default()
     }
 

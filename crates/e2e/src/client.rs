@@ -1,5 +1,8 @@
 //! Thin tonic clients for both gRPC services, with optional bearer auth.
 
+// tonic::Status is 176 bytes; the interceptor / RPC signatures need it unboxed.
+#![allow(clippy::result_large_err)]
+
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -27,7 +30,7 @@ const CONNECT_SECS: u64 = 15;
 const RPC_SECS: u64 = 180;
 
 #[derive(Clone)]
-struct Bearer {
+pub(crate) struct Bearer {
     token: Option<String>,
 }
 

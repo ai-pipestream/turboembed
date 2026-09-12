@@ -5,7 +5,7 @@
 //! resolve on that arch, or that the host did not put on `serve`, soft-skip.
 
 pub mod catalog;
-pub mod client;
+mod client;
 pub mod golden;
 pub mod matrix;
 pub mod suite;
