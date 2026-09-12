@@ -4,8 +4,9 @@
  *
  * Always: deterministic `mock-embed` / `mock`.
  * With -DTURBOEMBED_ORT_CUDA: catalog aliases (minilm, …) load
- * ONNX Runtime CUDA EP + IoBinding device buffers (Rust hooks).
- * CPU is rejected — not accepted as success.
+ * ONNX Runtime. TURBOEMBED_DEVICE_CUDA / AUTO use the CUDA EP +
+ * IoBinding device buffers (never a silent CPU fallback).
+ * TURBOEMBED_DEVICE_CPU is an explicit CPU EP path.
  * With -DTURBOEMBED_GENAI: catalog aliases load
  * ov::genai::TextEmbeddingPipeline on the official device string
  * "GPU" or "CPU". OPENVINO_GPU never silently compiles "CPU".
@@ -26,6 +27,7 @@ void *turboembed_ort_cuda_open(
     size_t alias_len,
     const char *config_path,
     const char *workspace_root,
+    int abi_device,
     char *err,
     size_t err_len
 );
@@ -45,6 +47,7 @@ int turboembed_ort_cuda_embed(
 void turboembed_ort_cuda_close(void *session);
 void turboembed_ort_cuda_free_values(float *values, size_t n);
 uint32_t turboembed_ort_cuda_dim(const void *session);
+int turboembed_ort_cuda_place(const void *session);
 }
 #endif
 
@@ -221,8 +224,14 @@ uint8_t pooling_for_alias(const char *alias, size_t len, uint8_t requested) {
 #endif
 
 #ifdef TURBOEMBED_ORT_CUDA
-bool wants_ort_cuda(turboembed_device device) {
-    return device == TURBOEMBED_DEVICE_CUDA || device == TURBOEMBED_DEVICE_AUTO;
+bool wants_ort(turboembed_device device) {
+    return device == TURBOEMBED_DEVICE_CUDA ||
+           device == TURBOEMBED_DEVICE_AUTO ||
+           device == TURBOEMBED_DEVICE_CPU;
+}
+
+turboembed_device ort_place_to_abi(int place) {
+    return place == 1 ? TURBOEMBED_DEVICE_CPU : TURBOEMBED_DEVICE_CUDA;
 }
 #endif
 
@@ -383,7 +392,7 @@ turboembed_status turboembed_list_models(
         infos[0].alias.ptr = alias;
         infos[0].alias.len = name.size();
         infos[0].dim = turboembed_ort_cuda_dim(engine->ort_cuda);
-        infos[0].device = TURBOEMBED_DEVICE_CUDA;
+        infos[0].device = ort_place_to_abi(turboembed_ort_cuda_place(engine->ort_cuda));
         infos[0].ready = 1;
         *out_infos = infos;
         *out_count = 1;
@@ -482,14 +491,7 @@ turboembed_status turboembed_load_model(
     }
 
 #ifdef TURBOEMBED_ORT_CUDA
-    if (engine->device == TURBOEMBED_DEVICE_CPU) {
-        engine->set_error(
-            "TurboEmbed NVIDIA ORT is CUDA-only; CPU is not accepted as "
-            "success. Create the engine with TURBOEMBED_DEVICE_CUDA."
-        );
-        return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
-    }
-    if (wants_ort_cuda(engine->device)) {
+    if (wants_ort(engine->device)) {
         char err[1024];
         err[0] = '\0';
         void *session = turboembed_ort_cuda_open(
@@ -497,6 +499,7 @@ turboembed_status turboembed_load_model(
             alias_len,
             engine->config_path.empty() ? nullptr : engine->config_path.c_str(),
             TURBOEMBED_WORKSPACE_ROOT,
+            static_cast<int>(engine->device),
             err,
             sizeof(err)
         );
@@ -504,8 +507,11 @@ turboembed_status turboembed_load_model(
             engine->set_error(
                 err[0] != '\0'
                     ? err
-                    : "ORT CUDA session failed to open (CUDA EP / device "
-                      "allocator / IoBinding)"
+                    : (engine->device == TURBOEMBED_DEVICE_CPU
+                           ? "ORT CPU session failed to open"
+                           : "ORT CUDA session failed to open (CUDA EP / "
+                             "device allocator / IoBinding); CPU is not a "
+                             "fallback when CUDA was requested")
             );
             return TURBOEMBED_ERR_UNAVAILABLE;
         }
@@ -583,8 +589,9 @@ turboembed_status turboembed_load_model(
 #else
 #ifdef TURBOEMBED_ORT_CUDA
     engine->set_error(
-        "catalog alias requires TURBOEMBED_DEVICE_CUDA "
-        "(or AUTO that resolves to CUDA). This build is ORT CUDA only; "
+        "catalog alias requires TURBOEMBED_DEVICE_CUDA / AUTO "
+        "(CUDA EP, no CPU fallback) or TURBOEMBED_DEVICE_CPU "
+        "(explicit CPU EP). This build is ORT only; "
         "OpenVINO GenAI / Metal / TensorRT are not compiled in."
     );
     return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;

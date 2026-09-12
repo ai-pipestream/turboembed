@@ -103,7 +103,8 @@ make e2e-drift                # skip unless *_ADDR / DUMP_* set
 
 Without a real provider feature the stub answers `mock-embed` and returns
 `NOT_IMPLEMENTED` for catalog aliases (`minilm`, …). `--features ort-cuda`
-loads MiniLM through ORT CUDA + IoBinding device buffers (no CPU fallback).
+loads MiniLM through ORT CUDA + IoBinding (CUDA request never becomes CPU)
+or an explicit CPU EP when `Device::Cpu` is selected.
 On Intel, `--features genai` loads `ov::genai::TextEmbeddingPipeline` on
 **GPU** or **CPU** (no OVMS; a GPU request never silently becomes CPU).
 Receipts: `testdata/receipts/turboembed/nvidia-minilm.json`,

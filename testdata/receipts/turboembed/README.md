@@ -6,6 +6,7 @@ Not mocks. Not OVMS. Not a CPU EP pretending to be CUDA.
 | file | host | engine | device | command |
 |---|---|---|---|---|
 | `nvidia-minilm.json` | krick (RTX 4080 SUPER) | ORT CUDA EP + IoBinding | **CUDA** | `make test-turboembed-nvidia` |
+| `nvidia-minilm-cpu.json` | krick | ORT CPU EP (explicit `Device::Cpu`) | **CPU** | `make test-turboembed-nvidia` |
 | `intel-minilm.json` | krick-1 (Battlemage) | `ov::genai::TextEmbeddingPipeline` | **GPU** | `make test-turboembed-intel` |
 | `intel-minilm-cpu.json` | krick-1 | same pipeline, `"CPU"` device string | **CPU** | `make test-turboembed-intel` |
 

@@ -29,7 +29,9 @@
 //! `error_on_failure`, binds inputs/outputs on `AllocationDevice::CUDA`
 //! via IoBinding, and mean+L2 pools on the host after the device→host
 //! copy. `Engine::create(Device::Cuda)` then `load_model("minilm")` is
-//! the NVIDIA proof path. A CPU-resident output is a hard error.
+//! the NVIDIA CUDA proof path. A CUDA request never silently becomes
+//! CPU. `Device::Cpu` is an explicit CPU EP path (same ONNX, same
+//! mean+L2).
 
 #![allow(clippy::result_large_err)]
 
@@ -402,7 +404,8 @@ impl Engine {
     }
 
     /// Load a catalog alias. Stub: `mock-embed` / `mock` succeed.
-    /// `--features ort-cuda`: `minilm` loads ORT CUDA + IoBinding.
+    /// `--features ort-cuda`: `minilm` loads ORT CUDA + IoBinding on
+    /// [`Device::Cuda`] / [`Device::Auto`], or the CPU EP on [`Device::Cpu`].
     /// `--features genai`: `minilm` (and other `models/ov/<alias>` dirs)
     /// load `TextEmbeddingPipeline` on `"GPU"` or `"CPU"`.
     pub fn load_model(&self, alias: &str) -> Result<(), Error> {

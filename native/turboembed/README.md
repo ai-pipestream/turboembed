@@ -6,10 +6,11 @@ Default compile is a **linkable stub**: deterministic `mock-embed` plus
 `NOT_IMPLEMENTED` for catalog aliases / provider registration.
 
 `--features ort-cuda` (Rust crate) defines `TURBOEMBED_ORT_CUDA`. Catalog
-aliases such as `minilm` then call Rust hooks that load ONNX Runtime with
-the CUDA EP (`error_on_failure`), bind inputs/outputs on device buffers via
-IoBinding, and mean+L2 pool on the host after the CUDA→CPU copy. CPU is
-rejected. No silent CPU EP. See `docs/turboembed.md`.
+aliases such as `minilm` then call Rust hooks that load ONNX Runtime.
+`TURBOEMBED_DEVICE_CUDA` / AUTO use the CUDA EP (`error_on_failure`) and
+IoBinding device buffers — never a silent CPU fallback.
+`TURBOEMBED_DEVICE_CPU` is an explicit CPU EP path (same ONNX, same mean+L2).
+See `docs/turboembed.md`.
 
 `--features genai` (Rust crate) also compiles `src/genai.cpp` and defines
 `TURBOEMBED_GENAI`. Catalog aliases such as `minilm` then construct
