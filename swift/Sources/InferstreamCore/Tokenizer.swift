@@ -25,6 +25,18 @@ public struct TokenEncoding: Sendable {
     public var attentionMask: [UInt32]
     public var tokens: [String]
     public var offsets: [(UInt32, UInt32)]
+
+    public init(
+        inputIds: [UInt32],
+        attentionMask: [UInt32],
+        tokens: [String],
+        offsets: [(UInt32, UInt32)]
+    ) {
+        self.inputIds = inputIds
+        self.attentionMask = attentionMask
+        self.tokens = tokens
+        self.offsets = offsets
+    }
 }
 
 public enum TokenizerError: Error, LocalizedError, Sendable {
@@ -81,7 +93,10 @@ public final class LocalTokenizer: @unchecked Sendable {
         }
         if options.padToLongest {
             let longest = encodings.map(\.inputIds.count).max() ?? 0
-            let padId = UInt32(inner.convertTokenToId(inner.padToken ?? "") ?? 0)
+            let padId = UInt32(
+                inner.convertTokenToId("[PAD]")
+                    ?? inner.convertTokenToId("<pad>")
+                    ?? 0)
             for i in encodings.indices {
                 let pad = longest - encodings[i].inputIds.count
                 if pad > 0 {

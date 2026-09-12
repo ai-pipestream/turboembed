@@ -1,6 +1,7 @@
 import Foundation
 import InferstreamCore
 import MlxEngine
+import Synchronization
 
 /// In-process MLX backend. Embeddings via MLXEmbedders; generation via
 /// mlx-swift-lm. No FFI, no Python.
@@ -10,8 +11,7 @@ final class MlxBackend: ModelBackend, Sendable {
     let resolved: URL
     let engine: Engine
     let tokenizer: LocalTokenizer?
-    private let dimLock = NSLock()
-    private var cachedDim: Int = 0
+    private let cachedDim = Mutex(0)
 
     var id: String { "mlx" }
     var hasTokenizer: Bool { tokenizer != nil }
@@ -35,9 +35,7 @@ final class MlxBackend: ModelBackend, Sendable {
     }
 
     func modelMetadata(name: String) async -> ModelMeta {
-        dimLock.lock()
-        let dim = cachedDim
-        dimLock.unlock()
+        let dim = cachedDim.withLock { $0 }
         return ModelMeta(
             platform: "mlx",
             versions: ["1"],
@@ -53,9 +51,9 @@ final class MlxBackend: ModelBackend, Sendable {
 
     func infer(_ request: Inference_ModelInferRequest) async throws -> Inference_ModelInferResponse {
         if isGeneration(request) {
-            var last = Inference_ModelInferResponse()
-            try await inferStream(request) { chunk in last = chunk }
-            return last
+            let box = ResponseBox()
+            try await inferStream(request) { chunk in box.value = chunk }
+            return box.value
         }
         let texts = try utf8Batch(request, name: "text")
         let maxBatch = Int(config.maxBatchSize ?? 32)
@@ -66,9 +64,7 @@ final class MlxBackend: ModelBackend, Sendable {
         let normalize = boolParam(request, "normalize") ?? (config.normalize ?? true)
         let embed = try await engine.embed(
             modelPath: resolved.path, texts: texts, normalize: normalize)
-        dimLock.lock()
-        cachedDim = embed.dimensions
-        dimLock.unlock()
+        cachedDim.withLock { $0 = embed.dimensions }
         var values: [Float] = []
         values.reserveCapacity(texts.count * embed.dimensions)
         for row in embed.vectors { values.append(contentsOf: row) }
@@ -102,18 +98,18 @@ final class MlxBackend: ModelBackend, Sendable {
             throw ServeError.invalid("generation request contained no prompt")
         }
         let maxTokens = Int(intParam(request, "max_tokens") ?? 256)
-        let mailbox = TokenMailbox()
+        let (stream, continuation) = AsyncStream<String>.makeStream()
         async let generate: GenerateStats = {
-            defer { mailbox.close() }
+            defer { continuation.finish() }
             return try await engine.generate(
                 modelPath: resolved.path,
                 prompt: text,
                 maxTokens: maxTokens
             ) { token in
-                mailbox.push(token)
+                continuation.yield(token)
             }
         }()
-        while let token = await mailbox.next() {
+        for await token in stream {
             try await write(tokenChunk(request, token: token, isFinal: false, tps: nil))
         }
         let stats = try await generate
@@ -206,48 +202,6 @@ private func intParam(_ request: Inference_ModelInferRequest, _ name: String) ->
     return nil
 }
 
-/// Bridges the sync mlx-swift-lm token callback onto an async consumer.
-private final class TokenMailbox: @unchecked Sendable {
-    private let lock = NSLock()
-    private var queue: [String] = []
-    private var closed = false
-    private var waiters: [CheckedContinuation<String?, Never>] = []
-
-    func push(_ token: String) {
-        lock.lock()
-        if let waiter = waiters.first {
-            waiters.removeFirst()
-            lock.unlock()
-            waiter.resume(returning: token)
-            return
-        }
-        queue.append(token)
-        lock.unlock()
-    }
-
-    func close() {
-        lock.lock()
-        closed = true
-        let pending = waiters
-        waiters.removeAll()
-        lock.unlock()
-        for waiter in pending { waiter.resume(returning: nil) }
-    }
-
-    func next() async -> String? {
-        lock.lock()
-        if !queue.isEmpty {
-            let token = queue.removeFirst()
-            lock.unlock()
-            return token
-        }
-        if closed {
-            lock.unlock()
-            return nil
-        }
-        return await withCheckedContinuation { continuation in
-            waiters.append(continuation)
-            lock.unlock()
-        }
-    }
+private final class ResponseBox: @unchecked Sendable {
+    var value = Inference_ModelInferResponse()
 }

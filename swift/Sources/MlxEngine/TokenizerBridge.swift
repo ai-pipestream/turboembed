@@ -50,10 +50,6 @@ struct HFTokenizerAdapter: MLXLMCommon.Tokenizer, @unchecked Sendable {
             }
             return out
         }
-        let ctx: [String: Any]? = additionalContext?.reduce(into: [:]) { acc, kv in
-            acc[kv.key] = kv.value
-        }
-        return try inner.applyChatTemplate(
-            messages: mapped, tools: tools, additionalContext: ctx)
+        return try inner.applyChatTemplate(messages: mapped)
     }
 }

@@ -156,7 +156,7 @@ struct ExtensionService: Inferstream_V1_InferstreamService.SimpleServiceProtocol
             info.platform = meta.platform
             info.versions = meta.versions
             info.embeddingDim = meta.embeddingDim
-            info.hasTokenizer = tokenizers.contains(name) || backend.hasTokenizer
+            info.hasTokenizer_p = tokenizers.contains(name) || backend.hasTokenizer
             models.append(info)
         }
         var response = Inferstream_V1_ListModelsResponse()
