@@ -109,6 +109,9 @@ cargo run -p inferstream-e2e -- --parity-cross \
 `make e2e-parity` with **no** addrs and **no** `DUMP_*` prints a skip line
 and exits 0 — CI cloud must not start remote GPUs.
 
+Popular-model drift (same floors, longer alias list) is `make e2e-drift`
+/ `--drift`. See [`turboembed-drift.md`](turboembed-drift.md).
+
 ```bash
 make e2e-parity DUMP_NVIDIA=testdata/e2e/goldens/nvidia \
                 DUMP_INTEL=testdata/e2e/goldens/intel

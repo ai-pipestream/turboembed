@@ -9,7 +9,8 @@ use tonic::Request;
 
 use inferstream_protocol::extension::inferstream_service_client::InferstreamServiceClient;
 use inferstream_protocol::extension::{
-    DetokenizeRequest, EmbedRequest, ListModelsRequest, RerankRequest, TokenIds, TokenizeRequest,
+    DetokenizeRequest, EmbedOutputFormat, EmbedRequest, ListModelsRequest, RerankRequest, TokenIds,
+    TokenizeRequest,
 };
 use inferstream_protocol::inference::grpc_inference_service_client::GrpcInferenceServiceClient;
 use inferstream_protocol::inference::ServerMetadataRequest;
@@ -186,6 +187,7 @@ async fn embed_returns_typed_vectors() {
             pooling: "mean".into(),
             normalize: Some(true),
             truncate_to: 128,
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -213,6 +215,80 @@ async fn embed_returns_typed_vectors() {
         .into_inner();
     assert_eq!(single.embeddings.len(), 1);
     assert_eq!(single.dim, 8);
+    assert!(single.packed_embeddings.is_empty());
+
+    guard.stop().await;
+}
+
+#[tokio::test]
+async fn embed_packed_bytes_xor_typed() {
+    let (channel, guard) = start_server(BASE_CONFIG).await;
+    let mut client = InferstreamServiceClient::new(channel);
+
+    let typed = client
+        .embed(EmbedRequest {
+            model_name: "mock-embed".into(),
+            texts: vec!["first".into(), "second".into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+
+    let packed = client
+        .embed(EmbedRequest {
+            model_name: "mock-embed".into(),
+            texts: vec!["first".into(), "second".into()],
+            output_format: EmbedOutputFormat::PackedBytes as i32,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+
+    assert!(packed.embeddings.is_empty(), "packed XOR typed");
+    assert_eq!(packed.dim, 8);
+    assert_eq!(packed.packed_embeddings.len(), 2 * 8 * 4);
+    let mut rebuilt = Vec::new();
+    for chunk in packed.packed_embeddings.chunks_exact(4) {
+        rebuilt.push(f32::from_le_bytes(chunk.try_into().unwrap()));
+    }
+    let flat: Vec<f32> = typed
+        .embeddings
+        .iter()
+        .flat_map(|e| e.values.iter().copied())
+        .collect();
+    assert_eq!(rebuilt, flat);
+
+    guard.stop().await;
+}
+
+#[tokio::test]
+async fn embed_stream_yields_one_chunk_per_text() {
+    let (channel, guard) = start_server(BASE_CONFIG).await;
+    let mut client = InferstreamServiceClient::new(channel);
+
+    let mut stream = client
+        .embed_stream(EmbedRequest {
+            model_name: "mock-embed".into(),
+            texts: vec!["a".into(), "b".into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+
+    let mut chunks = Vec::new();
+    while let Some(chunk) = stream.message().await.unwrap() {
+        chunks.push(chunk);
+    }
+    assert_eq!(chunks.len(), 2);
+    assert_eq!(chunks[0].index, 0);
+    assert_eq!(chunks[1].index, 1);
+    assert!(!chunks[0].r#final);
+    assert!(chunks[1].r#final);
+    assert_eq!(chunks[0].embedding.values.len(), 8);
+    assert!(chunks[0].packed_row.is_empty());
 
     guard.stop().await;
 }

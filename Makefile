@@ -13,6 +13,9 @@
 #   make fetch-corpus                       # SHA-pinned soak/STS text (optional)
 #   make e2e-parity                         # cross-arch cosine when *_ADDR set
 #   make e2e-parity-goldens TARGET=nvidia WRITE=1
+#   make e2e-drift                          # popular models × arches (same floors)
+#   make turboembed-stub                    # C++ ABI stub (native/turboembed)
+#   make test-turboembed                    # Rust crate ABI smoke
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -63,7 +66,8 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	e2e e2e-nvidia e2e-intel e2e-apple e2e-all e2e-mock \
 	fetch-e2e-nvidia fetch-e2e-intel fetch-e2e-apple fetch-e2e-mock \
 	fetch-corpus verify-corpus list-corpus update-corpus-manifest \
-	e2e-parity e2e-parity-goldens
+	e2e-parity e2e-parity-goldens e2e-drift \
+	turboembed-stub test-turboembed
 
 test:
 	$(CARGO) test --workspace
@@ -271,3 +275,34 @@ e2e-parity:
 	  exit 0; \
 	fi; \
 	$(E2E) --parity-cross $$peers $$dumps --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_CORPUS_ARGS)
+
+# Popular-model cosine drift. Same skip-if-no-addrs rule as e2e-parity.
+# Reuses pair_threshold floors. See docs/turboembed-drift.md.
+e2e-drift:
+	@peers=""; dumps=""; \
+	if [ -n "$(INFERSTREAM_E2E_NVIDIA_ADDR)" ]; then peers="$$peers --peer nvidia=$(INFERSTREAM_E2E_NVIDIA_ADDR)"; fi; \
+	if [ -n "$(INFERSTREAM_E2E_INTEL_ADDR)" ]; then peers="$$peers --peer intel=$(INFERSTREAM_E2E_INTEL_ADDR)"; fi; \
+	if [ -n "$(INFERSTREAM_E2E_APPLE_ADDR)" ]; then peers="$$peers --peer apple=$(INFERSTREAM_E2E_APPLE_ADDR)"; fi; \
+	if [ -n "$(DUMP_NVIDIA)" ]; then dumps="$$dumps --dump nvidia=$(DUMP_NVIDIA)"; fi; \
+	if [ -n "$(DUMP_INTEL)" ]; then dumps="$$dumps --dump intel=$(DUMP_INTEL)"; fi; \
+	if [ -n "$(DUMP_APPLE)" ]; then dumps="$$dumps --dump apple=$(DUMP_APPLE)"; fi; \
+	if [ -z "$$peers" ] && [ -z "$$dumps" ]; then \
+	  echo "e2e-drift: no INFERSTREAM_E2E_{NVIDIA,INTEL,APPLE}_ADDR or DUMP_* set; nothing to run (will not start remote GPUs)."; \
+	  echo "Models: minilm minilm-l12 mpnet bge-* e5-* gte-* nomic-embed-text (docs/turboembed-drift.md)"; \
+	  exit 0; \
+	fi; \
+	$(E2E) --drift $$peers $$dumps --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_CORPUS_ARGS)
+
+# C++ TurboEmbed ABI stub (no Rust). Writes native/turboembed/build/libturboembed.a
+CXX ?= c++
+AR ?= ar
+turboembed-stub:
+	mkdir -p native/turboembed/build
+	$(CXX) -std=c++17 -fPIC -O2 -I include \
+	  -c native/turboembed/src/stub.cpp \
+	  -o native/turboembed/build/stub.o
+	$(AR) rcs native/turboembed/build/libturboembed.a native/turboembed/build/stub.o
+	@echo "wrote native/turboembed/build/libturboembed.a"
+
+test-turboembed:
+	$(CARGO) test -p turboembed

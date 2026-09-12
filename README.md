@@ -74,6 +74,33 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/arch-nvidia` | `inferstream-nvidia` binary |
 | `crates/arch-intel` | `inferstream-intel` binary |
 | `crates/arch-apple` | `inferstream-apple` binary |
+| `crates/turboembed` | Safe zero-copy wrapper over the TurboEmbed C ABI (C++ stub today) |
+
+## TurboEmbed
+
+Universal **in-process embedding ABI** beside (not instead of) the arch
+gRPC servers. One C header, C++ on nvidia/intel, Swift `@_cdecl` on
+Apple, Rust crate on top. gRPC `Embed` / `EmbedStream` is a thin bonus
+on the existing `inferstream.v1.InferstreamService`.
+
+| piece | path |
+|---|---|
+| Architecture | [`docs/turboembed-architecture.md`](docs/turboembed-architecture.md) |
+| Frozen C ABI | [`include/turboembed.h`](include/turboembed.h) (Apple copy: `swift/Sources/TurboEmbedC/include/turboembed.h`) |
+| C++ stub | [`native/turboembed`](native/turboembed) |
+| Rust crate | `crates/turboembed` |
+| Swift shim | `swift/Sources/TurboEmbed` — [`docs/turboembed-swift.md`](docs/turboembed-swift.md) |
+| Drift matrix | [`docs/turboembed-drift.md`](docs/turboembed-drift.md) · `make e2e-drift` |
+
+```bash
+make turboembed-stub          # native/turboembed/build/libturboembed.a
+cargo test -p turboembed      # links the stub; ABI smoke (no GPU)
+make e2e-drift                # skip unless *_ADDR / DUMP_* set
+```
+
+The stub answers `mock-embed` and returns `NOT_IMPLEMENTED` for catalog
+aliases (`minilm`, …) until ORT / GenAI / MLX providers are wired.
+Inferstream servers are unchanged.
 
 ## Building each arch binary
 
@@ -313,6 +340,7 @@ cargo test --workspace          # 90+ tests, passes with zero GPU libraries
 make e2e-nvidia                 # live suite; FETCH=1 pulls missing weights first
 make fetch-corpus               # optional Tiny Shakespeare + STS (off in CI)
 make e2e-parity                 # cross-arch cosine when *_ADDR / DUMP_* set
+make e2e-drift                  # popular models × arches; same floors (docs/turboembed-drift.md)
 ```
 
 Fixed prompts (short / medium / empty / unicode / long-truncation) live as JSON goldens in `testdata/reference_embeddings/`. The deterministic-mock goldens run on every `cargo test` (cosine ≥ 0.999 plus exact-value and L2 checks, both directly and end-to-end through the `Embed` RPC); regenerate them with `cargo run -p inferstream-server --example gen_reference_embeddings`. GPU goldens for the real engines are `#[ignore]`d and feature-gated (`cargo test -p inferstream-backend-ort --features cuda -- --ignored gpu_golden` on krick) — see [`testdata/reference_embeddings/README.md`](testdata/reference_embeddings/README.md) for the schema and the krick/krick-1 regeneration walkthrough.

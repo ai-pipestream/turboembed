@@ -12,7 +12,10 @@
 //   * Embed — a typed convenience wrapper over ModelInfer for embedding
 //     clients that do not want to pack/unpack raw tensors. Pooling /
 //     normalize / truncate hints are forwarded to the backend as OIP
-//     InferParameters ("pooling", "normalize", "truncate").
+//     InferParameters ("pooling", "normalize", "truncate"). Output may
+//     be typed float arrays (default) or a packed little-endian FP32
+//     blob (`EMBED_OUTPUT_PACKED_BYTES`) — the TurboEmbed C ABI maps
+//     onto this RPC. EmbedStream streams one row per message.
 //   * ListModels — richer repository listing than per-model ModelReady /
 //     ModelMetadata round-trips: name, backend, readiness, platform and
 //     embedding dimension in one call.
@@ -38,7 +41,13 @@ service InferstreamService {
   // Embed a batch of texts. Thin typed wrapper over OIP ModelInfer: the
   // server packs the BYTES "text" tensor, forwards pooling/normalize/
   // truncate as InferParameters, and unpacks the FP32 "embedding" output.
+  // `texts` is already a batch. Choose typed float[] or packed LE FP32
+  // bytes via EmbedRequest.output_format (TurboEmbed C ABI mapping).
   rpc Embed(EmbedRequest) returns (EmbedResponse) {}
+
+  // Same request as Embed; one EmbedChunk per input text (and a final
+  // flag on the last). Maps to turboembed_embed_stream.
+  rpc EmbedStream(EmbedRequest) returns (stream EmbedChunk) {}
 
   // List every configured model with backend, readiness and shape info.
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse) {}
@@ -107,8 +116,17 @@ message DetokenizeResponse {
   repeated string texts = 1;
 }
 
+// How Embed / EmbedStream encode vectors. Default TYPED keeps today's
+// clients unchanged. PACKED_BYTES is the TurboEmbed / Java cheap path
+// (one LE FP32 blob, same layout as OIP raw_output_contents).
+enum EmbedOutputFormat {
+  EMBED_OUTPUT_TYPED = 0;
+  EMBED_OUTPUT_PACKED_BYTES = 1;
+}
+
 message EmbedRequest {
   string model_name = 1;
+  // Batch of texts (n=1 is the single-text case). Already the batch API.
   repeated string texts = 2;
   // Pooling override: "mean" or "cls". Empty = backend/model default.
   // Forwarded to the backend as InferParameter "pooling".
@@ -119,19 +137,34 @@ message EmbedRequest {
   // Truncate inputs to at most this many tokens (0 = model default).
   // Forwarded to the backend as InferParameter "truncate".
   uint32 truncate_to = 5;
+  // Typed float arrays (default) or packed little-endian FP32 bytes.
+  EmbedOutputFormat output_format = 6;
 }
 
 message EmbedResponse {
   // Embedding dimension (columns of every vector below).
   uint32 dim = 1;
-  // One embedding per input text, in request order.
+  // One embedding per input text, in request order. Empty when
+  // output_format == EMBED_OUTPUT_PACKED_BYTES (see packed_embeddings).
   repeated Embedding embeddings = 2;
   string model_name = 3;
   string model_version = 4;
+  // Row-major little-endian FP32 blob, length = count * dim * 4.
+  // Populated when output_format == EMBED_OUTPUT_PACKED_BYTES.
+  bytes packed_embeddings = 5;
 }
 
 message Embedding {
   repeated float values = 1;
+}
+
+// One row of an EmbedStream. Typed and packed are mutually exclusive
+// based on the request's output_format (same rule as EmbedResponse).
+message EmbedChunk {
+  uint32 index = 1;
+  Embedding embedding = 2;
+  bytes packed_row = 3;
+  bool final = 4;
 }
 
 message ListModelsRequest {}

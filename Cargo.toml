@@ -16,6 +16,7 @@ members = [
     "crates/fetch",
     "crates/xtask",
     "crates/e2e",
+    "crates/turboembed",
 ]
 
 [workspace.package]

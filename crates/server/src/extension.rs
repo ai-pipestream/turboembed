@@ -1,19 +1,22 @@
 //! The `inferstream.v1.InferstreamService` implementation — the clearly
 //! marked extension surface next to the interoperable OIP service:
-//! Tokenize / Detokenize / Embed / ListModels / Rerank.
+//! Tokenize / Detokenize / Embed / EmbedStream / ListModels / Rerank.
+//! Embed maps the TurboEmbed C ABI (typed float[] or packed LE FP32).
 
 use std::collections::HashMap;
+use std::pin::Pin;
 use std::sync::Arc;
 
+use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 use tracing::debug;
 
 use inferstream_backend::{Backend, BackendError, Registry, TokenizeOptions};
 use inferstream_protocol::extension::inferstream_service_server::InferstreamService;
 use inferstream_protocol::extension::{
-    DetokenizeRequest, DetokenizeResponse, EmbedRequest, EmbedResponse, Embedding,
-    ListModelsRequest, ListModelsResponse, ModelInfo, RerankRequest, RerankResponse, RerankResult,
-    TokenizeRequest, TokenizeResponse,
+    DetokenizeRequest, DetokenizeResponse, EmbedChunk, EmbedOutputFormat, EmbedRequest,
+    EmbedResponse, Embedding, ListModelsRequest, ListModelsResponse, ModelInfo, RerankRequest,
+    RerankResponse, RerankResult, TokenizeRequest, TokenizeResponse,
 };
 use inferstream_protocol::inference::{
     infer_parameter::ParameterChoice, model_infer_request::InferInputTensor, InferParameter,
@@ -42,6 +45,136 @@ impl ExtensionService {
         self.registry
             .lookup(model_name)
             .ok_or_else(|| Status::not_found(format!("model {model_name:?} is not configured")))
+    }
+
+    /// Shared Embed / EmbedStream path: BYTES `text` → FP32 rows.
+    async fn embed_rows(&self, req: &EmbedRequest) -> Result<Embedded, Status> {
+        if req.texts.is_empty() {
+            return Err(Status::invalid_argument("texts must not be empty"));
+        }
+        let backend = self.backend_for(&req.model_name)?;
+
+        let mut parameters = HashMap::new();
+        if !req.pooling.is_empty() {
+            parameters.insert("pooling".to_string(), string_param(&req.pooling));
+        }
+        if let Some(normalize) = req.normalize {
+            parameters.insert("normalize".to_string(), bool_param(normalize));
+        }
+        if req.truncate_to > 0 {
+            parameters.insert(
+                "truncate".to_string(),
+                int_param(i64::from(req.truncate_to)),
+            );
+        }
+        let text_bytes: Vec<&[u8]> = req.texts.iter().map(|t| t.as_bytes()).collect();
+        let infer_request = ModelInferRequest {
+            model_name: req.model_name.clone(),
+            parameters,
+            inputs: vec![InferInputTensor {
+                name: "text".to_string(),
+                datatype: DataType::Bytes.as_oip().to_string(),
+                shape: vec![req.texts.len() as i64],
+                parameters: HashMap::new(),
+                contents: None,
+            }],
+            raw_input_contents: vec![pack_bytes(&text_bytes)],
+            ..Default::default()
+        };
+        debug!(model = %req.model_name, batch = req.texts.len(), "embed");
+        let response = backend.infer(infer_request).await.map_err(status_from)?;
+
+        let (index, output) = response
+            .outputs
+            .iter()
+            .enumerate()
+            .find(|(_, o)| o.name == "embedding")
+            .ok_or_else(|| {
+                Status::internal("backend returned no output tensor named \"embedding\"")
+            })?;
+        if output.datatype != DataType::Fp32.as_oip() {
+            return Err(Status::internal(format!(
+                "output \"embedding\" must be FP32, backend returned {:?}",
+                output.datatype
+            )));
+        }
+        let raw = response
+            .raw_output_contents
+            .get(index)
+            .ok_or_else(|| Status::internal("backend returned no raw content for \"embedding\""))?;
+        let values =
+            unpack_fp32(raw).map_err(|e| Status::internal(format!("malformed FP32 blob: {e}")))?;
+        let dim = output
+            .shape
+            .last()
+            .copied()
+            .filter(|&d| d > 0)
+            .ok_or_else(|| Status::internal("embedding output reported an empty shape"))?
+            as usize;
+        if values.len() % dim != 0 {
+            return Err(Status::internal(format!(
+                "embedding blob length {} is not a multiple of dim {dim}",
+                values.len()
+            )));
+        }
+        let n = values.len() / dim;
+        if n != req.texts.len() {
+            return Err(Status::internal(format!(
+                "backend returned {n} embeddings for {} texts",
+                req.texts.len()
+            )));
+        }
+        Ok(Embedded {
+            dim: dim as u32,
+            values,
+            model_name: response.model_name,
+            model_version: response.model_version,
+        })
+    }
+}
+
+struct Embedded {
+    dim: u32,
+    values: Vec<f32>,
+    model_name: String,
+    model_version: String,
+}
+
+fn packed_le_f32(values: &[f32]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(values.len() * 4);
+    for v in values {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    out
+}
+
+fn embed_output_format(req: &EmbedRequest) -> EmbedOutputFormat {
+    EmbedOutputFormat::try_from(req.output_format).unwrap_or(EmbedOutputFormat::Typed)
+}
+
+fn encode_embed_response(req: &EmbedRequest, rows: Embedded) -> EmbedResponse {
+    let dim = rows.dim as usize;
+    match embed_output_format(req) {
+        EmbedOutputFormat::PackedBytes => EmbedResponse {
+            dim: rows.dim,
+            embeddings: Vec::new(),
+            model_name: rows.model_name,
+            model_version: rows.model_version,
+            packed_embeddings: packed_le_f32(&rows.values),
+        },
+        EmbedOutputFormat::Typed => EmbedResponse {
+            dim: rows.dim,
+            embeddings: rows
+                .values
+                .chunks_exact(dim)
+                .map(|chunk| Embedding {
+                    values: chunk.to_vec(),
+                })
+                .collect(),
+            model_name: rows.model_name,
+            model_version: rows.model_version,
+            packed_embeddings: Vec::new(),
+        },
     }
 }
 
@@ -130,96 +263,43 @@ impl InferstreamService for ExtensionService {
         request: Request<EmbedRequest>,
     ) -> Result<Response<EmbedResponse>, Status> {
         let req = request.into_inner();
-        if req.texts.is_empty() {
-            return Err(Status::invalid_argument("texts must not be empty"));
-        }
-        let backend = self.backend_for(&req.model_name)?;
+        let rows = self.embed_rows(&req).await?;
+        Ok(Response::new(encode_embed_response(&req, rows)))
+    }
 
-        // Wrap into the OIP ModelInfer convention: BYTES "text" tensor plus
-        // pooling / normalize / truncate as InferParameters.
-        let mut parameters = HashMap::new();
-        if !req.pooling.is_empty() {
-            parameters.insert("pooling".to_string(), string_param(&req.pooling));
-        }
-        if let Some(normalize) = req.normalize {
-            parameters.insert("normalize".to_string(), bool_param(normalize));
-        }
-        if req.truncate_to > 0 {
-            parameters.insert(
-                "truncate".to_string(),
-                int_param(i64::from(req.truncate_to)),
-            );
-        }
-        let text_bytes: Vec<&[u8]> = req.texts.iter().map(|t| t.as_bytes()).collect();
-        let infer_request = ModelInferRequest {
-            model_name: req.model_name.clone(),
-            parameters,
-            inputs: vec![InferInputTensor {
-                name: "text".to_string(),
-                datatype: DataType::Bytes.as_oip().to_string(),
-                shape: vec![req.texts.len() as i64],
-                parameters: HashMap::new(),
-                contents: None,
-            }],
-            raw_input_contents: vec![pack_bytes(&text_bytes)],
-            ..Default::default()
-        };
-        debug!(model = %req.model_name, batch = req.texts.len(), "embed");
-        let response = backend.infer(infer_request).await.map_err(status_from)?;
+    type EmbedStreamStream =
+        Pin<Box<dyn Stream<Item = Result<EmbedChunk, Status>> + Send + 'static>>;
 
-        // Unpack the FP32 "embedding" output: [d] for one text, [n, d] batch.
-        let (index, output) = response
-            .outputs
-            .iter()
-            .enumerate()
-            .find(|(_, o)| o.name == "embedding")
-            .ok_or_else(|| {
-                Status::internal("backend returned no output tensor named \"embedding\"")
-            })?;
-        if output.datatype != DataType::Fp32.as_oip() {
-            return Err(Status::internal(format!(
-                "output \"embedding\" must be FP32, backend returned {:?}",
-                output.datatype
-            )));
+    async fn embed_stream(
+        &self,
+        request: Request<EmbedRequest>,
+    ) -> Result<Response<Self::EmbedStreamStream>, Status> {
+        let req = request.into_inner();
+        let packed = embed_output_format(&req) == EmbedOutputFormat::PackedBytes;
+        let rows = self.embed_rows(&req).await?;
+        let dim = rows.dim as usize;
+        let n = if dim == 0 { 0 } else { rows.values.len() / dim };
+        let mut chunks = Vec::with_capacity(n);
+        for i in 0..n {
+            let row = &rows.values[i * dim..(i + 1) * dim];
+            chunks.push(Ok(EmbedChunk {
+                index: i as u32,
+                embedding: if packed {
+                    Embedding::default()
+                } else {
+                    Embedding {
+                        values: row.to_vec(),
+                    }
+                },
+                packed_row: if packed {
+                    packed_le_f32(row)
+                } else {
+                    Vec::new()
+                },
+                r#final: i + 1 == n,
+            }));
         }
-        let raw = response
-            .raw_output_contents
-            .get(index)
-            .ok_or_else(|| Status::internal("backend returned no raw content for \"embedding\""))?;
-        let values =
-            unpack_fp32(raw).map_err(|e| Status::internal(format!("malformed FP32 blob: {e}")))?;
-        let dim = output
-            .shape
-            .last()
-            .copied()
-            .filter(|&d| d > 0)
-            .ok_or_else(|| Status::internal("embedding output reported an empty shape"))?
-            as usize;
-        if values.len() % dim != 0 {
-            return Err(Status::internal(format!(
-                "embedding blob length {} is not a multiple of dim {dim}",
-                values.len()
-            )));
-        }
-        let rows: Vec<Embedding> = values
-            .chunks_exact(dim)
-            .map(|chunk| Embedding {
-                values: chunk.to_vec(),
-            })
-            .collect();
-        if rows.len() != req.texts.len() {
-            return Err(Status::internal(format!(
-                "backend returned {} embeddings for {} texts",
-                rows.len(),
-                req.texts.len()
-            )));
-        }
-        Ok(Response::new(EmbedResponse {
-            dim: dim as u32,
-            embeddings: rows,
-            model_name: response.model_name,
-            model_version: response.model_version,
-        }))
+        Ok(Response::new(Box::pin(tokio_stream::iter(chunks))))
     }
 
     async fn list_models(

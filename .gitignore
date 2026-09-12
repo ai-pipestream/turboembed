@@ -18,5 +18,6 @@
 # Committed fixtures + sts-pairs.jsonl stay in git.
 /testdata/corpus/tiny-shakespeare.txt
 native/mlx-engine/.build/
+native/turboembed/build/
 swift/.build/
 .DS_Store

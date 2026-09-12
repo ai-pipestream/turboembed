@@ -3,7 +3,8 @@ import GRPCCore
 import InferstreamCore
 
 /// `inferstream.v1.InferstreamService` — Tokenize / Detokenize / Embed /
-/// ListModels / Rerank. Same shape as the Rust extension service.
+/// EmbedStream / ListModels / Rerank. Same shape as the Rust extension
+/// service. Embed is the TurboEmbed gRPC mapping (typed or packed bytes).
 struct ExtensionService: Inferstream_V1_InferstreamService.SimpleServiceProtocol {
     let registry: Registry
     let tokenizers: TokenizerMap
@@ -132,12 +133,52 @@ struct ExtensionService: Inferstream_V1_InferstreamService.SimpleServiceProtocol
         response.dim = UInt32(dim)
         response.modelName = result.modelName
         response.modelVersion = result.modelVersion
-        response.embeddings = values.chunks(of: dim).map { slice in
-            var emb = Inferstream_V1_Embedding()
-            emb.values = Array(slice)
-            return emb
+        if request.outputFormat == .packedBytes {
+            var blob = Data()
+            blob.reserveCapacity(values.count * 4)
+            for value in values {
+                var le = value.bitPattern.littleEndian
+                withUnsafeBytes(of: &le) { blob.append(contentsOf: $0) }
+            }
+            response.packedEmbeddings = blob
+        } else {
+            response.embeddings = values.chunks(of: dim).map { slice in
+                var emb = Inferstream_V1_Embedding()
+                emb.values = Array(slice)
+                return emb
+            }
         }
         return response
+    }
+
+    func embedStream(
+        request: Inferstream_V1_EmbedRequest,
+        response: RPCWriter<Inferstream_V1_EmbedChunk>,
+        context: ServerContext
+    ) async throws {
+        let full = try await embed(request: request, context: context)
+        if request.outputFormat == .packedBytes {
+            let dim = Int(full.dim)
+            let rowBytes = dim * 4
+            let count = rowBytes == 0 ? 0 : full.packedEmbeddings.count / rowBytes
+            for i in 0..<count {
+                var chunk = Inferstream_V1_EmbedChunk()
+                chunk.index = UInt32(i)
+                let start = full.packedEmbeddings.startIndex + (i * rowBytes)
+                let end = start + rowBytes
+                chunk.packedRow = full.packedEmbeddings[start..<end]
+                chunk.final = i + 1 == count
+                try await response.write(chunk)
+            }
+            return
+        }
+        for (i, emb) in full.embeddings.enumerated() {
+            var chunk = Inferstream_V1_EmbedChunk()
+            chunk.index = UInt32(i)
+            chunk.embedding = emb
+            chunk.final = i + 1 == full.embeddings.count
+            try await response.write(chunk)
+        }
     }
 
     func listModels(
