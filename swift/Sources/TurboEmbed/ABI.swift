@@ -40,7 +40,10 @@ private final class EngineBox: @unchecked Sendable {
     }
 
     var errorCString: UnsafePointer<CChar> {
-        UnsafePointer(lastErrorPtr ?? StaticNames.empty.ptr)
+        if let lastErrorPtr {
+            return UnsafePointer(lastErrorPtr)
+        }
+        return StaticNames.empty.ptr
     }
 
     private func refreshErrorPtr() {
@@ -49,16 +52,36 @@ private final class EngineBox: @unchecked Sendable {
     }
 }
 
-private enum TLS {
-    static var createError: String = "" {
-        didSet {
-            createErrorPtr.map { free($0) }
-            createErrorPtr = createError.isEmpty ? nil : strdup(createError)
+/// Thread-local-ish create error. The ABI is not Sync on one engine;
+/// this slot is locked for the null-engine `turboembed_last_error` path.
+private final class TLS: @unchecked Sendable {
+    static let shared = TLS()
+    private let lock = NSLock()
+    private var message = ""
+    private var ptr: UnsafeMutablePointer<CChar>?
+
+    var createError: String {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return message
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            message = newValue
+            ptr.map { free($0) }
+            ptr = newValue.isEmpty ? nil : strdup(newValue)
         }
     }
-    static var createErrorPtr: UnsafeMutablePointer<CChar>?
-    static var createErrorCString: UnsafePointer<CChar> {
-        UnsafePointer(createErrorPtr ?? StaticNames.empty.ptr)
+
+    var createErrorCString: UnsafePointer<CChar> {
+        lock.lock()
+        defer { lock.unlock() }
+        if let ptr {
+            return UnsafePointer(ptr)
+        }
+        return StaticNames.empty.ptr
     }
 }
 
@@ -144,7 +167,7 @@ public func turboembed_last_error(_ engine: OpaquePointer?) -> UnsafePointer<CCh
     if let engine, let box = bridge(engine) {
         return box.errorCString
     }
-    return TLS.createErrorCString
+    return TLS.shared.createErrorCString
 }
 
 @_cdecl("turboembed_engine_create")
@@ -154,7 +177,7 @@ public func turboembed_engine_create(
     _ out: UnsafeMutablePointer<OpaquePointer?>?
 ) -> turboembed_status {
     guard let out else {
-        TLS.createError = "out pointer is null"
+        TLS.shared.createError = "out pointer is null"
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
     out.pointee = nil
@@ -186,20 +209,20 @@ public func turboembed_engine_create(
                     "[turboembed] mlx ping device=\(ping.device) metal=true matmul_ok=\(ping.matmulOk) — FP MiniLM path is live\n",
                     stderr)
             } else if device == TURBOEMBED_DEVICE_METAL {
-                TLS.createError =
+                TLS.shared.createError =
                     "TURBOEMBED_DEVICE_METAL but ping device=\(ping.device) metal=false — refusing mock"
                 return TURBOEMBED_ERR_UNAVAILABLE
             }
         } catch {
             if device == TURBOEMBED_DEVICE_METAL {
-                TLS.createError =
+                TLS.shared.createError =
                     "MLX Metal create failed: \(error) — refusing C++/mock stub"
                 return TURBOEMBED_ERR_UNAVAILABLE
             }
         }
     }
     out.pointee = OpaquePointer(Unmanaged.passRetained(box).toOpaque())
-    TLS.createError = ""
+    TLS.shared.createError = ""
     return TURBOEMBED_OK
 }
 
@@ -279,8 +302,8 @@ public func turboembed_load_model(
     }
     let name = aliasName(alias, aliasLen)
     if let mlx = box.mlx {
-        var model = box.mlxAliases[name] ?? MlxProvider.resolve(alias: name, catalog: box.catalog)
-        guard var model else {
+        guard var model = box.mlxAliases[name] ?? MlxProvider.resolve(alias: name, catalog: box.catalog)
+        else {
             box.lastError = MlxProviderError.missingWeights(name).localizedDescription
             return TURBOEMBED_ERR_NOT_FOUND
         }
@@ -389,7 +412,7 @@ public func turboembed_register_provider(
     _ vtbl: UnsafePointer<turboembed_provider_vtbl>?
 ) -> turboembed_status {
     _ = vtbl
-    TLS.createError = "turboembed_register_provider is reserved for MLX / model2vec plugins"
+    TLS.shared.createError = "turboembed_register_provider is reserved for MLX / model2vec plugins"
     return TURBOEMBED_ERR_NOT_IMPLEMENTED
 }
 
@@ -517,7 +540,7 @@ private func allocCString(_ value: String) -> turboembed_str {
     let n = value.utf8.count + 1
     let alias = UnsafeMutablePointer<CChar>.allocate(capacity: n)
     value.utf8CString.withUnsafeBufferPointer { src in
-        alias.assign(from: src.baseAddress!, count: n)
+        alias.update(from: src.baseAddress!, count: n)
     }
     return turboembed_str(ptr: alias, len: value.utf8.count)
 }
