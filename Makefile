@@ -83,7 +83,7 @@ test-fetch:
 # MiniLM ONNX the catalog points at. See docs/turboembed.md.
 test-turboembed-nvidia:
 	LD_LIBRARY_PATH="$(CURDIR)/.libs/nvidia/lib:$(LD_LIBRARY_PATH)" \
-		$(CARGO) test -p turboembed --features ort-cuda -- --ignored --nocapture
+		$(CARGO) test -p turboembed --features ort-cuda -- --include-ignored --nocapture
 
 fetch-embeddings:
 	$(FETCH) $(ALIAS_ARGS)

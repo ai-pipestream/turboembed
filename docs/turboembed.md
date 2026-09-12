@@ -4,13 +4,15 @@
 catalog embed ABI (v1). Clients create an engine, `load_model("minilm")`,
 and `embed_one` / `embed` to get a real FP32 sentence vector.
 
-There is **no mock path** for catalog aliases and **no silent CPU
-fallback**. Without a real provider feature the stub answers `mock-embed`
-and returns `NOT_IMPLEMENTED` for `minilm` (and every other catalog name).
+There is **no mock path** for catalog aliases and **no silent device
+swap**. A CUDA request never becomes CPU. Explicit `TURBOEMBED_DEVICE_CPU`
+is a real CPU EP path. Without a real provider feature the stub answers
+`mock-embed` and returns `NOT_IMPLEMENTED` for `minilm` (and every other
+catalog name).
 
 | arch | provider | crate feature | create device |
 |---|---|---|---|
-| nvidia | ONNX Runtime **CUDA EP** + **IoBinding device buffers** | `ort-cuda` | `TURBOEMBED_DEVICE_CUDA` |
+| nvidia | ONNX Runtime **CUDA EP** + IoBinding, or explicit **CPU EP** | `ort-cuda` | `TURBOEMBED_DEVICE_CUDA` or `TURBOEMBED_DEVICE_CPU` |
 | intel | `ov::genai::TextEmbeddingPipeline` on `"GPU"` | `genai` | `TURBOEMBED_DEVICE_OPENVINO_GPU` |
 | apple | MLX (Swift `@_cdecl`, other binary) | — | `TURBOEMBED_DEVICE_METAL` |
 
@@ -32,7 +34,7 @@ Exact commands that produce `testdata/receipts/turboembed/nvidia-minilm.json`:
 
 ```bash
 export LD_LIBRARY_PATH="$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}"
-cargo test -p turboembed --features ort-cuda -- --ignored --nocapture
+cargo test -p turboembed --features ort-cuda -- --include-ignored --nocapture
 ```
 
 Equivalent Make target (sets `LD_LIBRARY_PATH` for you):
@@ -57,10 +59,13 @@ The ignored tests:
 6. Writes the receipt on success (`device=CUDA`, `dims`, `worst_cosine`,
    `pass=true`, git sha, the commands above).
 
-Without `--features ort-cuda`, `load_model("minilm")` on a CUDA engine
-returns `NOT_IMPLEMENTED` and names `--features ort-cuda`.
-`Engine::create(Device::Cpu)` + `load_model("minilm")` is
-`UNSUPPORTED_DEVICE` when the feature is on (CPU is not success).
+Without `--features ort-cuda`, `load_model("minilm")` returns
+`NOT_IMPLEMENTED` and names `--features ort-cuda`.
+`Engine::create(Device::Cuda)` + `load_model("minilm")` fails loud if
+the CUDA EP is missing (CPU is not a fallback).
+`Engine::create(Device::Cpu)` + `load_model("minilm")` is a real CPU EP
+session (same ONNX, same mean+L2). Receipt:
+`testdata/receipts/turboembed/nvidia-minilm-cpu.json`.
 `backend = "mock"` in a catalog file is rejected.
 
 ## C ABI

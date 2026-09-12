@@ -9,7 +9,7 @@
 //!
 //! ```bash
 //! export LD_LIBRARY_PATH="$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}"
-//! cargo test -p turboembed --features ort-cuda -- --ignored --nocapture
+//! cargo test -p turboembed --features ort-cuda -- --include-ignored --nocapture
 //! ```
 //!
 //! Or: `make test-turboembed-nvidia`
@@ -147,18 +147,123 @@ fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>, Vec<f32>
     (dim, subset, hello)
 }
 
+/// CUDA request must stay on CUDA — never a silent CPU EP.
+/// When CUDA is present, create+load must list CUDA. When it is missing,
+/// the error must name CUDA and must not succeed as CPU.
 #[test]
-fn catalog_alias_on_cpu_is_not_cuda() {
-    let engine = Engine::create(Device::Cpu).expect("create CPU handle");
-    match engine.load_model(ALIAS) {
-        Err(Error::UnsupportedDevice(msg)) => {
+fn cuda_request_never_silently_uses_cpu() {
+    match Engine::create(Device::Cuda) {
+        Ok(engine) => match engine.load_model(ALIAS) {
+            Ok(()) => {
+                let info = engine.list_models().expect("list").get(0).expect("row");
+                assert_eq!(
+                    info.device,
+                    Device::Cuda,
+                    "CUDA request compiled a non-CUDA session"
+                );
+            }
+            Err(Error::Unavailable(msg)) | Err(Error::UnsupportedDevice(msg)) => {
+                let lower = msg.to_ascii_lowercase();
+                if lower.contains("not found") || lower.contains("onnx model") {
+                    return;
+                }
+                assert!(
+                    lower.contains("cuda"),
+                    "missing-CUDA error must name CUDA, got {msg}"
+                );
+                assert!(
+                    lower.contains("fallback")
+                        || lower.contains("not accepted")
+                        || lower.contains("cpu"),
+                    "missing-CUDA error must say CPU is not a fallback, got {msg}"
+                );
+            }
+            Err(other) => panic!("CUDA load must succeed on CUDA or fail loud, got {other:?}"),
+        },
+        Err(Error::UnsupportedDevice(msg)) | Err(Error::Unavailable(msg)) => {
+            let lower = msg.to_ascii_lowercase();
             assert!(
-                msg.to_ascii_lowercase().contains("cuda"),
-                "CPU load must name CUDA, got {msg}"
+                lower.contains("cuda"),
+                "missing-CUDA create must name CUDA, got {msg}"
             );
         }
-        other => panic!("CPU load must be UnsupportedDevice, got {other:?}"),
+        Err(other) => panic!("CUDA create must succeed or fail loud, got {other:?}"),
     }
+}
+
+#[test]
+fn minilm_ort_cpu_matches_golden() {
+    let root = workspace_root();
+    let (dim, _subset, hello) = load_subset(&root.join(GOLDEN));
+
+    let engine = Engine::create(Device::Cpu).unwrap_or_else(|e| {
+        panic!("turboembed_engine_create(CPU) failed: {e:?}");
+    });
+    engine.load_model(ALIAS).unwrap_or_else(|e| {
+        panic!("load_model({ALIAS}) via ORT CPU EP failed: {e:?}");
+    });
+
+    let info = engine.list_models().expect("list").get(0).expect("row");
+    assert_eq!(info.alias, ALIAS);
+    assert_eq!(
+        info.device,
+        Device::Cpu,
+        "explicit CPU must list CPU (not CUDA)"
+    );
+    assert!(info.ready);
+    assert_eq!(info.dim, dim as u32);
+
+    let opts = EmbedOptions {
+        pooling: Pooling::Mean,
+        normalize: Some(true),
+        ..Default::default()
+    };
+    let one = engine
+        .embed_one(ALIAS, "hello world", &opts)
+        .unwrap_or_else(|e| panic!("embed_one hello world on CPU failed: {e:?}"));
+    assert_eq!(one.dim(), dim);
+    let hello_cos = cosine(one.values(), &hello);
+    assert!(
+        hello_cos >= COSINE_FLOOR,
+        "CPU cosine vs nvidia golden hello world {hello_cos} < {COSINE_FLOOR}"
+    );
+
+    let cpu_engine = Engine::create(Device::Cpu).expect("create Device::Cpu again");
+    cpu_engine
+        .load_model(ALIAS)
+        .expect("second CPU load");
+    assert_eq!(
+        cpu_engine.list_models().unwrap().get(0).unwrap().device,
+        Device::Cpu
+    );
+
+    let receipt = serde_json::json!({
+        "schema_version": 1,
+        "crate": "turboembed",
+        "alias": ALIAS,
+        "arch": "nvidia",
+        "device": "CPU",
+        "provider": "ORT CPU EP (explicit Device::Cpu)",
+        "abi": "turboembed.h",
+        "abi_version": 1,
+        "pooling": "mean",
+        "normalize": true,
+        "dims": dim,
+        "text": "hello world",
+        "hello_world_cosine": hello_cos,
+        "threshold": COSINE_FLOOR,
+        "pass": true,
+        "git_sha": git_head(&root),
+        "host": hostname(),
+        "notes": "Explicit CPU EP. CUDA requests still fail loud if the CUDA EP is missing.",
+    });
+    let path = root.join("testdata/receipts/turboembed/nvidia-minilm-cpu.json");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("receipt dir");
+    }
+    fs::write(&path, serde_json::to_string_pretty(&receipt).unwrap() + "\n")
+        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    eprintln!("wrote {} cosine={hello_cos:.6}", path.display());
 }
 
 #[test]
@@ -253,7 +358,7 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
 
     let commands = [
         "export LD_LIBRARY_PATH=\"$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}\"",
-        "cargo test -p turboembed --features ort-cuda -- --ignored --nocapture",
+        "cargo test -p turboembed --features ort-cuda -- --include-ignored --nocapture",
         "make test-turboembed-nvidia",
     ];
     let receipt = serde_json::json!({
@@ -354,6 +459,67 @@ fn minilm_c_abi_embed_one_on_cuda() {
         assert!(
             c >= COSINE_FLOOR,
             "C ABI cosine vs nvidia golden {c} < {COSINE_FLOOR}"
+        );
+
+        turboembed_embed_result_free(out);
+        turboembed_engine_destroy(engine);
+    }
+}
+
+#[test]
+fn minilm_c_abi_embed_one_on_cpu() {
+    let root = workspace_root();
+    let (_, _, hello) = load_subset(&root.join(GOLDEN));
+
+    unsafe {
+        let mut engine: *mut turboembed_engine = std::ptr::null_mut();
+        let st = turboembed_engine_create(
+            turboembed_device::TURBOEMBED_DEVICE_CPU,
+            std::ptr::null(),
+            &mut engine,
+        );
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI create CPU: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(std::ptr::null())).to_string_lossy()
+        );
+        assert!(!engine.is_null());
+
+        let alias = ALIAS.as_bytes();
+        let st = turboembed_load_model(engine, alias.as_ptr().cast(), alias.len());
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI load minilm CPU: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(engine)).to_string_lossy()
+        );
+
+        let text = b"hello world";
+        let mut out: *mut turboembed_embed_result = std::ptr::null_mut();
+        let st = turboembed_embed_one(
+            engine,
+            alias.as_ptr().cast(),
+            alias.len(),
+            text.as_ptr().cast(),
+            text.len(),
+            std::ptr::null(),
+            &mut out,
+        );
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "C ABI embed_one CPU: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(engine)).to_string_lossy()
+        );
+        assert!(!out.is_null());
+        assert_eq!((*out).dim, 384);
+
+        let live = std::slice::from_raw_parts((*out).values, 384);
+        let c = cosine(live, &hello);
+        assert!(
+            c >= COSINE_FLOOR,
+            "C ABI CPU cosine vs nvidia golden {c} < {COSINE_FLOOR}"
         );
 
         turboembed_embed_result_free(out);

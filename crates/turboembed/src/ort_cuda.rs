@@ -1,16 +1,15 @@
-//! NVIDIA provider: ONNX Runtime CUDA EP + IoBinding device buffers.
+//! NVIDIA provider: ONNX Runtime CUDA EP + IoBinding, or an explicit CPU EP.
 //!
-//! Fail-loud contract:
-//! - CUDA EP is registered with `error_on_failure` (no silent CPU fallback).
-//! - A CUDA device allocator is created at load; failure means the EP is not live.
-//! - Inputs are copied onto `AllocationDevice::CUDA` before bind.
-//! - Outputs are bound to CUDA via `bind_output_to_device`.
-//! - After `run_binding`, the output tensor's allocation device must be CUDA.
-//!   A CPU-resident output is treated as a fake-CUDA session and errors.
+//! Device policy:
+//! - **CUDA** (and AUTO): CUDA EP with `error_on_failure`. No silent CPU
+//!   fallback. Device allocator + IoBinding outputs must reside on
+//!   `AllocationDevice::CUDA` and must not be CPU-accessible.
+//! - **CPU**: only when the ABI device is explicitly CPU. Host tensors +
+//!   `Session::run`. Same mean+L2 pooling. This is not a CUDA fallback.
 //!
 //! Pooling is the sentence-transformers MiniLM recipe: attention-mask-weighted
-//! mean over tokens, then L2 normalize. That math runs on the host after the
-//! hidden-state tensor is copied back from device memory.
+//! mean over tokens, then L2 normalize. On CUDA that math runs on the host
+//! after the hidden-state tensor is copied back from device memory.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -19,7 +18,7 @@ use inferstream_backend_ort::pool::{cls_pool, l2_normalize, mean_pool};
 use inferstream_backend_ort::Pooling;
 use ort::memory::{AllocationDevice, Allocator, AllocatorType, MemoryInfo, MemoryType};
 use ort::session::builder::GraphOptimizationLevel;
-use ort::session::Session;
+use ort::session::{Session, SessionInputValue};
 use ort::value::Tensor;
 use tokenizers::Tokenizer;
 
@@ -29,6 +28,27 @@ type Error = String;
 
 const DEFAULT_MAX_SEQ_LEN: usize = 512;
 
+/// Where this session is allowed to run. CUDA never becomes CPU.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OrtPlace {
+    Cuda,
+    Cpu,
+}
+
+impl OrtPlace {
+    /// ABI `turboembed_device`: AUTO(0) and CUDA(2) → CUDA; CPU(1) → CPU.
+    pub fn from_abi(device: i32) -> Result<Self, Error> {
+        match device {
+            1 => Ok(Self::Cpu),
+            0 | 2 => Ok(Self::Cuda),
+            other => Err(format!(
+                "ORT path does not handle ABI device {other}; \
+                 use TURBOEMBED_DEVICE_CUDA / AUTO or TURBOEMBED_DEVICE_CPU"
+            )),
+        }
+    }
+}
+
 pub struct OrtCudaSession {
     session: Mutex<Session>,
     tokenizer: Tokenizer,
@@ -36,10 +56,11 @@ pub struct OrtCudaSession {
     normalize: bool,
     input_names: Vec<String>,
     output_name: String,
-    /// Proven at load: CUDA device allocator exists for this session.
+    place: OrtPlace,
+    /// Proven at CUDA load: device allocator exists for this session.
     #[allow(dead_code)]
-    cuda_allocator: Allocator,
-    /// Sentence-embedding width after pooling (set by a CUDA warmup at load).
+    cuda_allocator: Option<Allocator>,
+    /// Sentence-embedding width after pooling (set by a warmup at load).
     embedding_dim: usize,
 }
 
@@ -124,18 +145,26 @@ impl OrtCudaSession {
         self.normalize
     }
 
-    pub fn load(spec: &CatalogModelSpec, workspace_root: &Path) -> Result<Self, Error> {
+    pub fn place(&self) -> OrtPlace {
+        self.place
+    }
+
+    pub fn load(
+        spec: &CatalogModelSpec,
+        workspace_root: &Path,
+        place: OrtPlace,
+    ) -> Result<Self, Error> {
         if !spec.backend.eq_ignore_ascii_case("ort") {
             return Err(format!(
                 "nvidia turboembed requires catalog backend=\"ort\", got {:?}",
                 spec.backend
             ));
         }
-        let device = spec.device.as_deref().unwrap_or("");
-        if !device.eq_ignore_ascii_case("cuda") {
+        let catalog_device = spec.device.as_deref().unwrap_or("");
+        if place == OrtPlace::Cuda && !catalog_device.eq_ignore_ascii_case("cuda") {
             return Err(format!(
-                "nvidia turboembed requires catalog device=\"cuda\", got {device:?}; \
-                 CPU or any other EP is not accepted"
+                "CUDA was requested but catalog device is {catalog_device:?}; \
+                 refusing to treat a non-cuda catalog entry as CUDA"
             ));
         }
         let model_path = spec.path.as_deref().ok_or_else(|| {
@@ -182,53 +211,70 @@ impl OrtCudaSession {
             .map_err(|e| e.to_string())?
             .unwrap_or(Pooling::Mean);
 
-        // error_on_failure: registration failure is a hard error, never a
-        // silent fall-through to CPUExecutionProvider.
         let mut builder = Session::builder()
             .map_err(|e| fail_load("failed to create ort session builder", e))?
             .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| fail_load("failed to configure ort session", e))?
-            .with_execution_providers([ort::ep::CUDA::default()
-                .with_device_id(0)
-                .build()
-                .error_on_failure()])
-            .map_err(|e| {
-                fail_load(
-                    "CUDA execution provider unavailable (no silent CPU fallback)",
-                    e,
-                )
-            })?;
+            .map_err(|e| fail_load("failed to configure ort session", e))?;
 
-        let session = builder
-            .commit_from_file(model_path)
-            .map_err(|e| fail_load("failed to load onnx model on CUDA EP", e))?;
-
-        // Creating a CUDA device allocator fails if the EP is not actually live.
-        let cuda_mem = MemoryInfo::new(
-            AllocationDevice::CUDA,
-            0,
-            AllocatorType::Device,
-            MemoryType::Default,
-        )
-        .map_err(|e| fail_load("CUDA MemoryInfo", e))?;
-        let cuda_allocator = Allocator::new(&session, cuda_mem).map_err(|e| {
-            fail_load(
-                "CUDA device allocator unavailable — CUDA EP is not live",
-                e,
-            )
-        })?;
-
-        let gpu_id = ort::ep::get_gpu_device().map_err(|e| {
-            fail_load(
-                "ort::ep::get_gpu_device failed; CUDA EP did not attach a GPU",
-                e,
-            )
-        })?;
-        if gpu_id < 0 {
-            return Err(format!(
-                "ort GPU device id {gpu_id} is not a real CUDA device"
-            ));
+        if place == OrtPlace::Cuda {
+            // error_on_failure: registration failure is a hard error,
+            // never a silent fall-through to CPUExecutionProvider.
+            builder = builder
+                .with_execution_providers([ort::ep::CUDA::default()
+                    .with_device_id(0)
+                    .build()
+                    .error_on_failure()])
+                .map_err(|e| {
+                    fail_load(
+                        "CUDA execution provider unavailable (no silent CPU fallback)",
+                        e,
+                    )
+                })?;
         }
+
+        let session = builder.commit_from_file(model_path).map_err(|e| {
+            fail_load(
+                match place {
+                    OrtPlace::Cuda => "failed to load onnx model on CUDA EP",
+                    OrtPlace::Cpu => "failed to load onnx model on CPU EP",
+                },
+                e,
+            )
+        })?;
+
+        let cuda_allocator = match place {
+            OrtPlace::Cuda => {
+                // Creating a CUDA device allocator fails if the EP is not live.
+                let cuda_mem = MemoryInfo::new(
+                    AllocationDevice::CUDA,
+                    0,
+                    AllocatorType::Device,
+                    MemoryType::Default,
+                )
+                .map_err(|e| fail_load("CUDA MemoryInfo", e))?;
+                let alloc = Allocator::new(&session, cuda_mem).map_err(|e| {
+                    fail_load(
+                        "CUDA device allocator unavailable — CUDA EP is not live; \
+                         CUDA was requested so CPU is not accepted",
+                        e,
+                    )
+                })?;
+                let gpu_id = ort::ep::get_gpu_device().map_err(|e| {
+                    fail_load(
+                        "ort::ep::get_gpu_device failed; CUDA EP did not attach a GPU",
+                        e,
+                    )
+                })?;
+                if gpu_id < 0 {
+                    return Err(format!(
+                        "ort GPU device id {gpu_id} is not a real CUDA device; \
+                         CUDA was requested so CPU is not accepted"
+                    ));
+                }
+                Some(alloc)
+            }
+            OrtPlace::Cpu => None,
+        };
 
         const KNOWN: [&str; 3] = ["input_ids", "attention_mask", "token_type_ids"];
         let mut input_names = Vec::new();
@@ -261,13 +307,17 @@ impl OrtCudaSession {
             normalize: spec.normalize.unwrap_or(true),
             input_names,
             output_name,
+            place,
             cuda_allocator,
             embedding_dim: 0,
         };
-        // One CUDA IoBinding pass at load: prove device buffers + set dim.
+        // One inference pass at load: prove the requested EP + set dim.
         let (dim, _) = loaded.embed_batch(&[String::from("x")])?;
         if dim == 0 {
-            return Err("CUDA warmup produced embedding dim 0".into());
+            return Err(format!(
+                "{:?} warmup produced embedding dim 0",
+                loaded.place
+            ));
         }
         loaded.embedding_dim = dim;
         Ok(loaded)
@@ -297,20 +347,56 @@ impl OrtCudaSession {
         }
 
         let shape = [batch as i64, seq as i64];
+        let dims = match self.place {
+            OrtPlace::Cuda => self.run_cuda(&input_ids, &attention_mask, &token_type_ids, shape)?,
+            OrtPlace::Cpu => self.run_cpu(&input_ids, &attention_mask, &token_type_ids, shape)?,
+        };
+        let (dims, hidden) = dims;
+
+        let mut pooled = match (self.pooling, dims.as_slice()) {
+            (Pooling::Mean, [b, s, d]) if *b as usize == batch && *s as usize == seq => {
+                mean_pool(&hidden, &attention_mask, batch, seq, *d as usize)
+            }
+            (Pooling::Cls, [b, s, d]) if *b as usize == batch && *s as usize == seq => {
+                cls_pool(&hidden, batch, seq, *d as usize)
+            }
+            (_, [b, _d]) if *b as usize == batch => hidden.to_vec(),
+            _ => {
+                return Err(format!(
+                    "unexpected output shape {dims:?} from {:?} (batch={batch}, seq={seq})",
+                    self.output_name
+                ))
+            }
+        };
+        let dim = pooled.len() / batch;
+        if self.normalize {
+            l2_normalize(&mut pooled, dim);
+        }
+        Ok((dim, pooled))
+    }
+
+    fn run_cuda(
+        &self,
+        input_ids: &[i64],
+        attention_mask: &[i64],
+        token_type_ids: &[i64],
+        shape: [i64; 2],
+    ) -> Result<(Vec<i64>, Vec<f32>), Error> {
         let mut cuda_inputs = Vec::new();
         for name in &self.input_names {
             let data = match name.as_str() {
-                "input_ids" => input_ids.clone(),
-                "attention_mask" => attention_mask.clone(),
-                "token_type_ids" => token_type_ids.clone(),
+                "input_ids" => input_ids.to_vec(),
+                "attention_mask" => attention_mask.to_vec(),
+                "token_type_ids" => token_type_ids.to_vec(),
                 _ => unreachable!("input names validated at load"),
             };
             let host = Tensor::from_array((shape, data))
                 .map_err(|e| format!("host tensor build failed: {e}"))?;
-            // Host → CUDA device buffer. `.to` uses ORT IoBinding internally
-            // and fails if the CUDA EP cannot receive the copy.
             let device = host.to(AllocationDevice::CUDA, 0).map_err(|e| {
-                format!("host→CUDA copy for {name} failed (not a real CUDA session): {e}")
+                format!(
+                    "host→CUDA copy for {name} failed (CUDA was requested; \
+                     CPU is not a fallback): {e}"
+                )
             })?;
             require_cuda_device(device.memory_info(), &format!("input {name}"))?;
             cuda_inputs.push((name.clone(), device));
@@ -347,43 +433,53 @@ impl OrtCudaSession {
             .synchronize_outputs()
             .map_err(|e| format!("IoBinding synchronize_outputs: {e}"))?;
 
-        let hidden_gpu = outputs.remove(self.output_name.as_str()).ok_or_else(|| {
-            format!("missing output {:?}", self.output_name)
-        })?;
+        let hidden_gpu = outputs
+            .remove(self.output_name.as_str())
+            .ok_or_else(|| format!("missing output {:?}", self.output_name))?;
         require_cuda_device(
             hidden_gpu.memory_info(),
             &format!("output {}", self.output_name),
         )?;
 
-        // Device → host for mean/L2. The graph ran on CUDA; pooling is the
-        // documented MiniLM host reduction (mask-weighted mean + L2).
         let hidden_cpu = hidden_gpu
             .to(AllocationDevice::CPU, 0)
             .map_err(|e| format!("CUDA→CPU copy of hidden states failed: {e}"))?;
         let (out_shape, hidden) = hidden_cpu
             .try_extract_tensor::<f32>()
             .map_err(|e| format!("output extraction failed: {e}"))?;
-        let dims: Vec<i64> = out_shape.iter().copied().collect();
+        Ok((out_shape.iter().copied().collect(), hidden.to_vec()))
+    }
 
-        let mut pooled = match (self.pooling, dims.as_slice()) {
-            (Pooling::Mean, [b, s, d]) if *b as usize == batch && *s as usize == seq => {
-                mean_pool(hidden, &attention_mask, batch, seq, *d as usize)
-            }
-            (Pooling::Cls, [b, s, d]) if *b as usize == batch && *s as usize == seq => {
-                cls_pool(hidden, batch, seq, *d as usize)
-            }
-            (_, [b, _d]) if *b as usize == batch => hidden.to_vec(),
-            _ => {
-                return Err(format!(
-                    "unexpected output shape {dims:?} from {:?} (batch={batch}, seq={seq})",
-                    self.output_name
-                ))
-            }
-        };
-        let dim = pooled.len() / batch;
-        if self.normalize {
-            l2_normalize(&mut pooled, dim);
+    fn run_cpu(
+        &self,
+        input_ids: &[i64],
+        attention_mask: &[i64],
+        token_type_ids: &[i64],
+        shape: [i64; 2],
+    ) -> Result<(Vec<i64>, Vec<f32>), Error> {
+        let mut feed: Vec<(&str, SessionInputValue<'_>)> = Vec::new();
+        for name in &self.input_names {
+            let data = match name.as_str() {
+                "input_ids" => input_ids.to_vec(),
+                "attention_mask" => attention_mask.to_vec(),
+                "token_type_ids" => token_type_ids.to_vec(),
+                _ => unreachable!("input names validated at load"),
+            };
+            let tensor = Tensor::from_array((shape, data))
+                .map_err(|e| format!("host tensor build failed: {e}"))?;
+            feed.push((name.as_str(), tensor.into()));
         }
-        Ok((dim, pooled))
+
+        let mut session = self
+            .session
+            .lock()
+            .map_err(|_| "ort session mutex poisoned".to_string())?;
+        let outputs = session
+            .run(feed)
+            .map_err(|e| format!("ORT CPU run failed: {e}"))?;
+        let (out_shape, hidden) = outputs[self.output_name.as_str()]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| format!("CPU output extraction failed: {e}"))?;
+        Ok((out_shape.iter().copied().collect(), hidden.to_vec()))
     }
 }

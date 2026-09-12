@@ -11,7 +11,7 @@ use std::slice;
 use inferstream_backend_ort::Pooling;
 
 use crate::catalog::{Arch, Catalog};
-use crate::ort_cuda::OrtCudaSession;
+use crate::ort_cuda::{OrtCudaSession, OrtPlace};
 
 fn write_err(err: *mut c_char, err_len: usize, msg: &str) {
     if err.is_null() || err_len == 0 {
@@ -56,11 +56,13 @@ pub unsafe extern "C" fn turboembed_ort_cuda_open(
     alias_len: usize,
     config_path: *const c_char,
     workspace_root: *const c_char,
+    abi_device: c_int,
     err: *mut c_char,
     err_len: usize,
 ) -> *mut OrtCudaSession {
     let result = (|| -> Result<OrtCudaSession, String> {
         let alias = view_to_str(alias, alias_len)?;
+        let place = OrtPlace::from_abi(abi_device)?;
         let cfg = c_string_opt(config_path)?;
         let root = match c_string_opt(workspace_root)? {
             Some(p) => p,
@@ -73,7 +75,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_open(
         let spec = catalog
             .resolve_embed(alias, Arch::Nvidia)
             .map_err(|e| e.to_string())?;
-        OrtCudaSession::load(spec, &root)
+        OrtCudaSession::load(spec, &root, place)
     })();
     match result {
         Ok(session) => Box::into_raw(Box::new(session)),
@@ -214,4 +216,16 @@ pub unsafe extern "C" fn turboembed_ort_cuda_dim(session: *const OrtCudaSession)
         return 0;
     }
     unsafe { &*session }.embedding_dim() as u32
+}
+
+/// 1 = CPU, 2 = CUDA (matches `turboembed_device`).
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_cuda_place(session: *const OrtCudaSession) -> c_int {
+    if session.is_null() {
+        return 0;
+    }
+    match unsafe { &*session }.place() {
+        OrtPlace::Cpu => 1,
+        OrtPlace::Cuda => 2,
+    }
 }

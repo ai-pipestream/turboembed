@@ -1,0 +1,20 @@
+{
+  "abi": "turboembed.h",
+  "abi_version": 1,
+  "alias": "minilm",
+  "arch": "nvidia",
+  "crate": "turboembed",
+  "device": "CPU",
+  "dims": 384,
+  "git_sha": "edfe9840417d99be18d22d78d1f2a2a5561178e4",
+  "hello_world_cosine": 0.9999997615814209,
+  "host": "krick",
+  "normalize": true,
+  "notes": "Explicit CPU EP. CUDA requests still fail loud if the CUDA EP is missing.",
+  "pass": true,
+  "pooling": "mean",
+  "provider": "ORT CPU EP (explicit Device::Cpu)",
+  "schema_version": 1,
+  "text": "hello world",
+  "threshold": 0.9900000095367432
+}
