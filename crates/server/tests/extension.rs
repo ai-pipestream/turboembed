@@ -287,7 +287,7 @@ async fn embed_stream_yields_one_chunk_per_text() {
     assert_eq!(chunks[1].index, 1);
     assert!(!chunks[0].r#final);
     assert!(chunks[1].r#final);
-    assert_eq!(chunks[0].embedding.values.len(), 8);
+    assert_eq!(chunks[0].embedding.as_ref().unwrap().values.len(), 8);
     assert!(chunks[0].packed_row.is_empty());
 
     guard.stop().await;

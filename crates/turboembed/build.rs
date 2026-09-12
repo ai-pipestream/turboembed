@@ -17,12 +17,33 @@ fn main() {
     println!("cargo:rerun-if-changed={}", stub.display());
     println!("cargo:rerun-if-changed={}", apple.display());
 
-    cc::Build::new()
+    let mut build = cc::Build::new();
+    build
         .cpp(true)
         .std("c++17")
         .file(&stub)
         .include(root.join("include"))
         .warnings(true)
-        .flag_if_supported("-Wno-unused-parameter")
-        .compile("turboembed_stub");
+        .flag_if_supported("-Wno-unused-parameter");
+    // This image's default `c++` is clang++ without a C++ stdlib. Prefer
+    // g++ on Linux unless the caller set CXX.
+    if std::env::var_os("CXX").is_none() && cfg!(target_os = "linux") {
+        build.compiler("g++");
+    }
+    // rust-lld / clang `cc` look for -lstdc++ via libstdc++.so (the
+    // unversioned symlink), which lives next to g++'s own libs — not
+    // always on the default search path.
+    if let Ok(out) = std::process::Command::new("g++")
+        .args(["-print-file-name=libstdc++.so"])
+        .output()
+    {
+        if let Ok(path) = String::from_utf8(out.stdout) {
+            if let Some(dir) = std::path::Path::new(path.trim()).parent() {
+                if dir.join("libstdc++.so").exists() {
+                    println!("cargo:rustc-link-search=native={}", dir.display());
+                }
+            }
+        }
+    }
+    build.compile("turboembed_stub");
 }

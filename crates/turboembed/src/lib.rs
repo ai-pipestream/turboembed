@@ -38,7 +38,6 @@ use ffi::{
     turboembed_list_models, turboembed_load_model, turboembed_model_info,
     turboembed_model_list_free, turboembed_output_format, turboembed_pooling,
     turboembed_register_provider, turboembed_status, turboembed_status_name, turboembed_str,
-    TURBOEMBED_ABI_VERSION,
 };
 
 /// Device the stub (and later providers) should target.
@@ -281,6 +280,7 @@ impl Drop for ModelList {
 /// Engine-owned embed result. Typed floats and packed bytes alias one buffer.
 ///
 /// Drop this **before** the [`Engine`] that produced it.
+#[derive(Debug)]
 pub struct Embeddings {
     raw: *mut turboembed_embed_result,
 }
@@ -543,6 +543,7 @@ unsafe fn str_view(s: turboembed_str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ffi::TURBOEMBED_ABI_VERSION;
 
     #[test]
     fn abi_version_matches_header() {

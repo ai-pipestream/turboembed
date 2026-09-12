@@ -14,7 +14,7 @@
 //     normalize / truncate hints are forwarded to the backend as OIP
 //     InferParameters ("pooling", "normalize", "truncate"). Output may
 //     be typed float arrays (default) or a packed little-endian FP32
-//     blob (`EMBED_OUTPUT_PACKED_BYTES`) — the TurboEmbed C ABI maps
+//     blob (`PACKED_BYTES`) — the TurboEmbed C ABI maps
 //     onto this RPC. EmbedStream streams one row per message.
 //   * ListModels — richer repository listing than per-model ModelReady /
 //     ModelMetadata round-trips: name, backend, readiness, platform and
@@ -120,8 +120,8 @@ message DetokenizeResponse {
 // clients unchanged. PACKED_BYTES is the TurboEmbed / Java cheap path
 // (one LE FP32 blob, same layout as OIP raw_output_contents).
 enum EmbedOutputFormat {
-  EMBED_OUTPUT_TYPED = 0;
-  EMBED_OUTPUT_PACKED_BYTES = 1;
+  TYPED = 0;
+  PACKED_BYTES = 1;
 }
 
 message EmbedRequest {
@@ -145,12 +145,12 @@ message EmbedResponse {
   // Embedding dimension (columns of every vector below).
   uint32 dim = 1;
   // One embedding per input text, in request order. Empty when
-  // output_format == EMBED_OUTPUT_PACKED_BYTES (see packed_embeddings).
+  // output_format == PACKED_BYTES (see packed_embeddings).
   repeated Embedding embeddings = 2;
   string model_name = 3;
   string model_version = 4;
   // Row-major little-endian FP32 blob, length = count * dim * 4.
-  // Populated when output_format == EMBED_OUTPUT_PACKED_BYTES.
+  // Populated when output_format == PACKED_BYTES.
   bytes packed_embeddings = 5;
 }
 

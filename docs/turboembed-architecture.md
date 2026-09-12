@@ -138,8 +138,8 @@ existing [`inferstream.v1.InferstreamService`](../proto/inferstream_extension.pr
 | `turboembed_load_model` | *(startup `serve` / implicit)* | gRPC servers load at process start |
 | `turboembed_embed` / `_one` | `Embed` | `texts[]` is already a batch |
 | `turboembed_embed_stream` | `EmbedStream` | unary request, streamed rows |
-| `values` (typed) | `EmbedResponse.embeddings[].values` | default `EMBED_OUTPUT_TYPED` |
-| `packed` | `EmbedResponse.packed_embeddings` | `EMBED_OUTPUT_PACKED_BYTES` — LE FP32 `[n*d]` |
+| `values` (typed) | `EmbedResponse.embeddings[].values` | default `TYPED` |
+| `packed` | `EmbedResponse.packed_embeddings` | `PACKED_BYTES` — LE FP32 `[n*d]` |
 
 `EmbedRequest.output_format` selects typed **or** packed. Packed is the
 cheap path for Java / Rust clients that want one `bytes` copy matching
@@ -158,7 +158,7 @@ A future `turboembed-java` client is **grpc-java stubs generated from
 - Unary: `InferstreamServiceGrpc.InferstreamServiceBlockingStub.embed`
 - Batch: already `repeated string texts`
 - Stream: `embedStream` → `Iterator<EmbedChunk>`
-- Packed: set `output_format = EMBED_OUTPUT_PACKED_BYTES` and read
+- Packed: set `output_format = PACKED_BYTES` and read
   `packed_embeddings` as a `ByteBuffer` (little-endian `float32`)
 
 JNI / Panama over `turboembed.h` is optional later for in-process JVM

@@ -278,18 +278,18 @@ impl InferstreamService for ExtensionService {
         let packed = embed_output_format(&req) == EmbedOutputFormat::PackedBytes;
         let rows = self.embed_rows(&req).await?;
         let dim = rows.dim as usize;
-        let n = if dim == 0 { 0 } else { rows.values.len() / dim };
+        let n = rows.values.len().checked_div(dim).unwrap_or(0);
         let mut chunks = Vec::with_capacity(n);
         for i in 0..n {
             let row = &rows.values[i * dim..(i + 1) * dim];
             chunks.push(Ok(EmbedChunk {
                 index: i as u32,
                 embedding: if packed {
-                    Embedding::default()
+                    None
                 } else {
-                    Embedding {
+                    Some(Embedding {
                         values: row.to_vec(),
-                    }
+                    })
                 },
                 packed_row: if packed {
                     packed_le_f32(row)
