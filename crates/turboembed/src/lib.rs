@@ -19,10 +19,11 @@
 //! Default link is the C++ stub (`native/turboembed`): `mock-embed` works,
 //! catalog aliases return [`Error::NotImplemented`].
 //!
-//! `--features genai` links `ov::genai::TextEmbeddingPipeline` on the
-//! literal device `"GPU"`. `Engine::create(Device::OpenVinoGpu)` then
-//! `load_model("minilm")` / `embed_one` is the Intel proof path. CPU is
-//! not accepted as success. No OVMS. No Python.
+//! `--features genai` links `ov::genai::TextEmbeddingPipeline` with the
+//! official device string (`"GPU"` or `"CPU"`).
+//! `Engine::create(Device::OpenVinoGpu)` fails if the GPU plugin is
+//! missing (no CPU swap). `Device::OpenVinoCpu` / `Device::Cpu` compile
+//! `"CPU"` and return real embeds. No OVMS. No Python.
 //!
 //! `--features ort-cuda` registers the ONNX Runtime CUDA EP with
 //! `error_on_failure`, binds inputs/outputs on `AllocationDevice::CUDA`
@@ -403,7 +404,7 @@ impl Engine {
     /// Load a catalog alias. Stub: `mock-embed` / `mock` succeed.
     /// `--features ort-cuda`: `minilm` loads ORT CUDA + IoBinding.
     /// `--features genai`: `minilm` (and other `models/ov/<alias>` dirs)
-    /// load `TextEmbeddingPipeline` on GPU.
+    /// load `TextEmbeddingPipeline` on `"GPU"` or `"CPU"`.
     pub fn load_model(&self, alias: &str) -> Result<(), Error> {
         let status =
             unsafe { turboembed_load_model(self.as_ptr(), alias.as_ptr().cast(), alias.len()) };

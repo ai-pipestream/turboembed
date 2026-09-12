@@ -97,16 +97,18 @@ on the existing `inferstream.v1.InferstreamService`.
 make turboembed-stub          # native/turboembed/build/libturboembed.a
 cargo test -p turboembed      # links the stub; ABI smoke (no GPU)
 make test-turboembed-nvidia   # --features ort-cuda; ORT CUDA IoBinding MiniLM
-make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on GPU
+make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on CPU and GPU
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 
 Without a real provider feature the stub answers `mock-embed` and returns
 `NOT_IMPLEMENTED` for catalog aliases (`minilm`, …). `--features ort-cuda`
 loads MiniLM through ORT CUDA + IoBinding device buffers (no CPU fallback).
-`--features genai` loads `ov::genai::TextEmbeddingPipeline` on **GPU**.
+On Intel, `--features genai` loads `ov::genai::TextEmbeddingPipeline` on
+**GPU** or **CPU** (no OVMS; a GPU request never silently becomes CPU).
 Receipts: `testdata/receipts/turboembed/nvidia-minilm.json`,
-`intel-minilm.json`. Inferstream servers are unchanged.
+`intel-minilm.json` (GPU), `intel-minilm-cpu.json` (CPU).
+Inferstream servers are unchanged.
 
 ## Building each arch binary
 

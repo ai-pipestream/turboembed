@@ -33,7 +33,7 @@ flowchart TB
     end
 
     subgraph impl [Arch implementations — same symbols]
-        Cpp["C++ stub + OpenVINO GenAI GPU (intel)"]
+        Cpp["C++ stub + OpenVINO GenAI CPU/GPU (intel)"]
         Mlx["Swift @_cdecl → later MLXEmbedders"]
     end
 
@@ -63,7 +63,7 @@ flowchart TB
 | Layer | Who owns it | Status in this scaffold |
 |---|---|---|
 | C header `include/turboembed.h` | Frozen ABI v1 | landed |
-| C++ `native/turboembed` | nvidia / intel / Linux CI | mock always; `--features genai` wires `TextEmbeddingPipeline` on **GPU** |
+| C++ `native/turboembed` | nvidia / intel / Linux CI | mock always; `--features genai` wires `TextEmbeddingPipeline` on **GPU** or **CPU** (exact device string; GPU request never silently becomes CPU) |
 | Swift `@_cdecl` shim | Apple (same header) | stub symbols; MLX wiring is next |
 | Rust `crates/turboembed` | safe zero-copy wrapper | ABI smoke test |
 | gRPC `Embed` / `EmbedStream` | maps to existing InferstreamService | proto delta + server fill-in |
@@ -170,9 +170,10 @@ already talks to inferstream.
 - Does not rip out or stop the inferstream arch servers.
 - Does not link ORT / MLX into `libturboembed` yet — those devices still
   return `NOT_IMPLEMENTED` after create (except the built-in mock alias).
-- **Intel GenAI GPU is wired.** `--features genai` constructs
-  `ov::genai::TextEmbeddingPipeline` on `"GPU"`. CPU is not accepted as
-  success. Proof receipt: `testdata/receipts/turboembed/intel-minilm.json`.
+- **Intel GenAI CPU and GPU are wired.** `--features genai` constructs
+  `ov::genai::TextEmbeddingPipeline` with the official `"CPU"` or `"GPU"`
+  string. A GPU request fails if the GPU plugin is missing (no silent
+  CPU). Receipts: `intel-minilm.json` (GPU) and `intel-minilm-cpu.json`.
 - Does not add Python bindings.
 
 Build the stub and the Rust smoke test: see the [root README](../README.md#turboembed)

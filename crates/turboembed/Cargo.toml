@@ -9,9 +9,9 @@ authors.workspace = true
 rust-version.workspace = true
 
 [features]
-# Real in-process ov::genai::TextEmbeddingPipeline on Intel GPU.
-# No CPU fallback, no OVMS, no mock-as-done. Create/load fail if the
-# GPU plugin is missing. See docs/intel-genai-embed.md.
+# Real in-process ov::genai::TextEmbeddingPipeline on Intel CPU or GPU.
+# Explicit device string; GPU request never silently compiles CPU.
+# No OVMS, no mock-as-done. See docs/intel-genai-embed.md.
 genai = []
 # Real ONNX Runtime CUDA EP + IoBinding device buffers on NVIDIA.
 # Catalog aliases error without this feature. No silent CPU fallback.
