@@ -241,7 +241,9 @@ func poolHidden(
         pooled = hidden[0..., 0, 0...]
     }
     if normalize {
-        return pooled.l2Normalized()
+        let squares = pooled * pooled
+        let norm = sqrt(sum(squares, axis: -1, keepDims: true))
+        return pooled / maximum(norm, MLXArray(Float(1e-12)))
     }
     return pooled
 }
