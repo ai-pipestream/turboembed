@@ -1278,7 +1278,6 @@ dependencies = [
  "inferstream-backend-mock",
  "inferstream-backend-openvino",
  "inferstream-backend-ort",
- "inferstream-backend-ovms",
  "inferstream-protocol",
  "inferstream-server",
  "tokio",
@@ -1380,21 +1379,6 @@ dependencies = [
  "thiserror",
  "tokenizers",
  "tokio",
- "tracing",
-]
-
-[[package]]
-name = "inferstream-backend-ovms"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "futures",
- "inferstream-backend",
- "inferstream-protocol",
- "serde_json",
- "tokio",
- "tokio-stream",
- "tonic",
  "tracing",
 ]
 
