@@ -322,26 +322,13 @@ turboembed_status turboembed_engine_create(
 #ifdef TURBOEMBED_GENAI
     if (device == TURBOEMBED_DEVICE_OPENVINO_GPU) {
         try {
-            if (!turboembed_genai::runtime_has_gpu()) {
-                std::string listed;
-                for (const auto &d : turboembed_genai::available_devices()) {
-                    if (!listed.empty()) {
-                        listed += ", ";
-                    }
-                    listed += d;
-                }
-                g_create_error =
-                    "TURBOEMBED_DEVICE_OPENVINO_GPU requested but OpenVINO "
-                    "listed no GPU ([" +
-                    listed +
-                    "]); refusing CPU fallback. "
-                    "Need libopenvino_intel_gpu_plugin + Level Zero.";
-                return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
-            }
+            turboembed_genai::require_ov_device(
+                "GPU",
+                turboembed_genai::available_devices()
+            );
         } catch (const std::exception &e) {
-            g_create_error =
-                std::string("OpenVINO device query failed: ") + e.what();
-            return TURBOEMBED_ERR_UNAVAILABLE;
+            g_create_error = e.what();
+            return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
         }
     }
 #endif
@@ -948,5 +935,55 @@ turboembed_status turboembed_register_provider(
         "model2vec plugins";
     return TURBOEMBED_ERR_NOT_IMPLEMENTED;
 }
+
+#ifdef TURBOEMBED_GENAI
+/*
+ * Test-only: not in turboembed.h. Feeds a synthetic OpenVINO device list
+ * into require_ov_device so GPU-missing is asserted without a mock embed.
+ * `available_csv` is comma-separated (`"CPU"` / `"CPU,GPU.0"`).
+ */
+turboembed_status turboembed_test_require_ov_device(
+    const char *requested,
+    const char *available_csv,
+    char *out,
+    size_t out_len
+) {
+    if (requested == nullptr || out == nullptr || out_len == 0) {
+        g_create_error = "null turboembed_test_require_ov_device argument";
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
+    }
+    std::vector<std::string> listed;
+    if (available_csv != nullptr && available_csv[0] != '\0') {
+        const std::string csv(available_csv);
+        size_t start = 0;
+        while (start <= csv.size()) {
+            const size_t comma = csv.find(',', start);
+            if (comma == std::string::npos) {
+                listed.push_back(csv.substr(start));
+                break;
+            }
+            listed.push_back(csv.substr(start, comma - start));
+            start = comma + 1;
+        }
+    }
+    try {
+        const std::string device =
+            turboembed_genai::require_ov_device(requested, listed);
+        if (device.size() + 1 > out_len) {
+            g_create_error = "out buffer too small";
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        std::memcpy(out, device.c_str(), device.size() + 1);
+        g_create_error.clear();
+        return TURBOEMBED_OK;
+    } catch (const std::exception &e) {
+        g_create_error = e.what();
+        if (out_len > 0) {
+            out[0] = '\0';
+        }
+        return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+    }
+}
+#endif
 
 } // extern "C"

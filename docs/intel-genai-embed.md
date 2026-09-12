@@ -146,7 +146,9 @@ and **fails** if the GPU plugin is missing (no CPU swap).
 `TextEmbeddingPipeline(..., "CPU", config)` and must produce real embeds.
 Cosine vs `testdata/e2e/goldens/{intel,nvidia}/minilm.json` ≥ 0.99.
 Receipts: `testdata/receipts/turboembed/intel-minilm.json` (GPU) and
-`intel-minilm-cpu.json` (CPU).
+`intel-minilm-cpu.json` (CPU). Policy (no embed):
+`cargo test -p turboembed --features genai --test device_policy` —
+GPU + no GPU plugin is `UNSUPPORTED_DEVICE` (never `"CPU"`).
 
 ## OVMS (removed)
 

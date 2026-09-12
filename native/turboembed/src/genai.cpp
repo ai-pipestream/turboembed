@@ -187,6 +187,35 @@ bool runtime_has_cpu() {
     return listed_has(available_devices(), is_cpu_device);
 }
 
+std::string require_ov_device(
+    const std::string& requested,
+    const std::vector<std::string>& available
+) {
+    const std::string listed_join = join_devices(available);
+    if (requested != "CPU" && requested != "GPU") {
+        throw std::runtime_error(
+            "unsupported OpenVINO GenAI device string '" + requested +
+            "' (pass \"CPU\" or \"GPU\"; never AUTO)"
+        );
+    }
+    if (requested == "GPU" && !listed_has(available, starts_with_gpu)) {
+        throw std::runtime_error(
+            "OpenVINO GPU plugin unavailable (listed: [" + listed_join +
+            "]); GPU was requested so CPU fallback is refused. "
+            "Need libopenvino_intel_gpu_plugin + Level Zero, or create "
+            "the engine with TURBOEMBED_DEVICE_OPENVINO_CPU / "
+            "TextEmbeddingPipeline(..., \"CPU\", config)."
+        );
+    }
+    if (requested == "CPU" && !listed_has(available, is_cpu_device)) {
+        throw std::runtime_error(
+            "OpenVINO CPU plugin unavailable (listed: [" + listed_join +
+            "]); CPU was requested. Need libopenvino_intel_cpu_plugin."
+        );
+    }
+    return requested;
+}
+
 std::string device_full_name(const std::string& ov_device) {
     try {
         ov::Core core;
@@ -236,28 +265,7 @@ std::unique_ptr<Pipeline> load_pipeline(
         );
     }
 
-    const std::string listed_join = join_devices(listed);
-    if (ov_device != "CPU" && ov_device != "GPU") {
-        throw std::runtime_error(
-            "unsupported OpenVINO GenAI device string '" + ov_device +
-            "' (pass \"CPU\" or \"GPU\"; never AUTO)"
-        );
-    }
-    if (ov_device == "GPU" && !listed_has(listed, starts_with_gpu)) {
-        throw std::runtime_error(
-            "OpenVINO GPU plugin unavailable (listed: [" + listed_join +
-            "]); GPU was requested so CPU fallback is refused. "
-            "Need libopenvino_intel_gpu_plugin + Level Zero, or create "
-            "the engine with TURBOEMBED_DEVICE_OPENVINO_CPU / "
-            "TextEmbeddingPipeline(..., \"CPU\", config)."
-        );
-    }
-    if (ov_device == "CPU" && !listed_has(listed, is_cpu_device)) {
-        throw std::runtime_error(
-            "OpenVINO CPU plugin unavailable (listed: [" + listed_join +
-            "]); CPU was requested. Need libopenvino_intel_cpu_plugin."
-        );
-    }
+    require_ov_device(ov_device, listed);
 
     ov::genai::TextEmbeddingPipeline::Config cfg;
     cfg.pooling_type = pooling_from_u8(config.pooling);

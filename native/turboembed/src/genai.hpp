@@ -64,6 +64,16 @@ bool runtime_has_cpu();
 std::string device_full_name(const std::string& ov_device);
 
 /**
+ * Policy: pass through `"CPU"` or `"GPU"` exactly. Never `"AUTO"`.
+ * `"GPU"` with no listed GPU plugin throws (no CPU fallback).
+ * `"CPU"` with no listed CPU plugin throws.
+ */
+std::string require_ov_device(
+    const std::string& requested,
+    const std::vector<std::string>& available
+);
+
+/**
  * Construct TextEmbeddingPipeline on the exact OpenVINO device string
  * (`"CPU"` or `"GPU"`). Matches the official C++ sample:
  *

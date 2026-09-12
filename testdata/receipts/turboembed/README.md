@@ -18,4 +18,10 @@ Intel: same MiniLM IR (`models/ov/minilm`). Cosine vs
 `testdata/e2e/goldens/{intel,nvidia}/minilm.json` stays ≥ 0.99 on **both**
 devices (CPU is the same IR, not a mock). GPU create/load still fails if
 the GPU plugin is missing — that path never compiles `"CPU"`.
-`sha` (git + IR bins).
+
+Policy tests (synthetic device list, no embed):
+`cargo test -p turboembed --features genai --test device_policy`.
+`device=GPU` + listed `CPU` only → `UNSUPPORTED_DEVICE` (loud fail).
+`device=CPU` + listed `CPU,GPU` → `"CPU"`.
+
+Intel receipt fields: `device`, `cosine` (floor 0.99), `sha` (git + IR bins).
