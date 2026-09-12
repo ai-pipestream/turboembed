@@ -88,6 +88,8 @@ header comment.
 4. **Stream callback pointers die at return.** Copy the row inside
    `turboembed_stream_cb` if you need it later.
 5. **One engine, one thread.** Distinct engines may run concurrently.
+6. **No silent CPU.** GPU/Metal/AUTO/NPU requests fail if that
+   accelerator is missing. `CPU` / `OPENVINO_CPU` only when selected.
 
 Rust documents the same rules on `Engine` / `Embeddings`: the safe wrapper
 never hands out a `&[f32]` that outlives the `Embeddings` guard.

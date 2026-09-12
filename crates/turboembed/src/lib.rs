@@ -19,12 +19,17 @@
 //! The linked implementation is **arch-specific**:
 //!
 //! * **macOS:** `libTurboEmbed.dylib` (`@_cdecl` → mlx-swift `MlxEngine`).
-//!   `Device::Metal` + `minilm` is FP MiniLM, hidden-state **mean + L2**
-//!   on Apple GPU. Not the BERT NSP pooler (`tanh(dense(CLS))`), not the
-//!   8-d mock stub, not Python.
-//! * **elsewhere:** C++ stub (`native/turboembed`) — `mock-embed` works;
-//!   catalog aliases return [`Error::NotImplemented`] until ORT / GenAI
-//!   providers land.
+//!   `Device::Metal` / `Device::Auto` + `minilm` is FP MiniLM, hidden-state
+//!   **mean + L2** on Apple GPU. Not the BERT NSP pooler
+//!   (`tanh(dense(CLS))`), not the 8-d mock stub, not Python.
+//! * **elsewhere:** C++ stub (`native/turboembed`) — `mock-embed` works
+//!   on explicit `Cpu` / `Mock` only.
+//!
+//! # Device policy
+//!
+//! GPU / accelerator requests (`Auto`, `Cuda`, `TensorRt`, OpenVINO GPU/NPU,
+//! `Metal`) **fail** if that device is missing. They never fall back to
+//! CPU. `Cpu` / `OpenVinoCpu` run only when selected.
 
 #![allow(clippy::result_large_err)]
 

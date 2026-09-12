@@ -28,10 +28,9 @@ private final class EngineBox: @unchecked Sendable {
 
     init(device: turboembed_device) {
         self.device = device
-        self.mockLoaded =
-            device == TURBOEMBED_DEVICE_MOCK
-            || device == TURBOEMBED_DEVICE_AUTO
-            || device == TURBOEMBED_DEVICE_CPU
+        // Mock/CPU only when those devices were selected. AUTO/METAL/CUDA
+        // never start with a CPU/mock fallback.
+        self.mockLoaded = isExplicitCpu(device) || device == TURBOEMBED_DEVICE_MOCK
         refreshErrorPtr()
     }
 
@@ -87,6 +86,31 @@ private final class TLS: @unchecked Sendable {
 
 private let mockAlias = "mock-embed"
 private let mockDim: UInt32 = 8
+
+/// AUTO / METAL = host GPU (Metal). Missing GPU → create fails, never CPU.
+private func wantsHostGpu(_ device: turboembed_device) -> Bool {
+    device == TURBOEMBED_DEVICE_METAL || device == TURBOEMBED_DEVICE_AUTO
+}
+
+private func isExplicitCpu(_ device: turboembed_device) -> Bool {
+    device == TURBOEMBED_DEVICE_CPU || device == TURBOEMBED_DEVICE_OPENVINO_CPU
+}
+
+/// CUDA / TensorRT / OpenVINO GPU|NPU are not on this dylib. Fail loud.
+private func refuseForeignGpu(_ device: turboembed_device) -> String? {
+    switch device {
+    case TURBOEMBED_DEVICE_CUDA, TURBOEMBED_DEVICE_TENSORRT,
+        TURBOEMBED_DEVICE_OPENVINO_GPU, TURBOEMBED_DEVICE_OPENVINO_NPU:
+        return
+            "requested \(cDeviceName(device)); this dylib is Metal-only — refusing CPU fallback"
+    default:
+        return nil
+    }
+}
+
+private func cDeviceName(_ device: turboembed_device) -> String {
+    String(cString: turboembed_device_name(device))
+}
 
 private func isMockAlias(_ ptr: UnsafePointer<CChar>?, _ len: Int) -> Bool {
     guard let ptr else { return false }
@@ -181,6 +205,10 @@ public func turboembed_engine_create(
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
     out.pointee = nil
+    if let refusal = refuseForeignGpu(device) {
+        TLS.shared.createError = refusal
+        return TURBOEMBED_ERR_UNSUPPORTED_DEVICE
+    }
     MlxProvider.ensureWorkspaceRoot()
     let box = EngineBox(device: device)
     if let configPath {
@@ -192,33 +220,22 @@ public func turboembed_engine_create(
     if box.catalog == nil {
         box.catalog = try? Catalog.builtin()
     }
-    let wantsMetal =
-        device == TURBOEMBED_DEVICE_METAL || device == TURBOEMBED_DEVICE_AUTO
-    if wantsMetal {
+    if wantsHostGpu(device) {
         do {
             let (engine, ping) = try MlxProvider.pingOrThrow()
-            if device == TURBOEMBED_DEVICE_METAL {
-                try MlxProvider.requireMetal(ping)
-            }
-            if ping.metalAvailable {
-                box.mlx = engine
-                box.mlxDevice = ping.device
-                box.metalAvailable = true
-                box.mlxAliases = MlxProvider.discover(catalog: box.catalog)
-                fputs(
-                    "[turboembed] mlx ping device=\(ping.device) metal=true matmul_ok=\(ping.matmulOk) — FP MiniLM path is live\n",
-                    stderr)
-            } else if device == TURBOEMBED_DEVICE_METAL {
-                TLS.shared.createError =
-                    "TURBOEMBED_DEVICE_METAL but ping device=\(ping.device) metal=false — refusing mock"
-                return TURBOEMBED_ERR_UNAVAILABLE
-            }
+            try MlxProvider.requireMetal(ping)
+            box.mlx = engine
+            box.mlxDevice = ping.device
+            box.metalAvailable = true
+            box.mockLoaded = false
+            box.mlxAliases = MlxProvider.discover(catalog: box.catalog)
+            fputs(
+                "[turboembed] mlx ping device=\(ping.device) metal=true matmul_ok=\(ping.matmulOk) — FP MiniLM path is live\n",
+                stderr)
         } catch {
-            if device == TURBOEMBED_DEVICE_METAL {
-                TLS.shared.createError =
-                    "MLX Metal create failed: \(error) — refusing C++/mock stub"
-                return TURBOEMBED_ERR_UNAVAILABLE
-            }
+            TLS.shared.createError =
+                "requested \(cDeviceName(device)); \(error) — refusing CPU fallback"
+            return TURBOEMBED_ERR_UNAVAILABLE
         }
     }
     out.pointee = OpaquePointer(Unmanaged.passRetained(box).toOpaque())
@@ -332,8 +349,13 @@ public func turboembed_load_model(
             return TURBOEMBED_ERR_INTERNAL
         }
     }
+    if isExplicitCpu(box.device) {
+        box.lastError =
+            "catalog alias \(name) is not served on explicit CPU; select METAL/AUTO for MiniLM — refusing silent GPU"
+        return TURBOEMBED_ERR_NOT_IMPLEMENTED
+    }
     box.lastError =
-        "catalog alias \(name) needs TURBOEMBED_DEVICE_METAL (MLX). CUDA/ORT/GenAI are not on this dylib. mock-embed is the stub."
+        "catalog alias \(name) needs METAL/AUTO (MLX). CUDA/ORT/GenAI are not on this dylib."
     return TURBOEMBED_ERR_NOT_IMPLEMENTED
 }
 

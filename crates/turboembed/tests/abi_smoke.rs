@@ -50,15 +50,59 @@ fn create_list_load_embed_free() {
 }
 
 #[test]
-fn catalog_alias_is_not_implemented() {
-    let engine = Engine::create(Device::Cuda).expect("create still succeeds");
-    let err = engine
-        .load_model("minilm")
-        .expect_err("stub must not fake ORT");
-    assert!(matches!(err, Error::NotImplemented(_)));
+fn gpu_without_gpu_fails_loud_never_cpu() {
+    for device in [
+        Device::Cuda,
+        Device::TensorRt,
+        Device::OpenVinoGpu,
+        Device::OpenVinoNpu,
+    ] {
+        let err = match Engine::create(device) {
+            Ok(_) => panic!("{device:?} must fail when that GPU is missing — never CPU/mock"),
+            Err(e) => e,
+        };
+        assert!(
+            matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+            "{device:?}: {err:?}"
+        );
+        let msg = err.to_string().to_lowercase();
+        assert!(
+            msg.contains("refusing cpu fallback") || msg.contains("refusing cpu"),
+            "{device:?} error must say it refused CPU, got: {err}"
+        );
+    }
 
     let err = register_provider_stub().expect_err("plugin registration reserved");
     assert!(matches!(err, Error::NotImplemented(_)));
+}
+
+#[test]
+fn cpu_only_when_explicit() {
+    let engine = Engine::create(Device::Cpu).expect("explicit CPU is allowed");
+    engine.load_model("mock-embed").expect("mock on CPU");
+    let models = engine.list_models().expect("list");
+    assert!(
+        models.iter().all(|m| m.alias == "mock-embed" && m.device != Device::Metal),
+        "explicit CPU must not advertise Metal MiniLM: {:?}",
+        models.iter().map(|m| (m.alias.clone(), m.device)).collect::<Vec<_>>()
+    );
+    let err = engine
+        .load_model("minilm")
+        .expect_err("CPU must not silently serve MiniLM");
+    assert!(matches!(err, Error::NotImplemented(_) | Error::NotFound(_)));
+}
+
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn metal_and_auto_fail_on_stub() {
+    for device in [Device::Metal, Device::Auto] {
+        let err = Engine::create(device).expect_err("no Metal on the Linux stub");
+        assert!(matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)));
+        assert!(
+            err.to_string().to_lowercase().contains("refusing cpu"),
+            "{device:?}: {err}"
+        );
+    }
 }
 
 #[test]

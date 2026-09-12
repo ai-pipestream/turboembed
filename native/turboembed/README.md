@@ -2,10 +2,12 @@
 
 C++ implementation of the frozen C ABI in [`include/turboembed.h`](../../include/turboembed.h).
 
-Today this is a **linkable stub**: deterministic `mock-embed` plus
-`NOT_IMPLEMENTED` for catalog aliases / provider registration. Enough for
-the Rust crate to call. Later this directory grows the nvidia (ORT) and
-intel (OpenVINO GenAI) providers; Apple keeps the same header and exports
+Today this is a **linkable stub**: deterministic `mock-embed` on
+**explicit** `CPU` / `OPENVINO_CPU` / `MOCK` only. GPU requests
+(`AUTO`, `METAL`, `CUDA`, `TENSORRT`, OpenVINO GPU/NPU) fail at
+`turboembed_engine_create` with `UNAVAILABLE` — they never fall back
+to CPU. Later this directory grows the nvidia (ORT) and intel
+(OpenVINO GenAI) providers; Apple keeps the same header and exports
 the symbols from Swift (`docs/turboembed-swift.md`).
 
 ## Build the static stub (no Rust)

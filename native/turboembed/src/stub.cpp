@@ -86,8 +86,8 @@ struct turboembed_engine {
           config_path(std::move(config)),
           last_error(),
           mock_loaded(device_ == TURBOEMBED_DEVICE_MOCK ||
-                      device_ == TURBOEMBED_DEVICE_AUTO ||
-                      device_ == TURBOEMBED_DEVICE_CPU) {}
+                      device_ == TURBOEMBED_DEVICE_CPU ||
+                      device_ == TURBOEMBED_DEVICE_OPENVINO_CPU) {}
 
     void set_error(const char *msg) { last_error = msg ? msg : ""; }
 };
@@ -162,16 +162,19 @@ turboembed_status turboembed_engine_create(
     }
     *out = nullptr;
     switch (device) {
-        case TURBOEMBED_DEVICE_AUTO:
         case TURBOEMBED_DEVICE_CPU:
+        case TURBOEMBED_DEVICE_OPENVINO_CPU:
+        case TURBOEMBED_DEVICE_MOCK:
+            break;
+        case TURBOEMBED_DEVICE_AUTO:
         case TURBOEMBED_DEVICE_CUDA:
         case TURBOEMBED_DEVICE_TENSORRT:
-        case TURBOEMBED_DEVICE_OPENVINO_CPU:
         case TURBOEMBED_DEVICE_OPENVINO_GPU:
         case TURBOEMBED_DEVICE_OPENVINO_NPU:
         case TURBOEMBED_DEVICE_METAL:
-        case TURBOEMBED_DEVICE_MOCK:
-            break;
+            g_create_error = std::string("requested ") + turboembed_device_name(device) +
+                             "; this stub has no GPU — refusing CPU fallback";
+            return TURBOEMBED_ERR_UNAVAILABLE;
         default:
             g_create_error = "unknown device enum";
             return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;

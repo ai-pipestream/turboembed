@@ -19,6 +19,19 @@ C++ stub. `crates/turboembed/build.rs` on macOS runs
 3. **`mock-embed`** stays for ABI smoke only (8-d FNV). Catalog aliases
    never take that path.
 
+## Device policy
+
+| requested | if missing | fallback |
+|---|---|---|
+| `METAL` / `AUTO` | `UNAVAILABLE` | **none** — never CPU |
+| `CUDA` / `TENSORRT` / `OPENVINO_GPU` / `NPU` | `UNSUPPORTED_DEVICE` | **none** — this dylib is Metal-only |
+| `CPU` / `OPENVINO_CPU` | (explicit) | mock-embed only; MiniLM not served |
+| `MOCK` | (explicit smoke) | 8-d FNV |
+
+`AUTO` means host-default **GPU** (Metal here), not "CPU if GPU is down".
+`MlxEngine` is constructed only on the Metal path (`Device.gpu`). Explicit
+CPU never calls `Device.gpu`.
+
 Do not also link `native/turboembed/src/stub.cpp` into this module.
 
 ## Pooling — fail loud if fake

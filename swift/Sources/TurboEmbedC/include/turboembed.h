@@ -76,6 +76,18 @@ typedef enum turboembed_device {
     TURBOEMBED_DEVICE_MOCK = 8
 } turboembed_device;
 
+/*
+ * Device policy (ABI v1 semantics, not a layout bump):
+ *
+ *   GPU / accelerator requests — AUTO, CUDA, TENSORRT, OPENVINO_GPU,
+ *   OPENVINO_NPU, METAL — fail with UNAVAILABLE or UNSUPPORTED_DEVICE
+ *   when that device is missing. They never fall back to CPU or mock.
+ *   AUTO is "host default GPU" (Metal on Apple), not "CPU if GPU is down".
+ *
+ *   CPU and OPENVINO_CPU run only when those enums are selected.
+ *   MOCK is the explicit ABI-smoke device.
+ */
+
 typedef enum turboembed_pooling {
     TURBOEMBED_POOLING_DEFAULT = 0,
     TURBOEMBED_POOLING_MEAN = 1,
@@ -183,6 +195,9 @@ typedef struct turboembed_provider_vtbl {
  * `config_path` is a NUL-terminated filesystem path, or NULL.
  * On OK, `*out` is non-NULL and the caller must destroy it.
  * On error, `*out` is NULL; turboembed_last_error(NULL) may explain.
+ *
+ * GPU/Metal requested without that accelerator → error, never CPU.
+ * See the device-policy comment on `turboembed_device`.
  */
 turboembed_status turboembed_engine_create(
     turboembed_device device,

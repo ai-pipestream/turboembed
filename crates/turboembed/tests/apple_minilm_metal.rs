@@ -212,6 +212,15 @@ fn metal_create_lists_minilm_not_only_mock() {
         !models.iter().all(|m| m.alias == "mock-embed"),
         "FAKE: catalog is mock-only"
     );
+
+    let auto = Engine::create(Device::Auto).expect("AUTO is host GPU (Metal), not CPU");
+    let auto_models = auto.list_models().expect("auto list");
+    assert!(
+        auto_models
+            .iter()
+            .any(|m| m.alias == "minilm" && m.device == Device::Metal),
+        "AUTO must resolve to Metal MiniLM, never a CPU fallback"
+    );
 }
 
 #[test]

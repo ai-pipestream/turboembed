@@ -32,7 +32,7 @@ enum MlxProviderError: Error, LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .metalUnavailable(let device):
-            "TURBOEMBED_DEVICE_METAL but MLX ping device=\(device) — refusing mock fallback"
+            "Metal/GPU requested but ping device=\(device) metal=false — refusing CPU fallback"
         case .missingWeights(let alias):
             "MLX weights for \(alias) not found under models/mlx/\(alias) — run `make fetch-mlx ALIASES=\(alias)`"
         case .fakeDim(let alias, let dim):
