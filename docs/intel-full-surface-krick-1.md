@@ -1,5 +1,11 @@
 # inferstream-intel: full surface on krick-1 — evidence report
 
+> **Historical.** Embed on this pass used OVMS DAG pipelines. That client
+> is **removed** — Intel Embed is in-process OpenVINO GenAI only
+> (`docs/intel-genai-embed.md`). A host OVMS container may still exist;
+> inferstream does not depend on it. Generation notes below (llama.cpp)
+> are unchanged in intent.
+
 Status of the `inferstream-intel` binary on the krick-1 host (Intel
 Arc/Battlemage GPU) after the full-surface pass: **Tokenize/Detokenize,
 Embed, unary generation, and real token streaming through `ModelStreamInfer`
@@ -80,13 +86,9 @@ test unary_completion_returns_text ... ok
 test streaming_emits_token_chunks_with_final_flag ... ok
 ```
 
-OVMS embedding goldens (unchanged path, re-verified):
-
-```
-INFERSTREAM_OVMS_ENDPOINT=http://172.22.0.2:8000 \
-  cargo test -p inferstream-backend-ovms --test ovms_goldens -- --ignored
-test ovms_golden_cosine_at_least_0_999 ... ok
-```
+OVMS embedding goldens (historical; the `backend-ovms` crate and these
+commands are **removed** — use GenAI goldens in
+`docs/intel-genai-embed.md`):
 
 E2e through the running façade (`./target/release/inferstream-intel
 --config config/intel.toml`, bearer auth, port 8461), all via `grpcurl`:

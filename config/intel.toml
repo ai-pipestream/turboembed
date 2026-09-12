@@ -4,14 +4,12 @@
 # Default embed path: in-process OpenVINO GenAI TextEmbeddingPipeline
 # (`backend = "openvino"`, feature `openvino-genai`). Plain strings in,
 # openvino-tokenizers + CLS/MEAN/LAST + L2 inside the C++ pipeline, device
-# GPU when the plugin is present. No OVMS gRPC on this path.
+# GPU when the plugin is present. OVMS gRPC is out of scope — Intel
+# embeddings are GenAI only.
 #
 #   scripts/build-intel.sh                  # SYCL + GenAI when OpenVINO is found
 #   make fetch-ov-genai                     # SHA-256-pinned OV-format dirs
 #   scripts/run-intel.sh --config config/intel.toml
-#
-# Optional/legacy: `backend = "ovms"` forwards OIP to a running OpenVINO
-# Model Server (no host OpenVINO link). See the commented block below.
 #
 # Generation: llama.cpp-SYCL in-process (`--features llamacpp-sycl`).
 # Source oneAPI in the build shell AND the service unit:
@@ -51,17 +49,6 @@ bearer_tokens = ["change-me"]
 [[models]]
 name = "mock-embed"
 backend = "mock"
-
-# --- Legacy OVMS client (optional; not the default) -------------------------
-# Uncomment (and drop the matching alias from `serve`, or use a catalog
-# override) to front the host Model Server instead of in-process GenAI.
-#
-# [[models]]
-# name = "minilm-ovms"
-# backend = "ovms"
-# endpoint = "http://172.22.0.2:8000"
-# upstream_model = "minilm_pipeline"
-# tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_minilm"
 
 # Optional: server-client to the host vlm-server (Qwen2.5-VL-7B on :8085).
 # Not a default-llm / qwen-0.5b / qwen-7b alias — those are in-process

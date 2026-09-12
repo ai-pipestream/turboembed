@@ -116,23 +116,12 @@ pub struct ModelConfig {
     #[serde(default)]
     pub device: Option<String>,
 
-    /// Upstream endpoint for client backends. `backend = "ovms"`: the gRPC
-    /// listener, e.g. `"http://172.22.0.2:8000"` (OVMS `--port`, not
-    /// `--rest_port`; the model `name` must match a model or pipeline the
-    /// upstream serves; falls back to `INFERSTREAM_OVMS_ENDPOINT`).
-    /// `backend = "llama-cpp"`: a running llama-server's HTTP base URL, e.g.
-    /// `"http://127.0.0.1:8085"` (server-client mode; models without `path`
-    /// fall back to `INFERSTREAM_LLAMACPP_ENDPOINT`).
+    /// Upstream endpoint for client backends. `backend = "llama-cpp"`: a
+    /// running llama-server's HTTP base URL, e.g. `"http://127.0.0.1:8085"`
+    /// (server-client mode; models without `path` fall back to
+    /// `INFERSTREAM_LLAMACPP_ENDPOINT`).
     #[serde(default)]
     pub endpoint: Option<String>,
-
-    /// Proxy backends (`ovms`): the model/pipeline name the upstream server
-    /// actually serves, when it differs from `name`. Lets a logical name
-    /// like `"minilm"` front an OVMS DAG pipeline named
-    /// `"minilm_pipeline"` — requests are forwarded under the upstream name
-    /// and responses report the logical one.
-    #[serde(default)]
-    pub upstream_model: Option<String>,
 
     /// TensorRT-LLM: directory containing the compiled engine
     /// (`rank0.engine` + `config.json`). Required for `backend = "trt-llm"`.
@@ -195,11 +184,8 @@ pub enum BackendKind {
     LlamaCpp,
     /// ONNX Runtime.
     Ort,
-    /// OpenVINO (Intel CPU / GPU / NPU).
+    /// OpenVINO GenAI in-process (Intel CPU / GPU / NPU).
     Openvino,
-    /// OpenVINO Model Server (or any KServe V2 gRPC server) reached over the
-    /// network; inferstream forwards requests instead of executing in-process.
-    Ovms,
     /// Apple MLX (native macOS host only).
     Mlx,
 }
@@ -213,7 +199,6 @@ impl BackendKind {
             Self::LlamaCpp => "llama-cpp",
             Self::Ort => "ort",
             Self::Openvino => "openvino",
-            Self::Ovms => "ovms",
             Self::Mlx => "mlx",
         }
     }
@@ -232,11 +217,6 @@ pub enum ConfigError {
     DuplicateModel(String),
     #[error("auth mode is \"bearer\" but no tokens are configured (set [auth] bearer_tokens or INFERSTREAM_API_KEYS)")]
     NoBearerTokens,
-    #[error(
-        "model {model:?}: upstream_model is only meaningful for proxy \
-         backends (backend = \"ovms\"), not {backend:?}"
-    )]
-    UpstreamModelNotProxy { model: String, backend: String },
     #[error(transparent)]
     Catalog(#[from] CatalogError),
     #[error(
@@ -295,12 +275,6 @@ impl Config {
         for model in &self.models {
             if !seen.insert(model.name.as_str()) {
                 return Err(ConfigError::DuplicateModel(model.name.clone()));
-            }
-            if model.upstream_model.is_some() && model.backend != BackendKind::Ovms {
-                return Err(ConfigError::UpstreamModelNotProxy {
-                    model: model.name.clone(),
-                    backend: model.backend.as_str().to_string(),
-                });
             }
         }
         // serve aliases must not collide with explicit model names even
@@ -366,21 +340,18 @@ mod tests {
     }
 
     #[test]
-    fn parses_ovms_client_backend() {
-        let config = Config::from_toml(
+    fn rejects_removed_ovms_backend() {
+        let result = Config::from_toml(
             r#"
             [[models]]
             name = "minilm_pipeline"
             backend = "ovms"
             endpoint = "http://172.22.0.2:8000"
             "#,
-        )
-        .unwrap();
-        assert_eq!(config.models[0].backend, BackendKind::Ovms);
-        assert_eq!(config.models[0].backend.as_str(), "ovms");
-        assert_eq!(
-            config.models[0].endpoint.as_deref(),
-            Some("http://172.22.0.2:8000")
+        );
+        assert!(
+            matches!(result, Err(ConfigError::Parse(_))),
+            "backend = \"ovms\" was removed; Intel embeds use backend = \"openvino\""
         );
     }
 
@@ -625,38 +596,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn upstream_model_requires_proxy_backend() {
-        let result = Config::from_toml(
-            r#"
-            [[models]]
-            name = "m"
-            backend = "ort"
-            path = "/models/m.onnx"
-            upstream_model = "other"
-            "#,
-        );
-        assert!(matches!(
-            result,
-            Err(ConfigError::UpstreamModelNotProxy { .. })
-        ));
-
-        let config = Config::from_toml(
-            r#"
-            [[models]]
-            name = "minilm"
-            backend = "ovms"
-            endpoint = "http://127.0.0.1:8000"
-            upstream_model = "minilm_pipeline"
-            "#,
-        )
-        .unwrap();
-        assert_eq!(
-            config.models[0].upstream_model.as_deref(),
-            Some("minilm_pipeline")
-        );
-    }
-
     /// The example configs shipped in config/ must parse and expand for
     /// their arch, so `model_name: "minilm"` works on all three.
     #[test]
@@ -677,7 +616,7 @@ mod tests {
                 "{file} must serve the minilm alias"
             );
         }
-        // Multi-alias defaults: intel serves OVMS embed pipelines plus
+        // Multi-alias defaults: intel serves in-process GenAI embeds plus
         // in-process SYCL LLM aliases; apple serves the small-download
         // embedding trio plus default-llm + qwen-0.5b (same MLX 4-bit);
         // nvidia serves default-llm + qwen-0.5b + qwen-7b (fetch first).

@@ -8,7 +8,6 @@ members = [
     "crates/backend-llamacpp",
     "crates/backend-ort",
     "crates/backend-openvino",
-    "crates/backend-ovms",
     "crates/backend-apple",
     "crates/server",
     "crates/arch-nvidia",
@@ -72,7 +71,6 @@ inferstream-backend-trtllm = { path = "crates/backend-trtllm" }
 inferstream-backend-llamacpp = { path = "crates/backend-llamacpp" }
 inferstream-backend-ort = { path = "crates/backend-ort" }
 inferstream-backend-openvino = { path = "crates/backend-openvino" }
-inferstream-backend-ovms = { path = "crates/backend-ovms" }
 inferstream-backend-apple = { path = "crates/backend-apple" }
 inferstream-server = { path = "crates/server" }
 inferstream-fetch = { path = "crates/fetch" }

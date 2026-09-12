@@ -3,9 +3,9 @@
 //!
 //! When a model's config carries `tokenizer_dir` (a `tokenizer.json` file or
 //! a directory containing one), the server loads a HuggingFace fast tokenizer
-//! at startup and answers Tokenize/Detokenize locally — even for backends
-//! that tokenize elsewhere (e.g. OVMS pipelines tokenize server-side on the
-//! Model Server). Backends without a configured local tokenizer may still
+//! at startup and answers Tokenize/Detokenize locally — including for
+//! engines that tokenize inside the runtime (OpenVINO GenAI, llama.cpp
+//! vocab). Backends without a configured local tokenizer may still
 //! implement [`inferstream_backend::Backend::tokenize`] themselves (the mock
 //! does, for CI).
 

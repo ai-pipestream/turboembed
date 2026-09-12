@@ -37,13 +37,10 @@
 #   make list-ov-genai
 #   make update-ov-genai-manifest
 #
-#   make verify-embeddings-intel            # offline SHA-256 of exported OVMS IR (legacy)
-#   make list-embeddings-intel
-#
-# Embeddings / LLMs / OV-GenAI / OVMS: `cargo run -p inferstream-fetch`.
+# Embeddings / LLMs / OV-GenAI: `cargo run -p inferstream-fetch`.
 # Apple MLX weights: `cargo xtask` (crates/xtask) against models/manifests/mlx.json.
-# OVMS IR *export* is a one-off in contrib/offline-once/ (not invoked here).
-# Make never invokes python3.
+# Historical OpenVINO IR export (not serving) lives in contrib/offline-once/.
+# Make never invokes python3. OVMS gRPC is out of scope.
 
 CARGO ?= cargo
 FETCH := $(CARGO) run -q -p inferstream-fetch --
@@ -55,18 +52,12 @@ empty :=
 space := $(empty) $(empty)
 ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 
-OVMS_DIR ?= /work/models/ovms-embedder
-HF_TOK_DIR ?= $(HOME)/ovms-models
-INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
-
 .PHONY: test test-fetch \
 	fetch-embeddings verify-embeddings list-embeddings \
 	update-embedding-manifest \
 	fetch-llms verify-llms list-llms update-llm-manifest \
 	fetch-mlx verify-mlx list-mlx update-mlx-manifest \
 	fetch-ov-genai verify-ov-genai list-ov-genai update-ov-genai-manifest \
-	verify-embeddings-intel list-embeddings-intel \
-	update-embedding-manifest-intel \
 	setup-sycl build-intel-sycl \
 	apple smoke-apple sync-proto \
 	e2e e2e-nvidia e2e-intel e2e-apple e2e-all e2e-mock \
@@ -280,14 +271,3 @@ e2e-parity:
 	  exit 0; \
 	fi; \
 	$(E2E) --parity-cross $$peers $$dumps --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_CORPUS_ARGS)
-
-verify-embeddings-intel:
-	$(FETCH) --ovms $(ALIAS_ARGS) --verify-only $(INTEL_ARGS)
-
-list-embeddings-intel:
-	$(FETCH) --ovms --list
-
-update-embedding-manifest-intel:
-	@echo "error: OpenVINO IR re-export is not invoked from Make (no Python)." >&2
-	@echo "See contrib/offline-once/; then cargo run -p inferstream-fetch -- --ovms --verify-only." >&2
-	@exit 1

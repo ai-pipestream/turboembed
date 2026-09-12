@@ -106,8 +106,6 @@ pub struct CatalogModelSpec {
     #[serde(default)]
     pub endpoint: Option<String>,
     #[serde(default)]
-    pub upstream_model: Option<String>,
-    #[serde(default)]
     pub engine_dir: Option<String>,
     #[serde(default)]
     pub tokenizer_dir: Option<String>,
@@ -136,7 +134,6 @@ impl CatalogModelSpec {
             path: self.path,
             device: self.device,
             endpoint: self.endpoint,
-            upstream_model: self.upstream_model,
             engine_dir: self.engine_dir,
             tokenizer_dir: self.tokenizer_dir,
             max_batch_size: self.max_batch_size,

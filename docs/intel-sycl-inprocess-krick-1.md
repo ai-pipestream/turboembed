@@ -8,8 +8,9 @@ aliases do **not** HTTP to `vlm-server` `:8085`.
 `make fetch-llms` is `cargo run -p inferstream-fetch -- --llms` (Rust +
 sha256). `scripts/fetch-llms.sh` is an optional curl + sha256sum
 fallback. `scripts/smoke-llms.sh` is jq / grpcurl. **No python3** on
-fetch, smoke, or the inferstream process. OVMS IR export lives in
-`contrib/offline-once/` only; Make defaults do not call it.
+fetch, smoke, or the inferstream process. Historical OpenVINO IR export
+lives in `contrib/offline-once/` only; Make defaults do not call it.
+OVMS gRPC is out of scope — Intel embeds are in-process GenAI.
 
 Host: **krick-1**, Battlemage `Intel(R) Graphics [0xe223]`, xe DRM.
 Binary: `target/release/inferstream-intel` (106 MiB, `libsycl.so.8`, no

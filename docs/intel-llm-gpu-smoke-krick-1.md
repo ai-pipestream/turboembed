@@ -1,8 +1,8 @@
 # inferstream-intel: LLM alias GPU smoke (krick-1)
 
 Live Tokenize + `ModelStreamInfer` for the logical generation aliases on
-the Intel Battlemage host. **GPU only** — same bar as the OVMS embed proof
-(`docs/adding-ovms-embedding-pipelines.md`): xe DRM compute-engine cycles
+the Intel Battlemage host. **GPU only** — same bar as the GenAI embed
+proof (`docs/intel-genai-embed.md`): xe DRM compute-engine cycles
 attributable to the SYCL llama-server must move during StreamInfer, plus
 resident VRAM and server eval tok/s.
 
@@ -17,7 +17,7 @@ built from that SHA on krick-1.
 ## What was smoked
 
 `inferstream-intel --config config/intel.toml --listen 127.0.0.1:8471`
-(19 models: OVMS embeds + LLM aliases). Catalog aliases:
+(catalog embeds + LLM aliases). Catalog aliases:
 
 | alias | ListModels | Tokenize `"Hello, inferstream!"` | StreamInfer |
 |---|---|---|---|
@@ -45,7 +45,7 @@ healthy, host `:8085`. Cmd: `-hf ggml-org/Qwen2.5-VL-7B-Instruct-GGUF:Q4_K_M
 (`ONEAPI_ROOT=/opt/intel/oneapi`, compiler 2025.3). `/health` →
 `{"status":"ok"}`.
 
-## GPU evidence (xe DRM, same bar as OVMS)
+## GPU evidence (xe DRM, same bar as GenAI embed)
 
 Sampled inside the llama-server container:
 

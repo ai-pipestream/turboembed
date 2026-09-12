@@ -7,8 +7,8 @@ reached through a cxx bridge in `crates/backend-openvino`. Clients send
 pipeline. Pooling is CLS / MEAN / LAST_TOKEN with optional L2. Device is
 `CPU` / `GPU` / `NPU` (catalog default: **GPU**).
 
-**No OVMS gRPC on the default path.** `backend = "ovms"` stays compiled in
-as optional/legacy.
+**OVMS gRPC is out of scope.** There is no `backend = "ovms"` client.
+Intel Embed is GenAI only.
 
 This document is the build + krick-1 smoke runbook. **GPU live smoke was
 not run on the cloud VM that landed this code** — do that on **krick-1**
@@ -87,9 +87,8 @@ first-party Hugging Face repos when they already publish IR
 `openvino/openvino_model.xml` but not `openvino_tokenizer.xml`. Fetch still
 pulls the model IR + `tokenizer.json`. The backend **refuses to load**
 until `openvino_tokenizer.xml/.bin` sit next to the model. On krick-1,
-copy them from the existing OVMS export (already SHA-pinned in
-`models/manifests/ovms-embeddings.json`) or from a one-off
-`convert_tokenizer` run in `contrib/offline-once/` (not invoked by Make).
+copy that pair from a prior IR export or a one-off `convert_tokenizer`
+run in `contrib/offline-once/` (historical tooling; not invoked by Make).
 
 Aliases **without** a public IR source today (`bge-small`, `bge-large`,
 `nomic-embed-text`): catalog still points at `models/ov/<alias>/`. Place a
@@ -129,9 +128,7 @@ The golden file is produced on krick-1 after the first successful Embed
 (see `testdata/reference_embeddings/README.md`). It is **not** required
 for the default `cargo test --workspace`.
 
-## OVMS (legacy)
+## OVMS (removed)
 
-To front the host Model Server instead of in-process GenAI, use an explicit
-`[[models]]` with `backend = "ovms"` (see the commented block in
-`config/intel.toml`) or a catalog override. Walkthrough:
-[`docs/adding-ovms-embedding-pipelines.md`](adding-ovms-embedding-pipelines.md).
+OVMS gRPC is not a serving path. `backend = "ovms"` does not parse.
+See [`docs/adding-ovms-embedding-pipelines.md`](adding-ovms-embedding-pipelines.md).

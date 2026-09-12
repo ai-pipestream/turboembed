@@ -78,7 +78,7 @@ present and only download on miss or mismatch.
 | target | default (`FETCH=1`) | `FETCH=all` / `FETCH=serve` |
 |---|---|---|
 | **nvidia** | ONNX `minilm` + GGUF `default-llm` / `qwen-0.5b` | remaining ONNX embeds + `qwen-7b` |
-| **intel** | `fetch --ov-genai minilm` + the same GGUFs | remaining GenAI IR dirs that the manifest pins + `qwen-7b` |
+| **intel** | `fetch --ov-genai minilm` + the same GGUFs (GenAI only; OVMS gRPC is out of scope) | remaining GenAI IR dirs that the manifest pins + `qwen-7b` |
 | **apple** | `cargo xtask fetch --mlx minilm default-llm qwen-0.5b` + GGUF tokenizer for the 0.5B family | remaining MLX aliases + `qwen-7b` |
 | **mock** | nothing | nothing |
 

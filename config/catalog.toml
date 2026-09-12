@@ -23,8 +23,7 @@
 #
 # An alias resolves only on arches with a REAL backend path — no fakes. An
 # unsupported arch simply has no sub-table; serving the alias there fails at
-# startup naming the arches that do have it. `upstream_model` remaps the
-# alias to the name a proxy upstream (ovms) actually serves.
+# startup naming the arches that do have it.
 #
 # Per-arch artifact conventions in this catalog:
 #
@@ -38,16 +37,14 @@
 #           docs/fetching-models.md); then add the alias to `serve` in
 #           config/nvidia.toml. LLM GGUFs: make fetch-llms against
 #           models/manifests/llms.json into models/gguf/<alias>/.
-#   intel   In-process OpenVINO GenAI TextEmbeddingPipeline (default).
+#   intel   In-process OpenVINO GenAI TextEmbeddingPipeline only.
 #           `path` is an OV-format directory (`models/ov/<alias>/`) with
 #           openvino_model.xml/.bin + openvino_tokenizer.xml/.bin.
 #           SHA-256-pinned in models/manifests/ov-genai-embeddings.json;
 #           fetch with `make fetch-ov-genai` (inferstream-fetch --ov-genai;
 #           no Python). Device GPU (Battlemage) when the plugin is present.
-#           OVMS (`backend = "ovms"`) is optional/legacy — keep a catalog
-#           copy or an explicit [[models]] entry to use it. Walkthrough:
-#           docs/intel-genai-embed.md. Legacy OVMS pipelines:
-#           docs/adding-ovms-embedding-pipelines.md.
+#           OVMS gRPC is out of scope (`backend = "ovms"` does not parse).
+#           Walkthrough: docs/intel-genai-embed.md.
 #   apple   native MLX (Swift MLXEmbedders / MLXLLM, in-process FFI).
 #           Weights from `make fetch-mlx` (`cargo xtask fetch --mlx`) into
 #           models/mlx/<alias>/. BERT / XLM-RoBERTa covers MiniLM / BGE /

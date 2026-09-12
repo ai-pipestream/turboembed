@@ -9,8 +9,8 @@
 //!
 //! The mock backend is fully deterministic, so regenerated files are
 //! byte-identical unless its algorithm changes — which is exactly what the
-//! golden tests are meant to catch. GPU goldens (ORT CUDA on krick, OVMS on
-//! krick-1) are regenerated separately; see
+//! golden tests are meant to catch. GPU goldens (ORT CUDA on krick,
+//! OpenVINO GenAI on krick-1) are regenerated separately; see
 //! `testdata/reference_embeddings/README.md`.
 
 use std::fmt::Write as _;

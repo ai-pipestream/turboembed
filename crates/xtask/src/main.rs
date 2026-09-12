@@ -55,13 +55,9 @@ enum Command {
         #[arg(long)]
         mlx: bool,
         #[arg(long)]
-        ovms: bool,
-        #[arg(long)]
         manifest: Option<PathBuf>,
         #[arg(long)]
         root: Option<PathBuf>,
-        #[arg(long)]
-        out: Option<PathBuf>,
     },
     Verify {
         aliases: Vec<String>,
@@ -74,13 +70,9 @@ enum Command {
         #[arg(long)]
         mlx: bool,
         #[arg(long)]
-        ovms: bool,
-        #[arg(long)]
         manifest: Option<PathBuf>,
         #[arg(long)]
         root: Option<PathBuf>,
-        #[arg(long)]
-        out: Option<PathBuf>,
     },
     List {
         #[arg(long)]
@@ -89,8 +81,6 @@ enum Command {
         llms: bool,
         #[arg(long)]
         mlx: bool,
-        #[arg(long)]
-        ovms: bool,
         #[arg(long)]
         manifest: Option<PathBuf>,
     },
@@ -118,26 +108,20 @@ enum Kind {
     Embeddings,
     Llms,
     Mlx,
-    Ovms,
 }
 
 impl Kind {
-    fn detect(embeddings: bool, llms: bool, mlx: bool, ovms: bool) -> Result<Self, Error> {
-        let flags = [embeddings, llms, mlx, ovms]
-            .into_iter()
-            .filter(|b| *b)
-            .count();
+    fn detect(embeddings: bool, llms: bool, mlx: bool) -> Result<Self, Error> {
+        let flags = [embeddings, llms, mlx].into_iter().filter(|b| *b).count();
         if flags > 1 {
             return Err(Error::Msg(
-                "specify only one of --embeddings / --llms / --mlx / --ovms".into(),
+                "specify only one of --embeddings / --llms / --mlx".into(),
             ));
         }
         Ok(if llms {
             Self::Llms
         } else if mlx {
             Self::Mlx
-        } else if ovms {
-            Self::Ovms
         } else {
             Self::Embeddings
         })
@@ -148,7 +132,6 @@ impl Kind {
             Self::Embeddings => "models/manifests/embeddings.json",
             Self::Llms => "models/manifests/llms.json",
             Self::Mlx => "models/manifests/mlx.json",
-            Self::Ovms => "models/manifests/ovms-embeddings.json",
         }
     }
 }
@@ -174,10 +157,9 @@ fn run() -> Result<i32, Error> {
             embeddings,
             llms,
             mlx,
-            ovms,
             manifest,
         } => {
-            let kind = Kind::detect(embeddings, llms, mlx, ovms)?;
+            let kind = Kind::detect(embeddings, llms, mlx)?;
             let root = repo_root();
             let path = manifest.unwrap_or_else(|| root.join(kind.default_manifest()));
             let fallback = fallback_repos(kind);
@@ -189,17 +171,14 @@ fn run() -> Result<i32, Error> {
             embeddings,
             llms,
             mlx,
-            ovms,
             manifest,
             root,
-            out,
         } => operate(
-            Kind::detect(embeddings, llms, mlx, ovms)?,
+            Kind::detect(embeddings, llms, mlx)?,
             aliases,
             all,
             manifest,
             root,
-            out,
             Mode::Verify,
         ),
         Command::Fetch {
@@ -208,17 +187,14 @@ fn run() -> Result<i32, Error> {
             embeddings,
             llms,
             mlx,
-            ovms,
             manifest,
             root,
-            out,
         } => operate(
-            Kind::detect(embeddings, llms, mlx, ovms)?,
+            Kind::detect(embeddings, llms, mlx)?,
             aliases,
             all,
             manifest,
             root,
-            out,
             Mode::Fetch,
         ),
         Command::UpdateManifest {
@@ -231,21 +207,13 @@ fn run() -> Result<i32, Error> {
             manifest,
             root,
         } => {
-            let kind = Kind::detect(embeddings, llms, mlx, false)?;
-            if kind == Kind::Ovms {
-                return Err(Error::Msg(
-                    "Intel OVMS IR export is not invoked from xtask (OpenVINO's own \
-                     conversion toolchain). Re-hash existing IR with verify --ovms."
-                        .into(),
-                ));
-            }
+            let kind = Kind::detect(embeddings, llms, mlx)?;
             let root = root.unwrap_or_else(repo_root);
             let path = manifest.unwrap_or_else(|| root.join(kind.default_manifest()));
             match kind {
                 Kind::Embeddings => update_embeddings(&aliases, all, &path, &root, !no_store),
                 Kind::Llms => update_llms(&aliases, all, &path, &root, !no_store),
                 Kind::Mlx => update_mlx(&aliases, all, &path, &root, !no_store),
-                Kind::Ovms => unreachable!(),
             }
         }
     }
@@ -273,7 +241,6 @@ fn fallback_repos(kind: Kind) -> BTreeMap<String, String> {
             }
             m
         }
-        Kind::Ovms => BTreeMap::new(),
     }
 }
 
@@ -283,7 +250,6 @@ fn operate(
     all: bool,
     manifest: Option<PathBuf>,
     root: Option<PathBuf>,
-    out: Option<PathBuf>,
     mode: Mode,
 ) -> Result<i32, Error> {
     let root = root.unwrap_or_else(repo_root);
@@ -297,22 +263,9 @@ fn operate(
     let manifest = load_manifest(&path)?;
     let known = known_from_manifest(&manifest);
     let aliases = select_aliases(&aliases, all, &known)?;
-    let verify_root = if kind == Kind::Ovms {
-        out.unwrap_or_else(|| PathBuf::from("/work/models/ovms-embedder"))
-    } else {
-        root.clone()
-    };
     match mode {
-        Mode::Verify => cmd_verify(&aliases, &manifest, &verify_root),
+        Mode::Verify => cmd_verify(&aliases, &manifest, &root),
         Mode::Fetch => {
-            if kind == Kind::Ovms {
-                eprintln!(
-                    "Intel OVMS artifacts are pre-exported IR (not downloaded here).\n\
-                     Place them under --out (default /work/models/ovms-embedder) and run:\n  \
-                     cargo xtask verify --ovms --all"
-                );
-                return cmd_verify(&aliases, &manifest, &verify_root);
-            }
             let hint = match kind {
                 Kind::Llms => Some(
                     "Add the aliases to `serve` in the arch config and restart;\n\
@@ -326,7 +279,6 @@ fn operate(
                     "Add the aliases to `serve` in config/nvidia.toml and restart;\n\
                      verify with: scripts/smoke-embeddings.sh <host:port> <bearer-token>",
                 ),
-                Kind::Ovms => None,
             };
             cmd_fetch(&aliases, &manifest, &root, hint)
         }

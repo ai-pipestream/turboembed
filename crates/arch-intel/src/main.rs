@@ -3,13 +3,13 @@
 //! Primary embed path: in-process OpenVINO GenAI `TextEmbeddingPipeline`
 //! (`backend = "openvino"`, feature `openvino-genai`). Clients send plain
 //! strings; openvino-tokenizers + CLS/MEAN/LAST + L2 run inside the C++
-//! pipeline on CPU/GPU/NPU. **No OVMS gRPC on the default path.**
-//! `backend = "ovms"` remains as an optional/legacy client to a running
-//! OpenVINO Model Server. Secondary: llama.cpp `GGML_SYCL` in-process
-//! (`--features llamacpp-sycl`). Tokenize for GGUF is the llama.cpp vocab;
-//! embed Tokenize uses `tokenizer.json` next to the OV model dir. In-process
-//! GenAI and SYCL need oneAPI / OpenVINO sourced
-//! (`source /opt/intel/oneapi/setvars.sh` or OpenVINO `setupvars.sh`).
+//! pipeline on CPU/GPU/NPU. There is **no OVMS / OpenVINO Model Server
+//! client** — Intel embeddings are GenAI only. Secondary: llama.cpp
+//! `GGML_SYCL` in-process (`--features llamacpp-sycl`). Tokenize for GGUF
+//! is the llama.cpp vocab; embed Tokenize uses `tokenizer.json` next to
+//! the OV model dir. In-process GenAI and SYCL need oneAPI / OpenVINO
+//! sourced (`source /opt/intel/oneapi/setvars.sh` or OpenVINO
+//! `setupvars.sh`).
 
 use std::sync::Arc;
 
@@ -69,32 +69,6 @@ fn factory() -> impl inferstream_server::BackendFactory {
                 }
                 #[cfg(not(feature = "llamacpp"))]
                 Err(unsupported(model, "rebuild with --features llamacpp"))
-            }
-            BackendKind::Ovms => {
-                #[cfg(feature = "ovms")]
-                {
-                    let endpoint = model
-                        .endpoint
-                        .clone()
-                        .or_else(|| std::env::var("INFERSTREAM_OVMS_ENDPOINT").ok())
-                        .ok_or_else(|| {
-                            invalid(
-                                model,
-                                "backend \"ovms\" needs an upstream gRPC endpoint: set \
-                                 `endpoint` in the model entry or INFERSTREAM_OVMS_ENDPOINT \
-                                 in the environment"
-                                    .to_string(),
-                            )
-                        })?;
-                    let mut backend = inferstream_backend_ovms::OvmsBackend::new(endpoint)
-                        .map_err(|e| invalid(model, e.to_string()))?;
-                    if let Some(upstream) = &model.upstream_model {
-                        backend = backend.with_upstream_model(upstream.clone());
-                    }
-                    Ok(Arc::new(backend))
-                }
-                #[cfg(not(feature = "ovms"))]
-                Err(unsupported(model, "rebuild with --features ovms"))
             }
             BackendKind::Openvino => {
                 #[cfg(feature = "openvino")]
@@ -213,6 +187,22 @@ mod tests {
         }
     }
 
+    #[test]
+    fn ovms_backend_is_rejected_at_parse() {
+        let result = Config::from_toml(
+            r#"
+            [[models]]
+            name = "minilm_pipeline"
+            backend = "ovms"
+            endpoint = "http://127.0.0.1:8000"
+            "#,
+        );
+        assert!(
+            matches!(result, Err(_)),
+            "backend = \"ovms\" must not parse after OVMS removal"
+        );
+    }
+
     #[cfg(all(feature = "openvino", not(feature = "openvino-genai")))]
     #[test]
     fn openvino_without_genai_fails_at_startup() {
@@ -234,23 +224,4 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "ovms")]
-    #[test]
-    fn ovms_without_endpoint_fails_at_startup() {
-        // No `endpoint` and no INFERSTREAM_OVMS_ENDPOINT: actionable error.
-        std::env::remove_var("INFERSTREAM_OVMS_ENDPOINT");
-        let config = Config::from_toml(
-            r#"
-            [[models]]
-            name = "minilm_pipeline"
-            backend = "ovms"
-            "#,
-        )
-        .unwrap();
-        let result = build_registry(&config, &factory());
-        assert!(matches!(
-            result,
-            Err(ServerError::InvalidModelConfig { .. })
-        ));
-    }
 }

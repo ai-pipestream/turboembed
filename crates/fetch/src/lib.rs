@@ -280,7 +280,8 @@ pub struct ModelEntry {
     pub files: Vec<FileEntry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tokenizer: Option<TokenizerEntry>,
-    /// OVMS export entries record the pipeline suffix used to split dest roots.
+    /// Historical IR-export entries (contrib/offline-once) recorded a short
+    /// pipeline suffix here. Unused by fetch / GenAI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 }
@@ -901,8 +902,8 @@ pub fn cmd_list(
     Ok(0)
 }
 
-/// Offline SHA-256 check. `dest_for` maps a relative dest (or ovms file path)
-/// onto an absolute directory that already contains the file.
+/// Offline SHA-256 check. `dest_for` maps a relative dest onto an
+/// absolute directory that already contains the file.
 pub fn cmd_verify(
     aliases: &[String],
     manifest: &Manifest,
@@ -959,74 +960,6 @@ pub fn cmd_verify(
         "\nverify OK — all files present with matching SHA-256."
     )?;
     Ok(0)
-}
-
-/// Verify an OVMS-layout manifest: `hf_tokenizer_*` files live under `hf_out`,
-/// everything else under `ovms_out`. Paths in the manifest are already the
-/// relative keys (`tokenizer_<name>/1/...`, `hf_tokenizer_<name>/tokenizer.json`).
-pub fn cmd_verify_ovms(
-    aliases: &[String],
-    manifest: &Manifest,
-    ovms_out: &Path,
-    hf_out: &Path,
-    out: &mut impl Write,
-    err: &mut impl Write,
-) -> Result<i32> {
-    let mut failures = Vec::new();
-    for alias in aliases {
-        let entry = manifest
-            .models
-            .get(alias)
-            .ok_or_else(|| FetchError::msg(format!("alias {alias:?} is not in the manifest")))?;
-        if entry.alias_of.is_some() {
-            continue;
-        }
-        let name = entry
-            .name
-            .as_deref()
-            .ok_or_else(|| FetchError::msg(format!("{alias}: ovms entry is missing name")))?;
-        for f in &entry.files {
-            let path = ovms_artifact_path(name, ovms_out, hf_out, &f.path);
-            if !path.exists() {
-                failures.push(format!("{alias}: {path} — MISSING", path = path.display()));
-                writeln!(out, "  missing   {alias}: {}", f.path)?;
-                continue;
-            }
-            let actual = sha256_file(&path)?;
-            if actual != f.sha256 {
-                failures.push(format!(
-                    "{alias}: {} — sha256 mismatch (expected {}, got {actual})",
-                    path.display(),
-                    f.sha256
-                ));
-                writeln!(out, "  MISMATCH  {alias}: {}", f.path)?;
-            } else {
-                writeln!(out, "  ok        {alias}: {}", f.path)?;
-            }
-        }
-    }
-    if !failures.is_empty() {
-        writeln!(err, "\nverify FAILED ({} problem(s)):", failures.len())?;
-        for msg in &failures {
-            writeln!(err, "  {msg}")?;
-        }
-        return Ok(1);
-    }
-    writeln!(
-        out,
-        "\nverify OK — all OVMS artifacts present with matching SHA-256."
-    )?;
-    Ok(0)
-}
-
-pub fn ovms_artifact_path(name: &str, ovms_out: &Path, hf_out: &Path, rel: &str) -> PathBuf {
-    if rel == format!("hf_tokenizer_{name}/tokenizer.json")
-        || rel.starts_with(&format!("hf_tokenizer_{name}/"))
-    {
-        hf_out.join(rel)
-    } else {
-        ovms_out.join(rel)
-    }
 }
 
 pub fn cmd_fetch(
@@ -2151,25 +2084,6 @@ mod tests {
         let paths: Vec<&str> = bge.files.iter().map(|f| f.path.as_str()).collect();
         assert!(paths.contains(&"openvino_tokenizer.xml"));
         assert!(paths.contains(&"openvino_model.xml"));
-    }
-
-    #[test]
-    fn ovms_dest_split() {
-        let ovms = Path::new("/work/models/ovms-embedder");
-        let hf = Path::new("/home/me/ovms-models");
-        assert_eq!(
-            ovms_artifact_path(
-                "bge_base",
-                ovms,
-                hf,
-                "tokenizer_bge_base/1/openvino_tokenizer.xml"
-            ),
-            ovms.join("tokenizer_bge_base/1/openvino_tokenizer.xml")
-        );
-        assert_eq!(
-            ovms_artifact_path("bge_base", ovms, hf, "hf_tokenizer_bge_base/tokenizer.json"),
-            hf.join("hf_tokenizer_bge_base/tokenizer.json")
-        );
     }
 
     fn corpus_manifest() -> PathBuf {

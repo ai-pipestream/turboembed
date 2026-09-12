@@ -18,9 +18,8 @@
 # intel: in-process GenAI (`backend = "openvino"`, feature `openvino-genai`)
 #   links the host OpenVINO + OpenVINO GenAI + openvino-tokenizers install
 #   (oneAPI / standalone toolkit). Those GPU plugins are multi-GB and
-#   host-specific — they are NOT bundled here. `backend = "ovms"` is a
-#   pure tonic/prost gRPC client and links nothing. See
-#   docs/intel-genai-embed.md.
+#   host-specific — they are NOT bundled here. OVMS gRPC is out of scope.
+#   See docs/intel-genai-embed.md.
 #
 # TensorRT EP (feature ort-tensorrt) is deliberately NOT handled here: it needs
 # multi-GB TensorRT 10 host libs (`sudo apt install tensorrt-libs` from the
@@ -110,10 +109,9 @@ fetch_nvidia() {
 
 fetch_intel() {
     echo "==> intel: nothing to fetch."
-    echo "    backend = \"ovms\" is a pure tonic gRPC client to a running OpenVINO"
-    echo "    Model Server; it links no OpenVINO libraries. The in-process"
-    echo "    OpenVINO backend is a stub — its libs will be added here when the"
-    echo "    FFI link lands."
+    echo "    Intel embeddings are in-process OpenVINO GenAI (feature openvino-genai)."
+    echo "    Link the host OpenVINO + GenAI + openvino-tokenizers toolkit;"
+    echo "    GPU plugins are not bundled here. See docs/intel-genai-embed.md."
 }
 
 case "${1:-all}" in
