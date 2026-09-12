@@ -94,7 +94,6 @@ fn catalog_alias_on_mock_device_never_returns_fnv8() {
 /// is not dim 8.
 #[test]
 fn catalog_aliases_never_fnv8_on_accelerator_devices() {
-    let opts = EmbedOptions::default();
     let mut devices = vec![
         Device::Cuda,
         Device::TensorRt,
@@ -114,20 +113,13 @@ fn catalog_aliases_never_fnv8_on_accelerator_devices() {
                 refuse_cpu(&err);
             }
             Ok(engine) => {
-                for alias in ["minilm", "bge-small"] {
-                    match engine.load_model(alias) {
-                        Err(_) => {}
-                        Ok(()) => match engine.embed_one(alias, "hello world", &opts) {
-                            Err(_) => {}
-                            Ok(emb) => {
-                                fail_if_fnv_mock(alias, emb.dim());
-                                assert!(
-                                    emb.dim() >= 384,
-                                    "{device:?} {alias} live dim={} is too small for a catalog embed",
-                                    emb.dim()
-                                );
-                            }
-                        },
+                // Do not load MiniLM here — that is the ignored live
+                // receipt suite. Listing must not advertise catalog
+                // aliases as 8-d FNV.
+                let models = engine.list_models().expect("list");
+                for m in models.iter() {
+                    if m.alias != "mock-embed" && m.alias != "mock" {
+                        fail_if_fnv_mock(&m.alias, m.dim as usize);
                     }
                 }
             }
