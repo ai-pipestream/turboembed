@@ -264,7 +264,7 @@ fn apple_minilm_metal_cosine_vs_goldens() {
             ptr: hello.as_ptr().cast(),
             len: hello.len(),
         };
-        let mut opts = turboembed_embed_options {
+        let opts = turboembed_embed_options {
             pooling: turboembed_pooling::TURBOEMBED_POOLING_MEAN,
             normalize: 1,
             truncate_to: 256,

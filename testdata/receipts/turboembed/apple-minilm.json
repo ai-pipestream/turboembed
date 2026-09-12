@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "abi": "include/turboembed.h",
+  "abi_version": 1,
+  "host": "Kristians-MacBook-Air",
+  "arch": "apple",
+  "chip": "Apple M2",
+  "device": "Device(gpu, 0)",
+  "metal": true,
+  "provider": "mlx",
+  "alias": "minilm",
+  "pooling": "mean",
+  "normalize": true,
+  "dim": 384,
+  "n": 237,
+  "cosine_vs_nvidia": {
+    "min": 0.9794565,
+    "mean": 0.99973994,
+    "floor": 0.97,
+    "worst_id": "sts-0056:a"
+  },
+  "cosine_vs_apple": {
+    "min": 0.99999994,
+    "mean": 1.0,
+    "floor": 0.99,
+    "worst_id": "tiny-shakespeare-excerpt:p0008:s0000"
+  },
+  "l2_ok": true,
+  "fake_rejected": true,
+  "weights": "models/mlx/minilm",
+  "captured_at_unix": 1789240453
+}
