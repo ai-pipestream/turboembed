@@ -1,19 +1,19 @@
 # inferstream-apple example configuration — NATIVE macOS HOST ONLY.
 #
-# Metal does not pass through Linux containers; run this binary on the Mac:
+# The supported serve path is the all-Swift gRPC server (no Rust façade):
 #   ./scripts/setup-mlx.sh                       # cargo xtask fetch --mlx
-#   cargo build -p inferstream-arch-apple --release
-#   ./target/release/inferstream-apple --config config/apple.toml
+#   make apple                                   # swift build --package-path swift
+#   ./swift/.build/release/inferstream-apple --config config/apple.toml
 #
-# MLX models are served in-process through native MLX (Swift mlx-swift +
-# mlx-swift-lm linked via FFI). There is no Python worker. Weights live
-# under models/mlx/<alias> (SHA-256 verified by cargo xtask fetch --mlx).
+# MLX models are served in-process through mlx-swift / mlx-swift-lm.
+# There is no Python worker and no Rust→Swift FFI. Weights live under
+# models/mlx/<alias> (SHA-256 verified by cargo xtask fetch --mlx).
 
 listen = "0.0.0.0:8461"
 
 # Logical model aliases from the catalog. Clients say `model_name: "minilm"`
 # and this arch serves native MLX MiniLM. Tokenize uses tokenizer.json from
-# the same directory (Rust `tokenizers` crate).
+# the same directory (swift-transformers).
 #
 # Default serve list matches `scripts/setup-mlx.sh` (minilm + qwen-0.5b).
 # Add minilm-l12 / bge-small / qwen-7b after `cargo xtask update-manifest

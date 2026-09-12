@@ -1,33 +1,36 @@
 #!/usr/bin/env bash
-# End-to-end gRPC smoke for inferstream-apple on a macOS host.
+# End-to-end gRPC smoke for the all-Swift inferstream-apple server.
 #
 # Prereqs:  cargo xtask fetch --mlx minilm qwen-0.5b
 #           cargo xtask fetch --llms qwen-0.5b   # tokenizer.json
 #           brew install grpcurl jq
 #
-# Starts inferstream-apple, then ListModels / Tokenize / Detokenize / Embed
-# / ModelStreamInfer against native MLX (no Python).
+# Starts the Swift gRPC server (mlx-swift in-process — no Rust process,
+# no Python), then ListModels / Tokenize / Detokenize / Embed /
+# ModelStreamInfer.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG="${1:-config/apple.toml}"
 ADDR="127.0.0.1:8461"
 AUTH=(-H 'authorization: Bearer change-me')
-EXT=(-proto crates/protocol/proto/inferstream_extension.proto)
-OIP=(-proto crates/protocol/proto/open_inference_grpc.proto)
+EXT=(-proto proto/inferstream_extension.proto)
+OIP=(-proto proto/open_inference_grpc.proto)
 
 command -v grpcurl >/dev/null || { echo "error: grpcurl not installed" >&2; exit 1; }
 command -v jq >/dev/null || { echo "error: jq not installed" >&2; exit 1; }
 
-cargo build -p inferstream-arch-apple
+./scripts/sync-proto.sh --check
+swift build --package-path swift -c release
+BIN=swift/.build/release/inferstream-apple
 
-./target/debug/inferstream-apple --config "$CONFIG" &
+"$BIN" --config "$CONFIG" &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 
-echo "--- waiting for server on $ADDR ---"
+echo "--- waiting for Swift server on $ADDR (pid $SERVER_PID) ---"
 ready=0
-for _ in $(seq 1 60); do
+for _ in $(seq 1 90); do
     if kill -0 "$SERVER_PID" 2>/dev/null \
         && grpcurl -plaintext "${AUTH[@]}" "${OIP[@]}" "$ADDR" \
             inference.GRPCInferenceService/ServerLive >/dev/null 2>&1; then
@@ -35,7 +38,7 @@ for _ in $(seq 1 60); do
         break
     fi
     if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-        echo "error: inferstream-apple exited before becoming live" >&2
+        echo "error: inferstream-apple (Swift) exited before becoming live" >&2
         exit 1
     fi
     sleep 1
@@ -45,7 +48,7 @@ if [ "$ready" != 1 ]; then
     exit 1
 fi
 
-# Prove the serve path has no Python interpreter.
+# Prove the serve path has no Python interpreter and is not the Rust binary.
 if ps -o args= -p "$SERVER_PID" | grep -qi python; then
     echo "error: inferstream-apple command line mentions python" >&2
     exit 1
@@ -56,14 +59,24 @@ if pgrep -P "$SERVER_PID" -l 2>/dev/null | grep -qi python; then
 fi
 echo "--- no python child of pid $SERVER_PID ---"
 
-BIN=./target/debug/inferstream-apple
+if ps -o args= -p "$SERVER_PID" | grep -q 'target/.*inferstream-apple'; then
+    echo "error: smoke started the legacy Rust inferstream-apple" >&2
+    ps -o args= -p "$SERVER_PID" >&2
+    exit 1
+fi
+
 if command -v otool >/dev/null; then
     if otool -L "$BIN" | grep -qi python; then
         echo "error: inferstream-apple links a Python dylib" >&2
         otool -L "$BIN" >&2
         exit 1
     fi
-    echo "--- otool -L (no Python) ---"
+    if otool -L "$BIN" | grep -q 'libMlxEngine'; then
+        echo "error: Swift server still links legacy libMlxEngine.dylib" >&2
+        otool -L "$BIN" >&2
+        exit 1
+    fi
+    echo "--- otool -L (no Python, no libMlxEngine) ---"
     otool -L "$BIN" | head -20
 fi
 if command -v vmmap >/dev/null; then
@@ -78,7 +91,7 @@ echo "--- ListModels ---"
 grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" "$ADDR" \
     inferstream.v1.InferstreamService/ListModels
 
-echo "--- Tokenize (Rust tokenizers crate) ---"
+echo "--- Tokenize (swift-transformers, in-process) ---"
 grpcurl -plaintext "${AUTH[@]}" "${EXT[@]}" \
     -d '{"model_name":"minilm","texts":["hello world"]}' \
     "$ADDR" inferstream.v1.InferstreamService/Tokenize | jq .
@@ -104,7 +117,7 @@ if grep -Eq 'default-llm|qwen-0.5b|qwen2.5-0.5b' "$CONFIG"; then
     echo "$RAW" | jq -s '
         (map(.inferResponse // .) | map(select((.rawOutputContents // []) | length > 0))) as $c
         | (map(.inferResponse // .) | map(select(.parameters.final.boolParam == true)) | length) as $f
-        | (map(.inferResponse // .) | map(.parameters.decode_tokens_per_second.doubleParam // empty) | .[0] // 0) as $tps
+        | (map(.inferResponse // .) | map(.parameters.decodeTokensPerSecond.doubleParam // .parameters.decode_tokens_per_second.doubleParam // empty) | .[0] // 0) as $tps
         | "tokens=\($c|length) final=\($f > 0) engine_decode_tps=\($tps)"
     '
 else

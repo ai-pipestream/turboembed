@@ -1,12 +1,13 @@
-# Native MLX (Apple)
+# Native MLX (Apple) — legacy Rust FFI notes
 
-`inferstream-apple` runs **in-process native MLX** on Metal. There is no
-Python interpreter on Embed, Tokenize, or StreamInfer.
+The **supported** Mac serve path is the all-Swift gRPC server. See
+[`docs/swift-apple.md`](swift-apple.md).
 
-## How it is linked
+This page describes the **legacy** Rust `inferstream-apple` binary, which
+links mlx-swift through a C ABI. It is kept for CI type-checking only.
 
 ```
-inferstream-apple (Rust)
+inferstream-apple (legacy Rust)
   └─ crates/backend-apple
        └─ FFI (native/mlx-engine/include/mlx_engine.h)
             └─ libMlxEngine.dylib  (Swift, type: dynamic)

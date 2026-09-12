@@ -1,7 +1,7 @@
 //! Vendored KServe Open Inference Protocol (OIP) V2 gRPC types for
 //! inferstream, plus tensor wire-format helpers.
 //!
-//! The proto source lives in `proto/open_inference_grpc.proto`, vendored from
+//! The proto source of truth is the repo-root `proto/` directory, vendored from
 //! [kserve/open-inference-protocol] at commit
 //! `d49cc23f89d709d87b210ef9449e273ae243984e`, with a clearly marked
 //! Triton-shaped `ModelStreamInfer` extension for bidirectional streaming.

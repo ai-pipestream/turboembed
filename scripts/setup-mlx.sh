@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Fetch native MLX weights + HF tokenizers for inferstream-apple.
-# No Python. Runtime is in-process mlx-swift (native/mlx-engine).
+# No Python. Runtime is the all-Swift server (swift/, mlx-swift in-process).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 cargo xtask fetch --mlx minilm qwen-0.5b
 # Tokenize RPCs for default-llm / qwen-0.5b use the GGUF-side tokenizer.json
-# (Rust `tokenizers` crate). Same file the LLM manifest already pins.
+# (swift-transformers). Same file the LLM manifest already pins.
 if [ ! -f models/gguf/qwen-0.5b/tokenizer.json ]; then
     cargo xtask fetch --llms qwen-0.5b
 fi

@@ -23,7 +23,7 @@ cargo fmt --all
   (`crates/arch-nvidia`, `crates/arch-intel`, `crates/arch-apple`); the
   shared `crates/server` stays engine-free. Real GPU runtime links go behind
   opt-in features (e.g. `trtllm-sys`) that CI never enables.
-- The vendored proto in `crates/protocol/proto/` tracks upstream
+- The shared proto in `proto/` tracks upstream
   [kserve/open-inference-protocol](https://github.com/kserve/open-inference-protocol);
   local extensions must be clearly marked `INFERSTREAM EXTENSION` and kept
   wire-compatible with Triton conventions where one exists.

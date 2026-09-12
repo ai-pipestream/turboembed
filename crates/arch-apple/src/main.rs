@@ -1,10 +1,9 @@
-//! `inferstream-apple`: the Apple arch binary — **native macOS hosts only**.
+//! LEGACY Rust `inferstream-apple` façade.
 //!
-//! Serves MLX models (`backend = "mlx"`) through **in-process native MLX**
-//! (Swift mlx-swift + mlx-swift-lm linked via FFI — no Python) and GGUF
-//! models via llama.cpp-Metal (`backend = "llama-cpp"`, `device = "metal"`).
-//! Metal does not pass through Linux containers; deploy this binary on the
-//! Mac. It still compiles on Linux so CI can type-check the wiring.
+//! The supported Mac serve path is the all-Swift gRPC server in `swift/`
+//! (`make apple`, `scripts/smoke-apple.sh`). This binary still compiles so
+//! Linux CI can type-check the old Rust→`libMlxEngine.dylib` FFI wiring.
+//! Do not use it as the Apple production server.
 
 use std::sync::Arc;
 
