@@ -10,7 +10,7 @@ let package = Package(
         .executable(name: "inferstream-apple", targets: ["inferstream-apple"]),
         .library(name: "MlxEngine", targets: ["MlxEngine"]),
         .library(name: "InferstreamCore", targets: ["InferstreamCore"]),
-        .library(name: "TurboEmbed", targets: ["TurboEmbed"]),
+        .library(name: "TurboEmbed", type: .dynamic, targets: ["TurboEmbed"]),
     ],
     dependencies: [
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.1.0"),
@@ -65,7 +65,7 @@ let package = Package(
         ),
         .target(
             name: "TurboEmbed",
-            dependencies: ["TurboEmbedC"],
+            dependencies: ["TurboEmbedC", "MlxEngine", "InferstreamCore"],
             path: "Sources/TurboEmbed",
             swiftSettings: [
                 .enableUpcomingFeature("ExistentialAny")

@@ -2,8 +2,14 @@
 
 C++ implementation of the frozen C ABI in [`include/turboembed.h`](../../include/turboembed.h).
 
-Default compile is a **linkable stub**: deterministic `mock-embed` plus
-`NOT_IMPLEMENTED` for catalog aliases / provider registration.
+Default compile is a **linkable stub**: deterministic `mock-embed` on
+**explicit** `CPU` / `OPENVINO_CPU` / `MOCK` only. Catalog aliases
+(`minilm`, `bge-*`, …) return `NOT_IMPLEMENTED`. GPU requests without a
+compiled provider (`METAL`, `TENSORRT`, OpenVINO NPU; `CUDA` /
+`OPENVINO_GPU` / `AUTO` when the matching feature is off) fail at
+`turboembed_engine_create` with `UNAVAILABLE` — they never fall back to
+CPU or the 8-d FNV mock. `AUTO` is host-default GPU, not "CPU if GPU is
+down".
 
 `--features ort-cuda` (Rust crate) defines `TURBOEMBED_ORT_CUDA`. Catalog
 aliases such as `minilm` then call Rust hooks that load ONNX Runtime.
@@ -17,7 +23,9 @@ See `docs/turboembed.md`.
 `ov::genai::TextEmbeddingPipeline(models_path, device, config)` with
 `device` `"GPU"` or `"CPU"` (official sample strings) and call
 `embed_documents`. A GPU request never compiles `"CPU"`. No OVMS. No Python.
-Apple still exports the same header from Swift (`docs/turboembed-swift.md`).
+
+On macOS the Rust crate **does not** link this stub — it links
+`libTurboEmbed.dylib` (Swift MLX). See `docs/turboembed-swift.md`.
 
 ## Build the static stub (no Rust)
 
@@ -49,10 +57,12 @@ c++ -std=c++17 -fPIC -shared -O2 -I include \
 cargo test -p turboembed
 ```
 
-`crates/turboembed/build.rs` compiles `src/stub.cpp` (and `src/genai.cpp`
-when `--features genai`) with the `cc` crate. Needs a C++17 compiler
-(`g++` / `clang++`). GenAI builds also need OpenVINO + OpenVINO GenAI
-on the loader path (`source /work/opt/openvino_genai/setupvars.sh`).
+`crates/turboembed/build.rs` compiles `src/stub.cpp` **on non-macOS**
+(and `src/genai.cpp` when `--features genai`) with the `cc` crate. On
+macOS the crate links `libTurboEmbed.dylib` (Swift MLX) and never this
+stub. Needs a C++17 compiler (`g++` / `clang++`) on Linux. GenAI builds
+also need OpenVINO + OpenVINO GenAI on the loader path
+(`source /work/opt/openvino_genai/setupvars.sh`).
 
 ```bash
 cargo test -p turboembed --features genai

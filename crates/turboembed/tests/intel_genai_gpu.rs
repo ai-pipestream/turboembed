@@ -166,6 +166,7 @@ fn minilm_text_embedding_pipeline_on_gpu() {
     let one = engine
         .embed_one(ALIAS, TEXT, &opts)
         .unwrap_or_else(|e| panic!("embed_one minilm on GPU failed: {e:?}"));
+    assert_ne!(one.dim(), 8, "FAKE: minilm on GPU returned dim=8 (FNV mock)");
     assert_eq!(one.dim(), 384);
     assert_eq!(one.count(), 1);
     assert_eq!(one.values().len(), 384);
@@ -343,6 +344,11 @@ fn run_minilm_on(device: Device, ov_name: &str, plugin_needle: &str) -> (Vec<f32
     let one = engine
         .embed_one(ALIAS, TEXT, &opts)
         .unwrap_or_else(|e| panic!("embed_one on {ov_name}: {e:?}"));
+    assert_ne!(
+        one.dim(),
+        8,
+        "FAKE: minilm on {ov_name} returned dim=8 (FNV mock)"
+    );
     assert_eq!(one.dim(), 384);
     let live = one.values().to_vec();
     let cosine_intel = cosine(&live, &intel_golden);
@@ -394,6 +400,7 @@ fn minilm_text_embedding_pipeline_on_cpu() {
             },
         )
         .expect("Device::Cpu embed_one");
+    assert_ne!(one.dim(), 8, "FAKE: minilm on CPU returned dim=8 (FNV mock)");
     assert_eq!(one.dim(), 384);
     let intel = golden_vector(&root.join("testdata/e2e/goldens/intel/minilm.json"));
     let c = cosine(one.values(), &intel);

@@ -18,6 +18,9 @@ genai = []
 # CPU EP, same ONNX + mean+L2. Catalog aliases error without this
 # feature. CUDA 13 user-space libs: .libs/nvidia/lib. See docs/turboembed.md.
 ort-cuda = ["dep:ort", "dep:tokenizers", "dep:inferstream-backend-ort", "dep:serde", "dep:toml"]
+# Live Metal MiniLM via libTurboEmbed.dylib (macOS only).
+# cargo test -p turboembed --features mlx-live -- --ignored --nocapture
+mlx-live = []
 
 [dependencies]
 thiserror = { workspace = true }
@@ -27,8 +30,9 @@ toml = { workspace = true, optional = true }
 ort = { version = "2.0.0-rc.13", optional = true, features = ["cuda"] }
 tokenizers = { workspace = true, optional = true }
 
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
 [build-dependencies]
 cc = "1"
-
-[dev-dependencies]
-serde_json = { workspace = true }

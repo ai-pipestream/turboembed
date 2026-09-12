@@ -143,9 +143,7 @@ struct turboembed_engine {
         : device(device_),
           config_path(std::move(config)),
           last_error(),
-          mock_loaded(device_ == TURBOEMBED_DEVICE_MOCK ||
-                      device_ == TURBOEMBED_DEVICE_AUTO ||
-                      device_ == TURBOEMBED_DEVICE_CPU)
+          mock_loaded(device_ == TURBOEMBED_DEVICE_MOCK)
 #ifdef TURBOEMBED_ORT_CUDA
           ,
           ort_cuda(nullptr)
@@ -170,8 +168,8 @@ struct turboembed_engine {
 
 #ifdef TURBOEMBED_GENAI
 /* Map the ABI device to the OpenVINO GenAI constructor string.
- * AUTO picks GPU if the plugin is listed, else CPU — then that exact
- * string is compiled. OPENVINO_GPU never becomes "CPU". */
+ * AUTO is host-default GPU — never "CPU if GPU is down".
+ * OPENVINO_GPU never becomes "CPU". */
 bool resolve_ov_device(turboembed_device device, std::string *out, std::string *err) {
     switch (device) {
         case TURBOEMBED_DEVICE_OPENVINO_GPU:
@@ -183,7 +181,13 @@ bool resolve_ov_device(turboembed_device device, std::string *out, std::string *
             return true;
         case TURBOEMBED_DEVICE_AUTO:
             try {
-                *out = turboembed_genai::runtime_has_gpu() ? "GPU" : "CPU";
+                if (!turboembed_genai::runtime_has_gpu()) {
+                    *err =
+                        "AUTO is host-default GPU; OpenVINO GPU plugin missing — "
+                        "refusing CPU fallback";
+                    return false;
+                }
+                *out = "GPU";
                 return true;
             } catch (const std::exception &e) {
                 *err = std::string("OpenVINO device query failed: ") + e.what();
@@ -305,16 +309,41 @@ turboembed_status turboembed_engine_create(
     }
     *out = nullptr;
     switch (device) {
-        case TURBOEMBED_DEVICE_AUTO:
         case TURBOEMBED_DEVICE_CPU:
-        case TURBOEMBED_DEVICE_CUDA:
-        case TURBOEMBED_DEVICE_TENSORRT:
         case TURBOEMBED_DEVICE_OPENVINO_CPU:
-        case TURBOEMBED_DEVICE_OPENVINO_GPU:
-        case TURBOEMBED_DEVICE_OPENVINO_NPU:
-        case TURBOEMBED_DEVICE_METAL:
         case TURBOEMBED_DEVICE_MOCK:
             break;
+        case TURBOEMBED_DEVICE_CUDA:
+#ifdef TURBOEMBED_ORT_CUDA
+            break;
+#else
+            g_create_error = std::string("requested ") + turboembed_device_name(device) +
+                             "; this stub has no GPU — refusing CPU fallback";
+            return TURBOEMBED_ERR_UNAVAILABLE;
+#endif
+        case TURBOEMBED_DEVICE_AUTO:
+#if defined(TURBOEMBED_ORT_CUDA) || defined(TURBOEMBED_GENAI)
+            break;
+#else
+            g_create_error = std::string("requested ") + turboembed_device_name(device) +
+                             "; AUTO is host-default GPU and this stub has none — "
+                             "refusing CPU fallback";
+            return TURBOEMBED_ERR_UNAVAILABLE;
+#endif
+        case TURBOEMBED_DEVICE_OPENVINO_GPU:
+#ifdef TURBOEMBED_GENAI
+            break;
+#else
+            g_create_error = std::string("requested ") + turboembed_device_name(device) +
+                             "; this stub has no GPU — refusing CPU fallback";
+            return TURBOEMBED_ERR_UNAVAILABLE;
+#endif
+        case TURBOEMBED_DEVICE_TENSORRT:
+        case TURBOEMBED_DEVICE_OPENVINO_NPU:
+        case TURBOEMBED_DEVICE_METAL:
+            g_create_error = std::string("requested ") + turboembed_device_name(device) +
+                             "; this stub has no GPU — refusing CPU fallback";
+            return TURBOEMBED_ERR_UNAVAILABLE;
         default:
             g_create_error = "unknown device enum";
             return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
@@ -472,9 +501,27 @@ turboembed_status turboembed_load_model(
         return TURBOEMBED_ERR_INVALID_ARGUMENT;
     }
     if (is_mock_alias(alias, alias_len)) {
-        engine->mock_loaded = true;
-        engine->set_error("");
-        return TURBOEMBED_OK;
+        switch (engine->device) {
+            case TURBOEMBED_DEVICE_MOCK:
+            case TURBOEMBED_DEVICE_CPU:
+            case TURBOEMBED_DEVICE_OPENVINO_CPU:
+                engine->mock_loaded = true;
+                engine->set_error("");
+                return TURBOEMBED_OK;
+            default:
+                engine->set_error(
+                    "mock-embed is ABI smoke only; GPU/AUTO paths never serve "
+                    "the 8-d FNV mock"
+                );
+                return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+        }
+    }
+    if (engine->device == TURBOEMBED_DEVICE_MOCK) {
+        engine->set_error(
+            "catalog aliases are not served by mock; mock is smoke-only, "
+            "never a silent substitute for missing Metal/GPU"
+        );
+        return TURBOEMBED_ERR_NOT_IMPLEMENTED;
     }
 
 #ifdef TURBOEMBED_ORT_CUDA
@@ -818,6 +865,14 @@ static turboembed_status embed_impl(
         );
         return TURBOEMBED_ERR_NOT_FOUND;
 #endif
+    }
+    if (engine->device != TURBOEMBED_DEVICE_MOCK &&
+        engine->device != TURBOEMBED_DEVICE_CPU &&
+        engine->device != TURBOEMBED_DEVICE_OPENVINO_CPU) {
+        engine->set_error(
+            "mock-embed is ABI smoke only; refusing 8-d FNV on GPU/AUTO"
+        );
+        return TURBOEMBED_ERR_NOT_IMPLEMENTED;
     }
     if (!engine->mock_loaded) {
         engine->set_error("mock-embed is not loaded");

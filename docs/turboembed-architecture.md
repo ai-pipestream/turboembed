@@ -33,8 +33,8 @@ flowchart TB
     end
 
     subgraph impl [Arch implementations — same symbols]
-        Cpp["C++ stub + OpenVINO GenAI CPU/GPU (intel)"]
-        Mlx["Swift @_cdecl → later MLXEmbedders"]
+        Cpp["C++ stub + ORT CUDA + OpenVINO GenAI"]
+        Mlx["Swift @_cdecl → MLXEmbedders mean+L2 (Metal)"]
     end
 
     subgraph engines [Existing inferstream engines — stay in place]
@@ -63,9 +63,9 @@ flowchart TB
 | Layer | Who owns it | Status in this scaffold |
 |---|---|---|
 | C header `include/turboembed.h` | Frozen ABI v1 | landed |
-| C++ `native/turboembed` | nvidia / intel / Linux CI | mock always; `--features genai` wires `TextEmbeddingPipeline` on **GPU** or **CPU** (exact device string; GPU request never silently becomes CPU) |
-| Swift `@_cdecl` shim | Apple (same header) | stub symbols; MLX wiring is next |
-| Rust `crates/turboembed` | safe zero-copy wrapper | ABI smoke test |
+| C++ `native/turboembed` | nvidia / intel / Linux CI | `mock-embed` on explicit `MOCK`/`CPU` only; `--features ort-cuda` / `genai` wire real MiniLM. GPU request never silently becomes CPU or mock |
+| Swift `@_cdecl` shim | Apple (same header) | **LIVE** — `libTurboEmbed.dylib` → `MlxEngine` mean+L2 on Metal |
+| Rust `crates/turboembed` | safe zero-copy wrapper | ABI smoke + `mlx-live` / `ort-cuda` / `genai` receipts |
 | gRPC `Embed` / `EmbedStream` | maps to existing InferstreamService | proto delta + server fill-in |
 | inferstream arch servers | unchanged | do not rip out |
 
@@ -88,6 +88,8 @@ header comment.
 4. **Stream callback pointers die at return.** Copy the row inside
    `turboembed_stream_cb` if you need it later.
 5. **One engine, one thread.** Distinct engines may run concurrently.
+6. **No silent CPU.** GPU/Metal/AUTO/NPU requests fail if that
+   accelerator is missing. `CPU` / `OPENVINO_CPU` only when selected.
 
 Rust documents the same rules on `Engine` / `Embeddings`: the safe wrapper
 never hands out a `&[f32]` that outlives the `Embeddings` guard.
@@ -168,13 +170,28 @@ already talks to inferstream.
 ## What this scaffold does not do
 
 - Does not rip out or stop the inferstream arch servers.
-- Does not link ORT / MLX into `libturboembed` yet — those devices still
-  return `NOT_IMPLEMENTED` after create (except the built-in mock alias).
+- **NVIDIA ORT CUDA is wired** (`--features ort-cuda`): IoBinding device
+  buffers; a CUDA request never becomes CPU. Receipts:
+  `nvidia-minilm.json` (CUDA) and `nvidia-minilm-cpu.json`.
 - **Intel GenAI CPU and GPU are wired.** `--features genai` constructs
   `ov::genai::TextEmbeddingPipeline` with the official `"CPU"` or `"GPU"`
   string. A GPU request fails if the GPU plugin is missing (no silent
   CPU). Receipts: `intel-minilm.json` (GPU) and `intel-minilm-cpu.json`.
+- **Apple MLX is wired** on macOS: `Device::Metal` / `Device::Auto` +
+  `minilm` is FP mean+L2. Receipt: `apple-minilm.json`.
 - Does not add Python bindings.
+
+## Mock is smoke-only
+
+`TURBOEMBED_DEVICE_MOCK` / `Device::Mock` (and the `mock-embed` / `mock`
+aliases) exist for **ABI smoke**: create / list / load / embed / free of
+an 8-d FNV vector. That path is never a silent substitute for a missing
+Metal/GPU/ORT/GenAI provider.
+
+Catalog aliases (`minilm`, `bge-*`, `e5-*`, …) on `AUTO` / `METAL` /
+`CUDA` / `OPENVINO_*` must come from the real engine or **fail loud**.
+A live/integration test that accepts `dim == 8` for those aliases is
+wrong — it is asserting the mock.
 
 Build the stub and the Rust smoke test: see the [root README](../README.md#turboembed)
 and `native/turboembed/README.md`.

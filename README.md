@@ -74,7 +74,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/arch-nvidia` | `inferstream-nvidia` binary |
 | `crates/arch-intel` | `inferstream-intel` binary |
 | `crates/arch-apple` | `inferstream-apple` binary |
-| `crates/turboembed` | Safe wrapper over the TurboEmbed C ABI (`include/turboembed.h`). NVIDIA: `--features ort-cuda` (ORT CUDA IoBinding). Intel: `--features genai`. Catalog aliases error without the real feature. |
+| `crates/turboembed` | Safe wrapper over `include/turboembed.h`. macOS: `libTurboEmbed.dylib` (MLX Metal MiniLM mean+L2). NVIDIA: `--features ort-cuda`. Intel: `--features genai`. Catalog aliases error without the real feature; mock is smoke-only. |
 
 ## TurboEmbed
 
@@ -94,21 +94,26 @@ on the existing `inferstream.v1.InferstreamService`.
 | NVIDIA ORT CUDA | [`docs/turboembed.md`](docs/turboembed.md) · `make test-turboembed-nvidia` |
 
 ```bash
-make turboembed-stub          # native/turboembed/build/libturboembed.a
-cargo test -p turboembed      # links the stub; ABI smoke (no GPU)
+make turboembed-stub          # Linux: native/turboembed/build/libturboembed.a
+cargo test -p turboembed      # ABI smoke (mock-embed). macOS links MLX.
 make test-turboembed-nvidia   # --features ort-cuda; ORT CUDA IoBinding MiniLM
 make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on CPU and GPU
+make test-turboembed-apple    # Mac: turboembed_embed(minilm) on Metal vs goldens
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 
-Without a real provider feature the stub answers `mock-embed` and returns
-`NOT_IMPLEMENTED` for catalog aliases (`minilm`, …). `--features ort-cuda`
-loads MiniLM through ORT CUDA + IoBinding (CUDA request never becomes CPU)
-or an explicit CPU EP when `Device::Cpu` is selected.
-On Intel, `--features genai` loads `ov::genai::TextEmbeddingPipeline` on
-**GPU** or **CPU** (no OVMS; a GPU request never silently becomes CPU).
-Receipts: `testdata/receipts/turboembed/nvidia-minilm.json`,
-`intel-minilm.json` (GPU), `intel-minilm-cpu.json` (CPU).
+Without a real provider feature the stub answers `mock-embed` on explicit
+`MOCK` / `CPU` and returns `NOT_IMPLEMENTED` for catalog aliases
+(`minilm`, …). Mock is never a silent substitute for missing Metal/GPU.
+`--features ort-cuda` loads MiniLM through ORT CUDA + IoBinding (CUDA
+request never becomes CPU) or an explicit CPU EP when `Device::Cpu` is
+selected. On Intel, `--features genai` loads
+`ov::genai::TextEmbeddingPipeline` on **GPU** or **CPU** (no OVMS; a GPU
+request never silently becomes CPU). On Apple Silicon, `Device::Metal` /
+`Device::Auto` + `minilm` is **real FP MiniLM** (hidden-state mean + L2
+on Metal). Receipts: `testdata/receipts/turboembed/nvidia-minilm.json`,
+`nvidia-minilm-cpu.json`, `intel-minilm.json`, `intel-minilm-cpu.json`,
+`apple-minilm.json`.
 Inferstream servers are unchanged.
 
 ## Building each arch binary

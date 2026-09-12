@@ -50,22 +50,82 @@ fn create_list_load_embed_free() {
 }
 
 #[test]
-#[cfg(not(feature = "ort-cuda"))]
+#[cfg(not(any(feature = "ort-cuda", feature = "genai")))]
 fn catalog_alias_is_not_implemented() {
-    let engine = Engine::create(Device::Cuda).expect("create still succeeds");
+    let engine = Engine::create(Device::Mock).expect("create mock engine");
     let err = engine
         .load_model("minilm")
-        .expect_err("stub must not fake ORT");
+        .expect_err("mock must not fake MiniLM");
     assert!(
-        matches!(err, Error::NotImplemented(_)),
-        "without --features ort-cuda, minilm must be NotImplemented, got {err:?}"
+        matches!(
+            err,
+            Error::NotImplemented(_) | Error::NotFound(_) | Error::Unavailable(_)
+        ),
+        "catalog alias on Mock must fail, got {err:?}"
     );
+}
+
+#[test]
+fn gpu_without_gpu_fails_loud_never_cpu() {
+    // CUDA create is allowed only when --features ort-cuda (load then
+    // fails loud if the EP is missing). Same for OpenVINO GPU + genai.
+    let mut devices = vec![Device::TensorRt, Device::OpenVinoNpu];
+    if cfg!(not(feature = "ort-cuda")) {
+        devices.push(Device::Cuda);
+    }
+    if cfg!(not(feature = "genai")) {
+        devices.push(Device::OpenVinoGpu);
+    }
+    for device in devices {
+        let err = match Engine::create(device) {
+            Ok(_) => panic!("{device:?} must fail when that GPU is missing — never CPU/mock"),
+            Err(e) => e,
+        };
+        assert!(
+            matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+            "{device:?}: {err:?}"
+        );
+        let msg = err.to_string().to_lowercase();
+        assert!(
+            msg.contains("refusing cpu fallback") || msg.contains("refusing cpu"),
+            "{device:?} error must say it refused CPU, got: {err}"
+        );
+    }
 }
 
 #[test]
 fn register_provider_is_reserved() {
     let err = register_provider_stub().expect_err("plugin registration reserved");
     assert!(matches!(err, Error::NotImplemented(_)));
+}
+
+#[test]
+fn cpu_only_when_explicit() {
+    let engine = Engine::create(Device::Cpu).expect("explicit CPU is allowed");
+    engine.load_model("mock-embed").expect("mock on CPU");
+    let models = engine.list_models().expect("list");
+    assert!(
+        models.iter().all(|m| m.alias == "mock-embed" && m.device != Device::Metal),
+        "explicit CPU must not advertise Metal MiniLM: {:?}",
+        models.iter().map(|m| (m.alias.clone(), m.device)).collect::<Vec<_>>()
+    );
+    let err = engine
+        .load_model("minilm")
+        .expect_err("CPU must not silently serve MiniLM");
+    assert!(matches!(err, Error::NotImplemented(_) | Error::NotFound(_)));
+}
+
+#[cfg(not(target_os = "macos"))]
+#[test]
+fn metal_and_auto_fail_on_stub() {
+    for device in [Device::Metal, Device::Auto] {
+        let err = Engine::create(device).expect_err("no Metal on the Linux stub");
+        assert!(matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)));
+        assert!(
+            err.to_string().to_lowercase().contains("refusing cpu"),
+            "{device:?}: {err}"
+        );
+    }
 }
 
 #[test]

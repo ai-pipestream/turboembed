@@ -303,6 +303,11 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
     let hello_live = engine
         .embed_one(ALIAS, "hello world", &opts)
         .unwrap_or_else(|e| panic!("embed_one hello world on CUDA failed: {e:?}"));
+    assert_ne!(
+        hello_live.dim(),
+        8,
+        "FAKE: minilm on CUDA returned dim=8 (FNV mock)"
+    );
     assert_eq!(hello_live.dim(), dim);
     assert_eq!(hello_live.count(), 1);
     assert_eq!(hello_live.values().len(), dim);

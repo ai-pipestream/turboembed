@@ -16,8 +16,16 @@
 //! * The ABI is **not thread-safe** on a single engine. `Engine` is `Send`
 //!   (move it to another thread) but not `Sync`.
 //!
-//! Default link is the C++ stub (`native/turboembed`): `mock-embed` works,
-//! catalog aliases return [`Error::NotImplemented`].
+//! The linked implementation is **arch-specific**:
+//!
+//! * **macOS:** `libTurboEmbed.dylib` (`@_cdecl` → mlx-swift `MlxEngine`).
+//!   `Device::Metal` / `Device::Auto` + `minilm` is FP MiniLM, hidden-state
+//!   **mean + L2** on Apple GPU. Not the BERT NSP pooler
+//!   (`tanh(dense(CLS))`), not the 8-d mock stub, not Python.
+//! * **elsewhere:** C++ stub (`native/turboembed`). `mock-embed` works
+//!   on explicit [`Device::Mock`] (and explicit CPU for ABI smoke).
+//!   Catalog aliases return [`Error::NotImplemented`] unless a real
+//!   provider feature is compiled in.
 //!
 //! `--features genai` links `ov::genai::TextEmbeddingPipeline` with the
 //! official device string (`"GPU"` or `"CPU"`).
@@ -32,6 +40,15 @@
 //! the NVIDIA CUDA proof path. A CUDA request never silently becomes
 //! CPU. `Device::Cpu` is an explicit CPU EP path (same ONNX, same
 //! mean+L2).
+//!
+//! # Device policy
+//!
+//! GPU / accelerator requests (`Auto`, `Cuda`, `TensorRt`, OpenVINO GPU/NPU,
+//! `Metal`) **fail** if that device is missing. They never fall back to
+//! CPU or the 8-d FNV mock. `Auto` is host-default **GPU** (Metal on Mac),
+//! not "CPU if GPU is down". `Cpu` / `OpenVinoCpu` run only when selected.
+//! [`Device::Mock`] is ABI smoke only — never a silent substitute for
+//! catalog aliases (`minilm`, `bge-*`, …).
 
 #![allow(clippy::result_large_err)]
 
@@ -403,11 +420,14 @@ impl Engine {
         Ok(ModelList { ptr: infos, count })
     }
 
-    /// Load a catalog alias. Stub: `mock-embed` / `mock` succeed.
+    /// Load a catalog alias. Stub: `mock-embed` / `mock` succeed only on
+    /// explicit [`Device::Mock`] / [`Device::Cpu`]. Catalog aliases never
+    /// resolve to the 8-d FNV mock.
     /// `--features ort-cuda`: `minilm` loads ORT CUDA + IoBinding on
     /// [`Device::Cuda`] / [`Device::Auto`], or the CPU EP on [`Device::Cpu`].
     /// `--features genai`: `minilm` (and other `models/ov/<alias>` dirs)
     /// load `TextEmbeddingPipeline` on `"GPU"` or `"CPU"`.
+    /// macOS: `minilm` loads MLX mean+L2 on [`Device::Metal`] / [`Device::Auto`].
     pub fn load_model(&self, alias: &str) -> Result<(), Error> {
         let status =
             unsafe { turboembed_load_model(self.as_ptr(), alias.as_ptr().cast(), alias.len()) };
