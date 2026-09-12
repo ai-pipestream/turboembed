@@ -43,6 +43,7 @@ On the host (or any client that can reach it):
 # nvidia / krick
 make e2e-parity-goldens TARGET=nvidia WRITE=1
 # writes testdata/e2e/goldens/nvidia/minilm.json (and bge-small / mpnet if served)
+# krick 2026-09-12 dumps are committed — docs/nvidia-e2e-parity-goldens-krick.md
 
 # intel / krick-1
 make e2e-parity-goldens TARGET=intel WRITE=1 INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461

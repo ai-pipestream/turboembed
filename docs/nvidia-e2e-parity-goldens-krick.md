@@ -1,0 +1,79 @@
+# NVIDIA e2e embed parity goldens (krick)
+
+Live capture on the NVIDIA host for cross-arch cosine. Tree is Origin
+`main` **`2b8883c`** or later. No Python — `inferstream-fetch` +
+`inferstream-e2e`.
+
+## What was up
+
+`inferstream-nvidia` on **ORT CUDA** serving `minilm` and `bge-small`
+(`config/nvidia-parity.toml`). Full `config/nvidia.toml` also lists those
+aliases (plus LLMs); the slim file is what this run started.
+
+| | |
+|---|---|
+| listen | `0.0.0.0:8461` |
+| token | `change-me` (`INFERSTREAM_E2E_TOKEN`) |
+| LAN | `192.168.1.242:8461`, `192.168.1.243:8461` |
+| Tailscale | `100.110.72.95:8461` |
+| GPU | RTX 4080 SUPER, CUDA EP (`device=cuda` in session log) |
+
+`make fetch-corpus` landed SHA-pinned `testdata/corpus/tiny-shakespeare.txt`
+(gitignored). STS pairs were already committed.
+
+## Dumps
+
+| path | notes |
+|---|---|
+| `testdata/e2e/goldens/nvidia/minilm.json` | 237 items, 384-d, mean+L2, ~2.0 MiB |
+| `testdata/e2e/goldens/nvidia/bge-small.json` | 237 items, 384-d, CLS+L2, ~2.0 MiB |
+
+Schema is `docs/e2e-parity.md` (`schema_version`, `items[].id/text/vector`).
+These files are **committed** (not gitignored).
+
+Write / replay:
+
+```bash
+make e2e-parity-goldens TARGET=nvidia WRITE=1 \
+  INFERSTREAM_E2E_NVIDIA_ADDR=127.0.0.1:8461
+make e2e-parity-goldens TARGET=nvidia \
+  INFERSTREAM_E2E_NVIDIA_ADDR=127.0.0.1:8461
+```
+
+## Cosine vs self-replay
+
+Live ORT CUDA vs the dumps just written:
+
+| alias | min | mean | n | gate |
+|---|---|---|---|---|
+| `minilm` | **1.0000** | **1.0000** | 237 | 0.99 |
+| `bge-small` | **1.0000** | **1.0000** | 237 | 0.99 |
+
+`hello world` first components (live Embed after capture) sit on the
+golden within ~5e-5 — fp32 session noise, not a different vector.
+
+## `--parity-cross` from krick
+
+| peer | reach | result |
+|---|---|---|
+| apple / `kristians-macbook-air` | **yes** — `192.168.1.241:8461` and Tailscale `100.102.192.43:8461`, `ListModels` 4 ready, `minilm` `backend=mlx` dim 384 | **FAIL** `minilm` apple↔nvidia min cosine **-0.1404** mean **-0.0085** (n=237). Far below the 0.97 4-bit floor — not a quant gap; pooling/tokenizer/weight mismatch on the Mac side. `bge-small` not served on apple. |
+| intel / krick-1 | host up (`192.168.1.195`, Tailscale `100.124.224.59`) | **no inferstream** on `:8461` / `:8471`. Only llama-server `:8085`. Goldens not on `origin/main` yet. |
+
+Retry when intel is serving:
+
+```bash
+INFERSTREAM_E2E_NVIDIA_ADDR=192.168.1.242:8461 \
+INFERSTREAM_E2E_INTEL_ADDR=192.168.1.195:8461 \
+INFERSTREAM_E2E_APPLE_ADDR=192.168.1.241:8461 \
+INFERSTREAM_E2E_TOKEN=change-me \
+  make e2e-parity
+```
+
+Offline three-way once peer dumps land:
+
+```bash
+make e2e-parity \
+  DUMP_NVIDIA=testdata/e2e/goldens/nvidia \
+  DUMP_INTEL=testdata/e2e/goldens/intel \
+  DUMP_APPLE=testdata/e2e/goldens/apple
+```
