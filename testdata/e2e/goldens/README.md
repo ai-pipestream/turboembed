@@ -13,3 +13,8 @@ Do not commit GPU dumps until they were captured on the named host
 **nvidia / krick (2026-09-12):** `minilm.json` + `bge-small.json` committed.
 Self-replay cosine **1.0000**. See `nvidia/README.md` and
 `docs/nvidia-e2e-parity-goldens-krick.md`.
+
+**apple / krickert-mac (2026-09-12):** `minilm.json` + `bge-small.json`
+committed after the mean+L2 / FP-catalog fix. vs nvidia: MiniLM min
+**0.9795** / mean **0.9997**; BGE-small min **0.9938** / mean **0.9999**.
+See `apple/README.md`.

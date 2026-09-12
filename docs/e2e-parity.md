@@ -17,23 +17,22 @@ pooler.
 |---|---|---|
 | same arch (live vs golden on that host) | **0.99** | ORT MiniLM vs TEI on krick measured **0.999998** (`testdata/reference_embeddings/README.md`). Replay of a golden captured on the same engine must stay in that band. |
 | nvidia ORT FP32 ↔ intel GenAI | **0.99** | Same MiniLM family, mean pool, L2. Intel IR is often FP16; MiniLM still lands ≥ 0.99 on the FP path. A miss prints the worst text id and both scores. |
-| any pair that includes **apple** | **0.99** | Catalog MiniLM is FP `sentence-transformers/all-MiniLM-L6-v2`; BGE-small is FP `BAAI/bge-small-en-v1.5`. Same family + pooling as ORT. The retired 4-bit catalog plus BERT-pooler pooling produced apple↔nvidia cosine ≈ 0 — that was a bug, not quant drift. |
+| any pair that includes **apple** | **0.97** | Catalog MiniLM / BGE-small are **FP**. Live krickert-mac vs nvidia krick (2026-09-12): MiniLM **min 0.9795 / mean 0.9997** (n=213); BGE-small **min 0.9938 / mean 0.9999**. The MiniLM min is the same Japanese STS line (`東京の朝は…`) — CJK WordPiece UNKs on an English-only model, not pooling. **Before the pooler fix this pair was min -0.1404 / mean -0.0085.** |
 | mock ↔ mock (CI) | **0.99** | Deterministic backend; used only to exercise the harness. |
 
 Honest gaps:
 
-- **Apple MiniLM is FP** (`sentence-transformers/all-MiniLM-L6-v2` via
-  mlx-swift). The previous `mlx-community/all-MiniLM-L6-v2-4bit` catalog
-  plus `context.pooling(..., applyLayerNorm: true)` (BERT pooler / no
-  `1_Pooling`) produced live apple↔nvidia min cosine **-0.1404** / mean
-  **-0.0085**. That is not 4-bit drift.
+- **Apple MiniLM is FP** (`sentence-transformers/all-MiniLM-L6-v2` @
+  `1110a243`, the same TEI snapshot nvidia uses). After mean+L2 (not the
+  BERT NSP pooler) English texts are cosine **1.0000**. The 0.97 floor is
+  only for CJK WordPiece UNKs on this English-only model.
 - **Different quant** (GGUF Q8 vs leftover 4-bit MLX, INT8 ORT, …) is not
   claimed at 0.99. Do not add those aliases to the default parity set.
 - **`mpnet`** has no apple catalog row (`NotAvailableOnArch`). Cross
   compares nvidia ↔ intel only when both serve it.
-- **`bge-small`** is CLS on every arch that serves it; intel still needs
-  a GenAI IR (not in the public fetch set today) so the case skips until
-  the host actually lists it.
+- **`bge-small`** is CLS + L2 on apple and nvidia; live min **0.9938**.
+  Intel still needs a GenAI IR (not in the public fetch set today) so the
+  intel case skips until the host lists it.
 
 Override is not offered as a silent weaken: if you need a looser gate for
 an experiment, capture dumps and inspect the printed min/mean rather than

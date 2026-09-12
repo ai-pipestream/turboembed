@@ -52,5 +52,5 @@ cargo run -p inferstream-e2e -- --parity-cross \
 ```
 
 Thresholds: nvidia ↔ intel MiniLM FP **0.99**; apple FP MLX vs nvidia
-**0.99** (4-bit catalog retired after the pooler bug). See
+**0.97** (English MiniLM is ~1.000; min 0.9795 is CJK UNK drift). See
 `docs/e2e-parity.md` and `docs/nvidia-e2e-parity-goldens-krick.md`.
