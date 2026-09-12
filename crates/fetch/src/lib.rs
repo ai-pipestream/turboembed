@@ -79,6 +79,146 @@ pub const LLM_SOURCES: &[LlmSource] = &[
 /// Logical catalog aliases that share a fetched artifact family.
 pub const LLM_ALIASES: &[(&str, &str)] = &[("default-llm", "qwen-0.5b")];
 
+/// One file in an OpenVINO GenAI model directory: (HF path, dest path).
+#[derive(Debug, Clone, Copy)]
+pub struct OvGenaiFile {
+    pub remote: &'static str,
+    pub dest: &'static str,
+}
+
+/// Intel in-process GenAI embedding sources. Dest is always
+/// `models/ov/<alias>/` in the GenAI layout (`openvino_model.xml` at the
+/// directory root). First-party HF repos preferred; tokenizer IR is
+/// fetched when the repo publishes `openvino_tokenizer.xml`.
+pub const OV_GENAI_SOURCES: &[OvGenaiSource] = &[
+    OvGenaiSource {
+        alias: "minilm",
+        repo: "sentence-transformers/all-MiniLM-L6-v2",
+        dest: "models/ov/minilm",
+        files: ST_OV_FILES,
+    },
+    OvGenaiSource {
+        alias: "minilm-l12",
+        repo: "sentence-transformers/all-MiniLM-L12-v2",
+        dest: "models/ov/minilm-l12",
+        files: ST_OV_FILES,
+    },
+    OvGenaiSource {
+        alias: "mpnet",
+        repo: "sentence-transformers/all-mpnet-base-v2",
+        dest: "models/ov/mpnet",
+        files: ST_OV_FILES,
+    },
+    OvGenaiSource {
+        alias: "bge-base",
+        repo: "OpenVINO/bge-base-en-v1.5-fp16-ov",
+        dest: "models/ov/bge-base",
+        files: FULL_GENAI_FILES,
+    },
+    OvGenaiSource {
+        alias: "bge-m3",
+        repo: "kread/bge-m3-fp16-ov",
+        dest: "models/ov/bge-m3",
+        files: FULL_GENAI_FILES,
+    },
+    OvGenaiSource {
+        alias: "e5-small",
+        repo: "intfloat/multilingual-e5-small",
+        dest: "models/ov/e5-small",
+        files: ST_OV_FILES,
+    },
+    OvGenaiSource {
+        alias: "e5-base",
+        repo: "intfloat/multilingual-e5-base",
+        dest: "models/ov/e5-base",
+        files: ST_OV_FILES,
+    },
+    OvGenaiSource {
+        alias: "e5-large",
+        repo: "intfloat/multilingual-e5-large",
+        dest: "models/ov/e5-large",
+        files: ST_OV_FILES,
+    },
+    OvGenaiSource {
+        alias: "gte-small",
+        repo: "thenlper/gte-small",
+        dest: "models/ov/gte-small",
+        files: ST_OV_FILES,
+    },
+    OvGenaiSource {
+        alias: "gte-base",
+        repo: "thenlper/gte-base",
+        dest: "models/ov/gte-base",
+        files: ST_OV_FILES,
+    },
+];
+
+/// Sentence-Transformers / intfloat / thenlper: model IR under `openvino/`,
+/// no published tokenizer IR (GenAI load still needs it — copy from a
+/// one-off export or an official OpenVINO repo when available).
+pub const ST_OV_FILES: &[OvGenaiFile] = &[
+    OvGenaiFile {
+        remote: "openvino/openvino_model.xml",
+        dest: "openvino_model.xml",
+    },
+    OvGenaiFile {
+        remote: "openvino/openvino_model.bin",
+        dest: "openvino_model.bin",
+    },
+    OvGenaiFile {
+        remote: "tokenizer.json",
+        dest: "tokenizer.json",
+    },
+    OvGenaiFile {
+        remote: "config.json",
+        dest: "config.json",
+    },
+    OvGenaiFile {
+        remote: "tokenizer_config.json",
+        dest: "tokenizer_config.json",
+    },
+];
+
+/// Official / community repos that already ship the GenAI directory layout.
+pub const FULL_GENAI_FILES: &[OvGenaiFile] = &[
+    OvGenaiFile {
+        remote: "openvino_model.xml",
+        dest: "openvino_model.xml",
+    },
+    OvGenaiFile {
+        remote: "openvino_model.bin",
+        dest: "openvino_model.bin",
+    },
+    OvGenaiFile {
+        remote: "openvino_tokenizer.xml",
+        dest: "openvino_tokenizer.xml",
+    },
+    OvGenaiFile {
+        remote: "openvino_tokenizer.bin",
+        dest: "openvino_tokenizer.bin",
+    },
+    OvGenaiFile {
+        remote: "tokenizer.json",
+        dest: "tokenizer.json",
+    },
+    OvGenaiFile {
+        remote: "config.json",
+        dest: "config.json",
+    },
+    OvGenaiFile {
+        remote: "tokenizer_config.json",
+        dest: "tokenizer_config.json",
+    },
+];
+
+#[derive(Debug, Clone, Copy)]
+pub struct OvGenaiSource {
+    pub alias: &'static str,
+    pub repo: &'static str,
+    pub dest: &'static str,
+    pub files: &'static [OvGenaiFile],
+}
+
 pub const LLM_MLX_REPOS: &[(&str, &str)] = &[
     ("default-llm", "mlx-community/Qwen2.5-0.5B-Instruct-4bit"),
     ("qwen-0.5b", "mlx-community/Qwen2.5-0.5B-Instruct-4bit"),
@@ -147,9 +287,21 @@ pub struct ModelEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileEntry {
+    /// Path relative to `dest` on disk.
     pub path: String,
+    /// Path inside the HF repo when it differs from [`Self::path`]
+    /// (e.g. ST `openvino/openvino_model.xml` → dest `openvino_model.xml`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_path: Option<String>,
     pub sha256: String,
     pub size: u64,
+}
+
+impl FileEntry {
+    /// HF path used to build the download URL.
+    pub fn remote_path(&self) -> &str {
+        self.remote_path.as_deref().unwrap_or(self.path.as_str())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -215,6 +367,17 @@ pub fn embedding_known_aliases() -> BTreeMap<String, String> {
     ONNX_REPOS
         .iter()
         .map(|(a, r)| ((*a).to_string(), (*r).to_string()))
+        .collect()
+}
+
+pub fn ov_genai_source(alias: &str) -> Option<&'static OvGenaiSource> {
+    OV_GENAI_SOURCES.iter().find(|s| s.alias == alias)
+}
+
+pub fn ov_genai_known_aliases() -> BTreeMap<String, String> {
+    OV_GENAI_SOURCES
+        .iter()
+        .map(|s| (s.alias.to_string(), s.repo.to_string()))
         .collect()
 }
 
@@ -730,7 +893,7 @@ pub fn cmd_fetch(
                 }
                 writeln!(out, "  stale hash, re-downloading  {}", spec.file.path)?;
             }
-            let url = resolve_url(&spec.repo, &spec.revision, &spec.file.path);
+            let url = resolve_url(&spec.repo, &spec.revision, spec.file.remote_path());
             writeln!(
                 out,
                 "  downloading  {}  [{}] ...",
@@ -847,6 +1010,7 @@ pub fn cmd_update_manifest(
             writeln!(out, "    sha256={digest}  size={}", human(size))?;
             files.push(FileEntry {
                 path: rel,
+                remote_path: None,
                 sha256: digest,
                 size,
             });
@@ -959,6 +1123,7 @@ pub fn cmd_update_llm_manifest(
             writeln!(out, "    sha256={digest}  size={}", human(size))?;
             files.push(FileEntry {
                 path: (*rel).to_string(),
+                remote_path: None,
                 sha256: digest,
                 size,
             });
@@ -999,6 +1164,7 @@ pub fn cmd_update_llm_manifest(
             writeln!(out, "    sha256={digest}  size={}", human(size))?;
             tok_hashed.push(FileEntry {
                 path: (*rel).to_string(),
+                remote_path: None,
                 sha256: digest,
                 size,
             });
@@ -1075,6 +1241,98 @@ pub fn cmd_update_llm_manifest(
     Ok(0)
 }
 
+const OV_GENAI_COMMENT: &str = "SHA-256 manifest for inferstream Intel OpenVINO GenAI embedding dirs. Generated by cargo run -p inferstream-fetch -- --ov-genai --update-manifest; do not edit hashes by hand. Dest is always models/ov/<alias>/ in the GenAI layout (openvino_model.xml at the directory root). Revisions are exact HF commit hashes.";
+
+pub fn cmd_update_ov_genai_manifest(
+    aliases: &[String],
+    manifest_path: &Path,
+    root: &Path,
+    store: bool,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> Result<i32> {
+    let mut manifest = if manifest_path.exists() {
+        load_manifest(manifest_path)?
+    } else {
+        Manifest {
+            schema_version: 1,
+            comment: Some(OV_GENAI_COMMENT.to_string()),
+            models: BTreeMap::new(),
+            mlx_repos: BTreeMap::new(),
+        }
+    };
+
+    for alias in aliases {
+        let spec = ov_genai_source(alias)
+            .ok_or_else(|| FetchError::msg(format!("{alias}: not in OV_GENAI_SOURCES")))?;
+        writeln!(out, "--- pinning {alias}  <-  {} ---", spec.repo)?;
+        let (revision, repo_files) = repo_info(spec.repo)?;
+        writeln!(out, "  revision {revision}")?;
+        let dest = spec.dest.to_string();
+        let mut files = Vec::new();
+        for f in spec.files {
+            if !repo_files.iter().any(|r| r == f.remote) {
+                writeln!(
+                    err,
+                    "error: {}: required file not in repo: {}",
+                    spec.repo, f.remote
+                )?;
+                return Ok(1);
+            }
+            let url = resolve_url(spec.repo, &revision, f.remote);
+            let target = if store {
+                Some(root.join(&dest).join(f.dest))
+            } else {
+                None
+            };
+            writeln!(out, "  hashing {} -> {} ...", f.remote, f.dest)?;
+            let _ = out.flush();
+            let (digest, size) = match stream_download(&url, target.as_deref()) {
+                Ok(v) => v,
+                Err(e) => {
+                    writeln!(err, "error: {url}: {e}")?;
+                    return Ok(1);
+                }
+            };
+            writeln!(out, "    sha256={digest}  size={}", human(size))?;
+            let remote_path = if f.remote == f.dest {
+                None
+            } else {
+                Some(f.remote.to_string())
+            };
+            files.push(FileEntry {
+                path: f.dest.to_string(),
+                remote_path,
+                sha256: digest,
+                size,
+            });
+        }
+        manifest.models.insert(
+            alias.clone(),
+            ModelEntry {
+                alias_of: None,
+                repo: Some(spec.repo.to_string()),
+                revision: Some(revision),
+                dest: Some(dest),
+                files,
+                tokenizer: None,
+                name: None,
+            },
+        );
+    }
+
+    write_manifest(manifest_path, &manifest)?;
+    writeln!(
+        out,
+        "\nManifest written: {} — review and commit it.",
+        manifest_path
+            .strip_prefix(root)
+            .unwrap_or(manifest_path)
+            .display()
+    )?;
+    Ok(0)
+}
+
 /// Loose catalog shape used only to check nvidia fetch paths against the
 /// committed manifests. Extra fields are ignored.
 #[derive(Debug, Deserialize)]
@@ -1087,6 +1345,8 @@ struct CatalogFile {
 struct CatalogAlias {
     #[serde(default)]
     nvidia: Option<CatalogArch>,
+    #[serde(default)]
+    intel: Option<CatalogArch>,
     #[serde(default)]
     apple: Option<CatalogArch>,
 }
@@ -1141,6 +1401,26 @@ pub fn catalog_nvidia_llamacpp_fetch_paths(catalog_toml: &str) -> Result<Vec<(St
     Ok(out)
 }
 
+pub fn catalog_intel_openvino_fetch_paths(catalog_toml: &str) -> Result<Vec<(String, String)>> {
+    let catalog: CatalogFile =
+        toml::from_str(catalog_toml).map_err(|e| FetchError::msg(e.to_string()))?;
+    let mut out = Vec::new();
+    for (alias, tables) in catalog.models {
+        let Some(intel) = tables.intel else {
+            continue;
+        };
+        if intel.backend.as_deref() != Some("openvino") {
+            continue;
+        }
+        let path = intel.path.unwrap_or_default();
+        if !path.starts_with("models/ov/") {
+            continue;
+        }
+        out.push((alias, path));
+    }
+    Ok(out)
+}
+
 pub fn catalog_apple_llm_tokenizer_dirs(catalog_toml: &str) -> Result<Vec<(String, String)>> {
     let catalog: CatalogFile =
         toml::from_str(catalog_toml).map_err(|e| FetchError::msg(e.to_string()))?;
@@ -1176,6 +1456,10 @@ mod tests {
 
     fn llms_manifest() -> PathBuf {
         repo_root().join("models/manifests/llms.json")
+    }
+
+    fn ov_genai_manifest() -> PathBuf {
+        repo_root().join("models/manifests/ov-genai-embeddings.json")
     }
 
     fn catalog_text() -> String {
@@ -1373,6 +1657,7 @@ mod tests {
                     dest: Some("models/onnx/tiny".into()),
                     files: vec![FileEntry {
                         path: "model.bin".into(),
+                        remote_path: None,
                         sha256: digest,
                         size: payload.len() as u64,
                     }],
@@ -1465,6 +1750,66 @@ mod tests {
         fs::write(&path, r#"{"schema_version":99,"models":{}}"#).unwrap();
         let err = load_manifest(&path).unwrap_err();
         assert!(err.to_string().contains("unsupported schema_version"));
+    }
+
+    #[test]
+    fn ov_genai_sources_match_catalog_intel_paths() {
+        let catalog = catalog_text();
+        let intel_paths = catalog_intel_openvino_fetch_paths(&catalog).unwrap();
+        let by_alias: BTreeMap<_, _> = intel_paths.into_iter().collect();
+        for spec in OV_GENAI_SOURCES {
+            let path = by_alias.get(spec.alias).unwrap_or_else(|| {
+                panic!(
+                    "OV_GENAI_SOURCES alias {} missing from catalog intel",
+                    spec.alias
+                )
+            });
+            assert_eq!(path, spec.dest, "{}", spec.alias);
+        }
+    }
+
+    #[test]
+    fn ov_genai_schema_and_pins() {
+        let path = ov_genai_manifest();
+        assert!(
+            path.is_file(),
+            "missing {}; generate with cargo run -p inferstream-fetch -- --ov-genai --all --update-manifest --no-store",
+            path.display()
+        );
+        let m = load_manifest(&path).unwrap();
+        assert_eq!(m.schema_version, 1);
+        let known: HashSet<&str> = OV_GENAI_SOURCES.iter().map(|s| s.alias).collect();
+        let have: HashSet<&str> = m.models.keys().map(|s| s.as_str()).collect();
+        assert_eq!(
+            have, known,
+            "ov-genai manifest aliases must match OV_GENAI_SOURCES"
+        );
+        for spec in OV_GENAI_SOURCES {
+            let entry = &m.models[spec.alias];
+            assert_eq!(entry.repo.as_deref(), Some(spec.repo));
+            assert!(hex40(entry.revision.as_deref().unwrap()), "{}", spec.alias);
+            assert_eq!(entry.dest.as_deref(), Some(spec.dest));
+            let dest_names: Vec<&str> = entry.files.iter().map(|f| f.path.as_str()).collect();
+            for f in spec.files {
+                assert!(
+                    dest_names.contains(&f.dest),
+                    "{} missing dest file {}",
+                    spec.alias,
+                    f.dest
+                );
+            }
+            for f in &entry.files {
+                assert!(hex64(&f.sha256), "{} {}", spec.alias, f.path);
+                assert!(f.size > 0);
+                if let Some(remote) = &f.remote_path {
+                    assert_ne!(remote, &f.path);
+                }
+            }
+        }
+        let bge = &m.models["bge-base"];
+        let paths: Vec<&str> = bge.files.iter().map(|f| f.path.as_str()).collect();
+        assert!(paths.contains(&"openvino_tokenizer.xml"));
+        assert!(paths.contains(&"openvino_model.xml"));
     }
 
     #[test]

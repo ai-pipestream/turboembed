@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Launch inferstream-intel with the oneAPI / SYCL runtime on the loader path.
+# Launch inferstream-intel with the oneAPI / OpenVINO / SYCL runtime on
+# the loader path (GenAI embeddings + llama.cpp-SYCL generation).
 #
 #   scripts/build-intel.sh
 #   scripts/run-intel.sh --config config/intel.toml --listen 127.0.0.1:8473

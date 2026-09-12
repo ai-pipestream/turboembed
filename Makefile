@@ -22,10 +22,15 @@
 #   make list-mlx
 #   make update-mlx-manifest
 #
-#   make verify-embeddings-intel            # offline SHA-256 of exported OVMS IR
+#   make fetch-ov-genai                     # Intel in-process GenAI OV-format dirs
+#   make verify-ov-genai [ALIASES=...]
+#   make list-ov-genai
+#   make update-ov-genai-manifest
+#
+#   make verify-embeddings-intel            # offline SHA-256 of exported OVMS IR (legacy)
 #   make list-embeddings-intel
 #
-# Embeddings / LLMs / OVMS: `cargo run -p inferstream-fetch`.
+# Embeddings / LLMs / OV-GenAI / OVMS: `cargo run -p inferstream-fetch`.
 # Apple MLX weights: `cargo xtask` (crates/xtask) against models/manifests/mlx.json.
 # OVMS IR *export* is a one-off in contrib/offline-once/ (not invoked here).
 # Make never invokes python3.
@@ -49,6 +54,7 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 	update-embedding-manifest \
 	fetch-llms verify-llms list-llms update-llm-manifest \
 	fetch-mlx verify-mlx list-mlx update-mlx-manifest \
+	fetch-ov-genai verify-ov-genai list-ov-genai update-ov-genai-manifest \
 	verify-embeddings-intel list-embeddings-intel \
 	update-embedding-manifest-intel \
 	setup-sycl build-intel-sycl \
@@ -107,6 +113,18 @@ apple: sync-proto
 
 smoke-apple: apple
 	./scripts/smoke-apple.sh
+
+fetch-ov-genai:
+	$(FETCH) --ov-genai $(ALIAS_ARGS)
+
+verify-ov-genai:
+	$(FETCH) --ov-genai $(ALIAS_ARGS) --verify-only
+
+list-ov-genai:
+	$(FETCH) --ov-genai --list
+
+update-ov-genai-manifest:
+	$(FETCH) --ov-genai $(ALIAS_ARGS) --update-manifest
 
 # Inject ggml-sycl sources into a local llama-cpp-sys-2 checkout so
 # GGML_SYCL=ON cmake succeeds. No python3. Needed before llamacpp-sycl.

@@ -64,6 +64,8 @@ jobs:
           bash -n scripts/smoke-llms.sh
           bash -n scripts/setup-llamacpp-sycl.sh
           bash -n scripts/run-intel.sh
+          bash -n scripts/prove-intel-genai.sh
+          bash -n scripts/build-intel.sh
       # Real ONNX Runtime link, CPU execution provider: `ort`'s
       # download-binaries feature fetches libonnxruntime at build time, so
       # this proves the non-stub engine path compiles and its unit tests pass

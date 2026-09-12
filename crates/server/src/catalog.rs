@@ -2,8 +2,8 @@
 //!
 //! Clients address models by a logical name (`minilm`, `default-llm`); the
 //! catalog maps that alias to the optimized artifact for the host arch —
-//! ORT-CUDA on NVIDIA, an OVMS pipeline on Intel, MLX on Apple — so clients
-//! never learn engine paths. Arch configs opt in with
+//! ORT-CUDA on NVIDIA, in-process OpenVINO GenAI on Intel, MLX on Apple —
+//! so clients never learn engine paths. Arch configs opt in with
 //! `serve = ["minilm", ...]`; [`crate::config::Config::expand_serve`] turns
 //! each alias into a regular model entry at startup, so the registry,
 //! `ListModels`, and `ModelMetadata` all expose the logical name.
@@ -297,8 +297,9 @@ mod tests {
     }
 
     /// Embedding entries must carry the settings the engines need: ORT
-    /// entries a path + tokenizer_dir + pooling, OVMS entries an endpoint,
-    /// MLX entries a model path. Pooling matches each family's convention.
+    /// entries a path + tokenizer_dir + pooling, OpenVINO GenAI entries a
+    /// model dir + GPU device + pooling, MLX entries a model path. Pooling
+    /// matches each family's convention.
     #[test]
     fn builtin_embedding_entries_are_engine_complete() {
         let catalog = Catalog::builtin();
@@ -324,15 +325,28 @@ mod tests {
             }
             if *intel {
                 let m = catalog.resolve(alias, Arch::Intel).unwrap();
-                assert_eq!(m.backend, BackendKind::Ovms, "{alias} intel");
-                assert!(m.endpoint.is_some(), "{alias} intel needs an endpoint");
+                assert_eq!(m.backend, BackendKind::Openvino, "{alias} intel");
+                let path = m
+                    .path
+                    .as_deref()
+                    .unwrap_or_else(|| panic!("{alias} intel needs a GenAI model dir"));
                 assert!(
-                    m.upstream_model
-                        .as_deref()
-                        .unwrap_or_default()
-                        .ends_with("_pipeline"),
-                    "{alias} intel maps to an OVMS pipeline"
+                    path.starts_with("models/ov/"),
+                    "{alias} intel path={path} (expected models/ov/<alias>)"
                 );
+                assert_eq!(m.device.as_deref(), Some("GPU"), "{alias} intel device");
+                assert!(m.tokenizer_dir.is_some(), "{alias} intel tokenizer");
+                let expected_pooling = if alias.starts_with("bge") {
+                    "cls"
+                } else {
+                    "mean"
+                };
+                assert_eq!(
+                    m.pooling.as_deref(),
+                    Some(expected_pooling),
+                    "{alias} intel pooling"
+                );
+                assert!(m.endpoint.is_none(), "{alias} intel must be in-process");
             }
             if *apple {
                 let m = catalog.resolve(alias, Arch::Apple).unwrap();
@@ -411,9 +425,11 @@ mod tests {
 
         let intel = catalog.resolve("minilm", Arch::Intel).unwrap();
         assert_eq!(intel.name, "minilm");
-        assert_eq!(intel.backend, BackendKind::Ovms);
-        assert_eq!(intel.upstream_model.as_deref(), Some("minilm_pipeline"));
-        assert!(intel.endpoint.is_some());
+        assert_eq!(intel.backend, BackendKind::Openvino);
+        assert_eq!(intel.device.as_deref(), Some("GPU"));
+        assert_eq!(intel.path.as_deref(), Some("models/ov/minilm"));
+        assert_eq!(intel.pooling.as_deref(), Some("mean"));
+        assert!(intel.endpoint.is_none());
 
         let apple = catalog.resolve("minilm", Arch::Apple).unwrap();
         assert_eq!(apple.name, "minilm");

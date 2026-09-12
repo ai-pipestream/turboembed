@@ -2,8 +2,8 @@
 #
 # Logical model names clients use in `model_name`, resolved per architecture
 # to the optimized artifact for that host. A client says `minilm` and gets
-# ORT-CUDA on NVIDIA, the OVMS pipeline on Intel, and MLX on Apple — without
-# knowing any of those paths.
+# ORT-CUDA on NVIDIA, in-process OpenVINO GenAI on Intel, and MLX on Apple —
+# without knowing any of those paths.
 #
 # This file is COMPILED INTO the server binaries as the built-in catalog, so
 # `serve = ["minilm"]` works out of the box. Point an arch config's
@@ -38,17 +38,15 @@
 #           docs/fetching-models.md); then add the alias to `serve` in
 #           config/nvidia.toml. LLM GGUFs: make fetch-llms against
 #           models/manifests/llms.json into models/gguf/<alias>/.
-#   intel   OVMS DAG pipelines on the Battlemage GPU (krick-1 container
-#           "protomolt-embedder-ovms"). Only pipelines that exist upstream
-#           are mapped — currently every embedding alias in this catalog.
-#           IR + tokenizer artifacts are SHA-256-pinned in
-#           models/manifests/ovms-embeddings.json; verify offline with
-#           `make verify-embeddings-intel`. Export is a one-off in
-#           contrib/offline-once/. To add a new one:
-#           export, register in the OVMS config (config-gpu.json graph:
-#           tokenizer -> embedding model -> "sentence_embedding"), reload,
-#           then add a [models.<alias>.intel] table here with
-#           `upstream_model` set to the new pipeline name. Full walkthrough:
+#   intel   In-process OpenVINO GenAI TextEmbeddingPipeline (default).
+#           `path` is an OV-format directory (`models/ov/<alias>/`) with
+#           openvino_model.xml/.bin + openvino_tokenizer.xml/.bin.
+#           SHA-256-pinned in models/manifests/ov-genai-embeddings.json;
+#           fetch with `make fetch-ov-genai` (inferstream-fetch --ov-genai;
+#           no Python). Device GPU (Battlemage) when the plugin is present.
+#           OVMS (`backend = "ovms"`) is optional/legacy — keep a catalog
+#           copy or an explicit [[models]] entry to use it. Walkthrough:
+#           docs/intel-genai-embed.md. Legacy OVMS pipelines:
 #           docs/adding-ovms-embedding-pipelines.md.
 #   apple   native MLX (Swift MLXEmbedders / MLXLLM, in-process FFI).
 #           Weights from `make fetch-mlx` (`cargo xtask fetch --mlx`) into
@@ -77,14 +75,16 @@ pooling = "mean"
 normalize = true
 max_seq_len = 256
 
-# OVMS DAG pipeline on the Battlemage GPU. `upstream_model` maps the logical
-# name to the pipeline name OVMS actually serves; override the endpoint per
-# host with INFERSTREAM_OVMS_ENDPOINT.
+# In-process GenAI TextEmbeddingPipeline (Battlemage GPU). Fetch:
+#   make fetch-ov-genai ALIASES=minilm
 [models.minilm.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "minilm_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_minilm"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/minilm"
+tokenizer_dir = "models/ov/minilm"
+pooling = "mean"
+normalize = true
+max_seq_len = 256
 
 # Native MLX MiniLM (models/mlx/minilm from `cargo xtask fetch --mlx`).
 [models.minilm.apple]
@@ -108,14 +108,14 @@ pooling = "mean"
 normalize = true
 max_seq_len = 256
 
-# OVMS pipeline (mean pooling + L2 normalize in-graph); artifacts exported
-# and SHA-256-pinned in models/manifests/ovms-embeddings.json
-# (verify: make verify-embeddings-intel).
 [models.minilm-l12.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "minilm_l12_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_minilm_l12"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/minilm-l12"
+tokenizer_dir = "models/ov/minilm-l12"
+pooling = "mean"
+normalize = true
+max_seq_len = 256
 
 [models.minilm-l12.apple]
 backend = "mlx"
@@ -143,10 +143,12 @@ pooling = "mean"
 normalize = true
 
 [models.mpnet.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "mpnet_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_mpnet"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/mpnet"
+tokenizer_dir = "models/ov/mpnet"
+pooling = "mean"
+normalize = true
 
 # ---------------------------------------------------------------------------
 # BGE (BAAI) — CLS pooling. English v1.5 line + multilingual bge-m3.
@@ -163,12 +165,13 @@ tokenizer_dir = "models/onnx/bge-small"
 pooling = "cls"
 normalize = true
 
-# OVMS pipeline (CLS pooling + L2 normalize in-graph).
 [models.bge-small.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "bge_small_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_small"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/bge-small"
+tokenizer_dir = "models/ov/bge-small"
+pooling = "cls"
+normalize = true
 
 [models.bge-small.apple]
 backend = "mlx"
@@ -188,12 +191,13 @@ tokenizer_dir = "models/onnx/bge-base"
 pooling = "cls"
 normalize = true
 
-# OVMS pipeline (CLS pooling + L2 normalize in-graph).
 [models.bge-base.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "bge_base_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_base"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/bge-base"
+tokenizer_dir = "models/ov/bge-base"
+pooling = "cls"
+normalize = true
 
 [models.bge-base.apple]
 backend = "mlx"
@@ -213,12 +217,13 @@ tokenizer_dir = "models/onnx/bge-large"
 pooling = "cls"
 normalize = true
 
-# OVMS pipeline (CLS pooling + L2 normalize in-graph).
 [models.bge-large.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "bge_large_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_large"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/bge-large"
+tokenizer_dir = "models/ov/bge-large"
+pooling = "cls"
+normalize = true
 
 [models.bge-large.apple]
 backend = "mlx"
@@ -239,13 +244,13 @@ tokenizer_dir = "models/onnx/bge-m3"
 pooling = "cls"
 normalize = true
 
-# OVMS pipeline (dense CLS vector + L2 normalize in-graph; FP16 IR ~1.1 GB
-# on the Battlemage GPU).
 [models.bge-m3.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "bge_m3_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_bge_m3"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/bge-m3"
+tokenizer_dir = "models/ov/bge-m3"
+pooling = "cls"
+normalize = true
 
 [models.bge-m3.apple]
 backend = "mlx"
@@ -272,12 +277,13 @@ tokenizer_dir = "models/onnx/e5-small"
 pooling = "mean"
 normalize = true
 
-# OVMS pipeline (mean pooling + L2 normalize in-graph).
 [models.e5-small.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "e5_small_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_small"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/e5-small"
+tokenizer_dir = "models/ov/e5-small"
+pooling = "mean"
+normalize = true
 
 [models.e5-small.apple]
 backend = "mlx"
@@ -297,12 +303,13 @@ tokenizer_dir = "models/onnx/e5-base"
 pooling = "mean"
 normalize = true
 
-# OVMS pipeline (mean pooling + L2 normalize in-graph).
 [models.e5-base.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "e5_base_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_base"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/e5-base"
+tokenizer_dir = "models/ov/e5-base"
+pooling = "mean"
+normalize = true
 
 [models.e5-base.apple]
 backend = "mlx"
@@ -322,12 +329,13 @@ tokenizer_dir = "models/onnx/e5-large"
 pooling = "mean"
 normalize = true
 
-# OVMS pipeline (mean pooling + L2 normalize in-graph).
 [models.e5-large.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "e5_large_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_e5_large"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/e5-large"
+tokenizer_dir = "models/ov/e5-large"
+pooling = "mean"
+normalize = true
 
 [models.e5-large.apple]
 backend = "mlx"
@@ -353,12 +361,13 @@ tokenizer_dir = "models/onnx/gte-small"
 pooling = "mean"
 normalize = true
 
-# OVMS pipeline (mean pooling + L2 normalize in-graph).
 [models.gte-small.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "gte_small_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_gte_small"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/gte-small"
+tokenizer_dir = "models/ov/gte-small"
+pooling = "mean"
+normalize = true
 
 [models.gte-small.apple]
 backend = "mlx"
@@ -378,12 +387,13 @@ tokenizer_dir = "models/onnx/gte-base"
 pooling = "mean"
 normalize = true
 
-# OVMS pipeline (mean pooling + L2 normalize in-graph).
 [models.gte-base.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "gte_base_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_gte_base"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/gte-base"
+tokenizer_dir = "models/ov/gte-base"
+pooling = "mean"
+normalize = true
 
 [models.gte-base.apple]
 backend = "mlx"
@@ -415,13 +425,13 @@ tokenizer_dir = "models/onnx/nomic-embed-text"
 pooling = "mean"
 normalize = true
 
-# OVMS pipeline (mean pooling + L2 normalize grafted onto Nomic's official
-# ONNX export; DAG also maps token_type_ids tokenizer->model).
 [models.nomic-embed-text.intel]
-backend = "ovms"
-endpoint = "http://172.22.0.2:8000"
-upstream_model = "nomic_embed_text_pipeline"
-tokenizer_dir = "/home/krickert/ovms-models/hf_tokenizer_nomic_embed_text"
+backend = "openvino"
+device = "GPU"
+path = "models/ov/nomic-embed-text"
+tokenizer_dir = "models/ov/nomic-embed-text"
+pooling = "mean"
+normalize = true
 
 # ---------------------------------------------------------------------------
 # Generative LLM aliases

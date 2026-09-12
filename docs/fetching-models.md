@@ -43,6 +43,10 @@ make fetch-llms ALIASES=qwen-0.5b            # smoke-sized 0.5B only (~650 MiB +
 cargo run -p inferstream-fetch -- --llms default-llm   # same files as qwen-0.5b (alias_of)
 make list-llms
 
+make fetch-ov-genai                          # Intel in-process GenAI OV-format dirs
+make fetch-ov-genai ALIASES=minilm,bge-base
+make list-ov-genai
+
 make fetch-mlx                               # Apple native MLX weights
 make fetch-mlx ALIASES=minilm,qwen-0.5b
 cargo xtask fetch --mlx minilm
@@ -101,6 +105,7 @@ When adding an alias or deliberately moving to newer upstream artifacts:
    cargo run -p inferstream-fetch -- --all --update-manifest --no-store
    make update-llm-manifest ALIASES=<alias>         # GGUF + tokenizer
    cargo run -p inferstream-fetch -- --llms --all --update-manifest --no-store
+   cargo run -p inferstream-fetch -- --ov-genai --all --update-manifest --no-store
    ```
 
    This resolves each repo's current `main` commit, downloads every file at
@@ -122,7 +127,8 @@ When adding an alias or deliberately moving to newer upstream artifacts:
 | **nvidia (ORT embeddings)** | **Fully pinned + hashed** — all 13 embedding aliases (`minilm`, `minilm-l12`, `mpnet`, `bge-small/base/large/m3`, `e5-small/base/large`, `gte-small/base`, `nomic-embed-text`). Note: the built-in catalog resolves `minilm` on krick to the TEI HF-cache path, but the manifest fetches the **same pinned revision** (`1110a243…`) into `models/onnx/minilm/` for hosts without that cache — point a catalog copy at it. |
 | **nvidia (llama.cpp LLMs)** | **Fully pinned + hashed** — `qwen-0.5b` (Q8_0, ~644 MiB) and `qwen-7b` (official Q5_K_M split into two shards, ~5.1 GiB). `default-llm` on nvidia uses the GGUF already on krick (`/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf`); `make fetch-llms ALIASES=qwen-0.5b` puts the same pin into `models/gguf/qwen-0.5b/` for other hosts. The 7B catalog path is the first shard; llama.cpp loads the second from the same directory. |
 | **apple (MLX)** | Runtime-fetched by design: the MLX backend downloads HF repos into the HF cache on first use (4-bit conversions can't be pre-fetched as single files the same way). Each manifest's `mlx_repos` section records each alias's repo and the **expected pinned revision** for auditability; re-pin with `--update-manifest` / `--llms --update-manifest`. LLM Tokenize on apple uses the fetched `tokenizer.json` (`models/gguf/<alias>/`), which `scripts/setup-mlx.sh` also writes for `qwen-0.5b` and `qwen-7b`. |
-| **intel (OVMS embeddings)** | **Fully pinned + hashed** — all 13 embedding aliases against `models/manifests/ovms-embeddings.json`. Unlike nvidia there is no prebuilt IR to download: IR export is a **one-off** (OpenVINO + torch) documented in `contrib/offline-once/` — not invoked by Make or CI. Offline **verify** of already-exported artifacts is Rust: `make verify-embeddings-intel [ALIASES=…] [OVMS_DIR=…] [HF_TOK_DIR=…]`. The manifest records the exact export command and package versions (`export_environment`) — a hash mismatch with a different toolchain is a signal to inspect, not necessarily corruption. Registration + GPU-placement walkthrough: `docs/adding-ovms-embedding-pipelines.md`. |
+| **intel (OpenVINO GenAI embeddings)** | **Pinned + hashed** — `models/manifests/ov-genai-embeddings.json`. `make fetch-ov-genai` downloads OV-format dirs into `models/ov/<alias>/` (no Python). Official / first-party HF IR where it exists; tokenizer IR is required at load (`openvino_tokenizer.xml`). Aliases without a public tokenizer IR (`bge-small`, `bge-large`, `nomic-embed-text`, and ST-style model-only repos) need that pair copied from the OVMS one-off or `contrib/offline-once/`. Walkthrough: `docs/intel-genai-embed.md`. |
+| **intel (OVMS embeddings, legacy)** | Still pinned in `models/manifests/ovms-embeddings.json`. Offline **verify** of already-exported DAG artifacts: `make verify-embeddings-intel`. Not the default catalog path. |
 | **intel (llama.cpp LLMs)** | **Same GGUF fetch as nvidia** — `make fetch-llms` lands Qwen2.5-0.5B Q8_0 and Qwen2.5-7B-Instruct Q5_K_M into `models/gguf/<alias>/`. Catalog intel entries are **in-process SYCL** (`path`, no `endpoint`). The host `vlm-server` on `:8085` is not on this path. |
 
 ## Manifest format

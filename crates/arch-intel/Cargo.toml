@@ -25,8 +25,11 @@ llamacpp-runtime = ["llamacpp", "inferstream-backend-llamacpp/runtime"]
 # scripts/setup-llamacpp-sycl.sh so ggml-sycl sources are on the cmake path.
 llamacpp-sycl = ["llamacpp-runtime", "inferstream-backend-llamacpp/sycl"]
 openvino = ["dep:inferstream-backend-openvino"]
-# Pure-Rust gRPC client to a running OpenVINO Model Server; no host OpenVINO
-# runtime required, so it is on by default.
+# In-process OpenVINO GenAI TextEmbeddingPipeline (cxx). Needs OpenVINO +
+# OpenVINO GenAI + openvino-tokenizers on the host. Default Intel embed path.
+openvino-genai = ["openvino", "inferstream-backend-openvino/genai"]
+# Pure-Rust gRPC client to a running OpenVINO Model Server; optional/legacy.
+# No host OpenVINO runtime required.
 ovms = ["dep:inferstream-backend-ovms"]
 ort = ["dep:inferstream-backend-ort"]
 # Real ONNX Runtime link, CPU EP (Intel GPU EPs come later via OpenVINO EP).

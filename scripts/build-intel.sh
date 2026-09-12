@@ -40,16 +40,25 @@ export CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 LINKER="$ROOT/scripts/icpx-rust-linker.sh"
 chmod +x "$LINKER"
 
+FEATURES="llamacpp-sycl"
+if pkg-config --exists openvino_genai 2>/dev/null \
+    || pkg-config --exists openvino-genai 2>/dev/null \
+    || [ -f /opt/intel/openvino/include/openvino/genai/rag/text_embedding_pipeline.hpp ] \
+    || [ -n "${OPENVINO_GENAI_DIR:-}" ]; then
+    FEATURES="${FEATURES},openvino-genai"
+fi
+
 echo "--- inferstream-intel SYCL build ---"
 echo "    GGML_SYCL=$GGML_SYCL"
 echo "    CMAKE_C_COMPILER=$CMAKE_C_COMPILER"
 echo "    CMAKE_CXX_COMPILER=$CMAKE_CXX_COMPILER"
+echo "    features=$FEATURES"
 echo "    final-linker=$LINKER"
 echo "    ONEAPI_ROOT=${ONEAPI_ROOT:-unset}"
 
 # Deps and build scripts keep the default rustc linker. Only the intel
 # binary is driven by icpx -fsycl (device-image extraction).
-cargo rustc -p inferstream-arch-intel --release --features llamacpp-sycl \
+cargo rustc -p inferstream-arch-intel --release --features "$FEATURES" \
     --bin inferstream-intel -- \
     -C "linker=${LINKER}"
 

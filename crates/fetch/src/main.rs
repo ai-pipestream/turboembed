@@ -9,14 +9,15 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use inferstream_fetch::{
-    cmd_fetch, cmd_list, cmd_update_llm_manifest, cmd_update_manifest, cmd_verify, cmd_verify_ovms,
-    embedding_known_aliases, llm_known_aliases, load_manifest, select_aliases, FetchError,
+    cmd_fetch, cmd_list, cmd_update_llm_manifest, cmd_update_manifest,
+    cmd_update_ov_genai_manifest, cmd_verify, cmd_verify_ovms, embedding_known_aliases,
+    llm_known_aliases, load_manifest, ov_genai_known_aliases, select_aliases, FetchError,
 };
 
 #[derive(Parser, Debug)]
 #[command(
     name = "inferstream-fetch",
-    about = "Hash-verified fetch of inferstream model artifacts (embeddings by default; LLMs with --llms; OVMS verify with --ovms)."
+    about = "Hash-verified fetch of inferstream model artifacts (embeddings by default; LLMs with --llms; OpenVINO GenAI with --ov-genai; OVMS verify with --ovms)."
 )]
 struct Args {
     /// Catalog aliases to fetch (or use --all).
@@ -30,6 +31,9 @@ struct Args {
     /// Operate on generative LLM artifacts (`models/manifests/llms.json`).
     #[arg(long)]
     llms: bool,
+    /// Operate on Intel in-process OpenVINO GenAI dirs (`models/manifests/ov-genai-embeddings.json`).
+    #[arg(long)]
+    ov_genai: bool,
     /// Operate on Intel OVMS embedding artifacts (`models/manifests/ovms-embeddings.json`).
     /// Verify / list only — IR export is a one-off outside this tool.
     #[arg(long)]
@@ -43,7 +47,7 @@ struct Args {
     /// With --update-manifest: hash from the stream without writing files.
     #[arg(long)]
     no_store: bool,
-    /// Manifest path (default depends on --llms / --ovms).
+    /// Manifest path (default depends on --llms / --ov-genai / --ovms).
     #[arg(long)]
     manifest: Option<PathBuf>,
     /// Repo root that dest paths are relative to.
@@ -90,9 +94,11 @@ fn default_root() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn default_manifest(root: &std::path::Path, llms: bool, ovms: bool) -> PathBuf {
+fn default_manifest(root: &std::path::Path, llms: bool, ov_genai: bool, ovms: bool) -> PathBuf {
     let name = if ovms {
         "ovms-embeddings.json"
+    } else if ov_genai {
+        "ov-genai-embeddings.json"
     } else if llms {
         "llms.json"
     } else {
@@ -118,9 +124,13 @@ fn main() -> ExitCode {
 
 fn run() -> inferstream_fetch::Result<i32> {
     let args = Args::parse();
-    if args.llms && args.ovms {
+    let mode_flags = [args.llms, args.ov_genai, args.ovms]
+        .into_iter()
+        .filter(|v| *v)
+        .count();
+    if mode_flags > 1 {
         return Err(FetchError::msg(
-            "error: --llms and --ovms are mutually exclusive",
+            "error: --llms, --ov-genai, and --ovms are mutually exclusive",
         ));
     }
 
@@ -128,7 +138,7 @@ fn run() -> inferstream_fetch::Result<i32> {
     let manifest_path = args
         .manifest
         .clone()
-        .unwrap_or_else(|| default_manifest(&root, args.llms, args.ovms));
+        .unwrap_or_else(|| default_manifest(&root, args.llms, args.ov_genai, args.ovms));
 
     let stdout = io::stdout();
     let stderr = io::stderr();
@@ -138,6 +148,8 @@ fn run() -> inferstream_fetch::Result<i32> {
     if args.list {
         let fallback = if args.llms {
             llm_known_aliases()
+        } else if args.ov_genai {
+            ov_genai_known_aliases()
         } else if args.ovms {
             // Prefer the committed manifest; fall back to empty (list still
             // works once the file is present).
@@ -160,6 +172,17 @@ fn run() -> inferstream_fetch::Result<i32> {
         if args.llms {
             let aliases = select_aliases(args.all, &args.aliases, &llm_known_aliases())?;
             return cmd_update_llm_manifest(
+                &aliases,
+                &manifest_path,
+                &root,
+                !args.no_store,
+                &mut out,
+                &mut err,
+            );
+        }
+        if args.ov_genai {
+            let aliases = select_aliases(args.all, &args.aliases, &ov_genai_known_aliases())?;
+            return cmd_update_ov_genai_manifest(
                 &aliases,
                 &manifest_path,
                 &root,
@@ -223,6 +246,12 @@ fn run() -> inferstream_fetch::Result<i32> {
         Some(
             "Add the aliases to `serve` in the arch config and restart;\n\
              verify with: scripts/smoke-llms.sh <host:port> <bearer-token>\n",
+        )
+    } else if args.ov_genai {
+        Some(
+            "Add the aliases to `serve` in config/intel.toml and rebuild with --features openvino-genai;\n\
+             verify with: scripts/smoke-embeddings.sh <host:port> <bearer-token>\n\
+             See docs/intel-genai-embed.md (krick-1 Battlemage smoke).\n",
         )
     } else {
         None

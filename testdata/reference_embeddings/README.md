@@ -60,7 +60,8 @@ cargo run -p inferstream-server --example gen_reference_embeddings
 
 GPU goldens compare a real engine against a stored vector for the same model
 and parameters. They are `#[ignore]`d and feature-gated so default CI never
-needs a GPU (`crates/backend-ort/tests/gpu_goldens.rs`).
+needs a GPU (`crates/backend-ort/tests/gpu_goldens.rs`,
+`crates/backend-openvino/tests/gpu_goldens.rs`).
 
 Regenerate/run on **krick** (NVIDIA, ORT CUDA EP):
 
@@ -88,8 +89,22 @@ The test builds its engine from the golden's own `text` / `pooling` /
 `normalize` / `max_seq_len` fields, so one invocation per golden file verifies
 that exact `(model, text, params)` tuple.
 
-On **krick-1** (Intel, OVMS client) the OVMS pipelines embed server-side on
-the Battlemage GPU. The `Embed` RPC packs texts as a BYTES tensor named
+On **krick-1** the default Intel path is in-process OpenVINO GenAI
+(`docs/intel-genai-embed.md`). After `make fetch-ov-genai` and a
+`--features openvino-genai` build:
+
+```bash
+INFERSTREAM_OV_MODEL=$PWD/models/ov/minilm \
+INFERSTREAM_OV_DEVICE=GPU \
+INFERSTREAM_OV_GOLDEN=$PWD/testdata/reference_embeddings/ov_genai_minilm_short.json \
+cargo test -p inferstream-backend-openvino --features genai -- --ignored gpu_golden
+```
+
+Produce `ov_genai_minilm_short.json` from a live Embed (same schema as
+above). That golden is **not** committed until someone actually runs it
+on Battlemage.
+
+The **legacy** OVMS client still embeds server-side on the Battlemage GPU. The `Embed` RPC packs texts as a BYTES tensor named
 `text` and unwraps output `embedding`; the OVMS backend adapts those to the
 pipelines' declared `strings` / `sentence_embedding` names on the typed
 protobuf messages (see `crates/backend-ovms`). Regenerate all

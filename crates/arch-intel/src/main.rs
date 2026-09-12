@@ -1,17 +1,15 @@
 //! `inferstream-intel`: the Intel arch binary.
 //!
-//! Primary engine path: OpenVINO, reached two ways. `backend = "ovms"`
-//! forwards to a running OpenVINO Model Server over gRPC (same KServe OIP V2
-//! family; no host OpenVINO install needed — this is the first working path
-//! on OVMS-in-Docker hosts like krick-1). `backend = "openvino"` is the
-//! in-process runtime (stub until the OpenVINO runtime is linked). Secondary:
-//! llama.cpp built with `GGML_SYCL` (oneAPI / Level Zero) for GGUF models,
-//! **in-process** behind `--features llamacpp-sycl` (same shape as nvidia
-//! CUDA). Tokenize is the GGUF vocabulary. In-process SYCL needs the oneAPI
-//! environment sourced (`source /opt/intel/oneapi/setvars.sh`) in the build
-//! shell and in the service unit; the ovms client backend does not.
-//! ONNX Runtime covers plain ONNX models; the mock backend is always
-//! available for wire-path smoke tests.
+//! Primary embed path: in-process OpenVINO GenAI `TextEmbeddingPipeline`
+//! (`backend = "openvino"`, feature `openvino-genai`). Clients send plain
+//! strings; openvino-tokenizers + CLS/MEAN/LAST + L2 run inside the C++
+//! pipeline on CPU/GPU/NPU. **No OVMS gRPC on the default path.**
+//! `backend = "ovms"` remains as an optional/legacy client to a running
+//! OpenVINO Model Server. Secondary: llama.cpp `GGML_SYCL` in-process
+//! (`--features llamacpp-sycl`). Tokenize for GGUF is the llama.cpp vocab;
+//! embed Tokenize uses `tokenizer.json` next to the OV model dir. In-process
+//! GenAI and SYCL need oneAPI / OpenVINO sourced
+//! (`source /opt/intel/oneapi/setvars.sh` or OpenVINO `setupvars.sh`).
 
 use std::sync::Arc;
 
@@ -101,12 +99,31 @@ fn factory() -> impl inferstream_server::BackendFactory {
             BackendKind::Openvino => {
                 #[cfg(feature = "openvino")]
                 {
-                    Ok(Arc::new(
-                        inferstream_backend_openvino::OpenVinoBackend::new(
-                            model.path.clone(),
-                            model.device.clone(),
-                        ),
-                    ))
+                    use inferstream_backend_openvino::{
+                        OpenVinoBackend, OpenVinoConfig, OvDevice, Pooling,
+                    };
+                    let device = model
+                        .device
+                        .as_deref()
+                        .map(OvDevice::from_config)
+                        .transpose()
+                        .map_err(|e| invalid(model, e.to_string()))?;
+                    let pooling = model
+                        .pooling
+                        .as_deref()
+                        .map(Pooling::from_config)
+                        .transpose()
+                        .map_err(|e| invalid(model, e.to_string()))?
+                        .unwrap_or(Pooling::Mean);
+                    let backend = OpenVinoBackend::new(OpenVinoConfig {
+                        models_path: model.path.clone().unwrap_or_default(),
+                        device,
+                        pooling,
+                        normalize: model.normalize,
+                        max_seq_len: model.max_seq_len.map(|v| v as usize),
+                    })
+                    .map_err(|e| invalid(model, e.to_string()))?;
+                    Ok(Arc::new(backend))
                 }
                 #[cfg(not(feature = "openvino"))]
                 Err(unsupported(model, "rebuild with --features openvino"))
@@ -194,6 +211,27 @@ mod tests {
                 "backend {backend} must be rejected by the Intel binary"
             );
         }
+    }
+
+    #[cfg(all(feature = "openvino", not(feature = "openvino-genai")))]
+    #[test]
+    fn openvino_without_genai_fails_at_startup() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "minilm"
+            backend = "openvino"
+            path = "models/ov/minilm"
+            device = "GPU"
+            pooling = "mean"
+            "#,
+        )
+        .unwrap();
+        let result = build_registry(&config, &factory());
+        assert!(
+            matches!(result, Err(ServerError::InvalidModelConfig { .. })),
+            "default GenAI path must fail at startup without openvino-genai"
+        );
     }
 
     #[cfg(feature = "ovms")]

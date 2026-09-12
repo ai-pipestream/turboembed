@@ -163,8 +163,8 @@ pub struct ModelConfig {
     #[serde(default)]
     pub n_ctx: Option<u32>,
 
-    /// Embedding backends (ort): pooling strategy, `"mean"` (default) or
-    /// `"cls"`.
+    /// Embedding backends (ort / openvino): pooling strategy, `"mean"`
+    /// (default), `"cls"`, or `"last"` (OpenVINO GenAI LAST_TOKEN).
     #[serde(default)]
     pub pooling: Option<String>,
 
@@ -524,11 +524,9 @@ mod tests {
 
         let mut intel = Config::from_toml(toml).unwrap();
         intel.expand_serve(Some(Arch::Intel)).unwrap();
-        assert_eq!(intel.models[0].backend, BackendKind::Ovms);
-        assert_eq!(
-            intel.models[0].upstream_model.as_deref(),
-            Some("minilm_pipeline")
-        );
+        assert_eq!(intel.models[0].backend, BackendKind::Openvino);
+        assert_eq!(intel.models[0].device.as_deref(), Some("GPU"));
+        assert_eq!(intel.models[0].path.as_deref(), Some("models/ov/minilm"));
 
         let mut apple = Config::from_toml(toml).unwrap();
         apple.expand_serve(Some(Arch::Apple)).unwrap();

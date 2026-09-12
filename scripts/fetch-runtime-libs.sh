@@ -15,10 +15,12 @@
 #   are pinned below. libonnxruntime itself is downloaded by `ort`'s
 #   `download-binaries` feature at cargo build time; nothing to do here.
 #
-# intel: the OVMS path (`backend = "ovms"`) is a pure tonic/prost gRPC client
-#   to a running OpenVINO Model Server — it links NO OpenVINO libraries, so
-#   there is nothing to fetch. The in-process OpenVINO backend is still a stub;
-#   when its FFI link lands, its runtime libs will be added here.
+# intel: in-process GenAI (`backend = "openvino"`, feature `openvino-genai`)
+#   links the host OpenVINO + OpenVINO GenAI + openvino-tokenizers install
+#   (oneAPI / standalone toolkit). Those GPU plugins are multi-GB and
+#   host-specific — they are NOT bundled here. `backend = "ovms"` is a
+#   pure tonic/prost gRPC client and links nothing. See
+#   docs/intel-genai-embed.md.
 #
 # TensorRT EP (feature ort-tensorrt) is deliberately NOT handled here: it needs
 # multi-GB TensorRT 10 host libs (`sudo apt install tensorrt-libs` from the
