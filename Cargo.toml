@@ -75,6 +75,7 @@ inferstream-backend-openvino = { path = "crates/backend-openvino" }
 inferstream-backend-ovms = { path = "crates/backend-ovms" }
 inferstream-backend-apple = { path = "crates/backend-apple" }
 inferstream-server = { path = "crates/server" }
+inferstream-fetch = { path = "crates/fetch" }
 
 [profile.release]
 lto = "thin"

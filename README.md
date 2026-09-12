@@ -204,14 +204,15 @@ grpcurl -plaintext -proto proto/inferstream_extension.proto \
 **Parity gate (canonical):** `inferstream-e2e` (`crates/e2e`) is the unified client-side suite — same cases against nvidia / intel / apple. It talks gRPC to an already-running server and never starts remote GPUs. See [`docs/e2e.md`](docs/e2e.md).
 
 ```bash
-make e2e-nvidia          # default krick:8461
-make e2e-intel           # default krick-1:8461
-make e2e-apple           # default krickert-mac:8461
+make e2e-nvidia          # default krick:8461; FETCH=1 pulls missing ONNX/GGUF
+make e2e-intel           # default krick-1:8461; FETCH=1 pulls ov-genai + GGUF
+make e2e-apple           # default krickert-mac:8461; FETCH=1 → xtask --mlx
+make e2e-nvidia FETCH=0  # skip download
 make e2e-all             # only arches whose INFERSTREAM_E2E_<ARCH>_ADDR is set
-cargo run -p inferstream-e2e -- --target nvidia --addr krick:8461 --token "$KEY"
+cargo run -p inferstream-e2e -- --target nvidia --addr krick:8461 --token "$KEY" --fetch
 ```
 
-`scripts/smoke-embeddings.sh` / `scripts/smoke-llms.sh` / the RPC half of `scripts/smoke-apple.sh` are thin wrappers around this harness. Bring-up: `make fetch-embeddings` / `make fetch-llms` (hash-verified; `make verify-embeddings` / `make verify-llms` re-check offline) → extend `serve` → restart → `make e2e-<arch>`.
+`scripts/smoke-embeddings.sh` / `scripts/smoke-llms.sh` / the RPC half of `scripts/smoke-apple.sh` are thin wrappers around this harness. Bring-up: `make e2e-<arch>` (`FETCH=1` default) or `make fetch-e2e-<arch>` / `scripts/ensure-models.sh <arch>` downloads only missing or hash-mismatched files via `inferstream-fetch` (SHA-256 manifests; no python3), then the suite. `make e2e-mock` does not fetch. See [`docs/e2e.md`](docs/e2e.md).
 
 Failures are startup-time and actionable: an unknown alias lists what the catalog defines; an alias with no resolution for this arch names the arches that have one. Explicit `[[models]]` entries keep working alongside `serve` (collisions are rejected), and the arch-neutral dev `inferstream` binary rejects `serve` since it has no arch.
 
@@ -311,7 +312,7 @@ Generation contract (all engines, identical to what the mock emits today): input
 ```bash
 cargo test --workspace          # 90+ tests, passes with zero GPU libraries
                                 # (includes inferstream-e2e against the mock)
-make e2e-nvidia                 # live suite; server already up (see docs/e2e.md)
+make e2e-nvidia                 # live suite; FETCH=1 pulls missing weights first
 ```
 
 Fixed prompts (short / medium / empty / unicode / long-truncation) live as JSON goldens in `testdata/reference_embeddings/`. The deterministic-mock goldens run on every `cargo test` (cosine ≥ 0.999 plus exact-value and L2 checks, both directly and end-to-end through the `Embed` RPC); regenerate them with `cargo run -p inferstream-server --example gen_reference_embeddings`. GPU goldens for the real engines are `#[ignore]`d and feature-gated (`cargo test -p inferstream-backend-ort --features cuda -- --ignored gpu_golden` on krick) — see [`testdata/reference_embeddings/README.md`](testdata/reference_embeddings/README.md) for the schema and the krick/krick-1 regeneration walkthrough.

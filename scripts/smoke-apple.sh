@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # End-to-end gRPC smoke for the all-Swift inferstream-apple server.
 #
-# Prereqs:  cargo xtask fetch --mlx minilm qwen-0.5b
-#           cargo xtask fetch --llms qwen-0.5b   # tokenizer.json
-#           brew install grpcurl
+# Prereqs:  brew install grpcurl
+#           (weights: inferstream-e2e --fetch, or scripts/setup-mlx.sh)
 #
 # Starts the Swift gRPC server (mlx-swift in-process — no Rust process,
 # no Python), then runs the canonical inferstream-e2e harness.
@@ -89,6 +88,6 @@ fi
 
 echo "--- inferstream-e2e (canonical Apple suite) ---"
 INFERSTREAM_E2E_TARGET=apple cargo run -q -p inferstream-e2e -- \
-    --target apple --addr "$ADDR" --token change-me
+    --target apple --addr "$ADDR" --token change-me --fetch
 
 echo "SMOKE OK"

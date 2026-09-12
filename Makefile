@@ -3,8 +3,12 @@
 #
 #   make test                               # cargo test --workspace
 #   make test-fetch                         # fetch-crate + xtask unit tests
-#   make e2e-nvidia / e2e-intel / e2e-apple # live harness (server already up)
+#   make e2e-nvidia / e2e-intel / e2e-apple # live harness (FETCH=1 by default)
+#   make e2e-nvidia FETCH=0                 # skip auto-download (CI / already fetched)
+#   make e2e-nvidia FETCH=all               # every matrix alias (includes qwen-7b)
+#   make e2e-nvidia FETCH=serve             # aliases in config/nvidia.toml serve
 #   make e2e-all                            # each arch whose *_ADDR is set
+#   make fetch-e2e-nvidia                   # ensure artifacts only (no gRPC)
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -61,7 +65,8 @@ INTEL_ARGS := --out $(OVMS_DIR) --hf-out $(HF_TOK_DIR)
 	update-embedding-manifest-intel \
 	setup-sycl build-intel-sycl \
 	apple smoke-apple sync-proto \
-	e2e e2e-nvidia e2e-intel e2e-apple e2e-all e2e-mock
+	e2e e2e-nvidia e2e-intel e2e-apple e2e-all e2e-mock \
+	fetch-e2e-nvidia fetch-e2e-intel fetch-e2e-apple fetch-e2e-mock
 
 test:
 	$(CARGO) test --workspace
@@ -141,24 +146,54 @@ build-intel-sycl: setup-sycl
 
 # Unified E2E harness (crates/e2e). Talks gRPC to an already-running server;
 # never starts remote GPUs. See docs/e2e.md.
+#
+# FETCH=1 (default on worker targets): download missing SHA-256-pinned
+# artifacts via inferstream-fetch / cargo xtask fetch --mlx, then run.
+# FETCH=0 skips download (CI mock, or hosts that already have weights).
+# FETCH=all / FETCH=serve widen the alias set (see docs/e2e.md).
 E2E := $(CARGO) run -q -p inferstream-e2e --
 INFERSTREAM_E2E_TOKEN ?= change-me
 INFERSTREAM_E2E_NVIDIA_ADDR ?=
 INFERSTREAM_E2E_INTEL_ADDR ?=
 INFERSTREAM_E2E_APPLE_ADDR ?=
+FETCH ?= 1
+
+# FETCH=0|false|no|off → no flag
+# FETCH=1|true|yes|on  → --fetch
+# FETCH=all            → --fetch --fetch-all
+# FETCH=serve          → --fetch --fetch-serve
+E2E_FETCH_ARGS := $(strip \
+	$(if $(filter 0 false no off,$(FETCH)),,\
+		$(if $(filter all,$(FETCH)),--fetch --fetch-all,\
+			$(if $(filter serve,$(FETCH)),--fetch --fetch-serve,\
+				--fetch))))
 
 e2e-nvidia:
-	$(E2E) --target nvidia --addr $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),krick:8461) --token "$(INFERSTREAM_E2E_TOKEN)"
+	$(E2E) --target nvidia --addr $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),krick:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS)
 
 e2e-intel:
-	$(E2E) --target intel --addr $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),krick-1:8461) --token "$(INFERSTREAM_E2E_TOKEN)"
+	$(E2E) --target intel --addr $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),krick-1:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS)
 
 e2e-apple:
-	$(E2E) --target apple --addr $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),krickert-mac:8461) --token "$(INFERSTREAM_E2E_TOKEN)"
+	$(E2E) --target apple --addr $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),krickert-mac:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS)
 
 # Local mock under the same logical names (config/e2e-mock.toml must be up).
+# Auto-fetch is off: the mock has no on-disk weights.
 e2e-mock:
 	$(E2E) --target mock --addr $(or $(INFERSTREAM_E2E_ADDR),127.0.0.1:8461) --token "$(INFERSTREAM_E2E_TOKEN)"
+
+# Ensure artifacts only (bring-up / serving). Same FETCH= scope as e2e-*.
+fetch-e2e-nvidia:
+	$(E2E) --target nvidia --fetch-only $(if $(filter all,$(FETCH)),--fetch-all,) $(if $(filter serve,$(FETCH)),--fetch-serve,)
+
+fetch-e2e-intel:
+	$(E2E) --target intel --fetch-only $(if $(filter all,$(FETCH)),--fetch-all,) $(if $(filter serve,$(FETCH)),--fetch-serve,)
+
+fetch-e2e-apple:
+	$(E2E) --target apple --fetch-only $(if $(filter all,$(FETCH)),--fetch-all,) $(if $(filter serve,$(FETCH)),--fetch-serve,)
+
+fetch-e2e-mock:
+	@echo "e2e-mock: no on-disk models to fetch"
 
 # Run each arch whose INFERSTREAM_E2E_<ARCH>_ADDR is set. CI cloud can call
 # this safely: with no addrs it prints a skip line and exits 0.
