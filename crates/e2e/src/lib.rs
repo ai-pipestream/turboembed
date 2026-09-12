@@ -23,7 +23,7 @@ pub use fetch::{
 pub use matrix::Matrix;
 pub use parity::{
     pair_threshold, run_parity, ParityConfig, ParityDump, ParityMode, CROSS_FP_MIN,
-    CROSS_QUANT_MIN, DEFAULT_PARITY_ALIASES, SAME_ARCH_MIN,
+    CROSS_QUANT_MIN, DEFAULT_DRIFT_ALIASES, DEFAULT_PARITY_ALIASES, SAME_ARCH_MIN,
 };
 pub use suite::{decide, run_suite, Decision, Outcome, Report, SuiteConfig, SuiteFilter};
 pub use target::{infer_target_from_addr, Target};

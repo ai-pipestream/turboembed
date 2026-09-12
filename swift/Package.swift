@@ -10,6 +10,7 @@ let package = Package(
         .executable(name: "inferstream-apple", targets: ["inferstream-apple"]),
         .library(name: "MlxEngine", targets: ["MlxEngine"]),
         .library(name: "InferstreamCore", targets: ["InferstreamCore"]),
+        .library(name: "TurboEmbed", targets: ["TurboEmbed"]),
     ],
     dependencies: [
         .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.1.0"),
@@ -55,6 +56,19 @@ let package = Package(
             path: "Sources/InferstreamApple",
             plugins: [
                 .plugin(name: "GRPCProtobufGenerator", package: "grpc-swift-protobuf")
+            ]
+        ),
+        .target(
+            name: "TurboEmbedC",
+            path: "Sources/TurboEmbedC",
+            publicHeadersPath: "include"
+        ),
+        .target(
+            name: "TurboEmbed",
+            dependencies: ["TurboEmbedC"],
+            path: "Sources/TurboEmbed",
+            swiftSettings: [
+                .enableUpcomingFeature("ExistentialAny")
             ]
         ),
         .testTarget(

@@ -37,6 +37,26 @@ pub const CROSS_QUANT_MIN: f32 = 0.97;
 /// Default aliases: `minilm` is required everywhere; the others run when served.
 pub const DEFAULT_PARITY_ALIASES: &[&str] = &["minilm", "bge-small", "mpnet"];
 
+/// Popular catalog embeds × arches for `make e2e-drift` / `--drift`.
+/// Same cosine floors as parity (`pair_threshold`). Soft-skip when an
+/// arch does not serve the alias. Keep in lockstep with
+/// `testdata/e2e/matrix.json` `embeds[]` — see `docs/turboembed-drift.md`.
+pub const DEFAULT_DRIFT_ALIASES: &[&str] = &[
+    "minilm",
+    "minilm-l12",
+    "mpnet",
+    "bge-small",
+    "bge-base",
+    "bge-large",
+    "bge-m3",
+    "e5-small",
+    "e5-base",
+    "e5-large",
+    "gte-small",
+    "gte-base",
+    "nomic-embed-text",
+];
+
 const EMBED_BATCH: usize = 16;
 const DEFAULT_SOAK_LIMIT: usize = 24;
 
@@ -531,6 +551,22 @@ mod tests {
 
     fn dump(arch: Target, items: Vec<ParityItem>) -> ParityDump {
         ParityDump::from_items(arch, "minilm", "mean", None, items).unwrap()
+    }
+
+    #[test]
+    fn drift_aliases_cover_matrix_embeds() {
+        let matrix = Matrix::builtin();
+        let drift: std::collections::HashSet<&str> =
+            DEFAULT_DRIFT_ALIASES.iter().copied().collect();
+        for embed in &matrix.embeds {
+            assert!(
+                drift.contains(embed.alias.as_str()),
+                "add {} to DEFAULT_DRIFT_ALIASES (docs/turboembed-drift.md)",
+                embed.alias
+            );
+        }
+        assert!(DEFAULT_DRIFT_ALIASES.contains(&"minilm"));
+        assert!(DEFAULT_PARITY_ALIASES.iter().all(|a| drift.contains(a)));
     }
 
     #[test]

@@ -1,0 +1,4 @@
+module TurboEmbedC {
+    header "turboembed.h"
+    export *
+}

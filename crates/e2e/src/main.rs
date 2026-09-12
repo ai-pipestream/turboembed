@@ -11,7 +11,7 @@ use inferstream_e2e::fetch::{default_arch_config, e2e_workspace_root, load_serve
 use inferstream_e2e::{
     ensure_plan, infer_target_from_addr, plan_corpus, plan_fetches, run_parity, run_suite,
     with_corpus, CatalogIndex, FetchScope, Matrix, ParityConfig, ParityMode, SuiteConfig,
-    SuiteFilter, Target, DEFAULT_PARITY_ALIASES,
+    SuiteFilter, Target, DEFAULT_DRIFT_ALIASES, DEFAULT_PARITY_ALIASES,
 };
 
 #[derive(Parser, Debug)]
@@ -92,6 +92,12 @@ struct Args {
     #[arg(long)]
     parity_cross: bool,
 
+    /// Like `--parity-cross` over the popular-model drift list
+    /// (`DEFAULT_DRIFT_ALIASES`: minilm, bge-*, e5-*, gte-*, …). Reuses
+    /// the same cosine floors. See docs/turboembed-drift.md.
+    #[arg(long)]
+    drift: bool,
+
     /// Live peer for `--parity-cross` / `--parity-goldens`: `arch=host:port`.
     /// Repeatable. Env fallbacks: `INFERSTREAM_E2E_{NVIDIA,INTEL,APPLE}_ADDR`.
     #[arg(long = "peer", value_name = "ARCH=ADDR")]
@@ -169,6 +175,10 @@ async fn main() -> ExitCode {
         eprintln!("error: --parity-goldens and --parity-cross are mutually exclusive");
         return ExitCode::from(2);
     }
+    if args.drift && (args.parity_goldens || args.parity_cross) {
+        eprintln!("error: --drift is mutually exclusive with --parity-goldens / --parity-cross");
+        return ExitCode::from(2);
+    }
     if args.parity_write && !args.parity_goldens {
         eprintln!("error: --parity-write requires --parity-goldens");
         return ExitCode::from(2);
@@ -244,13 +254,13 @@ async fn main() -> ExitCode {
             eprintln!("error: fetch: {e}");
             return ExitCode::from(1);
         }
-        if args.fetch_only && !args.parity_goldens && !args.parity_cross {
+        if args.fetch_only && !args.parity_goldens && !args.parity_cross && !args.drift {
             println!("fetch-only: artifacts ensured, suite not run");
             return ExitCode::SUCCESS;
         }
     }
 
-    if args.parity_goldens || args.parity_cross {
+    if args.parity_goldens || args.parity_cross || args.drift {
         return run_parity_cli(&args, target, &addr, matrix, catalog).await;
     }
 
@@ -311,13 +321,18 @@ async fn run_parity_cli(
         peers.insert(target, addr.to_string());
     }
 
-    let aliases = if args.only.is_empty() {
-        DEFAULT_PARITY_ALIASES
+    let aliases = if !args.only.is_empty() {
+        args.only.clone()
+    } else if args.drift {
+        DEFAULT_DRIFT_ALIASES
             .iter()
             .map(|s| (*s).to_string())
             .collect()
     } else {
-        args.only.clone()
+        DEFAULT_PARITY_ALIASES
+            .iter()
+            .map(|s| (*s).to_string())
+            .collect()
     };
 
     let goldens_dir = args
@@ -349,6 +364,8 @@ async fn run_parity_cli(
         Ok(report) => {
             let label = if args.parity_goldens {
                 "parity-goldens"
+            } else if args.drift {
+                "drift"
             } else {
                 "parity-cross"
             };

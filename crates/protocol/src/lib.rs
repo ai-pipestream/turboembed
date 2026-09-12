@@ -19,9 +19,10 @@ pub mod inference {
 }
 
 /// Generated protobuf/gRPC types for the `inferstream.v1` extension package
-/// (`InferstreamService`: Tokenize / Detokenize / Embed / ListModels /
-/// Rerank). See `proto/inferstream_extension.proto`; the OIP service above
-/// stays untouched and interoperable.
+/// (`InferstreamService`: Tokenize / Detokenize / Embed / EmbedStream /
+/// ListModels / Rerank). `Embed` accepts typed float[] or packed LE FP32
+/// bytes (`EmbedOutputFormat`). See `proto/inferstream_extension.proto`;
+/// the OIP service above stays untouched and interoperable.
 pub mod extension {
     tonic::include_proto!("inferstream.v1");
 }
