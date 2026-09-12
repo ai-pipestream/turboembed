@@ -74,7 +74,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/arch-nvidia` | `inferstream-nvidia` binary |
 | `crates/arch-intel` | `inferstream-intel` binary |
 | `crates/arch-apple` | `inferstream-apple` binary |
-| `crates/turboembed` | Safe zero-copy wrapper over the TurboEmbed C ABI (C++ stub today) |
+| `crates/turboembed` | Safe wrapper over the TurboEmbed C ABI (`include/turboembed.h`). NVIDIA: `--features ort-cuda` (ORT CUDA IoBinding). Intel: `--features genai`. Catalog aliases error without the real feature. |
 
 ## TurboEmbed
 
@@ -91,20 +91,23 @@ on the existing `inferstream.v1.InferstreamService`.
 | Rust crate | `crates/turboembed` |
 | Swift shim | `swift/Sources/TurboEmbed` — [`docs/turboembed-swift.md`](docs/turboembed-swift.md) |
 | Drift matrix | [`docs/turboembed-drift.md`](docs/turboembed-drift.md) · `make e2e-drift` |
+| NVIDIA ORT CUDA | [`docs/turboembed.md`](docs/turboembed.md) · `make test-turboembed-nvidia` |
 
 ```bash
 make turboembed-stub          # native/turboembed/build/libturboembed.a
 cargo test -p turboembed      # links the stub; ABI smoke (no GPU)
+make test-turboembed-nvidia   # --features ort-cuda; ORT CUDA IoBinding MiniLM
 make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on CPU and GPU
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 
-Without `--features genai` the stub answers `mock-embed` and returns
-`NOT_IMPLEMENTED` for catalog aliases. On Intel, `--features genai`
-loads `ov::genai::TextEmbeddingPipeline` on **GPU** or **CPU** (no OVMS;
-a GPU request never silently becomes CPU). Receipts:
-`testdata/receipts/turboembed/intel-minilm.json` (GPU) and
-`intel-minilm-cpu.json` (CPU).
+Without a real provider feature the stub answers `mock-embed` and returns
+`NOT_IMPLEMENTED` for catalog aliases (`minilm`, …). `--features ort-cuda`
+loads MiniLM through ORT CUDA + IoBinding device buffers (no CPU fallback).
+On Intel, `--features genai` loads `ov::genai::TextEmbeddingPipeline` on
+**GPU** or **CPU** (no OVMS; a GPU request never silently becomes CPU).
+Receipts: `testdata/receipts/turboembed/nvidia-minilm.json`,
+`intel-minilm.json` (GPU), `intel-minilm-cpu.json` (CPU).
 Inferstream servers are unchanged.
 
 ## Building each arch binary

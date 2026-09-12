@@ -13,9 +13,18 @@ rust-version.workspace = true
 # Explicit device string; GPU request never silently compiles CPU.
 # No OVMS, no mock-as-done. See docs/intel-genai-embed.md.
 genai = []
+# Real ONNX Runtime CUDA EP + IoBinding device buffers on NVIDIA.
+# Catalog aliases error without this feature. No silent CPU fallback.
+# Needs CUDA 13 user-space libs (.libs/nvidia/lib). See docs/turboembed.md.
+ort-cuda = ["dep:ort", "dep:tokenizers", "dep:inferstream-backend-ort", "dep:serde", "dep:toml"]
 
 [dependencies]
 thiserror = { workspace = true }
+inferstream-backend-ort = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
+ort = { version = "2.0.0-rc.13", optional = true, features = ["cuda"] }
+tokenizers = { workspace = true, optional = true }
 
 [build-dependencies]
 cc = "1"

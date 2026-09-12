@@ -3120,8 +3120,13 @@ name = "turboembed"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "inferstream-backend-ort",
+ "ort",
+ "serde",
  "serde_json",
  "thiserror",
+ "tokenizers",
+ "toml",
 ]
 
 [[package]]

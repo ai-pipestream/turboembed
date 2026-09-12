@@ -50,13 +50,20 @@ fn create_list_load_embed_free() {
 }
 
 #[test]
+#[cfg(not(feature = "ort-cuda"))]
 fn catalog_alias_is_not_implemented() {
     let engine = Engine::create(Device::Cuda).expect("create still succeeds");
     let err = engine
         .load_model("minilm")
         .expect_err("stub must not fake ORT");
-    assert!(matches!(err, Error::NotImplemented(_)));
+    assert!(
+        matches!(err, Error::NotImplemented(_)),
+        "without --features ort-cuda, minilm must be NotImplemented, got {err:?}"
+    );
+}
 
+#[test]
+fn register_provider_is_reserved() {
     let err = register_provider_stub().expect_err("plugin registration reserved");
     assert!(matches!(err, Error::NotImplemented(_)));
 }

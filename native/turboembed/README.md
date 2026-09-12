@@ -5,6 +5,12 @@ C++ implementation of the frozen C ABI in [`include/turboembed.h`](../../include
 Default compile is a **linkable stub**: deterministic `mock-embed` plus
 `NOT_IMPLEMENTED` for catalog aliases / provider registration.
 
+`--features ort-cuda` (Rust crate) defines `TURBOEMBED_ORT_CUDA`. Catalog
+aliases such as `minilm` then call Rust hooks that load ONNX Runtime with
+the CUDA EP (`error_on_failure`), bind inputs/outputs on device buffers via
+IoBinding, and mean+L2 pool on the host after the CUDA→CPU copy. CPU is
+rejected. No silent CPU EP. See `docs/turboembed.md`.
+
 `--features genai` (Rust crate) also compiles `src/genai.cpp` and defines
 `TURBOEMBED_GENAI`. Catalog aliases such as `minilm` then construct
 `ov::genai::TextEmbeddingPipeline(models_path, device, config)` with

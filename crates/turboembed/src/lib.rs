@@ -24,10 +24,23 @@
 //! `Engine::create(Device::OpenVinoGpu)` fails if the GPU plugin is
 //! missing (no CPU swap). `Device::OpenVinoCpu` / `Device::Cpu` compile
 //! `"CPU"` and return real embeds. No OVMS. No Python.
+//!
+//! `--features ort-cuda` registers the ONNX Runtime CUDA EP with
+//! `error_on_failure`, binds inputs/outputs on `AllocationDevice::CUDA`
+//! via IoBinding, and mean+L2 pools on the host after the device→host
+//! copy. `Engine::create(Device::Cuda)` then `load_model("minilm")` is
+//! the NVIDIA proof path. A CPU-resident output is a hard error.
 
 #![allow(clippy::result_large_err)]
 
 pub mod ffi;
+
+#[cfg(feature = "ort-cuda")]
+mod catalog;
+#[cfg(feature = "ort-cuda")]
+mod ort_cuda;
+#[cfg(feature = "ort-cuda")]
+mod ort_cuda_c;
 
 use std::ffi::CStr;
 use std::os::raw::c_void;
@@ -389,6 +402,7 @@ impl Engine {
     }
 
     /// Load a catalog alias. Stub: `mock-embed` / `mock` succeed.
+    /// `--features ort-cuda`: `minilm` loads ORT CUDA + IoBinding.
     /// `--features genai`: `minilm` (and other `models/ov/<alias>` dirs)
     /// load `TextEmbeddingPipeline` on `"GPU"` or `"CPU"`.
     pub fn load_model(&self, alias: &str) -> Result<(), Error> {

@@ -34,6 +34,7 @@ fn main() {
     );
 
     let genai = std::env::var("CARGO_FEATURE_GENAI").is_ok();
+    let ort_cuda = std::env::var("CARGO_FEATURE_ORT_CUDA").is_ok();
 
     let mut build = cc::Build::new();
     build
@@ -53,6 +54,10 @@ fn main() {
         build.compiler("g++");
     }
     link_libstdcxx();
+
+    if ort_cuda {
+        build.define("TURBOEMBED_ORT_CUDA", None);
+    }
 
     if genai {
         let ov = match find_openvino() {

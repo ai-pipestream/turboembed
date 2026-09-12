@@ -1,0 +1,35 @@
+{
+  "abi": "turboembed.h",
+  "abi_version": 1,
+  "alias": "minilm",
+  "arch": "nvidia",
+  "commands": [
+    "export LD_LIBRARY_PATH=\"$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}\"",
+    "cargo test -p turboembed --features ort-cuda -- --ignored --nocapture",
+    "make test-turboembed-nvidia"
+  ],
+  "crate": "turboembed",
+  "device": "CUDA",
+  "dims": 384,
+  "git_sha": "86ad4ad7e290f3c88a36846faa15173156db059f",
+  "golden": "testdata/e2e/goldens/nvidia/minilm.json",
+  "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+  "hello_world_cosine": 0.9999998211860657,
+  "host": "krick",
+  "maps": {
+    "libcudart": true,
+    "libonnxruntime_providers_cuda": true,
+    "libpython": false
+  },
+  "mean_cosine": 0.9999999403953552,
+  "n_texts": 6,
+  "normalize": true,
+  "notes": "No mock. No CPU fallback. Output tensors must reside on AllocationDevice::CUDA before the host mean+L2 copy.",
+  "pass": true,
+  "pooling": "mean",
+  "provider": "ORT CUDA EP + IoBinding device buffers",
+  "schema_version": 1,
+  "subset": "parity:*",
+  "threshold": 0.9900000095367432,
+  "worst_cosine": 0.9999998211860657
+}

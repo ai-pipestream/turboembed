@@ -3,7 +3,10 @@
  * TurboEmbed C ABI.
  *
  * Always: deterministic `mock-embed` / `mock`.
- * With -DTURBOEMBED_GENAI: catalog aliases (minilm, …) load
+ * With -DTURBOEMBED_ORT_CUDA: catalog aliases (minilm, …) load
+ * ONNX Runtime CUDA EP + IoBinding device buffers (Rust hooks).
+ * CPU is rejected — not accepted as success.
+ * With -DTURBOEMBED_GENAI: catalog aliases load
  * ov::genai::TextEmbeddingPipeline on the official device string
  * "GPU" or "CPU". OPENVINO_GPU never silently compiles "CPU".
  *
@@ -14,6 +17,35 @@
 
 #ifdef TURBOEMBED_GENAI
 #include "genai.hpp"
+#endif
+
+#ifdef TURBOEMBED_ORT_CUDA
+extern "C" {
+void *turboembed_ort_cuda_open(
+    const char *alias,
+    size_t alias_len,
+    const char *config_path,
+    const char *workspace_root,
+    char *err,
+    size_t err_len
+);
+int turboembed_ort_cuda_embed(
+    void *session,
+    const char *const *ptrs,
+    const size_t *lens,
+    size_t n_texts,
+    int requested_pooling,
+    int requested_normalize,
+    float **out_values,
+    size_t *out_dim,
+    size_t *out_count,
+    char *err,
+    size_t err_len
+);
+void turboembed_ort_cuda_close(void *session);
+void turboembed_ort_cuda_free_values(float *values, size_t n);
+uint32_t turboembed_ort_cuda_dim(const void *session);
+}
 #endif
 
 #include <cmath>
@@ -32,6 +64,12 @@ thread_local std::string g_create_error = "";
 constexpr uint32_t kMockDim = 8;
 constexpr const char *kMockAlias = "mock-embed";
 constexpr const char *kMockAliasShort = "mock";
+
+#if defined(TURBOEMBED_GENAI) || defined(TURBOEMBED_ORT_CUDA)
+bool alias_eq(const char *alias, size_t len, const std::string &loaded) {
+    return len == loaded.size() && std::memcmp(alias, loaded.data(), len) == 0;
+}
+#endif
 
 bool is_mock_alias(const char *alias, size_t len) {
     if (alias == nullptr) {
@@ -93,6 +131,10 @@ struct turboembed_engine {
     std::unique_ptr<turboembed_genai::Pipeline> genai;
     std::string genai_alias;
 #endif
+#ifdef TURBOEMBED_ORT_CUDA
+    void *ort_cuda;
+    std::string ort_cuda_alias;
+#endif
 
     explicit turboembed_engine(turboembed_device device_, std::string config)
         : device(device_),
@@ -100,7 +142,25 @@ struct turboembed_engine {
           last_error(),
           mock_loaded(device_ == TURBOEMBED_DEVICE_MOCK ||
                       device_ == TURBOEMBED_DEVICE_AUTO ||
-                      device_ == TURBOEMBED_DEVICE_CPU) {}
+                      device_ == TURBOEMBED_DEVICE_CPU)
+#ifdef TURBOEMBED_ORT_CUDA
+          ,
+          ort_cuda(nullptr)
+#endif
+    {
+    }
+
+    ~turboembed_engine() {
+#ifdef TURBOEMBED_ORT_CUDA
+        if (ort_cuda != nullptr) {
+            turboembed_ort_cuda_close(ort_cuda);
+            ort_cuda = nullptr;
+        }
+#endif
+    }
+
+    turboembed_engine(const turboembed_engine &) = delete;
+    turboembed_engine &operator=(const turboembed_engine &) = delete;
 
     void set_error(const char *msg) { last_error = msg ? msg : ""; }
 };
@@ -158,8 +218,11 @@ uint8_t pooling_for_alias(const char *alias, size_t len, uint8_t requested) {
     return 1;
 }
 
-bool alias_eq(const char *alias, size_t len, const std::string &loaded) {
-    return len == loaded.size() && std::memcmp(alias, loaded.data(), len) == 0;
+#endif
+
+#ifdef TURBOEMBED_ORT_CUDA
+bool wants_ort_cuda(turboembed_device device) {
+    return device == TURBOEMBED_DEVICE_CUDA || device == TURBOEMBED_DEVICE_AUTO;
 }
 #endif
 
@@ -299,6 +362,36 @@ turboembed_status turboembed_list_models(
     *out_infos = nullptr;
     *out_count = 0;
 
+#ifdef TURBOEMBED_ORT_CUDA
+    if (engine->ort_cuda != nullptr) {
+        auto *infos = static_cast<turboembed_model_info *>(
+            std::calloc(1, sizeof(turboembed_model_info))
+        );
+        if (infos == nullptr) {
+            engine->set_error("model list allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        const std::string &name = engine->ort_cuda_alias;
+        char *alias = static_cast<char *>(std::malloc(name.size() + 1));
+        if (alias == nullptr) {
+            std::free(infos);
+            engine->set_error("alias allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        std::memcpy(alias, name.data(), name.size());
+        alias[name.size()] = '\0';
+        infos[0].alias.ptr = alias;
+        infos[0].alias.len = name.size();
+        infos[0].dim = turboembed_ort_cuda_dim(engine->ort_cuda);
+        infos[0].device = TURBOEMBED_DEVICE_CUDA;
+        infos[0].ready = 1;
+        *out_infos = infos;
+        *out_count = 1;
+        engine->set_error("");
+        return TURBOEMBED_OK;
+    }
+#endif
+
 #ifdef TURBOEMBED_GENAI
     if (engine->genai) {
         auto *infos = static_cast<turboembed_model_info *>(
@@ -388,6 +481,44 @@ turboembed_status turboembed_load_model(
         return TURBOEMBED_OK;
     }
 
+#ifdef TURBOEMBED_ORT_CUDA
+    if (engine->device == TURBOEMBED_DEVICE_CPU) {
+        engine->set_error(
+            "TurboEmbed NVIDIA ORT is CUDA-only; CPU is not accepted as "
+            "success. Create the engine with TURBOEMBED_DEVICE_CUDA."
+        );
+        return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+    }
+    if (wants_ort_cuda(engine->device)) {
+        char err[1024];
+        err[0] = '\0';
+        void *session = turboembed_ort_cuda_open(
+            alias,
+            alias_len,
+            engine->config_path.empty() ? nullptr : engine->config_path.c_str(),
+            TURBOEMBED_WORKSPACE_ROOT,
+            err,
+            sizeof(err)
+        );
+        if (session == nullptr) {
+            engine->set_error(
+                err[0] != '\0'
+                    ? err
+                    : "ORT CUDA session failed to open (CUDA EP / device "
+                      "allocator / IoBinding)"
+            );
+            return TURBOEMBED_ERR_UNAVAILABLE;
+        }
+        if (engine->ort_cuda != nullptr) {
+            turboembed_ort_cuda_close(engine->ort_cuda);
+        }
+        engine->ort_cuda = session;
+        engine->ort_cuda_alias.assign(alias, alias_len);
+        engine->set_error("");
+        return TURBOEMBED_OK;
+    }
+#endif
+
 #ifdef TURBOEMBED_GENAI
     if (engine->device == TURBOEMBED_DEVICE_OPENVINO_NPU) {
         engine->set_error(
@@ -450,13 +581,24 @@ turboembed_status turboembed_load_model(
         return TURBOEMBED_ERR_UNAVAILABLE;
     }
 #else
-    /* Catalog aliases (minilm, bge-*, …) need --features genai on Intel. */
+#ifdef TURBOEMBED_ORT_CUDA
     engine->set_error(
-        "OpenVINO GenAI is not compiled into this TurboEmbed build; "
-        "rebuild crates/turboembed with --features genai "
-        "(TextEmbeddingPipeline on CPU or GPU; see docs/intel-genai-embed.md)"
+        "catalog alias requires TURBOEMBED_DEVICE_CUDA "
+        "(or AUTO that resolves to CUDA). This build is ORT CUDA only; "
+        "OpenVINO GenAI / Metal / TensorRT are not compiled in."
+    );
+    return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+#else
+    /* Catalog aliases (minilm, bge-*, …) need a real provider feature. */
+    engine->set_error(
+        "catalog alias is not compiled into this TurboEmbed stub; "
+        "rebuild crates/turboembed with --features ort-cuda "
+        "(NVIDIA ORT CUDA IoBinding; see docs/turboembed.md) or "
+        "--features genai (Intel TextEmbeddingPipeline on CPU or GPU; "
+        "see docs/intel-genai-embed.md)"
     );
     return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+#endif
 #endif
 }
 
@@ -497,6 +639,83 @@ static turboembed_status embed_impl(
             return TURBOEMBED_ERR_INVALID_ARGUMENT;
         }
     }
+#ifdef TURBOEMBED_ORT_CUDA
+    if (engine->ort_cuda != nullptr &&
+        alias_eq(alias, alias_len, engine->ort_cuda_alias)) {
+        int requested_pooling = TURBOEMBED_POOLING_DEFAULT;
+        int requested_normalize = -1;
+        if (opts != nullptr) {
+            requested_pooling = static_cast<int>(opts->pooling);
+            requested_normalize = opts->normalize;
+        }
+        std::vector<const char *> ptrs(n_texts);
+        std::vector<size_t> lens(n_texts);
+        for (size_t i = 0; i < n_texts; ++i) {
+            ptrs[i] = texts[i].ptr;
+            lens[i] = texts[i].len;
+        }
+        float *flat = nullptr;
+        size_t dim = 0;
+        size_t count = 0;
+        char err[1024];
+        err[0] = '\0';
+        const int rc = turboembed_ort_cuda_embed(
+            engine->ort_cuda,
+            ptrs.data(),
+            lens.data(),
+            n_texts,
+            requested_pooling,
+            requested_normalize,
+            &flat,
+            &dim,
+            &count,
+            err,
+            sizeof(err)
+        );
+        if (rc != 0 || flat == nullptr || dim == 0 || count != n_texts) {
+            if (flat != nullptr) {
+                turboembed_ort_cuda_free_values(flat, dim * count);
+            }
+            engine->set_error(
+                err[0] != '\0' ? err : "ORT CUDA embed failed"
+            );
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        const size_t n_floats = count * dim;
+        auto *result = static_cast<turboembed_embed_result *>(
+            std::calloc(1, sizeof(turboembed_embed_result))
+        );
+        if (result == nullptr) {
+            turboembed_ort_cuda_free_values(flat, n_floats);
+            engine->set_error("result allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        auto *values = static_cast<float *>(
+            std::malloc(n_floats * sizeof(float))
+        );
+        if (values == nullptr) {
+            turboembed_ort_cuda_free_values(flat, n_floats);
+            std::free(result);
+            engine->set_error("values allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        std::memcpy(values, flat, n_floats * sizeof(float));
+        turboembed_ort_cuda_free_values(flat, n_floats);
+        result->dim = static_cast<uint32_t>(dim);
+        result->count = static_cast<uint32_t>(count);
+        result->values = values;
+        result->packed = reinterpret_cast<const uint8_t *>(values);
+        result->packed_len = n_floats * sizeof(float);
+        *out = result;
+        engine->set_error("");
+        return TURBOEMBED_OK;
+    }
+    if (!is_mock_alias(alias, alias_len) && engine->ort_cuda != nullptr) {
+        engine->set_error("alias is not the loaded ORT CUDA model");
+        return TURBOEMBED_ERR_NOT_FOUND;
+    }
+#endif
+
 #ifdef TURBOEMBED_GENAI
     if (engine->genai && alias_eq(alias, alias_len, engine->genai_alias)) {
         if (engine->device == TURBOEMBED_DEVICE_OPENVINO_GPU &&
@@ -592,14 +811,17 @@ static turboembed_status embed_impl(
 #endif
 
     if (!is_mock_alias(alias, alias_len)) {
-#ifndef TURBOEMBED_GENAI
+#if !defined(TURBOEMBED_GENAI) && !defined(TURBOEMBED_ORT_CUDA)
         engine->set_error(
-            "embed on catalog aliases needs --features genai "
+            "embed on catalog aliases needs --features ort-cuda "
+            "(NVIDIA ORT CUDA IoBinding) or --features genai "
             "(TextEmbeddingPipeline on CPU or GPU)"
         );
         return TURBOEMBED_ERR_NOT_IMPLEMENTED;
 #else
-        engine->set_error("catalog alias is not loaded");
+        engine->set_error(
+            "catalog alias is not loaded; call turboembed_load_model first"
+        );
         return TURBOEMBED_ERR_NOT_FOUND;
 #endif
     }
