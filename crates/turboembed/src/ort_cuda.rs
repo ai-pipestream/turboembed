@@ -149,10 +149,6 @@ impl OrtCudaSession {
         self.place
     }
 
-    pub fn on_cuda(&self) -> bool {
-        self.place == OrtPlace::Cuda
-    }
-
     pub fn load(
         spec: &CatalogModelSpec,
         workspace_root: &Path,
