@@ -390,7 +390,7 @@ impl Engine {
 
     /// Load a catalog alias. Stub: `mock-embed` / `mock` succeed.
     /// `--features genai`: `minilm` (and other `models/ov/<alias>` dirs)
-    /// load `TextEmbeddingPipeline` on GPU.
+    /// load `TextEmbeddingPipeline` on `"GPU"` or `"CPU"`.
     pub fn load_model(&self, alias: &str) -> Result<(), Error> {
         let status =
             unsafe { turboembed_load_model(self.as_ptr(), alias.as_ptr().cast(), alias.len()) };

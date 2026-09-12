@@ -3,7 +3,7 @@
 //! Header: `include/turboembed.h`
 //! Always: `native/turboembed/src/stub.cpp` (mock + dispatch)
 //! Feature `genai`: also `native/turboembed/src/genai.cpp`
-//! (`ov::genai::TextEmbeddingPipeline` on GPU). Fails the build if
+//! (`ov::genai::TextEmbeddingPipeline` on CPU or GPU). Fails the build if
 //! OpenVINO GenAI is missing — never silently compiles a stub.
 
 use std::path::{Path, PathBuf};
@@ -155,12 +155,10 @@ fn find_openvino() -> Result<OpenVinoPaths, String> {
         }
     }
 
-    Err(
-        "searched pkg-config (openvino / openvino_genai) and \
+    Err("searched pkg-config (openvino / openvino_genai) and \
          OPENVINO_DIR / INTEL_OPENVINO_DIR / /work/opt/openvino_genai / \
          /opt/intel/openvino*"
-            .into(),
-    )
+        .into())
 }
 
 fn from_pkg_config() -> Result<OpenVinoPaths, String> {

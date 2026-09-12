@@ -4,8 +4,8 @@
  *
  * Always: deterministic `mock-embed` / `mock`.
  * With -DTURBOEMBED_GENAI: catalog aliases (minilm, …) load
- * ov::genai::TextEmbeddingPipeline on the literal device string "GPU".
- * CPU / AUTO compile is rejected — not accepted as success.
+ * ov::genai::TextEmbeddingPipeline on the official device string
+ * "GPU" or "CPU". OPENVINO_GPU never silently compiles "CPU".
  *
  * No Python. No OVMS. Does not replace inferstream servers.
  */
@@ -454,7 +454,7 @@ turboembed_status turboembed_load_model(
     engine->set_error(
         "OpenVINO GenAI is not compiled into this TurboEmbed build; "
         "rebuild crates/turboembed with --features genai "
-        "(TextEmbeddingPipeline on GPU; see docs/intel-genai-embed.md)"
+        "(TextEmbeddingPipeline on CPU or GPU; see docs/intel-genai-embed.md)"
     );
     return TURBOEMBED_ERR_NOT_IMPLEMENTED;
 #endif
@@ -595,7 +595,7 @@ static turboembed_status embed_impl(
 #ifndef TURBOEMBED_GENAI
         engine->set_error(
             "embed on catalog aliases needs --features genai "
-            "(TextEmbeddingPipeline on GPU)"
+            "(TextEmbeddingPipeline on CPU or GPU)"
         );
         return TURBOEMBED_ERR_NOT_IMPLEMENTED;
 #else

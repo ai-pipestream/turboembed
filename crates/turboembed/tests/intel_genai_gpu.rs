@@ -19,7 +19,7 @@ use turboembed::ffi::{
     turboembed_engine, turboembed_engine_create, turboembed_engine_destroy, turboembed_last_error,
     turboembed_load_model, turboembed_status,
 };
-use turboembed::{Device, EmbedOptions, Engine, Pooling};
+use turboembed::{Device, EmbedOptions, Engine, Error, Pooling};
 
 const COSINE_FLOOR: f32 = 0.99;
 const TEXT: &str = "hello world";
@@ -27,7 +27,10 @@ const ALIAS: &str = "minilm";
 
 fn workspace_root() -> PathBuf {
     let from_build = PathBuf::from(env!("TURBOEMBED_WORKSPACE_ROOT"));
-    if from_build.join("testdata/e2e/goldens/nvidia/minilm.json").is_file() {
+    if from_build
+        .join("testdata/e2e/goldens/nvidia/minilm.json")
+        .is_file()
+    {
         return from_build;
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -43,8 +46,16 @@ fn cosine(a: &[f32], b: &[f32]) -> f32 {
         .zip(b)
         .map(|(x, y)| f64::from(*x) * f64::from(*y))
         .sum();
-    let na: f64 = a.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>().sqrt();
-    let nb: f64 = b.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>().sqrt();
+    let na: f64 = a
+        .iter()
+        .map(|v| f64::from(*v) * f64::from(*v))
+        .sum::<f64>()
+        .sqrt();
+    let nb: f64 = b
+        .iter()
+        .map(|v| f64::from(*v) * f64::from(*v))
+        .sum::<f64>()
+        .sqrt();
     assert!(na > 0.0 && nb > 0.0, "zero-norm vector");
     (dot / (na * nb)) as f32
 }
@@ -102,7 +113,9 @@ fn require_mapped(maps: &str, needle: &str) {
 
 fn forbid_mapped(maps: &str, needle: &str) {
     assert!(
-        !maps.to_ascii_lowercase().contains(&needle.to_ascii_lowercase()),
+        !maps
+            .to_ascii_lowercase()
+            .contains(&needle.to_ascii_lowercase()),
         "/proc/self/maps must not contain {needle}"
     );
 }
@@ -137,7 +150,11 @@ fn minilm_text_embedding_pipeline_on_gpu() {
     let models = engine.list_models().expect("list_models");
     let info = models.get(0).expect("minilm row");
     assert_eq!(info.alias, ALIAS);
-    assert_eq!(info.device, Device::OpenVinoGpu, "list_models device must be GPU");
+    assert_eq!(
+        info.device,
+        Device::OpenVinoGpu,
+        "list_models device must be GPU"
+    );
     assert!(info.ready);
     assert_eq!(info.dim, 384, "minilm dim");
 
@@ -249,8 +266,7 @@ fn minilm_c_abi_embed_one_on_gpu() {
             st,
             turboembed_status::TURBOEMBED_OK,
             "C ABI create GPU: {}",
-            std::ffi::CStr::from_ptr(turboembed_last_error(std::ptr::null()))
-                .to_string_lossy()
+            std::ffi::CStr::from_ptr(turboembed_last_error(std::ptr::null())).to_string_lossy()
         );
         assert!(!engine.is_null());
 
@@ -288,7 +304,10 @@ fn minilm_c_abi_embed_one_on_gpu() {
         let live = std::slice::from_raw_parts((*out).values, 384);
         let intel = golden_vector(&root.join("testdata/e2e/goldens/intel/minilm.json"));
         let c = cosine(live, &intel);
-        assert!(c >= COSINE_FLOOR, "C ABI cosine vs intel golden {c} < {COSINE_FLOOR}");
+        assert!(
+            c >= COSINE_FLOOR,
+            "C ABI cosine vs intel golden {c} < {COSINE_FLOOR}"
+        );
 
         turboembed_embed_result_free(out);
         turboembed_engine_destroy(engine);
@@ -309,6 +328,10 @@ fn run_minilm_on(device: Device, ov_name: &str, plugin_needle: &str) -> (Vec<f32
 
     let info = engine.list_models().expect("list").get(0).expect("row");
     assert_eq!(info.alias, ALIAS);
+    assert_eq!(
+        info.device, device,
+        "list_models device must be the requested {ov_name} engine (no silent swap)"
+    );
     assert!(info.ready);
     assert_eq!(info.dim, 384);
 
@@ -351,11 +374,8 @@ fn minilm_text_embedding_pipeline_on_cpu() {
         model_dir.display()
     );
 
-    let (_live, cosine_intel, cosine_nvidia) = run_minilm_on(
-        Device::OpenVinoCpu,
-        "CPU",
-        "libopenvino_intel_cpu_plugin",
-    );
+    let (_live, cosine_intel, cosine_nvidia) =
+        run_minilm_on(Device::OpenVinoCpu, "CPU", "libopenvino_intel_cpu_plugin");
     assert_eq!(Device::OpenVinoCpu.as_str(), "openvino-cpu");
 
     /* ABI device=CPU (not only OPENVINO_CPU) also compiles "CPU". */
@@ -420,7 +440,8 @@ fn minilm_text_embedding_pipeline_on_cpu() {
 fn minilm_c_abi_embed_one_on_cpu() {
     let root = workspace_root();
     assert!(
-        root.join("models/ov/minilm/openvino_tokenizer.xml").is_file(),
+        root.join("models/ov/minilm/openvino_tokenizer.xml")
+            .is_file(),
         "missing tokenizer IR"
     );
 
@@ -471,9 +492,43 @@ fn minilm_c_abi_embed_one_on_cpu() {
         let live = std::slice::from_raw_parts((*out).values, 384);
         let intel = golden_vector(&root.join("testdata/e2e/goldens/intel/minilm.json"));
         let c = cosine(live, &intel);
-        assert!(c >= COSINE_FLOOR, "C ABI CPU cosine vs intel {c} < {COSINE_FLOOR}");
+        assert!(
+            c >= COSINE_FLOOR,
+            "C ABI CPU cosine vs intel {c} < {COSINE_FLOOR}"
+        );
 
         turboembed_embed_result_free(out);
         turboembed_engine_destroy(engine);
+    }
+}
+
+/// GPU request must fail loud when the plugin is missing — never compile CPU.
+/// When the plugin is present, create+load must stay on `"GPU"`.
+#[test]
+fn gpu_request_never_silently_uses_cpu() {
+    match Engine::create(Device::OpenVinoGpu) {
+        Ok(engine) => {
+            engine
+                .load_model(ALIAS)
+                .unwrap_or_else(|e| panic!("GPU load must stay on GPU, not fall back: {e:?}"));
+            let info = engine.list_models().expect("list").get(0).expect("row");
+            assert_eq!(
+                info.device,
+                Device::OpenVinoGpu,
+                "GPU request compiled a non-GPU pipeline"
+            );
+        }
+        Err(Error::UnsupportedDevice(msg)) | Err(Error::Unavailable(msg)) => {
+            let lower = msg.to_ascii_lowercase();
+            assert!(
+                lower.contains("gpu"),
+                "missing-GPU error must name GPU, got {msg}"
+            );
+            assert!(
+                lower.contains("fallback") || lower.contains("refus") || lower.contains("cpu"),
+                "missing-GPU error must say CPU is not a fallback, got {msg}"
+            );
+        }
+        other => panic!("GPU create must succeed on GPU or fail loud, got {other:?}"),
     }
 }
