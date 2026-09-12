@@ -6,12 +6,17 @@
 
 pub mod catalog;
 mod client;
+pub mod fetch;
 pub mod golden;
 pub mod matrix;
 pub mod suite;
 pub mod target;
 
 pub use catalog::{CatalogIndex, SkipReason};
+pub use fetch::{
+    candidate_aliases, ensure_plan, plan_fetches, unclaimed_aliases, ArtifactKind, FetchPlan,
+    FetchScope,
+};
 pub use matrix::Matrix;
 pub use suite::{decide, run_suite, Decision, Outcome, Report, SuiteConfig, SuiteFilter};
 pub use target::{infer_target_from_addr, Target};
@@ -31,4 +36,6 @@ pub enum HarnessError {
     Matrix(String),
     #[error("catalog: {0}")]
     Catalog(String),
+    #[error("fetch: {0}")]
+    Fetch(String),
 }

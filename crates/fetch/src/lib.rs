@@ -339,6 +339,99 @@ pub fn mlx_repo(alias: &str) -> Option<&'static str> {
     MLX_REPOS.iter().find(|(a, _)| *a == alias).map(|(_, r)| *r)
 }
 
+/// Walk CWD / the executable / `CARGO_MANIFEST_DIR` for the workspace root
+/// (a directory that contains both `Cargo.toml` and `models/manifests/`).
+pub fn workspace_root() -> PathBuf {
+    let mut candidates = Vec::new();
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.to_path_buf());
+        }
+    }
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        let p = PathBuf::from(manifest_dir);
+        if let Some(ws) = p.parent().and_then(|p| p.parent()) {
+            candidates.push(ws.to_path_buf());
+        }
+    }
+    for start in candidates {
+        let mut cur = start;
+        loop {
+            if cur.join("models/manifests").is_dir() && cur.join("Cargo.toml").is_file() {
+                return cur;
+            }
+            if !cur.pop() {
+                break;
+            }
+        }
+    }
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+/// Which committed SHA-256 manifest `ensure_aliases` should load.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManifestKind {
+    Embeddings,
+    Llms,
+    OvGenai,
+}
+
+impl ManifestKind {
+    pub fn manifest_file(self) -> &'static str {
+        match self {
+            Self::Embeddings => "embeddings.json",
+            Self::Llms => "llms.json",
+            Self::OvGenai => "ov-genai-embeddings.json",
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Embeddings => "embeddings",
+            Self::Llms => "llms",
+            Self::OvGenai => "ov-genai",
+        }
+    }
+}
+
+/// Load `models/manifests/<kind>` and fetch any missing / mismatched files.
+/// Already-present files with a matching SHA-256 are skipped (idempotent).
+pub fn ensure_aliases(
+    kind: ManifestKind,
+    aliases: &[String],
+    root: &Path,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> Result<i32> {
+    if aliases.is_empty() {
+        return Ok(0);
+    }
+    let manifest_path = root.join("models/manifests").join(kind.manifest_file());
+    if !manifest_path.exists() {
+        return Err(FetchError::msg(format!(
+            "error: manifest not found: {}\nGenerate it with --update-manifest (maintainers) or fetch it from git.",
+            manifest_path.display()
+        )));
+    }
+    let manifest = load_manifest(&manifest_path)?;
+    cmd_fetch(aliases, &manifest, root, None, out, err)
+}
+
+/// Apple native-MLX aliases recorded in the embedding + LLM source tables.
+pub fn mlx_known_aliases() -> BTreeMap<String, String> {
+    let mut known = BTreeMap::new();
+    for (alias, repo) in MLX_REPOS {
+        known.insert((*alias).to_string(), (*repo).to_string());
+    }
+    for (alias, repo) in LLM_MLX_REPOS {
+        known.insert((*alias).to_string(), (*repo).to_string());
+    }
+    known
+}
+
 pub fn llm_source(alias: &str) -> Option<&'static LlmSource> {
     LLM_SOURCES.iter().find(|s| s.alias == alias)
 }
@@ -1714,6 +1807,57 @@ mod tests {
         )
         .unwrap();
         assert_eq!(rc, 0);
+    }
+
+    #[test]
+    fn workspace_root_finds_manifests() {
+        let root = workspace_root();
+        assert!(root.join("models/manifests").is_dir(), "{}", root.display());
+        assert!(root.join("Cargo.toml").is_file());
+    }
+
+    #[test]
+    fn mlx_known_covers_e2e_smoke_aliases() {
+        let known = mlx_known_aliases();
+        assert!(known.contains_key("minilm"));
+        assert!(known.contains_key("default-llm"));
+        assert!(known.contains_key("qwen-0.5b"));
+        assert!(!known.contains_key("mpnet"));
+    }
+
+    #[test]
+    fn ensure_aliases_empty_is_ok() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut out = Cursor::new(Vec::new());
+        let mut err = Cursor::new(Vec::new());
+        let rc = ensure_aliases(
+            ManifestKind::Embeddings,
+            &[],
+            tmp.path(),
+            &mut out,
+            &mut err,
+        )
+        .unwrap();
+        assert_eq!(rc, 0);
+    }
+
+    #[test]
+    fn ensure_aliases_idempotent_on_fixture() {
+        let (tmp, manifest) = make_fixture();
+        let dest = tmp.path().join("models/manifests");
+        fs::create_dir_all(&dest).unwrap();
+        write_manifest(&dest.join("embeddings.json"), &manifest).unwrap();
+        let mut out = Cursor::new(Vec::new());
+        let mut err = Cursor::new(Vec::new());
+        let rc = ensure_aliases(
+            ManifestKind::Embeddings,
+            &["tiny".into()],
+            tmp.path(),
+            &mut out,
+            &mut err,
+        )
+        .unwrap();
+        assert_eq!(rc, 0, "err={}", String::from_utf8_lossy(&err.into_inner()));
     }
 
     #[test]

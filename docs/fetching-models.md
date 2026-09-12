@@ -52,6 +52,25 @@ make fetch-mlx ALIASES=minilm,qwen-0.5b
 cargo xtask fetch --mlx minilm
 ```
 
+## E2E / bring-up auto-fetch
+
+The live harness fetches the smoke set automatically so a worker that is
+missing weights can still `make e2e-<arch>`:
+
+```bash
+make e2e-nvidia                  # FETCH=1 default: ONNX minilm + 0.5B GGUF, then the suite
+make e2e-intel FETCH=1           # --ov-genai minilm + GGUF
+make e2e-apple                   # cargo xtask fetch --mlx + tokenizer.json
+make e2e-nvidia FETCH=0          # skip download
+make fetch-e2e-nvidia            # artifacts only (`--fetch-only`); no gRPC
+scripts/ensure-models.sh nvidia  # same --fetch-only wrapper (cargo only; no Python)
+cargo run -p inferstream-e2e -- --target intel --fetch-only --only minilm
+```
+
+`make e2e-mock` never fetches. `--fetch` is idempotent: matching SHA-256
+on disk is a skip. Per-target alias tables and `FETCH=all` / `FETCH=serve`
+are documented in [`docs/e2e.md`](e2e.md).
+
 Fetches are **idempotent**: a file already on disk with a matching SHA-256
 is skipped; a stale or tampered file is re-downloaded. Downloads are written
 atomically (temp file + rename) and hashed while streaming; a post-download
@@ -64,8 +83,10 @@ restart, and smoke with `scripts/smoke-embeddings.sh <host:port> <bearer-token>`
 After fetching LLMs, add `qwen-0.5b` / `qwen-7b` to `serve` (nvidia `default-llm`
 already points at the krick GGUF) and smoke with
 `scripts/smoke-llms.sh <host:port> <bearer-token>` — Tokenize + a short
-`ModelStreamInfer`. Live GPU is the acceptance path; the smoke script does
-not start a server or download weights.
+`ModelStreamInfer`. Live GPU is the acceptance path; the smoke scripts talk
+to an already-running server. Bring-up on the worker can use
+`make fetch-e2e-<arch>` / `make e2e-<arch>` (`FETCH=1`) so missing files
+are pulled first.
 
 ## Verifying (offline)
 

@@ -2,8 +2,14 @@
 
 One client, one suite, any of the three arch gRPC servers. The harness is
 `inferstream-e2e` (`crates/e2e`) — a Rust gRPC client. It does **not** start
-GPU servers and does **not** download weights. Point it at a host that is
-already serving.
+GPU servers. Point it at a host that is already serving.
+
+**Missing weights:** `make e2e-nvidia` (and intel / apple) default to
+`FETCH=1`. The harness verifies SHA-256 against the committed manifests and
+downloads only files that are missing or mismatched, then runs the suite.
+`make e2e-mock` / CI do **not** fetch. No Python — NVIDIA/Intel go through
+`inferstream-fetch`; Apple MLX through `cargo xtask fetch --mlx`. See
+[fetching-models.md](fetching-models.md).
 
 The same cases run against nvidia / intel / apple:
 
@@ -29,13 +35,23 @@ not an error.
 ## Build / run
 
 ```bash
-# Against a live worker (server already up):
-make e2e-nvidia          # default addr krick:8461
-make e2e-intel           # default addr krick-1:8461
-make e2e-apple           # default addr krickert-mac:8461
+# Against a live worker (server already up). FETCH=1 is the default:
+make e2e-nvidia          # default addr krick:8461; fetch minilm + 0.5B GGUF if missing
+make e2e-intel           # default addr krick-1:8461; fetch ov-genai minilm + GGUF
+make e2e-apple           # default addr krickert-mac:8461; cargo xtask fetch --mlx
+
+# Skip download (weights already on disk, or CI):
+make e2e-nvidia FETCH=0
+
+# Widen the set (qwen-7b is ~5.1 GiB — not in the default set):
+make e2e-nvidia FETCH=all              # every matrix alias on this arch
+make e2e-intel FETCH=serve             # config/intel.toml serve list
+make fetch-e2e-nvidia                  # ensure artifacts only; no gRPC
 
 # Or the binary directly:
-cargo run -p inferstream-e2e -- --target nvidia --addr krick:8461 --token "$KEY"
+cargo run -p inferstream-e2e -- --target nvidia --addr krick:8461 --token "$KEY" --fetch
+cargo run -p inferstream-e2e -- --target nvidia --fetch-only
+scripts/ensure-models.sh nvidia        # thin wrapper: cargo + --fetch-only
 ```
 
 Environment / flags (equivalent):
@@ -49,6 +65,27 @@ Environment / flags (equivalent):
 | `--goldens` | `INFERSTREAM_E2E_GOLDENS` | `testdata/e2e/goldens/` if present |
 | `--only minilm,mpnet` | | all matrix aliases |
 | `--suite all\|list\|embed\|tokenize\|generate` | | `all` |
+| `--fetch` | `INFERSTREAM_E2E_FETCH` | off (`make e2e-{nvidia,intel,apple}` passes it) |
+| `--fetch-only` | | ensure artifacts, then exit |
+| `--fetch-all` | | with `--fetch`: every matrix alias on this target |
+| `--fetch-serve` | | with `--fetch`: `config/<arch>.toml` `serve` |
+
+### What `--fetch` downloads (per target)
+
+Idempotent: `inferstream-fetch` / `xtask` verify SHA-256 if the file is
+present and only download on miss or mismatch.
+
+| target | default (`FETCH=1`) | `FETCH=all` / `FETCH=serve` |
+|---|---|---|
+| **nvidia** | ONNX `minilm` + GGUF `default-llm` / `qwen-0.5b` | remaining ONNX embeds + `qwen-7b` |
+| **intel** | `fetch --ov-genai minilm` + the same GGUFs | remaining GenAI IR dirs that the manifest pins + `qwen-7b` |
+| **apple** | `cargo xtask fetch --mlx minilm default-llm qwen-0.5b` + GGUF tokenizer for the 0.5B family | remaining MLX aliases + `qwen-7b` |
+| **mock** | nothing | nothing |
+
+`--only minilm,qwen-0.5b` restricts both the fetch set and the suite.
+Aliases with no fetchable artifact on that arch (intel `bge-small` has no
+public GenAI IR; apple `mpnet` has no MLX repo) are skipped with a reason,
+not a hard error.
 
 `make e2e-all` runs each arch whose `INFERSTREAM_E2E_<ARCH>_ADDR` is set.
 With none set it prints a skip line and exits 0 — CI cloud must not start
@@ -77,6 +114,9 @@ make e2e-nvidia INFERSTREAM_E2E_ADDR=krick:8461
 
 Serves `minilm` + `default-llm` out of the box. Extra embed / `qwen-0.5b` /
 `qwen-7b` aliases skip until they are on `serve` and fetched.
+`make e2e-nvidia FETCH=1` (the default) pulls the smoke set onto this
+machine first — useful on the worker itself, a no-op if the hashes already
+match.
 
 ### krick-1 (intel)
 

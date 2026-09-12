@@ -61,39 +61,6 @@ struct Args {
     hf_out: Option<PathBuf>,
 }
 
-fn default_root() -> PathBuf {
-    // Walk up from CWD (and from the executable) looking for the workspace
-    // Cargo.toml + models/manifests. Falls back to CWD.
-    let mut candidates = Vec::new();
-    if let Ok(cwd) = std::env::current_dir() {
-        candidates.push(cwd);
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            candidates.push(dir.to_path_buf());
-        }
-    }
-    // cargo run puts the binary in target/debug — walk up from there too.
-    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        let p = PathBuf::from(manifest_dir);
-        if let Some(ws) = p.parent().and_then(|p| p.parent()) {
-            candidates.push(ws.to_path_buf());
-        }
-    }
-    for start in candidates {
-        let mut cur = start;
-        loop {
-            if cur.join("models/manifests").is_dir() && cur.join("Cargo.toml").is_file() {
-                return cur;
-            }
-            if !cur.pop() {
-                break;
-            }
-        }
-    }
-    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-}
-
 fn default_manifest(root: &std::path::Path, llms: bool, ov_genai: bool, ovms: bool) -> PathBuf {
     let name = if ovms {
         "ovms-embeddings.json"
@@ -134,7 +101,10 @@ fn run() -> inferstream_fetch::Result<i32> {
         ));
     }
 
-    let root = args.root.clone().unwrap_or_else(default_root);
+    let root = args
+        .root
+        .clone()
+        .unwrap_or_else(inferstream_fetch::workspace_root);
     let manifest_path = args
         .manifest
         .clone()

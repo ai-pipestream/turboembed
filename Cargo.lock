@@ -1416,6 +1416,7 @@ dependencies = [
  "futures",
  "inferstream-backend",
  "inferstream-backend-mock",
+ "inferstream-fetch",
  "inferstream-protocol",
  "inferstream-server",
  "serde",
