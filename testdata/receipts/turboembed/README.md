@@ -33,3 +33,8 @@ Intel receipt fields: `device`, `cosine` (floor 0.99), `sha` (git + IR bins).
 
 Do not hand-edit a passing receipt. Do not delete nvidia/intel/apple files
 when refreshing one host.
+
+**TensorRT:** no receipt. `Device::TensorRT` create fails loud on krick —
+`libnvinfer.so.10` / `libnvonnxparser.so.10` are absent. Do not add a
+`nvidia-minilm-tensorrt.json` until a live MiniLM cosine + maps proof
+exists (`libonnxruntime_providers_tensorrt` **and** `libnvinfer`).

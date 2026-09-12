@@ -36,10 +36,12 @@
 //! `--features ort-cuda` registers the ONNX Runtime CUDA EP with
 //! `error_on_failure`, binds inputs/outputs on `AllocationDevice::CUDA`
 //! via IoBinding, and mean+L2 pools on the host after the device→host
-//! copy. `Engine::create(Device::Cuda)` then `load_model("minilm")` is
-//! the NVIDIA CUDA proof path. A CUDA request never silently becomes
-//! CPU. `Device::Cpu` is an explicit CPU EP path (same ONNX, same
-//! mean+L2).
+//! copy. `Engine::create(Device::Cuda)` / [`Device::Auto`] then
+//! `load_model("minilm")` is the NVIDIA CUDA proof path. A CUDA/AUTO
+//! request never silently becomes CPU. `Device::Cpu` is an explicit
+//! CPU EP path (same ONNX, same mean+L2).
+//! [`Device::TensorRt`] fails at create until MiniLM is proven on the
+//! ORT TensorRT EP with `libnvinfer.so.10` (see `docs/turboembed.md`).
 //!
 //! # Device policy
 //!

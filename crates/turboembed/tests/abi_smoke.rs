@@ -109,23 +109,46 @@ fn cpu_only_when_explicit() {
         "explicit CPU must not advertise Metal MiniLM: {:?}",
         models.iter().map(|m| (m.alias.clone(), m.device)).collect::<Vec<_>>()
     );
-    let err = engine
-        .load_model("minilm")
-        .expect_err("CPU must not silently serve MiniLM");
-    assert!(matches!(err, Error::NotImplemented(_) | Error::NotFound(_)));
+    // Without a real provider, CPU must not invent MiniLM. With
+    // `--features ort-cuda`, explicit CPU is the real ORT CPU EP
+    // (see nvidia_minilm.rs); that is not a silent GPU→CPU swap.
+    #[cfg(not(any(feature = "ort-cuda", feature = "genai")))]
+    {
+        let err = engine
+            .load_model("minilm")
+            .expect_err("CPU must not silently serve MiniLM");
+        assert!(matches!(err, Error::NotImplemented(_) | Error::NotFound(_)));
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
 #[test]
-fn metal_and_auto_fail_on_stub() {
-    for device in [Device::Metal, Device::Auto] {
-        let err = Engine::create(device).expect_err("no Metal on the Linux stub");
-        assert!(matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)));
-        assert!(
-            err.to_string().to_lowercase().contains("refusing cpu"),
-            "{device:?}: {err}"
-        );
-    }
+fn metal_fails_on_linux() {
+    let err = Engine::create(Device::Metal).expect_err("no Metal on the Linux stub");
+    assert!(matches!(
+        err,
+        Error::Unavailable(_) | Error::UnsupportedDevice(_)
+    ));
+    assert!(
+        err.to_string().to_lowercase().contains("refusing cpu"),
+        "Metal: {err}"
+    );
+}
+
+/// AUTO is host-default GPU. On Linux without `--features ort-cuda` there
+/// is no GPU provider, so create must fail (never CPU/mock).
+#[cfg(all(not(target_os = "macos"), not(feature = "ort-cuda")))]
+#[test]
+fn auto_fails_on_linux_without_ort_cuda() {
+    let err = Engine::create(Device::Auto).expect_err("no GPU provider on this stub");
+    assert!(matches!(
+        err,
+        Error::Unavailable(_) | Error::UnsupportedDevice(_)
+    ));
+    assert!(
+        err.to_string().to_lowercase().contains("refusing cpu"),
+        "Auto: {err}"
+    );
 }
 
 #[test]

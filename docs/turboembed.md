@@ -12,7 +12,8 @@ catalog name).
 
 | arch | provider | crate feature | create device |
 |---|---|---|---|
-| nvidia | ONNX Runtime **CUDA EP** + IoBinding, or explicit **CPU EP** | `ort-cuda` | `TURBOEMBED_DEVICE_CUDA` or `TURBOEMBED_DEVICE_CPU` |
+| nvidia | ONNX Runtime **CUDA EP** + IoBinding, or explicit **CPU EP** | `ort-cuda` | `TURBOEMBED_DEVICE_CUDA` / `AUTO` or `TURBOEMBED_DEVICE_CPU` |
+| nvidia | TensorRT / ORT-TRT EP | — | `TURBOEMBED_DEVICE_TENSORRT` **fails at create** (see below) |
 | intel | `ov::genai::TextEmbeddingPipeline` on `"GPU"` | `genai` | `TURBOEMBED_DEVICE_OPENVINO_GPU` |
 | apple | MLX (Swift `@_cdecl`, other binary) | — | `TURBOEMBED_DEVICE_METAL` |
 
@@ -67,6 +68,21 @@ the CUDA EP is missing (CPU is not a fallback).
 session (same ONNX, same mean+L2). Receipt:
 `testdata/receipts/turboembed/nvidia-minilm-cpu.json`.
 `backend = "mock"` in a catalog file is rejected.
+
+`Engine::create(Device::TensorRt)` **fails at create** (not a silent CUDA
+or CPU session). Exact blocker on krick (2026-09-12):
+
+* ORT's GPU download already contains `libonnxruntime_providers_tensorrt.so`
+  (needs `libnvinfer.so.10` + `libnvonnxparser.so.10`).
+* Those TensorRT 10 SONAMEs are **not** installed (`ldconfig` empty;
+  no NVIDIA TensorRT apt repo; `scripts/fetch-runtime-libs.sh nvidia`
+  does not fetch them).
+* The matching CUDA 13 wheel (`tensorrt-cu13-libs`, ~3.7 GiB) was not
+  promoted into `.libs/nvidia` — a fetch-only experiment is not a
+  MiniLM receipt. No stub that lists TensorRT as done.
+
+Anti-mock: `tensorrt_create_fails_loud_names_blocker` in
+`crates/turboembed/tests/nvidia_minilm.rs`.
 
 ## C ABI
 
