@@ -32,6 +32,8 @@
 #   make metal-erf-probe                    # Machine C: MSL has no erf(); Hart GELU vs libm
 #   make test-turboembed-intel              # --features genai; WordPiece→USM + CompiledModel; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
+#   make bench-machine-a                    # Machine A CUDA p50/p99 + H2D/D2H + goldens
+#   make bench-turbo MACHINE=A              # same (unified; B/C later)
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -93,7 +95,8 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov probe-remote-usm test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt \
-	metal-erf-probe
+	metal-erf-probe \
+	bench-turbo bench-machine-a
 
 test:
 	$(CARGO) test --workspace
@@ -798,3 +801,46 @@ test-turborerank-intel: fetch-rerankers verify-rerank-ov turborerank-tests turbo
 	$(MAKE) probe-remote-usm
 	$(MAKE) turbo-buffer-intel-receipt
 	$(MAKE) turborerank-intel-receipt
+
+# SOLIDIFY (7) Machine A: measured TurboEmbed MiniLM + TurboRerank MiniLM-L6
+# CUDA bench. Release build. N≥100 after warmup. Writes
+# testdata/receipts/bench/machine-a-cuda.json. Numbers are live — do not
+# hand-edit the receipt.
+#
+#   make bench-machine-a
+#   make bench-turbo MACHINE=A
+MACHINE ?= A
+BENCH_WARMUP ?= 32
+BENCH_ITERS ?= 200
+BENCH_PARTIAL := native/bench/build
+BENCH_RECEIPT_A := testdata/receipts/bench/machine-a-cuda.json
+
+bench-machine-a:
+	mkdir -p $(BENCH_PARTIAL) testdata/receipts/bench
+	$(MAKE) fetch-rerankers
+	INFERSTREAM_ROOT=$(CURDIR) \
+	LD_LIBRARY_PATH="$(CURDIR)/.libs/nvidia/lib:$(LD_LIBRARY_PATH)" \
+		$(CARGO) run -p bench-turbo --release --features embed --bin bench-turboembed -- \
+		  --warmup $(BENCH_WARMUP) --iters $(BENCH_ITERS) \
+		  --out $(BENCH_PARTIAL)/machine-a-embed.json
+	INFERSTREAM_ROOT=$(CURDIR) \
+		$(CARGO) run -p bench-turbo --release --features rerank --bin bench-turborerank -- \
+		  --warmup $(BENCH_WARMUP) --iters $(BENCH_ITERS) \
+		  --out $(BENCH_PARTIAL)/machine-a-rerank.json
+	INFERSTREAM_ROOT=$(CURDIR) \
+		$(CARGO) run -p bench-turbo --release --bin bench-turbo -- \
+		  --machine A \
+		  --embed $(BENCH_PARTIAL)/machine-a-embed.json \
+		  --rerank $(BENCH_PARTIAL)/machine-a-rerank.json \
+		  --out $(BENCH_RECEIPT_A)
+
+bench-turbo:
+ifeq ($(MACHINE),A)
+	$(MAKE) bench-machine-a
+else
+	@echo "bench-turbo: MACHINE=$(MACHINE) is not this target."; \
+	echo "Machine A (NVIDIA CUDA): make bench-machine-a  (or MACHINE=A)"; \
+	echo "Machine B/C benches are written on those hosts."; \
+	echo "See docs/bench-turbo-machine-a.md"; \
+	exit 1
+endif

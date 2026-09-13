@@ -2,9 +2,9 @@
 
 Hostnames stay out of this file (Machine B only).
 
-This item is **not** the Machine A/B/C latency benches mentioned in
-[`grpc-output-scratch.md`](grpc-output-scratch.md). Those benches are
-still later work. This page is the Intel wrap / accuracy gate.
+This item is **not** the Machine A CUDA latency bench
+(`docs/bench-turbo-machine-a.md`, `make bench-machine-a`). This page is
+the Intel wrap / accuracy gate.
 
 ## Done criteria
 

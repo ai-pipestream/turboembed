@@ -30,5 +30,6 @@ make test-turboembed-apple    # Machine C: WordPiece → Metal SHARED i32
 
 ## What is not this item
 
-gRPC packed bytes (6). Polish / full A/B/C bench (7). SentencePiece /
+gRPC packed bytes (6). Machine A CUDA bench is LIVE (`make bench-machine-a`,
+`docs/bench-turbo-machine-a.md`). SentencePiece /
 Unigram models we do not own (BGE-M3 etc. keep the HF tokenizer).
