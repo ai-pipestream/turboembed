@@ -796,15 +796,14 @@ impl OrtCudaSession {
             .tokenizer
             .encode_batch(texts.to_vec(), true)
             .map_err(|e| format!("tokenization failed: {e}"))?;
-        let seq = encodings.first().map(|e| e.len()).unwrap_or(0);
-        if seq == 0 {
-            return Err("tokenization produced an empty sequence".into());
-        }
-        if seq > self.work.max_seq {
+        let seq = self.work.max_seq;
+        if encodings.iter().any(|e| e.len() > seq) {
             return Err(format!(
-                "tokenized seq {seq} exceeds warmed max_seq {}",
-                self.work.max_seq
+                "tokenized seq exceeds warmed max_seq {seq}"
             ));
+        }
+        if encodings.is_empty() {
+            return Err("tokenization produced an empty sequence".into());
         }
 
         let token_n = self.work.max_batch * self.work.max_seq;
