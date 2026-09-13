@@ -29,8 +29,10 @@
  *   CUDA:    PINNED = cudaHostAlloc; DEVICE = cudaMalloc.
  *            Create/rent without nvcc → NOT_IMPLEMENTED.
  *            Compiled but no CUDA device → UNAVAILABLE.
- *            Proven on Machine A. This cloud run proves structure +
- *            the fail-loud path.
+ *            LIVE on Machine A (PINNED token rent + DEVICE activation
+ *            scratch). Steady-state CUDA forward must see
+ *            turbo_buffer_alloc_counter() == 0 and
+ *            turbo_buffer_cuda_forward_allocs() == 0.
  *   ZE:      Level Zero USM. HOST / SHARED / DEVICE as requested.
  *            SHARED/DEVICE without a GPU device → UNAVAILABLE, not HOST.
  *            Machine B. Fail loud when L0 is missing.
@@ -267,6 +269,25 @@ uint64_t turbo_buffer_alloc_counter(void);
 
 /** Count a sibling allocation (e.g. load-time weight copy) on the same counter. */
 void turbo_buffer_note_alloc(void);
+
+/**
+ * CUDA forward window (tests). Enter/leave wrap TurboRerank CUDA
+ * `forward`. Any successful `cudaMalloc` / `cudaHostAlloc` in our
+ * translation units while the window is open increments
+ * `turbo_buffer_cuda_forward_allocs`. Load-time weight `cudaMalloc`
+ * is outside the window. No-ops when CUDA is not compiled.
+ *
+ * Tests reset the counter after warmup and require 0 after the next
+ * forward. Reintroducing per-forward `cudaMalloc` for PINNED tokens
+ * or DEVICE activations fails that check.
+ */
+void turbo_buffer_cuda_forward_enter(void);
+
+void turbo_buffer_cuda_forward_leave(void);
+
+void turbo_buffer_cuda_forward_allocs_reset(void);
+
+uint64_t turbo_buffer_cuda_forward_allocs(void);
 
 #ifdef __cplusplus
 }

@@ -6,6 +6,7 @@
 
 #include "cuda_api.hpp"
 #include "reranker.hpp"
+#include "turbo_buffer.h"
 #include "turborerank.h"
 
 #include <cmath>
@@ -86,6 +87,30 @@ int main() {
         turborerank_engine_destroy(e);
         return 1;
     }
+    turbo_buffer_alloc_counter_reset();
+    turbo_buffer_cuda_forward_allocs_reset();
+    float steady[3] = {0, 0, 0};
+    st = turborerank_score(e, nullptr, 0, query, docs, 3, &opts, steady);
+    if (st != TURBORERANK_OK) {
+        std::fprintf(stderr, "steady score failed: %s\n", turborerank_last_error(e));
+        turborerank_engine_destroy(e);
+        return 1;
+    }
+    const uint64_t allocs_fwd = turbo_buffer_alloc_counter();
+    const uint64_t cuda_mallocs_fwd = turbo_buffer_cuda_forward_allocs();
+    if (allocs_fwd != 0 || cuda_mallocs_fwd != 0) {
+        std::fprintf(
+            stderr,
+            "per-forward allocs not zero: arena=%llu cudaMalloc=%llu\n",
+            static_cast<unsigned long long>(allocs_fwd),
+            static_cast<unsigned long long>(cuda_mallocs_fwd)
+        );
+        turborerank_engine_destroy(e);
+        return 2;
+    }
+    for (int i = 0; i < 3; ++i) {
+        logits[i] = steady[i];
+    }
 
     const float gold[3] = {8.84585285f, -4.32007599f, -11.27389431f};
     float abs_err[3];
@@ -117,12 +142,16 @@ int main() {
     js << "  \"device\": \"CUDA\",\n";
     js << "  \"machine\": \"Machine A\",\n";
     js << "  \"gpu\": \"" << gpu << "\",\n";
-    js << "  \"backend\": \"turborerank first-party CUDA MiniLM CE (cudaHostAlloc "
-          "token buffers; device GEMM/attention/LN/GELU/pooler kernels; one H2D "
-          "of packed int32 ids per row)\",\n";
+    js << "  \"backend\": \"turborerank first-party CUDA MiniLM CE (turbo_buffer "
+          "PINNED token rent + DEVICE activation scratch; device "
+          "GEMM/attention/LN/GELU/pooler kernels; one H2D of packed int32 ids "
+          "per row — H2D not eliminated)\",\n";
     js << "  \"compute\": {\n";
-    js << "    \"token_workspace\": \"cudaHostAlloc pinned (caller-written)\",\n";
-    js << "    \"weights_activations\": \"device\",\n";
+    js << "    \"token_workspace\": \"turbo_buffer PINNED rent (cudaHostAlloc)\",\n";
+    js << "    \"activations\": \"turbo_buffer DEVICE rent at load\",\n";
+    js << "    \"weights\": \"cudaMalloc at load (not per-forward)\",\n";
+    js << "    \"allocs_per_forward\": 0,\n";
+    js << "    \"h2d_per_row\": \"packed int32 ids/mask/types/pos — SOLIDIFY item 2\",\n";
     js << "    \"gemm\": \"first-party CUDA kernel matching CPU linear_nt\",\n";
     js << "    \"elementwise\": \"first-party CUDA kernels (embed, LayerNorm, "
           "GELU erf, attention, pooler, classifier)\",\n";
@@ -142,9 +171,11 @@ int main() {
     js << "  \"cosine_vs_golden\": " << cosine << ",\n";
     js << "  \"git_sha\": \"" << sha << "\",\n";
     js << "  \"command\": \"make test-turborerank-nvidia\",\n";
-    js << "  \"note\": \"Phase 2a NVIDIA proof on Machine A. AUTO resolves to "
-          "CUDA. Create without CUDA fails loud. Not a pinned-host CPU interim: "
-          "the BERT graph including GEMM runs on device.\"\n";
+    js << "  \"note\": \"SOLIDIFY (1) CUDA arena LIVE on Machine A. PINNED "
+          "token rent + DEVICE activation scratch; allocs/forward == 0. AUTO "
+          "resolves to CUDA. Create without CUDA fails loud. One packed int32 "
+          "H2D per row remains (item 2). Not a pinned-host CPU interim: the "
+          "BERT graph including GEMM runs on device.\"\n";
     js << "}\n";
 
     std::ofstream out(out_path);

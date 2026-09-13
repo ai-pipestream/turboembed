@@ -219,8 +219,9 @@ a safe wrapper. gRPC is optional and later.
 Token and activation scratch are rented from the shared
 [`include/turbo_buffer.h`](../include/turbo_buffer.h) arena (see
 [`docs/turbo-buffer.md`](turbo-buffer.md)). `forward` must not allocate
-those buffers. GPU backends (CUDA PINNED+DEVICE, ZE USM, Metal shared)
-are the same ABI — `NOT_IMPLEMENTED` / `UNAVAILABLE` when missing.
+those buffers. CUDA PINNED + DEVICE are **LIVE on Machine A**. ZE USM
+and Metal shared are the same ABI — `NOT_IMPLEMENTED` / `UNAVAILABLE`
+when missing.
 
 ## 4. Zero-copy contract
 
@@ -229,6 +230,9 @@ are the same ABI — `NOT_IMPLEMENTED` / `UNAVAILABLE` when missing.
 - `std::vector` / `std::string` growth for token, mask, type, or
   position buffers.
 - `new` / `malloc` / `posix_memalign` inside `forward`.
+- `cudaMalloc` / `cudaHostAlloc` for PINNED tokens or DEVICE
+  activations after load (Machine A: tests fail if
+  `turbo_buffer_cuda_forward_allocs() != 0`).
 - ONNX Runtime (or any framework) owning and copying the token path
   behind our back.
 - Python.
@@ -246,7 +250,7 @@ plus the caller’s `scores_out`.
 | device | allocation | Phase 1 |
 |---|---|---|
 | CPU | `posix_memalign` **64-byte** (AVX-512/AVX2-friendly). Layout is a `ggml_tensor` view: `[batch, seq]` int32, row-major, `row_stride = seq`. | **LIVE** |
-| CUDA | `cudaHostAlloc` (pinned; caller writes tokens). One H2D of the packed int32 row into device scratch; first-party CUDA BERT graph (GEMM/attention/LN/GELU/pooler) on device. | **LIVE** (Phase 2a, Machine A) |
+| CUDA | turbo_buffer PINNED rent (`cudaHostAlloc`; caller writes tokens) + DEVICE activation scratch rented at load. One H2D of the packed int32 row; first-party CUDA BERT graph on device. `allocs/forward == 0`. | **LIVE** (Phase 2a arena, Machine A) |
 | OpenVINO GPU | Level Zero USM (`zeMemAllocShared` / `Host`); `ov::Tensor(..., usm_pointer)`. | **LIVE** (Phase 2b, Machine B) |
 | OpenVINO CPU | Level Zero USM host when L0 is present, else 64-byte aligned; same IR. | **LIVE** (Phase 2b, explicit device) |
 | OpenVINO NPU | not implemented | fail loud |

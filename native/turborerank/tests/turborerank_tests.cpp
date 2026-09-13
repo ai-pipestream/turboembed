@@ -558,7 +558,8 @@ static void test_cuda_real_model_scores() {
         return;
     }
     if (!weights_present()) {
-        std::fprintf(stderr, "SKIP CUDA MiniLM CE scores (make fetch-rerankers)\n");
+        std::fprintf(stderr, "FAIL CUDA MiniLM CE: weights missing (make fetch-rerankers)\n");
+        CHECK(weights_present());
         return;
     }
     turborerank_engine *e = nullptr;
@@ -574,6 +575,21 @@ static void test_cuda_real_model_scores() {
     }
     CHECK(e->cuda.enabled);
     CHECK_EQ(e->cuda.n_layers, 6u);
+    CHECK(e->arena != nullptr);
+    CHECK(e->cuda.arena == e->arena);
+    CHECK(e->cuda.n_rented >= 15u);
+    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.x));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.residual));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.q));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.attn));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.ids));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.mask));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
+    for (uint32_t i = 0; i < e->cuda.n_rented; ++i) {
+        CHECK_EQ(e->cuda.rented[i].placement, TURBO_BUFFER_PLACE_DEVICE);
+        CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.rented[i].ptr));
+    }
 
     const char *q = "How many people live in Berlin?";
     const char *rel =
@@ -601,6 +617,17 @@ static void test_cuda_real_model_scores() {
     CHECK(almost(logits[1], -4.32007599f, 2e-3f));
     CHECK(almost(logits[2], -11.27389431f, 2e-3f));
 
+    turborerank::alloc_counter_reset();
+    turbo_buffer_cuda_forward_allocs_reset();
+    float logits_steady[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits_steady));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
+    CHECK(almost(logits_steady[0], logits[0], 1e-6f));
+    CHECK(almost(logits_steady[1], logits[1], 1e-6f));
+    CHECK(almost(logits_steady[2], logits[2], 1e-6f));
+
     opts.activation = TURBORERANK_ACT_SIGMOID;
     float sig[3] = {0, 0, 0};
     CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, sig));
@@ -621,9 +648,11 @@ static void test_cuda_real_model_scores() {
         e, buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
     ));
     turborerank::alloc_counter_reset();
+    turbo_buffer_cuda_forward_allocs_reset();
     float s = 0;
     CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
     CHECK(almost(s, logits[0], 2e-3f));
     turborerank_buffer_free(buf);
 

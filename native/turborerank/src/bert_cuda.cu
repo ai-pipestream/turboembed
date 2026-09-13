@@ -11,6 +11,8 @@
 #include "cuda_api.hpp"
 
 #include <cuda_runtime.h>
+#define TURBO_BUFFER_CUDA_INTERCEPT 1
+#include "cuda_runtime_hooks.hpp"
 
 #include <cmath>
 #include <cstring>
@@ -297,6 +299,13 @@ uint32_t grid1(size_t n, uint32_t threads = 256) {
     return static_cast<uint32_t>((n + threads - 1) / threads);
 }
 
+struct CudaForwardGuard {
+    CudaForwardGuard() { turbo_buffer_cuda_forward_enter(); }
+    ~CudaForwardGuard() { turbo_buffer_cuda_forward_leave(); }
+    CudaForwardGuard(const CudaForwardGuard &) = delete;
+    CudaForwardGuard &operator=(const CudaForwardGuard &) = delete;
+};
+
 bool linear_nt_cuda(
     const float *x,
     const float *w,
@@ -530,6 +539,7 @@ bool bert_forward_row_cuda(
     float *logit_out,
     std::string *err
 ) {
+    CudaForwardGuard fwd;
     if (r == nullptr || !r->enabled) {
         if (err) {
             *err = "CUDA MiniLM CE is not initialized";

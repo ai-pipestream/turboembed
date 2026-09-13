@@ -13,7 +13,7 @@ before `forward` / mock `embed` and require `0`.
 | Backend | Placement | Alloc | Proof host |
 |---|---|---|---|
 | CPU | HOST | 64-byte `posix_memalign` | this cloud run |
-| CUDA | PINNED, DEVICE | `cudaHostAlloc`, `cudaMalloc` | Machine A (structure + fail-loud here) |
+| CUDA | PINNED, DEVICE | `cudaHostAlloc`, `cudaMalloc` | Machine A **LIVE** |
 | ZE | HOST, SHARED, DEVICE | Level Zero USM | Machine B |
 | Metal | SHARED (HOST aliases SHARED) | `MTLResourceStorageModeShared` | Machine C |
 
@@ -36,12 +36,17 @@ Slab table capacity is 256 (fixed). Rent after warmup does not grow it.
 
 ## What each engine rents
 
-**TurboRerank (CPU proven here):** engine arena at create. Load rents
-BERT scratch (f32 activations + WordPiece i32) and the work token
-buffer. `turborerank_buffer_alloc` rents from a process arena of the
-same ABI. `forward` and `score` (after load) must not increment the
-counter. GPU token workspaces use the same rent path (CUDA PINNED /
-ZE SHARED / Metal SHARED) when that backend is live.
+**TurboRerank:** engine arena at create. Load rents BERT scratch and
+the work token buffer. `turborerank_buffer_alloc` rents from a process
+arena of the same ABI. `forward` and `score` (after load) must not
+increment the alloc counter.
+
+**CUDA (Machine A LIVE):** PINNED token rows (`cudaHostAlloc`) and
+DEVICE activation / token scratch (`cudaMalloc` at load). Steady-state
+`forward` must see `turbo_buffer_alloc_counter() == 0` and
+`turbo_buffer_cuda_forward_allocs() == 0`. Tests fail if a per-forward
+`cudaMalloc` / `cudaHostAlloc` returns for those slots. One packed
+int32 H2D per row still happens (SOLIDIFY item 2 — not claimed zero).
 
 OpenVINO CPU without Level Zero rents a **CPU** arena for host
 tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
@@ -60,7 +65,7 @@ arena. That is a documented gap for (4), not a fake Metal success.
 ## Tests
 
 ```bash
-make turbo-buffer-tests              # alignment, dual-rent, double-free, GPU fail-loud
+make turbo-buffer-tests              # alignment, dual-rent, double-free; CUDA PINNED+DEVICE when nvcc+GPU
 make turboembed-mock-arena-tests     # mock embed allocs/forward == 0
 make turborerank-tests               # includes the above + Berlin band when weights exist
 ```
@@ -68,10 +73,15 @@ make turborerank-tests               # includes the above + Berlin band when wei
 Reintroducing `posix_memalign` for Rerank scratch or work tokens fails
 `turbo_buffer_arena_owns` in the live CPU score test.
 
-## Machine A follow-up
+## Machine A (this proof)
 
-CUDA PINNED + DEVICE are implemented and compile-gated
-(`TURBO_BUFFER_CUDA`). This cloud run has no GPU: create/rent is
-`NOT_IMPLEMENTED`. Machine A should run `make turborerank-tests` with
-nvcc and confirm CUDA token rent + DEVICE activation scratch + Berlin
-goldens. Open a Machine A task only after CPU arena tests here are green.
+CUDA PINNED + DEVICE rent/return is **LIVE** (`TURBO_BUFFER_CUDA`,
+nvcc + a CUDA device). `make turbo-buffer-tests` and
+`make turborerank-tests` on Machine A must take the live branch — not
+`NOT_IMPLEMENTED`, not a CPU stand-in, not an interim host copy of the
+BERT graph.
+
+`make test-turborerank-nvidia` refreshes
+`testdata/receipts/turborerank/nvidia-minilm-l6.json` (Berlin HF band).
+H2D of packed int32 ids/mask/types/pos per row is still present; do
+not read this receipt as zero host-to-device bytes.

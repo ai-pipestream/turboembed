@@ -3,7 +3,7 @@
 | file | Machine | engine | device |
 |---|---|---|---|
 | `cpu-minilm-l6.json` | any | first-party FP32 MiniLM CE | **CPU** |
-| `nvidia-minilm-l6.json` | Machine A | first-party CUDA MiniLM CE (`cudaHostAlloc` + device kernels) | **CUDA** |
+| `nvidia-minilm-l6.json` | Machine A | first-party CUDA MiniLM CE (turbo_buffer PINNED+DEVICE arena + device kernels; H2D still present) | **CUDA** |
 | `intel-minilm-l6.json` | Machine B | OpenVINO CompiledModel + Level Zero USM | **OPENVINO_GPU** |
 | `intel-cpu-minilm-l6.json` | Machine B | OpenVINO CompiledModel (explicit CPU) | **OPENVINO_CPU** |
 | `apple-minilm-l6.json` | Machine C | first-party Metal MiniLM CE (`MTLResourceStorageModeShared` + device kernels) | **METAL** |

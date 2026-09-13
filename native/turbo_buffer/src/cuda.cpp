@@ -2,8 +2,8 @@
 //
 // CUDA pinned (cudaHostAlloc) + device (cudaMalloc). Fail loud when this
 // binary has no nvcc/cudart or the runtime reports zero devices.
-// Machine A proves the live path. This cloud run proves structure +
-// NOT_IMPLEMENTED / UNAVAILABLE.
+// Machine A is the live proof host. Do not include cuda_runtime_hooks.hpp
+// here — this file implements the real calls the intercept wraps.
 
 #include "internal.hpp"
 
@@ -90,6 +90,7 @@ void *cuda_alloc(
         (void)cudaMemset(ptr, 0, bytes);
     }
     turbo_buffer_note_alloc();
+    note_cuda_forward_alloc();
     if (status) {
         *status = TURBO_BUFFER_OK;
     }
@@ -122,3 +123,37 @@ void cuda_free(turbo_buffer_placement placement, void *ptr) {
 
 } // namespace impl
 } // namespace turbo_buffer
+
+#ifdef TURBO_BUFFER_CUDA
+extern "C" {
+
+cudaError_t turbo_buffer_cuda_malloc(void **ptr, size_t bytes) {
+    if (ptr == nullptr) {
+        return cudaErrorInvalidValue;
+    }
+    *ptr = nullptr;
+    const cudaError_t e = cudaMalloc(ptr, bytes);
+    if (e == cudaSuccess && *ptr != nullptr) {
+        turbo_buffer::impl::note_cuda_runtime_alloc_if_forward();
+    }
+    return e;
+}
+
+cudaError_t turbo_buffer_cuda_host_alloc(
+    void **ptr,
+    size_t bytes,
+    unsigned int flags
+) {
+    if (ptr == nullptr) {
+        return cudaErrorInvalidValue;
+    }
+    *ptr = nullptr;
+    const cudaError_t e = cudaHostAlloc(ptr, bytes, flags);
+    if (e == cudaSuccess && *ptr != nullptr) {
+        turbo_buffer::impl::note_cuda_runtime_alloc_if_forward();
+    }
+    return e;
+}
+
+} // extern "C"
+#endif
