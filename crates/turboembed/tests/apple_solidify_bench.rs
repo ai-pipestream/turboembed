@@ -407,9 +407,9 @@ fn apple_solidify_bench_writes_machine_c_receipt() {
     assert_eq!(nvidia.dim, MINILM_DIM as u32);
 
     let mut metal_owns_result = false;
-    let mut p50_us = 0u64;
-    let mut p99_us = 0u64;
-    let mut mean = 0u64;
+    let mut p50_us;
+    let mut p99_us;
+    let mut mean;
     unsafe {
         let mut raw: *mut turboembed_engine = ptr::null_mut();
         let st = turboembed_engine_create(

@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "kind": "solidify-bench",
+  "machine": "Machine C",
+  "device": "METAL",
+  "memory_path": "SHARED",
+  "gpu": "Apple M2",
+  "host": "Kristians-MacBook-Air",
+  "arch": "apple",
+  "chip": "Apple M2",
+  "git_sha": "2849a5915c3b50f2f35c3886b29495d4ae2ff65e",
+  "command": "make bench-machine-c",
+  "captured_at_unix": 1789312262,
+  "pass": true,
+  "gates": {
+    "p50_p99_measured": true,
+    "allocs_per_forward": 0,
+    "memory_path": "SHARED",
+    "cpu_fallback": false,
+    "berlin_in_band": true,
+    "embed_goldens_in_band": true
+  },
+  "turboembed": {
+    "alias": "minilm",
+    "device": "METAL",
+    "memory_path": "SHARED",
+    "cpu_fallback": false,
+    "auto_resolves_metal": true,
+    "metal_owns_result": true,
+    "warmup": 32,
+    "iters": 200,
+    "p50_us": 22056,
+    "p99_us": 33889,
+    "mean_us": 22680,
+    "allocs_per_forward": 0,
+    "dim": 384,
+    "n_goldens": 237,
+    "cosine_vs_nvidia": {
+      "min": 0.97945666,
+      "mean": 0.99973994,
+      "floor": 0.97,
+      "worst_id": "sts-0056:a"
+    },
+    "cosine_vs_apple": {
+      "min": 0.99999976,
+      "mean": 1.0,
+      "floor": 0.99,
+      "worst_id": "sts-0039:a"
+    },
+    "goldens_in_band": true
+  },
+  "turborerank": {
+    "alias": "ms-marco-minilm-l6",
+    "device": "METAL",
+    "memory_path": "SHARED",
+    "cpu_fallback": false,
+    "auto_resolves_metal": true,
+    "metal_owns_tokens": true,
+    "arena_owns_tokens": true,
+    "warmup": 32,
+    "iters": 200,
+    "p50_us": 158432,
+    "p99_us": 164272,
+    "mean_us": 157471,
+    "allocs_per_forward": 0,
+    "logits": [
+      8.845853,
+      -4.3200765,
+      -11.273892
+    ],
+    "max_abs_logit_err": 2e-6,
+    "cosine_vs_golden": 1.0,
+    "berlin_in_band": true
+  },
+  "note": "FINAL SOLIDIFY bench on Machine C. Live Metal timings — not copied from a prior receipt. TurboEmbed + TurboRerank rent turbo_buffer SHARED (MTLResourceStorageModeShared). AUTO resolves to METAL. Create without Metal fails loud (make turborerank-tests-nometal). No CPU fallback. allocs/forward==0 after warmup. Berlin atol 2e-3. Embed goldens: vs nvidia ≥0.97, vs apple ≥0.99."
+}

@@ -5,7 +5,7 @@ that host. Not a copy of a prior cosine receipt. Not invented p50/p99.
 
 | file | Machine | memory path | command |
 |---|---|---|---|
-| `machine-c-metal.json` | Machine C (Apple M2) | Metal **SHARED** (`MTLResourceStorageModeShared`) | `make bench-machine-c` |
+| `machine-c-metal.json` | Machine C (Apple M2) | Metal **SHARED** (`MTLResourceStorageModeShared`) | `make bench-machine-c` — **LIVE** |
 | `machine-a-cuda.json` | Machine A | CUDA PINNED mapped + DEVICE | `make bench-machine-a` (when measured) |
 | `machine-b-ze.json` | Machine B | ZE **SHARED** USM | `make bench-machine-b` (when measured) |
 

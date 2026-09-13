@@ -12,6 +12,16 @@ not a copied cosine receipt and not a CPU fallback.
 | Memory | `turbo_buffer` Metal **SHARED** (`MTLResourceStorageModeShared`) |
 | Embed goldens | vs nvidia ≥ 0.97, vs apple ≥ 0.99 (`testdata/e2e/goldens`) |
 | Berlin | `testdata/reference_rerank/ms_marco_minilm_l6_berlin.json` (`atol` 2e-3) |
+| Tree | `2849a59` (measured on Machine C) |
+
+Measured (`BENCH_WARMUP=32`, `BENCH_ITERS=200`, unary after warmup):
+
+| path | p50 | p99 | mean | allocs/forward | honesty |
+|---|---|---|---|---|---|
+| TurboEmbed `minilm` hello-world | **22.1 ms** | **33.9 ms** | 22.7 ms | 0 | SHARED, `metal_owns_result` |
+| TurboRerank Berlin 3-doc | **158.4 ms** | **164.3 ms** | 157.5 ms | 0 | SHARED, `metal_owns_tokens` |
+
+Berlin logits `8.84585285`, `-4.32007647`, `-11.27389240` (max abs `1.91e-6`, cosine `1.0`). Embed vs nvidia min `0.979457` / mean `0.999740` (n=237); vs apple min `1.0` / mean `1.0` (n=213). `turborerank-tests-nometal` 180/0.
 
 ## Gates
 
