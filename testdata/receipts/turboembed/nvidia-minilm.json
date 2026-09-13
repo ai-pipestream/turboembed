@@ -11,7 +11,7 @@
   "crate": "turboembed",
   "device": "CUDA",
   "dims": 384,
-  "git_sha": "a9e6f9bf13e2fe868f2c970b3289375e11a2b65e",
+  "git_sha": "c4180eda29a5c464eb7bdd438bc56aa65d5133fc",
   "golden": "testdata/e2e/goldens/nvidia/minilm.json",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
   "hello_world_cosine": 0.9999998211860657,
@@ -19,14 +19,16 @@
   "hot_path": {
     "arena_allocs": 0,
     "cuda_forward_allocs": 0,
-    "d2h_hidden_bytes": 2752512,
-    "d2h_hidden_calls": 7,
+    "d2h_hidden_bytes": 0,
+    "d2h_hidden_calls": 0,
+    "d2h_result_bytes": 0,
     "h2d_bytes": 0,
     "h2d_calls": 0,
-    "ort_gpu_external_allocs": 0
+    "ort_gpu_external_allocs": 0,
+    "result_host_bytes": 10752
   },
   "io": {
-    "d2h": "DEVICE hidden → PINNED staging for host mean+L2 (API copy; not zero-copy)",
+    "d2h": "none for activations; mean+L2 on DEVICE into mapped PINNED 384-d row (result_host_bytes, no cudaMemcpy)",
     "hidden": "turbo_buffer DEVICE rent bound with IoBinding BindOutput",
     "ort_gpu_allocator": "CUDA EP gpu_external_alloc → turbo_buffer DEVICE rent",
     "result": "turbo_buffer PINNED rent (host-visible)",
@@ -40,7 +42,7 @@
   "mean_cosine": 0.9999999403953552,
   "n_texts": 6,
   "normalize": true,
-  "notes": "No mock. No CPU fallback. Hidden output is a rented DEVICE view. Host mean+L2 copies that view into rented PINNED — counted in hot_path.d2h_hidden_bytes. Arena/ORT-external allocs after warmup must be 0.",
+  "notes": "No mock. No CPU fallback. Hidden stays DEVICE. Mask-weighted mean+L2 writes the 384-d row into rented mapped PINNED. d2h_hidden_bytes must be 0. result_host_bytes is the mapped row the caller reads — much smaller than the hidden volume. Arena/ORT-external allocs after warmup must be 0.",
   "pass": true,
   "pooling": "mean",
   "provider": "ORT CUDA EP + IoBinding device buffers",

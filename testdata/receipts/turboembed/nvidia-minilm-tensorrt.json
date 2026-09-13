@@ -10,7 +10,7 @@
   "crate": "turboembed",
   "device": "TENSORRT",
   "dims": 384,
-  "git_sha": "a9e6f9bf13e2fe868f2c970b3289375e11a2b65e",
+  "git_sha": "c4180eda29a5c464eb7bdd438bc56aa65d5133fc",
   "golden": "testdata/e2e/goldens/nvidia/minilm.json",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
   "hello_world_cosine": 0.9999998211860657,

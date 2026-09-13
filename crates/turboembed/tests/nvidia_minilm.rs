@@ -572,7 +572,7 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
 
     let commands = [
         "export LD_LIBRARY_PATH=\"$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}\"",
-        "cargo test -p turboembed --features ort-cuda -- --include-ignored --nocapture",
+        "cargo test -p turboembed --features ort-cuda -- --include-ignored --nocapture --test-threads=1",
         "make test-turboembed-nvidia",
     ];
     let receipt = serde_json::json!({
