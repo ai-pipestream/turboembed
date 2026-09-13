@@ -69,15 +69,22 @@ OpenVINO CPU without Level Zero rents a **CPU** arena for host
 tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
 is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
 
-**TurboEmbed:** every engine owns a CPU arena for host FP32 result
-rows. Mock/CPU `embed` rents `[n_texts, dim]`. Load warms a 32×8 slab
-so the next embed of that shape is 0 allocs. ORT / GenAI result copies
-also rent when those features are on. Device compute buffers stay with
-ORT / GenAI / MLX until item (4) — the hooks (`engine->arena`,
-`#include "turbo_buffer.h"`) are already in the stub.
+**TurboEmbed GenAI (Machine B LIVE):** GPU / AUTO engines open a **ZE**
+arena. Load rents i32 token rows and f32 hidden scratch as **SHARED**.
+`embed` rents the FP32 result from the same arena. Infer wraps those
+pointers with `ov::Tensor(..., usm)`. After warmup,
+`allocs/forward == 0` for those slots. CPU / OPENVINO_CPU rents **HOST**
+(ZE HOST when L0 is present, else a CPU arena — that is not a ZE GPU
+success). GPU create without ZE SHARED fails loud — never a CPU arena.
+See [`docs/turboembed-genai-ze-machine-b.md`](turboembed-genai-ze-machine-b.md).
+
+**TurboEmbed mock / ORT:** mock/CPU `embed` rents `[n_texts, dim]` from a
+CPU arena. Load warms a 32×8 slab so the next mock embed of that shape
+is 0 allocs. ORT CUDA still copies the host result into a CPU-arena
+row (device compute stays with ORT IoBinding).
 
 Swift `libTurboEmbed.dylib` on Machine C does not yet link this
-arena. That is a documented gap for (4), not a fake Metal success.
+arena. That is a documented gap, not a fake Metal success.
 
 ## Tests
 
@@ -85,6 +92,7 @@ arena. That is a documented gap for (4), not a fake Metal success.
 make turbo-buffer-tests              # alignment, dual-rent, double-free; CUDA/ZE when live
 make turbo-buffer-intel-receipt      # Machine B ZE HOST/SHARED/DEVICE
 make turboembed-mock-arena-tests     # mock embed allocs/forward == 0
+make test-turboembed-intel           # Machine B GenAI ZE SHARED + MiniLM ≥0.99
 make turborerank-tests               # includes the above + Berlin band when weights exist
 make test-turborerank-intel          # Machine B OV + ZE receipts
 make test-turborerank-apple          # Machine C: Metal SHARED live + Berlin receipt

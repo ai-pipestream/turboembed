@@ -27,7 +27,7 @@
 #   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
 #   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
 #   make test-turborerank-apple             # Machine C Metal receipt + live CE
-#   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU; NPU create fails loud if missing
+#   make test-turboembed-intel              # --features genai; Tokenizer+CompiledModel on ZE USM; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
@@ -85,7 +85,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turborerank-tests turborerank-tests-nocuda turborerank-tests-noov \
 	turborerank-cuda-gemm-proof \
 	turborerank-tests-nometal libturborerank-apple \
-	turbo-buffer-tests turboembed-mock-arena-tests \
+	turbo-buffer-tests turboembed-mock-arena-tests turboembed-genai-arena-tests \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt
@@ -395,14 +395,38 @@ turboembed-stub:
 test-turboembed: turboembed-mock-arena-tests
 	$(CARGO) test -p turboembed
 
-# Live TextEmbeddingPipeline on Intel CPU and GPU. GPU/NPU create fails if
-# that plugin is missing (no silent CPU). Sources the host OpenVINO toolkit; no Python.
+# Live GenAI Tokenizer+CompiledModel on Intel CPU and GPU, ZE USM arena.
+# GPU/NPU create fails if that plugin or ZE SHARED is missing (no silent CPU).
 OPENVINO_SETUPVARS ?= /work/opt/openvino_genai/setupvars.sh
-test-turboembed-intel:
+OPENVINO_GENAI_ROOT ?= /work/opt/openvino_genai
+test-turboembed-intel: turboembed-genai-arena-tests
 	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then \
 	  set +u; . "$(OPENVINO_SETUPVARS)"; set -u; \
 	fi; \
 	$(CARGO) test -p turboembed --features genai
+
+# C++ proof: GPU SHARED + CPU HOST token/result rent, allocs/forward==0.
+turboembed-genai-arena-tests:
+	@if [ ! -f "$(OPENVINO_GENAI_ROOT)/runtime/include/openvino/genai/tokenizer.hpp" ]; then \
+	  echo "skip turboembed-genai-arena-tests: OpenVINO GenAI headers missing"; \
+	  exit 1; \
+	fi
+	mkdir -p native/turboembed/build
+	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then set +u; . "$(OPENVINO_SETUPVARS)"; set -u; fi; \
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g \
+	  -DTURBOEMBED_GENAI -DTURBO_BUFFER_ZE=1 \
+	  -DTURBOEMBED_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  -I include -I native/turboembed/src -I native/turbo_buffer/src \
+	  -I $(OPENVINO_GENAI_ROOT)/runtime/include \
+	  native/turboembed/src/stub.cpp \
+	  native/turboembed/src/genai.cpp \
+	  $(TURBO_BUFFER_SRCS) \
+	  native/turboembed/tests/genai_arena_tests.cpp \
+	  -L$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
+	  -lopenvino -lopenvino_genai -lopenvino_tokenizers -lze_loader -lm \
+	  -Wl,-rpath,$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
+	  -o native/turboembed/build/genai_arena_tests
+	INFERSTREAM_ROOT=$(CURDIR) native/turboembed/build/genai_arena_tests
 
 # Real Metal MiniLM through turboembed.h. No Python.
 # Runs metal_create_lists_minilm_not_only_mock (create lists 384-d minilm,

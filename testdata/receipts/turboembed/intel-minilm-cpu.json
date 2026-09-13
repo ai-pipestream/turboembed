@@ -2,6 +2,13 @@
   "abi": "turboembed.h",
   "abi_version": 1,
   "alias": "minilm",
+  "arena": {
+    "allocs_after_warmup": 0,
+    "device": "ZE",
+    "owns_tokens": true,
+    "token_placement": "HOST",
+    "ze_query_tokens": "HOST"
+  },
   "cosine": {
     "intel_golden": 0.9999784231185913,
     "nvidia_golden": 0.999978244304657,
@@ -15,12 +22,12 @@
     "libpython": false
   },
   "normalize": true,
-  "note": "explicit TextEmbeddingPipeline(models_path, \"CPU\", config). GPU requests still fail-loud if the GPU plugin is missing.",
-  "pipeline": "ov::genai::TextEmbeddingPipeline",
+  "note": "SOLIDIFY (4) Machine B CPU. Same IR as GPU. Tokens/results rented HOST (ZE USM when L0 is present). GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
+  "pipeline": "ov::genai::Tokenizer + CompiledModel + turbo_buffer ZE HOST",
   "pooling": "mean",
   "schema_version": 1,
   "sha": {
-    "git": "b9e813de65e368dfda40b77929caf1dbf95f2044",
+    "git": "a913bdea1445554f614238b76f9c009c3e53de62",
     "openvino_model.bin": "8b86cab4722e2aefab310cf96d4d5a9eb3b187f7d9670a082afc55c7fa0d392a",
     "openvino_tokenizer.bin": "80a46227495510dedab560d9eac9d4a9d43425b1aa754f9c7935fe70875e2cb2"
   },
