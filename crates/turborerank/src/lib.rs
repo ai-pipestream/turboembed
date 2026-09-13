@@ -1,7 +1,9 @@
 //! Safe wrapper over the TurboRerank C ABI (`include/turborerank.h`).
 //!
-//! Token buffers are caller-written, 64-byte aligned on CPU. `forward`
-//! does not allocate. GPU / Metal / AUTO fail loud — never a mock score.
+//! Token buffers are caller-written (64-byte aligned on CPU; cudaHostAlloc
+//! pinned on CUDA). `forward` does not allocate. CUDA / AUTO-with-CUDA run
+//! the device MiniLM CE. Metal / TensorRT / OpenVINO fail loud — never a
+//! mock score.
 
 #![allow(clippy::result_large_err)]
 
@@ -355,6 +357,21 @@ impl TokenBuffer {
 
     pub fn seq(&self) -> u32 {
         self.inner().seq
+    }
+
+    pub fn device(&self) -> Device {
+        match self.inner().device.0 {
+            0 => Device::Auto,
+            1 => Device::Cpu,
+            2 => Device::Cuda,
+            3 => Device::TensorRt,
+            4 => Device::OpenVinoCpu,
+            5 => Device::OpenVinoGpu,
+            6 => Device::OpenVinoNpu,
+            7 => Device::Metal,
+            8 => Device::Mock,
+            _ => Device::Cpu,
+        }
     }
 
     pub fn input_ids_mut(&mut self) -> &mut [i32] {

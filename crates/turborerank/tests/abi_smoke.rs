@@ -22,8 +22,9 @@ fn buffer_is_64_byte_aligned_and_caller_writable() {
     assert_eq!(buf.input_ids()[1], 7592);
 }
 
+#[cfg(not(turborerank_cuda))]
 #[test]
-fn cuda_buffer_fails_loud() {
+fn cuda_buffer_fails_loud_without_cuda() {
     let err = TokenBuffer::alloc(Device::Cuda, 1, 16).unwrap_err();
     assert!(
         matches!(err, Error::NotImplemented(_) | Error::Unavailable(_)),
@@ -31,9 +32,25 @@ fn cuda_buffer_fails_loud() {
     );
     let msg = err.to_string();
     assert!(
-        msg.to_lowercase().contains("refus") || msg.to_lowercase().contains("not implemented"),
+        msg.to_lowercase().contains("refus")
+            || msg.to_lowercase().contains("not implemented")
+            || msg.to_lowercase().contains("without cuda"),
         "{msg}"
     );
+}
+
+#[cfg(turborerank_cuda)]
+#[test]
+fn cuda_buffer_is_pinned_and_caller_writable() {
+    let mut buf = TokenBuffer::alloc(Device::Cuda, 2, 32).expect("cudaHostAlloc");
+    assert_eq!(buf.device(), Device::Cuda);
+    assert!(buf.ptr_aligned(), "pinned buffers must be 64-byte aligned");
+    buf.input_ids_mut()[0] = 101;
+    buf.input_ids_mut()[1] = 7592;
+    assert_eq!(buf.input_ids()[0], 101);
+    assert_eq!(buf.input_ids()[1], 7592);
+    let auto_buf = TokenBuffer::alloc(Device::Auto, 1, 16).expect("AUTO→CUDA buffer");
+    assert_eq!(auto_buf.device(), Device::Cuda);
 }
 
 #[test]
@@ -105,10 +122,8 @@ fn pack_error_and_max_len_boundary() {
 }
 
 #[test]
-fn accelerator_create_fails_loud_no_cpu_fallback() {
+fn remaining_accelerators_fail_loud_no_cpu_fallback() {
     for device in [
-        Device::Auto,
-        Device::Cuda,
         Device::TensorRt,
         Device::OpenVinoGpu,
         Device::OpenVinoNpu,
@@ -127,6 +142,32 @@ fn accelerator_create_fails_loud_no_cpu_fallback() {
     }
     let err = Engine::create(Device::OpenVinoCpu).unwrap_err();
     assert!(matches!(err, Error::NotImplemented(_)), "{err:?}");
+}
+
+#[cfg(not(turborerank_cuda))]
+#[test]
+fn cuda_and_auto_create_fail_loud_without_cuda() {
+    for device in [Device::Auto, Device::Cuda] {
+        let err = Engine::create(device).unwrap_err();
+        assert!(
+            matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+            "{device:?}: {err:?}"
+        );
+        let msg = err.to_string().to_lowercase();
+        assert!(
+            msg.contains("refus") || msg.contains("cpu fallback"),
+            "{device:?}: {err}"
+        );
+    }
+}
+
+#[cfg(turborerank_cuda)]
+#[test]
+fn cuda_and_auto_create_succeed_when_compiled() {
+    let cuda = Engine::create(Device::Cuda).expect("CUDA engine");
+    drop(cuda);
+    let auto = Engine::create(Device::Auto).expect("AUTO→CUDA engine");
+    drop(auto);
 }
 
 #[test]

@@ -1,0 +1,26 @@
+{
+  "alias": "ms-marco-minilm-l6",
+  "model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+  "device": "CUDA",
+  "machine": "Machine A",
+  "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+  "backend": "turborerank first-party CUDA MiniLM CE (cudaHostAlloc token buffers; device GEMM/attention/LN/GELU/pooler kernels; one H2D of packed int32 ids per row)",
+  "compute": {
+    "token_workspace": "cudaHostAlloc pinned (caller-written)",
+    "weights_activations": "device",
+    "gemm": "first-party CUDA kernel matching CPU linear_nt",
+    "elementwise": "first-party CUDA kernels (embed, LayerNorm, GELU erf, attention, pooler, classifier)",
+    "host_interim": false,
+    "mock": false
+  },
+  "pass": true,
+  "golden": "testdata/reference_rerank/ms_marco_minilm_l6_berlin.json",
+  "reference": "HuggingFace AutoModelForSequenceClassification on the pinned safetensors",
+  "logits": [8.84585190, -4.32007980, -11.27389336],
+  "max_abs_logit_err": 0.000004,
+  "cosine_vs_golden": 1.0000000000,
+  "git_sha": "2dbebedb03ccff641ca10f6c2b9009533c30e100",
+  "command": "make test-turborerank-nvidia",
+  "note": "Phase 2a NVIDIA proof on Machine A. AUTO resolves to CUDA. Create without CUDA fails loud. Not a pinned-host CPU interim: the BERT graph including GEMM runs on device."
+}

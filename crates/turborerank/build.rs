@@ -1,12 +1,28 @@
 //! Compile native/turborerank into the Rust crate.
+//!
+//! Detects nvcc + cuda_runtime.h and, unless TURBORERANK_DISABLE_CUDA=1,
+//! builds the CUDA MiniLM CE (cuBLAS + kernels) and links cudart/cublas.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+fn cuda_enabled(root: &Path) -> bool {
+    if std::env::var_os("TURBORERANK_DISABLE_CUDA").is_some() {
+        return false;
+    }
+    if Command::new("nvcc").arg("--version").output().is_err() {
+        return false;
+    }
+    root.join("/usr/include/cuda_runtime.h").exists()
+        || Path::new("/usr/include/cuda_runtime.h").exists()
+        || Path::new("/usr/local/cuda/include/cuda_runtime.h").exists()
+}
 
 fn main() {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = manifest.join("../..");
     let root = root.canonicalize().unwrap_or(root);
+    let enable_cuda = cuda_enabled(&root);
 
     let sources = [
         "native/turborerank/src/alloc.cpp",
@@ -14,11 +30,20 @@ fn main() {
         "native/turborerank/src/wordpiece.cpp",
         "native/turborerank/src/safetensors.cpp",
         "native/turborerank/src/bert_cpu.cpp",
+        "native/turborerank/src/cuda_api.cpp",
         "native/turborerank/src/engine.cpp",
     ];
     for rel in sources {
         println!("cargo:rerun-if-changed={}", root.join(rel).display());
     }
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turborerank/src/bert_cuda.cu").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turborerank/src/cuda_api.hpp").display()
+    );
     println!(
         "cargo:rerun-if-changed={}",
         root.join("include/turborerank.h").display()
@@ -31,6 +56,8 @@ fn main() {
         "cargo:rerun-if-changed={}",
         root.join("native/turborerank/src/internal.hpp").display()
     );
+    println!("cargo:rerun-if-env-changed=TURBORERANK_DISABLE_CUDA");
+    println!("cargo:rustc-check-cfg=cfg(turborerank_cuda)");
 
     println!(
         "cargo:rustc-env=TURBORERANK_WORKSPACE_ROOT={}",
@@ -50,6 +77,9 @@ fn main() {
             "TURBORERANK_WORKSPACE_ROOT",
             format!("\"{}\"", escape_c_string(&root.to_string_lossy())).as_str(),
         );
+    if enable_cuda {
+        build.define("TURBORERANK_CUDA", "1");
+    }
     for rel in sources {
         build.file(root.join(rel));
     }
@@ -58,6 +88,29 @@ fn main() {
     }
     link_libstdcxx();
     build.compile("turborerank_native");
+
+    if enable_cuda {
+        println!("cargo:rustc-cfg=turborerank_cuda");
+        println!("cargo:rustc-link-lib=cudart");
+        let mut nvcc = cc::Build::new();
+        nvcc.cuda(true)
+            .cpp(true)
+            .std("c++17")
+            .include(root.join("include"))
+            .include(root.join("native/turborerank/src"))
+            .define("TURBORERANK_CUDA", "1")
+            .define(
+                "TURBORERANK_WORKSPACE_ROOT",
+                format!("\"{}\"", escape_c_string(&root.to_string_lossy())).as_str(),
+            )
+            .file(root.join("native/turborerank/src/bert_cuda.cu"))
+            .flag("-O2")
+            .flag("-arch=native")
+            .flag("-allow-unsupported-compiler")
+            .flag("-ccbin=g++-13")
+            .flag_if_supported("--expt-relaxed-constexpr");
+        nvcc.compile("turborerank_bert_cuda");
+    }
 }
 
 fn escape_c_string(s: &str) -> String {

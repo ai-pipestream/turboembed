@@ -18,8 +18,10 @@
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
 #   make fetch-rerankers                    # SHA-pin MiniLM-L6 cross-encoder
-#   make turborerank-tests                  # C++ buffer/pack/fail-loud
+#   make turborerank-tests                  # C++ buffer/pack + CUDA if nvcc
+#   make turborerank-tests-nocuda           # same tests, CUDA create fails loud
 #   make test-turborerank                   # fetch + C++ + Rust live scores
+#   make test-turborerank-nvidia            # Machine A CUDA receipt + live CE
 #   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
@@ -75,7 +77,8 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	e2e-parity e2e-parity-goldens e2e-drift \
 	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
-	turborerank-tests test-turborerank
+	turborerank-tests turborerank-tests-nocuda test-turborerank \
+	test-turborerank-nvidia turborerank-nvidia-receipt
 
 test:
 	$(CARGO) test --workspace
@@ -364,15 +367,69 @@ TURBORERANK_SRCS := \
 	native/turborerank/src/wordpiece.cpp \
 	native/turborerank/src/safetensors.cpp \
 	native/turborerank/src/bert_cpu.cpp \
+	native/turborerank/src/cuda_api.cpp \
 	native/turborerank/src/engine.cpp
 
-turborerank-tests:
+TURBORERANK_NVCC ?= nvcc
+# CUDA 12.4 rejects gcc 15 as nvcc host. g++-13 is on Machine A.
+TURBORERANK_NVCC_CCBIN ?= g++-13
+# 0/1. Default: compile CUDA when nvcc + cuda_runtime.h exist.
+TURBORERANK_ENABLE_CUDA ?= $(shell \
+	if command -v $(TURBORERANK_NVCC) >/dev/null 2>&1 && \
+	   { test -f /usr/include/cuda_runtime.h || test -f /usr/local/cuda/include/cuda_runtime.h; }; \
+	then echo 1; else echo 0; fi)
+TURBORERANK_CUDA_ARCH ?= native
+
+TURBORERANK_INCLUDES := -I include -I native/turborerank/src
+TURBORERANK_CPPFLAGS := -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\"
+TURBORERANK_CUDA_LIBS :=
+TURBORERANK_CUDA_OBJ :=
+
+ifeq ($(TURBORERANK_ENABLE_CUDA),1)
+TURBORERANK_CPPFLAGS += -DTURBORERANK_CUDA=1
+TURBORERANK_CUDA_LIBS := -lcudart
+TURBORERANK_CUDA_OBJ := native/turborerank/build/bert_cuda.o
+endif
+
+native/turborerank/build/bert_cuda.o: native/turborerank/src/bert_cuda.cu \
+		native/turborerank/src/cuda_api.hpp native/turborerank/src/internal.hpp \
+		include/turborerank.h include/reranker.hpp
 	mkdir -p native/turborerank/build
-	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include -I native/turborerank/src \
+	$(TURBORERANK_NVCC) -std=c++17 -O2 -arch=$(TURBORERANK_CUDA_ARCH) \
+	  -ccbin=$(TURBORERANK_NVCC_CCBIN) \
+	  $(TURBORERANK_INCLUDES) -DTURBORERANK_CUDA=1 \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
-	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
-	  -lm -o native/turborerank/build/turborerank_tests
+	  -c native/turborerank/src/bert_cuda.cu \
+	  -o native/turborerank/build/bert_cuda.o
+
+turborerank-tests: $(TURBORERANK_CUDA_OBJ)
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_CUDA_OBJ) \
+	  native/turborerank/tests/turborerank_tests.cpp \
+	  -lm $(TURBORERANK_CUDA_LIBS) -o native/turborerank/build/turborerank_tests
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests
 
-test-turborerank: fetch-rerankers turborerank-tests
+# Prove CUDA create fails loud when the binary has no CUDA.
+turborerank-tests-nocuda:
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
+	  -lm -o native/turborerank/build/turborerank_tests_nocuda
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_nocuda
+
+turborerank-nvidia-receipt: $(TURBORERANK_CUDA_OBJ)
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_CUDA_OBJ) \
+	  native/turborerank/tools/write_nvidia_receipt.cpp \
+	  -lm $(TURBORERANK_CUDA_LIBS) -o native/turborerank/build/write_nvidia_receipt
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/write_nvidia_receipt
+
+test-turborerank: fetch-rerankers turborerank-tests turborerank-tests-nocuda
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
+
+test-turborerank-nvidia: test-turborerank turborerank-nvidia-receipt

@@ -1,4 +1,4 @@
-# TurboRerank architecture (Phase 1)
+# TurboRerank architecture (Phase 1 CPU + Phase 2a CUDA)
 
 TurboRerank is the **library-first** cross-encoder reranker beside
 TurboEmbed. Inferstream `Rerank` RPC stays a thin façade (not yet
@@ -6,10 +6,11 @@ wired to this ABI in Phase 1). The product path is a frozen C ABI plus
 a C++ buffer/forward contract: caller-owned token memory, no Python on
 the hot path, no silent mock scores.
 
-Phase 1 ships the design, the ABI, a **real CPU MiniLM cross-encoder**,
-and tests that fail if someone substitutes constant / FNV mock scores.
-CUDA, OpenVINO USM, and Metal/MLX are designed here and **fail loud**
-(`NOT_IMPLEMENTED` / `UNAVAILABLE`). They are not claimed live.
+Phase 1 ships the design, the ABI, and a **real CPU MiniLM cross-encoder**.
+Phase 2a (Machine A) ships **CUDA**: `cudaHostAlloc` token buffers and a
+device MiniLM CE (`cublasSgemm` + first-party kernels) with HF golden
+parity. OpenVINO USM and Metal/MLX still **fail loud**. CUDA create
+without a device fails loud — never CPU, never a mock score.
 
 ## 1. Inventory — mock Rerank today (repo tip `c4a1bab`)
 
@@ -175,10 +176,14 @@ flowchart TB
         BERT["First-party FP32 MiniLM-L6 CE on ggml-mappable CPU buffers"]
     end
 
-    subgraph laterhw [Phase 2+ — fail loud today]
-        CUDA["ggml CUDA / cudaHostAlloc"]
+    subgraph cuda [Phase 2a LIVE on Machine A]
+        CUDA["cudaHostAlloc tokens + first-party CUDA kernels"]
+    end
+
+    subgraph laterhw [Still fail loud]
         OV["OpenVINO CompiledModel + Level Zero USM"]
         MTL["MLX / MTL shared"]
+        TRT["TensorRT CE"]
     end
 
     RPC -.-> abi
@@ -189,6 +194,7 @@ flowchart TB
     Fwd --> CUDA
     Fwd --> OV
     Fwd --> MTL
+    Fwd --> TRT
 ```
 
 Same spirit as [`include/turboembed.h`](../include/turboembed.h): one C
@@ -219,7 +225,7 @@ plus the caller’s `scores_out`.
 | device | allocation | Phase 1 |
 |---|---|---|
 | CPU | `posix_memalign` **64-byte** (AVX-512/AVX2-friendly). Layout is a `ggml_tensor` view: `[batch, seq]` int32, row-major, `row_stride = seq`. | **LIVE** |
-| CUDA | `cudaHostAlloc` / `cudaMallocHost` (pinned, mapped for the engine). | `UNAVAILABLE` / `NOT_IMPLEMENTED` — no silent CPU |
+| CUDA | `cudaHostAlloc` (pinned; caller writes tokens). One H2D of the packed int32 row into device scratch; first-party CUDA BERT graph (GEMM/attention/LN/GELU/pooler) on device. | **LIVE** (Phase 2a, Machine A) |
 | OpenVINO GPU/NPU | Level Zero USM; later `ov::Tensor(..., usm_pointer)`. | fail loud |
 | OpenVINO CPU | USM host or the CPU 64-byte path once OV is wired. | fail loud in Phase 1 (CPU device uses the first-party kernel, not OV) |
 | Metal | MTL shared buffer / MLX array wrapping the pointer. | fail loud |
@@ -238,8 +244,10 @@ We did **not** vendor ggml + a GGUF convert in this phase:
   classification head.
 - GGUF export is a Python step we refuse on the product path; no
   pinned CE GGUF exists in-tree.
-- Wrapping the same pointers as `ggml_set_data(tensor, ptr)` is the
-  Phase 2 NVIDIA path (ggml CUDA) without changing the ABI.
+- Phase 2a NVIDIA did **not** vendor ggml: there is still no pinned CE
+  GGUF, and wrapping the same pointers as `ggml_set_data` would not add
+  a classification head.   Device compute is first-party CUDA kernels on the same BERT graph
+  as the CPU kernel (GEMM matches `linear_nt`).
 
 This is a compute-backend compromise, **not** a token-path copy
 compromise. Tokens never sit in a `std::vector` on `forward`.
@@ -304,8 +312,11 @@ Always on (`cargo test -p turborerank`):
   on `forward` (allocator counter).
 - Packing: CLS/SEP positions, longest-first vs query-priority, empty
   sides, `max_length` boundaries.
-- GPU/Metal/AUTO create → `UNAVAILABLE` / `UNSUPPORTED_DEVICE` on this
-  host; message refuses CPU fallback.
+- GPU/Metal/AUTO create → CUDA/AUTO succeed when a CUDA device is
+  present (AUTO resolves to CUDA). Metal / TensorRT / OpenVINO still
+  `UNAVAILABLE` / `UNSUPPORTED_DEVICE`; message refuses CPU fallback.
+  A no-CUDA binary (`make turborerank-tests-nocuda`) proves CUDA create
+  fails loud.
 - Missing weights / bad path → `UNAVAILABLE` with the path named.
 - Explicit MOCK cannot produce catalog CE scores.
 
@@ -318,8 +329,8 @@ When weights are fetched (`make test-turborerank`):
 - Identity logit vs sigmoid consistency (`sigmoid(logit)`).
 
 Goldens live under `testdata/reference_rerank/`. Live Machine A/B/C
-receipts (when GPU/Metal exist) go under `testdata/receipts/turborerank/`
-— none in Phase 1.
+receipts go under `testdata/receipts/turborerank/`. Phase 2a added
+`nvidia-minilm-l6.json` (Machine A). Hostnames stay out of docs.
 
 ## 9. Remaining work (honest)
 
@@ -327,7 +338,8 @@ receipts (when GPU/Metal exist) go under `testdata/receipts/turborerank/`
 |---|---|
 | CPU MiniLM-L6 CE, zero-copy token buffers | Phase 1 |
 | WordPiece (BERT uncased) | Phase 1 |
-| CUDA pinned + ggml CUDA / TensorRT CE | **not done** — fail loud |
+| CUDA `cudaHostAlloc` + device CE (first-party kernels) | Phase 2a (Machine A) |
+| TensorRT CE | **not done** — fail loud |
 | Intel Level Zero USM + OpenVINO `CompiledModel` | **not done** — fail loud |
 | Apple MTL shared + MLX | **not done** — fail loud |
 | gRPC `Rerank` → ABI | sketched, not wired |

@@ -2,6 +2,7 @@
 //
 // Engine lifecycle + frozen C ABI.
 
+#include "cuda_api.hpp"
 #include "internal.hpp"
 
 #include <algorithm>
@@ -254,18 +255,25 @@ turborerank_status turborerank_engine_create(
     if (device == TURBORERANK_DEVICE_OPENVINO_CPU ||
         turborerank::impl::device_is_accelerator(device)) {
         std::string why;
-        turborerank::impl::accelerator_unavailable(device, &why);
-        if (why.empty()) {
-            why = "device is not available; refusing CPU fallback";
+        if (turborerank::impl::accelerator_unavailable(device, &why)) {
+            if (why.empty()) {
+                why = "device is not available; refusing CPU fallback";
+            }
+            turborerank::impl::set_create_error(why);
+            if (device == TURBORERANK_DEVICE_OPENVINO_CPU) {
+                return TURBORERANK_ERR_NOT_IMPLEMENTED;
+            }
+            return TURBORERANK_ERR_UNAVAILABLE;
         }
-        turborerank::impl::set_create_error(why);
-        if (device == TURBORERANK_DEVICE_OPENVINO_CPU) {
-            return TURBORERANK_ERR_NOT_IMPLEMENTED;
-        }
-        return TURBORERANK_ERR_UNAVAILABLE;
+        // CUDA / AUTO-with-CUDA continue; other accelerators still fail above.
     }
 
-    if (device != TURBORERANK_DEVICE_CPU && device != TURBORERANK_DEVICE_MOCK) {
+    const turborerank_device resolved =
+        turborerank::impl::resolve_create_device(device);
+
+    if (resolved != TURBORERANK_DEVICE_CPU &&
+        resolved != TURBORERANK_DEVICE_MOCK &&
+        resolved != TURBORERANK_DEVICE_CUDA) {
         turborerank::impl::set_create_error(
             "unsupported device; refusing CPU fallback"
         );
@@ -277,7 +285,7 @@ turborerank_status turborerank_engine_create(
         turborerank::impl::set_create_error("engine_create: OOM");
         return TURBORERANK_ERR_OUT_OF_MEMORY;
     }
-    engine->device = device;
+    engine->device = resolved;
     if (config_path != nullptr) {
         engine->config_path = config_path;
     }
@@ -306,6 +314,7 @@ void turborerank_engine_destroy(turborerank_engine *engine) {
         return;
     }
     free_work_buffer(engine);
+    turborerank::impl::cuda_resources_free(&engine->cuda);
     turborerank::impl::free_scratch(&engine->scratch);
     turborerank::impl::free_owned(&engine->owned_weights);
     turborerank::impl::free_mapped(&engine->mapped);
@@ -331,7 +340,12 @@ turborerank_status turborerank_list_models(
     infos[0].max_length = engine->cfg.max_position ? engine->cfg.max_position : 512;
     infos[0].hidden_size = engine->cfg.hidden ? engine->cfg.hidden : 384;
     infos[0].device = engine->device;
-    infos[0].ready = engine->ready && engine->device == TURBORERANK_DEVICE_CPU ? 1 : 0;
+    infos[0].ready =
+        engine->ready &&
+                (engine->device == TURBORERANK_DEVICE_CPU ||
+                 engine->device == TURBORERANK_DEVICE_CUDA)
+            ? 1
+            : 0;
     *out_infos = infos;
     *out_count = 1;
     return TURBORERANK_OK;
@@ -362,8 +376,9 @@ turborerank_status turborerank_load_model(
             "'; mock does not produce relevance scores";
         return TURBORERANK_ERR_NOT_IMPLEMENTED;
     }
-    if (engine->device != TURBORERANK_DEVICE_CPU) {
-        engine->last_error = "load_model: engine device cannot run the CPU CE";
+    if (engine->device != TURBORERANK_DEVICE_CPU &&
+        engine->device != TURBORERANK_DEVICE_CUDA) {
+        engine->last_error = "load_model: engine device cannot run MiniLM CE";
         return TURBORERANK_ERR_UNAVAILABLE;
     }
 
@@ -418,9 +433,19 @@ turborerank_status turborerank_load_model(
         engine->last_error = err;
         return TURBORERANK_ERR_OUT_OF_MEMORY;
     }
+    if (engine->device == TURBORERANK_DEVICE_CUDA) {
+        if (!turborerank::impl::cuda_resources_init(
+                &engine->cuda, engine->cfg, engine->weights, &err
+            )) {
+            engine->last_error =
+                err.empty() ? "CUDA MiniLM CE init failed; refusing CPU fallback"
+                            : err + "; refusing CPU fallback";
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
+    }
     free_work_buffer(engine);
     turborerank_status st = turborerank_buffer_alloc(
-        TURBORERANK_DEVICE_CPU,
+        engine->device,
         engine->cfg.max_batch,
         engine->cfg.max_position,
         &engine->work
@@ -450,23 +475,36 @@ turborerank_status turborerank_buffer_alloc(
     if (batch == 0 || seq < turborerank::kSpecials) {
         return TURBORERANK_ERR_INVALID_ARGUMENT;
     }
-    if (device != TURBORERANK_DEVICE_CPU && device != TURBORERANK_DEVICE_MOCK) {
+    turborerank_device resolved = device;
+    if (device == TURBORERANK_DEVICE_AUTO) {
+        resolved = turborerank::impl::resolve_create_device(device);
+    }
+    if (resolved == TURBORERANK_DEVICE_CUDA) {
         std::string why;
-        turborerank::impl::accelerator_unavailable(device, &why);
+        if (!turborerank::impl::cuda_device_present(&why)) {
+            turborerank::impl::set_create_error(
+                why.empty() ? "buffer_alloc: CUDA missing; refusing CPU"
+                            : why
+            );
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
+    } else if (resolved != TURBORERANK_DEVICE_CPU &&
+               resolved != TURBORERANK_DEVICE_MOCK) {
+        std::string why;
+        turborerank::impl::accelerator_unavailable(resolved, &why);
         turborerank::impl::set_create_error(
             why.empty() ? "buffer_alloc: device not implemented; refusing CPU"
                         : why
         );
-        if (device == TURBORERANK_DEVICE_OPENVINO_CPU) {
+        if (resolved == TURBORERANK_DEVICE_OPENVINO_CPU) {
             return TURBORERANK_ERR_NOT_IMPLEMENTED;
         }
-        return device == TURBORERANK_DEVICE_MOCK
-                   ? TURBORERANK_ERR_INVALID_ARGUMENT
-                   : TURBORERANK_ERR_NOT_IMPLEMENTED;
+        return TURBORERANK_ERR_NOT_IMPLEMENTED;
     }
-    if (device == TURBORERANK_DEVICE_MOCK) {
+    if (resolved == TURBORERANK_DEVICE_MOCK) {
         // Allow mock to allocate CPU-shaped buffers for pack tests, but
         // forward will still refuse to score.
+        resolved = TURBORERANK_DEVICE_CPU;
     }
 
     const size_t n = static_cast<size_t>(batch) * static_cast<size_t>(seq);
@@ -476,27 +514,26 @@ turborerank_status turborerank_buffer_alloc(
     if (buf == nullptr) {
         return TURBORERANK_ERR_OUT_OF_MEMORY;
     }
-    buf->input_ids = static_cast<int32_t *>(
-        turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
-    );
-    buf->attention_mask = static_cast<int32_t *>(
-        turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
-    );
-    buf->token_type_ids = static_cast<int32_t *>(
-        turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
-    );
-    buf->position_ids = static_cast<int32_t *>(
-        turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
-    );
-    if (buf->input_ids == nullptr || buf->attention_mask == nullptr ||
-        buf->token_type_ids == nullptr || buf->position_ids == nullptr) {
+    std::memset(buf, 0, sizeof(*buf));
+    buf->device = resolved;
+    auto alloc_field = [&](int32_t **slot) -> bool {
+        if (resolved == TURBORERANK_DEVICE_CUDA) {
+            *slot = static_cast<int32_t *>(turborerank::impl::pinned_alloc_bytes(bytes, &st));
+        } else {
+            *slot = static_cast<int32_t *>(
+                turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
+            );
+        }
+        return *slot != nullptr;
+    };
+    if (!alloc_field(&buf->input_ids) || !alloc_field(&buf->attention_mask) ||
+        !alloc_field(&buf->token_type_ids) || !alloc_field(&buf->position_ids)) {
         turborerank_buffer_free(buf);
         return TURBORERANK_ERR_OUT_OF_MEMORY;
     }
     buf->batch = batch;
     buf->seq = seq;
     buf->row_stride = seq;
-    buf->device = TURBORERANK_DEVICE_CPU;
     *out = buf;
     return TURBORERANK_OK;
 }
@@ -505,10 +542,17 @@ void turborerank_buffer_free(turborerank_buffer *buffer) {
     if (buffer == nullptr) {
         return;
     }
-    turborerank::aligned_free_bytes(buffer->input_ids);
-    turborerank::aligned_free_bytes(buffer->attention_mask);
-    turborerank::aligned_free_bytes(buffer->token_type_ids);
-    turborerank::aligned_free_bytes(buffer->position_ids);
+    if (buffer->device == TURBORERANK_DEVICE_CUDA) {
+        turborerank::impl::pinned_free_bytes(buffer->input_ids);
+        turborerank::impl::pinned_free_bytes(buffer->attention_mask);
+        turborerank::impl::pinned_free_bytes(buffer->token_type_ids);
+        turborerank::impl::pinned_free_bytes(buffer->position_ids);
+    } else {
+        turborerank::aligned_free_bytes(buffer->input_ids);
+        turborerank::aligned_free_bytes(buffer->attention_mask);
+        turborerank::aligned_free_bytes(buffer->token_type_ids);
+        turborerank::aligned_free_bytes(buffer->position_ids);
+    }
     delete buffer;
 }
 
@@ -638,16 +682,37 @@ turborerank_status turborerank_forward(
         while (used > turborerank::kSpecials && mask[used - 1] == 0) {
             --used;
         }
-        const float logit = turborerank::impl::bert_forward_row(
-            engine->cfg,
-            engine->weights,
-            &engine->scratch,
-            buffer->input_ids + off,
-            mask,
-            buffer->token_type_ids + off,
-            buffer->position_ids + off,
-            used
-        );
+        float logit = 0.0f;
+        if (engine->device == TURBORERANK_DEVICE_CUDA) {
+            std::string err;
+            if (!turborerank::impl::bert_forward_row_cuda(
+                    &engine->cuda,
+                    engine->cfg,
+                    buffer->input_ids + off,
+                    mask,
+                    buffer->token_type_ids + off,
+                    buffer->position_ids + off,
+                    used,
+                    &logit,
+                    &err
+                )) {
+                engine->last_error =
+                    err.empty() ? "CUDA forward failed; refusing CPU fallback"
+                                : err + "; refusing CPU fallback";
+                return TURBORERANK_ERR_INTERNAL;
+            }
+        } else {
+            logit = turborerank::impl::bert_forward_row(
+                engine->cfg,
+                engine->weights,
+                &engine->scratch,
+                buffer->input_ids + off,
+                mask,
+                buffer->token_type_ids + off,
+                buffer->position_ids + off,
+                used
+            );
+        }
         scores_out[r] = activation == TURBORERANK_ACT_IDENTITY
                             ? logit
                             : turborerank::sigmoid(logit);

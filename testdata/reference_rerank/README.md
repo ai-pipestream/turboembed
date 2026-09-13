@@ -14,5 +14,6 @@ make fetch-rerankers
 # after cargo test -p turborerank -- --ignored, copy printed logits
 ```
 
-Live GPU/Metal receipts (none in Phase 1) belong under
+Live GPU/Metal receipts belong under
 `testdata/receipts/turborerank/` — Machine A/B/C only, never hostnames.
+Phase 2a: `nvidia-minilm-l6.json` (Machine A CUDA).

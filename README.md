@@ -37,9 +37,10 @@ Every arch binary serves **both** gRPC services on one port behind one bearer in
 ### Known gaps
 
 - **Rerank RPC** — mock scorer only on all three arches. The **TurboRerank
-  library** (Phase 1) is a real CPU MiniLM-L6 cross-encoder behind
-  `include/turborerank.h`; gRPC is not wired to it yet. CUDA / OpenVINO /
-  Metal backends fail loud. See [`docs/turborerank-architecture.md`](docs/turborerank-architecture.md).
+  library** is a real MiniLM-L6 cross-encoder behind
+  `include/turborerank.h` (CPU + CUDA on Machine A); gRPC is not wired
+  to it yet. OpenVINO / Metal / TensorRT backends fail loud. See
+  [`docs/turborerank-architecture.md`](docs/turborerank-architecture.md).
 - **TRT-LLM generative** (`backend-trtllm` / `trtllm-sys`) — stub. Distinct from live **ORT TensorRT MiniLM embeds**.
 - **Zero-copy buffer pool** — aspirational (the Rust crate is a safe view wrapper, not a pooled allocator).
 - **model2vec** — not shipped (`turboembed_register_provider` returns `NOT_IMPLEMENTED`).
@@ -450,8 +451,9 @@ Done:
 Still open:
 
 6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — generative stub. Not ORT TensorRT embeds (those are live).
-7. **Rerank RPC** — mock scorer only. TurboRerank Phase 1 CPU library is
-   live (`make test-turborerank`); GPU/Metal and the gRPC façade are later.
+7. **Rerank RPC** — mock scorer only. TurboRerank CPU + CUDA library is
+   live (`make test-turborerank` / `make test-turborerank-nvidia`);
+   Metal / OpenVINO / TensorRT and the gRPC façade are later.
 8. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 9. Optional adapters: TEI-compatible proto (lowest priority), richer stream metadata.
 10. ORT session pooling (one session per model behind a mutex today; intra-op threads still parallelize each request).

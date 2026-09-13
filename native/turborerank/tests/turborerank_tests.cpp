@@ -2,6 +2,7 @@
 //
 // Close-to-metal TurboRerank tests. No stub scores.
 
+#include "cuda_api.hpp"
 #include "internal.hpp"
 #include "reranker.hpp"
 #include "turborerank.h"
@@ -93,18 +94,52 @@ static void test_buffer_alignment_and_write_via_pointer() {
     turborerank_buffer_free(buf);
 }
 
-static void test_gpu_buffer_fails_loud() {
+static bool cuda_live() {
+    std::string why;
+    return turborerank::impl::cuda_device_present(&why);
+}
+
+static void test_cuda_buffer_policy() {
     turborerank_buffer *buf = nullptr;
     const turborerank_status st =
-        turborerank_buffer_alloc(TURBORERANK_DEVICE_CUDA, 1, 16, &buf);
-    CHECK(st == TURBORERANK_ERR_NOT_IMPLEMENTED ||
-          st == TURBORERANK_ERR_UNAVAILABLE);
-    CHECK(buf == nullptr);
-    const char *msg = turborerank_last_error(nullptr);
-    CHECK(msg != nullptr);
-    CHECK(std::strstr(msg, "Refusing CPU") != nullptr ||
-          std::strstr(msg, "refusing CPU") != nullptr ||
-          std::strstr(msg, "not implemented") != nullptr);
+        turborerank_buffer_alloc(TURBORERANK_DEVICE_CUDA, 2, 16, &buf);
+    if (!cuda_live()) {
+        CHECK(st == TURBORERANK_ERR_NOT_IMPLEMENTED ||
+              st == TURBORERANK_ERR_UNAVAILABLE);
+        CHECK(buf == nullptr);
+        const char *msg = turborerank_last_error(nullptr);
+        CHECK(msg != nullptr);
+        CHECK(std::strstr(msg, "Refusing CPU") != nullptr ||
+              std::strstr(msg, "refusing CPU") != nullptr ||
+              std::strstr(msg, "without CUDA") != nullptr);
+        return;
+    }
+    CHECK_ST(st);
+    CHECK(buf != nullptr);
+    CHECK(buf->device == TURBORERANK_DEVICE_CUDA);
+    auto aligned = [](const void *p) {
+        return (reinterpret_cast<uintptr_t>(p) % 64u) == 0;
+    };
+    CHECK(aligned(buf->input_ids));
+    CHECK(aligned(buf->attention_mask));
+    CHECK(aligned(buf->token_type_ids));
+    CHECK(aligned(buf->position_ids));
+    // Caller writes tokens into pinned host memory.
+    buf->input_ids[0] = 101;
+    buf->input_ids[1] = 7592;
+    buf->input_ids[2] = 102;
+    CHECK_EQ(buf->input_ids[0], 101);
+    CHECK_EQ(buf->input_ids[1], 7592);
+    turborerank::alloc_counter_reset();
+    buf->input_ids[3] = 2088;
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    turborerank_buffer_free(buf);
+
+    turborerank_buffer *auto_buf = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_AUTO, 1, 8, &auto_buf));
+    CHECK(auto_buf->device == TURBORERANK_DEVICE_CUDA);
+    CHECK(aligned(auto_buf->input_ids));
+    turborerank_buffer_free(auto_buf);
 }
 
 static void test_pack_cls_sep_and_types() {
@@ -213,18 +248,35 @@ static void test_pack_truncation() {
 
 static void test_device_create_policy() {
     turborerank_engine *e = nullptr;
-    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_CUDA, nullptr, &e) ==
-          TURBORERANK_ERR_UNAVAILABLE);
-    CHECK(e == nullptr);
-    const char *msg = turborerank_last_error(nullptr);
-    CHECK(std::strstr(msg, "Refusing CPU") != nullptr);
+    if (cuda_live()) {
+        CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_CUDA, nullptr, &e));
+        CHECK(e != nullptr);
+        CHECK(e->device == TURBORERANK_DEVICE_CUDA);
+        turborerank_engine_destroy(e);
+        e = nullptr;
+        CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, nullptr, &e));
+        CHECK(e != nullptr);
+        CHECK(e->device == TURBORERANK_DEVICE_CUDA);
+        turborerank_engine_destroy(e);
+        e = nullptr;
+    } else {
+        CHECK(turborerank_engine_create(TURBORERANK_DEVICE_CUDA, nullptr, &e) ==
+              TURBORERANK_ERR_UNAVAILABLE);
+        CHECK(e == nullptr);
+        const char *msg = turborerank_last_error(nullptr);
+        CHECK(std::strstr(msg, "Refusing CPU") != nullptr);
 
-    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, nullptr, &e) ==
-          TURBORERANK_ERR_UNAVAILABLE);
-    CHECK(std::strstr(turborerank_last_error(nullptr), "Refusing CPU") != nullptr);
+        CHECK(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, nullptr, &e) ==
+              TURBORERANK_ERR_UNAVAILABLE);
+        CHECK(std::strstr(turborerank_last_error(nullptr), "Refusing CPU") != nullptr);
+    }
 
     CHECK(turborerank_engine_create(TURBORERANK_DEVICE_METAL, nullptr, &e) ==
           TURBORERANK_ERR_UNAVAILABLE);
+
+    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_TENSORRT, nullptr, &e) ==
+          TURBORERANK_ERR_UNAVAILABLE);
+    CHECK(std::strstr(turborerank_last_error(nullptr), "Refusing") != nullptr);
 
     CHECK(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_CPU, nullptr, &e) ==
           TURBORERANK_ERR_NOT_IMPLEMENTED);
@@ -241,6 +293,23 @@ static void test_device_create_policy() {
           std::strstr(turborerank_last_error(e), "MOCK") != nullptr);
     turborerank_engine_destroy(e);
 }
+
+#ifndef TURBORERANK_CUDA
+static void test_create_without_cuda_fails() {
+    CHECK(!turborerank::impl::cuda_compiled());
+    turborerank_engine *e = nullptr;
+    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_CUDA, nullptr, &e) ==
+          TURBORERANK_ERR_UNAVAILABLE);
+    CHECK(e == nullptr);
+    const char *msg = turborerank_last_error(nullptr);
+    CHECK(std::strstr(msg, "without CUDA") != nullptr ||
+          std::strstr(msg, "Refusing CPU") != nullptr);
+    turborerank_buffer *buf = nullptr;
+    CHECK(turborerank_buffer_alloc(TURBORERANK_DEVICE_CUDA, 1, 16, &buf) ==
+          TURBORERANK_ERR_UNAVAILABLE);
+    CHECK(buf == nullptr);
+}
+#endif
 
 static void test_missing_weights_fails_loud() {
     turborerank_engine *e = nullptr;
@@ -372,17 +441,120 @@ static void test_real_model_scores() {
     turborerank_engine_destroy(e);
 }
 
+static void test_cuda_real_model_scores() {
+    if (!cuda_live()) {
+        std::fprintf(stderr, "SKIP CUDA MiniLM CE (no device / not compiled)\n");
+        return;
+    }
+    if (!weights_present()) {
+        std::fprintf(stderr, "SKIP CUDA MiniLM CE scores (make fetch-rerankers)\n");
+        return;
+    }
+    turborerank_engine *e = nullptr;
+    const std::string dir = model_dir();
+    CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_CUDA, dir.c_str(), &e));
+    CHECK(e->device == TURBORERANK_DEVICE_CUDA);
+    const turborerank_status load = turborerank_load_model(e, "ms-marco-minilm-l6", 0);
+    CHECK_ST(load);
+    if (load != TURBORERANK_OK) {
+        std::fprintf(stderr, "CUDA load error: %s\n", turborerank_last_error(e));
+        turborerank_engine_destroy(e);
+        return;
+    }
+    CHECK(e->cuda.enabled);
+    CHECK_EQ(e->cuda.n_layers, 6u);
+
+    const char *q = "How many people live in Berlin?";
+    const char *rel =
+        "Berlin has a population of 3,520,031 registered inhabitants in an "
+        "area of 891.82 square kilometers.";
+    const char *irrel = "New York City is famous for its pizza and bagels.";
+    const char *mid = "Berlin is well known for its museums.";
+    turborerank_str query{q, std::strlen(q)};
+    turborerank_str docs[3] = {
+        {rel, std::strlen(rel)},
+        {mid, std::strlen(mid)},
+        {irrel, std::strlen(irrel)},
+    };
+    turborerank_score_options opts{};
+    opts.truncation = TURBORERANK_TRUNC_LONGEST_FIRST;
+    opts.activation = TURBORERANK_ACT_IDENTITY;
+    opts.max_length = 512;
+    float logits[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits));
+    CHECK(logits[0] != logits[1] || logits[1] != logits[2]);
+    CHECK(logits[0] > logits[1]);
+    CHECK(logits[1] > logits[2]);
+    CHECK(logits[0] - logits[2] > 2.0f);
+    CHECK(almost(logits[0], 8.84585285f, 2e-3f));
+    CHECK(almost(logits[1], -4.32007599f, 2e-3f));
+    CHECK(almost(logits[2], -11.27389431f, 2e-3f));
+
+    opts.activation = TURBORERANK_ACT_SIGMOID;
+    float sig[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, sig));
+    CHECK(almost(sig[0], turborerank::sigmoid(logits[0]), 1e-5f));
+    CHECK(sig[0] > sig[1] && sig[1] > sig[2]);
+
+    float one[3];
+    for (int i = 0; i < 3; ++i) {
+        opts.activation = TURBORERANK_ACT_IDENTITY;
+        CHECK_ST(turborerank_score(e, nullptr, 0, query, &docs[i], 1, &opts, &one[i]));
+        CHECK(almost(one[i], logits[i], 1e-5f));
+    }
+
+    turborerank_buffer *buf = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CUDA, 1, 64, &buf));
+    CHECK(buf->device == TURBORERANK_DEVICE_CUDA);
+    CHECK_ST(turborerank_pack_text(
+        e, buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
+    ));
+    turborerank::alloc_counter_reset();
+    float s = 0;
+    CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK(almost(s, logits[0], 2e-3f));
+    turborerank_buffer_free(buf);
+
+    // AUTO → CUDA on this host.
+    turborerank_engine *auto_e = nullptr;
+    CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, dir.c_str(), &auto_e));
+    CHECK(auto_e->device == TURBORERANK_DEVICE_CUDA);
+    CHECK_ST(turborerank_load_model(auto_e, "ms-marco-minilm-l6", 0));
+    opts.activation = TURBORERANK_ACT_IDENTITY;
+    float auto_logit = 0;
+    CHECK_ST(turborerank_score(auto_e, nullptr, 0, query, &docs[0], 1, &opts, &auto_logit));
+    CHECK(almost(auto_logit, logits[0], 2e-3f));
+    turborerank_engine_destroy(auto_e);
+
+    std::fprintf(
+        stderr,
+        "CUDA Berlin logits: %.8f %.8f %.8f (abs err %.3e %.3e %.3e)\n",
+        logits[0],
+        logits[1],
+        logits[2],
+        std::fabs(logits[0] - 8.84585285f),
+        std::fabs(logits[1] + 4.32007599f),
+        std::fabs(logits[2] + 11.27389431f)
+    );
+    turborerank_engine_destroy(e);
+}
+
 int main() {
     test_abi_names();
     test_buffer_alignment_and_write_via_pointer();
-    test_gpu_buffer_fails_loud();
+    test_cuda_buffer_policy();
     test_pack_cls_sep_and_types();
     test_pack_empty_sides();
     test_pack_truncation();
     test_device_create_policy();
+#ifndef TURBORERANK_CUDA
+    test_create_without_cuda_fails();
+#endif
     test_missing_weights_fails_loud();
     test_wordpiece_fixture();
     test_real_model_scores();
+    test_cuda_real_model_scores();
 
     std::fprintf(
         stderr,
