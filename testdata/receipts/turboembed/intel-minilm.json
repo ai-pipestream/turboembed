@@ -10,7 +10,7 @@
     "owns_tokens": true,
     "result_placement": "SHARED",
     "token_placement": "SHARED",
-    "tokenizer_encode": "ov::genai::Tokenizer.encode still private-allocs; API has no caller buffer",
+    "tokenizer": "wordpiece_encode_sentence into rented SHARED i32 USM",
     "ze_query_result": "SHARED",
     "ze_query_tokens": "SHARED"
   },
@@ -23,17 +23,18 @@
   "dim": 384,
   "gpu": "[level_zero:gpu][level_zero:0] Intel(R) oneAPI Unified Runtime over Level-Zero V2, Intel(R) Graphics [0xe223] 20.2.0 [1.14.37020]",
   "maps": {
-    "libopenvino_genai": true,
+    "libopenvino_genai": false,
     "libopenvino_intel_gpu_plugin": true,
+    "libopenvino_tokenizers": false,
     "libpython": false
   },
   "normalize": true,
-  "note": "SOLIDIFY (4) Machine B. Token/hidden/result rows rented from the ZE arena as SHARED. InferRequest.set_tensor wraps USM; embed_documents is not on the hot path. GPU create without ZE SHARED fails loud. See intel-minilm-cpu.json for HOST USM.",
-  "pipeline": "ov::genai::Tokenizer + CompiledModel + turbo_buffer ZE SHARED",
+  "note": "SOLIDIFY (5) Machine B. WordPiece writes ids/mask/types into rented ZE SHARED USM. InferRequest.set_tensor wraps those pointers. ov::genai::Tokenizer.encode is not on the hot path (API has no caller buffer). GPU create without ZE SHARED fails loud.",
+  "pipeline": "WordPiece write-through + CompiledModel + turbo_buffer ZE SHARED",
   "pooling": "mean",
   "schema_version": 1,
   "sha": {
-    "git": "158abc5ceb466998ac6dc670785c07520dd8d4cf",
+    "git": "d90c873a5d45224b869df5767786f2580ab2a6c7",
     "openvino_model.bin": "8b86cab4722e2aefab310cf96d4d5a9eb3b187f7d9670a082afc55c7fa0d392a",
     "openvino_tokenizer.bin": "80a46227495510dedab560d9eac9d4a9d43425b1aa754f9c7935fe70875e2cb2"
   },
