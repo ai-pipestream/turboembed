@@ -172,15 +172,19 @@ static void test_cpu_rejects_gpu_placement() {
     turbo_buffer_arena_destroy(a);
 }
 
-static void test_gpu_backends_fail_loud_or_work() {
-    const turbo_buffer_status cuda_probe =
+static void test_cuda_pinned_device_live_or_fail_loud() {
+    const turbo_buffer_status pin_probe =
         turbo_buffer_backend_probe(TURBO_BUFFER_DEVICE_CUDA, TURBO_BUFFER_PLACE_PINNED);
+    const turbo_buffer_status dev_probe =
+        turbo_buffer_backend_probe(TURBO_BUFFER_DEVICE_CUDA, TURBO_BUFFER_PLACE_DEVICE);
     turbo_buffer_arena *cuda = nullptr;
     const turbo_buffer_status cuda_st =
         turbo_buffer_arena_create(TURBO_BUFFER_DEVICE_CUDA, &cuda);
-    if (cuda_probe == TURBO_BUFFER_OK) {
+    if (pin_probe == TURBO_BUFFER_OK) {
+        CHECK_EQ(dev_probe, TURBO_BUFFER_OK);
         CHECK_ST(cuda_st);
         CHECK(cuda != nullptr);
+
         turbo_buffer_view pin {};
         CHECK_ST(turbo_buffer_arena_rent(
             cuda,
@@ -192,8 +196,12 @@ static void test_gpu_backends_fail_loud_or_work() {
             &pin
         ));
         CHECK(aligned64(pin.ptr));
+        CHECK_EQ(pin.placement, TURBO_BUFFER_PLACE_PINNED);
+        CHECK_EQ(pin.device, TURBO_BUFFER_DEVICE_CUDA);
         turbo_buffer_i32_row(&pin, 0)[0] = 101;
         CHECK_EQ(turbo_buffer_i32_row(&pin, 0)[0], 101);
+        CHECK(turbo_buffer_arena_owns(cuda, pin.ptr));
+
         turbo_buffer_view dev {};
         CHECK_ST(turbo_buffer_arena_rent(
             cuda,
@@ -205,8 +213,40 @@ static void test_gpu_backends_fail_loud_or_work() {
             &dev
         ));
         CHECK(dev.ptr != nullptr);
+        CHECK_EQ(dev.placement, TURBO_BUFFER_PLACE_DEVICE);
+        CHECK(turbo_buffer_arena_owns(cuda, dev.ptr));
+        void *pin_ptr = pin.ptr;
+        void *dev_ptr = dev.ptr;
         CHECK_ST(turbo_buffer_arena_return(cuda, &pin));
         CHECK_ST(turbo_buffer_arena_return(cuda, &dev));
+
+        turbo_buffer_alloc_counter_reset();
+        turbo_buffer_view pin2 {};
+        turbo_buffer_view dev2 {};
+        CHECK_ST(turbo_buffer_arena_rent(
+            cuda,
+            TURBO_BUFFER_DTYPE_I32,
+            TURBO_BUFFER_PLACE_PINNED,
+            2,
+            16,
+            16,
+            &pin2
+        ));
+        CHECK_ST(turbo_buffer_arena_rent(
+            cuda,
+            TURBO_BUFFER_DTYPE_F32,
+            TURBO_BUFFER_PLACE_DEVICE,
+            1,
+            64,
+            64,
+            &dev2
+        ));
+        CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
+        CHECK(pin2.ptr == pin_ptr);
+        CHECK(dev2.ptr == dev_ptr);
+        CHECK_ST(turbo_buffer_arena_return(cuda, &pin2));
+        CHECK_ST(turbo_buffer_arena_return(cuda, &dev2));
+
         turbo_buffer_view host {};
         CHECK_EQ(
             turbo_buffer_arena_rent(
@@ -214,7 +254,23 @@ static void test_gpu_backends_fail_loud_or_work() {
             ),
             TURBO_BUFFER_ERR_NOT_IMPLEMENTED
         );
+        turbo_buffer_cuda_forward_enter();
+        turbo_buffer_cuda_forward_allocs_reset();
+        void *trip = nullptr;
+        CHECK_ST(turbo_buffer_raw_alloc(
+            TURBO_BUFFER_DEVICE_CUDA, TURBO_BUFFER_PLACE_DEVICE, 256, &trip
+        ));
+        CHECK(trip != nullptr);
+        CHECK(turbo_buffer_cuda_forward_allocs() >= 1u);
+        turbo_buffer_raw_free(
+            TURBO_BUFFER_DEVICE_CUDA, TURBO_BUFFER_PLACE_DEVICE, trip
+        );
+        turbo_buffer_cuda_forward_leave();
+        turbo_buffer_cuda_forward_allocs_reset();
+        CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
+
         turbo_buffer_arena_destroy(cuda);
+        std::fprintf(stderr, "CUDA PINNED+DEVICE rent/return LIVE (arena reuse, 0 allocs)\n");
     } else {
         CHECK(cuda_st == TURBO_BUFFER_ERR_NOT_IMPLEMENTED ||
               cuda_st == TURBO_BUFFER_ERR_UNAVAILABLE);
@@ -224,10 +280,13 @@ static void test_gpu_backends_fail_loud_or_work() {
         CHECK(std::strstr(msg, "Refusing CPU") != nullptr ||
               std::strstr(msg, "refusing CPU") != nullptr);
 #ifndef TURBO_BUFFER_CUDA
-        CHECK_EQ(cuda_probe, TURBO_BUFFER_ERR_NOT_IMPLEMENTED);
+        CHECK_EQ(pin_probe, TURBO_BUFFER_ERR_NOT_IMPLEMENTED);
+        CHECK_EQ(dev_probe, TURBO_BUFFER_ERR_NOT_IMPLEMENTED);
 #endif
     }
+}
 
+static void test_gpu_backends_fail_loud_or_work() {
     const turbo_buffer_status ze_probe =
         turbo_buffer_backend_probe(TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_HOST);
     turbo_buffer_arena *ze = nullptr;
@@ -317,6 +376,7 @@ int main() {
     test_dual_rent_and_reuse_zero_alloc();
     test_no_double_free();
     test_cpu_rejects_gpu_placement();
+    test_cuda_pinned_device_live_or_fail_loud();
     test_gpu_backends_fail_loud_or_work();
     test_invalid_rent();
 

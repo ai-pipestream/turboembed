@@ -22,6 +22,26 @@ namespace turbo_buffer {
 namespace impl {
 
 std::atomic<uint64_t> g_allocs{0};
+std::atomic<uint32_t> g_cuda_fwd_depth{0};
+std::atomic<uint64_t> g_cuda_fwd_allocs{0};
+
+void note_cuda_forward_alloc() {
+    if (g_cuda_fwd_depth.load(std::memory_order_relaxed) > 0) {
+        g_cuda_fwd_allocs.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
+bool cuda_forward_window_open() {
+    return g_cuda_fwd_depth.load(std::memory_order_relaxed) > 0;
+}
+
+void note_cuda_runtime_alloc_if_forward() {
+    if (!cuda_forward_window_open()) {
+        return;
+    }
+    g_allocs.fetch_add(1, std::memory_order_relaxed);
+    g_cuda_fwd_allocs.fetch_add(1, std::memory_order_relaxed);
+}
 
 namespace {
 
@@ -583,6 +603,26 @@ uint64_t turbo_buffer_alloc_counter(void) {
 
 void turbo_buffer_note_alloc(void) {
     turbo_buffer::impl::g_allocs.fetch_add(1, std::memory_order_relaxed);
+}
+
+void turbo_buffer_cuda_forward_enter(void) {
+    turbo_buffer::impl::g_cuda_fwd_depth.fetch_add(1, std::memory_order_relaxed);
+}
+
+void turbo_buffer_cuda_forward_leave(void) {
+    uint32_t depth =
+        turbo_buffer::impl::g_cuda_fwd_depth.load(std::memory_order_relaxed);
+    if (depth > 0) {
+        turbo_buffer::impl::g_cuda_fwd_depth.fetch_sub(1, std::memory_order_relaxed);
+    }
+}
+
+void turbo_buffer_cuda_forward_allocs_reset(void) {
+    turbo_buffer::impl::g_cuda_fwd_allocs.store(0, std::memory_order_relaxed);
+}
+
+uint64_t turbo_buffer_cuda_forward_allocs(void) {
+    return turbo_buffer::impl::g_cuda_fwd_allocs.load(std::memory_order_relaxed);
 }
 
 } // extern "C"

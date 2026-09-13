@@ -23,6 +23,18 @@ void *cuda_alloc(
 );
 void cuda_free(turbo_buffer_placement placement, void *ptr);
 
+/** Increment the CUDA-forward malloc counter when a forward window is open. */
+void note_cuda_forward_alloc();
+
+/** True while TurboRerank CUDA forward has entered the alloc window. */
+bool cuda_forward_window_open();
+
+/**
+ * If a CUDA forward window is open, count this runtime alloc on both
+ * the process alloc counter and the forward-only counter.
+ */
+void note_cuda_runtime_alloc_if_forward();
+
 turbo_buffer_status ze_probe(turbo_buffer_placement placement);
 void *ze_alloc(
     turbo_buffer_placement placement,

@@ -466,7 +466,7 @@ Still open:
 8. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 9. Optional adapters: TEI-compatible proto (lowest priority), richer stream metadata.
 10. ORT session pooling (one session per model behind a mutex today; intra-op threads still parallelize each request).
-11. ~~Zero-copy buffer pool~~ — **TurboBuffer arena** (`include/turbo_buffer.h`). Rerank CPU + mock Embed rent/return; GPU backends fail loud until Machine A/B/C compile them.
+11. ~~Zero-copy buffer pool~~ — **TurboBuffer arena** (`include/turbo_buffer.h`). Rerank CPU + mock Embed rent/return. **CUDA PINNED+DEVICE LIVE on Machine A** (token rent + DEVICE activation scratch; `allocs/forward == 0`). ZE / Metal still fail loud until those Machine B/C tasks compile them.
 12. **model2vec** provider (plugin sketch only).
 
 Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.

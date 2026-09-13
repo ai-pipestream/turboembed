@@ -18,7 +18,7 @@
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
 #   make fetch-rerankers                    # SHA-pin MiniLM-L6 cross-encoder
-#   make turbo-buffer-tests                 # unified arena ABI (CPU + GPU fail-loud)
+#   make turbo-buffer-tests                 # unified arena ABI (CPU + CUDA PINNED/DEVICE when live)
 #   make turborerank-tests                  # C++ buffer/pack + CUDA if nvcc
 #   make turborerank-tests-nocuda           # same tests, CUDA create fails loud
 #   make test-turborerank                   # fetch + C++ + Rust live scores
@@ -501,7 +501,8 @@ endif
 
 native/turborerank/build/bert_cuda.o: native/turborerank/src/bert_cuda.cu \
 		native/turborerank/src/cuda_api.hpp native/turborerank/src/internal.hpp \
-		include/turborerank.h include/reranker.hpp
+		include/turborerank.h include/reranker.hpp include/turbo_buffer.h \
+		native/turbo_buffer/src/cuda_runtime_hooks.hpp
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_NVCC) -std=c++17 -O2 -arch=$(TURBORERANK_CUDA_ARCH) \
 	  -ccbin=$(TURBORERANK_NVCC_CCBIN) \

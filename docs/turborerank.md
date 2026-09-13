@@ -40,10 +40,13 @@ path. Weights are copied once at load into MTL shared buffers.
 CUDA compute is **on device**: weights and activations live on the GPU.
 GEMM, embeddings, LayerNorm, GELU (erf), attention, pooler, and
 classifier are first-party CUDA kernels matching the CPU BERT graph
-(same reduction order as `linear_nt`). Each forward copies one packed
-int32 row H2D from the pinned workspace (the fast path `cudaHostAlloc`
-exists for). This is not a pinned-host CPU interim and not a
-word-overlap mock.
+(same reduction order as `linear_nt`). Token workspaces are arena-rented
+PINNED (`cudaHostAlloc`); activation scratch is arena-rented DEVICE
+at load. Steady-state `forward` must not `cudaMalloc` those slots
+(`allocs/forward == 0`). Each forward still copies one packed int32
+row H2D from the pinned workspace (SOLIDIFY item 2 — not zero H2D
+bytes). This is not a pinned-host CPU interim and not a word-overlap
+mock.
 
 `AUTO` on a CUDA host resolves to `TURBORERANK_DEVICE_CUDA`. On an
 Intel GPU host without CUDA it resolves to
