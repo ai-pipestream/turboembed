@@ -10,9 +10,9 @@ use std::process::ExitCode;
 use clap::Parser;
 use inferstream_fetch::{
     cmd_fetch, cmd_list, cmd_update_corpus_manifest, cmd_update_llm_manifest, cmd_update_manifest,
-    cmd_update_ov_genai_manifest, cmd_verify, corpus_known_aliases,
+    cmd_update_ov_genai_manifest, cmd_update_rerank_manifest, cmd_verify, corpus_known_aliases,
     embedding_known_aliases, llm_known_aliases, load_manifest, ov_genai_known_aliases,
-    select_aliases, FetchError,
+    rerank_known_aliases, select_aliases, FetchError,
 };
 
 #[derive(Parser, Debug)]
@@ -39,6 +39,9 @@ struct Args {
     /// Shakespeare soak text + STS-style sentence pairs.
     #[arg(long)]
     corpus: bool,
+    /// Operate on TurboRerank cross-encoder weights (`models/manifests/rerankers.json`).
+    #[arg(long)]
+    rerankers: bool,
     /// Verify existing files against the manifest; no downloads.
     #[arg(long)]
     verify_only: bool,
@@ -56,13 +59,21 @@ struct Args {
     root: Option<PathBuf>,
 }
 
-fn default_manifest(root: &std::path::Path, llms: bool, ov_genai: bool, corpus: bool) -> PathBuf {
+fn default_manifest(
+    root: &std::path::Path,
+    llms: bool,
+    ov_genai: bool,
+    corpus: bool,
+    rerankers: bool,
+) -> PathBuf {
     let name = if ov_genai {
         "ov-genai-embeddings.json"
     } else if llms {
         "llms.json"
     } else if corpus {
         "corpus.json"
+    } else if rerankers {
+        "rerankers.json"
     } else {
         "embeddings.json"
     };
@@ -86,13 +97,13 @@ fn main() -> ExitCode {
 
 fn run() -> inferstream_fetch::Result<i32> {
     let args = Args::parse();
-    let mode_flags = [args.llms, args.ov_genai, args.corpus]
+    let mode_flags = [args.llms, args.ov_genai, args.corpus, args.rerankers]
         .into_iter()
         .filter(|v| *v)
         .count();
     if mode_flags > 1 {
         return Err(FetchError::msg(
-            "error: --llms, --ov-genai, and --corpus are mutually exclusive",
+            "error: --llms, --ov-genai, --corpus, and --rerankers are mutually exclusive",
         ));
     }
 
@@ -100,10 +111,15 @@ fn run() -> inferstream_fetch::Result<i32> {
         .root
         .clone()
         .unwrap_or_else(inferstream_fetch::workspace_root);
-    let manifest_path = args
-        .manifest
-        .clone()
-        .unwrap_or_else(|| default_manifest(&root, args.llms, args.ov_genai, args.corpus));
+    let manifest_path = args.manifest.clone().unwrap_or_else(|| {
+        default_manifest(
+            &root,
+            args.llms,
+            args.ov_genai,
+            args.corpus,
+            args.rerankers,
+        )
+    });
 
     let stdout = io::stdout();
     let stderr = io::stderr();
@@ -117,6 +133,8 @@ fn run() -> inferstream_fetch::Result<i32> {
             ov_genai_known_aliases()
         } else if args.corpus {
             corpus_known_aliases()
+        } else if args.rerankers {
+            rerank_known_aliases()
         } else {
             embedding_known_aliases()
         };
@@ -149,6 +167,17 @@ fn run() -> inferstream_fetch::Result<i32> {
         if args.corpus {
             let aliases = select_aliases(args.all, &args.aliases, &corpus_known_aliases())?;
             return cmd_update_corpus_manifest(
+                &aliases,
+                &manifest_path,
+                &root,
+                !args.no_store,
+                &mut out,
+                &mut err,
+            );
+        }
+        if args.rerankers {
+            let aliases = select_aliases(args.all, &args.aliases, &rerank_known_aliases())?;
+            return cmd_update_rerank_manifest(
                 &aliases,
                 &manifest_path,
                 &root,
@@ -204,6 +233,12 @@ fn run() -> inferstream_fetch::Result<i32> {
             "Corpus ready under testdata/corpus/.\n\
              Chunk + embed: cargo run -p inferstream-e2e -- --parity-goldens\n\
              See testdata/corpus/README.md and docs/e2e-parity.md.\n",
+        )
+    } else if args.rerankers {
+        Some(
+            "Cross-encoder weights ready under models/rerank/.\n\
+             Prove: make test-turborerank\n\
+             See docs/turborerank-architecture.md.\n",
         )
     } else {
         None

@@ -1,0 +1,14 @@
+{
+  "alias": "ms-marco-minilm-l6",
+  "model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+  "device": "CPU",
+  "backend": "turborerank first-party FP32 BERT CE (ggml-mappable 64-byte token buffers)",
+  "pass": true,
+  "golden": "testdata/reference_rerank/ms_marco_minilm_l6_berlin.json",
+  "reference": "HuggingFace AutoModelForSequenceClassification on the pinned safetensors",
+  "logits": [8.84585190, -4.32007933, -11.27389240],
+  "max_abs_logit_err": 4e-6,
+  "command": "make test-turborerank",
+  "note": "Phase 1 CPU proof. Not a Machine A/B/C GPU/Metal receipt. CUDA/OpenVINO/Metal still fail loud."
+}
