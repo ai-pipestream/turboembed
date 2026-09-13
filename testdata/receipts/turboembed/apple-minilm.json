@@ -34,5 +34,5 @@
   "metal_owns_result": true,
   "allocs_after_forward": 0,
   "weights": "models/mlx/minilm",
-  "captured_at_unix": 1789310375
+  "captured_at_unix": 1789310808
 }
