@@ -18,6 +18,8 @@ const char *create_error();
 
 bool device_is_accelerator(turborerank_device d);
 bool accelerator_unavailable(turborerank_device d, std::string *why);
+/** AUTO resolves to CUDA when a device is present; otherwise stays AUTO. */
+turborerank_device resolve_create_device(turborerank_device requested);
 
 struct Vocab {
     std::unordered_map<std::string, int32_t> token_to_id;
@@ -119,6 +121,58 @@ struct Scratch {
     uint32_t hidden = 0;
 };
 
+/** Device weights + activation arena. Opaque to the CPU path. */
+struct CudaResources {
+    bool enabled = false;
+    void *cublas = nullptr; // cublasHandle_t
+    float *word = nullptr;
+    float *pos = nullptr;
+    float *type = nullptr;
+    float *emb_ln_w = nullptr;
+    float *emb_ln_b = nullptr;
+    float *q_w[12]{};
+    float *q_b[12]{};
+    float *k_w[12]{};
+    float *k_b[12]{};
+    float *v_w[12]{};
+    float *v_b[12]{};
+    float *attn_o_w[12]{};
+    float *attn_o_b[12]{};
+    float *attn_ln_w[12]{};
+    float *attn_ln_b[12]{};
+    float *ff_i_w[12]{};
+    float *ff_i_b[12]{};
+    float *ff_o_w[12]{};
+    float *ff_o_b[12]{};
+    float *ff_ln_w[12]{};
+    float *ff_ln_b[12]{};
+    float *pool_w = nullptr;
+    float *pool_b = nullptr;
+    float *cls_w = nullptr;
+    float *cls_b = nullptr;
+    bool has_pooler = false;
+    uint32_t n_layers = 0;
+    uint32_t word_rows = 0;
+    uint32_t pos_rows = 0;
+    uint32_t type_rows = 0;
+    uint32_t cls_cols = 0;
+    float *x = nullptr;
+    float *residual = nullptr;
+    float *q = nullptr;
+    float *k = nullptr;
+    float *v = nullptr;
+    float *attn = nullptr;
+    float *ctx = nullptr;
+    float *inter = nullptr;
+    float *tmp = nullptr;
+    float *pooled = nullptr;
+    int32_t *ids = nullptr;
+    int32_t *mask = nullptr;
+    int32_t *types = nullptr;
+    int32_t *pos_ids = nullptr;
+    float *logit = nullptr;
+};
+
 bool load_safetensors(
     const char *path,
     const BertConfig &cfg,
@@ -184,5 +238,6 @@ struct turborerank_engine {
     turborerank::impl::MappedFile mapped;
     std::vector<turborerank::impl::OwnedFloat> owned_weights;
     turborerank::impl::Scratch scratch;
+    turborerank::impl::CudaResources cuda;
     turborerank_buffer *work = nullptr;
 };

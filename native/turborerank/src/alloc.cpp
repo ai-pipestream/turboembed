@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#include "cuda_api.hpp"
 #include "internal.hpp"
 
 #include <atomic>
@@ -13,6 +14,10 @@
 #include <malloc.h>
 #else
 #include <stdlib.h>
+#endif
+
+#ifdef TURBORERANK_CUDA
+#include <cuda_runtime.h>
 #endif
 
 namespace turborerank {
@@ -72,15 +77,49 @@ void aligned_free_bytes(void *ptr) {
 #endif
 }
 
-void alloc_counter_reset() {
-    g_allocs.store(0, std::memory_order_relaxed);
-}
-
-uint64_t alloc_counter_value() {
-    return g_allocs.load(std::memory_order_relaxed);
-}
-
 namespace impl {
+
+void *pinned_alloc_bytes(size_t bytes, Status *status) {
+#ifdef TURBORERANK_CUDA
+    if (bytes == 0) {
+        if (status) {
+            *status = Status::InvalidArgument;
+        }
+        return nullptr;
+    }
+    void *ptr = nullptr;
+    const cudaError_t e = cudaHostAlloc(&ptr, bytes, cudaHostAllocDefault);
+    if (e != cudaSuccess || ptr == nullptr) {
+        if (status) {
+            *status = Status::OutOfMemory;
+        }
+        return nullptr;
+    }
+    std::memset(ptr, 0, bytes);
+    g_allocs.fetch_add(1, std::memory_order_relaxed);
+    if (status) {
+        *status = Status::Ok;
+    }
+    return ptr;
+#else
+    (void)bytes;
+    if (status) {
+        *status = Status::Unavailable;
+    }
+    return nullptr;
+#endif
+}
+
+void pinned_free_bytes(void *ptr) {
+    if (ptr == nullptr) {
+        return;
+    }
+#ifdef TURBORERANK_CUDA
+    (void)cudaFreeHost(ptr);
+#else
+    std::free(ptr);
+#endif
+}
 
 void set_create_error(const std::string &msg) {
     g_create_error = msg;
@@ -113,50 +152,80 @@ bool device_is_accelerator(turborerank_device d) {
 }
 
 bool accelerator_unavailable(turborerank_device d, std::string *why) {
-    const char *name = turborerank_device_name(d);
-    std::string msg;
+    std::string cuda_why;
     switch (d) {
     case TURBORERANK_DEVICE_AUTO:
-        msg = "TURBORERANK_DEVICE_AUTO requested host-default GPU; Phase 1 "
-              "has no CUDA/Metal/OpenVINO GPU provider compiled. Refusing "
-              "CPU fallback. Use TURBORERANK_DEVICE_CPU for the MiniLM CE "
-              "kernel.";
-        break;
+        if (cuda_device_present(&cuda_why)) {
+            return false;
+        }
+        if (why) {
+            *why = "TURBORERANK_DEVICE_AUTO requested host-default GPU; " +
+                   cuda_why + " Refusing CPU fallback. Use TURBORERANK_DEVICE_CPU "
+                   "for the MiniLM CE kernel.";
+        }
+        return true;
     case TURBORERANK_DEVICE_CUDA:
-        msg = "TURBORERANK_DEVICE_CUDA is not implemented in Phase 1 "
-              "(cudaHostAlloc + ggml CUDA is later work). Refusing CPU "
-              "fallback.";
-        break;
+        if (cuda_device_present(&cuda_why)) {
+            return false;
+        }
+        if (why) {
+            *why = cuda_why;
+        }
+        return true;
     case TURBORERANK_DEVICE_TENSORRT:
-        msg = "TURBORERANK_DEVICE_TENSORRT is not implemented in Phase 1. "
-              "Refusing CUDA/CPU fallback.";
-        break;
+        if (why) {
+            *why = "TURBORERANK_DEVICE_TENSORRT is not implemented. "
+                   "Refusing CUDA/CPU fallback.";
+        }
+        return true;
     case TURBORERANK_DEVICE_OPENVINO_GPU:
-        msg = "TURBORERANK_DEVICE_OPENVINO_GPU is not implemented in Phase 1 "
-              "(Level Zero USM + ov::Tensor). Refusing CPU fallback.";
-        break;
+        if (why) {
+            *why = "TURBORERANK_DEVICE_OPENVINO_GPU is not implemented "
+                   "(Level Zero USM + ov::Tensor). Refusing CPU fallback.";
+        }
+        return true;
     case TURBORERANK_DEVICE_OPENVINO_NPU:
-        msg = "TURBORERANK_DEVICE_OPENVINO_NPU is not implemented in Phase 1. "
-              "Refusing CPU fallback.";
-        break;
+        if (why) {
+            *why = "TURBORERANK_DEVICE_OPENVINO_NPU is not implemented. "
+                   "Refusing CPU fallback.";
+        }
+        return true;
     case TURBORERANK_DEVICE_OPENVINO_CPU:
-        msg = "TURBORERANK_DEVICE_OPENVINO_CPU is not implemented in Phase 1 "
-              "(OpenVINO CompiledModel). Use TURBORERANK_DEVICE_CPU for the "
-              "first-party MiniLM CE kernel. Refusing a silent stand-in.";
-        break;
+        if (why) {
+            *why = "TURBORERANK_DEVICE_OPENVINO_CPU is not implemented "
+                   "(OpenVINO CompiledModel). Use TURBORERANK_DEVICE_CPU for the "
+                   "first-party MiniLM CE kernel. Refusing a silent stand-in.";
+        }
+        return true;
     case TURBORERANK_DEVICE_METAL:
-        msg = "TURBORERANK_DEVICE_METAL is not implemented in Phase 1 "
-              "(MTL shared / MLX). Refusing CPU fallback.";
-        break;
+        if (why) {
+            *why = "TURBORERANK_DEVICE_METAL is not implemented "
+                   "(MTL shared / MLX). Refusing CPU fallback.";
+        }
+        return true;
     default:
         return false;
     }
-    (void)name;
-    if (why) {
-        *why = msg;
+}
+
+turborerank_device resolve_create_device(turborerank_device requested) {
+    if (requested == TURBORERANK_DEVICE_AUTO) {
+        std::string why;
+        if (cuda_device_present(&why)) {
+            return TURBORERANK_DEVICE_CUDA;
+        }
     }
-    return true;
+    return requested;
 }
 
 } // namespace impl
+
+void alloc_counter_reset() {
+    g_allocs.store(0, std::memory_order_relaxed);
+}
+
+uint64_t alloc_counter_value() {
+    return g_allocs.load(std::memory_order_relaxed);
+}
+
 } // namespace turborerank

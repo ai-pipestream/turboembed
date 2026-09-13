@@ -5,8 +5,8 @@
 // storage on the forward-pass hot path.
 //
 // The frozen language-stable ABI is include/turborerank.h. This header
-// is the typed C++ view of the same contract (Phase 1 CPU; other
-// devices fail loud).
+// is the typed C++ view of the same contract (CPU + CUDA Phase 2a;
+// Metal / OpenVINO / TensorRT still fail loud).
 
 #ifndef TURBORERANK_RERANKER_HPP
 #define TURBORERANK_RERANKER_HPP
@@ -20,6 +20,8 @@ namespace turborerank {
 
 inline constexpr uint32_t kAbiVersion = TURBORERANK_ABI_VERSION;
 inline constexpr uint32_t kCpuAlignment = 64;
+/** cudaHostAlloc is page-aligned; we still require 64-byte for ggml views. */
+inline constexpr uint32_t kPinnedAlignment = 64;
 inline constexpr int32_t kPadId = 0;
 inline constexpr int32_t kUnkId = 100;
 inline constexpr int32_t kClsId = 101;

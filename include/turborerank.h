@@ -35,6 +35,11 @@
  * GPU / Metal / AUTO requested without that accelerator → error, never
  * CPU and never a mock relevance score. MOCK is explicit ABI smoke and
  * does not score catalog cross-encoders.
+ *
+ * CUDA (Phase 2a): token/mask/type/position buffers are cudaHostAlloc
+ * pinned. AUTO resolves to CUDA when a device is present. Create
+ * without a CUDA device fails loud. Forward runs the MiniLM CE on
+ * device (first-party CUDA kernels), not a mock.
  */
 
 #ifndef TURBORERANK_H
@@ -85,7 +90,9 @@ typedef enum turborerank_device {
  *   when that device is missing. They never fall back to CPU or mock.
  *   AUTO is "host default GPU", not "CPU if GPU is down".
  *
- *   CPU runs the Phase 1 first-party MiniLM CE kernel.
+ *   CPU runs the first-party MiniLM CE kernel.
+ *   CUDA / AUTO (when a CUDA device is present) run the device CE
+ *   (first-party CUDA kernels) with cudaHostAlloc token buffers.
  *   MOCK is the explicit ABI-smoke device and never returns catalog
  *   cross-encoder scores.
  */
@@ -161,6 +168,7 @@ typedef struct turborerank_engine turborerank_engine;
  * `config_path` is a NUL-terminated filesystem path to a config, a
  * model directory, or NULL (workspace default `models/rerank/`).
  * GPU/Metal/AUTO without that accelerator → error, never CPU.
+ * AUTO with CUDA present resolves to CUDA.
  */
 turborerank_status turborerank_engine_create(
     turborerank_device device,
@@ -213,8 +221,9 @@ turborerank_status turborerank_load_model(
 /* -------------------------------------------------------------------------- */
 
 /**
- * Allocate a device-backed token workspace. CPU: 64-byte aligned.
- * CUDA/Metal/OV: Phase 1 returns NOT_IMPLEMENTED / UNAVAILABLE.
+ * Allocate a device-backed token workspace. CPU: 64-byte aligned
+ * posix_memalign. CUDA / AUTO-with-CUDA: cudaHostAlloc pinned
+ * (page-aligned, hence 64-byte). Metal/OV still UNAVAILABLE.
  */
 turborerank_status turborerank_buffer_alloc(
     turborerank_device device,

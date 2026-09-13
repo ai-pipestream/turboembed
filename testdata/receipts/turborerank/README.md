@@ -2,12 +2,13 @@
 
 | file | Machine | engine | device |
 |---|---|---|---|
-| `cpu-minilm-l6.json` | any (this Phase 1 host) | first-party FP32 MiniLM CE | **CPU** |
+| `cpu-minilm-l6.json` | any | first-party FP32 MiniLM CE | **CPU** |
+| `nvidia-minilm-l6.json` | Machine A | first-party CUDA MiniLM CE (`cudaHostAlloc` + device kernels) | **CUDA** |
 
-Phase 1 has **no** Machine A/B/C GPU/Metal receipts. CUDA / OpenVINO /
-Metal land here when those backends exist — never invent numbers, never
-put lab hostnames in docs (Machine A / B / C only).
+Metal / OpenVINO / TensorRT receipts land here when those backends exist —
+never invent numbers, never put lab hostnames in docs (Machine A / B / C
+only).
 
-CPU proof: `make test-turborerank` vs
+Proof: `make test-turborerank` / `make test-turborerank-nvidia` vs
 `testdata/reference_rerank/ms_marco_minilm_l6_berlin.json` (HF
 `AutoModelForSequenceClassification` on the pinned checkpoint).
