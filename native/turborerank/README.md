@@ -7,7 +7,10 @@ and the buffer/forward contract in [`include/reranker.hpp`](../../include/rerank
 **CUDA** (Phase 2a): `cudaHostAlloc` pinned token workspace; device BERT
 (first-party CUDA kernels). **OpenVINO** (Phase 2b): Level Zero USM
 token workspace; `ov::Tensor(..., usm_pointer)` + CompiledModel on GPU
-or explicit CPU. Metal / TensorRT / NPU create and `forward` fail loud.
+or explicit CPU. **Metal** (Phase 2c, Machine C):
+`MTLResourceStorageModeShared` token workspace; first-party Metal
+MiniLM CE kernels bind those buffers. TensorRT / NPU create and
+`forward` fail loud.
 No mock relevance scores. GPU create without that GPU fails loud
 (never silent CPU).
 
@@ -19,6 +22,8 @@ make test-turborerank           # C++ + Rust, including live scores
 make test-turborerank-nvidia    # Machine A receipt
 make convert-rerank-ov          # ONNX → SHA-pinned IR
 make test-turborerank-intel     # Machine B OpenVINO receipt
+make test-turborerank-apple     # Machine C Metal receipt
+make turborerank-tests-nometal  # prove Metal create fails loud
 ```
 
 See [`docs/turborerank-architecture.md`](../../docs/turborerank-architecture.md).

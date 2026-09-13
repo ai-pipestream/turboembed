@@ -1,4 +1,4 @@
-# TurboRerank architecture (Phase 1 CPU + Phase 2a CUDA + Phase 2b OpenVINO)
+# TurboRerank architecture (Phase 1 CPU + Phase 2a CUDA + Phase 2b OpenVINO + Phase 2c Metal)
 
 TurboRerank is the **library-first** cross-encoder reranker beside
 TurboEmbed. Inferstream `Rerank` RPC stays a thin façade (not yet
@@ -11,8 +11,11 @@ Phase 2a (Machine A) ships **CUDA**: `cudaHostAlloc` token buffers and a
 device MiniLM CE (first-party kernels) with HF golden parity.
 Phase 2b (Machine B) ships **OpenVINO GPU + explicit OV CPU**: Level
 Zero USM token buffers wrapped with `ov::Tensor(..., usm_pointer)` and
-a SHA-pinned MiniLM CE IR. Metal/MLX and TensorRT still **fail loud**.
-GPU create without that GPU fails loud — never CPU, never a mock score.
+a SHA-pinned MiniLM CE IR. Phase 2c (Machine C) ships **Metal**:
+`MTLResourceStorageModeShared` token buffers bound by first-party
+Metal MiniLM CE kernels with HF golden parity. TensorRT still
+**fails loud**. GPU create without that GPU fails loud — never CPU,
+never a mock score.
 
 ## 1. Inventory — mock Rerank today (repo tip `c4a1bab`)
 
@@ -186,8 +189,11 @@ flowchart TB
         OV["OpenVINO CompiledModel + Level Zero USM"]
     end
 
+    subgraph metal [Phase 2c LIVE on Machine C]
+        MTL["MTL shared + first-party Metal kernels"]
+    end
+
     subgraph laterhw [Still fail loud]
-        MTL["MLX / MTL shared"]
         TRT["TensorRT CE"]
         NPU["OpenVINO NPU"]
     end
@@ -205,8 +211,10 @@ flowchart TB
 ```
 
 Same spirit as [`include/turboembed.h`](../include/turboembed.h): one C
-header, C++ on Linux, later Swift `@_cdecl` on Apple. Rust is a safe
-wrapper. gRPC is optional and later.
+header. C++ owns the ABI on every host (CPU / CUDA / OpenVINO / Metal).
+Metal is Objective-C++ in that library, not a second Swift `@_cdecl`
+dylib — see [`docs/turborerank-swift.md`](turborerank-swift.md). Rust is
+a safe wrapper. gRPC is optional and later.
 
 ## 4. Zero-copy contract
 
@@ -236,7 +244,7 @@ plus the caller’s `scores_out`.
 | OpenVINO GPU | Level Zero USM (`zeMemAllocShared` / `Host`); `ov::Tensor(..., usm_pointer)`. | **LIVE** (Phase 2b, Machine B) |
 | OpenVINO CPU | Level Zero USM host when L0 is present, else 64-byte aligned; same IR. | **LIVE** (Phase 2b, explicit device) |
 | OpenVINO NPU | not implemented | fail loud |
-| Metal | MTL shared buffer / MLX array wrapping the pointer. | fail loud |
+| Metal | `MTLResourceStorageModeShared` (caller writes unified memory). Kernels bind those MTLBuffers — no extra token copy. Weights copied once at load. | **LIVE** (Phase 2c, Machine C) |
 | MOCK | Explicit ABI-smoke device only. **Does not score**. Load of a catalog CE alias fails. | fail loud on `forward` / `score` |
 
 ### 4.3 ggml mapping (honest Phase 1 compromise)
@@ -322,11 +330,13 @@ Always on (`cargo test -p turborerank`):
   sides, `max_length` boundaries.
 - GPU/Metal/AUTO create → CUDA/AUTO succeed when a CUDA device is
   present (AUTO resolves to CUDA). On an Intel GPU host without CUDA,
-  AUTO resolves to OpenVINO GPU. Metal / TensorRT / NPU still
+  AUTO resolves to OpenVINO GPU. On Machine C (no CUDA / OV GPU),
+  AUTO resolves to Metal. TensorRT / NPU still
   `UNAVAILABLE` / `UNSUPPORTED_DEVICE`; message refuses CPU fallback.
   A no-CUDA binary (`make turborerank-tests-nocuda`) proves CUDA create
   fails loud. A no-OV binary (`make turborerank-tests-noov`) proves
-  OpenVINO GPU create fails loud.
+  OpenVINO GPU create fails loud. A no-Metal binary
+  (`make turborerank-tests-nometal`) proves Metal create fails loud.
 - Missing weights / bad path → `UNAVAILABLE` with the path named.
 - Explicit MOCK cannot produce catalog CE scores.
 
@@ -342,6 +352,7 @@ Goldens live under `testdata/reference_rerank/`. Live Machine A/B/C
 receipts go under `testdata/receipts/turborerank/`. Phase 2a added
 `nvidia-minilm-l6.json` (Machine A) and Phase 2b added
 `intel-minilm-l6.json` plus `intel-cpu-minilm-l6.json` (Machine B).
+Phase 2c added `apple-minilm-l6.json` (Machine C).
 Hostnames stay out of docs.
 
 ## 9. Remaining work (honest)
@@ -352,10 +363,10 @@ Hostnames stay out of docs.
 | WordPiece (BERT uncased) | Phase 1 |
 | CUDA `cudaHostAlloc` + device CE (first-party kernels) | Phase 2a (Machine A) |
 | Intel Level Zero USM + OpenVINO `CompiledModel` | Phase 2b (Machine B) |
+| Apple MTL shared + first-party Metal CE | Phase 2c (Machine C) |
 | TensorRT CE | **not done** — fail loud |
-| Apple MTL shared + MLX | **not done** — fail loud |
 | gRPC `Rerank` → ABI | sketched, not wired |
-| Swift `@_cdecl` dylib | later (Machine C) |
+| Swift wrapper (`TurboRerankC` + client) | Phase 2c — ABI stays C++/ObjC++ |
 | TEI `return_text` / `max_client_batch` | RPC-layer later |
 
 ## 10. Citations

@@ -1,10 +1,12 @@
 //! Safe wrapper over the TurboRerank C ABI (`include/turborerank.h`).
 //!
 //! Token buffers are caller-written (64-byte aligned on CPU; cudaHostAlloc
-//! pinned on CUDA; Level Zero USM on OpenVINO). `forward` does not allocate.
+//! pinned on CUDA; Level Zero USM on OpenVINO; MTLResourceStorageModeShared
+//! on Metal). `forward` does not allocate.
 //! CUDA / AUTO-with-CUDA run the device MiniLM CE. OpenVINO GPU/CPU run
-//! CompiledModel with `ov::Tensor(..., usm_pointer)`. Metal / TensorRT
-//! fail loud — never a mock score.
+//! CompiledModel with `ov::Tensor(..., usm_pointer)`. Metal / AUTO-with-Metal
+//! run first-party Metal kernels bound to those shared MTLBuffers.
+//! TensorRT fails loud — never a mock score.
 
 #![allow(clippy::result_large_err)]
 

@@ -18,7 +18,7 @@ const char *create_error();
 
 bool device_is_accelerator(turborerank_device d);
 bool accelerator_unavailable(turborerank_device d, std::string *why);
-/** AUTO resolves to CUDA, else OpenVINO GPU, else stays AUTO (fail loud). */
+/** AUTO resolves to CUDA, else OpenVINO GPU, else Metal, else stays AUTO (fail loud). */
 turborerank_device resolve_create_device(turborerank_device requested);
 
 struct Vocab {
@@ -185,6 +185,14 @@ struct OvResources {
     uint32_t max_seq = 0;
 };
 
+/** Metal device BERT. Opaque hold lives in metal_api.mm. */
+struct MetalResources {
+    bool enabled = false;
+    void *hold = nullptr;
+    uint32_t max_seq = 0;
+    uint32_t hidden = 0;
+};
+
 bool load_safetensors(
     const char *path,
     const BertConfig &cfg,
@@ -252,5 +260,6 @@ struct turborerank_engine {
     turborerank::impl::Scratch scratch;
     turborerank::impl::CudaResources cuda;
     turborerank::impl::OvResources ov;
+    turborerank::impl::MetalResources metal;
     turborerank_buffer *work = nullptr;
 };

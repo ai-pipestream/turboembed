@@ -6,7 +6,7 @@
 //
 // The frozen language-stable ABI is include/turborerank.h. This header
 // is the typed C++ view of the same contract (CPU + CUDA Phase 2a +
-// OpenVINO Phase 2b; Metal / TensorRT / NPU still fail loud).
+// OpenVINO Phase 2b + Metal Phase 2c; TensorRT / NPU still fail loud).
 
 #ifndef TURBORERANK_RERANKER_HPP
 #define TURBORERANK_RERANKER_HPP
