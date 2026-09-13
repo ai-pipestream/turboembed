@@ -37,7 +37,9 @@ Slab table capacity is 256 (fixed). Rent after warmup does not grow it.
 ## What each engine rents
 
 **TurboRerank:** engine arena at create. Load rents BERT scratch
-(f32 activations + WordPiece i32) and the work token buffer.
+(f32 activations) and the work token buffer. `pack_text` writes
+WordPiece ids/mask/type/pos **directly** into that rented row
+(`docs/tokenizer-write-through.md`).
 `turborerank_buffer_alloc` rents from a process arena of the same ABI.
 `forward` and `score` (after load) must not increment the counter.
 GPU token workspaces use the same rent path (CUDA PINNED / ZE SHARED /

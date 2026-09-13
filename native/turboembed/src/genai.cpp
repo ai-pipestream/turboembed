@@ -1,23 +1,24 @@
 /* SPDX-License-Identifier: Apache-2.0
  *
- * ov::genai::Tokenizer + CompiledModel on Intel CPU / GPU / NPU.
+ * CompiledModel on Intel CPU / GPU / NPU. Token ids/mask/types and
+ * last_hidden_state are arena-rented (ZE SHARED on GPU).
+ * InferRequest.set_tensor wraps those pointers.
  *
- * Token ids/mask/types and last_hidden_state are arena-rented (ZE SHARED
- * on GPU). InferRequest.set_tensor wraps those pointers — the public
- * TextEmbeddingPipeline.embed_documents API has no such hook and
- * private-allocs every call.
- *
- * Tokenizer.encode still returns ov::Tensor (API does not accept a
- * caller buffer). We copy/cast into the rented i32 USM and never keep
- * that encode tensor as the infer input.
+ * ov::genai::Tokenizer.encode has no caller-buffer hook (returns an
+ * engine-owned ov::Tensor). MiniLM-compatible models write WordPiece
+ * ids directly into the rented USM row — no encode→copy.
  *
  * Device string is "CPU", "GPU", or "NPU". Never "AUTO". No OVMS. No Python.
  */
 
 #include "genai.hpp"
+#include "wordpiece.h"
+
+#ifndef TURBOEMBED_WORKSPACE_ROOT
+#define TURBOEMBED_WORKSPACE_ROOT ""
+#endif
 
 #include "openvino/core/preprocess/pre_post_process.hpp"
-#include "openvino/genai/tokenizer.hpp"
 #include "openvino/openvino.hpp"
 #include "openvino/runtime/core.hpp"
 #include "openvino/runtime/properties.hpp"
@@ -167,46 +168,39 @@ std::string input_name_matching(const Port& in, const char* needle) {
     return {};
 }
 
-void copy_tokens_to_i32(const ov::Tensor& src, int32_t *dst, uint32_t n, uint32_t seq, uint32_t dst_stride) {
-    if (dst == nullptr || n == 0 || seq == 0) {
-        throw std::runtime_error("copy_tokens_to_i32: empty destination");
+std::string workspace_root() {
+    const char *e = std::getenv("INFERSTREAM_ROOT");
+    if (e != nullptr && e[0] != '\0') {
+        return e;
     }
-    const ov::Shape sh = src.get_shape();
-    if (sh.size() < 2 || sh[0] != n) {
-        throw std::runtime_error("tokenizer batch does not match texts");
+    if (TURBOEMBED_WORKSPACE_ROOT[0] != '\0') {
+        return TURBOEMBED_WORKSPACE_ROOT;
     }
-    const uint32_t src_seq = static_cast<uint32_t>(sh[1]);
-    const uint32_t copy_seq = src_seq < seq ? src_seq : seq;
-    const size_t src_n = src.get_size();
-    if (src.get_element_type() == ov::element::i32) {
-        const int32_t *p = src.data<int32_t>();
-        for (uint32_t b = 0; b < n; ++b) {
-            int32_t *row = dst + static_cast<size_t>(b) * dst_stride;
-            std::memset(row, 0, static_cast<size_t>(seq) * sizeof(int32_t));
-            if (b * src_seq + copy_seq > src_n) {
-                throw std::runtime_error("tokenizer i32 tensor is short");
-            }
-            std::memcpy(row, p + static_cast<size_t>(b) * src_seq, static_cast<size_t>(copy_seq) * sizeof(int32_t));
+    return ".";
+}
+
+wordpiece_vocab *load_wordpiece_or_throw(const fs::path& dir) {
+    wordpiece_vocab *v = nullptr;
+    if (wordpiece_vocab_load_dir(dir.string().c_str(), &v) == WORDPIECE_OK && v != nullptr) {
+        return v;
+    }
+    const std::string root = workspace_root();
+    const char *fallbacks[] = {
+        "/models/onnx/minilm/tokenizer.json",
+        "/models/onnx/minilm/vocab.txt",
+        "/models/rerank/ms-marco-minilm-l6/vocab.txt",
+    };
+    for (const char *rel : fallbacks) {
+        const std::string p = root + rel;
+        if (wordpiece_vocab_load(p.c_str(), &v) == WORDPIECE_OK && v != nullptr) {
+            return v;
         }
-        return;
-    }
-    if (src.get_element_type() == ov::element::i64) {
-        const int64_t *p = src.data<int64_t>();
-        for (uint32_t b = 0; b < n; ++b) {
-            int32_t *row = dst + static_cast<size_t>(b) * dst_stride;
-            std::memset(row, 0, static_cast<size_t>(seq) * sizeof(int32_t));
-            if (b * src_seq + copy_seq > src_n) {
-                throw std::runtime_error("tokenizer i64 tensor is short");
-            }
-            const int64_t *s = p + static_cast<size_t>(b) * src_seq;
-            for (uint32_t t = 0; t < copy_seq; ++t) {
-                row[t] = static_cast<int32_t>(s[t]);
-            }
-        }
-        return;
     }
     throw std::runtime_error(
-        "tokenizer encode returned an unsupported dtype (need i32 or i64)"
+        "WordPiece vocab missing for GenAI write-through (need vocab.txt or "
+        "tokenizer.json next to the IR, or MiniLM vocab under models/onnx/minilm "
+        "or models/rerank/ms-marco-minilm-l6). ov::genai::Tokenizer.encode has "
+        "no caller-buffer API — refusing encode→copy into USM"
     );
 }
 
@@ -360,11 +354,10 @@ std::string device_full_name(const std::string& ov_device) {
 }
 
 struct Pipeline::Impl {
-    ov::genai::Tokenizer tokenizer;
     ov::Core core;
     ov::CompiledModel compiled;
     ov::InferRequest request;
-    ov::AnyMap tok_params;
+    wordpiece_vocab *vocab = nullptr;
     uint8_t pooling = 1;
     bool normalize = true;
     uint32_t max_seq = kDefaultMaxSeq;
@@ -382,14 +375,17 @@ struct Pipeline::Impl {
     turbo_buffer_view types {};
     turbo_buffer_view hidden {};
 
-    Impl(const fs::path& dir, const std::string& /*device*/)
-        : tokenizer(dir) {}
+    Impl() = default;
 
     ~Impl() {
         return_view(arena, &ids);
         return_view(arena, &mask);
         return_view(arena, &types);
         return_view(arena, &hidden);
+        if (vocab != nullptr) {
+            wordpiece_vocab_destroy(vocab);
+            vocab = nullptr;
+        }
     }
 
     void ensure_workspace(uint32_t n, uint32_t seq) {
@@ -534,15 +530,13 @@ std::unique_ptr<Pipeline> load_pipeline(
 
     require_ov_device(ov_device, listed);
 
-    auto impl = std::unique_ptr<Pipeline::Impl>(new Pipeline::Impl(dir, ov_device));
+    auto impl = std::unique_ptr<Pipeline::Impl>(new Pipeline::Impl());
     impl->arena = arena;
     impl->place = place;
     impl->pooling = config.pooling;
     impl->normalize = config.normalize;
     impl->max_seq = config.max_length > 0 ? config.max_length : kDefaultMaxSeq;
-    impl->tok_params[ov::genai::pad_to_max_length.name()] = true;
-    impl->tok_params[ov::genai::truncation.name()] = true;
-    impl->tok_params["max_length"] = static_cast<size_t>(impl->max_seq);
+    impl->vocab = load_wordpiece_or_throw(dir);
 
     std::shared_ptr<ov::Model> model =
         impl->core.read_model((dir / "openvino_model.xml").string());
@@ -633,10 +627,8 @@ void Pipeline::embed_into(const std::vector<std::string>& texts, float *out) {
         throw std::runtime_error("pipeline is not loaded");
     }
 
-    const auto encoded = impl_->tokenizer.encode(texts, impl_->tok_params);
-    const ov::Shape ish = encoded.input_ids.get_shape();
-    if (ish.size() < 2 || ish[0] != texts.size()) {
-        throw std::runtime_error("tokenizer batch does not match input texts");
+    if (impl_->vocab == nullptr || !wordpiece_vocab_is_loaded(impl_->vocab)) {
+        throw std::runtime_error("GenAI WordPiece vocab is not loaded");
     }
     const uint32_t n = static_cast<uint32_t>(texts.size());
     const uint32_t seq = impl_->max_seq;
@@ -644,18 +636,25 @@ void Pipeline::embed_into(const std::vector<std::string>& texts, float *out) {
 
     int32_t *ids = turbo_buffer_view_i32(&impl_->ids);
     int32_t *mask = turbo_buffer_view_i32(&impl_->mask);
-    copy_tokens_to_i32(encoded.input_ids, ids, n, seq, impl_->ids.row_stride);
-    copy_tokens_to_i32(encoded.attention_mask, mask, n, seq, impl_->mask.row_stride);
-    if (impl_->has_types) {
-        int32_t *types = turbo_buffer_view_i32(&impl_->types);
-        if (encoded.token_type_ids.has_value()) {
-            copy_tokens_to_i32(*encoded.token_type_ids, types, n, seq, impl_->types.row_stride);
-        } else {
-            std::memset(
-                types,
-                0,
-                static_cast<size_t>(n) * impl_->types.row_stride * sizeof(int32_t)
-            );
+    int32_t *types = impl_->has_types ? turbo_buffer_view_i32(&impl_->types) : nullptr;
+    const uint32_t id_stride = impl_->ids.row_stride;
+    const uint32_t mask_stride = impl_->mask.row_stride;
+    const uint32_t type_stride = impl_->has_types ? impl_->types.row_stride : seq;
+    for (uint32_t b = 0; b < n; ++b) {
+        const int st = wordpiece_encode_sentence(
+            impl_->vocab,
+            texts[b].data(),
+            texts[b].size(),
+            ids + static_cast<size_t>(b) * id_stride,
+            mask + static_cast<size_t>(b) * mask_stride,
+            types ? types + static_cast<size_t>(b) * type_stride : nullptr,
+            nullptr,
+            seq,
+            id_stride,
+            4
+        );
+        if (st != WORDPIECE_OK) {
+            throw std::runtime_error("WordPiece write-through into USM failed");
         }
     }
 

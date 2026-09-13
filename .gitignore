@@ -22,6 +22,7 @@ native/mlx-engine/.build/
 native/turboembed/build/
 native/turbo_buffer/build/
 native/turborerank/build/
+native/wordpiece/build/
 swift/.build/
 .DS_Store
 agent-tools/

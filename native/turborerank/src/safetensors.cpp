@@ -257,8 +257,6 @@ void free_scratch(Scratch *s) {
             &s->v_ctx,
             &s->v_inter,
             &s->v_tmp,
-            &s->v_tok_q,
-            &s->v_tok_d,
         };
         for (turbo_buffer_view *v : views) {
             if (v->ptr != nullptr) {
@@ -296,14 +294,6 @@ bool alloc_scratch(
         }
         return turbo_buffer_view_f32(v);
     };
-    auto rent_i32 = [&](turbo_buffer_view *v, uint32_t n) -> int32_t * {
-        if (turbo_buffer_arena_rent(
-                arena, TURBO_BUFFER_DTYPE_I32, host_place, 1, n, n, v
-            ) != TURBO_BUFFER_OK) {
-            return nullptr;
-        }
-        return turbo_buffer_view_i32(v);
-    };
     s->arena = arena;
     s->x = rent_f32(&s->v_x, S, H);
     s->residual = rent_f32(&s->v_residual, S, H);
@@ -314,13 +304,9 @@ bool alloc_scratch(
     s->ctx = rent_f32(&s->v_ctx, S, H);
     s->inter = rent_f32(&s->v_inter, S, I);
     s->tmp = rent_f32(&s->v_tmp, S, H);
-    const uint32_t tok_cap = 8192;
-    s->tok_q = rent_i32(&s->v_tok_q, tok_cap);
-    s->tok_d = rent_i32(&s->v_tok_d, tok_cap);
     if (s->x == nullptr || s->residual == nullptr || s->q == nullptr ||
         s->k == nullptr || s->v == nullptr || s->attn == nullptr ||
-        s->ctx == nullptr || s->inter == nullptr || s->tmp == nullptr ||
-        s->tok_q == nullptr || s->tok_d == nullptr) {
+        s->ctx == nullptr || s->inter == nullptr || s->tmp == nullptr) {
         if (err) {
             *err = std::string("scratch arena rent failed: ") +
                    turbo_buffer_last_error(arena);
@@ -328,7 +314,6 @@ bool alloc_scratch(
         free_scratch(s);
         return false;
     }
-    s->tok_cap = tok_cap;
     s->max_batch = B;
     s->max_seq = S;
     s->hidden = H;

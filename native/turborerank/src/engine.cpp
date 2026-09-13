@@ -470,6 +470,7 @@ void turborerank_engine_destroy(turborerank_engine *engine) {
     turborerank::impl::ov_resources_free(&engine->ov);
     turborerank::impl::metal_resources_free(&engine->metal);
     turborerank::impl::free_scratch(&engine->scratch);
+    turborerank::impl::free_vocab(&engine->vocab);
     turborerank::impl::free_owned(&engine->owned_weights);
     turborerank::impl::free_mapped(&engine->mapped);
     turbo_buffer_arena_destroy(engine->arena);
@@ -856,46 +857,44 @@ turborerank_status turborerank_pack_text(
         engine->last_error = "pack_text: empty query and empty document";
         return TURBORERANK_ERR_INVALID_ARGUMENT;
     }
-    std::string err;
-    const size_t nq = turborerank::impl::tokenize_wordpiece(
-        engine->vocab,
+    if (buffer == nullptr || buffer->input_ids == nullptr) {
+        engine->last_error = "pack_text: null buffer";
+        return TURBORERANK_ERR_INVALID_ARGUMENT;
+    }
+    if (row >= buffer->batch) {
+        engine->last_error = "pack_text: row out of range";
+        return TURBORERANK_ERR_INVALID_ARGUMENT;
+    }
+    if (engine->vocab.img == nullptr) {
+        engine->last_error = "pack_text: frozen vocab image missing";
+        return TURBORERANK_ERR_INTERNAL;
+    }
+    const size_t off = static_cast<size_t>(row) * buffer->row_stride;
+    const int st = wordpiece_pack_pair(
+        engine->vocab.img,
         query.ptr,
         query.len,
-        engine->scratch.tok_q,
-        engine->scratch.tok_cap,
-        &err
-    );
-    if (!err.empty() && nq == 0 && query.len > 0) {
-        engine->last_error = err;
-        return TURBORERANK_ERR_INTERNAL;
-    }
-    err.clear();
-    const size_t nd = turborerank::impl::tokenize_wordpiece(
-        engine->vocab,
         document.ptr,
         document.len,
-        engine->scratch.tok_d,
-        engine->scratch.tok_cap,
-        &err
+        buffer->input_ids + off,
+        buffer->attention_mask + off,
+        buffer->token_type_ids + off,
+        buffer->position_ids + off,
+        buffer->seq,
+        buffer->row_stride,
+        4,
+        static_cast<uint32_t>(truncation),
+        max_length == 0 ? buffer->seq : max_length
     );
-    if (!err.empty() && nd == 0 && document.len > 0) {
-        engine->last_error = err;
-        return TURBORERANK_ERR_INTERNAL;
+    if (st == WORDPIECE_ERR_INVALID_ARGUMENT) {
+        engine->last_error = truncation == TURBORERANK_TRUNC_ERROR
+                                 ? "pack_text: pair exceeds max_length (TRUNC_ERROR)"
+                                 : "pack_text: invalid arguments or max_length < 3";
+        return TURBORERANK_ERR_INVALID_ARGUMENT;
     }
-    const auto st = turborerank::impl::pack_ids_into(
-        buffer,
-        row,
-        engine->scratch.tok_q,
-        nq,
-        engine->scratch.tok_d,
-        nd,
-        truncation,
-        max_length,
-        &err
-    );
-    if (st != turborerank::Status::Ok) {
-        engine->last_error = err;
-        return static_cast<turborerank_status>(st);
+    if (st != WORDPIECE_OK) {
+        engine->last_error = "pack_text: WordPiece write-through failed";
+        return TURBORERANK_ERR_INTERNAL;
     }
     return TURBORERANK_OK;
 }
