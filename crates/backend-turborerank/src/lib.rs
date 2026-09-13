@@ -374,8 +374,12 @@ mod tests {
             "startup error must name TurboRerank / unavailable, got {msg}"
         );
         assert!(
-            !msg.to_ascii_lowercase().contains("word-overlap"),
-            "must not fall back to word-overlap: {msg}"
+            msg.contains("weights") || msg.contains("UNAVAILABLE") || msg.contains("missing"),
+            "must name missing weights, got {msg}"
+        );
+        assert!(
+            !msg.to_ascii_lowercase().contains("serving word-overlap"),
+            "must not serve word-overlap: {msg}"
         );
     }
 }

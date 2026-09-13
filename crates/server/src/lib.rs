@@ -338,7 +338,8 @@ mod tests {
         let result = build_registry(&config, &mock_factory());
         assert!(
             matches!(result, Err(ServerError::InvalidModelConfig { .. })),
-            "CE alias on mock must fail, got {result:?}"
+            "CE alias on mock must fail, got {}",
+            result.err().map(|e| e.to_string()).unwrap_or_default()
         );
     }
 

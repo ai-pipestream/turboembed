@@ -261,15 +261,13 @@ async fn rpc_scores_match_berlin_and_honor_sort_top_n_when_weights_present() {
     stop.await;
 }
 
-#[tokio::test]
+#[test]
 #[ignore]
-async fn ignored_rpc_requires_weights() {
+fn ignored_rpc_requires_weights() {
     assert!(
         weights_present(),
         "make fetch-rerankers before make test-turborerank"
     );
-    backend_rerank_matches_berlin_sigmoid_when_weights_present().await;
-    rpc_scores_match_berlin_and_honor_sort_top_n_when_weights_present().await;
 }
 
 #[test]

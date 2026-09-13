@@ -1266,6 +1266,7 @@ dependencies = [
  "inferstream-backend-llamacpp",
  "inferstream-backend-mock",
  "inferstream-backend-turboembed",
+ "inferstream-backend-turborerank",
  "inferstream-server",
  "tokio",
 ]
@@ -1278,6 +1279,7 @@ dependencies = [
  "inferstream-backend-llamacpp",
  "inferstream-backend-mock",
  "inferstream-backend-turboembed",
+ "inferstream-backend-turborerank",
  "inferstream-protocol",
  "inferstream-server",
  "tokio",
@@ -1293,6 +1295,7 @@ dependencies = [
  "inferstream-backend-mock",
  "inferstream-backend-trtllm",
  "inferstream-backend-turboembed",
+ "inferstream-backend-turborerank",
  "inferstream-server",
  "tokio",
 ]
@@ -1401,6 +1404,21 @@ dependencies = [
  "inferstream-protocol",
  "tokio",
  "turboembed",
+]
+
+[[package]]
+name = "inferstream-backend-turborerank"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "inferstream-backend",
+ "inferstream-protocol",
+ "inferstream-server",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+ "turborerank",
 ]
 
 [[package]]

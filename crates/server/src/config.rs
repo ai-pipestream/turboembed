@@ -189,6 +189,7 @@ pub enum BackendKind {
     /// Apple MLX (native macOS host only).
     Mlx,
     /// TurboRerank C ABI (catalog MiniLM-L6 cross-encoder).
+    #[serde(rename = "turborerank")]
     TurboRerank,
 }
 
