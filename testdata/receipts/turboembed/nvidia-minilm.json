@@ -5,13 +5,13 @@
   "arch": "nvidia",
   "commands": [
     "export LD_LIBRARY_PATH=\"$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}\"",
-    "cargo test -p turboembed --features ort-cuda -- --ignored --nocapture",
+    "cargo test -p turboembed --features ort-cuda -- --include-ignored --nocapture",
     "make test-turboembed-nvidia"
   ],
   "crate": "turboembed",
   "device": "CUDA",
   "dims": 384,
-  "git_sha": "edfe9840417d99be18d22d78d1f2a2a5561178e4",
+  "git_sha": "3da964ad17e2c1ebd3799dcf1af02fcd4e6d0ca3",
   "golden": "testdata/e2e/goldens/nvidia/minilm.json",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
   "hello_world_cosine": 0.9999998211860657,
