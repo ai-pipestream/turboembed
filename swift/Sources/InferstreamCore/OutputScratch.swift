@@ -3,16 +3,17 @@ import Foundation
 /// gRPC / OIP output freelist (SOLIDIFY 6).
 ///
 /// Embed `PACKED_BYTES` and related LE FP32 blobs rent a pre-sized `Data`.
-/// After warmup of a given byte count, `allocs` stays flat. Swift-Protobuf
-/// may COW-copy when a slab is mutated while a prior response still holds
-/// it; sequential unary after warmup does not grow.
+/// After warmup of a given byte count, `allocs` stays flat. Swift 6.3
+/// `FoundationEssentials.Data` has no `capacity`, so reserved size lives
+/// on `ContiguousArray` slabs — same reuse contract, no extra malloc on
+/// the sequential unary path.
 public final class OutputScratch: @unchecked Sendable {
     public static let shared = OutputScratch()
 
     public init() {}
 
     private let lock = NSLock()
-    private var byteSlabs: [Data] = []
+    private var byteSlabs: [ContiguousArray<UInt8>] = []
     private var floatSlabs: [ContiguousArray<Float>] = []
     private var _allocs: UInt64 = 0
     private let maxFree = 32
@@ -35,19 +36,24 @@ public final class OutputScratch: @unchecked Sendable {
         if let idx = bestFit(byteSlabs.map(\.capacity), min: minCap) {
             var slab = byteSlabs.remove(at: idx)
             slab.removeAll(keepingCapacity: true)
-            return slab
+            var data = Data()
+            data.reserveCapacity(max(minCap, slab.capacity))
+            return data
         }
         _allocs += 1
-        return Data(capacity: minCap)
+        var data = Data()
+        data.reserveCapacity(minCap)
+        return data
     }
 
     public func recycleBytes(_ data: Data) {
-        guard data.capacity > 0 else { return }
+        let needed = data.count
+        guard needed > 0 else { return }
         lock.lock()
         defer { lock.unlock() }
         guard byteSlabs.count < maxFree else { return }
-        var slab = data
-        slab.removeAll(keepingCapacity: true)
+        var slab = ContiguousArray<UInt8>()
+        slab.reserveCapacity(needed)
         byteSlabs.append(slab)
     }
 
