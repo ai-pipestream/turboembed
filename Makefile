@@ -24,6 +24,7 @@
 #   make test-turborerank-nvidia            # Machine A CUDA receipt + live CE
 #   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
 #   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
+#   make test-turborerank-apple             # Machine C Metal receipt + live CE
 #   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
@@ -80,9 +81,10 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
 	turborerank-tests turborerank-tests-nocuda turborerank-tests-noov \
+	turborerank-tests-nometal \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
-	turborerank-intel-receipt
+	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt
 
 test:
 	$(CARGO) test --workspace
@@ -322,9 +324,14 @@ e2e-drift:
 
 # C++ TurboEmbed ABI stub (no Rust). Writes native/turboembed/build/libturboembed.a
 CXX ?= c++
-# Clang as `c++` on this image lacks libstdc++ headers; g++ is the
-# TurboRerank test compiler. Override with TURBORERANK_CXX=...
+# Clang as `c++` on Linux images lacks libstdc++ headers; g++ is the
+# TurboRerank test compiler there. On Machine C (Darwin) clang++ is
+# required for Objective-C++ Metal. Override with TURBORERANK_CXX=...
+ifeq ($(shell uname -s),Darwin)
+TURBORERANK_CXX ?= clang++
+else
 TURBORERANK_CXX ?= g++
+endif
 AR ?= ar
 turboembed-stub:
 	mkdir -p native/turboembed/build
@@ -373,6 +380,7 @@ TURBORERANK_SRCS := \
 	native/turborerank/src/bert_cpu.cpp \
 	native/turborerank/src/cuda_api.cpp \
 	native/turborerank/src/ov_api.cpp \
+	native/turborerank/src/metal_api.cpp \
 	native/turborerank/src/engine.cpp
 
 TURBORERANK_NVCC ?= nvcc
@@ -390,6 +398,13 @@ TURBORERANK_CPPFLAGS := -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\"
 TURBORERANK_CUDA_LIBS :=
 TURBORERANK_CUDA_OBJ :=
 TURBORERANK_OV_LIBS :=
+TURBORERANK_METAL_LIBS :=
+TURBORERANK_METAL_SRC :=
+TURBORERANK_METAL_FLAGS :=
+
+# 0/1. Default: compile Metal on Darwin unless TURBORERANK_ENABLE_METAL=0.
+TURBORERANK_ENABLE_METAL ?= $(shell \
+	if [ "$$(uname -s)" = Darwin ]; then echo 1; else echo 0; fi)
 
 # 0/1. Default: compile OpenVINO when pkg-config openvino works.
 TURBORERANK_ENABLE_OV ?= $(shell \
@@ -420,6 +435,13 @@ TURBORERANK_CUDA_LIBS := -lcudart
 TURBORERANK_CUDA_OBJ := native/turborerank/build/bert_cuda.o
 endif
 
+ifeq ($(TURBORERANK_ENABLE_METAL),1)
+TURBORERANK_CPPFLAGS += -DTURBORERANK_METAL=1
+TURBORERANK_METAL_FLAGS := -fobjc-arc
+TURBORERANK_METAL_SRC := native/turborerank/src/metal_api.mm
+TURBORERANK_METAL_LIBS := -framework Metal -framework Foundation
+endif
+
 native/turborerank/build/bert_cuda.o: native/turborerank/src/bert_cuda.cu \
 		native/turborerank/src/cuda_api.hpp native/turborerank/src/internal.hpp \
 		include/turborerank.h include/reranker.hpp
@@ -434,10 +456,10 @@ native/turborerank/build/bert_cuda.o: native/turborerank/src/bert_cuda.cu \
 turborerank-tests: $(TURBORERANK_CUDA_OBJ)
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
-	  $(TURBORERANK_CPPFLAGS) \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_CUDA_OBJ) \
+	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBORERANK_CUDA_OBJ) \
 	  native/turborerank/tests/turborerank_tests.cpp \
-	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) \
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
 	  -o native/turborerank/build/turborerank_tests
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests
 
@@ -447,8 +469,9 @@ turborerank-tests-nocuda:
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
-	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
-	  -lm $(TURBORERANK_OV_LIBS) -o native/turborerank/build/turborerank_tests_nocuda
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) native/turborerank/tests/turborerank_tests.cpp \
+	  -lm $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) $(TURBORERANK_METAL_FLAGS) \
+	  -o native/turborerank/build/turborerank_tests_nocuda
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_nocuda
 
 # Prove OpenVINO GPU/CPU create fails loud when the binary has no OV.
@@ -456,17 +479,30 @@ turborerank-tests-noov:
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include -I native/turborerank/src \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
-	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
-	  -lm -o native/turborerank/build/turborerank_tests_noov
+	  $(if $(filter 1,$(TURBORERANK_ENABLE_METAL)),-DTURBORERANK_METAL=1) \
+	  $(TURBORERANK_METAL_FLAGS) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) native/turborerank/tests/turborerank_tests.cpp \
+	  -lm $(TURBORERANK_METAL_LIBS) \
+	  -o native/turborerank/build/turborerank_tests_noov
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_noov
+
+# Prove Metal create fails loud when the binary has no Metal.
+turborerank-tests-nometal:
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
+	  -lm -o native/turborerank/build/turborerank_tests_nometal
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_nometal
 
 turborerank-nvidia-receipt: $(TURBORERANK_CUDA_OBJ)
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_CUDA_OBJ) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBORERANK_CUDA_OBJ) \
 	  native/turborerank/tools/write_nvidia_receipt.cpp \
-	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) \
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
+	  $(TURBORERANK_METAL_FLAGS) \
 	  -o native/turborerank/build/write_nvidia_receipt
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/write_nvidia_receipt
 
@@ -499,16 +535,32 @@ turborerank-intel-receipt: $(TURBORERANK_CUDA_OBJ)
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_CUDA_OBJ) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBORERANK_CUDA_OBJ) \
 	  native/turborerank/tools/write_intel_receipt.cpp \
-	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) \
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
+	  $(TURBORERANK_METAL_FLAGS) \
 	  -o native/turborerank/build/write_intel_receipt
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/write_intel_receipt
+
+turborerank-apple-receipt:
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) \
+	  native/turborerank/tools/write_apple_receipt.cpp \
+	  -lm $(TURBORERANK_METAL_LIBS) \
+	  -o native/turborerank/build/write_apple_receipt
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/write_apple_receipt
 
 test-turborerank: fetch-rerankers turborerank-tests turborerank-tests-nocuda
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
 
 test-turborerank-nvidia: test-turborerank turborerank-nvidia-receipt
+
+# Machine C: Metal MiniLM CE vs HF Berlin golden. nometal proves fail-loud.
+test-turborerank-apple: fetch-rerankers turborerank-tests turborerank-tests-nometal
+	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
+	$(MAKE) turborerank-apple-receipt
 
 # Machine B: OpenVINO GPU/CPU MiniLM CE vs HF Berlin golden.
 test-turborerank-intel: fetch-rerankers verify-rerank-ov turborerank-tests turborerank-tests-noov

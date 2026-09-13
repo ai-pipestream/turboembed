@@ -4,6 +4,7 @@
 
 #include "cuda_api.hpp"
 #include "internal.hpp"
+#include "metal_api.hpp"
 #include "ov_api.hpp"
 #include "reranker.hpp"
 #include "turborerank.h"
@@ -119,6 +120,11 @@ static void test_buffer_alignment_and_write_via_pointer() {
 static bool cuda_live() {
     std::string why;
     return turborerank::impl::cuda_device_present(&why);
+}
+
+static bool metal_live() {
+    std::string why;
+    return turborerank::impl::metal_device_present(&why);
 }
 
 static void test_cuda_buffer_policy() {
@@ -294,6 +300,12 @@ static void test_device_create_policy() {
             CHECK(e->device == TURBORERANK_DEVICE_OPENVINO_GPU);
             turborerank_engine_destroy(e);
             e = nullptr;
+        } else if (metal_live()) {
+            CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, nullptr, &e));
+            CHECK(e != nullptr);
+            CHECK(e->device == TURBORERANK_DEVICE_METAL);
+            turborerank_engine_destroy(e);
+            e = nullptr;
         } else {
             CHECK(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, nullptr, &e) ==
                   TURBORERANK_ERR_UNAVAILABLE);
@@ -301,8 +313,17 @@ static void test_device_create_policy() {
         }
     }
 
-    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_METAL, nullptr, &e) ==
-          TURBORERANK_ERR_UNAVAILABLE);
+    if (metal_live()) {
+        CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_METAL, nullptr, &e));
+        CHECK(e != nullptr);
+        CHECK(e->device == TURBORERANK_DEVICE_METAL);
+        turborerank_engine_destroy(e);
+        e = nullptr;
+    } else {
+        CHECK(turborerank_engine_create(TURBORERANK_DEVICE_METAL, nullptr, &e) ==
+              TURBORERANK_ERR_UNAVAILABLE);
+        CHECK(std::strstr(turborerank_last_error(nullptr), "Refusing") != nullptr);
+    }
 
     CHECK(turborerank_engine_create(TURBORERANK_DEVICE_TENSORRT, nullptr, &e) ==
           TURBORERANK_ERR_UNAVAILABLE);
@@ -594,6 +615,23 @@ static void test_cuda_real_model_scores() {
     turborerank_engine_destroy(e);
 }
 
+#ifndef TURBORERANK_METAL
+static void test_create_without_metal_fails() {
+    CHECK(!turborerank::impl::metal_compiled());
+    turborerank_engine *e = nullptr;
+    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_METAL, nullptr, &e) ==
+          TURBORERANK_ERR_UNAVAILABLE);
+    CHECK(e == nullptr);
+    const char *msg = turborerank_last_error(nullptr);
+    CHECK(std::strstr(msg, "Refusing CPU") != nullptr ||
+          std::strstr(msg, "without Metal") != nullptr);
+    turborerank_buffer *buf = nullptr;
+    CHECK(turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL, 1, 16, &buf) ==
+          TURBORERANK_ERR_UNAVAILABLE);
+    CHECK(buf == nullptr);
+}
+#endif
+
 #ifndef TURBORERANK_OPENVINO
 static void test_create_without_ov_fails() {
     CHECK(!turborerank::impl::ov_compiled());
@@ -725,6 +763,144 @@ static void test_ov_real_model_scores(turborerank_device device) {
     turborerank_engine_destroy(e);
 }
 
+static void test_metal_shared_buffer() {
+    if (!metal_live()) {
+        std::fprintf(stderr, "SKIP Metal shared buffer (no MTL GPU)\n");
+        return;
+    }
+    turborerank_buffer *buf = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL, 2, 16, &buf));
+    CHECK(buf != nullptr);
+    CHECK(buf->device == TURBORERANK_DEVICE_METAL);
+    auto aligned = [](const void *p) {
+        return (reinterpret_cast<uintptr_t>(p) % 64u) == 0;
+    };
+    CHECK(aligned(buf->input_ids));
+    CHECK(aligned(buf->attention_mask));
+    CHECK(turborerank::impl::metal_shared_owns(buf->input_ids));
+    buf->input_ids[0] = 101;
+    buf->input_ids[1] = 7592;
+    CHECK_EQ(buf->input_ids[0], 101);
+    CHECK_EQ(buf->input_ids[1], 7592);
+    turborerank::alloc_counter_reset();
+    buf->input_ids[2] = 102;
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    turborerank_buffer_free(buf);
+
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_AUTO, 1, 16, &buf));
+    CHECK(buf->device == TURBORERANK_DEVICE_METAL);
+    turborerank_buffer_free(buf);
+}
+
+static void test_metal_real_model_scores() {
+    if (!metal_live()) {
+        std::fprintf(stderr, "SKIP Metal MiniLM CE (no MTL GPU)\n");
+        return;
+    }
+    if (!weights_present()) {
+        std::fprintf(stderr, "SKIP Metal MiniLM CE scores (make fetch-rerankers)\n");
+        return;
+    }
+    turborerank_engine *e = nullptr;
+    const std::string dir = model_dir();
+    CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_METAL, dir.c_str(), &e));
+    CHECK(e->device == TURBORERANK_DEVICE_METAL);
+    const turborerank_status load = turborerank_load_model(e, "ms-marco-minilm-l6", 0);
+    CHECK_ST(load);
+    if (load != TURBORERANK_OK) {
+        std::fprintf(stderr, "Metal load error: %s\n", turborerank_last_error(e));
+        turborerank_engine_destroy(e);
+        return;
+    }
+    CHECK(e->metal.enabled);
+
+    const char *q = "How many people live in Berlin?";
+    const char *rel =
+        "Berlin has a population of 3,520,031 registered inhabitants in an "
+        "area of 891.82 square kilometers.";
+    const char *irrel = "New York City is famous for its pizza and bagels.";
+    const char *mid = "Berlin is well known for its museums.";
+    turborerank_str query{q, std::strlen(q)};
+    turborerank_str docs[3] = {
+        {rel, std::strlen(rel)},
+        {mid, std::strlen(mid)},
+        {irrel, std::strlen(irrel)},
+    };
+    turborerank_score_options opts{};
+    opts.truncation = TURBORERANK_TRUNC_LONGEST_FIRST;
+    opts.activation = TURBORERANK_ACT_IDENTITY;
+    opts.max_length = 512;
+    float logits[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits));
+    CHECK(logits[0] != logits[1] || logits[1] != logits[2]);
+    CHECK(logits[0] > logits[1]);
+    CHECK(logits[1] > logits[2]);
+    CHECK(logits[0] - logits[2] > 2.0f);
+    CHECK(almost(logits[0], 8.84585285f, 2e-3f));
+    CHECK(almost(logits[1], -4.32007599f, 2e-3f));
+    CHECK(almost(logits[2], -11.27389431f, 2e-3f));
+
+    opts.activation = TURBORERANK_ACT_SIGMOID;
+    float sig[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, sig));
+    CHECK(almost(sig[0], turborerank::sigmoid(logits[0]), 1e-5f));
+    CHECK(sig[0] > sig[1] && sig[1] > sig[2]);
+
+    float one[3];
+    for (int i = 0; i < 3; ++i) {
+        opts.activation = TURBORERANK_ACT_IDENTITY;
+        CHECK_ST(turborerank_score(e, nullptr, 0, query, &docs[i], 1, &opts, &one[i]));
+        CHECK(almost(one[i], logits[i], 1e-5f));
+    }
+
+    turborerank_buffer *buf = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL, 1, 64, &buf));
+    CHECK(buf->device == TURBORERANK_DEVICE_METAL);
+    CHECK_ST(turborerank_pack_text(
+        e, buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
+    ));
+    turborerank::alloc_counter_reset();
+    float s = 0;
+    CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK(almost(s, logits[0], 2e-3f));
+    turborerank_buffer_free(buf);
+
+    turborerank_buffer *cpu_buf = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &cpu_buf));
+    CHECK_ST(turborerank_pack_text(
+        e, cpu_buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
+    ));
+    float bad = 0;
+    CHECK(turborerank_forward(e, cpu_buf, 1, TURBORERANK_ACT_IDENTITY, &bad) ==
+          TURBORERANK_ERR_INTERNAL);
+    CHECK(std::strstr(turborerank_last_error(e), "Shared") != nullptr ||
+          std::strstr(turborerank_last_error(e), "refus") != nullptr);
+    turborerank_buffer_free(cpu_buf);
+
+    turborerank_engine *auto_e = nullptr;
+    CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, dir.c_str(), &auto_e));
+    CHECK(auto_e->device == TURBORERANK_DEVICE_METAL);
+    CHECK_ST(turborerank_load_model(auto_e, "ms-marco-minilm-l6", 0));
+    opts.activation = TURBORERANK_ACT_IDENTITY;
+    float auto_logit = 0;
+    CHECK_ST(turborerank_score(auto_e, nullptr, 0, query, &docs[0], 1, &opts, &auto_logit));
+    CHECK(almost(auto_logit, logits[0], 2e-3f));
+    turborerank_engine_destroy(auto_e);
+
+    std::fprintf(
+        stderr,
+        "Metal Berlin logits: %.8f %.8f %.8f (abs err %.3e %.3e %.3e)\n",
+        logits[0],
+        logits[1],
+        logits[2],
+        std::fabs(logits[0] - 8.84585285f),
+        std::fabs(logits[1] + 4.32007599f),
+        std::fabs(logits[2] + 11.27389431f)
+    );
+    turborerank_engine_destroy(e);
+}
+
 int main() {
     test_abi_names();
     test_buffer_alignment_and_write_via_pointer();
@@ -739,6 +915,9 @@ int main() {
 #ifndef TURBORERANK_OPENVINO
     test_create_without_ov_fails();
 #endif
+#ifndef TURBORERANK_METAL
+    test_create_without_metal_fails();
+#endif
     test_missing_weights_fails_loud();
     test_wordpiece_fixture();
     test_real_model_scores();
@@ -746,6 +925,8 @@ int main() {
     test_ov_usm_buffer();
     test_ov_real_model_scores(TURBORERANK_DEVICE_OPENVINO_GPU);
     test_ov_real_model_scores(TURBORERANK_DEVICE_OPENVINO_CPU);
+    test_metal_shared_buffer();
+    test_metal_real_model_scores();
 
     std::fprintf(
         stderr,

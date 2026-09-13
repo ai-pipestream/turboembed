@@ -2,7 +2,9 @@
 //!
 //! Detects nvcc + cuda_runtime.h and, unless TURBORERANK_DISABLE_CUDA=1,
 //! builds the CUDA MiniLM CE. Detects OpenVINO + Level Zero unless
-//! TURBORERANK_DISABLE_OPENVINO=1.
+//! TURBORERANK_DISABLE_OPENVINO=1. On macOS, unless
+//! TURBORERANK_DISABLE_METAL=1, compiles metal_api.mm (MTL shared +
+//! first-party Metal MiniLM CE).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -117,6 +119,10 @@ fn main() {
     let ov = openvino_enabled();
     let enable_l0 = ov.is_some() && level_zero_present();
 
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    let enable_metal = target_os == "macos"
+        && std::env::var_os("TURBORERANK_DISABLE_METAL").is_none();
+
     let sources = [
         "native/turborerank/src/alloc.cpp",
         "native/turborerank/src/pack.cpp",
@@ -125,6 +131,7 @@ fn main() {
         "native/turborerank/src/bert_cpu.cpp",
         "native/turborerank/src/cuda_api.cpp",
         "native/turborerank/src/ov_api.cpp",
+        "native/turborerank/src/metal_api.cpp",
         "native/turborerank/src/engine.cpp",
     ];
     for rel in sources {
@@ -144,6 +151,14 @@ fn main() {
     );
     println!(
         "cargo:rerun-if-changed={}",
+        root.join("native/turborerank/src/metal_api.hpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turborerank/src/metal_api.mm").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
         root.join("include/turborerank.h").display()
     );
     println!(
@@ -156,6 +171,8 @@ fn main() {
     );
     println!("cargo:rerun-if-env-changed=TURBORERANK_DISABLE_CUDA");
     println!("cargo:rerun-if-env-changed=TURBORERANK_DISABLE_OPENVINO");
+    println!("cargo:rerun-if-env-changed=TURBORERANK_DISABLE_METAL");
+    println!("cargo:rustc-check-cfg=cfg(turborerank_metal)");
     println!("cargo:rerun-if-env-changed=OPENVINO_DIR");
     println!("cargo:rerun-if-env-changed=INTEL_OPENVINO_DIR");
     println!("cargo:rustc-check-cfg=cfg(turborerank_cuda)");
@@ -192,13 +209,28 @@ fn main() {
             build.include("/usr/include");
         }
     }
+    if enable_metal {
+        build.define("TURBORERANK_METAL", "1");
+        build.flag("-fobjc-arc");
+        build.file(root.join("native/turborerank/src/metal_api.mm"));
+    }
     for rel in sources {
         build.file(root.join(rel));
     }
-    if std::env::var_os("CXX").is_none() && cfg!(target_os = "linux") {
+    if std::env::var_os("CXX").is_none() && target_os == "linux" {
         build.compiler("g++");
     }
-    link_libstdcxx();
+    if target_os == "macos" {
+        println!("cargo:rustc-link-lib=c++");
+        println!("cargo:rustc-link-lib=m");
+        if enable_metal {
+            println!("cargo:rustc-link-lib=framework=Metal");
+            println!("cargo:rustc-link-lib=framework=Foundation");
+            println!("cargo:rustc-cfg=turborerank_metal");
+        }
+    } else {
+        link_libstdcxx();
+    }
     build.compile("turborerank_native");
 
     if enable_cuda {

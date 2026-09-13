@@ -8,6 +8,19 @@ use turborerank::{
 fn abi_version_is_one() {
     assert_eq!(abi_version(), 1);
     assert_eq!(device_name(Device::Cpu), "CPU");
+    assert_eq!(device_name(Device::Metal), "METAL");
+}
+
+#[test]
+fn apple_header_copy_matches_canonical() {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let canon = std::fs::read_to_string(root.join("include/turborerank.h")).unwrap();
+    let apple = root.join("swift/Sources/TurboRerankC/include/turborerank.h");
+    let apple_txt = std::fs::read_to_string(&apple).unwrap();
+    assert_eq!(
+        canon, apple_txt,
+        "swift/Sources/TurboRerankC/include/turborerank.h must match include/turborerank.h"
+    );
 }
 
 #[test]
@@ -121,15 +134,42 @@ fn pack_error_and_max_len_boundary() {
     assert!(matches!(err, Error::InvalidArgument(_)));
 }
 
+#[cfg(not(turborerank_metal))]
+#[test]
+fn metal_create_fails_loud_without_metal() {
+    let err = Engine::create(Device::Metal).unwrap_err();
+    assert!(
+        matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+        "{err:?}"
+    );
+    let msg = err.to_string().to_lowercase();
+    assert!(
+        msg.contains("refus") || msg.contains("cpu fallback"),
+        "{err}"
+    );
+}
+
+#[cfg(turborerank_metal)]
+#[test]
+fn metal_and_auto_create_succeed_when_compiled() {
+    let metal = Engine::create(Device::Metal).expect("METAL engine");
+    drop(metal);
+    let auto = Engine::create(Device::Auto).expect("AUTO→METAL engine");
+    drop(auto);
+}
+
 #[cfg(not(turborerank_openvino))]
 #[test]
 fn remaining_accelerators_fail_loud_no_cpu_fallback() {
-    for device in [
+    let mut devices = vec![
         Device::TensorRt,
         Device::OpenVinoGpu,
         Device::OpenVinoNpu,
-        Device::Metal,
-    ] {
+    ];
+    if cfg!(not(turborerank_metal)) {
+        devices.push(Device::Metal);
+    }
+    for device in devices {
         let err = Engine::create(device).unwrap_err();
         assert!(
             matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
@@ -164,7 +204,11 @@ fn openvino_create_succeeds_when_compiled() {
             );
         }
     }
-    for device in [Device::TensorRt, Device::OpenVinoNpu, Device::Metal] {
+    let mut rest = vec![Device::TensorRt, Device::OpenVinoNpu];
+    if cfg!(not(turborerank_metal)) {
+        rest.push(Device::Metal);
+    }
+    for device in rest {
         let err = Engine::create(device).unwrap_err();
         assert!(
             matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
@@ -193,7 +237,11 @@ fn cuda_create_fails_loud_without_cuda() {
     );
 }
 
-#[cfg(all(not(turborerank_cuda), not(turborerank_openvino)))]
+#[cfg(all(
+    not(turborerank_cuda),
+    not(turborerank_openvino),
+    not(turborerank_metal)
+))]
 #[test]
 fn auto_create_fails_loud_without_host_gpu() {
     let err = Engine::create(Device::Auto).unwrap_err();

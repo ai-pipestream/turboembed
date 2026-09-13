@@ -2,6 +2,7 @@
 
 #include "cuda_api.hpp"
 #include "internal.hpp"
+#include "metal_api.hpp"
 #include "ov_api.hpp"
 
 #include <atomic>
@@ -155,6 +156,7 @@ bool device_is_accelerator(turborerank_device d) {
 bool accelerator_unavailable(turborerank_device d, std::string *why) {
     std::string cuda_why;
     std::string ov_why;
+    std::string metal_why;
     switch (d) {
     case TURBORERANK_DEVICE_AUTO:
         if (cuda_device_present(&cuda_why)) {
@@ -163,9 +165,12 @@ bool accelerator_unavailable(turborerank_device d, std::string *why) {
         if (ov_gpu_present(&ov_why)) {
             return false;
         }
+        if (metal_device_present(&metal_why)) {
+            return false;
+        }
         if (why) {
             *why = "TURBORERANK_DEVICE_AUTO requested host-default GPU; " +
-                   cuda_why + " " + ov_why +
+                   cuda_why + " " + ov_why + " " + metal_why +
                    " Refusing CPU fallback. Use TURBORERANK_DEVICE_CPU "
                    "for the MiniLM CE kernel.";
         }
@@ -215,9 +220,15 @@ bool accelerator_unavailable(turborerank_device d, std::string *why) {
         }
         return true;
     case TURBORERANK_DEVICE_METAL:
+        if (metal_device_present(&metal_why)) {
+            return false;
+        }
         if (why) {
-            *why = "TURBORERANK_DEVICE_METAL is not implemented "
-                   "(MTL shared / MLX). Refusing CPU fallback.";
+            *why = metal_why.empty()
+                       ? "TURBORERANK_DEVICE_METAL requested but Metal is "
+                         "unavailable (MTLResourceStorageModeShared / first-"
+                         "party Metal MiniLM CE). Refusing CPU fallback."
+                       : metal_why;
         }
         return true;
     default:
@@ -233,6 +244,9 @@ turborerank_device resolve_create_device(turborerank_device requested) {
         }
         if (ov_gpu_present(&why)) {
             return TURBORERANK_DEVICE_OPENVINO_GPU;
+        }
+        if (metal_device_present(&why)) {
+            return TURBORERANK_DEVICE_METAL;
         }
     }
     return requested;

@@ -4,6 +4,7 @@
 
 #include "cuda_api.hpp"
 #include "internal.hpp"
+#include "metal_api.hpp"
 #include "ov_api.hpp"
 
 #include <algorithm>
@@ -277,7 +278,8 @@ turborerank_status turborerank_engine_create(
         resolved != TURBORERANK_DEVICE_MOCK &&
         resolved != TURBORERANK_DEVICE_CUDA &&
         resolved != TURBORERANK_DEVICE_OPENVINO_CPU &&
-        resolved != TURBORERANK_DEVICE_OPENVINO_GPU) {
+        resolved != TURBORERANK_DEVICE_OPENVINO_GPU &&
+        resolved != TURBORERANK_DEVICE_METAL) {
         turborerank::impl::set_create_error(
             "unsupported device; refusing CPU fallback"
         );
@@ -320,6 +322,7 @@ void turborerank_engine_destroy(turborerank_engine *engine) {
     free_work_buffer(engine);
     turborerank::impl::cuda_resources_free(&engine->cuda);
     turborerank::impl::ov_resources_free(&engine->ov);
+    turborerank::impl::metal_resources_free(&engine->metal);
     turborerank::impl::free_scratch(&engine->scratch);
     turborerank::impl::free_owned(&engine->owned_weights);
     turborerank::impl::free_mapped(&engine->mapped);
@@ -350,7 +353,8 @@ turborerank_status turborerank_list_models(
                 (engine->device == TURBORERANK_DEVICE_CPU ||
                  engine->device == TURBORERANK_DEVICE_CUDA ||
                  engine->device == TURBORERANK_DEVICE_OPENVINO_CPU ||
-                 engine->device == TURBORERANK_DEVICE_OPENVINO_GPU)
+                 engine->device == TURBORERANK_DEVICE_OPENVINO_GPU ||
+                 engine->device == TURBORERANK_DEVICE_METAL)
             ? 1
             : 0;
     *out_infos = infos;
@@ -386,7 +390,8 @@ turborerank_status turborerank_load_model(
     const bool ov_dev = engine->device == TURBORERANK_DEVICE_OPENVINO_CPU ||
                         engine->device == TURBORERANK_DEVICE_OPENVINO_GPU;
     if (engine->device != TURBORERANK_DEVICE_CPU &&
-        engine->device != TURBORERANK_DEVICE_CUDA && !ov_dev) {
+        engine->device != TURBORERANK_DEVICE_CUDA &&
+        engine->device != TURBORERANK_DEVICE_METAL && !ov_dev) {
         engine->last_error = "load_model: engine device cannot run MiniLM CE";
         return TURBORERANK_ERR_UNAVAILABLE;
     }
@@ -499,6 +504,16 @@ turborerank_status turborerank_load_model(
             return TURBORERANK_ERR_UNAVAILABLE;
         }
     }
+    if (engine->device == TURBORERANK_DEVICE_METAL) {
+        if (!turborerank::impl::metal_resources_init(
+                &engine->metal, engine->cfg, engine->weights, &err
+            )) {
+            engine->last_error =
+                err.empty() ? "Metal MiniLM CE init failed; refusing CPU fallback"
+                            : err + "; refusing CPU fallback";
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
+    }
     free_work_buffer(engine);
     turborerank_status st = turborerank_buffer_alloc(
         engine->device,
@@ -572,6 +587,15 @@ turborerank_status turborerank_buffer_alloc(
                        ? TURBORERANK_ERR_UNAVAILABLE
                        : TURBORERANK_ERR_NOT_IMPLEMENTED;
         }
+    } else if (resolved == TURBORERANK_DEVICE_METAL) {
+        std::string why;
+        if (!turborerank::impl::metal_device_present(&why)) {
+            turborerank::impl::set_create_error(
+                why.empty() ? "buffer_alloc: Metal missing; refusing CPU"
+                            : why
+            );
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
     } else if (resolved != TURBORERANK_DEVICE_CPU &&
                resolved != TURBORERANK_DEVICE_MOCK) {
         std::string why;
@@ -600,6 +624,10 @@ turborerank_status turborerank_buffer_alloc(
     auto alloc_field = [&](int32_t **slot) -> bool {
         if (resolved == TURBORERANK_DEVICE_CUDA) {
             *slot = static_cast<int32_t *>(turborerank::impl::pinned_alloc_bytes(bytes, &st));
+        } else if (resolved == TURBORERANK_DEVICE_METAL) {
+            *slot = static_cast<int32_t *>(
+                turborerank::impl::metal_shared_alloc_bytes(bytes, &st)
+            );
         } else if (resolved == TURBORERANK_DEVICE_OPENVINO_GPU) {
             *slot = static_cast<int32_t *>(
                 turborerank::impl::usm_alloc_bytes(bytes, true, &st)
@@ -642,6 +670,11 @@ void turborerank_buffer_free(turborerank_buffer *buffer) {
         turborerank::impl::pinned_free_bytes(buffer->attention_mask);
         turborerank::impl::pinned_free_bytes(buffer->token_type_ids);
         turborerank::impl::pinned_free_bytes(buffer->position_ids);
+    } else if (buffer->device == TURBORERANK_DEVICE_METAL) {
+        turborerank::impl::metal_shared_free_bytes(buffer->input_ids);
+        turborerank::impl::metal_shared_free_bytes(buffer->attention_mask);
+        turborerank::impl::metal_shared_free_bytes(buffer->token_type_ids);
+        turborerank::impl::metal_shared_free_bytes(buffer->position_ids);
     } else if (buffer->device == TURBORERANK_DEVICE_OPENVINO_GPU ||
                (buffer->device == TURBORERANK_DEVICE_OPENVINO_CPU &&
                 turborerank::impl::ov_usm_available(nullptr))) {
@@ -815,7 +848,25 @@ turborerank_status turborerank_forward(
             --used;
         }
         float logit = 0.0f;
-        if (engine->device == TURBORERANK_DEVICE_CUDA) {
+        if (engine->device == TURBORERANK_DEVICE_METAL) {
+            std::string err;
+            if (!turborerank::impl::bert_forward_row_metal(
+                    &engine->metal,
+                    engine->cfg,
+                    buffer->input_ids + off,
+                    mask,
+                    buffer->token_type_ids + off,
+                    buffer->position_ids + off,
+                    used,
+                    &logit,
+                    &err
+                )) {
+                engine->last_error =
+                    err.empty() ? "Metal forward failed; refusing CPU fallback"
+                                : err + "; refusing CPU fallback";
+                return TURBORERANK_ERR_INTERNAL;
+            }
+        } else if (engine->device == TURBORERANK_DEVICE_CUDA) {
             std::string err;
             if (!turborerank::impl::bert_forward_row_cuda(
                     &engine->cuda,

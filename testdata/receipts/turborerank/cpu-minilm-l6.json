@@ -10,5 +10,5 @@
   "logits": [8.84585190, -4.32007933, -11.27389240],
   "max_abs_logit_err": 4e-6,
   "command": "make test-turborerank",
-  "note": "Phase 1 CPU proof. CUDA is live on Machine A (nvidia-minilm-l6.json). OpenVINO is live on Machine B (intel-minilm-l6.json). Metal/TensorRT/NPU still fail loud."
+  "note": "Phase 1 CPU proof. CUDA is live on Machine A (nvidia-minilm-l6.json). OpenVINO is live on Machine B (intel-minilm-l6.json). Metal is live on Machine C (apple-minilm-l6.json). TensorRT/NPU still fail loud."
 }

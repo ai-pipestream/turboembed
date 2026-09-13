@@ -6,12 +6,13 @@
 | `nvidia-minilm-l6.json` | Machine A | first-party CUDA MiniLM CE (`cudaHostAlloc` + device kernels) | **CUDA** |
 | `intel-minilm-l6.json` | Machine B | OpenVINO CompiledModel + Level Zero USM | **OPENVINO_GPU** |
 | `intel-cpu-minilm-l6.json` | Machine B | OpenVINO CompiledModel (explicit CPU) | **OPENVINO_CPU** |
+| `apple-minilm-l6.json` | Machine C | first-party Metal MiniLM CE (`MTLResourceStorageModeShared` + device kernels) | **METAL** |
 
-Metal / TensorRT / NPU receipts land here when those backends exist —
+TensorRT / NPU receipts land here when those backends exist —
 never invent numbers, never put lab hostnames in docs (Machine A / B / C
 only).
 
 Proof: `make test-turborerank` / `make test-turborerank-nvidia` /
-`make test-turborerank-intel` vs
+`make test-turborerank-intel` / `make test-turborerank-apple` vs
 `testdata/reference_rerank/ms_marco_minilm_l6_berlin.json` (HF
 `AutoModelForSequenceClassification` on the pinned checkpoint).
