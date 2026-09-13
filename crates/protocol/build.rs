@@ -8,6 +8,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .build_server(true)
         .build_client(true)
+        // PACKED_BYTES / OIP raw tensors: Bytes so a freelist slab can
+        // outlive encode and return on Drop (SOLIDIFY 6).
+        .bytes([
+            ".inferstream.v1.EmbedResponse.packed_embeddings",
+            ".inferstream.v1.EmbedChunk.packed_row",
+            ".inference.ModelInferResponse.raw_output_contents",
+        ])
         .compile_protos(
             &[
                 proto_root.join("open_inference_grpc.proto"),

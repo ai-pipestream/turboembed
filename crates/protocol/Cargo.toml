@@ -11,6 +11,7 @@ rust-version.workspace = true
 [dependencies]
 tonic = { workspace = true }
 prost = { workspace = true }
+bytes = { workspace = true }
 thiserror = { workspace = true }
 
 [build-dependencies]

@@ -282,8 +282,41 @@ impl Engine {
         activation: Activation,
         max_length: u32,
     ) -> Result<Vec<f32>, Error> {
+        let mut scores = vec![0.0f32; documents.len()];
+        let n = self.score_into(
+            alias,
+            query,
+            documents,
+            truncation,
+            activation,
+            max_length,
+            &mut scores,
+        )?;
+        scores.truncate(n);
+        Ok(scores)
+    }
+
+    /// Write sigmoid/identity scores into `dest` (input order). `dest.len()`
+    /// must be `>= documents.len()`. Returns the number of scores written.
+    pub fn score_into(
+        &self,
+        alias: Option<&str>,
+        query: &str,
+        documents: &[&str],
+        truncation: Truncation,
+        activation: Activation,
+        max_length: u32,
+        dest: &mut [f32],
+    ) -> Result<usize, Error> {
         if documents.is_empty() {
             return Err(Error::InvalidArgument("documents must not be empty".into()));
+        }
+        if dest.len() < documents.len() {
+            return Err(Error::InvalidArgument(format!(
+                "score dest len {} < documents {}",
+                dest.len(),
+                documents.len()
+            )));
         }
         let views: Vec<turborerank_str> = documents
             .iter()
@@ -305,7 +338,6 @@ impl Engine {
             Some(a) => (a.as_ptr().cast(), a.len()),
             None => (ptr::null(), 0usize),
         };
-        let mut scores = vec![0.0f32; documents.len()];
         let st = unsafe {
             turborerank_score(
                 self.raw,
@@ -315,11 +347,11 @@ impl Engine {
                 views.as_ptr(),
                 views.len(),
                 &opts,
-                scores.as_mut_ptr(),
+                dest.as_mut_ptr(),
             )
         };
         map_status(st, &self.last_error())?;
-        Ok(scores)
+        Ok(documents.len())
     }
 }
 

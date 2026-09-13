@@ -119,7 +119,10 @@ final class TurboEmbedBackend: ModelBackend, Sendable {
         output.datatype = OipDataType.fp32.rawValue
         output.shape = shape
         response.outputs = [output]
-        response.rawOutputContents = [Tensor.packFP32(values)]
+        var blob = OutputScratch.shared.rentBytes(minCap: values.count * 4)
+        Tensor.packFP32(values, into: &blob)
+        response.rawOutputContents = [blob]
+        OutputScratch.shared.recycleBytes(blob)
         return response
     }
 

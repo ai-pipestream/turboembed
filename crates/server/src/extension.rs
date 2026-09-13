@@ -3,7 +3,6 @@
 //! Tokenize / Detokenize / Embed / EmbedStream / ListModels / Rerank.
 //! Embed maps the TurboEmbed C ABI (typed float[] or packed LE FP32).
 
-use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -11,18 +10,16 @@ use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
 use tracing::debug;
 
-use inferstream_backend::{Backend, BackendError, Registry, TokenizeOptions};
+use inferstream_backend::{Backend, BackendError, PackedEmbed, Registry, TokenizeOptions};
 use inferstream_protocol::extension::inferstream_service_server::InferstreamService;
 use inferstream_protocol::extension::{
     DetokenizeRequest, DetokenizeResponse, EmbedChunk, EmbedOutputFormat, EmbedRequest,
     EmbedResponse, Embedding, ListModelsRequest, ListModelsResponse, ModelInfo, RerankRequest,
     RerankResponse, RerankResult, TokenizeRequest, TokenizeResponse,
 };
-use inferstream_protocol::inference::{
-    infer_parameter::ParameterChoice, model_infer_request::InferInputTensor, InferParameter,
-    ModelInferRequest,
-};
-use inferstream_protocol::tensor::{pack_bytes, unpack_fp32, DataType};
+use inferstream_protocol::output_scratch;
+use inferstream_protocol::tensor::{unpack_fp32, DataType};
+use inferstream_protocol::Bytes;
 
 use crate::tokenizer::TokenizerMap;
 
@@ -47,134 +44,95 @@ impl ExtensionService {
             .ok_or_else(|| Status::not_found(format!("model {model_name:?} is not configured")))
     }
 
-    /// Shared Embed / EmbedStream path: BYTES `text` → FP32 rows.
-    async fn embed_rows(&self, req: &EmbedRequest) -> Result<Embedded, Status> {
+    /// Shared Embed / EmbedStream path: texts → rented LE FP32 slab.
+    async fn embed_blob(&self, req: &EmbedRequest) -> Result<(PackedEmbed, Vec<u8>), Status> {
         if req.texts.is_empty() {
             return Err(Status::invalid_argument("texts must not be empty"));
         }
         let backend = self.backend_for(&req.model_name)?;
-
-        let mut parameters = HashMap::new();
-        if !req.pooling.is_empty() {
-            parameters.insert("pooling".to_string(), string_param(&req.pooling));
-        }
-        if let Some(normalize) = req.normalize {
-            parameters.insert("normalize".to_string(), bool_param(normalize));
-        }
-        if req.truncate_to > 0 {
-            parameters.insert(
-                "truncate".to_string(),
-                int_param(i64::from(req.truncate_to)),
-            );
-        }
-        let text_bytes: Vec<&[u8]> = req.texts.iter().map(|t| t.as_bytes()).collect();
-        let infer_request = ModelInferRequest {
-            model_name: req.model_name.clone(),
-            parameters,
-            inputs: vec![InferInputTensor {
-                name: "text".to_string(),
-                datatype: DataType::Bytes.as_oip().to_string(),
-                shape: vec![req.texts.len() as i64],
-                parameters: HashMap::new(),
-                contents: None,
-            }],
-            raw_input_contents: vec![pack_bytes(&text_bytes)],
-            ..Default::default()
-        };
+        let estimate = req.texts.len().saturating_mul(4).saturating_mul(64);
+        let mut dest = output_scratch::rent_bytes(estimate);
         debug!(model = %req.model_name, batch = req.texts.len(), "embed");
-        let response = backend.infer(infer_request).await.map_err(status_from)?;
-
-        let (index, output) = response
-            .outputs
-            .iter()
-            .enumerate()
-            .find(|(_, o)| o.name == "embedding")
-            .ok_or_else(|| {
-                Status::internal("backend returned no output tensor named \"embedding\"")
-            })?;
-        if output.datatype != DataType::Fp32.as_oip() {
+        let meta = match backend
+            .embed_packed_into(
+                &req.model_name,
+                &req.texts,
+                &req.pooling,
+                req.normalize,
+                req.truncate_to,
+                &mut dest,
+            )
+            .await
+        {
+            Ok(meta) => meta,
+            Err(err) => {
+                output_scratch::recycle_bytes(dest);
+                return Err(status_from(err));
+            }
+        };
+        if meta.count as usize != req.texts.len() {
+            output_scratch::recycle_bytes(dest);
             return Err(Status::internal(format!(
-                "output \"embedding\" must be FP32, backend returned {:?}",
-                output.datatype
-            )));
-        }
-        let raw = response
-            .raw_output_contents
-            .get(index)
-            .ok_or_else(|| Status::internal("backend returned no raw content for \"embedding\""))?;
-        let values =
-            unpack_fp32(raw).map_err(|e| Status::internal(format!("malformed FP32 blob: {e}")))?;
-        let dim = output
-            .shape
-            .last()
-            .copied()
-            .filter(|&d| d > 0)
-            .ok_or_else(|| Status::internal("embedding output reported an empty shape"))?
-            as usize;
-        if values.len() % dim != 0 {
-            return Err(Status::internal(format!(
-                "embedding blob length {} is not a multiple of dim {dim}",
-                values.len()
-            )));
-        }
-        let n = values.len() / dim;
-        if n != req.texts.len() {
-            return Err(Status::internal(format!(
-                "backend returned {n} embeddings for {} texts",
+                "backend returned {} embeddings for {} texts",
+                meta.count,
                 req.texts.len()
             )));
         }
-        Ok(Embedded {
-            dim: dim as u32,
-            values,
-            model_name: response.model_name,
-            model_version: response.model_version,
-        })
+        let want = (meta.count as usize)
+            .saturating_mul(meta.dim as usize)
+            .saturating_mul(4);
+        if dest.len() != want {
+            let got = dest.len();
+            output_scratch::recycle_bytes(dest);
+            return Err(Status::internal(format!(
+                "embedding blob length {got} != count {} * dim {} * 4",
+                meta.count, meta.dim
+            )));
+        }
+        Ok((meta, dest))
     }
-}
-
-struct Embedded {
-    dim: u32,
-    values: Vec<f32>,
-    model_name: String,
-    model_version: String,
-}
-
-fn packed_le_f32(values: &[f32]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(values.len() * 4);
-    for v in values {
-        out.extend_from_slice(&v.to_le_bytes());
-    }
-    out
 }
 
 fn embed_output_format(req: &EmbedRequest) -> EmbedOutputFormat {
     EmbedOutputFormat::try_from(req.output_format).unwrap_or(EmbedOutputFormat::Typed)
 }
 
-fn encode_embed_response(req: &EmbedRequest, rows: Embedded) -> EmbedResponse {
-    let dim = rows.dim as usize;
+fn encode_embed_response(
+    req: &EmbedRequest,
+    meta: PackedEmbed,
+    dest: Vec<u8>,
+) -> Result<EmbedResponse, Status> {
+    let dim = meta.dim as usize;
     match embed_output_format(req) {
-        EmbedOutputFormat::PackedBytes => EmbedResponse {
-            dim: rows.dim,
+        EmbedOutputFormat::PackedBytes => Ok(EmbedResponse {
+            dim: meta.dim,
             embeddings: Vec::new(),
-            model_name: rows.model_name,
-            model_version: rows.model_version,
-            packed_embeddings: packed_le_f32(&rows.values),
-        },
-        EmbedOutputFormat::Typed => EmbedResponse {
-            dim: rows.dim,
-            embeddings: rows
-                .values
-                .chunks_exact(dim)
-                .map(|chunk| Embedding {
-                    values: chunk.to_vec(),
-                })
-                .collect(),
-            model_name: rows.model_name,
-            model_version: rows.model_version,
-            packed_embeddings: Vec::new(),
-        },
+            model_name: meta.model_name,
+            model_version: meta.model_version,
+            packed_embeddings: output_scratch::adopt_bytes(dest),
+        }),
+        EmbedOutputFormat::Typed => {
+            let values = match unpack_fp32(&dest) {
+                Ok(v) => v,
+                Err(e) => {
+                    output_scratch::recycle_bytes(dest);
+                    return Err(Status::internal(format!("malformed FP32 blob: {e}")));
+                }
+            };
+            output_scratch::recycle_bytes(dest);
+            Ok(EmbedResponse {
+                dim: meta.dim,
+                embeddings: values
+                    .chunks_exact(dim)
+                    .map(|chunk| Embedding {
+                        values: chunk.to_vec(),
+                    })
+                    .collect(),
+                model_name: meta.model_name,
+                model_version: meta.model_version,
+                packed_embeddings: Bytes::new(),
+            })
+        }
     }
 }
 
@@ -184,24 +142,6 @@ fn status_from(error: BackendError) -> Status {
         BackendError::InvalidRequest(_) => Status::invalid_argument(error.to_string()),
         BackendError::Unavailable(_) => Status::unavailable(error.to_string()),
         BackendError::Internal(_) => Status::internal(error.to_string()),
-    }
-}
-
-fn string_param(value: &str) -> InferParameter {
-    InferParameter {
-        parameter_choice: Some(ParameterChoice::StringParam(value.to_string())),
-    }
-}
-
-fn bool_param(value: bool) -> InferParameter {
-    InferParameter {
-        parameter_choice: Some(ParameterChoice::BoolParam(value)),
-    }
-}
-
-fn int_param(value: i64) -> InferParameter {
-    InferParameter {
-        parameter_choice: Some(ParameterChoice::Int64Param(value)),
     }
 }
 
@@ -263,8 +203,8 @@ impl InferstreamService for ExtensionService {
         request: Request<EmbedRequest>,
     ) -> Result<Response<EmbedResponse>, Status> {
         let req = request.into_inner();
-        let rows = self.embed_rows(&req).await?;
-        Ok(Response::new(encode_embed_response(&req, rows)))
+        let (meta, dest) = self.embed_blob(&req).await?;
+        Ok(Response::new(encode_embed_response(&req, meta, dest)?))
     }
 
     type EmbedStreamStream =
@@ -276,26 +216,41 @@ impl InferstreamService for ExtensionService {
     ) -> Result<Response<Self::EmbedStreamStream>, Status> {
         let req = request.into_inner();
         let packed = embed_output_format(&req) == EmbedOutputFormat::PackedBytes;
-        let rows = self.embed_rows(&req).await?;
-        let dim = rows.dim as usize;
-        let n = rows.values.len().checked_div(dim).unwrap_or(0);
+        let (meta, dest) = self.embed_blob(&req).await?;
+        let dim = meta.dim as usize;
+        let n = meta.count as usize;
+        let row_bytes = dim.saturating_mul(4);
+        if packed {
+            let blob = output_scratch::adopt_bytes(dest);
+            let mut chunks = Vec::with_capacity(n);
+            for i in 0..n {
+                let start = i * row_bytes;
+                chunks.push(Ok(EmbedChunk {
+                    index: i as u32,
+                    embedding: None,
+                    packed_row: blob.slice(start..start + row_bytes),
+                    r#final: i + 1 == n,
+                }));
+            }
+            return Ok(Response::new(Box::pin(tokio_stream::iter(chunks))));
+        }
+        let values = match unpack_fp32(&dest) {
+            Ok(v) => v,
+            Err(e) => {
+                output_scratch::recycle_bytes(dest);
+                return Err(Status::internal(format!("malformed FP32 blob: {e}")));
+            }
+        };
+        output_scratch::recycle_bytes(dest);
         let mut chunks = Vec::with_capacity(n);
         for i in 0..n {
-            let row = &rows.values[i * dim..(i + 1) * dim];
+            let row = &values[i * dim..(i + 1) * dim];
             chunks.push(Ok(EmbedChunk {
                 index: i as u32,
-                embedding: if packed {
-                    None
-                } else {
-                    Some(Embedding {
-                        values: row.to_vec(),
-                    })
-                },
-                packed_row: if packed {
-                    packed_le_f32(row)
-                } else {
-                    Vec::new()
-                },
+                embedding: Some(Embedding {
+                    values: row.to_vec(),
+                }),
+                packed_row: Bytes::new(),
                 r#final: i + 1 == n,
             }));
         }
@@ -370,23 +325,34 @@ impl InferstreamService for ExtensionService {
         }
         let backend = self.backend_for(&req.model_name)?;
         debug!(model = %req.model_name, docs = req.documents.len(), "rerank");
-        let scores = backend
-            .rerank(&req.model_name, &req.query, &req.documents)
+        let mut scores = output_scratch::rent_f32(req.documents.len());
+        if let Err(err) = backend
+            .rerank_into(
+                &req.model_name,
+                &req.query,
+                &req.documents,
+                &mut scores,
+            )
             .await
-            .map_err(status_from)?;
+        {
+            output_scratch::recycle_f32(scores);
+            return Err(status_from(err));
+        }
         if scores.len() != req.documents.len() {
+            let n = scores.len();
+            output_scratch::recycle_f32(scores);
             return Err(Status::internal(format!(
                 "backend returned {} scores for {} documents",
-                scores.len(),
+                n,
                 req.documents.len()
             )));
         }
         let mut results: Vec<RerankResult> = scores
-            .into_iter()
+            .iter()
             .enumerate()
             .map(|(index, score)| RerankResult {
                 index: index as u32,
-                score,
+                score: *score,
                 document: if req.return_documents {
                     req.documents[index].clone()
                 } else {
@@ -394,6 +360,7 @@ impl InferstreamService for ExtensionService {
                 },
             })
             .collect();
+        output_scratch::recycle_f32(scores);
         // Descending score; ties keep input order (stable sort).
         // Library / TurboRerank scores stay in input order; sort lives here.
         results.sort_by(|a, b| b.score.total_cmp(&a.score));

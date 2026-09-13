@@ -174,6 +174,161 @@ pub trait Backend: Send + Sync + 'static {
             self.id()
         )))
     }
+
+    /// Write a row-major LE FP32 embedding blob into `dest`, reusing
+    /// `dest.capacity` (SOLIDIFY 6 output scratch).
+    ///
+    /// Default: pack a BYTES `text` tensor, [`Backend::infer`], copy
+    /// `raw_output_contents`. Mock stays on that path (explicit 8-d FNV).
+    /// TurboEmbed overrides and copies engine-arena floats straight into
+    /// the rented slab — no intermediate `pack_fp32` heap Vec.
+    async fn embed_packed_into(
+        &self,
+        model_name: &str,
+        texts: &[String],
+        pooling: &str,
+        normalize: Option<bool>,
+        truncate_to: u32,
+        dest: &mut Vec<u8>,
+    ) -> Result<PackedEmbed, BackendError> {
+        let request = infer_from_embed(model_name, texts, pooling, normalize, truncate_to);
+        let response = self.infer(request).await?;
+        packed_from_infer(response, dest)
+    }
+
+    /// Write scores into `dest` (input order), reusing `dest.capacity`.
+    ///
+    /// Default: [`Backend::rerank`] then `extend` into `dest`. Mock
+    /// word-overlap is unchanged. TurboRerank overrides with
+    /// `score_into` so the C ABI writes the rented row.
+    async fn rerank_into(
+        &self,
+        model_name: &str,
+        query: &str,
+        documents: &[String],
+        dest: &mut Vec<f32>,
+    ) -> Result<(), BackendError> {
+        let scores = self.rerank(model_name, query, documents).await?;
+        dest.clear();
+        dest.extend_from_slice(&scores);
+        Ok(())
+    }
+}
+
+/// Metadata for a blob written by [`Backend::embed_packed_into`].
+#[derive(Debug, Clone)]
+pub struct PackedEmbed {
+    pub dim: u32,
+    pub count: u32,
+    pub model_name: String,
+    pub model_version: String,
+}
+
+fn infer_from_embed(
+    model_name: &str,
+    texts: &[String],
+    pooling: &str,
+    normalize: Option<bool>,
+    truncate_to: u32,
+) -> ModelInferRequest {
+    use inferstream_protocol::inference::{
+        infer_parameter::ParameterChoice, model_infer_request::InferInputTensor, InferParameter,
+    };
+    use inferstream_protocol::tensor::{pack_bytes, DataType};
+
+    let mut parameters = HashMap::new();
+    if !pooling.is_empty() {
+        parameters.insert(
+            "pooling".to_string(),
+            InferParameter {
+                parameter_choice: Some(ParameterChoice::StringParam(pooling.to_string())),
+            },
+        );
+    }
+    if let Some(normalize) = normalize {
+        parameters.insert(
+            "normalize".to_string(),
+            InferParameter {
+                parameter_choice: Some(ParameterChoice::BoolParam(normalize)),
+            },
+        );
+    }
+    if truncate_to > 0 {
+        parameters.insert(
+            "truncate".to_string(),
+            InferParameter {
+                parameter_choice: Some(ParameterChoice::Int64Param(i64::from(truncate_to))),
+            },
+        );
+    }
+    let text_bytes: Vec<&[u8]> = texts.iter().map(|t| t.as_bytes()).collect();
+    ModelInferRequest {
+        model_name: model_name.to_string(),
+        parameters,
+        inputs: vec![InferInputTensor {
+            name: "text".to_string(),
+            datatype: DataType::Bytes.as_oip().to_string(),
+            shape: vec![texts.len() as i64],
+            parameters: HashMap::new(),
+            contents: None,
+        }],
+        raw_input_contents: vec![pack_bytes(&text_bytes)],
+        ..Default::default()
+    }
+}
+
+fn packed_from_infer(
+    response: ModelInferResponse,
+    dest: &mut Vec<u8>,
+) -> Result<PackedEmbed, BackendError> {
+    use inferstream_protocol::tensor::DataType;
+
+    let (index, output) = response
+        .outputs
+        .iter()
+        .enumerate()
+        .find(|(_, o)| o.name == "embedding")
+        .ok_or_else(|| {
+            BackendError::Internal("backend returned no output tensor named \"embedding\"".into())
+        })?;
+    if output.datatype != DataType::Fp32.as_oip() {
+        return Err(BackendError::Internal(format!(
+            "output \"embedding\" must be FP32, backend returned {:?}",
+            output.datatype
+        )));
+    }
+    let raw = response.raw_output_contents.get(index).ok_or_else(|| {
+        BackendError::Internal("backend returned no raw content for \"embedding\"".into())
+    })?;
+    let dim = output
+        .shape
+        .last()
+        .copied()
+        .filter(|&d| d > 0)
+        .ok_or_else(|| BackendError::Internal("embedding output reported an empty shape".into()))?
+        as usize;
+    if raw.len() % 4 != 0 {
+        return Err(BackendError::Internal(format!(
+            "embedding blob length {} is not a multiple of 4",
+            raw.len()
+        )));
+    }
+    let n_floats = raw.len() / 4;
+    if n_floats % dim != 0 {
+        return Err(BackendError::Internal(format!(
+            "embedding blob length {} is not a multiple of dim {dim}",
+            n_floats
+        )));
+    }
+    dest.clear();
+    inferstream_protocol::output_scratch::ensure_bytes(dest, raw.len());
+    dest.extend_from_slice(raw);
+    Ok(PackedEmbed {
+        dim: dim as u32,
+        count: (n_floats / dim) as u32,
+        model_name: response.model_name,
+        model_version: response.model_version,
+    })
 }
 
 /// Catalog MiniLM-L6 cross-encoder aliases. Mock word-overlap must not

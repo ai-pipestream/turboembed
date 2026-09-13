@@ -147,8 +147,11 @@ existing [`inferstream.v1.InferstreamService`](../proto/inferstream_extension.pr
 
 `EmbedRequest.output_format` selects typed **or** packed. Packed is the
 cheap path for Java / Rust clients that want one `bytes` copy matching
-OIP `raw_output_contents`. Default stays typed so today's grpcurl and
-`inferstream-e2e` clients do not change.
+OIP `raw_output_contents`. The façade writes that blob into a rented
+output-scratch slab (`docs/grpc-output-scratch.md`, SOLIDIFY 6) — after
+warmup the dest `Vec` is reused; prost still copies onto the wire.
+Default stays typed so today's grpcurl and `inferstream-e2e` clients do
+not change.
 
 OIP `ModelInfer` remains the interoperable raw-tensor path (BYTES `text`
 in, FP32 `embedding` out). Every TurboEmbed embed is expressible as
