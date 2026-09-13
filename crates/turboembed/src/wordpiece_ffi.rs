@@ -15,7 +15,7 @@ unsafe extern "C" {
     fn wordpiece_vocab_load(path: *const c_char, out: *mut *mut wordpiece_vocab) -> i32;
     fn wordpiece_vocab_load_dir(dir: *const c_char, out: *mut *mut wordpiece_vocab) -> i32;
     fn wordpiece_vocab_destroy(v: *mut wordpiece_vocab);
-    pub fn wordpiece_encode_sentence(
+    fn wordpiece_encode_sentence(
         v: *const wordpiece_vocab,
         utf8: *const c_char,
         utf8_len: usize,
@@ -27,8 +27,18 @@ unsafe extern "C" {
         stride: u32,
         elem_width: u32,
     ) -> i32;
-    pub fn wordpiece_hot_alloc_counter() -> u64;
-    pub fn wordpiece_hot_alloc_counter_reset();
+    fn wordpiece_hot_alloc_counter() -> u64;
+    fn wordpiece_hot_alloc_counter_reset();
+}
+
+/// SOLIDIFY 5: process-wide heap counter on the WordPiece hot path.
+/// rustc 1.97+ requires `unsafe` at the call site for `unsafe extern "C"`.
+pub fn hot_alloc_counter() -> u64 {
+    unsafe { wordpiece_hot_alloc_counter() }
+}
+
+pub fn hot_alloc_counter_reset() {
+    unsafe { wordpiece_hot_alloc_counter_reset() }
 }
 
 pub struct WordPiece {
