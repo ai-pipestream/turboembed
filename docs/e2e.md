@@ -35,10 +35,11 @@ not an error.
 ## Build / run
 
 ```bash
-# Against a live worker (server already up). FETCH=1 is the default:
-make e2e-nvidia          # default addr krick:8461; fetch minilm + 0.5B GGUF if missing
-make e2e-intel           # default addr krick-1:8461; fetch ov-genai minilm + GGUF
-make e2e-apple           # default addr krickert-mac:8461; cargo xtask fetch --mlx
+# Against a live worker (server already up). FETCH=1 is the default.
+# On-box default is 127.0.0.1:8461; set INFERSTREAM_E2E_*_ADDR for a remote Machine:
+make e2e-nvidia          # Machine A; fetch minilm + 0.5B GGUF if missing
+make e2e-intel           # Machine B; fetch ov-genai minilm + GGUF
+make e2e-apple           # Machine C; cargo xtask fetch --mlx
 
 # Skip download (weights already on disk, or CI):
 make e2e-nvidia FETCH=0
@@ -49,7 +50,7 @@ make e2e-intel FETCH=serve             # config/intel.toml serve list
 make fetch-e2e-nvidia                  # ensure artifacts only; no gRPC
 
 # Or the binary directly:
-cargo run -p inferstream-e2e -- --target nvidia --addr krick:8461 --token "$KEY" --fetch
+cargo run -p inferstream-e2e -- --target nvidia --addr <Machine-A-host>:8461 --token "$KEY" --fetch
 cargo run -p inferstream-e2e -- --target nvidia --fetch-only
 scripts/ensure-models.sh nvidia        # thin wrapper: cargo + --fetch-only
 ```
@@ -58,8 +59,8 @@ Environment / flags (equivalent):
 
 | flag | env | default |
 |---|---|---|
-| `--target` | `INFERSTREAM_E2E_TARGET` | inferred from `--addr` (`krick` / `krick-1` / `krickert-mac` / localhost) |
-| `--addr` | `INFERSTREAM_E2E_ADDR` | per-target live worker |
+| `--target` | `INFERSTREAM_E2E_TARGET` | required for a live Machine; localhost/`127.0.0.1` infers `mock` |
+| `--addr` | `INFERSTREAM_E2E_ADDR` | `127.0.0.1:8461` on-box; set to that Machine's host:port when remote |
 | `--token` | `INFERSTREAM_E2E_TOKEN` | `change-me` (empty string = no auth) |
 | `--matrix` | `INFERSTREAM_E2E_MATRIX` | built-in `testdata/e2e/matrix.json` |
 | `--goldens` | `INFERSTREAM_E2E_GOLDENS` | `testdata/e2e/goldens/` if present |
@@ -105,13 +106,13 @@ make e2e-parity-goldens TARGET=nvidia WRITE=1
 make e2e-parity-goldens TARGET=nvidia
 
 # Pairwise cosine across live addrs and/or dumps:
-INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \
-INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 \
-INFERSTREAM_E2E_APPLE_ADDR=krickert-mac:8461 \
+INFERSTREAM_E2E_NVIDIA_ADDR=<Machine-A-host>:8461 \
+INFERSTREAM_E2E_INTEL_ADDR=<Machine-B-host>:8461 \
+INFERSTREAM_E2E_APPLE_ADDR=<Machine-C-host>:8461 \
   make e2e-parity
 
 cargo run -p inferstream-e2e -- --parity-cross \
-  --peer nvidia=krick:8461 \
+  --peer nvidia=<Machine-A-host>:8461 \
   --dump intel=testdata/e2e/goldens/intel
 ```
 
@@ -121,8 +122,8 @@ drift). Rationale: [`e2e-parity.md`](e2e-parity.md). Popular-model
 matrix (same floors): `make e2e-drift` — [`turboembed-drift.md`](turboembed-drift.md).
 
 ```bash
-INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \
-INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 \
+INFERSTREAM_E2E_NVIDIA_ADDR=<Machine-A-host>:8461 \
+INFERSTREAM_E2E_INTEL_ADDR=<Machine-B-host>:8461 \
   make e2e-all
 ```
 
@@ -131,14 +132,14 @@ INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 \
 Bearer token on all three example configs is `change-me` unless you overrode
 `INFERSTREAM_API_KEYS`.
 
-### krick (nvidia)
+### Machine A (nvidia)
 
 ```bash
-# on krick, or any box that can reach it:
+# on Machine A, or any box that can reach it:
 scripts/run-nvidia.sh --config config/nvidia.toml   # already running is fine
 make e2e-nvidia INFERSTREAM_E2E_ADDR=127.0.0.1:8461
 # from another machine:
-make e2e-nvidia INFERSTREAM_E2E_ADDR=krick:8461
+make e2e-nvidia INFERSTREAM_E2E_ADDR=<Machine-A-host>:8461
 ```
 
 Serves `minilm` + `default-llm` out of the box. Extra embed / `qwen-0.5b` /
@@ -147,20 +148,20 @@ Serves `minilm` + `default-llm` out of the box. Extra embed / `qwen-0.5b` /
 machine first — useful on the worker itself, a no-op if the hashes already
 match.
 
-### krick-1 (intel)
+### Machine B (intel)
 
 ```bash
 scripts/run-intel.sh --config config/intel.toml
 make e2e-intel INFERSTREAM_E2E_ADDR=127.0.0.1:8461
 # remote:
-make e2e-intel INFERSTREAM_E2E_ADDR=krick-1:8461
+make e2e-intel INFERSTREAM_E2E_ADDR=<Machine-B-host>:8461
 ```
 
 In-process SYCL currently serves `default-llm` / `qwen-0.5b` (and `qwen-7b`
 when fetched). `qwen-0.5b` is **not** skipped: the catalog has an intel row.
 Only skip it if you pass a matrix JSON that drops intel from that alias.
 
-### krickert-mac (apple)
+### Machine C (apple)
 
 ```bash
 make apple

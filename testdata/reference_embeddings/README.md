@@ -39,7 +39,7 @@ full little-endian FP32 blob, and compare `l2` + head/tail cosine instead.
 | `mock_long_truncation.json` | 600 repeated tokens — exercises `max_seq_len` truncation on real models |
 
 The GPU goldens (`ort_cuda_minilm_*.json`) cover the same five prompts for
-`minilm-l6-v2` on the ORT CUDA EP, generated on krick with the
+`minilm-l6-v2` on the ORT CUDA EP, generated on Machine A with the
 `config/nvidia.toml` parameters (`pooling = "mean"`, `normalize = true`,
 `max_seq_len = 256`). The short-prompt golden was cross-checked against the
 independent TEI serving stack for the same model (cosine 0.999998).
@@ -56,14 +56,14 @@ Regenerate after any intentional mock-algorithm change:
 cargo run -p inferstream-server --example gen_reference_embeddings
 ```
 
-## GPU goldens (krick / krick-1)
+## GPU goldens (Machine A / Machine B)
 
 GPU goldens compare a real engine against a stored vector for the same model
 and parameters. They are `#[ignore]`d and feature-gated so default CI never
 needs a GPU (`crates/backend-ort/tests/gpu_goldens.rs`,
 `crates/backend-openvino/tests/gpu_goldens.rs`).
 
-Regenerate/run on **krick** (NVIDIA, ORT CUDA EP):
+Regenerate/run on **Machine A** (NVIDIA, ORT CUDA EP):
 
 ```bash
 scripts/fetch-runtime-libs.sh nvidia
@@ -89,7 +89,7 @@ The test builds its engine from the golden's own `text` / `pooling` /
 `normalize` / `max_seq_len` fields, so one invocation per golden file verifies
 that exact `(model, text, params)` tuple.
 
-On **krick-1** the default Intel path is in-process OpenVINO GenAI
+On **Machine B** the default Intel path is in-process OpenVINO GenAI
 (`docs/intel-genai-embed.md`). After `make fetch-ov-genai` and a
 `--features openvino-genai` build:
 

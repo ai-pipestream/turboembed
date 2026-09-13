@@ -1,4 +1,4 @@
-# inferstream-intel: full surface on krick-1 — evidence report
+# inferstream-intel: full surface on Machine B — evidence report
 
 > **Historical.** Embed on this pass used OVMS DAG pipelines. That client
 > is **removed** — Intel Embed is in-process OpenVINO GenAI only
@@ -6,7 +6,7 @@
 > inferstream does not depend on it. Generation notes below (llama.cpp)
 > are unchanged in intent.
 
-Status of the `inferstream-intel` binary on the krick-1 host (Intel
+Status of the `inferstream-intel` binary on the Machine B host (Intel
 Arc/Battlemage GPU) after the full-surface pass: **Tokenize/Detokenize,
 Embed, unary generation, and real token streaming through `ModelStreamInfer`
 are all live**, each backed by a real engine — no mock in any verified path.
@@ -69,7 +69,7 @@ backend remains possible follow-up work.
 * All three arch binaries pass `endpoint` through to the llama-cpp backend
   (env fallback only for models without a GGUF `path`).
 
-## Evidence (2026-09-11, krick-1)
+## Evidence (2026-09-11, Machine B)
 
 Default test suite: `cargo test --workspace` — all green, zero failures
 (live suites stay `#[ignore]`d).

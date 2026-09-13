@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn endpoint_adds_http() {
-        assert_eq!(endpoint("krick:8461"), "http://krick:8461");
+        assert_eq!(endpoint("gpu-lab:8461"), "http://gpu-lab:8461");
         assert_eq!(endpoint("http://127.0.0.1:8461"), "http://127.0.0.1:8461");
     }
 }

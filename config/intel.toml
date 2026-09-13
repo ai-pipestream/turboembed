@@ -1,4 +1,4 @@
-# inferstream-intel example configuration (krick-1-class Intel host,
+# inferstream-intel example configuration (Machine B-class Intel host,
 # Arc/Battlemage GPU).
 #
 # Default embed path: in-process OpenVINO GenAI TextEmbeddingPipeline

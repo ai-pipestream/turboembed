@@ -159,6 +159,10 @@ build-intel-sycl: setup-sycl
 # Unified E2E harness (crates/e2e). Talks gRPC to an already-running server;
 # never starts remote GPUs. See docs/e2e.md.
 #
+# Lab checkout paths are local to each Machine (README chart). On-box
+# default is 127.0.0.1:8461. For a remote worker set
+# INFERSTREAM_E2E_{NVIDIA,INTEL,APPLE}_ADDR to that Machine's gRPC host:port.
+#
 # FETCH=1 (default on worker targets): download missing SHA-256-pinned
 # artifacts via inferstream-fetch / cargo xtask fetch --mlx, then run.
 # FETCH=0 skips download (CI mock, or hosts that already have weights).
@@ -185,13 +189,13 @@ E2E_CORPUS_ARGS := $(strip \
 	$(if $(filter 1 true yes on,$(FETCH_CORPUS)),--fetch-corpus,))
 
 e2e-nvidia:
-	$(E2E) --target nvidia --addr $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),krick:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
+	$(E2E) --target nvidia --addr $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),127.0.0.1:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
 
 e2e-intel:
-	$(E2E) --target intel --addr $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),krick-1:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
+	$(E2E) --target intel --addr $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),127.0.0.1:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
 
 e2e-apple:
-	$(E2E) --target apple --addr $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),krickert-mac:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
+	$(E2E) --target apple --addr $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),127.0.0.1:8461) --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_FETCH_ARGS) $(E2E_CORPUS_ARGS)
 
 # Local mock under the same logical names (config/e2e-mock.toml must be up).
 # Auto-fetch is off: the mock has no on-disk weights.
@@ -256,13 +260,13 @@ DUMP_NVIDIA ?=
 DUMP_INTEL ?=
 DUMP_APPLE ?=
 ifeq ($(TARGET),intel)
-  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),krick-1:8461)
+  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_INTEL_ADDR),$(INFERSTREAM_E2E_ADDR),127.0.0.1:8461)
 else ifeq ($(TARGET),apple)
-  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),krickert-mac:8461)
+  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_APPLE_ADDR),$(INFERSTREAM_E2E_ADDR),127.0.0.1:8461)
 else ifeq ($(TARGET),mock)
   PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_ADDR),127.0.0.1:8461)
 else
-  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),krick:8461)
+  PARITY_GOLDEN_ADDR ?= $(or $(INFERSTREAM_E2E_NVIDIA_ADDR),$(INFERSTREAM_E2E_ADDR),127.0.0.1:8461)
 endif
 
 e2e-parity-goldens:
@@ -282,7 +286,7 @@ e2e-parity:
 	if [ -z "$$peers" ] && [ -z "$$dumps" ]; then \
 	  echo "e2e-parity: no INFERSTREAM_E2E_{NVIDIA,INTEL,APPLE}_ADDR or DUMP_* set; nothing to run (will not start remote GPUs)."; \
 	  echo "Capture: make e2e-parity-goldens TARGET=nvidia WRITE=1"; \
-	  echo "Three-way: INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 INFERSTREAM_E2E_APPLE_ADDR=krickert-mac:8461 make e2e-parity"; \
+	  echo "Three-way: set INFERSTREAM_E2E_{NVIDIA,INTEL,APPLE}_ADDR to each Machine's gRPC host:port (README lab chart); make e2e-parity"; \
 	  exit 0; \
 	fi; \
 	$(E2E) --parity-cross $$peers $$dumps --token "$(INFERSTREAM_E2E_TOKEN)" $(E2E_CORPUS_ARGS)

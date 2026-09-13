@@ -9,7 +9,7 @@
       "pipeline": "bge_base_pipeline",
       "pooling": "cls",
       "dims": 768,
-      "export_command": "scripts/export_ovms_embeddings.py bge-base --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py bge-base --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -52,7 +52,7 @@
       "pipeline": "bge_large_pipeline",
       "pooling": "cls",
       "dims": 1024,
-      "export_command": "scripts/export_ovms_embeddings.py bge-large --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py bge-large --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -95,7 +95,7 @@
       "pipeline": "bge_m3_pipeline",
       "pooling": "cls",
       "dims": 1024,
-      "export_command": "scripts/export_ovms_embeddings.py bge-m3 --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py bge-m3 --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -138,7 +138,7 @@
       "pipeline": "bge_small_pipeline",
       "pooling": "cls",
       "dims": 384,
-      "export_command": "scripts/export_ovms_embeddings.py bge-small --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py bge-small --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -181,7 +181,7 @@
       "pipeline": "e5_base_pipeline",
       "pooling": "mean",
       "dims": 768,
-      "export_command": "scripts/export_ovms_embeddings.py e5-base --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py e5-base --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -224,7 +224,7 @@
       "pipeline": "e5_large_pipeline",
       "pooling": "mean",
       "dims": 1024,
-      "export_command": "scripts/export_ovms_embeddings.py e5-large --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py e5-large --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -267,7 +267,7 @@
       "pipeline": "e5_small_pipeline",
       "pooling": "mean",
       "dims": 384,
-      "export_command": "scripts/export_ovms_embeddings.py e5-small --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py e5-small --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -310,7 +310,7 @@
       "pipeline": "gte_base_pipeline",
       "pooling": "mean",
       "dims": 768,
-      "export_command": "scripts/export_ovms_embeddings.py gte-base --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py gte-base --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -353,7 +353,7 @@
       "pipeline": "gte_small_pipeline",
       "pooling": "mean",
       "dims": 384,
-      "export_command": "scripts/export_ovms_embeddings.py gte-small --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py gte-small --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -396,7 +396,7 @@
       "pipeline": "minilm_l12_pipeline",
       "pooling": "mean",
       "dims": 384,
-      "export_command": "scripts/export_ovms_embeddings.py minilm-l12 --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py minilm-l12 --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",
@@ -439,7 +439,7 @@
       "pipeline": "nomic_embed_text_pipeline",
       "pooling": "mean",
       "dims": 768,
-      "export_command": "scripts/export_ovms_embeddings.py nomic-embed-text --out /work/models/ovms-embedder --hf-out /home/krickert/ovms-models",
+      "export_command": "scripts/export_ovms_embeddings.py nomic-embed-text --out /work/models/ovms-embedder --hf-out /path/to/ovms-models",
       "export_environment": {
         "python": "3.12.13",
         "torch": "2.14.0+cpu",

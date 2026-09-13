@@ -1,9 +1,9 @@
-# inferstream-apple: LLM alias Metal smoke (krickert-mac)
+# inferstream-apple: LLM alias Metal smoke (Machine C)
 
 > **History only.** This write-up recorded the old Python `mlx_bridge` /
 > `mlx-lm` worker. That path is gone (`python/mlx_bridge.py` deleted).
 > Current engine is in-process native MLX — see
-> `docs/apple-native-mlx-smoke-krickert-mac.md` and `docs/native-mlx.md`.
+> `docs/apple-native-mlx-smoke-machine-c.md` and `docs/native-mlx.md`.
 
 Live Tokenize + `ModelStreamInfer` for the logical generation aliases on
 the Apple M2 host via **mlx-lm on Metal** (not CPU, not GGUF-on-MLX).
@@ -15,7 +15,7 @@ ping-stats fixes (`e1a41ce`, later merged to `main` as `b93865e`).
 | Result | Detail |
 |---|---|
 | **PASS** | `scripts/smoke-llms.sh` — 3 passed, 0 failed |
-| Host | krickert-mac, MacBook Air Mac14,2, Apple M2, 24 GB, Metal 4 |
+| Host | Machine C, MacBook Air Mac14,2, Apple M2, 24 GB, Metal 4 |
 | Engine | persistent MLX worker → `mlx-lm` 0.32.2, `Device(gpu, 0)` |
 
 ## What was smoked

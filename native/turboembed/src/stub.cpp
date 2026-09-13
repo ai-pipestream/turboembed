@@ -363,7 +363,7 @@ turboembed_status turboembed_engine_create(
                 "fallback (and refusing a silent CUDA stand-in). ORT "
                 "already ships libonnxruntime_providers_tensorrt.so; "
                 "the host blocker is TensorRT 10 SONAME libs (not "
-                "apt-installed on krick; tensorrt-cu13-libs wheel is "
+                "apt-installed on Machine A; tensorrt-cu13-libs wheel is "
                 "~3.7 GiB). See docs/turboembed.md";
             return TURBOEMBED_ERR_UNAVAILABLE;
 #endif

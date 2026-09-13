@@ -1,7 +1,7 @@
 //! GPU/host-model integration tests for the real llama.cpp engine.
 //!
 //! These are `#[ignore]`d and only compile with the `runtime` feature: they
-//! need a GGUF model on disk (see `/work/models/gguf/README.md` on krick) and,
+//! need a GGUF model on disk (see `/work/models/gguf/README.md` on Machine A) and,
 //! for the CUDA path, an NVIDIA GPU. Run explicitly:
 //!
 //! ```text
@@ -9,7 +9,7 @@
 //! ```
 //!
 //! Environment:
-//! * `INFERSTREAM_GGUF` — model path (default: the krick Qwen2.5-0.5B Q8_0)
+//! * `INFERSTREAM_GGUF` — model path (default: the Machine A Qwen2.5-0.5B Q8_0)
 //! * `INFERSTREAM_LLAMA_DEVICE` — `cuda` / `sycl` / `cpu` (default: cuda
 //!   when built with `cuda`, sycl when built with `sycl`, else cpu)
 

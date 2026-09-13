@@ -1,6 +1,6 @@
-# NVIDIA goldens (krick)
+# NVIDIA goldens (Machine A)
 
-Captured **2026-09-12** on **krick** (RTX 4080 SUPER) from Origin `main`
+Captured **2026-09-12** on **Machine A** (RTX 4080 SUPER) from Origin `main`
 `2b8883c` (`feat: SHA-pinned test corpus and cross-arch embedding parity`).
 
 | file | alias | pooling | dim | items |
@@ -53,4 +53,4 @@ cargo run -p inferstream-e2e -- --parity-cross \
 
 Thresholds: nvidia ↔ intel MiniLM FP **0.99**; apple FP MLX vs nvidia
 **0.97** (English MiniLM is ~1.000; min 0.9795 is CJK UNK drift). See
-`docs/e2e-parity.md` and `docs/nvidia-e2e-parity-goldens-krick.md`.
+`docs/e2e-parity.md` and `docs/nvidia-e2e-parity-goldens-machine-a.md`.

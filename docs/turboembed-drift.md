@@ -59,9 +59,9 @@ not claimed at 0.99 / 0.97.
 make e2e-drift
 
 # Live three-way:
-INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \
-INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 \
-INFERSTREAM_E2E_APPLE_ADDR=krickert-mac:8461 \
+INFERSTREAM_E2E_NVIDIA_ADDR=<Machine-A-host>:8461 \
+INFERSTREAM_E2E_INTEL_ADDR=<Machine-B-host>:8461 \
+INFERSTREAM_E2E_APPLE_ADDR=<Machine-C-host>:8461 \
   make e2e-drift
 
 # Dumps only:
@@ -71,7 +71,7 @@ make e2e-drift DUMP_NVIDIA=testdata/e2e/goldens/nvidia \
 
 # Subset:
 cargo run -p inferstream-e2e -- --drift --only minilm,bge-small \
-  --peer nvidia=krick:8461 --peer intel=krick-1:8461
+  --peer nvidia=<Machine-A-host>:8461 --peer intel=<Machine-B-host>:8461
 ```
 
 `make e2e-drift` is `inferstream-e2e --drift` (parity-cross + the drift

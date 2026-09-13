@@ -11,7 +11,7 @@ rust-version.workspace = true
 [features]
 # Real in-process ov::genai::TextEmbeddingPipeline on Intel CPU or GPU.
 # Explicit device string; GPU / NPU request never silently compiles CPU.
-# NPU create fails loud when the plugin is missing (krick-1 has none).
+# NPU create fails loud when the plugin is missing (Machine B has none).
 # No OVMS, no mock-as-done. See docs/intel-genai-embed.md.
 genai = []
 # Real ONNX Runtime on NVIDIA. CUDA / AUTO: CUDA EP + IoBinding

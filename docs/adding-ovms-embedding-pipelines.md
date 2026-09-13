@@ -16,7 +16,7 @@ scripts/build-intel.sh
 scripts/run-intel.sh --config config/intel.toml
 ```
 
-A host may still run an OVMS Docker container (for example on krick-1).
+A host may still run an OVMS Docker container (for example on Machine B).
 inferstream does not depend on it, start it, or stop it.
 
 Historical OpenVINO IR export (tokenizer + model XML/BIN that can be

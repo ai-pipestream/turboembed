@@ -87,7 +87,7 @@ upstream legitimately changed.
 After fetching embeddings, add the aliases to `serve` in `config/nvidia.toml`,
 restart, and smoke with `scripts/smoke-embeddings.sh <host:port> <bearer-token>`.
 After fetching LLMs, add `qwen-0.5b` / `qwen-7b` to `serve` (nvidia `default-llm`
-already points at the krick GGUF) and smoke with
+already points at the Machine A GGUF) and smoke with
 `scripts/smoke-llms.sh <host:port> <bearer-token>` — Tokenize + a short
 `ModelStreamInfer`. Live GPU is the acceptance path; the smoke scripts talk
 to an already-running server. Bring-up on the worker can use
@@ -113,7 +113,7 @@ exercises the same verify path on offline fixtures).
 (This replaces the interim `SHA256SUMS.models` / `sha256sum -c` flow — that
 file folded into `models/manifests/embeddings.json`; every hash and pinned
 revision it recorded was cross-checked identical before removal. The
-manifest additionally records the `minilm` artifacts that krick serves from
+manifest additionally records the `minilm` artifacts that Machine A serves from
 the TEI HF cache, at the same pinned snapshot `1110a243…`.)
 
 ## Updating the manifest (maintainers)
@@ -151,8 +151,8 @@ When adding an alias or deliberately moving to newer upstream artifacts:
 
 | arch | status |
 |---|---|
-| **nvidia (ORT embeddings)** | **Fully pinned + hashed** — all 13 embedding aliases (`minilm`, `minilm-l12`, `mpnet`, `bge-small/base/large/m3`, `e5-small/base/large`, `gte-small/base`, `nomic-embed-text`). Note: the built-in catalog resolves `minilm` on krick to the TEI HF-cache path, but the manifest fetches the **same pinned revision** (`1110a243…`) into `models/onnx/minilm/` for hosts without that cache — point a catalog copy at it. |
-| **nvidia (llama.cpp LLMs)** | **Fully pinned + hashed** — `qwen-0.5b` (Q8_0, ~644 MiB) and `qwen-7b` (official Q5_K_M split into two shards, ~5.1 GiB). `default-llm` on nvidia uses the GGUF already on krick (`/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf`); `make fetch-llms ALIASES=qwen-0.5b` puts the same pin into `models/gguf/qwen-0.5b/` for other hosts. The 7B catalog path is the first shard; llama.cpp loads the second from the same directory. |
+| **nvidia (ORT embeddings)** | **Fully pinned + hashed** — all 13 embedding aliases (`minilm`, `minilm-l12`, `mpnet`, `bge-small/base/large/m3`, `e5-small/base/large`, `gte-small/base`, `nomic-embed-text`). Note: the built-in catalog resolves `minilm` on Machine A to the TEI HF-cache path, but the manifest fetches the **same pinned revision** (`1110a243…`) into `models/onnx/minilm/` for hosts without that cache — point a catalog copy at it. |
+| **nvidia (llama.cpp LLMs)** | **Fully pinned + hashed** — `qwen-0.5b` (Q8_0, ~644 MiB) and `qwen-7b` (official Q5_K_M split into two shards, ~5.1 GiB). `default-llm` on nvidia uses the GGUF already on Machine A (`/work/models/gguf/qwen2.5-0.5b-instruct-q8_0.gguf`); `make fetch-llms ALIASES=qwen-0.5b` puts the same pin into `models/gguf/qwen-0.5b/` for other hosts. The 7B catalog path is the first shard; llama.cpp loads the second from the same directory. |
 | **apple (MLX)** | Runtime-fetched by design: the MLX backend downloads HF repos into the HF cache on first use (4-bit conversions can't be pre-fetched as single files the same way). Each manifest's `mlx_repos` section records each alias's repo and the **expected pinned revision** for auditability; re-pin with `--update-manifest` / `--llms --update-manifest`. LLM Tokenize on apple uses the fetched `tokenizer.json` (`models/gguf/<alias>/`), which `scripts/setup-mlx.sh` also writes for `qwen-0.5b` and `qwen-7b`. |
 | **intel (OpenVINO GenAI embeddings)** | **Pinned + hashed** — `models/manifests/ov-genai-embeddings.json`. `make fetch-ov-genai` downloads OV-format dirs into `models/ov/<alias>/` (no Python). Official / first-party HF IR where it exists; tokenizer IR is required at load (`openvino_tokenizer.xml`). Aliases without a public tokenizer IR (`bge-small`, `bge-large`, `nomic-embed-text`, and ST-style model-only repos) need that pair from a one-off export in `contrib/offline-once/` (historical IR tooling; not invoked by Make). Walkthrough: `docs/intel-genai-embed.md`. OVMS gRPC is out of scope. |
 | **intel (llama.cpp LLMs)** | **Same GGUF fetch as nvidia** — `make fetch-llms` lands Qwen2.5-0.5B Q8_0 and Qwen2.5-7B-Instruct Q5_K_M into `models/gguf/<alias>/`. Catalog intel entries are **in-process SYCL** (`path`, no `endpoint`). The host `vlm-server` on `:8085` is not on this path. |

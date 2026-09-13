@@ -1,4 +1,4 @@
-# inferstream-intel: LLM alias GPU smoke (krick-1)
+# inferstream-intel: LLM alias GPU smoke (Machine B)
 
 Live Tokenize + `ModelStreamInfer` for the logical generation aliases on
 the Intel Battlemage host. **GPU only** — same bar as the GenAI embed
@@ -7,7 +7,7 @@ attributable to the SYCL llama-server must move during StreamInfer, plus
 resident VRAM and server eval tok/s.
 
 Base tree: Origin `main` **`9073c27`** (LLM alias catalog). Smoke binary
-built from that SHA on krick-1.
+built from that SHA on Machine B.
 
 | Result | Detail |
 |---|---|
@@ -81,7 +81,7 @@ CPU. Smoke-script wall times are short because the default prompt
 ## Catalog honesty (chose honesty, did not stand up a 0.5B server)
 
 `default-llm` and `qwen-7b` on intel both forward to the host SYCL
-llama-server. On krick-1 that process loads **Qwen2.5-VL-7B-Instruct
+llama-server. On Machine B that process loads **Qwen2.5-VL-7B-Instruct
 Q4_K_M**, not a text-only 7B and not a 0.5B. That is already written in
 `config/catalog.toml` and the README alias table. This smoke:
 

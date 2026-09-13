@@ -23,13 +23,13 @@ impl Target {
         }
     }
 
-    /// Default `host:port` for a live worker. The harness never starts these.
+    /// Default `host:port` when `--addr` is omitted. Live workers are
+    /// assumed to be on-box; set `--addr` / `INFERSTREAM_E2E_*_ADDR` for a
+    /// remote Machine (see the README lab chart). The harness never starts
+    /// these servers.
     pub fn default_addr(self) -> &'static str {
         match self {
-            Self::Nvidia => "krick:8461",
-            Self::Intel => "krick-1:8461",
-            Self::Apple => "krickert-mac:8461",
-            Self::Mock => "127.0.0.1:8461",
+            Self::Nvidia | Self::Intel | Self::Apple | Self::Mock => "127.0.0.1:8461",
         }
     }
 
@@ -61,6 +61,10 @@ impl FromStr for Target {
 }
 
 /// Guess a target from a host:port when the caller did not set one.
+///
+/// Localhost is the mock. Anything else needs an explicit `--target` /
+/// `INFERSTREAM_E2E_TARGET` (Machine A/B/C in the README chart); we do not
+/// infer from lab hostnames.
 pub fn infer_target_from_addr(addr: &str) -> Target {
     let host = addr
         .rsplit_once(':')
@@ -69,13 +73,7 @@ pub fn infer_target_from_addr(addr: &str) -> Target {
         .trim_start_matches('[')
         .trim_end_matches(']')
         .to_ascii_lowercase();
-    if host.contains("krick-1") {
-        Target::Intel
-    } else if host.contains("krickert-mac") || host.ends_with("-mac") {
-        Target::Apple
-    } else if host.contains("krick") {
-        Target::Nvidia
-    } else if host == "127.0.0.1" || host == "localhost" || host == "::1" {
+    if host == "127.0.0.1" || host == "localhost" || host == "::1" {
         Target::Mock
     } else {
         Target::Nvidia
@@ -87,10 +85,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn infer_live_hosts() {
-        assert_eq!(infer_target_from_addr("krick:8461"), Target::Nvidia);
-        assert_eq!(infer_target_from_addr("krick-1:8461"), Target::Intel);
-        assert_eq!(infer_target_from_addr("krickert-mac:8461"), Target::Apple);
+    fn infer_localhost_is_mock() {
         assert_eq!(infer_target_from_addr("127.0.0.1:8461"), Target::Mock);
+        assert_eq!(infer_target_from_addr("localhost:8461"), Target::Mock);
+        assert_eq!(infer_target_from_addr("[::1]:8461"), Target::Mock);
+    }
+
+    #[test]
+    fn infer_remote_needs_explicit_target() {
+        assert_eq!(infer_target_from_addr("gpu-lab:8461"), Target::Nvidia);
+        assert_eq!(Target::Intel.default_addr(), "127.0.0.1:8461");
     }
 }

@@ -17,12 +17,11 @@ ADDR="${1:-127.0.0.1:8461}"
 TOKEN="${2-change-me}"
 shift $(( $# > 2 ? 2 : $# )) || true
 
+# INFERSTREAM_E2E_TARGET selects nvidia / intel / apple (Machine A / B / C).
+# Localhost defaults to mock. Lab checkout paths are local to each Machine.
 TARGET="${INFERSTREAM_E2E_TARGET:-}"
 if [ -z "$TARGET" ]; then
     case "$ADDR" in
-        *krick-1*) TARGET=intel ;;
-        *krickert-mac*) TARGET=apple ;;
-        *krick*) TARGET=nvidia ;;
         127.0.0.1:*|localhost:*|'[::1]':*) TARGET=mock ;;
         *) TARGET=nvidia ;;
     esac

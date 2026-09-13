@@ -64,7 +64,7 @@ flowchart TB
 |---|---|---|
 | C header `include/turboembed.h` | Frozen ABI v1 | landed |
 | C++ `native/turboembed` | nvidia / intel / Linux CI | default no-feature link is mock smoke (`mock-embed` on explicit `MOCK`/`CPU` only). `--features ort-cuda` wires CUDA + CPU + TensorRT MiniLM; `--features genai` wires GPU + CPU. GPU request never silently becomes CPU or mock |
-| Swift `@_cdecl` shim | Apple (same header) | **LIVE** — `libTurboEmbed.dylib` → `MlxEngine` mean+L2 on Metal (krickert-mac). Rust `inferstream-apple` is a Linux CI compile stub only |
+| Swift `@_cdecl` shim | Apple (same header) | **LIVE** — `libTurboEmbed.dylib` → `MlxEngine` mean+L2 on Metal (Machine C). Rust `inferstream-apple` is a Linux CI compile stub only |
 | Rust `crates/turboembed` | safe view wrapper over the C ABI | ABI smoke + `mlx-live` / `ort-cuda` / `genai` receipts |
 | gRPC `Embed` / `EmbedStream` | thin façade over the C ABI | **LIVE** — catalog aliases call TurboEmbed on all three arches |
 | inferstream arch servers | LLM + mock unchanged | catalog embeds (`minilm`, …) go through `inferstream-backend-turboembed` / Swift `TurboEmbedBackend` |
@@ -209,7 +209,7 @@ Metal) — see receipts under `testdata/receipts/turboembed/`.
 - **Zero-copy buffer pool** is aspirational. The Rust crate is a safe
   view wrapper, not a pooled allocator.
 - **Intel NPU** create is fail-loud until a Core Ultra client NPU host
-  lists the plugin (`intel-npu.json` on krick-1, `pass=false`).
+  lists the plugin (`intel-npu.json` on Machine B, `pass=false`).
 - Inferstream **Rerank** is still a mock scorer. **TRT-LLM generation**
   is a separate stub (`trtllm-sys`) — not the live ORT TensorRT MiniLM
   embed path (`nvidia-minilm-tensorrt.json`).

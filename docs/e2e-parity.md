@@ -15,9 +15,9 @@ pooler.
 
 | pair | min cosine | why this number |
 |---|---|---|
-| same arch (live vs golden on that host) | **0.99** | ORT MiniLM vs TEI on krick measured **0.999998** (`testdata/reference_embeddings/README.md`). Replay of a golden captured on the same engine must stay in that band. |
+| same arch (live vs golden on that host) | **0.99** | ORT MiniLM vs TEI on Machine A measured **0.999998** (`testdata/reference_embeddings/README.md`). Replay of a golden captured on the same engine must stay in that band. |
 | nvidia ORT FP32 ↔ intel GenAI | **0.99** | Same MiniLM family, mean pool, L2. Intel IR is often FP16; MiniLM still lands ≥ 0.99 on the FP path. A miss prints the worst text id and both scores. |
-| any pair that includes **apple** | **0.97** | Catalog MiniLM / BGE-small are **FP**. Live krickert-mac vs nvidia krick (2026-09-12): MiniLM **min 0.9795 / mean 0.9997** (n=213); BGE-small **min 0.9938 / mean 0.9999**. The MiniLM min is the same Japanese STS line (`東京の朝は…`) — CJK WordPiece UNKs on an English-only model, not pooling. **Before the pooler fix this pair was min -0.1404 / mean -0.0085.** |
+| any pair that includes **apple** | **0.97** | Catalog MiniLM / BGE-small are **FP**. Live Machine C vs nvidia Machine A (2026-09-12): MiniLM **min 0.9795 / mean 0.9997** (n=213); BGE-small **min 0.9938 / mean 0.9999**. The MiniLM min is the same Japanese STS line (`東京の朝は…`) — CJK WordPiece UNKs on an English-only model, not pooling. **Before the pooler fix this pair was min -0.1404 / mean -0.0085.** |
 | mock ↔ mock (CI) | **0.99** | Deterministic backend; used only to exercise the harness. |
 
 Honest gaps:
@@ -43,30 +43,30 @@ shipping a lower default.
 On the host (or any client that can reach it):
 
 ```bash
-# nvidia / krick
+# nvidia / Machine A
 make e2e-parity-goldens TARGET=nvidia WRITE=1
 # writes testdata/e2e/goldens/nvidia/minilm.json (and bge-small / mpnet if served)
-# krick 2026-09-12 dumps are committed — docs/nvidia-e2e-parity-goldens-krick.md
+# Machine A 2026-09-12 dumps are committed — docs/nvidia-e2e-parity-goldens-machine-a.md
 
-# intel / krick-1
-make e2e-parity-goldens TARGET=intel WRITE=1 INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461
+# intel / Machine B
+make e2e-parity-goldens TARGET=intel WRITE=1 INFERSTREAM_E2E_INTEL_ADDR=<Machine-B-host>:8461
 
-# apple / krickert-mac
-make e2e-parity-goldens TARGET=apple WRITE=1 INFERSTREAM_E2E_APPLE_ADDR=krickert-mac:8461
+# apple / Machine C
+make e2e-parity-goldens TARGET=apple WRITE=1 INFERSTREAM_E2E_APPLE_ADDR=<Machine-C-host>:8461
 ```
 
 Or the binary:
 
 ```bash
 cargo run -p inferstream-e2e -- --parity-goldens --parity-write \
-  --target nvidia --addr krick:8461 --token change-me
+  --target nvidia --addr <Machine-A-host>:8461 --token change-me
 ```
 
 Replay later (same host or a dump checked into git):
 
 ```bash
 make e2e-parity-goldens TARGET=nvidia          # compare, do not overwrite
-cargo run -p inferstream-e2e -- --parity-goldens --target nvidia --addr krick:8461
+cargo run -p inferstream-e2e -- --parity-goldens --target nvidia --addr <Machine-A-host>:8461
 ```
 
 Dump schema (also satisfies the regular suite's `text` / `vector` / `dim`
@@ -91,9 +91,9 @@ golden loader for the first item):
 All three servers up:
 
 ```bash
-INFERSTREAM_E2E_NVIDIA_ADDR=krick:8461 \
-INFERSTREAM_E2E_INTEL_ADDR=krick-1:8461 \
-INFERSTREAM_E2E_APPLE_ADDR=krickert-mac:8461 \
+INFERSTREAM_E2E_NVIDIA_ADDR=<Machine-A-host>:8461 \
+INFERSTREAM_E2E_INTEL_ADDR=<Machine-B-host>:8461 \
+INFERSTREAM_E2E_APPLE_ADDR=<Machine-C-host>:8461 \
   make e2e-parity
 ```
 
@@ -101,7 +101,7 @@ Mix live peers and saved dumps (capture on a laptop, compare later):
 
 ```bash
 cargo run -p inferstream-e2e -- --parity-cross \
-  --peer nvidia=krick:8461 \
+  --peer nvidia=<Machine-A-host>:8461 \
   --dump intel=testdata/e2e/goldens/intel \
   --dump apple=testdata/e2e/goldens/apple
 ```
@@ -143,5 +143,5 @@ Default: `minilm` (required on all three arches), plus `bge-small` and
 
 ```bash
 cargo run -p inferstream-e2e -- --parity-cross --only minilm \
-  --peer nvidia=krick:8461 --peer intel=krick-1:8461
+  --peer nvidia=<Machine-A-host>:8461 --peer intel=<Machine-B-host>:8461
 ```

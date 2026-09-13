@@ -23,7 +23,7 @@ Pooling for MiniLM is the sentence-transformers recipe: attention-mask-weighted
 host after the hidden-state tensor is copied back from CUDA. The graph itself
 runs on GPU; a CPU-resident output tensor is a hard error.
 
-## NVIDIA (krick) — live GPU proof
+## NVIDIA (Machine A) — live GPU proof
 
 Host requirements are the same as `inferstream-nvidia` + `ort-cuda`: NVIDIA
 driver for CUDA 13, and CUDA 13 user-space libs. Bundle them once:
@@ -79,7 +79,7 @@ CUDA-only or CPU session. Fetch the SONAMEs (opt-in, ~3.7 GiB):
 scripts/fetch-runtime-libs.sh nvidia-trt
 ```
 
-Live receipt on krick (RTX 4080 SUPER): cosine ~1.0 vs nvidia MiniLM
+Live receipt on Machine A (RTX 4080 SUPER): cosine ~1.0 vs nvidia MiniLM
 goldens, dim 384, `/proc/self/maps` contains
 `libonnxruntime_providers_tensorrt` + `libnvinfer`, no `libpython`.
 File: `testdata/receipts/turboembed/nvidia-minilm-tensorrt.json`.

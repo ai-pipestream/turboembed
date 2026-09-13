@@ -7,7 +7,7 @@
 //!   cargo test -p inferstream-backend-llamacpp --test llamacpp_live -- --ignored
 //! ```
 //!
-//! On krick-1 the endpoint is the `vlm-server` container
+//! On Machine B the endpoint is the `vlm-server` container
 //! (`ghcr.io/ggml-org/llama.cpp:server-intel`, a GGML_SYCL build on the
 //! Battlemage GPU) publishing port 8085.
 
