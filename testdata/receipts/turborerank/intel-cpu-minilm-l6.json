@@ -22,7 +22,7 @@
   "logits": [8.84564781, -4.31924582, -11.27365685],
   "max_abs_logit_err": 0.000830,
   "cosine_vs_golden": 1.0000001192,
-  "git_sha": "a1bc64246b8200c9ca56f42873974c34c6c88350",
+  "git_sha": "ad4781bbf8579d48f6f163bb7822b759cc83da6d",
   "command": "make test-turborerank-intel",
   "note": "Phase 2b OpenVINO CPU on Machine B. Same IR as GPU. Explicit OPENVINO_CPU — not a silent stand-in for TURBORERANK_DEVICE_CPU."
 }

@@ -23,7 +23,7 @@
   "logits": [8.84564877, -4.31924438, -11.27365589],
   "max_abs_logit_err": 0.000832,
   "cosine_vs_golden": 1.0000001192,
-  "git_sha": "a1bc64246b8200c9ca56f42873974c34c6c88350",
+  "git_sha": "ad4781bbf8579d48f6f163bb7822b759cc83da6d",
   "command": "make test-turborerank-intel",
   "note": "Phase 2b Intel proof on Machine B. GPU create without a GPU fails loud. AUTO resolves to OPENVINO_GPU when CUDA is absent. Not a CPU interim and not a mock score."
 }
