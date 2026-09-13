@@ -134,7 +134,9 @@ cargo test -p turboembed      # ABI smoke (mock-embed). macOS links MLX dylib.
 make test-turboembed-nvidia   # --features ort-cuda; ORT CUDA + CPU + TensorRT MiniLM
 make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on CPU and GPU
 make test-turboembed-apple    # Mac: Metal create lists minilm (384) + embed vs goldens
-make bench-machine-a          # Machine A: measured MiniLM embed + CE p50/p99
+make bench-machine-a          # Machine A CUDA: MiniLM embed + CE p50/p99
+make bench-machine-b-ov       # Machine B OpenVINO GPU bench
+make bench-turbo MACHINE=A    # unified dispatch (A or B)
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 
