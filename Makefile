@@ -27,6 +27,7 @@
 #   make test-turborerank-nvidia            # Machine A CUDA receipt + live CE
 #   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
 #   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
+#   make bench-machine-b-ov                 # Machine B FINAL SOLIDIFY bench (OV GPU p50/p99)
 #   make probe-remote-usm                   # Machine B: remote OCL/USM wrap probe (may FAIL)
 #   make test-turborerank-apple             # Machine C Metal receipt + live CE
 #   make metal-erf-probe                    # Machine C: MSL has no erf(); Hart GELU vs libm
@@ -93,7 +94,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov probe-remote-usm test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt \
-	metal-erf-probe
+	metal-erf-probe bench-machine-b-ov
 
 test:
 	$(CARGO) test --workspace
@@ -798,3 +799,32 @@ test-turborerank-intel: fetch-rerankers verify-rerank-ov turborerank-tests turbo
 	$(MAKE) probe-remote-usm
 	$(MAKE) turbo-buffer-intel-receipt
 	$(MAKE) turborerank-intel-receipt
+
+# FINAL SOLIDIFY bench — Machine B OpenVINO GPU. Live p50/p99, USM-byte
+# honesty, allocs/forward==0, Berlin + MiniLM goldens. Writes
+# testdata/receipts/bench/machine-b-ov.json. BENCH_WARMUP / BENCH_ITERS
+# override the 32 / 128 defaults. No invented numbers.
+bench-machine-b-ov:
+	@if [ ! -f "$(OPENVINO_GENAI_ROOT)/runtime/include/openvino/genai/tokenizer.hpp" ]; then \
+	  echo "bench-machine-b-ov: OpenVINO GenAI headers missing"; \
+	  exit 1; \
+	fi
+	mkdir -p native/bench/build testdata/receipts/bench
+	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then set +u; . "$(OPENVINO_SETUPVARS)"; set -u; fi; \
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g \
+	  -DTURBOEMBED_GENAI -DTURBO_BUFFER_ZE=1 \
+	  -DTURBOEMBED_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  $(TURBORERANK_INCLUDES) $(TURBORERANK_CPPFLAGS) \
+	  -I native/turboembed/src \
+	  -I $(OPENVINO_GENAI_ROOT)/runtime/include \
+	  $(TURBORERANK_SRCS) \
+	  native/turboembed/src/stub.cpp \
+	  native/turboembed/src/genai.cpp \
+	  native/bench/machine_b_ov.cpp \
+	  -lm $(TURBORERANK_OV_LIBS) \
+	  -L$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
+	  -lopenvino_genai -lopenvino_tokenizers \
+	  -Wl,-rpath,$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
+	  -o native/bench/build/machine_b_ov
+	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then set +u; . "$(OPENVINO_SETUPVARS)"; set -u; fi; \
+	INFERSTREAM_ROOT=$(CURDIR) native/bench/build/machine_b_ov

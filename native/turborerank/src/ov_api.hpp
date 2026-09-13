@@ -69,6 +69,13 @@ bool bert_forward_ov(
     std::string *err
 );
 
+/** Bench: bytes of ov::Tensor host wraps on the last / cumulative forwards. */
+void ov_xfer_reset();
+uint64_t ov_xfer_wrap_input_bytes();
+uint64_t ov_xfer_result_bytes();
+uint32_t ov_xfer_last_n_rows();
+uint32_t ov_xfer_last_seq();
+
 std::string resolve_ov_ir_dir(
     const char *alias,
     size_t alias_len,

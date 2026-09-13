@@ -373,6 +373,15 @@ turbo_buffer_status ze_memcpy(void *dst, const void *src, size_t bytes) {
         set_tls_error("ze_memcpy: synchronize failed");
         return TURBO_BUFFER_ERR_INTERNAL;
     }
+    const bool h2d = src_p != TURBO_BUFFER_PLACE_DEVICE &&
+                     dst_p == TURBO_BUFFER_PLACE_DEVICE;
+    const bool d2h = src_p == TURBO_BUFFER_PLACE_DEVICE &&
+                     dst_p != TURBO_BUFFER_PLACE_DEVICE;
+    if (h2d) {
+        note_ze_xfer(bytes, true);
+    } else if (d2h) {
+        note_ze_xfer(bytes, false);
+    }
     return TURBO_BUFFER_OK;
 #else
     (void)dst;

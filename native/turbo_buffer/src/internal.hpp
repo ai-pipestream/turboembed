@@ -38,6 +38,9 @@ void note_cuda_runtime_alloc_if_forward();
 /** Count a HostToDevice memcpy observed while the CUDA forward window is open. */
 void note_cuda_forward_h2d(size_t bytes);
 
+/** Count a successful DEVICE-leg Level Zero memcpy (H2D or D2H). */
+void note_ze_xfer(size_t bytes, bool h2d);
+
 turbo_buffer_status ze_probe(turbo_buffer_placement placement);
 void *ze_alloc(
     turbo_buffer_placement placement,

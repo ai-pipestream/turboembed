@@ -5,6 +5,7 @@
 #include "ov_api.hpp"
 #include "turbo_buffer.h"
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -24,6 +25,38 @@
 
 namespace turborerank {
 namespace impl {
+
+namespace {
+
+std::atomic<uint64_t> g_ov_wrap_in{0};
+std::atomic<uint64_t> g_ov_result{0};
+std::atomic<uint32_t> g_ov_last_n{0};
+std::atomic<uint32_t> g_ov_last_seq{0};
+
+} // namespace
+
+void ov_xfer_reset() {
+    g_ov_wrap_in.store(0, std::memory_order_relaxed);
+    g_ov_result.store(0, std::memory_order_relaxed);
+    g_ov_last_n.store(0, std::memory_order_relaxed);
+    g_ov_last_seq.store(0, std::memory_order_relaxed);
+}
+
+uint64_t ov_xfer_wrap_input_bytes() {
+    return g_ov_wrap_in.load(std::memory_order_relaxed);
+}
+
+uint64_t ov_xfer_result_bytes() {
+    return g_ov_result.load(std::memory_order_relaxed);
+}
+
+uint32_t ov_xfer_last_n_rows() {
+    return g_ov_last_n.load(std::memory_order_relaxed);
+}
+
+uint32_t ov_xfer_last_seq() {
+    return g_ov_last_seq.load(std::memory_order_relaxed);
+}
 
 namespace {
 
@@ -517,6 +550,13 @@ bool bert_forward_ov(
         for (uint32_t i = 0; i < n_rows; ++i) {
             logits_out[i] = data[static_cast<size_t>(i) * stride];
         }
+        const uint64_t n_in = hold->has_types ? 3u : 2u;
+        const uint64_t wrap_in = static_cast<uint64_t>(n_rows) * seq * sizeof(int32_t) * n_in;
+        const uint64_t wrap_out = static_cast<uint64_t>(n_rows) * sizeof(float);
+        g_ov_wrap_in.fetch_add(wrap_in, std::memory_order_relaxed);
+        g_ov_result.fetch_add(wrap_out, std::memory_order_relaxed);
+        g_ov_last_n.store(n_rows, std::memory_order_relaxed);
+        g_ov_last_seq.store(seq, std::memory_order_relaxed);
         return true;
     } catch (const std::exception &e) {
         if (err) {

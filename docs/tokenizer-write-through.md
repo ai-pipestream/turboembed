@@ -30,5 +30,6 @@ make test-turboembed-apple    # Machine C: WordPiece → Metal SHARED i32
 
 ## What is not this item
 
-gRPC packed bytes (6). Polish / full A/B/C bench (7). SentencePiece /
-Unigram models we do not own (BGE-M3 etc. keep the HF tokenizer).
+gRPC packed bytes (6). Machine B final bench is
+`docs/solidify-bench-machine-b.md`. SentencePiece / Unigram models we
+do not own (BGE-M3 etc. keep the HF tokenizer).

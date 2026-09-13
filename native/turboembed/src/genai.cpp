@@ -23,6 +23,7 @@
 #include "openvino/runtime/core.hpp"
 #include "openvino/runtime/properties.hpp"
 
+#include <atomic>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -34,6 +35,49 @@
 #include <utility>
 
 namespace turboembed_genai {
+
+namespace {
+std::atomic<uint64_t> g_wrap_in{0};
+std::atomic<uint64_t> g_hidden_wrap{0};
+std::atomic<uint64_t> g_hidden_memcpy{0};
+std::atomic<uint32_t> g_last_n{0};
+std::atomic<uint32_t> g_last_seq{0};
+std::atomic<uint32_t> g_last_inputs{0};
+} // namespace
+
+void genai_xfer_reset() {
+    g_wrap_in.store(0, std::memory_order_relaxed);
+    g_hidden_wrap.store(0, std::memory_order_relaxed);
+    g_hidden_memcpy.store(0, std::memory_order_relaxed);
+    g_last_n.store(0, std::memory_order_relaxed);
+    g_last_seq.store(0, std::memory_order_relaxed);
+    g_last_inputs.store(0, std::memory_order_relaxed);
+}
+
+uint64_t genai_xfer_wrap_input_bytes() {
+    return g_wrap_in.load(std::memory_order_relaxed);
+}
+
+uint64_t genai_xfer_hidden_wrap_bytes() {
+    return g_hidden_wrap.load(std::memory_order_relaxed);
+}
+
+uint64_t genai_xfer_hidden_memcpy_bytes() {
+    return g_hidden_memcpy.load(std::memory_order_relaxed);
+}
+
+uint32_t genai_xfer_last_n() {
+    return g_last_n.load(std::memory_order_relaxed);
+}
+
+uint32_t genai_xfer_last_seq() {
+    return g_last_seq.load(std::memory_order_relaxed);
+}
+
+uint32_t genai_xfer_last_inputs() {
+    return g_last_inputs.load(std::memory_order_relaxed);
+}
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -704,6 +748,7 @@ void Pipeline::embed_into(const std::vector<std::string>& texts, float *out) {
         std::memcpy(hidden, hptr, nbytes);
         last_hidden_arena_ = true;
         hptr = hidden;
+        g_hidden_memcpy.fetch_add(nbytes, std::memory_order_relaxed);
     } else {
         /* set_tensor(output) rejected — API did not allow a caller result
          * tensor. Pool from the plugin buffer; tokens still arena USM. */
@@ -727,6 +772,21 @@ void Pipeline::embed_into(const std::vector<std::string>& texts, float *out) {
         l2_normalize(out, n, dim);
     }
     dim_ = dim;
+
+    const uint32_t n_in = impl_->has_types ? 3u : 2u;
+    g_wrap_in.fetch_add(
+        static_cast<uint64_t>(n) * seq * sizeof(int32_t) * n_in,
+        std::memory_order_relaxed
+    );
+    if (used_arena_hidden) {
+        g_hidden_wrap.fetch_add(
+            static_cast<uint64_t>(n) * seq * impl_->hidden_dim * sizeof(float),
+            std::memory_order_relaxed
+        );
+    }
+    g_last_n.store(n, std::memory_order_relaxed);
+    g_last_seq.store(seq, std::memory_order_relaxed);
+    g_last_inputs.store(n_in, std::memory_order_relaxed);
 }
 
 std::string resolve_models_path(

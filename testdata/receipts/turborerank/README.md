@@ -17,5 +17,7 @@ Proof: `make test-turborerank` / `make test-turborerank-nvidia` /
 `make test-turborerank-intel` / `make test-turborerank-apple` vs
 `testdata/reference_rerank/ms_marco_minilm_l6_berlin.json` (HF
 `AutoModelForSequenceClassification` on the pinned checkpoint).
+Machine B latency + USM-byte honesty:
+`make bench-machine-b-ov` → `testdata/receipts/bench/machine-b-ov.json`.
 gRPC `Rerank` matches the same goldens via
 `crates/backend-turborerank` when `--features turborerank` is on.

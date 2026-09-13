@@ -23,6 +23,7 @@ native/turboembed/build/
 native/turbo_buffer/build/
 native/turborerank/build/
 native/wordpiece/build/
+native/bench/build/
 swift/.build/
 .DS_Store
 agent-tools/

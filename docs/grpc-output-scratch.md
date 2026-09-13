@@ -38,10 +38,12 @@ cargo test -p inferstream-server packed_bytes_and_rerank_reuse
 cargo test -p inferstream-backend-turborerank -- rpc_berlin
 ```
 
-Machine A/B/C latency benches remain later work. SOLIDIFY (7) **Intel**
-is remote-USM wrap + OV accuracy (`docs/intel-remote-usm-machine-b.md`),
-not this scratch slab. The Machine C special-function slice (Metal GELU
-erf) is `docs/apple-turborerank-metal-gelu-machine-c.md`.
+Machine B latency bench is **LIVE**
+(`docs/solidify-bench-machine-b.md`, `make bench-machine-b-ov`).
+Machine A/C benches are separate host receipts under
+`testdata/receipts/bench/`. SOLIDIFY (7) **Intel** wrap / accuracy is
+`docs/intel-remote-usm-machine-b.md`. The Machine C special-function
+slice (Metal GELU erf) is `docs/apple-turborerank-metal-gelu-machine-c.md`.
 
 ## Apple
 

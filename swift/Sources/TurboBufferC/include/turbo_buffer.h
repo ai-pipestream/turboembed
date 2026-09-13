@@ -339,6 +339,23 @@ uint64_t turbo_buffer_cuda_forward_h2d_bytes(void);
 
 uint64_t turbo_buffer_cuda_forward_h2d_calls(void);
 
+/**
+ * ZE memcpy H↔D (tests / benches). Successful DEVICE legs of
+ * `turbo_buffer_ze_memcpy` increment these. HOST↔SHARED uses host
+ * memcpy and is not an H↔D count. Reset before a measured window.
+ * OpenVINO plugin copies of host-wrapped tensors are **not** visible
+ * here — benches must report wrapped sizes separately (honesty).
+ */
+void turbo_buffer_ze_xfer_reset(void);
+
+uint64_t turbo_buffer_ze_xfer_h2d_bytes(void);
+
+uint64_t turbo_buffer_ze_xfer_d2h_bytes(void);
+
+uint64_t turbo_buffer_ze_xfer_h2d_calls(void);
+
+uint64_t turbo_buffer_ze_xfer_d2h_calls(void);
+
 #ifdef __cplusplus
 }
 #endif

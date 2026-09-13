@@ -555,9 +555,14 @@ static void test_ze_usm_host_shared_device() {
 
     const int32_t pattern[4] = {101, 7592, 102, 0};
     std::memcpy(turbo_buffer_view_i32(&host), pattern, sizeof(pattern));
+    turbo_buffer_ze_xfer_reset();
     CHECK_ST(turbo_buffer_ze_memcpy(device.ptr, host.ptr, sizeof(pattern)));
+    CHECK_EQ(turbo_buffer_ze_xfer_h2d_bytes(), sizeof(pattern));
+    CHECK_EQ(turbo_buffer_ze_xfer_h2d_calls(), 1u);
     std::memset(turbo_buffer_view_i32(&host), 0, sizeof(pattern));
     CHECK_ST(turbo_buffer_ze_memcpy(host.ptr, device.ptr, sizeof(pattern)));
+    CHECK_EQ(turbo_buffer_ze_xfer_d2h_bytes(), sizeof(pattern));
+    CHECK_EQ(turbo_buffer_ze_xfer_d2h_calls(), 1u);
     CHECK_EQ(turbo_buffer_view_i32(&host)[0], 101);
     CHECK_EQ(turbo_buffer_view_i32(&host)[1], 7592);
     CHECK_EQ(turbo_buffer_view_i32(&host)[2], 102);

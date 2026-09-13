@@ -34,6 +34,9 @@ NVIDIA fields: `device=CUDA`, `dims`, `worst_cosine` vs
 `testdata/e2e/goldens/nvidia/minilm.json` (`parity:*` + hello world),
 floor 0.99, `pass=true`, git sha, `/proc/self/maps` needles.
 
+Machine B latency + USM-byte honesty (same MiniLM IR):
+`make bench-machine-b-ov` → `testdata/receipts/bench/machine-b-ov.json`.
+
 Intel: same MiniLM IR (`models/ov/minilm`). Cosine vs
 `testdata/e2e/goldens/{intel,nvidia}/minilm.json` stays ≥ 0.99 on **both**
 devices (CPU is the same IR, not a mock). GPU create/load still fails if
