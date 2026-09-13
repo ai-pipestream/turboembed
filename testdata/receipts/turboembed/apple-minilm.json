@@ -14,19 +14,25 @@
   "dim": 384,
   "n": 237,
   "cosine_vs_nvidia": {
-    "min": 0.9794565,
+    "min": 0.97945654,
     "mean": 0.99973994,
     "floor": 0.97,
     "worst_id": "sts-0056:a"
   },
   "cosine_vs_apple": {
-    "min": 0.99999994,
+    "min": 0.9999999,
     "mean": 1.0,
     "floor": 0.99,
-    "worst_id": "tiny-shakespeare-excerpt:p0008:s0000"
+    "worst_id": "sts-0044:a"
   },
   "l2_ok": true,
   "fake_rejected": true,
+  "arena": "include/turbo_buffer.h METAL backend",
+  "token_rent": "turbo_buffer_arena_rent SHARED i32",
+  "activation_rent": "turbo_buffer_arena_rent SHARED f32 last-hidden",
+  "result_rent": "turbo_buffer_arena_rent SHARED f32",
+  "metal_owns_result": true,
+  "allocs_after_forward": 0,
   "weights": "models/mlx/minilm",
-  "captured_at_unix": 1789257698
+  "captured_at_unix": 1789307816
 }

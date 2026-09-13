@@ -9,9 +9,11 @@ After load warmup, `turbo_buffer_alloc_counter() == 0` on embed.
 | Field | Value |
 |---|---|
 | Host | Machine C, Apple M2, Metal |
+| Tree | `c6f838c` + receipt refresh |
 | Command | `make libturbo-buffer-apple` + `make test-turboembed-apple` |
-| Receipt | `testdata/receipts/turboembed/apple-minilm.json` |
-| Floors | vs nvidia ≥ 0.97; vs apple ≥ 0.99 (unchanged) |
+| Receipt | `testdata/receipts/turboembed/apple-minilm.json` (`metal_owns_result=true`, `allocs_after_forward=0`) |
+| vs nvidia | min `0.97945654`, mean `0.99973994`, floor `0.97` (`sts-0056:a`) |
+| vs apple | min `0.9999999`, mean `1.0`, floor `0.99` |
 
 ## What was proven
 
