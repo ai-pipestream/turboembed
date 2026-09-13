@@ -25,6 +25,7 @@ make test-turborerank-nvidia    # Machine A receipt
 make convert-rerank-ov          # ONNX → SHA-pinned IR
 make test-turborerank-intel     # Machine B OpenVINO receipt
 make test-turborerank-apple     # Machine C Metal receipt
+make metal-erf-probe            # Machine C: MSL has no erf(); Hart GELU
 make turborerank-tests-nometal  # prove Metal create fails loud
 ```
 

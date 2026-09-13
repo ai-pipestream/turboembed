@@ -41,6 +41,9 @@ writes unified memory; kernels bind those MTLBuffers via
 alloc). No `std::vector` on that path. Weights are copied once at
 load into MTL shared buffers. Machine C proof:
 [`docs/apple-turbo-buffer-metal-arena-machine-c.md`](apple-turbo-buffer-metal-arena-machine-c.md).
+GELU stays the HF erf form. MSL has no `erf`; the kernel is a Hart
+software special, not a host `erff` fallback
+(`docs/apple-turborerank-metal-gelu-machine-c.md`).
 
 CUDA compute is **on device**: weights and activations live on the GPU.
 BERT CE linear layers call **cuBLASLt** (`cublasLtMatmul`,

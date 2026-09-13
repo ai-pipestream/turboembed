@@ -28,6 +28,7 @@
 #   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
 #   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
 #   make test-turborerank-apple             # Machine C Metal receipt + live CE
+#   make metal-erf-probe                    # Machine C: MSL has no erf(); Hart GELU vs libm
 #   make test-turboembed-intel              # --features genai; WordPiece→USM + CompiledModel; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
@@ -90,7 +91,8 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turboembed-mock-arena-tests turboembed-genai-arena-tests \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
-	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt
+	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt \
+	metal-erf-probe
 
 test:
 	$(CARGO) test --workspace
@@ -739,10 +741,24 @@ test-turborerank: fetch-rerankers turboembed-mock-arena-tests turborerank-tests 
 
 test-turborerank-nvidia: test-turborerank turborerank-nvidia-receipt
 
+metal-erf-probe:
+	@if [ "$(TURBORERANK_ENABLE_METAL)" != "1" ]; then \
+	  echo "metal-erf-probe requires Darwin + TURBORERANK_ENABLE_METAL=1"; \
+	  exit 1; \
+	fi
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
+	  native/turborerank/tools/metal_erf_probe.mm \
+	  -lm $(TURBORERANK_METAL_LIBS) \
+	  -o native/turborerank/build/metal_erf_probe
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/metal_erf_probe
+
 # Machine C: Metal MiniLM CE vs HF Berlin golden. nometal proves fail-loud.
 # libturborerank-apple is the Swift-linkable archive — same arena objects.
-test-turborerank-apple: fetch-rerankers turborerank-tests turborerank-tests-nometal \
-		libturborerank-apple
+# metal-erf-probe proves MSL still has no erf() and Hart beats A&S on device.
+test-turborerank-apple: fetch-rerankers metal-erf-probe turborerank-tests \
+		turborerank-tests-nometal libturborerank-apple
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
 	$(MAKE) turborerank-apple-receipt
 

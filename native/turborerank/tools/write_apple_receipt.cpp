@@ -165,7 +165,8 @@ int main() {
     js << "    \"weights_activations\": \"MTL shared buffers reserved at load\",\n";
     js << "    \"gemm\": \"first-party Metal kernel matching CPU linear_nt\",\n";
     js << "    \"elementwise\": \"first-party Metal kernels (embed, LayerNorm, "
-          "GELU erf, attention, pooler, classifier)\",\n";
+          "GELU Hart-erf software special (MSL has no erf), attention, "
+          "pooler, classifier)\",\n";
     js << "    \"host_interim\": false,\n";
     js << "    \"token_copy_on_forward\": false,\n";
     js << "    \"private_mtl_token_alloc\": false,\n";
@@ -184,13 +185,13 @@ int main() {
     js << "  \"cosine_vs_golden\": " << cosine << ",\n";
     js << "  \"git_sha\": \"" << sha << "\",\n";
     js << "  \"command\": \"make test-turborerank-apple\",\n";
-    js << "  \"note\": \"SOLIDIFY (1) Machine C LIVE: turbo_buffer Metal "
-          "SHARED rent/return is real MTL. TurboRerank Metal forward rents "
-          "arena token slots; allocs/forward==0. AUTO resolves to METAL "
-          "when CUDA/OpenVINO GPU are absent. Create without Metal fails "
-          "loud. Swift TurboRerankEngine.score calls turborerank_score "
-          "(engine work buffer) — no Swift-side token malloc. Weights "
-          "copied once at load from mmap'd safetensors.\"\n";
+    js << "  \"note\": \"SOLIDIFY (7) Apple Machine C LIVE: GELU is the HF "
+          "erf form on a Hart–Cheney software special (MSL metal_math has "
+          "no erf/erfc; make metal-erf-probe). A&S 7.1.26 replaced because "
+          "Hart tightens vs libm erff on-device. turbo_buffer Metal SHARED "
+          "token rents; allocs/forward==0. AUTO resolves to METAL when "
+          "CUDA/OpenVINO GPU are absent. Create without Metal fails loud. "
+          "No CPU GELU fallback.\"\n";
     js << "}\n";
 
     std::ofstream out(out_path);

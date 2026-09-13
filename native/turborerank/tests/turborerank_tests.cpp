@@ -3,6 +3,7 @@
 // Close-to-metal TurboRerank tests. No stub scores.
 
 #include "cuda_api.hpp"
+#include "erf_approx.hpp"
 #include "internal.hpp"
 #include "metal_api.hpp"
 #include "ov_api.hpp"
@@ -981,6 +982,49 @@ static void test_ov_real_model_scores(turborerank_device device) {
     turborerank_engine_destroy(e);
 }
 
+static void test_erf_approx_beats_as() {
+    float max_as = 0;
+    float max_hart = 0;
+    float max_gelu_as = 0;
+    float max_gelu_hart = 0;
+    for (int i = -8000; i <= 8000; ++i) {
+        const float x = static_cast<float>(i) * 0.001f;
+        const float gold = std::erff(x);
+        max_as = std::fmax(
+            max_as, std::fabs(turborerank::impl::erf_as(x) - gold)
+        );
+        max_hart = std::fmax(
+            max_hart, std::fabs(turborerank::impl::erf_hart(x) - gold)
+        );
+        const float gelu_gold =
+            0.5f * x * (1.0f + std::erff(x * 0.7071067811865476f));
+        max_gelu_as = std::fmax(
+            max_gelu_as,
+            std::fabs(turborerank::impl::gelu_erf_as(x) - gelu_gold)
+        );
+        max_gelu_hart = std::fmax(
+            max_gelu_hart,
+            std::fabs(turborerank::impl::gelu_erf_hart(x) - gelu_gold)
+        );
+    }
+    CHECK(max_hart < max_as);
+    CHECK(max_hart < 2e-7f);
+    CHECK(max_gelu_hart <= max_gelu_as);
+    CHECK(max_gelu_hart < 5e-7f);
+    CHECK(std::fabs(turborerank::impl::erf_hart(0.0f)) < 1e-8f);
+    CHECK(turborerank::impl::erf_hart(8.0f) > 0.999999f);
+    CHECK(turborerank::impl::erf_hart(-8.0f) < -0.999999f);
+    std::fprintf(
+        stderr,
+        "erf host grid: max|A&S-erff|=%.3e max|Hart-erff|=%.3e "
+        "max|GELU A&S|=%.3e max|GELU Hart|=%.3e\n",
+        max_as,
+        max_hart,
+        max_gelu_as,
+        max_gelu_hart
+    );
+}
+
 static void test_metal_shared_buffer() {
     if (!metal_live()) {
         std::fprintf(stderr, "SKIP Metal shared buffer (no MTL GPU)\n");
@@ -1186,6 +1230,7 @@ int main() {
     test_ov_usm_buffer();
     test_ov_real_model_scores(TURBORERANK_DEVICE_OPENVINO_GPU);
     test_ov_real_model_scores(TURBORERANK_DEVICE_OPENVINO_CPU);
+    test_erf_approx_beats_as();
     test_metal_shared_buffer();
     test_metal_real_model_scores();
 

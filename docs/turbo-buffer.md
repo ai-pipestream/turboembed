@@ -118,6 +118,7 @@ make test-turboembed-intel           # Machine B GenAI ZE SHARED + MiniLM ≥0.9
 make turborerank-tests               # includes the above + Berlin band when weights exist
 make test-turborerank-intel          # Machine B OV + ZE receipts
 make test-turborerank-apple          # Machine C: Metal SHARED live + Berlin receipt
+make metal-erf-probe                 # Machine C: MSL has no erf(); Hart GELU vs libm
 make test-turboembed-apple           # Machine C: libTurboEmbed Metal SHARED + MiniLM receipt
 ```
 
