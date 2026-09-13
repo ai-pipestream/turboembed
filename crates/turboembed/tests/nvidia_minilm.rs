@@ -39,6 +39,7 @@ unsafe extern "C" {
     fn turboembed_ort_hot_path_reset();
     fn turboembed_ort_arena_allocs() -> u64;
     fn turboembed_ort_external_allocs() -> u64;
+    fn turboembed_ort_external_last_bytes() -> u64;
     fn turboembed_ort_d2h_bytes() -> u64;
     fn turboembed_ort_d2h_calls() -> u64;
     fn turboembed_ort_cuda_forward_allocs() -> u64;
@@ -76,7 +77,8 @@ fn assert_no_hot_path_allocs(label: &str) {
         );
         assert_eq!(
             ext, 0,
-            "{label}: ORT gpu_external_alloc={ext} (ORT still allocated behind the embed)"
+            "{label}: ORT gpu_external_alloc={ext} last_bytes={} (ORT still allocated behind the embed)",
+            turboembed_ort_external_last_bytes()
         );
         assert_eq!(
             fwd, 0,
@@ -362,6 +364,8 @@ fn minilm_ort_cpu_matches_golden() {
         hello_cos >= COSINE_FLOOR,
         "CPU cosine vs nvidia golden hello world {hello_cos} < {COSINE_FLOOR}"
     );
+    let hot = hot_path_snapshot();
+    drop(one);
 
     let cpu_engine = Engine::create(Device::Cpu).expect("create Device::Cpu again");
     cpu_engine
@@ -390,7 +394,7 @@ fn minilm_ort_cpu_matches_golden() {
         "pass": true,
         "git_sha": git_head(&root),
         "host": hostname(),
-        "hot_path": hot_path_snapshot(),
+        "hot_path": hot,
         "notes": "Explicit CPU EP on a turbo_buffer HOST arena. Tokens and hidden states are rented HOST views bound through IoBinding. CUDA requests still fail loud if the CUDA EP is missing.",
     });
     let path = root.join("testdata/receipts/turboembed/nvidia-minilm-cpu.json");
@@ -460,10 +464,16 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
         d2h_hello > 0,
         "CUDA mean+L2 still reads hidden states on the host; D2H of the rented DEVICE output must be counted (got {d2h_hello} bytes). Do not claim zero-copy."
     );
+    // Return the PINNED result slab before the next embed. Holding
+    // `hello_live` across the subset used to look like a hot-path leak
+    // (the warmed [32, dim] slab stayed checked out).
+    drop(hello_live);
 
     let mut worst = 1.0_f32;
     let mut sum = 0.0_f32;
     for (id, text, expected) in &subset {
+        let before_arena = unsafe { turboembed_ort_arena_allocs() };
+        let before_ext = unsafe { turboembed_ort_external_allocs() };
         let got = engine
             .embed_one(ALIAS, text, &opts)
             .unwrap_or_else(|e| panic!("embed_one({ALIAS}, {id:?}) failed: {e:?}"));
@@ -476,7 +486,24 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
         );
         worst = worst.min(sim);
         sum += sim;
-        eprintln!("  {id}: cosine={sim:.6} dim={}", got.dim());
+        let after_arena = unsafe { turboembed_ort_arena_allocs() };
+        let after_ext = unsafe { turboembed_ort_external_allocs() };
+        eprintln!(
+            "  {id}: cosine={sim:.6} dim={} arena {before_arena}→{after_arena} \
+             ext {before_ext}→{after_ext} d2h={}",
+            got.dim(),
+            unsafe { turboembed_ort_d2h_bytes() }
+        );
+        assert_eq!(
+            after_arena, before_arena,
+            "{id}: turbo_buffer_alloc_counter rose {before_arena}→{after_arena}"
+        );
+        assert_eq!(
+            after_ext, before_ext,
+            "{id}: ORT gpu_external_alloc rose {before_ext}→{after_ext} last_bytes={}",
+            unsafe { turboembed_ort_external_last_bytes() }
+        );
+        drop(got);
     }
     let mean = sum / subset.len() as f32;
     assert_no_hot_path_allocs("cuda parity subset");
@@ -730,6 +757,7 @@ fn minilm_ort_tensorrt_matches_golden() {
         hello_cos >= COSINE_FLOOR,
         "TensorRT cosine vs nvidia golden hello world {hello_cos} < {COSINE_FLOOR}"
     );
+    drop(hello_live);
 
     let mut worst = 1.0_f32;
     let mut sum = 0.0_f32;

@@ -273,6 +273,27 @@ turbo_buffer_placement ort_result_place(turboembed_device device) {
     return TURBO_BUFFER_PLACE_HOST;
 }
 
+bool rent_and_return_result(
+    turboembed_engine *engine,
+    uint32_t rows,
+    uint32_t dim
+) {
+    turbo_buffer_view warm {};
+    if (turbo_buffer_arena_rent(
+            engine->arena,
+            TURBO_BUFFER_DTYPE_F32,
+            ort_result_place(engine->device),
+            rows,
+            dim,
+            dim,
+            &warm
+        ) != TURBO_BUFFER_OK) {
+        return false;
+    }
+    (void)turbo_buffer_arena_return(engine->arena, &warm);
+    return true;
+}
+
 void warm_ort_result_slab(turboembed_engine *engine) {
     if (engine == nullptr || engine->arena == nullptr ||
         engine->ort_cuda == nullptr) {
@@ -282,18 +303,12 @@ void warm_ort_result_slab(turboembed_engine *engine) {
     if (dim == 0) {
         return;
     }
-    turbo_buffer_view warm {};
-    if (turbo_buffer_arena_rent(
-            engine->arena,
-            TURBO_BUFFER_DTYPE_F32,
-            ort_result_place(engine->device),
-            32,
-            dim,
-            dim,
-            &warm
-        ) == TURBO_BUFFER_OK) {
-        (void)turbo_buffer_arena_return(engine->arena, &warm);
-    }
+    // [32, dim] covers max-batch embed. Two [1, dim] slabs cover the
+    // common "hold the previous Embeddings while embedding again" case
+    // without a new PINNED/HOST malloc — the 32-row slab is in-use then.
+    (void)rent_and_return_result(engine, 32, dim);
+    (void)rent_and_return_result(engine, 1, dim);
+    (void)rent_and_return_result(engine, 1, dim);
 }
 #endif
 

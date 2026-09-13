@@ -252,6 +252,11 @@ pub unsafe extern "C" fn turboembed_ort_external_allocs() -> u64 {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_external_last_bytes() -> u64 {
+    crate::ort_cuda::external_last_bytes()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn turboembed_ort_d2h_bytes() -> u64 {
     crate::ort_cuda::d2h_bytes()
 }

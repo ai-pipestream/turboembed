@@ -73,8 +73,10 @@ is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
 CUDA arena. Tokens are PINNED mapped i64 rows (stored as i32×2),
 hidden states are DEVICE f32, result rows are PINNED. IoBinding
 binds those views. The CUDA EP `gpu_external_alloc` hook rents DEVICE
-slabs so ORT intermediates are arena-owned. After load warmup
-(max batch × max seq), `turbo_buffer_alloc_counter() == 0` and
+slabs so ORT intermediates are arena-owned. Load warms I/O at
+max batch × max seq plus two `[1, dim]` result slabs (so holding
+one `Embeddings` while embedding again does not malloc). After
+that warmup, `turbo_buffer_alloc_counter() == 0` and
 `gpu_external_alloc` calls == 0 on the next embed. Mean+L2 still
 copies DEVICE hidden → PINNED (`d2h_hidden_bytes` > 0) — that is an
 API copy, not zero-copy.

@@ -38,6 +38,7 @@ const DEFAULT_MAX_SEQ_LEN: usize = 256;
 const DEFAULT_MAX_BATCH: usize = 8;
 
 static ORT_EXT_ALLOCS: AtomicU64 = AtomicU64::new(0);
+static ORT_EXT_LAST_BYTES: AtomicU64 = AtomicU64::new(0);
 static ORT_D2H_BYTES: AtomicU64 = AtomicU64::new(0);
 static ORT_D2H_CALLS: AtomicU64 = AtomicU64::new(0);
 
@@ -149,6 +150,7 @@ fn ort_status(status: ort::sys::OrtStatusPtr) -> Result<(), Error> {
 
 extern "C" fn gpu_external_alloc(bytes: usize) -> *mut c_void {
     ORT_EXT_ALLOCS.fetch_add(1, Ordering::Relaxed);
+    ORT_EXT_LAST_BYTES.store(bytes as u64, Ordering::Relaxed);
     let arena = match EXT_ARENA.lock() {
         Ok(g) => g.and_then(|p| {
             if p == 0 {
@@ -771,6 +773,17 @@ impl OrtCudaSession {
         loaded.embedding_dim = dim;
         // Second pass at batch=1 matches the receipt hot path.
         let _ = loaded.embed_batch(&[String::from("x")], None)?;
+        // cuDNN / ORT CUDA EP can lazily rent extra DEVICE workspace on the
+        // first non-trivial mask. Touch a few lengths so the first real
+        // sentence does not increment gpu_external_alloc.
+        for text in [
+            "hello world".to_string(),
+            "The capital of France is Paris.".to_string(),
+            "a ".repeat(64),
+            "inferstream turboembed onnxruntime cuda iobinding".to_string(),
+        ] {
+            let _ = loaded.embed_batch(&[text], None)?;
+        }
         Ok(loaded)
     }
 
@@ -1060,6 +1073,10 @@ pub fn hot_path_reset() {
 
 pub fn external_allocs() -> u64 {
     ORT_EXT_ALLOCS.load(Ordering::Relaxed)
+}
+
+pub fn external_last_bytes() -> u64 {
+    ORT_EXT_LAST_BYTES.load(Ordering::Relaxed)
 }
 
 pub fn d2h_bytes() -> u64 {
