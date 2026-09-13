@@ -11,8 +11,8 @@ pipeline. Pooling is CLS / MEAN / LAST_TOKEN with optional L2. Device is
 Intel Embed is GenAI only. Catalog `backend = "openvino"` constructs
 `TurboEmbedBackend` and `ListModels` reports `backend=turboembed`.
 
-This document is the build + krick-1 runbook. GPU and CPU MiniLM are
-**live** on krick-1 (Battlemage) — receipts
+This document is the build + Machine B runbook. GPU and CPU MiniLM are
+**live** on Machine B (Battlemage) — receipts
 [`intel-minilm.json`](../testdata/receipts/turboembed/intel-minilm.json)
 and
 [`intel-minilm-cpu.json`](../testdata/receipts/turboembed/intel-minilm-cpu.json).
@@ -94,7 +94,7 @@ first-party Hugging Face repos when they already publish IR
 **Tokenizer IR gap.** Several ST / intfloat / thenlper repos publish
 `openvino/openvino_model.xml` but not `openvino_tokenizer.xml`. Fetch still
 pulls the model IR + `tokenizer.json`. The backend **refuses to load**
-until `openvino_tokenizer.xml/.bin` sit next to the model. On krick-1,
+until `openvino_tokenizer.xml/.bin` sit next to the model. On Machine B,
 copy that pair from a prior IR export or a one-off `convert_tokenizer`
 run in `contrib/offline-once/` (historical tooling; not invoked by Make).
 
@@ -102,7 +102,7 @@ Aliases **without** a public IR source today (`bge-small`, `bge-large`,
 `nomic-embed-text`): catalog still points at `models/ov/<alias>/`. Place a
 GenAI-layout directory there (one-off export) before serving.
 
-## Smoke on krick-1 (Battlemage)
+## Smoke on Machine B (Battlemage)
 
 ```bash
 source /opt/intel/oneapi/setvars.sh          # or OpenVINO setupvars.sh
@@ -134,7 +134,7 @@ INFERSTREAM_OV_GOLDEN=/abs/path/testdata/reference_embeddings/ov_genai_minilm_sh
 cargo test -p inferstream-backend-openvino --features genai -- --ignored gpu_golden
 ```
 
-The golden file is produced on krick-1 after the first successful Embed
+The golden file is produced on Machine B after the first successful Embed
 (see `testdata/reference_embeddings/README.md`). It is **not** required
 for the default `cargo test --workspace`.
 
@@ -160,13 +160,13 @@ Receipts: `testdata/receipts/turboembed/intel-minilm.json` (GPU) and
 `cargo test -p turboembed --features genai --test device_policy` —
 GPU + no GPU plugin is `UNSUPPORTED_DEVICE` (never `"CPU"`). Same for NPU.
 
-### NPU — honest defer on krick-1 (Battlemage)
+### NPU — honest defer on Machine B (Battlemage)
 
 `Device::OpenVinoNpu` is **not** a live TurboEmbed path on this host.
 `Engine::create(Device::OpenVinoNpu)` fails loud (`UNSUPPORTED_DEVICE`)
 and never compiles `"CPU"` or the 8-d FNV mock.
 
-Live probe (C++, no Python) on **krick-1** against OpenVINO GenAI
+Live probe (C++, no Python) on **Machine B** against OpenVINO GenAI
 2026.3.1 (`/work/opt/openvino_genai`):
 
 | check | result |
@@ -180,7 +180,7 @@ Intel NPU is on **Core Ultra client** SoCs (Meteor / Lunar / Arrow Lake),
 not on a discrete Battlemage card, not on AMD CPUs, **not Xeon**, and
 **not AWS Inferentia**. Policy still accepts `"NPU"` when a future host
 lists the plugin (`require_ov_device("NPU", "CPU,NPU")` → `"NPU"`);
-create on krick-1 cannot. Receipt:
+create on Machine B cannot. Receipt:
 `testdata/receipts/turboembed/intel-npu.json` (`pass=false`, `wired=false`).
 Do not treat that file as a MiniLM success receipt.
 

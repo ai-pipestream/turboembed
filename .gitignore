@@ -21,3 +21,4 @@ native/mlx-engine/.build/
 native/turboembed/build/
 swift/.build/
 .DS_Store
+agent-tools/

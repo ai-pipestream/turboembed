@@ -25,7 +25,7 @@ See `docs/turboembed.md`.
 `ov::genai::TextEmbeddingPipeline(models_path, device, config)` with
 `device` `"GPU"`, `"CPU"`, or `"NPU"` (official sample strings) and call
 `embed_documents`. A GPU / NPU request never compiles `"CPU"`. NPU create
-fails loud when the plugin is missing (krick-1: no Intel NPU). No OVMS. No Python.
+fails loud when the plugin is missing (Machine B: no Intel NPU). No OVMS. No Python.
 
 On macOS the Rust crate **does not** link this default C++ object — it
 links `libTurboEmbed.dylib` (Swift MLX). See `docs/turboembed-swift.md`.

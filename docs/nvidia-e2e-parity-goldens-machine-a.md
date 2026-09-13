@@ -1,4 +1,4 @@
-# NVIDIA e2e embed parity goldens (krick)
+# NVIDIA e2e embed parity goldens (Machine A)
 
 Live capture on the NVIDIA host for cross-arch cosine. Tree is Origin
 `main` **`2b8883c`** or later. No Python — `inferstream-fetch` +
@@ -52,12 +52,12 @@ Live ORT CUDA vs the dumps just written:
 `hello world` first components (live Embed after capture) sit on the
 golden within ~5e-5 — fp32 session noise, not a different vector.
 
-## `--parity-cross` from krick
+## `--parity-cross` from Machine A
 
 | peer | reach | result |
 |---|---|---|
-| apple / `kristians-macbook-air` | **yes** — live capture on krickert-mac after the pooling fix | **before:** minilm min **-0.1404** / mean **-0.0085** (BERT pooler). **after (FP + mean+L2):** minilm min **0.9795** / mean **0.9997** (n=213); bge-small min **0.9938** / mean **0.9999**. See `testdata/e2e/goldens/apple/README.md`. |
-| intel / krick-1 | host up (`192.168.1.195`, Tailscale `100.124.224.59`) | **no inferstream** on `:8461` / `:8471`. Only llama-server `:8085`. Goldens not on `origin/main` yet. |
+| apple / Machine C | **yes** — live capture on Machine C after the pooling fix | **before:** minilm min **-0.1404** / mean **-0.0085** (BERT pooler). **after (FP + mean+L2):** minilm min **0.9795** / mean **0.9997** (n=213); bge-small min **0.9938** / mean **0.9999**. See `testdata/e2e/goldens/apple/README.md`. |
+| intel / Machine B | host up (`192.168.1.195`, Tailscale `100.124.224.59`) | **no inferstream** on `:8461` / `:8471`. Only llama-server `:8085`. Goldens not on `origin/main` yet. |
 
 Retry when intel is serving:
 

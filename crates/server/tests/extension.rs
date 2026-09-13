@@ -512,7 +512,7 @@ async fn server_metadata_advertises_extension_and_both_services_answer() {
     guard.stop().await;
 }
 
-/// Default krick location of the MiniLM HF snapshot (TEI's model cache);
+/// Default Machine A location of the MiniLM HF snapshot (TEI's model cache);
 /// override with `INFERSTREAM_MINILM_SNAPSHOT`.
 const MINILM_SNAPSHOT: &str = "/work/tei-model-cache/\
      models--sentence-transformers--all-MiniLM-L6-v2/snapshots/\

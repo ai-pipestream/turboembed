@@ -154,7 +154,7 @@ impl LlamaEngine {
                         "device = \"sycl\" but GGML_SYCL was not ON when this binary was \
                          compiled — llama.cpp would silently run on CPU. Rebuild with \
                          GGML_SYCL=ON CMAKE_C_COMPILER=icx CMAKE_CXX_COMPILER=icpx after \
-                         scripts/setup-llamacpp-sycl.sh (see docs/intel-sycl-inprocess-krick-1.md)"
+                         scripts/setup-llamacpp-sycl.sh (see docs/intel-sycl-inprocess-machine-b.md)"
                             .into(),
                     ));
                     #[cfg(llama_sycl)]

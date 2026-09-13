@@ -1,4 +1,4 @@
-# inferstream-intel: in-process llama.cpp SYCL (krick-1)
+# inferstream-intel: in-process llama.cpp SYCL (Machine B)
 
 Live Tokenize + `ModelStreamInfer` for the logical generation aliases on
 the Intel Battlemage host. **In-process** llama.cpp (`GGML_SYCL`, Level
@@ -12,7 +12,7 @@ fetch, smoke, or the inferstream process. Historical OpenVINO IR export
 lives in `contrib/offline-once/` only; Make defaults do not call it.
 OVMS gRPC is out of scope — Intel embeds are in-process GenAI.
 
-Host: **krick-1**, Battlemage `Intel(R) Graphics [0xe223]`, xe DRM.
+Host: **Machine B**, Battlemage `Intel(R) Graphics [0xe223]`, xe DRM.
 Binary: `target/release/inferstream-intel` (106 MiB, `libsycl.so.8`, no
 `libpython`). Listen: `127.0.0.1:8473`. PID **1122034**.
 
@@ -104,7 +104,7 @@ drm-cycles-ccs:       59713723      (nonzero CCS — GPU compute, not idle)
 ```
 ===== during 2026-09-11T19:03:59-04:00 pid=1122034 =====
     PID    PPID USER     CMD
-1122034       … krickert /work/inferstream/target/release/inferstream-intel --config config/intel.toml --listen 127.0.0.1:8473
+1122034       … operator /work/inferstream/target/release/inferstream-intel --config config/intel.toml --listen 127.0.0.1:8473
 -- children --
 (no children)
 -- cmdlines (self + descendants) --

@@ -1,22 +1,34 @@
 # TurboEmbed live receipts
 
-JSON written by a **live** `cargo test -p turboembed` on the named host.
+JSON written by a **live** `cargo test -p turboembed` on the named Machine.
 Not mocks. Not OVMS. Not a CPU EP pretending to be CUDA. Not BERT pooler.
 Catalog aliases never become 8-d FNV.
 
-Committed set: NVIDIA CUDA + CPU + **TensorRT**, Intel GPU + CPU +
-**NPU fail**, Apple Metal. Do not delete a receipt when refreshing
-another host.
+Receipt `host` is historical provenance (the lab box that wrote the file).
+Do not treat that string as a public hostname. Map it through the Machine
+chart in the root `README.md` using the file prefix / engine:
 
-| file | host | engine | device | command |
+| files | Machine | Role |
+|---|---|---|
+| `nvidia-*.json` | **A** | NVIDIA Linux (ORT CUDA / CPU / TensorRT) |
+| `intel-*.json` | **B** | Intel Linux (GenAI GPU+CPU; NPU fail-loud) |
+| `apple-*.json` | **C** | Apple Silicon Mac (Metal / MLX) |
+
+Do not rewrite committed receipt JSON to invent fields or cosine numbers.
+Do not delete a receipt when refreshing another Machine.
+
+Committed set: NVIDIA CUDA + CPU + **TensorRT**, Intel GPU + CPU +
+**NPU fail**, Apple Metal.
+
+| file | Machine | engine | device | command |
 |---|---|---|---|---|
-| `nvidia-minilm.json` | krick (RTX 4080 SUPER) | ORT CUDA EP + IoBinding | **CUDA** | `make test-turboembed-nvidia` |
-| `nvidia-minilm-cpu.json` | krick | ORT CPU EP (explicit `Device::Cpu`) | **CPU** | `make test-turboembed-nvidia` |
-| `nvidia-minilm-tensorrt.json` | krick (RTX 4080 SUPER) | ORT TensorRT EP | **TENSORRT** | ignored `minilm_ort_tensorrt_matches_golden` |
-| `intel-minilm.json` | krick-1 (Battlemage) | `ov::genai::TextEmbeddingPipeline` | **GPU** | `make test-turboembed-intel` |
-| `intel-minilm-cpu.json` | krick-1 | same pipeline, `"CPU"` device string | **CPU** | `make test-turboembed-intel` |
-| `intel-npu.json` | krick-1 | **defer** — NPU create fails loud (no plugin) | **NPU** | `make test-turboembed-intel` |
-| `apple-minilm.json` | krickert-mac (Apple M2) | mlx-swift `MlxEngine` mean+L2 | **Metal** | `make test-turboembed-apple` |
+| `nvidia-minilm.json` | Machine A (RTX 4080 SUPER) | ORT CUDA EP + IoBinding | **CUDA** | `make test-turboembed-nvidia` |
+| `nvidia-minilm-cpu.json` | Machine A | ORT CPU EP (explicit `Device::Cpu`) | **CPU** | `make test-turboembed-nvidia` |
+| `nvidia-minilm-tensorrt.json` | Machine A (RTX 4080 SUPER) | ORT TensorRT EP | **TENSORRT** | ignored `minilm_ort_tensorrt_matches_golden` |
+| `intel-minilm.json` | Machine B (Battlemage) | `ov::genai::TextEmbeddingPipeline` | **GPU** | `make test-turboembed-intel` |
+| `intel-minilm-cpu.json` | Machine B | same pipeline, `"CPU"` device string | **CPU** | `make test-turboembed-intel` |
+| `intel-npu.json` | Machine B | **defer** — NPU create fails loud (no plugin) | **NPU** | `make test-turboembed-intel` |
+| `apple-minilm.json` | Machine C (Apple M2) | mlx-swift `MlxEngine` mean+L2 | **Metal** | `make test-turboembed-apple` |
 
 NVIDIA fields: `device=CUDA`, `dims`, `worst_cosine` vs
 `testdata/e2e/goldens/nvidia/minilm.json` (`parity:*` + hello world),
@@ -26,7 +38,7 @@ Intel: same MiniLM IR (`models/ov/minilm`). Cosine vs
 `testdata/e2e/goldens/{intel,nvidia}/minilm.json` stays ≥ 0.99 on **both**
 devices (CPU is the same IR, not a mock). GPU create/load still fails if
 the GPU plugin is missing — that path never compiles `"CPU"`.
-`intel-npu.json` is an honest **fail** receipt (`pass=false`): krick-1 has
+`intel-npu.json` is an honest **fail** receipt (`pass=false`): Machine B has
 no Intel NPU / no `libopenvino_intel_npu_plugin.so`. A passing NPU
 receipt needs a **Core Ultra client NPU** host — not Xeon, not AWS
 Inferentia, not this Battlemage box. Do not treat the fail file as a

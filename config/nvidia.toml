@@ -1,4 +1,4 @@
-# inferstream-nvidia example configuration (krick-class NVIDIA host).
+# inferstream-nvidia example configuration (Machine A-class NVIDIA host).
 #
 # Primary path today: ONNX Runtime with the CUDA execution provider serving
 # encoder embedding models (BGE / MiniLM). TensorRT-LLM stays an optional
@@ -23,7 +23,7 @@ listen = "0.0.0.0:8461"
 # the Intel (OpenVINO GenAI) and Apple (MLX) binaries. Override the built-in catalog
 # per host with `catalog = "/path/to/catalog.toml"`.
 #
-# `minilm` is served out of the box (TEI's HF cache already on krick). The
+# `minilm` is served out of the box (TEI's HF cache already on Machine A). The
 # catalog defines many more embedding aliases for this arch — minilm-l12,
 # mpnet, bge-small/base/large, bge-m3, e5-small/base/large, gte-small/base,
 # nomic-embed-text — each resolving to models/onnx/<alias>/. Download the

@@ -1,4 +1,4 @@
-# All-Swift inferstream-apple Metal smoke (krickert-mac)
+# All-Swift inferstream-apple Metal smoke (Machine C)
 
 Host: Darwin arm64, Metal GPU. Serve path is the Swift executable
 `swift/.build/release/inferstream-apple` (grpc-swift 2 + in-process
@@ -27,7 +27,7 @@ boot log: mlx device=Device(gpu, 0) metal=true
 
 Engine-side tok/s is mlx-swift-lm generate-loop tokens / seconds on the
 final chunk (`decode_tokens_per_second`), same contract as the legacy
-Rust FFI path (~219 t/s in `docs/apple-native-mlx-smoke-krickert-mac.md`).
+Rust FFI path (~219 t/s in `docs/apple-native-mlx-smoke-machine-c.md`).
 Warm in-process Swift is **216 t/s** — competitive, no FFI hop.
 
 `qwen-7b` was not fetched on this host (needs ~24 GB). Catalog alias is

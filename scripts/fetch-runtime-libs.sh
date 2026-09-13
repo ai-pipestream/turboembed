@@ -27,7 +27,7 @@
 # That curls the pinned CUDA 13 wheel in
 # models/manifests/tensorrt-runtime-wheels.json (~3.7 GiB) and links into
 # .libs/nvidia/lib. Not part of `nvidia` / `all` — CUDA MiniLM does not need it.
-# Proven on krick: testdata/receipts/turboembed/nvidia-minilm-tensorrt.json.
+# Proven on Machine A: testdata/receipts/turboembed/nvidia-minilm-tensorrt.json.
 set -euo pipefail
 
 # Pinned manylinux x86_64 wheels (CUDA 13 line, for ort 2.0.0-rc.13 / ONNX

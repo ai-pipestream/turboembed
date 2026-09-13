@@ -1,6 +1,6 @@
-# Apple goldens (krickert-mac)
+# Apple goldens (Machine C)
 
-Captured **2026-09-12** on **krickert-mac** (Apple Silicon / Metal) after
+Captured **2026-09-12** on **Machine C** (Apple Silicon / Metal) after
 the MiniLM pooling fix. Origin branch
 `ai-pipestream/apple-minilm-parity-81a5`.
 
@@ -24,7 +24,7 @@ sentences from fetched Tiny Shakespeare.
 
 ## Before / after vs nvidia dumps
 
-nvidia goldens: `testdata/e2e/goldens/nvidia/` (krick ORT CUDA, 2026-09-12).
+nvidia goldens: `testdata/e2e/goldens/nvidia/` (Machine A ORT CUDA, 2026-09-12).
 
 | pair | when | min cosine | mean cosine | n |
 |---|---|---|---|---|

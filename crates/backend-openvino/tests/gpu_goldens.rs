@@ -1,7 +1,7 @@
 //! Live GPU (or CPU plugin) goldens for OpenVINO GenAI TextEmbeddingPipeline.
 //!
 //! `#[ignore]`d and compiled only with `--features genai`, so default CI
-//! never needs OpenVINO or an Intel GPU. Run on krick-1 (Battlemage):
+//! never needs OpenVINO or an Intel GPU. Run on Machine B (Battlemage):
 //!
 //! ```bash
 //! # after scripts/build-intel.sh (openvino-genai) and make fetch-ov-genai ALIASES=minilm

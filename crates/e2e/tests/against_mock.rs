@@ -2,7 +2,7 @@
 //!
 //! Registers the same logical names the production suite uses so the
 //! skip / required / generate / tokenize path is the one that runs on
-//! krick / krick-1 / krickert-mac.
+//! Machine A / Machine B / Machine C.
 
 use std::collections::HashSet;
 

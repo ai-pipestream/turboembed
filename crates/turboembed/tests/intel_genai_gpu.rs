@@ -597,9 +597,9 @@ fn npu_request_never_silently_uses_cpu_or_mock() {
                     "listed_npu": false,
                     "constructor": "TextEmbeddingPipeline(models/ov/minilm, \"NPU\")",
                     "exception": "Device with \"NPU\" name is not registered in the OpenVINO Runtime",
-                    "source": "standalone C++ ov::Core + TextEmbeddingPipeline probe on krick-1; create() uses the same Core list via require_ov_device",
+                    "source": "standalone C++ ov::Core + TextEmbeddingPipeline probe on Machine B; create() uses the same Core list via require_ov_device",
                 },
-                "blocker": "krick-1 is AMD Ryzen 9 9950X + Intel Battlemage G31 dGPU. No Intel NPU silicon, no intel-npu/accel node, no libopenvino_intel_npu_plugin.so. ov::Core lists CPU GPU only.",
+                "blocker": "Machine B is AMD Ryzen 9 9950X + Intel Battlemage G31 dGPU. No Intel NPU silicon, no intel-npu/accel node, no libopenvino_intel_npu_plugin.so. ov::Core lists CPU GPU only.",
                 "note": "Honest defer. Device::OpenVinoNpu create fails loud and never compiles CPU or the 8-d FNV mock. Do not treat this file as a passing MiniLM receipt.",
                 "sha": {
                     "git": git_head(&root),

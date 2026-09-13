@@ -29,7 +29,7 @@
 #
 # Per-arch artifact conventions in this catalog:
 #
-#   nvidia  ORT (CUDA EP). `minilm` uses the TEI HF cache already on krick.
+#   nvidia  ORT (CUDA EP). `minilm` uses the TEI HF cache already on Machine A.
 #           Every other alias points at models/onnx/<alias>/ (relative to the
 #           server cwd) — populate with
 #               make fetch-embeddings [ALIASES=alias1,alias2]
@@ -62,7 +62,7 @@
 [models.minilm]
 description = "all-MiniLM-L6-v2 sentence embeddings (384 dims, mean pooling)"
 
-# ORT with the CUDA EP over TEI's HF snapshot cache on krick. The snapshot
+# ORT with the CUDA EP over TEI's HF snapshot cache on Machine A. The snapshot
 # hash is stable for sentence-transformers/all-MiniLM-L6-v2; adjust if your
 # cache pulled a newer revision (ls the snapshots/ dir).
 [models.minilm.nvidia]
@@ -426,7 +426,7 @@ max_batch_size = 16
 # ONNX into OpenVINO and grafts pooling on, since NomicBERT's remote code
 # cannot be torch-traced). No apple resolution — mlx-embeddings has no
 # NomicBERT forward pass.
-# Untested on krick (nvidia): if the export's graph inputs differ, startup
+# Untested on Machine A (nvidia): if the export's graph inputs differ, startup
 # fails naming the offending input (never at request time).
 [models.nomic-embed-text]
 description = "nomic-embed-text-v1.5 embeddings (768 dims, mean pooling)"
@@ -456,7 +456,7 @@ normalize = true
 # arches that do have it.
 #
 #   nvidia  llama.cpp-CUDA in-process GGUF. `default-llm` uses the Qwen2.5-
-#           0.5B Q8_0 already on krick at /work/models/gguf/ (validated
+#           0.5B Q8_0 already on Machine A at /work/models/gguf/ (validated
 #           StreamInfer on that host). `qwen-0.5b` / `qwen-7b` point at
 #           models/gguf/<alias>/ — populate with
 #               make fetch-llms [ALIASES=qwen-0.5b,qwen-7b]

@@ -197,7 +197,7 @@ fn run() -> inferstream_fetch::Result<i32> {
         Some(
             "Add the aliases to `serve` in config/intel.toml and rebuild with --features openvino-genai;\n\
              verify with: scripts/smoke-embeddings.sh <host:port> <bearer-token>\n\
-             See docs/intel-genai-embed.md (krick-1 Battlemage smoke).\n",
+             See docs/intel-genai-embed.md (Machine B Battlemage smoke).\n",
         )
     } else if args.corpus {
         Some(

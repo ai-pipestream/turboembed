@@ -2,7 +2,7 @@
 //!
 //! These are `#[ignore]`d and only compile with the `runtime` feature, so
 //! default CI never needs ONNX Runtime or a GPU. Run them on a host with the
-//! model available (krick for CUDA, anywhere for the CPU EP):
+//! model available (Machine A for CUDA, anywhere for the CPU EP):
 //!
 //! ```bash
 //! INFERSTREAM_ORT_MODEL=/path/to/model.onnx \

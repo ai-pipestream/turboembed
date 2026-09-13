@@ -5,7 +5,7 @@
 //!
 //! | pair | cosine min | why |
 //! |---|---|---|
-//! | same arch (live vs golden) | **0.99** | ORT MiniLM vs TEI on krick was 0.999998; replay must stay that tight |
+//! | same arch (live vs golden) | **0.99** | ORT MiniLM vs TEI on Machine A was 0.999998; replay must stay that tight |
 //! | nvidia ORT FP ↔ intel GenAI | **0.99** | same MiniLM family, mean pool, L2; Intel IR is often FP16 but MiniLM still lands ≥ 0.99 |
 //! | any pair involving apple | **0.97** | FP MiniLM English is ~1.000; min 0.9795 is CJK WordPiece UNK drift on an English-only model |
 //!

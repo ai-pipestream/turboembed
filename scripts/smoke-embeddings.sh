@@ -8,8 +8,9 @@
 #   bearer-token   default "change-me" (pass "" for auth mode = none)
 #   model ...      subset to test; default = matrix embed aliases
 #
-# Target is INFERSTREAM_E2E_TARGET, or inferred from the host
-# (krick → nvidia, krick-1 → intel, krickert-mac → apple, localhost → mock).
+# Target is INFERSTREAM_E2E_TARGET (nvidia / intel / apple for Machine A / B / C
+# in the README lab chart). Localhost defaults to mock; other hosts need the
+# env var or default to nvidia. Lab checkout paths are local to each Machine.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -20,9 +21,6 @@ shift $(( $# > 2 ? 2 : $# )) || true
 TARGET="${INFERSTREAM_E2E_TARGET:-}"
 if [ -z "$TARGET" ]; then
     case "$ADDR" in
-        *krick-1*) TARGET=intel ;;
-        *krickert-mac*) TARGET=apple ;;
-        *krick*) TARGET=nvidia ;;
         127.0.0.1:*|localhost:*|'[::1]':*) TARGET=mock ;;
         *) TARGET=nvidia ;;
     esac

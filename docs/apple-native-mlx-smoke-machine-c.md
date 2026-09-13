@@ -1,4 +1,4 @@
-# Apple native MLX smoke (krickert-mac)
+# Apple native MLX smoke (Machine C)
 
 Host: Darwin arm64, Metal GPU. Runtime is in-process Swift MLX
 (`libMlxEngine.dylib` + `mlx.metallib`). No Python interpreter.
@@ -37,5 +37,5 @@ cargo test -p inferstream-backend-apple --features mlx-live -- --ignored --nocap
 `python` only in the proof greps above. NVIDIA `scripts/fetch-runtime-libs.sh`
 still uses a venv to unpack CUDA wheels — that is not the Apple path.
 
-The earlier Python-bridge write-up (`docs/apple-llm-metal-smoke-krickert-mac.md`)
+The earlier Python-bridge write-up (`docs/apple-llm-metal-smoke-machine-c.md`)
 is history only.

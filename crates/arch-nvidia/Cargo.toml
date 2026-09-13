@@ -29,13 +29,13 @@ llamacpp-runtime = ["llamacpp", "inferstream-backend-llamacpp/runtime"]
 # CUDA toolkit (nvcc) at build time; if the host's default gcc is newer than
 # nvcc supports, set CUDAHOSTCXX (e.g. /usr/bin/g++-13).
 llamacpp-cuda = ["llamacpp-runtime", "inferstream-backend-llamacpp/cuda"]
-# Convenience: everything real on a krick-class NVIDIA host.
+# Convenience: everything real on a Machine A-class NVIDIA host.
 full-cuda = ["ort-cuda", "llamacpp-cuda"]
 ort = ["dep:inferstream-backend-turboembed"]
 # Real ONNX Runtime via TurboEmbed C ABI (CPU EP when device=cpu).
 # `ort`'s download-binaries fetches a matching ONNX Runtime at build time.
 ort-runtime = ["ort", "inferstream-backend-turboembed/ort-cuda"]
-# CUDA EP — the primary embedding path on krick-class hosts. Needs the
+# CUDA EP — the primary embedding path on Machine A-class hosts. Needs the
 # NVIDIA driver + CUDA 13 + cuDNN 9 at runtime (no TensorRT required).
 # Catalog `backend = "ort"` is a thin gRPC façade over this ABI.
 ort-cuda = ["ort-runtime"]
