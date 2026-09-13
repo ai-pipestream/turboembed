@@ -1,9 +1,10 @@
 //! Safe wrapper over the TurboRerank C ABI (`include/turborerank.h`).
 //!
 //! Token buffers are caller-written (64-byte aligned on CPU; cudaHostAlloc
-//! pinned on CUDA). `forward` does not allocate. CUDA / AUTO-with-CUDA run
-//! the device MiniLM CE. Metal / TensorRT / OpenVINO fail loud — never a
-//! mock score.
+//! pinned on CUDA; Level Zero USM on OpenVINO). `forward` does not allocate.
+//! CUDA / AUTO-with-CUDA run the device MiniLM CE. OpenVINO GPU/CPU run
+//! CompiledModel with `ov::Tensor(..., usm_pointer)`. Metal / TensorRT
+//! fail loud — never a mock score.
 
 #![allow(clippy::result_large_err)]
 
@@ -452,6 +453,17 @@ pub fn default_model_dir() -> std::path::PathBuf {
 pub fn weights_present() -> bool {
     let d = default_model_dir();
     d.join("model.safetensors").is_file() && d.join("vocab.txt").is_file()
+}
+
+pub fn default_ov_ir_dir() -> std::path::PathBuf {
+    std::path::PathBuf::from(workspace_root()).join("models/ov-rerank/ms-marco-minilm-l6")
+}
+
+pub fn ov_ir_present() -> bool {
+    let d = default_ov_ir_dir();
+    (d.join("openvino_model.xml").is_file() || d.join("model.xml").is_file())
+        && (d.join("openvino_model.bin").is_file() || d.join("model.bin").is_file())
+        && d.join("vocab.txt").is_file()
 }
 
 // Silence unused import of turborerank_model_info in some rustc versions.

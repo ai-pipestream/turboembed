@@ -4,6 +4,7 @@
 
 #include "cuda_api.hpp"
 #include "internal.hpp"
+#include "ov_api.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -260,7 +261,8 @@ turborerank_status turborerank_engine_create(
                 why = "device is not available; refusing CPU fallback";
             }
             turborerank::impl::set_create_error(why);
-            if (device == TURBORERANK_DEVICE_OPENVINO_CPU) {
+            if (device == TURBORERANK_DEVICE_OPENVINO_CPU &&
+                !turborerank::impl::ov_compiled()) {
                 return TURBORERANK_ERR_NOT_IMPLEMENTED;
             }
             return TURBORERANK_ERR_UNAVAILABLE;
@@ -273,7 +275,9 @@ turborerank_status turborerank_engine_create(
 
     if (resolved != TURBORERANK_DEVICE_CPU &&
         resolved != TURBORERANK_DEVICE_MOCK &&
-        resolved != TURBORERANK_DEVICE_CUDA) {
+        resolved != TURBORERANK_DEVICE_CUDA &&
+        resolved != TURBORERANK_DEVICE_OPENVINO_CPU &&
+        resolved != TURBORERANK_DEVICE_OPENVINO_GPU) {
         turborerank::impl::set_create_error(
             "unsupported device; refusing CPU fallback"
         );
@@ -315,6 +319,7 @@ void turborerank_engine_destroy(turborerank_engine *engine) {
     }
     free_work_buffer(engine);
     turborerank::impl::cuda_resources_free(&engine->cuda);
+    turborerank::impl::ov_resources_free(&engine->ov);
     turborerank::impl::free_scratch(&engine->scratch);
     turborerank::impl::free_owned(&engine->owned_weights);
     turborerank::impl::free_mapped(&engine->mapped);
@@ -343,7 +348,9 @@ turborerank_status turborerank_list_models(
     infos[0].ready =
         engine->ready &&
                 (engine->device == TURBORERANK_DEVICE_CPU ||
-                 engine->device == TURBORERANK_DEVICE_CUDA)
+                 engine->device == TURBORERANK_DEVICE_CUDA ||
+                 engine->device == TURBORERANK_DEVICE_OPENVINO_CPU ||
+                 engine->device == TURBORERANK_DEVICE_OPENVINO_GPU)
             ? 1
             : 0;
     *out_infos = infos;
@@ -376,32 +383,67 @@ turborerank_status turborerank_load_model(
             "'; mock does not produce relevance scores";
         return TURBORERANK_ERR_NOT_IMPLEMENTED;
     }
+    const bool ov_dev = engine->device == TURBORERANK_DEVICE_OPENVINO_CPU ||
+                        engine->device == TURBORERANK_DEVICE_OPENVINO_GPU;
     if (engine->device != TURBORERANK_DEVICE_CPU &&
-        engine->device != TURBORERANK_DEVICE_CUDA) {
+        engine->device != TURBORERANK_DEVICE_CUDA && !ov_dev) {
         engine->last_error = "load_model: engine device cannot run MiniLM CE";
         return TURBORERANK_ERR_UNAVAILABLE;
     }
 
-    const std::string dir = turborerank::impl::resolve_model_dir(
-        name.c_str(),
-        name.size(),
-        engine->config_path.empty() ? nullptr : engine->config_path.c_str(),
-        engine->workspace_root.empty() ? nullptr : engine->workspace_root.c_str()
-    );
-    if (dir.empty()) {
-        engine->last_error =
-            "weights missing for alias '" + name +
-            "'; expected model.safetensors under models/rerank/" + name +
-            " (make fetch-rerankers). Refusing a mock score.";
-        return TURBORERANK_ERR_UNAVAILABLE;
+    const char *cfg_c =
+        engine->config_path.empty() ? nullptr : engine->config_path.c_str();
+    const char *ws_c =
+        engine->workspace_root.empty() ? nullptr : engine->workspace_root.c_str();
+
+    std::string dir;
+    std::string ir_xml;
+    if (ov_dev) {
+        dir = turborerank::impl::resolve_ov_ir_dir(name.c_str(), name.size(), cfg_c, ws_c);
+        if (dir.empty()) {
+            engine->last_error =
+                "OpenVINO IR missing for alias '" + name +
+                "'; expected openvino_model.xml under models/ov-rerank/" + name +
+                " (export ONNX then make convert-rerank-ov). Refusing a mock score.";
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
+        if (is_file(join_path(dir, "openvino_model.xml"))) {
+            ir_xml = join_path(dir, "openvino_model.xml");
+        } else {
+            ir_xml = join_path(dir, "model.xml");
+        }
+    } else {
+        dir = turborerank::impl::resolve_model_dir(name.c_str(), name.size(), cfg_c, ws_c);
+        if (dir.empty()) {
+            engine->last_error =
+                "weights missing for alias '" + name +
+                "'; expected model.safetensors under models/rerank/" + name +
+                " (make fetch-rerankers). Refusing a mock score.";
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
     }
 
-    const std::string cfg_path = join_path(dir, "config.json");
-    const std::string vocab_path = join_path(dir, "vocab.txt");
-    const std::string weight_path = join_path(dir, "model.safetensors");
-    if (!is_file(weight_path)) {
-        engine->last_error = "weights missing: " + weight_path;
-        return TURBORERANK_ERR_UNAVAILABLE;
+    std::string cfg_path = join_path(dir, "config.json");
+    std::string vocab_path = join_path(dir, "vocab.txt");
+    if (!is_file(vocab_path) || !is_file(cfg_path)) {
+        const std::string rerank = turborerank::impl::resolve_model_dir(
+            name.c_str(), name.size(), cfg_c, ws_c
+        );
+        if (!rerank.empty()) {
+            if (!is_file(vocab_path)) {
+                vocab_path = join_path(rerank, "vocab.txt");
+            }
+            if (!is_file(cfg_path)) {
+                cfg_path = join_path(rerank, "config.json");
+            }
+        }
+    }
+    if (!ov_dev) {
+        const std::string weight_path = join_path(dir, "model.safetensors");
+        if (!is_file(weight_path)) {
+            engine->last_error = "weights missing: " + weight_path;
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
     }
     if (!is_file(vocab_path)) {
         engine->last_error = "vocab.txt missing: " + vocab_path;
@@ -418,16 +460,19 @@ turborerank_status turborerank_load_model(
         engine->last_error = err;
         return TURBORERANK_ERR_UNAVAILABLE;
     }
-    if (!turborerank::impl::load_safetensors(
-            weight_path.c_str(),
-            engine->cfg,
-            &engine->weights,
-            &engine->mapped,
-            &engine->owned_weights,
-            &err
-        )) {
-        engine->last_error = err;
-        return TURBORERANK_ERR_UNAVAILABLE;
+    if (!ov_dev) {
+        const std::string weight_path = join_path(dir, "model.safetensors");
+        if (!turborerank::impl::load_safetensors(
+                weight_path.c_str(),
+                engine->cfg,
+                &engine->weights,
+                &engine->mapped,
+                &engine->owned_weights,
+                &err
+            )) {
+            engine->last_error = err;
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
     }
     if (!turborerank::impl::alloc_scratch(&engine->scratch, engine->cfg, &err)) {
         engine->last_error = err;
@@ -440,6 +485,17 @@ turborerank_status turborerank_load_model(
             engine->last_error =
                 err.empty() ? "CUDA MiniLM CE init failed; refusing CPU fallback"
                             : err + "; refusing CPU fallback";
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
+    }
+    if (ov_dev) {
+        if (!turborerank::impl::ov_resources_init(
+                &engine->ov, engine->device, ir_xml.c_str(), engine->cfg, &err
+            )) {
+            engine->last_error =
+                err.empty()
+                    ? "OpenVINO MiniLM CE init failed; refusing CPU fallback"
+                    : err;
             return TURBORERANK_ERR_UNAVAILABLE;
         }
     }
@@ -488,6 +544,34 @@ turborerank_status turborerank_buffer_alloc(
             );
             return TURBORERANK_ERR_UNAVAILABLE;
         }
+    } else if (resolved == TURBORERANK_DEVICE_OPENVINO_GPU) {
+        std::string why;
+        if (!turborerank::impl::ov_gpu_present(&why)) {
+            turborerank::impl::set_create_error(
+                why.empty() ? "buffer_alloc: OpenVINO GPU missing; refusing CPU"
+                            : why
+            );
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
+        if (!turborerank::impl::ov_usm_available(&why)) {
+            turborerank::impl::set_create_error(
+                why.empty()
+                    ? "buffer_alloc: Level Zero USM missing; refusing CPU"
+                    : why
+            );
+            return TURBORERANK_ERR_UNAVAILABLE;
+        }
+    } else if (resolved == TURBORERANK_DEVICE_OPENVINO_CPU) {
+        std::string why;
+        if (!turborerank::impl::ov_cpu_present(&why)) {
+            turborerank::impl::set_create_error(
+                why.empty() ? "buffer_alloc: OpenVINO CPU missing"
+                            : why
+            );
+            return turborerank::impl::ov_compiled()
+                       ? TURBORERANK_ERR_UNAVAILABLE
+                       : TURBORERANK_ERR_NOT_IMPLEMENTED;
+        }
     } else if (resolved != TURBORERANK_DEVICE_CPU &&
                resolved != TURBORERANK_DEVICE_MOCK) {
         std::string why;
@@ -496,9 +580,6 @@ turborerank_status turborerank_buffer_alloc(
             why.empty() ? "buffer_alloc: device not implemented; refusing CPU"
                         : why
         );
-        if (resolved == TURBORERANK_DEVICE_OPENVINO_CPU) {
-            return TURBORERANK_ERR_NOT_IMPLEMENTED;
-        }
         return TURBORERANK_ERR_NOT_IMPLEMENTED;
     }
     if (resolved == TURBORERANK_DEVICE_MOCK) {
@@ -519,6 +600,20 @@ turborerank_status turborerank_buffer_alloc(
     auto alloc_field = [&](int32_t **slot) -> bool {
         if (resolved == TURBORERANK_DEVICE_CUDA) {
             *slot = static_cast<int32_t *>(turborerank::impl::pinned_alloc_bytes(bytes, &st));
+        } else if (resolved == TURBORERANK_DEVICE_OPENVINO_GPU) {
+            *slot = static_cast<int32_t *>(
+                turborerank::impl::usm_alloc_bytes(bytes, true, &st)
+            );
+        } else if (resolved == TURBORERANK_DEVICE_OPENVINO_CPU) {
+            if (turborerank::impl::ov_usm_available(nullptr)) {
+                *slot = static_cast<int32_t *>(
+                    turborerank::impl::usm_alloc_bytes(bytes, false, &st)
+                );
+            } else {
+                *slot = static_cast<int32_t *>(
+                    turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
+                );
+            }
         } else {
             *slot = static_cast<int32_t *>(
                 turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
@@ -547,6 +642,13 @@ void turborerank_buffer_free(turborerank_buffer *buffer) {
         turborerank::impl::pinned_free_bytes(buffer->attention_mask);
         turborerank::impl::pinned_free_bytes(buffer->token_type_ids);
         turborerank::impl::pinned_free_bytes(buffer->position_ids);
+    } else if (buffer->device == TURBORERANK_DEVICE_OPENVINO_GPU ||
+               (buffer->device == TURBORERANK_DEVICE_OPENVINO_CPU &&
+                turborerank::impl::ov_usm_available(nullptr))) {
+        turborerank::impl::usm_free_bytes(buffer->input_ids);
+        turborerank::impl::usm_free_bytes(buffer->attention_mask);
+        turborerank::impl::usm_free_bytes(buffer->token_type_ids);
+        turborerank::impl::usm_free_bytes(buffer->position_ids);
     } else {
         turborerank::aligned_free_bytes(buffer->input_ids);
         turborerank::aligned_free_bytes(buffer->attention_mask);
@@ -673,6 +775,36 @@ turborerank_status turborerank_forward(
     if (buffer->input_ids == nullptr || buffer->attention_mask == nullptr) {
         engine->last_error = "forward: token pointers are null";
         return TURBORERANK_ERR_INVALID_ARGUMENT;
+    }
+
+    if (engine->device == TURBORERANK_DEVICE_OPENVINO_CPU ||
+        engine->device == TURBORERANK_DEVICE_OPENVINO_GPU) {
+        if (buffer->row_stride != buffer->seq) {
+            engine->last_error = "forward: OpenVINO requires row_stride == seq";
+            return TURBORERANK_ERR_INVALID_ARGUMENT;
+        }
+        std::string err;
+        if (!turborerank::impl::bert_forward_ov(
+                &engine->ov,
+                buffer->input_ids,
+                buffer->attention_mask,
+                buffer->token_type_ids,
+                n_rows,
+                buffer->seq,
+                scores_out,
+                &err
+            )) {
+            engine->last_error =
+                err.empty() ? "OpenVINO forward failed; refusing CPU fallback"
+                            : err;
+            return TURBORERANK_ERR_INTERNAL;
+        }
+        if (activation != TURBORERANK_ACT_IDENTITY) {
+            for (uint32_t r = 0; r < n_rows; ++r) {
+                scores_out[r] = turborerank::sigmoid(scores_out[r]);
+            }
+        }
+        return TURBORERANK_OK;
     }
 
     for (uint32_t r = 0; r < n_rows; ++r) {

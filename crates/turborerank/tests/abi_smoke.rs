@@ -121,6 +121,7 @@ fn pack_error_and_max_len_boundary() {
     assert!(matches!(err, Error::InvalidArgument(_)));
 }
 
+#[cfg(not(turborerank_openvino))]
 #[test]
 fn remaining_accelerators_fail_loud_no_cpu_fallback() {
     for device in [
@@ -142,6 +143,39 @@ fn remaining_accelerators_fail_loud_no_cpu_fallback() {
     }
     let err = Engine::create(Device::OpenVinoCpu).unwrap_err();
     assert!(matches!(err, Error::NotImplemented(_)), "{err:?}");
+}
+
+#[cfg(turborerank_openvino)]
+#[test]
+fn openvino_create_succeeds_when_compiled() {
+    let cpu = Engine::create(Device::OpenVinoCpu).expect("OPENVINO_CPU");
+    drop(cpu);
+    match Engine::create(Device::OpenVinoGpu) {
+        Ok(gpu) => drop(gpu),
+        Err(err) => {
+            assert!(
+                matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+                "{err:?}"
+            );
+            let msg = err.to_string().to_lowercase();
+            assert!(
+                msg.contains("refus") || msg.contains("cpu fallback"),
+                "GPU missing must fail loud, got {err}"
+            );
+        }
+    }
+    for device in [Device::TensorRt, Device::OpenVinoNpu, Device::Metal] {
+        let err = Engine::create(device).unwrap_err();
+        assert!(
+            matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+            "{device:?}: {err:?}"
+        );
+        let msg = err.to_string().to_lowercase();
+        assert!(
+            msg.contains("refus") || msg.contains("cpu fallback"),
+            "{device:?}: {err}"
+        );
+    }
 }
 
 #[cfg(not(turborerank_cuda))]

@@ -2,6 +2,7 @@
 
 #include "cuda_api.hpp"
 #include "internal.hpp"
+#include "ov_api.hpp"
 
 #include <atomic>
 #include <cerrno>
@@ -153,14 +154,19 @@ bool device_is_accelerator(turborerank_device d) {
 
 bool accelerator_unavailable(turborerank_device d, std::string *why) {
     std::string cuda_why;
+    std::string ov_why;
     switch (d) {
     case TURBORERANK_DEVICE_AUTO:
         if (cuda_device_present(&cuda_why)) {
             return false;
         }
+        if (ov_gpu_present(&ov_why)) {
+            return false;
+        }
         if (why) {
             *why = "TURBORERANK_DEVICE_AUTO requested host-default GPU; " +
-                   cuda_why + " Refusing CPU fallback. Use TURBORERANK_DEVICE_CPU "
+                   cuda_why + " " + ov_why +
+                   " Refusing CPU fallback. Use TURBORERANK_DEVICE_CPU "
                    "for the MiniLM CE kernel.";
         }
         return true;
@@ -179,9 +185,14 @@ bool accelerator_unavailable(turborerank_device d, std::string *why) {
         }
         return true;
     case TURBORERANK_DEVICE_OPENVINO_GPU:
+        if (ov_gpu_present(&ov_why)) {
+            return false;
+        }
         if (why) {
-            *why = "TURBORERANK_DEVICE_OPENVINO_GPU is not implemented "
-                   "(Level Zero USM + ov::Tensor). Refusing CPU fallback.";
+            *why = ov_why.empty()
+                       ? "TURBORERANK_DEVICE_OPENVINO_GPU is unavailable "
+                         "(Level Zero USM + ov::Tensor). Refusing CPU fallback."
+                       : ov_why;
         }
         return true;
     case TURBORERANK_DEVICE_OPENVINO_NPU:
@@ -191,10 +202,16 @@ bool accelerator_unavailable(turborerank_device d, std::string *why) {
         }
         return true;
     case TURBORERANK_DEVICE_OPENVINO_CPU:
+        if (ov_cpu_present(&ov_why)) {
+            return false;
+        }
         if (why) {
-            *why = "TURBORERANK_DEVICE_OPENVINO_CPU is not implemented "
-                   "(OpenVINO CompiledModel). Use TURBORERANK_DEVICE_CPU for the "
-                   "first-party MiniLM CE kernel. Refusing a silent stand-in.";
+            *why = ov_why.empty()
+                       ? "TURBORERANK_DEVICE_OPENVINO_CPU is not implemented "
+                         "(OpenVINO CompiledModel). Use TURBORERANK_DEVICE_CPU "
+                         "for the first-party MiniLM CE kernel. Refusing a "
+                         "silent stand-in."
+                       : ov_why;
         }
         return true;
     case TURBORERANK_DEVICE_METAL:
@@ -214,6 +231,9 @@ turborerank_device resolve_create_device(turborerank_device requested) {
         if (cuda_device_present(&why)) {
             return TURBORERANK_DEVICE_CUDA;
         }
+        if (ov_gpu_present(&why)) {
+            return TURBORERANK_DEVICE_OPENVINO_GPU;
+        }
     }
     return requested;
 }
@@ -226,6 +246,10 @@ void alloc_counter_reset() {
 
 uint64_t alloc_counter_value() {
     return g_allocs.load(std::memory_order_relaxed);
+}
+
+void note_alloc() {
+    g_allocs.fetch_add(1, std::memory_order_relaxed);
 }
 
 } // namespace turborerank

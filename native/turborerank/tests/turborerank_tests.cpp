@@ -4,6 +4,7 @@
 
 #include "cuda_api.hpp"
 #include "internal.hpp"
+#include "ov_api.hpp"
 #include "reranker.hpp"
 #include "turborerank.h"
 
@@ -57,6 +58,27 @@ static bool file_exists(const std::string &p) {
 static bool weights_present() {
     return file_exists(model_dir() + "/model.safetensors") &&
            file_exists(model_dir() + "/vocab.txt");
+}
+
+static std::string ov_ir_dir() {
+    if (const char *e = std::getenv("TURBORERANK_OV_MODEL_DIR")) {
+        return e;
+    }
+    return workspace_root() + "/models/ov-rerank/ms-marco-minilm-l6";
+}
+
+static bool ov_ir_present() {
+    return (file_exists(ov_ir_dir() + "/openvino_model.xml") ||
+            file_exists(ov_ir_dir() + "/model.xml")) &&
+           file_exists(ov_ir_dir() + "/vocab.txt");
+}
+
+static bool ov_gpu_live() {
+    return turborerank::impl::ov_gpu_present(nullptr);
+}
+
+static bool ov_cpu_live() {
+    return turborerank::impl::ov_cpu_present(nullptr);
 }
 
 static void test_abi_names() {
@@ -266,9 +288,17 @@ static void test_device_create_policy() {
         const char *msg = turborerank_last_error(nullptr);
         CHECK(std::strstr(msg, "Refusing CPU") != nullptr);
 
-        CHECK(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, nullptr, &e) ==
-              TURBORERANK_ERR_UNAVAILABLE);
-        CHECK(std::strstr(turborerank_last_error(nullptr), "Refusing CPU") != nullptr);
+        if (ov_gpu_live()) {
+            CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, nullptr, &e));
+            CHECK(e != nullptr);
+            CHECK(e->device == TURBORERANK_DEVICE_OPENVINO_GPU);
+            turborerank_engine_destroy(e);
+            e = nullptr;
+        } else {
+            CHECK(turborerank_engine_create(TURBORERANK_DEVICE_AUTO, nullptr, &e) ==
+                  TURBORERANK_ERR_UNAVAILABLE);
+            CHECK(std::strstr(turborerank_last_error(nullptr), "Refusing CPU") != nullptr);
+        }
     }
 
     CHECK(turborerank_engine_create(TURBORERANK_DEVICE_METAL, nullptr, &e) ==
@@ -278,8 +308,32 @@ static void test_device_create_policy() {
           TURBORERANK_ERR_UNAVAILABLE);
     CHECK(std::strstr(turborerank_last_error(nullptr), "Refusing") != nullptr);
 
-    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_CPU, nullptr, &e) ==
-          TURBORERANK_ERR_NOT_IMPLEMENTED);
+    if (ov_cpu_live()) {
+        CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_CPU, nullptr, &e));
+        CHECK(e != nullptr);
+        CHECK(e->device == TURBORERANK_DEVICE_OPENVINO_CPU);
+        turborerank_engine_destroy(e);
+        e = nullptr;
+    } else if (turborerank::impl::ov_compiled()) {
+        CHECK(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_CPU, nullptr, &e) ==
+              TURBORERANK_ERR_UNAVAILABLE);
+    } else {
+        CHECK(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_CPU, nullptr, &e) ==
+              TURBORERANK_ERR_NOT_IMPLEMENTED);
+    }
+
+    if (ov_gpu_live()) {
+        CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_GPU, nullptr, &e));
+        CHECK(e != nullptr);
+        CHECK(e->device == TURBORERANK_DEVICE_OPENVINO_GPU);
+        turborerank_engine_destroy(e);
+        e = nullptr;
+    } else {
+        CHECK(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_GPU, nullptr, &e) ==
+              TURBORERANK_ERR_UNAVAILABLE);
+        CHECK(std::strstr(turborerank_last_error(nullptr), "Refusing") != nullptr ||
+              std::strstr(turborerank_last_error(nullptr), "refus") != nullptr);
+    }
 
     CHECK_ST(turborerank_engine_create(TURBORERANK_DEVICE_CPU, nullptr, &e));
     CHECK(e != nullptr);
@@ -540,6 +594,137 @@ static void test_cuda_real_model_scores() {
     turborerank_engine_destroy(e);
 }
 
+#ifndef TURBORERANK_OPENVINO
+static void test_create_without_ov_fails() {
+    CHECK(!turborerank::impl::ov_compiled());
+    turborerank_engine *e = nullptr;
+    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_GPU, nullptr, &e) ==
+          TURBORERANK_ERR_UNAVAILABLE);
+    CHECK(e == nullptr);
+    const char *msg = turborerank_last_error(nullptr);
+    CHECK(std::strstr(msg, "Refusing CPU") != nullptr ||
+          std::strstr(msg, "without OpenVINO") != nullptr);
+    CHECK(turborerank_engine_create(TURBORERANK_DEVICE_OPENVINO_CPU, nullptr, &e) ==
+          TURBORERANK_ERR_NOT_IMPLEMENTED);
+    turborerank_buffer *buf = nullptr;
+    CHECK(turborerank_buffer_alloc(TURBORERANK_DEVICE_OPENVINO_GPU, 1, 16, &buf) ==
+          TURBORERANK_ERR_UNAVAILABLE);
+    CHECK(buf == nullptr);
+}
+#endif
+
+static void test_ov_usm_buffer() {
+    if (!ov_gpu_live()) {
+        std::fprintf(stderr, "SKIP OV USM buffer (no GPU plugin)\n");
+        return;
+    }
+    turborerank_buffer *buf = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_OPENVINO_GPU, 2, 16, &buf));
+    CHECK(buf != nullptr);
+    CHECK(buf->device == TURBORERANK_DEVICE_OPENVINO_GPU);
+    auto aligned = [](const void *p) {
+        return (reinterpret_cast<uintptr_t>(p) % 64u) == 0;
+    };
+    CHECK(aligned(buf->input_ids));
+    buf->input_ids[0] = 101;
+    buf->input_ids[1] = 7592;
+    CHECK_EQ(buf->input_ids[0], 101);
+    CHECK_EQ(buf->input_ids[1], 7592);
+    turborerank_buffer_free(buf);
+}
+
+static void test_ov_real_model_scores(turborerank_device device) {
+    if (device == TURBORERANK_DEVICE_OPENVINO_GPU && !ov_gpu_live()) {
+        std::fprintf(stderr, "SKIP OV GPU MiniLM CE (no GPU plugin)\n");
+        return;
+    }
+    if (device == TURBORERANK_DEVICE_OPENVINO_CPU && !ov_cpu_live()) {
+        std::fprintf(stderr, "SKIP OV CPU MiniLM CE (no CPU plugin)\n");
+        return;
+    }
+    if (!ov_ir_present()) {
+        std::fprintf(stderr, "SKIP OV MiniLM CE scores (make convert-rerank-ov)\n");
+        return;
+    }
+    turborerank_engine *e = nullptr;
+    const std::string dir = ov_ir_dir();
+    CHECK_ST(turborerank_engine_create(device, dir.c_str(), &e));
+    CHECK(e->device == device);
+    const turborerank_status load = turborerank_load_model(e, "ms-marco-minilm-l6", 0);
+    CHECK_ST(load);
+    if (load != TURBORERANK_OK) {
+        std::fprintf(stderr, "OV load error: %s\n", turborerank_last_error(e));
+        turborerank_engine_destroy(e);
+        return;
+    }
+    CHECK(e->ov.enabled);
+
+    const char *q = "How many people live in Berlin?";
+    const char *rel =
+        "Berlin has a population of 3,520,031 registered inhabitants in an "
+        "area of 891.82 square kilometers.";
+    const char *irrel = "New York City is famous for its pizza and bagels.";
+    const char *mid = "Berlin is well known for its museums.";
+    turborerank_str query{q, std::strlen(q)};
+    turborerank_str docs[3] = {
+        {rel, std::strlen(rel)},
+        {mid, std::strlen(mid)},
+        {irrel, std::strlen(irrel)},
+    };
+    turborerank_score_options opts{};
+    opts.truncation = TURBORERANK_TRUNC_LONGEST_FIRST;
+    opts.activation = TURBORERANK_ACT_IDENTITY;
+    opts.max_length = 512;
+    float logits[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits));
+    CHECK(logits[0] != logits[1] || logits[1] != logits[2]);
+    CHECK(logits[0] > logits[1]);
+    CHECK(logits[1] > logits[2]);
+    CHECK(logits[0] - logits[2] > 2.0f);
+    CHECK(almost(logits[0], 8.84585285f, 2e-3f));
+    CHECK(almost(logits[1], -4.32007599f, 2e-3f));
+    CHECK(almost(logits[2], -11.27389431f, 2e-3f));
+
+    opts.activation = TURBORERANK_ACT_SIGMOID;
+    float sig[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, sig));
+    CHECK(almost(sig[0], turborerank::sigmoid(logits[0]), 1e-5f));
+    CHECK(sig[0] > sig[1] && sig[1] > sig[2]);
+
+    float one[3];
+    for (int i = 0; i < 3; ++i) {
+        opts.activation = TURBORERANK_ACT_IDENTITY;
+        CHECK_ST(turborerank_score(e, nullptr, 0, query, &docs[i], 1, &opts, &one[i]));
+        CHECK(almost(one[i], logits[i], 1e-4f));
+    }
+
+    turborerank_buffer *buf = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(device, 1, 64, &buf));
+    CHECK(buf->device == device);
+    CHECK_ST(turborerank_pack_text(
+        e, buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
+    ));
+    turborerank::alloc_counter_reset();
+    float s = 0;
+    CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK(almost(s, logits[0], 2e-3f));
+    turborerank_buffer_free(buf);
+
+    std::fprintf(
+        stderr,
+        "OV %s Berlin logits: %.8f %.8f %.8f (abs err %.3e %.3e %.3e)\n",
+        turborerank_device_name(device),
+        logits[0],
+        logits[1],
+        logits[2],
+        std::fabs(logits[0] - 8.84585285f),
+        std::fabs(logits[1] + 4.32007599f),
+        std::fabs(logits[2] + 11.27389431f)
+    );
+    turborerank_engine_destroy(e);
+}
+
 int main() {
     test_abi_names();
     test_buffer_alignment_and_write_via_pointer();
@@ -551,10 +736,16 @@ int main() {
 #ifndef TURBORERANK_CUDA
     test_create_without_cuda_fails();
 #endif
+#ifndef TURBORERANK_OPENVINO
+    test_create_without_ov_fails();
+#endif
     test_missing_weights_fails_loud();
     test_wordpiece_fixture();
     test_real_model_scores();
     test_cuda_real_model_scores();
+    test_ov_usm_buffer();
+    test_ov_real_model_scores(TURBORERANK_DEVICE_OPENVINO_GPU);
+    test_ov_real_model_scores(TURBORERANK_DEVICE_OPENVINO_CPU);
 
     std::fprintf(
         stderr,

@@ -22,6 +22,8 @@
 #   make turborerank-tests-nocuda           # same tests, CUDA create fails loud
 #   make test-turborerank                   # fetch + C++ + Rust live scores
 #   make test-turborerank-nvidia            # Machine A CUDA receipt + live CE
+#   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
+#   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
 #   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
@@ -77,8 +79,10 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	e2e-parity e2e-parity-goldens e2e-drift \
 	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
-	turborerank-tests turborerank-tests-nocuda test-turborerank \
-	test-turborerank-nvidia turborerank-nvidia-receipt
+	turborerank-tests turborerank-tests-nocuda turborerank-tests-noov \
+	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
+	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
+	turborerank-intel-receipt
 
 test:
 	$(CARGO) test --workspace
@@ -368,6 +372,7 @@ TURBORERANK_SRCS := \
 	native/turborerank/src/safetensors.cpp \
 	native/turborerank/src/bert_cpu.cpp \
 	native/turborerank/src/cuda_api.cpp \
+	native/turborerank/src/ov_api.cpp \
 	native/turborerank/src/engine.cpp
 
 TURBORERANK_NVCC ?= nvcc
@@ -384,6 +389,30 @@ TURBORERANK_INCLUDES := -I include -I native/turborerank/src
 TURBORERANK_CPPFLAGS := -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\"
 TURBORERANK_CUDA_LIBS :=
 TURBORERANK_CUDA_OBJ :=
+TURBORERANK_OV_LIBS :=
+
+# 0/1. Default: compile OpenVINO when pkg-config openvino works.
+TURBORERANK_ENABLE_OV ?= $(shell \
+	if pkg-config --exists openvino 2>/dev/null; then echo 1; else echo 0; fi)
+TURBORERANK_ENABLE_L0 ?= $(shell \
+	if test -f /usr/include/level_zero/ze_api.h && \
+	   { test -f /usr/lib/x86_64-linux-gnu/libze_loader.so || \
+	     test -f /usr/lib/x86_64-linux-gnu/libze_loader.so.1; }; \
+	then echo 1; else echo 0; fi)
+
+ifeq ($(TURBORERANK_ENABLE_OV),1)
+TURBORERANK_CPPFLAGS += -DTURBORERANK_OPENVINO=1
+TURBORERANK_INCLUDES += $(shell pkg-config --cflags openvino 2>/dev/null)
+TURBORERANK_OV_LIBDIR := $(shell pkg-config --variable=libdir openvino 2>/dev/null)
+ifeq ($(TURBORERANK_OV_LIBDIR),)
+TURBORERANK_OV_LIBDIR := $(shell pkg-config --libs-only-L openvino 2>/dev/null | sed 's/-L//')
+endif
+TURBORERANK_OV_LIBS := -L$(TURBORERANK_OV_LIBDIR) -lopenvino -Wl,-rpath,$(TURBORERANK_OV_LIBDIR)
+ifeq ($(TURBORERANK_ENABLE_L0),1)
+TURBORERANK_CPPFLAGS += -DTURBORERANK_LEVEL_ZERO=1
+TURBORERANK_OV_LIBS += -lze_loader
+endif
+endif
 
 ifeq ($(TURBORERANK_ENABLE_CUDA),1)
 TURBORERANK_CPPFLAGS += -DTURBORERANK_CUDA=1
@@ -408,17 +437,28 @@ turborerank-tests: $(TURBORERANK_CUDA_OBJ)
 	  $(TURBORERANK_CPPFLAGS) \
 	  $(TURBORERANK_SRCS) $(TURBORERANK_CUDA_OBJ) \
 	  native/turborerank/tests/turborerank_tests.cpp \
-	  -lm $(TURBORERANK_CUDA_LIBS) -o native/turborerank/build/turborerank_tests
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) \
+	  -o native/turborerank/build/turborerank_tests
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests
 
 # Prove CUDA create fails loud when the binary has no CUDA.
 turborerank-tests-nocuda:
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
-	  -lm -o native/turborerank/build/turborerank_tests_nocuda
+	  -lm $(TURBORERANK_OV_LIBS) -o native/turborerank/build/turborerank_tests_nocuda
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_nocuda
+
+# Prove OpenVINO GPU/CPU create fails loud when the binary has no OV.
+turborerank-tests-noov:
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include -I native/turborerank/src \
+	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
+	  -lm -o native/turborerank/build/turborerank_tests_noov
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_noov
 
 turborerank-nvidia-receipt: $(TURBORERANK_CUDA_OBJ)
 	mkdir -p native/turborerank/build
@@ -426,10 +466,54 @@ turborerank-nvidia-receipt: $(TURBORERANK_CUDA_OBJ)
 	  $(TURBORERANK_CPPFLAGS) \
 	  $(TURBORERANK_SRCS) $(TURBORERANK_CUDA_OBJ) \
 	  native/turborerank/tools/write_nvidia_receipt.cpp \
-	  -lm $(TURBORERANK_CUDA_LIBS) -o native/turborerank/build/write_nvidia_receipt
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) \
+	  -o native/turborerank/build/write_nvidia_receipt
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/write_nvidia_receipt
+
+# C++ OpenVINO IR from the exported ONNX (no Python).
+convert-rerank-ov:
+	mkdir -p native/turborerank/build models/ov-rerank/ms-marco-minilm-l6
+	$(TURBORERANK_CXX) -std=c++17 -O2 $(TURBORERANK_INCLUDES) \
+	  native/turborerank/tools/onnx_to_ir.cpp \
+	  $(TURBORERANK_OV_LIBS) -o native/turborerank/build/onnx_to_ir
+	native/turborerank/build/onnx_to_ir \
+	  models/ov-rerank/ms-marco-minilm-l6/model.onnx \
+	  models/ov-rerank/ms-marco-minilm-l6/openvino_model.xml
+
+verify-rerank-ov:
+	@xml=models/ov-rerank/ms-marco-minilm-l6/openvino_model.xml; \
+	bin=models/ov-rerank/ms-marco-minilm-l6/openvino_model.bin; \
+	test -f "$$xml" && test -f "$$bin" || { \
+	  echo "OpenVINO IR missing ($$xml). Export ONNX then make convert-rerank-ov."; \
+	  exit 1; }; \
+	got_xml=$$(sha256sum "$$xml" | awk '{print $$1}'); \
+	got_bin=$$(sha256sum "$$bin" | awk '{print $$1}'); \
+	exp_xml=6eb0b9074a3b277e601874d25f0f6e9fd7527ba66728de4b5e0b8598296df6d0; \
+	exp_bin=755b95975219673166a4b2db2b300ac31ce3d9d96df7d4cd3bcda8232e4a44e2; \
+	test "$$got_xml" = "$$exp_xml" || { echo "xml sha256 $$got_xml != $$exp_xml"; exit 1; }; \
+	test "$$got_bin" = "$$exp_bin" || { echo "bin sha256 $$got_bin != $$exp_bin"; exit 1; }; \
+	echo "verified $$xml sha256=$$got_xml"; \
+	echo "verified $$bin sha256=$$got_bin"
+
+turborerank-intel-receipt: $(TURBORERANK_CUDA_OBJ)
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_CUDA_OBJ) \
+	  native/turborerank/tools/write_intel_receipt.cpp \
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) \
+	  -o native/turborerank/build/write_intel_receipt
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/write_intel_receipt
 
 test-turborerank: fetch-rerankers turborerank-tests turborerank-tests-nocuda
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
 
 test-turborerank-nvidia: test-turborerank turborerank-nvidia-receipt
+
+# Machine B: OpenVINO GPU/CPU MiniLM CE vs HF Berlin golden.
+test-turborerank-intel: fetch-rerankers verify-rerank-ov turborerank-tests turborerank-tests-noov
+	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then \
+	  set +u; . "$(OPENVINO_SETUPVARS)"; set -u; \
+	fi; \
+	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
+	$(MAKE) turborerank-intel-receipt

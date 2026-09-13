@@ -40,6 +40,12 @@
  * pinned. AUTO resolves to CUDA when a device is present. Create
  * without a CUDA device fails loud. Forward runs the MiniLM CE on
  * device (first-party CUDA kernels), not a mock.
+ *
+ * OpenVINO (Phase 2b): token/mask/type/position buffers are Level Zero
+ * USM. AUTO resolves to OPENVINO_GPU when CUDA is absent and a GPU
+ * plugin is present. GPU create without a GPU fails loud. Forward
+ * wraps USM pointers with ov::Tensor(..., usm_pointer) — no
+ * std::vector on that path.
  */
 
 #ifndef TURBORERANK_H
@@ -93,6 +99,10 @@ typedef enum turborerank_device {
  *   CPU runs the first-party MiniLM CE kernel.
  *   CUDA / AUTO (when a CUDA device is present) run the device CE
  *   (first-party CUDA kernels) with cudaHostAlloc token buffers.
+ *   OPENVINO_GPU / AUTO (when CUDA is absent and an Intel GPU plugin
+ *   is present) run OpenVINO CompiledModel with Level Zero USM
+ *   token buffers. OPENVINO_CPU is explicit CompiledModel-on-CPU.
+ *   GPU requested without GPU → UNAVAILABLE, never silent CPU.
  *   MOCK is the explicit ABI-smoke device and never returns catalog
  *   cross-encoder scores.
  */
@@ -168,7 +178,8 @@ typedef struct turborerank_engine turborerank_engine;
  * `config_path` is a NUL-terminated filesystem path to a config, a
  * model directory, or NULL (workspace default `models/rerank/`).
  * GPU/Metal/AUTO without that accelerator → error, never CPU.
- * AUTO with CUDA present resolves to CUDA.
+ * AUTO with CUDA present resolves to CUDA; otherwise OpenVINO GPU
+ * when the plugin is present.
  */
 turborerank_status turborerank_engine_create(
     turborerank_device device,
@@ -223,7 +234,8 @@ turborerank_status turborerank_load_model(
 /**
  * Allocate a device-backed token workspace. CPU: 64-byte aligned
  * posix_memalign. CUDA / AUTO-with-CUDA: cudaHostAlloc pinned
- * (page-aligned, hence 64-byte). Metal/OV still UNAVAILABLE.
+ * (page-aligned, hence 64-byte). OpenVINO GPU: Level Zero USM
+ * (caller writes into USM). Metal / TensorRT / NPU still UNAVAILABLE.
  */
 turborerank_status turborerank_buffer_alloc(
     turborerank_device device,

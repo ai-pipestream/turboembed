@@ -34,3 +34,18 @@ uv pip install --python /tmp/ov-export-venv/bin/python \
 Then flatten the model + tokenizer XML/BIN into `models/ov/<alias>/` in
 the GenAI layout (`openvino_model.xml`, `openvino_tokenizer.xml`,
 `tokenizer.json`). See `docs/intel-genai-embed.md`.
+
+## `export_minilm_ce_onnx.py`
+
+One-off ONNX export of the pinned MiniLM-L6 cross-encoder. TurboRerank
+then converts that ONNX to SHA-pinned IR with the C++ tool
+`native/turborerank/tools/onnx_to_ir.cpp` (`make convert-rerank-ov`).
+No Python on the score path.
+
+```bash
+/tmp/ov-export-venv/bin/python contrib/offline-once/export_minilm_ce_onnx.py \
+    --src models/rerank/ms-marco-minilm-l6 \
+    --out models/ov-rerank/ms-marco-minilm-l6
+make convert-rerank-ov
+make verify-rerank-ov
+```

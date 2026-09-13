@@ -5,8 +5,8 @@
 // storage on the forward-pass hot path.
 //
 // The frozen language-stable ABI is include/turborerank.h. This header
-// is the typed C++ view of the same contract (CPU + CUDA Phase 2a;
-// Metal / OpenVINO / TensorRT still fail loud).
+// is the typed C++ view of the same contract (CPU + CUDA Phase 2a +
+// OpenVINO Phase 2b; Metal / TensorRT / NPU still fail loud).
 
 #ifndef TURBORERANK_RERANKER_HPP
 #define TURBORERANK_RERANKER_HPP
@@ -119,6 +119,8 @@ void aligned_free_bytes(void *ptr);
 /** Reset / read the process-local alloc counter (tests). */
 void alloc_counter_reset();
 uint64_t alloc_counter_value();
+/** Count a device/USM allocation the same way as posix_memalign. */
+void note_alloc();
 
 inline float sigmoid(float x) {
     if (x >= 0.0f) {

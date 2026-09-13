@@ -18,7 +18,7 @@ const char *create_error();
 
 bool device_is_accelerator(turborerank_device d);
 bool accelerator_unavailable(turborerank_device d, std::string *why);
-/** AUTO resolves to CUDA when a device is present; otherwise stays AUTO. */
+/** AUTO resolves to CUDA, else OpenVINO GPU, else stays AUTO (fail loud). */
 turborerank_device resolve_create_device(turborerank_device requested);
 
 struct Vocab {
@@ -173,6 +173,18 @@ struct CudaResources {
     float *logit = nullptr;
 };
 
+/** OpenVINO CompiledModel + infer request. Opaque hold lives in ov_api.cpp. */
+struct OvResources {
+    bool enabled = false;
+    bool gpu = false;
+    bool token_usm = false;
+    bool remote_wrap = false;
+    std::string ov_device;
+    void *hold = nullptr;
+    uint32_t max_batch = 0;
+    uint32_t max_seq = 0;
+};
+
 bool load_safetensors(
     const char *path,
     const BertConfig &cfg,
@@ -239,5 +251,6 @@ struct turborerank_engine {
     std::vector<turborerank::impl::OwnedFloat> owned_weights;
     turborerank::impl::Scratch scratch;
     turborerank::impl::CudaResources cuda;
+    turborerank::impl::OvResources ov;
     turborerank_buffer *work = nullptr;
 };

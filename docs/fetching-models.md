@@ -67,6 +67,12 @@ cargo run -p inferstream-fetch -- --rerankers --list
 tokenizer + config). Used by `make test-turborerank`. Not a gRPC catalog
 alias yet.
 
+**OpenVINO IR** (`models/manifests/rerankers-ov.json`): same MiniLM-L6
+checkpoint converted offline (`contrib/offline-once/export_minilm_ce_onnx.py`
+then `make convert-rerank-ov`). SHA-256 of `openvino_model.xml/.bin`
+(and the intermediate ONNX) is pinned. Destination
+`models/ov-rerank/ms-marco-minilm-l6/`. Score path is C++ only.
+
 ## E2E / bring-up auto-fetch
 
 The live harness fetches the smoke set automatically so a worker that is
