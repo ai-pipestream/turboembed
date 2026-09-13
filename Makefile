@@ -553,10 +553,12 @@ turborerank-tests: $(TURBORERANK_CUDA_OBJ) turbo-buffer-tests
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests
 
 # Prove CUDA create fails loud when the binary has no CUDA.
+# Strip CUDA defines even on a Machine A host — this target is the
+# no-nvcc / no-cudart binary, not "CUDA flags without -lcudart".
 turborerank-tests-nocuda:
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
-	  $(TURBORERANK_CPPFLAGS) \
+	  $(filter-out -DTURBORERANK_CUDA=1 -DTURBO_BUFFER_CUDA=1,$(TURBORERANK_CPPFLAGS)) \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
 	  native/turborerank/tests/turborerank_tests.cpp \

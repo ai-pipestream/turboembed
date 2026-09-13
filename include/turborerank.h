@@ -39,10 +39,12 @@
  * CPU and never a mock relevance score. MOCK is explicit ABI smoke and
  * does not score catalog cross-encoders.
  *
- * CUDA (Phase 2a): token/mask/type/position buffers are cudaHostAlloc
- * pinned. AUTO resolves to CUDA when a device is present. Create
- * without a CUDA device fails loud. Forward runs the MiniLM CE on
- * device (first-party CUDA kernels), not a mock.
+ * CUDA (Phase 2a): token/mask/type/position buffers are
+ * cudaHostAllocMapped (PINNED mapped). The caller writes tokens in
+ * those host-visible pages; kernels read the mapped device pointer
+ * with no per-forward id H2D. AUTO resolves to CUDA when a device
+ * is present. Create without a CUDA device fails loud. Forward runs
+ * the MiniLM CE on device (first-party CUDA kernels), not a mock.
  *
  * OpenVINO (Phase 2b): token/mask/type/position buffers are Level Zero
  * USM. AUTO resolves to OPENVINO_GPU when CUDA is absent and a GPU
@@ -107,7 +109,8 @@ typedef enum turborerank_device {
  *
  *   CPU runs the first-party MiniLM CE kernel.
  *   CUDA / AUTO (when a CUDA device is present) run the device CE
- *   (first-party CUDA kernels) with cudaHostAlloc token buffers.
+ *   (first-party CUDA kernels) with cudaHostAllocMapped token
+ *   buffers (kernels read mapped pointers; 0 token-row H2D).
  *   OPENVINO_GPU / AUTO (when CUDA is absent and an Intel GPU plugin
  *   is present) run OpenVINO CompiledModel with Level Zero USM
  *   token buffers. OPENVINO_CPU is explicit CompiledModel-on-CPU.
@@ -245,11 +248,11 @@ turborerank_status turborerank_load_model(
 
 /**
  * Allocate a device-backed token workspace. CPU: 64-byte aligned
- * posix_memalign. CUDA / AUTO-with-CUDA: cudaHostAlloc pinned
- * (page-aligned, hence 64-byte). OpenVINO GPU: Level Zero USM
- * (caller writes into USM). Metal / AUTO-with-Metal:
- * MTLResourceStorageModeShared (caller writes unified memory).
- * TensorRT / NPU still UNAVAILABLE.
+ * posix_memalign. CUDA / AUTO-with-CUDA: cudaHostAllocMapped
+ * PINNED (host write lands in device-visible pages; 64-byte).
+ * OpenVINO GPU: Level Zero USM (caller writes into USM). Metal /
+ * AUTO-with-Metal: MTLResourceStorageModeShared (caller writes
+ * unified memory). TensorRT / NPU still UNAVAILABLE.
  */
 turborerank_status turborerank_buffer_alloc(
     turborerank_device device,

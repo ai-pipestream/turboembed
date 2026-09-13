@@ -4,7 +4,8 @@ C++ implementation of the frozen C ABI in [`include/turborerank.h`](../../includ
 and the buffer/forward contract in [`include/reranker.hpp`](../../include/reranker.hpp).
 
 **CPU** MiniLM-L6 CE with 64-byte aligned, caller-written token buffers.
-**CUDA** (Phase 2a): `cudaHostAlloc` pinned token workspace; device BERT
+**CUDA** (Phase 2a): `cudaHostAllocMapped` PINNED token workspace
+(kernels read mapped pointers; 0 token-row H2D); device BERT
 (first-party CUDA kernels). **OpenVINO** (Phase 2b): Level Zero USM
 token workspace; `ov::Tensor(..., usm_pointer)` + CompiledModel on GPU
 or explicit CPU. **Metal** (Phase 2c, Machine C):

@@ -179,10 +179,6 @@ struct CudaResources {
     float *inter = nullptr;
     float *tmp = nullptr;
     float *pooled = nullptr;
-    int32_t *ids = nullptr;
-    int32_t *mask = nullptr;
-    int32_t *types = nullptr;
-    int32_t *pos_ids = nullptr;
     float *logit = nullptr;
     turbo_buffer_arena *arena = nullptr;
     turbo_buffer_view rented[16] {};

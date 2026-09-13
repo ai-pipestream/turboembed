@@ -7,7 +7,8 @@ a C++ buffer/forward contract: caller-owned token memory, no Python on
 the hot path, no silent mock scores.
 
 Phase 1 ships the design, the ABI, and a **real CPU MiniLM cross-encoder**.
-Phase 2a (Machine A) ships **CUDA**: `cudaHostAlloc` token buffers and a
+Phase 2a (Machine A) ships **CUDA**: `cudaHostAllocMapped` token
+buffers (kernels read mapped pointers; 0 token-row H2D) and a
 device MiniLM CE (first-party kernels) with HF golden parity.
 Phase 2b (Machine B) ships **OpenVINO GPU + explicit OV CPU**: Level
 Zero USM token buffers wrapped with `ov::Tensor(..., usm_pointer)` and
@@ -182,7 +183,7 @@ flowchart TB
     end
 
     subgraph cuda [Phase 2a LIVE on Machine A]
-        CUDA["cudaHostAlloc tokens + first-party CUDA kernels"]
+        CUDA["cudaHostAllocMapped tokens + first-party CUDA kernels"]
     end
 
     subgraph ov [Phase 2b LIVE on Machine B]
@@ -233,6 +234,8 @@ when missing.
 - `cudaMalloc` / `cudaHostAlloc` for PINNED tokens or DEVICE
   activations after load (Machine A: tests fail if
   `turbo_buffer_cuda_forward_allocs() != 0`).
+- `cudaMemcpy` HostToDevice of the packed int32 token row after load
+  (Machine A: tests fail if `turbo_buffer_cuda_forward_h2d_bytes() != 0`).
 - ONNX Runtime (or any framework) owning and copying the token path
   behind our back.
 - Python.
@@ -250,7 +253,7 @@ plus the caller’s `scores_out`.
 | device | allocation | Phase 1 |
 |---|---|---|
 | CPU | `posix_memalign` **64-byte** (AVX-512/AVX2-friendly). Layout is a `ggml_tensor` view: `[batch, seq]` int32, row-major, `row_stride = seq`. | **LIVE** |
-| CUDA | turbo_buffer PINNED rent (`cudaHostAlloc`; caller writes tokens) + DEVICE activation scratch rented at load. One H2D of the packed int32 row; first-party CUDA BERT graph on device. `allocs/forward == 0`. | **LIVE** (Phase 2a arena, Machine A) |
+| CUDA | turbo_buffer PINNED mapped rent (`cudaHostAllocMapped`; caller writes tokens into device-visible pages) + DEVICE activation scratch rented at load. Kernels read `turbo_buffer_cuda_mapped_device_ptr` — 0 token-row H2D. First-party CUDA BERT graph on device. `allocs/forward == 0`, `h2d_bytes/forward == 0`. | **LIVE** (Phase 2a arena, Machine A) |
 | OpenVINO GPU | turbo_buffer ZE **SHARED** USM (`zeMemAllocShared`); `ov::Tensor(..., usm_pointer)`. HOST/DEVICE placements exist on the same arena. | **LIVE** (Phase 2b + SOLIDIFY (1) arena, Machine B) |
 | OpenVINO CPU | Level Zero USM host when L0 is present, else 64-byte aligned; same IR. | **LIVE** (Phase 2b, explicit device) |
 | OpenVINO NPU | not implemented | fail loud |
@@ -377,7 +380,7 @@ Hostnames stay out of docs.
 |---|---|
 | CPU MiniLM-L6 CE, zero-copy token buffers | Phase 1 |
 | WordPiece (BERT uncased) | Phase 1 |
-| CUDA `cudaHostAlloc` + device CE (first-party kernels) | Phase 2a (Machine A) |
+| CUDA `cudaHostAllocMapped` + device CE (0 token H2D) | Phase 2a (Machine A) |
 | Intel Level Zero USM + OpenVINO `CompiledModel` | Phase 2b (Machine B) |
 | Apple MTL shared + first-party Metal CE | Phase 2c (Machine C) |
 | Metal token workspace from `turbo_buffer` SHARED arena | SOLIDIFY (1) LIVE on Machine C |

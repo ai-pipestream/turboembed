@@ -89,6 +89,7 @@ int main() {
     }
     turbo_buffer_alloc_counter_reset();
     turbo_buffer_cuda_forward_allocs_reset();
+    turbo_buffer_cuda_forward_h2d_reset();
     float steady[3] = {0, 0, 0};
     st = turborerank_score(e, nullptr, 0, query, docs, 3, &opts, steady);
     if (st != TURBORERANK_OK) {
@@ -98,12 +99,17 @@ int main() {
     }
     const uint64_t allocs_fwd = turbo_buffer_alloc_counter();
     const uint64_t cuda_mallocs_fwd = turbo_buffer_cuda_forward_allocs();
-    if (allocs_fwd != 0 || cuda_mallocs_fwd != 0) {
+    const uint64_t h2d_bytes = turbo_buffer_cuda_forward_h2d_bytes();
+    const uint64_t h2d_calls = turbo_buffer_cuda_forward_h2d_calls();
+    if (allocs_fwd != 0 || cuda_mallocs_fwd != 0 || h2d_bytes != 0 || h2d_calls != 0) {
         std::fprintf(
             stderr,
-            "per-forward allocs not zero: arena=%llu cudaMalloc=%llu\n",
+            "per-forward not zero: arena=%llu cudaMalloc=%llu h2d_bytes=%llu "
+            "h2d_calls=%llu\n",
             static_cast<unsigned long long>(allocs_fwd),
-            static_cast<unsigned long long>(cuda_mallocs_fwd)
+            static_cast<unsigned long long>(cuda_mallocs_fwd),
+            static_cast<unsigned long long>(h2d_bytes),
+            static_cast<unsigned long long>(h2d_calls)
         );
         turborerank_engine_destroy(e);
         return 2;
@@ -127,7 +133,8 @@ int main() {
     }
     const float cosine = dot / (std::sqrt(na) * std::sqrt(nb));
     const bool pass = max_abs < 2e-3f && cosine > 0.999f &&
-                      logits[0] > logits[1] && logits[1] > logits[2];
+                      logits[0] > logits[1] && logits[1] > logits[2] &&
+                      h2d_bytes == 0 && h2d_calls == 0;
 
     std::string gpu;
     turborerank::impl::cuda_gpu_name(&gpu);
@@ -143,15 +150,18 @@ int main() {
     js << "  \"machine\": \"Machine A\",\n";
     js << "  \"gpu\": \"" << gpu << "\",\n";
     js << "  \"backend\": \"turborerank first-party CUDA MiniLM CE (turbo_buffer "
-          "PINNED token rent + DEVICE activation scratch; device "
-          "GEMM/attention/LN/GELU/pooler kernels; one H2D of packed int32 ids "
-          "per row — H2D not eliminated)\",\n";
+          "PINNED mapped token rent + DEVICE activation scratch; device "
+          "GEMM/attention/LN/GELU/pooler kernels; kernels read mapped int32 "
+          "ids — 0 H2D bytes per row)\",\n";
     js << "  \"compute\": {\n";
-    js << "    \"token_workspace\": \"turbo_buffer PINNED rent (cudaHostAlloc)\",\n";
+    js << "    \"token_workspace\": \"turbo_buffer PINNED mapped rent "
+          "(cudaHostAllocMapped; host write lands in device-visible pages)\",\n";
     js << "    \"activations\": \"turbo_buffer DEVICE rent at load\",\n";
     js << "    \"weights\": \"cudaMalloc at load (not per-forward)\",\n";
     js << "    \"allocs_per_forward\": 0,\n";
-    js << "    \"h2d_per_row\": \"packed int32 ids/mask/types/pos — SOLIDIFY item 2\",\n";
+    js << "    \"h2d_per_row\": 0,\n";
+    js << "    \"h2d_bytes_steady\": " << h2d_bytes << ",\n";
+    js << "    \"h2d_calls_steady\": " << h2d_calls << ",\n";
     js << "    \"gemm\": \"first-party CUDA kernel matching CPU linear_nt\",\n";
     js << "    \"elementwise\": \"first-party CUDA kernels (embed, LayerNorm, "
           "GELU erf, attention, pooler, classifier)\",\n";
@@ -171,11 +181,13 @@ int main() {
     js << "  \"cosine_vs_golden\": " << cosine << ",\n";
     js << "  \"git_sha\": \"" << sha << "\",\n";
     js << "  \"command\": \"make test-turborerank-nvidia\",\n";
-    js << "  \"note\": \"SOLIDIFY (1) CUDA arena LIVE on Machine A. PINNED "
-          "token rent + DEVICE activation scratch; allocs/forward == 0. AUTO "
-          "resolves to CUDA. Create without CUDA fails loud. One packed int32 "
-          "H2D per row remains (item 2). Not a pinned-host CPU interim: the "
-          "BERT graph including GEMM runs on device.\"\n";
+    js << "  \"note\": \"SOLIDIFY (2) CUDA token H2D killed on Machine A. "
+          "PINNED mapped (cudaHostAllocMapped) token rent; host tokenize/"
+          "pack writes those pages; kernels use turbo_buffer_cuda_mapped_"
+          "device_ptr. Steady-state h2d_bytes == 0 and allocs/forward == 0. "
+          "Unmapped pointers fail loud (no convenience H2D). AUTO resolves "
+          "to CUDA. Not a pinned-host CPU interim: the BERT graph including "
+          "GEMM runs on device.\"\n";
     js << "}\n";
 
     std::ofstream out(out_path);

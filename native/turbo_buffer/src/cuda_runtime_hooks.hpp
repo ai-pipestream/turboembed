@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Intercept cudaMalloc / cudaHostAlloc in CUDA TUs that must not grow
-// PINNED or DEVICE slabs during forward. Implement the real calls in
-// cuda.cpp — do not include this header from that file.
+// Intercept cudaMalloc / cudaHostAlloc / cudaMemcpy* in CUDA TUs that
+// must not grow PINNED or DEVICE slabs, or H2D token rows, during
+// forward. Implement the real calls in cuda.cpp — do not include this
+// header from that file.
 
 #pragma once
 
@@ -21,6 +22,31 @@ cudaError_t turbo_buffer_cuda_host_alloc(
     unsigned int flags
 );
 
+cudaError_t turbo_buffer_cuda_memcpy(
+    void *dst,
+    const void *src,
+    size_t count,
+    enum cudaMemcpyKind kind
+);
+
+cudaError_t turbo_buffer_cuda_memcpy_async(
+    void *dst,
+    const void *src,
+    size_t count,
+    enum cudaMemcpyKind kind,
+    cudaStream_t stream
+);
+
+cudaError_t turbo_buffer_cuda_memcpy2d(
+    void *dst,
+    size_t dpitch,
+    const void *src,
+    size_t spitch,
+    size_t width,
+    size_t height,
+    enum cudaMemcpyKind kind
+);
+
 #ifdef __cplusplus
 }
 #endif
@@ -28,9 +54,20 @@ cudaError_t turbo_buffer_cuda_host_alloc(
 #ifdef TURBO_BUFFER_CUDA_INTERCEPT
 #undef cudaMalloc
 #undef cudaHostAlloc
+#undef cudaMemcpy
+#undef cudaMemcpyAsync
+#undef cudaMemcpy2D
 #define cudaMalloc(ptr, bytes) turbo_buffer_cuda_malloc((ptr), (bytes))
 #define cudaHostAlloc(ptr, bytes, flags) \
     turbo_buffer_cuda_host_alloc((ptr), (bytes), (flags))
+#define cudaMemcpy(dst, src, count, kind) \
+    turbo_buffer_cuda_memcpy((dst), (src), (count), (kind))
+#define cudaMemcpyAsync(dst, src, count, kind, stream) \
+    turbo_buffer_cuda_memcpy_async((dst), (src), (count), (kind), (stream))
+#define cudaMemcpy2D(dst, dpitch, src, spitch, width, height, kind) \
+    turbo_buffer_cuda_memcpy2d(                                     \
+        (dst), (dpitch), (src), (spitch), (width), (height), (kind) \
+    )
 #endif
 
 #endif

@@ -34,9 +34,10 @@ bool cuda_resources_init(
 void cuda_resources_free(CudaResources *r);
 
 /**
- * Device MiniLM CE. Tokens are read from caller pinned (or any host)
- * pointers; one H2D of the packed int32 row, then cuBLAS + kernels.
- * No host heap allocation.
+ * Device MiniLM CE. Tokens must already live in CUDA PINNED mapped
+ * memory (arena rent / raw_alloc). Kernels read
+ * turbo_buffer_cuda_mapped_device_ptr — no per-forward id H2D.
+ * Heap / unmapped pointers fail loud. No host heap allocation.
  */
 bool bert_forward_row_cuda(
     CudaResources *r,

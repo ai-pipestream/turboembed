@@ -577,15 +577,39 @@ static void test_cuda_real_model_scores() {
     CHECK_EQ(e->cuda.n_layers, 6u);
     CHECK(e->arena != nullptr);
     CHECK(e->cuda.arena == e->arena);
-    CHECK(e->cuda.n_rented >= 15u);
+    CHECK(e->cuda.n_rented >= 11u);
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.x));
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.residual));
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.q));
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.attn));
-    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.ids));
-    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.mask));
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
+    void *mapped_ids = nullptr;
+    void *mapped_mask = nullptr;
+    CHECK_EQ(turbo_buffer_cuda_mapped_device_ptr(e->work->input_ids, &mapped_ids), 1);
+    CHECK_EQ(
+        turbo_buffer_cuda_mapped_device_ptr(e->work->attention_mask, &mapped_mask), 1
+    );
+    CHECK(mapped_ids != nullptr);
+    CHECK(mapped_mask != nullptr);
+    {
+        float refuse_logit = 0;
+        std::string refuse_err;
+        int32_t unmapped[8] = {101, 7592, 102, 0, 0, 0, 0, 0};
+        CHECK(!turborerank::impl::bert_forward_row_cuda(
+            &e->cuda,
+            e->cfg,
+            unmapped,
+            unmapped,
+            unmapped,
+            unmapped,
+            4,
+            &refuse_logit,
+            &refuse_err
+        ));
+        CHECK(refuse_err.find("PINNED mapped") != std::string::npos);
+        CHECK(refuse_err.find("refusing per-forward H2D") != std::string::npos);
+    }
     for (uint32_t i = 0; i < e->cuda.n_rented; ++i) {
         CHECK_EQ(e->cuda.rented[i].placement, TURBO_BUFFER_PLACE_DEVICE);
         CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.rented[i].ptr));
@@ -619,11 +643,14 @@ static void test_cuda_real_model_scores() {
 
     turborerank::alloc_counter_reset();
     turbo_buffer_cuda_forward_allocs_reset();
+    turbo_buffer_cuda_forward_h2d_reset();
     float logits_steady[3] = {0, 0, 0};
     CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits_steady));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
     CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
     CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 0u);
     CHECK(almost(logits_steady[0], logits[0], 1e-6f));
     CHECK(almost(logits_steady[1], logits[1], 1e-6f));
     CHECK(almost(logits_steady[2], logits[2], 1e-6f));
@@ -649,10 +676,13 @@ static void test_cuda_real_model_scores() {
     ));
     turborerank::alloc_counter_reset();
     turbo_buffer_cuda_forward_allocs_reset();
+    turbo_buffer_cuda_forward_h2d_reset();
     float s = 0;
     CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
     CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 0u);
     CHECK(almost(s, logits[0], 2e-3f));
     turborerank_buffer_free(buf);
 
