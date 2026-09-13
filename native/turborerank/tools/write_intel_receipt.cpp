@@ -187,13 +187,14 @@ int main() {
         root,
         root + "/testdata/receipts/turborerank/intel-minilm-l6.json",
         "make test-turborerank-intel",
-        "turborerank OpenVINO CompiledModel MiniLM CE (Level Zero USM token "
-        "buffers wrapped with ov::Tensor(..., usm_pointer); no std::vector on "
-        "forward)",
-        "Level Zero USM (caller-written; zeMemAllocShared/Host)",
-        "Phase 2b Intel proof on Machine B. GPU create without a GPU fails "
-        "loud. AUTO resolves to OPENVINO_GPU when CUDA is absent. Not a CPU "
-        "interim and not a mock score."
+        "turborerank OpenVINO CompiledModel MiniLM CE (turbo_buffer ZE SHARED "
+        "USM token buffers wrapped with ov::Tensor(..., usm_pointer); no "
+        "std::vector on forward; allocs/forward==0 after warmup)",
+        "turbo_buffer ZE SHARED USM (caller-written; zeMemAllocShared)",
+        "SOLIDIFY (1) Machine B. Token rows rented from the ZE arena as "
+        "SHARED. GPU create without a GPU fails loud. CPU buffers on OV GPU "
+        "forward are refused. AUTO resolves to OPENVINO_GPU when CUDA is "
+        "absent. Not a CPU interim and not a mock score."
     );
     if (gpu_rc != 0) {
         return gpu_rc;

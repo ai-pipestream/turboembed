@@ -42,6 +42,8 @@ void *ze_alloc(
     turbo_buffer_status *status
 );
 void ze_free(void *ptr);
+turbo_buffer_status ze_query(const void *ptr, turbo_buffer_placement *out);
+turbo_buffer_status ze_memcpy(void *dst, const void *src, size_t bytes);
 
 turbo_buffer_status metal_probe(turbo_buffer_placement placement);
 void *metal_alloc(size_t bytes, turbo_buffer_status *status);

@@ -251,7 +251,7 @@ plus the caller’s `scores_out`.
 |---|---|---|
 | CPU | `posix_memalign` **64-byte** (AVX-512/AVX2-friendly). Layout is a `ggml_tensor` view: `[batch, seq]` int32, row-major, `row_stride = seq`. | **LIVE** |
 | CUDA | turbo_buffer PINNED rent (`cudaHostAlloc`; caller writes tokens) + DEVICE activation scratch rented at load. One H2D of the packed int32 row; first-party CUDA BERT graph on device. `allocs/forward == 0`. | **LIVE** (Phase 2a arena, Machine A) |
-| OpenVINO GPU | Level Zero USM (`zeMemAllocShared` / `Host`); `ov::Tensor(..., usm_pointer)`. | **LIVE** (Phase 2b, Machine B) |
+| OpenVINO GPU | turbo_buffer ZE **SHARED** USM (`zeMemAllocShared`); `ov::Tensor(..., usm_pointer)`. HOST/DEVICE placements exist on the same arena. | **LIVE** (Phase 2b + SOLIDIFY (1) arena, Machine B) |
 | OpenVINO CPU | Level Zero USM host when L0 is present, else 64-byte aligned; same IR. | **LIVE** (Phase 2b, explicit device) |
 | OpenVINO NPU | not implemented | fail loud |
 | Metal | `MTLResourceStorageModeShared` (caller writes unified memory). Kernels bind those MTLBuffers — no extra token copy. Weights copied once at load. | **LIVE** (Phase 2c, Machine C) |

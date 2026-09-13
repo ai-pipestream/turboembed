@@ -31,8 +31,10 @@ Alias `ms-marco-minilm-l6`. Manifest: `models/manifests/rerankers.json`.
 `turborerank_forward` takes caller-written `[CLS] query [SEP] doc [SEP]`
 int32 buffers. CPU: 64-byte `posix_memalign`. CUDA / AUTO-with-CUDA:
 `cudaHostAlloc` pinned (caller writes tokens in host-visible pinned
-memory). OpenVINO GPU / explicit OV CPU: Level Zero USM, wrapped with
-`ov::Tensor(..., usm_pointer)`. Metal / AUTO-with-Metal:
+memory). OpenVINO GPU / explicit OV CPU: turbo_buffer ZE USM (SHARED on GPU,
+HOST on OV CPU), wrapped with `ov::Tensor(..., usm_pointer)`.
+Machine B proves HOST/SHARED/DEVICE rent/return
+(`docs/turbo-buffer-ze-machine-b.md`). Metal / AUTO-with-Metal:
 `MTLResourceStorageModeShared` (caller writes unified memory; kernels
 bind those MTLBuffers — no extra token copy). No `std::vector` on that
 path. Weights are copied once at load into MTL shared buffers.

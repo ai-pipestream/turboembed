@@ -25,10 +25,72 @@ struct L0State {
     ze_driver_handle_t drv = nullptr;
     ze_device_handle_t dev = nullptr;
     ze_context_handle_t ctx = nullptr;
+    ze_command_queue_handle_t q = nullptr;
+    ze_command_list_handle_t cl = nullptr;
     bool ready = false;
     bool have_gpu = false;
     std::string why;
 };
+
+L0State &l0();
+
+bool ensure_copy_queue() {
+    L0State &s = l0();
+    if (s.q != nullptr && s.cl != nullptr) {
+        return true;
+    }
+    if (!s.ready || s.ctx == nullptr || s.dev == nullptr || !s.have_gpu) {
+        return false;
+    }
+    ze_command_queue_desc_t qd {};
+    qd.stype = ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC;
+    qd.mode = ZE_COMMAND_QUEUE_MODE_DEFAULT;
+    qd.ordinal = 0;
+    if (zeCommandQueueCreate(s.ctx, s.dev, &qd, &s.q) != ZE_RESULT_SUCCESS) {
+        s.q = nullptr;
+        return false;
+    }
+    ze_command_list_desc_t ld {};
+    ld.stype = ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
+    if (zeCommandListCreate(s.ctx, s.dev, &ld, &s.cl) != ZE_RESULT_SUCCESS) {
+        (void)zeCommandQueueDestroy(s.q);
+        s.q = nullptr;
+        s.cl = nullptr;
+        return false;
+    }
+    return true;
+}
+
+turbo_buffer_status placement_of(const void *ptr, turbo_buffer_placement *out) {
+    L0State &s = l0();
+    if (ptr == nullptr || s.ctx == nullptr) {
+        return TURBO_BUFFER_ERR_NOT_FOUND;
+    }
+    ze_memory_allocation_properties_t props {};
+    props.stype = ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
+    ze_device_handle_t assoc = nullptr;
+    if (zeMemGetAllocProperties(s.ctx, ptr, &props, &assoc) != ZE_RESULT_SUCCESS) {
+        return TURBO_BUFFER_ERR_NOT_FOUND;
+    }
+    turbo_buffer_placement place = TURBO_BUFFER_PLACE_HOST;
+    switch (props.type) {
+    case ZE_MEMORY_TYPE_HOST:
+        place = TURBO_BUFFER_PLACE_HOST;
+        break;
+    case ZE_MEMORY_TYPE_SHARED:
+        place = TURBO_BUFFER_PLACE_SHARED;
+        break;
+    case ZE_MEMORY_TYPE_DEVICE:
+        place = TURBO_BUFFER_PLACE_DEVICE;
+        break;
+    default:
+        return TURBO_BUFFER_ERR_NOT_FOUND;
+    }
+    if (out != nullptr) {
+        *out = place;
+    }
+    return TURBO_BUFFER_OK;
+}
 
 L0State &l0() {
     static L0State s;
@@ -218,6 +280,109 @@ void ze_free(void *ptr) {
     }
 #else
     (void)ptr;
+#endif
+}
+
+turbo_buffer_status ze_query(const void *ptr, turbo_buffer_placement *out) {
+#ifdef TURBO_BUFFER_ZE
+    if (ptr == nullptr) {
+        set_tls_error("ze_query: null pointer");
+        return TURBO_BUFFER_ERR_INVALID_ARGUMENT;
+    }
+    l0_init_once();
+    if (!l0().ready) {
+        set_tls_error(
+            l0().why.empty()
+                ? "Level Zero USM is not available. Refusing CPU fallback."
+                : l0().why
+        );
+        return TURBO_BUFFER_ERR_UNAVAILABLE;
+    }
+    const turbo_buffer_status st = placement_of(ptr, out);
+    if (st != TURBO_BUFFER_OK) {
+        set_tls_error("ze_query: pointer is not a Level Zero USM allocation");
+    }
+    return st;
+#else
+    (void)ptr;
+    (void)out;
+    set_tls_error(
+        "turbo_buffer_ze_query requested but this binary was built "
+        "without Level Zero. Refusing CPU fallback."
+    );
+    return TURBO_BUFFER_ERR_NOT_IMPLEMENTED;
+#endif
+}
+
+turbo_buffer_status ze_memcpy(void *dst, const void *src, size_t bytes) {
+#ifdef TURBO_BUFFER_ZE
+    if (dst == nullptr || src == nullptr || bytes == 0) {
+        set_tls_error("ze_memcpy: null pointer or zero bytes");
+        return TURBO_BUFFER_ERR_INVALID_ARGUMENT;
+    }
+    l0_init_once();
+    if (!l0().ready || l0().ctx == nullptr) {
+        set_tls_error(
+            l0().why.empty()
+                ? "Level Zero USM is not available. Refusing CPU fallback."
+                : l0().why
+        );
+        return TURBO_BUFFER_ERR_UNAVAILABLE;
+    }
+    turbo_buffer_placement dst_p = TURBO_BUFFER_PLACE_HOST;
+    turbo_buffer_placement src_p = TURBO_BUFFER_PLACE_HOST;
+    if (placement_of(dst, &dst_p) != TURBO_BUFFER_OK ||
+        placement_of(src, &src_p) != TURBO_BUFFER_OK) {
+        set_tls_error("ze_memcpy: src/dst are not Level Zero USM");
+        return TURBO_BUFFER_ERR_NOT_FOUND;
+    }
+    const bool needs_device =
+        dst_p == TURBO_BUFFER_PLACE_DEVICE || src_p == TURBO_BUFFER_PLACE_DEVICE;
+    if (!needs_device) {
+        std::memcpy(dst, src, bytes);
+        return TURBO_BUFFER_OK;
+    }
+    if (!ensure_copy_queue()) {
+        set_tls_error(
+            "ze_memcpy: DEVICE copy needs a Level Zero GPU queue. "
+            "Refusing a host memcpy stand-in."
+        );
+        return TURBO_BUFFER_ERR_UNAVAILABLE;
+    }
+    L0State &s = l0();
+    if (zeCommandListReset(s.cl) != ZE_RESULT_SUCCESS) {
+        set_tls_error("ze_memcpy: command list reset failed");
+        return TURBO_BUFFER_ERR_INTERNAL;
+    }
+    if (zeCommandListAppendMemoryCopy(
+            s.cl, dst, src, bytes, nullptr, 0, nullptr
+        ) != ZE_RESULT_SUCCESS) {
+        set_tls_error("ze_memcpy: zeCommandListAppendMemoryCopy failed");
+        return TURBO_BUFFER_ERR_INTERNAL;
+    }
+    if (zeCommandListClose(s.cl) != ZE_RESULT_SUCCESS) {
+        set_tls_error("ze_memcpy: command list close failed");
+        return TURBO_BUFFER_ERR_INTERNAL;
+    }
+    if (zeCommandQueueExecuteCommandLists(s.q, 1, &s.cl, nullptr) !=
+        ZE_RESULT_SUCCESS) {
+        set_tls_error("ze_memcpy: execute failed");
+        return TURBO_BUFFER_ERR_INTERNAL;
+    }
+    if (zeCommandQueueSynchronize(s.q, UINT64_MAX) != ZE_RESULT_SUCCESS) {
+        set_tls_error("ze_memcpy: synchronize failed");
+        return TURBO_BUFFER_ERR_INTERNAL;
+    }
+    return TURBO_BUFFER_OK;
+#else
+    (void)dst;
+    (void)src;
+    (void)bytes;
+    set_tls_error(
+        "turbo_buffer_ze_memcpy requested but this binary was built "
+        "without Level Zero. Refusing CPU fallback."
+    );
+    return TURBO_BUFFER_ERR_NOT_IMPLEMENTED;
 #endif
 }
 

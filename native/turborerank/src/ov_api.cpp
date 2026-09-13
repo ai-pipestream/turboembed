@@ -7,7 +7,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <mutex>
 #include <string>
 #include <sys/stat.h>
 #include <vector>
@@ -18,9 +17,6 @@
 #include <openvino/runtime/core.hpp>
 #endif
 
-#ifdef TURBORERANK_LEVEL_ZERO
-#include <level_zero/ze_api.h>
-#endif
 
 namespace turborerank {
 namespace impl {
@@ -62,82 +58,6 @@ bool alias_is_ce(const std::string &a) {
            a == "ms-marco-minilm-l6-v2" || a == "minilm-ce" ||
            a == "cross-encoder/ms-marco-MiniLM-L6-v2";
 }
-
-#ifdef TURBORERANK_LEVEL_ZERO
-struct L0State {
-    ze_driver_handle_t drv = nullptr;
-    ze_device_handle_t dev = nullptr;
-    ze_context_handle_t ctx = nullptr;
-    bool ready = false;
-    std::string why;
-};
-
-L0State &l0() {
-    static L0State s;
-    return s;
-}
-
-void l0_init_once() {
-    static std::once_flag once;
-    std::call_once(once, [] {
-        L0State &s = l0();
-        const ze_result_t init = zeInit(0);
-        if (init != ZE_RESULT_SUCCESS) {
-            s.why = "Level Zero zeInit failed; cannot allocate USM token "
-                    "buffers. Refusing CPU fallback for OpenVINO GPU.";
-            return;
-        }
-        uint32_t ndrv = 0;
-        if (zeDriverGet(&ndrv, nullptr) != ZE_RESULT_SUCCESS || ndrv == 0) {
-            s.why = "Level Zero reports zero drivers. Refusing CPU fallback "
-                    "for OpenVINO GPU.";
-            return;
-        }
-        std::vector<ze_driver_handle_t> drvs(ndrv);
-        zeDriverGet(&ndrv, drvs.data());
-        for (uint32_t i = 0; i < ndrv; ++i) {
-            uint32_t ndev = 0;
-            if (zeDeviceGet(drvs[i], &ndev, nullptr) != ZE_RESULT_SUCCESS ||
-                ndev == 0) {
-                continue;
-            }
-            std::vector<ze_device_handle_t> devs(ndev);
-            zeDeviceGet(drvs[i], &ndev, devs.data());
-            for (uint32_t j = 0; j < ndev; ++j) {
-                ze_device_properties_t prop {};
-                prop.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-                if (zeDeviceGetProperties(devs[j], &prop) != ZE_RESULT_SUCCESS) {
-                    continue;
-                }
-                if (prop.type != ZE_DEVICE_TYPE_GPU) {
-                    continue;
-                }
-                ze_context_desc_t cd {};
-                cd.stype = ZE_STRUCTURE_TYPE_CONTEXT_DESC;
-                if (zeContextCreate(drvs[i], &cd, &s.ctx) != ZE_RESULT_SUCCESS) {
-                    continue;
-                }
-                s.drv = drvs[i];
-                s.dev = devs[j];
-                s.ready = true;
-                return;
-            }
-        }
-        // Host-only context: still enough for zeMemAllocHost (OV CPU).
-        if (!drvs.empty()) {
-            ze_context_desc_t cd {};
-            cd.stype = ZE_STRUCTURE_TYPE_CONTEXT_DESC;
-            if (zeContextCreate(drvs[0], &cd, &s.ctx) == ZE_RESULT_SUCCESS) {
-                s.drv = drvs[0];
-                s.ready = true;
-                return;
-            }
-        }
-        s.why = "Level Zero found no usable context for USM. Refusing CPU "
-                "fallback for OpenVINO GPU.";
-    });
-}
-#endif
 
 #ifdef TURBORERANK_OPENVINO
 struct OvHold {
@@ -278,25 +198,41 @@ bool ov_gpu_name(std::string *name) {
 }
 
 bool ov_usm_available(std::string *why) {
-#ifdef TURBORERANK_LEVEL_ZERO
-    l0_init_once();
-    if (!l0().ready) {
-        if (why) {
-            *why = l0().why.empty()
-                       ? "Level Zero USM is not available. Refusing CPU "
-                         "fallback for OpenVINO GPU."
-                       : l0().why;
-        }
-        return false;
+    const turbo_buffer_status st = turbo_buffer_backend_probe(
+        TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_HOST
+    );
+    if (st == TURBO_BUFFER_OK) {
+        return true;
     }
-    return true;
-#else
     if (why) {
-        *why = "Level Zero was not linked into this binary; cannot allocate "
-               "USM token buffers. Refusing CPU fallback for OpenVINO GPU.";
+        const char *msg = turbo_buffer_last_error(nullptr);
+        if (msg != nullptr && msg[0] != '\0') {
+            *why = msg;
+        } else {
+            *why = "Level Zero USM is not available. Refusing CPU fallback "
+                   "for OpenVINO GPU.";
+        }
     }
     return false;
-#endif
+}
+
+bool ov_usm_shared_available(std::string *why) {
+    const turbo_buffer_status st = turbo_buffer_backend_probe(
+        TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_SHARED
+    );
+    if (st == TURBO_BUFFER_OK) {
+        return true;
+    }
+    if (why) {
+        const char *msg = turbo_buffer_last_error(nullptr);
+        if (msg != nullptr && msg[0] != '\0') {
+            *why = msg;
+        } else {
+            *why = "ZE SHARED USM is not available. Refusing HOST/CPU remap "
+                   "for OpenVINO GPU.";
+        }
+    }
+    return false;
 }
 
 void *usm_alloc_bytes(size_t bytes, bool shared_ok, Status *status) {

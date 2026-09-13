@@ -729,11 +729,35 @@ static void test_ov_usm_buffer() {
         return (reinterpret_cast<uintptr_t>(p) % 64u) == 0;
     };
     CHECK(aligned(buf->input_ids));
+    CHECK(aligned(buf->attention_mask));
+    turbo_buffer_placement place = TURBO_BUFFER_PLACE_HOST;
+    CHECK_ST(turbo_buffer_ze_query(buf->input_ids, &place));
+    CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
+    CHECK_ST(turbo_buffer_ze_query(buf->attention_mask, &place));
+    CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
     buf->input_ids[0] = 101;
     buf->input_ids[1] = 7592;
     CHECK_EQ(buf->input_ids[0], 101);
     CHECK_EQ(buf->input_ids[1], 7592);
     turborerank_buffer_free(buf);
+
+    turborerank_buffer *warm1 = nullptr;
+    turborerank_buffer *warm2 = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_OPENVINO_GPU, 2, 16, &warm1));
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_OPENVINO_GPU, 2, 16, &warm2));
+    CHECK(warm1->input_ids != warm2->input_ids);
+    turborerank_buffer_free(warm1);
+    turborerank_buffer_free(warm2);
+    turborerank::alloc_counter_reset();
+    turborerank_buffer *b1 = nullptr;
+    turborerank_buffer *b2 = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_OPENVINO_GPU, 2, 16, &b1));
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_OPENVINO_GPU, 2, 16, &b2));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_ST(turbo_buffer_ze_query(b1->input_ids, &place));
+    CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
+    turborerank_buffer_free(b1);
+    turborerank_buffer_free(b2);
 }
 
 static void test_ov_real_model_scores(turborerank_device device) {
@@ -761,6 +785,17 @@ static void test_ov_real_model_scores(turborerank_device device) {
         return;
     }
     CHECK(e->ov.enabled);
+    CHECK(e->arena != nullptr);
+    CHECK(e->work != nullptr);
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
+    if (device == TURBORERANK_DEVICE_OPENVINO_GPU) {
+        turbo_buffer_placement place = TURBO_BUFFER_PLACE_HOST;
+        CHECK_ST(turbo_buffer_ze_query(e->work->input_ids, &place));
+        CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
+        CHECK_ST(turbo_buffer_ze_query(e->scratch.tok_q, &place));
+        CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
+    }
 
     const char *q = "How many people live in Berlin?";
     const char *rel =
@@ -811,8 +846,29 @@ static void test_ov_real_model_scores(turborerank_device device) {
     float s = 0;
     CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
     CHECK(almost(s, logits[0], 2e-3f));
     turborerank_buffer_free(buf);
+
+    turborerank::alloc_counter_reset();
+    float score_again[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, score_again));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK(almost(score_again[0], logits[0], 1e-4f));
+
+    if (device == TURBORERANK_DEVICE_OPENVINO_GPU) {
+        turborerank_buffer *cpu_buf = nullptr;
+        CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &cpu_buf));
+        CHECK_ST(turborerank_pack_text(
+            e, cpu_buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
+        ));
+        float bad = 0;
+        CHECK(turborerank_forward(e, cpu_buf, 1, TURBORERANK_ACT_IDENTITY, &bad) ==
+              TURBORERANK_ERR_INTERNAL);
+        CHECK(std::strstr(turborerank_last_error(e), "SHARED") != nullptr ||
+              std::strstr(turborerank_last_error(e), "refus") != nullptr);
+        turborerank_buffer_free(cpu_buf);
+    }
 
     std::fprintf(
         stderr,

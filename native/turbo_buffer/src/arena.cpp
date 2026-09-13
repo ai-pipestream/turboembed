@@ -625,4 +625,19 @@ uint64_t turbo_buffer_cuda_forward_allocs(void) {
     return turbo_buffer::impl::g_cuda_fwd_allocs.load(std::memory_order_relaxed);
 }
 
+turbo_buffer_status turbo_buffer_ze_query(
+    const void *ptr,
+    turbo_buffer_placement *out
+) {
+    return turbo_buffer::impl::ze_query(ptr, out);
+}
+
+turbo_buffer_status turbo_buffer_ze_memcpy(
+    void *dst,
+    const void *src,
+    size_t bytes
+) {
+    return turbo_buffer::impl::ze_memcpy(dst, src, bytes);
+}
+
 } // extern "C"

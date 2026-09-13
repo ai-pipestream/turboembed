@@ -732,10 +732,10 @@ turborerank_status turborerank_buffer_alloc(
             );
             return TURBORERANK_ERR_UNAVAILABLE;
         }
-        if (!turborerank::impl::ov_usm_available(&why)) {
+        if (!turborerank::impl::ov_usm_shared_available(&why)) {
             turborerank::impl::set_create_error(
                 why.empty()
-                    ? "buffer_alloc: Level Zero USM missing; refusing CPU"
+                    ? "buffer_alloc: ZE SHARED USM missing; refusing HOST/CPU remap"
                     : why
             );
             return TURBORERANK_ERR_UNAVAILABLE;
@@ -934,6 +934,16 @@ turborerank_status turborerank_forward(
         if (buffer->row_stride != buffer->seq) {
             engine->last_error = "forward: OpenVINO requires row_stride == seq";
             return TURBORERANK_ERR_INVALID_ARGUMENT;
+        }
+        if (engine->device == TURBORERANK_DEVICE_OPENVINO_GPU) {
+            turbo_buffer_placement place = TURBO_BUFFER_PLACE_HOST;
+            if (turbo_buffer_ze_query(buffer->input_ids, &place) != TURBO_BUFFER_OK ||
+                place != TURBO_BUFFER_PLACE_SHARED) {
+                engine->last_error =
+                    "forward: OpenVINO GPU requires ZE SHARED USM token "
+                    "pointers; refusing CPU remap";
+                return TURBORERANK_ERR_INTERNAL;
+            }
         }
         std::string err;
         if (!turborerank::impl::bert_forward_ov(

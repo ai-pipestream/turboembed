@@ -295,12 +295,6 @@ static void test_gpu_backends_fail_loud_or_work() {
     if (ze_probe == TURBO_BUFFER_OK) {
         CHECK_ST(ze_st);
         CHECK(ze != nullptr);
-        turbo_buffer_view host {};
-        CHECK_ST(turbo_buffer_arena_rent(
-            ze, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_HOST, 1, 16, 16, &host
-        ));
-        CHECK(aligned64(host.ptr));
-        CHECK_ST(turbo_buffer_arena_return(ze, &host));
         turbo_buffer_arena_destroy(ze);
     } else {
         CHECK(ze_st == TURBO_BUFFER_ERR_NOT_IMPLEMENTED ||
@@ -351,6 +345,133 @@ static void test_gpu_backends_fail_loud_or_work() {
     }
 }
 
+static void test_ze_usm_host_shared_device() {
+    const turbo_buffer_status host_probe =
+        turbo_buffer_backend_probe(TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_HOST);
+    if (host_probe != TURBO_BUFFER_OK) {
+#ifdef TURBO_BUFFER_ZE
+        std::fprintf(stderr, "SKIP ZE USM LIVE (L0 compiled, host probe failed)\n");
+#else
+        CHECK_EQ(host_probe, TURBO_BUFFER_ERR_NOT_IMPLEMENTED);
+        CHECK_EQ(
+            turbo_buffer_ze_query(nullptr, nullptr),
+            TURBO_BUFFER_ERR_NOT_IMPLEMENTED
+        );
+#endif
+        return;
+    }
+
+    turbo_buffer_arena *a = nullptr;
+    CHECK_ST(turbo_buffer_arena_create(TURBO_BUFFER_DEVICE_ZE, &a));
+    CHECK(a != nullptr);
+
+    turbo_buffer_view host {};
+    CHECK_ST(turbo_buffer_arena_rent(
+        a, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_HOST, 2, 16, 16, &host
+    ));
+    CHECK(aligned64(host.ptr));
+    turbo_buffer_placement q = TURBO_BUFFER_PLACE_PINNED;
+    CHECK_ST(turbo_buffer_ze_query(host.ptr, &q));
+    CHECK_EQ(q, TURBO_BUFFER_PLACE_HOST);
+    turbo_buffer_i32_row(&host, 0)[0] = 101;
+    turbo_buffer_i32_row(&host, 0)[1] = 7592;
+    CHECK_EQ(turbo_buffer_i32_row(&host, 0)[0], 101);
+    CHECK(turbo_buffer_arena_owns(a, host.ptr));
+
+    CHECK_EQ(
+        turbo_buffer_arena_rent(
+            a, TURBO_BUFFER_DTYPE_F32, TURBO_BUFFER_PLACE_PINNED, 1, 4, 4, &host
+        ),
+        TURBO_BUFFER_ERR_NOT_IMPLEMENTED
+    );
+
+    const turbo_buffer_status shared_probe =
+        turbo_buffer_backend_probe(TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_SHARED);
+    const turbo_buffer_status device_probe =
+        turbo_buffer_backend_probe(TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_DEVICE);
+    CHECK_EQ(shared_probe, device_probe);
+    if (shared_probe != TURBO_BUFFER_OK) {
+        const char *msg = turbo_buffer_last_error(nullptr);
+        CHECK(msg != nullptr);
+        CHECK(std::strstr(msg, "Refusing") != nullptr ||
+              std::strstr(msg, "no GPU") != nullptr);
+        CHECK_ST(turbo_buffer_arena_return(a, &host));
+        turbo_buffer_arena_destroy(a);
+        std::fprintf(stderr, "ZE HOST LIVE; SHARED/DEVICE UNAVAILABLE (no GPU)\n");
+        return;
+    }
+
+    turbo_buffer_view shared {};
+    CHECK_ST(turbo_buffer_arena_rent(
+        a, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_SHARED, 2, 16, 16, &shared
+    ));
+    CHECK(aligned64(shared.ptr));
+    CHECK_ST(turbo_buffer_ze_query(shared.ptr, &q));
+    CHECK_EQ(q, TURBO_BUFFER_PLACE_SHARED);
+    CHECK(q != TURBO_BUFFER_PLACE_HOST);
+    turbo_buffer_i32_row(&shared, 0)[0] = 202;
+    CHECK_EQ(turbo_buffer_i32_row(&shared, 0)[0], 202);
+
+    turbo_buffer_view device {};
+    CHECK_ST(turbo_buffer_arena_rent(
+        a, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_DEVICE, 2, 16, 16, &device
+    ));
+    CHECK(device.ptr != nullptr);
+    CHECK(aligned64(device.ptr));
+    CHECK_ST(turbo_buffer_ze_query(device.ptr, &q));
+    CHECK_EQ(q, TURBO_BUFFER_PLACE_DEVICE);
+    CHECK(q != TURBO_BUFFER_PLACE_HOST);
+    CHECK(q != TURBO_BUFFER_PLACE_SHARED);
+
+    const int32_t pattern[4] = {101, 7592, 102, 0};
+    std::memcpy(turbo_buffer_view_i32(&host), pattern, sizeof(pattern));
+    CHECK_ST(turbo_buffer_ze_memcpy(device.ptr, host.ptr, sizeof(pattern)));
+    std::memset(turbo_buffer_view_i32(&host), 0, sizeof(pattern));
+    CHECK_ST(turbo_buffer_ze_memcpy(host.ptr, device.ptr, sizeof(pattern)));
+    CHECK_EQ(turbo_buffer_view_i32(&host)[0], 101);
+    CHECK_EQ(turbo_buffer_view_i32(&host)[1], 7592);
+    CHECK_EQ(turbo_buffer_view_i32(&host)[2], 102);
+
+    CHECK_ST(turbo_buffer_arena_return(a, &host));
+    CHECK_ST(turbo_buffer_arena_return(a, &shared));
+    CHECK_ST(turbo_buffer_arena_return(a, &device));
+
+    turbo_buffer_alloc_counter_reset();
+    turbo_buffer_view h2 {};
+    turbo_buffer_view s2 {};
+    turbo_buffer_view d2 {};
+    CHECK_ST(turbo_buffer_arena_rent(
+        a, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_HOST, 2, 16, 16, &h2
+    ));
+    CHECK_ST(turbo_buffer_arena_rent(
+        a, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_SHARED, 2, 16, 16, &s2
+    ));
+    CHECK_ST(turbo_buffer_arena_rent(
+        a, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_DEVICE, 2, 16, 16, &d2
+    ));
+    CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
+    CHECK_ST(turbo_buffer_ze_query(h2.ptr, &q));
+    CHECK_EQ(q, TURBO_BUFFER_PLACE_HOST);
+    CHECK_ST(turbo_buffer_ze_query(s2.ptr, &q));
+    CHECK_EQ(q, TURBO_BUFFER_PLACE_SHARED);
+    CHECK_ST(turbo_buffer_ze_query(d2.ptr, &q));
+    CHECK_EQ(q, TURBO_BUFFER_PLACE_DEVICE);
+    CHECK_ST(turbo_buffer_arena_return(a, &h2));
+    CHECK_ST(turbo_buffer_arena_return(a, &s2));
+    CHECK_ST(turbo_buffer_arena_return(a, &d2));
+
+    turbo_buffer_view once {};
+    CHECK_ST(turbo_buffer_arena_rent(
+        a, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_SHARED, 1, 8, 8, &once
+    ));
+    turbo_buffer_view stolen = once;
+    CHECK_ST(turbo_buffer_arena_return(a, &once));
+    CHECK_EQ(turbo_buffer_arena_return(a, &stolen), TURBO_BUFFER_ERR_DOUBLE_FREE);
+
+    turbo_buffer_arena_destroy(a);
+    std::fprintf(stderr, "ZE USM HOST/SHARED/DEVICE rent/return LIVE\n");
+}
+
 static void test_invalid_rent() {
     turbo_buffer_arena *a = nullptr;
     CHECK_ST(turbo_buffer_arena_create(TURBO_BUFFER_DEVICE_CPU, &a));
@@ -378,6 +499,7 @@ int main() {
     test_cpu_rejects_gpu_placement();
     test_cuda_pinned_device_live_or_fail_loud();
     test_gpu_backends_fail_loud_or_work();
+    test_ze_usm_host_shared_device();
     test_invalid_rent();
 
     std::fprintf(

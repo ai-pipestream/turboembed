@@ -259,6 +259,27 @@ int turbo_buffer_metal_lookup(
     size_t *out_offset
 );
 
+/**
+ * ZE: query the USM type of `ptr` (HOST / SHARED / DEVICE).
+ * NOT_FOUND if this process did not allocate it with Level Zero.
+ * NOT_IMPLEMENTED when the binary has no L0.
+ */
+turbo_buffer_status turbo_buffer_ze_query(
+    const void *ptr,
+    turbo_buffer_placement *out
+);
+
+/**
+ * ZE: copy `bytes` between USM pointers (any HOST/SHARED/DEVICE combo).
+ * DEVICE legs use a Level Zero command queue — not a host memcpy stand-in.
+ * NOT_IMPLEMENTED without L0. UNAVAILABLE without a GPU when DEVICE is involved.
+ */
+turbo_buffer_status turbo_buffer_ze_memcpy(
+    void *dst,
+    const void *src,
+    size_t bytes
+);
+
 /* -------------------------------------------------------------------------- */
 /* Alloc counter (tests). Process-wide.                                       */
 /* -------------------------------------------------------------------------- */

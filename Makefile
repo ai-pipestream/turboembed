@@ -18,7 +18,8 @@
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
 #   make fetch-rerankers                    # SHA-pin MiniLM-L6 cross-encoder
-#   make turbo-buffer-tests                 # unified arena ABI (CPU + CUDA PINNED/DEVICE when live)
+#   make turbo-buffer-tests                 # unified arena ABI (CPU + CUDA/ZE when live)
+#   make turbo-buffer-intel-receipt         # Machine B ZE HOST/SHARED/DEVICE receipt
 #   make turborerank-tests                  # C++ buffer/pack + CUDA if nvcc
 #   make turborerank-tests-nocuda           # same tests, CUDA create fails loud
 #   make test-turborerank                   # fetch + C++ + Rust live scores
@@ -521,6 +522,16 @@ turbo-buffer-tests:
 	  -o native/turbo_buffer/build/turbo_buffer_tests
 	native/turbo_buffer/build/turbo_buffer_tests
 
+turbo-buffer-intel-receipt: turbo-buffer-tests
+	mkdir -p native/turbo_buffer/build testdata/receipts/turbo_buffer
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) \
+	  $(TURBO_BUFFER_SRCS) \
+	  native/turbo_buffer/tools/write_intel_ze_receipt.cpp \
+	  -lm $(TURBORERANK_OV_LIBS) \
+	  -o native/turbo_buffer/build/write_intel_ze_receipt
+	INFERSTREAM_ROOT=$(CURDIR) native/turbo_buffer/build/write_intel_ze_receipt
+
 turboembed-mock-arena-tests: turboembed-stub
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include \
 	  native/turboembed/tests/mock_arena_tests.cpp \
@@ -644,10 +655,11 @@ test-turborerank-apple: fetch-rerankers turborerank-tests turborerank-tests-nome
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
 	$(MAKE) turborerank-apple-receipt
 
-# Machine B: OpenVINO GPU/CPU MiniLM CE vs HF Berlin golden.
+# Machine B: OpenVINO GPU/CPU MiniLM CE vs HF Berlin golden + ZE arena.
 test-turborerank-intel: fetch-rerankers verify-rerank-ov turborerank-tests turborerank-tests-noov
 	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then \
 	  set +u; . "$(OPENVINO_SETUPVARS)"; set -u; \
 	fi; \
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
+	$(MAKE) turbo-buffer-intel-receipt
 	$(MAKE) turborerank-intel-receipt

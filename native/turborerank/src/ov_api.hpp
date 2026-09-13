@@ -23,8 +23,11 @@ bool ov_gpu_present(std::string *why);
 /** Full name of GPU.0 (or empty). */
 bool ov_gpu_name(std::string *name);
 
-/** Level Zero USM is initialized and can allocate host/shared buffers. */
+/** Level Zero USM is initialized and can allocate host buffers. */
 bool ov_usm_available(std::string *why);
+
+/** ZE SHARED USM (GPU). Missing GPU → false, never a HOST stand-in. */
+bool ov_usm_shared_available(std::string *why);
 
 void *usm_alloc_bytes(size_t bytes, bool shared_ok, Status *status);
 void usm_free_bytes(void *ptr);
