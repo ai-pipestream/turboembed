@@ -146,18 +146,68 @@ kernel void linear_nt_kernel(
     y[ulong(s) * p.out + o] = acc;
 }
 
-// A&S 7.1.26 — Metal MSL has no erf() in this toolchain.
-inline float erf_as(float x) {
+// MSL metal_math has no erf/erfc (probed: make metal-erf-probe).
+// Hart–Cheney piecewise + complementary exp tail. Keep in sync with
+// erf_approx.hpp. HF gelu is the erf form, not gelu_new / tanh.
+inline float erf_hart(float x) {
     const float ax = fabs(x);
-    const float t = 1.0f / (1.0f + 0.3275911f * ax);
-    const float y =
-        1.0f -
-        (((((1.061405429f * t - 1.453152027f) * t) + 1.421413741f) * t -
-          0.284496736f) *
-             t +
-         0.254829592f) *
-            t * exp(-x * x);
-    return copysign(y, x);
+    if (!(ax == ax)) {
+        return x;
+    }
+    if (ax >= 4.0f) {
+        return copysign(1.0f, x);
+    }
+    if (ax < 0.84375f) {
+        const float z = x * x;
+        const float p =
+            fma(fma(-1.86261395e-03f, z, -3.36030394e-01f), z, 1.28379166e-01f);
+        const float q = fma(
+            fma(fma(-1.98859372e-03f, z, 2.16070414e-02f), z, 3.12324315e-01f),
+            z,
+            1.0f
+        );
+        return fma(x, p / q, x);
+    }
+    if (ax < 1.25f) {
+        const float s = ax - 1.0f;
+        const float P = fma(
+            fma(fma(8.67677554e-02f, s, -2.09395722e-01f), s, 4.15109307e-01f),
+            s,
+            3.65041046e-06f
+        );
+        const float Q = fma(
+            fma(fma(3.92478965e-02f, s, 3.71248513e-01f), s, 4.95560974e-01f),
+            s,
+            1.0f
+        );
+        return copysign(8.42697144e-01f + P / Q, x);
+    }
+    const float inv2 = 1.0f / (ax * ax);
+    float R;
+    float S;
+    if (ax < 2.85715f) {
+        R = fma(
+            fma(fma(-6.91554189e-01f, inv2, -1.66828310f), inv2, -5.43658376e-01f),
+            inv2,
+            -9.88156721e-03f
+        );
+        S = fma(
+            fma(fma(5.53855181e-01f, inv2, 4.10799170f), inv2, 4.48581553f),
+            inv2,
+            1.0f
+        );
+    } else {
+        R = fma(fma(-1.84115684f, inv2, -5.48049808e-01f), inv2, -9.86496918e-03f);
+        S = fma(
+            fma(fma(-7.61900663e-01f, inv2, 3.04982710f), inv2, 4.87132740f),
+            inv2,
+            1.0f
+        );
+    }
+    const float z = as_type<float>(as_type<uint>(ax) & 0xffffe000u);
+    const float r =
+        exp(-z * z - 0.5625f) * exp((z - ax) * (z + ax) + R / S);
+    return copysign(1.0f - r / ax, x);
 }
 
 kernel void gelu_erf_kernel(
@@ -167,7 +217,7 @@ kernel void gelu_erf_kernel(
 ) {
     if (i >= p.n) return;
     const float v = x[i];
-    x[i] = 0.5f * v * (1.0f + erf_as(v * 0.7071067811865476f));
+    x[i] = 0.5f * v * (1.0f + erf_hart(v * 0.7071067811865476f));
 }
 
 kernel void add_inplace_kernel(

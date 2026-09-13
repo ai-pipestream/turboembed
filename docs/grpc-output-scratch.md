@@ -38,7 +38,9 @@ cargo test -p inferstream-server packed_bytes_and_rerank_reuse
 cargo test -p inferstream-backend-turborerank -- rpc_berlin
 ```
 
-Machine A/B/C latency benches are SOLIDIFY (7) — out of scope here.
+Machine A/B/C latency benches remain later SOLIDIFY (7) work — out of
+scope here. The Machine C special-function slice (Metal GELU erf) is
+`docs/apple-turborerank-metal-gelu-machine-c.md`.
 
 ## Apple
 

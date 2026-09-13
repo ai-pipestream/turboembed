@@ -153,6 +153,8 @@ pooler-less export is supported if those tensors are absent.
 
 GELU: HF `hidden_act=gelu` is the **erf** form
 `0.5 * x * (1 + erf(x / sqrt(2)))`, not `gelu_new` (tanh).
+CPU / CUDA call `erff`. Metal MSL has no `erf` — first-party Hart
+software special (`docs/apple-turborerank-metal-gelu-machine-c.md`).
 
 LayerNorm: last-dim, `eps=1e-12`, population variance (`/N`, not `/N-1`).
 
@@ -388,6 +390,7 @@ Hostnames stay out of docs.
 | Intel Level Zero USM + OpenVINO `CompiledModel` | Phase 2b (Machine B) |
 | Apple MTL shared + first-party Metal CE | Phase 2c (Machine C) |
 | Metal token workspace from `turbo_buffer` SHARED arena | SOLIDIFY (1) LIVE on Machine C |
+| Metal GELU software erf (Hart; MSL has no `erf`) | SOLIDIFY (7) Apple LIVE on Machine C |
 | TensorRT CE | **not done** — fail loud |
 | gRPC `Rerank` → ABI | Phase 3 — `--features turborerank` / Swift |
 | Swift wrapper (`TurboRerankC` + client) | Phase 2c/3 — ABI stays C++/ObjC++ |
