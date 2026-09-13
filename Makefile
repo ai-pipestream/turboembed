@@ -403,7 +403,7 @@ test-turboembed-intel: turboembed-genai-arena-tests
 	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then \
 	  set +u; . "$(OPENVINO_SETUPVARS)"; set -u; \
 	fi; \
-	$(CARGO) test -p turboembed --features genai
+	$(CARGO) test -p turboembed --features genai -- --test-threads=1
 
 # C++ proof: GPU SHARED + CPU HOST token/result rent, allocs/forward==0.
 turboembed-genai-arena-tests:

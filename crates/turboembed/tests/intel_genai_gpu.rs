@@ -14,6 +14,15 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard};
+
+/// Process-wide alloc counter is shared. Parallel cargo tests that embed
+/// must not overlap a reset/check window.
+static EMBED_GATE: Mutex<()> = Mutex::new(());
+
+fn exclusive_embed() -> MutexGuard<'static, ()> {
+    EMBED_GATE.lock().unwrap_or_else(|p| p.into_inner())
+}
 
 use std::os::raw::c_void;
 
@@ -204,6 +213,7 @@ fn ze_place(ptr: *const c_void) -> Option<u32> {
 }
 
 fn prove_steady_state_zero_allocs(engine: &Engine, alias: &str, text: &str) -> u64 {
+    // Caller must hold exclusive_embed(); the counter is process-wide.
     let opts = EmbedOptions {
         pooling: Pooling::Mean,
         normalize: Some(true),
@@ -238,6 +248,7 @@ fn forbid_mapped(maps: &str, needle: &str) {
 
 #[test]
 fn minilm_text_embedding_pipeline_on_gpu() {
+    let _embed = exclusive_embed();
     let root = workspace_root();
     let model_dir = root.join("models/ov/minilm");
     assert!(
@@ -409,6 +420,7 @@ fn minilm_text_embedding_pipeline_on_gpu() {
 
 #[test]
 fn minilm_c_abi_embed_one_on_gpu() {
+    let _embed = exclusive_embed();
     let root = workspace_root();
     let model_dir = root.join("models/ov/minilm");
     assert!(
@@ -533,6 +545,7 @@ fn run_minilm_on(device: Device, ov_name: &str, plugin_needle: &str) -> (Vec<f32
 
 #[test]
 fn minilm_text_embedding_pipeline_on_cpu() {
+    let _embed = exclusive_embed();
     let root = workspace_root();
     let model_dir = root.join("models/ov/minilm");
     assert!(
@@ -659,6 +672,7 @@ fn minilm_text_embedding_pipeline_on_cpu() {
 
 #[test]
 fn minilm_c_abi_embed_one_on_cpu() {
+    let _embed = exclusive_embed();
     let root = workspace_root();
     assert!(
         root.join("models/ov/minilm/openvino_tokenizer.xml")
@@ -727,6 +741,7 @@ fn minilm_c_abi_embed_one_on_cpu() {
 /// Never CPU. Never 8-d FNV mock. Writes the honest defer receipt.
 #[test]
 fn npu_request_never_silently_uses_cpu_or_mock() {
+    let _embed = exclusive_embed();
     let root = workspace_root();
     match Engine::create(Device::OpenVinoNpu) {
         Ok(engine) => {
@@ -836,6 +851,7 @@ fn npu_request_never_silently_uses_cpu_or_mock() {
 /// When the plugin is present, create+load must stay on `"GPU"`.
 #[test]
 fn gpu_request_never_silently_uses_cpu() {
+    let _embed = exclusive_embed();
     match Engine::create(Device::OpenVinoGpu) {
         Ok(engine) => {
             engine
