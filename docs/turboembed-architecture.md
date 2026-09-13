@@ -207,10 +207,12 @@ Metal) — see receipts under `testdata/receipts/turboembed/`.
 - **model2vec** is not shipped. `turboembed_register_provider` returns
   `NOT_IMPLEMENTED`.
 - **Zero-copy buffer pool** is **TurboBuffer** (`include/turbo_buffer.h`).
-  The C++ stub rents host FP32 result rows from a CPU arena (mock/CPU
-  proven; ORT/GenAI result copies rent when those features are on).
-  Device compute tensors stay with ORT / GenAI / MLX until the next
-  migration slice. See [`docs/turbo-buffer.md`](turbo-buffer.md).
+  Machine A ORT CUDA + explicit CPU rent tokens / hidden / results from
+  the engine arena (PINNED+DEVICE or HOST). ORT CUDA EP allocations go
+  through `gpu_external_alloc` → DEVICE rent. Steady-state embed after
+  warmup is 0 arena allocs. Host mean+L2 still D2H-copies hidden states
+  into rented PINNED — counted, not claimed as zero-copy. GenAI / Swift
+  MLX device tensors are other-arch work. See [`docs/turbo-buffer.md`](turbo-buffer.md).
 - **Intel NPU** create is fail-loud until a Core Ultra client NPU host
   lists the plugin (`intel-npu.json` on Machine B, `pass=false`).
 - Inferstream **Rerank RPC** is a thin façade over the TurboRerank

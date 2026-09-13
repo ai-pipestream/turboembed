@@ -47,10 +47,13 @@ make test-turboembed-nvidia
 
 The ignored tests:
 
-1. `Engine::create(Device::Cuda)` then `load_model("minilm")` — registers
-   CUDA EP with `error_on_failure`, creates a CUDA device allocator, copies
-   inputs onto `AllocationDevice::CUDA`, binds the output to CUDA via
-   IoBinding, and errors if the output is CPU-accessible.
+1. `Engine::create(Device::Cuda)` then `load_model("minilm")` — creates a
+   CUDA `turbo_buffer` arena, registers CUDA EP with `error_on_failure`
+   and `gpu_external_alloc` → DEVICE rent, writes tokens into PINNED
+   mapped rows, binds those + a DEVICE hidden view via IoBinding, and
+   errors if the bound output is not CUDA. After warmup, embed must see
+   arena allocs == 0. Host mean+L2 copies DEVICE hidden into PINNED
+   (counted D2H; not zero-copy).
 2. `embed_one("minilm", text, mean+L2)` for `"hello world"` and every
    `parity:*` item in `testdata/e2e/goldens/nvidia/minilm.json`.
 3. Requires cosine ≥ **0.99** vs the golden (384-d). Failures name the item.

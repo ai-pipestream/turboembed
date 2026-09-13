@@ -49,6 +49,8 @@ fn main() {
     println!("cargo:rerun-if-env-changed=INTEL_OPENVINO_DIR");
     println!("cargo:rerun-if-env-changed=OpenVINO_DIR");
     println!("cargo:rerun-if-env-changed=DEVELOPER_DIR");
+    println!("cargo:rerun-if-env-changed=TURBOEMBED_DISABLE_CUDA");
+    println!("cargo:rustc-check-cfg=cfg(turboembed_cuda)");
 
     println!(
         "cargo:rustc-env=TURBOEMBED_WORKSPACE_ROOT={}",
@@ -158,6 +160,16 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
 
     if ort_cuda {
         build.define("TURBOEMBED_ORT_CUDA", None);
+        if cuda_enabled() {
+            build.define("TURBO_BUFFER_CUDA", "1");
+            build.include("/usr/include");
+            build.include("/usr/local/cuda/include");
+            println!("cargo:rustc-cfg=turboembed_cuda");
+            println!("cargo:rustc-link-lib=cudart");
+            if let Some(dir) = cuda_lib_dir() {
+                println!("cargo:rustc-link-search=native={dir}");
+            }
+        }
     }
 
     if genai {
@@ -196,6 +208,31 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
     } else {
         "turboembed_stub"
     });
+}
+
+fn cuda_enabled() -> bool {
+    if std::env::var_os("TURBOEMBED_DISABLE_CUDA").is_some() {
+        return false;
+    }
+    if Command::new("nvcc").arg("--version").output().is_err() {
+        return false;
+    }
+    Path::new("/usr/include/cuda_runtime.h").exists()
+        || Path::new("/usr/local/cuda/include/cuda_runtime.h").exists()
+}
+
+fn cuda_lib_dir() -> Option<String> {
+    for dir in [
+        "/usr/local/cuda/lib64",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib64",
+    ] {
+        let p = Path::new(dir);
+        if p.join("libcudart.so").exists() || p.join("libcudart.so.12").exists() {
+            return Some(dir.to_string());
+        }
+    }
+    None
 }
 
 fn escape_c_string(s: &str) -> String {

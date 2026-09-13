@@ -46,7 +46,7 @@ Every arch binary serves **both** gRPC services on one port behind one bearer in
   (Intel GPU also needs `make convert-rerank-ov`). See
   [`docs/turborerank-architecture.md`](docs/turborerank-architecture.md).
 - **TRT-LLM generative** (`backend-trtllm` / `trtllm-sys`) — stub. Distinct from live **ORT TensorRT MiniLM embeds**.
-- **Zero-copy buffer pool** — **LIVE as TurboBuffer** (`include/turbo_buffer.h`). TurboRerank CPU + CUDA (Machine A PINNED mapped tokens, 0 id H2D, cuBLASLt GEMM) + Metal (Machine C SHARED arena) rent i32/f32 views; mock TurboEmbed rents host result rows. Steady-state `forward` / mock `embed` alloc counter is 0. CUDA PINNED mapped + DEVICE activations + cuBLASLt workspace are proven on Machine A. Metal SHARED rent/return is proven on Machine C (`docs/apple-turbo-buffer-metal-arena-machine-c.md`). Swift `libTurboEmbed.dylib` does not yet rent Metal compute buffers (item 4).
+- **Zero-copy buffer pool** — **LIVE as TurboBuffer** (`include/turbo_buffer.h`). TurboRerank CPU + CUDA (Machine A PINNED mapped tokens, 0 id H2D, cuBLASLt GEMM) + Metal (Machine C SHARED arena) rent i32/f32 views. TurboEmbed ORT CUDA + explicit CPU (Machine A) rent PINNED/DEVICE or HOST I/O; ORT `gpu_external_alloc` is arena DEVICE; steady-state embed alloc counter is 0. Hidden-state D2H for host mean+L2 is counted and not claimed as zero-copy. Mock embed still rents HOST result rows. Metal SHARED rent/return is proven on Machine C (`docs/apple-turbo-buffer-metal-arena-machine-c.md`). Swift `libTurboEmbed.dylib` does not yet rent Metal compute buffers.
 - **model2vec** — not shipped (`turboembed_register_provider` returns `NOT_IMPLEMENTED`).
 - **Intel NPU** — fail-loud on Machine B (`intel-npu.json`). Needs a **Core Ultra client NPU** host — not Xeon, not AWS Inferentia, not Battlemage-only.
 
@@ -466,7 +466,7 @@ Still open:
 8. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 9. Optional adapters: TEI-compatible proto (lowest priority), richer stream metadata.
 10. ORT session pooling (one session per model behind a mutex today; intra-op threads still parallelize each request).
-11. ~~Zero-copy buffer pool~~ — **TurboBuffer arena** (`include/turbo_buffer.h`). Rerank CPU + mock Embed rent/return. **CUDA PINNED mapped + DEVICE LIVE on Machine A** (mapped token rent; kernels read device pointers; `allocs/forward == 0`, `h2d_bytes/forward == 0`). ZE / Metal still fail loud until those Machine B/C tasks compile them.
+11. ~~Zero-copy buffer pool~~ — **TurboBuffer arena** (`include/turbo_buffer.h`). Rerank CPU + CUDA + Metal as above. **TurboEmbed ORT CUDA + CPU LIVE on Machine A** (PINNED mapped tokens, DEVICE hidden, PINNED/HOST results; `allocs/embed == 0` after warmup; hidden D2H counted, not claimed zero-copy). ZE / Apple MLX embed arenas are other-arch work.
 12. **model2vec** provider (plugin sketch only).
 
 Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.

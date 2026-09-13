@@ -29,6 +29,7 @@ void *turboembed_ort_cuda_open(
     const char *config_path,
     const char *workspace_root,
     int abi_device,
+    turbo_buffer_arena *arena,
     char *err,
     size_t err_len
 );
@@ -39,7 +40,8 @@ int turboembed_ort_cuda_embed(
     size_t n_texts,
     int requested_pooling,
     int requested_normalize,
-    float **out_values,
+    float *out_values,
+    size_t out_values_len,
     size_t *out_dim,
     size_t *out_count,
     char *err,
@@ -262,6 +264,37 @@ turboembed_device ort_place_to_abi(int place) {
     }
     return TURBOEMBED_DEVICE_CUDA;
 }
+
+turbo_buffer_placement ort_result_place(turboembed_device device) {
+    if (device == TURBOEMBED_DEVICE_CUDA || device == TURBOEMBED_DEVICE_AUTO ||
+        device == TURBOEMBED_DEVICE_TENSORRT) {
+        return TURBO_BUFFER_PLACE_PINNED;
+    }
+    return TURBO_BUFFER_PLACE_HOST;
+}
+
+void warm_ort_result_slab(turboembed_engine *engine) {
+    if (engine == nullptr || engine->arena == nullptr ||
+        engine->ort_cuda == nullptr) {
+        return;
+    }
+    const uint32_t dim = turboembed_ort_cuda_dim(engine->ort_cuda);
+    if (dim == 0) {
+        return;
+    }
+    turbo_buffer_view warm {};
+    if (turbo_buffer_arena_rent(
+            engine->arena,
+            TURBO_BUFFER_DTYPE_F32,
+            ort_result_place(engine->device),
+            32,
+            dim,
+            dim,
+            &warm
+        ) == TURBO_BUFFER_OK) {
+        (void)turbo_buffer_arena_return(engine->arena, &warm);
+    }
+}
 #endif
 
 extern "C" {
@@ -424,18 +457,30 @@ turboembed_status turboembed_engine_create(
         g_create_error = "engine allocation failed";
         return TURBOEMBED_ERR_OUT_OF_MEMORY;
     }
-    /* Host FP32 embed rows are rented from a CPU arena. GPU compute
-     * backends keep their own device memory; item (4) can move those
-     * onto this ABI without rewriting create/load. */
-    if (turbo_buffer_arena_create(TURBO_BUFFER_DEVICE_CPU, &(*out)->arena) !=
-            TURBO_BUFFER_OK ||
+    /* Machine A ORT CUDA / AUTO / TensorRT rent PINNED + DEVICE from a
+     * CUDA arena. Explicit CPU (and mock / GenAI) keep a CPU HOST arena.
+     * CUDA create fails loud if TURBO_BUFFER_CUDA is missing — no CPU
+     * arena stand-in for GPU I/O. */
+    turbo_buffer_device arena_dev = TURBO_BUFFER_DEVICE_CPU;
+#ifdef TURBOEMBED_ORT_CUDA
+    if (device == TURBOEMBED_DEVICE_CUDA || device == TURBOEMBED_DEVICE_AUTO ||
+        device == TURBOEMBED_DEVICE_TENSORRT) {
+        arena_dev = TURBO_BUFFER_DEVICE_CUDA;
+    }
+#endif
+    if (turbo_buffer_arena_create(arena_dev, &(*out)->arena) != TURBO_BUFFER_OK ||
         (*out)->arena == nullptr) {
         g_create_error =
             std::string("turbo_buffer arena_create failed: ") +
             turbo_buffer_last_error(nullptr);
+        if (arena_dev == TURBO_BUFFER_DEVICE_CUDA) {
+            g_create_error +=
+                "; CUDA/AUTO/TensorRT require a CUDA arena (PINNED+DEVICE). "
+                "CPU is not a fallback";
+        }
         delete *out;
         *out = nullptr;
-        return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        return TURBOEMBED_ERR_UNAVAILABLE;
     }
     g_create_error.clear();
     return TURBOEMBED_OK;
@@ -618,6 +663,7 @@ turboembed_status turboembed_load_model(
             engine->config_path.empty() ? nullptr : engine->config_path.c_str(),
             TURBOEMBED_WORKSPACE_ROOT,
             static_cast<int>(engine->device),
+            engine->arena,
             err,
             sizeof(err)
         );
@@ -642,6 +688,7 @@ turboembed_status turboembed_load_model(
         }
         engine->ort_cuda = session;
         engine->ort_cuda_alias.assign(alias, alias_len);
+        warm_ort_result_slab(engine);
         engine->set_error("");
         return TURBOEMBED_OK;
     }
@@ -783,7 +830,34 @@ static turboembed_status embed_impl(
             ptrs[i] = texts[i].ptr;
             lens[i] = texts[i].len;
         }
-        float *flat = nullptr;
+        const uint32_t expect_dim = turboembed_ort_cuda_dim(engine->ort_cuda);
+        if (expect_dim == 0) {
+            engine->set_error("ORT session embedding dim is 0");
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        auto *rec = new (std::nothrow) EmbedResultRec();
+        if (rec == nullptr || engine->arena == nullptr) {
+            delete rec;
+            engine->set_error("result allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        rec->arena = engine->arena;
+        if (turbo_buffer_arena_rent(
+                engine->arena,
+                TURBO_BUFFER_DTYPE_F32,
+                ort_result_place(engine->device),
+                static_cast<uint32_t>(n_texts),
+                expect_dim,
+                expect_dim,
+                &rec->values
+            ) != TURBO_BUFFER_OK) {
+            delete rec;
+            engine->set_error("result arena rent failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        float *values = turbo_buffer_view_f32(&rec->values);
+        const size_t n_floats =
+            n_texts * static_cast<size_t>(expect_dim);
         size_t dim = 0;
         size_t count = 0;
         char err[1024];
@@ -795,47 +869,21 @@ static turboembed_status embed_impl(
             n_texts,
             requested_pooling,
             requested_normalize,
-            &flat,
+            values,
+            n_floats,
             &dim,
             &count,
             err,
             sizeof(err)
         );
-        if (rc != 0 || flat == nullptr || dim == 0 || count != n_texts) {
-            if (flat != nullptr) {
-                turboembed_ort_cuda_free_values(flat, dim * count);
-            }
+        if (rc != 0 || dim == 0 || count != n_texts || dim != expect_dim) {
+            (void)turbo_buffer_arena_return(engine->arena, &rec->values);
+            delete rec;
             engine->set_error(
                 err[0] != '\0' ? err : "ORT CUDA embed failed"
             );
             return TURBOEMBED_ERR_INTERNAL;
         }
-        const size_t n_floats = count * dim;
-        auto *rec = new (std::nothrow) EmbedResultRec();
-        if (rec == nullptr || engine->arena == nullptr) {
-            turboembed_ort_cuda_free_values(flat, n_floats);
-            delete rec;
-            engine->set_error("result allocation failed");
-            return TURBOEMBED_ERR_OUT_OF_MEMORY;
-        }
-        rec->arena = engine->arena;
-        if (turbo_buffer_arena_rent(
-                engine->arena,
-                TURBO_BUFFER_DTYPE_F32,
-                TURBO_BUFFER_PLACE_HOST,
-                static_cast<uint32_t>(count),
-                static_cast<uint32_t>(dim),
-                static_cast<uint32_t>(dim),
-                &rec->values
-            ) != TURBO_BUFFER_OK) {
-            turboembed_ort_cuda_free_values(flat, n_floats);
-            delete rec;
-            engine->set_error("result arena rent failed");
-            return TURBOEMBED_ERR_OUT_OF_MEMORY;
-        }
-        float *values = turbo_buffer_view_f32(&rec->values);
-        std::memcpy(values, flat, n_floats * sizeof(float));
-        turboembed_ort_cuda_free_values(flat, n_floats);
         rec->pub.dim = static_cast<uint32_t>(dim);
         rec->pub.count = static_cast<uint32_t>(count);
         rec->pub.values = values;

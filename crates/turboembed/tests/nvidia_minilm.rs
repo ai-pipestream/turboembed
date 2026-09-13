@@ -35,6 +35,60 @@ const RECEIPT: &str = "testdata/receipts/turboembed/nvidia-minilm.json";
 const RECEIPT_TRT: &str = "testdata/receipts/turboembed/nvidia-minilm-tensorrt.json";
 const SUBSET_PREFIX: &str = "parity:";
 
+unsafe extern "C" {
+    fn turboembed_ort_hot_path_reset();
+    fn turboembed_ort_arena_allocs() -> u64;
+    fn turboembed_ort_external_allocs() -> u64;
+    fn turboembed_ort_d2h_bytes() -> u64;
+    fn turboembed_ort_d2h_calls() -> u64;
+    fn turboembed_ort_cuda_forward_allocs() -> u64;
+    fn turboembed_ort_cuda_forward_h2d_bytes() -> u64;
+    fn turboembed_ort_cuda_forward_h2d_calls() -> u64;
+}
+
+fn reset_hot_path() {
+    unsafe { turboembed_ort_hot_path_reset() };
+}
+
+fn hot_path_snapshot() -> serde_json::Value {
+    unsafe {
+        serde_json::json!({
+            "arena_allocs": turboembed_ort_arena_allocs(),
+            "ort_gpu_external_allocs": turboembed_ort_external_allocs(),
+            "cuda_forward_allocs": turboembed_ort_cuda_forward_allocs(),
+            "h2d_bytes": turboembed_ort_cuda_forward_h2d_bytes(),
+            "h2d_calls": turboembed_ort_cuda_forward_h2d_calls(),
+            "d2h_hidden_bytes": turboembed_ort_d2h_bytes(),
+            "d2h_hidden_calls": turboembed_ort_d2h_calls(),
+        })
+    }
+}
+
+fn assert_no_hot_path_allocs(label: &str) {
+    unsafe {
+        let arena = turboembed_ort_arena_allocs();
+        let ext = turboembed_ort_external_allocs();
+        let fwd = turboembed_ort_cuda_forward_allocs();
+        let h2d = turboembed_ort_cuda_forward_h2d_bytes();
+        assert_eq!(
+            arena, 0,
+            "{label}: turbo_buffer_alloc_counter={arena} (arena-owned slots must reuse after warmup)"
+        );
+        assert_eq!(
+            ext, 0,
+            "{label}: ORT gpu_external_alloc={ext} (ORT still allocated behind the embed)"
+        );
+        assert_eq!(
+            fwd, 0,
+            "{label}: turbo_buffer_cuda_forward_allocs={fwd}"
+        );
+        assert_eq!(
+            h2d, 0,
+            "{label}: token H2D bytes={h2d} (PINNED mapped tokens must not H2D)"
+        );
+    }
+}
+
 fn workspace_root() -> PathBuf {
     let from_build = PathBuf::from(env!("TURBOEMBED_WORKSPACE_ROOT"));
     if from_build.join(GOLDEN).is_file() {
@@ -297,10 +351,12 @@ fn minilm_ort_cpu_matches_golden() {
         normalize: Some(true),
         ..Default::default()
     };
+    reset_hot_path();
     let one = engine
         .embed_one(ALIAS, "hello world", &opts)
         .unwrap_or_else(|e| panic!("embed_one hello world on CPU failed: {e:?}"));
     assert_eq!(one.dim(), dim);
+    assert_no_hot_path_allocs("cpu hello world");
     let hello_cos = cosine(one.values(), &hello);
     assert!(
         hello_cos >= COSINE_FLOOR,
@@ -334,7 +390,8 @@ fn minilm_ort_cpu_matches_golden() {
         "pass": true,
         "git_sha": git_head(&root),
         "host": hostname(),
-        "notes": "Explicit CPU EP. CUDA requests still fail loud if the CUDA EP is missing.",
+        "hot_path": hot_path_snapshot(),
+        "notes": "Explicit CPU EP on a turbo_buffer HOST arena. Tokens and hidden states are rented HOST views bound through IoBinding. CUDA requests still fail loud if the CUDA EP is missing.",
     });
     let path = root.join("testdata/receipts/turboembed/nvidia-minilm-cpu.json");
     if let Some(parent) = path.parent() {
@@ -379,6 +436,7 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
         ..Default::default()
     };
 
+    reset_hot_path();
     let hello_live = engine
         .embed_one(ALIAS, "hello world", &opts)
         .unwrap_or_else(|e| panic!("embed_one hello world on CUDA failed: {e:?}"));
@@ -395,6 +453,12 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
     assert!(
         hello_cos >= COSINE_FLOOR,
         "cosine vs nvidia golden hello world {hello_cos} < {COSINE_FLOOR}"
+    );
+    assert_no_hot_path_allocs("cuda hello world");
+    let d2h_hello = unsafe { turboembed_ort_d2h_bytes() };
+    assert!(
+        d2h_hello > 0,
+        "CUDA mean+L2 still reads hidden states on the host; D2H of the rented DEVICE output must be counted (got {d2h_hello} bytes). Do not claim zero-copy."
     );
 
     let mut worst = 1.0_f32;
@@ -415,6 +479,7 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
         eprintln!("  {id}: cosine={sim:.6} dim={}", got.dim());
     }
     let mean = sum / subset.len() as f32;
+    assert_no_hot_path_allocs("cuda parity subset");
 
     let maps = maps_blob();
     require_mapped(&maps, "libonnxruntime_providers_cuda");
@@ -474,7 +539,15 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
             "libpython": false,
         },
         "commands": commands,
-        "notes": "No mock. No CPU fallback. Output tensors must reside on AllocationDevice::CUDA before the host mean+L2 copy."
+        "hot_path": hot_path_snapshot(),
+        "io": {
+            "tokens": "turbo_buffer PINNED mapped rent; IoBinding CUDA view via mapped device ptr",
+            "hidden": "turbo_buffer DEVICE rent bound with IoBinding BindOutput",
+            "result": "turbo_buffer PINNED rent (host-visible)",
+            "ort_gpu_allocator": "CUDA EP gpu_external_alloc → turbo_buffer DEVICE rent",
+            "d2h": "DEVICE hidden → PINNED staging for host mean+L2 (API copy; not zero-copy)"
+        },
+        "notes": "No mock. No CPU fallback. Hidden output is a rented DEVICE view. Host mean+L2 copies that view into rented PINNED — counted in hot_path.d2h_hidden_bytes. Arena/ORT-external allocs after warmup must be 0."
     });
     let path = root.join(RECEIPT);
     if let Some(parent) = path.parent() {

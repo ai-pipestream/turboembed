@@ -69,15 +69,23 @@ OpenVINO CPU without Level Zero rents a **CPU** arena for host
 tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
 is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
 
-**TurboEmbed:** every engine owns a CPU arena for host FP32 result
-rows. Mock/CPU `embed` rents `[n_texts, dim]`. Load warms a 32×8 slab
-so the next embed of that shape is 0 allocs. ORT / GenAI result copies
-also rent when those features are on. Device compute buffers stay with
-ORT / GenAI / MLX until item (4) — the hooks (`engine->arena`,
-`#include "turbo_buffer.h"`) are already in the stub.
+**TurboEmbed (Machine A LIVE):** CUDA / AUTO / TensorRT engines own a
+CUDA arena. Tokens are PINNED mapped i64 rows (stored as i32×2),
+hidden states are DEVICE f32, result rows are PINNED. IoBinding
+binds those views. The CUDA EP `gpu_external_alloc` hook rents DEVICE
+slabs so ORT intermediates are arena-owned. After load warmup
+(max batch × max seq), `turbo_buffer_alloc_counter() == 0` and
+`gpu_external_alloc` calls == 0 on the next embed. Mean+L2 still
+copies DEVICE hidden → PINNED (`d2h_hidden_bytes` > 0) — that is an
+API copy, not zero-copy.
 
-Swift `libTurboEmbed.dylib` on Machine C does not yet link this
-arena. That is a documented gap for (4), not a fake Metal success.
+Explicit CPU EP owns a CPU arena: HOST tokens, HOST hidden, HOST
+results, same IoBinding reuse. Mock still warms a 32×8 HOST slab.
+
+Swift `libTurboEmbed.dylib` on Machine C does not yet rent Metal
+compute buffers. That remains a Machine C gap, not a fake Metal
+success. Intel GenAI device tensors stay with OpenVINO until that
+host's item.
 
 ## Tests
 

@@ -22,8 +22,8 @@ Committed set: NVIDIA CUDA + CPU + **TensorRT**, Intel GPU + CPU +
 
 | file | Machine | engine | device | command |
 |---|---|---|---|---|
-| `nvidia-minilm.json` | Machine A (RTX 4080 SUPER) | ORT CUDA EP + IoBinding | **CUDA** | `make test-turboembed-nvidia` |
-| `nvidia-minilm-cpu.json` | Machine A | ORT CPU EP (explicit `Device::Cpu`) | **CPU** | `make test-turboembed-nvidia` |
+| `nvidia-minilm.json` | Machine A (RTX 4080 SUPER) | ORT CUDA EP + IoBinding on turbo_buffer PINNED/DEVICE | **CUDA** | `make test-turboembed-nvidia` |
+| `nvidia-minilm-cpu.json` | Machine A | ORT CPU EP (explicit `Device::Cpu`) HOST arena | **CPU** | `make test-turboembed-nvidia` |
 | `nvidia-minilm-tensorrt.json` | Machine A (RTX 4080 SUPER) | ORT TensorRT EP | **TENSORRT** | ignored `minilm_ort_tensorrt_matches_golden` |
 | `intel-minilm.json` | Machine B (Battlemage) | `ov::genai::TextEmbeddingPipeline` | **GPU** | `make test-turboembed-intel` |
 | `intel-minilm-cpu.json` | Machine B | same pipeline, `"CPU"` device string | **CPU** | `make test-turboembed-intel` |
