@@ -371,6 +371,8 @@ TURBORERANK_SRCS := \
 	native/turborerank/src/engine.cpp
 
 TURBORERANK_NVCC ?= nvcc
+# CUDA 12.4 rejects gcc 15 as nvcc host. g++-13 is on Machine A.
+TURBORERANK_NVCC_CCBIN ?= g++-13
 # 0/1. Default: compile CUDA when nvcc + cuda_runtime.h exist.
 TURBORERANK_ENABLE_CUDA ?= $(shell \
 	if command -v $(TURBORERANK_NVCC) >/dev/null 2>&1 && \
@@ -394,6 +396,7 @@ native/turborerank/build/bert_cuda.o: native/turborerank/src/bert_cuda.cu \
 		include/turborerank.h include/reranker.hpp
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_NVCC) -std=c++17 -O2 -arch=$(TURBORERANK_CUDA_ARCH) \
+	  -ccbin=$(TURBORERANK_NVCC_CCBIN) \
 	  $(TURBORERANK_INCLUDES) -DTURBORERANK_CUDA=1 \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  -c native/turborerank/src/bert_cuda.cu \

@@ -106,6 +106,8 @@ fn main() {
             .file(root.join("native/turborerank/src/bert_cuda.cu"))
             .flag("-O2")
             .flag("-arch=native")
+            .flag("-allow-unsupported-compiler")
+            .flag("-ccbin=g++-13")
             .flag_if_supported("--expt-relaxed-constexpr");
         nvcc.compile("turborerank_bert_cuda");
     }
