@@ -378,12 +378,20 @@ static void test_ze_usm_host_shared_device() {
     CHECK_EQ(turbo_buffer_i32_row(&host, 0)[0], 101);
     CHECK(turbo_buffer_arena_owns(a, host.ptr));
 
+    turbo_buffer_view pinned_reject {};
     CHECK_EQ(
         turbo_buffer_arena_rent(
-            a, TURBO_BUFFER_DTYPE_F32, TURBO_BUFFER_PLACE_PINNED, 1, 4, 4, &host
+            a,
+            TURBO_BUFFER_DTYPE_F32,
+            TURBO_BUFFER_PLACE_PINNED,
+            1,
+            4,
+            4,
+            &pinned_reject
         ),
         TURBO_BUFFER_ERR_NOT_IMPLEMENTED
     );
+    CHECK(pinned_reject.ptr == nullptr);
 
     const turbo_buffer_status shared_probe =
         turbo_buffer_backend_probe(TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_SHARED);
