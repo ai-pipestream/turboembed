@@ -25,7 +25,7 @@
   "logits": [8.84585190, -4.32007980, -11.27389336],
   "max_abs_logit_err": 0.000004,
   "cosine_vs_golden": 1.0000000000,
-  "git_sha": "85253f7a959e9dedbc7a80f37d219c070efc0a37",
+  "git_sha": "bb5cf8567358597a6e89e0081209ffec2bcfdb94",
   "command": "make test-turborerank-nvidia",
   "note": "SOLIDIFY (2) CUDA token H2D killed on Machine A. PINNED mapped (cudaHostAllocMapped) token rent; host tokenize/pack writes those pages; kernels use turbo_buffer_cuda_mapped_device_ptr. Steady-state h2d_bytes == 0 and allocs/forward == 0. Unmapped pointers fail loud (no convenience H2D). AUTO resolves to CUDA. Not a pinned-host CPU interim: the BERT graph including GEMM runs on device."
 }
