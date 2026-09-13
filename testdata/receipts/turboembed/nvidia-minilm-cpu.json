@@ -6,7 +6,7 @@
   "crate": "turboembed",
   "device": "CPU",
   "dims": 384,
-  "git_sha": "a9e6f9bf13e2fe868f2c970b3289375e11a2b65e",
+  "git_sha": "c4180eda29a5c464eb7bdd438bc56aa65d5133fc",
   "hello_world_cosine": 0.9999997615814209,
   "host": "krick",
   "hot_path": {
@@ -14,9 +14,11 @@
     "cuda_forward_allocs": 0,
     "d2h_hidden_bytes": 0,
     "d2h_hidden_calls": 0,
+    "d2h_result_bytes": 0,
     "h2d_bytes": 0,
     "h2d_calls": 0,
-    "ort_gpu_external_allocs": 0
+    "ort_gpu_external_allocs": 0,
+    "result_host_bytes": 0
   },
   "normalize": true,
   "notes": "Explicit CPU EP on a turbo_buffer HOST arena. Tokens and hidden states are rented HOST views bound through IoBinding. CUDA requests still fail loud if the CUDA EP is missing.",

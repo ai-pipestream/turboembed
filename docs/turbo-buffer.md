@@ -77,9 +77,10 @@ slabs so ORT intermediates are arena-owned. Load warms I/O at
 max batch × max seq plus a pair of `[1, dim]` result slabs (so holding
 one `Embeddings` while embedding again does not malloc). After
 that warmup, `turbo_buffer_alloc_counter() == 0` and
-`gpu_external_alloc` calls == 0 on the next embed. Mean+L2 still
-copies DEVICE hidden → PINNED (`d2h_hidden_bytes` > 0) — that is an
-API copy, not zero-copy.
+`gpu_external_alloc` calls == 0 on the next embed. Mean+L2
+(mask-weighted) runs on DEVICE into the mapped PINNED result row.
+Activation `d2h_hidden_bytes` is 0. The caller reads the 384-d row
+from mapped PINNED (`result_host_bytes` ≪ hidden volume).
 
 Explicit CPU EP owns a CPU arena: HOST tokens, HOST hidden, HOST
 results, same IoBinding reuse. Mock still warms a 32×8 HOST slab.

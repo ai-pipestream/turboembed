@@ -19,6 +19,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
+/// Process-wide arena / ORT counters are shared. Serialize tests that
+/// create an engine so a CUDA load cannot increment allocs mid-CPU proof.
+fn serialize_engine_tests() -> MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(())).lock().expect("engine test lock")
+}
 
 use serde_json::Value;
 use turboembed::ffi::{
@@ -42,6 +50,8 @@ unsafe extern "C" {
     fn turboembed_ort_external_last_bytes() -> u64;
     fn turboembed_ort_d2h_bytes() -> u64;
     fn turboembed_ort_d2h_calls() -> u64;
+    fn turboembed_ort_d2h_result_bytes() -> u64;
+    fn turboembed_ort_result_host_bytes() -> u64;
     fn turboembed_ort_cuda_forward_allocs() -> u64;
     fn turboembed_ort_cuda_forward_h2d_bytes() -> u64;
     fn turboembed_ort_cuda_forward_h2d_calls() -> u64;
@@ -61,6 +71,8 @@ fn hot_path_snapshot() -> serde_json::Value {
             "h2d_calls": turboembed_ort_cuda_forward_h2d_calls(),
             "d2h_hidden_bytes": turboembed_ort_d2h_bytes(),
             "d2h_hidden_calls": turboembed_ort_d2h_calls(),
+            "d2h_result_bytes": turboembed_ort_d2h_result_bytes(),
+            "result_host_bytes": turboembed_ort_result_host_bytes(),
         })
     }
 }
@@ -87,6 +99,16 @@ fn assert_no_hot_path_allocs(label: &str) {
         assert_eq!(
             h2d, 0,
             "{label}: token H2D bytes={h2d} (PINNED mapped tokens must not H2D)"
+        );
+        let hidden_d2h = turboembed_ort_d2h_bytes();
+        let result_d2h = turboembed_ort_d2h_result_bytes();
+        assert_eq!(
+            hidden_d2h, 0,
+            "{label}: activation D2H bytes={hidden_d2h} (mean+L2 must stay on DEVICE)"
+        );
+        assert_eq!(
+            result_d2h, 0,
+            "{label}: result-row cudaMemcpy D2H={result_d2h} (mapped PINNED, no memcpy)"
         );
     }
 }
@@ -207,6 +229,7 @@ fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>, Vec<f32>
 /// AUTO is host-default GPU. On NVIDIA that is CUDA — never a silent CPU EP.
 #[test]
 fn auto_request_never_silently_uses_cpu() {
+    let _lock = serialize_engine_tests();
     match Engine::create(Device::Auto) {
         Ok(engine) => match engine.load_model(ALIAS) {
             Ok(()) => {
@@ -235,6 +258,7 @@ fn auto_request_never_silently_uses_cpu() {
 /// the TensorRT EP with error_on_failure. Missing libnvinfer is loud.
 #[test]
 fn tensorrt_never_silent_cuda_cpu_or_fnv8() {
+    let _lock = serialize_engine_tests();
     match Engine::create(Device::TensorRt) {
         Err(err) => {
             assert!(
@@ -287,6 +311,7 @@ fn tensorrt_never_silent_cuda_cpu_or_fnv8() {
 /// the error must name CUDA and must not succeed as CPU.
 #[test]
 fn cuda_request_never_silently_uses_cpu() {
+    let _lock = serialize_engine_tests();
     match Engine::create(Device::Cuda) {
         Ok(engine) => match engine.load_model(ALIAS) {
             Ok(()) => {
@@ -328,6 +353,7 @@ fn cuda_request_never_silently_uses_cpu() {
 
 #[test]
 fn minilm_ort_cpu_matches_golden() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (dim, _subset, hello) = load_subset(&root.join(GOLDEN));
 
@@ -409,6 +435,7 @@ fn minilm_ort_cpu_matches_golden() {
 #[test]
 #[ignore = "needs MiniLM ONNX + CUDA 13 libs + GPU; see docs/turboembed.md"]
 fn minilm_ort_cuda_iobinding_matches_golden() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (dim, subset, hello) = load_subset(&root.join(GOLDEN));
 
@@ -459,10 +486,21 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
         "cosine vs nvidia golden hello world {hello_cos} < {COSINE_FLOOR}"
     );
     assert_no_hot_path_allocs("cuda hello world");
-    let d2h_hello = unsafe { turboembed_ort_d2h_bytes() };
+    let hidden_vol = 256 * 384 * std::mem::size_of::<f32>();
+    let result_vol = 384 * std::mem::size_of::<f32>();
+    let result_host = unsafe { turboembed_ort_result_host_bytes() };
+    assert_eq!(
+        result_host, result_vol as u64,
+        "hello world must read the mapped 384-d row ({result_vol} bytes), got {result_host}"
+    );
     assert!(
-        d2h_hello > 0,
-        "CUDA mean+L2 still reads hidden states on the host; D2H of the rented DEVICE output must be counted (got {d2h_hello} bytes). Do not claim zero-copy."
+        result_host < hidden_vol as u64,
+        "result host read {result_host} must be much smaller than hidden volume {hidden_vol}"
+    );
+    assert_eq!(
+        unsafe { turboembed_ort_d2h_bytes() },
+        0,
+        "activation D2H must be 0 after DEVICE mean+L2"
     );
     // Return the PINNED result slab before the next embed. Holding
     // `hello_live` across the subset used to look like a hot-path leak
@@ -534,7 +572,7 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
 
     let commands = [
         "export LD_LIBRARY_PATH=\"$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}\"",
-        "cargo test -p turboembed --features ort-cuda -- --include-ignored --nocapture",
+        "cargo test -p turboembed --features ort-cuda -- --include-ignored --nocapture --test-threads=1",
         "make test-turboembed-nvidia",
     ];
     let receipt = serde_json::json!({
@@ -572,9 +610,9 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
             "hidden": "turbo_buffer DEVICE rent bound with IoBinding BindOutput",
             "result": "turbo_buffer PINNED rent (host-visible)",
             "ort_gpu_allocator": "CUDA EP gpu_external_alloc → turbo_buffer DEVICE rent",
-            "d2h": "DEVICE hidden → PINNED staging for host mean+L2 (API copy; not zero-copy)"
+            "d2h": "none for activations; mean+L2 on DEVICE into mapped PINNED 384-d row (result_host_bytes, no cudaMemcpy)"
         },
-        "notes": "No mock. No CPU fallback. Hidden output is a rented DEVICE view. Host mean+L2 copies that view into rented PINNED — counted in hot_path.d2h_hidden_bytes. Arena/ORT-external allocs after warmup must be 0."
+        "notes": "No mock. No CPU fallback. Hidden stays DEVICE. Mask-weighted mean+L2 writes the 384-d row into rented mapped PINNED. d2h_hidden_bytes must be 0. result_host_bytes is the mapped row the caller reads — much smaller than the hidden volume. Arena/ORT-external allocs after warmup must be 0."
     });
     let path = root.join(RECEIPT);
     if let Some(parent) = path.parent() {
@@ -588,6 +626,7 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
 #[test]
 #[ignore = "needs MiniLM ONNX + CUDA 13 libs + GPU; see docs/turboembed.md"]
 fn minilm_c_abi_embed_one_on_cuda() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (_, _, hello) = load_subset(&root.join(GOLDEN));
 
@@ -652,6 +691,7 @@ fn minilm_c_abi_embed_one_on_cuda() {
 
 #[test]
 fn minilm_c_abi_embed_one_on_cpu() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (_, _, hello) = load_subset(&root.join(GOLDEN));
 
@@ -714,6 +754,7 @@ fn minilm_c_abi_embed_one_on_cpu() {
 #[test]
 #[ignore = "needs MiniLM ONNX + TensorRT 10 (libnvinfer.so.10) + CUDA 13; see docs/turboembed.md"]
 fn minilm_ort_tensorrt_matches_golden() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (dim, subset, hello) = load_subset(&root.join(GOLDEN));
 

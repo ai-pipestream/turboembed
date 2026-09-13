@@ -19,9 +19,10 @@ FNV.
 | apple | MLX (Swift `@_cdecl`, other binary) | — | `TURBOEMBED_DEVICE_METAL` |
 
 Pooling for MiniLM is the sentence-transformers recipe: attention-mask-weighted
-**mean** over tokens, then **L2** normalize. On NVIDIA that math runs on the
-host after the hidden-state tensor is copied back from CUDA. The graph itself
-runs on GPU; a CPU-resident output tensor is a hard error.
+**mean** over tokens, then **L2** normalize. On NVIDIA CUDA that math runs on
+DEVICE into a mapped PINNED 384-d row (`d2h_hidden_bytes` == 0). The graph
+itself runs on GPU; a CPU-resident output tensor is a hard error. Explicit
+CPU EP still pools on the host from rented HOST hidden.
 
 ## NVIDIA (Machine A) — live GPU proof
 
@@ -52,8 +53,8 @@ The ignored tests:
    and `gpu_external_alloc` → DEVICE rent, writes tokens into PINNED
    mapped rows, binds those + a DEVICE hidden view via IoBinding, and
    errors if the bound output is not CUDA. After warmup, embed must see
-   arena allocs == 0. Host mean+L2 copies DEVICE hidden into PINNED
-   (counted D2H; not zero-copy).
+   arena allocs == 0. Mean+L2 (mask-weighted) runs on DEVICE into the
+   mapped PINNED result row (`d2h_hidden_bytes` == 0).
 2. `embed_one("minilm", text, mean+L2)` for `"hello world"` and every
    `parity:*` item in `testdata/e2e/goldens/nvidia/minilm.json`.
 3. Requires cosine ≥ **0.99** vs the golden (384-d). Failures name the item.
