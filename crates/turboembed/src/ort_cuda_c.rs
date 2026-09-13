@@ -267,6 +267,16 @@ pub unsafe extern "C" fn turboembed_ort_d2h_calls() -> u64 {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_d2h_result_bytes() -> u64 {
+    crate::ort_cuda::d2h_result_bytes()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_result_host_bytes() -> u64 {
+    crate::ort_cuda::result_host_bytes()
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn turboembed_ort_cuda_forward_allocs() -> u64 {
     crate::ort_cuda::cuda_forward_allocs()
 }

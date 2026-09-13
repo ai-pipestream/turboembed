@@ -210,9 +210,9 @@ Metal) — see receipts under `testdata/receipts/turboembed/`.
   Machine A ORT CUDA + explicit CPU rent tokens / hidden / results from
   the engine arena (PINNED+DEVICE or HOST). ORT CUDA EP allocations go
   through `gpu_external_alloc` → DEVICE rent. Steady-state embed after
-  warmup is 0 arena allocs. Host mean+L2 still D2H-copies hidden states
-  into rented PINNED — recorded in `d2h_hidden_bytes`, not claimed as
-  zero-copy. Intel GenAI GPU rents ZE SHARED USM
+  warmup is 0 arena allocs. CUDA mean+L2 runs on DEVICE into mapped
+  PINNED; `d2h_hidden_bytes` is 0. The 384-d row the caller reads is
+  `result_host_bytes` (≪ hidden volume). Intel GenAI GPU rents ZE SHARED USM
   (`docs/turboembed-genai-ze-machine-b.md`). Apple `libTurboEmbed.dylib`
   rents Metal SHARED tokens, last-hidden, and results
   (`docs/apple-turboembed-metal-arena-machine-c.md`). See

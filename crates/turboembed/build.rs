@@ -51,6 +51,14 @@ fn main() {
     );
     println!("cargo:rerun-if-changed={}", genai_cpp.display());
     println!("cargo:rerun-if-changed={}", genai_hpp.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turboembed/src/pool_cuda.cu").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turboembed/src/pool_cuda.h").display()
+    );
     println!("cargo:rerun-if-changed={}", apple.display());
     println!("cargo:rerun-if-env-changed=OPENVINO_DIR");
     println!("cargo:rerun-if-env-changed=OPENVINO_GENAI_DIR");
@@ -231,6 +239,22 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
     } else {
         "turboembed_stub"
     });
+
+    if ort_cuda && cuda_enabled() {
+        let mut nvcc = cc::Build::new();
+        nvcc.cuda(true)
+            .cpp(true)
+            .std("c++17")
+            .include(root.join("include"))
+            .include(root.join("native/turboembed/src"))
+            .file(root.join("native/turboembed/src/pool_cuda.cu"))
+            .flag("-O2")
+            .flag("-arch=native")
+            .flag("-allow-unsupported-compiler")
+            .flag("-ccbin=g++-13")
+            .flag_if_supported("--expt-relaxed-constexpr");
+        nvcc.compile("turboembed_pool_cuda");
+    }
 }
 
 fn cuda_enabled() -> bool {

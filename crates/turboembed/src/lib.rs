@@ -37,10 +37,9 @@
 //! `--features ort-cuda` registers the ONNX Runtime CUDA EP with
 //! `error_on_failure`, rents PINNED/DEVICE (or HOST on explicit CPU)
 //! I/O from the engine `turbo_buffer` arena, binds those views through
-//! IoBinding, and mean+L2 pools on the host after a counted DEVICE→PINNED
-//! copy of hidden states. That D2H is an API copy — not claimed as
-//! zero-copy. After load warmup, arena allocs on the embed hot path
-//! must be 0. `Engine::create(Device::Cuda)` / [`Device::Auto`] then
+//! IoBinding, and runs mask-weighted mean+L2 on DEVICE into a mapped
+//! PINNED result row (`d2h_hidden_bytes` == 0). After load warmup,
+//! arena allocs on the embed hot path must be 0. `Engine::create(Device::Cuda)` / [`Device::Auto`] then
 //! `load_model("minilm")` is the NVIDIA CUDA proof path. A CUDA/AUTO
 //! request never silently becomes CPU. `Device::Cpu` is an explicit
 //! CPU EP path (same ONNX, same mean+L2, HOST arena).

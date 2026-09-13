@@ -6,9 +6,10 @@
 //!
 //! After load warmup (max batch × max seq), steady-state embed must not
 //! increment `turbo_buffer_alloc_counter` or the ORT `gpu_external_alloc`
-//! hook. Mean+L2 still reads hidden states on the host: CUDA copies
-//! DEVICE → rented PINNED (counted as `d2h_*`). That is an API copy —
-//! not claimed as zero-copy.
+//! hook. CUDA mean+L2 (mask-weighted) runs on DEVICE into a mapped
+//! PINNED result row. Activation D2H (`d2h_hidden_*`) must stay 0.
+//! The caller reads the final 384-d row from mapped PINNED
+//! (`result_host_bytes`, much smaller than the hidden volume).
 
 use std::collections::HashMap;
 use std::ffi::{c_void, CString};
@@ -41,18 +42,32 @@ static ORT_EXT_ALLOCS: AtomicU64 = AtomicU64::new(0);
 static ORT_EXT_LAST_BYTES: AtomicU64 = AtomicU64::new(0);
 static ORT_D2H_BYTES: AtomicU64 = AtomicU64::new(0);
 static ORT_D2H_CALLS: AtomicU64 = AtomicU64::new(0);
+static ORT_D2H_RESULT_BYTES: AtomicU64 = AtomicU64::new(0);
+static ORT_RESULT_HOST_BYTES: AtomicU64 = AtomicU64::new(0);
 
 static EXT_ARENA: Mutex<Option<usize>> = Mutex::new(None);
 static EXT_SLABS: Mutex<Option<HashMap<usize, turbo_buffer_view>>> = Mutex::new(None);
 
 #[cfg(turboembed_cuda)]
-#[link(name = "cudart")]
 unsafe extern "C" {
-    fn cudaMemcpy(dst: *mut c_void, src: *const c_void, count: usize, kind: i32) -> i32;
+    fn turboembed_cuda_pool_mean_l2(
+        hidden_dev: *const f32,
+        mask_dev: *const i64,
+        out_dev: *mut f32,
+        batch: i32,
+        seq: i32,
+        dim: i32,
+        normalize: i32,
+    ) -> i32;
+    fn turboembed_cuda_pool_cls_l2(
+        hidden_dev: *const f32,
+        out_dev: *mut f32,
+        batch: i32,
+        seq: i32,
+        dim: i32,
+        normalize: i32,
+    ) -> i32;
 }
-
-#[cfg(turboembed_cuda)]
-const CUDA_MEMCPY_DEVICE_TO_HOST: i32 = 2;
 
 /// Where this session is allowed to run. CUDA / TensorRT never become CPU.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -91,7 +106,9 @@ struct OrtWork {
     attention_mask: turbo_buffer_view,
     token_type_ids: turbo_buffer_view,
     hidden: turbo_buffer_view,
-    hidden_host: turbo_buffer_view,
+    /// PINNED mapped [max_batch, hidden_dim] used when the C++ caller
+    /// did not pass a result row (load warmup / Rust-only embed).
+    pool_out: turbo_buffer_view,
 }
 
 unsafe impl Send for OrtWork {}
@@ -102,7 +119,7 @@ impl OrtWork {
         return_view(self.arena, &mut self.attention_mask);
         return_view(self.arena, &mut self.token_type_ids);
         return_view(self.arena, &mut self.hidden);
-        return_view(self.arena, &mut self.hidden_host);
+        return_view(self.arena, &mut self.pool_out);
     }
 }
 
@@ -457,22 +474,69 @@ fn cls_pool_into(hidden: &[f32], batch: usize, seq: usize, dim: usize, out: &mut
     }
 }
 
+fn note_result_host_read(bytes: usize) {
+    ORT_RESULT_HOST_BYTES.fetch_add(bytes as u64, Ordering::Relaxed);
+}
+
 #[cfg(turboembed_cuda)]
-fn d2h(dst: *mut f32, src: *const c_void, bytes: usize) -> Result<(), Error> {
-    let rc = unsafe { cudaMemcpy(dst.cast(), src, bytes, CUDA_MEMCPY_DEVICE_TO_HOST) };
+fn device_pool(
+    pooling: Pooling,
+    hidden_dev: *const f32,
+    mask_dev: *const i64,
+    out_dev: *mut f32,
+    batch: usize,
+    seq: usize,
+    dim: usize,
+    normalize: bool,
+) -> Result<(), Error> {
+    let rc = match pooling {
+        Pooling::Mean => unsafe {
+            turboembed_cuda_pool_mean_l2(
+                hidden_dev,
+                mask_dev,
+                out_dev,
+                batch as i32,
+                seq as i32,
+                dim as i32,
+                i32::from(normalize),
+            )
+        },
+        Pooling::Cls => unsafe {
+            turboembed_cuda_pool_cls_l2(
+                hidden_dev,
+                out_dev,
+                batch as i32,
+                seq as i32,
+                dim as i32,
+                i32::from(normalize),
+            )
+        },
+        other => {
+            return Err(format!(
+                "{other:?} pooling is not implemented on the CUDA device path"
+            ))
+        }
+    };
     if rc != 0 {
         return Err(format!(
-            "cudaMemcpy D2H of hidden states failed (cudaError={rc})"
+            "CUDA device pool failed (cudaError={rc}); refusing a host hidden D2H stand-in"
         ));
     }
-    ORT_D2H_BYTES.fetch_add(bytes as u64, Ordering::Relaxed);
-    ORT_D2H_CALLS.fetch_add(1, Ordering::Relaxed);
     Ok(())
 }
 
 #[cfg(not(turboembed_cuda))]
-fn d2h(_dst: *mut f32, _src: *const c_void, _bytes: usize) -> Result<(), Error> {
-    Err("CUDA D2H requires a TURBO_BUFFER_CUDA build".into())
+fn device_pool(
+    _pooling: Pooling,
+    _hidden_dev: *const f32,
+    _mask_dev: *const i64,
+    _out_dev: *mut f32,
+    _batch: usize,
+    _seq: usize,
+    _dim: usize,
+    _normalize: bool,
+) -> Result<(), Error> {
+    Err("CUDA device pool requires a TURBO_BUFFER_CUDA build".into())
 }
 
 impl OrtCudaSession {
@@ -739,16 +803,16 @@ impl OrtCudaSession {
                 hidden_cols,
                 hidden_cols,
             )?,
-            hidden_host: turbo_buffer_view::empty(),
+            pool_out: turbo_buffer_view::empty(),
         };
         if place.uses_cuda_buffers() {
-            work.hidden_host = rent(
+            work.pool_out = rent(
                 arena,
                 TURBO_BUFFER_DTYPE_F32,
                 TURBO_BUFFER_PLACE_PINNED,
                 max_batch as u32,
-                hidden_cols,
-                hidden_cols,
+                hidden_dim as u32,
+                hidden_dim as u32,
             )?;
         }
 
@@ -843,19 +907,81 @@ impl OrtCudaSession {
 
         let shape = [batch as i64, seq as i64];
         unsafe { buffer_ffi::turbo_buffer_cuda_forward_enter() };
-        let run = if self.place.uses_cuda_buffers() {
-            self.run_cuda(batch, seq, shape)
+        let result = if self.place.uses_cuda_buffers() {
+            self.embed_cuda(batch, seq, shape, out.as_deref_mut())
         } else {
-            self.run_cpu(batch, seq, shape)
+            self.embed_cpu_host(batch, seq, shape, out.as_deref_mut())
         };
         unsafe { buffer_ffi::turbo_buffer_cuda_forward_leave() };
-        let dims = run?;
-        let hidden_n = batch * seq * self.work.hidden_dim;
-        let hidden = if self.place.uses_cuda_buffers() {
-            f32_view(&self.work.hidden_host, hidden_n)?
-        } else {
-            f32_view(&self.work.hidden, hidden_n)?
+        result
+    }
+
+    fn embed_cuda(
+        &self,
+        batch: usize,
+        seq: usize,
+        shape: [i64; 2],
+        mut out: Option<&mut [f32]>,
+    ) -> Result<(usize, Vec<f32>), Error> {
+        let dims = self.run_cuda(batch, seq, shape)?;
+        let dim = match dims.as_slice() {
+            [b, s, d] if *b as usize == batch && *s as usize == seq => *d as usize,
+            [b, d] if *b as usize == batch => {
+                return Err(format!(
+                    "CUDA MiniLM path expects last_hidden [batch, seq, dim], got {dims:?}; \
+                     refusing a host D2H of a pre-pooled tensor"
+                ));
+            }
+            _ => {
+                return Err(format!(
+                    "unexpected CUDA output shape {dims:?} from {:?} (batch={batch}, seq={seq})",
+                    self.output_name
+                ))
+            }
         };
+        let need = batch * dim;
+        let dest_host = if let Some(dst) = out.as_mut() {
+            if dst.len() < need {
+                return Err("result buffer is smaller than the pooled batch".into());
+            }
+            dst.as_mut_ptr()
+        } else {
+            if self.work.pool_out.ptr.is_null() {
+                return Err("PINNED mapped pool_out view is null".into());
+            }
+            self.work.pool_out.ptr.cast::<f32>()
+        };
+        let out_dev = mapped_device_ptr(dest_host.cast())?;
+        let mask_dev = mapped_device_ptr(self.work.attention_mask.ptr)?;
+        device_pool(
+            self.pooling,
+            self.work.hidden.ptr.cast(),
+            mask_dev.cast(),
+            out_dev.cast(),
+            batch,
+            seq,
+            dim,
+            self.normalize,
+        )?;
+        note_result_host_read(need * std::mem::size_of::<f32>());
+        if out.is_some() {
+            Ok((dim, Vec::new()))
+        } else {
+            let host = f32_view(&self.work.pool_out, need)?;
+            Ok((dim, host.to_vec()))
+        }
+    }
+
+    fn embed_cpu_host(
+        &self,
+        batch: usize,
+        seq: usize,
+        shape: [i64; 2],
+        mut out: Option<&mut [f32]>,
+    ) -> Result<(usize, Vec<f32>), Error> {
+        let dims = self.run_cpu(batch, seq, shape)?;
+        let hidden_n = batch * seq * self.work.hidden_dim;
+        let hidden = f32_view(&self.work.hidden, hidden_n)?;
         let mask = i64_view(&self.work.attention_mask, batch * self.work.max_seq)?;
         let mask = &mask[..batch * seq];
 
@@ -994,17 +1120,6 @@ impl OrtCudaSession {
             .map_err(|e| format!("IoBinding synchronize_outputs: {e}"))?;
 
         drop(held);
-
-        let n = batch * seq * self.work.hidden_dim;
-        let bytes = n * std::mem::size_of::<f32>();
-        if self.work.hidden_host.ptr.is_null() {
-            return Err("PINNED hidden staging view is null".into());
-        }
-        d2h(
-            self.work.hidden_host.ptr.cast::<f32>(),
-            self.work.hidden.ptr,
-            bytes,
-        )?;
         Ok(vec![batch as i64, seq as i64, self.work.hidden_dim as i64])
     }
 
@@ -1064,6 +1179,8 @@ pub fn hot_path_reset() {
     ORT_EXT_ALLOCS.store(0, Ordering::Relaxed);
     ORT_D2H_BYTES.store(0, Ordering::Relaxed);
     ORT_D2H_CALLS.store(0, Ordering::Relaxed);
+    ORT_D2H_RESULT_BYTES.store(0, Ordering::Relaxed);
+    ORT_RESULT_HOST_BYTES.store(0, Ordering::Relaxed);
     unsafe {
         buffer_ffi::turbo_buffer_alloc_counter_reset();
         buffer_ffi::turbo_buffer_cuda_forward_allocs_reset();
@@ -1085,6 +1202,14 @@ pub fn d2h_bytes() -> u64 {
 
 pub fn d2h_calls() -> u64 {
     ORT_D2H_CALLS.load(Ordering::Relaxed)
+}
+
+pub fn d2h_result_bytes() -> u64 {
+    ORT_D2H_RESULT_BYTES.load(Ordering::Relaxed)
+}
+
+pub fn result_host_bytes() -> u64 {
+    ORT_RESULT_HOST_BYTES.load(Ordering::Relaxed)
 }
 
 pub fn arena_allocs() -> u64 {
