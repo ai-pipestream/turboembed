@@ -23,7 +23,7 @@
   "logits": [8.84585190, -4.32007980, -11.27389336],
   "max_abs_logit_err": 0.000004,
   "cosine_vs_golden": 1.0000000000,
-  "git_sha": "52740db29bfef50bf36729588556ddf5121cb8f5",
+  "git_sha": "e406df3bf289d169780ff5371ed5a0531aceefcd",
   "command": "make test-turborerank-nvidia",
   "note": "SOLIDIFY (1) CUDA arena LIVE on Machine A. PINNED token rent + DEVICE activation scratch; allocs/forward == 0. AUTO resolves to CUDA. Create without CUDA fails loud. One packed int32 H2D per row remains (item 2). Not a pinned-host CPU interim: the BERT graph including GEMM runs on device."
 }
