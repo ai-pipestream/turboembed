@@ -20,7 +20,7 @@
   "logits": [8.84585190, -4.32007980, -11.27389336],
   "max_abs_logit_err": 0.000004,
   "cosine_vs_golden": 1.0000000000,
-  "git_sha": "2dbebedb03ccff641ca10f6c2b9009533c30e100",
+  "git_sha": "55f3381771a76fd3b4641d7853a858f9bf4072fa",
   "command": "make test-turborerank-nvidia",
   "note": "Phase 2a NVIDIA proof on Machine A. AUTO resolves to CUDA. Create without CUDA fails loud. Not a pinned-host CPU interim: the BERT graph including GEMM runs on device."
 }
