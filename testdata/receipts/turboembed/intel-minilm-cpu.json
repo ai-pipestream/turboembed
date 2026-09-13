@@ -17,17 +17,18 @@
   "device": "CPU",
   "dim": 384,
   "maps": {
-    "libopenvino_genai": true,
+    "libopenvino_genai": false,
     "libopenvino_intel_cpu_plugin": true,
+    "libopenvino_tokenizers": false,
     "libpython": false
   },
   "normalize": true,
-  "note": "SOLIDIFY (4) Machine B CPU. Same IR as GPU. Tokens/results rented HOST (ZE USM when L0 is present). GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
-  "pipeline": "ov::genai::Tokenizer + CompiledModel + turbo_buffer ZE HOST",
+  "note": "SOLIDIFY (5) Machine B CPU. WordPiece write-through into rented HOST i32 rows. Same IR as GPU. GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
+  "pipeline": "WordPiece write-through + CompiledModel + turbo_buffer HOST",
   "pooling": "mean",
   "schema_version": 1,
   "sha": {
-    "git": "158abc5ceb466998ac6dc670785c07520dd8d4cf",
+    "git": "63b1ac062ed44ea5090f05d7035173de9e144a69",
     "openvino_model.bin": "8b86cab4722e2aefab310cf96d4d5a9eb3b187f7d9670a082afc55c7fa0d392a",
     "openvino_tokenizer.bin": "80a46227495510dedab560d9eac9d4a9d43425b1aa754f9c7935fe70875e2cb2"
   },
