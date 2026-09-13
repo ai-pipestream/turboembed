@@ -273,7 +273,7 @@ impl LlamaEngine {
                 parameters: HashMap::new(),
                 contents: None,
             }],
-            raw_output_contents: vec![pack_bytes(&[completion.as_slice()])],
+            raw_output_contents: vec![pack_bytes(&[completion.as_slice()]).into()],
         })
     }
 
@@ -526,7 +526,7 @@ impl Inner {
                 parameters: HashMap::new(),
                 contents: None,
             }],
-            raw_output_contents: vec![pack_bytes(&[piece.as_slice()])],
+            raw_output_contents: vec![pack_bytes(&[piece.as_slice()]).into()],
         }
     }
 }

@@ -302,6 +302,70 @@ impl Backend for TurboRerankBackend {
         reject_mock_shaped(&scores)?;
         Ok(scores)
     }
+
+    async fn rerank_into(
+        &self,
+        model_name: &str,
+        query: &str,
+        documents: &[String],
+        dest: &mut Vec<f32>,
+    ) -> Result<(), BackendError> {
+        if documents.is_empty() {
+            return Err(BackendError::InvalidRequest(
+                "documents must not be empty".into(),
+            ));
+        }
+        let max = self.inner.max_documents as usize;
+        if documents.len() > max {
+            return Err(BackendError::InvalidRequest(format!(
+                "rerank batch of {} exceeds max_client_batch_size {max} \
+                 (TEI default); chunk upstream",
+                documents.len()
+            )));
+        }
+        let inner = Arc::clone(&self.inner);
+        let alias = if model_name.is_empty() {
+            inner.alias.clone()
+        } else {
+            model_name.to_string()
+        };
+        let query = query.to_string();
+        let documents = documents.to_vec();
+        let n_docs = documents.len();
+        inferstream_protocol::output_scratch::ensure_f32(dest, n_docs);
+        dest.clear();
+        dest.resize(n_docs, 0.0);
+        let mut dest_buf = std::mem::take(dest);
+        let filled = tokio::task::spawn_blocking(move || {
+            let views: Vec<&str> = documents.iter().map(String::as_str).collect();
+            let engine = inner.engine.lock().map_err(|_| {
+                BackendError::Internal("TurboRerank engine mutex poisoned".into())
+            })?;
+            engine
+                .score_into(
+                    Some(&alias),
+                    &query,
+                    &views,
+                    Truncation::LongestFirst,
+                    Activation::Sigmoid,
+                    0,
+                    &mut dest_buf,
+                )
+                .map_err(map_tr)?;
+            Ok::<_, BackendError>(dest_buf)
+        })
+        .await
+        .map_err(|e| BackendError::Internal(format!("TurboRerank score task panicked: {e}")))??;
+        if filled.len() != n_docs {
+            return Err(BackendError::Internal(format!(
+                "TurboRerank returned {} scores for {n_docs} documents",
+                filled.len()
+            )));
+        }
+        reject_mock_shaped(&filled)?;
+        *dest = filled;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

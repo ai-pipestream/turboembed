@@ -172,6 +172,9 @@ pub fn validate_raw(dtype: DataType, shape: &[i64], raw: &[u8]) -> Result<(), Te
 macro_rules! pack_unpack {
     ($pack:ident, $unpack:ident, $ty:ty, $dtype:expr) => {
         /// Pack a slice into the OIP raw little-endian byte representation.
+        ///
+        /// Allocates a fresh `Vec`. The Embed / ModelInfer response path
+        /// should use [`crate::output_scratch`] so the dest slab is reused.
         pub fn $pack(values: &[$ty]) -> Vec<u8> {
             let mut out = Vec::with_capacity(values.len() * std::mem::size_of::<$ty>());
             for v in values {
@@ -196,6 +199,29 @@ macro_rules! pack_unpack {
                 .collect())
         }
     };
+}
+
+/// Write `values` as little-endian FP32 into `out` (does not clear).
+///
+/// On little-endian hosts this is one memcpy. The caller owns `out`
+/// capacity — pair with [`crate::output_scratch`] for reuse.
+pub fn pack_fp32_into(values: &[f32], out: &mut Vec<u8>) {
+    let nbytes = values.len().saturating_mul(4);
+    out.reserve(nbytes);
+    #[cfg(target_endian = "little")]
+    {
+        // SAFETY: f32 is a plain 4-byte IEEE value; LE host layout matches
+        // the OIP / PACKED_BYTES wire (row-major LE FP32).
+        let bytes =
+            unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u8>(), nbytes) };
+        out.extend_from_slice(bytes);
+    }
+    #[cfg(target_endian = "big")]
+    {
+        for v in values {
+            out.extend_from_slice(&v.to_le_bytes());
+        }
+    }
 }
 
 pack_unpack!(pack_fp32, unpack_fp32, f32, DataType::Fp32);
@@ -265,6 +291,9 @@ mod tests {
         assert_eq!(raw.len(), 16);
         assert_eq!(&raw[..4], &1.0f32.to_le_bytes());
         assert_eq!(unpack_fp32(&raw).unwrap(), values);
+        let mut reused = Vec::new();
+        pack_fp32_into(&values, &mut reused);
+        assert_eq!(reused, raw);
     }
 
     #[test]
