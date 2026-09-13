@@ -26,6 +26,7 @@ const IRREL: &str = "New York City is famous for its pizza and bagels.";
 struct GoldenFile {
     texts: GoldenTexts,
     sigmoid: Vec<f32>,
+    logits: Vec<f32>,
     #[serde(default)]
     atol: Option<f32>,
 }
@@ -178,7 +179,7 @@ async fn backend_rerank_matches_berlin_sigmoid_when_weights_present() {
     )
     .expect("CPU MiniLM CE");
     let scores = backend
-        .rerank(ALIAS, &golden.texts.query, &golden.texts.documents)
+        .rerank(ALIAS, &golden.texts.query, &golden.texts.documents, false)
         .await
         .expect("rerank");
     reject_word_overlap(&scores);
@@ -187,6 +188,11 @@ async fn backend_rerank_matches_berlin_sigmoid_when_weights_present() {
         scores[0] > scores[1] && scores[1] > scores[2],
         "input-order scores must stay monotonic: {scores:?}"
     );
+    let raw = backend
+        .rerank(ALIAS, &golden.texts.query, &golden.texts.documents, true)
+        .await
+        .expect("rerank raw_scores");
+    close(&raw, &golden.logits, atol);
 }
 
 #[tokio::test]
@@ -206,6 +212,7 @@ async fn rpc_scores_match_berlin_and_honor_sort_top_n_when_weights_present() {
             documents: golden.texts.documents.clone(),
             top_n: 0,
             return_documents: true,
+            raw_scores: false,
         })
         .await
         .expect("Rerank RPC")
@@ -224,6 +231,24 @@ async fn rpc_scores_match_berlin_and_honor_sort_top_n_when_weights_present() {
     reject_word_overlap(&by_index);
     close(&by_index, &golden.sigmoid, atol);
 
+    let raw_rpc = client
+        .rerank(RerankRequest {
+            model_name: ALIAS.into(),
+            query: golden.texts.query.clone(),
+            documents: golden.texts.documents.clone(),
+            top_n: 0,
+            return_documents: false,
+            raw_scores: true,
+        })
+        .await
+        .expect("Rerank RPC raw_scores")
+        .into_inner();
+    let mut raw_by_index = vec![0.0f32; 3];
+    for row in &raw_rpc.results {
+        raw_by_index[row.index as usize] = row.score;
+    }
+    close(&raw_by_index, &golden.logits, atol);
+
     let order: Vec<u32> = response.results.iter().map(|r| r.index).collect();
     assert_eq!(order, vec![0, 1, 2], "Berlin set is already descending");
     assert!(response.results[0].score > response.results[1].score);
@@ -235,6 +260,7 @@ async fn rpc_scores_match_berlin_and_honor_sort_top_n_when_weights_present() {
             documents: vec![IRREL.into(), REL.into(), MID.into()],
             top_n: 1,
             return_documents: false,
+            raw_scores: false,
         })
         .await
         .expect("top_n RPC")
@@ -253,6 +279,7 @@ async fn rpc_scores_match_berlin_and_honor_sort_top_n_when_weights_present() {
             documents: (0..33).map(|i| format!("doc {i}")).collect(),
             top_n: 0,
             return_documents: false,
+            raw_scores: false,
         })
         .await
         .unwrap_err();

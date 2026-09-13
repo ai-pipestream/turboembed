@@ -38,7 +38,9 @@ cargo test -p inferstream-server packed_bytes_and_rerank_reuse
 cargo test -p inferstream-backend-turborerank -- rpc_berlin
 ```
 
-Machine A/B/C latency benches are SOLIDIFY (7) — out of scope here.
+Machine A/B/C latency benches remain later work. SOLIDIFY (7) **Intel**
+is remote-USM wrap + OV accuracy (`docs/intel-remote-usm-machine-b.md`),
+not this scratch slab.
 
 ## Apple
 

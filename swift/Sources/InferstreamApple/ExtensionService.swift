@@ -220,7 +220,11 @@ struct ExtensionService: Inferstream_V1_InferstreamService.SimpleServiceProtocol
         let backend = try registry.require(request.modelName)
         let scores: [Float]
         do {
-            scores = try await backend.rerank(query: request.query, documents: request.documents)
+            scores = try await backend.rerank(
+                query: request.query,
+                documents: request.documents,
+                rawScores: request.rawScores
+            )
         } catch let error as ServeError {
             throw rpc(error)
         }

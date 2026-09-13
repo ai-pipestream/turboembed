@@ -582,7 +582,12 @@ std::unique_ptr<Pipeline> load_pipeline(
         impl->out_hidden = "last_hidden_state";
     }
 
-    impl->compiled = impl->core.compile_model(model, ov_device);
+    ov::AnyMap props;
+    props[ov::hint::execution_mode.name()] = ov::hint::ExecutionMode::ACCURACY;
+    props[ov::hint::inference_precision.name()] = ov::element::f32;
+    props[ov::hint::performance_mode.name()] = ov::hint::PerformanceMode::LATENCY;
+    props[ov::hint::dynamic_quantization_group_size.name()] = static_cast<uint64_t>(0);
+    impl->compiled = impl->core.compile_model(model, ov_device, props);
     impl->request = impl->compiled.create_infer_request();
 
     uint32_t dim = dim_from_config_json(dir);

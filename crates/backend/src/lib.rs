@@ -168,6 +168,7 @@ pub trait Backend: Send + Sync + 'static {
         model_name: &str,
         _query: &str,
         _documents: &[String],
+        _raw_scores: bool,
     ) -> Result<Vec<f32>, BackendError> {
         Err(BackendError::Unavailable(format!(
             "backend {:?} has no reranker for model {model_name:?}",
@@ -206,9 +207,10 @@ pub trait Backend: Send + Sync + 'static {
         model_name: &str,
         query: &str,
         documents: &[String],
+        raw_scores: bool,
         dest: &mut Vec<f32>,
     ) -> Result<(), BackendError> {
-        let scores = self.rerank(model_name, query, documents).await?;
+        let scores = self.rerank(model_name, query, documents, raw_scores).await?;
         dest.clear();
         dest.extend_from_slice(&scores);
         Ok(())
@@ -431,7 +433,7 @@ mod tests {
             Err(BackendError::Unavailable(_))
         ));
         assert!(matches!(
-            backend.rerank("m", "q", &["d".to_string()]).await,
+            backend.rerank("m", "q", &["d".to_string()], false).await,
             Err(BackendError::Unavailable(_))
         ));
     }

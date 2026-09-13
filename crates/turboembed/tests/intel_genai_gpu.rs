@@ -423,7 +423,7 @@ fn minilm_text_embedding_pipeline_on_gpu() {
             "allocs_after_warmup": proof.allocs_after_warmup,
             "tokenizer": "wordpiece_encode_sentence into rented SHARED i32 USM"
         },
-        "note": "SOLIDIFY (5) Machine B. WordPiece writes ids/mask/types into rented ZE SHARED USM. InferRequest.set_tensor wraps those pointers. ov::genai::Tokenizer.encode is not on the hot path (API has no caller buffer). GPU create without ZE SHARED fails loud.",
+        "note": "SOLIDIFY (7) Machine B. WordPiece writes ids/mask/types into rented ZE SHARED USM. InferRequest.set_tensor wraps those pointers (host ov::Tensor). Remote OCL USM_USER_BUFFER wrap of ZE SHARED is unavailable (OCL size 0). Compile is ACCURACY+f32+LATENCY. ov::genai::Tokenizer.encode is not on the hot path. GPU create without ZE SHARED fails loud.",
     });
     let receipt_dir = root.join("testdata/receipts/turboembed");
     fs::create_dir_all(&receipt_dir).expect("receipts dir");
@@ -677,7 +677,7 @@ fn minilm_text_embedding_pipeline_on_cpu() {
                 }
             }),
         },
-        "note": "SOLIDIFY (5) Machine B CPU. WordPiece write-through into rented HOST i32 rows. Same IR as GPU. GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
+        "note": "SOLIDIFY (7) Machine B CPU. WordPiece write-through into rented HOST i32 rows. Same IR as GPU. Compile is ACCURACY+f32+LATENCY. GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
     });
     let receipt_dir = root.join("testdata/receipts/turboembed");
     fs::create_dir_all(&receipt_dir).expect("receipts dir");

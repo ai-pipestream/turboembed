@@ -124,11 +124,44 @@ static int write_one(
     js << "  \"backend\": \"" << backend << "\",\n";
     js << "  \"compute\": {\n";
     js << "    \"token_workspace\": \"" << token_workspace << "\",\n";
+    std::string wrap_why;
+    const bool remote_wrap =
+        device == TURBORERANK_DEVICE_OPENVINO_GPU &&
+        turborerank::impl::ov_probe_remote_usm_wrap(&wrap_why);
+    auto json_escape = [](const std::string &s) {
+        std::string o;
+        o.reserve(s.size());
+        for (char c : s) {
+            switch (c) {
+            case '"':
+                o += "\\\"";
+                break;
+            case '\\':
+                o += "\\\\";
+                break;
+            case '\n':
+                o += "\\n";
+                break;
+            case '\r':
+                o += "\\r";
+                break;
+            default:
+                o += c;
+            }
+        }
+        return o;
+    };
     js << "    \"token_wrap\": \"ov::Tensor(element::i32, shape, usm_pointer)\",\n";
     js << "    \"weights_activations\": \"OpenVINO CompiledModel on " << device_label
        << "\",\n";
+    js << "    \"compile_hints\": \"ACCURACY + inference_precision=f32 + LATENCY + "
+          "dynamic_quantization_group_size=0\",\n";
+    js << "    \"ir_compress_to_fp16\": false,\n";
     js << "    \"usm_level_zero\": " << (usm ? "true" : "false") << ",\n";
-    js << "    \"remote_ocl_usm_wrap\": false,\n";
+    js << "    \"remote_ocl_usm_wrap\": " << (remote_wrap ? "true" : "false") << ",\n";
+    if (!wrap_why.empty()) {
+        js << "    \"remote_ocl_usm_why\": \"" << json_escape(wrap_why) << "\",\n";
+    }
     js << "    \"host_interim\": false,\n";
     js << "    \"std_vector_on_forward\": false,\n";
     js << "    \"python_hot_path\": false,\n";
@@ -191,10 +224,13 @@ int main() {
         "USM token buffers wrapped with ov::Tensor(..., usm_pointer); no "
         "std::vector on forward; allocs/forward==0 after warmup)",
         "turbo_buffer ZE SHARED USM (caller-written; zeMemAllocShared)",
-        "SOLIDIFY (1) Machine B. Token rows rented from the ZE arena as "
-        "SHARED. GPU create without a GPU fails loud. CPU buffers on OV GPU "
-        "forward are refused. AUTO resolves to OPENVINO_GPU when CUDA is "
-        "absent. Not a CPU interim and not a mock score."
+        "SOLIDIFY (7) Machine B. Token rows rented from the ZE arena as "
+        "SHARED. Remote OCL USM_USER_BUFFER wrap of those pointers is "
+        "unavailable (OCL engine reports size 0). IR is FP32 "
+        "(compress_to_fp16=false). GPU create without a GPU fails loud. "
+        "CPU buffers on OV GPU forward are refused. AUTO resolves to "
+        "OPENVINO_GPU when CUDA is absent. Not a CPU interim and not a "
+        "mock score."
     );
     if (gpu_rc != 0) {
         return gpu_rc;

@@ -34,7 +34,7 @@ protocol ModelBackend: Sendable {
     ) async throws
     func tokenize(_ texts: [String], options: TokenizeOptions) async throws -> [TokenEncoding]
     func detokenize(_ sequences: [[UInt32]], skipSpecialTokens: Bool) async throws -> [String]
-    func rerank(query: String, documents: [String]) async throws -> [Float]
+    func rerank(query: String, documents: [String], rawScores: Bool) async throws -> [Float]
 }
 
 struct ModelMeta: Sendable {

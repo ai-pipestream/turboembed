@@ -27,6 +27,7 @@
 #   make test-turborerank-nvidia            # Machine A CUDA receipt + live CE
 #   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
 #   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
+#   make probe-remote-usm                   # Machine B: remote OCL/USM wrap probe (may FAIL)
 #   make test-turborerank-apple             # Machine C Metal receipt + live CE
 #   make test-turboembed-intel              # --features genai; WordPiece→USM + CompiledModel; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
@@ -89,7 +90,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turbo-buffer-tests wordpiece-tests wordpiece-tripwire \
 	turboembed-mock-arena-tests turboembed-genai-arena-tests \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
-	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
+	convert-rerank-ov verify-rerank-ov probe-remote-usm test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt
 
 test:
@@ -704,8 +705,8 @@ verify-rerank-ov:
 	  exit 1; }; \
 	got_xml=$$(sha256sum "$$xml" | awk '{print $$1}'); \
 	got_bin=$$(sha256sum "$$bin" | awk '{print $$1}'); \
-	exp_xml=6eb0b9074a3b277e601874d25f0f6e9fd7527ba66728de4b5e0b8598296df6d0; \
-	exp_bin=755b95975219673166a4b2db2b300ac31ce3d9d96df7d4cd3bcda8232e4a44e2; \
+	exp_xml=7c14ec8664b37a6d1e74370c65202b7e9f275ca545d81af5fc99f39e08d2f525; \
+	exp_bin=1ec03e9f414b6a4ccb73fc1d674f906bd7f246a04414d9ad058e61b40b270dcd; \
 	test "$$got_xml" = "$$exp_xml" || { echo "xml sha256 $$got_xml != $$exp_xml"; exit 1; }; \
 	test "$$got_bin" = "$$exp_bin" || { echo "bin sha256 $$got_bin != $$exp_bin"; exit 1; }; \
 	echo "verified $$xml sha256=$$got_xml"; \
@@ -722,6 +723,32 @@ turborerank-intel-receipt: $(TURBORERANK_CUDA_OBJ)
 	  $(TURBORERANK_METAL_FLAGS) \
 	  -o native/turborerank/build/write_intel_receipt
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/write_intel_receipt
+
+# SOLIDIFY (7): live RemoteContext USM_USER_BUFFER wrap of ZE SHARED.
+# Exit 1 is the documented Machine B outcome (OCL size-0). Do not
+# treat a FAIL as a green wrap.
+probe-remote-usm:
+	mkdir -p native/turborerank/build testdata/receipts/turborerank
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) \
+	  $(TURBO_BUFFER_SRCS) \
+	  native/turborerank/tools/probe_remote_usm.cpp \
+	  -lm $(TURBORERANK_OV_LIBS) \
+	  -o native/turborerank/build/probe_remote_usm
+	set +e; \
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/probe_remote_usm \
+	  > testdata/receipts/turborerank/intel-remote-usm-probe.txt 2>&1; \
+	rc=$$?; \
+	cat testdata/receipts/turborerank/intel-remote-usm-probe.txt; \
+	if [ $$rc -eq 0 ]; then \
+	  echo "probe-remote-usm: WRAP_POSSIBLE"; \
+	elif grep -q WRAP_IMPOSSIBLE_ON_THIS_STACK \
+	    testdata/receipts/turborerank/intel-remote-usm-probe.txt; then \
+	  echo "probe-remote-usm: documented unavailable path (exit $$rc)"; \
+	else \
+	  echo "probe-remote-usm: unexpected exit $$rc"; \
+	  exit $$rc; \
+	fi
 
 turborerank-apple-receipt:
 	mkdir -p native/turborerank/build
@@ -752,5 +779,6 @@ test-turborerank-intel: fetch-rerankers verify-rerank-ov turborerank-tests turbo
 	  set +u; . "$(OPENVINO_SETUPVARS)"; set -u; \
 	fi; \
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
+	$(MAKE) probe-remote-usm
 	$(MAKE) turbo-buffer-intel-receipt
 	$(MAKE) turborerank-intel-receipt

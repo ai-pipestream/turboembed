@@ -338,6 +338,7 @@ impl Backend for MockBackend {
         model_name: &str,
         query: &str,
         documents: &[String],
+        _raw_scores: bool,
     ) -> Result<Vec<f32>, BackendError> {
         if inferstream_backend::is_catalog_cross_encoder_alias(model_name) {
             return Err(BackendError::Unavailable(format!(
@@ -608,12 +609,18 @@ mod tests {
             "cooking pasta at home".to_string(),
             "fast rust gRPC inference".to_string(),
         ];
-        let scores = backend.rerank("m", "rust inference", &docs).await.unwrap();
+        let scores = backend
+            .rerank("m", "rust inference", &docs, false)
+            .await
+            .unwrap();
         assert_eq!(scores.len(), 3);
         assert_eq!(scores[0], 1.0, "both query words hit");
         assert_eq!(scores[1], 0.0, "no query words hit");
         assert_eq!(scores[2], 1.0);
-        let again = backend.rerank("m", "rust inference", &docs).await.unwrap();
+        let again = backend
+            .rerank("m", "rust inference", &docs, false)
+            .await
+            .unwrap();
         assert_eq!(scores, again);
     }
 
@@ -625,6 +632,7 @@ mod tests {
                 "ms-marco-minilm-l6",
                 "How many people live in Berlin?",
                 &["Berlin has a population.".to_string()],
+                false,
             )
             .await
             .unwrap_err();
@@ -640,7 +648,7 @@ mod tests {
     async fn rerank_empty_query_scores_zero() {
         let backend = MockBackend::default();
         let scores = backend
-            .rerank("m", "", &["anything".to_string()])
+            .rerank("m", "", &["anything".to_string()], false)
             .await
             .unwrap();
         assert_eq!(scores, vec![0.0]);
