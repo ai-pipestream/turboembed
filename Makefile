@@ -83,7 +83,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
 	turborerank-tests turborerank-tests-nocuda turborerank-tests-noov \
-	turborerank-tests-nometal libturborerank-apple \
+	turborerank-tests-nometal libturborerank-apple libturbo-buffer-apple \
 	turbo-buffer-tests turboembed-mock-arena-tests \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
@@ -174,7 +174,11 @@ libturborerank-apple:
 	@nm -g native/turborerank/build/libturborerank_apple.a | grep -q turbo_buffer_metal_owns
 	@echo "wrote native/turborerank/build/libturborerank_apple.a (arena + Metal SHARED)"
 
-apple: sync-proto libturborerank-apple
+# Metal SHARED arena for libTurboEmbed.dylib (SOLIDIFY item 4).
+libturbo-buffer-apple:
+	./scripts/build-turbo-buffer-apple.sh
+
+apple: sync-proto libturborerank-apple libturbo-buffer-apple
 	swift build --package-path swift -c release
 	./scripts/build-apple-metallib.sh
 
@@ -406,7 +410,7 @@ test-turboembed-intel:
 # Real Metal MiniLM through turboembed.h. No Python.
 # Runs metal_create_lists_minilm_not_only_mock (create lists 384-d minilm,
 # never mock-only) and apple_minilm_metal_cosine_vs_goldens (receipt).
-test-turboembed-apple:
+test-turboembed-apple: libturbo-buffer-apple
 	$(CARGO) test -p turboembed --features mlx-live -- --include-ignored --nocapture
 
 # TurboRerank: SHA-pinned MiniLM-L6 CE + C++ / Rust tests.

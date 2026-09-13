@@ -28,7 +28,7 @@ Committed set: NVIDIA CUDA + CPU + **TensorRT**, Intel GPU + CPU +
 | `intel-minilm.json` | Machine B (Battlemage) | `ov::genai::TextEmbeddingPipeline` | **GPU** | `make test-turboembed-intel` |
 | `intel-minilm-cpu.json` | Machine B | same pipeline, `"CPU"` device string | **CPU** | `make test-turboembed-intel` |
 | `intel-npu.json` | Machine B | **defer** — NPU create fails loud (no plugin) | **NPU** | `make test-turboembed-intel` |
-| `apple-minilm.json` | Machine C (Apple M2) | mlx-swift `MlxEngine` mean+L2 | **Metal** | `make test-turboembed-apple` |
+| `apple-minilm.json` | Machine C (Apple M2) | mlx-swift `MlxEngine` mean+L2 on turbo_buffer Metal SHARED tokens/activations/results | **Metal** | `make test-turboembed-apple` |
 
 NVIDIA fields: `device=CUDA`, `dims`, `worst_cosine` vs
 `testdata/e2e/goldens/nvidia/minilm.json` (`parity:*` + hello world),

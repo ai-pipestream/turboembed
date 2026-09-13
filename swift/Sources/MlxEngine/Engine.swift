@@ -1,4 +1,5 @@
 import Foundation
+import Metal
 import MLX
 import MLXEmbedders
 import MLXLLM
@@ -16,6 +17,39 @@ public struct PingInfo: Sendable {
 public struct EmbedResult: Sendable {
     public var dimensions: Int
     public var vectors: [[Float]]
+}
+
+/// Caller-rented turbo_buffer Metal SHARED slots for one embed.
+/// Pointers must stay valid for the duration of `embedArena`.
+public struct ArenaEmbedSlots: @unchecked Sendable {
+    public var inputIds: UnsafeMutablePointer<Int32>
+    public var attentionMask: UnsafeMutablePointer<Int32>
+    public var tokenTypes: UnsafeMutablePointer<Int32>
+    public var activations: UnsafeMutablePointer<Float>
+    public var results: UnsafeMutablePointer<Float>
+    public var maxBatch: Int
+    public var maxSeq: Int
+    public var hiddenCap: Int
+
+    public init(
+        inputIds: UnsafeMutablePointer<Int32>,
+        attentionMask: UnsafeMutablePointer<Int32>,
+        tokenTypes: UnsafeMutablePointer<Int32>,
+        activations: UnsafeMutablePointer<Float>,
+        results: UnsafeMutablePointer<Float>,
+        maxBatch: Int,
+        maxSeq: Int,
+        hiddenCap: Int
+    ) {
+        self.inputIds = inputIds
+        self.attentionMask = attentionMask
+        self.tokenTypes = tokenTypes
+        self.activations = activations
+        self.results = results
+        self.maxBatch = maxBatch
+        self.maxSeq = maxSeq
+        self.hiddenCap = hiddenCap
+    }
 }
 
 public struct GenerateStats: Sendable {
@@ -118,6 +152,99 @@ public final class Engine: @unchecked Sendable {
                 throw EngineError.emptyEmbed
             }
             return EmbedResult(dimensions: dim, vectors: rows)
+        }
+    }
+
+    /// Tokenize into arena i32 slots, wrap those MTL contents as MLXArray
+    /// (fail if MLX copies off the arena), run BERT, copy last hidden into
+    /// the activation rent, pool mean/CLS+L2 into the result rent.
+    public func embedArena(
+        modelPath: String,
+        texts: [String],
+        normalize: Bool,
+        pooling: String = "mean",
+        maxSeqLen: Int? = nil,
+        slots: ArenaEmbedSlots
+    ) async throws -> (dim: Int, count: Int) {
+        let kind = try PoolingKind.parse(pooling)
+        guard !texts.isEmpty else { throw EngineError.emptyEmbed }
+        if texts.count > slots.maxBatch {
+            throw EngineError.internalError(
+                "batch \(texts.count) exceeds arena max_batch \(slots.maxBatch)"
+            )
+        }
+        let container = try await loadEmbed(modelPath)
+        return try await container.perform { context -> (dim: Int, count: Int) in
+            let padId =
+                context.tokenizer.convertTokenToId("[PAD]")
+                ?? context.tokenizer.convertTokenToId("<pad>")
+                ?? 0
+            let sepId =
+                context.tokenizer.convertTokenToId("[SEP]")
+                ?? context.tokenizer.convertTokenToId("</s>")
+            var encoded = texts.map {
+                context.tokenizer.encode(text: $0, addSpecialTokens: true)
+            }
+            if let maxSeqLen {
+                encoded = encoded.map { truncateEncoderIds($0, max: maxSeqLen, sepId: sepId) }
+            }
+            let seq = encoded.map(\.count).max() ?? 0
+            if seq > slots.maxSeq {
+                throw EngineError.internalError(
+                    "seq \(seq) exceeds arena max_seq \(slots.maxSeq)"
+                )
+            }
+            let n = encoded.count
+            let stride = slots.maxSeq
+            for i in 0..<n {
+                let ids = encoded[i]
+                for t in 0..<stride {
+                    let idx = i * stride + t
+                    if t < ids.count {
+                        slots.inputIds[idx] = Int32(ids[t])
+                        slots.attentionMask[idx] = 1
+                    } else {
+                        slots.inputIds[idx] = Int32(padId)
+                        slots.attentionMask[idx] = 0
+                    }
+                    slots.tokenTypes[idx] = 0
+                }
+            }
+            let idsFull = try wrapArenaI32(
+                slots.inputIds, rows: slots.maxBatch, cols: slots.maxSeq, what: "input_ids")
+            let maskFull = try wrapArenaI32(
+                slots.attentionMask, rows: slots.maxBatch, cols: slots.maxSeq, what: "attention_mask")
+            let typeFull = try wrapArenaI32(
+                slots.tokenTypes, rows: slots.maxBatch, cols: slots.maxSeq, what: "token_type_ids")
+            let padded = idsFull[0..<n, 0..<seq]
+            let tokenMaskI32 = maskFull[0..<n, 0..<seq]
+            let tokenTypes = typeFull[0..<n, 0..<seq]
+            let tokenMask = tokenMaskI32 .!= Int32(0)
+            let output = context.model(
+                padded, positionIds: nil, tokenTypeIds: tokenTypes, attentionMask: tokenMask)
+            guard let hidden = output.hiddenStates else {
+                throw EngineError.internalError("BERT returned no hidden states")
+            }
+            eval(hidden)
+            let dims = hidden.shape
+            guard dims.count == 3, dims[0] == n, dims[2] > 0, dims[2] <= slots.hiddenCap else {
+                throw EngineError.internalError("hidden shape \(dims) is not [n, seq, hidden]")
+            }
+            let hid = dims[2]
+            let hiddenSeq = dims[1]
+            try copyHiddenToArena(hidden, dest: slots.activations, n: n, seq: hiddenSeq, hidden: hid)
+            poolArena(
+                hidden: slots.activations,
+                mask: slots.attentionMask,
+                n: n,
+                seq: hiddenSeq,
+                hidden: hid,
+                tokenStride: stride,
+                kind: kind,
+                normalize: normalize,
+                out: slots.results
+            )
+            return (hid, n)
         }
     }
 
@@ -246,4 +373,120 @@ func poolHidden(
         return pooled / maximum(norm, MLXArray(Float(1e-12)))
     }
     return pooled
+}
+
+/// Wrap an arena MTL contents pointer as MLXArray. Fail if MLX copies
+/// onto a private buffer (`make_buffer` miss → malloc+memcpy).
+func wrapArenaI32(
+    _ ptr: UnsafeMutablePointer<Int32>,
+    rows: Int,
+    cols: Int,
+    what: String
+) throws -> MLXArray {
+    let expected = UnsafeRawPointer(ptr)
+    let gate = WrapGate()
+    let array = MLXArray(rawPointer: UnsafeMutableRawPointer(ptr), [rows, cols], dtype: .int32) {
+        if !gate.live {
+            gate.stolen = true
+        }
+    }
+    gate.live = true
+    if gate.stolen {
+        throw EngineError.internalError(
+            "FAKE: MLX copied \(what) off the turbo_buffer arena (make_buffer miss) — refusing private Metal alloc"
+        )
+    }
+    eval(array)
+    guard let device = MTLCreateSystemDefaultDevice() else {
+        throw EngineError.internalError("MTLCreateSystemDefaultDevice failed")
+    }
+    guard let buf = array.asMTLBuffer(device: device, noCopy: true) else {
+        throw EngineError.internalError(
+            "FAKE: \(what) wrap has no no-copy MTLBuffer — arena path bypassed"
+        )
+    }
+    if buf.contents() != expected {
+        throw EngineError.internalError(
+            "FAKE: \(what) MLX backing is not the arena pointer — refusing private MTL"
+        )
+    }
+    return array
+}
+
+func copyHiddenToArena(
+    _ hidden: MLXArray,
+    dest: UnsafeMutablePointer<Float>,
+    n: Int,
+    seq: Int,
+    hidden hid: Int
+) throws {
+    let need = n * seq * hid
+    eval(hidden)
+    if let device = MTLCreateSystemDefaultDevice(),
+        let buf = hidden.asMTLBuffer(device: device, noCopy: true)
+    {
+        dest.update(
+            from: buf.contents().assumingMemoryBound(to: Float.self), count: need)
+        return
+    }
+    let flat = hidden.asArray(Float.self)
+    guard flat.count == need else {
+        throw EngineError.internalError("hidden copy size \(flat.count) != \(need)")
+    }
+    dest.update(from: flat, count: need)
+}
+
+func poolArena(
+    hidden: UnsafePointer<Float>,
+    mask: UnsafePointer<Int32>,
+    n: Int,
+    seq: Int,
+    hidden hid: Int,
+    tokenStride: Int,
+    kind: PoolingKind,
+    normalize: Bool,
+    out: UnsafeMutablePointer<Float>
+) {
+    for i in 0..<n {
+        let dst = out.advanced(by: i * hid)
+        switch kind {
+        case .cls:
+            let src = hidden.advanced(by: i * seq * hid)
+            dst.update(from: src, count: hid)
+        case .mean:
+            var count = 0.0
+            for h in 0..<hid {
+                dst[h] = 0
+            }
+            for t in 0..<seq {
+                if mask[i * tokenStride + t] == 0 { continue }
+                count += 1
+                let src = hidden.advanced(by: (i * seq + t) * hid)
+                for h in 0..<hid {
+                    dst[h] += src[h]
+                }
+            }
+            if count > 0 {
+                let inv = Float(1.0 / count)
+                for h in 0..<hid {
+                    dst[h] *= inv
+                }
+            }
+        }
+        if normalize {
+            var sumSq = 0.0
+            for h in 0..<hid {
+                sumSq += Double(dst[h]) * Double(dst[h])
+            }
+            let norm = Float(max(sumSq.squareRoot(), 1e-12))
+            for h in 0..<hid {
+                dst[h] /= norm
+            }
+        }
+    }
+}
+
+private final class WrapGate: @unchecked Sendable {
+    var live = false
+    var stolen = false
 }

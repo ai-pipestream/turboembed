@@ -41,6 +41,14 @@ fn main() {
         "cargo:rerun-if-changed={}",
         root.join("native/turbo_buffer/src/metal.cpp").display()
     );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turbo_buffer/src/metal.mm").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("scripts/build-turbo-buffer-apple.sh").display()
+    );
     println!("cargo:rerun-if-changed={}", genai_cpp.display());
     println!("cargo:rerun-if-changed={}", genai_hpp.display());
     println!("cargo:rerun-if-changed={}", apple.display());
@@ -78,6 +86,14 @@ fn link_swift_mlx(root: &Path) {
         "cargo:rerun-if-changed={}",
         swift_dir.join("Package.swift").display()
     );
+
+    let archive = Command::new("sh")
+        .arg(root.join("scripts/build-turbo-buffer-apple.sh"))
+        .status()
+        .expect("failed to spawn scripts/build-turbo-buffer-apple.sh");
+    if !archive.success() {
+        panic!("libturbo_buffer_apple.a (Metal SHARED arena) failed: {archive}");
+    }
 
     let mut swift = Command::new("swift");
     if std::env::var_os("DEVELOPER_DIR").is_none() {
