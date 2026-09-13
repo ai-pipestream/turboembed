@@ -13,8 +13,8 @@ use tonic::{Request, Status};
 
 use inferstream_protocol::extension::inferstream_service_client::InferstreamServiceClient;
 use inferstream_protocol::extension::{
-    DetokenizeRequest, EmbedRequest, ListModelsRequest, ListModelsResponse, ModelInfo, TokenIds,
-    TokenizeRequest,
+    DetokenizeRequest, EmbedRequest, ListModelsRequest, ListModelsResponse, ModelInfo,
+    RerankRequest, RerankResponse, TokenIds, TokenizeRequest,
 };
 use inferstream_protocol::inference::grpc_inference_service_client::GrpcInferenceServiceClient;
 use inferstream_protocol::inference::infer_parameter::ParameterChoice;
@@ -132,6 +132,24 @@ pub async fn detokenize(
         model_name: model.to_string(),
         sequences: sequences.into_iter().map(|ids| TokenIds { ids }).collect(),
         skip_special_tokens,
+    }))
+    .await
+    .map(|r| r.into_inner())
+}
+
+pub async fn rerank(
+    ext: &mut ExtClient,
+    model: &str,
+    query: &str,
+    documents: Vec<String>,
+    top_n: u32,
+) -> Result<RerankResponse, Status> {
+    ext.rerank(timed(RerankRequest {
+        model_name: model.to_string(),
+        query: query.to_string(),
+        documents,
+        top_n,
+        return_documents: false,
     }))
     .await
     .map(|r| r.into_inner())

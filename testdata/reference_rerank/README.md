@@ -16,4 +16,5 @@ make fetch-rerankers
 
 Live GPU/Metal receipts belong under
 `testdata/receipts/turborerank/` — Machine A/B/C only, never hostnames.
-Phase 2a: `nvidia-minilm-l6.json` (Machine A CUDA).
+gRPC `Rerank` (Phase 3) compares the same sigmoid vector through
+`crates/backend-turborerank`.

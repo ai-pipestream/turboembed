@@ -50,12 +50,23 @@ let package = Package(
                 "InferstreamCore",
                 "TurboEmbed",
                 "TurboEmbedC",
+                "TurboRerank",
+                "TurboRerankC",
                 .product(name: "GRPCCore", package: "grpc-swift-2"),
                 .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
                 .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "Sources/InferstreamApple",
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L\(Context.packageDirectory)/../native/turborerank/build",
+                    "-lturborerank_apple",
+                ]),
+                .linkedFramework("Metal"),
+                .linkedFramework("Foundation"),
+                .linkedLibrary("c++"),
+            ],
             plugins: [
                 .plugin(name: "GRPCProtobufGenerator", package: "grpc-swift-protobuf")
             ]
@@ -73,10 +84,25 @@ let package = Package(
                 .enableUpcomingFeature("ExistentialAny")
             ]
         ),
+        .target(
+            name: "TurboRerankC",
+            path: "Sources/TurboRerankC",
+            publicHeadersPath: "include"
+        ),
+        .target(
+            name: "TurboRerank",
+            dependencies: ["TurboRerankC"],
+            path: "Sources/TurboRerank"
+        ),
         .testTarget(
             name: "InferstreamAppleTests",
             dependencies: ["InferstreamCore"],
             path: "Tests/InferstreamAppleTests"
+        ),
+        .testTarget(
+            name: "TurboRerankTests",
+            dependencies: ["TurboRerankC"],
+            path: "Tests/TurboRerankTests"
         ),
     ]
 )

@@ -169,6 +169,9 @@ mod tests {
         assert!(!idx.available_on("nomic-embed-text", Target::Apple));
         assert!(idx.available_on("qwen-0.5b", Target::Intel));
         assert!(idx.available_on("default-llm", Target::Apple));
+        assert!(idx.available_on("ms-marco-minilm-l6", Target::Nvidia));
+        assert!(idx.available_on("ms-marco-minilm-l6", Target::Intel));
+        assert!(idx.available_on("ms-marco-minilm-l6", Target::Apple));
         assert!(idx.available_on("minilm", Target::Mock));
     }
 

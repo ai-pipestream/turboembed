@@ -30,7 +30,10 @@ llamacpp-runtime = ["llamacpp", "inferstream-backend-llamacpp/runtime"]
 # nvcc supports, set CUDAHOSTCXX (e.g. /usr/bin/g++-13).
 llamacpp-cuda = ["llamacpp-runtime", "inferstream-backend-llamacpp/cuda"]
 # Convenience: everything real on a Machine A-class NVIDIA host.
-full-cuda = ["ort-cuda", "llamacpp-cuda"]
+full-cuda = ["ort-cuda", "llamacpp-cuda", "turborerank"]
+# Catalog MiniLM-L6 cross-encoder via include/turborerank.h (CPU always;
+# CUDA when nvcc is present). Missing weights fail at startup.
+turborerank = ["dep:inferstream-backend-turborerank"]
 ort = ["dep:inferstream-backend-turboembed"]
 # Real ONNX Runtime via TurboEmbed C ABI (CPU EP when device=cpu).
 # `ort`'s download-binaries fetches a matching ONNX Runtime at build time.
@@ -50,4 +53,5 @@ inferstream-backend-mock = { workspace = true }
 inferstream-backend-trtllm = { workspace = true, optional = true }
 inferstream-backend-llamacpp = { workspace = true, optional = true }
 inferstream-backend-turboembed = { workspace = true, optional = true }
+inferstream-backend-turborerank = { workspace = true, optional = true }
 tokio = { workspace = true }

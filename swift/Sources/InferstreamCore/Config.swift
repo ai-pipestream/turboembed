@@ -34,6 +34,7 @@ public enum BackendKind: String, Sendable {
     case openvino
     case ovms
     case trtLlm = "trt-llm"
+    case turborerank
 }
 
 public struct ModelConfig: Sendable {

@@ -41,6 +41,11 @@ pub enum Device {
 }
 
 impl Device {
+    /// ABI device name (`"CPU"`, `"CUDA"`, `"METAL"`, …).
+    pub fn as_str(self) -> &'static str {
+        device_name(self)
+    }
+
     fn to_c(self) -> turborerank_device {
         match self {
             Self::Auto => turborerank_device::TURBORERANK_DEVICE_AUTO,

@@ -210,7 +210,9 @@ Metal) — see receipts under `testdata/receipts/turboembed/`.
   view wrapper, not a pooled allocator.
 - **Intel NPU** create is fail-loud until a Core Ultra client NPU host
   lists the plugin (`intel-npu.json` on Machine B, `pass=false`).
-- Inferstream **Rerank RPC** is still a mock scorer. The TurboRerank
+- Inferstream **Rerank RPC** is a thin façade over the TurboRerank
+  C ABI when `--features turborerank` is on (catalog
+  `ms-marco-minilm-l6`). The TurboRerank
   **library** (Phase 1 CPU MiniLM CE) lives beside this ABI; see
   [`docs/turborerank-architecture.md`](turborerank-architecture.md).
   **TRT-LLM generation**

@@ -16,3 +16,5 @@ Proof: `make test-turborerank` / `make test-turborerank-nvidia` /
 `make test-turborerank-intel` / `make test-turborerank-apple` vs
 `testdata/reference_rerank/ms_marco_minilm_l6_berlin.json` (HF
 `AutoModelForSequenceClassification` on the pinned checkpoint).
+gRPC `Rerank` matches the same goldens via
+`crates/backend-turborerank` when `--features turborerank` is on.

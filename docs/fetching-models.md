@@ -64,14 +64,16 @@ cargo run -p inferstream-fetch -- --rerankers --list
 `cross-encoder/ms-marco-MiniLM-L6-v2` @
 `233902d25c440f23af6f7d6e94d2946bac0bee0a` into
 `models/rerank/ms-marco-minilm-l6/` (`model.safetensors`, `vocab.txt`,
-tokenizer + config). Used by `make test-turborerank`. Not a gRPC catalog
-alias yet.
+tokenizer + config). Catalog alias `ms-marco-minilm-l6` (`backend =
+"turborerank"`). Used by `make test-turborerank` and the gRPC `Rerank`
+façade (`--features turborerank`).
 
 **OpenVINO IR** (`models/manifests/rerankers-ov.json`): same MiniLM-L6
 checkpoint converted offline (`contrib/offline-once/export_minilm_ce_onnx.py`
 then `make convert-rerank-ov`). SHA-256 of `openvino_model.xml/.bin`
 (and the intermediate ONNX) is pinned. Destination
-`models/ov-rerank/ms-marco-minilm-l6/`. Score path is C++ only.
+`models/ov-rerank/ms-marco-minilm-l6/`. Intel catalog CE uses this IR
+via the same C ABI (`device = "GPU"`).
 
 ## E2E / bring-up auto-fetch
 

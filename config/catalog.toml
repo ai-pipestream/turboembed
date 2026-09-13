@@ -549,3 +549,33 @@ backend = "mlx"
 path = "models/mlx/qwen-7b"
 tokenizer_dir = "models/gguf/qwen-7b"
 max_batch_size = 1
+
+# ---------------------------------------------------------------------------
+# Cross-encoder rerankers (TurboRerank C ABI)
+# ---------------------------------------------------------------------------
+
+# ms-marco-minilm-l6 — MiniLM-L6 CE. gRPC Rerank calls turborerank_score
+# with SIGMOID (TEI raw_scores=false). Requires --features turborerank
+# (nvidia / intel) or the Swift server on Apple. Missing weights fail
+# at startup — never word-overlap. Fetch: make fetch-rerankers
+# (Intel GPU also needs make convert-rerank-ov).
+[models.ms-marco-minilm-l6]
+description = "ms-marco-MiniLM-L6-v2 cross-encoder reranker (sigmoid relevance)"
+
+[models.ms-marco-minilm-l6.nvidia]
+backend = "turborerank"
+device = "cuda"
+path = "models/rerank/ms-marco-minilm-l6"
+max_batch_size = 32
+
+[models.ms-marco-minilm-l6.intel]
+backend = "turborerank"
+device = "GPU"
+path = "models/ov-rerank/ms-marco-minilm-l6"
+max_batch_size = 32
+
+[models.ms-marco-minilm-l6.apple]
+backend = "turborerank"
+device = "metal"
+path = "models/rerank/ms-marco-minilm-l6"
+max_batch_size = 32

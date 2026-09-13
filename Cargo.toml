@@ -10,6 +10,7 @@ members = [
     "crates/backend-openvino",
     "crates/backend-apple",
     "crates/backend-turboembed",
+    "crates/backend-turborerank",
     "crates/server",
     "crates/arch-nvidia",
     "crates/arch-intel",
@@ -76,6 +77,7 @@ inferstream-backend-ort = { path = "crates/backend-ort" }
 inferstream-backend-openvino = { path = "crates/backend-openvino" }
 inferstream-backend-apple = { path = "crates/backend-apple" }
 inferstream-backend-turboembed = { path = "crates/backend-turboembed" }
+inferstream-backend-turborerank = { path = "crates/backend-turborerank" }
 inferstream-server = { path = "crates/server" }
 inferstream-fetch = { path = "crates/fetch" }
 turboembed = { path = "crates/turboembed" }

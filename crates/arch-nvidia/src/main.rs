@@ -27,7 +27,7 @@ fn factory() -> impl inferstream_server::BackendFactory {
     let mock: Arc<MockBackend> = Arc::new(MockBackend::default());
     move |model: &ModelConfig| -> Result<Arc<dyn Backend>, ServerError> {
         match model.backend {
-            BackendKind::Mock => Ok(mock.clone()),
+            BackendKind::Mock => inferstream_server::serve_mock(model, mock.clone()),
             BackendKind::TrtLlm => {
                 #[cfg(feature = "trtllm")]
                 {
@@ -95,6 +95,26 @@ fn factory() -> impl inferstream_server::BackendFactory {
                 }
                 #[cfg(not(feature = "ort"))]
                 Err(unsupported(model, "rebuild with --features ort"))
+            }
+            BackendKind::TurboRerank => {
+                #[cfg(feature = "turborerank")]
+                {
+                    let backend =
+                        inferstream_backend_turborerank::TurboRerankBackend::open_for_model(
+                            &model.name,
+                            model.device.as_deref(),
+                            model.path.as_deref(),
+                            model.max_batch_size,
+                        )
+                        .map_err(|e| invalid(model, e.to_string()))?;
+                    Ok(Arc::new(backend))
+                }
+                #[cfg(not(feature = "turborerank"))]
+                Err(unsupported(
+                    model,
+                    "rebuild with --features turborerank (catalog CE aliases \
+                     never fall back to word-overlap)",
+                ))
             }
             BackendKind::Openvino | BackendKind::Mlx => Err(unsupported(
                 model,
@@ -174,6 +194,55 @@ mod tests {
         assert!(
             msg.contains("TurboEmbed") || msg.contains("ort-cuda") || msg.contains("refusing"),
             "startup error must name TurboEmbed / ort-cuda, got {msg}"
+        );
+    }
+
+    #[cfg(not(feature = "turborerank"))]
+    #[test]
+    fn catalog_ce_alias_fails_without_turborerank_feature() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "ms-marco-minilm-l6"
+            backend = "turborerank"
+            device = "cuda"
+            path = "models/rerank/ms-marco-minilm-l6"
+            "#,
+        )
+        .unwrap();
+        let err = match build_registry(&config, &factory()) {
+            Ok(_) => panic!("CE alias must fail at startup without --features turborerank"),
+            Err(e) => e,
+        };
+        assert!(
+            matches!(err, ServerError::UnsupportedBackend { .. }),
+            "expected UnsupportedBackend, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("turborerank"),
+            "startup error must name the turborerank feature, got {msg}"
+        );
+    }
+
+    #[test]
+    fn mock_cannot_satisfy_catalog_ce_alias() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "ms-marco-minilm-l6"
+            backend = "mock"
+            "#,
+        )
+        .unwrap();
+        let err = match build_registry(&config, &factory()) {
+            Ok(_) => panic!("CE alias on mock must fail at startup"),
+            Err(e) => e,
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("mock") || msg.contains("word-overlap") || msg.contains("MiniLM"),
+            "must refuse mock-as-MiniLM, got {msg}"
         );
     }
 

@@ -448,6 +448,7 @@ async fn rerank_orders_by_score_and_honors_top_n() {
                 "some rust code".into(),        // 1 hit
             ],
             top_n: 0,
+            return_documents: false,
         })
         .await
         .unwrap()
@@ -462,12 +463,14 @@ async fn rerank_orders_by_score_and_honors_top_n() {
             query: "rust inference".into(),
             documents: vec!["cooking".into(), "rust inference".into()],
             top_n: 1,
+            return_documents: true,
         })
         .await
         .unwrap()
         .into_inner();
     assert_eq!(top1.results.len(), 1);
     assert_eq!(top1.results[0].index, 1);
+    assert_eq!(top1.results[0].document, "rust inference");
 
     guard.stop().await;
 }
@@ -483,10 +486,23 @@ async fn rerank_validates_input() {
             query: "q".into(),
             documents: vec![],
             top_n: 0,
+            return_documents: false,
         })
         .await
         .unwrap_err();
     assert_eq!(empty.code(), tonic::Code::InvalidArgument);
+
+    let oversize = client
+        .rerank(RerankRequest {
+            model_name: "mock-embed".into(),
+            query: "q".into(),
+            documents: (0..33).map(|i| format!("d{i}")).collect(),
+            top_n: 0,
+            return_documents: false,
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(oversize.code(), tonic::Code::InvalidArgument);
 
     guard.stop().await;
 }

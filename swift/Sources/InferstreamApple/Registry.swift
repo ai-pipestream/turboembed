@@ -4,6 +4,9 @@ import MlxEngine
 #if canImport(TurboEmbedC)
 import TurboEmbedC
 #endif
+#if canImport(TurboRerankC)
+import TurboRerankC
+#endif
 
 enum ServeError: Error, LocalizedError, Sendable {
     case notFound(String)
@@ -69,7 +72,22 @@ final class Registry: Sendable {
         for model in config.models {
             switch model.backend {
             case .mock:
+                if isCatalogCrossEncoder(model.name) {
+                    throw ServeError.invalid(
+                        "catalog CE alias \(model.name) refuses backend=mock; word-overlap is not MiniLM. Use backend = \"turborerank\""
+                    )
+                }
                 map[model.name] = mock
+            case .turborerank:
+                do {
+                    map[model.name] = try TurboRerankBackend(name: model.name, config: model)
+                } catch let error as ServeError {
+                    throw error
+                } catch {
+                    throw ServeError.unavailable(
+                        "TurboRerank load(\(model.name)) failed: \(error). Catalog CE aliases never use word-overlap"
+                    )
+                }
             case .mlx:
                 guard let path = model.path, !path.isEmpty else {
                     throw ServeError.invalid("mlx model \(model.name) requires path")

@@ -212,6 +212,13 @@ struct ExtensionService: Inferstream_V1_InferstreamService.SimpleServiceProtocol
         if request.documents.isEmpty {
             throw RPCError(code: .invalidArgument, message: "documents must not be empty")
         }
+        let maxDocs = 32
+        if request.documents.count > maxDocs {
+            throw RPCError(
+                code: .invalidArgument,
+                message: "documents length \(request.documents.count) exceeds max_client_batch_size \(maxDocs)"
+            )
+        }
         let backend = try registry.require(request.modelName)
         let scores: [Float]
         do {
@@ -223,6 +230,9 @@ struct ExtensionService: Inferstream_V1_InferstreamService.SimpleServiceProtocol
             var row = Inferstream_V1_RerankResult()
             row.index = UInt32(index)
             row.score = score
+            if request.returnDocuments {
+                row.document = request.documents[index]
+            }
             return row
         }
         results.sort { $0.score > $1.score }

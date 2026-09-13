@@ -59,5 +59,21 @@ Receipts: `testdata/receipts/turborerank/cpu-minilm-l6.json`,
 (Machine C). Goldens:
 `testdata/reference_rerank/ms_marco_minilm_l6_berlin.json`.
 
-gRPC `Rerank` stays on the mock backend until a later façade calls this
-ABI. Do not point the RPC at fake MiniLM scores.
+gRPC `Rerank` is a thin façade over this ABI when the arch binary is
+built with `--features turborerank` (nvidia / intel) or when the Swift
+server on Machine C serves `ms-marco-minilm-l6`. Scores are
+`sigmoid(CLS logit)` in **input order**; the RPC layer still sorts and
+applies `top_n`. Missing weights or device fail at startup — never
+word-overlap. The mock backend keeps word-overlap for explicit
+`backend = "mock"` models only.
+
+```bash
+# Machine A (NVIDIA): CUDA MiniLM CE on the wire
+cargo build -p inferstream-arch-nvidia --release --features "ort-cuda,turborerank"
+# then add "ms-marco-minilm-l6" to serve in config/nvidia.toml
+
+# Machine B (Intel): OpenVINO MiniLM CE on the wire
+# scripts/build-intel.sh plus --features turborerank; make convert-rerank-ov
+
+# Machine C (Apple): Swift server links libturborerank_apple.a (make apple)
+```

@@ -201,6 +201,9 @@ pub async fn run_suite(config: SuiteConfig) -> Result<Report, HarnessError> {
     if config.filter.generate() {
         run_generate(&mut clients, &config, &served, &mut report).await;
     }
+    if config.filter.embed() {
+        run_rerank(&mut clients, &config, &served, &mut report).await;
+    }
 
     Ok(report)
 }
@@ -639,6 +642,112 @@ async fn run_generate(
             Err(status) => {
                 report.push(name, classify_rpc(&spec.alias, spec.required, status));
             }
+        }
+    }
+}
+
+const RERANK_ALIAS: &str = "ms-marco-minilm-l6";
+const RERANK_QUERY: &str = "How many people live in Berlin?";
+const RERANK_DOCS: &[&str] = &[
+    "Berlin has a population of 3,520,031 registered inhabitants in an area of 891.82 square kilometers.",
+    "Berlin is well known for its museums.",
+    "New York City is famous for its pizza and bagels.",
+];
+const RERANK_SIGMOID: [f32; 3] = [0.999_856_04, 0.013_124_33, 0.000_012_70];
+const RERANK_ATOL: f32 = 0.002;
+
+async fn run_rerank(
+    clients: &mut Clients,
+    config: &SuiteConfig,
+    served: &std::collections::HashMap<String, ModelInfo>,
+    report: &mut Report,
+) {
+    if !config.wanted(RERANK_ALIAS) {
+        return;
+    }
+    let info = served.get(RERANK_ALIAS);
+    match decide(RERANK_ALIAS, false, config.target, &config.catalog, info) {
+        Decision::Skip(reason) => {
+            report.push("rerank:ms-marco-minilm-l6", Outcome::Skip { reason: reason.to_string() });
+            return;
+        }
+        Decision::Fail(reason) => {
+            report.push("rerank:ms-marco-minilm-l6", Outcome::Fail { reason });
+            return;
+        }
+        Decision::Run => {}
+    }
+    let info = info.expect("decide Run implies present");
+    if !config.target.is_mock() && !info.backend.eq_ignore_ascii_case("turborerank") {
+        report.push(
+            "rerank:ms-marco-minilm-l6",
+            Outcome::Fail {
+                reason: format!(
+                    "ListModels backend={} — catalog CE must be turborerank, not word-overlap",
+                    info.backend
+                ),
+            },
+        );
+        return;
+    }
+    let docs: Vec<String> = RERANK_DOCS.iter().map(|s| (*s).to_string()).collect();
+    match client::rerank(&mut clients.ext, RERANK_ALIAS, RERANK_QUERY, docs, 0).await {
+        Ok(response) => {
+            if response.results.len() != 3 {
+                report.push(
+                    "rerank:ms-marco-minilm-l6",
+                    Outcome::Fail {
+                        reason: format!("expected 3 rows, got {}", response.results.len()),
+                    },
+                );
+                return;
+            }
+            let mut by_index = [0.0f32; 3];
+            for row in &response.results {
+                if (row.index as usize) < 3 {
+                    by_index[row.index as usize] = row.score;
+                }
+            }
+            let only_unit = by_index
+                .iter()
+                .all(|s| (*s - 0.0).abs() < 1e-8 || (*s - 1.0).abs() < 1e-8 || (*s - 0.5).abs() < 1e-8);
+            if only_unit {
+                report.push(
+                    "rerank:ms-marco-minilm-l6",
+                    Outcome::Fail {
+                        reason: format!("FAKE: scores look like word-overlap {by_index:?}"),
+                    },
+                );
+                return;
+            }
+            let mismatch = by_index
+                .iter()
+                .zip(RERANK_SIGMOID)
+                .any(|(g, w)| (g - w).abs() > RERANK_ATOL);
+            if mismatch && !config.target.is_mock() {
+                report.push(
+                    "rerank:ms-marco-minilm-l6",
+                    Outcome::Fail {
+                        reason: format!("scores {by_index:?} != golden sigmoid {RERANK_SIGMOID:?}"),
+                    },
+                );
+                return;
+            }
+            report.push(
+                "rerank:ms-marco-minilm-l6",
+                Outcome::Pass {
+                    detail: format!(
+                        "backend={} input-order≈golden sigmoid top={}",
+                        info.backend, response.results[0].index
+                    ),
+                },
+            );
+        }
+        Err(status) => {
+            report.push(
+                "rerank:ms-marco-minilm-l6",
+                classify_rpc(RERANK_ALIAS, false, status),
+            );
         }
     }
 }

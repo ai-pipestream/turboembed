@@ -359,6 +359,15 @@ impl InferstreamService for ExtensionService {
         if req.documents.is_empty() {
             return Err(Status::invalid_argument("documents must not be empty"));
         }
+        // TEI `--max-client-batch-size` default. Catalog CE aliases also
+        // enforce model.max_batch_size inside TurboRerankBackend.
+        const MAX_RERANK_DOCUMENTS: usize = 32;
+        if req.documents.len() > MAX_RERANK_DOCUMENTS {
+            return Err(Status::invalid_argument(format!(
+                "documents length {} exceeds max_client_batch_size {MAX_RERANK_DOCUMENTS}",
+                req.documents.len()
+            )));
+        }
         let backend = self.backend_for(&req.model_name)?;
         debug!(model = %req.model_name, docs = req.documents.len(), "rerank");
         let scores = backend
@@ -378,10 +387,15 @@ impl InferstreamService for ExtensionService {
             .map(|(index, score)| RerankResult {
                 index: index as u32,
                 score,
+                document: if req.return_documents {
+                    req.documents[index].clone()
+                } else {
+                    String::new()
+                },
             })
             .collect();
         // Descending score; ties keep input order (stable sort).
-        // Library scores (TurboRerank later) stay in input order; sort lives here.
+        // Library / TurboRerank scores stay in input order; sort lives here.
         results.sort_by(|a, b| b.score.total_cmp(&a.score));
         if req.top_n > 0 {
             results.truncate(req.top_n as usize);

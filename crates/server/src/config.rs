@@ -188,6 +188,8 @@ pub enum BackendKind {
     Openvino,
     /// Apple MLX (native macOS host only).
     Mlx,
+    /// TurboRerank C ABI (catalog MiniLM-L6 cross-encoder).
+    TurboRerank,
 }
 
 impl BackendKind {
@@ -200,6 +202,7 @@ impl BackendKind {
             Self::Ort => "ort",
             Self::Openvino => "openvino",
             Self::Mlx => "mlx",
+            Self::TurboRerank => "turborerank",
         }
     }
 }
@@ -378,6 +381,25 @@ mod tests {
         assert_eq!(model.normalize, Some(true));
         assert_eq!(model.max_seq_len, Some(256));
         assert_eq!(model.tokenizer_dir.as_deref(), Some("/models/minilm"));
+    }
+
+    #[test]
+    fn parses_turborerank_ce_model() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "ms-marco-minilm-l6"
+            backend = "turborerank"
+            device = "cuda"
+            path = "models/rerank/ms-marco-minilm-l6"
+            max_batch_size = 32
+            "#,
+        )
+        .unwrap();
+        assert_eq!(config.models[0].backend, BackendKind::TurboRerank);
+        assert_eq!(config.models[0].backend.as_str(), "turborerank");
+        assert_eq!(config.models[0].device.as_deref(), Some("cuda"));
+        assert_eq!(config.models[0].max_batch_size, Some(32));
     }
 
     #[test]

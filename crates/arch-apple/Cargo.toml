@@ -12,6 +12,10 @@ rust-version.workspace = true
 name = "inferstream-apple"
 path = "src/main.rs"
 
+[features]
+# Linux CI type-check of the TurboRerank façade. Production Apple is Swift.
+turborerank = ["dep:inferstream-backend-turborerank"]
+
 [dependencies]
 # Compiles as a stub on Linux (CI type-checks the wiring). Functional
 # server is macOS-only: in-process Swift MLX via inferstream-backend-apple.
@@ -21,4 +25,5 @@ inferstream-backend-mock = { workspace = true }
 inferstream-backend-apple = { workspace = true }
 inferstream-backend-llamacpp = { workspace = true }
 inferstream-backend-turboembed = { workspace = true }
+inferstream-backend-turborerank = { workspace = true, optional = true }
 tokio = { workspace = true }

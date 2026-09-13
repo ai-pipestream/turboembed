@@ -81,7 +81,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
 	turborerank-tests turborerank-tests-nocuda turborerank-tests-noov \
-	turborerank-tests-nometal \
+	turborerank-tests-nometal libturborerank-apple \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt
@@ -141,7 +141,30 @@ update-mlx-manifest:
 sync-proto:
 	./scripts/sync-proto.sh --check
 
-apple: sync-proto
+# Static C++/ObjC++ ABI for the Swift server (Machine C). Header-only
+# TurboRerankC in SPM links this archive — no second @_cdecl dylib.
+libturborerank-apple:
+	mkdir -p native/turborerank/build
+	@for src in $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC); do \
+	  obj="native/turborerank/build/$$(basename $$src).o"; \
+	  $(TURBORERANK_CXX) -std=c++17 -O2 -fPIC $(TURBORERANK_INCLUDES) \
+	    $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
+	    -c $$src -o $$obj; \
+	done
+	$(AR) rcs native/turborerank/build/libturborerank_apple.a \
+	  native/turborerank/build/alloc.cpp.o \
+	  native/turborerank/build/pack.cpp.o \
+	  native/turborerank/build/wordpiece.cpp.o \
+	  native/turborerank/build/safetensors.cpp.o \
+	  native/turborerank/build/bert_cpu.cpp.o \
+	  native/turborerank/build/cuda_api.cpp.o \
+	  native/turborerank/build/ov_api.cpp.o \
+	  native/turborerank/build/metal_api.cpp.o \
+	  native/turborerank/build/engine.cpp.o \
+	  $(if $(TURBORERANK_METAL_SRC),native/turborerank/build/metal_api.mm.o,)
+	@echo "wrote native/turborerank/build/libturborerank_apple.a"
+
+apple: sync-proto libturborerank-apple
 	swift build --package-path swift -c release
 	./scripts/build-apple-metallib.sh
 
@@ -554,6 +577,7 @@ turborerank-apple-receipt:
 
 test-turborerank: fetch-rerankers turborerank-tests turborerank-tests-nocuda
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
+	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p inferstream-backend-turborerank -- --include-ignored --nocapture
 
 test-turborerank-nvidia: test-turborerank turborerank-nvidia-receipt
 

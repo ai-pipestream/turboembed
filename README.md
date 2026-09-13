@@ -30,17 +30,20 @@ Every arch binary serves **both** gRPC services on one port behind one bearer in
 | capability | `inferstream-nvidia` | `inferstream-intel` | `inferstream-apple` |
 |---|---|---|---|
 | Embed | **LIVE** — ORT CUDA EP, explicit CPU EP, and ORT TensorRT EP via the TurboEmbed C ABI. Receipts: `nvidia-minilm.json`, `nvidia-minilm-cpu.json`, `nvidia-minilm-tensorrt.json`. TEI-parity on Machine A. | **LIVE** — OpenVINO GenAI `TextEmbeddingPipeline` via the TurboEmbed C ABI (cxx; GPU default). GPU + CPU receipts on Machine B: `intel-minilm.json`, `intel-minilm-cpu.json`. OVMS gRPC is out of scope. NPU: honest fail (`intel-npu.json`, `pass=false`) — no Intel NPU silicon on Machine B. | **LIVE** — Swift `TurboEmbedBackend` → `libTurboEmbed.dylib` → MLX mean+L2 on Metal. Receipt: `apple-minilm.json`. **The Swift server is the real Mac binary** (Machine C). |
+| Rerank | **LIVE** behind `--features turborerank` — `TurboRerankBackend` → C ABI (CUDA when nvcc is present; CPU otherwise). Catalog alias `ms-marco-minilm-l6`. Receipts under `testdata/receipts/turborerank/nvidia-minilm-l6.json`. TensorRT fail-loud. | **LIVE** behind `--features turborerank` — OpenVINO GPU/CPU IR via the same ABI. Receipts: `intel-minilm-l6.json`, `intel-cpu-minilm-l6.json`. | **LIVE** on the Swift server — `TurboRerankBackend` → C++/Metal ABI. Receipt: `apple-minilm-l6.json`. |
 | Tokenize / Detokenize | **LIVE** — ORT engine's own HF tokenizer or `tokenizer_dir` server-side; GGUF models answer from the llama.cpp vocab (in-process) | **LIVE** — `tokenizer.json` next to the GenAI OV dir; GGUF models answer from the in-process llama.cpp vocab (no remote `/tokenize`) | **LIVE** — swift-transformers from `tokenizer_dir` / `tokenizer.json` (in-process, no Rust) |
 | Generative infer / stream | **LIVE** — llama.cpp-CUDA in-process (`llamacpp-cuda` / `full-cuda`) streams GGUF tokens over `ModelStreamInfer` (Qwen2.5-0.5B on Machine A); server-client mode (`endpoint`) also available. TRT-LLM (`trtllm-sys`) is a **generative** stub — distinct from live ORT TensorRT *embeds*. | **LIVE** — llama.cpp-SYCL **in-process** (`llamacpp-sycl`, GGML_SYCL=ON): unary `ModelInfer` + per-token `ModelStreamInfer` for `default-llm` / `qwen-0.5b` (Qwen2.5-0.5B Q8_0) and `qwen-7b` (Qwen2.5-7B-Instruct Q5_K_M, text — not VL). GPU-proven on Machine B (`docs/intel-sycl-inprocess-machine-b.md`). Default aliases do **not** HTTP to `:8085`. GenAI covers **embeddings**, not generation. | **LIVE** — native MLX generation (`mlx-swift-lm`) streams per-token `ModelStreamInfer` chunks on Metal in the Swift server |
 | `InferstreamService` | yes (shared `serve()`) | yes (shared `serve()`) | yes — **Swift server** on macOS. The Rust `inferstream-apple` crate is a Linux CI compile stub only. |
 
 ### Known gaps
 
-- **Rerank RPC** — mock scorer only on all three arches. The **TurboRerank
-  library** is a real MiniLM-L6 cross-encoder behind
-  `include/turborerank.h` (CPU + CUDA on Machine A + OpenVINO on
-  Machine B + Metal on Machine C); gRPC is not wired
-  to it yet. TensorRT still fails loud. See
+- **Rerank RPC** — **LIVE** when `--features turborerank` is on (or the
+  Swift server on Machine C): catalog `ms-marco-minilm-l6` calls
+  `turborerank_score` (sigmoid, input order; server still sorts +
+  `top_n`). Missing weights or device fail at startup — never
+  word-overlap. TensorRT still fails loud. Opt in with
+  `serve = […, "ms-marco-minilm-l6"]` after `make fetch-rerankers`
+  (Intel GPU also needs `make convert-rerank-ov`). See
   [`docs/turborerank-architecture.md`](docs/turborerank-architecture.md).
 - **TRT-LLM generative** (`backend-trtllm` / `trtllm-sys`) — stub. Distinct from live **ORT TensorRT MiniLM embeds**.
 - **Zero-copy buffer pool** — aspirational (the Rust crate is a safe view wrapper, not a pooled allocator).
@@ -93,6 +96,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/backend-trtllm` | TensorRT-LLM **Executor** skeleton: config + OIP mapping (runtime link behind `trtllm-sys`) |
 | `crates/backend-llamacpp` | llama.cpp for all flavors — device = `cuda` / `sycl` / `metal` / `vulkan` / `cpu` |
 | `crates/backend-turboembed` | **gRPC façade** over `include/turboembed.h`. Catalog embeds (`ort` / `openvino` / mlx+pooling) construct this, not the one-off stacks |
+| `crates/backend-turborerank` | **gRPC façade** over `include/turborerank.h`. Catalog CE aliases (`ms-marco-minilm-l6`) construct this; sigmoid scores in input order |
 | `crates/backend-ort` | ORT session + pooling math reused by TurboEmbed `--features ort-cuda`; not constructed by the nvidia server for catalog aliases |
 | `crates/backend-openvino` | GenAI pipeline helpers reused by TurboEmbed `--features genai`; intel server catalog embeds go through the C ABI |
 | `crates/backend-apple` | Legacy Rust MLX FFI (Linux CI stub). Production Apple embeds use Swift `TurboEmbedBackend` |
@@ -101,6 +105,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/arch-intel` | `inferstream-intel` binary |
 | `crates/arch-apple` | Rust `inferstream-apple` — **Linux CI compile stub only**. Real Mac binary is `swift/` |
 | `crates/turboembed` | Safe wrapper over `include/turboembed.h`. macOS: `libTurboEmbed.dylib` (MLX Metal MiniLM mean+L2). NVIDIA: `--features ort-cuda`. Intel: `--features genai`. Catalog aliases error without the real feature; mock is smoke-only. |
+| `crates/turborerank` | Safe wrapper over `include/turborerank.h`. CPU + CUDA + OpenVINO + Metal MiniLM CE. |
 
 ## TurboEmbed
 
@@ -163,7 +168,9 @@ cargo run -p inferstream-server -- --config config/example.toml
 # so no system ORT install is needed:
 cargo build -p inferstream-arch-nvidia --release --features ort-runtime  # CPU EP, anywhere
 cargo build -p inferstream-arch-nvidia --release --features ort-cuda     # CUDA EP + TensorRT EP, GPU host
-# Full Machine A surface: ORT-CUDA embeddings + llama.cpp-CUDA GGUF generation.
+# Catalog CE rerank (same ABI as make test-turborerank):
+cargo build -p inferstream-arch-nvidia --release --features turborerank
+# Full Machine A surface: ORT-CUDA embeddings + llama.cpp-CUDA GGUF + TurboRerank.
 # llama.cpp compiles from source with nvcc; when the host's default gcc is
 # newer than nvcc supports, name a compatible host compiler:
 CUDAHOSTCXX=/usr/bin/g++-13 CUDAARCHS=89 \
@@ -337,7 +344,7 @@ A second, clearly separated gRPC service (`proto/inferstream_extension.proto`) r
 | `Detokenize` | inverse of Tokenize; `skip_special_tokens` drops CLS/SEP/PAD frames |
 | `Embed` | typed convenience wrapper over ModelInfer — send strings, get `float` vectors back; pooling/normalize/truncate forwarded as InferParameters |
 | `ListModels` | one call for the whole repository: name, backend id, readiness, platform, embedding dim, tokenizer availability |
-| `Rerank` | query/document relevance scores, sorted, with `top_n`; engines without a reranker answer `UNAVAILABLE` (the mock implements a deterministic scorer so the wire path tests everywhere) |
+| `Rerank` | query/document relevance scores, sorted, with `top_n`. Catalog CE aliases (`ms-marco-minilm-l6`) call the TurboRerank C ABI (sigmoid, TEI `raw_scores=false`) when `--features turborerank` is on; engines without a reranker answer `UNAVAILABLE`. The mock implements word-overlap for **explicit mock models only** — never for catalog CE aliases |
 
 Tokenizer resolution: when a model's config sets `tokenizer_dir` (a `tokenizer.json` file or a directory containing one), the server loads a local HuggingFace fast tokenizer at startup and answers Tokenize/Detokenize itself. Without a configured tokenizer the request is delegated to the backend (the ORT engine reuses its own HF tokenizer; the mock ships a lossless byte-level tokenizer; everything else reports `UNAVAILABLE` with the config fix named).
 
@@ -452,10 +459,10 @@ Done:
 Still open:
 
 6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — generative stub. Not ORT TensorRT embeds (those are live).
-7. **Rerank RPC** — mock scorer only. TurboRerank CPU + CUDA + OpenVINO
-   + Metal library is live (`make test-turborerank` /
-   `make test-turborerank-nvidia` / `make test-turborerank-intel` /
-   `make test-turborerank-apple`); TensorRT and the gRPC façade are later.
+7. **Rerank RPC** — **LIVE** behind `--features turborerank` (nvidia /
+   intel) and the Swift server (Machine C). TensorRT CE still fail-loud.
+   TEI `return_documents` + batch cap 32 are on the RPC; richer TEI
+   extras (`raw_scores` query flag) are a later follow-up.
 8. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 9. Optional adapters: TEI-compatible proto (lowest priority), richer stream metadata.
 10. ORT session pooling (one session per model behind a mutex today; intra-op threads still parallelize each request).

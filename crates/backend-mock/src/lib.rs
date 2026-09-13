@@ -331,13 +331,20 @@ impl Backend for MockBackend {
 
     /// Deterministic mock reranker: score = fraction of the query's
     /// lowercase words that appear in the document. Stable across runs, so
-    /// tests can assert ordering.
+    /// tests can assert ordering. Catalog CE aliases are refused — they
+    /// are MiniLM, not word-overlap.
     async fn rerank(
         &self,
-        _model_name: &str,
+        model_name: &str,
         query: &str,
         documents: &[String],
     ) -> Result<Vec<f32>, BackendError> {
+        if inferstream_backend::is_catalog_cross_encoder_alias(model_name) {
+            return Err(BackendError::Unavailable(format!(
+                "catalog CE alias {model_name:?} refuses the word-overlap mock; \
+                 serve it with backend = \"turborerank\" (--features turborerank)"
+            )));
+        }
         let query_words: Vec<String> = query.split_whitespace().map(|w| w.to_lowercase()).collect();
         Ok(documents
             .iter()
@@ -608,6 +615,25 @@ mod tests {
         assert_eq!(scores[2], 1.0);
         let again = backend.rerank("m", "rust inference", &docs).await.unwrap();
         assert_eq!(scores, again);
+    }
+
+    #[tokio::test]
+    async fn rerank_refuses_catalog_ce_alias() {
+        let backend = MockBackend::default();
+        let err = backend
+            .rerank(
+                "ms-marco-minilm-l6",
+                "How many people live in Berlin?",
+                &["Berlin has a population.".to_string()],
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, BackendError::Unavailable(_)));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ms-marco-minilm-l6") && msg.contains("turborerank"),
+            "must name the CE alias and the real backend, got {msg}"
+        );
     }
 
     #[tokio::test]

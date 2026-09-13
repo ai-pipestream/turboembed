@@ -94,6 +94,25 @@ pub fn unsupported(model: &ModelConfig, hint: impl Into<String>) -> ServerError 
     }
 }
 
+/// Register the mock backend, except catalog CE aliases — those must never
+/// sit on word-overlap (they are MiniLM cross-encoders).
+pub fn serve_mock(
+    model: &ModelConfig,
+    mock: Arc<MockBackend>,
+) -> Result<Arc<dyn Backend>, ServerError> {
+    if inferstream_backend::is_catalog_cross_encoder_alias(&model.name) {
+        return Err(ServerError::InvalidModelConfig {
+            model: model.name.clone(),
+            backend: model.backend.as_str(),
+            message: "catalog CE alias refuses backend=mock; word-overlap \
+                      is not MiniLM. Rebuild with --features turborerank \
+                      and set backend = \"turborerank\""
+                .into(),
+        });
+    }
+    Ok(mock as Arc<dyn Backend>)
+}
+
 /// Factory for the mock backend only — what the arch-neutral `inferstream`
 /// dev binary uses, and a building block for arch factories (every arch
 /// binary also serves `mock` so GPU workers can smoke-test the wire path
@@ -101,7 +120,7 @@ pub fn unsupported(model: &ModelConfig, hint: impl Into<String>) -> ServerError 
 pub fn mock_factory() -> impl BackendFactory {
     let mock: Arc<MockBackend> = Arc::new(MockBackend::default());
     move |model: &ModelConfig| match model.backend {
-        BackendKind::Mock => Ok(mock.clone() as Arc<dyn Backend>),
+        BackendKind::Mock => serve_mock(model, mock.clone()),
         _ => Err(unsupported(
             model,
             "this binary only serves the mock backend; run the arch binary that ships this \
@@ -304,6 +323,23 @@ mod tests {
 
         let registry = build_registry(&config, &mock_factory()).unwrap();
         assert!(registry.lookup("smoke-alias").is_some());
+    }
+
+    #[test]
+    fn mock_factory_refuses_catalog_ce_alias() {
+        let config = Config::from_toml(
+            r#"
+            [[models]]
+            name = "ms-marco-minilm-l6"
+            backend = "mock"
+            "#,
+        )
+        .unwrap();
+        let result = build_registry(&config, &mock_factory());
+        assert!(
+            matches!(result, Err(ServerError::InvalidModelConfig { .. })),
+            "CE alias on mock must fail, got {result:?}"
+        );
     }
 
     #[test]

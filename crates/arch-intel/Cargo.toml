@@ -31,6 +31,9 @@ openvino-genai = ["openvino", "inferstream-backend-turboembed/genai"]
 ort = ["dep:inferstream-backend-turboembed"]
 # Real ONNX Runtime via TurboEmbed (CPU EP). Catalog Intel embeds stay GenAI.
 ort-runtime = ["ort", "inferstream-backend-turboembed/ort-cuda"]
+# Catalog MiniLM-L6 cross-encoder via include/turborerank.h (OpenVINO
+# when the toolkit is present; CPU otherwise). Missing IR/weights fail loud.
+turborerank = ["dep:inferstream-backend-turborerank"]
 
 [dependencies]
 inferstream-server = { workspace = true }
@@ -38,6 +41,7 @@ inferstream-backend = { workspace = true }
 inferstream-backend-mock = { workspace = true }
 inferstream-backend-llamacpp = { workspace = true, optional = true }
 inferstream-backend-turboembed = { workspace = true, optional = true }
+inferstream-backend-turborerank = { workspace = true, optional = true }
 tokio = { workspace = true }
 
 [dev-dependencies]

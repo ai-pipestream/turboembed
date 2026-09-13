@@ -128,6 +128,10 @@ async fn same_suite_against_mock_logical_names() {
     assert!(is_pass(report.outcome("generate:default-llm")));
     assert!(is_pass(report.outcome("generate:qwen-0.5b")));
     assert!(is_skip(report.outcome("generate:qwen-7b")));
+    assert!(
+        is_skip(report.outcome("rerank:ms-marco-minilm-l6")),
+        "CE alias is not on the mock serve list"
+    );
     server.stop().await;
 }
 

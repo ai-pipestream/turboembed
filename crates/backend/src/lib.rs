@@ -158,10 +158,11 @@ pub trait Backend: Send + Sync + 'static {
     /// Score `documents` against `query`; returns one relevance score per
     /// document, in input order (higher = more relevant).
     ///
-    /// Default: `Unavailable`. The mock implements word-overlap for the
-    /// wire path. Real MiniLM CE scores live in the TurboRerank C ABI
-    /// (`include/turborerank.h`); a later façade should call that ABI
-    /// instead of inventing scores here.
+    /// Default: `Unavailable`. The mock implements word-overlap for
+    /// explicit mock models only. Catalog cross-encoder aliases
+    /// (`ms-marco-minilm-l6`) go through the TurboRerank C ABI
+    /// (`include/turborerank.h`) via `TurboRerankBackend` — never
+    /// word-overlap.
     async fn rerank(
         &self,
         model_name: &str,
@@ -173,6 +174,14 @@ pub trait Backend: Send + Sync + 'static {
             self.id()
         )))
     }
+}
+
+/// Catalog MiniLM-L6 cross-encoder aliases. Mock word-overlap must not
+/// answer these names — they are TurboRerank ABI models.
+pub fn is_catalog_cross_encoder_alias(name: &str) -> bool {
+    let n = name.trim();
+    n.eq_ignore_ascii_case("ms-marco-minilm-l6")
+        || n.eq_ignore_ascii_case("ms-marco-minilm-l6-v2")
 }
 
 /// Routes model names to the backend that serves them.
@@ -270,6 +279,14 @@ mod tests {
             backend.rerank("m", "q", &["d".to_string()]).await,
             Err(BackendError::Unavailable(_))
         ));
+    }
+
+    #[test]
+    fn catalog_ce_alias_is_minilm_l6() {
+        assert!(is_catalog_cross_encoder_alias("ms-marco-minilm-l6"));
+        assert!(is_catalog_cross_encoder_alias("MS-MARCO-MiniLM-L6"));
+        assert!(!is_catalog_cross_encoder_alias("minilm"));
+        assert!(!is_catalog_cross_encoder_alias("mock-embed"));
     }
 
     #[test]

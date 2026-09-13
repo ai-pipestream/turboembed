@@ -1,8 +1,8 @@
 # TurboRerank architecture (Phase 1 CPU + Phase 2a CUDA + Phase 2b OpenVINO + Phase 2c Metal)
 
 TurboRerank is the **library-first** cross-encoder reranker beside
-TurboEmbed. Inferstream `Rerank` RPC stays a thin façade (not yet
-wired to this ABI in Phase 1). The product path is a frozen C ABI plus
+TurboEmbed. Inferstream `Rerank` RPC is a thin façade over this ABI
+when `--features turborerank` is on (Phase 3). The product path is a frozen C ABI plus
 a C++ buffer/forward contract: caller-owned token memory, no Python on
 the hot path, no silent mock scores.
 
@@ -17,16 +17,17 @@ Metal MiniLM CE kernels with HF golden parity. TensorRT still
 **fails loud**. GPU create without that GPU fails loud — never CPU,
 never a mock score.
 
-## 1. Inventory — mock Rerank today (repo tip `c4a1bab`)
+## 1. Inventory — Rerank RPC (Phase 3)
 
-Rerank is a wire-path scorer, not a model.
+Catalog CE aliases call the ABI. Mock word-overlap is tests-only.
 
 | file | role |
 |---|---|
 | `proto/inferstream_extension.proto` | `rpc Rerank`; `RerankRequest` (`model_name`, `query`, `documents`, `top_n`); `RerankResult` (`index`, `score`). Comment: engines without a reranker → `UNAVAILABLE`; mock implements a deterministic scorer. |
 | `swift/Sources/InferstreamApple/Protos/inferstream_extension.proto` | Apple copy of the same proto. |
 | `crates/backend/src/lib.rs` | `Backend::rerank` default → `Unavailable`. |
-| `crates/backend-mock/src/lib.rs` | Mock: `score = (# query words found in doc) / (# query words)`. Empty query → `0.0`. |
+| `crates/backend-turborerank/src/lib.rs` | `TurboRerankBackend`: `turborerank_score` + SIGMOID, input order. |
+| `crates/backend-mock/src/lib.rs` | Mock: `score = (# query words found in doc) / (# query words)`. Empty query → `0.0`. Refuses catalog CE aliases. |
 | `crates/server/src/extension.rs` | Validates non-empty `documents`; calls `backend.rerank`; **stable sort** by descending `score` (`total_cmp`); `top_n` truncates. |
 | `crates/server/tests/extension.rs` | `rerank_orders_by_score_and_honors_top_n`, `rerank_validates_input`. |
 | `crates/backend-mock/src/lib.rs` (tests) | `rerank_scores_are_deterministic_and_ordered`, `rerank_empty_query_scores_zero`. |
@@ -41,10 +42,9 @@ Rerank is a wire-path scorer, not a model.
 Not a reranker: TurboEmbed C ABI (`include/turboembed.h`) is **embed-only**.
 Catalog `Embed` is live; `Rerank` does not call it.
 
-**Phase 1 decision:** leave the gRPC mock wired so existing extension
-tests stay green. Do **not** point `Rerank` at fake MiniLM scores. When
-a later `TURBORERANK` server feature is on, the façade must call this
-ABI or fail loud — never mock-as-done.
+**Phase 3:** `--features turborerank` (and the Swift server) construct
+`TurboRerankBackend`. Mock word-overlap stays for `mock-embed` wire
+tests. Catalog CE aliases never sit on that scorer.
 
 ## 2. Research — how real rerankers behave
 
@@ -159,7 +159,7 @@ LayerNorm: last-dim, `eps=1e-12`, population variance (`/N`, not `/N-1`).
 
 ```mermaid
 flowchart TB
-    subgraph later [Later — not Phase 1]
+    subgraph rpc [Phase 3 LIVE]
         RPC["inferstream.v1 Rerank RPC"]
     end
 
@@ -198,7 +198,7 @@ flowchart TB
         NPU["OpenVINO NPU"]
     end
 
-    RPC -.-> abi
+    RPC --> abi
     rust --> abi
     abi --> cpp
     Buf --> Pack --> Fwd
@@ -302,23 +302,29 @@ every other artifact.
 Status / device enums mirror `turboembed_*` so a later façade can share
 policy text: GPU/AUTO/Metal never fall back to CPU or mock.
 
-## 7. How inferstream `Rerank` will call this later
-
-Sketch only — **not wired** in Phase 1.
+## 7. How inferstream `Rerank` calls this (Phase 3)
 
 ```
 Rerank RPC
   → Registry.backend_for(model)
-  → TurboRerankBackend (new crate, later)
+  → TurboRerankBackend (`crates/backend-turborerank`)
        turborerank_engine_create(device from catalog)
        turborerank_load_model("ms-marco-minilm-l6")
-       turborerank_score(query, docs, SIGMOID)   // or pack + forward
-  → extension.rs already sorts + top_n (stable)
+       turborerank_score(query, docs, SIGMOID)
+  → extension.rs sorts + top_n (stable); optional return_documents
 ```
 
-Until that crate exists, `Backend::rerank` stays mock / `UNAVAILABLE`.
-A future `--features turborerank` on an arch binary must either link
-this ABI or fail at startup — never serve word-overlap as MiniLM.
+`--features turborerank` on `inferstream-nvidia` / `inferstream-intel`
+(and `full-cuda`) links this crate. Without the feature, serving the
+catalog CE alias fails at startup naming the flag. Missing weights
+fail at `open()`. `backend = "mock"` on `ms-marco-minilm-l6` is
+refused. Word-overlap stays on explicit mock models (`mock-embed`)
+for wire tests only.
+
+Apple: the Swift server constructs `TurboRerankBackend` →
+`TurboRerankEngine` → the C++/Metal ABI (`make apple` builds
+`libturborerank_apple.a`). The Rust `inferstream-apple` crate can
+type-check the same factory with `--features turborerank`.
 
 ## 8. Tests (what “real” means)
 
@@ -365,9 +371,10 @@ Hostnames stay out of docs.
 | Intel Level Zero USM + OpenVINO `CompiledModel` | Phase 2b (Machine B) |
 | Apple MTL shared + first-party Metal CE | Phase 2c (Machine C) |
 | TensorRT CE | **not done** — fail loud |
-| gRPC `Rerank` → ABI | sketched, not wired |
-| Swift wrapper (`TurboRerankC` + client) | Phase 2c — ABI stays C++/ObjC++ |
-| TEI `return_text` / `max_client_batch` | RPC-layer later |
+| gRPC `Rerank` → ABI | Phase 3 — `--features turborerank` / Swift |
+| Swift wrapper (`TurboRerankC` + client) | Phase 2c/3 — ABI stays C++/ObjC++ |
+| TEI `return_documents` + batch cap 32 | Phase 3 |
+| TEI `raw_scores` request flag | later |
 
 ## 10. Citations
 

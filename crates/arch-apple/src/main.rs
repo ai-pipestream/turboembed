@@ -27,7 +27,7 @@ fn factory() -> impl inferstream_server::BackendFactory {
         Arc::new(inferstream_backend_apple::MlxEngine::from_env());
     move |model: &ModelConfig| -> Result<Arc<dyn Backend>, ServerError> {
         match model.backend {
-            BackendKind::Mock => Ok(mock.clone()),
+            BackendKind::Mock => inferstream_server::serve_mock(model, mock.clone()),
             BackendKind::Mlx => {
                 // Catalog embeds (pooling set) go through TurboEmbed C ABI.
                 // LLM aliases stay on the legacy MLX generation path so
@@ -84,6 +84,27 @@ fn factory() -> impl inferstream_server::BackendFactory {
                 })
                 .map_err(|e| invalid(model, e.to_string()))?;
                 Ok(Arc::new(backend))
+            }
+            BackendKind::TurboRerank => {
+                #[cfg(feature = "turborerank")]
+                {
+                    let backend =
+                        inferstream_backend_turborerank::TurboRerankBackend::open_for_model(
+                            &model.name,
+                            model.device.as_deref(),
+                            model.path.as_deref(),
+                            model.max_batch_size,
+                        )
+                        .map_err(|e| invalid(model, e.to_string()))?;
+                    Ok(Arc::new(backend))
+                }
+                #[cfg(not(feature = "turborerank"))]
+                Err(unsupported(
+                    model,
+                    "the production Mac binary is Swift (make apple); the Rust \
+                     crate can type-check with --features turborerank. Catalog \
+                     CE aliases never fall back to word-overlap",
+                ))
             }
             BackendKind::TrtLlm | BackendKind::Ort | BackendKind::Openvino => Err(unsupported(
                 model,

@@ -19,9 +19,11 @@
 //   * ListModels — richer repository listing than per-model ModelReady /
 //     ModelMetadata round-trips: name, backend, readiness, platform and
 //     embedding dimension in one call.
-//   * Rerank — query/document relevance scoring. Serving engines without a
-//     reranker report UNAVAILABLE; the mock backend implements a
-//     deterministic scorer so the wire path is testable everywhere.
+//   * Rerank — query/document relevance scoring. Catalog CE aliases
+//     (`ms-marco-minilm-l6`) call the TurboRerank C ABI (sigmoid,
+//     TEI raw_scores=false). Engines without a reranker report
+//     UNAVAILABLE. The mock backend implements word-overlap for
+//     explicit mock models only — never for catalog CE aliases.
 //
 // Clients that only speak OIP lose nothing: every Embed call is expressible
 // as ModelInfer with a BYTES "text" input tensor and the InferParameters
@@ -52,8 +54,9 @@ service InferstreamService {
   // List every configured model with backend, readiness and shape info.
   rpc ListModels(ListModelsRequest) returns (ListModelsResponse) {}
 
-  // Score documents against a query with the model's reranker. Engines
-  // without a reranker fail with UNAVAILABLE.
+  // Score documents against a query. Catalog CE aliases call
+  // turborerank_score (sigmoid, input order); this RPC sorts and
+  // applies top_n. Engines without a reranker fail with UNAVAILABLE.
   rpc Rerank(RerankRequest) returns (RerankResponse) {}
 }
 
@@ -145,12 +148,12 @@ message EmbedResponse {
   // Embedding dimension (columns of every vector below).
   uint32 dim = 1;
   // One embedding per input text, in request order. Empty when
-  // output_format == EMBED_OUTPUT_PACKED_BYTES (see packed_embeddings).
+  // output_format == PACKED_BYTES (see packed_embeddings).
   repeated Embedding embeddings = 2;
   string model_name = 3;
   string model_version = 4;
   // Row-major little-endian FP32 blob, length = count * dim * 4.
-  // Populated when output_format == EMBED_OUTPUT_PACKED_BYTES.
+  // Populated when output_format == PACKED_BYTES.
   bytes packed_embeddings = 5;
 }
 
@@ -198,6 +201,9 @@ message RerankRequest {
   repeated string documents = 3;
   // Return only the top N results (0 = all), sorted by descending score.
   uint32 top_n = 4;
+  // TEI `return_text` / `return_documents`: echo the original document
+  // string on each result row.
+  bool return_documents = 5;
 }
 
 message RerankResponse {
@@ -210,5 +216,8 @@ message RerankResult {
   // Index of the document in RerankRequest.documents.
   uint32 index = 1;
   // Relevance score (backend-specific scale; higher = more relevant).
+  // Catalog CE aliases: sigmoid(CLS logit), TEI raw_scores=false.
   float score = 2;
+  // Populated when RerankRequest.return_documents is set.
+  string document = 3;
 }

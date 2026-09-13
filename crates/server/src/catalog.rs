@@ -245,12 +245,18 @@ mod tests {
         ("default-llm", [true, true, true]),
         ("qwen-0.5b", [true, true, true]),
         ("qwen-7b", [true, true, true]),
+        ("ms-marco-minilm-l6", [true, true, true]),
     ];
 
     const LLM_ALIASES: &[&str] = &["default-llm", "qwen-0.5b", "qwen-7b"];
+    const RERANK_ALIASES: &[&str] = &["ms-marco-minilm-l6"];
 
     fn is_llm(alias: &str) -> bool {
         LLM_ALIASES.contains(&alias)
+    }
+
+    fn is_reranker(alias: &str) -> bool {
+        RERANK_ALIASES.contains(&alias)
     }
 
     #[test]
@@ -301,7 +307,7 @@ mod tests {
     fn builtin_embedding_entries_are_engine_complete() {
         let catalog = Catalog::builtin();
         for (alias, [nvidia, intel, apple]) in BUILTIN_MATRIX {
-            if is_llm(alias) {
+            if is_llm(alias) || is_reranker(alias) {
                 continue;
             }
             if *nvidia {
@@ -514,6 +520,38 @@ mod tests {
         assert!(intel.endpoint.is_none());
         let apple = catalog.resolve("qwen-7b", Arch::Apple).unwrap();
         assert_eq!(apple.path.as_deref(), Some("models/mlx/qwen-7b"));
+    }
+
+    #[test]
+    fn builtin_rerank_entries_are_engine_complete() {
+        let catalog = Catalog::builtin();
+        for alias in RERANK_ALIASES {
+            let nvidia = catalog.resolve(alias, Arch::Nvidia).unwrap();
+            assert_eq!(nvidia.backend, BackendKind::TurboRerank, "{alias} nvidia");
+            assert_eq!(nvidia.device.as_deref(), Some("cuda"), "{alias} nvidia device");
+            assert_eq!(
+                nvidia.path.as_deref(),
+                Some("models/rerank/ms-marco-minilm-l6")
+            );
+            assert_eq!(nvidia.max_batch_size, Some(32));
+
+            let intel = catalog.resolve(alias, Arch::Intel).unwrap();
+            assert_eq!(intel.backend, BackendKind::TurboRerank, "{alias} intel");
+            assert_eq!(intel.device.as_deref(), Some("GPU"), "{alias} intel device");
+            assert_eq!(
+                intel.path.as_deref(),
+                Some("models/ov-rerank/ms-marco-minilm-l6")
+            );
+            assert!(intel.endpoint.is_none(), "{alias} intel must be in-process");
+
+            let apple = catalog.resolve(alias, Arch::Apple).unwrap();
+            assert_eq!(apple.backend, BackendKind::TurboRerank, "{alias} apple");
+            assert_eq!(apple.device.as_deref(), Some("metal"), "{alias} apple device");
+            assert_eq!(
+                apple.path.as_deref(),
+                Some("models/rerank/ms-marco-minilm-l6")
+            );
+        }
     }
 
     #[test]
