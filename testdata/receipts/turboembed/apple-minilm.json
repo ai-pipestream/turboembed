@@ -14,16 +14,16 @@
   "dim": 384,
   "n": 237,
   "cosine_vs_nvidia": {
-    "min": 0.97945654,
+    "min": 0.97945666,
     "mean": 0.99973994,
     "floor": 0.97,
     "worst_id": "sts-0056:a"
   },
   "cosine_vs_apple": {
-    "min": 0.9999999,
+    "min": 0.99999976,
     "mean": 1.0,
     "floor": 0.99,
-    "worst_id": "sts-0044:a"
+    "worst_id": "sts-0039:a"
   },
   "l2_ok": true,
   "fake_rejected": true,
@@ -34,5 +34,5 @@
   "metal_owns_result": true,
   "allocs_after_forward": 0,
   "weights": "models/mlx/minilm",
-  "captured_at_unix": 1789307816
+  "captured_at_unix": 1789310375
 }

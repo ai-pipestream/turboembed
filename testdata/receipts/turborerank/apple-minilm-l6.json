@@ -25,7 +25,7 @@
   "logits": [8.84585381, -4.32007980, -11.27389336],
   "max_abs_logit_err": 0.000004,
   "cosine_vs_golden": 1.0000000000,
-  "git_sha": "8cf25465751b75ac8c310ec32ffc253b05764083",
+  "git_sha": "236d3f8624805b677c98436b1424d5cfe0c139c4",
   "command": "make test-turborerank-apple",
   "note": "SOLIDIFY (1) Machine C LIVE: turbo_buffer Metal SHARED rent/return is real MTL. TurboRerank Metal forward rents arena token slots; allocs/forward==0. AUTO resolves to METAL when CUDA/OpenVINO GPU are absent. Create without Metal fails loud. Swift TurboRerankEngine.score calls turborerank_score (engine work buffer) — no Swift-side token malloc. Weights copied once at load from mmap'd safetensors."
 }
