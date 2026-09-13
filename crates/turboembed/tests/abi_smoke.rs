@@ -109,11 +109,15 @@ fn cpu_only_when_explicit() {
         "explicit CPU must not advertise Metal MiniLM: {:?}",
         models.iter().map(|m| (m.alias.clone(), m.device)).collect::<Vec<_>>()
     );
-    #[cfg(not(feature = "genai"))]
+    // Without a real provider, CPU must not invent MiniLM. With
+    // `--features ort-cuda`, explicit CPU is the real ORT CPU EP
+    // (see nvidia_minilm.rs). With `--features genai`, explicit CPU
+    // is TextEmbeddingPipeline "CPU".
+    #[cfg(not(any(feature = "ort-cuda", feature = "genai")))]
     {
         let err = engine
             .load_model("minilm")
-            .expect_err("CPU stub must not silently serve MiniLM");
+            .expect_err("CPU must not silently serve MiniLM");
         assert!(matches!(err, Error::NotImplemented(_) | Error::NotFound(_)));
     }
 }
@@ -122,7 +126,7 @@ fn cpu_only_when_explicit() {
 #[test]
 fn metal_fails_on_linux() {
     let err = match Engine::create(Device::Metal) {
-        Ok(_) => panic!("Metal must fail on Linux — refusing CPU fallback"),
+        Ok(_) => panic!("no Metal on the Linux stub"),
         Err(e) => e,
     };
     assert!(matches!(
@@ -135,11 +139,16 @@ fn metal_fails_on_linux() {
     );
 }
 
-#[cfg(all(not(target_os = "macos"), not(any(feature = "ort-cuda", feature = "genai"))))]
+/// AUTO is host-default GPU. Without ort-cuda or genai there is no
+/// GPU provider, so create must fail (never CPU/mock).
+#[cfg(all(
+    not(target_os = "macos"),
+    not(any(feature = "ort-cuda", feature = "genai"))
+))]
 #[test]
-fn auto_fails_on_linux_stub_without_accelerator() {
+fn auto_fails_on_linux_without_accelerator() {
     let err = match Engine::create(Device::Auto) {
-        Ok(_) => panic!("AUTO must fail when this stub has no GPU — never CPU"),
+        Ok(_) => panic!("no GPU provider on this stub"),
         Err(e) => e,
     };
     assert!(matches!(

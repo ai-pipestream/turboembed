@@ -6,7 +6,7 @@
   "crate": "turboembed",
   "device": "CPU",
   "dims": 384,
-  "git_sha": "edfe9840417d99be18d22d78d1f2a2a5561178e4",
+  "git_sha": "3da964ad17e2c1ebd3799dcf1af02fcd4e6d0ca3",
   "hello_world_cosine": 0.9999997615814209,
   "host": "krick",
   "normalize": true,

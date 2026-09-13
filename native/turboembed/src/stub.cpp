@@ -345,6 +345,17 @@ turboembed_status turboembed_engine_create(
                              "; this stub has no GPU — refusing CPU fallback";
             return TURBOEMBED_ERR_UNAVAILABLE;
 #endif
+        case TURBOEMBED_DEVICE_TENSORRT:
+            g_create_error =
+                "requested tensorrt; TensorRT 10 runtime is missing "
+                "(libnvinfer.so.10, libnvonnxparser.so.10) and "
+                "Device::TensorRT is not a MiniLM path — refusing CPU "
+                "fallback (and refusing a silent CUDA stand-in). ORT "
+                "already ships libonnxruntime_providers_tensorrt.so; "
+                "the host blocker is TensorRT 10 SONAME libs (not "
+                "apt-installed on krick; tensorrt-cu13-libs wheel is "
+                "~3.7 GiB). See docs/turboembed.md";
+            return TURBOEMBED_ERR_UNAVAILABLE;
         case TURBOEMBED_DEVICE_OPENVINO_NPU:
 #ifdef TURBOEMBED_GENAI
             break;
@@ -353,7 +364,6 @@ turboembed_status turboembed_engine_create(
                              "; this stub has no OpenVINO NPU — refusing CPU fallback";
             return TURBOEMBED_ERR_UNAVAILABLE;
 #endif
-        case TURBOEMBED_DEVICE_TENSORRT:
         case TURBOEMBED_DEVICE_METAL:
             g_create_error = std::string("requested ") + turboembed_device_name(device) +
                              "; this stub has no GPU — refusing CPU fallback";

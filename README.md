@@ -184,7 +184,7 @@ GPU plugins are not fetched by `scripts/fetch-runtime-libs.sh intel`.
 Model IR dirs are `make fetch-ov-genai`. OVMS gRPC is out of scope.
 See `docs/intel-genai-embed.md`.
 
-EP registration uses `error_on_failure`: if these libs are missing the binary **fails at startup** with the loader's actual error instead of silently serving on CPU. `device = "tensorrt"` (build feature `ort-tensorrt`) additionally requires TensorRT 10 (`sudo apt install tensorrt-libs` from the NVIDIA repo) — not installed on krick today, so stay on `device = "cuda"`.
+EP registration uses `error_on_failure`: if these libs are missing the binary **fails at startup** with the loader's actual error instead of silently serving on CPU. `device = "tensorrt"` (build feature `ort-tensorrt`) and TurboEmbed `Device::TensorRT` additionally require TensorRT 10 SONAMEs `libnvinfer.so.10` + `libnvonnxparser.so.10`. Those are **not** on krick (`ldconfig` empty; no NVIDIA TensorRT apt repo). ORT already ships `libonnxruntime_providers_tensorrt.so`; create still fails loud — no CUDA/CPU stand-in, no receipt. Stay on `device = "cuda"`. See `docs/turboembed.md`.
 
 ## Logical model names (alias catalog)
 

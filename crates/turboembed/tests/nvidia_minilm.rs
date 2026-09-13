@@ -147,6 +147,61 @@ fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>, Vec<f32>
     (dim, subset, hello)
 }
 
+/// AUTO is host-default GPU. On NVIDIA that is CUDA — never a silent CPU EP.
+#[test]
+fn auto_request_never_silently_uses_cpu() {
+    match Engine::create(Device::Auto) {
+        Ok(engine) => match engine.load_model(ALIAS) {
+            Ok(()) => {
+                let info = engine.list_models().expect("list").get(0).expect("row");
+                assert_eq!(
+                    info.device,
+                    Device::Cuda,
+                    "AUTO must resolve to CUDA, not CPU"
+                );
+            }
+            Err(Error::Unavailable(msg)) | Err(Error::UnsupportedDevice(msg)) => {
+                let lower = msg.to_ascii_lowercase();
+                assert!(
+                    !lower.contains("cpu ep") || lower.contains("not a fallback"),
+                    "AUTO must not silently become CPU, got {msg}"
+                );
+            }
+            Err(other) => panic!("AUTO load must succeed on CUDA or fail loud, got {other:?}"),
+        },
+        Err(err) => panic!("AUTO create must succeed with --features ort-cuda, got {err:?}"),
+    }
+}
+
+/// Device::TensorRT is not MiniLM on this host. Create must fail loud
+/// (no CUDA/CPU/FNV stand-in) and name the TensorRT 10 SONAME blocker.
+#[test]
+fn tensorrt_create_fails_loud_names_blocker() {
+    let err = match Engine::create(Device::TensorRt) {
+        Ok(_) => panic!(
+            "TensorRT create must fail until MiniLM runs on ORT-TRT EP with libnvinfer.so.10"
+        ),
+        Err(e) => e,
+    };
+    assert!(
+        matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+        "TensorRT must fail loud, got {err:?}"
+    );
+    let lower = err.to_string().to_ascii_lowercase();
+    assert!(
+        lower.contains("tensorrt"),
+        "error must name TensorRT, got {err}"
+    );
+    assert!(
+        lower.contains("libnvinfer"),
+        "error must name libnvinfer.so.10, got {err}"
+    );
+    assert!(
+        lower.contains("refusing") && lower.contains("cpu"),
+        "error must refuse CUDA/CPU fallback, got {err}"
+    );
+}
+
 /// CUDA request must stay on CUDA — never a silent CPU EP.
 /// When CUDA is present, create+load must list CUDA. When it is missing,
 /// the error must name CUDA and must not succeed as CPU.
