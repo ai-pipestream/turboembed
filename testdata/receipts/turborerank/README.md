@@ -9,6 +9,9 @@
 | `intel-remote-usm-probe.txt` | Machine B | Live `USM_USER_BUFFER` wrap probe (OCL size-0 fail) | **OPENVINO_GPU** |
 | `apple-minilm-l6.json` | Machine C | first-party Metal MiniLM CE (`turbo_buffer` Metal SHARED + device kernels) | **METAL** |
 
+SOLIDIFY bench (p50/p99 + the same honesty gates):
+`../bench/machine-c-metal.json` via `make bench-machine-c`.
+
 TensorRT / NPU receipts land here when those backends exist —
 never invent numbers, never put lab hostnames in docs (Machine A / B / C
 only).

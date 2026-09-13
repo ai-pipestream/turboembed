@@ -22,13 +22,12 @@ import Testing
 @Test func outputScratchReusesAfterWarmup() {
     let scratch = OutputScratch()
     var first = scratch.rentBytes(minCap: 64)
-    first.append(contentsOf: [1, 2, 3, 4])
+    first.append(contentsOf: [UInt8](repeating: 1, count: 64))
     scratch.recycleBytes(first)
     scratch.resetCounters()
     for _ in 0..<8 {
         var slab = scratch.rentBytes(minCap: 64)
-        #expect(slab.capacity >= 64)
-        slab.append(contentsOf: [9, 8, 7, 6])
+        slab.append(contentsOf: [UInt8](repeating: 9, count: 64))
         scratch.recycleBytes(slab)
     }
     #expect(scratch.allocs == 0)

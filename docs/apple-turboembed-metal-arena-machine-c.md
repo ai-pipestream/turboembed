@@ -45,5 +45,6 @@ last-hidden / result path is the arena.
 ```bash
 make libturbo-buffer-apple       # native/turbo_buffer/build/libturbo_buffer_apple.a
 make test-turboembed-apple       # Rust mlx-live + receipt
+make bench-machine-c             # FINAL SOLIDIFY bench (p50/p99 + gates)
 swift test --package-path swift --filter MetalArenaEmbedTests
 ```

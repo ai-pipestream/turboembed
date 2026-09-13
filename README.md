@@ -50,6 +50,7 @@ Every arch binary serves **both** gRPC services on one port behind one bearer in
 - **gRPC output scratch (SOLIDIFY 6)** — **LIVE.** Embed `PACKED_BYTES`, TurboEmbed OIP `raw_output_contents`, and Rerank score rows rent a size-class freelist (`crates/protocol/src/output_scratch.rs`). After warmup, `output_scratch::allocs() == 0` on sequential unary/batch. Prost still copies into the HTTP/2 frame; the **payload** is reused (`Bytes::from_owner`). See [`docs/grpc-output-scratch.md`](docs/grpc-output-scratch.md). Mock word-overlap / 8-d FNV is unchanged.
 - **Metal GELU special (SOLIDIFY 7 Apple)** — **LIVE on Machine C.** TurboRerank GELU stays the HF erf form. MSL `metal_math` has no `erf`; the kernel is a Hart software special (`docs/apple-turborerank-metal-gelu-machine-c.md`). No host `erff` fallback. `make metal-erf-probe` fails if a future MSL grows `erf()`.
 - **FINAL SOLIDIFY bench (Machine B)** — **LIVE.** TurboEmbed + TurboRerank on OpenVINO GPU: measured p50/p99, USM-byte honesty (no claimed-zero H2D while remote wrap is size-0), `allocs/forward == 0`, Berlin + MiniLM goldens. `make bench-machine-b-ov` → `testdata/receipts/bench/machine-b-ov.json`. See [`docs/solidify-bench-machine-b.md`](docs/solidify-bench-machine-b.md).
+- **FINAL SOLIDIFY bench (Machine C)** — **LIVE.** `make bench-machine-c` (or `make bench-turbo MACHINE=C`) writes `testdata/receipts/bench/machine-c-metal.json`. Gates: measured p50/p99, `allocs/forward == 0`, Berlin + embed goldens in band, Metal SHARED, no CPU fallback (`docs/apple-solidify-bench-machine-c.md`).
 - **model2vec** — not shipped (`turboembed_register_provider` returns `NOT_IMPLEMENTED`).
 - **Intel NPU** — fail-loud on Machine B (`intel-npu.json`). Needs a **Core Ultra client NPU** host — not Xeon, not AWS Inferentia, not Battlemage-only.
 
@@ -127,6 +128,7 @@ on the existing `inferstream.v1.InferstreamService`.
 | Drift matrix | [`docs/turboembed-drift.md`](docs/turboembed-drift.md) · `make e2e-drift` |
 | NVIDIA ORT CUDA / CPU / TensorRT | [`docs/turboembed.md`](docs/turboembed.md) · `make test-turboembed-nvidia` |
 | Machine A CUDA bench (p50/p99, H2D/D2H, goldens) | [`docs/bench-turbo-machine-a.md`](docs/bench-turbo-machine-a.md) · `make bench-machine-a` |
+| Machine C Metal bench (p50/p99, SHARED, goldens) | [`docs/apple-solidify-bench-machine-c.md`](docs/apple-solidify-bench-machine-c.md) · `make bench-machine-c` |
 
 ```bash
 make turboembed-stub          # Linux: default no-feature mock-smoke lib
@@ -136,7 +138,8 @@ make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on CPU a
 make test-turboembed-apple    # Mac: Metal create lists minilm (384) + embed vs goldens
 make bench-machine-a          # Machine A CUDA: MiniLM embed + CE p50/p99
 make bench-machine-b-ov       # Machine B OpenVINO GPU bench
-make bench-turbo MACHINE=A    # unified dispatch (A or B)
+make bench-machine-c          # Machine C Metal: MiniLM embed + CE p50/p99
+make bench-turbo MACHINE=C    # unified dispatch (A, B, or C)
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 
@@ -474,7 +477,7 @@ Still open:
 8. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 9. Optional adapters: TEI-compatible proto (lowest priority), richer stream metadata.
 10. ORT session pooling (one session per model behind a mutex today; intra-op threads still parallelize each request).
-11. ~~Zero-copy buffer pool~~ — **TurboBuffer arena** (`include/turbo_buffer.h`). Rerank CPU + mock Embed rent/return. **CUDA PINNED mapped + DEVICE LIVE on Machine A** (TurboRerank + TurboEmbed ORT tokens/hidden/results; `allocs/embed == 0` after warmup; CUDA mean+L2 on DEVICE, `d2h_hidden_bytes` == 0). **ZE HOST/SHARED/DEVICE LIVE on Machine B** (TurboRerank + TurboEmbed GenAI token/result USM; `allocs/forward == 0`). **Metal SHARED LIVE on Machine C** (TurboRerank + `libTurboEmbed.dylib` tokens/last-hidden/results; `allocs/forward == 0`). **Tokenizer write-through LIVE (SOLIDIFY 5)** — WordPiece into rented i32/i64 rows; GenAI no longer encode→copies (`docs/tokenizer-write-through.md`). **gRPC PACKED_BYTES / output reuse LIVE (SOLIDIFY 6)** — façade rents LE FP32 / score slabs; steady-state `output_scratch::allocs() == 0` (`docs/grpc-output-scratch.md`). **SOLIDIFY (7) benches LIVE** — Machine A CUDA `make bench-machine-a` (`docs/bench-turbo-machine-a.md`); Machine B OpenVINO GPU `make bench-machine-b-ov` (`docs/solidify-bench-machine-b.md`). Unified: `make bench-turbo MACHINE=A|B`.
+11. ~~Zero-copy buffer pool~~ — **TurboBuffer arena** (`include/turbo_buffer.h`). Rerank CPU + mock Embed rent/return. **CUDA PINNED mapped + DEVICE LIVE on Machine A** (TurboRerank + TurboEmbed ORT tokens/hidden/results; `allocs/embed == 0` after warmup; CUDA mean+L2 on DEVICE, `d2h_hidden_bytes` == 0). **ZE HOST/SHARED/DEVICE LIVE on Machine B** (TurboRerank + TurboEmbed GenAI token/result USM; `allocs/forward == 0`). **Metal SHARED LIVE on Machine C** (TurboRerank + `libTurboEmbed.dylib` tokens/last-hidden/results; `allocs/forward == 0`). **Tokenizer write-through LIVE (SOLIDIFY 5)** — WordPiece into rented i32/i64 rows; GenAI no longer encode→copies (`docs/tokenizer-write-through.md`). **gRPC PACKED_BYTES / output reuse LIVE (SOLIDIFY 6)** — façade rents LE FP32 / score slabs; steady-state `output_scratch::allocs() == 0` (`docs/grpc-output-scratch.md`). **SOLIDIFY (7) benches LIVE** — Machine A CUDA `make bench-machine-a` (`docs/bench-turbo-machine-a.md`); Machine B OpenVINO GPU `make bench-machine-b-ov` (`docs/solidify-bench-machine-b.md`); Machine C Metal `make bench-machine-c` (`docs/apple-solidify-bench-machine-c.md`). Unified: `make bench-turbo MACHINE=A|B|C`.
 12. **model2vec** provider (plugin sketch only).
 
 Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.

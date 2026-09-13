@@ -2,19 +2,20 @@
 
 JSON written by a **live** `make bench-machine-*` on the named Machine.
 Not mocks. Not estimated latency. Not a claimed-zero H↔D when the
-plugin still host-wraps tensors.
+plugin still host-wraps tensors. Not a copied cosine receipt.
 
-| file | Machine | device | command |
+| file | Machine | device / memory | command |
 |---|---|---|---|
-| `machine-a-cuda.json` | **A** (NVIDIA) | CUDA (TurboEmbed ORT + TurboRerank CE) | `make bench-machine-a` / `make bench-turbo MACHINE=A` |
-| `machine-b-ov.json` | **B** | OpenVINO GPU (TurboEmbed GenAI + TurboRerank CompiledModel) | `make bench-machine-b-ov` / `make bench-turbo MACHINE=B` |
+| `machine-a-cuda.json` | **A** (NVIDIA) | CUDA PINNED mapped + DEVICE | `make bench-machine-a` / `make bench-turbo MACHINE=A` |
+| `machine-b-ov.json` | **B** | OpenVINO GPU, ZE SHARED USM | `make bench-machine-b-ov` / `make bench-turbo MACHINE=B` |
+| `machine-c-metal.json` | **C** (Apple M2) | Metal **SHARED** (`MTLResourceStorageModeShared`) | `make bench-machine-c` / `make bench-turbo MACHINE=C` — **LIVE** |
 
-Machine C (`machine-c-metal.json`) lands here when that host runs.
-Do not invent numbers from another box.
-
-Gates (all three machines): p50/p99, H↔D/USM bytes honesty,
-`allocs/forward == 0`, Berlin + MiniLM embed reference vectors in range.
+Gates (all three machines): p50/p99 measured after warmup,
+`allocs/forward == 0`, Berlin + MiniLM embed goldens in band,
+memory-path honesty (no silent CPU fallback).
 
 Do not hand-edit latency or counter fields. Re-run the Make target on
 that Machine. `host` is provenance — map it through the root README
 chart.
+
+Machine C proof: [`docs/apple-solidify-bench-machine-c.md`](../../../docs/apple-solidify-bench-machine-c.md).

@@ -41,8 +41,9 @@ cargo test -p inferstream-backend-turborerank -- rpc_berlin
 Machine A CUDA bench is **LIVE** (`docs/bench-turbo-machine-a.md`,
 `make bench-machine-a`). Machine B OpenVINO GPU bench is **LIVE**
 (`docs/solidify-bench-machine-b.md`, `make bench-machine-b-ov`).
-Unified: `make bench-turbo MACHINE=A` or `MACHINE=B`. SOLIDIFY (7)
-**Intel** wrap / accuracy is `docs/intel-remote-usm-machine-b.md`.
+Machine C Metal bench is **LIVE** (`docs/apple-solidify-bench-machine-c.md`,
+`make bench-machine-c`). Unified: `make bench-turbo MACHINE=A|B|C`.
+SOLIDIFY (7) **Intel** wrap / accuracy is `docs/intel-remote-usm-machine-b.md`.
 The Machine C special-function slice (Metal GELU erf) is
 `docs/apple-turborerank-metal-gelu-machine-c.md`.
 

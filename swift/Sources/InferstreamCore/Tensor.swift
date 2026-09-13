@@ -86,9 +86,7 @@ public enum Tensor {
     public static func packFP32(_ values: [Float], into out: inout Data) {
         out.removeAll(keepingCapacity: true)
         let nbytes = values.count * 4
-        if out.capacity < nbytes {
-            out.reserveCapacity(nbytes)
-        }
+        out.reserveCapacity(nbytes)
         values.withUnsafeBufferPointer { buf in
             guard let base = buf.baseAddress else { return }
             base.withMemoryRebound(to: UInt8.self, capacity: nbytes) { bytes in
