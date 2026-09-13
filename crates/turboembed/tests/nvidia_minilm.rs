@@ -177,9 +177,12 @@ fn auto_request_never_silently_uses_cpu() {
 /// (no CUDA/CPU/FNV stand-in) and name the TensorRT 10 SONAME blocker.
 #[test]
 fn tensorrt_create_fails_loud_names_blocker() {
-    let err = Engine::create(Device::TensorRt).expect_err(
-        "TensorRT create must fail until MiniLM runs on ORT-TRT EP with libnvinfer.so.10",
-    );
+    let err = match Engine::create(Device::TensorRt) {
+        Ok(_) => panic!(
+            "TensorRT create must fail until MiniLM runs on ORT-TRT EP with libnvinfer.so.10"
+        ),
+        Err(e) => e,
+    };
     assert!(
         matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
         "TensorRT must fail loud, got {err:?}"

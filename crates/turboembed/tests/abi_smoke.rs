@@ -124,7 +124,10 @@ fn cpu_only_when_explicit() {
 #[cfg(not(target_os = "macos"))]
 #[test]
 fn metal_fails_on_linux() {
-    let err = Engine::create(Device::Metal).expect_err("no Metal on the Linux stub");
+    let err = match Engine::create(Device::Metal) {
+        Ok(_) => panic!("no Metal on the Linux stub"),
+        Err(e) => e,
+    };
     assert!(matches!(
         err,
         Error::Unavailable(_) | Error::UnsupportedDevice(_)
@@ -140,7 +143,10 @@ fn metal_fails_on_linux() {
 #[cfg(all(not(target_os = "macos"), not(feature = "ort-cuda")))]
 #[test]
 fn auto_fails_on_linux_without_ort_cuda() {
-    let err = Engine::create(Device::Auto).expect_err("no GPU provider on this stub");
+    let err = match Engine::create(Device::Auto) {
+        Ok(_) => panic!("no GPU provider on this stub"),
+        Err(e) => e,
+    };
     assert!(matches!(
         err,
         Error::Unavailable(_) | Error::UnsupportedDevice(_)
