@@ -21,6 +21,7 @@ make test-turborerank-nvidia    # Machine A CUDA receipt + HF golden
 make convert-rerank-ov          # ONNX → SHA-pinned OpenVINO IR (C++)
 make test-turborerank-intel     # Machine B OpenVINO GPU/CPU receipt + HF golden
 make test-turborerank-apple     # Machine C Metal receipt + HF golden
+make bench-machine-c            # Machine C FINAL SOLIDIFY bench (p50/p99 + gates)
 cargo test -p turborerank       # ABI + pack (skips live scores if no weights)
 ```
 

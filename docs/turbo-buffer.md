@@ -120,6 +120,7 @@ make test-turborerank-intel          # Machine B OV + ZE receipts
 make test-turborerank-apple          # Machine C: Metal SHARED live + Berlin receipt
 make metal-erf-probe                 # Machine C: MSL has no erf(); Hart GELU vs libm
 make test-turboembed-apple           # Machine C: libTurboEmbed Metal SHARED + MiniLM receipt
+make bench-machine-c                 # Machine C FINAL SOLIDIFY bench (p50/p99 + gates)
 ```
 
 Reintroducing `posix_memalign` for Rerank scratch or work tokens fails

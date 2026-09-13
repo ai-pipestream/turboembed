@@ -30,6 +30,9 @@ Committed set: NVIDIA CUDA + CPU + **TensorRT**, Intel GPU + CPU +
 | `intel-npu.json` | Machine B | **defer** — NPU create fails loud (no plugin) | **NPU** | `make test-turboembed-intel` |
 | `apple-minilm.json` | Machine C (Apple M2) | mlx-swift `MlxEngine` mean+L2 on turbo_buffer Metal SHARED tokens/activations/results | **Metal** | `make test-turboembed-apple` |
 
+SOLIDIFY bench (p50/p99 + the same honesty gates):
+`../bench/machine-c-metal.json` via `make bench-machine-c`.
+
 NVIDIA fields: `device=CUDA`, `dims`, `worst_cosine` vs
 `testdata/e2e/goldens/nvidia/minilm.json` (`parity:*` + hello world),
 floor 0.99, `pass=true`, git sha, `/proc/self/maps` needles.

@@ -27,6 +27,7 @@ make test-turborerank-intel     # Machine B OpenVINO receipt
 make test-turborerank-apple     # Machine C Metal receipt
 make metal-erf-probe            # Machine C: MSL has no erf(); Hart GELU
 make turborerank-tests-nometal  # prove Metal create fails loud
+make bench-machine-c            # Machine C FINAL SOLIDIFY bench receipt
 ```
 
 See [`docs/turborerank-architecture.md`](../../docs/turborerank-architecture.md).

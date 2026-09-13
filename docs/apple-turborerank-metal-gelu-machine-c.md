@@ -82,4 +82,5 @@ make metal-erf-probe           # MSL erf missing + on-device Hart vs libm
 make turborerank-tests         # host erf grid + Metal Berlin + allocs/forward==0
 make turborerank-tests-nometal # Metal create fails loud
 make turborerank-apple-receipt # writes apple-minilm-l6.json
+make bench-machine-c           # FINAL SOLIDIFY bench (p50/p99 + Berlin + SHARED)
 ```

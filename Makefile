@@ -30,6 +30,7 @@
 #   make probe-remote-usm                   # Machine B: remote OCL/USM wrap probe (may FAIL)
 #   make test-turborerank-apple             # Machine C Metal receipt + live CE
 #   make metal-erf-probe                    # Machine C: MSL has no erf(); Hart GELU vs libm
+#   make bench-machine-c                    # Machine C FINAL SOLIDIFY bench receipt
 #   make test-turboembed-intel              # --features genai; WordPiece→USM + CompiledModel; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
@@ -93,7 +94,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov probe-remote-usm test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt \
-	metal-erf-probe
+	metal-erf-probe bench-machine-c bench-machine-c-rerank
 
 test:
 	$(CARGO) test --workspace
@@ -788,6 +789,36 @@ test-turborerank-apple: fetch-rerankers metal-erf-probe turborerank-tests \
 		turborerank-tests-nometal libturborerank-apple
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
 	$(MAKE) turborerank-apple-receipt
+
+# FINAL SOLIDIFY bench — Machine C Metal. Live p50/p99, allocs/forward==0,
+# Berlin + embed goldens in band, SHARED, no CPU fallback. Does not copy
+# a prior receipt. Writes testdata/receipts/bench/machine-c-metal.json.
+BENCH_WARMUP ?= 32
+BENCH_ITERS ?= 200
+BENCH_RERANK_JSON ?= $(CURDIR)/native/turborerank/build/machine-c-rerank-bench.json
+
+bench-machine-c-rerank:
+	@if [ "$(TURBORERANK_ENABLE_METAL)" != "1" ]; then \
+	  echo "bench-machine-c-rerank requires Darwin + TURBORERANK_ENABLE_METAL=1"; \
+	  exit 1; \
+	fi
+	mkdir -p native/turborerank/build testdata/receipts/bench
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
+	  native/turborerank/tools/bench_apple_metal.cpp \
+	  -lm $(TURBORERANK_METAL_LIBS) \
+	  -o native/turborerank/build/bench_apple_metal
+	INFERSTREAM_ROOT=$(CURDIR) BENCH_WARMUP=$(BENCH_WARMUP) \
+	  BENCH_ITERS=$(BENCH_ITERS) BENCH_RERANK_JSON=$(BENCH_RERANK_JSON) \
+	  native/turborerank/build/bench_apple_metal
+
+bench-machine-c: fetch-rerankers metal-erf-probe \
+		turborerank-tests-nometal libturbo-buffer-apple bench-machine-c-rerank
+	INFERSTREAM_ROOT=$(CURDIR) BENCH_WARMUP=$(BENCH_WARMUP) \
+	  BENCH_ITERS=$(BENCH_ITERS) BENCH_RERANK_JSON=$(BENCH_RERANK_JSON) \
+	  $(CARGO) test -p turboembed --features mlx-live --test apple_solidify_bench \
+	  -- --ignored --nocapture --test-threads=1
 
 # Machine B: OpenVINO GPU/CPU MiniLM CE vs HF Berlin golden + ZE arena.
 test-turborerank-intel: fetch-rerankers verify-rerank-ov turborerank-tests turborerank-tests-noov
