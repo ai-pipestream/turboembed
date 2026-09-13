@@ -731,9 +731,9 @@ static void test_ov_usm_buffer() {
     CHECK(aligned(buf->input_ids));
     CHECK(aligned(buf->attention_mask));
     turbo_buffer_placement place = TURBO_BUFFER_PLACE_HOST;
-    CHECK_ST(turbo_buffer_ze_query(buf->input_ids, &place));
+    CHECK_EQ(turbo_buffer_ze_query(buf->input_ids, &place), TURBO_BUFFER_OK);
     CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
-    CHECK_ST(turbo_buffer_ze_query(buf->attention_mask, &place));
+    CHECK_EQ(turbo_buffer_ze_query(buf->attention_mask, &place), TURBO_BUFFER_OK);
     CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
     buf->input_ids[0] = 101;
     buf->input_ids[1] = 7592;
@@ -754,7 +754,7 @@ static void test_ov_usm_buffer() {
     CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_OPENVINO_GPU, 2, 16, &b1));
     CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_OPENVINO_GPU, 2, 16, &b2));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
-    CHECK_ST(turbo_buffer_ze_query(b1->input_ids, &place));
+    CHECK_EQ(turbo_buffer_ze_query(b1->input_ids, &place), TURBO_BUFFER_OK);
     CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
     turborerank_buffer_free(b1);
     turborerank_buffer_free(b2);
@@ -791,9 +791,9 @@ static void test_ov_real_model_scores(turborerank_device device) {
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
     if (device == TURBORERANK_DEVICE_OPENVINO_GPU) {
         turbo_buffer_placement place = TURBO_BUFFER_PLACE_HOST;
-        CHECK_ST(turbo_buffer_ze_query(e->work->input_ids, &place));
+        CHECK_EQ(turbo_buffer_ze_query(e->work->input_ids, &place), TURBO_BUFFER_OK);
         CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
-        CHECK_ST(turbo_buffer_ze_query(e->scratch.tok_q, &place));
+        CHECK_EQ(turbo_buffer_ze_query(e->scratch.tok_q, &place), TURBO_BUFFER_OK);
         CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
     }
 
