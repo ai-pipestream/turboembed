@@ -511,11 +511,6 @@ fn device_pool(
                 i32::from(normalize),
             )
         },
-        other => {
-            return Err(format!(
-                "{other:?} pooling is not implemented on the CUDA device path"
-            ))
-        }
     };
     if rc != 0 {
         return Err(format!(

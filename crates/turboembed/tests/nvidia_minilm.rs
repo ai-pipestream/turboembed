@@ -19,6 +19,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
+/// Process-wide arena / ORT counters are shared. Serialize tests that
+/// create an engine so a CUDA load cannot increment allocs mid-CPU proof.
+fn serialize_engine_tests() -> MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(())).lock().expect("engine test lock")
+}
 
 use serde_json::Value;
 use turboembed::ffi::{
@@ -221,6 +229,7 @@ fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>, Vec<f32>
 /// AUTO is host-default GPU. On NVIDIA that is CUDA — never a silent CPU EP.
 #[test]
 fn auto_request_never_silently_uses_cpu() {
+    let _lock = serialize_engine_tests();
     match Engine::create(Device::Auto) {
         Ok(engine) => match engine.load_model(ALIAS) {
             Ok(()) => {
@@ -249,6 +258,7 @@ fn auto_request_never_silently_uses_cpu() {
 /// the TensorRT EP with error_on_failure. Missing libnvinfer is loud.
 #[test]
 fn tensorrt_never_silent_cuda_cpu_or_fnv8() {
+    let _lock = serialize_engine_tests();
     match Engine::create(Device::TensorRt) {
         Err(err) => {
             assert!(
@@ -301,6 +311,7 @@ fn tensorrt_never_silent_cuda_cpu_or_fnv8() {
 /// the error must name CUDA and must not succeed as CPU.
 #[test]
 fn cuda_request_never_silently_uses_cpu() {
+    let _lock = serialize_engine_tests();
     match Engine::create(Device::Cuda) {
         Ok(engine) => match engine.load_model(ALIAS) {
             Ok(()) => {
@@ -342,6 +353,7 @@ fn cuda_request_never_silently_uses_cpu() {
 
 #[test]
 fn minilm_ort_cpu_matches_golden() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (dim, _subset, hello) = load_subset(&root.join(GOLDEN));
 
@@ -423,6 +435,7 @@ fn minilm_ort_cpu_matches_golden() {
 #[test]
 #[ignore = "needs MiniLM ONNX + CUDA 13 libs + GPU; see docs/turboembed.md"]
 fn minilm_ort_cuda_iobinding_matches_golden() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (dim, subset, hello) = load_subset(&root.join(GOLDEN));
 
@@ -613,6 +626,7 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
 #[test]
 #[ignore = "needs MiniLM ONNX + CUDA 13 libs + GPU; see docs/turboembed.md"]
 fn minilm_c_abi_embed_one_on_cuda() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (_, _, hello) = load_subset(&root.join(GOLDEN));
 
@@ -677,6 +691,7 @@ fn minilm_c_abi_embed_one_on_cuda() {
 
 #[test]
 fn minilm_c_abi_embed_one_on_cpu() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (_, _, hello) = load_subset(&root.join(GOLDEN));
 
@@ -739,6 +754,7 @@ fn minilm_c_abi_embed_one_on_cpu() {
 #[test]
 #[ignore = "needs MiniLM ONNX + TensorRT 10 (libnvinfer.so.10) + CUDA 13; see docs/turboembed.md"]
 fn minilm_ort_tensorrt_matches_golden() {
+    let _lock = serialize_engine_tests();
     let root = workspace_root();
     let (dim, subset, hello) = load_subset(&root.join(GOLDEN));
 

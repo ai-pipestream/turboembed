@@ -112,7 +112,7 @@ __global__ void cls_l2_kernel(
     }
 }
 
-int launch_rows(int batch, int dim) {
+int launch_rows(int dim) {
     int threads = 256;
     if (dim < threads) {
         threads = dim;
@@ -138,7 +138,7 @@ extern "C" int turboembed_cuda_pool_mean_l2(
         batch <= 0 || seq <= 0 || dim <= 0) {
         return 1;
     }
-    const int threads = launch_rows(batch, dim);
+    const int threads = launch_rows(dim);
     mean_l2_kernel<<<batch, threads>>>(
         hidden_dev, mask_dev, out_dev, batch, seq, dim, normalize ? 1 : 0
     );
@@ -161,7 +161,7 @@ extern "C" int turboembed_cuda_pool_cls_l2(
         dim <= 0) {
         return 1;
     }
-    const int threads = launch_rows(batch, dim);
+    const int threads = launch_rows(dim);
     cls_l2_kernel<<<batch, threads>>>(
         hidden_dev, out_dev, batch, seq, dim, normalize ? 1 : 0
     );
