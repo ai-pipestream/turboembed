@@ -30,7 +30,7 @@ public final class Engine: @unchecked Sendable {
         try throwIfNeeded(st)
     }
 
-    public func embed(alias: String, texts: [String]) throws -> Embeddings {
+    public func embed(alias: String, texts: [String], options: EmbedOptions? = nil) throws -> Embeddings {
         if texts.isEmpty {
             throw TurboEmbedError.status(
                 TURBOEMBED_ERR_INVALID_ARGUMENT, message: "texts must not be empty")
@@ -48,10 +48,15 @@ public final class Engine: @unchecked Sendable {
             cstrs.append(dup)
             views.append(turboembed_str(ptr: UnsafePointer(dup), len: text.utf8.count))
         }
+        var cOpts = options?.toC()
         var out: UnsafeMutablePointer<turboembed_embed_result>?
         let st = alias.withCString { cAlias in
             views.withUnsafeBufferPointer { buf in
-                turboembed_embed(
+                if var opts = cOpts {
+                    return turboembed_embed(
+                        raw, cAlias, alias.utf8.count, buf.baseAddress, buf.count, &opts, &out)
+                }
+                return turboembed_embed(
                     raw, cAlias, alias.utf8.count, buf.baseAddress, buf.count, nil, &out)
             }
         }
@@ -90,6 +95,37 @@ public final class Embeddings: @unchecked Sendable {
 
     public var packed: UnsafeBufferPointer<UInt8> {
         UnsafeBufferPointer(start: raw.pointee.packed, count: raw.pointee.packed_len)
+    }
+}
+
+/// Options forwarded to `turboembed_embed`. `nil` fields keep provider defaults.
+public struct EmbedOptions: Sendable {
+    public var pooling: turboembed_pooling
+    /// `nil` = provider default.
+    public var normalize: Bool?
+    /// `nil` / 0 = provider default.
+    public var truncateTo: UInt32?
+    public var outputFormat: turboembed_output_format
+
+    public init(
+        pooling: turboembed_pooling = TURBOEMBED_POOLING_DEFAULT,
+        normalize: Bool? = nil,
+        truncateTo: UInt32? = nil,
+        outputFormat: turboembed_output_format = TURBOEMBED_OUTPUT_TYPED
+    ) {
+        self.pooling = pooling
+        self.normalize = normalize
+        self.truncateTo = truncateTo
+        self.outputFormat = outputFormat
+    }
+
+    fileprivate func toC() -> turboembed_embed_options {
+        turboembed_embed_options(
+            pooling: pooling,
+            normalize: normalize.map { $0 ? 1 : 0 } ?? -1,
+            truncate_to: truncateTo ?? 0,
+            output_format: outputFormat
+        )
     }
 }
 

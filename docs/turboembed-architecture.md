@@ -37,11 +37,11 @@ flowchart TB
         Mlx["Swift @_cdecl → MLXEmbedders mean+L2 (Metal)"]
     end
 
-    subgraph engines [Existing inferstream engines — stay in place]
-        ORT["backend-ort"]
-        GenAI["backend-openvino GenAI"]
-        Apple["swift/ MlxEngine"]
-        Mock["backend-mock"]
+    subgraph engines [Engines behind the ABI]
+        ORT["ORT CUDA / CPU EP"]
+        GenAI["OpenVINO GenAI TextEmbeddingPipeline"]
+        Apple["swift/ MlxEngine mean+L2"]
+        Mock["mock-embed — ABI smoke only"]
     end
 
     Rust --> abi
@@ -66,8 +66,8 @@ flowchart TB
 | C++ `native/turboembed` | nvidia / intel / Linux CI | `mock-embed` on explicit `MOCK`/`CPU` only; `--features ort-cuda` / `genai` wire real MiniLM. GPU request never silently becomes CPU or mock |
 | Swift `@_cdecl` shim | Apple (same header) | **LIVE** — `libTurboEmbed.dylib` → `MlxEngine` mean+L2 on Metal |
 | Rust `crates/turboembed` | safe zero-copy wrapper | ABI smoke + `mlx-live` / `ort-cuda` / `genai` receipts |
-| gRPC `Embed` / `EmbedStream` | maps to existing InferstreamService | proto delta + server fill-in |
-| inferstream arch servers | unchanged | do not rip out |
+| gRPC `Embed` / `EmbedStream` | thin façade over the C ABI | **wired** — catalog aliases call TurboEmbed |
+| inferstream arch servers | LLM + mock unchanged | catalog embeds (`minilm`, …) go through `inferstream-backend-turboembed` / Swift `TurboEmbedBackend` |
 
 ## ABI ownership rules
 
@@ -113,7 +113,8 @@ turboembed_status turboembed_register_provider(const turboembed_provider_vtbl *)
 ```
 
 Today `turboembed_register_provider` returns `NOT_IMPLEMENTED`. The stub
-engine answers `mock-embed` itself.
+engine answers `mock-embed` itself. inferstream catalog Embed does not
+call this vtable; it calls the frozen create/load/embed symbols.
 
 Wiring map (do not invent a fourth runtime):
 
@@ -167,19 +168,48 @@ JNI / Panama over `turboembed.h` is optional later for in-process JVM
 embedding (no socket). Do not start there; the gRPC path matches how Java
 already talks to inferstream.
 
+## Inferstream servers are façades
+
+Catalog embed aliases (`minilm` first; every `serve` embed that the
+arch actually lists) are **not** a second embed stack. The arch gRPC
+servers construct `TurboEmbedBackend` (Rust nvidia/intel) or Swift
+`TurboEmbedBackend` (Apple) and call `turboembed_engine_create` /
+`turboembed_load_model` / `turboembed_embed`.
+
+| arch binary | catalog `backend` | TurboEmbed device | provider feature |
+|---|---|---|---|
+| `inferstream-nvidia` | `ort` | `AUTO` / `CUDA` (catalog default `cuda`); explicit `cpu` is CPU EP | `--features ort-cuda` |
+| `inferstream-intel` | `openvino` | `AUTO` / `OPENVINO_GPU` (catalog default `GPU`); explicit `CPU`; `NPU` fails loud until a host lists the plugin (`intel-npu.json`) | `--features openvino-genai` |
+| `inferstream-apple` (Swift) | `mlx` + `pooling` set | `AUTO` = Metal | `libTurboEmbed.dylib` on a Mac |
+
+Without the provider feature (or without the accelerator) **startup
+fails** with the feature / host named. Catalog aliases never sit on
+`backend-mock` and never get dim-8 FNV.
+
+`backend-ort` / `backend-openvino` remain as libraries the ABI
+providers reuse (pooling math, ORT session). The servers do not
+construct those backends for catalog embeds.
+
+LLM paths are untouched: `backend = "llama-cpp"` (nvidia/intel) and
+Apple `mlx` aliases **without** `pooling` (default-llm / qwen-*) still
+use llama.cpp / mlx-swift-lm for Tokenize and `ModelStreamInfer`.
+
 ## What this scaffold does not do
 
-- Does not rip out or stop the inferstream arch servers.
+- Does not replace Tokenize / StreamInfer for generative GGUF / MLX LLMs.
 - **NVIDIA ORT CUDA is wired** (`--features ort-cuda`): IoBinding device
   buffers; a CUDA request never becomes CPU. Receipts:
   `nvidia-minilm.json` (CUDA) and `nvidia-minilm-cpu.json`.
-- **Intel GenAI CPU and GPU are wired.** `--features genai` constructs
-  `ov::genai::TextEmbeddingPipeline` with the official `"CPU"` or `"GPU"`
-  string. A GPU request fails if the GPU plugin is missing (no silent
-  CPU). Receipts: `intel-minilm.json` (GPU) and `intel-minilm-cpu.json`.
+- **Intel GenAI CPU and GPU are wired.** `--features genai` /
+  `openvino-genai` constructs `ov::genai::TextEmbeddingPipeline` with the
+  official `"CPU"` or `"GPU"` string. A GPU request fails if the GPU
+  plugin is missing (no silent CPU). Receipts: `intel-minilm.json` (GPU)
+  and `intel-minilm-cpu.json`. NPU create is fail-loud until a host
+  lists the plugin (`intel-npu.json`).
 - **Apple MLX is wired** on macOS: `Device::Metal` / `Device::Auto` +
   `minilm` is FP mean+L2. Receipt: `apple-minilm.json`.
 - Does not add Python bindings.
+- Does not invent a second gRPC service.
 
 ## Mock is smoke-only
 

@@ -15,10 +15,15 @@ inferstream-apple          Swift executable (grpc-swift 2)
   ├─ inference.GRPCInferenceService     proto/open_inference_grpc.proto
   ├─ inferstream.v1.InferstreamService  proto/inferstream_extension.proto
   ├─ catalog aliases                    config/catalog.toml + config/apple.toml
-  └─ MlxEngine (in-process)
+  ├─ TurboEmbedBackend (catalog embeds) include/turboembed.h → libTurboEmbed.dylib
+  └─ MlxBackend (LLM generate / tokenize)
        ├─ mlx-swift / mlx-swift-lm      Metal
        └─ swift-transformers            tokenizer.json
 ```
+
+Catalog embed aliases (`minilm`, … — any `mlx` row with `pooling`) call the
+same TurboEmbed C ABI as nvidia/intel. LLM aliases stay on `MlxBackend`
+so `ModelStreamInfer` is unchanged. Missing Metal fails at engine create.
 
 The legacy Rust binary (`crates/arch-apple`, FFI to
 `native/mlx-engine/libMlxEngine.dylib`) is type-check only. See

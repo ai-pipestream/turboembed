@@ -33,7 +33,8 @@
  *
  * Providers (ORT, GenAI, MLX, later model2vec) register behind this ABI.
  * The stub build implements a deterministic mock plus NotImplemented for
- * real devices — inferstream servers stay as they are.
+ * real devices. inferstream catalog Embed is a thin façade over these
+ * symbols; Tokenize / StreamInfer LLM paths do not go through this header.
  */
 
 #ifndef TURBOEMBED_H

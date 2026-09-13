@@ -20,4 +20,5 @@ inferstream-backend = { workspace = true }
 inferstream-backend-mock = { workspace = true }
 inferstream-backend-apple = { workspace = true }
 inferstream-backend-llamacpp = { workspace = true }
+inferstream-backend-turboembed = { workspace = true }
 tokio = { workspace = true }

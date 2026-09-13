@@ -1,9 +1,10 @@
 //! LEGACY Rust `inferstream-apple` façade.
 //!
 //! The supported Mac serve path is the all-Swift gRPC server in `swift/`
-//! (`make apple`, `scripts/smoke-apple.sh`). This binary still compiles so
-//! Linux CI can type-check the old Rust→`libMlxEngine.dylib` FFI wiring.
-//! Do not use it as the Apple production server.
+//! (`make apple`, `scripts/smoke-apple.sh`). Catalog embeds there call
+//! `libTurboEmbed.dylib`. This Rust binary still compiles so Linux CI can
+//! type-check the old FFI wiring plus the TurboEmbed façade. Do not use it
+//! as the Apple production server.
 
 use std::sync::Arc;
 
@@ -28,6 +29,19 @@ fn factory() -> impl inferstream_server::BackendFactory {
         match model.backend {
             BackendKind::Mock => Ok(mock.clone()),
             BackendKind::Mlx => {
+                // Catalog embeds (pooling set) go through TurboEmbed C ABI.
+                // LLM aliases stay on the legacy MLX generation path so
+                // Tokenize / StreamInfer are not rewritten.
+                if model.pooling.is_some() {
+                    let backend =
+                        inferstream_backend_turboembed::TurboEmbedBackend::open_for_model(
+                            &model.name,
+                            model.backend.as_str(),
+                            model.device.as_deref(),
+                        )
+                        .map_err(|e| invalid(model, e.to_string()))?;
+                    return Ok(Arc::new(backend));
+                }
                 let defaults = inferstream_backend_apple::MlxConfig::default();
                 let backend = inferstream_backend_apple::MlxBackend::new(
                     inferstream_backend_apple::MlxConfig {
@@ -71,13 +85,11 @@ fn factory() -> impl inferstream_server::BackendFactory {
                 .map_err(|e| invalid(model, e.to_string()))?;
                 Ok(Arc::new(backend))
             }
-            BackendKind::TrtLlm | BackendKind::Ort | BackendKind::Openvino => {
-                Err(unsupported(
-                    model,
-                    "not an Apple-arch engine; use inferstream-nvidia (trt-llm, ort) or \
+            BackendKind::TrtLlm | BackendKind::Ort | BackendKind::Openvino => Err(unsupported(
+                model,
+                "not an Apple-arch engine; use inferstream-nvidia (trt-llm, ort) or \
                      inferstream-intel (openvino, ort)",
-                ))
-            }
+            )),
         }
     }
 }

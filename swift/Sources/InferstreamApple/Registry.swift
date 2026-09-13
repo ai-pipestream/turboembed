@@ -1,6 +1,9 @@
 import Foundation
 import InferstreamCore
 import MlxEngine
+#if canImport(TurboEmbedC)
+import TurboEmbedC
+#endif
 
 enum ServeError: Error, LocalizedError, Sendable {
     case notFound(String)
@@ -62,6 +65,7 @@ final class Registry: Sendable {
     {
         var map: [String: any ModelBackend] = [:]
         let mock = MockBackend()
+        var turboGate: TurboEmbedGate?
         for model in config.models {
             switch model.backend {
             case .mock:
@@ -70,14 +74,45 @@ final class Registry: Sendable {
                 guard let path = model.path, !path.isEmpty else {
                     throw ServeError.invalid("mlx model \(model.name) requires path")
                 }
-                let resolved = Paths.resolveExistingDirectory(path, configURL: config.configURL)
-                map[model.name] = MlxBackend(
-                    name: model.name,
-                    config: model,
-                    resolved: resolved,
-                    engine: engine,
-                    tokenizer: tokenizers.get(model.name)
-                )
+                if isCatalogEmbed(model) {
+                    if turboGate == nil {
+                        do {
+                            turboGate = try TurboEmbedGate(device: TURBOEMBED_DEVICE_AUTO)
+                        } catch {
+                            throw ServeError.unavailable(
+                                "TurboEmbed AUTO/Metal create failed for catalog embed \(model.name): \(error). Missing Metal never falls back to mock or CPU"
+                            )
+                        }
+                    }
+                    guard let gate = turboGate else {
+                        throw ServeError.internalError("TurboEmbed gate missing after create")
+                    }
+                    do {
+                        try gate.load(alias: model.name)
+                    } catch {
+                        throw ServeError.unavailable(
+                            "TurboEmbed load(\(model.name)) failed: \(error). Catalog aliases never use the 8-d mock"
+                        )
+                    }
+                    map[model.name] = TurboEmbedBackend(
+                        name: model.name,
+                        config: model,
+                        gate: gate,
+                        tokenizer: tokenizers.get(model.name),
+                        dim: model.name == "minilm" || model.name == "minilm-l12"
+                            || model.name.hasPrefix("bge-small") || model.name.hasPrefix("e5-small")
+                            || model.name.hasPrefix("gte-small") ? 384 : 0
+                    )
+                } else {
+                    let resolved = Paths.resolveExistingDirectory(path, configURL: config.configURL)
+                    map[model.name] = MlxBackend(
+                        name: model.name,
+                        config: model,
+                        resolved: resolved,
+                        engine: engine,
+                        tokenizer: tokenizers.get(model.name)
+                    )
+                }
             default:
                 throw ServeError.invalid(
                     "backend \(model.backend.rawValue) is not an Apple-arch engine; use inferstream-nvidia or inferstream-intel"

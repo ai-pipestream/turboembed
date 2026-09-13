@@ -1,15 +1,14 @@
 //! `inferstream-intel`: the Intel arch binary.
 //!
-//! Primary embed path: in-process OpenVINO GenAI `TextEmbeddingPipeline`
-//! (`backend = "openvino"`, feature `openvino-genai`). Clients send plain
-//! strings; openvino-tokenizers + CLS/MEAN/LAST + L2 run inside the C++
-//! pipeline on CPU/GPU/NPU. There is **no OVMS / OpenVINO Model Server
-//! client** — Intel embeddings are GenAI only. Secondary: llama.cpp
+//! Primary catalog embed path: TurboEmbed C ABI (`backend = "openvino"`)
+//! over in-process OpenVINO GenAI `TextEmbeddingPipeline` (feature
+//! `openvino-genai`). Clients send plain strings; the ABI owns
+//! openvino-tokenizers + CLS/MEAN/LAST + L2. There is **no OVMS client**
+//! and no silent CPU fallback for AUTO/GPU. Secondary: llama.cpp
 //! `GGML_SYCL` in-process (`--features llamacpp-sycl`). Tokenize for GGUF
 //! is the llama.cpp vocab; embed Tokenize uses `tokenizer.json` next to
-//! the OV model dir. In-process GenAI and SYCL need oneAPI / OpenVINO
-//! sourced (`source /opt/intel/oneapi/setvars.sh` or OpenVINO
-//! `setupvars.sh`).
+//! the OV model dir. GenAI and SYCL need oneAPI / OpenVINO sourced
+//! (`source /opt/intel/oneapi/setvars.sh` or OpenVINO `setupvars.sh`).
 
 use std::sync::Arc;
 
@@ -73,30 +72,13 @@ fn factory() -> impl inferstream_server::BackendFactory {
             BackendKind::Openvino => {
                 #[cfg(feature = "openvino")]
                 {
-                    use inferstream_backend_openvino::{
-                        OpenVinoBackend, OpenVinoConfig, OvDevice, Pooling,
-                    };
-                    let device = model
-                        .device
-                        .as_deref()
-                        .map(OvDevice::from_config)
-                        .transpose()
+                    let backend =
+                        inferstream_backend_turboembed::TurboEmbedBackend::open_for_model(
+                            &model.name,
+                            model.backend.as_str(),
+                            model.device.as_deref(),
+                        )
                         .map_err(|e| invalid(model, e.to_string()))?;
-                    let pooling = model
-                        .pooling
-                        .as_deref()
-                        .map(Pooling::from_config)
-                        .transpose()
-                        .map_err(|e| invalid(model, e.to_string()))?
-                        .unwrap_or(Pooling::Mean);
-                    let backend = OpenVinoBackend::new(OpenVinoConfig {
-                        models_path: model.path.clone().unwrap_or_default(),
-                        device,
-                        pooling,
-                        normalize: model.normalize,
-                        max_seq_len: model.max_seq_len.map(|v| v as usize),
-                    })
-                    .map_err(|e| invalid(model, e.to_string()))?;
                     Ok(Arc::new(backend))
                 }
                 #[cfg(not(feature = "openvino"))]
@@ -105,30 +87,13 @@ fn factory() -> impl inferstream_server::BackendFactory {
             BackendKind::Ort => {
                 #[cfg(feature = "ort")]
                 {
-                    use inferstream_backend_ort::{OrtBackend, OrtConfig, OrtDevice, Pooling};
-                    let device = model
-                        .device
-                        .as_deref()
-                        .map(OrtDevice::from_config)
-                        .transpose()
-                        .map_err(|e| invalid(model, e.to_string()))?
-                        .unwrap_or_default();
-                    let pooling = model
-                        .pooling
-                        .as_deref()
-                        .map(Pooling::from_config)
-                        .transpose()
-                        .map_err(|e| invalid(model, e.to_string()))?
-                        .unwrap_or_default();
-                    let backend = OrtBackend::new(OrtConfig {
-                        model_path: model.path.clone().unwrap_or_default(),
-                        tokenizer_path: model.tokenizer_dir.clone(),
-                        device,
-                        max_seq_len: model.max_seq_len.map(|v| v as usize),
-                        pooling,
-                        normalize: model.normalize,
-                    })
-                    .map_err(|e| invalid(model, e.to_string()))?;
+                    let backend =
+                        inferstream_backend_turboembed::TurboEmbedBackend::open_for_model(
+                            &model.name,
+                            model.backend.as_str(),
+                            model.device.as_deref(),
+                        )
+                        .map_err(|e| invalid(model, e.to_string()))?;
                     Ok(Arc::new(backend))
                 }
                 #[cfg(not(feature = "ort"))]
@@ -218,10 +183,20 @@ mod tests {
         )
         .unwrap();
         let result = build_registry(&config, &factory());
+        let err = match result {
+            Ok(_) => panic!("default GenAI path must fail at startup without openvino-genai"),
+            Err(e) => e,
+        };
         assert!(
-            matches!(result, Err(ServerError::InvalidModelConfig { .. })),
-            "default GenAI path must fail at startup without openvino-genai"
+            matches!(err, ServerError::InvalidModelConfig { .. }),
+            "expected InvalidModelConfig, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("TurboEmbed")
+                || msg.contains("openvino-genai")
+                || msg.contains("refusing"),
+            "startup error must name TurboEmbed / openvino-genai, got {msg}"
         );
     }
-
 }
