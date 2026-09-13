@@ -26,6 +26,10 @@ std::atomic<uint32_t> g_cuda_fwd_depth{0};
 std::atomic<uint64_t> g_cuda_fwd_allocs{0};
 std::atomic<uint64_t> g_cuda_fwd_h2d_bytes{0};
 std::atomic<uint64_t> g_cuda_fwd_h2d_calls{0};
+std::atomic<uint64_t> g_ze_h2d_bytes{0};
+std::atomic<uint64_t> g_ze_d2h_bytes{0};
+std::atomic<uint64_t> g_ze_h2d_calls{0};
+std::atomic<uint64_t> g_ze_d2h_calls{0};
 
 void note_cuda_forward_alloc() {
     if (g_cuda_fwd_depth.load(std::memory_order_relaxed) > 0) {
@@ -51,6 +55,19 @@ void note_cuda_forward_h2d(size_t bytes) {
     }
     g_cuda_fwd_h2d_bytes.fetch_add(bytes, std::memory_order_relaxed);
     g_cuda_fwd_h2d_calls.fetch_add(1, std::memory_order_relaxed);
+}
+
+void note_ze_xfer(size_t bytes, bool h2d) {
+    if (bytes == 0) {
+        return;
+    }
+    if (h2d) {
+        g_ze_h2d_bytes.fetch_add(bytes, std::memory_order_relaxed);
+        g_ze_h2d_calls.fetch_add(1, std::memory_order_relaxed);
+    } else {
+        g_ze_d2h_bytes.fetch_add(bytes, std::memory_order_relaxed);
+        g_ze_d2h_calls.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 namespace {
@@ -646,6 +663,29 @@ uint64_t turbo_buffer_cuda_forward_h2d_bytes(void) {
 
 uint64_t turbo_buffer_cuda_forward_h2d_calls(void) {
     return turbo_buffer::impl::g_cuda_fwd_h2d_calls.load(std::memory_order_relaxed);
+}
+
+void turbo_buffer_ze_xfer_reset(void) {
+    turbo_buffer::impl::g_ze_h2d_bytes.store(0, std::memory_order_relaxed);
+    turbo_buffer::impl::g_ze_d2h_bytes.store(0, std::memory_order_relaxed);
+    turbo_buffer::impl::g_ze_h2d_calls.store(0, std::memory_order_relaxed);
+    turbo_buffer::impl::g_ze_d2h_calls.store(0, std::memory_order_relaxed);
+}
+
+uint64_t turbo_buffer_ze_xfer_h2d_bytes(void) {
+    return turbo_buffer::impl::g_ze_h2d_bytes.load(std::memory_order_relaxed);
+}
+
+uint64_t turbo_buffer_ze_xfer_d2h_bytes(void) {
+    return turbo_buffer::impl::g_ze_d2h_bytes.load(std::memory_order_relaxed);
+}
+
+uint64_t turbo_buffer_ze_xfer_h2d_calls(void) {
+    return turbo_buffer::impl::g_ze_h2d_calls.load(std::memory_order_relaxed);
+}
+
+uint64_t turbo_buffer_ze_xfer_d2h_calls(void) {
+    return turbo_buffer::impl::g_ze_d2h_calls.load(std::memory_order_relaxed);
 }
 
 turbo_buffer_status turbo_buffer_ze_query(

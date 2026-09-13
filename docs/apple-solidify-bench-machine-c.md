@@ -43,6 +43,7 @@ GELU stays the HF erf form on the Hart software special
 
 ```bash
 make bench-machine-c              # nometal fail-loud + measure + write receipt
+make bench-turbo MACHINE=C        # same
 make bench-machine-c-rerank       # TurboRerank slice only
 make metal-erf-probe              # MSL still has no erf()
 ```

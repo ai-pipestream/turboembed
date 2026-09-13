@@ -27,12 +27,17 @@
 #   make test-turborerank-nvidia            # Machine A CUDA receipt + live CE
 #   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
 #   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
+#   make bench-machine-b-ov                 # Machine B FINAL SOLIDIFY bench (OV GPU p50/p99)
 #   make probe-remote-usm                   # Machine B: remote OCL/USM wrap probe (may FAIL)
 #   make test-turborerank-apple             # Machine C Metal receipt + live CE
 #   make metal-erf-probe                    # Machine C: MSL has no erf(); Hart GELU vs libm
 #   make bench-machine-c                    # Machine C FINAL SOLIDIFY bench receipt
 #   make test-turboembed-intel              # --features genai; WordPiece→USM + CompiledModel; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
+#   make bench-machine-a                    # Machine A CUDA p50/p99 + H2D/D2H + goldens
+#   make bench-turbo MACHINE=A              # same as bench-machine-a
+#   make bench-turbo MACHINE=B              # same as bench-machine-b-ov
+#   make bench-turbo MACHINE=C              # same as bench-machine-c
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
@@ -94,7 +99,9 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov probe-remote-usm test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt \
-	metal-erf-probe bench-machine-c bench-machine-c-rerank
+	metal-erf-probe bench-machine-b-ov \
+	bench-turbo bench-machine-a \
+	bench-machine-c bench-machine-c-rerank
 
 test:
 	$(CARGO) test --workspace
@@ -793,8 +800,6 @@ test-turborerank-apple: fetch-rerankers metal-erf-probe turborerank-tests \
 # FINAL SOLIDIFY bench — Machine C Metal. Live p50/p99, allocs/forward==0,
 # Berlin + embed goldens in band, SHARED, no CPU fallback. Does not copy
 # a prior receipt. Writes testdata/receipts/bench/machine-c-metal.json.
-BENCH_WARMUP ?= 32
-BENCH_ITERS ?= 200
 BENCH_RERANK_JSON ?= $(CURDIR)/native/turborerank/build/machine-c-rerank-bench.json
 
 bench-machine-c-rerank:
@@ -829,3 +834,83 @@ test-turborerank-intel: fetch-rerankers verify-rerank-ov turborerank-tests turbo
 	$(MAKE) probe-remote-usm
 	$(MAKE) turbo-buffer-intel-receipt
 	$(MAKE) turborerank-intel-receipt
+
+# FINAL SOLIDIFY bench — Machine B OpenVINO GPU. Live p50/p99, USM-byte
+# honesty, allocs/forward==0, Berlin + MiniLM goldens. Writes
+# testdata/receipts/bench/machine-b-ov.json. BENCH_WARMUP / BENCH_ITERS
+# override the 32 / 128 defaults. No invented numbers.
+bench-machine-b-ov:
+	@if [ ! -f "$(OPENVINO_GENAI_ROOT)/runtime/include/openvino/genai/tokenizer.hpp" ]; then \
+	  echo "bench-machine-b-ov: OpenVINO GenAI headers missing"; \
+	  exit 1; \
+	fi
+	mkdir -p native/bench/build testdata/receipts/bench
+	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then set +u; . "$(OPENVINO_SETUPVARS)"; set -u; fi; \
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g \
+	  -DTURBOEMBED_GENAI -DTURBO_BUFFER_ZE=1 \
+	  -DTURBOEMBED_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  $(TURBORERANK_INCLUDES) $(TURBORERANK_CPPFLAGS) \
+	  -I native/turboembed/src \
+	  -I $(OPENVINO_GENAI_ROOT)/runtime/include \
+	  $(TURBORERANK_SRCS) \
+	  native/turboembed/src/stub.cpp \
+	  native/turboembed/src/genai.cpp \
+	  native/bench/machine_b_ov.cpp \
+	  -lm $(TURBORERANK_OV_LIBS) \
+	  -L$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
+	  -lopenvino_genai -lopenvino_tokenizers \
+	  -Wl,-rpath,$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
+	  -o native/bench/build/machine_b_ov
+	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then set +u; . "$(OPENVINO_SETUPVARS)"; set -u; fi; \
+	INFERSTREAM_ROOT=$(CURDIR) native/bench/build/machine_b_ov
+
+# SOLIDIFY (7) Machine A: TurboEmbed MiniLM + TurboRerank MiniLM-L6 CUDA
+# bench. Release build. N≥100 after warmup. Writes
+# testdata/receipts/bench/machine-a-cuda.json. Numbers are live — do not
+# hand-edit the receipt.
+#
+#   make bench-machine-a
+#   make bench-turbo MACHINE=A
+#   make bench-turbo MACHINE=B
+#   make bench-turbo MACHINE=C
+MACHINE ?=
+BENCH_WARMUP ?= 32
+BENCH_ITERS ?= 200
+BENCH_PARTIAL := native/bench/build
+BENCH_RECEIPT_A := testdata/receipts/bench/machine-a-cuda.json
+
+bench-machine-a:
+	mkdir -p $(BENCH_PARTIAL) testdata/receipts/bench
+	$(MAKE) fetch-rerankers
+	INFERSTREAM_ROOT=$(CURDIR) \
+	LD_LIBRARY_PATH="$(CURDIR)/.libs/nvidia/lib:$(LD_LIBRARY_PATH)" \
+		$(CARGO) run -p bench-turbo --release --features embed --bin bench-turboembed -- \
+		  --warmup $(BENCH_WARMUP) --iters $(BENCH_ITERS) \
+		  --out $(BENCH_PARTIAL)/machine-a-embed.json
+	INFERSTREAM_ROOT=$(CURDIR) \
+		$(CARGO) run -p bench-turbo --release --features rerank --bin bench-turborerank -- \
+		  --warmup $(BENCH_WARMUP) --iters $(BENCH_ITERS) \
+		  --out $(BENCH_PARTIAL)/machine-a-rerank.json
+	INFERSTREAM_ROOT=$(CURDIR) \
+		$(CARGO) run -p bench-turbo --release --bin bench-turbo -- \
+		  --machine A \
+		  --embed $(BENCH_PARTIAL)/machine-a-embed.json \
+		  --rerank $(BENCH_PARTIAL)/machine-a-rerank.json \
+		  --out $(BENCH_RECEIPT_A)
+
+bench-turbo:
+ifeq ($(MACHINE),A)
+	$(MAKE) bench-machine-a
+else ifeq ($(MACHINE),B)
+	$(MAKE) bench-machine-b-ov
+else ifeq ($(MACHINE),C)
+	$(MAKE) bench-machine-c
+else
+	@echo "bench-turbo: set MACHINE=A (CUDA), MACHINE=B (OpenVINO GPU), or MACHINE=C (Metal)."; \
+	echo "  make bench-machine-a          # NVIDIA / Machine A"; \
+	echo "  make bench-machine-b-ov       # Intel / Machine B"; \
+	echo "  make bench-machine-c          # Apple / Machine C"; \
+	echo "See docs/bench-turbo-machine-a.md, docs/solidify-bench-machine-b.md,"; \
+	echo "and docs/apple-solidify-bench-machine-c.md"; \
+	exit 1
+endif

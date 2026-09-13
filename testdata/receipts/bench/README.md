@@ -1,27 +1,21 @@
-# FINAL SOLIDIFY bench receipts
+# SOLIDIFY final-bench receipts
 
-One JSON per Machine. Written by a **live** `make bench-machine-*` on
-that host. Not a copy of a prior cosine receipt. Not invented p50/p99.
+JSON written by a **live** `make bench-machine-*` on the named Machine.
+Not mocks. Not estimated latency. Not a claimed-zero H↔D when the
+plugin still host-wraps tensors. Not a copied cosine receipt.
 
-| file | Machine | memory path | command |
+| file | Machine | device / memory | command |
 |---|---|---|---|
-| `machine-c-metal.json` | Machine C (Apple M2) | Metal **SHARED** (`MTLResourceStorageModeShared`) | `make bench-machine-c` — **LIVE** |
-| `machine-a-cuda.json` | Machine A | CUDA PINNED mapped + DEVICE | `make bench-machine-a` (when measured) |
-| `machine-b-ze.json` | Machine B | ZE **SHARED** USM | `make bench-machine-b` (when measured) |
+| `machine-a-cuda.json` | **A** (NVIDIA) | CUDA PINNED mapped + DEVICE | `make bench-machine-a` / `make bench-turbo MACHINE=A` |
+| `machine-b-ov.json` | **B** | OpenVINO GPU, ZE SHARED USM | `make bench-machine-b-ov` / `make bench-turbo MACHINE=B` |
+| `machine-c-metal.json` | **C** (Apple M2) | Metal **SHARED** (`MTLResourceStorageModeShared`) | `make bench-machine-c` / `make bench-turbo MACHINE=C` — **LIVE** |
 
-## Gates (same on every Machine)
+Gates (all three machines): p50/p99 measured after warmup,
+`allocs/forward == 0`, Berlin + MiniLM embed goldens in band,
+memory-path honesty (no silent CPU fallback).
 
-Both **TurboEmbed** and **TurboRerank** must pass:
-
-1. **p50 / p99 measured** on the live device after warmup. Do not copy
-   timings from another host or an older receipt.
-2. **allocs/forward == 0** after warmup (`turbo_buffer_alloc_counter`).
-3. **Goldens in band** — TurboRerank Berlin (`atol` 2e-3) and TurboEmbed
-   MiniLM cosine floors for that Machine.
-4. **Memory-path honesty** — the named device placement (SHARED here).
-   No silent CPU fallback. `AUTO` resolves to the host GPU.
-
-`pass=false` is an honest fail. Do not hand-edit a passing receipt.
-Do not delete another Machine's file when refreshing this one.
+Do not hand-edit latency or counter fields. Re-run the Make target on
+that Machine. `host` is provenance — map it through the root README
+chart.
 
 Machine C proof: [`docs/apple-solidify-bench-machine-c.md`](../../../docs/apple-solidify-bench-machine-c.md).

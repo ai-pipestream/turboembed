@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "kind": "solidify-final-bench",
+  "machine": "Machine B",
+  "device": "OPENVINO_GPU",
+  "gpu": "Intel(R) Graphics [0xe223] (dGPU)",
+  "git_sha": "cfeaf1fe98218c09fe3892d33b7ae98765063016",
+  "measured_at_utc": "2026-09-13T15:03:52Z",
+  "command": "make bench-machine-b-ov",
+  "pass": true,
+  "gates": {
+    "allocs_per_forward": {"required": 0, "embed": 0, "rerank": 0},
+    "berlin_in_band": true,
+    "embed_goldens_in_band": true,
+    "xfer_honest": true
+  },
+  "turboembed": {
+    "alias": "minilm",
+    "text": "hello world",
+    "dim": 384,
+    "latency": {
+      "warmup_iters": 32,
+      "measure_iters": 128,
+      "p50_us": 909.341,
+      "p99_us": 926.499,
+      "min_us": 904.893,
+      "max_us": 930.792,
+      "p50_ms": 0.909341,
+      "p99_ms": 0.926499
+    },
+    "allocs_per_forward": 0,
+    "arena": {
+      "device": 4,
+      "token_placement": 3,
+      "tokens_shared": true,
+      "owns_tokens": true,
+      "owns_hidden": true,
+      "hidden_used_arena": true
+    },
+    "xfer": {
+      "model": "ov_host_tensor_wrap",
+      "remote_ocl_usm_wrap": false,
+      "explicit_ze_h2d_bytes": 0,
+      "explicit_ze_d2h_bytes": 0,
+      "explicit_ze_h2d_calls": 0,
+      "explicit_ze_d2h_calls": 0,
+      "explicit_ze_h2d_bytes_measure_loop": 0,
+      "wrapped_input_bytes": 3072,
+      "wrapped_input_bytes_measure_loop": 393216,
+      "hidden_wrap_bytes": 393216,
+      "hidden_memcpy_bytes": 0,
+      "n": 1,
+      "seq": 256,
+      "n_inputs": 3,
+      "plugin_copy": "expected_host_ingest",
+      "note": "Remote OCL USM_USER_BUFFER wrap of ZE SHARED is unavailable. ov::Tensor host wrap means the GPU plugin may copy wrapped_input_bytes. This receipt does not claim H2D=0."
+    },
+    "cosine": {
+      "intel_golden": 0.9999997616,
+      "nvidia_golden": 0.9999997616,
+      "threshold": 0.9900000095
+    }
+  },
+  "turborerank": {
+    "alias": "ms-marco-minilm-l6",
+    "golden": "testdata/reference_rerank/ms_marco_minilm_l6_berlin.json",
+    "latency": {
+      "warmup_iters": 32,
+      "measure_iters": 128,
+      "p50_us": 8145.887,
+      "p99_us": 8237.993,
+      "min_us": 7974.733,
+      "max_us": 8245.426,
+      "p50_ms": 8.145888,
+      "p99_ms": 8.237993
+    },
+    "allocs_per_forward": 0,
+    "logits": [8.84585190, -4.32007742, -11.27389526],
+    "max_abs_logit_err": 0.000001,
+    "cosine_vs_golden": 1.0000000000,
+    "xfer": {
+      "model": "ov_host_tensor_wrap",
+      "remote_ocl_usm_wrap": false,
+      "remote_ocl_usm_why": "Exception from src/inference/src/cpp/remote_context.cpp:68:\nCheck 'actual_mem_size >= requested_mem_size' failed at src/plugins/intel_gpu/src/runtime/ocl/ocl_engine.cpp:311:\n[GPU] shared USM buffer has smaller size (0) than specified layout (32)\n\n",
+      "explicit_ze_h2d_bytes": 0,
+      "explicit_ze_d2h_bytes": 0,
+      "explicit_ze_h2d_calls": 0,
+      "explicit_ze_d2h_calls": 0,
+      "explicit_ze_h2d_bytes_measure_loop": 0,
+      "wrapped_input_bytes": 18432,
+      "wrapped_input_bytes_measure_loop": 2359296,
+      "wrapped_result_bytes": 12,
+      "n_rows": 3,
+      "seq": 512,
+      "pack_seq": 512,
+      "used_tokens": [34, 18, 22],
+      "plugin_copy": "expected_host_ingest",
+      "note": "Work buffer is max_position (512). OV wraps the full [n, seq] i32 ids/mask/types. used_tokens is the nonzero mask. Plugin may copy wrapped_input_bytes; explicit ZE memcpy is 0."
+    }
+  },
+  "note": "SOLIDIFY final bench Machine B. Live OpenVINO GPU. p50/p99 from CLOCK_MONOTONIC on this process. H↔D honesty: explicit turbo_buffer_ze_memcpy is 0; remote OCL wrap is unavailable so OV host-tensor ingest bytes are reported, not claimed-zero. allocs/forward is turbo_buffer_alloc_counter after warmup."
+}

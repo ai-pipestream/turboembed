@@ -2,9 +2,11 @@
 
 Hostnames stay out of this file (Machine B only).
 
-This item is **not** the Machine A/B/C latency benches mentioned in
-[`grpc-output-scratch.md`](grpc-output-scratch.md). Those benches are
-still later work. This page is the Intel wrap / accuracy gate.
+This item is the Intel wrap / accuracy gate. The Machine B latency
+bench is [`solidify-bench-machine-b.md`](solidify-bench-machine-b.md)
+(`make bench-machine-b-ov`). Machine A CUDA bench is
+[`bench-turbo-machine-a.md`](bench-turbo-machine-a.md)
+(`make bench-machine-a`).
 
 ## Done criteria
 
@@ -99,5 +101,6 @@ make test-turboembed-intel       # compile-hint GPU/CPU MiniLM
 
 ## What is not this item
 
-CUDA / Metal wrap. Latency benches. Replacing turbo_buffer ZE with
-plugin-owned OpenCL USM. NPU.
+CUDA / Metal wrap. Replacing turbo_buffer ZE with plugin-owned
+OpenCL USM. NPU. Latency numbers live in
+[`solidify-bench-machine-b.md`](solidify-bench-machine-b.md).

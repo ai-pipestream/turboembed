@@ -113,6 +113,15 @@ std::unique_ptr<Pipeline> load_pipeline(
     turbo_buffer_placement place
 );
 
+/** Bench: ov::Tensor host-wrap / hidden memcpy observed on embed_into. */
+void genai_xfer_reset();
+uint64_t genai_xfer_wrap_input_bytes();
+uint64_t genai_xfer_hidden_wrap_bytes();
+uint64_t genai_xfer_hidden_memcpy_bytes();
+uint32_t genai_xfer_last_n();
+uint32_t genai_xfer_last_seq();
+uint32_t genai_xfer_last_inputs();
+
 /** Resolve a GenAI-layout directory for `alias` (see impl for search order). */
 std::string resolve_models_path(
     const std::string& alias,
