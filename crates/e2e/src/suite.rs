@@ -263,12 +263,26 @@ async fn run_list(
                 && config.matrix.embed("minilm").is_some_and(|expected| {
                     embedding_dim > 0 && embedding_dim != expected.dim as i64
                 });
+            // Catalog embeds on real arches go through TurboEmbedBackend.
+            // `onnxruntime` / `ort` here means the old server path is still up.
+            let backend_ok = config.target.is_mock()
+                || backend.eq_ignore_ascii_case("turboembed");
             if dim_mismatch {
                 let expected = config.matrix.embed("minilm").map(|e| e.dim).unwrap_or(0);
                 report.push(
                     "list-models:minilm",
                     Outcome::Fail {
                         reason: format!("ListModels dim={embedding_dim} expected {expected}"),
+                    },
+                );
+            } else if !backend_ok {
+                report.push(
+                    "list-models:minilm",
+                    Outcome::Fail {
+                        reason: format!(
+                            "ListModels backend={backend:?} expected turboembed \
+                             (old onnxruntime/ort path is not the C ABI façade)"
+                        ),
                     },
                 );
             } else {
