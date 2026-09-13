@@ -1,8 +1,9 @@
-//! Live Intel GenAI proof through the TurboEmbed C ABI.
+//! Live Intel MiniLM proof through the TurboEmbed C ABI.
 //!
-//! `--features genai` loads MiniLM via
-//! `ov::genai::TextEmbeddingPipeline(models_path, device, config)` with
-//! the official device strings `"GPU"` and `"CPU"`.
+//! `--features genai` loads MiniLM via CompiledModel on the official
+//! device strings `"GPU"` and `"CPU"`. Token ids are WordPiece
+//! write-through into rented turbo_buffer USM (SOLIDIFY 5).
+//! `ov::genai::Tokenizer.encode` is not on the hot path.
 //! Asking for GPU when the GPU plugin is missing fails (no CPU swap).
 //! Same for NPU: create fails loud if the plugin is missing (never CPU / FNV8).
 //! Explicit CPU compiles `"CPU"` and must produce real embeds.
@@ -135,13 +136,20 @@ fn maps_blob() -> String {
 fn require_mapped(maps: &str, needle: &str) {
     assert!(
         maps.contains(needle),
-        "/proc/self/maps must contain {needle} (GenAI GPU proof). maps excerpt:\n{}",
+        "/proc/self/maps must contain {needle} (CompiledModel proof). maps excerpt:\n{}",
         maps.lines()
             .filter(|l| l.contains("openvino") || l.contains("libze") || l.contains("python"))
             .take(40)
             .collect::<Vec<_>>()
             .join("\n")
     );
+}
+
+/// SOLIDIFY 5: WordPiece writes into rented USM. The GenAI tokenizer
+/// libs must stay unmapped — they only come back with encode→copy.
+fn forbid_encode_copy_libs(maps: &str) {
+    forbid_mapped(maps, "libopenvino_genai");
+    forbid_mapped(maps, "libopenvino_tokenizers");
 }
 
 struct ArenaProof {
@@ -271,7 +279,7 @@ fn minilm_text_embedding_pipeline_on_gpu() {
     assert_eq!(Device::OpenVinoGpu.as_str(), "openvino-gpu");
 
     engine.load_model(ALIAS).unwrap_or_else(|e| {
-        panic!("load_model({ALIAS}) via TextEmbeddingPipeline GPU failed: {e:?}");
+        panic!("load_model({ALIAS}) via CompiledModel GPU failed: {e:?}");
     });
 
     let models = engine.list_models().expect("list_models");
@@ -351,9 +359,8 @@ fn minilm_text_embedding_pipeline_on_gpu() {
     );
 
     let maps = maps_blob();
-    require_mapped(&maps, "libopenvino_genai");
     require_mapped(&maps, "libopenvino_intel_gpu_plugin");
-    require_mapped(&maps, "libopenvino_tokenizers");
+    forbid_encode_copy_libs(&maps);
     forbid_mapped(&maps, "libpython");
 
     let gpu_name = Command::new("sycl-ls")
@@ -388,8 +395,9 @@ fn minilm_text_embedding_pipeline_on_gpu() {
             "openvino_tokenizer.bin": sha256_file(&model_dir.join("openvino_tokenizer.bin")),
         },
         "maps": {
-            "libopenvino_genai": true,
+            "libopenvino_genai": false,
             "libopenvino_intel_gpu_plugin": true,
+            "libopenvino_tokenizers": false,
             "libpython": false,
         },
         "gpu": gpu_name,
@@ -536,9 +544,8 @@ fn run_minilm_on(device: Device, ov_name: &str, plugin_needle: &str) -> (Vec<f32
     );
 
     let maps = maps_blob();
-    require_mapped(&maps, "libopenvino_genai");
     require_mapped(&maps, plugin_needle);
-    require_mapped(&maps, "libopenvino_tokenizers");
+    forbid_encode_copy_libs(&maps);
     forbid_mapped(&maps, "libpython");
     (live, cosine_intel, cosine_nvidia)
 }
@@ -638,8 +645,9 @@ fn minilm_text_embedding_pipeline_on_cpu() {
             "openvino_tokenizer.bin": sha256_file(&model_dir.join("openvino_tokenizer.bin")),
         },
         "maps": {
-            "libopenvino_genai": true,
+            "libopenvino_genai": false,
             "libopenvino_intel_cpu_plugin": true,
+            "libopenvino_tokenizers": false,
             "libpython": false,
         },
         "arena": {
