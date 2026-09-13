@@ -21,7 +21,7 @@
   "logits": [8.84585381, -4.32007980, -11.27389336],
   "max_abs_logit_err": 0.000004,
   "cosine_vs_golden": 1.0000000000,
-  "git_sha": "d51f75aa482342450e79b2dd88aefe7cdd8e449c",
+  "git_sha": "559b5f5cac3f65bb25947e245b38dbeb7557e3be",
   "command": "make test-turborerank-apple",
   "note": "Phase 2c Apple Metal proof on Machine C. AUTO resolves to METAL when CUDA/OpenVINO GPU are absent. Create without Metal fails loud. Token pointers are MTL shared; kernels wrap those buffers (no std::vector, no token memcpy). Weights copied once at load from mmap'd safetensors."
 }
