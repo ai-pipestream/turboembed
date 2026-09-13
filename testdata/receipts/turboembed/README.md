@@ -2,6 +2,11 @@
 
 JSON written by a **live** `cargo test -p turboembed` on the named host.
 Not mocks. Not OVMS. Not a CPU EP pretending to be CUDA. Not BERT pooler.
+Catalog aliases never become 8-d FNV.
+
+Committed set: NVIDIA CUDA + CPU + **TensorRT**, Intel GPU + CPU +
+**NPU fail**, Apple Metal. Do not delete a receipt when refreshing
+another host.
 
 | file | host | engine | device | command |
 |---|---|---|---|---|
@@ -22,8 +27,10 @@ Intel: same MiniLM IR (`models/ov/minilm`). Cosine vs
 devices (CPU is the same IR, not a mock). GPU create/load still fails if
 the GPU plugin is missing — that path never compiles `"CPU"`.
 `intel-npu.json` is an honest **fail** receipt (`pass=false`): krick-1 has
-no Intel NPU / no `libopenvino_intel_npu_plugin.so`. Do not treat it as
-a MiniLM success.
+no Intel NPU / no `libopenvino_intel_npu_plugin.so`. A passing NPU
+receipt needs a **Core Ultra client NPU** host — not Xeon, not AWS
+Inferentia, not this Battlemage box. Do not treat the fail file as a
+MiniLM success.
 
 Apple: `Engine::create(Metal|AUTO)` lists catalog `minilm` dim 384 (never
 mock-only). `turboembed_embed(minilm)` on `Device(gpu, 0)`. Cosine vs nvidia

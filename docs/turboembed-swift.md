@@ -6,9 +6,11 @@ an identical copy at `swift/Sources/TurboEmbedC/include/turboembed.h`
 (the `turboembed` crate tests they match).
 
 On this host the symbols come from **`libTurboEmbed.dylib`**, not the
-C++ stub. `crates/turboembed/build.rs` on macOS runs
-`swift build --product TurboEmbed` and **refuses** to link
-`native/turboembed/src/stub.cpp` (that would hide a fake MiniLM).
+default no-feature C++ mock-smoke object. `crates/turboembed/build.rs`
+on macOS runs `swift build --product TurboEmbed` and **refuses** to
+link `native/turboembed/src/stub.cpp` (that would hide a fake MiniLM).
+The Swift server is the real Mac binary; the Rust `inferstream-apple`
+crate is a Linux CI compile stub only.
 
 ## How Swift exports C
 
@@ -84,5 +86,6 @@ next to the dylib (same as the Swift server).
 
 ## Linux CI
 
-`swift build` is not required. `build.rs` compiles the C++ stub. Catalog
-aliases stay `NOT_IMPLEMENTED` there.
+`swift build` is not required. `build.rs` compiles the default
+no-feature C++ mock-smoke object. Catalog aliases stay
+`NOT_IMPLEMENTED` there.

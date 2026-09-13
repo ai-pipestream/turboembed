@@ -6,28 +6,39 @@ One shared core (protocol, auth, routing), **three arch binaries**:
 
 | binary | host class | engines | status |
 |---|---|---|---|
-| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime CUDA EP** (primary — encoder embeddings) + **llama.cpp-CUDA** (GGUF generative token streaming, in-process), TensorRT-LLM Executor (optional later feature) | **ORT engine real** (`ort-runtime` / `ort-cuda`), validated on krick against TEI; **llama.cpp engine real in-process** (`llamacpp-runtime` / `llamacpp-cuda`, or `full-cuda` for both), streaming Qwen2.5-0.5B GGUF on krick; TRT-LLM link stubbed |
-| `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO GenAI** in-process `TextEmbeddingPipeline` (only Intel embed engine; cxx; GPU when available); **llama.cpp-SYCL in-process** (`llamacpp-sycl`, Level Zero / Battlemage) for GGUF generation | GenAI embed path landed (code + fetch); GPU live smoke is a krick-1 follow-up (`docs/intel-genai-embed.md`); llama.cpp SYCL in-process live (`default-llm` / `qwen-0.5b` / `qwen-7b`) |
-| `inferstream-apple` | **native macOS host** (Mac worker) | **all-Swift gRPC server** (grpc-swift + in-process mlx-swift / mlx-swift-lm — no Rust façade, no FFI, no Python) | **MLX engine real** — Embed / Tokenize / Detokenize / `ModelStreamInfer` on Metal; see `docs/swift-apple.md` |
+| `inferstream-nvidia` | NVIDIA Linux (e.g. **krick**) | **ONNX Runtime** CUDA EP + explicit CPU EP + **TensorRT EP** (encoder embeddings via TurboEmbed) + **llama.cpp-CUDA** (GGUF generative streaming, in-process). TensorRT-LLM Executor is a later *generative* feature | **LIVE** — ORT CUDA / CPU / TensorRT MiniLM receipts on krick; llama.cpp-CUDA streams Qwen2.5-0.5B. TRT-LLM *generation* is still a stub — not the same as ORT TensorRT embeds |
+| `inferstream-intel` | Intel Linux (e.g. **krick-1**, Arc/Battlemage) | **OpenVINO GenAI** in-process `TextEmbeddingPipeline` (only Intel embed engine; cxx; GPU + CPU live); **llama.cpp-SYCL in-process** (`llamacpp-sycl`, Level Zero / Battlemage) for GGUF generation | **LIVE** — GenAI GPU + CPU MiniLM receipts on krick-1; llama.cpp SYCL in-process (`default-llm` / `qwen-0.5b` / `qwen-7b`). NPU: honest fail (`intel-npu.json`) — needs Core Ultra client NPU, not Xeon / Inferentia |
+| `inferstream-apple` | **native macOS host** (krickert-mac) | **all-Swift gRPC server** (grpc-swift + in-process mlx-swift / mlx-swift-lm — no Rust façade, no FFI, no Python) | **LIVE** — Swift binary on Metal. Embed / Tokenize / Detokenize / `ModelStreamInfer`. The Rust `inferstream-apple` crate is a **Linux CI compile stub only** — see `docs/swift-apple.md` |
 | `inferstream` | anywhere | mock only | fully working — dev/client-validation binary |
 
-## Per-arch gap status (honest)
+## What's live
 
-Every arch binary serves **both** gRPC services on one port behind one bearer interceptor: the vendored OIP V2 `inference.GRPCInferenceService` and the `inferstream.v1.InferstreamService` extension (Tokenize / Detokenize / Embed / ListModels / Rerank). Registration lives in the shared `serve()` in `crates/server/src/lib.rs`, and all three binaries reach it through the same `run_cli` path — audited: none of them can start without exposing the extension service.
+Every arch binary serves **both** gRPC services on one port behind one bearer interceptor: the vendored OIP V2 `inference.GRPCInferenceService` and the `inferstream.v1.InferstreamService` extension (Tokenize / Detokenize / Embed / ListModels / Rerank). Registration lives in the shared `serve()` in `crates/server/src/lib.rs`.
+
+**Catalog Embed is TurboEmbed.** All three arches construct `TurboEmbedBackend` (Rust nvidia/intel; Swift on Apple) and call the C ABI. Live e2e MiniLM cosine is ~1.0 nvidia↔intel and apple↔nvidia ≥ 0.9795 (CJK UNK floor; English is ~1.000). `ListModels` reports `backend=turboembed` for catalog embeds. Mock is ABI smoke only; catalog aliases never sit on 8-d FNV.
 
 | capability | `inferstream-nvidia` | `inferstream-intel` | `inferstream-apple` |
 |---|---|---|---|
-| Embed (real accelerator) | **LIVE via TurboEmbed C ABI** — ORT CUDA EP (CPU EP when `device=cpu`), TEI-parity validated on krick | **CODE LIVE via TurboEmbed C ABI** — in-process OpenVINO GenAI `TextEmbeddingPipeline` (cxx; GPU default). OVMS gRPC is out of scope. **GPU smoke is a krick-1 follow-up** (`docs/intel-genai-embed.md`) | **LIVE via TurboEmbed C ABI** — Swift `TurboEmbedBackend` → `libTurboEmbed.dylib` → MLX mean+L2 on Metal |
+| Embed | **LIVE** — ORT CUDA EP, explicit CPU EP, and ORT TensorRT EP via the TurboEmbed C ABI. Receipts: `nvidia-minilm.json`, `nvidia-minilm-cpu.json`, `nvidia-minilm-tensorrt.json`. TEI-parity on krick. | **LIVE** — OpenVINO GenAI `TextEmbeddingPipeline` via the TurboEmbed C ABI (cxx; GPU default). GPU + CPU receipts on krick-1: `intel-minilm.json`, `intel-minilm-cpu.json`. OVMS gRPC is out of scope. NPU: honest fail (`intel-npu.json`, `pass=false`) — no Intel NPU silicon on krick-1. | **LIVE** — Swift `TurboEmbedBackend` → `libTurboEmbed.dylib` → MLX mean+L2 on Metal. Receipt: `apple-minilm.json`. **The Swift server is the real Mac binary** (krickert-mac). |
 | Tokenize / Detokenize | **LIVE** — ORT engine's own HF tokenizer or `tokenizer_dir` server-side; GGUF models answer from the llama.cpp vocab (in-process) | **LIVE** — `tokenizer.json` next to the GenAI OV dir; GGUF models answer from the in-process llama.cpp vocab (no remote `/tokenize`) | **LIVE** — swift-transformers from `tokenizer_dir` / `tokenizer.json` (in-process, no Rust) |
-| Generative infer / stream | **LIVE** — llama.cpp-CUDA in-process (`llamacpp-cuda` / `full-cuda`) streams GGUF tokens over `ModelStreamInfer` (Qwen2.5-0.5B validated on krick); server-client mode (`endpoint`) also available; TRT-LLM (`trtllm-sys`) still a stub | **LIVE** — llama.cpp-SYCL **in-process** (`llamacpp-sycl`, GGML_SYCL=ON): unary `ModelInfer` + per-token `ModelStreamInfer` for `default-llm` / `qwen-0.5b` (Qwen2.5-0.5B Q8_0) and `qwen-7b` (Qwen2.5-7B-Instruct Q5_K_M, text — not VL). GPU-proven on krick-1 (`docs/intel-sycl-inprocess-krick-1.md`). Default aliases do **not** HTTP to `:8085`. In-process OpenVINO GenAI covers **embeddings** (not generation) | **LIVE** — native MLX generation (`mlx-swift-lm`) streams real per-token `ModelStreamInfer` chunks on Metal in the Swift server |
-| `InferstreamService` registered in `serve()` | yes (shared) | yes (shared) | yes (shared) — binary compiles on Linux for CI, functions only on macOS |
-| Rerank | mock scorer only | mock scorer only | mock scorer only |
+| Generative infer / stream | **LIVE** — llama.cpp-CUDA in-process (`llamacpp-cuda` / `full-cuda`) streams GGUF tokens over `ModelStreamInfer` (Qwen2.5-0.5B on krick); server-client mode (`endpoint`) also available. TRT-LLM (`trtllm-sys`) is a **generative** stub — distinct from live ORT TensorRT *embeds*. | **LIVE** — llama.cpp-SYCL **in-process** (`llamacpp-sycl`, GGML_SYCL=ON): unary `ModelInfer` + per-token `ModelStreamInfer` for `default-llm` / `qwen-0.5b` (Qwen2.5-0.5B Q8_0) and `qwen-7b` (Qwen2.5-7B-Instruct Q5_K_M, text — not VL). GPU-proven on krick-1 (`docs/intel-sycl-inprocess-krick-1.md`). Default aliases do **not** HTTP to `:8085`. GenAI covers **embeddings**, not generation. | **LIVE** — native MLX generation (`mlx-swift-lm`) streams per-token `ModelStreamInfer` chunks on Metal in the Swift server |
+| `InferstreamService` | yes (shared `serve()`) | yes (shared `serve()`) | yes — **Swift server** on macOS. The Rust `inferstream-apple` crate is a Linux CI compile stub only. |
+
+### Known gaps
+
+- **Rerank** — mock scorer only on all three arches.
+- **TRT-LLM generative** (`backend-trtllm` / `trtllm-sys`) — stub. Distinct from live **ORT TensorRT MiniLM embeds**.
+- **Zero-copy buffer pool** — aspirational (the Rust crate is a safe view wrapper, not a pooled allocator).
+- **model2vec** — not shipped (`turboembed_register_provider` returns `NOT_IMPLEMENTED`).
+- **Intel NPU** — fail-loud on krick-1 (`intel-npu.json`). Needs a **Core Ultra client NPU** host — not Xeon, not AWS Inferentia, not Battlemage-only.
 
 ### Apple MLX: all-Swift gRPC server
 
-The supported Mac server is the Swift package in `swift/` — grpc-swift implements both `inference.GRPCInferenceService` and `inferstream.v1.InferstreamService` from the shared `proto/` files, and mlx-swift runs **in-process** (no Rust façade, no `libMlxEngine.dylib` FFI, no Python). Setup is `scripts/setup-mlx.sh` (`cargo xtask fetch --mlx`). Build/run: `make apple`. Smoke: `scripts/smoke-apple.sh` (starts the Swift server, then `inferstream-e2e --target apple`). Walkthrough: [`docs/swift-apple.md`](docs/swift-apple.md). The Rust `inferstream-apple` crate remains as a Linux-CI stub only.
+The supported Mac server is the Swift package in `swift/` — grpc-swift implements both `inference.GRPCInferenceService` and `inferstream.v1.InferstreamService` from the shared `proto/` files, and mlx-swift runs **in-process** (no Rust façade, no `libMlxEngine.dylib` FFI, no Python). Setup is `scripts/setup-mlx.sh` (`cargo xtask fetch --mlx`). Build/run: `make apple`. Smoke: `scripts/smoke-apple.sh` (starts the Swift server, then `inferstream-e2e --target apple`). Walkthrough: [`docs/swift-apple.md`](docs/swift-apple.md).
 
-**Current honest status:** the façade is real — gRPC service, streaming, auth, routing, raw-tensor wire helpers, mock backend, and all three arch binaries build and run today (`cargo test --workspace` passes with zero GPU libraries). **Catalog Embed is TurboEmbed.** NVIDIA embeddings: `inferstream-nvidia` constructs `TurboEmbedBackend` for `backend = "ort"` and calls the C ABI (`--features ort-cuda` = ORT CUDA EP + IoBinding, or explicit CPU EP). The old `backend-ort` server path is no longer constructed for catalog aliases. Output still matches TEI on the same MiniLM to fp32 tolerance. NVIDIA generation: `backend-llamacpp` in-process (features `llamacpp-runtime` / `llamacpp-cuda`) loads GGUF models through `llama-cpp-2`, streaming one `token` BYTES chunk per decoded piece over `ModelStreamInfer` with a `final` flag on the last chunk; unary `ModelInfer` returns the whole completion, and Tokenize/Detokenize answer from the GGUF vocabulary. Intel embeddings: `inferstream-intel` with `backend = "openvino"` constructs `TurboEmbedBackend` and loads `ov::genai::TextEmbeddingPipeline` through the C ABI (cxx; plain strings; openvino-tokenizers; CLS/MEAN/LAST + L2; CPU/GPU/NPU). Default catalog device is GPU. **Code is landed; GPU live smoke is a krick-1 follow-up** (`docs/intel-genai-embed.md`). OVMS gRPC is out of scope. Intel generation: `backend-llamacpp` in-process SYCL (`llamacpp-sycl`) streams GGUF on Battlemage (`docs/intel-sycl-inprocess-krick-1.md`). Apple embeddings: the Swift server's `TurboEmbedBackend` calls `libTurboEmbed.dylib` (same C ABI). Generation stays on `MlxBackend` / mlx-swift-lm (Metal; see `docs/swift-apple.md`) — validated with `scripts/smoke-apple.sh`. TRT-LLM remains a stub with full config surface; routing to it still fails at startup with the exact feature named. Beyond OIP, every binary now also serves the **`inferstream.v1` extension service** — Tokenize/Detokenize (server-side HF tokenizer), a typed `Embed` wrapper, `ListModels`, and a `Rerank` stub — documented below.
+**Do not read the Rust `inferstream-apple` crate as “Apple unimplemented.”** That crate is a **Linux CI compile stub** so CI type-checks the old FFI wiring. Production Apple is the Swift binary on krickert-mac (Metal).
+
+NVIDIA catalog `backend = "ort"` constructs `TurboEmbedBackend` (`--features ort-cuda` = CUDA EP + IoBinding; explicit `device=cpu` = CPU EP; `device=tensorrt` = ORT TensorRT EP). The old `backend-ort` server path is not used for catalog aliases. Generation is `backend-llamacpp` in-process. Intel catalog `backend = "openvino"` constructs `TurboEmbedBackend` and loads `ov::genai::TextEmbeddingPipeline` through the C ABI (plain strings; openvino-tokenizers; CLS/MEAN/LAST + L2). Generation is `backend-llamacpp` SYCL in-process on Battlemage. Apple catalog embeds call `libTurboEmbed.dylib`; generation stays on `MlxBackend` / mlx-swift-lm. Routing a model to an engine a binary does not ship fails **at startup** with the exact feature named.
 
 ## Architecture
 
@@ -38,9 +49,9 @@ flowchart TB
     end
 
     subgraph nvidia [inferstream-nvidia - krick, Linux container OK]
-        N1[ONNX Runtime CUDA EP - primary, embeddings live]
-        N2[llama.cpp CUDA - GGUF fallback]
-        N3[TensorRT-LLM Executor - optional later, generative]
+        N1[ONNX Runtime CUDA / CPU / TensorRT EP - embeddings live]
+        N2[llama.cpp CUDA - GGUF generation]
+        N3[TensorRT-LLM Executor - generative stub]
     end
 
     subgraph intel [inferstream-intel - krick-1, Linux]
@@ -48,9 +59,8 @@ flowchart TB
         I2[llama.cpp SYCL - Level Zero, generation]
     end
 
-    subgraph apple [inferstream-apple - native macOS host, NOT containerized]
-        A1[MLX]
-        A2[llama.cpp Metal]
+    subgraph apple [Swift inferstream-apple - krickert-mac, Metal]
+        A1[MLX TurboEmbed + mlx-swift-lm]
     end
 
     C --> nvidia
@@ -74,7 +84,7 @@ Shared plumbing lives in `crates/server` (service, auth interceptor, config, reg
 | `crates/server` | Shared: tonic service, auth, config, registry, CLI runner + mock-only `inferstream` bin |
 | `crates/arch-nvidia` | `inferstream-nvidia` binary |
 | `crates/arch-intel` | `inferstream-intel` binary |
-| `crates/arch-apple` | `inferstream-apple` binary |
+| `crates/arch-apple` | Rust `inferstream-apple` — **Linux CI compile stub only**. Real Mac binary is `swift/` |
 | `crates/turboembed` | Safe wrapper over `include/turboembed.h`. macOS: `libTurboEmbed.dylib` (MLX Metal MiniLM mean+L2). NVIDIA: `--features ort-cuda`. Intel: `--features genai`. Catalog aliases error without the real feature; mock is smoke-only. |
 
 ## TurboEmbed
@@ -88,68 +98,73 @@ on the existing `inferstream.v1.InferstreamService`.
 |---|---|
 | Architecture | [`docs/turboembed-architecture.md`](docs/turboembed-architecture.md) |
 | Frozen C ABI | [`include/turboembed.h`](include/turboembed.h) (Apple copy: `swift/Sources/TurboEmbedC/include/turboembed.h`) |
-| C++ stub | [`native/turboembed`](native/turboembed) |
+| C++ (default no-feature link is mock smoke; real providers via features) | [`native/turboembed`](native/turboembed) |
 | Rust crate | `crates/turboembed` |
 | Swift shim | `swift/Sources/TurboEmbed` — [`docs/turboembed-swift.md`](docs/turboembed-swift.md) |
 | Drift matrix | [`docs/turboembed-drift.md`](docs/turboembed-drift.md) · `make e2e-drift` |
-| NVIDIA ORT CUDA | [`docs/turboembed.md`](docs/turboembed.md) · `make test-turboembed-nvidia` |
+| NVIDIA ORT CUDA / CPU / TensorRT | [`docs/turboembed.md`](docs/turboembed.md) · `make test-turboembed-nvidia` |
 
 ```bash
-make turboembed-stub          # Linux: native/turboembed/build/libturboembed.a
-cargo test -p turboembed      # ABI smoke (mock-embed). macOS links MLX.
-make test-turboembed-nvidia   # --features ort-cuda; ORT CUDA IoBinding MiniLM
+make turboembed-stub          # Linux: default no-feature mock-smoke lib
+cargo test -p turboembed      # ABI smoke (mock-embed). macOS links MLX dylib.
+make test-turboembed-nvidia   # --features ort-cuda; ORT CUDA + CPU + TensorRT MiniLM
 make test-turboembed-intel    # --features genai; TextEmbeddingPipeline on CPU and GPU
 make test-turboembed-apple    # Mac: Metal create lists minilm (384) + embed vs goldens
 make e2e-drift                # skip unless *_ADDR / DUMP_* set
 ```
 
-Without a real provider feature the stub answers `mock-embed` on explicit
-`MOCK` / `CPU` and returns `NOT_IMPLEMENTED` for catalog aliases
-(`minilm`, …). Mock is never a silent substitute for missing Metal/GPU.
+Default no-feature link answers `mock-embed` on explicit `MOCK` / `CPU`
+and returns `NOT_IMPLEMENTED` for catalog aliases (`minilm`, …). Mock is
+never a silent substitute for missing Metal/GPU. Catalog aliases never
+become 8-d FNV.
+
 `--features ort-cuda` loads MiniLM through ORT CUDA + IoBinding (CUDA
-request never becomes CPU) or an explicit CPU EP when `Device::Cpu` is
-selected. On Intel, `--features genai` loads
-`ov::genai::TextEmbeddingPipeline` on **GPU** or **CPU** (no OVMS; a GPU
-request never silently becomes CPU). On Apple Silicon, `Device::Metal` /
-`Device::Auto` + `minilm` is **real FP MiniLM** (hidden-state mean + L2
-on Metal). Receipts: `testdata/receipts/turboembed/nvidia-minilm.json`,
-`nvidia-minilm-cpu.json`, `intel-minilm.json`, `intel-minilm-cpu.json`,
-`apple-minilm.json`. Intel NPU on krick-1 is an honest fail receipt
-(`intel-npu.json`, `pass=false`) — no plugin, no silent CPU.
-Inferstream catalog **Embed** is a thin gRPC façade over this ABI
-(`crates/backend-turboembed` on nvidia/intel; Swift `TurboEmbedBackend`
-on Apple). Tokenize / StreamInfer for GGUF and MLX LLMs are unchanged.
+request never becomes CPU), an explicit CPU EP when `Device::Cpu` is
+selected, or the ORT TensorRT EP when `Device::TensorRT` is selected.
+On Intel, `--features genai` loads `ov::genai::TextEmbeddingPipeline`
+on **GPU** or **CPU** (no OVMS; a GPU request never silently becomes
+CPU). On Apple Silicon, `Device::Metal` / `Device::Auto` + `minilm` is
+**real FP MiniLM** (hidden-state mean + L2 on Metal). Receipts:
+`testdata/receipts/turboembed/nvidia-minilm.json`,
+`nvidia-minilm-cpu.json`, `nvidia-minilm-tensorrt.json`,
+`intel-minilm.json`, `intel-minilm-cpu.json`, `apple-minilm.json`.
+Intel NPU on krick-1 is an honest fail receipt (`intel-npu.json`,
+`pass=false`) — no plugin, no silent CPU; needs a Core Ultra client
+NPU host. Inferstream catalog **Embed** is a thin gRPC façade over this
+ABI (`crates/backend-turboembed` on nvidia/intel; Swift
+`TurboEmbedBackend` on Apple). Tokenize / StreamInfer for GGUF and MLX
+LLMs are unchanged.
 
 ## Building each arch binary
 
-Everything below builds on a plain Linux box today (engines are stubs); the extra host requirements kick in when the real engine links land.
+Default no-feature builds compile on a plain Linux box and link **mock smoke** only. Real providers need the matching Cargo features, host libraries, or the Apple dylib.
 
 ```bash
 # Dev / client validation (mock only) — anywhere
 cargo run -p inferstream-server -- --config config/example.toml
 
-# NVIDIA (krick): stub surface builds anywhere. The real embedding engine is
-# ONNX Runtime — `ort`'s download-binaries fetches a matching libonnxruntime
-# at build time, so no system ORT install is needed:
+# NVIDIA (krick): no-feature build is mock smoke. Real embeds are ONNX Runtime —
+# `ort`'s download-binaries fetches a matching libonnxruntime at build time,
+# so no system ORT install is needed:
 cargo build -p inferstream-arch-nvidia --release --features ort-runtime  # CPU EP, anywhere
-cargo build -p inferstream-arch-nvidia --release --features ort-cuda     # CUDA EP, GPU host
+cargo build -p inferstream-arch-nvidia --release --features ort-cuda     # CUDA EP + TensorRT EP, GPU host
 # Full krick surface: ORT-CUDA embeddings + llama.cpp-CUDA GGUF generation.
 # llama.cpp compiles from source with nvcc; when the host's default gcc is
 # newer than nvcc supports, name a compatible host compiler:
 CUDAHOSTCXX=/usr/bin/g++-13 CUDAARCHS=89 \
     cargo build -p inferstream-arch-nvidia --release --features full-cuda
-cargo build -p inferstream-arch-nvidia --release --features trtllm-sys   # optional later: TRT-LLM
+cargo build -p inferstream-arch-nvidia --release --features trtllm-sys   # optional later: TRT-LLM *generation*
 ./target/release/inferstream-nvidia --config config/nvidia.toml
 # See "NVIDIA GPU host requirements" below for the CUDA 13 runtime libs the
 # ort-cuda build loads at startup.
 
-# Intel (krick-1): stub surface builds anywhere. Real SYCL + GenAI:
+# Intel (krick-1): no-feature build is mock smoke. Real SYCL + GenAI:
 scripts/build-intel.sh                  # ggml-sycl + icpx rustc link; no python3
 make fetch-llms                         # SHA-256-pinned GGUF; no python3
 scripts/run-intel.sh --config config/intel.toml
 
 # Apple: build and run ON THE MAC, never in a container.
-# Supported path is the Swift server (no Rust process):
+# The real Mac binary is the Swift server (not the Rust crate):
 make apple
 ./swift/.build/release/inferstream-apple --config config/apple.toml
 ```
@@ -405,21 +420,29 @@ Clients send gRPC metadata `authorization: Bearer <key>` (`grpcurl -H 'authoriza
 NVIDIA CUDA passes into Linux containers via the NVIDIA container toolkit. **Apple GPU (Metal) and the Neural Engine do not** — there is no macOS container GPU passthrough, and Linux containers on a Mac run inside a VM without Metal. Therefore:
 
 - `inferstream-nvidia` and `inferstream-intel` deploy as Linux containers (or bare processes) on their GPU hosts.
-- `inferstream-apple` deploys **natively on the Mac** (launchd service or plain process). It compiles on Linux as a stub so CI type-checks the wiring, but it only functions on macOS.
+- The **Swift** `inferstream-apple` deploys **natively on the Mac** (launchd service or plain process). The Rust `inferstream-apple` crate compiles on Linux so CI type-checks the old wiring; it is not the Mac product.
 
 Same client, same contract, heterogeneous fleet: krick (NVIDIA) + krick-1 (Intel) + Mac workers behind one OIP endpoint shape.
 
 ## Roadmap
 
-1. ~~ONNX Runtime session wiring (`backend-ort`)~~ — **done**: CPU + CUDA EPs, embeddings live on krick; TensorRT EP wired but blocked on host TensorRT libs.
+Done:
+
+1. ~~ONNX Runtime session wiring (`backend-ort`)~~ — CPU + CUDA + **ORT TensorRT EP** MiniLM live on krick (`nvidia-minilm-tensorrt.json`). Distinct from TRT-LLM generation.
 2. ~~**OVMS client backend**~~ — **removed**: inferstream no longer fronts OpenVINO Model Server. Intel embeds are GenAI only (`docs/adding-ovms-embedding-pipelines.md`).
-3. ~~**OpenVINO GenAI runtime link** (`backend-openvino`, feature `genai`)~~ — **code done**: in-process `TextEmbeddingPipeline` is the only Intel embed path. GPU live smoke is a krick-1 follow-up (`docs/intel-genai-embed.md`).
-4. ~~**llama.cpp FFI** (`backend-llamacpp`)~~ — **done for CPU/CUDA** via `llama-cpp-2` (features `runtime` / `cuda`, `metal` wired but unbuilt): GGUF token streaming live on krick (Qwen2.5-0.5B Q8_0, full GPU offload). SYCL and Vulkan flavors still pending.
-5. ~~**MLX** (`backend-apple`)~~ — **done**, then rebuilt as an **all-Swift gRPC server** (`swift/`, `make apple`): Embed, Tokenize/Detokenize, and streamed generation live on Apple silicon with no Rust serve process (`scripts/smoke-apple.sh`).
-6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — optional later feature for generative models; cxx/bindgen layer over `tensorrt_llm::executor`.
-7. **TLS / mTLS** in `serve()`; per-key model ACLs after.
-8. Optional adapters: TEI-compatible proto (lowest priority), shared-memory tensor hints, richer stream metadata.
-9. ORT session pooling (today one session per model behind a mutex; ONNX Runtime's intra-op threads still parallelize each request).
+3. ~~**OpenVINO GenAI runtime link** (`backend-openvino`, feature `genai`)~~ — GPU + CPU live on krick-1 (`intel-minilm.json`, `intel-minilm-cpu.json`). NPU is fail-loud until a Core Ultra client NPU host (`intel-npu.json`).
+4. ~~**llama.cpp FFI** (`backend-llamacpp`)~~ — CPU/CUDA live on krick; **SYCL live** on krick-1. Apple generation is the Swift MLX server, not this crate. Vulkan flavor is not a live host path.
+5. ~~**MLX**~~ — **all-Swift gRPC server** (`swift/`, `make apple`): Embed, Tokenize/Detokenize, and streamed generation live on Apple silicon (`scripts/smoke-apple.sh`). Rust `inferstream-apple` is CI-only.
+
+Still open:
+
+6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — generative stub. Not ORT TensorRT embeds (those are live).
+7. **Rerank** — mock scorer only.
+8. **TLS / mTLS** in `serve()`; per-key model ACLs after.
+9. Optional adapters: TEI-compatible proto (lowest priority), richer stream metadata.
+10. ORT session pooling (one session per model behind a mutex today; intra-op threads still parallelize each request).
+11. Zero-copy buffer pool (aspirational).
+12. **model2vec** provider (plugin sketch only).
 
 Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.
 

@@ -5,8 +5,10 @@ floors** across nvidia (ORT), intel (OpenVINO GenAI), and apple (MLX).
 Drift is that check run over the **popular-model matrix**, not just the
 default parity trio (`minilm`, `bge-small`, `mpnet`).
 
-This is scaffolding: the harness reuses `inferstream-e2e` thresholds and
-capture code. It does **not** start GPUs.
+The harness reuses `inferstream-e2e` thresholds and capture code. It
+does **not** start GPUs. Live MiniLM e2e already proved nvidia↔intel
+cosine ~1.0 and apple↔nvidia ≥ 0.9795; this target walks the popular
+alias matrix against the same floors.
 
 ## Thresholds (reuse parity — do not weaken)
 

@@ -8,11 +8,19 @@ pipeline. Pooling is CLS / MEAN / LAST_TOKEN with optional L2. Device is
 `CPU` / `GPU` / `NPU` (catalog default: **GPU**).
 
 **OVMS gRPC is out of scope.** There is no `backend = "ovms"` client.
-Intel Embed is GenAI only.
+Intel Embed is GenAI only. Catalog `backend = "openvino"` constructs
+`TurboEmbedBackend` and `ListModels` reports `backend=turboembed`.
 
-This document is the build + krick-1 smoke runbook. **GPU live smoke was
-not run on the cloud VM that landed this code** — do that on **krick-1**
-(Battlemage).
+This document is the build + krick-1 runbook. GPU and CPU MiniLM are
+**live** on krick-1 (Battlemage) — receipts
+[`intel-minilm.json`](../testdata/receipts/turboembed/intel-minilm.json)
+and
+[`intel-minilm-cpu.json`](../testdata/receipts/turboembed/intel-minilm-cpu.json).
+NPU is an honest fail on this host
+([`intel-npu.json`](../testdata/receipts/turboembed/intel-npu.json),
+`pass=false`): no Intel NPU silicon. A future NPU prove needs a
+**Core Ultra client NPU** host — not Xeon, not AWS Inferentia, not
+this Battlemage box.
 
 ## Build dependencies
 
@@ -112,8 +120,10 @@ scripts/smoke-embeddings.sh 127.0.0.1:8473 change-me minilm
 scripts/prove-intel-genai.sh 127.0.0.1:8473 change-me
 ```
 
-Expected: `ListModels` reports `backend=openvino`, `platform=openvino_genai`,
-`device=GPU`. `Embed` returns FP32 vectors (minilm = 384-dim).
+Expected: `ListModels` reports `backend=turboembed` for catalog
+`minilm` (the GenAI pipeline is behind the TurboEmbed C ABI). `Embed`
+returns FP32 vectors (minilm = 384-dim). GPU default; explicit CPU is
+the same IR (`intel-minilm-cpu.json`).
 
 ### Ignored GPU golden (crate test)
 
@@ -166,10 +176,11 @@ Live probe (C++, no Python) on **krick-1** against OpenVINO GenAI
 | `TextEmbeddingPipeline(models/ov/minilm, "NPU")` | **FAIL** — `Device with "NPU" name is not registered in the OpenVINO Runtime` |
 | PCI / `/dev` | AMD Ryzen 9 9950X + Battlemage G31 dGPU. No Intel NPU silicon, no `/dev/accel`, no `intel_npu` node |
 
-Intel NPU is on Meteor / Lunar / Arrow Lake-class SoCs, not on a discrete
-Battlemage card and not on AMD CPUs. Policy still accepts `"NPU"` when a
-future host lists the plugin (`require_ov_device("NPU", "CPU,NPU")` →
-`"NPU"`); create on krick-1 cannot. Receipt:
+Intel NPU is on **Core Ultra client** SoCs (Meteor / Lunar / Arrow Lake),
+not on a discrete Battlemage card, not on AMD CPUs, **not Xeon**, and
+**not AWS Inferentia**. Policy still accepts `"NPU"` when a future host
+lists the plugin (`require_ov_device("NPU", "CPU,NPU")` → `"NPU"`);
+create on krick-1 cannot. Receipt:
 `testdata/receipts/turboembed/intel-npu.json` (`pass=false`, `wired=false`).
 Do not treat that file as a MiniLM success receipt.
 
