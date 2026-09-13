@@ -1,0 +1,121 @@
+{
+  "command": "make bench-machine-a",
+  "commands": [
+    "make bench-machine-a",
+    "make bench-turbo MACHINE=A"
+  ],
+  "device": "CUDA",
+  "git_sha": "6dd484329df0a7d876e39d1c288bbd0d0d4fadba",
+  "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+  "host": "krick",
+  "kind": "turbo-bench",
+  "machine": "Machine A",
+  "notes": "SOLIDIFY (7) Machine A CUDA bench. p50/p99 are nearest-rank over N≥100 timed forwards after warmup. token_h2d and embed hidden_d2h are intercepted counters (must be 0 on the fixed paths). allocs/forward must be 0. Berlin HF CE and nvidia MiniLM embed goldens must stay in band. Numbers are measured on this GPU — do not hand-edit.",
+  "pass": true,
+  "schema_version": 1,
+  "turboembed": {
+    "alias": "minilm",
+    "allocs_per_forward": 0,
+    "bytes_per_forward": {
+      "d2h_result_bytes": 0,
+      "hidden_d2h": 0,
+      "hidden_d2h_calls": 0,
+      "token_h2d": 0,
+      "token_h2d_calls": 0
+    },
+    "cuda_forward_allocs": 0,
+    "device": "CUDA",
+    "engine": "turboembed",
+    "git_sha": "6dd484329df0a7d876e39d1c288bbd0d0d4fadba",
+    "goldens": {
+      "hello_world_cosine": 0.9999998211860656,
+      "in_band": true,
+      "mean_cosine": 0.9999999403953552,
+      "n_texts": 6,
+      "path": "testdata/e2e/goldens/nvidia/minilm.json",
+      "subset": "parity:*",
+      "threshold": 0.9900000095367432,
+      "worst_cosine": 0.9999998211860656
+    },
+    "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+    "host": "krick",
+    "latency_us": {
+      "max": 1626,
+      "mean": 1441.56,
+      "min": 1292,
+      "n": 200,
+      "p50": 1430,
+      "p99": 1584,
+      "percentile_method": "nearest_rank",
+      "unit": "us"
+    },
+    "measure_iters": 200,
+    "notes": "Steady-state after warmup. token_h2d / hidden_d2h are intercepted counters on one post-warmup embed_one. Latency is Instant around embed_one (tokenize + ORT Run + DEVICE mean+L2).",
+    "ort_gpu_external_allocs": 0,
+    "pass": true,
+    "provider": "ORT CUDA EP + IoBinding + DEVICE mean+L2",
+    "warmup_iters": 32,
+    "workload": {
+      "kind": "embed_one",
+      "normalize": true,
+      "pooling": "mean",
+      "text": "hello world"
+    }
+  },
+  "turborerank": {
+    "alias": "ms-marco-minilm-l6",
+    "allocs_per_forward": 0,
+    "bytes_per_forward": {
+      "hidden_d2h": 0,
+      "score_d2h_bytes": 4,
+      "token_h2d": 0,
+      "token_h2d_calls": 0
+    },
+    "cuda_forward_allocs": 0,
+    "device": "CUDA",
+    "engine": "turborerank",
+    "git_sha": "6dd484329df0a7d876e39d1c288bbd0d0d4fadba",
+    "goldens": {
+      "cosine_vs_golden": 1.0,
+      "in_band": true,
+      "logits": [
+        8.845853805541992,
+        -4.320076942443848,
+        -11.273895263671877
+      ],
+      "max_abs_logit_err": 9.5367431640625e-7,
+      "path": "testdata/reference_rerank/ms_marco_minilm_l6_berlin.json",
+      "reference_logits": [
+        8.845852851867676,
+        -4.320075988769531,
+        -11.27389430999756
+      ],
+      "threshold_abs": 0.0020000000949949026
+    },
+    "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+    "host": "krick",
+    "latency_us": {
+      "max": 689,
+      "mean": 676.52,
+      "min": 673,
+      "n": 200,
+      "p50": 676,
+      "p99": 684,
+      "percentile_method": "nearest_rank",
+      "unit": "us"
+    },
+    "measure_iters": 200,
+    "model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+    "notes": "Steady-state after warmup. token_h2d is turbo_buffer_cuda_forward_h2d_bytes on one post-warmup score. hidden_d2h is 0 — activations stay DEVICE; score_d2h_bytes is the 4-byte CLS logit (not hidden). Latency is Instant around turborerank_score of one Berlin pair. Berlin 3-doc HF golden is checked separately.",
+    "pass": true,
+    "provider": "first-party CUDA MiniLM CE + cuBLASLt + PINNED mapped tokens",
+    "warmup_iters": 32,
+    "workload": {
+      "activation": "identity",
+      "document": "Berlin has a population of 3,520,031 registered inhabitants in an area of 891.82 square kilometers.",
+      "kind": "score_one_pair",
+      "query": "How many people live in Berlin?",
+      "truncation": "longest_first"
+    }
+  }
+}

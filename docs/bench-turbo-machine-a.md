@@ -47,6 +47,16 @@ binaries, and merges `testdata/receipts/bench/machine-a-cuda.json`.
 `MACHINE=B` / `MACHINE=C` on this target exit 1 — those hosts write
 their own receipts.
 
+## This run (RTX 4080 SUPER)
+
+From `make bench-machine-a` (warmup 32, N=200, release). Same file as the
+receipt — re-run the target instead of editing.
+
+| engine | p50 | p99 | token H2D | hidden D2H | allocs/fwd | band |
+|---|---|---|---|---|---|---|
+| TurboEmbed MiniLM (`hello world`) | 1430 µs | 1584 µs | 0 | 0 | 0 | cosine ≥ 0.999999 vs nvidia MiniLM |
+| TurboRerank MiniLM-L6 (Berlin pair) | 676 µs | 684 µs | 0 | 0 | 0 | HF logits, max abs 9.5e-7 |
+
 ## Receipt
 
 [`testdata/receipts/bench/machine-a-cuda.json`](../testdata/receipts/bench/machine-a-cuda.json)
