@@ -9,6 +9,7 @@ Not mocks. Not OVMS. Not a CPU EP pretending to be CUDA. Not BERT pooler.
 | `nvidia-minilm-cpu.json` | krick | ORT CPU EP (explicit `Device::Cpu`) | **CPU** | `make test-turboembed-nvidia` |
 | `intel-minilm.json` | krick-1 (Battlemage) | `ov::genai::TextEmbeddingPipeline` | **GPU** | `make test-turboembed-intel` |
 | `intel-minilm-cpu.json` | krick-1 | same pipeline, `"CPU"` device string | **CPU** | `make test-turboembed-intel` |
+| `intel-npu.json` | krick-1 | **defer** — NPU create fails loud (no plugin) | **NPU** | `make test-turboembed-intel` |
 | `apple-minilm.json` | krickert-mac (Apple M2) | mlx-swift `MlxEngine` mean+L2 | **Metal** | `make test-turboembed-apple` |
 
 NVIDIA fields: `device=CUDA`, `dims`, `worst_cosine` vs
@@ -19,6 +20,9 @@ Intel: same MiniLM IR (`models/ov/minilm`). Cosine vs
 `testdata/e2e/goldens/{intel,nvidia}/minilm.json` stays ≥ 0.99 on **both**
 devices (CPU is the same IR, not a mock). GPU create/load still fails if
 the GPU plugin is missing — that path never compiles `"CPU"`.
+`intel-npu.json` is an honest **fail** receipt (`pass=false`): krick-1 has
+no Intel NPU / no `libopenvino_intel_npu_plugin.so`. Do not treat it as
+a MiniLM success.
 
 Apple: `turboembed_embed(minilm)` on `Device(gpu, 0)`. Cosine vs nvidia
 goldens ≥ 0.97 (CJK UNK floor) and apple goldens ≥ 0.99. Dim 384,

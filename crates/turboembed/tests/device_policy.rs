@@ -3,9 +3,10 @@
 //! Confirmed:
 //! - explicit `device=CPU` compiles `"CPU"` (real path, not a fallback)
 //! - `device=GPU` with no GPU plugin is a **loud fail** — never `"CPU"`
+//! - `device=NPU` with no NPU plugin is a **loud fail** — never `"CPU"`
 //!
 //! These cases use `require_ov_device` with a synthetic plugin list so the
-//! GPU-missing branch is asserted on every host. No mock embed. No Python.
+//! GPU/NPU-missing branches are asserted on every host. No mock embed. No Python.
 
 #![cfg(feature = "genai")]
 
@@ -75,6 +76,33 @@ fn gpu_missing_when_gpu_selected_is_loud_fail_never_cpu() {
         assert!(
             lower.contains("fallback") || lower.contains("refus"),
             "error must say CPU fallback is refused, listed={listed:?}, got {err}"
+        );
+    }
+}
+
+#[test]
+fn npu_selected_when_plugin_listed() {
+    assert_eq!(require("NPU", "NPU").unwrap(), "NPU");
+    assert_eq!(require("NPU", "CPU,NPU").unwrap(), "NPU");
+    assert_eq!(require("NPU", "CPU,GPU,NPU").unwrap(), "NPU");
+}
+
+#[test]
+fn npu_missing_when_npu_selected_is_loud_fail_never_cpu() {
+    for listed in ["CPU", "CPU,GPU", "GPU", ""] {
+        let err = require("NPU", listed).expect_err("NPU with no NPU plugin must fail");
+        let lower = err.to_ascii_lowercase();
+        assert!(
+            lower.contains("npu"),
+            "error must name NPU, listed={listed:?}, got {err}"
+        );
+        assert!(
+            lower.contains("fallback") || lower.contains("refus"),
+            "error must say CPU fallback is refused, listed={listed:?}, got {err}"
+        );
+        assert!(
+            !lower.contains("compiled cpu") && !err.contains("\"CPU\" as success"),
+            "NPU-missing must not report a CPU compile as success, listed={listed:?}, got {err}"
         );
     }
 }

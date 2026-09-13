@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0
  *
- * ov::genai::TextEmbeddingPipeline on Intel CPU or GPU.
+ * ov::genai::TextEmbeddingPipeline on Intel CPU, GPU, or NPU.
  *
  * Official C++ usage (OpenVINO GenAI samples/cpp/rag/text_embeddings.cpp):
  *
@@ -10,10 +10,9 @@
  *   ov::genai::TextEmbeddingPipeline pipeline(models_path, device, config);
  *   ov::genai::EmbeddingResults rows = pipeline.embed_documents(documents);
  *
- * The `device` argument is the OpenVINO plugin name passed through to
- * ov::Core::compile_model (non-NPU). We pass the caller's string
- * unchanged: "CPU" or "GPU". Never "AUTO". Asking for "GPU" when the
- * GPU plugin is missing does not compile "CPU".
+ * The `device` argument is the OpenVINO plugin name. We pass the caller's
+ * string unchanged: "CPU", "GPU", or "NPU". Never "AUTO". Asking for
+ * "GPU" / "NPU" when that plugin is missing does not compile "CPU".
  * No OVMS. No Python.
  */
 
@@ -71,6 +70,10 @@ std::string missing_ir(const fs::path& dir) {
 
 bool starts_with_gpu(const std::string& d) {
     return d.size() >= 3 && d.compare(0, 3, "GPU") == 0;
+}
+
+bool starts_with_npu(const std::string& d) {
+    return d.size() >= 3 && d.compare(0, 3, "NPU") == 0;
 }
 
 bool is_cpu_device(const std::string& d) {
@@ -187,15 +190,19 @@ bool runtime_has_cpu() {
     return listed_has(available_devices(), is_cpu_device);
 }
 
+bool runtime_has_npu() {
+    return listed_has(available_devices(), starts_with_npu);
+}
+
 std::string require_ov_device(
     const std::string& requested,
     const std::vector<std::string>& available
 ) {
     const std::string listed_join = join_devices(available);
-    if (requested != "CPU" && requested != "GPU") {
+    if (requested != "CPU" && requested != "GPU" && requested != "NPU") {
         throw std::runtime_error(
             "unsupported OpenVINO GenAI device string '" + requested +
-            "' (pass \"CPU\" or \"GPU\"; never AUTO)"
+            "' (pass \"CPU\", \"GPU\", or \"NPU\"; never AUTO)"
         );
     }
     if (requested == "GPU" && !listed_has(available, starts_with_gpu)) {
@@ -205,6 +212,17 @@ std::string require_ov_device(
             "Need libopenvino_intel_gpu_plugin + Level Zero, or create "
             "the engine with TURBOEMBED_DEVICE_OPENVINO_CPU / "
             "TextEmbeddingPipeline(..., \"CPU\", config)."
+        );
+    }
+    if (requested == "NPU" && !listed_has(available, starts_with_npu)) {
+        throw std::runtime_error(
+            "OpenVINO NPU plugin unavailable (listed: [" + listed_join +
+            "]); NPU was requested so CPU fallback is refused. "
+            "Need Intel NPU silicon + intel-npu/accel driver + "
+            "libopenvino_intel_npu_plugin.so. Live probe of "
+            "TextEmbeddingPipeline(..., \"NPU\") fails with: Device with "
+            "\"NPU\" name is not registered in the OpenVINO Runtime. "
+            "Battlemage dGPU + AMD CPU hosts do not provide an NPU."
         );
     }
     if (requested == "CPU" && !listed_has(available, is_cpu_device)) {
@@ -275,7 +293,7 @@ std::unique_ptr<Pipeline> load_pipeline(
         cfg.pad_to_max_length = true;
     }
 
-    /* Exact plugin name from the official sample / docs: "CPU" or "GPU". */
+    /* Exact plugin name: "CPU", "GPU", or "NPU". Never rewritten. */
     auto out = std::unique_ptr<Pipeline>(new Pipeline(
         std::unique_ptr<Pipeline::Impl>(new Pipeline::Impl(dir, ov_device, cfg))
     ));
@@ -291,10 +309,10 @@ std::vector<float> Pipeline::embed_documents(const std::vector<std::string>& tex
     if (texts.empty()) {
         throw std::invalid_argument("embed_documents called with no texts");
     }
-    if (device_ != "CPU" && device_ != "GPU") {
+    if (device_ != "CPU" && device_ != "GPU" && device_ != "NPU") {
         throw std::runtime_error(
             "internal error: TextEmbeddingPipeline device is " + device_ +
-            " (must be CPU or GPU)"
+            " (must be CPU, GPU, or NPU)"
         );
     }
     auto rows = as_float_rows(impl_->pipe.embed_documents(texts));

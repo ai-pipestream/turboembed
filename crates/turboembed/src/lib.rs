@@ -28,9 +28,10 @@
 //!   provider feature is compiled in.
 //!
 //! `--features genai` links `ov::genai::TextEmbeddingPipeline` with the
-//! official device string (`"GPU"` or `"CPU"`).
+//! official device string (`"GPU"`, `"CPU"`, or `"NPU"`).
 //! `Engine::create(Device::OpenVinoGpu)` fails if the GPU plugin is
-//! missing (no CPU swap). `Device::OpenVinoCpu` / `Device::Cpu` compile
+//! missing (no CPU swap). Same for [`Device::OpenVinoNpu`].
+//! `Device::OpenVinoCpu` / `Device::Cpu` compile
 //! `"CPU"` and return real embeds. No OVMS. No Python.
 //!
 //! `--features ort-cuda` registers the ONNX Runtime CUDA EP with

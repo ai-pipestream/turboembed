@@ -148,7 +148,30 @@ Cosine vs `testdata/e2e/goldens/{intel,nvidia}/minilm.json` ≥ 0.99.
 Receipts: `testdata/receipts/turboembed/intel-minilm.json` (GPU) and
 `intel-minilm-cpu.json` (CPU). Policy (no embed):
 `cargo test -p turboembed --features genai --test device_policy` —
-GPU + no GPU plugin is `UNSUPPORTED_DEVICE` (never `"CPU"`).
+GPU + no GPU plugin is `UNSUPPORTED_DEVICE` (never `"CPU"`). Same for NPU.
+
+### NPU — honest defer on krick-1 (Battlemage)
+
+`Device::OpenVinoNpu` is **not** a live TurboEmbed path on this host.
+`Engine::create(Device::OpenVinoNpu)` fails loud (`UNSUPPORTED_DEVICE`)
+and never compiles `"CPU"` or the 8-d FNV mock.
+
+Live probe (C++, no Python) on **krick-1** against OpenVINO GenAI
+2026.3.1 (`/work/opt/openvino_genai`):
+
+| check | result |
+|---|---|
+| `ov::Core::get_available_devices()` | `CPU GPU` — no `NPU` |
+| `libopenvino_intel_npu_plugin.so` | **missing** from `runtime/lib/intel64` (CPU + GPU plugins only) |
+| `TextEmbeddingPipeline(models/ov/minilm, "NPU")` | **FAIL** — `Device with "NPU" name is not registered in the OpenVINO Runtime` |
+| PCI / `/dev` | AMD Ryzen 9 9950X + Battlemage G31 dGPU. No Intel NPU silicon, no `/dev/accel`, no `intel_npu` node |
+
+Intel NPU is on Meteor / Lunar / Arrow Lake-class SoCs, not on a discrete
+Battlemage card and not on AMD CPUs. Policy still accepts `"NPU"` when a
+future host lists the plugin (`require_ov_device("NPU", "CPU,NPU")` →
+`"NPU"`); create on krick-1 cannot. Receipt:
+`testdata/receipts/turboembed/intel-npu.json` (`pass=false`, `wired=false`).
+Do not treat that file as a MiniLM success receipt.
 
 ## OVMS (removed)
 

@@ -3,10 +3,11 @@
  * Internal façade over ov::genai::TextEmbeddingPipeline.
  * The .cpp is the only translation unit that includes GenAI headers.
  *
- * Device string is the OpenVINO GenAI constructor argument: "CPU" or
- * "GPU" (see samples/cpp/rag/text_embeddings.cpp). The requested string
- * is what we pass through — no silent swap. Asking for "GPU" when the
- * GPU plugin is missing fails; it does not compile "CPU".
+ * Device string is the OpenVINO GenAI constructor argument: "CPU",
+ * "GPU", or "NPU" (see samples/cpp/rag/text_embeddings.cpp). The
+ * requested string is what we pass through — no silent swap. Asking
+ * for "GPU" / "NPU" when that plugin is missing fails; it does not
+ * compile "CPU".
  */
 
 #pragma once
@@ -59,13 +60,14 @@ std::vector<std::string> available_devices();
 
 bool runtime_has_gpu();
 bool runtime_has_cpu();
+bool runtime_has_npu();
 
-/** `ov::device::full_name` for `ov_device` (`"CPU"` / `"GPU"`), or empty. */
+/** `ov::device::full_name` for `ov_device` (`"CPU"` / `"GPU"` / `"NPU"`), or empty. */
 std::string device_full_name(const std::string& ov_device);
 
 /**
- * Policy: pass through `"CPU"` or `"GPU"` exactly. Never `"AUTO"`.
- * `"GPU"` with no listed GPU plugin throws (no CPU fallback).
+ * Policy: pass through `"CPU"`, `"GPU"`, or `"NPU"` exactly. Never `"AUTO"`.
+ * `"GPU"` / `"NPU"` with no listed plugin throws (no CPU fallback).
  * `"CPU"` with no listed CPU plugin throws.
  */
 std::string require_ov_device(
@@ -75,11 +77,11 @@ std::string require_ov_device(
 
 /**
  * Construct TextEmbeddingPipeline on the exact OpenVINO device string
- * (`"CPU"` or `"GPU"`). Matches the official C++ sample:
+ * (`"CPU"`, `"GPU"`, or `"NPU"`). Matches the official C++ sample:
  *
  *   ov::genai::TextEmbeddingPipeline pipeline(models_path, device, config);
  *
- * `"GPU"` with no GPU plugin throws (no CPU fallback).
+ * `"GPU"` / `"NPU"` with no matching plugin throws (no CPU fallback).
  * `"CPU"` with no CPU plugin throws.
  * Any other string is rejected here — we never pass `"AUTO"`.
  */

@@ -4,6 +4,7 @@
 //! `ov::genai::TextEmbeddingPipeline(models_path, device, config)` with
 //! the official device strings `"GPU"` and `"CPU"`.
 //! Asking for GPU when the GPU plugin is missing fails (no CPU swap).
+//! Same for NPU: create fails loud if the plugin is missing (never CPU / FNV8).
 //! Explicit CPU compiles `"CPU"` and must produce real embeds.
 //!
 //! No OVMS. No mock-as-done. No Python.
@@ -506,6 +507,115 @@ fn minilm_c_abi_embed_one_on_cpu() {
 
         turboembed_embed_result_free(out);
         turboembed_engine_destroy(engine);
+    }
+}
+
+/// NPU request must fail loud on this host (no Intel NPU / no plugin).
+/// Never CPU. Never 8-d FNV mock. Writes the honest defer receipt.
+#[test]
+fn npu_request_never_silently_uses_cpu_or_mock() {
+    let root = workspace_root();
+    match Engine::create(Device::OpenVinoNpu) {
+        Ok(engine) => {
+            // Only valid if this host actually listed NPU. Then load must
+            // stay on NPU and produce dim 384 — never FNV8 / CPU.
+            engine.load_model(ALIAS).unwrap_or_else(|e| {
+                panic!("NPU create succeeded so load must stay on NPU, not fall back: {e:?}");
+            });
+            let info = engine.list_models().expect("list").get(0).expect("row");
+            assert_eq!(
+                info.device,
+                Device::OpenVinoNpu,
+                "NPU request compiled a non-NPU pipeline"
+            );
+            assert_ne!(info.dim, 8, "FAKE: NPU path returned dim=8 (FNV mock)");
+            assert_eq!(info.dim, 384);
+            panic!(
+                "NPU create+load succeeded on this host — refresh \
+                 testdata/receipts/turboembed/intel-minilm-npu.json with a \
+                 live cosine receipt instead of the defer file"
+            );
+        }
+        Err(Error::UnsupportedDevice(msg)) | Err(Error::Unavailable(msg)) => {
+            let lower = msg.to_ascii_lowercase();
+            assert!(
+                lower.contains("npu"),
+                "missing-NPU error must name NPU, got {msg}"
+            );
+            assert!(
+                lower.contains("fallback") || lower.contains("refus"),
+                "missing-NPU error must say CPU is not a fallback, got {msg}"
+            );
+            assert!(
+                !msg.contains("dim=8") && !lower.contains("fnv"),
+                "NPU fail must not be the FNV mock, got {msg}"
+            );
+
+            let cpu = fs::read_to_string("/proc/cpuinfo")
+                .ok()
+                .and_then(|s| {
+                    s.lines()
+                        .find(|l| l.starts_with("model name"))
+                        .map(|l| l.split(':').nth(1).unwrap_or("").trim().to_string())
+                })
+                .unwrap_or_default();
+            let host = Command::new("hostname")
+                .output()
+                .ok()
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default();
+            let plugin = Path::new("/work/opt/openvino_genai/runtime/lib/intel64")
+                .join("libopenvino_intel_npu_plugin.so")
+                .is_file();
+            let listed = msg
+                .split("listed: [")
+                .nth(1)
+                .and_then(|rest| rest.split(']').next())
+                .unwrap_or("")
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>();
+
+            let receipt = serde_json::json!({
+                "schema_version": 1,
+                "alias": ALIAS,
+                "device": "NPU",
+                "wired": false,
+                "pass": false,
+                "pipeline": "ov::genai::TextEmbeddingPipeline",
+                "abi": "turboembed.h",
+                "abi_version": 1,
+                "host": host,
+                "cpu": cpu,
+                "npu_plugin": plugin,
+                "create": "UNSUPPORTED_DEVICE",
+                "error": msg,
+                "available_devices": listed,
+                "live_probe": {
+                    "listed_npu": false,
+                    "constructor": "TextEmbeddingPipeline(models/ov/minilm, \"NPU\")",
+                    "exception": "Device with \"NPU\" name is not registered in the OpenVINO Runtime",
+                    "source": "standalone C++ ov::Core + TextEmbeddingPipeline probe on krick-1; create() uses the same Core list via require_ov_device",
+                },
+                "blocker": "krick-1 is AMD Ryzen 9 9950X + Intel Battlemage G31 dGPU. No Intel NPU silicon, no intel-npu/accel node, no libopenvino_intel_npu_plugin.so. ov::Core lists CPU GPU only.",
+                "note": "Honest defer. Device::OpenVinoNpu create fails loud and never compiles CPU or the 8-d FNV mock. Do not treat this file as a passing MiniLM receipt.",
+                "sha": {
+                    "git": git_head(&root),
+                },
+            });
+            let receipt_dir = root.join("testdata/receipts/turboembed");
+            fs::create_dir_all(&receipt_dir).expect("receipts dir");
+            fs::write(
+                receipt_dir.join("intel-npu.json"),
+                serde_json::to_string_pretty(&receipt).unwrap() + "\n",
+            )
+            .expect("write npu defer receipt");
+        }
+        Err(other) => panic!(
+            "NPU create must fail loud (UNSUPPORTED/UNAVAILABLE) or succeed on a real NPU, got {other:?}"
+        ),
     }
 }
 

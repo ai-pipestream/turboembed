@@ -17,7 +17,7 @@
 #   make e2e-drift                          # popular models × arches (same floors)
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
-#   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU
+#   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal MiniLM vs goldens + receipt
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
@@ -317,8 +317,8 @@ turboembed-stub:
 test-turboembed:
 	$(CARGO) test -p turboembed
 
-# Live TextEmbeddingPipeline on Intel CPU and GPU. GPU create fails if the
-# GPU plugin is missing (no silent CPU). Sources the host OpenVINO toolkit; no Python.
+# Live TextEmbeddingPipeline on Intel CPU and GPU. GPU/NPU create fails if
+# that plugin is missing (no silent CPU). Sources the host OpenVINO toolkit; no Python.
 OPENVINO_SETUPVARS ?= /work/opt/openvino_genai/setupvars.sh
 test-turboembed-intel:
 	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then \

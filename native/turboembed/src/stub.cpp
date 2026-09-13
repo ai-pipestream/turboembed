@@ -169,11 +169,14 @@ struct turboembed_engine {
 #ifdef TURBOEMBED_GENAI
 /* Map the ABI device to the OpenVINO GenAI constructor string.
  * AUTO is host-default GPU — never "CPU if GPU is down".
- * OPENVINO_GPU never becomes "CPU". */
+ * OPENVINO_GPU / OPENVINO_NPU never become "CPU". */
 bool resolve_ov_device(turboembed_device device, std::string *out, std::string *err) {
     switch (device) {
         case TURBOEMBED_DEVICE_OPENVINO_GPU:
             *out = "GPU";
+            return true;
+        case TURBOEMBED_DEVICE_OPENVINO_NPU:
+            *out = "NPU";
             return true;
         case TURBOEMBED_DEVICE_OPENVINO_CPU:
         case TURBOEMBED_DEVICE_CPU:
@@ -196,6 +199,7 @@ bool resolve_ov_device(turboembed_device device, std::string *out, std::string *
         default:
             *err =
                 "catalog alias needs TURBOEMBED_DEVICE_OPENVINO_GPU, "
+                "TURBOEMBED_DEVICE_OPENVINO_NPU, "
                 "TURBOEMBED_DEVICE_OPENVINO_CPU, TURBOEMBED_DEVICE_CPU, or AUTO";
             return false;
     }
@@ -204,6 +208,9 @@ bool resolve_ov_device(turboembed_device device, std::string *out, std::string *
 turboembed_device abi_device_from_ov(const std::string &ov) {
     if (ov == "CPU") {
         return TURBOEMBED_DEVICE_OPENVINO_CPU;
+    }
+    if (ov == "NPU") {
+        return TURBOEMBED_DEVICE_OPENVINO_NPU;
     }
     return TURBOEMBED_DEVICE_OPENVINO_GPU;
 }
@@ -338,8 +345,15 @@ turboembed_status turboembed_engine_create(
                              "; this stub has no GPU — refusing CPU fallback";
             return TURBOEMBED_ERR_UNAVAILABLE;
 #endif
-        case TURBOEMBED_DEVICE_TENSORRT:
         case TURBOEMBED_DEVICE_OPENVINO_NPU:
+#ifdef TURBOEMBED_GENAI
+            break;
+#else
+            g_create_error = std::string("requested ") + turboembed_device_name(device) +
+                             "; this stub has no OpenVINO NPU — refusing CPU fallback";
+            return TURBOEMBED_ERR_UNAVAILABLE;
+#endif
+        case TURBOEMBED_DEVICE_TENSORRT:
         case TURBOEMBED_DEVICE_METAL:
             g_create_error = std::string("requested ") + turboembed_device_name(device) +
                              "; this stub has no GPU — refusing CPU fallback";
@@ -353,6 +367,17 @@ turboembed_status turboembed_engine_create(
         try {
             turboembed_genai::require_ov_device(
                 "GPU",
+                turboembed_genai::available_devices()
+            );
+        } catch (const std::exception &e) {
+            g_create_error = e.what();
+            return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+        }
+    }
+    if (device == TURBOEMBED_DEVICE_OPENVINO_NPU) {
+        try {
+            turboembed_genai::require_ov_device(
+                "NPU",
                 turboembed_genai::available_devices()
             );
         } catch (const std::exception &e) {
@@ -560,14 +585,6 @@ turboembed_status turboembed_load_model(
 #endif
 
 #ifdef TURBOEMBED_GENAI
-    if (engine->device == TURBOEMBED_DEVICE_OPENVINO_NPU) {
-        engine->set_error(
-            "NPU is not wired (GenAI has a distinct NPU compile path); "
-            "use TURBOEMBED_DEVICE_OPENVINO_GPU or "
-            "TURBOEMBED_DEVICE_OPENVINO_CPU / CPU"
-        );
-        return TURBOEMBED_ERR_NOT_IMPLEMENTED;
-    }
     if (engine->device == TURBOEMBED_DEVICE_CUDA ||
         engine->device == TURBOEMBED_DEVICE_TENSORRT ||
         engine->device == TURBOEMBED_DEVICE_METAL) {
@@ -607,6 +624,14 @@ turboembed_status turboembed_load_model(
             engine->genai.reset();
             engine->set_error(
                 "GPU was requested but the pipeline is not on GPU; "
+                "refusing CPU fallback"
+            );
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        if (ov_device == "NPU" && engine->genai->device() != "NPU") {
+            engine->genai.reset();
+            engine->set_error(
+                "NPU was requested but the pipeline is not on NPU; "
                 "refusing CPU fallback"
             );
             return TURBOEMBED_ERR_INTERNAL;

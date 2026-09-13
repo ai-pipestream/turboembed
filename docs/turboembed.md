@@ -13,7 +13,7 @@ catalog name).
 | arch | provider | crate feature | create device |
 |---|---|---|---|
 | nvidia | ONNX Runtime **CUDA EP** + IoBinding, or explicit **CPU EP** | `ort-cuda` | `TURBOEMBED_DEVICE_CUDA` or `TURBOEMBED_DEVICE_CPU` |
-| intel | `ov::genai::TextEmbeddingPipeline` on `"GPU"` | `genai` | `TURBOEMBED_DEVICE_OPENVINO_GPU` |
+| intel | `ov::genai::TextEmbeddingPipeline` on `"GPU"` / `"CPU"`; `"NPU"` create fails loud until a host lists the NPU plugin | `genai` | `TURBOEMBED_DEVICE_OPENVINO_GPU` / `_CPU` / `_NPU` |
 | apple | MLX (Swift `@_cdecl`, other binary) | — | `TURBOEMBED_DEVICE_METAL` |
 
 Pooling for MiniLM is the sentence-transformers recipe: attention-mask-weighted
