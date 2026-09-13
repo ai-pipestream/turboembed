@@ -78,11 +78,23 @@ public enum Tensor {
 
     public static func packFP32(_ values: [Float]) -> Data {
         var out = Data(capacity: values.count * 4)
-        for v in values {
-            var le = v.bitPattern.littleEndian
-            withUnsafeBytes(of: &le) { out.append(contentsOf: $0) }
-        }
+        packFP32(values, into: &out)
         return out
+    }
+
+    /// Write LE FP32 into `out`, keeping capacity (gRPC output scratch).
+    public static func packFP32(_ values: [Float], into out: inout Data) {
+        out.removeAll(keepingCapacity: true)
+        let nbytes = values.count * 4
+        if out.capacity < nbytes {
+            out.reserveCapacity(nbytes)
+        }
+        values.withUnsafeBufferPointer { buf in
+            guard let base = buf.baseAddress else { return }
+            base.withMemoryRebound(to: UInt8.self, capacity: nbytes) { bytes in
+                out.append(bytes, count: nbytes)
+            }
+        }
     }
 
     public static func unpackFP32(_ raw: Data) throws -> [Float] {

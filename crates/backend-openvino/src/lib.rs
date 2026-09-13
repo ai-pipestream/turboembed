@@ -478,7 +478,7 @@ fn pack_response(
             parameters: Default::default(),
             contents: None,
         }],
-        raw_output_contents: vec![pack_fp32(&embeddings)],
+        raw_output_contents: vec![pack_fp32(&embeddings).into()],
     })
 }
 

@@ -17,12 +17,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use inferstream_backend::{Backend, BackendError, ModelMetadata};
+use inferstream_backend::{Backend, BackendError, ModelMetadata, PackedEmbed};
 use inferstream_protocol::inference::{
     infer_parameter::ParameterChoice, model_infer_response::InferOutputTensor,
     model_metadata_response::TensorMetadata, InferParameter, ModelInferRequest, ModelInferResponse,
 };
-use inferstream_protocol::tensor::{pack_fp32, unpack_bytes, DataType};
+use inferstream_protocol::output_scratch;
+use inferstream_protocol::tensor::{unpack_bytes, DataType};
 use turboembed::{
     Device, EmbedOptions, Embeddings, Engine, Error as TeError, OutputFormat, Pooling,
 };
@@ -341,7 +342,7 @@ fn pack_response(
             parameters: HashMap::new(),
             contents: None,
         }],
-        raw_output_contents: vec![pack_fp32(values)],
+        raw_output_contents: vec![output_scratch::pack_le_f32(values)],
     })
 }
 
@@ -400,6 +401,73 @@ impl Backend for TurboEmbedBackend {
         .await
         .map_err(|e| BackendError::Internal(format!("TurboEmbed embed task panicked: {e}")))??;
         pack_response(request, embeddings)
+    }
+
+    async fn embed_packed_into(
+        &self,
+        model_name: &str,
+        texts: &[String],
+        pooling: &str,
+        normalize: Option<bool>,
+        truncate_to: u32,
+        dest: &mut Vec<u8>,
+    ) -> Result<PackedEmbed, BackendError> {
+        if texts.is_empty() {
+            return Err(BackendError::InvalidRequest("texts must not be empty".into()));
+        }
+        let mut opts = EmbedOptions {
+            pooling: Pooling::Default,
+            normalize,
+            truncate_to: (truncate_to > 0).then_some(truncate_to),
+            output_format: OutputFormat::PackedBytes,
+        };
+        if !pooling.is_empty() {
+            opts.pooling = match pooling.to_ascii_lowercase().as_str() {
+                "mean" => Pooling::Mean,
+                "cls" => Pooling::Cls,
+                "last" => Pooling::Last,
+                _ => Pooling::Default,
+            };
+        }
+        let inner = Arc::clone(&self.inner);
+        let alias = inner.alias.clone();
+        let texts = texts.to_vec();
+        let embeddings = tokio::task::spawn_blocking(move || {
+            let views: Vec<&str> = texts.iter().map(String::as_str).collect();
+            let engine = inner
+                .engine
+                .lock()
+                .map_err(|_| BackendError::Internal("TurboEmbed engine mutex poisoned".into()))?;
+            engine.embed(&alias, &views, &opts).map_err(map_te)
+        })
+        .await
+        .map_err(|e| BackendError::Internal(format!("TurboEmbed embed task panicked: {e}")))??;
+        let dim = embeddings.dim();
+        let count = embeddings.count();
+        if dim == 0 || count == 0 {
+            return Err(BackendError::Internal(
+                "TurboEmbed returned an empty embedding batch".into(),
+            ));
+        }
+        if dim == 8 {
+            return Err(BackendError::Internal(
+                "FAKE: TurboEmbed returned dim=8 (FNV mock) for a catalog embed".into(),
+            ));
+        }
+        let values = embeddings.values();
+        if values.len() != count * dim {
+            return Err(BackendError::Internal(format!(
+                "TurboEmbed ragged blob (len={}, count={count}, dim={dim})",
+                values.len()
+            )));
+        }
+        output_scratch::pack_le_f32_into(values, dest);
+        Ok(PackedEmbed {
+            dim: dim as u32,
+            count: count as u32,
+            model_name: model_name.to_string(),
+            model_version: String::new(),
+        })
     }
 }
 

@@ -103,6 +103,11 @@ f32 results, and wraps those MTL contents as MLX arrays.
 `allocs/forward == 0`. Proof:
 [`docs/apple-turboembed-metal-arena-machine-c.md`](apple-turboembed-metal-arena-machine-c.md).
 
+**gRPC PACKED_BYTES (SOLIDIFY 6):** the façade does **not** rent device
+slabs for the wire blob. Host output scratch is a size-class freelist
+in `crates/protocol/src/output_scratch.rs` (`docs/grpc-output-scratch.md`).
+Engine arenas stay on tokens / hidden / results.
+
 ## Tests
 
 ```bash

@@ -203,7 +203,7 @@ impl MlxBackend {
                 parameters: HashMap::new(),
                 contents: None,
             }],
-            raw_output_contents: vec![pack_bytes(&[token.as_bytes()])],
+            raw_output_contents: vec![pack_bytes(&[token.as_bytes()]).into()],
         }
     }
 }
@@ -356,7 +356,7 @@ impl Backend for MlxBackend {
                 parameters: HashMap::new(),
                 contents: None,
             }],
-            raw_output_contents: vec![pack_fp32(&values)],
+            raw_output_contents: vec![pack_fp32(&values).into()],
         })
     }
 

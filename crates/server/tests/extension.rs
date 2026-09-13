@@ -221,6 +221,67 @@ async fn embed_returns_typed_vectors() {
 }
 
 #[tokio::test]
+async fn packed_bytes_and_rerank_reuse_output_scratch_after_warmup() {
+    use inferstream_protocol::output_scratch;
+
+    let (channel, guard) = start_server(BASE_CONFIG).await;
+    let mut client = InferstreamServiceClient::new(channel);
+    let packed_req = EmbedRequest {
+        model_name: "mock-embed".into(),
+        texts: vec!["first".into(), "second".into()],
+        output_format: EmbedOutputFormat::PackedBytes as i32,
+        ..Default::default()
+    };
+    let rerank_req = RerankRequest {
+        model_name: "mock-embed".into(),
+        query: "rust inference".into(),
+        documents: vec![
+            "cooking pasta".into(),
+            "rust inference server".into(),
+            "some rust code".into(),
+        ],
+        top_n: 0,
+        return_documents: false,
+    };
+
+    // Warm the size-class slabs (mock still heap-allocs its own infer blob).
+    for _ in 0..2 {
+        let packed = client
+            .embed(packed_req.clone())
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(packed.packed_embeddings.len(), 2 * 8 * 4);
+        assert!(packed.embeddings.is_empty());
+        let _ = client.rerank(rerank_req.clone()).await.unwrap();
+    }
+
+    output_scratch::reset_counters();
+    for _ in 0..8 {
+        let packed = client
+            .embed(packed_req.clone())
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(packed.packed_embeddings.len(), 2 * 8 * 4);
+        let ranked = client
+            .rerank(rerank_req.clone())
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(ranked.results.len(), 3);
+    }
+    assert_eq!(
+        output_scratch::allocs(),
+        0,
+        "steady-state Embed PACKED_BYTES / Rerank must reuse output scratch, allocs={}",
+        output_scratch::allocs()
+    );
+
+    guard.stop().await;
+}
+
+#[tokio::test]
 async fn embed_packed_bytes_xor_typed() {
     let (channel, guard) = start_server(BASE_CONFIG).await;
     let mut client = InferstreamServiceClient::new(channel);

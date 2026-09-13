@@ -442,7 +442,7 @@ impl Backend for OrtBackend {
                 parameters: HashMap::new(),
                 contents: None,
             }],
-            raw_output_contents: vec![pack_fp32(&embeddings)],
+            raw_output_contents: vec![pack_fp32(&embeddings).into()],
         })
     }
 
