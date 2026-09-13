@@ -69,6 +69,21 @@ OpenVINO CPU without Level Zero rents a **CPU** arena for host
 tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
 is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
 
+**TurboEmbed ORT (Machine A LIVE):** CUDA / AUTO / TensorRT engines own a
+CUDA arena. Tokens are PINNED mapped i64 rows (stored as i32×2),
+hidden states are DEVICE f32, result rows are PINNED. IoBinding
+binds those views. The CUDA EP `gpu_external_alloc` hook rents DEVICE
+slabs so ORT intermediates are arena-owned. Load warms I/O at
+max batch × max seq plus a pair of `[1, dim]` result slabs (so holding
+one `Embeddings` while embedding again does not malloc). After
+that warmup, `turbo_buffer_alloc_counter() == 0` and
+`gpu_external_alloc` calls == 0 on the next embed. Mean+L2 still
+copies DEVICE hidden → PINNED (`d2h_hidden_bytes` > 0) — that is an
+API copy, not zero-copy.
+
+Explicit CPU EP owns a CPU arena: HOST tokens, HOST hidden, HOST
+results, same IoBinding reuse. Mock still warms a 32×8 HOST slab.
+
 **TurboEmbed GenAI (Machine B LIVE):** GPU / AUTO engines open a **ZE**
 arena. Load rents i32 token rows and f32 hidden scratch as **SHARED**.
 `embed` rents the FP32 result from the same arena. Infer wraps those
@@ -84,12 +99,6 @@ f32 results, and wraps those MTL contents as MLX arrays.
 `turbo_buffer_metal_lookup` only — no private registry. After load,
 `allocs/forward == 0`. Proof:
 [`docs/apple-turboembed-metal-arena-machine-c.md`](apple-turboembed-metal-arena-machine-c.md).
-
-**TurboEmbed mock / ORT:** mock/CPU `embed` rents `[n_texts, dim]` from a
-CPU arena. Load warms a 32×8 slab so the next mock embed of that shape
-is 0 allocs. ORT CUDA still copies the host result into a CPU-arena
-row (device compute stays with ORT IoBinding). mlx-swift layer ops
-stay with that runtime.
 
 ## Tests
 

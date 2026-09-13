@@ -1,32 +1,58 @@
 //! NVIDIA provider: ONNX Runtime CUDA EP + IoBinding, or an explicit CPU EP.
 //!
-//! Device policy:
-//! - **CUDA** (and AUTO): CUDA EP with `error_on_failure`. No silent CPU
-//!   fallback. Device allocator + IoBinding outputs must reside on
-//!   `AllocationDevice::CUDA` and must not be CPU-accessible.
-//! - **CPU**: only when the ABI device is explicitly CPU. Host tensors +
-//!   `Session::run`. Same mean+L2 pooling. This is not a CUDA fallback.
+//! I/O tensors rent from the engine `turbo_buffer` arena:
+//! - CUDA / TensorRT: PINNED mapped token rows + DEVICE hidden states
+//! - CPU: HOST token rows + HOST hidden states
 //!
-//! Pooling is the sentence-transformers MiniLM recipe: attention-mask-weighted
-//! mean over tokens, then L2 normalize. On CUDA that math runs on the host
-//! after the hidden-state tensor is copied back from device memory.
+//! After load warmup (max batch × max seq), steady-state embed must not
+//! increment `turbo_buffer_alloc_counter` or the ORT `gpu_external_alloc`
+//! hook. Mean+L2 still reads hidden states on the host: CUDA copies
+//! DEVICE → rented PINNED (counted as `d2h_*`). That is an API copy —
+//! not claimed as zero-copy.
 
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::ffi::{c_void, CString};
+use std::ptr::{self, NonNull};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-use inferstream_backend_ort::pool::{cls_pool, l2_normalize, mean_pool};
+use inferstream_backend_ort::pool::l2_normalize;
 use inferstream_backend_ort::Pooling;
 use ort::memory::{AllocationDevice, Allocator, AllocatorType, MemoryInfo, MemoryType};
-use ort::session::builder::GraphOptimizationLevel;
-use ort::session::{Session, SessionInputValue};
-use ort::value::Tensor;
+use ort::session::builder::{GraphOptimizationLevel, SessionBuilder};
+use ort::session::{IoBinding, Session};
+use ort::value::{PrimitiveTensorElementType, Shape, Tensor, ValueType};
+use ort::{ortsys, AsPointer};
 use tokenizers::Tokenizer;
 
+use crate::buffer_ffi::{
+    self, mapped_device_ptr, rent, return_view, turbo_buffer_arena, turbo_buffer_view,
+    TURBO_BUFFER_DTYPE_F32, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_DEVICE,
+    TURBO_BUFFER_PLACE_HOST, TURBO_BUFFER_PLACE_PINNED,
+};
 use crate::catalog::CatalogModelSpec;
 
 type Error = String;
 
-const DEFAULT_MAX_SEQ_LEN: usize = 512;
+const DEFAULT_MAX_SEQ_LEN: usize = 256;
+const DEFAULT_MAX_BATCH: usize = 8;
+
+static ORT_EXT_ALLOCS: AtomicU64 = AtomicU64::new(0);
+static ORT_EXT_LAST_BYTES: AtomicU64 = AtomicU64::new(0);
+static ORT_D2H_BYTES: AtomicU64 = AtomicU64::new(0);
+static ORT_D2H_CALLS: AtomicU64 = AtomicU64::new(0);
+
+static EXT_ARENA: Mutex<Option<usize>> = Mutex::new(None);
+static EXT_SLABS: Mutex<Option<HashMap<usize, turbo_buffer_view>>> = Mutex::new(None);
+
+#[cfg(turboembed_cuda)]
+#[link(name = "cudart")]
+unsafe extern "C" {
+    fn cudaMemcpy(dst: *mut c_void, src: *const c_void, count: usize, kind: i32) -> i32;
+}
+
+#[cfg(turboembed_cuda)]
+const CUDA_MEMCPY_DEVICE_TO_HOST: i32 = 2;
 
 /// Where this session is allowed to run. CUDA / TensorRT never become CPU.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,6 +76,40 @@ impl OrtPlace {
             )),
         }
     }
+
+    fn uses_cuda_buffers(self) -> bool {
+        matches!(self, Self::Cuda | Self::TensorRt)
+    }
+}
+
+struct OrtWork {
+    arena: *mut turbo_buffer_arena,
+    max_batch: usize,
+    max_seq: usize,
+    hidden_dim: usize,
+    input_ids: turbo_buffer_view,
+    attention_mask: turbo_buffer_view,
+    token_type_ids: turbo_buffer_view,
+    hidden: turbo_buffer_view,
+    hidden_host: turbo_buffer_view,
+}
+
+unsafe impl Send for OrtWork {}
+
+impl OrtWork {
+    fn return_all(&mut self) {
+        return_view(self.arena, &mut self.input_ids);
+        return_view(self.arena, &mut self.attention_mask);
+        return_view(self.arena, &mut self.token_type_ids);
+        return_view(self.arena, &mut self.hidden);
+        return_view(self.arena, &mut self.hidden_host);
+    }
+}
+
+impl Drop for OrtWork {
+    fn drop(&mut self) {
+        self.return_all();
+    }
 }
 
 pub struct OrtCudaSession {
@@ -60,18 +120,184 @@ pub struct OrtCudaSession {
     input_names: Vec<String>,
     output_name: String,
     place: OrtPlace,
-    /// Proven at CUDA load: device allocator exists for this session.
     #[allow(dead_code)]
     cuda_allocator: Option<Allocator>,
-    /// Sentence-embedding width after pooling (set by a warmup at load).
     embedding_dim: usize,
+    work: OrtWork,
 }
 
 fn fail_load(what: &str, detail: impl std::fmt::Display) -> Error {
     format!("{what}: {detail}")
 }
 
-fn find_tokenizer(model_path: &str, tokenizer_dir: Option<&str>) -> Result<PathBuf, Error> {
+fn ort_status(status: ort::sys::OrtStatusPtr) -> Result<(), Error> {
+    if status.0.is_null() {
+        return Ok(());
+    }
+    let api = ort::api();
+    let msg = unsafe {
+        let p = (api.GetErrorMessage)(status.0);
+        let s = if p.is_null() {
+            "ORT status without message".to_string()
+        } else {
+            std::ffi::CStr::from_ptr(p).to_string_lossy().into_owned()
+        };
+        (api.ReleaseStatus)(status.0);
+        s
+    };
+    Err(msg)
+}
+
+extern "C" fn gpu_external_alloc(bytes: usize) -> *mut c_void {
+    ORT_EXT_ALLOCS.fetch_add(1, Ordering::Relaxed);
+    ORT_EXT_LAST_BYTES.store(bytes as u64, Ordering::Relaxed);
+    let arena = match EXT_ARENA.lock() {
+        Ok(g) => g.and_then(|p| {
+            if p == 0 {
+                None
+            } else {
+                Some(p as *mut turbo_buffer_arena)
+            }
+        }),
+        Err(_) => None,
+    };
+    let Some(arena) = arena else {
+        return ptr::null_mut();
+    };
+    let cols = ((bytes + 3) / 4).max(1) as u32;
+    match rent(
+        arena,
+        TURBO_BUFFER_DTYPE_F32,
+        TURBO_BUFFER_PLACE_DEVICE,
+        1,
+        cols,
+        cols,
+    ) {
+        Ok(view) => {
+            let key = view.ptr as usize;
+            if let Ok(mut map) = EXT_SLABS.lock() {
+                map.get_or_insert_with(HashMap::new).insert(key, view);
+            }
+            view.ptr
+        }
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+extern "C" fn gpu_external_free(p: *mut c_void) {
+    if p.is_null() {
+        return;
+    }
+    let arena = match EXT_ARENA.lock() {
+        Ok(g) => g.and_then(|v| {
+            if v == 0 {
+                None
+            } else {
+                Some(v as *mut turbo_buffer_arena)
+            }
+        }),
+        Err(_) => None,
+    };
+    let Some(arena) = arena else {
+        return;
+    };
+    if let Ok(mut map) = EXT_SLABS.lock() {
+        if let Some(map) = map.as_mut() {
+            if let Some(mut view) = map.remove(&(p as usize)) {
+                return_view(arena, &mut view);
+            }
+        }
+    }
+}
+
+extern "C" fn gpu_external_empty_cache() {}
+
+fn set_ext_arena(arena: *mut turbo_buffer_arena) {
+    if let Ok(mut g) = EXT_ARENA.lock() {
+        *g = if arena.is_null() {
+            None
+        } else {
+            Some(arena as usize)
+        };
+    }
+}
+
+fn clear_ext_arena_if(arena: *mut turbo_buffer_arena) {
+    if let Ok(mut g) = EXT_ARENA.lock() {
+        if *g == Some(arena as usize) {
+            *g = None;
+        }
+    }
+}
+
+fn register_cuda_ep_with_arena(builder: &mut SessionBuilder) -> Result<(), Error> {
+    let api = ort::api();
+    let mut cuda_options: *mut ort::sys::OrtCUDAProviderOptionsV2 = ptr::null_mut();
+    ort_status(unsafe { (api.CreateCUDAProviderOptions)(&mut cuda_options) })?;
+    if cuda_options.is_null() {
+        return Err("CreateCUDAProviderOptions returned null".into());
+    }
+
+    let keys = [
+        CString::new("device_id").unwrap(),
+        CString::new("arena_extend_strategy").unwrap(),
+        CString::new("cudnn_conv_algo_search").unwrap(),
+    ];
+    let vals = [
+        CString::new("0").unwrap(),
+        CString::new("kSameAsRequested").unwrap(),
+        CString::new("HEURISTIC").unwrap(),
+    ];
+    let key_ptrs: Vec<*const i8> = keys.iter().map(|k| k.as_ptr()).collect();
+    let val_ptrs: Vec<*const i8> = vals.iter().map(|v| v.as_ptr()).collect();
+    ort_status(unsafe {
+        (api.UpdateCUDAProviderOptions)(
+            cuda_options,
+            key_ptrs.as_ptr(),
+            val_ptrs.as_ptr(),
+            keys.len(),
+        )
+    })?;
+
+    let k_alloc = CString::new("gpu_external_alloc").unwrap();
+    let k_free = CString::new("gpu_external_free").unwrap();
+    let k_empty = CString::new("gpu_external_empty_cache").unwrap();
+    ort_status(unsafe {
+        (api.UpdateCUDAProviderOptionsWithValue)(
+            cuda_options,
+            k_alloc.as_ptr(),
+            gpu_external_alloc as *mut c_void,
+        )
+    })?;
+    ort_status(unsafe {
+        (api.UpdateCUDAProviderOptionsWithValue)(
+            cuda_options,
+            k_free.as_ptr(),
+            gpu_external_free as *mut c_void,
+        )
+    })?;
+    ort_status(unsafe {
+        (api.UpdateCUDAProviderOptionsWithValue)(
+            cuda_options,
+            k_empty.as_ptr(),
+            gpu_external_empty_cache as *mut c_void,
+        )
+    })?;
+
+    let rc = ort_status(unsafe {
+        (api.SessionOptionsAppendExecutionProvider_CUDA_V2)(builder.ptr_mut(), cuda_options)
+    });
+    unsafe { (api.ReleaseCUDAProviderOptions)(cuda_options) };
+    rc.map_err(|e| {
+        format!("CUDA execution provider unavailable (no silent CPU fallback): {e}")
+    })
+}
+
+fn find_tokenizer(
+    model_path: &str,
+    tokenizer_dir: Option<&str>,
+) -> Result<std::path::PathBuf, Error> {
+    use std::path::{Path, PathBuf};
     if let Some(path) = tokenizer_dir {
         let path = PathBuf::from(path);
         let file = if path.is_dir() {
@@ -126,13 +352,127 @@ fn require_cuda_device(info: &MemoryInfo<'_>, what: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn resolve_path(workspace_root: &Path, raw: &str) -> PathBuf {
-    let path = PathBuf::from(raw);
+fn resolve_path(workspace_root: &std::path::Path, raw: &str) -> std::path::PathBuf {
+    let path = std::path::PathBuf::from(raw);
     if path.is_absolute() {
         path
     } else {
         workspace_root.join(path)
     }
+}
+
+fn i64_slot_mut(view: &turbo_buffer_view, n: usize) -> Result<&mut [i64], Error> {
+    if view.ptr.is_null() {
+        return Err("token view is null".into());
+    }
+    Ok(unsafe { std::slice::from_raw_parts_mut(view.ptr.cast::<i64>(), n) })
+}
+
+fn f32_view<'a>(view: &turbo_buffer_view, n: usize) -> Result<&'a [f32], Error> {
+    if view.ptr.is_null() {
+        return Err("f32 view is null".into());
+    }
+    Ok(unsafe { std::slice::from_raw_parts(view.ptr.cast::<f32>(), n) })
+}
+
+fn i64_view<'a>(view: &turbo_buffer_view, n: usize) -> Result<&'a [i64], Error> {
+    if view.ptr.is_null() {
+        return Err("i64 view is null".into());
+    }
+    Ok(unsafe { std::slice::from_raw_parts(view.ptr.cast::<i64>(), n) })
+}
+
+fn ort_ok<T>(r: ort::Result<T>) -> Result<T, Error> {
+    r.map_err(|e| e.to_string())
+}
+
+/// `TensorRefMut::from_raw` calls `MemoryInfo::to_owned`, which always
+/// builds a CPU MemoryInfo in ort 2.0.0-rc.13. Create the OrtValue
+/// ourselves so CUDA / PINNED tags survive.
+fn tensor_from_data<T: PrimitiveTensorElementType + std::fmt::Debug>(
+    info: &MemoryInfo<'_>,
+    data: *mut c_void,
+    shape: Shape,
+) -> Result<Tensor<T>, Error> {
+    let mut value_ptr: *mut ort::sys::OrtValue = ptr::null_mut();
+    let nbytes = shape.num_elements() * std::mem::size_of::<T>();
+    ort_ok((|| {
+        ortsys![
+            unsafe CreateTensorWithDataAsOrtValue(
+                info.ptr(),
+                data,
+                nbytes,
+                shape.as_ptr(),
+                shape.len(),
+                T::into_tensor_element_type().into(),
+                &mut value_ptr
+            )?;
+            nonNull(value_ptr)
+        ];
+        Ok(())
+    })())
+    .map_err(|e| format!("CreateTensorWithDataAsOrtValue: {e}"))?;
+    let nn = NonNull::new(value_ptr).ok_or_else(|| "CreateTensorWithDataAsOrtValue returned null".to_string())?;
+    Ok(unsafe { Tensor::<T>::from_ptr(nn, None) })
+}
+
+fn mean_pool_into(
+    hidden: &[f32],
+    mask: &[i64],
+    batch: usize,
+    seq: usize,
+    dim: usize,
+    out: &mut [f32],
+) {
+    debug_assert_eq!(hidden.len(), batch * seq * dim);
+    debug_assert_eq!(mask.len(), batch * seq);
+    debug_assert_eq!(out.len(), batch * dim);
+    out.fill(0.0);
+    for b in 0..batch {
+        let mut count = 0f32;
+        for s in 0..seq {
+            if mask[b * seq + s] == 0 {
+                continue;
+            }
+            count += 1.0;
+            let row = &hidden[(b * seq + s) * dim..(b * seq + s + 1) * dim];
+            let acc = &mut out[b * dim..(b + 1) * dim];
+            for (a, v) in acc.iter_mut().zip(row) {
+                *a += v;
+            }
+        }
+        if count > 0.0 {
+            for a in &mut out[b * dim..(b + 1) * dim] {
+                *a /= count;
+            }
+        }
+    }
+}
+
+fn cls_pool_into(hidden: &[f32], batch: usize, seq: usize, dim: usize, out: &mut [f32]) {
+    debug_assert_eq!(out.len(), batch * dim);
+    for b in 0..batch {
+        let src = &hidden[b * seq * dim..b * seq * dim + dim];
+        out[b * dim..(b + 1) * dim].copy_from_slice(src);
+    }
+}
+
+#[cfg(turboembed_cuda)]
+fn d2h(dst: *mut f32, src: *const c_void, bytes: usize) -> Result<(), Error> {
+    let rc = unsafe { cudaMemcpy(dst.cast(), src, bytes, CUDA_MEMCPY_DEVICE_TO_HOST) };
+    if rc != 0 {
+        return Err(format!(
+            "cudaMemcpy D2H of hidden states failed (cudaError={rc})"
+        ));
+    }
+    ORT_D2H_BYTES.fetch_add(bytes as u64, Ordering::Relaxed);
+    ORT_D2H_CALLS.fetch_add(1, Ordering::Relaxed);
+    Ok(())
+}
+
+#[cfg(not(turboembed_cuda))]
+fn d2h(_dst: *mut f32, _src: *const c_void, _bytes: usize) -> Result<(), Error> {
+    Err("CUDA D2H requires a TURBO_BUFFER_CUDA build".into())
 }
 
 impl OrtCudaSession {
@@ -154,9 +494,13 @@ impl OrtCudaSession {
 
     pub fn load(
         spec: &CatalogModelSpec,
-        workspace_root: &Path,
+        workspace_root: &std::path::Path,
         place: OrtPlace,
+        arena: *mut turbo_buffer_arena,
     ) -> Result<Self, Error> {
+        if arena.is_null() {
+            return Err("ORT embed requires a turbo_buffer arena from the engine".into());
+        }
         if !spec.backend.eq_ignore_ascii_case("ort") {
             return Err(format!(
                 "nvidia turboembed requires catalog backend=\"ort\", got {:?}",
@@ -200,18 +544,19 @@ impl OrtCudaSession {
         let tokenizer_file = find_tokenizer(model_path, tokenizer_hint.as_deref())?;
         let mut tokenizer = Tokenizer::from_file(&tokenizer_file)
             .map_err(|e| fail_load("failed to load tokenizer", e))?;
-        let max_len = spec
+        let max_seq = spec
             .max_seq_len
             .map(|v| v as usize)
             .unwrap_or(DEFAULT_MAX_SEQ_LEN);
         tokenizer
             .with_truncation(Some(tokenizers::TruncationParams {
-                max_length: max_len,
+                max_length: max_seq,
                 ..Default::default()
             }))
             .map_err(|e| fail_load("failed to configure truncation", e))?;
+        // Fixed pad so ORT sees a constant [batch, max_seq] after warmup.
         tokenizer.with_padding(Some(tokenizers::PaddingParams {
-            strategy: tokenizers::PaddingStrategy::BatchLongest,
+            strategy: tokenizers::PaddingStrategy::Fixed(max_seq),
             ..Default::default()
         }));
 
@@ -223,30 +568,21 @@ impl OrtCudaSession {
             .map_err(|e| e.to_string())?
             .unwrap_or(Pooling::Mean);
 
+        if place == OrtPlace::Cuda {
+            set_ext_arena(arena);
+        }
+
         let mut builder = Session::builder()
             .map_err(|e| fail_load("failed to create ort session builder", e))?
             .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| fail_load("failed to configure ort session", e))?;
+            .map_err(|e| fail_load("failed to configure ort session", e))?
+            .with_memory_pattern(true)
+            .map_err(|e| fail_load("failed to enable ORT memory pattern", e))?;
 
         if place == OrtPlace::Cuda {
-            // error_on_failure: registration failure is a hard error,
-            // never a silent fall-through to CPUExecutionProvider.
-            builder = builder
-                .with_execution_providers([ort::ep::CUDA::default()
-                    .with_device_id(0)
-                    .build()
-                    .error_on_failure()])
-                .map_err(|e| {
-                    fail_load(
-                        "CUDA execution provider unavailable (no silent CPU fallback)",
-                        e,
-                    )
-                })?;
+            register_cuda_ep_with_arena(&mut builder)?;
         }
         if place == OrtPlace::TensorRt {
-            // TensorRT EP only — no CUDA-EP or CPU stand-in. ORT-TRT still
-            // uses CUDA device buffers (IoBinding). Missing libnvinfer.so.10
-            // is a hard error.
             builder = builder
                 .with_execution_providers([ort::ep::TensorRT::default()
                     .with_device_id(0)
@@ -263,6 +599,9 @@ impl OrtCudaSession {
         }
 
         let session = builder.commit_from_file(model_path).map_err(|e| {
+            if place == OrtPlace::Cuda {
+                clear_ext_arena_if(arena);
+            }
             fail_load(
                 match place {
                     OrtPlace::Cuda => "failed to load onnx model on CUDA EP",
@@ -278,7 +617,6 @@ impl OrtCudaSession {
 
         let cuda_allocator = match place {
             OrtPlace::Cuda | OrtPlace::TensorRt => {
-                // Creating a CUDA device allocator fails if the EP is not live.
                 let cuda_mem = MemoryInfo::new(
                     AllocationDevice::CUDA,
                     0,
@@ -334,6 +672,86 @@ impl OrtCudaSession {
             .map(|o| o.name().to_string())
             .ok_or_else(|| fail_load("unsupported model", "graph has no outputs"))?;
 
+        let hidden_dim = match session.outputs().first().map(|o| o.dtype()) {
+            Some(ValueType::Tensor { shape, .. }) if !shape.is_empty() => {
+                let last = shape[shape.len() - 1];
+                if last > 0 {
+                    last as usize
+                } else {
+                    384
+                }
+            }
+            _ => 384,
+        };
+
+        let max_batch = spec
+            .max_batch_size
+            .map(|v| v as usize)
+            .unwrap_or(DEFAULT_MAX_BATCH)
+            .max(1);
+        let token_place = if place.uses_cuda_buffers() {
+            TURBO_BUFFER_PLACE_PINNED
+        } else {
+            TURBO_BUFFER_PLACE_HOST
+        };
+        let hidden_place = if place.uses_cuda_buffers() {
+            TURBO_BUFFER_PLACE_DEVICE
+        } else {
+            TURBO_BUFFER_PLACE_HOST
+        };
+        let token_cols = (max_seq * 2) as u32;
+        let hidden_cols = (max_seq * hidden_dim) as u32;
+
+        let mut work = OrtWork {
+            arena,
+            max_batch,
+            max_seq,
+            hidden_dim,
+            input_ids: rent(
+                arena,
+                TURBO_BUFFER_DTYPE_I32,
+                token_place,
+                max_batch as u32,
+                token_cols,
+                token_cols,
+            )?,
+            attention_mask: rent(
+                arena,
+                TURBO_BUFFER_DTYPE_I32,
+                token_place,
+                max_batch as u32,
+                token_cols,
+                token_cols,
+            )?,
+            token_type_ids: rent(
+                arena,
+                TURBO_BUFFER_DTYPE_I32,
+                token_place,
+                max_batch as u32,
+                token_cols,
+                token_cols,
+            )?,
+            hidden: rent(
+                arena,
+                TURBO_BUFFER_DTYPE_F32,
+                hidden_place,
+                max_batch as u32,
+                hidden_cols,
+                hidden_cols,
+            )?,
+            hidden_host: turbo_buffer_view::empty(),
+        };
+        if place.uses_cuda_buffers() {
+            work.hidden_host = rent(
+                arena,
+                TURBO_BUFFER_DTYPE_F32,
+                TURBO_BUFFER_PLACE_PINNED,
+                max_batch as u32,
+                hidden_cols,
+                hidden_cols,
+            )?;
+        }
+
         let mut loaded = Self {
             session: Mutex::new(session),
             tokenizer,
@@ -344,59 +762,107 @@ impl OrtCudaSession {
             place,
             cuda_allocator,
             embedding_dim: 0,
+            work,
         };
-        // One inference pass at load: prove the requested EP + set dim.
-        let (dim, _) = loaded.embed_batch(&[String::from("x")])?;
+        // Warm the ORT BFC / graph at max batch so later batch=1 does not grow it.
+        let warm: Vec<String> = (0..max_batch).map(|_| String::from("x")).collect();
+        let (dim, _) = loaded.embed_batch(&warm, None)?;
         if dim == 0 {
-            return Err(format!(
-                "{:?} warmup produced embedding dim 0",
-                loaded.place
-            ));
+            return Err(format!("{:?} warmup produced embedding dim 0", loaded.place));
         }
         loaded.embedding_dim = dim;
+        // Second pass at batch=1 matches the receipt hot path.
+        let _ = loaded.embed_batch(&[String::from("x")], None)?;
+        // cuDNN / ORT CUDA EP can lazily rent extra DEVICE workspace on the
+        // first non-trivial mask. Touch a few lengths so the first real
+        // sentence does not increment gpu_external_alloc.
+        for text in [
+            "hello world".to_string(),
+            "The capital of France is Paris.".to_string(),
+            "a ".repeat(64),
+            "inferstream turboembed onnxruntime cuda iobinding".to_string(),
+        ] {
+            let _ = loaded.embed_batch(&[text], None)?;
+        }
         Ok(loaded)
     }
 
-    pub(crate) fn embed_batch(&self, texts: &[String]) -> Result<(usize, Vec<f32>), Error> {
+    /// Embed `texts` and write the pooled rows into `out` when provided
+    /// (C++ already rented that row). Otherwise allocate a Vec (tests).
+    pub(crate) fn embed_batch(
+        &self,
+        texts: &[String],
+        mut out: Option<&mut [f32]>,
+    ) -> Result<(usize, Vec<f32>), Error> {
         let batch = texts.len();
         if batch == 0 {
             return Err("embed requires at least one text".into());
         }
+        if batch > self.work.max_batch {
+            return Err(format!(
+                "embed batch {batch} exceeds turbo_buffer warmed max_batch {}",
+                self.work.max_batch
+            ));
+        }
+
         let encodings = self
             .tokenizer
             .encode_batch(texts.to_vec(), true)
             .map_err(|e| format!("tokenization failed: {e}"))?;
-        let seq = encodings.first().map(|e| e.len()).unwrap_or(0);
-        if seq == 0 {
+        let seq = self.work.max_seq;
+        if encodings.iter().any(|e| e.len() > seq) {
+            return Err(format!(
+                "tokenized seq exceeds warmed max_seq {seq}"
+            ));
+        }
+        if encodings.is_empty() {
             return Err("tokenization produced an empty sequence".into());
         }
 
-        let mut input_ids = Vec::with_capacity(batch * seq);
-        let mut attention_mask = Vec::with_capacity(batch * seq);
-        let mut token_type_ids = Vec::with_capacity(batch * seq);
-        for encoding in &encodings {
-            input_ids.extend(encoding.get_ids().iter().map(|&v| v as i64));
-            attention_mask.extend(encoding.get_attention_mask().iter().map(|&v| v as i64));
-            token_type_ids.extend(encoding.get_type_ids().iter().map(|&v| v as i64));
+        let token_n = self.work.max_batch * self.work.max_seq;
+        {
+            let ids = i64_slot_mut(&self.work.input_ids, token_n)?;
+            let mask = i64_slot_mut(&self.work.attention_mask, token_n)?;
+            let types = i64_slot_mut(&self.work.token_type_ids, token_n)?;
+            ids.fill(0);
+            mask.fill(0);
+            types.fill(0);
+            for (b, encoding) in encodings.iter().enumerate() {
+                let row = b * self.work.max_seq;
+                for (i, v) in encoding.get_ids().iter().enumerate() {
+                    ids[row + i] = i64::from(*v);
+                }
+                for (i, v) in encoding.get_attention_mask().iter().enumerate() {
+                    mask[row + i] = i64::from(*v);
+                }
+                for (i, v) in encoding.get_type_ids().iter().enumerate() {
+                    types[row + i] = i64::from(*v);
+                }
+            }
         }
 
         let shape = [batch as i64, seq as i64];
-        let dims = match self.place {
-            OrtPlace::Cuda | OrtPlace::TensorRt => {
-                self.run_cuda(&input_ids, &attention_mask, &token_type_ids, shape)?
-            }
-            OrtPlace::Cpu => self.run_cpu(&input_ids, &attention_mask, &token_type_ids, shape)?,
+        unsafe { buffer_ffi::turbo_buffer_cuda_forward_enter() };
+        let run = if self.place.uses_cuda_buffers() {
+            self.run_cuda(batch, seq, shape)
+        } else {
+            self.run_cpu(batch, seq, shape)
         };
-        let (dims, hidden) = dims;
+        unsafe { buffer_ffi::turbo_buffer_cuda_forward_leave() };
+        let dims = run?;
+        let hidden_n = batch * seq * self.work.hidden_dim;
+        let hidden = if self.place.uses_cuda_buffers() {
+            f32_view(&self.work.hidden_host, hidden_n)?
+        } else {
+            f32_view(&self.work.hidden, hidden_n)?
+        };
+        let mask = i64_view(&self.work.attention_mask, batch * self.work.max_seq)?;
+        let mask = &mask[..batch * seq];
 
-        let mut pooled = match (self.pooling, dims.as_slice()) {
-            (Pooling::Mean, [b, s, d]) if *b as usize == batch && *s as usize == seq => {
-                mean_pool(&hidden, &attention_mask, batch, seq, *d as usize)
-            }
-            (Pooling::Cls, [b, s, d]) if *b as usize == batch && *s as usize == seq => {
-                cls_pool(&hidden, batch, seq, *d as usize)
-            }
-            (_, [b, _d]) if *b as usize == batch => hidden.to_vec(),
+        let dim = match (self.pooling, dims.as_slice()) {
+            (Pooling::Mean, [b, s, d]) if *b as usize == batch && *s as usize == seq => *d as usize,
+            (Pooling::Cls, [b, s, d]) if *b as usize == batch && *s as usize == seq => *d as usize,
+            (_, [b, d]) if *b as usize == batch => *d as usize,
             _ => {
                 return Err(format!(
                     "unexpected output shape {dims:?} from {:?} (batch={batch}, seq={seq})",
@@ -404,48 +870,83 @@ impl OrtCudaSession {
                 ))
             }
         };
-        let dim = pooled.len() / batch;
-        if self.normalize {
-            l2_normalize(&mut pooled, dim);
+
+        let need = batch * dim;
+        if let Some(dst) = out.as_mut() {
+            if dst.len() < need {
+                return Err("result buffer is smaller than the pooled batch".into());
+            }
+            match (self.pooling, dims.as_slice()) {
+                (Pooling::Mean, [_, _, _]) => {
+                    mean_pool_into(hidden, mask, batch, seq, dim, &mut dst[..need]);
+                }
+                (Pooling::Cls, [_, _, _]) => {
+                    cls_pool_into(hidden, batch, seq, dim, &mut dst[..need]);
+                }
+                (_, [_, _]) => dst[..need].copy_from_slice(hidden),
+                _ => unreachable!(),
+            }
+            if self.normalize {
+                l2_normalize(&mut dst[..need], dim);
+            }
+            Ok((dim, Vec::new()))
+        } else {
+            let mut pooled = vec![0.0f32; need];
+            match (self.pooling, dims.as_slice()) {
+                (Pooling::Mean, [_, _, _]) => {
+                    mean_pool_into(hidden, mask, batch, seq, dim, &mut pooled);
+                }
+                (Pooling::Cls, [_, _, _]) => {
+                    cls_pool_into(hidden, batch, seq, dim, &mut pooled);
+                }
+                (_, [_, _]) => pooled.copy_from_slice(hidden),
+                _ => unreachable!(),
+            }
+            if self.normalize {
+                l2_normalize(&mut pooled, dim);
+            }
+            Ok((dim, pooled))
         }
-        Ok((dim, pooled))
     }
 
-    fn run_cuda(
+    fn bind_token_input(
         &self,
-        input_ids: &[i64],
-        attention_mask: &[i64],
-        token_type_ids: &[i64],
+        binding: &mut IoBinding,
+        name: &str,
+        host: *mut c_void,
         shape: [i64; 2],
-    ) -> Result<(Vec<i64>, Vec<f32>), Error> {
-        let mut cuda_inputs = Vec::new();
-        for name in &self.input_names {
-            let data = match name.as_str() {
-                "input_ids" => input_ids.to_vec(),
-                "attention_mask" => attention_mask.to_vec(),
-                "token_type_ids" => token_type_ids.to_vec(),
-                _ => unreachable!("input names validated at load"),
-            };
-            let host = Tensor::from_array((shape, data))
-                .map_err(|e| format!("host tensor build failed: {e}"))?;
-            let device = host.to(AllocationDevice::CUDA, 0).map_err(|e| {
-                format!(
-                    "host→CUDA copy for {name} failed (CUDA was requested; \
-                     CPU is not a fallback): {e}"
-                )
-            })?;
-            require_cuda_device(device.memory_info(), &format!("input {name}"))?;
-            cuda_inputs.push((name.clone(), device));
+    ) -> Result<Tensor<i64>, Error> {
+        let (info, data) = if self.place.uses_cuda_buffers() {
+            let dev = mapped_device_ptr(host)?;
+            let info = MemoryInfo::new(
+                AllocationDevice::CUDA,
+                0,
+                AllocatorType::Device,
+                MemoryType::Default,
+            )
+            .map_err(|e| format!("CUDA token MemoryInfo: {e}"))?;
+            (info, dev)
+        } else {
+            let info = MemoryInfo::new(
+                AllocationDevice::CPU,
+                0,
+                AllocatorType::Device,
+                MemoryType::Default,
+            )
+            .map_err(|e| format!("CPU token MemoryInfo: {e}"))?;
+            (info, host)
+        };
+        let tensor = tensor_from_data::<i64>(&info, data.cast(), Shape::new(shape))?;
+        if self.place.uses_cuda_buffers() {
+            require_cuda_device(tensor.memory_info(), &format!("input {name}"))?;
         }
+        binding
+            .bind_input(name, &tensor)
+            .map_err(|e| format!("IoBinding bind_input {name}: {e}"))?;
+        Ok(tensor)
+    }
 
-        let cuda_out_info = MemoryInfo::new(
-            AllocationDevice::CUDA,
-            0,
-            AllocatorType::Device,
-            MemoryType::Default,
-        )
-        .map_err(|e| format!("CUDA output MemoryInfo: {e}"))?;
-
+    fn run_cuda(&self, batch: usize, seq: usize, shape: [i64; 2]) -> Result<Vec<i64>, Error> {
         let mut session = self
             .session
             .lock()
@@ -453,69 +954,151 @@ impl OrtCudaSession {
         let mut binding = session
             .create_binding()
             .map_err(|e| format!("IoBinding create failed: {e}"))?;
-        for (name, tensor) in &cuda_inputs {
-            binding
-                .bind_input(name.as_str(), tensor)
-                .map_err(|e| format!("IoBinding bind_input {name}: {e}"))?;
-        }
-        binding
-            .bind_output_to_device(&self.output_name, &cuda_out_info)
-            .map_err(|e| format!("IoBinding bind_output_to_device CUDA: {e}"))?;
 
-        let mut outputs = session
-            .run_binding(&binding)
-            .map_err(|e| format!("IoBinding CUDA run failed: {e}"))?;
+        let mut held = Vec::new();
+        for name in &self.input_names {
+            let host = match name.as_str() {
+                "input_ids" => self.work.input_ids.ptr,
+                "attention_mask" => self.work.attention_mask.ptr,
+                "token_type_ids" => self.work.token_type_ids.ptr,
+                _ => unreachable!("input names validated at load"),
+            };
+            held.push(self.bind_token_input(&mut binding, name, host, shape)?);
+        }
+
+        let hidden_info = MemoryInfo::new(
+            AllocationDevice::CUDA,
+            0,
+            AllocatorType::Device,
+            MemoryType::Default,
+        )
+        .map_err(|e| format!("CUDA hidden MemoryInfo: {e}"))?;
+        let hidden_shape = Shape::new([batch as i64, seq as i64, self.work.hidden_dim as i64]);
+        let hidden_tensor =
+            tensor_from_data::<f32>(&hidden_info, self.work.hidden.ptr.cast(), hidden_shape)?;
+        require_cuda_device(
+            hidden_tensor.memory_info(),
+            &format!("output {}", self.output_name),
+        )?;
+        binding
+            .bind_output(self.output_name.as_str(), hidden_tensor)
+            .map_err(|e| format!("IoBinding bind_output DEVICE hidden: {e}"))?;
+
+        ort_ok((|| {
+            ortsys![unsafe RunWithBinding(session.ptr_mut(), ptr::null(), binding.ptr())?];
+            Ok(())
+        })())
+        .map_err(|e| format!("IoBinding CUDA run failed: {e}"))?;
         binding
             .synchronize_outputs()
             .map_err(|e| format!("IoBinding synchronize_outputs: {e}"))?;
 
-        let hidden_gpu = outputs
-            .remove(self.output_name.as_str())
-            .ok_or_else(|| format!("missing output {:?}", self.output_name))?;
-        require_cuda_device(
-            hidden_gpu.memory_info(),
-            &format!("output {}", self.output_name),
-        )?;
+        drop(held);
 
-        let hidden_cpu = hidden_gpu
-            .to(AllocationDevice::CPU, 0)
-            .map_err(|e| format!("CUDA→CPU copy of hidden states failed: {e}"))?;
-        let (out_shape, hidden) = hidden_cpu
-            .try_extract_tensor::<f32>()
-            .map_err(|e| format!("output extraction failed: {e}"))?;
-        Ok((out_shape.iter().copied().collect(), hidden.to_vec()))
+        let n = batch * seq * self.work.hidden_dim;
+        let bytes = n * std::mem::size_of::<f32>();
+        if self.work.hidden_host.ptr.is_null() {
+            return Err("PINNED hidden staging view is null".into());
+        }
+        d2h(
+            self.work.hidden_host.ptr.cast::<f32>(),
+            self.work.hidden.ptr,
+            bytes,
+        )?;
+        Ok(vec![batch as i64, seq as i64, self.work.hidden_dim as i64])
     }
 
-    fn run_cpu(
-        &self,
-        input_ids: &[i64],
-        attention_mask: &[i64],
-        token_type_ids: &[i64],
-        shape: [i64; 2],
-    ) -> Result<(Vec<i64>, Vec<f32>), Error> {
-        let mut feed: Vec<(&str, SessionInputValue<'_>)> = Vec::new();
-        for name in &self.input_names {
-            let data = match name.as_str() {
-                "input_ids" => input_ids.to_vec(),
-                "attention_mask" => attention_mask.to_vec(),
-                "token_type_ids" => token_type_ids.to_vec(),
-                _ => unreachable!("input names validated at load"),
-            };
-            let tensor = Tensor::from_array((shape, data))
-                .map_err(|e| format!("host tensor build failed: {e}"))?;
-            feed.push((name.as_str(), tensor.into()));
-        }
-
+    fn run_cpu(&self, batch: usize, seq: usize, shape: [i64; 2]) -> Result<Vec<i64>, Error> {
         let mut session = self
             .session
             .lock()
             .map_err(|_| "ort session mutex poisoned".to_string())?;
-        let outputs = session
-            .run(feed)
-            .map_err(|e| format!("ORT CPU run failed: {e}"))?;
-        let (out_shape, hidden) = outputs[self.output_name.as_str()]
-            .try_extract_tensor::<f32>()
-            .map_err(|e| format!("CPU output extraction failed: {e}"))?;
-        Ok((out_shape.iter().copied().collect(), hidden.to_vec()))
+        let mut binding = session
+            .create_binding()
+            .map_err(|e| format!("IoBinding create failed: {e}"))?;
+
+        let mut held = Vec::new();
+        for name in &self.input_names {
+            let host = match name.as_str() {
+                "input_ids" => self.work.input_ids.ptr,
+                "attention_mask" => self.work.attention_mask.ptr,
+                "token_type_ids" => self.work.token_type_ids.ptr,
+                _ => unreachable!("input names validated at load"),
+            };
+            held.push(self.bind_token_input(&mut binding, name, host, shape)?);
+        }
+
+        let hidden_info = MemoryInfo::new(
+            AllocationDevice::CPU,
+            0,
+            AllocatorType::Device,
+            MemoryType::Default,
+        )
+        .map_err(|e| format!("CPU hidden MemoryInfo: {e}"))?;
+        let hidden_shape = Shape::new([batch as i64, seq as i64, self.work.hidden_dim as i64]);
+        let hidden_tensor =
+            tensor_from_data::<f32>(&hidden_info, self.work.hidden.ptr.cast(), hidden_shape)?;
+        binding
+            .bind_output(self.output_name.as_str(), hidden_tensor)
+            .map_err(|e| format!("IoBinding bind_output HOST hidden: {e}"))?;
+
+        ort_ok((|| {
+            ortsys![unsafe RunWithBinding(session.ptr_mut(), ptr::null(), binding.ptr())?];
+            Ok(())
+        })())
+        .map_err(|e| format!("ORT CPU IoBinding run failed: {e}"))?;
+
+        drop(held);
+
+        Ok(vec![batch as i64, seq as i64, self.work.hidden_dim as i64])
     }
+}
+
+impl Drop for OrtCudaSession {
+    fn drop(&mut self) {
+        clear_ext_arena_if(self.work.arena);
+    }
+}
+
+pub fn hot_path_reset() {
+    ORT_EXT_ALLOCS.store(0, Ordering::Relaxed);
+    ORT_D2H_BYTES.store(0, Ordering::Relaxed);
+    ORT_D2H_CALLS.store(0, Ordering::Relaxed);
+    unsafe {
+        buffer_ffi::turbo_buffer_alloc_counter_reset();
+        buffer_ffi::turbo_buffer_cuda_forward_allocs_reset();
+        buffer_ffi::turbo_buffer_cuda_forward_h2d_reset();
+    }
+}
+
+pub fn external_allocs() -> u64 {
+    ORT_EXT_ALLOCS.load(Ordering::Relaxed)
+}
+
+pub fn external_last_bytes() -> u64 {
+    ORT_EXT_LAST_BYTES.load(Ordering::Relaxed)
+}
+
+pub fn d2h_bytes() -> u64 {
+    ORT_D2H_BYTES.load(Ordering::Relaxed)
+}
+
+pub fn d2h_calls() -> u64 {
+    ORT_D2H_CALLS.load(Ordering::Relaxed)
+}
+
+pub fn arena_allocs() -> u64 {
+    unsafe { buffer_ffi::turbo_buffer_alloc_counter() }
+}
+
+pub fn cuda_forward_allocs() -> u64 {
+    unsafe { buffer_ffi::turbo_buffer_cuda_forward_allocs() }
+}
+
+pub fn cuda_forward_h2d_bytes() -> u64 {
+    unsafe { buffer_ffi::turbo_buffer_cuda_forward_h2d_bytes() }
+}
+
+pub fn cuda_forward_h2d_calls() -> u64 {
+    unsafe { buffer_ffi::turbo_buffer_cuda_forward_h2d_calls() }
 }

@@ -16,9 +16,9 @@ product.
 `--features ort-cuda` (Rust crate) defines `TURBOEMBED_ORT_CUDA`. Catalog
 aliases such as `minilm` then call Rust hooks that load ONNX Runtime.
 `TURBOEMBED_DEVICE_CUDA` / AUTO use the CUDA EP (`error_on_failure`) and
-IoBinding device buffers — never a silent CPU fallback.
-`TURBOEMBED_DEVICE_CPU` is an explicit CPU EP path (same ONNX, same mean+L2).
-See `docs/turboembed.md`.
+IoBinding on `turbo_buffer` PINNED mapped tokens + DEVICE hidden —
+never a silent CPU fallback. `TURBOEMBED_DEVICE_CPU` is an explicit
+CPU EP path (same ONNX, same mean+L2, HOST arena). See `docs/turboembed.md`.
 
 `--features genai` (Rust crate) also compiles `src/genai.cpp` and defines
 `TURBOEMBED_GENAI`. Catalog aliases such as `minilm` then construct

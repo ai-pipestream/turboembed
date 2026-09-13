@@ -10,6 +10,7 @@ use std::slice;
 
 use inferstream_backend_ort::Pooling;
 
+use crate::buffer_ffi::turbo_buffer_arena;
 use crate::catalog::{Arch, Catalog};
 use crate::ort_cuda::{OrtCudaSession, OrtPlace};
 
@@ -57,6 +58,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_open(
     config_path: *const c_char,
     workspace_root: *const c_char,
     abi_device: c_int,
+    arena: *mut turbo_buffer_arena,
     err: *mut c_char,
     err_len: usize,
 ) -> *mut OrtCudaSession {
@@ -75,7 +77,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_open(
         let spec = catalog
             .resolve_embed(alias, Arch::Nvidia)
             .map_err(|e| e.to_string())?;
-        OrtCudaSession::load(spec, &root, place)
+        OrtCudaSession::load(spec, &root, place, arena)
     })();
     match result {
         Ok(session) => Box::into_raw(Box::new(session)),
@@ -94,7 +96,8 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
     n_texts: usize,
     requested_pooling: i32,
     requested_normalize: i32,
-    out_values: *mut *mut f32,
+    out_values: *mut f32,
+    out_values_len: usize,
     out_dim: *mut usize,
     out_count: *mut usize,
     err: *mut c_char,
@@ -104,6 +107,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
         || ptrs.is_null()
         || lens.is_null()
         || out_values.is_null()
+        || out_values_len == 0
         || out_dim.is_null()
         || out_count.is_null()
     {
@@ -175,16 +179,15 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
             return -1;
         }
     };
-    match session.embed_batch(&texts) {
-        Ok((dim, flat)) => {
-            let n = texts.len();
-            if dim == 0 || flat.len() != n * dim {
+    let n = texts.len();
+    let dest = unsafe { slice::from_raw_parts_mut(out_values, out_values_len) };
+    match session.embed_batch(&texts, Some(dest)) {
+        Ok((dim, _)) => {
+            if dim == 0 || out_values_len < n * dim {
                 write_err(err, err_len, "ragged embedding batch");
                 return -1;
             }
-            let ptr = Box::into_raw(flat.into_boxed_slice()) as *mut f32;
             unsafe {
-                *out_values = ptr;
                 *out_dim = dim;
                 *out_count = n;
             }
@@ -231,4 +234,49 @@ pub unsafe extern "C" fn turboembed_ort_cuda_place(session: *const OrtCudaSessio
         OrtPlace::Cuda => 2,
         OrtPlace::TensorRt => 3,
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_hot_path_reset() {
+    crate::ort_cuda::hot_path_reset();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_arena_allocs() -> u64 {
+    crate::ort_cuda::arena_allocs()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_external_allocs() -> u64 {
+    crate::ort_cuda::external_allocs()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_external_last_bytes() -> u64 {
+    crate::ort_cuda::external_last_bytes()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_d2h_bytes() -> u64 {
+    crate::ort_cuda::d2h_bytes()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_d2h_calls() -> u64 {
+    crate::ort_cuda::d2h_calls()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_cuda_forward_allocs() -> u64 {
+    crate::ort_cuda::cuda_forward_allocs()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_cuda_forward_h2d_bytes() -> u64 {
+    crate::ort_cuda::cuda_forward_h2d_bytes()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn turboembed_ort_cuda_forward_h2d_calls() -> u64 {
+    crate::ort_cuda::cuda_forward_h2d_calls()
 }

@@ -207,12 +207,16 @@ Metal) — see receipts under `testdata/receipts/turboembed/`.
 - **model2vec** is not shipped. `turboembed_register_provider` returns
   `NOT_IMPLEMENTED`.
 - **Zero-copy buffer pool** is **TurboBuffer** (`include/turbo_buffer.h`).
-  Intel GenAI GPU rents ZE SHARED USM for tokens / hidden / results
+  Machine A ORT CUDA + explicit CPU rent tokens / hidden / results from
+  the engine arena (PINNED+DEVICE or HOST). ORT CUDA EP allocations go
+  through `gpu_external_alloc` → DEVICE rent. Steady-state embed after
+  warmup is 0 arena allocs. Host mean+L2 still D2H-copies hidden states
+  into rented PINNED — recorded in `d2h_hidden_bytes`, not claimed as
+  zero-copy. Intel GenAI GPU rents ZE SHARED USM
   (`docs/turboembed-genai-ze-machine-b.md`). Apple `libTurboEmbed.dylib`
   rents Metal SHARED tokens, last-hidden, and results
-  (`docs/apple-turboembed-metal-arena-machine-c.md`). Mock/CPU embed
-  rents host FP32 rows. ORT CUDA still copies the host result into a
-  CPU-arena row. See [`docs/turbo-buffer.md`](turbo-buffer.md).
+  (`docs/apple-turboembed-metal-arena-machine-c.md`). See
+  [`docs/turbo-buffer.md`](turbo-buffer.md).
 - **Intel NPU** create is fail-loud until a Core Ultra client NPU host
   lists the plugin (`intel-npu.json` on Machine B, `pass=false`).
 - Inferstream **Rerank RPC** is a thin façade over the TurboRerank

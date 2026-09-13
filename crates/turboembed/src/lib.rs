@@ -35,12 +35,15 @@
 //! `"CPU"` and return real embeds. No OVMS. No Python.
 //!
 //! `--features ort-cuda` registers the ONNX Runtime CUDA EP with
-//! `error_on_failure`, binds inputs/outputs on `AllocationDevice::CUDA`
-//! via IoBinding, and mean+L2 pools on the host after the device→host
-//! copy. `Engine::create(Device::Cuda)` / [`Device::Auto`] then
+//! `error_on_failure`, rents PINNED/DEVICE (or HOST on explicit CPU)
+//! I/O from the engine `turbo_buffer` arena, binds those views through
+//! IoBinding, and mean+L2 pools on the host after a counted DEVICE→PINNED
+//! copy of hidden states. That D2H is an API copy — not claimed as
+//! zero-copy. After load warmup, arena allocs on the embed hot path
+//! must be 0. `Engine::create(Device::Cuda)` / [`Device::Auto`] then
 //! `load_model("minilm")` is the NVIDIA CUDA proof path. A CUDA/AUTO
 //! request never silently becomes CPU. `Device::Cpu` is an explicit
-//! CPU EP path (same ONNX, same mean+L2).
+//! CPU EP path (same ONNX, same mean+L2, HOST arena).
 //! [`Device::TensorRt`] loads the ORT TensorRT EP (`error_on_failure`).
 //! Missing `libnvinfer.so.10` is a hard error — not a CUDA or CPU
 //! session. Live MiniLM proof: `docs/turboembed.md`.
@@ -58,6 +61,8 @@
 
 pub mod ffi;
 
+#[cfg(feature = "ort-cuda")]
+mod buffer_ffi;
 #[cfg(feature = "ort-cuda")]
 mod catalog;
 #[cfg(feature = "ort-cuda")]
