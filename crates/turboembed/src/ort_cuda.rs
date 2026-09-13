@@ -32,6 +32,7 @@ use crate::buffer_ffi::{
     TURBO_BUFFER_PLACE_HOST, TURBO_BUFFER_PLACE_PINNED,
 };
 use crate::catalog::CatalogModelSpec;
+use crate::wordpiece_ffi::{self, WordPiece};
 
 type Error = String;
 
@@ -129,9 +130,14 @@ impl Drop for OrtWork {
     }
 }
 
+enum TokenFront {
+    WordPiece(WordPiece),
+    Hf(Tokenizer),
+}
+
 pub struct OrtCudaSession {
     session: Mutex<Session>,
-    tokenizer: Tokenizer,
+    tokens: TokenFront,
     pooling: Pooling,
     normalize: bool,
     input_names: Vec<String>,
@@ -600,24 +606,30 @@ impl OrtCudaSession {
             .tokenizer_dir
             .as_deref()
             .map(|p| resolve_path(workspace_root, p).to_string_lossy().into_owned());
-        let tokenizer_file = find_tokenizer(model_path, tokenizer_hint.as_deref())?;
-        let mut tokenizer = Tokenizer::from_file(&tokenizer_file)
-            .map_err(|e| fail_load("failed to load tokenizer", e))?;
         let max_seq = spec
             .max_seq_len
             .map(|v| v as usize)
             .unwrap_or(DEFAULT_MAX_SEQ_LEN);
-        tokenizer
-            .with_truncation(Some(tokenizers::TruncationParams {
-                max_length: max_seq,
+        let tokens = if let Some(wp) =
+            wordpiece_ffi::load_beside_model(model_path, tokenizer_hint.as_deref())
+        {
+            TokenFront::WordPiece(wp)
+        } else {
+            let tokenizer_file = find_tokenizer(model_path, tokenizer_hint.as_deref())?;
+            let mut tokenizer = Tokenizer::from_file(&tokenizer_file)
+                .map_err(|e| fail_load("failed to load tokenizer", e))?;
+            tokenizer
+                .with_truncation(Some(tokenizers::TruncationParams {
+                    max_length: max_seq,
+                    ..Default::default()
+                }))
+                .map_err(|e| fail_load("failed to configure truncation", e))?;
+            tokenizer.with_padding(Some(tokenizers::PaddingParams {
+                strategy: tokenizers::PaddingStrategy::Fixed(max_seq),
                 ..Default::default()
-            }))
-            .map_err(|e| fail_load("failed to configure truncation", e))?;
-        // Fixed pad so ORT sees a constant [batch, max_seq] after warmup.
-        tokenizer.with_padding(Some(tokenizers::PaddingParams {
-            strategy: tokenizers::PaddingStrategy::Fixed(max_seq),
-            ..Default::default()
-        }));
+            }));
+            TokenFront::Hf(tokenizer)
+        };
 
         let pooling = spec
             .pooling
@@ -813,7 +825,7 @@ impl OrtCudaSession {
 
         let mut loaded = Self {
             session: Mutex::new(session),
-            tokenizer,
+            tokens,
             pooling,
             normalize: spec.normalize.unwrap_or(true),
             input_names,
@@ -864,38 +876,58 @@ impl OrtCudaSession {
             ));
         }
 
-        let encodings = self
-            .tokenizer
-            .encode_batch(texts.to_vec(), true)
-            .map_err(|e| format!("tokenization failed: {e}"))?;
         let seq = self.work.max_seq;
-        if encodings.iter().any(|e| e.len() > seq) {
-            return Err(format!(
-                "tokenized seq exceeds warmed max_seq {seq}"
-            ));
-        }
-        if encodings.is_empty() {
-            return Err("tokenization produced an empty sequence".into());
-        }
-
         let token_n = self.work.max_batch * self.work.max_seq;
         {
             let ids = i64_slot_mut(&self.work.input_ids, token_n)?;
             let mask = i64_slot_mut(&self.work.attention_mask, token_n)?;
             let types = i64_slot_mut(&self.work.token_type_ids, token_n)?;
-            ids.fill(0);
-            mask.fill(0);
-            types.fill(0);
-            for (b, encoding) in encodings.iter().enumerate() {
-                let row = b * self.work.max_seq;
-                for (i, v) in encoding.get_ids().iter().enumerate() {
-                    ids[row + i] = i64::from(*v);
+            match &self.tokens {
+                TokenFront::WordPiece(wp) => {
+                    wordpiece_ffi::wordpiece_hot_alloc_counter_reset();
+                    for (b, text) in texts.iter().enumerate() {
+                        let row = b * seq;
+                        wp.encode_sentence(
+                            text,
+                            ids[row..].as_mut_ptr() as *mut std::ffi::c_void,
+                            mask[row..].as_mut_ptr() as *mut std::ffi::c_void,
+                            types[row..].as_mut_ptr() as *mut std::ffi::c_void,
+                            seq as u32,
+                            seq as u32,
+                            8,
+                        )?;
+                    }
+                    if wordpiece_ffi::wordpiece_hot_alloc_counter() != 0 {
+                        return Err(
+                            "WordPiece hot-path heap token staging reintroduced".into()
+                        );
+                    }
                 }
-                for (i, v) in encoding.get_attention_mask().iter().enumerate() {
-                    mask[row + i] = i64::from(*v);
-                }
-                for (i, v) in encoding.get_type_ids().iter().enumerate() {
-                    types[row + i] = i64::from(*v);
+                TokenFront::Hf(tokenizer) => {
+                    let encodings = tokenizer
+                        .encode_batch(texts.to_vec(), true)
+                        .map_err(|e| format!("tokenization failed: {e}"))?;
+                    if encodings.iter().any(|e| e.len() > seq) {
+                        return Err(format!("tokenized seq exceeds warmed max_seq {seq}"));
+                    }
+                    if encodings.is_empty() {
+                        return Err("tokenization produced an empty sequence".into());
+                    }
+                    ids.fill(0);
+                    mask.fill(0);
+                    types.fill(0);
+                    for (b, encoding) in encodings.iter().enumerate() {
+                        let row = b * seq;
+                        for (i, v) in encoding.get_ids().iter().enumerate() {
+                            ids[row + i] = i64::from(*v);
+                        }
+                        for (i, v) in encoding.get_attention_mask().iter().enumerate() {
+                            mask[row + i] = i64::from(*v);
+                        }
+                        for (i, v) in encoding.get_type_ids().iter().enumerate() {
+                            types[row + i] = i64::from(*v);
+                        }
+                    }
                 }
             }
         }

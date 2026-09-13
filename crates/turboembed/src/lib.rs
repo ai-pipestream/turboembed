@@ -61,6 +61,8 @@
 pub mod ffi;
 
 #[cfg(feature = "ort-cuda")]
+mod wordpiece_ffi;
+#[cfg(feature = "ort-cuda")]
 mod buffer_ffi;
 #[cfg(feature = "ort-cuda")]
 mod catalog;

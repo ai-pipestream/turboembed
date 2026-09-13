@@ -53,6 +53,18 @@ fn main() {
     println!("cargo:rerun-if-changed={}", genai_hpp.display());
     println!(
         "cargo:rerun-if-changed={}",
+        root.join("native/wordpiece/vocab_load.cpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/wordpiece/encode.cpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("include/wordpiece.h").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
         root.join("native/turboembed/src/pool_cuda.cu").display()
     );
     println!(
@@ -164,11 +176,14 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
         .cpp(true)
         .std("c++17")
         .file(stub)
+        .file(root.join("native/wordpiece/vocab_load.cpp"))
+        .file(root.join("native/wordpiece/encode.cpp"))
         .file(root.join("native/turbo_buffer/src/arena.cpp"))
         .file(root.join("native/turbo_buffer/src/cuda.cpp"))
         .file(root.join("native/turbo_buffer/src/ze.cpp"))
         .file(root.join("native/turbo_buffer/src/metal.cpp"))
         .include(root.join("include"))
+        .include(root.join("native/wordpiece"))
         .include(root.join("native/turboembed/src"))
         .include(root.join("native/turbo_buffer/src"))
         .warnings(true)

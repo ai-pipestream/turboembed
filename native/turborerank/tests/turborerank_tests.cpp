@@ -9,6 +9,7 @@
 #include "reranker.hpp"
 #include "turbo_buffer.h"
 #include "turborerank.h"
+#include "wordpiece.h"
 
 #ifdef TURBORERANK_CUDA
 #include <cuda_runtime.h>
@@ -524,24 +525,35 @@ static void test_real_model_scores() {
     // malloc for those slots fails this owns() check.
     CHECK(e->arena != nullptr);
     CHECK(turbo_buffer_arena_owns(e->arena, e->scratch.x));
-    CHECK(turbo_buffer_arena_owns(e->arena, e->scratch.tok_q));
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->token_type_ids));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->position_ids));
+    CHECK(e->vocab.img != nullptr);
+    CHECK(wordpiece_vocab_is_loaded(e->vocab.img));
 
     // High-level score reuses the load-time work buffer + scratch.
+    // Pack writes WordPiece ids directly into the rented row.
     turborerank::alloc_counter_reset();
+    wordpiece_hot_alloc_counter_reset();
     opts.activation = TURBORERANK_ACT_IDENTITY;
     float score_again[3] = {0, 0, 0};
     CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, score_again));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_EQ(wordpiece_hot_alloc_counter(), 0u);
     CHECK(almost(score_again[0], logits[0], 1e-5f));
+    CHECK_EQ(e->work->input_ids[0], 101); // [CLS] write-through
 
-    // No heap growth on forward.
+    // No heap growth on forward. Pack writes into the rented row.
     turborerank_buffer *buf = nullptr;
     CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &buf));
+    wordpiece_hot_alloc_counter_reset();
     CHECK_ST(turborerank_pack_text(
         e, buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
     ));
+    CHECK_EQ(wordpiece_hot_alloc_counter(), 0u);
+    CHECK_EQ(buf->input_ids[0], 101);
+    CHECK_EQ(buf->attention_mask[0], 1);
     turborerank::alloc_counter_reset();
     float s = 0;
     CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
@@ -876,7 +888,9 @@ static void test_ov_real_model_scores(turborerank_device device) {
         turbo_buffer_placement place = TURBO_BUFFER_PLACE_HOST;
         CHECK_EQ(turbo_buffer_ze_query(e->work->input_ids, &place), TURBO_BUFFER_OK);
         CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
-        CHECK_EQ(turbo_buffer_ze_query(e->scratch.tok_q, &place), TURBO_BUFFER_OK);
+        CHECK_EQ(turbo_buffer_ze_query(e->work->attention_mask, &place), TURBO_BUFFER_OK);
+        CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
+        CHECK_EQ(turbo_buffer_ze_query(e->work->token_type_ids, &place), TURBO_BUFFER_OK);
         CHECK_EQ(place, TURBO_BUFFER_PLACE_SHARED);
     }
 
@@ -1046,9 +1060,9 @@ static void test_metal_real_model_scores() {
     CHECK(e->work != nullptr);
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
-    CHECK(turbo_buffer_arena_owns(e->arena, e->scratch.tok_q));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->token_type_ids));
     CHECK(turbo_buffer_metal_owns(e->work->input_ids));
-    CHECK(turbo_buffer_metal_owns(e->scratch.tok_q));
+    CHECK(turbo_buffer_metal_owns(e->work->attention_mask));
 
     const char *q = "How many people live in Berlin?";
     const char *rel =

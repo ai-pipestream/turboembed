@@ -370,7 +370,7 @@ fn minilm_text_embedding_pipeline_on_gpu() {
         "schema_version": 1,
         "alias": ALIAS,
         "device": "GPU",
-        "pipeline": "ov::genai::Tokenizer + CompiledModel + turbo_buffer ZE SHARED",
+        "pipeline": "WordPiece write-through + CompiledModel + turbo_buffer ZE SHARED",
         "abi": "turboembed.h",
         "abi_version": 1,
         "pooling": "mean",
@@ -403,9 +403,9 @@ fn minilm_text_embedding_pipeline_on_gpu() {
             "owns_hidden": proof.owns_hidden,
             "hidden_set_tensor": proof.hidden_used_arena,
             "allocs_after_warmup": proof.allocs_after_warmup,
-            "tokenizer_encode": "ov::genai::Tokenizer.encode still private-allocs; API has no caller buffer"
+            "tokenizer": "wordpiece_encode_sentence into rented SHARED i32 USM"
         },
-        "note": "SOLIDIFY (4) Machine B. Token/hidden/result rows rented from the ZE arena as SHARED. InferRequest.set_tensor wraps USM; embed_documents is not on the hot path. GPU create without ZE SHARED fails loud. See intel-minilm-cpu.json for HOST USM.",
+        "note": "SOLIDIFY (5) Machine B. WordPiece writes ids/mask/types into rented ZE SHARED USM. InferRequest.set_tensor wraps those pointers. ov::genai::Tokenizer.encode is not on the hot path (API has no caller buffer). GPU create without ZE SHARED fails loud.",
     });
     let receipt_dir = root.join("testdata/receipts/turboembed");
     fs::create_dir_all(&receipt_dir).expect("receipts dir");
@@ -620,7 +620,7 @@ fn minilm_text_embedding_pipeline_on_cpu() {
         "schema_version": 1,
         "alias": ALIAS,
         "device": "CPU",
-        "pipeline": "ov::genai::Tokenizer + CompiledModel + turbo_buffer ZE HOST",
+        "pipeline": "WordPiece write-through + CompiledModel + turbo_buffer HOST",
         "abi": "turboembed.h",
         "abi_version": 1,
         "pooling": "mean",
@@ -659,7 +659,7 @@ fn minilm_text_embedding_pipeline_on_cpu() {
                 }
             }),
         },
-        "note": "SOLIDIFY (4) Machine B CPU. Same IR as GPU. Tokens/results rented HOST (ZE USM when L0 is present). GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
+        "note": "SOLIDIFY (5) Machine B CPU. WordPiece write-through into rented HOST i32 rows. Same IR as GPU. GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
     });
     let receipt_dir = root.join("testdata/receipts/turboembed");
     fs::create_dir_all(&receipt_dir).expect("receipts dir");

@@ -3,11 +3,11 @@
 
 #include "reranker.hpp"
 #include "turbo_buffer.h"
+#include "wordpiece.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace turborerank {
@@ -23,7 +23,7 @@ bool accelerator_unavailable(turborerank_device d, std::string *why);
 turborerank_device resolve_create_device(turborerank_device requested);
 
 struct Vocab {
-    std::unordered_map<std::string, int32_t> token_to_id;
+    wordpiece_vocab *img = nullptr;
     int32_t unk_id = kUnkId;
     int32_t cls_id = kClsId;
     int32_t sep_id = kSepId;
@@ -31,10 +31,11 @@ struct Vocab {
     bool loaded = false;
 };
 
+void free_vocab(Vocab *vocab);
 bool load_vocab_txt(const char *path, Vocab *vocab, std::string *err);
 
-/** WordPiece + BERT basic tokenize. Writes ids, returns count. No heap if
- *  `ids_cap` is sufficient; otherwise returns 0 and sets err. */
+/** WordPiece + BERT basic tokenize. Writes ids into `ids` (caller/arena).
+ *  Hot path does not heap-allocate a token vector. */
 size_t tokenize_wordpiece(
     const Vocab &vocab,
     const char *utf8,
@@ -114,9 +115,6 @@ struct Scratch {
     float *ctx = nullptr;
     float *inter = nullptr;
     float *tmp = nullptr;
-    int32_t *tok_q = nullptr;
-    int32_t *tok_d = nullptr;
-    size_t tok_cap = 0;
     uint32_t max_batch = 0;
     uint32_t max_seq = 0;
     uint32_t hidden = 0;
@@ -130,8 +128,6 @@ struct Scratch {
     turbo_buffer_view v_ctx {};
     turbo_buffer_view v_inter {};
     turbo_buffer_view v_tmp {};
-    turbo_buffer_view v_tok_q {};
-    turbo_buffer_view v_tok_d {};
 };
 
 /** Device weights + activation arena. Opaque to the CPU path. */

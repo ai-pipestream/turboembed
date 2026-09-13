@@ -1,3 +1,6 @@
+#if canImport(WordPieceC)
+import WordPieceC
+#endif
 import Foundation
 import Metal
 import MLX
@@ -175,41 +178,46 @@ public final class Engine: @unchecked Sendable {
         }
         let container = try await loadEmbed(modelPath)
         return try await container.perform { context -> (dim: Int, count: Int) in
-            let padId =
-                context.tokenizer.convertTokenToId("[PAD]")
-                ?? context.tokenizer.convertTokenToId("<pad>")
-                ?? 0
-            let sepId =
-                context.tokenizer.convertTokenToId("[SEP]")
-                ?? context.tokenizer.convertTokenToId("</s>")
-            var encoded = texts.map {
-                context.tokenizer.encode(text: $0, addSpecialTokens: true)
-            }
-            if let maxSeqLen {
-                encoded = encoded.map { truncateEncoderIds($0, max: maxSeqLen, sepId: sepId) }
-            }
-            let seq = encoded.map(\.count).max() ?? 0
-            if seq > slots.maxSeq {
-                throw EngineError.internalError(
-                    "seq \(seq) exceeds arena max_seq \(slots.maxSeq)"
-                )
-            }
-            let n = encoded.count
+            let n = texts.count
             let stride = slots.maxSeq
-            for i in 0..<n {
-                let ids = encoded[i]
-                for t in 0..<stride {
-                    let idx = i * stride + t
-                    if t < ids.count {
-                        slots.inputIds[idx] = Int32(ids[t])
-                        slots.attentionMask[idx] = 1
-                    } else {
-                        slots.inputIds[idx] = Int32(padId)
-                        slots.attentionMask[idx] = 0
+            if !encodeWordPieceIntoArena(
+                modelPath: modelPath, texts: texts, slots: slots, maxSeqLen: maxSeqLen)
+            {
+                let padId =
+                    context.tokenizer.convertTokenToId("[PAD]")
+                    ?? context.tokenizer.convertTokenToId("<pad>")
+                    ?? 0
+                let sepId =
+                    context.tokenizer.convertTokenToId("[SEP]")
+                    ?? context.tokenizer.convertTokenToId("</s>")
+                var encoded = texts.map {
+                    context.tokenizer.encode(text: $0, addSpecialTokens: true)
+                }
+                if let maxSeqLen {
+                    encoded = encoded.map { truncateEncoderIds($0, max: maxSeqLen, sepId: sepId) }
+                }
+                let seq = encoded.map(\.count).max() ?? 0
+                if seq > slots.maxSeq {
+                    throw EngineError.internalError(
+                        "seq \(seq) exceeds arena max_seq \(slots.maxSeq)"
+                    )
+                }
+                for i in 0..<n {
+                    let ids = encoded[i]
+                    for t in 0..<stride {
+                        let idx = i * stride + t
+                        if t < ids.count {
+                            slots.inputIds[idx] = Int32(ids[t])
+                            slots.attentionMask[idx] = 1
+                        } else {
+                            slots.inputIds[idx] = Int32(padId)
+                            slots.attentionMask[idx] = 0
+                        }
+                        slots.tokenTypes[idx] = 0
                     }
-                    slots.tokenTypes[idx] = 0
                 }
             }
+            let seq = stride
             let idsFull = try wrapArenaI32(
                 slots.inputIds, rows: slots.maxBatch, cols: slots.maxSeq, what: "input_ids")
             let maskFull = try wrapArenaI32(
@@ -484,6 +492,68 @@ func poolArena(
             }
         }
     }
+}
+
+/// MiniLM-compatible WordPiece into arena i32 slots. Returns false when
+/// the model dir has no vocab.txt / WordPiece tokenizer.json (SentencePiece
+/// etc. stay on swift-transformers).
+private func encodeWordPieceIntoArena(
+    modelPath: String,
+    texts: [String],
+    slots: ArenaEmbedSlots,
+    maxSeqLen: Int?
+) -> Bool {
+    #if canImport(WordPieceC)
+    var vocab: OpaquePointer?
+    let st = modelPath.withCString { wordpiece_vocab_load_dir($0, &vocab) }
+    guard st == WORDPIECE_OK, let vocab else { return false }
+    defer { wordpiece_vocab_destroy(vocab) }
+    wordpiece_hot_alloc_counter_reset()
+    let seq = UInt32(maxSeqLen ?? slots.maxSeq)
+    let stride = UInt32(slots.maxSeq)
+    if seq > stride { return false }
+    for (i, text) in texts.enumerated() {
+        let off = i * slots.maxSeq
+        let rc = text.utf8.withContiguousStorageIfAvailable { buf -> Int32 in
+            wordpiece_encode_sentence(
+                vocab,
+                buf.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self) },
+                buf.count,
+                slots.inputIds.advanced(by: off),
+                slots.attentionMask.advanced(by: off),
+                slots.tokenTypes.advanced(by: off),
+                nil,
+                seq,
+                stride,
+                4
+            )
+        }
+        let code: Int32
+        if let rc {
+            code = rc
+        } else {
+            var bytes = Array(text.utf8)
+            code = bytes.withUnsafeMutableBytes { raw in
+                wordpiece_encode_sentence(
+                    vocab,
+                    raw.baseAddress?.assumingMemoryBound(to: CChar.self),
+                    raw.count,
+                    slots.inputIds.advanced(by: off),
+                    slots.attentionMask.advanced(by: off),
+                    slots.tokenTypes.advanced(by: off),
+                    nil,
+                    seq,
+                    stride,
+                    4
+                )
+            }
+        }
+        if code != WORDPIECE_OK { return false }
+    }
+    return wordpiece_hot_alloc_counter() == 0
+    #else
+    return false
+    #endif
 }
 
 private final class WrapGate: @unchecked Sendable {

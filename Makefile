@@ -20,6 +20,7 @@
 #   make fetch-rerankers                    # SHA-pin MiniLM-L6 cross-encoder
 #   make turbo-buffer-tests                 # unified arena ABI (CPU + CUDA/ZE when live)
 #   make turbo-buffer-intel-receipt         # Machine B ZE HOST/SHARED/DEVICE receipt
+#   make wordpiece-tests                    # frozen vocab + write-through + tripwire
 #   make turborerank-tests                  # C++ buffer/pack + CUDA if nvcc
 #   make turborerank-tests-nocuda           # same tests, CUDA create fails loud
 #   make test-turborerank                   # fetch + C++ + Rust live scores
@@ -27,7 +28,7 @@
 #   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
 #   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
 #   make test-turborerank-apple             # Machine C Metal receipt + live CE
-#   make test-turboembed-intel              # --features genai; Tokenizer+CompiledModel on ZE USM; NPU create fails loud if missing
+#   make test-turboembed-intel              # --features genai; WordPiece→USM + CompiledModel; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
@@ -85,7 +86,8 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turborerank-tests 	turborerank-tests-nocuda turborerank-tests-noov \
 	turborerank-cuda-gemm-proof \
 	turborerank-tests-nometal libturborerank-apple libturbo-buffer-apple \
-	turbo-buffer-tests turboembed-mock-arena-tests turboembed-genai-arena-tests \
+	turbo-buffer-tests wordpiece-tests wordpiece-tripwire \
+	turboembed-mock-arena-tests turboembed-genai-arena-tests \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt
@@ -159,6 +161,8 @@ libturborerank-apple:
 	  native/turborerank/build/alloc.cpp.o \
 	  native/turborerank/build/pack.cpp.o \
 	  native/turborerank/build/wordpiece.cpp.o \
+	  native/turborerank/build/vocab_load.cpp.o \
+	  native/turborerank/build/encode.cpp.o \
 	  native/turborerank/build/safetensors.cpp.o \
 	  native/turborerank/build/bert_cpu.cpp.o \
 	  native/turborerank/build/cuda_api.cpp.o \
@@ -388,12 +392,20 @@ turboembed-stub:
 	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/turbo_buffer/src \
 	  -c native/turbo_buffer/src/metal.cpp \
 	  -o native/turboembed/build/tb_metal.o
+	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/wordpiece \
+	  -c native/wordpiece/vocab_load.cpp \
+	  -o native/turboembed/build/vocab_load.o
+	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/wordpiece \
+	  -c native/wordpiece/encode.cpp \
+	  -o native/turboembed/build/encode.o
 	$(AR) rcs native/turboembed/build/libturboembed.a \
 	  native/turboembed/build/stub.o \
 	  native/turboembed/build/arena.o \
 	  native/turboembed/build/tb_cuda.o \
 	  native/turboembed/build/tb_ze.o \
-	  native/turboembed/build/tb_metal.o
+	  native/turboembed/build/tb_metal.o \
+	  native/turboembed/build/vocab_load.o \
+	  native/turboembed/build/encode.o
 	@echo "wrote native/turboembed/build/libturboembed.a"
 
 test-turboembed: turboembed-mock-arena-tests
@@ -421,9 +433,11 @@ turboembed-genai-arena-tests:
 	  -DTURBOEMBED_GENAI -DTURBO_BUFFER_ZE=1 \
 	  -DTURBOEMBED_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  -I include -I native/turboembed/src -I native/turbo_buffer/src \
+	  -I native/wordpiece \
 	  -I $(OPENVINO_GENAI_ROOT)/runtime/include \
 	  native/turboembed/src/stub.cpp \
 	  native/turboembed/src/genai.cpp \
+	  $(WORDPIECE_SRCS) \
 	  $(TURBO_BUFFER_SRCS) \
 	  native/turboembed/tests/genai_arena_tests.cpp \
 	  -L$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
@@ -457,10 +471,15 @@ TURBO_BUFFER_SRCS := \
 	native/turbo_buffer/src/ze.cpp \
 	native/turbo_buffer/src/metal.cpp
 
+WORDPIECE_SRCS := \
+	native/wordpiece/vocab_load.cpp \
+	native/wordpiece/encode.cpp
+
 TURBORERANK_SRCS := \
 	native/turborerank/src/alloc.cpp \
 	native/turborerank/src/pack.cpp \
 	native/turborerank/src/wordpiece.cpp \
+	$(WORDPIECE_SRCS) \
 	native/turborerank/src/safetensors.cpp \
 	native/turborerank/src/bert_cpu.cpp \
 	native/turborerank/src/cuda_api.cpp \
@@ -479,7 +498,7 @@ TURBORERANK_ENABLE_CUDA ?= $(shell \
 	then echo 1; else echo 0; fi)
 TURBORERANK_CUDA_ARCH ?= native
 
-TURBORERANK_INCLUDES := -I include -I native/turborerank/src -I native/turbo_buffer/src
+TURBORERANK_INCLUDES := -I include -I native/wordpiece -I native/turborerank/src -I native/turbo_buffer/src
 TURBORERANK_CPPFLAGS := -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\"
 TURBORERANK_CUDA_LIBS :=
 TURBORERANK_CUDA_OBJ :=
@@ -555,6 +574,28 @@ ifeq ($(TURBORERANK_ENABLE_CUDA),1)
 	@echo "gemm primary path: cublasLtMatmul (no linear_nt_kernel)"
 endif
 
+# SOLIDIFY (5): encode.cpp must stay heap-free. Load-time heap is vocab_load.cpp.
+wordpiece-tripwire:
+	@if grep -nE 'std::(vector|string|unordered_map)|new |malloc\(|posix_memalign' \
+	    native/wordpiece/encode.cpp; then \
+	  echo "FAIL: heap token staging reintroduced in encode.cpp"; exit 1; \
+	fi
+	@if grep -nE 'copy_tokens_to_i32|tokenizer\.encode' native/turboembed/src/genai.cpp; then \
+	  echo "FAIL: GenAI encode→copy path reintroduced"; exit 1; \
+	fi
+	@echo "wordpiece tripwire: encode.cpp heap-free, GenAI has no encode→copy"
+
+wordpiece-tests: wordpiece-tripwire turbo-buffer-tests
+	mkdir -p native/wordpiece/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include -I native/wordpiece \
+	  -I native/turbo_buffer/src \
+	  $(WORDPIECE_SRCS) native/turbo_buffer/src/arena.cpp \
+	  native/turbo_buffer/src/cuda.cpp native/turbo_buffer/src/ze.cpp \
+	  native/turbo_buffer/src/metal.cpp \
+	  native/wordpiece/tests/wordpiece_tests.cpp \
+	  -lm -o native/wordpiece/build/wordpiece_tests
+	INFERSTREAM_ROOT=$(CURDIR) native/wordpiece/build/wordpiece_tests
+
 turbo-buffer-tests:
 	mkdir -p native/turbo_buffer/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
@@ -582,7 +623,7 @@ turboembed-mock-arena-tests: turboembed-stub
 	  -lm -o native/turboembed/build/mock_arena_tests
 	native/turboembed/build/mock_arena_tests
 
-turborerank-tests: $(TURBORERANK_CUDA_OBJ) turborerank-cuda-gemm-proof turbo-buffer-tests
+turborerank-tests: $(TURBORERANK_CUDA_OBJ) turborerank-cuda-gemm-proof turbo-buffer-tests wordpiece-tests
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
@@ -614,8 +655,7 @@ turborerank-tests-nocuda:
 # Prove OpenVINO GPU/CPU create fails loud when the binary has no OV.
 turborerank-tests-noov:
 	mkdir -p native/turborerank/build
-	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include -I native/turborerank/src \
-	  -I native/turbo_buffer/src \
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  $(if $(filter 1,$(TURBORERANK_ENABLE_METAL)),-DTURBORERANK_METAL=1 -DTURBO_BUFFER_METAL=1) \
 	  $(TURBORERANK_METAL_FLAGS) \

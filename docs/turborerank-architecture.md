@@ -137,7 +137,7 @@ Edge cases we test:
 | Longest-first | While `n_q + n_d > max_length - 3`, drop one token from the **longer** side (HF `TruncationStrategy::LongestFirst`). |
 | Query-priority (`only_second`) | Never drop query tokens unless `n_q > max_length - 3`; document eats the remainder. Better for retrieval when documents are long. |
 | Exact budget | `n_q + n_d == max_length - 3` → no truncation. |
-| Unicode | BERT uncased: lowercase + strip accents (NFD, drop Mn) + CJK spacing + punct split + WordPiece. |
+| Unicode | BERT uncased: lowercase + strip accents (NFD, drop Mn) + CJK spacing + punct split + WordPiece write-through into the rented i32 row (`docs/tokenizer-write-through.md`). |
 | Batch 1 vs N | Same packing per row; scores must match one-by-one within a tight FP tolerance. |
 | Sort stability | Library returns input order. RPC `sort_by` is stable on score ties (already implemented). |
 

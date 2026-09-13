@@ -25,6 +25,7 @@ let package = Package(
         .target(
             name: "MlxEngine",
             dependencies: [
+                "WordPieceC",
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
                 .product(name: "MLXEmbedders", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
@@ -81,7 +82,7 @@ let package = Package(
         ),
         .target(
             name: "TurboEmbed",
-            dependencies: ["TurboEmbedC", "TurboBufferC", "MlxEngine", "InferstreamCore"],
+            dependencies: ["TurboEmbedC", "TurboBufferC", "WordPieceC", "MlxEngine", "InferstreamCore"],
             path: "Sources/TurboEmbed",
             swiftSettings: [
                 .enableUpcomingFeature("ExistentialAny")
@@ -99,6 +100,11 @@ let package = Package(
         .target(
             name: "TurboBufferC",
             path: "Sources/TurboBufferC",
+            publicHeadersPath: "include"
+        ),
+        .target(
+            name: "WordPieceC",
+            path: "Sources/WordPieceC",
             publicHeadersPath: "include"
         ),
         .target(

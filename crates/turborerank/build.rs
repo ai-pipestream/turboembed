@@ -127,6 +127,8 @@ fn main() {
         "native/turborerank/src/alloc.cpp",
         "native/turborerank/src/pack.cpp",
         "native/turborerank/src/wordpiece.cpp",
+        "native/wordpiece/vocab_load.cpp",
+        "native/wordpiece/encode.cpp",
         "native/turborerank/src/safetensors.cpp",
         "native/turborerank/src/bert_cpu.cpp",
         "native/turborerank/src/cuda_api.cpp",
@@ -205,6 +207,7 @@ fn main() {
         .cpp(true)
         .std("c++17")
         .include(root.join("include"))
+        .include(root.join("native/wordpiece"))
         .include(root.join("native/turborerank/src"))
         .include(root.join("native/turbo_buffer/src"))
         .warnings(true)

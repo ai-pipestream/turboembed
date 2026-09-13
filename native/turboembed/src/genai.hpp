@@ -1,10 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0
  *
- * Internal façade: ov::genai::Tokenizer + CompiledModel on the official
- * device string ("CPU" / "GPU" / "NPU"). Token rows and hidden-state
- * scratch are rented from the engine turbo_buffer arena (ZE SHARED on
- * GPU). embed_into writes the pooled row into a caller-rented result
- * slot — it does not return a private std::vector.
+ * Internal façade: CompiledModel on the official device string
+ * ("CPU" / "GPU" / "NPU"). Token rows and hidden-state scratch are
+ * rented from the engine turbo_buffer arena (ZE SHARED on GPU).
+ * embed_into writes the pooled row into a caller-rented result slot.
+ *
+ * MiniLM-compatible tokenization is frozen WordPiece write-through
+ * into the rented i32 USM. ov::genai::Tokenizer.encode has no caller
+ * buffer — it is not on the hot path.
  *
  * TextEmbeddingPipeline.embed_documents is not on the hot path: that
  * API private-allocs token_type_ids and EmbeddingResults every call
