@@ -12,6 +12,7 @@
 .venv-cuda-libs/
 # Fetched model artifacts stay out of git — SHA-256 manifests are committed
 # (cargo run -p inferstream-fetch / cargo xtask fetch --mlx).
+/models/rerank/
 /models/*
 !/models/manifests/
 # Fetched soak corpus (SHA-256 in models/manifests/corpus.json).
@@ -19,6 +20,7 @@
 /testdata/corpus/tiny-shakespeare.txt
 native/mlx-engine/.build/
 native/turboembed/build/
+native/turborerank/build/
 swift/.build/
 .DS_Store
 agent-tools/

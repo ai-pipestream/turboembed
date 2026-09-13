@@ -18,6 +18,7 @@ members = [
     "crates/xtask",
     "crates/e2e",
     "crates/turboembed",
+    "crates/turborerank",
 ]
 
 [workspace.package]
@@ -78,6 +79,7 @@ inferstream-backend-turboembed = { path = "crates/backend-turboembed" }
 inferstream-server = { path = "crates/server" }
 inferstream-fetch = { path = "crates/fetch" }
 turboembed = { path = "crates/turboembed" }
+turborerank = { path = "crates/turborerank" }
 
 [profile.release]
 lto = "thin"

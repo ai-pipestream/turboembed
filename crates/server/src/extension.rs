@@ -381,6 +381,7 @@ impl InferstreamService for ExtensionService {
             })
             .collect();
         // Descending score; ties keep input order (stable sort).
+        // Library scores (TurboRerank later) stay in input order; sort lives here.
         results.sort_by(|a, b| b.score.total_cmp(&a.score));
         if req.top_n > 0 {
             results.truncate(req.top_n as usize);

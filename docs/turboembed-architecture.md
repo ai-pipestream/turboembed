@@ -210,7 +210,10 @@ Metal) — see receipts under `testdata/receipts/turboembed/`.
   view wrapper, not a pooled allocator.
 - **Intel NPU** create is fail-loud until a Core Ultra client NPU host
   lists the plugin (`intel-npu.json` on Machine B, `pass=false`).
-- Inferstream **Rerank** is still a mock scorer. **TRT-LLM generation**
+- Inferstream **Rerank RPC** is still a mock scorer. The TurboRerank
+  **library** (Phase 1 CPU MiniLM CE) lives beside this ABI; see
+  [`docs/turborerank-architecture.md`](turborerank-architecture.md).
+  **TRT-LLM generation**
   is a separate stub (`trtllm-sys`) — not the live ORT TensorRT MiniLM
   embed path (`nvidia-minilm-tensorrt.json`).
 

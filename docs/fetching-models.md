@@ -54,7 +54,18 @@ cargo xtask fetch --mlx minilm
 make fetch-corpus                            # Tiny Shakespeare + STS pairs
 make verify-corpus                           # offline hash check (sts-pairs is committed)
 cargo run -p inferstream-fetch -- --corpus --list
+
+make fetch-rerankers                         # MiniLM-L6 cross-encoder (TurboRerank)
+make verify-rerankers
+cargo run -p inferstream-fetch -- --rerankers --list
 ```
+
+**Rerankers** (`models/manifests/rerankers.json`):
+`cross-encoder/ms-marco-MiniLM-L6-v2` @
+`233902d25c440f23af6f7d6e94d2946bac0bee0a` into
+`models/rerank/ms-marco-minilm-l6/` (`model.safetensors`, `vocab.txt`,
+tokenizer + config). Used by `make test-turborerank`. Not a gRPC catalog
+alias yet.
 
 ## E2E / bring-up auto-fetch
 

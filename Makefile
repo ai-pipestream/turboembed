@@ -17,6 +17,9 @@
 #   make e2e-drift                          # popular models × arches (same floors)
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
+#   make fetch-rerankers                    # SHA-pin MiniLM-L6 cross-encoder
+#   make turborerank-tests                  # C++ buffer/pack/fail-loud
+#   make test-turborerank                   # fetch + C++ + Rust live scores
 #   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
@@ -70,7 +73,9 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	fetch-e2e-nvidia fetch-e2e-intel fetch-e2e-apple fetch-e2e-mock \
 	fetch-corpus verify-corpus list-corpus update-corpus-manifest \
 	e2e-parity e2e-parity-goldens e2e-drift \
-	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple
+	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
+	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
+	turborerank-tests test-turborerank
 
 test:
 	$(CARGO) test --workspace
@@ -310,6 +315,9 @@ e2e-drift:
 
 # C++ TurboEmbed ABI stub (no Rust). Writes native/turboembed/build/libturboembed.a
 CXX ?= c++
+# Clang as `c++` on this image lacks libstdc++ headers; g++ is the
+# TurboRerank test compiler. Override with TURBORERANK_CXX=...
+TURBORERANK_CXX ?= g++
 AR ?= ar
 turboembed-stub:
 	mkdir -p native/turboembed/build
@@ -336,3 +344,35 @@ test-turboembed-intel:
 # never mock-only) and apple_minilm_metal_cosine_vs_goldens (receipt).
 test-turboembed-apple:
 	$(CARGO) test -p turboembed --features mlx-live -- --include-ignored --nocapture
+
+# TurboRerank: SHA-pinned MiniLM-L6 CE + C++ / Rust tests.
+fetch-rerankers:
+	$(FETCH) --rerankers $(ALIAS_ARGS)
+
+verify-rerankers:
+	$(FETCH) --rerankers --verify-only $(ALIAS_ARGS)
+
+list-rerankers:
+	$(FETCH) --rerankers --list
+
+update-rerank-manifest:
+	$(FETCH) --rerankers --update-manifest $(ALIAS_ARGS)
+
+TURBORERANK_SRCS := \
+	native/turborerank/src/alloc.cpp \
+	native/turborerank/src/pack.cpp \
+	native/turborerank/src/wordpiece.cpp \
+	native/turborerank/src/safetensors.cpp \
+	native/turborerank/src/bert_cpu.cpp \
+	native/turborerank/src/engine.cpp
+
+turborerank-tests:
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include -I native/turborerank/src \
+	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
+	  -lm -o native/turborerank/build/turborerank_tests
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests
+
+test-turborerank: fetch-rerankers turborerank-tests
+	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture

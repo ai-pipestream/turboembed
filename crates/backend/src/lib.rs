@@ -157,6 +157,11 @@ pub trait Backend: Send + Sync + 'static {
 
     /// Score `documents` against `query`; returns one relevance score per
     /// document, in input order (higher = more relevant).
+    ///
+    /// Default: `Unavailable`. The mock implements word-overlap for the
+    /// wire path. Real MiniLM CE scores live in the TurboRerank C ABI
+    /// (`include/turborerank.h`); a later façade should call that ABI
+    /// instead of inventing scores here.
     async fn rerank(
         &self,
         model_name: &str,
