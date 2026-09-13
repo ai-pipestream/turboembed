@@ -15,8 +15,8 @@
     "ze_query_tokens": "SHARED"
   },
   "cosine": {
-    "intel_golden": 0.9999982714653015,
-    "nvidia_golden": 0.999998152256012,
+    "intel_golden": 0.9999997615814209,
+    "nvidia_golden": 0.9999997615814209,
     "threshold": 0.9900000095367432
   },
   "device": "GPU",
@@ -29,12 +29,12 @@
     "libpython": false
   },
   "normalize": true,
-  "note": "SOLIDIFY (5) Machine B. WordPiece writes ids/mask/types into rented ZE SHARED USM. InferRequest.set_tensor wraps those pointers. ov::genai::Tokenizer.encode is not on the hot path (API has no caller buffer). GPU create without ZE SHARED fails loud.",
+  "note": "SOLIDIFY (7) Machine B. WordPiece writes ids/mask/types into rented ZE SHARED USM. InferRequest.set_tensor wraps those pointers (host ov::Tensor). Remote OCL USM_USER_BUFFER wrap of ZE SHARED is unavailable (OCL size 0). Compile is ACCURACY+f32+LATENCY. ov::genai::Tokenizer.encode is not on the hot path. GPU create without ZE SHARED fails loud.",
   "pipeline": "WordPiece write-through + CompiledModel + turbo_buffer ZE SHARED",
   "pooling": "mean",
   "schema_version": 1,
   "sha": {
-    "git": "ea7e26bc343c101d44dbf2b4602b26bf65d1a0c8",
+    "git": "04eb82600f1ee5f348f233467b114b5328e2dd95",
     "openvino_model.bin": "8b86cab4722e2aefab310cf96d4d5a9eb3b187f7d9670a082afc55c7fa0d392a",
     "openvino_tokenizer.bin": "80a46227495510dedab560d9eac9d4a9d43425b1aa754f9c7935fe70875e2cb2"
   },

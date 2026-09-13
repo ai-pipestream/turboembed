@@ -7,6 +7,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <sys/stat.h>
 #include <vector>
@@ -15,6 +16,9 @@
 #include <openvino/core/preprocess/pre_post_process.hpp>
 #include <openvino/openvino.hpp>
 #include <openvino/runtime/core.hpp>
+#include <openvino/runtime/intel_gpu/remote_properties.hpp>
+#include <openvino/runtime/properties.hpp>
+#include <openvino/runtime/remote_context.hpp>
 #endif
 
 
@@ -87,6 +91,15 @@ bool listed_has_cpu(const std::vector<std::string> &devs) {
         }
     }
     return false;
+}
+
+ov::AnyMap ov_accuracy_props() {
+    ov::AnyMap props;
+    props[ov::hint::execution_mode.name()] = ov::hint::ExecutionMode::ACCURACY;
+    props[ov::hint::inference_precision.name()] = ov::element::f32;
+    props[ov::hint::performance_mode.name()] = ov::hint::PerformanceMode::LATENCY;
+    props[ov::hint::dynamic_quantization_group_size.name()] = static_cast<uint64_t>(0);
+    return props;
 }
 
 bool ov_list_devices(std::vector<std::string> *devs, std::string *err) {
@@ -216,6 +229,75 @@ bool ov_usm_available(std::string *why) {
     return false;
 }
 
+bool ov_probe_remote_usm_wrap(std::string *why) {
+#ifdef TURBORERANK_OPENVINO
+    std::string present_why;
+    if (!ov_gpu_present(&present_why)) {
+        if (why) {
+            *why = present_why;
+        }
+        return false;
+    }
+    if (!ov_usm_shared_available(&present_why)) {
+        if (why) {
+            *why = present_why;
+        }
+        return false;
+    }
+    void *usm = nullptr;
+    const size_t bytes = 64 * sizeof(int32_t);
+    const turbo_buffer_status st = turbo_buffer_raw_alloc(
+        TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_SHARED, bytes, &usm
+    );
+    if (st != TURBO_BUFFER_OK || usm == nullptr) {
+        if (why) {
+            const char *msg = turbo_buffer_last_error(nullptr);
+            *why = msg && msg[0] ? msg : "ZE SHARED alloc failed for remote-USM probe";
+        }
+        return false;
+    }
+    std::memset(usm, 0, bytes);
+    bool ok = false;
+    try {
+        ov::Core core;
+        auto param = std::make_shared<ov::op::v0::Parameter>(
+            ov::element::i32, ov::Shape{1, 8}
+        );
+        param->set_friendly_name("input_ids");
+        param->output(0).set_names({"input_ids"});
+        auto result = std::make_shared<ov::op::v0::Result>(param);
+        auto model = std::make_shared<ov::Model>(
+            ov::ResultVector{result}, ov::ParameterVector{param}, "remote_usm_probe"
+        );
+        auto compiled = core.compile_model(model, "GPU", ov_accuracy_props());
+        ov::RemoteContext ctx = compiled.get_context();
+        ov::AnyMap tparams = {
+            {ov::intel_gpu::shared_mem_type.name(),
+             ov::intel_gpu::SharedMemType::USM_USER_BUFFER},
+            {ov::intel_gpu::mem_handle.name(),
+             static_cast<ov::intel_gpu::gpu_handle_param>(usm)},
+        };
+        (void)ctx.create_tensor(ov::element::i32, ov::Shape{1, 8}, tparams);
+        ok = true;
+        if (why) {
+            *why = "USM_USER_BUFFER wrap accepted for turbo_buffer ZE SHARED";
+        }
+    } catch (const std::exception &e) {
+        if (why) {
+            *why = e.what();
+        }
+        ok = false;
+    }
+    turbo_buffer_raw_free(TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_SHARED, usm);
+    return ok;
+#else
+    if (why) {
+        *why = "binary compiled without OpenVINO";
+    }
+    return false;
+#endif
+}
+
 bool ov_usm_shared_available(std::string *why) {
     const turbo_buffer_status st = turbo_buffer_backend_probe(
         TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_SHARED
@@ -331,16 +413,20 @@ bool ov_resources_init(
         hold->out_logits = model->output(0).get_any_name();
 
         const char *ov_dev = want_gpu ? "GPU" : "CPU";
-        ov::AnyMap props;
-        props[ov::hint::execution_mode.name()] = ov::hint::ExecutionMode::ACCURACY;
-        props[ov::hint::inference_precision.name()] = ov::element::f32;
-        hold->compiled = hold->core.compile_model(model, ov_dev, props);
+        hold->compiled = hold->core.compile_model(model, ov_dev, ov_accuracy_props());
         hold->request = hold->compiled.create_infer_request();
 
         r->enabled = true;
         r->gpu = want_gpu;
         r->token_usm = ov_usm_available(nullptr);
         r->remote_wrap = false;
+        if (want_gpu) {
+            std::string wrap_why;
+            r->remote_wrap = ov_probe_remote_usm_wrap(&wrap_why);
+            r->remote_wrap_why = wrap_why;
+        } else {
+            r->remote_wrap_why = "CPU path; remote GPU wrap not applicable";
+        }
         r->ov_device = ov_dev;
         r->hold = hold;
         r->max_batch = cfg.max_batch;

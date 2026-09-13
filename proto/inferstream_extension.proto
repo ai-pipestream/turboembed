@@ -20,10 +20,11 @@
 //     ModelMetadata round-trips: name, backend, readiness, platform and
 //     embedding dimension in one call.
 //   * Rerank — query/document relevance scoring. Catalog CE aliases
-//     (`ms-marco-minilm-l6`) call the TurboRerank C ABI (sigmoid,
-//     TEI raw_scores=false). Engines without a reranker report
-//     UNAVAILABLE. The mock backend implements word-overlap for
-//     explicit mock models only — never for catalog CE aliases.
+//     (`ms-marco-minilm-l6`) call the TurboRerank C ABI. Default is
+//     sigmoid (TEI raw_scores=false). `RerankRequest.raw_scores=true`
+//     returns the identity CLS logit. Engines without a reranker
+//     report UNAVAILABLE. The mock backend implements word-overlap
+//     for explicit mock models only — never for catalog CE aliases.
 //
 // Clients that only speak OIP lose nothing: every Embed call is expressible
 // as ModelInfer with a BYTES "text" input tensor and the InferParameters
@@ -204,6 +205,10 @@ message RerankRequest {
   // TEI `return_text` / `return_documents`: echo the original document
   // string on each result row.
   bool return_documents = 5;
+  // TEI `raw_scores`. false (default) = sigmoid(CLS logit) for catalog
+  // CE aliases. true = identity CLS logit. Mock word-overlap ignores
+  // this flag (no classifier head).
+  bool raw_scores = 6;
 }
 
 message RerankResponse {
@@ -216,7 +221,8 @@ message RerankResult {
   // Index of the document in RerankRequest.documents.
   uint32 index = 1;
   // Relevance score (backend-specific scale; higher = more relevant).
-  // Catalog CE aliases: sigmoid(CLS logit), TEI raw_scores=false.
+  // Catalog CE aliases: sigmoid(CLS logit) unless the request set
+  // raw_scores (then the identity CLS logit).
   float score = 2;
   // Populated when RerankRequest.return_documents is set.
   string document = 3;

@@ -24,7 +24,7 @@ Catalog CE aliases call the ABI. Mock word-overlap is tests-only.
 
 | file | role |
 |---|---|
-| `proto/inferstream_extension.proto` | `rpc Rerank`; `RerankRequest` (`model_name`, `query`, `documents`, `top_n`); `RerankResult` (`index`, `score`). Comment: engines without a reranker → `UNAVAILABLE`; mock implements a deterministic scorer. |
+| `proto/inferstream_extension.proto` | `rpc Rerank`; `RerankRequest` (`model_name`, `query`, `documents`, `top_n`, `return_documents`, `raw_scores`); `RerankResult` (`index`, `score`). Comment: engines without a reranker → `UNAVAILABLE`; mock implements a deterministic scorer. |
 | `swift/Sources/InferstreamApple/Protos/inferstream_extension.proto` | Apple copy of the same proto. |
 | `crates/backend/src/lib.rs` | `Backend::rerank` default → `Unavailable`. |
 | `crates/backend-turborerank/src/lib.rs` | `TurboRerankBackend`: `turborerank_score` + SIGMOID, input order. |
@@ -395,7 +395,8 @@ Hostnames stay out of docs.
 | gRPC `Rerank` → ABI | Phase 3 — `--features turborerank` / Swift |
 | Swift wrapper (`TurboRerankC` + client) | Phase 2c/3 — ABI stays C++/ObjC++ |
 | TEI `return_documents` + batch cap 32 | Phase 3 |
-| TEI `raw_scores` request flag | later |
+| TEI `raw_scores` request flag | LIVE — `RerankRequest.raw_scores` (identity vs sigmoid) |
+| Remote OCL `USM_USER_BUFFER` wrap of ZE SHARED | **unavailable on Machine B** — OCL engine reports size 0 (`docs/intel-remote-usm-machine-b.md`) |
 
 ## 10. Citations
 

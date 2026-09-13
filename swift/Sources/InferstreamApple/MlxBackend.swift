@@ -141,7 +141,7 @@ final class MlxBackend: ModelBackend, Sendable {
         return try tokenizer.detokenize(sequences, skipSpecialTokens: skipSpecialTokens)
     }
 
-    func rerank(query: String, documents: [String]) async throws -> [Float] {
+    func rerank(query: String, documents: [String], rawScores _: Bool) async throws -> [Float] {
         throw ServeError.unavailable("mlx backend has no reranker")
     }
 

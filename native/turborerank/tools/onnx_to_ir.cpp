@@ -27,8 +27,11 @@ int main(int argc, char **argv) {
     try {
         ov::Core core;
         std::shared_ptr<ov::Model> model = core.read_model(onnx);
-        ov::save_model(model, xml, true);
-        std::fprintf(stderr, "wrote %s\n", xml);
+        // FP32 weights. compress_to_fp16=true was the Berlin ~8.3e-4
+        // error floor: ACCURACY + f32 compile hints cannot recover
+        // bits already dropped at save.
+        ov::save_model(model, xml, false);
+        std::fprintf(stderr, "wrote %s (compress_to_fp16=false)\n", xml);
         return 0;
     } catch (const std::exception &e) {
         std::fprintf(stderr, "onnx_to_ir failed: %s\n", e.what());

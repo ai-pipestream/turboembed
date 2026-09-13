@@ -196,6 +196,7 @@ struct OvResources {
     bool gpu = false;
     bool token_usm = false;
     bool remote_wrap = false;
+    std::string remote_wrap_why;
     std::string ov_device;
     void *hold = nullptr;
     uint32_t max_batch = 0;

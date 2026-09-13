@@ -29,6 +29,14 @@ bool ov_usm_available(std::string *why);
 /** ZE SHARED USM (GPU). Missing GPU → false, never a HOST stand-in. */
 bool ov_usm_shared_available(std::string *why);
 
+/**
+ * SOLIDIFY (7): try wrapping a turbo_buffer ZE SHARED pointer as
+ * `USM_USER_BUFFER` on the compiled GPU RemoteContext.
+ * Returns true only if create_tensor accepts the L0 pointer.
+ * On this Machine B stack the OCL engine reports size 0.
+ */
+bool ov_probe_remote_usm_wrap(std::string *why);
+
 void *usm_alloc_bytes(size_t bytes, bool shared_ok, Status *status);
 void usm_free_bytes(void *ptr);
 
@@ -46,7 +54,9 @@ void ov_resources_free(OvResources *r);
  * Batch MiniLM CE via CompiledModel. Token pointers are caller-owned
  * Level Zero USM (or OV-CPU aligned). Wrapped as
  * `ov::Tensor(element::i32, {n_rows, seq}, usm_pointer)` — no
- * std::vector on this path.
+ * std::vector on this path. Remote OCL `USM_USER_BUFFER` wrap of
+ * those ZE pointers is probed at init and is unavailable on
+ * Machine B (OCL reports size 0).
  */
 bool bert_forward_ov(
     OvResources *r,

@@ -242,6 +242,7 @@ async fn packed_bytes_and_rerank_reuse_output_scratch_after_warmup() {
         ],
         top_n: 0,
         return_documents: false,
+        raw_scores: false,
     };
 
     // Warm the size-class slabs (mock still heap-allocs its own infer blob).
@@ -510,6 +511,7 @@ async fn rerank_orders_by_score_and_honors_top_n() {
             ],
             top_n: 0,
             return_documents: false,
+            raw_scores: false,
         })
         .await
         .unwrap()
@@ -525,6 +527,7 @@ async fn rerank_orders_by_score_and_honors_top_n() {
             documents: vec!["cooking".into(), "rust inference".into()],
             top_n: 1,
             return_documents: true,
+            raw_scores: false,
         })
         .await
         .unwrap()
@@ -548,6 +551,7 @@ async fn rerank_validates_input() {
             documents: vec![],
             top_n: 0,
             return_documents: false,
+            raw_scores: false,
         })
         .await
         .unwrap_err();
@@ -560,6 +564,7 @@ async fn rerank_validates_input() {
             documents: (0..33).map(|i| format!("d{i}")).collect(),
             top_n: 0,
             return_documents: false,
+            raw_scores: false,
         })
         .await
         .unwrap_err();

@@ -331,6 +331,7 @@ impl InferstreamService for ExtensionService {
                 &req.model_name,
                 &req.query,
                 &req.documents,
+                req.raw_scores,
                 &mut scores,
             )
             .await

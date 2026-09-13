@@ -464,7 +464,8 @@ Still open:
 7. **Rerank RPC** — **LIVE** behind `--features turborerank` (nvidia /
    intel) and the Swift server (Machine C). TensorRT CE still fail-loud.
    TEI `return_documents` + batch cap 32 are on the RPC; richer TEI
-   extras (`raw_scores` query flag) are a later follow-up.
+   extras (`raw_scores` on `RerankRequest`) are on the RPC
+   (identity CLS logit vs default sigmoid; TEI-compatible).
 8. **TLS / mTLS** in `serve()`; per-key model ACLs after.
 9. Optional adapters: TEI-compatible proto (lowest priority), richer stream metadata.
 10. ORT session pooling (one session per model behind a mutex today; intra-op threads still parallelize each request).

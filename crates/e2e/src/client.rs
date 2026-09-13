@@ -150,6 +150,7 @@ pub async fn rerank(
         documents,
         top_n,
         return_documents: false,
+        raw_scores: false,
     }))
     .await
     .map(|r| r.into_inner())

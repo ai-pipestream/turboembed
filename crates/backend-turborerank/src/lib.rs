@@ -6,7 +6,8 @@
 //! relevance scores. Word-overlap stays on the explicit mock backend
 //! for wire-path tests only.
 //!
-//! Product scores are **sigmoid(CLS logit)** (TEI `raw_scores=false`).
+//! Product scores default to **sigmoid(CLS logit)** (TEI
+//! `raw_scores=false`). `RerankRequest.raw_scores=true` uses identity.
 //! The library returns floats in **input order**; `extension.rs` still
 //! owns sort + `top_n`.
 //!
@@ -252,6 +253,7 @@ impl Backend for TurboRerankBackend {
         model_name: &str,
         query: &str,
         documents: &[String],
+        raw_scores: bool,
     ) -> Result<Vec<f32>, BackendError> {
         if documents.is_empty() {
             return Err(BackendError::InvalidRequest(
@@ -286,7 +288,11 @@ impl Backend for TurboRerankBackend {
                     &query,
                     &views,
                     Truncation::LongestFirst,
-                    Activation::Sigmoid,
+                    if raw_scores {
+                        Activation::Identity
+                    } else {
+                        Activation::Sigmoid
+                    },
                     0,
                 )
                 .map_err(map_tr)
@@ -308,6 +314,7 @@ impl Backend for TurboRerankBackend {
         model_name: &str,
         query: &str,
         documents: &[String],
+        raw_scores: bool,
         dest: &mut Vec<f32>,
     ) -> Result<(), BackendError> {
         if documents.is_empty() {
@@ -347,7 +354,11 @@ impl Backend for TurboRerankBackend {
                     &query,
                     &views,
                     Truncation::LongestFirst,
-                    Activation::Sigmoid,
+                    if raw_scores {
+                        Activation::Identity
+                    } else {
+                        Activation::Sigmoid
+                    },
                     0,
                     &mut dest_buf,
                 )

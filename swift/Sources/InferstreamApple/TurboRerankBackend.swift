@@ -85,7 +85,7 @@ final class TurboRerankBackend: ModelBackend, Sendable {
         throw ServeError.unavailable("turborerank backend has no tokenizer RPC; configure tokenizer_dir")
     }
 
-    func rerank(query: String, documents: [String]) async throws -> [Float] {
+    func rerank(query: String, documents: [String], rawScores: Bool) async throws -> [Float] {
         if documents.isEmpty {
             throw ServeError.invalid("documents must not be empty")
         }
@@ -101,7 +101,7 @@ final class TurboRerankBackend: ModelBackend, Sendable {
             return try engine.score(
                 query: query,
                 documents: documents,
-                activation: TURBORERANK_ACT_SIGMOID,
+                activation: rawScores ? TURBORERANK_ACT_IDENTITY : TURBORERANK_ACT_SIGMOID,
                 maxLength: 0
             )
             #else

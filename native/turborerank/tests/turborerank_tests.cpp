@@ -856,6 +856,25 @@ static void test_ov_usm_buffer() {
     turborerank_buffer_free(b2);
 }
 
+static void test_ov_remote_usm_wrap_unavailable() {
+    if (!ov_gpu_live()) {
+        std::fprintf(stderr, "SKIP OV remote-USM wrap probe (no GPU plugin)\n");
+        return;
+    }
+    std::string why;
+    const bool live = turborerank::impl::ov_probe_remote_usm_wrap(&why);
+    if (live) {
+        std::fprintf(stderr, "OV remote-USM wrap LIVE: %s\n", why.c_str());
+        CHECK(live);
+        return;
+    }
+    CHECK(!live);
+    CHECK(why.find("smaller size (0)") != std::string::npos ||
+          why.find("USM") != std::string::npos ||
+          why.find("shared") != std::string::npos);
+    std::fprintf(stderr, "OV remote-USM wrap UNAVAILABLE: %s\n", why.c_str());
+}
+
 static void test_ov_real_model_scores(turborerank_device device) {
     if (device == TURBORERANK_DEVICE_OPENVINO_GPU && !ov_gpu_live()) {
         std::fprintf(stderr, "SKIP OV GPU MiniLM CE (no GPU plugin)\n");
@@ -1228,6 +1247,7 @@ int main() {
     test_real_model_scores();
     test_cuda_real_model_scores();
     test_ov_usm_buffer();
+    test_ov_remote_usm_wrap_unavailable();
     test_ov_real_model_scores(TURBORERANK_DEVICE_OPENVINO_GPU);
     test_ov_real_model_scores(TURBORERANK_DEVICE_OPENVINO_CPU);
     test_erf_approx_beats_as();

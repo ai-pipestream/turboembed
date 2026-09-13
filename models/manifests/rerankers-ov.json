@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_comment": "SHA-256 pin for the MiniLM-L6 CE OpenVINO IR. Produced locally from the pinned safetensors (contrib/offline-once/export_minilm_ce_onnx.py + native/turborerank/tools/onnx_to_ir). Not a Hugging Face download. Do not edit hashes by hand.",
+  "_comment": "SHA-256 pin for the MiniLM-L6 CE OpenVINO IR (FP32, compress_to_fp16=false). Produced locally from the pinned safetensors (contrib/offline-once/export_minilm_ce_onnx.py + native/turborerank/tools/onnx_to_ir). Not a Hugging Face download. Do not edit hashes by hand.",
   "source_safetensors_revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
   "models": {
     "ms-marco-minilm-l6": {
@@ -9,13 +9,13 @@
       "files": [
         {
           "path": "openvino_model.xml",
-          "sha256": "6eb0b9074a3b277e601874d25f0f6e9fd7527ba66728de4b5e0b8598296df6d0",
-          "size": 471786
+          "sha256": "7c14ec8664b37a6d1e74370c65202b7e9f275ca545d81af5fc99f39e08d2f525",
+          "size": 387503
         },
         {
           "path": "openvino_model.bin",
-          "sha256": "755b95975219673166a4b2db2b300ac31ce3d9d96df7d4cd3bcda8232e4a44e2",
-          "size": 45431425
+          "sha256": "1ec03e9f414b6a4ccb73fc1d674f906bd7f246a04414d9ad058e61b40b270dcd",
+          "size": 90858633
         },
         {
           "path": "model.onnx",

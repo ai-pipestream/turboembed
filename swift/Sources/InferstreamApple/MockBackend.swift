@@ -61,7 +61,7 @@ final class MockBackend: ModelBackend, Sendable {
         }
     }
 
-    func rerank(query: String, documents: [String]) async throws -> [Float] {
+    func rerank(query: String, documents: [String], rawScores _: Bool) async throws -> [Float] {
         documents.map { doc in
             Float(doc.contains(query) ? 1.0 : 0.1)
         }
