@@ -33,7 +33,7 @@ flowchart TB
     end
 
     subgraph impl [Arch implementations — same symbols]
-        Cpp["C++ stub + ORT CUDA + OpenVINO GenAI"]
+        Cpp["C++ mock-smoke default + ORT CUDA/TensorRT + OpenVINO GenAI"]
         Mlx["Swift @_cdecl → MLXEmbedders mean+L2 (Metal)"]
     end
 
@@ -60,13 +60,13 @@ flowchart TB
     Mlx --> Apple
 ```
 
-| Layer | Who owns it | Status in this scaffold |
+| Layer | Who owns it | Status |
 |---|---|---|
 | C header `include/turboembed.h` | Frozen ABI v1 | landed |
-| C++ `native/turboembed` | nvidia / intel / Linux CI | `mock-embed` on explicit `MOCK`/`CPU` only; `--features ort-cuda` / `genai` wire real MiniLM. GPU request never silently becomes CPU or mock |
-| Swift `@_cdecl` shim | Apple (same header) | **LIVE** — `libTurboEmbed.dylib` → `MlxEngine` mean+L2 on Metal |
-| Rust `crates/turboembed` | safe zero-copy wrapper | ABI smoke + `mlx-live` / `ort-cuda` / `genai` receipts |
-| gRPC `Embed` / `EmbedStream` | thin façade over the C ABI | **wired** — catalog aliases call TurboEmbed |
+| C++ `native/turboembed` | nvidia / intel / Linux CI | default no-feature link is mock smoke (`mock-embed` on explicit `MOCK`/`CPU` only). `--features ort-cuda` wires CUDA + CPU + TensorRT MiniLM; `--features genai` wires GPU + CPU. GPU request never silently becomes CPU or mock |
+| Swift `@_cdecl` shim | Apple (same header) | **LIVE** — `libTurboEmbed.dylib` → `MlxEngine` mean+L2 on Metal (krickert-mac). Rust `inferstream-apple` is a Linux CI compile stub only |
+| Rust `crates/turboembed` | safe view wrapper over the C ABI | ABI smoke + `mlx-live` / `ort-cuda` / `genai` receipts |
+| gRPC `Embed` / `EmbedStream` | thin façade over the C ABI | **LIVE** — catalog aliases call TurboEmbed on all three arches |
 | inferstream arch servers | LLM + mock unchanged | catalog embeds (`minilm`, …) go through `inferstream-backend-turboembed` / Swift `TurboEmbedBackend` |
 
 ## ABI ownership rules
@@ -112,18 +112,19 @@ typedef struct turboembed_provider_vtbl {
 turboembed_status turboembed_register_provider(const turboembed_provider_vtbl *);
 ```
 
-Today `turboembed_register_provider` returns `NOT_IMPLEMENTED`. The stub
-engine answers `mock-embed` itself. inferstream catalog Embed does not
-call this vtable; it calls the frozen create/load/embed symbols.
+Today `turboembed_register_provider` returns `NOT_IMPLEMENTED`. The
+default no-feature link answers `mock-embed` itself. inferstream catalog
+Embed does not call this vtable; it calls the frozen create/load/embed
+symbols.
 
 Wiring map (do not invent a fourth runtime):
 
 | Provider id | Host | Existing code to call later |
 |---|---|---|
-| `ort` | nvidia | `crates/backend-ort` (CUDA EP / CPU EP) |
+| `ort` | nvidia | `crates/backend-ort` (CUDA EP / CPU EP / TensorRT EP) |
 | `openvino-genai` | intel | `crates/backend-openvino` `TextEmbeddingPipeline` |
 | `mlx` | apple | `swift/Sources/MlxEngine` (`MLXEmbedders`) |
-| `mock` | any | C++ stub (this repo) / `backend-mock` |
+| `mock` | any | default no-feature C++ link / `backend-mock` — ABI smoke only |
 | `model2vec` | later | plugin only — not shipped |
 
 Aliases stay the catalog names (`minilm`, `bge-small`, …). Clients never
@@ -178,7 +179,7 @@ servers construct `TurboEmbedBackend` (Rust nvidia/intel) or Swift
 
 | arch binary | catalog `backend` | TurboEmbed device | provider feature |
 |---|---|---|---|
-| `inferstream-nvidia` | `ort` | `AUTO` / `CUDA` (catalog default `cuda`); explicit `cpu` is CPU EP | `--features ort-cuda` |
+| `inferstream-nvidia` | `ort` | `AUTO` / `CUDA` (catalog default `cuda`); explicit `cpu` is CPU EP; `tensorrt` is ORT TensorRT EP | `--features ort-cuda` |
 | `inferstream-intel` | `openvino` | `AUTO` / `OPENVINO_GPU` (catalog default `GPU`); explicit `CPU`; `NPU` fails loud until a host lists the plugin (`intel-npu.json`) | `--features openvino-genai` |
 | `inferstream-apple` (Swift) | `mlx` + `pooling` set | `AUTO` = Metal | `libTurboEmbed.dylib` on a Mac |
 
@@ -194,22 +195,24 @@ LLM paths are untouched: `backend = "llama-cpp"` (nvidia/intel) and
 Apple `mlx` aliases **without** `pooling` (default-llm / qwen-*) still
 use llama.cpp / mlx-swift-lm for Tokenize and `ModelStreamInfer`.
 
-## What this scaffold does not do
+## Remaining gaps
+
+These are the things TurboEmbed still does **not** do. The C ABI itself
+is live (ORT CUDA / CPU / TensorRT, Intel GenAI GPU / CPU, Apple MLX
+Metal) — see receipts under `testdata/receipts/turboembed/`.
 
 - Does not replace Tokenize / StreamInfer for generative GGUF / MLX LLMs.
-- **NVIDIA ORT CUDA is wired** (`--features ort-cuda`): IoBinding device
-  buffers; a CUDA request never becomes CPU. Receipts:
-  `nvidia-minilm.json` (CUDA) and `nvidia-minilm-cpu.json`.
-- **Intel GenAI CPU and GPU are wired.** `--features genai` /
-  `openvino-genai` constructs `ov::genai::TextEmbeddingPipeline` with the
-  official `"CPU"` or `"GPU"` string. A GPU request fails if the GPU
-  plugin is missing (no silent CPU). Receipts: `intel-minilm.json` (GPU)
-  and `intel-minilm-cpu.json`. NPU create is fail-loud until a host
-  lists the plugin (`intel-npu.json`).
-- **Apple MLX is wired** on macOS: `Device::Metal` / `Device::Auto` +
-  `minilm` is FP mean+L2. Receipt: `apple-minilm.json`.
 - Does not add Python bindings.
 - Does not invent a second gRPC service.
+- **model2vec** is not shipped. `turboembed_register_provider` returns
+  `NOT_IMPLEMENTED`.
+- **Zero-copy buffer pool** is aspirational. The Rust crate is a safe
+  view wrapper, not a pooled allocator.
+- **Intel NPU** create is fail-loud until a Core Ultra client NPU host
+  lists the plugin (`intel-npu.json` on krick-1, `pass=false`).
+- Inferstream **Rerank** is still a mock scorer. **TRT-LLM generation**
+  is a separate stub (`trtllm-sys`) — not the live ORT TensorRT MiniLM
+  embed path (`nvidia-minilm-tensorrt.json`).
 
 ## Mock is smoke-only
 
@@ -219,9 +222,10 @@ an 8-d FNV vector. That path is never a silent substitute for a missing
 Metal/GPU/ORT/GenAI provider.
 
 Catalog aliases (`minilm`, `bge-*`, `e5-*`, …) on `AUTO` / `METAL` /
-`CUDA` / `OPENVINO_*` must come from the real engine or **fail loud**.
+`CUDA` / `TENSORRT` / `OPENVINO_*` must come from the real engine or
+**fail loud**.
 A live/integration test that accepts `dim == 8` for those aliases is
 wrong — it is asserting the mock.
 
-Build the stub and the Rust smoke test: see the [root README](../README.md#turboembed)
-and `native/turboembed/README.md`.
+Build the default no-feature link and the Rust smoke test: see the
+[root README](../README.md#turboembed) and `native/turboembed/README.md`.

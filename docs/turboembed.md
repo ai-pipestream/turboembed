@@ -6,9 +6,10 @@ and `embed_one` / `embed` to get a real FP32 sentence vector.
 
 There is **no mock path** for catalog aliases and **no silent device
 swap**. A CUDA request never becomes CPU. Explicit `TURBOEMBED_DEVICE_CPU`
-is a real CPU EP path. Without a real provider feature the stub answers
+is a real CPU EP path. Without a real provider feature the default no-feature link answers
 `mock-embed` and returns `NOT_IMPLEMENTED` for `minilm` (and every other
-catalog name).
+catalog name). Mock is ABI smoke only; catalog aliases never become 8-d
+FNV.
 
 | arch | provider | crate feature | create device |
 |---|---|---|---|
