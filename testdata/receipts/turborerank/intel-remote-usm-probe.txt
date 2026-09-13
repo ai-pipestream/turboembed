@@ -1,0 +1,41 @@
+=== SOLIDIFY (7) remote-USM wrap probe ===
+openvino.build                 2026.3.1-22476-759c5a6ab8c-releases/2026/3 OpenVINO Runtime
+ov.devices                       CPU, GPU
+gpu.full_name                    Intel(R) Graphics [0xe223] (dGPU)
+gpu.prop.FULL_DEVICE_NAME       Intel(R) Graphics [0xe223] (dGPU)
+gpu.prop.DEVICE_TYPE            discrete
+gpu.prop.OPTIMIZATION_CAPABILITIES FP32 BIN FP16 INT8 GPU_HW_MATMUL GPU_USM_MEMORY EXPORT_IMPORT
+gpu.prop.INFERENCE_PRECISION_HINT f16
+gpu.prop.EXECUTION_MODE_HINT    PERFORMANCE
+gpu.prop.GPU_UARCH_VERSION      20.2.0
+gpu.prop.GPU_EXECUTION_UNITS_COUNT 256
+gpu.prop.CONTEXT_TYPE           ERR Exception from src/inference/src/cpp/core.cpp:268:
+Exception from src/inference/src/dev/plugin.cpp:112:
+Check 'it != all_properties.end()' failed at src/plugins/intel_gpu/src/plugin/plugin.cpp:596:
+[GPU] Property CONTEXT_TYPE is not in a list of supported properties
+
+
+
+ze.shared.ptr                  0x71091c0e0000 place=3 (3=SHARED)
+compile                          OK GPU ACCURACY+f32
+compiled.get_context             OK
+ctx.param.CONTEXT_TYPE         OCL
+ctx.param.OCL_CONTEXT          0x6553ff3d4f00
+ctx.param.OCL_QUEUE            0
+create_tensor(USM_USER_BUFFER)  FAIL Exception from src/inference/src/cpp/remote_context.cpp:68:
+Check 'actual_mem_size >= requested_mem_size' failed at src/plugins/intel_gpu/src/runtime/ocl/ocl_engine.cpp:311:
+[GPU] shared USM buffer has smaller size (0) than specified layout (32)
+
+
+infer.plugin_usm_host            OK (OV-allocated, not turbo_buffer)
+infer.host_tensor_usm            OK (current path)
+
+=== verdict ===
+remote_usm_user_buffer         FAIL : Exception from src/inference/src/cpp/remote_context.cpp:68:
+Check 'actual_mem_size >= requested_mem_size' failed at src/plugins/intel_gpu/src/runtime/ocl/ocl_engine.cpp:311:
+[GPU] shared USM buffer has smaller size (0) than specified layout (32)
+
+
+plugin_usm_host_buffer         LIVE
+ocl.hpp                        UNAVAILABLE (CL/cl2.hpp missing on this host)
+result                           WRAP_IMPOSSIBLE_ON_THIS_STACK

@@ -12,7 +12,7 @@ still later work. This page is the Intel wrap / accuracy gate.
 |---|---|---|
 | 1 | Remote-OCL / `USM_USER_BUFFER` wrap of **turbo_buffer ZE SHARED** is either LIVE or proven unavailable | `make probe-remote-usm` + `testdata/receipts/turborerank/intel-remote-usm-probe.txt`. C++ `test_ov_remote_usm_wrap_unavailable`. |
 | 2 | No greenwash | Receipts keep `remote_ocl_usm_wrap: false` unless `create_tensor(USM_USER_BUFFER)` actually accepts a ZE SHARED pointer. Plugin-owned `USM_HOST_BUFFER` is a different allocator and does not count. |
-| 3 | Berlin abs error improves vs the FP16-IR floor (~8.3e-4) when possible | `onnx_to_ir` saves `compress_to_fp16=false`. Compile uses `ACCURACY` + `inference_precision=f32` + `LATENCY` + `dynamic_quantization_group_size=0`. Receipt `max_abs_logit_err`. |
+| 3 | Berlin abs error improves vs the FP16-IR floor (~8.3e-4) when possible | LIVE: GPU `max_abs_logit_err` **1.43e-6** (was 8.32e-4). CPU **3.34e-6**. `onnx_to_ir` saves `compress_to_fp16=false`. Compile uses `ACCURACY` + `inference_precision=f32` + `LATENCY` + `dynamic_quantization_group_size=0`. |
 
 ## Software stack (this host)
 
@@ -77,6 +77,15 @@ This item saves FP32 IR and compiles TurboRerank + TurboEmbed with:
 - `ov::hint::dynamic_quantization_group_size = 0`
 
 TurboEmbed previously compiled with **no** hints (GPU default f16).
+MiniLM embed cosine vs the Intel golden moved from ~0.99999827 to
+**0.99999976** after the compile hints (same IR).
+
+Berlin CE logits vs HF on this host after the FP32 IR:
+
+| device | max abs logit err | previous FP16 IR |
+|---|---|---|
+| OPENVINO_GPU | 1.43e-6 | 8.32e-4 |
+| OPENVINO_CPU | 3.34e-6 | (same band as GPU) |
 
 ## Commands
 

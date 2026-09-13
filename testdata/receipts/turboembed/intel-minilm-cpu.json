@@ -10,8 +10,8 @@
     "ze_query_tokens": "HOST"
   },
   "cosine": {
-    "intel_golden": 0.9999784231185913,
-    "nvidia_golden": 0.999978244304657,
+    "intel_golden": 0.9999997615814209,
+    "nvidia_golden": 0.9999997615814209,
     "threshold": 0.9900000095367432
   },
   "device": "CPU",
@@ -23,12 +23,12 @@
     "libpython": false
   },
   "normalize": true,
-  "note": "SOLIDIFY (5) Machine B CPU. WordPiece write-through into rented HOST i32 rows. Same IR as GPU. GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
+  "note": "SOLIDIFY (7) Machine B CPU. WordPiece write-through into rented HOST i32 rows. Same IR as GPU. Compile is ACCURACY+f32+LATENCY. GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
   "pipeline": "WordPiece write-through + CompiledModel + turbo_buffer HOST",
   "pooling": "mean",
   "schema_version": 1,
   "sha": {
-    "git": "ea7e26bc343c101d44dbf2b4602b26bf65d1a0c8",
+    "git": "04eb82600f1ee5f348f233467b114b5328e2dd95",
     "openvino_model.bin": "8b86cab4722e2aefab310cf96d4d5a9eb3b187f7d9670a082afc55c7fa0d392a",
     "openvino_tokenizer.bin": "80a46227495510dedab560d9eac9d4a9d43425b1aa754f9c7935fe70875e2cb2"
   },
