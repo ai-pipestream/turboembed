@@ -7,9 +7,11 @@ import Foundation
 /// Swift client over the frozen TurboRerank C ABI.
 ///
 /// Metal compute lives in `native/turborerank/src/metal_api.mm`
-/// (MTLResourceStorageModeShared + first-party kernels). This module
-/// does **not** `@_cdecl` the ABI — that would collide with the C++
-/// implementation the Rust crate links. See `docs/turborerank-swift.md`.
+/// (turbo_buffer Metal SHARED + first-party kernels). `score`
+/// calls `turborerank_score` and must not allocate CE token rows
+/// in Swift. This module does **not** `@_cdecl` the ABI — that
+/// would collide with the C++ implementation the Rust crate links.
+/// See `docs/turborerank-swift.md`.
 
 public enum TurboRerankError: Error, LocalizedError, Sendable {
     case status(turborerank_status, String)

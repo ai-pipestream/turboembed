@@ -12,3 +12,6 @@ and fail loud when missing — never a silent CPU arena.
 
 Machine B LIVE: `make turbo-buffer-intel-receipt` plus
 [`docs/turbo-buffer-ze-machine-b.md`](../../docs/turbo-buffer-ze-machine-b.md).
+
+Metal SHARED rent/return is LIVE on Machine C
+(`docs/apple-turbo-buffer-metal-arena-machine-c.md`).

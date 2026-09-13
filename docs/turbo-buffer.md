@@ -15,7 +15,7 @@ before `forward` / mock `embed` and require `0`.
 | CPU | HOST | 64-byte `posix_memalign` | this cloud run |
 | CUDA | PINNED, DEVICE | `cudaHostAlloc`, `cudaMalloc` | Machine A **LIVE** |
 | ZE | HOST, SHARED, DEVICE | Level Zero USM | **LIVE** Machine B (`docs/turbo-buffer-ze-machine-b.md`) |
-| Metal | SHARED (HOST aliases SHARED) | `MTLResourceStorageModeShared` | Machine C |
+| Metal | SHARED (HOST aliases SHARED) | `MTLResourceStorageModeShared` | **LIVE** Machine C (`docs/apple-turbo-buffer-metal-arena-machine-c.md`) |
 
 Missing compile → `NOT_IMPLEMENTED`. Compiled but no device →
 `UNAVAILABLE`. Neither remaps to CPU. PINNED on a CPU arena (etc.) is
@@ -55,6 +55,12 @@ int32 H2D per row still happens (SOLIDIFY item 2 — not claimed zero).
 `ze_query` must report the requested type. DEVICE is proven with a
 Level Zero memcpy, not a host stand-in.
 
+**Metal (LIVE on Machine C):** `turbo_buffer_arena_create(METAL)` +
+SHARED rent allocates `MTLResourceStorageModeShared`. HOST aliases
+SHARED. TurboRerank Metal `forward` binds those MTLBuffers via
+`turbo_buffer_metal_lookup` — no private token `newBufferWithLength`.
+Proof: [`docs/apple-turbo-buffer-metal-arena-machine-c.md`](apple-turbo-buffer-metal-arena-machine-c.md).
+
 OpenVINO CPU without Level Zero rents a **CPU** arena for host
 tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
 is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
@@ -77,10 +83,13 @@ make turbo-buffer-intel-receipt      # Machine B ZE HOST/SHARED/DEVICE
 make turboembed-mock-arena-tests     # mock embed allocs/forward == 0
 make turborerank-tests               # includes the above + Berlin band when weights exist
 make test-turborerank-intel          # Machine B OV + ZE receipts
+make test-turborerank-apple          # Machine C: Metal SHARED live + Berlin receipt
 ```
 
 Reintroducing `posix_memalign` for Rerank scratch or work tokens fails
-`turbo_buffer_arena_owns` in the live CPU score test.
+`turbo_buffer_arena_owns` in the live CPU score test. Reintroducing a
+private MTL token alloc on Machine C fails `turbo_buffer_metal_owns`
+and `turbo_buffer_arena_owns` in the Metal score test.
 
 ## Machine A (this proof)
 

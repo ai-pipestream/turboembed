@@ -8,8 +8,9 @@ and the buffer/forward contract in [`include/reranker.hpp`](../../include/rerank
 (first-party CUDA kernels). **OpenVINO** (Phase 2b): Level Zero USM
 token workspace; `ov::Tensor(..., usm_pointer)` + CompiledModel on GPU
 or explicit CPU. **Metal** (Phase 2c, Machine C):
-`MTLResourceStorageModeShared` token workspace; first-party Metal
-MiniLM CE kernels bind those buffers. TensorRT / NPU create and
+`turbo_buffer` Metal SHARED (`MTLResourceStorageModeShared`) token
+workspace; first-party Metal MiniLM CE kernels bind those buffers
+via `turbo_buffer_metal_lookup`. TensorRT / NPU create and
 `forward` fail loud.
 No mock relevance scores. GPU create without that GPU fails loud
 (never silent CPU).

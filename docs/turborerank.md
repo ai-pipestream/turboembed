@@ -35,9 +35,12 @@ memory). OpenVINO GPU / explicit OV CPU: turbo_buffer ZE USM (SHARED on GPU,
 HOST on OV CPU), wrapped with `ov::Tensor(..., usm_pointer)`.
 Machine B proves HOST/SHARED/DEVICE rent/return
 (`docs/turbo-buffer-ze-machine-b.md`). Metal / AUTO-with-Metal:
-`MTLResourceStorageModeShared` (caller writes unified memory; kernels
-bind those MTLBuffers — no extra token copy). No `std::vector` on that
-path. Weights are copied once at load into MTL shared buffers.
+`turbo_buffer` Metal SHARED (`MTLResourceStorageModeShared`; caller
+writes unified memory; kernels bind those MTLBuffers via
+`turbo_buffer_metal_lookup` — no extra token copy, no private token
+alloc). No `std::vector` on that path. Weights are copied once at
+load into MTL shared buffers. Machine C proof:
+[`docs/apple-turbo-buffer-metal-arena-machine-c.md`](apple-turbo-buffer-metal-arena-machine-c.md).
 
 CUDA compute is **on device**: weights and activations live on the GPU.
 GEMM, embeddings, LayerNorm, GELU (erf), attention, pooler, and

@@ -170,7 +170,9 @@ libturborerank-apple:
 	  native/turborerank/build/metal.cpp.o \
 	  $(if $(TURBORERANK_METAL_SRC),native/turborerank/build/metal_api.mm.o,) \
 	  $(if $(TURBO_BUFFER_METAL_SRC),native/turborerank/build/metal.mm.o,)
-	@echo "wrote native/turborerank/build/libturborerank_apple.a"
+	@nm -g native/turborerank/build/libturborerank_apple.a | grep -q turbo_buffer_arena_rent
+	@nm -g native/turborerank/build/libturborerank_apple.a | grep -q turbo_buffer_metal_owns
+	@echo "wrote native/turborerank/build/libturborerank_apple.a (arena + Metal SHARED)"
 
 apple: sync-proto libturborerank-apple
 	swift build --package-path swift -c release
@@ -651,7 +653,9 @@ test-turborerank: fetch-rerankers turboembed-mock-arena-tests turborerank-tests 
 test-turborerank-nvidia: test-turborerank turborerank-nvidia-receipt
 
 # Machine C: Metal MiniLM CE vs HF Berlin golden. nometal proves fail-loud.
-test-turborerank-apple: fetch-rerankers turborerank-tests turborerank-tests-nometal
+# libturborerank-apple is the Swift-linkable archive — same arena objects.
+test-turborerank-apple: fetch-rerankers turborerank-tests turborerank-tests-nometal \
+		libturborerank-apple
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
 	$(MAKE) turborerank-apple-receipt
 

@@ -17,6 +17,7 @@ inferstream-apple          Swift executable (grpc-swift 2)
   ├─ catalog aliases                    config/catalog.toml + config/apple.toml
   ├─ TurboEmbedBackend (catalog embeds) include/turboembed.h → libTurboEmbed.dylib
   ├─ TurboRerankBackend (catalog CE) include/turborerank.h → libturborerank_apple.a
+  │    tokens: turbo_buffer Metal SHARED (no Swift-side token malloc)
   └─ MlxBackend (LLM generate / tokenize)
        ├─ mlx-swift / mlx-swift-lm      Metal
        └─ swift-transformers            tokenizer.json

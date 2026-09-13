@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Apple Metal MiniLM-L6 BertForSequenceClassification.
-// Token workspace: MTLResourceStorageModeShared (caller writes unified
-// memory). Kernels bind those MTLBuffers — no std::vector, no extra
-// token copy. Weights + activation scratch are reserved at load.
+// Token workspace: turbo_buffer Metal SHARED
+// (MTLResourceStorageModeShared). Caller writes unified memory.
+// Kernels bind those MTLBuffers via turbo_buffer_metal_lookup —
+// no std::vector, no extra token copy, no private token alloc.
+// Weights + activation scratch are reserved at load.
 // GEMM / LN / GELU / attention / pooler match the CPU linear_nt graph.
 
 #ifdef TURBORERANK_METAL
@@ -19,10 +21,7 @@
 #include <cmath>
 #include <cstring>
 #include <new>
-#include <mutex>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace turborerank {
 namespace impl {
@@ -314,21 +313,6 @@ kernel void classifier_kernel(
 }
 )METAL";
 
-struct SharedEntry {
-    id<MTLBuffer> buffer;
-    size_t bytes;
-};
-
-struct SharedRegistry {
-    std::mutex mu;
-    std::unordered_map<const void *, SharedEntry> map;
-};
-
-SharedRegistry &registry() {
-    static SharedRegistry r;
-    return r;
-}
-
 struct MetalCtx {
     id<MTLDevice> device = nil;
     id<MTLCommandQueue> queue = nil;
@@ -590,24 +574,6 @@ BufView lookup_view(const void *ptr) {
     if (ptr == nullptr) {
         return out;
     }
-    SharedRegistry &reg = registry();
-    std::lock_guard<std::mutex> lock(reg.mu);
-    auto it = reg.map.find(ptr);
-    if (it != reg.map.end()) {
-        out.buffer = it->second.buffer;
-        out.offset = 0;
-        return out;
-    }
-    const char *p = static_cast<const char *>(ptr);
-    for (const auto &kv : reg.map) {
-        const char *start = static_cast<const char *>(kv.first);
-        const size_t n = kv.second.bytes;
-        if (p >= start && p < start + static_cast<ptrdiff_t>(n)) {
-            out.buffer = kv.second.buffer;
-            out.offset = static_cast<NSUInteger>(p - start);
-            return out;
-        }
-    }
     void *native = nullptr;
     size_t off = 0;
     if (turbo_buffer_metal_lookup(ptr, &native, &off) && native != nullptr) {
@@ -647,61 +613,7 @@ bool metal_gpu_name(std::string *name) {
     return true;
 }
 
-void *metal_shared_alloc_bytes(size_t bytes, Status *status) {
-    if (bytes == 0) {
-        if (status) {
-            *status = Status::InvalidArgument;
-        }
-        return nullptr;
-    }
-    init_ctx_once();
-    if (!ctx().ready) {
-        if (status) {
-            *status = Status::Unavailable;
-        }
-        return nullptr;
-    }
-    id<MTLBuffer> buf = new_shared(ctx().device, bytes, nullptr);
-    if (buf == nil || buf.contents == nullptr) {
-        if (status) {
-            *status = Status::OutOfMemory;
-        }
-        return nullptr;
-    }
-    void *ptr = buf.contents;
-    if ((reinterpret_cast<uintptr_t>(ptr) % 64u) != 0) {
-        if (status) {
-            *status = Status::Internal;
-        }
-        return nullptr;
-    }
-    {
-        SharedRegistry &reg = registry();
-        std::lock_guard<std::mutex> lock(reg.mu);
-        reg.map[ptr] = SharedEntry{buf, bytes};
-    }
-    note_alloc();
-    if (status) {
-        *status = Status::Ok;
-    }
-    return ptr;
-}
-
-void metal_shared_free_bytes(void *ptr) {
-    if (ptr == nullptr) {
-        return;
-    }
-    SharedRegistry &reg = registry();
-    std::lock_guard<std::mutex> lock(reg.mu);
-    reg.map.erase(ptr);
-}
-
 bool metal_shared_owns(const void *ptr) {
-    SharedRegistry &reg = registry();
-    std::lock_guard<std::mutex> lock(reg.mu);
-    if (reg.map.find(ptr) != reg.map.end()) {
-        return true;
-    }
     return turbo_buffer_metal_owns(ptr) != 0;
 }
 
@@ -875,8 +787,10 @@ bool bert_forward_row_metal(
         pos_v.buffer == nil) {
         if (err) {
             *err = "bert_forward_row_metal: token pointers are not "
-                   "MTLResourceStorageModeShared (caller must allocate with "
-                   "TURBORERANK_DEVICE_METAL). Refusing a CPU/std::vector copy.";
+                   "turbo_buffer Metal SHARED (caller must rent via "
+                   "turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL) / "
+                   "turbo_buffer_arena_rent SHARED). Refusing a "
+                   "CPU/std::vector copy or private MTLBuffer.";
         }
         return false;
     }
