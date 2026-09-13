@@ -38,12 +38,13 @@ cargo test -p inferstream-server packed_bytes_and_rerank_reuse
 cargo test -p inferstream-backend-turborerank -- rpc_berlin
 ```
 
-Machine B latency bench is **LIVE**
+Machine A CUDA bench is **LIVE** (`docs/bench-turbo-machine-a.md`,
+`make bench-machine-a`). Machine B OpenVINO GPU bench is **LIVE**
 (`docs/solidify-bench-machine-b.md`, `make bench-machine-b-ov`).
-Machine A/C benches are separate host receipts under
-`testdata/receipts/bench/`. SOLIDIFY (7) **Intel** wrap / accuracy is
-`docs/intel-remote-usm-machine-b.md`. The Machine C special-function
-slice (Metal GELU erf) is `docs/apple-turborerank-metal-gelu-machine-c.md`.
+Unified: `make bench-turbo MACHINE=A` or `MACHINE=B`. SOLIDIFY (7)
+**Intel** wrap / accuracy is `docs/intel-remote-usm-machine-b.md`.
+The Machine C special-function slice (Metal GELU erf) is
+`docs/apple-turborerank-metal-gelu-machine-c.md`.
 
 ## Apple
 

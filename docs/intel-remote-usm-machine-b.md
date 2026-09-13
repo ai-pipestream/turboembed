@@ -4,7 +4,9 @@ Hostnames stay out of this file (Machine B only).
 
 This item is the Intel wrap / accuracy gate. The Machine B latency
 bench is [`solidify-bench-machine-b.md`](solidify-bench-machine-b.md)
-(`make bench-machine-b-ov`).
+(`make bench-machine-b-ov`). Machine A CUDA bench is
+[`bench-turbo-machine-a.md`](bench-turbo-machine-a.md)
+(`make bench-machine-a`).
 
 ## Done criteria
 

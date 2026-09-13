@@ -53,5 +53,7 @@ BENCH_WARMUP=16 BENCH_ITERS=64 make bench-machine-b-ov
 
 ## What this is not
 
-Machine A CUDA / Machine C Metal benches. Invented p50/p99. A claimed-zero
-H2D while remote USM wrap is still size-0. NPU.
+Machine A CUDA bench is a sibling (`docs/bench-turbo-machine-a.md`,
+`make bench-machine-a`). Machine C Metal bench is still that host.
+Invented p50/p99. A claimed-zero H2D while remote USM wrap is still
+size-0. NPU.
