@@ -13,7 +13,7 @@ before `forward` / mock `embed` and require `0`.
 | Backend | Placement | Alloc | Proof host |
 |---|---|---|---|
 | CPU | HOST | 64-byte `posix_memalign` | this cloud run |
-| CUDA | PINNED, DEVICE | `cudaHostAlloc`, `cudaMalloc` | Machine A **LIVE** |
+| CUDA | PINNED, DEVICE | `cudaHostAllocMapped`, `cudaMalloc` | Machine A **LIVE** (mapped tokens, 0 id H2D) |
 | ZE | HOST, SHARED, DEVICE | Level Zero USM | **LIVE** Machine B (`docs/turbo-buffer-ze-machine-b.md`) |
 | Metal | SHARED (HOST aliases SHARED) | `MTLResourceStorageModeShared` | **LIVE** Machine C (`docs/apple-turbo-buffer-metal-arena-machine-c.md`) |
 
@@ -43,12 +43,16 @@ Slab table capacity is 256 (fixed). Rent after warmup does not grow it.
 GPU token workspaces use the same rent path (CUDA PINNED / ZE SHARED /
 Metal SHARED) when that backend is live.
 
-**CUDA (Machine A LIVE):** PINNED token rows (`cudaHostAlloc`) and
-DEVICE activation / token scratch (`cudaMalloc` at load). Steady-state
-`forward` must see `turbo_buffer_alloc_counter() == 0` and
-`turbo_buffer_cuda_forward_allocs() == 0`. Tests fail if a per-forward
-`cudaMalloc` / `cudaHostAlloc` returns for those slots. One packed
-int32 H2D per row still happens (SOLIDIFY item 2 — not claimed zero).
+**CUDA (Machine A LIVE):** PINNED mapped token rows
+(`cudaHostAllocMapped`) and DEVICE activation scratch (`cudaMalloc`
+at load). Host tokenize / pack writes the PINNED pages; kernels read
+`turbo_buffer_cuda_mapped_device_ptr`. Steady-state `forward` must see
+`turbo_buffer_alloc_counter() == 0`,
+`turbo_buffer_cuda_forward_allocs() == 0`, and
+`turbo_buffer_cuda_forward_h2d_bytes() == 0`. Tests fail if a
+per-forward `cudaMalloc` / `cudaHostAlloc` returns, or if a token-row
+`cudaMemcpy` H2D is reintroduced. Unmapped pointers fail loud — there
+is no convenience H2D.
 
 **ZE (Machine B LIVE):** HOST / SHARED / DEVICE USM
 (`docs/turbo-buffer-ze-machine-b.md`). OpenVINO GPU tokens are SHARED.
@@ -101,5 +105,6 @@ BERT graph.
 
 `make test-turborerank-nvidia` refreshes
 `testdata/receipts/turborerank/nvidia-minilm-l6.json` (Berlin HF band).
-H2D of packed int32 ids/mask/types/pos per row is still present; do
-not read this receipt as zero host-to-device bytes.
+`compute.h2d_per_row` is `0`. The receipt writer fails if a
+steady-state CUDA `score` observes any intercepted HostToDevice
+bytes.

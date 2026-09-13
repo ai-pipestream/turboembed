@@ -20,7 +20,7 @@ namespace turborerank {
 
 inline constexpr uint32_t kAbiVersion = TURBORERANK_ABI_VERSION;
 inline constexpr uint32_t kCpuAlignment = 64;
-/** cudaHostAlloc is page-aligned; we still require 64-byte for ggml views. */
+/** cudaHostAllocMapped is page-aligned; we still require 64-byte for ggml views. */
 inline constexpr uint32_t kPinnedAlignment = 64;
 inline constexpr int32_t kPadId = 0;
 inline constexpr int32_t kUnkId = 100;

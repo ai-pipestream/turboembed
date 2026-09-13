@@ -5,13 +5,15 @@
   "device": "CUDA",
   "machine": "Machine A",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
-  "backend": "turborerank first-party CUDA MiniLM CE (turbo_buffer PINNED token rent + DEVICE activation scratch; device GEMM/attention/LN/GELU/pooler kernels; one H2D of packed int32 ids per row — H2D not eliminated)",
+  "backend": "turborerank first-party CUDA MiniLM CE (turbo_buffer PINNED mapped token rent + DEVICE activation scratch; device GEMM/attention/LN/GELU/pooler kernels; kernels read mapped int32 ids — 0 H2D bytes per row)",
   "compute": {
-    "token_workspace": "turbo_buffer PINNED rent (cudaHostAlloc)",
+    "token_workspace": "turbo_buffer PINNED mapped rent (cudaHostAllocMapped; host write lands in device-visible pages)",
     "activations": "turbo_buffer DEVICE rent at load",
     "weights": "cudaMalloc at load (not per-forward)",
     "allocs_per_forward": 0,
-    "h2d_per_row": "packed int32 ids/mask/types/pos — SOLIDIFY item 2",
+    "h2d_per_row": 0,
+    "h2d_bytes_steady": 0,
+    "h2d_calls_steady": 0,
     "gemm": "first-party CUDA kernel matching CPU linear_nt",
     "elementwise": "first-party CUDA kernels (embed, LayerNorm, GELU erf, attention, pooler, classifier)",
     "host_interim": false,
@@ -23,7 +25,7 @@
   "logits": [8.84585190, -4.32007980, -11.27389336],
   "max_abs_logit_err": 0.000004,
   "cosine_vs_golden": 1.0000000000,
-  "git_sha": "e406df3bf289d169780ff5371ed5a0531aceefcd",
+  "git_sha": "85253f7a959e9dedbc7a80f37d219c070efc0a37",
   "command": "make test-turborerank-nvidia",
-  "note": "SOLIDIFY (1) CUDA arena LIVE on Machine A. PINNED token rent + DEVICE activation scratch; allocs/forward == 0. AUTO resolves to CUDA. Create without CUDA fails loud. One packed int32 H2D per row remains (item 2). Not a pinned-host CPU interim: the BERT graph including GEMM runs on device."
+  "note": "SOLIDIFY (2) CUDA token H2D killed on Machine A. PINNED mapped (cudaHostAllocMapped) token rent; host tokenize/pack writes those pages; kernels use turbo_buffer_cuda_mapped_device_ptr. Steady-state h2d_bytes == 0 and allocs/forward == 0. Unmapped pointers fail loud (no convenience H2D). AUTO resolves to CUDA. Not a pinned-host CPU interim: the BERT graph including GEMM runs on device."
 }

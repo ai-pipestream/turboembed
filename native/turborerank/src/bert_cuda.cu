@@ -4,9 +4,10 @@
 // Linear layers: cuBLAS Sgemm. Embeddings / LayerNorm / GELU / attention /
 // residual / pooler / classifier: first-party CUDA kernels.
 //
-// Token workspace stays in caller cudaHostAlloc memory. Each forward
-// copies one packed int32 row H2D into device scratch (pinned → device
-// is the fast path cudaHostAlloc exists for). No host heap growth.
+// Token workspace is caller cudaHostAllocMapped memory. Host writes
+// ids/mask/types/pos into those pages; kernels read the mapped device
+// pointer. No per-forward cudaMemcpy H2D of the token row. No host
+// heap growth.
 
 #include "cuda_api.hpp"
 
@@ -46,13 +47,6 @@ bool upload_f32(const TensorView &src, float **dst, std::string *err) {
 }
 
 void dfree(float **p) {
-    if (p != nullptr && *p != nullptr) {
-        (void)cudaFree(*p);
-        *p = nullptr;
-    }
-}
-
-void dfree_i(int32_t **p) {
     if (p != nullptr && *p != nullptr) {
         (void)cudaFree(*p);
         *p = nullptr;
@@ -447,9 +441,6 @@ bool cuda_resources_init(
     auto dalloc = [&](float **p, size_t n) -> bool {
         return rent_slot(TURBO_BUFFER_DTYPE_F32, n, reinterpret_cast<void **>(p));
     };
-    auto ialloc = [&](int32_t **p, size_t n) -> bool {
-        return rent_slot(TURBO_BUFFER_DTYPE_I32, n, reinterpret_cast<void **>(p));
-    };
     if (!dalloc(&r->x, static_cast<size_t>(S) * H) ||
         !dalloc(&r->residual, static_cast<size_t>(S) * H) ||
         !dalloc(&r->q, static_cast<size_t>(S) * H) ||
@@ -459,9 +450,7 @@ bool cuda_resources_init(
         !dalloc(&r->ctx, static_cast<size_t>(S) * H) ||
         !dalloc(&r->inter, static_cast<size_t>(S) * I) ||
         !dalloc(&r->tmp, static_cast<size_t>(S) * H) ||
-        !dalloc(&r->pooled, H) || !dalloc(&r->logit, 1) ||
-        !ialloc(&r->ids, S) || !ialloc(&r->mask, S) ||
-        !ialloc(&r->types, S) || !ialloc(&r->pos_ids, S)) {
+        !dalloc(&r->pooled, H) || !dalloc(&r->logit, 1)) {
         cuda_resources_free(r);
         return false;
     }
@@ -519,10 +508,6 @@ void cuda_resources_free(CudaResources *r) {
     r->tmp = nullptr;
     r->pooled = nullptr;
     r->logit = nullptr;
-    r->ids = nullptr;
-    r->mask = nullptr;
-    r->types = nullptr;
-    r->pos_ids = nullptr;
     r->n_rented = 0;
     r->arena = nullptr;
     r->enabled = false;
@@ -558,38 +543,41 @@ bool bert_forward_row_cuda(
     const uint32_t heads = cfg.heads;
     const uint32_t dh = H / heads;
     const float scale = 1.0f / std::sqrt(static_cast<float>(dh));
-    const size_t nbytes_i = static_cast<size_t>(seq) * sizeof(int32_t);
 
-    TR_CUDA(cudaMemcpy(r->ids, input_ids, nbytes_i, cudaMemcpyHostToDevice), err);
-    TR_CUDA(cudaMemcpy(r->mask, attention_mask, nbytes_i, cudaMemcpyHostToDevice), err);
-    if (token_type_ids != nullptr) {
-        TR_CUDA(cudaMemcpy(r->types, token_type_ids, nbytes_i, cudaMemcpyHostToDevice), err);
-    } else {
-        TR_CUDA(cudaMemset(r->types, 0, nbytes_i), err);
-    }
-    if (position_ids != nullptr) {
-        TR_CUDA(cudaMemcpy(r->pos_ids, position_ids, nbytes_i, cudaMemcpyHostToDevice), err);
-    } else {
-        // arange on host would allocate; write a tiny kernel-free loop into
-        // the already-reserved device buffer via a one-shot host stack copy.
-        int32_t tmp_pos[512];
-        if (seq > 512) {
+    auto map_i32 = [&](const int32_t *host, const int32_t **dev, const char *what)
+        -> bool {
+        if (host == nullptr) {
+            *dev = nullptr;
+            return true;
+        }
+        void *d = nullptr;
+        if (turbo_buffer_cuda_mapped_device_ptr(host, &d) == 0 || d == nullptr) {
             if (err) {
-                *err = "bert_forward_row_cuda: seq exceeds stack arange";
+                *err = std::string(what) +
+                       ": tokens are not CUDA PINNED mapped; "
+                       "refusing per-forward H2D";
             }
             return false;
         }
-        for (uint32_t t = 0; t < seq; ++t) {
-            tmp_pos[t] = static_cast<int32_t>(t);
-        }
-        TR_CUDA(cudaMemcpy(r->pos_ids, tmp_pos, nbytes_i, cudaMemcpyHostToDevice), err);
+        *dev = static_cast<const int32_t *>(d);
+        return true;
+    };
+    const int32_t *d_ids = nullptr;
+    const int32_t *d_mask = nullptr;
+    const int32_t *d_types = nullptr;
+    const int32_t *d_pos = nullptr;
+    if (!map_i32(input_ids, &d_ids, "input_ids") ||
+        !map_i32(attention_mask, &d_mask, "attention_mask") ||
+        !map_i32(token_type_ids, &d_types, "token_type_ids") ||
+        !map_i32(position_ids, &d_pos, "position_ids")) {
+        return false;
     }
 
     embed_kernel<<<seq, 128>>>(
         r->x,
-        r->ids,
-        r->pos_ids,
-        r->types,
+        d_ids,
+        d_pos,
+        d_types,
         r->word,
         r->pos,
         r->type,
@@ -621,7 +609,7 @@ bool bert_forward_row_cuda(
         TR_CUDA(cudaMemset(r->ctx, 0, hidden_n * sizeof(float)), err);
         dim3 score_grid((seq + 31) / 32, seq, heads);
         attention_scores_kernel<<<score_grid, 32>>>(
-            r->q, r->k, r->attn, r->mask, seq, H, heads, dh, scale
+            r->q, r->k, r->attn, d_mask, seq, H, heads, dh, scale
         );
         TR_CUDA(cudaGetLastError(), err);
         dim3 sm_grid(seq, heads);
