@@ -19,6 +19,29 @@ Hostnames stay out of this file (Machine B only).
 `make bench-machine-b-ov` writes the receipt from this process and
 exits 2 if any gate fails. Do not hand-edit latency or cosine fields.
 
+## Live measurement (this host)
+
+Receipt `git_sha` `cfeaf1fe98218c09fe3892d33b7ae98765063016`,
+`measured_at_utc` `2026-09-13T15:03:52Z`. GPU
+`Intel(R) Graphics [0xe223] (dGPU)`. 32 warmup + 128 measured.
+
+| engine | p50 | p99 | allocs/forward | goldens |
+|---|---|---|---|---|
+| TurboEmbed MiniLM `hello world` | **909.341 µs** | **926.499 µs** | 0 | cosine vs intel/nvidia goldens **0.9999997616** |
+| TurboRerank MiniLM-L6 Berlin (3 docs) | **8145.887 µs** | **8237.993 µs** | 0 | max abs **1.43e-6**, cosine **1.0** |
+
+USM honesty on that run:
+
+| | embed | rerank |
+|---|---|---|
+| explicit ZE H2D / D2H | 0 / 0 | 0 / 0 |
+| `remote_ocl_usm_wrap` | false | false |
+| wrapped input bytes / call | 3072 (1×256×3×i32) | 18432 (3×512×3×i32) |
+| used tokens | — | 34 / 18 / 22 |
+| hidden wrap / memcpy | 393216 / 0 | — |
+
+Plugin host-tensor ingest is reported. H2D is not claimed zero.
+
 ## Commands
 
 ```bash
