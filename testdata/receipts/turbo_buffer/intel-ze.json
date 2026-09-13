@@ -13,7 +13,7 @@
     "pinned_on_ze": "NOT_IMPLEMENTED"
   },
   "pass": true,
-  "git_sha": "8665e724e98c2010d1fc6e0d4bad548ac6908032",
+  "git_sha": "97d91046ddab40e7255a0ff58afd53a209c85ab9",
   "command": "make turbo-buffer-intel-receipt",
   "note": "Machine B LIVE: zeMemAllocHost/Shared/Device via turbo_buffer rent/return. SHARED/DEVICE query as those types, not HOST. DEVICE proven with Level Zero memcpy, not a host stand-in. PINNED on ZE is NOT_IMPLEMENTED."
 }
