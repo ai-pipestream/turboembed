@@ -28,5 +28,5 @@
   "l2_ok": true,
   "fake_rejected": true,
   "weights": "models/mlx/minilm",
-  "captured_at_unix": 1789241331
+  "captured_at_unix": 1789257698
 }

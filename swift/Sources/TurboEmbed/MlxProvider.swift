@@ -75,12 +75,16 @@ enum MlxProvider {
         }
     }
 
+    /// Same names as the Rust catalog: generative MLX is not an embedder.
+    private static let llmAliases: Set<String> = ["default-llm", "qwen-0.5b", "qwen-7b"]
+
     static func discover(catalog: Catalog?) -> [String: MlxAlias] {
         var out: [String: MlxAlias] = [:]
         let aliases: [String]
         if let catalog {
             aliases = catalog.aliases.filter { alias in
-                (try? catalog.resolve(alias: alias, arch: .apple))?.backend == .mlx
+                !llmAliases.contains(alias)
+                    && (try? catalog.resolve(alias: alias, arch: .apple))?.backend == .mlx
             }
         } else {
             aliases = ["minilm", "bge-small"]
@@ -93,6 +97,7 @@ enum MlxProvider {
     }
 
     static func resolve(alias: String, catalog: Catalog?) -> MlxAlias? {
+        if llmAliases.contains(alias) { return nil }
         var pooling = defaultPooling(alias)
         var maxSeqLen: Int? = alias == "minilm" ? 256 : nil
         var pathHint = "models/mlx/\(alias)"

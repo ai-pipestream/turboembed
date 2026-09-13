@@ -219,6 +219,12 @@ fn metal_create_lists_minilm_not_only_mock() {
             .all(|m| m.device != Device::Cpu && m.device != Device::Mock),
         "FAKE: Metal listed a CPU/mock device: {listed:?}"
     );
+    assert!(
+        models
+            .iter()
+            .all(|m| m.alias != "default-llm" && !m.alias.starts_with("qwen")),
+        "FAKE: Metal listed a generative LLM as an embedder: {listed:?}"
+    );
     let minilm = models
         .iter()
         .find(|m| m.alias == "minilm")
