@@ -10,8 +10,9 @@ kernel keeps a software special. That is not a CPU fallback.
 | Host | Machine C, Apple M2, Metal |
 | Toolchain | Xcode 26.6 / Metal.xctoolchain 17.6 (`metal_stdlib` 32023) |
 | Command | `make metal-erf-probe` + `make test-turborerank-apple` |
-| Receipt | `testdata/receipts/turborerank/apple-minilm-l6.json` |
+| Receipt | `testdata/receipts/turborerank/apple-minilm-l6.json` (`pass=true`, max abs `1.91e-6`) |
 | Golden | `testdata/reference_rerank/ms_marco_minilm_l6_berlin.json` (`atol` 2e-3) |
+| Berlin logits | `8.84585285`, `-4.32007647`, `-11.27389240` (cosine `1.0`) |
 
 ## Why MSL still needs an approximation
 
@@ -58,12 +59,21 @@ probe fails. Host twin and Metal Hart must stay within `2e-7`.
 
 ## Berlin
 
-Identity logits vs the HF golden must stay inside `2e-3` (existing
-band). Hart is the path that can **tighten** the residual toward the
-CUDA `erff` receipt (`max_abs_logit_err` ~ `1e-6` on Machine A). GEMM
-reduction order (first-party `linear_nt` vs cuBLASLt) still dominates
-any leftover ULP after this change. `allocs/forward == 0` is unchanged:
-GELU writes the existing intermediate buffer.
+Measured on Machine C after the Hart swap (`make turborerank-tests` +
+`make turborerank-apple-receipt`):
+
+| | relevant | mid | irrelevant | max abs err |
+|---|---|---|---|---|
+| HF golden | `8.84585285` | `-4.32007599` | `-11.27389431` | — |
+| Metal A&S (prior receipt) | `8.84585381` | `-4.32007980` | `-11.27389336` | `3.81e-6` |
+| Metal Hart (this) | `8.84585285` | `-4.32007647` | `-11.27389240` | `1.91e-6` |
+| CUDA `erff` (Machine A) | `8.84585381` | `-4.32007694` | `-11.27389526` | `1e-6` |
+
+Hart **tightens** Berlin: first logit matches the golden exactly, mid
+error drops ~8×, max abs ~2× (`4e-6` → `1.91e-6`). Still inside the
+`2e-3` band. Cosine `1.0`. `allocs/forward == 0`. nometal create still
+fails loud (180/0 without Metal). Leftover ULP vs CUDA is first-party
+`linear_nt` vs cuBLASLt, not the GELU special.
 
 ## Commands
 
