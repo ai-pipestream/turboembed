@@ -23,7 +23,7 @@
   "logits": [8.84564877, -4.31924438, -11.27365589],
   "max_abs_logit_err": 0.000832,
   "cosine_vs_golden": 1.0000001192,
-  "git_sha": "f79d55d9feb7dbad398fbd85b585a4b527a02529",
+  "git_sha": "63b1ac062ed44ea5090f05d7035173de9e144a69",
   "command": "make test-turborerank-intel",
   "note": "SOLIDIFY (1) Machine B. Token rows rented from the ZE arena as SHARED. GPU create without a GPU fails loud. CPU buffers on OV GPU forward are refused. AUTO resolves to OPENVINO_GPU when CUDA is absent. Not a CPU interim and not a mock score."
 }

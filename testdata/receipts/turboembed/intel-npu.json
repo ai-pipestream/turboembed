@@ -24,7 +24,7 @@
   "pipeline": "ov::genai::TextEmbeddingPipeline",
   "schema_version": 1,
   "sha": {
-    "git": "158abc5ceb466998ac6dc670785c07520dd8d4cf"
+    "git": "63b1ac062ed44ea5090f05d7035173de9e144a69"
   },
   "wired": false
 }
