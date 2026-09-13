@@ -5,14 +5,18 @@
   "device": "METAL",
   "machine": "Machine C",
   "gpu": "Apple M2",
-  "backend": "turborerank first-party Metal MiniLM CE (MTLResourceStorageModeShared token buffers; kernels bind those MTLBuffers; device GEMM/attention/LN/GELU/pooler matching CPU linear_nt; weights copied once at load)",
+  "backend": "turborerank first-party Metal MiniLM CE (turbo_buffer Metal SHARED arena; MTLResourceStorageModeShared token rents; kernels bind those MTLBuffers via turbo_buffer_metal_lookup; device GEMM/attention/LN/GELU/pooler matching CPU linear_nt; weights copied once at load)",
   "compute": {
-    "token_workspace": "MTLResourceStorageModeShared (caller-written unified memory; no extra token copy)",
+    "token_workspace": "turbo_buffer arena SHARED (MTLResourceStorageModeShared; caller-written unified memory; no extra token copy)",
+    "arena": "include/turbo_buffer.h METAL backend",
+    "token_rent": "turbo_buffer_arena_rent SHARED i32",
+    "allocs_per_forward": 0,
     "weights_activations": "MTL shared buffers reserved at load",
     "gemm": "first-party Metal kernel matching CPU linear_nt",
     "elementwise": "first-party Metal kernels (embed, LayerNorm, GELU erf, attention, pooler, classifier)",
     "host_interim": false,
     "token_copy_on_forward": false,
+    "private_mtl_token_alloc": false,
     "mock": false
   },
   "pass": true,
@@ -21,7 +25,7 @@
   "logits": [8.84585381, -4.32007980, -11.27389336],
   "max_abs_logit_err": 0.000004,
   "cosine_vs_golden": 1.0000000000,
-  "git_sha": "559b5f5cac3f65bb25947e245b38dbeb7557e3be",
+  "git_sha": "0efc68a424e719d904908e52bc929d2760587e49",
   "command": "make test-turborerank-apple",
-  "note": "Phase 2c Apple Metal proof on Machine C. AUTO resolves to METAL when CUDA/OpenVINO GPU are absent. Create without Metal fails loud. Token pointers are MTL shared; kernels wrap those buffers (no std::vector, no token memcpy). Weights copied once at load from mmap'd safetensors."
+  "note": "SOLIDIFY (1) Machine C LIVE: turbo_buffer Metal SHARED rent/return is real MTL. TurboRerank Metal forward rents arena token slots; allocs/forward==0. AUTO resolves to METAL when CUDA/OpenVINO GPU are absent. Create without Metal fails loud. Swift TurboRerankEngine.score calls turborerank_score (engine work buffer) — no Swift-side token malloc. Weights copied once at load from mmap'd safetensors."
 }
