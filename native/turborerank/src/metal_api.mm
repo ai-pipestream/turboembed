@@ -146,6 +146,20 @@ kernel void linear_nt_kernel(
     y[ulong(s) * p.out + o] = acc;
 }
 
+// A&S 7.1.26 — Metal MSL has no erf() in this toolchain.
+inline float erf_as(float x) {
+    const float ax = fabs(x);
+    const float t = 1.0f / (1.0f + 0.3275911f * ax);
+    const float y =
+        1.0f -
+        (((((1.061405429f * t - 1.453152027f) * t) + 1.421413741f) * t -
+          0.284496736f) *
+             t +
+         0.254829592f) *
+            t * exp(-x * x);
+    return copysign(y, x);
+}
+
 kernel void gelu_erf_kernel(
     device float *x [[buffer(0)]],
     constant ElemParams &p [[buffer(1)]],
@@ -153,7 +167,7 @@ kernel void gelu_erf_kernel(
 ) {
     if (i >= p.n) return;
     const float v = x[i];
-    x[i] = 0.5f * v * (1.0f + erf(v * 0.7071067811865476f));
+    x[i] = 0.5f * v * (1.0f + erf_as(v * 0.7071067811865476f));
 }
 
 kernel void add_inplace_kernel(
@@ -366,7 +380,14 @@ void init_ctx_once() {
         NSError *err = nil;
         NSString *src = [NSString stringWithUTF8String:kMetalSrc];
         MTLCompileOptions *opts = [MTLCompileOptions new];
-        opts.fastMathEnabled = NO;
+        if (@available(macOS 15.0, *)) {
+            opts.mathMode = MTLMathModeSafe;
+        } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            opts.fastMathEnabled = NO;
+#pragma clang diagnostic pop
+        }
         c.library = [c.device newLibraryWithSource:src options:opts error:&err];
         if (c.library == nil) {
             c.why = "TURBORERANK_DEVICE_METAL: shader compile failed";
@@ -378,35 +399,41 @@ void init_ctx_once() {
             c.why += ". Refusing CPU fallback.";
             return;
         }
-        auto pipe = [&](const char *name, id<MTLComputePipelineState> *out) -> bool {
+        auto pipe = [&](const char *name) -> id<MTLComputePipelineState> {
             id<MTLFunction> fn =
                 [c.library newFunctionWithName:[NSString stringWithUTF8String:name]];
             if (fn == nil) {
                 c.why = std::string("TURBORERANK_DEVICE_METAL: missing kernel ") +
                         name + ". Refusing CPU fallback.";
-                return false;
+                return nil;
             }
             NSError *pe = nil;
-            *out = [c.device newComputePipelineStateWithFunction:fn error:&pe];
-            if (*out == nil) {
+            id<MTLComputePipelineState> pso =
+                [c.device newComputePipelineStateWithFunction:fn error:&pe];
+            if (pso == nil) {
                 c.why = std::string("TURBORERANK_DEVICE_METAL: pipeline ") + name +
                         " failed. Refusing CPU fallback.";
-                return false;
+                return nil;
             }
-            return true;
+            return pso;
         };
-        if (!pipe("embed_kernel", &c.embed) || !pipe("layer_norm_kernel", &c.ln) ||
-            !pipe("linear_nt_kernel", &c.linear) ||
-            !pipe("gelu_erf_kernel", &c.gelu) ||
-            !pipe("add_inplace_kernel", &c.add) ||
-            !pipe("residual_from_ctx_kernel", &c.residual) ||
-            !pipe("copy_f32_kernel", &c.copyf) ||
-            !pipe("zero_f32_kernel", &c.zerof) ||
-            !pipe("attention_scores_kernel", &c.scores) ||
-            !pipe("softmax_rows_kernel", &c.softmax) ||
-            !pipe("attention_ctx_kernel", &c.ctx) ||
-            !pipe("pooler_kernel", &c.pooler) ||
-            !pipe("classifier_kernel", &c.classifier)) {
+        c.embed = pipe("embed_kernel");
+        c.ln = pipe("layer_norm_kernel");
+        c.linear = pipe("linear_nt_kernel");
+        c.gelu = pipe("gelu_erf_kernel");
+        c.add = pipe("add_inplace_kernel");
+        c.residual = pipe("residual_from_ctx_kernel");
+        c.copyf = pipe("copy_f32_kernel");
+        c.zerof = pipe("zero_f32_kernel");
+        c.scores = pipe("attention_scores_kernel");
+        c.softmax = pipe("softmax_rows_kernel");
+        c.ctx = pipe("attention_ctx_kernel");
+        c.pooler = pipe("pooler_kernel");
+        c.classifier = pipe("classifier_kernel");
+        if (c.embed == nil || c.ln == nil || c.linear == nil || c.gelu == nil ||
+            c.add == nil || c.residual == nil || c.copyf == nil || c.zerof == nil ||
+            c.scores == nil || c.softmax == nil || c.ctx == nil || c.pooler == nil ||
+            c.classifier == nil) {
             return;
         }
         c.ready = true;
@@ -705,18 +732,15 @@ bool metal_resources_init(
         }
         return false;
     };
-    auto up = [&](const TensorView &tv, id<MTLBuffer> *dst, const char *name) -> bool {
-        *dst = upload_view(dev, tv);
-        if (*dst == nil) {
-            fail(name);
-            return false;
-        }
-        return true;
-    };
-    if (!up(w.word, &hold->word, "word") || !up(w.pos, &hold->pos, "pos") ||
-        !up(w.type, &hold->type, "type") || !up(w.emb_ln_w, &hold->emb_ln_w, "emb_ln_w") ||
-        !up(w.emb_ln_b, &hold->emb_ln_b, "emb_ln_b")) {
-        return false;
+    auto up = [&](const TensorView &tv) -> id<MTLBuffer> { return upload_view(dev, tv); };
+    hold->word = up(w.word);
+    hold->pos = up(w.pos);
+    hold->type = up(w.type);
+    hold->emb_ln_w = up(w.emb_ln_w);
+    hold->emb_ln_b = up(w.emb_ln_b);
+    if (hold->word == nil || hold->pos == nil || hold->type == nil ||
+        hold->emb_ln_w == nil || hold->emb_ln_b == nil) {
+        return fail("metal weight upload");
     }
     hold->word_rows = w.word.rows;
     hold->pos_rows = w.pos.rows;
@@ -725,48 +749,64 @@ bool metal_resources_init(
     hold->has_pooler = w.has_pooler;
     hold->cls_cols = w.cls_w.cols > 0 ? w.cls_w.cols : cfg.hidden;
     for (uint32_t i = 0; i < w.n_layers && i < 12; ++i) {
-        if (!up(w.q_w[i], &hold->q_w[i], "q_w") || !up(w.q_b[i], &hold->q_b[i], "q_b") ||
-            !up(w.k_w[i], &hold->k_w[i], "k_w") || !up(w.k_b[i], &hold->k_b[i], "k_b") ||
-            !up(w.v_w[i], &hold->v_w[i], "v_w") || !up(w.v_b[i], &hold->v_b[i], "v_b") ||
-            !up(w.attn_o_w[i], &hold->attn_o_w[i], "attn_o_w") ||
-            !up(w.attn_o_b[i], &hold->attn_o_b[i], "attn_o_b") ||
-            !up(w.attn_ln_w[i], &hold->attn_ln_w[i], "attn_ln_w") ||
-            !up(w.attn_ln_b[i], &hold->attn_ln_b[i], "attn_ln_b") ||
-            !up(w.ff_i_w[i], &hold->ff_i_w[i], "ff_i_w") ||
-            !up(w.ff_i_b[i], &hold->ff_i_b[i], "ff_i_b") ||
-            !up(w.ff_o_w[i], &hold->ff_o_w[i], "ff_o_w") ||
-            !up(w.ff_o_b[i], &hold->ff_o_b[i], "ff_o_b") ||
-            !up(w.ff_ln_w[i], &hold->ff_ln_w[i], "ff_ln_w") ||
-            !up(w.ff_ln_b[i], &hold->ff_ln_b[i], "ff_ln_b")) {
-            return false;
+        hold->q_w[i] = up(w.q_w[i]);
+        hold->q_b[i] = up(w.q_b[i]);
+        hold->k_w[i] = up(w.k_w[i]);
+        hold->k_b[i] = up(w.k_b[i]);
+        hold->v_w[i] = up(w.v_w[i]);
+        hold->v_b[i] = up(w.v_b[i]);
+        hold->attn_o_w[i] = up(w.attn_o_w[i]);
+        hold->attn_o_b[i] = up(w.attn_o_b[i]);
+        hold->attn_ln_w[i] = up(w.attn_ln_w[i]);
+        hold->attn_ln_b[i] = up(w.attn_ln_b[i]);
+        hold->ff_i_w[i] = up(w.ff_i_w[i]);
+        hold->ff_i_b[i] = up(w.ff_i_b[i]);
+        hold->ff_o_w[i] = up(w.ff_o_w[i]);
+        hold->ff_o_b[i] = up(w.ff_o_b[i]);
+        hold->ff_ln_w[i] = up(w.ff_ln_w[i]);
+        hold->ff_ln_b[i] = up(w.ff_ln_b[i]);
+        if (hold->q_w[i] == nil || hold->q_b[i] == nil || hold->k_w[i] == nil ||
+            hold->k_b[i] == nil || hold->v_w[i] == nil || hold->v_b[i] == nil ||
+            hold->attn_o_w[i] == nil || hold->attn_o_b[i] == nil ||
+            hold->attn_ln_w[i] == nil || hold->attn_ln_b[i] == nil ||
+            hold->ff_i_w[i] == nil || hold->ff_i_b[i] == nil ||
+            hold->ff_o_w[i] == nil || hold->ff_o_b[i] == nil ||
+            hold->ff_ln_w[i] == nil || hold->ff_ln_b[i] == nil) {
+            return fail("metal layer weight upload");
         }
     }
     if (w.has_pooler) {
-        if (!up(w.pool_w, &hold->pool_w, "pool_w") ||
-            !up(w.pool_b, &hold->pool_b, "pool_b")) {
-            return false;
+        hold->pool_w = up(w.pool_w);
+        hold->pool_b = up(w.pool_b);
+        if (hold->pool_w == nil || hold->pool_b == nil) {
+            return fail("metal pooler upload");
         }
     }
-    if (!up(w.cls_w, &hold->cls_w, "cls_w") || !up(w.cls_b, &hold->cls_b, "cls_b")) {
-        return false;
+    hold->cls_w = up(w.cls_w);
+    hold->cls_b = up(w.cls_b);
+    if (hold->cls_w == nil || hold->cls_b == nil) {
+        return fail("metal classifier upload");
     }
     const uint32_t S = cfg.max_position;
     const uint32_t H = cfg.hidden;
     const uint32_t I = cfg.intermediate;
     const uint32_t heads = cfg.heads;
-    auto scratch = [&](id<MTLBuffer> *p, size_t n_floats) -> bool {
-        *p = new_shared(dev, n_floats * sizeof(float), nullptr);
-        return *p != nil;
+    auto scratch = [&](size_t n_floats) -> id<MTLBuffer> {
+        return new_shared(dev, n_floats * sizeof(float), nullptr);
     };
-    if (!scratch(&hold->x, static_cast<size_t>(S) * H) ||
-        !scratch(&hold->residual, static_cast<size_t>(S) * H) ||
-        !scratch(&hold->q, static_cast<size_t>(S) * H) ||
-        !scratch(&hold->k, static_cast<size_t>(S) * H) ||
-        !scratch(&hold->v, static_cast<size_t>(S) * H) ||
-        !scratch(&hold->attn, static_cast<size_t>(heads) * S * S) ||
-        !scratch(&hold->ctxb, static_cast<size_t>(S) * H) ||
-        !scratch(&hold->inter, static_cast<size_t>(S) * I) ||
-        !scratch(&hold->pooled, H) || !scratch(&hold->logit, 1)) {
+    hold->x = scratch(static_cast<size_t>(S) * H);
+    hold->residual = scratch(static_cast<size_t>(S) * H);
+    hold->q = scratch(static_cast<size_t>(S) * H);
+    hold->k = scratch(static_cast<size_t>(S) * H);
+    hold->v = scratch(static_cast<size_t>(S) * H);
+    hold->attn = scratch(static_cast<size_t>(heads) * S * S);
+    hold->ctxb = scratch(static_cast<size_t>(S) * H);
+    hold->inter = scratch(static_cast<size_t>(S) * I);
+    hold->pooled = scratch(H);
+    hold->logit = scratch(1);
+    if (hold->x == nil || hold->residual == nil || hold->q == nil || hold->k == nil ||
+        hold->v == nil || hold->attn == nil || hold->ctxb == nil || hold->inter == nil ||
+        hold->pooled == nil || hold->logit == nil) {
         return fail("metal scratch alloc");
     }
     hold->dummy_bias = new_shared(dev, 4, nullptr);
