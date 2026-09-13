@@ -183,7 +183,7 @@ flowchart TB
     end
 
     subgraph cuda [Phase 2a LIVE on Machine A]
-        CUDA["cudaHostAllocMapped tokens + first-party CUDA kernels"]
+        CUDA["cudaHostAllocMapped tokens + cuBLASLt GEMM + first-party kernels"]
     end
 
     subgraph ov [Phase 2b LIVE on Machine B]
@@ -253,7 +253,7 @@ plus the caller’s `scores_out`.
 | device | allocation | Phase 1 |
 |---|---|---|
 | CPU | `posix_memalign` **64-byte** (AVX-512/AVX2-friendly). Layout is a `ggml_tensor` view: `[batch, seq]` int32, row-major, `row_stride = seq`. | **LIVE** |
-| CUDA | turbo_buffer PINNED mapped rent (`cudaHostAllocMapped`; caller writes tokens into device-visible pages) + DEVICE activation scratch rented at load. Kernels read `turbo_buffer_cuda_mapped_device_ptr` — 0 token-row H2D. First-party CUDA BERT graph on device. `allocs/forward == 0`, `h2d_bytes/forward == 0`. | **LIVE** (Phase 2a arena, Machine A) |
+| CUDA | turbo_buffer PINNED mapped rent (`cudaHostAllocMapped`; caller writes tokens into device-visible pages) + DEVICE activation + cuBLASLt workspace rented at load. Kernels read `turbo_buffer_cuda_mapped_device_ptr` — 0 token-row H2D. Linear layers are `cublasLtMatmul` (no `linear_nt_kernel`). `allocs/forward == 0`, `h2d_bytes/forward == 0`. | **LIVE** (Phase 2a + SOLIDIFY (3) GEMM, Machine A) |
 | OpenVINO GPU | turbo_buffer ZE **SHARED** USM (`zeMemAllocShared`); `ov::Tensor(..., usm_pointer)`. HOST/DEVICE placements exist on the same arena. | **LIVE** (Phase 2b + SOLIDIFY (1) arena, Machine B) |
 | OpenVINO CPU | Level Zero USM host when L0 is present, else 64-byte aligned; same IR. | **LIVE** (Phase 2b, explicit device) |
 | OpenVINO NPU | not implemented | fail loud |
@@ -275,8 +275,11 @@ We did **not** vendor ggml + a GGUF convert in this phase:
   pinned CE GGUF exists in-tree.
 - Phase 2a NVIDIA did **not** vendor ggml: there is still no pinned CE
   GGUF, and wrapping the same pointers as `ggml_set_data` would not add
-  a classification head.   Device compute is first-party CUDA kernels on the same BERT graph
-  as the CPU kernel (GEMM matches `linear_nt`).
+  a classification head. Device linear layers call cuBLASLt
+  (`cublasLtMatmul`) on arena DEVICE activations plus an arena-rented
+  Lt workspace. Missing cuBLASLt fails load loud — no hand-rolled GEMM
+  fallback. Attention / LN / GELU stay first-party kernels on the same
+  BERT graph as the CPU path.
 
 This is a compute-backend compromise, **not** a token-path copy
 compromise. Tokens never sit in a `std::vector` on `forward`.
@@ -381,6 +384,7 @@ Hostnames stay out of docs.
 | CPU MiniLM-L6 CE, zero-copy token buffers | Phase 1 |
 | WordPiece (BERT uncased) | Phase 1 |
 | CUDA `cudaHostAllocMapped` + device CE (0 token H2D) | Phase 2a (Machine A) |
+| CUDA linear layers via cuBLASLt (arena workspace) | SOLIDIFY (3) LIVE on Machine A |
 | Intel Level Zero USM + OpenVINO `CompiledModel` | Phase 2b (Machine B) |
 | Apple MTL shared + first-party Metal CE | Phase 2c (Machine C) |
 | Metal token workspace from `turbo_buffer` SHARED arena | SOLIDIFY (1) LIVE on Machine C |

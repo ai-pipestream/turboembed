@@ -74,6 +74,8 @@ bool cuda_gpu_name(std::string *name) {
 
 #ifndef TURBORERANK_CUDA
 
+const char *cuda_gemm_backend() { return "unavailable"; }
+
 bool cuda_resources_init(
     CudaResources *r,
     const BertConfig &,

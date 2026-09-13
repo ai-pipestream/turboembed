@@ -149,9 +149,9 @@ int main() {
     js << "  \"device\": \"CUDA\",\n";
     js << "  \"machine\": \"Machine A\",\n";
     js << "  \"gpu\": \"" << gpu << "\",\n";
-    js << "  \"backend\": \"turborerank first-party CUDA MiniLM CE (turbo_buffer "
-          "PINNED mapped token rent + DEVICE activation scratch; device "
-          "GEMM/attention/LN/GELU/pooler kernels; kernels read mapped int32 "
+    js << "  \"backend\": \"turborerank CUDA MiniLM CE (turbo_buffer "
+          "PINNED mapped token rent + DEVICE activation scratch; cuBLASLt "
+          "GEMM; first-party attention/LN/GELU; kernels read mapped int32 "
           "ids — 0 H2D bytes per row)\",\n";
     js << "  \"compute\": {\n";
     js << "    \"token_workspace\": \"turbo_buffer PINNED mapped rent "
@@ -162,9 +162,10 @@ int main() {
     js << "    \"h2d_per_row\": 0,\n";
     js << "    \"h2d_bytes_steady\": " << h2d_bytes << ",\n";
     js << "    \"h2d_calls_steady\": " << h2d_calls << ",\n";
-    js << "    \"gemm\": \"first-party CUDA kernel matching CPU linear_nt\",\n";
+    js << "    \"gemm\": \"cublasLtMatmul (Y = X @ W^T + bias; "
+          "CUBLAS_COMPUTE_32F; arena-rented workspace; no linear_nt_kernel)\",\n";
     js << "    \"elementwise\": \"first-party CUDA kernels (embed, LayerNorm, "
-          "GELU erf, attention, pooler, classifier)\",\n";
+          "GELU erf, attention, tanh)\",\n";
     js << "    \"host_interim\": false,\n";
     js << "    \"mock\": false\n";
     js << "  },\n";
@@ -181,13 +182,13 @@ int main() {
     js << "  \"cosine_vs_golden\": " << cosine << ",\n";
     js << "  \"git_sha\": \"" << sha << "\",\n";
     js << "  \"command\": \"make test-turborerank-nvidia\",\n";
-    js << "  \"note\": \"SOLIDIFY (2) CUDA token H2D killed on Machine A. "
+    js << "  \"note\": \"SOLIDIFY (3) CUDA GEMM is cuBLASLt on Machine A. "
           "PINNED mapped (cudaHostAllocMapped) token rent; host tokenize/"
           "pack writes those pages; kernels use turbo_buffer_cuda_mapped_"
-          "device_ptr. Steady-state h2d_bytes == 0 and allocs/forward == 0. "
-          "Unmapped pointers fail loud (no convenience H2D). AUTO resolves "
-          "to CUDA. Not a pinned-host CPU interim: the BERT graph including "
-          "GEMM runs on device.\"\n";
+          "device_ptr. Linear layers call cublasLtMatmul; missing cuBLASLt "
+          "fails load loud (no hand-rolled GEMM fallback). Steady-state "
+          "h2d_bytes == 0 and allocs/forward == 0. Unmapped pointers fail "
+          "loud. AUTO resolves to CUDA. Not a pinned-host CPU interim.\"\n";
     js << "}\n";
 
     std::ofstream out(out_path);

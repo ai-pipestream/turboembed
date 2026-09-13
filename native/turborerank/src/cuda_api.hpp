@@ -20,6 +20,12 @@ bool cuda_device_present(std::string *why);
 /** `cudaGetDeviceProperties` name, or empty if CUDA is missing. */
 bool cuda_gpu_name(std::string *name);
 
+/**
+ * Primary CUDA GEMM backend id. CUDA builds return "cublasLtMatmul".
+ * There is no silent hand-rolled fallback — missing cuBLASLt fails load.
+ */
+const char *cuda_gemm_backend();
+
 void *pinned_alloc_bytes(size_t bytes, Status *status);
 void pinned_free_bytes(void *ptr);
 

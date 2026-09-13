@@ -257,6 +257,7 @@ fn main() {
     if enable_cuda {
         println!("cargo:rustc-cfg=turborerank_cuda");
         println!("cargo:rustc-link-lib=cudart");
+        println!("cargo:rustc-link-lib=cublasLt");
         let mut nvcc = cc::Build::new();
         nvcc.cuda(true)
             .cpp(true)
