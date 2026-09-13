@@ -341,6 +341,7 @@ bool cuda_resources_init(
     CudaResources *r,
     const BertConfig &cfg,
     const BertWeights &w,
+    turbo_buffer_arena *arena,
     std::string *err
 ) {
     if (r == nullptr) {
@@ -403,15 +404,42 @@ bool cuda_resources_init(
     const uint32_t H = cfg.hidden;
     const uint32_t I = cfg.intermediate;
     const uint32_t heads = cfg.heads;
-    auto dalloc = [&](float **p, size_t n) -> bool {
-        TR_CUDA(cudaMalloc(reinterpret_cast<void **>(p), n * sizeof(float)), err);
-        TR_CUDA(cudaMemset(*p, 0, n * sizeof(float)), err);
+    if (arena == nullptr) {
+        if (err) {
+            *err = "CUDA activation scratch requires a turbo_buffer arena; "
+                   "refusing private cudaMalloc";
+        }
+        cuda_resources_free(r);
+        return false;
+    }
+    r->arena = arena;
+    auto rent_slot = [&](turbo_buffer_dtype dt, size_t n, void **out) -> bool {
+        if (r->n_rented >= 16) {
+            if (err) {
+                *err = "CUDA scratch view table full";
+            }
+            return false;
+        }
+        turbo_buffer_view *v = &r->rented[r->n_rented];
+        const uint32_t cols = static_cast<uint32_t>(n);
+        if (turbo_buffer_arena_rent(
+                arena, dt, TURBO_BUFFER_PLACE_DEVICE, 1, cols, cols, v
+            ) != TURBO_BUFFER_OK) {
+            if (err) {
+                *err = std::string("CUDA DEVICE rent failed: ") +
+                       turbo_buffer_last_error(arena);
+            }
+            return false;
+        }
+        *out = v->ptr;
+        r->n_rented += 1;
         return true;
     };
+    auto dalloc = [&](float **p, size_t n) -> bool {
+        return rent_slot(TURBO_BUFFER_DTYPE_F32, n, reinterpret_cast<void **>(p));
+    };
     auto ialloc = [&](int32_t **p, size_t n) -> bool {
-        TR_CUDA(cudaMalloc(reinterpret_cast<void **>(p), n * sizeof(int32_t)), err);
-        TR_CUDA(cudaMemset(*p, 0, n * sizeof(int32_t)), err);
-        return true;
+        return rent_slot(TURBO_BUFFER_DTYPE_I32, n, reinterpret_cast<void **>(p));
     };
     if (!dalloc(&r->x, static_cast<size_t>(S) * H) ||
         !dalloc(&r->residual, static_cast<size_t>(S) * H) ||
@@ -464,21 +492,30 @@ void cuda_resources_free(CudaResources *r) {
     dfree(&r->pool_b);
     dfree(&r->cls_w);
     dfree(&r->cls_b);
-    dfree(&r->x);
-    dfree(&r->residual);
-    dfree(&r->q);
-    dfree(&r->k);
-    dfree(&r->v);
-    dfree(&r->attn);
-    dfree(&r->ctx);
-    dfree(&r->inter);
-    dfree(&r->tmp);
-    dfree(&r->pooled);
-    dfree(&r->logit);
-    dfree_i(&r->ids);
-    dfree_i(&r->mask);
-    dfree_i(&r->types);
-    dfree_i(&r->pos_ids);
+    if (r->arena != nullptr) {
+        for (uint32_t i = 0; i < r->n_rented; ++i) {
+            if (r->rented[i].ptr != nullptr) {
+                (void)turbo_buffer_arena_return(r->arena, &r->rented[i]);
+            }
+        }
+    }
+    r->x = nullptr;
+    r->residual = nullptr;
+    r->q = nullptr;
+    r->k = nullptr;
+    r->v = nullptr;
+    r->attn = nullptr;
+    r->ctx = nullptr;
+    r->inter = nullptr;
+    r->tmp = nullptr;
+    r->pooled = nullptr;
+    r->logit = nullptr;
+    r->ids = nullptr;
+    r->mask = nullptr;
+    r->types = nullptr;
+    r->pos_ids = nullptr;
+    r->n_rented = 0;
+    r->arena = nullptr;
     r->enabled = false;
 }
 

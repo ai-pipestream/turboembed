@@ -133,6 +133,10 @@ fn main() {
         "native/turborerank/src/ov_api.cpp",
         "native/turborerank/src/metal_api.cpp",
         "native/turborerank/src/engine.cpp",
+        "native/turbo_buffer/src/arena.cpp",
+        "native/turbo_buffer/src/cuda.cpp",
+        "native/turbo_buffer/src/ze.cpp",
+        "native/turbo_buffer/src/metal.cpp",
     ];
     for rel in sources {
         println!("cargo:rerun-if-changed={}", root.join(rel).display());
@@ -163,6 +167,18 @@ fn main() {
     );
     println!(
         "cargo:rerun-if-changed={}",
+        root.join("include/turbo_buffer.h").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turbo_buffer/src/internal.hpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turbo_buffer/src/metal.mm").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
         root.join("include/reranker.hpp").display()
     );
     println!(
@@ -190,6 +206,7 @@ fn main() {
         .std("c++17")
         .include(root.join("include"))
         .include(root.join("native/turborerank/src"))
+        .include(root.join("native/turbo_buffer/src"))
         .warnings(true)
         .flag_if_supported("-Wno-unused-parameter")
         .define(
@@ -198,6 +215,7 @@ fn main() {
         );
     if enable_cuda {
         build.define("TURBORERANK_CUDA", "1");
+        build.define("TURBO_BUFFER_CUDA", "1");
     }
     if let Some(ref ov) = ov {
         build.define("TURBORERANK_OPENVINO", "1");
@@ -206,13 +224,16 @@ fn main() {
         }
         if enable_l0 {
             build.define("TURBORERANK_LEVEL_ZERO", "1");
+            build.define("TURBO_BUFFER_ZE", "1");
             build.include("/usr/include");
         }
     }
     if enable_metal {
         build.define("TURBORERANK_METAL", "1");
+        build.define("TURBO_BUFFER_METAL", "1");
         build.flag("-fobjc-arc");
         build.file(root.join("native/turborerank/src/metal_api.mm"));
+        build.file(root.join("native/turbo_buffer/src/metal.mm"));
     }
     for rel in sources {
         build.file(root.join(rel));
@@ -242,6 +263,7 @@ fn main() {
             .std("c++17")
             .include(root.join("include"))
             .include(root.join("native/turborerank/src"))
+            .include(root.join("native/turbo_buffer/src"))
             .define("TURBORERANK_CUDA", "1")
             .define(
                 "TURBORERANK_WORKSPACE_ROOT",

@@ -7,6 +7,7 @@
 #include "metal_api.hpp"
 #include "ov_api.hpp"
 #include "reranker.hpp"
+#include "turbo_buffer.h"
 #include "turborerank.h"
 
 #include <cmath>
@@ -493,6 +494,14 @@ static void test_real_model_scores() {
         CHECK(almost(one[i], logits[i], 1e-5f));
     }
 
+    // Scratch + work buffer are arena-owned. Reintroducing private
+    // malloc for those slots fails this owns() check.
+    CHECK(e->arena != nullptr);
+    CHECK(turbo_buffer_arena_owns(e->arena, e->scratch.x));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->scratch.tok_q));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
+
     // No heap growth on forward.
     turborerank_buffer *buf = nullptr;
     CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &buf));
@@ -503,8 +512,27 @@ static void test_real_model_scores() {
     float s = 0;
     CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
     CHECK(s > 0.0f);
     turborerank_buffer_free(buf);
+
+    // Dual rent of caller buffers after warmup: zero allocs.
+    turborerank_buffer *warm1 = nullptr;
+    turborerank_buffer *warm2 = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &warm1));
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &warm2));
+    CHECK(warm1->input_ids != warm2->input_ids);
+    turborerank_buffer_free(warm1);
+    turborerank_buffer_free(warm2);
+    turborerank::alloc_counter_reset();
+    turborerank_buffer *b1 = nullptr;
+    turborerank_buffer *b2 = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &b1));
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &b2));
+    CHECK(b1->input_ids != b2->input_ids);
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    turborerank_buffer_free(b1);
+    turborerank_buffer_free(b2);
 
     // Frozen HF / ST golden vector (testdata/reference_rerank).
     CHECK(almost(logits[0], 8.84585285f, 2e-3f));

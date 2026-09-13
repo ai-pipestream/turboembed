@@ -18,6 +18,7 @@
 #   make turboembed-stub                    # C++ ABI stub (native/turboembed)
 #   make test-turboembed                    # Rust crate ABI smoke
 #   make fetch-rerankers                    # SHA-pin MiniLM-L6 cross-encoder
+#   make turbo-buffer-tests                 # unified arena ABI (CPU + GPU fail-loud)
 #   make turborerank-tests                  # C++ buffer/pack + CUDA if nvcc
 #   make turborerank-tests-nocuda           # same tests, CUDA create fails loud
 #   make test-turborerank                   # fetch + C++ + Rust live scores
@@ -82,6 +83,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
 	turborerank-tests turborerank-tests-nocuda turborerank-tests-noov \
 	turborerank-tests-nometal libturborerank-apple \
+	turbo-buffer-tests turboembed-mock-arena-tests \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt
@@ -145,7 +147,7 @@ sync-proto:
 # TurboRerankC in SPM links this archive — no second @_cdecl dylib.
 libturborerank-apple:
 	mkdir -p native/turborerank/build
-	@for src in $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC); do \
+	@for src in $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC); do \
 	  obj="native/turborerank/build/$$(basename $$src).o"; \
 	  $(TURBORERANK_CXX) -std=c++17 -O2 -fPIC $(TURBORERANK_INCLUDES) \
 	    $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
@@ -161,7 +163,12 @@ libturborerank-apple:
 	  native/turborerank/build/ov_api.cpp.o \
 	  native/turborerank/build/metal_api.cpp.o \
 	  native/turborerank/build/engine.cpp.o \
-	  $(if $(TURBORERANK_METAL_SRC),native/turborerank/build/metal_api.mm.o,)
+	  native/turborerank/build/arena.cpp.o \
+	  native/turborerank/build/cuda.cpp.o \
+	  native/turborerank/build/ze.cpp.o \
+	  native/turborerank/build/metal.cpp.o \
+	  $(if $(TURBORERANK_METAL_SRC),native/turborerank/build/metal_api.mm.o,) \
+	  $(if $(TURBO_BUFFER_METAL_SRC),native/turborerank/build/metal.mm.o,)
 	@echo "wrote native/turborerank/build/libturborerank_apple.a"
 
 apple: sync-proto libturborerank-apple
@@ -358,13 +365,30 @@ endif
 AR ?= ar
 turboembed-stub:
 	mkdir -p native/turboembed/build
-	$(CXX) -std=c++17 -fPIC -O2 -I include \
+	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/turbo_buffer/src \
 	  -c native/turboembed/src/stub.cpp \
 	  -o native/turboembed/build/stub.o
-	$(AR) rcs native/turboembed/build/libturboembed.a native/turboembed/build/stub.o
+	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/turbo_buffer/src \
+	  -c native/turbo_buffer/src/arena.cpp \
+	  -o native/turboembed/build/arena.o
+	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/turbo_buffer/src \
+	  -c native/turbo_buffer/src/cuda.cpp \
+	  -o native/turboembed/build/tb_cuda.o
+	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/turbo_buffer/src \
+	  -c native/turbo_buffer/src/ze.cpp \
+	  -o native/turboembed/build/tb_ze.o
+	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/turbo_buffer/src \
+	  -c native/turbo_buffer/src/metal.cpp \
+	  -o native/turboembed/build/tb_metal.o
+	$(AR) rcs native/turboembed/build/libturboembed.a \
+	  native/turboembed/build/stub.o \
+	  native/turboembed/build/arena.o \
+	  native/turboembed/build/tb_cuda.o \
+	  native/turboembed/build/tb_ze.o \
+	  native/turboembed/build/tb_metal.o
 	@echo "wrote native/turboembed/build/libturboembed.a"
 
-test-turboembed:
+test-turboembed: turboembed-mock-arena-tests
 	$(CARGO) test -p turboembed
 
 # Live TextEmbeddingPipeline on Intel CPU and GPU. GPU/NPU create fails if
@@ -395,6 +419,12 @@ list-rerankers:
 update-rerank-manifest:
 	$(FETCH) --rerankers --update-manifest $(ALIAS_ARGS)
 
+TURBO_BUFFER_SRCS := \
+	native/turbo_buffer/src/arena.cpp \
+	native/turbo_buffer/src/cuda.cpp \
+	native/turbo_buffer/src/ze.cpp \
+	native/turbo_buffer/src/metal.cpp
+
 TURBORERANK_SRCS := \
 	native/turborerank/src/alloc.cpp \
 	native/turborerank/src/pack.cpp \
@@ -404,7 +434,8 @@ TURBORERANK_SRCS := \
 	native/turborerank/src/cuda_api.cpp \
 	native/turborerank/src/ov_api.cpp \
 	native/turborerank/src/metal_api.cpp \
-	native/turborerank/src/engine.cpp
+	native/turborerank/src/engine.cpp \
+	$(TURBO_BUFFER_SRCS)
 
 TURBORERANK_NVCC ?= nvcc
 # CUDA 12.4 rejects gcc 15 as nvcc host. g++-13 is on Machine A.
@@ -416,13 +447,14 @@ TURBORERANK_ENABLE_CUDA ?= $(shell \
 	then echo 1; else echo 0; fi)
 TURBORERANK_CUDA_ARCH ?= native
 
-TURBORERANK_INCLUDES := -I include -I native/turborerank/src
+TURBORERANK_INCLUDES := -I include -I native/turborerank/src -I native/turbo_buffer/src
 TURBORERANK_CPPFLAGS := -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\"
 TURBORERANK_CUDA_LIBS :=
 TURBORERANK_CUDA_OBJ :=
 TURBORERANK_OV_LIBS :=
 TURBORERANK_METAL_LIBS :=
 TURBORERANK_METAL_SRC :=
+TURBO_BUFFER_METAL_SRC :=
 TURBORERANK_METAL_FLAGS :=
 
 # 0/1. Default: compile Metal on Darwin unless TURBORERANK_ENABLE_METAL=0.
@@ -447,21 +479,23 @@ TURBORERANK_OV_LIBDIR := $(shell pkg-config --libs-only-L openvino 2>/dev/null |
 endif
 TURBORERANK_OV_LIBS := -L$(TURBORERANK_OV_LIBDIR) -lopenvino -Wl,-rpath,$(TURBORERANK_OV_LIBDIR)
 ifeq ($(TURBORERANK_ENABLE_L0),1)
-TURBORERANK_CPPFLAGS += -DTURBORERANK_LEVEL_ZERO=1
+TURBORERANK_CPPFLAGS += -DTURBORERANK_LEVEL_ZERO=1 -DTURBO_BUFFER_ZE=1
 TURBORERANK_OV_LIBS += -lze_loader
 endif
 endif
 
 ifeq ($(TURBORERANK_ENABLE_CUDA),1)
-TURBORERANK_CPPFLAGS += -DTURBORERANK_CUDA=1
+TURBORERANK_CPPFLAGS += -DTURBORERANK_CUDA=1 -DTURBO_BUFFER_CUDA=1
 TURBORERANK_CUDA_LIBS := -lcudart
 TURBORERANK_CUDA_OBJ := native/turborerank/build/bert_cuda.o
 endif
 
+TURBO_BUFFER_METAL_SRC :=
 ifeq ($(TURBORERANK_ENABLE_METAL),1)
-TURBORERANK_CPPFLAGS += -DTURBORERANK_METAL=1
+TURBORERANK_CPPFLAGS += -DTURBORERANK_METAL=1 -DTURBO_BUFFER_METAL=1
 TURBORERANK_METAL_FLAGS := -fobjc-arc
 TURBORERANK_METAL_SRC := native/turborerank/src/metal_api.mm
+TURBO_BUFFER_METAL_SRC := native/turbo_buffer/src/metal.mm
 TURBORERANK_METAL_LIBS := -framework Metal -framework Foundation
 endif
 
@@ -471,16 +505,34 @@ native/turborerank/build/bert_cuda.o: native/turborerank/src/bert_cuda.cu \
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_NVCC) -std=c++17 -O2 -arch=$(TURBORERANK_CUDA_ARCH) \
 	  -ccbin=$(TURBORERANK_NVCC_CCBIN) \
-	  $(TURBORERANK_INCLUDES) -DTURBORERANK_CUDA=1 \
+	  $(TURBORERANK_INCLUDES) -DTURBORERANK_CUDA=1 -DTURBO_BUFFER_CUDA=1 \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  -c native/turborerank/src/bert_cuda.cu \
 	  -o native/turborerank/build/bert_cuda.o
 
-turborerank-tests: $(TURBORERANK_CUDA_OBJ)
+turbo-buffer-tests:
+	mkdir -p native/turbo_buffer/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
+	  $(TURBO_BUFFER_SRCS) $(TURBO_BUFFER_METAL_SRC) \
+	  native/turbo_buffer/tests/turbo_buffer_tests.cpp \
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
+	  -o native/turbo_buffer/build/turbo_buffer_tests
+	native/turbo_buffer/build/turbo_buffer_tests
+
+turboembed-mock-arena-tests: turboembed-stub
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include \
+	  native/turboembed/tests/mock_arena_tests.cpp \
+	  native/turboembed/build/libturboembed.a \
+	  -lm -o native/turboembed/build/mock_arena_tests
+	native/turboembed/build/mock_arena_tests
+
+turborerank-tests: $(TURBORERANK_CUDA_OBJ) turbo-buffer-tests
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBORERANK_CUDA_OBJ) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
+	  $(TURBORERANK_CUDA_OBJ) \
 	  native/turborerank/tests/turborerank_tests.cpp \
 	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
 	  -o native/turborerank/build/turborerank_tests
@@ -492,7 +544,8 @@ turborerank-tests-nocuda:
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) native/turborerank/tests/turborerank_tests.cpp \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
+	  native/turborerank/tests/turborerank_tests.cpp \
 	  -lm $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) $(TURBORERANK_METAL_FLAGS) \
 	  -o native/turborerank/build/turborerank_tests_nocuda
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_nocuda
@@ -501,10 +554,12 @@ turborerank-tests-nocuda:
 turborerank-tests-noov:
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include -I native/turborerank/src \
+	  -I native/turbo_buffer/src \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
-	  $(if $(filter 1,$(TURBORERANK_ENABLE_METAL)),-DTURBORERANK_METAL=1) \
+	  $(if $(filter 1,$(TURBORERANK_ENABLE_METAL)),-DTURBORERANK_METAL=1 -DTURBO_BUFFER_METAL=1) \
 	  $(TURBORERANK_METAL_FLAGS) \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) native/turborerank/tests/turborerank_tests.cpp \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
+	  native/turborerank/tests/turborerank_tests.cpp \
 	  -lm $(TURBORERANK_METAL_LIBS) \
 	  -o native/turborerank/build/turborerank_tests_noov
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_noov
@@ -522,7 +577,8 @@ turborerank-nvidia-receipt: $(TURBORERANK_CUDA_OBJ)
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBORERANK_CUDA_OBJ) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
+	  $(TURBORERANK_CUDA_OBJ) \
 	  native/turborerank/tools/write_nvidia_receipt.cpp \
 	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
 	  $(TURBORERANK_METAL_FLAGS) \
@@ -558,7 +614,8 @@ turborerank-intel-receipt: $(TURBORERANK_CUDA_OBJ)
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBORERANK_CUDA_OBJ) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
+	  $(TURBORERANK_CUDA_OBJ) \
 	  native/turborerank/tools/write_intel_receipt.cpp \
 	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
 	  $(TURBORERANK_METAL_FLAGS) \
@@ -569,13 +626,13 @@ turborerank-apple-receipt:
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
-	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
 	  native/turborerank/tools/write_apple_receipt.cpp \
 	  -lm $(TURBORERANK_METAL_LIBS) \
 	  -o native/turborerank/build/write_apple_receipt
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/write_apple_receipt
 
-test-turborerank: fetch-rerankers turborerank-tests turborerank-tests-nocuda
+test-turborerank: fetch-rerankers turboembed-mock-arena-tests turborerank-tests turborerank-tests-nocuda
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p turborerank -- --include-ignored --nocapture
 	INFERSTREAM_ROOT=$(CURDIR) $(CARGO) test -p inferstream-backend-turborerank -- --include-ignored --nocapture
 

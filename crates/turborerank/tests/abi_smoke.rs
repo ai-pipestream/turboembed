@@ -21,6 +21,13 @@ fn apple_header_copy_matches_canonical() {
         canon, apple_txt,
         "swift/Sources/TurboRerankC/include/turborerank.h must match include/turborerank.h"
     );
+    let buf_canon = std::fs::read_to_string(root.join("include/turbo_buffer.h")).unwrap();
+    let buf_apple = root.join("swift/Sources/TurboBufferC/include/turbo_buffer.h");
+    let buf_apple_txt = std::fs::read_to_string(&buf_apple).unwrap();
+    assert_eq!(
+        buf_canon, buf_apple_txt,
+        "swift/Sources/TurboBufferC/include/turbo_buffer.h must match include/turbo_buffer.h"
+    );
 }
 
 #[test]

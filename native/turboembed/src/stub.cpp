@@ -15,6 +15,7 @@
  */
 
 #include "turboembed.h"
+#include "turbo_buffer.h"
 
 #ifdef TURBOEMBED_GENAI
 #include "genai.hpp"
@@ -125,11 +126,18 @@ void mock_embed_row(const char *ptr, size_t len, float *out, uint32_t dim) {
 #define TURBOEMBED_WORKSPACE_ROOT ""
 #endif
 
+struct EmbedResultRec {
+    turboembed_embed_result pub;
+    turbo_buffer_view values {};
+    turbo_buffer_arena *arena = nullptr;
+};
+
 struct turboembed_engine {
     turboembed_device device;
     std::string config_path;
     std::string last_error;
     bool mock_loaded;
+    turbo_buffer_arena *arena;
 #ifdef TURBOEMBED_GENAI
     std::unique_ptr<turboembed_genai::Pipeline> genai;
     std::string genai_alias;
@@ -143,7 +151,8 @@ struct turboembed_engine {
         : device(device_),
           config_path(std::move(config)),
           last_error(),
-          mock_loaded(device_ == TURBOEMBED_DEVICE_MOCK)
+          mock_loaded(device_ == TURBOEMBED_DEVICE_MOCK),
+          arena(nullptr)
 #ifdef TURBOEMBED_ORT_CUDA
           ,
           ort_cuda(nullptr)
@@ -158,6 +167,8 @@ struct turboembed_engine {
             ort_cuda = nullptr;
         }
 #endif
+        turbo_buffer_arena_destroy(arena);
+        arena = nullptr;
     }
 
     turboembed_engine(const turboembed_engine &) = delete;
@@ -413,6 +424,19 @@ turboembed_status turboembed_engine_create(
         g_create_error = "engine allocation failed";
         return TURBOEMBED_ERR_OUT_OF_MEMORY;
     }
+    /* Host FP32 embed rows are rented from a CPU arena. GPU compute
+     * backends keep their own device memory; item (4) can move those
+     * onto this ABI without rewriting create/load. */
+    if (turbo_buffer_arena_create(TURBO_BUFFER_DEVICE_CPU, &(*out)->arena) !=
+            TURBO_BUFFER_OK ||
+        (*out)->arena == nullptr) {
+        g_create_error =
+            std::string("turbo_buffer arena_create failed: ") +
+            turbo_buffer_last_error(nullptr);
+        delete *out;
+        *out = nullptr;
+        return TURBOEMBED_ERR_OUT_OF_MEMORY;
+    }
     g_create_error.clear();
     return TURBOEMBED_OK;
 }
@@ -552,6 +576,20 @@ turboembed_status turboembed_load_model(
             case TURBOEMBED_DEVICE_CPU:
             case TURBOEMBED_DEVICE_OPENVINO_CPU:
                 engine->mock_loaded = true;
+                if (engine->arena != nullptr) {
+                    turbo_buffer_view warm {};
+                    if (turbo_buffer_arena_rent(
+                            engine->arena,
+                            TURBO_BUFFER_DTYPE_F32,
+                            TURBO_BUFFER_PLACE_HOST,
+                            32,
+                            kMockDim,
+                            kMockDim,
+                            &warm
+                        ) == TURBO_BUFFER_OK) {
+                        (void)turbo_buffer_arena_return(engine->arena, &warm);
+                    }
+                }
                 engine->set_error("");
                 return TURBOEMBED_OK;
             default:
@@ -773,31 +811,38 @@ static turboembed_status embed_impl(
             return TURBOEMBED_ERR_INTERNAL;
         }
         const size_t n_floats = count * dim;
-        auto *result = static_cast<turboembed_embed_result *>(
-            std::calloc(1, sizeof(turboembed_embed_result))
-        );
-        if (result == nullptr) {
+        auto *rec = new (std::nothrow) EmbedResultRec();
+        if (rec == nullptr || engine->arena == nullptr) {
             turboembed_ort_cuda_free_values(flat, n_floats);
+            delete rec;
             engine->set_error("result allocation failed");
             return TURBOEMBED_ERR_OUT_OF_MEMORY;
         }
-        auto *values = static_cast<float *>(
-            std::malloc(n_floats * sizeof(float))
-        );
-        if (values == nullptr) {
+        std::memset(rec, 0, sizeof(*rec));
+        rec->arena = engine->arena;
+        if (turbo_buffer_arena_rent(
+                engine->arena,
+                TURBO_BUFFER_DTYPE_F32,
+                TURBO_BUFFER_PLACE_HOST,
+                static_cast<uint32_t>(count),
+                static_cast<uint32_t>(dim),
+                static_cast<uint32_t>(dim),
+                &rec->values
+            ) != TURBO_BUFFER_OK) {
             turboembed_ort_cuda_free_values(flat, n_floats);
-            std::free(result);
-            engine->set_error("values allocation failed");
+            delete rec;
+            engine->set_error("result arena rent failed");
             return TURBOEMBED_ERR_OUT_OF_MEMORY;
         }
+        float *values = turbo_buffer_view_f32(&rec->values);
         std::memcpy(values, flat, n_floats * sizeof(float));
         turboembed_ort_cuda_free_values(flat, n_floats);
-        result->dim = static_cast<uint32_t>(dim);
-        result->count = static_cast<uint32_t>(count);
-        result->values = values;
-        result->packed = reinterpret_cast<const uint8_t *>(values);
-        result->packed_len = n_floats * sizeof(float);
-        *out = result;
+        rec->pub.dim = static_cast<uint32_t>(dim);
+        rec->pub.count = static_cast<uint32_t>(count);
+        rec->pub.values = values;
+        rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
+        rec->pub.packed_len = n_floats * sizeof(float);
+        *out = &rec->pub;
         engine->set_error("");
         return TURBOEMBED_OK;
     }
@@ -862,28 +907,35 @@ static turboembed_status embed_impl(
                 engine->set_error("ragged GenAI embedding batch");
                 return TURBOEMBED_ERR_INTERNAL;
             }
-            auto *result = static_cast<turboembed_embed_result *>(
-                std::calloc(1, sizeof(turboembed_embed_result))
-            );
-            if (result == nullptr) {
+            auto *rec = new (std::nothrow) EmbedResultRec();
+            if (rec == nullptr || engine->arena == nullptr) {
+                delete rec;
                 engine->set_error("result allocation failed");
                 return TURBOEMBED_ERR_OUT_OF_MEMORY;
             }
-            auto *values = static_cast<float *>(
-                std::malloc(flat.size() * sizeof(float))
-            );
-            if (values == nullptr) {
-                std::free(result);
-                engine->set_error("values allocation failed");
+            std::memset(rec, 0, sizeof(*rec));
+            rec->arena = engine->arena;
+            if (turbo_buffer_arena_rent(
+                    engine->arena,
+                    TURBO_BUFFER_DTYPE_F32,
+                    TURBO_BUFFER_PLACE_HOST,
+                    static_cast<uint32_t>(n_texts),
+                    dim,
+                    dim,
+                    &rec->values
+                ) != TURBO_BUFFER_OK) {
+                delete rec;
+                engine->set_error("result arena rent failed");
                 return TURBOEMBED_ERR_OUT_OF_MEMORY;
             }
+            float *values = turbo_buffer_view_f32(&rec->values);
             std::memcpy(values, flat.data(), flat.size() * sizeof(float));
-            result->dim = dim;
-            result->count = static_cast<uint32_t>(n_texts);
-            result->values = values;
-            result->packed = reinterpret_cast<const uint8_t *>(values);
-            result->packed_len = flat.size() * sizeof(float);
-            *out = result;
+            rec->pub.dim = dim;
+            rec->pub.count = static_cast<uint32_t>(n_texts);
+            rec->pub.values = values;
+            rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
+            rec->pub.packed_len = flat.size() * sizeof(float);
+            *out = &rec->pub;
             engine->set_error("");
             return TURBOEMBED_OK;
         } catch (const std::exception &e) {
@@ -931,20 +983,32 @@ static turboembed_status embed_impl(
 
     (void)opts; /* pooling / normalize ignored on the mock path */
 
-    const size_t n_floats = n_texts * static_cast<size_t>(kMockDim);
-    auto *result = static_cast<turboembed_embed_result *>(
-        std::calloc(1, sizeof(turboembed_embed_result))
-    );
-    if (result == nullptr) {
+    if (engine->arena == nullptr) {
+        engine->set_error("mock embed requires a turbo_buffer arena");
+        return TURBOEMBED_ERR_INTERNAL;
+    }
+    auto *rec = new (std::nothrow) EmbedResultRec();
+    if (rec == nullptr) {
         engine->set_error("result allocation failed");
         return TURBOEMBED_ERR_OUT_OF_MEMORY;
     }
-    auto *values = static_cast<float *>(std::malloc(n_floats * sizeof(float)));
-    if (values == nullptr) {
-        std::free(result);
-        engine->set_error("values allocation failed");
+    std::memset(rec, 0, sizeof(*rec));
+    rec->arena = engine->arena;
+    const turbo_buffer_status rst = turbo_buffer_arena_rent(
+        engine->arena,
+        TURBO_BUFFER_DTYPE_F32,
+        TURBO_BUFFER_PLACE_HOST,
+        static_cast<uint32_t>(n_texts),
+        kMockDim,
+        kMockDim,
+        &rec->values
+    );
+    if (rst != TURBO_BUFFER_OK || rec->values.ptr == nullptr) {
+        delete rec;
+        engine->set_error("mock embed arena rent failed");
         return TURBOEMBED_ERR_OUT_OF_MEMORY;
     }
+    float *values = turbo_buffer_view_f32(&rec->values);
     for (size_t i = 0; i < n_texts; ++i) {
         mock_embed_row(
             texts[i].ptr,
@@ -953,12 +1017,12 @@ static turboembed_status embed_impl(
             kMockDim
         );
     }
-    result->dim = kMockDim;
-    result->count = static_cast<uint32_t>(n_texts);
-    result->values = values;
-    result->packed = reinterpret_cast<const uint8_t *>(values);
-    result->packed_len = n_floats * sizeof(float);
-    *out = result;
+    rec->pub.dim = kMockDim;
+    rec->pub.count = static_cast<uint32_t>(n_texts);
+    rec->pub.values = values;
+    rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
+    rec->pub.packed_len = n_texts * static_cast<size_t>(kMockDim) * sizeof(float);
+    *out = &rec->pub;
     engine->set_error("");
     return TURBOEMBED_OK;
 }
@@ -1023,6 +1087,12 @@ turboembed_status turboembed_embed_stream(
 
 void turboembed_embed_result_free(turboembed_embed_result *result) {
     if (result == nullptr) {
+        return;
+    }
+    auto *rec = reinterpret_cast<EmbedResultRec *>(result);
+    if (rec->arena != nullptr && rec->values.ptr != nullptr) {
+        (void)turbo_buffer_arena_return(rec->arena, &rec->values);
+        delete rec;
         return;
     }
     std::free(const_cast<float *>(result->values));

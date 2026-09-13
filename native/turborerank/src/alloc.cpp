@@ -4,8 +4,8 @@
 #include "internal.hpp"
 #include "metal_api.hpp"
 #include "ov_api.hpp"
+#include "turbo_buffer.h"
 
-#include <atomic>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -18,14 +18,9 @@
 #include <stdlib.h>
 #endif
 
-#ifdef TURBORERANK_CUDA
-#include <cuda_runtime.h>
-#endif
-
 namespace turborerank {
 namespace {
 
-std::atomic<uint64_t> g_allocs{0};
 thread_local std::string g_create_error;
 
 } // namespace
@@ -61,7 +56,7 @@ void *aligned_alloc_bytes(size_t bytes, size_t alignment, Status *status) {
     }
 #endif
     std::memset(ptr, 0, bytes);
-    g_allocs.fetch_add(1, std::memory_order_relaxed);
+    turbo_buffer_note_alloc();
     if (status) {
         *status = Status::Ok;
     }
@@ -82,45 +77,34 @@ void aligned_free_bytes(void *ptr) {
 namespace impl {
 
 void *pinned_alloc_bytes(size_t bytes, Status *status) {
-#ifdef TURBORERANK_CUDA
-    if (bytes == 0) {
-        if (status) {
-            *status = Status::InvalidArgument;
-        }
-        return nullptr;
-    }
     void *ptr = nullptr;
-    const cudaError_t e = cudaHostAlloc(&ptr, bytes, cudaHostAllocDefault);
-    if (e != cudaSuccess || ptr == nullptr) {
+    const turbo_buffer_status st = turbo_buffer_raw_alloc(
+        TURBO_BUFFER_DEVICE_CUDA, TURBO_BUFFER_PLACE_PINNED, bytes, &ptr
+    );
+    if (st != TURBO_BUFFER_OK || ptr == nullptr) {
         if (status) {
-            *status = Status::OutOfMemory;
+            if (st == TURBO_BUFFER_ERR_NOT_IMPLEMENTED) {
+                *status = Status::Unavailable;
+            } else if (st == TURBO_BUFFER_ERR_UNAVAILABLE) {
+                *status = Status::Unavailable;
+            } else if (st == TURBO_BUFFER_ERR_INVALID_ARGUMENT) {
+                *status = Status::InvalidArgument;
+            } else {
+                *status = Status::OutOfMemory;
+            }
         }
         return nullptr;
     }
-    std::memset(ptr, 0, bytes);
-    g_allocs.fetch_add(1, std::memory_order_relaxed);
     if (status) {
         *status = Status::Ok;
     }
     return ptr;
-#else
-    (void)bytes;
-    if (status) {
-        *status = Status::Unavailable;
-    }
-    return nullptr;
-#endif
 }
 
 void pinned_free_bytes(void *ptr) {
-    if (ptr == nullptr) {
-        return;
-    }
-#ifdef TURBORERANK_CUDA
-    (void)cudaFreeHost(ptr);
-#else
-    std::free(ptr);
-#endif
+    turbo_buffer_raw_free(
+        TURBO_BUFFER_DEVICE_CUDA, TURBO_BUFFER_PLACE_PINNED, ptr
+    );
 }
 
 void set_create_error(const std::string &msg) {
@@ -252,18 +236,47 @@ turborerank_device resolve_create_device(turborerank_device requested) {
     return requested;
 }
 
+turbo_buffer_device buffer_device_for(turborerank_device d) {
+    switch (d) {
+    case TURBORERANK_DEVICE_CUDA:
+        return TURBO_BUFFER_DEVICE_CUDA;
+    case TURBORERANK_DEVICE_OPENVINO_CPU:
+    case TURBORERANK_DEVICE_OPENVINO_GPU:
+        return TURBO_BUFFER_DEVICE_ZE;
+    case TURBORERANK_DEVICE_METAL:
+        return TURBO_BUFFER_DEVICE_METAL;
+    default:
+        return TURBO_BUFFER_DEVICE_CPU;
+    }
+}
+
+turbo_buffer_placement host_visible_placement(turborerank_device d) {
+    switch (d) {
+    case TURBORERANK_DEVICE_CUDA:
+        return TURBO_BUFFER_PLACE_PINNED;
+    case TURBORERANK_DEVICE_OPENVINO_GPU:
+        return TURBO_BUFFER_PLACE_SHARED;
+    case TURBORERANK_DEVICE_OPENVINO_CPU:
+        return TURBO_BUFFER_PLACE_HOST;
+    case TURBORERANK_DEVICE_METAL:
+        return TURBO_BUFFER_PLACE_SHARED;
+    default:
+        return TURBO_BUFFER_PLACE_HOST;
+    }
+}
+
 } // namespace impl
 
 void alloc_counter_reset() {
-    g_allocs.store(0, std::memory_order_relaxed);
+    turbo_buffer_alloc_counter_reset();
 }
 
 uint64_t alloc_counter_value() {
-    return g_allocs.load(std::memory_order_relaxed);
+    return turbo_buffer_alloc_counter();
 }
 
 void note_alloc() {
-    g_allocs.fetch_add(1, std::memory_order_relaxed);
+    turbo_buffer_note_alloc();
 }
 
 } // namespace turborerank

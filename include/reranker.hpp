@@ -111,7 +111,7 @@ uint32_t pack_pair_ids(
     Status *status
 );
 
-/** 64-byte (or device) aligned allocation. Counted for leak / hot-path tests. */
+/** Load-time weight copy only. Token/activation scratch is turbo_buffer. */
 void *aligned_alloc_bytes(size_t bytes, size_t alignment, Status *status);
 
 void aligned_free_bytes(void *ptr);

@@ -13,6 +13,7 @@
 
 #include "metal_api.hpp"
 #include "reranker.hpp"
+#include "turbo_buffer.h"
 
 #include <algorithm>
 #include <cmath>
@@ -607,6 +608,12 @@ BufView lookup_view(const void *ptr) {
             return out;
         }
     }
+    void *native = nullptr;
+    size_t off = 0;
+    if (turbo_buffer_metal_lookup(ptr, &native, &off) && native != nullptr) {
+        out.buffer = (__bridge id<MTLBuffer>)native;
+        out.offset = static_cast<NSUInteger>(off);
+    }
     return out;
 }
 
@@ -692,7 +699,10 @@ void metal_shared_free_bytes(void *ptr) {
 bool metal_shared_owns(const void *ptr) {
     SharedRegistry &reg = registry();
     std::lock_guard<std::mutex> lock(reg.mu);
-    return reg.map.find(ptr) != reg.map.end();
+    if (reg.map.find(ptr) != reg.map.end()) {
+        return true;
+    }
+    return turbo_buffer_metal_owns(ptr) != 0;
 }
 
 bool metal_resources_init(

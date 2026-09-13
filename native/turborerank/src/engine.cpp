@@ -6,11 +6,13 @@
 #include "internal.hpp"
 #include "metal_api.hpp"
 #include "ov_api.hpp"
+#include "turbo_buffer.h"
 
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <mutex>
 #include <new>
 #include <sstream>
 #include <string>
@@ -64,6 +66,138 @@ void free_work_buffer(turborerank_engine *e) {
         turborerank_buffer_free(e->work);
         e->work = nullptr;
     }
+}
+
+struct TokenBufferRec {
+    turborerank_buffer pub;
+    turbo_buffer_view views[4];
+    turbo_buffer_arena *arena = nullptr;
+};
+
+TokenBufferRec *as_rec(turborerank_buffer *buffer) {
+    return reinterpret_cast<TokenBufferRec *>(buffer);
+}
+
+turborerank_status map_buf_status(turbo_buffer_status st) {
+    switch (st) {
+    case TURBO_BUFFER_OK:
+        return TURBORERANK_OK;
+    case TURBO_BUFFER_ERR_INVALID_ARGUMENT:
+        return TURBORERANK_ERR_INVALID_ARGUMENT;
+    case TURBO_BUFFER_ERR_NOT_FOUND:
+        return TURBORERANK_ERR_NOT_FOUND;
+    case TURBO_BUFFER_ERR_NOT_IMPLEMENTED:
+        return TURBORERANK_ERR_NOT_IMPLEMENTED;
+    case TURBO_BUFFER_ERR_UNAVAILABLE:
+        return TURBORERANK_ERR_UNAVAILABLE;
+    case TURBO_BUFFER_ERR_OUT_OF_MEMORY:
+        return TURBORERANK_ERR_OUT_OF_MEMORY;
+    case TURBO_BUFFER_ERR_UNSUPPORTED_DEVICE:
+        return TURBORERANK_ERR_UNSUPPORTED_DEVICE;
+    default:
+        return TURBORERANK_ERR_INTERNAL;
+    }
+}
+
+turbo_buffer_status process_arena(
+    turbo_buffer_device device,
+    turbo_buffer_arena **out
+) {
+    static std::mutex mu;
+    static turbo_buffer_arena *cpu = nullptr;
+    static turbo_buffer_arena *cuda = nullptr;
+    static turbo_buffer_arena *ze = nullptr;
+    static turbo_buffer_arena *metal = nullptr;
+    std::lock_guard<std::mutex> lock(mu);
+    turbo_buffer_arena **slot = nullptr;
+    switch (device) {
+    case TURBO_BUFFER_DEVICE_CPU:
+        slot = &cpu;
+        break;
+    case TURBO_BUFFER_DEVICE_CUDA:
+        slot = &cuda;
+        break;
+    case TURBO_BUFFER_DEVICE_ZE:
+        slot = &ze;
+        break;
+    case TURBO_BUFFER_DEVICE_METAL:
+        slot = &metal;
+        break;
+    default:
+        return TURBO_BUFFER_ERR_UNSUPPORTED_DEVICE;
+    }
+    if (*slot != nullptr) {
+        *out = *slot;
+        return TURBO_BUFFER_OK;
+    }
+    const turbo_buffer_status st = turbo_buffer_arena_create(device, slot);
+    *out = *slot;
+    return st;
+}
+
+turborerank_status rent_token_buffer(
+    turbo_buffer_arena *arena,
+    turbo_buffer_placement place,
+    turborerank_device pub_device,
+    uint32_t batch,
+    uint32_t seq,
+    turborerank_buffer **out
+) {
+    auto *rec = new (std::nothrow) TokenBufferRec();
+    if (rec == nullptr) {
+        return TURBORERANK_ERR_OUT_OF_MEMORY;
+    }
+    std::memset(rec, 0, sizeof(*rec));
+    rec->arena = arena;
+    rec->pub.device = pub_device;
+    turbo_buffer_status rent_st = TURBO_BUFFER_OK;
+    for (int i = 0; i < 4; ++i) {
+        rent_st = turbo_buffer_arena_rent(
+            arena,
+            TURBO_BUFFER_DTYPE_I32,
+            place,
+            batch,
+            seq,
+            seq,
+            &rec->views[i]
+        );
+        if (rent_st != TURBO_BUFFER_OK) {
+            for (int j = 0; j < i; ++j) {
+                (void)turbo_buffer_arena_return(arena, &rec->views[j]);
+            }
+            delete rec;
+            return map_buf_status(rent_st);
+        }
+    }
+    rec->pub.input_ids = turbo_buffer_view_i32(&rec->views[0]);
+    rec->pub.attention_mask = turbo_buffer_view_i32(&rec->views[1]);
+    rec->pub.token_type_ids = turbo_buffer_view_i32(&rec->views[2]);
+    rec->pub.position_ids = turbo_buffer_view_i32(&rec->views[3]);
+    rec->pub.batch = batch;
+    rec->pub.seq = seq;
+    rec->pub.row_stride = seq;
+    rec->pub.device = pub_device;
+    *out = &rec->pub;
+    return TURBORERANK_OK;
+}
+
+bool attach_engine_arena(turborerank_engine *engine, std::string *err) {
+    if (engine->arena != nullptr) {
+        return true;
+    }
+    turbo_buffer_device bd = turborerank::impl::buffer_device_for(engine->device);
+    turbo_buffer_status st = turbo_buffer_arena_create(bd, &engine->arena);
+    if (st != TURBO_BUFFER_OK &&
+        engine->device == TURBORERANK_DEVICE_OPENVINO_CPU) {
+        st = turbo_buffer_arena_create(TURBO_BUFFER_DEVICE_CPU, &engine->arena);
+    }
+    if (st != TURBO_BUFFER_OK) {
+        if (err) {
+            *err = turbo_buffer_last_error(nullptr);
+        }
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -311,6 +445,20 @@ turborerank_status turborerank_engine_create(
             "MOCK engine created; catalog cross-encoders will not load. "
             "Mock does not produce relevance scores.";
     }
+    std::string arena_err;
+    if (!attach_engine_arena(engine, &arena_err)) {
+        turborerank::impl::set_create_error(
+            arena_err.empty()
+                ? "turbo_buffer arena_create failed; refusing CPU fallback"
+                : arena_err
+        );
+        delete engine;
+        if (resolved == TURBORERANK_DEVICE_CPU ||
+            resolved == TURBORERANK_DEVICE_MOCK) {
+            return TURBORERANK_ERR_OUT_OF_MEMORY;
+        }
+        return TURBORERANK_ERR_UNAVAILABLE;
+    }
     *out = engine;
     return TURBORERANK_OK;
 }
@@ -326,6 +474,8 @@ void turborerank_engine_destroy(turborerank_engine *engine) {
     turborerank::impl::free_scratch(&engine->scratch);
     turborerank::impl::free_owned(&engine->owned_weights);
     turborerank::impl::free_mapped(&engine->mapped);
+    turbo_buffer_arena_destroy(engine->arena);
+    engine->arena = nullptr;
     delete engine;
 }
 
@@ -479,13 +629,23 @@ turborerank_status turborerank_load_model(
             return TURBORERANK_ERR_UNAVAILABLE;
         }
     }
-    if (!turborerank::impl::alloc_scratch(&engine->scratch, engine->cfg, &err)) {
+    if (engine->arena == nullptr && !attach_engine_arena(engine, &err)) {
+        engine->last_error = err.empty()
+                                 ? "turbo_buffer arena missing; refusing private malloc"
+                                 : err;
+        return TURBORERANK_ERR_UNAVAILABLE;
+    }
+    const turbo_buffer_placement host_place =
+        turborerank::impl::host_visible_placement(engine->device);
+    if (!turborerank::impl::alloc_scratch(
+            &engine->scratch, engine->arena, host_place, engine->cfg, &err
+        )) {
         engine->last_error = err;
         return TURBORERANK_ERR_OUT_OF_MEMORY;
     }
     if (engine->device == TURBORERANK_DEVICE_CUDA) {
         if (!turborerank::impl::cuda_resources_init(
-                &engine->cuda, engine->cfg, engine->weights, &err
+                &engine->cuda, engine->cfg, engine->weights, engine->arena, &err
             )) {
             engine->last_error =
                 err.empty() ? "CUDA MiniLM CE init failed; refusing CPU fallback"
@@ -515,14 +675,20 @@ turborerank_status turborerank_load_model(
         }
     }
     free_work_buffer(engine);
-    turborerank_status st = turborerank_buffer_alloc(
+    const turbo_buffer_placement token_place =
+        turborerank::impl::host_visible_placement(engine->device);
+    turborerank_status st = rent_token_buffer(
+        engine->arena,
+        token_place,
         engine->device,
         engine->cfg.max_batch,
         engine->cfg.max_position,
         &engine->work
     );
     if (st != TURBORERANK_OK) {
-        engine->last_error = "failed to reserve engine work buffer";
+        engine->last_error =
+            std::string("failed to rent engine work buffer from turbo_buffer: ") +
+            turbo_buffer_last_error(engine->arena);
         return st;
     }
 
@@ -612,83 +778,38 @@ turborerank_status turborerank_buffer_alloc(
         resolved = TURBORERANK_DEVICE_CPU;
     }
 
-    const size_t n = static_cast<size_t>(batch) * static_cast<size_t>(seq);
-    const size_t bytes = n * sizeof(int32_t);
-    turborerank::Status st = turborerank::Status::Ok;
-    auto *buf = new (std::nothrow) turborerank_buffer();
-    if (buf == nullptr) {
-        return TURBORERANK_ERR_OUT_OF_MEMORY;
+    turbo_buffer_device bd = turborerank::impl::buffer_device_for(resolved);
+    turbo_buffer_placement place =
+        turborerank::impl::host_visible_placement(resolved);
+    if (resolved == TURBORERANK_DEVICE_OPENVINO_CPU &&
+        turbo_buffer_backend_probe(
+            TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_HOST
+        ) != TURBO_BUFFER_OK) {
+        bd = TURBO_BUFFER_DEVICE_CPU;
+        place = TURBO_BUFFER_PLACE_HOST;
     }
-    std::memset(buf, 0, sizeof(*buf));
-    buf->device = resolved;
-    auto alloc_field = [&](int32_t **slot) -> bool {
-        if (resolved == TURBORERANK_DEVICE_CUDA) {
-            *slot = static_cast<int32_t *>(turborerank::impl::pinned_alloc_bytes(bytes, &st));
-        } else if (resolved == TURBORERANK_DEVICE_METAL) {
-            *slot = static_cast<int32_t *>(
-                turborerank::impl::metal_shared_alloc_bytes(bytes, &st)
-            );
-        } else if (resolved == TURBORERANK_DEVICE_OPENVINO_GPU) {
-            *slot = static_cast<int32_t *>(
-                turborerank::impl::usm_alloc_bytes(bytes, true, &st)
-            );
-        } else if (resolved == TURBORERANK_DEVICE_OPENVINO_CPU) {
-            if (turborerank::impl::ov_usm_available(nullptr)) {
-                *slot = static_cast<int32_t *>(
-                    turborerank::impl::usm_alloc_bytes(bytes, false, &st)
-                );
-            } else {
-                *slot = static_cast<int32_t *>(
-                    turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
-                );
-            }
-        } else {
-            *slot = static_cast<int32_t *>(
-                turborerank::aligned_alloc_bytes(bytes, turborerank::kCpuAlignment, &st)
-            );
-        }
-        return *slot != nullptr;
-    };
-    if (!alloc_field(&buf->input_ids) || !alloc_field(&buf->attention_mask) ||
-        !alloc_field(&buf->token_type_ids) || !alloc_field(&buf->position_ids)) {
-        turborerank_buffer_free(buf);
-        return TURBORERANK_ERR_OUT_OF_MEMORY;
+    turbo_buffer_arena *arena = nullptr;
+    const turbo_buffer_status ast = process_arena(bd, &arena);
+    if (ast != TURBO_BUFFER_OK || arena == nullptr) {
+        turborerank::impl::set_create_error(turbo_buffer_last_error(nullptr));
+        return map_buf_status(ast);
     }
-    buf->batch = batch;
-    buf->seq = seq;
-    buf->row_stride = seq;
-    *out = buf;
-    return TURBORERANK_OK;
+    return rent_token_buffer(arena, place, resolved, batch, seq, out);
 }
 
 void turborerank_buffer_free(turborerank_buffer *buffer) {
     if (buffer == nullptr) {
         return;
     }
-    if (buffer->device == TURBORERANK_DEVICE_CUDA) {
-        turborerank::impl::pinned_free_bytes(buffer->input_ids);
-        turborerank::impl::pinned_free_bytes(buffer->attention_mask);
-        turborerank::impl::pinned_free_bytes(buffer->token_type_ids);
-        turborerank::impl::pinned_free_bytes(buffer->position_ids);
-    } else if (buffer->device == TURBORERANK_DEVICE_METAL) {
-        turborerank::impl::metal_shared_free_bytes(buffer->input_ids);
-        turborerank::impl::metal_shared_free_bytes(buffer->attention_mask);
-        turborerank::impl::metal_shared_free_bytes(buffer->token_type_ids);
-        turborerank::impl::metal_shared_free_bytes(buffer->position_ids);
-    } else if (buffer->device == TURBORERANK_DEVICE_OPENVINO_GPU ||
-               (buffer->device == TURBORERANK_DEVICE_OPENVINO_CPU &&
-                turborerank::impl::ov_usm_available(nullptr))) {
-        turborerank::impl::usm_free_bytes(buffer->input_ids);
-        turborerank::impl::usm_free_bytes(buffer->attention_mask);
-        turborerank::impl::usm_free_bytes(buffer->token_type_ids);
-        turborerank::impl::usm_free_bytes(buffer->position_ids);
-    } else {
-        turborerank::aligned_free_bytes(buffer->input_ids);
-        turborerank::aligned_free_bytes(buffer->attention_mask);
-        turborerank::aligned_free_bytes(buffer->token_type_ids);
-        turborerank::aligned_free_bytes(buffer->position_ids);
+    TokenBufferRec *rec = as_rec(buffer);
+    if (rec->arena != nullptr) {
+        for (int i = 0; i < 4; ++i) {
+            if (rec->views[i].ptr != nullptr) {
+                (void)turbo_buffer_arena_return(rec->arena, &rec->views[i]);
+            }
+        }
     }
-    delete buffer;
+    delete rec;
 }
 
 turborerank_status turborerank_pack_ids(

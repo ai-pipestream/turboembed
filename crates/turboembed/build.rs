@@ -16,13 +16,31 @@ fn main() {
     let root = manifest.join("../..");
     let root = root.canonicalize().unwrap_or(root);
     let header = root.join("include/turboembed.h");
+    let buffer_header = root.join("include/turbo_buffer.h");
     let stub = root.join("native/turboembed/src/stub.cpp");
     let genai_cpp = root.join("native/turboembed/src/genai.cpp");
     let genai_hpp = root.join("native/turboembed/src/genai.hpp");
     let apple = root.join("swift/Sources/TurboEmbedC/include/turboembed.h");
 
     println!("cargo:rerun-if-changed={}", header.display());
+    println!("cargo:rerun-if-changed={}", buffer_header.display());
     println!("cargo:rerun-if-changed={}", stub.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turbo_buffer/src/arena.cpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turbo_buffer/src/cuda.cpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turbo_buffer/src/ze.cpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turbo_buffer/src/metal.cpp").display()
+    );
     println!("cargo:rerun-if-changed={}", genai_cpp.display());
     println!("cargo:rerun-if-changed={}", genai_hpp.display());
     println!("cargo:rerun-if-changed={}", apple.display());
@@ -119,8 +137,13 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
         .cpp(true)
         .std("c++17")
         .file(stub)
+        .file(root.join("native/turbo_buffer/src/arena.cpp"))
+        .file(root.join("native/turbo_buffer/src/cuda.cpp"))
+        .file(root.join("native/turbo_buffer/src/ze.cpp"))
+        .file(root.join("native/turbo_buffer/src/metal.cpp"))
         .include(root.join("include"))
         .include(root.join("native/turboembed/src"))
+        .include(root.join("native/turbo_buffer/src"))
         .warnings(true)
         .flag_if_supported("-Wno-unused-parameter")
         .define(

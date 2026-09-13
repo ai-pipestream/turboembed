@@ -206,8 +206,11 @@ Metal) — see receipts under `testdata/receipts/turboembed/`.
 - Does not invent a second gRPC service.
 - **model2vec** is not shipped. `turboembed_register_provider` returns
   `NOT_IMPLEMENTED`.
-- **Zero-copy buffer pool** is aspirational. The Rust crate is a safe
-  view wrapper, not a pooled allocator.
+- **Zero-copy buffer pool** is **TurboBuffer** (`include/turbo_buffer.h`).
+  The C++ stub rents host FP32 result rows from a CPU arena (mock/CPU
+  proven; ORT/GenAI result copies rent when those features are on).
+  Device compute tensors stay with ORT / GenAI / MLX until the next
+  migration slice. See [`docs/turbo-buffer.md`](turbo-buffer.md).
 - **Intel NPU** create is fail-loud until a Core Ultra client NPU host
   lists the plugin (`intel-npu.json` on Machine B, `pass=false`).
 - Inferstream **Rerank RPC** is a thin façade over the TurboRerank

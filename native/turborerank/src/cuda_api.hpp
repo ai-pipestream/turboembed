@@ -27,6 +27,7 @@ bool cuda_resources_init(
     CudaResources *r,
     const BertConfig &cfg,
     const BertWeights &w,
+    turbo_buffer_arena *arena,
     std::string *err
 );
 

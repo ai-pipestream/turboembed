@@ -246,56 +246,84 @@ void free_scratch(Scratch *s) {
     if (s == nullptr) {
         return;
     }
-    aligned_free_bytes(s->x);
-    aligned_free_bytes(s->residual);
-    aligned_free_bytes(s->q);
-    aligned_free_bytes(s->k);
-    aligned_free_bytes(s->v);
-    aligned_free_bytes(s->attn);
-    aligned_free_bytes(s->ctx);
-    aligned_free_bytes(s->inter);
-    aligned_free_bytes(s->tmp);
-    aligned_free_bytes(s->tok_q);
-    aligned_free_bytes(s->tok_d);
+    if (s->arena != nullptr) {
+        turbo_buffer_view *views[] = {
+            &s->v_x,
+            &s->v_residual,
+            &s->v_q,
+            &s->v_k,
+            &s->v_v,
+            &s->v_attn,
+            &s->v_ctx,
+            &s->v_inter,
+            &s->v_tmp,
+            &s->v_tok_q,
+            &s->v_tok_d,
+        };
+        for (turbo_buffer_view *v : views) {
+            if (v->ptr != nullptr) {
+                (void)turbo_buffer_arena_return(s->arena, v);
+            }
+        }
+    }
     *s = Scratch{};
 }
 
-bool alloc_scratch(Scratch *s, const BertConfig &cfg, std::string *err) {
+bool alloc_scratch(
+    Scratch *s,
+    turbo_buffer_arena *arena,
+    turbo_buffer_placement host_place,
+    const BertConfig &cfg,
+    std::string *err
+) {
     free_scratch(s);
+    if (arena == nullptr) {
+        if (err) {
+            *err = "scratch requires a turbo_buffer arena; refusing private malloc";
+        }
+        return false;
+    }
     const uint32_t B = cfg.max_batch == 0 ? 1 : cfg.max_batch;
     const uint32_t S = cfg.max_position;
     const uint32_t H = cfg.hidden;
     const uint32_t I = cfg.intermediate;
     const uint32_t heads = cfg.heads;
-    auto slot = [&](size_t floats) -> float * {
-        Status st = Status::Ok;
-        void *p = aligned_alloc_bytes(floats * sizeof(float), kCpuAlignment, &st);
-        return static_cast<float *>(p);
+    auto rent_f32 = [&](turbo_buffer_view *v, uint32_t rows, uint32_t cols) -> float * {
+        if (turbo_buffer_arena_rent(
+                arena, TURBO_BUFFER_DTYPE_F32, host_place, rows, cols, cols, v
+            ) != TURBO_BUFFER_OK) {
+            return nullptr;
+        }
+        return turbo_buffer_view_f32(v);
     };
-    // Row-at-a-time forward: allocate for one sequence of length S.
-    s->x = slot(static_cast<size_t>(S) * H);
-    s->residual = slot(static_cast<size_t>(S) * H);
-    s->q = slot(static_cast<size_t>(S) * H);
-    s->k = slot(static_cast<size_t>(S) * H);
-    s->v = slot(static_cast<size_t>(S) * H);
-    s->attn = slot(static_cast<size_t>(heads) * S * S);
-    s->ctx = slot(static_cast<size_t>(S) * H);
-    s->inter = slot(static_cast<size_t>(S) * I);
-    s->tmp = slot(static_cast<size_t>(S) * H);
-    Status st = Status::Ok;
-    const size_t tok_cap = 8192;
-    s->tok_q = static_cast<int32_t *>(
-        aligned_alloc_bytes(tok_cap * sizeof(int32_t), kCpuAlignment, &st)
-    );
-    s->tok_d = static_cast<int32_t *>(
-        aligned_alloc_bytes(tok_cap * sizeof(int32_t), kCpuAlignment, &st)
-    );
+    auto rent_i32 = [&](turbo_buffer_view *v, uint32_t n) -> int32_t * {
+        if (turbo_buffer_arena_rent(
+                arena, TURBO_BUFFER_DTYPE_I32, host_place, 1, n, n, v
+            ) != TURBO_BUFFER_OK) {
+            return nullptr;
+        }
+        return turbo_buffer_view_i32(v);
+    };
+    s->arena = arena;
+    s->x = rent_f32(&s->v_x, S, H);
+    s->residual = rent_f32(&s->v_residual, S, H);
+    s->q = rent_f32(&s->v_q, S, H);
+    s->k = rent_f32(&s->v_k, S, H);
+    s->v = rent_f32(&s->v_v, S, H);
+    s->attn = rent_f32(&s->v_attn, heads, S * S);
+    s->ctx = rent_f32(&s->v_ctx, S, H);
+    s->inter = rent_f32(&s->v_inter, S, I);
+    s->tmp = rent_f32(&s->v_tmp, S, H);
+    const uint32_t tok_cap = 8192;
+    s->tok_q = rent_i32(&s->v_tok_q, tok_cap);
+    s->tok_d = rent_i32(&s->v_tok_d, tok_cap);
     if (s->x == nullptr || s->residual == nullptr || s->q == nullptr ||
         s->k == nullptr || s->v == nullptr || s->attn == nullptr ||
         s->ctx == nullptr || s->inter == nullptr || s->tmp == nullptr ||
         s->tok_q == nullptr || s->tok_d == nullptr) {
         if (err) {
-            *err = "scratch arena allocation failed";
+            *err = std::string("scratch arena rent failed: ") +
+                   turbo_buffer_last_error(arena);
         }
         free_scratch(s);
         return false;

@@ -216,6 +216,12 @@ Metal is Objective-C++ in that library, not a second Swift `@_cdecl`
 dylib — see [`docs/turborerank-swift.md`](turborerank-swift.md). Rust is
 a safe wrapper. gRPC is optional and later.
 
+Token and activation scratch are rented from the shared
+[`include/turbo_buffer.h`](../include/turbo_buffer.h) arena (see
+[`docs/turbo-buffer.md`](turbo-buffer.md)). `forward` must not allocate
+those buffers. GPU backends (CUDA PINNED+DEVICE, ZE USM, Metal shared)
+are the same ABI — `NOT_IMPLEMENTED` / `UNAVAILABLE` when missing.
+
 ## 4. Zero-copy contract
 
 ### 4.1 What is forbidden on `forward`

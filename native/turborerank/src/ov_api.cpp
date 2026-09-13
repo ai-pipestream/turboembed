@@ -3,6 +3,7 @@
 // OpenVINO presence, Level Zero USM token workspace, CompiledModel CE.
 
 #include "ov_api.hpp"
+#include "turbo_buffer.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -299,71 +300,27 @@ bool ov_usm_available(std::string *why) {
 }
 
 void *usm_alloc_bytes(size_t bytes, bool shared_ok, Status *status) {
-#ifdef TURBORERANK_LEVEL_ZERO
-    if (bytes == 0) {
-        if (status) {
-            *status = Status::InvalidArgument;
-        }
-        return nullptr;
-    }
-    l0_init_once();
-    if (!l0().ready || l0().ctx == nullptr) {
-        if (status) {
-            *status = Status::Unavailable;
-        }
-        return nullptr;
-    }
+    const turbo_buffer_placement place =
+        shared_ok ? TURBO_BUFFER_PLACE_SHARED : TURBO_BUFFER_PLACE_HOST;
     void *ptr = nullptr;
-    if (shared_ok && l0().dev != nullptr) {
-        ze_device_mem_alloc_desc_t dd {};
-        dd.stype = ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC;
-        ze_host_mem_alloc_desc_t hd {};
-        hd.stype = ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
-        if (zeMemAllocShared(
-                l0().ctx, &dd, &hd, bytes, 64, l0().dev, &ptr
-            ) != ZE_RESULT_SUCCESS) {
-            ptr = nullptr;
+    const turbo_buffer_status st =
+        turbo_buffer_raw_alloc(TURBO_BUFFER_DEVICE_ZE, place, bytes, &ptr);
+    if (st != TURBO_BUFFER_OK || ptr == nullptr) {
+        if (status) {
+            *status = st == TURBO_BUFFER_ERR_INVALID_ARGUMENT
+                          ? Status::InvalidArgument
+                          : Status::Unavailable;
         }
+        return nullptr;
     }
-    if (ptr == nullptr) {
-        ze_host_mem_alloc_desc_t hd {};
-        hd.stype = ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC;
-        if (zeMemAllocHost(l0().ctx, &hd, bytes, 64, &ptr) != ZE_RESULT_SUCCESS ||
-            ptr == nullptr) {
-            if (status) {
-                *status = Status::OutOfMemory;
-            }
-            return nullptr;
-        }
-    }
-    std::memset(ptr, 0, bytes);
-    note_alloc();
     if (status) {
         *status = Status::Ok;
     }
     return ptr;
-#else
-    (void)bytes;
-    (void)shared_ok;
-    if (status) {
-        *status = Status::Unavailable;
-    }
-    return nullptr;
-#endif
 }
 
 void usm_free_bytes(void *ptr) {
-    if (ptr == nullptr) {
-        return;
-    }
-#ifdef TURBORERANK_LEVEL_ZERO
-    l0_init_once();
-    if (l0().ctx != nullptr) {
-        (void)zeMemFree(l0().ctx, ptr);
-    }
-#else
-    std::free(ptr);
-#endif
+    turbo_buffer_raw_free(TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_HOST, ptr);
 }
 
 bool ov_resources_init(

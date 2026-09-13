@@ -18,9 +18,11 @@
  * parameter is documented as a C string (config path, status names).
  *
  * Token / attention / type / position buffers come from
- * turborerank_buffer_alloc. The caller writes tokens into those
- * pointers (or calls pack_* which writes through them). Do not free
- * individual fields. Free the buffer with turborerank_buffer_free.
+ * turborerank_buffer_alloc, which rents i32 rows from the shared
+ * turbo_buffer arena (include/turbo_buffer.h). The caller writes tokens
+ * into those pointers (or calls pack_* which writes through them). Do
+ * not free individual fields. Free the buffer with turborerank_buffer_free
+ * (returns the rent). Engine scratch is rented from the same ABI.
  *
  * The ABI is not thread-safe on a single engine. Serialize calls.
  * Distinct engines may be used from distinct threads.

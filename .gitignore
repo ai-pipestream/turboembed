@@ -20,6 +20,7 @@
 /testdata/corpus/tiny-shakespeare.txt
 native/mlx-engine/.build/
 native/turboembed/build/
+native/turbo_buffer/build/
 native/turborerank/build/
 swift/.build/
 .DS_Store

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "reranker.hpp"
+#include "turbo_buffer.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -119,6 +120,18 @@ struct Scratch {
     uint32_t max_batch = 0;
     uint32_t max_seq = 0;
     uint32_t hidden = 0;
+    turbo_buffer_arena *arena = nullptr;
+    turbo_buffer_view v_x {};
+    turbo_buffer_view v_residual {};
+    turbo_buffer_view v_q {};
+    turbo_buffer_view v_k {};
+    turbo_buffer_view v_v {};
+    turbo_buffer_view v_attn {};
+    turbo_buffer_view v_ctx {};
+    turbo_buffer_view v_inter {};
+    turbo_buffer_view v_tmp {};
+    turbo_buffer_view v_tok_q {};
+    turbo_buffer_view v_tok_d {};
 };
 
 /** Device weights + activation arena. Opaque to the CPU path. */
@@ -171,6 +184,9 @@ struct CudaResources {
     int32_t *types = nullptr;
     int32_t *pos_ids = nullptr;
     float *logit = nullptr;
+    turbo_buffer_arena *arena = nullptr;
+    turbo_buffer_view rented[16] {};
+    uint32_t n_rented = 0;
 };
 
 /** OpenVINO CompiledModel + infer request. Opaque hold lives in ov_api.cpp. */
@@ -206,7 +222,17 @@ void free_mapped(MappedFile *map);
 void free_owned(std::vector<OwnedFloat> *owned);
 void free_scratch(Scratch *s);
 
-bool alloc_scratch(Scratch *s, const BertConfig &cfg, std::string *err);
+/** Rent scratch from `arena`. Null arena is a hard fail — no private malloc. */
+bool alloc_scratch(
+    Scratch *s,
+    turbo_buffer_arena *arena,
+    turbo_buffer_placement host_place,
+    const BertConfig &cfg,
+    std::string *err
+);
+
+turbo_buffer_device buffer_device_for(turborerank_device d);
+turbo_buffer_placement host_visible_placement(turborerank_device d);
 
 /** BERT CE forward. One packed row. No allocation. */
 float bert_forward_row(
@@ -261,5 +287,6 @@ struct turborerank_engine {
     turborerank::impl::CudaResources cuda;
     turborerank::impl::OvResources ov;
     turborerank::impl::MetalResources metal;
+    turbo_buffer_arena *arena = nullptr;
     turborerank_buffer *work = nullptr;
 };
