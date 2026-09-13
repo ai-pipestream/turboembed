@@ -46,7 +46,7 @@ Every arch binary serves **both** gRPC services on one port behind one bearer in
   (Intel GPU also needs `make convert-rerank-ov`). See
   [`docs/turborerank-architecture.md`](docs/turborerank-architecture.md).
 - **TRT-LLM generative** (`backend-trtllm` / `trtllm-sys`) — stub. Distinct from live **ORT TensorRT MiniLM embeds**.
-- **Zero-copy buffer pool** — **LIVE as TurboBuffer** (`include/turbo_buffer.h`). TurboRerank CPU + CUDA (Machine A PINNED mapped tokens, 0 id H2D) + Metal (Machine C SHARED arena) rent i32/f32 views; mock TurboEmbed rents host result rows. Steady-state `forward` / mock `embed` alloc counter is 0. CUDA PINNED mapped + DEVICE activations are proven on Machine A. Metal SHARED rent/return is proven on Machine C (`docs/apple-turbo-buffer-metal-arena-machine-c.md`). Swift `libTurboEmbed.dylib` does not yet rent Metal compute buffers (item 4).
+- **Zero-copy buffer pool** — **LIVE as TurboBuffer** (`include/turbo_buffer.h`). TurboRerank CPU + CUDA (Machine A PINNED mapped tokens, 0 id H2D, cuBLASLt GEMM) + Metal (Machine C SHARED arena) rent i32/f32 views; mock TurboEmbed rents host result rows. Steady-state `forward` / mock `embed` alloc counter is 0. CUDA PINNED mapped + DEVICE activations + cuBLASLt workspace are proven on Machine A. Metal SHARED rent/return is proven on Machine C (`docs/apple-turbo-buffer-metal-arena-machine-c.md`). Swift `libTurboEmbed.dylib` does not yet rent Metal compute buffers (item 4).
 - **model2vec** — not shipped (`turboembed_register_provider` returns `NOT_IMPLEMENTED`).
 - **Intel NPU** — fail-loud on Machine B (`intel-npu.json`). Needs a **Core Ultra client NPU** host — not Xeon, not AWS Inferentia, not Battlemage-only.
 

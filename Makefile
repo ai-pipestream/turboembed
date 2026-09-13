@@ -83,6 +83,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
 	turborerank-tests turborerank-tests-nocuda turborerank-tests-noov \
+	turborerank-cuda-gemm-proof \
 	turborerank-tests-nometal libturborerank-apple \
 	turbo-buffer-tests turboembed-mock-arena-tests \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
@@ -489,7 +490,7 @@ endif
 
 ifeq ($(TURBORERANK_ENABLE_CUDA),1)
 TURBORERANK_CPPFLAGS += -DTURBORERANK_CUDA=1 -DTURBO_BUFFER_CUDA=1
-TURBORERANK_CUDA_LIBS := -lcudart
+TURBORERANK_CUDA_LIBS := -lcudart -lcublasLt
 TURBORERANK_CUDA_OBJ := native/turborerank/build/bert_cuda.o
 endif
 
@@ -513,6 +514,18 @@ native/turborerank/build/bert_cuda.o: native/turborerank/src/bert_cuda.cu \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  -c native/turborerank/src/bert_cuda.cu \
 	  -o native/turborerank/build/bert_cuda.o
+
+# SOLIDIFY (3): primary GEMM is cuBLASLt. The hand-rolled linear_nt_kernel
+# must not exist; the linked test binary must reference cublasLtMatmul.
+turborerank-cuda-gemm-proof: $(TURBORERANK_CUDA_OBJ)
+ifeq ($(TURBORERANK_ENABLE_CUDA),1)
+	@grep -q 'cublasLtMatmul(' native/turborerank/src/bert_cuda.cu || { \
+	  echo "FAIL: bert_cuda.cu must call cublasLtMatmul"; exit 1; }
+	@if grep -n 'linear_nt_kernel' native/turborerank/src/bert_cuda.cu; then \
+	  echo "FAIL: linear_nt_kernel still present — not the cuBLASLt stack"; \
+	  exit 1; fi
+	@echo "gemm primary path: cublasLtMatmul (no linear_nt_kernel)"
+endif
 
 turbo-buffer-tests:
 	mkdir -p native/turbo_buffer/build
@@ -541,7 +554,7 @@ turboembed-mock-arena-tests: turboembed-stub
 	  -lm -o native/turboembed/build/mock_arena_tests
 	native/turboembed/build/mock_arena_tests
 
-turborerank-tests: $(TURBORERANK_CUDA_OBJ) turbo-buffer-tests
+turborerank-tests: $(TURBORERANK_CUDA_OBJ) turborerank-cuda-gemm-proof turbo-buffer-tests
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
@@ -550,6 +563,10 @@ turborerank-tests: $(TURBORERANK_CUDA_OBJ) turbo-buffer-tests
 	  native/turborerank/tests/turborerank_tests.cpp \
 	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
 	  -o native/turborerank/build/turborerank_tests
+ifeq ($(TURBORERANK_ENABLE_CUDA),1)
+	@nm native/turborerank/build/turborerank_tests | grep -q cublasLtMatmul || { \
+	  echo "FAIL: turborerank_tests does not reference cublasLtMatmul"; exit 1; }
+endif
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests
 
 # Prove CUDA create fails loud when the binary has no CUDA.

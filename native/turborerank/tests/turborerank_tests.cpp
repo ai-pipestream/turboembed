@@ -10,12 +10,17 @@
 #include "turbo_buffer.h"
 #include "turborerank.h"
 
+#ifdef TURBORERANK_CUDA
+#include <cuda_runtime.h>
+#endif
+
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -169,6 +174,27 @@ static void test_cuda_buffer_policy() {
     CHECK(auto_buf->device == TURBORERANK_DEVICE_CUDA);
     CHECK(aligned(auto_buf->input_ids));
     turborerank_buffer_free(auto_buf);
+}
+
+static void test_cuda_gemm_stack_is_cublaslt() {
+    const char *backend = turborerank::impl::cuda_gemm_backend();
+    CHECK(backend != nullptr);
+#ifdef TURBORERANK_CUDA
+    CHECK(std::strcmp(backend, "cublasLtMatmul") == 0);
+    const std::string src_path =
+        workspace_root() + "/native/turborerank/src/bert_cuda.cu";
+    std::ifstream in(src_path);
+    CHECK(static_cast<bool>(in));
+    const std::string src(
+        (std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()
+    );
+    CHECK(src.find("cublasLtMatmul(") != std::string::npos);
+    CHECK(src.find("cublasLtMatmulAlgoGetHeuristic") != std::string::npos);
+    CHECK(src.find("linear_nt_kernel") == std::string::npos);
+    CHECK(src.find("refusing hand-rolled") != std::string::npos);
+#else
+    CHECK(std::strcmp(backend, "unavailable") == 0);
+#endif
 }
 
 static void test_pack_cls_sep_and_types() {
@@ -575,9 +601,15 @@ static void test_cuda_real_model_scores() {
     }
     CHECK(e->cuda.enabled);
     CHECK_EQ(e->cuda.n_layers, 6u);
+    CHECK(e->cuda.cublaslt != nullptr);
+    CHECK(std::strcmp(turborerank::impl::cuda_gemm_backend(), "cublasLtMatmul") == 0);
     CHECK(e->arena != nullptr);
     CHECK(e->cuda.arena == e->arena);
     CHECK(e->cuda.n_rented >= 11u);
+    if (e->cuda.lt_workspace_bytes > 0) {
+        CHECK(e->cuda.lt_workspace != nullptr);
+        CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.lt_workspace));
+    }
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.x));
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.residual));
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.q));
@@ -644,13 +676,30 @@ static void test_cuda_real_model_scores() {
     turborerank::alloc_counter_reset();
     turbo_buffer_cuda_forward_allocs_reset();
     turbo_buffer_cuda_forward_h2d_reset();
+    size_t mem_free0 = 0;
+    size_t mem_total0 = 0;
+    CHECK(cudaMemGetInfo(&mem_free0, &mem_total0) == cudaSuccess);
     float logits_steady[3] = {0, 0, 0};
     CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits_steady));
+    size_t mem_free1 = 0;
+    size_t mem_total1 = 0;
+    CHECK(cudaMemGetInfo(&mem_free1, &mem_total1) == cudaSuccess);
+    CHECK_EQ(mem_total1, mem_total0);
+    CHECK(mem_free1 >= mem_free0);
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
     CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
     CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
     CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), 0u);
     CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 0u);
+    std::fprintf(
+        stderr,
+        "CUDA id H2D bytes/calls=%llu/%llu device used %zu -> %zu (delta %zd)\n",
+        static_cast<unsigned long long>(turbo_buffer_cuda_forward_h2d_bytes()),
+        static_cast<unsigned long long>(turbo_buffer_cuda_forward_h2d_calls()),
+        mem_total0 - mem_free0,
+        mem_total1 - mem_free1,
+        static_cast<long>(mem_free0) - static_cast<long>(mem_free1)
+    );
     CHECK(almost(logits_steady[0], logits[0], 1e-6f));
     CHECK(almost(logits_steady[1], logits[1], 1e-6f));
     CHECK(almost(logits_steady[2], logits[2], 1e-6f));
@@ -1098,6 +1147,7 @@ int main() {
     test_abi_names();
     test_buffer_alignment_and_write_via_pointer();
     test_cuda_buffer_policy();
+    test_cuda_gemm_stack_is_cublaslt();
     test_pack_cls_sep_and_types();
     test_pack_empty_sides();
     test_pack_truncation();

@@ -43,10 +43,12 @@ load into MTL shared buffers. Machine C proof:
 [`docs/apple-turbo-buffer-metal-arena-machine-c.md`](apple-turbo-buffer-metal-arena-machine-c.md).
 
 CUDA compute is **on device**: weights and activations live on the GPU.
-GEMM, embeddings, LayerNorm, GELU (erf), attention, pooler, and
-classifier are first-party CUDA kernels matching the CPU BERT graph
-(same reduction order as `linear_nt`). Token workspaces are arena-rented
-PINNED mapped (`cudaHostAllocMapped`); activation scratch is
+BERT CE linear layers call **cuBLASLt** (`cublasLtMatmul`,
+`Y = X @ W^T + bias`) with an arena-rented DEVICE workspace. Embeddings,
+LayerNorm, GELU (erf), attention, and tanh stay first-party CUDA kernels.
+Missing cuBLASLt fails load loud — there is no hand-rolled `linear_nt`
+GEMM fallback. Token workspaces are arena-rented PINNED mapped
+(`cudaHostAllocMapped`); activation scratch and the Lt workspace are
 arena-rented DEVICE at load. Steady-state `forward` must not
 `cudaMalloc` those slots (`allocs/forward == 0`) and must not
 `cudaMemcpy` H2D the token row (`h2d_bytes/forward == 0`). Host
