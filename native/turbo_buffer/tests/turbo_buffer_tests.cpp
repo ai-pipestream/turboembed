@@ -6,6 +6,16 @@
 
 #include "turbo_buffer.h"
 
+#ifdef TURBO_BUFFER_CUDA
+#include <cuda_runtime.h>
+extern "C" cudaError_t turbo_buffer_cuda_memcpy(
+    void *dst,
+    const void *src,
+    size_t count,
+    enum cudaMemcpyKind kind
+);
+#endif
+
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -201,6 +211,21 @@ static void test_cuda_pinned_device_live_or_fail_loud() {
         turbo_buffer_i32_row(&pin, 0)[0] = 101;
         CHECK_EQ(turbo_buffer_i32_row(&pin, 0)[0], 101);
         CHECK(turbo_buffer_arena_owns(cuda, pin.ptr));
+        void *mapped = nullptr;
+        CHECK_EQ(turbo_buffer_cuda_mapped_device_ptr(pin.ptr, &mapped), 1);
+        CHECK(mapped != nullptr);
+        void *mapped_off = nullptr;
+        CHECK_EQ(
+            turbo_buffer_cuda_mapped_device_ptr(
+                static_cast<char *>(pin.ptr) + sizeof(int32_t), &mapped_off
+            ),
+            1
+        );
+        CHECK(mapped_off == static_cast<char *>(mapped) + sizeof(int32_t));
+        int32_t stack_ids[4] = {101, 102, 0, 0};
+        void *not_mapped = nullptr;
+        CHECK_EQ(turbo_buffer_cuda_mapped_device_ptr(stack_ids, &not_mapped), 0);
+        CHECK(not_mapped == nullptr);
 
         turbo_buffer_view dev {};
         CHECK_ST(turbo_buffer_arena_rent(
@@ -256,21 +281,39 @@ static void test_cuda_pinned_device_live_or_fail_loud() {
         );
         turbo_buffer_cuda_forward_enter();
         turbo_buffer_cuda_forward_allocs_reset();
+        turbo_buffer_cuda_forward_h2d_reset();
         void *trip = nullptr;
         CHECK_ST(turbo_buffer_raw_alloc(
             TURBO_BUFFER_DEVICE_CUDA, TURBO_BUFFER_PLACE_DEVICE, 256, &trip
         ));
         CHECK(trip != nullptr);
         CHECK(turbo_buffer_cuda_forward_allocs() >= 1u);
+#ifdef TURBO_BUFFER_CUDA
+        int32_t host_word = 7;
+        CHECK(
+            turbo_buffer_cuda_memcpy(
+                trip, &host_word, sizeof(host_word), cudaMemcpyHostToDevice
+            ) == cudaSuccess
+        );
+        CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 1u);
+        CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), sizeof(host_word));
+#endif
         turbo_buffer_raw_free(
             TURBO_BUFFER_DEVICE_CUDA, TURBO_BUFFER_PLACE_DEVICE, trip
         );
         turbo_buffer_cuda_forward_leave();
         turbo_buffer_cuda_forward_allocs_reset();
+        turbo_buffer_cuda_forward_h2d_reset();
         CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
+        CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), 0u);
+        CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 0u);
 
         turbo_buffer_arena_destroy(cuda);
-        std::fprintf(stderr, "CUDA PINNED+DEVICE rent/return LIVE (arena reuse, 0 allocs)\n");
+        std::fprintf(
+            stderr,
+            "CUDA PINNED mapped + DEVICE rent/return LIVE "
+            "(arena reuse, 0 allocs, mapped device ptr)\n"
+        );
     } else {
         CHECK(cuda_st == TURBO_BUFFER_ERR_NOT_IMPLEMENTED ||
               cuda_st == TURBO_BUFFER_ERR_UNAVAILABLE);

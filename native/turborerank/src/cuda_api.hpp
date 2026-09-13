@@ -20,6 +20,12 @@ bool cuda_device_present(std::string *why);
 /** `cudaGetDeviceProperties` name, or empty if CUDA is missing. */
 bool cuda_gpu_name(std::string *name);
 
+/**
+ * Primary CUDA GEMM backend id. CUDA builds return "cublasLtMatmul".
+ * There is no silent hand-rolled fallback — missing cuBLASLt fails load.
+ */
+const char *cuda_gemm_backend();
+
 void *pinned_alloc_bytes(size_t bytes, Status *status);
 void pinned_free_bytes(void *ptr);
 
@@ -34,9 +40,10 @@ bool cuda_resources_init(
 void cuda_resources_free(CudaResources *r);
 
 /**
- * Device MiniLM CE. Tokens are read from caller pinned (or any host)
- * pointers; one H2D of the packed int32 row, then cuBLAS + kernels.
- * No host heap allocation.
+ * Device MiniLM CE. Tokens must already live in CUDA PINNED mapped
+ * memory (arena rent / raw_alloc). Kernels read
+ * turbo_buffer_cuda_mapped_device_ptr — no per-forward id H2D.
+ * Heap / unmapped pointers fail loud. No host heap allocation.
  */
 bool bert_forward_row_cuda(
     CudaResources *r,

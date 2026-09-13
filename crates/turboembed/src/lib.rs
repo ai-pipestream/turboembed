@@ -412,6 +412,12 @@ impl Engine {
         self.raw.as_ptr()
     }
 
+    /// Raw C engine for Machine B GenAI arena receipts. Not a second ABI.
+    #[doc(hidden)]
+    pub fn raw_engine(&self) -> *mut turboembed_engine {
+        self.as_ptr()
+    }
+
     pub fn last_error(&self) -> String {
         last_error(self.as_ptr())
     }

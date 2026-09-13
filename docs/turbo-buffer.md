@@ -13,7 +13,7 @@ before `forward` / mock `embed` and require `0`.
 | Backend | Placement | Alloc | Proof host |
 |---|---|---|---|
 | CPU | HOST | 64-byte `posix_memalign` | this cloud run |
-| CUDA | PINNED, DEVICE | `cudaHostAlloc`, `cudaMalloc` | Machine A **LIVE** |
+| CUDA | PINNED, DEVICE | `cudaHostAllocMapped`, `cudaMalloc` | Machine A **LIVE** (mapped tokens, 0 id H2D) |
 | ZE | HOST, SHARED, DEVICE | Level Zero USM | **LIVE** Machine B (`docs/turbo-buffer-ze-machine-b.md`) |
 | Metal | SHARED (HOST aliases SHARED) | `MTLResourceStorageModeShared` | **LIVE** Machine C (`docs/apple-turbo-buffer-metal-arena-machine-c.md`) |
 
@@ -43,12 +43,16 @@ Slab table capacity is 256 (fixed). Rent after warmup does not grow it.
 GPU token workspaces use the same rent path (CUDA PINNED / ZE SHARED /
 Metal SHARED) when that backend is live.
 
-**CUDA (Machine A LIVE):** PINNED token rows (`cudaHostAlloc`) and
-DEVICE activation / token scratch (`cudaMalloc` at load). Steady-state
-`forward` must see `turbo_buffer_alloc_counter() == 0` and
-`turbo_buffer_cuda_forward_allocs() == 0`. Tests fail if a per-forward
-`cudaMalloc` / `cudaHostAlloc` returns for those slots. One packed
-int32 H2D per row still happens (SOLIDIFY item 2 — not claimed zero).
+**CUDA (Machine A LIVE):** PINNED mapped token rows
+(`cudaHostAllocMapped`) and DEVICE activation scratch (`cudaMalloc`
+at load). Host tokenize / pack writes the PINNED pages; kernels read
+`turbo_buffer_cuda_mapped_device_ptr`. Steady-state `forward` must see
+`turbo_buffer_alloc_counter() == 0`,
+`turbo_buffer_cuda_forward_allocs() == 0`, and
+`turbo_buffer_cuda_forward_h2d_bytes() == 0`. Tests fail if a
+per-forward `cudaMalloc` / `cudaHostAlloc` returns, or if a token-row
+`cudaMemcpy` H2D is reintroduced. Unmapped pointers fail loud — there
+is no convenience H2D.
 
 **ZE (Machine B LIVE):** HOST / SHARED / DEVICE USM
 (`docs/turbo-buffer-ze-machine-b.md`). OpenVINO GPU tokens are SHARED.
@@ -65,16 +69,27 @@ OpenVINO CPU without Level Zero rents a **CPU** arena for host
 tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
 is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
 
-**TurboEmbed:** every engine owns an arena. Mock/CPU `embed` rents
-host FP32 `[n_texts, dim]` from a CPU arena (load warms 32×8). ORT /
-GenAI result copies rent when those features are on. **Metal (Machine C
-LIVE, SOLIDIFY 4):** `libTurboEmbed.dylib` creates a Metal arena,
-rents SHARED i32 tokens + f32 last-hidden + f32 results, and wraps
-those MTL contents as MLX arrays. `turbo_buffer_metal_lookup` only —
-no private registry. After load, `allocs/forward == 0`. Proof:
+**TurboEmbed GenAI (Machine B LIVE):** GPU / AUTO engines open a **ZE**
+arena. Load rents i32 token rows and f32 hidden scratch as **SHARED**.
+`embed` rents the FP32 result from the same arena. Infer wraps those
+pointers with `ov::Tensor(..., usm)`. After warmup,
+`allocs/forward == 0` for those slots. CPU / OPENVINO_CPU rents **HOST**
+(ZE HOST when L0 is present, else a CPU arena — that is not a ZE GPU
+success). GPU create without ZE SHARED fails loud — never a CPU arena.
+See [`docs/turboembed-genai-ze-machine-b.md`](turboembed-genai-ze-machine-b.md).
+
+**TurboEmbed Metal (Machine C LIVE, SOLIDIFY 4):** `libTurboEmbed.dylib`
+creates a Metal arena, rents SHARED i32 tokens + f32 last-hidden +
+f32 results, and wraps those MTL contents as MLX arrays.
+`turbo_buffer_metal_lookup` only — no private registry. After load,
+`allocs/forward == 0`. Proof:
 [`docs/apple-turboembed-metal-arena-machine-c.md`](apple-turboembed-metal-arena-machine-c.md).
-Device graphs inside ORT / GenAI / mlx-swift layer ops stay with those
-runtimes.
+
+**TurboEmbed mock / ORT:** mock/CPU `embed` rents `[n_texts, dim]` from a
+CPU arena. Load warms a 32×8 slab so the next mock embed of that shape
+is 0 allocs. ORT CUDA still copies the host result into a CPU-arena
+row (device compute stays with ORT IoBinding). mlx-swift layer ops
+stay with that runtime.
 
 ## Tests
 
@@ -82,6 +97,7 @@ runtimes.
 make turbo-buffer-tests              # alignment, dual-rent, double-free; CUDA/ZE when live
 make turbo-buffer-intel-receipt      # Machine B ZE HOST/SHARED/DEVICE
 make turboembed-mock-arena-tests     # mock embed allocs/forward == 0
+make test-turboembed-intel           # Machine B GenAI ZE SHARED + MiniLM ≥0.99
 make turborerank-tests               # includes the above + Berlin band when weights exist
 make test-turborerank-intel          # Machine B OV + ZE receipts
 make test-turborerank-apple          # Machine C: Metal SHARED live + Berlin receipt
@@ -103,5 +119,6 @@ BERT graph.
 
 `make test-turborerank-nvidia` refreshes
 `testdata/receipts/turborerank/nvidia-minilm-l6.json` (Berlin HF band).
-H2D of packed int32 ids/mask/types/pos per row is still present; do
-not read this receipt as zero host-to-device bytes.
+`compute.h2d_per_row` is `0`. The receipt writer fails if a
+steady-state CUDA `score` observes any intercepted HostToDevice
+bytes.

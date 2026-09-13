@@ -30,8 +30,8 @@ Alias `ms-marco-minilm-l6`. Manifest: `models/manifests/rerankers.json`.
 
 `turborerank_forward` takes caller-written `[CLS] query [SEP] doc [SEP]`
 int32 buffers. CPU: 64-byte `posix_memalign`. CUDA / AUTO-with-CUDA:
-`cudaHostAlloc` pinned (caller writes tokens in host-visible pinned
-memory). OpenVINO GPU / explicit OV CPU: turbo_buffer ZE USM (SHARED on GPU,
+`cudaHostAllocMapped` PINNED (caller writes tokens in host-visible
+mapped pages; kernels read those pages with no id H2D). OpenVINO GPU / explicit OV CPU: turbo_buffer ZE USM (SHARED on GPU,
 HOST on OV CPU), wrapped with `ov::Tensor(..., usm_pointer)`.
 Machine B proves HOST/SHARED/DEVICE rent/return
 (`docs/turbo-buffer-ze-machine-b.md`). Metal / AUTO-with-Metal:
@@ -43,15 +43,18 @@ load into MTL shared buffers. Machine C proof:
 [`docs/apple-turbo-buffer-metal-arena-machine-c.md`](apple-turbo-buffer-metal-arena-machine-c.md).
 
 CUDA compute is **on device**: weights and activations live on the GPU.
-GEMM, embeddings, LayerNorm, GELU (erf), attention, pooler, and
-classifier are first-party CUDA kernels matching the CPU BERT graph
-(same reduction order as `linear_nt`). Token workspaces are arena-rented
-PINNED (`cudaHostAlloc`); activation scratch is arena-rented DEVICE
-at load. Steady-state `forward` must not `cudaMalloc` those slots
-(`allocs/forward == 0`). Each forward still copies one packed int32
-row H2D from the pinned workspace (SOLIDIFY item 2 — not zero H2D
-bytes). This is not a pinned-host CPU interim and not a word-overlap
-mock.
+BERT CE linear layers call **cuBLASLt** (`cublasLtMatmul`,
+`Y = X @ W^T + bias`) with an arena-rented DEVICE workspace. Embeddings,
+LayerNorm, GELU (erf), attention, and tanh stay first-party CUDA kernels.
+Missing cuBLASLt fails load loud — there is no hand-rolled `linear_nt`
+GEMM fallback. Token workspaces are arena-rented PINNED mapped
+(`cudaHostAllocMapped`); activation scratch and the Lt workspace are
+arena-rented DEVICE at load. Steady-state `forward` must not
+`cudaMalloc` those slots (`allocs/forward == 0`) and must not
+`cudaMemcpy` H2D the token row (`h2d_bytes/forward == 0`). Host
+writes already landed in device-visible memory; kernels use
+`turbo_buffer_cuda_mapped_device_ptr`. Unmapped pointers fail loud.
+This is not a pinned-host CPU interim and not a word-overlap mock.
 
 `AUTO` on a CUDA host resolves to `TURBORERANK_DEVICE_CUDA`. On an
 Intel GPU host without CUDA it resolves to

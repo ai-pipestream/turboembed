@@ -24,6 +24,8 @@ namespace impl {
 std::atomic<uint64_t> g_allocs{0};
 std::atomic<uint32_t> g_cuda_fwd_depth{0};
 std::atomic<uint64_t> g_cuda_fwd_allocs{0};
+std::atomic<uint64_t> g_cuda_fwd_h2d_bytes{0};
+std::atomic<uint64_t> g_cuda_fwd_h2d_calls{0};
 
 void note_cuda_forward_alloc() {
     if (g_cuda_fwd_depth.load(std::memory_order_relaxed) > 0) {
@@ -41,6 +43,14 @@ void note_cuda_runtime_alloc_if_forward() {
     }
     g_allocs.fetch_add(1, std::memory_order_relaxed);
     g_cuda_fwd_allocs.fetch_add(1, std::memory_order_relaxed);
+}
+
+void note_cuda_forward_h2d(size_t bytes) {
+    if (!cuda_forward_window_open() || bytes == 0) {
+        return;
+    }
+    g_cuda_fwd_h2d_bytes.fetch_add(bytes, std::memory_order_relaxed);
+    g_cuda_fwd_h2d_calls.fetch_add(1, std::memory_order_relaxed);
 }
 
 namespace {
@@ -623,6 +633,19 @@ void turbo_buffer_cuda_forward_allocs_reset(void) {
 
 uint64_t turbo_buffer_cuda_forward_allocs(void) {
     return turbo_buffer::impl::g_cuda_fwd_allocs.load(std::memory_order_relaxed);
+}
+
+void turbo_buffer_cuda_forward_h2d_reset(void) {
+    turbo_buffer::impl::g_cuda_fwd_h2d_bytes.store(0, std::memory_order_relaxed);
+    turbo_buffer::impl::g_cuda_fwd_h2d_calls.store(0, std::memory_order_relaxed);
+}
+
+uint64_t turbo_buffer_cuda_forward_h2d_bytes(void) {
+    return turbo_buffer::impl::g_cuda_fwd_h2d_bytes.load(std::memory_order_relaxed);
+}
+
+uint64_t turbo_buffer_cuda_forward_h2d_calls(void) {
+    return turbo_buffer::impl::g_cuda_fwd_h2d_calls.load(std::memory_order_relaxed);
 }
 
 turbo_buffer_status turbo_buffer_ze_query(

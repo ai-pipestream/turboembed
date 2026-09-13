@@ -137,7 +137,16 @@ struct Scratch {
 /** Device weights + activation arena. Opaque to the CPU path. */
 struct CudaResources {
     bool enabled = false;
-    void *cublas = nullptr; // cublasHandle_t
+    /** cublasLtHandle_t. Null means init failed — no hand-rolled GEMM. */
+    void *cublaslt = nullptr;
+    void *lt_desc = nullptr;
+    void *lt_desc_bias = nullptr;
+    void *lt_layout_a = nullptr;
+    void *lt_layout_b = nullptr;
+    void *lt_layout_c = nullptr;
+    void *lt_pref = nullptr;
+    void *lt_workspace = nullptr;
+    size_t lt_workspace_bytes = 0;
     float *word = nullptr;
     float *pos = nullptr;
     float *type = nullptr;
@@ -179,10 +188,6 @@ struct CudaResources {
     float *inter = nullptr;
     float *tmp = nullptr;
     float *pooled = nullptr;
-    int32_t *ids = nullptr;
-    int32_t *mask = nullptr;
-    int32_t *types = nullptr;
-    int32_t *pos_ids = nullptr;
     float *logit = nullptr;
     turbo_buffer_arena *arena = nullptr;
     turbo_buffer_view rented[16] {};

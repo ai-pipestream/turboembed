@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Device MiniLM-L6 BertForSequenceClassification.
-// Linear layers: cuBLAS Sgemm. Embeddings / LayerNorm / GELU / attention /
-// residual / pooler / classifier: first-party CUDA kernels.
+// Linear layers: cuBLASLt (`cublasLtMatmul`) on turbo_buffer DEVICE
+// activations + an arena-rented Lt workspace. Missing cuBLASLt fails
+// load loud — there is no hand-rolled GEMM fallback.
+// Embeddings / LayerNorm / GELU / attention / residual / tanh: first-party
+// CUDA kernels.
 //
-// Token workspace stays in caller cudaHostAlloc memory. Each forward
-// copies one packed int32 row H2D into device scratch (pinned → device
-// is the fast path cudaHostAlloc exists for). No host heap growth.
+// Token workspace is caller cudaHostAllocMapped memory. Host writes
+// ids/mask/types/pos into those pages; kernels read the mapped device
+// pointer. No per-forward cudaMemcpy H2D of the token row. No host
+// heap growth.
 
 #include "cuda_api.hpp"
 
@@ -14,9 +18,16 @@
 #define TURBO_BUFFER_CUDA_INTERCEPT 1
 #include "cuda_runtime_hooks.hpp"
 
+#include <cublasLt.h>
+
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <string>
+
+#if !defined(CUBLAS_VERSION)
+#error "TURBORERANK_CUDA requires cuBLASLt (cublasLt.h / cublas_api.h). Refusing hand-rolled GEMM."
+#endif
 
 namespace turborerank {
 namespace impl {
@@ -46,13 +57,6 @@ bool upload_f32(const TensorView &src, float **dst, std::string *err) {
 }
 
 void dfree(float **p) {
-    if (p != nullptr && *p != nullptr) {
-        (void)cudaFree(*p);
-        *p = nullptr;
-    }
-}
-
-void dfree_i(int32_t **p) {
     if (p != nullptr && *p != nullptr) {
         (void)cudaFree(*p);
         *p = nullptr;
@@ -128,14 +132,10 @@ __global__ void layer_norm_kernel(
     }
 }
 
-// Exact CPU linear_nt: y[s,o] = bias[o] + dot(x[s], W[o]).
-__global__ void linear_nt_kernel(
-    const float *x,
-    const float *w,
-    const float *bias,
+__global__ void bias_row_kernel(
     float *y,
+    const float *bias,
     uint32_t seq,
-    uint32_t k,
     uint32_t out
 ) {
     const uint32_t o = blockIdx.x * blockDim.x + threadIdx.x;
@@ -143,13 +143,14 @@ __global__ void linear_nt_kernel(
     if (s >= seq || o >= out) {
         return;
     }
-    const float *xr = x + static_cast<size_t>(s) * k;
-    const float *wr = w + static_cast<size_t>(o) * k;
-    float acc = bias != nullptr ? bias[o] : 0.0f;
-    for (uint32_t t = 0; t < k; ++t) {
-        acc += xr[t] * wr[t];
+    y[static_cast<size_t>(s) * out + o] += bias[o];
+}
+
+__global__ void tanh_kernel(float *x, uint32_t n) {
+    const uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        x[i] = tanhf(x[i]);
     }
-    y[static_cast<size_t>(s) * out + o] = acc;
 }
 
 __global__ void gelu_erf_kernel(float *x, size_t n) {
@@ -259,42 +260,6 @@ __global__ void attention_ctx_kernel(
     }
 }
 
-__global__ void pooler_kernel(
-    const float *cls,
-    const float *pw,
-    const float *pb,
-    float *pooled,
-    uint32_t hidden
-) {
-    const uint32_t o = blockIdx.x * blockDim.x + threadIdx.x;
-    if (o >= hidden) {
-        return;
-    }
-    float acc = pb != nullptr ? pb[o] : 0.0f;
-    const float *wr = pw + static_cast<size_t>(o) * hidden;
-    for (uint32_t h = 0; h < hidden; ++h) {
-        acc += cls[h] * wr[h];
-    }
-    pooled[o] = tanhf(acc);
-}
-
-__global__ void classifier_kernel(
-    const float *head_in,
-    const float *cw,
-    const float *cb,
-    float *logit,
-    uint32_t hidden
-) {
-    if (threadIdx.x != 0 || blockIdx.x != 0) {
-        return;
-    }
-    float acc = cb != nullptr ? cb[0] : 0.0f;
-    for (uint32_t h = 0; h < hidden; ++h) {
-        acc += head_in[h] * cw[h];
-    }
-    *logit = acc;
-}
-
 uint32_t grid1(size_t n, uint32_t threads = 256) {
     return static_cast<uint32_t>((n + threads - 1) / threads);
 }
@@ -306,7 +271,75 @@ struct CudaForwardGuard {
     CudaForwardGuard &operator=(const CudaForwardGuard &) = delete;
 };
 
+#define TR_LT(call, err)                                                       \
+    do {                                                                       \
+        const cublasStatus_t _s = (call);                                      \
+        if (_s != CUBLAS_STATUS_SUCCESS) {                                     \
+            if (err) {                                                         \
+                *(err) = std::string(#call) + ": cublasLt status " +           \
+                         std::to_string(static_cast<int>(_s)) +                \
+                         " (refusing hand-rolled GEMM)";                       \
+            }                                                                  \
+            return false;                                                      \
+        }                                                                      \
+    } while (0)
+
+cublasLtHandle_t lt_handle(CudaResources *r) {
+    return static_cast<cublasLtHandle_t>(r->cublaslt);
+}
+
+cublasLtMatmulDesc_t lt_desc(CudaResources *r, bool bias) {
+    return static_cast<cublasLtMatmulDesc_t>(bias ? r->lt_desc_bias : r->lt_desc);
+}
+
+cublasLtMatrixLayout_t lt_layout_a(CudaResources *r) {
+    return static_cast<cublasLtMatrixLayout_t>(r->lt_layout_a);
+}
+
+cublasLtMatrixLayout_t lt_layout_b(CudaResources *r) {
+    return static_cast<cublasLtMatrixLayout_t>(r->lt_layout_b);
+}
+
+cublasLtMatrixLayout_t lt_layout_c(CudaResources *r) {
+    return static_cast<cublasLtMatrixLayout_t>(r->lt_layout_c);
+}
+
+cublasLtMatmulPreference_t lt_pref(CudaResources *r) {
+    return static_cast<cublasLtMatmulPreference_t>(r->lt_pref);
+}
+
+bool lt_set_layout(
+    cublasLtMatrixLayout_t layout,
+    uint64_t rows,
+    uint64_t cols,
+    int64_t ld,
+    std::string *err
+) {
+    TR_LT(
+        cublasLtMatrixLayoutSetAttribute(
+            layout, CUBLASLT_MATRIX_LAYOUT_ROWS, &rows, sizeof(rows)
+        ),
+        err
+    );
+    TR_LT(
+        cublasLtMatrixLayoutSetAttribute(
+            layout, CUBLASLT_MATRIX_LAYOUT_COLS, &cols, sizeof(cols)
+        ),
+        err
+    );
+    TR_LT(
+        cublasLtMatrixLayoutSetAttribute(
+            layout, CUBLASLT_MATRIX_LAYOUT_LD, &ld, sizeof(ld)
+        ),
+        err
+    );
+    return true;
+}
+
+// Row-major Y[seq, out] = X[seq, k] @ W[out, k]^T  via column-major
+// cublasLtMatmul: C[out, seq] = W^T_cm @ X_cm  (transa=T, transb=N).
 bool linear_nt_cuda(
+    CudaResources *r,
     const float *x,
     const float *w,
     const float *bias,
@@ -316,16 +349,249 @@ bool linear_nt_cuda(
     uint32_t out,
     std::string *err
 ) {
+    if (r == nullptr || r->cublaslt == nullptr) {
+        if (err) {
+            *err = "cuBLASLt handle is null; refusing hand-rolled GEMM";
+        }
+        return false;
+    }
     if (seq == 0 || k == 0 || out == 0) {
         if (err) {
             *err = "linear_nt_cuda: empty gemm";
         }
         return false;
     }
-    dim3 block(128);
-    dim3 grid((out + 127) / 128, seq);
-    linear_nt_kernel<<<grid, block>>>(x, w, bias, y, seq, k, out);
-    TR_CUDA(cudaGetLastError(), err);
+
+    // Column-major dims matching cublasSgemm(T, N, out, seq, k, W, k, X, k, Y, out).
+    if (!lt_set_layout(lt_layout_a(r), k, out, static_cast<int64_t>(k), err) ||
+        !lt_set_layout(lt_layout_b(r), k, seq, static_cast<int64_t>(k), err) ||
+        !lt_set_layout(lt_layout_c(r), out, seq, static_cast<int64_t>(out), err)) {
+        return false;
+    }
+
+    const bool use_bias = bias != nullptr;
+    cublasLtMatmulDesc_t desc = lt_desc(r, use_bias);
+    if (use_bias) {
+        TR_LT(
+            cublasLtMatmulDescSetAttribute(
+                desc,
+                CUBLASLT_MATMUL_DESC_BIAS_POINTER,
+                &bias,
+                sizeof(bias)
+            ),
+            err
+        );
+    }
+
+    cublasLtMatmulHeuristicResult_t heur {};
+    int returned = 0;
+    TR_LT(
+        cublasLtMatmulAlgoGetHeuristic(
+            lt_handle(r),
+            desc,
+            lt_layout_a(r),
+            lt_layout_b(r),
+            lt_layout_c(r),
+            lt_layout_c(r),
+            lt_pref(r),
+            1,
+            &heur,
+            &returned
+        ),
+        err
+    );
+    if (returned <= 0) {
+        if (use_bias) {
+            // Still cuBLASLt — bias epilogue unavailable for this shape.
+            desc = lt_desc(r, false);
+            returned = 0;
+            TR_LT(
+                cublasLtMatmulAlgoGetHeuristic(
+                    lt_handle(r),
+                    desc,
+                    lt_layout_a(r),
+                    lt_layout_b(r),
+                    lt_layout_c(r),
+                    lt_layout_c(r),
+                    lt_pref(r),
+                    1,
+                    &heur,
+                    &returned
+                ),
+                err
+            );
+        }
+        if (returned <= 0) {
+            if (err) {
+                *err = "cuBLASLt has no algo for MiniLM GEMM; refusing "
+                       "hand-rolled kernel";
+            }
+            return false;
+        }
+    }
+    if (heur.workspaceSize > r->lt_workspace_bytes) {
+        if (err) {
+            *err = "cuBLASLt workspace exceeds arena slab; refusing "
+                   "per-forward cudaMalloc";
+        }
+        return false;
+    }
+
+    const float alpha = 1.0f;
+    const float beta = 0.0f;
+    TR_LT(
+        cublasLtMatmul(
+            lt_handle(r),
+            desc,
+            &alpha,
+            w,
+            lt_layout_a(r),
+            x,
+            lt_layout_b(r),
+            &beta,
+            y,
+            lt_layout_c(r),
+            y,
+            lt_layout_c(r),
+            &heur.algo,
+            r->lt_workspace,
+            r->lt_workspace_bytes,
+            0
+        ),
+        err
+    );
+    if (use_bias && desc == lt_desc(r, false)) {
+        dim3 block(128);
+        dim3 grid((out + 127) / 128, seq);
+        bias_row_kernel<<<grid, block>>>(y, bias, seq, out);
+        TR_CUDA(cudaGetLastError(), err);
+    }
+    return true;
+}
+
+void lt_destroy(CudaResources *r) {
+    if (r == nullptr) {
+        return;
+    }
+    if (r->lt_pref != nullptr) {
+        (void)cublasLtMatmulPreferenceDestroy(
+            static_cast<cublasLtMatmulPreference_t>(r->lt_pref)
+        );
+        r->lt_pref = nullptr;
+    }
+    if (r->lt_layout_a != nullptr) {
+        (void)cublasLtMatrixLayoutDestroy(
+            static_cast<cublasLtMatrixLayout_t>(r->lt_layout_a)
+        );
+        r->lt_layout_a = nullptr;
+    }
+    if (r->lt_layout_b != nullptr) {
+        (void)cublasLtMatrixLayoutDestroy(
+            static_cast<cublasLtMatrixLayout_t>(r->lt_layout_b)
+        );
+        r->lt_layout_b = nullptr;
+    }
+    if (r->lt_layout_c != nullptr) {
+        (void)cublasLtMatrixLayoutDestroy(
+            static_cast<cublasLtMatrixLayout_t>(r->lt_layout_c)
+        );
+        r->lt_layout_c = nullptr;
+    }
+    if (r->lt_desc != nullptr) {
+        (void)cublasLtMatmulDescDestroy(
+            static_cast<cublasLtMatmulDesc_t>(r->lt_desc)
+        );
+        r->lt_desc = nullptr;
+    }
+    if (r->lt_desc_bias != nullptr) {
+        (void)cublasLtMatmulDescDestroy(
+            static_cast<cublasLtMatmulDesc_t>(r->lt_desc_bias)
+        );
+        r->lt_desc_bias = nullptr;
+    }
+    if (r->cublaslt != nullptr) {
+        (void)cublasLtDestroy(static_cast<cublasLtHandle_t>(r->cublaslt));
+        r->cublaslt = nullptr;
+    }
+    r->lt_workspace = nullptr;
+    r->lt_workspace_bytes = 0;
+}
+
+bool lt_resources_init(CudaResources *r, std::string *err) {
+    cublasLtHandle_t handle = nullptr;
+    const cublasStatus_t created = cublasLtCreate(&handle);
+    if (created != CUBLAS_STATUS_SUCCESS || handle == nullptr) {
+        if (err) {
+            *err = "cuBLASLt is unavailable (cublasLtCreate status " +
+                   std::to_string(static_cast<int>(created)) +
+                   "); refusing hand-rolled GEMM fallback";
+        }
+        return false;
+    }
+    r->cublaslt = handle;
+
+    cublasLtMatmulDesc_t desc = nullptr;
+    cublasLtMatmulDesc_t desc_bias = nullptr;
+    TR_LT(
+        cublasLtMatmulDescCreate(&desc, CUBLAS_COMPUTE_32F, CUDA_R_32F), err
+    );
+    TR_LT(
+        cublasLtMatmulDescCreate(&desc_bias, CUBLAS_COMPUTE_32F, CUDA_R_32F), err
+    );
+    r->lt_desc = desc;
+    r->lt_desc_bias = desc_bias;
+
+    const cublasOperation_t transa = CUBLAS_OP_T;
+    const cublasOperation_t transb = CUBLAS_OP_N;
+    TR_LT(
+        cublasLtMatmulDescSetAttribute(
+            desc, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa)
+        ),
+        err
+    );
+    TR_LT(
+        cublasLtMatmulDescSetAttribute(
+            desc, CUBLASLT_MATMUL_DESC_TRANSB, &transb, sizeof(transb)
+        ),
+        err
+    );
+    TR_LT(
+        cublasLtMatmulDescSetAttribute(
+            desc_bias, CUBLASLT_MATMUL_DESC_TRANSA, &transa, sizeof(transa)
+        ),
+        err
+    );
+    TR_LT(
+        cublasLtMatmulDescSetAttribute(
+            desc_bias, CUBLASLT_MATMUL_DESC_TRANSB, &transb, sizeof(transb)
+        ),
+        err
+    );
+    const cublasLtEpilogue_t epi_bias = CUBLASLT_EPILOGUE_BIAS;
+    TR_LT(
+        cublasLtMatmulDescSetAttribute(
+            desc_bias,
+            CUBLASLT_MATMUL_DESC_EPILOGUE,
+            &epi_bias,
+            sizeof(epi_bias)
+        ),
+        err
+    );
+
+    // Dummy 1x1 layouts; rows/cols/ld are overwritten per GEMM.
+    cublasLtMatrixLayout_t a = nullptr;
+    cublasLtMatrixLayout_t b = nullptr;
+    cublasLtMatrixLayout_t c = nullptr;
+    TR_LT(cublasLtMatrixLayoutCreate(&a, CUDA_R_32F, 1, 1, 1), err);
+    TR_LT(cublasLtMatrixLayoutCreate(&b, CUDA_R_32F, 1, 1, 1), err);
+    TR_LT(cublasLtMatrixLayoutCreate(&c, CUDA_R_32F, 1, 1, 1), err);
+    r->lt_layout_a = a;
+    r->lt_layout_b = b;
+    r->lt_layout_c = c;
+
+    cublasLtMatmulPreference_t pref = nullptr;
+    TR_LT(cublasLtMatmulPreferenceCreate(&pref), err);
+    r->lt_pref = pref;
     return true;
 }
 
@@ -362,6 +628,11 @@ bool cuda_resources_init(
     cuda_resources_free(r);
 
     TR_CUDA(cudaSetDevice(0), err);
+
+    if (!lt_resources_init(r, err)) {
+        cuda_resources_free(r);
+        return false;
+    }
 
     auto up = [&](const TensorView &tv, float **dst, const char *name) -> bool {
         return copy_tensor(tv, dst, err, name);
@@ -447,9 +718,6 @@ bool cuda_resources_init(
     auto dalloc = [&](float **p, size_t n) -> bool {
         return rent_slot(TURBO_BUFFER_DTYPE_F32, n, reinterpret_cast<void **>(p));
     };
-    auto ialloc = [&](int32_t **p, size_t n) -> bool {
-        return rent_slot(TURBO_BUFFER_DTYPE_I32, n, reinterpret_cast<void **>(p));
-    };
     if (!dalloc(&r->x, static_cast<size_t>(S) * H) ||
         !dalloc(&r->residual, static_cast<size_t>(S) * H) ||
         !dalloc(&r->q, static_cast<size_t>(S) * H) ||
@@ -459,12 +727,155 @@ bool cuda_resources_init(
         !dalloc(&r->ctx, static_cast<size_t>(S) * H) ||
         !dalloc(&r->inter, static_cast<size_t>(S) * I) ||
         !dalloc(&r->tmp, static_cast<size_t>(S) * H) ||
-        !dalloc(&r->pooled, H) || !dalloc(&r->logit, 1) ||
-        !ialloc(&r->ids, S) || !ialloc(&r->mask, S) ||
-        !ialloc(&r->types, S) || !ialloc(&r->pos_ids, S)) {
+        !dalloc(&r->pooled, H) || !dalloc(&r->logit, 1)) {
         cuda_resources_free(r);
         return false;
     }
+
+    // Size the Lt workspace from heuristics on the live MiniLM shapes.
+    // 32 MiB cap is the arena slab we are willing to rent — never cudaMalloc
+    // a larger workspace on forward.
+    const uint64_t k_lt_workspace_cap = 32ull * 1024ull * 1024ull;
+    if (cublasLtMatmulPreferenceSetAttribute(
+            lt_pref(r),
+            CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+            &k_lt_workspace_cap,
+            sizeof(k_lt_workspace_cap)
+        ) != CUBLAS_STATUS_SUCCESS) {
+        if (err) {
+            *err = "cublasLtMatmulPreferenceSetAttribute workspace cap failed";
+        }
+        cuda_resources_free(r);
+        return false;
+    }
+    auto probe_ws = [&](uint32_t seq, uint32_t kk, uint32_t oo, bool with_bias) -> bool {
+        if (!lt_set_layout(lt_layout_a(r), kk, oo, static_cast<int64_t>(kk), err) ||
+            !lt_set_layout(lt_layout_b(r), kk, seq, static_cast<int64_t>(kk), err) ||
+            !lt_set_layout(lt_layout_c(r), oo, seq, static_cast<int64_t>(oo), err)) {
+            return false;
+        }
+        if (with_bias) {
+            const float *dummy_bias =
+                r->q_b[0] != nullptr ? r->q_b[0] : r->cls_b;
+            if (dummy_bias == nullptr) {
+                if (err) {
+                    *err = "cuBLASLt bias probe has no device bias pointer";
+                }
+                return false;
+            }
+            const cublasStatus_t bs = cublasLtMatmulDescSetAttribute(
+                lt_desc(r, true),
+                CUBLASLT_MATMUL_DESC_BIAS_POINTER,
+                &dummy_bias,
+                sizeof(dummy_bias)
+            );
+            if (bs != CUBLAS_STATUS_SUCCESS) {
+                if (err) {
+                    *err = "cublasLtMatmulDescSetAttribute bias probe failed";
+                }
+                return false;
+            }
+        }
+        cublasLtMatmulHeuristicResult_t heur {};
+        int returned = 0;
+        const cublasStatus_t hs = cublasLtMatmulAlgoGetHeuristic(
+            lt_handle(r),
+            lt_desc(r, with_bias),
+            lt_layout_a(r),
+            lt_layout_b(r),
+            lt_layout_c(r),
+            lt_layout_c(r),
+            lt_pref(r),
+            1,
+            &heur,
+            &returned
+        );
+        if (hs != CUBLAS_STATUS_SUCCESS || returned <= 0) {
+            if (err) {
+                *err = "cuBLASLt has no algo for MiniLM GEMM shape; refusing "
+                       "hand-rolled kernel";
+            }
+            return false;
+        }
+        if (heur.workspaceSize > r->lt_workspace_bytes) {
+            r->lt_workspace_bytes = heur.workspaceSize;
+        }
+        return true;
+    };
+    const uint32_t Smax = S;
+    if (!probe_ws(Smax, H, H, true) || !probe_ws(Smax, H, I, true) ||
+        !probe_ws(Smax, I, H, true) || !probe_ws(1, H, H, true) ||
+        !probe_ws(1, r->cls_cols > 0 ? r->cls_cols : H, 1, true) ||
+        !probe_ws(Smax, H, H, false) || !probe_ws(1, H, 1, false)) {
+        cuda_resources_free(r);
+        return false;
+    }
+    if (r->lt_workspace_bytes > k_lt_workspace_cap) {
+        if (err) {
+            *err = "cuBLASLt workspace exceeds 32 MiB arena cap; refusing "
+                   "hand-rolled GEMM";
+        }
+        cuda_resources_free(r);
+        return false;
+    }
+    if (r->lt_workspace_bytes > 0) {
+        const size_t n_f32 =
+            (r->lt_workspace_bytes + sizeof(float) - 1) / sizeof(float);
+        float *ws = nullptr;
+        if (!dalloc(&ws, n_f32)) {
+            cuda_resources_free(r);
+            return false;
+        }
+        r->lt_workspace = ws;
+    }
+    const uint64_t rented_ws = static_cast<uint64_t>(r->lt_workspace_bytes);
+    if (cublasLtMatmulPreferenceSetAttribute(
+            lt_pref(r),
+            CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES,
+            &rented_ws,
+            sizeof(rented_ws)
+        ) != CUBLAS_STATUS_SUCCESS) {
+        if (err) {
+            *err = "cublasLtMatmulPreferenceSetAttribute rented workspace failed";
+        }
+        cuda_resources_free(r);
+        return false;
+    }
+
+    // Warm the algo cache / any one-time Lt state at load, not forward.
+    if (!linear_nt_cuda(r, r->x, r->q_w[0], r->q_b[0], r->q, Smax, H, H, err) ||
+        !linear_nt_cuda(r, r->x, r->ff_i_w[0], r->ff_i_b[0], r->inter, Smax, H, I, err) ||
+        !linear_nt_cuda(
+            r, r->inter, r->ff_o_w[0], r->ff_o_b[0], r->x, Smax, I, H, err
+        ) ||
+        !linear_nt_cuda(
+            r,
+            r->x,
+            r->cls_w,
+            r->cls_b,
+            r->logit,
+            1,
+            r->cls_cols > 0 ? r->cls_cols : H,
+            1,
+            err
+        )) {
+        cuda_resources_free(r);
+        return false;
+    }
+    if (r->has_pooler && r->pool_w != nullptr) {
+        if (!linear_nt_cuda(r, r->x, r->pool_w, r->pool_b, r->pooled, 1, H, H, err)) {
+            cuda_resources_free(r);
+            return false;
+        }
+    }
+    if (cudaDeviceSynchronize() != cudaSuccess) {
+        if (err) {
+            *err = "cuBLASLt warmup cudaDeviceSynchronize failed";
+        }
+        cuda_resources_free(r);
+        return false;
+    }
+
     r->enabled = true;
     return true;
 }
@@ -473,7 +884,7 @@ void cuda_resources_free(CudaResources *r) {
     if (r == nullptr) {
         return;
     }
-    r->cublas = nullptr;
+    lt_destroy(r);
     dfree(&r->word);
     dfree(&r->pos);
     dfree(&r->type);
@@ -519,10 +930,6 @@ void cuda_resources_free(CudaResources *r) {
     r->tmp = nullptr;
     r->pooled = nullptr;
     r->logit = nullptr;
-    r->ids = nullptr;
-    r->mask = nullptr;
-    r->types = nullptr;
-    r->pos_ids = nullptr;
     r->n_rented = 0;
     r->arena = nullptr;
     r->enabled = false;
@@ -558,38 +965,41 @@ bool bert_forward_row_cuda(
     const uint32_t heads = cfg.heads;
     const uint32_t dh = H / heads;
     const float scale = 1.0f / std::sqrt(static_cast<float>(dh));
-    const size_t nbytes_i = static_cast<size_t>(seq) * sizeof(int32_t);
 
-    TR_CUDA(cudaMemcpy(r->ids, input_ids, nbytes_i, cudaMemcpyHostToDevice), err);
-    TR_CUDA(cudaMemcpy(r->mask, attention_mask, nbytes_i, cudaMemcpyHostToDevice), err);
-    if (token_type_ids != nullptr) {
-        TR_CUDA(cudaMemcpy(r->types, token_type_ids, nbytes_i, cudaMemcpyHostToDevice), err);
-    } else {
-        TR_CUDA(cudaMemset(r->types, 0, nbytes_i), err);
-    }
-    if (position_ids != nullptr) {
-        TR_CUDA(cudaMemcpy(r->pos_ids, position_ids, nbytes_i, cudaMemcpyHostToDevice), err);
-    } else {
-        // arange on host would allocate; write a tiny kernel-free loop into
-        // the already-reserved device buffer via a one-shot host stack copy.
-        int32_t tmp_pos[512];
-        if (seq > 512) {
+    auto map_i32 = [&](const int32_t *host, const int32_t **dev, const char *what)
+        -> bool {
+        if (host == nullptr) {
+            *dev = nullptr;
+            return true;
+        }
+        void *d = nullptr;
+        if (turbo_buffer_cuda_mapped_device_ptr(host, &d) == 0 || d == nullptr) {
             if (err) {
-                *err = "bert_forward_row_cuda: seq exceeds stack arange";
+                *err = std::string(what) +
+                       ": tokens are not CUDA PINNED mapped; "
+                       "refusing per-forward H2D";
             }
             return false;
         }
-        for (uint32_t t = 0; t < seq; ++t) {
-            tmp_pos[t] = static_cast<int32_t>(t);
-        }
-        TR_CUDA(cudaMemcpy(r->pos_ids, tmp_pos, nbytes_i, cudaMemcpyHostToDevice), err);
+        *dev = static_cast<const int32_t *>(d);
+        return true;
+    };
+    const int32_t *d_ids = nullptr;
+    const int32_t *d_mask = nullptr;
+    const int32_t *d_types = nullptr;
+    const int32_t *d_pos = nullptr;
+    if (!map_i32(input_ids, &d_ids, "input_ids") ||
+        !map_i32(attention_mask, &d_mask, "attention_mask") ||
+        !map_i32(token_type_ids, &d_types, "token_type_ids") ||
+        !map_i32(position_ids, &d_pos, "position_ids")) {
+        return false;
     }
 
     embed_kernel<<<seq, 128>>>(
         r->x,
-        r->ids,
-        r->pos_ids,
-        r->types,
+        d_ids,
+        d_pos,
+        d_types,
         r->word,
         r->pos,
         r->type,
@@ -613,15 +1023,15 @@ bool bert_forward_row_cuda(
             cudaMemcpy(r->residual, r->x, hidden_n * sizeof(float), cudaMemcpyDeviceToDevice),
             err
         );
-        if (!linear_nt_cuda(r->x, r->q_w[layer], r->q_b[layer], r->q, seq, H, H, err) ||
-            !linear_nt_cuda(r->x, r->k_w[layer], r->k_b[layer], r->k, seq, H, H, err) ||
-            !linear_nt_cuda(r->x, r->v_w[layer], r->v_b[layer], r->v, seq, H, H, err)) {
+        if (!linear_nt_cuda(r, r->x, r->q_w[layer], r->q_b[layer], r->q, seq, H, H, err) ||
+            !linear_nt_cuda(r, r->x, r->k_w[layer], r->k_b[layer], r->k, seq, H, H, err) ||
+            !linear_nt_cuda(r, r->x, r->v_w[layer], r->v_b[layer], r->v, seq, H, H, err)) {
             return false;
         }
         TR_CUDA(cudaMemset(r->ctx, 0, hidden_n * sizeof(float)), err);
         dim3 score_grid((seq + 31) / 32, seq, heads);
         attention_scores_kernel<<<score_grid, 32>>>(
-            r->q, r->k, r->attn, r->mask, seq, H, heads, dh, scale
+            r->q, r->k, r->attn, d_mask, seq, H, heads, dh, scale
         );
         TR_CUDA(cudaGetLastError(), err);
         dim3 sm_grid(seq, heads);
@@ -630,7 +1040,7 @@ bool bert_forward_row_cuda(
         attention_ctx_kernel<<<sm_grid, 32>>>(r->attn, r->v, r->ctx, seq, H, heads, dh);
         TR_CUDA(cudaGetLastError(), err);
         if (!linear_nt_cuda(
-                r->ctx, r->attn_o_w[layer], r->attn_o_b[layer], r->q, seq, H, H, err
+                r, r->ctx, r->attn_o_w[layer], r->attn_o_b[layer], r->q, seq, H, H, err
             )) {
             return false;
         }
@@ -647,14 +1057,14 @@ bool bert_forward_row_cuda(
             err
         );
         if (!linear_nt_cuda(
-                r->x, r->ff_i_w[layer], r->ff_i_b[layer], r->inter, seq, H, I, err
+                r, r->x, r->ff_i_w[layer], r->ff_i_b[layer], r->inter, seq, H, I, err
             )) {
             return false;
         }
         gelu_erf_kernel<<<grid1(inter_n), 256>>>(r->inter, inter_n);
         TR_CUDA(cudaGetLastError(), err);
         if (!linear_nt_cuda(
-                r->inter, r->ff_o_w[layer], r->ff_o_b[layer], r->x, seq, I, H, err
+                r, r->inter, r->ff_o_w[layer], r->ff_o_b[layer], r->x, seq, I, H, err
             )) {
             return false;
         }
@@ -668,17 +1078,23 @@ bool bert_forward_row_cuda(
 
     const float *head_in = r->x;
     if (r->has_pooler && r->pool_w != nullptr) {
-        pooler_kernel<<<grid1(H, 128), 128>>>(r->x, r->pool_w, r->pool_b, r->pooled, H);
+        if (!linear_nt_cuda(r, r->x, r->pool_w, r->pool_b, r->pooled, 1, H, H, err)) {
+            return false;
+        }
+        tanh_kernel<<<grid1(H, 128), 128>>>(r->pooled, H);
         TR_CUDA(cudaGetLastError(), err);
         head_in = r->pooled;
     }
     const uint32_t cls_k = r->cls_cols > 0 ? r->cls_cols : H;
-    classifier_kernel<<<1, 1>>>(head_in, r->cls_w, r->cls_b, r->logit, cls_k);
-    TR_CUDA(cudaGetLastError(), err);
+    if (!linear_nt_cuda(r, head_in, r->cls_w, r->cls_b, r->logit, 1, cls_k, 1, err)) {
+        return false;
+    }
     TR_CUDA(cudaMemcpy(logit_out, r->logit, sizeof(float), cudaMemcpyDeviceToHost), err);
     TR_CUDA(cudaDeviceSynchronize(), err);
     return true;
 }
+
+const char *cuda_gemm_backend() { return "cublasLtMatmul"; }
 
 } // namespace impl
 } // namespace turborerank

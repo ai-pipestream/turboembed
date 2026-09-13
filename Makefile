@@ -27,7 +27,7 @@
 #   make convert-rerank-ov                  # ONNX→IR (C++); ONNX from contrib/offline-once
 #   make test-turborerank-intel             # Machine B OpenVINO GPU/CPU receipt + live CE
 #   make test-turborerank-apple             # Machine C Metal receipt + live CE
-#   make test-turboembed-intel              # --features genai; TextEmbeddingPipeline on CPU and GPU; NPU create fails loud if missing
+#   make test-turboembed-intel              # --features genai; Tokenizer+CompiledModel on ZE USM; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
 #
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
@@ -82,9 +82,10 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	e2e-parity e2e-parity-goldens e2e-drift \
 	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
-	turborerank-tests turborerank-tests-nocuda turborerank-tests-noov \
+	turborerank-tests 	turborerank-tests-nocuda turborerank-tests-noov \
+	turborerank-cuda-gemm-proof \
 	turborerank-tests-nometal libturborerank-apple libturbo-buffer-apple \
-	turbo-buffer-tests turboembed-mock-arena-tests \
+	turbo-buffer-tests turboembed-mock-arena-tests turboembed-genai-arena-tests \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt
@@ -398,14 +399,38 @@ turboembed-stub:
 test-turboembed: turboembed-mock-arena-tests
 	$(CARGO) test -p turboembed
 
-# Live TextEmbeddingPipeline on Intel CPU and GPU. GPU/NPU create fails if
-# that plugin is missing (no silent CPU). Sources the host OpenVINO toolkit; no Python.
+# Live GenAI Tokenizer+CompiledModel on Intel CPU and GPU, ZE USM arena.
+# GPU/NPU create fails if that plugin or ZE SHARED is missing (no silent CPU).
 OPENVINO_SETUPVARS ?= /work/opt/openvino_genai/setupvars.sh
-test-turboembed-intel:
+OPENVINO_GENAI_ROOT ?= /work/opt/openvino_genai
+test-turboembed-intel: turboembed-genai-arena-tests
 	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then \
 	  set +u; . "$(OPENVINO_SETUPVARS)"; set -u; \
 	fi; \
-	$(CARGO) test -p turboembed --features genai
+	$(CARGO) test -p turboembed --features genai -- --test-threads=1
+
+# C++ proof: GPU SHARED + CPU HOST token/result rent, allocs/forward==0.
+turboembed-genai-arena-tests:
+	@if [ ! -f "$(OPENVINO_GENAI_ROOT)/runtime/include/openvino/genai/tokenizer.hpp" ]; then \
+	  echo "skip turboembed-genai-arena-tests: OpenVINO GenAI headers missing"; \
+	  exit 1; \
+	fi
+	mkdir -p native/turboembed/build
+	@if [ -f "$(OPENVINO_SETUPVARS)" ]; then set +u; . "$(OPENVINO_SETUPVARS)"; set -u; fi; \
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g \
+	  -DTURBOEMBED_GENAI -DTURBO_BUFFER_ZE=1 \
+	  -DTURBOEMBED_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  -I include -I native/turboembed/src -I native/turbo_buffer/src \
+	  -I $(OPENVINO_GENAI_ROOT)/runtime/include \
+	  native/turboembed/src/stub.cpp \
+	  native/turboembed/src/genai.cpp \
+	  $(TURBO_BUFFER_SRCS) \
+	  native/turboembed/tests/genai_arena_tests.cpp \
+	  -L$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
+	  -lopenvino -lopenvino_genai -lopenvino_tokenizers -lze_loader -lm \
+	  -Wl,-rpath,$(OPENVINO_GENAI_ROOT)/runtime/lib/intel64 \
+	  -o native/turboembed/build/genai_arena_tests
+	INFERSTREAM_ROOT=$(CURDIR) native/turboembed/build/genai_arena_tests
 
 # Real Metal MiniLM through turboembed.h. No Python.
 # Runs metal_create_lists_minilm_not_only_mock (create lists 384-d minilm,
@@ -493,7 +518,7 @@ endif
 
 ifeq ($(TURBORERANK_ENABLE_CUDA),1)
 TURBORERANK_CPPFLAGS += -DTURBORERANK_CUDA=1 -DTURBO_BUFFER_CUDA=1
-TURBORERANK_CUDA_LIBS := -lcudart
+TURBORERANK_CUDA_LIBS := -lcudart -lcublasLt
 TURBORERANK_CUDA_OBJ := native/turborerank/build/bert_cuda.o
 endif
 
@@ -517,6 +542,18 @@ native/turborerank/build/bert_cuda.o: native/turborerank/src/bert_cuda.cu \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  -c native/turborerank/src/bert_cuda.cu \
 	  -o native/turborerank/build/bert_cuda.o
+
+# SOLIDIFY (3): primary GEMM is cuBLASLt. The hand-rolled linear_nt_kernel
+# must not exist; the linked test binary must reference cublasLtMatmul.
+turborerank-cuda-gemm-proof: $(TURBORERANK_CUDA_OBJ)
+ifeq ($(TURBORERANK_ENABLE_CUDA),1)
+	@grep -q 'cublasLtMatmul(' native/turborerank/src/bert_cuda.cu || { \
+	  echo "FAIL: bert_cuda.cu must call cublasLtMatmul"; exit 1; }
+	@if grep -n 'linear_nt_kernel' native/turborerank/src/bert_cuda.cu; then \
+	  echo "FAIL: linear_nt_kernel still present — not the cuBLASLt stack"; \
+	  exit 1; fi
+	@echo "gemm primary path: cublasLtMatmul (no linear_nt_kernel)"
+endif
 
 turbo-buffer-tests:
 	mkdir -p native/turbo_buffer/build
@@ -545,7 +582,7 @@ turboembed-mock-arena-tests: turboembed-stub
 	  -lm -o native/turboembed/build/mock_arena_tests
 	native/turboembed/build/mock_arena_tests
 
-turborerank-tests: $(TURBORERANK_CUDA_OBJ) turbo-buffer-tests
+turborerank-tests: $(TURBORERANK_CUDA_OBJ) turborerank-cuda-gemm-proof turbo-buffer-tests
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
 	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
@@ -554,13 +591,19 @@ turborerank-tests: $(TURBORERANK_CUDA_OBJ) turbo-buffer-tests
 	  native/turborerank/tests/turborerank_tests.cpp \
 	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
 	  -o native/turborerank/build/turborerank_tests
+ifeq ($(TURBORERANK_ENABLE_CUDA),1)
+	@nm native/turborerank/build/turborerank_tests | grep -q cublasLtMatmul || { \
+	  echo "FAIL: turborerank_tests does not reference cublasLtMatmul"; exit 1; }
+endif
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests
 
 # Prove CUDA create fails loud when the binary has no CUDA.
+# Strip CUDA defines even on a Machine A host — this target is the
+# no-nvcc / no-cudart binary, not "CUDA flags without -lcudart".
 turborerank-tests-nocuda:
 	mkdir -p native/turborerank/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
-	  $(TURBORERANK_CPPFLAGS) \
+	  $(filter-out -DTURBORERANK_CUDA=1 -DTURBO_BUFFER_CUDA=1,$(TURBORERANK_CPPFLAGS)) \
 	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
 	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
 	  native/turborerank/tests/turborerank_tests.cpp \

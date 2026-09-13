@@ -26,13 +26,17 @@
  * ---------------------------------------------------------------------------
  *
  *   CPU:     64-byte posix_memalign. Placement HOST only.
- *   CUDA:    PINNED = cudaHostAlloc; DEVICE = cudaMalloc.
+ *   CUDA:    PINNED = cudaHostAllocMapped (host-writable, device-
+ *            visible). DEVICE = cudaMalloc.
  *            Create/rent without nvcc → NOT_IMPLEMENTED.
  *            Compiled but no CUDA device → UNAVAILABLE.
- *            LIVE on Machine A (PINNED token rent + DEVICE activation
- *            scratch). Steady-state CUDA forward must see
- *            turbo_buffer_alloc_counter() == 0 and
- *            turbo_buffer_cuda_forward_allocs() == 0.
+ *            LIVE on Machine A (PINNED mapped token rent + DEVICE
+ *            activation scratch). Kernels read mapped token pointers
+ *            via turbo_buffer_cuda_mapped_device_ptr — no per-forward
+ *            id H2D. Steady-state CUDA forward must see
+ *            turbo_buffer_alloc_counter() == 0,
+ *            turbo_buffer_cuda_forward_allocs() == 0, and
+ *            turbo_buffer_cuda_forward_h2d_bytes() == 0.
  *   ZE:      Level Zero USM. HOST / SHARED / DEVICE as requested.
  *            SHARED/DEVICE without a GPU device → UNAVAILABLE, not HOST.
  *            Machine B. Fail loud when L0 is missing.
@@ -106,7 +110,7 @@ typedef enum turbo_buffer_placement {
     TURBO_BUFFER_PLACE_DEVICE = 2,
     /** ZE shared / Metal shared. */
     TURBO_BUFFER_PLACE_SHARED = 3,
-    /** CUDA cudaHostAlloc pinned. */
+    /** CUDA cudaHostAllocMapped (host write, device-visible). */
     TURBO_BUFFER_PLACE_PINNED = 4
 } turbo_buffer_placement;
 
@@ -260,6 +264,19 @@ int turbo_buffer_metal_lookup(
 );
 
 /**
+ * CUDA: device pointer for a PINNED mapped host pointer this ABI
+ * allocated (arena rent or raw_alloc). Interior pointers are OK
+ * (row offset). Kernels read `*device_ptr`; the host write already
+ * landed in those pages — no cudaMemcpy H2D.
+ * Returns 1 on hit. 0 if not a mapped PINNED allocation we own,
+ * or when CUDA is not compiled.
+ */
+int turbo_buffer_cuda_mapped_device_ptr(
+    const void *host_ptr,
+    void **device_ptr
+);
+
+/**
  * ZE: query the USM type of `ptr` (HOST / SHARED / DEVICE).
  * NOT_FOUND if this process did not allocate it with Level Zero.
  * NOT_IMPLEMENTED when the binary has no L0.
@@ -301,6 +318,12 @@ void turbo_buffer_note_alloc(void);
  * Tests reset the counter after warmup and require 0 after the next
  * forward. Reintroducing per-forward `cudaMalloc` for PINNED tokens
  * or DEVICE activations fails that check.
+ *
+ * `cudaMemcpy*` HostToDevice observed in our CUDA TUs while the
+ * window is open increments `turbo_buffer_cuda_forward_h2d_bytes`
+ * (and the call counter). Load-time weight H2D is outside the
+ * window. Tests require 0 after warmup. Reintroducing a per-forward
+ * token-row H2D fails that check.
  */
 void turbo_buffer_cuda_forward_enter(void);
 
@@ -309,6 +332,12 @@ void turbo_buffer_cuda_forward_leave(void);
 void turbo_buffer_cuda_forward_allocs_reset(void);
 
 uint64_t turbo_buffer_cuda_forward_allocs(void);
+
+void turbo_buffer_cuda_forward_h2d_reset(void);
+
+uint64_t turbo_buffer_cuda_forward_h2d_bytes(void);
+
+uint64_t turbo_buffer_cuda_forward_h2d_calls(void);
 
 #ifdef __cplusplus
 }

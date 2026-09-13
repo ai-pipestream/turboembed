@@ -10,12 +10,17 @@
 #include "turbo_buffer.h"
 #include "turborerank.h"
 
+#ifdef TURBORERANK_CUDA
+#include <cuda_runtime.h>
+#endif
+
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -169,6 +174,27 @@ static void test_cuda_buffer_policy() {
     CHECK(auto_buf->device == TURBORERANK_DEVICE_CUDA);
     CHECK(aligned(auto_buf->input_ids));
     turborerank_buffer_free(auto_buf);
+}
+
+static void test_cuda_gemm_stack_is_cublaslt() {
+    const char *backend = turborerank::impl::cuda_gemm_backend();
+    CHECK(backend != nullptr);
+#ifdef TURBORERANK_CUDA
+    CHECK(std::strcmp(backend, "cublasLtMatmul") == 0);
+    const std::string src_path =
+        workspace_root() + "/native/turborerank/src/bert_cuda.cu";
+    std::ifstream in(src_path);
+    CHECK(static_cast<bool>(in));
+    const std::string src(
+        (std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()
+    );
+    CHECK(src.find("cublasLtMatmul(") != std::string::npos);
+    CHECK(src.find("cublasLtMatmulAlgoGetHeuristic") != std::string::npos);
+    CHECK(src.find("linear_nt_kernel") == std::string::npos);
+    CHECK(src.find("refusing hand-rolled") != std::string::npos);
+#else
+    CHECK(std::strcmp(backend, "unavailable") == 0);
+#endif
 }
 
 static void test_pack_cls_sep_and_types() {
@@ -575,17 +601,47 @@ static void test_cuda_real_model_scores() {
     }
     CHECK(e->cuda.enabled);
     CHECK_EQ(e->cuda.n_layers, 6u);
+    CHECK(e->cuda.cublaslt != nullptr);
+    CHECK(std::strcmp(turborerank::impl::cuda_gemm_backend(), "cublasLtMatmul") == 0);
     CHECK(e->arena != nullptr);
     CHECK(e->cuda.arena == e->arena);
-    CHECK(e->cuda.n_rented >= 15u);
+    CHECK(e->cuda.n_rented >= 11u);
+    if (e->cuda.lt_workspace_bytes > 0) {
+        CHECK(e->cuda.lt_workspace != nullptr);
+        CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.lt_workspace));
+    }
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.x));
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.residual));
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.q));
     CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.attn));
-    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.ids));
-    CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.mask));
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
+    void *mapped_ids = nullptr;
+    void *mapped_mask = nullptr;
+    CHECK_EQ(turbo_buffer_cuda_mapped_device_ptr(e->work->input_ids, &mapped_ids), 1);
+    CHECK_EQ(
+        turbo_buffer_cuda_mapped_device_ptr(e->work->attention_mask, &mapped_mask), 1
+    );
+    CHECK(mapped_ids != nullptr);
+    CHECK(mapped_mask != nullptr);
+    {
+        float refuse_logit = 0;
+        std::string refuse_err;
+        int32_t unmapped[8] = {101, 7592, 102, 0, 0, 0, 0, 0};
+        CHECK(!turborerank::impl::bert_forward_row_cuda(
+            &e->cuda,
+            e->cfg,
+            unmapped,
+            unmapped,
+            unmapped,
+            unmapped,
+            4,
+            &refuse_logit,
+            &refuse_err
+        ));
+        CHECK(refuse_err.find("PINNED mapped") != std::string::npos);
+        CHECK(refuse_err.find("refusing per-forward H2D") != std::string::npos);
+    }
     for (uint32_t i = 0; i < e->cuda.n_rented; ++i) {
         CHECK_EQ(e->cuda.rented[i].placement, TURBO_BUFFER_PLACE_DEVICE);
         CHECK(turbo_buffer_arena_owns(e->arena, e->cuda.rented[i].ptr));
@@ -619,11 +675,35 @@ static void test_cuda_real_model_scores() {
 
     turborerank::alloc_counter_reset();
     turbo_buffer_cuda_forward_allocs_reset();
+    turbo_buffer_cuda_forward_h2d_reset();
+#ifdef TURBORERANK_CUDA
+    size_t mem_free0 = 0;
+    size_t mem_total0 = 0;
+    CHECK(cudaMemGetInfo(&mem_free0, &mem_total0) == cudaSuccess);
+#endif
     float logits_steady[3] = {0, 0, 0};
     CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits_steady));
+#ifdef TURBORERANK_CUDA
+    size_t mem_free1 = 0;
+    size_t mem_total1 = 0;
+    CHECK(cudaMemGetInfo(&mem_free1, &mem_total1) == cudaSuccess);
+    CHECK_EQ(mem_total1, mem_total0);
+    CHECK(mem_free1 >= mem_free0);
+    std::fprintf(
+        stderr,
+        "CUDA id H2D bytes/calls=%llu/%llu device used %zu -> %zu (delta %ld)\n",
+        static_cast<unsigned long long>(turbo_buffer_cuda_forward_h2d_bytes()),
+        static_cast<unsigned long long>(turbo_buffer_cuda_forward_h2d_calls()),
+        mem_total0 - mem_free0,
+        mem_total1 - mem_free1,
+        static_cast<long>(mem_free0) - static_cast<long>(mem_free1)
+    );
+#endif
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
     CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
     CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 0u);
     CHECK(almost(logits_steady[0], logits[0], 1e-6f));
     CHECK(almost(logits_steady[1], logits[1], 1e-6f));
     CHECK(almost(logits_steady[2], logits[2], 1e-6f));
@@ -649,10 +729,13 @@ static void test_cuda_real_model_scores() {
     ));
     turborerank::alloc_counter_reset();
     turbo_buffer_cuda_forward_allocs_reset();
+    turbo_buffer_cuda_forward_h2d_reset();
     float s = 0;
     CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
     CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 0u);
     CHECK(almost(s, logits[0], 2e-3f));
     turborerank_buffer_free(buf);
 
@@ -1068,6 +1151,7 @@ int main() {
     test_abi_names();
     test_buffer_alignment_and_write_via_pointer();
     test_cuda_buffer_policy();
+    test_cuda_gemm_stack_is_cublaslt();
     test_pack_cls_sep_and_types();
     test_pack_empty_sides();
     test_pack_truncation();
