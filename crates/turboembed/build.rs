@@ -41,6 +41,14 @@ fn main() {
         "cargo:rerun-if-changed={}",
         root.join("native/turbo_buffer/src/metal.cpp").display()
     );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turbo_buffer/src/metal.mm").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("scripts/build-turbo-buffer-apple.sh").display()
+    );
     println!("cargo:rerun-if-changed={}", genai_cpp.display());
     println!("cargo:rerun-if-changed={}", genai_hpp.display());
     println!("cargo:rerun-if-changed={}", apple.display());
@@ -50,6 +58,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=OpenVINO_DIR");
     println!("cargo:rerun-if-env-changed=DEVELOPER_DIR");
     println!("cargo:rerun-if-env-changed=TURBOEMBED_DISABLE_CUDA");
+    println!("cargo:rerun-if-env-changed=TURBOEMBED_DISABLE_ZE");
     println!("cargo:rustc-check-cfg=cfg(turboembed_cuda)");
 
     println!(
@@ -80,6 +89,14 @@ fn link_swift_mlx(root: &Path) {
         "cargo:rerun-if-changed={}",
         swift_dir.join("Package.swift").display()
     );
+
+    let archive = Command::new("sh")
+        .arg(root.join("scripts/build-turbo-buffer-apple.sh"))
+        .status()
+        .expect("failed to spawn scripts/build-turbo-buffer-apple.sh");
+    if !archive.success() {
+        panic!("libturbo_buffer_apple.a (Metal SHARED arena) failed: {archive}");
+    }
 
     let mut swift = Command::new("swift");
     if std::env::var_os("DEVELOPER_DIR").is_none() {
@@ -201,6 +218,12 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
         if ov.has_tokenizers {
             println!("cargo:rustc-link-lib=dylib=openvino_tokenizers");
         }
+        if level_zero_present() {
+            build.define("TURBO_BUFFER_ZE", "1");
+            build.include("/usr/include");
+            println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
+            println!("cargo:rustc-link-lib=dylib=ze_loader");
+        }
     }
 
     build.compile(if genai {
@@ -302,6 +325,15 @@ fn find_openvino() -> Result<OpenVinoPaths, String> {
          OPENVINO_DIR / INTEL_OPENVINO_DIR / /work/opt/openvino_genai / \
          /opt/intel/openvino*"
         .into())
+}
+
+fn level_zero_present() -> bool {
+    if std::env::var_os("TURBOEMBED_DISABLE_ZE").is_some() {
+        return false;
+    }
+    Path::new("/usr/include/level_zero/ze_api.h").exists()
+        && (Path::new("/usr/lib/x86_64-linux-gnu/libze_loader.so").exists()
+            || Path::new("/usr/lib/x86_64-linux-gnu/libze_loader.so.1").exists())
 }
 
 fn from_pkg_config() -> Result<OpenVinoPaths, String> {

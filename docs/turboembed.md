@@ -15,7 +15,7 @@ FNV.
 |---|---|---|---|
 | nvidia | ONNX Runtime **CUDA EP** + IoBinding, or explicit **CPU EP** | `ort-cuda` | `TURBOEMBED_DEVICE_CUDA` / `AUTO` or `TURBOEMBED_DEVICE_CPU` |
 | nvidia | ONNX Runtime **TensorRT EP** (same MiniLM ONNX, CUDA IoBinding buffers) | `ort-cuda` | `TURBOEMBED_DEVICE_TENSORRT` |
-| intel | `ov::genai::TextEmbeddingPipeline` on `"GPU"` / `"CPU"`; `"NPU"` create fails loud until a host lists the NPU plugin | `genai` | `TURBOEMBED_DEVICE_OPENVINO_GPU` / `_CPU` / `_NPU` |
+| intel | `ov::genai::Tokenizer` + CompiledModel on `"GPU"` / `"CPU"` (ZE SHARED / HOST USM); `"NPU"` create fails loud until a host lists the NPU plugin | `genai` | `TURBOEMBED_DEVICE_OPENVINO_GPU` / `_CPU` / `_NPU` |
 | apple | MLX (Swift `@_cdecl`, other binary) | — | `TURBOEMBED_DEVICE_METAL` |
 
 Pooling for MiniLM is the sentence-transformers recipe: attention-mask-weighted

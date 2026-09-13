@@ -69,12 +69,12 @@ OpenVINO CPU without Level Zero rents a **CPU** arena for host
 tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
 is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
 
-**TurboEmbed (Machine A LIVE):** CUDA / AUTO / TensorRT engines own a
+**TurboEmbed ORT (Machine A LIVE):** CUDA / AUTO / TensorRT engines own a
 CUDA arena. Tokens are PINNED mapped i64 rows (stored as i32×2),
 hidden states are DEVICE f32, result rows are PINNED. IoBinding
 binds those views. The CUDA EP `gpu_external_alloc` hook rents DEVICE
 slabs so ORT intermediates are arena-owned. Load warms I/O at
-max batch × max seq plus two `[1, dim]` result slabs (so holding
+max batch × max seq plus a pair of `[1, dim]` result slabs (so holding
 one `Embeddings` while embedding again does not malloc). After
 that warmup, `turbo_buffer_alloc_counter() == 0` and
 `gpu_external_alloc` calls == 0 on the next embed. Mean+L2 still
@@ -84,10 +84,21 @@ API copy, not zero-copy.
 Explicit CPU EP owns a CPU arena: HOST tokens, HOST hidden, HOST
 results, same IoBinding reuse. Mock still warms a 32×8 HOST slab.
 
-Swift `libTurboEmbed.dylib` on Machine C does not yet rent Metal
-compute buffers. That remains a Machine C gap, not a fake Metal
-success. Intel GenAI device tensors stay with OpenVINO until that
-host's item.
+**TurboEmbed GenAI (Machine B LIVE):** GPU / AUTO engines open a **ZE**
+arena. Load rents i32 token rows and f32 hidden scratch as **SHARED**.
+`embed` rents the FP32 result from the same arena. Infer wraps those
+pointers with `ov::Tensor(..., usm)`. After warmup,
+`allocs/forward == 0` for those slots. CPU / OPENVINO_CPU rents **HOST**
+(ZE HOST when L0 is present, else a CPU arena — that is not a ZE GPU
+success). GPU create without ZE SHARED fails loud — never a CPU arena.
+See [`docs/turboembed-genai-ze-machine-b.md`](turboembed-genai-ze-machine-b.md).
+
+**TurboEmbed Metal (Machine C LIVE, SOLIDIFY 4):** `libTurboEmbed.dylib`
+creates a Metal arena, rents SHARED i32 tokens + f32 last-hidden +
+f32 results, and wraps those MTL contents as MLX arrays.
+`turbo_buffer_metal_lookup` only — no private registry. After load,
+`allocs/forward == 0`. Proof:
+[`docs/apple-turboembed-metal-arena-machine-c.md`](apple-turboembed-metal-arena-machine-c.md).
 
 ## Tests
 
@@ -95,9 +106,11 @@ host's item.
 make turbo-buffer-tests              # alignment, dual-rent, double-free; CUDA/ZE when live
 make turbo-buffer-intel-receipt      # Machine B ZE HOST/SHARED/DEVICE
 make turboembed-mock-arena-tests     # mock embed allocs/forward == 0
+make test-turboembed-intel           # Machine B GenAI ZE SHARED + MiniLM ≥0.99
 make turborerank-tests               # includes the above + Berlin band when weights exist
 make test-turborerank-intel          # Machine B OV + ZE receipts
 make test-turborerank-apple          # Machine C: Metal SHARED live + Berlin receipt
+make test-turboembed-apple           # Machine C: libTurboEmbed Metal SHARED + MiniLM receipt
 ```
 
 Reintroducing `posix_memalign` for Rerank scratch or work tokens fails

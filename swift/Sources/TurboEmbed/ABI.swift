@@ -1,6 +1,9 @@
 #if canImport(TurboEmbedC)
 import TurboEmbedC
 #endif
+#if canImport(TurboBufferC)
+import TurboBufferC
+#endif
 
 import Foundation
 import InferstreamCore
@@ -21,6 +24,7 @@ private final class EngineBox: @unchecked Sendable {
     var metalAvailable: Bool = false
     var catalog: Catalog?
     var mlxAliases: [String: MlxAlias] = [:]
+    var metalArena: MetalArena?
     var lastError: String = "" {
         didSet { refreshErrorPtr() }
     }
@@ -228,6 +232,7 @@ public func turboembed_engine_create(
             box.mlxDevice = ping.device
             box.metalAvailable = true
             box.mockLoaded = false
+            box.metalArena = try MetalArena()
             box.mlxAliases = MlxProvider.discover(catalog: box.catalog)
             guard let minilm = box.mlxAliases["minilm"], minilm.dim == 384 else {
                 TLS.shared.createError =
@@ -349,14 +354,21 @@ public func turboembed_load_model(
             return TURBOEMBED_ERR_NOT_FOUND
         }
         do {
-            let warm = try MlxProvider.embed(
+            guard let arena = box.metalArena else {
+                throw MetalArenaError.create(
+                    "Metal load requires a turbo_buffer Metal SHARED arena"
+                )
+            }
+            let warm = try MlxProvider.embedArena(
                 engine: mlx,
                 model: model,
                 texts: ["hello world"],
                 pooling: model.pooling,
                 normalize: true,
-                maxSeqLen: model.maxSeqLen
+                maxSeqLen: model.maxSeqLen,
+                arena: arena
             )
+            turboembed_embed_result_free(warm.header)
             if name == "minilm" && warm.dim != 384 {
                 throw MlxProviderError.fakeDim(alias: name, dim: warm.dim)
             }
@@ -442,6 +454,12 @@ public func turboembed_embed_stream(
 @_cdecl("turboembed_embed_result_free")
 public func turboembed_embed_result_free(_ result: UnsafeMutablePointer<turboembed_embed_result>?) {
     guard let result else { return }
+    let rec = UnsafeMutableRawPointer(result).assumingMemoryBound(to: EmbedResultRec.self)
+    if rec.pointee.arena != nil, rec.pointee.view.ptr != nil {
+        _ = turbo_buffer_arena_return(rec.pointee.arena, &rec.pointee.view)
+        rec.deallocate()
+        return
+    }
     if let values = UnsafeMutablePointer(mutating: result.pointee.values) {
         values.deallocate()
     }
@@ -497,15 +515,19 @@ private func embedImpl(
         let view = texts[i]
         mockRow(ptr: view.ptr, len: view.len, into: values.advanced(by: i * Int(mockDim)), dim: mockDim)
     }
-    let result = UnsafeMutablePointer<turboembed_embed_result>.allocate(capacity: 1)
-    result.pointee = turboembed_embed_result(
-        dim: mockDim,
-        count: UInt32(nTexts),
-        values: UnsafePointer(values),
-        packed: UnsafeRawPointer(values).assumingMemoryBound(to: UInt8.self),
-        packed_len: nFloats * MemoryLayout<Float>.size
+    let rec = UnsafeMutablePointer<EmbedResultRec>.allocate(capacity: 1)
+    rec.pointee = EmbedResultRec(
+        pub: turboembed_embed_result(
+            dim: mockDim,
+            count: UInt32(nTexts),
+            values: UnsafePointer(values),
+            packed: UnsafeRawPointer(values).assumingMemoryBound(to: UInt8.self),
+            packed_len: nFloats * MemoryLayout<Float>.size
+        ),
+        view: turbo_buffer_view(),
+        arena: nil
     )
-    out.pointee = result
+    out.pointee = UnsafeMutableRawPointer(rec).assumingMemoryBound(to: turboembed_embed_result.self)
     box.lastError = ""
     return TURBOEMBED_OK
 }
@@ -542,13 +564,19 @@ private func embedMlx(
             batch.append(stringView(view.ptr, view.len))
         }
         do {
-            let result = try MlxProvider.embed(
+            guard let arena = box.metalArena else {
+                throw MetalArenaError.create(
+                    "Metal embed requires a turbo_buffer Metal SHARED arena — refusing MLX-private buffers"
+                )
+            }
+            let result = try MlxProvider.embedArena(
                 engine: mlx,
                 model: model,
                 texts: batch,
                 pooling: pooling,
                 normalize: MlxProvider.normalize(opts),
-                maxSeqLen: MlxProvider.truncate(opts, fallback: model.maxSeqLen)
+                maxSeqLen: MlxProvider.truncate(opts, fallback: model.maxSeqLen),
+                arena: arena
             )
             if name == "minilm" && result.dim != 384 {
                 throw MlxProviderError.fakeDim(alias: name, dim: result.dim)
@@ -556,17 +584,7 @@ private func embedMlx(
             model.dim = UInt32(result.dim)
             model.ready = true
             box.mlxAliases[name] = model
-            let values = UnsafeMutablePointer<Float>.allocate(capacity: result.values.count)
-            values.initialize(from: result.values, count: result.values.count)
-            let packed = UnsafeMutablePointer<turboembed_embed_result>.allocate(capacity: 1)
-            packed.pointee = turboembed_embed_result(
-                dim: UInt32(result.dim),
-                count: UInt32(batch.count),
-                values: UnsafePointer(values),
-                packed: UnsafeRawPointer(values).assumingMemoryBound(to: UInt8.self),
-                packed_len: result.values.count * MemoryLayout<Float>.size
-            )
-            out.pointee = packed
+            out.pointee = result.header
             box.lastError = ""
             return TURBOEMBED_OK
         } catch {

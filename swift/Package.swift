@@ -34,6 +34,9 @@ let package = Package(
             path: "Sources/MlxEngine",
             swiftSettings: [
                 .enableUpcomingFeature("ExistentialAny")
+            ],
+            linkerSettings: [
+                .linkedFramework("Metal")
             ]
         ),
         .target(
@@ -78,10 +81,19 @@ let package = Package(
         ),
         .target(
             name: "TurboEmbed",
-            dependencies: ["TurboEmbedC", "MlxEngine", "InferstreamCore"],
+            dependencies: ["TurboEmbedC", "TurboBufferC", "MlxEngine", "InferstreamCore"],
             path: "Sources/TurboEmbed",
             swiftSettings: [
                 .enableUpcomingFeature("ExistentialAny")
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L\(Context.packageDirectory)/../native/turbo_buffer/build",
+                    "-lturbo_buffer_apple",
+                ]),
+                .linkedFramework("Metal"),
+                .linkedFramework("Foundation"),
+                .linkedLibrary("c++"),
             ]
         ),
         .target(
@@ -108,6 +120,11 @@ let package = Package(
             name: "TurboRerankTests",
             dependencies: ["TurboRerankC", "TurboBufferC"],
             path: "Tests/TurboRerankTests"
+        ),
+        .testTarget(
+            name: "TurboEmbedTests",
+            dependencies: ["TurboEmbed", "TurboEmbedC", "TurboBufferC"],
+            path: "Tests/TurboEmbedTests"
         ),
     ]
 )

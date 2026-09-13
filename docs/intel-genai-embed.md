@@ -1,11 +1,13 @@
 # inferstream-intel: in-process OpenVINO GenAI embeddings
 
-Default Intel **Embed** path is an in-process C++
+Default Intel **Embed** path is in-process OpenVINO GenAI: TurboEmbed
+uses `ov::genai::Tokenizer` + `CompiledModel` and rents token/result
+USM from turbo_buffer (ZE SHARED on GPU). `crates/backend-openvino`
+still constructs
 [`ov::genai::TextEmbeddingPipeline`](https://docs.openvino.ai/2026/api/genai_api/_autosummary/openvino_genai.TextEmbeddingPipeline.html)
-reached through a cxx bridge in `crates/backend-openvino`. Clients send
-**plain strings**. Tokenization is **openvino-tokenizers** inside the
-pipeline. Pooling is CLS / MEAN / LAST_TOKEN with optional L2. Device is
-`CPU` / `GPU` / `NPU` (catalog default: **GPU**).
+for its own cxx bridge. Clients send **plain strings**. Tokenization is
+**openvino-tokenizers**. Pooling is CLS / MEAN / LAST_TOKEN with optional
+L2. Device is `CPU` / `GPU` / `NPU` (catalog default: **GPU**).
 
 **OVMS gRPC is out of scope.** There is no `backend = "ovms"` client.
 Intel Embed is GenAI only. Catalog `backend = "openvino"` constructs
@@ -141,7 +143,7 @@ for the default `cargo test --workspace`.
 ## TurboEmbed C ABI (same pipeline, no gRPC)
 
 `include/turboembed.h` + `crates/turboembed --features genai` loads the
-same `ov::genai::TextEmbeddingPipeline` in-process:
+same MiniLM IR in-process (Tokenizer + CompiledModel, ZE USM on GPU):
 
 ```bash
 # source OpenVINO setupvars (or rely on rpath to /work/opt/openvino_genai)
@@ -150,15 +152,19 @@ make test-turboembed-intel
 cargo test -p turboembed --features genai
 ```
 
-`Device::OpenVinoGpu` compiles `TextEmbeddingPipeline(..., "GPU", config)`
-and **fails** if the GPU plugin is missing (no CPU swap).
-`Device::OpenVinoCpu` / `Device::Cpu` compiles
-`TextEmbeddingPipeline(..., "CPU", config)` and must produce real embeds.
-Cosine vs `testdata/e2e/goldens/{intel,nvidia}/minilm.json` ≥ 0.99.
+`Device::OpenVinoGpu` compiles the MiniLM IR on `"GPU"` and **fails**
+if the GPU plugin or ZE SHARED USM is missing (no CPU swap, no CPU
+arena). Tokens / hidden / results are rented from the engine ZE arena.
+`ov::genai::Tokenizer.encode` still private-allocs (no caller-buffer
+API); infer uses `InferRequest.set_tensor` on the rented USM.
+`Device::OpenVinoCpu` / `Device::Cpu` compiles `"CPU"` and rents HOST
+(ZE HOST when L0 is present). Cosine vs
+`testdata/e2e/goldens/{intel,nvidia}/minilm.json` ≥ 0.99.
 Receipts: `testdata/receipts/turboembed/intel-minilm.json` (GPU) and
 `intel-minilm-cpu.json` (CPU). Policy (no embed):
 `cargo test -p turboembed --features genai --test device_policy` —
 GPU + no GPU plugin is `UNSUPPORTED_DEVICE` (never `"CPU"`). Same for NPU.
+Arena proof: [`docs/turboembed-genai-ze-machine-b.md`](turboembed-genai-ze-machine-b.md).
 
 ### NPU — honest defer on Machine B (Battlemage)
 

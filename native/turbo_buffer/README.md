@@ -16,3 +16,6 @@ Machine B LIVE: `make turbo-buffer-intel-receipt` plus
 
 Metal SHARED rent/return is LIVE on Machine C
 (`docs/apple-turbo-buffer-metal-arena-machine-c.md`).
+`libTurboEmbed.dylib` links `libturbo_buffer_apple.a` and rents
+SHARED tokens / last-hidden / results
+(`docs/apple-turboembed-metal-arena-machine-c.md`).

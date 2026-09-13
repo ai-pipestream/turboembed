@@ -20,6 +20,11 @@ crate is a Linux CI compile stub only.
    (mlx-swift `MLXEmbedders` on `Device.gpu`).
 3. **`mock-embed`** stays for ABI smoke only (8-d FNV). Catalog aliases
    never take that path.
+4. **Metal SHARED arena** — `turbo_buffer_arena_create(METAL)` at
+   engine create. Load rents token / last-hidden slots. Embed rents
+   the result row. MLX wraps arena pointers (`MLXArray(rawPointer:)`);
+   a private copy fails loud. After warmup, `allocs/forward == 0`.
+   See [`docs/apple-turboembed-metal-arena-machine-c.md`](apple-turboembed-metal-arena-machine-c.md).
 
 ## Device policy
 
@@ -59,7 +64,8 @@ calls that path. Dim ≠ 384 or dim == 8 is `INTERNAL` (`FAKE`).
 | target | role |
 |---|---|
 | `TurboEmbedC` | Clang module: the frozen header only |
-| `TurboEmbed` | **dynamic** `libTurboEmbed.dylib`: `@_cdecl` + MLX + mock-embed |
+| `TurboEmbed` | **dynamic** `libTurboEmbed.dylib`: `@_cdecl` + MLX + `libturbo_buffer_apple.a` |
+| `TurboBufferC` | Clang module: frozen `turbo_buffer.h` (symbols from the archive) |
 
 `inferstream-apple` still uses `MlxEngine` in-process (no C ABI). The
 dylib is for Rust / C callers.

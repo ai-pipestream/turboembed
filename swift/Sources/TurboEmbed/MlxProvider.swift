@@ -158,38 +158,78 @@ enum MlxProvider {
         return Int(opts.pointee.truncate_to)
     }
 
-    static func embed(
+    static func embedArena(
         engine: MlxEngine.Engine,
         model: MlxAlias,
         texts: [String],
         pooling: String,
         normalize: Bool,
-        maxSeqLen: Int?
-    ) throws -> (dim: Int, values: [Float]) {
-        let result = try runBlocking {
-            try await engine.embed(
-                modelPath: model.path,
-                texts: texts,
-                normalize: normalize,
-                pooling: pooling,
-                maxSeqLen: maxSeqLen
+        maxSeqLen: Int?,
+        arena: MetalArena
+    ) throws -> (dim: Int, header: UnsafeMutablePointer<turboembed_embed_result>) {
+        if texts.count > Int(arena.maxBatch) {
+            throw MetalArenaError.batch(
+                "batch \(texts.count) exceeds arena max_batch \(arena.maxBatch)"
             )
         }
-        if result.dimensions == 0 || result.dimensions == 8 {
-            throw MlxProviderError.fakeDim(alias: model.alias, dim: result.dimensions)
+        var resultView = try arena.rentResult(rows: UInt32(texts.count), cols: arena.dim)
+        let slots = ArenaEmbedSlots(
+            inputIds: arena.inputIds,
+            attentionMask: arena.attentionMask,
+            tokenTypes: arena.tokenTypes,
+            activations: arena.hiddenStates,
+            results: resultView.ptr.assumingMemoryBound(to: Float.self),
+            maxBatch: Int(arena.maxBatch),
+            maxSeq: Int(arena.maxSeq),
+            hiddenCap: Int(arena.hidden)
+        )
+        let pair: (dim: Int, count: Int)
+        do {
+            pair = try runBlocking {
+                try await engine.embedArena(
+                    modelPath: model.path,
+                    texts: texts,
+                    normalize: normalize,
+                    pooling: pooling,
+                    maxSeqLen: maxSeqLen,
+                    slots: slots
+                )
+            }
+        } catch {
+            arena.returnView(&resultView)
+            throw error
         }
-        if model.alias == "minilm", result.dimensions != 384 {
-            throw MlxProviderError.fakeDim(alias: model.alias, dim: result.dimensions)
+        if pair.dim == 0 || pair.dim == 8 {
+            arena.returnView(&resultView)
+            throw MlxProviderError.fakeDim(alias: model.alias, dim: pair.dim)
         }
-        let flat = result.vectors.flatMap { $0 }
-        guard result.vectors.count == texts.count, flat.count == texts.count * result.dimensions
-        else {
-            throw MlxProviderError.embed("engine returned a ragged embedding tensor")
+        if model.alias == "minilm", pair.dim != 384 {
+            arena.returnView(&resultView)
+            throw MlxProviderError.fakeDim(alias: model.alias, dim: pair.dim)
         }
+        try arena.requireMetalShared(resultView.ptr, what: "result")
+        try arena.requireMetalShared(arena.tokensIds.ptr, what: "input_ids")
+        try arena.requireMetalShared(arena.activations.ptr, what: "activations")
+        let values = resultView.ptr.assumingMemoryBound(to: Float.self)
+        let rec = UnsafeMutablePointer<EmbedResultRec>.allocate(capacity: 1)
+        rec.pointee = EmbedResultRec(
+            pub: turboembed_embed_result(
+                dim: UInt32(pair.dim),
+                count: UInt32(pair.count),
+                values: UnsafePointer(values),
+                packed: UnsafeRawPointer(values).assumingMemoryBound(to: UInt8.self),
+                packed_len: pair.count * pair.dim * MemoryLayout<Float>.size
+            ),
+            view: resultView,
+            arena: arena.raw
+        )
         fputs(
-            "[turboembed] mlx embed \(model.alias) pooling=\(pooling) normalize=\(normalize ? 1 : 0) dim=\(result.dimensions) n=\(texts.count) — hidden-state mean+L2, not BERT pooler, not mock\n",
+            "[turboembed] mlx embed \(model.alias) pooling=\(pooling) normalize=\(normalize ? 1 : 0) dim=\(pair.dim) n=\(pair.count) — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock\n",
             stderr)
-        return (result.dimensions, flat)
+        return (
+            pair.dim,
+            UnsafeMutableRawPointer(rec).assumingMemoryBound(to: turboembed_embed_result.self)
+        )
     }
 }
 
