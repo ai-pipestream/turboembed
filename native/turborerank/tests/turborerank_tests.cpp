@@ -502,6 +502,14 @@ static void test_real_model_scores() {
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
     CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
 
+    // High-level score reuses the load-time work buffer + scratch.
+    turborerank::alloc_counter_reset();
+    opts.activation = TURBORERANK_ACT_IDENTITY;
+    float score_again[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, score_again));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK(almost(score_again[0], logits[0], 1e-5f));
+
     // No heap growth on forward.
     turborerank_buffer *buf = nullptr;
     CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &buf));

@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <cstring>
 #include <fstream>
 #include <mutex>
 #include <new>
@@ -69,8 +68,8 @@ void free_work_buffer(turborerank_engine *e) {
 }
 
 struct TokenBufferRec {
-    turborerank_buffer pub;
-    turbo_buffer_view views[4];
+    turborerank_buffer pub {};
+    turbo_buffer_view views[4] {};
     turbo_buffer_arena *arena = nullptr;
 };
 
@@ -147,7 +146,6 @@ turborerank_status rent_token_buffer(
     if (rec == nullptr) {
         return TURBORERANK_ERR_OUT_OF_MEMORY;
     }
-    std::memset(rec, 0, sizeof(*rec));
     rec->arena = arena;
     rec->pub.device = pub_device;
     turbo_buffer_status rent_st = TURBO_BUFFER_OK;

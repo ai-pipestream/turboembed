@@ -39,9 +39,13 @@ Slab table capacity is 256 (fixed). Rent after warmup does not grow it.
 **TurboRerank (CPU proven here):** engine arena at create. Load rents
 BERT scratch (f32 activations + WordPiece i32) and the work token
 buffer. `turborerank_buffer_alloc` rents from a process arena of the
-same ABI. `forward` must not increment the counter. GPU token
-workspaces use the same rent path (CUDA PINNED / ZE SHARED / Metal
-SHARED) when that backend is live.
+same ABI. `forward` and `score` (after load) must not increment the
+counter. GPU token workspaces use the same rent path (CUDA PINNED /
+ZE SHARED / Metal SHARED) when that backend is live.
+
+OpenVINO CPU without Level Zero rents a **CPU** arena for host
+tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
+is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
 
 **TurboEmbed:** every engine owns a CPU arena for host FP32 result
 rows. Mock/CPU `embed` rents `[n_texts, dim]`. Load warms a 32×8 slab

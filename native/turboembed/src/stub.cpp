@@ -127,7 +127,7 @@ void mock_embed_row(const char *ptr, size_t len, float *out, uint32_t dim) {
 #endif
 
 struct EmbedResultRec {
-    turboembed_embed_result pub;
+    turboembed_embed_result pub {};
     turbo_buffer_view values {};
     turbo_buffer_arena *arena = nullptr;
 };
@@ -818,7 +818,6 @@ static turboembed_status embed_impl(
             engine->set_error("result allocation failed");
             return TURBOEMBED_ERR_OUT_OF_MEMORY;
         }
-        std::memset(rec, 0, sizeof(*rec));
         rec->arena = engine->arena;
         if (turbo_buffer_arena_rent(
                 engine->arena,
@@ -913,7 +912,6 @@ static turboembed_status embed_impl(
                 engine->set_error("result allocation failed");
                 return TURBOEMBED_ERR_OUT_OF_MEMORY;
             }
-            std::memset(rec, 0, sizeof(*rec));
             rec->arena = engine->arena;
             if (turbo_buffer_arena_rent(
                     engine->arena,
@@ -992,7 +990,6 @@ static turboembed_status embed_impl(
         engine->set_error("result allocation failed");
         return TURBOEMBED_ERR_OUT_OF_MEMORY;
     }
-    std::memset(rec, 0, sizeof(*rec));
     rec->arena = engine->arena;
     const turbo_buffer_status rst = turbo_buffer_arena_rent(
         engine->arena,

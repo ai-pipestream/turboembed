@@ -41,6 +41,7 @@ int main() {
     CHECK(r1->count == 2);
     CHECK(r1->values != nullptr);
     const float first = r1->values[0];
+    const float *warm_ptr = r1->values;
     turboembed_embed_result_free(r1);
 
     turbo_buffer_alloc_counter_reset();
@@ -49,6 +50,9 @@ int main() {
     CHECK(turbo_buffer_alloc_counter() == 0u);
     CHECK(r2 != nullptr);
     CHECK(r2->values[0] == first);
+    // Same slab, not a fresh malloc. Reintroducing per-embed posix_memalign
+    // for the value rows fails this reuse check and the counter above.
+    CHECK(r2->values == warm_ptr);
     turboembed_embed_result_free(r2);
 
     turboembed_engine_destroy(e);
