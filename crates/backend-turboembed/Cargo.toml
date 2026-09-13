@@ -1,0 +1,23 @@
+[package]
+name = "inferstream-backend-turboembed"
+description = "inferstream Backend façade over the TurboEmbed C ABI (catalog embeds)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[features]
+# Forward provider features to crates/turboembed. Without one of these the
+# C ABI stub refuses catalog aliases (minilm, …) — never mock, never CPU
+# fallback for AUTO/GPU.
+ort-cuda = ["turboembed/ort-cuda"]
+genai = ["turboembed/genai"]
+
+[dependencies]
+async-trait = { workspace = true }
+inferstream-backend = { workspace = true }
+inferstream-protocol = { workspace = true }
+tokio = { workspace = true }
+turboembed = { workspace = true }

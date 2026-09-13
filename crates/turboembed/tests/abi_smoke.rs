@@ -106,9 +106,14 @@ fn cpu_only_when_explicit() {
     engine.load_model("mock-embed").expect("mock on CPU");
     let models = engine.list_models().expect("list");
     assert!(
-        models.iter().all(|m| m.alias == "mock-embed" && m.device != Device::Metal),
+        models
+            .iter()
+            .all(|m| m.alias == "mock-embed" && m.device != Device::Metal),
         "explicit CPU must not advertise Metal MiniLM: {:?}",
-        models.iter().map(|m| (m.alias.clone(), m.device)).collect::<Vec<_>>()
+        models
+            .iter()
+            .map(|m| (m.alias.clone(), m.device))
+            .collect::<Vec<_>>()
     );
     // Without a real provider, CPU must not invent MiniLM. With
     // `--features ort-cuda`, explicit CPU is the real ORT CPU EP

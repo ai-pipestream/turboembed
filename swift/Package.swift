@@ -48,6 +48,8 @@ let package = Package(
             dependencies: [
                 "MlxEngine",
                 "InferstreamCore",
+                "TurboEmbed",
+                "TurboEmbedC",
                 .product(name: "GRPCCore", package: "grpc-swift-2"),
                 .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
                 .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),

@@ -1,13 +1,12 @@
 //! `inferstream-nvidia`: the NVIDIA arch binary.
 //!
-//! The **primary path today is ONNX Runtime on GPU** (`backend = "ort"`,
-//! `device = "cuda"`; real link behind feature `ort-cuda`, CPU-only link
-//! behind `ort-runtime`) serving encoder embedding models (BGE, MiniLM).
-//! TensorRT-LLM (`backend = "trt-llm"`, routing surface behind `trtllm`,
-//! real runtime link behind `trtllm-sys`) is the optional later peak path
-//! for generative models; llama.cpp-CUDA serves GGUF models as the
-//! secondary/fallback path. The mock backend is always available for
-//! wire-path smoke tests before engines are loaded.
+//! Catalog embeds (`backend = "ort"`, typically `minilm`) are a thin gRPC
+//! façade over the TurboEmbed C ABI (`include/turboembed.h`). Real vectors
+//! need `--features ort-cuda` (ORT CUDA EP + IoBinding). Missing GPU or
+//! missing feature fails at startup — never mock, never silent CPU.
+//! TensorRT-LLM (`backend = "trt-llm"`) is the optional later peak path
+//! for generative models; llama.cpp-CUDA serves GGUF models. The mock
+//! backend is always available for wire-path smoke tests.
 
 use std::sync::Arc;
 
@@ -85,30 +84,13 @@ fn factory() -> impl inferstream_server::BackendFactory {
             BackendKind::Ort => {
                 #[cfg(feature = "ort")]
                 {
-                    use inferstream_backend_ort::{OrtBackend, OrtConfig, OrtDevice, Pooling};
-                    let device = model
-                        .device
-                        .as_deref()
-                        .map(OrtDevice::from_config)
-                        .transpose()
-                        .map_err(|e| invalid(model, e.to_string()))?
-                        .unwrap_or_default();
-                    let pooling = model
-                        .pooling
-                        .as_deref()
-                        .map(Pooling::from_config)
-                        .transpose()
-                        .map_err(|e| invalid(model, e.to_string()))?
-                        .unwrap_or_default();
-                    let backend = OrtBackend::new(OrtConfig {
-                        model_path: model.path.clone().unwrap_or_default(),
-                        tokenizer_path: model.tokenizer_dir.clone(),
-                        device,
-                        max_seq_len: model.max_seq_len.map(|v| v as usize),
-                        pooling,
-                        normalize: model.normalize,
-                    })
-                    .map_err(|e| invalid(model, e.to_string()))?;
+                    let backend =
+                        inferstream_backend_turboembed::TurboEmbedBackend::open_for_model(
+                            &model.name,
+                            model.backend.as_str(),
+                            model.device.as_deref(),
+                        )
+                        .map_err(|e| invalid(model, e.to_string()))?;
                     Ok(Arc::new(backend))
                 }
                 #[cfg(not(feature = "ort"))]
@@ -164,11 +146,11 @@ mod tests {
         }
     }
 
-    #[cfg(all(feature = "ort", not(feature = "ort-runtime")))]
+    #[cfg(all(feature = "ort", not(feature = "ort-cuda")))]
     #[test]
-    fn catalog_ort_alias_fails_without_runtime_feature() {
+    fn catalog_ort_alias_fails_without_turboembed_provider() {
         // Catalog aliases must not sit behind a stub that only fails at
-        // request time. Construction names the feature to rebuild with.
+        // request time. Construction names TurboEmbed + ort-cuda.
         let config = Config::from_toml(
             r#"
             [[models]]
@@ -180,10 +162,19 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert!(matches!(
-            build_registry(&config, &factory()),
-            Err(ServerError::InvalidModelConfig { .. })
-        ));
+        let err = match build_registry(&config, &factory()) {
+            Ok(_) => panic!("minilm must fail at startup without ort-cuda"),
+            Err(e) => e,
+        };
+        assert!(
+            matches!(err, ServerError::InvalidModelConfig { .. }),
+            "minilm must fail at startup without ort-cuda, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("TurboEmbed") || msg.contains("ort-cuda") || msg.contains("refusing"),
+            "startup error must name TurboEmbed / ort-cuda, got {msg}"
+        );
     }
 
     #[cfg(feature = "ort")]

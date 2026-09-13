@@ -2,8 +2,10 @@
 #
 # Logical model names clients use in `model_name`, resolved per architecture
 # to the optimized artifact for that host. A client says `minilm` and gets
-# ORT-CUDA on NVIDIA, in-process OpenVINO GenAI on Intel, and MLX on Apple —
-# without knowing any of those paths.
+# TurboEmbed → ORT-CUDA on NVIDIA, TurboEmbed → OpenVINO GenAI on Intel, and
+# TurboEmbed → MLX Metal on Apple — without knowing any of those paths.
+# Catalog embed aliases are served through include/turboembed.h; they never
+# fall back to the mock backend.
 #
 # This file is COMPILED INTO the server binaries as the built-in catalog, so
 # `serve = ["minilm"]` works out of the box. Point an arch config's

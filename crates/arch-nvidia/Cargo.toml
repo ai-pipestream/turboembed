@@ -31,15 +31,16 @@ llamacpp-runtime = ["llamacpp", "inferstream-backend-llamacpp/runtime"]
 llamacpp-cuda = ["llamacpp-runtime", "inferstream-backend-llamacpp/cuda"]
 # Convenience: everything real on a krick-class NVIDIA host.
 full-cuda = ["ort-cuda", "llamacpp-cuda"]
-ort = ["dep:inferstream-backend-ort"]
-# Real ONNX Runtime link (CPU EP). `ort`'s download-binaries fetches a
-# matching ONNX Runtime at build time — no system libonnxruntime needed.
-ort-runtime = ["ort", "inferstream-backend-ort/runtime"]
+ort = ["dep:inferstream-backend-turboembed"]
+# Real ONNX Runtime via TurboEmbed C ABI (CPU EP when device=cpu).
+# `ort`'s download-binaries fetches a matching ONNX Runtime at build time.
+ort-runtime = ["ort", "inferstream-backend-turboembed/ort-cuda"]
 # CUDA EP — the primary embedding path on krick-class hosts. Needs the
-# NVIDIA driver + CUDA 12 + cuDNN 9 at runtime (no TensorRT required).
-ort-cuda = ["ort-runtime", "inferstream-backend-ort/cuda"]
-# TensorRT EP — additionally needs TensorRT 10 libs on the host.
-ort-tensorrt = ["ort-cuda", "inferstream-backend-ort/tensorrt"]
+# NVIDIA driver + CUDA 13 + cuDNN 9 at runtime (no TensorRT required).
+# Catalog `backend = "ort"` is a thin gRPC façade over this ABI.
+ort-cuda = ["ort-runtime"]
+# TensorRT EP — not a TurboEmbed provider yet; fail loud at create.
+ort-tensorrt = ["ort-cuda"]
 
 [dependencies]
 inferstream-server = { workspace = true }
@@ -47,5 +48,5 @@ inferstream-backend = { workspace = true }
 inferstream-backend-mock = { workspace = true }
 inferstream-backend-trtllm = { workspace = true, optional = true }
 inferstream-backend-llamacpp = { workspace = true, optional = true }
-inferstream-backend-ort = { workspace = true, optional = true }
+inferstream-backend-turboembed = { workspace = true, optional = true }
 tokio = { workspace = true }
