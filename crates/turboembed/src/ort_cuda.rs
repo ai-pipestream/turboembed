@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 use std::ffi::{c_void, CString};
-use std::ptr;
+use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
@@ -21,7 +21,7 @@ use inferstream_backend_ort::Pooling;
 use ort::memory::{AllocationDevice, Allocator, AllocatorType, MemoryInfo, MemoryType};
 use ort::session::builder::{GraphOptimizationLevel, SessionBuilder};
 use ort::session::{IoBinding, Session};
-use ort::value::{Shape, TensorRefMut, ValueType};
+use ort::value::{PrimitiveTensorElementType, Shape, Tensor, ValueType};
 use ort::{ortsys, AsPointer};
 use tokenizers::Tokenizer;
 
@@ -382,6 +382,36 @@ fn i64_view<'a>(view: &turbo_buffer_view, n: usize) -> Result<&'a [i64], Error> 
 
 fn ort_ok<T>(r: ort::Result<T>) -> Result<T, Error> {
     r.map_err(|e| e.to_string())
+}
+
+/// `TensorRefMut::from_raw` calls `MemoryInfo::to_owned`, which always
+/// builds a CPU MemoryInfo in ort 2.0.0-rc.13. Create the OrtValue
+/// ourselves so CUDA / PINNED tags survive.
+fn tensor_from_data<T: PrimitiveTensorElementType + std::fmt::Debug>(
+    info: &MemoryInfo<'_>,
+    data: *mut c_void,
+    shape: Shape,
+) -> Result<Tensor<T>, Error> {
+    let mut value_ptr: *mut ort::sys::OrtValue = ptr::null_mut();
+    let nbytes = shape.num_elements() * std::mem::size_of::<T>();
+    ort_ok((|| {
+        ortsys![
+            unsafe CreateTensorWithDataAsOrtValue(
+                info.ptr(),
+                data,
+                nbytes,
+                shape.as_ptr(),
+                shape.len(),
+                T::into_tensor_element_type().into(),
+                &mut value_ptr
+            )?;
+            nonNull(value_ptr)
+        ];
+        Ok(())
+    })())
+    .map_err(|e| format!("CreateTensorWithDataAsOrtValue: {e}"))?;
+    let nn = NonNull::new(value_ptr).ok_or_else(|| "CreateTensorWithDataAsOrtValue returned null".to_string())?;
+    Ok(unsafe { Tensor::<T>::from_ptr(nn, None) })
 }
 
 fn mean_pool_into(
@@ -867,13 +897,13 @@ impl OrtCudaSession {
         }
     }
 
-    fn bind_token_input<'a>(
+    fn bind_token_input(
         &self,
         binding: &mut IoBinding,
         name: &str,
         host: *mut c_void,
         shape: [i64; 2],
-    ) -> Result<TensorRefMut<'a, i64>, Error> {
+    ) -> Result<Tensor<i64>, Error> {
         let (info, data) = if self.place.uses_cuda_buffers() {
             let dev = mapped_device_ptr(host)?;
             let info = MemoryInfo::new(
@@ -894,10 +924,7 @@ impl OrtCudaSession {
             .map_err(|e| format!("CPU token MemoryInfo: {e}"))?;
             (info, host)
         };
-        let tensor = unsafe {
-            TensorRefMut::<i64>::from_raw(info, data.cast(), Shape::new(shape))
-                .map_err(|e| format!("token TensorRefMut {name}: {e}"))?
-        };
+        let tensor = tensor_from_data::<i64>(&info, data.cast(), Shape::new(shape))?;
         if self.place.uses_cuda_buffers() {
             require_cuda_device(tensor.memory_info(), &format!("input {name}"))?;
         }
@@ -935,21 +962,15 @@ impl OrtCudaSession {
         )
         .map_err(|e| format!("CUDA hidden MemoryInfo: {e}"))?;
         let hidden_shape = Shape::new([batch as i64, seq as i64, self.work.hidden_dim as i64]);
-        let hidden_tensor = unsafe {
-            TensorRefMut::<f32>::from_raw(hidden_info, self.work.hidden.ptr.cast(), hidden_shape)
-                .map_err(|e| format!("hidden TensorRefMut: {e}"))?
-        };
+        let hidden_tensor =
+            tensor_from_data::<f32>(&hidden_info, self.work.hidden.ptr.cast(), hidden_shape)?;
         require_cuda_device(
             hidden_tensor.memory_info(),
             &format!("output {}", self.output_name),
         )?;
-        let out_name = CString::new(self.output_name.as_str())
-            .map_err(|_| "output name is not a C string".to_string())?;
-        ort_ok((|| {
-            ortsys![unsafe BindOutput(binding.ptr_mut(), out_name.as_ptr(), hidden_tensor.ptr())?];
-            Ok(())
-        })())
-        .map_err(|e| format!("IoBinding BindOutput DEVICE hidden: {e}"))?;
+        binding
+            .bind_output(self.output_name.as_str(), hidden_tensor)
+            .map_err(|e| format!("IoBinding bind_output DEVICE hidden: {e}"))?;
 
         ort_ok((|| {
             ortsys![unsafe RunWithBinding(session.ptr_mut(), ptr::null(), binding.ptr())?];
@@ -961,7 +982,6 @@ impl OrtCudaSession {
             .map_err(|e| format!("IoBinding synchronize_outputs: {e}"))?;
 
         drop(held);
-        drop(hidden_tensor);
 
         let n = batch * seq * self.work.hidden_dim;
         let bytes = n * std::mem::size_of::<f32>();
@@ -1004,17 +1024,11 @@ impl OrtCudaSession {
         )
         .map_err(|e| format!("CPU hidden MemoryInfo: {e}"))?;
         let hidden_shape = Shape::new([batch as i64, seq as i64, self.work.hidden_dim as i64]);
-        let hidden_tensor = unsafe {
-            TensorRefMut::<f32>::from_raw(hidden_info, self.work.hidden.ptr.cast(), hidden_shape)
-                .map_err(|e| format!("hidden TensorRefMut: {e}"))?
-        };
-        let out_name = CString::new(self.output_name.as_str())
-            .map_err(|_| "output name is not a C string".to_string())?;
-        ort_ok((|| {
-            ortsys![unsafe BindOutput(binding.ptr_mut(), out_name.as_ptr(), hidden_tensor.ptr())?];
-            Ok(())
-        })())
-        .map_err(|e| format!("IoBinding BindOutput HOST hidden: {e}"))?;
+        let hidden_tensor =
+            tensor_from_data::<f32>(&hidden_info, self.work.hidden.ptr.cast(), hidden_shape)?;
+        binding
+            .bind_output(self.output_name.as_str(), hidden_tensor)
+            .map_err(|e| format!("IoBinding bind_output HOST hidden: {e}"))?;
 
         ort_ok((|| {
             ortsys![unsafe RunWithBinding(session.ptr_mut(), ptr::null(), binding.ptr())?];
@@ -1023,7 +1037,6 @@ impl OrtCudaSession {
         .map_err(|e| format!("ORT CPU IoBinding run failed: {e}"))?;
 
         drop(held);
-        drop(hidden_tensor);
 
         Ok(vec![batch as i64, seq as i64, self.work.hidden_dim as i64])
     }
