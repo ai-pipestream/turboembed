@@ -318,7 +318,7 @@ fn token_chunk(meta: &ChunkMeta, chunk: &CompletionChunk) -> ModelInferResponse 
             parameters: HashMap::new(),
             contents: None,
         }],
-        raw_output_contents: vec![pack_bytes(&[chunk.content.as_bytes()])],
+        raw_output_contents: vec![pack_bytes(&[chunk.content.as_bytes()]).into()],
     }
 }
 
@@ -541,7 +541,7 @@ impl Backend for LlamaCppBackend {
                 parameters: HashMap::new(),
                 contents: None,
             }],
-            raw_output_contents: vec![pack_bytes(&[completion.content.as_bytes()])],
+            raw_output_contents: vec![pack_bytes(&[completion.content.as_bytes()]).into()],
         })
     }
 

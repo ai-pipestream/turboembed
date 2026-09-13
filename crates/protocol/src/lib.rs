@@ -27,6 +27,8 @@ pub mod extension {
     tonic::include_proto!("inferstream.v1");
 }
 
+pub mod output_scratch;
 pub mod tensor;
 
+pub use bytes::Bytes;
 pub use tensor::{DataType, TensorError};
