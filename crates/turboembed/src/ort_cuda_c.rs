@@ -112,14 +112,16 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
     }
     let session = unsafe { &*session };
 
-    // 0 = DEFAULT, 1 = MEAN, 2 = CLS, 3 = LAST (matches turboembed_pooling).
+    // 0 = DEFAULT (use the catalog pooling already loaded), 1 = MEAN,
+    // 2 = CLS, 3 = LAST (matches turboembed_pooling).
     match requested_pooling {
-        0 | 1 => {
+        0 => {}
+        1 => {
             if session.pooling() != Pooling::Mean {
                 write_err(
                     err,
                     err_len,
-                    "embed requested mean/default pooling but the loaded \
+                    "embed requested mean pooling but the loaded \
                      catalog alias is not mean",
                 );
                 return -1;
