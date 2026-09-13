@@ -676,30 +676,34 @@ static void test_cuda_real_model_scores() {
     turborerank::alloc_counter_reset();
     turbo_buffer_cuda_forward_allocs_reset();
     turbo_buffer_cuda_forward_h2d_reset();
+#ifdef TURBORERANK_CUDA
     size_t mem_free0 = 0;
     size_t mem_total0 = 0;
     CHECK(cudaMemGetInfo(&mem_free0, &mem_total0) == cudaSuccess);
+#endif
     float logits_steady[3] = {0, 0, 0};
     CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits_steady));
+#ifdef TURBORERANK_CUDA
     size_t mem_free1 = 0;
     size_t mem_total1 = 0;
     CHECK(cudaMemGetInfo(&mem_free1, &mem_total1) == cudaSuccess);
     CHECK_EQ(mem_total1, mem_total0);
     CHECK(mem_free1 >= mem_free0);
-    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
-    CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
-    CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
-    CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), 0u);
-    CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 0u);
     std::fprintf(
         stderr,
-        "CUDA id H2D bytes/calls=%llu/%llu device used %zu -> %zu (delta %zd)\n",
+        "CUDA id H2D bytes/calls=%llu/%llu device used %zu -> %zu (delta %ld)\n",
         static_cast<unsigned long long>(turbo_buffer_cuda_forward_h2d_bytes()),
         static_cast<unsigned long long>(turbo_buffer_cuda_forward_h2d_calls()),
         mem_total0 - mem_free0,
         mem_total1 - mem_free1,
         static_cast<long>(mem_free0) - static_cast<long>(mem_free1)
     );
+#endif
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_allocs(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_bytes(), 0u);
+    CHECK_EQ(turbo_buffer_cuda_forward_h2d_calls(), 0u);
     CHECK(almost(logits_steady[0], logits[0], 1e-6f));
     CHECK(almost(logits_steady[1], logits[1], 1e-6f));
     CHECK(almost(logits_steady[2], logits[2], 1e-6f));
