@@ -15,12 +15,35 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use std::os::raw::c_void;
+
 use turboembed::ffi::{
     turboembed_device, turboembed_embed_one, turboembed_embed_result, turboembed_embed_result_free,
     turboembed_engine, turboembed_engine_create, turboembed_engine_destroy, turboembed_last_error,
     turboembed_load_model, turboembed_status,
 };
 use turboembed::{Device, EmbedOptions, Engine, Error, Pooling};
+
+const TURBO_BUFFER_OK: i32 = 0;
+const TURBO_BUFFER_DEVICE_ZE: u32 = 4;
+const TURBO_BUFFER_PLACE_HOST: u32 = 1;
+const TURBO_BUFFER_PLACE_SHARED: u32 = 3;
+
+unsafe extern "C" {
+    fn turboembed_test_genai_arena_info(
+        engine: *const turboembed_engine,
+        arena_device: *mut u32,
+        token_placement: *mut u32,
+        token_ids: *mut *const c_void,
+        hidden: *mut *const c_void,
+        owns_tokens: *mut i32,
+        owns_hidden: *mut i32,
+        hidden_used_arena: *mut i32,
+    ) -> turboembed_status;
+    fn turbo_buffer_alloc_counter_reset();
+    fn turbo_buffer_alloc_counter() -> u64;
+    fn turbo_buffer_ze_query(ptr: *const c_void, out: *mut u32) -> i32;
+}
 
 const COSINE_FLOOR: f32 = 0.99;
 const TEXT: &str = "hello world";
@@ -112,6 +135,97 @@ fn require_mapped(maps: &str, needle: &str) {
     );
 }
 
+struct ArenaProof {
+    arena_device: u32,
+    token_placement: u32,
+    token_ids: *const c_void,
+    hidden: *const c_void,
+    owns_tokens: bool,
+    owns_hidden: bool,
+    hidden_used_arena: bool,
+    token_ze: Option<u32>,
+    result_ze: Option<u32>,
+    allocs_after_warmup: u64,
+}
+
+fn arena_info(engine: &Engine) -> ArenaProof {
+    let raw = engine.raw_engine();
+    let mut arena_device = 0u32;
+    let mut token_placement = 0u32;
+    let mut token_ids: *const c_void = std::ptr::null();
+    let mut hidden: *const c_void = std::ptr::null();
+    let mut owns_tokens = 0i32;
+    let mut owns_hidden = 0i32;
+    let mut hidden_used_arena = 0i32;
+    let st = unsafe {
+        turboembed_test_genai_arena_info(
+            raw,
+            &mut arena_device,
+            &mut token_placement,
+            &mut token_ids,
+            &mut hidden,
+            &mut owns_tokens,
+            &mut owns_hidden,
+            &mut hidden_used_arena,
+        )
+    };
+    assert_eq!(
+        st,
+        turboembed_status::TURBOEMBED_OK,
+        "arena_info: {}",
+        engine.last_error()
+    );
+    ArenaProof {
+        arena_device,
+        token_placement,
+        token_ids,
+        hidden,
+        owns_tokens: owns_tokens != 0,
+        owns_hidden: owns_hidden != 0,
+        hidden_used_arena: hidden_used_arena != 0,
+        token_ze: None,
+        result_ze: None,
+        allocs_after_warmup: 0,
+    }
+}
+
+fn ze_place(ptr: *const c_void) -> Option<u32> {
+    if ptr.is_null() {
+        return None;
+    }
+    let mut place = 0u32;
+    let st = unsafe { turbo_buffer_ze_query(ptr, &mut place) };
+    if st == TURBO_BUFFER_OK {
+        Some(place)
+    } else {
+        None
+    }
+}
+
+fn prove_steady_state_zero_allocs(engine: &Engine, alias: &str, text: &str) -> u64 {
+    let opts = EmbedOptions {
+        pooling: Pooling::Mean,
+        normalize: Some(true),
+        ..Default::default()
+    };
+    let warm = engine
+        .embed_one(alias, text, &opts)
+        .expect("warmup embed for arena reuse");
+    drop(warm);
+    unsafe { turbo_buffer_alloc_counter_reset() };
+    let again = engine
+        .embed_one(alias, text, &opts)
+        .expect("steady-state embed");
+    let allocs = unsafe { turbo_buffer_alloc_counter() };
+    assert_eq!(
+        allocs, 0,
+        "steady-state GenAI embed must rent token/result slabs (allocs/forward==0); \
+         got {allocs} — GenAI is still private-allocating"
+    );
+    assert_eq!(again.dim(), 384);
+    allocs
+}
+
 fn forbid_mapped(maps: &str, needle: &str) {
     assert!(
         !maps
@@ -174,6 +288,39 @@ fn minilm_text_embedding_pipeline_on_gpu() {
     assert_eq!(one.packed().len(), 384 * 4);
 
     let live = one.values();
+    let result_ptr = live.as_ptr().cast::<c_void>();
+    let mut proof = arena_info(&engine);
+    assert_eq!(
+        proof.arena_device, TURBO_BUFFER_DEVICE_ZE,
+        "GPU GenAI must rent a ZE arena, not CPU"
+    );
+    assert_eq!(
+        proof.token_placement, TURBO_BUFFER_PLACE_SHARED,
+        "GPU tokens must be ZE SHARED, not HOST"
+    );
+    assert!(proof.owns_tokens, "token ids must be arena-owned USM");
+    assert!(proof.owns_hidden, "hidden scratch must be arena-owned USM");
+    proof.token_ze = ze_place(proof.token_ids);
+    proof.result_ze = ze_place(result_ptr);
+    assert_eq!(
+        proof.token_ze,
+        Some(TURBO_BUFFER_PLACE_SHARED),
+        "ze_query(token ids) must be SHARED; got {:?}",
+        proof.token_ze
+    );
+    assert_eq!(
+        proof.result_ze,
+        Some(TURBO_BUFFER_PLACE_SHARED),
+        "ze_query(result) must be SHARED; got {:?}",
+        proof.result_ze
+    );
+    drop(one);
+    proof.allocs_after_warmup = prove_steady_state_zero_allocs(&engine, ALIAS, TEXT);
+
+    let one = engine
+        .embed_one(ALIAS, TEXT, &opts)
+        .unwrap_or_else(|e| panic!("embed_one minilm on GPU failed: {e:?}"));
+    let live = one.values();
     let l2: f32 = live.iter().map(|x| x * x).sum::<f32>().sqrt();
     assert!(
         (l2 - 1.0).abs() < 1e-3,
@@ -234,7 +381,19 @@ fn minilm_text_embedding_pipeline_on_gpu() {
             "libpython": false,
         },
         "gpu": gpu_name,
-        "note": "explicit device=CPU is a separate real path: TextEmbeddingPipeline(models_path, \"CPU\", config). See intel-minilm-cpu.json. GPU requests still fail if the GPU plugin is missing.",
+        "arena": {
+            "device": "ZE",
+            "token_placement": "SHARED",
+            "result_placement": "SHARED",
+            "ze_query_tokens": "SHARED",
+            "ze_query_result": "SHARED",
+            "owns_tokens": proof.owns_tokens,
+            "owns_hidden": proof.owns_hidden,
+            "hidden_set_tensor": proof.hidden_used_arena,
+            "allocs_after_warmup": proof.allocs_after_warmup,
+            "tokenizer_encode": "ov::genai::Tokenizer.encode still private-allocs; API has no caller buffer"
+        },
+        "note": "SOLIDIFY (4) Machine B. Token/hidden/result rows rented from the ZE arena as SHARED. InferRequest.set_tensor wraps USM; embed_documents is not on the hot path. GPU create without ZE SHARED fails loud. See intel-minilm-cpu.json for HOST USM.",
     });
     let receipt_dir = root.join("testdata/receipts/turboembed");
     fs::create_dir_all(&receipt_dir).expect("receipts dir");
@@ -385,6 +544,42 @@ fn minilm_text_embedding_pipeline_on_cpu() {
         run_minilm_on(Device::OpenVinoCpu, "CPU", "libopenvino_intel_cpu_plugin");
     assert_eq!(Device::OpenVinoCpu.as_str(), "openvino-cpu");
 
+    let cpu_engine = Engine::create(Device::OpenVinoCpu).expect("CPU arena engine");
+    cpu_engine
+        .load_model(ALIAS)
+        .expect("CPU arena load minilm");
+    let cpu_one = cpu_engine
+        .embed_one(
+            ALIAS,
+            TEXT,
+            &EmbedOptions {
+                pooling: Pooling::Mean,
+                normalize: Some(true),
+                ..Default::default()
+            },
+        )
+        .expect("CPU arena embed");
+    let mut cpu_proof = arena_info(&cpu_engine);
+    assert!(
+        cpu_proof.owns_tokens,
+        "CPU token ids must be arena-owned (ZE HOST or CPU HOST)"
+    );
+    assert_eq!(
+        cpu_proof.token_placement, TURBO_BUFFER_PLACE_HOST,
+        "CPU tokens must be HOST, not SHARED pretending to be GPU"
+    );
+    cpu_proof.token_ze = ze_place(cpu_proof.token_ids);
+    cpu_proof.result_ze = ze_place(cpu_one.values().as_ptr().cast());
+    if cpu_proof.arena_device == TURBO_BUFFER_DEVICE_ZE {
+        assert_eq!(
+            cpu_proof.token_ze,
+            Some(TURBO_BUFFER_PLACE_HOST),
+            "CPU ZE tokens must query HOST"
+        );
+    }
+    drop(cpu_one);
+    cpu_proof.allocs_after_warmup = prove_steady_state_zero_allocs(&cpu_engine, ALIAS, TEXT);
+
     /* ABI device=CPU (not only OPENVINO_CPU) also compiles "CPU". */
     let engine = Engine::create(Device::Cpu).expect("create Device::Cpu");
     engine
@@ -433,7 +628,24 @@ fn minilm_text_embedding_pipeline_on_cpu() {
             "libopenvino_intel_cpu_plugin": true,
             "libpython": false,
         },
-        "note": "explicit TextEmbeddingPipeline(models_path, \"CPU\", config). GPU requests still fail-loud if the GPU plugin is missing.",
+        "arena": {
+            "device": if cpu_proof.arena_device == TURBO_BUFFER_DEVICE_ZE {
+                "ZE"
+            } else {
+                "CPU"
+            },
+            "token_placement": "HOST",
+            "owns_tokens": cpu_proof.owns_tokens,
+            "allocs_after_warmup": cpu_proof.allocs_after_warmup,
+            "ze_query_tokens": cpu_proof.token_ze.map(|p| {
+                if p == TURBO_BUFFER_PLACE_HOST {
+                    "HOST"
+                } else {
+                    "OTHER"
+                }
+            }),
+        },
+        "note": "SOLIDIFY (4) Machine B CPU. Same IR as GPU. Tokens/results rented HOST (ZE USM when L0 is present). GPU requests still fail-loud if the GPU plugin or ZE SHARED is missing.",
     });
     let receipt_dir = root.join("testdata/receipts/turboembed");
     fs::create_dir_all(&receipt_dir).expect("receipts dir");

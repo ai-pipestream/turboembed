@@ -8,8 +8,9 @@
  * IoBinding device buffers (never a silent CPU fallback).
  * TURBOEMBED_DEVICE_CPU is an explicit CPU EP path.
  * With -DTURBOEMBED_GENAI: catalog aliases load
- * ov::genai::TextEmbeddingPipeline on the official device string
- * "GPU" or "CPU". OPENVINO_GPU never silently compiles "CPU".
+ * ov::genai::Tokenizer + CompiledModel on the official device string
+ * "GPU" or "CPU". Token/result rows rent turbo_buffer (ZE SHARED on
+ * GPU). OPENVINO_GPU never silently compiles "CPU" or opens a CPU arena.
  *
  * No Python. No OVMS. Does not replace inferstream servers.
  */
@@ -161,6 +162,9 @@ struct turboembed_engine {
     }
 
     ~turboembed_engine() {
+#ifdef TURBOEMBED_GENAI
+        genai.reset();
+#endif
 #ifdef TURBOEMBED_ORT_CUDA
         if (ort_cuda != nullptr) {
             turboembed_ort_cuda_close(ort_cuda);
@@ -178,6 +182,23 @@ struct turboembed_engine {
 };
 
 #ifdef TURBOEMBED_GENAI
+turbo_buffer_placement genai_token_place(turboembed_device device) {
+    switch (device) {
+        case TURBOEMBED_DEVICE_OPENVINO_GPU:
+        case TURBOEMBED_DEVICE_OPENVINO_NPU:
+        case TURBOEMBED_DEVICE_AUTO:
+            return TURBO_BUFFER_PLACE_SHARED;
+        default:
+            return TURBO_BUFFER_PLACE_HOST;
+    }
+}
+
+bool genai_wants_ze_shared(turboembed_device device) {
+    return device == TURBOEMBED_DEVICE_OPENVINO_GPU ||
+           device == TURBOEMBED_DEVICE_OPENVINO_NPU ||
+           device == TURBOEMBED_DEVICE_AUTO;
+}
+
 /* Map the ABI device to the OpenVINO GenAI constructor string.
  * AUTO is host-default GPU — never "CPU if GPU is down".
  * OPENVINO_GPU / OPENVINO_NPU never become "CPU". */
@@ -424,18 +445,54 @@ turboembed_status turboembed_engine_create(
         g_create_error = "engine allocation failed";
         return TURBOEMBED_ERR_OUT_OF_MEMORY;
     }
-    /* Host FP32 embed rows are rented from a CPU arena. GPU compute
-     * backends keep their own device memory; item (4) can move those
-     * onto this ABI without rewriting create/load. */
-    if (turbo_buffer_arena_create(TURBO_BUFFER_DEVICE_CPU, &(*out)->arena) !=
-            TURBO_BUFFER_OK ||
+    turbo_buffer_device arena_dev = TURBO_BUFFER_DEVICE_CPU;
+#ifdef TURBOEMBED_GENAI
+    const bool ze_shared =
+#ifdef TURBOEMBED_ORT_CUDA
+        (device == TURBOEMBED_DEVICE_OPENVINO_GPU ||
+         device == TURBOEMBED_DEVICE_OPENVINO_NPU);
+#else
+        genai_wants_ze_shared(device);
+#endif
+    if (ze_shared) {
+        const turbo_buffer_status probe = turbo_buffer_backend_probe(
+            TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_SHARED
+        );
+        if (probe != TURBO_BUFFER_OK) {
+            g_create_error =
+                std::string(
+                    "OpenVINO GPU/NPU embed requires turbo_buffer ZE SHARED "
+                    "USM (token/result path); refusing a CPU arena stand-in: "
+                ) +
+                turbo_buffer_last_error(nullptr);
+            delete *out;
+            *out = nullptr;
+            return probe == TURBO_BUFFER_ERR_NOT_IMPLEMENTED
+                       ? TURBOEMBED_ERR_NOT_IMPLEMENTED
+                       : TURBOEMBED_ERR_UNAVAILABLE;
+        }
+        arena_dev = TURBO_BUFFER_DEVICE_ZE;
+    } else if (
+        device == TURBOEMBED_DEVICE_OPENVINO_CPU ||
+        device == TURBOEMBED_DEVICE_CPU
+    ) {
+        if (turbo_buffer_backend_probe(
+                TURBO_BUFFER_DEVICE_ZE, TURBO_BUFFER_PLACE_HOST
+            ) == TURBO_BUFFER_OK) {
+            arena_dev = TURBO_BUFFER_DEVICE_ZE;
+        }
+    }
+#endif
+    if (turbo_buffer_arena_create(arena_dev, &(*out)->arena) != TURBO_BUFFER_OK ||
         (*out)->arena == nullptr) {
         g_create_error =
             std::string("turbo_buffer arena_create failed: ") +
             turbo_buffer_last_error(nullptr);
         delete *out;
         *out = nullptr;
-        return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        return arena_dev == TURBO_BUFFER_DEVICE_ZE
+                   ? TURBOEMBED_ERR_UNAVAILABLE
+                   : TURBOEMBED_ERR_OUT_OF_MEMORY;
     }
     g_create_error.clear();
     return TURBOEMBED_OK;
@@ -674,7 +731,27 @@ turboembed_status turboembed_load_model(
         cfg.pooling = pooling_for_alias(alias, alias_len, TURBOEMBED_POOLING_DEFAULT);
         cfg.normalize = true;
         cfg.max_length = 256;
-        engine->genai = turboembed_genai::load_pipeline(path, ov_device, cfg);
+        engine->genai = turboembed_genai::load_pipeline(
+            path,
+            ov_device,
+            cfg,
+            engine->arena,
+            genai_token_place(engine->device)
+        );
+        if (engine->arena != nullptr && engine->genai) {
+            turbo_buffer_view warm {};
+            if (turbo_buffer_arena_rent(
+                    engine->arena,
+                    TURBO_BUFFER_DTYPE_F32,
+                    genai_token_place(engine->device),
+                    32,
+                    engine->genai->embedding_dim(),
+                    engine->genai->embedding_dim(),
+                    &warm
+                ) == TURBO_BUFFER_OK) {
+                (void)turbo_buffer_arena_return(engine->arena, &warm);
+            }
+        }
         if (engine->genai->device() != ov_device) {
             const std::string got = engine->genai->device();
             engine->genai.reset();
@@ -900,10 +977,9 @@ static turboembed_status embed_impl(
                     texts[i].len
                 );
             }
-            std::vector<float> flat = engine->genai->embed_documents(input);
             const uint32_t dim = engine->genai->embedding_dim();
-            if (dim == 0 || flat.size() != n_texts * static_cast<size_t>(dim)) {
-                engine->set_error("ragged GenAI embedding batch");
+            if (dim == 0) {
+                engine->set_error("GenAI embedding dimension is 0");
                 return TURBOEMBED_ERR_INTERNAL;
             }
             auto *rec = new (std::nothrow) EmbedResultRec();
@@ -913,26 +989,38 @@ static turboembed_status embed_impl(
                 return TURBOEMBED_ERR_OUT_OF_MEMORY;
             }
             rec->arena = engine->arena;
+            const turbo_buffer_placement result_place =
+                genai_token_place(engine->device);
             if (turbo_buffer_arena_rent(
                     engine->arena,
                     TURBO_BUFFER_DTYPE_F32,
-                    TURBO_BUFFER_PLACE_HOST,
+                    result_place,
                     static_cast<uint32_t>(n_texts),
                     dim,
                     dim,
                     &rec->values
                 ) != TURBO_BUFFER_OK) {
                 delete rec;
-                engine->set_error("result arena rent failed");
+                const std::string rent_err =
+                    std::string("result arena rent failed: ") +
+                    turbo_buffer_last_error(engine->arena);
+                engine->set_error(rent_err.c_str());
                 return TURBOEMBED_ERR_OUT_OF_MEMORY;
             }
             float *values = turbo_buffer_view_f32(&rec->values);
-            std::memcpy(values, flat.data(), flat.size() * sizeof(float));
+            try {
+                engine->genai->embed_into(input, values);
+            } catch (...) {
+                (void)turbo_buffer_arena_return(engine->arena, &rec->values);
+                delete rec;
+                throw;
+            }
             rec->pub.dim = dim;
             rec->pub.count = static_cast<uint32_t>(n_texts);
             rec->pub.values = values;
             rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
-            rec->pub.packed_len = flat.size() * sizeof(float);
+            rec->pub.packed_len =
+                static_cast<size_t>(n_texts) * dim * sizeof(float);
             *out = &rec->pub;
             engine->set_error("");
             return TURBOEMBED_OK;
@@ -1109,6 +1197,48 @@ turboembed_status turboembed_register_provider(
 }
 
 #ifdef TURBOEMBED_GENAI
+/*
+ * Test-only: arena + USM proof for SOLIDIFY (4). Not in turboembed.h.
+ */
+turboembed_status turboembed_test_genai_arena_info(
+    const turboembed_engine *engine,
+    uint32_t *arena_device,
+    uint32_t *token_placement,
+    const void **token_ids,
+    const void **hidden,
+    int *owns_tokens,
+    int *owns_hidden,
+    int *hidden_used_arena
+) {
+    if (engine == nullptr || !engine->genai) {
+        g_create_error = "turboembed_test_genai_arena_info: no GenAI pipeline";
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
+    }
+    if (arena_device != nullptr) {
+        *arena_device = static_cast<uint32_t>(engine->genai->arena_device());
+    }
+    if (token_placement != nullptr) {
+        *token_placement = static_cast<uint32_t>(engine->genai->token_placement());
+    }
+    if (token_ids != nullptr) {
+        *token_ids = engine->genai->token_ids_ptr();
+    }
+    if (hidden != nullptr) {
+        *hidden = engine->genai->hidden_ptr();
+    }
+    if (owns_tokens != nullptr) {
+        *owns_tokens = engine->genai->owns_tokens() ? 1 : 0;
+    }
+    if (owns_hidden != nullptr) {
+        *owns_hidden = engine->genai->owns_hidden() ? 1 : 0;
+    }
+    if (hidden_used_arena != nullptr) {
+        *hidden_used_arena = engine->genai->last_hidden_used_arena() ? 1 : 0;
+    }
+    g_create_error.clear();
+    return TURBOEMBED_OK;
+}
+
 /*
  * Test-only: not in turboembed.h. Feeds a synthetic OpenVINO device list
  * into require_ov_device so GPU-missing is asserted without a mock embed.

@@ -22,10 +22,12 @@ See `docs/turboembed.md`.
 
 `--features genai` (Rust crate) also compiles `src/genai.cpp` and defines
 `TURBOEMBED_GENAI`. Catalog aliases such as `minilm` then construct
-`ov::genai::TextEmbeddingPipeline(models_path, device, config)` with
-`device` `"GPU"`, `"CPU"`, or `"NPU"` (official sample strings) and call
-`embed_documents`. A GPU / NPU request never compiles `"CPU"`. NPU create
-fails loud when the plugin is missing (Machine B: no Intel NPU). No OVMS. No Python.
+`ov::genai::Tokenizer` + `CompiledModel` on `"GPU"`, `"CPU"`, or `"NPU"`
+and rent token/result slabs from turbo_buffer (ZE SHARED on GPU).
+`embed_documents` is not used — that API private-allocs every call.
+A GPU / NPU request never compiles `"CPU"` and never opens a CPU arena.
+NPU create fails loud when the plugin is missing (Machine B: no Intel
+NPU). No OVMS. No Python. See `docs/turboembed-genai-ze-machine-b.md`.
 
 On macOS the Rust crate **does not** link this default C++ object — it
 links `libTurboEmbed.dylib` (Swift MLX). See `docs/turboembed-swift.md`.

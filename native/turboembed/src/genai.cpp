@@ -1,40 +1,44 @@
 /* SPDX-License-Identifier: Apache-2.0
  *
- * ov::genai::TextEmbeddingPipeline on Intel CPU, GPU, or NPU.
+ * ov::genai::Tokenizer + CompiledModel on Intel CPU / GPU / NPU.
  *
- * Official C++ usage (OpenVINO GenAI samples/cpp/rag/text_embeddings.cpp):
+ * Token ids/mask/types and last_hidden_state are arena-rented (ZE SHARED
+ * on GPU). InferRequest.set_tensor wraps those pointers — the public
+ * TextEmbeddingPipeline.embed_documents API has no such hook and
+ * private-allocs every call.
  *
- *   std::string device = "CPU";  // GPU can be used as well
- *   ov::genai::TextEmbeddingPipeline::Config config;
- *   config.pooling_type = ov::genai::TextEmbeddingPipeline::PoolingType::MEAN;
- *   ov::genai::TextEmbeddingPipeline pipeline(models_path, device, config);
- *   ov::genai::EmbeddingResults rows = pipeline.embed_documents(documents);
+ * Tokenizer.encode still returns ov::Tensor (API does not accept a
+ * caller buffer). We copy/cast into the rented i32 USM and never keep
+ * that encode tensor as the infer input.
  *
- * The `device` argument is the OpenVINO plugin name. We pass the caller's
- * string unchanged: "CPU", "GPU", or "NPU". Never "AUTO". Asking for
- * "GPU" / "NPU" when that plugin is missing does not compile "CPU".
- * No OVMS. No Python.
+ * Device string is "CPU", "GPU", or "NPU". Never "AUTO". No OVMS. No Python.
  */
 
 #include "genai.hpp"
 
-#include "openvino/genai/rag/text_embedding_pipeline.hpp"
+#include "openvino/core/preprocess/pre_post_process.hpp"
+#include "openvino/genai/tokenizer.hpp"
+#include "openvino/openvino.hpp"
 #include "openvino/runtime/core.hpp"
 #include "openvino/runtime/properties.hpp"
 
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <utility>
-#include <variant>
 
 namespace turboembed_genai {
 namespace {
 
 namespace fs = std::filesystem;
+
+constexpr uint32_t kWarmBatch = 32;
+constexpr uint32_t kDefaultMaxSeq = 256;
 
 const char* kRequiredIr[] = {
     "openvino_model.xml",
@@ -100,32 +104,6 @@ std::string join_devices(const std::vector<std::string>& listed) {
     return out;
 }
 
-ov::genai::TextEmbeddingPipeline::PoolingType pooling_from_u8(uint8_t pooling) {
-    using PT = ov::genai::TextEmbeddingPipeline::PoolingType;
-    switch (pooling) {
-        case 0:
-            return PT::CLS;
-        case 1:
-            return PT::MEAN;
-        case 2:
-            return PT::LAST_TOKEN;
-        default:
-            throw std::invalid_argument(
-                "unknown pooling id (expected 0=CLS, 1=MEAN, 2=LAST_TOKEN)"
-            );
-    }
-}
-
-std::vector<std::vector<float>> as_float_rows(ov::genai::EmbeddingResults results) {
-    if (auto* floats = std::get_if<std::vector<std::vector<float>>>(&results)) {
-        return std::move(*floats);
-    }
-    throw std::runtime_error(
-        "TextEmbeddingPipeline returned a non-float embedding "
-        "(int8/uint8 outputs are not accepted; use an fp16/fp32 IR)"
-    );
-}
-
 uint32_t dim_from_config_json(const fs::path& dir) {
     const fs::path cfg = dir / "config.json";
     if (!fs::is_regular_file(cfg)) {
@@ -173,6 +151,144 @@ uint32_t dim_from_config_json(const fs::path& dir) {
 std::string env_or_empty(const char* key) {
     const char* v = std::getenv(key);
     return (v == nullptr || v[0] == '\0') ? std::string() : std::string(v);
+}
+
+template <typename Port>
+std::string input_name_matching(const Port& in, const char* needle) {
+    for (const auto& n : in.get_names()) {
+        if (n.find(needle) != std::string::npos) {
+            return n;
+        }
+    }
+    const std::string any = in.get_any_name();
+    if (any.find(needle) != std::string::npos) {
+        return any;
+    }
+    return {};
+}
+
+void copy_tokens_to_i32(const ov::Tensor& src, int32_t *dst, uint32_t n, uint32_t seq, uint32_t dst_stride) {
+    if (dst == nullptr || n == 0 || seq == 0) {
+        throw std::runtime_error("copy_tokens_to_i32: empty destination");
+    }
+    const ov::Shape sh = src.get_shape();
+    if (sh.size() < 2 || sh[0] != n) {
+        throw std::runtime_error("tokenizer batch does not match texts");
+    }
+    const uint32_t src_seq = static_cast<uint32_t>(sh[1]);
+    const uint32_t copy_seq = src_seq < seq ? src_seq : seq;
+    const size_t src_n = src.get_size();
+    if (src.get_element_type() == ov::element::i32) {
+        const int32_t *p = src.data<int32_t>();
+        for (uint32_t b = 0; b < n; ++b) {
+            int32_t *row = dst + static_cast<size_t>(b) * dst_stride;
+            std::memset(row, 0, static_cast<size_t>(seq) * sizeof(int32_t));
+            if (b * src_seq + copy_seq > src_n) {
+                throw std::runtime_error("tokenizer i32 tensor is short");
+            }
+            std::memcpy(row, p + static_cast<size_t>(b) * src_seq, static_cast<size_t>(copy_seq) * sizeof(int32_t));
+        }
+        return;
+    }
+    if (src.get_element_type() == ov::element::i64) {
+        const int64_t *p = src.data<int64_t>();
+        for (uint32_t b = 0; b < n; ++b) {
+            int32_t *row = dst + static_cast<size_t>(b) * dst_stride;
+            std::memset(row, 0, static_cast<size_t>(seq) * sizeof(int32_t));
+            if (b * src_seq + copy_seq > src_n) {
+                throw std::runtime_error("tokenizer i64 tensor is short");
+            }
+            const int64_t *s = p + static_cast<size_t>(b) * src_seq;
+            for (uint32_t t = 0; t < copy_seq; ++t) {
+                row[t] = static_cast<int32_t>(s[t]);
+            }
+        }
+        return;
+    }
+    throw std::runtime_error(
+        "tokenizer encode returned an unsupported dtype (need i32 or i64)"
+    );
+}
+
+void mean_pool(
+    const float *hidden,
+    const int32_t *mask,
+    uint32_t n,
+    uint32_t seq,
+    uint32_t dim,
+    float *out
+) {
+    for (uint32_t b = 0; b < n; ++b) {
+        float *row = out + static_cast<size_t>(b) * dim;
+        for (uint32_t d = 0; d < dim; ++d) {
+            row[d] = 0.0f;
+        }
+        float count = 0.0f;
+        for (uint32_t s = 0; s < seq; ++s) {
+            if (mask[static_cast<size_t>(b) * seq + s] == 0) {
+                continue;
+            }
+            count += 1.0f;
+            const float *h = hidden + (static_cast<size_t>(b) * seq + s) * dim;
+            for (uint32_t d = 0; d < dim; ++d) {
+                row[d] += h[d];
+            }
+        }
+        if (count > 0.0f) {
+            for (uint32_t d = 0; d < dim; ++d) {
+                row[d] /= count;
+            }
+        }
+    }
+}
+
+void cls_pool(const float *hidden, uint32_t n, uint32_t seq, uint32_t dim, float *out) {
+    for (uint32_t b = 0; b < n; ++b) {
+        const float *h = hidden + static_cast<size_t>(b) * seq * dim;
+        std::memcpy(out + static_cast<size_t>(b) * dim, h, static_cast<size_t>(dim) * sizeof(float));
+    }
+}
+
+void last_pool(
+    const float *hidden,
+    const int32_t *mask,
+    uint32_t n,
+    uint32_t seq,
+    uint32_t dim,
+    float *out
+) {
+    for (uint32_t b = 0; b < n; ++b) {
+        uint32_t last = 0;
+        for (uint32_t s = 0; s < seq; ++s) {
+            if (mask[static_cast<size_t>(b) * seq + s] != 0) {
+                last = s;
+            }
+        }
+        const float *h = hidden + (static_cast<size_t>(b) * seq + last) * dim;
+        std::memcpy(out + static_cast<size_t>(b) * dim, h, static_cast<size_t>(dim) * sizeof(float));
+    }
+}
+
+void l2_normalize(float *rows, uint32_t n, uint32_t dim) {
+    for (uint32_t b = 0; b < n; ++b) {
+        float *row = rows + static_cast<size_t>(b) * dim;
+        float ss = 0.0f;
+        for (uint32_t d = 0; d < dim; ++d) {
+            ss += row[d] * row[d];
+        }
+        const float norm = std::sqrt(ss);
+        const float denom = norm > 1e-12f ? norm : 1e-12f;
+        for (uint32_t d = 0; d < dim; ++d) {
+            row[d] /= denom;
+        }
+    }
+}
+
+void return_view(turbo_buffer_arena *arena, turbo_buffer_view *view) {
+    if (arena == nullptr || view == nullptr || view->ptr == nullptr) {
+        return;
+    }
+    (void)turbo_buffer_arena_return(arena, view);
 }
 
 } // namespace
@@ -244,19 +360,140 @@ std::string device_full_name(const std::string& ov_device) {
 }
 
 struct Pipeline::Impl {
-    ov::genai::TextEmbeddingPipeline pipe;
-    Impl(const fs::path& dir, const std::string& device, const ov::genai::TextEmbeddingPipeline::Config& cfg)
-        : pipe(dir, device, cfg) {}
+    ov::genai::Tokenizer tokenizer;
+    ov::Core core;
+    ov::CompiledModel compiled;
+    ov::InferRequest request;
+    ov::AnyMap tok_params;
+    uint8_t pooling = 1;
+    bool normalize = true;
+    uint32_t max_seq = kDefaultMaxSeq;
+    uint32_t warm_batch = 0;
+    uint32_t hidden_dim = 0;
+    bool has_types = false;
+    std::string in_ids;
+    std::string in_mask;
+    std::string in_types;
+    std::string out_hidden;
+    turbo_buffer_arena *arena = nullptr;
+    turbo_buffer_placement place = TURBO_BUFFER_PLACE_HOST;
+    turbo_buffer_view ids {};
+    turbo_buffer_view mask {};
+    turbo_buffer_view types {};
+    turbo_buffer_view hidden {};
+
+    Impl(const fs::path& dir, const std::string& /*device*/)
+        : tokenizer(dir) {}
+
+    ~Impl() {
+        return_view(arena, &ids);
+        return_view(arena, &mask);
+        return_view(arena, &types);
+        return_view(arena, &hidden);
+    }
+
+    void ensure_workspace(uint32_t n, uint32_t seq) {
+        if (arena == nullptr) {
+            throw std::runtime_error("GenAI embed requires a turbo_buffer arena");
+        }
+        if (n == 0 || seq == 0 || hidden_dim == 0) {
+            throw std::runtime_error("ensure_workspace: empty shape");
+        }
+        const uint32_t need_batch = n > warm_batch ? n : warm_batch;
+        const uint32_t need_seq = seq > max_seq ? seq : max_seq;
+        const bool have = ids.ptr != nullptr && mask.ptr != nullptr &&
+                          hidden.ptr != nullptr &&
+                          ids.rows >= need_batch && ids.cols >= need_seq &&
+                          hidden.rows >= need_batch &&
+                          hidden.cols >= need_seq * hidden_dim &&
+                          (!has_types || types.ptr != nullptr);
+        if (have) {
+            return;
+        }
+        return_view(arena, &ids);
+        return_view(arena, &mask);
+        return_view(arena, &types);
+        return_view(arena, &hidden);
+        auto rent_i32 = [&](turbo_buffer_view *v) {
+            const turbo_buffer_status st = turbo_buffer_arena_rent(
+                arena,
+                TURBO_BUFFER_DTYPE_I32,
+                place,
+                need_batch,
+                need_seq,
+                need_seq,
+                v
+            );
+            if (st != TURBO_BUFFER_OK || v->ptr == nullptr) {
+                throw std::runtime_error(
+                    std::string("GenAI token arena rent failed: ") +
+                    turbo_buffer_last_error(arena)
+                );
+            }
+        };
+        rent_i32(&ids);
+        rent_i32(&mask);
+        if (has_types) {
+            rent_i32(&types);
+        }
+        const turbo_buffer_status hst = turbo_buffer_arena_rent(
+            arena,
+            TURBO_BUFFER_DTYPE_F32,
+            place,
+            need_batch,
+            need_seq * hidden_dim,
+            need_seq * hidden_dim,
+            &hidden
+        );
+        if (hst != TURBO_BUFFER_OK || hidden.ptr == nullptr) {
+            throw std::runtime_error(
+                std::string("GenAI hidden arena rent failed: ") +
+                turbo_buffer_last_error(arena)
+            );
+        }
+        warm_batch = need_batch;
+        max_seq = need_seq;
+    }
 };
 
-Pipeline::Pipeline(std::unique_ptr<Impl> impl) : impl_(std::move(impl)), dim_(0) {}
+Pipeline::Pipeline(std::unique_ptr<Impl> impl)
+    : impl_(std::move(impl)), dim_(0), last_hidden_arena_(false) {}
 
 Pipeline::~Pipeline() = default;
+
+turbo_buffer_device Pipeline::arena_device() const {
+    return impl_ && impl_->ids.ptr != nullptr ? impl_->ids.device
+                                              : TURBO_BUFFER_DEVICE_CPU;
+}
+
+turbo_buffer_placement Pipeline::token_placement() const {
+    return impl_ ? impl_->place : TURBO_BUFFER_PLACE_HOST;
+}
+
+const void *Pipeline::token_ids_ptr() const {
+    return impl_ ? impl_->ids.ptr : nullptr;
+}
+
+const void *Pipeline::hidden_ptr() const {
+    return impl_ ? impl_->hidden.ptr : nullptr;
+}
+
+bool Pipeline::owns_tokens() const {
+    return impl_ && impl_->arena != nullptr &&
+           turbo_buffer_arena_owns(impl_->arena, impl_->ids.ptr) != 0;
+}
+
+bool Pipeline::owns_hidden() const {
+    return impl_ && impl_->arena != nullptr &&
+           turbo_buffer_arena_owns(impl_->arena, impl_->hidden.ptr) != 0;
+}
 
 std::unique_ptr<Pipeline> load_pipeline(
     const std::string& models_path,
     const std::string& ov_device,
-    const LoadConfig& config
+    const LoadConfig& config,
+    turbo_buffer_arena *arena,
+    turbo_buffer_placement place
 ) {
     const fs::path dir(models_path);
     if (!fs::is_directory(dir)) {
@@ -272,6 +509,18 @@ std::unique_ptr<Pipeline> load_pipeline(
             "); need openvino_model.xml/.bin + openvino_tokenizer.xml/.bin"
         );
     }
+    if (arena == nullptr) {
+        throw std::runtime_error(
+            "load_pipeline requires a turbo_buffer arena; refusing a "
+            "private-alloc GenAI path"
+        );
+    }
+    if (ov_device == "GPU" && place != TURBO_BUFFER_PLACE_SHARED) {
+        throw std::runtime_error(
+            "OpenVINO GPU embed requires ZE SHARED USM for tokens/hidden; "
+            "refusing HOST/CPU remap"
+        );
+    }
 
     std::vector<std::string> listed;
     try {
@@ -285,56 +534,195 @@ std::unique_ptr<Pipeline> load_pipeline(
 
     require_ov_device(ov_device, listed);
 
-    ov::genai::TextEmbeddingPipeline::Config cfg;
-    cfg.pooling_type = pooling_from_u8(config.pooling);
-    cfg.normalize = config.normalize;
-    if (config.max_length > 0) {
-        cfg.max_length = static_cast<size_t>(config.max_length);
-        cfg.pad_to_max_length = true;
+    auto impl = std::unique_ptr<Pipeline::Impl>(new Pipeline::Impl(dir, ov_device));
+    impl->arena = arena;
+    impl->place = place;
+    impl->pooling = config.pooling;
+    impl->normalize = config.normalize;
+    impl->max_seq = config.max_length > 0 ? config.max_length : kDefaultMaxSeq;
+    impl->tok_params[ov::genai::pad_to_max_length.name()] = true;
+    impl->tok_params[ov::genai::truncation.name()] = true;
+    impl->tok_params["max_length"] = static_cast<size_t>(impl->max_seq);
+
+    std::shared_ptr<ov::Model> model =
+        impl->core.read_model((dir / "openvino_model.xml").string());
+    ov::preprocess::PrePostProcessor ppp(model);
+    for (const auto& in : model->inputs()) {
+        ppp.input(in.get_any_name()).tensor().set_element_type(ov::element::i32);
+    }
+    model = ppp.build();
+
+    std::map<std::string, ov::PartialShape> shapes;
+    const ov::PartialShape token_shape(std::vector<ov::Dimension>{
+        ov::Dimension::dynamic(),
+        ov::Dimension(static_cast<int64_t>(impl->max_seq))
+    });
+    for (const auto& in : model->inputs()) {
+        shapes[in.get_any_name()] = token_shape;
+    }
+    model->reshape(shapes);
+
+    impl->has_types = false;
+    for (const auto& in : model->inputs()) {
+        if (input_name_matching(in, "input_ids").size() > 0 && impl->in_ids.empty()) {
+            impl->in_ids = in.get_any_name();
+        } else if (input_name_matching(in, "attention_mask").size() > 0) {
+            impl->in_mask = in.get_any_name();
+        } else if (input_name_matching(in, "token_type").size() > 0) {
+            impl->in_types = in.get_any_name();
+            impl->has_types = true;
+        }
+    }
+    if (impl->in_ids.empty() && !model->inputs().empty()) {
+        impl->in_ids = model->input(0).get_any_name();
+    }
+    if (impl->in_mask.empty() && model->inputs().size() > 1) {
+        impl->in_mask = model->input(1).get_any_name();
+    }
+    if (!impl->has_types && model->inputs().size() > 2) {
+        impl->in_types = model->input(2).get_any_name();
+        impl->has_types = true;
+    }
+    impl->out_hidden = model->output(0).get_any_name();
+    if (impl->out_hidden.empty()) {
+        impl->out_hidden = "last_hidden_state";
     }
 
-    /* Exact plugin name: "CPU", "GPU", or "NPU". Never rewritten. */
-    auto out = std::unique_ptr<Pipeline>(new Pipeline(
-        std::unique_ptr<Pipeline::Impl>(new Pipeline::Impl(dir, ov_device, cfg))
-    ));
+    impl->compiled = impl->core.compile_model(model, ov_device);
+    impl->request = impl->compiled.create_infer_request();
+
+    uint32_t dim = dim_from_config_json(dir);
+    try {
+        const ov::PartialShape osh = impl->compiled.output(0).get_partial_shape();
+        if (osh.rank().is_static() && osh.rank().get_length() >= 3 && osh[osh.rank().get_length() - 1].is_static()) {
+            dim = static_cast<uint32_t>(osh[osh.rank().get_length() - 1].get_length());
+        }
+    } catch (...) {
+    }
+    if (dim == 0) {
+        throw std::runtime_error("could not resolve embedding hidden size");
+    }
+    impl->hidden_dim = dim;
+    impl->ensure_workspace(kWarmBatch, impl->max_seq);
+
+    auto out = std::unique_ptr<Pipeline>(new Pipeline(std::move(impl)));
     out->models_path_ = models_path;
     out->device_ = ov_device;
     out->available_ = std::move(listed);
     out->device_full_name_ = device_full_name(ov_device);
-    out->dim_ = dim_from_config_json(dir);
+    out->dim_ = dim;
+    out->last_hidden_arena_ = false;
     return out;
 }
 
-std::vector<float> Pipeline::embed_documents(const std::vector<std::string>& texts) const {
+void Pipeline::embed_into(const std::vector<std::string>& texts, float *out) {
+    last_hidden_arena_ = false;
     if (texts.empty()) {
-        throw std::invalid_argument("embed_documents called with no texts");
+        throw std::invalid_argument("embed_into called with no texts");
+    }
+    if (out == nullptr) {
+        throw std::invalid_argument("embed_into: null result pointer");
     }
     if (device_ != "CPU" && device_ != "GPU" && device_ != "NPU") {
         throw std::runtime_error(
-            "internal error: TextEmbeddingPipeline device is " + device_ +
+            "internal error: pipeline device is " + device_ +
             " (must be CPU, GPU, or NPU)"
         );
     }
-    auto rows = as_float_rows(impl_->pipe.embed_documents(texts));
-    if (rows.size() != texts.size()) {
-        throw std::runtime_error("embedding row count does not match input batch");
+    if (!impl_) {
+        throw std::runtime_error("pipeline is not loaded");
     }
-    const size_t dim = rows.front().size();
-    if (dim == 0) {
-        throw std::runtime_error("embedding dimension is 0");
+
+    const auto encoded = impl_->tokenizer.encode(texts, impl_->tok_params);
+    const ov::Shape ish = encoded.input_ids.get_shape();
+    if (ish.size() < 2 || ish[0] != texts.size()) {
+        throw std::runtime_error("tokenizer batch does not match input texts");
     }
-    for (const auto& row : rows) {
-        if (row.size() != dim) {
-            throw std::runtime_error("ragged embedding batch");
+    const uint32_t n = static_cast<uint32_t>(texts.size());
+    const uint32_t seq = impl_->max_seq;
+    impl_->ensure_workspace(n, seq);
+
+    int32_t *ids = turbo_buffer_view_i32(&impl_->ids);
+    int32_t *mask = turbo_buffer_view_i32(&impl_->mask);
+    copy_tokens_to_i32(encoded.input_ids, ids, n, seq, impl_->ids.row_stride);
+    copy_tokens_to_i32(encoded.attention_mask, mask, n, seq, impl_->mask.row_stride);
+    if (impl_->has_types) {
+        int32_t *types = turbo_buffer_view_i32(&impl_->types);
+        if (encoded.token_type_ids.has_value()) {
+            copy_tokens_to_i32(*encoded.token_type_ids, types, n, seq, impl_->types.row_stride);
+        } else {
+            std::memset(
+                types,
+                0,
+                static_cast<size_t>(n) * impl_->types.row_stride * sizeof(int32_t)
+            );
         }
     }
-    dim_ = static_cast<uint32_t>(dim);
-    std::vector<float> flat;
-    flat.reserve(rows.size() * dim);
-    for (const auto& row : rows) {
-        flat.insert(flat.end(), row.begin(), row.end());
+
+    const ov::Shape token_shape{static_cast<size_t>(n), static_cast<size_t>(seq)};
+    ov::Tensor t_ids(ov::element::i32, token_shape, ids);
+    ov::Tensor t_mask(ov::element::i32, token_shape, mask);
+    impl_->request.set_tensor(impl_->in_ids, t_ids);
+    impl_->request.set_tensor(impl_->in_mask, t_mask);
+    if (impl_->has_types) {
+        ov::Tensor t_types(
+            ov::element::i32, token_shape, turbo_buffer_view_i32(&impl_->types)
+        );
+        impl_->request.set_tensor(impl_->in_types, t_types);
     }
-    return flat;
+
+    float *hidden = turbo_buffer_view_f32(&impl_->hidden);
+    const ov::Shape hidden_shape{
+        static_cast<size_t>(n),
+        static_cast<size_t>(seq),
+        static_cast<size_t>(impl_->hidden_dim)
+    };
+    bool used_arena_hidden = false;
+    try {
+        ov::Tensor t_hidden(ov::element::f32, hidden_shape, hidden);
+        impl_->request.set_tensor(impl_->out_hidden, t_hidden);
+        used_arena_hidden = true;
+    } catch (const std::exception&) {
+        used_arena_hidden = false;
+    }
+
+    impl_->request.infer();
+
+    const ov::Tensor got = impl_->request.get_tensor(impl_->out_hidden);
+    const float *hptr = got.data<float>();
+    if (used_arena_hidden && hptr == hidden) {
+        last_hidden_arena_ = true;
+    } else if (used_arena_hidden && hptr != hidden) {
+        /* Plugin accepted the set but served a different buffer — copy
+         * into the rented hidden so pooling stays on arena memory. */
+        const size_t nbytes =
+            static_cast<size_t>(n) * seq * impl_->hidden_dim * sizeof(float);
+        std::memcpy(hidden, hptr, nbytes);
+        last_hidden_arena_ = true;
+        hptr = hidden;
+    } else {
+        /* set_tensor(output) rejected — API did not allow a caller result
+         * tensor. Pool from the plugin buffer; tokens still arena USM. */
+        last_hidden_arena_ = false;
+    }
+
+    const uint32_t dim = impl_->hidden_dim;
+    switch (impl_->pooling) {
+        case 0:
+            cls_pool(hptr, n, seq, dim, out);
+            break;
+        case 2:
+            last_pool(hptr, mask, n, seq, dim, out);
+            break;
+        case 1:
+        default:
+            mean_pool(hptr, mask, n, seq, dim, out);
+            break;
+    }
+    if (impl_->normalize) {
+        l2_normalize(out, n, dim);
+    }
+    dim_ = dim;
 }
 
 std::string resolve_models_path(
