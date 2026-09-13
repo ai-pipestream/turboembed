@@ -13,7 +13,7 @@ catalog name).
 | arch | provider | crate feature | create device |
 |---|---|---|---|
 | nvidia | ONNX Runtime **CUDA EP** + IoBinding, or explicit **CPU EP** | `ort-cuda` | `TURBOEMBED_DEVICE_CUDA` / `AUTO` or `TURBOEMBED_DEVICE_CPU` |
-| nvidia | TensorRT / ORT-TRT EP | — | `TURBOEMBED_DEVICE_TENSORRT` **fails at create** (see below) |
+| nvidia | ONNX Runtime **TensorRT EP** (same MiniLM ONNX, CUDA IoBinding buffers) | `ort-cuda` | `TURBOEMBED_DEVICE_TENSORRT` |
 | intel | `ov::genai::TextEmbeddingPipeline` on `"GPU"` / `"CPU"`; `"NPU"` create fails loud until a host lists the NPU plugin | `genai` | `TURBOEMBED_DEVICE_OPENVINO_GPU` / `_CPU` / `_NPU` |
 | apple | MLX (Swift `@_cdecl`, other binary) | — | `TURBOEMBED_DEVICE_METAL` |
 
@@ -69,20 +69,28 @@ session (same ONNX, same mean+L2). Receipt:
 `testdata/receipts/turboembed/nvidia-minilm-cpu.json`.
 `backend = "mock"` in a catalog file is rejected.
 
-`Engine::create(Device::TensorRt)` **fails at create** (not a silent CUDA
-or CPU session). Exact blocker on krick (2026-09-12):
+`Engine::create(Device::TensorRt)` + `load_model("minilm")` is the ORT
+TensorRT EP (`error_on_failure`). Same ONNX as CUDA. Missing
+`libnvinfer.so.10` / `libnvonnxparser.so.10` is a hard error — not a
+CUDA-only or CPU session. Fetch the SONAMEs (opt-in, ~3.7 GiB):
 
-* ORT's GPU download already contains `libonnxruntime_providers_tensorrt.so`
-  (needs `libnvinfer.so.10` + `libnvonnxparser.so.10`).
-* Those TensorRT 10 SONAMEs are **not** installed (`ldconfig` empty;
-  no NVIDIA TensorRT apt repo; `scripts/fetch-runtime-libs.sh nvidia`
-  does not fetch them).
-* The matching CUDA 13 wheel (`tensorrt-cu13-libs`, ~3.7 GiB) was not
-  promoted into `.libs/nvidia` — a fetch-only experiment is not a
-  MiniLM receipt. No stub that lists TensorRT as done.
+```bash
+scripts/fetch-runtime-libs.sh nvidia-trt
+```
 
-Anti-mock: `tensorrt_create_fails_loud_names_blocker` in
-`crates/turboembed/tests/nvidia_minilm.rs`.
+Live receipt on krick (RTX 4080 SUPER): cosine ~1.0 vs nvidia MiniLM
+goldens, dim 384, `/proc/self/maps` contains
+`libonnxruntime_providers_tensorrt` + `libnvinfer`, no `libpython`.
+File: `testdata/receipts/turboembed/nvidia-minilm-tensorrt.json`.
+
+```bash
+export LD_LIBRARY_PATH="$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}"
+cargo test -p turboembed --features ort-cuda --test nvidia_minilm \
+  -- --ignored --nocapture minilm_ort_tensorrt_matches_golden
+```
+
+Anti-mock: `tensorrt_never_silent_cuda_cpu_or_fnv8` (create/list; no
+engine compile) plus the ignored receipt test.
 
 ## C ABI
 

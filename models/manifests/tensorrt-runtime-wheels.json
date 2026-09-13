@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "_comment": "Pinned TensorRT 10 CUDA 13 libs for Device::TensorRT / ORT-TRT MiniLM. Opt-in: scripts/fetch-runtime-libs.sh nvidia-trt. Wheel is a zip; curl + unzip + sha256, no pip at runtime. SONAME libnvinfer.so.10.",
+  "wheels": [
+    {
+      "name": "tensorrt-cu13-libs",
+      "url": "https://pypi.nvidia.com/tensorrt-cu13-libs/tensorrt_cu13_libs-10.16.0.72-py3-none-manylinux_2_28_x86_64.whl",
+      "sha256": "11262f57f6dac4ee0c02a3c90b1f10cc609701136815ce3c606f24436277bfee"
+    }
+  ]
+}

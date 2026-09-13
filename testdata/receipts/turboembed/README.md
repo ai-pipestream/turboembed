@@ -7,6 +7,7 @@ Not mocks. Not OVMS. Not a CPU EP pretending to be CUDA. Not BERT pooler.
 |---|---|---|---|---|
 | `nvidia-minilm.json` | krick (RTX 4080 SUPER) | ORT CUDA EP + IoBinding | **CUDA** | `make test-turboembed-nvidia` |
 | `nvidia-minilm-cpu.json` | krick | ORT CPU EP (explicit `Device::Cpu`) | **CPU** | `make test-turboembed-nvidia` |
+| `nvidia-minilm-tensorrt.json` | krick (RTX 4080 SUPER) | ORT TensorRT EP | **TENSORRT** | ignored `minilm_ort_tensorrt_matches_golden` |
 | `intel-minilm.json` | krick-1 (Battlemage) | `ov::genai::TextEmbeddingPipeline` | **GPU** | `make test-turboembed-intel` |
 | `intel-minilm-cpu.json` | krick-1 | same pipeline, `"CPU"` device string | **CPU** | `make test-turboembed-intel` |
 | `intel-npu.json` | krick-1 | **defer** — NPU create fails loud (no plugin) | **NPU** | `make test-turboembed-intel` |
@@ -39,7 +40,7 @@ Intel receipt fields: `device`, `cosine` (floor 0.99), `sha` (git + IR bins).
 Do not hand-edit a passing receipt. Do not delete nvidia/intel/apple files
 when refreshing one host.
 
-**TensorRT:** no receipt. `Device::TensorRT` create fails loud on krick —
-`libnvinfer.so.10` / `libnvonnxparser.so.10` are absent. Do not add a
-`nvidia-minilm-tensorrt.json` until a live MiniLM cosine + maps proof
-exists (`libonnxruntime_providers_tensorrt` **and** `libnvinfer`).
+**TensorRT:** `nvidia-minilm-tensorrt.json` is a live MiniLM receipt
+(`device=TENSORRT`, dim 384, cosine ~1.0, maps `libnvinfer` +
+`libonnxruntime_providers_tensorrt`). Needs
+`scripts/fetch-runtime-libs.sh nvidia-trt` (not the default CUDA fetch).

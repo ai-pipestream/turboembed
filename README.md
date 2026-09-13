@@ -184,7 +184,7 @@ GPU plugins are not fetched by `scripts/fetch-runtime-libs.sh intel`.
 Model IR dirs are `make fetch-ov-genai`. OVMS gRPC is out of scope.
 See `docs/intel-genai-embed.md`.
 
-EP registration uses `error_on_failure`: if these libs are missing the binary **fails at startup** with the loader's actual error instead of silently serving on CPU. `device = "tensorrt"` (build feature `ort-tensorrt`) and TurboEmbed `Device::TensorRT` additionally require TensorRT 10 SONAMEs `libnvinfer.so.10` + `libnvonnxparser.so.10`. Those are **not** on krick (`ldconfig` empty; no NVIDIA TensorRT apt repo). ORT already ships `libonnxruntime_providers_tensorrt.so`; create still fails loud — no CUDA/CPU stand-in, no receipt. Stay on `device = "cuda"`. See `docs/turboembed.md`.
+EP registration uses `error_on_failure`: if these libs are missing the binary **fails at startup** with the loader's actual error instead of silently serving on CPU. `device = "tensorrt"` (build feature `ort-tensorrt`) and TurboEmbed `Device::TensorRT` need TensorRT 10 SONAMEs `libnvinfer.so.10` + `libnvonnxparser.so.10`. Fetch them with `scripts/fetch-runtime-libs.sh nvidia-trt` (opt-in, ~3.7 GiB; not the default CUDA fetch). Live MiniLM receipt on krick: `testdata/receipts/turboembed/nvidia-minilm-tensorrt.json`. Missing SONAMEs fail loud — no CUDA/CPU stand-in. See `docs/turboembed.md`.
 
 ## Logical model names (alias catalog)
 

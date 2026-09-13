@@ -79,9 +79,10 @@ test-fetch:
 	$(CARGO) test -p inferstream-fetch
 	$(CARGO) test -p inferstream-xtask
 
-# Live NVIDIA proof: C ABI embed("minilm", text) via ORT CUDA IoBinding.
-# Requires .libs/nvidia/lib (scripts/fetch-runtime-libs.sh nvidia) and the
-# MiniLM ONNX the catalog points at. See docs/turboembed.md.
+# Live NVIDIA proof: C ABI embed("minilm", text) via ORT CUDA IoBinding
+# and explicit CPU EP. --include-ignored also runs TensorRT MiniLM when
+# libnvinfer.so.10 is on LD_LIBRARY_PATH (scripts/fetch-runtime-libs.sh
+# nvidia-trt). See docs/turboembed.md.
 test-turboembed-nvidia:
 	LD_LIBRARY_PATH="$(CURDIR)/.libs/nvidia/lib:$(LD_LIBRARY_PATH)" \
 		$(CARGO) test -p turboembed --features ort-cuda -- --include-ignored --nocapture
