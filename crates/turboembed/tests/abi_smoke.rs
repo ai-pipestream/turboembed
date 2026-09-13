@@ -109,23 +109,47 @@ fn cpu_only_when_explicit() {
         "explicit CPU must not advertise Metal MiniLM: {:?}",
         models.iter().map(|m| (m.alias.clone(), m.device)).collect::<Vec<_>>()
     );
-    let err = engine
-        .load_model("minilm")
-        .expect_err("CPU must not silently serve MiniLM");
-    assert!(matches!(err, Error::NotImplemented(_) | Error::NotFound(_)));
+    #[cfg(not(feature = "genai"))]
+    {
+        let err = engine
+            .load_model("minilm")
+            .expect_err("CPU stub must not silently serve MiniLM");
+        assert!(matches!(err, Error::NotImplemented(_) | Error::NotFound(_)));
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
 #[test]
-fn metal_and_auto_fail_on_stub() {
-    for device in [Device::Metal, Device::Auto] {
-        let err = Engine::create(device).expect_err("no Metal on the Linux stub");
-        assert!(matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)));
-        assert!(
-            err.to_string().to_lowercase().contains("refusing cpu"),
-            "{device:?}: {err}"
-        );
-    }
+fn metal_fails_on_linux() {
+    let err = match Engine::create(Device::Metal) {
+        Ok(_) => panic!("Metal must fail on Linux — refusing CPU fallback"),
+        Err(e) => e,
+    };
+    assert!(matches!(
+        err,
+        Error::Unavailable(_) | Error::UnsupportedDevice(_)
+    ));
+    assert!(
+        err.to_string().to_lowercase().contains("refusing cpu"),
+        "Metal: {err}"
+    );
+}
+
+#[cfg(all(not(target_os = "macos"), not(any(feature = "ort-cuda", feature = "genai"))))]
+#[test]
+fn auto_fails_on_linux_stub_without_accelerator() {
+    let err = match Engine::create(Device::Auto) {
+        Ok(_) => panic!("AUTO must fail when this stub has no GPU — never CPU"),
+        Err(e) => e,
+    };
+    assert!(matches!(
+        err,
+        Error::Unavailable(_) | Error::UnsupportedDevice(_)
+    ));
+    assert!(
+        err.to_string().to_lowercase().contains("refusing cpu"),
+        "AUTO: {err}"
+    );
 }
 
 #[test]

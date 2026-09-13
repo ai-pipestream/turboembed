@@ -217,7 +217,7 @@ std::string require_ov_device(
     if (requested == "NPU" && !listed_has(available, starts_with_npu)) {
         throw std::runtime_error(
             "OpenVINO NPU plugin unavailable (listed: [" + listed_join +
-            "]); NPU was requested so CPU fallback is refused. "
+            "]); NPU was requested — refusing CPU fallback. "
             "Need Intel NPU silicon + intel-npu/accel driver + "
             "libopenvino_intel_npu_plugin.so. Live probe of "
             "TextEmbeddingPipeline(..., \"NPU\") fails with: Device with "
