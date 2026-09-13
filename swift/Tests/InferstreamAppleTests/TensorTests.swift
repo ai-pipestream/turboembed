@@ -14,6 +14,24 @@ import Testing
     #expect(raw.count == 16)
     let back = try Tensor.unpackFP32(raw)
     #expect(back == values)
+    var reused = Data()
+    Tensor.packFP32(values, into: &reused)
+    #expect(reused == raw)
+}
+
+@Test func outputScratchReusesAfterWarmup() {
+    let scratch = OutputScratch()
+    var first = scratch.rentBytes(minCap: 64)
+    first.append(contentsOf: [1, 2, 3, 4])
+    scratch.recycleBytes(first)
+    scratch.resetCounters()
+    for _ in 0..<8 {
+        var slab = scratch.rentBytes(minCap: 64)
+        #expect(slab.capacity >= 64)
+        slab.append(contentsOf: [9, 8, 7, 6])
+        scratch.recycleBytes(slab)
+    }
+    #expect(scratch.allocs == 0)
 }
 
 @Test func truncatedBytesRejected() {

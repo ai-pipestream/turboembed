@@ -119,29 +119,27 @@ struct ExtensionService: Inferstream_V1_InferstreamService.SimpleServiceProtocol
             throw RPCError(
                 code: .internalError, message: "backend returned no raw content for \"embedding\"")
         }
-        let values = try Tensor.unpackFP32(result.rawOutputContents[index])
+        let raw = result.rawOutputContents[index]
         guard let dim64 = output.shape.last, dim64 > 0 else {
             throw RPCError(code: .internalError, message: "embedding output reported an empty shape")
         }
         let dim = Int(dim64)
-        if values.count % dim != 0 {
+        if raw.count % 4 != 0 || (raw.count / 4) % dim != 0 {
             throw RPCError(
                 code: .internalError,
-                message: "embedding blob length \(values.count) is not a multiple of dim \(dim)")
+                message: "embedding blob length \(raw.count) is not a multiple of dim \(dim)")
         }
         var response = Inferstream_V1_EmbedResponse()
         response.dim = UInt32(dim)
         response.modelName = result.modelName
         response.modelVersion = result.modelVersion
         if request.outputFormat == .packedBytes {
-            var blob = Data()
-            blob.reserveCapacity(values.count * 4)
-            for value in values {
-                var le = value.bitPattern.littleEndian
-                withUnsafeBytes(of: &le) { blob.append(contentsOf: $0) }
-            }
+            var blob = OutputScratch.shared.rentBytes(minCap: raw.count)
+            blob.append(raw)
             response.packedEmbeddings = blob
+            OutputScratch.shared.recycleBytes(blob)
         } else {
+            let values = try Tensor.unpackFP32(raw)
             response.embeddings = values.chunks(of: dim).map { slice in
                 var emb = Inferstream_V1_Embedding()
                 emb.values = Array(slice)
