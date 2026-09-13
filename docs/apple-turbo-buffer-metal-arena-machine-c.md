@@ -8,7 +8,7 @@ for tokens. No Swift-side token malloc.
 | Field | Value |
 |---|---|
 | Host | Machine C, Apple M2, Metal |
-| Tree | `0efc68a` (this proof; parent `1f2aa93`) |
+| Tree | `8cf2546` on `main` (merged Machine C proof) |
 | Command | `make turbo-buffer-tests` + `make turborerank-tests` + `make turborerank-apple-receipt` + `make libturborerank-apple` |
 | Receipt | `testdata/receipts/turborerank/apple-minilm-l6.json` (`pass=true`) |
 | Berlin logits | `8.84585381`, `-4.32007980`, `-11.27389336` (max abs err `3.81e-6`, cosine `1.0`) |
