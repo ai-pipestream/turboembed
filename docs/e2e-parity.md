@@ -16,7 +16,7 @@ pooler.
 | pair | min cosine | why this number |
 |---|---|---|
 | same arch (live vs golden on that host) | **0.99** | ORT MiniLM vs TEI on Machine A measured **0.999998** (`testdata/reference_embeddings/README.md`). Replay of a golden captured on the same engine must stay in that band. |
-| nvidia ORT FP32 ↔ intel GenAI | **0.99** | Same MiniLM family, mean pool, L2. Intel IR is often FP16; MiniLM still lands ≥ 0.99 on the FP path. A miss prints the worst text id and both scores. |
+| nvidia ORT FP32 ↔ intel GenAI | **0.99** | Same MiniLM family, mean pool, L2. Measured dump-vs-dump on 2026-09-12 (Machine A `5eed879` ↔ Machine B GenAI GPU): **worst-pair 0.999999310862** over 213 shared minilm ids (`tiny-shakespeare-excerpt:p0003:s0001`). BGE-small dumps: **0.999998043062**. A miss prints the worst text id and both scores. |
 | any pair that includes **apple** | **0.97** | Catalog MiniLM / BGE-small are **FP**. Live Machine C vs nvidia Machine A (2026-09-12): MiniLM **min 0.9795 / mean 0.9997** (n=213); BGE-small **min 0.9938 / mean 0.9999**. The MiniLM min is the same Japanese STS line (`東京の朝は…`) — CJK WordPiece UNKs on an English-only model, not pooling. **Before the pooler fix this pair was min -0.1404 / mean -0.0085.** |
 | mock ↔ mock (CI) | **0.99** | Deterministic backend; used only to exercise the harness. |
 
@@ -31,8 +31,9 @@ Honest gaps:
 - **`mpnet`** has no apple catalog row (`NotAvailableOnArch`). Cross
   compares nvidia ↔ intel only when both serve it.
 - **`bge-small`** is CLS + L2 on apple and nvidia; live min **0.9938**.
-  Intel still needs a GenAI IR (not in the public fetch set today) so the
-  intel case skips until the host lists it.
+  Intel **dumps** are committed (`testdata/e2e/goldens/intel/bge-small.json`).
+  Public `make fetch-ov-genai` still omits the GenAI tokenizer IR, so a
+  **live** intel case skips until Machine B lists the alias.
 
 Override is not offered as a silent weaken: if you need a looser gate for
 an experiment, capture dumps and inspect the printed min/mean rather than
@@ -50,6 +51,7 @@ make e2e-parity-goldens TARGET=nvidia WRITE=1
 
 # intel / Machine B
 make e2e-parity-goldens TARGET=intel WRITE=1 INFERSTREAM_E2E_INTEL_ADDR=<Machine-B-host>:8461
+# Machine B 2026-09-12 dumps are committed — docs/intel-e2e-parity-goldens-machine-b.md
 
 # apple / Machine C
 make e2e-parity-goldens TARGET=apple WRITE=1 INFERSTREAM_E2E_APPLE_ADDR=<Machine-C-host>:8461
