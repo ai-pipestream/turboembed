@@ -25,7 +25,7 @@
   "logits": [8.84585381, -4.32007694, -11.27389526],
   "max_abs_logit_err": 0.000001,
   "cosine_vs_golden": 0.9999999404,
-  "git_sha": "43a0ab38c7a45ef41a794753b8e0d0bfcf95dd4b",
+  "git_sha": "535306bab9d21fd6b4a2954ed13d470626239162",
   "command": "make test-turborerank-nvidia",
   "note": "SOLIDIFY (3) CUDA GEMM is cuBLASLt on Machine A. PINNED mapped (cudaHostAllocMapped) token rent; host tokenize/pack writes those pages; kernels use turbo_buffer_cuda_mapped_device_ptr. Linear layers call cublasLtMatmul; missing cuBLASLt fails load loud (no hand-rolled GEMM fallback). Steady-state h2d_bytes == 0 and allocs/forward == 0. Unmapped pointers fail loud. AUTO resolves to CUDA. Not a pinned-host CPU interim."
 }
