@@ -45,9 +45,9 @@ for tokens. No Swift-side token malloc.
    `arena.cpp` + `metal.mm` into `libturborerank_apple.a`; SPM
    links that archive — it does not `@_cdecl` a second token path.
 
-TurboEmbed `libTurboEmbed.dylib` still does **not** rent Metal
-compute buffers from this arena. That is item (4), not a fake
-Metal success.
+TurboEmbed `libTurboEmbed.dylib` now rents Metal SHARED tokens,
+last-hidden activations, and result rows from this arena. Proof:
+[`docs/apple-turboembed-metal-arena-machine-c.md`](apple-turboembed-metal-arena-machine-c.md).
 
 ## Commands
 

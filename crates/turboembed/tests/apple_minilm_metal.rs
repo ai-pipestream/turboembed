@@ -19,6 +19,17 @@ use turboembed::ffi::{
     turboembed_engine_destroy, turboembed_last_error, turboembed_load_model, turboembed_pooling,
     turboembed_status, turboembed_str,
 };
+
+unsafe extern "C" {
+    fn turbo_buffer_alloc_counter() -> u64;
+    fn turbo_buffer_alloc_counter_reset();
+    fn turbo_buffer_metal_owns(ptr: *const std::ffi::c_void) -> i32;
+    fn turbo_buffer_metal_lookup(
+        ptr: *const std::ffi::c_void,
+        out_native: *mut *mut std::ffi::c_void,
+        out_offset: *mut usize,
+    ) -> i32;
+}
 use turboembed::{Device, EmbedOptions, Engine, Error, Pooling};
 
 const MINILM_DIM: usize = 384;
@@ -62,6 +73,12 @@ struct Receipt {
     cosine_vs_apple: Option<Score>,
     l2_ok: bool,
     fake_rejected: bool,
+    arena: &'static str,
+    token_rent: &'static str,
+    activation_rent: &'static str,
+    result_rent: &'static str,
+    metal_owns_result: bool,
+    allocs_after_forward: u64,
     weights: String,
     captured_at_unix: u64,
 }
@@ -336,7 +353,52 @@ fn apple_minilm_metal_cosine_vs_goldens() {
         let row = std::slice::from_raw_parts((*out).values, dim);
         fail_if_fake(dim, row, "raw turboembed_embed(minilm) hello world");
         let hello_vec = row.to_vec();
+        assert_eq!(
+            turbo_buffer_metal_owns((*out).values as *const std::ffi::c_void),
+            1,
+            "FAKE: result.values is not turbo_buffer Metal SHARED — dylib still bypasses the arena"
+        );
+        let mut native = std::ptr::null_mut();
+        let mut off = 0usize;
+        assert_eq!(
+            turbo_buffer_metal_lookup(
+                (*out).values as *const std::ffi::c_void,
+                &mut native,
+                &mut off
+            ),
+            1,
+            "FAKE: turbo_buffer_metal_lookup missed result.values — private MTL registry"
+        );
+        assert!(!native.is_null());
         turboembed_embed_result_free(out);
+
+        turbo_buffer_alloc_counter_reset();
+        let mut out2: *mut turboembed_embed_result = ptr::null_mut();
+        let st = turboembed_embed(
+            raw,
+            alias.as_ptr().cast(),
+            alias.len(),
+            &view,
+            1,
+            &opts,
+            &mut out2,
+        );
+        assert_eq!(
+            st,
+            turboembed_status::TURBOEMBED_OK,
+            "steady-state embed: {}",
+            std::ffi::CStr::from_ptr(turboembed_last_error(raw)).to_string_lossy()
+        );
+        let allocs = turbo_buffer_alloc_counter();
+        assert_eq!(
+            allocs, 0,
+            "FAKE: allocs/forward={allocs} — load warmup must cover token/activation/result rents"
+        );
+        assert_eq!(
+            turbo_buffer_metal_owns((*out2).values as *const std::ffi::c_void),
+            1
+        );
+        turboembed_embed_result_free(out2);
         turboembed_engine_destroy(raw);
 
         let nv_hello = nvidia
@@ -437,6 +499,12 @@ fn apple_minilm_metal_cosine_vs_goldens() {
         cosine_vs_apple: vs_apple,
         l2_ok: true,
         fake_rejected: true,
+        arena: "include/turbo_buffer.h METAL backend",
+        token_rent: "turbo_buffer_arena_rent SHARED i32",
+        activation_rent: "turbo_buffer_arena_rent SHARED f32 last-hidden",
+        result_rent: "turbo_buffer_arena_rent SHARED f32",
+        metal_owns_result: true,
+        allocs_after_forward: 0,
         weights: "models/mlx/minilm".into(),
         captured_at_unix: SystemTime::now()
             .duration_since(UNIX_EPOCH)

@@ -65,15 +65,16 @@ OpenVINO CPU without Level Zero rents a **CPU** arena for host
 tensors. That is not a ZE success — `turbo_buffer_arena_create(ZE)`
 is still `NOT_IMPLEMENTED` / `UNAVAILABLE` on this binary.
 
-**TurboEmbed:** every engine owns a CPU arena for host FP32 result
-rows. Mock/CPU `embed` rents `[n_texts, dim]`. Load warms a 32×8 slab
-so the next embed of that shape is 0 allocs. ORT / GenAI result copies
-also rent when those features are on. Device compute buffers stay with
-ORT / GenAI / MLX until item (4) — the hooks (`engine->arena`,
-`#include "turbo_buffer.h"`) are already in the stub.
-
-Swift `libTurboEmbed.dylib` on Machine C does not yet link this
-arena. That is a documented gap for (4), not a fake Metal success.
+**TurboEmbed:** every engine owns an arena. Mock/CPU `embed` rents
+host FP32 `[n_texts, dim]` from a CPU arena (load warms 32×8). ORT /
+GenAI result copies rent when those features are on. **Metal (Machine C
+LIVE, SOLIDIFY 4):** `libTurboEmbed.dylib` creates a Metal arena,
+rents SHARED i32 tokens + f32 last-hidden + f32 results, and wraps
+those MTL contents as MLX arrays. `turbo_buffer_metal_lookup` only —
+no private registry. After load, `allocs/forward == 0`. Proof:
+[`docs/apple-turboembed-metal-arena-machine-c.md`](apple-turboembed-metal-arena-machine-c.md).
+Device graphs inside ORT / GenAI / mlx-swift layer ops stay with those
+runtimes.
 
 ## Tests
 
@@ -84,6 +85,7 @@ make turboembed-mock-arena-tests     # mock embed allocs/forward == 0
 make turborerank-tests               # includes the above + Berlin band when weights exist
 make test-turborerank-intel          # Machine B OV + ZE receipts
 make test-turborerank-apple          # Machine C: Metal SHARED live + Berlin receipt
+make test-turboembed-apple           # Machine C: libTurboEmbed Metal SHARED + MiniLM receipt
 ```
 
 Reintroducing `posix_memalign` for Rerank scratch or work tokens fails
