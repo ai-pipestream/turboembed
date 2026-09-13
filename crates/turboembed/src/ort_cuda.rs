@@ -884,7 +884,7 @@ impl OrtCudaSession {
             let types = i64_slot_mut(&self.work.token_type_ids, token_n)?;
             match &self.tokens {
                 TokenFront::WordPiece(wp) => {
-                    unsafe { wordpiece_ffi::wordpiece_hot_alloc_counter_reset() };
+                    wordpiece_ffi::hot_alloc_counter_reset();
                     for (b, text) in texts.iter().enumerate() {
                         let row = b * seq;
                         wp.encode_sentence(
@@ -897,7 +897,7 @@ impl OrtCudaSession {
                             8,
                         )?;
                     }
-                    if unsafe { wordpiece_ffi::wordpiece_hot_alloc_counter() } != 0 {
+                    if wordpiece_ffi::hot_alloc_counter() != 0 {
                         return Err(
                             "WordPiece hot-path heap token staging reintroduced".into()
                         );

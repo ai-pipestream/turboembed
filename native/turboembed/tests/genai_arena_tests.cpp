@@ -6,6 +6,7 @@
 
 #include "turbo_buffer.h"
 #include "turboembed.h"
+#include "wordpiece.h"
 
 #include <cstdio>
 #include <cstring>
@@ -82,9 +83,11 @@ static void prove_device(turboembed_device device, turbo_buffer_placement want_p
     turboembed_embed_result_free(r1);
 
     turbo_buffer_alloc_counter_reset();
+    wordpiece_hot_alloc_counter_reset();
     turboembed_embed_result *r2 = nullptr;
     CHECK_ST(turboembed_embed_one(e, "minilm", 0, hello, sizeof(hello) - 1, nullptr, &r2));
     CHECK(turbo_buffer_alloc_counter() == 0u);
+    CHECK(wordpiece_hot_alloc_counter() == 0u);
     CHECK(r2 != nullptr);
     CHECK(r2->dim == 384);
     turboembed_embed_result_free(r2);

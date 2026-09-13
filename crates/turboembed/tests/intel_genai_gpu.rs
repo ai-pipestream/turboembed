@@ -53,6 +53,8 @@ unsafe extern "C" {
     fn turbo_buffer_alloc_counter_reset();
     fn turbo_buffer_alloc_counter() -> u64;
     fn turbo_buffer_ze_query(ptr: *const c_void, out: *mut u32) -> i32;
+    fn wordpiece_hot_alloc_counter_reset();
+    fn wordpiece_hot_alloc_counter() -> u64;
 }
 
 const COSINE_FLOOR: f32 = 0.99;
@@ -231,15 +233,23 @@ fn prove_steady_state_zero_allocs(engine: &Engine, alias: &str, text: &str) -> u
         .embed_one(alias, text, &opts)
         .expect("warmup embed for arena reuse");
     drop(warm);
-    unsafe { turbo_buffer_alloc_counter_reset() };
+    unsafe {
+        turbo_buffer_alloc_counter_reset();
+        wordpiece_hot_alloc_counter_reset();
+    }
     let again = engine
         .embed_one(alias, text, &opts)
         .expect("steady-state embed");
     let allocs = unsafe { turbo_buffer_alloc_counter() };
+    let wp_hot = unsafe { wordpiece_hot_alloc_counter() };
     assert_eq!(
         allocs, 0,
         "steady-state GenAI embed must rent token/result slabs (allocs/forward==0); \
          got {allocs} — GenAI is still private-allocating"
+    );
+    assert_eq!(
+        wp_hot, 0,
+        "WordPiece hot-path heap token staging reintroduced (counter={wp_hot})"
     );
     assert_eq!(again.dim(), 384);
     allocs
