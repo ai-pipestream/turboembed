@@ -6,7 +6,7 @@
     "CPU",
     "GPU"
   ],
-  "blocker": "krick-1 is AMD Ryzen 9 9950X + Intel Battlemage G31 dGPU. No Intel NPU silicon, no intel-npu/accel node, no libopenvino_intel_npu_plugin.so. ov::Core lists CPU GPU only.",
+  "blocker": "Machine B is AMD Ryzen 9 9950X + Intel Battlemage G31 dGPU. No Intel NPU silicon, no intel-npu/accel node, no libopenvino_intel_npu_plugin.so. ov::Core lists CPU GPU only.",
   "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
   "create": "UNSUPPORTED_DEVICE",
   "device": "NPU",
@@ -16,7 +16,7 @@
     "constructor": "TextEmbeddingPipeline(models/ov/minilm, \"NPU\")",
     "exception": "Device with \"NPU\" name is not registered in the OpenVINO Runtime",
     "listed_npu": false,
-    "source": "standalone C++ ov::Core + TextEmbeddingPipeline probe on krick-1; create() uses the same Core list via require_ov_device"
+    "source": "standalone C++ ov::Core + TextEmbeddingPipeline probe on Machine B; create() uses the same Core list via require_ov_device"
   },
   "note": "Honest defer. Device::OpenVinoNpu create fails loud and never compiles CPU or the 8-d FNV mock. Do not treat this file as a passing MiniLM receipt.",
   "npu_plugin": false,
@@ -24,7 +24,7 @@
   "pipeline": "ov::genai::TextEmbeddingPipeline",
   "schema_version": 1,
   "sha": {
-    "git": "b9e813de65e368dfda40b77929caf1dbf95f2044"
+    "git": "a913bdea1445554f614238b76f9c009c3e53de62"
   },
   "wired": false
 }
