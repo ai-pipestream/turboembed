@@ -28,7 +28,7 @@ thiserror = { workspace = true }
 inferstream-backend-ort = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 toml = { workspace = true, optional = true }
-ort = { version = "2.0.0-rc.13", optional = true, features = ["cuda"] }
+ort = { version = "2.0.0-rc.13", optional = true, features = ["cuda", "tensorrt"] }
 tokenizers = { workspace = true, optional = true }
 
 [dev-dependencies]

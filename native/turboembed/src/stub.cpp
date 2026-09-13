@@ -238,11 +238,18 @@ uint8_t pooling_for_alias(const char *alias, size_t len, uint8_t requested) {
 bool wants_ort(turboembed_device device) {
     return device == TURBOEMBED_DEVICE_CUDA ||
            device == TURBOEMBED_DEVICE_AUTO ||
-           device == TURBOEMBED_DEVICE_CPU;
+           device == TURBOEMBED_DEVICE_CPU ||
+           device == TURBOEMBED_DEVICE_TENSORRT;
 }
 
 turboembed_device ort_place_to_abi(int place) {
-    return place == 1 ? TURBOEMBED_DEVICE_CPU : TURBOEMBED_DEVICE_CUDA;
+    if (place == 1) {
+        return TURBOEMBED_DEVICE_CPU;
+    }
+    if (place == 3) {
+        return TURBOEMBED_DEVICE_TENSORRT;
+    }
+    return TURBOEMBED_DEVICE_CUDA;
 }
 #endif
 
@@ -346,6 +353,9 @@ turboembed_status turboembed_engine_create(
             return TURBOEMBED_ERR_UNAVAILABLE;
 #endif
         case TURBOEMBED_DEVICE_TENSORRT:
+#ifdef TURBOEMBED_ORT_CUDA
+            break;
+#else
             g_create_error =
                 "requested tensorrt; TensorRT 10 runtime is missing "
                 "(libnvinfer.so.10, libnvonnxparser.so.10) and "
@@ -356,6 +366,7 @@ turboembed_status turboembed_engine_create(
                 "apt-installed on krick; tensorrt-cu13-libs wheel is "
                 "~3.7 GiB). See docs/turboembed.md";
             return TURBOEMBED_ERR_UNAVAILABLE;
+#endif
         case TURBOEMBED_DEVICE_OPENVINO_NPU:
 #ifdef TURBOEMBED_GENAI
             break;
@@ -578,9 +589,13 @@ turboembed_status turboembed_load_model(
                     ? err
                     : (engine->device == TURBOEMBED_DEVICE_CPU
                            ? "ORT CPU session failed to open"
-                           : "ORT CUDA session failed to open (CUDA EP / "
-                             "device allocator / IoBinding); CPU is not a "
-                             "fallback when CUDA was requested")
+                           : engine->device == TURBOEMBED_DEVICE_TENSORRT
+                                 ? "ORT TensorRT session failed to open "
+                                   "(libnvinfer.so.10 / TensorRT EP); "
+                                   "CUDA/CPU is not a fallback"
+                                 : "ORT CUDA session failed to open (CUDA EP / "
+                                   "device allocator / IoBinding); CPU is not a "
+                                   "fallback when CUDA was requested")
             );
             return TURBOEMBED_ERR_UNAVAILABLE;
         }

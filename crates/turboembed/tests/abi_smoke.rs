@@ -69,9 +69,10 @@ fn catalog_alias_is_not_implemented() {
 fn gpu_without_gpu_fails_loud_never_cpu() {
     // CUDA create is allowed only when --features ort-cuda (load then
     // fails loud if the EP is missing). Same for OpenVINO GPU + genai.
-    let mut devices = vec![Device::TensorRt, Device::OpenVinoNpu];
+    let mut devices = vec![Device::OpenVinoNpu];
     if cfg!(not(feature = "ort-cuda")) {
         devices.push(Device::Cuda);
+        devices.push(Device::TensorRt);
     }
     if cfg!(not(feature = "genai")) {
         devices.push(Device::OpenVinoGpu);

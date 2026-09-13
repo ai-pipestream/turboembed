@@ -41,8 +41,9 @@
 //! `load_model("minilm")` is the NVIDIA CUDA proof path. A CUDA/AUTO
 //! request never silently becomes CPU. `Device::Cpu` is an explicit
 //! CPU EP path (same ONNX, same mean+L2).
-//! [`Device::TensorRt`] fails at create until MiniLM is proven on the
-//! ORT TensorRT EP with `libnvinfer.so.10` (see `docs/turboembed.md`).
+//! [`Device::TensorRt`] loads the ORT TensorRT EP (`error_on_failure`).
+//! Missing `libnvinfer.so.10` is a hard error — not a CUDA or CPU
+//! session. Live MiniLM proof: `docs/turboembed.md`.
 //!
 //! # Device policy
 //!
@@ -427,7 +428,9 @@ impl Engine {
     /// explicit [`Device::Mock`] / [`Device::Cpu`]. Catalog aliases never
     /// resolve to the 8-d FNV mock.
     /// `--features ort-cuda`: `minilm` loads ORT CUDA + IoBinding on
-    /// [`Device::Cuda`] / [`Device::Auto`], or the CPU EP on [`Device::Cpu`].
+    /// [`Device::Cuda`] / [`Device::Auto`], the CPU EP on [`Device::Cpu`],
+    /// or the TensorRT EP on [`Device::TensorRt`] (fails loud if
+    /// `libnvinfer.so.10` is missing — not a CUDA/CPU stand-in).
     /// `--features genai`: `minilm` (and other `models/ov/<alias>` dirs)
     /// load `TextEmbeddingPipeline` on `"GPU"` or `"CPU"`.
     /// macOS: `minilm` loads MLX mean+L2 on [`Device::Metal`] / [`Device::Auto`].

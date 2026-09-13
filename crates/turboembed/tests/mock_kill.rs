@@ -148,7 +148,7 @@ fn auto_without_accelerator_fails_loud() {
 fn mock_embed_rejected_on_gpu_create_paths() {
     // If CUDA/Metal create is refused, that is already loud-fail. If it
     // succeeds (real GPU), loading mock-embed on that engine must fail.
-    for device in [Device::Cuda, Device::Metal, Device::Auto] {
+    for device in [Device::Cuda, Device::TensorRt, Device::Metal, Device::Auto] {
         if let Ok(engine) = Engine::create(device) {
             let err = engine
                 .load_model("mock-embed")

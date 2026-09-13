@@ -218,7 +218,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_dim(session: *const OrtCudaSession)
     unsafe { &*session }.embedding_dim() as u32
 }
 
-/// 1 = CPU, 2 = CUDA (matches `turboembed_device`).
+/// 1 = CPU, 2 = CUDA, 3 = TensorRT (matches `turboembed_device`).
 #[no_mangle]
 pub unsafe extern "C" fn turboembed_ort_cuda_place(session: *const OrtCudaSession) -> c_int {
     if session.is_null() {
@@ -227,5 +227,6 @@ pub unsafe extern "C" fn turboembed_ort_cuda_place(session: *const OrtCudaSessio
     match unsafe { &*session }.place() {
         OrtPlace::Cpu => 1,
         OrtPlace::Cuda => 2,
+        OrtPlace::TensorRt => 3,
     }
 }

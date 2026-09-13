@@ -28,22 +28,25 @@ type Error = String;
 
 const DEFAULT_MAX_SEQ_LEN: usize = 512;
 
-/// Where this session is allowed to run. CUDA never becomes CPU.
+/// Where this session is allowed to run. CUDA / TensorRT never become CPU.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OrtPlace {
     Cuda,
     Cpu,
+    TensorRt,
 }
 
 impl OrtPlace {
-    /// ABI `turboembed_device`: AUTO(0) and CUDA(2) → CUDA; CPU(1) → CPU.
+    /// ABI `turboembed_device`: AUTO(0) and CUDA(2) → CUDA; CPU(1) → CPU;
+    /// TENSORRT(3) → TensorRT EP (same ONNX, fail loud if TRT 10 is missing).
     pub fn from_abi(device: i32) -> Result<Self, Error> {
         match device {
             1 => Ok(Self::Cpu),
             0 | 2 => Ok(Self::Cuda),
+            3 => Ok(Self::TensorRt),
             other => Err(format!(
                 "ORT path does not handle ABI device {other}; \
-                 use TURBOEMBED_DEVICE_CUDA / AUTO or TURBOEMBED_DEVICE_CPU"
+                 use TURBOEMBED_DEVICE_CUDA / AUTO, CPU, or TENSORRT"
             )),
         }
     }
@@ -167,6 +170,15 @@ impl OrtCudaSession {
                  refusing to treat a non-cuda catalog entry as CUDA"
             ));
         }
+        if place == OrtPlace::TensorRt
+            && !catalog_device.eq_ignore_ascii_case("cuda")
+            && !catalog_device.eq_ignore_ascii_case("tensorrt")
+        {
+            return Err(format!(
+                "TensorRT was requested but catalog device is {catalog_device:?}; \
+                 MiniLM ORT-TRT uses the same ONNX as CUDA (device=cuda|tensorrt)"
+            ));
+        }
         let model_path = spec.path.as_deref().ok_or_else(|| {
             "catalog nvidia entry is missing path to the .onnx file".to_string()
         })?;
@@ -231,19 +243,41 @@ impl OrtCudaSession {
                     )
                 })?;
         }
+        if place == OrtPlace::TensorRt {
+            // TensorRT EP only — no CUDA-EP or CPU stand-in. ORT-TRT still
+            // uses CUDA device buffers (IoBinding). Missing libnvinfer.so.10
+            // is a hard error.
+            builder = builder
+                .with_execution_providers([ort::ep::TensorRT::default()
+                    .with_device_id(0)
+                    .build()
+                    .error_on_failure()])
+                .map_err(|e| {
+                    fail_load(
+                        "TensorRT execution provider unavailable \
+                         (libnvinfer.so.10 / libnvonnxparser.so.10); \
+                         CUDA/CPU is not a fallback",
+                        e,
+                    )
+                })?;
+        }
 
         let session = builder.commit_from_file(model_path).map_err(|e| {
             fail_load(
                 match place {
                     OrtPlace::Cuda => "failed to load onnx model on CUDA EP",
                     OrtPlace::Cpu => "failed to load onnx model on CPU EP",
+                    OrtPlace::TensorRt => {
+                        "failed to load onnx model on TensorRT EP \
+                         (not a silent CUDA or CPU session)"
+                    }
                 },
                 e,
             )
         })?;
 
         let cuda_allocator = match place {
-            OrtPlace::Cuda => {
+            OrtPlace::Cuda | OrtPlace::TensorRt => {
                 // Creating a CUDA device allocator fails if the EP is not live.
                 let cuda_mem = MemoryInfo::new(
                     AllocationDevice::CUDA,
@@ -348,7 +382,9 @@ impl OrtCudaSession {
 
         let shape = [batch as i64, seq as i64];
         let dims = match self.place {
-            OrtPlace::Cuda => self.run_cuda(&input_ids, &attention_mask, &token_type_ids, shape)?,
+            OrtPlace::Cuda | OrtPlace::TensorRt => {
+                self.run_cuda(&input_ids, &attention_mask, &token_type_ids, shape)?
+            }
             OrtPlace::Cpu => self.run_cpu(&input_ids, &attention_mask, &token_type_ids, shape)?,
         };
         let (dims, hidden) = dims;

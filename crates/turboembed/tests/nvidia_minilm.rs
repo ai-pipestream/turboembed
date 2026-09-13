@@ -32,6 +32,7 @@ const COSINE_FLOOR: f32 = 0.99;
 const ALIAS: &str = "minilm";
 const GOLDEN: &str = "testdata/e2e/goldens/nvidia/minilm.json";
 const RECEIPT: &str = "testdata/receipts/turboembed/nvidia-minilm.json";
+const RECEIPT_TRT: &str = "testdata/receipts/turboembed/nvidia-minilm-tensorrt.json";
 const SUBSET_PREFIX: &str = "parity:";
 
 fn workspace_root() -> PathBuf {
@@ -173,33 +174,56 @@ fn auto_request_never_silently_uses_cpu() {
     }
 }
 
-/// Device::TensorRT is not MiniLM on this host. Create must fail loud
-/// (no CUDA/CPU/FNV stand-in) and name the TensorRT 10 SONAME blocker.
+/// Device::TensorRT must not become CUDA, CPU, or 8-d FNV.
+/// Create may succeed when `--features ort-cuda`; load then registers
+/// the TensorRT EP with error_on_failure. Missing libnvinfer is loud.
 #[test]
-fn tensorrt_create_fails_loud_names_blocker() {
-    let err = match Engine::create(Device::TensorRt) {
-        Ok(_) => panic!(
-            "TensorRT create must fail until MiniLM runs on ORT-TRT EP with libnvinfer.so.10"
-        ),
-        Err(e) => e,
-    };
-    assert!(
-        matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
-        "TensorRT must fail loud, got {err:?}"
-    );
-    let lower = err.to_string().to_ascii_lowercase();
-    assert!(
-        lower.contains("tensorrt"),
-        "error must name TensorRT, got {err}"
-    );
-    assert!(
-        lower.contains("libnvinfer"),
-        "error must name libnvinfer.so.10, got {err}"
-    );
-    assert!(
-        lower.contains("refusing") && lower.contains("cpu"),
-        "error must refuse CUDA/CPU fallback, got {err}"
-    );
+fn tensorrt_never_silent_cuda_cpu_or_fnv8() {
+    match Engine::create(Device::TensorRt) {
+        Err(err) => {
+            assert!(
+                matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+                "TensorRT must fail loud, got {err:?}"
+            );
+            let lower = err.to_string().to_ascii_lowercase();
+            assert!(
+                lower.contains("tensorrt"),
+                "error must name TensorRT, got {err}"
+            );
+            assert!(
+                lower.contains("libnvinfer") || lower.contains("fallback"),
+                "error must name the TRT blocker, got {err}"
+            );
+            assert!(
+                lower.contains("cpu"),
+                "error must say CPU is not accepted, got {err}"
+            );
+        }
+        Ok(engine) => {
+            // Do not load MiniLM here — TRT engine compile is the ignored
+            // receipt test. Listing must not advertise catalog aliases as FNV8.
+            let models = engine.list_models().expect("list");
+            for m in models.iter() {
+                if m.alias != "mock-embed" && m.alias != "mock" {
+                    assert_ne!(
+                        m.dim, 8,
+                        "FAKE: {} listed dim=8 (FNV mock) on TensorRT",
+                        m.alias
+                    );
+                }
+            }
+            let err = engine
+                .load_model("mock-embed")
+                .expect_err("TensorRT must not load the FNV mock alias");
+            assert!(
+                matches!(
+                    err,
+                    Error::NotImplemented(_) | Error::NotFound(_) | Error::Unavailable(_)
+                ),
+                "TensorRT mock-embed: {err:?}"
+            );
+        }
+    }
 }
 
 /// CUDA request must stay on CUDA — never a silent CPU EP.
@@ -585,4 +609,133 @@ fn minilm_c_abi_embed_one_on_cpu() {
         turboembed_embed_result_free(out);
         turboembed_engine_destroy(engine);
     }
+}
+
+#[test]
+#[ignore = "needs MiniLM ONNX + TensorRT 10 (libnvinfer.so.10) + CUDA 13; see docs/turboembed.md"]
+fn minilm_ort_tensorrt_matches_golden() {
+    let root = workspace_root();
+    let (dim, subset, hello) = load_subset(&root.join(GOLDEN));
+
+    let engine = Engine::create(Device::TensorRt).unwrap_or_else(|e| {
+        panic!(
+            "turboembed_engine_create(TENSORRT) failed: {e:?} — \
+             not a CUDA or CPU stand-in"
+        );
+    });
+    assert_eq!(Device::TensorRt.as_str(), "tensorrt");
+
+    engine.load_model(ALIAS).unwrap_or_else(|e| {
+        panic!(
+            "load_model({ALIAS}) via ORT TensorRT EP failed: {e:?} — \
+             not a mock, not CUDA-only, not a CPU EP"
+        );
+    });
+
+    let info = engine.list_models().expect("list").get(0).expect("row");
+    assert_eq!(info.alias, ALIAS);
+    assert_eq!(
+        info.device,
+        Device::TensorRt,
+        "list_models device must be TensorRT"
+    );
+    assert!(info.ready);
+    assert_ne!(info.dim, 8, "FAKE: minilm on TensorRT returned dim=8 (FNV mock)");
+    assert_eq!(info.dim, dim as u32);
+
+    let opts = EmbedOptions {
+        pooling: Pooling::Mean,
+        normalize: Some(true),
+        ..Default::default()
+    };
+    let hello_live = engine
+        .embed_one(ALIAS, "hello world", &opts)
+        .unwrap_or_else(|e| panic!("embed_one hello world on TensorRT failed: {e:?}"));
+    assert_eq!(hello_live.dim(), dim);
+    let hello_cos = cosine(hello_live.values(), &hello);
+    assert!(
+        hello_cos >= COSINE_FLOOR,
+        "TensorRT cosine vs nvidia golden hello world {hello_cos} < {COSINE_FLOOR}"
+    );
+
+    let mut worst = 1.0_f32;
+    let mut sum = 0.0_f32;
+    for (id, text, expected) in &subset {
+        let got = engine
+            .embed_one(ALIAS, text, &opts)
+            .unwrap_or_else(|e| panic!("embed_one({ALIAS}, {id:?}) failed: {e:?}"));
+        let sim = cosine(got.values(), expected);
+        assert!(
+            sim >= COSINE_FLOOR,
+            "{id}: TensorRT cosine {sim} < {COSINE_FLOOR}"
+        );
+        worst = worst.min(sim);
+        sum += sim;
+        eprintln!("  {id}: cosine={sim:.6} dim={}", got.dim());
+    }
+    let mean = sum / subset.len() as f32;
+
+    let maps = maps_blob();
+    require_mapped(&maps, "libonnxruntime_providers_tensorrt");
+    require_mapped(&maps, "libnvinfer");
+    require_mapped(&maps, "libcudart");
+    forbid_mapped(&maps, "libpython");
+
+    let gpu_name = Command::new("nvidia-smi")
+        .args(["--query-gpu=name", "--format=csv,noheader"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+
+    eprintln!(
+        "turboembed nvidia minilm TensorRT: n={} dim={} min_cosine={worst:.6} \
+         mean={mean:.6} gpu={gpu_name}",
+        subset.len(),
+        dim
+    );
+
+    let receipt = serde_json::json!({
+        "schema_version": 1,
+        "crate": "turboembed",
+        "alias": ALIAS,
+        "arch": "nvidia",
+        "device": "TENSORRT",
+        "provider": "ORT TensorRT EP (same MiniLM ONNX, CUDA IoBinding buffers)",
+        "abi": "turboembed.h",
+        "abi_version": 1,
+        "pooling": "mean",
+        "normalize": true,
+        "dims": dim,
+        "n_texts": subset.len(),
+        "subset": "parity:*",
+        "golden": GOLDEN,
+        "hello_world_cosine": hello_cos,
+        "worst_cosine": worst,
+        "mean_cosine": mean,
+        "threshold": COSINE_FLOOR,
+        "pass": true,
+        "git_sha": git_head(&root),
+        "host": hostname(),
+        "gpu": gpu_name,
+        "maps": {
+            "libonnxruntime_providers_tensorrt": true,
+            "libnvinfer": true,
+            "libcudart": true,
+            "libpython": false,
+        },
+        "commands": [
+            "export LD_LIBRARY_PATH=\"$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}\"",
+            "cargo test -p turboembed --features ort-cuda --test nvidia_minilm -- --ignored --nocapture minilm_ort_tensorrt_matches_golden",
+        ],
+        "notes": "No mock. No CUDA-only stand-in. No CPU EP. Maps must contain libnvinfer + providers_tensorrt."
+    });
+    let path = root.join(RECEIPT_TRT);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("receipt dir");
+    }
+    fs::write(&path, serde_json::to_string_pretty(&receipt).unwrap() + "\n")
+        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    eprintln!("wrote {}", path.display());
 }
