@@ -1,0 +1,29 @@
+{
+  "alias": "ms-marco-minilm-l6",
+  "model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+  "device": "OPENVINO_GPU",
+  "machine": "Machine B",
+  "gpu": "Intel(R) Graphics [0xe223] (dGPU)",
+  "backend": "turborerank OpenVINO CompiledModel MiniLM CE (Level Zero USM token buffers wrapped with ov::Tensor(..., usm_pointer); no std::vector on forward)",
+  "compute": {
+    "token_workspace": "Level Zero USM (caller-written; zeMemAllocShared/Host)",
+    "token_wrap": "ov::Tensor(element::i32, shape, usm_pointer)",
+    "weights_activations": "OpenVINO CompiledModel on OPENVINO_GPU",
+    "usm_level_zero": true,
+    "remote_ocl_usm_wrap": false,
+    "host_interim": false,
+    "std_vector_on_forward": false,
+    "python_hot_path": false,
+    "mock": false
+  },
+  "pass": true,
+  "golden": "testdata/reference_rerank/ms_marco_minilm_l6_berlin.json",
+  "reference": "HuggingFace AutoModelForSequenceClassification on the pinned safetensors",
+  "logits": [8.84564877, -4.31924438, -11.27365589],
+  "max_abs_logit_err": 0.000832,
+  "cosine_vs_golden": 1.0000001192,
+  "git_sha": "a1bc64246b8200c9ca56f42873974c34c6c88350",
+  "command": "make test-turborerank-intel",
+  "note": "Phase 2b Intel proof on Machine B. GPU create without a GPU fails loud. AUTO resolves to OPENVINO_GPU when CUDA is absent. Not a CPU interim and not a mock score."
+}

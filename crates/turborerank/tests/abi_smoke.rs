@@ -180,19 +180,39 @@ fn openvino_create_succeeds_when_compiled() {
 
 #[cfg(not(turborerank_cuda))]
 #[test]
-fn cuda_and_auto_create_fail_loud_without_cuda() {
-    for device in [Device::Auto, Device::Cuda] {
-        let err = Engine::create(device).unwrap_err();
-        assert!(
-            matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
-            "{device:?}: {err:?}"
-        );
-        let msg = err.to_string().to_lowercase();
-        assert!(
-            msg.contains("refus") || msg.contains("cpu fallback"),
-            "{device:?}: {err}"
-        );
-    }
+fn cuda_create_fails_loud_without_cuda() {
+    let err = Engine::create(Device::Cuda).unwrap_err();
+    assert!(
+        matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+        "{err:?}"
+    );
+    let msg = err.to_string().to_lowercase();
+    assert!(
+        msg.contains("refus") || msg.contains("cpu fallback"),
+        "{err}"
+    );
+}
+
+#[cfg(all(not(turborerank_cuda), not(turborerank_openvino)))]
+#[test]
+fn auto_create_fails_loud_without_host_gpu() {
+    let err = Engine::create(Device::Auto).unwrap_err();
+    assert!(
+        matches!(err, Error::Unavailable(_) | Error::UnsupportedDevice(_)),
+        "{err:?}"
+    );
+    let msg = err.to_string().to_lowercase();
+    assert!(
+        msg.contains("refus") || msg.contains("cpu fallback"),
+        "{err}"
+    );
+}
+
+#[cfg(all(not(turborerank_cuda), turborerank_openvino))]
+#[test]
+fn auto_resolves_to_openvino_gpu_without_cuda() {
+    let engine = Engine::create(Device::Auto).expect("AUTO→OPENVINO_GPU");
+    drop(engine);
 }
 
 #[cfg(turborerank_cuda)]

@@ -1,0 +1,28 @@
+{
+  "alias": "ms-marco-minilm-l6",
+  "model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+  "device": "OPENVINO_CPU",
+  "machine": "Machine B",
+  "backend": "turborerank OpenVINO CompiledModel MiniLM CE on CPU (Level Zero USM host or 64-byte aligned tokens; ov::Tensor(..., pointer))",
+  "compute": {
+    "token_workspace": "Level Zero USM host (caller-written) when L0 is present",
+    "token_wrap": "ov::Tensor(element::i32, shape, usm_pointer)",
+    "weights_activations": "OpenVINO CompiledModel on OPENVINO_CPU",
+    "usm_level_zero": true,
+    "remote_ocl_usm_wrap": false,
+    "host_interim": false,
+    "std_vector_on_forward": false,
+    "python_hot_path": false,
+    "mock": false
+  },
+  "pass": true,
+  "golden": "testdata/reference_rerank/ms_marco_minilm_l6_berlin.json",
+  "reference": "HuggingFace AutoModelForSequenceClassification on the pinned safetensors",
+  "logits": [8.84564781, -4.31924582, -11.27365685],
+  "max_abs_logit_err": 0.000830,
+  "cosine_vs_golden": 1.0000001192,
+  "git_sha": "a1bc64246b8200c9ca56f42873974c34c6c88350",
+  "command": "make test-turborerank-intel",
+  "note": "Phase 2b OpenVINO CPU on Machine B. Same IR as GPU. Explicit OPENVINO_CPU — not a silent stand-in for TURBORERANK_DEVICE_CPU."
+}
