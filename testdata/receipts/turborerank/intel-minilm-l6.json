@@ -5,9 +5,9 @@
   "device": "OPENVINO_GPU",
   "machine": "Machine B",
   "gpu": "Intel(R) Graphics [0xe223] (dGPU)",
-  "backend": "turborerank OpenVINO CompiledModel MiniLM CE (Level Zero USM token buffers wrapped with ov::Tensor(..., usm_pointer); no std::vector on forward)",
+  "backend": "turborerank OpenVINO CompiledModel MiniLM CE (turbo_buffer ZE SHARED USM token buffers wrapped with ov::Tensor(..., usm_pointer); no std::vector on forward; allocs/forward==0 after warmup)",
   "compute": {
-    "token_workspace": "Level Zero USM (caller-written; zeMemAllocShared/Host)",
+    "token_workspace": "turbo_buffer ZE SHARED USM (caller-written; zeMemAllocShared)",
     "token_wrap": "ov::Tensor(element::i32, shape, usm_pointer)",
     "weights_activations": "OpenVINO CompiledModel on OPENVINO_GPU",
     "usm_level_zero": true,
@@ -23,7 +23,7 @@
   "logits": [8.84564877, -4.31924438, -11.27365589],
   "max_abs_logit_err": 0.000832,
   "cosine_vs_golden": 1.0000001192,
-  "git_sha": "ad4781bbf8579d48f6f163bb7822b759cc83da6d",
+  "git_sha": "d423a2f20f245db05b7b8d18cf9e7141ced05371",
   "command": "make test-turborerank-intel",
-  "note": "Phase 2b Intel proof on Machine B. GPU create without a GPU fails loud. AUTO resolves to OPENVINO_GPU when CUDA is absent. Not a CPU interim and not a mock score."
+  "note": "SOLIDIFY (1) Machine B. Token rows rented from the ZE arena as SHARED. GPU create without a GPU fails loud. CPU buffers on OV GPU forward are refused. AUTO resolves to OPENVINO_GPU when CUDA is absent. Not a CPU interim and not a mock score."
 }

@@ -1,0 +1,19 @@
+{
+  "machine": "Machine B",
+  "backend": "turbo_buffer ZE USM arena",
+  "device": "ZE",
+  "placements": ["HOST", "SHARED", "DEVICE"],
+  "compute": {
+    "usm_host": true,
+    "usm_shared": true,
+    "usm_device": true,
+    "silent_host_remap": false,
+    "device_memcpy_roundtrip": true,
+    "reuse_allocs": 0,
+    "pinned_on_ze": "NOT_IMPLEMENTED"
+  },
+  "pass": true,
+  "git_sha": "d423a2f20f245db05b7b8d18cf9e7141ced05371",
+  "command": "make turbo-buffer-intel-receipt",
+  "note": "Machine B LIVE: zeMemAllocHost/Shared/Device via turbo_buffer rent/return. SHARED/DEVICE query as those types, not HOST. DEVICE proven with Level Zero memcpy, not a host stand-in. PINNED on ZE is NOT_IMPLEMENTED."
+}
