@@ -5,10 +5,13 @@
   "device": "CUDA",
   "machine": "Machine A",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
-  "backend": "turborerank first-party CUDA MiniLM CE (cudaHostAlloc token buffers; device GEMM/attention/LN/GELU/pooler kernels; one H2D of packed int32 ids per row)",
+  "backend": "turborerank first-party CUDA MiniLM CE (turbo_buffer PINNED token rent + DEVICE activation scratch; device GEMM/attention/LN/GELU/pooler kernels; one H2D of packed int32 ids per row — H2D not eliminated)",
   "compute": {
-    "token_workspace": "cudaHostAlloc pinned (caller-written)",
-    "weights_activations": "device",
+    "token_workspace": "turbo_buffer PINNED rent (cudaHostAlloc)",
+    "activations": "turbo_buffer DEVICE rent at load",
+    "weights": "cudaMalloc at load (not per-forward)",
+    "allocs_per_forward": 0,
+    "h2d_per_row": "packed int32 ids/mask/types/pos — SOLIDIFY item 2",
     "gemm": "first-party CUDA kernel matching CPU linear_nt",
     "elementwise": "first-party CUDA kernels (embed, LayerNorm, GELU erf, attention, pooler, classifier)",
     "host_interim": false,
@@ -20,7 +23,7 @@
   "logits": [8.84585190, -4.32007980, -11.27389336],
   "max_abs_logit_err": 0.000004,
   "cosine_vs_golden": 1.0000000000,
-  "git_sha": "55f3381771a76fd3b4641d7853a858f9bf4072fa",
+  "git_sha": "52740db29bfef50bf36729588556ddf5121cb8f5",
   "command": "make test-turborerank-nvidia",
-  "note": "Phase 2a NVIDIA proof on Machine A. AUTO resolves to CUDA. Create without CUDA fails loud. Not a pinned-host CPU interim: the BERT graph including GEMM runs on device."
+  "note": "SOLIDIFY (1) CUDA arena LIVE on Machine A. PINNED token rent + DEVICE activation scratch; allocs/forward == 0. AUTO resolves to CUDA. Create without CUDA fails loud. One packed int32 H2D per row remains (item 2). Not a pinned-host CPU interim: the BERT graph including GEMM runs on device."
 }
