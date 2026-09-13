@@ -85,6 +85,11 @@ let package = Package(
             ]
         ),
         .target(
+            name: "TurboBufferC",
+            path: "Sources/TurboBufferC",
+            publicHeadersPath: "include"
+        ),
+        .target(
             name: "TurboRerankC",
             path: "Sources/TurboRerankC",
             publicHeadersPath: "include"
@@ -101,7 +106,7 @@ let package = Package(
         ),
         .testTarget(
             name: "TurboRerankTests",
-            dependencies: ["TurboRerankC"],
+            dependencies: ["TurboRerankC", "TurboBufferC"],
             path: "Tests/TurboRerankTests"
         ),
     ]

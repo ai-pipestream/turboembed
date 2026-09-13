@@ -276,8 +276,87 @@ static void test_gpu_backends_fail_loud_or_work() {
             &sh
         ));
         CHECK(aligned64(sh.ptr));
+        CHECK(turbo_buffer_arena_owns(metal, sh.ptr));
         CHECK(turbo_buffer_metal_owns(sh.ptr));
+        void *native = nullptr;
+        size_t off = 0;
+        CHECK(turbo_buffer_metal_lookup(sh.ptr, &native, &off) == 1);
+        CHECK(native != nullptr);
+        CHECK_EQ(off, 0u);
+        turbo_buffer_i32_row(&sh, 0)[0] = 101;
+        turbo_buffer_i32_row(&sh, 1)[1] = 7592;
+        CHECK_EQ(turbo_buffer_i32_row(&sh, 0)[0], 101);
+        CHECK_EQ(turbo_buffer_i32_row(&sh, 1)[1], 7592);
         CHECK_ST(turbo_buffer_arena_return(metal, &sh));
+        CHECK(sh.ptr == nullptr);
+
+        turbo_buffer_view host_alias {};
+        CHECK_ST(turbo_buffer_arena_rent(
+            metal,
+            TURBO_BUFFER_DTYPE_F32,
+            TURBO_BUFFER_PLACE_HOST,
+            1,
+            8,
+            8,
+            &host_alias
+        ));
+        CHECK(turbo_buffer_metal_owns(host_alias.ptr));
+        CHECK_ST(turbo_buffer_arena_return(metal, &host_alias));
+
+        turbo_buffer_view bad {};
+        CHECK_EQ(
+            turbo_buffer_arena_rent(
+                metal,
+                TURBO_BUFFER_DTYPE_F32,
+                TURBO_BUFFER_PLACE_DEVICE,
+                1,
+                4,
+                4,
+                &bad
+            ),
+            TURBO_BUFFER_ERR_NOT_IMPLEMENTED
+        );
+        CHECK(bad.ptr == nullptr);
+        CHECK_EQ(
+            turbo_buffer_arena_rent(
+                metal,
+                TURBO_BUFFER_DTYPE_F32,
+                TURBO_BUFFER_PLACE_PINNED,
+                1,
+                4,
+                4,
+                &bad
+            ),
+            TURBO_BUFFER_ERR_NOT_IMPLEMENTED
+        );
+
+        turbo_buffer_view a1 {};
+        turbo_buffer_view a2 {};
+        CHECK_ST(turbo_buffer_arena_rent(
+            metal, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_SHARED, 2, 16, 16, &a1
+        ));
+        CHECK_ST(turbo_buffer_arena_rent(
+            metal, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_SHARED, 2, 16, 16, &a2
+        ));
+        CHECK(a1.ptr != a2.ptr);
+        CHECK_ST(turbo_buffer_arena_return(metal, &a1));
+        CHECK_ST(turbo_buffer_arena_return(metal, &a2));
+        turbo_buffer_alloc_counter_reset();
+        turbo_buffer_view b1 {};
+        turbo_buffer_view b2 {};
+        CHECK_ST(turbo_buffer_arena_rent(
+            metal, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_SHARED, 2, 16, 16, &b1
+        ));
+        CHECK_ST(turbo_buffer_arena_rent(
+            metal, TURBO_BUFFER_DTYPE_I32, TURBO_BUFFER_PLACE_SHARED, 2, 16, 16, &b2
+        ));
+        CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
+        CHECK(turbo_buffer_metal_owns(b1.ptr));
+        CHECK(turbo_buffer_metal_owns(b2.ptr));
+        turbo_buffer_view copy = b1;
+        CHECK_ST(turbo_buffer_arena_return(metal, &b1));
+        CHECK_EQ(turbo_buffer_arena_return(metal, &copy), TURBO_BUFFER_ERR_DOUBLE_FREE);
+        CHECK_ST(turbo_buffer_arena_return(metal, &b2));
         turbo_buffer_arena_destroy(metal);
     } else {
         CHECK(metal_st == TURBO_BUFFER_ERR_NOT_IMPLEMENTED ||

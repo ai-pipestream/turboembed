@@ -6,6 +6,7 @@
 
 #include "metal_api.hpp"
 #include "reranker.hpp"
+#include "turbo_buffer.h"
 #include "turborerank.h"
 
 #include <cmath>
@@ -80,9 +81,41 @@ int main() {
     opts.activation = TURBORERANK_ACT_IDENTITY;
     opts.max_length = 512;
     float logits[3] = {0, 0, 0};
+    if (e->arena == nullptr || e->work == nullptr ||
+        !turbo_buffer_arena_owns(e->arena, e->work->input_ids) ||
+        !turbo_buffer_metal_owns(e->work->input_ids)) {
+        std::fprintf(
+            stderr,
+            "Metal work tokens are not turbo_buffer SHARED arena rents "
+            "(arena_owns=%d metal_owns=%d)\n",
+            e->arena && e->work
+                ? turbo_buffer_arena_owns(e->arena, e->work->input_ids)
+                : 0,
+            e->work ? turbo_buffer_metal_owns(e->work->input_ids) : 0
+        );
+        turborerank_engine_destroy(e);
+        return 1;
+    }
+
     st = turborerank_score(e, nullptr, 0, query, docs, 3, &opts, logits);
     if (st != TURBORERANK_OK) {
         std::fprintf(stderr, "score failed: %s\n", turborerank_last_error(e));
+        turborerank_engine_destroy(e);
+        return 1;
+    }
+
+    turborerank::alloc_counter_reset();
+    float again[3] = {0, 0, 0};
+    st = turborerank_score(e, nullptr, 0, query, docs, 3, &opts, again);
+    const uint64_t allocs_after_score = turbo_buffer_alloc_counter();
+    if (st != TURBORERANK_OK || allocs_after_score != 0) {
+        std::fprintf(
+            stderr,
+            "steady-state score allocs=%llu st=%s err=%s\n",
+            static_cast<unsigned long long>(allocs_after_score),
+            turborerank_status_name(st),
+            turborerank_last_error(e)
+        );
         turborerank_engine_destroy(e);
         return 1;
     }
@@ -101,7 +134,8 @@ int main() {
     }
     const float cosine = dot / (std::sqrt(na) * std::sqrt(nb));
     const bool pass = max_abs < 2e-3f && cosine > 0.999f &&
-                      logits[0] > logits[1] && logits[1] > logits[2];
+                      logits[0] > logits[1] && logits[1] > logits[2] &&
+                      allocs_after_score == 0;
 
     std::string gpu;
     turborerank::impl::metal_gpu_name(&gpu);
@@ -117,18 +151,24 @@ int main() {
     js << "  \"machine\": \"Machine C\",\n";
     js << "  \"gpu\": \"" << gpu << "\",\n";
     js << "  \"backend\": \"turborerank first-party Metal MiniLM CE "
-          "(MTLResourceStorageModeShared token buffers; kernels bind those "
-          "MTLBuffers; device GEMM/attention/LN/GELU/pooler matching CPU "
-          "linear_nt; weights copied once at load)\",\n";
+          "(turbo_buffer Metal SHARED arena; MTLResourceStorageModeShared "
+          "token rents; kernels bind those MTLBuffers via "
+          "turbo_buffer_metal_lookup; device GEMM/attention/LN/GELU/pooler "
+          "matching CPU linear_nt; weights copied once at load)\",\n";
     js << "  \"compute\": {\n";
-    js << "    \"token_workspace\": \"MTLResourceStorageModeShared "
-          "(caller-written unified memory; no extra token copy)\",\n";
+    js << "    \"token_workspace\": \"turbo_buffer arena SHARED "
+          "(MTLResourceStorageModeShared; caller-written unified memory; "
+          "no extra token copy)\",\n";
+    js << "    \"arena\": \"include/turbo_buffer.h METAL backend\",\n";
+    js << "    \"token_rent\": \"turbo_buffer_arena_rent SHARED i32\",\n";
+    js << "    \"allocs_per_forward\": 0,\n";
     js << "    \"weights_activations\": \"MTL shared buffers reserved at load\",\n";
     js << "    \"gemm\": \"first-party Metal kernel matching CPU linear_nt\",\n";
     js << "    \"elementwise\": \"first-party Metal kernels (embed, LayerNorm, "
           "GELU erf, attention, pooler, classifier)\",\n";
     js << "    \"host_interim\": false,\n";
     js << "    \"token_copy_on_forward\": false,\n";
+    js << "    \"private_mtl_token_alloc\": false,\n";
     js << "    \"mock\": false\n";
     js << "  },\n";
     js << "  \"pass\": " << (pass ? "true" : "false") << ",\n";
@@ -144,11 +184,13 @@ int main() {
     js << "  \"cosine_vs_golden\": " << cosine << ",\n";
     js << "  \"git_sha\": \"" << sha << "\",\n";
     js << "  \"command\": \"make test-turborerank-apple\",\n";
-    js << "  \"note\": \"Phase 2c Apple Metal proof on Machine C. AUTO "
-          "resolves to METAL when CUDA/OpenVINO GPU are absent. Create "
-          "without Metal fails loud. Token pointers are MTL shared; "
-          "kernels wrap those buffers (no std::vector, no token memcpy). "
-          "Weights copied once at load from mmap'd safetensors.\"\n";
+    js << "  \"note\": \"SOLIDIFY (1) Machine C LIVE: turbo_buffer Metal "
+          "SHARED rent/return is real MTL. TurboRerank Metal forward rents "
+          "arena token slots; allocs/forward==0. AUTO resolves to METAL "
+          "when CUDA/OpenVINO GPU are absent. Create without Metal fails "
+          "loud. Swift TurboRerankEngine.score calls turborerank_score "
+          "(engine work buffer) — no Swift-side token malloc. Weights "
+          "copied once at load from mmap'd safetensors.\"\n";
     js << "}\n";
 
     std::ofstream out(out_path);

@@ -9,3 +9,6 @@ make turbo-buffer-tests
 CPU is always compiled. CUDA / Level Zero / Metal are compile-gated
 (`TURBO_BUFFER_CUDA`, `TURBO_BUFFER_ZE`, `TURBO_BUFFER_METAL`) and fail
 loud when missing — never a silent CPU arena.
+
+Metal SHARED rent/return is LIVE on Machine C
+(`docs/apple-turbo-buffer-metal-arena-machine-c.md`).

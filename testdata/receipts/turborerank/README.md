@@ -6,7 +6,7 @@
 | `nvidia-minilm-l6.json` | Machine A | first-party CUDA MiniLM CE (`cudaHostAlloc` + device kernels) | **CUDA** |
 | `intel-minilm-l6.json` | Machine B | OpenVINO CompiledModel + Level Zero USM | **OPENVINO_GPU** |
 | `intel-cpu-minilm-l6.json` | Machine B | OpenVINO CompiledModel (explicit CPU) | **OPENVINO_CPU** |
-| `apple-minilm-l6.json` | Machine C | first-party Metal MiniLM CE (`MTLResourceStorageModeShared` + device kernels) | **METAL** |
+| `apple-minilm-l6.json` | Machine C | first-party Metal MiniLM CE (`turbo_buffer` Metal SHARED + device kernels) | **METAL** |
 
 TensorRT / NPU receipts land here when those backends exist —
 never invent numbers, never put lab hostnames in docs (Machine A / B / C

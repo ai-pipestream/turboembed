@@ -814,6 +814,14 @@ static void test_metal_shared_buffer() {
     CHECK(aligned(buf->input_ids));
     CHECK(aligned(buf->attention_mask));
     CHECK(turborerank::impl::metal_shared_owns(buf->input_ids));
+    CHECK(turbo_buffer_metal_owns(buf->input_ids));
+    CHECK(turbo_buffer_metal_owns(buf->attention_mask));
+    CHECK(turbo_buffer_metal_owns(buf->token_type_ids));
+    CHECK(turbo_buffer_metal_owns(buf->position_ids));
+    void *native = nullptr;
+    size_t off = 0;
+    CHECK(turbo_buffer_metal_lookup(buf->input_ids, &native, &off) == 1);
+    CHECK(native != nullptr);
     buf->input_ids[0] = 101;
     buf->input_ids[1] = 7592;
     CHECK_EQ(buf->input_ids[0], 101);
@@ -823,8 +831,25 @@ static void test_metal_shared_buffer() {
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
     turborerank_buffer_free(buf);
 
+    turborerank_buffer *w1 = nullptr;
+    turborerank_buffer *w2 = nullptr;
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL, 2, 16, &w1));
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL, 2, 16, &w2));
+    CHECK(w1->input_ids != w2->input_ids);
+    turborerank_buffer_free(w1);
+    turborerank_buffer_free(w2);
+    turborerank::alloc_counter_reset();
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL, 2, 16, &w1));
+    CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL, 2, 16, &w2));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK(turbo_buffer_metal_owns(w1->input_ids));
+    CHECK(turbo_buffer_metal_owns(w2->input_ids));
+    turborerank_buffer_free(w1);
+    turborerank_buffer_free(w2);
+
     CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_AUTO, 1, 16, &buf));
     CHECK(buf->device == TURBORERANK_DEVICE_METAL);
+    CHECK(turbo_buffer_metal_owns(buf->input_ids));
     turborerank_buffer_free(buf);
 }
 
@@ -849,6 +874,13 @@ static void test_metal_real_model_scores() {
         return;
     }
     CHECK(e->metal.enabled);
+    CHECK(e->arena != nullptr);
+    CHECK(e->work != nullptr);
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->input_ids));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->work->attention_mask));
+    CHECK(turbo_buffer_arena_owns(e->arena, e->scratch.tok_q));
+    CHECK(turbo_buffer_metal_owns(e->work->input_ids));
+    CHECK(turbo_buffer_metal_owns(e->scratch.tok_q));
 
     const char *q = "How many people live in Berlin?";
     const char *rel =
@@ -876,6 +908,13 @@ static void test_metal_real_model_scores() {
     CHECK(almost(logits[1], -4.32007599f, 2e-3f));
     CHECK(almost(logits[2], -11.27389431f, 2e-3f));
 
+    turborerank::alloc_counter_reset();
+    float score_again[3] = {0, 0, 0};
+    CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, score_again));
+    CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
+    CHECK(almost(score_again[0], logits[0], 1e-5f));
+
     opts.activation = TURBORERANK_ACT_SIGMOID;
     float sig[3] = {0, 0, 0};
     CHECK_ST(turborerank_score(e, nullptr, 0, query, docs, 3, &opts, sig));
@@ -892,6 +931,7 @@ static void test_metal_real_model_scores() {
     turborerank_buffer *buf = nullptr;
     CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_METAL, 1, 64, &buf));
     CHECK(buf->device == TURBORERANK_DEVICE_METAL);
+    CHECK(turbo_buffer_metal_owns(buf->input_ids));
     CHECK_ST(turborerank_pack_text(
         e, buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
     ));
@@ -899,18 +939,20 @@ static void test_metal_real_model_scores() {
     float s = 0;
     CHECK_ST(turborerank_forward(e, buf, 1, TURBORERANK_ACT_IDENTITY, &s));
     CHECK_EQ(turborerank::alloc_counter_value(), 0u);
+    CHECK_EQ(turbo_buffer_alloc_counter(), 0u);
     CHECK(almost(s, logits[0], 2e-3f));
     turborerank_buffer_free(buf);
 
     turborerank_buffer *cpu_buf = nullptr;
     CHECK_ST(turborerank_buffer_alloc(TURBORERANK_DEVICE_CPU, 1, 64, &cpu_buf));
+    CHECK(!turbo_buffer_metal_owns(cpu_buf->input_ids));
     CHECK_ST(turborerank_pack_text(
         e, cpu_buf, 0, query, docs[0], TURBORERANK_TRUNC_LONGEST_FIRST, 64
     ));
     float bad = 0;
     CHECK(turborerank_forward(e, cpu_buf, 1, TURBORERANK_ACT_IDENTITY, &bad) ==
           TURBORERANK_ERR_INTERNAL);
-    CHECK(std::strstr(turborerank_last_error(e), "Shared") != nullptr ||
+    CHECK(std::strstr(turborerank_last_error(e), "SHARED") != nullptr ||
           std::strstr(turborerank_last_error(e), "refus") != nullptr);
     turborerank_buffer_free(cpu_buf);
 

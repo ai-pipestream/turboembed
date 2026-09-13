@@ -21,13 +21,10 @@ bool metal_device_present(std::string *why);
 bool metal_gpu_name(std::string *name);
 
 /**
- * MTLResourceStorageModeShared token workspace. Caller writes into
- * unified memory. Pointers are page-aligned (hence 64-byte).
+ * True when `ptr` is an MTLResourceStorageModeShared allocation from
+ * the turbo_buffer Metal arena (`turbo_buffer_metal_owns`). Private
+ * `newBufferWithLength` for tokens is not a success path.
  */
-void *metal_shared_alloc_bytes(size_t bytes, Status *status);
-void metal_shared_free_bytes(void *ptr);
-
-/** Look up the MTLBuffer for a shared pointer allocated by us. */
 bool metal_shared_owns(const void *ptr);
 
 bool metal_resources_init(
@@ -40,10 +37,10 @@ bool metal_resources_init(
 void metal_resources_free(MetalResources *r);
 
 /**
- * Metal MiniLM CE. Token pointers must be MTL shared (caller-written
- * unified memory). Kernels bind those MTLBuffers — no std::vector and
- * no extra token copy. Weights/activations live in MTL buffers reserved
- * at load.
+ * Metal MiniLM CE. Token pointers must be turbo_buffer Metal SHARED
+ * rents (caller-written unified memory). Kernels bind those MTLBuffers
+ * via turbo_buffer_metal_lookup — no std::vector and no extra token
+ * copy. Weights/activations live in MTL buffers reserved at load.
  */
 bool bert_forward_row_metal(
     MetalResources *r,

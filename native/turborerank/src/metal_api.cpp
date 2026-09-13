@@ -35,18 +35,6 @@ bool metal_gpu_name(std::string *name) {
     return false;
 }
 
-void *metal_shared_alloc_bytes(size_t bytes, Status *status) {
-    (void)bytes;
-    if (status) {
-        *status = Status::Unavailable;
-    }
-    return nullptr;
-}
-
-void metal_shared_free_bytes(void *ptr) {
-    (void)ptr;
-}
-
 bool metal_shared_owns(const void *ptr) {
     (void)ptr;
     return false;

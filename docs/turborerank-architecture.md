@@ -250,7 +250,7 @@ plus the caller’s `scores_out`.
 | OpenVINO GPU | Level Zero USM (`zeMemAllocShared` / `Host`); `ov::Tensor(..., usm_pointer)`. | **LIVE** (Phase 2b, Machine B) |
 | OpenVINO CPU | Level Zero USM host when L0 is present, else 64-byte aligned; same IR. | **LIVE** (Phase 2b, explicit device) |
 | OpenVINO NPU | not implemented | fail loud |
-| Metal | `MTLResourceStorageModeShared` (caller writes unified memory). Kernels bind those MTLBuffers — no extra token copy. Weights copied once at load. | **LIVE** (Phase 2c, Machine C) |
+| Metal | `turbo_buffer` Metal SHARED (`MTLResourceStorageModeShared`). Kernels bind those MTLBuffers via `turbo_buffer_metal_lookup` — no extra token copy, no private token alloc. Weights copied once at load. | **LIVE** (Phase 2c + SOLIDIFY (1) arena, Machine C) |
 | MOCK | Explicit ABI-smoke device only. **Does not score**. Load of a catalog CE alias fails. | fail loud on `forward` / `score` |
 
 ### 4.3 ggml mapping (honest Phase 1 compromise)
@@ -376,6 +376,7 @@ Hostnames stay out of docs.
 | CUDA `cudaHostAlloc` + device CE (first-party kernels) | Phase 2a (Machine A) |
 | Intel Level Zero USM + OpenVINO `CompiledModel` | Phase 2b (Machine B) |
 | Apple MTL shared + first-party Metal CE | Phase 2c (Machine C) |
+| Metal token workspace from `turbo_buffer` SHARED arena | SOLIDIFY (1) LIVE on Machine C |
 | TensorRT CE | **not done** — fail loud |
 | gRPC `Rerank` → ABI | Phase 3 — `--features turborerank` / Swift |
 | Swift wrapper (`TurboRerankC` + client) | Phase 2c/3 — ABI stays C++/ObjC++ |

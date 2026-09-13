@@ -26,13 +26,18 @@ Swift package is a **client** of that ABI (`TurboRerank` →
 
 | region | where | copy |
 |---|---|---|
-| token / mask / type / position | `MTLResourceStorageModeShared` | **none** on `forward` — kernels bind the caller-written MTLBuffers |
+| token / mask / type / position | `turbo_buffer` Metal SHARED (`MTLResourceStorageModeShared`) | **none** on `forward` — kernels bind the arena MTLBuffers |
 | weights | mmap'd safetensors → MTL shared at **load** | **once** at load, never on the hot path |
 | activations | MTL shared scratch reserved at load | none (pre-sized) |
 | scores | caller `float *` | one 4-byte read of the logit buffer after GPU completion |
 
-No `std::vector` on the token path. A CPU-allocated buffer passed to
-a Metal engine fails loud (refuses a silent host copy).
+`TurboRerankEngine.score` calls `turborerank_score`. That uses the
+engine work buffer rented at load. This Swift module has **no**
+token-buffer allocator and must not grow a `[Int32]` for the CE
+token path. A CPU-allocated buffer passed to a Metal engine fails
+loud (refuses a silent host copy). Private `newBufferWithLength`
+for tokens is also refused — lookup is `turbo_buffer_metal_lookup`
+only. See [`docs/apple-turbo-buffer-metal-arena-machine-c.md`](apple-turbo-buffer-metal-arena-machine-c.md).
 
 ## Device policy
 
