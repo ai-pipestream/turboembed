@@ -92,6 +92,18 @@ private enum CreationErrorTLS {
 private let mockAlias = "mock-embed"
 private let mockDim: UInt32 = 8
 
+private func checkedResultShape(count: Int, dim: UInt32) ->
+    (count: UInt32, elements: Int, bytes: Int)?
+{
+    guard count > 0, count <= Int(UInt32.max) else { return nil }
+    let (elements, elementsOverflow) = count.multipliedReportingOverflow(by: Int(dim))
+    guard !elementsOverflow else { return nil }
+    let (bytes, bytesOverflow) =
+        elements.multipliedReportingOverflow(by: MemoryLayout<Float>.size)
+    guard !bytesOverflow else { return nil }
+    return (UInt32(count), elements, bytes)
+}
+
 /// AUTO / METAL = host GPU (Metal). Missing GPU → create fails, never CPU.
 private func wantsHostGpu(_ device: turboembed_device) -> Bool {
     device == TURBOEMBED_DEVICE_METAL || device == TURBOEMBED_DEVICE_AUTO
@@ -498,6 +510,10 @@ private func embedImpl(
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
     out.pointee = nil
+    guard nTexts <= Int(UInt32.max) else {
+        box.lastError = "text count exceeds ABI result count range"
+        return TURBOEMBED_ERR_INVALID_ARGUMENT
+    }
     guard let alias, let texts, nTexts > 0 else {
         box.lastError = "null embed argument"
         return TURBOEMBED_ERR_INVALID_ARGUMENT
@@ -513,8 +529,11 @@ private func embedImpl(
         box.lastError = "mock-embed is not loaded"
         return TURBOEMBED_ERR_NOT_FOUND
     }
-    let nFloats = nTexts * Int(mockDim)
-    let values = UnsafeMutablePointer<Float>.allocate(capacity: nFloats)
+    guard let shape = checkedResultShape(count: nTexts, dim: mockDim) else {
+        box.lastError = "result shape exceeds addressable size"
+        return TURBOEMBED_ERR_INVALID_ARGUMENT
+    }
+    let values = UnsafeMutablePointer<Float>.allocate(capacity: shape.elements)
     for i in 0..<nTexts {
         let view = texts[i]
         mockRow(ptr: view.ptr, len: view.len, into: values.advanced(by: i * Int(mockDim)), dim: mockDim)
@@ -523,10 +542,10 @@ private func embedImpl(
     rec.pointee = EmbedResultRec(
         pub: turboembed_embed_result(
             dim: mockDim,
-            count: UInt32(nTexts),
+            count: shape.count,
             values: UnsafePointer(values),
             packed: UnsafeRawPointer(values).assumingMemoryBound(to: UInt8.self),
-            packed_len: nFloats * MemoryLayout<Float>.size
+            packed_len: shape.bytes
         ),
         view: turbo_buffer_view(),
         arena: nil
@@ -561,6 +580,19 @@ private func embedMlx(
         box.lastError = err.localizedDescription
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     case .success(let pooling):
+        guard let arena = box.metalArena else {
+            box.lastError =
+                "Metal embed requires a turbo_buffer Metal SHARED arena — refusing MLX-private buffers"
+            return TURBOEMBED_ERR_INTERNAL
+        }
+        guard nTexts <= Int(arena.maxBatch) else {
+            box.lastError = "batch \(nTexts) exceeds arena max_batch \(arena.maxBatch)"
+            return TURBOEMBED_ERR_INVALID_ARGUMENT
+        }
+        guard checkedResultShape(count: nTexts, dim: arena.dim) != nil else {
+            box.lastError = "result shape exceeds addressable size"
+            return TURBOEMBED_ERR_INVALID_ARGUMENT
+        }
         var batch = [String]()
         batch.reserveCapacity(nTexts)
         for i in 0..<nTexts {
@@ -568,11 +600,6 @@ private func embedMlx(
             batch.append(stringView(view.ptr, view.len))
         }
         do {
-            guard let arena = box.metalArena else {
-                throw MetalArenaError.create(
-                    "Metal embed requires a turbo_buffer Metal SHARED arena — refusing MLX-private buffers"
-                )
-            }
             let result = try MlxProvider.embedArena(
                 engine: mlx,
                 model: model,

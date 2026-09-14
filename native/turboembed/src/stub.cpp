@@ -59,6 +59,7 @@ int turboembed_ort_cuda_place(const void *session);
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <new>
 #include <string>
@@ -71,6 +72,28 @@ thread_local std::string g_create_error = "";
 constexpr uint32_t kMockDim = 8;
 constexpr const char *kMockAlias = "mock-embed";
 constexpr const char *kMockAliasShort = "mock";
+
+bool checked_result_shape(
+    size_t count,
+    uint32_t dim,
+    uint32_t *rows,
+    size_t *bytes
+) {
+    if (count > std::numeric_limits<uint32_t>::max()) {
+        return false;
+    }
+    const size_t width = static_cast<size_t>(dim);
+    if (width != 0 && count > std::numeric_limits<size_t>::max() / width) {
+        return false;
+    }
+    const size_t n_elements = count * width;
+    if (n_elements > std::numeric_limits<size_t>::max() / sizeof(float)) {
+        return false;
+    }
+    *rows = static_cast<uint32_t>(count);
+    *bytes = n_elements * sizeof(float);
+    return true;
+}
 
 #if defined(TURBOEMBED_GENAI) || defined(TURBOEMBED_ORT_CUDA)
 bool alias_eq(const char *alias, size_t len, const std::string &loaded) {
@@ -903,6 +926,10 @@ static turboembed_status embed_impl(
         engine->set_error("texts must not be empty");
         return TURBOEMBED_ERR_INVALID_ARGUMENT;
     }
+    if (n_texts > std::numeric_limits<uint32_t>::max()) {
+        engine->set_error("text count exceeds ABI result count range");
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
+    }
     if (texts == nullptr) {
         engine->set_error("texts pointer is null");
         return TURBOEMBED_ERR_INVALID_ARGUMENT;
@@ -922,16 +949,28 @@ static turboembed_status embed_impl(
             requested_pooling = static_cast<int>(opts->pooling);
             requested_normalize = opts->normalize;
         }
+        const uint32_t expect_dim = turboembed_ort_cuda_dim(engine->ort_cuda);
+        if (expect_dim == 0) {
+            engine->set_error("ORT session embedding dim is 0");
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        uint32_t result_rows = 0;
+        size_t result_bytes = 0;
+        if (!checked_result_shape(
+                n_texts,
+                expect_dim,
+                &result_rows,
+                &result_bytes
+            )) {
+            engine->set_error("result shape exceeds addressable size");
+            return TURBOEMBED_ERR_INVALID_ARGUMENT;
+        }
+        const size_t n_floats = result_bytes / sizeof(float);
         std::vector<const char *> ptrs(n_texts);
         std::vector<size_t> lens(n_texts);
         for (size_t i = 0; i < n_texts; ++i) {
             ptrs[i] = texts[i].ptr;
             lens[i] = texts[i].len;
-        }
-        const uint32_t expect_dim = turboembed_ort_cuda_dim(engine->ort_cuda);
-        if (expect_dim == 0) {
-            engine->set_error("ORT session embedding dim is 0");
-            return TURBOEMBED_ERR_INTERNAL;
         }
         auto *rec = new (std::nothrow) EmbedResultRec();
         if (rec == nullptr || engine->arena == nullptr) {
@@ -944,7 +983,7 @@ static turboembed_status embed_impl(
                 engine->arena,
                 TURBO_BUFFER_DTYPE_F32,
                 ort_result_place(engine->device),
-                static_cast<uint32_t>(n_texts),
+                result_rows,
                 expect_dim,
                 expect_dim,
                 &rec->values
@@ -954,8 +993,6 @@ static turboembed_status embed_impl(
             return TURBOEMBED_ERR_OUT_OF_MEMORY;
         }
         float *values = turbo_buffer_view_f32(&rec->values);
-        const size_t n_floats =
-            n_texts * static_cast<size_t>(expect_dim);
         size_t dim = 0;
         size_t count = 0;
         char err[1024];
@@ -986,7 +1023,7 @@ static turboembed_status embed_impl(
         rec->pub.count = static_cast<uint32_t>(count);
         rec->pub.values = values;
         rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
-        rec->pub.packed_len = n_floats * sizeof(float);
+        rec->pub.packed_len = result_bytes;
         *out = &rec->pub;
         engine->set_error("");
         return TURBOEMBED_OK;
@@ -1038,6 +1075,22 @@ static turboembed_status embed_impl(
             }
         }
         try {
+            const uint32_t dim = engine->genai->embedding_dim();
+            if (dim == 0) {
+                engine->set_error("GenAI embedding dimension is 0");
+                return TURBOEMBED_ERR_INTERNAL;
+            }
+            uint32_t result_rows = 0;
+            size_t result_bytes = 0;
+            if (!checked_result_shape(
+                    n_texts,
+                    dim,
+                    &result_rows,
+                    &result_bytes
+                )) {
+                engine->set_error("result shape exceeds addressable size");
+                return TURBOEMBED_ERR_INVALID_ARGUMENT;
+            }
             std::vector<std::string> input;
             input.reserve(n_texts);
             for (size_t i = 0; i < n_texts; ++i) {
@@ -1045,11 +1098,6 @@ static turboembed_status embed_impl(
                     texts[i].ptr == nullptr ? "" : texts[i].ptr,
                     texts[i].len
                 );
-            }
-            const uint32_t dim = engine->genai->embedding_dim();
-            if (dim == 0) {
-                engine->set_error("GenAI embedding dimension is 0");
-                return TURBOEMBED_ERR_INTERNAL;
             }
             auto *rec = new (std::nothrow) EmbedResultRec();
             if (rec == nullptr || engine->arena == nullptr) {
@@ -1064,7 +1112,7 @@ static turboembed_status embed_impl(
                     engine->arena,
                     TURBO_BUFFER_DTYPE_F32,
                     result_place,
-                    static_cast<uint32_t>(n_texts),
+                    result_rows,
                     dim,
                     dim,
                     &rec->values
@@ -1085,11 +1133,10 @@ static turboembed_status embed_impl(
                 throw;
             }
             rec->pub.dim = dim;
-            rec->pub.count = static_cast<uint32_t>(n_texts);
+            rec->pub.count = result_rows;
             rec->pub.values = values;
             rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
-            rec->pub.packed_len =
-                static_cast<size_t>(n_texts) * dim * sizeof(float);
+            rec->pub.packed_len = result_bytes;
             *out = &rec->pub;
             engine->set_error("");
             return TURBOEMBED_OK;
@@ -1142,6 +1189,17 @@ static turboembed_status embed_impl(
         engine->set_error("mock embed requires a turbo_buffer arena");
         return TURBOEMBED_ERR_INTERNAL;
     }
+    uint32_t result_rows = 0;
+    size_t result_bytes = 0;
+    if (!checked_result_shape(
+            n_texts,
+            kMockDim,
+            &result_rows,
+            &result_bytes
+        )) {
+        engine->set_error("result shape exceeds addressable size");
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
+    }
     auto *rec = new (std::nothrow) EmbedResultRec();
     if (rec == nullptr) {
         engine->set_error("result allocation failed");
@@ -1152,7 +1210,7 @@ static turboembed_status embed_impl(
         engine->arena,
         TURBO_BUFFER_DTYPE_F32,
         TURBO_BUFFER_PLACE_HOST,
-        static_cast<uint32_t>(n_texts),
+        result_rows,
         kMockDim,
         kMockDim,
         &rec->values
@@ -1172,10 +1230,10 @@ static turboembed_status embed_impl(
         );
     }
     rec->pub.dim = kMockDim;
-    rec->pub.count = static_cast<uint32_t>(n_texts);
+    rec->pub.count = result_rows;
     rec->pub.values = values;
     rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
-    rec->pub.packed_len = n_texts * static_cast<size_t>(kMockDim) * sizeof(float);
+    rec->pub.packed_len = result_bytes;
     *out = &rec->pub;
     engine->set_error("");
     return TURBOEMBED_OK;
@@ -1228,7 +1286,9 @@ turboembed_status turboembed_embed_stream(
     if (cb != nullptr && result != nullptr) {
         for (uint32_t i = 0; i < result->count; ++i) {
             const int32_t is_final = (i + 1 == result->count) ? 1 : 0;
-            cb(user_data, i, result->values + (i * result->dim), result->dim, is_final);
+            const size_t row_offset =
+                static_cast<size_t>(i) * static_cast<size_t>(result->dim);
+            cb(user_data, i, result->values + row_offset, result->dim, is_final);
         }
     }
     if (out != nullptr) {

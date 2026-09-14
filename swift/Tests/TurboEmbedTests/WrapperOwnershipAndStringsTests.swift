@@ -86,6 +86,37 @@ final class WrapperOwnershipAndStringsTests: XCTestCase {
 
         wait(for: [finished], timeout: 5)
     }
+
+    func testABIRejectsUnrepresentableCountBeforeReadingViews() {
+        var engine: OpaquePointer?
+        XCTAssertEqual(
+            turboembed_engine_create(TURBOEMBED_DEVICE_MOCK, nil, &engine),
+            TURBOEMBED_OK
+        )
+        guard let engine else { return }
+        defer { turboembed_engine_destroy(engine) }
+
+        let text = Array("only one view exists".utf8)
+        text.withUnsafeBufferPointer { bytes in
+            var view = turboembed_str(
+                ptr: bytes.baseAddress.map {
+                    UnsafeRawPointer($0).assumingMemoryBound(to: CChar.self)
+                },
+                len: bytes.count
+            )
+            var result: UnsafeMutablePointer<turboembed_embed_result>?
+            let oversizedCount = Int(UInt32.max) + 1
+            let status = "mock-embed".withCString { alias in
+                turboembed_embed(
+                    engine, alias, 10, &view, oversizedCount, nil, &result)
+            }
+
+            XCTAssertEqual(status, TURBOEMBED_ERR_INVALID_ARGUMENT)
+            XCTAssertNil(result)
+            XCTAssertTrue(
+                String(cString: turboembed_last_error(engine)).contains("count"))
+        }
+    }
 }
 
 private func directMockEmbed(_ texts: [String]) throws -> (dim: Int, values: [Float]) {
