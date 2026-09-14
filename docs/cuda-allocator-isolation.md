@@ -63,3 +63,18 @@ The local CUDA libraries were in `/work/inferstream/.libs/nvidia/lib`. Model:
 This test checks lifecycle and numerical stability between engines, not tokenizer
 conformance or independent model goldens. No existing goldens or receipts were
 overwritten. TensorRT, Apple, and Intel are outside this allocator test's scope.
+
+## Tokenizer follow-up, 2026-09-14
+
+After native tokenizer validation was added, the optional ORT feature lint run
+identified mutable token slices constructed from immutable slot references.
+The private inference entry now requires a mutable session, and each token slice
+borrows its distinct slot mutably. Safe engine calls already serialize access;
+raw C callers remain subject to the single-engine serialization contract.
+The fallback Hugging Face tokenizer is boxed once at model load to avoid a
+large enum variant. No allocation was added to the inference loop by that change.
+
+`cargo clippy --locked -p turboembed --features ort-cuda --lib -- -D warnings`
+now passes. The same ignored CUDA two-engine allocator test was explicitly run
+and passed again in 645.87 ms using ORT 1.28.0. The preceding invocation without
+`--ignored` did not execute the hardware test and is not counted as validation.

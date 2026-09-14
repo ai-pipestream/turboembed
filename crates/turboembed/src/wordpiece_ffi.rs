@@ -71,11 +71,11 @@ impl WordPiece {
         Ok(Self { raw })
     }
 
-    pub fn as_ptr(&self) -> *const wordpiece_vocab {
-        self.raw
-    }
-
     /// Write [CLS] tokens [SEP] [PAD…] into caller i64 (ORT) or i32 rows.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Keep the private wrapper aligned with the native write-through ABI"
+    )]
     pub fn encode_sentence(
         &self,
         text: &str,

@@ -128,7 +128,7 @@ impl Drop for OrtWork {
 
 enum TokenFront {
     WordPiece(WordPiece),
-    Hf(Tokenizer),
+    Hf(Box<Tokenizer>),
 }
 
 pub struct OrtCudaSession {
@@ -313,7 +313,7 @@ fn resolve_path(workspace_root: &std::path::Path, raw: &str) -> std::path::PathB
     }
 }
 
-fn i64_slot_mut(view: &turbo_buffer_view, n: usize) -> Result<&mut [i64], Error> {
+fn i64_slot_mut(view: &mut turbo_buffer_view, n: usize) -> Result<&mut [i64], Error> {
     if view.ptr.is_null() {
         return Err("token view is null".into());
     }
@@ -415,6 +415,10 @@ fn note_result_host_read(bytes: usize) {
 }
 
 #[cfg(turboembed_cuda)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Keep the private wrapper aligned with the CUDA pooling kernel arguments"
+)]
 fn device_pool(
     pooling: Pooling,
     hidden_dev: *const f32,
@@ -457,6 +461,10 @@ fn device_pool(
 }
 
 #[cfg(not(turboembed_cuda))]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Keep the private fallback aligned with the CUDA pooling kernel arguments"
+)]
 fn device_pool(
     _pooling: Pooling,
     _hidden_dev: *const f32,
@@ -560,7 +568,7 @@ impl OrtCudaSession {
                 strategy: tokenizers::PaddingStrategy::Fixed(max_seq),
                 ..Default::default()
             }));
-            TokenFront::Hf(tokenizer)
+            TokenFront::Hf(Box::new(tokenizer))
         };
 
         let pooling = spec
@@ -796,9 +804,9 @@ impl OrtCudaSession {
     /// Embed `texts` and write the pooled rows into `out` when provided
     /// (C++ already rented that row). Otherwise allocate a Vec (tests).
     pub(crate) fn embed_batch(
-        &self,
+        &mut self,
         texts: &[String],
-        mut out: Option<&mut [f32]>,
+        out: Option<&mut [f32]>,
     ) -> Result<(usize, Vec<f32>), Error> {
         let batch = texts.len();
         if batch == 0 {
@@ -814,9 +822,9 @@ impl OrtCudaSession {
         let seq = self.work.max_seq;
         let token_n = self.work.max_batch * self.work.max_seq;
         {
-            let ids = i64_slot_mut(&self.work.input_ids, token_n)?;
-            let mask = i64_slot_mut(&self.work.attention_mask, token_n)?;
-            let types = i64_slot_mut(&self.work.token_type_ids, token_n)?;
+            let ids = i64_slot_mut(&mut self.work.input_ids, token_n)?;
+            let mask = i64_slot_mut(&mut self.work.attention_mask, token_n)?;
+            let types = i64_slot_mut(&mut self.work.token_type_ids, token_n)?;
             match &self.tokens {
                 TokenFront::WordPiece(wp) => {
                     wordpiece_ffi::hot_alloc_counter_reset();
@@ -868,9 +876,9 @@ impl OrtCudaSession {
         let shape = [batch as i64, seq as i64];
         unsafe { buffer_ffi::turbo_buffer_cuda_forward_enter() };
         let result = if self.place.uses_cuda_buffers() {
-            self.embed_cuda(batch, seq, shape, out.as_deref_mut())
+            self.embed_cuda(batch, seq, shape, out)
         } else {
-            self.embed_cpu_host(batch, seq, shape, out.as_deref_mut())
+            self.embed_cpu_host(batch, seq, shape, out)
         };
         unsafe { buffer_ffi::turbo_buffer_cuda_forward_leave() };
         result
