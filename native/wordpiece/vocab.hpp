@@ -38,3 +38,6 @@ struct wordpiece_vocab {
     void *map = nullptr;
     size_t map_size = 0;
 };
+
+// Internal C++ entry for a bundle already captured and hash-verified in memory.
+int wordpiece_vocab_load_json_bytes(const char *, size_t, wordpiece_vocab **);

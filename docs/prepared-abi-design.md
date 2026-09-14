@@ -8,7 +8,7 @@ by the roadmap's runnable examples and measurements, not by this design alone.
 ## ABI and resource ownership
 
 Add a separate `turboembed_prepared.h` extension with versioned symbols and
-opaque context, model, input, execution, and result handles. Name the initial
+opaque context, model, execution-slot, and result handles. Name the initial
 extension symbols `turboembed_prepared_v1_*`; its version is independent of the
 existing text ABI version. Do not change
 `turboembed.h` structs or repurpose its host result pointer as device memory.
@@ -89,3 +89,6 @@ Bindings retain native owners, enforce deterministic close and UTF-8 semantics,
 and batch native calls. Native-buffer access must share the native resource's
 lifetime. Android JNI stays outside this first desktop artifact and cannot load
 FFM classes. OpenNLP integration remains optional and later.
+
+The [native SDK guide](native-sdk.md) describes the current implementation and
+its remaining validation gates.

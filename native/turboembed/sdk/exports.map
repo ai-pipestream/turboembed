@@ -1,0 +1,4 @@
+TURBOEMBED_PREPARED_1 {
+  global: turboembed_prepared_v1_*;
+  local: *;
+};

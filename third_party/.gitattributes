@@ -2,3 +2,4 @@
 utf8proc/** -whitespace
 nlohmann/** -whitespace
 unicode_categories/** -whitespace
+picosha2/** -whitespace

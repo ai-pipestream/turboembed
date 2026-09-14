@@ -15,6 +15,7 @@
 #include <limits>
 #include <memory>
 #include <set>
+#include <sstream>
 #include "nlohmann/json.hpp"
 #include "utf8proc/utf8proc.h"
 
@@ -319,9 +320,7 @@ bool supported_config(const Json &j, wordpiece_vocab *v) {
     return true;
 }
 
-bool load_tokenizer_json(const char *path, wordpiece_vocab **out) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) { return false; }
+bool load_tokenizer_json_stream(std::istream &in, wordpiece_vocab **out) {
     // Reject duplicate keys rather than allowing a later value to shadow
     // tokenizer configuration inspected by other consumers of the bundle.
     std::vector<std::set<std::string>> keys;
@@ -364,6 +363,11 @@ bool load_tokenizer_json(const char *path, wordpiece_vocab **out) {
     return true;
 }
 
+bool load_tokenizer_json(const char *path, wordpiece_vocab **out) {
+    std::ifstream in(path, std::ios::binary);
+    return in && load_tokenizer_json_stream(in, out);
+}
+
 bool ends_with(const char *path, const char *suf) {
     const size_t n = std::strlen(path);
     const size_t m = std::strlen(suf);
@@ -376,6 +380,19 @@ bool file_exists(const std::string &p) {
 }
 
 } // namespace
+
+int wordpiece_vocab_load_json_bytes(const char *bytes, size_t length, wordpiece_vocab **out) {
+    if (out == nullptr) { return WORDPIECE_ERR_INVALID_ARGUMENT; }
+    *out = nullptr;
+    if (bytes == nullptr || length == 0 || length > static_cast<size_t>(PTRDIFF_MAX)) {
+        return WORDPIECE_ERR_INVALID_ARGUMENT;
+    }
+    try {
+        std::istringstream in(std::string(bytes, length));
+        return load_tokenizer_json_stream(in, out) ? WORDPIECE_OK : WORDPIECE_ERR_INVALID_ARGUMENT;
+    } catch (const std::bad_alloc &) { return WORDPIECE_ERR_INTERNAL; }
+    catch (...) { return WORDPIECE_ERR_INVALID_ARGUMENT; }
+}
 
 extern "C" {
 

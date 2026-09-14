@@ -26,6 +26,20 @@ Source tag: [`v3.12.0`](https://github.com/nlohmann/json/tree/v3.12.0).
 
 The published `json.hpp` checksum matches the verified upstream v3.12.0 file.
 
+## PicoSHA2
+
+Source commit: [`161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29`](https://github.com/okdshin/PicoSHA2/tree/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29),
+the upstream `HEAD` resolved on 2026-09-14.
+
+| Local file | Upstream URL | SHA-256 |
+|---|---|---|
+| `picosha2/picosha2.h` | <https://raw.githubusercontent.com/okdshin/PicoSHA2/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29/picosha2.h> | `b13c180161ffac8d0adc81e033e493c409457c4d1258ab9781ac80579ba3bdd8` |
+| `picosha2/LICENSE` | <https://raw.githubusercontent.com/okdshin/PicoSHA2/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29/LICENSE> | `6c30eb1f37554ec4199cb82a8c86d9e7a852da78a757832bebb03ac9ddc44ff1` |
+
+The header provides the iterator overload
+`picosha2::hash256_hex_string(first, last)`, suitable for hashing vector byte
+ranges without a shared crypto runtime dependency.
+
 ## unicode_categories 0.1.1
 
 Source crate: [`unicode_categories` 0.1.1](https://crates.io/crates/unicode_categories/0.1.1),
