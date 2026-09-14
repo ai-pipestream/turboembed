@@ -95,6 +95,23 @@ bool checked_result_shape(
     return true;
 }
 
+bool valid_embed_options(const turboembed_embed_options *opts) {
+    if (opts == nullptr) {
+        return true;
+    }
+    // Inspect the representation before evaluating a possibly invalid C enum.
+    static_assert(sizeof(opts->pooling) == sizeof(int32_t));
+    static_assert(sizeof(opts->output_format) == sizeof(int32_t));
+    int32_t pooling = 0;
+    int32_t output = 0;
+    std::memcpy(&pooling, &opts->pooling, sizeof(pooling));
+    std::memcpy(&output, &opts->output_format, sizeof(output));
+    return pooling >= TURBOEMBED_POOLING_DEFAULT &&
+           pooling <= TURBOEMBED_POOLING_LAST && opts->normalize >= -1 &&
+           opts->normalize <= 1 && output >= TURBOEMBED_OUTPUT_TYPED &&
+           output <= TURBOEMBED_OUTPUT_PACKED_BYTES;
+}
+
 #if defined(TURBOEMBED_GENAI) || defined(TURBOEMBED_ORT_CUDA)
 bool alias_eq(const char *alias, size_t len, const std::string &loaded) {
     return len == loaded.size() && std::memcmp(alias, loaded.data(), len) == 0;
@@ -934,6 +951,10 @@ static turboembed_status embed_impl(
         engine->set_error("texts pointer is null");
         return TURBOEMBED_ERR_INVALID_ARGUMENT;
     }
+    if (!valid_embed_options(opts)) {
+        engine->set_error("embed options contain an invalid enum or normalize value");
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
+    }
     for (size_t i = 0; i < n_texts; ++i) {
         if (texts[i].len > 0 && texts[i].ptr == nullptr) {
             engine->set_error("text view has null ptr with non-zero len");
@@ -946,6 +967,12 @@ static turboembed_status embed_impl(
         int requested_pooling = TURBOEMBED_POOLING_DEFAULT;
         int requested_normalize = -1;
         if (opts != nullptr) {
+            if (opts->truncate_to != 0) {
+                engine->set_error(
+                    "truncate_to is not implemented on the ORT path"
+                );
+                return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+            }
             requested_pooling = static_cast<int>(opts->pooling);
             requested_normalize = opts->normalize;
         }
@@ -1051,8 +1078,13 @@ static turboembed_status embed_impl(
             return TURBOEMBED_ERR_INTERNAL;
         }
         if (opts != nullptr) {
-            if (opts->pooling == TURBOEMBED_POOLING_CLS ||
-                opts->pooling == TURBOEMBED_POOLING_LAST) {
+            if (opts->truncate_to != 0) {
+                engine->set_error(
+                    "truncate_to is not implemented on the Intel GenAI path"
+                );
+                return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+            }
+            if (opts->pooling != TURBOEMBED_POOLING_DEFAULT) {
                 const uint8_t want =
                     pooling_for_alias(alias, alias_len, opts->pooling);
                 const uint8_t have =
@@ -1063,7 +1095,7 @@ static turboembed_status embed_impl(
                         "reload the pipeline with that pooling "
                         "(constructor-time Config only)"
                     );
-                    return TURBOEMBED_ERR_INVALID_ARGUMENT;
+                    return TURBOEMBED_ERR_NOT_IMPLEMENTED;
                 }
             }
             if (opts->normalize == 0) {
@@ -1071,7 +1103,7 @@ static turboembed_status embed_impl(
                     "normalize=false is not the catalog MiniLM path "
                     "(goldens are L2-normalized)"
                 );
-                return TURBOEMBED_ERR_INVALID_ARGUMENT;
+                return TURBOEMBED_ERR_NOT_IMPLEMENTED;
             }
         }
         try {
@@ -1183,7 +1215,15 @@ static turboembed_status embed_impl(
         return TURBOEMBED_ERR_NOT_FOUND;
     }
 
-    (void)opts; /* pooling / normalize ignored on the mock path */
+    if (opts != nullptr &&
+        (opts->pooling != TURBOEMBED_POOLING_DEFAULT || opts->normalize != -1 ||
+         opts->truncate_to != 0)) {
+        engine->set_error(
+            "pooling, normalize, and truncate_to options are not implemented "
+            "on the mock path"
+        );
+        return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+    }
 
     if (engine->arena == nullptr) {
         engine->set_error("mock embed requires a turbo_buffer arena");
