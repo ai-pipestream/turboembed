@@ -9,8 +9,7 @@
 //! * **Outputs** (`Embeddings`, `ModelList`) own the engine-allocated
 //!   buffer. Dropping them calls the matching `*_free`. A `&[f32]` from
 //!   [`Embeddings::values`] is valid only while the `Embeddings` value
-//!   lives. Destroying [`Engine`] also invalidates outstanding results —
-//!   drop results first.
+//!   lives. Results retain the native engine until their final release.
 //! * **Packed bytes** ([`Embeddings::packed`]) alias the same allocation
 //!   as the typed floats (little-endian FP32). One free releases both.
 //! * The ABI is **not thread-safe** on a single engine. `Engine` is `Send`
@@ -27,7 +26,7 @@
 //!   Catalog aliases return [`Error::NotImplemented`] unless a real
 //!   provider feature is compiled in.
 //!
-//! `--features genai` links `ov::genai::TextEmbeddingPipeline` with the
+//! `--features genai` uses an OpenVINO compiled model with the
 //! official device string (`"GPU"`, `"CPU"`, or `"NPU"`).
 //! `Engine::create(Device::OpenVinoGpu)` fails if the GPU plugin is
 //! missing (no CPU swap). Same for [`Device::OpenVinoNpu`].
@@ -61,8 +60,6 @@
 pub mod ffi;
 
 #[cfg(feature = "ort-cuda")]
-mod wordpiece_ffi;
-#[cfg(feature = "ort-cuda")]
 mod buffer_ffi;
 #[cfg(feature = "ort-cuda")]
 mod catalog;
@@ -70,10 +67,16 @@ mod catalog;
 mod ort_cuda;
 #[cfg(feature = "ort-cuda")]
 mod ort_cuda_c;
+#[cfg(feature = "ort-cuda")]
+mod wordpiece_ffi;
 
+use std::any::Any;
+use std::cell::Cell;
 use std::ffi::CStr;
 use std::os::raw::c_void;
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::ptr::{self, NonNull};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use ffi::{
     turboembed_abi_version, turboembed_device, turboembed_device_name, turboembed_embed,
@@ -324,20 +327,40 @@ impl Drop for ModelList {
 
 /// Engine-owned embed result. Typed floats and packed bytes alias one buffer.
 ///
-/// Drop this **before** the [`Engine`] that produced it.
+/// Retains its native engine, including when moved to another thread.
 #[derive(Debug)]
 pub struct Embeddings {
     raw: *mut turboembed_embed_result,
+    owner: Arc<EngineInner>,
 }
 
+// Result storage is leased exclusively until release; release is serialized
+// with all calls on its retained engine. The raw pointer prevents Sync.
 unsafe impl Send for Embeddings {}
 
 impl Embeddings {
-    fn from_raw(raw: *mut turboembed_embed_result) -> Result<Self, Error> {
+    fn from_raw(raw: *mut turboembed_embed_result, owner: Arc<EngineInner>) -> Result<Self, Error> {
         if raw.is_null() {
             return Err(Error::Internal("engine returned a null result".into()));
         }
-        Ok(Self { raw })
+        let result = Self { raw, owner };
+        let inner = result.inner();
+        let bytes = (inner.count as usize)
+            .checked_mul(inner.dim as usize)
+            .and_then(|n| n.checked_mul(std::mem::size_of::<f32>()))
+            .filter(|&n| n <= isize::MAX as usize)
+            .ok_or_else(|| {
+                Error::Internal("result dimensions exceed addressable storage".into())
+            })?;
+        if inner.packed_len != bytes
+            || (bytes != 0 && (inner.values.is_null() || inner.packed.is_null()))
+            || (!inner.values.is_null() && !inner.values.is_aligned())
+        {
+            return Err(Error::Internal(
+                "engine returned an invalid result layout".into(),
+            ));
+        }
+        Ok(result)
     }
 
     fn inner(&self) -> &turboembed_embed_result {
@@ -379,25 +402,92 @@ impl Embeddings {
             return None;
         }
         let start = index.checked_mul(dim)?;
-        values.get(start..start + dim)
+        values.get(start..start.checked_add(dim)?)
     }
 }
 
 impl Drop for Embeddings {
     fn drop(&mut self) {
-        unsafe { turboembed_embed_result_free(self.raw) }
+        self.owner.release(self.raw);
         self.raw = ptr::null_mut();
     }
 }
 
 /// Handle to a TurboEmbed engine (opaque C pointer).
 ///
-/// Not `Sync`. Serialize calls. Drop outstanding [`Embeddings`] first.
+/// `Send`, but not `Sync`. Results may outlive this handle. Native calls and
+/// result release are serialized; same-engine callback reentry returns an error.
+///
+/// ```compile_fail
+/// fn require_sync<T: Sync>() {}
+/// require_sync::<turboembed::Engine>();
+/// ```
 pub struct Engine {
-    raw: NonNull<turboembed_engine>,
+    inner: Arc<EngineInner>,
+    active: Cell<bool>,
 }
 
-unsafe impl Send for Engine {}
+#[derive(Debug)]
+struct EngineInner {
+    raw: NonNull<turboembed_engine>,
+    access: Mutex<()>,
+    deferred: Mutex<Vec<usize>>,
+}
+
+// Native access and destruction are serialized by access. Results own a lease
+// on their storage and retain this owner; only their release mutates the arena.
+unsafe impl Send for EngineInner {}
+unsafe impl Sync for EngineInner {}
+
+impl EngineInner {
+    fn drain(&self, _access: &MutexGuard<'_, ()>) {
+        let mut pending = self.deferred.lock().unwrap_or_else(|e| e.into_inner());
+        for raw in pending.drain(..) {
+            unsafe { turboembed_embed_result_free(raw as *mut turboembed_embed_result) };
+        }
+    }
+
+    fn release(&self, raw: *mut turboembed_embed_result) {
+        // A callback can drop an older result while the native call owns access.
+        // Queue first so it never deadlocks or reenters the native allocator.
+        self.deferred
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(raw as usize);
+        if let Ok(access) = self.access.try_lock() {
+            self.drain(&access);
+        }
+    }
+}
+
+impl Drop for EngineInner {
+    fn drop(&mut self) {
+        // The last Arc implies no active operations or surviving result leases.
+        let access = self.access.lock().unwrap_or_else(|e| e.into_inner());
+        self.drain(&access);
+        unsafe { turboembed_engine_destroy(self.raw.as_ptr()) };
+    }
+}
+
+struct Operation<'a> {
+    engine: &'a Engine,
+    access: MutexGuard<'a, ()>,
+}
+
+impl Drop for Operation<'_> {
+    fn drop(&mut self) {
+        self.engine.inner.drain(&self.access);
+        self.engine.active.set(false);
+    }
+}
+
+fn validate_alias(alias: &str) -> Result<(), Error> {
+    if alias.is_empty() {
+        Err(Error::InvalidArgument("alias must not be empty".into()))
+    } else {
+        Ok(())
+    }
+}
 
 impl Engine {
     pub fn create(device: Device) -> Result<Self, Error> {
@@ -411,11 +501,33 @@ impl Engine {
         check(status, ptr::null())?;
         let raw = NonNull::new(out)
             .ok_or_else(|| Error::Internal("create returned OK with a null engine".into()))?;
-        Ok(Self { raw })
+        Ok(Self {
+            inner: Arc::new(EngineInner {
+                raw,
+                access: Mutex::new(()),
+                deferred: Mutex::new(Vec::new()),
+            }),
+            active: Cell::new(false),
+        })
+    }
+
+    fn enter(&self) -> Result<Operation<'_>, Error> {
+        if self.active.get() {
+            return Err(Error::InvalidArgument(
+                "same-engine callback reentry is not allowed".into(),
+            ));
+        }
+        let access = self.inner.access.lock().unwrap_or_else(|e| e.into_inner());
+        self.active.set(true);
+        self.inner.drain(&access);
+        Ok(Operation {
+            engine: self,
+            access,
+        })
     }
 
     fn as_ptr(&self) -> *mut turboembed_engine {
-        self.raw.as_ptr()
+        self.inner.raw.as_ptr()
     }
 
     /// Raw C engine for Machine B GenAI arena receipts. Not a second ABI.
@@ -425,10 +537,15 @@ impl Engine {
     }
 
     pub fn last_error(&self) -> String {
+        let _operation = match self.enter() {
+            Ok(operation) => operation,
+            Err(error) => return error.to_string(),
+        };
         last_error(self.as_ptr())
     }
 
     pub fn list_models(&self) -> Result<ModelList, Error> {
+        let _operation = self.enter()?;
         let mut infos: *mut turboembed_model_info = ptr::null_mut();
         let mut count: usize = 0;
         let status = unsafe { turboembed_list_models(self.as_ptr(), &mut infos, &mut count) };
@@ -444,9 +561,11 @@ impl Engine {
     /// or the TensorRT EP on [`Device::TensorRt`] (fails loud if
     /// `libnvinfer.so.10` is missing — not a CUDA/CPU stand-in).
     /// `--features genai`: `minilm` (and other `models/ov/<alias>` dirs)
-    /// load `TextEmbeddingPipeline` on `"GPU"` or `"CPU"`.
+    /// load an OpenVINO compiled model on `"GPU"` or `"CPU"`.
     /// macOS: `minilm` loads MLX mean+L2 on [`Device::Metal`] / [`Device::Auto`].
     pub fn load_model(&self, alias: &str) -> Result<(), Error> {
+        validate_alias(alias)?;
+        let _operation = self.enter()?;
         let status =
             unsafe { turboembed_load_model(self.as_ptr(), alias.as_ptr().cast(), alias.len()) };
         check(status, self.as_ptr())
@@ -459,6 +578,8 @@ impl Engine {
         text: &str,
         opts: &EmbedOptions,
     ) -> Result<Embeddings, Error> {
+        validate_alias(alias)?;
+        let _operation = self.enter()?;
         let c_opts = opts.to_c();
         let mut out: *mut turboembed_embed_result = ptr::null_mut();
         let status = unsafe {
@@ -473,7 +594,7 @@ impl Engine {
             )
         };
         check(status, self.as_ptr())?;
-        Embeddings::from_raw(out)
+        Embeddings::from_raw(out, self.inner.clone())
     }
 
     /// Embed a batch. Each `&str` is a view for the duration of the call.
@@ -483,6 +604,8 @@ impl Engine {
         texts: &[&str],
         opts: &EmbedOptions,
     ) -> Result<Embeddings, Error> {
+        validate_alias(alias)?;
+        let _operation = self.enter()?;
         if texts.is_empty() {
             return Err(Error::InvalidArgument("texts must not be empty".into()));
         }
@@ -507,7 +630,7 @@ impl Engine {
             )
         };
         check(status, self.as_ptr())?;
-        Embeddings::from_raw(out)
+        Embeddings::from_raw(out, self.inner.clone())
     }
 
     /// Embed then invoke `on_row(index, row, is_final)` per row.
@@ -516,6 +639,9 @@ impl Engine {
     /// invocation (ABI rule). This wrapper copies nothing; `on_row` must
     /// copy if it needs the data later. The returned [`Embeddings`] still
     /// owns the full batch.
+    /// Reentering this engine from `on_row` is rejected. With unwinding enabled,
+    /// callback panics are caught at the C boundary and resumed after native
+    /// execution returns; remaining callbacks are skipped.
     pub fn embed_stream<F>(
         &self,
         alias: &str,
@@ -526,6 +652,8 @@ impl Engine {
     where
         F: FnMut(u32, &[f32], bool),
     {
+        validate_alias(alias)?;
+        let operation = self.enter()?;
         if texts.is_empty() {
             return Err(Error::InvalidArgument("texts must not be empty".into()));
         }
@@ -540,6 +668,7 @@ impl Engine {
         let mut out: *mut turboembed_embed_result = ptr::null_mut();
         let mut cb_state = StreamState {
             on_row: &mut on_row,
+            panic: None,
         };
         let status = unsafe {
             turboembed_embed_stream(
@@ -554,13 +683,21 @@ impl Engine {
                 &mut out,
             )
         };
+        if let Some(panic) = cb_state.panic.take() {
+            if !out.is_null() {
+                self.inner.release(out);
+            }
+            drop(operation);
+            resume_unwind(panic);
+        }
         check(status, self.as_ptr())?;
-        Embeddings::from_raw(out)
+        Embeddings::from_raw(out, self.inner.clone())
     }
 }
 
 struct StreamState<'a, F> {
     on_row: &'a mut F,
+    panic: Option<Box<dyn Any + Send>>,
 }
 
 unsafe extern "C" fn stream_trampoline<F>(
@@ -576,14 +713,14 @@ unsafe extern "C" fn stream_trampoline<F>(
         return;
     }
     let state = unsafe { &mut *user_data.cast::<StreamState<F>>() };
-    let row = unsafe { std::slice::from_raw_parts(values, dim as usize) };
-    (state.on_row)(index, row, is_final != 0);
-}
-
-impl Drop for Engine {
-    fn drop(&mut self) {
-        unsafe { turboembed_engine_destroy(self.raw.as_ptr()) }
+    if state.panic.is_some() {
+        return;
     }
+    let row = unsafe { std::slice::from_raw_parts(values, dim as usize) };
+    state.panic = catch_unwind(AssertUnwindSafe(|| {
+        (state.on_row)(index, row, is_final != 0)
+    }))
+    .err();
 }
 
 /// Provider registration is reserved. Stub always returns NotImplemented.

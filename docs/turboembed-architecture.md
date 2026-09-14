@@ -93,9 +93,12 @@ header comment.
 6. **No silent CPU.** GPU/Metal/AUTO/NPU requests fail if that
    accelerator is missing. `CPU` / `OPENVINO_CPU` only when selected.
 
-Rust bounds a returned `&[f32]` by its `Embeddings` guard, but the guard does
-not yet retain or borrow the engine. That lifetime defect is a prerequisite
-fix in roadmap M0. The Swift wrapper needs the corresponding ownership fix.
+The Rust `Embeddings` guard retains the native engine and bounds returned
+`&[f32]` views by the guard's lifetime. Native calls and result release are
+serialized. Stream callbacks cannot reenter the same engine; with unwinding
+enabled, callback panics resume in Rust after the native call returns.
+The Swift wrapper also retains its engine through result release and serializes
+wrapper operations. Its native macOS regression tests remain to be run.
 
 ## Provider plugin sketch
 
