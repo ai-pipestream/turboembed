@@ -27,6 +27,24 @@ included in the 285 pass count rather than the 8 ignored count. The local
 MiniLM tokenizer snapshot used by the server extension test was present; that
 test was not conditionally skipped.
 
+After the additional callback-join and native count-bound regressions, a full
+parallel rerun exposed another test-isolation defect:
+`config::tests::bearer_mode_requires_tokens` failed while another configuration
+test changed `INFERSTREAM_API_KEYS` in the shared process. Both environment-
+dependent cases now run in subprocesses with explicit environments. Production
+authentication behavior is unchanged.
+
+The configuration suite then passed 19 tests. The final ordinary workspace run
+passed 288 tests with 0 failures and 8 ignored; the same four conditional
+reranker-model skips remain included in the pass count. The final log is
+`/tmp/turboembed-foundations-verified-workspace-tests.log`. The intervening failed
+run is `/tmp/turboembed-foundations-final-workspace-tests.log`.
+
+`cargo fmt --all -- --check` and
+`cargo clippy --locked --workspace --all-targets -- -D warnings` also pass after
+separate formatting and lint cleanup. The existing `nvcc` compiler-bindir
+build warning remains; it is not a denied Rust lint.
+
 ## Native ASan and UBSan
 
 The two focused integration test binaries were built in an isolated target
@@ -85,3 +103,6 @@ No Swift compiler or Apple frameworks were available on this Linux host, so
 the Swift wrapper tests and native macOS/Metal tests were not compiled or run.
 No OpenVINO, CUDA, TensorRT, GPU, NPU, model-quality, benchmark, hosted CI,
 publication, or deployment validation is claimed by this receipt.
+Subsequent, separately scoped hardware results are recorded in the
+[CUDA allocator receipt](cuda-allocator-isolation.md) and
+[initial Intel GPU receipt](intel-native-baseline-2026-09-14.md).
