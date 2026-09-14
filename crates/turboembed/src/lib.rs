@@ -64,6 +64,8 @@ mod buffer_ffi;
 #[cfg(feature = "ort-cuda")]
 mod catalog;
 #[cfg(feature = "ort-cuda")]
+mod ort_allocator;
+#[cfg(feature = "ort-cuda")]
 mod ort_cuda;
 #[cfg(feature = "ort-cuda")]
 mod ort_cuda_c;

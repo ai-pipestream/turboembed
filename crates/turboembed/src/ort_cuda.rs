@@ -11,7 +11,6 @@
 //! The caller reads the final 384-d row from mapped PINNED
 //! (`result_host_bytes`, much smaller than the hidden volume).
 
-use std::collections::HashMap;
 use std::ffi::{c_void, CString};
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -45,9 +44,6 @@ static ORT_D2H_BYTES: AtomicU64 = AtomicU64::new(0);
 static ORT_D2H_CALLS: AtomicU64 = AtomicU64::new(0);
 static ORT_D2H_RESULT_BYTES: AtomicU64 = AtomicU64::new(0);
 static ORT_RESULT_HOST_BYTES: AtomicU64 = AtomicU64::new(0);
-
-static EXT_ARENA: Mutex<Option<usize>> = Mutex::new(None);
-static EXT_SLABS: Mutex<Option<HashMap<usize, turbo_buffer_view>>> = Mutex::new(None);
 
 #[cfg(turboembed_cuda)]
 unsafe extern "C" {
@@ -147,6 +143,8 @@ pub struct OrtCudaSession {
     cuda_allocator: Option<Allocator>,
     embedding_dim: usize,
     work: OrtWork,
+    // Drop after the session and CUDA allocator have released their callbacks.
+    _external_allocator: Option<crate::ort_allocator::SessionLease>,
 }
 
 fn fail_load(what: &str, detail: impl std::fmt::Display) -> Error {
@@ -174,84 +172,14 @@ fn ort_status(status: ort::sys::OrtStatusPtr) -> Result<(), Error> {
 extern "C" fn gpu_external_alloc(bytes: usize) -> *mut c_void {
     ORT_EXT_ALLOCS.fetch_add(1, Ordering::Relaxed);
     ORT_EXT_LAST_BYTES.store(bytes as u64, Ordering::Relaxed);
-    let arena = match EXT_ARENA.lock() {
-        Ok(g) => g.and_then(|p| {
-            if p == 0 {
-                None
-            } else {
-                Some(p as *mut turbo_buffer_arena)
-            }
-        }),
-        Err(_) => None,
-    };
-    let Some(arena) = arena else {
-        return ptr::null_mut();
-    };
-    let cols = ((bytes + 3) / 4).max(1) as u32;
-    match rent(
-        arena,
-        TURBO_BUFFER_DTYPE_F32,
-        TURBO_BUFFER_PLACE_DEVICE,
-        1,
-        cols,
-        cols,
-    ) {
-        Ok(view) => {
-            let key = view.ptr as usize;
-            if let Ok(mut map) = EXT_SLABS.lock() {
-                map.get_or_insert_with(HashMap::new).insert(key, view);
-            }
-            view.ptr
-        }
-        Err(_) => ptr::null_mut(),
-    }
+    crate::ort_allocator::alloc(bytes)
 }
 
 extern "C" fn gpu_external_free(p: *mut c_void) {
-    if p.is_null() {
-        return;
-    }
-    let arena = match EXT_ARENA.lock() {
-        Ok(g) => g.and_then(|v| {
-            if v == 0 {
-                None
-            } else {
-                Some(v as *mut turbo_buffer_arena)
-            }
-        }),
-        Err(_) => None,
-    };
-    let Some(arena) = arena else {
-        return;
-    };
-    if let Ok(mut map) = EXT_SLABS.lock() {
-        if let Some(map) = map.as_mut() {
-            if let Some(mut view) = map.remove(&(p as usize)) {
-                return_view(arena, &mut view);
-            }
-        }
-    }
+    crate::ort_allocator::free(p);
 }
 
 extern "C" fn gpu_external_empty_cache() {}
-
-fn set_ext_arena(arena: *mut turbo_buffer_arena) {
-    if let Ok(mut g) = EXT_ARENA.lock() {
-        *g = if arena.is_null() {
-            None
-        } else {
-            Some(arena as usize)
-        };
-    }
-}
-
-fn clear_ext_arena_if(arena: *mut turbo_buffer_arena) {
-    if let Ok(mut g) = EXT_ARENA.lock() {
-        if *g == Some(arena as usize) {
-            *g = None;
-        }
-    }
-}
 
 fn register_cuda_ep_with_arena(builder: &mut SessionBuilder) -> Result<(), Error> {
     let api = ort::api();
@@ -260,6 +188,13 @@ fn register_cuda_ep_with_arena(builder: &mut SessionBuilder) -> Result<(), Error
     if cuda_options.is_null() {
         return Err("CreateCUDAProviderOptions returned null".into());
     }
+    struct Options(*mut ort::sys::OrtCUDAProviderOptionsV2);
+    impl Drop for Options {
+        fn drop(&mut self) {
+            unsafe { (ort::api().ReleaseCUDAProviderOptions)(self.0) };
+        }
+    }
+    let _options = Options(cuda_options);
 
     let keys = [
         CString::new("device_id").unwrap(),
@@ -310,10 +245,7 @@ fn register_cuda_ep_with_arena(builder: &mut SessionBuilder) -> Result<(), Error
     let rc = ort_status(unsafe {
         (api.SessionOptionsAppendExecutionProvider_CUDA_V2)(builder.ptr_mut(), cuda_options)
     });
-    unsafe { (api.ReleaseCUDAProviderOptions)(cuda_options) };
-    rc.map_err(|e| {
-        format!("CUDA execution provider unavailable (no silent CPU fallback): {e}")
-    })
+    rc.map_err(|e| format!("CUDA execution provider unavailable (no silent CPU fallback): {e}"))
 }
 
 fn find_tokenizer(
@@ -344,15 +276,12 @@ fn find_tokenizer(
             candidates.push(up.join("tokenizer.json"));
         }
     }
-    candidates
-        .into_iter()
-        .find(|c| c.is_file())
-        .ok_or_else(|| {
-            fail_load(
-                "tokenizer not found",
-                format!("no tokenizer.json next to {model_path}"),
-            )
-        })
+    candidates.into_iter().find(|c| c.is_file()).ok_or_else(|| {
+        fail_load(
+            "tokenizer not found",
+            format!("no tokenizer.json next to {model_path}"),
+        )
+    })
 }
 
 fn require_cuda_device(info: &MemoryInfo<'_>, what: &str) -> Result<(), Error> {
@@ -435,7 +364,8 @@ fn tensor_from_data<T: PrimitiveTensorElementType + std::fmt::Debug>(
         Ok(())
     })())
     .map_err(|e| format!("CreateTensorWithDataAsOrtValue: {e}"))?;
-    let nn = NonNull::new(value_ptr).ok_or_else(|| "CreateTensorWithDataAsOrtValue returned null".to_string())?;
+    let nn = NonNull::new(value_ptr)
+        .ok_or_else(|| "CreateTensorWithDataAsOrtValue returned null".to_string())?;
     Ok(unsafe { Tensor::<T>::from_ptr(nn, None) })
 }
 
@@ -588,9 +518,10 @@ impl OrtCudaSession {
                  MiniLM ORT-TRT uses the same ONNX as CUDA (device=cuda|tensorrt)"
             ));
         }
-        let model_path = spec.path.as_deref().ok_or_else(|| {
-            "catalog nvidia entry is missing path to the .onnx file".to_string()
-        })?;
+        let model_path = spec
+            .path
+            .as_deref()
+            .ok_or_else(|| "catalog nvidia entry is missing path to the .onnx file".to_string())?;
         let model_path = resolve_path(workspace_root, model_path);
         if !model_path.is_file() {
             return Err(fail_load(
@@ -602,10 +533,11 @@ impl OrtCudaSession {
             .to_str()
             .ok_or_else(|| "onnx model path is not UTF-8".to_string())?;
 
-        let tokenizer_hint = spec
-            .tokenizer_dir
-            .as_deref()
-            .map(|p| resolve_path(workspace_root, p).to_string_lossy().into_owned());
+        let tokenizer_hint = spec.tokenizer_dir.as_deref().map(|p| {
+            resolve_path(workspace_root, p)
+                .to_string_lossy()
+                .into_owned()
+        });
         let max_seq = spec
             .max_seq_len
             .map(|v| v as usize)
@@ -639,9 +571,11 @@ impl OrtCudaSession {
             .map_err(|e| e.to_string())?
             .unwrap_or(Pooling::Mean);
 
-        if place == OrtPlace::Cuda {
-            set_ext_arena(arena);
-        }
+        let external_allocator = if place == OrtPlace::Cuda {
+            Some(crate::ort_allocator::SessionLease::acquire()?)
+        } else {
+            None
+        };
 
         let mut builder = Session::builder()
             .map_err(|e| fail_load("failed to create ort session builder", e))?
@@ -670,9 +604,6 @@ impl OrtCudaSession {
         }
 
         let session = builder.commit_from_file(model_path).map_err(|e| {
-            if place == OrtPlace::Cuda {
-                clear_ext_arena_if(arena);
-            }
             fail_load(
                 match place {
                     OrtPlace::Cuda => "failed to load onnx model on CUDA EP",
@@ -834,12 +765,16 @@ impl OrtCudaSession {
             cuda_allocator,
             embedding_dim: 0,
             work,
+            _external_allocator: external_allocator,
         };
         // Warm the ORT BFC / graph at max batch so later batch=1 does not grow it.
         let warm: Vec<String> = (0..max_batch).map(|_| String::from("x")).collect();
         let (dim, _) = loaded.embed_batch(&warm, None)?;
         if dim == 0 {
-            return Err(format!("{:?} warmup produced embedding dim 0", loaded.place));
+            return Err(format!(
+                "{:?} warmup produced embedding dim 0",
+                loaded.place
+            ));
         }
         loaded.embedding_dim = dim;
         // Second pass at batch=1 matches the receipt hot path.
@@ -898,9 +833,7 @@ impl OrtCudaSession {
                         )?;
                     }
                     if wordpiece_ffi::hot_alloc_counter() != 0 {
-                        return Err(
-                            "WordPiece hot-path heap token staging reintroduced".into()
-                        );
+                        return Err("WordPiece hot-path heap token staging reintroduced".into());
                     }
                 }
                 TokenFront::Hf(tokenizer) => {
@@ -1193,12 +1126,6 @@ impl OrtCudaSession {
         drop(held);
 
         Ok(vec![batch as i64, seq as i64, self.work.hidden_dim as i64])
-    }
-}
-
-impl Drop for OrtCudaSession {
-    fn drop(&mut self) {
-        clear_ext_arena_if(self.work.arena);
     }
 }
 
