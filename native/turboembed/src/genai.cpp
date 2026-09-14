@@ -212,17 +212,6 @@ std::string input_name_matching(const Port& in, const char* needle) {
     return {};
 }
 
-std::string workspace_root() {
-    const char *e = std::getenv("INFERSTREAM_ROOT");
-    if (e != nullptr && e[0] != '\0') {
-        return e;
-    }
-    if (TURBOEMBED_WORKSPACE_ROOT[0] != '\0') {
-        return TURBOEMBED_WORKSPACE_ROOT;
-    }
-    return ".";
-}
-
 wordpiece_vocab *load_wordpiece_or_throw(const fs::path& dir) {
     wordpiece_vocab *v = nullptr;
     const auto path = (dir / "tokenizer.json").string();
