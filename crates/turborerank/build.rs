@@ -126,6 +126,7 @@ fn main() {
         "native/turborerank/src/alloc.cpp",
         "native/turborerank/src/pack.cpp",
         "native/turborerank/src/wordpiece.cpp",
+        "third_party/utf8proc/utf8proc.c",
         "native/wordpiece/vocab_load.cpp",
         "native/wordpiece/encode.cpp",
         "native/turborerank/src/safetensors.cpp",
@@ -142,6 +143,27 @@ fn main() {
     for rel in sources {
         println!("cargo:rerun-if-changed={}", root.join(rel).display());
     }
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("third_party/utf8proc/utf8proc.h").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("third_party/utf8proc/utf8proc_data.c").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("third_party/nlohmann/json.hpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/wordpiece/bert_unicode_categories.hpp")
+            .display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/wordpiece/vocab.hpp").display()
+    );
     println!(
         "cargo:rerun-if-changed={}",
         root.join("native/turborerank/src/bert_cuda.cu").display()
@@ -206,11 +228,13 @@ fn main() {
         .cpp(true)
         .std("c++17")
         .include(root.join("include"))
+        .include(root.join("third_party"))
         .include(root.join("native/wordpiece"))
         .include(root.join("native/turborerank/src"))
         .include(root.join("native/turbo_buffer/src"))
         .warnings(true)
         .flag_if_supported("-Wno-unused-parameter")
+        .define("UTF8PROC_STATIC", None)
         .define(
             "TURBORERANK_WORKSPACE_ROOT",
             format!("\"{}\"", escape_c_string(&root.to_string_lossy())).as_str(),

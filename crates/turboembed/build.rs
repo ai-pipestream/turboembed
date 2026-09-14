@@ -61,6 +61,31 @@ fn main() {
     );
     println!(
         "cargo:rerun-if-changed={}",
+        root.join("third_party/utf8proc/utf8proc.c").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("third_party/utf8proc/utf8proc.h").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("third_party/utf8proc/utf8proc_data.c").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("third_party/nlohmann/json.hpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/wordpiece/bert_unicode_categories.hpp")
+            .display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/wordpiece/vocab.hpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
         root.join("include/wordpiece.h").display()
     );
     println!(
@@ -176,6 +201,7 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
         .cpp(true)
         .std("c++17")
         .file(stub)
+        .file(root.join("third_party/utf8proc/utf8proc.c"))
         .file(root.join("native/wordpiece/vocab_load.cpp"))
         .file(root.join("native/wordpiece/encode.cpp"))
         .file(root.join("native/turbo_buffer/src/arena.cpp"))
@@ -183,11 +209,13 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
         .file(root.join("native/turbo_buffer/src/ze.cpp"))
         .file(root.join("native/turbo_buffer/src/metal.cpp"))
         .include(root.join("include"))
+        .include(root.join("third_party"))
         .include(root.join("native/wordpiece"))
         .include(root.join("native/turboembed/src"))
         .include(root.join("native/turbo_buffer/src"))
         .warnings(true)
         .flag_if_supported("-Wno-unused-parameter")
+        .define("UTF8PROC_STATIC", None)
         .define(
             "TURBOEMBED_WORKSPACE_ROOT",
             format!("\"{}\"", escape_c_string(&root.to_string_lossy())).as_str(),

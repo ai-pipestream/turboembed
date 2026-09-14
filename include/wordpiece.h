@@ -33,7 +33,12 @@ extern "C" {
 
 typedef struct wordpiece_vocab wordpiece_vocab;
 
-/** Load vocab.txt (mmap) or tokenizer.json (WordPiece vocab object). */
+/**
+ * Load an explicit vocab.txt using the uncased BERT preset, or a compatible
+ * tokenizer.json with validated BERT normalization and postprocessing.
+ * On failure, *out is NULL. Missing files return NOT_FOUND; unsupported or
+ * malformed configurations return INVALID_ARGUMENT; allocation failures return INTERNAL.
+ */
 int wordpiece_vocab_load(const char *path, wordpiece_vocab **out);
 
 /** First existing of `dir/vocab.txt` then `dir/tokenizer.json`. */
@@ -48,8 +53,11 @@ int32_t wordpiece_sep_id(const wordpiece_vocab *v);
 int32_t wordpiece_pad_id(const wordpiece_vocab *v);
 
 /**
- * WordPiece without specials. Writes up to `ids_cap` ids.
- * `elem_width` is 4 (i32) or 8 (i64). `ids` may be NULL to count only.
+ * WordPiece without inserting CLS/SEP. Literal configured special tokens are
+ * preserved. Writes up to `ids_cap` ids and reports the written count in n_out.
+ * `elem_width` is 4 (i32) or 8 (i64). If `ids` is NULL, counts all tokens and
+ * ignores ids_cap. Input must be valid UTF-8; embedded NUL is BERT-cleaned.
+ * Output contents are unspecified on error and must not be consumed.
  */
 int wordpiece_tokenize(
     const wordpiece_vocab *v,

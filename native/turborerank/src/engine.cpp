@@ -578,14 +578,14 @@ turborerank_status turborerank_load_model(
     }
 
     std::string cfg_path = join_path(dir, "config.json");
-    std::string vocab_path = join_path(dir, "vocab.txt");
+    std::string vocab_path = join_path(dir, "tokenizer.json");
     if (!is_file(vocab_path) || !is_file(cfg_path)) {
         const std::string rerank = turborerank::impl::resolve_model_dir(
             name.c_str(), name.size(), cfg_c, ws_c
         );
         if (!rerank.empty()) {
             if (!is_file(vocab_path)) {
-                vocab_path = join_path(rerank, "vocab.txt");
+                vocab_path = join_path(rerank, "tokenizer.json");
             }
             if (!is_file(cfg_path)) {
                 cfg_path = join_path(rerank, "config.json");
@@ -600,7 +600,7 @@ turborerank_status turborerank_load_model(
         }
     }
     if (!is_file(vocab_path)) {
-        engine->last_error = "vocab.txt missing: " + vocab_path;
+        engine->last_error = "tokenizer.json missing: " + vocab_path;
         return TURBORERANK_ERR_UNAVAILABLE;
     }
 

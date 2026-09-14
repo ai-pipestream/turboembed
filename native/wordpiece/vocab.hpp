@@ -29,6 +29,9 @@ struct wordpiece_vocab {
     int32_t cls_id = 101;
     int32_t sep_id = 102;
     int32_t pad_id = 0;
+    int32_t mask_id = -1;
+    // Bit order: PAD, UNK, CLS, SEP, MASK; matched before normalization.
+    uint8_t added_specials = 0;
     int loaded = 0;
     int fd = -1;
     int blob_mmap = 0;

@@ -487,7 +487,7 @@ pub fn default_model_dir() -> std::path::PathBuf {
 
 pub fn weights_present() -> bool {
     let d = default_model_dir();
-    d.join("model.safetensors").is_file() && d.join("vocab.txt").is_file()
+    d.join("model.safetensors").is_file() && d.join("tokenizer.json").is_file()
 }
 
 pub fn default_ov_ir_dir() -> std::path::PathBuf {
@@ -498,7 +498,7 @@ pub fn ov_ir_present() -> bool {
     let d = default_ov_ir_dir();
     (d.join("openvino_model.xml").is_file() || d.join("model.xml").is_file())
         && (d.join("openvino_model.bin").is_file() || d.join("model.bin").is_file())
-        && d.join("vocab.txt").is_file()
+        && d.join("tokenizer.json").is_file()
 }
 
 // Silence unused import of turborerank_model_info in some rustc versions.
