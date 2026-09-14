@@ -17,10 +17,9 @@ No reference vectors were changed.
 
 ## Local checks
 
-- `cargo test --locked --workspace`: 299 passed, 0 failed, 9 ignored, before the
-  final two tokenizer regressions were added. Four reranker-model conditional
-  skips remain included in the pass count. Log:
-  `/tmp/turboembed-tokenizer-workspace-final.log`.
+- `cargo test --locked --workspace`: final rerun 301 passed, 0 failed, 9 ignored.
+  Four reranker-model conditional skips remain included in the pass count.
+  Log: `/tmp/turboembed-m0-current-workspace.log`.
 - Final targeted `wordpiece_contract`: 10 passed, 0 failed, 1 ignored. The
   ignored case requires an explicitly supplied actual MiniLM tokenizer.
   Log: `/tmp/turboembed-tokenizer-contract-final.log`.
