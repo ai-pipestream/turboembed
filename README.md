@@ -1,6 +1,16 @@
-# inferstream
+# TurboEmbed
 
-Lean, arch-specific **gRPC streaming inference / embedding servers** in Rust, sharing one wire contract: [KServe Open Inference Protocol (OIP) V2](https://github.com/kserve/open-inference-protocol) with raw byte tensors, bidirectional `ModelStreamInfer`, and bearer auth. Optimized for **raw latency and $/token** — a native, thread-safe alternative to DJL-style serving with no Java or Python hop between the socket and the engine.
+TurboEmbed provides in-process embedding execution through a common C ABI,
+with Rust and Swift callers and native GPU implementations. TurboRerank supplies
+reranking and TurboBuffer manages shared native buffers. Inferstream supplies
+the optional gRPC servers, using [KServe Open Inference Protocol (OIP) V2](https://github.com/kserve/open-inference-protocol)
+and the local inference extensions.
+
+The next step is a distributable native SDK with reusable token/output buffers
+and a Java FFM adapter for JDK 25+, with Android JNI later. See the [roadmap](ROADMAP.md),
+[library definition](docs/library-design.md), and
+[current code review](docs/code-review-2026-09-13.md). These distinguish planned
+capabilities from existing implementation and recorded hardware results.
 
 ## Lab machines
 
@@ -308,10 +318,14 @@ Failures are startup-time and actionable: an unknown alias lists what the catalo
 
 ## Why per-arch binaries (and why a façade at all)
 
-- **Latency and $/token, not portability theater.** Each accelerator's peak path is a different runtime (TRT-LLM Executor vs Level Zero vs Metal/MLX). One fat binary linking all of them means compromise flags, giant images, and driver conflicts. Three lean binaries mean each host runs exactly its optimum and nothing else.
-- **No Java/Python hop.** Unlike DJL (JVM) or Python servers, the socket-to-engine path is a single Rust process; streaming tokens don't cross an interpreter.
-- **Not NIM.** NVIDIA NIM wraps engines in an OpenAI-style HTTP service. inferstream keeps engines in-process under its own gRPC (ORT EPs now; TRT-LLM Executor when generative LLMs are mandated). **NIM is used as a benchmark oracle only**: we run NIM beside `inferstream-nvidia` on the same GPU and model to sanity-check our tokens/sec and TTFT — if we're slower than the HTTP wrapper, that's a bug to fix, not a product to adopt.
-- **Not OVMS/Triton/TEI.** Those own the process and the protocol; adding an engine or changing streaming/auth policy means forking C++ serving infrastructure. Here the protocol layer is ours, engines are leaf dependencies behind one trait — and clients speak the same OIP V2 they'd speak to Triton anyway. Intel embeddings run **in-process** OpenVINO GenAI (`TextEmbeddingPipeline`); inferstream does not depend on a host OVMS container.
+- Platform packages include their selected runtime dependencies. NVIDIA, Intel,
+  and Apple builds can evolve independently while retaining the common contract.
+- Engines execute in the server process. Local library callers use the same
+  native execution without requiring a socket or a separate inference service.
+- Protocol, authentication, and server scheduling belong to Inferstream.
+  Device execution and native buffer ownership belong to the libraries.
+- Performance comparisons require the same model, precision, input, batching,
+  and hardware. Server latency and native-call overhead are measured separately.
 
 ## Bake-off methodology (upcoming, per arch)
 
@@ -458,29 +472,17 @@ Same client, same contract, heterogeneous fleet: Machine A (NVIDIA) + Machine B 
 
 ## Roadmap
 
-Done:
+[ROADMAP.md](ROADMAP.md) defines the library milestones: contract repairs,
+prepared Intel GPU execution, native SDK packaging, Java FFM, NVIDIA/Apple
+qualification, Android JNI, and optional OpenNLP integration. The
+[library definition](docs/library-design.md) specifies ownership, tokenization,
+chunking, and how native performance will be measured.
 
-1. ~~ONNX Runtime session wiring (`backend-ort`)~~ — CPU + CUDA + **ORT TensorRT EP** MiniLM live on Machine A (`nvidia-minilm-tensorrt.json`). Distinct from TRT-LLM generation.
-2. ~~**OVMS client backend**~~ — **removed**: inferstream no longer fronts OpenVINO Model Server. Intel embeds are GenAI only (`docs/adding-ovms-embedding-pipelines.md`).
-3. ~~**OpenVINO GenAI runtime link** (`backend-openvino`, feature `genai`)~~ — GPU + CPU live on Machine B (`intel-minilm.json`, `intel-minilm-cpu.json`). NPU is fail-loud until a Core Ultra client NPU host (`intel-npu.json`).
-4. ~~**llama.cpp FFI** (`backend-llamacpp`)~~ — CPU/CUDA live on Machine A; **SYCL live** on Machine B. Apple generation is the Swift MLX server, not this crate. Vulkan flavor is not a live host path.
-5. ~~**MLX**~~ — **all-Swift gRPC server** (`swift/`, `make apple`): Embed, Tokenize/Detokenize, and streamed generation live on Apple silicon (`scripts/smoke-apple.sh`). Rust `inferstream-apple` is CI-only.
-
-Still open:
-
-6. **TRT-LLM Executor FFI** (`backend-trtllm`, feature `trtllm-sys`) — generative stub. Not ORT TensorRT embeds (those are live).
-7. **Rerank RPC** — **LIVE** behind `--features turborerank` (nvidia /
-   intel) and the Swift server (Machine C). TensorRT CE still fail-loud.
-   TEI `return_documents` + batch cap 32 are on the RPC; richer TEI
-   extras (`raw_scores` on `RerankRequest`) are on the RPC
-   (identity CLS logit vs default sigmoid; TEI-compatible).
-8. **TLS / mTLS** in `serve()`; per-key model ACLs after.
-9. Optional adapters: TEI-compatible proto (lowest priority), richer stream metadata.
-10. ORT session pooling (one session per model behind a mutex today; intra-op threads still parallelize each request).
-11. ~~Zero-copy buffer pool~~ — **TurboBuffer arena** (`include/turbo_buffer.h`). Rerank CPU + mock Embed rent/return. **CUDA PINNED mapped + DEVICE LIVE on Machine A** (TurboRerank + TurboEmbed ORT tokens/hidden/results; `allocs/embed == 0` after warmup; CUDA mean+L2 on DEVICE, `d2h_hidden_bytes` == 0). **ZE HOST/SHARED/DEVICE LIVE on Machine B** (TurboRerank + TurboEmbed GenAI token/result USM; `allocs/forward == 0`). **Metal SHARED LIVE on Machine C** (TurboRerank + `libTurboEmbed.dylib` tokens/last-hidden/results; `allocs/forward == 0`). **Tokenizer write-through LIVE (SOLIDIFY 5)** — WordPiece into rented i32/i64 rows; GenAI no longer encode→copies (`docs/tokenizer-write-through.md`). **gRPC PACKED_BYTES / output reuse LIVE (SOLIDIFY 6)** — façade rents LE FP32 / score slabs; steady-state `output_scratch::allocs() == 0` (`docs/grpc-output-scratch.md`). **SOLIDIFY (7) benches LIVE** — Machine A CUDA `make bench-machine-a` (`docs/bench-turbo-machine-a.md`); Machine B OpenVINO GPU `make bench-machine-b-ov` (`docs/solidify-bench-machine-b.md`); Machine C Metal `make bench-machine-c` (`docs/apple-solidify-bench-machine-c.md`). Unified: `make bench-turbo MACHINE=A|B|C`.
-12. **model2vec** provider (plugin sketch only).
-
-Out of scope: dual independent pub/sub subscribe streams ("Surface 1") — request-scoped bidi only. No NIM HTTP wrapping, ever.
+Existing server backlog remains separate: TLS/mTLS, per-key model ACLs,
+additional protocol adapters, richer stream metadata, and generation backend
+work. TRT-LLM generation and model2vec remain unimplemented. Historical provider
+and buffer results are recorded in the capability sections above and their
+linked receipts; they do not replace the roadmap's acceptance gates.
 
 ## License
 

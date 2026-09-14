@@ -1,14 +1,15 @@
 # TurboEmbed architecture
 
-TurboEmbed is a **universal embedding API** layered on top of today's
-inferstream engines. It does **not** replace the arch gRPC servers
-(`inferstream-nvidia`, `inferstream-intel`, the Swift Apple server). Those
-keep serving OIP V2 + `inferstream.v1`. TurboEmbed is the in-process ABI
-every language can call, with gRPC as a thin bonus wrapper over the same
-surface.
+This page maps the existing ABI and server wiring. The
+[library definition](library-design.md) and [roadmap](../ROADMAP.md) govern new
+work on prepared inputs, device buffers, Java bindings, and later integration.
+See the [review](code-review-2026-09-13.md) for known contract defects; historical
+status labels below are not certification of the current checkout.
 
-No Python. No JSON bridge. Pointer+length views on the wire between
-languages.
+TurboEmbed exposes in-process embedding execution through a C ABI, with Rust
+and Swift wrappers. Desktop Java bindings are planned. Inferstream's NVIDIA,
+Intel, and Swift Apple servers consume the library and expose OIP V2 and
+`inferstream.v1`. Native callers pass pointer-and-length views directly.
 
 ## Layer cake
 
@@ -18,7 +19,7 @@ flowchart TB
         Rust["Rust crate turboembed"]
         C["C / C++"]
         Swift["Swift (Apple)"]
-        Java["Java later — grpc-java"]
+        Java["Java planned: FFM / JNI"]
     end
 
     subgraph grpc [gRPC — thin bonus]
@@ -39,7 +40,7 @@ flowchart TB
 
     subgraph engines [Engines behind the ABI]
         ORT["ORT CUDA / CPU EP"]
-        GenAI["OpenVINO GenAI TextEmbeddingPipeline"]
+        GenAI["OpenVINO compiled model + native tokenizer"]
         Apple["swift/ MlxEngine mean+L2"]
         Mock["mock-embed — ABI smoke only"]
     end
@@ -47,7 +48,7 @@ flowchart TB
     Rust --> abi
     C --> abi
     Swift --> abi
-    Java --> grpc
+    Java -. planned .-> abi
     grpc --> abi
     Ext --> Embed
     Ext --> Stream
@@ -75,9 +76,10 @@ These are part of the contract, not style notes. Full text lives in the
 header comment.
 
 1. **Inputs are views.** `turboembed_str { ptr, len }` and `const char *` +
-   `len` are borrowed. The caller keeps the allocation. Validity: the
-   duration of the call only. UTF-8. Not necessarily NUL-terminated (except
-   `config_path` and name helpers).
+   `len` are borrowed. The caller keeps the allocation for the duration of
+   the synchronous call. Strings are UTF-8. `config_path` and name helpers
+   use C strings; the load-model contract also treats `alias_len == 0` as
+   a NUL-terminated alias. Safe wrappers must uphold that exception.
 2. **Outputs are engine-owned.** `turboembed_embed_result` and
    `turboembed_model_info` lists are released with the matching
    `*_free`. Do not `free` inner pointers. Destroying the engine
@@ -91,8 +93,9 @@ header comment.
 6. **No silent CPU.** GPU/Metal/AUTO/NPU requests fail if that
    accelerator is missing. `CPU` / `OPENVINO_CPU` only when selected.
 
-Rust documents the same rules on `Engine` / `Embeddings`: the safe wrapper
-never hands out a `&[f32]` that outlives the `Embeddings` guard.
+Rust bounds a returned `&[f32]` by its `Embeddings` guard, but the guard does
+not yet retain or borrow the engine. That lifetime defect is a prerequisite
+fix in roadmap M0. The Swift wrapper needs the corresponding ownership fix.
 
 ## Provider plugin sketch
 
@@ -122,7 +125,7 @@ Wiring map (do not invent a fourth runtime):
 | Provider id | Host | Existing code to call later |
 |---|---|---|
 | `ort` | nvidia | `crates/backend-ort` (CUDA EP / CPU EP / TensorRT EP) |
-| `openvino-genai` | intel | `crates/backend-openvino` `TextEmbeddingPipeline` |
+| `openvino-genai` | intel | `native/turboembed/src/genai.cpp`: OpenVINO compiled model and native WordPiece tokenizer |
 | `mlx` | apple | `swift/Sources/MlxEngine` (`MLXEmbedders`) |
 | `mock` | any | default no-feature C++ link / `backend-mock` — ABI smoke only |
 | `model2vec` | later | plugin only — not shipped |
@@ -159,18 +162,17 @@ in, FP32 `embedding` out). Every TurboEmbed embed is expressible as
 
 ## Java note
 
-A future `turboembed-java` client is **grpc-java stubs generated from
-`proto/inferstream_extension.proto`** — not JNI over the C ABI on day one.
+The planned desktop Java API targets JDK 25+ and runs in process through our
+own Panama FFM adapter over the native ABI. It follows native ownership, device selection,
+and error semantics, with prepared buffers as well as text convenience calls.
+The FFM adapter follows native contract and packaging work in
+[roadmap M3](../ROADMAP.md#m3-deliver-desktop-java-on-jdk-25-through-ffm).
 
-- Unary: `InferstreamServiceGrpc.InferstreamServiceBlockingStub.embed`
-- Batch: already `repeated string texts`
-- Stream: `embedStream` → `Iterator<EmbedChunk>`
-- Packed: set `output_format = PACKED_BYTES` and read
-  `packed_embeddings` as a `ByteBuffer` (little-endian `float32`)
-
-JNI / Panama over `turboembed.h` is optional later for in-process JVM
-embedding (no socket). Do not start there; the gRPC path matches how Java
-already talks to inferstream.
+An optional remote client can use grpc-java stubs from the existing proto.
+Remote requests retain typed or packed LE FP32 responses. The gRPC adapter
+is a separate transport choice and is not required for local Java inference.
+Android will receive its JNI adapter and Android-capable backend in M5; desktop FFM support
+does not establish Android runtime support.
 
 ## Inferstream servers are façades
 
