@@ -25,7 +25,9 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 /// create an engine so a CUDA load cannot increment allocs mid-CPU proof.
 fn serialize_engine_tests() -> MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(())).lock().expect("engine test lock")
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .expect("engine test lock")
 }
 
 use serde_json::Value;
@@ -92,10 +94,7 @@ fn assert_no_hot_path_allocs(label: &str) {
             "{label}: ORT gpu_external_alloc={ext} last_bytes={} (ORT still allocated behind the embed)",
             turboembed_ort_external_last_bytes()
         );
-        assert_eq!(
-            fwd, 0,
-            "{label}: turbo_buffer_cuda_forward_allocs={fwd}"
-        );
+        assert_eq!(fwd, 0, "{label}: turbo_buffer_cuda_forward_allocs={fwd}");
         assert_eq!(
             h2d, 0,
             "{label}: token H2D bytes={h2d} (PINNED mapped tokens must not H2D)"
@@ -131,8 +130,16 @@ fn cosine(a: &[f32], b: &[f32]) -> f32 {
         .zip(b)
         .map(|(x, y)| f64::from(*x) * f64::from(*y))
         .sum();
-    let na: f64 = a.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>().sqrt();
-    let nb: f64 = b.iter().map(|v| f64::from(*v) * f64::from(*v)).sum::<f64>().sqrt();
+    let na: f64 = a
+        .iter()
+        .map(|v| f64::from(*v) * f64::from(*v))
+        .sum::<f64>()
+        .sqrt();
+    let nb: f64 = b
+        .iter()
+        .map(|v| f64::from(*v) * f64::from(*v))
+        .sum::<f64>()
+        .sqrt();
     assert!(na > 0.0 && nb > 0.0, "zero-norm vector");
     (dot / (na * nb)) as f32
 }
@@ -394,9 +401,7 @@ fn minilm_ort_cpu_matches_golden() {
     drop(one);
 
     let cpu_engine = Engine::create(Device::Cpu).expect("create Device::Cpu again");
-    cpu_engine
-        .load_model(ALIAS)
-        .expect("second CPU load");
+    cpu_engine.load_model(ALIAS).expect("second CPU load");
     assert_eq!(
         cpu_engine.list_models().unwrap().get(0).unwrap().device,
         Device::Cpu
@@ -427,8 +432,11 @@ fn minilm_ort_cpu_matches_golden() {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).expect("receipt dir");
     }
-    fs::write(&path, serde_json::to_string_pretty(&receipt).unwrap() + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&receipt).unwrap() + "\n",
+    )
+    .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
     eprintln!("wrote {} cosine={hello_cos:.6}", path.display());
 }
 
@@ -537,7 +545,8 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
             "{id}: turbo_buffer_alloc_counter rose {before_arena}→{after_arena}"
         );
         assert_eq!(
-            after_ext, before_ext,
+            after_ext,
+            before_ext,
             "{id}: ORT gpu_external_alloc rose {before_ext}→{after_ext} last_bytes={}",
             unsafe { turboembed_ort_external_last_bytes() }
         );
@@ -618,8 +627,11 @@ fn minilm_ort_cuda_iobinding_matches_golden() {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).expect("receipt dir");
     }
-    fs::write(&path, serde_json::to_string_pretty(&receipt).unwrap() + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&receipt).unwrap() + "\n",
+    )
+    .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
     eprintln!("wrote {}", path.display());
 }
 
@@ -641,8 +653,7 @@ fn minilm_c_abi_embed_one_on_cuda() {
             st,
             turboembed_status::TURBOEMBED_OK,
             "C ABI create CUDA: {}",
-            std::ffi::CStr::from_ptr(turboembed_last_error(std::ptr::null()))
-                .to_string_lossy()
+            std::ffi::CStr::from_ptr(turboembed_last_error(std::ptr::null())).to_string_lossy()
         );
         assert!(!engine.is_null());
 
@@ -781,7 +792,10 @@ fn minilm_ort_tensorrt_matches_golden() {
         "list_models device must be TensorRT"
     );
     assert!(info.ready);
-    assert_ne!(info.dim, 8, "FAKE: minilm on TensorRT returned dim=8 (FNV mock)");
+    assert_ne!(
+        info.dim, 8,
+        "FAKE: minilm on TensorRT returned dim=8 (FNV mock)"
+    );
     assert_eq!(info.dim, dim as u32);
 
     let opts = EmbedOptions {
@@ -877,7 +891,10 @@ fn minilm_ort_tensorrt_matches_golden() {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).expect("receipt dir");
     }
-    fs::write(&path, serde_json::to_string_pretty(&receipt).unwrap() + "\n")
-        .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
+    fs::write(
+        &path,
+        serde_json::to_string_pretty(&receipt).unwrap() + "\n",
+    )
+    .unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
     eprintln!("wrote {}", path.display());
 }

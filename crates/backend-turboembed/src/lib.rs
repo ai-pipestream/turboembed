@@ -413,7 +413,9 @@ impl Backend for TurboEmbedBackend {
         dest: &mut Vec<u8>,
     ) -> Result<PackedEmbed, BackendError> {
         if texts.is_empty() {
-            return Err(BackendError::InvalidRequest("texts must not be empty".into()));
+            return Err(BackendError::InvalidRequest(
+                "texts must not be empty".into(),
+            ));
         }
         let mut opts = EmbedOptions {
             pooling: Pooling::Default,

@@ -31,6 +31,7 @@
 //!
 //! The crate compiles on Linux as a stub so CI type-checks the wiring.
 
+#[cfg(target_os = "macos")]
 mod ffi;
 mod native;
 

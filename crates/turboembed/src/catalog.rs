@@ -156,8 +156,7 @@ pub enum CatalogError {
 
 impl Catalog {
     pub fn builtin() -> Self {
-        Self::from_toml(BUILTIN_CATALOG)
-            .expect("built-in config/catalog.toml must parse")
+        Self::from_toml(BUILTIN_CATALOG).expect("built-in config/catalog.toml must parse")
     }
 
     pub fn from_toml(text: &str) -> Result<Self, CatalogError> {
@@ -178,7 +177,11 @@ impl Catalog {
     }
 
     /// Resolve an embedding alias. Mock backends and LLM aliases are errors.
-    pub fn resolve_embed(&self, alias: &str, arch: Arch) -> Result<&CatalogModelSpec, CatalogError> {
+    pub fn resolve_embed(
+        &self,
+        alias: &str,
+        arch: Arch,
+    ) -> Result<&CatalogModelSpec, CatalogError> {
         if LLM_ALIASES.contains(&alias) {
             return Err(CatalogError::NotAnEmbedder {
                 alias: alias.to_string(),
@@ -231,10 +234,7 @@ mod tests {
                 continue;
             }
             if let Ok(spec) = catalog.resolve_embed(alias, Arch::Nvidia) {
-                assert_ne!(
-                    spec.backend, "mock",
-                    "{alias} nvidia must not be mock"
-                );
+                assert_ne!(spec.backend, "mock", "{alias} nvidia must not be mock");
             }
         }
     }

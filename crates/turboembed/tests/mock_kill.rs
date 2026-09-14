@@ -50,29 +50,27 @@ fn catalog_alias_on_mock_device_never_returns_fnv8() {
 
     for alias in CATALOG_ALIASES {
         match engine.load_model(alias) {
-            Ok(()) => {
-                match engine.embed_one(alias, "hello world", &opts) {
-                    Ok(emb) => {
-                        fail_if_fnv_mock(alias, emb.dim());
-                        panic!(
-                            "FAKE: {alias} loaded on Device::Mock and embedded dim={}",
-                            emb.dim()
-                        );
-                    }
-                    Err(err) => {
-                        assert!(
-                            matches!(
-                                err,
-                                Error::NotImplemented(_)
-                                    | Error::NotFound(_)
-                                    | Error::Unavailable(_)
-                                    | Error::UnsupportedDevice(_)
-                            ),
-                            "{alias} on Mock must fail, got {err:?}"
-                        );
-                    }
+            Ok(()) => match engine.embed_one(alias, "hello world", &opts) {
+                Ok(emb) => {
+                    fail_if_fnv_mock(alias, emb.dim());
+                    panic!(
+                        "FAKE: {alias} loaded on Device::Mock and embedded dim={}",
+                        emb.dim()
+                    );
                 }
-            }
+                Err(err) => {
+                    assert!(
+                        matches!(
+                            err,
+                            Error::NotImplemented(_)
+                                | Error::NotFound(_)
+                                | Error::Unavailable(_)
+                                | Error::UnsupportedDevice(_)
+                        ),
+                        "{alias} on Mock must fail, got {err:?}"
+                    );
+                }
+            },
             Err(err) => {
                 assert!(
                     matches!(

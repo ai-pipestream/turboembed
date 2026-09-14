@@ -121,13 +121,7 @@ fn pack_longest_first_and_query_priority() {
 fn pack_error_and_max_len_boundary() {
     let mut buf = TokenBuffer::alloc(Device::Cpu, 1, 16).unwrap();
     let err = buf
-        .pack_ids(
-            0,
-            &[1, 2, 3, 4, 5],
-            &[6, 7, 8, 9],
-            Truncation::Error,
-            8,
-        )
+        .pack_ids(0, &[1, 2, 3, 4, 5], &[6, 7, 8, 9], Truncation::Error, 8)
         .unwrap_err();
     assert!(matches!(err, Error::InvalidArgument(_)));
 
@@ -168,11 +162,7 @@ fn metal_and_auto_create_succeed_when_compiled() {
 #[cfg(not(turborerank_openvino))]
 #[test]
 fn remaining_accelerators_fail_loud_no_cpu_fallback() {
-    let mut devices = vec![
-        Device::TensorRt,
-        Device::OpenVinoGpu,
-        Device::OpenVinoNpu,
-    ];
+    let mut devices = vec![Device::TensorRt, Device::OpenVinoGpu, Device::OpenVinoNpu];
     if cfg!(not(turborerank_metal)) {
         devices.push(Device::Metal);
     }
@@ -284,17 +274,13 @@ fn mock_refuses_catalog_ce() {
     let engine = Engine::create(Device::Mock).unwrap();
     let err = engine.load_model("ms-marco-minilm-l6").unwrap_err();
     assert!(matches!(err, Error::NotImplemented(_)), "{err:?}");
-    assert!(
-        err.to_string().to_lowercase().contains("mock"),
-        "{}",
-        err
-    );
+    assert!(err.to_string().to_lowercase().contains("mock"), "{}", err);
 }
 
 #[test]
 fn missing_weights_fails_loud() {
-    let engine = Engine::create_with_config(Device::Cpu, Some("/no/such/turborerank".as_ref()))
-        .unwrap();
+    let engine =
+        Engine::create_with_config(Device::Cpu, Some("/no/such/turborerank".as_ref())).unwrap();
     let err = engine.load_model("not-a-real-ce").unwrap_err();
     assert!(matches!(err, Error::Unavailable(_)), "{err:?}");
     let msg = err.to_string().to_lowercase();

@@ -9,15 +9,14 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn cuda_enabled(root: &Path) -> bool {
+fn cuda_enabled() -> bool {
     if std::env::var_os("TURBORERANK_DISABLE_CUDA").is_some() {
         return false;
     }
     if Command::new("nvcc").arg("--version").output().is_err() {
         return false;
     }
-    root.join("/usr/include/cuda_runtime.h").exists()
-        || Path::new("/usr/include/cuda_runtime.h").exists()
+    Path::new("/usr/include/cuda_runtime.h").exists()
         || Path::new("/usr/local/cuda/include/cuda_runtime.h").exists()
 }
 
@@ -115,13 +114,13 @@ fn main() {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let root = manifest.join("../..");
     let root = root.canonicalize().unwrap_or(root);
-    let enable_cuda = cuda_enabled(&root);
+    let enable_cuda = cuda_enabled();
     let ov = openvino_enabled();
     let enable_l0 = ov.is_some() && level_zero_present();
 
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-    let enable_metal = target_os == "macos"
-        && std::env::var_os("TURBORERANK_DISABLE_METAL").is_none();
+    let enable_metal =
+        target_os == "macos" && std::env::var_os("TURBORERANK_DISABLE_METAL").is_none();
 
     let sources = [
         "native/turborerank/src/alloc.cpp",

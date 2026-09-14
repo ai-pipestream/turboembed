@@ -528,7 +528,11 @@ mod tests {
         for alias in RERANK_ALIASES {
             let nvidia = catalog.resolve(alias, Arch::Nvidia).unwrap();
             assert_eq!(nvidia.backend, BackendKind::TurboRerank, "{alias} nvidia");
-            assert_eq!(nvidia.device.as_deref(), Some("cuda"), "{alias} nvidia device");
+            assert_eq!(
+                nvidia.device.as_deref(),
+                Some("cuda"),
+                "{alias} nvidia device"
+            );
             assert_eq!(
                 nvidia.path.as_deref(),
                 Some("models/rerank/ms-marco-minilm-l6")
@@ -546,7 +550,11 @@ mod tests {
 
             let apple = catalog.resolve(alias, Arch::Apple).unwrap();
             assert_eq!(apple.backend, BackendKind::TurboRerank, "{alias} apple");
-            assert_eq!(apple.device.as_deref(), Some("metal"), "{alias} apple device");
+            assert_eq!(
+                apple.device.as_deref(),
+                Some("metal"),
+                "{alias} apple device"
+            );
             assert_eq!(
                 apple.path.as_deref(),
                 Some("models/rerank/ms-marco-minilm-l6")

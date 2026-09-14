@@ -56,7 +56,9 @@ fn reject_mock_scores(scores: &[f32]) {
         "FAKE: all scores equal {scores:?} — constant/mock scorer"
     );
     // FNV-ish 8-d mock is an embed trick; CE scores must not be 0/1 word-overlap.
-    let only_unit = scores.iter().all(|s| (*s == 0.0) || (*s == 1.0) || (*s == 0.5));
+    let only_unit = scores
+        .iter()
+        .all(|s| (*s == 0.0) || (*s == 1.0) || (*s == 0.5));
     assert!(
         !only_unit,
         "FAKE: scores look like the word-overlap mock {scores:?}"

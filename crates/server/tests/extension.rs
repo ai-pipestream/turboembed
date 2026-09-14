@@ -247,11 +247,7 @@ async fn packed_bytes_and_rerank_reuse_output_scratch_after_warmup() {
 
     // Warm the size-class slabs (mock still heap-allocs its own infer blob).
     for _ in 0..2 {
-        let packed = client
-            .embed(packed_req.clone())
-            .await
-            .unwrap()
-            .into_inner();
+        let packed = client.embed(packed_req.clone()).await.unwrap().into_inner();
         assert_eq!(packed.packed_embeddings.len(), 2 * 8 * 4);
         assert!(packed.embeddings.is_empty());
         let _ = client.rerank(rerank_req.clone()).await.unwrap();
@@ -259,11 +255,7 @@ async fn packed_bytes_and_rerank_reuse_output_scratch_after_warmup() {
 
     output_scratch::reset_counters();
     for _ in 0..8 {
-        let packed = client
-            .embed(packed_req.clone())
-            .await
-            .unwrap()
-            .into_inner();
+        let packed = client.embed(packed_req.clone()).await.unwrap().into_inner();
         assert_eq!(packed.packed_embeddings.len(), 2 * 8 * 4);
         let ranked = client
             .rerank(rerank_req.clone())

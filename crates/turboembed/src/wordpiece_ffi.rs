@@ -123,10 +123,7 @@ impl WordPiece {
 }
 
 /// Prefer vocab.txt / tokenizer.json next to the ONNX (or tokenizer_dir).
-pub fn load_beside_model(
-    model_path: &str,
-    tokenizer_dir: Option<&str>,
-) -> Option<WordPiece> {
+pub fn load_beside_model(model_path: &str, tokenizer_dir: Option<&str>) -> Option<WordPiece> {
     if let Some(dir) = tokenizer_dir {
         let p = Path::new(dir);
         if p.is_dir() {
