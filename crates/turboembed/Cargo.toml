@@ -9,6 +9,8 @@ authors.workspace = true
 rust-version.workspace = true
 
 [features]
+# Additive Linux SDK; set TURBOEMBED_PREPARED_SDK to its installed prefix.
+prepared = []
 # Real in-process ov::genai::TextEmbeddingPipeline on Intel CPU or GPU.
 # Explicit device string; GPU / NPU request never silently compiles CPU.
 # NPU create fails loud when the plugin is missing (Machine B has none).

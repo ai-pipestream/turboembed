@@ -113,6 +113,24 @@ fn main() {
     println!("cargo:rustc-env=INFERSTREAM_ROOT={}", root.display());
 
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    println!("cargo:rerun-if-env-changed=TURBOEMBED_PREPARED_SDK");
+    if std::env::var_os("CARGO_FEATURE_PREPARED").is_some() {
+        assert_eq!(
+            target_os, "linux",
+            "the prepared SDK currently targets Linux"
+        );
+        let prefix = PathBuf::from(
+            std::env::var_os("TURBOEMBED_PREPARED_SDK")
+                .expect("set TURBOEMBED_PREPARED_SDK to the installed native SDK prefix"),
+        );
+        let lib = prefix.join("lib");
+        assert!(
+            lib.join("libturboembed_prepared.so").is_file(),
+            "prepared SDK library is missing"
+        );
+        println!("cargo:rustc-link-search=native={}", lib.display());
+        println!("cargo:rustc-link-lib=dylib=turboembed_prepared");
+    }
     if target_os == "macos" {
         link_swift_mlx(&root);
     } else {

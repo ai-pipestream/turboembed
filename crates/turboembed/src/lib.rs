@@ -58,6 +58,11 @@
 #![allow(clippy::result_large_err)]
 
 pub mod ffi;
+#[cfg(feature = "prepared")]
+pub mod prepared;
+#[cfg(feature = "prepared")]
+#[allow(dead_code)]
+mod prepared_ffi;
 
 #[cfg(feature = "ort-cuda")]
 mod buffer_ffi;
