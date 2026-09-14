@@ -234,8 +234,17 @@ impl Drop for PooledBytes {
 mod tests {
     use super::*;
 
+    static COUNTER_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn lock_counters() -> std::sync::MutexGuard<'static, ()> {
+        COUNTER_TEST_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     #[test]
     fn packed_blob_reuses_after_warmup() {
+        let _counter_guard = lock_counters();
         reset_counters();
         let row = [1.0f32, 2.0, 3.0, 4.0];
         let first = pack_le_f32(&row);
@@ -261,6 +270,7 @@ mod tests {
 
     #[test]
     fn adopt_returns_capacity_to_next_rent() {
+        let _counter_guard = lock_counters();
         reset_counters();
         let mut dest = rent_bytes(64);
         dest.extend_from_slice(&[1, 2, 3, 4]);
@@ -278,6 +288,7 @@ mod tests {
 
     #[test]
     fn f32_scores_reuse_after_warmup() {
+        let _counter_guard = lock_counters();
         reset_counters();
         let mut scores = rent_f32(3);
         scores.extend_from_slice(&[0.1, 0.2, 0.3]);
@@ -294,6 +305,7 @@ mod tests {
 
     #[test]
     fn bytes_clone_returns_once() {
+        let _counter_guard = lock_counters();
         reset_counters();
         let blob = pack_le_f32(&[9.0f32; 8]);
         let clone = blob.clone();
