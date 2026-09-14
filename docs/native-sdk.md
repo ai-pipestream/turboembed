@@ -8,8 +8,10 @@ copying results to host memory is an explicit operation.
 
 This is development source, not a published release. The
 [validation receipt](intel-prepared-sdk-2026-09-14.md) records the tested device,
-runtime and model. Matched native-overhead measurements and the Rust and Java
-adapters remain release gates. Android JNI is a later track.
+runtime and model. The [native pilot](intel-prepared-performance-2026-09-14.md)
+records matched OpenVINO/ABI measurements. Optional [Rust](rust-prepared-sdk.md)
+and [JDK 25 FFM](java-ffm.md) adapters use this same SDK. Android JNI is a later
+track.
 
 ## Build and install
 
@@ -94,7 +96,9 @@ cmake --build /tmp/te-consumer
 /tmp/te-consumer/turboembed_prepared_embed /path/to/new-minilm-bundle cpu
 ```
 
-GPU is the default; CPU must be explicitly selected. Missing GPU support returns
+The example embeds text, then uploads the pinned tokenizer's prepared IDs once
+and verifies three repeated executions against the text output. GPU is the
+default; CPU must be explicitly selected. Missing GPU support returns
 an error. There is no server or mandatory network connection.
 
 Create a context, load a model, and create a slot with fixed batch and sequence

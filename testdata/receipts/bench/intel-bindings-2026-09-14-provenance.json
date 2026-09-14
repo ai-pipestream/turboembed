@@ -1,0 +1,23 @@
+{
+  "native_implementation_commit": "596e5c3",
+  "java_runtime": "Temurin 25.0.4+7",
+  "model_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "initial_jars": {
+    "turboembed-api-0.1.0-SNAPSHOT.jar": "50a9bd71027e725efec2f98ec7c85dada5a55685e3ecf0df17220c7b9f24a05b",
+    "turboembed-ffm-0.1.0-SNAPSHOT.jar": "4f071adbbcc44e139b4deb36d4e046f2edd996d029af0ef0947bb92e6f49a5e0"
+  },
+  "final_jars": {
+    "turboembed-api-0.1.0-SNAPSHOT.jar": "1e3b52c033933c03830d588de50401ca26ed556c3eec68caa67a388a85c6a40d",
+    "turboembed-ffm-0.1.0-SNAPSHOT.jar": "12e25a2eee7e3ea81e0586f97667f47b4857af6f859e4f7edb5499e98f03d39b"
+  },
+  "benchmark_source": {
+    "BindingBenchmark.java": "7c396763704764dcf0a69d37cd7676dc6307cacb7ac566cf92e6a51ab441ee45",
+    "binding_benchmark.cpp": "a9cc0b1b7747e08205173dfe621ee28534d1f78837a4789a705c6719a954bd38"
+  },
+  "native_artifacts": {
+    "libturboembed_prepared.so.1": "a4ed44af5a1ce28351c66df9daf3959f708c1884670956ee8585da77ace7de80",
+    "bundle.json": "4b25b2b12b246432a7cbbbee4114aab08309d77f1418f1773f25fa45ce496df6",
+    "BindingBenchmark.class": "4502e7246f7a523c00e0f5f7aac32d681aca307b4fa7684ed2f61c560ad53539",
+    "binding_benchmark": "c1bd16103a796c42254a511dd2d5831512edfc6919870a56894236728d3b1658"
+  }
+}

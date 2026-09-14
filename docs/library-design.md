@@ -5,6 +5,10 @@ claim the proposed APIs or performance guarantees already exist. Delivery gates
 are in the [roadmap](../ROADMAP.md), and current defects are in the
 [code review](code-review-2026-09-13.md).
 
+Current implementation and usage are maintained in the [native SDK guide](native-sdk.md),
+with linked Rust/Java guides and dated validation receipts. The planning baseline
+below does not serve as a current feature-status list.
+
 ## Purpose
 
 TurboEmbed provides native embedding and reranking execution inside the caller's

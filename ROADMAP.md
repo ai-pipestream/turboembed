@@ -5,6 +5,10 @@ by this document alone. The [library definition](docs/library-design.md) states
 the intended contracts; the [review](docs/code-review-2026-09-13.md) records known
 defects. This roadmap governs library direction over older server-first plans.
 
+Current implementation and usage are maintained in the [native SDK guide](docs/native-sdk.md),
+with linked Rust/Java guides and dated validation receipts. The planning baseline
+below does not serve as a current feature-status list.
+
 ## Release objective
 
 Ship an embeddable native library that applications can run directly on a GPU

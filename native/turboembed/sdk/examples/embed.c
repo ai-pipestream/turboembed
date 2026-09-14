@@ -117,8 +117,72 @@ int main(int argc, char **argv) {
   for (size_t index = 0; index < 384; ++index) {
     squared_norm += (double)values[index] * values[index];
   }
-  printf("device=%s (%u) dimension=%u norm=%.6f\n", context_info.device_name,
-         context_info.device, result_info.dimension, sqrt(squared_norm));
+  if (!isfinite(squared_norm) || fabs(sqrt(squared_norm) - 1.0) > 1e-4) {
+    fprintf(stderr, "embedding is not finite and normalized\n");
+    goto cleanup;
+  }
+  status = turboembed_prepared_v1_result_release(result, &error);
+  result = NULL;
+  if (status != TE_OK) {
+    report_error("text result release", status, &error);
+    goto cleanup;
+  }
+
+  /* These token IDs belong to this tokenizer, not to arbitrary models. */
+  te_model_info model_info = {
+      .struct_size = sizeof(model_info), .version = TE_PREPARED_VERSION};
+  status = turboembed_prepared_v1_model_info(model, &model_info, &error);
+  if (status != TE_OK) {
+    report_error("model info", status, &error);
+    goto cleanup;
+  }
+  if (strcmp(model_info.tokenizer_sha256,
+             "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037") != 0) {
+    fprintf(stderr, "prepared example requires the pinned MiniLM tokenizer\n");
+    goto cleanup;
+  }
+  int32_t ids[32] = {101, 7592, 2088, 102};
+  int32_t masks[32] = {1, 1, 1, 1};
+  status = turboembed_prepared_v1_slot_write_tokens(slot, ids, masks, NULL, 32, &error);
+  if (status != TE_OK) {
+    report_error("token write", status, &error);
+    goto cleanup;
+  }
+  float prepared[384];
+  for (int repeat = 0; repeat < 3; ++repeat) {
+    status = turboembed_prepared_v1_slot_execute(slot, &result, &error);
+    if (status != TE_OK) {
+      report_error("prepared execute", status, &error);
+      goto cleanup;
+    }
+    status = turboembed_prepared_v1_result_read(result, prepared, 384, &error);
+    if (status != TE_OK) {
+      report_error("prepared read", status, &error);
+      goto cleanup;
+    }
+    double squared_error = 0.0;
+    for (size_t index = 0; index < 384; ++index) {
+      double difference = (double)prepared[index] - values[index];
+      if (!isfinite(difference) || fabs(difference) > 1e-6) {
+        fprintf(stderr, "prepared/text maximum error exceeded\n");
+        goto cleanup;
+      }
+      squared_error += difference * difference;
+    }
+    if (sqrt(squared_error / 384) > 1e-7) {
+      fprintf(stderr, "prepared/text RMSE exceeded\n");
+      goto cleanup;
+    }
+    status = turboembed_prepared_v1_result_release(result, &error);
+    result = NULL;
+    if (status != TE_OK) {
+      report_error("prepared result release", status, &error);
+      goto cleanup;
+    }
+  }
+  printf("device=%s (%u) dimension=%u norm=%.6f prepared/text=PASS\n",
+         context_info.device_name, context_info.device, result_info.dimension,
+         sqrt(squared_norm));
   exit_code = 0;
 
 cleanup:

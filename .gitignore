@@ -29,3 +29,5 @@ native/bench/build/
 swift/.build/
 .DS_Store
 agent-tools/
+
+/java/**/target/
