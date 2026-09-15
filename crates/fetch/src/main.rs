@@ -112,13 +112,7 @@ fn run() -> inferstream_fetch::Result<i32> {
         .clone()
         .unwrap_or_else(inferstream_fetch::workspace_root);
     let manifest_path = args.manifest.clone().unwrap_or_else(|| {
-        default_manifest(
-            &root,
-            args.llms,
-            args.ov_genai,
-            args.corpus,
-            args.rerankers,
-        )
+        default_manifest(&root, args.llms, args.ov_genai, args.corpus, args.rerankers)
     });
 
     let stdout = io::stdout();

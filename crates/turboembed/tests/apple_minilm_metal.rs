@@ -166,10 +166,7 @@ fn score_against(got: &[(&str, &[f32])], dump: &GoldenDump, floor: f32, label: &
     let mut n = 0usize;
     let mut worst = String::new();
     for (id, row) in got {
-        let gold = by_id
-            .get(id)
-            .copied()
-            .or_else(|| by_text.get(id).copied());
+        let gold = by_id.get(id).copied().or_else(|| by_text.get(id).copied());
         let Some(gold) = gold else { continue };
         if gold.vector.len() != row.len() {
             panic!(
@@ -475,7 +472,12 @@ fn apple_minilm_metal_cosine_vs_goldens() {
     let vs_apple = if apple_path.is_file() {
         let apple = load_dump(&apple_path);
         assert_eq!(apple.dim, MINILM_DIM as u32);
-        Some(score_against(&got, &apple, APPLE_FLOOR, "apple-mlx↔apple-golden"))
+        Some(score_against(
+            &got,
+            &apple,
+            APPLE_FLOOR,
+            "apple-mlx↔apple-golden",
+        ))
     } else {
         None
     };

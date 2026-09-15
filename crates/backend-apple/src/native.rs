@@ -1,8 +1,11 @@
 //! Native MLX runtime handle. On macOS this is in-process Swift MLX via FFI.
 //! Off-macOS every call is `Unavailable` so Linux CI still type-checks.
 
+#[cfg(target_os = "macos")]
 use std::ffi::{c_void, CString};
+#[cfg(target_os = "macos")]
 use std::os::raw::c_char;
+#[cfg(target_os = "macos")]
 use std::sync::Mutex;
 
 use inferstream_backend::BackendError;

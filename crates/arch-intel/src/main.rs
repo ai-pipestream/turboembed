@@ -183,7 +183,7 @@ mod tests {
             "#,
         );
         assert!(
-            matches!(result, Err(_)),
+            result.is_err(),
             "backend = \"ovms\" must not parse after OVMS removal"
         );
     }

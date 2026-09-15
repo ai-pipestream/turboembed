@@ -171,13 +171,9 @@ async fn backend_rerank_matches_berlin_sigmoid_when_weights_present() {
     }
     let golden = load_golden();
     let atol = golden.atol.unwrap_or(0.002);
-    let backend = TurboRerankBackend::open(
-        ALIAS,
-        Device::Cpu,
-        Some(&default_model_dir()),
-        Some(32),
-    )
-    .expect("CPU MiniLM CE");
+    let backend =
+        TurboRerankBackend::open(ALIAS, Device::Cpu, Some(&default_model_dir()), Some(32))
+            .expect("CPU MiniLM CE");
     let scores = backend
         .rerank(ALIAS, &golden.texts.query, &golden.texts.documents, false)
         .await
@@ -223,8 +219,7 @@ async fn rpc_scores_match_berlin_and_honor_sort_top_n_when_weights_present() {
     for row in &response.results {
         by_index[row.index as usize] = row.score;
         assert_eq!(
-            row.document,
-            golden.texts.documents[row.index as usize],
+            row.document, golden.texts.documents[row.index as usize],
             "return_documents echoes input"
         );
     }
@@ -302,8 +297,8 @@ fn library_sigmoid_is_the_rpc_activation() {
     if !weights_present() {
         return;
     }
-    let engine = Engine::create_with_config(Device::Cpu, Some(&default_model_dir()))
-        .expect("CPU engine");
+    let engine =
+        Engine::create_with_config(Device::Cpu, Some(&default_model_dir())).expect("CPU engine");
     engine
         .load_model(ALIAS)
         .unwrap_or_else(|e| panic!("load: {e} ({})", engine.last_error()));

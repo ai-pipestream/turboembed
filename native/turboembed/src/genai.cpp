@@ -212,39 +212,15 @@ std::string input_name_matching(const Port& in, const char* needle) {
     return {};
 }
 
-std::string workspace_root() {
-    const char *e = std::getenv("INFERSTREAM_ROOT");
-    if (e != nullptr && e[0] != '\0') {
-        return e;
-    }
-    if (TURBOEMBED_WORKSPACE_ROOT[0] != '\0') {
-        return TURBOEMBED_WORKSPACE_ROOT;
-    }
-    return ".";
-}
-
 wordpiece_vocab *load_wordpiece_or_throw(const fs::path& dir) {
     wordpiece_vocab *v = nullptr;
-    if (wordpiece_vocab_load_dir(dir.string().c_str(), &v) == WORDPIECE_OK && v != nullptr) {
+    const auto path = (dir / "tokenizer.json").string();
+    if (wordpiece_vocab_load(path.c_str(), &v) == WORDPIECE_OK && v != nullptr) {
         return v;
     }
-    const std::string root = workspace_root();
-    const char *fallbacks[] = {
-        "/models/onnx/minilm/tokenizer.json",
-        "/models/onnx/minilm/vocab.txt",
-        "/models/rerank/ms-marco-minilm-l6/vocab.txt",
-    };
-    for (const char *rel : fallbacks) {
-        const std::string p = root + rel;
-        if (wordpiece_vocab_load(p.c_str(), &v) == WORDPIECE_OK && v != nullptr) {
-            return v;
-        }
-    }
     throw std::runtime_error(
-        "WordPiece vocab missing for GenAI write-through (need vocab.txt or "
-        "tokenizer.json next to the IR, or MiniLM vocab under models/onnx/minilm "
-        "or models/rerank/ms-marco-minilm-l6). ov::genai::Tokenizer.encode has "
-        "no caller-buffer API — refusing encode→copy into USM"
+        "Native tokenization requires a supported uncased BERT tokenizer.json "
+        "in the model bundle: " + path
     );
 }
 

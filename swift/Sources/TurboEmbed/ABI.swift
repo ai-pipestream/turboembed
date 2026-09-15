@@ -55,32 +55,19 @@ private final class EngineBox: @unchecked Sendable {
     }
 }
 
-/// Thread-local-ish create error. The ABI is not Sync on one engine;
-/// this slot is locked for the null-engine `turboembed_last_error` path.
-private final class TLS: @unchecked Sendable {
-    static let shared = TLS()
-    private let lock = NSLock()
-    private var message = ""
+private final class CreationErrorSlot: NSObject {
     private var ptr: UnsafeMutablePointer<CChar>?
 
-    var createError: String {
-        get {
-            lock.lock()
-            defer { lock.unlock() }
-            return message
-        }
-        set {
-            lock.lock()
-            defer { lock.unlock() }
-            message = newValue
-            ptr.map { free($0) }
-            ptr = newValue.isEmpty ? nil : strdup(newValue)
-        }
+    deinit {
+        ptr.map { free($0) }
     }
 
-    var createErrorCString: UnsafePointer<CChar> {
-        lock.lock()
-        defer { lock.unlock() }
+    func set(_ message: String) {
+        ptr.map { free($0) }
+        ptr = message.isEmpty ? nil : strdup(message)
+    }
+
+    var cString: UnsafePointer<CChar> {
         if let ptr {
             return UnsafePointer(ptr)
         }
@@ -88,8 +75,34 @@ private final class TLS: @unchecked Sendable {
     }
 }
 
+private enum CreationErrorTLS {
+    private static let key = "org.turboembed.creation-error"
+
+    static var current: CreationErrorSlot {
+        let dictionary = Thread.current.threadDictionary
+        if let slot = dictionary[key] as? CreationErrorSlot {
+            return slot
+        }
+        let slot = CreationErrorSlot()
+        dictionary[key] = slot
+        return slot
+    }
+}
+
 private let mockAlias = "mock-embed"
 private let mockDim: UInt32 = 8
+
+private func checkedResultShape(count: Int, dim: UInt32) ->
+    (count: UInt32, elements: Int, bytes: Int)?
+{
+    guard count > 0, count <= Int(UInt32.max) else { return nil }
+    let (elements, elementsOverflow) = count.multipliedReportingOverflow(by: Int(dim))
+    guard !elementsOverflow else { return nil }
+    let (bytes, bytesOverflow) =
+        elements.multipliedReportingOverflow(by: MemoryLayout<Float>.size)
+    guard !bytesOverflow else { return nil }
+    return (UInt32(count), elements, bytes)
+}
 
 /// AUTO / METAL = host GPU (Metal). Missing GPU → create fails, never CPU.
 private func wantsHostGpu(_ device: turboembed_device) -> Bool {
@@ -195,7 +208,7 @@ public func turboembed_last_error(_ engine: OpaquePointer?) -> UnsafePointer<CCh
     if let engine, let box = bridge(engine) {
         return box.errorCString
     }
-    return TLS.shared.createErrorCString
+    return CreationErrorTLS.current.cString
 }
 
 @_cdecl("turboembed_engine_create")
@@ -205,12 +218,12 @@ public func turboembed_engine_create(
     _ out: UnsafeMutablePointer<OpaquePointer?>?
 ) -> turboembed_status {
     guard let out else {
-        TLS.shared.createError = "out pointer is null"
+        CreationErrorTLS.current.set("out pointer is null")
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
     out.pointee = nil
     if let refusal = refuseForeignGpu(device) {
-        TLS.shared.createError = refusal
+        CreationErrorTLS.current.set(refusal)
         return TURBOEMBED_ERR_UNSUPPORTED_DEVICE
     }
     MlxProvider.ensureWorkspaceRoot()
@@ -235,21 +248,23 @@ public func turboembed_engine_create(
             box.metalArena = try MetalArena()
             box.mlxAliases = MlxProvider.discover(catalog: box.catalog)
             guard let minilm = box.mlxAliases["minilm"], minilm.dim == 384 else {
-                TLS.shared.createError =
+                CreationErrorTLS.current.set(
                     "requested \(cDeviceName(device)); Metal/AUTO create must list catalog minilm dim=384, not mock-embed — refusing CPU/mock fallback. Run `make fetch-mlx ALIASES=minilm`"
+                )
                 return TURBOEMBED_ERR_UNAVAILABLE
             }
             fputs(
                 "[turboembed] mlx ping device=\(ping.device) metal=true matmul_ok=\(ping.matmulOk) aliases=\(box.mlxAliases.keys.sorted().joined(separator: ",")) — FP MiniLM path is live\n",
                 stderr)
         } catch {
-            TLS.shared.createError =
+            CreationErrorTLS.current.set(
                 "requested \(cDeviceName(device)); \(error) — refusing CPU fallback"
+            )
             return TURBOEMBED_ERR_UNAVAILABLE
         }
     }
     out.pointee = OpaquePointer(Unmanaged.passRetained(box).toOpaque())
-    TLS.shared.createError = ""
+    CreationErrorTLS.current.set("")
     return TURBOEMBED_OK
 }
 
@@ -476,7 +491,8 @@ public func turboembed_register_provider(
     _ vtbl: UnsafePointer<turboembed_provider_vtbl>?
 ) -> turboembed_status {
     _ = vtbl
-    TLS.shared.createError = "turboembed_register_provider is reserved for MLX / model2vec plugins"
+    CreationErrorTLS.current.set(
+        "turboembed_register_provider is reserved for MLX / model2vec plugins")
     return TURBOEMBED_ERR_NOT_IMPLEMENTED
 }
 
@@ -494,6 +510,10 @@ private func embedImpl(
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     }
     out.pointee = nil
+    guard nTexts <= Int(UInt32.max) else {
+        box.lastError = "text count exceeds ABI result count range"
+        return TURBOEMBED_ERR_INVALID_ARGUMENT
+    }
     guard let alias, let texts, nTexts > 0 else {
         box.lastError = "null embed argument"
         return TURBOEMBED_ERR_INVALID_ARGUMENT
@@ -509,8 +529,11 @@ private func embedImpl(
         box.lastError = "mock-embed is not loaded"
         return TURBOEMBED_ERR_NOT_FOUND
     }
-    let nFloats = nTexts * Int(mockDim)
-    let values = UnsafeMutablePointer<Float>.allocate(capacity: nFloats)
+    guard let shape = checkedResultShape(count: nTexts, dim: mockDim) else {
+        box.lastError = "result shape exceeds addressable size"
+        return TURBOEMBED_ERR_INVALID_ARGUMENT
+    }
+    let values = UnsafeMutablePointer<Float>.allocate(capacity: shape.elements)
     for i in 0..<nTexts {
         let view = texts[i]
         mockRow(ptr: view.ptr, len: view.len, into: values.advanced(by: i * Int(mockDim)), dim: mockDim)
@@ -519,10 +542,10 @@ private func embedImpl(
     rec.pointee = EmbedResultRec(
         pub: turboembed_embed_result(
             dim: mockDim,
-            count: UInt32(nTexts),
+            count: shape.count,
             values: UnsafePointer(values),
             packed: UnsafeRawPointer(values).assumingMemoryBound(to: UInt8.self),
-            packed_len: nFloats * MemoryLayout<Float>.size
+            packed_len: shape.bytes
         ),
         view: turbo_buffer_view(),
         arena: nil
@@ -557,6 +580,19 @@ private func embedMlx(
         box.lastError = err.localizedDescription
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     case .success(let pooling):
+        guard let arena = box.metalArena else {
+            box.lastError =
+                "Metal embed requires a turbo_buffer Metal SHARED arena — refusing MLX-private buffers"
+            return TURBOEMBED_ERR_INTERNAL
+        }
+        guard nTexts <= Int(arena.maxBatch) else {
+            box.lastError = "batch \(nTexts) exceeds arena max_batch \(arena.maxBatch)"
+            return TURBOEMBED_ERR_INVALID_ARGUMENT
+        }
+        guard checkedResultShape(count: nTexts, dim: arena.dim) != nil else {
+            box.lastError = "result shape exceeds addressable size"
+            return TURBOEMBED_ERR_INVALID_ARGUMENT
+        }
         var batch = [String]()
         batch.reserveCapacity(nTexts)
         for i in 0..<nTexts {
@@ -564,11 +600,6 @@ private func embedMlx(
             batch.append(stringView(view.ptr, view.len))
         }
         do {
-            guard let arena = box.metalArena else {
-                throw MetalArenaError.create(
-                    "Metal embed requires a turbo_buffer Metal SHARED arena — refusing MLX-private buffers"
-                )
-            }
             let result = try MlxProvider.embedArena(
                 engine: mlx,
                 model: model,

@@ -12,6 +12,12 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <limits>
+#include <memory>
+#include <set>
+#include <sstream>
+#include "nlohmann/json.hpp"
+#include "utf8proc/utf8proc.h"
 
 #ifndef _WIN32
 #include <fcntl.h>
@@ -70,8 +76,7 @@ bool insert_slot(
             return true;
         }
         if (s.len == len && std::memcmp(v->blob + s.off, v->blob + off, len) == 0) {
-            s.id = id;
-            return true;
+            return false; // Duplicate vocabulary token.
         }
     }
     return false;
@@ -93,26 +98,19 @@ int32_t lookup_special(const wordpiece_vocab *v, const char *tok) {
     return -1;
 }
 
-void set_specials(wordpiece_vocab *v) {
-    const int32_t unk = lookup_special(v, "[UNK]");
-    const int32_t cls = lookup_special(v, "[CLS]");
-    const int32_t sep = lookup_special(v, "[SEP]");
-    const int32_t pad = lookup_special(v, "[PAD]");
-    if (unk >= 0) {
-        v->unk_id = unk;
-    }
-    if (cls >= 0) {
-        v->cls_id = cls;
-    }
-    if (sep >= 0) {
-        v->sep_id = sep;
-    }
-    if (pad >= 0) {
-        v->pad_id = pad;
-    }
+bool set_specials(wordpiece_vocab *v) {
+    v->unk_id = lookup_special(v, "[UNK]");
+    v->cls_id = lookup_special(v, "[CLS]");
+    v->sep_id = lookup_special(v, "[SEP]");
+    v->pad_id = lookup_special(v, "[PAD]");
+    v->mask_id = lookup_special(v, "[MASK]");
+    return v->unk_id >= 0 && v->cls_id >= 0 && v->sep_id >= 0 && v->pad_id >= 0;
 }
 
 bool alloc_slots(wordpiece_vocab *v, uint32_t n_tokens) {
+    if (n_tokens > (UINT32_MAX - 8u) / 2u) {
+        return false;
+    }
     uint32_t n = next_pow2(n_tokens * 2u + 8u);
     if (n == 0) {
         return false;
@@ -149,6 +147,21 @@ void destroy_image(wordpiece_vocab *v) {
     delete v;
 }
 
+using Image = std::unique_ptr<wordpiece_vocab, decltype(&destroy_image)>;
+
+bool valid_utf8(const char *text, size_t size) {
+    size_t i = 0;
+    while (i < size) {
+        int32_t cp = 0;
+        const auto n = utf8proc_iterate(
+            reinterpret_cast<const uint8_t *>(text + i),
+            static_cast<utf8proc_ssize_t>(size - i), &cp);
+        if (n < 1) { return false; }
+        i += static_cast<size_t>(n);
+    }
+    return true;
+}
+
 bool load_vocab_txt(const char *path, wordpiece_vocab **out) {
 #ifdef _WIN32
     (void)path;
@@ -160,7 +173,7 @@ bool load_vocab_txt(const char *path, wordpiece_vocab **out) {
         return false;
     }
     struct stat st {};
-    if (fstat(fd, &st) != 0 || st.st_size <= 0) {
+    if (fstat(fd, &st) != 0 || st.st_size <= 0 || static_cast<uint64_t>(st.st_size) > UINT32_MAX) {
         close(fd);
         return false;
     }
@@ -183,6 +196,7 @@ bool load_vocab_txt(const char *path, wordpiece_vocab **out) {
     v->fd = fd;
     v->blob_mmap = 1;
 
+    Image image(v, &destroy_image);
     uint32_t n_tok = 0;
     for (size_t i = 0; i < v->blob_size; ++i) {
         if (v->blob[i] == '\n') {
@@ -192,279 +206,166 @@ bool load_vocab_txt(const char *path, wordpiece_vocab **out) {
     if (v->blob_size > 0 && v->blob[v->blob_size - 1] != '\n') {
         ++n_tok;
     }
-    if (n_tok == 0 || !alloc_slots(v, n_tok)) {
-        destroy_image(v);
+    if (n_tok == 0 || n_tok > INT32_MAX || !alloc_slots(v, n_tok)) {
         return false;
     }
 
     size_t start = 0;
     int32_t id = 0;
     for (size_t i = 0; i <= v->blob_size; ++i) {
-        if (i == v->blob_size || v->blob[i] == '\n') {
+        if ((i == v->blob_size && start < i) || (i < v->blob_size && v->blob[i] == '\n')) {
             size_t end = i;
             if (end > start && v->blob[end - 1] == '\r') {
                 --end;
             }
             const size_t len = end - start;
-            if (len > 0xffffu) {
-                destroy_image(v);
+            if (len > 0xffffu || !valid_utf8(v->blob + start, len)) {
                 return false;
             }
             if (!insert_slot(v, static_cast<uint32_t>(start), static_cast<uint16_t>(len), id)) {
-                destroy_image(v);
                 return false;
             }
             ++id;
             start = i + 1;
         }
     }
-    set_specials(v);
+    if (!set_specials(v)) {
+        return false;
+    }
+    v->added_specials = v->mask_id >= 0 ? 31 : 15;
     v->loaded = 1;
-    *out = v;
+    *out = image.release();
     return true;
 #endif
 }
 
-int hex_val(char c) {
-    if (c >= '0' && c <= '9') {
-        return c - '0';
-    }
-    if (c >= 'a' && c <= 'f') {
-        return c - 'a' + 10;
-    }
-    if (c >= 'A' && c <= 'F') {
-        return c - 'A' + 10;
-    }
-    return -1;
+using Json = nlohmann::json;
+
+bool valid_id(const Json &id) {
+    return id.is_number_integer() && id >= 0 && id <= INT32_MAX;
 }
 
-bool append_utf8(std::string *out, uint32_t cp) {
-    if (cp < 0x80) {
-        out->push_back(static_cast<char>(cp));
-    } else if (cp < 0x800) {
-        out->push_back(static_cast<char>(0xC0 | (cp >> 6)));
-        out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-    } else if (cp < 0x10000) {
-        out->push_back(static_cast<char>(0xE0 | (cp >> 12)));
-        out->push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-        out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
-    } else {
-        out->push_back(static_cast<char>(0xF0 | (cp >> 18)));
-        out->push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
-        out->push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
-        out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+bool supported_processor(const Json &p, const wordpiece_vocab *v) {
+    const Json bert = {{"type", "BertProcessing"},
+        {"cls", {"[CLS]", v->cls_id}}, {"sep", {"[SEP]", v->sep_id}}};
+    if (p == bert) { return true; }
+    auto special = [](const char *id, int type) {
+        return Json{{"SpecialToken", {{"id", id}, {"type_id", type}}}};
+    };
+    auto sequence = [](const char *id, int type) {
+        return Json{{"Sequence", {{"id", id}, {"type_id", type}}}};
+    };
+    auto record = [](const char *token, int id) {
+        return Json{{"id", token}, {"ids", Json::array({id})},
+                    {"tokens", Json::array({token})}};
+    };
+    const Json templ = {
+        {"type", "TemplateProcessing"},
+        {"single", Json::array({special("[CLS]", 0), sequence("A", 0), special("[SEP]", 0)})},
+        {"pair", Json::array({special("[CLS]", 0), sequence("A", 0), special("[SEP]", 0),
+                              sequence("B", 1), special("[SEP]", 1)})},
+        {"special_tokens", {{"[CLS]", record("[CLS]", v->cls_id)},
+                            {"[SEP]", record("[SEP]", v->sep_id)}}}
+    };
+    return p == templ;
+}
+
+bool supported_config(const Json &j, wordpiece_vocab *v) {
+    if (j.at("version") != "1.0") { return false; }
+    const auto &m = j.at("model");
+    if (m.at("type") != "WordPiece" || m.at("unk_token") != "[UNK]" ||
+        m.at("continuing_subword_prefix") != "##" ||
+        m.at("max_input_chars_per_word") != 100) { return false; }
+    auto normal = j.at("normalizer");
+    if (normal.at("strip_accents").is_null()) { normal["strip_accents"] = true; }
+    if (normal != Json{{"type", "BertNormalizer"}, {"clean_text", true},
+            {"handle_chinese_chars", true}, {"strip_accents", true}, {"lowercase", true}} ||
+        j.at("pre_tokenizer") != Json{{"type", "BertPreTokenizer"}} ||
+        !supported_processor(j.at("post_processor"), v)) { return false; }
+
+    const auto &added = j.at("added_tokens");
+    if (!added.is_array()) { return false; }
+    const char *names[] = {"[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"};
+    for (const auto &token : added) {
+        bool matched = false;
+        for (unsigned i = 0; i < 5; ++i) {
+            const int32_t id = lookup_special(v, names[i]);
+            if (id >= 0 && token == Json{{"id", id}, {"content", names[i]},
+                    {"special", true}, {"single_word", false}, {"lstrip", false},
+                    {"rstrip", false}, {"normalized", false}}) {
+                if (v->added_specials & (1u << i)) { return false; }
+                v->added_specials |= static_cast<uint8_t>(1u << i);
+                matched = true;
+                break;
+            }
+        }
+        if (!matched) { return false; }
+    }
+    // Sequence lengths are supplied by the caller; other metadata must match
+    // the native right-padding/right-truncation policy.
+    const auto &trunc = j.at("truncation");
+    if (!trunc.is_null() && (trunc.value("direction", "Right") != "Right" ||
+        trunc.at("strategy") != "LongestFirst" || trunc.at("stride") != 0 ||
+        !valid_id(trunc.at("max_length")))) { return false; }
+    const auto &pad = j.at("padding");
+    if (!pad.is_null()) {
+        if (pad.at("direction") != "Right" || !pad.at("pad_to_multiple_of").is_null() ||
+            pad.at("pad_id") != v->pad_id || pad.at("pad_type_id") != 0 ||
+            pad.at("pad_token") != "[PAD]") { return false; }
+        const auto &strategy = pad.at("strategy");
+        if (strategy != "BatchLongest" &&
+            !(strategy.is_object() && strategy.size() == 1 &&
+              strategy.contains("Fixed") && valid_id(strategy["Fixed"]))) { return false; }
     }
     return true;
 }
 
-bool parse_json_string(const std::string &text, size_t *i, std::string *out) {
-    if (*i >= text.size() || text[*i] != '"') {
-        return false;
-    }
-    ++*i;
-    out->clear();
-    while (*i < text.size()) {
-        const char c = text[*i];
-        ++*i;
-        if (c == '"') {
-            return true;
+bool load_tokenizer_json_stream(std::istream &in, wordpiece_vocab **out) {
+    // Reject duplicate keys rather than allowing a later value to shadow
+    // tokenizer configuration inspected by other consumers of the bundle.
+    std::vector<std::set<std::string>> keys;
+    const auto callback = [&keys](int, Json::parse_event_t event, Json &value) {
+        if (event == Json::parse_event_t::object_start) { keys.emplace_back(); }
+        else if (event == Json::parse_event_t::object_end) { keys.pop_back(); }
+        else if (event == Json::parse_event_t::key &&
+                 !keys.back().insert(value.get<std::string>()).second) {
+            throw std::invalid_argument("duplicate tokenizer key");
         }
-        if (c != '\\') {
-            out->push_back(c);
-            continue;
-        }
-        if (*i >= text.size()) {
-            return false;
-        }
-        const char e = text[*i];
-        ++*i;
-        switch (e) {
-        case '"':
-        case '\\':
-        case '/':
-            out->push_back(e);
-            break;
-        case 'b':
-            out->push_back('\b');
-            break;
-        case 'f':
-            out->push_back('\f');
-            break;
-        case 'n':
-            out->push_back('\n');
-            break;
-        case 'r':
-            out->push_back('\r');
-            break;
-        case 't':
-            out->push_back('\t');
-            break;
-        case 'u': {
-            if (*i + 4 > text.size()) {
-                return false;
-            }
-            uint32_t cp = 0;
-            for (int k = 0; k < 4; ++k) {
-                const int h = hex_val(text[*i + k]);
-                if (h < 0) {
-                    return false;
-                }
-                cp = (cp << 4) | static_cast<uint32_t>(h);
-            }
-            *i += 4;
-            append_utf8(out, cp);
-            break;
-        }
-        default:
-            return false;
-        }
+        return true;
+    };
+    const auto j = Json::parse(in, callback);
+    const auto &vocab = j.at("model").at("vocab");
+    if (!vocab.is_object() || vocab.empty() || vocab.size() > INT32_MAX) { return false; }
+    size_t blob_n = 0;
+    std::set<int32_t> ids;
+    for (auto it = vocab.begin(); it != vocab.end(); ++it) {
+        if (it.key().empty() || it.key().size() > UINT16_MAX ||
+            !valid_utf8(it.key().data(), it.key().size()) || !valid_id(it.value()) ||
+            !ids.insert(it.value().get<int32_t>()).second ||
+            it.key().size() > UINT32_MAX - blob_n) { return false; }
+        blob_n += it.key().size();
     }
-    return false;
-}
-
-bool skip_ws(const std::string &text, size_t *i) {
-    while (*i < text.size()) {
-        const char c = text[*i];
-        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
-            return true;
-        }
-        ++*i;
+    Image image(new wordpiece_vocab{}, &destroy_image);
+    auto *v = image.get();
+    v->blob = new char[blob_n];
+    v->blob_size = blob_n;
+    if (!alloc_slots(v, static_cast<uint32_t>(vocab.size()))) { return false; }
+    size_t off = 0;
+    for (auto it = vocab.begin(); it != vocab.end(); ++it) {
+        std::memcpy(const_cast<char *>(v->blob) + off, it.key().data(), it.key().size());
+        if (!insert_slot(v, static_cast<uint32_t>(off),
+                static_cast<uint16_t>(it.key().size()), it.value().get<int32_t>())) { return false; }
+        off += it.key().size();
     }
-    return false;
-}
-
-bool parse_int(const std::string &text, size_t *i, int32_t *out) {
-    if (!skip_ws(text, i)) {
-        return false;
-    }
-    bool neg = false;
-    if (text[*i] == '-') {
-        neg = true;
-        ++*i;
-    }
-    if (*i >= text.size() || text[*i] < '0' || text[*i] > '9') {
-        return false;
-    }
-    int64_t v = 0;
-    while (*i < text.size() && text[*i] >= '0' && text[*i] <= '9') {
-        v = v * 10 + (text[*i] - '0');
-        ++*i;
-    }
-    *out = static_cast<int32_t>(neg ? -v : v);
+    if (!set_specials(v) || !supported_config(j, v)) { return false; }
+    v->loaded = 1;
+    *out = image.release();
     return true;
-}
-
-size_t find_wordpiece_vocab_object(const std::string &text) {
-    const char *needles[] = {"\"type\":\"WordPiece\"", "\"type\": \"WordPiece\""};
-    size_t from = 0;
-    for (const char *n : needles) {
-        const size_t p = text.find(n);
-        if (p != std::string::npos) {
-            from = p;
-            break;
-        }
-    }
-    size_t pos = text.find("\"vocab\"", from);
-    if (pos == std::string::npos) {
-        pos = text.find("\"vocab\"");
-    }
-    if (pos == std::string::npos) {
-        return std::string::npos;
-    }
-    size_t i = pos + 7;
-    if (!skip_ws(text, &i) || i >= text.size() || text[i] != ':') {
-        return std::string::npos;
-    }
-    ++i;
-    if (!skip_ws(text, &i) || i >= text.size() || text[i] != '{') {
-        return std::string::npos;
-    }
-    return i;
 }
 
 bool load_tokenizer_json(const char *path, wordpiece_vocab **out) {
     std::ifstream in(path, std::ios::binary);
-    if (!in) {
-        return false;
-    }
-    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    const size_t obj = find_wordpiece_vocab_object(text);
-    if (obj == std::string::npos) {
-        return false;
-    }
-    size_t i = obj + 1;
-    struct Pair {
-        std::string tok;
-        int32_t id;
-    };
-    std::vector<Pair> pairs;
-    pairs.reserve(30522);
-    while (i < text.size()) {
-        if (!skip_ws(text, &i)) {
-            return false;
-        }
-        if (text[i] == '}') {
-            break;
-        }
-        if (text[i] == ',') {
-            ++i;
-            continue;
-        }
-        Pair p;
-        if (!parse_json_string(text, &i, &p.tok)) {
-            return false;
-        }
-        if (!skip_ws(text, &i) || text[i] != ':') {
-            return false;
-        }
-        ++i;
-        if (!parse_int(text, &i, &p.id)) {
-            return false;
-        }
-        pairs.push_back(std::move(p));
-    }
-    if (pairs.empty()) {
-        return false;
-    }
-
-    size_t blob_n = 0;
-    for (const auto &p : pairs) {
-        blob_n += p.tok.size();
-    }
-    auto *v = new (std::nothrow) wordpiece_vocab{};
-    if (v == nullptr) {
-        return false;
-    }
-    char *blob = new (std::nothrow) char[blob_n ? blob_n : 1];
-    if (blob == nullptr || !alloc_slots(v, static_cast<uint32_t>(pairs.size()))) {
-        delete[] blob;
-        destroy_image(v);
-        return false;
-    }
-    v->blob = blob;
-    v->blob_size = blob_n;
-    v->blob_mmap = 0;
-    size_t off = 0;
-    for (const auto &p : pairs) {
-        if (p.tok.size() > 0xffffu) {
-            destroy_image(v);
-            return false;
-        }
-        if (!p.tok.empty()) {
-            std::memcpy(blob + off, p.tok.data(), p.tok.size());
-        }
-        if (!insert_slot(
-                v, static_cast<uint32_t>(off), static_cast<uint16_t>(p.tok.size()), p.id
-            )) {
-            destroy_image(v);
-            return false;
-        }
-        off += p.tok.size();
-    }
-    set_specials(v);
-    v->loaded = 1;
-    *out = v;
-    return true;
+    return in && load_tokenizer_json_stream(in, out);
 }
 
 bool ends_with(const char *path, const char *suf) {
@@ -480,36 +381,50 @@ bool file_exists(const std::string &p) {
 
 } // namespace
 
+int wordpiece_vocab_load_json_bytes(const char *bytes, size_t length, wordpiece_vocab **out) {
+    if (out == nullptr) { return WORDPIECE_ERR_INVALID_ARGUMENT; }
+    *out = nullptr;
+    if (bytes == nullptr || length == 0 || length > static_cast<size_t>(PTRDIFF_MAX)) {
+        return WORDPIECE_ERR_INVALID_ARGUMENT;
+    }
+    try {
+        std::istringstream in(std::string(bytes, length));
+        return load_tokenizer_json_stream(in, out) ? WORDPIECE_OK : WORDPIECE_ERR_INVALID_ARGUMENT;
+    } catch (const std::bad_alloc &) { return WORDPIECE_ERR_INTERNAL; }
+    catch (...) { return WORDPIECE_ERR_INVALID_ARGUMENT; }
+}
+
 extern "C" {
 
 int wordpiece_vocab_load(const char *path, wordpiece_vocab **out) {
-    if (path == nullptr || out == nullptr || path[0] == '\0') {
+    if (out == nullptr) { return WORDPIECE_ERR_INVALID_ARGUMENT; }
+    *out = nullptr;
+    if (path == nullptr || path[0] == '\0') { return WORDPIECE_ERR_INVALID_ARGUMENT; }
+    try {
+        if (!file_exists(path)) { return WORDPIECE_ERR_NOT_FOUND; }
+        const bool json = ends_with(path, ".json");
+        const bool ok = json ? load_tokenizer_json(path, out) : load_vocab_txt(path, out);
+        return ok && *out != nullptr ? WORDPIECE_OK : WORDPIECE_ERR_INVALID_ARGUMENT;
+    } catch (const std::bad_alloc &) {
+        return WORDPIECE_ERR_INTERNAL;
+    } catch (...) {
         return WORDPIECE_ERR_INVALID_ARGUMENT;
     }
-    *out = nullptr;
-    const bool json = ends_with(path, ".json");
-    const bool ok = json ? load_tokenizer_json(path, out) : load_vocab_txt(path, out);
-    if (!ok || *out == nullptr) {
-        return WORDPIECE_ERR_NOT_FOUND;
-    }
-    return WORDPIECE_OK;
 }
 
 int wordpiece_vocab_load_dir(const char *dir, wordpiece_vocab **out) {
-    if (dir == nullptr || out == nullptr || dir[0] == '\0') {
-        return WORDPIECE_ERR_INVALID_ARGUMENT;
-    }
+    if (out == nullptr) { return WORDPIECE_ERR_INVALID_ARGUMENT; }
     *out = nullptr;
-    const std::string base(dir);
-    const std::string txt = base + "/vocab.txt";
-    if (file_exists(txt)) {
-        return wordpiece_vocab_load(txt.c_str(), out);
-    }
-    const std::string js = base + "/tokenizer.json";
-    if (file_exists(js)) {
+    if (dir == nullptr || dir[0] == '\0') { return WORDPIECE_ERR_INVALID_ARGUMENT; }
+    try {
+        const std::string base(dir);
+        const std::string txt = base + "/vocab.txt";
+        if (file_exists(txt)) { return wordpiece_vocab_load(txt.c_str(), out); }
+        const std::string js = base + "/tokenizer.json";
         return wordpiece_vocab_load(js.c_str(), out);
+    } catch (...) {
+        return WORDPIECE_ERR_INTERNAL;
     }
-    return WORDPIECE_ERR_NOT_FOUND;
 }
 
 void wordpiece_vocab_destroy(wordpiece_vocab *v) {

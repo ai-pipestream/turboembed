@@ -26,9 +26,7 @@ use inferstream_protocol::inference::{
     model_metadata_response::TensorMetadata, ModelInferRequest, ModelInferResponse,
 };
 use inferstream_protocol::tensor::DataType;
-use turborerank::{
-    Activation, Device, Engine, Error as TrError, Truncation,
-};
+use turborerank::{Activation, Device, Engine, Error as TrError, Truncation};
 
 /// TEI `/rerank` default `--max-client-batch-size`.
 pub const DEFAULT_MAX_DOCUMENTS: u32 = 32;
@@ -176,9 +174,9 @@ fn map_tr(err: TrError) -> BackendError {
     match err {
         TrError::InvalidArgument(m) => BackendError::InvalidRequest(m),
         TrError::NotFound(m) => BackendError::ModelNotFound(m),
-        TrError::NotImplemented(m)
-        | TrError::Unavailable(m)
-        | TrError::UnsupportedDevice(m) => BackendError::Unavailable(m),
+        TrError::NotImplemented(m) | TrError::Unavailable(m) | TrError::UnsupportedDevice(m) => {
+            BackendError::Unavailable(m)
+        }
         TrError::Internal(m) | TrError::OutOfMemory(m) => BackendError::Internal(m),
     }
 }
@@ -279,9 +277,10 @@ impl Backend for TurboRerankBackend {
         let n_docs = documents.len();
         let scores = tokio::task::spawn_blocking(move || {
             let views: Vec<&str> = documents.iter().map(String::as_str).collect();
-            let engine = inner.engine.lock().map_err(|_| {
-                BackendError::Internal("TurboRerank engine mutex poisoned".into())
-            })?;
+            let engine = inner
+                .engine
+                .lock()
+                .map_err(|_| BackendError::Internal("TurboRerank engine mutex poisoned".into()))?;
             engine
                 .score(
                     Some(&alias),
@@ -345,9 +344,10 @@ impl Backend for TurboRerankBackend {
         let mut dest_buf = std::mem::take(dest);
         let filled = tokio::task::spawn_blocking(move || {
             let views: Vec<&str> = documents.iter().map(String::as_str).collect();
-            let engine = inner.engine.lock().map_err(|_| {
-                BackendError::Internal("TurboRerank engine mutex poisoned".into())
-            })?;
+            let engine = inner
+                .engine
+                .lock()
+                .map_err(|_| BackendError::Internal("TurboRerank engine mutex poisoned".into()))?;
             engine
                 .score_into(
                     Some(&alias),
@@ -388,7 +388,10 @@ mod tests {
         assert_eq!(device_from_config(None).unwrap(), Device::Auto);
         assert_eq!(device_from_config(Some("cuda")).unwrap(), Device::Cuda);
         assert_eq!(device_from_config(Some("CPU")).unwrap(), Device::Cpu);
-        assert_eq!(device_from_config(Some("GPU")).unwrap(), Device::OpenVinoGpu);
+        assert_eq!(
+            device_from_config(Some("GPU")).unwrap(),
+            Device::OpenVinoGpu
+        );
         assert_eq!(
             device_from_config(Some("openvino-cpu")).unwrap(),
             Device::OpenVinoCpu

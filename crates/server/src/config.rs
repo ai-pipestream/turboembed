@@ -453,20 +453,21 @@ mod tests {
 
     #[test]
     fn env_api_keys_merge_with_config_tokens() {
-        // Serialize env mutation: cargo runs tests in parallel threads.
-        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _guard = ENV_LOCK.lock().unwrap();
-        std::env::set_var("INFERSTREAM_API_KEYS", "env-a, env-b,,");
-        let auth = AuthConfig {
-            mode: AuthMode::Bearer,
-            bearer_tokens: vec!["file-key".into(), String::new()],
-        };
-        let tokens = auth.effective_tokens();
-        std::env::remove_var("INFERSTREAM_API_KEYS");
-        assert!(tokens.contains("file-key"));
-        assert!(tokens.contains("env-a"));
-        assert!(tokens.contains("env-b"));
-        assert_eq!(tokens.len(), 3, "empty entries are dropped");
+        in_auth_environment(
+            "env_api_keys_merge_with_config_tokens",
+            Some("env-a, env-b,,"),
+            || {
+                let auth = AuthConfig {
+                    mode: AuthMode::Bearer,
+                    bearer_tokens: vec!["file-key".into(), String::new()],
+                };
+                let tokens = auth.effective_tokens();
+                assert!(tokens.contains("file-key"));
+                assert!(tokens.contains("env-a"));
+                assert!(tokens.contains("env-b"));
+                assert_eq!(tokens.len(), 3, "empty entries are dropped");
+            },
+        );
     }
 
     #[test]
@@ -676,12 +677,40 @@ mod tests {
 
     #[test]
     fn bearer_mode_requires_tokens() {
-        let result = Config::from_toml(
-            r#"
-            [auth]
-            mode = "bearer"
-            "#,
+        in_auth_environment("bearer_mode_requires_tokens", None, || {
+            let result = Config::from_toml(
+                r#"
+                [auth]
+                mode = "bearer"
+                "#,
+            );
+            assert!(matches!(result, Err(ConfigError::NoBearerTokens)));
+        });
+    }
+
+    fn in_auth_environment(name: &str, keys: Option<&str>, test: impl FnOnce()) {
+        const CHILD: &str = "INFERSTREAM_AUTH_CONFIG_TEST_CHILD";
+        if std::env::var(CHILD).as_deref() == Ok(name) {
+            test();
+            return;
+        }
+        // Other tests also read auth configuration. A test-local mutex cannot
+        // isolate a process-wide environment write from those readers.
+        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args(["--exact", &format!("config::tests::{name}"), "--nocapture"])
+            .env(CHILD, name)
+            .env_remove("INFERSTREAM_API_KEYS");
+        if let Some(keys) = keys {
+            command.env("INFERSTREAM_API_KEYS", keys);
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "{name}: {}\n{}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
         );
-        assert!(matches!(result, Err(ConfigError::NoBearerTokens)));
     }
 }

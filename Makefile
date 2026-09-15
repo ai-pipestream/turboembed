@@ -172,6 +172,7 @@ libturborerank-apple:
 	  native/turborerank/build/alloc.cpp.o \
 	  native/turborerank/build/pack.cpp.o \
 	  native/turborerank/build/wordpiece.cpp.o \
+	  native/turborerank/build/utf8proc.c.o \
 	  native/turborerank/build/vocab_load.cpp.o \
 	  native/turborerank/build/encode.cpp.o \
 	  native/turborerank/build/safetensors.cpp.o \
@@ -403,12 +404,15 @@ turboembed-stub:
 	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/turbo_buffer/src \
 	  -c native/turbo_buffer/src/metal.cpp \
 	  -o native/turboembed/build/tb_metal.o
-	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/wordpiece \
+	$(CXX) -std=c++17 -fPIC -O2 -DUTF8PROC_STATIC -I include -I third_party -I native/wordpiece \
 	  -c native/wordpiece/vocab_load.cpp \
 	  -o native/turboembed/build/vocab_load.o
-	$(CXX) -std=c++17 -fPIC -O2 -I include -I native/wordpiece \
+	$(CXX) -std=c++17 -fPIC -O2 -DUTF8PROC_STATIC -I include -I third_party -I native/wordpiece \
 	  -c native/wordpiece/encode.cpp \
 	  -o native/turboembed/build/encode.o
+	$(CXX) -std=c++17 -fPIC -O2 -DUTF8PROC_STATIC -I third_party \
+	  -c third_party/utf8proc/utf8proc.c \
+	  -o native/turboembed/build/utf8proc.o
 	$(AR) rcs native/turboembed/build/libturboembed.a \
 	  native/turboembed/build/stub.o \
 	  native/turboembed/build/arena.o \
@@ -416,7 +420,8 @@ turboembed-stub:
 	  native/turboembed/build/tb_ze.o \
 	  native/turboembed/build/tb_metal.o \
 	  native/turboembed/build/vocab_load.o \
-	  native/turboembed/build/encode.o
+	  native/turboembed/build/encode.o \
+	  native/turboembed/build/utf8proc.o
 	@echo "wrote native/turboembed/build/libturboembed.a"
 
 test-turboembed: turboembed-mock-arena-tests
@@ -443,7 +448,7 @@ turboembed-genai-arena-tests:
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g \
 	  -DTURBOEMBED_GENAI -DTURBO_BUFFER_ZE=1 \
 	  -DTURBOEMBED_WORKSPACE_ROOT=\"$(CURDIR)\" \
-	  -I include -I native/turboembed/src -I native/turbo_buffer/src \
+	  -DUTF8PROC_STATIC -I include -I third_party -I native/turboembed/src -I native/turbo_buffer/src \
 	  -I native/wordpiece \
 	  -I $(OPENVINO_GENAI_ROOT)/runtime/include \
 	  native/turboembed/src/stub.cpp \
@@ -484,7 +489,8 @@ TURBO_BUFFER_SRCS := \
 
 WORDPIECE_SRCS := \
 	native/wordpiece/vocab_load.cpp \
-	native/wordpiece/encode.cpp
+	native/wordpiece/encode.cpp \
+	third_party/utf8proc/utf8proc.c
 
 TURBORERANK_SRCS := \
 	native/turborerank/src/alloc.cpp \
@@ -509,8 +515,8 @@ TURBORERANK_ENABLE_CUDA ?= $(shell \
 	then echo 1; else echo 0; fi)
 TURBORERANK_CUDA_ARCH ?= native
 
-TURBORERANK_INCLUDES := -I include -I native/wordpiece -I native/turborerank/src -I native/turbo_buffer/src
-TURBORERANK_CPPFLAGS := -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\"
+TURBORERANK_INCLUDES := -I include -I third_party -I native/wordpiece -I native/turborerank/src -I native/turbo_buffer/src
+TURBORERANK_CPPFLAGS := -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" -DUTF8PROC_STATIC
 TURBORERANK_CUDA_LIBS :=
 TURBORERANK_CUDA_OBJ :=
 TURBORERANK_OV_LIBS :=
@@ -598,7 +604,7 @@ wordpiece-tripwire:
 
 wordpiece-tests: wordpiece-tripwire turbo-buffer-tests
 	mkdir -p native/wordpiece/build
-	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include -I native/wordpiece \
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g -DUTF8PROC_STATIC -I include -I third_party -I native/wordpiece \
 	  -I native/turbo_buffer/src \
 	  $(WORDPIECE_SRCS) native/turbo_buffer/src/arena.cpp \
 	  native/turbo_buffer/src/cuda.cpp native/turbo_buffer/src/ze.cpp \

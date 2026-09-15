@@ -125,7 +125,16 @@ let package = Package(
         .testTarget(
             name: "TurboRerankTests",
             dependencies: ["TurboRerankC", "TurboBufferC"],
-            path: "Tests/TurboRerankTests"
+            path: "Tests/TurboRerankTests",
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L\(Context.packageDirectory)/../native/turborerank/build",
+                    "-lturborerank_apple",
+                ]),
+                .linkedFramework("Metal"),
+                .linkedFramework("Foundation"),
+                .linkedLibrary("c++"),
+            ]
         ),
         .testTarget(
             name: "TurboEmbedTests",

@@ -40,11 +40,7 @@ pub fn summarize_latencies(mut samples_us: Vec<u64>) -> Value {
     let min = samples_us.first().copied().unwrap_or(0);
     let max = samples_us.last().copied().unwrap_or(0);
     let sum: u128 = samples_us.iter().map(|v| u128::from(*v)).sum();
-    let mean = if n == 0 {
-        0.0
-    } else {
-        sum as f64 / n as f64
-    };
+    let mean = if n == 0 { 0.0 } else { sum as f64 / n as f64 };
     serde_json::json!({
         "p50": nearest_rank_us(&samples_us, 50.0),
         "p99": nearest_rank_us(&samples_us, 99.0),

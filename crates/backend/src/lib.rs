@@ -210,7 +210,9 @@ pub trait Backend: Send + Sync + 'static {
         raw_scores: bool,
         dest: &mut Vec<f32>,
     ) -> Result<(), BackendError> {
-        let scores = self.rerank(model_name, query, documents, raw_scores).await?;
+        let scores = self
+            .rerank(model_name, query, documents, raw_scores)
+            .await?;
         dest.clear();
         dest.extend_from_slice(&scores);
         Ok(())
@@ -337,8 +339,7 @@ fn packed_from_infer(
 /// answer these names — they are TurboRerank ABI models.
 pub fn is_catalog_cross_encoder_alias(name: &str) -> bool {
     let n = name.trim();
-    n.eq_ignore_ascii_case("ms-marco-minilm-l6")
-        || n.eq_ignore_ascii_case("ms-marco-minilm-l6-v2")
+    n.eq_ignore_ascii_case("ms-marco-minilm-l6") || n.eq_ignore_ascii_case("ms-marco-minilm-l6-v2")
 }
 
 /// Routes model names to the backend that serves them.

@@ -94,21 +94,21 @@ final class TurboRerankBackend: ModelBackend, Sendable {
                 "rerank batch of \(documents.count) exceeds max_client_batch_size \(maxDocuments)"
             )
         }
-        lock.lock()
-        defer { lock.unlock() }
-        do {
-            #if canImport(TurboRerankC)
-            return try engine.score(
-                query: query,
-                documents: documents,
-                activation: rawScores ? TURBORERANK_ACT_IDENTITY : TURBORERANK_ACT_SIGMOID,
-                maxLength: 0
-            )
-            #else
-            throw ServeError.unavailable("TurboRerankC is not linked")
-            #endif
-        } catch {
-            throw ServeError.unavailable("TurboRerank score \(name): \(error)")
+        return try lock.withLock {
+            do {
+                #if canImport(TurboRerankC)
+                return try engine.score(
+                    query: query,
+                    documents: documents,
+                    activation: rawScores ? TURBORERANK_ACT_IDENTITY : TURBORERANK_ACT_SIGMOID,
+                    maxLength: 0
+                )
+                #else
+                throw ServeError.unavailable("TurboRerankC is not linked")
+                #endif
+            } catch {
+                throw ServeError.unavailable("TurboRerank score \(name): \(error)")
+            }
         }
     }
 

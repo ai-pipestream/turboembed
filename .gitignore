@@ -1,4 +1,6 @@
 /target
+/build/native-sdk/
+__pycache__/
 /.libs/
 # Local llama-cpp-sys-2 checkout with ggml-sycl injected
 # (scripts/setup-llamacpp-sycl.sh). Not committed — generated per host.
@@ -27,3 +29,5 @@ native/bench/build/
 swift/.build/
 .DS_Store
 agent-tools/
+
+/java/**/target/

@@ -66,7 +66,7 @@ static bool file_exists(const std::string &p) {
 
 static bool weights_present() {
     return file_exists(model_dir() + "/model.safetensors") &&
-           file_exists(model_dir() + "/vocab.txt");
+           file_exists(model_dir() + "/tokenizer.json");
 }
 
 static std::string ov_ir_dir() {
@@ -79,7 +79,7 @@ static std::string ov_ir_dir() {
 static bool ov_ir_present() {
     return (file_exists(ov_ir_dir() + "/openvino_model.xml") ||
             file_exists(ov_ir_dir() + "/model.xml")) &&
-           file_exists(ov_ir_dir() + "/vocab.txt");
+           file_exists(ov_ir_dir() + "/tokenizer.json");
 }
 
 static bool ov_gpu_live() {

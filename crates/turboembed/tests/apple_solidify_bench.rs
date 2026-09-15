@@ -288,7 +288,10 @@ fn score_against(got: &[(&str, &[f32])], dump: &GoldenDump, floor: f32, label: &
 }
 
 fn percentile_us(samples_ns: &mut [u128], p: u32) -> u64 {
-    assert!(!samples_ns.is_empty(), "p50/p99: no samples — do not invent");
+    assert!(
+        !samples_ns.is_empty(),
+        "p50/p99: no samples — do not invent"
+    );
     samples_ns.sort_unstable();
     let idx = (samples_ns.len() - 1) * p as usize / 100;
     (samples_ns[idx] / 1000) as u64
@@ -341,15 +344,15 @@ fn prove_auto_is_metal() {
     let auto = Engine::create(Device::Auto).expect("AUTO is host GPU (Metal), not CPU");
     let models = auto.list_models().expect("auto list");
     assert!(
-        models
-            .iter()
-            .all(|m| m.alias != "mock-embed" && m.device != Device::Cpu && m.device != Device::Mock),
+        models.iter().all(|m| m.alias != "mock-embed"
+            && m.device != Device::Cpu
+            && m.device != Device::Mock),
         "FAKE: AUTO advertised CPU/mock — Metal must not fall back"
     );
     assert!(
-        models
-            .iter()
-            .any(|m| m.alias == "minilm" && m.device == Device::Metal && m.dim == MINILM_DIM as u32),
+        models.iter().any(|m| m.alias == "minilm"
+            && m.device == Device::Metal
+            && m.dim == MINILM_DIM as u32),
         "AUTO must resolve to Metal MiniLM dim={MINILM_DIM}"
     );
 }
@@ -590,13 +593,10 @@ fn apple_solidify_bench_writes_machine_c_receipt() {
     let vs_nvidia = score_against(&got, &nvidia, NVIDIA_FLOOR, "apple-mlx↔nvidia");
     let vs_apple = score_against(&got, &apple, APPLE_FLOOR, "apple-mlx↔apple-golden");
 
-    let goldens_in_band = vs_nvidia.min + f32::EPSILON >= NVIDIA_FLOOR
-        && vs_apple.min + f32::EPSILON >= APPLE_FLOOR;
-    let pass = goldens_in_band
-        && metal_owns_result
-        && p50_us > 0
-        && rerank.pass
-        && rerank.berlin_in_band;
+    let goldens_in_band =
+        vs_nvidia.min + f32::EPSILON >= NVIDIA_FLOOR && vs_apple.min + f32::EPSILON >= APPLE_FLOOR;
+    let pass =
+        goldens_in_band && metal_owns_result && p50_us > 0 && rerank.pass && rerank.berlin_in_band;
 
     let receipt = CombinedReceipt {
         schema_version: 1,
@@ -670,5 +670,8 @@ fn apple_solidify_bench_writes_machine_c_receipt() {
     body.push('\n');
     fs::write(&dest, body).unwrap_or_else(|e| panic!("write {}: {e}", dest.display()));
     eprintln!("wrote {} pass={pass}", dest.display());
-    assert!(pass, "SOLIDIFY bench gates failed — do not keep a failing receipt");
+    assert!(
+        pass,
+        "SOLIDIFY bench gates failed — do not keep a failing receipt"
+    );
 }

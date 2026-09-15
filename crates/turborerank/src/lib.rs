@@ -167,9 +167,7 @@ impl Engine {
     }
 
     pub fn create_with_config(device: Device, config: Option<&Path>) -> Result<Self, Error> {
-        let c_path = config
-            .map(|p| CString::new(p.to_string_lossy().as_bytes()).ok())
-            .flatten();
+        let c_path = config.and_then(|p| CString::new(p.to_string_lossy().as_bytes()).ok());
         let ptr = c_path.as_ref().map(|s| s.as_ptr()).unwrap_or(ptr::null());
         let mut out = ptr::null_mut();
         let st = unsafe { turborerank_engine_create(device.to_c(), ptr, &mut out) };
@@ -298,6 +296,10 @@ impl Engine {
 
     /// Write sigmoid/identity scores into `dest` (input order). `dest.len()`
     /// must be `>= documents.len()`. Returns the number of scores written.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Preserve the public score API with an additional reusable output buffer"
+    )]
     pub fn score_into(
         &self,
         alias: Option<&str>,
@@ -416,9 +418,7 @@ impl TokenBuffer {
 
     pub fn input_ids_mut(&mut self) -> &mut [i32] {
         let b = self.inner();
-        unsafe {
-            std::slice::from_raw_parts_mut(b.input_ids, (b.batch * b.row_stride) as usize)
-        }
+        unsafe { std::slice::from_raw_parts_mut(b.input_ids, (b.batch * b.row_stride) as usize) }
     }
 
     pub fn input_ids(&self) -> &[i32] {
@@ -428,16 +428,12 @@ impl TokenBuffer {
 
     pub fn attention_mask(&self) -> &[i32] {
         let b = self.inner();
-        unsafe {
-            std::slice::from_raw_parts(b.attention_mask, (b.batch * b.row_stride) as usize)
-        }
+        unsafe { std::slice::from_raw_parts(b.attention_mask, (b.batch * b.row_stride) as usize) }
     }
 
     pub fn token_type_ids(&self) -> &[i32] {
         let b = self.inner();
-        unsafe {
-            std::slice::from_raw_parts(b.token_type_ids, (b.batch * b.row_stride) as usize)
-        }
+        unsafe { std::slice::from_raw_parts(b.token_type_ids, (b.batch * b.row_stride) as usize) }
     }
 
     pub fn pack_ids(
@@ -491,7 +487,7 @@ pub fn default_model_dir() -> std::path::PathBuf {
 
 pub fn weights_present() -> bool {
     let d = default_model_dir();
-    d.join("model.safetensors").is_file() && d.join("vocab.txt").is_file()
+    d.join("model.safetensors").is_file() && d.join("tokenizer.json").is_file()
 }
 
 pub fn default_ov_ir_dir() -> std::path::PathBuf {
@@ -502,7 +498,7 @@ pub fn ov_ir_present() -> bool {
     let d = default_ov_ir_dir();
     (d.join("openvino_model.xml").is_file() || d.join("model.xml").is_file())
         && (d.join("openvino_model.bin").is_file() || d.join("model.bin").is_file())
-        && d.join("vocab.txt").is_file()
+        && d.join("tokenizer.json").is_file()
 }
 
 // Silence unused import of turborerank_model_info in some rustc versions.

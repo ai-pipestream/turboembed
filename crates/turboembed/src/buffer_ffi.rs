@@ -46,12 +46,14 @@ impl turbo_buffer_view {
             handle: 0,
         }
     }
-
 }
 
 pub type turbo_buffer_arena = c_void;
 
 unsafe extern "C" {
+    pub fn turbo_buffer_arena_create(device: i32, out: *mut *mut turbo_buffer_arena) -> i32;
+    pub fn turbo_buffer_arena_destroy(arena: *mut turbo_buffer_arena);
+
     pub fn turbo_buffer_arena_rent(
         arena: *mut turbo_buffer_arena,
         dtype: i32,
@@ -107,15 +109,7 @@ pub fn rent(
     }
     let mut view = turbo_buffer_view::empty();
     let st = unsafe {
-        turbo_buffer_arena_rent(
-            arena,
-            dtype,
-            placement,
-            rows,
-            cols,
-            row_stride,
-            &mut view,
-        )
+        turbo_buffer_arena_rent(arena, dtype, placement, rows, cols, row_stride, &mut view)
     };
     if st != TURBO_BUFFER_OK || view.ptr.is_null() {
         return Err(format!(
@@ -141,11 +135,9 @@ pub fn mapped_device_ptr(host: *const c_void) -> Result<*mut c_void, String> {
     let mut dev = ptr::null_mut();
     let hit = unsafe { turbo_buffer_cuda_mapped_device_ptr(host, &mut dev) };
     if hit != 1 || dev.is_null() {
-        return Err(
-            "PINNED token row is not cudaHostAllocMapped; refusing a \
+        return Err("PINNED token row is not cudaHostAllocMapped; refusing a \
              convenience H2D stand-in"
-                .into(),
-        );
+            .into());
     }
     Ok(dev)
 }

@@ -10,9 +10,7 @@ use bench_turbo::{
 };
 use clap::Parser;
 use serde::Deserialize;
-use turborerank::{
-    default_model_dir, weights_present, Activation, Device, Engine, Truncation,
-};
+use turborerank::{default_model_dir, weights_present, Activation, Device, Engine, Truncation};
 
 const QUERY: &str = "How many people live in Berlin?";
 const REL: &str = "Berlin has a population of 3,520,031 registered inhabitants in an area of 891.82 square kilometers.";
@@ -165,7 +163,8 @@ fn run() -> Result<bool, String> {
     // Hidden activations stay DEVICE. The only host write is the CLS logit
     // (4 bytes) after the kernels; that is not hidden D2H.
     let hidden_d2h: u64 = 0;
-    let zeros_ok = token_h2d == 0 && token_h2d_calls == 0 && arena_allocs == 0 && cuda_fwd_allocs == 0;
+    let zeros_ok =
+        token_h2d == 0 && token_h2d_calls == 0 && arena_allocs == 0 && cuda_fwd_allocs == 0;
 
     let mut samples = Vec::with_capacity(args.iters as usize);
     for _ in 0..args.iters {

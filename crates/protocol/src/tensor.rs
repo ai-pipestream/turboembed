@@ -212,8 +212,7 @@ pub fn pack_fp32_into(values: &[f32], out: &mut Vec<u8>) {
     {
         // SAFETY: f32 is a plain 4-byte IEEE value; LE host layout matches
         // the OIP / PACKED_BYTES wire (row-major LE FP32).
-        let bytes =
-            unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u8>(), nbytes) };
+        let bytes = unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u8>(), nbytes) };
         out.extend_from_slice(bytes);
     }
     #[cfg(target_endian = "big")]

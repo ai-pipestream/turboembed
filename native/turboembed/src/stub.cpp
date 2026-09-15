@@ -59,6 +59,7 @@ int turboembed_ort_cuda_place(const void *session);
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <new>
 #include <string>
@@ -71,6 +72,45 @@ thread_local std::string g_create_error = "";
 constexpr uint32_t kMockDim = 8;
 constexpr const char *kMockAlias = "mock-embed";
 constexpr const char *kMockAliasShort = "mock";
+
+bool checked_result_shape(
+    size_t count,
+    uint32_t dim,
+    uint32_t *rows,
+    size_t *bytes
+) {
+    if (count > std::numeric_limits<uint32_t>::max()) {
+        return false;
+    }
+    const size_t width = static_cast<size_t>(dim);
+    if (width != 0 && count > std::numeric_limits<size_t>::max() / width) {
+        return false;
+    }
+    const size_t n_elements = count * width;
+    if (n_elements > std::numeric_limits<size_t>::max() / sizeof(float)) {
+        return false;
+    }
+    *rows = static_cast<uint32_t>(count);
+    *bytes = n_elements * sizeof(float);
+    return true;
+}
+
+bool valid_embed_options(const turboembed_embed_options *opts) {
+    if (opts == nullptr) {
+        return true;
+    }
+    // Inspect the representation before evaluating a possibly invalid C enum.
+    static_assert(sizeof(opts->pooling) == sizeof(int32_t));
+    static_assert(sizeof(opts->output_format) == sizeof(int32_t));
+    int32_t pooling = 0;
+    int32_t output = 0;
+    std::memcpy(&pooling, &opts->pooling, sizeof(pooling));
+    std::memcpy(&output, &opts->output_format, sizeof(output));
+    return pooling >= TURBOEMBED_POOLING_DEFAULT &&
+           pooling <= TURBOEMBED_POOLING_LAST && opts->normalize >= -1 &&
+           opts->normalize <= 1 && output >= TURBOEMBED_OUTPUT_TYPED &&
+           output <= TURBOEMBED_OUTPUT_PACKED_BYTES;
+}
 
 #if defined(TURBOEMBED_GENAI) || defined(TURBOEMBED_ORT_CUDA)
 bool alias_eq(const char *alias, size_t len, const std::string &loaded) {
@@ -903,8 +943,16 @@ static turboembed_status embed_impl(
         engine->set_error("texts must not be empty");
         return TURBOEMBED_ERR_INVALID_ARGUMENT;
     }
+    if (n_texts > std::numeric_limits<uint32_t>::max()) {
+        engine->set_error("text count exceeds ABI result count range");
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
+    }
     if (texts == nullptr) {
         engine->set_error("texts pointer is null");
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
+    }
+    if (!valid_embed_options(opts)) {
+        engine->set_error("embed options contain an invalid enum or normalize value");
         return TURBOEMBED_ERR_INVALID_ARGUMENT;
     }
     for (size_t i = 0; i < n_texts; ++i) {
@@ -919,19 +967,37 @@ static turboembed_status embed_impl(
         int requested_pooling = TURBOEMBED_POOLING_DEFAULT;
         int requested_normalize = -1;
         if (opts != nullptr) {
+            if (opts->truncate_to != 0) {
+                engine->set_error(
+                    "truncate_to is not implemented on the ORT path"
+                );
+                return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+            }
             requested_pooling = static_cast<int>(opts->pooling);
             requested_normalize = opts->normalize;
-        }
-        std::vector<const char *> ptrs(n_texts);
-        std::vector<size_t> lens(n_texts);
-        for (size_t i = 0; i < n_texts; ++i) {
-            ptrs[i] = texts[i].ptr;
-            lens[i] = texts[i].len;
         }
         const uint32_t expect_dim = turboembed_ort_cuda_dim(engine->ort_cuda);
         if (expect_dim == 0) {
             engine->set_error("ORT session embedding dim is 0");
             return TURBOEMBED_ERR_INTERNAL;
+        }
+        uint32_t result_rows = 0;
+        size_t result_bytes = 0;
+        if (!checked_result_shape(
+                n_texts,
+                expect_dim,
+                &result_rows,
+                &result_bytes
+            )) {
+            engine->set_error("result shape exceeds addressable size");
+            return TURBOEMBED_ERR_INVALID_ARGUMENT;
+        }
+        const size_t n_floats = result_bytes / sizeof(float);
+        std::vector<const char *> ptrs(n_texts);
+        std::vector<size_t> lens(n_texts);
+        for (size_t i = 0; i < n_texts; ++i) {
+            ptrs[i] = texts[i].ptr;
+            lens[i] = texts[i].len;
         }
         auto *rec = new (std::nothrow) EmbedResultRec();
         if (rec == nullptr || engine->arena == nullptr) {
@@ -944,7 +1010,7 @@ static turboembed_status embed_impl(
                 engine->arena,
                 TURBO_BUFFER_DTYPE_F32,
                 ort_result_place(engine->device),
-                static_cast<uint32_t>(n_texts),
+                result_rows,
                 expect_dim,
                 expect_dim,
                 &rec->values
@@ -954,8 +1020,6 @@ static turboembed_status embed_impl(
             return TURBOEMBED_ERR_OUT_OF_MEMORY;
         }
         float *values = turbo_buffer_view_f32(&rec->values);
-        const size_t n_floats =
-            n_texts * static_cast<size_t>(expect_dim);
         size_t dim = 0;
         size_t count = 0;
         char err[1024];
@@ -986,7 +1050,7 @@ static turboembed_status embed_impl(
         rec->pub.count = static_cast<uint32_t>(count);
         rec->pub.values = values;
         rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
-        rec->pub.packed_len = n_floats * sizeof(float);
+        rec->pub.packed_len = result_bytes;
         *out = &rec->pub;
         engine->set_error("");
         return TURBOEMBED_OK;
@@ -1014,8 +1078,13 @@ static turboembed_status embed_impl(
             return TURBOEMBED_ERR_INTERNAL;
         }
         if (opts != nullptr) {
-            if (opts->pooling == TURBOEMBED_POOLING_CLS ||
-                opts->pooling == TURBOEMBED_POOLING_LAST) {
+            if (opts->truncate_to != 0) {
+                engine->set_error(
+                    "truncate_to is not implemented on the Intel GenAI path"
+                );
+                return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+            }
+            if (opts->pooling != TURBOEMBED_POOLING_DEFAULT) {
                 const uint8_t want =
                     pooling_for_alias(alias, alias_len, opts->pooling);
                 const uint8_t have =
@@ -1026,7 +1095,7 @@ static turboembed_status embed_impl(
                         "reload the pipeline with that pooling "
                         "(constructor-time Config only)"
                     );
-                    return TURBOEMBED_ERR_INVALID_ARGUMENT;
+                    return TURBOEMBED_ERR_NOT_IMPLEMENTED;
                 }
             }
             if (opts->normalize == 0) {
@@ -1034,10 +1103,26 @@ static turboembed_status embed_impl(
                     "normalize=false is not the catalog MiniLM path "
                     "(goldens are L2-normalized)"
                 );
-                return TURBOEMBED_ERR_INVALID_ARGUMENT;
+                return TURBOEMBED_ERR_NOT_IMPLEMENTED;
             }
         }
         try {
+            const uint32_t dim = engine->genai->embedding_dim();
+            if (dim == 0) {
+                engine->set_error("GenAI embedding dimension is 0");
+                return TURBOEMBED_ERR_INTERNAL;
+            }
+            uint32_t result_rows = 0;
+            size_t result_bytes = 0;
+            if (!checked_result_shape(
+                    n_texts,
+                    dim,
+                    &result_rows,
+                    &result_bytes
+                )) {
+                engine->set_error("result shape exceeds addressable size");
+                return TURBOEMBED_ERR_INVALID_ARGUMENT;
+            }
             std::vector<std::string> input;
             input.reserve(n_texts);
             for (size_t i = 0; i < n_texts; ++i) {
@@ -1045,11 +1130,6 @@ static turboembed_status embed_impl(
                     texts[i].ptr == nullptr ? "" : texts[i].ptr,
                     texts[i].len
                 );
-            }
-            const uint32_t dim = engine->genai->embedding_dim();
-            if (dim == 0) {
-                engine->set_error("GenAI embedding dimension is 0");
-                return TURBOEMBED_ERR_INTERNAL;
             }
             auto *rec = new (std::nothrow) EmbedResultRec();
             if (rec == nullptr || engine->arena == nullptr) {
@@ -1064,7 +1144,7 @@ static turboembed_status embed_impl(
                     engine->arena,
                     TURBO_BUFFER_DTYPE_F32,
                     result_place,
-                    static_cast<uint32_t>(n_texts),
+                    result_rows,
                     dim,
                     dim,
                     &rec->values
@@ -1085,11 +1165,10 @@ static turboembed_status embed_impl(
                 throw;
             }
             rec->pub.dim = dim;
-            rec->pub.count = static_cast<uint32_t>(n_texts);
+            rec->pub.count = result_rows;
             rec->pub.values = values;
             rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
-            rec->pub.packed_len =
-                static_cast<size_t>(n_texts) * dim * sizeof(float);
+            rec->pub.packed_len = result_bytes;
             *out = &rec->pub;
             engine->set_error("");
             return TURBOEMBED_OK;
@@ -1136,11 +1215,30 @@ static turboembed_status embed_impl(
         return TURBOEMBED_ERR_NOT_FOUND;
     }
 
-    (void)opts; /* pooling / normalize ignored on the mock path */
+    if (opts != nullptr &&
+        (opts->pooling != TURBOEMBED_POOLING_DEFAULT || opts->normalize != -1 ||
+         opts->truncate_to != 0)) {
+        engine->set_error(
+            "pooling, normalize, and truncate_to options are not implemented "
+            "on the mock path"
+        );
+        return TURBOEMBED_ERR_NOT_IMPLEMENTED;
+    }
 
     if (engine->arena == nullptr) {
         engine->set_error("mock embed requires a turbo_buffer arena");
         return TURBOEMBED_ERR_INTERNAL;
+    }
+    uint32_t result_rows = 0;
+    size_t result_bytes = 0;
+    if (!checked_result_shape(
+            n_texts,
+            kMockDim,
+            &result_rows,
+            &result_bytes
+        )) {
+        engine->set_error("result shape exceeds addressable size");
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
     }
     auto *rec = new (std::nothrow) EmbedResultRec();
     if (rec == nullptr) {
@@ -1152,7 +1250,7 @@ static turboembed_status embed_impl(
         engine->arena,
         TURBO_BUFFER_DTYPE_F32,
         TURBO_BUFFER_PLACE_HOST,
-        static_cast<uint32_t>(n_texts),
+        result_rows,
         kMockDim,
         kMockDim,
         &rec->values
@@ -1172,10 +1270,10 @@ static turboembed_status embed_impl(
         );
     }
     rec->pub.dim = kMockDim;
-    rec->pub.count = static_cast<uint32_t>(n_texts);
+    rec->pub.count = result_rows;
     rec->pub.values = values;
     rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
-    rec->pub.packed_len = n_texts * static_cast<size_t>(kMockDim) * sizeof(float);
+    rec->pub.packed_len = result_bytes;
     *out = &rec->pub;
     engine->set_error("");
     return TURBOEMBED_OK;
@@ -1228,7 +1326,9 @@ turboembed_status turboembed_embed_stream(
     if (cb != nullptr && result != nullptr) {
         for (uint32_t i = 0; i < result->count; ++i) {
             const int32_t is_final = (i + 1 == result->count) ? 1 : 0;
-            cb(user_data, i, result->values + (i * result->dim), result->dim, is_final);
+            const size_t row_offset =
+                static_cast<size_t>(i) * static_cast<size_t>(result->dim);
+            cb(user_data, i, result->values + row_offset, result->dim, is_final);
         }
     }
     if (out != nullptr) {

@@ -1,0 +1,5 @@
+# Preserve upstream snapshots byte-for-byte, including source/license whitespace.
+utf8proc/** -whitespace
+nlohmann/** -whitespace
+unicode_categories/** -whitespace
+picosha2/** -whitespace

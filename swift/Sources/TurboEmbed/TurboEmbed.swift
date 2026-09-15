@@ -11,6 +11,7 @@ import Foundation
 /// owns the C result until it is released — `values` is only valid until then.
 public final class Engine: @unchecked Sendable {
     private let raw: OpaquePointer
+    private let lock = NSLock()
 
     public init(device: turboembed_device = TURBOEMBED_DEVICE_MOCK) throws {
         var out: OpaquePointer?
@@ -22,12 +23,14 @@ public final class Engine: @unchecked Sendable {
     }
 
     deinit {
-        turboembed_engine_destroy(raw)
+        withLock { turboembed_engine_destroy(raw) }
     }
 
     public func load(alias: String) throws {
-        let st = alias.withCString { turboembed_load_model(raw, $0, alias.utf8.count) }
-        try throwIfNeeded(st)
+        try withLock {
+            let st = alias.withCString { turboembed_load_model(raw, $0, alias.utf8.count) }
+            try throwIfNeeded(st)
+        }
     }
 
     public func embed(alias: String, texts: [String], options: EmbedOptions? = nil) throws -> Embeddings {
@@ -35,36 +38,54 @@ public final class Engine: @unchecked Sendable {
             throw TurboEmbedError.status(
                 TURBOEMBED_ERR_INVALID_ARGUMENT, message: "texts must not be empty")
         }
-        var cstrs: [UnsafeMutablePointer<CChar>] = []
-        cstrs.reserveCapacity(texts.count)
-        defer { cstrs.forEach { free($0) } }
+        var storage: [UnsafeMutablePointer<UInt8>] = []
+        storage.reserveCapacity(texts.count)
+        defer { storage.forEach { $0.deallocate() } }
         var views: [turboembed_str] = []
         views.reserveCapacity(texts.count)
         for text in texts {
-            guard let dup = strdup(text) else {
-                throw TurboEmbedError.status(
-                    TURBOEMBED_ERR_OUT_OF_MEMORY, message: "strdup failed")
+            let bytes = Array(text.utf8)
+            guard !bytes.isEmpty else {
+                views.append(turboembed_str(ptr: nil, len: 0))
+                continue
             }
-            cstrs.append(dup)
-            views.append(turboembed_str(ptr: UnsafePointer(dup), len: text.utf8.count))
+            let copy = UnsafeMutablePointer<UInt8>.allocate(capacity: bytes.count)
+            bytes.withUnsafeBufferPointer { source in
+                copy.update(from: source.baseAddress!, count: source.count)
+            }
+            storage.append(copy)
+            views.append(
+                turboembed_str(
+                    ptr: UnsafeRawPointer(copy).assumingMemoryBound(to: CChar.self),
+                    len: bytes.count
+                )
+            )
         }
-        var cOpts = options?.toC()
-        var out: UnsafeMutablePointer<turboembed_embed_result>?
-        let st = alias.withCString { cAlias in
-            views.withUnsafeBufferPointer { buf in
-                if var opts = cOpts {
+        return try withLock {
+            var cOpts = options?.toC()
+            var out: UnsafeMutablePointer<turboembed_embed_result>?
+            let st = alias.withCString { cAlias in
+                views.withUnsafeBufferPointer { buf in
+                    if var opts = cOpts {
+                        return turboembed_embed(
+                            raw, cAlias, alias.utf8.count, buf.baseAddress, buf.count, &opts, &out)
+                    }
                     return turboembed_embed(
-                        raw, cAlias, alias.utf8.count, buf.baseAddress, buf.count, &opts, &out)
+                        raw, cAlias, alias.utf8.count, buf.baseAddress, buf.count, nil, &out)
                 }
-                return turboembed_embed(
-                    raw, cAlias, alias.utf8.count, buf.baseAddress, buf.count, nil, &out)
             }
+            try throwIfNeeded(st)
+            guard let result = out else {
+                throw TurboEmbedError.status(TURBOEMBED_ERR_INTERNAL, message: "null result")
+            }
+            return Embeddings(raw: result, owner: self)
         }
-        try throwIfNeeded(st)
-        guard let result = out else {
-            throw TurboEmbedError.status(TURBOEMBED_ERR_INTERNAL, message: "null result")
-        }
-        return Embeddings(raw: result)
+    }
+
+    fileprivate func withLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
     }
 
     private func throwIfNeeded(_ st: turboembed_status) throws {
@@ -74,16 +95,19 @@ public final class Engine: @unchecked Sendable {
     }
 }
 
-/// Engine-owned embed result. `values` is valid until this value is released.
+/// Engine-owned embed result. This value retains its engine, and `values` is
+/// valid until this value is released.
 public final class Embeddings: @unchecked Sendable {
     private let raw: UnsafeMutablePointer<turboembed_embed_result>
+    private let owner: Engine
 
-    fileprivate init(raw: UnsafeMutablePointer<turboembed_embed_result>) {
+    fileprivate init(raw: UnsafeMutablePointer<turboembed_embed_result>, owner: Engine) {
         self.raw = raw
+        self.owner = owner
     }
 
     deinit {
-        turboembed_embed_result_free(raw)
+        owner.withLock { turboembed_embed_result_free(raw) }
     }
 
     public var dim: Int { Int(raw.pointee.dim) }

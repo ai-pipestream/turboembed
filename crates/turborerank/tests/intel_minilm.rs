@@ -222,7 +222,10 @@ fn ov_gpu_usm_buffer_caller_writable() {
     }
     let mut buf = TokenBuffer::alloc(Device::OpenVinoGpu, 2, 32).expect("Level Zero USM");
     assert_eq!(buf.device(), Device::OpenVinoGpu);
-    assert!(buf.ptr_aligned(), "USM host pointers must be 64-byte aligned");
+    assert!(
+        buf.ptr_aligned(),
+        "USM host pointers must be 64-byte aligned"
+    );
     buf.input_ids_mut()[0] = 101;
     buf.input_ids_mut()[1] = 7592;
     assert_eq!(buf.input_ids()[0], 101);

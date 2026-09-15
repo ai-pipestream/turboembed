@@ -268,8 +268,7 @@ async fn run_list(
                 });
             // Catalog embeds on real arches go through TurboEmbedBackend.
             // `onnxruntime` / `ort` here means the old server path is still up.
-            let backend_ok = config.target.is_mock()
-                || backend.eq_ignore_ascii_case("turboembed");
+            let backend_ok = config.target.is_mock() || backend.eq_ignore_ascii_case("turboembed");
             if dim_mismatch {
                 let expected = config.matrix.embed("minilm").map(|e| e.dim).unwrap_or(0);
                 report.push(
@@ -668,7 +667,12 @@ async fn run_rerank(
     let info = served.get(RERANK_ALIAS);
     match decide(RERANK_ALIAS, false, config.target, &config.catalog, info) {
         Decision::Skip(reason) => {
-            report.push("rerank:ms-marco-minilm-l6", Outcome::Skip { reason: reason.to_string() });
+            report.push(
+                "rerank:ms-marco-minilm-l6",
+                Outcome::Skip {
+                    reason: reason.to_string(),
+                },
+            );
             return;
         }
         Decision::Fail(reason) => {
@@ -708,9 +712,9 @@ async fn run_rerank(
                     by_index[row.index as usize] = row.score;
                 }
             }
-            let only_unit = by_index
-                .iter()
-                .all(|s| (*s - 0.0).abs() < 1e-8 || (*s - 1.0).abs() < 1e-8 || (*s - 0.5).abs() < 1e-8);
+            let only_unit = by_index.iter().all(|s| {
+                (*s - 0.0).abs() < 1e-8 || (*s - 1.0).abs() < 1e-8 || (*s - 0.5).abs() < 1e-8
+            });
             if only_unit {
                 report.push(
                     "rerank:ms-marco-minilm-l6",

@@ -114,7 +114,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
         write_err(err, err_len, "null pointer in turboembed_ort_cuda_embed");
         return -1;
     }
-    let session = unsafe { &*session };
+    let session = unsafe { &mut *session };
 
     // 0 = DEFAULT (use the catalog pooling already loaded), 1 = MEAN,
     // 2 = CLS, 3 = LAST (matches turboembed_pooling).
@@ -212,7 +212,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_free_values(values: *mut f32, n: us
     if values.is_null() || n == 0 {
         return;
     }
-    drop(unsafe { Box::from_raw(slice::from_raw_parts_mut(values, n)) });
+    drop(unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(values, n)) });
 }
 
 #[no_mangle]
