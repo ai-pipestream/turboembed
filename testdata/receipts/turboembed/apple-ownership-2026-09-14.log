@@ -1,0 +1,128 @@
+[0/1] Planning build
+Test Suite 'Selected tests' started at 2026-09-14 22:58:32.785.
+Test Suite 'inferstream-applePackageTests.xctest' started at 2026-09-14 22:58:32.787.
+Test Suite 'WrapperOwnershipAndStringsTests' started at 2026-09-14 22:58:32.787.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testABIRejectsUnrepresentableCountBeforeReadingViews]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testABIRejectsUnrepresentableCountBeforeReadingViews]' passed (0.006 seconds).
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testConcurrentWrapperOperationsOnOneEngine]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testConcurrentWrapperOperationsOnOneEngine]' passed (0.004 seconds).
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testCreationErrorsAreIsolatedPerThread]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testCreationErrorsAreIsolatedPerThread]' passed (0.000 seconds).
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testEmbedCopiesExactUTF8Spans]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testEmbedCopiesExactUTF8Spans]' passed (0.007 seconds).
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testEmbeddingsRetainsEngineUntilResultRelease]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testEmbeddingsRetainsEngineUntilResultRelease]' passed (0.003 seconds).
+Test Suite 'WrapperOwnershipAndStringsTests' passed at 2026-09-14 22:58:32.808.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.020 (0.021) seconds
+Test Suite 'inferstream-applePackageTests.xctest' passed at 2026-09-14 22:58:32.808.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.020 (0.021) seconds
+Test Suite 'Selected tests' passed at 2026-09-14 22:58:32.808.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.020 (0.023) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+Test Suite 'All tests' started at 2026-09-14 22:58:33.796.
+Test Suite 'inferstream-applePackageTests.xctest' started at 2026-09-14 22:58:33.797.
+Test Suite 'MetalArenaEmbedTests' started at 2026-09-14 22:58:33.797.
+Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalArenaCreateRentsSharedAndLookupHits]' started.
+Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalArenaCreateRentsSharedAndLookupHits]' passed (0.035 seconds).
+Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalEmbedResultIsArenaOwnedAndZeroAllocsAfterWarmup]' started.
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
+[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalEmbedResultIsArenaOwnedAndZeroAllocsAfterWarmup]' passed (2.696 seconds).
+Test Suite 'MetalArenaEmbedTests' passed at 2026-09-14 22:58:36.527.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 2.730 (2.731) seconds
+Test Suite 'MetalWrapperOwnershipTests' started at 2026-09-14 22:58:36.527.
+Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testIndependentMetalEnginesRunConcurrentWrapperCalls]' started.
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
+[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
+[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testIndependentMetalEnginesRunConcurrentWrapperCalls]' passed (0.866 seconds).
+Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testMetalResultRetainsItsEngineAndSurvivorRemainsUsable]' started.
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
+[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testMetalResultRetainsItsEngineAndSurvivorRemainsUsable]' passed (0.592 seconds).
+Test Suite 'MetalWrapperOwnershipTests' passed at 2026-09-14 22:58:37.985.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 1.457 (1.457) seconds
+Test Suite 'TurboRerankHeaderTests' started at 2026-09-14 22:58:37.985.
+Test Case '-[TurboRerankTests.TurboRerankHeaderTests testAbiVersionIsOne]' started.
+Test Case '-[TurboRerankTests.TurboRerankHeaderTests testAbiVersionIsOne]' passed (0.000 seconds).
+Test Case '-[TurboRerankTests.TurboRerankHeaderTests testTurboBufferMetalDeviceIsSeven]' started.
+Test Case '-[TurboRerankTests.TurboRerankHeaderTests testTurboBufferMetalDeviceIsSeven]' passed (0.000 seconds).
+Test Case '-[TurboRerankTests.TurboRerankHeaderTests testTurboRerankMetalDeviceIsSeven]' started.
+Test Case '-[TurboRerankTests.TurboRerankHeaderTests testTurboRerankMetalDeviceIsSeven]' passed (0.000 seconds).
+Test Suite 'TurboRerankHeaderTests' passed at 2026-09-14 22:58:37.986.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+Test Suite 'WrapperOwnershipAndStringsTests' started at 2026-09-14 22:58:37.986.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testABIRejectsUnrepresentableCountBeforeReadingViews]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testABIRejectsUnrepresentableCountBeforeReadingViews]' passed (0.003 seconds).
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testConcurrentWrapperOperationsOnOneEngine]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testConcurrentWrapperOperationsOnOneEngine]' passed (0.005 seconds).
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testCreationErrorsAreIsolatedPerThread]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testCreationErrorsAreIsolatedPerThread]' passed (0.001 seconds).
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testEmbedCopiesExactUTF8Spans]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testEmbedCopiesExactUTF8Spans]' passed (0.007 seconds).
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testEmbeddingsRetainsEngineUntilResultRelease]' started.
+Test Case '-[TurboEmbedTests.WrapperOwnershipAndStringsTests testEmbeddingsRetainsEngineUntilResultRelease]' passed (0.003 seconds).
+Test Suite 'WrapperOwnershipAndStringsTests' passed at 2026-09-14 22:58:38.004.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.018 (0.019) seconds
+Test Suite 'inferstream-applePackageTests.xctest' passed at 2026-09-14 22:58:38.004.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 4.207 (4.208) seconds
+Test Suite 'All tests' passed at 2026-09-14 22:58:38.004.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 4.207 (4.209) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test catalogExpandsAppleAliases() started.
+◇ Test bytesRoundtrip() started.
+◇ Test outputScratchReusesAfterWarmup() started.
+◇ Test truncatedBytesRejected() started.
+◇ Test appleTomlServeList() started.
+◇ Test fp32Roundtrip() started.
+✔ Test bytesRoundtrip() passed after 0.001 seconds.
+✔ Test fp32Roundtrip() passed after 0.001 seconds.
+✔ Test outputScratchReusesAfterWarmup() passed after 0.001 seconds.
+✔ Test truncatedBytesRejected() passed after 0.001 seconds.
+✔ Test appleTomlServeList() passed after 0.006 seconds.
+✔ Test catalogExpandsAppleAliases() passed after 0.006 seconds.
+✔ Test run with 6 tests in 0 suites passed after 0.006 seconds.

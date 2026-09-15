@@ -106,3 +106,6 @@ publication, or deployment validation is claimed by this receipt.
 Subsequent, separately scoped hardware results are recorded in the
 [CUDA allocator receipt](cuda-allocator-isolation.md) and
 [initial Intel GPU receipt](intel-native-baseline-2026-09-14.md).
+The later [Apple ownership receipt](apple-ownership-validation-2026-09-14.md)
+records compiled Swift tests and actual Metal ownership/concurrency validation
+on the M2 Mac.

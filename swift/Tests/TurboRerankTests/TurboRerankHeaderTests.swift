@@ -23,9 +23,7 @@ final class TurboRerankHeaderTests: XCTestCase {
         #endif
     }
 
-    /// The Swift client has no token-buffer allocator. Tokens come from
-    /// `turborerank_buffer_alloc` / engine work rents in libturborerank_apple.
-    func testSwiftClientHasNoTokenAllocatorSymbolInThisModule() {
-        XCTAssertEqual(TURBORERANK_DEVICE_METAL, 7)
+    func testTurboRerankMetalDeviceIsSeven() {
+        XCTAssertEqual(Int(TURBORERANK_DEVICE_METAL.rawValue), 7)
     }
 }

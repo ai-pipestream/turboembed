@@ -34,8 +34,8 @@ ar rcs "$OUT/libturbo_buffer_apple.a" \
   "$OUT/vocab_load.cpp.o" \
   "$OUT/encode.cpp.o" \
   "$OUT/utf8proc.c.o"
-nm -g "$OUT/libturbo_buffer_apple.a" | grep -q turbo_buffer_arena_rent
-nm -g "$OUT/libturbo_buffer_apple.a" | grep -q turbo_buffer_metal_owns
-nm -g "$OUT/libturbo_buffer_apple.a" | grep -q turbo_buffer_metal_lookup
-nm -g "$OUT/libturbo_buffer_apple.a" | grep -q wordpiece_encode_sentence
+nm -g "$OUT/libturbo_buffer_apple.a" | grep turbo_buffer_arena_rent >/dev/null
+nm -g "$OUT/libturbo_buffer_apple.a" | grep turbo_buffer_metal_owns >/dev/null
+nm -g "$OUT/libturbo_buffer_apple.a" | grep turbo_buffer_metal_lookup >/dev/null
+nm -g "$OUT/libturbo_buffer_apple.a" | grep wordpiece_encode_sentence >/dev/null
 echo "wrote $OUT/libturbo_buffer_apple.a (Metal SHARED + WordPiece)"
