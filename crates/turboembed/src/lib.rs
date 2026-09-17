@@ -182,7 +182,9 @@ impl OutputFormat {
     }
 }
 
-/// Options for a single embed call. All fields are hints; the stub ignores them.
+/// Options for a single embed call. Providers validate every field: an option
+/// a loaded model cannot honor fails with [`Error::NotImplemented`] instead of
+/// being silently ignored.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EmbedOptions {
     pub pooling: Pooling,
@@ -334,7 +336,20 @@ impl Drop for ModelList {
 
 /// Engine-owned embed result. Typed floats and packed bytes alias one buffer.
 ///
-/// Retains its native engine, including when moved to another thread.
+/// Retains its native engine, including when moved to another thread. The
+/// native engine is destroyed only after the [`Engine`] handle and every
+/// result it produced have been dropped, so this is safe:
+///
+/// ```
+/// use turboembed::{Device, EmbedOptions, Engine};
+///
+/// let engine = Engine::create(Device::Mock)?;
+/// let result = engine.embed_one("mock-embed", "text", &EmbedOptions::default())?;
+/// drop(engine); // the result keeps the native engine alive
+/// assert_eq!(result.count(), 1);
+/// assert!(!result.values().is_empty());
+/// # Ok::<(), turboembed::Error>(())
+/// ```
 #[derive(Debug)]
 pub struct Embeddings {
     raw: *mut turboembed_embed_result,

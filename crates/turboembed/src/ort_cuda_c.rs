@@ -88,6 +88,13 @@ pub unsafe extern "C" fn turboembed_ort_cuda_open(
     }
 }
 
+/// Returned by [`turboembed_ort_cuda_embed`] when the request names an option
+/// this path does not implement for the loaded session. `stub.cpp` maps it to
+/// `TURBOEMBED_ERR_NOT_IMPLEMENTED` instead of `TURBOEMBED_ERR_INTERNAL`.
+pub const ORT_EMBED_UNSUPPORTED_OPTION: c_int = -2;
+
+/// Returns 0 on success, [`ORT_EMBED_UNSUPPORTED_OPTION`] for a per-call
+/// option the loaded session cannot honor, and -1 for every other failure.
 #[no_mangle]
 pub unsafe extern "C" fn turboembed_ort_cuda_embed(
     session: *mut OrtCudaSession,
@@ -128,7 +135,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
                     "embed requested mean pooling but the loaded \
                      catalog alias is not mean",
                 );
-                return -1;
+                return ORT_EMBED_UNSUPPORTED_OPTION;
             }
         }
         2 => {
@@ -139,7 +146,7 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
                     "embed requested CLS pooling but the loaded catalog \
                      alias is mean (MiniLM goldens are mean+L2)",
                 );
-                return -1;
+                return ORT_EMBED_UNSUPPORTED_OPTION;
             }
         }
         3 => {
@@ -148,13 +155,15 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
                 err_len,
                 "LAST pooling is not implemented on the ORT CUDA path",
             );
-            return -1;
+            return ORT_EMBED_UNSUPPORTED_OPTION;
         }
         _ => {
             write_err(err, err_len, "unknown pooling enum");
             return -1;
         }
     }
+    // A per-call normalize request must match the loaded session in both
+    // directions; this path neither skips nor adds L2 normalization post hoc.
     if requested_normalize == 0 && session.normalize() {
         write_err(
             err,
@@ -162,7 +171,16 @@ pub unsafe extern "C" fn turboembed_ort_cuda_embed(
             "normalize=false is not the catalog MiniLM path \
              (goldens are L2-normalized)",
         );
-        return -1;
+        return ORT_EMBED_UNSUPPORTED_OPTION;
+    }
+    if requested_normalize == 1 && !session.normalize() {
+        write_err(
+            err,
+            err_len,
+            "normalize=true was requested but the loaded session does not \
+             normalize; reload with normalization instead",
+        );
+        return ORT_EMBED_UNSUPPORTED_OPTION;
     }
 
     let texts: Result<Vec<String>, String> = (0..n_texts)

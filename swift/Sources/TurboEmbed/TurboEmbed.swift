@@ -7,8 +7,14 @@ import Foundation
 /// Safe Swift wrapper over the TurboEmbed C ABI.
 ///
 /// Input strings are copied into a temporary UTF-8 buffer for the duration
-/// of the call (`String` is not a stable contiguous view). `Embeddings`
-/// owns the C result until it is released — `values` is only valid until then.
+/// of the call (`String` is not a stable contiguous view); embedded NULs are
+/// part of the copied span. Aliases are passed as NUL-terminated C strings
+/// with their exact UTF-8 length, matching the header's alias convention.
+/// `Embeddings` retains this engine and owns the C result until the
+/// `Embeddings` value is released — `values` is only valid until then, and
+/// the native engine is destroyed only after the engine and all of its
+/// results are gone. Calls on one engine are serialized by an internal lock,
+/// as the ABI requires.
 public final class Engine: @unchecked Sendable {
     private let raw: OpaquePointer
     private let lock = NSLock()
