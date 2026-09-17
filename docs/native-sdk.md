@@ -21,6 +21,20 @@ roadmap M4 — NVIDIA proven on Machine A, Apple gated on Machine C — is
 summarized in [nvidia-m4-qualification-2026-09-16.md](nvidia-m4-qualification-2026-09-16.md)
 and [apple-m4-machine-c-checklist.md](apple-m4-machine-c-checklist.md).
 
+Per-provider installable packages of the `turboembed.h` text ABI:
+
+| Provider package | Build / acceptance | Status |
+|---|---|---|
+| NVIDIA CUDA (`turboembed-cuda-sdk-*-linux-x86_64.tar.gz`) | [`scripts/make-nvidia-sdk-release.sh`](../scripts/make-nvidia-sdk-release.sh), [`scripts/nvidia-sdk-consumer-acceptance.sh`](../scripts/nvidia-sdk-consumer-acceptance.sh) | Qualified on Machine A ([receipt](nvidia-m4-qualification-2026-09-16.md)) |
+| Apple Metal (`turboembed-metal-sdk-*-macos-arm64.tar.gz`) | [`scripts/make-apple-sdk-release.sh`](../scripts/make-apple-sdk-release.sh), [`scripts/apple-sdk-consumer-acceptance.sh`](../scripts/apple-sdk-consumer-acceptance.sh) | Tooling landed; **not qualified** until built and accepted on Machine C ([checklist step 7](apple-m4-machine-c-checklist.md)) |
+
+The Apple package stages `libTurboEmbed.dylib` with its MLX Metal kernel
+libraries, `include/turboembed.h`, a CMake package, C and Swift consumer
+examples, and SHA-256 pins for the qualified MiniLM MLX source; its
+acceptance script enforces the fail-loud device policy (METAL/AUTO succeed
+only with a Metal device; explicit CPU refuses catalog aliases; MOCK is
+smoke-only). Both Apple scripts refuse to run off macOS arm64.
+
 ## Support matrix
 
 | Component | Supported in this preview | Evidence |

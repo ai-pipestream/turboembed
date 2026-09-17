@@ -8,9 +8,12 @@ find_package(TurboEmbed CONFIG REQUIRED)
 add_executable(turboembed_embed embed.c)
 target_link_libraries(turboembed_embed PRIVATE TurboEmbed::turboembed m)
 
-# The example resolves libturboembed and the ORT provider plugins from the
-# extracted prefix without requiring the caller to export LD_LIBRARY_PATH.
-find_library(TE_LIB_DIR_PROBE turboembed PATHS ${CMAKE_PREFIX_PATH}/lib NO_DEFAULT_PATH)
+# The example resolves the packaged library (libturboembed.so on the CUDA
+# SDK, libTurboEmbed.dylib on the Metal SDK) and any provider plugins from
+# the extracted prefix without requiring the caller to export
+# LD_LIBRARY_PATH / DYLD_LIBRARY_PATH.
+find_library(TE_LIB_DIR_PROBE NAMES turboembed TurboEmbed
+    PATHS ${CMAKE_PREFIX_PATH}/lib NO_DEFAULT_PATH)
 get_filename_component(TE_LIB_DIR ${TE_LIB_DIR_PROBE} DIRECTORY)
 set_target_properties(turboembed_embed PROPERTIES
     BUILD_RPATH ${TE_LIB_DIR}
