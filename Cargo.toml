@@ -19,6 +19,7 @@ members = [
     "crates/xtask",
     "crates/e2e",
     "crates/turboembed",
+    "crates/turboembed-cabi",
     "crates/turborerank",
     "crates/bench-turbo",
 ]

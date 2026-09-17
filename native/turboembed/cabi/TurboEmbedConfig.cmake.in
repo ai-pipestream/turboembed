@@ -1,0 +1,8 @@
+# CMake package for the installed turboembed.h ABI (template; the release
+# script installs this as lib/cmake/TurboEmbed/TurboEmbedConfig.cmake).
+get_filename_component(_te_prefix "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+
+add_library(TurboEmbed::turboembed SHARED IMPORTED)
+set_target_properties(TurboEmbed::turboembed PROPERTIES
+    IMPORTED_LOCATION "${_te_prefix}/lib/libturboembed.so.1"
+    INTERFACE_INCLUDE_DIRECTORIES "${_te_prefix}/include")
