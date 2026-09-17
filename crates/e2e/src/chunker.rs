@@ -106,88 +106,28 @@ pub fn embed_units(source: &str, text: &str) -> Vec<Chunk> {
 }
 
 /// Blank-line paragraphs, CR/LF normalized, empties dropped.
+///
+/// Segmentation is the library implementation ([`turboembed::chunker`]); this
+/// harness keeps its own CR/LF normalization and materializes owned strings
+/// because its ids are positional over normalized text, not byte offsets.
 pub fn split_paragraphs(text: &str) -> Vec<String> {
     let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
-    let mut out = Vec::new();
-    let mut buf = String::new();
-    for line in normalized.lines() {
-        if line.trim().is_empty() {
-            let trimmed = buf.trim();
-            if !trimmed.is_empty() {
-                out.push(trimmed.to_string());
-            }
-            buf.clear();
-        } else {
-            if !buf.is_empty() {
-                buf.push('\n');
-            }
-            buf.push_str(line);
-        }
-    }
-    let trimmed = buf.trim();
-    if !trimmed.is_empty() {
-        out.push(trimmed.to_string());
-    }
-    out
+    turboembed::chunker::paragraph_spans(&normalized)
+        .into_iter()
+        .map(|r| normalized[r].to_string())
+        .collect()
 }
 
-const ABBREV: &[&str] = &[
-    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc", "e.g", "i.e", "cf",
-];
-
 /// Split a paragraph into sentences. Deterministic; not a linguistic parser.
+///
+/// Delegates to [`turboembed::chunker::sentence_spans`], which keeps the same
+/// terminator-scan semantics: a block with no `.?!` yields no sentences, so
+/// `embed_units` can keep a single stable paragraph id for it.
 pub fn split_sentences(para: &str) -> Vec<String> {
-    let para = para.trim();
-    if para.is_empty() {
-        return Vec::new();
-    }
-    let bytes = para.as_bytes();
-    let mut out = Vec::new();
-    let mut start = 0usize;
-    let mut i = 0usize;
-    while i < bytes.len() {
-        let ch = bytes[i];
-        if matches!(ch, b'.' | b'!' | b'?') {
-            let prev = std::str::from_utf8(&bytes[start..i]).unwrap_or("");
-            let token = prev
-                .rsplit(|c: char| c.is_whitespace() || matches!(c, ',' | ';' | ':' | '(' | '['))
-                .next()
-                .unwrap_or("")
-                .trim_matches(|c: char| !c.is_ascii_alphabetic() && c != '.')
-                .to_ascii_lowercase();
-            let is_abbrev = ch == b'.' && ABBREV.iter().any(|a| token == *a);
-            let mut j = i + 1;
-            while j < bytes.len() && matches!(bytes[j], b'"' | b'\'' | b')' | b']') {
-                j += 1;
-            }
-            let at_end = j >= bytes.len();
-            let next_ws = !at_end && bytes[j].is_ascii_whitespace();
-            if !is_abbrev && (at_end || next_ws) {
-                let end = j;
-                let sent = para[start..end].trim();
-                if !sent.is_empty() {
-                    out.push(sent.to_string());
-                }
-                while j < bytes.len() && bytes[j].is_ascii_whitespace() {
-                    j += 1;
-                }
-                start = j;
-                i = j;
-                continue;
-            }
-        }
-        i += 1;
-    }
-    let tail = para[start..].trim();
-    if !tail.is_empty() {
-        // Only emit a sentence for a leftover when we already split on a
-        // terminator (start > 0). A block with no `.?!` stays a paragraph
-        // so embed_units can keep a single stable paragraph id.
-        if start > 0 {
-            out.push(tail.to_string());
-        }
-    }
-    out
+    turboembed::chunker::sentence_spans(para)
+        .into_iter()
+        .map(|r| para[r].to_string())
+        .collect()
 }
 
 #[cfg(test)]

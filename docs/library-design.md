@@ -142,19 +142,25 @@ while allowing valid prepared tokens. Do not return mock tokens for real models.
 The current optimized WordPiece implementation needs the fixes and reference
 comparisons identified in the review before broader use.
 
-Initial chunking can run in compiled Rust or C++. Start with deterministic
-paragraph boundaries and a token-budget limit, optionally preferring sentence
-boundaries. Reserve space for model prefixes and special tokens. Long spans
-must split even without punctuation, with explicit overlap and a forward-progress
-guarantee. Return half-open UTF-8 byte offsets into the original input, source
-identity, and chunking configuration. Java adapters convert offsets to UTF-16
-only when requested; normalization must preserve an offset map if it changes text.
+Initial chunking runs in compiled Rust. It uses deterministic paragraph
+boundaries and a token-budget limit, optionally preferring sentence
+boundaries, and reserves space for model prefixes and special tokens. Long
+spans split even without punctuation, with explicit overlap and a
+forward-progress guarantee. Chunks carry half-open UTF-8 byte offsets into the
+original input, source identity, and the chunking configuration. Java adapters
+convert offsets to UTF-16 only when requested; normalization must preserve an
+offset map if it changes text.
 
-The existing [E2E chunker](../crates/e2e/src/chunker.rs) is a useful test utility:
-it normalizes text, allocates strings, and lacks model token budgets and original
-offsets. It is not yet the library chunking contract. Prefer a small native
-implementation first; evaluate a dependency only if it provides a needed
-language feature with acceptable size, licensing, and offset behavior.
+This contract is implemented by the optional
+[`turboembed::chunker`](../crates/turboembed/src/chunker.rs) module — see the
+[chunking guide](chunking.md). Token counts come from a caller-supplied
+counter so budgets are expressed in the loaded model's tokens; the module does
+not bundle a tokenizer, is not exposed through the C ABI or the Java adapters,
+and performs no linguistic analysis. The [E2E chunker](../crates/e2e/src/chunker.rs)
+remains a test-id utility over normalized text; its paragraph and sentence
+segmentation delegates to the library implementation. Evaluate a segmentation
+dependency only if it provides a needed language feature with acceptable size,
+licensing, and offset behavior.
 
 GPU tokenization, GPU sentence segmentation, and richer analysis are deferred
 capabilities. Their initial stubs report unsupported. Use native CPU preprocessing
