@@ -188,7 +188,10 @@ fn forbid_mapped(maps: &str, needle: &str) {
     );
 }
 
-fn load_subset(path: &Path) -> (usize, Vec<(String, String, Vec<f32>)>, Vec<f32>) {
+/// `(dim, [(id, text, vector)], hello_world_vector)` from a golden file.
+type SubsetGolden = (usize, Vec<(String, String, Vec<f32>)>, Vec<f32>);
+
+fn load_subset(path: &Path) -> SubsetGolden {
     let raw = fs::read_to_string(path).unwrap_or_else(|e| {
         panic!("golden unreadable at {}: {e}", path.display());
     });
@@ -475,7 +478,10 @@ fn ort_rejects_unsupported_options_as_not_implemented() {
             Some(config),
         )
     } else {
-        (Engine::create(Device::Cpu).expect("create Device::Cpu"), None)
+        (
+            Engine::create(Device::Cpu).expect("create Device::Cpu"),
+            None,
+        )
     };
     engine.load_model(ALIAS).expect("load minilm on ORT CPU EP");
 

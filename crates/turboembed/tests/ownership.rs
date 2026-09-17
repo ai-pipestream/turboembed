@@ -90,7 +90,11 @@ fn text_inputs_honor_exact_utf8_spans() {
     // Empty text is a valid zero-length view, not an error or a strlen probe.
     let empty = embed("");
     assert!(!empty.is_empty());
-    assert_ne!(empty, embed("\0"), "zero length must not read past the view");
+    assert_ne!(
+        empty,
+        embed("\0"),
+        "zero length must not read past the view"
+    );
 
     // Batch rows see the same per-row spans as single-text calls.
     let batch = engine
