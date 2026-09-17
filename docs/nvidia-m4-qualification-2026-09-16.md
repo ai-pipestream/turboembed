@@ -18,7 +18,11 @@ EP — the path all existing NVIDIA receipts use — brought through the same
 gate structure as M1/M2: matched overhead against a direct native baseline,
 installable packaging with a clean-consumer acceptance, explicit provisioning
 pins, and fail-loud device policy. Extending the prepared ABI itself to CUDA
-remains future work and is not claimed.
+remains future work and is not claimed. The same applies to the M3 Java FFM
+adapter: it links `libturboembed_prepared.so.1` and its `Device` enum covers
+OpenVINO devices only, so Java is outside this NVIDIA qualification; the
+roadmap's "including Java where selected" clause is exercised on Intel and
+deferred here.
 
 ## Matched native overhead (M1-style pilot)
 
