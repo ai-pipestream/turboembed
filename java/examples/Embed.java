@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import ai.pipestream.turboembed.Device;
+import ai.pipestream.turboembed.DeviceInfo;
 import ai.pipestream.turboembed.EmbeddingResult;
 import ai.pipestream.turboembed.ExecutionSlot;
 import ai.pipestream.turboembed.TokenBuffers;
@@ -17,14 +18,34 @@ public final class Embed {
     private Embed() {}
 
     public static void main(String[] args) {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("usage: Embed SDK_PREFIX MODEL_BUNDLE");
+        if (args.length < 2 || args.length > 3) {
+            throw new IllegalArgumentException("usage: Embed SDK_PREFIX MODEL_BUNDLE [gpu|cpu]");
         }
 
         Path prefix = Path.of(args[0]);
         Path bundle = Path.of(args[1]);
-        try (var turboEmbed = FfmTurboEmbed.open(prefix);
-                var context = turboEmbed.context(Device.OPENVINO_GPU, 0);
+        // GPU is the default; CPU must be requested explicitly and a missing
+        // GPU fails loudly instead of falling back.
+        Device device = switch (args.length == 3 ? args[2] : "gpu") {
+            case "gpu" -> Device.OPENVINO_GPU;
+            case "cpu" -> Device.OPENVINO_CPU;
+            default -> throw new IllegalArgumentException("device must be gpu or cpu");
+        };
+        try (var turboEmbed = FfmTurboEmbed.open(prefix)) {
+            for (DeviceInfo discovered : turboEmbed.devices()) {
+                System.out.printf(
+                        "device %d ordinal %d: %s (%s)%n",
+                        discovered.device(),
+                        discovered.ordinal(),
+                        discovered.name(),
+                        discovered.runtimeVersion());
+            }
+            run(turboEmbed, device, bundle);
+        }
+    }
+
+    private static void run(FfmTurboEmbed turboEmbed, Device device, Path bundle) {
+        try (var context = turboEmbed.context(device, 0);
                 var model = context.loadModel(bundle);
                 var slot = model.slot(1, 32)) {
             if (model.info().dimension() != DIMENSION) {
@@ -46,8 +67,8 @@ public final class Embed {
             float[] preparedEmbedding = execute(slot);
             compare(textEmbedding, preparedEmbedding, 1e-6, 1e-7);
             System.out.printf(
-                    "GPU embedding verified: dimension=%d norm=%.8f%n",
-                    textEmbedding.length, norm);
+                    "%s embedding verified: dimension=%d norm=%.8f%n",
+                    context.info().name(), textEmbedding.length, norm);
         }
     }
 

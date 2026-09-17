@@ -39,6 +39,10 @@
 #   make bench-turbo MACHINE=B              # same as bench-machine-b-ov
 #   make bench-turbo MACHINE=C              # same as bench-machine-c
 #
+#   make java-verify                        # JDK 25 + Maven: build both jars + C-header layout test
+#                                           # (with TURBOEMBED_PREPARED_SDK/_BUNDLE set it also runs
+#                                           #  the hardware contract suite; see docs/java-ffm.md)
+#
 #   make fetch-embeddings                   # all nvidia ONNX embedding aliases
 #   make fetch-embeddings ALIASES=minilm,mpnet
 #   make verify-embeddings [ALIASES=...]    # offline SHA-256 check, no network
@@ -77,7 +81,7 @@ empty :=
 space := $(empty) $(empty)
 ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 
-.PHONY: test test-fetch test-turboembed-nvidia \
+.PHONY: java-verify test test-fetch test-turboembed-nvidia \
 	fetch-embeddings verify-embeddings list-embeddings \
 	update-embedding-manifest \
 	fetch-llms verify-llms list-llms update-llm-manifest \
@@ -105,6 +109,14 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 
 test:
 	$(CARGO) test --workspace
+
+# Desktop Java (JDK 25+, Panama FFM). Ordinary builds run the layout test
+# only; exporting TURBOEMBED_PREPARED_SDK and TURBOEMBED_PREPARED_BUNDLE adds
+# the hardware contract suite (TURBOEMBED_PREPARED_DEVICES=cpu-only on
+# GPU-less hosts). Maven and a JDK 25+ toolchain are prerequisites.
+MVN ?= mvn
+java-verify:
+	$(MVN) -f java/pom.xml --batch-mode verify
 
 test-fetch:
 	$(CARGO) test -p inferstream-fetch

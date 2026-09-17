@@ -80,6 +80,30 @@ jobs:
       - name: Test backend-ort with runtime feature
         run: cargo test -p inferstream-backend-ort --features runtime
 
+  java-ffm:
+    # M3 build gate without hardware: compile the common API (Java 17
+    # bytecode) and the JDK 25 FFM adapter, and run the C-header layout
+    # conformance test. Hardware contract tests need an installed SDK and
+    # run in the prepared-sdk job (CPU) and on Machine B (GPU).
+    name: Java API + FFM adapter (build & layout conformance)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Build and test the Java modules
+        run: mvn -f java/pom.xml --batch-mode verify
+      - name: Common API stays adapter-neutral (no java.lang.foreign)
+        run: |
+          jdeps -verbose:class java/turboembed-api/target/turboembed-api-*-SNAPSHOT.jar | tee /tmp/api-deps.txt
+          if grep -q 'java\.lang\.foreign' /tmp/api-deps.txt; then
+            echo "turboembed-api must not reference FFM classes" >&2
+            exit 1
+          fi
+
   prepared-sdk:
     # M2 package gate, CPU path only: build the release archive against the
     # pinned OpenVINO runtime, provision the MiniLM bundle from the committed
@@ -138,6 +162,29 @@ jobs:
           LD_LIBRARY_PATH="$SDK/lib" \
             cargo test -p turboembed --features prepared --test prepared_sdk -- --ignored \
               device_discovery_and_explicit_selection prepared_cpu_reference_execution
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Java FFM contracts against the packaged library (CPU)
+        run: |
+          SDK="$(echo /tmp/te-sdk/turboembed-prepared-sdk-*)"
+          TURBOEMBED_PREPARED_SDK="$SDK" \
+          TURBOEMBED_PREPARED_BUNDLE=/tmp/te-bundle \
+          TURBOEMBED_PREPARED_DEVICES=cpu-only \
+            mvn -f java/pom.xml --batch-mode verify
+      - name: Standalone Java consumer example (explicit CPU, jars + SDK only)
+        run: |
+          SDK="$(echo /tmp/te-sdk/turboembed-prepared-sdk-*)"
+          CONSUMER="$(mktemp -d)"
+          cp java/examples/Embed.java "$CONSUMER/"
+          cp java/turboembed-api/target/turboembed-api-*-SNAPSHOT.jar "$CONSUMER/api.jar"
+          cp java/turboembed-ffm/target/turboembed-ffm-*-SNAPSHOT.jar "$CONSUMER/ffm.jar"
+          cd "$CONSUMER"
+          javac --release 25 -cp "api.jar:ffm.jar" Embed.java
+          java --enable-native-access=ALL-UNNAMED -cp ".:api.jar:ffm.jar" \
+            Embed "$SDK" /tmp/te-bundle cpu
       - name: Upload release archive
         uses: actions/upload-artifact@v4
         with:

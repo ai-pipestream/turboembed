@@ -1,13 +1,22 @@
 # Java on JDK 25
 
 The `turboembed-ffm` artifact calls the [installed Intel SDK](native-sdk.md)
-in process through Panama FFM. It does not yet expose the SDK's device
-discovery API; contexts take an explicit device selection. `turboembed-api` contains the common Java
-interfaces with no FFM or vendor-runtime dependency. Select the FFM adapter
-explicitly at initialization. Android JNI is a later adapter; this provider
-currently supports Linux x86_64 with JDK 25+.
+in process through Panama FFM. `turboembed-api` contains the common Java
+interfaces with no FFM or vendor-runtime dependency, so a later Android JNI
+adapter can implement the same API without loading FFM classes. Select the
+FFM adapter explicitly at initialization; nothing is downloaded at runtime.
+`FfmTurboEmbed.libraryPath()` maps the running platform and ABI to the
+library inside the installed SDK prefix and fails explicitly on unsupported
+platforms; this provider currently supports Linux x86_64 with JDK 25+.
 
-Build the two jars with JDK 25 and Maven:
+`TurboEmbed.devices()` exposes the SDK's device discovery: GPUs in ascending
+ordinal order, then CPU, each with the same identity a created context
+reports. Discovery informs selection and never performs it — creating a
+context still takes an explicit device, an absent accelerator returns a
+typed error, and CPU is never an automatic fallback.
+
+Build the two jars with JDK 25 and Maven (`make java-verify` runs the same
+command):
 
 ```bash
 mvn -f java/pom.xml --batch-mode verify
@@ -91,9 +100,21 @@ TURBOEMBED_PREPARED_BUNDLE=/path/to/minilm-bundle \
   mvn -f java/pom.xml --batch-mode verify
 ```
 
-This requires both Intel GPU and explicit CPU execution. It checks layouts,
-model metadata, numerical parity, prepared/text agreement, invalid inputs,
-Unicode, buffer bounds/order/alignment, concurrent slots and close/thread
-ownership. Missing GPU capability fails the test; it does not fall back to CPU.
-The [validation receipt](intel-bindings-2026-09-14.md) records actual runs and
-performance limits.
+This default `gpu` mode requires both Intel GPU and explicit CPU execution.
+It checks layouts, device discovery, model metadata, numerical parity,
+prepared/text agreement, invalid inputs, Unicode, buffer
+bounds/order/alignment, concurrent slots and close/thread ownership. Missing
+GPU capability fails the test; it does not fall back to CPU. The
+[GPU validation receipt](intel-bindings-2026-09-14.md) records actual runs
+and performance limits.
+
+On a host without a GPU, additionally set
+`TURBOEMBED_PREPARED_DEVICES=cpu-only`. This mirrors the native acceptance
+script's `cpu-only` mode: every contract case runs on explicitly selected
+CPU contexts, discovery must list no GPU, and requesting AUTO or the GPU
+must fail with the typed unavailable error. The hosted `prepared-sdk` CI job
+runs this mode plus the standalone consumer example against the packaged
+SDK on every push; the separate `java-ffm` job builds the jars and checks
+layout conformance without hardware. The
+[M3 CPU receipt](java-m3-cpu-validation-2026-09-17.md) records the packaged
+CPU validation and the remaining Machine B GPU gates.

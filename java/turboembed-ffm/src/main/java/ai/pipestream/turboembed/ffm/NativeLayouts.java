@@ -39,6 +39,9 @@ final class NativeLayouts {
         u32("struct_size"), u32("version"), u64("executions"), u64("input_write_bytes"),
         u64("output_read_bytes"), u64("owned_input_bytes"), u64("owned_output_bytes"));
     static final StructLayout TEXT = struct("te_text", ValueLayout.ADDRESS.withName("ptr"), u64("byte_length"));
+    static final StructLayout DEVICE_INFO = struct("te_device_info",
+        u32("struct_size"), u32("version"), u32("device"), u32("ordinal"), u64("capabilities"),
+        chars("device_name", 128), chars("runtime_version", 128), chars("driver_version", 128));
     static final long TEXT_PTR = offset(TEXT, "ptr");
     static final long TEXT_BYTE_LENGTH = offset(TEXT, "byte_length");
     static final long STATS_EXECUTIONS = offset(STATS, "executions");
@@ -47,7 +50,7 @@ final class NativeLayouts {
     static final long STATS_OWNED_INPUT_BYTES = offset(STATS, "owned_input_bytes");
     static final long STATS_OWNED_OUTPUT_BYTES = offset(STATS, "owned_output_bytes");
     static final List<StructLayout> ALL = List.of(ERROR, CONTEXT_OPTIONS, CONTEXT_INFO, MODEL_INFO,
-        SLOT_OPTIONS, RESULT_INFO, OPENCL, STATS, TEXT);
+        SLOT_OPTIONS, RESULT_INFO, OPENCL, STATS, TEXT, DEVICE_INFO);
     static long offset(StructLayout layout, String field) {
         return layout.byteOffset(MemoryLayout.PathElement.groupElement(field));
     }

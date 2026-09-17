@@ -18,9 +18,11 @@ API_JAR=/path/to/turboembed-api-0.1.0-SNAPSHOT.jar
 FFM_JAR=/path/to/turboembed-ffm-0.1.0-SNAPSHOT.jar
 javac --release 25 -cp "$API_JAR:$FFM_JAR" Embed.java
 java --enable-native-access=ALL-UNNAMED -cp ".:$API_JAR:$FFM_JAR" \
-  Embed /path/to/installed-sdk /path/to/prepared-model-bundle
+  Embed /path/to/installed-sdk /path/to/prepared-model-bundle [gpu|cpu]
 ```
 
-The example explicitly selects OpenVINO GPU device ordinal zero. It embeds
-`hello world`, checks the 384-float output is normalized, then uploads the
-pinned WordPiece IDs and verifies that both paths agree.
+The example lists the discovered devices, then embeds on the selected device
+at ordinal zero. GPU is the default; CPU must be requested explicitly, and a
+missing GPU fails with the typed unavailable error instead of falling back.
+It embeds `hello world`, checks the 384-float output is normalized, then
+uploads the pinned WordPiece IDs and verifies that both paths agree.

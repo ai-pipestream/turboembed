@@ -48,6 +48,12 @@ java --enable-native-access=ALL-UNNAMED -cp "$TE_CLASSPATH" \
   BindingBenchmark /path/to/sdk /path/to/minilm-bundle 1 32 java-1-32.json
 ```
 
+Both executables accept a trailing `cpu` argument that explicitly selects
+the OpenVINO CPU device for hosts without the reference GPU (GPU remains
+the default and a missing GPU fails loudly). CPU runs measure the same
+matched Java-versus-native boundary but do not stand in for the roadmap's
+Intel GPU numbers.
+
 The native executable writes one JSON object on stdout. The Java executable
 writes the requested output file. Keep diagnostic stderr separately.
 

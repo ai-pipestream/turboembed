@@ -78,5 +78,15 @@ int main(void) {
   PRINT_LAYOUT(te_text);
   PRINT_FIELD(te_text, ptr);
   PRINT_FIELD(te_text, byte_length);
+
+  PRINT_LAYOUT(te_device_info);
+  PRINT_FIELD(te_device_info, struct_size);
+  PRINT_FIELD(te_device_info, version);
+  PRINT_FIELD(te_device_info, device);
+  PRINT_FIELD(te_device_info, ordinal);
+  PRINT_FIELD(te_device_info, capabilities);
+  PRINT_FIELD(te_device_info, device_name);
+  PRINT_FIELD(te_device_info, runtime_version);
+  PRINT_FIELD(te_device_info, driver_version);
   return 0;
 }
