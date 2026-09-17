@@ -36,12 +36,18 @@ public final class BindingBenchmark {
             .append(",\"java_allocated_bytes_per_call\":").append(allocated).append('}').toString();
     }
     public static void main(String[] args) throws Exception {
-        if (args.length != 5) { throw new IllegalArgumentException("SDK BUNDLE BATCH SEQUENCE OUTPUT_JSON"); }
+        if (args.length < 5 || args.length > 6) { throw new IllegalArgumentException("SDK BUNDLE BATCH SEQUENCE OUTPUT_JSON [gpu|cpu]"); }
         if (!ALLOCATIONS.isThreadAllocatedMemorySupported()) { throw new IllegalStateException("allocation counter unavailable"); }
         ALLOCATIONS.setThreadAllocatedMemoryEnabled(true);
         int batch = Integer.parseInt(args[2]), sequence = Integer.parseInt(args[3]);
+        // GPU is the reference device; CPU must be selected explicitly.
+        Device device = switch (args.length == 6 ? args[5] : "gpu") {
+            case "gpu" -> Device.OPENVINO_GPU;
+            case "cpu" -> Device.OPENVINO_CPU;
+            default -> throw new IllegalArgumentException("device must be gpu or cpu");
+        };
         try (var provider = FfmTurboEmbed.open(Path.of(args[0]));
-             var context = provider.context(Device.OPENVINO_GPU, 0);
+             var context = provider.context(device, 0);
              var model = context.loadModel(Path.of(args[1])); var slot = model.slot(batch, sequence)) {
             if (!model.info().tokenizerSha256().equals("be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037")) {
                 throw new IllegalArgumentException("benchmark token IDs require pinned MiniLM tokenizer");
@@ -71,7 +77,8 @@ public final class BindingBenchmark {
                 maximum = Math.max(maximum, difference); squared += difference * difference;
             }
             if (maximum > 1e-6 || Math.sqrt(squared / reference.length) > 1e-7) { throw new AssertionError("prepared/text parity failed"); }
-            StringBuilder json = new StringBuilder("{\"path\":\"java_ffm\",\"batch\":").append(batch)
+            StringBuilder json = new StringBuilder("{\"path\":\"java_ffm\",\"device\":\"")
+                .append(context.info().name()).append("\",\"batch\":").append(batch)
                 .append(",\"sequence\":").append(sequence).append(",\"text\":\"hello world\",\"jdk\":\"")
                 .append(System.getProperty("java.runtime.version")).append("\",\"repeats\":[");
             for (int repeat = 0; repeat < 3; repeat++) {

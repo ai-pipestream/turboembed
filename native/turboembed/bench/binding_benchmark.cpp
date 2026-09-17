@@ -36,10 +36,14 @@ template<class F> static json measure(F call, int maximum, int warmup) {
         {"p99_ns", sorted[(sorted.size() - 1) * 99 / 100]}, {"requests_per_second", samples.size() / elapsed}};
 }
 int main(int argc, char **argv) try {
-    if (argc != 4) throw std::runtime_error("usage: binding_benchmark BUNDLE BATCH SEQUENCE");
+    if (argc < 4 || argc > 5) throw std::runtime_error("usage: binding_benchmark BUNDLE BATCH SEQUENCE [gpu|cpu]");
     const int batch = std::stoi(argv[2]), sequence = std::stoi(argv[3]);
     if (batch < 1 || batch > 32 || sequence < 4 || sequence > 256) throw std::runtime_error("invalid shape");
-    auto opts = descriptor<te_context_options>(); opts.device = TE_DEVICE_OPENVINO_GPU;
+    // GPU is the reference device; CPU must be selected explicitly.
+    const std::string device = argc == 5 ? argv[4] : "gpu";
+    if (device != "gpu" && device != "cpu") throw std::runtime_error("device must be gpu or cpu");
+    auto opts = descriptor<te_context_options>();
+    opts.device = device == "cpu" ? TE_DEVICE_OPENVINO_CPU : TE_DEVICE_OPENVINO_GPU;
     te_context *raw_context{}; check(turboembed_prepared_v1_context_create(&opts, &raw_context, &error));
     std::unique_ptr<te_context, decltype(&turboembed_prepared_v1_context_release)> context(raw_context, turboembed_prepared_v1_context_release);
     auto ci = descriptor<te_context_info>(); check(turboembed_prepared_v1_context_info(context.get(), &ci, &error));

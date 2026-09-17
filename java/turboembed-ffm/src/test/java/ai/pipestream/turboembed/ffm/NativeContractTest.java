@@ -9,10 +9,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Explicit hardware suite: both Intel GPU and CPU must be available. */
+/**
+ * Explicit hardware suite. The default {@code gpu} mode requires both the
+ * Intel GPU and explicit CPU execution. Setting
+ * {@code TURBOEMBED_PREPARED_DEVICES=cpu-only} mirrors the native acceptance
+ * script's cpu-only mode for hosts without a GPU: every contract case runs on
+ * explicitly selected CPU contexts and the absent accelerator must fail
+ * loudly. Neither mode ever falls back silently.
+ */
 @EnabledIfEnvironmentVariable(named = "TURBOEMBED_PREPARED_SDK", matches = ".+")
 class NativeContractTest {
     private static final Path SDK = Path.of(System.getenv().getOrDefault("TURBOEMBED_PREPARED_SDK", "."));
+    private static final boolean CPU_ONLY =
+        "cpu-only".equals(System.getenv().getOrDefault("TURBOEMBED_PREPARED_DEVICES", "gpu"));
+    /** The device every shared contract case runs on in the current mode. */
+    private static Device accelerator() { return CPU_ONLY ? Device.OPENVINO_CPU : Device.OPENVINO_GPU; }
     private static Path bundle() {
         String value = System.getenv("TURBOEMBED_PREPARED_BUNDLE");
         assertNotNull(value, "hardware tests require TURBOEMBED_PREPARED_BUNDLE");
@@ -51,11 +62,11 @@ class NativeContractTest {
     }
     @Test void textPreparedAndCpuGpuParity() {
         try (var provider = FfmTurboEmbed.open(SDK);
-             var gpu = provider.context(Device.AUTO, 0);
+             var gpu = provider.context(CPU_ONLY ? Device.OPENVINO_CPU : Device.AUTO, 0);
              var cpu = provider.context(Device.OPENVINO_CPU, 0);
              var gm = gpu.loadModel(bundle()); var cm = cpu.loadModel(bundle());
              var gs = gm.slot(1, 32); var cs = cm.slot(1, 32)) {
-            assertEquals(1, gpu.info().device()); assertEquals(2, cpu.info().device());
+            assertEquals(CPU_ONLY ? 2 : 1, gpu.info().device()); assertEquals(2, cpu.info().device());
             assertFalse(gpu.info().name().isBlank()); assertFalse(gpu.info().runtimeVersion().isBlank());
             assertEquals(384, gm.info().dimension()); assertEquals(30522, gm.info().vocabularySize());
             assertEquals("sentence-transformers/all-MiniLM-L6-v2", gm.info().modelId());
@@ -75,7 +86,9 @@ class NativeContractTest {
             SlotStats after = gs.stats();
             assertEquals(before.executions() + 1, after.executions());
             assertEquals(before.inputWriteBytes(), after.inputWriteBytes());
-            assertEquals(before.outputReadBytes() + 384 * 4, after.outputReadBytes());
+            // The byte counters record explicit adapter GPU transfers only;
+            // CPU slots copy host memory and legitimately report zero.
+            assertEquals(before.outputReadBytes() + (CPU_ONLY ? 0 : 384 * 4), after.outputReadBytes());
             assertEquals(32 * 3 * 4, after.ownedInputBytes()); assertEquals(384 * 4, after.ownedOutputBytes());
             assertThrows(IllegalArgumentException.class, () -> gm.slot(0, 32));
             assertThrows(IllegalArgumentException.class, () -> gm.slot(1, 257));
@@ -85,7 +98,7 @@ class NativeContractTest {
         }
     }
     @Test void outputsRespectPositionsCapacityOrderAndAliases() {
-        try (var provider = FfmTurboEmbed.open(SDK); var ctx = provider.context(Device.OPENVINO_GPU, 0);
+        try (var provider = FfmTurboEmbed.open(SDK); var ctx = provider.context(accelerator(), 0);
              var model = ctx.loadModel(bundle()); var slot = model.slot(1, 32)) {
             float[] expected = read(slot, "hello world"); slot.writeText("hello world");
             try (var result = slot.execute()) {
@@ -111,18 +124,25 @@ class NativeContractTest {
     }
     @SuppressWarnings("try") // Explicit early and repeated close calls exercise resource ownership.
     @Test void leasesThreadOwnershipAndParentClose() throws Exception {
-        try (var provider = FfmTurboEmbed.open(SDK); var ctx = provider.context(Device.OPENVINO_GPU, 0);
+        try (var provider = FfmTurboEmbed.open(SDK); var ctx = provider.context(accelerator(), 0);
              var model = ctx.loadModel(bundle()); var slot = model.slot(1, 32)) {
             IntBuffer retained = slot.inputs().ids();
             model.close(); ctx.close(); provider.close();
             assertThrows(IllegalStateException.class, model::info);
             assertThrows(IllegalStateException.class, ctx::info);
             assertThrows(IllegalStateException.class, () -> provider.context(Device.AUTO, 0));
+            assertThrows(IllegalStateException.class, provider::devices);
             slot.writeText("hello world");
-            EmbeddingResult old = slot.execute(); OpenClView view = old.openCl();
+            EmbeddingResult old = slot.execute();
+            // The leased OpenCL view is a GPU capability; CPU reports it unsupported.
+            OpenClView view = CPU_ONLY ? null : old.openCl();
             try (old) {
-                assertNotEquals(0, view.context()); assertNotEquals(0, view.queue()); assertNotEquals(0, view.buffer());
-                assertEquals(1536, view.byteSize());
+                if (CPU_ONLY) {
+                    assertEquals(3, assertThrows(NativeException.class, old::openCl).code());
+                } else {
+                    assertNotEquals(0, view.context()); assertNotEquals(0, view.queue()); assertNotEquals(0, view.buffer());
+                    assertEquals(1536, view.byteSize());
+                }
                 assertThrows(IllegalStateException.class, slot::close);
                 assertThrows(IllegalStateException.class, slot::execute);
                 assertThrows(IllegalStateException.class, slot::upload);
@@ -130,14 +150,14 @@ class NativeContractTest {
                     executor.submit(() -> {
                         assertThrows(IllegalStateException.class, slot::stats);
                         assertThrows(IllegalStateException.class, old::close);
-                        assertThrows(IllegalStateException.class, view::buffer);
+                        if (view != null) { assertThrows(IllegalStateException.class, view::buffer); }
                         assertThrows(java.lang.WrongThreadException.class, () -> retained.get(0));
                     }).get(30, TimeUnit.SECONDS);
                 }
             }
             try (var fresh = slot.execute()) {
                 assertThrows(IllegalStateException.class, old::dimension);
-                assertThrows(IllegalStateException.class, view::buffer);
+                if (view != null) { assertThrows(IllegalStateException.class, view::buffer); }
                 old.close(); assertEquals(384, fresh.dimension());
             }
             slot.close(); assertThrows(IllegalStateException.class, () -> retained.get(0));
@@ -163,7 +183,7 @@ class NativeContractTest {
         }
     }
     @Test void sharedModelCreatesIndependentConcurrentSlots() throws Exception {
-        try (var provider = FfmTurboEmbed.open(SDK); var ctx = provider.context(Device.OPENVINO_GPU, 0);
+        try (var provider = FfmTurboEmbed.open(SDK); var ctx = provider.context(accelerator(), 0);
              var model = ctx.loadModel(bundle()); var executor = Executors.newFixedThreadPool(2)) {
             Callable<float[]> work = () -> {
                 try (var slot = model.slot(2, 32)) { return read(slot, "hello world", "café 東京 🙂"); }
@@ -175,7 +195,7 @@ class NativeContractTest {
     @SuppressWarnings("try") // Exercise independent provider unload and retained children.
     @Test void independentProvidersIsolateErrorsAndLibraryOwnership() {
         try (var first = FfmTurboEmbed.open(SDK); var second = FfmTurboEmbed.open(SDK);
-             var c1 = first.context(Device.OPENVINO_GPU, 0); var c2 = second.context(Device.OPENVINO_GPU, 0);
+             var c1 = first.context(accelerator(), 0); var c2 = second.context(accelerator(), 0);
              var m1 = c1.loadModel(bundle()); var m2 = c2.loadModel(bundle());
              var s1 = m1.slot(1, 32); var s2 = m2.slot(1, 32)) {
             float[] reference = read(s2, "hello world");
@@ -185,8 +205,51 @@ class NativeContractTest {
             near(reference, read(s2, "hello world"), 1e-6, 1e-7);
             s1.close();
             near(reference, read(s2, "hello world"), 1e-6, 1e-7);
-            assertEquals(1, c2.info().device());
+            assertEquals(CPU_ONLY ? 2 : 1, c2.info().device());
         }
     }
-
+    @Test void discoveryListsSelectableDevicesAndPolicyFailsLoud() {
+        try (var provider = FfmTurboEmbed.open(SDK)) {
+            var devices = provider.devices();
+            assertFalse(devices.isEmpty(), "discovery must list at least the CPU");
+            var cpu = devices.get(devices.size() - 1);
+            assertEquals(2, cpu.device());
+            int previousGpuOrdinal = -1;
+            for (int i = 0; i < devices.size(); i++) {
+                var device = devices.get(i);
+                assertFalse(device.name().isBlank()); assertFalse(device.runtimeVersion().isBlank());
+                assertNotEquals(0, device.capabilities());
+                if (i < devices.size() - 1) {
+                    assertEquals(1, device.device(), "GPUs precede the CPU entry");
+                    assertTrue(device.ordinal() > previousGpuOrdinal, "GPU ordinals ascend");
+                    previousGpuOrdinal = device.ordinal();
+                }
+            }
+            if (CPU_ONLY) {
+                assertEquals(1, devices.size(), "cpu-only mode must not list a GPU");
+                assertEquals(4, assertThrows(NativeException.class,
+                    () -> provider.context(Device.AUTO, 0)).code());
+                assertEquals(4, assertThrows(NativeException.class,
+                    () -> provider.context(Device.OPENVINO_GPU, 0)).code());
+            } else {
+                assertTrue(devices.size() >= 2, "gpu mode requires a discovered GPU");
+                assertFalse(devices.get(0).driverVersion().isBlank());
+            }
+            // A created context must report the same identity discovery listed.
+            try (var context = provider.context(Device.OPENVINO_CPU, cpu.ordinal())) {
+                var info = context.info();
+                assertEquals(cpu.device(), info.device()); assertEquals(cpu.ordinal(), info.ordinal());
+                assertEquals(cpu.name(), info.name()); assertEquals(cpu.runtimeVersion(), info.runtimeVersion());
+                assertEquals(cpu.driverVersion(), info.driverVersion());
+                assertEquals(cpu.capabilities(), info.capabilities());
+            }
+            if (!CPU_ONLY) {
+                var gpu = devices.get(0);
+                try (var context = provider.context(Device.OPENVINO_GPU, gpu.ordinal())) {
+                    var info = context.info();
+                    assertEquals(gpu.name(), info.name()); assertEquals(gpu.driverVersion(), info.driverVersion());
+                }
+            }
+        }
+    }
 }
