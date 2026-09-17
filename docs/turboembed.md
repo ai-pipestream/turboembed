@@ -24,6 +24,18 @@ DEVICE into a mapped PINNED 384-d row (`d2h_hidden_bytes` == 0). The graph
 itself runs on GPU; a CPU-resident output tensor is a hard error. Explicit
 CPU EP still pools on the host from rented HOST hidden.
 
+## NVIDIA M4 qualification
+
+The NVIDIA provider passed the roadmap M4 gates on Machine A on 2026-09-16:
+matched native overhead vs direct ORT CUDA, allocator isolation under two
+live engines, an installable `turboembed-cuda-sdk` archive with a
+clean-consumer acceptance, and a second qualified model contract
+(`bge-small`, CLS+L2). See
+[nvidia-m4-qualification-2026-09-16.md](nvidia-m4-qualification-2026-09-16.md)
+for receipts, `make bench-nvidia-overhead`, `make nvidia-sdk-release`, and
+`make nvidia-sdk-acceptance`. The prepared `turboembed_prepared_v1_*` SDK
+remains Intel-only; this qualification is on the `turboembed.h` ABI below.
+
 ## NVIDIA (Machine A) — live GPU proof
 
 Host requirements are the same as `inferstream-nvidia` + `ort-cuda`: NVIDIA

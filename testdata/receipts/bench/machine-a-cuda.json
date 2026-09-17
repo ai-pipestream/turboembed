@@ -5,7 +5,7 @@
     "make bench-turbo MACHINE=A"
   ],
   "device": "CUDA",
-  "git_sha": "6dd484329df0a7d876e39d1c288bbd0d0d4fadba",
+  "git_sha": "b07f6d32180f201e0f00105454c2c9edcf1fb0b9",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
   "host": "krick",
   "kind": "turbo-bench",
@@ -26,7 +26,7 @@
     "cuda_forward_allocs": 0,
     "device": "CUDA",
     "engine": "turboembed",
-    "git_sha": "6dd484329df0a7d876e39d1c288bbd0d0d4fadba",
+    "git_sha": "b07f6d32180f201e0f00105454c2c9edcf1fb0b9",
     "goldens": {
       "hello_world_cosine": 0.9999998211860656,
       "in_band": true,
@@ -40,12 +40,12 @@
     "gpu": "NVIDIA GeForce RTX 4080 SUPER",
     "host": "krick",
     "latency_us": {
-      "max": 1626,
-      "mean": 1441.56,
-      "min": 1292,
+      "max": 829,
+      "mean": 750.355,
+      "min": 746,
       "n": 200,
-      "p50": 1430,
-      "p99": 1584,
+      "p50": 749,
+      "p99": 762,
       "percentile_method": "nearest_rank",
       "unit": "us"
     },
@@ -74,7 +74,7 @@
     "cuda_forward_allocs": 0,
     "device": "CUDA",
     "engine": "turborerank",
-    "git_sha": "6dd484329df0a7d876e39d1c288bbd0d0d4fadba",
+    "git_sha": "b07f6d32180f201e0f00105454c2c9edcf1fb0b9",
     "goldens": {
       "cosine_vs_golden": 1.0,
       "in_band": true,
@@ -95,12 +95,12 @@
     "gpu": "NVIDIA GeForce RTX 4080 SUPER",
     "host": "krick",
     "latency_us": {
-      "max": 689,
-      "mean": 676.52,
-      "min": 673,
+      "max": 730,
+      "mean": 720.32,
+      "min": 715,
       "n": 200,
-      "p50": 676,
-      "p99": 684,
+      "p50": 720,
+      "p99": 728,
       "percentile_method": "nearest_rank",
       "unit": "us"
     },

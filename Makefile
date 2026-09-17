@@ -916,6 +916,35 @@ bench-machine-a:
 		  --rerank $(BENCH_PARTIAL)/machine-a-rerank.json \
 		  --out $(BENCH_RECEIPT_A)
 
+# M4 NVIDIA matched native-overhead pilot (Machine A): direct ORT CUDA vs
+# the turboembed.h ABI on identical MiniLM inputs/shapes. Writes
+# testdata/receipts/bench/machine-a-nvidia-overhead.json. Live numbers —
+# re-run the target instead of editing. ~20 minutes at the default caps.
+#
+#   make bench-nvidia-overhead
+bench-nvidia-overhead:
+	mkdir -p testdata/receipts/bench
+	INFERSTREAM_ROOT=$(CURDIR) \
+	LD_LIBRARY_PATH="$(CURDIR)/.libs/nvidia/lib:$(LD_LIBRARY_PATH)" \
+		$(CARGO) run -p bench-turbo --release --features embed --bin bench-nvidia-overhead -- \
+		  --out testdata/receipts/bench/machine-a-nvidia-overhead.json
+
+# M4 NVIDIA installable SDK (turboembed.h over ORT CUDA) + clean-consumer
+# acceptance. `gpu` mode needs the RTX host and CUDA user-space libs;
+# `cpu-only` proves the fail-loud device policy on a GPU-less host.
+#
+#   make nvidia-sdk-release
+#   make nvidia-sdk-acceptance MODE=gpu
+nvidia-sdk-release:
+	./scripts/make-nvidia-sdk-release.sh --output-dir dist
+
+MODE ?= gpu
+nvidia-sdk-acceptance:
+	$(MAKE) fetch-embeddings ALIASES=minilm
+	./scripts/nvidia-sdk-consumer-acceptance.sh \
+	  dist/turboembed-cuda-sdk-0.1.0-linux-x86_64.tar.gz \
+	  models/onnx/minilm $(MODE) $(CURDIR)/.libs/nvidia/lib
+
 bench-turbo:
 ifeq ($(MACHINE),A)
 	$(MAKE) bench-machine-a

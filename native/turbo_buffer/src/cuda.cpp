@@ -35,19 +35,37 @@ struct MappedPin {
 std::mutex g_map_mu;
 std::vector<MappedPin> g_mapped;
 
+bool cuda_device_present() {
+    // Memoized: device presence does not change mid-process, and
+    // cudaGetDeviceCount on every arena rent is measurable overhead.
+    static const bool present = [] {
+        int count = 0;
+        return cudaGetDeviceCount(&count) == cudaSuccess && count > 0;
+    }();
+    return present;
+}
+
 bool ensure_mapped_ready() {
-    int count = 0;
-    if (cudaGetDeviceCount(&count) != cudaSuccess || count <= 0) {
-        return false;
-    }
-    // Flags must be set before the runtime creates a context.
-    (void)cudaSetDeviceFlags(cudaDeviceMapHost);
-    (void)cudaSetDevice(0);
-    cudaDeviceProp prop {};
-    if (cudaGetDeviceProperties(&prop, 0) != cudaSuccess || !prop.canMapHostMemory) {
-        return false;
-    }
-    return true;
+    // Memoized: this ran on every PINNED rent and cudaGetDeviceProperties
+    // alone cost ~0.8 ms per call on driver 595.84 (Machine A), which
+    // dominated the per-request ABI overhead against direct ORT. Mapped
+    // capability is a static device property; the fail-loud result is the
+    // same on every call.
+    static const bool ready = [] {
+        if (!cuda_device_present()) {
+            return false;
+        }
+        // Flags must be set before the runtime creates a context.
+        (void)cudaSetDeviceFlags(cudaDeviceMapHost);
+        (void)cudaSetDevice(0);
+        cudaDeviceProp prop {};
+        if (cudaGetDeviceProperties(&prop, 0) != cudaSuccess ||
+            !prop.canMapHostMemory) {
+            return false;
+        }
+        return true;
+    }();
+    return ready;
 }
 
 void register_mapped(void *host, void *device, size_t bytes) {
@@ -98,20 +116,10 @@ turbo_buffer_status cuda_probe(turbo_buffer_placement placement) {
         return TURBO_BUFFER_ERR_NOT_IMPLEMENTED;
     }
 #ifdef TURBO_BUFFER_CUDA
-    int count = 0;
-    const cudaError_t e = cudaGetDeviceCount(&count);
-    if (e != cudaSuccess) {
+    if (!cuda_device_present()) {
         set_tls_error(
-            std::string("TURBO_BUFFER_DEVICE_CUDA requested but "
-                        "cudaGetDeviceCount failed (") +
-            cudaGetErrorString(e) + "). Refusing CPU fallback."
-        );
-        return TURBO_BUFFER_ERR_UNAVAILABLE;
-    }
-    if (count <= 0) {
-        set_tls_error(
-            "TURBO_BUFFER_DEVICE_CUDA requested but CUDA runtime reports "
-            "zero devices. Refusing CPU fallback."
+            "TURBO_BUFFER_DEVICE_CUDA requested but the CUDA runtime "
+            "reports no usable device. Refusing CPU fallback."
         );
         return TURBO_BUFFER_ERR_UNAVAILABLE;
     }

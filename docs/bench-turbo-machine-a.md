@@ -55,8 +55,12 @@ receipt — re-run the target instead of editing.
 
 | engine | p50 | p99 | token H2D | hidden D2H | allocs/fwd | band |
 |---|---|---|---|---|---|---|
-| TurboEmbed MiniLM (`hello world`) | 1430 µs | 1584 µs | 0 | 0 | 0 | cosine ≥ 0.999999 vs nvidia MiniLM |
-| TurboRerank MiniLM-L6 (Berlin pair) | 676 µs | 684 µs | 0 | 0 | 0 | HF logits, max abs 9.5e-7 |
+| TurboEmbed MiniLM (`hello world`) | 749 µs | 762 µs | 0 | 0 | 0 | cosine ≥ 0.999999 vs nvidia MiniLM |
+| TurboRerank MiniLM-L6 (Berlin pair) | 720 µs | 728 µs | 0 | 0 | 0 | HF logits, max abs 9.5e-7 |
+
+Embed p50 halved on 2026-09-16 when the M4 overhead pilot found and fixed a
+per-rent CUDA probe in `turbo_buffer` (~0.8 ms per embed) — see
+[`nvidia-m4-qualification-2026-09-16.md`](nvidia-m4-qualification-2026-09-16.md).
 
 ## Receipt
 
