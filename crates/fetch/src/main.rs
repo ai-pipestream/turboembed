@@ -10,9 +10,10 @@ use std::process::ExitCode;
 use clap::Parser;
 use inferstream_fetch::{
     cmd_fetch, cmd_list, cmd_update_corpus_manifest, cmd_update_llm_manifest, cmd_update_manifest,
-    cmd_update_ov_genai_manifest, cmd_update_rerank_manifest, cmd_verify, corpus_known_aliases,
-    embedding_known_aliases, llm_known_aliases, load_manifest, ov_genai_known_aliases,
-    rerank_known_aliases, select_aliases, FetchError,
+    cmd_update_ov_genai_manifest, cmd_update_prepared_manifest, cmd_update_rerank_manifest,
+    cmd_verify, corpus_known_aliases, embedding_known_aliases, llm_known_aliases, load_manifest,
+    ov_genai_known_aliases, prepared_known_aliases, rerank_known_aliases, select_aliases,
+    FetchError,
 };
 
 #[derive(Parser, Debug)]
@@ -42,6 +43,11 @@ struct Args {
     /// Operate on TurboRerank cross-encoder weights (`models/manifests/rerankers.json`).
     #[arg(long)]
     rerankers: bool,
+    /// Operate on prepared native SDK bundle sources
+    /// (`models/manifests/prepared-sources.json`); provision with
+    /// scripts/prepare-native-bundle.py afterwards.
+    #[arg(long)]
+    prepared: bool,
     /// Verify existing files against the manifest; no downloads.
     #[arg(long)]
     verify_only: bool,
@@ -65,6 +71,7 @@ fn default_manifest(
     ov_genai: bool,
     corpus: bool,
     rerankers: bool,
+    prepared: bool,
 ) -> PathBuf {
     let name = if ov_genai {
         "ov-genai-embeddings.json"
@@ -74,6 +81,8 @@ fn default_manifest(
         "corpus.json"
     } else if rerankers {
         "rerankers.json"
+    } else if prepared {
+        "prepared-sources.json"
     } else {
         "embeddings.json"
     };
@@ -97,13 +106,19 @@ fn main() -> ExitCode {
 
 fn run() -> inferstream_fetch::Result<i32> {
     let args = Args::parse();
-    let mode_flags = [args.llms, args.ov_genai, args.corpus, args.rerankers]
-        .into_iter()
-        .filter(|v| *v)
-        .count();
+    let mode_flags = [
+        args.llms,
+        args.ov_genai,
+        args.corpus,
+        args.rerankers,
+        args.prepared,
+    ]
+    .into_iter()
+    .filter(|v| *v)
+    .count();
     if mode_flags > 1 {
         return Err(FetchError::msg(
-            "error: --llms, --ov-genai, --corpus, and --rerankers are mutually exclusive",
+            "error: --llms, --ov-genai, --corpus, --rerankers, and --prepared are mutually exclusive",
         ));
     }
 
@@ -112,7 +127,14 @@ fn run() -> inferstream_fetch::Result<i32> {
         .clone()
         .unwrap_or_else(inferstream_fetch::workspace_root);
     let manifest_path = args.manifest.clone().unwrap_or_else(|| {
-        default_manifest(&root, args.llms, args.ov_genai, args.corpus, args.rerankers)
+        default_manifest(
+            &root,
+            args.llms,
+            args.ov_genai,
+            args.corpus,
+            args.rerankers,
+            args.prepared,
+        )
     });
 
     let stdout = io::stdout();
@@ -129,6 +151,8 @@ fn run() -> inferstream_fetch::Result<i32> {
             corpus_known_aliases()
         } else if args.rerankers {
             rerank_known_aliases()
+        } else if args.prepared {
+            prepared_known_aliases()
         } else {
             embedding_known_aliases()
         };
@@ -172,6 +196,17 @@ fn run() -> inferstream_fetch::Result<i32> {
         if args.rerankers {
             let aliases = select_aliases(args.all, &args.aliases, &rerank_known_aliases())?;
             return cmd_update_rerank_manifest(
+                &aliases,
+                &manifest_path,
+                &root,
+                !args.no_store,
+                &mut out,
+                &mut err,
+            );
+        }
+        if args.prepared {
+            let aliases = select_aliases(args.all, &args.aliases, &prepared_known_aliases())?;
+            return cmd_update_prepared_manifest(
                 &aliases,
                 &manifest_path,
                 &root,
@@ -233,6 +268,13 @@ fn run() -> inferstream_fetch::Result<i32> {
             "Cross-encoder weights ready under models/rerank/.\n\
              Prove: make test-turborerank\n\
              See docs/turborerank-architecture.md.\n",
+        )
+    } else if args.prepared {
+        Some(
+            "Prepared SDK bundle sources ready under models/prepared-src/.\n\
+             Provision a verified bundle with the installed SDK:\n\
+             scripts/provision-minilm-bundle.sh <sdk-prefix> <output-bundle-dir>\n\
+             See docs/native-sdk.md.\n",
         )
     } else {
         None
