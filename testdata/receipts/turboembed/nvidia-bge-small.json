@@ -8,7 +8,7 @@
   "crate": "turboembed",
   "device": "CUDA",
   "dims": 384,
-  "git_sha": "b07f6d32180f201e0f00105454c2c9edcf1fb0b9",
+  "git_sha": "e39469dfcd5a1044947c1701c29be48902ba64dd",
   "golden": "testdata/e2e/goldens/nvidia/bge-small.json",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
   "mean_cosine": 0.9999999403953552,
