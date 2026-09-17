@@ -1,6 +1,7 @@
 #if canImport(WordPieceC)
 import WordPieceC
 #endif
+import Accelerate
 import Foundation
 import Metal
 import MLX
@@ -82,16 +83,72 @@ public enum EngineError: Error, LocalizedError, Sendable {
     }
 }
 
+/// Loaded-once native WordPiece vocab for one model directory, or the
+/// recorded decision that the directory's tokenizer is not WordPiece
+/// (SentencePiece etc. stay on swift-transformers). Cached per engine so
+/// the embed hot path never re-reads or re-parses tokenizer files — the
+/// 2026-09-17 Machine C overhead run paid a full `tokenizer.json` DOM
+/// parse (~tens of ms) on every request because the vocab was loaded and
+/// destroyed inside the request.
+private enum WordPieceFront {
+    case loaded(OpaquePointer)
+    case unsupported
+}
+
+/// Engine-cached vocab handle passed into the model-container closure.
+/// `@unchecked Sendable` like `ArenaEmbedSlots`: the vocab's lifetime is
+/// owned by the engine (destroyed in `deinit`), and calls on one engine
+/// are serialized by the ABI contract.
+private struct WordPieceHandle: @unchecked Sendable {
+    var vocab: OpaquePointer?
+}
+
+/// Once-validated MLXArray wraps of one arena's token slots. The arena
+/// slots live for the engine's lifetime, so the no-copy wrap checks
+/// (make_buffer hit, MTLBuffer backing == arena pointer) hold for every
+/// later request over the same pointers; re-wrapping and re-`eval`ing
+/// three arrays per request only added fixed hot-path cost.
+private struct ArenaTokenWraps {
+    var basePtr: UnsafeRawPointer
+    var rows: Int
+    var cols: Int
+    var ids: MLXArray
+    var mask: MLXArray
+    var types: MLXArray
+}
+
+/// Process-default Metal device, created once. `MTLCreateSystemDefaultDevice`
+/// was being called four times per embed request. `nonisolated(unsafe)`:
+/// written once at initialization; MTLDevice itself is documented
+/// thread-safe.
+nonisolated(unsafe) let sharedMtlDevice: MTLDevice? = MTLCreateSystemDefaultDevice()
+
 /// In-process native MLX engine. Weights stay in unified memory; Metal is
 /// the default device. Used directly by the Swift gRPC server — no C ABI.
 public final class Engine: @unchecked Sendable {
     private let lock = NSLock()
     private var lms: [String: ModelContainer] = [:]
     private var embeds: [String: EmbedderModelContainer] = [:]
+    private var wordpieceFronts: [String: WordPieceFront] = [:]
+    private var tokenWrapCache: [UnsafeRawPointer: ArenaTokenWraps] = [:]
     private let tokenizerLoader = HFTokenizerLoader()
+
+    /// `TURBOEMBED_TIMING=1` prints one per-request phase line to stderr
+    /// (tokenize / forward+eval / hidden copy / host pool, µs). Off by
+    /// default; explicitly a diagnostic, never part of a receipt.
+    static let timingEnabled =
+        ProcessInfo.processInfo.environment["TURBOEMBED_TIMING"] == "1"
 
     public init() {
         _ = Device.gpu
+    }
+
+    deinit {
+        #if canImport(WordPieceC)
+        for case .loaded(let vocab) in wordpieceFronts.values {
+            wordpiece_vocab_destroy(vocab)
+        }
+        #endif
     }
 
     public func ping() throws -> PingInfo {
@@ -177,11 +234,14 @@ public final class Engine: @unchecked Sendable {
             )
         }
         let container = try await loadEmbed(modelPath)
+        let wordpiece = WordPieceHandle(vocab: wordpieceFront(for: modelPath))
         return try await container.perform { context -> (dim: Int, count: Int) in
+            let timing = Engine.timingEnabled
+            let t0 = timing ? DispatchTime.now().uptimeNanoseconds : 0
             let n = texts.count
             let stride = slots.maxSeq
             if !encodeWordPieceIntoArena(
-                modelPath: modelPath, texts: texts, slots: slots, maxSeqLen: maxSeqLen)
+                vocab: wordpiece.vocab, texts: texts, slots: slots, maxSeqLen: maxSeqLen)
             {
                 let padId =
                     context.tokenizer.convertTokenToId("[PAD]")
@@ -218,15 +278,11 @@ public final class Engine: @unchecked Sendable {
                 }
             }
             let seq = stride
-            let idsFull = try wrapArenaI32(
-                slots.inputIds, rows: slots.maxBatch, cols: slots.maxSeq, what: "input_ids")
-            let maskFull = try wrapArenaI32(
-                slots.attentionMask, rows: slots.maxBatch, cols: slots.maxSeq, what: "attention_mask")
-            let typeFull = try wrapArenaI32(
-                slots.tokenTypes, rows: slots.maxBatch, cols: slots.maxSeq, what: "token_type_ids")
-            let padded = idsFull[0..<n, 0..<seq]
-            let tokenMaskI32 = maskFull[0..<n, 0..<seq]
-            let tokenTypes = typeFull[0..<n, 0..<seq]
+            let tTok = timing ? DispatchTime.now().uptimeNanoseconds : 0
+            let wraps = try self.tokenWraps(for: slots)
+            let padded = wraps.ids[0..<n, 0..<seq]
+            let tokenMaskI32 = wraps.mask[0..<n, 0..<seq]
+            let tokenTypes = wraps.types[0..<n, 0..<seq]
             let tokenMask = tokenMaskI32 .!= Int32(0)
             let output = context.model(
                 padded, positionIds: nil, tokenTypeIds: tokenTypes, attentionMask: tokenMask)
@@ -234,6 +290,7 @@ public final class Engine: @unchecked Sendable {
                 throw EngineError.internalError("BERT returned no hidden states")
             }
             eval(hidden)
+            let tFwd = timing ? DispatchTime.now().uptimeNanoseconds : 0
             let dims = hidden.shape
             guard dims.count == 3, dims[0] == n, dims[2] > 0, dims[2] <= slots.hiddenCap else {
                 throw EngineError.internalError("hidden shape \(dims) is not [n, seq, hidden]")
@@ -241,6 +298,7 @@ public final class Engine: @unchecked Sendable {
             let hid = dims[2]
             let hiddenSeq = dims[1]
             try copyHiddenToArena(hidden, dest: slots.activations, n: n, seq: hiddenSeq, hidden: hid)
+            let tCopy = timing ? DispatchTime.now().uptimeNanoseconds : 0
             poolArena(
                 hidden: slots.activations,
                 mask: slots.attentionMask,
@@ -252,8 +310,73 @@ public final class Engine: @unchecked Sendable {
                 normalize: normalize,
                 out: slots.results
             )
+            if timing {
+                let tPool = DispatchTime.now().uptimeNanoseconds
+                fputs(
+                    "[turboembed-timing] n=\(n) tokenize=\((tTok - t0) / 1000)us "
+                        + "forward_eval=\((tFwd - tTok) / 1000)us "
+                        + "hidden_copy=\((tCopy - tFwd) / 1000)us "
+                        + "host_pool=\((tPool - tCopy) / 1000)us "
+                        + "total=\((tPool - t0) / 1000)us\n",
+                    stderr)
+            }
             return (hid, n)
         }
+    }
+
+    /// Loaded-once WordPiece vocab (or recorded unsupported) for one model
+    /// directory. The load — file read, `tokenizer.json` DOM parse, hash
+    /// build, config validation — runs at most once per engine per model,
+    /// exactly like the Rust NVIDIA path's load-time `TokenFront`.
+    private func wordpieceFront(for modelPath: String) -> OpaquePointer? {
+        #if canImport(WordPieceC)
+        if let cached = locked({ self.wordpieceFronts[modelPath] }) {
+            switch cached {
+            case .loaded(let vocab): return vocab
+            case .unsupported: return nil
+            }
+        }
+        var vocab: OpaquePointer?
+        let st = modelPath.withCString { wordpiece_vocab_load_dir($0, &vocab) }
+        if st == WORDPIECE_OK, let vocab {
+            locked { self.wordpieceFronts[modelPath] = .loaded(vocab) }
+            return vocab
+        }
+        locked { self.wordpieceFronts[modelPath] = .unsupported }
+        return nil
+        #else
+        return nil
+        #endif
+    }
+
+    /// Once-validated no-copy MLXArray wraps of the arena token slots
+    /// (keyed by the input_ids base pointer, one arena per engine). The
+    /// full wrap validation — make_buffer hit, eval, MTLBuffer backing ==
+    /// arena pointer — runs on first use; later requests reuse the same
+    /// leaf arrays over the same unified-memory buffers the tokenizer
+    /// just wrote.
+    private func tokenWraps(for slots: ArenaEmbedSlots) throws -> ArenaTokenWraps {
+        let key = UnsafeRawPointer(slots.inputIds)
+        if let cached = locked({ self.tokenWrapCache[key] }),
+            cached.rows == slots.maxBatch, cached.cols == slots.maxSeq
+        {
+            return cached
+        }
+        let wraps = ArenaTokenWraps(
+            basePtr: key,
+            rows: slots.maxBatch,
+            cols: slots.maxSeq,
+            ids: try wrapArenaI32(
+                slots.inputIds, rows: slots.maxBatch, cols: slots.maxSeq, what: "input_ids"),
+            mask: try wrapArenaI32(
+                slots.attentionMask, rows: slots.maxBatch, cols: slots.maxSeq,
+                what: "attention_mask"),
+            types: try wrapArenaI32(
+                slots.tokenTypes, rows: slots.maxBatch, cols: slots.maxSeq,
+                what: "token_type_ids")
+        )
+        locked { self.tokenWrapCache[key] = wraps }
+        return wraps
     }
 
     public func generate(
@@ -405,7 +528,7 @@ func wrapArenaI32(
         )
     }
     eval(array)
-    guard let device = MTLCreateSystemDefaultDevice() else {
+    guard let device = sharedMtlDevice else {
         throw EngineError.internalError("MTLCreateSystemDefaultDevice failed")
     }
     guard let buf = array.asMTLBuffer(device: device, noCopy: true) else {
@@ -421,6 +544,7 @@ func wrapArenaI32(
     return array
 }
 
+/// Copy the (already `eval`ed) last hidden state into the activation rent.
 func copyHiddenToArena(
     _ hidden: MLXArray,
     dest: UnsafeMutablePointer<Float>,
@@ -429,8 +553,7 @@ func copyHiddenToArena(
     hidden hid: Int
 ) throws {
     let need = n * seq * hid
-    eval(hidden)
-    if let device = MTLCreateSystemDefaultDevice(),
+    if let device = sharedMtlDevice,
         let buf = hidden.asMTLBuffer(device: device, noCopy: true)
     {
         dest.update(
@@ -463,22 +586,16 @@ func poolArena(
             dst.update(from: src, count: hid)
         case .mean:
             var count = 0.0
-            for h in 0..<hid {
-                dst[h] = 0
-            }
+            vDSP_vclr(dst, 1, vDSP_Length(hid))
             for t in 0..<seq {
                 if mask[i * tokenStride + t] == 0 { continue }
                 count += 1
                 let src = hidden.advanced(by: (i * seq + t) * hid)
-                for h in 0..<hid {
-                    dst[h] += src[h]
-                }
+                vDSP_vadd(dst, 1, src, 1, dst, 1, vDSP_Length(hid))
             }
             if count > 0 {
-                let inv = Float(1.0 / count)
-                for h in 0..<hid {
-                    dst[h] *= inv
-                }
+                var inv = Float(1.0 / count)
+                vDSP_vsmul(dst, 1, &inv, dst, 1, vDSP_Length(hid))
             }
         }
         if normalize {
@@ -494,20 +611,19 @@ func poolArena(
     }
 }
 
-/// MiniLM-compatible WordPiece into arena i32 slots. Returns false when
-/// the model dir has no vocab.txt / WordPiece tokenizer.json (SentencePiece
-/// etc. stay on swift-transformers).
+/// MiniLM-compatible WordPiece into arena i32 slots using an engine-cached
+/// vocab (see `Engine.wordpieceFront(for:)`). Returns false when the model
+/// dir had no vocab.txt / WordPiece tokenizer.json (SentencePiece etc. stay
+/// on swift-transformers). Never loads tokenizer files itself — that is
+/// engine-lifetime work, not per-request work.
 private func encodeWordPieceIntoArena(
-    modelPath: String,
+    vocab: OpaquePointer?,
     texts: [String],
     slots: ArenaEmbedSlots,
     maxSeqLen: Int?
 ) -> Bool {
     #if canImport(WordPieceC)
-    var vocab: OpaquePointer?
-    let st = modelPath.withCString { wordpiece_vocab_load_dir($0, &vocab) }
-    guard st == WORDPIECE_OK, let vocab else { return false }
-    defer { wordpiece_vocab_destroy(vocab) }
+    guard let vocab else { return false }
     wordpiece_hot_alloc_counter_reset()
     let seq = UInt32(maxSeqLen ?? slots.maxSeq)
     let stride = UInt32(slots.maxSeq)

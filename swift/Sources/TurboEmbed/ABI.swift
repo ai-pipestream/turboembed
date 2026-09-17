@@ -381,7 +381,8 @@ public func turboembed_load_model(
                 pooling: model.pooling,
                 normalize: true,
                 maxSeqLen: model.maxSeqLen,
-                arena: arena
+                arena: arena,
+                logProvenance: true
             )
             turboembed_embed_result_free(warm.header)
             if name == "minilm" && warm.dim != 384 {
@@ -600,6 +601,9 @@ private func embedMlx(
             batch.append(stringView(view.ptr, view.len))
         }
         do {
+            // Provenance logs once per engine+alias: the first embed on a
+            // not-yet-ready alias (e.g. an embed without a prior load)
+            // logs; the steady-state hot path stays silent.
             let result = try MlxProvider.embedArena(
                 engine: mlx,
                 model: model,
@@ -607,7 +611,8 @@ private func embedMlx(
                 pooling: pooling,
                 normalize: MlxProvider.normalize(opts),
                 maxSeqLen: MlxProvider.truncate(opts, fallback: model.maxSeqLen),
-                arena: arena
+                arena: arena,
+                logProvenance: !model.ready
             )
             if name == "minilm" && result.dim != 384 {
                 throw MlxProviderError.fakeDim(alias: name, dim: result.dim)

@@ -39,7 +39,8 @@ let package = Package(
                 .enableUpcomingFeature("ExistentialAny")
             ],
             linkerSettings: [
-                .linkedFramework("Metal")
+                .linkedFramework("Metal"),
+                .linkedFramework("Accelerate"),
             ]
         ),
         .target(
