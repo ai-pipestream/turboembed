@@ -73,6 +73,9 @@ tokenizer_dir = "/work/tei-model-cache/models--sentence-transformers--all-MiniLM
 pooling = "mean"
 normalize = true
 max_seq_len = 256
+# Warmed ABI batch capacity. 32 matches the apple entry and covers the
+# library-design MiniLM pilot batches (1/8/32) on the overhead receipt.
+max_batch_size = 32
 
 # In-process GenAI TextEmbeddingPipeline (Battlemage GPU). Fetch:
 #   make fetch-ov-genai ALIASES=minilm

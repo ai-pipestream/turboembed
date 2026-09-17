@@ -23,8 +23,13 @@ name = "bench-turborerank"
 path = "src/bin/bench-turborerank.rs"
 required-features = ["rerank"]
 
+[[bin]]
+name = "bench-nvidia-overhead"
+path = "src/bin/bench-nvidia-overhead.rs"
+required-features = ["embed"]
+
 [features]
-embed = ["dep:turboembed"]
+embed = ["dep:turboembed", "dep:ort", "dep:tokenizers", "dep:toml"]
 rerank = ["dep:turborerank"]
 
 [dependencies]
@@ -34,3 +39,8 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 turboembed = { workspace = true, optional = true, features = ["ort-cuda"] }
 turborerank = { workspace = true, optional = true }
+# Direct-ORT reference for the matched NVIDIA overhead pilot. Same ort /
+# tokenizers pins as the turboembed ort-cuda feature.
+ort = { version = "2.0.0-rc.13", optional = true, features = ["cuda"] }
+tokenizers = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }

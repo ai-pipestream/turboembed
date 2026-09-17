@@ -208,9 +208,12 @@ name = "bench-turbo"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ort",
  "serde",
  "serde_json",
  "thiserror",
+ "tokenizers",
+ "toml",
  "turboembed",
  "turborerank",
 ]
@@ -3169,6 +3172,13 @@ dependencies = [
  "thiserror",
  "tokenizers",
  "toml",
+]
+
+[[package]]
+name = "turboembed-cabi"
+version = "0.1.0"
+dependencies = [
+ "turboembed",
 ]
 
 [[package]]
