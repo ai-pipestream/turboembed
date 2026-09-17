@@ -165,7 +165,8 @@ enum MlxProvider {
         pooling: String,
         normalize: Bool,
         maxSeqLen: Int?,
-        arena: MetalArena
+        arena: MetalArena,
+        logProvenance: Bool
     ) throws -> (dim: Int, header: UnsafeMutablePointer<turboembed_embed_result>) {
         if texts.count > Int(arena.maxBatch) {
             throw MetalArenaError.batch(
@@ -223,9 +224,14 @@ enum MlxProvider {
             view: resultView,
             arena: arena.raw
         )
-        fputs(
-            "[turboembed] mlx embed \(model.alias) pooling=\(pooling) normalize=\(normalize ? 1 : 0) dim=\(pair.dim) n=\(pair.count) — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock\n",
-            stderr)
+        // Provenance is logged once per engine+alias (load/warmup), not per
+        // request: this fputs was in the timed hot path of the overhead
+        // pilot, and stderr writes can block on the consumer.
+        if logProvenance {
+            fputs(
+                "[turboembed] mlx embed \(model.alias) pooling=\(pooling) normalize=\(normalize ? 1 : 0) dim=\(pair.dim) n=\(pair.count) — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock\n",
+                stderr)
+        }
         return (
             pair.dim,
             UnsafeMutableRawPointer(rec).assumingMemoryBound(to: turboembed_embed_result.self)

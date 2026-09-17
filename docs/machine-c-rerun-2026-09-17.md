@@ -78,6 +78,74 @@ automatically before loading any model or touching the GPU. Step 3
 below is otherwise unchanged; process isolation and all budgets are
 untouched.
 
+## Follow-up (2026-09-17, third attempt): overhead ratio failures
+
+With the IPC fix in, the grid completed: parity and steady-state allocs
+passed on all 18 cases, but the ratio gates failed — b1 ABI p50
+≈ 33–39 ms vs ≈ 5.4 ms direct (a fixed ≈ +28 ms), b8 ≈ 1.2–1.37×,
+b32 ≈ 0.97–1.10×. Root cause, found by reading the dylib hot path and
+measured offline: `turboembed_embed` performed engine-lifetime work on
+**every request**.
+
+1. **Per-request WordPiece vocab load (the ≈ +28 ms).**
+   `encodeWordPieceIntoArena` called `wordpiece_vocab_load_dir` and
+   `wordpiece_vocab_destroy` inside the request. `models/mlx/minilm`
+   ships `tokenizer.json` but no `vocab.txt` (`keep_mlx_file` does not
+   fetch it), so every request re-parsed the full 466 KB
+   `tokenizer.json` DOM (with duplicate-key tracking over ~30 k vocab
+   entries) and rebuilt + destroyed the hash table. Measured on the
+   loader in isolation against the real
+   `sentence-transformers/all-MiniLM-L6-v2` tokenizer.json (Linux
+   x86-64, warm page cache, 2026-09-17): **p50 34.1 ms per load**,
+   vs 0.015 ms for the actual t32 sentence encode. The vocab is now
+   loaded once per engine per model directory and cached (destroyed
+   with the engine), exactly like the Rust NVIDIA path's load-time
+   `TokenFront`. A directory whose tokenizer fails WordPiece validation
+   is also cached as unsupported, so the swift-transformers fallback no
+   longer pays the parse per request either.
+2. **Per-request stderr provenance log.** The
+   `[turboembed] mlx embed …` fputs ran on every request inside the
+   timed loop (and stderr writes can block on the consumer). It now
+   logs once per engine+alias (at load/first embed); steady state is
+   silent.
+3. **Per-request re-wrap + re-`eval` of the arena token slots.** The
+   three `MLXArray` no-copy wraps (input_ids / attention_mask /
+   token_type_ids) and their validation (`eval`, MTLBuffer backing ==
+   arena pointer) ran per request over pointers that are fixed for the
+   engine's lifetime, plus four `MTLCreateSystemDefaultDevice()` calls.
+   Wraps are validated once per arena and reused; the Metal device is
+   created once per process.
+4. **Scalar host pooling.** Mean accumulation over `[seq, hidden]` is
+   now vDSP-vectorized (same shapes, same masking, Double-accumulated
+   L2 norm unchanged), trimming the batch-scaled host cost at b8/b32.
+
+Budgets are unchanged (ABI p50 ≤ 1.05×, throughput ≥ 0.95×, parity max
+abs ≤ 5e-4, RMSE ≤ 1e-4, steady allocs == 0). Correctness guards are
+unchanged: parity runs per case before timing, and the load warmup
+("hello world") writes different tokens than the first case embed, so a
+stale cached-wrap read would fail parity immediately.
+
+If a ratio still exceeds the budget after this, attribute it before
+proposing anything: re-run the failing case with per-request phase
+timing (diagnostic only, never a receipt):
+
+```bash
+TURBOEMBED_TIMING=1 BENCH_OVERHEAD_ARGS="--quick" make bench-apple-overhead
+```
+
+Each ABI request prints
+`[turboembed-timing] n=… tokenize=…us forward_eval=…us hidden_copy=…us host_pool=…us total=…us`
+on stderr from inside the dylib. The gap between the worker's reported
+p50 and `total` is the ABI shim + `runBlocking` dispatch hop. A budget
+change proposal must cite these phase numbers.
+
+Re-run for this follow-up: step 3 (overhead pilot) and step 4
+(SOLIDIFY, `make bench-turbo MACHINE=C`) below; the cosine gate already
+passed on tip and steps 1–2 are unaffected — the tokenization change is
+load-time caching only, with token IDs and outputs identical (the
+in-process cosine tests exercise the same cached-vocab path and
+re-verify that).
+
 ## Prerequisites (once)
 
 ```bash
