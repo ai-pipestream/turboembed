@@ -21,6 +21,11 @@ receipt.**
 - The catalog Apple entries (`minilm` mean+L2, `bge-small` CLS+L2,
   `max_batch_size = 32`) stay pinned to the same checkpoints the NVIDIA and
   Intel contracts qualified; no model substitution.
+- The step 4 and step 7 **tooling** is landed (harness, packaging and
+  acceptance scripts, Make targets — see those steps below). It was authored
+  off-Metal: the Swift harness and the scripts refuse to run without macOS +
+  Metal, and no receipt or release artifact is claimed until they run on
+  Machine C.
 
 ## Gated on Machine C — run in this order
 
@@ -41,23 +46,48 @@ branch; they need live Metal hardware.
    two-engine allocator proof: run the two-engine concurrent embed XCTest and
    the `mlx-live` multi-engine cases; record per-engine outputs matching the
    single-engine run within 1e-5.
-4. **Matched native overhead.** The Apple analog of
-   `make bench-nvidia-overhead` (direct MLX/Metal reference vs the
-   `libTurboEmbed.dylib` ABI on identical inputs/shapes) has **not** been
-   implemented; implementing and running it on Machine C is an open M4 gate.
-   Use the same predeclared budgets (ABI p50 within 5%, throughput ≥ 95%,
-   parity max abs ≤ 5e-4) and write
-   `testdata/receipts/bench/machine-c-metal-overhead.json`.
+4. **Matched native overhead.** The harness is **landed**; the live run is
+   still the open gate. `make bench-apple-overhead` builds
+   [`swift/Sources/BenchAppleOverhead`](../swift/Sources/BenchAppleOverhead/BenchAppleOverhead.swift)
+   — a direct mlx-swift Metal reference (raw `MLXEmbedders` consumer, fixed
+   `[batch, 256]` shapes) versus the `libTurboEmbed.dylib` C ABI resolved
+   with dlopen, on identical MiniLM inputs (batch 1/8/32 × tokens 32/128/256
+   × full/mixed, 18 cases) — and writes
+   `testdata/receipts/bench/machine-c-metal-overhead.json` with the same
+   predeclared budgets as the NVIDIA/Intel pilots (ABI p50 ≤ 1.05×,
+   throughput ≥ 0.95×, parity max abs ≤ 5e-4, RMSE ≤ 1e-4, ABI steady-state
+   arena allocs == 0). On Machine C: run the target (needs
+   `make fetch-mlx ALIASES=minilm`), then validate the receipt with
+   `cargo test -p turboembed --features mlx-live --test apple_overhead_receipt
+   -- --ignored --nocapture`. No receipt exists yet; this branch was authored
+   off-Metal and does not fake one.
 5. **SOLIDIFY bench refresh.** `make bench-turbo MACHINE=C` → refreshes
    `testdata/receipts/bench/machine-c-metal.json` on the current tree.
 6. **bge-small CLS contract (model coverage).** Provision
    `models/mlx/bge-small`, then run the Apple equivalent of
    `nvidia_bge_small` (CLS+L2 vs `testdata/e2e/goldens/apple/bge-small.json`).
-7. **Packaging.** The Apple installable artifact (dylib + headers + Swift
-   package + consumer acceptance, analogous to
-   `scripts/make-nvidia-sdk-release.sh` /
-   `scripts/nvidia-sdk-consumer-acceptance.sh`) is an open M4 gate; land it
-   from Machine C where the produced dylib can actually be loaded.
+7. **Packaging.** The tooling is **landed**; producing and accepting the
+   artifact on Machine C is still the open gate.
+   [`scripts/make-apple-sdk-release.sh`](../scripts/make-apple-sdk-release.sh)
+   (`make apple-sdk-release`) stages `libTurboEmbed.dylib` (install name
+   `@rpath/libTurboEmbed.dylib`), the MLX Metal kernel libraries that must
+   sit next to it, `include/turboembed.h`, a CMake package, the C consumer
+   example, a documented swiftc-built Swift consumer, MiniLM MLX SHA-256
+   model pins from `models/manifests/mlx.json`, license texts, the exported
+   C-symbol record, and a hashed file manifest into
+   `dist/turboembed-metal-sdk-<version>-macos-arm64.tar.gz` (+ `.sha256`).
+   [`scripts/apple-sdk-consumer-acceptance.sh`](../scripts/apple-sdk-consumer-acceptance.sh)
+   (`make apple-sdk-acceptance MODE=metal`, analogous to
+   `scripts/nvidia-sdk-consumer-acceptance.sh`) proves a clean consumer in a
+   fresh temporary directory: archive and manifest hashes, model files
+   verified against the packaged pins (a tampered `model.safetensors` is
+   refused), C and Swift consumers built against the extracted prefix with a
+   minimal environment, and the device-policy matrix — METAL/AUTO must
+   succeed on the Metal host, explicit CPU must refuse catalog aliases
+   loudly, MOCK serves only the smoke alias, and `MODE=no-metal` proves a
+   missing Metal device fails loudly. Both scripts refuse to run off
+   macOS arm64, so the artifact can only be produced where the dylib is
+   actually loaded.
 
 ## Known cross-provider follow-up found on Machine A
 

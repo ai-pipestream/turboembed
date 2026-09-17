@@ -1,7 +1,7 @@
 /*
  * External consumer example for the packaged turboembed.h C ABI.
  *
- * Usage: turboembed_embed <catalog.toml> <alias> [auto|cuda|cpu|tensorrt]
+ * Usage: turboembed_embed <catalog.toml> <alias> [auto|cuda|cpu|tensorrt|metal|mock]
  *
  * Creates an engine on the requested device (default cuda), loads the
  * catalog alias, embeds one short and one Unicode text as a batch, and
@@ -22,7 +22,9 @@ static int fail(const char *what, const turboembed_engine *engine) {
 
 int main(int argc, char **argv) {
     if (argc < 3 || argc > 4) {
-        fprintf(stderr, "usage: %s <catalog.toml> <alias> [auto|cuda|cpu|tensorrt]\n", argv[0]);
+        fprintf(stderr,
+                "usage: %s <catalog.toml> <alias> [auto|cuda|cpu|tensorrt|metal|mock]\n",
+                argv[0]);
         return 2;
     }
     const char *catalog = argv[1];
@@ -38,6 +40,10 @@ int main(int argc, char **argv) {
         device = TURBOEMBED_DEVICE_CPU;
     } else if (strcmp(device_name, "tensorrt") == 0) {
         device = TURBOEMBED_DEVICE_TENSORRT;
+    } else if (strcmp(device_name, "metal") == 0) {
+        device = TURBOEMBED_DEVICE_METAL;
+    } else if (strcmp(device_name, "mock") == 0) {
+        device = TURBOEMBED_DEVICE_MOCK;
     } else {
         fprintf(stderr, "unknown device %s\n", device_name);
         return 2;
