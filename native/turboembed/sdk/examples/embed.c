@@ -36,13 +36,34 @@ int main(int argc, char **argv) {
   }
   bundle_path = argv[1];
 
+  /* Discovery lists selectable devices; selection below stays explicit and
+   * still fails when the requested device is absent. */
+  uint32_t device_count = 0;
+  uint32_t status = turboembed_prepared_v1_device_count(&device_count, &error);
+  if (status != TE_OK) {
+    return report_error("device discovery", status, &error);
+  }
+  for (uint32_t index = 0; index < device_count; ++index) {
+    te_device_info device_info = {
+        .struct_size = sizeof(device_info),
+        .version = TE_PREPARED_VERSION,
+    };
+    status = turboembed_prepared_v1_device_info(index, &device_info, &error);
+    if (status != TE_OK) {
+      return report_error("device info", status, &error);
+    }
+    printf("discovered device=%u ordinal=%u name=%s runtime=%s\n",
+           device_info.device, device_info.ordinal, device_info.device_name,
+           device_info.runtime_version);
+  }
+
   te_context_options context_options = {
       .struct_size = sizeof(context_options),
       .version = TE_PREPARED_VERSION,
       .device = device,
       .ordinal = 0,
   };
-  uint32_t status = turboembed_prepared_v1_context_create(
+  status = turboembed_prepared_v1_context_create(
       &context_options, &context, &error);
   if (status != TE_OK) {
     return report_error("context create", status, &error);

@@ -27,6 +27,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+`prepared::devices()` lists the selectable devices (GPUs by ascending ordinal,
+then CPU) with the same resolved identity and capability bits a created context
+reports; `DeviceInfo::selector()` yields the matching explicit `Device`.
+Discovery informs selection only: an unlisted device still fails to create a
+context, and CPU is never an automatic fallback.
+
 Contexts and models can be shared between threads. Each slot owns its request
 and buffers; it can move between threads but requires exclusive access for
 writes and execution. A result borrows its slot, preventing reuse or destruction
@@ -60,6 +66,16 @@ cargo test --locked -p turboembed --features prepared --test prepared_sdk -- --i
 ```
 
 The hardware tests are explicitly ignored in ordinary test runs. The last
-command requires both the Intel GPU and CPU reference. See the
-[binding validation receipt](intel-bindings-2026-09-14.md) for the exact tested
-SDK, model, device and scope.
+command requires both the Intel GPU and CPU reference. On a host without a GPU,
+the SDK-only subset still runs and must pass:
+
+```bash
+cargo test --locked -p turboembed --features prepared --test prepared_sdk -- \
+  --ignored device_discovery_and_explicit_selection prepared_cpu_reference_execution
+```
+
+See the [binding validation receipt](intel-bindings-2026-09-14.md) for the
+exact tested SDK, model, device and scope, and the
+[discovery validation receipt](prepared-discovery-2026-09-17.md) for the
+CPU-only discovery run. `machine_b_gpu_discovery_receipt` remains
+hardware-unverified until re-run on the Machine B Intel GPU host.

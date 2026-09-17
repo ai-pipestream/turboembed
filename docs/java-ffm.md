@@ -1,7 +1,8 @@
 # Java on JDK 25
 
 The `turboembed-ffm` artifact calls the [installed Intel SDK](native-sdk.md)
-in process through Panama FFM. `turboembed-api` contains the common Java
+in process through Panama FFM. It does not yet expose the SDK's device
+discovery API; contexts take an explicit device selection. `turboembed-api` contains the common Java
 interfaces with no FFM or vendor-runtime dependency. Select the FFM adapter
 explicitly at initialization. Android JNI is a later adapter; this provider
 currently supports Linux x86_64 with JDK 25+.

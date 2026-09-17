@@ -74,12 +74,81 @@ macro_rules! descriptor {
     }};
 }
 
+/// Raw device identifiers used by [`ContextInfo::device`] and [`DeviceInfo::device`].
+pub const DEVICE_OPENVINO_GPU: u32 = ffi::TE_DEVICE_OPENVINO_GPU;
+pub const DEVICE_OPENVINO_CPU: u32 = ffi::TE_DEVICE_OPENVINO_CPU;
+/// Capability bits reported by [`ContextInfo`] and [`DeviceInfo`].
+pub const CAP_TEXT: u64 = ffi::TE_CAP_TEXT;
+pub const CAP_PREPARED_I32: u64 = ffi::TE_CAP_PREPARED_I32;
+pub const CAP_OPENCL_RESULT: u64 = ffi::TE_CAP_OPENCL_RESULT;
+pub const CAP_HOST_READ: u64 = ffi::TE_CAP_HOST_READ;
+
 /// AUTO selects an Intel GPU. CPU is an explicit choice.
 #[derive(Clone, Copy, Debug)]
 pub enum Device {
     Auto,
     Gpu { ordinal: u32 },
     Cpu,
+}
+
+/// One selectable device reported by the installed runtime at call time.
+#[derive(Debug)]
+pub struct DeviceInfo {
+    pub device: u32,
+    pub ordinal: u32,
+    pub capabilities: u64,
+    pub device_name: String,
+    pub runtime_version: String,
+    pub driver_version: String,
+}
+impl DeviceInfo {
+    /// The explicit selector for this device, usable with [`Context::new`].
+    pub fn selector(&self) -> Device {
+        if self.device == ffi::TE_DEVICE_OPENVINO_GPU {
+            Device::Gpu {
+                ordinal: self.ordinal,
+            }
+        } else {
+            Device::Cpu
+        }
+    }
+}
+
+/// Lists selectable devices: GPUs in ascending ordinal order, then CPU.
+///
+/// Discovery never creates a context and never relaxes the selection policy;
+/// explicitly selecting a device that is not listed still fails, and CPU is
+/// never an automatic fallback. `driver_version` is the GPU's OpenCL driver
+/// version, matching what a created context reports; it is empty for CPU.
+pub fn devices() -> Outcome<Vec<DeviceInfo>> {
+    let mut count = 0u32;
+    let mut error = error_buffer();
+    unsafe {
+        checked(
+            ffi::turboembed_prepared_v1_device_count(&mut count, &mut error),
+            &error,
+        )?;
+    }
+    let mut devices = Vec::with_capacity(count as usize);
+    for index in 0..count {
+        let mut out = descriptor!(ffi::te_device_info);
+        let mut error = error_buffer();
+        unsafe {
+            checked(
+                ffi::turboembed_prepared_v1_device_info(index, &mut out, &mut error),
+                &error,
+            )?;
+        }
+        devices.push(DeviceInfo {
+            device: out.device,
+            ordinal: out.ordinal,
+            capabilities: out.capabilities,
+            device_name: text(&out.device_name),
+            runtime_version: text(&out.runtime_version),
+            driver_version: text(&out.driver_version),
+        });
+    }
+    Ok(devices)
 }
 
 /// Resolved provider identity, independent of the context's lifetime.
