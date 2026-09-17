@@ -97,6 +97,47 @@ std::vector<float> gpu_consumer(const Result &result) {
     for (auto &value : values) { value /= 2; }
     return values;
 }
+void discovery() {
+    te_error error{};
+    uint32_t count = 0;
+    check(turboembed_prepared_v1_device_count(nullptr, &error) == TE_INVALID_ARGUMENT, "null count output accepted");
+    ok(turboembed_prepared_v1_device_count(&count, &error), error);
+    check(count >= 2, "this host must enumerate both the Intel GPU and CPU");
+    auto bad = descriptor<te_device_info>(); --bad.struct_size;
+    check(turboembed_prepared_v1_device_info(0, &bad, &error) == TE_ABI_MISMATCH, "bad device descriptor accepted");
+    auto out_of_range = descriptor<te_device_info>();
+    check(turboembed_prepared_v1_device_info(count, &out_of_range, &error) == TE_NOT_FOUND, "out-of-range device index accepted");
+    bool saw_gpu = false;
+    for (uint32_t index = 0; index < count; ++index) {
+        auto info = descriptor<te_device_info>();
+        ok(turboembed_prepared_v1_device_info(index, &info, &error), error);
+        check(info.device == TE_DEVICE_OPENVINO_GPU || info.device == TE_DEVICE_OPENVINO_CPU, "unknown discovered device");
+        check(info.device_name[0] != 0 && info.runtime_version[0] != 0, "discovered device is missing identity");
+        const bool gpu = info.device == TE_DEVICE_OPENVINO_GPU;
+        saw_gpu |= gpu;
+        check((index + 1 == count) == !gpu, "GPUs must precede the trailing CPU entry");
+        const uint64_t expected = TE_CAP_TEXT | TE_CAP_PREPARED_I32 | TE_CAP_HOST_READ | (gpu ? TE_CAP_OPENCL_RESULT : 0);
+        check(info.capabilities == expected, "wrong discovered capabilities");
+        check(gpu == (info.driver_version[0] != 0), "driver version must be reported for GPUs only");
+        // A context selected from the discovered identity must match it.
+        auto options = descriptor<te_context_options>();
+        options.device = info.device; options.ordinal = info.ordinal;
+        te_context *raw = nullptr;
+        ok(turboembed_prepared_v1_context_create(&options, &raw, &error), error);
+        auto resolved = descriptor<te_context_info>();
+        const auto status = turboembed_prepared_v1_context_info(raw, &resolved, &error);
+        turboembed_prepared_v1_context_release(raw);
+        ok(status, error);
+        check(resolved.device == info.device && resolved.ordinal == info.ordinal &&
+              std::strcmp(resolved.device_name, info.device_name) == 0 &&
+              std::strcmp(resolved.runtime_version, info.runtime_version) == 0 &&
+              std::strcmp(resolved.driver_version, info.driver_version) == 0 &&
+              resolved.capabilities == info.capabilities, "context identity disagrees with discovery");
+    }
+    check(saw_gpu, "discovery listed no Intel GPU");
+    std::cout << "PASS device discovery identity and selection agreement\n";
+}
+
 void run(const std::string &bundle, uint32_t device, const std::vector<float> &reference) {
     Context ctx(device); Model model(ctx, bundle); Slot slot(model);
     te_error error{};
@@ -220,6 +261,7 @@ int main(int argc, char **argv) {
     try {
         check(argc == 2, "usage: prepared_contract_test BUNDLE_DIR (requires Intel GPU and CPU)");
         const std::string bundle = argv[1];
+        discovery();
         Context cpu(TE_DEVICE_OPENVINO_CPU); Model model(cpu, bundle); Slot slot(model);
         text(slot, "hello world"); Result reference(slot); const auto expected = reference.read();
         run(bundle, TE_DEVICE_OPENVINO_CPU, expected);

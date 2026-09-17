@@ -91,8 +91,29 @@ typedef struct te_slot_stats {
     uint64_t owned_input_bytes, owned_output_bytes;
 } te_slot_stats;
 typedef struct te_text { const char *ptr; uint64_t byte_length; } te_text;
+/* driver_version is the GPU's OpenCL driver version, identical to the string a
+ * context created on that device reports; it is empty for CPU devices. */
+typedef struct te_device_info {
+    uint32_t struct_size, version, device, ordinal;
+    uint64_t capabilities;
+    char device_name[128];
+    char runtime_version[128];
+    char driver_version[128];
+} te_device_info;
 
 TE_PREPARED_API uint32_t turboembed_prepared_v1_version(void);
+
+/* Device discovery. Enumeration lists this extension's selectable devices as
+ * the installed runtime reports them at call time: OpenVINO GPUs in ascending
+ * ordinal order, then CPU. Runtime devices this extension cannot select are
+ * not listed. Each call re-enumerates; index is in [0, count) for that call.
+ * An out-of-range index returns NOT_FOUND. Discovery never creates a context
+ * and never changes the selection policy: explicitly selecting an absent
+ * device still fails, and CPU is never an automatic fallback. */
+TE_PREPARED_API uint32_t turboembed_prepared_v1_device_count(
+    uint32_t *out, te_error *);
+TE_PREPARED_API uint32_t turboembed_prepared_v1_device_info(
+    uint32_t index, te_device_info *out, te_error *);
 TE_PREPARED_API uint32_t turboembed_prepared_v1_context_create(
     const te_context_options *, te_context **out, te_error *);
 TE_PREPARED_API uint32_t turboembed_prepared_v1_context_info(

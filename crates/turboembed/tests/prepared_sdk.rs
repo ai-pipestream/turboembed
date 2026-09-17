@@ -49,6 +49,142 @@ fn parity(expected: &[f32], actual: &[f32]) {
 }
 
 #[test]
+#[ignore = "requires the installed prepared SDK (runs on any OpenVINO host, CPU-only included)"]
+fn device_discovery_and_explicit_selection() {
+    use turboembed::prepared;
+
+    let devices = prepared::devices().unwrap();
+    assert!(!devices.is_empty(), "no selectable device was enumerated");
+    // GPUs precede a single trailing CPU entry, in ascending ordinal order.
+    let cpus: Vec<usize> = devices
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.device == prepared::DEVICE_OPENVINO_CPU)
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(cpus, [devices.len() - 1], "expected one trailing CPU entry");
+    let ordinals: Vec<u32> = devices[..devices.len() - 1]
+        .iter()
+        .map(|d| {
+            assert_eq!(d.device, prepared::DEVICE_OPENVINO_GPU);
+            d.ordinal
+        })
+        .collect();
+    assert!(ordinals.is_sorted(), "GPU ordinals must be ascending");
+    for info in &devices {
+        let gpu = info.device == prepared::DEVICE_OPENVINO_GPU;
+        assert!(!info.device_name.is_empty() && !info.runtime_version.is_empty());
+        assert_eq!(!info.driver_version.is_empty(), gpu);
+        let expected = prepared::CAP_TEXT
+            | prepared::CAP_PREPARED_I32
+            | prepared::CAP_HOST_READ
+            | if gpu { prepared::CAP_OPENCL_RESULT } else { 0 };
+        assert_eq!(info.capabilities, expected);
+        // Explicit selection of a discovered device resolves the same identity.
+        let context = Context::new(info.selector()).unwrap();
+        let resolved = context.info().unwrap();
+        assert_eq!(
+            (resolved.device, resolved.ordinal, resolved.capabilities),
+            (info.device, info.ordinal, info.capabilities)
+        );
+        assert_eq!(resolved.device_name, info.device_name);
+        assert_eq!(resolved.runtime_version, info.runtime_version);
+        assert_eq!(resolved.driver_version, info.driver_version);
+    }
+    // Selecting a device that discovery did not list fails loud; there is no
+    // silent CPU fallback for an absent GPU.
+    let absent = ordinals.iter().max().map_or(0, |max| max + 1_000_000);
+    let error = match Context::new(Device::Gpu { ordinal: absent }) {
+        Err(error) => error,
+        Ok(_) => panic!("selecting an absent GPU must fail"),
+    };
+    assert_eq!(error.code, 4, "absent GPU must return UNAVAILABLE: {error}");
+}
+
+/// Machine B (krick-1, Intel Battlemage G31) receipt gate. The discovery API
+/// was added after the 2026-09-14 receipts and is hardware-unverified on an
+/// Intel GPU until this test is re-run there. See docs/native-sdk.md.
+#[test]
+#[ignore = "requires installed prepared SDK and Intel GPU; re-run on Machine B (krick-1) to refresh the receipt"]
+fn machine_b_gpu_discovery_receipt() {
+    use turboembed::prepared;
+
+    let devices = prepared::devices().unwrap();
+    let gpu = devices
+        .iter()
+        .find(|d| d.device == prepared::DEVICE_OPENVINO_GPU)
+        .expect("Machine B must enumerate its Intel GPU");
+    assert_ne!(gpu.capabilities & prepared::CAP_OPENCL_RESULT, 0);
+    assert!(!gpu.driver_version.is_empty() && !gpu.runtime_version.is_empty());
+    let context = Context::new(gpu.selector()).unwrap();
+    let info = context.info().unwrap();
+    assert_eq!((info.device, info.ordinal), (gpu.device, gpu.ordinal));
+    assert_eq!(info.device_name, gpu.device_name);
+    assert!(!info.driver_version.is_empty());
+}
+
+/// Explicit-CPU execution against the repository MiniLM reference fixture.
+/// Runs on hosts without a GPU; GPU coverage lives in the tests below.
+#[test]
+#[ignore = "requires installed prepared SDK and pinned model bundle (CPU only)"]
+fn prepared_cpu_reference_execution() {
+    let path = bundle();
+    let cpu = Context::new(Device::Cpu).unwrap();
+    let info = cpu.info().unwrap();
+    assert_eq!(info.device, turboembed::prepared::DEVICE_OPENVINO_CPU);
+    assert_eq!(
+        info.capabilities & turboembed::prepared::CAP_OPENCL_RESULT,
+        0,
+        "CPU must not advertise a device-result capability"
+    );
+    let model = cpu.load_model(&path).unwrap();
+    let details = model.info().unwrap();
+    assert_eq!(
+        (
+            details.dimension,
+            details.pooling.as_str(),
+            details.normalized
+        ),
+        (384, "mean", true)
+    );
+    // Unsupported shapes fail loud instead of clamping or recompiling.
+    assert!(model.slot(1, details.max_sequence_length + 1).is_err());
+    assert!(model.slot(details.max_batch_size + 1, 32).is_err());
+
+    let mut slot = model.slot(1, 32).unwrap();
+    slot.write_text(&["hello world"]).unwrap();
+    let single = slot.execute().unwrap().to_vec().unwrap();
+    // Cross-runtime reference recorded from ORT CUDA fp32 with identical
+    // pooling/normalization; gates match the repository parity tolerances.
+    let fixture: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../testdata/reference_embeddings/ort_cuda_minilm_short.json"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(fixture["text"], "hello world");
+    let reference: Vec<f32> = fixture["vector"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap() as f32)
+        .collect();
+    parity(&reference, &single);
+
+    // A padded mixed-length batch reproduces the single-row outputs.
+    slot.write_text(&[""]).unwrap();
+    let empty = slot.execute().unwrap().to_vec().unwrap();
+    let mut mixed = model.slot(2, 32).unwrap();
+    mixed.write_text(&["hello world", ""]).unwrap();
+    let rows = mixed.execute().unwrap().to_vec().unwrap();
+    assert_eq!(rows.len(), 768);
+    parity(&single, &rows[..384]);
+    parity(&empty, &rows[384..]);
+}
+
+#[test]
 #[ignore = "requires installed prepared SDK, pinned model bundle, CPU and Intel GPU"]
 fn prepared_lifetimes_inputs_and_cpu_gpu_parity() {
     let path = bundle();

@@ -142,8 +142,27 @@ pub struct te_text {
     pub byte_length: u64,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct te_device_info {
+    pub struct_size: u32,
+    pub version: u32,
+    pub device: u32,
+    pub ordinal: u32,
+    pub capabilities: u64,
+    pub device_name: [c_char; 128],
+    pub runtime_version: [c_char; 128],
+    pub driver_version: [c_char; 128],
+}
+
 unsafe extern "C" {
     pub fn turboembed_prepared_v1_version() -> u32;
+    pub fn turboembed_prepared_v1_device_count(out: *mut u32, error: *mut te_error) -> u32;
+    pub fn turboembed_prepared_v1_device_info(
+        index: u32,
+        out: *mut te_device_info,
+        error: *mut te_error,
+    ) -> u32;
     pub fn turboembed_prepared_v1_context_create(
         options: *const te_context_options,
         out: *mut *mut te_context,
@@ -313,5 +332,17 @@ mod layout_tests {
         assert_eq!((size_of::<te_text>(), align_of::<te_text>()), (16, 8));
         assert_eq!(offset_of!(te_text, ptr), 0);
         assert_eq!(offset_of!(te_text, byte_length), 8);
+        assert_eq!(
+            (size_of::<te_device_info>(), align_of::<te_device_info>()),
+            (408, 8)
+        );
+        assert_eq!(offset_of!(te_device_info, struct_size), 0);
+        assert_eq!(offset_of!(te_device_info, version), 4);
+        assert_eq!(offset_of!(te_device_info, device), 8);
+        assert_eq!(offset_of!(te_device_info, ordinal), 12);
+        assert_eq!(offset_of!(te_device_info, capabilities), 16);
+        assert_eq!(offset_of!(te_device_info, device_name), 24);
+        assert_eq!(offset_of!(te_device_info, runtime_version), 152);
+        assert_eq!(offset_of!(te_device_info, driver_version), 280);
     }
 }

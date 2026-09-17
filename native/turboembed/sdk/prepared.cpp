@@ -132,6 +132,36 @@ void keys(const Json &object, std::initializer_list<const char *> expected) {
     }
 }
 
+/* One selectable device as reported by the installed OpenVINO runtime. */
+struct DiscoveredDevice {
+    uint32_t device, ordinal;
+    std::string runtime_name;
+};
+std::vector<DiscoveredDevice> discover(ov::Core &core) {
+    std::vector<DiscoveredDevice> gpus;
+    std::set<uint32_t> ordinals;
+    bool cpu = false;
+    for (const auto &name : core.get_available_devices()) {
+        if (name == "CPU") { cpu = true; continue; }
+        if (name != "GPU" && name.rfind("GPU.", 0) != 0) { continue; }
+        uint32_t ordinal = 0;
+        if (name != "GPU") {
+            const std::string suffix = name.substr(4);
+            require(!suffix.empty() && suffix.size() <= 9 &&
+                    std::all_of(suffix.begin(), suffix.end(), [](char c) { return c >= '0' && c <= '9'; }),
+                    "runtime reported a GPU identifier this extension cannot select", TE_NOT_IMPLEMENTED);
+            ordinal = static_cast<uint32_t>(std::stoul(suffix));
+        }
+        require(ordinals.insert(ordinal).second, "runtime reported duplicate GPU ordinals", TE_INTERNAL);
+        gpus.push_back({TE_DEVICE_OPENVINO_GPU, ordinal, name});
+    }
+    std::sort(gpus.begin(), gpus.end(), [](const DiscoveredDevice &a, const DiscoveredDevice &b) {
+        return a.ordinal < b.ordinal;
+    });
+    if (cpu) { gpus.push_back({TE_DEVICE_OPENVINO_CPU, 0, "CPU"}); }
+    return gpus;
+}
+
 struct Context {
     ov::Core core;
     std::mutex compiler;
@@ -353,6 +383,42 @@ struct Slot : std::enable_shared_from_this<Slot> {
 
 extern "C" {
 uint32_t turboembed_prepared_v1_version(void) { return TE_PREPARED_VERSION; }
+uint32_t turboembed_prepared_v1_device_count(uint32_t *out, te_error *err) {
+    if (out) { *out = 0; }
+    return te::boundary(err, [&] {
+        te::require(out != nullptr, "device count output is null");
+        ov::Core core;
+        const auto devices = te::discover(core);
+        te::require(devices.size() <= UINT32_MAX, "device count overflow", TE_INTERNAL);
+        *out = static_cast<uint32_t>(devices.size());
+    });
+}
+uint32_t turboembed_prepared_v1_device_info(uint32_t index, te_device_info *out, te_error *err) {
+    return te::boundary(err, [&] {
+        te::descriptor(out);
+        ov::Core core;
+        const auto devices = te::discover(core);
+        te::require(index < devices.size(), "device index out of range", TE_NOT_FOUND);
+        const auto &entry = devices[index];
+        const bool gpu = entry.device == TE_DEVICE_OPENVINO_GPU;
+        out->device = entry.device;
+        out->ordinal = entry.ordinal;
+        out->capabilities = TE_CAP_TEXT | TE_CAP_PREPARED_I32 | TE_CAP_HOST_READ | (gpu ? TE_CAP_OPENCL_RESULT : 0);
+        te::copy_text(out->device_name, core.get_property(entry.runtime_name, ov::device::full_name));
+        te::copy_text(out->runtime_version, std::string(ov::get_openvino_version().buildNumber));
+        std::string driver;
+        if (gpu) {
+            // Same source as a created context: the plugin's shared OpenCL
+            // context, so discovery and context identity strings agree.
+            auto shared = core.get_default_context(entry.runtime_name).as<ov::intel_gpu::ocl::ClContext>();
+            cl::Context opencl(shared.get(), true);
+            const auto cl_devices = opencl.getInfo<CL_CONTEXT_DEVICES>();
+            te::require(cl_devices.size() == 1, "multi-device OpenCL contexts are not supported", TE_NOT_IMPLEMENTED);
+            driver = cl::Device(cl_devices.front()).getInfo<CL_DRIVER_VERSION>();
+        }
+        te::copy_text(out->driver_version, driver);
+    });
+}
 uint32_t turboembed_prepared_v1_context_create(const te_context_options *opts, te_context **out, te_error *err) {
     if (out) { *out = nullptr; }
     return te::boundary(err, [&] {
