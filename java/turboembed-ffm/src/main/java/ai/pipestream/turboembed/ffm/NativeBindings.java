@@ -21,7 +21,7 @@ final class NativeBindings implements AutoCloseable {
     static final ValueLayout.OfLong L = ValueLayout.JAVA_LONG;
     static final AddressLayout P = ValueLayout.ADDRESS;
     private final Arena libraryArena = Arena.ofShared();
-    private final MethodHandle version, contextCreate, contextInfo, contextRelease;
+    private final MethodHandle version, deviceCount, deviceInfo, contextCreate, contextInfo, contextRelease;
     private final MethodHandle modelLoad, modelInfo, modelRelease, slotCreate, slotRelease;
     private final MethodHandle writeTokens, writeText, execute, stats, resultRead, resultOpenCl, resultRelease;
     private int references = 1;
@@ -35,6 +35,8 @@ final class NativeBindings implements AutoCloseable {
             Linker linker = Linker.nativeLinker();
             SymbolLookup symbols = SymbolLookup.libraryLookup(library.toAbsolutePath(), libraryArena);
             version = function(linker, symbols, "version", FunctionDescriptor.of(I));
+            deviceCount = function(linker, symbols, "device_count", FunctionDescriptor.of(I, P, P));
+            deviceInfo = function(linker, symbols, "device_info", FunctionDescriptor.of(I, I, P, P));
             contextCreate = function(linker, symbols, "context_create", FunctionDescriptor.of(I, P, P, P));
             contextInfo = function(linker, symbols, "context_info", FunctionDescriptor.of(I, P, P, P));
             contextRelease = function(linker, symbols, "context_release", FunctionDescriptor.ofVoid(P));
@@ -93,6 +95,12 @@ final class NativeBindings implements AutoCloseable {
     }
     int version() {
         try { return (int) version.invokeExact(); } catch (Throwable t) { throw invocation(t); }
+    }
+    int deviceCount(MemorySegment out, MemorySegment error) {
+        try { return (int) deviceCount.invokeExact(out, error); } catch (Throwable t) { throw invocation(t); }
+    }
+    int deviceInfo(int index, MemorySegment out, MemorySegment error) {
+        try { return (int) deviceInfo.invokeExact(index, out, error); } catch (Throwable t) { throw invocation(t); }
     }
     int contextCreate(MemorySegment options, MemorySegment out, MemorySegment error) {
         try { return (int) contextCreate.invokeExact(options, out, error); } catch (Throwable t) { throw invocation(t); }

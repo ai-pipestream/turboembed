@@ -10,7 +10,10 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.ReadOnlyBufferException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import static ai.pipestream.turboembed.ffm.NativeBindings.*;
 import static ai.pipestream.turboembed.ffm.NativeLayouts.*;
@@ -23,7 +26,49 @@ public final class FfmTurboEmbed implements TurboEmbed {
 
     /** Selects this adapter explicitly. No service, model download or JNI is used. */
     public static FfmTurboEmbed open(Path sdkPrefix) {
-        return new FfmTurboEmbed(Objects.requireNonNull(sdkPrefix).resolve("lib/libturboembed_prepared.so.1"));
+        Path library = Objects.requireNonNull(sdkPrefix).resolve(libraryPath());
+        if (!Files.isRegularFile(library)) {
+            throw new IllegalArgumentException(
+                "no installed prepared SDK library at " + library
+                    + "; pass the extracted release archive prefix");
+        }
+        return new FfmTurboEmbed(library);
+    }
+
+    /**
+     * Returns the native library path inside the installed SDK prefix for the
+     * running platform and ABI. Unsupported platforms fail here explicitly.
+     */
+    public static Path libraryPath() {
+        String os = System.getProperty("os.name"), arch = System.getProperty("os.arch");
+        if (!"Linux".equals(os) || !"amd64".equals(arch)) {
+            throw new UnsupportedOperationException(
+                "the FFM provider ships native artifacts for Linux x86_64 only; this JVM reports "
+                    + os + "/" + arch);
+        }
+        return Path.of("lib", "libturboembed_prepared.so.1");
+    }
+
+    @Override public List<DeviceInfo> devices() {
+        api.retainRoot();
+        try (Arena scratch = Arena.ofConfined()) {
+            MemorySegment count = scratch.allocate(I), error = scratch.allocate(ERROR);
+            check(api.deviceCount(count, error), error);
+            List<DeviceInfo> devices = new ArrayList<>();
+            for (int index = 0; index < count.get(I, 0); index++) {
+                MemorySegment out = descriptor(scratch, DEVICE_INFO);
+                int status = api.deviceInfo(index, out, error);
+                // Each call re-enumerates; a device removed between the count
+                // and info calls ends the snapshot instead of failing it.
+                if (status == 2) { break; }
+                check(status, error);
+                devices.add(new DeviceInfo(out.get(I, offset(DEVICE_INFO, "device")), out.get(I, offset(DEVICE_INFO, "ordinal")), out.get(L, offset(DEVICE_INFO, "capabilities")),
+                    out.asSlice(offset(DEVICE_INFO, "device_name"), 128).getString(0), out.asSlice(offset(DEVICE_INFO, "runtime_version"), 128).getString(0), out.asSlice(offset(DEVICE_INFO, "driver_version"), 128).getString(0)));
+            }
+            return List.copyOf(devices);
+        } finally {
+            api.releaseDependent();
+        }
     }
 
     @Override public DeviceContext context(Device device, int ordinal) {
