@@ -40,22 +40,11 @@ make turboembed-stub
 # writes native/turboembed/build/libturboembed.a
 ```
 
-Or by hand:
-
-```bash
-c++ -std=c++17 -fPIC -O2 -I include \
-  -c native/turboembed/src/stub.cpp \
-  -o native/turboembed/build/stub.o
-ar rcs native/turboembed/build/libturboembed.a native/turboembed/build/stub.o
-```
-
-Shared object (optional):
-
-```bash
-c++ -std=c++17 -fPIC -shared -O2 -I include \
-  native/turboembed/src/stub.cpp \
-  -o native/turboembed/build/libturboembed.so
-```
+`stub.cpp` alone is not a complete library: it depends on the `turbo_buffer`
+arena and the native WordPiece tokenizer (plus vendored utf8proc). The Make
+target compiles and archives all required objects; see the `turboembed-stub`
+recipe in the root [`Makefile`](../../Makefile) for the exact object list if
+you need to reproduce it in another build system.
 
 ## Build via the Rust crate (preferred)
 
