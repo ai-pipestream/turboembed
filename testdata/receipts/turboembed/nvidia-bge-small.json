@@ -1,0 +1,48 @@
+{
+  "alias": "bge-small",
+  "commands": [
+    "make fetch-embeddings ALIASES=bge-small",
+    "export LD_LIBRARY_PATH=\"$(pwd)/.libs/nvidia/lib:${LD_LIBRARY_PATH:-}\"",
+    "cargo test -p turboembed --features ort-cuda --test nvidia_bge_small -- --ignored --nocapture"
+  ],
+  "crate": "turboembed",
+  "device": "CUDA",
+  "dims": 384,
+  "git_sha": "b07f6d32180f201e0f00105454c2c9edcf1fb0b9",
+  "golden": "testdata/e2e/goldens/nvidia/bge-small.json",
+  "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+  "mean_cosine": 0.9999999403953552,
+  "mean_pooling_request": "NotImplemented (explicit contract, no substitution)",
+  "min_cosine": 0.9999998211860657,
+  "n_texts": 6,
+  "per_text": [
+    {
+      "cosine": 0.9999998211860657,
+      "id": "parity:short"
+    },
+    {
+      "cosine": 0.9999998211860657,
+      "id": "parity:medium"
+    },
+    {
+      "cosine": 0.9999998807907104,
+      "id": "parity:query"
+    },
+    {
+      "cosine": 0.9999998807907104,
+      "id": "parity:unicode"
+    },
+    {
+      "cosine": 0.9999999403953552,
+      "id": "parity:long"
+    },
+    {
+      "cosine": 0.9999998807907104,
+      "id": "parity:inferstream"
+    }
+  ],
+  "pooling": "cls",
+  "provider": "ORT CUDA EP + IoBinding + DEVICE cls+L2",
+  "schema_version": 1,
+  "threshold": 0.9900000095367432
+}
