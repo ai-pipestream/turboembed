@@ -1455,6 +1455,7 @@ dependencies = [
  "tokio-stream",
  "toml",
  "tonic",
+ "turboembed",
 ]
 
 [[package]]
