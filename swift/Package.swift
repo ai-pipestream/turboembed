@@ -8,6 +8,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "inferstream-apple", targets: ["inferstream-apple"]),
+        .executable(name: "bench-apple-overhead", targets: ["bench-apple-overhead"]),
         .library(name: "MlxEngine", targets: ["MlxEngine"]),
         .library(name: "InferstreamCore", targets: ["InferstreamCore"]),
         .library(name: "TurboEmbed", type: .dynamic, targets: ["TurboEmbed"]),
@@ -73,6 +74,34 @@ let package = Package(
             ],
             plugins: [
                 .plugin(name: "GRPCProtobufGenerator", package: "grpc-swift-protobuf")
+            ]
+        ),
+        // Matched native-overhead pilot (Machine C). Direct path links
+        // MlxEngine statically; the ABI path dlopens libTurboEmbed.dylib.
+        // libturbo_buffer_apple.a provides the WordPiece/arena symbols
+        // MlxEngine references (unused on the direct path).
+        .executableTarget(
+            name: "bench-apple-overhead",
+            dependencies: [
+                "TurboEmbedC",
+                "MlxEngine",
+                .product(name: "MLX", package: "mlx-swift"),
+                .product(name: "MLXEmbedders", package: "mlx-swift-lm"),
+                .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+            path: "Sources/BenchAppleOverhead",
+            swiftSettings: [
+                .swiftLanguageMode(.v5)
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L\(Context.packageDirectory)/../native/turbo_buffer/build",
+                    "-lturbo_buffer_apple",
+                ]),
+                .linkedFramework("Metal"),
+                .linkedFramework("Foundation"),
+                .linkedLibrary("c++"),
             ]
         ),
         .target(

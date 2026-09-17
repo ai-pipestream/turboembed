@@ -34,6 +34,9 @@
 #   make bench-machine-c                    # Machine C FINAL SOLIDIFY bench receipt
 #   make test-turboembed-intel              # --features genai; WordPiece→USM + CompiledModel; NPU create fails loud if missing
 #   make test-turboembed-apple              # Mac: Metal create lists minilm + goldens receipt
+#   make bench-apple-overhead               # Machine C: direct MLX vs libTurboEmbed.dylib ABI receipt
+#   make apple-sdk-release                  # Machine C: turboembed-metal-sdk tarball (dylib + headers)
+#   make apple-sdk-acceptance               # clean-consumer acceptance (MODE=metal|no-metal)
 #   make bench-machine-a                    # Machine A CUDA p50/p99 + H2D/D2H + goldens
 #   make bench-turbo MACHINE=A              # same as bench-machine-a
 #   make bench-turbo MACHINE=B              # same as bench-machine-b-ov
@@ -105,7 +108,8 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt \
 	metal-erf-probe bench-machine-b-ov \
 	bench-turbo bench-machine-a \
-	bench-machine-c bench-machine-c-rerank
+	bench-machine-c bench-machine-c-rerank \
+	bench-apple-overhead apple-sdk-release apple-sdk-acceptance
 
 test:
 	$(CARGO) test --workspace
@@ -944,6 +948,48 @@ nvidia-sdk-acceptance:
 	./scripts/nvidia-sdk-consumer-acceptance.sh \
 	  dist/turboembed-cuda-sdk-0.1.0-linux-x86_64.tar.gz \
 	  models/onnx/minilm $(MODE) $(CURDIR)/.libs/nvidia/lib
+
+# M4 Apple matched native-overhead pilot (Machine C): direct mlx-swift
+# Metal vs the libTurboEmbed.dylib ABI on identical MiniLM inputs/shapes.
+# Same predeclared budgets as bench-nvidia-overhead (ABI p50 within 5%,
+# throughput ≥ 95%, parity max abs ≤ 5e-4). Writes
+# testdata/receipts/bench/machine-c-metal-overhead.json. Live numbers —
+# re-run the target instead of editing. Needs macOS + Metal +
+# models/mlx/minilm (make fetch-mlx ALIASES=minilm). Validate afterwards:
+#   cargo test -p turboembed --features mlx-live \
+#     --test apple_overhead_receipt -- --ignored --nocapture
+# BENCH_OVERHEAD_ARGS="--quick" runs the reduced smoke grid (never a receipt).
+BENCH_OVERHEAD_ARGS ?=
+bench-apple-overhead:
+	@if [ "$$(uname -s)" != Darwin ]; then \
+	  echo "bench-apple-overhead requires macOS + Metal (Machine C); this host has neither — refusing to fake a GPU receipt. See docs/apple-m4-machine-c-checklist.md."; \
+	  exit 1; \
+	fi
+	$(MAKE) libturbo-buffer-apple
+	swift build -c release --package-path swift --product TurboEmbed
+	swift build -c release --package-path swift --product bench-apple-overhead
+	./scripts/build-apple-metallib.sh
+	mkdir -p testdata/receipts/bench
+	INFERSTREAM_ROOT=$(CURDIR) swift/.build/release/bench-apple-overhead \
+	  --out testdata/receipts/bench/machine-c-metal-overhead.json \
+	  $(BENCH_OVERHEAD_ARGS)
+
+# M4 Apple installable SDK (libTurboEmbed.dylib + turboembed.h + Metal
+# kernels) + clean-consumer acceptance. `metal` mode needs the Apple
+# Silicon host; `no-metal` proves the fail-loud device policy on a host
+# without a Metal device.
+#
+#   make apple-sdk-release
+#   make apple-sdk-acceptance MODE=metal
+apple-sdk-release:
+	./scripts/make-apple-sdk-release.sh --output-dir dist
+
+APPLE_SDK_MODE := $(if $(filter gpu,$(MODE)),metal,$(MODE))
+apple-sdk-acceptance:
+	$(MAKE) fetch-mlx ALIASES=minilm
+	./scripts/apple-sdk-consumer-acceptance.sh \
+	  dist/turboembed-metal-sdk-0.1.0-macos-arm64.tar.gz \
+	  models/mlx/minilm $(APPLE_SDK_MODE)
 
 bench-turbo:
 ifeq ($(MACHINE),A)
