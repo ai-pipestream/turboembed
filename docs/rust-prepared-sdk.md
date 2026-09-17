@@ -1,10 +1,10 @@
 # Rust prepared SDK
 
 The optional `turboembed::prepared` module wraps the
-[Intel native SDK](native-sdk.md). Build and install that SDK first, then enable
-`prepared` on the existing `turboembed` crate and set
-`TURBOEMBED_PREPARED_SDK=/path/to/sdk` when compiling. This feature links the
-installed library; it does not build or download OpenVINO.
+[Intel native SDK](native-sdk.md). Build or extract that SDK's release archive
+first, then enable `prepared` on the existing `turboembed` crate and set
+`TURBOEMBED_PREPARED_SDK=/path/to/extracted-sdk` when compiling. This feature
+links the packaged library; it does not build or download OpenVINO.
 
 The current target is Linux x86_64. At execution, the loader must find
 `libturboembed_prepared.so.1`, either through your application's RPATH or a
