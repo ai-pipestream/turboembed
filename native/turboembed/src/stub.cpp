@@ -34,6 +34,8 @@ void *turboembed_ort_cuda_open(
     char *err,
     size_t err_len
 );
+// Returns 0 on success, TURBOEMBED_ORT_UNSUPPORTED_OPTION when a per-call
+// option cannot be honored by the loaded session, and -1 on other failures.
 int turboembed_ort_cuda_embed(
     void *session,
     const char *const *ptrs,
@@ -49,6 +51,8 @@ int turboembed_ort_cuda_embed(
     size_t err_len
 );
 void turboembed_ort_cuda_close(void *session);
+// Matches ORT_EMBED_UNSUPPORTED_OPTION in crates/turboembed/src/ort_cuda_c.rs.
+#define TURBOEMBED_ORT_UNSUPPORTED_OPTION (-2)
 void turboembed_ort_cuda_free_values(float *values, size_t n);
 uint32_t turboembed_ort_cuda_dim(const void *session);
 int turboembed_ort_cuda_place(const void *session);
@@ -1044,7 +1048,9 @@ static turboembed_status embed_impl(
             engine->set_error(
                 err[0] != '\0' ? err : "ORT CUDA embed failed"
             );
-            return TURBOEMBED_ERR_INTERNAL;
+            return rc == TURBOEMBED_ORT_UNSUPPORTED_OPTION
+                ? TURBOEMBED_ERR_NOT_IMPLEMENTED
+                : TURBOEMBED_ERR_INTERNAL;
         }
         rec->pub.dim = static_cast<uint32_t>(dim);
         rec->pub.count = static_cast<uint32_t>(count);

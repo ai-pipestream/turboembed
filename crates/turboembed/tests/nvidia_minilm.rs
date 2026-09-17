@@ -440,6 +440,110 @@ fn minilm_ort_cpu_matches_golden() {
     eprintln!("wrote {} cosine={hello_cos:.6}", path.display());
 }
 
+/// Per-call options the loaded session cannot honor must fail loud as
+/// `NotImplemented` (not `Internal`), and the engine must stay usable.
+/// Runs on the ORT CPU EP; the same hook serves the CUDA path.
+///
+/// Uses `make fetch-embeddings ALIASES=minilm` artifacts when present so it
+/// runs outside Machine A; otherwise falls back to the builtin catalog.
+#[test]
+fn ort_rejects_unsupported_options_as_not_implemented() {
+    let _lock = serialize_engine_tests();
+    let root = workspace_root();
+    let (dim, _subset, _hello) = load_subset(&root.join(GOLDEN));
+
+    let fetched = root.join("models/onnx/minilm/onnx/model.onnx");
+    let (engine, _config) = if fetched.is_file() {
+        let config = root.join("target/minilm-local-catalog.toml");
+        fs::write(
+            &config,
+            "[models.minilm]\n\
+             description = \"all-MiniLM-L6-v2 (fetched local copy)\"\n\
+             [models.minilm.nvidia]\n\
+             backend = \"ort\"\n\
+             device = \"cuda\"\n\
+             path = \"models/onnx/minilm/onnx/model.onnx\"\n\
+             tokenizer_dir = \"models/onnx/minilm\"\n\
+             pooling = \"mean\"\n\
+             normalize = true\n\
+             max_seq_len = 256\n",
+        )
+        .expect("write local catalog");
+        let c_path = std::ffi::CString::new(config.to_str().unwrap()).unwrap();
+        (
+            Engine::create_with_config(Device::Cpu, Some(&c_path)).expect("create Device::Cpu"),
+            Some(config),
+        )
+    } else {
+        (Engine::create(Device::Cpu).expect("create Device::Cpu"), None)
+    };
+    engine.load_model(ALIAS).expect("load minilm on ORT CPU EP");
+
+    let cases = [
+        EmbedOptions {
+            truncate_to: Some(16),
+            ..Default::default()
+        },
+        // MiniLM is catalog mean pooling; CLS and LAST are not honored.
+        EmbedOptions {
+            pooling: Pooling::Cls,
+            ..Default::default()
+        },
+        EmbedOptions {
+            pooling: Pooling::Last,
+            ..Default::default()
+        },
+        // The session L2-normalizes; skipping it per call is unsupported.
+        EmbedOptions {
+            normalize: Some(false),
+            ..Default::default()
+        },
+    ];
+    for opts in cases {
+        match engine.embed_one(ALIAS, "hello world", &opts) {
+            Err(Error::NotImplemented(_)) => {}
+            other => panic!("{opts:?} must be NotImplemented, got {other:?}"),
+        }
+    }
+
+    let ok = engine
+        .embed_one(ALIAS, "hello world", &EmbedOptions::default())
+        .expect("engine remains usable after rejected options");
+    assert_eq!(ok.dim(), dim);
+
+    // The reverse direction: a session loaded without normalization must
+    // reject a per-call normalize=true rather than silently skipping it.
+    if fetched.is_file() {
+        let config = root.join("target/minilm-local-catalog-unnormalized.toml");
+        fs::write(
+            &config,
+            "[models.minilm]\n\
+             description = \"all-MiniLM-L6-v2 (fetched, normalize off)\"\n\
+             [models.minilm.nvidia]\n\
+             backend = \"ort\"\n\
+             device = \"cuda\"\n\
+             path = \"models/onnx/minilm/onnx/model.onnx\"\n\
+             tokenizer_dir = \"models/onnx/minilm\"\n\
+             pooling = \"mean\"\n\
+             normalize = false\n\
+             max_seq_len = 256\n",
+        )
+        .expect("write unnormalized catalog");
+        let c_path = std::ffi::CString::new(config.to_str().unwrap()).unwrap();
+        let engine =
+            Engine::create_with_config(Device::Cpu, Some(&c_path)).expect("create Device::Cpu");
+        engine.load_model(ALIAS).expect("load unnormalized minilm");
+        let opts = EmbedOptions {
+            normalize: Some(true),
+            ..Default::default()
+        };
+        match engine.embed_one(ALIAS, "hello world", &opts) {
+            Err(Error::NotImplemented(_)) => {}
+            other => panic!("normalize=true on a non-normalizing session, got {other:?}"),
+        }
+    }
+}
+
 #[test]
 #[ignore = "needs MiniLM ONNX + CUDA 13 libs + GPU; see docs/turboembed.md"]
 fn minilm_ort_cuda_iobinding_matches_golden() {

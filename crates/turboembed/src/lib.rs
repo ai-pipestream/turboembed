@@ -182,7 +182,9 @@ impl OutputFormat {
     }
 }
 
-/// Options for a single embed call. All fields are hints; the stub ignores them.
+/// Options for a single embed call. Providers validate every field: an option
+/// a loaded model cannot honor fails with [`Error::NotImplemented`] instead of
+/// being silently ignored.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EmbedOptions {
     pub pooling: Pooling,
