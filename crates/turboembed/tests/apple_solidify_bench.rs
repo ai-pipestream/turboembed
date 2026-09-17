@@ -40,6 +40,10 @@ unsafe extern "C" {
 const MINILM_DIM: usize = 384;
 const NVIDIA_FLOOR: f32 = 0.97;
 const APPLE_FLOOR: f32 = 0.99;
+/// Replacement gate for apple-golden items that are provably stale (the
+/// golden itself disagrees with the NVIDIA reference golden for the same
+/// text): the live row must match the NVIDIA golden this tightly instead.
+const STALE_GOLDEN_NVIDIA_FLOOR: f32 = 0.999;
 const HELLO: &[u8] = b"hello world";
 const DEFAULT_WARMUP: usize = 32;
 const DEFAULT_ITERS: usize = 200;
@@ -92,6 +96,17 @@ struct Score {
     worst_id: String,
 }
 
+/// One apple-golden item excluded from the `APPLE_FLOOR` gate because the
+/// golden entry itself disagrees with the NVIDIA reference golden for the
+/// same text. The live row was instead required to match the NVIDIA golden
+/// at `STALE_GOLDEN_NVIDIA_FLOOR`. See `testdata/e2e/goldens/apple/README.md`.
+#[derive(Debug, Serialize)]
+struct StaleGoldenReport {
+    id: String,
+    golden_vs_nvidia_golden: f32,
+    live_vs_nvidia_golden: f32,
+}
+
 #[derive(Debug, Serialize)]
 struct CombinedReceipt {
     schema_version: u32,
@@ -141,6 +156,7 @@ struct EmbedSlice {
     n_goldens: usize,
     cosine_vs_nvidia: Score,
     cosine_vs_apple: Score,
+    stale_apple_golden_items: Vec<StaleGoldenReport>,
     goldens_in_band: bool,
 }
 
@@ -285,6 +301,122 @@ fn score_against(got: &[(&str, &[f32])], dump: &GoldenDump, floor: f32, label: &
         floor,
         worst_id: worst,
     }
+}
+
+/// Gate live rows against the apple golden dump at `APPLE_FLOOR`, except
+/// for golden entries that provably disagree with the NVIDIA reference
+/// golden for the same text (cross-golden cosine below `APPLE_FLOOR`).
+///
+/// Those entries are stale captures, not live drift: the apple dump was
+/// captured 2026-09-12 with a tokenizer that emitted `[UNK]` for CJK text,
+/// and commit 78a88d8 (2026-09-14) later matched native tokenization to
+/// reference token IDs, moving live output onto the NVIDIA side of that
+/// divergence (`testdata/e2e/goldens/apple/README.md`). For a stale entry
+/// the live row must instead match the NVIDIA golden at
+/// `STALE_GOLDEN_NVIDIA_FLOOR` — a tighter gate than the golden it
+/// replaces — so the exemption cannot hide real drift. At most 5% of the
+/// golden set may be exempted; beyond that the goldens need recapture.
+fn score_against_apple(
+    got: &[(&str, &[f32])],
+    apple: &GoldenDump,
+    nvidia: &GoldenDump,
+    label: &str,
+) -> (Score, Vec<StaleGoldenReport>) {
+    let apple_by_id: std::collections::HashMap<&str, &GoldenItem> =
+        apple.items.iter().map(|i| (i.id.as_str(), i)).collect();
+    let apple_by_text: std::collections::HashMap<&str, &GoldenItem> =
+        apple.items.iter().map(|i| (i.text.as_str(), i)).collect();
+    let nvidia_by_id: std::collections::HashMap<&str, &GoldenItem> =
+        nvidia.items.iter().map(|i| (i.id.as_str(), i)).collect();
+    let nvidia_by_text: std::collections::HashMap<&str, &GoldenItem> =
+        nvidia.items.iter().map(|i| (i.text.as_str(), i)).collect();
+    let mut min = f32::MAX;
+    let mut sum = 0.0f32;
+    let mut n = 0usize;
+    let mut worst = String::new();
+    let mut stale: Vec<StaleGoldenReport> = Vec::new();
+    for (id, row) in got {
+        let gold = apple_by_id
+            .get(id)
+            .copied()
+            .or_else(|| apple_by_text.get(id).copied());
+        let Some(gold) = gold else { continue };
+        if gold.vector.len() != row.len() {
+            panic!(
+                "FAKE: {label} {} dim {} vs live {}",
+                gold.id,
+                gold.vector.len(),
+                row.len()
+            );
+        }
+        let c = cosine(row, &gold.vector);
+        if c < 0.2 {
+            panic!(
+                "FAKE / BERT pooler suspected: {label} {} cosine={c:.4}",
+                gold.id
+            );
+        }
+        let reference = nvidia_by_id
+            .get(gold.id.as_str())
+            .copied()
+            .or_else(|| nvidia_by_text.get(gold.text.as_str()).copied());
+        if let Some(reference) = reference {
+            let golden_vs_reference = cosine(&gold.vector, &reference.vector);
+            if golden_vs_reference + f32::EPSILON < APPLE_FLOOR {
+                let live_vs_reference = cosine(row, &reference.vector);
+                assert!(
+                    live_vs_reference >= STALE_GOLDEN_NVIDIA_FLOOR,
+                    "{label} {}: apple golden is stale vs nvidia golden ({golden_vs_reference:.6}) \
+                     but live does not match nvidia either ({live_vs_reference:.6} < \
+                     {STALE_GOLDEN_NVIDIA_FLOOR}) — this is real drift, not a stale golden",
+                    gold.id
+                );
+                eprintln!(
+                    "{label}: {} exempted — apple golden↔nvidia golden {golden_vs_reference:.6} \
+                     (stale capture), live↔nvidia {live_vs_reference:.6} ≥ {STALE_GOLDEN_NVIDIA_FLOOR}",
+                    gold.id
+                );
+                stale.push(StaleGoldenReport {
+                    id: gold.id.clone(),
+                    golden_vs_nvidia_golden: golden_vs_reference,
+                    live_vs_nvidia_golden: live_vs_reference,
+                });
+                continue;
+            }
+        }
+        if c < min {
+            min = c;
+            worst = gold.id.clone();
+        }
+        sum += c;
+        n += 1;
+    }
+    assert!(n > 0, "{label}: no overlapping golden texts");
+    assert!(
+        stale.len() * 20 <= apple.items.len(),
+        "{label}: {} stale golden items exceed 5% of {} — the apple golden set no longer \
+         matches the nvidia reference; recapture the goldens instead of exempting",
+        stale.len(),
+        apple.items.len()
+    );
+    let mean = sum / n as f32;
+    eprintln!(
+        "{label}: n={n} min={min:.6} mean={mean:.6} worst={worst} floor={APPLE_FLOOR} stale_exempt={}",
+        stale.len()
+    );
+    assert!(
+        min + f32::EPSILON >= APPLE_FLOOR,
+        "{label} min cosine {min:.6} < {APPLE_FLOOR} (worst {worst}). Metal MiniLM mean+L2 must hold."
+    );
+    (
+        Score {
+            min,
+            mean,
+            floor: APPLE_FLOOR,
+            worst_id: worst,
+        },
+        stale,
+    )
 }
 
 fn percentile_us(samples_ns: &mut [u128], p: u32) -> u64 {
@@ -591,7 +723,8 @@ fn apple_solidify_bench_writes_machine_c_receipt() {
         .map(|(id, v)| (id.as_str(), v.as_slice()))
         .collect();
     let vs_nvidia = score_against(&got, &nvidia, NVIDIA_FLOOR, "apple-mlx↔nvidia");
-    let vs_apple = score_against(&got, &apple, APPLE_FLOOR, "apple-mlx↔apple-golden");
+    let (vs_apple, stale_items) =
+        score_against_apple(&got, &apple, &nvidia, "apple-mlx↔apple-golden");
 
     let goldens_in_band =
         vs_nvidia.min + f32::EPSILON >= NVIDIA_FLOOR && vs_apple.min + f32::EPSILON >= APPLE_FLOOR;
@@ -640,6 +773,7 @@ fn apple_solidify_bench_writes_machine_c_receipt() {
             n_goldens: live.len(),
             cosine_vs_nvidia: vs_nvidia,
             cosine_vs_apple: vs_apple,
+            stale_apple_golden_items: stale_items,
             goldens_in_band,
         },
         turborerank: RerankOut {
@@ -661,7 +795,7 @@ fn apple_solidify_bench_writes_machine_c_receipt() {
             cosine_vs_golden: rerank.cosine_vs_golden,
             berlin_in_band: rerank.berlin_in_band,
         },
-        note: "FINAL SOLIDIFY bench on Machine C. Live Metal timings — not copied from a prior receipt. TurboEmbed + TurboRerank rent turbo_buffer SHARED (MTLResourceStorageModeShared). AUTO resolves to METAL. Create without Metal fails loud (make turborerank-tests-nometal). No CPU fallback. allocs/forward==0 after warmup. Berlin atol 2e-3. Embed goldens: vs nvidia ≥0.97, vs apple ≥0.99.",
+        note: "FINAL SOLIDIFY bench on Machine C. Live Metal timings — not copied from a prior receipt. TurboEmbed + TurboRerank rent turbo_buffer SHARED (MTLResourceStorageModeShared). AUTO resolves to METAL. Create without Metal fails loud (make turborerank-tests-nometal). No CPU fallback. allocs/forward==0 after warmup. Berlin atol 2e-3. Embed goldens: vs nvidia ≥0.97, vs apple ≥0.99; apple golden entries that provably disagree with the nvidia reference (stale 2026-09-12 CJK captures, see testdata/e2e/goldens/apple/README.md) are gated at live↔nvidia ≥0.999 instead and listed in stale_apple_golden_items.",
     };
 
     let dest = root.join("testdata/receipts/bench/machine-c-metal.json");

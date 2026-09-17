@@ -10,7 +10,7 @@ not a copied cosine receipt and not a CPU fallback.
 | Command | `make bench-machine-c` |
 | Receipt | `testdata/receipts/bench/machine-c-metal.json` |
 | Memory | `turbo_buffer` Metal **SHARED** (`MTLResourceStorageModeShared`) |
-| Embed goldens | vs nvidia ≥ 0.97, vs apple ≥ 0.99 (`testdata/e2e/goldens`) |
+| Embed goldens | vs nvidia ≥ 0.97, vs apple ≥ 0.99 (`testdata/e2e/goldens`); apple entries that provably disagree with the nvidia reference (stale 2026-09-12 CJK captures, see `testdata/e2e/goldens/apple/README.md`) are gated at live↔nvidia ≥ 0.999 instead and recorded in `stale_apple_golden_items` |
 | Berlin | `testdata/reference_rerank/ms_marco_minilm_l6_berlin.json` (`atol` 2e-3) |
 | Tree | `2849a59` (measured on Machine C) |
 
