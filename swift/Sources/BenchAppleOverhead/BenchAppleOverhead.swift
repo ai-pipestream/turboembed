@@ -14,6 +14,16 @@
 // which tokenizes with native WordPiece into a turbo_buffer Metal SHARED
 // arena and pools on host from unified memory.
 //
+// Process isolation: the ABI leg runs in a separate `bench-abi-worker`
+// process (one per case) that links no MLX and no swift-transformers, so
+// the dylib's embedded copies of those Objective-C classes are the only
+// ones in that process. Running both legs in one process duplicated the
+// Tokenizers/MLX classes and doubled the Metal resource footprint, which
+// distorted ABI timings and hit the Metal resource limit on the full
+// 18-case grid. Only one leg executes at a time (the orchestrator blocks
+// on the worker), so the legs never contend for the GPU; the direct-path
+// MLX buffer cache is cleared between cases.
+//
 // Gates per repeat (predeclared, same as the NVIDIA/Intel pilots): ABI p50
 // within 5% of the direct baseline and ABI throughput at least 95% of it.
 // Parity per case: max abs error <= 5e-4 and RMSE <= 1e-4 between the two
@@ -24,6 +34,7 @@
 // receipt is `testdata/receipts/bench/machine-c-metal-overhead.json`.
 
 import ArgumentParser
+import BenchOverheadCore
 import Darwin
 import Foundation
 import MLX
@@ -32,213 +43,133 @@ import MLXLMCommon
 import Metal
 import MlxEngine
 
-#if canImport(TurboEmbedC)
-    import TurboEmbedC
-#endif
-
-let kAlias = "minilm"
-let kMaxSeq = 256
-let kDim = 384
 let kParityMaxAbs: Float = 5e-4
 let kParityMaxRmse = 1e-4
 let kP50OverheadLimit = 1.05
 let kThroughputFloor = 0.95
-let kP99MinSamples = 1000
 
-enum BenchError: Error, CustomStringConvertible {
-    case message(String)
+// MARK: - ABI worker client (one isolated process per case)
 
-    var description: String {
-        switch self {
-        case .message(let m): return m
-        }
-    }
-}
+/// Client for one `bench-abi-worker` process: newline-delimited commands on
+/// its stdin, one JSON object per line on its stdout. The worker warms up
+/// before replying `{"ready":true}`; its stderr passes through.
+final class AbiWorker {
+    private let process = Process()
+    private let stdinPipe = Pipe()
+    private let stdoutPipe = Pipe()
+    private var buffer = Data()
 
-func fail(_ message: String) -> BenchError { .message(message) }
-
-// MARK: - dlopen'd C ABI (the packaged dylib, not an in-process module)
-
-typealias AbiVersionFn = @convention(c) () -> UInt32
-typealias CreateFn = @convention(c) (
-    turboembed_device, UnsafePointer<CChar>?, UnsafeMutablePointer<OpaquePointer?>?
-) -> turboembed_status
-typealias DestroyFn = @convention(c) (OpaquePointer?) -> Void
-typealias LastErrorFn = @convention(c) (OpaquePointer?) -> UnsafePointer<CChar>?
-typealias LoadFn = @convention(c) (
-    OpaquePointer?, UnsafePointer<CChar>?, Int
-) -> turboembed_status
-typealias EmbedFn = @convention(c) (
-    OpaquePointer?, UnsafePointer<CChar>?, Int,
-    UnsafePointer<turboembed_str>?, Int,
-    UnsafePointer<turboembed_embed_options>?,
-    UnsafeMutablePointer<UnsafeMutablePointer<turboembed_embed_result>?>?
-) -> turboembed_status
-typealias ResultFreeFn = @convention(c) (
-    UnsafeMutablePointer<turboembed_embed_result>?
-) -> Void
-typealias CounterFn = @convention(c) () -> UInt64
-typealias CounterResetFn = @convention(c) () -> Void
-typealias MetalOwnsFn = @convention(c) (UnsafeRawPointer?) -> Int32
-
-/// `turboembed_*` (and turbo_buffer counter) symbols resolved from
-/// `libTurboEmbed.dylib`. Every ABI request in this bench goes through the
-/// dylib's exported C symbols — the same surface a packaged consumer loads.
-final class AbiDylib: @unchecked Sendable {
-    let path: String
-    let abiVersion: AbiVersionFn
-    let create: CreateFn
-    let destroy: DestroyFn
-    let lastError: LastErrorFn
-    let load: LoadFn
-    let embed: EmbedFn
-    let resultFree: ResultFreeFn
-    let allocCounter: CounterFn
-    let allocCounterReset: CounterResetFn
-    let metalOwns: MetalOwnsFn
-
-    init(path: String) throws {
-        self.path = path
-        guard let handle = dlopen(path, RTLD_NOW | RTLD_LOCAL) else {
-            let why = dlerror().map { String(cString: $0) } ?? "unknown dlopen error"
-            throw fail("dlopen(\(path)): \(why)")
-        }
-        func sym<T>(_ name: String, as type: T.Type) throws -> T {
-            guard let raw = dlsym(handle, name) else {
-                throw fail("dlsym(\(name)) missing in \(path)")
-            }
-            return unsafeBitCast(raw, to: T.self)
-        }
-        self.abiVersion = try sym("turboembed_abi_version", as: AbiVersionFn.self)
-        self.create = try sym("turboembed_engine_create", as: CreateFn.self)
-        self.destroy = try sym("turboembed_engine_destroy", as: DestroyFn.self)
-        self.lastError = try sym("turboembed_last_error", as: LastErrorFn.self)
-        self.load = try sym("turboembed_load_model", as: LoadFn.self)
-        self.embed = try sym("turboembed_embed", as: EmbedFn.self)
-        self.resultFree = try sym("turboembed_embed_result_free", as: ResultFreeFn.self)
-        self.allocCounter = try sym("turbo_buffer_alloc_counter", as: CounterFn.self)
-        self.allocCounterReset = try sym(
-            "turbo_buffer_alloc_counter_reset", as: CounterResetFn.self)
-        self.metalOwns = try sym("turbo_buffer_metal_owns", as: MetalOwnsFn.self)
-    }
-
-    func errorText(_ engine: OpaquePointer?) -> String {
-        guard let ptr = lastError(engine) else { return "" }
-        return String(cString: ptr)
-    }
-}
-
-/// One ABI engine on METAL with `minilm` loaded, plus reusable
-/// caller-owned UTF-8 input buffers (the ABI takes pointer+length views).
-final class AbiEngine: @unchecked Sendable {
-    let dylib: AbiDylib
-    let engine: OpaquePointer
-    private let aliasBytes: [CChar]
-    private var opts: turboembed_embed_options
-
-    init(dylib: AbiDylib) throws {
-        self.dylib = dylib
-        var out: OpaquePointer?
-        let st = dylib.create(TURBOEMBED_DEVICE_METAL, nil, &out)
-        guard st == TURBOEMBED_OK, let engine = out else {
-            throw fail(
-                "turboembed_engine_create(METAL) failed (fail loud, no CPU fallback): "
-                    + dylib.errorText(nil))
-        }
-        self.engine = engine
-        self.aliasBytes = Array(kAlias.utf8CString)
-        self.opts = turboembed_embed_options(
-            pooling: TURBOEMBED_POOLING_MEAN,
-            normalize: 1,
-            truncate_to: UInt32(kMaxSeq),
-            output_format: TURBOEMBED_OUTPUT_TYPED
-        )
-        let st2 = aliasBytes.withUnsafeBufferPointer { alias in
-            dylib.load(engine, alias.baseAddress, kAlias.utf8.count)
-        }
-        guard st2 == TURBOEMBED_OK else {
-            throw fail("turboembed_load_model(\(kAlias)): " + dylib.errorText(engine))
+    init(executable: String, dylib: String, benchCase: BenchCase, warmup: Int) throws {
+        process.executableURL = URL(filePath: executable)
+        var args = [
+            "--dylib", dylib,
+            "--batch", String(benchCase.batch),
+            "--tokens", String(benchCase.targetTokens),
+            "--warmup", String(warmup),
+        ]
+        if benchCase.mixed { args.append("--mixed") }
+        process.arguments = args
+        process.standardInput = stdinPipe
+        process.standardOutput = stdoutPipe
+        process.standardError = FileHandle.standardError
+        try process.run()
+        let ready = try readReply()
+        guard ready["ready"] as? Bool == true else {
+            throw fail("abi worker did not become ready: \(ready)")
         }
     }
 
     deinit {
-        dylib.destroy(engine)
+        if process.isRunning {
+            process.terminate()
+        }
     }
 
-    /// One synchronous text-to-pooled-result ABI request; result freed.
-    func embedOnce(_ texts: CTextViews) throws {
-        var out: UnsafeMutablePointer<turboembed_embed_result>?
-        let st = aliasBytes.withUnsafeBufferPointer { alias in
-            texts.views.withUnsafeBufferPointer { views in
-                dylib.embed(
-                    engine, alias.baseAddress, kAlias.utf8.count,
-                    views.baseAddress, views.count, &opts, &out)
-            }
+    private func send(_ line: String) throws {
+        guard process.isRunning else {
+            throw fail("abi worker exited before command: \(line)")
         }
-        guard st == TURBOEMBED_OK, let result = out else {
-            throw fail("turboembed_embed: " + dylib.errorText(engine))
-        }
-        dylib.resultFree(result)
+        stdinPipe.fileHandleForWriting.write(Data((line + "\n").utf8))
     }
 
-    /// One ABI request keeping the result; caller receives copied rows.
-    /// Verifies the result values pointer is turbo_buffer Metal SHARED.
-    func embedCollect(_ texts: CTextViews) throws -> [Float] {
-        var out: UnsafeMutablePointer<turboembed_embed_result>?
-        let st = aliasBytes.withUnsafeBufferPointer { alias in
-            texts.views.withUnsafeBufferPointer { views in
-                dylib.embed(
-                    engine, alias.baseAddress, kAlias.utf8.count,
-                    views.baseAddress, views.count, &opts, &out)
+    private func readReply() throws -> [String: Any] {
+        while true {
+            if let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                let lineData = Data(buffer[buffer.startIndex..<newline])
+                buffer.removeSubrange(buffer.startIndex...newline)
+                guard
+                    let obj = try JSONSerialization.jsonObject(with: lineData) as? [String: Any]
+                else {
+                    throw fail(
+                        "abi worker sent a non-JSON line: "
+                            + String(decoding: lineData, as: UTF8.self))
+                }
+                return obj
             }
+            guard let chunk = try stdoutPipe.fileHandleForReading.read(upToCount: 1 << 16),
+                !chunk.isEmpty
+            else {
+                throw fail("abi worker closed its output (crashed?) — see its stderr above")
+            }
+            buffer.append(chunk)
         }
-        guard st == TURBOEMBED_OK, let result = out else {
-            throw fail("turboembed_embed: " + dylib.errorText(engine))
+    }
+
+    private func request(_ line: String) throws -> [String: Any] {
+        try send(line)
+        return try readReply()
+    }
+
+    /// Parity vectors for the case inputs (`batch * dim` floats).
+    func collect() throws -> [Float] {
+        let reply = try request("collect")
+        guard let values = reply["values"] as? [Any] else {
+            throw fail("abi worker collect reply missing values: \(reply)")
         }
-        defer { dylib.resultFree(result) }
-        let dim = Int(result.pointee.dim)
-        let count = Int(result.pointee.count)
-        guard dim == kDim, count == texts.views.count else {
-            throw fail("ABI returned dim=\(dim) count=\(count), expected \(kDim)x\(texts.views.count)")
+        return try values.map { any -> Float in
+            guard let number = any as? NSNumber else {
+                throw fail("abi worker collect reply has a non-numeric value")
+            }
+            return Float(number.doubleValue)
         }
-        guard dylib.metalOwns(UnsafeRawPointer(result.pointee.values)) == 1 else {
-            throw fail("FAKE: result.values is not turbo_buffer Metal SHARED")
+    }
+
+    /// Arena allocation count on one post-warmup request.
+    func steadyAllocs() throws -> UInt64 {
+        let reply = try request("steady")
+        guard let allocs = reply["allocs"] as? NSNumber else {
+            throw fail("abi worker steady reply missing allocs: \(reply)")
         }
-        return Array(UnsafeBufferPointer(start: result.pointee.values, count: dim * count))
+        return allocs.uint64Value
+    }
+
+    /// One timed repeat on the worker's engine; returns the stats JSON.
+    func time(maxSeconds: Double, maxRequests: Int) throws -> [String: Any] {
+        let reply = try request("time \(maxSeconds) \(maxRequests)")
+        guard let stats = reply["stats"] as? [String: Any] else {
+            throw fail("abi worker time reply missing stats: \(reply)")
+        }
+        return stats
+    }
+
+    /// Two-engine concurrent observation inside the worker process.
+    func concurrent(maxSeconds: Double, maxRequests: Int) throws -> [String: Any] {
+        try request("concurrent \(maxSeconds) \(maxRequests)")
+    }
+
+    /// Ask the worker to destroy its engine and exit, then reap it.
+    func shutdown() {
+        _ = try? request("exit")
+        stdinPipe.fileHandleForWriting.closeFile()
+        process.waitUntilExit()
     }
 }
 
-/// Caller-owned UTF-8 buffers for `turboembed_str` views, allocated once
-/// per case (outside the timed loop, matching the Rust `&str` views the
-/// NVIDIA pilot passes).
-final class CTextViews: @unchecked Sendable {
-    private var storage: [UnsafeMutablePointer<UInt8>] = []
-    private(set) var views: [turboembed_str] = []
-
-    init(_ texts: [String]) {
-        views.reserveCapacity(texts.count)
-        for text in texts {
-            let bytes = Array(text.utf8)
-            if bytes.isEmpty {
-                views.append(turboembed_str(ptr: nil, len: 0))
-                continue
-            }
-            let copy = UnsafeMutablePointer<UInt8>.allocate(capacity: bytes.count)
-            bytes.withUnsafeBufferPointer { src in
-                copy.update(from: src.baseAddress!, count: src.count)
-            }
-            storage.append(copy)
-            views.append(
-                turboembed_str(
-                    ptr: UnsafeRawPointer(copy).assumingMemoryBound(to: CChar.self),
-                    len: bytes.count
-                ))
-        }
+func statNumber(_ stats: [String: Any], _ key: String) throws -> Double {
+    guard let number = stats[key] as? NSNumber else {
+        throw fail("abi worker stats missing \(key): \(stats)")
     }
-
-    deinit {
-        storage.forEach { $0.deallocate() }
-    }
+    return number.doubleValue
 }
 
 // MARK: - Direct mlx-swift Metal reference (no turboembed API on this path)
@@ -314,111 +245,6 @@ final class DirectMlx {
     }
 }
 
-// MARK: - Case grid (identical to the NVIDIA pilot)
-
-struct Case {
-    let batch: Int
-    let targetTokens: Int
-    let mixed: Bool
-
-    var name: String { "b\(batch)_t\(targetTokens)_\(mixed ? "mixed" : "full")" }
-}
-
-func caseGrid(quick: Bool) -> [Case] {
-    let batches = quick ? [1, 8] : [1, 8, 32]
-    let targets = quick ? [32] : [32, 128, 256]
-    var cases: [Case] = []
-    for batch in batches {
-        for target in targets {
-            for mixed in [false, true] {
-                cases.append(Case(batch: batch, targetTokens: target, mixed: mixed))
-            }
-        }
-    }
-    return cases
-}
-
-/// Deterministic texts. Every "the" is one WordPiece token, so a row
-/// targeting `t` tokens is `t - 2` words plus [CLS]/[SEP].
-func caseTexts(_ c: Case) -> [String] {
-    func rowTokens(_ target: Int, _ index: Int, _ batch: Int, _ mixed: Bool) -> Int {
-        if !mixed { return target }
-        let lo = min(16, target)
-        if batch <= 1 { return (lo + target) / 2 }
-        return lo + ((target - lo) * index) / (batch - 1)
-    }
-    return (0..<c.batch).map { i in
-        let tokens = max(rowTokens(c.targetTokens, i, c.batch, c.mixed), 3)
-        return Array(repeating: "the", count: tokens - 2).joined(separator: " ")
-    }
-}
-
-// MARK: - Timing
-
-struct RepeatStats {
-    var n: Int
-    var seconds: Double
-    var p50Us: UInt64
-    var p90Us: UInt64
-    var p99Us: UInt64
-    var minUs: UInt64
-    var maxUs: UInt64
-    var rps: Double
-
-    var json: [String: Any] {
-        [
-            "n": n,
-            "seconds": seconds,
-            "p50_us": p50Us,
-            "p90_us": p90Us,
-            "p99_us": p99Us,
-            "p99_sufficient": n >= kP99MinSamples,
-            "min_us": minUs,
-            "max_us": maxUs,
-            "requests_per_second": rps,
-        ]
-    }
-}
-
-/// Nearest-rank percentile in microseconds; `sorted` ascending.
-func nearestRankUs(_ sorted: [UInt64], _ percent: Double) -> UInt64 {
-    guard !sorted.isEmpty else { return 0 }
-    let rank = Int((percent / 100.0 * Double(sorted.count)).rounded(.up))
-    return sorted[min(max(rank, 1), sorted.count) - 1]
-}
-
-func nowNs() -> UInt64 { DispatchTime.now().uptimeNanoseconds }
-
-func timedRepeat(
-    maxSeconds: Double,
-    maxRequests: Int,
-    _ call: () async throws -> Void
-) async throws -> RepeatStats {
-    var samples: [UInt64] = []
-    samples.reserveCapacity(min(maxRequests, 16_384))
-    let start = nowNs()
-    let deadlineNs = start + UInt64(maxSeconds * 1e9)
-    while samples.count < maxRequests && nowNs() < deadlineNs {
-        let t0 = nowNs()
-        try await call()
-        let elapsed = nowNs() - t0
-        samples.append((elapsed + 999) / 1000)
-    }
-    let seconds = Double(nowNs() - start) / 1e9
-    guard !samples.isEmpty else { throw fail("timed repeat produced no samples") }
-    samples.sort()
-    return RepeatStats(
-        n: samples.count,
-        seconds: seconds,
-        p50Us: nearestRankUs(samples, 50),
-        p90Us: nearestRankUs(samples, 90),
-        p99Us: nearestRankUs(samples, 99),
-        minUs: samples[0],
-        maxUs: samples[samples.count - 1],
-        rps: Double(samples.count) / seconds
-    )
-}
-
 // MARK: - Host metadata
 
 func workspaceRoot() -> URL {
@@ -485,6 +311,9 @@ struct BenchAppleOverhead: AsyncParsableCommand {
     @Option(help: "Path to libTurboEmbed.dylib (default: next to this binary, then swift/.build/release).")
     var dylib: String?
 
+    @Option(help: "Path to bench-abi-worker (default: next to this binary, then swift/.build/release).")
+    var worker: String?
+
     @Option(help: "Receipt output path.")
     var out: String
 
@@ -497,19 +326,17 @@ struct BenchAppleOverhead: AsyncParsableCommand {
         }
         let gpu = metalDevice.name
 
-        let dylibPath = try resolveDylib(root: root)
-        FileHandle.standardError.write(Data("ABI dylib: \(dylibPath)\n".utf8))
-        let abi = try AbiDylib(path: dylibPath)
-        guard abi.abiVersion() == 1 else {
-            throw fail("dylib reports ABI version \(abi.abiVersion()), expected 1")
-        }
+        let dylibPath = try resolve(
+            overridePath: dylib, name: "libTurboEmbed.dylib", root: root,
+            buildHint: "swift build -c release --package-path swift --product TurboEmbed")
+        let workerPath = try resolve(
+            overridePath: worker, name: "bench-abi-worker", root: root,
+            buildHint: "swift build -c release --package-path swift --product bench-abi-worker")
+        FileHandle.standardError.write(Data("ABI dylib: \(dylibPath)\nABI worker: \(workerPath)\n".utf8))
 
         let modelDir = root.appending(path: "models/mlx/\(kAlias)")
         FileHandle.standardError.write(Data("direct MLX load: \(modelDir.path)\n".utf8))
         let direct = try await DirectMlx(modelDir: modelDir)
-
-        FileHandle.standardError.write(Data("ABI engine load: alias \(kAlias) on METAL\n".utf8))
-        let engine = try AbiEngine(dylib: abi)
 
         let cases = caseGrid(quick: quick)
         var caseReports: [[String: Any]] = []
@@ -517,19 +344,21 @@ struct BenchAppleOverhead: AsyncParsableCommand {
 
         for (caseIndex, c) in cases.enumerated() {
             let texts = caseTexts(c)
-            let views = CTextViews(texts)
             let rowTokens = try await direct.rowTokens(texts)
             if !c.mixed && rowTokens.contains(where: { $0 != c.targetTokens }) {
                 throw fail("\(c.name): constructed rows are \(rowTokens), expected \(c.targetTokens)")
             }
 
-            // Warmup both paths, then check parity before any timing.
+            // One isolated ABI worker per case; it warms itself up before
+            // reporting ready. Warm the direct path in this process, then
+            // check parity before any timing.
+            let abiWorker = try AbiWorker(
+                executable: workerPath, dylib: dylibPath, benchCase: c, warmup: warmup)
             for _ in 0..<warmup {
                 _ = try await direct.embed(texts)
-                try engine.embedOnce(views)
             }
             let directOut = try await direct.embed(texts)
-            let abiOut = try engine.embedCollect(views)
+            let abiOut = try abiWorker.collect()
             guard abiOut.count == directOut.count else {
                 throw fail("\(c.name): ABI returned \(abiOut.count) values, direct \(directOut.count)")
             }
@@ -545,9 +374,7 @@ struct BenchAppleOverhead: AsyncParsableCommand {
             if !parityOk { allPass = false }
 
             // Steady-state ABI allocation counter on one post-warmup request.
-            abi.allocCounterReset()
-            try engine.embedOnce(views)
-            let steadyAllocs = abi.allocCounter()
+            let steadyAllocs = try abiWorker.steadyAllocs()
             let countersZero = steadyAllocs == 0
             if !countersZero { allPass = false }
 
@@ -555,15 +382,12 @@ struct BenchAppleOverhead: AsyncParsableCommand {
             for repeatIndex in 0..<repeats {
                 let abiFirst = (caseIndex + repeatIndex) % 2 == 1
                 var directStats: RepeatStats?
-                var abiStats: RepeatStats?
+                var abiStats: [String: Any]?
                 for leg in 0..<2 {
                     let runAbi = (leg == 0) == abiFirst
                     if runAbi {
-                        abiStats = try await timedRepeat(
-                            maxSeconds: maxSeconds, maxRequests: maxRequests
-                        ) {
-                            try engine.embedOnce(views)
-                        }
+                        abiStats = try abiWorker.time(
+                            maxSeconds: maxSeconds, maxRequests: maxRequests)
                     } else {
                         directStats = try await timedRepeat(
                             maxSeconds: maxSeconds, maxRequests: maxRequests
@@ -575,25 +399,33 @@ struct BenchAppleOverhead: AsyncParsableCommand {
                 guard let directStats, let abiStats else {
                     throw fail("\(c.name): repeat \(repeatIndex) missing a leg")
                 }
-                let p50Ratio = Double(abiStats.p50Us) / Double(directStats.p50Us)
-                let throughputRatio = abiStats.rps / directStats.rps
+                let abiP50 = try statNumber(abiStats, "p50_us")
+                let abiRps = try statNumber(abiStats, "requests_per_second")
+                let p50Ratio = abiP50 / Double(directStats.p50Us)
+                let throughputRatio = abiRps / directStats.rps
                 let pass = p50Ratio <= kP50OverheadLimit && throughputRatio >= kThroughputFloor
                 if !pass { allPass = false }
                 repeatReports.append([
                     "order": abiFirst ? "abi_first" : "direct_first",
                     "direct": directStats.json,
-                    "abi": abiStats.json,
+                    "abi": abiStats,
                     "abi_p50_over_direct_p50": p50Ratio,
                     "abi_throughput_over_direct": throughputRatio,
                     "pass": pass,
                 ])
                 let ratioText = String(format: "%.4f", p50Ratio)
-                let rpsText = String(format: "%.1f/%.1f", directStats.rps, abiStats.rps)
+                let rpsText = String(format: "%.1f/%.1f", directStats.rps, abiRps)
                 FileHandle.standardError.write(
                     Data(
-                        "\(c.name) repeat \(repeatIndex): direct p50=\(directStats.p50Us)us abi p50=\(abiStats.p50Us)us ratio=\(ratioText) rps \(rpsText) pass=\(pass)\n"
+                        "\(c.name) repeat \(repeatIndex): direct p50=\(directStats.p50Us)us abi p50=\(UInt64(abiP50))us ratio=\(ratioText) rps \(rpsText) pass=\(pass)\n"
                             .utf8))
             }
+
+            // Exit the worker (releasing its engine and every Metal
+            // resource the case accumulated) and drop the direct path's
+            // MLX buffer cache before the next case.
+            abiWorker.shutdown()
+            MLX.Memory.clearCache()
 
             caseReports.append([
                 "case": c.name,
@@ -615,34 +447,20 @@ struct BenchAppleOverhead: AsyncParsableCommand {
             ])
         }
 
-        // Two-engine concurrent observation (arena isolation under load).
+        // Two-engine concurrent observation (arena isolation under load),
+        // run inside one isolated ABI worker process.
         var concurrent: Any = NSNull()
         if !skipConcurrent {
-            let c = Case(batch: 8, targetTokens: 128, mixed: true)
-            let texts = caseTexts(c)
-            let engineB = try AbiEngine(dylib: abi)
-            let warmupCount = warmup
-            let maxSecondsLocal = maxSeconds
-            let maxRequestsLocal = maxRequests
-            func runOne(_ eng: AbiEngine) async throws -> RepeatStats {
-                let views = CTextViews(texts)
-                for _ in 0..<warmupCount {
-                    try eng.embedOnce(views)
-                }
-                return try await timedRepeat(
-                    maxSeconds: maxSecondsLocal, maxRequests: maxRequestsLocal
-                ) {
-                    try eng.embedOnce(views)
-                }
-            }
-            async let statsA = runOne(engine)
-            async let statsB = runOne(engineB)
-            let (a, b) = try await (statsA, statsB)
+            let c = BenchCase(batch: 8, targetTokens: 128, mixed: true)
+            let abiWorker = try AbiWorker(
+                executable: workerPath, dylib: dylibPath, benchCase: c, warmup: warmup)
+            let stats = try abiWorker.concurrent(maxSeconds: maxSeconds, maxRequests: maxRequests)
+            abiWorker.shutdown()
             concurrent = [
                 "case": c.name,
                 "engines": 2,
-                "engine_a": a.json,
-                "engine_b": b.json,
+                "engine_a": stats["engine_a"] ?? NSNull(),
+                "engine_b": stats["engine_b"] ?? NSNull(),
                 "note": "Recorded two-engine observation on one Metal GPU, not a scalability acceptance result.",
             ] as [String: Any]
         }
@@ -656,10 +474,13 @@ struct BenchAppleOverhead: AsyncParsableCommand {
             "direct_baseline":
                 "raw mlx-swift consumer: MLXEmbedders model container, HF tokenizer, fixed [batch, 256] padding, BERT forward, mean+L2 MLX ops on device, one host read of [batch, dim] (unified memory)",
             "abi_path":
-                "turboembed.h text ABI via dlopen(libTurboEmbed.dylib): native WordPiece into a turbo_buffer Metal SHARED arena, MLX BERT forward, host mean+L2 from unified memory into a rented SHARED result",
+                "turboembed.h text ABI via dlopen(libTurboEmbed.dylib) in an isolated bench-abi-worker process (one per case, no MLX or swift-transformers linked into the worker): native WordPiece into a turbo_buffer Metal SHARED arena, MLX BERT forward, host mean+L2 from unified memory into a rented SHARED result",
+            "process_isolation":
+                "Each case's ABI leg runs in its own bench-abi-worker process and exits afterwards, so the dylib's Objective-C classes are never duplicated against the direct baseline's and Metal resources are released per case. Legs execute sequentially (the orchestrator blocks on the worker); the direct path clears the MLX buffer cache between cases. Each path warms up in its own process before parity and timing.",
             "execution_shape_note":
                 "Both paths execute fixed [batch, 256]. Apple unified memory has no discrete H2D/D2H; the ABI copies the last hidden state into the SHARED activation rent and pools on host, the direct baseline pools on device and reads back [batch, dim]. That difference is recorded, not hidden.",
             "abi_dylib": dylibPath,
+            "abi_worker": workerPath,
             "mlx_build": "mlx-swift (pins in swift/Package.resolved at git_sha)",
             "gpu": gpu,
             "os": ProcessInfo.processInfo.operatingSystemVersionString,
@@ -698,26 +519,27 @@ struct BenchAppleOverhead: AsyncParsableCommand {
         }
     }
 
-    private func resolveDylib(root: URL) throws -> String {
-        if let dylib {
-            guard FileManager.default.fileExists(atPath: dylib) else {
-                throw fail("--dylib \(dylib) does not exist")
+    private func resolve(overridePath: String?, name: String, root: URL, buildHint: String) throws
+        -> String
+    {
+        if let overridePath {
+            guard FileManager.default.fileExists(atPath: overridePath) else {
+                throw fail("\(overridePath) does not exist")
             }
-            return dylib
+            return overridePath
         }
         var candidates: [URL] = []
         if let exe = Bundle.main.executableURL {
-            candidates.append(
-                exe.deletingLastPathComponent().appending(path: "libTurboEmbed.dylib"))
+            candidates.append(exe.deletingLastPathComponent().appending(path: name))
         }
-        candidates.append(root.appending(path: "swift/.build/release/libTurboEmbed.dylib"))
+        candidates.append(root.appending(path: "swift/.build/release/\(name)"))
         for candidate in candidates {
             if FileManager.default.fileExists(atPath: candidate.path) {
                 return candidate.path
             }
         }
         throw fail(
-            "libTurboEmbed.dylib not found (tried \(candidates.map(\.path).joined(separator: ", "))); build it with `swift build -c release --package-path swift --product TurboEmbed`"
+            "\(name) not found (tried \(candidates.map(\.path).joined(separator: ", "))); build it with `\(buildHint)`"
         )
     }
 }

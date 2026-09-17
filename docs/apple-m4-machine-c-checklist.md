@@ -51,7 +51,11 @@ branch; they need live Metal hardware.
    [`swift/Sources/BenchAppleOverhead`](../swift/Sources/BenchAppleOverhead/BenchAppleOverhead.swift)
    — a direct mlx-swift Metal reference (raw `MLXEmbedders` consumer, fixed
    `[batch, 256]` shapes) versus the `libTurboEmbed.dylib` C ABI resolved
-   with dlopen, on identical MiniLM inputs (batch 1/8/32 × tokens 32/128/256
+   with dlopen in an isolated per-case
+   [`bench-abi-worker`](../swift/Sources/BenchAbiWorker/BenchAbiWorker.swift)
+   process (no MLX / swift-transformers linked into the worker, so the
+   dylib's Objective-C classes are never duplicated), on identical MiniLM
+   inputs (batch 1/8/32 × tokens 32/128/256
    × full/mixed, 18 cases) — and writes
    `testdata/receipts/bench/machine-c-metal-overhead.json` with the same
    predeclared budgets as the NVIDIA/Intel pilots (ABI p50 ≤ 1.05×,

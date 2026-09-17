@@ -37,6 +37,33 @@ The MiniLM min is three copies of the same Japanese STS line
 Every other overlapping text is **≥ 0.999999**. That is CJK WordPiece
 UNK handling on an English MiniLM, not pooling or weight mismatch.
 
+## Known-stale entries (2026-09-17)
+
+The three `minilm.json` entries above are **stale relative to the current
+native tokenizer** and are kept unmodified as the honest 2026-09-12
+capture record:
+
+- This capture predates commit `78a88d8` (2026-09-14, "validate native
+  BERT tokenizers and match reference token IDs"), which made native
+  WordPiece tokenize the CJK line the same way as the HF reference
+  tokenizer instead of emitting `[UNK]`.
+- Comparing the committed dumps offline (no GPU involved), the three
+  entries disagree with the nvidia golden for the identical text at
+  cosine **0.979456**; every other overlapping item agrees at
+  ≥ 0.999999.
+- The 2026-09-17 Machine C live run confirmed the flip: live↔nvidia min
+  **0.999999** across all 237 items (CJK included), while live↔apple
+  bottomed at **0.979436** on exactly these three entries.
+
+The `mlx-live` tests (`apple_minilm_metal.rs`, `apple_solidify_bench.rs`)
+therefore detect golden entries whose cross-golden cosine vs nvidia falls
+below the 0.99 apple floor, and gate the live vector on those items
+against the **nvidia** golden at ≥ 0.999 instead — a tighter bar than the
+entry it replaces. Exempted items are listed in the receipts under
+`stale_apple_golden_items`, and at most 5% of the set may be exempted.
+A future recapture of these dumps on Machine C (post-`78a88d8` tokenizer)
+should make the exemption list empty again.
+
 ## Replay
 
 ```
