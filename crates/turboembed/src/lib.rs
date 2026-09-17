@@ -334,7 +334,20 @@ impl Drop for ModelList {
 
 /// Engine-owned embed result. Typed floats and packed bytes alias one buffer.
 ///
-/// Retains its native engine, including when moved to another thread.
+/// Retains its native engine, including when moved to another thread. The
+/// native engine is destroyed only after the [`Engine`] handle and every
+/// result it produced have been dropped, so this is safe:
+///
+/// ```
+/// use turboembed::{Device, EmbedOptions, Engine};
+///
+/// let engine = Engine::create(Device::Mock)?;
+/// let result = engine.embed_one("mock-embed", "text", &EmbedOptions::default())?;
+/// drop(engine); // the result keeps the native engine alive
+/// assert_eq!(result.count(), 1);
+/// assert!(!result.values().is_empty());
+/// # Ok::<(), turboembed::Error>(())
+/// ```
 #[derive(Debug)]
 pub struct Embeddings {
     raw: *mut turboembed_embed_result,

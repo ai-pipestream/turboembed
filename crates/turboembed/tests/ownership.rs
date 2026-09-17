@@ -72,6 +72,37 @@ fn empty_aliases_are_rejected_without_reading_backing_storage() {
 }
 
 #[test]
+fn text_inputs_honor_exact_utf8_spans() {
+    let engine = Engine::create(Device::Mock).unwrap();
+    let opts = EmbedOptions::default();
+    let embed = |text: &str| {
+        let result = engine.embed_one("mock-embed", text, &opts).unwrap();
+        assert_eq!(result.count(), 1);
+        result.values().to_vec()
+    };
+
+    // Embedded NUL must not truncate the advertised pointer+length view.
+    let with_nul = embed("a\0bc");
+    assert_ne!(with_nul, embed("a"), "input was truncated at the NUL");
+    assert_ne!(with_nul, embed("abc"), "the NUL byte was dropped");
+    assert_eq!(with_nul, embed("a\0bc"), "same bytes must be deterministic");
+
+    // Empty text is a valid zero-length view, not an error or a strlen probe.
+    let empty = embed("");
+    assert!(!empty.is_empty());
+    assert_ne!(empty, embed("\0"), "zero length must not read past the view");
+
+    // Batch rows see the same per-row spans as single-text calls.
+    let batch = engine
+        .embed("mock-embed", &["a\0bc", "", "héllo"], &opts)
+        .unwrap();
+    assert_eq!(batch.count(), 3);
+    assert_eq!(batch.row(0).unwrap(), with_nul.as_slice());
+    assert_eq!(batch.row(1).unwrap(), empty.as_slice());
+    assert_eq!(batch.row(2).unwrap(), embed("héllo").as_slice());
+}
+
+#[test]
 fn callback_panic_unwinds_after_native_return() {
     in_child("callback_panic_unwinds_after_native_return", || {
         let engine = Engine::create(Device::Mock).unwrap();
