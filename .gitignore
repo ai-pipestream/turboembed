@@ -31,3 +31,5 @@ swift/.build/
 agent-tools/
 
 /java/**/target/
+# NVIDIA SDK release archives (make nvidia-sdk-release)
+/dist/
