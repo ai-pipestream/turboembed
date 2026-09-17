@@ -16,6 +16,11 @@ records matched OpenVINO/ABI measurements. Optional [Rust](rust-prepared-sdk.md)
 and [JDK 25 FFM](java-ffm.md) adapters use this same SDK. Android JNI is a later
 track.
 
+This page covers the Intel prepared SDK. Provider qualification status after
+roadmap M4 — NVIDIA proven on Machine A, Apple gated on Machine C — is
+summarized in [nvidia-m4-qualification-2026-09-16.md](nvidia-m4-qualification-2026-09-16.md)
+and [apple-m4-machine-c-checklist.md](apple-m4-machine-c-checklist.md).
+
 ## Support matrix
 
 | Component | Supported in this preview | Evidence |
