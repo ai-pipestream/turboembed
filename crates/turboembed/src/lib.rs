@@ -57,6 +57,7 @@
 
 #![allow(clippy::result_large_err)]
 
+pub mod chunker;
 pub mod ffi;
 #[cfg(feature = "prepared")]
 pub mod prepared;
