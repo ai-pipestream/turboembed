@@ -17,6 +17,17 @@ implementation accepts only its supported descriptor versions and rejects
 unknown options or reserved fields. Integer-valued fields use fixed-width
 integers; malformed enum representations must not invoke C++ undefined behavior.
 
+Until the first packaged release (roadmap M2), the extension may gain new
+`turboembed_prepared_v1_*` symbols with their own versioned descriptors;
+existing v1 symbols, descriptors, and semantics do not change. After a packaged
+release, additions use new symbol or descriptor versions instead.
+
+Device discovery is part of the extension (added 2026-09-17): enumeration
+lists the devices this extension can select, with resolved identity and
+capability bits identical to what an explicitly created context reports.
+Discovery never creates a context, never reorders the selection policy, and
+never enables fallback; selecting an unlisted device still fails.
+
 Contexts select an explicit provider/device and report its resolved identity.
 AUTO retains the GPU-only policy. A model loads from an explicit bundle path;
 it records tokenizer identity, pooling, normalization, precision, dimensions,

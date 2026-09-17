@@ -83,6 +83,20 @@ normalization, f32 output with 384 dimensions, and no query/document prefix.
 The default bundle limits are batch 32 and sequence 256. Unsupported
 configurations and unknown manifest options return errors.
 
+## Discover and select devices
+
+`turboembed_prepared_v1_device_count` and `turboembed_prepared_v1_device_info`
+list the devices this extension can select on the running host: OpenVINO GPUs
+in ascending ordinal order, then CPU. Each entry reports the resolved device
+name, runtime version, capability bits, and (for GPUs) the OpenCL driver
+version — the same identity an explicitly created context reports. Runtime
+devices the extension cannot select are not listed.
+
+Discovery informs selection; it does not perform it. Creating a context still
+requires an explicit device, selecting an absent device still returns
+`TE_UNAVAILABLE`, and CPU is never an automatic fallback for a missing GPU.
+Enumeration reflects the runtime at call time and may be repeated.
+
 ## Use the installed C API
 
 The installed [example](../native/turboembed/sdk/examples/embed.c) is a separate
@@ -96,10 +110,11 @@ cmake --build /tmp/te-consumer
 /tmp/te-consumer/turboembed_prepared_embed /path/to/new-minilm-bundle cpu
 ```
 
-The example embeds text, then uploads the pinned tokenizer's prepared IDs once
-and verifies three repeated executions against the text output. GPU is the
-default; CPU must be explicitly selected. Missing GPU support returns
-an error. There is no server or mandatory network connection.
+The example lists the discovered devices, embeds text, then uploads the pinned
+tokenizer's prepared IDs once and verifies three repeated executions against
+the text output. GPU is the default; CPU must be explicitly selected. Missing
+GPU support returns an error. There is no server or mandatory network
+connection.
 
 Create a context, load a model, and create a slot with fixed batch and sequence
 dimensions. Each descriptor starts with its byte size and version. Write text
@@ -137,8 +152,16 @@ timeout 180 build/native-sdk/prepared_contract_test /path/to/new-minilm-bundle
 ```
 
 The contract executable requires both the Intel GPU and explicit CPU reference;
-it does not silently skip either. It covers parity, prepared/text agreement,
-Unicode and NUL input, two-row output layout, invalid arguments, result leases,
-concurrent slots, parent release, captured files, and downstream OpenCL
-consumption. Also copy the installed prefix and build/run the external C example
-with `LD_LIBRARY_PATH` unset before accepting packaging changes.
+it does not silently skip either. It covers device discovery, parity,
+prepared/text agreement, Unicode and NUL input, two-row output layout, invalid
+arguments, result leases, concurrent slots, parent release, captured files, and
+downstream OpenCL consumption. Also copy the installed prefix and build/run the
+external C example with `LD_LIBRARY_PATH` unset before accepting packaging
+changes.
+
+The [2026-09-14 receipts](intel-prepared-sdk-2026-09-14.md) predate device
+discovery. Discovery has been validated on a CPU-only host — see the
+[discovery validation receipt](prepared-discovery-2026-09-17.md) — and remains
+hardware-unverified on an Intel GPU until the contract test and the ignored
+`machine_b_gpu_discovery_receipt` Rust test are re-run on the Machine B
+(`krick-1`) reference host.
