@@ -200,7 +200,8 @@ python3 -m unittest scripts.tests.test_prepare_native_bundle
 Pass `gpu` instead of `cpu-only` on the Intel GPU host, where the default GPU
 selection must succeed. The hosted `prepared-sdk` CI job runs the whole CPU
 package path — release build, pinned-source fetch, provisioning, acceptance,
-and the Rust bindings — against the pinned OpenVINO runtime on every push.
+the Rust bindings, and the [Java FFM contracts and consumer example](java-ffm.md)
+— against the pinned OpenVINO runtime on every push.
 
 GPU changes additionally require the native contract executable on the GPU
 host; it needs both the Intel GPU and the explicit CPU reference and does not
