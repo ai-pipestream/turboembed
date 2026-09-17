@@ -39,6 +39,45 @@ optional commands to re-confirm them are at the end.
    still exceeds 1.05× after this isolation, that is a real overhead to
    investigate, not a budget to raise.
 
+## Follow-up (2026-09-17, second attempt): overhead pilot IPC deadlock
+
+The first re-run of `make bench-apple-overhead` on this branch passed the
+cosine gate but then wedged for over 7 minutes on the first overhead
+case: the `bench-abi-worker` child had finished warmup and was parked at
+0% CPU reading stdin, while the parent never observed the
+`{"ready":true}` line and blocked forever with no timeout.
+
+Both ends of that handshake ran through layers whose buffering/queueing
+behavior we do not control (`FileHandle.standardOutput.write` /
+`FileHandle.read(upToCount:)` and C stdio `readLine`), the parent held
+its copies of the worker's pipe ends open (so even a crashed worker
+could never produce EOF), and nothing enforced a deadline. The wire
+protocol now lives in
+`swift/Sources/BenchOverheadCore/WorkerWire.swift`: raw POSIX
+`read(2)`/`write(2)` on both sides (stdio stdout forced unbuffered and
+flushed before every reply in the worker), the parent closes the child's
+pipe ends after spawn, and every parent-side read has a `poll(2)`
+deadline — ready within `--worker-ready-seconds` (default 600) and each
+command within its own expected duration plus
+`--worker-reply-grace-seconds` (default 120). A worker that misses a
+deadline is killed and the make target fails with the phase and pid
+instead of wedging the host.
+
+The protocol is provable without Metal, models, or the dylib:
+
+```bash
+make bench-overhead-ipc-selftest      # any host with a Swift toolchain
+```
+
+runs `bench-abi-worker --io-selftest-parent`, which spawns the same
+binary in `--io-selftest` mode (canned replies, never a bench result)
+and exercises ready/collect/steady/time/concurrent/exit under tight
+deadlines, plus the fail-loud path (a silent worker must trip the ready
+timeout). `make bench-apple-overhead` also runs this self-test
+automatically before loading any model or touching the GPU. Step 3
+below is otherwise unchanged; process isolation and all budgets are
+untouched.
+
 ## Prerequisites (once)
 
 ```bash

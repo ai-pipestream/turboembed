@@ -6,7 +6,11 @@
 // that the dylib already embeds. The direct-baseline MLX code lives only
 // in the `bench-apple-overhead` orchestrator.
 
-import Darwin
+#if canImport(Darwin)
+    import Darwin
+#else
+    import Glibc
+#endif
 import Foundation
 import TurboEmbedC
 

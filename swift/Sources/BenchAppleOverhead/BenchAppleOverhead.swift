@@ -51,16 +51,22 @@ let kThroughputFloor = 0.95
 // MARK: - ABI worker client (one isolated process per case)
 
 /// Client for one `bench-abi-worker` process: newline-delimited commands on
-/// its stdin, one JSON object per line on its stdout. The worker warms up
-/// before replying `{"ready":true}`; its stderr passes through.
+/// its stdin, one JSON object per line on its stdout, carried over the raw
+/// POSIX wire layer in BenchOverheadCore (WorkerWire.swift) with a hard
+/// deadline on every reply. The worker warms up before replying
+/// `{"ready":true}`; its stderr passes through. A worker that misses a
+/// deadline is killed and the run fails loudly instead of hanging (the
+/// 2026-09-17 Machine C run wedged for hours on the ready handshake).
 final class AbiWorker {
-    private let process = Process()
-    private let stdinPipe = Pipe()
-    private let stdoutPipe = Pipe()
-    private var buffer = Data()
+    private let client: WorkerClient
+    /// Grace added on top of a command's own expected duration.
+    private let replyGraceSeconds: Double
 
-    init(executable: String, dylib: String, benchCase: BenchCase, warmup: Int) throws {
-        process.executableURL = URL(filePath: executable)
+    init(
+        executable: String, dylib: String, benchCase: BenchCase, warmup: Int,
+        readySeconds: Double, replyGraceSeconds: Double
+    ) throws {
+        self.replyGraceSeconds = replyGraceSeconds
         var args = [
             "--dylib", dylib,
             "--batch", String(benchCase.batch),
@@ -68,61 +74,16 @@ final class AbiWorker {
             "--warmup", String(warmup),
         ]
         if benchCase.mixed { args.append("--mixed") }
-        process.arguments = args
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = FileHandle.standardError
-        try process.run()
-        let ready = try readReply()
-        guard ready["ready"] as? Bool == true else {
-            throw fail("abi worker did not become ready: \(ready)")
-        }
-    }
-
-    deinit {
-        if process.isRunning {
-            process.terminate()
-        }
-    }
-
-    private func send(_ line: String) throws {
-        guard process.isRunning else {
-            throw fail("abi worker exited before command: \(line)")
-        }
-        stdinPipe.fileHandleForWriting.write(Data((line + "\n").utf8))
-    }
-
-    private func readReply() throws -> [String: Any] {
-        while true {
-            if let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-                let lineData = Data(buffer[buffer.startIndex..<newline])
-                buffer.removeSubrange(buffer.startIndex...newline)
-                guard
-                    let obj = try JSONSerialization.jsonObject(with: lineData) as? [String: Any]
-                else {
-                    throw fail(
-                        "abi worker sent a non-JSON line: "
-                            + String(decoding: lineData, as: UTF8.self))
-                }
-                return obj
-            }
-            guard let chunk = try stdoutPipe.fileHandleForReading.read(upToCount: 1 << 16),
-                !chunk.isEmpty
-            else {
-                throw fail("abi worker closed its output (crashed?) — see its stderr above")
-            }
-            buffer.append(chunk)
-        }
-    }
-
-    private func request(_ line: String) throws -> [String: Any] {
-        try send(line)
-        return try readReply()
+        FileHandle.standardError.write(
+            Data("spawning abi worker for \(benchCase.name) (ready deadline \(Int(readySeconds))s)\n".utf8))
+        self.client = try WorkerClient(
+            executable: executable, arguments: args,
+            label: "abi worker \(benchCase.name)", readySeconds: readySeconds)
     }
 
     /// Parity vectors for the case inputs (`batch * dim` floats).
     func collect() throws -> [Float] {
-        let reply = try request("collect")
+        let reply = try client.request("collect", timeoutSeconds: replyGraceSeconds)
         guard let values = reply["values"] as? [Any] else {
             throw fail("abi worker collect reply missing values: \(reply)")
         }
@@ -136,7 +97,7 @@ final class AbiWorker {
 
     /// Arena allocation count on one post-warmup request.
     func steadyAllocs() throws -> UInt64 {
-        let reply = try request("steady")
+        let reply = try client.request("steady", timeoutSeconds: replyGraceSeconds)
         guard let allocs = reply["allocs"] as? NSNumber else {
             throw fail("abi worker steady reply missing allocs: \(reply)")
         }
@@ -145,23 +106,46 @@ final class AbiWorker {
 
     /// One timed repeat on the worker's engine; returns the stats JSON.
     func time(maxSeconds: Double, maxRequests: Int) throws -> [String: Any] {
-        let reply = try request("time \(maxSeconds) \(maxRequests)")
+        let reply = try client.request(
+            "time \(maxSeconds) \(maxRequests)",
+            timeoutSeconds: maxSeconds + replyGraceSeconds)
         guard let stats = reply["stats"] as? [String: Any] else {
             throw fail("abi worker time reply missing stats: \(reply)")
         }
         return stats
     }
 
-    /// Two-engine concurrent observation inside the worker process.
-    func concurrent(maxSeconds: Double, maxRequests: Int) throws -> [String: Any] {
-        try request("concurrent \(maxSeconds) \(maxRequests)")
+    /// Two-engine concurrent observation inside the worker process. The
+    /// worker creates and warms the second engine before timing, so the
+    /// deadline includes the ready budget again.
+    func concurrent(maxSeconds: Double, maxRequests: Int, readySeconds: Double) throws
+        -> [String: Any]
+    {
+        try client.request(
+            "concurrent \(maxSeconds) \(maxRequests)",
+            timeoutSeconds: maxSeconds + readySeconds + replyGraceSeconds)
     }
 
     /// Ask the worker to destroy its engine and exit, then reap it.
     func shutdown() {
-        _ = try? request("exit")
-        stdinPipe.fileHandleForWriting.closeFile()
-        process.waitUntilExit()
+        client.shutdown()
+    }
+}
+
+/// Run the worker binary's built-in wire-protocol self-test (no dylib,
+/// engine, model, or Metal) before touching any of them. Milliseconds of
+/// cost; catches a broken pipe protocol before hours of GPU work.
+func preflightWorkerIO(workerPath: String) throws {
+    let process = Process()
+    process.executableURL = URL(filePath: workerPath)
+    process.arguments = ["--io-selftest-parent"]
+    process.standardError = FileHandle.standardError
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        throw fail(
+            "bench-abi-worker --io-selftest-parent failed (exit \(process.terminationStatus)) — "
+                + "the worker wire protocol is broken; not starting GPU work")
     }
 }
 
@@ -314,6 +298,16 @@ struct BenchAppleOverhead: AsyncParsableCommand {
     @Option(help: "Path to bench-abi-worker (default: next to this binary, then swift/.build/release).")
     var worker: String?
 
+    @Option(
+        help:
+            "Fail-loud deadline (seconds) for a worker to load the model, warm up, and reply ready.")
+    var workerReadySeconds: Double = 600
+
+    @Option(
+        help:
+            "Fail-loud grace (seconds) on top of a worker command's own expected duration.")
+    var workerReplyGraceSeconds: Double = 120
+
     @Option(help: "Receipt output path.")
     var out: String
 
@@ -334,6 +328,10 @@ struct BenchAppleOverhead: AsyncParsableCommand {
             buildHint: "swift build -c release --package-path swift --product bench-abi-worker")
         FileHandle.standardError.write(Data("ABI dylib: \(dylibPath)\nABI worker: \(workerPath)\n".utf8))
 
+        // Prove the worker wire protocol under pipes before loading any
+        // model or touching the GPU (fail fast, not after an hour).
+        try preflightWorkerIO(workerPath: workerPath)
+
         let modelDir = root.appending(path: "models/mlx/\(kAlias)")
         FileHandle.standardError.write(Data("direct MLX load: \(modelDir.path)\n".utf8))
         let direct = try await DirectMlx(modelDir: modelDir)
@@ -353,7 +351,8 @@ struct BenchAppleOverhead: AsyncParsableCommand {
             // reporting ready. Warm the direct path in this process, then
             // check parity before any timing.
             let abiWorker = try AbiWorker(
-                executable: workerPath, dylib: dylibPath, benchCase: c, warmup: warmup)
+                executable: workerPath, dylib: dylibPath, benchCase: c, warmup: warmup,
+                readySeconds: workerReadySeconds, replyGraceSeconds: workerReplyGraceSeconds)
             for _ in 0..<warmup {
                 _ = try await direct.embed(texts)
             }
@@ -453,8 +452,11 @@ struct BenchAppleOverhead: AsyncParsableCommand {
         if !skipConcurrent {
             let c = BenchCase(batch: 8, targetTokens: 128, mixed: true)
             let abiWorker = try AbiWorker(
-                executable: workerPath, dylib: dylibPath, benchCase: c, warmup: warmup)
-            let stats = try abiWorker.concurrent(maxSeconds: maxSeconds, maxRequests: maxRequests)
+                executable: workerPath, dylib: dylibPath, benchCase: c, warmup: warmup,
+                readySeconds: workerReadySeconds, replyGraceSeconds: workerReplyGraceSeconds)
+            let stats = try abiWorker.concurrent(
+                maxSeconds: maxSeconds, maxRequests: maxRequests,
+                readySeconds: workerReadySeconds)
             abiWorker.shutdown()
             concurrent = [
                 "case": c.name,
@@ -500,6 +502,8 @@ struct BenchAppleOverhead: AsyncParsableCommand {
                 "repeats": repeats,
                 "max_seconds": maxSeconds,
                 "max_requests": maxRequests,
+                "worker_ready_seconds": workerReadySeconds,
+                "worker_reply_grace_seconds": workerReplyGraceSeconds,
             ],
             "cases": caseReports,
             "concurrent_two_engines": concurrent,

@@ -975,6 +975,15 @@ bench-apple-overhead:
 	  --out testdata/receipts/bench/machine-c-metal-overhead.json \
 	  $(BENCH_OVERHEAD_ARGS)
 
+# Wire-protocol self-test for the overhead pilot's orchestrator/worker
+# pipe IPC (the 2026-09-17 Machine C run deadlocked on the ready
+# handshake). Needs only a Swift toolchain — no Metal, no models, no
+# dylib — so it runs on macOS or Linux. bench-apple-overhead also runs
+# this self-test automatically before any GPU work.
+bench-overhead-ipc-selftest:
+	swift build -c release --package-path swift --product bench-abi-worker
+	swift/.build/release/bench-abi-worker --io-selftest-parent
+
 # M4 Apple installable SDK (libTurboEmbed.dylib + turboembed.h + Metal
 # kernels) + clean-consumer acceptance. `metal` mode needs the Apple
 # Silicon host; `no-metal` proves the fail-loud device policy on a host
