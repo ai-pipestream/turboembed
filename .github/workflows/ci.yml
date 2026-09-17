@@ -79,3 +79,67 @@ jobs:
         run: cargo build -p inferstream-arch-nvidia --features ort-runtime
       - name: Test backend-ort with runtime feature
         run: cargo test -p inferstream-backend-ort --features runtime
+
+  prepared-sdk:
+    # M2 package gate, CPU path only: build the release archive against the
+    # pinned OpenVINO runtime, provision the MiniLM bundle from the committed
+    # manifest, and run the clean-consumer acceptance plus the Rust bindings
+    # against the packaged library. Intel GPU coverage stays on Machine B
+    # (krick-1); a hosted runner has no GPU, and the acceptance script proves
+    # the fail-loud device policy instead.
+    name: Prepared Intel SDK package (CPU path)
+    runs-on: ubuntu-latest
+    env:
+      OPENVINO_URL: https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.3/linux/openvino_toolkit_ubuntu24_2025.3.0.19807.44526285f24_x86_64.tgz
+      OPENVINO_SHA256: de0d5e16b161efea013a5c017e3b2bce1191ca009a1947d392ccab8ed9d0f6e4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y cmake g++ python3 ocl-icd-opencl-dev opencl-headers
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache OpenVINO runtime archive
+        id: openvino-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/openvino.tgz
+          key: openvino-${{ env.OPENVINO_SHA256 }}
+      - name: Download OpenVINO runtime archive
+        if: steps.openvino-cache.outputs.cache-hit != 'true'
+        run: curl -sSfL -o ~/openvino.tgz "$OPENVINO_URL"
+      - name: Verify and extract OpenVINO
+        run: |
+          echo "$OPENVINO_SHA256  $HOME/openvino.tgz" | sha256sum -c -
+          mkdir -p "$HOME/openvino-root"
+          tar -xzf "$HOME/openvino.tgz" -C "$HOME/openvino-root" --strip-components=1
+      - name: Bundle provisioning unit tests
+        run: python3 -m unittest scripts.tests.test_prepare_native_bundle
+      - name: Build the SDK release archive
+        run: ./scripts/make-sdk-release.sh --openvino-root "$HOME/openvino-root" --output-dir dist
+      - name: Cache MiniLM prepared sources
+        uses: actions/cache@v4
+        with:
+          path: models/prepared-src
+          key: prepared-src-${{ hashFiles('models/manifests/prepared-sources.json') }}
+      - name: Fetch pinned MiniLM sources (hash-verified)
+        run: cargo run -p inferstream-fetch -- --prepared minilm
+      - name: Provision the MiniLM bundle from the installed package
+        run: |
+          mkdir -p /tmp/te-sdk
+          tar -xzf dist/turboembed-prepared-sdk-*.tar.gz -C /tmp/te-sdk
+          ./scripts/provision-minilm-bundle.sh /tmp/te-sdk/turboembed-prepared-sdk-* /tmp/te-bundle
+      - name: Clean-consumer acceptance (CPU, fail-loud GPU policy)
+        run: ./scripts/sdk-consumer-acceptance.sh dist/turboembed-prepared-sdk-*.tar.gz /tmp/te-bundle cpu-only
+      - name: Rust bindings against the packaged library (CPU)
+        run: |
+          SDK="$(echo /tmp/te-sdk/turboembed-prepared-sdk-*)"
+          TURBOEMBED_PREPARED_SDK="$SDK" \
+          TURBOEMBED_PREPARED_BUNDLE=/tmp/te-bundle \
+          LD_LIBRARY_PATH="$SDK/lib" \
+            cargo test -p turboembed --features prepared --test prepared_sdk -- --ignored \
+              device_discovery_and_explicit_selection prepared_cpu_reference_execution
+      - name: Upload release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: turboembed-prepared-sdk-linux-x86_64
+          path: dist/

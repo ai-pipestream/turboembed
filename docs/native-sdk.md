@@ -6,59 +6,100 @@ a separate [C extension](../include/turboembed_prepared.h) and leaves the existi
 fixed-shape execution slot. GPU execution returns a leased OpenCL output buffer;
 copying results to host memory is an explicit operation.
 
-This is development source, not a published release. The
-[validation receipt](intel-prepared-sdk-2026-09-14.md) records the tested device,
-runtime and model. The [native pilot](intel-prepared-performance-2026-09-14.md)
+The SDK is packaged as a versioned release archive built by a script, not from
+a developer's working install. It has not been published to a hosted registry.
+The [validation receipt](intel-prepared-sdk-2026-09-14.md) records the tested
+GPU device, runtime and model; the
+[M2 packaging receipt](m2-sdk-packaging-2026-09-17.md) records the CPU-path
+package validation. The [native pilot](intel-prepared-performance-2026-09-14.md)
 records matched OpenVINO/ABI measurements. Optional [Rust](rust-prepared-sdk.md)
 and [JDK 25 FFM](java-ffm.md) adapters use this same SDK. Android JNI is a later
 track.
 
-## Build and install
+## Support matrix
 
-Prerequisites are Linux, CMake 3.20+, a C++17 compiler, OpenVINO development files,
-OpenCL C/C++ development headers, and the OpenCL loader. Python 3 is used for
-explicit model provisioning and runtime packaging. The tested build is Linux
-x86_64 on Ubuntu 26.04; binaries built there are not qualified for older glibc
-or C++ runtimes.
+| Component | Supported in this preview | Evidence |
+|---|---|---|
+| Model | `sentence-transformers/all-MiniLM-L6-v2` @ `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, self-contained ONNX, f32, mean pooling, L2 normalization, 384 dims, no prefixes | [pins](../models/manifests/prepared-sources.json), [receipt](intel-prepared-sdk-2026-09-14.md) |
+| Devices | OpenVINO Intel GPU (explicit or default); OpenVINO CPU (explicit selection only, never a fallback) | GPU: Battlemage G31 on `krick-1`; CPU: [CPU-only hosts](m2-sdk-packaging-2026-09-17.md) |
+| Runtime | OpenVINO archive distribution, Linux x86_64. GPU-qualified build: `2026.3.1-22476-759c5a6ab8c` (Ubuntu 26.04, krick-1). CPU package path also exercised with `2025.3.0-19807-44526285f24` (Ubuntu 24.04, hosted CI and receipt below) | receipts above, [CI](../.github/workflows/ci.yml) |
+| Capabilities | Text embed, prepared i32 tokens, explicit host read; leased OpenCL result (GPU only) | [header](../include/turboembed_prepared.h) |
+| Bindings | C (installed header + CMake package), Rust `turboembed` crate `prepared` feature, JDK 25 FFM | [Rust](rust-prepared-sdk.md), [Java](java-ffm.md) |
+| Not in this preview | Reranking, external buffer/queue import, asynchronous submission, GPU tokenization, other model families, non-Linux targets, the `turboembed.h` text ABI as an installed artifact | see notes below |
 
-Run from the repository root. `OPENVINO_ROOT` is the extracted OpenVINO
-distribution containing `setupvars.sh`, `runtime/`, and its license files.
+TurboRerank is deliberately outside this first packaged preview: its native
+implementation exists in-tree but has not passed the same packaging, symbol,
+bundle-verification, and clean-consumer gates. It ships when it does, rather
+than as a stub surface. The frozen `turboembed.h` text ABI likewise remains an
+in-process crate surface; the packaged library exports only the
+`turboembed_prepared_v1_*` extension and installs only its header, so the
+package does not advertise symbols it cannot provide.
+
+## Build the release archive
+
+Prerequisites are Linux, CMake 3.20+, a C++17 compiler, OpenCL C/C++
+development headers with the OpenCL loader, and Python 3. `OPENVINO_ROOT` is an
+extracted OpenVINO archive distribution containing `setupvars.sh`, `runtime/`,
+and its license files. Binaries are qualified only for hosts whose glibc and
+C++ runtime are at least the build host's.
 
 ```bash
-export OPENVINO_ROOT=/path/to/openvino-distribution
-source "$OPENVINO_ROOT/setupvars.sh"
-cmake -S native/turboembed/sdk -B build/native-sdk \
-  -DOpenVINO_DIR="$OPENVINO_ROOT/runtime/cmake" \
-  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR=lib
-cmake --build build/native-sdk --parallel 2
-cmake --install build/native-sdk --prefix /tmp/turboembed-sdk
-python3 scripts/package-native-runtime.py \
-  --openvino-root "$OPENVINO_ROOT" --prefix /tmp/turboembed-sdk
+./scripts/make-sdk-release.sh --openvino-root /path/to/openvino-distribution --output-dir dist
 ```
 
-If OpenCL development files are outside standard paths, also pass
-`-DOpenCL_INCLUDE_DIR=/path/to/include` and
-`-DOpenCL_LIBRARY=/path/to/libOpenCL.so.1` when configuring. No model is downloaded
-or inference started by this build.
+This configures and builds `native/turboembed/sdk` in a temporary directory,
+installs into a clean staging prefix, packages the selected OpenVINO runtime,
+and emits `dist/turboembed-prepared-sdk-<version>-linux-x86_64.tar.gz` with a
+`.sha256` sibling. The build fails unless the library's dynamic symbol table
+matches the public header exactly; the resulting list is installed as
+`share/turboembed/exported-symbols.txt`. `share/turboembed/sdk-manifest.json`
+records the SDK version, source commit, OpenVINO build string, and a SHA-256
+for every installed file, and `share/turboembed/runtime-files.json` records the
+packaged runtime hashes. No model is downloaded and no inference runs.
 
-Use a fresh install prefix. Runtime packaging copies the selected OpenVINO
-core, CPU/GPU plugins, IR/ONNX frontends, TBB libraries and licenses. Its
-`share/turboembed/runtime-files.json` records their hashes. The installed SDK
-uses relative ELF RPATHs, including transitive dependency lookup, so its runtime
-can move with the SDK. It does not package the operating system's OpenCL ICD
-loader, Intel GPU driver, glibc or C++ runtime. The host must provide those.
+The archive contains `lib/libturboembed_prepared.so.1` with the packaged
+OpenVINO core, CPU/GPU plugins, IR/ONNX frontends and TBB (relative ELF RPATHs,
+so the prefix can move), `include/turboembed_prepared.h`, the CMake package
+under `lib/cmake/TurboEmbedPrepared`, provisioning tools in `bin/`, the
+external consumer example, and all license texts. It does not package the
+operating system's OpenCL ICD loader, Intel GPU driver, glibc or C++ runtime;
+the host must provide those.
+
+For iterative development you can still run the same CMake configure /
+build / install / `scripts/package-native-runtime.py` steps by hand against a
+scratch prefix; the release script is the supported way to produce an artifact.
+If OpenCL development files are outside standard paths, pass
+`-DOpenCL_INCLUDE_DIR=` and `-DOpenCL_LIBRARY=` through a manual configure.
 
 ## Provision a model
 
 Inference accepts an explicit bundle directory and never downloads models.
-The initial qualified source is the self-contained ONNX export of
-`sentence-transformers/all-MiniLM-L6-v2`, revision
-`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`. Supply its matching tokenizer,
-configuration and model card. External-data ONNX exports and other model
-families have not been qualified.
+Bundle sources are provisioned through the same hash-verified manifest tooling
+as the rest of the repository: `models/manifests/prepared-sources.json` pins
+the qualified upstream files, and nothing depends on a developer's private
+model cache.
 
 ```bash
-python3 /tmp/turboembed-sdk/bin/prepare-native-bundle.py \
+cargo run -p inferstream-fetch -- --prepared minilm     # one-time, network
+./scripts/provision-minilm-bundle.sh /path/to/extracted-sdk /path/to/new-minilm-bundle
+```
+
+The fetch step downloads the pinned revision into `models/prepared-src/minilm/`
+and verifies every byte against the committed SHA-256 pins; a mismatched or
+interrupted download is deleted and reported. The provision step re-verifies
+those sources, then runs the installed `prepare-native-bundle.py` with the
+pinned model identity, revision and license. Everything after the fetch runs
+offline.
+
+The initial qualified source is the self-contained ONNX export of
+`sentence-transformers/all-MiniLM-L6-v2`, revision
+`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, with its matching tokenizer,
+configuration and model card. External-data ONNX exports and other model
+families have not been qualified. To provision from explicitly supplied local
+files instead, call the installed tool directly:
+
+```bash
+python3 /path/to/extracted-sdk/bin/prepare-native-bundle.py \
   --source-onnx /path/to/source/onnx/model.onnx \
   --tokenizer /path/to/source/tokenizer.json \
   --config /path/to/source/config.json \
@@ -66,7 +107,7 @@ python3 /tmp/turboembed-sdk/bin/prepare-native-bundle.py \
   --model-id sentence-transformers/all-MiniLM-L6-v2 \
   --revision 1110a243fdf4706b3f48f1d95db1a4f5529b4d41 \
   --license Apache-2.0 \
-  --exporter /tmp/turboembed-sdk/bin/turboembed-export-model \
+  --exporter /path/to/extracted-sdk/bin/turboembed-export-model \
   --output-dir /path/to/new-minilm-bundle
 ```
 
@@ -100,11 +141,13 @@ Enumeration reflects the runtime at call time and may be repeated.
 ## Use the installed C API
 
 The installed [example](../native/turboembed/sdk/examples/embed.c) is a separate
-CMake project that includes only the public C header:
+CMake project that includes only the public C header. Extract the release
+archive anywhere and build against it:
 
 ```bash
-cmake -S /tmp/turboembed-sdk/share/turboembed/examples -B /tmp/te-consumer \
-  -DCMAKE_PREFIX_PATH=/tmp/turboembed-sdk
+tar -xzf turboembed-prepared-sdk-1.0.0-linux-x86_64.tar.gz -C /opt
+SDK=/opt/turboembed-prepared-sdk-1.0.0-linux-x86_64
+cmake -S "$SDK/share/turboembed/examples" -B /tmp/te-consumer -DCMAKE_PREFIX_PATH="$SDK"
 cmake --build /tmp/te-consumer
 /tmp/te-consumer/turboembed_prepared_embed /path/to/new-minilm-bundle
 /tmp/te-consumer/turboembed_prepared_embed /path/to/new-minilm-bundle cpu
@@ -141,27 +184,42 @@ counters; this API does not claim zero process allocations or zero data movement
 
 ## Validate changes
 
-The standard workspace tests do not build this separate SDK. Run provisioning
-tests locally, then build the native contract executable on the GPU host:
+The standard workspace tests do not build this separate SDK. The consumer
+acceptance script proves the packaged artifact in a fresh temporary directory
+with a minimal environment: archive and file-manifest hashes, an external
+CMake consumer build, loader resolution from the extracted prefix, an explicit
+CPU run of text plus prepared tokens, the fail-loud device policy for an
+absent GPU, rejection of a tampered bundle, and bounded wall-clock repeats.
 
 ```bash
 python3 -m unittest scripts.tests.test_prepare_native_bundle
+./scripts/sdk-consumer-acceptance.sh \
+  dist/turboembed-prepared-sdk-1.0.0-linux-x86_64.tar.gz /path/to/new-minilm-bundle cpu-only
+```
+
+Pass `gpu` instead of `cpu-only` on the Intel GPU host, where the default GPU
+selection must succeed. The hosted `prepared-sdk` CI job runs the whole CPU
+package path — release build, pinned-source fetch, provisioning, acceptance,
+and the Rust bindings — against the pinned OpenVINO runtime on every push.
+
+GPU changes additionally require the native contract executable on the GPU
+host; it needs both the Intel GPU and the explicit CPU reference and does not
+silently skip either:
+
+```bash
 cmake -S native/turboembed/sdk -B build/native-sdk -DTE_BUILD_CONTRACT_TEST=ON
 cmake --build build/native-sdk --parallel 2
 timeout 180 build/native-sdk/prepared_contract_test /path/to/new-minilm-bundle
 ```
 
-The contract executable requires both the Intel GPU and explicit CPU reference;
-it does not silently skip either. It covers device discovery, parity,
-prepared/text agreement, Unicode and NUL input, two-row output layout, invalid
-arguments, result leases, concurrent slots, parent release, captured files, and
-downstream OpenCL consumption. Also copy the installed prefix and build/run the
-external C example with `LD_LIBRARY_PATH` unset before accepting packaging
-changes.
+It covers device discovery, parity, prepared/text agreement, Unicode and NUL
+input, two-row output layout, invalid arguments, result leases, concurrent
+slots, parent release, captured files, and downstream OpenCL consumption.
 
 The [2026-09-14 receipts](intel-prepared-sdk-2026-09-14.md) predate device
-discovery. Discovery has been validated on a CPU-only host — see the
-[discovery validation receipt](prepared-discovery-2026-09-17.md) — and remains
-hardware-unverified on an Intel GPU until the contract test and the ignored
-`machine_b_gpu_discovery_receipt` Rust test are re-run on the Machine B
-(`krick-1`) reference host.
+discovery. Discovery has been validated on CPU-only hosts — see the
+[discovery](prepared-discovery-2026-09-17.md) and
+[M2 packaging](m2-sdk-packaging-2026-09-17.md) receipts — and remains
+hardware-unverified on an Intel GPU until the contract test, the `gpu`-mode
+acceptance run, and the ignored `machine_b_gpu_discovery_receipt` Rust test are
+re-run on the Machine B (`krick-1`) reference host.
