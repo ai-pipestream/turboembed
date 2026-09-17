@@ -967,6 +967,7 @@ bench-apple-overhead:
 	fi
 	$(MAKE) libturbo-buffer-apple
 	swift build -c release --package-path swift --product TurboEmbed
+	swift build -c release --package-path swift --product bench-abi-worker
 	swift build -c release --package-path swift --product bench-apple-overhead
 	./scripts/build-apple-metallib.sh
 	mkdir -p testdata/receipts/bench
