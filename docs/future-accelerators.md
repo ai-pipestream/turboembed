@@ -19,11 +19,13 @@ receipt discipline as the current NVIDIA / Intel / Apple paths.
 - **AMD Ryzen AI / XDNA.** *Client* NPU peer of the Intel Core Ultra NPU,
   but a different execution provider entirely (Ryzen AI SW / Vitis AI EP,
   XDNA driver) — the OpenVINO NPU plugin does not drive it.
-- **Hailo-10H (Raspberry Pi AI HAT+ 2, 8 GB).** Edge NPU on the HailoRT
-  stack (compiled HEF models), attached to a Raspberry Pi host. A distinct
-  runtime and toolchain from all of the above — neither OpenVINO nor an
-  ONNX Runtime EP drives it — so it would be its own provider with its own
-  ARM host build and qualification hardware.
+- **Raspberry Pi AI HAT+ 2** (not the earlier AI HAT / AI HAT+): official
+  Raspberry Pi product (~$200) carrying a **Hailo-10H NPU with 8 GB of
+  dedicated on-board LPDDR** on the HAT itself. Stack is HailoRT with
+  compiled HEF models — a separate provider from OpenVINO NPU, Gaudi, and
+  ROCm; neither OpenVINO nor an ONNX Runtime EP drives it, and it needs its
+  own ARM host build. Status: parked until after the Intel Cloud OpenVINO
+  NPU proof; attractive later as a cheap edge Machine for live receipts.
 
 Clarification to avoid a false "AMD is covered" reading: Machine B pairs an
 **AMD CPU** with an **Intel Battlemage dGPU** driven by the OpenVINO GPU
