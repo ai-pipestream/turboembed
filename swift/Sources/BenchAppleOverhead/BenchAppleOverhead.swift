@@ -43,7 +43,10 @@ import MLXLMCommon
 import Metal
 import MlxEngine
 
-let kParityMaxAbs: Float = 5e-4
+// Double, not Float: the gate constant is recorded in the receipt, and the
+// f32 bit pattern of 5e-4 serializes as 0.0005000000237… instead of 0.0005,
+// which the Rust receipt validator rejects.
+let kParityMaxAbs: Double = 5e-4
 let kParityMaxRmse = 1e-4
 let kP50OverheadLimit = 1.05
 let kThroughputFloor = 0.95
@@ -369,7 +372,7 @@ struct BenchAppleOverhead: AsyncParsableCommand {
                 sqSum += Double(diff) * Double(diff)
             }
             let rmse = (sqSum / Double(abiOut.count)).squareRoot()
-            let parityOk = maxAbs <= kParityMaxAbs && rmse <= kParityMaxRmse
+            let parityOk = Double(maxAbs) <= kParityMaxAbs && rmse <= kParityMaxRmse
             if !parityOk { allPass = false }
 
             // Steady-state ABI allocation counter on one post-warmup request.
@@ -436,7 +439,7 @@ struct BenchAppleOverhead: AsyncParsableCommand {
                 "parity": [
                     "max_abs": Double(maxAbs),
                     "rmse": rmse,
-                    "max_abs_gate": Double(kParityMaxAbs),
+                    "max_abs_gate": kParityMaxAbs,
                     "rmse_gate": kParityMaxRmse,
                     "pass": parityOk,
                 ],
@@ -493,7 +496,7 @@ struct BenchAppleOverhead: AsyncParsableCommand {
             "gates": [
                 "abi_p50_over_direct_p50_max": kP50OverheadLimit,
                 "abi_throughput_over_direct_min": kThroughputFloor,
-                "parity_max_abs": Double(kParityMaxAbs),
+                "parity_max_abs": kParityMaxAbs,
                 "parity_rmse": kParityMaxRmse,
                 "p99_min_samples": kP99MinSamples,
             ],
