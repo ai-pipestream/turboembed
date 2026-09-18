@@ -26,9 +26,11 @@ landed at git_sha `0587e81` (Apple M2 host, `Kristians-MacBook-Air`):
   — cosine vs nvidia min 0.9794 (floor 0.97), vs apple min 0.99999976
   (floor 0.99), AUTO→Metal, allocs after forward 0.
 
-Steps 3 (recorded multi-engine outputs) and 6 (bge-small CLS contract)
-remain open; step 7's SDK release and acceptance passed on Machine C on
-2026-09-17 (see [machine-c-rerun-2026-09-17.md](machine-c-rerun-2026-09-17.md)).
+The step 3 (recorded multi-engine outputs) and step 6 (bge-small CLS
+contract) **harnesses are landed** (see those steps below); their live
+Machine C runs and receipts are still open. Step 7's SDK release and
+acceptance passed on Machine C on 2026-09-17
+(see [machine-c-rerun-2026-09-17.md](machine-c-rerun-2026-09-17.md)).
 
 ## Landed and provable off-Metal (this branch)
 
@@ -70,7 +72,18 @@ branch; they need live Metal hardware.
 3. **Metal ownership under multiple live engines.** The M4 analog of the CUDA
    two-engine allocator proof: run the two-engine concurrent embed XCTest and
    the `mlx-live` multi-engine cases; record per-engine outputs matching the
-   single-engine run within 1e-5.
+   single-engine run within 1e-5. The harness is **landed**; the live run is
+   the open gate. On Machine C (needs `make fetch-mlx ALIASES=minilm`):
+   - `cd swift && swift test --filter MetalWrapperOwnershipTests`
+     (two engines, concurrent wrapper calls, result-retains-engine lifetime).
+   - `cargo test -p turboembed --features mlx-live --test apple_multi_engine
+     -- --ignored --nocapture` — the Rust analog of
+     [`intel_engine_isolation.rs`](../crates/turboembed/tests/intel_engine_isolation.rs):
+     two `Device::Metal` engines embed concurrently, retained results survive
+     peer engine destruction, and every per-engine output must match a
+     single-engine baseline within 1e-5 absolute. Writes
+     `testdata/receipts/turboembed/apple-multi-engine.json`
+     (git_sha, chip, max_abs, pass).
 4. **Matched native overhead.** The harness is **landed**; the live run is
    still the open gate. `make bench-apple-overhead` builds
    [`swift/Sources/BenchAppleOverhead`](../swift/Sources/BenchAppleOverhead/BenchAppleOverhead.swift)
@@ -99,9 +112,18 @@ branch; they need live Metal hardware.
    `testdata/receipts/bench/machine-c-metal.json` on the current tree.
    **Done:** the live receipt landed at `0587e81` with `pass: true` (see
    the status note above).
-6. **bge-small CLS contract (model coverage).** Provision
-   `models/mlx/bge-small`, then run the Apple equivalent of
-   `nvidia_bge_small` (CLS+L2 vs `testdata/e2e/goldens/apple/bge-small.json`).
+6. **bge-small CLS contract (model coverage).** The harness is **landed** as
+   [`apple_bge_small.rs`](../crates/turboembed/tests/apple_bge_small.rs), the
+   Apple equivalent of `nvidia_bge_small`; the live run is the open gate. On
+   Machine C: `make fetch-mlx ALIASES=bge-small`, then
+   `cargo test -p turboembed --features mlx-live --test apple_bge_small
+   -- --ignored --nocapture` — CLS+L2 on `Device::Metal` (fail loud, no CPU),
+   cosine ≥ 0.99 against the `parity:*` subset of
+   `testdata/e2e/goldens/apple/bge-small.json`, and a mean-pooling request on
+   the CLS alias must be NotImplemented (the Metal ABI now rejects a
+   per-call pooling that differs from the loaded catalog contract, matching
+   the NVIDIA path). Writes
+   `testdata/receipts/turboembed/apple-bge-small.json`.
 7. **Packaging.** The tooling is **landed**; producing and accepting the
    artifact on Machine C is still the open gate.
    [`scripts/make-apple-sdk-release.sh`](../scripts/make-apple-sdk-release.sh)

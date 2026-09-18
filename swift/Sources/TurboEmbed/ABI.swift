@@ -576,9 +576,12 @@ private func embedMlx(
         box.lastError = MlxProviderError.missingWeights(name).localizedDescription
         return TURBOEMBED_ERR_NOT_FOUND
     }
-    switch MlxProvider.poolingName(opts, fallback: model.pooling) {
+    switch MlxProvider.poolingName(opts, alias: name, contract: model.pooling) {
     case .failure(let err):
         box.lastError = err.localizedDescription
+        if case .unsupportedPooling = err {
+            return TURBOEMBED_ERR_NOT_IMPLEMENTED
+        }
         return TURBOEMBED_ERR_INVALID_ARGUMENT
     case .success(let pooling):
         guard let arena = box.metalArena else {

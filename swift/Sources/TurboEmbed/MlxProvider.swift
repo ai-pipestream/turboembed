@@ -27,6 +27,7 @@ enum MlxProviderError: Error, LocalizedError, Sendable {
     case metalUnavailable(String)
     case missingWeights(String)
     case fakeDim(alias: String, dim: Int)
+    case unsupportedPooling(requested: String, alias: String, contract: String)
     case embed(String)
 
     var errorDescription: String? {
@@ -37,6 +38,8 @@ enum MlxProviderError: Error, LocalizedError, Sendable {
             "MLX weights for \(alias) not found under models/mlx/\(alias) — run `make fetch-mlx ALIASES=\(alias)`"
         case .fakeDim(let alias, let dim):
             "FAKE: \(alias) returned dim=\(dim); MiniLM is 384-d mean+L2, mock-embed is 8-d. BERT pooler and the ABI stub are forbidden here."
+        case .unsupportedPooling(let requested, let alias, let contract):
+            "embed requested \(requested) pooling but the loaded catalog alias \(alias) is \(contract) — pooling is a model contract, not a per-call substitution"
         case .embed(let message):
             message
         }
@@ -127,22 +130,32 @@ enum MlxProvider {
         return "mean"
     }
 
-    static func poolingName(_ opts: UnsafePointer<turboembed_embed_options>?, fallback: String)
-        -> Result<String, MlxProviderError>
-    {
-        guard let opts else { return .success(fallback) }
+    /// Resolve the per-call pooling request against the loaded catalog
+    /// contract. DEFAULT uses the contract; an explicit request that differs
+    /// from it is `unsupportedPooling` (NOT_IMPLEMENTED at the ABI), the same
+    /// fail-loud rule as the NVIDIA ORT path — never a silent substitution.
+    static func poolingName(
+        _ opts: UnsafePointer<turboembed_embed_options>?, alias: String, contract: String
+    ) -> Result<String, MlxProviderError> {
+        guard let opts else { return .success(contract) }
+        let requested: String
         switch opts.pointee.pooling {
         case TURBOEMBED_POOLING_DEFAULT:
-            return .success(fallback)
+            return .success(contract)
         case TURBOEMBED_POOLING_MEAN:
-            return .success("mean")
+            requested = "mean"
         case TURBOEMBED_POOLING_CLS:
-            return .success("cls")
+            requested = "cls"
         case TURBOEMBED_POOLING_LAST:
-            return .failure(.embed("LAST pooling is not wired for MiniLM; use MEAN"))
+            return .failure(.unsupportedPooling(requested: "last", alias: alias, contract: contract))
         default:
             return .failure(.embed("unknown turboembed_pooling"))
         }
+        guard requested == contract else {
+            return .failure(
+                .unsupportedPooling(requested: requested, alias: alias, contract: contract))
+        }
+        return .success(requested)
     }
 
     static func normalize(_ opts: UnsafePointer<turboembed_embed_options>?) -> Bool {
