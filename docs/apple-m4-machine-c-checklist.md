@@ -8,6 +8,28 @@ records exactly what is landed, what is gated, and how to re-run the gated
 proofs. **Nothing below claims live Metal qualification without a Machine C
 receipt.**
 
+**Status (2026-09-18):** the live Machine C receipts for steps 2, 4, and 5
+landed at git_sha `0587e81` (Apple M2 host, `Kristians-MacBook-Air`):
+
+- Step 4 (matched native overhead):
+  [`testdata/receipts/bench/machine-c-metal-overhead.json`](../testdata/receipts/bench/machine-c-metal-overhead.json)
+  — `pass: true`, full 18-case grid, all 54 timed repeats within the
+  predeclared budgets, parity max abs ≤ 1.1e-7 and RMSE ≤ 1.2e-8 across
+  cases, ABI steady-state arena allocs 0 on every case.
+- Step 5 (SOLIDIFY bench):
+  [`testdata/receipts/bench/machine-c-metal.json`](../testdata/receipts/bench/machine-c-metal.json)
+  — `pass: true`, with the three provably stale 2026-09-12 apple-golden CJK
+  entries exempted against the nvidia golden at ≥ 0.999 and listed in
+  `stale_apple_golden_items` (see `testdata/e2e/goldens/apple/README.md`).
+- Step 2 (live Metal MiniLM contract):
+  [`testdata/receipts/turboembed/apple-minilm.json`](../testdata/receipts/turboembed/apple-minilm.json)
+  — cosine vs nvidia min 0.9794 (floor 0.97), vs apple min 0.99999976
+  (floor 0.99), AUTO→Metal, allocs after forward 0.
+
+Steps 3 (recorded multi-engine outputs) and 6 (bge-small CLS contract)
+remain open; step 7's SDK release and acceptance passed on Machine C on
+2026-09-17 (see [machine-c-rerun-2026-09-17.md](machine-c-rerun-2026-09-17.md)).
+
 ## Landed and provable off-Metal (this branch)
 
 - Contract scaffolding and fail-loud device policy compile and run on any
@@ -42,6 +64,9 @@ branch; they need live Metal hardware.
    `cargo test -p turboembed --features mlx-live -- --include-ignored --nocapture`
    → refreshes `testdata/receipts/turboembed/apple-minilm.json`
    (cosine vs `testdata/e2e/goldens/apple/minilm.json`, AUTO→Metal policy).
+   **Done:** the live receipt is in-tree (see the status note above); the
+   2026-09-17 cosine failure was resolved by exempting the provably stale
+   apple-golden entries, recorded in `machine-c-metal.json`.
 3. **Metal ownership under multiple live engines.** The M4 analog of the CUDA
    two-engine allocator proof: run the two-engine concurrent embed XCTest and
    the `mlx-live` multi-engine cases; record per-engine outputs matching the
@@ -63,10 +88,17 @@ branch; they need live Metal hardware.
    arena allocs == 0). On Machine C: run the target (needs
    `make fetch-mlx ALIASES=minilm`), then validate the receipt with
    `cargo test -p turboembed --features mlx-live --test apple_overhead_receipt
-   -- --ignored --nocapture`. No receipt exists yet; this branch was authored
-   off-Metal and does not fake one.
+   -- --ignored --nocapture`. **Done:** the live receipt landed at
+   `0587e81` with `pass: true` (see the status note above). One caveat from
+   that run: the harness serialized the parity gate constant through Swift
+   `Float`, so the receipt records `parity_max_abs` as the f32 bit pattern
+   `0.0005000000237487257`; the validator accepts exactly that rounding of
+   `5e-4` (nothing looser), and receipts produced after the fix record the
+   exact decimal.
 5. **SOLIDIFY bench refresh.** `make bench-turbo MACHINE=C` → refreshes
    `testdata/receipts/bench/machine-c-metal.json` on the current tree.
+   **Done:** the live receipt landed at `0587e81` with `pass: true` (see
+   the status note above).
 6. **bge-small CLS contract (model coverage).** Provision
    `models/mlx/bge-small`, then run the Apple equivalent of
    `nvidia_bge_small` (CLS+L2 vs `testdata/e2e/goldens/apple/bge-small.json`).

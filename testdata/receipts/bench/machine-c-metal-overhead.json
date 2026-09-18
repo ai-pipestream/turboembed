@@ -1,0 +1,2273 @@
+{
+  "abi_dylib" : "\/Volumes\/pipework\/work\/inferstream\/swift\/.build\/release\/libTurboEmbed.dylib",
+  "abi_path" : "turboembed.h text ABI via dlopen(libTurboEmbed.dylib) in an isolated bench-abi-worker process (one per case, no MLX or swift-transformers linked into the worker): native WordPiece into a turbo_buffer Metal SHARED arena, MLX BERT forward, host mean+L2 from unified memory into a rented SHARED result",
+  "abi_worker" : "\/Volumes\/pipework\/work\/inferstream\/swift\/.build\/release\/bench-abi-worker",
+  "alias" : "minilm",
+  "cases" : [
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 1,
+      "case" : "b1_t32_full",
+      "execution_shape" : [
+        1,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 2.2351741790771484e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 4.5935379068576693e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 7551,
+            "min_us" : 5017,
+            "n" : 1898,
+            "p50_us" : 5284,
+            "p90_us" : 5333,
+            "p99_sufficient" : true,
+            "p99_us" : 5390,
+            "requests_per_second" : 189.72141107381023,
+            "seconds" : 10.004142333000001
+          },
+          "abi_p50_over_direct_p50" : 0.98069784706755758,
+          "abi_throughput_over_direct" : 1.0219623485661393,
+          "direct" : {
+            "max_us" : 5585,
+            "min_us" : 5193,
+            "n" : 1857,
+            "p50_us" : 5388,
+            "p90_us" : 5458,
+            "p99_sufficient" : true,
+            "p99_us" : 5512,
+            "requests_per_second" : 185.64422783285332,
+            "seconds" : 10.00300425
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 5412,
+            "min_us" : 5031,
+            "n" : 1898,
+            "p50_us" : 5287,
+            "p90_us" : 5329,
+            "p99_sufficient" : true,
+            "p99_us" : 5365,
+            "requests_per_second" : 189.71416619693127,
+            "seconds" : 10.004524375000001
+          },
+          "abi_p50_over_direct_p50" : 0.97384417019708969,
+          "abi_throughput_over_direct" : 1.0294551818405637,
+          "direct" : {
+            "max_us" : 7713,
+            "min_us" : 5196,
+            "n" : 1843,
+            "p50_us" : 5429,
+            "p90_us" : 5494,
+            "p99_sufficient" : true,
+            "p99_us" : 5544,
+            "requests_per_second" : 184.28598888369396,
+            "seconds" : 10.000760292000001
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 7549,
+            "min_us" : 5027,
+            "n" : 1896,
+            "p50_us" : 5288,
+            "p90_us" : 5331,
+            "p99_sufficient" : true,
+            "p99_us" : 5390,
+            "requests_per_second" : 189.55213018280503,
+            "seconds" : 10.002525416999999
+          },
+          "abi_p50_over_direct_p50" : 0.97528587237181852,
+          "abi_throughput_over_direct" : 1.0268301502822128,
+          "direct" : {
+            "max_us" : 6294,
+            "min_us" : 5182,
+            "n" : 1846,
+            "p50_us" : 5422,
+            "p90_us" : 5490,
+            "p99_sufficient" : true,
+            "p99_us" : 5547,
+            "requests_per_second" : 184.59930313763064,
+            "seconds" : 10.000037750000001
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        32
+      ],
+      "target_tokens" : 32
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 1,
+      "case" : "b1_t32_mixed",
+      "execution_shape" : [
+        1,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 3.7252902984619141e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 6.3258199568878523e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 5463,
+            "min_us" : 5037,
+            "n" : 1899,
+            "p50_us" : 5281,
+            "p90_us" : 5325,
+            "p99_sufficient" : true,
+            "p99_us" : 5374,
+            "requests_per_second" : 189.83360017418133,
+            "seconds" : 10.003497790999999
+          },
+          "abi_p50_over_direct_p50" : 0.98086924219910843,
+          "abi_throughput_over_direct" : 1.0213985284568217,
+          "direct" : {
+            "max_us" : 7492,
+            "min_us" : 5159,
+            "n" : 1859,
+            "p50_us" : 5384,
+            "p90_us" : 5455,
+            "p99_sufficient" : true,
+            "p99_us" : 5512,
+            "requests_per_second" : 185.85654363629357,
+            "seconds" : 10.002338167
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 7721,
+            "min_us" : 5049,
+            "n" : 1897,
+            "p50_us" : 5285,
+            "p90_us" : 5333,
+            "p99_sufficient" : true,
+            "p99_us" : 5375,
+            "requests_per_second" : 189.61193236786261,
+            "seconds" : 10.004644624999999
+          },
+          "abi_p50_over_direct_p50" : 0.97979236188357433,
+          "abi_throughput_over_direct" : 1.0215850581323282,
+          "direct" : {
+            "max_us" : 5550,
+            "min_us" : 5131,
+            "n" : 1857,
+            "p50_us" : 5394,
+            "p90_us" : 5453,
+            "p99_sufficient" : true,
+            "p99_us" : 5499,
+            "requests_per_second" : 185.60562418024494,
+            "seconds" : 10.00508475
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 5428,
+            "min_us" : 5033,
+            "n" : 1899,
+            "p50_us" : 5283,
+            "p90_us" : 5328,
+            "p99_sufficient" : true,
+            "p99_us" : 5383,
+            "requests_per_second" : 189.89091134625571,
+            "seconds" : 10.000478625
+          },
+          "abi_p50_over_direct_p50" : 0.97670549084858571,
+          "abi_throughput_over_direct" : 1.0269489906408547,
+          "direct" : {
+            "max_us" : 7716,
+            "min_us" : 5164,
+            "n" : 1850,
+            "p50_us" : 5409,
+            "p90_us" : 5489,
+            "p99_sufficient" : true,
+            "p99_us" : 5583,
+            "requests_per_second" : 184.90783191456927,
+            "seconds" : 10.004984542000001
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        24
+      ],
+      "target_tokens" : 32
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 1,
+      "case" : "b1_t128_full",
+      "execution_shape" : [
+        1,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 5.9604644775390625e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 8.4500023656203723e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 7826,
+            "min_us" : 5516,
+            "n" : 1624,
+            "p50_us" : 6158,
+            "p90_us" : 6591,
+            "p99_sufficient" : true,
+            "p99_us" : 6926,
+            "requests_per_second" : 162.29670152525057,
+            "seconds" : 10.006364791999999
+          },
+          "abi_p50_over_direct_p50" : 1.0410819949281487,
+          "abi_throughput_over_direct" : 0.96363967525983862,
+          "direct" : {
+            "max_us" : 6383,
+            "min_us" : 5592,
+            "n" : 1685,
+            "p50_us" : 5915,
+            "p90_us" : 6168,
+            "p99_sufficient" : true,
+            "p99_us" : 6272,
+            "requests_per_second" : 168.4205265640276,
+            "seconds" : 10.00471875
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 8002,
+            "min_us" : 6105,
+            "n" : 1408,
+            "p50_us" : 6989,
+            "p90_us" : 7679,
+            "p99_sufficient" : true,
+            "p99_us" : 7928,
+            "requests_per_second" : 140.78826822623932,
+            "seconds" : 10.000833291999999
+          },
+          "abi_p50_over_direct_p50" : 0.84684357203441174,
+          "abi_throughput_over_direct" : 1.1514793730836999,
+          "direct" : {
+            "max_us" : 11545,
+            "min_us" : 7199,
+            "n" : 1223,
+            "p50_us" : 8253,
+            "p90_us" : 8465,
+            "p99_sufficient" : true,
+            "p99_us" : 8556,
+            "requests_per_second" : 122.26729502692149,
+            "seconds" : 10.002674875
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 10659,
+            "min_us" : 7596,
+            "n" : 1223,
+            "p50_us" : 8178,
+            "p90_us" : 8568,
+            "p99_sufficient" : true,
+            "p99_us" : 8752,
+            "requests_per_second" : 122.28075352297465,
+            "seconds" : 10.001573958
+          },
+          "abi_p50_over_direct_p50" : 0.95649122807017539,
+          "abi_throughput_over_direct" : 1.052737474326171,
+          "direct" : {
+            "max_us" : 9259,
+            "min_us" : 8108,
+            "n" : 1162,
+            "p50_us" : 8550,
+            "p90_us" : 8967,
+            "p99_sufficient" : true,
+            "p99_us" : 9154,
+            "requests_per_second" : 116.15503057991099,
+            "seconds" : 10.003871500000001
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        128
+      ],
+      "target_tokens" : 128
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 1,
+      "case" : "b1_t128_mixed",
+      "execution_shape" : [
+        1,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 2.9802322387695312e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 6.3138740627963673e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 8351,
+            "min_us" : 7094,
+            "n" : 1279,
+            "p50_us" : 7849,
+            "p90_us" : 7932,
+            "p99_sufficient" : true,
+            "p99_us" : 8260,
+            "requests_per_second" : 127.85366369711998,
+            "seconds" : 10.003624167
+          },
+          "abi_p50_over_direct_p50" : 0.98866355964227237,
+          "abi_throughput_over_direct" : 1.0118254652607082,
+          "direct" : {
+            "max_us" : 10542,
+            "min_us" : 7143,
+            "n" : 1264,
+            "p50_us" : 7939,
+            "p90_us" : 8211,
+            "p99_sufficient" : true,
+            "p99_us" : 8311,
+            "requests_per_second" : 126.35940494359575,
+            "seconds" : 10.003212666
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 9819,
+            "min_us" : 6619,
+            "n" : 1349,
+            "p50_us" : 7429,
+            "p90_us" : 7872,
+            "p99_sufficient" : true,
+            "p99_us" : 7971,
+            "requests_per_second" : 134.82373078175644,
+            "seconds" : 10.005656957999999
+          },
+          "abi_p50_over_direct_p50" : 0.96155837432047631,
+          "abi_throughput_over_direct" : 1.0391357839846522,
+          "direct" : {
+            "max_us" : 8918,
+            "min_us" : 6785,
+            "n" : 1298,
+            "p50_us" : 7726,
+            "p90_us" : 8170,
+            "p99_sufficient" : true,
+            "p99_us" : 8313,
+            "requests_per_second" : 129.74601862401821,
+            "seconds" : 10.004160541999999
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 8069,
+            "min_us" : 6592,
+            "n" : 1354,
+            "p50_us" : 7394,
+            "p90_us" : 7853,
+            "p99_sufficient" : true,
+            "p99_us" : 7967,
+            "requests_per_second" : 135.39137556937624,
+            "seconds" : 10.000636999999999
+          },
+          "abi_p50_over_direct_p50" : 0.97161629434954011,
+          "abi_throughput_over_direct" : 1.0309467696333923,
+          "direct" : {
+            "max_us" : 10810,
+            "min_us" : 6892,
+            "n" : 1314,
+            "p50_us" : 7610,
+            "p90_us" : 8086,
+            "p99_sufficient" : true,
+            "p99_us" : 8260,
+            "requests_per_second" : 131.32722227503734,
+            "seconds" : 10.005541708999999
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        72
+      ],
+      "target_tokens" : 128
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 1,
+      "case" : "b1_t256_full",
+      "execution_shape" : [
+        1,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 1.0430812835693359e-07,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 1.1794408863725774e-08,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 9802,
+            "min_us" : 6920,
+            "n" : 1300,
+            "p50_us" : 7739,
+            "p90_us" : 7899,
+            "p99_sufficient" : true,
+            "p99_us" : 7954,
+            "requests_per_second" : 129.94002671342452,
+            "seconds" : 10.004615459
+          },
+          "abi_p50_over_direct_p50" : 0.93874332848131969,
+          "abi_throughput_over_direct" : 1.076601651498454,
+          "direct" : {
+            "max_us" : 8907,
+            "min_us" : 7568,
+            "n" : 1207,
+            "p50_us" : 8244,
+            "p90_us" : 8786,
+            "p99_sufficient" : true,
+            "p99_us" : 8863,
+            "requests_per_second" : 120.69461953041701,
+            "seconds" : 10.000445792000001
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 8099,
+            "min_us" : 6705,
+            "n" : 1327,
+            "p50_us" : 7554,
+            "p90_us" : 7889,
+            "p99_sufficient" : true,
+            "p99_us" : 7968,
+            "requests_per_second" : 132.61371598638729,
+            "seconds" : 10.006506417000001
+          },
+          "abi_p50_over_direct_p50" : 0.89111714049781765,
+          "abi_throughput_over_direct" : 1.116189524859611,
+          "direct" : {
+            "max_us" : 11725,
+            "min_us" : 7607,
+            "n" : 1189,
+            "p50_us" : 8477,
+            "p90_us" : 8838,
+            "p99_sufficient" : true,
+            "p99_us" : 8940,
+            "requests_per_second" : 118.80931780207024,
+            "seconds" : 10.007632582999999
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 9775,
+            "min_us" : 7323,
+            "n" : 1266,
+            "p50_us" : 7855,
+            "p90_us" : 8265,
+            "p99_sufficient" : true,
+            "p99_us" : 8610,
+            "requests_per_second" : 126.58747575161783,
+            "seconds" : 10.000989375
+          },
+          "abi_p50_over_direct_p50" : 0.90225132092809557,
+          "abi_throughput_over_direct" : 1.1002005207683179,
+          "direct" : {
+            "max_us" : 8957,
+            "min_us" : 8267,
+            "n" : 1151,
+            "p50_us" : 8706,
+            "p90_us" : 8846,
+            "p99_sufficient" : true,
+            "p99_us" : 8909,
+            "requests_per_second" : 115.05854920266378,
+            "seconds" : 10.003602582999999
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        256
+      ],
+      "target_tokens" : 256
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 1,
+      "case" : "b1_t256_mixed",
+      "execution_shape" : [
+        1,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 5.9604644775390625e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 9.6297427084174477e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 8020,
+            "min_us" : 6910,
+            "n" : 1305,
+            "p50_us" : 7685,
+            "p90_us" : 7879,
+            "p99_sufficient" : true,
+            "p99_us" : 7934,
+            "requests_per_second" : 130.48943959404522,
+            "seconds" : 10.000809292
+          },
+          "abi_p50_over_direct_p50" : 0.92523477004575005,
+          "abi_throughput_over_direct" : 1.0788730131036193,
+          "direct" : {
+            "max_us" : 11035,
+            "min_us" : 7446,
+            "n" : 1210,
+            "p50_us" : 8306,
+            "p90_us" : 8491,
+            "p99_sufficient" : true,
+            "p99_us" : 8591,
+            "requests_per_second" : 120.94976703390068,
+            "seconds" : 10.004153209
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 10780,
+            "min_us" : 7323,
+            "n" : 1268,
+            "p50_us" : 7871,
+            "p90_us" : 8123,
+            "p99_sufficient" : true,
+            "p99_us" : 8280,
+            "requests_per_second" : 126.76784638793683,
+            "seconds" : 10.002536417
+          },
+          "abi_p50_over_direct_p50" : 0.94626112046164945,
+          "abi_throughput_over_direct" : 1.0537999746227107,
+          "direct" : {
+            "max_us" : 8767,
+            "min_us" : 7799,
+            "n" : 1203,
+            "p50_us" : 8318,
+            "p90_us" : 8519,
+            "p99_sufficient" : true,
+            "p99_us" : 8646,
+            "requests_per_second" : 120.29592848806358,
+            "seconds" : 10.000338458
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 8030,
+            "min_us" : 7286,
+            "n" : 1288,
+            "p50_us" : 7778,
+            "p90_us" : 7889,
+            "p99_sufficient" : true,
+            "p99_us" : 7944,
+            "requests_per_second" : 128.77024065654925,
+            "seconds" : 10.002311042000001
+          },
+          "abi_p50_over_direct_p50" : 0.94404660759800951,
+          "abi_throughput_over_direct" : 1.0594929348085531,
+          "direct" : {
+            "max_us" : 10606,
+            "min_us" : 7640,
+            "n" : 1216,
+            "p50_us" : 8239,
+            "p90_us" : 8519,
+            "p99_sufficient" : true,
+            "p99_us" : 8676,
+            "requests_per_second" : 121.53949915656361,
+            "seconds" : 10.004977875
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        136
+      ],
+      "target_tokens" : 256
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 8,
+      "case" : "b8_t32_full",
+      "execution_shape" : [
+        8,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 2.9802322387695312e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 7.3640041014584214e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 60714,
+            "min_us" : 54553,
+            "n" : 177,
+            "p50_us" : 56445,
+            "p90_us" : 57328,
+            "p99_sufficient" : false,
+            "p99_us" : 57876,
+            "requests_per_second" : 17.677479848792046,
+            "seconds" : 10.012739458
+          },
+          "abi_p50_over_direct_p50" : 0.99139369456397641,
+          "abi_throughput_over_direct" : 1.0095285240750698,
+          "direct" : {
+            "max_us" : 59285,
+            "min_us" : 55727,
+            "n" : 176,
+            "p50_us" : 56935,
+            "p90_us" : 58382,
+            "p99_sufficient" : false,
+            "p99_us" : 59204,
+            "requests_per_second" : 17.510629395031859,
+            "seconds" : 10.051037917
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 57277,
+            "min_us" : 53976,
+            "n" : 181,
+            "p50_us" : 55253,
+            "p90_us" : 56223,
+            "p99_sufficient" : false,
+            "p99_us" : 57244,
+            "requests_per_second" : 18.091724242876889,
+            "seconds" : 10.004574333000001
+          },
+          "abi_p50_over_direct_p50" : 1.0068700342590569,
+          "abi_throughput_over_direct" : 0.99381256538781348,
+          "direct" : {
+            "max_us" : 58441,
+            "min_us" : 54249,
+            "n" : 183,
+            "p50_us" : 54876,
+            "p90_us" : 55442,
+            "p99_sufficient" : false,
+            "p99_us" : 55819,
+            "requests_per_second" : 18.204362545785475,
+            "seconds" : 10.052535459
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 57813,
+            "min_us" : 52800,
+            "n" : 188,
+            "p50_us" : 53312,
+            "p90_us" : 53756,
+            "p99_sufficient" : false,
+            "p99_us" : 54237,
+            "requests_per_second" : 18.726504867242785,
+            "seconds" : 10.039246583000001
+          },
+          "abi_p50_over_direct_p50" : 0.98043254376930999,
+          "abi_throughput_over_direct" : 1.0186298733672092,
+          "direct" : {
+            "max_us" : 55075,
+            "min_us" : 54108,
+            "n" : 184,
+            "p50_us" : 54376,
+            "p90_us" : 54587,
+            "p99_sufficient" : false,
+            "p99_us" : 54943,
+            "requests_per_second" : 18.384013032466804,
+            "seconds" : 10.008696125
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32
+      ],
+      "target_tokens" : 32
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 8,
+      "case" : "b8_t32_mixed",
+      "execution_shape" : [
+        8,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 4.4703483581542969e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 6.3748713348786995e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 55074,
+            "min_us" : 52727,
+            "n" : 187,
+            "p50_us" : 53414,
+            "p90_us" : 54234,
+            "p99_sufficient" : false,
+            "p99_us" : 54782,
+            "requests_per_second" : 18.672343846296812,
+            "seconds" : 10.014811291999999
+          },
+          "abi_p50_over_direct_p50" : 0.97665063721636103,
+          "abi_throughput_over_direct" : 1.0218585696828066,
+          "direct" : {
+            "max_us" : 58620,
+            "min_us" : 53871,
+            "n" : 183,
+            "p50_us" : 54691,
+            "p90_us" : 55211,
+            "p99_sufficient" : false,
+            "p99_us" : 55574,
+            "requests_per_second" : 18.272923866649045,
+            "seconds" : 10.014817624999999
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 58055,
+            "min_us" : 53580,
+            "n" : 185,
+            "p50_us" : 54311,
+            "p90_us" : 54733,
+            "p99_sufficient" : false,
+            "p99_us" : 55148,
+            "requests_per_second" : 18.408308751630742,
+            "seconds" : 10.049809708
+          },
+          "abi_p50_over_direct_p50" : 0.97277498164102383,
+          "abi_throughput_over_direct" : 1.0275253921946643,
+          "direct" : {
+            "max_us" : 57777,
+            "min_us" : 54472,
+            "n" : 180,
+            "p50_us" : 55831,
+            "p90_us" : 56812,
+            "p99_sufficient" : false,
+            "p99_us" : 57715,
+            "requests_per_second" : 17.915186224559299,
+            "seconds" : 10.047341833000001
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 54659,
+            "min_us" : 52994,
+            "n" : 187,
+            "p50_us" : 53578,
+            "p90_us" : 54038,
+            "p99_sufficient" : false,
+            "p99_us" : 54588,
+            "requests_per_second" : 18.654058629578387,
+            "seconds" : 10.024628083
+          },
+          "abi_p50_over_direct_p50" : 0.99071745562130176,
+          "abi_throughput_over_direct" : 1.0112021133687046,
+          "direct" : {
+            "max_us" : 58619,
+            "min_us" : 53194,
+            "n" : 185,
+            "p50_us" : 54080,
+            "p90_us" : 54716,
+            "p99_sufficient" : false,
+            "p99_us" : 55221,
+            "requests_per_second" : 18.447408666339232,
+            "seconds" : 10.028508792
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        16,
+        18,
+        20,
+        22,
+        25,
+        27,
+        29,
+        32
+      ],
+      "target_tokens" : 32
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 8,
+      "case" : "b8_t128_full",
+      "execution_shape" : [
+        8,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 4.4703483581542969e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 7.7990394817238632e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 58649,
+            "min_us" : 54206,
+            "n" : 180,
+            "p50_us" : 55574,
+            "p90_us" : 56507,
+            "p99_sufficient" : false,
+            "p99_us" : 57585,
+            "requests_per_second" : 17.964853711104368,
+            "seconds" : 10.019563915999999
+          },
+          "abi_p50_over_direct_p50" : 0.9566549610961923,
+          "abi_throughput_over_direct" : 1.0480735257116038,
+          "direct" : {
+            "max_us" : 59841,
+            "min_us" : 56626,
+            "n" : 172,
+            "p50_us" : 58092,
+            "p90_us" : 59427,
+            "p99_sufficient" : false,
+            "p99_us" : 59817,
+            "requests_per_second" : 17.140833415200412,
+            "seconds" : 10.034517916
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 56553,
+            "min_us" : 54231,
+            "n" : 181,
+            "p50_us" : 55295,
+            "p90_us" : 55992,
+            "p99_sufficient" : false,
+            "p99_us" : 56502,
+            "requests_per_second" : 18.080673869647988,
+            "seconds" : 10.010688833
+          },
+          "abi_p50_over_direct_p50" : 0.95262296494099408,
+          "abi_throughput_over_direct" : 1.0533038562279036,
+          "direct" : {
+            "max_us" : 61001,
+            "min_us" : 56317,
+            "n" : 172,
+            "p50_us" : 58045,
+            "p90_us" : 59301,
+            "p99_sufficient" : false,
+            "p99_us" : 60393,
+            "requests_per_second" : 17.165677086191042,
+            "seconds" : 10.019995083
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 58795,
+            "min_us" : 54629,
+            "n" : 177,
+            "p50_us" : 56672,
+            "p90_us" : 58102,
+            "p99_sufficient" : false,
+            "p99_us" : 58767,
+            "requests_per_second" : 17.613209441535169,
+            "seconds" : 10.049275833999999
+          },
+          "abi_p50_over_direct_p50" : 0.95998915878984992,
+          "abi_throughput_over_direct" : 1.0407256370773714,
+          "direct" : {
+            "max_us" : 60651,
+            "min_us" : 57807,
+            "n" : 170,
+            "p50_us" : 59034,
+            "p90_us" : 59708,
+            "p99_sufficient" : false,
+            "p99_us" : 60567,
+            "requests_per_second" : 16.923969982134434,
+            "seconds" : 10.044924458000001
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128
+      ],
+      "target_tokens" : 128
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 8,
+      "case" : "b8_t128_mixed",
+      "execution_shape" : [
+        8,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 5.9604644775390625e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 7.3115643309012389e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 59395,
+            "min_us" : 54753,
+            "n" : 174,
+            "p50_us" : 57534,
+            "p90_us" : 58693,
+            "p99_sufficient" : false,
+            "p99_us" : 59383,
+            "requests_per_second" : 17.371247472505456,
+            "seconds" : 10.016551792
+          },
+          "abi_p50_over_direct_p50" : 0.97358490566037736,
+          "abi_throughput_over_direct" : 1.027579577686081,
+          "direct" : {
+            "max_us" : 62820,
+            "min_us" : 57232,
+            "n" : 170,
+            "p50_us" : 59095,
+            "p90_us" : 59951,
+            "p99_sufficient" : false,
+            "p99_us" : 60399,
+            "requests_per_second" : 16.905014316869053,
+            "seconds" : 10.056187875000001
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 60541,
+            "min_us" : 55694,
+            "n" : 176,
+            "p50_us" : 56835,
+            "p90_us" : 57743,
+            "p99_sufficient" : false,
+            "p99_us" : 58679,
+            "requests_per_second" : 17.572887085982252,
+            "seconds" : 10.015428833
+          },
+          "abi_p50_over_direct_p50" : 0.95508166969147001,
+          "abi_throughput_over_direct" : 1.0475095788879534,
+          "direct" : {
+            "max_us" : 61012,
+            "min_us" : 58445,
+            "n" : 168,
+            "p50_us" : 59508,
+            "p90_us" : 60354,
+            "p99_sufficient" : false,
+            "p99_us" : 60988,
+            "requests_per_second" : 16.775872450386377,
+            "seconds" : 10.014382292000001
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 57398,
+            "min_us" : 55268,
+            "n" : 178,
+            "p50_us" : 56360,
+            "p90_us" : 57135,
+            "p99_sufficient" : false,
+            "p99_us" : 57390,
+            "requests_per_second" : 17.732553272523571,
+            "seconds" : 10.038035541999999
+          },
+          "abi_p50_over_direct_p50" : 0.96722155483095928,
+          "abi_throughput_over_direct" : 1.0376989716537035,
+          "direct" : {
+            "max_us" : 61443,
+            "min_us" : 56174,
+            "n" : 171,
+            "p50_us" : 58270,
+            "p90_us" : 60162,
+            "p99_sufficient" : false,
+            "p99_us" : 61112,
+            "requests_per_second" : 17.088340411732819,
+            "seconds" : 10.006823125
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        16,
+        32,
+        48,
+        64,
+        80,
+        96,
+        112,
+        128
+      ],
+      "target_tokens" : 128
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 8,
+      "case" : "b8_t256_full",
+      "execution_shape" : [
+        8,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 7.4505805969238281e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 1.0685712727949536e-08,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 60858,
+            "min_us" : 56850,
+            "n" : 171,
+            "p50_us" : 58567,
+            "p90_us" : 60386,
+            "p99_sufficient" : false,
+            "p99_us" : 60841,
+            "requests_per_second" : 17.042804136283582,
+            "seconds" : 10.033560124999999
+          },
+          "abi_p50_over_direct_p50" : 0.90143294700712628,
+          "abi_throughput_over_direct" : 1.1061340601500413,
+          "direct" : {
+            "max_us" : 66222,
+            "min_us" : 62456,
+            "n" : 155,
+            "p50_us" : 64971,
+            "p90_us" : 65882,
+            "p99_sufficient" : false,
+            "p99_us" : 66221,
+            "requests_per_second" : 15.407539420648355,
+            "seconds" : 10.060009958
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 58677,
+            "min_us" : 56512,
+            "n" : 174,
+            "p50_us" : 57477,
+            "p90_us" : 58320,
+            "p99_sufficient" : false,
+            "p99_us" : 58617,
+            "requests_per_second" : 17.365848683189292,
+            "seconds" : 10.019665792
+          },
+          "abi_p50_over_direct_p50" : 0.89564309533455921,
+          "abi_throughput_over_direct" : 1.1172985925085526,
+          "direct" : {
+            "max_us" : 67934,
+            "min_us" : 61186,
+            "n" : 156,
+            "p50_us" : 64174,
+            "p90_us" : 66810,
+            "p99_sufficient" : false,
+            "p99_us" : 67238,
+            "requests_per_second" : 15.542710605407265,
+            "seconds" : 10.036859333000001
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 60986,
+            "min_us" : 56404,
+            "n" : 170,
+            "p50_us" : 58972,
+            "p90_us" : 60178,
+            "p99_sufficient" : false,
+            "p99_us" : 60913,
+            "requests_per_second" : 16.963709324595527,
+            "seconds" : 10.021393124999999
+          },
+          "abi_p50_over_direct_p50" : 0.91361467435087063,
+          "abi_throughput_over_direct" : 1.1023910244521511,
+          "direct" : {
+            "max_us" : 68076,
+            "min_us" : 62262,
+            "n" : 154,
+            "p50_us" : 64548,
+            "p90_us" : 66848,
+            "p99_sufficient" : false,
+            "p99_us" : 67571,
+            "requests_per_second" : 15.388105443824603,
+            "seconds" : 10.007729707999999
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "target_tokens" : 256
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 8,
+      "case" : "b8_t256_mixed",
+      "execution_shape" : [
+        8,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 8.9406967163085938e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 8.6198322122519758e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 59919,
+            "min_us" : 56003,
+            "n" : 173,
+            "p50_us" : 58010,
+            "p90_us" : 59204,
+            "p99_sufficient" : false,
+            "p99_us" : 59816,
+            "requests_per_second" : 17.265347728869695,
+            "seconds" : 10.020070415999999
+          },
+          "abi_p50_over_direct_p50" : 0.96243819889172777,
+          "abi_throughput_over_direct" : 1.068006452048214,
+          "direct" : {
+            "max_us" : 67025,
+            "min_us" : 58519,
+            "n" : 162,
+            "p50_us" : 60274,
+            "p90_us" : 65772,
+            "p99_sufficient" : false,
+            "p99_us" : 66702,
+            "requests_per_second" : 16.165958263415313,
+            "seconds" : 10.021057666999999
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 59607,
+            "min_us" : 55855,
+            "n" : 174,
+            "p50_us" : 57744,
+            "p90_us" : 58908,
+            "p99_sufficient" : false,
+            "p99_us" : 59540,
+            "requests_per_second" : 17.310639592738664,
+            "seconds" : 10.051621666999999
+          },
+          "abi_p50_over_direct_p50" : 0.94365276506732909,
+          "abi_throughput_over_direct" : 1.0639573984383603,
+          "direct" : {
+            "max_us" : 64224,
+            "min_us" : 60045,
+            "n" : 163,
+            "p50_us" : 61192,
+            "p90_us" : 62561,
+            "p99_sufficient" : false,
+            "p99_us" : 63823,
+            "requests_per_second" : 16.270049550993882,
+            "seconds" : 10.018408333
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 57839,
+            "min_us" : 56041,
+            "n" : 176,
+            "p50_us" : 56764,
+            "p90_us" : 57517,
+            "p99_sufficient" : false,
+            "p99_us" : 57790,
+            "requests_per_second" : 17.587817284793424,
+            "seconds" : 10.006926792
+          },
+          "abi_p50_over_direct_p50" : 0.93095417719027784,
+          "abi_throughput_over_direct" : 1.0811083730728548,
+          "direct" : {
+            "max_us" : 65351,
+            "min_us" : 58915,
+            "n" : 163,
+            "p50_us" : 60974,
+            "p90_us" : 63965,
+            "p99_sufficient" : false,
+            "p99_us" : 65343,
+            "requests_per_second" : 16.268320293185074,
+            "seconds" : 10.019473250000001
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        16,
+        50,
+        84,
+        118,
+        153,
+        187,
+        221,
+        256
+      ],
+      "target_tokens" : 256
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 32,
+      "case" : "b32_t32_full",
+      "execution_shape" : [
+        32,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 2.9802322387695312e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 7.3640041014584214e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 256522,
+            "min_us" : 242321,
+            "n" : 41,
+            "p50_us" : 246000,
+            "p90_us" : 248278,
+            "p99_sufficient" : false,
+            "p99_us" : 256522,
+            "requests_per_second" : 4.0647505172518219,
+            "seconds" : 10.086719917
+          },
+          "abi_p50_over_direct_p50" : 0.98352397439639216,
+          "abi_throughput_over_direct" : 1.0174075201869215,
+          "direct" : {
+            "max_us" : 251601,
+            "min_us" : 249168,
+            "n" : 40,
+            "p50_us" : 250121,
+            "p90_us" : 251013,
+            "p99_sufficient" : false,
+            "p99_us" : 251601,
+            "requests_per_second" : 3.9952039242888948,
+            "seconds" : 10.012004583
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 243994,
+            "min_us" : 240431,
+            "n" : 42,
+            "p50_us" : 242494,
+            "p90_us" : 243627,
+            "p99_sufficient" : false,
+            "p99_us" : 243994,
+            "requests_per_second" : 4.124772772013209,
+            "seconds" : 10.182379084000001
+          },
+          "abi_p50_over_direct_p50" : 0.97306255442262857,
+          "abi_throughput_over_direct" : 1.0268961229393703,
+          "direct" : {
+            "max_us" : 251271,
+            "min_us" : 245385,
+            "n" : 41,
+            "p50_us" : 249207,
+            "p90_us" : 250397,
+            "p99_sufficient" : false,
+            "p99_us" : 251271,
+            "requests_per_second" : 4.0167380905154539,
+            "seconds" : 10.207287375
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 257900,
+            "min_us" : 250169,
+            "n" : 40,
+            "p50_us" : 251847,
+            "p90_us" : 253539,
+            "p99_sufficient" : false,
+            "p99_us" : 257900,
+            "requests_per_second" : 3.9659563626493646,
+            "seconds" : 10.085839667
+          },
+          "abi_p50_over_direct_p50" : 0.97130967348796304,
+          "abi_throughput_over_direct" : 1.0188051574291985,
+          "direct" : {
+            "max_us" : 264826,
+            "min_us" : 249728,
+            "n" : 39,
+            "p50_us" : 259286,
+            "p90_us" : 263426,
+            "p99_sufficient" : false,
+            "p99_us" : 264826,
+            "requests_per_second" : 3.8927525383330988,
+            "seconds" : 10.018617833
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32,
+        32
+      ],
+      "target_tokens" : 32
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 32,
+      "case" : "b32_t32_mixed",
+      "execution_shape" : [
+        32,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 4.4703483581542969e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 5.7608536565012367e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 250519,
+            "min_us" : 238843,
+            "n" : 41,
+            "p50_us" : 244915,
+            "p90_us" : 248608,
+            "p99_sufficient" : false,
+            "p99_us" : 250519,
+            "requests_per_second" : 4.091183771853613,
+            "seconds" : 10.021549332999999
+          },
+          "abi_p50_over_direct_p50" : 1.000147011381131,
+          "abi_throughput_over_direct" : 1.0015865145669289,
+          "direct" : {
+            "max_us" : 247217,
+            "min_us" : 241844,
+            "n" : 41,
+            "p50_us" : 244879,
+            "p90_us" : 246539,
+            "p99_sufficient" : false,
+            "p99_us" : 247217,
+            "requests_per_second" : 4.0847033305181633,
+            "seconds" : 10.037448667
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 251490,
+            "min_us" : 245194,
+            "n" : 41,
+            "p50_us" : 248314,
+            "p90_us" : 250846,
+            "p99_sufficient" : false,
+            "p99_us" : 251490,
+            "requests_per_second" : 4.025597613495659,
+            "seconds" : 10.184823207999999
+          },
+          "abi_p50_over_direct_p50" : 0.98369838647698959,
+          "abi_throughput_over_direct" : 1.012689181658891,
+          "direct" : {
+            "max_us" : 260320,
+            "min_us" : 242617,
+            "n" : 40,
+            "p50_us" : 252429,
+            "p90_us" : 259246,
+            "p99_sufficient" : false,
+            "p99_us" : 260320,
+            "requests_per_second" : 3.9751561351739815,
+            "seconds" : 10.062497834
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 247180,
+            "min_us" : 243367,
+            "n" : 41,
+            "p50_us" : 245083,
+            "p90_us" : 246657,
+            "p99_sufficient" : false,
+            "p99_us" : 247180,
+            "requests_per_second" : 4.0811467686690888,
+            "seconds" : 10.046195916
+          },
+          "abi_p50_over_direct_p50" : 0.9802261355773576,
+          "abi_throughput_over_direct" : 1.0225172004897618,
+          "direct" : {
+            "max_us" : 253140,
+            "min_us" : 247925,
+            "n" : 40,
+            "p50_us" : 250027,
+            "p90_us" : 252640,
+            "p99_sufficient" : false,
+            "p99_us" : 253140,
+            "requests_per_second" : 3.9912744418522395,
+            "seconds" : 10.021861584
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        16,
+        16,
+        17,
+        17,
+        18,
+        18,
+        19,
+        19,
+        20,
+        20,
+        21,
+        21,
+        22,
+        22,
+        23,
+        23,
+        24,
+        24,
+        25,
+        25,
+        26,
+        26,
+        27,
+        27,
+        28,
+        28,
+        29,
+        29,
+        30,
+        30,
+        31,
+        32
+      ],
+      "target_tokens" : 32
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 32,
+      "case" : "b32_t128_full",
+      "execution_shape" : [
+        32,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 4.4703483581542969e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 7.7990394817238615e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 257803,
+            "min_us" : 246295,
+            "n" : 40,
+            "p50_us" : 250260,
+            "p90_us" : 255649,
+            "p99_sufficient" : false,
+            "p99_us" : 257803,
+            "requests_per_second" : 3.9764018282270475,
+            "seconds" : 10.059345541000001
+          },
+          "abi_p50_over_direct_p50" : 0.95195347121050167,
+          "abi_throughput_over_direct" : 1.0468030678251037,
+          "direct" : {
+            "max_us" : 267424,
+            "min_us" : 259221,
+            "n" : 38,
+            "p50_us" : 262891,
+            "p90_us" : 266096,
+            "p99_sufficient" : false,
+            "p99_us" : 267424,
+            "requests_per_second" : 3.7986149930651627,
+            "seconds" : 10.003646084
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 253988,
+            "min_us" : 245412,
+            "n" : 40,
+            "p50_us" : 250556,
+            "p90_us" : 253363,
+            "p99_sufficient" : false,
+            "p99_us" : 253988,
+            "requests_per_second" : 3.9940814040217338,
+            "seconds" : 10.014818416000001
+          },
+          "abi_p50_over_direct_p50" : 0.96236292754124175,
+          "abi_throughput_over_direct" : 1.0395380052364953,
+          "direct" : {
+            "max_us" : 266432,
+            "min_us" : 258030,
+            "n" : 39,
+            "p50_us" : 260355,
+            "p90_us" : 261409,
+            "p99_sufficient" : false,
+            "p99_us" : 266432,
+            "requests_per_second" : 3.8421696791288347,
+            "seconds" : 10.150514749999999
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 251143,
+            "min_us" : 244332,
+            "n" : 41,
+            "p50_us" : 247796,
+            "p90_us" : 250862,
+            "p99_sufficient" : false,
+            "p99_us" : 251143,
+            "requests_per_second" : 4.033472294383091,
+            "seconds" : 10.164939042
+          },
+          "abi_p50_over_direct_p50" : 0.95415147302880599,
+          "abi_throughput_over_direct" : 1.0474606249349483,
+          "direct" : {
+            "max_us" : 261899,
+            "min_us" : 256847,
+            "n" : 39,
+            "p50_us" : 259703,
+            "p90_us" : 261140,
+            "p99_sufficient" : false,
+            "p99_us" : 261899,
+            "requests_per_second" : 3.8507149561193161,
+            "seconds" : 10.127989333
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128,
+        128
+      ],
+      "target_tokens" : 128
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 32,
+      "case" : "b32_t128_mixed",
+      "execution_shape" : [
+        32,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 7.4505805969238281e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 7.6260834981438184e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 250561,
+            "min_us" : 245748,
+            "n" : 41,
+            "p50_us" : 248464,
+            "p90_us" : 249806,
+            "p99_sufficient" : false,
+            "p99_us" : 250561,
+            "requests_per_second" : 4.0240209020404745,
+            "seconds" : 10.188813874999999
+          },
+          "abi_p50_over_direct_p50" : 0.94856758902938121,
+          "abi_throughput_over_direct" : 1.060700635299209,
+          "direct" : {
+            "max_us" : 272491,
+            "min_us" : 257185,
+            "n" : 38,
+            "p50_us" : 261936,
+            "p90_us" : 271198,
+            "p99_sufficient" : false,
+            "p99_us" : 272491,
+            "requests_per_second" : 3.7937385612155818,
+            "seconds" : 10.016504665999999
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 257560,
+            "min_us" : 250486,
+            "n" : 40,
+            "p50_us" : 252475,
+            "p90_us" : 254465,
+            "p99_sufficient" : false,
+            "p99_us" : 257560,
+            "requests_per_second" : 3.9568890832853101,
+            "seconds" : 10.108951542
+          },
+          "abi_p50_over_direct_p50" : 0.97768337734957678,
+          "abi_throughput_over_direct" : 1.0215437684539783,
+          "direct" : {
+            "max_us" : 259974,
+            "min_us" : 255757,
+            "n" : 39,
+            "p50_us" : 258238,
+            "p90_us" : 259033,
+            "p99_sufficient" : false,
+            "p99_us" : 259974,
+            "requests_per_second" : 3.8734405763873765,
+            "seconds" : 10.068568042000001
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 251110,
+            "min_us" : 249783,
+            "n" : 40,
+            "p50_us" : 250081,
+            "p90_us" : 250597,
+            "p99_sufficient" : false,
+            "p99_us" : 251110,
+            "requests_per_second" : 3.9972064523406208,
+            "seconds" : 10.00698875
+          },
+          "abi_p50_over_direct_p50" : 0.96881803742300387,
+          "abi_throughput_over_direct" : 1.0312137592019865,
+          "direct" : {
+            "max_us" : 262046,
+            "min_us" : 254205,
+            "n" : 39,
+            "p50_us" : 258130,
+            "p90_us" : 259781,
+            "p99_sufficient" : false,
+            "p99_us" : 262046,
+            "requests_per_second" : 3.8762152043373557,
+            "seconds" : 10.061360875
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        16,
+        19,
+        23,
+        26,
+        30,
+        34,
+        37,
+        41,
+        44,
+        48,
+        52,
+        55,
+        59,
+        62,
+        66,
+        70,
+        73,
+        77,
+        81,
+        84,
+        88,
+        91,
+        95,
+        99,
+        102,
+        106,
+        109,
+        113,
+        117,
+        120,
+        124,
+        128
+      ],
+      "target_tokens" : 128
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 32,
+      "case" : "b32_t256_full",
+      "execution_shape" : [
+        32,
+        256
+      ],
+      "mixed" : false,
+      "parity" : {
+        "max_abs" : 7.4505805969238281e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 1.0685712727949533e-08,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 260965,
+            "min_us" : 249354,
+            "n" : 40,
+            "p50_us" : 251583,
+            "p90_us" : 257880,
+            "p99_sufficient" : false,
+            "p99_us" : 260965,
+            "requests_per_second" : 3.9498375080050554,
+            "seconds" : 10.126998875
+          },
+          "abi_p50_over_direct_p50" : 0.88442933578946625,
+          "abi_throughput_over_direct" : 1.1256181418966205,
+          "direct" : {
+            "max_us" : 288789,
+            "min_us" : 281693,
+            "n" : 36,
+            "p50_us" : 284458,
+            "p90_us" : 288387,
+            "p99_sufficient" : false,
+            "p99_us" : 288789,
+            "requests_per_second" : 3.5090385993155198,
+            "seconds" : 10.259220291
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 249973,
+            "min_us" : 245026,
+            "n" : 41,
+            "p50_us" : 247098,
+            "p90_us" : 248377,
+            "p99_sufficient" : false,
+            "p99_us" : 249973,
+            "requests_per_second" : 4.0481534767541447,
+            "seconds" : 10.1280745
+          },
+          "abi_p50_over_direct_p50" : 0.89076745049549566,
+          "abi_throughput_over_direct" : 1.1212646525313428,
+          "direct" : {
+            "max_us" : 283639,
+            "min_us" : 269958,
+            "n" : 37,
+            "p50_us" : 277399,
+            "p90_us" : 282958,
+            "p99_sufficient" : false,
+            "p99_us" : 283639,
+            "requests_per_second" : 3.610346110184711,
+            "seconds" : 10.248324917
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 262612,
+            "min_us" : 255215,
+            "n" : 39,
+            "p50_us" : 258113,
+            "p90_us" : 261795,
+            "p99_sufficient" : false,
+            "p99_us" : 262612,
+            "requests_per_second" : 3.8655270044277366,
+            "seconds" : 10.089180583999999
+          },
+          "abi_p50_over_direct_p50" : 0.91140308752701238,
+          "abi_throughput_over_direct" : 1.0934916161737191,
+          "direct" : {
+            "max_us" : 285188,
+            "min_us" : 280242,
+            "n" : 36,
+            "p50_us" : 283204,
+            "p90_us" : 284092,
+            "p99_sufficient" : false,
+            "p99_us" : 285188,
+            "requests_per_second" : 3.5350312222363063,
+            "seconds" : 10.183785584000001
+          },
+          "order" : "direct_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "target_tokens" : 256
+    },
+    {
+      "abi_counters_zero" : true,
+      "abi_steady_state_counters" : {
+        "arena_allocs" : 0
+      },
+      "batch" : 32,
+      "case" : "b32_t256_mixed",
+      "execution_shape" : [
+        32,
+        256
+      ],
+      "mixed" : true,
+      "parity" : {
+        "max_abs" : 7.4505805969238281e-08,
+        "max_abs_gate" : 0.00050000002374872565,
+        "pass" : true,
+        "rmse" : 8.8332504291262296e-09,
+        "rmse_gate" : 0.0001
+      },
+      "repeats" : [
+        {
+          "abi" : {
+            "max_us" : 259922,
+            "min_us" : 248695,
+            "n" : 40,
+            "p50_us" : 252693,
+            "p90_us" : 258060,
+            "p99_sufficient" : false,
+            "p99_us" : 259922,
+            "requests_per_second" : 3.9402921777420463,
+            "seconds" : 10.151531458999999
+          },
+          "abi_p50_over_direct_p50" : 0.95269208003287575,
+          "abi_throughput_over_direct" : 1.0449878614195491,
+          "direct" : {
+            "max_us" : 267956,
+            "min_us" : 261966,
+            "n" : 38,
+            "p50_us" : 265241,
+            "p90_us" : 267622,
+            "p99_sufficient" : false,
+            "p99_us" : 267956,
+            "requests_per_second" : 3.7706583236186222,
+            "seconds" : 10.077815792000001
+          },
+          "order" : "abi_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 255593,
+            "min_us" : 250006,
+            "n" : 40,
+            "p50_us" : 251320,
+            "p90_us" : 252956,
+            "p99_sufficient" : false,
+            "p99_us" : 255593,
+            "requests_per_second" : 3.9759593451206983,
+            "seconds" : 10.060465042000001
+          },
+          "abi_p50_over_direct_p50" : 0.94472679156767814,
+          "abi_throughput_over_direct" : 1.0561517546114831,
+          "direct" : {
+            "max_us" : 267962,
+            "min_us" : 261911,
+            "n" : 38,
+            "p50_us" : 266024,
+            "p90_us" : 267334,
+            "p99_sufficient" : false,
+            "p99_us" : 267962,
+            "requests_per_second" : 3.7645720207919342,
+            "seconds" : 10.094108916
+          },
+          "order" : "direct_first",
+          "pass" : true
+        },
+        {
+          "abi" : {
+            "max_us" : 260113,
+            "min_us" : 250126,
+            "n" : 40,
+            "p50_us" : 254630,
+            "p90_us" : 259670,
+            "p99_sufficient" : false,
+            "p99_us" : 260113,
+            "requests_per_second" : 3.9186394767132859,
+            "seconds" : 10.207624416
+          },
+          "abi_p50_over_direct_p50" : 0.92500563075335851,
+          "abi_throughput_over_direct" : 1.0799463879723763,
+          "direct" : {
+            "max_us" : 279584,
+            "min_us" : 271205,
+            "n" : 37,
+            "p50_us" : 275274,
+            "p90_us" : 279010,
+            "p99_sufficient" : false,
+            "p99_us" : 279584,
+            "requests_per_second" : 3.6285500098487478,
+            "seconds" : 10.196910583999999
+          },
+          "order" : "abi_first",
+          "pass" : true
+        }
+      ],
+      "row_tokens" : [
+        16,
+        23,
+        31,
+        39,
+        46,
+        54,
+        62,
+        70,
+        77,
+        85,
+        93,
+        101,
+        108,
+        116,
+        124,
+        132,
+        139,
+        147,
+        155,
+        163,
+        170,
+        178,
+        186,
+        194,
+        201,
+        209,
+        217,
+        225,
+        232,
+        240,
+        248,
+        256
+      ],
+      "target_tokens" : 256
+    }
+  ],
+  "chip" : "Apple M2",
+  "concurrent_two_engines" : {
+    "case" : "b8_t128_mixed",
+    "engine_a" : {
+      "max_us" : 131181,
+      "min_us" : 119523,
+      "n" : 81,
+      "p50_us" : 122755,
+      "p90_us" : 128449,
+      "p99_sufficient" : false,
+      "p99_us" : 131181,
+      "requests_per_second" : 8.0741928610678109,
+      "seconds" : 10.031962500000001
+    },
+    "engine_b" : {
+      "max_us" : 131154,
+      "min_us" : 64627,
+      "n" : 82,
+      "p50_us" : 122764,
+      "p90_us" : 128555,
+      "p99_sufficient" : false,
+      "p99_us" : 131154,
+      "requests_per_second" : 8.1252900566911457,
+      "seconds" : 10.091947417
+    },
+    "engines" : 2,
+    "note" : "Recorded two-engine observation on one Metal GPU, not a scalability acceptance result."
+  },
+  "config" : {
+    "max_requests" : 10000,
+    "max_seconds" : 10,
+    "repeats" : 3,
+    "warmup" : 20,
+    "worker_ready_seconds" : 600,
+    "worker_reply_grace_seconds" : 120
+  },
+  "direct_baseline" : "raw mlx-swift consumer: MLXEmbedders model container, HF tokenizer, fixed [batch, 256] padding, BERT forward, mean+L2 MLX ops on device, one host read of [batch, dim] (unified memory)",
+  "execution_shape_note" : "Both paths execute fixed [batch, 256]. Apple unified memory has no discrete H2D\/D2H; the ABI copies the last hidden state into the SHARED activation rent and pools on host, the direct baseline pools on device and reads back [batch, dim]. That difference is recorded, not hidden.",
+  "experiment" : "apple-metal-native-overhead-pilot",
+  "gates" : {
+    "abi_p50_over_direct_p50_max" : 1.05,
+    "abi_throughput_over_direct_min" : 0.94999999999999996,
+    "p99_min_samples" : 1000,
+    "parity_max_abs" : 0.00050000002374872565,
+    "parity_rmse" : 0.0001
+  },
+  "git_sha" : "0587e81133851687adadae76f05706962fa855f5",
+  "gpu" : "Apple M2",
+  "host" : "Kristians-MacBook-Air",
+  "mlx_build" : "mlx-swift (pins in swift\/Package.resolved at git_sha)",
+  "model" : "\/Volumes\/pipework\/work\/inferstream\/models\/mlx\/minilm",
+  "os" : "Version 26.5.1 (Build 25F80)",
+  "pass" : true,
+  "process_isolation" : "Each case's ABI leg runs in its own bench-abi-worker process and exits afterwards, so the dylib's Objective-C classes are never duplicated against the direct baseline's and Metal resources are released per case. Legs execute sequentially (the orchestrator blocks on the worker); the direct path clears the MLX buffer cache between cases. Each path warms up in its own process before parity and timing.",
+  "provider" : "Apple MLX Metal",
+  "quick" : false,
+  "tokenizer" : "\/Volumes\/pipework\/work\/inferstream\/models\/mlx\/minilm\/tokenizer.json"
+}

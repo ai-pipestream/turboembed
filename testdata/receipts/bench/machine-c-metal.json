@@ -8,9 +8,9 @@
   "host": "Kristians-MacBook-Air",
   "arch": "apple",
   "chip": "Apple M2",
-  "git_sha": "2849a5915c3b50f2f35c3886b29495d4ae2ff65e",
+  "git_sha": "0587e81133851687adadae76f05706962fa855f5",
   "command": "make bench-machine-c",
-  "captured_at_unix": 1789312262,
+  "captured_at_unix": 1789704736,
   "pass": true,
   "gates": {
     "p50_p99_measured": true,
@@ -29,17 +29,17 @@
     "metal_owns_result": true,
     "warmup": 32,
     "iters": 200,
-    "p50_us": 22056,
-    "p99_us": 33889,
-    "mean_us": 22680,
+    "p50_us": 5274,
+    "p99_us": 5358,
+    "mean_us": 5263,
     "allocs_per_forward": 0,
     "dim": 384,
     "n_goldens": 237,
     "cosine_vs_nvidia": {
-      "min": 0.97945666,
-      "mean": 0.99973994,
+      "min": 0.999999,
+      "mean": 1.0,
       "floor": 0.97,
-      "worst_id": "sts-0056:a"
+      "worst_id": "tiny-shakespeare-excerpt:p0003:s0001"
     },
     "cosine_vs_apple": {
       "min": 0.99999976,
@@ -47,6 +47,23 @@
       "floor": 0.99,
       "worst_id": "sts-0039:a"
     },
+    "stale_apple_golden_items": [
+      {
+        "id": "sts-0056:a",
+        "golden_vs_nvidia_golden": 0.9794565,
+        "live_vs_nvidia_golden": 0.9999995
+      },
+      {
+        "id": "sts-0057:a",
+        "golden_vs_nvidia_golden": 0.9794565,
+        "live_vs_nvidia_golden": 0.9999995
+      },
+      {
+        "id": "sts-0058:a",
+        "golden_vs_nvidia_golden": 0.9794565,
+        "live_vs_nvidia_golden": 0.9999995
+      }
+    ],
     "goldens_in_band": true
   },
   "turborerank": {
@@ -59,9 +76,9 @@
     "arena_owns_tokens": true,
     "warmup": 32,
     "iters": 200,
-    "p50_us": 158432,
-    "p99_us": 164272,
-    "mean_us": 157471,
+    "p50_us": 105533,
+    "p99_us": 106048,
+    "mean_us": 105417,
     "allocs_per_forward": 0,
     "logits": [
       8.845853,
@@ -72,5 +89,5 @@
     "cosine_vs_golden": 1.0,
     "berlin_in_band": true
   },
-  "note": "FINAL SOLIDIFY bench on Machine C. Live Metal timings — not copied from a prior receipt. TurboEmbed + TurboRerank rent turbo_buffer SHARED (MTLResourceStorageModeShared). AUTO resolves to METAL. Create without Metal fails loud (make turborerank-tests-nometal). No CPU fallback. allocs/forward==0 after warmup. Berlin atol 2e-3. Embed goldens: vs nvidia ≥0.97, vs apple ≥0.99."
+  "note": "FINAL SOLIDIFY bench on Machine C. Live Metal timings — not copied from a prior receipt. TurboEmbed + TurboRerank rent turbo_buffer SHARED (MTLResourceStorageModeShared). AUTO resolves to METAL. Create without Metal fails loud (make turborerank-tests-nometal). No CPU fallback. allocs/forward==0 after warmup. Berlin atol 2e-3. Embed goldens: vs nvidia ≥0.97, vs apple ≥0.99; apple golden entries that provably disagree with the nvidia reference (stale 2026-09-12 CJK captures, see testdata/e2e/goldens/apple/README.md) are gated at live↔nvidia ≥0.999 instead and listed in stale_apple_golden_items."
 }
