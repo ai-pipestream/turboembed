@@ -1461,6 +1461,43 @@ turboembed_status turboembed_test_require_ov_device(
         return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
     }
 }
+
+/*
+ * Test-only: not in turboembed.h. Reports the live ov::Core device list
+ * as comma-separated names (`"CPU,GPU,NPU"`) so receipt writers can record
+ * the actual host availability instead of inferring it.
+ */
+turboembed_status turboembed_test_genai_available_devices(
+    char *out,
+    size_t out_len
+) {
+    if (out == nullptr || out_len == 0) {
+        g_create_error = "null turboembed_test_genai_available_devices argument";
+        return TURBOEMBED_ERR_INVALID_ARGUMENT;
+    }
+    try {
+        const std::vector<std::string> listed =
+            turboembed_genai::available_devices();
+        std::string csv;
+        for (const std::string &d : listed) {
+            if (!csv.empty()) {
+                csv += ",";
+            }
+            csv += d;
+        }
+        if (csv.size() + 1 > out_len) {
+            g_create_error = "out buffer too small";
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        std::memcpy(out, csv.c_str(), csv.size() + 1);
+        g_create_error.clear();
+        return TURBOEMBED_OK;
+    } catch (const std::exception &e) {
+        g_create_error = e.what();
+        out[0] = '\0';
+        return TURBOEMBED_ERR_INTERNAL;
+    }
+}
 #endif
 
 } // extern "C"
