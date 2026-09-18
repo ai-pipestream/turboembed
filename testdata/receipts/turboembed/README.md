@@ -48,7 +48,11 @@ the GPU plugin is missing — that path never compiles `"CPU"`.
 no Intel NPU / no `libopenvino_intel_npu_plugin.so`. A passing NPU
 receipt needs a **Core Ultra client NPU** host — not Xeon, not AWS
 Inferentia, not this Battlemage box. Do not treat the fail file as a
-MiniLM success.
+MiniLM success. The pass path is the ignored
+`cargo test -p turboembed --features genai --test intel_npu -- --ignored`
+harness on an Intel Cloud AI PC host (Machine D) — see
+`docs/intel-cloud-npu-runbook.md`; only that live run may overwrite the
+fail file with `pass=true`.
 
 Apple: `Engine::create(Metal|AUTO)` lists catalog `minilm` dim 384 (never
 mock-only). `turboembed_embed(minilm)` on `Device(gpu, 0)`. Cosine vs nvidia
