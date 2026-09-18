@@ -44,6 +44,20 @@ fn num(value: &Value, key: &str) -> f64 {
         .unwrap_or_else(|| panic!("receipt missing numeric field {key}"))
 }
 
+/// Check that a *recorded* gate constant in the receipt matches the
+/// predeclared value. Receipts produced before the harness switched
+/// `kParityMaxAbs` to `Double` serialized the constant through Swift
+/// `Float`, so exactly the f32 rounding of the expected value is also
+/// accepted — nothing looser. The gates actually applied to cases and
+/// repeats below always use the exact f64 constants.
+fn assert_gate_constant(gates: &Value, key: &str, expected: f64) {
+    let recorded = num(gates, key);
+    assert!(
+        recorded == expected || recorded == f64::from(expected as f32),
+        "recorded gate {key} = {recorded} is neither {expected} nor its f32 rounding"
+    );
+}
+
 #[test]
 #[ignore = "needs macOS Metal + models/mlx/minilm + a prior `make bench-apple-overhead`"]
 fn apple_overhead_receipt_meets_predeclared_budgets() {
@@ -68,16 +82,10 @@ fn apple_overhead_receipt_meets_predeclared_budgets() {
     );
 
     let gates = &receipt["gates"];
-    assert_eq!(
-        num(gates, "abi_p50_over_direct_p50_max"),
-        P50_OVERHEAD_LIMIT
-    );
-    assert_eq!(
-        num(gates, "abi_throughput_over_direct_min"),
-        THROUGHPUT_FLOOR
-    );
-    assert_eq!(num(gates, "parity_max_abs"), PARITY_MAX_ABS);
-    assert_eq!(num(gates, "parity_rmse"), PARITY_MAX_RMSE);
+    assert_gate_constant(gates, "abi_p50_over_direct_p50_max", P50_OVERHEAD_LIMIT);
+    assert_gate_constant(gates, "abi_throughput_over_direct_min", THROUGHPUT_FLOOR);
+    assert_gate_constant(gates, "parity_max_abs", PARITY_MAX_ABS);
+    assert_gate_constant(gates, "parity_rmse", PARITY_MAX_RMSE);
 
     let cases = receipt["cases"].as_array().expect("cases array");
     assert_eq!(
