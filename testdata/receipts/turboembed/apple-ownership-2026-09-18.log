@@ -1,0 +1,50 @@
+# Apple ownership refresh — Machine C — 2026-09-18T08:18:19Z
+git_sha=05fa170fc61144df727b6b3761cd76920efeeac8
+host=Kristians-MacBook-Air
+chip=Apple M2
+
+## MetalWrapperOwnershipTests + MetalArenaEmbedTests (with mlx.metallib staged)
+Test Suite 'Selected tests' started at 2026-09-18 04:18:04.245.
+Test Suite 'inferstream-applePackageTests.xctest' started at 2026-09-18 04:18:04.246.
+Test Suite 'MetalArenaEmbedTests' started at 2026-09-18 04:18:04.246.
+Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalArenaCreateRentsSharedAndLookupHits]' started.
+Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalArenaCreateRentsSharedAndLookupHits]' passed (0.015 seconds).
+Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalEmbedResultIsArenaOwnedAndZeroAllocsAfterWarmup]' started.
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=bge-small,minilm — FP MiniLM path is live
+[mlx-engine] loading embedder /Volumes/pipework/work/inferstream/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Volumes/pipework/work/inferstream/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalEmbedResultIsArenaOwnedAndZeroAllocsAfterWarmup]' passed (0.087 seconds).
+Test Suite 'MetalArenaEmbedTests' passed at 2026-09-18 04:18:04.348.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.101 (0.102) seconds
+Test Suite 'MetalWrapperOwnershipTests' started at 2026-09-18 04:18:04.348.
+Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testIndependentMetalEnginesRunConcurrentWrapperCalls]' started.
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=bge-small,minilm — FP MiniLM path is live
+[mlx-engine] loading embedder /Volumes/pipework/work/inferstream/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Volumes/pipework/work/inferstream/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=bge-small,minilm — FP MiniLM path is live
+[mlx-engine] loading embedder /Volumes/pipework/work/inferstream/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Volumes/pipework/work/inferstream/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testIndependentMetalEnginesRunConcurrentWrapperCalls]' passed (0.249 seconds).
+Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testMetalResultRetainsItsEngineAndSurvivorRemainsUsable]' started.
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=bge-small,minilm — FP MiniLM path is live
+[turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=bge-small,minilm — FP MiniLM path is live
+[mlx-engine] loading embedder /Volumes/pipework/work/inferstream/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Volumes/pipework/work/inferstream/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[mlx-engine] loading embedder /Volumes/pipework/work/inferstream/models/mlx/minilm on Device(gpu, 0)
+[turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
+[turboembed] loaded minilm from /Volumes/pipework/work/inferstream/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testMetalResultRetainsItsEngineAndSurvivorRemainsUsable]' passed (0.155 seconds).
+Test Suite 'MetalWrapperOwnershipTests' passed at 2026-09-18 04:18:04.752.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.404 (0.404) seconds
+Test Suite 'inferstream-applePackageTests.xctest' passed at 2026-09-18 04:18:04.752.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.505 (0.505) seconds
+Test Suite 'Selected tests' passed at 2026-09-18 04:18:04.752.
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.505 (0.506) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64e-apple-macos14.0
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
