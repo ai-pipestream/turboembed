@@ -1,0 +1,48 @@
+{
+  "alias": "bge-small",
+  "captured_at_unix": 1789719601,
+  "chip": "Apple M2",
+  "commands": [
+    "make fetch-mlx ALIASES=bge-small",
+    "cargo test -p turboembed --features mlx-live --test apple_bge_small -- --ignored --nocapture"
+  ],
+  "crate": "turboembed",
+  "device": "METAL",
+  "dims": 384,
+  "git_sha": "304585f13db2926bf4078343f333145abad37806",
+  "golden": "testdata/e2e/goldens/apple/bge-small.json",
+  "mean_cosine": 1.0,
+  "mean_pooling_request": "NotImplemented (explicit contract, no substitution)",
+  "min_cosine": 1.0,
+  "n_texts": 6,
+  "per_text": [
+    {
+      "cosine": 1.0,
+      "id": "parity:short"
+    },
+    {
+      "cosine": 1.0,
+      "id": "parity:medium"
+    },
+    {
+      "cosine": 1.0,
+      "id": "parity:query"
+    },
+    {
+      "cosine": 1.0,
+      "id": "parity:unicode"
+    },
+    {
+      "cosine": 1.0,
+      "id": "parity:long"
+    },
+    {
+      "cosine": 1.0,
+      "id": "parity:inferstream"
+    }
+  ],
+  "pooling": "cls",
+  "provider": "mlx first-token CLS + L2 (hidden state, not the BERT NSP pooler)",
+  "schema_version": 1,
+  "threshold": 0.9900000095367432
+}

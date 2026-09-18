@@ -1,0 +1,27 @@
+{
+  "alias": "minilm",
+  "captured_at_unix": 1789719600,
+  "chip": "Apple M2",
+  "commands": [
+    "make fetch-mlx ALIASES=minilm",
+    "cargo test -p turboembed --features mlx-live --test apple_multi_engine -- --ignored --nocapture"
+  ],
+  "crate": "turboembed",
+  "device": "METAL",
+  "dim": 384,
+  "engines": 2,
+  "git_sha": "304585f13db2926bf4078343f333145abad37806",
+  "iterations_per_text": 8,
+  "max_abs": 0.0,
+  "n_texts": 3,
+  "pass": true,
+  "per_engine_max_abs": [
+    0.0,
+    0.0
+  ],
+  "provider": "mlx",
+  "retained_results_survive_peer_destruction": true,
+  "schema_version": 1,
+  "test": "apple_multi_engine::independent_metal_engines_match_single_engine_baseline",
+  "threshold": 9.999999747378752e-6
+}
