@@ -30,3 +30,42 @@ receipt discipline as the current NVIDIA / Intel / Apple paths.
 Clarification to avoid a false "AMD is covered" reading: Machine B pairs an
 **AMD CPU** with an **Intel Battlemage dGPU** driven by the OpenVINO GPU
 plugin. That proves nothing about AMD accelerators — no ROCm, no XDNA.
+
+## CUDA Rust (NVIDIA kernel frontends)
+
+Status: **documented interest only** — no dependency, no build change, not
+started. Unlike the entries above, this is not a new provider or execution
+path; it is a possible future way to *author* the small custom device
+kernels we already ship on the NVIDIA path.
+
+In September 2026 NVIDIA announced [CUDA Rust](https://developer.nvidia.com/blog/introducing-cuda-rust-two-tracks-for-writing-gpu-kernels/),
+two tracks for writing GPU kernels natively in Rust:
+
+- **`cuda-oxide`** — the SIMT track. A custom `rustc` codegen backend that
+  compiles `#[kernel]` functions to PTX. Early alpha; requires a pinned
+  nightly toolchain, clang/libclang, and CUDA 12.x+.
+- **`cutile-rs`** — the Tile track. Kernels are JIT-compiled through CUDA
+  Tile IR; the compiler owns thread mapping and memory layout. Further
+  along: published on crates.io, runs on **stable Rust 1.89+** with CUDA
+  13.3 and no custom LLVM, and is already used outside NVIDIA (Hugging
+  Face's Grout inference engine, mistral.rs).
+
+What it is and is not for us:
+
+- Both tracks are for **writing GPU kernels in Rust**. Neither replaces
+  the ONNX Runtime CUDA / TensorRT execution providers; the MiniLM/BGE
+  forward pass stays on ORT/TensorRT with IoBinding, exactly as validated
+  on Machine A.
+- The plausible TurboEmbed use is an optional future spike on **our own
+  device kernels** — for example the CUDA pooling kernel
+  ([`native/turboembed/src/pool_cuda.cu`](../native/turboembed/src/pool_cuda.cu))
+  or a TurboRerank on-device score path — behind an experimental gate,
+  compared against the existing `.cu` implementation with the same goldens
+  and receipts.
+- If we do a first spike, prefer **`cutile-rs`** (stable Rust, no nightly,
+  no custom LLVM); drop to `cuda-oxide` only if the kernel needs full SIMT
+  control over threads and shared memory.
+
+Constraints, per NVIDIA's own framing: Linux only, compute capability
+≥ 8.0 (Machine A's RTX 4080 SUPER qualifies), APIs will move, and neither
+track is production-ready today.
