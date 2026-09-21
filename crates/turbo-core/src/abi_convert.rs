@@ -20,19 +20,16 @@ use crate::types::{
     PromptRole, StagePlacement, StagePlacements, StructuredKind, Task, Truncate,
 };
 
-/// Check that a descriptor's `struct_size` is one this library understands:
-/// exactly the current size, or a smaller size from an older caller (at
-/// least 4). Larger sizes are rejected because unknown fields would be
-/// silently ignored.
-pub fn check_size<T>(what: &str, got: u32) -> Result<()> {
-    let expected = std::mem::size_of::<T>();
-    if got as usize == expected {
+/// Check that a descriptor's `struct_size` is a layout this library
+/// understands: the current size, or the end of an earlier field (an older
+/// caller's layout; see [`turbo_abi::Versioned`]). Any other value is
+/// `TURBO_E_INVALID_STRUCT_SIZE`, since a prefix ending inside a field could
+/// hand the library half a pointer or half a count.
+pub fn check_size<T: turbo_abi::Versioned>(what: &str, got: u32) -> Result<()> {
+    if T::size_is_known(got) {
         return Ok(());
     }
-    if (got as usize) < 4 || (got as usize) > expected {
-        return Err(Error::invalid_struct_size(what, got, expected));
-    }
-    Ok(())
+    Err(Error::invalid_struct_size(what, got, core::mem::size_of::<T>()))
 }
 
 /// Read an input descriptor, copying only the `struct_size` bytes the caller
@@ -43,7 +40,7 @@ pub fn check_size<T>(what: &str, got: u32) -> Result<()> {
 /// # Safety
 /// `ptr` must be NULL or point to at least `struct_size` readable bytes whose
 /// first four bytes are the `struct_size` field.
-pub unsafe fn read_sized<T: Copy>(ptr: *const T, what: &str) -> Result<T> {
+pub unsafe fn read_sized<T: Copy + turbo_abi::Versioned>(ptr: *const T, what: &str) -> Result<T> {
     if ptr.is_null() {
         return Err(Error::invalid_argument(format!("{what} is NULL")));
     }
@@ -740,10 +737,20 @@ mod tests {
     }
 
     #[test]
-    fn size_check_accepts_older_smaller_sizes_only() {
-        assert!(check_size::<abi::turbo_span>("s", 4).is_ok());
-        assert!(check_size::<abi::turbo_span>("s", 3).is_err());
-        assert!(check_size::<abi::turbo_span>("s", 1000).is_err());
+    fn size_check_accepts_field_boundaries_only() {
+        use std::mem::{offset_of, size_of};
+        // Current size and every earlier field end are known layouts.
+        assert!(check_size::<abi::turbo_embed_options>("o", size_of::<abi::turbo_embed_options>() as u32).is_ok());
+        assert!(check_size::<abi::turbo_embed_options>("o", offset_of!(abi::turbo_embed_options, max_tokens) as u32)
+            .is_ok());
+        // Too small, too large, or ending inside a field: rejected.
+        assert!(check_size::<abi::turbo_embed_options>("o", 4).is_err());
+        assert!(check_size::<abi::turbo_embed_options>("o", 3).is_err());
+        assert!(check_size::<abi::turbo_embed_options>("o", 1000).is_err());
+        // Half a pointer: `stop` starts at 64; 68 lands inside it.
+        let stop = offset_of!(abi::turbo_generate_desc, stop) as u32;
+        assert!(check_size::<abi::turbo_generate_desc>("g", stop).is_ok());
+        assert!(check_size::<abi::turbo_generate_desc>("g", stop + 4).is_err());
     }
 
     #[test]

@@ -48,9 +48,13 @@ struct ExportModel {
 
 struct ExportSession {
     inner: Box<dyn ProviderSession>,
-    // Kept alive and stable until the next run.
+    // Kept alive and stable until the next run. Output buffer handles use
+    // the same representation as allocated buffers (`*const Arc<dyn
+    // ProviderBuffer>`), boxed so their address is stable while the result
+    // is outstanding; the core never releases these borrowed handles.
     outputs: Vec<abi::turbo_provider_output>,
-    keep: Vec<Arc<dyn ProviderBuffer>>,
+    #[allow(clippy::vec_box)] // the Box gives each handle a stable address
+    keep: Vec<Box<Arc<dyn ProviderBuffer>>>,
     names: Vec<Arc<str>>,
     spans: Vec<abi::turbo_span>,
 }
@@ -566,11 +570,12 @@ unsafe extern "C" fn x_session_run(
             if output.shape.len() > abi::TURBO_MAX_RANK {
                 return Err(Error::internal(format!("output {i} has rank {}", output.shape.len())));
             }
-            // Borrowed handle: the exporter keeps the Arc alive in `keep`;
-            // the core never releases borrowed output buffers.
-            s.keep.push(output.buffer.clone());
+            // Borrowed handle: the exporter keeps the boxed Arc alive in
+            // `keep`; `buf()` reads it back as `*const Arc<dyn ProviderBuffer>`.
+            let boxed: Box<Arc<dyn ProviderBuffer>> = Box::new(output.buffer.clone());
+            let handle = (&*boxed as *const Arc<dyn ProviderBuffer>).cast_mut().cast::<c_void>();
+            s.keep.push(boxed);
             s.names.push(output.name.clone());
-            let handle = Arc::as_ptr(s.keep.last().unwrap()) as *mut c_void;
             let mut shape = [0u64; abi::TURBO_MAX_RANK];
             shape[..output.shape.len()].copy_from_slice(&output.shape);
             s.outputs.push(abi::turbo_provider_output {

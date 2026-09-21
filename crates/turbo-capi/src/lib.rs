@@ -19,7 +19,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use turbo_abi::*;
-use turbo_core::abi_convert::read_sized;
+use turbo_core::abi_convert::{read_sized, write_sized};
 use turbo_core::buffer::{BufferDesc, NativeHandle};
 use turbo_core::chunker::{chunk_source, ChunkError, ChunkPlan, ChunkerConfig};
 use turbo_core::handles::{Buffer, Context, Generation, Model, ResultHandle, Session};
@@ -112,19 +112,16 @@ fn boundary(err: *mut turbo_error, f: impl FnOnce() -> Result<()>) -> i32 {
     }
 }
 
-/// Check that a descriptor's `struct_size` is a size this library understands.
-/// Accepts the exact current size, or any size >= 4 that is <= current
-/// (older callers); larger sizes are rejected because unknown fields would
-/// be silently ignored.
-fn check_size<T>(what: &str, got: u32) -> Result<()> {
-    let expected = std::mem::size_of::<T>();
-    if got as usize == expected {
+/// Check that a descriptor's `struct_size` is a layout this library
+/// understands: the current size, or the end of an earlier field (an older
+/// caller's layout; see [`turbo_abi::Versioned`]). Any other value is
+/// `TURBO_E_INVALID_STRUCT_SIZE`, since a prefix ending inside a field could
+/// hand the library half a pointer or half a count.
+fn check_size<T: turbo_abi::Versioned>(what: &str, got: u32) -> Result<()> {
+    if T::size_is_known(got) {
         return Ok(());
     }
-    if (got as usize) < 4 || (got as usize) > expected {
-        return Err(Error::invalid_struct_size(what, got, expected));
-    }
-    Ok(())
+    Err(Error::invalid_struct_size(what, got, core::mem::size_of::<T>()))
 }
 
 /// Borrow a `turbo_text` as `&str`, validating UTF-8.
@@ -604,8 +601,8 @@ unsafe fn buffer_desc(desc: *const turbo_buffer_desc) -> Result<(BufferDesc, Opt
     let native = if d.next.is_null() {
         None
     } else {
-        let h = unsafe { &*(d.next as *const turbo_native_handle) };
-        check_size::<turbo_native_handle>("turbo_native_handle", h.struct_size)?;
+        let h =
+            unsafe { read_sized::<turbo_native_handle>(d.next as *const turbo_native_handle, "turbo_native_handle") }?;
         Some(NativeHandle { kind: HandleKind::from_abi(h.kind)?, handle: h.handle, aux: h.aux, offset: h.offset })
     };
     Ok((bd, native))
@@ -737,13 +734,19 @@ pub unsafe extern "C" fn turbo_buffer_export(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_native_handle>("turbo_native_handle", o.struct_size)?;
+        // SAFETY: `out` is non-null; only its leading `struct_size` field is read here.
+        let size = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_native_handle>("turbo_native_handle", size)?;
         let h = b.export(HandleKind::from_abi(kind)?)?;
-        o.kind = h.kind.as_abi();
-        o.handle = h.handle;
-        o.aux = h.aux;
-        o.offset = h.offset;
+        let full = turbo_native_handle {
+            struct_size: size,
+            kind: h.kind.as_abi(),
+            handle: h.handle,
+            aux: h.aux,
+            offset: h.offset,
+        };
+        // SAFETY: `size` was validated and `out` is writable for that many bytes.
+        unsafe { write_sized(&full, out, size) };
         Ok(())
     })
 }
@@ -1886,7 +1889,10 @@ mod tests {
     fn struct_size_larger_than_known_is_rejected() {
         let e = check_size::<turbo_embed_options>("x", 4096).unwrap_err();
         assert_eq!(e.code(), TURBO_E_INVALID_STRUCT_SIZE);
+        // 8 is the end of `truncate`: a layout an older caller could hold.
         check_size::<turbo_embed_options>("x", 8).unwrap();
+        // 6 ends inside `truncate`: never a layout.
+        assert_eq!(check_size::<turbo_embed_options>("x", 6).unwrap_err().code(), TURBO_E_INVALID_STRUCT_SIZE);
     }
 
     #[test]

@@ -505,6 +505,10 @@ impl Session {
         }
     }
 
+    /// Must be called with the session lock held: the lease is set inside
+    /// `run` under the same lock, so a check under the lock cannot race a
+    /// concurrent run. (A `ResultHandle` drop clears it without the lock,
+    /// which only ever turns a refusal into an acceptance.)
     fn require_no_lease(&self) -> Result<()> {
         if self.lease.load(Ordering::Acquire) {
             return Err(Error::busy(
@@ -528,8 +532,8 @@ impl Session {
     pub fn write_text(&self, texts: &[&str], opts: &EmbedOptions) -> Result<()> {
         self.model.validate_embed(opts)?;
         self.check_batch(texts.len())?;
-        self.require_no_lease()?;
         let mut st = self.lock()?;
+        self.require_no_lease()?;
         st.inputs_ready = false;
         st.inner.write_text(texts, opts)?;
         st.inputs_ready = true;
@@ -557,8 +561,8 @@ impl Session {
                 batch.seq, self.desc.max_seq
             )));
         }
-        self.require_no_lease()?;
         let mut st = self.lock()?;
+        self.require_no_lease()?;
         st.inputs_ready = false;
         st.inner.write_tokens(batch)?;
         st.inputs_ready = true;
@@ -578,8 +582,8 @@ impl Session {
             ))
             .with_field(RerankOptions::FIELD_TOP_N));
         }
-        self.require_no_lease()?;
         let mut st = self.lock()?;
+        self.require_no_lease()?;
         st.inputs_ready = false;
         st.inner.write_pairs(query, docs, opts)?;
         st.inputs_ready = true;
@@ -591,8 +595,8 @@ impl Session {
     pub fn write_text_classify(&self, texts: &[&str], opts: &ClassifyOptions) -> Result<()> {
         self.model.validate_classify(opts)?;
         self.check_batch(texts.len())?;
-        self.require_no_lease()?;
         let mut st = self.lock()?;
+        self.require_no_lease()?;
         st.inputs_ready = false;
         st.inner.write_text_classify(texts, opts)?;
         st.inputs_ready = true;
@@ -624,8 +628,8 @@ impl Session {
                 info.outputs.iter().map(|t| &t.name).collect::<Vec<_>>()
             )));
         }
-        self.require_no_lease()?;
         let mut st = self.lock()?;
+        self.require_no_lease()?;
         st.inner.bind(name, buffer.inner.clone())?;
         st.inputs_ready = true;
         st.written_task = Some(Task::Run);
@@ -634,8 +638,8 @@ impl Session {
 
     /// Execute and lease the result.
     pub fn run(self: &Arc<Self>, opts: &RunOptions) -> Result<Arc<ResultHandle>> {
-        self.require_no_lease()?;
         let mut st = self.lock()?;
+        self.require_no_lease()?;
         if !st.inputs_ready {
             return Err(Error::invalid_state("no valid inputs are written; call a write function before run"));
         }

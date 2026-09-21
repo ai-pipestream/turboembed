@@ -124,6 +124,29 @@ fn contract_struct_size_of_an_older_caller_is_accepted() {
 }
 
 #[test]
+fn contract_struct_size_inside_a_field_is_rejected() {
+    // A size that is not the end of any field never corresponded to a
+    // shipped layout. Accepting it would hand the library a truncated field:
+    // here 4 of the 8 bytes of the `stop` pointer, with `n_stop = 1`.
+    let f = Fixture::new();
+    let mut e = c::err();
+    let mut d: turbo_generate_desc = unsafe { std::mem::zeroed() };
+    d.struct_size = std::mem::offset_of!(turbo_generate_desc, stop) as u32 + 4;
+    d.n_stop = 1;
+    let stop = [c::text("x")];
+    d.stop = stop.as_ptr();
+    let mut g = ptr::null_mut();
+    // SAFETY: valid model handle; the descriptor is fully initialized.
+    assert_rc!(unsafe { turbo_generation_create(f.model, &d, &mut g, &mut e) }, TURBO_E_INVALID_STRUCT_SIZE, e);
+    assert!(g.is_null());
+    // The end of `n_stop` (before the pointer) is a real layout; then the
+    // pointer reads as NULL with a count of 1, which is an argument error,
+    // never a dereference.
+    d.struct_size = std::mem::offset_of!(turbo_generate_desc, stop) as u32;
+    assert_rc!(unsafe { turbo_generation_create(f.model, &d, &mut g, &mut e) }, TURBO_E_INVALID_ARGUMENT, e);
+}
+
+#[test]
 fn contract_fields_beyond_the_declared_struct_size_are_ignored() {
     // PLAN.md section 4.3 and the turbo-abi docs: "The library reads only
     // fields below the size the caller declared. Appended fields must have a
