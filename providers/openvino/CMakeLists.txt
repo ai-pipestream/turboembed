@@ -58,3 +58,26 @@ set_target_properties(turbo_provider_openvino PROPERTIES
 )
 
 install(TARGETS turbo_provider_openvino LIBRARY DESTINATION lib)
+
+# Vtable-level tests (src/../tests/provider_test.cpp). They dlopen the
+# library rather than link it, so the same binary can be pointed at another
+# build with TURBO_PROVIDER_LIB. Bundles come from the environment; see the
+# file header and docs/testing.md.
+enable_testing()
+
+add_executable(turbo_provider_openvino_test tests/provider_test.cpp)
+add_dependencies(turbo_provider_openvino_test turbo_provider_openvino)
+
+target_include_directories(turbo_provider_openvino_test PRIVATE ${TURBO_ROOT}/include)
+
+target_compile_definitions(turbo_provider_openvino_test PRIVATE
+    TURBO_PROVIDER_LIB_PATH="$<TARGET_FILE:turbo_provider_openvino>"
+)
+
+target_compile_options(turbo_provider_openvino_test PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic -Werror=return-type>
+)
+
+target_link_libraries(turbo_provider_openvino_test PRIVATE ${CMAKE_DL_LIBS})
+
+add_test(NAME provider_test COMMAND turbo_provider_openvino_test)

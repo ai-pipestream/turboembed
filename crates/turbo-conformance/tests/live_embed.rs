@@ -6,8 +6,9 @@
 //! FP32 provider is held to cosine 0.9995 against them.
 
 use turbo::abi;
-use turbo::{EmbedOptions, ModelDesc, Placement, SessionDesc, Truncate};
+use turbo::{DType, EmbedOptions, ModelDesc, OutputDType, Placement, SessionDesc, Truncate};
 use turbo_conformance::live::{bundle, cosine, live, reference_dir, Live};
+use turbo_conformance::read_f32;
 
 #[derive(serde::Deserialize)]
 struct Golden {
@@ -153,4 +154,212 @@ fn live_result_exports_a_native_handle_on_gpus() {
     assert_eq!(h.kind, kind);
     assert_ne!(h.handle, 0);
     assert_eq!(buffer.export(turbo::HandleKind::HostPtr).unwrap_err().code(), abi::TURBO_E_UNSUPPORTED);
+}
+
+#[test]
+fn live_output_dim_is_honored_only_for_the_bundle_truncate_dims() {
+    let Some((live, dir)) = setup() else { return };
+    let model = live.ctx.load_model(&dir, &ModelDesc::default()).unwrap();
+    let dim = model.info().dim;
+    let allowed = model.bundle().contract().truncate_dims.clone();
+    let session = model.create_session(&SessionDesc { max_batch: 1, max_seq: 32, ..Default::default() }).unwrap();
+    // A dimension the bundle does not list is never produced: the core
+    // rejects it as unsupported when the bit is clear and as an invalid
+    // argument when the bit is set, and names field 7 either way.
+    let absent = (1..dim).find(|d| !allowed.contains(d)).expect("a dimension the bundle does not list");
+    let e = session
+        .write_text(&["truncation check"], &EmbedOptions { output_dim: absent, ..Default::default() })
+        .unwrap_err();
+    let want = if live.has_cap(abi::TURBO_CAP_OPT_OUTPUT_DIM) {
+        abi::TURBO_E_INVALID_ARGUMENT
+    } else {
+        abi::TURBO_E_UNSUPPORTED_OPTION
+    };
+    assert_eq!(e.code(), want, "output_dim {absent} is not in truncate_dims {allowed:?}: {e}");
+    assert_eq!(e.field(), EmbedOptions::FIELD_OUTPUT_DIM, "the rejection names output_dim: {e}");
+    // The model's own dimension is always accepted; it is not a truncation.
+    session.write_text(&["truncation check"], &EmbedOptions { output_dim: dim, ..Default::default() }).unwrap();
+    let r = session.run(&Default::default()).unwrap();
+    assert_eq!(r.output(0).unwrap().shape, vec![1, dim as u64], "output_dim == dim is the full vector");
+    drop(r);
+    // A listed dimension, if the bundle has one, is produced exactly.
+    for d in allowed {
+        session.write_text(&["truncation check"], &EmbedOptions { output_dim: d, ..Default::default() }).unwrap();
+        let r = session.run(&Default::default()).unwrap();
+        assert_eq!(r.output(0).unwrap().shape, vec![1, d as u64], "a listed truncate_dim must be produced");
+    }
+}
+
+#[test]
+fn live_output_dtype_follows_the_capability_bit() {
+    let Some((live, dir)) = setup() else { return };
+    let model = live.ctx.load_model(&dir, &ModelDesc::default()).unwrap();
+    let session = model.create_session(&SessionDesc { max_batch: 1, max_seq: 32, ..Default::default() }).unwrap();
+    // MODEL and F32 name the same f32 result every provider here produces.
+    for dtype in [OutputDType::Model, OutputDType::F32] {
+        session
+            .write_text(&["dtype check"], &EmbedOptions { output_dtype: dtype, ..Default::default() })
+            .unwrap_or_else(|e| panic!("{dtype:?} is the model's own output dtype: {e}"));
+        let r = session.run(&Default::default()).unwrap();
+        assert_eq!(r.output(0).unwrap().dtype(), DType::F32, "{dtype:?} produces an f32 result");
+    }
+    for dtype in [OutputDType::F16, OutputDType::I8] {
+        let opts = EmbedOptions { output_dtype: dtype, ..Default::default() };
+        match session.write_text(&["dtype check"], &opts) {
+            Ok(()) => assert!(
+                live.has_cap(abi::TURBO_CAP_OPT_OUTPUT_DTYPE),
+                "{dtype:?} was honored without TURBO_CAP_OPT_OUTPUT_DTYPE"
+            ),
+            Err(e) => {
+                assert_eq!(e.code(), abi::TURBO_E_UNSUPPORTED_OPTION, "{dtype:?}: {e}");
+                assert_eq!(e.field(), EmbedOptions::FIELD_OUTPUT_DTYPE, "the rejection names output_dtype: {e}");
+            }
+        }
+    }
+}
+
+#[test]
+fn live_two_sessions_on_one_model_produce_the_same_vectors() {
+    let Some((live, dir)) = setup() else { return };
+    let texts = ["the first sentence", "an unrelated second sentence about gpus"];
+    let (expected, _, _) = embed(&live, &dir, &texts, &EmbedOptions::default(), 4);
+    let model = live.ctx.load_model(&dir, &ModelDesc::default()).unwrap();
+    let a = model.create_session(&SessionDesc { max_batch: 2, max_seq: 64, ..Default::default() }).unwrap();
+    let b = model.create_session(&SessionDesc { max_batch: 2, max_seq: 64, ..Default::default() }).unwrap();
+    // Interleaved so the second session runs both before and after the first.
+    for (label, session) in [("b", &b), ("a", &a), ("b again", &b)] {
+        session.write_text(&texts, &EmbedOptions::default()).expect("write");
+        let r = session.run(&Default::default()).unwrap();
+        let rows = read_f32(&r, 0);
+        for (i, want) in expected.iter().enumerate() {
+            let got = &rows[i * want.len()..(i + 1) * want.len()];
+            let c = cosine(got, want);
+            assert!(c > 0.9999, "session {label} row {i}: cosine {c} against the single-session vector");
+        }
+    }
+}
+
+#[test]
+fn live_a_batch_of_mixed_lengths_equals_the_single_runs() {
+    let Some((live, dir)) = setup() else { return };
+    // Eight rows from 3 to 200 tokens (single-piece words plus [CLS] and
+    // [SEP]), so the batch is padded to the longest row and every shorter
+    // row must still match its own run.
+    let lexicon = ["the", "cat", "sat", "on", "a", "mat", "and", "ran"];
+    let words = [1usize, 5, 13, 29, 61, 97, 148, 198];
+    let texts: Vec<String> =
+        words.iter().map(|&n| (0..n).map(|w| lexicon[w % lexicon.len()]).collect::<Vec<_>>().join(" ")).collect();
+    let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+    let (batched, _, _) = embed(&live, &dir, &refs, &EmbedOptions::default(), 8);
+    assert_eq!(batched.len(), refs.len(), "one vector per row");
+    for (i, text) in refs.iter().enumerate() {
+        let (single, _, _) = embed(&live, &dir, &[text], &EmbedOptions::default(), 1);
+        let c = cosine(&batched[i], &single[0]);
+        assert!(c > 0.9999, "row {i} ({} words): batched vs single cosine {c}", words[i]);
+    }
+}
+
+#[test]
+fn live_a_held_result_makes_a_run_on_another_thread_busy() {
+    let Some((live, dir)) = setup() else { return };
+    let model = live.ctx.load_model(&dir, &ModelDesc::default()).unwrap();
+    let session = model.create_session(&SessionDesc { max_batch: 1, max_seq: 32, ..Default::default() }).unwrap();
+    session.write_text(&["busy check"], &EmbedOptions::default()).unwrap();
+    // The lease is held for the whole of the other thread's attempt, so the
+    // outcome is decided by the contract, not by timing.
+    let result = session.run(&Default::default()).unwrap();
+    let barrier = std::sync::Barrier::new(2);
+    std::thread::scope(|scope| {
+        let session = &session;
+        let barrier = &barrier;
+        let other = scope.spawn(move || {
+            barrier.wait();
+            let run = session.run(&Default::default());
+            let write = session.write_text(&["x"], &EmbedOptions::default());
+            (run.err().map(|e| e.code()), write.err().map(|e| e.code()))
+        });
+        barrier.wait();
+        let (run, write) = other.join().expect("the other thread finished");
+        assert_eq!(run, Some(abi::TURBO_E_BUSY), "a run while a result is leased must be TURBO_E_BUSY");
+        assert_eq!(write, Some(abi::TURBO_E_BUSY), "a write while a result is leased must be TURBO_E_BUSY");
+    });
+    drop(result);
+    session.run(&Default::default()).expect("the session recovers once the lease is returned");
+}
+
+#[test]
+fn live_one_session_from_two_threads_is_busy_or_correct_never_wrong() {
+    let Some((live, dir)) = setup() else { return };
+    let text = "one session, two threads";
+    let (expected, _, _) = embed(&live, &dir, &[text], &EmbedOptions::default(), 1);
+    let model = live.ctx.load_model(&dir, &ModelDesc::default()).unwrap();
+    let session = model.create_session(&SessionDesc { max_batch: 1, max_seq: 32, ..Default::default() }).unwrap();
+    let barrier = std::sync::Barrier::new(2);
+    let outcomes: Vec<(usize, usize)> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..2)
+            .map(|_| {
+                let session = &session;
+                let barrier = &barrier;
+                let expected = &expected[0];
+                scope.spawn(move || {
+                    barrier.wait();
+                    let (mut ok, mut busy) = (0usize, 0usize);
+                    for _ in 0..20 {
+                        match session.write_text(&[text], &EmbedOptions::default()) {
+                            Ok(()) => {}
+                            Err(e) => {
+                                assert_eq!(e.code(), abi::TURBO_E_BUSY, "a concurrent write is BUSY or fine: {e}");
+                                busy += 1;
+                                continue;
+                            }
+                        }
+                        match session.run(&Default::default()) {
+                            Ok(r) => {
+                                let c = cosine(&read_f32(&r, 0), expected);
+                                assert!(c > 0.9999, "a run that succeeded returned a wrong vector (cosine {c})");
+                                ok += 1;
+                            }
+                            Err(e) => {
+                                assert_eq!(e.code(), abi::TURBO_E_BUSY, "a concurrent run is BUSY or fine: {e}");
+                                busy += 1;
+                            }
+                        }
+                    }
+                    (ok, busy)
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().expect("thread")).collect()
+    });
+    let ok: usize = outcomes.iter().map(|o| o.0).sum();
+    let busy: usize = outcomes.iter().map(|o| o.1).sum();
+    eprintln!("two threads on one session: {ok} completed, {busy} rejected with TURBO_E_BUSY");
+    assert_eq!(ok + busy, 40, "every attempt either completed or was rejected");
+    assert!(ok > 0, "the session must still serve the thread that holds it");
+}
+
+#[test]
+fn live_host_pointer_import_follows_the_capability_bit() {
+    let Some(live) = live() else { return };
+    let mut mine: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+    let ptr = mine.as_mut_ptr();
+    let desc = turbo::BufferDesc::packed(Placement::Host, turbo::DType::F32, &[mine.len() as u64]).unwrap();
+    let handle = turbo::NativeHandle { kind: turbo::HandleKind::HostPtr, handle: ptr as u64, aux: 0, offset: 0 };
+    if !live.has_cap(abi::TURBO_CAP_HOST_PTR_IMPORT) {
+        let e = live.ctx.import(&desc, &handle).unwrap_err();
+        assert_eq!(e.code(), abi::TURBO_E_UNSUPPORTED, "the bit is clear, so the import must be refused");
+        return;
+    }
+    let buffer = live.ctx.import(&desc, &handle).expect("the bit is set, so the import is honored");
+    assert_eq!(buffer.host_ptr().expect("host placement").as_ptr() as u64, handle.handle, "import wraps the pointer");
+    // Nothing was copied: the caller still owns the memory, and a write
+    // through it is what a read of the buffer returns.
+    // SAFETY: `mine` outlives `buffer` and nothing else writes to it here.
+    unsafe { ptr.add(2).write(42.0) };
+    let mut back = vec![0u8; desc.bytes as usize];
+    buffer.read_to_host(&mut back).unwrap();
+    let floats: Vec<f32> = back.chunks(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect();
+    assert_eq!(floats, vec![1.0, 2.0, 42.0, 4.0]);
+    drop(buffer);
+    assert_eq!(mine[2], 42.0, "releasing an imported buffer must not free the caller's memory");
 }

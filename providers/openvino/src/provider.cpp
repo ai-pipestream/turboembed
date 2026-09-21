@@ -38,6 +38,10 @@
 #include <string>
 #include <vector>
 
+#if defined(__x86_64__) || defined(__i386__)
+#include <cpuid.h>
+#endif
+
 namespace turbo_ov {
 namespace op = ov::opset13;
 
@@ -105,6 +109,49 @@ const Device &device_at(uint32_t ordinal) {
     return s.devices[ordinal];
 }
 
+/// PCI vendor id and name of the host CPU, read from the CPU itself. An
+/// unrecognized vendor is reported as 0/"unknown" rather than guessed: the
+/// OpenVINO CPU plugin runs on AMD and on non-x86 hosts too.
+struct Vendor {
+    uint32_t id;
+    std::string name;
+};
+
+Vendor cpu_vendor() {
+#if defined(__x86_64__) || defined(__i386__)
+    unsigned eax = 0, ebx = 0, ecx = 0, edx = 0;
+    if (__get_cpuid(0, &eax, &ebx, &ecx, &edx) != 0) {
+        char id[13];
+        std::memcpy(id + 0, &ebx, 4);
+        std::memcpy(id + 4, &edx, 4);
+        std::memcpy(id + 8, &ecx, 4);
+        id[12] = '\0';
+        const std::string vendor(id);
+        if (vendor == "GenuineIntel") {
+            return Vendor{0x8086, "Intel"};
+        }
+        if (vendor == "AuthenticAMD") {
+            return Vendor{0x1022, "AMD"};
+        }
+        return Vendor{0, vendor.empty() ? std::string("unknown") : vendor};
+    }
+#endif
+    return Vendor{0, "unknown"};
+}
+
+/// `delete` at a vtable release entry. The release slots return void and
+/// run during teardown, so there is nowhere to report a failing clRelease;
+/// with CL_HPP_ENABLE_EXCEPTIONS a throwing `cl::Buffer`/`cl::Context`
+/// destructor would otherwise unwind out of `noexcept` and terminate the
+/// caller's process.
+template <typename T>
+void release(void *p) noexcept {
+    try {
+        delete static_cast<T *>(p);
+    } catch (...) {
+    }
+}
+
 constexpr uint64_t kCapsCommon = TURBO_CAP_DETERMINISTIC | TURBO_CAP_OPT_TRUNCATE | TURBO_CAP_OPT_MAX_TOKENS |
                                  TURBO_CAP_OPT_PROMPT_ROLE | TURBO_CAP_OPT_TOP_N | TURBO_CAP_OPT_AGGREGATION;
 
@@ -112,10 +159,13 @@ uint64_t caps_of(const Device &d) {
     if (d.kind == TURBO_DEVICE_NPU) {
         return 0;
     }
-    if (d.kind == TURBO_DEVICE_CPU) {
-        return kCapsCommon | TURBO_CAP_HOST_PTR_IMPORT;
+    // Host-pointer import is implemented for every device this provider
+    // serves (see `import_buffer`); only GPUs keep results device-resident.
+    uint64_t caps = kCapsCommon | TURBO_CAP_HOST_PTR_IMPORT;
+    if (d.kind != TURBO_DEVICE_CPU) {
+        caps |= TURBO_CAP_DEVICE_RESULT;
     }
-    return kCapsCommon | TURBO_CAP_DEVICE_RESULT;
+    return caps;
 }
 
 bool offers(const Device &d, uint32_t task, uint32_t modality) {
@@ -130,6 +180,51 @@ bool offers(const Device &d, uint32_t task, uint32_t modality) {
         return true;
     default:
         return false;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Option enumerations
+//
+// ABI enumerations are open `uint32_t` values. A value this provider does
+// not recognize is `TURBO_E_INVALID_ENUM` naming the 1-based field index; it
+// is never mapped to a default, because a caller that asked for something
+// this build does not know about must not silently get something else.
+// ---------------------------------------------------------------------------
+
+uint32_t checked_truncate(uint32_t v, uint32_t field) {
+    switch (v) {
+    case TURBO_TRUNCATE_MODEL:
+    case TURBO_TRUNCATE_NONE:
+    case TURBO_TRUNCATE_RIGHT:
+    case TURBO_TRUNCATE_LEFT:
+        return v;
+    default:
+        fail(TURBO_E_INVALID_ENUM, "truncate " + std::to_string(v) + " is not a TURBO_TRUNCATE_* value", field);
+    }
+}
+
+uint32_t checked_prompt_role(uint32_t v, uint32_t field) {
+    switch (v) {
+    case TURBO_PROMPT_NONE:
+    case TURBO_PROMPT_QUERY:
+    case TURBO_PROMPT_DOCUMENT:
+        return v;
+    default:
+        fail(TURBO_E_INVALID_ENUM, "prompt_role " + std::to_string(v) + " is not a TURBO_PROMPT_* value", field);
+    }
+}
+
+uint32_t checked_aggregation(uint32_t v, uint32_t field) {
+    switch (v) {
+    case TURBO_AGGREGATE_MODEL:
+    case TURBO_AGGREGATE_NONE:
+    case TURBO_AGGREGATE_SIMPLE:
+    case TURBO_AGGREGATE_FIRST:
+    case TURBO_AGGREGATE_MAX:
+        return v;
+    default:
+        fail(TURBO_E_INVALID_ENUM, "aggregation " + std::to_string(v) + " is not a TURBO_AGGREGATE_* value", field);
     }
 }
 
@@ -170,9 +265,12 @@ struct Buffer {
     cl::Buffer cl_buf;
     void *host = nullptr;
     uint64_t bytes = 0;
+    /// False for imported host pointers (the caller owns the memory) and for
+    /// the session's own result staging.
+    bool owns_host = true;
 
     ~Buffer() {
-        if (host != nullptr) {
+        if (host != nullptr && owns_host) {
             std::free(host);
         }
     }
@@ -218,9 +316,9 @@ uint64_t dtype_size(uint32_t dtype) {
     }
 }
 
-std::unique_ptr<Buffer> make_buffer(Context *ctx, const turbo_buffer_desc &in) {
-    auto b = std::make_unique<Buffer>();
-    b->ctx = ctx;
+/// Fill `b`'s descriptor from `in`, packing the shape when the caller
+/// declared no byte count, and return the byte count.
+uint64_t describe_into(Buffer *b, const turbo_buffer_desc &in) {
     b->desc = in;
     b->desc.next = nullptr;
     const uint64_t elem = dtype_size(in.dtype);
@@ -236,6 +334,13 @@ std::unique_ptr<Buffer> make_buffer(Context *ctx, const turbo_buffer_desc &in) {
     }
     b->bytes = bytes;
     b->desc.bytes = bytes;
+    return bytes;
+}
+
+std::unique_ptr<Buffer> make_buffer(Context *ctx, const turbo_buffer_desc &in) {
+    auto b = std::make_unique<Buffer>();
+    b->ctx = ctx;
+    const uint64_t bytes = describe_into(b.get(), in);
     require(bytes > 0, TURBO_E_INVALID_SHAPE, "zero-byte buffers are not allocated");
     switch (in.placement) {
     case TURBO_PLACE_HOST: {
@@ -254,6 +359,29 @@ std::unique_ptr<Buffer> make_buffer(Context *ctx, const turbo_buffer_desc &in) {
         fail(TURBO_E_UNSUPPORTED_PLACEMENT,
              "openvino provider supports TURBO_PLACE_HOST and TURBO_PLACE_DEVICE (GPU); PINNED and SHARED are not offered");
     }
+    return b;
+}
+
+/// Wrap caller memory (`TURBO_CAP_HOST_PTR_IMPORT`). The pointer is used as
+/// it is: nothing is copied and the caller keeps ownership, so the memory
+/// must outlive the buffer handle. Only host memory is imported; a device
+/// pointer would have to belong to this context's OpenCL context, which the
+/// provider cannot verify, so `TURBO_HANDLE_CL_MEM` is rejected here.
+std::unique_ptr<Buffer> import_buffer(Context *ctx, const turbo_buffer_desc &in, const turbo_native_handle &h) {
+    require(h.kind == TURBO_HANDLE_HOST_PTR, TURBO_E_UNSUPPORTED,
+            "openvino provider imports TURBO_HANDLE_HOST_PTR only; handle kind " + std::to_string(h.kind) +
+                " is not offered");
+    require(in.placement == TURBO_PLACE_HOST, TURBO_E_UNSUPPORTED_PLACEMENT,
+            "an imported host pointer is TURBO_PLACE_HOST; placement " + std::to_string(in.placement) +
+                " cannot describe caller memory");
+    require(h.offset == 0, TURBO_E_UNSUPPORTED, "openvino provider imports handles with offset 0 only");
+    require(h.handle != 0, TURBO_E_INVALID_ARGUMENT, "imported host pointer is NULL");
+    auto b = std::make_unique<Buffer>();
+    b->ctx = ctx;
+    const uint64_t bytes = describe_into(b.get(), in);
+    require(bytes > 0, TURBO_E_INVALID_SHAPE, "an imported buffer must describe at least one byte");
+    b->host = reinterpret_cast<void *>(static_cast<uintptr_t>(h.handle));
+    b->owns_host = false;
     return b;
 }
 
@@ -286,6 +414,7 @@ struct Model {
     uint32_t width = 0; // dim or n_labels
     uint32_t max_seq = 0;
     uint32_t max_batch = 0;
+    uint32_t aggregation = TURBO_AGGREGATE_SIMPLE; // what TURBO_AGGREGATE_MODEL resolves to
     wordpiece_vocab *vocab = nullptr;
     std::vector<std::string> labels;
 
@@ -429,6 +558,22 @@ std::unique_ptr<Model> load_model(Context *ctx, const std::string &dir, const st
         m->kind = Kind::TokenClassifier;
         require(!b.labels.empty(), TURBO_E_BUNDLE_INVALID, "token classifier bundle must declare labels");
         m->width = static_cast<uint32_t>(b.labels.size());
+        // contract.aggregation is what TURBO_AGGREGATE_MODEL resolves to. It
+        // names a strategy or is absent (then: simple); it cannot name
+        // `model` itself, and an unknown name is a broken bundle.
+        const std::string &a = b.aggregation;
+        if (a.empty() || a == "simple") {
+            m->aggregation = TURBO_AGGREGATE_SIMPLE;
+        } else if (a == "none") {
+            m->aggregation = TURBO_AGGREGATE_NONE;
+        } else if (a == "first") {
+            m->aggregation = TURBO_AGGREGATE_FIRST;
+        } else if (a == "max") {
+            m->aggregation = TURBO_AGGREGATE_MAX;
+        } else {
+            fail(TURBO_E_BUNDLE_INVALID,
+                 "contract.aggregation `" + a + "` must be none, simple, first, or max");
+        }
     } else {
         fail(TURBO_E_UNSUPPORTED_TASK, "openvino provider does not serve `" + b.kind + "` bundles (embedding, reranker, classifier, token_classifier)");
     }
@@ -615,23 +760,19 @@ struct Session {
             request.set_output_tensor(ov::Tensor(ov::element::f32, oshape, host_out.data()));
         }
         // Result buffer descriptors: output 0 (device on GPU, host on CPU), output 1 sorted (host).
+        // Both descriptors borrow memory this session owns.
         out_buf.ctx = &ctx;
         out_buf.device = ctx.gpu;
         out_buf.cl_buf = d_out;
         out_buf.host = ctx.gpu ? nullptr : host_out.data();
         out_buf.bytes = out_elems * 4;
+        out_buf.owns_host = false;
         sorted_buf.ctx = &ctx;
         sorted_buf.host = sorted.data();
         sorted_buf.bytes = static_cast<uint64_t>(b) * 4;
+        sorted_buf.owns_host = false;
         name0 = m->kind == Kind::Embedding ? "embeddings" : "scores";
         name1 = "sorted";
-    }
-
-    ~Session() {
-        // out_buf and sorted_buf borrow memory owned here; keep the Buffer
-        // destructor from freeing it.
-        out_buf.host = nullptr;
-        sorted_buf.host = nullptr;
     }
 
     uint32_t budget(uint32_t max_tokens) const {
@@ -710,47 +851,65 @@ struct Session {
             std::fill(types.begin() + base, types.begin() + base + seq, 0);
         }
         if (word_spans != nullptr) {
-            // Word boundaries for span aggregation: whitespace-delimited runs,
-            // each tokenized on its own so sub-token counts line up with the
-            // row (WordPiece never crosses whitespace).
-            word_spans->clear();
-            uint32_t tok = 1 + static_cast<uint32_t>(n_prefix);
-            const char *p = text.ptr;
-            const size_t len = static_cast<size_t>(text.len);
-            size_t i = 0;
-            size_t seen = 0;
-            auto is_punct = [](unsigned char c) {
-                return (c >= 33 && c <= 47) || (c >= 58 && c <= 64) || (c >= 91 && c <= 96) || (c >= 123 && c <= 126);
-            };
-            while (i < len) {
-                while (i < len && static_cast<unsigned char>(p[i]) <= ' ') {
+            collect_words(word_spans, text, n_prefix, skip, take);
+        }
+    }
+
+    /// Word boundaries for span aggregation, in row columns.
+    ///
+    /// Words are whitespace-delimited runs with each ASCII punctuation
+    /// character its own word, each tokenized on its own so the sub-token
+    /// counts line up with the row (WordPiece never crosses whitespace or
+    /// punctuation).
+    ///
+    /// The row holds the text tokens `[skip, skip + take)` at the columns
+    /// `[1 + n_prefix, 1 + n_prefix + take)`. A word whose sub-tokens only
+    /// partly fall inside that window - truncation cut it in half, on either
+    /// end - is dropped, not clipped: its label would otherwise be read from
+    /// a fragment, and a clipped count would no longer describe the word.
+    /// Every emitted span therefore satisfies
+    /// `first_token + n_tokens <= 1 + n_prefix + take`, which is inside the
+    /// row's live tokens, so aggregation never reads past the row.
+    void collect_words(std::vector<WordSpan> *out, turbo_text text, size_t n_prefix, size_t skip, size_t take) const {
+        out->clear();
+        const wordpiece_vocab *v = model->vocab;
+        const char *p = text.ptr;
+        const size_t len = static_cast<size_t>(text.len);
+        const size_t first_col = 1 + n_prefix;
+        auto is_punct = [](unsigned char c) {
+            return (c >= 33 && c <= 47) || (c >= 58 && c <= 64) || (c >= 91 && c <= 96) || (c >= 123 && c <= 126);
+        };
+        size_t i = 0;
+        size_t seen = 0; // text tokens before this word
+        while (i < len) {
+            while (i < len && static_cast<unsigned char>(p[i]) <= ' ') {
+                ++i;
+            }
+            if (i >= len) {
+                break;
+            }
+            const size_t start = i;
+            if (is_punct(static_cast<unsigned char>(p[i]))) {
+                ++i; // one punctuation character is one word
+            } else {
+                while (i < len && static_cast<unsigned char>(p[i]) > ' ' && !is_punct(static_cast<unsigned char>(p[i]))) {
                     ++i;
                 }
-                if (i >= len) {
-                    break;
-                }
-                const size_t start = i;
-                if (is_punct(static_cast<unsigned char>(p[i]))) {
-                    ++i; // one punctuation character is one word
-                } else {
-                    while (i < len && static_cast<unsigned char>(p[i]) > ' ' && !is_punct(static_cast<unsigned char>(p[i]))) {
-                        ++i;
-                    }
-                }
-                size_t nw = 0;
-                require(wordpiece_tokenize(v, p + start, i - start, nullptr, 0, 4, &nw) == WORDPIECE_OK, TURBO_E_INTERNAL, "word tokenization failed");
-                // Skip words consumed by left truncation; stop at the right budget.
-                if (seen + nw <= skip) {
-                    seen += nw;
-                    continue;
-                }
-                if (seen >= skip + take) {
-                    break;
-                }
-                word_spans->push_back(WordSpan{start, i, tok, static_cast<uint32_t>(nw)});
-                tok += static_cast<uint32_t>(nw);
-                seen += nw;
             }
+            size_t nw = 0;
+            require(wordpiece_tokenize(v, p + start, i - start, nullptr, 0, 4, &nw) == WORDPIECE_OK, TURBO_E_INTERNAL,
+                    "word tokenization failed");
+            if (nw == 0) {
+                continue; // the normalizer dropped it; it occupies no column
+            }
+            if (seen >= skip + take) {
+                break; // this word and every later one are past the right edge
+            }
+            if (seen >= skip && seen + nw <= skip + take) {
+                out->push_back(
+                    WordSpan{start, i, static_cast<uint32_t>(first_col + (seen - skip)), static_cast<uint32_t>(nw)});
+            }
+            seen += nw;
         }
     }
 
@@ -821,7 +980,11 @@ struct Session {
             std::iota(sorted.begin(), sorted.begin() + n_rows, 0);
             const float *s = host_out.data();
             std::stable_sort(sorted.begin(), sorted.begin() + n_rows, [s](int32_t a, int32_t b) { return s[a] > s[b]; });
-            const uint32_t k = ropts.top_n == 0 ? n_rows : ropts.top_n;
+            // top_n is a request for at most k of the rows that were
+            // written; a larger k would publish indices the sort never
+            // touched. The core rejects top_n > rows before this point, so
+            // the clamp only guards a caller that drives the vtable itself.
+            const uint32_t k = ropts.top_n == 0 ? n_rows : std::min(ropts.top_n, n_rows);
             outputs[1] = turbo_provider_output{};
             outputs[1].struct_size = sizeof(turbo_provider_output);
             outputs[1].name = turbo_text{name1.data(), name1.size()};
@@ -861,18 +1024,36 @@ struct Session {
         return label;
     }
 
+    /// Word-aligned span aggregation over the fused per-token softmax.
+    ///
+    /// The word's label is the first sub-token's (`SIMPLE` and `FIRST`: both
+    /// are word-aligned here, so they agree by construction) or the
+    /// highest-scoring sub-token's (`MAX`). Consecutive words carrying the
+    /// same entity merge unless a `B-`/`U-`/`S-` tag starts a new one, and a
+    /// group's score is the mean of its word scores. Spans are word-aligned:
+    /// an entity change inside one word is not representable, which is where
+    /// `SIMPLE` differs from Hugging Face's token-level grouping. The same
+    /// rules run in the CUDA provider's `aggregate_spans`.
     void aggregate_spans() {
-        uint32_t agg = copts.aggregation;
-        if (agg == TURBO_AGGREGATE_MODEL) {
-            const std::string &a = model->bundle.aggregation;
-            agg = a == "none" ? TURBO_AGGREGATE_NONE : a == "first" ? TURBO_AGGREGATE_FIRST : a == "max" ? TURBO_AGGREGATE_MAX : TURBO_AGGREGATE_SIMPLE;
-        }
+        const uint32_t agg = copts.aggregation == TURBO_AGGREGATE_MODEL ? model->aggregation : copts.aggregation;
         const auto &labels = model->labels;
         for (uint32_t r = 0; r < n_rows; ++r) {
             std::optional<turbo_span> open;
             std::string open_entity;
+            float open_sum = 0.0f;
+            uint32_t open_words = 0;
+            auto close = [&] {
+                open->score = open_sum / static_cast<float>(open_words);
+                spans.push_back(*open);
+                open.reset();
+            };
             for (const WordSpan &w : words[r]) {
-                // Word label: first sub-token, or the highest-scoring sub-token.
+                // encode_row drops every word that truncation cut, so this
+                // holds by construction; a violation would read another
+                // row's logits, so it is an error, not a silent skip.
+                require(w.first_token + w.n_tokens <= seq, TURBO_E_INTERNAL,
+                        "word span at column " + std::to_string(w.first_token) + " spans " +
+                            std::to_string(w.n_tokens) + " tokens but the row holds " + std::to_string(seq));
                 float score = 0.0f;
                 uint32_t label = token_label(r, w.first_token, &score);
                 if (agg == TURBO_AGGREGATE_MAX) {
@@ -895,25 +1076,25 @@ struct Session {
                 }
                 const std::string entity = entity_of(name);
                 const bool begins = name.size() > 1 && (name[0] == 'B' || name[0] == 'U' || name[0] == 'S') && name[1] == '-';
-                if (outside || (open && (entity != open_entity || begins))) {
-                    if (open) {
-                        spans.push_back(*open);
-                        open.reset();
-                    }
+                if (open && (outside || entity != open_entity || begins)) {
+                    close();
                 }
                 if (outside) {
                     continue;
                 }
                 if (open) {
                     open->byte_end = w.end;
-                    open->score = std::min(open->score, score);
+                    open_sum += score;
+                    ++open_words;
                 } else {
                     open = turbo_span{w.start, w.end, r, label, score, 0};
                     open_entity = entity;
+                    open_sum = score;
+                    open_words = 1;
                 }
             }
             if (open) {
-                spans.push_back(*open);
+                close();
             }
         }
     }
@@ -922,6 +1103,16 @@ struct Session {
 // ---------------------------------------------------------------------------
 // Vtable functions
 // ---------------------------------------------------------------------------
+
+/// Copy `full` into the caller's `out`, keeping the caller's declared
+/// `struct_size`: the caller said how much of the struct it understands, and
+/// overwriting that field with this build's size would tell it to read
+/// fields it never allocated.
+template <typename T>
+void write_sized(T *out, T full) {
+    full.struct_size = out->struct_size;
+    std::memcpy(out, &full, out->struct_size);
+}
 
 extern "C" {
 
@@ -942,8 +1133,11 @@ static int32_t x_device_info(void *, uint32_t ordinal, turbo_device_info *out, t
         full.struct_size = out->struct_size;
         full.kind = d.kind;
         full.ordinal = d.ordinal;
-        full.vendor_id = 0x8086;
         full.caps = caps_of(d);
+        // The CPU plugin runs on whatever CPU the host has, so the vendor is
+        // read from the CPU; a GPU reports the OpenCL device's vendor. Only
+        // the NPU plugin is Intel silicon by construction.
+        Vendor vendor = d.kind == TURBO_DEVICE_NPU ? Vendor{0x8086, "Intel"} : cpu_vendor();
         std::string name;
         try {
             name = core.get_property(d.ov_name, ov::device::full_name);
@@ -961,14 +1155,23 @@ static int32_t x_device_info(void *, uint32_t ordinal, turbo_device_info *out, t
                 cl::Context c(shared.get(), true);
                 const auto devs = c.getInfo<CL_CONTEXT_DEVICES>();
                 if (!devs.empty()) {
-                    put_str(full.driver_version, cl::Device(devs.front()).getInfo<CL_DRIVER_VERSION>());
+                    const cl::Device cl_dev(devs.front());
+                    put_str(full.driver_version, cl_dev.getInfo<CL_DRIVER_VERSION>());
+                    // OpenCL string properties carry their terminator.
+                    std::string cl_vendor = cl_dev.getInfo<CL_DEVICE_VENDOR>();
+                    while (!cl_vendor.empty() && cl_vendor.back() == '\0') {
+                        cl_vendor.pop_back();
+                    }
+                    vendor = Vendor{cl_dev.getInfo<CL_DEVICE_VENDOR_ID>(), cl_vendor};
                 }
             } catch (const std::exception &e) {
                 put_str(full.driver_version, std::string("unavailable: ") + e.what());
+                vendor = Vendor{0, "unknown"};
             }
         }
+        full.vendor_id = vendor.id;
         put_str(full.name, name + " (" + d.ov_name + ")");
-        put_str(full.vendor, std::string("Intel"));
+        put_str(full.vendor, vendor.name);
         put_str(full.provider_id, std::string("openvino"));
         put_str(full.provider_version, std::string("2.0.0-alpha.0"));
         put_str(full.runtime_version, std::string(ov::get_openvino_version().buildNumber));
@@ -1025,7 +1228,7 @@ static int32_t x_context_create(void *, uint32_t ordinal, const turbo_context_de
     });
 }
 
-static void x_context_release(void *ctx) { delete static_cast<Context *>(ctx); }
+static void x_context_release(void *ctx) { release<Context>(ctx); }
 
 static int32_t x_buffer_alloc(void *ctx, const turbo_buffer_desc *desc, turbo_provider_buffer *out, turbo_error *err) {
     return boundary(err, [&] {
@@ -1033,8 +1236,21 @@ static int32_t x_buffer_alloc(void *ctx, const turbo_buffer_desc *desc, turbo_pr
         check_size<turbo_buffer_desc>("turbo_buffer_desc", desc->struct_size);
         check_size<turbo_provider_buffer>("turbo_provider_buffer", out->struct_size);
         auto b = make_buffer(static_cast<Context *>(ctx), *desc);
-        const turbo_provider_buffer full = describe(b.get());
-        std::memcpy(out, &full, out->struct_size);
+        write_sized(out, describe(b.get()));
+        b.release();
+    });
+}
+
+static int32_t x_buffer_import(void *ctx, const turbo_buffer_desc *desc, const turbo_native_handle *handle,
+                               turbo_provider_buffer *out, turbo_error *err) {
+    return boundary(err, [&] {
+        require(ctx != nullptr && desc != nullptr && handle != nullptr && out != nullptr, TURBO_E_INVALID_ARGUMENT,
+                "NULL argument");
+        check_size<turbo_buffer_desc>("turbo_buffer_desc", desc->struct_size);
+        check_size<turbo_native_handle>("turbo_native_handle", handle->struct_size);
+        check_size<turbo_provider_buffer>("turbo_provider_buffer", out->struct_size);
+        auto b = import_buffer(static_cast<Context *>(ctx), *desc, *handle);
+        write_sized(out, describe(b.get()));
         b.release();
     });
 }
@@ -1072,7 +1288,7 @@ static int32_t x_buffer_export(void *buf, uint32_t kind, turbo_native_handle *ou
     });
 }
 
-static void x_buffer_release(void *buf) { delete static_cast<Buffer *>(buf); }
+static void x_buffer_release(void *buf) { release<Buffer>(buf); }
 
 static int32_t x_model_load(void *ctx, turbo_text bundle_dir, const turbo_model_desc *desc, void **out, turbo_error *err) {
     return boundary(err, [&] {
@@ -1108,7 +1324,7 @@ static int32_t x_model_label(void *model, uint32_t index, turbo_text *out, turbo
     });
 }
 
-static void x_model_release(void *model) { delete static_cast<Model *>(model); }
+static void x_model_release(void *model) { release<Model>(model); }
 
 static int32_t x_session_create(void *model, const turbo_session_desc *desc, void **out, turbo_error *err) {
     return boundary(err, [&] {
@@ -1139,6 +1355,8 @@ static int32_t x_session_write_text(void *s, const turbo_text *texts, uint32_t c
             check_size<turbo_embed_options>("turbo_embed_options", opts->struct_size);
             std::memcpy(&o, opts, std::min<size_t>(opts->struct_size, sizeof(o)));
         }
+        checked_truncate(o.truncate, 2);
+        checked_prompt_role(o.prompt_role, 4);
         S.eopts = o;
         const uint32_t budget = S.budget(o.max_tokens);
         const std::string &prefix = o.prompt_role == TURBO_PROMPT_QUERY ? S.model->bundle.prefix_query
@@ -1196,14 +1414,34 @@ static int32_t x_session_write_pairs(void *s, const turbo_text *query, const tur
             std::memcpy(&o, opts, std::min<size_t>(opts->struct_size, sizeof(o)));
         }
         require(o.raw_scores == 0 || S.model->activation == "none", TURBO_E_UNSUPPORTED_OPTION,
-                "raw_scores needs the activation outside the fused graph; not offered by the openvino provider", 6);
+                "raw_scores needs logits, but this bundle's `" + S.model->activation +
+                    "` activation is fused into the compiled graph and the openvino provider compiles one graph per "
+                    "session",
+                6);
         S.ropts = o;
         const uint32_t budget = S.budget(o.max_tokens);
-        uint32_t trunc = WORDPIECE_TRUNC_LONGEST_FIRST;
-        if (o.truncate == TURBO_TRUNCATE_NONE) {
+        // Pair truncation policies, mapped one to one onto the packer:
+        // MODEL is the tokenizer's own longest-first rule, RIGHT truncates
+        // from the right of the pair, which for a cross-encoder means the
+        // query is kept whole and the document is cut, NONE fails instead of
+        // dropping tokens, and LEFT has no packer equivalent (it would drop
+        // the [CLS] and the query) so it is rejected naming the field.
+        uint32_t trunc = 0;
+        switch (checked_truncate(o.truncate, 2)) {
+        case TURBO_TRUNCATE_MODEL:
+            trunc = WORDPIECE_TRUNC_LONGEST_FIRST;
+            break;
+        case TURBO_TRUNCATE_RIGHT:
+            trunc = WORDPIECE_TRUNC_QUERY_PRIORITY;
+            break;
+        case TURBO_TRUNCATE_NONE:
             trunc = WORDPIECE_TRUNC_ERROR;
-        } else if (o.truncate == TURBO_TRUNCATE_LEFT) {
-            fail(TURBO_E_UNSUPPORTED_OPTION, "left truncation of query/document pairs is not supported", 2);
+            break;
+        default:
+            fail(TURBO_E_UNSUPPORTED_OPTION,
+                 "left truncation of query/document pairs is not offered: the packer truncates from the right of the "
+                 "pair only",
+                 2);
         }
         const std::string q = text_of(*query);
         for (uint32_t r = 0; r < count; ++r) {
@@ -1232,7 +1470,19 @@ static int32_t x_session_write_text_classify(void *s, const turbo_text *texts, u
             check_size<turbo_classify_options>("turbo_classify_options", opts->struct_size);
             std::memcpy(&o, opts, std::min<size_t>(opts->struct_size, sizeof(o)));
         }
-        require(o.raw_scores == 0, TURBO_E_UNSUPPORTED_OPTION, "raw_scores is not offered: the activation is fused into the graph", 5);
+        checked_truncate(o.truncate, 2);
+        checked_aggregation(o.aggregation, 4);
+        // The activation is fused into the compiled graph, so logits are
+        // only available when the bundle declares no activation at all.
+        require(o.raw_scores == 0 || (S.model->kind == Kind::Classifier && S.model->activation == "none"),
+                TURBO_E_UNSUPPORTED_OPTION,
+                S.model->kind == Kind::TokenClassifier
+                    ? std::string("raw_scores is not offered for token classification: the per-token softmax is fused "
+                                  "into the compiled graph")
+                    : "raw_scores needs logits, but this bundle's `" + S.model->activation +
+                          "` activation is fused into the compiled graph and the openvino provider compiles one graph "
+                          "per session",
+                5);
         S.copts = o;
         const uint32_t budget = S.budget(o.max_tokens);
         const bool want_words = S.model->kind == Kind::TokenClassifier;
@@ -1254,8 +1504,7 @@ static int32_t x_session_run(void *s, const turbo_run_options *opts, turbo_provi
             reject_unknown(options_of(opts->params, opts->n_params, "run"), {}, "openvino run");
         }
         require(S.n_rows > 0, TURBO_E_INVALID_STATE, "no inputs written");
-        const turbo_provider_result r = S.run();
-        std::memcpy(out, &r, out->struct_size);
+        write_sized(out, S.run());
     });
 }
 
@@ -1279,7 +1528,7 @@ static int32_t x_session_stats(void *s, turbo_session_stats *out, turbo_error *e
     });
 }
 
-static void x_session_release(void *s) { delete static_cast<Session *>(s); }
+static void x_session_release(void *s) { release<Session>(s); }
 
 static const turbo_provider_vtbl g_vtbl = {
     sizeof(turbo_provider_vtbl),
@@ -1294,7 +1543,7 @@ static const turbo_provider_vtbl g_vtbl = {
     x_context_create,
     x_context_release,
     x_buffer_alloc,
-    nullptr, // buffer_import: not offered
+    x_buffer_import,
     x_buffer_read,
     x_buffer_export,
     x_buffer_release,
