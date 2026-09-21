@@ -398,7 +398,8 @@ int32_t turbo_generate(turbo_model *m,
                        turbo_error *err);
 
 /**
- * Load a tokenizer from a bundle. Implemented in P1.
+ * Load the tokenizer a bundle declares (`tokenizer.files["tokenizer.json"]`).
+ * Tokenizers are thread-safe and independent of any device.
  */
 int32_t turbo_tokenizer_create(turbo_runtime *rt,
                                turbo_text bundle_path,
@@ -411,13 +412,76 @@ int32_t turbo_tokenizer_create(turbo_runtime *rt,
 void turbo_tokenizer_release(turbo_tokenizer *t);
 
 /**
- * Plan chunks over `text`. Implemented in P1.
+ * Static facts about a tokenizer.
+ */
+int32_t turbo_tokenizer_get_info(turbo_tokenizer *t,
+                                 turbo_tokenizer_info *out,
+                                 turbo_error *err);
+
+/**
+ * Encode `count` texts into caller-owned row-major `[count, row_stride]`
+ * arrays. Rows are padded with the pad id and mask 0 to `pad_to` (or to
+ * `row_stride` when `pad_to` is 0). `types` and `lengths` may be NULL;
+ * `lengths` receives each row's live token count. `opts` may be NULL.
+ */
+int32_t turbo_tokenizer_encode(turbo_tokenizer *t,
+                               const turbo_text *texts_ptr,
+                               uint32_t count,
+                               const turbo_encode_options *opts,
+                               int32_t *ids,
+                               int32_t *mask,
+                               int32_t *types,
+                               uint32_t row_stride,
+                               uint32_t *lengths,
+                               turbo_error *err);
+
+/**
+ * Decode `count` ids into `dst` (`capacity` bytes, not NUL-terminated).
+ * Writes the byte length to `written`; if `capacity` is too small, returns
+ * `TURBO_E_CAPACITY` with the required length in `written`.
+ */
+int32_t turbo_tokenizer_decode(turbo_tokenizer *t,
+                               const int32_t *ids,
+                               uint32_t count,
+                               uint32_t skip_special_tokens,
+                               char *dst,
+                               uint64_t capacity,
+                               uint64_t *written,
+                               turbo_error *err);
+
+/**
+ * Number of tokens `text` produces, without truncation or prefix.
+ */
+int32_t turbo_tokenizer_count(turbo_tokenizer *t,
+                              turbo_text text_in,
+                              uint32_t add_special_tokens,
+                              uint32_t *out,
+                              turbo_error *err);
+
+/**
+ * Plan chunks over `text` with `tokenizer` counting content tokens. The
+ * plan stores byte offsets only; the caller keeps the text.
  */
 int32_t turbo_chunk_plan_create(const turbo_chunk_desc *desc,
                                 turbo_text text_in,
                                 turbo_tokenizer *tokenizer,
                                 turbo_chunk_plan **out,
                                 turbo_error *err);
+
+/**
+ * Number of chunks in a plan.
+ */
+int32_t turbo_chunk_plan_count(turbo_chunk_plan *p,
+                               uint32_t *out,
+                               turbo_error *err);
+
+/**
+ * Chunk `index` of a plan.
+ */
+int32_t turbo_chunk_plan_get(turbo_chunk_plan *p,
+                             uint32_t index,
+                             turbo_chunk *out,
+                             turbo_error *err);
 
 /**
  * Release a chunk plan.

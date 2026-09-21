@@ -20,12 +20,14 @@ use std::sync::Arc;
 
 use turbo_abi::*;
 use turbo_core::buffer::{BufferDesc, NativeHandle};
+use turbo_core::chunker::{chunk_source, ChunkError, ChunkPlan, ChunkerConfig};
 use turbo_core::handles::{Buffer, Context, Generation, Model, ResultHandle, Session};
 use turbo_core::provider::{
     ClassifyOptions, ContextDesc, EmbedOptions, GenerateDesc, Message, ModelDesc, Options, RerankOptions, RunOptions,
     SessionDesc, TokenBatch,
 };
 use turbo_core::runtime::{DeviceSelector, LogLevel, Runtime, RuntimeDesc};
+use turbo_core::tokenizer::{EncodeOptions, EncodeTarget, Tokenizer};
 use turbo_core::types::{
     Aggregation, DeviceKind, HandleKind, Modality, Normalize, OutputDType, Pooling, PromptRole, SelectPolicy,
     StructuredKind, Task, Truncate,
@@ -1546,10 +1548,11 @@ pub unsafe extern "C" fn turbo_generate(
 }
 
 // ---------------------------------------------------------------------------
-// Tokenizer and chunker (declared; implemented in P1)
+// Tokenizer and chunker
 // ---------------------------------------------------------------------------
 
-/// Load a tokenizer from a bundle. Implemented in P1.
+/// Load the tokenizer a bundle declares (`tokenizer.files["tokenizer.json"]`).
+/// Tokenizers are thread-safe and independent of any device.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_tokenizer_create(
     rt: *mut turbo_runtime,
@@ -1558,21 +1561,211 @@ pub unsafe extern "C" fn turbo_tokenizer_create(
     err: *mut turbo_error,
 ) -> i32 {
     boundary(err, || {
-        let _ = unsafe { out_ptr(out, "turbo_tokenizer_create") }?;
+        let out = unsafe { out_ptr(out, "turbo_tokenizer_create") }?;
         let _ = unsafe { handle(rt as *const Runtime, "turbo_runtime") }?;
-        let _ = unsafe { text(&bundle_path, "bundle_path") }?;
-        Err(Error::not_implemented("turbo_tokenizer_create"))
+        let path = unsafe { text(&bundle_path, "bundle_path") }?;
+        if path.is_empty() {
+            return Err(Error::invalid_argument("bundle_path is empty"));
+        }
+        let bundle = turbo_core::Bundle::open(Path::new(path))?;
+        let t = Tokenizer::from_bundle(&bundle)?;
+        *out = leak(t) as *mut turbo_tokenizer;
+        Ok(())
     })
 }
 
 /// Release a tokenizer.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_tokenizer_release(t: *mut turbo_tokenizer) {
-    // No tokenizer can exist yet; a non-NULL pointer here is a caller bug.
-    debug_assert!(t.is_null(), "turbo_tokenizer_release called before tokenizers exist");
+    unsafe { reclaim(t as *mut Tokenizer) };
 }
 
-/// Plan chunks over `text`. Implemented in P1.
+/// Static facts about a tokenizer.
+#[no_mangle]
+pub unsafe extern "C" fn turbo_tokenizer_get_info(
+    t: *mut turbo_tokenizer,
+    out: *mut turbo_tokenizer_info,
+    err: *mut turbo_error,
+) -> i32 {
+    boundary(err, || {
+        let t = unsafe { handle(t as *const Tokenizer, "turbo_tokenizer") }?;
+        if out.is_null() {
+            return Err(Error::invalid_argument("out is NULL"));
+        }
+        let o = unsafe { &mut *out };
+        check_size::<turbo_tokenizer_info>("turbo_tokenizer_info", o.struct_size)?;
+        let i = t.info();
+        let mut full = turbo_tokenizer_info {
+            struct_size: o.struct_size,
+            vocab_size: i.vocab_size,
+            max_seq: i.max_seq,
+            specials_per_sequence: i.specials_per_sequence,
+            pad_id: i.pad_id.unwrap_or(-1),
+            bos_id: i.bos_id.unwrap_or(-1),
+            eos_id: i.eos_id.unwrap_or(-1),
+            unk_id: i.unk_id.unwrap_or(-1),
+            kind: [0; 32],
+            sha256: [0; 72],
+        };
+        put_str(&mut full.kind, &i.kind);
+        put_str(&mut full.sha256, &i.sha256);
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                (&full as *const turbo_tokenizer_info).cast::<u8>(),
+                out.cast::<u8>(),
+                o.struct_size as usize,
+            )
+        };
+        Ok(())
+    })
+}
+
+unsafe fn encode_options(opts: *const turbo_encode_options) -> Result<EncodeOptions> {
+    if opts.is_null() {
+        return Ok(EncodeOptions::default());
+    }
+    let o = unsafe { &*opts };
+    check_size::<turbo_encode_options>("turbo_encode_options", o.struct_size)?;
+    Ok(EncodeOptions {
+        add_special_tokens: match o.add_special_tokens {
+            0 => false,
+            1 => true,
+            v => {
+                return Err(Error::invalid_argument(format!("add_special_tokens must be 0 or 1, got {v}")).with_field(2))
+            }
+        },
+        truncate: Truncate::from_abi(o.truncate).map_err(|e| e.with_field(3))?,
+        max_tokens: o.max_tokens,
+        pad_to: o.pad_to,
+        prompt_role: PromptRole::from_abi(o.prompt_role).map_err(|e| e.with_field(6))?,
+    })
+}
+
+/// Encode `count` texts into caller-owned row-major `[count, row_stride]`
+/// arrays. Rows are padded with the pad id and mask 0 to `pad_to` (or to
+/// `row_stride` when `pad_to` is 0). `types` and `lengths` may be NULL;
+/// `lengths` receives each row's live token count. `opts` may be NULL.
+#[no_mangle]
+pub unsafe extern "C" fn turbo_tokenizer_encode(
+    t: *mut turbo_tokenizer,
+    texts_ptr: *const turbo_text,
+    count: u32,
+    opts: *const turbo_encode_options,
+    ids: *mut i32,
+    mask: *mut i32,
+    types: *mut i32,
+    row_stride: u32,
+    lengths: *mut u32,
+    err: *mut turbo_error,
+) -> i32 {
+    boundary(err, || {
+        let t = unsafe { handle(t as *const Tokenizer, "turbo_tokenizer") }?;
+        let list = unsafe { texts(texts_ptr, count, "texts") }?;
+        if list.is_empty() {
+            return Err(Error::invalid_argument("count must be at least 1"));
+        }
+        let o = unsafe { encode_options(opts) }?;
+        if row_stride == 0 {
+            return Err(Error::invalid_argument("row_stride must be non-zero"));
+        }
+        if ids.is_null() || mask.is_null() {
+            return Err(Error::invalid_argument("ids and mask must be non-NULL"));
+        }
+        let n = (count as usize)
+            .checked_mul(row_stride as usize)
+            .ok_or_else(|| Error::invalid_shape("count * row_stride overflows"))?;
+        // SAFETY: the caller promises `n` writable elements in each array.
+        let ids_s = unsafe { std::slice::from_raw_parts_mut(ids, n) };
+        let mask_s = unsafe { std::slice::from_raw_parts_mut(mask, n) };
+        let types_s = if types.is_null() { None } else { Some(unsafe { std::slice::from_raw_parts_mut(types, n) }) };
+        let mut lens = vec![0u32; list.len()];
+        t.encode_into(
+            &list,
+            &o,
+            EncodeTarget {
+                ids: ids_s,
+                mask: mask_s,
+                types: types_s,
+                row_stride: row_stride as usize,
+                lengths: &mut lens,
+            },
+        )?;
+        if !lengths.is_null() {
+            unsafe { std::ptr::copy_nonoverlapping(lens.as_ptr(), lengths, lens.len()) };
+        }
+        Ok(())
+    })
+}
+
+/// Decode `count` ids into `dst` (`capacity` bytes, not NUL-terminated).
+/// Writes the byte length to `written`; if `capacity` is too small, returns
+/// `TURBO_E_CAPACITY` with the required length in `written`.
+#[no_mangle]
+pub unsafe extern "C" fn turbo_tokenizer_decode(
+    t: *mut turbo_tokenizer,
+    ids: *const i32,
+    count: u32,
+    skip_special_tokens: u32,
+    dst: *mut c_char,
+    capacity: u64,
+    written: *mut u64,
+    err: *mut turbo_error,
+) -> i32 {
+    boundary(err, || {
+        let t = unsafe { handle(t as *const Tokenizer, "turbo_tokenizer") }?;
+        if count == 0 || ids.is_null() {
+            return Err(Error::invalid_argument("ids is NULL or count is 0"));
+        }
+        let skip = match skip_special_tokens {
+            0 => false,
+            1 => true,
+            v => return Err(Error::invalid_argument(format!("skip_special_tokens must be 0 or 1, got {v}"))),
+        };
+        let slice = unsafe { std::slice::from_raw_parts(ids, count as usize) };
+        let s = t.decode(slice, skip)?;
+        if !written.is_null() {
+            unsafe { *written = s.len() as u64 };
+        }
+        if (s.len() as u64) > capacity {
+            return Err(Error::capacity(format!("decoded text is {} bytes but capacity is {capacity}", s.len())));
+        }
+        if !s.is_empty() {
+            if dst.is_null() {
+                return Err(Error::invalid_argument("dst is NULL"));
+            }
+            unsafe { std::ptr::copy_nonoverlapping(s.as_ptr(), dst.cast::<u8>(), s.len()) };
+        }
+        Ok(())
+    })
+}
+
+/// Number of tokens `text` produces, without truncation or prefix.
+#[no_mangle]
+pub unsafe extern "C" fn turbo_tokenizer_count(
+    t: *mut turbo_tokenizer,
+    text_in: turbo_text,
+    add_special_tokens: u32,
+    out: *mut u32,
+    err: *mut turbo_error,
+) -> i32 {
+    boundary(err, || {
+        let t = unsafe { handle(t as *const Tokenizer, "turbo_tokenizer") }?;
+        if out.is_null() {
+            return Err(Error::invalid_argument("out is NULL"));
+        }
+        let s = unsafe { text(&text_in, "text") }?;
+        let add = match add_special_tokens {
+            0 => false,
+            1 => true,
+            v => return Err(Error::invalid_argument(format!("add_special_tokens must be 0 or 1, got {v}"))),
+        };
+        unsafe { *out = t.count(s, add)? };
+        Ok(())
+    })
+}
+
+/// Plan chunks over `text` with `tokenizer` counting content tokens. The
+/// plan stores byte offsets only; the caller keeps the text.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_chunk_plan_create(
     desc: *const turbo_chunk_desc,
@@ -1582,17 +1775,77 @@ pub unsafe extern "C" fn turbo_chunk_plan_create(
     err: *mut turbo_error,
 ) -> i32 {
     boundary(err, || {
-        let _ = unsafe { out_ptr(out, "turbo_chunk_plan_create") }?;
-        let _ = (desc, tokenizer);
-        let _ = unsafe { text(&text_in, "text") }?;
-        Err(Error::not_implemented("turbo_chunk_plan_create"))
+        let out = unsafe { out_ptr(out, "turbo_chunk_plan_create") }?;
+        if desc.is_null() {
+            return Err(Error::invalid_argument("turbo_chunk_desc is NULL"));
+        }
+        let d = unsafe { &*desc };
+        check_size::<turbo_chunk_desc>("turbo_chunk_desc", d.struct_size)?;
+        let t = unsafe { handle(tokenizer as *const Tokenizer, "turbo_tokenizer") }?;
+        let s = unsafe { text(&text_in, "text") }?;
+        let config = ChunkerConfig {
+            max_tokens: d.max_tokens as usize,
+            reserved_tokens: d.reserved_tokens as usize,
+            overlap_tokens: d.overlap_tokens as usize,
+            sentence_boundaries: true,
+        };
+        let plan = chunk_source("", s, &config, t).map_err(|e| match e {
+            ChunkError::InvalidConfig(m) => Error::invalid_argument(m),
+            other => Error::capacity(other.to_string()),
+        })?;
+        *out = leak(Arc::new(plan)) as *mut turbo_chunk_plan;
+        Ok(())
+    })
+}
+
+/// Number of chunks in a plan.
+#[no_mangle]
+pub unsafe extern "C" fn turbo_chunk_plan_count(p: *mut turbo_chunk_plan, out: *mut u32, err: *mut turbo_error) -> i32 {
+    boundary(err, || {
+        let p = unsafe { handle(p as *const ChunkPlan, "turbo_chunk_plan") }?;
+        if out.is_null() {
+            return Err(Error::invalid_argument("out is NULL"));
+        }
+        unsafe { *out = p.chunks.len() as u32 };
+        Ok(())
+    })
+}
+
+/// Chunk `index` of a plan.
+#[no_mangle]
+pub unsafe extern "C" fn turbo_chunk_plan_get(
+    p: *mut turbo_chunk_plan,
+    index: u32,
+    out: *mut turbo_chunk,
+    err: *mut turbo_error,
+) -> i32 {
+    boundary(err, || {
+        let p = unsafe { handle(p as *const ChunkPlan, "turbo_chunk_plan") }?;
+        if out.is_null() {
+            return Err(Error::invalid_argument("out is NULL"));
+        }
+        let c = p.chunks.get(index as usize).ok_or_else(|| {
+            Error::invalid_argument(format!(
+                "chunk index {index} is out of range; the plan has {} chunks",
+                p.chunks.len()
+            ))
+        })?;
+        unsafe {
+            *out = turbo_chunk {
+                byte_start: c.byte_range.start as u64,
+                byte_end: c.byte_range.end as u64,
+                paragraph: c.paragraph_index as u32,
+                n_tokens: c.token_count as u32,
+            }
+        };
+        Ok(())
     })
 }
 
 /// Release a chunk plan.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_chunk_plan_release(p: *mut turbo_chunk_plan) {
-    debug_assert!(p.is_null(), "turbo_chunk_plan_release called before chunk plans exist");
+    unsafe { reclaim(p as *mut ChunkPlan) };
 }
 
 #[cfg(test)]

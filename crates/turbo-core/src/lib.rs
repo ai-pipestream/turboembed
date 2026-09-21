@@ -15,6 +15,7 @@
 pub mod abi_convert;
 pub mod buffer;
 pub mod bundle;
+pub mod chunker;
 pub mod error;
 pub mod handles;
 pub mod mock;
@@ -22,12 +23,14 @@ pub mod plugin;
 pub mod plugin_export;
 pub mod provider;
 pub mod runtime;
+pub mod tokenizer;
 pub mod types;
 
 pub use turbo_abi as abi;
 
 pub use buffer::{BufferDesc, HostBuffer, NativeHandle, ProviderBuffer};
 pub use bundle::{Bundle, Manifest};
+pub use chunker::{chunk_source, ChunkError, ChunkPlan, ChunkerConfig, SourceChunk, TokenCounter};
 pub use error::{status_name, Error, Result};
 pub use handles::{Buffer, Context, Generation, Model, ResultHandle, Session};
 pub use provider::{
@@ -36,6 +39,7 @@ pub use provider::{
     ProviderSession, RerankOptions, RunOptions, SessionDesc, SessionStats, Span, TensorInfo, TokenBatch,
 };
 pub use runtime::{DeviceEntry, DeviceSelector, LogLevel, LogSink, ProviderFailure, Runtime, RuntimeDesc};
+pub use tokenizer::{EncodeOptions, EncodeTarget, Encoding, Tokenizer, TokenizerInfo};
 pub use types::*;
 
 use std::sync::Arc;

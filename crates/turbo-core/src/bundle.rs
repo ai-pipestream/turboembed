@@ -202,8 +202,8 @@ impl Bundle {
         let task = task_from_name(&manifest.task)?;
         let kind = kind_from_name(&manifest.kind)?;
         let modality = modality_from_name(&manifest.modality)?;
-        if manifest.artifacts.is_empty() {
-            return Err(Error::bundle_invalid("manifest lists no artifacts"));
+        if manifest.artifacts.is_empty() && manifest.tokenizer.as_ref().is_none_or(|t| t.files.is_empty()) {
+            return Err(Error::bundle_invalid("manifest lists no artifacts and no tokenizer files"));
         }
         validate_contract(&manifest, kind)?;
 

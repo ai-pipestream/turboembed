@@ -1823,6 +1823,52 @@ typedef struct turbo_encode_options {
 } turbo_encode_options;
 
 /**
+ * Static facts about a tokenizer.
+ */
+typedef struct turbo_tokenizer_info {
+    /**
+     * `sizeof(turbo_tokenizer_info)`.
+     */
+    uint32_t struct_size;
+    /**
+     * Vocabulary size including added tokens.
+     */
+    uint32_t vocab_size;
+    /**
+     * Bundle `max_seq`.
+     */
+    uint32_t max_seq;
+    /**
+     * Special tokens added to one sequence.
+     */
+    uint32_t specials_per_sequence;
+    /**
+     * Pad id, or -1.
+     */
+    int32_t pad_id;
+    /**
+     * Beginning-of-sequence / `[CLS]` id, or -1.
+     */
+    int32_t bos_id;
+    /**
+     * End-of-sequence / `[SEP]` id, or -1.
+     */
+    int32_t eos_id;
+    /**
+     * Unknown-token id, or -1.
+     */
+    int32_t unk_id;
+    /**
+     * Tokenizer kind (`wordpiece`, `bpe`, `unigram`, ...).
+     */
+    char kind[32];
+    /**
+     * Hex SHA-256 of the tokenizer file, or empty.
+     */
+    char sha256[72];
+} turbo_tokenizer_info;
+
+/**
  * Chunk planner configuration.
  */
 typedef struct turbo_chunk_desc {

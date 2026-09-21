@@ -46,9 +46,10 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s <path to testdata/bundles/mock>\n", argv[0]);
         return 2;
     }
-    char embed_bundle[4096], gen_bundle[4096];
+    char embed_bundle[4096], gen_bundle[4096], tok_bundle[4096];
     snprintf(embed_bundle, sizeof embed_bundle, "%s/embedding", argv[1]);
     snprintf(gen_bundle, sizeof gen_bundle, "%s/generative", argv[1]);
+    snprintf(tok_bundle, sizeof tok_bundle, "%s/../minilm-tokenizer", argv[1]);
 
     turbo_error err;
     memset(&err, 0, sizeof err);
@@ -246,6 +247,85 @@ int main(int argc, char **argv) {
 
     /* Push generation is declared but not implemented in this build. */
     EXPECT(turbo_generate(NULL, NULL, NULL, 0, NULL, NULL, &err), TURBO_E_INVALID_HANDLE);
+
+    /* Tokenizer: reference ids for MiniLM, write-through padding, decode, count. */
+    {
+        turbo_runtime *rt3 = NULL;
+        CHECK(turbo_runtime_create(NULL, &rt3, &err));
+        turbo_tokenizer *tok = NULL;
+        CHECK(turbo_tokenizer_create(rt3, T(tok_bundle), &tok, &err));
+        turbo_tokenizer_info ti;
+        memset(&ti, 0, sizeof ti);
+        ti.struct_size = (uint32_t)sizeof ti;
+        CHECK(turbo_tokenizer_get_info(tok, &ti, &err));
+        if (ti.vocab_size != 30522 || ti.bos_id != 101 || ti.eos_id != 102 || ti.pad_id != 0) {
+            fprintf(stderr, "unexpected tokenizer info vocab=%u bos=%d eos=%d pad=%d\n", ti.vocab_size, ti.bos_id,
+                    ti.eos_id, ti.pad_id);
+            return 1;
+        }
+        turbo_text two[2];
+        two[0] = T("hello world");
+        two[1] = T("hi");
+        int32_t ids[16], mask[16];
+        uint32_t lengths[2];
+        turbo_encode_options eo;
+        memset(&eo, 0, sizeof eo);
+        eo.struct_size = (uint32_t)sizeof eo;
+        eo.add_special_tokens = 1;
+        eo.max_tokens = 8;
+        CHECK(turbo_tokenizer_encode(tok, two, 2, &eo, ids, mask, NULL, 8, lengths, &err));
+        if (lengths[0] != 4 || ids[0] != 101 || ids[1] != 7592 || ids[2] != 2088 || ids[3] != 102 || mask[4] != 0 ||
+            lengths[1] != 3 || ids[8] != 101) {
+            fprintf(stderr, "unexpected MiniLM token ids\n");
+            return 1;
+        }
+        char text_out[64];
+        uint64_t n_out = 0;
+        int32_t two_ids[2] = {7592, 2088};
+        CHECK(turbo_tokenizer_decode(tok, two_ids, 2, 1, text_out, sizeof text_out, &n_out, &err));
+        if (n_out != 11 || memcmp(text_out, "hello world", 11) != 0) {
+            fprintf(stderr, "unexpected decode\n");
+            return 1;
+        }
+        EXPECT(turbo_tokenizer_decode(tok, two_ids, 2, 1, text_out, 3, &n_out, &err), TURBO_E_CAPACITY);
+        uint32_t n_tok = 0;
+        CHECK(turbo_tokenizer_count(tok, T("hello world"), 1, &n_tok, &err));
+        if (n_tok != 4) {
+            fprintf(stderr, "count %u != 4\n", n_tok);
+            return 1;
+        }
+        /* Chunk plan over the same tokenizer. */
+        turbo_chunk_desc cd;
+        memset(&cd, 0, sizeof cd);
+        cd.struct_size = (uint32_t)sizeof cd;
+        cd.max_tokens = 8;
+        cd.reserved_tokens = 2;
+        const char *doc = "one two three four five six seven eight nine ten eleven twelve.\n\nsecond paragraph here";
+        turbo_chunk_plan *plan = NULL;
+        CHECK(turbo_chunk_plan_create(&cd, T(doc), tok, &plan, &err));
+        uint32_t n_chunks = 0;
+        CHECK(turbo_chunk_plan_count(plan, &n_chunks, &err));
+        if (n_chunks < 3) {
+            fprintf(stderr, "expected at least 3 chunks, got %u\n", n_chunks);
+            return 1;
+        }
+        uint64_t prev_end = 0;
+        for (uint32_t i = 0; i < n_chunks; ++i) {
+            turbo_chunk c;
+            CHECK(turbo_chunk_plan_get(plan, i, &c, &err));
+            if (c.byte_start < prev_end || c.byte_end <= c.byte_start || c.byte_end > strlen(doc) || c.n_tokens > 6) {
+                fprintf(stderr, "bad chunk %u: [%llu, %llu) tokens=%u\n", i, (unsigned long long)c.byte_start,
+                        (unsigned long long)c.byte_end, c.n_tokens);
+                return 1;
+            }
+            prev_end = c.byte_end;
+        }
+        turbo_chunk c;
+        EXPECT(turbo_chunk_plan_get(plan, n_chunks, &c, &err), TURBO_E_INVALID_ARGUMENT);
+        turbo_chunk_plan_release(plan);
+        turbo_tokenizer_release(tok);
+        turbo_runtime_release(rt3);
+    }
 
     puts("c-smoke: OK");
     return 0;

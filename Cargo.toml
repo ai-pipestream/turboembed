@@ -29,6 +29,8 @@ thiserror = "2"
 sha2 = "0.10"
 libc = "0.2"
 libloading = "0.8"
+# Hugging Face tokenizers, without the oniguruma C dependency.
+tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 
 [profile.release]
 debug = 1

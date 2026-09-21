@@ -1,0 +1,33 @@
+{
+  "artifacts": {},
+  "bundle_version": 2,
+  "contract": {
+    "dim": 384,
+    "max_seq": 256,
+    "normalize": "l2",
+    "pooling": "mean",
+    "prompts": {
+      "document": "",
+      "query": ""
+    }
+  },
+  "family": "bert",
+  "kind": "embedding",
+  "license": "Apache-2.0",
+  "limits": {
+    "max_batch": 32
+  },
+  "modality": "text",
+  "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+  "revision": "c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
+  "task": "tokenize",
+  "tokenizer": {
+    "files": {
+      "tokenizer.json": {
+        "path": "tokenizer.json",
+        "sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+      }
+    },
+    "kind": "wordpiece"
+  }
+}

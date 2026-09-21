@@ -1056,6 +1056,32 @@ pub struct turbo_encode_options {
     pub prompt_role: u32,
 }
 
+/// Static facts about a tokenizer.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct turbo_tokenizer_info {
+    /// `sizeof(turbo_tokenizer_info)`.
+    pub struct_size: u32,
+    /// Vocabulary size including added tokens.
+    pub vocab_size: u32,
+    /// Bundle `max_seq`.
+    pub max_seq: u32,
+    /// Special tokens added to one sequence.
+    pub specials_per_sequence: u32,
+    /// Pad id, or -1.
+    pub pad_id: i32,
+    /// Beginning-of-sequence / `[CLS]` id, or -1.
+    pub bos_id: i32,
+    /// End-of-sequence / `[SEP]` id, or -1.
+    pub eos_id: i32,
+    /// Unknown-token id, or -1.
+    pub unk_id: i32,
+    /// Tokenizer kind (`wordpiece`, `bpe`, `unigram`, ...).
+    pub kind: [c_char; 32],
+    /// Hex SHA-256 of the tokenizer file, or empty.
+    pub sha256: [c_char; 72],
+}
+
 /// Chunk planner configuration.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default)]

@@ -57,6 +57,7 @@ include = [
     "turbo_generation_chunk",
     "turbo_stream_fn",
     "turbo_encode_options",
+    "turbo_tokenizer_info",
     "turbo_chunk_desc",
     "turbo_chunk",
 ]
