@@ -666,4 +666,379 @@ mod tests {
             Err(BackendError::InvalidRequest(_))
         ));
     }
+
+    #[tokio::test]
+    async fn embed_is_stateless_across_instances() {
+        let a = MockBackend::default();
+        let b = MockBackend::default();
+        let texts: Vec<String> = (0..20).map(|i| format!("distinct text {i}")).collect();
+        for text in &texts {
+            assert_eq!(
+                a.embed(text.as_bytes()),
+                b.embed(text.as_bytes()),
+                "instances must agree on {text:?}"
+            );
+        }
+        // Interleaving requests across instances must not change results.
+        let first = a.infer(text_request("r1", "ping")).await.unwrap();
+        let _other = b.infer(text_request("r2", "pong")).await.unwrap();
+        let first_again = a.infer(text_request("r3", "ping")).await.unwrap();
+        assert_eq!(first.raw_output_contents, first_again.raw_output_contents);
+        assert_ne!(first.raw_output_contents, _other.raw_output_contents);
+    }
+
+    #[tokio::test]
+    async fn embed_outputs_are_pairwise_distinct_and_in_range() {
+        let backend = MockBackend::default();
+        let dim = backend.embedding_dim();
+        let embeddings: Vec<Vec<f32>> = (0..20)
+            .map(|i| backend.embed(format!("text number {i}").as_bytes()))
+            .collect();
+        assert!(embeddings.iter().all(|e| e.len() == dim));
+        assert!(embeddings.iter().flatten().all(|v| (-1.0..1.0).contains(v)));
+        for (i, left) in embeddings.iter().enumerate() {
+            for right in embeddings.iter().skip(i + 1) {
+                assert_ne!(
+                    left, right,
+                    "FNV expansion collided for texts {i} and later"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn embed_packed_into_reports_dim_and_count() {
+        let backend = MockBackend::default();
+        let dim = backend.embedding_dim();
+        let texts = vec!["one".to_string(), "two".to_string(), "one".to_string()];
+        let mut dest = Vec::new();
+        let packed = backend
+            .embed_packed_into("mock-embed", &texts, "", None, 0, &mut dest)
+            .await
+            .unwrap();
+        assert_eq!(packed.dim as usize, dim);
+        assert_eq!(packed.count, 3);
+        assert_eq!(packed.model_name, "mock-embed");
+        assert_eq!(dest.len(), 3 * dim * 4);
+        let values = unpack_fp32(&dest).unwrap();
+        assert_eq!(values[..dim], values[2 * dim..], "same text, same row");
+        assert_ne!(values[..dim], values[dim..2 * dim]);
+
+        let single = backend
+            .embed_packed_into("mock-embed", &["solo".to_string()], "", None, 0, &mut dest)
+            .await
+            .unwrap();
+        assert_eq!(single.count, 1);
+        assert_eq!(dest.len(), dim * 4);
+    }
+
+    #[tokio::test]
+    async fn infer_rejects_wrong_datatype_and_empty_batch() {
+        let backend = MockBackend::default();
+        let wrong_datatype = ModelInferRequest {
+            model_name: "mock-embed".into(),
+            inputs: vec![InferInputTensor {
+                name: "text".into(),
+                datatype: "FP32".into(),
+                shape: vec![1],
+                parameters: HashMap::new(),
+                contents: None,
+            }],
+            raw_input_contents: vec![vec![0u8; 4]],
+            ..Default::default()
+        };
+        let err = backend.infer(wrong_datatype).await.unwrap_err();
+        assert!(matches!(err, BackendError::InvalidRequest(_)));
+        assert!(err.to_string().contains("BYTES"), "got {err}");
+
+        let empty_batch = ModelInferRequest {
+            model_name: "mock-embed".into(),
+            inputs: vec![InferInputTensor {
+                name: "text".into(),
+                datatype: "BYTES".into(),
+                shape: vec![0],
+                parameters: HashMap::new(),
+                contents: None,
+            }],
+            raw_input_contents: vec![pack_bytes::<&[u8]>(&[])],
+            ..Default::default()
+        };
+        let err = backend.infer(empty_batch).await.unwrap_err();
+        assert!(matches!(err, BackendError::InvalidRequest(_)));
+        assert!(err.to_string().contains("no elements"), "got {err}");
+    }
+
+    #[tokio::test]
+    async fn infer_stream_clamps_zero_chunks_to_one() {
+        let backend = MockBackend::new(8, 0);
+        let stream = backend.infer_stream(text_request("r", "hi")).await.unwrap();
+        let chunks: Vec<_> = stream.map(|c| c.unwrap()).collect().await;
+        assert_eq!(
+            chunks.len(),
+            1,
+            "stream_chunks = 0 must still emit one final chunk"
+        );
+        let tokens = unpack_bytes(&chunks[0].raw_output_contents[0]).unwrap();
+        assert_eq!(tokens[0], b"tok-0");
+        assert!(matches!(
+            chunks[0]
+                .parameters
+                .get("final")
+                .and_then(|p| p.parameter_choice.as_ref()),
+            Some(ParameterChoice::BoolParam(true))
+        ));
+    }
+
+    #[tokio::test]
+    async fn infer_stream_rejects_malformed_request_before_first_chunk() {
+        let backend = MockBackend::default();
+        let request = ModelInferRequest {
+            model_name: "mock-embed".into(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            backend.infer_stream(request).await,
+            Err(BackendError::InvalidRequest(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn tokenize_option_matrix_holds_invariants() {
+        let backend = MockBackend::default();
+        let texts = vec!["a".to_string(), "bcdef".to_string()];
+
+        // Special tokens on/off differ by exactly the BOS+EOS frame.
+        let on = backend
+            .tokenize("m", &texts, &TokenizeOptions::default())
+            .await
+            .unwrap();
+        let off = backend
+            .tokenize(
+                "m",
+                &texts,
+                &TokenizeOptions {
+                    add_special_tokens: false,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        for i in 0..texts.len() {
+            assert_eq!(on[i].input_ids.len(), off[i].input_ids.len() + 2);
+            assert_eq!(on[i].input_ids.first(), Some(&MOCK_BOS_ID));
+            assert_eq!(on[i].input_ids.last(), Some(&MOCK_EOS_ID));
+            assert_eq!(
+                &on[i].input_ids[1..on[i].input_ids.len() - 1],
+                &off[i].input_ids[..],
+                "special frame wraps identical content ids"
+            );
+            assert_eq!(on[i].attention_mask, vec![1; on[i].input_ids.len()]);
+        }
+
+        // truncate_to is honored with and without the special frame.
+        for specials in [true, false] {
+            let frame = usize::from(specials) * 2;
+            let encodings = backend
+                .tokenize(
+                    "m",
+                    &texts,
+                    &TokenizeOptions {
+                        add_special_tokens: specials,
+                        truncate_to: Some(4),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            for (i, encoding) in encodings.iter().enumerate() {
+                let content = usize::min(texts[i].len(), 4usize.saturating_sub(frame));
+                assert_eq!(encoding.input_ids.len(), content + frame);
+                if specials {
+                    assert_eq!(
+                        encoding.input_ids.last(),
+                        Some(&MOCK_EOS_ID),
+                        "truncation must keep the EOS frame"
+                    );
+                }
+            }
+        }
+
+        // pad_to_longest equalizes lengths; pad ids pair with mask 0.
+        let padded = backend
+            .tokenize(
+                "m",
+                &texts,
+                &TokenizeOptions {
+                    pad_to_longest: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert!(padded
+            .iter()
+            .all(|e| e.input_ids.len() == padded[0].input_ids.len()));
+        assert_eq!(padded[0].input_ids.last(), Some(&MOCK_PAD_ID));
+        for encoding in &padded {
+            assert_eq!(encoding.input_ids.len(), encoding.attention_mask.len());
+            for (id, mask) in encoding.input_ids.iter().zip(&encoding.attention_mask) {
+                assert_eq!(
+                    *id == MOCK_PAD_ID,
+                    *mask == 0,
+                    "pad id and zero mask must coincide"
+                );
+            }
+        }
+
+        // with_offsets: content offsets are ordered, non-overlapping, and
+        // slice the original text.
+        let with_offsets = backend
+            .tokenize(
+                "m",
+                &texts,
+                &TokenizeOptions {
+                    with_offsets: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        for (text, encoding) in texts.iter().zip(&with_offsets) {
+            assert_eq!(encoding.offsets.len(), encoding.input_ids.len());
+            let mut content_offsets: Vec<(u32, u32)> = Vec::new();
+            for (token, offset) in encoding.tokens.iter().zip(&encoding.offsets) {
+                match token.as_str() {
+                    "<s>" | "</s>" => assert_eq!((offset.start, offset.end), (0, 0)),
+                    _ => {
+                        assert!(offset.end > offset.start);
+                        assert!((offset.end as usize) <= text.len());
+                        assert_eq!(&text[offset.start as usize..offset.end as usize], token);
+                        content_offsets.push((offset.start, offset.end));
+                    }
+                }
+            }
+            for window in content_offsets.windows(2) {
+                assert!(
+                    window[0].1 <= window[1].0,
+                    "content offsets must not overlap: {window:?}"
+                );
+            }
+        }
+
+        // Empty text degenerates to just the special frame.
+        let empty = backend
+            .tokenize("m", &[String::new()], &TokenizeOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(empty[0].input_ids, vec![MOCK_BOS_ID, MOCK_EOS_ID]);
+        let empty_off = backend
+            .tokenize(
+                "m",
+                &[String::new()],
+                &TokenizeOptions {
+                    with_offsets: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(empty_off[0].offsets.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn detokenize_covers_full_ascii_range_and_boundary_ids() {
+        let backend = MockBackend::default();
+        let text: String = (0u8..=127).map(char::from).collect();
+        let ids: Vec<u32> = (0u8..=127).map(|b| u32::from(b) + 3).collect();
+        let decoded = backend.detokenize("m", &[ids], true).await.unwrap();
+        assert_eq!(decoded[0], text, "every ASCII byte must round-trip");
+
+        // 258 is the last decodable id; byte 0xFF alone is not valid UTF-8.
+        let err = backend
+            .detokenize("m", &[vec![258]], true)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("not UTF-8"), "got {err}");
+        // 259 is out of range entirely.
+        let err = backend
+            .detokenize("m", &[vec![259]], false)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("out of the mock tokenizer's range"),
+            "got {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn rerank_partial_overlap_scores_fraction_and_orders() {
+        let backend = MockBackend::default();
+        let docs = vec![
+            "TurboEmbed is FAST".to_string(),
+            "turbo only".to_string(),
+            "nothing relevant".to_string(),
+        ];
+        let scores = backend
+            .rerank("m", "TURBO fast", &docs, false)
+            .await
+            .unwrap();
+        assert_eq!(
+            scores,
+            vec![1.0, 0.5, 0.0],
+            "case-insensitive fraction of query words found"
+        );
+        let mut order: Vec<usize> = (0..docs.len()).collect();
+        order.sort_by(|&x, &y| scores[y].partial_cmp(&scores[x]).unwrap());
+        assert_eq!(order, vec![0, 1, 2], "full match ranks first");
+        // raw_scores does not change the mock's deterministic scores.
+        let raw = backend
+            .rerank("m", "TURBO fast", &docs, true)
+            .await
+            .unwrap();
+        assert_eq!(raw, scores);
+        // Whitespace-only queries score like empty ones.
+        let blank = backend.rerank("m", "   ", &docs, false).await.unwrap();
+        assert_eq!(blank, vec![0.0; 3]);
+    }
+
+    #[tokio::test]
+    async fn custom_dim_and_chunk_count_are_honored() {
+        let backend = MockBackend::new(16, 2);
+        assert_eq!(backend.embedding_dim(), 16);
+        assert_eq!(backend.stream_chunks(), 2);
+
+        let meta = backend.model_metadata("m", "1").await.unwrap();
+        assert_eq!(meta.outputs[0].shape, vec![16]);
+
+        let response = backend.infer(text_request("r", "hi")).await.unwrap();
+        assert_eq!(response.outputs[0].shape, vec![16]);
+        let embedding = unpack_fp32(&response.raw_output_contents[0]).unwrap();
+        assert_eq!(embedding.len(), 16);
+        assert!(embedding.iter().all(|v| (-1.0..1.0).contains(v)));
+
+        let stream = backend.infer_stream(text_request("s", "hi")).await.unwrap();
+        let chunks: Vec<_> = stream.map(|c| c.unwrap()).collect().await;
+        assert_eq!(chunks.len(), 2);
+        let tokens: Vec<String> = chunks
+            .iter()
+            .map(|c| {
+                let elements = unpack_bytes(&c.raw_output_contents[0]).unwrap();
+                String::from_utf8(elements[0].clone()).unwrap()
+            })
+            .collect();
+        assert_eq!(tokens, ["tok-0", "tok-1"]);
+        let finals: Vec<bool> = chunks
+            .iter()
+            .map(|c| {
+                matches!(
+                    c.parameters
+                        .get("final")
+                        .and_then(|p| p.parameter_choice.as_ref()),
+                    Some(ParameterChoice::BoolParam(true))
+                )
+            })
+            .collect();
+        assert_eq!(finals, [false, true]);
+    }
 }

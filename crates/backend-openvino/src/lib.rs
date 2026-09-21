@@ -706,4 +706,213 @@ mod tests {
         assert!(matches!(err, BackendError::Unavailable(_)));
         assert!(err.to_string().contains("openvino-genai"));
     }
+
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    /// Unique-per-test temp dir (the crate has no `tempfile` dependency).
+    /// Leaked only if a test panics mid-way; a process-unique name plus a
+    /// sequence counter keeps parallel test binaries from colliding.
+    struct TempModelDir {
+        path: std::path::PathBuf,
+    }
+
+    impl TempModelDir {
+        fn new(tag: &str) -> Self {
+            static SEQ: AtomicU64 = AtomicU64::new(0);
+            let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0);
+            let path = std::env::temp_dir().join(format!(
+                "inferstream-ov-{tag}-pid{}-{seq}-{nanos}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&path).expect("create unique temp model dir");
+            Self { path }
+        }
+    }
+
+    impl Drop for TempModelDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn missing_ir_files_reports_all_some_and_none() {
+        let dir = TempModelDir::new("ir-coverage");
+        // Empty dir: everything is missing, in REQUIRED_IR_FILES order.
+        assert_eq!(missing_ir_files(&dir.path), REQUIRED_IR_FILES);
+
+        // Half-populated: only the uncreated files are reported, order kept.
+        for name in &REQUIRED_IR_FILES[..2] {
+            std::fs::write(dir.path.join(name), b"stub").unwrap();
+        }
+        assert_eq!(missing_ir_files(&dir.path), &REQUIRED_IR_FILES[2..]);
+
+        // Complete GenAI layout: nothing missing.
+        for name in &REQUIRED_IR_FILES[2..] {
+            std::fs::write(dir.path.join(name), b"stub").unwrap();
+        }
+        assert!(missing_ir_files(&dir.path).is_empty());
+    }
+
+    #[test]
+    fn missing_ir_files_requires_regular_files() {
+        let dir = TempModelDir::new("ir-dir-impostor");
+        // A directory named like a required file does not satisfy the check
+        // (`Path::is_file`), so it is still reported missing.
+        std::fs::create_dir(dir.path.join(REQUIRED_IR_FILES[0])).unwrap();
+        assert!(missing_ir_files(&dir.path).contains(&REQUIRED_IR_FILES[0]));
+    }
+
+    #[test]
+    fn embedding_dim_from_config_reads_known_keys() {
+        let dir = TempModelDir::new("dim-hidden");
+        std::fs::write(dir.path.join("config.json"), br#"{"hidden_size": 384}"#).unwrap();
+        assert_eq!(embedding_dim_from_config(&dir.path), Some(384));
+
+        let dir = TempModelDir::new("dim-dmodel");
+        std::fs::write(dir.path.join("config.json"), br#"{"d_model": 768}"#).unwrap();
+        assert_eq!(embedding_dim_from_config(&dir.path), Some(768));
+
+        let dir = TempModelDir::new("dim-sentence");
+        std::fs::write(
+            dir.path.join("config.json"),
+            br#"{"sentence_embedding_dimension": 1024}"#,
+        )
+        .unwrap();
+        assert_eq!(embedding_dim_from_config(&dir.path), Some(1024));
+
+        // hidden_size wins when several keys are present.
+        let dir = TempModelDir::new("dim-precedence");
+        std::fs::write(
+            dir.path.join("config.json"),
+            br#"{"hidden_size": 16, "d_model": 32}"#,
+        )
+        .unwrap();
+        assert_eq!(embedding_dim_from_config(&dir.path), Some(16));
+    }
+
+    #[test]
+    fn embedding_dim_from_config_returns_none_on_garbage() {
+        let dir = TempModelDir::new("dim-no-config");
+        assert_eq!(embedding_dim_from_config(&dir.path), None);
+
+        let dir = TempModelDir::new("dim-malformed");
+        std::fs::write(dir.path.join("config.json"), b"{ not json").unwrap();
+        assert_eq!(embedding_dim_from_config(&dir.path), None);
+
+        let dir = TempModelDir::new("dim-wrong-types");
+        std::fs::write(
+            dir.path.join("config.json"),
+            br#"{"hidden_size": "384", "d_model": true, "sentence_embedding_dimension": -1}"#,
+        )
+        .unwrap();
+        assert_eq!(embedding_dim_from_config(&dir.path), None);
+
+        let dir = TempModelDir::new("dim-no-keys");
+        std::fs::write(dir.path.join("config.json"), br#"{"architectures": []}"#).unwrap();
+        assert_eq!(embedding_dim_from_config(&dir.path), None);
+    }
+
+    #[test]
+    fn resolve_device_maps_npu_and_fallbacks() {
+        // NPU is only picked when the runtime lists one (no silent fallback).
+        assert_eq!(
+            resolve_device(Some(OvDevice::Npu), &["CPU".into(), "NPU".into()]).unwrap(),
+            "NPU"
+        );
+        let err = resolve_device(Some(OvDevice::Npu), &["CPU".into()]).unwrap_err();
+        assert!(matches!(err, BackendError::Unavailable(_)));
+
+        // Unset device and an empty runtime listing both fall back to CPU.
+        assert_eq!(resolve_device(None, &[]).unwrap(), "CPU");
+        assert_eq!(
+            resolve_device(Some(OvDevice::Auto), &["CPU.0".into()]).unwrap(),
+            "CPU"
+        );
+
+        // AUTO prefers a listed CPU over an accelerator-only listing…
+        assert_eq!(
+            resolve_device(Some(OvDevice::Auto), &["NPU".into(), "CPU".into()]).unwrap(),
+            "CPU"
+        );
+        // …and with neither GPU nor CPU listed, keeps the first device.
+        assert_eq!(
+            resolve_device(Some(OvDevice::Auto), &["NPU".into()]).unwrap(),
+            "NPU"
+        );
+        // Explicit CPU never fails, even against an exotic listing.
+        assert_eq!(
+            resolve_device(Some(OvDevice::Cpu), &["NPU".into()]).unwrap(),
+            "CPU"
+        );
+    }
+
+    #[test]
+    fn unknown_device_string_is_an_invalid_request() {
+        let err = OvDevice::from_config("tpu").unwrap_err();
+        assert!(matches!(err, BackendError::InvalidRequest(_)));
+        // The message echoes the rejected value (normalized to upper case).
+        assert!(
+            err.to_string().to_ascii_uppercase().contains("TPU"),
+            "error should name the bad device: {err}"
+        );
+    }
+
+    #[test]
+    fn mock_embedder_is_deterministic_and_honors_dim() {
+        let config = OpenVinoConfig {
+            models_path: "models/ov/minilm".into(),
+            device: Some(OvDevice::Cpu),
+            pooling: Pooling::Mean,
+            normalize: Some(true),
+            max_seq_len: None,
+        };
+        let embedder = MockEmbedder::new(config.clone(), 8);
+
+        let (dim, first) = embedder.embed(&["hello".to_string()]).unwrap();
+        assert_eq!(dim, 8);
+        assert_eq!(first.len(), 8);
+
+        let (_, repeat) = embedder.embed(&["hello".to_string()]).unwrap();
+        assert_eq!(first, repeat, "same text must embed identically");
+
+        let (_, other) = embedder.embed(&["world".to_string()]).unwrap();
+        assert_ne!(first, other, "distinct texts must differ");
+
+        let (dim, batch) = embedder
+            .embed(&["hello".to_string(), "world".to_string()])
+            .unwrap();
+        assert_eq!(dim, 8);
+        assert_eq!(batch.len(), 16);
+
+        let err = embedder.embed(&[]).unwrap_err();
+        assert!(matches!(err, BackendError::InvalidRequest(_)));
+
+        // Accessor surface used by `Backend::model_metadata`.
+        assert_eq!(embedder.device(), "CPU");
+        assert_eq!(embedder.models_path(), "models/ov/minilm");
+        assert_eq!(embedder.pooling(), Pooling::Mean);
+        assert!(embedder.normalize());
+        assert_eq!(embedder.embedding_dim(), Some(8));
+
+        // normalize = false keeps raw magnitudes (no unit-norm rewrite).
+        let raw = MockEmbedder::new(
+            OpenVinoConfig {
+                normalize: Some(false),
+                ..config
+            },
+            8,
+        );
+        let (_, unnormalized) = raw.embed(&["ab".to_string()]).unwrap();
+        let norm: f32 = unnormalized.iter().map(|v| v * v).sum::<f32>().sqrt();
+        assert!(
+            (norm - 1.0).abs() > 1e-3,
+            "normalize=false must not force unit norm, got {norm}"
+        );
+    }
 }

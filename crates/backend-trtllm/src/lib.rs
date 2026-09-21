@@ -173,4 +173,71 @@ mod tests {
         });
         assert!(result.is_err());
     }
+
+    #[test]
+    fn accepts_well_formed_config_and_exposes_it() {
+        let config = TrtLlmConfig {
+            engine_dir: "/engines/bge-base".into(),
+            tokenizer_dir: Some("/tokenizers/bge-base".into()),
+            max_batch_size: Some(16),
+            dtype: Some("fp16".into()),
+            kv_cache_free_gpu_mem_fraction: Some(0.9),
+            max_output_tokens: Some(512),
+        };
+        let backend = TrtLlmBackend::new(config).unwrap();
+        assert_eq!(backend.id(), "trt-llm");
+        let stored = backend.config();
+        assert_eq!(stored.engine_dir, "/engines/bge-base");
+        assert_eq!(
+            stored.tokenizer_dir.as_deref(),
+            Some("/tokenizers/bge-base")
+        );
+        assert_eq!(stored.max_batch_size, Some(16));
+        assert_eq!(stored.dtype.as_deref(), Some("fp16"));
+        assert_eq!(stored.kv_cache_free_gpu_mem_fraction, Some(0.9));
+        assert_eq!(stored.max_output_tokens, Some(512));
+
+        // Fraction boundaries are inclusive.
+        for fraction in [0.0f32, 1.0] {
+            assert!(
+                TrtLlmBackend::new(TrtLlmConfig {
+                    engine_dir: "/engines/bge-base".into(),
+                    kv_cache_free_gpu_mem_fraction: Some(fraction),
+                    ..Default::default()
+                })
+                .is_ok(),
+                "boundary fraction {fraction} must be accepted"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_fields_with_invalid_request() {
+        let err = TrtLlmBackend::new(TrtLlmConfig::default()).unwrap_err();
+        assert!(
+            matches!(err, BackendError::InvalidRequest(_)),
+            "missing engine_dir must be InvalidRequest, got {err:?}"
+        );
+        assert!(
+            err.to_string().contains("engine_dir"),
+            "missing-dir error should name the field: {err}"
+        );
+
+        for fraction in [1.5f32, -0.1, f32::NAN] {
+            let err = TrtLlmBackend::new(TrtLlmConfig {
+                engine_dir: "/engines/bge-base".into(),
+                kv_cache_free_gpu_mem_fraction: Some(fraction),
+                ..Default::default()
+            })
+            .unwrap_err();
+            assert!(
+                matches!(err, BackendError::InvalidRequest(_)),
+                "fraction {fraction} must be InvalidRequest, got {err:?}"
+            );
+            assert!(
+                err.to_string().contains("kv_cache_free_gpu_mem_fraction"),
+                "fraction error should name the field: {err}"
+            );
+        }
+    }
 }

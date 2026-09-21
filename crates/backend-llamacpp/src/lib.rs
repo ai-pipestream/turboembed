@@ -944,4 +944,139 @@ mod tests {
         };
         assert!(!lossy.is_empty());
     }
+
+    #[test]
+    fn new_rejects_empty_config_naming_the_requirement() {
+        let err = LlamaCppBackend::new(LlamaCppConfig::default()).unwrap_err();
+        assert!(
+            matches!(err, BackendError::InvalidRequest(_)),
+            "empty config must be InvalidRequest, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains("path") && msg.contains("endpoint"),
+            "error should name both escape hatches: {err}"
+        );
+    }
+
+    #[test]
+    fn endpoint_plus_model_path_prefers_server_client_mode() {
+        // `endpoint` wins over `model_path`; construction makes no network
+        // calls, so an unroutable address is safe here.
+        let backend = LlamaCppBackend::new(LlamaCppConfig {
+            model_path: "/models/x.gguf".into(),
+            endpoint: Some("http://127.0.0.1:9/".into()),
+            ..Default::default()
+        })
+        .unwrap();
+        let server = backend.server.as_ref().expect("server-client mode");
+        assert_eq!(server.base, "http://127.0.0.1:9", "trailing slash trimmed");
+        assert_eq!(backend.config().model_path, "/models/x.gguf");
+        assert_eq!(backend.id(), "llama-cpp");
+    }
+
+    #[test]
+    fn device_parsing_covers_full_matrix() {
+        assert_eq!(
+            LlamaDevice::from_config("metal").unwrap(),
+            LlamaDevice::Metal
+        );
+        assert_eq!(
+            LlamaDevice::from_config("VULKAN").unwrap(),
+            LlamaDevice::Vulkan
+        );
+        assert_eq!(LlamaDevice::from_config("Cpu").unwrap(), LlamaDevice::Cpu);
+        let err = LlamaDevice::from_config("rocm").unwrap_err();
+        assert!(matches!(err, BackendError::InvalidRequest(_)));
+        let msg = err.to_string();
+        assert!(
+            msg.contains("rocm"),
+            "error should name the bad value: {err}"
+        );
+        assert!(
+            msg.contains("cuda|sycl|metal|vulkan|cpu"),
+            "error should list the expected device set: {err}"
+        );
+    }
+
+    #[cfg(not(feature = "runtime"))]
+    #[tokio::test]
+    async fn stub_runtime_surface_fails_loud() {
+        let backend = LlamaCppBackend::new(LlamaCppConfig {
+            model_path: "/models/x.gguf".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        // Path-only models without `runtime` report Unavailable before any
+        // network or engine work; `infer` and `model_ready` are covered by
+        // `path_only_mode_is_a_stub` above.
+        assert!(matches!(
+            backend.model_metadata("m", "").await,
+            Err(BackendError::Unavailable(_))
+        ));
+        assert!(matches!(
+            backend.infer_stream(ModelInferRequest::default()).await,
+            Err(BackendError::Unavailable(_))
+        ));
+        assert!(matches!(
+            backend
+                .tokenize("m", &["hi".to_string()], &TokenizeOptions::default())
+                .await,
+            Err(BackendError::Unavailable(_))
+        ));
+        assert!(matches!(
+            backend.detokenize("m", &[vec![1u32]], false).await,
+            Err(BackendError::Unavailable(_))
+        ));
+    }
+
+    #[test]
+    fn prompt_from_rejects_wrong_arity_and_empty_payload() {
+        // Two input tensors are never a generation request.
+        let mut req = text_request("hi");
+        req.inputs.push(req.inputs[0].clone());
+        assert!(matches!(
+            prompt_from(&req),
+            Err(BackendError::InvalidRequest(_))
+        ));
+
+        // A BYTES tensor with zero elements carries no prompt.
+        let mut req = text_request("hi");
+        req.raw_input_contents = vec![pack_bytes(&[] as &[&[u8]])];
+        assert!(matches!(
+            prompt_from(&req),
+            Err(BackendError::InvalidRequest(_))
+        ));
+
+        // Non-UTF-8 bytes are rejected, not lossy-decoded.
+        let mut req = text_request("hi");
+        req.raw_input_contents = vec![pack_bytes(&[&[0xff, 0xfe][..]])];
+        assert!(matches!(
+            prompt_from(&req),
+            Err(BackendError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn completion_body_carries_optional_sampling_knobs() {
+        let mut parameters = HashMap::new();
+        parameters.insert("seed".to_string(), int_param(7));
+        parameters.insert(
+            "top_p".to_string(),
+            InferParameter {
+                parameter_choice: Some(ParameterChoice::DoubleParam(0.9)),
+            },
+        );
+        let params = gen_params(&parameters);
+        let body = completion_body("p", &params, false);
+        assert_eq!(body["seed"], 7);
+        assert_eq!(body["top_p"], 0.9);
+        assert_eq!(body["cache_prompt"], true);
+
+        // Optional knobs stay absent when unset.
+        let bare = completion_body("p", &gen_params(&HashMap::new()), false);
+        assert!(bare.get("seed").is_none());
+        assert!(bare.get("top_p").is_none());
+        assert!(bare.get("temperature").is_none());
+    }
 }

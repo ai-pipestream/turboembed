@@ -470,4 +470,408 @@ mod tests {
         assert_eq!(chunk.id, "req-1");
         assert!(stream.next().await.is_none());
     }
+
+    /// Unary `infer` fails with `Internal`, so the default stream adapter has
+    /// one `Err` chunk and then ends.
+    struct FailInferBackend;
+
+    #[async_trait]
+    impl Backend for FailInferBackend {
+        fn id(&self) -> &str {
+            "fail"
+        }
+        async fn model_ready(&self, _: &str, _: &str) -> bool {
+            true
+        }
+        async fn model_metadata(&self, name: &str, _: &str) -> Result<ModelMetadata, BackendError> {
+            Ok(ModelMetadata {
+                name: name.to_string(),
+                ..Default::default()
+            })
+        }
+        async fn infer(&self, _: ModelInferRequest) -> Result<ModelInferResponse, BackendError> {
+            Err(BackendError::Internal("boom".into()))
+        }
+    }
+
+    /// Echoes a synthetic FP32 `embedding` output derived from the unpacked
+    /// `text` BYTES input, so the default `embed_packed_into` path runs end
+    /// to end without a real engine.
+    struct EmbedEchoBackend {
+        dim: usize,
+    }
+
+    #[async_trait]
+    impl Backend for EmbedEchoBackend {
+        fn id(&self) -> &str {
+            "embed-echo"
+        }
+        async fn model_ready(&self, _: &str, _: &str) -> bool {
+            true
+        }
+        async fn model_metadata(&self, name: &str, _: &str) -> Result<ModelMetadata, BackendError> {
+            Ok(ModelMetadata {
+                name: name.to_string(),
+                ..Default::default()
+            })
+        }
+        async fn infer(
+            &self,
+            request: ModelInferRequest,
+        ) -> Result<ModelInferResponse, BackendError> {
+            use inferstream_protocol::inference::model_infer_response::InferOutputTensor;
+            use inferstream_protocol::tensor::{unpack_bytes, DataType};
+
+            let input = request
+                .inputs
+                .iter()
+                .find(|t| t.name == "text")
+                .ok_or_else(|| BackendError::InvalidRequest("missing text input".into()))?;
+            assert_eq!(input.datatype, DataType::Bytes.as_oip());
+            let raw = request
+                .raw_input_contents
+                .first()
+                .ok_or_else(|| BackendError::InvalidRequest("missing raw text content".into()))?;
+            let texts =
+                unpack_bytes(raw).map_err(|e| BackendError::InvalidRequest(e.to_string()))?;
+            let n = texts.len();
+            let mut raw_out = Vec::with_capacity(n * self.dim * 4);
+            for i in 0..n * self.dim {
+                raw_out.extend_from_slice(&(i as f32 + 0.5).to_le_bytes());
+            }
+            Ok(ModelInferResponse {
+                model_name: request.model_name.clone(),
+                model_version: "1".into(),
+                id: request.id.clone(),
+                outputs: vec![InferOutputTensor {
+                    name: "embedding".to_string(),
+                    datatype: DataType::Fp32.as_oip().to_string(),
+                    shape: vec![n as i64, self.dim as i64],
+                    parameters: HashMap::new(),
+                    contents: None,
+                }],
+                raw_output_contents: vec![raw_out.into()],
+                ..Default::default()
+            })
+        }
+    }
+
+    /// Returns one deterministic score per document, in input order.
+    struct FixedRerankBackend;
+
+    #[async_trait]
+    impl Backend for FixedRerankBackend {
+        fn id(&self) -> &str {
+            "fixed-rerank"
+        }
+        async fn model_ready(&self, _: &str, _: &str) -> bool {
+            true
+        }
+        async fn model_metadata(&self, name: &str, _: &str) -> Result<ModelMetadata, BackendError> {
+            Ok(ModelMetadata {
+                name: name.to_string(),
+                ..Default::default()
+            })
+        }
+        async fn infer(
+            &self,
+            request: ModelInferRequest,
+        ) -> Result<ModelInferResponse, BackendError> {
+            Ok(ModelInferResponse {
+                model_name: request.model_name,
+                id: request.id,
+                ..Default::default()
+            })
+        }
+        async fn rerank(
+            &self,
+            _: &str,
+            _: &str,
+            documents: &[String],
+            _: bool,
+        ) -> Result<Vec<f32>, BackendError> {
+            Ok(documents
+                .iter()
+                .enumerate()
+                .map(|(i, _)| i as f32 + 0.5)
+                .collect())
+        }
+    }
+
+    fn embedding_response(
+        model_name: &str,
+        model_version: &str,
+        shape: &[i64],
+        floats: &[f32],
+    ) -> ModelInferResponse {
+        use inferstream_protocol::inference::model_infer_response::InferOutputTensor;
+        use inferstream_protocol::tensor::DataType;
+
+        let mut raw = Vec::with_capacity(floats.len() * 4);
+        for v in floats {
+            raw.extend_from_slice(&v.to_le_bytes());
+        }
+        ModelInferResponse {
+            model_name: model_name.into(),
+            model_version: model_version.into(),
+            outputs: vec![InferOutputTensor {
+                name: "embedding".into(),
+                datatype: DataType::Fp32.as_oip().into(),
+                shape: shape.to_vec(),
+                parameters: HashMap::new(),
+                contents: None,
+            }],
+            raw_output_contents: vec![raw.into()],
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn default_infer_stream_propagates_unary_failure() {
+        use futures::StreamExt;
+        let backend = FailInferBackend;
+        let request = ModelInferRequest {
+            model_name: "m1".into(),
+            ..Default::default()
+        };
+        let mut stream = backend.infer_stream(request).await.unwrap();
+        let chunk = stream.next().await.unwrap();
+        assert!(matches!(chunk, Err(BackendError::Internal(_))));
+        assert!(stream.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn default_extension_errors_name_backend_and_model() {
+        let backend = NullBackend;
+        let tokenize_err = backend
+            .tokenize("m", &["x".to_string()], &TokenizeOptions::default())
+            .await
+            .unwrap_err();
+        let msg = tokenize_err.to_string();
+        assert!(
+            msg.contains("\"null\""),
+            "message should name the backend: {msg}"
+        );
+        assert!(
+            msg.contains("\"m\""),
+            "message should name the model: {msg}"
+        );
+
+        let rerank_err = backend
+            .rerank("m", "q", &["d".to_string()], false)
+            .await
+            .unwrap_err();
+        let rerank_msg = rerank_err.to_string();
+        assert!(rerank_msg.contains("\"null\""));
+        assert!(rerank_msg.contains("\"m\""));
+        assert_ne!(rerank_msg, msg);
+    }
+
+    #[test]
+    fn infer_from_embed_packs_texts_as_bytes_tensor() {
+        use inferstream_protocol::inference::infer_parameter::ParameterChoice;
+        use inferstream_protocol::tensor::{unpack_bytes, DataType};
+
+        let texts = vec!["hello".to_string(), "wörld".to_string(), String::new()];
+        let request = infer_from_embed("m1", &texts, "mean", Some(true), 128);
+
+        assert_eq!(request.model_name, "m1");
+        assert_eq!(request.inputs.len(), 1);
+        let input = &request.inputs[0];
+        assert_eq!(input.name, "text");
+        assert_eq!(input.datatype, DataType::Bytes.as_oip());
+        assert_eq!(input.shape, vec![texts.len() as i64]);
+        let unpacked = unpack_bytes(&request.raw_input_contents[0]).unwrap();
+        assert_eq!(
+            unpacked,
+            vec![b"hello".to_vec(), "wörld".as_bytes().to_vec(), Vec::new()]
+        );
+
+        let parameter = |key: &str| {
+            request
+                .parameters
+                .get(key)
+                .and_then(|p| p.parameter_choice.clone())
+        };
+        assert_eq!(
+            parameter("pooling"),
+            Some(ParameterChoice::StringParam("mean".into()))
+        );
+        assert_eq!(
+            parameter("normalize"),
+            Some(ParameterChoice::BoolParam(true))
+        );
+        assert_eq!(
+            parameter("truncate"),
+            Some(ParameterChoice::Int64Param(128))
+        );
+    }
+
+    #[test]
+    fn infer_from_embed_omits_unset_options_and_handles_empty_batch() {
+        let request = infer_from_embed("m1", &["x".to_string()], "", None, 0);
+        assert!(request.parameters.is_empty());
+
+        let empty = infer_from_embed("m1", &[], "", None, 0);
+        assert_eq!(empty.inputs[0].shape, vec![0]);
+        assert!(empty.raw_input_contents[0].is_empty());
+    }
+
+    #[test]
+    fn packed_from_infer_copies_blob_and_reports_metadata() {
+        let floats = [0.5f32, -1.25, 2.0, 3.75, 4.0, -5.5];
+        let response = embedding_response("m1", "7", &[2, 3], &floats);
+        let mut dest = vec![0xABu8; 128];
+        let packed = packed_from_infer(response, &mut dest).unwrap();
+
+        assert_eq!(packed.dim, 3);
+        assert_eq!(packed.count, 2);
+        assert_eq!(packed.model_name, "m1");
+        assert_eq!(packed.model_version, "7");
+        assert_eq!(dest.len(), 2 * 3 * 4);
+        let decoded: Vec<f32> = dest
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+            .collect();
+        assert_eq!(decoded, floats);
+    }
+
+    #[test]
+    fn packed_from_infer_rejects_malformed_responses() {
+        let mut dest = vec![0u8; 16];
+
+        let mut renamed = embedding_response("m1", "1", &[1, 2], &[1.0, 2.0]);
+        renamed.outputs[0].name = "scores".into();
+        assert!(matches!(
+            packed_from_infer(renamed, &mut dest),
+            Err(BackendError::Internal(_))
+        ));
+
+        let mut wrong_dtype = embedding_response("m1", "1", &[1, 2], &[1.0, 2.0]);
+        wrong_dtype.outputs[0].datatype = "INT8".into();
+        assert!(matches!(
+            packed_from_infer(wrong_dtype, &mut dest),
+            Err(BackendError::Internal(_))
+        ));
+
+        let zero_dim = embedding_response("m1", "1", &[1, 0], &[]);
+        assert!(matches!(
+            packed_from_infer(zero_dim, &mut dest),
+            Err(BackendError::Internal(_))
+        ));
+
+        let mut ragged = embedding_response("m1", "1", &[1, 2], &[1.0, 2.0]);
+        let mut raw = ragged.raw_output_contents[0].to_vec();
+        raw.push(0xFF);
+        ragged.raw_output_contents[0] = raw.into();
+        assert!(matches!(
+            packed_from_infer(ragged, &mut dest),
+            Err(BackendError::Internal(_))
+        ));
+
+        let not_dim_multiple = embedding_response("m1", "1", &[1, 4], &[1.0, 2.0, 3.0]);
+        assert!(matches!(
+            packed_from_infer(not_dim_multiple, &mut dest),
+            Err(BackendError::Internal(_))
+        ));
+
+        let mut no_raw = embedding_response("m1", "1", &[1, 2], &[1.0, 2.0]);
+        no_raw.raw_output_contents.clear();
+        assert!(matches!(
+            packed_from_infer(no_raw, &mut dest),
+            Err(BackendError::Internal(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn embed_packed_into_default_packs_bytes_and_copies_embedding() {
+        let backend = EmbedEchoBackend { dim: 4 };
+        let texts = vec!["alpha".to_string(), "beta".to_string()];
+        let mut dest = vec![0xCDu8; 64];
+        let packed = backend
+            .embed_packed_into("m1", &texts, "mean", Some(true), 64, &mut dest)
+            .await
+            .unwrap();
+
+        assert_eq!(packed.dim, 4);
+        assert_eq!(packed.count, 2);
+        assert_eq!(packed.model_name, "m1");
+        assert_eq!(packed.model_version, "1");
+        assert_eq!(dest.len(), 2 * 4 * 4);
+        let decoded: Vec<f32> = dest
+            .chunks_exact(4)
+            .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+            .collect();
+        assert_eq!(decoded, (0..8).map(|i| i as f32 + 0.5).collect::<Vec<_>>());
+    }
+
+    #[tokio::test]
+    async fn embed_packed_into_default_propagates_infer_errors() {
+        let backend = FailInferBackend;
+        let mut dest = vec![7u8; 16];
+        let err = backend
+            .embed_packed_into("m1", &["x".to_string()], "mean", None, 0, &mut dest)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, BackendError::Internal(_)));
+        assert_eq!(dest, vec![7u8; 16]);
+    }
+
+    #[tokio::test]
+    async fn rerank_into_default_replaces_dest_with_scores() {
+        let backend = FixedRerankBackend;
+        let docs = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let mut dest = vec![9.0f32; 8];
+        backend
+            .rerank_into("m1", "q", &docs, false, &mut dest)
+            .await
+            .unwrap();
+        assert_eq!(dest, vec![0.5, 1.5, 2.5]);
+    }
+
+    #[tokio::test]
+    async fn rerank_into_default_propagates_rerank_errors() {
+        let backend = NullBackend;
+        let mut dest = vec![1.0f32; 2];
+        let err = backend
+            .rerank_into("m1", "q", &["d".to_string()], false, &mut dest)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, BackendError::Unavailable(_)));
+        assert_eq!(dest, vec![1.0f32; 2]);
+    }
+
+    #[tokio::test]
+    async fn registry_double_register_returns_previous_backend() {
+        let first: Arc<dyn Backend> = Arc::new(NullBackend);
+        let second: Arc<dyn Backend> = Arc::new(FailInferBackend);
+        let mut registry = Registry::new();
+        assert!(registry.is_empty());
+
+        assert!(registry.register("m1", first.clone()).is_none());
+        let previous = registry.register("m1", second.clone());
+        assert!(previous.is_some());
+        assert!(Arc::ptr_eq(&previous.unwrap(), &first));
+        assert!(Arc::ptr_eq(&registry.lookup("m1").unwrap(), &second));
+        assert!(!registry.is_empty());
+    }
+
+    #[tokio::test]
+    async fn registry_model_names_covers_all_and_unknown_lookup_misses() {
+        let mut registry = Registry::new();
+        registry.register("m1", Arc::new(NullBackend));
+        registry.register("m2", Arc::new(FailInferBackend));
+        let mut names: Vec<_> = registry.model_names().collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["m1", "m2"]);
+        assert!(registry.lookup("unknown").is_none());
+    }
+
+    #[test]
+    fn catalog_ce_alias_matches_v2_and_trims_name() {
+        assert!(is_catalog_cross_encoder_alias("ms-marco-minilm-l6-v2"));
+        assert!(is_catalog_cross_encoder_alias("  MS-Marco-MiniLM-L6-V2  "));
+        assert!(!is_catalog_cross_encoder_alias("ms-marco-minilm-l6-v3"));
+        assert!(!is_catalog_cross_encoder_alias("ms-marco-minilm"));
+    }
 }
