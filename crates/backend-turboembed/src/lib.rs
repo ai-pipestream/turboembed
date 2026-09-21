@@ -570,4 +570,272 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn device_map_ort_full_matrix() {
+        // "onnxruntime" aliases "ort"; backend names are case-insensitive.
+        assert_eq!(
+            device_from_config("onnxruntime", Some("cuda")).unwrap(),
+            Device::Cuda
+        );
+        assert_eq!(
+            device_from_config("ORT", Some("TRT")).unwrap(),
+            Device::TensorRt
+        );
+        // Empty / whitespace-only device means "use the backend default".
+        for device in [
+            Some(""),
+            Some("   "),
+            Some("auto"),
+            Some("AUTO"),
+            Some(" Auto "),
+        ] {
+            assert_eq!(
+                device_from_config("ort", device).unwrap(),
+                Device::Auto,
+                "ort/{device:?} must map to Device::Auto"
+            );
+        }
+        assert_eq!(
+            device_from_config("ort", Some("tensorrt")).unwrap(),
+            Device::TensorRt
+        );
+        assert_eq!(
+            device_from_config("ort", Some("trt")).unwrap(),
+            Device::TensorRt
+        );
+        assert_eq!(
+            device_from_config("ort", Some(" cuda ")).unwrap(),
+            Device::Cuda
+        );
+        assert!(matches!(
+            device_from_config("ort", Some("rocm")),
+            Err(BackendError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn device_map_openvino_full_matrix() {
+        // Device strings are uppercased before matching, so lowercase
+        // spellings and the OPENVINO-* synonyms all resolve identically.
+        for device in [Some(""), Some("AUTO"), Some("auto"), Some("Auto")] {
+            assert_eq!(
+                device_from_config("openvino", device).unwrap(),
+                Device::Auto,
+                "openvino/{device:?} must map to Device::Auto"
+            );
+        }
+        assert_eq!(
+            device_from_config("openvino", Some("CPU")).unwrap(),
+            Device::OpenVinoCpu
+        );
+        assert_eq!(
+            device_from_config("openvino", Some("NPU")).unwrap(),
+            Device::OpenVinoNpu
+        );
+        for device in [
+            Some("gpu"),
+            Some("openvino-gpu"),
+            Some("OPENVINO-GPU"),
+            Some("OPENVINO_GPU"),
+        ] {
+            assert_eq!(
+                device_from_config("openvino", device).unwrap(),
+                Device::OpenVinoGpu,
+                "openvino/{device:?} must map to Device::OpenVinoGpu"
+            );
+        }
+        for device in [Some("OPENVINO-CPU"), Some("OPENVINO_CPU")] {
+            assert_eq!(
+                device_from_config("openvino", device).unwrap(),
+                Device::OpenVinoCpu,
+                "openvino/{device:?} must map to Device::OpenVinoCpu"
+            );
+        }
+        for device in [Some("OPENVINO-NPU"), Some("OPENVINO_NPU")] {
+            assert_eq!(
+                device_from_config("openvino", device).unwrap(),
+                Device::OpenVinoNpu,
+                "openvino/{device:?} must map to Device::OpenVinoNpu"
+            );
+        }
+        assert!(matches!(
+            device_from_config("OpenVino", Some("tpu")),
+            Err(BackendError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn device_map_mlx_full_matrix() {
+        // MLX catalog embeds are Metal/GPU-only: every supported device
+        // spelling resolves to the host-GPU default, never a CPU swap.
+        for device in [Some(""), Some("auto"), Some("gpu"), Some("METAL")] {
+            assert_eq!(
+                device_from_config("mlx", device).unwrap(),
+                Device::Auto,
+                "mlx/{device:?} must map to Device::Auto"
+            );
+        }
+        assert_eq!(
+            device_from_config("MLX", Some("Metal")).unwrap(),
+            Device::Auto
+        );
+        assert!(matches!(
+            device_from_config("mlx", Some("npu")),
+            Err(BackendError::InvalidRequest(_))
+        ));
+    }
+
+    #[test]
+    fn device_map_mock_device_string_refused_for_every_backend() {
+        // The "mock" device check runs before backend validation, so even an
+        // unknown backend fails as Unavailable here — never InvalidRequest.
+        for backend in ["ort", "onnxruntime", "openvino", "mlx", "llama-cpp"] {
+            for device in ["mock", "MOCK", " mock "] {
+                let result = device_from_config(backend, Some(device));
+                assert!(
+                    matches!(result, Err(BackendError::Unavailable(_))),
+                    "{backend}/{device:?}: expected Unavailable, got {result:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn device_map_unknown_backend_without_device() {
+        for backend in ["llama-cpp", "trt-llm", ""] {
+            let result = device_from_config(backend, None);
+            assert!(
+                matches!(result, Err(BackendError::InvalidRequest(_))),
+                "{backend:?}: expected InvalidRequest, got {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn mock_engine_alias_fails_before_fake_guard() {
+        // NOTE: the dim==8 FAKE guard in `TurboEmbedBackend::open` is
+        // unreachable for "mock-embed": the Device::Mock guard and the
+        // case-insensitive `is_mock_alias` guard both fire before
+        // Engine::create, so the 8-d FNV mock engine is never probed through
+        // this façade. Current behavior: fail-loud Unavailable from those
+        // guards — never Ok, never an Internal "FAKE" error.
+        let err = open_err("mock-embed", Device::Mock);
+        assert!(
+            err.to_string().contains("refuses Device::Mock"),
+            "expected the Device::Mock guard, got {err}"
+        );
+        for device in [Device::Cpu, Device::Auto, Device::OpenVinoCpu, Device::Cuda] {
+            let err = open_err("mock-embed", device);
+            let msg = err.to_string();
+            assert!(
+                matches!(err, BackendError::Unavailable(_)),
+                "{device:?}: expected Unavailable, got {err:?}"
+            );
+            assert!(
+                msg.contains("ABI-smoke mock"),
+                "{device:?}: expected the alias guard, got {msg}"
+            );
+            assert!(
+                !msg.contains("FAKE"),
+                "{device:?}: the dim-8 FAKE guard must not be the refusal point: {msg}"
+            );
+        }
+        // The alias guard is case-insensitive on the Rust side.
+        let err = open_err("MOCK-EMBED", Device::Cpu);
+        assert!(
+            err.to_string().contains("ABI-smoke mock"),
+            "expected the alias guard for MOCK-EMBED, got {err}"
+        );
+        // The short form "mock" is refused the same way.
+        let err = open_err("mock", Device::Cpu);
+        assert!(
+            err.to_string().contains("ABI-smoke mock"),
+            "expected the alias guard for mock, got {err}"
+        );
+    }
+
+    #[test]
+    fn open_rejects_empty_alias() {
+        let err = open_err("", Device::Cpu);
+        assert!(
+            matches!(err, BackendError::InvalidRequest(_)),
+            "expected InvalidRequest, got {err:?}"
+        );
+        let err = match TurboEmbedBackend::open_for_model("", "ort", None) {
+            Ok(_) => panic!("empty alias must not open"),
+            Err(e) => e,
+        };
+        assert!(
+            matches!(err, BackendError::InvalidRequest(_)),
+            "expected InvalidRequest, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn open_for_model_unknown_catalog_alias_fails_loud() {
+        // CPU / OPENVINO_CPU engine creation succeeds even without a provider
+        // feature; loading a catalog alias that does not exist then fails in
+        // the ABI (with a provider feature it fails at model resolution
+        // instead). Either way the error is Unavailable — never a mock
+        // stand-in, never Ok.
+        for (name, backend, device) in [
+            ("no-such-alias", "ort", Some("cpu")),
+            ("no-such-alias", "openvino", Some("cpu")),
+        ] {
+            let result = TurboEmbedBackend::open_for_model(name, backend, device);
+            let err = match result {
+                Ok(opened) => panic!(
+                    "{backend}/{device:?}: unknown alias {name:?} opened with dim={}",
+                    opened.embedding_dim()
+                ),
+                Err(e) => e,
+            };
+            assert!(
+                matches!(err, BackendError::Unavailable(_)),
+                "{backend}/{device:?}: expected Unavailable, got {err:?}"
+            );
+            assert!(
+                !err.to_string()
+                    .to_ascii_lowercase()
+                    .contains("serving mock"),
+                "{backend}/{device:?}: must not mention serving mock: {err}"
+            );
+        }
+    }
+
+    // Accessors can only be observed on a successfully opened backend, which
+    // needs a compiled-in provider runtime plus the fetched model. They stay
+    // behind the provider-feature gate — the mirror image of
+    // `catalog_minilm_fails_loud_without_provider` — and ignored until run on
+    // a provisioned machine.
+    #[cfg(feature = "genai")]
+    #[test]
+    #[ignore = "needs the OpenVINO GenAI runtime and a fetched models/ov/minilm"]
+    fn accessors_reflect_constructor_args_genai() {
+        let backend = TurboEmbedBackend::open_for_model("minilm", "openvino", Some("cpu"))
+            .expect("genai build with minilm fetched");
+        assert_eq!(backend.alias(), "minilm");
+        assert_eq!(backend.device(), Device::OpenVinoCpu);
+        assert_eq!(
+            backend.embedding_dim(),
+            384,
+            "MiniLM is 384-d, never the 8-d FNV mock"
+        );
+    }
+
+    #[cfg(feature = "ort-cuda")]
+    #[test]
+    #[ignore = "needs a CUDA runtime and a fetched models/onnx/minilm"]
+    fn accessors_reflect_constructor_args_ort_cuda() {
+        let backend = TurboEmbedBackend::open_for_model("minilm", "ort", Some("cuda"))
+            .expect("ort-cuda build with minilm fetched");
+        assert_eq!(backend.alias(), "minilm");
+        assert_eq!(backend.device(), Device::Cuda);
+        assert_eq!(
+            backend.embedding_dim(),
+            384,
+            "MiniLM is 384-d, never the 8-d FNV mock"
+        );
+    }
 }

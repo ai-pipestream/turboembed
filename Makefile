@@ -102,7 +102,9 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	turborerank-cuda-gemm-proof \
 	turborerank-tests-nometal libturborerank-apple libturbo-buffer-apple \
 	turbo-buffer-tests wordpiece-tests wordpiece-tripwire \
+	wordpiece-edge-tests turbo-buffer-edge-tests \
 	turboembed-mock-arena-tests turboembed-genai-arena-tests \
+	turboembed-abi-edge-tests turborerank-edge-tests turborerank-edge-tests-nocuda \
 	test-turborerank test-turborerank-nvidia turborerank-nvidia-receipt \
 	convert-rerank-ov verify-rerank-ov probe-remote-usm test-turborerank-intel \
 	turborerank-intel-receipt test-turborerank-apple turborerank-apple-receipt \
@@ -629,6 +631,15 @@ wordpiece-tests: wordpiece-tripwire turbo-buffer-tests
 	  -lm -o native/wordpiece/build/wordpiece_tests
 	INFERSTREAM_ROOT=$(CURDIR) native/wordpiece/build/wordpiece_tests
 
+wordpiece-edge-tests: wordpiece-tripwire
+	mkdir -p native/wordpiece/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g -DUTF8PROC_STATIC -I include -I third_party -I native/wordpiece \
+	  -I native/turbo_buffer/src \
+	  $(WORDPIECE_SRCS) \
+	  native/wordpiece/tests/wordpiece_edge_tests.cpp \
+	  -lm -o native/wordpiece/build/wordpiece_edge_tests
+	INFERSTREAM_ROOT=$(CURDIR) native/wordpiece/build/wordpiece_edge_tests
+
 turbo-buffer-tests:
 	mkdir -p native/turbo_buffer/build
 	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
@@ -638,6 +649,16 @@ turbo-buffer-tests:
 	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
 	  -o native/turbo_buffer/build/turbo_buffer_tests
 	native/turbo_buffer/build/turbo_buffer_tests
+
+turbo-buffer-edge-tests:
+	mkdir -p native/turbo_buffer/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
+	  $(TURBO_BUFFER_SRCS) $(TURBO_BUFFER_METAL_SRC) \
+	  native/turbo_buffer/tests/turbo_buffer_edge_tests.cpp \
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
+	  -o native/turbo_buffer/build/turbo_buffer_edge_tests
+	native/turbo_buffer/build/turbo_buffer_edge_tests
 
 turbo-buffer-intel-receipt: turbo-buffer-tests
 	mkdir -p native/turbo_buffer/build testdata/receipts/turbo_buffer
@@ -655,6 +676,13 @@ turboembed-mock-arena-tests: turboembed-stub
 	  native/turboembed/build/libturboembed.a \
 	  -lm -o native/turboembed/build/mock_arena_tests
 	native/turboembed/build/mock_arena_tests
+
+turboembed-abi-edge-tests: turboembed-stub
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g -I include \
+	  native/turboembed/tests/abi_edge_tests.cpp \
+	  native/turboembed/build/libturboembed.a \
+	  -lm -o native/turboembed/build/abi_edge_tests
+	INFERSTREAM_ROOT=$(CURDIR) native/turboembed/build/abi_edge_tests
 
 turborerank-tests: $(TURBORERANK_CUDA_OBJ) turborerank-cuda-gemm-proof turbo-buffer-tests wordpiece-tests
 	mkdir -p native/turborerank/build
@@ -706,6 +734,29 @@ turborerank-tests-nometal:
 	  $(TURBORERANK_SRCS) native/turborerank/tests/turborerank_tests.cpp \
 	  -lm -o native/turborerank/build/turborerank_tests_nometal
 	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_tests_nometal
+
+turborerank-edge-tests: $(TURBORERANK_CUDA_OBJ)
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(TURBORERANK_CPPFLAGS) $(TURBORERANK_METAL_FLAGS) \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
+	  $(TURBORERANK_CUDA_OBJ) \
+	  native/turborerank/tests/turborerank_edge_tests.cpp \
+	  -lm $(TURBORERANK_CUDA_LIBS) $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) \
+	  -o native/turborerank/build/turborerank_edge_tests
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_edge_tests
+
+# Same edge suite without CUDA defines — runs on hosts without nvcc/cudart.
+turborerank-edge-tests-nocuda:
+	mkdir -p native/turborerank/build
+	$(TURBORERANK_CXX) -std=c++17 -O2 -g $(TURBORERANK_INCLUDES) \
+	  $(filter-out -DTURBORERANK_CUDA=1 -DTURBO_BUFFER_CUDA=1,$(TURBORERANK_CPPFLAGS)) \
+	  -DTURBORERANK_WORKSPACE_ROOT=\"$(CURDIR)\" \
+	  $(TURBORERANK_SRCS) $(TURBORERANK_METAL_SRC) $(TURBO_BUFFER_METAL_SRC) \
+	  native/turborerank/tests/turborerank_edge_tests.cpp \
+	  -lm $(TURBORERANK_OV_LIBS) $(TURBORERANK_METAL_LIBS) $(TURBORERANK_METAL_FLAGS) \
+	  -o native/turborerank/build/turborerank_edge_tests_nocuda
+	INFERSTREAM_ROOT=$(CURDIR) native/turborerank/build/turborerank_edge_tests_nocuda
 
 turborerank-nvidia-receipt: $(TURBORERANK_CUDA_OBJ)
 	mkdir -p native/turborerank/build
