@@ -350,6 +350,9 @@ impl ProviderModel for MockModel {
                 sorted: Arc::from("sorted"),
                 y: Arc::from("y"),
             },
+            no_prefix: Arc::from(""),
+            prefix_query: Arc::from(self.info.prefix_query.as_str()),
+            prefix_document: Arc::from(self.info.prefix_document.as_str()),
         }))
     }
 
@@ -425,6 +428,9 @@ struct MockSession {
     runs: u64,
     allocs: AtomicU64,
     names: Names,
+    no_prefix: Arc<str>,
+    prefix_query: Arc<str>,
+    prefix_document: Arc<str>,
 }
 
 /// FNV-1a 64 with a seed.
@@ -790,14 +796,6 @@ impl MockSession {
             spans: Vec::new(),
         })
     }
-
-    fn prefix_for(&self, role: PromptRole) -> &str {
-        match role {
-            PromptRole::None => "",
-            PromptRole::Query => &self.info.prefix_query,
-            PromptRole::Document => &self.info.prefix_document,
-        }
-    }
 }
 
 impl ProviderSession for MockSession {
@@ -805,10 +803,12 @@ impl ProviderSession for MockSession {
         self.begin_write(texts.len());
         self.embed_opts = *opts;
         let budget = self.budget(opts.max_tokens);
-        let prefix = self.prefix_for(opts.prompt_role).to_string();
-        if !prefix.is_empty() {
-            self.note_alloc();
-        }
+        // Shared prefix strings: cloning the Arc does not allocate.
+        let prefix = match opts.prompt_role {
+            PromptRole::None => Arc::clone(&self.no_prefix),
+            PromptRole::Query => Arc::clone(&self.prefix_query),
+            PromptRole::Document => Arc::clone(&self.prefix_document),
+        };
         for (r, t) in texts.iter().enumerate() {
             self.tokenize_row(r, &prefix, t, opts.truncate, budget)?;
         }

@@ -23,8 +23,8 @@ use turbo_abi as abi;
 use crate::abi_convert::{
     buffer_desc_from_abi, buffer_desc_to_abi, capability_to_abi, check_size, classify_options_from_abi,
     device_info_to_abi, embed_options_from_abi, generate_desc_from_abi, kvs, model_info_to_abi, native_handle_from_abi,
-    native_handle_to_abi, put_str, rerank_options_from_abi, session_stats_to_abi, span_to_abi, tensor_info_to_abi,
-    text, text_of, texts, write_sized,
+    native_handle_to_abi, put_str, read_sized, rerank_options_from_abi, session_stats_to_abi, span_to_abi,
+    tensor_info_to_abi, text, text_of, texts, write_sized,
 };
 use crate::buffer::ProviderBuffer;
 use crate::bundle::Bundle;
@@ -246,8 +246,7 @@ unsafe extern "C" fn x_context_create(
         *o = std::ptr::null_mut();
         let mut cd = ContextDesc::default();
         if !desc.is_null() {
-            let d = unsafe { &*desc };
-            check_size::<abi::turbo_context_desc>("turbo_context_desc", d.struct_size)?;
+            let d = unsafe { read_sized::<abi::turbo_context_desc>(desc, "turbo_context_desc") }?;
             cd.options = unsafe { kvs(d.options, d.n_options, "turbo_context_desc.options") }?;
         }
         let c = st.provider.create_context(ordinal, &cd)?;
@@ -355,8 +354,7 @@ unsafe extern "C" fn x_model_load(
         let bundle = Arc::new(Bundle::open(Path::new(dir))?);
         let mut md = ModelDesc::default();
         if !desc.is_null() {
-            let d = unsafe { &*desc };
-            check_size::<abi::turbo_model_desc>("turbo_model_desc", d.struct_size)?;
+            let d = unsafe { read_sized::<abi::turbo_model_desc>(desc, "turbo_model_desc") }?;
             md.options = unsafe { kvs(d.options, d.n_options, "turbo_model_desc.options") }?;
         }
         let m = c.load_model(bundle, &md)?;
@@ -438,8 +436,7 @@ unsafe extern "C" fn x_session_create(
         if desc.is_null() {
             return Err(Error::invalid_argument("turbo_session_desc is NULL"));
         }
-        let d = unsafe { &*desc };
-        check_size::<abi::turbo_session_desc>("turbo_session_desc", d.struct_size)?;
+        let d = unsafe { read_sized::<abi::turbo_session_desc>(desc, "turbo_session_desc") }?;
         let sd = SessionDesc {
             max_batch: d.max_batch,
             max_seq: d.max_seq,
@@ -482,8 +479,7 @@ unsafe extern "C" fn x_session_write_tokens(
         if batch.is_null() {
             return Err(Error::invalid_argument("batch is NULL"));
         }
-        let b = unsafe { &*batch };
-        check_size::<abi::turbo_token_batch>("turbo_token_batch", b.struct_size)?;
+        let b = unsafe { read_sized::<abi::turbo_token_batch>(batch, "turbo_token_batch") }?;
         let row_stride = if b.row_stride == 0 { b.seq } else { b.row_stride };
         let need = TokenBatch::required_len(b.batch, b.seq, row_stride)?;
         if b.ids.is_null() || b.mask.is_null() {
@@ -558,8 +554,7 @@ unsafe extern "C" fn x_session_run(
         check_size::<abi::turbo_provider_result>("turbo_provider_result", o.struct_size)?;
         let mut ro = RunOptions::default();
         if !opts.is_null() {
-            let r = unsafe { &*opts };
-            check_size::<abi::turbo_run_options>("turbo_run_options", r.struct_size)?;
+            let r = unsafe { read_sized::<abi::turbo_run_options>(opts, "turbo_run_options") }?;
             ro.params = unsafe { kvs(r.params, r.n_params, "turbo_run_options.params") }?;
         }
         let result = s.inner.run(&ro)?;

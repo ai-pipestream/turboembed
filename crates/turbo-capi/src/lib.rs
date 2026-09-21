@@ -19,6 +19,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use turbo_abi::*;
+use turbo_core::abi_convert::read_sized;
 use turbo_core::buffer::{BufferDesc, NativeHandle};
 use turbo_core::chunker::{chunk_source, ChunkError, ChunkPlan, ChunkerConfig};
 use turbo_core::handles::{Buffer, Context, Generation, Model, ResultHandle, Session};
@@ -313,8 +314,7 @@ pub unsafe extern "C" fn turbo_runtime_create(
         let out = unsafe { out_ptr(out, "turbo_runtime_create") }?;
         let mut rd = RuntimeDesc::default();
         if !desc.is_null() {
-            let d = unsafe { &*desc };
-            check_size::<turbo_runtime_desc>("turbo_runtime_desc", d.struct_size)?;
+            let d = unsafe { read_sized::<turbo_runtime_desc>(desc, "turbo_runtime_desc") }?;
             rd.no_default_providers = d.flags & TURBO_RUNTIME_NO_DEFAULT_PROVIDERS != 0;
             if d.flags & !TURBO_RUNTIME_NO_DEFAULT_PROVIDERS != 0 {
                 return Err(Error::invalid_argument(format!(
@@ -452,8 +452,7 @@ pub unsafe extern "C" fn turbo_runtime_select_device(
         }
         let mut ds = DeviceSelector::default();
         if !sel.is_null() {
-            let s = unsafe { &*sel };
-            check_size::<turbo_device_selector>("turbo_device_selector", s.struct_size)?;
+            let s = unsafe { read_sized::<turbo_device_selector>(sel, "turbo_device_selector") }?;
             ds.policy = SelectPolicy::from_abi(s.policy).map_err(|e| e.with_field(2))?;
             if s.kind_mask != 0 {
                 for kind in DeviceKind::ALL {
@@ -562,8 +561,7 @@ pub unsafe extern "C" fn turbo_context_create(
         let rt = unsafe { arc(rt as *const Runtime, "turbo_runtime") }?;
         let mut cd = ContextDesc::default();
         if !desc.is_null() {
-            let d = unsafe { &*desc };
-            check_size::<turbo_context_desc>("turbo_context_desc", d.struct_size)?;
+            let d = unsafe { read_sized::<turbo_context_desc>(desc, "turbo_context_desc") }?;
             if d.flags != 0 {
                 return Err(Error::invalid_argument("turbo_context_desc.flags must be 0").with_field(2));
             }
@@ -601,9 +599,8 @@ unsafe fn buffer_desc(desc: *const turbo_buffer_desc) -> Result<(BufferDesc, Opt
     if desc.is_null() {
         return Err(Error::invalid_argument("turbo_buffer_desc is NULL"));
     }
-    let d = unsafe { &*desc };
-    check_size::<turbo_buffer_desc>("turbo_buffer_desc", d.struct_size)?;
-    let bd = BufferDesc::from_abi(d)?;
+    let d = unsafe { read_sized::<turbo_buffer_desc>(desc, "turbo_buffer_desc") }?;
+    let bd = BufferDesc::from_abi(&d)?;
     let native = if d.next.is_null() {
         None
     } else {
@@ -773,8 +770,7 @@ pub unsafe extern "C" fn turbo_model_load(
         }
         let mut md = ModelDesc::default();
         if !desc.is_null() {
-            let d = unsafe { &*desc };
-            check_size::<turbo_model_desc>("turbo_model_desc", d.struct_size)?;
+            let d = unsafe { read_sized::<turbo_model_desc>(desc, "turbo_model_desc") }?;
             if !d.next.is_null() {
                 return Err(Error::invalid_argument("turbo_model_desc.next must be NULL"));
             }
@@ -937,8 +933,7 @@ pub unsafe extern "C" fn turbo_session_create(
         let m = unsafe { arc(m as *const Model, "turbo_model") }?;
         let mut sd = SessionDesc::default();
         if !desc.is_null() {
-            let d = unsafe { &*desc };
-            check_size::<turbo_session_desc>("turbo_session_desc", d.struct_size)?;
+            let d = unsafe { read_sized::<turbo_session_desc>(desc, "turbo_session_desc") }?;
             if !d.next.is_null() {
                 return Err(Error::invalid_argument("turbo_session_desc.next must be NULL"));
             }
@@ -962,8 +957,7 @@ unsafe fn embed_options(opts: *const turbo_embed_options) -> Result<EmbedOptions
     if opts.is_null() {
         return Ok(EmbedOptions::default());
     }
-    let o = unsafe { &*opts };
-    check_size::<turbo_embed_options>("turbo_embed_options", o.struct_size)?;
+    let o = unsafe { read_sized::<turbo_embed_options>(opts, "turbo_embed_options") }?;
     Ok(EmbedOptions {
         truncate: Truncate::from_abi(o.truncate).map_err(|e| e.with_field(2))?,
         max_tokens: o.max_tokens,
@@ -1004,8 +998,7 @@ pub unsafe extern "C" fn turbo_session_write_tokens(
         if batch.is_null() {
             return Err(Error::invalid_argument("batch is NULL"));
         }
-        let b = unsafe { &*batch };
-        check_size::<turbo_token_batch>("turbo_token_batch", b.struct_size)?;
+        let b = unsafe { read_sized::<turbo_token_batch>(batch, "turbo_token_batch") }?;
         let row_stride = if b.row_stride == 0 { b.seq } else { b.row_stride };
         let need = TokenBatch::required_len(b.batch, b.seq, row_stride)?;
         if b.ids.is_null() {
@@ -1042,8 +1035,7 @@ pub unsafe extern "C" fn turbo_session_write_pairs(
         let d = unsafe { texts(docs, count, "docs") }?;
         let mut ro = RerankOptions::default();
         if !opts.is_null() {
-            let o = unsafe { &*opts };
-            check_size::<turbo_rerank_options>("turbo_rerank_options", o.struct_size)?;
+            let o = unsafe { read_sized::<turbo_rerank_options>(opts, "turbo_rerank_options") }?;
             ro.truncate = Truncate::from_abi(o.truncate).map_err(|e| e.with_field(2))?;
             ro.max_tokens = o.max_tokens;
             ro.top_n = o.top_n;
@@ -1078,8 +1070,7 @@ pub unsafe extern "C" fn turbo_session_write_text_classify(
         let list = unsafe { texts(texts_ptr, count, "texts") }?;
         let mut co = ClassifyOptions::default();
         if !opts.is_null() {
-            let o = unsafe { &*opts };
-            check_size::<turbo_classify_options>("turbo_classify_options", o.struct_size)?;
+            let o = unsafe { read_sized::<turbo_classify_options>(opts, "turbo_classify_options") }?;
             co.truncate = Truncate::from_abi(o.truncate).map_err(|e| e.with_field(2))?;
             co.max_tokens = o.max_tokens;
             co.aggregation = Aggregation::from_abi(o.aggregation).map_err(|e| e.with_field(4))?;
@@ -1128,8 +1119,7 @@ pub unsafe extern "C" fn turbo_session_run(
         let s = unsafe { arc(s as *const Session, "turbo_session") }?;
         let mut ro = RunOptions::default();
         if !opts.is_null() {
-            let o = unsafe { &*opts };
-            check_size::<turbo_run_options>("turbo_run_options", o.struct_size)?;
+            let o = unsafe { read_sized::<turbo_run_options>(opts, "turbo_run_options") }?;
             ro.params = unsafe { kvs(o.params, o.n_params, "turbo_run_options.params") }?;
         }
         let r = s.run(&ro)?;
@@ -1350,8 +1340,7 @@ unsafe fn generate_desc(desc: *const turbo_generate_desc) -> Result<GenerateDesc
     if desc.is_null() {
         return Ok(GenerateDesc::default());
     }
-    let d = unsafe { &*desc };
-    check_size::<turbo_generate_desc>("turbo_generate_desc", d.struct_size)?;
+    let d = unsafe { read_sized::<turbo_generate_desc>(desc, "turbo_generate_desc") }?;
     let stop =
         unsafe { texts(d.stop, d.n_stop, "turbo_generate_desc.stop") }?.into_iter().map(str::to_string).collect();
     let stop_tokens = if d.n_stop_tokens == 0 {
@@ -1624,8 +1613,7 @@ unsafe fn encode_options(opts: *const turbo_encode_options) -> Result<EncodeOpti
     if opts.is_null() {
         return Ok(EncodeOptions::default());
     }
-    let o = unsafe { &*opts };
-    check_size::<turbo_encode_options>("turbo_encode_options", o.struct_size)?;
+    let o = unsafe { read_sized::<turbo_encode_options>(opts, "turbo_encode_options") }?;
     Ok(EncodeOptions {
         add_special_tokens: match o.add_special_tokens {
             0 => false,
@@ -1779,8 +1767,7 @@ pub unsafe extern "C" fn turbo_chunk_plan_create(
         if desc.is_null() {
             return Err(Error::invalid_argument("turbo_chunk_desc is NULL"));
         }
-        let d = unsafe { &*desc };
-        check_size::<turbo_chunk_desc>("turbo_chunk_desc", d.struct_size)?;
+        let d = unsafe { read_sized::<turbo_chunk_desc>(desc, "turbo_chunk_desc") }?;
         let t = unsafe { handle(tokenizer as *const Tokenizer, "turbo_tokenizer") }?;
         let s = unsafe { text(&text_in, "text") }?;
         let config = ChunkerConfig {

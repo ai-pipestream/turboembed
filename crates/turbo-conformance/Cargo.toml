@@ -11,6 +11,7 @@ publish = false
 
 [dependencies]
 turbo = { workspace = true }
-turbo-capi = { workspace = true }
+turbo_capi = { package = "turbo-capi", path = "../turbo-capi" }
 turbo-abi = { workspace = true }
 tempfile = "3"
+serde_json = { workspace = true }

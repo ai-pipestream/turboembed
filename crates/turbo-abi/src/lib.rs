@@ -341,63 +341,63 @@ pub const TURBO_RUNTIME_NO_DEFAULT_PROVIDERS: u32 = 1 << 0;
 // ---------------------------------------------------------------------------
 
 /// The device can execute asynchronously (`turbo_session_submit` + fences).
-pub const TURBO_CAP_ASYNC: u64 = 1 << 0;
+pub const TURBO_CAP_ASYNC: u64 = 0x1;
 /// Caller host memory can be imported without a copy.
-pub const TURBO_CAP_HOST_PTR_IMPORT: u64 = 1 << 1;
+pub const TURBO_CAP_HOST_PTR_IMPORT: u64 = 0x2;
 /// Results can stay resident on the device and be exported.
-pub const TURBO_CAP_DEVICE_RESULT: u64 = 1 << 2;
+pub const TURBO_CAP_DEVICE_RESULT: u64 = 0x4;
 /// A caller-owned queue/stream can be imported.
-pub const TURBO_CAP_EXTERNAL_QUEUE: u64 = 1 << 3;
+pub const TURBO_CAP_EXTERNAL_QUEUE: u64 = 0x8;
 /// DMA-BUF import.
-pub const TURBO_CAP_DMABUF: u64 = 1 << 4;
+pub const TURBO_CAP_DMABUF: u64 = 0x10;
 /// Host and device share one address space (unified / USM shared).
-pub const TURBO_CAP_UNIFIED_MEMORY: u64 = 1 << 5;
+pub const TURBO_CAP_UNIFIED_MEMORY: u64 = 0x20;
 /// Sessions may run any shape up to their maximum without recompiling.
-pub const TURBO_CAP_DYNAMIC_SHAPE: u64 = 1 << 6;
+pub const TURBO_CAP_DYNAMIC_SHAPE: u64 = 0x40;
 /// Sessions on one model share weights.
-pub const TURBO_CAP_WEIGHT_SHARING: u64 = 1 << 7;
+pub const TURBO_CAP_WEIGHT_SHARING: u64 = 0x80;
 /// Tokenization runs on the device from raw UTF-8.
-pub const TURBO_CAP_DEVICE_TOKENIZE: u64 = 1 << 8;
+pub const TURBO_CAP_DEVICE_TOKENIZE: u64 = 0x100;
 /// Post-processing (softmax, aggregation) runs on the device.
-pub const TURBO_CAP_DEVICE_POSTPROCESS: u64 = 1 << 9;
+pub const TURBO_CAP_DEVICE_POSTPROCESS: u64 = 0x200;
 /// Deterministic results across runs for the same inputs and seed.
-pub const TURBO_CAP_DETERMINISTIC: u64 = 1 << 10;
+pub const TURBO_CAP_DETERMINISTIC: u64 = 0x400;
 
 /// Option `truncate` is honored.
-pub const TURBO_CAP_OPT_TRUNCATE: u64 = 1 << 16;
+pub const TURBO_CAP_OPT_TRUNCATE: u64 = 0x10000;
 /// Option `max_tokens` is honored.
-pub const TURBO_CAP_OPT_MAX_TOKENS: u64 = 1 << 17;
+pub const TURBO_CAP_OPT_MAX_TOKENS: u64 = 0x20000;
 /// Option `prompt_role` is honored.
-pub const TURBO_CAP_OPT_PROMPT_ROLE: u64 = 1 << 18;
+pub const TURBO_CAP_OPT_PROMPT_ROLE: u64 = 0x40000;
 /// Option `normalize` may differ from the model contract.
-pub const TURBO_CAP_OPT_NORMALIZE: u64 = 1 << 19;
+pub const TURBO_CAP_OPT_NORMALIZE: u64 = 0x80000;
 /// Option `pooling` may differ from the model contract.
-pub const TURBO_CAP_OPT_POOLING_OVERRIDE: u64 = 1 << 20;
+pub const TURBO_CAP_OPT_POOLING_OVERRIDE: u64 = 0x100000;
 /// Option `output_dim` (Matryoshka truncation) is honored.
-pub const TURBO_CAP_OPT_OUTPUT_DIM: u64 = 1 << 21;
+pub const TURBO_CAP_OPT_OUTPUT_DIM: u64 = 0x200000;
 /// Option `output_dtype` is honored.
-pub const TURBO_CAP_OPT_OUTPUT_DTYPE: u64 = 1 << 22;
+pub const TURBO_CAP_OPT_OUTPUT_DTYPE: u64 = 0x400000;
 /// Rerank `top_n` and sorted output are computed by the provider.
-pub const TURBO_CAP_OPT_TOP_N: u64 = 1 << 23;
+pub const TURBO_CAP_OPT_TOP_N: u64 = 0x800000;
 /// Token-classification `aggregation` may differ from the model contract.
-pub const TURBO_CAP_OPT_AGGREGATION: u64 = 1 << 24;
+pub const TURBO_CAP_OPT_AGGREGATION: u64 = 0x1000000;
 
 /// Generation: structured output (JSON schema / grammar).
-pub const TURBO_CAP_OPT_GEN_STRUCTURED: u64 = 1 << 32;
+pub const TURBO_CAP_OPT_GEN_STRUCTURED: u64 = 0x100000000;
 /// Generation: tool definitions in the prompt template.
-pub const TURBO_CAP_OPT_GEN_TOOLS: u64 = 1 << 33;
+pub const TURBO_CAP_OPT_GEN_TOOLS: u64 = 0x200000000;
 /// Generation: `n_sequences > 1`.
-pub const TURBO_CAP_OPT_GEN_N: u64 = 1 << 34;
+pub const TURBO_CAP_OPT_GEN_N: u64 = 0x400000000;
 /// Generation: `logit_bias`.
-pub const TURBO_CAP_OPT_GEN_LOGIT_BIAS: u64 = 1 << 35;
+pub const TURBO_CAP_OPT_GEN_LOGIT_BIAS: u64 = 0x800000000;
 /// Generation: presence / frequency / repeat penalties.
-pub const TURBO_CAP_OPT_GEN_PENALTIES: u64 = 1 << 36;
+pub const TURBO_CAP_OPT_GEN_PENALTIES: u64 = 0x1000000000;
 /// Generation: per-token logprobs.
-pub const TURBO_CAP_OPT_GEN_LOGPROBS: u64 = 1 << 37;
+pub const TURBO_CAP_OPT_GEN_LOGPROBS: u64 = 0x2000000000;
 /// Generation: stop strings (as opposed to stop token ids only).
-pub const TURBO_CAP_OPT_GEN_STOP_STRINGS: u64 = 1 << 38;
+pub const TURBO_CAP_OPT_GEN_STOP_STRINGS: u64 = 0x4000000000;
 /// Generation: `seed` is honored (implies reproducible sampling).
-pub const TURBO_CAP_OPT_GEN_SEED: u64 = 1 << 39;
+pub const TURBO_CAP_OPT_GEN_SEED: u64 = 0x8000000000;
 
 // ---------------------------------------------------------------------------
 // Views and errors

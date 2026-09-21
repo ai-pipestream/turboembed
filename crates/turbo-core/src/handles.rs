@@ -847,7 +847,13 @@ impl Generation {
         if st.finished {
             return Err(Error::invalid_state("generation already finished; create a new generation"));
         }
-        let mut chunk = self.chunk.lock().unwrap_or_else(|p| p.into_inner());
+        let mut chunk = match self.chunk.try_lock() {
+            Ok(g) => g,
+            Err(TryLockError::WouldBlock) => {
+                return Err(Error::busy("the previous chunk is still borrowed; drop it before calling step again"))
+            }
+            Err(TryLockError::Poisoned(p)) => p.into_inner(),
+        };
         chunk.clear();
         st.inner.step(&mut chunk)?;
         if chunk.done {

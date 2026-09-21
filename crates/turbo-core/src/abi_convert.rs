@@ -35,6 +35,29 @@ pub fn check_size<T>(what: &str, got: u32) -> Result<()> {
     Ok(())
 }
 
+/// Read an input descriptor, copying only the `struct_size` bytes the caller
+/// declared into a zero-initialized full struct. Fields the caller did not
+/// declare therefore read as zero ("old behavior") and are never touched in
+/// the caller's memory.
+///
+/// # Safety
+/// `ptr` must be NULL or point to at least `struct_size` readable bytes whose
+/// first four bytes are the `struct_size` field.
+pub unsafe fn read_sized<T: Copy>(ptr: *const T, what: &str) -> Result<T> {
+    if ptr.is_null() {
+        return Err(Error::invalid_argument(format!("{what} is NULL")));
+    }
+    // SAFETY: every ABI descriptor starts with `uint32_t struct_size`.
+    let size = unsafe { ptr.cast::<u32>().read_unaligned() };
+    check_size::<T>(what, size)?;
+    // SAFETY: all-zero is a valid value for every ABI descriptor (integers,
+    // floats, null pointers, `None` function pointers).
+    let mut out: T = unsafe { std::mem::zeroed() };
+    // SAFETY: `size <= size_of::<T>()` was checked; the source is readable for `size` bytes.
+    unsafe { std::ptr::copy_nonoverlapping(ptr.cast::<u8>(), (&mut out as *mut T).cast::<u8>(), size as usize) };
+    Ok(out)
+}
+
 /// Copy `src` into `dst`, writing only the first `struct_size` bytes the
 /// caller declared (already validated with [`check_size`]).
 ///
@@ -277,7 +300,8 @@ pub fn native_handle_to_abi(h: &NativeHandle) -> abi::turbo_native_handle {
 
 /// ABI → core.
 pub fn native_handle_from_abi(h: &abi::turbo_native_handle) -> Result<NativeHandle> {
-    check_size::<abi::turbo_native_handle>("turbo_native_handle", h.struct_size)?;
+    // SAFETY: a reference is readable for its declared prefix.
+    let h = unsafe { read_sized::<abi::turbo_native_handle>(h, "turbo_native_handle") }?;
     Ok(NativeHandle { kind: HandleKind::from_abi(h.kind)?, handle: h.handle, aux: h.aux, offset: h.offset })
 }
 
@@ -290,9 +314,8 @@ pub unsafe fn buffer_desc_from_abi(desc: *const abi::turbo_buffer_desc) -> Resul
     if desc.is_null() {
         return Err(Error::invalid_argument("turbo_buffer_desc is NULL"));
     }
-    let d = unsafe { &*desc };
-    check_size::<abi::turbo_buffer_desc>("turbo_buffer_desc", d.struct_size)?;
-    let bd = BufferDesc::from_abi(d)?;
+    let d = unsafe { read_sized::<abi::turbo_buffer_desc>(desc, "turbo_buffer_desc") }?;
+    let bd = BufferDesc::from_abi(&d)?;
     let native = if d.next.is_null() {
         None
     } else {
@@ -430,8 +453,7 @@ pub unsafe fn embed_options_from_abi(opts: *const abi::turbo_embed_options) -> R
     if opts.is_null() {
         return Ok(EmbedOptions::default());
     }
-    let o = unsafe { &*opts };
-    check_size::<abi::turbo_embed_options>("turbo_embed_options", o.struct_size)?;
+    let o = unsafe { read_sized::<abi::turbo_embed_options>(opts, "turbo_embed_options") }?;
     Ok(EmbedOptions {
         truncate: Truncate::from_abi(o.truncate).map_err(|e| e.with_field(EmbedOptions::FIELD_TRUNCATE))?,
         max_tokens: o.max_tokens,
@@ -474,8 +496,7 @@ pub unsafe fn rerank_options_from_abi(opts: *const abi::turbo_rerank_options) ->
     if opts.is_null() {
         return Ok(RerankOptions::default());
     }
-    let o = unsafe { &*opts };
-    check_size::<abi::turbo_rerank_options>("turbo_rerank_options", o.struct_size)?;
+    let o = unsafe { read_sized::<abi::turbo_rerank_options>(opts, "turbo_rerank_options") }?;
     Ok(RerankOptions {
         truncate: Truncate::from_abi(o.truncate).map_err(|e| e.with_field(RerankOptions::FIELD_TRUNCATE))?,
         max_tokens: o.max_tokens,
@@ -505,8 +526,7 @@ pub unsafe fn classify_options_from_abi(opts: *const abi::turbo_classify_options
     if opts.is_null() {
         return Ok(ClassifyOptions::default());
     }
-    let o = unsafe { &*opts };
-    check_size::<abi::turbo_classify_options>("turbo_classify_options", o.struct_size)?;
+    let o = unsafe { read_sized::<abi::turbo_classify_options>(opts, "turbo_classify_options") }?;
     if o.reserved != 0 {
         return Err(Error::invalid_argument("turbo_classify_options.reserved must be 0").with_field(6));
     }
@@ -540,8 +560,7 @@ pub unsafe fn generate_desc_from_abi(desc: *const abi::turbo_generate_desc) -> R
     if desc.is_null() {
         return Ok(GenerateDesc::default());
     }
-    let d = unsafe { &*desc };
-    check_size::<abi::turbo_generate_desc>("turbo_generate_desc", d.struct_size)?;
+    let d = unsafe { read_sized::<abi::turbo_generate_desc>(desc, "turbo_generate_desc") }?;
     let stop =
         unsafe { texts(d.stop, d.n_stop, "turbo_generate_desc.stop") }?.into_iter().map(str::to_string).collect();
     let stop_tokens = if d.n_stop_tokens == 0 {

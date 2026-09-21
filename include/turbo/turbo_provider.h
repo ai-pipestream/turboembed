@@ -685,142 +685,142 @@
 /**
  * The device can execute asynchronously (`turbo_session_submit` + fences).
  */
-#define TURBO_CAP_ASYNC (1 << 0)
+#define TURBO_CAP_ASYNC 1
 
 /**
  * Caller host memory can be imported without a copy.
  */
-#define TURBO_CAP_HOST_PTR_IMPORT (1 << 1)
+#define TURBO_CAP_HOST_PTR_IMPORT 2
 
 /**
  * Results can stay resident on the device and be exported.
  */
-#define TURBO_CAP_DEVICE_RESULT (1 << 2)
+#define TURBO_CAP_DEVICE_RESULT 4
 
 /**
  * A caller-owned queue/stream can be imported.
  */
-#define TURBO_CAP_EXTERNAL_QUEUE (1 << 3)
+#define TURBO_CAP_EXTERNAL_QUEUE 8
 
 /**
  * DMA-BUF import.
  */
-#define TURBO_CAP_DMABUF (1 << 4)
+#define TURBO_CAP_DMABUF 16
 
 /**
  * Host and device share one address space (unified / USM shared).
  */
-#define TURBO_CAP_UNIFIED_MEMORY (1 << 5)
+#define TURBO_CAP_UNIFIED_MEMORY 32
 
 /**
  * Sessions may run any shape up to their maximum without recompiling.
  */
-#define TURBO_CAP_DYNAMIC_SHAPE (1 << 6)
+#define TURBO_CAP_DYNAMIC_SHAPE 64
 
 /**
  * Sessions on one model share weights.
  */
-#define TURBO_CAP_WEIGHT_SHARING (1 << 7)
+#define TURBO_CAP_WEIGHT_SHARING 128
 
 /**
  * Tokenization runs on the device from raw UTF-8.
  */
-#define TURBO_CAP_DEVICE_TOKENIZE (1 << 8)
+#define TURBO_CAP_DEVICE_TOKENIZE 256
 
 /**
  * Post-processing (softmax, aggregation) runs on the device.
  */
-#define TURBO_CAP_DEVICE_POSTPROCESS (1 << 9)
+#define TURBO_CAP_DEVICE_POSTPROCESS 512
 
 /**
  * Deterministic results across runs for the same inputs and seed.
  */
-#define TURBO_CAP_DETERMINISTIC (1 << 10)
+#define TURBO_CAP_DETERMINISTIC 1024
 
 /**
  * Option `truncate` is honored.
  */
-#define TURBO_CAP_OPT_TRUNCATE (1 << 16)
+#define TURBO_CAP_OPT_TRUNCATE 65536
 
 /**
  * Option `max_tokens` is honored.
  */
-#define TURBO_CAP_OPT_MAX_TOKENS (1 << 17)
+#define TURBO_CAP_OPT_MAX_TOKENS 131072
 
 /**
  * Option `prompt_role` is honored.
  */
-#define TURBO_CAP_OPT_PROMPT_ROLE (1 << 18)
+#define TURBO_CAP_OPT_PROMPT_ROLE 262144
 
 /**
  * Option `normalize` may differ from the model contract.
  */
-#define TURBO_CAP_OPT_NORMALIZE (1 << 19)
+#define TURBO_CAP_OPT_NORMALIZE 524288
 
 /**
  * Option `pooling` may differ from the model contract.
  */
-#define TURBO_CAP_OPT_POOLING_OVERRIDE (1 << 20)
+#define TURBO_CAP_OPT_POOLING_OVERRIDE 1048576
 
 /**
  * Option `output_dim` (Matryoshka truncation) is honored.
  */
-#define TURBO_CAP_OPT_OUTPUT_DIM (1 << 21)
+#define TURBO_CAP_OPT_OUTPUT_DIM 2097152
 
 /**
  * Option `output_dtype` is honored.
  */
-#define TURBO_CAP_OPT_OUTPUT_DTYPE (1 << 22)
+#define TURBO_CAP_OPT_OUTPUT_DTYPE 4194304
 
 /**
  * Rerank `top_n` and sorted output are computed by the provider.
  */
-#define TURBO_CAP_OPT_TOP_N (1 << 23)
+#define TURBO_CAP_OPT_TOP_N 8388608
 
 /**
  * Token-classification `aggregation` may differ from the model contract.
  */
-#define TURBO_CAP_OPT_AGGREGATION (1 << 24)
+#define TURBO_CAP_OPT_AGGREGATION 16777216
 
 /**
  * Generation: structured output (JSON schema / grammar).
  */
-#define TURBO_CAP_OPT_GEN_STRUCTURED (1 << 32)
+#define TURBO_CAP_OPT_GEN_STRUCTURED 4294967296
 
 /**
  * Generation: tool definitions in the prompt template.
  */
-#define TURBO_CAP_OPT_GEN_TOOLS (1 << 33)
+#define TURBO_CAP_OPT_GEN_TOOLS 8589934592
 
 /**
  * Generation: `n_sequences > 1`.
  */
-#define TURBO_CAP_OPT_GEN_N (1 << 34)
+#define TURBO_CAP_OPT_GEN_N 17179869184
 
 /**
  * Generation: `logit_bias`.
  */
-#define TURBO_CAP_OPT_GEN_LOGIT_BIAS (1 << 35)
+#define TURBO_CAP_OPT_GEN_LOGIT_BIAS 34359738368
 
 /**
  * Generation: presence / frequency / repeat penalties.
  */
-#define TURBO_CAP_OPT_GEN_PENALTIES (1 << 36)
+#define TURBO_CAP_OPT_GEN_PENALTIES 68719476736
 
 /**
  * Generation: per-token logprobs.
  */
-#define TURBO_CAP_OPT_GEN_LOGPROBS (1 << 37)
+#define TURBO_CAP_OPT_GEN_LOGPROBS 137438953472
 
 /**
  * Generation: stop strings (as opposed to stop token ids only).
  */
-#define TURBO_CAP_OPT_GEN_STOP_STRINGS (1 << 38)
+#define TURBO_CAP_OPT_GEN_STOP_STRINGS 274877906944
 
 /**
  * Generation: `seed` is honored (implies reproducible sampling).
  */
-#define TURBO_CAP_OPT_GEN_SEED (1 << 39)
+#define TURBO_CAP_OPT_GEN_SEED 549755813888
 
 /**
  * Length of `turbo_error.message` including the terminating NUL.
