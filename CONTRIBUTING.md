@@ -16,15 +16,25 @@ checklist.
   `c++`/C++17) to build and run the C smoke test.
 - `protoc` is not needed yet; it becomes relevant once `server/` (P9) is
   built against the vendored proto files.
+- To build the OpenVINO provider (optional; not part of the default
+  workspace build): an OpenVINO archive distribution (2026.3 or later),
+  OpenCL headers and loader, CMake 3.20+, and a C++17 compiler. See
+  [`providers/openvino/README.md`](providers/openvino/README.md).
+- To build the CUDA provider (`providers/cuda`, a workspace member, so the
+  commands below exclude it by default): a CUDA toolkit with `nvcc` and
+  `cuda_runtime.h`, `libcudart.so`, and network access on the first build
+  (the `ort` crate downloads a prebuilt ONNX Runtime CUDA bundle). See
+  [`providers/cuda/README.md`](providers/cuda/README.md).
 
 ## Building and testing
 
 ```bash
-cargo build --workspace
-cargo test --locked --workspace
-cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo build --workspace --exclude turbo-provider-cuda
+cargo test --locked --workspace --exclude turbo-provider-cuda
+cargo clippy --locked --workspace --exclude turbo-provider-cuda --all-targets -- -D warnings
 cargo fmt --all -- --check
 scripts/gen-header.sh --check          # headers match crates/turbo-abi + crates/turbo-capi
+scripts/gen-versioned.py --check       # struct_size table matches crates/turbo-abi's struct field lists
 scripts/c-smoke.sh                     # builds libturbo, compiles and runs the C smoke test
 ```
 
@@ -38,6 +48,17 @@ constant, struct, or function), regenerate the header and commit it:
 scripts/gen-header.sh
 ```
 
+If your change adds, removes, or reorders fields in an ABI struct
+(anything starting with `struct_size` in `crates/turbo-abi/src/lib.rs` or
+`provider.rs`), regenerate the accepted `struct_size` table and commit it:
+
+```bash
+scripts/gen-versioned.py
+```
+
+This writes `crates/turbo-abi/src/versioned.rs`, the per-struct list of
+every `struct_size` the library accepts (`AGENTS.md`'s "ABI rules").
+
 If your change touches `crates/turbo-core/src/mock.rs` in a way that
 changes the mock bundle shape, regenerate the fixtures and commit them:
 
@@ -48,14 +69,35 @@ cargo run -p turbo-core --example write_mock_bundles
 ## Running the C smoke test manually
 
 ```bash
-cargo build -p turbo-capi
+cargo build -p turbo-shared
 cc -std=c11 -Wall -Wextra -Wpedantic -Werror -Iinclude \
     crates/turbo-conformance/c/smoke.c -Ltarget/debug -lturbo -lm \
     -Wl,-rpath,target/debug -o /tmp/turbo-c-smoke
 /tmp/turbo-c-smoke testdata/bundles/mock
 ```
 
-`scripts/c-smoke.sh` does exactly this (release build with `--release`).
+`turbo-shared` is the crate that produces `libturbo` (`cdylib` name
+`turbo`); it links `turbo-capi`'s `extern "C"` exports. `scripts/c-smoke.sh`
+does exactly this (release build with `--release`).
+
+## Running the Rust conformance suite
+
+```bash
+cargo test -p turbo-conformance
+```
+
+By default this runs against the built-in providers and the committed mock
+bundles (`testdata/bundles/mock`). To point it at a loadable provider
+instead, set `TURBO_CONFORMANCE_PROVIDER_PATHS` (colon-separated library
+paths to load in addition to the built-ins), `TURBO_CONFORMANCE_PROVIDER`
+(the provider id to select), and `TURBO_CONFORMANCE_ORDINAL` (the device
+ordinal within it); see `docs/testing.md`. The live provider tests
+(`tests/live_embed.rs`, `tests/live_tasks.rs`) are a separate, narrower path
+that loads one real provider library and reads its own `TURBO_LIVE_*`
+environment variables (`crates/turbo-conformance/src/live.rs`), skipping
+themselves when `TURBO_LIVE_LIB` or `TURBO_LIVE_PROVIDER` is unset; see
+[`providers/openvino/README.md`](providers/openvino/README.md) for OpenVINO
+and [`providers/cuda/README.md`](providers/cuda/README.md) for CUDA.
 
 ## Branch and PR expectations
 
@@ -73,8 +115,10 @@ cc -std=c11 -Wall -Wextra -Wpedantic -Werror -Iinclude \
 
 ## Coding standards
 
-- `#![deny(missing_docs)]` is set on `turbo-abi`, `turbo-core`, and
-  `turbo-capi`. Every public item needs a doc comment.
+- `#![deny(missing_docs)]` is set on every Rust crate in the workspace
+  (`turbo-abi`, `turbo-core`, `turbo-capi`, `turbo-shared`, `turbo`,
+  `turbo-conformance`, `providers/mock`, `providers/static`,
+  `tools/turbo-bundle`). Every public item needs a doc comment.
 - `clippy -D warnings` must be clean; do not add `#[allow(...)]` to silence
   a real finding. `turbo-abi` and `turbo-capi` also deny
   `unsafe_op_in_unsafe_fn`: every `unsafe` block, even inside an `unsafe fn`,
@@ -114,6 +158,17 @@ assert on `Error::code()`). Prefer:
 For a change that reaches the C ABI, add or extend a case in
 `crates/turbo-conformance/c/smoke.c` using the `CHECK`/`EXPECT` macros
 already there, and run `scripts/c-smoke.sh`.
+
+For a change that is provider-agnostic contract behavior (something every
+provider must do, not a `turbo-core`-internal detail), add a case to
+`crates/turbo-conformance/tests/` instead: one file per group (contract,
+lifetime, capability, device, threading, allocation, bundle, tasks,
+generation), each with a `_rust` variant (through the safe `turbo` crate)
+and a `_c` variant (through `turbo_capi`'s `extern "C"` functions directly,
+using the helpers in `crates/turbo-conformance/src/lib.rs`'s `c` module).
+Use `turbo_conformance::Target` to resolve the runtime, device, and bundle
+under test so the same case runs against the mock and against real hardware
+by only changing the environment (`docs/testing.md`).
 
 ## Review checklist
 

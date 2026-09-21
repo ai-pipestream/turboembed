@@ -163,7 +163,12 @@ run concurrently. Weight sharing across sessions is a provider capability.
   state: `turbo_error { uint32_t struct_size; int32_t code; uint32_t field;
   char message[496]; }`. `field` names the offending option for `0x2xx`.
 - Every public struct begins with `uint32_t struct_size`. The library reads
-  only fields below the size the caller declared; appended fields must have a
+  only fields below the size the caller declared, and accepts a size only
+  when it is the end of a field the struct has ever had (a per-struct table,
+  `crates/turbo-abi/src/versioned.rs`, generated from the field lists by
+  `scripts/gen-versioned.py` and checked by `scripts/gen-versioned.py
+  --check`); any other size, including one that ends inside a field, is
+  `TURBO_E_INVALID_STRUCT_SIZE`. Appended fields must have a
   zero value that means "old behavior". Enumerations in ABI position are
   `uint32_t` with named constants, never C `enum`. An optional `const void
   *next` chain is reserved for rare vendor imports (CUDA stream, `cl_mem`,
@@ -535,6 +540,21 @@ behind `CAP_DEVICE_TOKENIZE`, compared against host tokenization at batch
 Gate: conformance green on both machines; goldens; `d2h_hidden_bytes == 0`;
 two engines with interleaved create/run/destroy under the allocator pool;
 receipts from both machines.
+
+Status (2026-09-21): x86_64 has landed on `krick` (`providers/cuda/`).
+Embed, rerank, classify, and token-classify run through the ONNX Runtime
+CUDA execution provider with IoBinding and the provider's own device
+kernels for pooling, L2 normalization, sigmoid, and softmax; results stay
+on the device and are exported as `TURBO_HANDLE_CUDA_PTR`. Precision
+matches the FP32 reference vectors at cosine 1.000
+(`testdata/receipts/turbo/cuda-2026-09-21.json`). Every cell stays
+`EXPERIMENTAL`: the matched-native benchmark and the two-engine
+interleaving test above are not yet done. Jetson (`nano1`) is not started:
+there is no prebuilt `aarch64-unknown-linux-gnu` ONNX Runtime CUDA bundle,
+so the board needs a source build of ONNX Runtime before the probe-then-
+fallback step above can run; tracked as open in `providers/cuda/README.md`.
+TensorRT EP, `user_compute_stream` import, and the GPU WordPiece stretch
+goal are not implemented on either machine yet.
 
 ### P4 Metal provider
 Swift provider library exporting the plugin vtable; MLX arrays over the

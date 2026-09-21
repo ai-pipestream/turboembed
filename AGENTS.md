@@ -43,20 +43,40 @@ A reviewer applies these to every change, not just provider code:
 
 ## Where things live
 
-- `crates/turbo-abi` — `#[repr(C)]` types and constants; the single source
-  cbindgen reads to produce the header. `no_std`.
-- `crates/turbo-capi` — `extern "C"` exports (`libturbo`); thin, panic-safe
-  adapters over `turbo-core`.
+- `crates/turbo-abi` — `#[repr(C)]` types and constants, including the
+  provider vtable types (`provider.rs`); the single source cbindgen reads to
+  produce the headers. `no_std`.
+- `crates/turbo-capi` — `extern "C"` exports; thin, panic-safe adapters over
+  `turbo-core`.
+- `crates/turbo-shared` — links `turbo-capi` into `libturbo` (`cdylib` +
+  `staticlib`, crate name `turbo`). Nothing is defined here.
 - `crates/turbo-core` — the runtime, device registry, buffers, bundle
-  loader/verifier, handles (ownership/lifetime/lease enforcement), the
-  provider trait set (`provider.rs`), and the `mock` provider.
-- `crates/turbo` — the safe Rust API; re-exports `turbo-core`.
-- `crates/turbo-conformance` — the provider-agnostic contract suite
-  (`c/smoke.c` today; the Rust suite described in `PLAN.md` section 10 is
-  not written yet).
-- `providers/<name>/` — one crate per provider; `providers/mock` today.
-- `include/turbo/` — generated headers. Never hand-edit.
+  loader/verifier, tokenizers (`tokenizer.rs`), the chunk planner
+  (`chunker.rs`), handles (ownership/lifetime/lease enforcement), the
+  provider trait set (`provider.rs`), provider plugin loading
+  (`plugin.rs`, the C vtable to Rust trait adapter) and exporting
+  (`plugin_export.rs`, the `export_provider!` macro), and the `mock`
+  provider.
+- `crates/turbo` — the safe Rust API; re-exports `turbo-core` and adds
+  `builtin_providers()` (`mock`, `static`).
+- `crates/turbo-conformance` — the provider-agnostic contract suite:
+  `c/smoke.c` and a Rust suite (`tests/`, one file per group: contract,
+  lifetime, capability, device, threading, allocation, bundle, tasks,
+  generation, each in a `_c` and a `_rust` variant, plus `header_parity.rs`
+  and the OpenVINO live tests described below).
+- `providers/mock/`, `providers/static/` — Rust providers built with
+  `export_provider!`. `providers/openvino/` — a C++ provider that
+  implements `turbo_provider.h`'s vtable directly and builds separately
+  with CMake; see its own `README.md`.
+- `tools/turbo-bundle/` — `import`, `verify`, `inspect` (`docs/bundles.md`).
+- `include/turbo/` — generated headers (`turbo.h`, `turbo_types.h`,
+  `turbo_provider.h`). Never hand-edit.
 - `testdata/bundles/mock/` — generated mock bundle fixtures.
+  `testdata/bundles/minilm-tokenizer/` — an imported tokenizer-only fixture;
+  edit it only by re-running the importer or the fixture writer, never by
+  hand.
+- `testdata/receipts/turbo/` — conformance and precision receipts for this
+  tree's providers (OpenVINO today).
 - `docs/` — current documentation; `docs/history/poc/` holds retired PoC
   documentation, unedited.
 
@@ -64,9 +84,10 @@ A reviewer applies these to every change, not just provider code:
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --locked --workspace --all-targets -- -D warnings
-cargo test --locked --workspace
+cargo clippy --locked --workspace --exclude turbo-provider-cuda --all-targets -- -D warnings
+cargo test --locked --workspace --exclude turbo-provider-cuda
 scripts/gen-header.sh --check
+scripts/gen-versioned.py --check
 cargo run -p turbo-core --example write_mock_bundles && git diff --exit-code -- testdata/bundles
 scripts/c-smoke.sh
 ```
@@ -75,14 +96,25 @@ scripts/c-smoke.sh
 `include/turbo/turbo.h` compiles standalone as both C11 and C++17. Run all of
 it locally before opening a PR; a change to `turbo-abi` or `turbo-capi`
 almost always requires regenerating headers and, if it touches the mock
-provider's manifests, regenerating fixtures.
+provider's manifests, regenerating fixtures. CI does not build the OpenVINO
+provider (needs an OpenVINO install) and excludes `turbo-provider-cuda`
+(hosted runners have no CUDA toolkit), so it does not run either provider's
+live tests (`crates/turbo-conformance/tests/live_embed.rs`, `live_tasks.rs`);
+those load one real provider library and skip themselves when
+`TURBO_LIVE_LIB` or `TURBO_LIVE_PROVIDER` is unset. See `docs/testing.md`
+for running them by hand.
 
 ## ABI rules
 
 - Every public struct starts with `uint32_t struct_size`. The library reads
-  only fields below the caller's declared size; a size the library does not
-  recognize (too small, or larger than the current struct) is
-  `TURBO_E_INVALID_STRUCT_SIZE`.
+  only fields below the caller's declared size, and accepts a size only when
+  it is the end of a field the struct has ever had (every accepted prefix is
+  a layout that could have shipped); a size that ends inside a field, or any
+  other size the struct has never had, is `TURBO_E_INVALID_STRUCT_SIZE`. The
+  accepted sizes are a per-struct table (`crates/turbo-abi/src/versioned.rs`,
+  the `Versioned` trait), generated from the struct field lists by
+  `scripts/gen-versioned.py`; regenerate it when a struct's fields change,
+  and `scripts/gen-versioned.py --check` fails CI if it drifts.
 - ABI-position enumerations are `uint32_t` named constants, never a C
   `enum`. An unrecognized value is `TURBO_E_INVALID_ENUM`, never mapped to a
   default.
@@ -101,9 +133,11 @@ provider's manifests, regenerating fixtures.
 
 ## The header is generated
 
-Never hand-edit `include/turbo/turbo.h` or `include/turbo/turbo_types.h`.
-Change `crates/turbo-abi` (constants and `#[repr(C)]` types) or
-`crates/turbo-capi` (function signatures and doc comments), then run:
+Never hand-edit `include/turbo/turbo.h`, `include/turbo/turbo_types.h`, or
+`include/turbo/turbo_provider.h`. Change `crates/turbo-abi` (constants and
+`#[repr(C)]` types, including `crates/turbo-abi/src/provider.rs` for the
+plugin vtable) or `crates/turbo-capi` (function signatures and doc
+comments), then run:
 
 ```bash
 scripts/gen-header.sh
@@ -126,23 +160,33 @@ the fixtures in the same PR; CI diffs the working tree against a fresh run.
 
 ## Adding a provider
 
-1. Implement the traits in `crates/turbo-core/src/provider.rs`:
-   `Provider` (device enumeration, capability, `can_run`, context creation),
-   `ProviderContext` (alloc/import/load_model), `ProviderModel`
-   (session/generation creation), `ProviderSession` (write/bind/run/stats),
-   and `ProviderGeneration` (prompt/step/cancel) as applicable.
-2. Report an honest capability matrix from `Provider::capability`: mark a
-   cell `SUPPORTED` only once it has a conformance receipt, a precision
-   receipt, and a benchmark; use `EXPERIMENTAL` or `PLANNED` otherwise. Set
-   `fully_accelerated` and `stage_placement` in `ModelInfo` to what the
-   provider actually did, not what it intends to do.
-3. Pass the conformance suite (`crates/turbo-conformance`) against the new
-   provider once that suite exists; until then, at minimum add the same
-   handle-lifetime, capability-honesty, and device-policy unit tests the
-   `mock` provider and `turbo-core` carry (see `handles.rs`, `runtime.rs`,
-   `mock.rs` test modules for the pattern).
-4. Ship receipts under `testdata/receipts/` per `PLAN.md` sections 10-11:
-   machine ID, runtime/driver versions, bundle hashes, and commit.
+1. A Rust provider implements the traits in `crates/turbo-core/src/
+   provider.rs` (`Provider`, `ProviderContext`, `ProviderModel`,
+   `ProviderSession`, `ProviderGeneration` as applicable) and exports them
+   with `turbo_core::export_provider!` (see `providers/mock`,
+   `providers/static`). A provider in another language implements
+   `include/turbo/turbo_provider.h`'s vtable directly and exports
+   `turbo_provider_get` (see `providers/openvino`, C++). Either way the
+   library is loaded with `turbo_runtime_load_provider` or
+   `turbo_runtime_desc.provider_paths`; see `docs/providers.md`.
+2. Report an honest capability matrix from `Provider::capability`
+   (`(*capability)` in the C vtable): mark a cell `SUPPORTED` only once it
+   has a conformance receipt, a precision receipt, and a benchmark; use
+   `EXPERIMENTAL` or `PLANNED` otherwise. Set `fully_accelerated` and
+   `stage_placement` in `ModelInfo` to what the provider actually did, not
+   what it intends to do.
+3. Run the conformance suite (`crates/turbo-conformance`) against the new
+   provider: set `TURBO_CONFORMANCE_PROVIDER_PATHS` to the provider's
+   library path (and `TURBO_CONFORMANCE_PROVIDER`/`TURBO_CONFORMANCE_ORDINAL`
+   to select its device) and run `cargo test -p turbo-conformance`; see
+   `docs/testing.md`. A provider with no real bundle to test against yet
+   should at least carry the handle-lifetime, capability-honesty, and
+   device-policy unit tests the `mock` provider and `turbo-core` carry (see
+   `handles.rs`, `runtime.rs`, `mock.rs` test modules for the pattern).
+4. Ship receipts under `testdata/receipts/turbo/` per `PLAN.md` sections
+   10-11: machine ID, runtime/driver versions, bundle hashes, and commit
+   (see `testdata/receipts/turbo/openvino-minilm-2026-09-21.json` for the
+   shape).
 
 ## Documentation rules
 

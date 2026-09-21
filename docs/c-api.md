@@ -11,8 +11,8 @@ General rules that apply to every function (from the header's own preamble
 and `crates/turbo-capi/src/lib.rs`):
 
 - Every descriptor starts with `uint32_t struct_size`. Pass
-  `sizeof(the_struct)`. A size the library does not recognize is
-  `TURBO_E_INVALID_STRUCT_SIZE`.
+  `sizeof(the_struct)`. A size the library does not recognize (see
+  "Descriptor versioning rule" below) is `TURBO_E_INVALID_STRUCT_SIZE`.
 - `turbo_error *err` may be `NULL` in every call that takes one; on success
   `code == 0`. Passing a real `turbo_error` and checking `err.code` after
   every call is the only supported error-handling pattern (see
@@ -37,8 +37,20 @@ immediately after creating a context on it). Threading: the runtime and its
 query functions (`device_count`, `device_info`, `select_device`,
 `capability`, `can_run`) are usable from any thread concurrently; there is
 no per-runtime lock in `crates/turbo-core/src/runtime.rs` that a caller needs
-to serialize around. `turbo_runtime_load_provider` is declared but returns
-`TURBO_E_NOT_IMPLEMENTED` (planned P1; see "Not implemented" below).
+to serialize around.
+
+`turbo_runtime_load_provider(rt, path, err)` loads a provider library
+(`include/turbo/turbo_provider.h`) and registers its devices; the library
+stays loaded for the runtime's lifetime, and a provider whose id is already
+registered is rejected with `TURBO_E_PROVIDER_LOAD`. `turbo_runtime_create`
+does the same for every path in `turbo_runtime_desc.provider_paths`, in
+order, before returning; a failure there fails the whole call. By default a
+runtime starts with the statically linked built-in providers (`mock` and
+`static`); set the `TURBO_RUNTIME_NO_DEFAULT_PROVIDERS` bit in
+`turbo_runtime_desc.flags` to start with none and load only explicit paths.
+There is no default filesystem search path scanned automatically; see
+`docs/architecture.md` for how this differs from `PLAN.md` section 4.1 and
+`docs/providers.md` for the ownership rules a provider library must follow.
 
 ## Context (`turbo_context_*`)
 
@@ -60,8 +72,10 @@ below); releasing that buffer view is required before the lease clears.
 Threading: any thread may call these; the underlying memory's own read/write
 safety is the caller's responsibility exactly as for any C API — a buffer
 bound into a running session must not be concurrently written from another
-thread. `turbo_buffer_alloc` currently only succeeds for
-`TURBO_PLACE_HOST` (the only provider is `mock`); other placements fail with
+thread. `mock` and `static` only allocate `TURBO_PLACE_HOST`; the OpenVINO
+provider also allocates `TURBO_PLACE_DEVICE` on GPU, exportable as
+`TURBO_HANDLE_CL_MEM` (`docs/providers.md`). Any other placement or handle
+kind not offered by the loaded provider fails with
 `TURBO_E_UNSUPPORTED_PLACEMENT` (see `docs/architecture.md`).
 
 ## Model (`turbo_model_*`)
@@ -96,6 +110,16 @@ run. Which write function applies depends on the model's kind
 `write_pairs` for rerankers, `write_text_classify` for classifiers and
 token classifiers, `bind` for generic `RUN` models.
 
+Two checks apply to every write call on every provider, independent of any
+capability bit, so a provider can never clamp or substitute instead of
+failing: `max_tokens` above the session's `max_seq` is `TURBO_E_CAPACITY`
+naming the option's `max_tokens` field (field 3 on `turbo_embed_options`,
+`turbo_rerank_options`, and `turbo_classify_options`, `check_budget` in
+`crates/turbo-core/src/handles.rs`); and an `embed_options.prompt_role`
+naming a role the bundle declares no prefix for is
+`TURBO_E_INVALID_ARGUMENT` on field 4 (`prompt_role`), since honoring it
+would silently embed the bare text instead of the requested prompt.
+
 ## Result (`turbo_result_*`)
 
 `turbo_result_get_info`, `turbo_result_output_info`, `turbo_result_buffer`,
@@ -129,15 +153,53 @@ from P0 but returns `TURBO_E_NOT_IMPLEMENTED` in this build.
 
 ## Tokenizer and chunker (`turbo_tokenizer_*`, `turbo_chunk_plan_*`)
 
-`turbo_tokenizer_create`, `turbo_tokenizer_release`,
-`turbo_chunk_plan_create`, `turbo_chunk_plan_release` are declared in the
-header. Both `_create` functions return `TURBO_E_NOT_IMPLEMENTED` in this
-build. Note that `PLAN.md` section 5 also sketches
-`turbo_tokenizer_encode`/`decode`/`count` and convenience wrappers like
-`turbo_embed`; those are not present in the generated header at this
-commit — the header currently declares only bundle-backed tokenizer/chunk
-creation and release. Treat `PLAN.md` section 5 as the target shape for P1,
-not as a description of the current header.
+`turbo_tokenizer_create(rt, bundle_path, out, err)` loads the tokenizer a
+bundle declares (`tokenizer.files["tokenizer.json"]`); the general path is
+the Hugging Face `tokenizers` crate (`crates/turbo-core/src/tokenizer.rs`),
+which reads WordPiece, BPE, and Unigram `tokenizer.json` files. There is no
+C entry point that takes a bare `tokenizer.json` path directly; a tokenizer
+is always loaded from a bundle directory, including a tokenizer-only bundle
+with no artifacts (`testdata/bundles/minilm-tokenizer/`, `task: "tokenize"`).
+A tokenizer does not depend on a runtime's device state and is thread-safe;
+`rt` is only used to validate the handle.
+
+- `turbo_tokenizer_get_info` returns `turbo_tokenizer_info` (vocab size,
+  bundle `max_seq`, `specials_per_sequence`, and `pad_id`/`bos_id`/`eos_id`/
+  `unk_id`, each `-1` if the tokenizer has none).
+- `turbo_tokenizer_encode(t, texts, count, opts, ids, mask, types,
+  row_stride, lengths, err)` writes directly into caller-owned row-major
+  `[count, row_stride]` arrays: each row is truncated per `opts->truncate`
+  (`TURBO_TRUNCATE_MODEL|NONE|RIGHT|LEFT`) to `opts->max_tokens` (0 = the
+  bundle's `max_seq`), gets the prompt prefix for `opts->prompt_role`, and is
+  padded with the pad id and mask 0 up to `opts->pad_to` (or to `row_stride`
+  when `pad_to` is 0); `lengths[row]` receives the row's live (unpadded)
+  token count. `types` and `lengths` may be `NULL`. Truncation `NONE` on
+  over-budget input is `TURBO_E_CAPACITY`, not a silent drop; `row_stride`
+  smaller than the effective token budget is also `TURBO_E_CAPACITY`.
+- `turbo_tokenizer_decode(t, ids, count, skip_special_tokens, dst, capacity,
+  written, err)` writes UTF-8 bytes (not NUL-terminated) into `dst`;
+  `written` always receives the decoded length, and a `capacity` too small
+  for it is `TURBO_E_CAPACITY` with `written` already set to the required
+  size. An id outside `0..vocab_size` is `TURBO_E_INVALID_ARGUMENT`.
+- `turbo_tokenizer_count(t, text, add_special_tokens, out, err)` counts
+  tokens without truncation or a prompt prefix.
+
+`turbo_chunk_plan_create(desc, text, tokenizer, out, err)` plans byte-offset
+chunks over `text` (`crates/turbo-core/src/chunker.rs`), using `tokenizer` to
+count content tokens against `desc->max_tokens` and
+`desc->reserved_tokens`, with up to `desc->overlap_tokens` shared between
+consecutive chunks of one paragraph. The plan stores only byte offsets
+(`turbo_chunk { byte_start, byte_end, paragraph, n_tokens }`); the caller
+keeps the source text. `turbo_chunk_plan_count`/`_get` read the resulting
+chunks by index; a single character that alone exceeds the token budget
+fails plan creation with `TURBO_E_CAPACITY` rather than looping or silently
+truncating.
+
+Ownership: both tokenizers and chunk plans are independent, reference
+counted handles with no parent; `turbo_tokenizer_release`/
+`turbo_chunk_plan_release` accept `NULL`. `PLAN.md` section 5 also sketches
+convenience wrappers like `turbo_embed`; those are not present in the
+generated header at this commit.
 
 ## Status codes
 
@@ -167,6 +229,12 @@ a non-default value for that field with `TURBO_E_UNSUPPORTED_OPTION` and the
 field index below (field 1 is always `struct_size`). Field indices come from
 the `FIELD_*` constants in `crates/turbo-core/src/provider.rs`.
 
+Every option field in every options struct is now covered: it either has a
+capability bit here, or is one of the two unconditional checks above
+(`max_tokens`, `prompt_role`'s empty-prefix case). There is no third,
+ungated case left (`docs/reviews/2026-09-21-p0-p2.md`'s Medium item on
+generation options and `raw_scores`, closed in commit `b85ccf1`).
+
 `turbo_embed_options`:
 
 | field | index | capability bit | gated when |
@@ -177,7 +245,7 @@ the `FIELD_*` constants in `crates/turbo-core/src/provider.rs`.
 | `normalize` | 5 | `TURBO_CAP_OPT_NORMALIZE` | differs from the bundle contract |
 | `pooling` | 6 | `TURBO_CAP_OPT_POOLING_OVERRIDE` | differs from the bundle contract |
 | `output_dim` | 7 | `TURBO_CAP_OPT_OUTPUT_DIM` | `!= 0` and `!=` the model's `dim`; must also be one of the bundle's `truncate_dims` |
-| `output_dtype` | 8 | `TURBO_CAP_OPT_OUTPUT_DTYPE` | `!= TURBO_OUTPUT_MODEL` and `!= TURBO_OUTPUT_F32` |
+| `output_dtype` | 8 | `TURBO_CAP_OPT_OUTPUT_DTYPE` | requests a dtype other than the model's own `dtype_used` (asking for the dtype already computed is always free, `Model::validate_embed` in `crates/turbo-core/src/handles.rs`) |
 
 `turbo_rerank_options`:
 
@@ -185,9 +253,9 @@ the `FIELD_*` constants in `crates/turbo-core/src/provider.rs`.
 |---|---|---|---|
 | `truncate` | 2 | `TURBO_CAP_OPT_TRUNCATE` | `!= TURBO_TRUNCATE_MODEL` |
 | `max_tokens` | 3 | `TURBO_CAP_OPT_MAX_TOKENS` | `!= 0` |
-| `top_n` | 4 | `TURBO_CAP_OPT_TOP_N` | `!= 0` or `return_sorted` set |
-| `return_sorted` | 5 | `TURBO_CAP_OPT_TOP_N` | set |
-| `raw_scores` | 6 | (ungated) | always allowed |
+| `top_n` | 4 | `TURBO_CAP_OPT_TOP_N` | `!= 0` |
+| `return_sorted` | 5 | `TURBO_CAP_OPT_TOP_N` | set (its own field index; previously misreported as field 4) |
+| `raw_scores` | 6 | `TURBO_CAP_OPT_RAW_SCORES` | set |
 
 `turbo_classify_options`:
 
@@ -196,21 +264,28 @@ the `FIELD_*` constants in `crates/turbo-core/src/provider.rs`.
 | `truncate` | 2 | `TURBO_CAP_OPT_TRUNCATE` | `!= TURBO_TRUNCATE_MODEL` |
 | `max_tokens` | 3 | `TURBO_CAP_OPT_MAX_TOKENS` | `!= 0` |
 | `aggregation` | 4 | `TURBO_CAP_OPT_AGGREGATION` | differs from the bundle contract; only meaningful for token classifiers (`TURBO_E_INVALID_ARGUMENT` on any other model kind) |
-| `raw_scores` | 5 | (ungated) | always allowed |
+| `raw_scores` | 5 | `TURBO_CAP_OPT_RAW_SCORES` | set |
 
-`turbo_generate_desc` (selected gated fields):
+`turbo_generate_desc` (every gated field):
 
 | field | index | capability bit |
 |---|---|---|
+| `min_new_tokens` | 3 | `TURBO_CAP_OPT_GEN_MIN_TOKENS` (`!= 0`) |
 | `n_sequences` | 4 | `TURBO_CAP_OPT_GEN_N` (`> 1`) |
+| `temperature` | 5 | `TURBO_CAP_OPT_GEN_SAMPLING` (`!= 0`) |
+| `top_k` | 6 | `TURBO_CAP_OPT_GEN_SAMPLING` (`!= 0`) |
+| `top_p` | 7 | `TURBO_CAP_OPT_GEN_SAMPLING` (`!= 0` and `!= 1`) |
+| `min_p` | 8 | `TURBO_CAP_OPT_GEN_SAMPLING` (`!= 0`) |
 | `repeat_penalty` | 9 | `TURBO_CAP_OPT_GEN_PENALTIES` (`!= 0` and `!= 1`) |
 | `presence_penalty` | 10 | `TURBO_CAP_OPT_GEN_PENALTIES` (`!= 0`) |
 | `frequency_penalty` | 11 | `TURBO_CAP_OPT_GEN_PENALTIES` (`!= 0`) |
 | `has_seed` | 12 | `TURBO_CAP_OPT_GEN_SEED` |
 | `n_stop` | 14 | `TURBO_CAP_OPT_GEN_STOP_STRINGS` (`> 0`) |
+| `n_stop_tokens` | 15 | `TURBO_CAP_OPT_GEN_STOP_TOKENS` (`> 0`) |
 | `n_logit_bias` | 18 | `TURBO_CAP_OPT_GEN_LOGIT_BIAS` (`> 0`) |
 | `logprobs` | 19 | `TURBO_CAP_OPT_GEN_LOGPROBS` (`> 0`) |
 | `structured_kind` | 21 | `TURBO_CAP_OPT_GEN_STRUCTURED` (`!= TURBO_STRUCTURED_NONE`) |
+| `echo` | 22 | `TURBO_CAP_OPT_GEN_ECHO` (set) |
 | `n_tools` | 24 | `TURBO_CAP_OPT_GEN_TOOLS` (`> 0`) |
 
 The remaining `TURBO_CAP_*` bits (`ASYNC`, `HOST_PTR_IMPORT`,
@@ -220,28 +295,81 @@ The remaining `TURBO_CAP_*` bits (`ASYNC`, `HOST_PTR_IMPORT`,
 gating a specific option field; see `docs/architecture.md`'s memory and
 threading sections for what each currently means in this tree.
 
+## Which providers set which bits
+
+The four providers in this tree (`crates/turbo-core/src/mock.rs`
+`MOCK_CAPS`, `providers/static/src/lib.rs` `STATIC_CAPS`,
+`providers/openvino/src/provider.cpp` `caps_of`/`kCapsCommon`,
+`providers/cuda/src/lib.rs` `CUDA_CAPS`):
+
+| bit | mock | static | openvino (GPU/iGPU) | openvino (CPU) | cuda |
+|---|---|---|---|---|---|
+| `HOST_PTR_IMPORT` | yes | yes | yes | yes | yes |
+| `DEVICE_RESULT` | no | no | yes | no | yes |
+| `DEVICE_POSTPROCESS` | no | no | no | no | yes |
+| `DYNAMIC_SHAPE` | yes | yes | no | no | yes |
+| `WEIGHT_SHARING` | yes | yes | no | no | yes |
+| `DETERMINISTIC` | yes | yes | yes | yes | no |
+| `OPT_TRUNCATE` | yes | yes | yes | yes | yes |
+| `OPT_MAX_TOKENS` | yes | yes | yes | yes | yes |
+| `OPT_PROMPT_ROLE` | yes | yes | yes | yes | yes |
+| `OPT_NORMALIZE` | yes | no | no | no | yes |
+| `OPT_POOLING_OVERRIDE` | no | no | no | no | yes |
+| `OPT_OUTPUT_DIM` | yes | yes | no | no | yes |
+| `OPT_OUTPUT_DTYPE` | no | no | no | no | no |
+| `OPT_TOP_N` | yes | no | yes | yes | yes |
+| `OPT_AGGREGATION` | yes | no | yes | yes | yes |
+| `OPT_RAW_SCORES` | yes | no | no | no | yes |
+| `OPT_GEN_STOP_STRINGS` | yes | no | no | no | no |
+| `OPT_GEN_STOP_TOKENS` | yes | no | no | no | no |
+| `OPT_GEN_SEED` | yes | no | no | no | no |
+| `OPT_GEN_LOGPROBS` | yes | no | no | no | no |
+| `OPT_GEN_SAMPLING` | yes | no | no | no | no |
+| `OPT_GEN_MIN_TOKENS` | yes | no | no | no | no |
+| `OPT_GEN_ECHO` | yes | no | no | no | no |
+
+`static` and `openvino`'s CPU device offer no task where `EMBED`-only bits
+like `OPT_NORMALIZE`/`OPT_POOLING_OVERRIDE`/`OPT_RAW_SCORES` would matter
+differently than shown; a `no` above means the bit is clear in
+`device_info.caps`, so a non-default value for the corresponding option
+field on that provider always fails with `TURBO_E_UNSUPPORTED_OPTION`, never
+a silent default. `mock` is the only provider offering `GENERATE`; `static`,
+`openvino`, and `cuda` fail a generation call with `TURBO_E_UNSUPPORTED_TASK`
+before any option is checked. `openvino`'s NPU device (enumerated, not
+qualified) reports `caps = 0`.
+
 ## Descriptor versioning rule
 
 Every descriptor starts with `uint32_t struct_size`, set by the caller to
-`sizeof(the_struct_as_compiled)`. The library accepts that exact size or any
-smaller size down to the minimum needed to identify the struct (an older
-caller compiled against a smaller version of the struct); it rejects a
-larger size, because it cannot know what an unrecognized trailing field was
-meant to do (`check_size` in `crates/turbo-capi/src/lib.rs`). Fields appended
-in a future version must default to a zero value that means "old behavior"
-so that an old caller's smaller struct, zero-extended, behaves the same as
-before.
+`sizeof(the_struct_as_compiled)`. The library accepts a size only when it is
+the end of a field the struct has ever had: the current size, or the offset
+of a field from an earlier version of the struct (an older caller compiled
+against a smaller version). A size that ends inside a field (half a pointer,
+half a count) or that the struct has never had, including any size larger
+than the current struct, is `TURBO_E_INVALID_STRUCT_SIZE`.
+
+The accepted sizes are not a range check; they are a per-struct table,
+`crates/turbo-abi/src/versioned.rs` (the `Versioned` trait's `SIZES`,
+generated by `scripts/gen-versioned.py` from the field lists in
+`crates/turbo-abi/src/lib.rs` and `provider.rs`). `check_size` in
+`crates/turbo-capi/src/lib.rs` looks a caller's declared size up in that
+table. Regenerate `versioned.rs` whenever a struct's fields change;
+`scripts/gen-versioned.py --check` fails CI if the committed file is stale.
+Fields appended in a future version must default to a zero value that means
+"old behavior" so that an old caller's smaller struct, zero-extended,
+behaves the same as before.
 
 ## Functions declared but not implemented in this build
 
 | function | returns | milestone |
 |---|---|---|
-| `turbo_runtime_load_provider` | `TURBO_E_NOT_IMPLEMENTED` | P1 (provider plugin loading) |
-| `turbo_tokenizer_create` | `TURBO_E_NOT_IMPLEMENTED` | P1 |
-| `turbo_chunk_plan_create` | `TURBO_E_NOT_IMPLEMENTED` | P1 |
 | `turbo_generate` (push-style generation) | `TURBO_E_NOT_IMPLEMENTED` | P6 (wraps the pull iterator once it passes streaming conformance) |
 
-Also note: `RuntimeDesc.provider_paths` passed to `turbo_runtime_create`
-fails the same way (`TURBO_E_NOT_IMPLEMENTED`) rather than being silently
-ignored (`crates/turbo-core/src/runtime.rs`, test
-`provider_paths_are_not_silently_ignored`).
+This is the only remaining gap between the header and this build.
+`turbo_runtime_load_provider`, `turbo_tokenizer_*`, and `turbo_chunk_plan_*`
+are implemented (see above); `turbo_generation_create`/`_prompt`/
+`_prompt_tokens`/`_step`/`_cancel`/`_release` (the pull iterator) are also
+implemented and exercised by the conformance suite's generation tests
+against the `mock` provider (`MockGeneration` in `crates/turbo-core/src/mock.rs`).
+`static` and `openvino` do not offer `GENERATE`; a generation call on either
+fails with `TURBO_E_UNSUPPORTED_TASK`.
