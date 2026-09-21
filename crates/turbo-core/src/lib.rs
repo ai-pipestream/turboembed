@@ -12,14 +12,19 @@
 #![deny(missing_docs)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
+pub mod abi_convert;
 pub mod buffer;
 pub mod bundle;
 pub mod error;
 pub mod handles;
 pub mod mock;
+pub mod plugin;
+pub mod plugin_export;
 pub mod provider;
 pub mod runtime;
 pub mod types;
+
+pub use turbo_abi as abi;
 
 pub use buffer::{BufferDesc, HostBuffer, NativeHandle, ProviderBuffer};
 pub use bundle::{Bundle, Manifest};
@@ -44,7 +49,9 @@ pub fn builtin_providers() -> Vec<Arc<dyn Provider>> {
     vec![Arc::new(mock::MockProvider::new())]
 }
 
-/// Create a runtime with the built-in providers.
+/// Create a runtime with the built-in providers (unless
+/// `desc.no_default_providers` is set) plus any explicit provider libraries.
 pub fn create_runtime(desc: RuntimeDesc) -> Result<Arc<Runtime>> {
-    Runtime::new(desc, builtin_providers())
+    let builtin = if desc.no_default_providers { Vec::new() } else { builtin_providers() };
+    Runtime::new(desc, builtin)
 }

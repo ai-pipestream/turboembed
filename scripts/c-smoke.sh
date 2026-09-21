@@ -6,7 +6,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 profile=debug
 cargo_flags=()
 if [[ "${1:-}" == "--release" ]]; then profile=release; cargo_flags=(--release); fi
-cargo build -p turbo-capi "${cargo_flags[@]}"
+cargo build -p turbo-shared "${cargo_flags[@]}"
 libdir="$root/target/$profile"
 out="$root/target/$profile/turbo-c-smoke"
 cc="${CC:-cc}"

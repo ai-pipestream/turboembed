@@ -350,7 +350,9 @@ pub unsafe extern "C" fn turbo_runtime_release(rt: *mut turbo_runtime) {
     unsafe { reclaim(rt as *mut Runtime) };
 }
 
-/// Load a provider library. Not implemented in this build (PLAN.md P1).
+/// Load a provider library (`turbo_provider.h`) and register its devices.
+/// The library stays loaded for the runtime's lifetime. A provider whose id
+/// is already registered is rejected with `TURBO_E_PROVIDER_LOAD`.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_runtime_load_provider(
     rt: *mut turbo_runtime,
@@ -358,9 +360,12 @@ pub unsafe extern "C" fn turbo_runtime_load_provider(
     err: *mut turbo_error,
 ) -> i32 {
     boundary(err, || {
-        let _ = unsafe { handle(rt as *const Runtime, "turbo_runtime") }?;
-        let _ = unsafe { text(&path, "path") }?;
-        Err(Error::not_implemented("turbo_runtime_load_provider"))
+        let rt = unsafe { handle(rt as *const Runtime, "turbo_runtime") }?;
+        let p = unsafe { text(&path, "path") }?;
+        if p.is_empty() {
+            return Err(Error::invalid_argument("path is empty"));
+        }
+        rt.load_provider(Path::new(p))
     })
 }
 
@@ -376,7 +381,7 @@ pub unsafe extern "C" fn turbo_runtime_device_count(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        unsafe { *out = rt.devices().len() as u32 };
+        unsafe { *out = rt.device_count() };
         Ok(())
     })
 }

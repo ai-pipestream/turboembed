@@ -1,6 +1,6 @@
 [package]
 name = "turbo-provider-mock"
-description = "Mock provider packaged as a loadable Turbo provider library (P1: plugin ABI)"
+description = "Mock provider packaged as a loadable Turbo provider library (libturbo_provider_mock)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,7 +11,11 @@ publish = false
 
 [lib]
 name = "turbo_provider_mock"
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 turbo-core = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+turbo = { workspace = true }

@@ -32,20 +32,25 @@ use crate::types::{
 };
 
 /// Device plus memory domain.
+///
+/// Field order is load-bearing: Rust drops fields in declaration order, and
+/// the provider-owned `inner` must be released before `runtime`, which keeps
+/// a dynamically loaded provider library mapped.
 pub struct Context {
-    runtime: Arc<Runtime>,
-    device_index: u32,
-    provider: Arc<dyn Provider>,
     inner: Arc<dyn ProviderContext>,
+    provider: Arc<dyn Provider>,
+    info: DeviceInfo,
+    device_index: u32,
+    runtime: Arc<Runtime>,
 }
 
 impl Context {
     /// Create a context on a device of the runtime.
     pub fn create(runtime: Arc<Runtime>, device_index: u32, desc: &ContextDesc) -> Result<Arc<Self>> {
-        let entry = runtime.device(device_index)?.clone();
-        let provider = runtime.provider_for(device_index)?.clone();
+        let entry = runtime.device(device_index)?;
+        let provider = runtime.provider_for(device_index)?;
         let inner = provider.create_context(entry.info.ordinal, desc)?;
-        Ok(Arc::new(Self { runtime, device_index, provider, inner }))
+        Ok(Arc::new(Self { runtime, device_index, info: entry.info, provider, inner }))
     }
 
     /// Owning runtime.
@@ -60,7 +65,7 @@ impl Context {
 
     /// Static device info.
     pub fn device_info(&self) -> &DeviceInfo {
-        &self.runtime.devices()[self.device_index as usize].info
+        &self.info
     }
 
     /// Provider.
@@ -129,10 +134,12 @@ impl Context {
 }
 
 /// Typed memory. Retains its context, and its result lease when it came from a result.
+///
+/// Field order is load-bearing (see [`Context`]): `inner` drops first.
 pub struct Buffer {
-    context: Arc<Context>,
     inner: Arc<dyn ProviderBuffer>,
     lease: Option<Arc<ResultHandle>>,
+    context: Arc<Context>,
 }
 
 impl Buffer {
@@ -173,10 +180,12 @@ impl Buffer {
 }
 
 /// Loaded model. Immutable.
+///
+/// Field order is load-bearing (see [`Context`]): `inner` drops first.
 pub struct Model {
-    context: Arc<Context>,
-    bundle: Arc<Bundle>,
     inner: Arc<dyn ProviderModel>,
+    bundle: Arc<Bundle>,
+    context: Arc<Context>,
 }
 
 impl Model {
@@ -444,11 +453,14 @@ struct SessionState {
 }
 
 /// Execution workspace. Single owner.
+///
+/// Field order is load-bearing (see [`Context`]): `state` (the provider
+/// session) drops before `model`.
 pub struct Session {
-    model: Arc<Model>,
-    desc: SessionDesc,
     state: Mutex<SessionState>,
     lease: AtomicBool,
+    desc: SessionDesc,
+    model: Arc<Model>,
 }
 
 impl Session {
@@ -637,9 +649,11 @@ impl Session {
 }
 
 /// Leased result. Dropping it (all clones) returns the lease.
+///
+/// Field order is load-bearing (see [`Context`]): `result` drops before `session`.
 pub struct ResultHandle {
-    session: Arc<Session>,
     result: ProviderResult,
+    session: Arc<Session>,
 }
 
 impl ResultHandle {
@@ -731,10 +745,12 @@ struct GenState {
 }
 
 /// Streaming generation. Single owner.
+///
+/// Field order is load-bearing (see [`Context`]): `state` drops before `model`.
 pub struct Generation {
-    model: Arc<Model>,
     state: Mutex<GenState>,
     chunk: Mutex<Chunk>,
+    model: Arc<Model>,
 }
 
 impl Generation {

@@ -1,6 +1,6 @@
 [package]
 name = "turbo-capi"
-description = "C ABI exports for Turbo (libturbo); source of include/turbo/turbo.h"
+description = "C ABI exports for Turbo; source of include/turbo/turbo.h. Packaged as libturbo by crates/turbo-shared"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,8 @@ repository.workspace = true
 authors.workspace = true
 
 [lib]
-name = "turbo"
-crate-type = ["cdylib", "staticlib", "rlib"]
+name = "turbo_capi"
+crate-type = ["rlib"]
 
 [dependencies]
 turbo-abi = { workspace = true }

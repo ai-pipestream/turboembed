@@ -1,0 +1,17 @@
+[package]
+name = "turbo-shared"
+description = "libturbo: the shared and static library exporting the Turbo C ABI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "turbo"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+turbo-capi = { workspace = true }

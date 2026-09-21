@@ -24,6 +24,9 @@
 use core::ffi::c_char;
 use core::ffi::c_void;
 
+pub mod provider;
+pub use provider::*;
+
 /// ABI version. Bumped only for a breaking layout or semantic change.
 pub const TURBO_ABI_VERSION: u32 = 2;
 

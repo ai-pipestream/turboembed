@@ -169,6 +169,12 @@ pub trait ProviderBuffer: Send + Sync {
 
     /// Export a native handle of the requested kind, or `TURBO_E_UNSUPPORTED`.
     fn export(&self, kind: HandleKind) -> Result<NativeHandle>;
+
+    /// For buffers that wrap a plugin provider's handle: the provider's vtable
+    /// pointer and the handle, so a session of the same provider can bind it.
+    fn plugin_handle(&self) -> Option<(*const std::ffi::c_void, *mut std::ffi::c_void)> {
+        None
+    }
 }
 
 /// Aligned, zero-initialized host memory.

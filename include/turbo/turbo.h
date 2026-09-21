@@ -71,7 +71,9 @@ int32_t turbo_runtime_create(const turbo_runtime_desc *desc,
 void turbo_runtime_release(turbo_runtime *rt);
 
 /**
- * Load a provider library. Not implemented in this build (PLAN.md P1).
+ * Load a provider library (`turbo_provider.h`) and register its devices.
+ * The library stays loaded for the runtime's lifetime. A provider whose id
+ * is already registered is rejected with `TURBO_E_PROVIDER_LOAD`.
  */
 int32_t turbo_runtime_load_provider(turbo_runtime *rt,
                                     turbo_text path,

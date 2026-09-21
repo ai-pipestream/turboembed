@@ -4,6 +4,7 @@ members = [
     "crates/turbo-abi",
     "crates/turbo-core",
     "crates/turbo-capi",
+    "crates/turbo-shared",
     "crates/turbo",
     "crates/turbo-conformance",
     "providers/mock",
