@@ -10,34 +10,9 @@ use turbo_core::error::{Error, Result};
 /// Raw `cudaStream_t`.
 pub type CudaStream = *mut c_void;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct CudaDeviceProp {
-    name: [c_char; 256],
-    uuid: [u8; 16],
-    luid: [c_char; 8],
-    luid_device_node_mask: u32,
-    total_global_mem: usize,
-    shared_mem_per_block: usize,
-    regs_per_block: c_int,
-    warp_size: c_int,
-    mem_pitch: usize,
-    max_threads_per_block: c_int,
-    max_threads_dim: [c_int; 3],
-    max_grid_size: [c_int; 3],
-    clock_rate: c_int,
-    total_const_mem: usize,
-    major: c_int,
-    minor: c_int,
-    // The struct continues with many more fields; we allocate a generous
-    // buffer and read only the leading fields above, whose layout has been
-    // stable across CUDA 11, 12, and 13.
-    _tail: [u8; 4096],
-}
-
 extern "C" {
     fn cudaGetDeviceCount(count: *mut c_int) -> c_int;
-    fn cudaGetDeviceProperties_v2(prop: *mut CudaDeviceProp, device: c_int) -> c_int;
+    fn cudaDeviceGetAttribute(value: *mut c_int, attr: c_int, device: c_int) -> c_int;
     fn cudaSetDevice(device: c_int) -> c_int;
     fn cudaMemGetInfo(free: *mut usize, total: *mut usize) -> c_int;
     fn cudaRuntimeGetVersion(v: *mut c_int) -> c_int;
@@ -116,6 +91,52 @@ pub struct DeviceProps {
     pub driver_version: i32,
 }
 
+const CUDA_DEV_ATTR_COMPUTE_CAPABILITY_MAJOR: c_int = 75;
+const CUDA_DEV_ATTR_COMPUTE_CAPABILITY_MINOR: c_int = 76;
+
+/// Device name through the driver API, which keeps a stable symbol across
+/// toolkit majors (the runtime's `cudaGetDeviceProperties` is re-versioned
+/// with every `cudaDeviceProp` layout change and is not exported under one
+/// name by CUDA 12 and 13 alike).
+fn device_name(index: c_int) -> Result<String> {
+    type CuInit = unsafe extern "C" fn(u32) -> c_int;
+    type CuDeviceGet = unsafe extern "C" fn(*mut c_int, c_int) -> c_int;
+    type CuDeviceGetName = unsafe extern "C" fn(*mut c_char, c_int, c_int) -> c_int;
+    // SAFETY: dlopen/dlsym of the driver library the runtime itself depends on.
+    unsafe {
+        let lib = libc::dlopen(c"libcuda.so.1".as_ptr(), libc::RTLD_NOW | libc::RTLD_GLOBAL);
+        if lib.is_null() {
+            return Err(Error::device_unavailable("libcuda.so.1 (the NVIDIA driver library) could not be loaded"));
+        }
+        let sym = |name: &CStr| {
+            let p = libc::dlsym(lib, name.as_ptr());
+            if p.is_null() {
+                Err(Error::device_unavailable(format!("libcuda.so.1 lacks {}", name.to_string_lossy())))
+            } else {
+                Ok(p)
+            }
+        };
+        let cu_init: CuInit = std::mem::transmute(sym(c"cuInit")?);
+        let cu_device_get: CuDeviceGet = std::mem::transmute(sym(c"cuDeviceGet")?);
+        let cu_device_get_name: CuDeviceGetName = std::mem::transmute(sym(c"cuDeviceGetName")?);
+        let rc = cu_init(0);
+        if rc != 0 {
+            return Err(Error::device_unavailable(format!("cuInit failed with CUresult {rc}")));
+        }
+        let mut dev: c_int = 0;
+        let rc = cu_device_get(&mut dev, index);
+        if rc != 0 {
+            return Err(Error::device_unavailable(format!("cuDeviceGet({index}) failed with CUresult {rc}")));
+        }
+        let mut buf = [0 as c_char; 256];
+        let rc = cu_device_get_name(buf.as_mut_ptr(), buf.len() as c_int, dev);
+        if rc != 0 {
+            return Err(Error::device_unavailable(format!("cuDeviceGetName({index}) failed with CUresult {rc}")));
+        }
+        Ok(CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
+    }
+}
+
 /// Enumerate devices. A runtime probe failure (no driver, no device) is an error.
 pub fn devices() -> Result<Vec<DeviceProps>> {
     let mut n: c_int = 0;
@@ -127,9 +148,16 @@ pub fn devices() -> Result<Vec<DeviceProps>> {
     check(unsafe { cudaDriverGetVersion(&mut drv) }, "cudaDriverGetVersion")?;
     let mut out = Vec::with_capacity(n as usize);
     for i in 0..n {
-        let mut prop: CudaDeviceProp = unsafe { std::mem::zeroed() };
-        check(unsafe { cudaGetDeviceProperties_v2(&mut prop, i) }, "cudaGetDeviceProperties")?;
-        let name = unsafe { CStr::from_ptr(prop.name.as_ptr()) }.to_string_lossy().into_owned();
+        let (mut major, mut minor) = (0 as c_int, 0 as c_int);
+        check(
+            unsafe { cudaDeviceGetAttribute(&mut major, CUDA_DEV_ATTR_COMPUTE_CAPABILITY_MAJOR, i) },
+            "cudaDeviceGetAttribute(compute capability major)",
+        )?;
+        check(
+            unsafe { cudaDeviceGetAttribute(&mut minor, CUDA_DEV_ATTR_COMPUTE_CAPABILITY_MINOR, i) },
+            "cudaDeviceGetAttribute(compute capability minor)",
+        )?;
+        let name = device_name(i)?;
         let (mut free, mut total) = (0usize, 0usize);
         check(unsafe { cudaSetDevice(i) }, "cudaSetDevice")?;
         check(unsafe { cudaMemGetInfo(&mut free, &mut total) }, "cudaMemGetInfo")?;
@@ -138,8 +166,8 @@ pub fn devices() -> Result<Vec<DeviceProps>> {
             name,
             total_mem: total as u64,
             free_mem: free as u64,
-            major: prop.major,
-            minor: prop.minor,
+            major,
+            minor,
             runtime_version: rt,
             driver_version: drv,
         });
