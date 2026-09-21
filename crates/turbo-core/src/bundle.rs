@@ -26,6 +26,7 @@ pub const MANIFEST_NAME: &str = "bundle.json";
 
 /// A file entry with its recorded hash.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct FileEntry {
     /// Path relative to the bundle directory. No `..`, no absolute paths.
     pub path: String,
@@ -38,6 +39,7 @@ pub struct FileEntry {
 
 /// Tokenizer section.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct TokenizerSpec {
     /// `wordpiece`, `bpe`, `unigram`, `sentencepiece`, `gguf`, `mock`.
     pub kind: String,
@@ -51,6 +53,7 @@ pub struct TokenizerSpec {
 
 /// Prompt prefixes.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct Prompts {
     /// Prefix for query-role inputs.
     #[serde(default)]
@@ -62,6 +65,7 @@ pub struct Prompts {
 
 /// The frozen model contract.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Contract {
     /// `mean`, `cls`, `last`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -106,6 +110,7 @@ pub struct Contract {
 
 /// Declared limits.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct Limits {
     /// Maximum batch a session may declare; 0 = provider default.
     #[serde(default)]
@@ -117,6 +122,7 @@ pub struct Limits {
 
 /// The manifest as stored on disk.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Manifest {
     /// Must equal [`BUNDLE_VERSION`].
     pub bundle_version: u32,
@@ -164,6 +170,11 @@ pub struct Bundle {
     task: Task,
     kind: ModelKind,
     modality: Modality,
+    /// Hex SHA-256 of the manifest bytes as read from disk (or of the
+    /// canonical serialization when built from a parsed manifest). The
+    /// manifest is the frozen per-model truth, so this is the bundle's
+    /// identity; callers pin it the way they pin artifact hashes.
+    manifest_sha256: String,
 }
 
 impl Bundle {
@@ -185,11 +196,17 @@ impl Bundle {
             }
         })?;
         let manifest: Manifest = serde_json::from_str(&text)?;
-        Self::from_manifest(dir.to_path_buf(), manifest)
+        Self::from_manifest_hashed(dir.to_path_buf(), manifest, sha256_bytes(text.as_bytes()))
     }
 
-    /// Build from an already-parsed manifest; still verifies files.
+    /// Build from an already-parsed manifest; still verifies files. The
+    /// manifest hash is that of its canonical serialization.
     pub fn from_manifest(dir: PathBuf, manifest: Manifest) -> Result<Self> {
+        let canonical = serde_json::to_vec(&manifest)?;
+        Self::from_manifest_hashed(dir, manifest, sha256_bytes(&canonical))
+    }
+
+    fn from_manifest_hashed(dir: PathBuf, manifest: Manifest, manifest_sha256: String) -> Result<Self> {
         if manifest.bundle_version != BUNDLE_VERSION {
             return Err(Error::bundle_invalid(format!(
                 "bundle_version {} is not supported; this library reads {}",
@@ -207,7 +224,7 @@ impl Bundle {
         }
         validate_contract(&manifest, kind)?;
 
-        let bundle = Self { dir, manifest, task, kind, modality };
+        let bundle = Self { dir, manifest, task, kind, modality, manifest_sha256 };
         bundle.verify_files()?;
         Ok(bundle)
     }
@@ -257,7 +274,24 @@ impl Bundle {
                 full.display()
             )));
         }
+        // A symlink inside the bundle that points outside it would let a
+        // manifest with matching hashes read arbitrary files; the resolved
+        // path must stay under the resolved bundle directory.
+        let root = self.dir.canonicalize()?;
+        let canon = full.canonicalize()?;
+        if !canon.starts_with(&root) {
+            return Err(Error::bundle_invalid(format!(
+                "manifest path `{relative}` resolves to `{}`, outside the bundle directory `{}`",
+                canon.display(),
+                root.display()
+            )));
+        }
         Ok(full)
+    }
+
+    /// Hex SHA-256 of the manifest (see the field documentation).
+    pub fn manifest_sha256(&self) -> &str {
+        &self.manifest_sha256
     }
 
     /// Bundle directory.
@@ -348,6 +382,29 @@ impl Bundle {
 
 fn validate_contract(m: &Manifest, kind: ModelKind) -> Result<()> {
     let c = &m.contract;
+    // Every enumerated field must parse, whether or not the kind needs it:
+    // a misspelled value is a broken contract, not a value to ignore.
+    if let Some(p) = &c.pooling {
+        Pooling::from_name(p)?;
+    }
+    if let Some(n) = &c.normalize {
+        if !matches!(n.as_str(), "l2" | "none") {
+            return Err(Error::bundle_invalid(format!("contract.normalize `{n}` must be l2 or none")));
+        }
+    }
+    if let Some(a) = &c.aggregation {
+        Aggregation::from_name(a)?;
+    }
+    if let Some(a) = &c.activation {
+        if !matches!(a.as_str(), "softmax" | "sigmoid" | "none") {
+            return Err(Error::bundle_invalid(format!("contract.activation `{a}` must be softmax, sigmoid, or none")));
+        }
+    }
+    if let Some(t) = &c.tagging {
+        if !matches!(t.as_str(), "BIO" | "BILOU" | "IOB1") {
+            return Err(Error::bundle_invalid(format!("contract.tagging `{t}` must be BIO, BILOU, or IOB1")));
+        }
+    }
     match kind {
         ModelKind::Embedding => {
             if c.dim == 0 {
@@ -372,8 +429,23 @@ fn validate_contract(m: &Manifest, kind: ModelKind) -> Result<()> {
             if c.labels.is_empty() {
                 return Err(Error::bundle_invalid("classifier bundle must declare contract.labels"));
             }
+            if c.activation.is_none() {
+                return Err(Error::bundle_invalid(
+                    "classifier bundle must declare contract.activation (softmax, sigmoid, none)",
+                ));
+            }
+            if kind == ModelKind::TokenClassifier && c.aggregation.is_none() {
+                return Err(Error::bundle_invalid(
+                    "token classifier bundle must declare contract.aggregation (none, simple, first, max)",
+                ));
+            }
         }
-        ModelKind::Reranker | ModelKind::Generative | ModelKind::Generic => {}
+        ModelKind::Reranker => {
+            if c.activation.is_none() {
+                return Err(Error::bundle_invalid("reranker bundle must declare contract.activation (sigmoid, none)"));
+            }
+        }
+        ModelKind::Generative | ModelKind::Generic => {}
     }
     if c.max_seq == 0 && !matches!(kind, ModelKind::Generic) {
         return Err(Error::bundle_invalid("contract.max_seq must be declared and non-zero"));

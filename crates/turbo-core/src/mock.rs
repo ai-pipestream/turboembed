@@ -61,9 +61,14 @@ pub const MOCK_CAPS: u64 = abi::TURBO_CAP_HOST_PTR_IMPORT
     | abi::TURBO_CAP_OPT_OUTPUT_DIM
     | abi::TURBO_CAP_OPT_TOP_N
     | abi::TURBO_CAP_OPT_AGGREGATION
+    | abi::TURBO_CAP_OPT_RAW_SCORES
     | abi::TURBO_CAP_OPT_GEN_STOP_STRINGS
+    | abi::TURBO_CAP_OPT_GEN_STOP_TOKENS
     | abi::TURBO_CAP_OPT_GEN_SEED
-    | abi::TURBO_CAP_OPT_GEN_LOGPROBS;
+    | abi::TURBO_CAP_OPT_GEN_LOGPROBS
+    | abi::TURBO_CAP_OPT_GEN_SAMPLING
+    | abi::TURBO_CAP_OPT_GEN_MIN_TOKENS
+    | abi::TURBO_CAP_OPT_GEN_ECHO;
 
 /// Contents of the `mock.json` artifact.
 #[derive(Clone, Debug, Deserialize)]
@@ -260,7 +265,13 @@ impl ProviderContext for MockContext {
             prefix_query: c.prompts.query.clone(),
             prefix_document: c.prompts.document.clone(),
         };
-        Ok(Arc::new(MockModel { info, vocab: artifact.vocab_size, salt: artifact.salt }))
+        let activation = match kind {
+            ModelKind::Reranker | ModelKind::Classifier | ModelKind::TokenClassifier => {
+                Some(Activation::from_contract(c.activation.as_deref())?)
+            }
+            _ => None,
+        };
+        Ok(Arc::new(MockModel { info, vocab: artifact.vocab_size, salt: artifact.salt, activation }))
     }
 }
 
@@ -296,10 +307,44 @@ impl ProviderBuffer for ImportedHost {
     }
 }
 
+/// Score activation declared by the bundle contract.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Activation {
+    Softmax,
+    Sigmoid,
+    None,
+}
+
+impl Activation {
+    fn from_contract(name: Option<&str>) -> Result<Self> {
+        match name {
+            Some("softmax") => Ok(Self::Softmax),
+            Some("sigmoid") => Ok(Self::Sigmoid),
+            Some("none") => Ok(Self::None),
+            None => Err(Error::bundle_invalid("contract.activation is required for scored models")),
+            Some(other) => Err(Error::bundle_invalid(format!("contract.activation `{other}` is not known"))),
+        }
+    }
+
+    fn apply(self, row: &mut [f32]) {
+        match self {
+            Self::Softmax => softmax(row),
+            Self::Sigmoid => {
+                for v in row.iter_mut() {
+                    *v = sigmoid(*v);
+                }
+            }
+            Self::None => {}
+        }
+    }
+}
+
 struct MockModel {
     info: ModelInfo,
     vocab: u32,
     salt: u64,
+    /// Activation for rerankers and classifiers; `None` for other kinds.
+    activation: Option<Activation>,
 }
 
 impl ProviderModel for MockModel {
@@ -323,6 +368,7 @@ impl ProviderModel for MockModel {
         Ok(Box::new(MockSession {
             vocab: self.vocab,
             salt: self.salt,
+            activation: self.activation.unwrap_or(Activation::None),
             info: self.info.clone(),
             max_batch: desc.max_batch,
             max_seq: desc.max_seq,
@@ -378,6 +424,14 @@ impl ProviderModel for MockModel {
             max_new,
             min_new: desc.min_new_tokens,
             seed: desc.seed,
+            sampling: if desc.temperature > 0.0 {
+                let pool = if desc.top_k == 0 { self.vocab - MOCK_FIRST_WORD as u32 } else { desc.top_k };
+                let keep = if desc.top_p > 0.0 && desc.top_p < 1.0 { desc.top_p } else { 1.0 };
+                let keep = if desc.min_p > 0.0 { keep * (1.0 - desc.min_p) } else { keep };
+                Some(((pool as f32 * keep).ceil() as u32).max(1))
+            } else {
+                None
+            },
             stop: desc.stop.clone(),
             stop_tokens: desc.stop_tokens.clone(),
             logprobs: desc.logprobs,
@@ -404,6 +458,7 @@ struct Names {
 struct MockSession {
     vocab: u32,
     salt: u64,
+    activation: Activation,
     info: ModelInfo,
     max_batch: u32,
     max_seq: u32,
@@ -484,12 +539,21 @@ impl MockSession {
         }
     }
 
-    fn budget(&self, max_tokens: u32) -> u32 {
+    /// The token budget for a write: `max_tokens`, or the session width. A
+    /// budget the session cannot hold is an error, never clamped, so the
+    /// caller's option is honored exactly or refused.
+    fn budget(&self, max_tokens: u32) -> Result<u32> {
         if max_tokens == 0 {
-            self.max_seq
-        } else {
-            max_tokens.min(self.max_seq)
+            return Ok(self.max_seq);
         }
+        if max_tokens > self.max_seq {
+            return Err(Error::capacity(format!(
+                "max_tokens {max_tokens} exceeds the session's max_seq {}",
+                self.max_seq
+            ))
+            .with_field(EmbedOptions::FIELD_MAX_TOKENS));
+        }
+        Ok(max_tokens)
     }
 
     /// Tokenize one text into row `r`, recording word spans and labels.
@@ -502,19 +566,27 @@ impl MockSession {
         }
         let content_budget = budget - 2;
         let n_prefix = words(prefix).count();
+        if n_prefix > content_budget {
+            return Err(Error::capacity(format!(
+                "prompt prefix alone is {n_prefix} tokens but the content budget is {content_budget}"
+            )));
+        }
+        // The prefix is the model's prompt and is never truncated away;
+        // truncation applies to the text words after it.
         let n_words = words(text).count();
-        let total = n_prefix + n_words;
-        let (skip, take) = if total <= content_budget {
-            (0, total)
+        let avail = content_budget - n_prefix;
+        let (skip, take) = if n_words <= avail {
+            (0, n_words)
         } else {
             match truncate {
                 Truncate::None => {
                     return Err(Error::capacity(format!(
-                        "input row {r} has {total} tokens plus 2 specials but the budget is {budget} and truncation is NONE"
+                        "input row {r} has {} tokens plus 2 specials but the budget is {budget} and truncation is NONE",
+                        n_prefix + n_words
                     )));
                 }
-                Truncate::Model | Truncate::Right => (0, content_budget),
-                Truncate::Left => (total - content_budget, content_budget),
+                Truncate::Model | Truncate::Right => (0, avail),
+                Truncate::Left => (n_words - avail, avail),
             }
         };
         let (vocab, salt) = (self.vocab, self.salt);
@@ -524,10 +596,9 @@ impl MockSession {
         self.mask[base] = 1;
         col += 1;
         let span_start = self.word_spans.len();
-        for (i, (offset, w)) in words(prefix).map(|(_, w)| (usize::MAX, w)).chain(words(text)).enumerate() {
-            if i < skip || i >= skip + take {
-                continue;
-            }
+        let prefix_words = words(prefix).map(|(_, w)| (usize::MAX, w));
+        let text_words = words(text).enumerate().filter(|(i, _)| *i >= skip && *i < skip + take).map(|(_, w)| w);
+        for (offset, w) in prefix_words.chain(text_words) {
             let id = word_id(w, vocab, salt);
             self.ids[base + col] = id;
             self.mask[base + col] = 1;
@@ -609,7 +680,10 @@ impl MockSession {
             }
             let overlap = if total == 0 { 0.0 } else { hit as f32 / total as f32 };
             let logit = 4.0 * (overlap - 0.5);
-            *slot = if self.rerank_opts.raw_scores { logit } else { sigmoid(logit) };
+            *slot = logit;
+        }
+        if !self.rerank_opts.raw_scores {
+            self.activation.apply(&mut out[..n]);
         }
         let mut outputs =
             vec![Output { name: self.names.scores.clone(), buffer: self.out.clone(), shape: vec![n as u64] }];
@@ -652,7 +726,7 @@ impl MockSession {
                 *v = 2.0 * unit(fnv(&(i as u64).to_le_bytes(), h));
             }
             if !self.classify_opts.raw_scores {
-                softmax(row);
+                self.activation.apply(row);
             }
         }
         Ok(ProviderResult {
@@ -802,7 +876,7 @@ impl ProviderSession for MockSession {
     fn write_text(&mut self, texts: &[&str], opts: &EmbedOptions) -> Result<()> {
         self.begin_write(texts.len());
         self.embed_opts = *opts;
-        let budget = self.budget(opts.max_tokens);
+        let budget = self.budget(opts.max_tokens)?;
         // Shared prefix strings: cloning the Arc does not allocate.
         let prefix = match opts.prompt_role {
             PromptRole::None => Arc::clone(&self.no_prefix),
@@ -836,7 +910,7 @@ impl ProviderSession for MockSession {
     fn write_pairs(&mut self, query: &str, docs: &[&str], opts: &RerankOptions) -> Result<()> {
         self.begin_write(docs.len());
         self.rerank_opts = *opts;
-        let budget = self.budget(opts.max_tokens);
+        let budget = self.budget(opts.max_tokens)?;
         self.query_tokens.clear();
         for (_, w) in words(query) {
             if self.query_tokens.len() == self.query_tokens.capacity() {
@@ -853,7 +927,7 @@ impl ProviderSession for MockSession {
     fn write_text_classify(&mut self, texts: &[&str], opts: &ClassifyOptions) -> Result<()> {
         self.begin_write(texts.len());
         self.classify_opts = *opts;
-        let budget = self.budget(opts.max_tokens);
+        let budget = self.budget(opts.max_tokens)?;
         for (r, t) in texts.iter().enumerate() {
             self.tokenize_row(r, "", t, opts.truncate, budget)?;
         }
@@ -957,6 +1031,11 @@ struct MockGeneration {
     max_new: u32,
     min_new: u32,
     seed: Option<u64>,
+    /// `Some(pool)` when sampling: each step draws from `pool` candidate ids
+    /// with a seed-derived generator, so temperature > 0 makes the output
+    /// depend on the seed and top_k / top_p / min_p visibly shrink the pool.
+    /// `None` is greedy: the same prompt always yields the same tokens.
+    sampling: Option<u32>,
     stop: Vec<String>,
     stop_tokens: Vec<i32>,
     logprobs: u32,
@@ -972,7 +1051,9 @@ struct MockGeneration {
 
 impl MockGeneration {
     fn start(&mut self) {
-        let mut h = self.seed.unwrap_or(self.salt);
+        // Greedy decoding depends on the prompt only; the seed enters through
+        // the sampling draw, so temperature 0 ignores it like a real decoder.
+        let mut h = self.salt;
         for id in &self.prompt_ids {
             h = fnv(&id.to_le_bytes(), h);
         }
@@ -1048,7 +1129,13 @@ impl ProviderGeneration for MockGeneration {
             return Ok(());
         }
         self.state = fnv(&self.generated.to_le_bytes(), self.state);
-        let mut token = (self.state % self.vocab as u64) as i32;
+        let mut token = match self.sampling {
+            None => (self.state % self.vocab as u64) as i32,
+            Some(pool) => {
+                let draw = fnv(&self.seed.unwrap_or(self.salt).to_le_bytes(), self.state);
+                MOCK_FIRST_WORD + (draw % pool as u64) as i32
+            }
+        };
         // EOS only once the minimum is met.
         if token == MOCK_SEP && self.generated < self.min_new {
             token = MOCK_FIRST_WORD;
@@ -1136,7 +1223,7 @@ pub fn write_mock_bundle(dir: &Path, kind: MockBundleKind) -> Result<String> {
         MockBundleKind::TokenClassifier => (
             "token_classify",
             "token_classifier",
-            serde_json::json!({ "max_seq": 16, "labels": ["O", "PER", "LOC"], "aggregation": "simple", "tagging": "BIO" }),
+            serde_json::json!({ "max_seq": 16, "labels": ["O", "PER", "LOC"], "aggregation": "simple", "activation": "softmax", "tagging": "BIO" }),
         ),
         MockBundleKind::Generative => ("generate", "generative", serde_json::json!({ "max_seq": 64 })),
         MockBundleKind::Generic => ("run", "generic", serde_json::json!({})),

@@ -7,6 +7,7 @@
   },
   "bundle_version": 2,
   "contract": {
+    "activation": "softmax",
     "aggregation": "simple",
     "labels": [
       "O",

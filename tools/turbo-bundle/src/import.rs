@@ -75,11 +75,11 @@ fn read_json(path: &Path) -> Result<Option<Value>, String> {
 }
 
 /// Derive pooling and normalization from sentence-transformers files.
-fn derive_pooling(source: &Path, notes: &mut Vec<String>) -> Result<(Option<String>, Option<String>), String> {
+fn derive_pooling(source: &Path, notes: &mut Vec<String>) -> Result<DerivedPooling, String> {
     let modules = read_json(&source.join("modules.json"))?;
     let Some(modules) = modules else {
         notes.push("no modules.json; pooling and normalization not derived".into());
-        return Ok((None, None));
+        return Ok(DerivedPooling::default());
     };
     let list = modules.as_array().ok_or("modules.json is not a list")?;
     let mut pooling_dir: Option<String> = None;
@@ -87,10 +87,25 @@ fn derive_pooling(source: &Path, notes: &mut Vec<String>) -> Result<(Option<Stri
     for m in list {
         let ty = m.get("type").and_then(Value::as_str).unwrap_or("");
         let path = m.get("path").and_then(Value::as_str).unwrap_or("");
-        if ty.ends_with("Pooling") {
+        // The contract expresses exactly one Transformer, one Pooling, and an
+        // optional Normalize. A Dense projection, a second pooling, or any
+        // other module changes the vectors in a way no provider reproduces,
+        // so the import refuses rather than writing a contract that lies.
+        if ty.ends_with(".Transformer") || ty == "Transformer" {
+            continue;
+        } else if ty.ends_with("Pooling") {
+            if let Some(prev) = &pooling_dir {
+                return Err(format!(
+                    "modules.json lists two Pooling modules (`{prev}` and `{path}`); stacked pooling is not supported"
+                ));
+            }
             pooling_dir = Some(path.to_string());
         } else if ty.ends_with("Normalize") {
             normalize = true;
+        } else {
+            return Err(format!(
+                "modules.json module `{ty}` (path `{path}`) is not supported: the contract covers Transformer + Pooling [+ Normalize] only; a Dense or other projection would change the vectors"
+            ));
         }
     }
     let Some(dir) = pooling_dir else {
@@ -139,7 +154,21 @@ fn derive_pooling(source: &Path, notes: &mut Vec<String>) -> Result<(Option<Stri
         map_pooling(mode)?
     };
     notes.push(format!("normalization: {}", if normalize { "l2 (Normalize module present)" } else { "none" }));
-    Ok((Some(pooling), Some(if normalize { "l2".into() } else { "none".into() })))
+    let dim = cfg.get("word_embedding_dimension").and_then(Value::as_u64).map(|v| v as u32);
+    Ok(DerivedPooling {
+        pooling: Some(pooling),
+        normalize: Some(if normalize { "l2".into() } else { "none".into() }),
+        dim,
+    })
+}
+
+/// What `modules.json` and the pooling config say.
+#[derive(Default)]
+struct DerivedPooling {
+    pooling: Option<String>,
+    normalize: Option<String>,
+    /// `word_embedding_dimension` from the pooling config, when present.
+    dim: Option<u32>,
 }
 
 fn map_pooling(mode: &str) -> Result<String, String> {
@@ -188,7 +217,8 @@ pub fn import(req: &ImportRequest) -> Result<ImportReport, String> {
         .or_else(|| req.source.file_name().map(|n| n.to_string_lossy().into_owned()))
         .ok_or("cannot determine model_id; pass --model-id")?;
 
-    let (mut pooling, mut normalize) = derive_pooling(&req.source, &mut notes)?;
+    let derived = derive_pooling(&req.source, &mut notes)?;
+    let (mut pooling, mut normalize) = (derived.pooling, derived.normalize);
     if req.static_from.is_some() && pooling.is_none() {
         // Static embedding tables (model2vec) are mean-pooled by definition;
         // normalization follows the model's config.json.
@@ -222,18 +252,54 @@ pub fn import(req: &ImportRequest) -> Result<ImportReport, String> {
     let similarity_fn =
         st_config.as_ref().and_then(|c| c.get("similarity_fn_name")).and_then(Value::as_str).map(str::to_string);
 
-    let max_seq = req
-        .max_seq
-        .or_else(|| {
-            bert_config.as_ref().and_then(|c| c.get("max_seq_length")).and_then(Value::as_u64).map(|v| v as u32)
-        })
-        .or_else(|| {
-            hf_config.as_ref().and_then(|c| c.get("max_position_embeddings")).and_then(Value::as_u64).map(|v| {
-                notes.push(format!("max_seq from config.json max_position_embeddings = {v}"));
-                v as u32
-            })
-        });
+    // max_seq is what the model was trained and evaluated at, which only
+    // sentence_bert_config.json (max_seq_length) or tokenizer_config.json
+    // (model_max_length) record. config.json's max_position_embeddings is
+    // the positional table size, often larger (XLM-R: 514, ModernBERT: 8192)
+    // and never the contract; without a recorded value the import refuses.
+    let max_seq = match req.max_seq {
+        Some(v) => Some(v),
+        None => {
+            let from_bert =
+                bert_config.as_ref().and_then(|c| c.get("max_seq_length")).and_then(Value::as_u64).map(|v| v as u32);
+            let from_tok = tok_config
+                .as_ref()
+                .and_then(|c| c.get("model_max_length"))
+                .and_then(Value::as_u64)
+                .filter(|&v| v > 0 && v <= 1 << 20)
+                .map(|v| v as u32);
+            match (from_bert, from_tok) {
+                (Some(b), Some(t)) if b != t => {
+                    notes.push(format!(
+                        "max_seq {b} from sentence_bert_config.json (tokenizer_config.json model_max_length is {t})"
+                    ));
+                    Some(b)
+                }
+                (Some(b), _) => Some(b),
+                (None, Some(t)) => {
+                    notes.push(format!("max_seq {t} from tokenizer_config.json model_max_length"));
+                    Some(t)
+                }
+                (None, None) => None,
+            }
+        }
+    };
     let hidden = hf_config.as_ref().and_then(|c| c.get("hidden_size")).and_then(Value::as_u64).map(|v| v as u32);
+    if let (Some(h), Some(d)) = (hidden, derived.dim) {
+        if h != d {
+            return Err(format!(
+                "config.json hidden_size {h} does not match the pooling config's word_embedding_dimension {d}; the export would embed to a different dimension than the contract"
+            ));
+        }
+    }
+    // Activation: the head's problem type decides, never the model kind alone.
+    let problem_type =
+        hf_config.as_ref().and_then(|c| c.get("problem_type")).and_then(Value::as_str).map(str::to_string);
+    let ce_activation = hf_config
+        .as_ref()
+        .and_then(|c| c.get("sbert_ce_default_activation_function"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let vocab_size =
         hf_config.as_ref().and_then(|c| c.get("vocab_size")).and_then(Value::as_u64).map(|v| v as u32).unwrap_or(0);
     let family = hf_config.as_ref().and_then(|c| c.get("model_type")).and_then(Value::as_str).unwrap_or("").to_string();
@@ -321,6 +387,8 @@ pub fn import(req: &ImportRequest) -> Result<ImportReport, String> {
             hidden,
             vocab_size,
             labels,
+            problem_type,
+            ce_activation,
             chat_template: tok_config
                 .as_ref()
                 .and_then(|c| c.get("chat_template"))
@@ -358,6 +426,10 @@ struct StageInputs {
     hidden: Option<u32>,
     vocab_size: u32,
     labels: Vec<String>,
+    /// config.json `problem_type` (classifiers).
+    problem_type: Option<String>,
+    /// config.json `sbert_ce_default_activation_function` (cross-encoders).
+    ce_activation: Option<String>,
     chat_template: Option<String>,
 }
 
@@ -470,7 +542,33 @@ fn stage(req: &ImportRequest, staging: &Path, inp: StageInputs, notes: &mut Vec<
         return Err("no artifacts and no tokenizer; pass --artifact format=path or --static-from".into());
     }
 
-    let max_seq = inp.max_seq.unwrap_or(0);
+    let max_seq = match inp.max_seq {
+        Some(v) if v > 0 => v,
+        _ if inp.kind == ModelKind::Generic => 0,
+        _ => {
+            return Err("max_seq is not recorded by the source (no sentence_bert_config.json max_seq_length or tokenizer_config.json model_max_length); pass --max-seq with the length the model was trained at".into())
+        }
+    };
+    let activation = match inp.kind {
+        ModelKind::Classifier | ModelKind::TokenClassifier => Some(match inp.problem_type.as_deref() {
+            None | Some("single_label_classification") => "softmax",
+            Some("multi_label_classification") => "sigmoid",
+            Some("regression") => "none",
+            Some(other) => return Err(format!("config.json problem_type `{other}` is not supported (single_label_classification, multi_label_classification, regression)")),
+        }
+        .to_string()),
+        ModelKind::Reranker => Some(match inp.ce_activation.as_deref() {
+            None => "sigmoid",
+            Some(f) if f.ends_with("Sigmoid") => "sigmoid",
+            Some(f) if f.ends_with("Identity") => "none",
+            Some(other) => return Err(format!("cross-encoder activation `{other}` is not supported (Sigmoid, Identity)")),
+        }
+        .to_string()),
+        _ => None,
+    };
+    if let Some(a) = &activation {
+        notes.push(format!("activation {a}"));
+    }
     let contract = Contract {
         pooling: inp.pooling.clone(),
         normalize: inp.normalize.clone(),
@@ -482,11 +580,7 @@ fn stage(req: &ImportRequest, staging: &Path, inp: StageInputs, notes: &mut Vec<
         dtype: Some("f32".into()),
         vocab_size,
         labels: inp.labels.clone(),
-        activation: match inp.kind {
-            ModelKind::Classifier => Some("softmax".into()),
-            ModelKind::Reranker => Some("sigmoid".into()),
-            _ => None,
-        },
+        activation,
         aggregation: if inp.kind == ModelKind::TokenClassifier { Some("simple".into()) } else { None },
         tagging: if inp.kind == ModelKind::TokenClassifier { Some("BIO".into()) } else { None },
     };
@@ -707,5 +801,128 @@ mod tests {
         assert_eq!(report.manifest.contract.dim, 4);
         assert_eq!(report.manifest.contract.vocab_size, 30522);
         assert_eq!(std::fs::metadata(out.join("static.f32")).unwrap().len(), 30522 * 4 * 4);
+    }
+}
+
+#[cfg(test)]
+mod refusals {
+    //! The importer refuses to write a contract it cannot stand behind
+    //! (review H6): unsupported module stacks, an unrecorded sequence limit,
+    //! a dimension the pooling config contradicts. It also derives the score
+    //! activation from the head configuration rather than the model kind.
+
+    use super::*;
+
+    fn source(dir: &Path, modules: serde_json::Value, pooling_dim: u32, extra_config: serde_json::Value) {
+        std::fs::create_dir_all(dir.join("1_Pooling")).unwrap();
+        let tok = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/bundles/minilm-tokenizer/tokenizer.json");
+        std::fs::copy(tok, dir.join("tokenizer.json")).unwrap();
+        std::fs::write(dir.join("modules.json"), modules.to_string()).unwrap();
+        std::fs::write(
+            dir.join("1_Pooling/config.json"),
+            serde_json::json!({"word_embedding_dimension": pooling_dim, "pooling_mode": "mean"}).to_string(),
+        )
+        .unwrap();
+        let mut config = serde_json::json!({"model_type": "bert", "hidden_size": 384, "vocab_size": 30522,
+            "max_position_embeddings": 512, "architectures": ["BertModel"]});
+        for (k, v) in extra_config.as_object().unwrap() {
+            config[k] = v.clone();
+        }
+        std::fs::write(dir.join("config.json"), config.to_string()).unwrap();
+        std::fs::write(dir.join("model.onnx"), b"not really onnx").unwrap();
+    }
+
+    fn st_modules(extra: Option<serde_json::Value>) -> serde_json::Value {
+        let mut list = vec![
+            serde_json::json!({"idx": 0, "name": "0", "path": "", "type": "sentence_transformers.models.Transformer"}),
+            serde_json::json!({"idx": 1, "name": "1", "path": "1_Pooling", "type": "sentence_transformers.models.Pooling"}),
+        ];
+        if let Some(e) = extra {
+            list.push(e);
+        }
+        serde_json::Value::Array(list)
+    }
+
+    fn request(src: &Path, out: &Path) -> ImportRequest {
+        ImportRequest {
+            source: src.to_path_buf(),
+            output: out.to_path_buf(),
+            license: Some("Apache-2.0".into()),
+            artifacts: vec![("onnx".into(), src.join("model.onnx"))],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn dense_projection_modules_are_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        let dense =
+            serde_json::json!({"idx": 2, "name": "2", "path": "2_Dense", "type": "sentence_transformers.models.Dense"});
+        source(&src, st_modules(Some(dense)), 384, serde_json::json!({}));
+        std::fs::write(src.join("sentence_bert_config.json"), r#"{"max_seq_length": 128}"#).unwrap();
+        let e = import(&request(&src, &tmp.path().join("out"))).unwrap_err();
+        assert!(e.contains("Dense"), "{e}");
+    }
+
+    #[test]
+    fn two_pooling_modules_are_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        let second = serde_json::json!({"idx": 2, "name": "2", "path": "1_Pooling", "type": "sentence_transformers.models.Pooling"});
+        source(&src, st_modules(Some(second)), 384, serde_json::json!({}));
+        let e = import(&request(&src, &tmp.path().join("out"))).unwrap_err();
+        assert!(e.contains("two Pooling"), "{e}");
+    }
+
+    #[test]
+    fn max_seq_is_never_taken_from_max_position_embeddings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        source(&src, st_modules(None), 384, serde_json::json!({}));
+        let e = import(&request(&src, &tmp.path().join("out"))).unwrap_err();
+        assert!(e.contains("max_seq is not recorded"), "{e}");
+        // tokenizer_config.json model_max_length is a recorded limit.
+        std::fs::write(src.join("tokenizer_config.json"), r#"{"model_max_length": 256}"#).unwrap();
+        let report = import(&request(&src, &tmp.path().join("out2"))).unwrap();
+        assert_eq!(report.manifest.contract.max_seq, 256);
+    }
+
+    #[test]
+    fn pooling_dimension_must_match_hidden_size() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        source(&src, st_modules(None), 768, serde_json::json!({}));
+        std::fs::write(src.join("sentence_bert_config.json"), r#"{"max_seq_length": 128}"#).unwrap();
+        let e = import(&request(&src, &tmp.path().join("out"))).unwrap_err();
+        assert!(e.contains("hidden_size 384") && e.contains("768"), "{e}");
+    }
+
+    #[test]
+    fn classifier_activation_follows_problem_type() {
+        for (problem, want) in [
+            (None, "softmax"),
+            (Some("single_label_classification"), "softmax"),
+            (Some("multi_label_classification"), "sigmoid"),
+            (Some("regression"), "none"),
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            let src = tmp.path().join("src");
+            std::fs::create_dir_all(&src).unwrap();
+            let tok =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/bundles/minilm-tokenizer/tokenizer.json");
+            std::fs::copy(tok, src.join("tokenizer.json")).unwrap();
+            let mut config = serde_json::json!({"model_type": "bert", "hidden_size": 384, "vocab_size": 30522,
+                "architectures": ["BertForSequenceClassification"], "id2label": {"0": "NEG", "1": "POS"}});
+            if let Some(p) = problem {
+                config["problem_type"] = serde_json::json!(p);
+            }
+            std::fs::write(src.join("config.json"), config.to_string()).unwrap();
+            std::fs::write(src.join("tokenizer_config.json"), r#"{"model_max_length": 128}"#).unwrap();
+            std::fs::write(src.join("model.onnx"), b"not really onnx").unwrap();
+            let report = import(&request(&src, &tmp.path().join("out"))).unwrap();
+            assert_eq!(report.manifest.kind, "classifier");
+            assert_eq!(report.manifest.contract.activation.as_deref(), Some(want), "problem_type {problem:?}");
+        }
     }
 }

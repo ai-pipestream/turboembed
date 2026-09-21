@@ -28,7 +28,8 @@ use crate::provider::{
 };
 use crate::runtime::Runtime;
 use crate::types::{
-    Aggregation, HandleKind, ModelKind, Normalize, OutputDType, Pooling, PromptRole, StructuredKind, Task, Truncate,
+    Aggregation, DType, HandleKind, ModelKind, Normalize, OutputDType, Pooling, PromptRole, StructuredKind, Task,
+    Truncate,
 };
 
 /// Device plus memory domain.
@@ -326,6 +327,13 @@ impl Model {
             "logit_bias",
         )?;
         self.gated(d.logprobs > 0, abi::TURBO_CAP_OPT_GEN_LOGPROBS, GenerateDesc::FIELD_LOGPROBS, "logprobs")?;
+        self.gated(d.temperature != 0.0, abi::TURBO_CAP_OPT_GEN_SAMPLING, 5, "temperature")?;
+        self.gated(d.top_k != 0, abi::TURBO_CAP_OPT_GEN_SAMPLING, 6, "top_k")?;
+        self.gated(d.top_p != 0.0 && d.top_p != 1.0, abi::TURBO_CAP_OPT_GEN_SAMPLING, 7, "top_p")?;
+        self.gated(d.min_p != 0.0, abi::TURBO_CAP_OPT_GEN_SAMPLING, 8, "min_p")?;
+        self.gated(d.min_new_tokens != 0, abi::TURBO_CAP_OPT_GEN_MIN_TOKENS, 3, "min_new_tokens")?;
+        self.gated(d.echo, abi::TURBO_CAP_OPT_GEN_ECHO, 22, "echo")?;
+        self.gated(!d.stop_tokens.is_empty(), abi::TURBO_CAP_OPT_GEN_STOP_TOKENS, 15, "stop_tokens")?;
         self.gated(
             d.structured_kind != StructuredKind::None,
             abi::TURBO_CAP_OPT_GEN_STRUCTURED,
@@ -379,6 +387,22 @@ impl Model {
             EmbedOptions::FIELD_PROMPT_ROLE,
             "prompt_role",
         )?;
+        // A role the bundle defines no prefix for cannot be honored; accepting
+        // it would silently embed the bare text.
+        let prefix = match o.prompt_role {
+            PromptRole::None => None,
+            PromptRole::Query => Some(("query", &info.prefix_query)),
+            PromptRole::Document => Some(("document", &info.prefix_document)),
+        };
+        if let Some((role, text)) = prefix {
+            if text.is_empty() {
+                return Err(Error::invalid_argument(format!(
+                    "prompt_role {role} was requested but bundle `{}` declares no {role} prefix",
+                    info.model_id
+                ))
+                .with_field(EmbedOptions::FIELD_PROMPT_ROLE));
+            }
+        }
         let differs_norm = o.normalize != Normalize::Model && Some(o.normalize) != info.normalize;
         self.gated(differs_norm, abi::TURBO_CAP_OPT_NORMALIZE, EmbedOptions::FIELD_NORMALIZE, "normalize")?;
         let differs_pool = o.pooling != Pooling::Model && Some(o.pooling) != info.pooling;
@@ -394,7 +418,15 @@ impl Model {
                 .with_field(EmbedOptions::FIELD_OUTPUT_DIM));
             }
         }
-        let differs_dtype = o.output_dtype != OutputDType::Model && o.output_dtype != OutputDType::F32;
+        // Asking for the dtype the model already computes in is free; any
+        // other dtype is a conversion the provider must advertise.
+        let wanted = match o.output_dtype {
+            OutputDType::Model => None,
+            OutputDType::F32 => Some(DType::F32),
+            OutputDType::F16 => Some(DType::F16),
+            OutputDType::I8 => Some(DType::I8),
+        };
+        let differs_dtype = wanted.is_some() && wanted != info.dtype_used;
         self.gated(differs_dtype, abi::TURBO_CAP_OPT_OUTPUT_DTYPE, EmbedOptions::FIELD_OUTPUT_DTYPE, "output_dtype")?;
         Ok(())
     }
@@ -422,7 +454,9 @@ impl Model {
             ))
             .with_field(RerankOptions::FIELD_MAX_TOKENS));
         }
-        self.gated(o.top_n != 0 || o.return_sorted, abi::TURBO_CAP_OPT_TOP_N, RerankOptions::FIELD_TOP_N, "top_n")?;
+        self.gated(o.top_n != 0, abi::TURBO_CAP_OPT_TOP_N, RerankOptions::FIELD_TOP_N, "top_n")?;
+        self.gated(o.return_sorted, abi::TURBO_CAP_OPT_TOP_N, RerankOptions::FIELD_RETURN_SORTED, "return_sorted")?;
+        self.gated(o.raw_scores, abi::TURBO_CAP_OPT_RAW_SCORES, RerankOptions::FIELD_RAW_SCORES, "raw_scores")?;
         Ok(())
     }
 
@@ -457,6 +491,7 @@ impl Model {
             let differs = Some(o.aggregation) != info.aggregation;
             self.gated(differs, abi::TURBO_CAP_OPT_AGGREGATION, ClassifyOptions::FIELD_AGGREGATION, "aggregation")?;
         }
+        self.gated(o.raw_scores, abi::TURBO_CAP_OPT_RAW_SCORES, ClassifyOptions::FIELD_RAW_SCORES, "raw_scores")?;
         Ok(())
     }
 }
@@ -518,6 +553,18 @@ impl Session {
         Ok(())
     }
 
+    /// `max_tokens` must fit the session; a provider must never clamp it.
+    fn check_budget(&self, max_tokens: u32, field: u32) -> Result<()> {
+        if max_tokens > self.desc.max_seq {
+            return Err(Error::capacity(format!(
+                "max_tokens {max_tokens} exceeds the session's max_seq {}",
+                self.desc.max_seq
+            ))
+            .with_field(field));
+        }
+        Ok(())
+    }
+
     fn check_batch(&self, n: usize) -> Result<()> {
         if n == 0 {
             return Err(Error::invalid_argument("at least one input is required"));
@@ -531,6 +578,7 @@ impl Session {
     /// Write texts for embedding.
     pub fn write_text(&self, texts: &[&str], opts: &EmbedOptions) -> Result<()> {
         self.model.validate_embed(opts)?;
+        self.check_budget(opts.max_tokens, EmbedOptions::FIELD_MAX_TOKENS)?;
         self.check_batch(texts.len())?;
         let mut st = self.lock()?;
         self.require_no_lease()?;
@@ -573,6 +621,7 @@ impl Session {
     /// Write a query and documents for reranking.
     pub fn write_pairs(&self, query: &str, docs: &[&str], opts: &RerankOptions) -> Result<()> {
         self.model.validate_rerank(opts)?;
+        self.check_budget(opts.max_tokens, RerankOptions::FIELD_MAX_TOKENS)?;
         self.check_batch(docs.len())?;
         if opts.top_n as usize > docs.len() {
             return Err(Error::invalid_argument(format!(
@@ -594,6 +643,7 @@ impl Session {
     /// Write texts for classification.
     pub fn write_text_classify(&self, texts: &[&str], opts: &ClassifyOptions) -> Result<()> {
         self.model.validate_classify(opts)?;
+        self.check_budget(opts.max_tokens, ClassifyOptions::FIELD_MAX_TOKENS)?;
         self.check_batch(texts.len())?;
         let mut st = self.lock()?;
         self.require_no_lease()?;

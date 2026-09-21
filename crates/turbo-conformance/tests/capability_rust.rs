@@ -313,15 +313,23 @@ fn capability_generation_options_are_honored_or_rejected() {
     let t = Target::from_env();
     let model = t.model(BundleKind::Generative);
 
-    // Seed.
+    // Seed. It only matters when sampling; greedy decoding ignores it.
     let seeded = GenerateDesc { max_new_tokens: 4, seed: Some(12345), ..Default::default() };
     if t.has(TURBO_CAP_OPT_GEN_SEED) {
         let a = collect(&t, &seeded);
         let b = collect(&t, &seeded);
         assert_eq!(a, b, "the same seed must reproduce the same tokens");
-        let other = GenerateDesc { seed: Some(999_999), ..seeded.clone() };
-        let c = collect(&t, &other);
-        assert_ne!(a, c, "a different seed must change the tokens");
+        let greedy_other = GenerateDesc { seed: Some(999_999), ..seeded.clone() };
+        assert_eq!(a, collect(&t, &greedy_other), "at temperature 0 the seed must not change the tokens");
+        if t.has(TURBO_CAP_OPT_GEN_SAMPLING) {
+            let sampled = GenerateDesc { temperature: 1.0, ..seeded.clone() };
+            let other = GenerateDesc { seed: Some(999_999), ..sampled.clone() };
+            assert_ne!(
+                collect(&t, &sampled),
+                collect(&t, &other),
+                "when sampling, a different seed must change the tokens"
+            );
+        }
     } else {
         assert_err!(model.create_generation(&seeded), TURBO_E_UNSUPPORTED_OPTION, field = 12);
     }

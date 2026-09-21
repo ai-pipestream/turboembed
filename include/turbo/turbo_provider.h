@@ -783,6 +783,11 @@
 #define TURBO_CAP_OPT_AGGREGATION 16777216
 
 /**
+ * Rerank and classify `raw_scores` (logits instead of activated scores) is honored.
+ */
+#define TURBO_CAP_OPT_RAW_SCORES 33554432
+
+/**
  * Generation: structured output (JSON schema / grammar).
  */
 #define TURBO_CAP_OPT_GEN_STRUCTURED 4294967296
@@ -821,6 +826,26 @@
  * Generation: `seed` is honored (implies reproducible sampling).
  */
 #define TURBO_CAP_OPT_GEN_SEED 549755813888
+
+/**
+ * Generation: sampling controls `temperature`, `top_k`, `top_p`, `min_p`.
+ */
+#define TURBO_CAP_OPT_GEN_SAMPLING 1099511627776
+
+/**
+ * Generation: `min_new_tokens`.
+ */
+#define TURBO_CAP_OPT_GEN_MIN_TOKENS 2199023255552
+
+/**
+ * Generation: `echo` (the prompt is included in the output text).
+ */
+#define TURBO_CAP_OPT_GEN_ECHO 4398046511104
+
+/**
+ * Generation: stop token ids.
+ */
+#define TURBO_CAP_OPT_GEN_STOP_TOKENS 8796093022208
 
 /**
  * Length of `turbo_error.message` including the terminating NUL.

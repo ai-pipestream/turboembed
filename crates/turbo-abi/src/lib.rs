@@ -383,6 +383,8 @@ pub const TURBO_CAP_OPT_OUTPUT_DTYPE: u64 = 0x400000;
 pub const TURBO_CAP_OPT_TOP_N: u64 = 0x800000;
 /// Token-classification `aggregation` may differ from the model contract.
 pub const TURBO_CAP_OPT_AGGREGATION: u64 = 0x1000000;
+/// Rerank and classify `raw_scores` (logits instead of activated scores) is honored.
+pub const TURBO_CAP_OPT_RAW_SCORES: u64 = 0x2000000;
 
 /// Generation: structured output (JSON schema / grammar).
 pub const TURBO_CAP_OPT_GEN_STRUCTURED: u64 = 0x100000000;
@@ -400,6 +402,14 @@ pub const TURBO_CAP_OPT_GEN_LOGPROBS: u64 = 0x2000000000;
 pub const TURBO_CAP_OPT_GEN_STOP_STRINGS: u64 = 0x4000000000;
 /// Generation: `seed` is honored (implies reproducible sampling).
 pub const TURBO_CAP_OPT_GEN_SEED: u64 = 0x8000000000;
+/// Generation: sampling controls `temperature`, `top_k`, `top_p`, `min_p`.
+pub const TURBO_CAP_OPT_GEN_SAMPLING: u64 = 0x10000000000;
+/// Generation: `min_new_tokens`.
+pub const TURBO_CAP_OPT_GEN_MIN_TOKENS: u64 = 0x20000000000;
+/// Generation: `echo` (the prompt is included in the output text).
+pub const TURBO_CAP_OPT_GEN_ECHO: u64 = 0x40000000000;
+/// Generation: stop token ids.
+pub const TURBO_CAP_OPT_GEN_STOP_TOKENS: u64 = 0x80000000000;
 
 // ---------------------------------------------------------------------------
 // Views and errors
@@ -796,7 +806,7 @@ pub struct turbo_rerank_options {
     pub top_n: u32,
     /// 1 = also produce the sorted index output.
     pub return_sorted: u32,
-    /// 1 = raw logits instead of sigmoid scores.
+    /// 1 = raw logits instead of sigmoid scores. Gated by `TURBO_CAP_OPT_RAW_SCORES`.
     pub raw_scores: u32,
 }
 
@@ -812,7 +822,7 @@ pub struct turbo_classify_options {
     pub max_tokens: u32,
     /// `TURBO_AGGREGATE_*` (token classification only).
     pub aggregation: u32,
-    /// 1 = raw logits instead of activated scores.
+    /// 1 = raw logits instead of activated scores. Gated by `TURBO_CAP_OPT_RAW_SCORES`.
     pub raw_scores: u32,
     /// Reserved; 0.
     pub reserved: u32,
@@ -952,17 +962,17 @@ pub struct turbo_generate_desc {
     pub struct_size: u32,
     /// Maximum new tokens; 0 = model default.
     pub max_new_tokens: u32,
-    /// Minimum new tokens before EOS is allowed.
+    /// Minimum new tokens before EOS is allowed. Gated by `TURBO_CAP_OPT_GEN_MIN_TOKENS`.
     pub min_new_tokens: u32,
     /// Sequences to generate; 0 or 1 = one. Gated by `TURBO_CAP_OPT_GEN_N`.
     pub n_sequences: u32,
-    /// Sampling temperature; 0 = greedy.
+    /// Sampling temperature; 0 = greedy. Gated by `TURBO_CAP_OPT_GEN_SAMPLING`.
     pub temperature: f32,
-    /// Top-k; 0 = off.
+    /// Top-k; 0 = off. Gated by `TURBO_CAP_OPT_GEN_SAMPLING`.
     pub top_k: u32,
-    /// Top-p; 0 or 1 = off.
+    /// Top-p; 0 or 1 = off. Gated by `TURBO_CAP_OPT_GEN_SAMPLING`.
     pub top_p: f32,
-    /// Min-p; 0 = off.
+    /// Min-p; 0 = off. Gated by `TURBO_CAP_OPT_GEN_SAMPLING`.
     pub min_p: f32,
     /// Repeat penalty; 0 or 1 = off. Gated by `TURBO_CAP_OPT_GEN_PENALTIES`.
     pub repeat_penalty: f32,
@@ -976,7 +986,7 @@ pub struct turbo_generate_desc {
     pub seed: u64,
     /// Number of stop strings. Gated by `TURBO_CAP_OPT_GEN_STOP_STRINGS`.
     pub n_stop: u32,
-    /// Number of stop token ids.
+    /// Number of stop token ids. Gated by `TURBO_CAP_OPT_GEN_STOP_TOKENS`.
     pub n_stop_tokens: u32,
     /// Stop strings.
     pub stop: *const turbo_text,
@@ -990,7 +1000,7 @@ pub struct turbo_generate_desc {
     pub logit_bias: *const turbo_logit_bias,
     /// `TURBO_STRUCTURED_*`. Gated by `TURBO_CAP_OPT_GEN_STRUCTURED`.
     pub structured_kind: u32,
-    /// 1 = include the prompt in the output text.
+    /// 1 = include the prompt in the output text. Gated by `TURBO_CAP_OPT_GEN_ECHO`.
     pub echo: u32,
     /// Schema or grammar text.
     pub structured: turbo_text,

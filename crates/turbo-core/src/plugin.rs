@@ -16,6 +16,13 @@ use std::sync::Arc;
 
 use turbo_abi as abi;
 
+/// Upper bound on outputs one plugin result may carry; a provider reporting
+/// more is treated as broken (`TURBO_E_INTERNAL`).
+pub const MAX_PLUGIN_OUTPUTS: u32 = 256;
+/// Upper bound on spans one plugin result may carry (rows x tokens of the
+/// largest sensible session), same rule.
+pub const MAX_PLUGIN_SPANS: u32 = 1 << 24;
+
 use crate::abi_convert::{
     buffer_desc_to_abi, capability_from_abi, classify_options_to_abi, device_info_from_abi, embed_options_to_abi,
     get_str, model_info_from_abi, native_handle_from_abi, native_handle_to_abi, rerank_options_to_abi,
@@ -726,6 +733,20 @@ impl ProviderSession for PluginSession {
         take(rc, &e, "session_run")?;
         if r.n_outputs == 0 || r.outputs.is_null() {
             return Err(Error::internal(format!("provider `{}` returned a result with no outputs", self.provider_id)));
+        }
+        // A provider that reports absurd counts is broken, not trusted: the
+        // slices below would otherwise span most of the address space.
+        if r.n_outputs > MAX_PLUGIN_OUTPUTS {
+            return Err(Error::internal(format!(
+                "provider `{}` reports {} outputs; the plugin contract allows at most {MAX_PLUGIN_OUTPUTS}",
+                self.provider_id, r.n_outputs
+            )));
+        }
+        if r.n_spans > MAX_PLUGIN_SPANS {
+            return Err(Error::internal(format!(
+                "provider `{}` reports {} spans; the plugin contract allows at most {MAX_PLUGIN_SPANS}",
+                self.provider_id, r.n_spans
+            )));
         }
         // SAFETY: n_outputs readable entries by contract, valid until the next run.
         let raw = unsafe { std::slice::from_raw_parts(r.outputs, r.n_outputs as usize) };

@@ -789,6 +789,11 @@ typedef struct turbo_chunk_plan turbo_chunk_plan;
 #define TURBO_CAP_OPT_AGGREGATION 16777216
 
 /**
+ * Rerank and classify `raw_scores` (logits instead of activated scores) is honored.
+ */
+#define TURBO_CAP_OPT_RAW_SCORES 33554432
+
+/**
  * Generation: structured output (JSON schema / grammar).
  */
 #define TURBO_CAP_OPT_GEN_STRUCTURED 4294967296
@@ -827,6 +832,26 @@ typedef struct turbo_chunk_plan turbo_chunk_plan;
  * Generation: `seed` is honored (implies reproducible sampling).
  */
 #define TURBO_CAP_OPT_GEN_SEED 549755813888
+
+/**
+ * Generation: sampling controls `temperature`, `top_k`, `top_p`, `min_p`.
+ */
+#define TURBO_CAP_OPT_GEN_SAMPLING 1099511627776
+
+/**
+ * Generation: `min_new_tokens`.
+ */
+#define TURBO_CAP_OPT_GEN_MIN_TOKENS 2199023255552
+
+/**
+ * Generation: `echo` (the prompt is included in the output text).
+ */
+#define TURBO_CAP_OPT_GEN_ECHO 4398046511104
+
+/**
+ * Generation: stop token ids.
+ */
+#define TURBO_CAP_OPT_GEN_STOP_TOKENS 8796093022208
 
 /**
  * Length of `turbo_error.message` including the terminating NUL.
@@ -1397,7 +1422,7 @@ typedef struct turbo_rerank_options {
      */
     uint32_t return_sorted;
     /**
-     * 1 = raw logits instead of sigmoid scores.
+     * 1 = raw logits instead of sigmoid scores. Gated by `TURBO_CAP_OPT_RAW_SCORES`.
      */
     uint32_t raw_scores;
 } turbo_rerank_options;
@@ -1423,7 +1448,7 @@ typedef struct turbo_classify_options {
      */
     uint32_t aggregation;
     /**
-     * 1 = raw logits instead of activated scores.
+     * 1 = raw logits instead of activated scores. Gated by `TURBO_CAP_OPT_RAW_SCORES`.
      */
     uint32_t raw_scores;
     /**
@@ -1635,7 +1660,7 @@ typedef struct turbo_generate_desc {
      */
     uint32_t max_new_tokens;
     /**
-     * Minimum new tokens before EOS is allowed.
+     * Minimum new tokens before EOS is allowed. Gated by `TURBO_CAP_OPT_GEN_MIN_TOKENS`.
      */
     uint32_t min_new_tokens;
     /**
@@ -1643,19 +1668,19 @@ typedef struct turbo_generate_desc {
      */
     uint32_t n_sequences;
     /**
-     * Sampling temperature; 0 = greedy.
+     * Sampling temperature; 0 = greedy. Gated by `TURBO_CAP_OPT_GEN_SAMPLING`.
      */
     float temperature;
     /**
-     * Top-k; 0 = off.
+     * Top-k; 0 = off. Gated by `TURBO_CAP_OPT_GEN_SAMPLING`.
      */
     uint32_t top_k;
     /**
-     * Top-p; 0 or 1 = off.
+     * Top-p; 0 or 1 = off. Gated by `TURBO_CAP_OPT_GEN_SAMPLING`.
      */
     float top_p;
     /**
-     * Min-p; 0 = off.
+     * Min-p; 0 = off. Gated by `TURBO_CAP_OPT_GEN_SAMPLING`.
      */
     float min_p;
     /**
@@ -1683,7 +1708,7 @@ typedef struct turbo_generate_desc {
      */
     uint32_t n_stop;
     /**
-     * Number of stop token ids.
+     * Number of stop token ids. Gated by `TURBO_CAP_OPT_GEN_STOP_TOKENS`.
      */
     uint32_t n_stop_tokens;
     /**
@@ -1711,7 +1736,7 @@ typedef struct turbo_generate_desc {
      */
     uint32_t structured_kind;
     /**
-     * 1 = include the prompt in the output text.
+     * 1 = include the prompt in the output text. Gated by `TURBO_CAP_OPT_GEN_ECHO`.
      */
     uint32_t echo;
     /**
