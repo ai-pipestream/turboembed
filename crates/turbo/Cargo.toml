@@ -11,3 +11,4 @@ authors.workspace = true
 [dependencies]
 turbo-core = { workspace = true }
 turbo-abi = { workspace = true }
+turbo-provider-static = { workspace = true }

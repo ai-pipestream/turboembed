@@ -340,7 +340,7 @@ pub unsafe extern "C" fn turbo_runtime_create(
                 }));
             }
         }
-        let rt = turbo_core::create_runtime(rd)?;
+        let rt = turbo::create_runtime(rd)?;
         *out = leak(rt) as *mut turbo_runtime;
         Ok(())
     })

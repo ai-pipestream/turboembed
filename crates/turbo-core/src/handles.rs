@@ -133,6 +133,15 @@ impl Context {
     }
 }
 
+impl std::fmt::Debug for Context {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Context")
+            .field("device_index", &self.device_index)
+            .field("provider", &self.provider.id())
+            .finish()
+    }
+}
+
 /// Typed memory. Retains its context, and its result lease when it came from a result.
 ///
 /// Field order is load-bearing (see [`Context`]): `inner` drops first.
@@ -176,6 +185,12 @@ impl Buffer {
     /// Blocking copy to host.
     pub fn read_to_host(&self, dst: &mut [u8]) -> Result<()> {
         self.inner.read_to_host(dst)
+    }
+}
+
+impl std::fmt::Debug for Buffer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Buffer").field("desc", self.desc()).field("result_view", &self.lease.is_some()).finish()
     }
 }
 
@@ -446,6 +461,12 @@ impl Model {
     }
 }
 
+impl std::fmt::Debug for Model {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Model").field("info", self.info()).finish()
+    }
+}
+
 struct SessionState {
     inner: Box<dyn ProviderSession>,
     inputs_ready: bool,
@@ -648,6 +669,17 @@ impl Session {
     }
 }
 
+impl std::fmt::Debug for Session {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Session")
+            .field("model", &self.model.info().model_id)
+            .field("max_batch", &self.desc.max_batch)
+            .field("max_seq", &self.desc.max_seq)
+            .field("lease", &self.lease.load(Ordering::Relaxed))
+            .finish()
+    }
+}
+
 /// Leased result. Dropping it (all clones) returns the lease.
 ///
 /// Field order is load-bearing (see [`Context`]): `result` drops before `session`.
@@ -835,6 +867,12 @@ impl Generation {
             st.inner.cancel();
         }
         Ok(())
+    }
+}
+
+impl std::fmt::Debug for Generation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Generation").field("model", &self.model.info().model_id).finish()
     }
 }
 
