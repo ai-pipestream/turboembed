@@ -1,0 +1,16 @@
+[package]
+name = "turbo-conformance"
+description = "Provider-agnostic conformance suite for the Turbo contract"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+turbo = { workspace = true }
+turbo-capi = { workspace = true }
+turbo-abi = { workspace = true }
+tempfile = "3"

@@ -1,89 +1,38 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/protocol",
-    "crates/backend",
-    "crates/backend-mock",
-    "crates/backend-trtllm",
-    "crates/backend-llamacpp",
-    "crates/backend-ort",
-    "crates/backend-openvino",
-    "crates/backend-apple",
-    "crates/backend-turboembed",
-    "crates/backend-turborerank",
-    "crates/server",
-    "crates/arch-nvidia",
-    "crates/arch-intel",
-    "crates/arch-apple",
-    "crates/fetch",
-    "crates/xtask",
-    "crates/e2e",
-    "crates/turboembed",
-    "crates/turboembed-cabi",
-    "crates/turborerank",
-    "crates/bench-turbo",
+    "crates/turbo-abi",
+    "crates/turbo-core",
+    "crates/turbo-capi",
+    "crates/turbo",
+    "crates/turbo-conformance",
+    "providers/mock",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "2.0.0-alpha.0"
 edition = "2021"
-license = "Apache-2.0"
-repository = "https://example.invalid/inferstream"
-authors = ["inferstream contributors"]
 rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/ai-pipestream/turboembed"
+authors = ["Pipestream contributors"]
 
 [workspace.dependencies]
-# gRPC / protobuf
-tonic = "0.12"
-tonic-build = "0.12"
-prost = "0.13"
-prost-types = "0.13"
-
-# async runtime
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "net", "signal"] }
-tokio-stream = { version = "0.1", features = ["net"] }
-futures = "0.3"
-async-trait = "0.1"
-
-# observability
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# config / cli
+turbo-abi = { path = "crates/turbo-abi" }
+turbo-core = { path = "crates/turbo-core" }
+turbo-capi = { path = "crates/turbo-capi" }
+turbo = { path = "crates/turbo" }
 serde = { version = "1", features = ["derive"] }
-toml = "0.8"
-clap = { version = "4", features = ["derive", "env"] }
-
-# misc
-thiserror = "2"
-bytes = "1"
-# HF fast tokenizers: server-side Tokenize/Detokenize (inferstream.v1) and
-# the ORT embedding path share this version. default-features are disabled to
-# drop the C/C++ deps (onig, esaxx) — the pure-Rust fancy-regex path builds on
-# any host/CI without a C++ toolchain and is fully compatible with
-# tokenizer.json models.
-tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 serde_json = "1"
-# HTTP client for backends that forward to an engine's HTTP server (llama.cpp
-# server mode). default-features off: local plaintext endpoints only, no TLS
-# stack pulled into the build.
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream"] }
-
-# workspace crates
-inferstream-protocol = { path = "crates/protocol" }
-inferstream-backend = { path = "crates/backend" }
-inferstream-backend-mock = { path = "crates/backend-mock" }
-inferstream-backend-trtllm = { path = "crates/backend-trtllm" }
-inferstream-backend-llamacpp = { path = "crates/backend-llamacpp" }
-inferstream-backend-ort = { path = "crates/backend-ort" }
-inferstream-backend-openvino = { path = "crates/backend-openvino" }
-inferstream-backend-apple = { path = "crates/backend-apple" }
-inferstream-backend-turboembed = { path = "crates/backend-turboembed" }
-inferstream-backend-turborerank = { path = "crates/backend-turborerank" }
-inferstream-server = { path = "crates/server" }
-inferstream-fetch = { path = "crates/fetch" }
-turboembed = { path = "crates/turboembed" }
-turborerank = { path = "crates/turborerank" }
+thiserror = "2"
+sha2 = "0.10"
+libc = "0.2"
+libloading = "0.8"
 
 [profile.release]
+debug = 1
 lto = "thin"
+codegen-units = 4
+
+[profile.dev]
+debug = 1

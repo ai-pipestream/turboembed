@@ -1,35 +1,18 @@
-/target
-/build/native-sdk/
+/target/
+**/target/
+/build/
+/dist/
+/include/turbo/*.h.tmp
 __pycache__/
-/.libs/
-# Local llama-cpp-sys-2 checkout with ggml-sycl injected
-# (scripts/setup-llamacpp-sycl.sh). Not committed — generated per host.
-/vendor/
-# Host-local cargo overrides (llama-cpp-sys-2). Keep .cargo/config.toml
-# (committed: `cargo xtask` alias).
-/.cargo/*
-!.cargo/config.toml
-# Local toolchain leftovers + fetched tokenizer artifacts
-/.venv/
-.venv-cuda-libs/
-# Fetched model artifacts stay out of git — SHA-256 manifests are committed
-# (cargo run -p inferstream-fetch / cargo xtask fetch --mlx).
-/models/rerank/
+.venv/
+.DS_Store
+# Fetched model artifacts stay out of git; SHA-256 manifests are committed.
 /models/*
 !/models/manifests/
-# Fetched soak corpus (SHA-256 in models/manifests/corpus.json).
-# Committed fixtures + sts-pairs.jsonl stay in git.
 /testdata/corpus/tiny-shakespeare.txt
-native/mlx-engine/.build/
-native/turboembed/build/
-native/turbo_buffer/build/
-native/turborerank/build/
-native/wordpiece/build/
-native/bench/build/
-swift/.build/
-.DS_Store
-agent-tools/
-
-/java/**/target/
-# NVIDIA SDK release archives (make nvidia-sdk-release)
-/dist/
+# Provider build trees
+/providers/*/build/
+/providers/metal/.build/
+/native/*/build/
+/bindings/java/**/target/
+/bindings/swift/.build/

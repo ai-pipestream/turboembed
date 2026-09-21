@@ -1,0 +1,32 @@
+{
+  "artifacts": {
+    "mock": {
+      "path": "mock.json",
+      "sha256": "b0d966bb176db89c3acec565d2b32992bf0c2f026cd1e894e6512b5c6a495042"
+    }
+  },
+  "bundle_version": 2,
+  "contract": {
+    "activation": "softmax",
+    "labels": [
+      "negative",
+      "neutral",
+      "positive"
+    ],
+    "max_seq": 16
+  },
+  "family": "mock",
+  "kind": "classifier",
+  "license": "Apache-2.0",
+  "limits": {
+    "max_batch": 8
+  },
+  "modality": "text",
+  "model_id": "turbo/mock-classifier",
+  "revision": "mock",
+  "task": "classify",
+  "tokenizer": {
+    "files": {},
+    "kind": "mock"
+  }
+}

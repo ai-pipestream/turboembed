@@ -1,4 +1,0 @@
-module WordPieceC {
-    header "wordpiece.h"
-    export *
-}
