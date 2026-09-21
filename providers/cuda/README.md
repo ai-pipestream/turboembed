@@ -14,11 +14,14 @@ normalization, sigmoid, and softmax. See the crate documentation in
   `TURBO_CUDA_ARCHS` (default `87;89`: Jetson Orin and Ada) plus PTX for the
   last architecture listed.
 - `libcudart.so` from that toolkit.
-- Network access on the first build: the `ort` crate downloads the ONNX
-  Runtime 1.28 CUDA 13 bundle for `x86_64-unknown-linux-gnu` into
-  `~/.cache/ort.pyke.io`. There is no prebuilt CUDA bundle for
-  `aarch64-unknown-linux-gnu`; Jetson builds point `ORT_LIB_LOCATION` at a
-  local ONNX Runtime build (see `jetson/`, planned).
+- Network access on the first build: with the default `download` feature
+  the `ort` crate downloads the ONNX Runtime 1.28 CUDA 13 bundle for
+  `x86_64-unknown-linux-gnu` into `~/.cache/ort.pyke.io`. There is no
+  prebuilt CUDA bundle for `aarch64-unknown-linux-gnu`; a Jetson build
+  passes `--no-default-features` and points `ORT_LIB_LOCATION` at a
+  directory holding `lib/libonnxruntime.so` plus the CUDA execution provider
+  libraries (ONNX Runtime 1.17 or newer; `nano1` uses 1.24.0), with
+  `TURBO_CUDA_ARCHS=87`.
 
 ```bash
 cargo build -p turbo-provider-cuda --release
