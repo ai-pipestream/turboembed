@@ -108,6 +108,9 @@ pub enum Device {
     OpenVinoNpu,
     Metal,
     Mock,
+    /// Raspberry Pi AI HAT+ NPU (Hailo-8/8L; Hailo-10H later). Fails loud
+    /// unless built with the `hailo` feature on a host with HailoRT.
+    Hailo,
 }
 
 impl Device {
@@ -122,6 +125,7 @@ impl Device {
             Self::OpenVinoNpu => turboembed_device::TURBOEMBED_DEVICE_OPENVINO_NPU,
             Self::Metal => turboembed_device::TURBOEMBED_DEVICE_METAL,
             Self::Mock => turboembed_device::TURBOEMBED_DEVICE_MOCK,
+            Self::Hailo => turboembed_device::TURBOEMBED_DEVICE_HAILO,
         }
     }
 
@@ -135,6 +139,7 @@ impl Device {
             turboembed_device::TURBOEMBED_DEVICE_OPENVINO_NPU => Self::OpenVinoNpu,
             turboembed_device::TURBOEMBED_DEVICE_METAL => Self::Metal,
             turboembed_device::TURBOEMBED_DEVICE_MOCK => Self::Mock,
+            turboembed_device::TURBOEMBED_DEVICE_HAILO => Self::Hailo,
             _ => Self::Auto,
         }
     }

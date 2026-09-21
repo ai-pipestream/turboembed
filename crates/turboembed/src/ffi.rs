@@ -33,6 +33,7 @@ pub enum turboembed_device {
     TURBOEMBED_DEVICE_OPENVINO_NPU = 6,
     TURBOEMBED_DEVICE_METAL = 7,
     TURBOEMBED_DEVICE_MOCK = 8,
+    TURBOEMBED_DEVICE_HAILO = 9,
 }
 
 #[repr(C)]

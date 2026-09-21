@@ -9,9 +9,10 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use inferstream_fetch::{
-    cmd_fetch, cmd_list, cmd_update_corpus_manifest, cmd_update_llm_manifest, cmd_update_manifest,
-    cmd_update_ov_genai_manifest, cmd_update_prepared_manifest, cmd_update_rerank_manifest,
-    cmd_verify, corpus_known_aliases, embedding_known_aliases, llm_known_aliases, load_manifest,
+    cmd_fetch, cmd_list, cmd_update_corpus_manifest, cmd_update_hailo_manifest,
+    cmd_update_llm_manifest, cmd_update_manifest, cmd_update_ov_genai_manifest,
+    cmd_update_prepared_manifest, cmd_update_rerank_manifest, cmd_verify, corpus_known_aliases,
+    embedding_known_aliases, hailo_known_aliases, llm_known_aliases, load_manifest,
     ov_genai_known_aliases, prepared_known_aliases, rerank_known_aliases, select_aliases,
     FetchError,
 };
@@ -48,6 +49,10 @@ struct Args {
     /// scripts/prepare-native-bundle.py afterwards.
     #[arg(long)]
     prepared: bool,
+    /// Operate on Raspberry Pi AI HAT+ (Hailo) embedding artifacts
+    /// (`models/manifests/hailo-embeddings.json`); see docs/hailo-embed.md.
+    #[arg(long)]
+    hailo: bool,
     /// Verify existing files against the manifest; no downloads.
     #[arg(long)]
     verify_only: bool,
@@ -72,6 +77,7 @@ fn default_manifest(
     corpus: bool,
     rerankers: bool,
     prepared: bool,
+    hailo: bool,
 ) -> PathBuf {
     let name = if ov_genai {
         "ov-genai-embeddings.json"
@@ -83,6 +89,8 @@ fn default_manifest(
         "rerankers.json"
     } else if prepared {
         "prepared-sources.json"
+    } else if hailo {
+        "hailo-embeddings.json"
     } else {
         "embeddings.json"
     };
@@ -112,13 +120,14 @@ fn run() -> inferstream_fetch::Result<i32> {
         args.corpus,
         args.rerankers,
         args.prepared,
+        args.hailo,
     ]
     .into_iter()
     .filter(|v| *v)
     .count();
     if mode_flags > 1 {
         return Err(FetchError::msg(
-            "error: --llms, --ov-genai, --corpus, --rerankers, and --prepared are mutually exclusive",
+            "error: --llms, --ov-genai, --corpus, --rerankers, --prepared, and --hailo are mutually exclusive",
         ));
     }
 
@@ -134,6 +143,7 @@ fn run() -> inferstream_fetch::Result<i32> {
             args.corpus,
             args.rerankers,
             args.prepared,
+            args.hailo,
         )
     });
 
@@ -153,6 +163,8 @@ fn run() -> inferstream_fetch::Result<i32> {
             rerank_known_aliases()
         } else if args.prepared {
             prepared_known_aliases()
+        } else if args.hailo {
+            hailo_known_aliases()
         } else {
             embedding_known_aliases()
         };
@@ -207,6 +219,17 @@ fn run() -> inferstream_fetch::Result<i32> {
         if args.prepared {
             let aliases = select_aliases(args.all, &args.aliases, &prepared_known_aliases())?;
             return cmd_update_prepared_manifest(
+                &aliases,
+                &manifest_path,
+                &root,
+                !args.no_store,
+                &mut out,
+                &mut err,
+            );
+        }
+        if args.hailo {
+            let aliases = select_aliases(args.all, &args.aliases, &hailo_known_aliases())?;
+            return cmd_update_hailo_manifest(
                 &aliases,
                 &manifest_path,
                 &root,
@@ -275,6 +298,14 @@ fn run() -> inferstream_fetch::Result<i32> {
              Provision a verified bundle with the installed SDK:\n\
              scripts/provision-minilm-bundle.sh <sdk-prefix> <output-bundle-dir>\n\
              See docs/native-sdk.md.\n",
+        )
+    } else if args.hailo {
+        Some(
+            "Hailo artifacts ready under models/hailo/.\n\
+             Provision the board: scripts/hailo-select-hef.sh models/hailo/minilm &&\n\
+             python3 scripts/export-minilm-hailo-tables.py models/hailo/minilm\n\
+             Prove: cargo test -p turboembed --features hailo --test hailo_minilm -- --include-ignored\n\
+             See docs/hailo-embed.md.\n",
         )
     } else {
         None

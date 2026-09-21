@@ -98,6 +98,7 @@ ALIAS_ARGS := $(if $(ALIASES),$(subst $(comma),$(space),$(ALIASES)),--all)
 	e2e-parity e2e-parity-goldens e2e-drift \
 	turboembed-stub test-turboembed test-turboembed-intel test-turboembed-apple \
 	fetch-rerankers verify-rerankers list-rerankers update-rerank-manifest \
+	fetch-hailo verify-hailo list-hailo update-hailo-manifest \
 	turborerank-tests 	turborerank-tests-nocuda turborerank-tests-noov \
 	turborerank-cuda-gemm-proof \
 	turborerank-tests-nometal libturborerank-apple libturbo-buffer-apple \
@@ -498,6 +499,18 @@ list-rerankers:
 
 update-rerank-manifest:
 	$(FETCH) --rerankers --update-manifest $(ALIAS_ARGS)
+
+fetch-hailo:
+	$(FETCH) --hailo $(ALIAS_ARGS)
+
+verify-hailo:
+	$(FETCH) --hailo --verify-only $(ALIAS_ARGS)
+
+list-hailo:
+	$(FETCH) --hailo --list
+
+update-hailo-manifest:
+	$(FETCH) --hailo --update-manifest $(ALIAS_ARGS)
 
 TURBO_BUFFER_SRCS := \
 	native/turbo_buffer/src/arena.cpp \

@@ -19,13 +19,16 @@ receipt discipline as the current NVIDIA / Intel / Apple paths.
 - **AMD Ryzen AI / XDNA.** *Client* NPU peer of the Intel Core Ultra NPU,
   but a different execution provider entirely (Ryzen AI SW / Vitis AI EP,
   XDNA driver) — the OpenVINO NPU plugin does not drive it.
-- **Raspberry Pi AI HAT+ 2** (not the earlier AI HAT / AI HAT+): official
-  Raspberry Pi product (~$200) carrying a **Hailo-10H NPU with 8 GB of
-  dedicated on-board LPDDR** on the HAT itself. Stack is HailoRT with
-  compiled HEF models — a separate provider from OpenVINO NPU, Gaudi, and
-  ROCm; neither OpenVINO nor an ONNX Runtime EP drives it, and it needs its
-  own ARM host build. Status: parked until after the Intel Cloud OpenVINO
-  NPU proof; attractive later as a cheap edge Machine for live receipts.
+- **Raspberry Pi AI HAT+ / AI HAT+ 2** (Hailo-8/8L, and Hailo-10H with 8 GB
+  of dedicated on-board LPDDR). **The v1 lane (Hailo-8/8L) is now active:**
+  `Device::Hailo` drives the official Model Zoo `all_minilm_l6_v2` HEFs
+  through the HailoRT C API — in-process behind the C ABI, no server — with
+  the tokenizer/embedding-lookup/pooling front-end on the host
+  (`native/turboembed/src/hailo.cpp`, `--features hailo`). Runbook:
+  [hailo-embed.md](hailo-embed.md). The **AI HAT+ 2 (Hailo-10H) remains
+  parked** pending one spike: a DFC 5.x encoder compile (the genai stack
+  ships decoder LLMs only; there is no embedding endpoint). See the
+  runbook's Hailo-10H section.
 
 Clarification to avoid a false "AMD is covered" reading: Machine B pairs an
 **AMD CPU** with an **Intel Battlemage dGPU** driven by the OpenVINO GPU
