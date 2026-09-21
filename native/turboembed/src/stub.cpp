@@ -22,6 +22,10 @@
 #include "genai.hpp"
 #endif
 
+#ifdef TURBOEMBED_HAILO
+#include "hailo.hpp"
+#endif
+
 #ifdef TURBOEMBED_ORT_CUDA
 extern "C" {
 void *turboembed_ort_cuda_open(
@@ -116,7 +120,8 @@ bool valid_embed_options(const turboembed_embed_options *opts) {
            output <= TURBOEMBED_OUTPUT_PACKED_BYTES;
 }
 
-#if defined(TURBOEMBED_GENAI) || defined(TURBOEMBED_ORT_CUDA)
+#if defined(TURBOEMBED_GENAI) || defined(TURBOEMBED_ORT_CUDA) || \
+    defined(TURBOEMBED_HAILO)
 bool alias_eq(const char *alias, size_t len, const std::string &loaded) {
     return len == loaded.size() && std::memcmp(alias, loaded.data(), len) == 0;
 }
@@ -193,6 +198,9 @@ struct turboembed_engine {
     void *ort_cuda;
     std::string ort_cuda_alias;
 #endif
+#ifdef TURBOEMBED_HAILO
+    std::unique_ptr<turboembed_hailo::Pipeline> hailo;
+#endif
 
     explicit turboembed_engine(turboembed_device device_, std::string config)
         : device(device_),
@@ -210,6 +218,9 @@ struct turboembed_engine {
     ~turboembed_engine() {
 #ifdef TURBOEMBED_GENAI
         genai.reset();
+#endif
+#ifdef TURBOEMBED_HAILO
+        hailo.reset();
 #endif
 #ifdef TURBOEMBED_ORT_CUDA
         if (ort_cuda != nullptr) {
@@ -424,6 +435,8 @@ const char *turboembed_device_name(turboembed_device device) {
             return "metal";
         case TURBOEMBED_DEVICE_MOCK:
             return "mock";
+        case TURBOEMBED_DEVICE_HAILO:
+            return "hailo";
         default:
             return "unknown";
     }
@@ -503,6 +516,17 @@ turboembed_status turboembed_engine_create(
             g_create_error = std::string("requested ") + turboembed_device_name(device) +
                              "; this stub has no GPU — refusing CPU fallback";
             return TURBOEMBED_ERR_UNAVAILABLE;
+        case TURBOEMBED_DEVICE_HAILO:
+#ifdef TURBOEMBED_HAILO
+            break;
+#else
+            g_create_error =
+                "requested hailo; this build has no HailoRT provider — "
+                "rebuild on the Pi with --features hailo after "
+                "`sudo apt install dkms hailo-all` (Hailo-8/8L) or "
+                "`hailo-h10-all` (Hailo-10H) — refusing CPU fallback";
+            return TURBOEMBED_ERR_UNAVAILABLE;
+#endif
         default:
             g_create_error = "unknown device enum";
             return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
@@ -527,6 +551,26 @@ turboembed_status turboembed_engine_create(
             );
         } catch (const std::exception &e) {
             g_create_error = e.what();
+            return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
+        }
+    }
+#endif
+#ifdef TURBOEMBED_HAILO
+    if (device == TURBOEMBED_DEVICE_HAILO) {
+        size_t hailo_devices = 0;
+        std::string hailo_err;
+        const turboembed_status hailo_st =
+            turboembed_hailo::Pipeline::scan_count(&hailo_devices, &hailo_err);
+        if (hailo_st != TURBOEMBED_OK) {
+            g_create_error = hailo_err;
+            return hailo_st;
+        }
+        if (hailo_devices == 0) {
+            g_create_error =
+                "requested hailo but no Hailo device is present — expected "
+                "/dev/hailo0 (AI HAT+ Hailo-8/8L) or /dev/h1x-0 (AI HAT+ 2); "
+                "check the HAT, the hailo PCIe driver, and `hailortcli "
+                "fw-control identify`";
             return TURBOEMBED_ERR_UNSUPPORTED_DEVICE;
         }
     }
@@ -646,6 +690,36 @@ turboembed_status turboembed_list_models(
         infos[0].alias.len = name.size();
         infos[0].dim = turboembed_ort_cuda_dim(engine->ort_cuda);
         infos[0].device = ort_place_to_abi(turboembed_ort_cuda_place(engine->ort_cuda));
+        infos[0].ready = 1;
+        *out_infos = infos;
+        *out_count = 1;
+        engine->set_error("");
+        return TURBOEMBED_OK;
+    }
+#endif
+
+#ifdef TURBOEMBED_HAILO
+    if (engine->hailo != nullptr && engine->hailo->is_loaded()) {
+        auto *infos = static_cast<turboembed_model_info *>(
+            std::calloc(1, sizeof(turboembed_model_info))
+        );
+        if (infos == nullptr) {
+            engine->set_error("model list allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        const std::string &name = engine->hailo->model_alias();
+        char *alias = static_cast<char *>(std::malloc(name.size() + 1));
+        if (alias == nullptr) {
+            std::free(infos);
+            engine->set_error("alias allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        std::memcpy(alias, name.data(), name.size());
+        alias[name.size()] = '\0';
+        infos[0].alias.ptr = alias;
+        infos[0].alias.len = name.size();
+        infos[0].dim = engine->hailo->embedding_dim();
+        infos[0].device = TURBOEMBED_DEVICE_HAILO;
         infos[0].ready = 1;
         *out_infos = infos;
         *out_count = 1;
@@ -816,6 +890,33 @@ turboembed_status turboembed_load_model(
     }
 #endif
 
+#ifdef TURBOEMBED_HAILO
+    if (engine->device == TURBOEMBED_DEVICE_HAILO) {
+        if (engine->hailo == nullptr) {
+            std::string open_err;
+            const turboembed_status open_st = turboembed_hailo::Pipeline::open(
+                TURBOEMBED_WORKSPACE_ROOT,
+                &engine->hailo,
+                &open_err
+            );
+            if (open_st != TURBOEMBED_OK) {
+                engine->set_error(open_err.c_str());
+                return open_st;
+            }
+        }
+        std::string err;
+        const std::string alias_s(alias, alias_len);
+        const turboembed_status st =
+            engine->hailo->load(alias_s, engine->config_path, &err);
+        if (st != TURBOEMBED_OK) {
+            engine->set_error(err.c_str());
+            return st;
+        }
+        engine->set_error("");
+        return TURBOEMBED_OK;
+    }
+#endif
+
 #ifdef TURBOEMBED_GENAI
     if (engine->device == TURBOEMBED_DEVICE_CUDA ||
         engine->device == TURBOEMBED_DEVICE_TENSORRT ||
@@ -911,9 +1012,10 @@ turboembed_status turboembed_load_model(
     engine->set_error(
         "catalog alias is not compiled into this TurboEmbed stub; "
         "rebuild crates/turboembed with --features ort-cuda "
-        "(NVIDIA ORT CUDA IoBinding; see docs/turboembed.md) or "
+        "(NVIDIA ORT CUDA IoBinding; see docs/turboembed.md), "
         "--features genai (Intel TextEmbeddingPipeline on CPU or GPU; "
-        "see docs/intel-genai-embed.md)"
+        "see docs/intel-genai-embed.md), or --features hailo "
+        "(Raspberry Pi AI HAT+; see docs/hailo-embed.md)"
     );
     return TURBOEMBED_ERR_NOT_IMPLEMENTED;
 #endif
@@ -1067,6 +1169,76 @@ static turboembed_status embed_impl(
     }
 #endif
 
+#ifdef TURBOEMBED_HAILO
+    if (engine->hailo != nullptr && engine->hailo->is_loaded() &&
+        alias_eq(alias, alias_len, engine->hailo->model_alias())) {
+        const uint32_t dim = engine->hailo->embedding_dim();
+        if (dim == 0) {
+            engine->set_error("hailo embedding dimension is 0");
+            return TURBOEMBED_ERR_INTERNAL;
+        }
+        uint32_t result_rows = 0;
+        size_t result_bytes = 0;
+        if (!checked_result_shape(n_texts, dim, &result_rows, &result_bytes)) {
+            engine->set_error("result shape exceeds addressable size");
+            return TURBOEMBED_ERR_INVALID_ARGUMENT;
+        }
+        auto *rec = new (std::nothrow) EmbedResultRec();
+        if (rec == nullptr || engine->arena == nullptr) {
+            delete rec;
+            engine->set_error("result allocation failed");
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        rec->arena = engine->arena;
+        if (turbo_buffer_arena_rent(
+                engine->arena,
+                TURBO_BUFFER_DTYPE_F32,
+                TURBO_BUFFER_PLACE_HOST,
+                result_rows,
+                dim,
+                dim,
+                &rec->values
+            ) != TURBO_BUFFER_OK) {
+            delete rec;
+            const std::string rent_err = std::string("result arena rent failed: ") +
+                                         turbo_buffer_last_error(engine->arena);
+            engine->set_error(rent_err.c_str());
+            return TURBOEMBED_ERR_OUT_OF_MEMORY;
+        }
+        float *values = turbo_buffer_view_f32(&rec->values);
+        std::string err;
+        const turboembed_status st = engine->hailo->embed_into(
+            texts,
+            n_texts,
+            opts,
+            values,
+            &err
+        );
+        if (st != TURBOEMBED_OK) {
+            (void)turbo_buffer_arena_return(engine->arena, &rec->values);
+            delete rec;
+            engine->set_error(err.c_str());
+            return st;
+        }
+        rec->pub.dim = dim;
+        rec->pub.count = result_rows;
+        rec->pub.values = values;
+        rec->pub.packed = reinterpret_cast<const uint8_t *>(values);
+        rec->pub.packed_len = result_bytes;
+        *out = &rec->pub;
+        engine->set_error("");
+        return TURBOEMBED_OK;
+    }
+    if (engine->hailo != nullptr && !is_mock_alias(alias, alias_len)) {
+        engine->set_error(
+            engine->hailo->is_loaded()
+                ? "alias is not the loaded hailo model"
+                : "catalog alias is not loaded; call turboembed_load_model first"
+        );
+        return TURBOEMBED_ERR_NOT_FOUND;
+    }
+#endif
+
 #ifdef TURBOEMBED_GENAI
     if (engine->genai && alias_eq(alias, alias_len, engine->genai_alias)) {
         if (engine->device == TURBOEMBED_DEVICE_OPENVINO_GPU &&
@@ -1194,11 +1366,13 @@ static turboembed_status embed_impl(
 #endif
 
     if (!is_mock_alias(alias, alias_len)) {
-#if !defined(TURBOEMBED_GENAI) && !defined(TURBOEMBED_ORT_CUDA)
+#if !defined(TURBOEMBED_GENAI) && !defined(TURBOEMBED_ORT_CUDA) && \
+    !defined(TURBOEMBED_HAILO)
         engine->set_error(
             "embed on catalog aliases needs --features ort-cuda "
-            "(NVIDIA ORT CUDA IoBinding) or --features genai "
-            "(TextEmbeddingPipeline on CPU or GPU)"
+            "(NVIDIA ORT CUDA IoBinding), --features genai "
+            "(TextEmbeddingPipeline on CPU or GPU), or --features hailo "
+            "(Raspberry Pi AI HAT+; see docs/hailo-embed.md)"
         );
         return TURBOEMBED_ERR_NOT_IMPLEMENTED;
 #else

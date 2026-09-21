@@ -77,6 +77,9 @@ fn gpu_without_gpu_fails_loud_never_cpu() {
     if cfg!(not(feature = "genai")) {
         devices.push(Device::OpenVinoGpu);
     }
+    if cfg!(not(feature = "hailo")) {
+        devices.push(Device::Hailo);
+    }
     for device in devices {
         let err = match Engine::create(device) {
             Ok(_) => panic!("{device:?} must fail when that GPU is missing — never CPU/mock"),

@@ -14,7 +14,7 @@ This guidance applies to the whole repository.
 ## Code map
 
 - `include/`: canonical C contracts. Keep corresponding headers in `swift/Sources/*C/include/` identical. Rust declarations must match their layouts and semantics.
-- `crates/turboembed/` and `native/turboembed/`: Rust wrapper, ORT hooks, C ABI dispatch, and Intel implementation. Despite its filename, `stub.cpp` also dispatches real providers.
+- `crates/turboembed/` and `native/turboembed/`: Rust wrapper, ORT hooks, C ABI dispatch, and Intel implementation. Despite its filename, `stub.cpp` also dispatches real providers. `native/turboembed/src/hailo.cpp` is the Raspberry Pi AI HAT+ (Hailo) provider behind `--features hailo` (host-side wordpiece + embedding tables + pooling, encoder body on the NPU via HailoRT); see `docs/hailo-embed.md`.
 - `native/turbo_buffer/`, `native/wordpiece/`, and `native/turborerank/`: allocation, tokenization, and reranking implementations shared across callers.
 - `swift/`: supported Apple implementation and server. The Rust Apple server crate is a Linux compile stub; `native/mlx-engine/` is legacy material.
 - `crates/backend*`, `crates/server/`, `crates/arch-*`, and `proto/`: backend contracts, serving, platform construction, and wire contracts. Keep engine-specific behavior behind the backend boundary.

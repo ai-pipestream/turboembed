@@ -74,15 +74,22 @@ typedef enum turboembed_device {
     TURBOEMBED_DEVICE_OPENVINO_GPU = 5,
     TURBOEMBED_DEVICE_OPENVINO_NPU = 6,
     TURBOEMBED_DEVICE_METAL = 7,
-    TURBOEMBED_DEVICE_MOCK = 8
+    TURBOEMBED_DEVICE_MOCK = 8,
+    /*
+     * Raspberry Pi AI HAT+ NPU (Hailo-8 / Hailo-8L; Hailo-10H later).
+     * Appended after the ABI v1 freeze: all existing values are unchanged,
+     * so v1 callers are unaffected (enum width is int).
+     */
+    TURBOEMBED_DEVICE_HAILO = 9
 } turboembed_device;
 
 /*
  * Device policy (ABI v1 semantics, not a layout bump):
  *
  *   GPU / accelerator requests — AUTO, CUDA, TENSORRT, OPENVINO_GPU,
- *   OPENVINO_NPU, METAL — fail with UNAVAILABLE or UNSUPPORTED_DEVICE
- *   when that device is missing. They never fall back to CPU or mock.
+ *   OPENVINO_NPU, METAL, HAILO — fail with UNAVAILABLE or
+ *   UNSUPPORTED_DEVICE when that device is missing. They never fall back
+ *   to CPU or mock.
  *   AUTO is "host default GPU" (Metal on Apple), not "CPU if GPU is down".
  *
  *   CPU and OPENVINO_CPU run only when those enums are selected.

@@ -53,6 +53,16 @@ fn main() {
     println!("cargo:rerun-if-changed={}", genai_hpp.display());
     println!(
         "cargo:rerun-if-changed={}",
+        root.join("native/turboembed/src/hailo.cpp").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("native/turboembed/src/hailo.hpp").display()
+    );
+    println!("cargo:rerun-if-env-changed=HAILORT_LIB_DIR");
+    println!("cargo:rerun-if-env-changed=HAILORT_INCLUDE_DIR");
+    println!(
+        "cargo:rerun-if-changed={}",
         root.join("native/wordpiece/vocab_load.cpp").display()
     );
     println!(
@@ -213,6 +223,7 @@ fn link_swift_mlx(root: &Path) {
 fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
     let genai = std::env::var("CARGO_FEATURE_GENAI").is_ok();
     let ort_cuda = std::env::var("CARGO_FEATURE_ORT_CUDA").is_ok();
+    let hailo = std::env::var("CARGO_FEATURE_HAILO").is_ok();
 
     let mut build = cc::Build::new();
     build
@@ -295,8 +306,69 @@ fn compile_stub(root: &Path, stub: &Path, genai_cpp: &Path) {
         }
     }
 
+    if hailo {
+        // Raspberry Pi AI HAT+ provider. HailoRT ships headers at
+        // /usr/include/hailo/ and a *versioned* soname only
+        // (libhailort.so.4.x for Hailo-8/8L, libhailort.so.5.x for
+        // Hailo-10H; no .so symlink, no pkg-config), so locate both
+        // explicitly. Overrides: HAILORT_INCLUDE_DIR / HAILORT_LIB_DIR.
+        let include_dirs: Vec<PathBuf> = match std::env::var_os("HAILORT_INCLUDE_DIR") {
+            Some(dir) => vec![PathBuf::from(dir)],
+            None => ["/usr/include", "/usr/local/include"]
+                .iter()
+                .map(PathBuf::from)
+                .filter(|d| d.join("hailo/hailort.h").is_file())
+                .collect(),
+        };
+        if include_dirs.is_empty() {
+            eprintln!(
+                "error: feature `hailo` is enabled but hailo/hailort.h was not found.\n\
+                 Install the HailoRT dev files on the Pi: `sudo apt install dkms hailo-all` \\\n                 (Hailo-8/8L) or `hailo-h10-all` (Hailo-10H), or set HAILORT_INCLUDE_DIR.\n\
+                 See docs/hailo-embed.md."
+            );
+            std::process::exit(1);
+        }
+        for dir in &include_dirs {
+            build.include(dir);
+        }
+        let mut linked = false;
+        let mut search_dirs: Vec<PathBuf> = Vec::new();
+        if let Some(dir) = std::env::var_os("HAILORT_LIB_DIR") {
+            search_dirs.push(PathBuf::from(dir));
+        }
+        for cand in ["/usr/lib", "/usr/local/lib", "/usr/lib/aarch64-linux-gnu"] {
+            search_dirs.push(PathBuf::from(cand));
+        }
+        for dir in &search_dirs {
+            if let Some(soname) = newest_hailort_soname(dir) {
+                println!("cargo:rustc-link-search=native={}", dir.display());
+                // The Pi debs ship only a versioned soname (no .so symlink),
+                // and cargo's link-lib parser rejects the `-l:` exact-name
+                // form — pass the shared object to the linker by full path.
+                println!("cargo:rustc-link-arg={}", dir.join(&soname).display());
+                linked = true;
+                break;
+            }
+        }
+        if !linked {
+            eprintln!(
+                "error: feature `hailo` is enabled but libhailort.so.* was not found in \
+                 /usr/lib, /usr/local/lib, /usr/lib/aarch64-linux-gnu.\n\
+                 Install HailoRT on the Pi (`sudo apt install hailo-all` / \
+                 `hailo-h10-all`) or set HAILORT_LIB_DIR.\n\
+                 See docs/hailo-embed.md."
+            );
+            std::process::exit(1);
+        }
+        build
+            .file(root.join("native/turboembed/src/hailo.cpp"))
+            .define("TURBOEMBED_HAILO", None);
+    }
+
     build.compile(if genai {
         "turboembed_genai"
+    } else if hailo {
+        "turboembed_hailo"
     } else {
         "turboembed_stub"
     });
@@ -341,6 +413,57 @@ fn cuda_lib_dir() -> Option<String> {
         }
     }
     None
+}
+
+fn newest_hailort_soname(dir: &Path) -> Option<String> {
+    let mut best: Option<String> = None;
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        // libhailort.so.<major>.<minor>.<patch> — no bare .so symlink in the
+        // Pi debs; pick the lexicographic max (4.24.0 > 4.9.0 is wrong
+        // lexicographically, so compare parsed versions).
+        let Some(ver) = name.strip_prefix("libhailort.so.") else {
+            continue;
+        };
+        let parsed: Option<(u64, u64, u64)> = {
+            let mut it = ver.split('.');
+            match (it.next(), it.next(), it.next(), it.next()) {
+                (Some(a), Some(b), Some(c), None) => match (a.parse(), b.parse(), c.parse()) {
+                    (Ok(a), Ok(b), Ok(c)) => Some((a, b, c)),
+                    _ => None,
+                },
+                _ => None,
+            }
+        };
+        let Some(ver_triple) = parsed else { continue };
+        let better = match &best {
+            None => true,
+            Some(cur) => {
+                let cur_ver = cur
+                    .strip_prefix("libhailort.so.")
+                    .and_then(|v| {
+                        let mut it = v.split('.');
+                        match (it.next(), it.next(), it.next()) {
+                            (Some(a), Some(b), Some(c)) => {
+                                match (a.parse(), b.parse(), c.parse()) {
+                                    (Ok(a), Ok(b), Ok(c)) => Some((a, b, c)),
+                                    _ => None,
+                                }
+                            }
+                            _ => None,
+                        }
+                    })
+                    .unwrap_or((0, 0, 0));
+                ver_triple > cur_ver
+            }
+        };
+        if better {
+            best = Some(name.to_string());
+        }
+    }
+    best
 }
 
 fn escape_c_string(s: &str) -> String {

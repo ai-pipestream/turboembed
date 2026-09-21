@@ -199,6 +199,10 @@ fn map_open_error(alias: &str, device: Device, err: TeError) -> BackendError {
             "Apple catalog embeds need libTurboEmbed.dylib on Metal \
              (make apple; docs/turboembed-swift.md)"
         }
+        Device::Hailo => {
+            "Raspberry Pi AI HAT+ embeds need --features hailo on a host \
+             with HailoRT (docs/hailo-embed.md)"
+        }
         Device::Mock => "catalog aliases refuse mock",
     };
     BackendError::Unavailable(format!(

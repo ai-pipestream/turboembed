@@ -24,6 +24,10 @@ ort-cuda = ["dep:ort", "dep:tokenizers", "dep:inferstream-backend-ort", "dep:ser
 # Live Metal MiniLM via libTurboEmbed.dylib (macOS only).
 # cargo test -p turboembed --features mlx-live -- --include-ignored --nocapture
 mlx-live = []
+# Raspberry Pi AI HAT+ (Hailo-8/8L; Hailo-10H later): native HailoRT provider
+# behind the C ABI. Pi-only: the build fails without hailo/hailort.h
+# (apt install hailo-all or hailo-h10-all). See docs/hailo-embed.md.
+hailo = []
 
 [dependencies]
 thiserror = { workspace = true }
