@@ -44,3 +44,20 @@ jobs:
           printf '#include "turbo/turbo.h"\nint main(void){return 0;}\n' > /tmp/h.c
           cc -std=c11 -Wall -Wextra -Wpedantic -Werror -Iinclude -c /tmp/h.c -o /dev/null
           c++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -Iinclude -x c++ -c /tmp/h.c -o /dev/null
+
+  packaging:
+    name: Packaging (Linux, mock/static providers only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # Hosted runners have no CUDA toolkit and no OpenVINO SDK, so this
+      # builds and packages only libturbo, turbo-bundle, and the mock and
+      # static providers; see docs/packaging.md.
+      - name: Build and verify the distribution archive
+        run: scripts/package.sh --no-cuda --no-openvino
+      - name: Upload the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: turbo-dist-${{ github.sha }}
+          path: dist/*.tar.gz
