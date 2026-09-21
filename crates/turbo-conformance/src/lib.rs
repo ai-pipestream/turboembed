@@ -31,6 +31,19 @@ pub const ENV_PROVIDER: &str = "TURBO_CONFORMANCE_PROVIDER";
 pub const ENV_ORDINAL: &str = "TURBO_CONFORMANCE_ORDINAL";
 /// Environment variable naming the directory holding the test bundles.
 pub const ENV_BUNDLES: &str = "TURBO_CONFORMANCE_BUNDLES";
+/// Environment variable listing provider libraries to load, `:`-separated.
+pub const ENV_PROVIDER_PATHS: &str = "TURBO_CONFORMANCE_PROVIDER_PATHS";
+
+/// Runtime description from the environment: any provider libraries named
+/// in `TURBO_CONFORMANCE_PROVIDER_PATHS` are loaded in addition to the
+/// built-in providers.
+pub fn runtime_desc_from_env() -> RuntimeDesc {
+    let provider_paths = std::env::var(ENV_PROVIDER_PATHS)
+        .ok()
+        .map(|v| v.split(':').filter(|p| !p.is_empty()).map(str::to_string).collect())
+        .unwrap_or_default();
+    RuntimeDesc { provider_paths, ..Default::default() }
+}
 
 /// The bundles the suite expects to find under the bundle root, one per
 /// subdirectory. A provider that cannot serve one of these kinds is reported
@@ -117,15 +130,23 @@ impl Target {
     /// The default target: the built-in providers, AUTO device selection
     /// (never a CPU), and the committed mock bundles.
     pub fn mock() -> Self {
-        let runtime = turbo::create_runtime(RuntimeDesc::default()).expect("create runtime");
-        let device_index = runtime.select(&DeviceSelector::default()).expect("AUTO device selection");
+        let runtime = turbo::create_runtime(runtime_desc_from_env()).expect("create runtime");
+        // The mock target is always the mock accelerator (ordinal 1), even when
+        // the environment loads other providers.
+        let selector = DeviceSelector {
+            policy: SelectPolicy::Explicit,
+            provider_id: "mock".into(),
+            ordinal: 1,
+            ..Default::default()
+        };
+        let device_index = runtime.select(&selector).expect("mock accelerator selection");
         let device = runtime.device(device_index).expect("device under test").info.clone();
         Self { runtime, device_index, bundle_root: default_bundle_root(), device }
     }
 
     /// The target described by the environment, falling back to [`Target::mock`].
     pub fn from_env() -> Self {
-        let runtime = turbo::create_runtime(RuntimeDesc::default()).expect("create runtime");
+        let runtime = turbo::create_runtime(runtime_desc_from_env()).expect("create runtime");
         let provider = std::env::var(ENV_PROVIDER).unwrap_or_default();
         let selector = if provider.is_empty() {
             DeviceSelector::default()
@@ -183,7 +204,7 @@ impl Target {
     /// own the last reference to a runtime use this instead of `self.runtime`,
     /// which the `Target` itself keeps alive.
     pub fn detached(&self) -> (Arc<Runtime>, u32) {
-        let runtime = turbo::create_runtime(RuntimeDesc::default()).expect("create runtime");
+        let runtime = turbo::create_runtime(runtime_desc_from_env()).expect("create runtime");
         let selector = DeviceSelector {
             policy: SelectPolicy::Explicit,
             provider_id: self.provider_id().to_string(),

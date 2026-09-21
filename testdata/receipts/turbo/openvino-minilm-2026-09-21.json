@@ -1,0 +1,60 @@
+{
+  "receipt_version": 1,
+  "date": "2026-09-21",
+  "provider": "openvino",
+  "provider_version": "2.0.0-alpha.0",
+  "task": "embed",
+  "modality": "text",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
+    "artifact": "onnx",
+    "artifact_sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037",
+    "contract": { "pooling": "mean", "normalize": "l2", "max_seq": 256, "dim": 384 }
+  },
+  "reference": {
+    "source": "testdata/reference_embeddings/ort_cuda_minilm_*.json",
+    "produced_by": "ONNX Runtime CUDA EP, FP32, PoC (tag poc-2026-09-21)"
+  },
+  "runs": [
+    {
+      "machine": "krick-1",
+      "device": "Intel(R) Graphics [0xe223] (dGPU), OpenVINO GPU.0",
+      "device_kind": "GPU",
+      "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+      "driver": "26.05.037020",
+      "session": { "max_batch": 8, "max_seq": 256 },
+      "cosine": { "short": 1.000000, "medium": 1.000000, "empty": 0.999999, "long_truncation": 1.000000 },
+      "unit_norm_tolerance": 1e-4,
+      "output_placement": "DEVICE",
+      "h2d_bytes_per_run": 24576,
+      "d2h_bytes_in_run": 0,
+      "tests": "crates/turbo-conformance/tests/openvino_live.rs (3 passed)"
+    },
+    {
+      "machine": "krick",
+      "device": "AMD Ryzen 9 9950X3D, OpenVINO CPU",
+      "device_kind": "CPU",
+      "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+      "session": { "max_batch": 8, "max_seq": 256 },
+      "cosine": { "short": 1.000001, "medium": 1.000000, "empty": 0.999999, "long_truncation": 1.000000 },
+      "output_placement": "HOST",
+      "h2d_bytes_per_run": 0,
+      "tests": "crates/turbo-conformance/tests/openvino_live.rs (3 passed)"
+    },
+    {
+      "machine": "krick",
+      "device": "NVIDIA GeForce RTX 4080 SUPER through the OpenVINO GPU plugin (OpenCL), driver 595.84",
+      "device_kind": "GPU",
+      "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+      "note": "not a supported configuration; recorded because it exercised the device-resident output path with matching vectors",
+      "cosine": { "short": 1.000000, "medium": 1.000000, "empty": 0.999999, "long_truncation": 1.000000 },
+      "output_placement": "DEVICE",
+      "h2d_bytes_per_run": 24576,
+      "d2h_bytes_in_run": 0
+    }
+  ],
+  "status_after": "EXPERIMENTAL; a matched-native benchmark receipt is still required before SUPPORTED",
+  "commit": "see git log for the commit that adds this file"
+}
