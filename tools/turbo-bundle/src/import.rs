@@ -362,17 +362,36 @@ struct StageInputs {
 }
 
 fn stage(req: &ImportRequest, staging: &Path, inp: StageInputs, notes: &mut Vec<String>) -> Result<Manifest, String> {
-    // Tokenizer.
+    // Tokenizer: tokenizer.json as shipped, or one built from vocab.txt
+    // (BERT WordPiece) with the casing from tokenizer_config.json.
     let mut tokenizer = None;
     let tok_src = req.source.join("tokenizer.json");
+    let vocab_src = req.source.join("vocab.txt");
     if tok_src.is_file() {
         let dst = copy_into(staging, &tok_src, "tokenizer.json")?;
         let mut files = BTreeMap::new();
         files.insert("tokenizer.json".to_string(), hash_entry(&dst, "tokenizer.json", None)?);
         let kind = detect_tokenizer_kind(&tok_src)?;
         tokenizer = Some(TokenizerSpec { kind, files, chat_template: inp.chat_template.clone() });
+    } else if vocab_src.is_file() {
+        let tok_config = read_json(&req.source.join("tokenizer_config.json"))?;
+        let lowercase = tok_config
+            .as_ref()
+            .and_then(|c| c.get("do_lower_case"))
+            .and_then(Value::as_bool)
+            .ok_or("vocab.txt without tokenizer.json needs tokenizer_config.json with do_lower_case")?;
+        let json = tokenizer_json_from_vocab(&vocab_src, lowercase)?;
+        let dst = staging.join("tokenizer.json");
+        std::fs::write(&dst, json).map_err(|e| format!("write {}: {e}", dst.display()))?;
+        let mut files = BTreeMap::new();
+        files.insert(
+            "tokenizer.json".to_string(),
+            hash_entry(&dst, "tokenizer.json", Some(format!("built from vocab.txt, do_lower_case = {lowercase}")))?,
+        );
+        notes.push(format!("tokenizer.json built from vocab.txt (lowercase {lowercase})"));
+        tokenizer = Some(TokenizerSpec { kind: "wordpiece".into(), files, chat_template: inp.chat_template.clone() });
     } else {
-        notes.push("no tokenizer.json in the source; the bundle has no tokenizer".into());
+        notes.push("no tokenizer.json or vocab.txt in the source; the bundle has no tokenizer".into());
     }
 
     // Artifacts.
@@ -490,6 +509,50 @@ fn stage(req: &ImportRequest, staging: &Path, inp: StageInputs, notes: &mut Vec<
     // Validate the staged bundle with the same code that loads it.
     Bundle::open(staging).map_err(|e| format!("staged bundle does not validate: {e}"))?;
     Ok(manifest)
+}
+
+/// The tokenizer.json that `BertWordPieceTokenizer(vocab.txt).save()` writes:
+/// BertNormalizer, BertPreTokenizer, WordPiece model, BertProcessing.
+fn tokenizer_json_from_vocab(vocab_path: &Path, lowercase: bool) -> Result<String, String> {
+    let text = std::fs::read_to_string(vocab_path).map_err(|e| format!("read {}: {e}", vocab_path.display()))?;
+    let mut vocab = serde_json::Map::new();
+    let mut ids: BTreeMap<&str, u32> = BTreeMap::new();
+    for (i, line) in text.lines().enumerate() {
+        let tok = line.trim_end_matches(['\r', '\n']);
+        if tok.is_empty() {
+            return Err(format!("{}: line {} is empty", vocab_path.display(), i + 1));
+        }
+        if vocab.insert(tok.to_string(), Value::from(i as u32)).is_some() {
+            return Err(format!("{}: duplicate token `{tok}` at line {}", vocab_path.display(), i + 1));
+        }
+        ids.insert(tok, i as u32);
+    }
+    let special = |name: &str| -> Result<u32, String> {
+        ids.get(name).copied().ok_or_else(|| format!("{}: special token {name} is missing", vocab_path.display()))
+    };
+    let (pad, unk, cls, sep, mask) =
+        (special("[PAD]")?, special("[UNK]")?, special("[CLS]")?, special("[SEP]")?, special("[MASK]")?);
+    let added = |name: &str, id: u32| serde_json::json!({"id": id, "content": name, "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true});
+    let mut added_tokens: Vec<(u32, Value)> = vec![
+        (pad, added("[PAD]", pad)),
+        (unk, added("[UNK]", unk)),
+        (cls, added("[CLS]", cls)),
+        (sep, added("[SEP]", sep)),
+        (mask, added("[MASK]", mask)),
+    ];
+    added_tokens.sort_by_key(|(id, _)| *id);
+    let doc = serde_json::json!({
+        "version": "1.0",
+        "truncation": null,
+        "padding": null,
+        "added_tokens": added_tokens.into_iter().map(|(_, v)| v).collect::<Vec<_>>(),
+        "normalizer": {"type": "BertNormalizer", "clean_text": true, "handle_chinese_chars": true, "strip_accents": null, "lowercase": lowercase},
+        "pre_tokenizer": {"type": "BertPreTokenizer"},
+        "post_processor": {"type": "BertProcessing", "sep": ["[SEP]", sep], "cls": ["[CLS]", cls]},
+        "decoder": {"type": "WordPiece", "prefix": "##", "cleanup": true},
+        "model": {"type": "WordPiece", "unk_token": "[UNK]", "continuing_subword_prefix": "##", "max_input_chars_per_word": 100, "vocab": vocab}
+    });
+    serde_json::to_string(&doc).map_err(|e| format!("serialize tokenizer.json: {e}"))
 }
 
 fn detect_tokenizer_kind(path: &Path) -> Result<String, String> {

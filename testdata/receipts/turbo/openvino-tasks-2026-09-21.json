@@ -1,0 +1,38 @@
+{
+  "receipt_version": 1,
+  "date": "2026-09-21",
+  "provider": "openvino",
+  "provider_version": "2.0.0-alpha.0",
+  "modality": "text",
+  "tests": "crates/turbo-conformance/tests/openvino_live_tasks.rs (semantic checks, 3 passed per device)",
+  "bundles": [
+    {
+      "task": "rerank",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L6-v2",
+      "artifact": "onnx",
+      "contract": { "activation": "sigmoid", "max_seq": 256 },
+      "check": "query 'How many people live in Berlin?' over three passages: Berlin passage scores 0.99984, the others below 3e-5; sorted output [0, 2, 1]; top_n=2 yields two indices; raw_scores rejected with field 6"
+    },
+    {
+      "task": "classify",
+      "model_id": "distilbert/distilbert-base-uncased-finetuned-sst-2-english",
+      "artifact": "onnx",
+      "contract": { "labels": ["NEGATIVE", "POSITIVE"], "activation": "softmax", "max_seq": 256 },
+      "check": "positive review POSITIVE 0.99988; negative review NEGATIVE 0.99980; softmax rows sum to 1 within 1e-3"
+    },
+    {
+      "task": "token_classify",
+      "model_id": "dslim/bert-base-NER",
+      "artifact": "onnx",
+      "tokenizer": "built from vocab.txt, cased (do_lower_case false)",
+      "contract": { "labels": ["O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"], "aggregation": "simple", "tagging": "BIO", "max_seq": 256 },
+      "check": "'Ada Lovelace visited Berlin with colleagues from Microsoft.' -> spans (Ada Lovelace, PER), (Berlin, LOC), (Microsoft, ORG) with simple aggregation; per-word spans with none"
+    }
+  ],
+  "runs": [
+    { "machine": "krick-1", "device": "Intel(R) Graphics [0xe223] (dGPU), OpenVINO GPU.0", "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3", "driver": "26.05.037020", "result": "3 passed" },
+    { "machine": "krick", "device": "AMD Ryzen 9 9950X3D, OpenVINO CPU", "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3", "result": "3 passed" },
+    { "machine": "krick", "device": "NVIDIA GeForce RTX 4080 SUPER through the OpenVINO GPU plugin (OpenCL)", "note": "not a supported configuration", "result": "3 passed" }
+  ],
+  "status_after": "EXPERIMENTAL; benchmark receipts still required before SUPPORTED"
+}

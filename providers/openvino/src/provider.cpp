@@ -544,6 +544,8 @@ struct Session {
     std::vector<float> host_out;            // [batch*width] (CPU) or read-back scratch (GPU)
     std::vector<int32_t> sorted;            // rerank order
     std::vector<int32_t> scratch;           // left-truncation staging
+    std::vector<int32_t> pos_scratch;       // position ids the pair packer writes (unused by the graph)
+    std::vector<int32_t> types_scratch;     // type ids for models without a token_type_ids input
     cl::Buffer d_ids, d_mask, d_types, d_out;
     uint32_t n_rows = 0;
     turbo_embed_options eopts{};
@@ -570,6 +572,8 @@ struct Session {
         host_out.assign(out_elems, 0.0f);
         sorted.assign(b, 0);
         scratch.assign(static_cast<size_t>(s) * 16, 0);
+        pos_scratch.assign(s, 0);
+        types_scratch.assign(s, 0);
         words.resize(b);
         for (auto &w : words) {
             w.reserve(s);
@@ -715,6 +719,9 @@ struct Session {
             const size_t len = static_cast<size_t>(text.len);
             size_t i = 0;
             size_t seen = 0;
+            auto is_punct = [](unsigned char c) {
+                return (c >= 33 && c <= 47) || (c >= 58 && c <= 64) || (c >= 91 && c <= 96) || (c >= 123 && c <= 126);
+            };
             while (i < len) {
                 while (i < len && static_cast<unsigned char>(p[i]) <= ' ') {
                     ++i;
@@ -723,8 +730,12 @@ struct Session {
                     break;
                 }
                 const size_t start = i;
-                while (i < len && static_cast<unsigned char>(p[i]) > ' ') {
-                    ++i;
+                if (is_punct(static_cast<unsigned char>(p[i]))) {
+                    ++i; // one punctuation character is one word
+                } else {
+                    while (i < len && static_cast<unsigned char>(p[i]) > ' ' && !is_punct(static_cast<unsigned char>(p[i]))) {
+                        ++i;
+                    }
                 }
                 size_t nw = 0;
                 require(wordpiece_tokenize(v, p + start, i - start, nullptr, 0, 4, &nw) == WORDPIECE_OK, TURBO_E_INTERNAL, "word tokenization failed");
@@ -1198,9 +1209,10 @@ static int32_t x_session_write_pairs(void *s, const turbo_text *query, const tur
         for (uint32_t r = 0; r < count; ++r) {
             const size_t base = static_cast<size_t>(r) * S.seq;
             const std::string d = text_of(docs[r]);
+            int32_t *types_row = S.model->has_types ? S.types.data() + base : S.types_scratch.data();
             const int rc = wordpiece_pack_pair(S.model->vocab, q.data(), q.size(), d.data(), d.size(), S.ids.data() + base,
-                                               S.mask.data() + base, S.model->has_types ? S.types.data() + base : nullptr, nullptr,
-                                               S.seq, S.seq, 4, trunc, budget);
+                                               S.mask.data() + base, types_row, S.pos_scratch.data(), S.seq, S.seq, 4, trunc,
+                                               budget);
             require(rc == WORDPIECE_OK, rc == WORDPIECE_ERR_INVALID_ARGUMENT ? TURBO_E_CAPACITY : TURBO_E_INTERNAL,
                     "pair " + std::to_string(r) + " does not fit the budget of " + std::to_string(budget) + " tokens with truncation NONE, or is not valid UTF-8");
         }

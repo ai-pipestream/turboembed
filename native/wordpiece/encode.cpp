@@ -224,12 +224,17 @@ int tokenize_into(
         const bool chinese = is_cjk(cp);
         if (chinese) { flush(); }
         int32_t decomposed[32];
-        const auto len = utf8proc_decompose_char(static_cast<int32_t>(cp), decomposed,
-            32, UTF8PROC_DECOMPOSE, nullptr);
-        if (len < 0 || len > 32) { return WORDPIECE_ERR_INTERNAL; }
+        utf8proc_ssize_t len = 1;
+        if (v->strip_accents) {
+            len = utf8proc_decompose_char(static_cast<int32_t>(cp), decomposed, 32, UTF8PROC_DECOMPOSE, nullptr);
+            if (len < 0 || len > 32) { return WORDPIECE_ERR_INTERNAL; }
+        } else {
+            decomposed[0] = static_cast<int32_t>(cp);
+        }
         for (utf8proc_ssize_t k = 0; k < len; ++k) {
-            if (wordpiece_unicode::is_mark_nonspacing(static_cast<uint32_t>(decomposed[k]))) { continue; }
-            const uint32_t lower = static_cast<uint32_t>(utf8proc_tolower(decomposed[k]));
+            if (v->strip_accents && wordpiece_unicode::is_mark_nonspacing(static_cast<uint32_t>(decomposed[k]))) { continue; }
+            const uint32_t lower = v->lowercase ? static_cast<uint32_t>(utf8proc_tolower(decomposed[k]))
+                                                : static_cast<uint32_t>(decomposed[k]);
             if (is_whitespace(lower)) { flush(); }
             else if (is_punctuation(lower)) {
                 flush(); wordpiece_word(v, &lower, 1, ids, cap, width, count);
