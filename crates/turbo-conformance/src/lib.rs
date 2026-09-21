@@ -267,6 +267,9 @@ pub fn read_i32(result: &turbo::handles::ResultHandle, index: u32) -> Vec<i32> {
     buf.chunks_exact(4).map(|c| i32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()
 }
 
+/// Live-provider selection for the hardware tests.
+pub mod live;
+
 /// Scratch copies of bundles, for the cases that must corrupt one.
 pub mod fixtures {
     use std::fs;

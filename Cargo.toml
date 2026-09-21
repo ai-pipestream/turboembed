@@ -9,6 +9,7 @@ members = [
     "crates/turbo-conformance",
     "providers/mock",
     "providers/static",
+    "providers/cuda",
     "tools/turbo-bundle",
 ]
 

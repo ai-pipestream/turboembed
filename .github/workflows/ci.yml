@@ -22,12 +22,17 @@ jobs:
         run: cargo install cbindgen --locked
       - name: Format
         run: cargo fmt --all -- --check
+      # providers/cuda needs a CUDA toolkit (nvcc); hosted runners have none,
+      # so the workspace commands exclude it. It is built and tested on the
+      # GPU machines named in PLAN.md section 11.
       - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --exclude turbo-provider-cuda --all-targets -- -D warnings
       - name: Test
-        run: cargo test --locked --workspace
+        run: cargo test --locked --workspace --exclude turbo-provider-cuda
       - name: Headers are up to date
         run: scripts/gen-header.sh --check
+      - name: struct_size tables are up to date
+        run: scripts/gen-versioned.py --check
       - name: Mock bundle fixtures are up to date
         run: |
           cargo run -p turbo-core --example write_mock_bundles

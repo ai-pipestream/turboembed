@@ -1,0 +1,28 @@
+[package]
+name = "turbo-provider-cuda"
+description = "NVIDIA CUDA provider for Turbo: ONNX Runtime CUDA EP with IoBinding and device-side pooling kernels"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "turbo_provider_cuda"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+turbo-core = { workspace = true }
+libc = { workspace = true }
+# ONNX Runtime 1.28 prebuilt CUDA bundle (CUDA 13 user-space libraries at
+# runtime). `copy-dylibs` links the execution-provider libraries into the
+# cargo target directory so tests find them next to the provider.
+ort = { version = "2.0.0-rc.13", features = ["cuda", "copy-dylibs"] }
+
+[build-dependencies]
+cc = "1"
+
+[dev-dependencies]
+tempfile = "3"

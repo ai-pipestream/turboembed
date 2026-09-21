@@ -1,0 +1,59 @@
+{
+  "receipt_version": 1,
+  "date": "2026-09-21",
+  "provider": "cuda",
+  "provider_version": "2.0.0-alpha.0",
+  "modality": "text",
+  "runtime": "ONNX Runtime 1.28 (ort 2.0.0-rc.13 prebuilt, CUDA 13 execution provider) with CUDA 13 user-space libraries from the NVIDIA PyPI wheels (cuda-runtime 13.2.86, cublas 13.6.2.16, cudnn-cu13 9.26.0.51, nvrtc 13.2.86); provider kernels compiled with nvcc 12.4 for sm_87 and sm_89",
+  "machine": {
+    "name": "krick",
+    "device": "NVIDIA GeForce RTX 4080 SUPER (sm_89)",
+    "device_kind": "GPU",
+    "driver": "595.84 (CUDA driver API 13.2)"
+  },
+  "tests": {
+    "embed": "crates/turbo-conformance/tests/live_embed.rs (5 passed)",
+    "tasks": "crates/turbo-conformance/tests/live_tasks.rs (3 passed)"
+  },
+  "embed": {
+    "bundle": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
+      "artifact": "onnx",
+      "artifact_sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452",
+      "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037",
+      "contract": { "pooling": "mean", "normalize": "l2", "max_seq": 256, "dim": 384 }
+    },
+    "reference": {
+      "source": "testdata/reference_embeddings/ort_cuda_minilm_*.json",
+      "produced_by": "ONNX Runtime CUDA EP, FP32, PoC (tag poc-2026-09-21)"
+    },
+    "session": { "max_batch": 8, "max_seq": 256 },
+    "cosine": { "short": 1.000000, "medium": 1.000000, "empty": 1.000000, "long_truncation": 1.000001 },
+    "unit_norm_tolerance": 1e-4,
+    "output_placement": "DEVICE",
+    "native_handle": "TURBO_HANDLE_CUDA_PTR",
+    "h2d_bytes_per_run": 24576,
+    "d2h_bytes_in_run": 0,
+    "pooling_override": "honored (TURBO_CAP_OPT_POOLING_OVERRIDE set); CLS differs from mean"
+  },
+  "rerank": {
+    "bundle": "cross-encoder/ms-marco-MiniLM-L6-v2 (onnx)",
+    "scores": [0.9998404, 0.000012745, 0.000024904],
+    "sorted": [0, 2, 1],
+    "raw_logits": [8.742441, -11.270355, -10.600473],
+    "activation": "sigmoid kernel on the device; raw_scores honored by skipping it"
+  },
+  "classify": {
+    "bundle": "distilbert-base-uncased-finetuned-sst-2-english (onnx)",
+    "scores": [[0.0001171, 0.9998829], [0.9997973, 0.0002027]],
+    "activation": "softmax kernel on the device"
+  },
+  "token_classify": {
+    "bundle": "dslim/bert-base-NER (onnx, cased WordPiece)",
+    "spans": [["Ada Lovelace", "B-PER"], ["Berlin", "B-LOC"], ["Microsoft", "B-ORG"]],
+    "aggregation": "device softmax, host word-aligned grouping"
+  },
+  "status_after": "EXPERIMENTAL; a matched-native benchmark receipt and a Jetson (nano1) receipt are still required before SUPPORTED",
+  "commit": "see git log for the commit that adds this file"
+}

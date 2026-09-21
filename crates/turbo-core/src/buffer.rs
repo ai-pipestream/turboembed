@@ -253,6 +253,19 @@ impl HostBuffer {
         Ok(unsafe { std::slice::from_raw_parts_mut(bytes.as_mut_ptr().cast::<f32>(), bytes.len() / 4) })
     }
 
+    /// Mutable typed view of an `i32` buffer.
+    ///
+    /// # Safety
+    /// Same rule as [`HostBuffer::bytes_mut`]: exclusive access, no live references.
+    #[allow(clippy::mut_from_ref)]
+    pub unsafe fn as_i32_mut(&self) -> Result<&mut [i32]> {
+        if self.desc.dtype != DType::I32 {
+            return Err(Error::unsupported_dtype("buffer is not i32"));
+        }
+        let bytes = unsafe { self.bytes_mut() };
+        Ok(unsafe { std::slice::from_raw_parts_mut(bytes.as_mut_ptr().cast::<i32>(), bytes.len() / 4) })
+    }
+
     /// Typed view of an `i32` buffer.
     pub fn as_i32(&self) -> Result<&[i32]> {
         if self.desc.dtype != DType::I32 {

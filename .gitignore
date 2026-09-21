@@ -16,3 +16,4 @@ __pycache__/
 /native/*/build/
 /bindings/java/**/target/
 /bindings/swift/.build/
+/.libs/
