@@ -774,11 +774,19 @@ impl MockSession {
         }
         let cap_before = self.spans.capacity();
         self.spans.clear();
+        // Label 0 is the outside tag: an outside word yields no span and ends
+        // the group before it, as in the real providers.
         for r in 0..n {
             let (s, e) = self.row_ranges[r];
             let mut prev: Option<(u64, u64, u32)> = None;
             for i in s..e {
                 let (ws, we, label) = self.word_spans[i];
+                if label == 0 {
+                    if let Some((ps, pe, pl)) = prev.take() {
+                        self.spans.push(Span { row: r as u32, byte_start: ps, byte_end: pe, label: pl, score: major });
+                    }
+                    continue;
+                }
                 match aggregation {
                     Aggregation::None => {
                         self.spans.push(Span { row: r as u32, byte_start: ws, byte_end: we, label, score: major })
