@@ -45,6 +45,22 @@ jobs:
           cc -std=c11 -Wall -Wextra -Wpedantic -Werror -Iinclude -c /tmp/h.c -o /dev/null
           c++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -Iinclude -x c++ -c /tmp/h.c -o /dev/null
 
+  java:
+    name: Java binding (JDK 25, mock provider)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Build libturbo
+        run: cargo build --locked -p turbo-shared
+      - name: Conformance through the binding
+        run: cd bindings/java && mvn -q -B test
+
   packaging:
     name: Packaging (Linux, mock/static providers only)
     runs-on: ubuntu-latest
