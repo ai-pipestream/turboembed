@@ -48,7 +48,7 @@ verified by content hash before anything loads. See
 
 ## Status
 
-This tree is at commit `5a227b7` on branch `turbo-v2`: milestones P0 and P1
+This tree (branch `turbo-v2`, 2026-09-21): milestones P0 and P1
 of `PLAN.md` section 10 are done, P2 (the OpenVINO provider) has landed its
 embed, rerank, classify, and token-classify tasks (including the review
 fixes in `docs/reviews/2026-09-21-p0-p2.md`), P3 (the CUDA provider) has
@@ -383,7 +383,7 @@ build artifact (`docs/packaging.md`).
 ## Repository layout
 
 From `PLAN.md` section 9. "Here" means the directory exists in this tree
-today (commit `5a227b7`); "planned" means it is scoped for a later milestone.
+today (branch `turbo-v2`, 2026-09-21); "planned" means it is scoped for a later milestone.
 
 | path | purpose | status |
 |---|---|---|

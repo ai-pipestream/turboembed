@@ -1,6 +1,6 @@
 # Architecture
 
-This describes what the code in this tree does at commit `5a227b7`
+This describes what the code in this tree does on branch `turbo-v2` as of 2026-09-21
 (milestones P0, P1, and P2 done; P3 landed on x86_64 and, for embedding, on
 Jetson `nano1`; P5 landed the `hailo` embedding provider on two Hailo-8
 Pis; P6 landed the `ggml` generation provider and the push-style
