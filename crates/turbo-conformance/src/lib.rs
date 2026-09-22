@@ -14,6 +14,17 @@
 //!   (default 0, only used with an explicit provider).
 //! - `TURBO_CONFORMANCE_BUNDLES`: directory holding one subdirectory per
 //!   [`BundleKind`] (default: the committed `testdata/bundles/mock`).
+//! - `TURBO_CONFORMANCE_BUNDLE_<KIND>` (`EMBEDDING`, `RERANKER`,
+//!   `CLASSIFIER`, `TOKEN_CLASSIFIER`, `GENERATIVE`, `GENERIC`): the bundle
+//!   directory for one kind, overriding the root, so a real provider is run
+//!   on its real bundles wherever they live.
+//!
+//! A case that needs a bundle kind states so with [`needs!`]. When the
+//! device under test does not offer that kind's task (its capability cell
+//! is UNSUPPORTED or PLANNED) the case prints `not applicable: ...` and
+//! returns, which the run's log records; when the device offers the task
+//! but no bundle of that kind is configured, the case fails naming the
+//! variable to set. Nothing is skipped quietly.
 
 #![deny(missing_docs)]
 
@@ -23,7 +34,7 @@ use std::sync::Arc;
 use turbo::handles::{Context, Model, Session};
 use turbo::provider::{ContextDesc, DeviceInfo, ModelDesc, SessionDesc};
 use turbo::runtime::{DeviceSelector, Runtime, RuntimeDesc};
-use turbo::types::SelectPolicy;
+use turbo::types::{CapStatus, Modality, SelectPolicy, Task};
 
 /// Environment variable naming the provider to test.
 pub const ENV_PROVIDER: &str = "TURBO_CONFORMANCE_PROVIDER";
@@ -33,6 +44,8 @@ pub const ENV_ORDINAL: &str = "TURBO_CONFORMANCE_ORDINAL";
 pub const ENV_BUNDLES: &str = "TURBO_CONFORMANCE_BUNDLES";
 /// Environment variable listing provider libraries to load, `:`-separated.
 pub const ENV_PROVIDER_PATHS: &str = "TURBO_CONFORMANCE_PROVIDER_PATHS";
+/// Prefix of the per-kind bundle path variables (`TURBO_CONFORMANCE_BUNDLE_EMBEDDING`, ...).
+pub const ENV_BUNDLE_PREFIX: &str = "TURBO_CONFORMANCE_BUNDLE_";
 
 /// Runtime description from the environment: any provider libraries named
 /// in `TURBO_CONFORMANCE_PROVIDER_PATHS` are loaded in addition to the
@@ -87,6 +100,27 @@ impl BundleKind {
         }
     }
 
+    /// The environment variable that names this kind's bundle directory.
+    pub fn env_var(self) -> String {
+        format!("{ENV_BUNDLE_PREFIX}{}", self.dir_name().to_uppercase().replace('-', "_"))
+    }
+
+    /// The task a bundle of this kind serves.
+    pub fn task(self) -> Task {
+        match self {
+            BundleKind::Embedding => Task::Embed,
+            BundleKind::Reranker => Task::Rerank,
+            BundleKind::Classifier => Task::Classify,
+            BundleKind::TokenClassifier => Task::TokenClassify,
+            BundleKind::Generative => Task::Generate,
+            BundleKind::Generic => Task::Run,
+        }
+    }
+
+    fn index(self) -> usize {
+        Self::ALL.iter().position(|k| *k == self).expect("every kind is in ALL")
+    }
+
     /// The equivalent kind for [`turbo::mock::write_mock_bundle`], used by
     /// tests that need a scratch copy of a bundle to tamper with.
     pub fn mock_kind(self) -> turbo::mock::MockBundleKind {
@@ -112,6 +146,31 @@ pub fn default_bundle_root() -> PathBuf {
     repo_root().join("testdata").join("bundles").join("mock")
 }
 
+/// One directory per kind: the kind's own variable when set, else the
+/// root's subdirectory.
+fn resolve_bundles(root: &Path) -> Vec<PathBuf> {
+    BundleKind::ALL
+        .iter()
+        .map(|k| std::env::var_os(k.env_var()).map(PathBuf::from).unwrap_or_else(|| root.join(k.dir_name())))
+        .collect()
+}
+
+/// Gate a case on the bundle kinds it needs: `needs!(t, Generative, Generic)`.
+/// A kind the device under test does not offer prints `not applicable`
+/// and returns from the test; a kind it offers without a configured bundle
+/// panics naming the variable (see [`Target::offered`]).
+#[macro_export]
+macro_rules! needs {
+    ($t:expr, $($kind:ident),+ $(,)?) => {
+        $(
+            if let Err(why) = $t.offered($crate::BundleKind::$kind) {
+                println!("not applicable: {why}");
+                return;
+            }
+        )+
+    };
+}
+
 /// The system under test: one runtime, one device on it, and the directory
 /// the bundles come from. Everything the suite touches goes through here so a
 /// hardware run only changes the environment, never the cases.
@@ -122,6 +181,8 @@ pub struct Target {
     pub device_index: u32,
     /// Directory holding one subdirectory per [`BundleKind`].
     pub bundle_root: PathBuf,
+    /// The resolved bundle directory per kind, in [`BundleKind::ALL`] order.
+    bundles: Vec<PathBuf>,
     /// Cached static info of the device under test (immutable after creation).
     device: DeviceInfo,
 }
@@ -141,7 +202,9 @@ impl Target {
         };
         let device_index = runtime.select(&selector).expect("mock accelerator selection");
         let device = runtime.device(device_index).expect("device under test").info.clone();
-        Self { runtime, device_index, bundle_root: default_bundle_root(), device }
+        let bundle_root = default_bundle_root();
+        let bundles = BundleKind::ALL.iter().map(|k| bundle_root.join(k.dir_name())).collect();
+        Self { runtime, device_index, bundle_root, bundles, device }
     }
 
     /// The target described by the environment, falling back to [`Target::mock`].
@@ -161,7 +224,8 @@ impl Target {
             runtime.select(&selector).unwrap_or_else(|e| panic!("selecting the device under test ({selector:?}): {e}"));
         let bundle_root = std::env::var_os(ENV_BUNDLES).map(PathBuf::from).unwrap_or_else(default_bundle_root);
         let device = runtime.device(device_index).expect("device under test").info.clone();
-        Self { runtime, device_index, bundle_root, device }
+        let bundles = resolve_bundles(&bundle_root);
+        Self { runtime, device_index, bundle_root, bundles, device }
     }
 
     /// Static info of the device under test.
@@ -195,9 +259,58 @@ impl Target {
         self.provider_id() == turbo::mock::MOCK_PROVIDER_ID
     }
 
+    /// The panicking form of [`Target::offered`], for fixtures and helpers
+    /// built around a kind every device under test must serve (Embedding).
+    pub fn require(&self, kind: BundleKind) {
+        if let Err(why) = self.offered(kind) {
+            panic!("{why}; a device under test must offer it");
+        }
+    }
+
     /// Directory of one test bundle.
     pub fn bundle(&self, kind: BundleKind) -> PathBuf {
-        self.bundle_root.join(kind.dir_name())
+        self.bundles[kind.index()].clone()
+    }
+
+    /// The bundle directories, one per [`BundleKind::ALL`] entry.
+    pub fn bundles(&self) -> &[PathBuf] {
+        &self.bundles
+    }
+
+    /// Whether the device under test offers `kind`'s task and a bundle of
+    /// that kind is configured. `Err` names a task the device's capability
+    /// cell reports as UNSUPPORTED or PLANNED, which is not a failure of the
+    /// provider (its capability matrix is checked elsewhere) but makes the
+    /// case not applicable. A task the device offers with no bundle
+    /// configured for it is a configuration error and panics naming the
+    /// variable to set, so a run on real hardware never skips a case it
+    /// could have run.
+    pub fn offered(&self, kind: BundleKind) -> std::result::Result<(), String> {
+        let task = kind.task();
+        let cell = self
+            .runtime
+            .capability(self.device_index, task, Modality::Text)
+            .unwrap_or_else(|e| panic!("capability cell for {task:?} on device {}: {e}", self.device_index));
+        if matches!(cell.status, CapStatus::Unsupported | CapStatus::Planned) {
+            return Err(format!(
+                "{} device {} ({}) does not offer {task:?} for Text (capability {:?})",
+                self.provider_id(),
+                self.ordinal(),
+                self.device().name,
+                cell.status
+            ));
+        }
+        let dir = self.bundle(kind);
+        assert!(
+            dir.join("bundle.json").is_file(),
+            "{} device {} offers {task:?} but no {} bundle is configured: {} has no bundle.json (set {} or {ENV_BUNDLES})",
+            self.provider_id(),
+            self.ordinal(),
+            kind.dir_name(),
+            dir.display(),
+            kind.env_var()
+        );
+        Ok(())
     }
 
     /// An independent runtime with the same device selected. Tests that must
@@ -499,17 +612,33 @@ pub mod c {
         pub device: u32,
         /// Provider id of that device.
         pub provider_id: String,
-        /// Bundle paths, kept as NUL-free Rust strings for `turbo_text`.
-        root: String,
+        /// Bundle paths per [`BundleKind::ALL`] entry, kept as NUL-free
+        /// Rust strings for `turbo_text`.
+        bundles: Vec<String>,
     }
 
     impl CTarget {
-        /// Resolve the same device the Rust-layer [`Target`] uses.
+        /// Resolve the same device the Rust-layer [`Target`] uses. The
+        /// provider libraries named in `TURBO_CONFORMANCE_PROVIDER_PATHS` are
+        /// loaded here too, so the C half of the suite sees the same devices
+        /// as the Rust half.
         pub fn new(t: &Target) -> Self {
             let mut e = err();
             let mut rt: *mut turbo_runtime = std::ptr::null_mut();
-            // SAFETY: out pointers are valid; desc is NULL for defaults.
-            let rc = unsafe { turbo_capi::turbo_runtime_create(std::ptr::null(), &mut rt, &mut e) };
+            let paths = super::runtime_desc_from_env().provider_paths;
+            let views: Vec<turbo_text> = paths.iter().map(|p| text(p)).collect();
+            let desc = turbo_runtime_desc {
+                struct_size: ssz::<turbo_runtime_desc>(),
+                flags: 0,
+                n_provider_paths: views.len() as u32,
+                reserved: 0,
+                provider_paths: if views.is_empty() { std::ptr::null() } else { views.as_ptr() },
+                log: None,
+                log_user_data: std::ptr::null_mut(),
+            };
+            // SAFETY: out pointers are valid; the descriptor and the strings
+            // the text views borrow outlive the call.
+            let rc = unsafe { turbo_capi::turbo_runtime_create(&desc, &mut rt, &mut e) };
             assert_eq!(rc, TURBO_OK, "turbo_runtime_create: {}", message(&e));
             let provider_id = t.provider_id().to_string();
             let mut device = 0u32;
@@ -524,12 +653,13 @@ pub mod c {
             // SAFETY: the selector borrows `provider_id`, which outlives the call.
             let rc = unsafe { turbo_capi::turbo_runtime_select_device(rt, &sel, &mut device, &mut e) };
             assert_eq!(rc, TURBO_OK, "turbo_runtime_select_device: {}", message(&e));
-            Self { rt, device, provider_id, root: t.bundle_root.to_string_lossy().into_owned() }
+            let bundles = t.bundles().iter().map(|p| p.to_string_lossy().into_owned()).collect();
+            Self { rt, device, provider_id, bundles }
         }
 
         /// Path of one bundle as an owned string (for `turbo_text`).
         pub fn bundle(&self, kind: BundleKind) -> String {
-            format!("{}/{}", self.root, kind.dir_name())
+            self.bundles[kind.index()].clone()
         }
 
         /// Create a context on the device under test.

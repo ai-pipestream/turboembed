@@ -6,7 +6,7 @@ use std::ptr;
 use turbo_abi::*;
 use turbo_capi::*;
 use turbo_conformance::c::{self, ssz};
-use turbo_conformance::{assert_rc, fixtures, BundleKind, Target};
+use turbo_conformance::{assert_rc, fixtures, needs, BundleKind, Target};
 
 struct Fixture {
     target: Target,
@@ -20,6 +20,7 @@ struct Fixture {
 impl Fixture {
     fn new(kind: BundleKind) -> Self {
         let target = Target::from_env();
+        target.require(kind);
         let ct = c::CTarget::new(&target);
         let ctx = ct.context();
         let model = ct.model(ctx, kind);
@@ -59,6 +60,7 @@ fn long_text(words: usize) -> String {
 
 #[test]
 fn capability_embed_options_are_honored_or_rejected_with_their_field() {
+    needs!(Target::from_env(), Embedding);
     let f = Fixture::new(BundleKind::Embedding);
     let mut e = c::err();
     let over = long_text(f.info.max_seq as usize + 8);
@@ -77,12 +79,20 @@ fn capability_embed_options_are_honored_or_rejected_with_their_field() {
         }),
         (TURBO_CAP_OPT_OUTPUT_DTYPE, 8, |o, _| o.output_dtype = TURBO_OUTPUT_F16),
     ];
+    let no_query_prefix = f.target.model(BundleKind::Embedding).info().prefix_query.is_empty();
     for (bit, field, mutate) in cases {
         let mut o = c::embed_options();
         mutate(&mut o, &f.info);
         // SAFETY: valid session, one readable text, well-formed options.
         let rc = unsafe { turbo_session_write_text(f.session, texts.as_ptr(), 1, &o, &mut e) };
         if f.caps() & bit != 0 {
+            if bit == TURBO_CAP_OPT_PROMPT_ROLE && no_query_prefix {
+                // Advertised, but this bundle declares no query prefix: the
+                // core refuses the role by name rather than embed bare text.
+                assert_eq!(rc, TURBO_E_INVALID_ARGUMENT, "a role without a prefix: got {}", c::status_name(rc));
+                assert_eq!(e.field, 4, "the refusal must name field 4: {}", c::message(&e));
+                continue;
+            }
             assert_eq!(rc, TURBO_OK, "field {field} is advertised but failed: {}", c::message(&e));
         } else {
             assert_eq!(
@@ -98,6 +108,7 @@ fn capability_embed_options_are_honored_or_rejected_with_their_field() {
 
 #[test]
 fn capability_output_dim_is_honored_or_rejected_with_its_field() {
+    needs!(Target::from_env(), Embedding);
     let f = Fixture::new(BundleKind::Embedding);
     let mut e = c::err();
     let text = "hello world";
@@ -131,6 +142,7 @@ fn capability_output_dim_is_honored_or_rejected_with_its_field() {
 
 #[test]
 fn capability_rerank_top_n_is_honored_or_rejected_with_its_field() {
+    needs!(Target::from_env(), Reranker);
     let f = Fixture::new(BundleKind::Reranker);
     let mut e = c::err();
     let query = c::text("alpha beta");
@@ -188,6 +200,7 @@ fn capability_rerank_top_n_is_honored_or_rejected_with_its_field() {
 
 #[test]
 fn capability_aggregation_is_honored_or_rejected_with_its_field() {
+    needs!(Target::from_env(), TokenClassifier);
     let f = Fixture::new(BundleKind::TokenClassifier);
     let mut e = c::err();
     let text = "Paris Paris Bob";
@@ -232,17 +245,19 @@ fn capability_aggregation_is_honored_or_rejected_with_its_field() {
 #[test]
 fn capability_generation_options_are_honored_or_rejected_with_their_field() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let model = ct.model(ctx, BundleKind::Generative);
     let mut e = c::err();
     let schema = "{\"type\":\"object\"}";
+    let grammar = "root ::= \"a\"";
     let tool = "{\"name\":\"x\"}";
     let stop_text = [c::text("zzz-never-matches")];
     let tools = [c::text(tool)];
     let bias = [turbo_logit_bias { token: 3, bias: 1.0 }];
 
-    let cases: [GenCase; 9] = [
+    let cases: [GenCase; 10] = [
         (TURBO_CAP_OPT_GEN_N, 4, &|d| d.n_sequences = 2),
         (TURBO_CAP_OPT_GEN_PENALTIES, 9, &|d| d.repeat_penalty = 1.5),
         (TURBO_CAP_OPT_GEN_PENALTIES, 10, &|d| d.presence_penalty = 0.5),
@@ -261,6 +276,10 @@ fn capability_generation_options_are_honored_or_rejected_with_their_field() {
         }),
         (TURBO_CAP_OPT_GEN_LOGPROBS, 19, &|d| d.logprobs = 2),
         (TURBO_CAP_OPT_GEN_STRUCTURED, 21, &|d| {
+            d.structured_kind = TURBO_STRUCTURED_GRAMMAR;
+            d.structured = c::text(grammar);
+        }),
+        (TURBO_CAP_OPT_GEN_STRUCTURED | TURBO_CAP_OPT_GEN_JSON_SCHEMA, 21, &|d| {
             d.structured_kind = TURBO_STRUCTURED_JSON_SCHEMA;
             d.structured = c::text(schema);
         }),
@@ -272,7 +291,7 @@ fn capability_generation_options_are_honored_or_rejected_with_their_field() {
         let mut g: *mut turbo_generation = ptr::null_mut();
         // SAFETY: valid model handle; every pointer in `d` outlives the call.
         let rc = unsafe { turbo_generation_create(model, &d, &mut g, &mut e) };
-        if t.caps() & bit != 0 {
+        if t.caps() & bit == bit {
             assert_eq!(rc, TURBO_OK, "field {field} is advertised but failed: {}", c::message(&e));
             // SAFETY: released once.
             unsafe { turbo_generation_release(g) };
@@ -373,6 +392,7 @@ fn capability_matrix_reports_every_cell_and_rejects_unknown_axes() {
 #[test]
 fn capability_can_run_agrees_with_model_load() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let mut e = c::err();
@@ -442,6 +462,7 @@ fn capability_can_run_agrees_with_model_load() {
 #[test]
 fn capability_unsupported_modality_bundle_is_unsupported_task() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let mut e = c::err();

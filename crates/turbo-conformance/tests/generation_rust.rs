@@ -9,7 +9,7 @@ use std::thread;
 use turbo::abi::*;
 use turbo::provider::{GenerateDesc, Message, SessionDesc};
 use turbo::types::FinishReason;
-use turbo_conformance::{assert_err, BundleKind, Target};
+use turbo_conformance::{assert_err, needs, BundleKind, Target};
 
 const PROMPT: [Message<'static>; 1] = [Message { role: "user", content: "say something" }];
 
@@ -40,6 +40,7 @@ fn drain(generation: &turbo::handles::Generation, limit: usize) -> (Vec<i32>, St
 #[test]
 fn generation_prompt_then_step_until_done() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc { max_new_tokens: 6, ..Default::default() };
     let generation = model.create_generation(&desc).expect("generation");
@@ -62,6 +63,7 @@ fn generation_prompt_then_step_until_done() {
 #[test]
 fn generation_first_chunk_reports_the_prompt_size() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc { max_new_tokens: 2, ..Default::default() };
     let generation = model.create_generation(&desc).expect("generation");
@@ -81,6 +83,7 @@ fn generation_first_chunk_reports_the_prompt_size() {
 #[test]
 fn generation_finish_reason_is_length_at_max_new_tokens() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     for max in [1u32, 2, 5] {
         let desc = GenerateDesc { max_new_tokens: max, ..Default::default() };
@@ -101,6 +104,7 @@ fn generation_finish_reason_is_length_at_max_new_tokens() {
 #[test]
 fn generation_min_new_tokens_above_max_is_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc { max_new_tokens: 2, min_new_tokens: 5, ..Default::default() };
     assert_err!(model.create_generation(&desc), TURBO_E_INVALID_ARGUMENT, field = 3);
@@ -109,6 +113,7 @@ fn generation_min_new_tokens_above_max_is_invalid_argument() {
 #[test]
 fn generation_sampling_parameters_outside_their_range_are_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let cases: [(u32, GenerateDesc); 4] = [
         (5, GenerateDesc { temperature: 5.0, ..Default::default() }),
@@ -124,6 +129,7 @@ fn generation_sampling_parameters_outside_their_range_are_invalid_argument() {
 #[test]
 fn generation_stop_string_finishes_with_stop() {
     let t = Target::from_env();
+    needs!(t, Generative);
     if !t.has(TURBO_CAP_OPT_GEN_STOP_STRINGS) {
         println!("generation_stop_string: device does not advertise TURBO_CAP_OPT_GEN_STOP_STRINGS");
         return;
@@ -146,7 +152,10 @@ fn generation_stop_string_finishes_with_stop() {
     let (tokens, text, reason, chunks) = drain(&generation, 64);
     assert_eq!(reason, FinishReason::Stop, "the stop string {first_text:?} must end the stream");
     assert_eq!(chunks, 1, "the stop must be detected on the chunk that completes it");
-    assert!(text.ends_with(&first_text), "the stream must stop right after the stop string: {text:?}");
+    // The matched string is never delivered, and here it was the whole
+    // first piece, so nothing precedes it.
+    assert!(!text.contains(&first_text), "the stop string must not be delivered: {text:?}");
+    assert_eq!(text, "", "nothing precedes a stop that is the first piece: {text:?}");
     assert_eq!(tokens.len(), 1);
 
     // A stop string that never matches does not shorten the stream.
@@ -161,6 +170,7 @@ fn generation_stop_string_finishes_with_stop() {
 #[test]
 fn generation_the_same_seed_reproduces_the_same_tokens() {
     let t = Target::from_env();
+    needs!(t, Generative);
     if !t.has(TURBO_CAP_OPT_GEN_SEED) {
         println!("generation_seed: device does not advertise TURBO_CAP_OPT_GEN_SEED");
         return;
@@ -182,6 +192,7 @@ fn generation_the_same_seed_reproduces_the_same_tokens() {
 #[test]
 fn generation_cancel_yields_one_cancelled_chunk_then_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc { max_new_tokens: 64, ..Default::default() };
     let generation = model.create_generation(&desc).expect("generation");
@@ -206,6 +217,7 @@ fn generation_cancel_yields_one_cancelled_chunk_then_invalid_state() {
 #[test]
 fn generation_cancel_before_any_step_is_reported_on_the_first_chunk() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let generation = model.create_generation(&GenerateDesc::default()).expect("generation");
     generation.prompt(&PROMPT).expect("prompt");
@@ -219,6 +231,7 @@ fn generation_cancel_before_any_step_is_reported_on_the_first_chunk() {
 #[test]
 fn generation_step_before_prompt_is_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let generation = model.create_generation(&GenerateDesc::default()).expect("generation");
     assert_err!(generation.step(), TURBO_E_INVALID_STATE);
@@ -230,6 +243,7 @@ fn generation_step_before_prompt_is_invalid_state() {
 #[test]
 fn generation_prompting_twice_is_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let generation = model.create_generation(&GenerateDesc::default()).expect("generation");
     generation.prompt(&PROMPT).expect("prompt");
@@ -245,6 +259,7 @@ fn generation_prompting_twice_is_invalid_state() {
 #[test]
 fn generation_empty_prompts_are_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let generation = model.create_generation(&GenerateDesc::default()).expect("generation");
     assert_err!(generation.prompt(&[]), TURBO_E_INVALID_ARGUMENT);
@@ -258,9 +273,11 @@ fn generation_empty_prompts_are_invalid_argument() {
 #[test]
 fn generation_prompt_tokens_outside_the_vocabulary_are_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let vocab = model.info().vocab_size;
-    let generation = model.create_generation(&GenerateDesc::default()).expect("generation");
+    let desc = GenerateDesc { max_new_tokens: 4, ..Default::default() };
+    let generation = model.create_generation(&desc).expect("generation");
     assert_err!(generation.prompt_tokens(&[1, -5]), TURBO_E_INVALID_ARGUMENT);
     if vocab != 0 {
         assert_err!(generation.prompt_tokens(&[1, vocab as i32]), TURBO_E_INVALID_ARGUMENT);
@@ -275,6 +292,7 @@ fn generation_prompt_tokens_outside_the_vocabulary_are_invalid_argument() {
 #[test]
 fn generation_a_prompt_longer_than_max_seq_is_capacity() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let generation = model.create_generation(&GenerateDesc::default()).expect("generation");
     let too_many: Vec<i32> = vec![3; model.info().max_seq as usize + 1];
@@ -284,6 +302,7 @@ fn generation_a_prompt_longer_than_max_seq_is_capacity() {
 #[test]
 fn generation_logprobs_count_matches_the_token_count() {
     let t = Target::from_env();
+    needs!(t, Generative);
     if !t.has(TURBO_CAP_OPT_GEN_LOGPROBS) {
         println!("generation_logprobs: device does not advertise TURBO_CAP_OPT_GEN_LOGPROBS");
         return;
@@ -320,19 +339,21 @@ fn generation_logprobs_count_matches_the_token_count() {
 #[test]
 fn generation_on_a_non_generative_model_is_unsupported_task() {
     let t = Target::from_env();
+    needs!(t, Embedding, Reranker, Classifier, Generative, Generic);
     for kind in [BundleKind::Embedding, BundleKind::Reranker, BundleKind::Classifier, BundleKind::Generic] {
         let model = t.model(kind);
         assert_err!(model.create_generation(&GenerateDesc::default()), TURBO_E_UNSUPPORTED_TASK);
     }
-    // And a generative model has no session-level task.
+    // And a generative model has no session-level task: the session itself
+    // is refused, for every provider.
     let generative = t.model(BundleKind::Generative);
-    let session = generative.create_session(&SessionDesc::default()).expect("session");
-    assert_err!(session.run(&turbo::provider::RunOptions::default()), TURBO_E_INVALID_STATE);
+    assert_err!(generative.create_session(&SessionDesc::default()), TURBO_E_UNSUPPORTED_TASK);
 }
 
 #[test]
 fn generation_echo_is_accepted_and_still_terminates() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc { max_new_tokens: 3, echo: true, ..Default::default() };
     let generation = model.create_generation(&desc).expect("generation");
@@ -352,6 +373,7 @@ fn generation_echo_is_accepted_and_still_terminates() {
 #[test]
 fn generation_unknown_provider_options_are_rejected() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc {
         options: turbo::handles::options_from_pairs([("definitely_not_an_option", "1")]),
@@ -372,6 +394,8 @@ fn generation_cancel_from_another_thread_is_never_busy() {
     assert_send_sync::<turbo::handles::Generation>();
 
     let t = Target::from_env();
+
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc { max_new_tokens: 64, ..Default::default() };
     let generation = model.create_generation(&desc).expect("generation");
@@ -411,6 +435,7 @@ fn generation_cancel_while_another_thread_steps_never_errors() {
     // reports the cancellation.
     const GRACE: usize = 2;
     let t = Target::from_env();
+    needs!(t, Generative);
     if !t.has(TURBO_CAP_OPT_GEN_MIN_TOKENS) {
         println!("generation_concurrent_cancel: device does not advertise TURBO_CAP_OPT_GEN_MIN_TOKENS");
         return;

@@ -6,7 +6,7 @@ use turbo::abi::*;
 use turbo::provider::{EmbedOptions, RunOptions};
 use turbo::runtime::DeviceSelector;
 use turbo::types::{DeviceKind, SelectPolicy};
-use turbo_conformance::{assert_err, read_f32, BundleKind, Target};
+use turbo_conformance::{assert_err, needs, read_f32, BundleKind, Target};
 
 #[test]
 fn device_auto_never_selects_a_cpu() {
@@ -96,8 +96,15 @@ fn device_explicit_selects_the_named_device() {
 #[test]
 fn device_explicit_cpu_loads_and_runs() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (runtime, _) = t.detached();
-    let cpus: Vec<_> = runtime.devices().into_iter().filter(|d| d.info.kind == DeviceKind::Cpu).collect();
+    // The provider under test's own CPU device; the built-in mock's CPU is
+    // always present and would load nothing but mock bundles.
+    let cpus: Vec<_> = runtime
+        .devices()
+        .into_iter()
+        .filter(|d| d.info.kind == DeviceKind::Cpu && d.info.provider_id == t.provider_id())
+        .collect();
     let Some(cpu) = cpus.first() else {
         println!("device_explicit_cpu_loads_and_runs: no CPU device on provider `{}`", t.provider_id());
         return;

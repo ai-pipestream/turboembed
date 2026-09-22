@@ -388,6 +388,7 @@ fn header_parity_sixty_four_bit_capability_bits_are_usable_from_c() {
     };
     let bits: &[(&str, u64)] = &[
         ("TURBO_CAP_OPT_GEN_STRUCTURED", TURBO_CAP_OPT_GEN_STRUCTURED),
+        ("TURBO_CAP_OPT_GEN_JSON_SCHEMA", TURBO_CAP_OPT_GEN_JSON_SCHEMA),
         ("TURBO_CAP_OPT_GEN_TOOLS", TURBO_CAP_OPT_GEN_TOOLS),
         ("TURBO_CAP_OPT_GEN_N", TURBO_CAP_OPT_GEN_N),
         ("TURBO_CAP_OPT_GEN_LOGIT_BIAS", TURBO_CAP_OPT_GEN_LOGIT_BIAS),

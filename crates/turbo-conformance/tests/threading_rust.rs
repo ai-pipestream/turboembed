@@ -9,7 +9,7 @@ use std::thread;
 
 use turbo::abi::*;
 use turbo::provider::{EmbedOptions, RunOptions, SessionDesc};
-use turbo_conformance::{assert_err, read_f32, BundleKind, Target};
+use turbo_conformance::{assert_err, needs, read_f32, BundleKind, Target};
 
 const TEXTS: [&str; 4] = ["hello world", "a second document", "", "héllo wörld"];
 
@@ -27,6 +27,7 @@ fn sequential_rows(t: &Target) -> Vec<Vec<f32>> {
 #[test]
 fn threading_two_sessions_run_concurrently_with_the_same_results() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let expected = sequential_rows(&t);
     let model = t.model(BundleKind::Embedding);
     let a = model.create_session(&SessionDesc::default()).expect("session a");
@@ -65,6 +66,7 @@ fn threading_two_sessions_run_concurrently_with_the_same_results() {
 #[test]
 fn threading_a_held_result_makes_another_thread_busy() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     session.write_text(&["hello world"], &EmbedOptions::default()).expect("write");
     // Thread A holds the lease for the whole of thread B's attempt.
@@ -91,6 +93,7 @@ fn threading_a_held_result_makes_another_thread_busy() {
 #[test]
 fn threading_a_write_while_a_result_is_held_is_busy() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     session.write_text(&["hello world"], &EmbedOptions::default()).expect("write");
     let result = session.run(&RunOptions::default()).expect("run");
@@ -106,6 +109,7 @@ fn threading_a_write_while_a_result_is_held_is_busy() {
 #[test]
 fn threading_one_session_from_many_threads_never_corrupts_or_lies() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let expected = sequential_rows(&t);
     let (_m, session) = t.session(BundleKind::Embedding);
     let barrier = Arc::new(Barrier::new(4));
@@ -162,6 +166,7 @@ fn threading_one_session_from_many_threads_never_corrupts_or_lies() {
 #[test]
 fn threading_results_are_deterministic_across_runs_and_sessions() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     if !t.has(TURBO_CAP_DETERMINISTIC) {
         println!("threading_results_are_deterministic: device does not claim TURBO_CAP_DETERMINISTIC");
         return;
@@ -203,6 +208,7 @@ fn threading_results_are_deterministic_across_runs_and_sessions() {
 #[test]
 fn threading_models_and_runtimes_are_shared_safely() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let model = t.model(BundleKind::Embedding);
     let expected = sequential_rows(&t);
     let barrier = Arc::new(Barrier::new(3));

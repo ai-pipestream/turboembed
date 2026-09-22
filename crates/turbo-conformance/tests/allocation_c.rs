@@ -7,7 +7,7 @@ use std::ptr;
 use turbo_abi::*;
 use turbo_capi::*;
 use turbo_conformance::c::{self, ssz};
-use turbo_conformance::{assert_rc, BundleKind, Target};
+use turbo_conformance::{assert_rc, needs, BundleKind, Target};
 
 const ITERATIONS: u64 = 100;
 
@@ -111,6 +111,7 @@ fn run_and_release(session: *mut turbo_session) {
 #[test]
 fn allocation_embed_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let chain = Chain::new(&t, BundleKind::Embedding);
     let texts = [c::text("hello world"), c::text("a second document")];
     let mut e = c::err();
@@ -128,6 +129,7 @@ fn allocation_embed_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_rerank_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Reranker);
     let chain = Chain::new(&t, BundleKind::Reranker);
     let query = c::text("alpha gamma");
     let docs = [c::text("alpha beta"), c::text("gamma delta"), c::text("epsilon")];
@@ -146,6 +148,7 @@ fn allocation_rerank_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_classify_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Classifier);
     let chain = Chain::new(&t, BundleKind::Classifier);
     let texts = [c::text("hello world"), c::text("another line")];
     let mut e = c::err();
@@ -163,6 +166,7 @@ fn allocation_classify_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_token_classify_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, TokenClassifier);
     let chain = Chain::new(&t, BundleKind::TokenClassifier);
     let texts = [c::text("Alice went to Paris"), c::text("Bob stayed home")];
     let mut e = c::err();
@@ -180,6 +184,7 @@ fn allocation_token_classify_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_generic_run_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let chain = Chain::new(&t, BundleKind::Generic);
     let mut e = c::err();
     let desc = turbo_buffer_desc {
@@ -212,6 +217,7 @@ fn allocation_generic_run_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_stats_descriptor_is_validated() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let chain = Chain::new(&t, BundleKind::Embedding);
     let mut e = c::err();
     let mut st = turbo_session_stats { struct_size: ssz::<turbo_session_stats>() + 8, ..Default::default() };

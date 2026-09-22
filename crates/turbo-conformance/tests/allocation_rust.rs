@@ -7,7 +7,7 @@ use turbo::buffer::BufferDesc;
 use turbo::handles::Session;
 use turbo::provider::{ClassifyOptions, EmbedOptions, RerankOptions, RunOptions, SessionDesc, SessionStats};
 use turbo::types::{DType, Placement};
-use turbo_conformance::{BundleKind, Target};
+use turbo_conformance::{needs, BundleKind, Target};
 
 const ITERATIONS: u64 = 100;
 
@@ -82,6 +82,7 @@ fn report(name: &str, stats: &SessionStats) {
 #[test]
 fn allocation_embed_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     check_steady_state("embed", &session, || {
         session.write_text(&["hello world", "a second document"], &EmbedOptions::default()).expect("write");
@@ -94,6 +95,7 @@ fn allocation_embed_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_embed_from_tokens_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let seq = (model.info().max_seq as usize).min(8);
     let ids: Vec<i32> = (0..seq).map(|i| (i % 50) as i32 + 3).collect();
@@ -116,6 +118,7 @@ fn allocation_embed_from_tokens_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_rerank_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Reranker);
     let (_m, session) = t.session(BundleKind::Reranker);
     let docs = ["alpha beta", "gamma delta", "epsilon"];
     check_steady_state("rerank", &session, || {
@@ -129,6 +132,7 @@ fn allocation_rerank_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_classify_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Classifier);
     let (_m, session) = t.session(BundleKind::Classifier);
     check_steady_state("classify", &session, || {
         session.write_text_classify(&["hello world", "another line"], &ClassifyOptions::default()).expect("write");
@@ -141,6 +145,7 @@ fn allocation_classify_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_token_classify_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, TokenClassifier);
     let (_m, session) = t.session(BundleKind::TokenClassifier);
     check_steady_state("token_classify", &session, || {
         session
@@ -155,6 +160,7 @@ fn allocation_token_classify_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_generic_run_is_allocation_free_after_warmup() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let ctx = t.context();
     let model = t.model_on(&ctx, BundleKind::Generic);
     let session = model.create_session(&SessionDesc::default()).expect("session");
@@ -179,12 +185,22 @@ fn allocation_embed_with_a_prompt_role_is_allocation_free_after_warmup() {
     // mock builds a fresh `String` for the prefix on every write and counts
     // it in `provider_allocs`, so the counter grows by one per run forever.
     let t = Target::from_env();
+    needs!(t, Embedding);
     if !t.has(turbo::abi::TURBO_CAP_OPT_PROMPT_ROLE) {
         println!("allocation_embed_with_a_prompt_role: device does not advertise TURBO_CAP_OPT_PROMPT_ROLE");
         return;
     }
-    let (_m, session) = t.session(BundleKind::Embedding);
-    let opts = EmbedOptions { prompt_role: turbo::types::PromptRole::Query, ..Default::default() };
+    let (model, session) = t.session(BundleKind::Embedding);
+    let info = model.info();
+    let role = if !info.prefix_query.is_empty() {
+        turbo::types::PromptRole::Query
+    } else if !info.prefix_document.is_empty() {
+        turbo::types::PromptRole::Document
+    } else {
+        println!("not applicable: bundle `{}` declares no prompt prefix to apply", info.model_id);
+        return;
+    };
+    let opts = EmbedOptions { prompt_role: role, ..Default::default() };
     check_steady_state("embed(prompt_role)", &session, || {
         session.write_text(&["hello world"], &opts).expect("write");
         let r = session.run(&RunOptions::default()).expect("run");
@@ -195,6 +211,7 @@ fn allocation_embed_with_a_prompt_role_is_allocation_free_after_warmup() {
 #[test]
 fn allocation_counters_are_reported_and_plausible() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     let before = session.stats().expect("stats");
     assert_eq!(before.runs, 0, "a fresh session has not run");
@@ -230,6 +247,7 @@ fn allocation_counters_are_reported_and_plausible() {
 #[test]
 fn allocation_stats_survive_the_release_of_parents() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     session.write_text(&["hello world"], &EmbedOptions::default()).expect("write");
     session.run(&RunOptions::default()).expect("run");

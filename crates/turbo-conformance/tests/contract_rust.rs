@@ -8,7 +8,7 @@ use turbo::abi::*;
 use turbo::buffer::BufferDesc;
 use turbo::provider::{ClassifyOptions, EmbedOptions, RerankOptions, RunOptions, SessionDesc, TokenBatch};
 use turbo::types::{DType, Modality, Placement, Pooling, Task, Truncate};
-use turbo_conformance::{assert_err, read_f32, BundleKind, Target};
+use turbo_conformance::{assert_err, needs, read_f32, BundleKind, Target};
 
 fn embed_target() -> Target {
     Target::from_env()
@@ -17,6 +17,7 @@ fn embed_target() -> Target {
 #[test]
 fn contract_empty_text_produces_a_vector() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     session.write_text(&[""], &EmbedOptions::default()).expect("empty text is a valid input");
     let result = session.run(&RunOptions::default()).expect("run on empty text");
@@ -28,6 +29,7 @@ fn contract_empty_text_produces_a_vector() {
 #[test]
 fn contract_empty_and_nonempty_text_in_one_batch_are_accepted() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     session.write_text(&["", "hello world", ""], &EmbedOptions::default()).expect("mixed batch");
     let result = session.run(&RunOptions::default()).expect("run");
@@ -42,21 +44,24 @@ fn contract_empty_and_nonempty_text_in_one_batch_are_accepted() {
 #[test]
 fn contract_embedded_nul_is_preserved() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     // An embedded NUL is ordinary UTF-8 data, not a terminator.
     session.write_text(&["a\0b"], &EmbedOptions::default()).expect("embedded NUL is accepted");
     let with_nul = read_f32(&session.run(&RunOptions::default()).expect("run"), 0);
     session.write_text(&["a"], &EmbedOptions::default()).expect("write");
     let truncated_at_nul = read_f32(&session.run(&RunOptions::default()).expect("run"), 0);
-    session.write_text(&["ab"], &EmbedOptions::default()).expect("write");
-    let without_nul = read_f32(&session.run(&RunOptions::default()).expect("run"), 0);
+    // Whether the NUL itself changes the tokens is the bundle's tokenizer's
+    // rule (a BERT normalizer drops control characters, the mock hashes
+    // every byte); the library's contract is only that the text after it is
+    // seen, so the vector cannot equal the C-string reading of the input.
     assert_ne!(with_nul, truncated_at_nul, "the NUL must not have terminated the view");
-    assert_ne!(with_nul, without_nul, "the NUL must be part of the text, not dropped");
 }
 
 #[test]
 fn contract_zero_count_batch_is_invalid_argument() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     assert_err!(session.write_text(&[], &EmbedOptions::default()), TURBO_E_INVALID_ARGUMENT);
 }
@@ -64,6 +69,7 @@ fn contract_zero_count_batch_is_invalid_argument() {
 #[test]
 fn contract_zero_count_rerank_and_classify_are_invalid_argument() {
     let t = embed_target();
+    needs!(t, Reranker, Classifier);
     let (_m, rerank) = t.session(BundleKind::Reranker);
     assert_err!(rerank.write_pairs("q", &[], &RerankOptions::default()), TURBO_E_INVALID_ARGUMENT);
     let (_m2, classify) = t.session(BundleKind::Classifier);
@@ -73,6 +79,7 @@ fn contract_zero_count_rerank_and_classify_are_invalid_argument() {
 #[test]
 fn contract_batch_above_session_max_is_capacity() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let max = model.info().max_batch as usize;
     let texts = vec!["x"; max + 1];
@@ -84,6 +91,7 @@ fn contract_batch_above_session_max_is_capacity() {
 #[test]
 fn contract_session_maxima_above_the_model_are_capacity() {
     let t = embed_target();
+    needs!(t, Embedding);
     let model = t.model(BundleKind::Embedding);
     let info = model.info().clone();
     let too_wide = SessionDesc { max_batch: info.max_batch + 1, ..Default::default() };
@@ -163,6 +171,7 @@ fn contract_token_batch_zero_dimensions_are_invalid_shape() {
 #[test]
 fn contract_token_batch_bad_ids_and_mask_are_invalid_argument() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let vocab = model.info().vocab_size;
     let ids = [1, 2];
@@ -185,6 +194,7 @@ fn contract_token_batch_bad_ids_and_mask_are_invalid_argument() {
 #[test]
 fn contract_token_batch_above_session_shape_is_capacity() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let seq = model.info().max_seq as usize + 1;
     let ids = vec![1i32; seq];
@@ -202,6 +212,7 @@ fn contract_token_batch_above_session_shape_is_capacity() {
 #[test]
 fn contract_run_without_input_is_invalid_state() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     assert_err!(session.run(&RunOptions::default()), TURBO_E_INVALID_STATE);
 }
@@ -209,6 +220,7 @@ fn contract_run_without_input_is_invalid_state() {
 #[test]
 fn contract_failed_write_leaves_the_session_without_inputs() {
     let t = embed_target();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     session.write_text(&["hello"], &EmbedOptions::default()).expect("write");
     // A rejected write must not leave the previous inputs runnable, and must
@@ -221,6 +233,7 @@ fn contract_failed_write_leaves_the_session_without_inputs() {
 #[test]
 fn contract_unknown_provider_options_are_invalid_argument_with_field() {
     let t = embed_target();
+    needs!(t, Embedding);
     let model = t.model(BundleKind::Embedding);
     let desc = SessionDesc {
         options: turbo::handles::options_from_pairs([("definitely_not_an_option", "1")]),

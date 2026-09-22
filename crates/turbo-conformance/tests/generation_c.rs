@@ -8,7 +8,7 @@ use std::ptr;
 use turbo_abi::*;
 use turbo_capi::*;
 use turbo_conformance::c::{self, ssz};
-use turbo_conformance::{assert_rc, BundleKind, Target};
+use turbo_conformance::{assert_rc, needs, BundleKind, Target};
 
 struct Gen {
     _ct: c::CTarget,
@@ -79,6 +79,7 @@ fn drain(g: *mut turbo_generation, limit: usize) -> (Vec<i32>, String, u32, usiz
 #[test]
 fn generation_prompt_then_step_until_done() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let mut gd = c::generate_desc();
     gd.max_new_tokens = 6;
@@ -95,6 +96,7 @@ fn generation_prompt_then_step_until_done() {
 #[test]
 fn generation_chunk_pointers_are_valid_until_the_next_step() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let mut gd = c::generate_desc();
     gd.max_new_tokens = 4;
@@ -118,6 +120,7 @@ fn generation_chunk_pointers_are_valid_until_the_next_step() {
 #[test]
 fn generation_finish_reason_is_length_at_max_new_tokens() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     for max in [1u32, 3] {
         let mut gd = c::generate_desc();
@@ -134,6 +137,7 @@ fn generation_finish_reason_is_length_at_max_new_tokens() {
 #[test]
 fn generation_cancel_yields_one_cancelled_chunk_then_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let mut gd = c::generate_desc();
     gd.max_new_tokens = 64;
@@ -159,6 +163,7 @@ fn generation_cancel_yields_one_cancelled_chunk_then_invalid_state() {
 #[test]
 fn generation_step_before_prompt_is_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let g = f.create(&c::generate_desc());
     let mut e = c::err();
@@ -178,6 +183,7 @@ fn generation_step_before_prompt_is_invalid_state() {
 #[test]
 fn generation_prompting_twice_is_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let g = f.create(&c::generate_desc());
     let mut e = c::err();
@@ -195,6 +201,7 @@ fn generation_prompting_twice_is_invalid_state() {
 #[test]
 fn generation_empty_and_null_prompts_are_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let g = f.create(&c::generate_desc());
     let mut e = c::err();
@@ -222,6 +229,7 @@ fn generation_empty_and_null_prompts_are_invalid_argument() {
 #[test]
 fn generation_prompt_tokens_outside_the_vocabulary_are_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let mut e = c::err();
     let mut info = turbo_model_info { struct_size: ssz::<turbo_model_info>(), ..unsafe { std::mem::zeroed() } };
@@ -245,6 +253,7 @@ fn generation_prompt_tokens_outside_the_vocabulary_are_invalid_argument() {
 #[test]
 fn generation_logprobs_count_matches_the_token_count() {
     let t = Target::from_env();
+    needs!(t, Generative);
     if t.caps() & TURBO_CAP_OPT_GEN_LOGPROBS == 0 {
         println!("generation_logprobs: device does not advertise TURBO_CAP_OPT_GEN_LOGPROBS");
         return;
@@ -288,17 +297,21 @@ fn generation_logprobs_count_matches_the_token_count() {
 #[test]
 fn generation_the_same_seed_reproduces_the_same_tokens() {
     let t = Target::from_env();
+    needs!(t, Generative);
     if t.caps() & TURBO_CAP_OPT_GEN_SEED == 0 {
         println!("generation_seed: device does not advertise TURBO_CAP_OPT_GEN_SEED");
         return;
     }
     let f = Gen::new(&t);
+    // Temperature 2 over 16 tokens: two seeds drawing the same sequence
+    // from a real model has a probability far below any flake rate worth
+    // naming (6 tokens at temperature 1 coincided on Qwen2.5-0.5B).
     let run = |seed: u64| {
         let mut gd = c::generate_desc();
-        gd.max_new_tokens = 6;
+        gd.max_new_tokens = 16;
         gd.has_seed = 1;
         gd.seed = seed;
-        gd.temperature = 1.0;
+        gd.temperature = 2.0;
         let g = f.prompted(&gd);
         let out = drain(g, 64).0;
         // SAFETY: released once.
@@ -326,6 +339,7 @@ fn generation_the_same_seed_reproduces_the_same_tokens() {
 #[test]
 fn generation_stop_string_finishes_with_stop() {
     let t = Target::from_env();
+    needs!(t, Generative);
     if t.caps() & TURBO_CAP_OPT_GEN_STOP_STRINGS == 0 {
         println!("generation_stop_string: device does not advertise TURBO_CAP_OPT_GEN_STOP_STRINGS");
         return;
@@ -354,7 +368,9 @@ fn generation_stop_string_finishes_with_stop() {
     assert_eq!(reason, TURBO_FINISH_STOP, "the stop string must end the stream");
     assert_eq!(chunks, 1);
     assert_eq!(tokens.len(), 1);
-    assert!(text.ends_with(&first));
+    // The matched string is never delivered; it was the whole first piece.
+    assert!(!text.contains(&first), "the stop string must not be delivered: text {text:?}, stop {first:?}");
+    assert_eq!(text, "", "nothing precedes a stop that is the first piece: {text:?}");
     // SAFETY: released once.
     unsafe { turbo_generation_release(g) };
 
@@ -369,6 +385,7 @@ fn generation_stop_string_finishes_with_stop() {
 #[test]
 fn generation_descriptor_struct_size_is_validated() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let mut e = c::err();
     let mut g: *mut turbo_generation = ptr::null_mut();
@@ -422,6 +439,7 @@ unsafe extern "C" fn collect(user_data: *mut c_void, chunk: *const turbo_generat
 #[test]
 fn generation_push_form_delivers_the_pull_forms_tokens() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let mut e = c::err();
     let msg = turbo_message { role: c::text("user"), content: c::text("hello") };
@@ -468,6 +486,7 @@ fn generation_push_form_delivers_the_pull_forms_tokens() {
 #[test]
 fn generation_on_a_non_generative_model_is_unsupported_task() {
     let t = Target::from_env();
+    needs!(t, Embedding, Reranker, Classifier, Generic);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let mut e = c::err();
@@ -508,6 +527,7 @@ unsafe impl<T> Sync for Shared<T> {}
 #[test]
 fn generation_cancel_from_another_thread_is_never_busy() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let mut gd = c::generate_desc();
     gd.max_new_tokens = 64;
@@ -554,6 +574,7 @@ fn generation_a_chunk_with_no_tokens_nulls_its_arrays() {
     // hand back NULL for both rather than a stale or dangling pointer, so a
     // binding can branch on the pointer as well as on the count.
     let t = Target::from_env();
+    needs!(t, Generative);
     let f = Gen::new(&t);
     let mut gd = c::generate_desc();
     gd.max_new_tokens = 8;

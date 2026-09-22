@@ -7,7 +7,7 @@ use std::ptr;
 use turbo_abi::*;
 use turbo_capi::*;
 use turbo_conformance::c::{self, ssz};
-use turbo_conformance::{assert_rc, permutations, BundleKind, Target};
+use turbo_conformance::{assert_rc, needs, permutations, BundleKind, Target};
 
 const TEXT: &str = "hello world";
 
@@ -187,6 +187,7 @@ fn lifetime_releasing_the_last_of_several_views_returns_the_lease() {
 #[test]
 fn lifetime_generation_outlives_its_model_and_context() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let model = ct.model(ctx, BundleKind::Generative);
@@ -259,6 +260,7 @@ fn lifetime_buffer_outlives_its_context() {
 #[test]
 fn lifetime_generation_step_after_finish_is_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let model = ct.model(ctx, BundleKind::Generative);
@@ -290,6 +292,7 @@ fn lifetime_generation_step_after_finish_is_invalid_state() {
 #[test]
 fn lifetime_binding_a_buffer_from_another_context_is_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let ct = c::CTarget::new(&t);
     let first = ct.context();
     let second = ct.context();
@@ -333,6 +336,7 @@ fn lifetime_binding_a_buffer_from_another_context_is_invalid_argument() {
 #[test]
 fn lifetime_two_contexts_on_one_device_are_independent() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let ct = c::CTarget::new(&t);
     let first = ct.context();
     let second = ct.context();

@@ -6,7 +6,7 @@ use std::ptr;
 use turbo_abi::*;
 use turbo_capi::*;
 use turbo_conformance::c::{self, ssz};
-use turbo_conformance::{assert_rc, BundleKind, Target};
+use turbo_conformance::{assert_rc, needs, BundleKind, Target};
 
 fn device_info(rt: *mut turbo_runtime, index: u32) -> turbo_device_info {
     let mut e = c::err();
@@ -126,6 +126,7 @@ fn device_explicit_with_a_wrong_ordinal_is_device_not_found() {
 #[test]
 fn device_explicit_cpu_loads_and_runs() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let ct = c::CTarget::new(&t);
     let mut e = c::err();
     let mut count = 0u32;
@@ -133,7 +134,10 @@ fn device_explicit_cpu_loads_and_runs() {
     assert_rc!(unsafe { turbo_runtime_device_count(ct.rt, &mut count, &mut e) }, TURBO_OK, e);
     assert!(count > 0, "a runtime with no devices cannot be conformance-tested");
 
-    let cpu = (0..count).map(|i| (i, device_info(ct.rt, i))).find(|(_, d)| d.kind == TURBO_DEVICE_CPU);
+    // The provider under test's own CPU device, not the built-in mock's.
+    let cpu = (0..count)
+        .map(|i| (i, device_info(ct.rt, i)))
+        .find(|(_, d)| d.kind == TURBO_DEVICE_CPU && c::fixed(&d.provider_id) == t.provider_id());
     let Some((_, cpu_info)) = cpu else {
         println!("device_explicit_cpu_loads_and_runs: no CPU device on this provider");
         return;

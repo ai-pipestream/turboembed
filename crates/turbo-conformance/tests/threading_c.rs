@@ -9,7 +9,7 @@ use std::thread;
 use turbo_abi::*;
 use turbo_capi::*;
 use turbo_conformance::c::{self, ssz};
-use turbo_conformance::{assert_rc, BundleKind, Target};
+use turbo_conformance::{assert_rc, needs, BundleKind, Target};
 
 /// Raw handles are pointers, which are not `Send` by default; the ABI
 /// documents that runtime, context and model handles may be used from any
@@ -50,6 +50,7 @@ fn run_once(session: *mut turbo_session, dim: usize) -> Vec<f32> {
 #[test]
 fn threading_two_sessions_run_concurrently_with_the_same_results() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let model = ct.model(ctx, BundleKind::Embedding);
@@ -98,6 +99,7 @@ fn threading_two_sessions_run_concurrently_with_the_same_results() {
 #[test]
 fn threading_a_held_result_makes_another_thread_busy() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let model = ct.model(ctx, BundleKind::Embedding);
@@ -147,6 +149,7 @@ fn threading_a_held_result_makes_another_thread_busy() {
 #[test]
 fn threading_one_session_from_many_threads_never_corrupts_or_lies() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let model = ct.model(ctx, BundleKind::Embedding);
@@ -208,6 +211,7 @@ fn threading_one_session_from_many_threads_never_corrupts_or_lies() {
 #[test]
 fn threading_results_are_deterministic_across_sessions() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     if t.caps() & TURBO_CAP_DETERMINISTIC == 0 {
         println!("threading_results_are_deterministic: device does not claim TURBO_CAP_DETERMINISTIC");
         return;
@@ -248,6 +252,7 @@ fn threading_results_are_deterministic_across_sessions() {
 #[test]
 fn threading_a_generation_reports_busy_to_a_second_thread() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let ct = c::CTarget::new(&t);
     let ctx = ct.context();
     let model = ct.model(ctx, BundleKind::Generative);

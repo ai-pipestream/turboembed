@@ -11,13 +11,14 @@ use turbo::abi::*;
 use turbo::provider::{EmbedOptions, GenerateDesc, Message, RerankOptions, RunOptions, SessionDesc};
 use turbo::types::{PromptRole, Truncate};
 use turbo_conformance::fixtures::copy_of;
-use turbo_conformance::{assert_err, read_rows, BundleKind, Target};
+use turbo_conformance::{assert_err, needs, read_rows, BundleKind, Target};
 
 const PROMPT: [Message<'static>; 1] = [Message { role: "user", content: "say something" }];
 
 #[test]
 fn honesty_max_tokens_above_the_session_width_is_refused_not_clamped() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     if !t.has(TURBO_CAP_OPT_MAX_TOKENS) {
         println!("honesty_max_tokens: device does not advertise TURBO_CAP_OPT_MAX_TOKENS");
         return;
@@ -36,6 +37,7 @@ fn honesty_max_tokens_above_the_session_width_is_refused_not_clamped() {
 #[test]
 fn honesty_prompt_role_without_a_bundle_prefix_is_refused() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     if !t.is_mock() {
         println!("honesty_prompt_role: needs a mock bundle to edit");
         return;
@@ -59,11 +61,21 @@ fn honesty_prompt_role_without_a_bundle_prefix_is_refused() {
 #[test]
 fn honesty_left_truncation_keeps_the_prompt_prefix() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     if !t.has(TURBO_CAP_OPT_TRUNCATE | TURBO_CAP_OPT_PROMPT_ROLE) {
         println!("honesty_left_truncation: device does not advertise truncate and prompt_role");
         return;
     }
     let model = t.model(BundleKind::Embedding);
+    let info = model.info();
+    let role = if !info.prefix_query.is_empty() {
+        PromptRole::Query
+    } else if !info.prefix_document.is_empty() {
+        PromptRole::Document
+    } else {
+        println!("not applicable: bundle `{}` declares no prompt prefix to keep", info.model_id);
+        return;
+    };
     let session = model.create_session(&SessionDesc { max_batch: 1, max_seq: 8, ..Default::default() }).unwrap();
     let long = "w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12";
     let embed = |role: PromptRole| {
@@ -74,13 +86,14 @@ fn honesty_left_truncation_keeps_the_prompt_prefix() {
         read_rows(&r, 0, model.info().dim as usize).remove(0)
     };
     let bare = embed(PromptRole::None);
-    let query = embed(PromptRole::Query);
-    assert_ne!(bare, query, "with LEFT truncation the query prefix must still be applied");
+    let prefixed = embed(role);
+    assert_ne!(bare, prefixed, "with LEFT truncation the {role:?} prefix must still be applied");
 }
 
 #[test]
 fn honesty_return_sorted_names_its_own_field() {
     let t = Target::from_env();
+    needs!(t, Reranker);
     if t.has(TURBO_CAP_OPT_TOP_N) {
         println!("honesty_return_sorted: device honors top_n; the refusal path is not reachable");
         return;
@@ -96,6 +109,7 @@ fn honesty_return_sorted_names_its_own_field() {
 #[test]
 fn honesty_sampling_options_change_the_output_only_when_advertised() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let run = |desc: GenerateDesc| -> Result<Vec<i32>, turbo::Error> {
         let g = model.create_generation(&desc)?;
@@ -122,21 +136,28 @@ fn honesty_sampling_options_change_the_output_only_when_advertised() {
     let b = run(GenerateDesc { max_new_tokens: 6, seed: Some(2), ..Default::default() }).unwrap();
     assert_eq!(a, b, "temperature 0 is greedy regardless of seed");
     if t.has(TURBO_CAP_OPT_GEN_SEED) {
-        // Sampling: the seed matters and top_k bounds the candidate pool.
-        let c = run(GenerateDesc { max_new_tokens: 6, seed: Some(1), temperature: 1.0, ..Default::default() }).unwrap();
-        let d = run(GenerateDesc { max_new_tokens: 6, seed: Some(2), temperature: 1.0, ..Default::default() }).unwrap();
+        // Sampling: the seed matters (temperature 2 over 16 tokens, so two
+        // seeds coinciding on a real model is not a flake rate worth naming).
+        let c =
+            run(GenerateDesc { max_new_tokens: 16, seed: Some(1), temperature: 2.0, ..Default::default() }).unwrap();
+        let d =
+            run(GenerateDesc { max_new_tokens: 16, seed: Some(2), temperature: 2.0, ..Default::default() }).unwrap();
         assert_ne!(c, d, "temperature > 0 with different seeds must differ");
+        // top_k 1 leaves one candidate per step, so sampling at any
+        // temperature must reproduce the greedy tokens exactly. (top_k
+        // bounds the candidates per step, not the distinct tokens of a
+        // sequence, so a global count is not a property of the option.)
         let narrow =
-            run(GenerateDesc { max_new_tokens: 12, seed: Some(3), temperature: 1.0, top_k: 2, ..Default::default() })
+            run(GenerateDesc { max_new_tokens: 6, seed: Some(3), temperature: 1.0, top_k: 1, ..Default::default() })
                 .unwrap();
-        let distinct: std::collections::BTreeSet<i32> = narrow.iter().copied().collect();
-        assert!(distinct.len() <= 2, "top_k 2 allows at most two distinct sampled tokens: {narrow:?}");
+        assert_eq!(narrow, a, "top_k 1 must reproduce the greedy tokens");
     }
 }
 
 #[test]
 fn honesty_ungated_generation_options_are_refused_without_their_bit() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let cases: [(u64, u32, GenerateDesc); 3] = [
         (TURBO_CAP_OPT_GEN_MIN_TOKENS, 3, GenerateDesc { min_new_tokens: 1, ..Default::default() }),

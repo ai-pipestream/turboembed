@@ -7,7 +7,7 @@ use std::fs;
 use turbo::abi::*;
 use turbo::bundle::{sha256_bytes, Bundle};
 use turbo::provider::ModelDesc;
-use turbo_conformance::{assert_err, fixtures, BundleKind, Target};
+use turbo_conformance::{assert_err, fixtures, needs, BundleKind, Target};
 
 fn load(t: &Target, dir: &std::path::Path) -> turbo::Result<std::sync::Arc<turbo::handles::Model>> {
     t.context().load_model(dir, &ModelDesc::default())
@@ -29,6 +29,7 @@ fn bundle_missing_directory_is_not_found() {
 #[test]
 fn bundle_missing_manifest_is_not_found() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     fs::remove_file(scratch.path().join("bundle.json")).expect("remove the manifest");
     assert_err!(Bundle::open(scratch.path()), TURBO_E_BUNDLE_NOT_FOUND);
@@ -38,6 +39,7 @@ fn bundle_missing_manifest_is_not_found() {
 #[test]
 fn bundle_malformed_manifest_is_invalid() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     fs::write(scratch.path().join("bundle.json"), b"{ this is not json").expect("write");
     assert_err!(Bundle::open(scratch.path()), TURBO_E_BUNDLE_INVALID);
@@ -50,6 +52,7 @@ fn bundle_malformed_manifest_is_invalid() {
 #[test]
 fn bundle_wrong_version_is_invalid() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     for version in [1u32, 3, 99] {
         let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
         scratch.patch_manifest(|m| m["bundle_version"] = serde_json::json!(version));
@@ -62,6 +65,7 @@ fn bundle_wrong_version_is_invalid() {
 #[test]
 fn bundle_tampered_artifact_is_integrity() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     let (format, path) = scratch.artifact_paths().into_iter().next().expect("the bundle lists an artifact");
     let mut body = fs::read(&path).expect("read the artifact");
@@ -81,6 +85,7 @@ fn bundle_tampered_artifact_is_integrity() {
 #[test]
 fn bundle_a_missing_listed_file_is_not_found() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     let (_, path) = scratch.artifact_paths().into_iter().next().expect("an artifact");
     fs::remove_file(&path).expect("remove the artifact");
@@ -91,6 +96,7 @@ fn bundle_a_missing_listed_file_is_not_found() {
 #[test]
 fn bundle_path_escape_is_invalid() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     for escape in ["../outside.bin", "/etc/passwd", "sub/../../outside.bin"] {
         let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
         let (format, _) = scratch.artifact_paths().into_iter().next().expect("an artifact");
@@ -110,6 +116,7 @@ fn bundle_path_escape_is_invalid() {
 #[test]
 fn bundle_missing_contract_fields_are_invalid_per_kind() {
     let t = Target::from_env();
+    needs!(t, Embedding, Classifier, TokenClassifier);
     // Embedders need dim, pooling and normalize; classifiers need labels;
     // every kind but the generic one needs max_seq.
     let cases: [(BundleKind, &str); 6] = [
@@ -139,6 +146,7 @@ fn bundle_missing_contract_fields_are_invalid_per_kind() {
 #[test]
 fn bundle_inconsistent_contract_values_are_invalid() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     // A Matryoshka dimension larger than the model's is a contradiction.
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     scratch.patch_manifest(|m| {
@@ -172,6 +180,7 @@ fn bundle_inconsistent_contract_values_are_invalid() {
 #[test]
 fn bundle_unknown_task_kind_or_modality_is_invalid() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     for (field, value) in [("task", "teleport"), ("kind", "oracle"), ("modality", "smell")] {
         let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
         scratch.patch_manifest(|m| m[field] = serde_json::json!(value));
@@ -188,6 +197,7 @@ fn bundle_unknown_task_kind_or_modality_is_invalid() {
 #[test]
 fn bundle_without_an_artifact_this_provider_can_load_is_no_artifact() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     let body = b"a format no provider in this build knows";
     fs::write(scratch.path().join("foreign.bin"), body).expect("write");

@@ -10,7 +10,7 @@ use turbo::provider::{ClassifyOptions, EmbedOptions, GenerateDesc, Message, Rera
 use turbo::types::{
     Aggregation, Modality, Normalize, OutputDType, Pooling, PromptRole, StructuredKind, Task, Truncate,
 };
-use turbo_conformance::{assert_err, fixtures, norm, read_f32, read_i32, BundleKind, Target};
+use turbo_conformance::{assert_err, fixtures, needs, norm, read_f32, read_i32, BundleKind, Target};
 
 fn long_text(words: usize) -> String {
     (0..words).map(|i| format!("w{i} ")).collect::<String>().trim_end().to_string()
@@ -25,6 +25,7 @@ fn embed(t: &Target, text: &str, opts: &EmbedOptions) -> Vec<f32> {
 #[test]
 fn capability_truncate_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let over = long_text(model.info().max_seq as usize + 8);
     let right = EmbedOptions { truncate: Truncate::Right, ..Default::default() };
@@ -49,6 +50,7 @@ fn capability_truncate_is_honored_or_rejected() {
 #[test]
 fn capability_max_tokens_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let max_seq = model.info().max_seq;
     let text = long_text(max_seq as usize);
@@ -69,24 +71,35 @@ fn capability_max_tokens_is_honored_or_rejected() {
 #[test]
 fn capability_prompt_role_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let query = EmbedOptions { prompt_role: PromptRole::Query, ..Default::default() };
     let document = EmbedOptions { prompt_role: PromptRole::Document, ..Default::default() };
     if t.has(TURBO_CAP_OPT_PROMPT_ROLE) {
         let none = embed(&t, "hello world", &EmbedOptions::default());
-        session.write_text(&["hello world"], &query).expect("query role");
-        let q = read_f32(&session.run(&RunOptions::default()).expect("run"), 0);
-        session.write_text(&["hello world"], &document).expect("document role");
-        let d = read_f32(&session.run(&RunOptions::default()).expect("run"), 0);
         let info = model.info();
-        if !info.prefix_query.is_empty() {
-            assert_ne!(q, none, "the query prefix `{}` must change the vector", info.prefix_query);
+        // A role the bundle declares no prefix for is TURBO_E_INVALID_ARGUMENT
+        // on field 4, never an embedding of the bare text under that role.
+        let run_role = |opts: &EmbedOptions, prefix: &str, name: &str| -> Option<Vec<f32>> {
+            if prefix.is_empty() {
+                assert_err!(session.write_text(&["hello world"], opts), TURBO_E_INVALID_ARGUMENT, field = 4);
+                return None;
+            }
+            session.write_text(&["hello world"], opts).unwrap_or_else(|e| panic!("{name} role: {e}"));
+            Some(read_f32(&session.run(&RunOptions::default()).expect("run"), 0))
+        };
+        let q = run_role(&query, &info.prefix_query, "query");
+        let d = run_role(&document, &info.prefix_document, "document");
+        if let Some(q) = &q {
+            assert_ne!(*q, none, "the query prefix `{}` must change the vector", info.prefix_query);
         }
-        if !info.prefix_document.is_empty() {
-            assert_ne!(d, none, "the document prefix `{}` must change the vector", info.prefix_document);
+        if let Some(d) = &d {
+            assert_ne!(*d, none, "the document prefix `{}` must change the vector", info.prefix_document);
         }
-        if !info.prefix_query.is_empty() && info.prefix_query != info.prefix_document {
-            assert_ne!(q, d, "query and document prefixes differ, so the vectors must differ");
+        if let (Some(q), Some(d)) = (&q, &d) {
+            if info.prefix_query != info.prefix_document {
+                assert_ne!(q, d, "query and document prefixes differ, so the vectors must differ");
+            }
         }
     } else {
         assert_err!(session.write_text(&["hello world"], &query), TURBO_E_UNSUPPORTED_OPTION, field = 4);
@@ -97,6 +110,7 @@ fn capability_prompt_role_is_honored_or_rejected() {
 #[test]
 fn capability_normalize_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let contract = model.info().normalize;
     let off = EmbedOptions { normalize: Normalize::None, ..Default::default() };
@@ -134,6 +148,7 @@ fn capability_normalize_is_honored_or_rejected() {
 #[test]
 fn capability_pooling_override_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let contract = model.info().pooling;
     let other = match contract {
@@ -159,12 +174,15 @@ fn capability_pooling_override_is_honored_or_rejected() {
 #[test]
 fn capability_output_dim_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let dim = model.info().dim;
     let dims = model.bundle().contract().truncate_dims.clone();
     let normalizes = model.info().normalize == Some(Normalize::L2);
     if t.has(TURBO_CAP_OPT_OUTPUT_DIM) {
-        assert!(!dims.is_empty(), "a device advertising OPT_OUTPUT_DIM needs a bundle with truncate_dims");
+        // A bundle that declares no Matryoshka dimensions leaves only the
+        // model's own dimension valid; the loop below is then empty and the
+        // refusal of any other value is what is checked.
         for d in &dims {
             let opts = EmbedOptions { output_dim: *d, ..Default::default() };
             session.write_text(&["hello world"], &opts).expect("output_dim");
@@ -194,6 +212,7 @@ fn capability_output_dim_is_honored_or_rejected() {
 #[test]
 fn capability_output_dtype_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     for dtype in [OutputDType::F16, OutputDType::I8] {
         let opts = EmbedOptions { output_dtype: dtype, ..Default::default() };
@@ -218,6 +237,7 @@ fn capability_output_dtype_is_honored_or_rejected() {
 #[test]
 fn capability_top_n_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Reranker);
     let (_m, session) = t.session(BundleKind::Reranker);
     let docs = ["alpha beta", "gamma", "alpha beta gamma", "delta epsilon"];
     let opts = RerankOptions { top_n: 2, return_sorted: true, ..Default::default() };
@@ -254,6 +274,7 @@ fn capability_top_n_is_honored_or_rejected() {
 #[test]
 fn capability_aggregation_is_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Classifier, TokenClassifier);
     let (model, session) = t.session(BundleKind::TokenClassifier);
     let text = "Paris Paris Bob";
     let contract = model.info().aggregation;
@@ -311,6 +332,7 @@ fn capability_aggregation_is_honored_or_rejected() {
 #[test]
 fn capability_generation_options_are_honored_or_rejected() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
 
     // Seed. It only matters when sampling; greedy decoding ignores it.
@@ -322,7 +344,12 @@ fn capability_generation_options_are_honored_or_rejected() {
         let greedy_other = GenerateDesc { seed: Some(999_999), ..seeded.clone() };
         assert_eq!(a, collect(&t, &greedy_other), "at temperature 0 the seed must not change the tokens");
         if t.has(TURBO_CAP_OPT_GEN_SAMPLING) {
-            let sampled = GenerateDesc { temperature: 1.0, ..seeded.clone() };
+            // At temperature 2 over 16 tokens, two seeds drawing the same
+            // sequence from a real model has a probability far below any
+            // flake rate worth naming; the mock's sampler is a hash of the
+            // seed. Four tokens at temperature 1 was not enough: a model with
+            // a near-certain opening (Qwen2.5-0.5B) drew the same four twice.
+            let sampled = GenerateDesc { temperature: 2.0, max_new_tokens: 16, ..seeded.clone() };
             let other = GenerateDesc { seed: Some(999_999), ..sampled.clone() };
             assert_ne!(
                 collect(&t, &sampled),
@@ -357,7 +384,7 @@ fn capability_generation_options_are_honored_or_rejected() {
     }
 
     // The gated fields that have no honor test beyond being accepted.
-    let cases: [(u64, u32, GenerateDesc); 7] = [
+    let cases: [(u64, u32, GenerateDesc); 8] = [
         (TURBO_CAP_OPT_GEN_N, 4, GenerateDesc { n_sequences: 2, ..Default::default() }),
         (TURBO_CAP_OPT_GEN_PENALTIES, 9, GenerateDesc { repeat_penalty: 1.5, ..Default::default() }),
         (TURBO_CAP_OPT_GEN_PENALTIES, 10, GenerateDesc { presence_penalty: 0.5, ..Default::default() }),
@@ -365,6 +392,15 @@ fn capability_generation_options_are_honored_or_rejected() {
         (TURBO_CAP_OPT_GEN_LOGIT_BIAS, 18, GenerateDesc { logit_bias: vec![(3, 1.0)], ..Default::default() }),
         (
             TURBO_CAP_OPT_GEN_STRUCTURED,
+            21,
+            GenerateDesc {
+                structured_kind: StructuredKind::Grammar,
+                structured: "root ::= \"a\"".into(),
+                ..Default::default()
+            },
+        ),
+        (
+            TURBO_CAP_OPT_GEN_STRUCTURED | TURBO_CAP_OPT_GEN_JSON_SCHEMA,
             21,
             GenerateDesc {
                 structured_kind: StructuredKind::JsonSchema,
@@ -401,6 +437,7 @@ fn collect(t: &Target, desc: &GenerateDesc) -> Vec<i32> {
 #[test]
 fn capability_unsupported_modality_cell_is_unsupported() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     for modality in [Modality::Audio, Modality::Image, Modality::Video] {
         let cell = t.runtime.capability(t.device_index, Task::Embed, modality).expect("capability cell");
         if cell.is_offered() {
@@ -436,6 +473,7 @@ fn capability_matrix_rejects_unknown_axes() {
 #[test]
 fn capability_can_run_agrees_with_model_load() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     for kind in BundleKind::ALL {
         let path = t.bundle(*kind);
         if !path.is_dir() {
@@ -497,6 +535,7 @@ fn capability_cells_report_a_dtype_and_determinism() {
 #[test]
 fn capability_session_options_are_rejected_when_unknown() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let model = t.model(BundleKind::Embedding);
     // Provider knobs are validated, never ignored (PLAN.md section 5).
     let desc = SessionDesc { options: turbo::handles::options_from_pairs([("tensorrt", "1")]), ..Default::default() };

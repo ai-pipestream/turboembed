@@ -21,6 +21,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let target = Target::from_env();
+        target.require(BundleKind::Embedding);
         let ct = c::CTarget::new(&target);
         let ctx = ct.context();
         let model = ct.model(ctx, BundleKind::Embedding);

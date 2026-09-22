@@ -6,13 +6,14 @@ use turbo::abi::*;
 use turbo::buffer::BufferDesc;
 use turbo::provider::{ClassifyOptions, EmbedOptions, RerankOptions, RunOptions, SessionDesc, TokenBatch};
 use turbo::types::{DType, ModelKind, Placement};
-use turbo_conformance::{assert_err, read_f32, read_i32, read_rows, BundleKind, Target};
+use turbo_conformance::{assert_err, needs, read_f32, read_i32, read_rows, BundleKind, Target};
 
 const DOCS: [&str; 5] = ["alpha beta", "beta gamma", "alpha beta", "zzz", "alpha beta gamma delta"];
 
 #[test]
 fn tasks_rerank_scores_are_in_input_order() {
     let t = Target::from_env();
+    needs!(t, Reranker);
     let (_m, session) = t.session(BundleKind::Reranker);
     session.write_pairs("alpha beta", &DOCS, &RerankOptions::default()).expect("write pairs");
     let result = session.run(&RunOptions::default()).expect("run");
@@ -42,6 +43,7 @@ fn tasks_rerank_scores_are_in_input_order() {
 #[test]
 fn tasks_rerank_sorted_output_is_descending_and_stable_on_ties() {
     let t = Target::from_env();
+    needs!(t, Reranker);
     if !t.has(TURBO_CAP_OPT_TOP_N) {
         println!("tasks_rerank_sorted: device does not advertise TURBO_CAP_OPT_TOP_N");
         return;
@@ -73,6 +75,7 @@ fn tasks_rerank_sorted_output_is_descending_and_stable_on_ties() {
 #[test]
 fn tasks_rerank_raw_scores_are_unactivated() {
     let t = Target::from_env();
+    needs!(t, Reranker);
     let (_m, session) = t.session(BundleKind::Reranker);
     session.write_pairs("alpha beta", &DOCS, &RerankOptions::default()).expect("write pairs");
     let activated = read_f32(&session.run(&RunOptions::default()).expect("run"), 0);
@@ -103,6 +106,7 @@ fn tasks_rerank_raw_scores_are_unactivated() {
 #[test]
 fn tasks_classify_rows_sum_to_one_unless_raw() {
     let t = Target::from_env();
+    needs!(t, Classifier);
     let (model, session) = t.session(BundleKind::Classifier);
     let n_labels = model.info().labels.len();
     assert!(n_labels > 0, "a classifier bundle must declare labels");
@@ -140,6 +144,7 @@ fn argmax(v: &[f32]) -> usize {
 #[test]
 fn tasks_classify_labels_come_from_the_bundle() {
     let t = Target::from_env();
+    needs!(t, Classifier);
     let model = t.model(BundleKind::Classifier);
     let labels = model.info().labels.clone();
     assert!(!labels.is_empty());
@@ -152,6 +157,7 @@ fn tasks_classify_labels_come_from_the_bundle() {
 #[test]
 fn tasks_token_classify_spans_slice_whole_words() {
     let t = Target::from_env();
+    needs!(t, TokenClassifier);
     let (model, session) = t.session(BundleKind::TokenClassifier);
     let texts = ["Alice went to Paris", "Bob"];
     session.write_text_classify(&texts, &ClassifyOptions::default()).expect("write");
@@ -194,6 +200,7 @@ fn tasks_token_classify_spans_slice_whole_words() {
 #[test]
 fn tasks_token_classify_scores_have_batch_seq_label_shape() {
     let t = Target::from_env();
+    needs!(t, TokenClassifier);
     let (model, session) = t.session(BundleKind::TokenClassifier);
     let texts = ["Alice went to Paris", "Bob"];
     session.write_text_classify(&texts, &ClassifyOptions::default()).expect("write");
@@ -212,6 +219,7 @@ fn tasks_token_classify_scores_have_batch_seq_label_shape() {
 #[test]
 fn tasks_generic_run_computes_y_equals_two_x() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let ctx = t.context();
     let model = t.model_on(&ctx, BundleKind::Generic);
     assert_eq!(model.info().kind, ModelKind::Generic);
@@ -236,6 +244,7 @@ fn tasks_generic_run_computes_y_equals_two_x() {
 #[test]
 fn tasks_generic_run_writes_into_a_caller_bound_output() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let ctx = t.context();
     let model = t.model_on(&ctx, BundleKind::Generic);
     let session = model.create_session(&SessionDesc::default()).expect("session");
@@ -256,6 +265,7 @@ fn tasks_generic_run_writes_into_a_caller_bound_output() {
 #[test]
 fn tasks_generic_run_with_a_small_output_is_capacity() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let ctx = t.context();
     let model = t.model_on(&ctx, BundleKind::Generic);
     let session = model.create_session(&SessionDesc::default()).expect("session");
@@ -275,6 +285,7 @@ fn tasks_generic_run_with_a_small_output_is_capacity() {
 #[test]
 fn tasks_generic_run_with_aliased_x_and_y_is_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let ctx = t.context();
     let model = t.model_on(&ctx, BundleKind::Generic);
     let session = model.create_session(&SessionDesc::default()).expect("session");
@@ -288,6 +299,7 @@ fn tasks_generic_run_with_aliased_x_and_y_is_invalid_argument() {
 #[test]
 fn tasks_generic_run_without_a_binding_is_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let ctx = t.context();
     let model = t.model_on(&ctx, BundleKind::Generic);
     let session = model.create_session(&SessionDesc::default()).expect("session");
@@ -303,6 +315,7 @@ fn tasks_generic_run_without_a_binding_is_invalid_state() {
 #[test]
 fn tasks_result_read_into_a_small_buffer_is_capacity() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     session.write_text(&["hello world"], &EmbedOptions::default()).expect("write");
     let result = session.run(&RunOptions::default()).expect("run");
@@ -326,6 +339,7 @@ fn tasks_result_read_into_a_small_buffer_is_capacity() {
 #[test]
 fn tasks_result_info_reports_the_output_shape() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let texts = ["a", "b", "c"];
     session.write_text(&texts, &EmbedOptions::default()).expect("write");
@@ -333,7 +347,8 @@ fn tasks_result_info_reports_the_output_shape() {
     let out = result.output(0).expect("output");
     assert_eq!(out.shape, vec![texts.len() as u64, model.info().dim as u64]);
     assert_eq!(out.dtype(), DType::F32);
-    assert_eq!(out.placement(), Placement::Host);
+    let expected = if t.has(TURBO_CAP_DEVICE_RESULT) { Placement::Device } else { Placement::Host };
+    assert_eq!(out.placement(), expected, "placement follows the device's TURBO_CAP_DEVICE_RESULT bit");
     assert_eq!(out.logical_bytes().expect("bytes"), (texts.len() * model.info().dim as usize * 4) as u64);
     assert_eq!(&*out.name, "embeddings", "the primary embedding output is named");
     assert_eq!(result.outputs().len(), 1);
@@ -342,6 +357,7 @@ fn tasks_result_info_reports_the_output_shape() {
 #[test]
 fn tasks_a_task_the_model_does_not_offer_is_unsupported_task() {
     let t = Target::from_env();
+    needs!(t, Embedding, Reranker, Generative, Generic);
     let (_m, embed) = t.session(BundleKind::Embedding);
     assert_err!(embed.write_pairs("q", &["d"], &RerankOptions::default()), TURBO_E_UNSUPPORTED_TASK);
     assert_err!(embed.write_text_classify(&["x"], &ClassifyOptions::default()), TURBO_E_UNSUPPORTED_TASK);
@@ -364,10 +380,10 @@ fn tasks_a_task_the_model_does_not_offer_is_unsupported_task() {
     let (_m3, embed2) = t.session(BundleKind::Embedding);
     assert_err!(embed2.bind("x", &buffer), TURBO_E_UNSUPPORTED_TASK);
 
-    // A generative model runs through the generation API, not a session.
+    // A generative model runs through the generation API, not a session:
+    // the session itself is refused.
     let generative = t.model(BundleKind::Generative);
-    let gen_session = generative.create_session(&SessionDesc::default()).expect("session");
-    assert_err!(gen_session.write_text(&["x"], &EmbedOptions::default()), TURBO_E_UNSUPPORTED_TASK);
+    assert_err!(generative.create_session(&SessionDesc::default()), TURBO_E_UNSUPPORTED_TASK);
 }
 
 fn write_f32(buffer: &turbo::handles::Buffer, values: &[f32]) {

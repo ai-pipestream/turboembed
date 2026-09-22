@@ -8,7 +8,7 @@ use std::ptr;
 use turbo_abi::*;
 use turbo_capi::*;
 use turbo_conformance::c::{self, ssz};
-use turbo_conformance::{assert_rc, fixtures, BundleKind, Target};
+use turbo_conformance::{assert_rc, fixtures, needs, BundleKind, Target};
 
 struct Ctx {
     _ct: c::CTarget,
@@ -60,6 +60,7 @@ impl Drop for Ctx {
 #[test]
 fn bundle_missing_directory_and_manifest_are_not_found() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let c = Ctx::new(&t);
     let scratch = fixtures::empty();
     let missing = scratch.path().join("nope");
@@ -75,6 +76,7 @@ fn bundle_missing_directory_and_manifest_are_not_found() {
 #[test]
 fn bundle_wrong_version_is_invalid() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let c = Ctx::new(&t);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     scratch.patch_manifest(|m| m["bundle_version"] = serde_json::json!(1));
@@ -87,6 +89,7 @@ fn bundle_wrong_version_is_invalid() {
 #[test]
 fn bundle_tampered_artifact_is_integrity() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let c = Ctx::new(&t);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     let (_, path) = scratch.artifact_paths().into_iter().next().expect("an artifact");
@@ -101,6 +104,7 @@ fn bundle_tampered_artifact_is_integrity() {
 #[test]
 fn bundle_path_escape_is_invalid() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let c = Ctx::new(&t);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     let (format, _) = scratch.artifact_paths().into_iter().next().expect("an artifact");
@@ -112,6 +116,7 @@ fn bundle_path_escape_is_invalid() {
 #[test]
 fn bundle_missing_contract_fields_are_invalid() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let c = Ctx::new(&t);
     for field in ["dim", "pooling", "normalize", "max_seq"] {
         let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
@@ -127,6 +132,7 @@ fn bundle_missing_contract_fields_are_invalid() {
 #[test]
 fn bundle_without_a_mock_artifact_is_no_artifact() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let c = Ctx::new(&t);
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     let body = b"a format no provider in this build knows";
@@ -163,6 +169,7 @@ fn bundle_an_empty_path_is_invalid_argument() {
 #[test]
 fn bundle_model_descriptor_is_validated() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let c = Ctx::new(&t);
     let path = t.bundle(BundleKind::Embedding).to_string_lossy().into_owned();
     let mut e = c::err();

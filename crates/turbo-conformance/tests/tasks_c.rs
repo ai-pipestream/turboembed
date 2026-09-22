@@ -6,7 +6,7 @@ use std::ptr;
 use turbo_abi::*;
 use turbo_capi::*;
 use turbo_conformance::c::{self, ssz};
-use turbo_conformance::{assert_rc, BundleKind, Target};
+use turbo_conformance::{assert_rc, needs, BundleKind, Target};
 
 const DOCS: [&str; 5] = ["alpha beta", "beta gamma", "alpha beta", "zzz", "alpha beta gamma delta"];
 
@@ -54,6 +54,7 @@ fn output_info(r: *mut turbo_result, index: u32) -> turbo_tensor_info {
 #[test]
 fn tasks_rerank_reports_scores_and_a_sorted_index() {
     let t = Target::from_env();
+    needs!(t, Reranker);
     let chain = Chain::new(&t, BundleKind::Reranker);
     let mut e = c::err();
     let query = c::text("alpha beta");
@@ -129,6 +130,7 @@ fn tasks_rerank_reports_scores_and_a_sorted_index() {
 #[test]
 fn tasks_classify_rows_sum_to_one_unless_raw() {
     let t = Target::from_env();
+    needs!(t, Classifier);
     let chain = Chain::new(&t, BundleKind::Classifier);
     let mut e = c::err();
     let n_labels = chain.info.n_labels as usize;
@@ -187,6 +189,7 @@ fn tasks_classify_rows_sum_to_one_unless_raw() {
 #[test]
 fn tasks_token_classify_spans_slice_the_input() {
     let t = Target::from_env();
+    needs!(t, TokenClassifier);
     let chain = Chain::new(&t, BundleKind::TokenClassifier);
     let mut e = c::err();
     let texts_src = ["Alice went to Paris", "Bob"];
@@ -252,6 +255,7 @@ fn tasks_token_classify_spans_slice_the_input() {
 #[test]
 fn tasks_generic_run_computes_y_equals_two_x() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let chain = Chain::new(&t, BundleKind::Generic);
     let mut e = c::err();
     // The model's named I/O is discoverable.
@@ -315,6 +319,7 @@ fn tasks_generic_run_computes_y_equals_two_x() {
 #[test]
 fn tasks_generic_run_rejects_a_small_or_aliased_output() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let chain = Chain::new(&t, BundleKind::Generic);
     let mut e = c::err();
     let big = turbo_buffer_desc {
@@ -351,6 +356,7 @@ fn tasks_generic_run_rejects_a_small_or_aliased_output() {
 #[test]
 fn tasks_result_read_into_a_small_buffer_is_capacity() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let chain = Chain::new(&t, BundleKind::Embedding);
     let mut e = c::err();
     let texts = [c::text("hello world")];
@@ -389,6 +395,7 @@ fn tasks_result_read_into_a_small_buffer_is_capacity() {
 #[test]
 fn tasks_result_info_reports_the_output_shape() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let chain = Chain::new(&t, BundleKind::Embedding);
     let mut e = c::err();
     let texts = [c::text("a"), c::text("b"), c::text("c")];
@@ -402,7 +409,8 @@ fn tasks_result_info_reports_the_output_shape() {
     assert_eq!(ri.batch, 3);
     assert_eq!(ri.dim, chain.info.dim);
     assert_eq!(ri.dtype, TURBO_DTYPE_F32);
-    assert_eq!(ri.placement, TURBO_PLACE_HOST);
+    let expected = if t.has(TURBO_CAP_DEVICE_RESULT) { TURBO_PLACE_DEVICE } else { TURBO_PLACE_HOST };
+    assert_eq!(ri.placement, expected, "placement follows the device's TURBO_CAP_DEVICE_RESULT bit");
     assert_eq!(ri.bytes, 3 * chain.info.dim as u64 * 4);
     let ti = output_info(r, 0);
     assert_eq!(ti.ndim, 2);
@@ -426,20 +434,30 @@ fn tasks_result_info_reports_the_output_shape() {
         assert_rc!(turbo_result_buffer(r, 0, &mut view, &mut e), TURBO_OK, e);
         assert_rc!(turbo_buffer_get_desc(view, &mut desc, &mut e), TURBO_OK, e);
         assert_eq!(desc.dtype, TURBO_DTYPE_F32);
-        assert_eq!(desc.placement, TURBO_PLACE_HOST);
+        assert_eq!(desc.placement, expected, "the view's placement follows the device's TURBO_CAP_DEVICE_RESULT bit");
         assert!(desc.bytes >= ri.bytes, "the view covers at least the logical bytes");
-        // A host-visible result can be read without a copy.
-        let mut host: *mut std::ffi::c_void = ptr::null_mut();
-        assert_rc!(turbo_buffer_host_ptr(view, &mut host, &mut e), TURBO_OK, e);
-        let direct = std::slice::from_raw_parts(host.cast::<f32>(), 3 * chain.info.dim as usize);
-        let copied = c::read_f32(r, 0, 3 * chain.info.dim as usize);
-        assert_eq!(direct, &copied[..], "the zero-copy view and the explicit read must agree");
-        // Exporting a host buffer yields the same pointer.
         let mut native =
             turbo_native_handle { struct_size: ssz::<turbo_native_handle>(), kind: 0, handle: 0, aux: 0, offset: 0 };
-        assert_rc!(turbo_buffer_export(view, TURBO_HANDLE_HOST_PTR, &mut native, &mut e), TURBO_OK, e);
-        assert_eq!(native.handle as usize, host as usize);
-        assert_rc!(turbo_buffer_export(view, TURBO_HANDLE_CUDA_PTR, &mut native, &mut e), TURBO_E_UNSUPPORTED, e);
+        let copied = c::read_f32(r, 0, 3 * chain.info.dim as usize);
+        if expected == TURBO_PLACE_HOST {
+            // A host-visible result can be read without a copy.
+            let mut host: *mut std::ffi::c_void = ptr::null_mut();
+            assert_rc!(turbo_buffer_host_ptr(view, &mut host, &mut e), TURBO_OK, e);
+            let direct = std::slice::from_raw_parts(host.cast::<f32>(), 3 * chain.info.dim as usize);
+            assert_eq!(direct, &copied[..], "the zero-copy view and the explicit read must agree");
+            // Exporting a host buffer yields the same pointer.
+            assert_rc!(turbo_buffer_export(view, TURBO_HANDLE_HOST_PTR, &mut native, &mut e), TURBO_OK, e);
+            assert_eq!(native.handle as usize, host as usize);
+            assert_rc!(turbo_buffer_export(view, TURBO_HANDLE_CUDA_PTR, &mut native, &mut e), TURBO_E_UNSUPPORTED, e);
+        } else {
+            // A device-resident result has no host pointer; a read copies it
+            // back, and the export of its own handle kind is non-zero.
+            let mut host: *mut std::ffi::c_void = ptr::null_mut();
+            assert_rc!(turbo_buffer_host_ptr(view, &mut host, &mut e), TURBO_E_UNSUPPORTED_PLACEMENT, e);
+            assert_rc!(turbo_buffer_export(view, TURBO_HANDLE_HOST_PTR, &mut native, &mut e), TURBO_E_UNSUPPORTED, e);
+            assert_eq!(copied.len(), 3 * chain.info.dim as usize);
+            assert!(copied.iter().any(|x| *x != 0.0), "the copy of a device result must hold the vectors");
+        }
         assert_rc!(turbo_buffer_export(view, 99, &mut native, &mut e), TURBO_E_INVALID_ENUM, e);
         turbo_buffer_release(view);
         turbo_result_release(r);
@@ -449,6 +467,7 @@ fn tasks_result_info_reports_the_output_shape() {
 #[test]
 fn tasks_a_task_the_model_does_not_offer_is_unsupported_task() {
     let t = Target::from_env();
+    needs!(t, Embedding, Generative);
     let chain = Chain::new(&t, BundleKind::Embedding);
     let mut e = c::err();
     let query = c::text("q");
@@ -466,18 +485,15 @@ fn tasks_a_task_the_model_does_not_offer_is_unsupported_task() {
             TURBO_E_UNSUPPORTED_TASK,
             e
         );
-        // A generative bundle has no session-level task.
+        // A generative bundle has no session-level task: the session itself
+        // is refused, for every provider, before any write.
         let gen_model = chain._ct.model(chain.ctx, BundleKind::Generative);
-        let gen_session = chain._ct.session(gen_model);
-        assert_rc!(
-            turbo_session_write_text(gen_session, texts.as_ptr(), 1, ptr::null(), &mut e),
-            TURBO_E_UNSUPPORTED_TASK,
-            e
-        );
+        let mut gen_session: *mut turbo_session = ptr::null_mut();
+        assert_rc!(turbo_session_create(gen_model, ptr::null(), &mut gen_session, &mut e), TURBO_E_UNSUPPORTED_TASK, e);
+        assert!(gen_session.is_null(), "a refused session leaves the out pointer NULL");
         // An embedder is not a generative model either.
         let mut g: *mut turbo_generation = ptr::null_mut();
         assert_rc!(turbo_generation_create(chain.model, ptr::null(), &mut g, &mut e), TURBO_E_UNSUPPORTED_TASK, e);
-        turbo_session_release(gen_session);
         turbo_model_release(gen_model);
     }
 }

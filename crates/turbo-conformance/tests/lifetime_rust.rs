@@ -10,7 +10,7 @@ use turbo::buffer::BufferDesc;
 use turbo::handles::Context;
 use turbo::provider::{ContextDesc, EmbedOptions, GenerateDesc, Message, ModelDesc, RunOptions, SessionDesc};
 use turbo::types::{DType, Placement};
-use turbo_conformance::{assert_err, permutations, read_f32, BundleKind, Target};
+use turbo_conformance::{assert_err, needs, permutations, read_f32, BundleKind, Target};
 
 const TEXT: &str = "hello world";
 
@@ -23,6 +23,7 @@ fn reference_vector(t: &Target) -> Vec<f32> {
 #[test]
 fn lifetime_releasing_parents_in_every_order_keeps_the_result_readable() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let expected = reference_vector(&t);
     for perm in permutations(4) {
         let (runtime, index) = t.detached();
@@ -46,6 +47,7 @@ fn lifetime_releasing_parents_in_every_order_keeps_the_result_readable() {
 #[test]
 fn lifetime_releasing_parents_in_every_order_keeps_the_session_usable() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let expected = reference_vector(&t);
     for perm in permutations(3) {
         let (runtime, index) = t.detached();
@@ -67,6 +69,7 @@ fn lifetime_releasing_parents_in_every_order_keeps_the_session_usable() {
 #[test]
 fn lifetime_generation_outlives_its_model_and_context() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let (runtime, index) = t.detached();
     let ctx = Context::create(runtime.clone(), index, &ContextDesc::default()).expect("context");
     let model = ctx.load_model(&t.bundle(BundleKind::Generative), &ModelDesc::default()).expect("model");
@@ -104,6 +107,7 @@ fn lifetime_buffer_outlives_its_context() {
 #[test]
 fn lifetime_result_view_keeps_the_lease_after_the_result_is_released() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     session.write_text(&[TEXT], &EmbedOptions::default()).expect("write");
     let result = session.run(&RunOptions::default()).expect("run");
@@ -123,6 +127,7 @@ fn lifetime_result_view_keeps_the_lease_after_the_result_is_released() {
 #[test]
 fn lifetime_releasing_the_last_view_returns_the_lease() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let (_m, session) = t.session(BundleKind::Embedding);
     session.write_text(&[TEXT], &EmbedOptions::default()).expect("write");
     let result = session.run(&RunOptions::default()).expect("run");
@@ -139,6 +144,7 @@ fn lifetime_releasing_the_last_view_returns_the_lease() {
 #[test]
 fn lifetime_result_outlives_the_session_and_stays_readable() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let expected = reference_vector(&t);
     let (model, session) = t.session(BundleKind::Embedding);
     session.write_text(&[TEXT], &EmbedOptions::default()).expect("write");
@@ -153,6 +159,7 @@ fn lifetime_result_outlives_the_session_and_stays_readable() {
 #[test]
 fn lifetime_generation_step_after_finish_is_invalid_state() {
     let t = Target::from_env();
+    needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc { max_new_tokens: 1, ..Default::default() };
     let generation = model.create_generation(&desc).expect("generation");
@@ -171,6 +178,7 @@ fn lifetime_generation_step_after_finish_is_invalid_state() {
 #[test]
 fn lifetime_binding_a_buffer_from_another_context_is_invalid_argument() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let first = t.context();
     let second = t.context();
     let model = t.model_on(&first, BundleKind::Generic);
@@ -186,6 +194,7 @@ fn lifetime_binding_a_buffer_from_another_context_is_invalid_argument() {
 #[test]
 fn lifetime_a_result_view_cannot_be_bound_as_an_input() {
     let t = Target::from_env();
+    needs!(t, Generic);
     let ctx = t.context();
     let model = t.model_on(&ctx, BundleKind::Generic);
     let session = model.create_session(&SessionDesc::default()).expect("session");
@@ -200,6 +209,7 @@ fn lifetime_a_result_view_cannot_be_bound_as_an_input() {
 #[test]
 fn lifetime_two_contexts_on_one_device_are_independent() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let first = t.context();
     let second = t.context();
     assert!(!Arc::ptr_eq(&first, &second));
@@ -221,6 +231,7 @@ fn lifetime_two_contexts_on_one_device_are_independent() {
 #[test]
 fn lifetime_many_sessions_on_one_model_are_independent() {
     let t = Target::from_env();
+    needs!(t, Embedding);
     let model = t.model(BundleKind::Embedding);
     let sessions: Vec<_> = (0..4).map(|_| model.create_session(&SessionDesc::default()).expect("session")).collect();
     for s in &sessions {

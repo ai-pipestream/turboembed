@@ -10,7 +10,7 @@ use std::fs;
 use turbo::abi::*;
 use turbo::bundle::Bundle;
 use turbo_conformance::fixtures::{copy_of, Scratch};
-use turbo_conformance::{BundleKind, Target};
+use turbo_conformance::{needs, BundleKind, Target};
 
 fn embedding_bundle() -> Scratch {
     copy_of(&Target::from_env().bundle(BundleKind::Embedding))
@@ -74,6 +74,7 @@ fn bundle_unparseable_contract_values_never_open() {
 #[test]
 fn bundle_scored_models_must_declare_their_activation() {
     let t = Target::from_env();
+    needs!(t, Reranker, Classifier, TokenClassifier);
     for kind in [BundleKind::Reranker, BundleKind::Classifier, BundleKind::TokenClassifier] {
         let scratch = copy_of(&t.bundle(kind));
         scratch.patch_manifest(|m| {
