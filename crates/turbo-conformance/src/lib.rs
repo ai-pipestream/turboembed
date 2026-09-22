@@ -380,6 +380,37 @@ pub fn read_i32(result: &turbo::handles::ResultHandle, index: u32) -> Vec<i32> {
     buf.chunks_exact(4).map(|c| i32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect()
 }
 
+/// Path of the mock provider's built cdylib (`turbo-provider-mock`), which
+/// the ABI-mismatch case loads through `turbo_runtime_load_provider`.
+///
+/// `cargo test` compiles a dependency's cdylib into `deps/` and does not
+/// always uplift it to the profile directory, where an older `cargo build`
+/// may also have left a stale copy, so `deps/` is consulted first and the
+/// newest candidate wins. `None` means the artifact is not built at all.
+pub fn mock_plugin_path() -> Option<PathBuf> {
+    let profile = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from).unwrap_or_else(|| repo_root().join("target"));
+    let name = format!("{}turbo_provider_mock{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+    let deps = target.join(profile).join("deps");
+    let stem = format!("{}turbo_provider_mock-", std::env::consts::DLL_PREFIX);
+    let mut candidates: Vec<PathBuf> = std::fs::read_dir(&deps)
+        .map(|rd| {
+            rd.filter_map(|e| e.ok().map(|e| e.path()))
+                .filter(|p| {
+                    let f = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                    (f == name || f.starts_with(&stem)) && f.ends_with(std::env::consts::DLL_SUFFIX)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let uplifted = target.join(profile).join(&name);
+    if uplifted.is_file() {
+        candidates.push(uplifted);
+    }
+    candidates.sort_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+    candidates.pop()
+}
+
 /// Live-provider selection for the hardware tests.
 pub mod live;
 

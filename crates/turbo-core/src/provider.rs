@@ -81,9 +81,45 @@ impl Capability {
         }
     }
 
-    /// True unless the status is `Unsupported`.
+    /// A cell whose code path is not qualified to run. `PLANNED` is an
+    /// honest "not here yet": it is reported, it is not offered.
+    pub fn planned(notes: impl Into<String>) -> Self {
+        Self { status: CapStatus::Planned, notes: notes.into(), ..Self::unsupported() }
+    }
+
+    /// True when the cell can be run now, which is `EXPERIMENTAL` or
+    /// `SUPPORTED`. `PLANNED` is not runnable: a planned code path has no
+    /// qualification behind it, so a call that lands on one is refused the
+    /// same way an unsupported one is (`TURBO_E_UNSUPPORTED_TASK` or
+    /// `TURBO_E_UNSUPPORTED_MODALITY`), never attempted.
     pub fn is_offered(&self) -> bool {
-        self.status != CapStatus::Unsupported
+        matches!(self.status, CapStatus::Experimental | CapStatus::Supported)
+    }
+}
+
+/// The error for a `(task, modality)` cell the device does not offer.
+///
+/// A provider that serves the task for some other modality is refusing the
+/// modality, not the task: that is `TURBO_E_UNSUPPORTED_MODALITY` naming the
+/// modality asked for. A provider that serves the task for no modality at
+/// all is refusing the task, which stays `TURBO_E_UNSUPPORTED_TASK`. Both
+/// name the device, so a caller never has to guess which axis was wrong.
+pub fn unoffered_cell(provider: &dyn Provider, ordinal: u32, device: &str, task: Task, modality: Modality) -> Error {
+    let elsewhere: Vec<Modality> = Modality::ALL
+        .iter()
+        .copied()
+        .filter(|m| *m != modality && provider.capability(ordinal, task, *m).is_offered())
+        .collect();
+    if elsewhere.is_empty() {
+        Error::unsupported_task(format!(
+            "device `{device}` (provider `{}`) does not offer {task:?} for any modality",
+            provider.id()
+        ))
+    } else {
+        Error::unsupported_modality(format!(
+            "device `{device}` (provider `{}`) offers {task:?} for {elsewhere:?}, not for {modality:?}",
+            provider.id()
+        ))
     }
 }
 
@@ -339,6 +375,13 @@ pub struct TokenBatch<'a> {
 }
 
 impl<'a> TokenBatch<'a> {
+    /// 1-based `turbo_token_batch` field index of `ids`.
+    pub const FIELD_IDS: u32 = 5;
+    /// 1-based `turbo_token_batch` field index of `mask`.
+    pub const FIELD_MASK: u32 = 6;
+    /// 1-based `turbo_token_batch` field index of `types`.
+    pub const FIELD_TYPES: u32 = 7;
+
     /// Minimum slice length for these dimensions, or an error on overflow.
     pub fn required_len(batch: u32, seq: u32, row_stride: u32) -> Result<usize> {
         if batch == 0 || seq == 0 {
@@ -357,14 +400,17 @@ impl<'a> TokenBatch<'a> {
     pub fn validate(&self, vocab_size: u32) -> Result<()> {
         let need = Self::required_len(self.batch, self.seq, self.row_stride)?;
         if self.ids.len() < need {
-            return Err(Error::invalid_shape(format!("ids has {} elements but {need} are needed", self.ids.len())));
+            return Err(Error::invalid_shape(format!("ids has {} elements but {need} are needed", self.ids.len()))
+                .with_field(Self::FIELD_IDS));
         }
         if self.mask.len() < need {
-            return Err(Error::invalid_shape(format!("mask has {} elements but {need} are needed", self.mask.len())));
+            return Err(Error::invalid_shape(format!("mask has {} elements but {need} are needed", self.mask.len()))
+                .with_field(Self::FIELD_MASK));
         }
         if let Some(t) = self.types {
             if t.len() < need {
-                return Err(Error::invalid_shape(format!("types has {} elements but {need} are needed", t.len())));
+                return Err(Error::invalid_shape(format!("types has {} elements but {need} are needed", t.len()))
+                    .with_field(Self::FIELD_TYPES));
             }
         }
         for row in 0..self.batch as usize {
@@ -375,20 +421,23 @@ impl<'a> TokenBatch<'a> {
                 if id < 0 || (vocab_size != 0 && id as u32 >= vocab_size) {
                     return Err(Error::invalid_argument(format!(
                         "token id {id} at row {row} column {col} is outside 0..{vocab_size}"
-                    )));
+                    ))
+                    .with_field(Self::FIELD_IDS));
                 }
                 if !matches!(self.mask[i], 0 | 1) {
                     return Err(Error::invalid_argument(format!(
                         "mask value {} at row {row} column {col} is not 0 or 1",
                         self.mask[i]
-                    )));
+                    ))
+                    .with_field(Self::FIELD_MASK));
                 }
                 if let Some(t) = self.types {
                     if !matches!(t[i], 0 | 1) {
                         return Err(Error::invalid_argument(format!(
                             "token type {} at row {row} column {col} is not 0 or 1",
                             t[i]
-                        )));
+                        ))
+                        .with_field(Self::FIELD_TYPES));
                     }
                 }
             }

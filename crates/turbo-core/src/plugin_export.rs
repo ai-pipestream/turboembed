@@ -769,6 +769,29 @@ impl StaticVtbl {
     }
 }
 
+/// Environment variable a provider library reads once, in this function
+/// only, to report a provider ABI version other than the one it was built
+/// with.
+///
+/// It exists for one conformance case: a provider whose ABI does not match
+/// the core's must be refused with `TURBO_E_ABI_MISMATCH` naming both
+/// versions, and nothing else in the tree can produce that without shipping
+/// a deliberately broken library. It is read where the vtable is built, so
+/// it can only affect a provider loaded through `turbo_provider_get`, never
+/// a built-in one, and only the first load in a process (the vtable is
+/// cached for the program's lifetime). A value that is not a `uint32_t` is
+/// ignored and the real version is reported.
+pub const ENV_ABI_VERSION_OVERRIDE: &str = "TURBO_PROVIDER_ABI_VERSION_OVERRIDE";
+
+/// The provider ABI version this library reports, which is the one it was
+/// built with unless [`ENV_ABI_VERSION_OVERRIDE`] says otherwise.
+fn reported_abi_version() -> u32 {
+    std::env::var(ENV_ABI_VERSION_OVERRIDE)
+        .ok()
+        .and_then(|v| v.trim().parse::<u32>().ok())
+        .unwrap_or(abi::TURBO_PROVIDER_ABI_VERSION)
+}
+
 /// Build a vtable for a provider. Store the result in a `OnceLock` so it
 /// lives for the program's lifetime; [`export_provider!`] does that.
 pub fn make_vtbl(provider: Arc<dyn Provider>, id: &'static CStr, version: &'static CStr) -> StaticVtbl {
@@ -777,7 +800,7 @@ pub fn make_vtbl(provider: Arc<dyn Provider>, id: &'static CStr, version: &'stat
     let st = unsafe { &*state };
     StaticVtbl(Box::new(abi::turbo_provider_vtbl {
         struct_size: std::mem::size_of::<abi::turbo_provider_vtbl>() as u32,
-        abi_version: abi::TURBO_PROVIDER_ABI_VERSION,
+        abi_version: reported_abi_version(),
         id: st.id.as_ptr(),
         version: st.version.as_ptr(),
         state: state as *mut c_void,

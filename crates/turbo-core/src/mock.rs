@@ -11,6 +11,12 @@
 //! `[SEP]` = 2. Embeddings are the mean of hash-derived unit vectors. Rerank
 //! scores are token overlap. Classifier logits are hash-derived. Generation
 //! emits a deterministic id sequence. The generic RUN model computes `y = 2x`.
+//!
+//! It also carries the suite's two honesty hooks, both of them part of the
+//! mock's own contract rather than a debug switch: the `fault` option
+//! ([`FAULT_OPTION`]) and the planned `CHUNK x TEXT` cell. See
+//! [`FAULT_OPTION`] for the option's grammar and [`MockProvider::capability`]
+//! for the cell.
 
 use std::fmt::Write as _;
 use std::path::Path;
@@ -26,8 +32,8 @@ use crate::bundle::{sha256_bytes, Bundle, MANIFEST_NAME};
 use crate::error::{Error, Result};
 use crate::provider::{
     Capability, Chunk, ClassifyOptions, ContextDesc, DeviceInfo, EmbedOptions, GenerateDesc, Message, ModelDesc,
-    ModelInfo, Output, Provider, ProviderContext, ProviderGeneration, ProviderModel, ProviderResult, ProviderSession,
-    RerankOptions, RunOptions, SessionDesc, SessionStats, Span, TensorInfo, TokenBatch,
+    ModelInfo, Options, Output, Provider, ProviderContext, ProviderGeneration, ProviderModel, ProviderResult,
+    ProviderSession, RerankOptions, RunOptions, SessionDesc, SessionStats, Span, TensorInfo, TokenBatch,
 };
 use crate::types::{
     Aggregation, CapStatus, DType, DeviceKind, FinishReason, HandleKind, Modality, ModelKind, Normalize, Placement,
@@ -69,6 +75,136 @@ pub const MOCK_CAPS: u64 = abi::TURBO_CAP_HOST_PTR_IMPORT
     | abi::TURBO_CAP_OPT_GEN_SAMPLING
     | abi::TURBO_CAP_OPT_GEN_MIN_TOKENS
     | abi::TURBO_CAP_OPT_GEN_ECHO;
+
+/// The one provider option the mock accepts, on a context, a model, or a
+/// session descriptor.
+///
+/// Its value is `<stage>=<status>`, and it makes that stage fail with that
+/// status. It exists so every documented status code the contract can produce
+/// has a conformance case that reaches it without a real failure: a device
+/// that vanishes, a runtime that errors, a provider that panics. Nothing
+/// outside the conformance suite sets it, and no other provider reads it.
+///
+/// | descriptor | value | what fails, and how |
+/// |---|---|---|
+/// | [`ContextDesc`] | `context=device_unavailable` | context creation, `TURBO_E_DEVICE_UNAVAILABLE` |
+/// | [`ModelDesc`] | `load=unsupported_dtype` | model load, `TURBO_E_UNSUPPORTED_DTYPE` |
+/// | [`SessionDesc`] | `run=overloaded` | every run, `TURBO_E_OVERLOADED` |
+/// | [`SessionDesc`] | `run=runtime` | every run, `TURBO_E_RUNTIME` |
+/// | [`SessionDesc`] | `run=internal` | every run, `TURBO_E_INTERNAL` |
+/// | [`SessionDesc`] | `run=panic` | every run panics inside the provider call |
+///
+/// A value that is not one of these, or one whose stage does not belong to
+/// the descriptor it was set on, is `TURBO_E_INVALID_ARGUMENT` naming the
+/// option's 1-based index, exactly as an unknown option key is.
+pub const FAULT_OPTION: &str = "fault";
+
+/// The stage a [`FAULT_OPTION`] value may name, per descriptor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FaultStage {
+    Context,
+    Load,
+    Run,
+}
+
+impl FaultStage {
+    fn name(self) -> &'static str {
+        match self {
+            FaultStage::Context => "context",
+            FaultStage::Load => "load",
+            FaultStage::Run => "run",
+        }
+    }
+
+    /// The statuses this stage may be told to fail with.
+    fn codes(self) -> &'static [&'static str] {
+        match self {
+            FaultStage::Context => &["device_unavailable"],
+            FaultStage::Load => &["unsupported_dtype"],
+            FaultStage::Run => &["overloaded", "runtime", "internal", "panic"],
+        }
+    }
+}
+
+/// The parsed value of a [`FAULT_OPTION`] for one stage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Fault {
+    DeviceUnavailable,
+    UnsupportedDtype,
+    Overloaded,
+    Runtime,
+    Internal,
+    Panic,
+}
+
+impl Fault {
+    fn of(code: &str) -> Option<Self> {
+        Some(match code {
+            "device_unavailable" => Fault::DeviceUnavailable,
+            "unsupported_dtype" => Fault::UnsupportedDtype,
+            "overloaded" => Fault::Overloaded,
+            "runtime" => Fault::Runtime,
+            "internal" => Fault::Internal,
+            "panic" => Fault::Panic,
+            _ => return None,
+        })
+    }
+
+    /// Raise it: an error, or a panic for `run=panic`.
+    fn raise(self, what: &str) -> Error {
+        match self {
+            Fault::DeviceUnavailable => {
+                Error::device_unavailable(format!("mock {what}: the injected fault `device_unavailable`"))
+            }
+            Fault::UnsupportedDtype => {
+                Error::unsupported_dtype(format!("mock {what}: the injected fault `unsupported_dtype`"))
+            }
+            Fault::Overloaded => Error::overloaded(format!("mock {what}: the injected fault `overloaded`")),
+            Fault::Runtime => Error::runtime(format!("mock {what}: the injected fault `runtime`")),
+            Fault::Internal => Error::internal(format!("mock {what}: the injected fault `internal`")),
+            Fault::Panic => panic!("mock {what}: the injected fault `panic`"),
+        }
+    }
+}
+
+/// The [`FAULT_OPTION`] value set on one descriptor, if any.
+///
+/// `Ok(None)` means the option is absent. An unparseable value, or one for
+/// another descriptor's stage, is an argument error naming the option's
+/// 1-based index.
+fn fault_of(options: &Options, stage: FaultStage, what: &str) -> Result<Option<Fault>> {
+    for (i, (k, v)) in options.0.iter().enumerate() {
+        if k != FAULT_OPTION {
+            continue;
+        }
+        let field = i as u32 + 1;
+        let (named, code) = v.split_once('=').ok_or_else(|| {
+            Error::invalid_argument(format!(
+                "mock {what} option `{FAULT_OPTION}` is `{v}`; the value is `<stage>=<status>`, here `{}=<{}>`",
+                stage.name(),
+                stage.codes().join("|")
+            ))
+            .with_field(field)
+        })?;
+        if named != stage.name() {
+            return Err(Error::invalid_argument(format!(
+                "mock {what} option `{FAULT_OPTION}` names stage `{named}`, which is not this descriptor's stage `{}`",
+                stage.name()
+            ))
+            .with_field(field));
+        }
+        let fault = Fault::of(code).filter(|_| stage.codes().contains(&code)).ok_or_else(|| {
+            Error::invalid_argument(format!(
+                "mock {what} option `{FAULT_OPTION}` names status `{code}`; stage `{}` accepts {}",
+                stage.name(),
+                stage.codes().join(", ")
+            ))
+            .with_field(field)
+        })?;
+        return Ok(Some(fault));
+    }
+    Ok(None)
+}
 
 /// Contents of the `mock.json` artifact.
 #[derive(Clone, Debug, Deserialize)]
@@ -142,7 +278,15 @@ impl Provider for MockProvider {
                 deterministic: true,
                 notes: "mock: deterministic hash-derived outputs for contract testing; never a real model".into(),
             },
-            Task::Chunk => Capability::unsupported(),
+            // The one planned cell in the tree. Chunking is a host utility
+            // (`turbo_chunk_plan_*`, `crates/turbo-core/src/chunker.rs`), so
+            // the code path exists but nothing runs it on a device and it is
+            // not qualified: PLANNED says exactly that, and the core refuses
+            // a call that lands on it the same way it refuses an unsupported
+            // one. It is what the suite gates the PLANNED rule on.
+            Task::Chunk => Capability::planned(
+                "mock: chunking is a host utility, not a device path; planned so the PLANNED gate has a cell",
+            ),
         }
     }
 
@@ -165,7 +309,10 @@ impl Provider for MockProvider {
         if ordinal > 1 {
             return Err(Error::device_not_found(format!("mock has no device ordinal {ordinal}")));
         }
-        desc.options.reject_unknown(&[], "mock context")?;
+        desc.options.reject_unknown(&[FAULT_OPTION], "mock context")?;
+        if let Some(f) = fault_of(&desc.options, FaultStage::Context, "context")? {
+            return Err(f.raise("context create"));
+        }
         Ok(Arc::new(MockContext { ordinal }))
     }
 }
@@ -206,7 +353,10 @@ impl ProviderContext for MockContext {
     }
 
     fn load_model(&self, bundle: Arc<Bundle>, desc: &ModelDesc) -> Result<Arc<dyn ProviderModel>> {
-        desc.options.reject_unknown(&[], "mock model")?;
+        desc.options.reject_unknown(&[FAULT_OPTION], "mock model")?;
+        if let Some(f) = fault_of(&desc.options, FaultStage::Load, "model")? {
+            return Err(f.raise("model load"));
+        }
         let path = bundle.artifact_path(MOCK_ARTIFACT)?;
         let text = std::fs::read_to_string(&path)?;
         let artifact: MockArtifact = serde_json::from_str(&text)
@@ -353,7 +503,8 @@ impl ProviderModel for MockModel {
     }
 
     fn create_session(&self, desc: &SessionDesc) -> Result<Box<dyn ProviderSession>> {
-        desc.options.reject_unknown(&[], "mock session")?;
+        desc.options.reject_unknown(&[FAULT_OPTION], "mock session")?;
+        let run_fault = fault_of(&desc.options, FaultStage::Run, "session")?;
         let n_labels = self.info.labels.len().max(1) as u64;
         let width = match self.info.kind {
             ModelKind::Embedding => self.info.dim as u64,
@@ -366,6 +517,7 @@ impl ProviderModel for MockModel {
         let sorted = HostBuffer::packed(DType::I32, &[desc.max_batch as u64])?;
         let cap = desc.max_batch as usize * desc.max_seq as usize;
         Ok(Box::new(MockSession {
+            run_fault,
             vocab: self.vocab,
             salt: self.salt,
             activation: self.activation.unwrap_or(Activation::None),
@@ -483,6 +635,8 @@ struct MockSession {
     y: Option<Arc<HostBuffer>>,
     runs: u64,
     allocs: AtomicU64,
+    /// The `fault` option's `run=...` value, raised by every run.
+    run_fault: Option<Fault>,
     names: Names,
     no_prefix: Arc<str>,
     prefix_query: Arc<str>,
@@ -954,6 +1108,12 @@ impl ProviderSession for MockSession {
 
     fn run(&mut self, opts: &RunOptions) -> Result<ProviderResult> {
         opts.params.reject_unknown(&[], "mock run")?;
+        // The session's injected fault, if it has one. It is raised before
+        // any state moves, so a refused run leaves the session exactly as it
+        // was; `run=panic` is the deliberate exception, and unwinds.
+        if let Some(f) = self.run_fault {
+            return Err(f.raise("session run"));
+        }
         let result = match self.info.kind {
             ModelKind::Embedding => self.run_embed(),
             ModelKind::Reranker => self.run_rerank(),

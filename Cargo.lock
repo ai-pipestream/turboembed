@@ -2172,6 +2172,7 @@ dependencies = [
  "turbo",
  "turbo-abi",
  "turbo-capi",
+ "turbo-provider-mock",
 ]
 
 [[package]]

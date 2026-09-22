@@ -139,7 +139,10 @@ pub unsafe fn kvs(ptr: *const abi::turbo_kv, n: u32, what: &str) -> Result<Optio
         let k = unsafe { text(&kv.key, &format!("{what}[{i}].key")) }?;
         let v = unsafe { text(&kv.value, &format!("{what}[{i}].value")) }?;
         if k.is_empty() {
-            return Err(Error::invalid_argument(format!("{what}[{i}].key is empty")));
+            // The same 1-based index `Options::reject_unknown` reports, so a
+            // caller gets the same field whether the provider is built in or
+            // loaded through the plugin ABI.
+            return Err(Error::invalid_argument(format!("{what}[{i}].key is empty")).with_field(i as u32 + 1));
         }
         out.push((k.to_string(), v.to_string()));
     }

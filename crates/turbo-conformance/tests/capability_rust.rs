@@ -266,8 +266,11 @@ fn capability_top_n_is_honored_or_rejected() {
         assert_err!(session.write_pairs("q", &docs, &too_many), TURBO_E_INVALID_ARGUMENT, field = 4);
     } else {
         assert_err!(session.write_pairs("q", &docs, &opts), TURBO_E_UNSUPPORTED_OPTION, field = 4);
+        // `return_sorted` shares the bit with `top_n` but is its own field
+        // (5, docs/c-api.md); asserted for real, on a device whose bit is
+        // clear, in `honesty_return_sorted_names_its_own_field`.
         let sorted_only = RerankOptions { return_sorted: true, ..Default::default() };
-        assert_err!(session.write_pairs("q", &docs, &sorted_only), TURBO_E_UNSUPPORTED_OPTION, field = 4);
+        assert_err!(session.write_pairs("q", &docs, &sorted_only), TURBO_E_UNSUPPORTED_OPTION, field = 5);
     }
 }
 
@@ -412,7 +415,12 @@ fn capability_generation_options_are_honored_or_rejected() {
         assert_err!(model.create_generation(&grammar), TURBO_E_UNSUPPORTED_OPTION, field = 21);
     }
 
-    // The gated fields that have no honor test beyond being accepted.
+    // The gated fields whose refusal is asserted here and whose honoring is
+    // asserted in `honesty_rust.rs` (`honesty_logit_bias_decides_the_first_token`,
+    // `honesty_penalties_change_a_repeating_continuation`,
+    // `honesty_tools_are_rendered_into_the_prompt`). `n_sequences` is the one
+    // with neither: no provider in this tree offers TURBO_CAP_OPT_GEN_N, so
+    // its advertised branch has never run and has nothing to assert yet.
     let cases: [(u64, u32, GenerateDesc); 8] = [
         (TURBO_CAP_OPT_GEN_N, 4, GenerateDesc { n_sequences: 2, ..Default::default() }),
         (TURBO_CAP_OPT_GEN_PENALTIES, 9, GenerateDesc { repeat_penalty: 1.5, ..Default::default() }),
@@ -464,7 +472,7 @@ fn collect(t: &Target, desc: &GenerateDesc) -> Vec<i32> {
 }
 
 #[test]
-fn capability_unsupported_modality_cell_is_unsupported() {
+fn capability_a_modality_the_device_does_not_offer_is_unsupported_modality() {
     let t = Target::from_env();
     needs!(t, Embedding);
     for modality in [Modality::Audio, Modality::Image, Modality::Video] {
@@ -485,7 +493,22 @@ fn capability_unsupported_modality_cell_is_unsupported() {
         };
         scratch.patch_manifest(|m| m["modality"] = serde_json::Value::String(name.into()));
         let ctx = t.context();
-        assert_err!(ctx.load_model(scratch.path(), &turbo::provider::ModelDesc::default()), TURBO_E_UNSUPPORTED_TASK);
+        // The device serves this task for Text, so it is the modality that
+        // is refused, not the task: the two have their own codes and the
+        // caller must be able to tell which axis was wrong.
+        let e = assert_err!(
+            ctx.load_model(scratch.path(), &turbo::provider::ModelDesc::default()),
+            TURBO_E_UNSUPPORTED_MODALITY
+        );
+        assert!(e.message().contains(&format!("{modality:?}")), "the refusal must name the modality: {}", e.message());
+        assert!(e.message().contains("Text"), "and what it does offer: {}", e.message());
+        assert_eq!(e.field(), 0, "a modality is not a field of a descriptor: {}", e.message());
+        // `turbo_can_run` answers the same question with the same code.
+        let bundle = turbo::bundle::Bundle::open(scratch.path()).expect("the manifest is valid");
+        assert_err!(
+            t.runtime.can_run(t.device_index, scratch.path(), bundle.task(), bundle.modality()),
+            TURBO_E_UNSUPPORTED_MODALITY
+        );
     }
 }
 
@@ -595,12 +618,11 @@ fn capability_session_options_are_rejected_when_unknown() {
         let e = assert_err!(model.create_session(&desc), TURBO_E_INVALID_ARGUMENT);
         assert_eq!(e.field(), 1, "the refusal of option `{key}` must name the option's 1-based index: {}", e.message());
     }
-    // An empty key is a malformed options array rather than an unknown knob.
-    // Only the code is asserted here: a built-in provider reports it through
-    // `Options::reject_unknown` with the option's 1-based index (field 1),
-    // while a plugin provider's argument conversion
-    // (`crates/turbo-core/src/abi_convert.rs`, `options`) reports the same
-    // entry with no field at all.
+    // An empty key is a malformed options array rather than an unknown knob,
+    // and it names the same 1-based index either way: through a built-in
+    // provider (`Options::reject_unknown`) and through the plugin ABI's
+    // argument conversion (`crates/turbo-core/src/abi_convert.rs`).
     let empty = SessionDesc { options: turbo::handles::options_from_pairs([("", "1")]), ..Default::default() };
-    assert_err!(model.create_session(&empty), TURBO_E_INVALID_ARGUMENT);
+    let e = assert_err!(model.create_session(&empty), TURBO_E_INVALID_ARGUMENT);
+    assert_eq!(e.field(), 1, "an empty option key must name the option's index: {}", e.message());
 }

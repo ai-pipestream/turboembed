@@ -8,8 +8,9 @@
 //! bit.
 
 use turbo::abi::*;
-use turbo::provider::{EmbedOptions, GenerateDesc, Message, RerankOptions, RunOptions, SessionDesc};
-use turbo::types::{PromptRole, Truncate};
+use turbo::handles::Context;
+use turbo::provider::{ContextDesc, EmbedOptions, GenerateDesc, Message, RerankOptions, RunOptions, SessionDesc};
+use turbo::types::{Modality, PromptRole, Task, Truncate};
 use turbo_conformance::fixtures::copy_of;
 use turbo_conformance::{assert_err, needs, read_rows, BundleKind, Target};
 
@@ -101,21 +102,54 @@ fn honesty_left_truncation_keeps_the_prompt_prefix() {
 
 #[test]
 fn honesty_return_sorted_names_its_own_field() {
+    // `return_sorted` shares `TURBO_CAP_OPT_TOP_N` with `top_n` but has its
+    // own field index (5, docs/c-api.md and `RerankOptions::FIELD_RETURN_SORTED`);
+    // it was once reported as field 4, and the assertion that pinned it was
+    // in a branch nothing reaches, because every device in this tree that
+    // offers RERANK also advertises the bit. So the case looks for any
+    // enumerated device that offers RERANK with the bit clear, whatever
+    // provider it belongs to, and says so when there is none.
     let t = Target::from_env();
-    needs!(t, Reranker);
-    if t.has(TURBO_CAP_OPT_TOP_N) {
-        // With the bit set the option is honored instead, which
-        // `capability_top_n_is_honored_or_rejected` asserts (it also asserts
-        // the field-5 refusal of a `return_sorted` value other than 0 or 1).
-        println!("not applicable: the device advertises TURBO_CAP_OPT_TOP_N, so return_sorted is honored");
+    let candidate = (0..t.runtime.device_count()).find_map(|i| {
+        let info = t.runtime.device(i).ok()?.info.clone();
+        let offers = t.runtime.capability(i, Task::Rerank, Modality::Text).ok()?.is_offered();
+        (offers && info.caps & TURBO_CAP_OPT_TOP_N == 0).then_some((i, info))
+    });
+    let Some((index, info)) = candidate else {
+        // The refusal is not reachable on this machine. The `top_n` half of
+        // the same bit is asserted for every device under test in
+        // `capability_top_n_is_honored_or_rejected`, which also pins field 5
+        // for `return_sorted` in its own refusal branch.
+        println!(
+            "not applicable: no enumerated device offers RERANK with TURBO_CAP_OPT_TOP_N clear, so the refusal cannot be reached"
+        );
         return;
-    }
-    let (_, session) = t.session(BundleKind::Reranker);
+    };
+    println!("return_sorted refusal on {} ordinal {} ({})", info.provider_id, info.ordinal, info.name);
+    let ctx = Context::create(t.runtime.clone(), index, &ContextDesc::default()).expect("context");
+    let bundle = if info.provider_id == turbo::mock::MOCK_PROVIDER_ID {
+        turbo_conformance::default_bundle_root().join(BundleKind::Reranker.dir_name())
+    } else {
+        t.bundle(BundleKind::Reranker)
+    };
+    let model = ctx.load_model(&bundle, &Default::default()).expect("a reranker bundle for that device");
+    let session = model.create_session(&SessionDesc::default()).expect("session");
+    // Each of the two options the bit gates names its own field, not the
+    // other's.
     let e = assert_err!(
         session.write_pairs("q", &["d"], &RerankOptions { return_sorted: true, ..Default::default() }),
         TURBO_E_UNSUPPORTED_OPTION
     );
-    assert_eq!(e.field(), RerankOptions::FIELD_RETURN_SORTED);
+    assert_eq!(e.field(), RerankOptions::FIELD_RETURN_SORTED, "return_sorted is field 5: {}", e.message());
+    let e = assert_err!(
+        session.write_pairs("q", &["d"], &RerankOptions { top_n: 1, ..Default::default() }),
+        TURBO_E_UNSUPPORTED_OPTION
+    );
+    assert_eq!(e.field(), RerankOptions::FIELD_TOP_N, "top_n is field 4: {}", e.message());
+    // With neither option set the same session reranks, so the refusals are
+    // the options being gated and not the device refusing the task.
+    session.write_pairs("q", &["d"], &RerankOptions::default()).expect("a rerank with no gated option");
+    session.run(&turbo::provider::RunOptions::default()).expect("run");
 }
 
 #[test]
@@ -185,4 +219,141 @@ fn honesty_ungated_generation_options_are_refused_without_their_bit() {
             assert_eq!(e.field(), field);
         }
     }
+}
+
+/// The tokens a generation produces for `prompt` under `desc`, greedily
+/// unless the descriptor says otherwise.
+fn generate(
+    model: &std::sync::Arc<turbo::handles::Model>,
+    prompt: &str,
+    desc: &GenerateDesc,
+) -> Result<Vec<i32>, turbo::Error> {
+    let g = model.create_generation(desc)?;
+    g.prompt(&[Message { role: "user", content: prompt }])?;
+    let mut tokens = Vec::new();
+    loop {
+        let chunk = g.step()?;
+        tokens.extend_from_slice(&chunk.tokens);
+        if chunk.done {
+            return Ok(tokens);
+        }
+        if tokens.len() > 256 {
+            panic!("generation did not finish");
+        }
+    }
+}
+
+const REPEAT_PROMPT: &str = "Repeat this exactly, nothing else: cat cat cat cat cat cat cat cat";
+
+#[test]
+fn honesty_logit_bias_decides_the_first_token() {
+    // A bias is not advice: `logit_bias` adds to a token's logit, so at
+    // temperature 0 a large enough positive bias makes that token the one
+    // that is generated, and a large enough negative bias makes the token
+    // that would have been generated impossible. Anything less than that is
+    // an option that was accepted and then ignored, which PLAN.md principle
+    // 2 does not allow.
+    let t = Target::from_env();
+    needs!(t, Generative);
+    if !t.has(TURBO_CAP_OPT_GEN_LOGIT_BIAS) {
+        // The refusal without the bit (field 18) is asserted in
+        // `capability_generation_options_are_honored_or_rejected`.
+        println!("not applicable: the device does not advertise TURBO_CAP_OPT_GEN_LOGIT_BIAS");
+        return;
+    }
+    let model = t.model(BundleKind::Generative);
+    let greedy = GenerateDesc { max_new_tokens: 4, ..Default::default() };
+    let baseline = generate(&model, REPEAT_PROMPT, &greedy).expect("greedy");
+    let Some(&first) = baseline.first() else {
+        println!("not applicable: the model generates nothing for this prompt, so there is no first token to move");
+        return;
+    };
+    // A token the model itself produced later in the same continuation: a
+    // real content token of this vocabulary, not a guess at an id.
+    let Some(&other) = baseline.iter().find(|id| **id != first) else {
+        println!("not applicable: the greedy continuation {baseline:?} is one repeated token, so it offers no second token to bias toward");
+        return;
+    };
+
+    let up = GenerateDesc { logit_bias: vec![(other, 50.0)], ..greedy.clone() };
+    let biased = generate(&model, REPEAT_PROMPT, &up).expect("logit_bias +50");
+    assert_eq!(
+        biased.first(),
+        Some(&other),
+        "a +50 bias on token {other} must make it the first token, but the stream began {biased:?}"
+    );
+
+    let down = GenerateDesc { logit_bias: vec![(first, -50.0)], ..greedy.clone() };
+    let pushed = generate(&model, REPEAT_PROMPT, &down).expect("logit_bias -50");
+    assert_ne!(
+        pushed.first(),
+        Some(&first),
+        "a -50 bias on token {first} must make it impossible, but it was generated anyway"
+    );
+    // The option is per generation, not sticky: the next one is greedy again.
+    assert_eq!(generate(&model, REPEAT_PROMPT, &greedy).expect("greedy again"), baseline);
+}
+
+#[test]
+fn honesty_penalties_change_a_repeating_continuation() {
+    // The three penalty fields share one capability bit and one promise: a
+    // continuation that repeats a token is not the continuation the caller
+    // gets once a penalty is set. The prompt is chosen so the unpenalized
+    // greedy answer repeats; if it does not on the model at hand there is
+    // nothing for a penalty to act on and the case says so.
+    let t = Target::from_env();
+    needs!(t, Generative);
+    if !t.has(TURBO_CAP_OPT_GEN_PENALTIES) {
+        // The refusals (fields 9, 10, 11) are asserted in
+        // `capability_generation_options_are_honored_or_rejected`.
+        println!("not applicable: the device does not advertise TURBO_CAP_OPT_GEN_PENALTIES");
+        return;
+    }
+    let model = t.model(BundleKind::Generative);
+    let greedy = GenerateDesc { max_new_tokens: 8, ..Default::default() };
+    let baseline = generate(&model, REPEAT_PROMPT, &greedy).expect("greedy");
+    let repeats = baseline.iter().enumerate().any(|(i, a)| baseline[..i].contains(a));
+    if !repeats {
+        println!(
+            "not applicable: the greedy continuation {baseline:?} of {REPEAT_PROMPT:?} repeats no token, so a penalty has nothing to change"
+        );
+        return;
+    }
+    for (name, desc) in [
+        ("repeat_penalty", GenerateDesc { repeat_penalty: 2.0, ..greedy.clone() }),
+        ("presence_penalty", GenerateDesc { presence_penalty: 2.0, ..greedy.clone() }),
+        ("frequency_penalty", GenerateDesc { frequency_penalty: 2.0, ..greedy.clone() }),
+    ] {
+        let penalized = generate(&model, REPEAT_PROMPT, &desc).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_ne!(penalized, baseline, "{name} 2.0 left the repeating continuation {baseline:?} exactly as it was");
+    }
+}
+
+#[test]
+fn honesty_tools_are_rendered_into_the_prompt() {
+    // A tool definition the provider accepts has to reach the model, and the
+    // only place it can reach is the prompt: the same messages must tokenize
+    // to more prompt tokens with a tool than without one.
+    let t = Target::from_env();
+    needs!(t, Generative);
+    if !t.has(TURBO_CAP_OPT_GEN_TOOLS) {
+        // The refusal without the bit (field 24) is asserted in
+        // `capability_generation_options_are_honored_or_rejected`.
+        println!("not applicable: the device does not advertise TURBO_CAP_OPT_GEN_TOOLS");
+        return;
+    }
+    let model = t.model(BundleKind::Generative);
+    let prompt_tokens = |desc: &GenerateDesc| -> u32 {
+        let g = model.create_generation(desc).expect("generation");
+        g.prompt(&PROMPT).expect("prompt");
+        let n = g.step().expect("step").prompt_tokens;
+        n
+    };
+    let bare = GenerateDesc { max_new_tokens: 1, ..Default::default() };
+    let tool = "{\"name\":\"get_weather\",\"description\":\"weather for a city\",\"parameters\":{}}";
+    let with_tool = GenerateDesc { tools: vec![tool.into()], ..bare.clone() };
+    let without = prompt_tokens(&bare);
+    let with = prompt_tokens(&with_tool);
+    assert!(without > 0, "a prompt is always some tokens");
+    assert!(with > without, "the tool definition never reached the prompt: {with} tokens with it, {without} without");
 }

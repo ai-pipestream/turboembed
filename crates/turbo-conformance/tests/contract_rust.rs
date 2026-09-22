@@ -160,12 +160,15 @@ fn contract_token_batch_short_arrays_are_invalid_shape() {
     let mask = [1, 1, 1, 1];
     let full = TokenBatch { batch: 2, seq: 2, row_stride: 2, ids: &ids, mask: &mask, types: None };
     full.validate(1000).expect("a well formed batch");
-    assert_eq!(TokenBatch { ids: &ids[..3], ..full }.validate(1000).unwrap_err().code(), TURBO_E_INVALID_SHAPE);
-    assert_eq!(TokenBatch { mask: &mask[..3], ..full }.validate(1000).unwrap_err().code(), TURBO_E_INVALID_SHAPE);
-    assert_eq!(
-        TokenBatch { types: Some(&mask[..3]), ..full }.validate(1000).unwrap_err().code(),
-        TURBO_E_INVALID_SHAPE
-    );
+    // A short array names itself, the same way a bad value in it does.
+    for (field, e) in [
+        (TokenBatch::FIELD_IDS, TokenBatch { ids: &ids[..3], ..full }.validate(1000).unwrap_err()),
+        (TokenBatch::FIELD_MASK, TokenBatch { mask: &mask[..3], ..full }.validate(1000).unwrap_err()),
+        (TokenBatch::FIELD_TYPES, TokenBatch { types: Some(&mask[..3]), ..full }.validate(1000).unwrap_err()),
+    ] {
+        assert_eq!(e.code(), TURBO_E_INVALID_SHAPE, "{e}");
+        assert_eq!(e.field(), field, "a short array must name its field: {e}");
+    }
 }
 
 #[test]
@@ -198,14 +201,33 @@ fn contract_token_batch_bad_ids_and_mask_are_invalid_argument() {
     let good = TokenBatch { batch: 1, seq: 2, row_stride: 2, ids: &ids, mask: &mask, types: None };
     session.write_tokens(&good).expect("a valid token batch");
 
+    // Each refusal names the array the bad value is in, by its 1-based
+    // `turbo_token_batch` field index, so a caller does not have to re-scan
+    // three arrays to find it.
     let negative = [1, -3];
-    assert_err!(session.write_tokens(&TokenBatch { ids: &negative, ..good }), TURBO_E_INVALID_ARGUMENT);
+    assert_err!(
+        session.write_tokens(&TokenBatch { ids: &negative, ..good }),
+        TURBO_E_INVALID_ARGUMENT,
+        field = TokenBatch::FIELD_IDS
+    );
     let above = [1, vocab as i32];
-    assert_err!(session.write_tokens(&TokenBatch { ids: &above, ..good }), TURBO_E_INVALID_ARGUMENT);
+    assert_err!(
+        session.write_tokens(&TokenBatch { ids: &above, ..good }),
+        TURBO_E_INVALID_ARGUMENT,
+        field = TokenBatch::FIELD_IDS
+    );
     let bad_mask = [1, 2];
-    assert_err!(session.write_tokens(&TokenBatch { mask: &bad_mask, ..good }), TURBO_E_INVALID_ARGUMENT);
+    assert_err!(
+        session.write_tokens(&TokenBatch { mask: &bad_mask, ..good }),
+        TURBO_E_INVALID_ARGUMENT,
+        field = TokenBatch::FIELD_MASK
+    );
     let bad_types = [0, 5];
-    assert_err!(session.write_tokens(&TokenBatch { types: Some(&bad_types), ..good }), TURBO_E_INVALID_ARGUMENT);
+    assert_err!(
+        session.write_tokens(&TokenBatch { types: Some(&bad_types), ..good }),
+        TURBO_E_INVALID_ARGUMENT,
+        field = TokenBatch::FIELD_TYPES
+    );
 }
 
 #[test]

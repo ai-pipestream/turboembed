@@ -207,11 +207,15 @@ Capabilities are per (device, task, modality). `Provider::capability`
 returns a `Capability { status, dtype, reference_dtype, cosine_floor,
 max_abs_error, deterministic, notes }`; `status` is one of `UNSUPPORTED`,
 `PLANNED`, `EXPERIMENTAL`, `SUPPORTED` (`TURBO_CAP_*` constants, now defined
-in `turbo_provider.h`). The mock provider reports `SUPPORTED` with
-`cosine_floor = 1.0` and `max_abs_error = 0.0` for every task on `TEXT`
-modality on its two devices (ordinal 0 = CPU, ordinal 1 = Accel), and
-`UNSUPPORTED` for every other modality or ordinal
-(`MockProvider::capability`). This is honest for the mock because its
+in `turbo_provider.h`). A cell is runnable when its status is `EXPERIMENTAL` or
+`SUPPORTED`; `PLANNED` is reported but refused, the same as `UNSUPPORTED`,
+because a planned code path carries no receipt (`Capability::is_offered`,
+and the bindings' `offered` mirrors of it). The mock provider reports
+`SUPPORTED` with `cosine_floor = 1.0` and `max_abs_error = 0.0` for every
+task on `TEXT` modality on its two devices (ordinal 0 = CPU, ordinal 1 =
+Accel) except `CHUNK`, which is `PLANNED` because chunking is a host utility
+(`turbo_chunk_plan_*`) with no device path, and `UNSUPPORTED` for every
+other modality or ordinal (`MockProvider::capability`). This is honest for the mock because its
 outputs are a pure, deterministic function of the input, not because
 `SUPPORTED` is a default: the mock also applies the bundle's declared
 `contract.activation` to rerank and classify scores (softmax, sigmoid, or

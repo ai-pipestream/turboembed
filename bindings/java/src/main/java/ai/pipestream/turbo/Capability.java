@@ -30,8 +30,12 @@ public record Capability(
                 Native.fixed(turbo_capability.notes(s)));
     }
 
-    /** True unless the status is {@link CapStatus#UNSUPPORTED}. */
+    /**
+     * True when the cell can be run now: {@link CapStatus#EXPERIMENTAL} or
+     * {@link CapStatus#SUPPORTED}. {@link CapStatus#PLANNED} is reported but
+     * not runnable, the same rule the core applies.
+     */
     public boolean offered() {
-        return status != CapStatus.UNSUPPORTED;
+        return status == CapStatus.EXPERIMENTAL || status == CapStatus.SUPPORTED;
     }
 }

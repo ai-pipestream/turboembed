@@ -242,7 +242,33 @@ parsing `message` (`crates/turbo-abi/src/lib.rs`):
 `turbo_error.field` is the 1-based index of the offending field in the
 descriptor for `TURBO_E_UNSUPPORTED_OPTION` and most `TURBO_E_INVALID_ARGUMENT`
 cases, otherwise 0. `turbo_status_name(code)` returns the symbolic name (or
-`"TURBO_E_UNKNOWN"`) as a static string.
+`"TURBO_E_UNKNOWN"`) as a static string. Three cases the index covers beyond
+the option tables below: a bad value or a short array in a
+`turbo_token_batch` names the array it is in (`ids` 5, `mask` 6, `types` 7),
+and a malformed entry in any `turbo_kv` options array (an unknown key, or an
+empty one) names that entry's 1-based position, whether the provider is
+built in or loaded through the plugin ABI.
+
+Which of `TURBO_E_UNSUPPORTED_TASK` and `TURBO_E_UNSUPPORTED_MODALITY` a
+call gets is decided by the capability matrix, not by the caller's wording:
+`turbo_can_run` and `turbo_model_load` report `UNSUPPORTED_MODALITY`, naming
+the modality, when the device offers that task for some other modality, and
+`UNSUPPORTED_TASK` when it offers the task for no modality at all
+(`unoffered_cell` in `crates/turbo-core/src/provider.rs`). A `PLANNED`
+capability cell is refused the same way an `UNSUPPORTED` one is: it is
+reported to a caller that asks and never run, since a planned code path has
+no receipt behind it (`Capability::is_offered`).
+
+The status codes that only a failure produces (`TURBO_E_DEVICE_UNAVAILABLE`,
+`TURBO_E_UNSUPPORTED_DTYPE`, `TURBO_E_OVERLOADED`, `TURBO_E_RUNTIME`,
+`TURBO_E_INTERNAL`, and a provider panic turning into `TURBO_E_PANIC`) are
+reached in the conformance suite through the mock provider's `fault` option
+(`FAULT_OPTION` in `crates/turbo-core/src/mock.rs`), one `<stage>=<status>`
+value per descriptor; no other provider reads it, and on one that does not
+it is an unknown option like any other. `TURBO_E_ABI_MISMATCH` needs a
+provider library reporting another ABI version, which
+`TURBO_PROVIDER_ABI_VERSION_OVERRIDE` produces in the plugin export path
+(`crates/turbo-core/src/plugin_export.rs`) for that one case.
 
 ## Option to capability-bit mapping
 

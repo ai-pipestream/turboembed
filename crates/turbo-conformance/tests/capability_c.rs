@@ -359,13 +359,21 @@ fn capability_matrix_reports_every_cell_and_rejects_unknown_axes() {
             );
             assert!(cell.status <= TURBO_CAP_SUPPORTED, "status {} is not a known constant", cell.status);
             assert!(c::is_nul_terminated(&cell.notes), "notes must be NUL-terminated");
+            // The three states say different things, and each is checked
+            // for what it claims (the Rust layer asserts the same in
+            // `capability_cells_report_a_dtype_and_determinism`).
             if cell.status == TURBO_CAP_UNSUPPORTED {
                 assert_eq!(cell.dtype, 0, "an unsupported cell reports no dtype");
                 assert_eq!(cell.reference_dtype, 0, "an unsupported cell reports no reference dtype");
                 assert_eq!(cell.deterministic, 0, "an unsupported cell claims nothing about determinism");
+            } else if cell.status == TURBO_CAP_PLANNED {
+                // Planned is reported, not runnable: it says what is planned
+                // and claims no numbers for work it does not do.
+                assert_eq!(cell.dtype, 0, "a planned cell runs nothing, so it names no compute dtype");
+                assert_eq!(cell.deterministic, 0, "a planned cell claims nothing about determinism");
+                assert_eq!(cell.cosine_floor, 0.0, "a planned cell has no measurement behind it");
+                assert!(!c::fixed(&cell.notes).is_empty(), "a planned cell must say what is planned");
             } else {
-                // The same rule the Rust layer asserts in
-                // `capability_cells_report_a_dtype_and_determinism`.
                 assert_ne!(cell.dtype, 0, "task {task} x modality {modality} is offered but names no compute dtype");
                 assert!(!c::fixed(&cell.notes).is_empty(), "an offered cell must say what it is");
                 assert!(cell.deterministic <= 1, "deterministic is a boolean, got {}", cell.deterministic);
@@ -472,7 +480,7 @@ fn capability_can_run_agrees_with_model_load() {
 }
 
 #[test]
-fn capability_unsupported_modality_bundle_is_unsupported_task() {
+fn capability_a_modality_the_device_does_not_offer_is_unsupported_modality() {
     let t = Target::from_env();
     needs!(t, Embedding);
     let ct = c::CTarget::new(&t);
@@ -512,12 +520,19 @@ fn capability_unsupported_modality_bundle_is_unsupported_task() {
     let path = scratch.path().to_string_lossy().into_owned();
     let mut m: *mut turbo_model = ptr::null_mut();
     // SAFETY: valid context handle; `path` outlives the call.
+    // The device offers EMBED for TEXT, so an audio bundle of the same task
+    // is refused for its modality, with its own code and no field.
     assert_rc!(
         unsafe { turbo_model_load(ctx, c::text(&path), ptr::null(), &mut m, &mut e) },
-        TURBO_E_UNSUPPORTED_TASK,
-        e
+        TURBO_E_UNSUPPORTED_MODALITY,
+        e,
+        field = 0
     );
+    assert!(c::message(&e).contains("Audio"), "the refusal must name the modality: {}", c::message(&e));
     assert!(m.is_null());
+    // SAFETY: valid runtime handle; `path` outlives the call.
+    let rc = unsafe { turbo_can_run(ct.rt, ct.device, c::text(&path), TURBO_TASK_EMBED, TURBO_MODALITY_AUDIO, &mut e) };
+    assert_eq!(rc, TURBO_E_UNSUPPORTED_MODALITY, "turbo_can_run must agree: got {}", c::status_name(rc));
     // SAFETY: released once.
     unsafe { turbo_context_release(ctx) };
     drop(ct);

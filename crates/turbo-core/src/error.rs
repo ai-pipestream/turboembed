@@ -131,6 +131,10 @@ impl Error {
     pub fn busy(message: impl Into<String>) -> Self {
         Self::new(abi::TURBO_E_BUSY, message)
     }
+    /// `TURBO_E_OVERLOADED`.
+    pub fn overloaded(message: impl Into<String>) -> Self {
+        Self::new(abi::TURBO_E_OVERLOADED, message)
+    }
     /// `TURBO_E_CAPACITY`.
     pub fn capacity(message: impl Into<String>) -> Self {
         Self::new(abi::TURBO_E_CAPACITY, message)

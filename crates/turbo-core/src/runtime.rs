@@ -294,10 +294,13 @@ impl Runtime {
         let provider = self.provider_for(index)?;
         let cap = provider.capability(entry.info.ordinal, task, modality);
         if !cap.is_offered() {
-            return Err(Error::unsupported_task(format!(
-                "device [{index}] {}:{} does not offer {task:?} for {modality:?}",
-                entry.info.provider_id, entry.info.ordinal
-            )));
+            return Err(crate::provider::unoffered_cell(
+                provider.as_ref(),
+                entry.info.ordinal,
+                &entry.info.name,
+                task,
+                modality,
+            ));
         }
         let bundle = Bundle::open(bundle_dir)?;
         provider.can_run(entry.info.ordinal, &bundle, task, modality)

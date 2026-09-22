@@ -102,14 +102,15 @@ impl Context {
         let ordinal = self.device_info().ordinal;
         let cap = self.provider.capability(ordinal, bundle.task(), bundle.modality());
         if !cap.is_offered() {
-            return Err(Error::unsupported_task(format!(
-                "device `{}` (provider `{}`) does not offer {:?} for {:?}; bundle `{}` cannot load here",
-                self.device_info().name,
-                self.provider.id(),
+            let e = crate::provider::unoffered_cell(
+                self.provider.as_ref(),
+                ordinal,
+                &self.device_info().name,
                 bundle.task(),
                 bundle.modality(),
-                bundle.manifest().model_id
-            )));
+            );
+            let bundle_id = bundle.manifest().model_id.clone();
+            return Err(Error::new(e.code(), format!("{}; bundle `{bundle_id}` cannot load here", e.message())));
         }
         self.provider.can_run(ordinal, &bundle, bundle.task(), bundle.modality())?;
         let inner = self.inner.load_model(bundle.clone(), desc)?;

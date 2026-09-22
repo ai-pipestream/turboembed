@@ -378,32 +378,38 @@ fn contract_token_batch_validation_reports_exact_codes() {
             e,
             field = 6
         );
-        // Out-of-vocabulary and negative ids.
+        // A bad value names the array it is in, by the same 1-based field
+        // index the NULL cases above use: 5 ids, 6 mask, 7 types.
+        assert_ne!(info.vocab_size, 0, "a model must report its vocabulary so an id can be out of it");
         let oob: Vec<i32> = vec![1, info.vocab_size as i32, 3, 4];
         assert_rc!(
             turbo_session_write_tokens(f.session, &turbo_token_batch { ids: oob.as_ptr(), ..base }, &mut e),
             TURBO_E_INVALID_ARGUMENT,
-            e
+            e,
+            field = 5
         );
         let negative: Vec<i32> = vec![1, -1, 3, 4];
         assert_rc!(
             turbo_session_write_tokens(f.session, &turbo_token_batch { ids: negative.as_ptr(), ..base }, &mut e),
             TURBO_E_INVALID_ARGUMENT,
-            e
+            e,
+            field = 5
         );
         // Mask values other than 0 and 1.
         let bad_mask: Vec<i32> = vec![1, 2, 1, 1];
         assert_rc!(
             turbo_session_write_tokens(f.session, &turbo_token_batch { mask: bad_mask.as_ptr(), ..base }, &mut e),
             TURBO_E_INVALID_ARGUMENT,
-            e
+            e,
+            field = 6
         );
         // Token types other than 0 and 1.
         let bad_types: Vec<i32> = vec![0, 0, 7, 0];
         assert_rc!(
             turbo_session_write_tokens(f.session, &turbo_token_batch { types: bad_types.as_ptr(), ..base }, &mut e),
             TURBO_E_INVALID_ARGUMENT,
-            e
+            e,
+            field = 7
         );
         // Sequence beyond the session's maximum.
         let long_ids: Vec<i32> = vec![1; info.max_seq as usize + 1];

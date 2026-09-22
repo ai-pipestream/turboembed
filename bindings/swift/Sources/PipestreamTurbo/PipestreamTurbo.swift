@@ -170,7 +170,9 @@ public struct Capability {
     public let maxAbsError: Float
     public let deterministic: Bool
     public let notes: String
-    public var offered: Bool { status != .unsupported }
+    /// True when the cell can be run now. `planned` is reported but not
+    /// runnable, the same rule the core applies.
+    public var offered: Bool { status == .experimental || status == .supported }
 }
 
 /// The provider registry and device list.
