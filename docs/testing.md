@@ -12,7 +12,15 @@ Testing in this tree today is:
   tests need the CUDA toolkit to build, so it is the one crate excluded;
   `providers/ggml` is a plain workspace member and builds and runs its unit
   tests as part of this same command, CPU backend only — see "Running what
-  exists today" below).
+  exists today" below). `providers/mock/tests/plugin_load.rs`, an
+  integration test that loads the mock provider's cdylib through the plugin
+  ABI, looks first for the plain name under `target/<profile>/deps`; failing
+  that, it takes whichever is newest by modification time out of the plain
+  name in the profile directory and any hash-suffixed match under `deps/`.
+  `cargo test` builds the cdylib into `deps/` (a plain name on macOS,
+  hash-suffixed on Linux) and does not always uplift it to the profile
+  directory, and an already-uplifted copy can be stale from an earlier
+  `cargo build`.
 - `crates/turbo-conformance/c/smoke.c`, a C program compiled against the
   installed header and run against the mock provider through
   `scripts/c-smoke.sh`. It exercises runtime/device/context/model/session
@@ -40,10 +48,16 @@ Testing in this tree today is:
   -p turbo-core --example write_mock_bundles` diffed against
   `testdata/bundles/mock/`), all run in CI.
 - The Java binding's conformance cases, run under JDK 25 through
-  `bindings/java` (`mvn test`) against the mock provider, and
-  `scripts/package.sh`'s own archive-verification step (extract, compile
-  and run the C smoke test against the packaged headers and library); see
-  `docs/bindings.md` and `docs/packaging.md`.
+  `bindings/java` (`mvn test`) against the mock provider, and the Swift
+  binding's conformance cases, run as an executable
+  (`swift run turbo-conformance`) through `bindings/swift` against the mock
+  provider; and `scripts/package.sh`'s own archive-verification step
+  (extract, compile and run the C smoke test against the packaged headers
+  and library); see `docs/bindings.md` and `docs/packaging.md`.
+
+On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) the
+nine Swift binding cases pass, and so does the macOS core suite (`cargo
+test --workspace --exclude turbo-provider-cuda`) run on that same machine.
 
 `docs/reviews/2026-09-21-p0-p2.md` is an independent review of the P0-P2
 tree that tracks each finding to closure; items closed by a commit carry

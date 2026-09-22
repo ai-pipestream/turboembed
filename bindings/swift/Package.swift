@@ -5,7 +5,7 @@
 // `PipestreamTurbo` is
 // the Swift API. The tests run the conformance cases against the mock
 // provider and need libturbo on the dynamic loader path
-// (DYLD_LIBRARY_PATH=../../target/debug, or TURBO_LIBRARY_DIR).
+// (DYLD_LIBRARY_PATH=../../target/debug).
 import PackageDescription
 
 // libturbo from the repository's cargo target directory; an installed

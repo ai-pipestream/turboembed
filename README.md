@@ -55,9 +55,9 @@ fixes in `docs/reviews/2026-09-21-p0-p2.md`), P3 (the CUDA provider) has
 landed the same four tasks on x86_64 and now also runs embedding on Jetson
 `nano1`, P6 (the `ggml` provider) has landed GGUF generation on CUDA and
 CPU (`krick`) and on Metal (`krickert-mac`, Apple M2) together with the
-push-style `turbo_generate`, and P7 (the Java
-binding) has landed the JDK 25 FFM binding. Every per-call option now
-either honors exactly what the caller asked for, gated by a
+push-style `turbo_generate`, and P7 (the Java and Swift bindings) has
+landed the JDK 25 FFM binding and the Swift package. Every per-call option
+now either honors exactly what the caller asked for, gated by a
 `TURBO_CAP_OPT_*` bit, or fails; see [`docs/c-api.md`](docs/c-api.md)'s
 capability-bit tables. What exists today:
 
@@ -103,6 +103,14 @@ capability-bit tables. What exists today:
   binding against the mock provider under `--illegal-native-access=deny`.
   See [`bindings/java/README.md`](bindings/java/README.md) and
   [`docs/bindings.md`](docs/bindings.md).
+- `bindings/swift` (`PipestreamTurbo`): a SwiftPM package over `libturbo`'s C
+  ABI; `CTurbo` exposes the generated header as a clang module and
+  `PipestreamTurbo` is the Swift API on top, with the same conformance cases
+  run as an executable (`swift run turbo-conformance`) because the Swift
+  command line tools ship neither XCTest nor Swift Testing. All nine cases
+  pass on `krickert-mac` (Apple M2). See
+  [`bindings/swift/README.md`](bindings/swift/README.md) and
+  [`docs/bindings.md`](docs/bindings.md).
 - `tools/turbo-bundle`: `import` (derives a bundle's contract from a source
   model's own files), `verify`, and `inspect`. See
   [`docs/bundles.md`](docs/bundles.md).
@@ -127,9 +135,9 @@ picture.
 
 The dedicated, MLX-based `metal` provider and `hailo` (P4, P5) are **not
 available yet**; `ggml` reaches Apple M2 today only through llama.cpp's own
-Metal backend for generation, a different code path. The Swift and Android
-bindings (P7, P10) are also not available yet; the Java binding (P7) has
-landed. CUDA on Jetson (`nano1`, aarch64) now passes its live embedding
+Metal backend for generation, a different code path. The Android binding
+(P10) is not available yet; the Java and Swift bindings (P7) have landed.
+CUDA on Jetson (`nano1`, aarch64) now passes its live embedding
 tests (cosine 1.000); the task suite (rerank, classify, token-classify) is
 still being verified there (`PLAN.md` section 10, P3).
 
@@ -365,7 +373,8 @@ today (commit `6657818`); "planned" means it is scoped for a later milestone.
 | `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO provider | here |
 | `native/turbo_buffer/` | shared C++ arenas salvaged from the PoC | present, not yet wired into a provider |
 | `bindings/java/` | JDK 25 FFM binding (`ai.pipestream:turbo`) | here |
-| `bindings/swift/`, `bindings/android/` | remaining language bindings | planned (P7, P10) |
+| `bindings/swift/` | SwiftPM package over the C ABI (`PipestreamTurbo`) | here |
+| `bindings/android/` | remaining language binding | planned (P10) |
 | `tools/turbo-bundle/` | bundle import, verify, inspect | here (`fetch` from `crates/fetch` is not ported yet) |
 | `server/` | Inferstream on the new ABI | planned (P9) |
 | `docs/` | documentation (this tree) | here |
