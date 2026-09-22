@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package ai.pipestream.turbo.web;
 
+import ai.pipestream.turbo.Chunk;
 import ai.pipestream.turbo.Context;
 import ai.pipestream.turbo.DeviceInfo;
 import ai.pipestream.turbo.EmbedOptions;
+import ai.pipestream.turbo.GenerateDesc;
+import ai.pipestream.turbo.Generation;
+import ai.pipestream.turbo.Message;
 import ai.pipestream.turbo.Model;
 import ai.pipestream.turbo.ModelInfo;
 import ai.pipestream.turbo.ModelKind;
@@ -16,7 +20,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -37,7 +43,11 @@ public class TurboService implements AutoCloseable {
     }
 
     public record Info(String deviceName, String providerId, int ordinal, String deviceKind, String runtimeVersion,
-            String modelId, int dim, int maxSeq, int maxBatch, boolean fullyAccelerated, String stages) {}
+            String modelId, int dim, int maxSeq, int maxBatch, boolean fullyAccelerated, String stages,
+            GenerateInfo generate) {}
+
+    /** The generative model, when one is configured. */
+    public record GenerateInfo(String deviceName, String providerId, int ordinal, String modelId, int maxSeq) {}
 
     public record Embedded(int dim, float[][] vectors, double[][] similarity) {}
 
@@ -47,6 +57,9 @@ public class TurboService implements AutoCloseable {
     private final BlockingQueue<Session> sessions;
     private final Info info;
     private final int maxBatch;
+    private final Context generateContext;
+    private final Model generateModel;
+    private final Semaphore generations;
 
     public TurboService(
             @Value("${turbo.bundle}") String bundle,
@@ -54,8 +67,16 @@ public class TurboService implements AutoCloseable {
             @Value("${turbo.provider:}") String provider,
             @Value("${turbo.ordinal:0}") int ordinal,
             @Value("${turbo.sessions:2}") int sessionCount,
-            @Value("${turbo.max-batch:0}") int maxBatchProperty) {
-        runtime = providerLib.isBlank() ? Turbo.create() : Turbo.create(List.of(providerLib));
+            @Value("${turbo.max-batch:0}") int maxBatchProperty,
+            @Value("${turbo.generate-bundle:}") String generateBundle,
+            @Value("${turbo.generate-provider-lib:}") String generateProviderLib,
+            @Value("${turbo.generate-provider:}") String generateProvider,
+            @Value("${turbo.generate-ordinal:0}") int generateOrdinal,
+            @Value("${turbo.generations:2}") int concurrentGenerations) {
+        List<String> libs = new ArrayList<>();
+        if (!providerLib.isBlank()) libs.add(providerLib);
+        if (!generateProviderLib.isBlank() && !generateProviderLib.equals(providerLib)) libs.add(generateProviderLib);
+        runtime = libs.isEmpty() ? Turbo.create() : Turbo.create(libs);
         int device = provider.isBlank() ? runtime.selectDevice() : runtime.selectDevice(SelectPolicy.EXPLICIT, provider, ordinal);
         DeviceInfo di = runtime.device(device);
         context = runtime.createContext(device);
@@ -72,8 +93,56 @@ public class TurboService implements AutoCloseable {
         for (int i = 0; i < sessionCount; i++) {
             sessions.add(model.createSession(maxBatch, 0));
         }
+        GenerateInfo gen = null;
+        if (generateBundle.isBlank()) {
+            generateContext = null;
+            generateModel = null;
+        } else {
+            int gdev = generateProvider.isBlank() ? runtime.selectDevice() : runtime.selectDevice(SelectPolicy.EXPLICIT, generateProvider, generateOrdinal);
+            DeviceInfo gdi = runtime.device(gdev);
+            generateContext = runtime.createContext(gdev);
+            generateModel = generateContext.loadModel(generateBundle);
+            ModelInfo gmi = generateModel.info();
+            if (gmi.kind() != ModelKind.GENERATIVE) {
+                close();
+                throw new IllegalArgumentException(generateBundle + " is not a generative bundle: " + gmi.kind());
+            }
+            gen = new GenerateInfo(gdi.name(), gdi.providerId(), gdi.ordinal(), gmi.modelId(), gmi.maxSeq());
+        }
+        generations = new Semaphore(Math.max(1, concurrentGenerations));
         info = new Info(di.name(), di.providerId(), di.ordinal(), di.kind().name(), di.runtimeVersion(), mi.modelId(), mi.dim(),
-                mi.maxSeq(), maxBatch, mi.fullyAccelerated(), java.util.Arrays.toString(mi.stagePlacement()));
+                mi.maxSeq(), maxBatch, mi.fullyAccelerated(), java.util.Arrays.toString(mi.stagePlacement()), gen);
+    }
+
+    public boolean canGenerate() {
+        return generateModel != null;
+    }
+
+    /**
+     * Summarize {@code text}: a system instruction plus the text as the user
+     * turn, streamed chunk by chunk to {@code sink} (return false to stop).
+     * Returns the final chunk. Without a generative bundle this is an
+     * {@link IllegalStateException}; with every generation slot taken it is
+     * {@link Overloaded}.
+     */
+    public Chunk summarize(String text, int maxNewTokens, Predicate<Chunk> sink) {
+        if (generateModel == null) {
+            throw new IllegalStateException("no generative bundle is configured (turbo.generate-bundle)");
+        }
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("no text");
+        }
+        if (!generations.tryAcquire()) {
+            throw new Overloaded("every generation slot is busy; retry");
+        }
+        try (Generation g = generateModel.createGeneration(GenerateDesc.defaults().withMaxNewTokens(maxNewTokens <= 0 ? 128 : maxNewTokens))) {
+            g.prompt(List.of(
+                    Message.system("You summarize text. Reply with a summary of at most three sentences and nothing else."),
+                    Message.user(text.strip())));
+            return g.drain(sink);
+        } finally {
+            generations.release();
+        }
     }
 
     public Info info() {
@@ -145,6 +214,8 @@ public class TurboService implements AutoCloseable {
             sessions.drainTo(drained);
         }
         drained.forEach(Session::close);
+        if (generateModel != null) generateModel.close();
+        if (generateContext != null) generateContext.close();
         if (model != null) model.close();
         if (context != null) context.close();
         if (runtime != null) runtime.close();

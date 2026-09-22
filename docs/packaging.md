@@ -159,7 +159,7 @@ turbo_runtime_load_provider(rt, T("<archive>/providers/libturbo_provider_mock.so
 
 or list every provider path the program needs in
 `turbo_runtime_desc.provider_paths` at `turbo_runtime_create` (see the
-README's own "Load a provider library" section). `bin/turbo-bundle` needs no
+"Load a provider library" section of `docs/status.md`). `bin/turbo-bundle` needs no
 linking; it is a standalone binary for preparing and inspecting bundle
 directories.
 

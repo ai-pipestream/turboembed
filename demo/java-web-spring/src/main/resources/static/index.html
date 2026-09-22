@@ -31,6 +31,18 @@ the stock market closed higher</textarea>
     </details>
   </section>
   <section id="error" class="error" hidden role="alert"></section>
+  <section class="input" id="summarize-section">
+    <h2>Summarize</h2>
+    <p id="generator" class="muted">checking for a generative model…</p>
+    <label for="document">Text to summarize</label>
+    <textarea id="document" rows="8">The Raspberry Pi AI HAT+ carries a Hailo-8 accelerator on a PCIe Gen3 link. The public MiniLM HEF compiles only the transformer encoder body at a fixed 128-token shape, so the tokenizer, the word-embedding gather, pooling and normalization run on the host CPU while the six encoder layers run on the NPU. The quantized model does not preserve absolute cosine against the FP32 reference, but the ranking of similar sentences stays at parity, so the live suite gates on a ranking score as well as a cosine floor that the suite itself owns. The provider reports all of this honestly in its capability cell instead of claiming full acceleration.</textarea>
+    <div class="row">
+      <button id="summarize" type="button">Summarize</button>
+      <span id="gen-status" class="muted" aria-live="polite"></span>
+    </div>
+    <pre id="summary" class="summary" hidden></pre>
+    <section id="gen-error" class="error" hidden role="alert"></section>
+  </section>
 </main>
 <script src="app.js"></script>
 </body>

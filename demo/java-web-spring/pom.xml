@@ -20,6 +20,7 @@
     <!-- libturbo for tests; the app reads turbo.library the same way. -->
     <turbo.library>${project.basedir}/../../target/debug/libturbo.so</turbo.library>
     <turbo.bundle>${project.basedir}/../../testdata/bundles/mock/embedding</turbo.bundle>
+    <turbo.generate-bundle>${project.basedir}/../../testdata/bundles/mock/generative</turbo.generate-bundle>
   </properties>
 
   <dependencies>
@@ -55,6 +56,7 @@
           <argLine>-Xmx2g --enable-native-access=ALL-UNNAMED -Dturbo.library=${turbo.library}</argLine>
           <systemPropertyVariables>
             <turbo.bundle>${turbo.bundle}</turbo.bundle>
+            <turbo.generate-bundle>${turbo.generate-bundle}</turbo.generate-bundle>
           </systemPropertyVariables>
         </configuration>
       </plugin>
