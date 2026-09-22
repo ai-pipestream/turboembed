@@ -261,8 +261,15 @@ unsafe extern "C" fn x_context_create(
 
 unsafe extern "C" fn x_context_release(p: *mut c_void) {
     if !p.is_null() {
-        // SAFETY: created by x_context_create; released once.
-        drop(unsafe { Box::from_raw(p as *mut Arc<dyn ProviderContext>) });
+        // A Drop panic must not unwind across the plugin boundary.
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // SAFETY: created by x_context_create; released once.
+            drop(unsafe { Box::from_raw(p as *mut Arc<dyn ProviderContext>) });
+        }))
+        .is_err()
+        {
+            eprintln!("turbo plugin: panic inside x_context_release");
+        }
     }
 }
 
@@ -339,7 +346,14 @@ unsafe extern "C" fn x_buffer_export(
 
 unsafe extern "C" fn x_buffer_release(b: *mut c_void) {
     if !b.is_null() {
-        drop(unsafe { Box::from_raw(b as *mut Arc<dyn ProviderBuffer>) });
+        // A Drop panic must not unwind across the plugin boundary.
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(unsafe { Box::from_raw(b as *mut Arc<dyn ProviderBuffer>) });
+        }))
+        .is_err()
+        {
+            eprintln!("turbo plugin: panic inside x_buffer_release");
+        }
     }
 }
 
@@ -423,7 +437,14 @@ unsafe extern "C" fn x_model_io_info(
 
 unsafe extern "C" fn x_model_release(m: *mut c_void) {
     if !m.is_null() {
-        drop(unsafe { Box::from_raw(m as *mut ExportModel) });
+        // A Drop panic must not unwind across the plugin boundary.
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(unsafe { Box::from_raw(m as *mut ExportModel) });
+        }))
+        .is_err()
+        {
+            eprintln!("turbo plugin: panic inside x_model_release");
+        }
     }
 }
 
@@ -609,7 +630,7 @@ unsafe extern "C" fn x_session_stats(
         let s = unsafe { session(s) }?;
         let o = out_ptr(out, "session_stats")?;
         check_size::<abi::turbo_session_stats>("turbo_session_stats", o.struct_size)?;
-        let full = session_stats_to_abi(&s.inner.stats(), o.struct_size);
+        let full = session_stats_to_abi(&s.inner.stats()?, o.struct_size);
         unsafe { write_sized(&full, out, o.struct_size) };
         Ok(())
     })
@@ -617,7 +638,14 @@ unsafe extern "C" fn x_session_stats(
 
 unsafe extern "C" fn x_session_release(s: *mut c_void) {
     if !s.is_null() {
-        drop(unsafe { Box::from_raw(s as *mut ExportSession) });
+        // A Drop panic must not unwind across the plugin boundary.
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(unsafe { Box::from_raw(s as *mut ExportSession) });
+        }))
+        .is_err()
+        {
+            eprintln!("turbo plugin: panic inside x_session_release");
+        }
     }
 }
 
@@ -714,7 +742,14 @@ unsafe extern "C" fn x_generation_cancel(g: *mut c_void) {
 
 unsafe extern "C" fn x_generation_release(g: *mut c_void) {
     if !g.is_null() {
-        drop(unsafe { Box::from_raw(g as *mut ExportGeneration) });
+        // A Drop panic must not unwind across the plugin boundary.
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            drop(unsafe { Box::from_raw(g as *mut ExportGeneration) });
+        }))
+        .is_err()
+        {
+            eprintln!("turbo plugin: panic inside x_generation_release");
+        }
     }
 }
 

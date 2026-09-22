@@ -291,13 +291,10 @@ uint64_t describe_into(Buffer *b, const turbo_buffer_desc &in) {
     b->desc = in;
     b->desc.next = nullptr;
     const uint64_t elem = dtype_size(in.dtype);
+    check_buffer_desc(in, elem);
     uint64_t bytes = in.bytes;
     if (bytes == 0) {
-        bytes = elem;
-        for (uint32_t i = 0; i < in.ndim; ++i) {
-            require(in.shape[i] == 0 || bytes <= UINT64_MAX / in.shape[i], TURBO_E_INVALID_SHAPE, "shape product overflows");
-            bytes *= in.shape[i];
-        }
+        bytes = packed_bytes(elem, in.ndim, in.shape);
         b->desc = packed_desc(in.placement, in.dtype, std::vector<uint64_t>(in.shape, in.shape + in.ndim), elem);
     }
     b->bytes = bytes;
@@ -458,7 +455,12 @@ std::unique_ptr<Model> load_model(Context *ctx, const std::string &dir, const st
         require(b.dim == m->hidden, TURBO_E_BUNDLE_INVALID,
                 "contract.dim " + std::to_string(b.dim) + " does not match hidden_size " + std::to_string(m->hidden));
     }
-    m->max_seq = b.max_seq == 0 ? max_position : std::min(b.max_seq, max_position);
+    require(b.max_seq <= max_position, TURBO_E_BUNDLE_INVALID,
+            "contract.max_seq " + std::to_string(b.max_seq) + " exceeds the checkpoint's max_position_embeddings " +
+                std::to_string(max_position));
+    m->max_seq = b.max_seq == 0 ? max_position : b.max_seq;
+    // limits.max_batch 0 means "the provider's default" by the bundle
+    // contract (docs/bundles.md); this provider's is 32 rows.
     m->max_batch = b.max_batch == 0 ? 32 : b.max_batch;
 
     SafeTensors st;
@@ -478,6 +480,9 @@ std::unique_ptr<Model> load_model(Context *ctx, const std::string &dir, const st
     m->type_rows = static_cast<uint32_t>(type.rows());
     require(m->max_seq <= m->pos_rows, TURBO_E_BUNDLE_INVALID,
             "contract.max_seq " + std::to_string(m->max_seq) + " exceeds the checkpoint's " + std::to_string(m->pos_rows) + " positions");
+    require(m->pos_rows == max_position, TURBO_E_BUNDLE_INVALID,
+            "hf_config max_position_embeddings " + std::to_string(max_position) + " does not match the checkpoint's " +
+                std::to_string(m->pos_rows) + " position rows");
     m->word = upload(word);
     m->pos = upload(pos);
     m->type = upload(type);
@@ -537,6 +542,11 @@ std::unique_ptr<Model> load_model(Context *ctx, const std::string &dir, const st
     const int rc = wordpiece_vocab_load(b.tokenizer_path.c_str(), &m->vocab);
     require(rc == WORDPIECE_OK && m->vocab != nullptr, TURBO_E_BUNDLE_INVALID,
             "tokenizer.json is not a supported uncased BERT WordPiece configuration (wordpiece status " + std::to_string(rc) + ")");
+    // Every id the tokenizer can produce must have a row; a vocabulary
+    // larger than the table would gather nothing for its tail.
+    require(static_cast<uint32_t>(wordpiece_vocab_size(m->vocab)) == m->word_rows, TURBO_E_BUNDLE_INVALID,
+            "tokenizer.json has " + std::to_string(wordpiece_vocab_size(m->vocab)) + " ids but the checkpoint's word table has " +
+                std::to_string(m->word_rows) + " rows");
     return m;
 }
 
@@ -591,6 +601,7 @@ struct Session {
     Buffer out_buf, sorted_buf;
     turbo_provider_output outputs[2]{};
     std::string name0, name1;
+    std::atomic<bool> in_use{false}; // one caller at a time; see BusyGuard
     uint64_t runs = 0;
 
     Session(Model *m, Context *c, uint32_t b, uint32_t s) : model(m), ctx(c), batch(b), seq(s) {
@@ -664,8 +675,9 @@ struct Session {
         }
         size_t n_text = 0;
         require(text.len == 0 || text.ptr != nullptr, TURBO_E_INVALID_ARGUMENT, "text view has NULL ptr");
-        require(wordpiece_tokenize(vv, text.ptr, static_cast<size_t>(text.len), nullptr, 0, 4, &n_text) == WORDPIECE_OK,
-                TURBO_E_INVALID_ARGUMENT, "text is not valid UTF-8 or could not be tokenized");
+        const int cnt = wordpiece_tokenize(vv, text.ptr, static_cast<size_t>(text.len), nullptr, 0, 4, &n_text);
+        require(cnt != WORDPIECE_ERR_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8, "text is not valid UTF-8");
+        require(cnt == WORDPIECE_OK, TURBO_E_INTERNAL, "tokenizer failed with status " + std::to_string(cnt));
         const size_t avail = content_budget - n_prefix;
         size_t skip = 0, take = n_text;
         if (n_text > avail) {
@@ -736,6 +748,9 @@ struct Session {
             if (x == 0 || y == 0) {
                 return;
             }
+            require(pso.maxTotalThreadsPerThreadgroup >= tg_x * tg_y, TURBO_E_DEVICE_UNAVAILABLE,
+                    "the tiled kernel needs " + std::to_string(tg_x * tg_y) + " threads per threadgroup but this pipeline allows " +
+                        std::to_string(pso.maxTotalThreadsPerThreadgroup));
             [enc setComputePipelineState:pso];
             [enc dispatchThreadgroups:MTLSizeMake((x + tg_x - 1) / tg_x, (y + tg_y - 1) / tg_y, 1)
                 threadsPerThreadgroup:MTLSizeMake(tg_x, tg_y, 1)];
@@ -972,12 +987,6 @@ struct Session {
 // Vtable
 // ---------------------------------------------------------------------------
 
-template <typename T>
-void write_sized(T *out, T full) {
-    full.struct_size = out->struct_size;
-    std::memcpy(out, &full, out->struct_size);
-}
-
 extern "C" {
 
 static int32_t x_device_count(void *, uint32_t *out, turbo_error *err) {
@@ -1036,6 +1045,7 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
 static int32_t x_can_run(void *, uint32_t ordinal, turbo_text bundle_dir, uint32_t task, uint32_t modality, turbo_error *err) {
     return boundary(err, [&] {
         require_device(ordinal);
+        require(state().ready(), TURBO_E_DEVICE_UNAVAILABLE, state().why);
         require(offers(task, modality), TURBO_E_UNSUPPORTED_TASK,
                 "metal provider does not offer task " + std::to_string(task) + " for modality " + std::to_string(modality));
         const Bundle b = Bundle::read(text_of(bundle_dir));
@@ -1052,9 +1062,9 @@ static int32_t x_context_create(void *, uint32_t ordinal, const turbo_context_de
         require(out != nullptr, TURBO_E_INVALID_ARGUMENT, "out is NULL");
         *out = nullptr;
         if (desc != nullptr) {
-            check_size<turbo_context_desc>("turbo_context_desc", desc->struct_size);
-            require(desc->next == nullptr, TURBO_E_NOT_IMPLEMENTED, "external queue import is not implemented");
-            reject_unknown(options_of(desc->options, desc->n_options, "context"), {}, "metal context");
+            const turbo_context_desc d = read_prefix(desc, "turbo_context_desc");
+            require(d.next == nullptr, TURBO_E_NOT_IMPLEMENTED, "external queue import is not implemented");
+            reject_unknown(options_of(d.options, d.n_options, "context"), {}, "metal context");
         }
         require_device(ordinal);
         *out = new Context();
@@ -1066,9 +1076,10 @@ static void x_context_release(void *ctx) { release<Context>(ctx); }
 static int32_t x_buffer_alloc(void *ctx, const turbo_buffer_desc *desc, turbo_provider_buffer *out, turbo_error *err) {
     return boundary(err, [&] {
         require(ctx != nullptr && desc != nullptr && out != nullptr, TURBO_E_INVALID_ARGUMENT, "NULL argument");
-        check_size<turbo_buffer_desc>("turbo_buffer_desc", desc->struct_size);
+        const turbo_buffer_desc d = read_prefix(desc, "turbo_buffer_desc");
         check_size<turbo_provider_buffer>("turbo_provider_buffer", out->struct_size);
-        auto b = make_buffer(*desc);
+        require_receives(out->struct_size, TURBO_PC_FIELD_END(turbo_provider_buffer, handle), "turbo_provider_buffer", "handle");
+        auto b = make_buffer(d);
         write_sized(out, describe(b.get()));
         b.release();
     });
@@ -1078,10 +1089,11 @@ static int32_t x_buffer_import(void *ctx, const turbo_buffer_desc *desc, const t
                                turbo_error *err) {
     return boundary(err, [&] {
         require(ctx != nullptr && desc != nullptr && handle != nullptr && out != nullptr, TURBO_E_INVALID_ARGUMENT, "NULL argument");
-        check_size<turbo_buffer_desc>("turbo_buffer_desc", desc->struct_size);
-        check_size<turbo_native_handle>("turbo_native_handle", handle->struct_size);
+        const turbo_buffer_desc d = read_prefix(desc, "turbo_buffer_desc");
+        const turbo_native_handle h = read_prefix(handle, "turbo_native_handle");
         check_size<turbo_provider_buffer>("turbo_provider_buffer", out->struct_size);
-        auto b = import_buffer(*desc, *handle);
+        require_receives(out->struct_size, TURBO_PC_FIELD_END(turbo_provider_buffer, handle), "turbo_provider_buffer", "handle");
+        auto b = import_buffer(d, h);
         write_sized(out, describe(b.get()));
         b.release();
     });
@@ -1101,19 +1113,21 @@ static int32_t x_buffer_export(void *buf, uint32_t kind, turbo_native_handle *ou
         auto *b = static_cast<Buffer *>(buf);
         require(b != nullptr && out != nullptr, TURBO_E_INVALID_ARGUMENT, "NULL argument");
         check_size<turbo_native_handle>("turbo_native_handle", out->struct_size);
-        out->offset = 0;
-        out->aux = 0;
+        turbo_native_handle full{};
+        full.offset = 0;
+        full.aux = 0;
         if (b->mtl != nil) {
             require(kind == TURBO_HANDLE_MTL_BUFFER || kind == TURBO_HANDLE_HOST_PTR, TURBO_E_UNSUPPORTED,
                     "shared buffers export TURBO_HANDLE_MTL_BUFFER (the id<MTLBuffer>) or TURBO_HANDLE_HOST_PTR (its contents)");
-            out->kind = kind;
-            out->handle = kind == TURBO_HANDLE_MTL_BUFFER ? reinterpret_cast<uint64_t>((__bridge void *)b->mtl)
+            full.kind = kind;
+            full.handle = kind == TURBO_HANDLE_MTL_BUFFER ? reinterpret_cast<uint64_t>((__bridge void *)b->mtl)
                                                           : reinterpret_cast<uint64_t>(b->mtl.contents);
         } else {
             require(kind == TURBO_HANDLE_HOST_PTR, TURBO_E_UNSUPPORTED, "host buffers export TURBO_HANDLE_HOST_PTR only");
-            out->kind = TURBO_HANDLE_HOST_PTR;
-            out->handle = reinterpret_cast<uint64_t>(b->host);
+            full.kind = TURBO_HANDLE_HOST_PTR;
+            full.handle = reinterpret_cast<uint64_t>(b->host);
         }
+        write_sized(out, full);
     });
 }
 
@@ -1125,8 +1139,8 @@ static int32_t x_model_load(void *ctx, turbo_text bundle_dir, const turbo_model_
         *out = nullptr;
         std::map<std::string, std::string> opts;
         if (desc != nullptr) {
-            check_size<turbo_model_desc>("turbo_model_desc", desc->struct_size);
-            opts = options_of(desc->options, desc->n_options, "model");
+            const turbo_model_desc d = read_prefix(desc, "turbo_model_desc");
+            opts = options_of(d.options, d.n_options, "model");
         }
         @autoreleasepool {
             *out = load_model(static_cast<Context *>(ctx), text_of(bundle_dir), opts).release();
@@ -1159,12 +1173,12 @@ static int32_t x_session_create(void *model, const turbo_session_desc *desc, voi
         auto *m = static_cast<Model *>(model);
         require(m != nullptr && desc != nullptr && out != nullptr, TURBO_E_INVALID_ARGUMENT, "NULL argument");
         *out = nullptr;
-        check_size<turbo_session_desc>("turbo_session_desc", desc->struct_size);
-        require(desc->next == nullptr, TURBO_E_INVALID_ARGUMENT, "turbo_session_desc.next must be NULL");
-        reject_unknown(options_of(desc->options, desc->n_options, "session"), {}, "metal session");
-        require(desc->max_batch >= 1 && desc->max_seq >= 2, TURBO_E_INVALID_ARGUMENT, "session needs max_batch >= 1 and max_seq >= 2");
+        const turbo_session_desc d = read_prefix(desc, "turbo_session_desc");
+        require(d.next == nullptr, TURBO_E_INVALID_ARGUMENT, "turbo_session_desc.next must be NULL");
+        reject_unknown(options_of(d.options, d.n_options, "session"), {}, "metal session");
+        require(d.max_batch >= 1 && d.max_seq >= 2, TURBO_E_INVALID_ARGUMENT, "session needs max_batch >= 1 and max_seq >= 2");
         @autoreleasepool {
-            *out = new Session(m, m->ctx, desc->max_batch, desc->max_seq);
+            *out = new Session(m, m->ctx, d.max_batch, d.max_seq);
         }
     });
 }
@@ -1177,8 +1191,11 @@ static Session &sess(void *s) {
 static int32_t x_session_write_text(void *s, const turbo_text *texts, uint32_t count, const turbo_embed_options *opts, turbo_error *err) {
     return boundary(err, [&] {
         Session &S = sess(s);
+        BusyGuard busy(S.in_use, "session");
         require(S.model->kind == Kind::Embedding, TURBO_E_UNSUPPORTED_TASK, "write_text needs an embedding model");
-        require(count >= 1 && count <= S.batch && texts != nullptr, TURBO_E_CAPACITY, "count must be 1..max_batch");
+        require(texts != nullptr, TURBO_E_INVALID_ARGUMENT, "texts is NULL");
+        require(count >= 1 && count <= S.batch, TURBO_E_CAPACITY,
+                "count " + std::to_string(count) + " is outside 1..max_batch (" + std::to_string(S.batch) + ")");
         turbo_embed_options o{};
         o.struct_size = sizeof(o);
         if (opts != nullptr) {
@@ -1217,24 +1234,42 @@ static int32_t x_session_write_text(void *s, const turbo_text *texts, uint32_t c
 static int32_t x_session_write_tokens(void *s, const turbo_token_batch *batch, turbo_error *err) {
     return boundary(err, [&] {
         Session &S = sess(s);
+        BusyGuard busy(S.in_use, "session");
         require(batch != nullptr, TURBO_E_INVALID_ARGUMENT, "batch is NULL");
-        check_size<turbo_token_batch>("turbo_token_batch", batch->struct_size);
-        require(batch->batch >= 1 && batch->batch <= S.batch && batch->seq >= 1 && batch->seq <= S.seq, TURBO_E_CAPACITY,
+        const turbo_token_batch tb = read_prefix(batch, "turbo_token_batch");
+        check_token_batch(tb);
+        require(tb.batch >= 1 && tb.batch <= S.batch && tb.seq >= 1 && tb.seq <= S.seq, TURBO_E_CAPACITY,
                 "token batch exceeds the session shape");
-        require(batch->ids != nullptr && batch->mask != nullptr, TURBO_E_INVALID_ARGUMENT, "token batch ids and mask are required");
         S.n_rows = 0;
-        const uint32_t stride = batch->row_stride == 0 ? batch->seq : batch->row_stride;
-        const int32_t pad = wordpiece_pad_id(S.model->vocab);
-        for (uint32_t r = 0; r < batch->batch; ++r) {
-            const size_t src = static_cast<size_t>(r) * stride;
-            std::memcpy(S.ids_row(r), batch->ids + src, batch->seq * 4);
-            std::memcpy(S.mask_row(r), batch->mask + src, batch->seq * 4);
-            if (batch->types != nullptr) {
-                std::memcpy(S.types_row(r), batch->types + src, batch->seq * 4);
-            } else {
-                std::fill(S.types_row(r), S.types_row(r) + batch->seq, 0);
+        const uint32_t stride = tb.row_stride == 0 ? tb.seq : tb.row_stride;
+        // Every id (and type) is checked here, so a bad token is a write-time
+        // argument error and never a silent row or a fault inside a run.
+        const int32_t n_ids = static_cast<int32_t>(S.model->word_rows);
+        for (uint32_t r = 0; r < tb.batch; ++r) {
+            for (uint32_t c = 0; c < tb.seq; ++c) {
+                const int32_t id = tb.ids[static_cast<size_t>(r) * stride + c];
+                require(id >= 0 && id < n_ids, TURBO_E_INVALID_ARGUMENT,
+                        "row " + std::to_string(r) + " column " + std::to_string(c) + ": token id " + std::to_string(id) +
+                            " is outside the " + std::to_string(n_ids) + "-entry vocabulary");
+                if (tb.types != nullptr) {
+                    const int32_t ty = tb.types[static_cast<size_t>(r) * stride + c];
+                    require(ty >= 0 && ty < static_cast<int32_t>(S.model->type_rows), TURBO_E_INVALID_ARGUMENT,
+                            "row " + std::to_string(r) + " column " + std::to_string(c) + ": token type " + std::to_string(ty) +
+                                " is outside the checkpoint's " + std::to_string(S.model->type_rows) + " token types");
+                }
             }
-            for (uint32_t c = batch->seq; c < S.seq; ++c) {
+        }
+        const int32_t pad = wordpiece_pad_id(S.model->vocab);
+        for (uint32_t r = 0; r < tb.batch; ++r) {
+            const size_t src = static_cast<size_t>(r) * stride;
+            std::memcpy(S.ids_row(r), tb.ids + src, tb.seq * 4);
+            std::memcpy(S.mask_row(r), tb.mask + src, tb.seq * 4);
+            if (tb.types != nullptr) {
+                std::memcpy(S.types_row(r), tb.types + src, tb.seq * 4);
+            } else {
+                std::fill(S.types_row(r), S.types_row(r) + tb.seq, 0);
+            }
+            for (uint32_t c = tb.seq; c < S.seq; ++c) {
                 S.ids_row(r)[c] = pad;
                 S.mask_row(r)[c] = 0;
                 S.types_row(r)[c] = 0;
@@ -1244,7 +1279,7 @@ static int32_t x_session_write_tokens(void *s, const turbo_token_batch *batch, t
         S.eopts.struct_size = sizeof(turbo_embed_options);
         S.ropts = turbo_rerank_options{};
         S.ropts.struct_size = sizeof(turbo_rerank_options);
-        S.n_rows = batch->batch;
+        S.n_rows = tb.batch;
     });
 }
 
@@ -1252,8 +1287,11 @@ static int32_t x_session_write_pairs(void *s, const turbo_text *query, const tur
                                      turbo_error *err) {
     return boundary(err, [&] {
         Session &S = sess(s);
+        BusyGuard busy(S.in_use, "session");
         require(S.model->kind == Kind::Reranker, TURBO_E_UNSUPPORTED_TASK, "write_pairs needs a reranker model");
-        require(query != nullptr && docs != nullptr && count >= 1 && count <= S.batch, TURBO_E_CAPACITY, "count must be 1..max_batch");
+        require(query != nullptr && docs != nullptr, TURBO_E_INVALID_ARGUMENT, "query and docs must not be NULL");
+        require(count >= 1 && count <= S.batch, TURBO_E_CAPACITY,
+                "count " + std::to_string(count) + " is outside 1..max_batch (" + std::to_string(S.batch) + ")");
         turbo_rerank_options o{};
         o.struct_size = sizeof(o);
         if (opts != nullptr) {
@@ -1283,8 +1321,10 @@ static int32_t x_session_write_pairs(void *s, const turbo_text *query, const tur
             const std::string d = text_of(docs[r]);
             const int rc = wordpiece_pack_pair(S.model->vocab, q.data(), q.size(), d.data(), d.size(), S.ids_row(r), S.mask_row(r),
                                                S.types_row(r), S.pos_scratch.data(), S.seq, S.seq, 4, trunc, budget);
-            require(rc == WORDPIECE_OK, rc == WORDPIECE_ERR_INVALID_ARGUMENT ? TURBO_E_CAPACITY : TURBO_E_INTERNAL,
-                    "pair " + std::to_string(r) + " does not fit the budget of " + std::to_string(budget) + " tokens with truncation NONE, or is not valid UTF-8");
+            require(rc != WORDPIECE_ERR_TOO_LONG, TURBO_E_CAPACITY,
+                    "pair " + std::to_string(r) + " does not fit the budget of " + std::to_string(budget) + " tokens and truncation is NONE");
+            require(rc != WORDPIECE_ERR_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8, "pair " + std::to_string(r) + " is not valid UTF-8");
+            require(rc == WORDPIECE_OK, TURBO_E_INTERNAL, "pair packer failed with status " + std::to_string(rc));
         }
         S.n_rows = count;
     });
@@ -1300,11 +1340,12 @@ static int32_t x_session_write_text_classify(void *s, const turbo_text *, uint32
 static int32_t x_session_run(void *s, const turbo_run_options *opts, turbo_provider_result *out, turbo_error *err) {
     return boundary(err, [&] {
         Session &S = sess(s);
+        BusyGuard busy(S.in_use, "session");
         require(out != nullptr, TURBO_E_INVALID_ARGUMENT, "out is NULL");
         check_size<turbo_provider_result>("turbo_provider_result", out->struct_size);
         if (opts != nullptr) {
-            check_size<turbo_run_options>("turbo_run_options", opts->struct_size);
-            reject_unknown(options_of(opts->params, opts->n_params, "run"), {}, "metal run");
+            const turbo_run_options o = read_prefix(opts, "turbo_run_options");
+            reject_unknown(options_of(o.params, o.n_params, "run"), {}, "metal run");
         }
         require(S.n_rows > 0, TURBO_E_INVALID_STATE, "no inputs written");
         write_sized(out, S.run());
@@ -1314,6 +1355,7 @@ static int32_t x_session_run(void *s, const turbo_run_options *opts, turbo_provi
 static int32_t x_session_stats(void *s, turbo_session_stats *out, turbo_error *err) {
     return boundary(err, [&] {
         Session &S = sess(s);
+        BusyGuard busy(S.in_use, "session");
         require(out != nullptr, TURBO_E_INVALID_ARGUMENT, "out is NULL");
         check_size<turbo_session_stats>("turbo_session_stats", out->struct_size);
         turbo_session_stats full{};

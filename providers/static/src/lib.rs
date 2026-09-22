@@ -402,8 +402,8 @@ impl ProviderSession for StaticSession {
         })
     }
 
-    fn stats(&self) -> SessionStats {
-        SessionStats {
+    fn stats(&self) -> Result<SessionStats> {
+        Ok(SessionStats {
             runs: self.runs,
             host_allocs: None,
             h2d_bytes: 0,
@@ -412,7 +412,7 @@ impl ProviderSession for StaticSession {
             output_bytes: self.out.desc().bytes,
             // The Hugging Face tokenizer allocates per encode; not counted.
             provider_allocs: None,
-        }
+        })
     }
 }
 

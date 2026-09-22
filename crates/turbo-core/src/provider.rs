@@ -577,6 +577,8 @@ impl GenerateDesc {
     pub const FIELD_FREQUENCY_PENALTY: u32 = 11;
     /// ABI field index of `has_seed`.
     pub const FIELD_HAS_SEED: u32 = 12;
+    /// `seed` (the value; `has_seed` says whether it is set).
+    pub const FIELD_SEED: u32 = 13;
     /// ABI field index of `n_stop`.
     pub const FIELD_N_STOP: u32 = 14;
     /// ABI field index of `n_logit_bias`.
@@ -711,7 +713,7 @@ pub trait ProviderSession: Send {
     fn run(&mut self, opts: &RunOptions) -> Result<ProviderResult>;
 
     /// Counters.
-    fn stats(&self) -> SessionStats;
+    fn stats(&self) -> Result<SessionStats>;
 }
 
 /// Streaming generation state. Single owner.

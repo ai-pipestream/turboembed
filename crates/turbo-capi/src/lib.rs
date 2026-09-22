@@ -91,9 +91,15 @@ fn clear(err: *mut turbo_error) {
 fn boundary(err: *mut turbo_error, f: impl FnOnce() -> Result<()>) -> i32 {
     if !err.is_null() {
         // SAFETY: as in `fail`.
-        let size = unsafe { (*err).struct_size };
+        let size = unsafe { err.cast::<u32>().read_unaligned() };
         if size < 8 {
             // Cannot even write a code; report through the return value only.
+            return TURBO_E_INVALID_STRUCT_SIZE;
+        }
+        if check_size::<turbo_error>("turbo_error", size).is_err() {
+            // A size that was never a layout of turbo_error: the code fits
+            // (size >= 8), so it is written, and nothing past it is touched.
+            unsafe { err.cast::<u32>().add(1).cast::<i32>().write_unaligned(TURBO_E_INVALID_STRUCT_SIZE) };
             return TURBO_E_INVALID_STRUCT_SIZE;
         }
     }
@@ -217,6 +223,22 @@ unsafe fn reclaim<T>(ptr: *mut T) {
     if !ptr.is_null() {
         // SAFETY: the pointer came from `leak` and is released exactly once.
         drop(unsafe { Arc::from_raw(ptr as *const T) });
+    }
+}
+
+/// Run a release body so that a panic inside a provider's `Drop` (an
+/// assertion in a destructor, an unwrap on a failed device call) cannot
+/// unwind across the C boundary and abort the host. The handle is gone
+/// either way; the panic is reported on stderr because a release has no
+/// error record to write.
+fn contain_release(what: &str, body: impl FnOnce()) {
+    if let Err(payload) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)) {
+        let msg = payload
+            .downcast_ref::<&str>()
+            .map(|s| s.to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "non-string panic payload".to_string());
+        eprintln!("turbo: panic inside {what}: {msg}");
     }
 }
 
@@ -346,7 +368,7 @@ pub unsafe extern "C" fn turbo_runtime_create(
 /// Release a runtime. NULL is a no-op. Contexts keep it alive.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_runtime_release(rt: *mut turbo_runtime) {
-    unsafe { reclaim(rt as *mut Runtime) };
+    contain_release("turbo_runtime_release", || unsafe { reclaim(rt as *mut Runtime) });
 }
 
 /// Load a provider library (`turbo_provider.h`) and register its devices.
@@ -398,11 +420,14 @@ pub unsafe extern "C" fn turbo_runtime_device_info(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_device_info>("turbo_device_info", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_device_info>("turbo_device_info", declared)?;
         let d = &rt.device(index)?.info;
         let mut full = turbo_device_info {
-            struct_size: o.struct_size,
+            struct_size: declared,
             kind: d.kind.as_abi(),
             ordinal: d.ordinal,
             vendor_id: d.vendor_id,
@@ -427,7 +452,7 @@ pub unsafe extern "C" fn turbo_runtime_device_info(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_device_info).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -490,13 +515,16 @@ pub unsafe extern "C" fn turbo_runtime_capability(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_capability>("turbo_capability", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_capability>("turbo_capability", declared)?;
         let task = Task::from_abi(task)?;
         let modality = Modality::from_abi(modality)?;
         let c = rt.capability(index, task, modality)?;
         let mut full = turbo_capability {
-            struct_size: o.struct_size,
+            struct_size: declared,
             status: c.status.as_abi(),
             dtype: c.dtype.map(|d| d.as_abi()).unwrap_or(0),
             reference_dtype: c.reference_dtype.map(|d| d.as_abi()).unwrap_or(0),
@@ -511,7 +539,7 @@ pub unsafe extern "C" fn turbo_runtime_capability(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_capability).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -565,6 +593,9 @@ pub unsafe extern "C" fn turbo_context_create(
             if !d.next.is_null() {
                 return Err(Error::not_implemented("turbo_context_desc.next (external queue import)"));
             }
+            if d.reserved != 0 {
+                return Err(Error::invalid_argument("turbo_context_desc.reserved must be 0").with_field(4));
+            }
             cd.options = unsafe { kvs(d.options, d.n_options, "turbo_context_desc.options") }?;
         }
         let ctx = Context::create(rt, index, &cd)?;
@@ -576,7 +607,7 @@ pub unsafe extern "C" fn turbo_context_create(
 /// Release a context. Models and buffers keep it alive.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_context_release(ctx: *mut turbo_context) {
-    unsafe { reclaim(ctx as *mut Context) };
+    contain_release("turbo_context_release", || unsafe { reclaim(ctx as *mut Context) });
 }
 
 /// Device index of a context.
@@ -655,7 +686,7 @@ pub unsafe extern "C" fn turbo_buffer_import(
 /// Release a buffer.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_buffer_release(buf: *mut turbo_buffer) {
-    unsafe { reclaim(buf as *mut Buffer) };
+    contain_release("turbo_buffer_release", || unsafe { reclaim(buf as *mut Buffer) });
 }
 
 /// Description of a buffer.
@@ -670,11 +701,14 @@ pub unsafe extern "C" fn turbo_buffer_get_desc(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_buffer_desc>("turbo_buffer_desc", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_buffer_desc>("turbo_buffer_desc", declared)?;
         let d = b.desc();
         let mut full = turbo_buffer_desc {
-            struct_size: o.struct_size,
+            struct_size: declared,
             placement: d.placement.as_abi(),
             dtype: d.dtype.as_abi(),
             ndim: d.shape.len() as u32,
@@ -689,7 +723,7 @@ pub unsafe extern "C" fn turbo_buffer_get_desc(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_buffer_desc).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -788,7 +822,7 @@ pub unsafe extern "C" fn turbo_model_load(
 /// Release a model. Sessions and generations keep it alive.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_model_release(m: *mut turbo_model) {
-    unsafe { reclaim(m as *mut Model) };
+    contain_release("turbo_model_release", || unsafe { reclaim(m as *mut Model) });
 }
 
 /// What loaded.
@@ -803,11 +837,14 @@ pub unsafe extern "C" fn turbo_model_get_info(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_model_info>("turbo_model_info", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_model_info>("turbo_model_info", declared)?;
         let i = m.info();
         let mut full = turbo_model_info {
-            struct_size: o.struct_size,
+            struct_size: declared,
             task: i.task.as_abi(),
             kind: i.kind.as_abi(),
             modality: i.modality.as_abi(),
@@ -840,7 +877,7 @@ pub unsafe extern "C" fn turbo_model_get_info(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_model_info).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -861,8 +898,11 @@ pub unsafe extern "C" fn turbo_model_io_info(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_tensor_info>("turbo_tensor_info", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_tensor_info>("turbo_tensor_info", declared)?;
         let list = match direction {
             TURBO_IO_INPUT => &m.info().inputs,
             TURBO_IO_OUTPUT => &m.info().outputs,
@@ -880,7 +920,7 @@ pub unsafe extern "C" fn turbo_model_io_info(
             )));
         }
         let mut full = turbo_tensor_info {
-            struct_size: o.struct_size,
+            struct_size: declared,
             dtype: t.dtype.as_abi(),
             ndim: t.shape.len() as u32,
             reserved: 0,
@@ -893,7 +933,7 @@ pub unsafe extern "C" fn turbo_model_io_info(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_tensor_info).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -953,7 +993,7 @@ pub unsafe extern "C" fn turbo_session_create(
 /// Release a session. Results keep it alive.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_session_release(s: *mut turbo_session) {
-    unsafe { reclaim(s as *mut Session) };
+    contain_release("turbo_session_release", || unsafe { reclaim(s as *mut Session) });
 }
 
 unsafe fn embed_options(opts: *const turbo_embed_options) -> Result<EmbedOptions> {
@@ -1143,11 +1183,14 @@ pub unsafe extern "C" fn turbo_session_get_stats(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_session_stats>("turbo_session_stats", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_session_stats>("turbo_session_stats", declared)?;
         let st = s.stats()?;
         let full = turbo_session_stats {
-            struct_size: o.struct_size,
+            struct_size: declared,
             reserved: 0,
             runs: st.runs,
             host_allocs: st.host_allocs.unwrap_or(u64::MAX),
@@ -1161,7 +1204,7 @@ pub unsafe extern "C" fn turbo_session_get_stats(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_session_stats).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -1184,11 +1227,14 @@ pub unsafe extern "C" fn turbo_result_get_info(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_result_info>("turbo_result_info", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_result_info>("turbo_result_info", declared)?;
         let first = r.output(0)?;
         let full = turbo_result_info {
-            struct_size: o.struct_size,
+            struct_size: declared,
             n_outputs: r.outputs().len() as u32,
             batch: first.shape.first().copied().unwrap_or(1) as u32,
             dim: if first.shape.len() >= 2 { first.shape[1..].iter().product::<u64>() as u32 } else { 1 },
@@ -1200,7 +1246,7 @@ pub unsafe extern "C" fn turbo_result_get_info(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_result_info).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -1220,11 +1266,14 @@ pub unsafe extern "C" fn turbo_result_output_info(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_tensor_info>("turbo_tensor_info", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_tensor_info>("turbo_tensor_info", declared)?;
         let t = r.output(index)?;
         let mut full = turbo_tensor_info {
-            struct_size: o.struct_size,
+            struct_size: declared,
             dtype: t.dtype().as_abi(),
             ndim: t.shape.len() as u32,
             reserved: 0,
@@ -1239,7 +1288,7 @@ pub unsafe extern "C" fn turbo_result_output_info(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_tensor_info).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -1306,12 +1355,12 @@ pub unsafe extern "C" fn turbo_result_spans(
             return Err(Error::invalid_argument("count is NULL"));
         }
         let spans = r.spans();
+        if capacity != 0 && dst.is_null() {
+            return Err(Error::invalid_argument("dst is NULL with non-zero capacity"));
+        }
         unsafe { *count = spans.len() as u32 };
         if capacity == 0 {
             return Ok(());
-        }
-        if dst.is_null() {
-            return Err(Error::invalid_argument("dst is NULL with non-zero capacity"));
         }
         let n = spans.len().min(capacity as usize);
         let out = unsafe { std::slice::from_raw_parts_mut(dst, n) };
@@ -1332,7 +1381,7 @@ pub unsafe extern "C" fn turbo_result_spans(
 /// Release a result and return its lease (once every view is released too).
 #[no_mangle]
 pub unsafe extern "C" fn turbo_result_release(r: *mut turbo_result) {
-    unsafe { reclaim(r as *mut ResultHandle) };
+    contain_release("turbo_result_release", || unsafe { reclaim(r as *mut ResultHandle) });
 }
 
 // ---------------------------------------------------------------------------
@@ -1478,16 +1527,23 @@ pub unsafe extern "C" fn turbo_generation_step(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_generation_chunk>("turbo_generation_chunk", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_generation_chunk>("turbo_generation_chunk", declared)?;
         let chunk = g.step()?;
         let full = turbo_generation_chunk {
-            struct_size: o.struct_size,
+            struct_size: declared,
             sequence: chunk.sequence,
             n_tokens: chunk.tokens.len() as u32,
             n_logprobs: chunk.logprobs.len() as u32,
             tokens: if chunk.tokens.is_empty() { std::ptr::null() } else { chunk.tokens.as_ptr() },
-            text: turbo_text { ptr: chunk.text.as_ptr().cast(), len: chunk.text.len() as u64 },
+            text: if chunk.text.is_empty() {
+                turbo_text { ptr: std::ptr::null(), len: 0 }
+            } else {
+                turbo_text { ptr: chunk.text.as_ptr().cast(), len: chunk.text.len() as u64 }
+            },
             logprobs: if chunk.logprobs.is_empty() { std::ptr::null() } else { chunk.logprobs.as_ptr() },
             done: chunk.done as u32,
             finish_reason: chunk.finish_reason.as_abi(),
@@ -1498,14 +1554,16 @@ pub unsafe extern "C" fn turbo_generation_step(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_generation_chunk).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
     })
 }
 
-/// Cancel; the next step reports `TURBO_FINISH_CANCELLED`.
+/// Cancel from any thread. The provider is told at the next step, which then
+/// reports `TURBO_FINISH_CANCELLED`, or at release, whichever comes first; a
+/// step that already finished the stream is not undone.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_generation_cancel(g: *mut turbo_generation, err: *mut turbo_error) -> i32 {
     boundary(err, || {
@@ -1517,7 +1575,7 @@ pub unsafe extern "C" fn turbo_generation_cancel(g: *mut turbo_generation, err: 
 /// Release a generation.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_generation_release(g: *mut turbo_generation) {
-    unsafe { reclaim(g as *mut Generation) };
+    contain_release("turbo_generation_release", || unsafe { reclaim(g as *mut Generation) });
 }
 
 /// Push-style generation over the pull iterator: creates a generation,
@@ -1567,7 +1625,11 @@ pub unsafe extern "C" fn turbo_generate(
                 n_tokens: chunk.tokens.len() as u32,
                 n_logprobs: chunk.logprobs.len() as u32,
                 tokens: if chunk.tokens.is_empty() { std::ptr::null() } else { chunk.tokens.as_ptr() },
-                text: turbo_text { ptr: chunk.text.as_ptr().cast(), len: chunk.text.len() as u64 },
+                text: if chunk.text.is_empty() {
+                turbo_text { ptr: std::ptr::null(), len: 0 }
+            } else {
+                turbo_text { ptr: chunk.text.as_ptr().cast(), len: chunk.text.len() as u64 }
+            },
                 logprobs: if chunk.logprobs.is_empty() { std::ptr::null() } else { chunk.logprobs.as_ptr() },
                 done: chunk.done as u32,
                 finish_reason: chunk.finish_reason.as_abi(),
@@ -1629,7 +1691,7 @@ pub unsafe extern "C" fn turbo_tokenizer_create(
 /// Release a tokenizer.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_tokenizer_release(t: *mut turbo_tokenizer) {
-    unsafe { reclaim(t as *mut Tokenizer) };
+    contain_release("turbo_tokenizer_release", || unsafe { reclaim(t as *mut Tokenizer) });
 }
 
 /// Static facts about a tokenizer.
@@ -1644,11 +1706,14 @@ pub unsafe extern "C" fn turbo_tokenizer_get_info(
         if out.is_null() {
             return Err(Error::invalid_argument("out is NULL"));
         }
-        let o = unsafe { &mut *out };
-        check_size::<turbo_tokenizer_info>("turbo_tokenizer_info", o.struct_size)?;
+        // SAFETY: `out` is non-null; the caller's struct may be unaligned or
+        // uninitialized past `struct_size`, so only that field is read, and
+        // without forming a reference.
+        let declared = unsafe { out.cast::<u32>().read_unaligned() };
+        check_size::<turbo_tokenizer_info>("turbo_tokenizer_info", declared)?;
         let i = t.info();
         let mut full = turbo_tokenizer_info {
-            struct_size: o.struct_size,
+            struct_size: declared,
             vocab_size: i.vocab_size,
             max_seq: i.max_seq,
             specials_per_sequence: i.specials_per_sequence,
@@ -1665,7 +1730,7 @@ pub unsafe extern "C" fn turbo_tokenizer_get_info(
             std::ptr::copy_nonoverlapping(
                 (&full as *const turbo_tokenizer_info).cast::<u8>(),
                 out.cast::<u8>(),
-                o.struct_size as usize,
+                declared as usize,
             )
         };
         Ok(())
@@ -1895,7 +1960,7 @@ pub unsafe extern "C" fn turbo_chunk_plan_get(
 /// Release a chunk plan.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_chunk_plan_release(p: *mut turbo_chunk_plan) {
-    unsafe { reclaim(p as *mut ChunkPlan) };
+    contain_release("turbo_chunk_plan_release", || unsafe { reclaim(p as *mut ChunkPlan) });
 }
 
 #[cfg(test)]

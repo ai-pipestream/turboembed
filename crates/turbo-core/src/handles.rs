@@ -28,7 +28,7 @@ use crate::provider::{
 };
 use crate::runtime::Runtime;
 use crate::types::{
-    Aggregation, DType, HandleKind, ModelKind, Normalize, OutputDType, Pooling, PromptRole, StructuredKind, Task,
+    Aggregation, DType, HandleKind, ModelKind, Normalize, OutputDType, Pooling, PromptRole, StructuredKind,
     Truncate,
 };
 
@@ -268,7 +268,7 @@ impl Model {
         Ok(Arc::new(Session {
             model: self.clone(),
             desc: resolved,
-            state: Mutex::new(SessionState { inner, inputs_ready: false, written_task: None }),
+            state: Mutex::new(SessionState { inner, inputs_ready: false, bound_inputs: Vec::new() }),
             lease: AtomicBool::new(false),
         }))
     }
@@ -505,8 +505,10 @@ impl std::fmt::Debug for Model {
 
 struct SessionState {
     inner: Box<dyn ProviderSession>,
+    /// A write completed, or every declared input of a RUN model is bound.
     inputs_ready: bool,
-    written_task: Option<Task>,
+    /// Names bound so far on a RUN model; outputs are bound but not counted.
+    bound_inputs: Vec<String>,
 }
 
 /// Execution workspace. Single owner.
@@ -537,7 +539,11 @@ impl Session {
             Err(TryLockError::WouldBlock) => {
                 Err(Error::busy("session has an operation in flight on another thread; sessions are single-owner"))
             }
-            Err(TryLockError::Poisoned(p)) => Ok(p.into_inner()),
+            // A provider panic under the lock leaves the state half updated;
+            // the mutex stays poisoned, so every later call lands here.
+            Err(TryLockError::Poisoned(_)) => {
+                Err(Error::invalid_state("the session was left inconsistent by a panic in a provider call; create a new session"))
+            }
         }
     }
 
@@ -586,7 +592,6 @@ impl Session {
         st.inputs_ready = false;
         st.inner.write_text(texts, opts)?;
         st.inputs_ready = true;
-        st.written_task = Some(Task::Embed);
         Ok(())
     }
 
@@ -615,7 +620,6 @@ impl Session {
         st.inputs_ready = false;
         st.inner.write_tokens(batch)?;
         st.inputs_ready = true;
-        st.written_task = Some(info.task);
         Ok(())
     }
 
@@ -637,7 +641,6 @@ impl Session {
         st.inputs_ready = false;
         st.inner.write_pairs(query, docs, opts)?;
         st.inputs_ready = true;
-        st.written_task = Some(Task::Rerank);
         Ok(())
     }
 
@@ -651,7 +654,6 @@ impl Session {
         st.inputs_ready = false;
         st.inner.write_text_classify(texts, opts)?;
         st.inputs_ready = true;
-        st.written_task = Some(self.model.info().task);
         Ok(())
     }
 
@@ -682,8 +684,12 @@ impl Session {
         let mut st = self.lock()?;
         self.require_no_lease()?;
         st.inner.bind(name, buffer.inner.clone())?;
-        st.inputs_ready = true;
-        st.written_task = Some(Task::Run);
+        // Only inputs count towards readiness: binding every output of a
+        // model with no input bound must not make it runnable.
+        if info.inputs.iter().any(|t| t.name == name) && !st.bound_inputs.iter().any(|b| b == name) {
+            st.bound_inputs.push(name.to_string());
+        }
+        st.inputs_ready = !info.inputs.is_empty() && info.inputs.iter().all(|t| st.bound_inputs.iter().any(|b| *b == t.name));
         Ok(())
     }
 
@@ -692,6 +698,12 @@ impl Session {
         let mut st = self.lock()?;
         self.require_no_lease()?;
         if !st.inputs_ready {
+            let info = self.model.info();
+            if let Some(missing) = info.inputs.iter().find(|t| !st.bound_inputs.iter().any(|b| *b == t.name)) {
+                if !st.bound_inputs.is_empty() {
+                    return Err(Error::invalid_state(format!("input `{}` is not bound; bind every input before run", missing.name)));
+                }
+            }
             return Err(Error::invalid_state("no valid inputs are written; call a write function before run"));
         }
         let result = st.inner.run(opts)?;
@@ -720,7 +732,7 @@ impl Session {
     /// Counters.
     pub fn stats(&self) -> Result<SessionStats> {
         let st = self.lock()?;
-        Ok(st.inner.stats())
+        st.inner.stats()
     }
 }
 
@@ -856,7 +868,9 @@ impl Generation {
             Err(TryLockError::WouldBlock) => Err(Error::busy(
                 "generation has an operation in flight on another thread; generations are single-owner",
             )),
-            Err(TryLockError::Poisoned(p)) => Ok(p.into_inner()),
+            Err(TryLockError::Poisoned(_)) => Err(Error::invalid_state(
+                "the generation was left inconsistent by a panic in a provider call; create a new generation",
+            )),
         }
     }
 
@@ -936,6 +950,22 @@ impl Generation {
     pub fn cancel(&self) -> Result<()> {
         self.cancel_requested.store(true, std::sync::atomic::Ordering::SeqCst);
         Ok(())
+    }
+}
+
+impl Drop for Generation {
+    /// A cancel that no later step delivered reaches the provider here, so
+    /// "cancel, then release" tells it to stop before its generation drops.
+    fn drop(&mut self) {
+        if !self.cancel_requested.load(std::sync::atomic::Ordering::SeqCst) {
+            return;
+        }
+        if let Ok(st) = self.state.get_mut() {
+            if !st.finished && !st.cancelled {
+                st.cancelled = true;
+                st.inner.cancel();
+            }
+        }
     }
 }
 

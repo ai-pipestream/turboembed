@@ -25,6 +25,8 @@ extern "C" {
 #define WORDPIECE_ERR_INVALID_ARGUMENT 1
 #define WORDPIECE_ERR_NOT_FOUND 2
 #define WORDPIECE_ERR_INTERNAL 3
+/* The pair does not fit max_length and truncation is WORDPIECE_TRUNC_ERROR. */
+#define WORDPIECE_ERR_TOO_LONG 4
 
 /** 0 = longest-first, 1 = query-priority, 2 = error if pair exceeds budget. */
 #define WORDPIECE_TRUNC_LONGEST_FIRST 0u
@@ -51,6 +53,10 @@ int32_t wordpiece_unk_id(const wordpiece_vocab *v);
 int32_t wordpiece_cls_id(const wordpiece_vocab *v);
 int32_t wordpiece_sep_id(const wordpiece_vocab *v);
 int32_t wordpiece_pad_id(const wordpiece_vocab *v);
+/* One past the largest token id in the vocabulary: every id a tokenize
+ * call can produce is below it, and an embedding table for this
+ * vocabulary has exactly this many rows. 0 when v is NULL. */
+int32_t wordpiece_vocab_size(const wordpiece_vocab *v);
 
 /**
  * WordPiece without inserting CLS/SEP. Literal configured special tokens are

@@ -967,9 +967,9 @@ impl ProviderSession for MockSession {
         Ok(result)
     }
 
-    fn stats(&self) -> SessionStats {
+    fn stats(&self) -> Result<SessionStats> {
         let in_bytes = (self.ids.len() * 4 * 2) as u64;
-        SessionStats {
+        Ok(SessionStats {
             runs: self.runs,
             host_allocs: None,
             h2d_bytes: 0,
@@ -977,7 +977,7 @@ impl ProviderSession for MockSession {
             input_bytes: in_bytes,
             output_bytes: self.out.desc().bytes + self.sorted.desc().bytes,
             provider_allocs: Some(self.allocs.load(Ordering::Relaxed)),
-        }
+        })
     }
 }
 

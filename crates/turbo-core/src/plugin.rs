@@ -793,7 +793,7 @@ impl ProviderSession for PluginSession {
         Ok(ProviderResult { outputs, spans })
     }
 
-    fn stats(&self) -> SessionStats {
+    fn stats(&self) -> Result<SessionStats> {
         let vt = self.vt();
         let mut s = abi::turbo_session_stats {
             struct_size: std::mem::size_of::<abi::turbo_session_stats>() as u32,
@@ -809,10 +809,12 @@ impl ProviderSession for PluginSession {
         let mut e = new_err();
         let rc = unsafe { (vt.session_stats.unwrap())(self.session, &mut s, &mut e) };
         if rc != abi::TURBO_OK {
-            // Stats cannot fail the caller; report unknown counters.
-            return SessionStats { provider_allocs: None, ..SessionStats::default() };
+            // A failed stats call is an error, never a fabricated zero that a
+            // receipt would then publish as a measurement.
+            take(rc, &e, "session_stats")?;
+            unreachable!("take returns an error for a non-OK status");
         }
-        session_stats_from_abi(&s)
+        Ok(session_stats_from_abi(&s))
     }
 }
 

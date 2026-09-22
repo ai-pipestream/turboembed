@@ -1468,11 +1468,11 @@ impl ProviderSession for CudaSession {
         Ok(ProviderResult { outputs, spans: self.spans.clone() })
     }
 
-    fn stats(&self) -> SessionStats {
+    fn stats(&self) -> Result<SessionStats> {
         let width = self.model.elem.width() as u64;
         let n = self.batch as u64 * self.seq as u64;
         let inputs = if self.d_types.is_some() { 3 } else { 2 };
-        SessionStats {
+        Ok(SessionStats {
             runs: self.runs,
             // The result API hands the core owned vectors and names every
             // run, so this path is not allocation-free and the provider
@@ -1485,7 +1485,7 @@ impl ProviderSession for CudaSession {
             // ONNX Runtime allocates small host objects per bound run
             // (tensor wrappers, output maps); they are not observable here.
             provider_allocs: None,
-        }
+        })
     }
 }
 

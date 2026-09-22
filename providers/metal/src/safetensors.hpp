@@ -32,6 +32,7 @@ struct Tensor {
     uint64_t elements() const {
         uint64_t n = 1;
         for (uint64_t d : shape) {
+            turbo_pc::require(d == 0 || n <= UINT64_MAX / d, TURBO_E_BUNDLE_INVALID, "tensor shape product overflows");
             n *= d;
         }
         return n;
@@ -76,19 +77,34 @@ class SafeTensors {
         }
         const uint8_t *data = bytes + 8 + header_len;
         const uint64_t data_len = size_ - 8 - header_len;
+        require(header.is_object(), TURBO_E_BUNDLE_INVALID, path + ": safetensors header is not a JSON object");
         for (auto it = header.begin(); it != header.end(); ++it) {
             if (it.key() == "__metadata__") {
                 continue;
             }
+            // A malformed entry is a bad bundle, named by tensor, never a
+            // runtime fault from the JSON library.
             const nlohmann::json &t = it.value();
             Entry e;
-            e.dtype = t.value("dtype", "");
-            for (const auto &d : t.at("shape")) {
-                e.shape.push_back(d.get<uint64_t>());
+            try {
+                require(t.is_object() && t.contains("dtype") && t.contains("shape") && t.contains("data_offsets"), TURBO_E_BUNDLE_INVALID,
+                        path + ": tensor `" + it.key() + "` lacks dtype, shape, or data_offsets");
+                e.dtype = t.at("dtype").get<std::string>();
+                for (const auto &d : t.at("shape")) {
+                    require(d.is_number_unsigned(), TURBO_E_BUNDLE_INVALID,
+                            path + ": tensor `" + it.key() + "` has a shape entry that is not a non-negative integer");
+                    e.shape.push_back(d.get<uint64_t>());
+                }
+                const auto &off = t.at("data_offsets");
+                require(off.is_array() && off.size() == 2 && off.at(0).is_number_unsigned() && off.at(1).is_number_unsigned(),
+                        TURBO_E_BUNDLE_INVALID, path + ": tensor `" + it.key() + "` data_offsets must be two non-negative integers");
+                e.begin = off.at(0).get<uint64_t>();
+                e.end = off.at(1).get<uint64_t>();
+            } catch (const turbo_pc::Failure &) {
+                throw;
+            } catch (const std::exception &ex) {
+                fail(TURBO_E_BUNDLE_INVALID, path + ": tensor `" + it.key() + "`: " + ex.what());
             }
-            const auto &off = t.at("data_offsets");
-            e.begin = off.at(0).get<uint64_t>();
-            e.end = off.at(1).get<uint64_t>();
             require(e.begin <= e.end && e.end <= data_len, TURBO_E_BUNDLE_INVALID,
                     path + ": tensor `" + it.key() + "` has offsets outside the file");
             e.ptr = data + e.begin;

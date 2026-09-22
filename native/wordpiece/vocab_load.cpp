@@ -73,6 +73,9 @@ bool insert_slot(
             s.len = len;
             s.occupied = 1;
             s.id = id;
+            if (id >= 0 && id + 1 > v->n_ids) {
+                v->n_ids = id + 1;
+            }
             return true;
         }
         if (s.len == len && std::memcmp(v->blob + s.off, v->blob + off, len) == 0) {
@@ -453,6 +456,9 @@ int32_t wordpiece_sep_id(const wordpiece_vocab *v) {
 }
 int32_t wordpiece_pad_id(const wordpiece_vocab *v) {
     return v ? v->pad_id : 0;
+}
+int32_t wordpiece_vocab_size(const wordpiece_vocab *v) {
+    return v ? v->n_ids : 0;
 }
 
 } // extern "C"

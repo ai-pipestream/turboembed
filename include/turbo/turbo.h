@@ -375,7 +375,9 @@ int32_t turbo_generation_step(turbo_generation *g,
                               turbo_error *err);
 
 /**
- * Cancel; the next step reports `TURBO_FINISH_CANCELLED`.
+ * Cancel from any thread. The provider is told at the next step, which then
+ * reports `TURBO_FINISH_CANCELLED`, or at release, whichever comes first; a
+ * step that already finished the stream is not undone.
  */
 int32_t turbo_generation_cancel(turbo_generation *g,
                                 turbo_error *err);

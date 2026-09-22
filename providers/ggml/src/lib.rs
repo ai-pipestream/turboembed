@@ -219,7 +219,9 @@ impl Provider for GgmlProvider {
             reference_dtype: None,
             cosine_floor: 0.0,
             max_abs_error: 0.0,
-            deterministic: d.kind == DeviceKind::Cpu,
+            // Embeddings are bit-reproducible on the CPU; sampled generation
+            // draws a seed when none is given, so it never claims to be.
+            deterministic: d.kind == DeviceKind::Cpu && task == Task::Embed,
             notes: match task {
                 Task::Embed => format!(
                     "llama.cpp on {}; pooling in the graph, L2 on the host, result in host memory; receipts pending",
@@ -523,10 +525,28 @@ impl Plan {
                     .with_field(15));
             }
         }
-        if desc.top_k != 0 && desc.top_k as i32 > vocab {
+        if desc.top_k != 0 && u64::from(desc.top_k) > vocab as u64 {
             return Err(Error::invalid_argument(format!("top_k {} exceeds the vocabulary of {vocab}", desc.top_k))
                 .with_field(6));
         }
+        if u64::from(desc.logprobs) > vocab as u64 {
+            return Err(Error::invalid_argument(format!("logprobs {} exceeds the vocabulary of {vocab}", desc.logprobs))
+                .with_field(GenerateDesc::FIELD_LOGPROBS));
+        }
+        // The ABI seed is 64 bits; llama.cpp's is 32 and reserves
+        // 0xFFFFFFFF as "draw one". Neither is silently mapped.
+        let seed = match desc.seed {
+            None => fresh_seed(),
+            Some(s) if s > u64::from(u32::MAX) => {
+                return Err(Error::invalid_argument(format!("seed {s} does not fit llama.cpp's 32-bit seed"))
+                    .with_field(GenerateDesc::FIELD_SEED))
+            }
+            Some(s) if s == u64::from(u32::MAX) => {
+                return Err(Error::invalid_argument("seed 0xFFFFFFFF is llama.cpp's random-seed sentinel and cannot be honored as a fixed seed")
+                    .with_field(GenerateDesc::FIELD_SEED))
+            }
+            Some(s) => s as u32,
+        };
         Ok(Self {
             max_new,
             min_new: desc.min_new_tokens,
@@ -537,7 +557,7 @@ impl Plan {
             // An unseeded sampled generation is a fresh draw, as a caller who
             // omitted the seed expects; the chunk stream does not report the
             // seed, so a caller who wants reproduction sets one.
-            seed: desc.seed.map(|s| (s & 0xFFFF_FFFF) as u32).unwrap_or_else(fresh_seed),
+            seed,
             temperature: desc.temperature,
             top_k: desc.top_k,
             top_p: desc.top_p,
@@ -725,7 +745,10 @@ impl Generation {
 
     fn finish(&mut self, out: &mut Chunk, reason: FinishReason) {
         // Whatever was held back for stop-string matching is text the
-        // model produced; the stream ends with it.
+        // model produced; the stream ends with it, and so does a trailing
+        // partial character, as U+FFFD.
+        let tail = self.drain_decodable(true);
+        self.hold.push_str(&tail);
         out.text.push_str(&self.hold);
         self.hold.clear();
         out.done = true;
@@ -748,20 +771,62 @@ impl Generation {
     }
 
     /// Append a token's bytes and return the text that became decodable.
+    /// A control token (a chat delimiter the model emits mid-stream) has
+    /// no text and contributes nothing; a piece longer than the first
+    /// buffer is fetched again at the size llama.cpp reports.
     fn piece(&mut self, token: LlamaToken) -> Result<String> {
-        let bytes = self
-            .inner
-            .model
-            .token_to_piece_bytes(token, 16, false, None)
-            .map_err(|e| Error::internal(format!("token {} has no piece: {e}", token.0)))?;
-        self.pending.extend_from_slice(&bytes);
-        let valid = match std::str::from_utf8(&self.pending) {
-            Ok(_) => self.pending.len(),
-            Err(e) => e.valid_up_to(),
+        use llama_cpp_2::token_type::LlamaTokenAttr;
+        use llama_cpp_2::TokenToStringError;
+        let attrs = self.inner.model.token_attr(token);
+        if attrs.0.contains(LlamaTokenAttr::Control) {
+            return Ok(String::new());
+        }
+        let bytes = match self.inner.model.token_to_piece_bytes(token, 16, false, None) {
+            Ok(b) => b,
+            Err(TokenToStringError::InsufficientBufferSpace(need)) => self
+                .inner
+                .model
+                .token_to_piece_bytes(token, need.unsigned_abs() as usize, false, None)
+                .map_err(|e| Error::internal(format!("token {} has no piece at {} bytes: {e}", token.0, need.unsigned_abs())))?,
+            Err(e) => return Err(Error::internal(format!("token {} has no piece: {e}", token.0))),
         };
-        let text = String::from_utf8_lossy(&self.pending[..valid]).into_owned();
-        self.pending.drain(..valid);
-        Ok(text)
+        self.pending.extend_from_slice(&bytes);
+        Ok(self.drain_decodable(false))
+    }
+
+    /// Text from `pending` that is complete UTF-8. An incomplete trailing
+    /// sequence waits for the next token unless `flush` is set; bytes that
+    /// can never be valid become U+FFFD, so one bad byte cannot wedge the
+    /// stream.
+    fn drain_decodable(&mut self, flush: bool) -> String {
+        let mut text = String::new();
+        loop {
+            match std::str::from_utf8(&self.pending) {
+                Ok(s) => {
+                    text.push_str(s);
+                    self.pending.clear();
+                    return text;
+                }
+                Err(e) => {
+                    let valid = e.valid_up_to();
+                    text.push_str(std::str::from_utf8(&self.pending[..valid]).expect("validated prefix"));
+                    match e.error_len() {
+                        Some(bad) => {
+                            text.push('\u{FFFD}');
+                            self.pending.drain(..valid + bad);
+                        }
+                        None => {
+                            self.pending.drain(..valid);
+                            if flush && !self.pending.is_empty() {
+                                text.push('\u{FFFD}');
+                                self.pending.clear();
+                            }
+                            return text;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Top-`k` log probabilities of the model's own distribution for the
@@ -793,14 +858,18 @@ impl Generation {
 /// that fit this many tokens (or one sequence, when that is larger).
 const EMBED_UBATCH_CAP: u32 = 4096;
 
-/// A seed from the OS for generations that name none.
+/// A seed from the OS for generations that name none; never llama.cpp's
+/// 0xFFFFFFFF "draw one" sentinel, which would re-randomize every prefill.
 fn fresh_seed() -> u32 {
     use std::hash::{BuildHasher, Hasher};
     let mut h = std::collections::hash_map::RandomState::new().build_hasher();
     h.write_u64(
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(0),
     );
-    (h.finish() & 0xFFFF_FFFF) as u32
+    match (h.finish() & 0xFFFF_FFFF) as u32 {
+        u32::MAX => u32::MAX - 1,
+        s => s,
+    }
 }
 
 /// Bytes to hold back so no stop string can be partly delivered: the
@@ -901,19 +970,36 @@ impl ProviderGeneration for Generation {
             self.finish(out, FinishReason::Eos);
             return Ok(());
         }
-        let piece = self.piece(token)?;
-        self.hold.push_str(&piece);
         if self.plan.stop_tokens.contains(&token.0) {
+            // Like EOS: the token ends the stream and its text is withheld.
             self.finish(out, FinishReason::Stop);
             return Ok(());
         }
-        if let Some(s) = self.plan.stop.iter().find(|s| !s.is_empty() && self.hold.ends_with(s.as_str())) {
-            // The held text always covers the stop string (at least
-            // `len - 1` bytes were retained before this piece), so the whole
-            // match is withheld and only the text before it goes out.
-            let keep = self.hold.len() - s.len();
-            out.text.push_str(&self.hold[..keep]);
+        let piece = self.piece(token)?;
+        self.hold.push_str(&piece);
+        // A stop string can end anywhere inside the new piece, not only at
+        // its end, and the earliest match wins. Only the bytes this piece
+        // could complete are searched: the piece plus `hold_max` before it
+        // (everything earlier was searched when it arrived).
+        let mut from = self.hold.len().saturating_sub(piece.len() + self.hold_max);
+        while from > 0 && !self.hold.is_char_boundary(from) {
+            from -= 1;
+        }
+        let mut earliest: Option<usize> = None;
+        for s in self.plan.stop.iter().filter(|s| !s.is_empty()) {
+            if let Some(i) = self.hold[from..].find(s.as_str()) {
+                let at = from + i;
+                if earliest.is_none_or(|e| at < e) {
+                    earliest = Some(at);
+                }
+            }
+        }
+        if let Some(at) = earliest {
+            // Everything before the match goes out; the match and whatever
+            // followed it in the same piece are withheld.
+            out.text.push_str(&self.hold[..at]);
             self.hold.clear();
+            self.pending.clear();
             out.done = true;
             out.finish_reason = FinishReason::Stop;
             self.done = true;
@@ -986,8 +1072,12 @@ impl EmbedSession {
         // decodes its rows in groups that fit; the context only ever holds
         // one group.
         let ubatch = n_tokens.min(EMBED_UBATCH_CAP).max(max_seq);
+        // `n_ctx` is per context and llama.cpp divides it by `n_seq_max`
+        // for each sequence's KV stream, so it must hold every row of the
+        // batch at `max_seq`, not one micro-batch; BERT encoders keep no KV
+        // cache and are indifferent, decoder-style embedders are not.
         let params = LlamaContextParams::default()
-            .with_n_ctx(NonZeroU32::new(ubatch))
+            .with_n_ctx(NonZeroU32::new(n_tokens))
             .with_n_batch(ubatch)
             .with_n_ubatch(ubatch)
             .with_n_seq_max(max_batch)
@@ -996,6 +1086,12 @@ impl EmbedSession {
         let ctx = inner.model.new_context(backend()?, params).map_err(|e| {
             Error::runtime(format!("llama.cpp could not create an embedding context of {ubatch} tokens: {e}"))
         })?;
+        if ctx.n_ctx() < n_tokens {
+            return Err(Error::runtime(format!(
+                "llama.cpp created an embedding context of {} tokens; {n_tokens} ({max_batch} rows of {max_seq}) are needed",
+                ctx.n_ctx()
+            )));
+        }
         // SAFETY: as for `Generation`: `inner` outlives the context, which is
         // declared first so it drops first.
         let ctx: LlamaContext<'static> = unsafe { std::mem::transmute(ctx) };
@@ -1073,9 +1169,22 @@ impl ProviderSession for EmbedSession {
                 // Keep the leading special token, and the trailing one when
                 // the vocabulary added one (BERT's [SEP]; a decoder-style
                 // embedder adds BOS only and its last token is content), and
-                // cut the content between them.
+                // cut the content between them. The prompt prefix sits at
+                // the front of the content, so left truncation would drop
+                // it; that combination is refused rather than embedded in
+                // the wrong subspace.
+                if opts.truncate == Truncate::Left && !prefix.is_empty() {
+                    return Err(Error::invalid_argument(format!(
+                        "input row {r} needs truncation and truncate LEFT would remove the prompt prefix `{prefix}`; use RIGHT or a shorter input"
+                    ))
+                    .with_field(EmbedOptions::FIELD_TRUNCATE));
+                }
                 let first = tokens[0];
-                let last_is_special = model.model.is_eog_token(tokens[tokens.len() - 1]);
+                let last_is_special = model
+                    .model
+                    .token_attr(tokens[tokens.len() - 1])
+                    .0
+                    .contains(llama_cpp_2::token_type::LlamaTokenAttr::Control);
                 let last = if last_is_special { Some(tokens[tokens.len() - 1]) } else { None };
                 let content = if last_is_special { &tokens[1..tokens.len() - 1] } else { &tokens[1..] };
                 let keep = budget - 1 - usize::from(last_is_special);
@@ -1199,17 +1308,22 @@ impl ProviderSession for EmbedSession {
                 dst.copy_from_slice(&v[..dim_out]);
                 if normalize {
                     let norm = dst.iter().map(|x| x * x).sum::<f32>().sqrt();
-                    if norm > 1e-12 {
-                        for x in dst.iter_mut() {
-                            *x /= norm;
-                        }
+                    if norm <= 1e-12 {
+                        return Err(Error::runtime(format!(
+                            "row {r} pooled to a zero vector, which cannot be L2-normalized as the contract promises"
+                        )));
+                    }
+                    for x in dst.iter_mut() {
+                        *x /= norm;
                     }
                 }
             }
             start = end;
         }
         if self.inner.device_kind != DeviceKind::Cpu {
-            // llama.cpp copied the pooled vectors from the device.
+            // llama.cpp copied the full pooled vectors (the model dimension)
+            // from the device; `output_dim` is a host-side cut afterwards,
+            // so the counter reports what crossed the bus.
             self.d2h += (n * dim * 4) as u64;
         }
         self.runs += 1;
@@ -1223,8 +1337,8 @@ impl ProviderSession for EmbedSession {
         })
     }
 
-    fn stats(&self) -> SessionStats {
-        SessionStats {
+    fn stats(&self) -> Result<SessionStats> {
+        Ok(SessionStats {
             runs: self.runs,
             // Not counted: the result API and llama.cpp both allocate on
             // the run path (see the CUDA provider's note).
@@ -1235,7 +1349,7 @@ impl ProviderSession for EmbedSession {
             output_bytes: self.out.desc().bytes,
             // llama.cpp's own allocations are not observable here.
             provider_allocs: None,
-        }
+        })
     }
 }
 

@@ -420,7 +420,7 @@ int wordpiece_pack_pair(
     if (nq > budget || nd > budget - nq) {
         switch (truncation) {
         case WORDPIECE_TRUNC_ERROR:
-            return WORDPIECE_ERR_INVALID_ARGUMENT;
+            return WORDPIECE_ERR_TOO_LONG;
         case WORDPIECE_TRUNC_QUERY_PRIORITY:
             if (nq > budget) {
                 nq = budget;
