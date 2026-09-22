@@ -123,9 +123,40 @@ Environment variables the harness reads (`crates/turbo-conformance/src/lib.rs`):
   bundle kind, in place of the committed `testdata/bundles/mock`.
 - `TURBO_CONFORMANCE_PROVIDER_PATHS` — colon-separated provider library
   paths loaded in addition to the built-in providers before the suite runs
-  (for example, point it at `libturbo_provider_openvino.so` or
-  `libturbo_provider_cuda.so` to run the suite's mock-bundle-independent
-  groups against that provider).
+  (point it at `libturbo_provider_openvino.so`, `libturbo_provider_cuda.so`
+  or `libturbo_provider_ggml.so` to run the whole suite against that
+  provider; the C cases load the same libraries).
+- `TURBO_CONFORMANCE_BUNDLE_EMBEDDING`, `_RERANKER`, `_CLASSIFIER`,
+  `_TOKEN_CLASSIFIER`, `_GENERATIVE`, `_GENERIC` — the bundle directory of
+  one kind, overriding the root, so a real provider runs on its real
+  bundles wherever they live.
+
+Every case states the bundle kinds it needs with `needs!(t, Kind, ...)`.
+When the device under test does not offer a kind's task (its capability
+cell is UNSUPPORTED or PLANNED) the case prints `not applicable: ...` and
+returns, and the run's log counts those lines; when the device offers the
+task but no bundle of that kind is configured, the case fails naming the
+variable to set. A case is never skipped without a printed reason. The
+whole suite on a real provider on `krick`, 2026-09-22:
+
+```bash
+# cuda on the RTX 4080 SUPER: 269 passed, 34 not applicable (Generate, Run)
+LD_LIBRARY_PATH=$PWD/.libs/nvidia/lib TURBO_CUDA_LIB_DIR=$PWD/.libs/nvidia/lib \
+TURBO_CONFORMANCE_PROVIDER_PATHS=$PWD/target/release/libturbo_provider_cuda.so \
+TURBO_CONFORMANCE_PROVIDER=cuda TURBO_CONFORMANCE_ORDINAL=0 \
+TURBO_CONFORMANCE_BUNDLE_EMBEDDING=$HOME/opt/bundles/minilm-onnx \
+TURBO_CONFORMANCE_BUNDLE_RERANKER=$HOME/opt/bundles/rerank-onnx \
+TURBO_CONFORMANCE_BUNDLE_CLASSIFIER=$HOME/opt/bundles/sst2-onnx \
+TURBO_CONFORMANCE_BUNDLE_TOKEN_CLASSIFIER=$HOME/opt/bundles/ner-onnx \
+cargo test -p turbo-conformance --no-fail-fast -- --test-threads=4
+# ggml on the same GPU: 269 passed, 15 not applicable (Rerank, Classify, TokenClassify, Run,
+# and the two prompt-prefix cases MiniLM cannot exercise)
+TURBO_CONFORMANCE_PROVIDER_PATHS=$PWD/target/release/libturbo_provider_ggml.so \
+TURBO_CONFORMANCE_PROVIDER=ggml TURBO_CONFORMANCE_ORDINAL=0 \
+TURBO_CONFORMANCE_BUNDLE_EMBEDDING=$HOME/opt/bundles/minilm-gguf \
+TURBO_CONFORMANCE_BUNDLE_GENERATIVE=$HOME/opt/bundles/qwen05-gguf \
+cargo test -p turbo-conformance --no-fail-fast -- --test-threads=2
+```
 
 `PLAN.md` section 11 additionally defines the benchmark protocol: a matched
 pair per provider (a direct-native reference program using the runtime
