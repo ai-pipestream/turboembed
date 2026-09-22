@@ -25,6 +25,15 @@ checklist.
   `cuda_runtime.h`, `libcudart.so`, and network access on the first build
   (the `ort` crate downloads a prebuilt ONNX Runtime CUDA bundle). See
   [`providers/cuda/README.md`](providers/cuda/README.md).
+- The `ggml` provider (`providers/ggml`) is also a workspace member, but
+  unlike CUDA and OpenVINO it is *not* excluded below: its default (CPU
+  backend) build needs only `cmake` and a C/C++ compiler, which
+  `llama-cpp-sys-2` uses to build llama.cpp from source at compile time (the
+  first build is noticeably slower for this reason). `cargo build
+  --workspace --exclude turbo-provider-cuda` therefore builds `ggml`'s CPU
+  backend too. The `cuda`/`metal`/`vulkan` ggml backends are opt-in Cargo
+  features, not built by the commands below. See
+  [`providers/ggml/README.md`](providers/ggml/README.md).
 
 ## Building and testing
 
@@ -38,8 +47,12 @@ scripts/gen-versioned.py --check       # struct_size table matches crates/turbo-
 scripts/c-smoke.sh                     # builds libturbo, compiles and runs the C smoke test
 ```
 
-Run all of these before opening a PR; `.github/workflows/ci.yml` runs the
-same sequence plus a standalone C11/C++17 compile of the header.
+Run all of these before opening a PR; `.github/workflows/ci.yml`'s
+`contract` job runs the same sequence plus a standalone C11/C++17 compile
+of the header. Two further, independent CI jobs are not part of this
+sequence: `java` (the Java binding's conformance cases under JDK 25,
+`bindings/java`, `docs/bindings.md`) and `packaging`
+(`scripts/package.sh --no-cuda --no-openvino`, `docs/packaging.md`).
 
 If your change touches `crates/turbo-abi` or `crates/turbo-capi` (new
 constant, struct, or function), regenerate the header and commit it:
@@ -92,12 +105,14 @@ instead, set `TURBO_CONFORMANCE_PROVIDER_PATHS` (colon-separated library
 paths to load in addition to the built-ins), `TURBO_CONFORMANCE_PROVIDER`
 (the provider id to select), and `TURBO_CONFORMANCE_ORDINAL` (the device
 ordinal within it); see `docs/testing.md`. The live provider tests
-(`tests/live_embed.rs`, `tests/live_tasks.rs`) are a separate, narrower path
-that loads one real provider library and reads its own `TURBO_LIVE_*`
-environment variables (`crates/turbo-conformance/src/live.rs`), skipping
-themselves when `TURBO_LIVE_LIB` or `TURBO_LIVE_PROVIDER` is unset; see
-[`providers/openvino/README.md`](providers/openvino/README.md) for OpenVINO
-and [`providers/cuda/README.md`](providers/cuda/README.md) for CUDA.
+(`tests/live_embed.rs`, `tests/live_tasks.rs`, `tests/live_generate.rs`) are
+a separate, narrower path that loads one real provider library and reads
+its own `TURBO_LIVE_*` environment variables
+(`crates/turbo-conformance/src/live.rs`), skipping themselves when
+`TURBO_LIVE_LIB` or `TURBO_LIVE_PROVIDER` is unset; see
+[`providers/openvino/README.md`](providers/openvino/README.md) for OpenVINO,
+[`providers/cuda/README.md`](providers/cuda/README.md) for CUDA, and
+[`providers/ggml/README.md`](providers/ggml/README.md) for `live_generate.rs`.
 
 ## Branch and PR expectations
 
@@ -118,7 +133,8 @@ and [`providers/cuda/README.md`](providers/cuda/README.md) for CUDA.
 - `#![deny(missing_docs)]` is set on every Rust crate in the workspace
   (`turbo-abi`, `turbo-core`, `turbo-capi`, `turbo-shared`, `turbo`,
   `turbo-conformance`, `providers/mock`, `providers/static`,
-  `tools/turbo-bundle`). Every public item needs a doc comment.
+  `providers/cuda`, `providers/ggml`, `tools/turbo-bundle`). Every public
+  item needs a doc comment.
 - `clippy -D warnings` must be clean; do not add `#[allow(...)]` to silence
   a real finding. `turbo-abi` and `turbo-capi` also deny
   `unsafe_op_in_unsafe_fn`: every `unsafe` block, even inside an `unsafe fn`,

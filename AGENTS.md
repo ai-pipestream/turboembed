@@ -65,11 +65,12 @@ A reviewer applies these to every change, not just provider code:
   `c/smoke.c` and a Rust suite (`tests/`, one file per group: contract,
   lifetime, capability, device, threading, allocation, bundle, tasks,
   generation, each in a `_c` and a `_rust` variant, plus `header_parity.rs`
-  and the OpenVINO live tests described below).
-- `providers/mock/`, `providers/static/` — Rust providers built with
-  `export_provider!`. `providers/openvino/` — a C++ provider that
-  implements `turbo_provider.h`'s vtable directly and builds separately
-  with CMake; see its own `README.md`.
+  and the live provider tests described below).
+- `providers/mock/`, `providers/static/`, `providers/cuda/`,
+  `providers/ggml/` — Rust providers built with `export_provider!`.
+  `providers/openvino/` — a C++ provider that implements
+  `turbo_provider.h`'s vtable directly and builds separately with CMake;
+  see its own `README.md`.
 - `tools/turbo-bundle/` — `import`, `verify`, `inspect` (`docs/bundles.md`).
 - `include/turbo/` — generated headers (`turbo.h`, `turbo_types.h`,
   `turbo_provider.h`). Never hand-edit.
@@ -94,17 +95,23 @@ cargo run -p turbo-core --example write_mock_bundles && git diff --exit-code -- 
 scripts/c-smoke.sh
 ```
 
-`.github/workflows/ci.yml` runs exactly this sequence, plus a check that
-`include/turbo/turbo.h` compiles standalone as both C11 and C++17. Run all of
-it locally before opening a PR; a change to `turbo-abi` or `turbo-capi`
-almost always requires regenerating headers and, if it touches the mock
-provider's manifests, regenerating fixtures. CI does not build the OpenVINO
-provider (needs an OpenVINO install) and excludes `turbo-provider-cuda`
-(hosted runners have no CUDA toolkit), so it does not run either provider's
-live tests (`crates/turbo-conformance/tests/live_embed.rs`, `live_tasks.rs`);
-those load one real provider library and skip themselves when
-`TURBO_LIVE_LIB` or `TURBO_LIVE_PROVIDER` is unset. See `docs/testing.md`
-for running them by hand.
+`.github/workflows/ci.yml`'s `contract` job runs exactly this sequence,
+plus a check that `include/turbo/turbo.h` compiles standalone as both C11
+and C++17. Run all of it locally before opening a PR; a change to
+`turbo-abi` or `turbo-capi` almost always requires regenerating headers
+and, if it touches the mock provider's manifests, regenerating fixtures.
+`turbo-provider-ggml` is a plain workspace member with no `--exclude`, so
+these commands build and unit-test it too (CPU backend only). CI does not
+build the OpenVINO provider (needs an OpenVINO install) and excludes
+`turbo-provider-cuda` (hosted runners have no CUDA toolkit), so it does not
+run any provider's live tests (`crates/turbo-conformance/tests/live_embed.rs`,
+`live_tasks.rs`, `live_generate.rs`); those load one real provider library
+and skip themselves when `TURBO_LIVE_LIB` or `TURBO_LIVE_PROVIDER` is
+unset. Two further CI jobs run independently of `contract`: `java` (the
+Java binding's conformance cases under JDK 25 against the mock provider)
+and `packaging` (`scripts/package.sh --no-cuda --no-openvino`, uploaded as
+a build artifact). See `docs/testing.md` for running the live tests by
+hand, and `docs/bindings.md`/`docs/packaging.md` for the other two jobs.
 
 ## ABI rules
 

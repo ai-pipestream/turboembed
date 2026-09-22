@@ -549,12 +549,20 @@ on the device and are exported as `TURBO_HANDLE_CUDA_PTR`. Precision
 matches the FP32 reference vectors at cosine 1.000
 (`testdata/receipts/turbo/cuda-2026-09-21.json`). Every cell stays
 `EXPERIMENTAL`: the matched-native benchmark and the two-engine
-interleaving test above are not yet done. Jetson (`nano1`) is not started:
-there is no prebuilt `aarch64-unknown-linux-gnu` ONNX Runtime CUDA bundle,
-so the board needs a source build of ONNX Runtime before the probe-then-
-fallback step above can run; tracked as open in `providers/cuda/README.md`.
-TensorRT EP, `user_compute_stream` import, and the GPU WordPiece stretch
-goal are not implemented on either machine yet.
+interleaving test above are not yet done. Jetson (`nano1`) has moved past
+"not started": device enumeration originally used the runtime's
+`cudaGetDeviceProperties_v2`, which CUDA 13 does not export under that
+name, so the provider failed to load there; it now reads compute
+capability through `cudaDeviceGetAttribute` and the device name through
+the driver library's `cuDeviceGetName`, both stable across CUDA toolkit
+majors (`providers/cuda/src/cuda.rs`). With that fixed, and building
+`--no-default-features` against a dynamically linked ONNX Runtime 1.24.0
+via `ORT_LIB_LOCATION` (`TURBO_CUDA_ARCHS=87`, JetPack R39 rev 2.0, CUDA
+13.2), all 12 live embedding tests pass on `nano1` at cosine 1.000; there
+is no committed receipt for that machine yet and the task suite (rerank,
+classify, token-classify) is still being verified there. TensorRT EP,
+`user_compute_stream` import, and the GPU WordPiece stretch goal are not
+implemented on either machine yet.
 
 ### P4 Metal provider
 Swift provider library exporting the plugin vtable; MLX arrays over the
@@ -587,13 +595,17 @@ sequences for one seed), throughput receipts on `krick`, `krick-1`, M2,
 
 Status (2026-09-21): the `ggml` provider (`providers/ggml`, llama.cpp through
 `llama-cpp-2`) generates from GGUF bundles on the CUDA and CPU devices of
-`krick`, with the pull iterator, chat templates from the bundle or the GGUF,
-stop strings and tokens, cancellation, logprobs, seeded sampling, and GBNF
-grammars; `turbo_generate` (push) is implemented over the pull iterator and
-its C conformance test checks the two forms yield one token sequence.
-Receipt: `testdata/receipts/turbo/ggml-2026-09-21.json`. Not yet: MLX and
-Hailo-10H generation, GGUF embeddings, tokenize/detokenize for GGUF
-vocabularies, JSON-schema constrained output, and the throughput receipts.
+`krick` and, through llama.cpp's own Metal backend (the provider's `metal`
+Cargo feature, not the separate MLX-based `metal` provider this section
+scopes), on `krickert-mac` (Apple M2); all with the pull iterator, chat
+templates from the bundle or the GGUF, stop strings and tokens,
+cancellation, logprobs, seeded sampling, and GBNF grammars.
+`turbo_generate` (push) is implemented over the pull iterator and its C
+conformance test checks the two forms yield one token sequence. Receipt:
+`testdata/receipts/turbo/ggml-2026-09-21.json`. Not yet: MLX generation
+through the dedicated `metal` provider, Hailo-10H generation, GGUF
+embeddings, tokenize/detokenize for GGUF vocabularies, JSON-schema
+constrained output, and the throughput receipts.
 
 ### P7 Java FFM and Swift packages
 Port the conformance suite to Java and Swift (the same cases through the

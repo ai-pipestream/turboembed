@@ -1,15 +1,18 @@
 # Architecture
 
-This describes what the code in this tree does at commit `13b58ff`
-(milestones P0, P1, and P2 done; P3 landed on x86_64, Jetson not started).
-It is derived from `PLAN.md` section 4; where this tree does not yet
-implement something `PLAN.md` describes, that is marked "planned" with the
-milestone that adds it. See `PLAN.md` itself for the design rationale.
+This describes what the code in this tree does at commit `6657818`
+(milestones P0, P1, and P2 done; P3 landed on x86_64 and, for embedding,
+on Jetson `nano1`; P6 landed the `ggml` generation provider and the
+push-style `turbo_generate`; P7 landed the Java FFM binding). It is derived
+from `PLAN.md` section 4; where this tree does not yet implement something
+`PLAN.md` describes, that is marked "planned" with the milestone that adds
+it. See `PLAN.md` itself for the design rationale.
 
 ## Layers
 
 ```
- bindings:   Rust crate (crates/turbo)                | Java, Swift, C/C++: planned (P7, P10)
+ bindings:   Rust crate (crates/turbo) | Java (bindings/java, JDK 25 FFM): landed
+             Swift, C/C++: planned (P7, P10)
  ------------------------------------------------------------------------
  libturbo:   crates/turbo-capi (C ABI) over crates/turbo-core, packaged as
              libturbo by crates/turbo-shared
@@ -21,11 +24,15 @@ milestone that adds it. See `PLAN.md` itself for the design rationale.
              providers/static)
              openvino (providers/openvino, C++, loaded as a plugin library)
              cuda (providers/cuda, Rust, loaded as a plugin library; x86_64
-             EXPERIMENTAL, Jetson aarch64 not started)
-             metal, hailo, ggml: planned (P4, P5, P6)
+             EXPERIMENTAL, embedding landed on Jetson aarch64)
+             ggml (providers/ggml, Rust, loaded as a plugin library; GGUF
+             generation EXPERIMENTAL on CUDA/CPU on krick and on Metal on
+             Apple M2, all via llama.cpp)
+             metal, hailo: planned (P4, P5)
  ------------------------------------------------------------------------
  runtimes:   none for mock/static; OpenVINO 2026.3.1 for openvino; ONNX
-             Runtime 1.28 CUDA execution provider for cuda
+             Runtime 1.28 (1.24.0 on Jetson) CUDA execution provider for
+             cuda; llama.cpp (via llama-cpp-2) for ggml
 ```
 
 `crates/turbo-capi` is a thin, panic-safe adapter: it validates handles and
@@ -44,7 +51,17 @@ exporting `turbo_provider_get`, per `PLAN.md` section 4.1) is implemented in
 and validates the returned vtable (size, ABI version, every required
 function pointer non-NULL) before registering the provider; a NULL return
 from the entry point is `TURBO_E_ABI_MISMATCH`, a missing symbol or vtable
-defect is `TURBO_E_PROVIDER_LOAD`. `RuntimeDesc.provider_paths` (from
+defect is `TURBO_E_PROVIDER_LOAD`. The loaded `libloading::Library` is
+leaked (`Box::leak`) into a `&'static` reference and kept mapped for the
+life of the process, on purpose: the runtimes providers wrap (CUDA, ONNX
+Runtime, OpenVINO, llama.cpp) hold worker threads, driver contexts, and
+global destructors that are not safe to tear down with `dlclose`, and
+unloading a provider library and loading it again in the same process is
+where intermittent crashes showed up on the Jetson with a dynamically
+linked ONNX Runtime (`crates/turbo-core/src/plugin.rs` `LoadedProvider`).
+Releasing a `turbo_runtime` (`turbo_runtime_release`) therefore never
+unmaps a provider library it loaded; only the process exiting does.
+`RuntimeDesc.provider_paths` (from
 `turbo_runtime_desc.provider_paths`) is loaded the same way at creation, in
 order; a failure fails the whole `turbo_runtime_create` call. There is no
 default filesystem search path: a runtime always starts with the statically
@@ -55,7 +72,7 @@ is set, plus whatever `provider_paths` names explicitly. This differs from
 from explicit calls" — there is no search-path scan in this tree, only
 built-in-or-not plus an explicit path list.
 
-A Rust provider crate (`mock`, `static`, `cuda`) defines its
+A Rust provider crate (`mock`, `static`, `cuda`, `ggml`) defines its
 `turbo_provider_get` symbol with `turbo_core::export_provider!`
 (`crates/turbo-core/src/plugin_export.rs`), which builds the vtable from a
 `turbo_core::provider::Provider` implementation, catches panics at every
@@ -118,7 +135,7 @@ task granularity, not graph granularity:
 A provider reaches the core through one of two routes to the same vtable
 (`include/turbo/turbo_provider.h`):
 
-- A Rust provider (`mock`, `static`, `cuda`) implements the traits above and
+- A Rust provider (`mock`, `static`, `cuda`, `ggml`) implements the traits above and
   calls `turbo_core::export_provider!` once to generate its
   `turbo_provider_get` symbol; the macro
   (`crates/turbo-core/src/plugin_export.rs`) builds the vtable, boxes
@@ -183,17 +200,27 @@ numbers, and models sampled generation deterministically: a positive
 `temperature` shrinks the token pool by `top_k`/`top_p`/`min_p` and draws
 from a seeded distribution, while `temperature == 0` (greedy) always picks
 the same token and ignores `seed` (`crates/turbo-core/src/mock.rs`).
-`static`, `openvino`, and `cuda` report `EXPERIMENTAL` for the cells they
-offer (`EMBED x TEXT x CPU` for `static`;
+`static`, `openvino`, `cuda`, and `ggml` report `EXPERIMENTAL` for the cells
+they offer (`EMBED x TEXT x CPU` for `static`;
 `{EMBED,RERANK,CLASSIFY,TOKEN_CLASSIFY} x TEXT x {GPU,CPU}` for `openvino`;
-the same four tasks x `TEXT` x GPU for `cuda` on `krick`, x86_64 only)
-because a conformance and precision receipt exists for each
+the same four tasks x `TEXT` x GPU for `cuda` on `krick`, x86_64;
+`GENERATE` x GPU and CPU for `ggml` on `krick` and `krickert-mac`) because
+a conformance and precision receipt exists for each
 (`testdata/receipts/turbo/openvino-*-2026-09-21.json`,
-`testdata/receipts/turbo/cuda-2026-09-21.json`) but the matched-native
+`testdata/receipts/turbo/cuda-2026-09-21.json`,
+`testdata/receipts/turbo/ggml-2026-09-21.json`) but the matched-native
 benchmark receipt `PLAN.md` section 2 item 7 requires before `SUPPORTED`
-does not yet exist for any of the three. OpenVINO NPU devices are
-enumerated but offer no capability cells (listed, not qualified); CUDA on
-Jetson (`nano1`, aarch64) has not been attempted at all yet (`PLAN.md`
+does not yet exist for any of the four. OpenVINO NPU devices are enumerated
+but offer no capability cells (listed, not qualified). CUDA on Jetson
+(`nano1`, aarch64) is no longer untried: the device-enumeration fix in
+`providers/cuda/src/cuda.rs` (reading compute capability through
+`cudaDeviceGetAttribute` and the device name through the driver library's
+`cuDeviceGetName`, both stable across CUDA toolkit majors, instead of the
+runtime's re-versioned `cudaGetDeviceProperties`) unblocked loading the
+provider there, and all 12 live embedding tests now pass at cosine 1.000
+against a dynamically linked ONNX Runtime 1.24.0; there is no committed
+receipt for `nano1` yet and the task suite (rerank, classify,
+token-classify) is still being verified on that board (`PLAN.md`
 section 10, P3).
 
 Two further checks exist:

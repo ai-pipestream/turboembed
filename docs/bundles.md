@@ -228,6 +228,29 @@ than guesses when a file is ambiguous or missing a needed field:
   `embeddings`. `config.json` must declare `normalize` (`true`/`false`)
   since a model2vec source has no pooling config to read.
 
+**Importing a GGUF bundle** (for the `ggml` provider, `docs/providers.md`)
+is a `generative` import with a `gguf` artifact:
+
+```bash
+turbo-bundle import --source <dir with model.gguf> --output <bundle> \
+    --license Apache-2.0 --model-id Qwen/Qwen2.5-0.5B-Instruct-GGUF \
+    --kind generative --max-seq 4096 --artifact gguf=<dir>/model.gguf
+```
+
+`--kind generative` and `--max-seq` are required here, not inferred: a
+GGUF-only source has no `config.json` architectures list and no
+`sentence_bert_config.json`/`tokenizer_config.json` to read a sequence
+length from, so the importer's usual inference paths (see "Kind and task"
+and "Sequence limit" above) have nothing to read and the import refuses
+without them. `contract.max_seq` becomes the context length the `ggml`
+provider allocates the KV cache for; it must not exceed the model's
+training context. The chat template follows the same rule as any other
+generative bundle: `tokenizer.chat_template` in the manifest, when a source
+`tokenizer_config.json` supplied one, takes precedence; otherwise the
+`ggml` provider falls back to the template embedded in the GGUF file's own
+metadata at load time, and a bundle with neither is refused
+(`providers/ggml/README.md`).
+
 An import stages its output into a sibling `.<name>.staging` directory and
 renames it into place only after the manifest is written and re-verified
 with `Bundle::open`, so an interrupted or failing import never leaves a

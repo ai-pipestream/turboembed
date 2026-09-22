@@ -40,9 +40,20 @@ no per-runtime lock in `crates/turbo-core/src/runtime.rs` that a caller needs
 to serialize around.
 
 `turbo_runtime_load_provider(rt, path, err)` loads a provider library
-(`include/turbo/turbo_provider.h`) and registers its devices; the library
-stays loaded for the runtime's lifetime, and a provider whose id is already
-registered is rejected with `TURBO_E_PROVIDER_LOAD`. `turbo_runtime_create`
+(`include/turbo/turbo_provider.h`) and registers its devices. The library
+is kept mapped for the life of the process, not just the runtime's
+lifetime: `turbo_runtime_release` never `dlclose`s a provider library it
+loaded, so its worker threads, driver contexts, and global destructors stay
+resident until the process exits. This is deliberate — those things (CUDA,
+ONNX Runtime, OpenVINO, llama.cpp all keep some) are not safe to unload
+with `dlclose`; unloading a provider and loading it again in one process is
+where intermittent crashes showed up on the Jetson with a dynamically
+linked ONNX Runtime (`crates/turbo-core/src/plugin.rs` `LoadedProvider`; see
+`docs/architecture.md`). A provider whose id is already
+registered on a given `turbo_runtime` is rejected with
+`TURBO_E_PROVIDER_LOAD`; loading it again on a fresh runtime after the
+first is released succeeds and reuses the still-mapped library rather than
+reinitializing it. `turbo_runtime_create`
 does the same for every path in `turbo_runtime_desc.provider_paths`, in
 order, before returning; a failure there fails the whole call. By default a
 runtime starts with the statically linked built-in providers (`mock` and
@@ -148,8 +159,18 @@ exactly once, before stepping; `turbo_generation_step` fails with
 `TURBO_E_INVALID_STATE` before a prompt is set or after the generation has
 finished. Pointers inside the `turbo_generation_chunk` written by `step` are
 valid only until the next call on the same generation. `turbo_generate` (the
-push-style wrapper that drives `step` internally via a callback) is declared
-from P0 but returns `TURBO_E_NOT_IMPLEMENTED` in this build.
+push-style wrapper declared from P0) is implemented over the pull iterator:
+it creates a generation, applies `messages` (exactly as
+`turbo_generation_prompt` would), then loops calling `turbo_generation_step`
+and delivering each chunk to `callback(user_data, chunk)`. The chunk and its
+pointers are valid during the callback only, the same lifetime rule as
+`step`. The callback's return value controls the loop: `TURBO_STREAM_CONTINUE`
+keeps stepping, `TURBO_STREAM_STOP` cancels the generation
+(`turbo_generation_cancel`) and returns `TURBO_OK` right after the chunk that
+returned it, and any other value is `TURBO_E_INVALID_ARGUMENT` after also
+cancelling the generation. The generation is released before `turbo_generate`
+returns either way; a caller never holds the `turbo_generation` handle
+directly.
 
 ## Tokenizer and chunker (`turbo_tokenizer_*`, `turbo_chunk_plan_*`)
 
@@ -297,46 +318,53 @@ threading sections for what each currently means in this tree.
 
 ## Which providers set which bits
 
-The four providers in this tree (`crates/turbo-core/src/mock.rs`
+The five providers in this tree (`crates/turbo-core/src/mock.rs`
 `MOCK_CAPS`, `providers/static/src/lib.rs` `STATIC_CAPS`,
 `providers/openvino/src/provider.cpp` `caps_of`/`kCapsCommon`,
-`providers/cuda/src/lib.rs` `CUDA_CAPS`):
+`providers/cuda/src/lib.rs` `CUDA_CAPS`, `providers/ggml/src/lib.rs`
+`GGML_CAPS`):
 
-| bit | mock | static | openvino (GPU/iGPU) | openvino (CPU) | cuda |
-|---|---|---|---|---|---|
-| `HOST_PTR_IMPORT` | yes | yes | yes | yes | yes |
-| `DEVICE_RESULT` | no | no | yes | no | yes |
-| `DEVICE_POSTPROCESS` | no | no | no | no | yes |
-| `DYNAMIC_SHAPE` | yes | yes | no | no | yes |
-| `WEIGHT_SHARING` | yes | yes | no | no | yes |
-| `DETERMINISTIC` | yes | yes | yes | yes | no |
-| `OPT_TRUNCATE` | yes | yes | yes | yes | yes |
-| `OPT_MAX_TOKENS` | yes | yes | yes | yes | yes |
-| `OPT_PROMPT_ROLE` | yes | yes | yes | yes | yes |
-| `OPT_NORMALIZE` | yes | no | no | no | yes |
-| `OPT_POOLING_OVERRIDE` | no | no | no | no | yes |
-| `OPT_OUTPUT_DIM` | yes | yes | no | no | yes |
-| `OPT_OUTPUT_DTYPE` | no | no | no | no | no |
-| `OPT_TOP_N` | yes | no | yes | yes | yes |
-| `OPT_AGGREGATION` | yes | no | yes | yes | yes |
-| `OPT_RAW_SCORES` | yes | no | no | no | yes |
-| `OPT_GEN_STOP_STRINGS` | yes | no | no | no | no |
-| `OPT_GEN_STOP_TOKENS` | yes | no | no | no | no |
-| `OPT_GEN_SEED` | yes | no | no | no | no |
-| `OPT_GEN_LOGPROBS` | yes | no | no | no | no |
-| `OPT_GEN_SAMPLING` | yes | no | no | no | no |
-| `OPT_GEN_MIN_TOKENS` | yes | no | no | no | no |
-| `OPT_GEN_ECHO` | yes | no | no | no | no |
+| bit | mock | static | openvino (GPU/iGPU) | openvino (CPU) | cuda | ggml |
+|---|---|---|---|---|---|---|
+| `HOST_PTR_IMPORT` | yes | yes | yes | yes | yes | no |
+| `DEVICE_RESULT` | no | no | yes | no | yes | no |
+| `DEVICE_POSTPROCESS` | no | no | no | no | yes | no |
+| `DYNAMIC_SHAPE` | yes | yes | no | no | yes | yes |
+| `WEIGHT_SHARING` | yes | yes | no | no | yes | yes |
+| `DETERMINISTIC` | yes | yes | yes | yes | no | no |
+| `OPT_TRUNCATE` | yes | yes | yes | yes | yes | no |
+| `OPT_MAX_TOKENS` | yes | yes | yes | yes | yes | no |
+| `OPT_PROMPT_ROLE` | yes | yes | yes | yes | yes | no |
+| `OPT_NORMALIZE` | yes | no | no | no | yes | no |
+| `OPT_POOLING_OVERRIDE` | no | no | no | no | yes | no |
+| `OPT_OUTPUT_DIM` | yes | yes | no | no | yes | no |
+| `OPT_OUTPUT_DTYPE` | no | no | no | no | no | no |
+| `OPT_TOP_N` | yes | no | yes | yes | yes | no |
+| `OPT_AGGREGATION` | yes | no | yes | yes | yes | no |
+| `OPT_RAW_SCORES` | yes | no | no | no | yes | no |
+| `OPT_GEN_STOP_STRINGS` | yes | no | no | no | no | yes |
+| `OPT_GEN_STOP_TOKENS` | yes | no | no | no | no | yes |
+| `OPT_GEN_SEED` | yes | no | no | no | no | yes |
+| `OPT_GEN_LOGPROBS` | yes | no | no | no | no | yes |
+| `OPT_GEN_SAMPLING` | yes | no | no | no | no | yes |
+| `OPT_GEN_MIN_TOKENS` | yes | no | no | no | no | yes |
+| `OPT_GEN_ECHO` | yes | no | no | no | no | yes |
+| `OPT_GEN_PENALTIES` | no | no | no | no | no | yes |
+| `OPT_GEN_STRUCTURED` | no | no | no | no | no | yes |
 
 `static` and `openvino`'s CPU device offer no task where `EMBED`-only bits
 like `OPT_NORMALIZE`/`OPT_POOLING_OVERRIDE`/`OPT_RAW_SCORES` would matter
 differently than shown; a `no` above means the bit is clear in
 `device_info.caps`, so a non-default value for the corresponding option
 field on that provider always fails with `TURBO_E_UNSUPPORTED_OPTION`, never
-a silent default. `mock` is the only provider offering `GENERATE`; `static`,
-`openvino`, and `cuda` fail a generation call with `TURBO_E_UNSUPPORTED_TASK`
-before any option is checked. `openvino`'s NPU device (enumerated, not
-qualified) reports `caps = 0`.
+a silent default. `mock` and `ggml` are the providers offering `GENERATE`;
+`static`, `openvino`, and `cuda` fail a generation call with
+`TURBO_E_UNSUPPORTED_TASK` before any option is checked. `ggml`'s
+`OPT_GEN_STRUCTURED` only honors `structured_kind = GRAMMAR` (a GBNF
+grammar); `structured_kind = JSON_SCHEMA` is refused naming the field even
+though the bit is set, because the bit gates the option family, not every
+value within it (`providers/ggml/README.md`). `openvino`'s NPU device
+(enumerated, not qualified) reports `caps = 0`.
 
 ## Descriptor versioning rule
 
@@ -361,15 +389,19 @@ behaves the same as before.
 
 ## Functions declared but not implemented in this build
 
-| function | returns | milestone |
-|---|---|---|
-| `turbo_generate` (push-style generation) | `TURBO_E_NOT_IMPLEMENTED` | P6 (wraps the pull iterator once it passes streaming conformance) |
-
-This is the only remaining gap between the header and this build.
+Every function family declared in `include/turbo/turbo.h` is implemented in
+this build. `turbo_generate` (push-style generation), the last remaining
+gap, is implemented as of P6 as a loop over the pull iterator (see
+"Generation" above); the C conformance test
+(`crates/turbo-conformance/tests/generation_c.rs`) checks that the push and
+pull forms yield one token sequence and that a callback returning
+`TURBO_STREAM_STOP` halts the stream right after the chunk that returned it.
 `turbo_runtime_load_provider`, `turbo_tokenizer_*`, and `turbo_chunk_plan_*`
-are implemented (see above); `turbo_generation_create`/`_prompt`/
+are also implemented (see above); `turbo_generation_create`/`_prompt`/
 `_prompt_tokens`/`_step`/`_cancel`/`_release` (the pull iterator) are also
 implemented and exercised by the conformance suite's generation tests
 against the `mock` provider (`MockGeneration` in `crates/turbo-core/src/mock.rs`).
-`static` and `openvino` do not offer `GENERATE`; a generation call on either
-fails with `TURBO_E_UNSUPPORTED_TASK`.
+`ggml` (`providers/ggml`) also offers `GENERATE`, for GGUF bundles on its
+CUDA and CPU devices; see `docs/providers.md`. `static`, `openvino`, and
+`cuda` do not offer `GENERATE`; a generation call on any of them fails with
+`TURBO_E_UNSUPPORTED_TASK`.

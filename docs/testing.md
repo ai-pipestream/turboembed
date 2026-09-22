@@ -7,23 +7,43 @@ Testing in this tree today is:
 - `#[cfg(test)]` unit test modules inside `crates/turbo-core/src/{handles,
   runtime,bundle,buffer,provider,mock,tokenizer,chunker,plugin}.rs` and
   inside the provider crates (`providers/mock`, `providers/static`,
-  `providers/cuda`), run by `cargo test --locked --workspace --exclude
-  turbo-provider-cuda` (`providers/cuda`'s own unit tests need the CUDA
-  toolkit to build; see "Running what exists today" below).
+  `providers/cuda`, `providers/ggml`), run by `cargo test --locked
+  --workspace --exclude turbo-provider-cuda` (`providers/cuda`'s own unit
+  tests need the CUDA toolkit to build, so it is the one crate excluded;
+  `providers/ggml` is a plain workspace member and builds and runs its unit
+  tests as part of this same command, CPU backend only — see "Running what
+  exists today" below).
 - `crates/turbo-conformance/c/smoke.c`, a C program compiled against the
   installed header and run against the mock provider through
   `scripts/c-smoke.sh`. It exercises runtime/device/context/model/session
   lifecycle, capability queries, option rejection with field index, result
-  leasing, and generation through the pull iterator.
+  leasing, and generation through both the pull iterator and the push-style
+  `turbo_generate`.
 - The provider-agnostic Rust conformance suite under
   `crates/turbo-conformance/tests/`, run automatically as part of `cargo
   test --locked --workspace --exclude turbo-provider-cuda` (each file is a
   normal Rust integration test binary). This is the suite `PLAN.md`
   section 10 describes; it now exists.
+- `providers/openvino/tests/provider_test.cpp`, a vtable-level test binary
+  built alongside the OpenVINO provider library
+  (`providers/openvino/CMakeLists.txt`) that calls `turbo_provider_vtbl`
+  directly instead of going through `turbo-core`, to reach cases the core
+  filters out before a provider ever sees them (a caller's smaller
+  `struct_size`, an unknown option enumeration, a `top_n` above the row
+  count, the truncation cases where a word is cut in half, and the
+  `raw_scores`-with-no-fused-activation acceptance that `turbo-core`'s
+  central `OPT_RAW_SCORES` gate would otherwise always reject for this
+  provider). See `providers/openvino/README.md` and `docs/providers.md`'s
+  "The OpenVINO provider" section.
 - Header parity (`scripts/gen-header.sh --check`), the `struct_size` table
   (`scripts/gen-versioned.py --check`), and mock fixture parity (`cargo run
   -p turbo-core --example write_mock_bundles` diffed against
   `testdata/bundles/mock/`), all run in CI.
+- The Java binding's conformance cases, run under JDK 25 through
+  `bindings/java` (`mvn test`) against the mock provider, and
+  `scripts/package.sh`'s own archive-verification step (extract, compile
+  and run the C smoke test against the packaged headers and library); see
+  `docs/bindings.md` and `docs/packaging.md`.
 
 `docs/reviews/2026-09-21-p0-p2.md` is an independent review of the P0-P2
 tree that tracks each finding to closure; items closed by a commit carry
@@ -35,9 +55,9 @@ the test that would have failed before the fix (for example
 `crates/turbo-conformance/src/lib.rs` is the harness: it resolves a target
 (runtime, device, bundle root) from the environment and provides the mock
 bundle fixtures as defaults. The cases live under `tests/`, over 200 tests
-across 24 files; most groups appear twice, once through the safe Rust API
+across 25 files; most groups appear twice, once through the safe Rust API
 (`*_rust.rs`) and once through the C ABI called directly (`*_c.rs`), plus
-`header_parity.rs`, the two live-hardware files, and two Rust-only files
+`header_parity.rs`, the three live-hardware files, and two Rust-only files
 closing specific review findings:
 
 | file | group |
@@ -52,9 +72,10 @@ closing specific review findings:
 | `bundle_rust.rs`, `bundle_c.rs` | bundle hash/shape/path-escape integrity, per `docs/bundles.md` |
 | `bundle_integrity_rust.rs` | manifests reject unknown fields and unparseable enumerated values, scored kinds require `contract.activation`/`aggregation`, a symlink resolving outside the bundle directory is refused, `manifest_sha256` identifies the manifest (`docs/reviews/2026-09-21-p0-p2.md` H5 and a Medium item) |
 | `tasks_rust.rs`, `tasks_c.rs` | embed/rerank/classify/token-classify/tokenize/chunk task behavior against the mock provider's bundle kinds |
-| `generation_rust.rs`, `generation_c.rs` | pull-iterator generation: prompt, step, cancel, finish reasons |
+| `generation_rust.rs`, `generation_c.rs` | pull-iterator generation (prompt, step, cancel, finish reasons) and, in `generation_c.rs`, the push-style `turbo_generate`: push and pull yield one token sequence, and a callback returning `TURBO_STREAM_STOP` halts the stream right after the chunk that returned it |
 | `header_parity.rs` | the committed headers match a fresh `cbindgen` run |
-| `live_embed.rs`, `live_tasks.rs` | live checks against a real provider library (`openvino` or `cuda`) and bundles; see "Live provider tests" below |
+| `live_embed.rs`, `live_tasks.rs` | live checks against a real embedding/task provider library (`openvino` or `cuda`) and bundles; see "Live provider tests" below |
+| `live_generate.rs` | live checks against a real generation provider library (`ggml`) and a GGUF bundle; see "Live provider tests" below |
 
 A provider counts as supported for a capability only when every applicable
 group passes, or is explicitly excluded by a capability bit the suite
@@ -83,27 +104,32 @@ H2D/D2H bytes, host allocations per run, device memory. Receipts carry
 machine ID, runtime/driver versions, bundle hashes, and commit, and budgets
 are set from the first run per provider and then held. No benchmark receipt
 exists in this tree yet (`crates/turbo-bench/` is not written); this is why
-`static`, `openvino`, and `cuda` are `EXPERIMENTAL` rather than `SUPPORTED`.
+`static`, `openvino`, `cuda`, and `ggml` are `EXPERIMENTAL` rather than
+`SUPPORTED`.
 
 ## Live provider tests
 
-`crates/turbo-conformance/tests/live_embed.rs` and `live_tasks.rs` load one
-real provider library against real bundles; they are provider-agnostic
-(any provider that offers the task), unlike the rest of the suite which
-runs against the mock bundles by default. They replace the earlier
-`openvino_live.rs`/`openvino_live_tasks.rs` (provider-specific, OpenVINO
-only). Each test prints a reason and returns (not a failure) when its
-required environment variables are unset, so they run safely as part of
-`cargo test --workspace` in an environment with no provider configured.
-They are not run in CI: `.github/workflows/ci.yml` has no OpenVINO install
-and excludes `turbo-provider-cuda` (hosted runners have no CUDA toolkit).
+`crates/turbo-conformance/tests/live_embed.rs`, `live_tasks.rs`, and
+`live_generate.rs` load one real provider library against real bundles;
+they are provider-agnostic (any provider that offers the task), unlike the
+rest of the suite which runs against the mock bundles by default. The first
+two replace the earlier `openvino_live.rs`/`openvino_live_tasks.rs`
+(provider-specific, OpenVINO only). Each test prints a reason and returns
+(not a failure) when its required environment variables are unset, so they
+run safely as part of `cargo test --workspace` in an environment with no
+provider configured. They are not run in CI: `.github/workflows/ci.yml` has
+no OpenVINO install, excludes `turbo-provider-cuda` (hosted runners have no
+CUDA toolkit), and builds `turbo-provider-ggml` with its CPU backend only
+(no GGUF bundle is available to point `TURBO_LIVE_GGUF_BUNDLE` at in CI).
 
-Provider selection (`crates/turbo-conformance/src/live.rs`), read by both
-files:
+Provider selection (`crates/turbo-conformance/src/live.rs`), read by all
+three files:
 
 - `TURBO_LIVE_LIB`: path to the provider library
-  (`libturbo_provider_openvino.so`, `libturbo_provider_cuda.so`).
-- `TURBO_LIVE_PROVIDER`: the provider id it registers (`openvino`, `cuda`).
+  (`libturbo_provider_openvino.so`, `libturbo_provider_cuda.so`,
+  `libturbo_provider_ggml.so`).
+- `TURBO_LIVE_PROVIDER`: the provider id it registers (`openvino`, `cuda`,
+  `ggml`).
 - `TURBO_LIVE_ORDINAL` (optional): device ordinal; default is the
   provider's CPU device if it has one, else ordinal 0.
 - `TURBO_REFERENCE_DIR` (optional): directory holding the reference
@@ -141,12 +167,42 @@ variable is unset returns without failing. These assert semantic properties,
 not exact numbers, so the same test file holds across FP32 devices and
 providers.
 
-Receipts from real runs of both files are committed under
-`testdata/receipts/turbo/`: `openvino-minilm-2026-09-21.json` and
-`openvino-tasks-2026-09-21.json` for the OpenVINO provider, and
-`cuda-2026-09-21.json` for the CUDA provider (`krick`, RTX 4080 SUPER,
-cosine 1.000 against the FP32 references); see `docs/providers.md` for what
-they record.
+`live_generate.rs` (generation), gated on `TURBO_LIVE_GGUF_BUNDLE` (an
+instruct GGUF model such as Qwen2.5-0.5B-Instruct, built with
+`tools/turbo-bundle` per `docs/bundles.md`'s GGUF example). Its seven checks
+run through the safe API against any provider offering `GENERATE`: the pull
+iterator yields tokens in order and stops on the model's own end token or
+the exact `max_new_tokens` budget, greedy decoding is deterministic and a
+seeded sample reproduces, stop strings and stop tokens end the stream,
+cancellation and logprobs work, `min_new_tokens` suppresses the end token,
+and `structured_kind = JSON_SCHEMA` plus `n_sequences > 1` are refused
+naming the field. All seven pass on `krick` (RTX 4080 SUPER CUDA device,
+and the CPU device) and on `krickert-mac` (Apple M2, llama.cpp's own Metal
+backend — the provider's `metal` Cargo feature, not the separate,
+not-yet-built MLX-based `metal` provider `PLAN.md` scopes for P4).
+
+Receipts from real runs are committed under `testdata/receipts/turbo/`:
+`openvino-minilm-2026-09-21.json` and `openvino-tasks-2026-09-21.json` for
+the OpenVINO provider, `cuda-2026-09-21.json` for the CUDA provider
+(`krick`, RTX 4080 SUPER, cosine 1.000 against the FP32 references), and
+`ggml-2026-09-21.json` for the `ggml` provider (`krick`'s CUDA and CPU
+devices, and `krickert-mac`'s Metal device); see
+`docs/providers.md` for what they record.
+
+### The CUDA provider on Jetson (`nano1`)
+
+`providers/cuda`'s device-enumeration fix
+(`providers/cuda/src/cuda.rs`, reading compute capability through
+`cudaDeviceGetAttribute` and the device name through the driver library's
+`cuDeviceGetName` instead of the ONNX Runtime's re-versioned
+`cudaGetDeviceProperties`) unblocked running the provider on the Jetson
+`nano1` board. On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime
+1.24.0 linked dynamically through `ORT_LIB_LOCATION` and
+`--no-default-features`, per `providers/cuda/README.md`) the CUDA provider
+passes all 12 live embedding tests (`live_embed.rs`) at cosine 1.000
+against the FP32 reference vectors. There is no receipt file committed for
+this machine yet, and the task suite (`live_tasks.rs`: rerank, classify,
+token-classify) is still being verified there.
 
 ## Running what exists today
 
@@ -159,12 +215,26 @@ cargo run -p turbo-core --example write_mock_bundles \
   && git diff --exit-code -- testdata/bundles   # fixtures match mock.rs
 ```
 
-`.github/workflows/ci.yml` runs all five, plus `cargo fmt --check`, `cargo
-clippy -D warnings` (also excluding `turbo-provider-cuda`), and a standalone
-C11/C++17 compile of the header. It excludes `turbo-provider-cuda` because
+`.github/workflows/ci.yml`'s `contract` job runs all five, plus `cargo fmt
+--check`, `cargo clippy -D warnings` (also excluding `turbo-provider-cuda`),
+and a standalone C11/C++17 compile of the header; `turbo-provider-ggml` is a
+plain workspace member with no `--exclude`, so these same commands build
+and unit-test it (CPU backend; the `cuda`/`metal`/`vulkan` features are
+opt-in and not exercised here). It excludes `turbo-provider-cuda` because
 hosted runners have no CUDA toolkit, and does not build the OpenVINO
-provider at all; run either provider's live tests by hand per
-`providers/openvino/README.md` or `providers/cuda/README.md`.
+provider at all; run either provider's live tests, or `ggml`'s, by hand per
+`providers/openvino/README.md`, `providers/cuda/README.md`, or
+`providers/ggml/README.md`.
+
+Two further CI jobs, separate from `contract`: `java` builds `libturbo`
+(`cargo build --locked -p turbo-shared`) and runs the Java binding's
+conformance cases under JDK 25 against the mock provider
+(`cd bindings/java && mvn -q -B test`, under `--illegal-native-access=deny`
+per `bindings/java/pom.xml`'s surefire configuration); see
+`docs/bindings.md`. `packaging`
+runs `scripts/package.sh --no-cuda --no-openvino` (mock and static providers
+only on a hosted runner) and uploads the resulting archive as a build
+artifact; see `docs/packaging.md`.
 
 ## Fixtures
 

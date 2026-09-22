@@ -48,11 +48,16 @@ verified by content hash before anything loads. See
 
 ## Status
 
-This tree is at commit `13b58ff` on branch `turbo-v2`: milestones P0 and P1
+This tree is at commit `6657818` on branch `turbo-v2`: milestones P0 and P1
 of `PLAN.md` section 10 are done, P2 (the OpenVINO provider) has landed its
-embed, rerank, classify, and token-classify tasks, and P3 (the CUDA
-provider) has landed the same four tasks on x86_64. Every per-call option
-now either honors exactly what the caller asked for, gated by a
+embed, rerank, classify, and token-classify tasks (including the review
+fixes in `docs/reviews/2026-09-21-p0-p2.md`), P3 (the CUDA provider) has
+landed the same four tasks on x86_64 and now also runs embedding on Jetson
+`nano1`, P6 (the `ggml` provider) has landed GGUF generation on CUDA and
+CPU (`krick`) and on Metal (`krickert-mac`, Apple M2) together with the
+push-style `turbo_generate`, and P7 (the Java
+binding) has landed the JDK 25 FFM binding. Every per-call option now
+either honors exactly what the caller asked for, gated by a
 `TURBO_CAP_OPT_*` bit, or fails; see [`docs/c-api.md`](docs/c-api.md)'s
 capability-bit tables. What exists today:
 
@@ -74,41 +79,59 @@ capability-bit tables. What exists today:
   under `providers/mock`) and `static` (`providers/static`, model2vec-style
   token-table embeddings, one capability cell `EMBED x TEXT x CPU`,
   `EXPERIMENTAL`).
-- Two more loadable providers, each built separately: `openvino`
+- Three more loadable providers, each built separately: `openvino`
   (`providers/openvino`, a C++ library built with CMake, implementing
   `turbo_provider.h` directly rather than through the Rust
   `export_provider!` macro) with embed, rerank, classify, and token-classify
-  `EXPERIMENTAL` on GPU and CPU; and `cuda` (`providers/cuda`, a Rust
-  library using `export_provider!`, built with `cargo build -p
-  turbo-provider-cuda`) with the same four tasks `EXPERIMENTAL` on `krick`
-  (RTX 4080 SUPER, x86_64) through the ONNX Runtime CUDA execution provider.
-  See [`providers/openvino/README.md`](providers/openvino/README.md),
-  [`providers/cuda/README.md`](providers/cuda/README.md), and
+  `EXPERIMENTAL` on GPU and CPU; `cuda` (`providers/cuda`, a Rust library
+  using `export_provider!`, built with `cargo build -p turbo-provider-cuda`)
+  with the same four tasks `EXPERIMENTAL` on `krick` (RTX 4080 SUPER,
+  x86_64) through the ONNX Runtime CUDA execution provider, and now also
+  passing its live embedding tests on Jetson `nano1`; and `ggml`
+  (`providers/ggml`, a Rust library using `export_provider!` over the
+  `llama-cpp-2` binding to llama.cpp, a workspace member built by the
+  default workspace commands) with GGUF `GENERATE` `EXPERIMENTAL` on the
+  CUDA and CPU devices of `krick` and, through llama.cpp's own Metal
+  backend, on `krickert-mac` (Apple M2). See
+  [`providers/openvino/README.md`](providers/openvino/README.md),
+  [`providers/cuda/README.md`](providers/cuda/README.md),
+  [`providers/ggml/README.md`](providers/ggml/README.md), and
   [`docs/providers.md`](docs/providers.md).
+- `bindings/java` (`ai.pipestream:turbo`): a JDK 25 foreign-function binding
+  with a raw layer generated from `include/turbo/turbo.h` by jextract and a
+  safe `AutoCloseable` API on top; its conformance cases pass through the
+  binding against the mock provider under `--illegal-native-access=deny`.
+  See [`bindings/java/README.md`](bindings/java/README.md) and
+  [`docs/bindings.md`](docs/bindings.md).
 - `tools/turbo-bundle`: `import` (derives a bundle's contract from a source
   model's own files), `verify`, and `inspect`. See
   [`docs/bundles.md`](docs/bundles.md).
 - `crates/turbo-conformance`: a C smoke test (`c/smoke.c`) and a
-  provider-agnostic Rust suite (over 200 tests across 24 files under
+  provider-agnostic Rust suite (over 200 tests across 25 files under
   `tests/`) covering the P0 groups from `PLAN.md` section 10 plus live
-  provider tests (`tests/live_embed.rs`, `tests/live_tasks.rs`) that skip
-  themselves without hardware. See [`docs/testing.md`](docs/testing.md).
+  provider tests (`tests/live_embed.rs`, `tests/live_tasks.rs`,
+  `tests/live_generate.rs`) that skip themselves without hardware. See
+  [`docs/testing.md`](docs/testing.md).
 - Mock bundle fixtures under `testdata/bundles/mock/` (embedding, reranker,
   classifier, token-classifier, generative, generic) and a tokenizer-only
   fixture at `testdata/bundles/minilm-tokenizer/`, all generated or imported,
   not hand-written.
 
-What is declared in the header but **not implemented** in this build: the
-push-style `turbo_generate` (P6, stubs the pull iterator). It returns
-`TURBO_E_NOT_IMPLEMENTED` rather than doing something silently different.
-Every other function family declared in the header — including
-`turbo_runtime_load_provider`, `turbo_tokenizer_*`, and `turbo_chunk_plan_*`
-— is implemented; see [`docs/c-api.md`](docs/c-api.md) for the full picture.
+Every function family declared in the header is implemented, including the
+push-style `turbo_generate`: it creates a generation, applies the messages,
+and drives the pull iterator (`turbo_generation_step`) internally, calling
+back once per chunk until the generation finishes or the callback returns
+`TURBO_STREAM_STOP` (which cancels it); the chunk's pointers are valid only
+during the callback. See [`docs/c-api.md`](docs/c-api.md) for the full
+picture.
 
-Hardware providers for Metal, Hailo, and ggml generation, and the
-Java/Swift/Android bindings, are milestones P4 through P10 and are **not
-available yet**. CUDA on Jetson (`nano1`, aarch64) is also not available yet
-(`PLAN.md` section 10, P3); CUDA on x86_64 (`krick`) has landed.
+The dedicated, MLX-based `metal` provider and `hailo` (P4, P5) are **not
+available yet**; `ggml` reaches Apple M2 today only through llama.cpp's own
+Metal backend for generation, a different code path. The Swift and Android
+bindings (P7, P10) are also not available yet; the Java binding (P7) has
+landed. CUDA on Jetson (`nano1`, aarch64) now passes its live embedding
+tests (cosine 1.000); the task suite (rerank, classify, token-classify) is
+still being verified there (`PLAN.md` section 10, P3).
 
 ## Capability and hardware status
 
@@ -124,15 +147,15 @@ qualification receipt exists (`PLAN.md` section 4.4). Today:
 | `openvino` GPU | EXPERIMENTAL | embed, rerank, classify, token-classify on `krick-1` (Battlemage B70); fused mean+L2 graph, device-resident results; receipts: [`testdata/receipts/turbo/openvino-minilm-2026-09-21.json`](testdata/receipts/turbo/openvino-minilm-2026-09-21.json), [`openvino-tasks-2026-09-21.json`](testdata/receipts/turbo/openvino-tasks-2026-09-21.json) |
 | `openvino` CPU | EXPERIMENTAL | same tasks, explicit selection only; same receipts |
 | `cpu` | PLANNED (P3, folded into the CUDA/ORT provider work) | ORT CPU EP; ggml CPU |
-| `cuda` | EXPERIMENTAL on `krick` (x86_64); Jetson (`nano1`, aarch64) not started | embed, rerank, classify, token-classify through the ONNX Runtime CUDA EP with device-side pooling/normalization/activation kernels; cosine 1.000 against the FP32 references; receipt: [`testdata/receipts/turbo/cuda-2026-09-21.json`](testdata/receipts/turbo/cuda-2026-09-21.json) |
+| `cuda` | EXPERIMENTAL on `krick` (x86_64); embedding landed on Jetson `nano1` (aarch64) | embed, rerank, classify, token-classify through the ONNX Runtime CUDA EP with device-side pooling/normalization/activation kernels; cosine 1.000 against the FP32 references on `krick`; receipt: [`testdata/receipts/turbo/cuda-2026-09-21.json`](testdata/receipts/turbo/cuda-2026-09-21.json). On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime 1.24.0 linked dynamically through `ORT_LIB_LOCATION` and `--no-default-features`) all 12 live embedding tests pass at cosine 1.000; no receipt file is committed for this run yet and the task suite (rerank/classify/token-classify) is still being verified there |
 | `metal` | PLANNED (P4) | MLX over the shared Metal arena |
 | `hailo` | PLANNED (P5) | Hailo-8/8L, Hailo-10H |
-| `ggml` | PLANNED (P6) | GGUF generation, CUDA/SYCL/Metal/CPU |
+| `ggml` | EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | GGUF generation through llama.cpp (`llama-cpp-2`); pull iterator, chat templates, stop strings/tokens, cancellation, logprobs, seeded sampling, GBNF grammars; receipt: [`testdata/receipts/turbo/ggml-2026-09-21.json`](testdata/receipts/turbo/ggml-2026-09-21.json) |
 
 A matched-native benchmark receipt is still required before OpenVINO,
-`cuda`, or `static` can move from `EXPERIMENTAL` to `SUPPORTED` (`PLAN.md`
-section 2, item 7); all three receipts above record this explicitly under
-`status_after`.
+`cuda`, `ggml`, or `static` can move from `EXPERIMENTAL` to `SUPPORTED`
+(`PLAN.md` section 2, item 7); the receipts above record this explicitly
+under `status_after`.
 
 See [`docs/providers.md`](docs/providers.md) for the full table (hardware,
 runtime, lowest layer, machine) from `PLAN.md` section 7, and
@@ -253,6 +276,36 @@ fn main() -> turbo::Result<()> {
 }
 ```
 
+## Java
+
+`ai.pipestream:turbo` (`bindings/java`) is a JDK 25 binding built on the
+foreign function and memory API: no JNI, no generated C. It has two layers,
+a raw `ai.pipestream.turbo.ffi` surface generated from `include/turbo/turbo.h`
+by jextract (`scripts/gen-java-ffi.sh`, committed, not hand-edited) and a
+safe `ai.pipestream.turbo` API (`Turbo`, `Context`, `Model`, `Session`,
+`Result` as `AutoCloseable` handles over the C handles).
+
+```java
+try (Turbo rt = Turbo.create(List.of("/opt/turbo/providers/libturbo_provider_cuda.so"));
+     Context ctx = rt.createContext(rt.selectDevice());
+     Model model = ctx.loadModel("/opt/bundles/minilm-onnx");
+     Session s = model.createSession(8, 256)) {
+    s.writeText(List.of("hello world"), EmbedOptions.defaults());
+    try (Result r = s.run()) {
+        float[] v = r.readFloats(0);
+        System.out.println(r.placement() + " " + v.length);
+    }
+}
+```
+
+The conformance cases run through the binding against the mock provider
+under `--illegal-native-access=deny`; on `krick` (JDK 25.0.3, Temurin) nine
+tests pass in under a second, and the same job runs in CI
+(`.github/workflows/ci.yml`, `java`). See
+[`bindings/java/README.md`](bindings/java/README.md) and
+[`docs/bindings.md`](docs/bindings.md) for locating the library, building,
+and regenerating the raw layer.
+
 ## Build and test
 
 ```bash
@@ -273,18 +326,25 @@ runs `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --locked
 --workspace` (which runs `crates/turbo-conformance`'s suite against mock as
 part of the workspace), the header parity check, the `struct_size` table
 check, the mock bundle fixture parity check, the C smoke test, and a header
-compile check under both C11 and C++17. CI excludes `turbo-provider-cuda`
+compile check under both C11 and C++17. `turbo-provider-ggml` is a workspace
+member with no `--exclude`, so these commands build and unit-test it too
+(CPU backend only; the `cuda`/`metal`/`vulkan` ggml backends are opt-in
+Cargo features, not exercised by CI). CI excludes `turbo-provider-cuda`
 (hosted runners have no CUDA toolkit) and does not build the OpenVINO
 provider (it needs the OpenVINO SDK); both providers are built and their
 live tests run manually, see
 [`providers/openvino/README.md`](providers/openvino/README.md),
 [`providers/cuda/README.md`](providers/cuda/README.md), and
-[`docs/testing.md`](docs/testing.md).
+[`docs/testing.md`](docs/testing.md). Two further CI jobs: the Java binding's
+conformance cases run under JDK 25 against the mock provider
+(`bindings/java`, `docs/bindings.md`), and `scripts/package.sh --no-cuda
+--no-openvino` builds and verifies the distribution archive, uploaded as a
+build artifact (`docs/packaging.md`).
 
 ## Repository layout
 
 From `PLAN.md` section 9. "Here" means the directory exists in this tree
-today (commit `13b58ff`); "planned" means it is scoped for a later milestone.
+today (commit `6657818`); "planned" means it is scoped for a later milestone.
 
 | path | purpose | status |
 |---|---|---|
@@ -298,17 +358,19 @@ today (commit `13b58ff`); "planned" means it is scoped for a later milestone.
 | `providers/mock/` | mock provider, loadable and statically linked | here |
 | `providers/static/` | model2vec-style static embedding provider | here |
 | `providers/openvino/` | OpenVINO provider (C++, built separately with CMake) | here |
-| `providers/cuda/` | CUDA provider (Rust, ONNX Runtime CUDA EP); EXPERIMENTAL on `krick` (x86_64), Jetson (`nano1`) not started | here |
-| `providers/cpu/`, `providers/hailo/`, `providers/ggml/` | remaining hardware providers | planned (P3, P5, P6) |
+| `providers/cuda/` | CUDA provider (Rust, ONNX Runtime CUDA EP); EXPERIMENTAL on `krick` (x86_64); embedding landed on Jetson `nano1` | here |
+| `providers/ggml/` | ggml/llama.cpp provider (Rust, GGUF generation); EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | here |
+| `providers/cpu/`, `providers/hailo/` | remaining hardware providers | planned (P3, P5) |
 | `providers/metal/` | Swift package producing `libturbo_provider_metal.dylib` | planned (P4) |
 | `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO provider | here |
 | `native/turbo_buffer/` | shared C++ arenas salvaged from the PoC | present, not yet wired into a provider |
-| `bindings/java/`, `bindings/swift/`, `bindings/android/` | language bindings | planned (P7, P10) |
+| `bindings/java/` | JDK 25 FFM binding (`ai.pipestream:turbo`) | here |
+| `bindings/swift/`, `bindings/android/` | remaining language bindings | planned (P7, P10) |
 | `tools/turbo-bundle/` | bundle import, verify, inspect | here (`fetch` from `crates/fetch` is not ported yet) |
 | `server/` | Inferstream on the new ABI | planned (P9) |
 | `docs/` | documentation (this tree) | here |
 | `testdata/` | fixtures, goldens, receipts | here |
-| `scripts/` | `gen-header.sh`, `gen-versioned.py`, `c-smoke.sh` | here |
+| `scripts/` | `gen-header.sh`, `gen-versioned.py`, `c-smoke.sh`, `package.sh`, `gen-java-ffi.sh` | here |
 
 ## Documentation
 
@@ -325,6 +387,11 @@ today (commit `13b58ff`); "planned" means it is scoped for a later milestone.
   provider must implement.
 - [`docs/testing.md`](docs/testing.md) — the conformance suite, C smoke,
   header parity, and fixtures.
+- [`docs/bindings.md`](docs/bindings.md) — the Java FFM binding: its two
+  layers, how the library is located, and the conformance tests.
+- [`docs/packaging.md`](docs/packaging.md) — the per-target distribution
+  archive `scripts/package.sh` builds, its layout, and what it deliberately
+  excludes.
 - [`AGENTS.md`](AGENTS.md) — working rules for agents and contributors.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — toolchain, commands, coding
   standards, review checklist.

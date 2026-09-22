@@ -1,0 +1,39 @@
+{
+  "receipt_version": 1,
+  "date": "2026-09-21",
+  "provider": "cuda",
+  "provider_version": "2.0.0-alpha.0",
+  "modality": "text",
+  "machine": {
+    "name": "nano1",
+    "device": "NVIDIA Jetson Orin Nano Super 8GB, `Orin (sm_87)`",
+    "device_kind": "GPU",
+    "os": "JetPack R39 rev 2.0 (Ubuntu 24.04), CUDA 13.2, cuDNN 9.20, TensorRT 10.16",
+    "memory": "7.4 GiB shared"
+  },
+  "runtime": "ONNX Runtime 1.24.0 (local build in ~/ort-jetson-stash, CUDA execution provider) linked dynamically through ORT_LIB_LOCATION and ORT_PREFER_DYNAMIC_LINK with the crate's `download` feature off; provider kernels compiled by nvcc 13.2 for sm_87 (TURBO_CUDA_ARCHS=87)",
+  "build": "cargo build -p turbo-provider-cuda --no-default-features --lib (debug profile) on the board with rustup stable 1.98.1 aarch64",
+  "tests": {
+    "embed": "crates/turbo-conformance/tests/live_embed.rs: 12 passed, 0 failed (733 s including a model load per test)",
+    "tasks": "crates/turbo-conformance/tests/live_tasks.rs: 7 passed, 0 failed, run three times in a row in fresh processes after the resident-library change (612 s, 613 s, 612 s)"
+  },
+  "embed": {
+    "bundle": "sentence-transformers/all-MiniLM-L6-v2 (onnx), the same bundle as testdata/receipts/turbo/cuda-2026-09-21.json",
+    "cosine": { "short": 1.000000, "medium": 1.000000, "empty": 1.000000, "long_truncation": 1.000000 },
+    "output_placement": "DEVICE",
+    "h2d_bytes_per_run": 24576,
+    "d2h_bytes_in_run": 0
+  },
+  "tasks": {
+    "rerank": { "scores": [0.9998404, 0.0000127, 0.0000249], "sorted": [0, 2, 1], "raw_logits": [8.742642, -11.270458, -10.600946] },
+    "classify": { "scores": [[0.0001171, 0.9998828], [0.9997973, 0.0002027]] },
+    "token_classify": "Ada Lovelace=PER, Berlin=LOC, Microsoft=ORG"
+  },
+  "notes": [
+    "cudaGetDeviceProperties is not exported under the CUDA 12 header's _v2 name by the CUDA 13 runtime; device enumeration uses cudaDeviceGetAttribute and cuDeviceGetName (commit 349e50b).",
+    "Before commit 0a77908 a second model load in one process crashed with SIGSEGV intermittently (ONNX Runtime does not survive dlclose/dlopen of the provider); provider libraries now stay mapped for the process lifetime.",
+    "No prebuilt aarch64 CUDA ONNX Runtime exists on PyPI or pyke's CDN; the board build depends on a local ONNX Runtime."
+  ],
+  "status_after": "EXPERIMENTAL; a matched-native benchmark receipt is still required before SUPPORTED",
+  "commit": "see git log for the commit that adds this file"
+}
