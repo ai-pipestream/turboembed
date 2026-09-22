@@ -756,7 +756,9 @@ impl ContextInner {
             },
             kind: bundle.kind(),
             modality: Modality::Text,
-            dim: if kind == Kind::Embedding { width } else { 0 },
+            // contract.dim as the bundle states it, for every kind (a
+            // reranker's or classifier's hidden size, not its output width).
+            dim: c.dim,
             labels: c.labels.clone(),
             pooling: (kind == Kind::Embedding).then_some(pool),
             normalize: (kind == Kind::Embedding).then_some(if normalize { Normalize::L2 } else { Normalize::None }),

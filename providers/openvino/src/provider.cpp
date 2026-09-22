@@ -424,6 +424,7 @@ struct Model {
     std::string in_ids, in_mask, in_types;
     bool has_types = false;
     uint32_t width = 0; // dim or n_labels
+    uint32_t dim = 0;   // contract.dim as the bundle states it, for every kind
     uint32_t max_seq = 0;
     uint32_t max_batch = 0;
     uint32_t aggregation = TURBO_AGGREGATE_SIMPLE; // what TURBO_AGGREGATE_MODEL resolves to
@@ -542,6 +543,7 @@ std::unique_ptr<Model> load_model(Context *ctx, const std::string &dir, const st
     m->bundle = Bundle::read(dir);
     const Bundle &b = m->bundle;
     require(b.modality == "text", TURBO_E_UNSUPPORTED_MODALITY, "openvino provider serves text bundles only");
+    m->dim = b.dim;
     if (b.kind == "embedding") {
         m->kind = Kind::Embedding;
         require(b.dim > 0, TURBO_E_BUNDLE_INVALID, "embedding bundle must declare contract.dim");
@@ -654,7 +656,7 @@ void fill_model_info(const Model &m, turbo_model_info &out) {
                : m.kind == Kind::Classifier ? TURBO_MODEL_CLASSIFIER
                                             : TURBO_MODEL_TOKEN_CLASSIFIER;
     out.modality = TURBO_MODALITY_TEXT;
-    out.dim = m.kind == Kind::Embedding ? m.width : 0;
+    out.dim = m.dim; // contract.dim as the bundle states it, for every kind
     out.n_labels = static_cast<uint32_t>(m.labels.size());
     out.pooling = m.kind == Kind::Embedding ? (m.pool == Pool::Mean ? TURBO_POOLING_MEAN : m.pool == Pool::Cls ? TURBO_POOLING_CLS : TURBO_POOLING_LAST) : 0;
     out.normalize = m.kind == Kind::Embedding ? (m.normalize ? TURBO_NORMALIZE_L2 : TURBO_NORMALIZE_NONE) : 0;

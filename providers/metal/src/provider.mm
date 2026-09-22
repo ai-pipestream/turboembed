@@ -561,7 +561,7 @@ void fill_model_info(const Model &m, turbo_model_info &out) {
     out.task = m.kind == Kind::Embedding ? TURBO_TASK_EMBED : TURBO_TASK_RERANK;
     out.kind = m.kind == Kind::Embedding ? TURBO_MODEL_EMBEDDING : TURBO_MODEL_RERANKER;
     out.modality = TURBO_MODALITY_TEXT;
-    out.dim = m.kind == Kind::Embedding ? m.hidden : 0;
+    out.dim = m.bundle.dim; // contract.dim as the bundle states it, for every kind
     out.n_labels = 0;
     out.pooling = m.kind == Kind::Embedding ? (m.pool == Pool::Mean ? TURBO_POOLING_MEAN : m.pool == Pool::Cls ? TURBO_POOLING_CLS : TURBO_POOLING_LAST) : 0;
     out.normalize = m.kind == Kind::Embedding ? (m.normalize ? TURBO_NORMALIZE_L2 : TURBO_NORMALIZE_NONE) : 0;
