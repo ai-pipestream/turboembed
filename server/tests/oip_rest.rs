@@ -334,6 +334,12 @@ async fn infer_generative_from_message_turns() {
     )
     .await;
     assert_eq!(bad.status, 400, "a turn that is not a role/content object: {}", bad.text);
+    let body = bad.json();
+    assert_eq!(body["status"], "BAD_REQUEST", "the error object's status: {body}");
+    assert!(
+        body["message"].as_str().expect("a message").contains("messages"),
+        "the message does not name the input it could not read: {body}"
+    );
 }
 
 #[tokio::test]
@@ -424,7 +430,25 @@ async fn infer_over_a_capacity_limit_is_422() {
     )
     .await;
     assert_eq!(r.status, 422, "19 words plus specials do not fit max_seq 16 and nothing may be cut: {}", r.text);
-    assert_eq!(r.json()["status"], "TURBO_E_CAPACITY", "the Turbo status: {}", r.text);
+    let body = r.json();
+    assert_eq!(body["status"], "TURBO_E_CAPACITY", "the Turbo status: {body}");
+    assert!(
+        body["message"].as_str().expect("a message").contains("16"),
+        "the error does not name the limit that was hit: {body}"
+    );
+    // The mock bundle carries no core tokenizer, so this is the provider's
+    // own length rule and it names no option field (`server/README.md`,
+    // "Session buckets"). The bucket rule, which names field 2, is asserted
+    // in `tests/engine.rs` on a bundle that does have a tokenizer.
+    assert_eq!(body["field"], 0, "the provider's length rule rejects no option field: {body}");
+    // The same text goes through when the caller asks for a cut.
+    let cut = post(
+        "/v2/models/embed/infer",
+        &json!({"parameters": {"truncate": "right"},
+                "inputs": [{"name": "text", "datatype": "BYTES", "shape": [1], "data": [long]}]}),
+    )
+    .await;
+    assert_eq!(cut.status, 200, "an explicit right truncation is served: {}", cut.text);
 
     let over = post(
         "/v2/models/embed/infer",

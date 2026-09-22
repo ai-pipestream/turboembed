@@ -136,10 +136,26 @@ fn plugin_rerank_classify_and_generic_run() {
     let result = session.run(&Default::default()).unwrap();
     assert_eq!(result.outputs().len(), 2);
     assert_eq!(&*result.outputs()[1].name, "sorted");
+    assert_eq!(result.outputs()[1].shape, vec![2], "top_n 2 bounds the sorted output");
     let mut sorted = [0u8; 8];
     result.read(1, &mut sorted).unwrap();
-    let first = i32::from_le_bytes(sorted[..4].try_into().unwrap());
-    assert_eq!(first, 2, "the document with the most query overlap ranks first");
+    let ranked: Vec<i32> = sorted.chunks_exact(4).map(|c| i32::from_le_bytes(c.try_into().unwrap())).collect();
+    assert_eq!(ranked[0], 2, "the document with the most query overlap ranks first");
+    assert_ne!(ranked[1], ranked[0], "the sorted output must not repeat a document");
+    // The whole ranking is checkable against the scores, which stay in
+    // input order and cover every document.
+    let mut scores = [0u8; 12];
+    result.read(0, &mut scores).unwrap();
+    let scores: Vec<f32> = scores.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect();
+    assert_eq!(scores.len(), 3, "top_n cuts the ranking, not the scores");
+    assert!(scores.iter().all(|s| (0.0..=1.0).contains(s)), "activated scores are in 0..=1: {scores:?}");
+    assert!(scores[ranked[0] as usize] >= scores[ranked[1] as usize], "{scores:?} / {ranked:?}");
+    let left_out = (0..3).find(|i| !ranked.contains(i)).expect("one document is outside the top 2");
+    assert!(
+        scores[left_out as usize] <= scores[ranked[1] as usize],
+        "document {left_out} scored {} but was left out of the top 2: {scores:?}",
+        scores[left_out as usize]
+    );
     drop(result);
 
     let tc = tmp.path().join("tc");

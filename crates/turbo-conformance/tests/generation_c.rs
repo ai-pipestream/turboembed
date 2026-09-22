@@ -129,6 +129,9 @@ fn generation_finish_reason_is_length_at_max_new_tokens() {
         let (tokens, _, reason, _) = drain(g, 64);
         assert!(tokens.len() <= max as usize);
         assert!(reason == TURBO_FINISH_LENGTH || reason == TURBO_FINISH_EOS, "expected LENGTH or EOS, got {reason}");
+        if reason == TURBO_FINISH_LENGTH {
+            assert_eq!(tokens.len(), max as usize, "LENGTH must mean the budget of {max} was used up");
+        }
         // SAFETY: released once.
         unsafe { turbo_generation_release(g) };
     }
@@ -255,7 +258,12 @@ fn generation_logprobs_count_matches_the_token_count() {
     let t = Target::from_env();
     needs!(t, Generative);
     if t.caps() & TURBO_CAP_OPT_GEN_LOGPROBS == 0 {
-        println!("generation_logprobs: device does not advertise TURBO_CAP_OPT_GEN_LOGPROBS");
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_GEN_LOGPROBS; \
+             capability_generation_options_are_honored_or_rejected asserts the refusal",
+            t.provider_id(),
+            t.ordinal()
+        );
         return;
     }
     let f = Gen::new(&t);
@@ -299,7 +307,12 @@ fn generation_the_same_seed_reproduces_the_same_tokens() {
     let t = Target::from_env();
     needs!(t, Generative);
     if t.caps() & TURBO_CAP_OPT_GEN_SEED == 0 {
-        println!("generation_seed: device does not advertise TURBO_CAP_OPT_GEN_SEED");
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_GEN_SEED; \
+             capability_generation_options_are_honored_or_rejected asserts the refusal",
+            t.provider_id(),
+            t.ordinal()
+        );
         return;
     }
     let f = Gen::new(&t);
@@ -341,7 +354,12 @@ fn generation_stop_string_finishes_with_stop() {
     let t = Target::from_env();
     needs!(t, Generative);
     if t.caps() & TURBO_CAP_OPT_GEN_STOP_STRINGS == 0 {
-        println!("generation_stop_string: device does not advertise TURBO_CAP_OPT_GEN_STOP_STRINGS");
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_GEN_STOP_STRINGS; \
+             capability_generation_options_are_honored_or_rejected asserts the refusal",
+            t.provider_id(),
+            t.ordinal()
+        );
         return;
     }
     let f = Gen::new(&t);
@@ -380,6 +398,7 @@ fn generation_stop_string_finishes_with_stop() {
     let mut out: *mut turbo_generation = ptr::null_mut();
     // SAFETY: valid model handle; the NULL array is deliberate.
     assert_rc!(unsafe { turbo_generation_create(f.model, &missing, &mut out, &mut e) }, TURBO_E_INVALID_ARGUMENT, e);
+    assert_eq!(e.field, 16, "a NULL stop array names the stop field: {}", c::message(&e));
 }
 
 #[test]
@@ -467,14 +486,21 @@ fn generation_push_form_delivers_the_pull_forms_tokens() {
     assert_rc!(rc, TURBO_OK, e);
     assert_eq!(pushed.tokens, pulled, "push and pull must produce one token sequence");
     assert!(pushed.done, "the last chunk is the finished one");
-    assert_ne!(pushed.finish, TURBO_FINISH_NONE);
+    assert_eq!(pushed.finish, TURBO_FINISH_LENGTH, "6 new tokens hits the budget, as it did on the pull form");
     // TURBO_STREAM_STOP ends the stream after the chunk that returned it.
     let mut early = Pushed { tokens: Vec::new(), chunks: 0, done: false, finish: 0, stop_after: 2 };
     let rc =
         unsafe { turbo_generate(f.model, &gd, &msg, 1, Some(collect), (&mut early as *mut Pushed).cast(), &mut e) };
     assert_rc!(rc, TURBO_OK, e);
     assert_eq!(early.chunks, 2);
-    assert_eq!(early.tokens, pulled[..early.tokens.len()]);
+    assert!(!early.tokens.is_empty(), "two chunks carried no tokens at all");
+    assert!(
+        early.tokens.len() < pulled.len(),
+        "TURBO_STREAM_STOP after chunk 2 delivered the whole stream ({} of {} tokens)",
+        early.tokens.len(),
+        pulled.len()
+    );
+    assert_eq!(early.tokens, pulled[..early.tokens.len()], "the stopped stream is a prefix of the whole one");
     assert!(!early.done, "a stopped stream never reports a finished chunk");
     // Argument checks: NULL callback, NULL model.
     let rc = unsafe { turbo_generate(f.model, &gd, &msg, 1, None, ptr::null_mut(), &mut e) };

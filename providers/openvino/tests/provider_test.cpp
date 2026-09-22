@@ -14,8 +14,9 @@
 // `TURBO_PROVIDER_LIB` to test another build (for example a baseline, to see
 // a test fail). Bundles come from the environment, as in the Rust live
 // tests: `TURBO_LIVE_BUNDLE` (embedder), `TURBO_LIVE_RERANK_BUNDLE`,
-// `TURBO_LIVE_NER_BUNDLE`. A test whose bundle is not named skips and says
-// so; the device is `TURBO_LIVE_ORDINAL` or the provider's CPU device.
+// `TURBO_LIVE_NER_BUNDLE`. The provider library is always there, so a test
+// whose bundle is not named fails naming the variable rather than passing
+// quietly; the device is `TURBO_LIVE_ORDINAL` or the provider's CPU device.
 
 #include "turbo/turbo_provider.h"
 #include "turbo/turbo_types.h"
@@ -141,7 +142,8 @@ struct Fixture {
     bool open(const char *bundle_var, uint32_t max_batch, uint32_t max_seq) {
         const char *dir = env(bundle_var);
         if (dir == nullptr) {
-            std::printf("  skipped: %s is not set\n", bundle_var);
+            ++g_failures;
+            std::printf("  FAIL %s is not set; point it at a bundle directory for this case\n", bundle_var);
             return false;
         }
         Err err;
@@ -452,6 +454,41 @@ void rerank_options_are_checked_and_top_n_is_clamped() {
             if (r.n_outputs == 2) {
                 CHECK_EQ(r.outputs[1].ndim, 1);
                 CHECK_EQ(r.outputs[1].shape[0], 3);
+                // The clamped ranking is a real ranking: each of the three
+                // rows once, best first by the scores in output 0. A stale
+                // or unwritten index would be caught here, not by the
+                // length alone.
+                // The buffers are the session's own, sized for its widest
+                // batch, so each read takes the whole buffer and the first
+                // three entries are this run's rows.
+                const size_t score_bytes = static_cast<size_t>(r.outputs[0].buffer.desc.bytes);
+                const size_t order_bytes = static_cast<size_t>(r.outputs[1].buffer.desc.bytes);
+                CHECK(score_bytes >= 3 * sizeof(float));
+                CHECK(order_bytes >= 3 * sizeof(int32_t));
+                std::vector<float> scores(score_bytes / sizeof(float), 0.0f);
+                ok(vt()->buffer_read(r.outputs[0].buffer.handle, scores.data(), score_bytes, err.p()), err,
+                   "buffer_read scores");
+                std::vector<int32_t> order(order_bytes / sizeof(int32_t), -1);
+                ok(vt()->buffer_read(r.outputs[1].buffer.handle, order.data(), order_bytes, err.p()), err,
+                   "buffer_read sorted");
+                std::printf("  clamped top_n: scores [%f %f %f] order [%d %d %d]\n",
+                            static_cast<double>(scores[0]), static_cast<double>(scores[1]),
+                            static_cast<double>(scores[2]), order[0], order[1], order[2]);
+                bool seen[3] = {false, false, false};
+                for (int i = 0; i < 3; ++i) {
+                    CHECK(order[i] >= 0 && order[i] < 3);
+                    if (order[i] >= 0 && order[i] < 3) {
+                        CHECK(!seen[order[i]]);
+                        seen[order[i]] = true;
+                    }
+                }
+                for (int i = 0; i + 1 < 3; ++i) {
+                    if (order[i] >= 0 && order[i] < 3 && order[i + 1] >= 0 && order[i + 1] < 3) {
+                        CHECK(scores[order[i]] >= scores[order[i + 1]]);
+                    }
+                }
+                // The Berlin passage answers the query; the other two do not.
+                CHECK_EQ(order[0], 0);
             }
         }
     }
@@ -642,7 +679,7 @@ void span_score_is_the_mean_of_the_word_scores() {
 void device_result_exports_the_cl_mem_it_computed_into() {
     const turbo_device_info info = device_info(ordinal());
     if ((info.caps & TURBO_CAP_DEVICE_RESULT) == 0) {
-        std::printf("  skipped: device `%s` does not claim TURBO_CAP_DEVICE_RESULT\n", info.name);
+        std::printf("  not applicable: device `%s` does not claim TURBO_CAP_DEVICE_RESULT\n", info.name);
         return;
     }
     Fixture f;

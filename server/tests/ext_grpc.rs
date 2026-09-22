@@ -151,6 +151,52 @@ async fn model_stream_infer_on_a_non_generative_model_sends_one_whole_response()
     assert_eq!(embeddings.shape[0], 2, "both texts came back");
     let floats = &embeddings.contents.as_ref().expect("embeddings contents").fp32_contents;
     assert_eq!(floats.len() as i64, embeddings.shape[0] * embeddings.shape[1], "the data does not fill the shape");
+    // The one response is the response: the same vectors `ModelInfer`
+    // returns for the same request, not a differently shaped stand-in.
+    let mut plain = common::grpc_client(common::engine()).await;
+    let whole = plain
+        .model_infer(request("embed", vec![bytes_input("text", &["one", "two"])]))
+        .await
+        .expect("ModelInfer on embed")
+        .into_inner();
+    let want = whole.outputs.iter().find(|o| o.name == "embeddings").expect("an `embeddings` output");
+    assert_eq!(embeddings.shape, want.shape, "the streamed shape differs from the unary one");
+    assert_eq!(
+        floats,
+        &want.contents.as_ref().expect("embeddings contents").fp32_contents,
+        "the streamed vectors differ from the unary ones"
+    );
+}
+
+#[tokio::test]
+async fn a_provider_error_mid_stream_arrives_as_error_message_on_a_chunk() {
+    // `server/README.md`: `error_message` is set when the stream ended in an
+    // error. The mock rejects a top_k past its vocabulary on the
+    // generation's own task, after the stream has already been handed to the
+    // client, so the failure can only reach it on a chunk.
+    let mut c = common::ext_client(common::engine()).await;
+    let mut req = request("chat", vec![bytes_input("prompt", &["hello"])]);
+    req.parameters.insert("top_k".into(), int_param(5000));
+    let chunks = stream_chunks(&mut c, req).await.expect("the stream itself starts");
+    let failed: Vec<&ModelStreamInferResponse> = chunks.iter().filter(|c| !c.error_message.is_empty()).collect();
+    assert_eq!(failed.len(), 1, "exactly one chunk carries the failure: {chunks:?}");
+    let failed = failed[0];
+    assert!(
+        failed.error_message.contains("TURBO_E_INVALID_ARGUMENT"),
+        "the chunk does not carry the Turbo status: {}",
+        failed.error_message
+    );
+    assert!(
+        failed.error_message.contains("field 6"),
+        "the chunk does not name top_k, generation field 6: {}",
+        failed.error_message
+    );
+    assert!(failed.infer_response.is_none(), "a failed chunk carries no result");
+    assert_eq!(
+        chunks.last().map(|c| c.error_message.as_str()),
+        Some(failed.error_message.as_str()),
+        "the failure is the last thing the stream says"
+    );
 }
 
 #[tokio::test]

@@ -43,6 +43,16 @@ impl Drop for Chain {
     }
 }
 
+/// Whether the bundle of `kind` declares a sigmoid head. The C layer has no
+/// call for the contract, so the case reads the manifest the model was
+/// loaded from, which is where the per-model truth lives (PLAN.md 2.6).
+fn declares_sigmoid(t: &Target, kind: BundleKind) -> bool {
+    let path = t.bundle(kind).join("bundle.json");
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let manifest: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    manifest["contract"]["activation"] == serde_json::json!("sigmoid")
+}
+
 fn output_info(r: *mut turbo_result, index: u32) -> turbo_tensor_info {
     let mut e = c::err();
     let mut ti = turbo_tensor_info { struct_size: ssz::<turbo_tensor_info>(), ..unsafe { std::mem::zeroed() } };
@@ -77,6 +87,13 @@ fn tasks_rerank_reports_scores_and_a_sorted_index() {
     assert_eq!(ri.dtype, TURBO_DTYPE_F32);
     assert_eq!(ri.bytes, (DOCS.len() * 4) as u64);
     let scores = c::read_f32(r, 0, DOCS.len());
+    let sigmoid = declares_sigmoid(&t, BundleKind::Reranker);
+    for (i, s) in scores.iter().enumerate() {
+        assert!(s.is_finite(), "score {i} is not finite: {s}");
+        if sigmoid {
+            assert!((0.0..=1.0).contains(s), "a sigmoid head's score {i} is outside 0..=1: {s}");
+        }
+    }
     assert_eq!(scores[0], scores[2], "identical documents must score identically");
     assert!(scores[0] > scores[3], "a matching document must outrank an unrelated one: {scores:?}");
 
@@ -101,6 +118,14 @@ fn tasks_rerank_reports_scores_and_a_sorted_index() {
             e
         );
         assert_eq!(written, (DOCS.len() * 4) as u64);
+        // Every document appears exactly once, in descending score order.
+        let mut seen = vec![false; DOCS.len()];
+        for &i in &sorted {
+            let i = usize::try_from(i).expect("a sorted index is never negative");
+            assert!(i < DOCS.len(), "sorted index {i} is out of range: {sorted:?}");
+            assert!(!seen[i], "document {i} appears twice in the sorted output: {sorted:?}");
+            seen[i] = true;
+        }
         for pair in sorted.windows(2) {
             let (a, b) = (pair[0] as usize, pair[1] as usize);
             assert!(scores[a] >= scores[b], "sorted output is not descending: {sorted:?}");
@@ -108,6 +133,11 @@ fn tasks_rerank_reports_scores_and_a_sorted_index() {
                 assert!(a < b, "ties must keep input order");
             }
         }
+    } else {
+        // Without the bit there is no second output at all; the refusal of
+        // return_sorted itself is asserted in capability_c.rs.
+        println!("not applicable: the device does not advertise TURBO_CAP_OPT_TOP_N, so no sorted output is produced");
+        assert_eq!(ri.n_outputs, 1, "an unsorted rerank result carries the scores alone");
     }
     // An output index past the end is refused on every accessor.
     let mut ti = turbo_tensor_info { struct_size: ssz::<turbo_tensor_info>(), ..unsafe { std::mem::zeroed() } };
@@ -158,6 +188,19 @@ fn tasks_classify_rows_sum_to_one_unless_raw() {
 
     let mut raw = c::classify_options();
     raw.raw_scores = 1;
+    if t.caps() & TURBO_CAP_OPT_RAW_SCORES == 0 {
+        // The bit is clear, so the option is refused naming raw_scores
+        // (field 5); capability_c.rs asserts the same for every option.
+        println!("not applicable: the device does not advertise TURBO_CAP_OPT_RAW_SCORES");
+        // SAFETY: as above; the option is deliberately not offered.
+        assert_rc!(
+            unsafe { turbo_session_write_text_classify(chain.session, texts.as_ptr(), 2, &raw, &mut e) },
+            TURBO_E_UNSUPPORTED_OPTION,
+            e,
+            field = 5
+        );
+        return;
+    }
     // SAFETY: as above.
     assert_rc!(
         unsafe { turbo_session_write_text_classify(chain.session, texts.as_ptr(), 2, &raw, &mut e) },
@@ -167,8 +210,26 @@ fn tasks_classify_rows_sum_to_one_unless_raw() {
     // SAFETY: valid session handle and out pointer.
     assert_rc!(unsafe { turbo_session_run(chain.session, ptr::null(), &mut r, &mut e) }, TURBO_OK, e);
     let raw_values = c::read_f32(r, 0, 2 * n_labels);
-    let any_unnormalized = raw_values.chunks(n_labels).any(|r| (r.iter().sum::<f32>() - 1.0).abs() > 1e-4);
-    assert!(any_unnormalized, "raw_scores must return logits: {raw_values:?}");
+    for (i, row) in raw_values.chunks(n_labels).enumerate() {
+        assert!(
+            (row.iter().sum::<f32>() - 1.0).abs() > 1e-4,
+            "raw row {i} sums to one, so raw_scores returned the activated scores: {row:?}"
+        );
+        // The logits activate to the probabilities the same call returns
+        // without `raw_scores`, so the two cannot be the same numbers under
+        // two names.
+        let max = row.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        let exp: Vec<f32> = row.iter().map(|x| (x - max).exp()).collect();
+        let sum: f32 = exp.iter().sum();
+        for (k, e) in exp.iter().enumerate() {
+            let want = e / sum;
+            let got = values[i * n_labels + k];
+            assert!(
+                (want - got).abs() < 1e-4,
+                "row {i} label {k}: softmax of the logit is {want}, the activated score is {got}"
+            );
+        }
+    }
     // SAFETY: released once.
     unsafe { turbo_result_release(r) };
 
@@ -228,7 +289,12 @@ fn tasks_token_classify_spans_slice_the_input() {
     let mut spans = vec![turbo_span::default(); count as usize];
     // SAFETY: `spans` holds `count` writable entries.
     assert_rc!(unsafe { turbo_result_spans(r, spans.as_mut_ptr(), count, &mut count, &mut e) }, TURBO_OK, e);
-    assert_eq!(spans[0].byte_start, one[0].byte_start, "the prefix copy matches the full copy");
+    assert_eq!(
+        (spans[0].byte_start, spans[0].byte_end, spans[0].row, spans[0].label),
+        (one[0].byte_start, one[0].byte_end, one[0].row, one[0].label),
+        "the prefix copy is not the first span of the full copy"
+    );
+    assert_eq!(spans[0].score, one[0].score, "the prefix copy carries another score than the full copy");
     for s in &spans {
         let row = s.row as usize;
         assert!(row < texts_src.len(), "span row {row} is out of range");
@@ -241,6 +307,15 @@ fn tasks_token_classify_spans_slice_the_input() {
         assert!(start == 0 || text[..start].ends_with(char::is_whitespace), "span {s:?} starts mid-word");
         assert!(end == text.len() || text[end..].starts_with(char::is_whitespace), "span {s:?} ends mid-word");
         assert!(s.label < chain.info.n_labels, "span {s:?} names no label");
+        assert!(
+            s.score > 0.0 && s.score <= 1.0 + 1e-5,
+            "an aggregated span score is a probability, so it lies in (0, 1]: {s:?}"
+        );
+        assert!(
+            s.score >= 1.0 / chain.info.n_labels as f32,
+            "a span carries the winning label, so its score is at least the uniform share 1/{}: {s:?}",
+            chain.info.n_labels
+        );
         assert_eq!(s.reserved, 0, "reserved must be zero");
     }
     // A NULL count pointer is an argument error.

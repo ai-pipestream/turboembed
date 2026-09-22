@@ -101,6 +101,42 @@ async fn embeddings_dimensions_follows_the_bundles_truncate_dims() {
 }
 
 #[tokio::test]
+async fn embeddings_honor_prompt_role_normalize_and_truncate() {
+    // The three Turbo extensions `server/README.md` documents on this route.
+    // The mock embedding bundle declares a `query` prefix and `normalize:
+    // l2`, so each option has an observable effect; an option the server
+    // parsed and dropped would leave the vector unchanged.
+    let bare = post("/v1/embeddings", &json!({"model": "embed", "input": "hello world"})).await;
+    assert_eq!(bare.status, 200, "{}", bare.text);
+    let bare = embedding(&bare.json(), 0);
+    let norm = |v: &[f32]| v.iter().map(|x| x * x).sum::<f32>().sqrt();
+    assert!((norm(&bare) - 1.0).abs() < 1e-5, "the bundle says normalize=l2: {bare:?}");
+
+    let roled =
+        post("/v1/embeddings", &json!({"model": "embed", "input": "hello world", "prompt_role": "query"})).await;
+    assert_eq!(roled.status, 200, "the bundle declares a query prefix: {}", roled.text);
+    assert_ne!(embedding(&roled.json(), 0), bare, "the query prefix must change the vector");
+
+    let plain = post("/v1/embeddings", &json!({"model": "embed", "input": "hello world", "normalize": "none"})).await;
+    assert_eq!(plain.status, 200, "normalize none: {}", plain.text);
+    let plain = embedding(&plain.json(), 0);
+    assert!((norm(&plain) - 1.0).abs() > 1e-3, "normalize none must not return an l2 vector: {plain:?}");
+
+    // 19 words plus the two specials do not fit the mock's 16-token model.
+    let long = (0..19).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ");
+    let refused = post("/v1/embeddings", &json!({"model": "embed", "input": long, "truncate": "none"})).await;
+    assert_eq!(refused.status, 422, "truncate none over the limit: {}", refused.text);
+    assert_eq!(refused.json()["status"], "TURBO_E_CAPACITY", "{}", refused.text);
+    let cut = post("/v1/embeddings", &json!({"model": "embed", "input": long, "truncate": "right"})).await;
+    assert_eq!(cut.status, 200, "an explicit truncation cuts the text: {}", cut.text);
+    assert_eq!(embedding(&cut.json(), 0).len(), 8, "{}", cut.text);
+
+    let bad = post("/v1/embeddings", &json!({"model": "embed", "input": "a", "truncate": "sideways"})).await;
+    assert_eq!(bad.status, 400, "a truncate value that is not an enum member: {}", bad.text);
+    assert_eq!(bad.json()["field"], 2, "truncate is option field 2: {}", bad.text);
+}
+
+#[tokio::test]
 async fn embeddings_on_a_model_of_another_kind_is_400_naming_both_kinds() {
     let r = post("/v1/embeddings", &json!({"model": "chat", "input": "a"})).await;
     assert_eq!(r.status, 400, "the generative model is not an embedder: {}", r.text);
@@ -196,7 +232,9 @@ async fn classify_returns_entity_spans_for_a_token_classifier() {
         let (start, end) =
             (span["start"].as_u64().expect("start") as usize, span["end"].as_u64().expect("end") as usize);
         assert_eq!(span["word"], &text[start..end], "`word` is not the text the offsets name: {span}");
-        assert!(span["score"].as_f64().expect("score") > 0.0, "a span scored zero: {span}");
+        let score = span["score"].as_f64().expect("score");
+        assert!(score > 0.0 && score <= 1.0, "a span score is a probability: {span}");
+        assert!(start < end, "a span covers no bytes: {span}");
     }
 }
 

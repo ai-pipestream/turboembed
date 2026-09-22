@@ -50,7 +50,9 @@ async fn the_api_routes_take_precedence_over_pages() {
     let router = http::with_pages(http::router(common::engine()), dir.path()).unwrap();
     let r = common::get_on(router, "/v2/health/live").await;
     assert_eq!(r.status.as_u16(), 200);
-    assert_ne!(r.text, "page", "the API answered, not the file");
+    // The route answers 200 with an empty body; the file under the pages
+    // directory would have answered with its own text.
+    assert_eq!(r.text, "", "the file answered instead of the API: {}", r.text);
 }
 
 #[test]

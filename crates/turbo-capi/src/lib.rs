@@ -171,7 +171,9 @@ unsafe fn kvs(ptr: *const turbo_kv, n: u32, what: &str) -> Result<Options> {
         let k = unsafe { text(&kv.key, &format!("{what}[{i}].key")) }?;
         let v = unsafe { text(&kv.value, &format!("{what}[{i}].value")) }?;
         if k.is_empty() {
-            return Err(Error::invalid_argument(format!("{what}[{i}].key is empty")));
+            // The 1-based index of the offending option, as `reject_unknown`
+            // reports for an unknown key.
+            return Err(Error::invalid_argument(format!("{what}[{i}].key is empty")).with_field(i as u32 + 1));
         }
         out.push((k.to_string(), v.to_string()));
     }
@@ -1393,8 +1395,12 @@ unsafe fn generate_desc(desc: *const turbo_generate_desc) -> Result<GenerateDesc
         return Ok(GenerateDesc::default());
     }
     let d = unsafe { read_sized::<turbo_generate_desc>(desc, "turbo_generate_desc") }?;
-    let stop =
-        unsafe { texts(d.stop, d.n_stop, "turbo_generate_desc.stop") }?.into_iter().map(str::to_string).collect();
+    // A NULL or unreadable `stop` names its field (16), as `stop_tokens` names 17.
+    let stop = unsafe { texts(d.stop, d.n_stop, "turbo_generate_desc.stop") }
+        .map_err(|e| e.with_field(16))?
+        .into_iter()
+        .map(str::to_string)
+        .collect();
     let stop_tokens = if d.n_stop_tokens == 0 {
         Vec::new()
     } else if d.stop_tokens.is_null() {

@@ -518,6 +518,8 @@ mod tests {
         let norm: f32 = v[0].iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-5);
         assert!(v[3].iter().all(|&x| x == 0.0), "empty text is the zero vector");
+        let again = embed(&ctx, tmp.path(), &["hello world"], &EmbedOptions::default());
+        assert_eq!(again[0], v[0], "a table lookup is deterministic across model loads");
         let raw = embed(
             &ctx,
             tmp.path(),
@@ -539,9 +541,20 @@ mod tests {
             &EmbedOptions { prompt_role: turbo_core::PromptRole::Query, ..Default::default() },
         );
         assert_ne!(plain[0], q[0]);
+        // A narrowed vector is the leading components of the full one,
+        // renormalized, not an arbitrary four numbers of unit length.
+        let full = embed(&ctx, tmp.path(), &["hello world"], &EmbedOptions::default());
         let small = embed(&ctx, tmp.path(), &["hello world"], &EmbedOptions { output_dim: 4, ..Default::default() });
         assert_eq!(small[0].len(), 4);
         assert!((small[0].iter().map(|x| x * x).sum::<f32>().sqrt() - 1.0).abs() < 1e-5);
+        let head_norm: f32 = full[0][..4].iter().map(|x| x * x).sum::<f32>().sqrt();
+        for (i, (got, head)) in small[0].iter().zip(&full[0][..4]).enumerate() {
+            let want = head / head_norm;
+            assert!(
+                (got - want).abs() < 1e-5,
+                "component {i} of the narrowed vector is {got}, not the renormalized {want} of the full one"
+            );
+        }
         let model = ctx.load_model(tmp.path(), &ModelDesc::default()).unwrap();
         let session = model.create_session(&SessionDesc::default()).unwrap();
         let long = "word ".repeat(200);

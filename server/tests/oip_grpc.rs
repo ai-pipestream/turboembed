@@ -169,6 +169,16 @@ async fn model_infer_embedding_returns_a_row_per_text() {
     assert_eq!(t.shape, [2, 8], "the embeddings shape is [texts, dim]");
     let values = &t.contents.as_ref().expect("embeddings contents").fp32_contents;
     assert_eq!(values.len(), 16, "two rows of eight floats");
+    // The same numbers the REST binding returns: l2 normalized, one row per
+    // text, and two different texts do not embed to one vector.
+    for (i, row) in values.chunks(8).enumerate() {
+        let norm: f32 = row.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!(
+            (norm - 1.0).abs() < 1e-5,
+            "row {i} is not l2 normalized (norm {norm}) although the bundle says normalize=l2: {row:?}"
+        );
+    }
+    assert_ne!(values[..8], values[8..], "two different texts came back as one vector");
     assert_eq!(param(&r, "placement"), "Host", "the mock leaves its result on the host");
 }
 
@@ -200,6 +210,16 @@ async fn model_infer_classifier_returns_scores_and_labels() {
         .into_inner();
     let scores = output(&r, "scores");
     assert_eq!(scores.shape, [2, 3], "the scores shape is [texts, labels]");
+    let values = &scores.contents.as_ref().expect("scores contents").fp32_contents;
+    assert_eq!(values.len(), 6, "the data does not fill the shape: {values:?}");
+    for (i, row) in values.chunks(3).enumerate() {
+        let total: f32 = row.iter().sum();
+        assert!(
+            (total - 1.0).abs() < 1e-5,
+            "row {i} sums to {total}, not 1, although the bundle says activation=softmax: {row:?}"
+        );
+        assert!(row.iter().all(|p| (0.0..=1.0).contains(p)), "row {i} has a probability outside 0..=1: {row:?}");
+    }
     let labels = &output(&r, "labels").contents.as_ref().expect("labels contents").bytes_contents;
     let labels: Vec<String> = labels.iter().map(|b| String::from_utf8_lossy(b).into_owned()).collect();
     assert_eq!(labels, ["negative", "neutral", "positive"], "the bundle's labels");
@@ -321,6 +341,30 @@ async fn model_infer_with_an_unsupported_option_is_unimplemented() {
     let status = c.model_infer(req).await.expect_err("the mock does not carry TURBO_CAP_OPT_POOLING_OVERRIDE");
     assert_eq!(status.code(), Code::Unimplemented, "status of an unsupported option: {status:?}");
     assert!(status.message().contains("field 6"), "the message names the pooling field: {}", status.message());
+}
+
+#[tokio::test]
+async fn model_infer_over_a_capacity_limit_is_resource_exhausted() {
+    // `server/README.md` maps 422 to ResourceExhausted; 19 words plus the
+    // two specials do not fit the mock's 16-token model and `truncate:
+    // none` forbids cutting them.
+    let mut c = client().await;
+    let long = (0..19).map(|i| format!("w{i}")).collect::<Vec<_>>().join(" ");
+    let mut req = request("embed", vec![bytes_input("text", &[long.as_str()])]);
+    req.parameters.insert("truncate".into(), string_param("none"));
+    let status = c.model_infer(req).await.expect_err("a text over the limit with truncate none");
+    assert_eq!(status.code(), Code::ResourceExhausted, "status of a capacity limit: {status:?}");
+    assert!(
+        status.message().contains("TURBO_E_CAPACITY"),
+        "the status does not carry the Turbo code name: {}",
+        status.message()
+    );
+
+    // The same text is served once the caller asks for a cut.
+    let mut ok = request("embed", vec![bytes_input("text", &[long.as_str()])]);
+    ok.parameters.insert("truncate".into(), string_param("right"));
+    let r = c.model_infer(ok).await.expect("an explicit right truncation is served").into_inner();
+    assert_eq!(output(&r, "embeddings").shape, [1, 8], "one row of the bundle's dim");
 }
 
 #[tokio::test]

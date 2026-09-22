@@ -28,7 +28,7 @@ use turbo::{
     CapStatus, Context, ContextDesc, DeviceKind, DeviceSelector, EmbedOptions, Modality, ModelDesc, PromptRole,
     RuntimeDesc, SelectPolicy, SessionDesc, Task, TokenBatch,
 };
-use turbo_conformance::live::{bundle, live, Live};
+use turbo_conformance::live::{live, Live};
 use turbo_conformance::read_f32;
 
 /// Largest absolute difference between two runs of the same input that is
@@ -41,15 +41,43 @@ const REPRO_TOLERANCE: f32 = 2e-6;
 fn openvino() -> Option<Live> {
     let live = live()?;
     if live.provider != "openvino" {
-        eprintln!("skipping: TURBO_LIVE_PROVIDER is `{}`, not `openvino`", live.provider);
+        println!("not applicable: TURBO_LIVE_PROVIDER is `{}`, not `openvino`", live.provider);
         return None;
     }
     Some(live)
 }
 
+/// The bundle directory `var` names, for a task the device under test
+/// offers. A device whose capability cell does not offer the task prints
+/// `not applicable` and the case returns; a device that does offer it with
+/// no bundle configured is a configuration error and panics naming the
+/// variable, so a live run never skips a case it could have run (the rule
+/// `Target::offered` applies in `crates/turbo-conformance/src/lib.rs`).
+fn bundle_for(live: &Live, task: Task, var: &str) -> Option<std::path::PathBuf> {
+    let cell = live
+        .ctx
+        .runtime()
+        .capability(live.ctx.device_index(), task, Modality::Text)
+        .unwrap_or_else(|e| panic!("{task:?} x TEXT capability of `{}`: {e}", live.device.name));
+    if matches!(cell.status, CapStatus::Unsupported | CapStatus::Planned) {
+        println!(
+            "not applicable: {} device {} (`{}`) does not offer {task:?} for Text (capability {:?})",
+            live.provider, live.device.ordinal, live.device.name, cell.status
+        );
+        return None;
+    }
+    match std::env::var(var) {
+        Ok(v) if !v.is_empty() => Some(std::path::PathBuf::from(v)),
+        _ => panic!(
+            "{} device {} (`{}`) offers {task:?} but {var} is not set; point it at a bundle of that kind",
+            live.provider, live.device.ordinal, live.device.name
+        ),
+    }
+}
+
 fn setup() -> Option<(Live, std::path::PathBuf)> {
     let live = openvino()?;
-    let dir = bundle("TURBO_LIVE_BUNDLE")?;
+    let dir = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE")?;
     Some((live, dir))
 }
 
@@ -182,11 +210,11 @@ fn live_openvino_shape_order_does_not_change_the_vectors() {
 #[test]
 fn live_openvino_device_capabilities_follow_the_device_kind() {
     let Some(lib) = std::env::var("TURBO_LIVE_LIB").ok().filter(|v| !v.is_empty()) else {
-        eprintln!("skipping: TURBO_LIVE_LIB is not set");
+        println!("not applicable: TURBO_LIVE_LIB is not set");
         return;
     };
     if std::env::var("TURBO_LIVE_PROVIDER").as_deref() != Ok("openvino") {
-        eprintln!("skipping: TURBO_LIVE_PROVIDER is not `openvino`");
+        println!("not applicable: TURBO_LIVE_PROVIDER is not `openvino`");
         return;
     }
     let rt = turbo::create_runtime(RuntimeDesc { provider_paths: vec![lib], ..Default::default() })
@@ -272,6 +300,7 @@ fn live_openvino_device_capabilities_follow_the_device_kind() {
         })
         .expect_err("ordinal past the last openvino device must fail");
     eprintln!("ordinal {past}: {err}");
+    assert_eq!(err.code(), abi::TURBO_E_DEVICE_NOT_FOUND, "an absent ordinal is not found, never a fallback: {err}");
     assert!(kinds.contains(&DeviceKind::Cpu), "the openvino provider always lists the CPU plugin");
 }
 

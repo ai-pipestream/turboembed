@@ -8,8 +8,8 @@
 //! and, like every device, to a ranking gate on the STS pair corpus.
 
 use turbo::abi;
-use turbo::{DType, EmbedOptions, ModelDesc, OutputDType, Placement, SessionDesc, Truncate};
-use turbo_conformance::live::{bundle, cosine, live, reference_dir, Live};
+use turbo::{CapStatus, DType, EmbedOptions, Modality, ModelDesc, OutputDType, Placement, SessionDesc, Task, Truncate};
+use turbo_conformance::live::{cosine, live, reference_dir, Live};
 use turbo_conformance::read_f32;
 
 #[derive(serde::Deserialize)]
@@ -23,9 +23,37 @@ fn golden(name: &str) -> Golden {
     serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))).unwrap()
 }
 
+/// The bundle directory `var` names, for a task the device under test
+/// offers. A device whose capability cell does not offer the task prints
+/// `not applicable` and the case returns; a device that does offer it with
+/// no bundle configured is a configuration error and panics naming the
+/// variable, so a live run never skips a case it could have run (the rule
+/// `Target::offered` applies in `crates/turbo-conformance/src/lib.rs`).
+fn bundle_for(live: &Live, task: Task, var: &str) -> Option<std::path::PathBuf> {
+    let cell = live
+        .ctx
+        .runtime()
+        .capability(live.ctx.device_index(), task, Modality::Text)
+        .unwrap_or_else(|e| panic!("{task:?} x TEXT capability of `{}`: {e}", live.device.name));
+    if matches!(cell.status, CapStatus::Unsupported | CapStatus::Planned) {
+        println!(
+            "not applicable: {} device {} (`{}`) does not offer {task:?} for Text (capability {:?})",
+            live.provider, live.device.ordinal, live.device.name, cell.status
+        );
+        return None;
+    }
+    match std::env::var(var) {
+        Ok(v) if !v.is_empty() => Some(std::path::PathBuf::from(v)),
+        _ => panic!(
+            "{} device {} (`{}`) offers {task:?} but {var} is not set; point it at a bundle of that kind",
+            live.provider, live.device.ordinal, live.device.name
+        ),
+    }
+}
+
 fn setup() -> Option<(Live, std::path::PathBuf)> {
     let live = live()?;
-    let bundle = bundle("TURBO_LIVE_BUNDLE")?;
+    let bundle = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE")?;
     Some((live, bundle))
 }
 
@@ -106,7 +134,11 @@ fn live_batch_rows_equal_single_runs() {
     let (only_b, _, _) = embed(&live, &bundle, &[b], &EmbedOptions::default(), 4);
     assert!(cosine(&both[0], &only_a[0]) > 0.99999);
     assert!(cosine(&both[1], &only_b[0]) > 0.99999);
-    assert!(cosine(&both[0], &both[1]) < 0.9, "unrelated sentences should not be near-identical");
+    let unrelated = cosine(&both[0], &both[1]);
+    eprintln!("cosine between two unrelated sentences: {unrelated:.6}");
+    // Measured -0.05 on MiniLM FP32 (krick, RTX 4080 SUPER, cuda provider);
+    // a device that answers above 0.5 here is not discriminating at all.
+    assert!(unrelated < 0.5, "unrelated sentences should not be near-identical: cosine {unrelated}");
 }
 
 #[test]
@@ -117,17 +149,32 @@ fn live_truncation_policy_is_enforced() {
     let long = "token ".repeat(100);
     let e = session.write_text(&[&long], &EmbedOptions { truncate: Truncate::None, ..Default::default() }).unwrap_err();
     assert_eq!(e.code(), abi::TURBO_E_CAPACITY);
+    // 26 single-token words into 16 columns: [CLS] and [SEP] take two, so
+    // 14 content tokens survive. RIGHT keeps the first 14, LEFT the last
+    // 14, and each must embed to exactly what that kept text embeds to on
+    // its own; a provider that kept another window, or that ignored the
+    // policy and cut from one end both times, fails here.
     let alphabet = "a b c d e f g h i j k l m n o p q r s t u v w x y z";
-    session.write_text(&[alphabet], &EmbedOptions { truncate: Truncate::Right, ..Default::default() }).unwrap();
-    let r = session.run(&Default::default()).unwrap();
-    let mut right = vec![0u8; 384 * 4];
-    r.read(0, &mut right).unwrap();
-    drop(r);
-    session.write_text(&[alphabet], &EmbedOptions { truncate: Truncate::Left, ..Default::default() }).unwrap();
-    let r = session.run(&Default::default()).unwrap();
-    let mut left = vec![0u8; 384 * 4];
-    r.read(0, &mut left).unwrap();
-    assert_ne!(left, right, "left and right truncation keep different tokens");
+    let head = "a b c d e f g h i j k l m n";
+    let tail = "m n o p q r s t u v w x y z";
+    let run = |text: &str, truncate: Truncate| -> Vec<f32> {
+        session.write_text(&[text], &EmbedOptions { truncate, ..Default::default() }).expect("write_text");
+        read_f32(&session.run(&Default::default()).expect("run"), 0)
+    };
+    let right = run(alphabet, Truncate::Right);
+    let left = run(alphabet, Truncate::Left);
+    assert!(
+        cosine(&left, &right) < 0.9999,
+        "left and right truncation kept the same tokens: cosine {}",
+        cosine(&left, &right)
+    );
+    let head_alone = run(head, Truncate::Model);
+    let tail_alone = run(tail, Truncate::Model);
+    let c_right = cosine(&right, &head_alone);
+    let c_left = cosine(&left, &tail_alone);
+    eprintln!("truncation: right vs `{head}` = {c_right:.6}, left vs `{tail}` = {c_left:.6}");
+    assert!(c_right > 0.9999, "RIGHT truncation must keep the first 14 tokens, not something else: cosine {c_right}");
+    assert!(c_left > 0.9999, "LEFT truncation must keep the last 14 tokens, not something else: cosine {c_left}");
 }
 
 #[test]
@@ -156,7 +203,14 @@ fn live_pooling_override_follows_the_capability_bit() {
 fn live_result_exports_a_native_handle_on_gpus() {
     let Some((live, bundle)) = setup() else { return };
     if !live.gpu() || !live.has_cap(abi::TURBO_CAP_DEVICE_RESULT) {
-        eprintln!("skipping: selected device is not a GPU with device-resident results");
+        // A host result has no native handle to export; live_embed.rs's
+        // reference case asserts the HOST placement for exactly this device.
+        println!(
+            "not applicable: `{}` is {:?} with TURBO_CAP_DEVICE_RESULT={}, so its result is host memory",
+            live.device.name,
+            live.device.kind,
+            live.has_cap(abi::TURBO_CAP_DEVICE_RESULT)
+        );
         return;
     }
     let model = live.ctx.load_model(&bundle, &ModelDesc::default()).unwrap();

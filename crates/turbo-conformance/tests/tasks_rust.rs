@@ -14,7 +14,11 @@ const DOCS: [&str; 5] = ["alpha beta", "beta gamma", "alpha beta", "zzz", "alpha
 fn tasks_rerank_scores_are_in_input_order() {
     let t = Target::from_env();
     needs!(t, Reranker);
-    let (_m, session) = t.session(BundleKind::Reranker);
+    let (model, session) = t.session(BundleKind::Reranker);
+    // The bundle's contract says whether the head's logits are activated: a
+    // sigmoid reranker scores in [0, 1], an identity one (what the ms-marco
+    // cross-encoders declare) hands back logits.
+    let sigmoid = model.bundle().contract().activation.as_deref() == Some("sigmoid");
     session.write_pairs("alpha beta", &DOCS, &RerankOptions::default()).expect("write pairs");
     let result = session.run(&RunOptions::default()).expect("run");
     let scores = read_f32(&result, 0);
@@ -22,7 +26,9 @@ fn tasks_rerank_scores_are_in_input_order() {
     assert_eq!(result.output(0).expect("output").shape, vec![DOCS.len() as u64]);
     for (i, s) in scores.iter().enumerate() {
         assert!(s.is_finite(), "score {i} is not finite: {s}");
-        assert!((0.0..=1.0).contains(s), "activated score {i} is outside 0..=1: {s}");
+        if sigmoid {
+            assert!((0.0..=1.0).contains(s), "a sigmoid head's score {i} is outside 0..=1: {s}");
+        }
     }
     // Identical documents must score identically, wherever they sit.
     assert_eq!(scores[0], scores[2], "identical documents must score identically");
@@ -45,7 +51,12 @@ fn tasks_rerank_sorted_output_is_descending_and_stable_on_ties() {
     let t = Target::from_env();
     needs!(t, Reranker);
     if !t.has(TURBO_CAP_OPT_TOP_N) {
-        println!("tasks_rerank_sorted: device does not advertise TURBO_CAP_OPT_TOP_N");
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_TOP_N; \
+             capability_top_n_is_honored_or_rejected asserts the refusal",
+            t.provider_id(),
+            t.ordinal()
+        );
         return;
     }
     let (_m, session) = t.session(BundleKind::Reranker);
@@ -76,22 +87,42 @@ fn tasks_rerank_sorted_output_is_descending_and_stable_on_ties() {
 fn tasks_rerank_raw_scores_are_unactivated() {
     let t = Target::from_env();
     needs!(t, Reranker);
-    let (_m, session) = t.session(BundleKind::Reranker);
+    let (model, session) = t.session(BundleKind::Reranker);
+    let sigmoid = model.bundle().contract().activation.as_deref() == Some("sigmoid");
     session.write_pairs("alpha beta", &DOCS, &RerankOptions::default()).expect("write pairs");
     let activated = read_f32(&session.run(&RunOptions::default()).expect("run"), 0);
     let raw_opts = RerankOptions { raw_scores: true, ..Default::default() };
+    if !t.has(TURBO_CAP_OPT_RAW_SCORES) {
+        // The bit is clear, so the option is refused naming raw_scores;
+        // capability_raw_scores_is_honored_or_rejected asserts that too.
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_RAW_SCORES",
+            t.provider_id(),
+            t.ordinal()
+        );
+        assert_err!(session.write_pairs("alpha beta", &DOCS, &raw_opts), TURBO_E_UNSUPPORTED_OPTION, field = 6);
+        return;
+    }
     session.write_pairs("alpha beta", &DOCS, &raw_opts).expect("write pairs");
     let raw = read_f32(&session.run(&RunOptions::default()).expect("run"), 0);
     assert_eq!(raw.len(), activated.len());
-    // Raw logits keep the ranking but are not bounded to 0..1.
-    let mut differs = false;
-    for (r, a) in raw.iter().zip(&activated) {
-        assert!(r.is_finite());
-        if (r - a).abs() > 1e-6 {
-            differs = true;
+    assert!(raw.iter().all(|r| r.is_finite()), "a raw score is a finite logit: {raw:?}");
+    if sigmoid {
+        // The activation is the sigmoid, so the logits are not the scores
+        // and each score is computable from its logit.
+        assert!(
+            raw.iter().zip(&activated).any(|(r, a)| (r - a).abs() > 1e-6),
+            "raw_scores must not return the activated scores: {raw:?}"
+        );
+        for (r, a) in raw.iter().zip(&activated) {
+            let s = 1.0 / (1.0 + (-r).exp());
+            assert!((s - a).abs() < 1e-4, "the score is the sigmoid of the logit: {r} -> {a}, not {s}");
         }
+    } else {
+        // An identity head has nothing to undo: its raw scores are its
+        // scores, bit for bit, not a second computation of them.
+        assert_eq!(raw, activated, "an identity head's raw scores are its scores");
     }
-    assert!(differs, "raw_scores must not return the activated scores: {raw:?}");
     for i in 0..raw.len() {
         for j in 0..raw.len() {
             assert_eq!(
@@ -124,11 +155,46 @@ fn tasks_classify_rows_sum_to_one_unless_raw() {
     drop(result);
 
     let raw = ClassifyOptions { raw_scores: true, ..Default::default() };
+    if !t.has(TURBO_CAP_OPT_RAW_SCORES) {
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_RAW_SCORES",
+            t.provider_id(),
+            t.ordinal()
+        );
+        assert_err!(session.write_text_classify(&texts, &raw), TURBO_E_UNSUPPORTED_OPTION, field = 5);
+        return;
+    }
     session.write_text_classify(&texts, &raw).expect("write");
     let result = session.run(&RunOptions::default()).expect("run");
     let raw_rows = read_rows(&result, 0, n_labels);
-    let any_unnormalized = raw_rows.iter().any(|r| (r.iter().sum::<f32>() - 1.0).abs() > 1e-4);
-    assert!(any_unnormalized, "raw_scores must return logits, not probabilities: {raw_rows:?}");
+    // Every row must be logits, not probabilities: a raw row that still sums
+    // to one would be the activated row handed back under another name.
+    for (i, r) in raw_rows.iter().enumerate() {
+        assert!(
+            (r.iter().sum::<f32>() - 1.0).abs() > 1e-4,
+            "raw row {i} sums to one, so raw_scores returned the activated scores: {r:?}"
+        );
+    }
+    // The bundle names the activation, so the activated rows are computable
+    // from the logits: softmax(raw) must reproduce them.
+    let activation = model.bundle().contract().activation.clone();
+    assert_eq!(
+        activation.as_deref(),
+        Some("softmax"),
+        "a classifier whose rows sum to one declares softmax in its contract"
+    );
+    for (i, (r, a)) in raw_rows.iter().zip(&rows).enumerate() {
+        let max = r.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        let exp: Vec<f32> = r.iter().map(|x| (x - max).exp()).collect();
+        let sum: f32 = exp.iter().sum();
+        for (k, (e, p)) in exp.iter().zip(a).enumerate() {
+            let want = e / sum;
+            assert!(
+                (want - p).abs() < 1e-4,
+                "row {i} label {k}: softmax of the logits is {want}, the activated score is {p} ({r:?} vs {a:?})"
+            );
+        }
+    }
     // The argmax is unchanged by the activation.
     for (r, a) in raw_rows.iter().zip(&rows) {
         let ri = argmax(r);
@@ -182,7 +248,15 @@ fn tasks_token_classify_spans_slice_whole_words() {
             "span {span:?} ends mid-word: {slice:?}"
         );
         assert!((span.label as usize) < model.info().labels.len(), "span {span:?} names no label");
-        assert!(span.score.is_finite() && span.score >= 0.0, "span {span:?} has a bad score");
+        assert!(
+            span.score > 0.0 && span.score <= 1.0 + 1e-5,
+            "an aggregated span score is a probability, so it lies in (0, 1]: {span:?}"
+        );
+        assert!(
+            span.score >= 1.0 / model.info().labels.len() as f32,
+            "a span carries the winning label, so its score is at least the uniform share 1/{}: {span:?}",
+            model.info().labels.len()
+        );
     }
     // Spans are grouped by row and ordered inside a row.
     let mut last = (0u32, 0u64);
@@ -331,9 +405,11 @@ fn tasks_result_read_into_a_small_buffer_is_capacity() {
     let mut larger = vec![0u8; needed * 2];
     assert_eq!(result.read(0, &mut larger).expect("read"), needed, "read reports the logical size");
     assert_eq!(&larger[..needed], &exact[..]);
-    // An output index past the end is an argument error.
-    assert_err!(result.read(7, &mut exact), TURBO_E_INVALID_ARGUMENT);
-    assert_err!(result.output(7), TURBO_E_INVALID_ARGUMENT);
+    // The first index past the end is an argument error, not a wrap-around.
+    let past = result.outputs().len() as u32;
+    assert_err!(result.read(past, &mut exact), TURBO_E_INVALID_ARGUMENT);
+    assert_err!(result.output(past), TURBO_E_INVALID_ARGUMENT);
+    assert_err!(result.read(u32::MAX, &mut exact), TURBO_E_INVALID_ARGUMENT);
 }
 
 #[test]
@@ -357,33 +433,49 @@ fn tasks_result_info_reports_the_output_shape() {
 #[test]
 fn tasks_a_task_the_model_does_not_offer_is_unsupported_task() {
     let t = Target::from_env();
-    needs!(t, Embedding, Reranker, Generative, Generic);
+    // Each bundle kind carries its own refusals: a device that does not
+    // offer one kind must still be held to the refusals of the kinds it
+    // does offer, so the gates are per block rather than one over the case.
+    needs!(t, Embedding);
+    let ctx = t.context();
     let (_m, embed) = t.session(BundleKind::Embedding);
     assert_err!(embed.write_pairs("q", &["d"], &RerankOptions::default()), TURBO_E_UNSUPPORTED_TASK);
     assert_err!(embed.write_text_classify(&["x"], &ClassifyOptions::default()), TURBO_E_UNSUPPORTED_TASK);
-
-    let (_m2, rerank) = t.session(BundleKind::Reranker);
-    assert_err!(rerank.write_text(&["x"], &EmbedOptions::default()), TURBO_E_UNSUPPORTED_TASK);
-
-    let ctx = t.context();
-    let generic = t.model_on(&ctx, BundleKind::Generic);
-    let generic_session = generic.create_session(&SessionDesc::default()).expect("session");
-    assert_err!(generic_session.write_text(&["x"], &EmbedOptions::default()), TURBO_E_UNSUPPORTED_TASK);
-    let ids = [1, 2];
-    let mask = [1, 1];
-    let batch = TokenBatch { batch: 1, seq: 2, row_stride: 2, ids: &ids, mask: &mask, types: None };
-    assert_err!(generic_session.write_tokens(&batch), TURBO_E_UNSUPPORTED_TASK);
-
     // Binding a named tensor on a non-RUN model is equally refused.
     let desc = BufferDesc::packed(Placement::Host, DType::F32, &[1]).expect("descriptor");
     let buffer = ctx.alloc(&desc).expect("alloc");
-    let (_m3, embed2) = t.session(BundleKind::Embedding);
-    assert_err!(embed2.bind("x", &buffer), TURBO_E_UNSUPPORTED_TASK);
+    assert_err!(embed.bind("x", &buffer), TURBO_E_UNSUPPORTED_TASK);
 
-    // A generative model runs through the generation API, not a session:
-    // the session itself is refused.
-    let generative = t.model(BundleKind::Generative);
-    assert_err!(generative.create_session(&SessionDesc::default()), TURBO_E_UNSUPPORTED_TASK);
+    match t.offered(BundleKind::Reranker) {
+        Ok(()) => {
+            let (_m2, rerank) = t.session(BundleKind::Reranker);
+            assert_err!(rerank.write_text(&["x"], &EmbedOptions::default()), TURBO_E_UNSUPPORTED_TASK);
+        }
+        Err(why) => println!("not applicable: the reranker half of this case: {why}"),
+    }
+
+    match t.offered(BundleKind::Generic) {
+        Ok(()) => {
+            let generic = t.model_on(&ctx, BundleKind::Generic);
+            let generic_session = generic.create_session(&SessionDesc::default()).expect("session");
+            assert_err!(generic_session.write_text(&["x"], &EmbedOptions::default()), TURBO_E_UNSUPPORTED_TASK);
+            let ids = [1, 2];
+            let mask = [1, 1];
+            let batch = TokenBatch { batch: 1, seq: 2, row_stride: 2, ids: &ids, mask: &mask, types: None };
+            assert_err!(generic_session.write_tokens(&batch), TURBO_E_UNSUPPORTED_TASK);
+        }
+        Err(why) => println!("not applicable: the generic half of this case: {why}"),
+    }
+
+    match t.offered(BundleKind::Generative) {
+        // A generative model runs through the generation API, not a session:
+        // the session itself is refused.
+        Ok(()) => {
+            let generative = t.model(BundleKind::Generative);
+            assert_err!(generative.create_session(&SessionDesc::default()), TURBO_E_UNSUPPORTED_TASK);
+        }
+        Err(why) => println!("not applicable: the generative half of this case: {why}"),
+    }
 }
 
 fn write_f32(buffer: &turbo::handles::Buffer, values: &[f32]) {

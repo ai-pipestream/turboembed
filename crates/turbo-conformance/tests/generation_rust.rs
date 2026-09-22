@@ -29,7 +29,14 @@ fn drain(generation: &turbo::handles::Generation, limit: usize) -> (Vec<i32>, St
         drop(chunk);
         if done {
             assert_ne!(reason, FinishReason::None, "a finished chunk must say why");
-            assert!(generated as usize >= tokens.len() || generated == 0, "generated_tokens went backwards");
+            // `generated_tokens` is the total generated in this sequence
+            // (turbo_types.h), so it counts at least what was delivered; a
+            // stop string can withhold tokens, never invent them.
+            assert!(
+                generated as usize >= tokens.len(),
+                "generated_tokens {generated} is below the {} tokens delivered",
+                tokens.len()
+            );
             return (tokens, text, reason, chunks);
         }
         assert_eq!(reason, FinishReason::None, "an unfinished chunk must not name a finish reason");
@@ -51,12 +58,11 @@ fn generation_prompt_then_step_until_done() {
     assert!(!text.is_empty(), "the stream produced no text");
     assert_eq!(reason, FinishReason::Length);
     assert!(chunks >= 1);
+    let vocab = model.info().vocab_size;
+    assert!(vocab > 0, "a generative bundle states its vocabulary size");
     for id in &tokens {
         assert!(*id >= 0, "a token id is never negative: {id}");
-        assert!(
-            (*id as u32) < model.info().vocab_size || model.info().vocab_size == 0,
-            "token {id} is outside the vocabulary"
-        );
+        assert!((*id as u32) < vocab, "token {id} is outside the {vocab}-entry vocabulary");
     }
 }
 
@@ -131,7 +137,12 @@ fn generation_stop_string_finishes_with_stop() {
     let t = Target::from_env();
     needs!(t, Generative);
     if !t.has(TURBO_CAP_OPT_GEN_STOP_STRINGS) {
-        println!("generation_stop_string: device does not advertise TURBO_CAP_OPT_GEN_STOP_STRINGS");
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_GEN_STOP_STRINGS; \
+             capability_generation_options_are_honored_or_rejected asserts the refusal",
+            t.provider_id(),
+            t.ordinal()
+        );
         return;
     }
     let model = t.model(BundleKind::Generative);
@@ -172,7 +183,12 @@ fn generation_the_same_seed_reproduces_the_same_tokens() {
     let t = Target::from_env();
     needs!(t, Generative);
     if !t.has(TURBO_CAP_OPT_GEN_SEED) {
-        println!("generation_seed: device does not advertise TURBO_CAP_OPT_GEN_SEED");
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_GEN_SEED; \
+             capability_generation_options_are_honored_or_rejected asserts the refusal",
+            t.provider_id(),
+            t.ordinal()
+        );
         return;
     }
     let model = t.model(BundleKind::Generative);
@@ -304,7 +320,12 @@ fn generation_logprobs_count_matches_the_token_count() {
     let t = Target::from_env();
     needs!(t, Generative);
     if !t.has(TURBO_CAP_OPT_GEN_LOGPROBS) {
-        println!("generation_logprobs: device does not advertise TURBO_CAP_OPT_GEN_LOGPROBS");
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_GEN_LOGPROBS; \
+             capability_generation_options_are_honored_or_rejected asserts the refusal",
+            t.provider_id(),
+            t.ordinal()
+        );
         return;
     }
     let model = t.model(BundleKind::Generative);
@@ -351,11 +372,22 @@ fn generation_on_a_non_generative_model_is_unsupported_task() {
 }
 
 #[test]
-fn generation_echo_is_accepted_and_still_terminates() {
+fn generation_echo_puts_the_prompt_in_front_of_the_output_text() {
     let t = Target::from_env();
     needs!(t, Generative);
     let model = t.model(BundleKind::Generative);
     let desc = GenerateDesc { max_new_tokens: 3, echo: true, ..Default::default() };
+    if !t.has(TURBO_CAP_OPT_GEN_ECHO) {
+        // The bit is clear, so the option is refused naming `echo`;
+        // honesty_rust.rs asserts that refusal for every gated field.
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_GEN_ECHO",
+            t.provider_id(),
+            t.ordinal()
+        );
+        assert_err!(model.create_generation(&desc), TURBO_E_UNSUPPORTED_OPTION, field = 22);
+        return;
+    }
     let generation = model.create_generation(&desc).expect("generation");
     generation.prompt(&PROMPT).expect("prompt");
     let (tokens, text, reason, _) = drain(&generation, 64);
@@ -367,7 +399,16 @@ fn generation_echo_is_accepted_and_still_terminates() {
         generation.prompt(&PROMPT).expect("prompt");
         drain(&generation, 64).1
     };
-    assert!(text.len() >= plain.len(), "echo must not shorten the output text");
+    // The echoed text is the prompt followed by what the same generation
+    // produces without `echo`: a provider that accepted the option and then
+    // dropped it would hand back exactly `plain`.
+    assert!(text.len() > plain.len(), "echo must add the prompt to the output text: echoed {text:?}, plain {plain:?}");
+    assert!(
+        text.ends_with(&plain),
+        "the echoed text must end with the generated text: echoed {text:?}, plain {plain:?}"
+    );
+    let echoed = &text[..text.len() - plain.len()];
+    assert!(!echoed.trim().is_empty(), "the echoed prompt is blank: {text:?}");
 }
 
 #[test]
@@ -437,7 +478,12 @@ fn generation_cancel_while_another_thread_steps_never_errors() {
     let t = Target::from_env();
     needs!(t, Generative);
     if !t.has(TURBO_CAP_OPT_GEN_MIN_TOKENS) {
-        println!("generation_concurrent_cancel: device does not advertise TURBO_CAP_OPT_GEN_MIN_TOKENS");
+        println!(
+            "not applicable: {} device {} does not advertise TURBO_CAP_OPT_GEN_MIN_TOKENS; \
+             capability_generation_options_are_honored_or_rejected asserts the refusal",
+            t.provider_id(),
+            t.ordinal()
+        );
         return;
     }
     let model = t.model(BundleKind::Generative);

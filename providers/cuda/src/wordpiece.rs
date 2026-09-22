@@ -14,6 +14,7 @@ use turbo_core::types::Truncate;
 const WORDPIECE_OK: i32 = 0;
 const WORDPIECE_ERR_INVALID_ARGUMENT: i32 = 1;
 const WORDPIECE_ERR_NOT_FOUND: i32 = 2;
+const WORDPIECE_ERR_TOO_LONG: i32 = 4;
 
 /// Pair truncation: drop from the longer sequence first.
 pub const TRUNC_LONGEST_FIRST: u32 = 0;
@@ -190,9 +191,10 @@ impl Vocab {
         };
         match rc {
             WORDPIECE_OK => Ok(()),
-            WORDPIECE_ERR_INVALID_ARGUMENT => Err(Error::capacity(format!(
-                "query/document pair does not fit the budget of {budget} tokens with truncation NONE, or is not valid UTF-8"
+            WORDPIECE_ERR_TOO_LONG => Err(Error::capacity(format!(
+                "query/document pair does not fit the budget of {budget} tokens and truncation is NONE"
             ))),
+            WORDPIECE_ERR_INVALID_ARGUMENT => Err(Error::invalid_utf8("query/document pair")),
             _ => Err(Error::internal(format!("wordpiece pair packing failed with status {rc}"))),
         }
     }
@@ -414,8 +416,9 @@ mod tests {
         let n = encode_row(&v, 0, "", "hello world", Truncate::Model, 8, 8, &mut scratch, &mut ids, &mut mask, None)
             .unwrap();
         assert_eq!(n, 4);
-        assert_eq!(ids[0], 101);
-        assert_eq!(ids[3], 102);
+        // The bert-base-uncased ids of `[CLS] hello world [SEP]`, not merely
+        // four ids of the right shape.
+        assert_eq!(&ids[..4], &[101, 7592, 2088, 102], "the row is not `[CLS] hello world [SEP]`");
         assert_eq!(&mask[..8], &[1, 1, 1, 1, 0, 0, 0, 0]);
         assert!(ids[4..].iter().all(|&i| i == v.pad_id()));
     }
@@ -429,10 +432,23 @@ mod tests {
         let text = "one two three four";
         let e = encode_row(&v, 0, "", text, Truncate::None, 4, 4, &mut scratch, &mut ids, &mut mask, None).unwrap_err();
         assert_eq!(e.code(), turbo_core::abi::TURBO_E_CAPACITY);
+        // A budget of 4 leaves two content tokens: RIGHT keeps the first two
+        // words and LEFT the last two, and each row must be exactly the row
+        // that kept text encodes to on its own.
+        let encode = |text: &str| {
+            let (mut ids, mut mask) = (vec![0; 4], vec![0; 4]);
+            let mut scratch = RowScratch::new(4);
+            let n = encode_row(&v, 0, "", text, Truncate::None, 4, 4, &mut scratch, &mut ids, &mut mask, None)
+                .unwrap_or_else(|e| panic!("`{text}` fits the budget: {e}"));
+            assert_eq!(n, 4, "`{text}` is two content tokens plus the specials");
+            ids
+        };
         encode_row(&v, 0, "", text, Truncate::Right, 4, 4, &mut scratch, &mut ids, &mut mask, None).unwrap();
         let right = ids.clone();
+        assert_eq!(right, encode("one two"), "right truncation must keep the first two words");
         encode_row(&v, 0, "", text, Truncate::Left, 4, 4, &mut scratch, &mut ids, &mut mask, None).unwrap();
-        assert_ne!(right[1..3], ids[1..3], "left truncation keeps the tail");
+        assert_eq!(ids, encode("three four"), "left truncation must keep the last two words");
+        assert_ne!(right[1..3], ids[1..3], "the two policies keep different words");
     }
 
     #[test]
@@ -473,6 +489,18 @@ mod tests {
         let live = mask.iter().sum::<i32>() as usize;
         assert_eq!(ids[live - 1], 102);
         assert_eq!(types[live - 1], 1);
+        // `[CLS] query [SEP] document [SEP]`: two separators, and the type
+        // ids are 0 up to the first one and 1 after it, with no stray 1 in
+        // the query half.
+        let seps: Vec<usize> = ids[..live].iter().enumerate().filter(|(_, &i)| i == 102).map(|(i, _)| i).collect();
+        assert_eq!(seps.len(), 2, "a packed pair carries exactly two [SEP]: {ids:?}");
+        assert_eq!(seps[1], live - 1, "the second [SEP] closes the row: {ids:?}");
+        for (i, t) in types[..live].iter().enumerate() {
+            let want = i32::from(i > seps[0]);
+            assert_eq!(*t, want, "token {i} of `{ids:?}` has type {t}, not {want}");
+        }
+        assert!(types[live..].iter().all(|&t| t == 0), "padding carries no segment: {types:?}");
+        assert_eq!(&pos[..live], &(0..live as i32).collect::<Vec<_>>()[..], "positions count from zero: {pos:?}");
         let e = v
             .pack_pair(b"what is it", b"it is a thing", &mut ids, &mut mask, &mut types, &mut pos, 12, TRUNC_ERROR, 6)
             .unwrap_err();

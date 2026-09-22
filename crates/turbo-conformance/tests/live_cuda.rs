@@ -22,10 +22,11 @@ use std::sync::Arc;
 use turbo::abi;
 use turbo::provider::TokenBatch;
 use turbo::{
-    ClassifyOptions, Context, ContextDesc, DeviceSelector, EmbedOptions, ModelDesc, ModelKind, Placement, PromptRole,
-    RerankOptions, RuntimeDesc, SelectPolicy, SessionDesc, Stage, StagePlacement, Truncate,
+    CapStatus, ClassifyOptions, Context, ContextDesc, DeviceSelector, EmbedOptions, Modality, ModelDesc, ModelKind,
+    Placement, PromptRole, RerankOptions, RuntimeDesc, SelectPolicy, SessionDesc, Stage, StagePlacement, Task,
+    Truncate,
 };
-use turbo_conformance::live::{bundle, cosine, live, Live};
+use turbo_conformance::live::{cosine, live, Live};
 use turbo_conformance::read_f32;
 
 /// The live device, but only when it is a CUDA one. Every other provider
@@ -33,10 +34,37 @@ use turbo_conformance::read_f32;
 fn cuda() -> Option<Live> {
     let live = live()?;
     if live.provider != "cuda" {
-        eprintln!("skipping: TURBO_LIVE_PROVIDER is `{}`, not `cuda`", live.provider);
+        println!("not applicable: TURBO_LIVE_PROVIDER is `{}`, not `cuda`", live.provider);
         return None;
     }
     Some(live)
+}
+/// The bundle directory `var` names, for a task the device under test
+/// offers. A device whose capability cell does not offer the task prints
+/// `not applicable` and the case returns; a device that does offer it with
+/// no bundle configured is a configuration error and panics naming the
+/// variable, so a live run never skips a case it could have run (the rule
+/// `Target::offered` applies in `crates/turbo-conformance/src/lib.rs`).
+fn bundle_for(live: &Live, task: Task, var: &str) -> Option<std::path::PathBuf> {
+    let cell = live
+        .ctx
+        .runtime()
+        .capability(live.ctx.device_index(), task, Modality::Text)
+        .unwrap_or_else(|e| panic!("{task:?} x TEXT capability of `{}`: {e}", live.device.name));
+    if matches!(cell.status, CapStatus::Unsupported | CapStatus::Planned) {
+        println!(
+            "not applicable: {} device {} (`{}`) does not offer {task:?} for Text (capability {:?})",
+            live.provider, live.device.ordinal, live.device.name, cell.status
+        );
+        return None;
+    }
+    match std::env::var(var) {
+        Ok(v) if !v.is_empty() => Some(std::path::PathBuf::from(v)),
+        _ => panic!(
+            "{} device {} (`{}`) offers {task:?} but {var} is not set; point it at a bundle of that kind",
+            live.provider, live.device.ordinal, live.device.name
+        ),
+    }
 }
 
 /// The provider library path, for the tests that build their own runtime.
@@ -47,10 +75,10 @@ fn lib() -> String {
 #[test]
 fn live_cuda_runs_all_four_bundle_kinds_on_one_context_with_honest_stage_placement() {
     let Some(live) = cuda() else { return };
-    let Some(embed_dir) = bundle("TURBO_LIVE_BUNDLE") else { return };
-    let Some(rerank_dir) = bundle("TURBO_LIVE_RERANK_BUNDLE") else { return };
-    let Some(classify_dir) = bundle("TURBO_LIVE_CLASSIFY_BUNDLE") else { return };
-    let Some(ner_dir) = bundle("TURBO_LIVE_NER_BUNDLE") else { return };
+    let Some(embed_dir) = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE") else { return };
+    let Some(rerank_dir) = bundle_for(&live, Task::Rerank, "TURBO_LIVE_RERANK_BUNDLE") else { return };
+    let Some(classify_dir) = bundle_for(&live, Task::Classify, "TURBO_LIVE_CLASSIFY_BUNDLE") else { return };
+    let Some(ner_dir) = bundle_for(&live, Task::TokenClassify, "TURBO_LIVE_NER_BUNDLE") else { return };
     let text = "Angela Merkel visited Berlin in 2015.";
 
     // Embedding: pooling and normalization run on the device, tokenization
@@ -118,7 +146,7 @@ fn live_cuda_runs_all_four_bundle_kinds_on_one_context_with_honest_stage_placeme
 #[test]
 fn live_cuda_rerank_refuses_an_over_long_pair_instead_of_reporting_an_internal_error() {
     let Some(live) = cuda() else { return };
-    let Some(dir) = bundle("TURBO_LIVE_RERANK_BUNDLE") else { return };
+    let Some(dir) = bundle_for(&live, Task::Rerank, "TURBO_LIVE_RERANK_BUNDLE") else { return };
     let model = live.ctx.load_model(&dir, &ModelDesc::default()).expect("load reranker");
     let session = model.create_session(&SessionDesc { max_batch: 2, max_seq: 32, ..Default::default() }).unwrap();
     let query = "how many people live in berlin";
@@ -144,7 +172,7 @@ fn live_cuda_rerank_refuses_an_over_long_pair_instead_of_reporting_an_internal_e
 #[test]
 fn live_cuda_prepared_tokens_reject_an_id_outside_the_vocabulary() {
     let Some(live) = cuda() else { return };
-    let Some(dir) = bundle("TURBO_LIVE_BUNDLE") else { return };
+    let Some(dir) = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE") else { return };
     let model = live.ctx.load_model(&dir, &ModelDesc::default()).expect("load MiniLM");
     let vocab = model.info().vocab_size;
     assert!(vocab > 0, "the MiniLM bundle states its vocabulary size");
@@ -183,7 +211,7 @@ fn live_cuda_prepared_tokens_reject_an_id_outside_the_vocabulary() {
 #[test]
 fn live_cuda_batch_and_sequence_limits_are_capacity_errors() {
     let Some(live) = cuda() else { return };
-    let Some(dir) = bundle("TURBO_LIVE_BUNDLE") else { return };
+    let Some(dir) = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE") else { return };
     let model = live.ctx.load_model(&dir, &ModelDesc::default()).expect("load MiniLM");
     let model_max_seq = model.info().max_seq;
     let session = model.create_session(&SessionDesc { max_batch: 2, max_seq: 16, ..Default::default() }).unwrap();
@@ -220,8 +248,8 @@ fn live_cuda_batch_and_sequence_limits_are_capacity_errors() {
 #[test]
 fn live_cuda_a_task_written_to_the_wrong_model_kind_is_unsupported_task() {
     let Some(live) = cuda() else { return };
-    let Some(embed_dir) = bundle("TURBO_LIVE_BUNDLE") else { return };
-    let Some(rerank_dir) = bundle("TURBO_LIVE_RERANK_BUNDLE") else { return };
+    let Some(embed_dir) = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE") else { return };
+    let Some(rerank_dir) = bundle_for(&live, Task::Rerank, "TURBO_LIVE_RERANK_BUNDLE") else { return };
     let embed = live.ctx.load_model(&embed_dir, &ModelDesc::default()).expect("load MiniLM");
     let embed_session = embed.create_session(&SessionDesc { max_batch: 2, max_seq: 32, ..Default::default() }).unwrap();
     let e = embed_session.write_pairs("q", &["d"], &RerankOptions::default()).expect_err("an embedder cannot rerank");
@@ -243,7 +271,7 @@ fn live_cuda_a_task_written_to_the_wrong_model_kind_is_unsupported_task() {
 #[test]
 fn live_cuda_a_prompt_role_the_bundle_has_no_prefix_for_is_refused() {
     let Some(live) = cuda() else { return };
-    let Some(dir) = bundle("TURBO_LIVE_BUNDLE") else { return };
+    let Some(dir) = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE") else { return };
     let model = live.ctx.load_model(&dir, &ModelDesc::default()).expect("load MiniLM");
     let session = model.create_session(&SessionDesc { max_batch: 2, max_seq: 32, ..Default::default() }).unwrap();
     let query_prefix = model.info().prefix_query.clone();
@@ -271,8 +299,8 @@ fn live_cuda_a_prompt_role_the_bundle_has_no_prefix_for_is_refused() {
 #[test]
 fn live_cuda_byte_counters_add_up_over_repeated_runs() {
     let Some(live) = cuda() else { return };
-    let Some(embed_dir) = bundle("TURBO_LIVE_BUNDLE") else { return };
-    let Some(rerank_dir) = bundle("TURBO_LIVE_RERANK_BUNDLE") else { return };
+    let Some(embed_dir) = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE") else { return };
+    let Some(rerank_dir) = bundle_for(&live, Task::Rerank, "TURBO_LIVE_RERANK_BUNDLE") else { return };
     assert!(live.has_cap(abi::TURBO_CAP_DEVICE_RESULT), "the CUDA device keeps results on the device");
 
     let model = live.ctx.load_model(&embed_dir, &ModelDesc::default()).expect("load MiniLM");
@@ -326,8 +354,8 @@ fn live_cuda_byte_counters_add_up_over_repeated_runs() {
 #[test]
 fn live_cuda_two_models_run_concurrently_on_one_device() {
     let Some(live) = cuda() else { return };
-    let Some(embed_dir) = bundle("TURBO_LIVE_BUNDLE") else { return };
-    let Some(classify_dir) = bundle("TURBO_LIVE_CLASSIFY_BUNDLE") else { return };
+    let Some(embed_dir) = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE") else { return };
+    let Some(classify_dir) = bundle_for(&live, Task::Classify, "TURBO_LIVE_CLASSIFY_BUNDLE") else { return };
     let text = "I absolutely loved this movie, it was wonderful.";
 
     let embed_model = live.ctx.load_model(&embed_dir, &ModelDesc::default()).expect("load MiniLM");
@@ -389,8 +417,8 @@ fn live_cuda_two_models_run_concurrently_on_one_device() {
 
 #[test]
 fn live_cuda_a_device_ordinal_that_does_not_exist_is_never_a_fallback() {
-    let Some(_live) = cuda() else { return };
-    let Some(dir) = bundle("TURBO_LIVE_BUNDLE") else { return };
+    let Some(live) = cuda() else { return };
+    let Some(dir) = bundle_for(&live, Task::Embed, "TURBO_LIVE_BUNDLE") else { return };
     let runtime = turbo::create_runtime(RuntimeDesc { provider_paths: vec![lib()], ..Default::default() })
         .expect("load the cuda provider");
     assert!(runtime.failures().is_empty(), "provider failures: {:?}", runtime.failures());
