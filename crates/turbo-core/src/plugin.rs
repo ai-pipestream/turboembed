@@ -39,9 +39,15 @@ use crate::provider::{
 use crate::types::{Aggregation, FinishReason, HandleKind, Modality, Task};
 
 /// A loaded provider library plus the provider adapter over its vtable.
+///
+/// The library stays mapped for the life of the process. The runtimes
+/// providers wrap (CUDA, ONNX Runtime, OpenVINO, llama.cpp) keep worker
+/// threads, driver contexts, and global destructors that are not safe to
+/// tear down by `dlclose`; unloading one and loading it again in the same
+/// process is where the intermittent crashes were.
 pub struct LoadedProvider {
-    /// The library; must outlive every handle from the provider.
-    pub library: libloading::Library,
+    /// The library, leaked on purpose (see the type documentation).
+    pub library: &'static libloading::Library,
     /// The adapter.
     pub provider: Arc<PluginProvider>,
 }
@@ -50,8 +56,10 @@ pub struct LoadedProvider {
 pub fn load(path: &Path) -> Result<LoadedProvider> {
     // SAFETY: loading a shared library runs its initializers; that is the
     // documented contract of a provider library.
-    let library = unsafe { libloading::Library::new(path) }
-        .map_err(|e| Error::provider_load(format!("cannot load provider library `{}`: {e}", path.display())))?;
+    let library: &'static libloading::Library = Box::leak(Box::new(
+        unsafe { libloading::Library::new(path) }
+            .map_err(|e| Error::provider_load(format!("cannot load provider library `{}`: {e}", path.display())))?,
+    ));
     let entry: libloading::Symbol<unsafe extern "C" fn(u32) -> *const abi::turbo_provider_vtbl> =
         // SAFETY: the symbol has the documented signature; a mismatch is the provider's bug.
         unsafe { library.get(b"turbo_provider_get\0") }.map_err(|e| {

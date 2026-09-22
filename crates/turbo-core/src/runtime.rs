@@ -91,7 +91,7 @@ pub struct Runtime {
     failures: Mutex<Vec<ProviderFailure>>,
     log: Option<LogSink>,
     // Loaded provider libraries, kept alive for the runtime's lifetime.
-    libraries: Mutex<Vec<libloading::Library>>,
+    libraries: Mutex<Vec<&'static libloading::Library>>,
 }
 
 impl fmt::Debug for Runtime {
