@@ -480,7 +480,7 @@ sequence length on `pi5ai1`, 2026-09-22, about 13.2 ms per row, because
 the HEF is batch 1 with a fixed 128-token frame
 ([`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json)).
 That is 1.00x of what `hailortcli benchmark` gets from the same HEF
-([`testdata/receipts/turbo/bench/compare-hailo-pi5ai1-embed-2026-09-22.json`](../testdata/receipts/turbo/bench/compare-hailo-pi5ai1-embed-2026-09-22.json)).
+([`testdata/receipts/turbo/bench/compare-hailo-pi5ai1-embed-2026-09-22b.json`](../testdata/receipts/turbo/bench/compare-hailo-pi5ai1-embed-2026-09-22b.json)).
 The HEF is quantized, so the vectors are not the FP32 ones; see
 [`providers/hailo/README.md`](../providers/hailo/README.md) for the cosine
 and ranking figures the live suite gates on.

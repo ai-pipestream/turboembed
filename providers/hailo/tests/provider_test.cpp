@@ -278,7 +278,14 @@ void capability_states_the_quantized_floor() {
     const turbo_capability embed = capability(d, TURBO_TASK_EMBED, TURBO_MODALITY_TEXT);
     std::printf("  EMBED x TEXT: status %u dtype %u reference %u cosine_floor %.3f notes `%s`\n", embed.status,
                 embed.dtype, embed.reference_dtype, static_cast<double>(embed.cosine_floor), embed.notes);
-    CHECK_EQ(embed.status, TURBO_CAP_EXPERIMENTAL);
+    // On a Hailo-8 the cell is SUPPORTED and names its receipts (conformance,
+    // precision, matched benchmark); any other architecture is EXPERIMENTAL.
+    if (std::string(embed.notes).find("Hailo-8;") != std::string::npos) {
+        CHECK_EQ(embed.status, TURBO_CAP_SUPPORTED);
+        CHECK(std::string(embed.notes).find("compare-hailo-pi5ai1-embed") != std::string::npos);
+    } else {
+        CHECK_EQ(embed.status, TURBO_CAP_EXPERIMENTAL);
+    }
     CHECK_EQ(embed.dtype, TURBO_DTYPE_I8);
     CHECK_EQ(embed.reference_dtype, TURBO_DTYPE_F32);
     CHECK(embed.cosine_floor > 0.0f && embed.cosine_floor < 0.99f);

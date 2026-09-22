@@ -644,7 +644,7 @@ with `dma_map` (the 4.23 packages on the Pis; `dma_map` zero-copy and
 `CAP_ASYNC` stay open), and HailoRT 4.23 rather than 4.24. Not yet:
 Hailo-8L (no board), Hailo-10H (needs a DFC 5 HEF), the x86_64 PCIe build,
 and the x86_64 PCIe build. Throughput (2026-09-21, `turbo-bench`,
-`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`): 76
+`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-22b.json`): 76
 rows/s at every batch and sequence length (the HEF is batch 1 with a
 128-token frame; 13.2 ms per row).
 

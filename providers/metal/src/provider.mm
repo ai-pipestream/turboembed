@@ -1061,11 +1061,22 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
         turbo_capability full{};
         full.struct_size = out->struct_size;
         if (offers(task, modality)) {
-            full.status = TURBO_CAP_EXPERIMENTAL;
             full.dtype = TURBO_DTYPE_F32;
             full.reference_dtype = TURBO_DTYPE_F32;
             full.deterministic = 1;
-            put_str(full.notes, "Metal kernels compiled at runtime; fp32; pooling, L2, and the head on the GPU; receipt testdata/receipts/turbo/metal-2026-09-22.json");
+            // SUPPORTED needs a conformance receipt, a precision receipt and a
+            // matched-native benchmark from a named machine (AGENTS.md rule
+            // 7); the cell names them. Embeddings have all three from
+            // krickert-mac (Apple M2, 2026-09-22); rerank has no benchmark
+            // pair yet (the reference program runs the encoder alone).
+            if (task == TURBO_TASK_EMBED) {
+                full.status = TURBO_CAP_SUPPORTED;
+                full.cosine_floor = 0.9995f;
+                put_str(full.notes, "receipts metal-2026-09-22, compare-metal-mac-embed-2026-09-22d; fp32 kernels compiled at runtime");
+            } else {
+                full.status = TURBO_CAP_EXPERIMENTAL;
+                put_str(full.notes, "fp32 kernels compiled at runtime; receipt metal-2026-09-22; no matched-native benchmark for rerank yet");
+            }
         } else {
             full.status = TURBO_CAP_UNSUPPORTED;
             put_str(full.notes, !state().ready() ? state().why : std::string("metal provider offers EMBED and RERANK on TEXT"));

@@ -1083,14 +1083,24 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
         turbo_capability full{};
         full.struct_size = out->struct_size;
         if (offers(d, task, modality)) {
-            full.status = TURBO_CAP_EXPERIMENTAL;
             full.dtype = TURBO_DTYPE_I8;
             full.reference_dtype = TURBO_DTYPE_F32;
             full.cosine_floor = kCosineFloorVsF32;
             full.max_abs_error = 0.0f;
             full.deterministic = 1;
-            put_str(full.notes, "INT8 encoder on " + arch_name(d.arch) +
-                                    "; host tokenize/gather/pool; ranking parity with FP32, absolute cosine is not preserved");
+            // SUPPORTED needs a conformance receipt, a precision receipt and a
+            // matched-native benchmark from a named machine (AGENTS.md rule
+            // 7); the cell names them. Hailo-8 embeddings have all three from
+            // pi5ai1 (2026-09-21 and 2026-09-22); other architectures are
+            // EXPERIMENTAL until theirs exist.
+            if (d.arch == HAILO_ARCH_HAILO8) {
+                full.status = TURBO_CAP_SUPPORTED;
+                put_str(full.notes, "INT8 encoder on Hailo-8; receipts hailo-2026-09-21, compare-hailo-pi5ai1-embed-2026-09-22b; ranking parity with FP32");
+            } else {
+                full.status = TURBO_CAP_EXPERIMENTAL;
+                put_str(full.notes, "INT8 encoder on " + arch_name(d.arch) +
+                                        "; host tokenize/gather/pool; no receipts for this architecture yet");
+            }
         } else {
             full.status = TURBO_CAP_UNSUPPORTED;
             put_str(full.notes, !d.identified ? "device not identified: " + d.identify_error

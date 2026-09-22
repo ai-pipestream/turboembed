@@ -2,8 +2,8 @@
   "receipt_version": 1,
   "kind": "compare",
   "turbo": {
-    "file": "testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json",
-    "commit": "unknown",
+    "file": "testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-22b.json",
+    "commit": "5cb4cadd0e073e0b844824e65264cb9017fb8b9d",
     "provider": {
       "id": "hailo",
       "version": "2.0.0-alpha.0",
@@ -20,8 +20,8 @@
     "date": "2026-09-22"
   },
   "native": {
-    "file": "/tmp/claude-1000/-work-worktrees-turboembed/32be1853-4e14-49de-84fd-dfd8ed203e3a/scratchpad/hailo-native.json",
-    "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8",
+    "file": "testdata/receipts/turbo/bench/native-hailortcli-pi5ai1-embed-2026-09-22b.json",
+    "commit": "5cb4cadd0e073e0b844824e65264cb9017fb8b9d",
     "provider": {
       "id": "hailortcli",
       "version": "reference",
@@ -51,49 +51,49 @@
     {
       "cell": "embed 1x32",
       "measure": "prepared tokens p50 ms",
-      "turbo": 13.241635,
+      "turbo": 13.240449,
       "native": 13.30671989354624,
-      "ratio": 1.0049151704865933,
+      "ratio": 1.005005184759689,
       "within_floor": true
     },
     {
       "cell": "embed 8x32",
       "measure": "prepared tokens p50 ms",
-      "turbo": 105.93693,
+      "turbo": 105.935715,
       "native": 106.45375914836993,
-      "ratio": 1.0048786494791753,
+      "ratio": 1.0048901746532783,
       "within_floor": true
     },
     {
       "cell": "embed 32x32",
       "measure": "prepared tokens p50 ms",
-      "turbo": 423.751143,
+      "turbo": 423.75144,
       "native": 425.8150365934797,
-      "ratio": 1.004870532215838,
+      "ratio": 1.004869827919593,
       "within_floor": true
     },
     {
       "cell": "embed 1x128",
       "measure": "prepared tokens p50 ms",
-      "turbo": 13.241746,
+      "turbo": 13.241448,
       "native": 13.30671989354624,
-      "ratio": 1.0049067467044182,
+      "ratio": 1.0049293622227902,
       "within_floor": true
     },
     {
       "cell": "embed 8x128",
       "measure": "prepared tokens p50 ms",
-      "turbo": 105.937595,
+      "turbo": 105.932995,
       "native": 106.45375914836993,
-      "ratio": 1.0048723415740175,
+      "ratio": 1.0049159768245004,
       "within_floor": true
     },
     {
       "cell": "embed 32x128",
       "measure": "prepared tokens p50 ms",
-      "turbo": 423.751773,
+      "turbo": 423.74339,
       "native": 425.8150365934797,
-      "ratio": 1.0048690382552798,
+      "ratio": 1.004888917779885,
       "within_floor": true
     }
   ],

@@ -288,12 +288,21 @@ void capability_offers_embed_and_rerank_in_fp32() {
         const turbo_capability c = capability(0, task, TURBO_MODALITY_TEXT);
         std::printf("  task %u x TEXT: status %u dtype %u reference %u notes `%s`\n", task, c.status, c.dtype,
                     c.reference_dtype, c.notes);
-        CHECK_EQ(c.status, TURBO_CAP_EXPERIMENTAL);
         CHECK_EQ(c.dtype, TURBO_DTYPE_F32);
         CHECK_EQ(c.reference_dtype, TURBO_DTYPE_F32);
         CHECK_EQ(c.deterministic, 1);
-        // FP32 is held to the suite's own 0.9995; the cell states no floor of its own.
-        CHECK(c.cosine_floor == 0.0f);
+        if (task == TURBO_TASK_EMBED) {
+            // Embeddings carry all three receipts (conformance, precision,
+            // matched benchmark), so the cell is SUPPORTED, names them, and
+            // states the 0.9995 cosine gate the precision receipt passed.
+            CHECK_EQ(c.status, TURBO_CAP_SUPPORTED);
+            CHECK(c.cosine_floor == 0.9995f);
+            CHECK(std::string(c.notes).find("compare-metal-mac-embed") != std::string::npos);
+        } else {
+            // Rerank has no matched-native benchmark yet: EXPERIMENTAL, no floor of its own.
+            CHECK_EQ(c.status, TURBO_CAP_EXPERIMENTAL);
+            CHECK(c.cosine_floor == 0.0f);
+        }
     }
     for (uint32_t task : {TURBO_TASK_CLASSIFY, TURBO_TASK_TOKEN_CLASSIFY, TURBO_TASK_GENERATE, TURBO_TASK_RUN}) {
         CHECK_EQ(capability(0, task, TURBO_MODALITY_TEXT).status, TURBO_CAP_UNSUPPORTED);

@@ -1194,11 +1194,22 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
         turbo_capability full{};
         full.struct_size = out->struct_size;
         if (offers(d, task, modality)) {
-            full.status = TURBO_CAP_EXPERIMENTAL;
             full.dtype = TURBO_DTYPE_F32;
             full.reference_dtype = TURBO_DTYPE_F32;
             full.deterministic = deterministic_device(d) ? 1 : 0;
-            put_str(full.notes, std::string("openvino ") + d.ov_name + ": fused pooling/activation in graph; precision receipt pending");
+            // SUPPORTED needs a conformance receipt, a precision receipt and a
+            // matched-native benchmark from a named machine (AGENTS.md rule
+            // 7); the cell names them. Embeddings on an Intel GPU have all
+            // three from krick-1 (Battlemage B70, 2026-09-22). Every other
+            // cell is EXPERIMENTAL until its receipts exist.
+            if (task == TURBO_TASK_EMBED && d.kind == TURBO_DEVICE_GPU) {
+                full.status = TURBO_CAP_SUPPORTED;
+                full.cosine_floor = 0.9995f;
+                put_str(full.notes, "receipts openvino-krick-1-2026-09-22, openvino-minilm-2026-09-21, compare-openvino-krick-1-gpu-embed-2026-09-22b");
+            } else {
+                full.status = TURBO_CAP_EXPERIMENTAL;
+                put_str(full.notes, std::string("openvino ") + d.ov_name + ": fused pooling/activation in graph; no matched-native benchmark for this cell yet");
+            }
         } else {
             full.status = TURBO_CAP_UNSUPPORTED;
             put_str(full.notes, d.kind == TURBO_DEVICE_NPU ? std::string("NPU: planned (static shapes); not qualified")
