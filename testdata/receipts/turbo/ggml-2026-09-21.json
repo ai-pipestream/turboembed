@@ -84,6 +84,33 @@
         },
         "output_placement": "HOST",
         "result": "13 passed, 0 failed"
+      },
+      {
+        "machine": "krickert-mac",
+        "device": "Apple M2 (MTL0), ordinal 0; macOS 27, llama.cpp Metal backend (cargo feature `metal`)",
+        "device_kind": "GPU",
+        "cosine": {
+          "short": 0.999999,
+          "medium": 0.999998,
+          "empty": 0.999998,
+          "long_truncation": 0.999996
+        },
+        "output_placement": "HOST",
+        "d2h_bytes_in_run": 6144,
+        "result": "13 passed, 0 failed"
+      },
+      {
+        "machine": "krickert-mac",
+        "device": "Apple M2 (CPU), ordinal 1",
+        "device_kind": "CPU",
+        "cosine": {
+          "short": 0.999999,
+          "medium": 0.999998,
+          "empty": 0.999998,
+          "long_truncation": 0.999996
+        },
+        "output_placement": "HOST",
+        "result": "13 passed, 0 failed"
       }
     ],
     "note": "f16 weights against an FP32 reference; the cosine floor of 0.9995 in the live test holds with margin"

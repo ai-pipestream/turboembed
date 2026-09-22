@@ -602,10 +602,15 @@ templates from the bundle or the GGUF, stop strings and tokens,
 cancellation, logprobs, seeded sampling, and GBNF grammars.
 `turbo_generate` (push) is implemented over the pull iterator and its C
 conformance test checks the two forms yield one token sequence. Receipt:
-`testdata/receipts/turbo/ggml-2026-09-21.json`. Not yet: MLX generation
-through the dedicated `metal` provider, Hailo-10H generation, GGUF
-embeddings, tokenize/detokenize for GGUF vocabularies, JSON-schema
-constrained output, and the throughput receipts.
+`testdata/receipts/turbo/ggml-2026-09-21.json`. GGUF embedding bundles
+run through the same provider (pooling in the graph, L2 and `output_dim`
+on the host, results placed in host memory) with the 13 live embedding
+checks green on the CUDA and CPU devices of `krick` and the Metal and CPU
+devices of `krickert-mac`, all at cosine 0.99999 or better against the
+FP32 references; the runs are in the same receipt. Not yet: MLX generation
+through the dedicated `metal` provider, Hailo-10H generation,
+tokenize/detokenize for GGUF vocabularies, JSON-schema constrained output,
+and the throughput receipts.
 
 ### P7 Java FFM and Swift packages
 Port the conformance suite to Java and Swift (the same cases through the
