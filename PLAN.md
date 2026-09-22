@@ -777,9 +777,19 @@ are tokio, axum, tonic, tonic-prost, prost, serde, serde_json, clap and
 futures-core (all already in the tree). Verified on `krick`: every route
 on the six mock bundles, and MiniLM plus the ms-marco reranker through
 `cuda` on the RTX 4080 SUPER with Qwen2.5-0.5B through `ggml`, over both
-bindings (`server/README.md`). Not yet: the parity suites on all three
-GPU machines, a catalog of aliases, gRPC reflection, `ModelStreamInfer`,
-and the repository extension (index, load, unload).
+bindings (`server/README.md`). Also landed (2026-09-22): gRPC server
+reflection; the `turbo.inferstream.InferstreamExtension` service with
+`ModelStreamInfer` (streamed generation over gRPC) and the model
+repository (`RepositoryIndex`, `RepositoryModelLoad`,
+`RepositoryModelUnload`, and `/v2/repository/...` over REST), so bundles
+load and unload while the server runs; 16 more tests for them; the
+`turbo-inferstream:cpu` image (`packaging/inferstream/Dockerfile`, about
+200 MB, the ggml provider on the CPU) with a KServe `ClusterServingRuntime`
+and `InferenceService` under `packaging/kserve/`; and `demo/rag/`, embed,
+rerank and a streamed cited answer through the OpenAI SDK and through
+KServe's own OIP clients. Not yet: the parity suites on all three GPU
+machines, a catalog of aliases (the repository extension is where they
+would resolve), and the CUDA and OpenVINO providers in the image.
 
 ### P10 Android JNI and GraalVM/OpenNLP
 JNI adapter implementing `turbo-api`, AAR with `arm64-v8a` and `x86_64`, one

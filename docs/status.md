@@ -410,7 +410,7 @@ today (branch `turbo-v2`, 2026-09-21); "planned" means it is scoped for a later 
 | `providers/hailo/` | Hailo provider (C++, HailoRT 4.x vstreams); EXPERIMENTAL on the Hailo-8 Pis | here |
 | `providers/cpu/` | folded into the CUDA (ONNX Runtime) and ggml providers' CPU devices | not a separate provider |
 | `providers/metal/` | Metal provider (Objective-C++, `make` + `clang++`, kernels compiled at load); EXPERIMENTAL on Apple M2 | here |
-| `server/` | Inferstream (`turbo-inferstream`): OIP v2 over gRPC and REST, OpenAI-shaped routes, session buckets per model; verified on the mock bundles and on `krick` with cuda and ggml | here |
+| `server/` | Inferstream (`turbo-inferstream`): OIP v2 over gRPC and REST with reflection, the extension service (streamed generation, model repository load and unload at run time), OpenAI-shaped routes, session buckets per model; container image and KServe manifests under `packaging/`; verified on the mock bundles and on `krick` with cuda and ggml | here |
 | `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO, Hailo and Metal providers | here |
 | `native/provider_common/` | shared C++ provider helpers (error boundary, descriptor size checks, bundle reader) | here |
 | `native/turbo_buffer/` | shared C++ arenas salvaged from the PoC | present, not yet wired into a provider |
@@ -418,7 +418,6 @@ today (branch `turbo-v2`, 2026-09-21); "planned" means it is scoped for a later 
 | `bindings/swift/` | SwiftPM package over the C ABI (`PipestreamTurbo`) | here |
 | `bindings/android/` | remaining language binding | planned (P10) |
 | `tools/turbo-bundle/` | bundle import, verify, inspect | here (`fetch` from `crates/fetch` is not ported yet) |
-| `server/` | Inferstream on the new ABI | planned (P9) |
 | `docs/` | documentation (this tree) | here |
 | `testdata/` | fixtures, goldens, receipts | here |
 | `scripts/` | `gen-header.sh`, `gen-versioned.py`, `c-smoke.sh`, `package.sh`, `gen-java-ffi.sh` | here |

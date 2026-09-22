@@ -1,0 +1,35 @@
+# An InferenceService on the turbo-inferstream-cpu runtime: one GGUF
+# bundle, fetched by KServe's storage initializer into /mnt/models.
+#
+#   kubectl apply -f packaging/kserve/inferenceservice.yaml
+#   kubectl get inferenceservice qwen
+#
+# storageUri is any scheme the storage initializer supports: pvc://,
+# s3://, gs://, https://, oci://. The bundle is the directory turbo-bundle
+# import writes (manifest.json and the artifacts); for a PVC, the claim
+# holds one bundle per directory. The model is served under the
+# InferenceService's name, so the routes are
+#   POST /v2/models/qwen/infer          (Open Inference Protocol v2)
+#   POST /v1/chat/completions           (OpenAI-shaped, "model": "qwen")
+# on the predictor's URL.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: turbo-bundle
+      runtime: turbo-inferstream-cpu
+      protocolVersion: v2
+      storageUri: pvc://turbo-bundles/qwen05-gguf
+      resources:
+        requests:
+          cpu: "4"
+          memory: 4Gi
+        limits:
+          cpu: "8"
+          memory: 8Gi
+    minReplicas: 1
+    maxReplicas: 3

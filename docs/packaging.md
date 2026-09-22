@@ -267,3 +267,13 @@ Linux tool (it exits on any other target triple), and the macOS packaging
 (an xcframework, PLAN.md P8) is not built yet. On a Mac the Metal
 provider is built in place with `make -C providers/metal` and loaded from
 `build/metal/libturbo_provider_metal.dylib`.
+
+## The Inferstream image
+
+`packaging/inferstream/Dockerfile` builds the service image rather than
+the archive: the `inferstream` binary, libturbo and the ggml provider on
+`debian:bookworm-slim`, about 200 MB, built with
+`scripts/inferstream-image.sh` (`cuda` for the NVIDIA bases with the
+ggml CUDA backend). The same libraries are left out as above, so the
+CUDA and OpenVINO ONNX providers are not in the image; `packaging/kserve/`
+holds the KServe manifests for it. See `server/README.md`.

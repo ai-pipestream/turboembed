@@ -6,7 +6,11 @@ over one engine.
 - **gRPC**: `inference.GRPCInferenceService`, the KServe Open Inference
   Protocol v2 (`ServerLive`, `ServerReady`, `ModelReady`, `ServerMetadata`,
   `ModelMetadata`, `ModelInfer`), generated from the protocol's own
-  `open_inference_grpc.proto` (`proto/`).
+  `open_inference_grpc.proto` (`proto/`); the extension service
+  `turbo.inferstream.InferstreamExtension` (`ModelStreamInfer`,
+  `RepositoryIndex`, `RepositoryModelLoad`, `RepositoryModelUnload`, from
+  `proto/turbo_inferstream.proto`); and server reflection, so `grpcurl`
+  and the KServe clients need no proto file.
 - **HTTP**: the OIP v2 REST binding under `/v2`, the OpenAI-shaped
   `/v1/embeddings`, `/v1/rerank`, `/v1/chat/completions` (streaming over
   SSE) and `/v1/classify`, and `/info` with the fields
@@ -32,7 +36,9 @@ target/debug/inferstream \
 ```
 
 Or a JSON file, `--config server.json`, with `provider_libs` and `models`
-(the same keys as the flag). `--model` keys: `bundle` and `provider`
+(the same keys as the flag). `--http` and `--grpc` also read
+`INFERSTREAM_HTTP` and `INFERSTREAM_GRPC` (the flag wins), which is how
+the container image binds every interface. `--model` keys: `bundle` and `provider`
 (required), `name` (default: the last segment of the bundle's
 `model_id`), `ordinal` (default 0), `buckets` (`1x128;8x256`), `sessions`
 (per bucket, default 1), `generations` (concurrent generations, default
@@ -96,13 +102,70 @@ curl -s -X POST localhost:8000/v2/models/minilm/infer -H 'content-type: applicat
   "inputs": [{"name": "text", "datatype": "BYTES", "shape": [2], "data": ["hello world", "goodbye"]}]}'
 ```
 
-gRPC, with `grpcurl` and the proto in `server/proto`:
+gRPC, with `grpcurl` (the server publishes reflection, so no proto file
+is needed):
 
 ```sh
-grpcurl -plaintext -import-path server/proto -proto open_inference_grpc.proto \
-    -d '{"model_name":"minilm","inputs":[{"name":"text","datatype":"BYTES","shape":[1],"contents":{"bytes_contents":["aGVsbG8="]}}]}' \
+grpcurl -plaintext localhost:8001 list
+grpcurl -plaintext -d '{"model_name":"minilm","inputs":[{"name":"text","datatype":"BYTES","shape":[1],"contents":{"bytes_contents":["aGVsbG8="]}}]}' \
     localhost:8001 inference.GRPCInferenceService/ModelInfer
 ```
+
+## Extensions
+
+`ServerMetadata.extensions` names three, all on the OIP messages:
+
+- `turbo_parameters`: the request and response parameters above.
+- `turbo_stream_infer`: `InferstreamExtension/ModelStreamInfer` takes a
+  `ModelInferRequest` for a generative model and streams one
+  `ModelStreamInferResponse` per chunk, each holding a `ModelInferResponse`
+  with the new text in `text`; the last carries `finish_reason`,
+  `prompt_tokens` and `generated_tokens` in its parameters, and
+  `error_message` is set when the stream ended in an error. A
+  non-generative model answers with one response holding the result.
+- `turbo_model_repository`: index, load and unload at run time, over gRPC
+  (`RepositoryIndex`, `RepositoryModelLoad`, `RepositoryModelUnload`) and
+  REST:
+
+```sh
+curl -s -X POST localhost:8000/v2/repository/index
+curl -s -X POST localhost:8000/v2/repository/models/sst2/load -H 'content-type: application/json' \
+    -d '{"bundle": "/opt/bundles/sst2-onnx", "provider": "cuda", "ordinal": 0, "buckets": ["1x128", "8x128"]}'
+curl -s -X POST localhost:8000/v2/repository/models/sst2/unload
+```
+
+The load body takes the `--model` keys (`bundle` and `provider` required;
+`ordinal`, `buckets`, `sessions`, `generations`); the model is ready when
+the call returns, a name already served is refused (400), and a bundle
+that fails to load answers with its Turbo status (a missing directory is
+`TURBO_E_BUNDLE_NOT_FOUND`, 404). An unload removes the name at once;
+requests already running finish on the sessions they hold, and the model
+is released when the last of them completes. Loads run on a blocking
+thread, so serving continues during them.
+
+## Container and KServe
+
+`scripts/inferstream-image.sh` builds `turbo-inferstream:cpu` from
+`packaging/inferstream/Dockerfile` (the binary, libturbo and the ggml
+provider with llama.cpp's CPU backend on `debian:bookworm-slim`, about
+200 MB); `scripts/inferstream-image.sh cuda` builds the same on the
+NVIDIA CUDA bases with the ggml CUDA backend. A bundle directory is
+mounted and named with `--model`:
+
+```sh
+docker run --rm -p 8000:8000 -p 8001:8001 -v ~/opt/bundles/minilm-gguf:/models/minilm:ro \
+    turbo-inferstream:cpu --model name=minilm,bundle=/models/minilm,provider=ggml,buckets=1x256
+```
+
+`packaging/kserve/` holds a `ClusterServingRuntime` for the image and an
+`InferenceService` that points it at a bundle; see the README there.
+
+## RAG demo
+
+`demo/rag/` answers a question over a small corpus in three calls, embed,
+rerank and a streamed generation with citations, once through the OpenAI
+Python SDK (`rag.py`) and once through KServe's own OIP clients
+(`rag_oip.py`, REST or gRPC), against the same server.
 
 `raw_input_contents` is accepted (little-endian rows; BYTES as 4-byte
 length-prefixed items). The server has one model version, `1`; another
@@ -131,10 +194,12 @@ The suite starts the server in process: the axum router is driven through
 from the same proto, over an ephemeral port. Every model is a mock bundle
 from `testdata/bundles/mock` on mock ordinal 1, so the suite needs no
 hardware and no provider library. `tests/oip_rest.rs` covers the REST
-binding, `tests/oip_grpc.rs` the gRPC binding, `tests/openai.rs` the
-OpenAI-shaped routes and `/info`, and `tests/engine.rs` the bucket
-chunking, the session pool, the generation bound and the model loads that
-must fail. `--model` parsing is unit-tested in `src/config.rs`.
+binding, `tests/oip_grpc.rs` the gRPC binding, `tests/ext_grpc.rs` the
+extension service and reflection, `tests/repository_rest.rs` the
+repository routes, `tests/openai.rs` the OpenAI-shaped routes and
+`/info`, and `tests/engine.rs` the bucket chunking, the session pool,
+the generation bound and the model loads that must fail. `--model`
+parsing is unit-tested in `src/config.rs`.
 
 ## Verified
 
@@ -143,4 +208,10 @@ On `krick` (2026-09-22): the six mock bundles over both bindings
 reranker through the `cuda` provider on the RTX 4080 SUPER and
 Qwen2.5-0.5B through `ggml` (CUDA backend) for embeddings, an over-long
 input rejected with the limit and accepted with `truncate`, rerank, chat
-and streamed chat, and `ModelInfer` over gRPC.
+and streamed chat, and `ModelInfer` over gRPC. Later the same day: the
+reflection listing, a repository load, `ModelReady`, unload and
+`NotFound`, and `ModelStreamInfer` with `grpcurl` on the mock bundles;
+the RAG demo through the OpenAI SDK and through KServe's REST and gRPC
+clients with MiniLM GGUF and Qwen2.5-0.5B on `ggml` (CUDA) and the
+reranker on `cuda`; and the `turbo-inferstream:cpu` image serving MiniLM
+GGUF on the CPU with `/v1/embeddings` and the reflection listing.
