@@ -89,6 +89,22 @@ cargo test -p turbo-conformance --test live_embed -- --test-threads=1
 
 `TURBO_LIVE_ORDINAL` selects a device (default: the CPU device).
 
+## Running the unit tests
+
+```bash
+cargo test -p turbo-provider-ggml
+```
+
+The crate's seven unit tests (`src/lib.rs`) run on the CPU device: device
+policy (the CPU entry `AUTO` never selects), capability honesty (the matrix
+above), task refusals, the NUL byte in a text, `prompt_role` without a
+prefix, a stop string, and a generation that outlives its model handle. The
+five that need a bundle read `TURBO_GGML_EMBED_BUNDLE` and
+`TURBO_GGML_GGUF_BUNDLE`, defaulting to `~/opt/bundles/minilm-gguf` and
+`~/opt/bundles/qwen05-gguf`; a directory that is not there prints `not
+applicable` naming it and the case returns, which is how CI runs them
+without the GGUF files.
+
 ## Status
 
 Every cell is `EXPERIMENTAL`. Not yet: rerank and classification through

@@ -10,10 +10,12 @@
 //
 // The library under test is the one built next to this binary; set
 // `TURBO_PROVIDER_LIB` to test another build. The embedding bundle comes
-// from `TURBO_LIVE_BUNDLE` as in the Rust live tests; tests that need it
-// skip and say so when it is not set. The device is `TURBO_LIVE_ORDINAL` or
-// ordinal 0. Without a Hailo device the device tests report the provider's
-// own reason and the bundle tests skip.
+// from `TURBO_LIVE_BUNDLE` as in the Rust live tests. A bundle variable
+// that is not set is a configuration error, not a reason to pass: a case
+// that needs it fails naming the variable. The device is
+// `TURBO_LIVE_ORDINAL` or ordinal 0. Without a Hailo device there is
+// nothing to run at all, so the device tests report the provider's own
+// reason and the bundle tests print `not applicable` and return.
 
 #include "turbo/turbo_provider.h"
 #include "turbo/turbo_types.h"
@@ -129,6 +131,28 @@ turbo_device_info device_info(uint32_t ordinal) {
     return info;
 }
 
+/// True when a Hailo device is present; prints the reason and returns false
+/// when there is none, which is the one legitimate reason to run nothing.
+bool has_device() {
+    if (device_count() == 0) {
+        std::printf("  not applicable: no Hailo device\n");
+        return false;
+    }
+    return true;
+}
+
+/// The bundle directory `var` names, or a counted failure and nullptr. The
+/// provider library and the device are there, so a bundle the run was not
+/// given is a configuration error the run must report, not skip.
+const char *require_bundle(const char *var) {
+    const char *dir = env(var);
+    if (dir == nullptr) {
+        ++g_failures;
+        std::printf("  FAIL %s is not set; point it at a bundle directory for this case\n", var);
+    }
+    return dir;
+}
+
 turbo_capability capability(uint32_t ordinal, uint32_t task, uint32_t modality) {
     turbo_capability cap{};
     cap.struct_size = sizeof(cap);
@@ -144,13 +168,11 @@ struct Fixture {
     turbo_model_info info{};
 
     bool open(uint32_t max_batch, uint32_t max_seq, const turbo_kv *opts = nullptr, uint32_t n_opts = 0) {
-        const char *dir = env("TURBO_LIVE_BUNDLE");
-        if (dir == nullptr) {
-            std::printf("  skipped: TURBO_LIVE_BUNDLE is not set\n");
+        if (!has_device()) {
             return false;
         }
-        if (device_count() == 0) {
-            std::printf("  skipped: no Hailo device\n");
+        const char *dir = require_bundle("TURBO_LIVE_BUNDLE");
+        if (dir == nullptr) {
             return false;
         }
         Err err;
@@ -244,7 +266,7 @@ float cosine(const std::vector<float> &a, const std::vector<float> &b) {
 void devices_are_hailo_npus() {
     const uint32_t n = device_count();
     if (n == 0) {
-        std::printf("  skipped: no Hailo device\n");
+        std::printf("  not applicable: no Hailo device\n");
         return;
     }
     for (uint32_t i = 0; i < n; ++i) {
@@ -270,8 +292,7 @@ void devices_are_hailo_npus() {
 }
 
 void capability_states_the_quantized_floor() {
-    if (device_count() == 0) {
-        std::printf("  skipped: no Hailo device\n");
+    if (!has_device()) {
         return;
     }
     const uint32_t d = ordinal();
@@ -288,7 +309,14 @@ void capability_states_the_quantized_floor() {
     }
     CHECK_EQ(embed.dtype, TURBO_DTYPE_I8);
     CHECK_EQ(embed.reference_dtype, TURBO_DTYPE_F32);
-    CHECK(embed.cosine_floor > 0.0f && embed.cosine_floor < 0.99f);
+    // The cell reports one number, so the check is that number and not a
+    // range: kCosineFloorVsF32 in providers/hailo/src/provider.cpp is 0.30,
+    // the conservative floor the INT8 HEF is documented to state. The live
+    // suite gates on it and on the receipt's floor
+    // (testdata/reference_embeddings/quantized_floors.json: hailo/I8 0.45,
+    // measured_min 0.472835) and requires the cell's number to be no higher
+    // than the receipt's, which 0.30 is.
+    CHECK(embed.cosine_floor == 0.30f);
     CHECK_EQ(embed.deterministic, 1);
     for (uint32_t task : {TURBO_TASK_RERANK, TURBO_TASK_CLASSIFY, TURBO_TASK_TOKEN_CLASSIFY, TURBO_TASK_GENERATE}) {
         CHECK_EQ(capability(d, task, TURBO_MODALITY_TEXT).status, TURBO_CAP_UNSUPPORTED);
@@ -297,9 +325,11 @@ void capability_states_the_quantized_floor() {
 }
 
 void can_run_checks_the_bundle_and_task() {
-    const char *dir = env("TURBO_LIVE_BUNDLE");
-    if (dir == nullptr || device_count() == 0) {
-        std::printf("  skipped: TURBO_LIVE_BUNDLE is not set or no Hailo device\n");
+    if (!has_device()) {
+        return;
+    }
+    const char *dir = require_bundle("TURBO_LIVE_BUNDLE");
+    if (dir == nullptr) {
         return;
     }
     const std::string path(dir);
@@ -320,8 +350,7 @@ void can_run_checks_the_bundle_and_task() {
 // ---------------------------------------------------------------------------
 
 void struct_size_rules_are_enforced() {
-    if (device_count() == 0) {
-        std::printf("  skipped: no Hailo device\n");
+    if (!has_device()) {
         return;
     }
     // A smaller, older struct is filled up to its declared size.
@@ -422,6 +451,8 @@ void embeddings_are_unit_norm_and_bitwise_repeatable() {
     const std::vector<std::string> texts = {"a brown dog runs through the grass", "the stock market closed higher"};
     const auto first = f.embed(texts, nullptr);
     const auto second = f.embed(texts, nullptr);
+    CHECK_EQ(first.size(), 2);
+    CHECK_EQ(second.size(), 2);
     if (first.size() != 2 || second.size() != 2) {
         return;
     }
@@ -432,9 +463,16 @@ void embeddings_are_unit_norm_and_bitwise_repeatable() {
     }
     const float c = cosine(first[0], first[1]);
     std::printf("  cosine(dog, market) = %.4f\n", static_cast<double>(c));
-    CHECK(c < 0.9f);
+    // Unrelated sentences must stay far apart. The measurement on pi5ai1
+    // (Hailo-8, HailoRT 4.23.0) is 0.3599, so the check holds it to about
+    // twice that rather than to a cosine any two vectors would pass. The
+    // threshold is well above an FP32 encoder's: the same pair measures
+    // -0.0188 on the Metal provider, and INT8 activations pull unrelated
+    // rows together.
+    CHECK(c < 0.72f);
     // Single-row runs equal the batch rows.
     const auto solo = f.embed({texts[1]}, nullptr);
+    CHECK_EQ(solo.size(), 1);
     if (solo.size() == 1) {
         CHECK(cosine(solo[0], first[1]) > 0.9999f);
     }
@@ -457,6 +495,7 @@ void normalize_pooling_and_output_dim_are_honored() {
     o.struct_size = sizeof(o);
     o.normalize = TURBO_NORMALIZE_NONE;
     const auto raw = f.embed(texts, &o);
+    CHECK_EQ(raw.size(), 1);
     if (raw.size() == 1) {
         CHECK(std::fabs(norm(raw[0]) - 1.0f) > 1e-3f);
     }
@@ -465,6 +504,8 @@ void normalize_pooling_and_output_dim_are_honored() {
     const auto cls = f.embed(texts, &o);
     o.pooling = TURBO_POOLING_MEAN;
     const auto mean = f.embed(texts, &o);
+    CHECK_EQ(cls.size(), 1);
+    CHECK_EQ(mean.size(), 1);
     if (cls.size() == 1 && mean.size() == 1) {
         CHECK(cosine(cls[0], mean[0]) < 0.9999f);
     }
@@ -499,8 +540,36 @@ void truncation_none_over_budget_is_a_capacity_error() {
     const auto right = f.embed({text}, &o);
     o.truncate = TURBO_TRUNCATE_LEFT;
     const auto left = f.embed({text}, &o);
-    if (right.size() == 1 && left.size() == 1) {
-        CHECK(std::memcmp(right[0].data(), left[0].data(), 4 * right[0].size()) != 0);
+    CHECK_EQ(right.size(), 1);
+    CHECK_EQ(left.size(), 1);
+    if (right.size() != 1 || left.size() != 1) {
+        return;
+    }
+    CHECK(std::memcmp(right[0].data(), left[0].data(), 4 * right[0].size()) != 0);
+    // The positive form: the window that survived is exactly the head
+    // (RIGHT) or the tail (LEFT) of the text. Ten single-token words into
+    // this 8-column session leave six after [CLS] and [SEP], which is how
+    // `live_truncation_policy_is_enforced` in
+    // crates/turbo-conformance/tests/live_embed.rs derives the kept text.
+    // An INT8 encoder is compared by cosine: the truncated row and the kept
+    // text travel through different frames and need not be bitwise equal.
+    const std::string kept_head = "one two three four five six";
+    const std::string kept_tail = "five six seven eight nine ten";
+    o.truncate = TURBO_TRUNCATE_MODEL;
+    const auto head_alone = f.embed({kept_head}, &o);
+    const auto tail_alone = f.embed({kept_tail}, &o);
+    CHECK_EQ(head_alone.size(), 1);
+    CHECK_EQ(tail_alone.size(), 1);
+    if (head_alone.size() == 1 && tail_alone.size() == 1) {
+        const float c_right = cosine(right[0], head_alone[0]);
+        const float c_left = cosine(left[0], tail_alone[0]);
+        std::printf("  truncation: right vs `%s` = %.6f, left vs `%s` = %.6f\n", kept_head.c_str(),
+                    static_cast<double>(c_right), kept_tail.c_str(), static_cast<double>(c_left));
+        // Measured 1.000000 both ways on pi5ai1: the kept window tokenizes
+        // to the same frame as the text on its own, so even INT8 lands on
+        // the same vector.
+        CHECK(c_right > 0.9999f);
+        CHECK(c_left > 0.9999f);
     }
 }
 
@@ -527,12 +596,16 @@ void token_types_other_than_zero_are_refused() {
     turbo_provider_result r{};
     r.struct_size = sizeof(r);
     Err e3;
-    if (ok(vt()->session_run(f.session, nullptr, &r, e3.p()), e3, "session_run (tokens)")) {
+    // A run that fails here fails the case: `ok` counts it, and the checks
+    // below are the point of the case, so the case cannot end quietly.
+    const bool ran = ok(vt()->session_run(f.session, nullptr, &r, e3.p()), e3, "session_run (tokens)");
+    if (ran) {
         const auto *p = static_cast<const float *>(r.outputs[0].buffer.host_ptr);
         std::vector<float> v(p, p + f.info.dim);
         CHECK(std::fabs(norm(v) - 1.0f) < 1e-4f);
         // The same tokens through write_text ([CLS] hello [SEP]) give the same vector.
         const auto via_text = f.embed({"hello"}, nullptr);
+        CHECK_EQ(via_text.size(), 1);
         if (via_text.size() == 1) {
             CHECK(cosine(v, via_text[0]) > 0.9999f);
         }
@@ -558,9 +631,11 @@ void other_tasks_are_refused_on_an_embedding_session() {
 }
 
 void model_options_are_checked() {
-    const char *dir = env("TURBO_LIVE_BUNDLE");
-    if (dir == nullptr || device_count() == 0) {
-        std::printf("  skipped: TURBO_LIVE_BUNDLE is not set or no Hailo device\n");
+    if (!has_device()) {
+        return;
+    }
+    const char *dir = require_bundle("TURBO_LIVE_BUNDLE");
+    if (dir == nullptr) {
         return;
     }
     const std::string key = "front_end", bad = "bogus", unknown = "threads", one = "1";
@@ -585,8 +660,7 @@ void model_options_are_checked() {
 }
 
 void buffers_are_host_only() {
-    if (device_count() == 0) {
-        std::printf("  skipped: no Hailo device\n");
+    if (!has_device()) {
         return;
     }
     void *ctx = nullptr;

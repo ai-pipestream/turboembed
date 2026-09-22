@@ -1460,3 +1460,284 @@ impl ProviderSession for EmbedSession {
 }
 
 turbo_core::export_provider!(c"ggml", c"2.0.0-alpha.0", || Arc::new(GgmlProvider::new()));
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use turbo_core::{Context, DeviceSelector, Runtime, RuntimeDesc, SelectPolicy, Session};
+
+    const CHAT: [Message<'static>; 2] = [
+        Message { role: "system", content: "You are a terse assistant. Answer in one short sentence." },
+        Message { role: "user", content: "What is the capital of France?" },
+    ];
+
+    /// The bundle directory `var` names, else `~/opt/bundles/<name>`. GGUF
+    /// files are too large for the tree, so a directory that is not there
+    /// prints `not applicable` naming it and the case returns; everything
+    /// else in these cases is a real check.
+    fn bundle(name: &str, var: &str) -> Option<PathBuf> {
+        let dir = match std::env::var(var) {
+            Ok(v) if !v.is_empty() => PathBuf::from(v),
+            _ => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("opt/bundles").join(name),
+        };
+        if dir.join("bundle.json").is_file() {
+            return Some(dir);
+        }
+        println!("not applicable: no bundle at `{}`; set {var} to a {name} bundle to run this case", dir.display());
+        None
+    }
+
+    fn embedding_bundle() -> Option<PathBuf> {
+        bundle("minilm-gguf", "TURBO_GGML_EMBED_BUNDLE")
+    }
+
+    fn generative_bundle() -> Option<PathBuf> {
+        bundle("qwen05-gguf", "TURBO_GGML_GGUF_BUNDLE")
+    }
+
+    fn runtime() -> Arc<Runtime> {
+        Runtime::new(RuntimeDesc::default(), vec![Arc::new(GgmlProvider::new())]).expect("runtime")
+    }
+
+    /// The CPU device's entry, which every ggml build has.
+    fn cpu_entry(rt: &Arc<Runtime>) -> turbo_core::DeviceEntry {
+        rt.devices()
+            .into_iter()
+            .find(|d| d.info.kind == DeviceKind::Cpu)
+            .expect("ggml's registry always holds a CPU device")
+    }
+
+    /// A context on the CPU device, reached the only way a CPU may be
+    /// reached: by asking for it.
+    fn cpu_context() -> (Arc<Runtime>, Arc<Context>) {
+        let rt = runtime();
+        let cpu = cpu_entry(&rt);
+        let index = rt
+            .select(&DeviceSelector {
+                policy: SelectPolicy::Explicit,
+                provider_id: GGML_PROVIDER_ID.into(),
+                ordinal: cpu.info.ordinal,
+                ..Default::default()
+            })
+            .expect("the CPU device by provider and ordinal");
+        let ctx = Context::create(rt.clone(), index, &ContextDesc::default()).expect("context");
+        (rt, ctx)
+    }
+
+    /// One row of embeddings, read back as floats.
+    fn embed_row(session: &Arc<Session>, text: &str, opts: &EmbedOptions) -> Vec<f32> {
+        session.write_text(&[text], opts).expect("write_text");
+        let r = session.run(&RunOptions::default()).expect("run");
+        let out = r.output(0).expect("output 0");
+        let mut bytes = vec![0u8; out.logical_bytes().expect("logical bytes") as usize];
+        r.read(0, &mut bytes).expect("read");
+        bytes.chunks(4).map(|c| f32::from_le_bytes(c.try_into().expect("four bytes"))).collect()
+    }
+
+    fn cosine(a: &[f32], b: &[f32]) -> f32 {
+        let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+        let na: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+        let nb: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+        dot / (na * nb)
+    }
+
+    // -----------------------------------------------------------------------
+    // Device policy
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn the_device_list_holds_a_cpu_that_auto_never_selects() {
+        let rt = runtime();
+        let devices = rt.devices();
+        assert!(!devices.is_empty(), "ggml registers at least the CPU device");
+        let cpus: Vec<_> = devices.iter().filter(|d| d.info.kind == DeviceKind::Cpu).collect();
+        assert_eq!(
+            cpus.len(),
+            1,
+            "ggml's registry holds exactly one CPU device; found {:?}",
+            devices.iter().map(|d| (&d.info.name, d.info.kind)).collect::<Vec<_>>()
+        );
+        let cpu = cpus[0];
+        assert_eq!(cpu.info.provider_id, GGML_PROVIDER_ID);
+        assert_eq!(cpu.info.caps, GGML_CAPS, "every ggml device reports the same option bits");
+        assert!(!cpu.info.name.is_empty(), "a device names itself");
+        assert!(cpu.info.runtime_version.starts_with("llama.cpp"), "runtime version {}", cpu.info.runtime_version);
+        // AUTO takes no CPU: with a CPU-only build there is nothing to
+        // select, and with a GPU backend compiled in it is the GPU.
+        match rt.select(&DeviceSelector::default()) {
+            Ok(index) => {
+                assert_ne!(rt.device(index).expect("selected device").info.kind, DeviceKind::Cpu, "AUTO selected a CPU")
+            }
+            Err(e) => assert_eq!(e.code(), abi::TURBO_E_DEVICE_NOT_FOUND, "{e}"),
+        }
+        // Asked for by provider and ordinal, the CPU is there and runs.
+        let (_rt, ctx) = cpu_context();
+        assert_eq!(ctx.device_info().kind, DeviceKind::Cpu);
+        assert_eq!(ctx.device_info().provider_id, GGML_PROVIDER_ID);
+        // One past the end is a missing device, not a panic.
+        assert_eq!(rt.device(rt.device_count()).unwrap_err().code(), abi::TURBO_E_DEVICE_NOT_FOUND);
+        let e = GgmlProvider::new().device(rt.device_count()).unwrap_err();
+        assert_eq!(e.code(), abi::TURBO_E_DEVICE_NOT_FOUND, "{e}");
+    }
+
+    // -----------------------------------------------------------------------
+    // Capability honesty
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn the_capability_matrix_offers_embed_and_generate_on_text_only() {
+        let provider = GgmlProvider::new();
+        let devices = provider.list().expect("ggml devices");
+        let ordinal = devices.iter().position(|d| d.kind == DeviceKind::Cpu).expect("a CPU device") as u32;
+        for &task in Task::ALL {
+            for &modality in Modality::ALL {
+                let cell = provider.capability(ordinal, task, modality);
+                let offered = modality == Modality::Text && matches!(task, Task::Embed | Task::Generate);
+                if !offered {
+                    assert_eq!(cell.status, CapStatus::Unsupported, "{task:?} x {modality:?} is not offered");
+                    continue;
+                }
+                // Receipts are pending for both cells, so both are
+                // EXPERIMENTAL and neither states a measured floor.
+                assert_eq!(cell.status, CapStatus::Experimental, "{task:?} x {modality:?}");
+                assert_eq!(cell.dtype, Some(DType::F32), "{task:?}: llama.cpp keeps activations in f32");
+                assert_eq!(cell.reference_dtype, Some(DType::F32), "{task:?}");
+                assert_eq!(cell.cosine_floor, 0.0, "{task:?}: an unmeasured cell states no floor");
+                assert_eq!(cell.max_abs_error, 0.0, "{task:?}");
+                // Pooled embeddings on the CPU repeat bit for bit; a sampled
+                // generation draws a seed when none is given, so GENERATE
+                // never claims determinism.
+                assert_eq!(cell.deterministic, task == Task::Embed, "{task:?} deterministic on the CPU device");
+                assert!(cell.notes.contains(&devices[ordinal as usize].name), "{task:?} notes `{}`", cell.notes);
+            }
+        }
+        // A device that does not exist has no capabilities to report.
+        let past = devices.len() as u32;
+        assert_eq!(provider.capability(past, Task::Embed, Modality::Text).status, CapStatus::Unsupported);
+    }
+
+    // -----------------------------------------------------------------------
+    // Tasks: a bundle serves the one it declares
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn a_generative_bundle_refuses_a_session_and_an_embedding_bundle_a_generation() {
+        let (Some(gguf), Some(minilm)) = (generative_bundle(), embedding_bundle()) else { return };
+        let (_rt, ctx) = cpu_context();
+        let generative = ctx.load_model(&gguf, &ModelDesc::default()).expect("load the generative bundle");
+        assert_eq!(generative.info().kind, ModelKind::Generative);
+        assert_eq!(generative.info().task, Task::Generate);
+        assert_eq!(generative.info().max_batch, 1, "one sequence per generation");
+        let e = generative.create_session(&SessionDesc::default()).unwrap_err();
+        assert_eq!(e.code(), abi::TURBO_E_UNSUPPORTED_TASK, "{e}");
+        let embedding = ctx.load_model(&minilm, &ModelDesc::default()).expect("load the embedding bundle");
+        assert_eq!(embedding.info().kind, ModelKind::Embedding);
+        assert_eq!(embedding.info().task, Task::Embed);
+        let e = embedding.create_generation(&GenerateDesc::default()).unwrap_err();
+        assert_eq!(e.code(), abi::TURBO_E_UNSUPPORTED_TASK, "{e}");
+    }
+
+    // -----------------------------------------------------------------------
+    // Embedding sessions
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn a_nul_byte_is_data_and_not_the_end_of_the_text() {
+        let Some(dir) = embedding_bundle() else { return };
+        let (_rt, ctx) = cpu_context();
+        let model = ctx.load_model(&dir, &ModelDesc::default()).expect("load the embedding bundle");
+        let session =
+            model.create_session(&SessionDesc { max_batch: 1, max_seq: 64, ..Default::default() }).expect("session");
+        // The tokenizer takes a length, not a C string (VocabModel), so the
+        // bytes after the NUL are part of the input.
+        let whole = embed_row(&session, "alpha\0beta gamma delta", &EmbedOptions::default());
+        let cut = embed_row(&session, "alpha", &EmbedOptions::default());
+        assert_eq!(whole.len(), model.info().dim as usize);
+        assert_ne!(whole, cut, "the text after the NUL byte was dropped");
+        let c = cosine(&whole, &cut);
+        println!("cosine(text with a NUL, text cut at the NUL) = {c:.6}");
+        assert!(c < 0.9999, "the two texts embed to the same vector: cosine {c}");
+    }
+
+    #[test]
+    fn prompt_role_without_a_prefix_in_the_bundle_is_refused_on_field_4() {
+        let Some(dir) = embedding_bundle() else { return };
+        let (_rt, ctx) = cpu_context();
+        let model = ctx.load_model(&dir, &ModelDesc::default()).expect("load the embedding bundle");
+        assert!(model.info().prefix_query.is_empty(), "this case needs a bundle that declares no query prefix");
+        let session =
+            model.create_session(&SessionDesc { max_batch: 1, max_seq: 64, ..Default::default() }).expect("session");
+        // Honoring the role would mean embedding the bare text under a name
+        // it does not have, so the call fails naming the field.
+        let e = session
+            .write_text(&["a query"], &EmbedOptions { prompt_role: PromptRole::Query, ..Default::default() })
+            .unwrap_err();
+        assert_eq!(e.code(), abi::TURBO_E_INVALID_ARGUMENT, "{e}");
+        assert_eq!(e.field(), EmbedOptions::FIELD_PROMPT_ROLE);
+        assert_eq!(EmbedOptions::FIELD_PROMPT_ROLE, 4);
+        let e = session
+            .write_text(&["a document"], &EmbedOptions { prompt_role: PromptRole::Document, ..Default::default() })
+            .unwrap_err();
+        assert_eq!(e.field(), EmbedOptions::FIELD_PROMPT_ROLE, "{e}");
+        // Without a role the same text embeds normally.
+        let v = embed_row(&session, "a query", &EmbedOptions::default());
+        assert_eq!(v.len(), model.info().dim as usize);
+    }
+
+    // -----------------------------------------------------------------------
+    // Generations
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn a_stop_string_is_withheld_and_ends_the_generation() {
+        let Some(dir) = generative_bundle() else { return };
+        let (_rt, ctx) = cpu_context();
+        let model = ctx.load_model(&dir, &ModelDesc::default()).expect("load the generative bundle");
+        let g = model
+            .create_generation(&GenerateDesc { max_new_tokens: 64, stop: vec![".".into()], ..Default::default() })
+            .expect("generation");
+        g.prompt(&CHAT).expect("prompt");
+        let mut text = String::new();
+        let mut finish = FinishReason::None;
+        for _ in 0..64 {
+            let chunk = g.step().expect("step");
+            text.push_str(&chunk.text);
+            if chunk.done {
+                finish = chunk.finish_reason;
+                break;
+            }
+        }
+        println!("stopped at {finish:?} with {text:?}");
+        assert_eq!(finish, FinishReason::Stop, "the answer is one sentence, so the period ends it: {text:?}");
+        assert!(!text.contains('.'), "the stop string itself is not delivered: {text:?}");
+        assert!(!text.is_empty(), "the text before the stop string is");
+        // A finished generation is finished: the next step is a state error,
+        // not a second ending.
+        assert_eq!(g.step().unwrap_err().code(), abi::TURBO_E_INVALID_STATE);
+    }
+
+    #[test]
+    fn a_generation_outlives_the_model_it_came_from() {
+        let Some(dir) = generative_bundle() else { return };
+        let (rt, ctx) = cpu_context();
+        let model = ctx.load_model(&dir, &ModelDesc::default()).expect("load the generative bundle");
+        let model_id = model.info().model_id.clone();
+        let g = model.create_generation(&GenerateDesc { max_new_tokens: 4, ..Default::default() }).expect("generation");
+        // Ownership is executable: the generation holds its model, which
+        // holds its context and runtime, so releasing every handle the caller
+        // has leaves the generation running.
+        drop(model);
+        drop(ctx);
+        drop(rt);
+        assert_eq!(g.model().info().model_id, model_id);
+        g.prompt(&CHAT).expect("prompt after the model handle was released");
+        let chunk = g.step().expect("step after the model handle was released");
+        assert_eq!(chunk.tokens.len(), 1, "one token per step");
+        assert!(!chunk.done);
+    }
+}

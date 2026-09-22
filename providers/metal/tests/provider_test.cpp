@@ -12,9 +12,11 @@
 // `TURBO_PROVIDER_LIB` to test another build. The embedding bundle comes
 // from `TURBO_LIVE_BUNDLE` and the reranker bundle from
 // `TURBO_LIVE_RERANK_BUNDLE` (both imported with `safetensors` and
-// `hf_config` artifacts); tests that need one skip and say so when it is
-// not set. Without a Metal device the device tests report the provider's
-// own reason and the bundle tests skip.
+// `hf_config` artifacts). A bundle variable that is not set is a
+// configuration error, not a reason to pass: the case fails naming the
+// variable. Without a Metal device there is nothing to run at all, so the
+// device tests report the provider's own reason and the bundle tests print
+// `not applicable` and return.
 
 #include "turbo/turbo_provider.h"
 #include "turbo/turbo_types.h"
@@ -133,6 +135,28 @@ turbo_device_info device_info(uint32_t ordinal) {
     return info;
 }
 
+/// True when a Metal device is present; prints the reason and returns false
+/// when there is none, which is the one legitimate reason to run nothing.
+bool has_device() {
+    if (device_count() == 0) {
+        std::printf("  not applicable: no Metal device\n");
+        return false;
+    }
+    return true;
+}
+
+/// The bundle directory `var` names, or a counted failure and nullptr. The
+/// provider library is always there, so a bundle the run was not given is a
+/// configuration error the run must report, not skip.
+const char *require_bundle(const char *var) {
+    const char *dir = env(var);
+    if (dir == nullptr) {
+        ++g_failures;
+        std::printf("  FAIL %s is not set; point it at a bundle directory for this case\n", var);
+    }
+    return dir;
+}
+
 turbo_capability capability(uint32_t ordinal, uint32_t task, uint32_t modality) {
     turbo_capability cap{};
     cap.struct_size = sizeof(cap);
@@ -149,13 +173,11 @@ struct Fixture {
 
     bool open(uint32_t max_batch, uint32_t max_seq, const char *bundle_var = "TURBO_LIVE_BUNDLE",
               const turbo_kv *opts = nullptr, uint32_t n_opts = 0) {
-        const char *dir = env(bundle_var);
-        if (dir == nullptr) {
-            std::printf("  skipped: %s is not set\n", bundle_var);
+        if (!has_device()) {
             return false;
         }
-        if (device_count() == 0) {
-            std::printf("  skipped: no Metal device\n");
+        const char *dir = require_bundle(bundle_var);
+        if (dir == nullptr) {
             return false;
         }
         Err err;
@@ -249,7 +271,7 @@ float cosine(const std::vector<float> &a, const std::vector<float> &b) {
 void the_device_is_an_apple_gpu_with_unified_memory() {
     const uint32_t n = device_count();
     if (n == 0) {
-        std::printf("  skipped: no Metal device\n");
+        std::printf("  not applicable: no Metal device\n");
         return;
     }
     CHECK_EQ(n, 1);
@@ -280,8 +302,7 @@ void the_device_is_an_apple_gpu_with_unified_memory() {
 }
 
 void capability_offers_embed_and_rerank_in_fp32() {
-    if (device_count() == 0) {
-        std::printf("  skipped: no Metal device\n");
+    if (!has_device()) {
         return;
     }
     for (uint32_t task : {TURBO_TASK_EMBED, TURBO_TASK_RERANK}) {
@@ -311,9 +332,11 @@ void capability_offers_embed_and_rerank_in_fp32() {
 }
 
 void can_run_checks_the_bundle_and_task() {
-    const char *dir = env("TURBO_LIVE_BUNDLE");
-    if (dir == nullptr || device_count() == 0) {
-        std::printf("  skipped: TURBO_LIVE_BUNDLE is not set or no Metal device\n");
+    if (!has_device()) {
+        return;
+    }
+    const char *dir = require_bundle("TURBO_LIVE_BUNDLE");
+    if (dir == nullptr) {
         return;
     }
     const std::string path(dir);
@@ -329,7 +352,7 @@ void can_run_checks_the_bundle_and_task() {
     Err e4;
     CHECK_EQ(vt()->can_run(vt()->state, 0, text_of(missing), TURBO_TASK_EMBED, TURBO_MODALITY_TEXT, e4.p()),
              TURBO_E_BUNDLE_NOT_FOUND);
-    if (const char *rr = env("TURBO_LIVE_RERANK_BUNDLE")) {
+    if (const char *rr = require_bundle("TURBO_LIVE_RERANK_BUNDLE")) {
         const std::string rpath(rr);
         Err e5;
         ok(vt()->can_run(vt()->state, 0, text_of(rpath), TURBO_TASK_RERANK, TURBO_MODALITY_TEXT, e5.p()), e5,
@@ -345,8 +368,7 @@ void can_run_checks_the_bundle_and_task() {
 // ---------------------------------------------------------------------------
 
 void struct_size_rules_are_enforced() {
-    if (device_count() == 0) {
-        std::printf("  skipped: no Metal device\n");
+    if (!has_device()) {
         return;
     }
     // A smaller, older struct is filled up to its declared size.
@@ -471,6 +493,8 @@ void embeddings_are_unit_norm_and_bitwise_repeatable() {
     const std::vector<std::string> texts = {"a brown dog runs through the grass", "the stock market closed higher"};
     const auto first = f.embed(texts, nullptr);
     const auto second = f.embed(texts, nullptr);
+    CHECK_EQ(first.size(), 2);
+    CHECK_EQ(second.size(), 2);
     if (first.size() != 2 || second.size() != 2) {
         return;
     }
@@ -481,9 +505,14 @@ void embeddings_are_unit_norm_and_bitwise_repeatable() {
     }
     const float c = cosine(first[0], first[1]);
     std::printf("  cosine(dog, market) = %.4f\n", static_cast<double>(c));
-    CHECK(c < 0.9f);
+    // Two sentences about different things land nearly orthogonal, not
+    // merely below some cosine any pair would clear: the measurement on the
+    // M2 (macOS 27, commit of 2026-09-22) is -0.0188, so the check holds the
+    // magnitude to about twice that.
+    CHECK(std::fabs(c) < 0.04f);
     // Single-row runs equal the batch rows.
     const auto solo = f.embed({texts[1]}, nullptr);
+    CHECK_EQ(solo.size(), 1);
     if (solo.size() == 1) {
         CHECK(cosine(solo[0], first[1]) > 0.9999f);
     }
@@ -509,6 +538,7 @@ void normalize_pooling_and_output_dim_are_honored() {
     o.struct_size = sizeof(o);
     o.normalize = TURBO_NORMALIZE_NONE;
     const auto raw = f.embed(texts, &o);
+    CHECK_EQ(raw.size(), 1);
     if (raw.size() == 1) {
         CHECK(std::fabs(norm(raw[0]) - 1.0f) > 1e-3f);
     }
@@ -519,6 +549,9 @@ void normalize_pooling_and_output_dim_are_honored() {
     const auto mean = f.embed(texts, &o);
     o.pooling = TURBO_POOLING_LAST;
     const auto last = f.embed(texts, &o);
+    CHECK_EQ(cls.size(), 1);
+    CHECK_EQ(mean.size(), 1);
+    CHECK_EQ(last.size(), 1);
     if (cls.size() == 1 && mean.size() == 1 && last.size() == 1) {
         CHECK(cosine(cls[0], mean[0]) < 0.9999f);
         CHECK(cosine(last[0], mean[0]) < 0.9999f);
@@ -528,6 +561,7 @@ void normalize_pooling_and_output_dim_are_honored() {
     o.pooling = TURBO_POOLING_MODEL;
     o.normalize = TURBO_NORMALIZE_NONE;
     const auto full = f.embed(texts, &o);
+    CHECK_EQ(full.size(), 1);
     o.normalize = TURBO_NORMALIZE_MODEL;
     o.output_dim = 128;
     turbo_text view = text_of(texts[0]);
@@ -561,6 +595,8 @@ void truncation_none_over_budget_is_a_capacity_error() {
     const auto right = f.embed({text}, &o);
     o.truncate = TURBO_TRUNCATE_LEFT;
     const auto left = f.embed({text}, &o);
+    CHECK_EQ(right.size(), 1);
+    CHECK_EQ(left.size(), 1);
     if (right.size() == 1 && left.size() == 1) {
         CHECK(std::memcmp(right[0].data(), left[0].data(), 4 * right[0].size()) != 0);
     }
@@ -569,6 +605,7 @@ void truncation_none_over_budget_is_a_capacity_error() {
     o.truncate = TURBO_TRUNCATE_RIGHT;
     o.max_tokens = 4;
     const auto four = f.embed({text}, &o);
+    CHECK_EQ(four.size(), 1);
     if (four.size() == 1 && right.size() == 1) {
         CHECK(std::memcmp(four[0].data(), right[0].data(), 4 * four[0].size()) != 0);
     }
@@ -598,6 +635,7 @@ void token_rows_equal_text_rows() {
         std::vector<float> v(p, p + f.info.dim);
         CHECK(std::fabs(norm(v) - 1.0f) < 1e-4f);
         const auto via_text = f.embed({"hello"}, nullptr);
+        CHECK_EQ(via_text.size(), 1);
         if (via_text.size() == 1) {
             CHECK(cosine(v, via_text[0]) > 0.9999f);
         }
@@ -615,6 +653,7 @@ void token_rows_equal_text_rows() {
         const auto *p = static_cast<const float *>(r2.outputs[0].buffer.host_ptr);
         std::vector<float> typed(p, p + f.info.dim);
         const auto plain = f.embed({"hello"}, nullptr);
+        CHECK_EQ(plain.size(), 1);
         if (plain.size() == 1) {
             CHECK(cosine(typed, plain[0]) < 0.9999f);
         }
@@ -644,9 +683,11 @@ void other_tasks_are_refused_on_an_embedding_session() {
 }
 
 void model_options_are_checked() {
-    const char *dir = env("TURBO_LIVE_BUNDLE");
-    if (dir == nullptr || device_count() == 0) {
-        std::printf("  skipped: TURBO_LIVE_BUNDLE is not set or no Metal device\n");
+    if (!has_device()) {
+        return;
+    }
+    const char *dir = require_bundle("TURBO_LIVE_BUNDLE");
+    if (dir == nullptr) {
         return;
     }
     const std::string unknown = "threads", one = "1";
@@ -673,8 +714,7 @@ void model_options_are_checked() {
 // ---------------------------------------------------------------------------
 
 void buffers_are_shared_or_host() {
-    if (device_count() == 0) {
-        std::printf("  skipped: no Metal device\n");
+    if (!has_device()) {
         return;
     }
     void *ctx = nullptr;
@@ -845,19 +885,35 @@ void reranker_scores_sort_and_activate() {
     o.struct_size = sizeof(o);
     o.return_sorted = 1;
     const Scored s = rerank(f, query, docs, &o);
+    CHECK_EQ(s.scores.size(), 4);
     if (s.scores.size() != 4) {
         return;
     }
     // The bundle's contract decides whether the logits are activated: the
     // ms-marco cross-encoders declare Identity, so their scores are logits.
-    const bool sigmoid = bundle_activation("TURBO_LIVE_RERANK_BUNDLE") == "sigmoid";
+    // Read it here rather than inferring it from the numbers, and fail when
+    // the manifest names neither, so a bundle whose activation could not be
+    // read does not quietly take the weaker arm.
+    const std::string activation = bundle_activation("TURBO_LIVE_RERANK_BUNDLE");
+    std::printf("  bundle activation `%s`\n", activation.c_str());
+    CHECK(activation == "sigmoid" || activation == "none");
+    const bool sigmoid = activation == "sigmoid";
     const float midpoint = sigmoid ? 0.5f : 0.0f;
+    bool above_midpoint = false, below_midpoint = false;
     for (size_t i = 0; i < 4; ++i) {
         std::printf("  score[%zu] = %.4f\n", i, static_cast<double>(s.scores[i]));
         if (sigmoid) {
             CHECK(s.scores[i] > 0.0f && s.scores[i] < 1.0f);
         }
+        above_midpoint = above_midpoint || s.scores[i] > midpoint;
+        below_midpoint = below_midpoint || s.scores[i] < midpoint;
     }
+    // Two documents answer the query and two are about something else, so an
+    // activated score must land on both sides of 0.5: a head that mapped
+    // everything into one half would still sort correctly and pass the order
+    // checks below.
+    CHECK(above_midpoint);
+    CHECK(below_midpoint);
     // Both bread documents outrank both off-topic ones; the direct answer
     // is the best of all and sits above the midpoint.
     CHECK(s.scores[2] > midpoint);
@@ -872,6 +928,7 @@ void reranker_scores_sort_and_activate() {
     // activated score, or they are the scores themselves under Identity.
     o.raw_scores = 1;
     const Scored raw = rerank(f, query, docs, &o);
+    CHECK_EQ(raw.scores.size(), 4);
     if (raw.scores.size() == 4) {
         bool outside = false;
         for (size_t i = 0; i < 4; ++i) {
@@ -880,6 +937,8 @@ void reranker_scores_sort_and_activate() {
                 const float sig = 1.0f / (1.0f + std::exp(-raw.scores[i]));
                 CHECK(std::fabs(sig - s.scores[i]) < 1e-4f);
             } else {
+                // Identity activation: the activated score is the logit
+                // itself, bit for bit, with nothing applied to it.
                 CHECK(raw.scores[i] == s.scores[i]);
             }
         }
@@ -890,12 +949,14 @@ void reranker_scores_sort_and_activate() {
     o.raw_scores = 0;
     o.top_n = 2;
     const Scored top = rerank(f, query, docs, &o);
+    CHECK_EQ(top.scores.size(), 4);
     if (top.scores.size() == 4) {
         CHECK_EQ(top.sorted.size(), 2);
         CHECK(top.sorted[0] == s.sorted[0]);
     }
     // Repeatable bit for bit.
     const Scored again = rerank(f, query, docs, &o);
+    CHECK_EQ(again.scores.size(), 4);
     if (again.scores.size() == 4) {
         CHECK(std::memcmp(again.scores.data(), top.scores.data(), 16) == 0);
     }
@@ -924,6 +985,7 @@ void row_padding_never_reaches_a_real_row() {
     }
     const std::string probe = "a brown dog runs through the tall grass";
     const auto alone = f.embed({probe}, nullptr);
+    CHECK_EQ(alone.size(), 1);
     if (alone.size() != 1) {
         return;
     }
@@ -938,6 +1000,7 @@ void row_padding_never_reaches_a_real_row() {
             std::vector<std::string> batch = rows;
             batch[at] = probe;
             const auto got = f.embed(batch, nullptr);
+            CHECK_EQ(got.size(), n);
             if (got.size() != n) {
                 continue;
             }
@@ -1046,6 +1109,7 @@ void token_rows_are_read_at_the_callers_stride() {
         const std::vector<float> second(p + f.info.dim, p + 2 * f.info.dim);
         CHECK(std::memcmp(first.data(), second.data(), first.size() * sizeof(float)) == 0);
         const auto via_text = f.embed({"hello"}, nullptr);
+        CHECK_EQ(via_text.size(), 1);
         if (via_text.size() == 1) {
             CHECK(cosine(first, via_text[0]) > 0.9999f);
         }
@@ -1080,6 +1144,10 @@ void truncation_cuts_at_the_budget_and_keeps_the_same_side() {
     o.truncate = TURBO_TRUNCATE_LEFT;
     const auto left = f.embed({body}, &o);
     const auto left_longer = f.embed({head + body}, &o);
+    CHECK_EQ(right.size(), 1);
+    CHECK_EQ(right_longer.size(), 1);
+    CHECK_EQ(left.size(), 1);
+    CHECK_EQ(left_longer.size(), 1);
     if (right.size() != 1 || right_longer.size() != 1 || left.size() != 1 || left_longer.size() != 1) {
         return;
     }
@@ -1093,6 +1161,33 @@ void truncation_cuts_at_the_budget_and_keeps_the_same_side() {
     // An over-long row is still a unit vector, not a partly filled one.
     CHECK(std::fabs(norm(right_longer[0]) - 1.0f) < 1e-4f);
     CHECK(std::fabs(norm(left_longer[0]) - 1.0f) < 1e-4f);
+    // The positive form: the window that survived is exactly the head (RIGHT)
+    // or the tail (LEFT) of the text, not merely a different one. 26
+    // single-token letters into this 16-column session leave 14 after [CLS]
+    // and [SEP], which is how `live_truncation_policy_is_enforced` in
+    // crates/turbo-conformance/tests/live_embed.rs derives the kept text.
+    const std::string alphabet = "a b c d e f g h i j k l m n o p q r s t u v w x y z";
+    const std::string kept_head = "a b c d e f g h i j k l m n";
+    const std::string kept_tail = "m n o p q r s t u v w x y z";
+    o.truncate = TURBO_TRUNCATE_RIGHT;
+    const auto cut_right = f.embed({alphabet}, &o);
+    o.truncate = TURBO_TRUNCATE_LEFT;
+    const auto cut_left = f.embed({alphabet}, &o);
+    o.truncate = TURBO_TRUNCATE_MODEL;
+    const auto head_alone = f.embed({kept_head}, &o);
+    const auto tail_alone = f.embed({kept_tail}, &o);
+    CHECK_EQ(cut_right.size(), 1);
+    CHECK_EQ(cut_left.size(), 1);
+    CHECK_EQ(head_alone.size(), 1);
+    CHECK_EQ(tail_alone.size(), 1);
+    if (cut_right.size() == 1 && cut_left.size() == 1 && head_alone.size() == 1 && tail_alone.size() == 1) {
+        const float c_right = cosine(cut_right[0], head_alone[0]);
+        const float c_left = cosine(cut_left[0], tail_alone[0]);
+        std::printf("  truncation: right vs the first 14 letters = %.6f, left vs the last 14 = %.6f\n",
+                    static_cast<double>(c_right), static_cast<double>(c_left));
+        CHECK(c_right > 0.9999f);
+        CHECK(c_left > 0.9999f);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1258,6 +1353,7 @@ void session_shape_limits_are_enforced_on_every_write() {
             const std::vector<float> v(p, p + f.info.dim);
             CHECK(std::fabs(norm(v) - 1.0f) < 1e-4f);
             const auto via_text = f.embed({"hello"}, nullptr);
+            CHECK_EQ(via_text.size(), 1);
             if (via_text.size() == 1) {
                 CHECK(cosine(v, via_text[0]) > 0.9999f);
             }

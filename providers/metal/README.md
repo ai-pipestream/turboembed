@@ -57,7 +57,9 @@ TURBO_LIVE_LIB=build/metal/libturbo_provider_metal.dylib TURBO_LIVE_PROVIDER=met
 ```
 
 The vtable tests need only `clang++`, `make`, and the Command Line Tools.
-Without a Metal device they report the provider's reason and skip.
+Without a Metal device they report the provider's reason and print `not
+applicable`. A bundle variable that is not set is a failed check naming the
+variable, not a skip, so an incomplete run cannot exit 0.
 
 ## Limits
 

@@ -95,9 +95,11 @@ TURBO_LIVE_LIB=$PWD/build/hailo/libturbo_provider_hailo.so TURBO_LIVE_PROVIDER=h
     cargo test -p turbo-conformance --test live_embed -- --test-threads=1 --nocapture
 ```
 
-Without a Hailo device the vtable tests skip and say so; `device_count`
-reports the driver's own error when the PCIe driver is missing rather than
-returning an empty list.
+Without a Hailo device the vtable tests print `not applicable` and say so;
+`device_count` reports the driver's own error when the PCIe driver is
+missing rather than returning an empty list. `TURBO_LIVE_BUNDLE` unset is a
+failed check naming the variable, not a skip, so an incomplete run cannot
+exit 0.
 
 ## Devices
 
@@ -114,7 +116,9 @@ later run fails with `TURBO_E_INVALID_STATE` until it is reloaded.
 
 ## Status
 
-`EXPERIMENTAL` for `EMBED x TEXT` on Hailo-8: the 14 vtable tests
+`SUPPORTED` for `EMBED x TEXT` on Hailo-8 (the capability cell names
+`hailo-2026-09-21` and `compare-hailo-pi5ai1-embed-2026-09-22b`);
+`EXPERIMENTAL` on other Hailo architectures: the 14 vtable tests
 (`providers/hailo/tests/provider_test.cpp`) and the 14 live embedding tests
 (`crates/turbo-conformance/tests/live_embed.rs`, including the STS ranking
 gate) pass on both `pi5ai1` (Raspberry Pi 5 with AI HAT+ 26 TOPS) and
