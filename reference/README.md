@@ -32,6 +32,12 @@ No libturbo code is in any timed path.
    turbo.json --out native.json`; for Hailo,
    `reference/hailo/native-receipt.py --hef model.hef --turbo-receipt
    turbo.json --commit <sha> --ssh pi5ai1 --out native.json`.
+   Both sides warm up by the same rule before a cell's timed samples: at
+   least `--warmup` iterations and at least 0.5 s of them
+   (`turbo_bench::receipt::warm_up`; the C++ programs carry the same
+   loop). A count alone left the first cells of a run measuring a GPU
+   still raising its clocks, which read as a few percent against
+   whichever side ran first.
 3. `turbo-bench compare --turbo turbo.json --native native.json --out
    compare.json` matches the cells (the prepared-token path when both
    sides have one, else the text path; total and decode rate for
@@ -55,7 +61,7 @@ directories say; the Rust ones record the build's commit through the
 | openvino / OpenVINO 2026.3.1 C++ | Battlemage B70 (krick-1) | embed, 9 | 1.15x to 1.55x | SUPPORTED |
 | openvino / OpenVINO 2026.3.1 C++ | Ryzen 9 9950X3D CPU (krick) | embed, 9 | 0.91x to 1.24x; four cells under the floor | EXPERIMENTAL |
 | ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | generate, 128 tokens | 0.99x total, 1.00x decode | SUPPORTED |
-| ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | embed, 9 (text path) | 0.94x to 1.88x; two cells under the floor by about 30 us of per-call overhead | EXPERIMENTAL |
+| ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | embed, 9 (text path) | 0.98x to 1.90x (the first run, 0.94x on two cells, had the reference tokenizing outside its timed loop and a count-only warm-up; `compare-ggml-krick-gpu-embed-2026-09-22b.json` is the matched one) | SUPPORTED |
 | hailo / hailortcli | Hailo-8 (pi5ai1) | embed, 6 | 1.00x | SUPPORTED |
 | metal / the same kernels | Apple M2 (krickert-mac) | embed, 9 | 0.98x to 1.00x before and 0.97x to 1.01x after the simdgroup matmul (the provider adds no measurable cost around the kernels) | SUPPORTED |
 

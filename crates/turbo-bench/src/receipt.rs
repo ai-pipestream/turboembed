@@ -4,7 +4,7 @@
 //! summary and provenance helpers they share.
 
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
@@ -244,7 +244,10 @@ pub fn commit(named: Option<&str>) -> Result<String, String> {
     }
     match option_env!("TURBO_BENCH_GIT_COMMIT") {
         Some(built) => Ok(built.to_string()),
-        None => Err("the binary was built from a tree without git, so the receipt cannot name a commit; pass --commit <sha>".to_string()),
+        None => Err(
+            "the binary was built from a tree without git, so the receipt cannot name a commit; pass --commit <sha>"
+                .to_string(),
+        ),
     }
 }
 
@@ -273,6 +276,27 @@ pub fn civil_date(secs: u64) -> String {
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if m <= 2 { y + 1 } else { y };
     format!("{y:04}-{m:02}-{d:02}")
+}
+
+/// The least wall time a warm-up phase runs, whatever its iteration count.
+pub const WARM_UP_MIN: Duration = Duration::from_millis(500);
+
+/// Untimed warm-up before a cell's timed samples: at least `warmup`
+/// iterations and at least [`WARM_UP_MIN`] of wall time. A count alone is
+/// not enough for a short cell: five iterations of a 0.4 ms cell take 2 ms,
+/// and a GPU that was idle is still raising its clocks when the timed
+/// samples start, which shows up as a few percent on the first cells of a
+/// run and nowhere else. The native reference programs warm up by the
+/// same rule, so both sides of a comparison measure a device in the same
+/// state.
+pub fn warm_up<E>(warmup: u32, mut run: impl FnMut() -> Result<(), E>) -> Result<(), E> {
+    let t0 = Instant::now();
+    let mut done = 0u32;
+    while done < warmup || t0.elapsed() < WARM_UP_MIN {
+        run()?;
+        done += 1;
+    }
+    Ok(())
 }
 
 /// Latency figures over the timed samples. `tokens` is `Some` only when a

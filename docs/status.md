@@ -73,9 +73,10 @@ direct-native reference programs under `reference/` drive each runtime
 alone on the same token rows, and `turbo-bench compare` writes the
 verdict. As of 2026-09-22, SUPPORTED: cuda embeddings on the RTX 4080
 SUPER, openvino embeddings on the Battlemage B70, ggml generation on the
-RTX 4080 SUPER, hailo embeddings on the Hailo-8, metal embeddings on the M2; EXPERIMENTAL with a
-comparison receipt: openvino on the CPU (0.91x on four cells) and ggml
-embeddings on the GPU (0.94x on two small cells). What exists today:
+RTX 4080 SUPER, hailo embeddings on the Hailo-8, metal embeddings on the
+M2, ggml embeddings on the RTX 4080 SUPER; EXPERIMENTAL with a
+comparison receipt: openvino on the CPU (0.91x on four cells). What
+exists today:
 
 - The generated C header set (`include/turbo/turbo.h`,
   `include/turbo/turbo_types.h`, `include/turbo/turbo_provider.h`), produced
@@ -191,7 +192,7 @@ qualification receipt exists (`PLAN.md` section 4.4). Today:
 | `cuda` | SUPPORTED for embeddings on `krick` (`compare-cuda-krick-embed-2026-09-22.json`); EXPERIMENTAL for the other tasks and on Jetson `nano1` (aarch64) | embed, rerank, classify, token-classify through the ONNX Runtime CUDA EP with device-side pooling/normalization/activation kernels; cosine 1.000 against the FP32 references on `krick`; receipt: [`testdata/receipts/turbo/cuda-2026-09-21.json`](../testdata/receipts/turbo/cuda-2026-09-21.json). On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime 1.24.0 linked dynamically through `ORT_LIB_LOCATION` and `--no-default-features`) all 12 live embedding tests pass at cosine 1.000; no receipt file is committed for this run yet and the task suite (rerank/classify/token-classify) is still being verified there |
 | `metal` | SUPPORTED for embeddings on `krickert-mac` (`compare-metal-mac-embed-2026-09-22.json`); EXPERIMENTAL for rerank | embed and rerank through Metal directly: MSL kernels compiled at load, shared `MTLBuffer`s end to end, results `SHARED` in unified memory at cosine 1.000 against the FP32 references; receipt: [`testdata/receipts/turbo/metal-2026-09-22.json`](../testdata/receipts/turbo/metal-2026-09-22.json) |
 | `hailo` | SUPPORTED for embeddings on `pi5ai1` (`compare-hailo-pi5ai1-embed-2026-09-22.json`), EXPERIMENTAL on `cm5ai1` (no comparison yet); Hailo-8L untested; Hailo-10H open | embed through HailoRT 4.23 vstreams with the INT8 Model Zoo MiniLM HEF; host WordPiece, word-embedding gather, pooling, and L2; the capability cell reports a measured cosine floor of 0.30, and the live suite holds cosine to its own, higher floor for this provider and dtype ([`testdata/reference_embeddings/quantized_floors.json`](../testdata/reference_embeddings/quantized_floors.json), 0.45) plus a ranking gate on the STS corpus (Spearman 0.937 against 0.944 for FP32); throughput 76 rows/s at every batch and sequence length ([`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json)); receipt: [`testdata/receipts/turbo/hailo-2026-09-21.json`](../testdata/receipts/turbo/hailo-2026-09-21.json) |
-| `ggml` | SUPPORTED for generation on the RTX 4080 SUPER of `krick` (`compare-ggml-krick-gpu-generate-2026-09-22.json`); EXPERIMENTAL for GGUF embeddings there (0.94x on two small cells), on the CPU, and on `krickert-mac` | GGUF generation through llama.cpp (`llama-cpp-2`): pull iterator, chat templates, stop strings/tokens, cancellation, logprobs, seeded sampling, GBNF grammars; GGUF embedding on the same devices at cosine 0.99999 or better against the FP32 references; receipt: [`testdata/receipts/turbo/ggml-2026-09-21.json`](../testdata/receipts/turbo/ggml-2026-09-21.json) |
+| `ggml` | SUPPORTED for generation (`compare-ggml-krick-gpu-generate-2026-09-22.json`) and for GGUF embeddings (`compare-ggml-krick-gpu-embed-2026-09-22b.json`, 0.98x to 1.90x) on the RTX 4080 SUPER of `krick`; EXPERIMENTAL on the CPU and on `krickert-mac` | GGUF generation through llama.cpp (`llama-cpp-2`): pull iterator, chat templates, stop strings/tokens, cancellation, logprobs, seeded sampling, GBNF grammars; GGUF embedding on the same devices at cosine 0.99999 or better against the FP32 references; receipt: [`testdata/receipts/turbo/ggml-2026-09-21.json`](../testdata/receipts/turbo/ggml-2026-09-21.json) |
 
 A matched-native benchmark receipt is still required before OpenVINO,
 `cuda`, `ggml`, `hailo`, or `static` can move from `EXPERIMENTAL` to
@@ -406,7 +407,7 @@ today (branch `turbo-v2`, 2026-09-21); "planned" means it is scoped for a later 
 | `providers/static/` | model2vec-style static embedding provider | here |
 | `providers/openvino/` | OpenVINO provider (C++, built separately with CMake) | here |
 | `providers/cuda/` | CUDA provider (Rust, ONNX Runtime CUDA EP); EXPERIMENTAL on `krick` (x86_64); embedding landed on Jetson `nano1` | here |
-| `providers/ggml/` | ggml/llama.cpp provider (Rust, GGUF generation); EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | here |
+| `providers/ggml/` | ggml/llama.cpp provider (Rust, GGUF generation and embeddings); SUPPORTED on the RTX 4080 SUPER of `krick`, EXPERIMENTAL on the CPU and on `krickert-mac` (Apple M2, Metal) | here |
 | `providers/hailo/` | Hailo provider (C++, HailoRT 4.x vstreams); EXPERIMENTAL on the Hailo-8 Pis | here |
 | `providers/cpu/` | folded into the CUDA (ONNX Runtime) and ggml providers' CPU devices | not a separate provider |
 | `providers/metal/` | Metal provider (Objective-C++, `make` + `clang++`, kernels compiled at load); EXPERIMENTAL on Apple M2 | here |

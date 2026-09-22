@@ -51,12 +51,12 @@ use std::time::{Duration, Instant};
 
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
-use turbo_bench::receipt::*;
 use turbo::bundle::Bundle;
 use turbo::provider::{EmbedOptions, GenerateDesc, Message, ModelDesc, RerankOptions, SessionDesc, TokenBatch};
 use turbo::tokenizer::{EncodeOptions, EncodeTarget, Tokenizer};
 use turbo::types::{FinishReason, Modality, Task};
 use turbo::{Context, ContextDesc, DeviceKind, DeviceSelector, RuntimeDesc, SelectPolicy};
+use turbo_bench::receipt::*;
 
 #[derive(Parser)]
 #[command(name = "turbo-bench", version, about = "Benchmark Turbo providers and write receipts")]
@@ -82,7 +82,7 @@ struct Common {
     /// Timed iterations per cell (p99 is reported from 100 up).
     #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u32).range(1..))]
     iters: u32,
-    /// Untimed warm-up iterations per cell.
+    /// Untimed warm-up iterations per cell; at least these, and at least 0.5 s of them.
     #[arg(long, default_value_t = 5)]
     warmup: u32,
     /// Receipt file to write (JSON).
@@ -189,7 +189,6 @@ enum Cmd {
         prompt: String,
     },
 }
-
 
 /// A selected device with its context, and the identity fields a receipt needs.
 struct Target {
@@ -336,7 +335,9 @@ fn texts_for(corpus: &[String], tok: &Counter, n: usize, seq: u32, offset: usize
 fn delta(a: &turbo::SessionStats, b: &turbo::SessionStats, runs: u64) -> Result<PerRun, String> {
     let per = |name: &str, x: u64, y: u64| -> Result<f64, String> {
         if y < x {
-            return Err(format!("session counter {name} went backwards ({x} then {y}); the provider's stats are not monotonic"));
+            return Err(format!(
+                "session counter {name} went backwards ({x} then {y}); the provider's stats are not monotonic"
+            ));
         }
         Ok((y - x) as f64 / runs.max(1) as f64)
     };
@@ -448,9 +449,7 @@ fn bench_embed(
                 r.read(0, &mut out).map_err(|e| format!("read: {e}"))?;
                 Ok(())
             };
-            for _ in 0..c.warmup {
-                run_text()?;
-            }
+            warm_up(c.warmup, &mut run_text)?;
             let before = session.stats().map_err(|e| e.to_string())?;
             let mut samples = Vec::with_capacity(c.iters as usize);
             for _ in 0..c.iters {
@@ -469,9 +468,7 @@ fn bench_embed(
                     r.read(0, &mut out).map_err(|e| format!("read: {e}"))?;
                     Ok(())
                 };
-                for _ in 0..c.warmup {
-                    run_tokens()?;
-                }
+                warm_up(c.warmup, &mut run_tokens)?;
                 let mut samples = Vec::with_capacity(c.iters as usize);
                 for _ in 0..c.iters {
                     let t0 = Instant::now();
@@ -486,7 +483,10 @@ fn bench_embed(
                 .as_ref()
                 .map(|p| format!("{:.3} ms ({:.0} rows/s)", p.p50_ms, p.rows_per_s))
                 .unwrap_or_else(|| "skipped".to_string());
-            let tok_s = text_path.tokens_per_s.map(|t| format!("{t:.0} tok/s")).unwrap_or_else(|| "tokens estimated".to_string());
+            let tok_s = text_path
+                .tokens_per_s
+                .map(|t| format!("{t:.0} tok/s"))
+                .unwrap_or_else(|| "tokens estimated".to_string());
             eprintln!(
                 "embed batch {batch:>2} seq {seq:>3}: text p50 {:.3} ms ({:.0} rows/s, {tok_s}); tokens p50 {prepared_p50}; live {:.1} tok/row; h2d {:.0} d2h {:.0} per run",
                 text_path.p50_ms, text_path.rows_per_s, live_per_row, per_run.h2d_bytes.unwrap_or(0.0), per_run.d2h_bytes.unwrap_or(0.0)
@@ -550,9 +550,7 @@ fn bench_rerank(c: &Common, corpus_arg: &CorpusArg, docs: u32, seq: u32) -> Resu
         r.read(0, &mut out).map_err(|e| format!("read: {e}"))?;
         Ok(())
     };
-    for _ in 0..c.warmup {
-        run()?;
-    }
+    warm_up(c.warmup, &mut run)?;
     let before = session.stats().map_err(|e| e.to_string())?;
     let mut samples = Vec::with_capacity(c.iters as usize);
     for _ in 0..c.iters {
@@ -605,7 +603,10 @@ fn bench_generate(c: &Common, new_tokens: u32, prompt: &str) -> Result<Receipt, 
                 match prompt_tokens {
                     None => prompt_tokens = Some(chunk.prompt_tokens),
                     Some(p) if p != chunk.prompt_tokens => {
-                        return Err(format!("prompt_tokens changed between iterations ({p} then {})", chunk.prompt_tokens))
+                        return Err(format!(
+                            "prompt_tokens changed between iterations ({p} then {})",
+                            chunk.prompt_tokens
+                        ))
                     }
                     Some(_) => {}
                 }
@@ -654,7 +655,10 @@ fn bench_generate(c: &Common, new_tokens: u32, prompt: &str) -> Result<Receipt, 
         finish_reasons: reasons,
         iters: c.iters,
     };
-    let decode = cell.decode_tokens_per_s_p50.map(|r| format!("{r:.1} tok/s p50")).unwrap_or_else(|| "no decode phase".to_string());
+    let decode = cell
+        .decode_tokens_per_s_p50
+        .map(|r| format!("{r:.1} tok/s p50"))
+        .unwrap_or_else(|| "no decode phase".to_string());
     eprintln!(
         "generate {new_tokens} tokens: ttft p50 {:.1} ms, decode {decode}, total p50 {:.0} ms, generated {:.1} mean",
         cell.time_to_first_token_ms_p50, cell.total_ms_p50, cell.generated_tokens_mean
@@ -750,19 +754,24 @@ fn check_budget(r: &mut Receipt, budget_path: &Path, tolerance: f64) -> Result<(
     // a shrunken workload is not a pass.
     for b in &budget.embed {
         if !r.embed.iter().any(|c| c.batch == b.batch && c.seq == b.seq) {
-            violations.push(format!("embed {}x{}: the budget has this cell and this run did not measure it", b.batch, b.seq));
+            violations
+                .push(format!("embed {}x{}: the budget has this cell and this run did not measure it", b.batch, b.seq));
         }
     }
     match (&r.rerank, &budget.rerank) {
         (Some(cell), Some(b)) => over("rerank", cell.text_path.p50_ms, b.text_path.p50_ms, &mut violations),
         (Some(_), None) => violations.push("rerank: the budget has no rerank figure".to_string()),
-        (None, Some(_)) => violations.push("rerank: the budget has a rerank figure and this run did not measure one".to_string()),
+        (None, Some(_)) => {
+            violations.push("rerank: the budget has a rerank figure and this run did not measure one".to_string())
+        }
         (None, None) => {}
     }
     match (&r.generate, &budget.generate) {
         (Some(cell), Some(b)) => over("generate total", cell.total_ms_p50, b.total_ms_p50, &mut violations),
         (Some(_), None) => violations.push("generate: the budget has no generate figure".to_string()),
-        (None, Some(_)) => violations.push("generate: the budget has a generate figure and this run did not measure one".to_string()),
+        (None, Some(_)) => {
+            violations.push("generate: the budget has a generate figure and this run did not measure one".to_string())
+        }
         (None, None) => {}
     }
     r.budget_check =
@@ -906,8 +915,9 @@ fn discover(libs: &[PathBuf], provider_dir: Option<&Path>, bundles: &[PathBuf]) 
     // reported against its path (an id collision names the path that
     // registered it first), a library that loaded but whose device probe
     // failed is reported separately, and neither is fatal to the survey.
-    let rt = turbo::create_runtime(RuntimeDesc { provider_paths: Vec::new(), no_default_providers, ..Default::default() })
-        .map_err(|e| format!("runtime: {e}"))?;
+    let rt =
+        turbo::create_runtime(RuntimeDesc { provider_paths: Vec::new(), no_default_providers, ..Default::default() })
+            .map_err(|e| format!("runtime: {e}"))?;
     let mut load_failures = Vec::new();
     for p in &provider_paths {
         if let Err(e) = rt.load_provider(Path::new(p)) {
@@ -1281,7 +1291,14 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
     let mut unmatched = Vec::new();
     let mut push = |cell: String, measure: &str, turbo: f64, native: f64, higher_is_better: bool| {
         let ratio = if higher_is_better { turbo / native } else { native / turbo };
-        cells.push(CompareCell { cell, measure: measure.to_string(), turbo, native, ratio, within_floor: ratio >= floor });
+        cells.push(CompareCell {
+            cell,
+            measure: measure.to_string(),
+            turbo,
+            native,
+            ratio,
+            within_floor: ratio >= floor,
+        });
     };
     for tc in &t.embed {
         let name = format!("embed {}x{}", tc.batch, tc.seq);
@@ -1317,7 +1334,8 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
     match (&t.generate, &n.generate) {
         (Some(a), Some(b)) => {
             if a.new_tokens_requested != b.new_tokens_requested {
-                unmatched.push(format!("generate: {} versus {} tokens", a.new_tokens_requested, b.new_tokens_requested));
+                unmatched
+                    .push(format!("generate: {} versus {} tokens", a.new_tokens_requested, b.new_tokens_requested));
             } else {
                 let name = format!("generate {}", a.new_tokens_requested);
                 push(name.clone(), "total p50 ms", a.total_ms_p50, b.total_ms_p50, false);
@@ -1333,7 +1351,8 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
     if cells.is_empty() {
         return Err("the receipts share no cell to compare".to_string());
     }
-    let verdict = if unmatched.is_empty() && cells.iter().all(|c| c.within_floor) { "SUPPORTED" } else { "EXPERIMENTAL" };
+    let verdict =
+        if unmatched.is_empty() && cells.iter().all(|c| c.within_floor) { "SUPPORTED" } else { "EXPERIMENTAL" };
     let side = |path: &Path, r: &Receipt| CompareSide {
         file: path.display().to_string(),
         commit: r.commit.clone(),
@@ -1357,7 +1376,12 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
 fn print_compare(c: &Comparison) {
     println!(
         "{} on {} ({}): libturbo {} versus native {} {}",
-        c.bundle.model_id, c.turbo.device.name, c.turbo.machine_hint(), c.turbo.provider.id, c.native.provider.id, c.native.provider.runtime_version
+        c.bundle.model_id,
+        c.turbo.device.name,
+        c.turbo.machine_hint(),
+        c.turbo.provider.id,
+        c.native.provider.id,
+        c.native.provider.runtime_version
     );
     println!("{:<18} {:<24} {:>12} {:>12} {:>7}", "cell", "measure", "libturbo", "native", "ratio");
     for cell in &c.cells {

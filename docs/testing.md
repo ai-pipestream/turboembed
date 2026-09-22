@@ -145,8 +145,10 @@ runtime alone, and `turbo-bench compare` writes the per-cell ratio and
 the verdict (`compare-*.json`, SUPPORTED at 0.95 of native on every
 cell). SUPPORTED so far: cuda embeddings on the 4080, openvino
 embeddings on the B70, ggml generation on the 4080, hailo embeddings on
-the Hailo-8, metal embeddings on the M2; EXPERIMENTAL with a comparison
-receipt: openvino on the CPU, ggml embeddings on the GPU.
+the Hailo-8, metal embeddings on the M2, ggml embeddings on the 4080;
+EXPERIMENTAL with a comparison receipt: openvino on the CPU. Both sides
+warm up for at least 0.5 s before a cell's timed samples
+(`turbo_bench::receipt::warm_up`).
 
 ## Live provider tests
 

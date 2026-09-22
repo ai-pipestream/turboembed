@@ -30,8 +30,8 @@ use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::logit_bias::LlamaLogitBias;
 use turbo_bench::receipt::{
-    commit, machine, run_cmd, summarize, today, BundleId, Device, EmbedCell, GenerateCell, PerRun, ProviderId, Receipt,
-    TokenDump,
+    commit, machine, run_cmd, summarize, today, warm_up, BundleId, Device, EmbedCell, GenerateCell, PerRun, ProviderId,
+    Receipt, TokenDump,
 };
 
 #[derive(Parser)]
@@ -145,7 +145,10 @@ fn load(common: &Common, gguf: &std::path::Path) -> Result<Loaded, String> {
     let mut params = LlamaModelParams::default();
     let (device, driver) = if common.cpu {
         params = params.with_n_gpu_layers(0);
-        (Device { name: "CPU".into(), kind: "Cpu".into(), ordinal: 0, caps: "0x0".into(), memory_total: 0 }, String::new())
+        (
+            Device { name: "CPU".into(), kind: "Cpu".into(), ordinal: 0, caps: "0x0".into(), memory_total: 0 },
+            String::new(),
+        )
     } else {
         params = params
             .with_n_gpu_layers(u32::MAX)
@@ -155,7 +158,11 @@ fn load(common: &Common, gguf: &std::path::Path) -> Result<Loaded, String> {
         // libturbo receipt's name carries the same prefix.
         let smi = run_cmd(
             "nvidia-smi",
-            &["--query-gpu=name,driver_version,memory.total", "--format=csv,noheader,nounits", &format!("--id={}", common.device)],
+            &[
+                "--query-gpu=name,driver_version,memory.total",
+                "--format=csv,noheader,nounits",
+                &format!("--id={}", common.device),
+            ],
         )
         .unwrap_or_default();
         let mut f = smi.split(',').map(str::trim);
@@ -163,9 +170,19 @@ fn load(common: &Common, gguf: &std::path::Path) -> Result<Loaded, String> {
         let driver = f.next().unwrap_or("").to_string();
         let mem: u64 = f.next().and_then(|m| m.parse().ok()).unwrap_or(0);
         let name = common.device_name.clone().or(name).ok_or("no nvidia-smi on this machine; pass --device-name")?;
-        (Device { name, kind: "Gpu".into(), ordinal: common.device as u32, caps: "0x0".into(), memory_total: mem * 1024 * 1024 }, driver)
+        (
+            Device {
+                name,
+                kind: "Gpu".into(),
+                ordinal: common.device as u32,
+                caps: "0x0".into(),
+                memory_total: mem * 1024 * 1024,
+            },
+            driver,
+        )
     };
-    let model = LlamaModel::load_from_file(&backend, gguf, &params).map_err(|e| format!("load {}: {e}", gguf.display()))?;
+    let model =
+        LlamaModel::load_from_file(&backend, gguf, &params).map_err(|e| format!("load {}: {e}", gguf.display()))?;
     Ok(Loaded { backend, model, device, driver })
 }
 
@@ -173,14 +190,25 @@ fn provider_id(driver: String) -> ProviderId {
     ProviderId {
         id: "llama.cpp".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-        runtime_version: format!("llama.cpp through llama-cpp-2 0.1.156{}", if cfg!(feature = "cuda") { ", CUDA backend" } else { "" }),
+        runtime_version: format!(
+            "llama.cpp through llama-cpp-2 0.1.156{}",
+            if cfg!(feature = "cuda") { ", CUDA backend" } else { "" }
+        ),
         driver_version: driver,
     }
 }
 
-fn generate(common: &Common, gguf: &std::path::Path, turbo_receipt: &std::path::Path, new_tokens: u32, prompt: &str) -> Result<Receipt, String> {
-    let turbo: Receipt = serde_json::from_str(&std::fs::read_to_string(turbo_receipt).map_err(|e| format!("{}: {e}", turbo_receipt.display()))?)
-        .map_err(|e| format!("{}: {e}", turbo_receipt.display()))?;
+fn generate(
+    common: &Common,
+    gguf: &std::path::Path,
+    turbo_receipt: &std::path::Path,
+    new_tokens: u32,
+    prompt: &str,
+) -> Result<Receipt, String> {
+    let turbo: Receipt = serde_json::from_str(
+        &std::fs::read_to_string(turbo_receipt).map_err(|e| format!("{}: {e}", turbo_receipt.display()))?,
+    )
+    .map_err(|e| format!("{}: {e}", turbo_receipt.display()))?;
     let bundle: BundleId = turbo.bundle.clone();
     let l = load(common, gguf)?;
     let template = l.model.chat_template(None).map_err(|e| format!("the GGUF carries no chat template: {e}"))?;
@@ -212,7 +240,10 @@ fn generate(common: &Common, gguf: &std::path::Path, turbo_receipt: &std::path::
     let mut totals = Vec::new();
     let mut generated = Vec::new();
     for i in 0..(common.warmup as u64 + common.iters as u64) {
-        let mut sampler = LlamaSampler::chain(vec![LlamaSampler::logit_bias(l.model.n_vocab(), &biases), LlamaSampler::greedy()], false);
+        let mut sampler = LlamaSampler::chain(
+            vec![LlamaSampler::logit_bias(l.model.n_vocab(), &biases), LlamaSampler::greedy()],
+            false,
+        );
         let t0 = Instant::now();
         ctx.clear_kv_cache();
         batch.clear();
@@ -293,8 +324,9 @@ fn generate(common: &Common, gguf: &std::path::Path, turbo_receipt: &std::path::
 }
 
 fn embed(common: &Common, tokens: &std::path::Path) -> Result<Receipt, String> {
-    let dump: TokenDump = serde_json::from_str(&std::fs::read_to_string(tokens).map_err(|e| format!("{}: {e}", tokens.display()))?)
-        .map_err(|e| format!("{}: {e}", tokens.display()))?;
+    let dump: TokenDump =
+        serde_json::from_str(&std::fs::read_to_string(tokens).map_err(|e| format!("{}: {e}", tokens.display()))?)
+            .map_err(|e| format!("{}: {e}", tokens.display()))?;
     let gguf = dump.artifacts.get("gguf").ok_or("the token dump names no `gguf` artifact")?;
     let pooling = match dump.pooling.as_str() {
         "mean" => LlamaPoolingType::Mean,
@@ -311,16 +343,21 @@ fn embed(common: &Common, tokens: &std::path::Path) -> Result<Receipt, String> {
     let mut cells = Vec::new();
     for cell in &dump.cells {
         let (b, s) = (cell.batch as usize, cell.seq as usize);
-        let rows: Vec<Vec<llama_cpp_2::token::LlamaToken>> = cell
-            .texts
-            .iter()
-            .map(|t| l.model.str_to_token(t, AddBos::Always).map_err(|e| format!("tokenize: {e}")))
-            .collect::<Result<_, _>>()?;
-        let rows: Vec<Vec<_>> = rows.into_iter().map(|mut r| {
-            r.truncate(s);
-            r
-        }).collect();
-        let n_tokens: usize = rows.iter().map(Vec::len).sum();
+        // Tokenization is part of the timed path, as it is in the provider's
+        // text path (a GGUF bundle has no core tokenizer, so libturbo hands
+        // the provider the text). The rows are tokenized once here for the
+        // token count and the batch size, and again inside every run.
+        let tokenize = |texts: &[String]| -> Result<Vec<Vec<llama_cpp_2::token::LlamaToken>>, String> {
+            texts
+                .iter()
+                .map(|t| {
+                    let mut r = l.model.str_to_token(t, AddBos::Always).map_err(|e| format!("tokenize: {e}"))?;
+                    r.truncate(s);
+                    Ok(r)
+                })
+                .collect()
+        };
+        let n_tokens: usize = tokenize(&cell.texts)?.iter().map(Vec::len).sum();
         let n_ctx = (b * s) as u32;
         let params = LlamaContextParams::default()
             .with_n_ctx(NonZeroU32::new(n_ctx))
@@ -333,6 +370,7 @@ fn embed(common: &Common, tokens: &std::path::Path) -> Result<Receipt, String> {
         let mut batch = LlamaBatch::new(n_tokens.max(1), b as i32);
         let mut out = vec![0f32; b * l.model.n_embd() as usize];
         let mut run_once = |ctx: &mut llama_cpp_2::context::LlamaContext<'_>| -> Result<(), String> {
+            let rows = tokenize(&cell.texts)?;
             ctx.clear_kv_cache();
             batch.clear();
             for (r, row) in rows.iter().enumerate() {
@@ -357,9 +395,7 @@ fn embed(common: &Common, tokens: &std::path::Path) -> Result<Receipt, String> {
             }
             Ok(())
         };
-        for _ in 0..common.warmup {
-            run_once(&mut ctx)?;
-        }
+        warm_up(common.warmup, || run_once(&mut ctx))?;
         let mut samples = Vec::with_capacity(common.iters as usize);
         for _ in 0..common.iters {
             let t0 = Instant::now();
@@ -375,7 +411,7 @@ fn embed(common: &Common, tokens: &std::path::Path) -> Result<Receipt, String> {
             token_count_source: "tokenizer".to_string(),
             text_path: lat,
             prepared_tokens_path: None,
-            prepared_tokens_note: "llama.cpp tokenizes inside the timed path, as the ggml provider does".to_string(),
+            prepared_tokens_note: "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does".to_string(),
             per_run: PerRun { h2d_bytes: None, d2h_bytes: None, host_allocs: None, provider_allocs: None },
         });
     }

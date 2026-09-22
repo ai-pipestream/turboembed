@@ -255,7 +255,10 @@ int main(int argc, char **argv) {
                 }
             }
         };
-        for (unsigned i = 0; i < o.warmup; ++i) {
+        // At least o.warmup iterations and at least 0.5 s, as turbo-bench
+        // warms up, so the device leaves its idle clock state first.
+        const auto w0 = clock_type::now();
+        for (unsigned i = 0; i < o.warmup || clock_type::now() - w0 < std::chrono::milliseconds(500); ++i) {
             run_once();
         }
         std::vector<double> samples;

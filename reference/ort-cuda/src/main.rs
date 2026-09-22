@@ -23,7 +23,7 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::session::Session;
 use ort::value::Tensor;
 use turbo_bench::receipt::{
-    commit, machine, run_cmd, summarize, today, Device, EmbedCell, PerRun, ProviderId, Receipt, TokenDump,
+    commit, machine, run_cmd, summarize, today, warm_up, Device, EmbedCell, PerRun, ProviderId, Receipt, TokenDump,
 };
 
 #[derive(Parser)]
@@ -82,10 +82,9 @@ fn main() -> ExitCode {
 fn run(cli: &Cli) -> Result<Receipt, String> {
     let text = std::fs::read_to_string(&cli.tokens).map_err(|e| format!("{}: {e}", cli.tokens.display()))?;
     let dump: TokenDump = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", cli.tokens.display()))?;
-    let onnx = dump
-        .artifacts
-        .get("onnx")
-        .ok_or_else(|| format!("the token dump names no `onnx` artifact; artifacts: {:?}", dump.artifacts.keys().collect::<Vec<_>>()))?;
+    let onnx = dump.artifacts.get("onnx").ok_or_else(|| {
+        format!("the token dump names no `onnx` artifact; artifacts: {:?}", dump.artifacts.keys().collect::<Vec<_>>())
+    })?;
     let pooling = dump.pooling.as_str();
     if pooling != "mean" && pooling != "cls" {
         return Err(format!("pooling `{pooling}` is not implemented by this reference (mean, cls)"));
@@ -98,11 +97,19 @@ fn run(cli: &Cli) -> Result<Receipt, String> {
 
     // The GPU as the driver names it, so the receipt's device matches the
     // libturbo receipt's before its "(sm_xy)" suffix.
-    let smi = run_cmd("nvidia-smi", &["--query-gpu=name,driver_version,memory.total", "--format=csv,noheader,nounits", &format!("--id={}", cli.device)])?;
+    let smi = run_cmd(
+        "nvidia-smi",
+        &[
+            "--query-gpu=name,driver_version,memory.total",
+            "--format=csv,noheader,nounits",
+            &format!("--id={}", cli.device),
+        ],
+    )?;
     let mut fields = smi.split(',').map(str::trim);
     let gpu_name = fields.next().unwrap_or("").to_string();
     let driver = fields.next().unwrap_or("").to_string();
-    let memory_mib: u64 = fields.next().unwrap_or("0").parse().map_err(|e| format!("nvidia-smi memory.total `{smi}`: {e}"))?;
+    let memory_mib: u64 =
+        fields.next().unwrap_or("0").parse().map_err(|e| format!("nvidia-smi memory.total `{smi}`: {e}"))?;
 
     let ep = ort::ep::CUDA::default().with_device_id(cli.device);
     let mut session = Session::builder()
@@ -120,11 +127,7 @@ fn run(cli: &Cli) -> Result<Receipt, String> {
         }
     }
     let wants_types = input_names.iter().any(|n| n == "token_type_ids");
-    let output_name = session
-        .outputs()
-        .first()
-        .map(|o| o.name().to_string())
-        .ok_or("model has no outputs")?;
+    let output_name = session.outputs().first().map(|o| o.name().to_string()).ok_or("model has no outputs")?;
 
     let mut cells = Vec::new();
     for cell in &dump.cells {
@@ -149,9 +152,12 @@ fn run(cli: &Cli) -> Result<Receipt, String> {
                     .run(ort::inputs!["input_ids" => t_ids, "attention_mask" => t_mask, "token_type_ids" => t_types])
                     .map_err(|e| format!("run: {e}"))?
             } else {
-                session.run(ort::inputs!["input_ids" => t_ids, "attention_mask" => t_mask]).map_err(|e| format!("run: {e}"))?
+                session
+                    .run(ort::inputs!["input_ids" => t_ids, "attention_mask" => t_mask])
+                    .map_err(|e| format!("run: {e}"))?
             };
-            let (oshape, hidden) = outputs[output_name.as_str()].try_extract_tensor::<f32>().map_err(|e| format!("output: {e}"))?;
+            let (oshape, hidden) =
+                outputs[output_name.as_str()].try_extract_tensor::<f32>().map_err(|e| format!("output: {e}"))?;
             let dims: Vec<i64> = oshape.iter().copied().collect();
             if dims.len() != 3 || dims[0] as usize != b || dims[1] as usize != s {
                 return Err(format!("output shape {dims:?} is not [{b}, {s}, hidden]"));
@@ -191,9 +197,7 @@ fn run(cli: &Cli) -> Result<Receipt, String> {
             }
             Ok(())
         };
-        for _ in 0..cli.warmup {
-            run_once(&mut session)?;
-        }
+        warm_up(cli.warmup, || run_once(&mut session))?;
         let mut samples: Vec<Duration> = Vec::with_capacity(cli.iters as usize);
         for _ in 0..cli.iters {
             let t0 = Instant::now();

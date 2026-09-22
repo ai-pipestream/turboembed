@@ -1,0 +1,125 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "testdata/receipts/turbo/bench/ggml-krick-gpu-embed-2026-09-22b.json",
+    "commit": "804321e54d642970ac2866e674bbb5ca3d946136-dirty",
+    "provider": {
+      "id": "ggml",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "llama.cpp (llama-cpp-2 0.1.156)",
+      "driver_version": ""
+    },
+    "device": {
+      "name": "NVIDIA GeForce RTX 4080 SUPER (CUDA0)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0xff9002f00c0",
+      "memory_total": 16717119488
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "testdata/receipts/turbo/bench/native-llama-cpp-krick-gpu-embed-2026-09-22b.json",
+    "commit": "804321e54d642970ac2866e674bbb5ca3d946136-dirty",
+    "provider": {
+      "id": "llama.cpp",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "llama.cpp through llama-cpp-2 0.1.156, CUDA backend",
+      "driver_version": "595.84"
+    },
+    "device": {
+      "name": "NVIDIA GeForce RTX 4080 SUPER",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 17171480576
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "/home/krickert/opt/bundles/minilm-gguf",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9cb7ca35fa56d3f08c15d6f0e531fc88ddf5f0b178cac3d5c39ebf55f3119cc2",
+    "artifacts": {
+      "gguf": "797b70c4edf85907fe0a49eb85811256f65fa0f7bf52166b147fd16be2be4662"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "embed 1x32",
+      "measure": "text p50 ms",
+      "turbo": 0.413472,
+      "native": 0.409714,
+      "ratio": 0.9909111136908908,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x32",
+      "measure": "text p50 ms",
+      "turbo": 0.770296,
+      "native": 0.7657970000000001,
+      "ratio": 0.9941593880793878,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x32",
+      "measure": "text p50 ms",
+      "turbo": 3.235915,
+      "native": 3.2846070000000003,
+      "ratio": 1.015047366818968,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x128",
+      "measure": "text p50 ms",
+      "turbo": 0.609552,
+      "native": 0.6080490000000001,
+      "ratio": 0.9975342546657219,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x128",
+      "measure": "text p50 ms",
+      "turbo": 3.803027,
+      "native": 3.869322,
+      "ratio": 1.0174321665347104,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x128",
+      "measure": "text p50 ms",
+      "turbo": 51.270081000000005,
+      "native": 51.330175,
+      "ratio": 1.001172106593707,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x256",
+      "measure": "text p50 ms",
+      "turbo": 0.791927,
+      "native": 0.790714,
+      "ratio": 0.998468293163385,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x256",
+      "measure": "text p50 ms",
+      "turbo": 14.091962,
+      "native": 13.792064,
+      "ratio": 0.9787185063371587,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x256",
+      "measure": "text p50 ms",
+      "turbo": 101.953103,
+      "native": 194.121846,
+      "ratio": 1.904030777758672,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "verdict": "SUPPORTED"
+}

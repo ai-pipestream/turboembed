@@ -849,9 +849,15 @@ metal embeddings on the M2 (1.00x of the kernels run directly)
 SUPPORTED. Under the floor and recorded as such: openvino on the Ryzen
 CPU (0.91x on the 8x32, 8x128, 32x32 and 8x256 cells; the fused
 pooling subgraph costs more on the CPU plugin than host pooling, to be
-measured) and ggml GGUF embeddings on the GPU (0.94x on 1x32 and 8x128,
-about 30 us of per-call cost around a 0.4 ms decode: the result object
-and the copy into the result buffer are the suspects).
+measured). ggml GGUF embeddings on the GPU first read 0.94x on 1x32
+and 8x128; both causes were in the protocol, not the provider: the
+llama.cpp reference tokenized outside its timed loop while the
+provider's text path tokenizes inside it, and a warm-up counted in
+iterations left the first cells of a run on a GPU still raising its
+clocks. With the reference tokenizing in the loop and a warm-up of at
+least 0.5 s on both sides (`turbo_bench::receipt::warm_up`), the pair
+is 0.98x to 1.90x, SUPPORTED
+(`compare-ggml-krick-gpu-embed-2026-09-22b.json`).
 
 ## 12. Risks and defaults chosen
 

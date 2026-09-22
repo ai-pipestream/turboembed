@@ -433,7 +433,10 @@ int main(int argc, char **argv) {
                 // user copies it out of the shared buffer.
                 std::memcpy(host_out.data(), out.contents, host_out.size() * 4);
             };
-            for (unsigned i = 0; i < o.warmup; ++i) {
+            // At least o.warmup iterations and at least 0.5 s, as turbo-bench
+            // warms up, so the GPU leaves its idle clock state first.
+            const auto w0 = std::chrono::steady_clock::now();
+            for (unsigned i = 0; i < o.warmup || std::chrono::steady_clock::now() - w0 < std::chrono::milliseconds(500); ++i) {
                 run_once();
             }
             std::vector<double> samples;
