@@ -215,7 +215,10 @@ and the bindings' `offered` mirrors of it). The mock provider reports
 task on `TEXT` modality on its two devices (ordinal 0 = CPU, ordinal 1 =
 Accel) except `CHUNK`, which is `PLANNED` because chunking is a host utility
 (`turbo_chunk_plan_*`) with no device path, and `UNSUPPORTED` for every
-other modality or ordinal (`MockProvider::capability`). This is honest for the mock because its
+other modality or ordinal (`MockProvider::capability`). The two devices
+differ in one capability bit: the CPU device does not advertise
+`OPT_TOP_N`, so the suite has a device on which the `top_n` and
+`return_sorted` refusals actually run (`MOCK_CPU_CAPS`). This is honest for the mock because its
 outputs are a pure, deterministic function of the input, not because
 `SUPPORTED` is a default: the mock also applies the bundle's declared
 `contract.activation` to rerank and classify scores (softmax, sigmoid, or

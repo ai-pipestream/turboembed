@@ -76,6 +76,19 @@ pub const MOCK_CAPS: u64 = abi::TURBO_CAP_HOST_PTR_IMPORT
     | abi::TURBO_CAP_OPT_GEN_MIN_TOKENS
     | abi::TURBO_CAP_OPT_GEN_ECHO;
 
+/// Capability bits the mock's CPU device (ordinal 0) honors: [`MOCK_CAPS`]
+/// without `TURBO_CAP_OPT_TOP_N`.
+///
+/// The CPU device is the one that does not sort, so the `return_sorted` and
+/// `top_n` refusals have a device to run on. Every other device in this tree
+/// that offers RERANK advertises the bit, which left the refusal branch of a
+/// shared capability bit, and the field index each option reports in it,
+/// asserted by nothing (`honesty_return_sorted_names_its_own_field` in
+/// `crates/turbo-conformance/tests/honesty_rust.rs`). It is also the honest
+/// shape for the pair: sorting and truncating a result is post-processing
+/// the accelerator path does and the plain host path does not.
+pub const MOCK_CPU_CAPS: u64 = MOCK_CAPS & !abi::TURBO_CAP_OPT_TOP_N;
+
 /// The one provider option the mock accepts, on a context, a model, or a
 /// session descriptor.
 ///
@@ -224,15 +237,15 @@ impl MockProvider {
     }
 
     fn device(ordinal: u32) -> DeviceInfo {
-        let (kind, name) = match ordinal {
-            0 => (DeviceKind::Cpu, "Mock CPU"),
-            _ => (DeviceKind::Accel, "Mock accelerator"),
+        let (kind, name, caps) = match ordinal {
+            0 => (DeviceKind::Cpu, "Mock CPU", MOCK_CPU_CAPS),
+            _ => (DeviceKind::Accel, "Mock accelerator", MOCK_CAPS),
         };
         DeviceInfo {
             kind,
             ordinal,
             vendor_id: 0,
-            caps: MOCK_CAPS,
+            caps,
             memory_total: 0,
             memory_free: 0,
             name: name.to_string(),

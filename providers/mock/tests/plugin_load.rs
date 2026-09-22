@@ -117,7 +117,15 @@ fn plugin_rerank_classify_and_generic_run() {
     let tmp = tempfile::tempdir().unwrap();
     let rt = runtime_with_plugin();
     let idx = rt
-        .select(&DeviceSelector { policy: SelectPolicy::Explicit, provider_id: "mock".into(), ..Default::default() })
+        // Ordinal 1, the accelerator: the mock's CPU device does not
+        // advertise TURBO_CAP_OPT_TOP_N (`MOCK_CPU_CAPS`), and this case
+        // reranks with `top_n` and `return_sorted`.
+        .select(&DeviceSelector {
+            policy: SelectPolicy::Explicit,
+            provider_id: "mock".into(),
+            ordinal: 1,
+            ..Default::default()
+        })
         .unwrap();
     let ctx = Context::create(rt, idx, &ContextDesc::default()).unwrap();
 

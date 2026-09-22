@@ -352,6 +352,11 @@ The six providers in this tree (`crates/turbo-core/src/mock.rs`
 `providers/cuda/src/lib.rs` `CUDA_CAPS`, `providers/ggml/src/lib.rs`
 `GGML_CAPS`, `providers/hailo/src/provider.cpp` `kCaps`):
 
+The `mock` column is its accelerator (ordinal 1), which is the device the
+conformance suite runs on. Its CPU device (ordinal 0) is `MOCK_CPU_CAPS`,
+the same set without `OPT_TOP_N`: the CPU device is the one that does not
+sort, so the `top_n` and `return_sorted` refusals have a device to run on.
+
 | bit | mock | static | openvino (GPU/iGPU) | openvino (CPU) | cuda | ggml | hailo |
 |---|---|---|---|---|---|---|---|
 | `HOST_PTR_IMPORT` | yes | yes | yes | yes | yes | no | yes |

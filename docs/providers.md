@@ -71,7 +71,10 @@ section 2, item 4). On OpenVINO, GPU device ordinals come first (`GPU.0`,
 matrix for all six; in outline: `mock` (`MOCK_CAPS`,
 `crates/turbo-core/src/mock.rs`) sets the most bits, including every
 `GENERATE` option bit it offers and `OPT_NORMALIZE`/`OPT_RAW_SCORES`, but
-not `DEVICE_RESULT`, `OPT_POOLING_OVERRIDE`, or `OPT_OUTPUT_DTYPE`. `static`
+not `DEVICE_RESULT`, `OPT_POOLING_OVERRIDE`, or `OPT_OUTPUT_DTYPE`; its CPU
+device (ordinal 0) drops `OPT_TOP_N` from that set (`MOCK_CPU_CAPS`), so a
+`top_n` or `return_sorted` request there is refused by field instead of
+served. `static`
 (`STATIC_CAPS`, `providers/static/src/lib.rs`) sets only the `EMBED`-relevant
 bits it needs for its one capability cell (no
 `OPT_TOP_N`/`OPT_AGGREGATION`/`OPT_RAW_SCORES`, since it offers neither
