@@ -1,0 +1,27 @@
+[package]
+name = "turbo-reference-ort-cuda"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Direct-native reference for the cuda provider: ONNX Runtime's CUDA execution provider alone, on the token rows turbo-bench dumped"
+publish = false
+
+[[bin]]
+name = "reference-ort-cuda"
+path = "src/main.rs"
+
+[features]
+default = ["download"]
+# The same ONNX Runtime binaries the cuda provider fetches.
+download = ["ort/download-binaries", "ort/tls-native"]
+
+[dependencies]
+turbo-bench = { path = "../../crates/turbo-bench" }
+serde_json.workspace = true
+clap = { version = "4", features = ["derive"] }
+# The same crate and version the cuda provider links; the reference calls
+# it directly with no libturbo in between.
+ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "cuda", "copy-dylibs"] }

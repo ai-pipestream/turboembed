@@ -1,0 +1,125 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "/tmp/tb/ov-gpu-turbo.json",
+    "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8",
+    "provider": {
+      "id": "openvino",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+      "driver_version": "26.05.037020"
+    },
+    "device": {
+      "name": "Intel(R) Graphics [0xe223] (dGPU) (GPU)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x1870406",
+      "memory_total": 32530182144
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "/tmp/tb/ov-gpu-native.json",
+    "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8",
+    "provider": {
+      "id": "openvino",
+      "version": "reference",
+      "runtime_version": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3 C++ API",
+      "driver_version": ""
+    },
+    "device": {
+      "name": "Intel(R) Graphics [0xe223] (dGPU)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 0
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "/home/krickert/turbo-p2/minilm-onnx",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
+    "artifacts": {
+      "onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "embed 1x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.441015,
+      "native": 0.550762,
+      "ratio": 1.248850946112944,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.707539,
+      "native": 0.910133,
+      "ratio": 1.2863361595615224,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 1.614886,
+      "native": 1.857916,
+      "ratio": 1.150493595213532,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.600526,
+      "native": 0.847934,
+      "ratio": 1.4119854927180504,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 1.726447,
+      "native": 2.275086,
+      "ratio": 1.3177850232297892,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 7.257825,
+      "native": 8.704964,
+      "ratio": 1.1993901754313447,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.846182,
+      "native": 1.313065,
+      "ratio": 1.5517524598726986,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 4.491119,
+      "native": 5.959378,
+      "ratio": 1.3269249823930294,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 17.407843999999997,
+      "native": 22.388711,
+      "ratio": 1.2861277364388148,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "verdict": "SUPPORTED"
+}

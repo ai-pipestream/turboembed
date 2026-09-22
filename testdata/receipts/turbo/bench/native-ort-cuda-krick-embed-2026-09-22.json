@@ -1,0 +1,287 @@
+{
+  "receipt_version": 1,
+  "kind": "native",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "krick",
+    "os": "Linux 7.0.0-31-generic",
+    "arch": "x86_64"
+  },
+  "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8-dirty",
+  "provider": {
+    "id": "onnxruntime-cuda",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "ONNX Runtime ORT Build Info: git-branch=rel-1.28.0, git-commit-id=da9b5e3, quick-build=1, build type=Release (ort 2.0.0-rc.13), CUDA execution provider",
+    "driver_version": "595.84"
+  },
+  "device": {
+    "name": "NVIDIA GeForce RTX 4080 SUPER",
+    "kind": "Gpu",
+    "ordinal": 0,
+    "caps": "0x0",
+    "memory_total": 17171480576
+  },
+  "bundle": {
+    "dir": "/home/krickert/opt/bundles/minilm-onnx",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
+    "artifacts": {
+      "onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    }
+  },
+  "embed": [
+    {
+      "batch": 1,
+      "seq": 32,
+      "live_tokens_per_row": 21.0,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 0.537255,
+        "mean_ms": 0.5570269666666667,
+        "min_ms": 0.528218,
+        "max_ms": 0.6270950000000001,
+        "rows_per_s": 1795.2452212217852,
+        "tokens_per_s": 37700.14964565749,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 0.537255,
+        "mean_ms": 0.5570269666666667,
+        "min_ms": 0.528218,
+        "max_ms": 0.6270950000000001,
+        "rows_per_s": 1795.2452212217852,
+        "tokens_per_s": 37700.14964565749,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 32,
+      "live_tokens_per_row": 26.0,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 1.064071,
+        "mean_ms": 1.0658338333333335,
+        "min_ms": 1.055495,
+        "max_ms": 1.122682,
+        "rows_per_s": 7505.860435092836,
+        "tokens_per_s": 195152.37131241374,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 1.064071,
+        "mean_ms": 1.0658338333333335,
+        "min_ms": 1.055495,
+        "max_ms": 1.122682,
+        "rows_per_s": 7505.860435092836,
+        "tokens_per_s": 195152.37131241374,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 32,
+      "live_tokens_per_row": 24.8125,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 2.941188,
+        "mean_ms": 2.9423156666666674,
+        "min_ms": 2.852471,
+        "max_ms": 3.43968,
+        "rows_per_s": 10875.78751747348,
+        "tokens_per_s": 269855.4777773107,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 2.941188,
+        "mean_ms": 2.9423156666666674,
+        "min_ms": 2.852471,
+        "max_ms": 3.43968,
+        "rows_per_s": 10875.78751747348,
+        "tokens_per_s": 269855.4777773107,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 1,
+      "seq": 128,
+      "live_tokens_per_row": 122.0,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 0.7739630000000001,
+        "mean_ms": 0.7745863999999999,
+        "min_ms": 0.76696,
+        "max_ms": 0.7898430000000001,
+        "rows_per_s": 1291.011564365189,
+        "tokens_per_s": 157503.4108525531,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 0.7739630000000001,
+        "mean_ms": 0.7745863999999999,
+        "min_ms": 0.76696,
+        "max_ms": 0.7898430000000001,
+        "rows_per_s": 1291.011564365189,
+        "tokens_per_s": 157503.4108525531,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 128,
+      "live_tokens_per_row": 116.5,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 3.08509,
+        "mean_ms": 3.0861042666666663,
+        "min_ms": 3.019406,
+        "max_ms": 3.538507,
+        "rows_per_s": 2592.2649751043195,
+        "tokens_per_s": 301998.86959965323,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 3.08509,
+        "mean_ms": 3.0861042666666663,
+        "min_ms": 3.019406,
+        "max_ms": 3.538507,
+        "rows_per_s": 2592.2649751043195,
+        "tokens_per_s": 301998.86959965323,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 128,
+      "live_tokens_per_row": 118.0625,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 10.951275,
+        "mean_ms": 11.1009198,
+        "min_ms": 10.880502,
+        "max_ms": 12.476657000000001,
+        "rows_per_s": 2882.644012976294,
+        "tokens_per_s": 340332.15878201375,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 10.951275,
+        "mean_ms": 11.1009198,
+        "min_ms": 10.880502,
+        "max_ms": 12.476657000000001,
+        "rows_per_s": 2882.644012976294,
+        "tokens_per_s": 340332.15878201375,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 1,
+      "seq": 256,
+      "live_tokens_per_row": 235.0,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 1.124285,
+        "mean_ms": 1.1507048333333334,
+        "min_ms": 1.1175519999999999,
+        "max_ms": 1.596677,
+        "rows_per_s": 869.0325885772329,
+        "tokens_per_s": 204222.65831564972,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 1.124285,
+        "mean_ms": 1.1507048333333334,
+        "min_ms": 1.1175519999999999,
+        "max_ms": 1.596677,
+        "rows_per_s": 869.0325885772329,
+        "tokens_per_s": 204222.65831564972,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 256,
+      "live_tokens_per_row": 236.125,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 6.025938,
+        "mean_ms": 6.1116678,
+        "min_ms": 5.846278,
+        "max_ms": 7.247867,
+        "rows_per_s": 1308.9716689117165,
+        "tokens_per_s": 309080.93532177905,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 6.025938,
+        "mean_ms": 6.1116678,
+        "min_ms": 5.846278,
+        "max_ms": 7.247867,
+        "rows_per_s": 1308.9716689117165,
+        "tokens_per_s": 309080.93532177905,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 256,
+      "live_tokens_per_row": 235.625,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 27.472656,
+        "mean_ms": 27.495418399999995,
+        "min_ms": 26.205672,
+        "max_ms": 28.678835,
+        "rows_per_s": 1163.8302619901215,
+        "tokens_per_s": 274227.50548142235,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 27.472656,
+        "mean_ms": 27.495418399999995,
+        "min_ms": 26.205672,
+        "max_ms": 28.678835,
+        "rows_per_s": 1163.8302619901215,
+        "tokens_per_s": 274227.50548142235,
+        "iters": 30
+      },
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    }
+  ],
+  "native_reference": "this is the native side: ONNX Runtime CUDA through the ort crate on the token rows of /tmp/claude-1000/-work-worktrees-turboembed/32be1853-4e14-49de-84fd-dfd8ed203e3a/scratchpad/minilm-tokens.json; bundle identity copied from that dump; host-side mean pooling and l2 normalization; no session counters"
+}

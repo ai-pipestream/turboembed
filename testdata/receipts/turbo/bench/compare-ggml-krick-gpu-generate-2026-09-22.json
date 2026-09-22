@@ -1,0 +1,69 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "/tmp/claude-1000/-work-worktrees-turboembed/32be1853-4e14-49de-84fd-dfd8ed203e3a/scratchpad/ggml-gen-turbo.json",
+    "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8-dirty",
+    "provider": {
+      "id": "ggml",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "llama.cpp (llama-cpp-2 0.1.156)",
+      "driver_version": ""
+    },
+    "device": {
+      "name": "NVIDIA GeForce RTX 4080 SUPER (CUDA0)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0xff9002f00c0",
+      "memory_total": 16717119488
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "/tmp/claude-1000/-work-worktrees-turboembed/32be1853-4e14-49de-84fd-dfd8ed203e3a/scratchpad/ggml-gen-native.json",
+    "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8-dirty",
+    "provider": {
+      "id": "llama.cpp",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "llama.cpp through llama-cpp-2 0.1.156, CUDA backend",
+      "driver_version": "595.84"
+    },
+    "device": {
+      "name": "NVIDIA GeForce RTX 4080 SUPER",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 17171480576
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "/home/krickert/opt/bundles/qwen05-gguf",
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+    "manifest_sha256": "9d0338585acf9cab9b983f01e371269d03f5ffdbae9716699a53429db72974f6",
+    "artifacts": {
+      "gguf": "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "generate 128",
+      "measure": "total p50 ms",
+      "turbo": 208.761781,
+      "native": 207.680529,
+      "ratio": 0.9948206420024746,
+      "within_floor": true
+    },
+    {
+      "cell": "generate 128",
+      "measure": "decode tokens/s",
+      "turbo": 626.0293006162336,
+      "native": 623.0611239299532,
+      "ratio": 1.004763861156284,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "verdict": "SUPPORTED"
+}

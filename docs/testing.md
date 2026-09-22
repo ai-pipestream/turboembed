@@ -138,9 +138,15 @@ discover` surveys a machine: every device with its features and
 task-by-modality capability cells, and which of the named bundles it can
 run. Benchmark receipts live under `testdata/receipts/turbo/bench/`
 (2026-09-21: OpenVINO CPU and GPU, CUDA, ggml CUDA and CPU on `krick`;
-Hailo-8 on `pi5ai1`). The direct-native reference program of each pair is
-still to be written, which is why `openvino`, `cuda`, `ggml`, and `hailo`
-stay `EXPERIMENTAL` rather than `SUPPORTED`.
+Hailo-8 on `pi5ai1`; 2026-09-22: the matched pairs). The native side of
+each pair is a program under `reference/` (`reference/README.md`): it
+runs the token rows `turbo-bench embed --dump-tokens` wrote through the
+runtime alone, and `turbo-bench compare` writes the per-cell ratio and
+the verdict (`compare-*.json`, SUPPORTED at 0.95 of native on every
+cell). SUPPORTED so far: cuda embeddings on the 4080, openvino
+embeddings on the B70, ggml generation on the 4080, hailo embeddings on
+the Hailo-8, metal embeddings on the M2; EXPERIMENTAL with a comparison
+receipt: openvino on the CPU, ggml embeddings on the GPU.
 
 ## Live provider tests
 

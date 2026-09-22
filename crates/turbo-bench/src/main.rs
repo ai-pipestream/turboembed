@@ -45,12 +45,13 @@
 #![deny(missing_docs)]
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
+use turbo_bench::receipt::*;
 use turbo::bundle::Bundle;
 use turbo::provider::{EmbedOptions, GenerateDesc, Message, ModelDesc, RerankOptions, SessionDesc, TokenBatch};
 use turbo::tokenizer::{EncodeOptions, EncodeTarget, Tokenizer};
@@ -121,6 +122,27 @@ enum Cmd {
         /// Sequence lengths; each must be within the model's max_seq.
         #[arg(long, value_delimiter = ',', default_value = "32,128,256", value_parser = clap::value_parser!(u32).range(2..))]
         seqs: Vec<u32>,
+        /// Write the texts and token rows of every cell to this JSON file,
+        /// for a direct-native reference program to run the same ids.
+        #[arg(long)]
+        dump_tokens: Option<PathBuf>,
+    },
+    /// Compare a `libturbo` receipt with the direct-native receipt of the
+    /// same bundle on the same device, cell by cell.
+    Compare {
+        /// The receipt `turbo-bench embed|rerank|generate` wrote.
+        #[arg(long)]
+        turbo: PathBuf,
+        /// The receipt the reference program wrote (kind `native`).
+        #[arg(long)]
+        native: PathBuf,
+        /// Comparison receipt to write (JSON).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// The throughput fraction of native that `libturbo` must reach on
+        /// every cell for the SUPPORTED verdict.
+        #[arg(long, default_value_t = 0.95)]
+        floor: f64,
     },
     /// Rerank one query against `docs` documents.
     Rerank {
@@ -168,235 +190,6 @@ enum Cmd {
     },
 }
 
-// ---------------------------------------------------------------------------
-// Receipt
-// ---------------------------------------------------------------------------
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Latency {
-    p50_ms: f64,
-    /// Nearest-rank p99; absent below 100 samples, where it would be the
-    /// single worst sample.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    p99_ms: Option<f64>,
-    mean_ms: f64,
-    min_ms: f64,
-    max_ms: f64,
-    rows_per_s: f64,
-    /// Absent when the tokens were not counted by a tokenizer (word
-    /// estimates, or a rerank cell, which has no token count).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tokens_per_s: Option<f64>,
-    iters: u32,
-}
-
-/// Session counters averaged over the timed runs (a counter that moved
-/// less than once per run still shows as a fraction, never as zero).
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct PerRun {
-    h2d_bytes: f64,
-    d2h_bytes: f64,
-    host_allocs: Option<f64>,
-    provider_allocs: Option<f64>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct EmbedCell {
-    batch: u32,
-    seq: u32,
-    /// Live tokens per row; how they were counted is `token_count_source`.
-    live_tokens_per_row: f64,
-    /// `tokenizer` (the bundle's, exact) or `word-estimate` (words / 0.75 + 2).
-    #[serde(default = "default_token_count_source")]
-    token_count_source: String,
-    text_path: Latency,
-    /// Absent when the bundle has no Hugging Face tokenizer for the core to
-    /// encode with; the reason is in `prepared_tokens_note`.
-    prepared_tokens_path: Option<Latency>,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    prepared_tokens_note: String,
-    per_run: PerRun,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct RerankCell {
-    docs: u32,
-    seq: u32,
-    text_path: Latency,
-    per_run: PerRun,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct GenerateCell {
-    new_tokens_requested: u32,
-    generated_tokens_mean: f64,
-    prompt_tokens: u32,
-    /// From prompt submission (the prefill included) to the first chunk
-    /// with a token.
-    time_to_first_token_ms_p50: f64,
-    /// Tokens after the first chunk over the time after it; absent when no
-    /// iteration produced a second chunk.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    decode_tokens_per_s_p50: Option<f64>,
-    /// From prompt submission to the final chunk.
-    total_ms_p50: f64,
-    finish_reasons: Vec<String>,
-    iters: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Receipt {
-    receipt_version: u32,
-    kind: String,
-    date: String,
-    machine: Machine,
-    commit: String,
-    provider: ProviderId,
-    device: Device,
-    bundle: BundleId,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    embed: Vec<EmbedCell>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    rerank: Option<RerankCell>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    generate: Option<GenerateCell>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    budget_check: Option<BudgetCheck>,
-    native_reference: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Machine {
-    hostname: String,
-    os: String,
-    arch: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct ProviderId {
-    id: String,
-    version: String,
-    runtime_version: String,
-    driver_version: String,
-}
-
-fn default_token_count_source() -> String {
-    "unrecorded".to_string()
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Device {
-    name: String,
-    kind: String,
-    ordinal: u32,
-    caps: String,
-    /// Bytes, as the provider reports them (0 when it does not).
-    #[serde(default)]
-    memory_total: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct BundleId {
-    dir: String,
-    model_id: String,
-    manifest_sha256: String,
-    artifacts: std::collections::BTreeMap<String, String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct BudgetCheck {
-    budget_file: String,
-    tolerance: f64,
-    violations: Vec<String>,
-}
-
-fn run_cmd(cmd: &str, args: &[&str]) -> Result<String, String> {
-    let out = Command::new(cmd).args(args).output().map_err(|e| format!("{cmd} {}: {e}", args.join(" ")))?;
-    if !out.status.success() {
-        return Err(format!("{cmd} {} exited with {}", args.join(" "), out.status));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
-}
-
-fn machine() -> Result<Machine, String> {
-    Ok(Machine {
-        hostname: run_cmd("uname", &["-n"])?,
-        os: run_cmd("uname", &["-sr"])?,
-        arch: std::env::consts::ARCH.to_string(),
-    })
-}
-
-/// The commit a receipt names: the build's own (from build.rs) unless the
-/// run names one, and an error when neither exists. A receipt without a
-/// commit is not a measurement of anything.
-fn commit(c: &Common) -> Result<String, String> {
-    if let Some(named) = &c.commit {
-        return Ok(named.clone());
-    }
-    match option_env!("TURBO_BENCH_GIT_COMMIT") {
-        Some(built) => Ok(built.to_string()),
-        None => Err("the binary was built from a tree without git, so the receipt cannot name a commit; pass --commit <sha>".to_string()),
-    }
-}
-
-fn today() -> Result<String, String> {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| format!("the clock is before the Unix epoch: {e}"))?
-        .as_secs();
-    Ok(civil_date(secs))
-}
-
-/// The UTC civil date of an epoch second, `YYYY-MM-DD`, without a chrono
-/// dependency: days since the epoch through the era/day-of-era form of the
-/// proleptic Gregorian calendar.
-fn civil_date(secs: u64) -> String {
-    let days = (secs / 86_400) as i64;
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-    format!("{y:04}-{m:02}-{d:02}")
-}
-
-// ---------------------------------------------------------------------------
-// Timing helpers
-// ---------------------------------------------------------------------------
-
-/// Latency figures over the timed samples. `tokens` is `Some` only when a
-/// tokenizer counted them; a p99 is reported from 100 samples up.
-fn summarize(samples: &mut [Duration], rows: u64, tokens: Option<u64>) -> Result<Latency, String> {
-    if samples.is_empty() {
-        return Err("no timed samples (iters must be at least 1)".to_string());
-    }
-    samples.sort();
-    let n = samples.len();
-    let pct = |p: f64| -> f64 {
-        let idx = ((n as f64 - 1.0) * p).round() as usize;
-        samples[idx.min(n - 1)].as_secs_f64() * 1e3
-    };
-    let total: f64 = samples.iter().map(|d| d.as_secs_f64()).sum();
-    let mean = total / n as f64;
-    if !(mean > 0.0) {
-        return Err("the mean latency is zero; the clock did not advance".to_string());
-    }
-    Ok(Latency {
-        p50_ms: pct(0.5),
-        p99_ms: if n >= 100 { Some(pct(0.99)) } else { None },
-        mean_ms: mean * 1e3,
-        min_ms: samples[0].as_secs_f64() * 1e3,
-        max_ms: samples[n - 1].as_secs_f64() * 1e3,
-        rows_per_s: rows as f64 / mean,
-        tokens_per_s: tokens.map(|t| t as f64 / mean),
-        iters: n as u32,
-    })
-}
 
 /// A selected device with its context, and the identity fields a receipt needs.
 struct Target {
@@ -548,8 +341,8 @@ fn delta(a: &turbo::SessionStats, b: &turbo::SessionStats, runs: u64) -> Result<
         Ok((y - x) as f64 / runs.max(1) as f64)
     };
     Ok(PerRun {
-        h2d_bytes: per("h2d_bytes", a.h2d_bytes, b.h2d_bytes)?,
-        d2h_bytes: per("d2h_bytes", a.d2h_bytes, b.d2h_bytes)?,
+        h2d_bytes: Some(per("h2d_bytes", a.h2d_bytes, b.h2d_bytes)?),
+        d2h_bytes: Some(per("d2h_bytes", a.d2h_bytes, b.d2h_bytes)?),
         host_allocs: match (a.host_allocs, b.host_allocs) {
             (Some(x), Some(y)) => Some(per("host_allocs", x, y)?),
             _ => None,
@@ -565,7 +358,13 @@ fn delta(a: &turbo::SessionStats, b: &turbo::SessionStats, runs: u64) -> Result<
 // Embed
 // ---------------------------------------------------------------------------
 
-fn bench_embed(c: &Common, corpus_arg: &CorpusArg, batches: &[u32], seqs: &[u32]) -> Result<Receipt, String> {
+fn bench_embed(
+    c: &Common,
+    corpus_arg: &CorpusArg,
+    batches: &[u32],
+    seqs: &[u32],
+    dump_tokens: Option<&Path>,
+) -> Result<Receipt, String> {
     let t = open_target(c)?;
     let (bundle, bid) = bundle_id(&c.bundle)?;
     let (counter, tokenizer_note) = match Tokenizer::from_bundle(&bundle) {
@@ -588,6 +387,7 @@ fn bench_embed(c: &Common, corpus_arg: &CorpusArg, batches: &[u32], seqs: &[u32]
         return Err(format!("--batches {batch} exceeds the model's max_batch {}", info.max_batch));
     }
     let mut cells = Vec::new();
+    let mut dumped = Vec::new();
     for &seq in seqs {
         for &batch in batches {
             let session = model
@@ -621,6 +421,20 @@ fn bench_embed(c: &Common, corpus_arg: &CorpusArg, batches: &[u32], seqs: &[u32]
                 }
             }
             let live: u64 = lengths.iter().map(|&l| l as u64).sum();
+            if dump_tokens.is_some() {
+                // Without a core tokenizer (a GGUF bundle) the dump carries
+                // the texts and empty rows; the reference tokenizes them
+                // itself and the comparison is of the text path.
+                let counted = matches!(counter, Counter::Tokenizer(_));
+                dumped.push(TokenCell {
+                    batch,
+                    seq,
+                    texts: texts.clone(),
+                    ids: if counted { ids.clone() } else { Vec::new() },
+                    mask: if counted { mask.clone() } else { Vec::new() },
+                    lengths: lengths.clone(),
+                });
+            }
             let live_per_row = live as f64 / batch as f64;
             // Only a tokenizer's count is a token count; a word estimate is
             // labeled as such and yields no tokens/s.
@@ -675,7 +489,7 @@ fn bench_embed(c: &Common, corpus_arg: &CorpusArg, batches: &[u32], seqs: &[u32]
             let tok_s = text_path.tokens_per_s.map(|t| format!("{t:.0} tok/s")).unwrap_or_else(|| "tokens estimated".to_string());
             eprintln!(
                 "embed batch {batch:>2} seq {seq:>3}: text p50 {:.3} ms ({:.0} rows/s, {tok_s}); tokens p50 {prepared_p50}; live {:.1} tok/row; h2d {:.0} d2h {:.0} per run",
-                text_path.p50_ms, text_path.rows_per_s, live_per_row, per_run.h2d_bytes, per_run.d2h_bytes
+                text_path.p50_ms, text_path.rows_per_s, live_per_row, per_run.h2d_bytes.unwrap_or(0.0), per_run.d2h_bytes.unwrap_or(0.0)
             );
             cells.push(EmbedCell {
                 batch,
@@ -688,6 +502,25 @@ fn bench_embed(c: &Common, corpus_arg: &CorpusArg, batches: &[u32], seqs: &[u32]
                 per_run,
             });
         }
+    }
+    if let Some(path) = dump_tokens {
+        let artifacts = bundle
+            .manifest()
+            .artifacts
+            .iter()
+            .map(|(k, v)| (k.clone(), bundle.dir().join(&v.path).display().to_string()))
+            .collect();
+        let dump = TokenDump {
+            bundle: bid.dir.clone(),
+            bundle_id: bid.clone(),
+            artifacts,
+            pooling: bundle.contract().pooling.clone().unwrap_or_default(),
+            normalize: bundle.contract().normalize.clone().unwrap_or_default(),
+            cells: dumped,
+        };
+        let text = serde_json::to_string(&dump).map_err(|e| format!("token dump: {e}"))?;
+        std::fs::write(path, text).map_err(|e| format!("write {}: {e}", path.display()))?;
+        eprintln!("tokens written to {}", path.display());
     }
     receipt(c, &t, bid, cells, None, None)
 }
@@ -842,7 +675,7 @@ fn receipt(
         kind: "benchmark".to_string(),
         date: today()?,
         machine: machine()?,
-        commit: commit(c)?,
+        commit: commit(c.commit.as_deref())?,
         provider: t.provider.clone(),
         device: t.device.clone(),
         bundle,
@@ -1267,9 +1100,40 @@ fn main() -> ExitCode {
             }
         };
     }
+    if let Cmd::Compare { turbo, native, out, floor } = &cli.command {
+        return match compare(turbo, native, *floor) {
+            Ok(c) => {
+                print_compare(&c);
+                if let Some(path) = out {
+                    match serde_json::to_string_pretty(&c) {
+                        Ok(text) => {
+                            if let Err(e) = std::fs::write(path, format!("{text}\n")) {
+                                eprintln!("error: write {}: {e}", path.display());
+                                return ExitCode::from(2);
+                            }
+                            eprintln!("comparison written to {}", path.display());
+                        }
+                        Err(e) => {
+                            eprintln!("error: the comparison does not serialize: {e}");
+                            return ExitCode::from(2);
+                        }
+                    }
+                }
+                if c.verdict == "SUPPORTED" {
+                    ExitCode::SUCCESS
+                } else {
+                    ExitCode::from(1)
+                }
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
     let common = match &cli.command {
         Cmd::Embed { common, .. } | Cmd::Rerank { common, .. } | Cmd::Generate { common, .. } => common,
-        Cmd::Discover { .. } => unreachable!("handled above"),
+        Cmd::Discover { .. } | Cmd::Compare { .. } => unreachable!("handled above"),
     };
     // --tolerance means nothing without a budget, so naming one without the
     // other is an error rather than a silently ignored flag.
@@ -1285,10 +1149,12 @@ fn main() -> ExitCode {
         (_, t) => t.unwrap_or(0.25),
     };
     let result = match &cli.command {
-        Cmd::Embed { common, corpus, batches, seqs } => bench_embed(common, corpus, batches, seqs),
+        Cmd::Embed { common, corpus, batches, seqs, dump_tokens } => {
+            bench_embed(common, corpus, batches, seqs, dump_tokens.as_deref())
+        }
         Cmd::Rerank { common, corpus, docs, seq } => bench_rerank(common, corpus, *docs, *seq),
         Cmd::Generate { common, new_tokens, prompt } => bench_generate(common, *new_tokens, prompt),
-        Cmd::Discover { .. } => unreachable!("handled above"),
+        Cmd::Discover { .. } | Cmd::Compare { .. } => unreachable!("handled above"),
     };
     let mut r = match result {
         Ok(r) => r,
@@ -1332,6 +1198,188 @@ fn main() -> ExitCode {
             ExitCode::from(1)
         }
         Err(BudgetFailure::Unusable(_)) => unreachable!("handled before the receipt was written"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Compare: libturbo against the direct-native reference
+// ---------------------------------------------------------------------------
+
+/// One cell of the comparison.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct CompareCell {
+    /// `embed 8x128`, `rerank 32x128`, `generate 128`.
+    cell: String,
+    /// What was compared: `prepared tokens p50`, `text p50`, `decode tokens/s`, `total p50`.
+    measure: String,
+    turbo: f64,
+    native: f64,
+    /// `libturbo` throughput as a fraction of native (1.0 = equal; above 1
+    /// is faster than the raw runtime).
+    ratio: f64,
+    within_floor: bool,
+}
+
+/// A side of the comparison, by identity.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct CompareSide {
+    file: String,
+    commit: String,
+    provider: ProviderId,
+    device: Device,
+    date: String,
+}
+
+/// The comparison receipt.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Comparison {
+    receipt_version: u32,
+    kind: String,
+    turbo: CompareSide,
+    native: CompareSide,
+    bundle: BundleId,
+    floor: f64,
+    cells: Vec<CompareCell>,
+    /// Cells one side has and the other does not; a comparison with any is
+    /// incomplete and cannot be SUPPORTED.
+    unmatched: Vec<String>,
+    /// `SUPPORTED` when every matched cell is within the floor and nothing
+    /// is unmatched, else `EXPERIMENTAL`.
+    verdict: String,
+}
+
+fn read_receipt(path: &Path) -> Result<Receipt, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparison, String> {
+    if !(floor > 0.0 && floor <= 1.0) {
+        return Err(format!("--floor must be a fraction in (0, 1], not {floor}"));
+    }
+    let t = read_receipt(turbo_path)?;
+    let n = read_receipt(native_path)?;
+    if t.kind != "benchmark" {
+        return Err(format!("{}: kind is `{}`, not `benchmark`", turbo_path.display(), t.kind));
+    }
+    if n.kind != "native" {
+        return Err(format!("{}: kind is `{}`, not `native`", native_path.display(), n.kind));
+    }
+    if t.bundle.manifest_sha256 != n.bundle.manifest_sha256 {
+        return Err(format!(
+            "the receipts measure different bundles: {} versus {}",
+            t.bundle.manifest_sha256, n.bundle.manifest_sha256
+        ));
+    }
+    // The provider may add a suffix to the device name ("(sm_89)"); the
+    // name before it must agree.
+    let base = |name: &str| name.split(" (").next().unwrap_or(name).trim().to_string();
+    if base(&t.device.name) != base(&n.device.name) {
+        return Err(format!("the receipts measure different devices: `{}` versus `{}`", t.device.name, n.device.name));
+    }
+    let mut cells = Vec::new();
+    let mut unmatched = Vec::new();
+    let mut push = |cell: String, measure: &str, turbo: f64, native: f64, higher_is_better: bool| {
+        let ratio = if higher_is_better { turbo / native } else { native / turbo };
+        cells.push(CompareCell { cell, measure: measure.to_string(), turbo, native, ratio, within_floor: ratio >= floor });
+    };
+    for tc in &t.embed {
+        let name = format!("embed {}x{}", tc.batch, tc.seq);
+        match n.embed.iter().find(|c| c.batch == tc.batch && c.seq == tc.seq) {
+            None => unmatched.push(format!("{name}: only in the libturbo receipt")),
+            Some(nc) => {
+                // The prepared-token path is the matched one: both sides run
+                // the same ids; the text path differs by the tokenizer.
+                match (&tc.prepared_tokens_path, &nc.prepared_tokens_path) {
+                    (Some(a), Some(b)) => push(name.clone(), "prepared tokens p50 ms", a.p50_ms, b.p50_ms, false),
+                    _ => push(name.clone(), "text p50 ms", tc.text_path.p50_ms, nc.text_path.p50_ms, false),
+                }
+            }
+        }
+    }
+    for nc in &n.embed {
+        if !t.embed.iter().any(|c| c.batch == nc.batch && c.seq == nc.seq) {
+            unmatched.push(format!("embed {}x{}: only in the native receipt", nc.batch, nc.seq));
+        }
+    }
+    match (&t.rerank, &n.rerank) {
+        (Some(a), Some(b)) => {
+            if a.docs != b.docs || a.seq != b.seq {
+                unmatched.push(format!("rerank: {}x{} versus {}x{}", a.docs, a.seq, b.docs, b.seq));
+            } else {
+                push(format!("rerank {}x{}", a.docs, a.seq), "p50 ms", a.text_path.p50_ms, b.text_path.p50_ms, false);
+            }
+        }
+        (Some(_), None) => unmatched.push("rerank: only in the libturbo receipt".into()),
+        (None, Some(_)) => unmatched.push("rerank: only in the native receipt".into()),
+        (None, None) => {}
+    }
+    match (&t.generate, &n.generate) {
+        (Some(a), Some(b)) => {
+            if a.new_tokens_requested != b.new_tokens_requested {
+                unmatched.push(format!("generate: {} versus {} tokens", a.new_tokens_requested, b.new_tokens_requested));
+            } else {
+                let name = format!("generate {}", a.new_tokens_requested);
+                push(name.clone(), "total p50 ms", a.total_ms_p50, b.total_ms_p50, false);
+                if let (Some(x), Some(y)) = (a.decode_tokens_per_s_p50, b.decode_tokens_per_s_p50) {
+                    push(name, "decode tokens/s", x, y, true);
+                }
+            }
+        }
+        (Some(_), None) => unmatched.push("generate: only in the libturbo receipt".into()),
+        (None, Some(_)) => unmatched.push("generate: only in the native receipt".into()),
+        (None, None) => {}
+    }
+    if cells.is_empty() {
+        return Err("the receipts share no cell to compare".to_string());
+    }
+    let verdict = if unmatched.is_empty() && cells.iter().all(|c| c.within_floor) { "SUPPORTED" } else { "EXPERIMENTAL" };
+    let side = |path: &Path, r: &Receipt| CompareSide {
+        file: path.display().to_string(),
+        commit: r.commit.clone(),
+        provider: r.provider.clone(),
+        device: r.device.clone(),
+        date: r.date.clone(),
+    };
+    Ok(Comparison {
+        receipt_version: 1,
+        kind: "compare".to_string(),
+        turbo: side(turbo_path, &t),
+        native: side(native_path, &n),
+        bundle: t.bundle.clone(),
+        floor,
+        cells,
+        unmatched,
+        verdict: verdict.to_string(),
+    })
+}
+
+fn print_compare(c: &Comparison) {
+    println!(
+        "{} on {} ({}): libturbo {} versus native {} {}",
+        c.bundle.model_id, c.turbo.device.name, c.turbo.machine_hint(), c.turbo.provider.id, c.native.provider.id, c.native.provider.runtime_version
+    );
+    println!("{:<18} {:<24} {:>12} {:>12} {:>7}", "cell", "measure", "libturbo", "native", "ratio");
+    for cell in &c.cells {
+        println!(
+            "{:<18} {:<24} {:>12.3} {:>12.3} {:>6.2}x{}",
+            cell.cell,
+            cell.measure,
+            cell.turbo,
+            cell.native,
+            cell.ratio,
+            if cell.within_floor { "" } else { " below floor" }
+        );
+    }
+    for u in &c.unmatched {
+        println!("unmatched: {u}");
+    }
+    println!("verdict: {} (floor {:.2} of native on every cell)", c.verdict, c.floor);
+}
+
+impl CompareSide {
+    fn machine_hint(&self) -> String {
+        format!("commit {}", &self.commit[..self.commit.len().min(12)])
     }
 }
 

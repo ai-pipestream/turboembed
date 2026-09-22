@@ -2233,6 +2233,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-reference-llama-cpp"
+version = "2.0.0-alpha.0"
+dependencies = [
+ "clap",
+ "llama-cpp-2",
+ "serde_json",
+ "turbo-bench",
+]
+
+[[package]]
+name = "turbo-reference-ort-cuda"
+version = "2.0.0-alpha.0"
+dependencies = [
+ "clap",
+ "ort",
+ "serde_json",
+ "turbo-bench",
+]
+
+[[package]]
 name = "turbo-shared"
 version = "2.0.0-alpha.0"
 dependencies = [

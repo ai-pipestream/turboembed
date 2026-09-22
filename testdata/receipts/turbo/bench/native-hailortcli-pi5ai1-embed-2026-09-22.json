@@ -1,0 +1,210 @@
+{
+  "receipt_version": 1,
+  "kind": "native",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "pi5ai1",
+    "os": "Linux 6.18.39+rpt-rpi-2712",
+    "arch": "aarch64"
+  },
+  "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8",
+  "provider": {
+    "id": "hailortcli",
+    "version": "reference",
+    "runtime_version": "HailoRT-CLI version 4.23.0",
+    "driver_version": "firmware 4.23.0 (release,app,extended context switch buffer)"
+  },
+  "device": {
+    "name": "Hailo-8 (Hailo-8, 0001:01:00.0)",
+    "kind": "Npu",
+    "ordinal": 0,
+    "caps": "0x0",
+    "memory_total": 0
+  },
+  "bundle": {
+    "dir": "/home/krickert/bundles/minilm-hailo8",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "434a08e0c91bada7b2c2a8682f1b186d9cf53e47d004b9e1a679d6bb69450273",
+    "artifacts": {
+      "hailo_tables": "91a364c081e1bd99d4bba486e31b6efb30bb75439562e925fe17d20de2af9425",
+      "hef": "dcfef3218da6bbabe61448216ece3ac21807573d91728a27bc631ca5bdbd8024"
+    }
+  },
+  "embed": [
+    {
+      "batch": 1,
+      "seq": 32,
+      "live_tokens_per_row": 21.0,
+      "token_count_source": "unrecorded",
+      "text_path": {
+        "p50_ms": 13.306719893546239,
+        "mean_ms": 13.306719893546239,
+        "min_ms": 13.306719893546239,
+        "max_ms": 13.306719893546239,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 1578.15,
+        "iters": 1127
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 13.306719893546239,
+        "mean_ms": 13.306719893546239,
+        "min_ms": 13.306719893546239,
+        "max_ms": 13.306719893546239,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 1578.15,
+        "iters": 1127
+      },
+      "prepared_tokens_note": "hailortcli benchmark measures frames per second; every cell is derived from that one rate",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 32,
+      "live_tokens_per_row": 26.0,
+      "token_count_source": "unrecorded",
+      "text_path": {
+        "p50_ms": 106.45375914836991,
+        "mean_ms": 106.45375914836991,
+        "min_ms": 106.45375914836991,
+        "max_ms": 106.45375914836991,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 1953.9,
+        "iters": 1127
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 106.45375914836991,
+        "mean_ms": 106.45375914836991,
+        "min_ms": 106.45375914836991,
+        "max_ms": 106.45375914836991,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 1953.9,
+        "iters": 1127
+      },
+      "prepared_tokens_note": "hailortcli benchmark measures frames per second; every cell is derived from that one rate",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 32,
+      "live_tokens_per_row": 24.8125,
+      "token_count_source": "unrecorded",
+      "text_path": {
+        "p50_ms": 425.81503659347965,
+        "mean_ms": 425.81503659347965,
+        "min_ms": 425.81503659347965,
+        "max_ms": 425.81503659347965,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 1864.6593750000002,
+        "iters": 1127
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 425.81503659347965,
+        "mean_ms": 425.81503659347965,
+        "min_ms": 425.81503659347965,
+        "max_ms": 425.81503659347965,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 1864.6593750000002,
+        "iters": 1127
+      },
+      "prepared_tokens_note": "hailortcli benchmark measures frames per second; every cell is derived from that one rate",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 1,
+      "seq": 128,
+      "live_tokens_per_row": 122.0,
+      "token_count_source": "unrecorded",
+      "text_path": {
+        "p50_ms": 13.306719893546239,
+        "mean_ms": 13.306719893546239,
+        "min_ms": 13.306719893546239,
+        "max_ms": 13.306719893546239,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 9168.300000000001,
+        "iters": 1127
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 13.306719893546239,
+        "mean_ms": 13.306719893546239,
+        "min_ms": 13.306719893546239,
+        "max_ms": 13.306719893546239,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 9168.300000000001,
+        "iters": 1127
+      },
+      "prepared_tokens_note": "hailortcli benchmark measures frames per second; every cell is derived from that one rate",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 128,
+      "live_tokens_per_row": 116.5,
+      "token_count_source": "unrecorded",
+      "text_path": {
+        "p50_ms": 106.45375914836991,
+        "mean_ms": 106.45375914836991,
+        "min_ms": 106.45375914836991,
+        "max_ms": 106.45375914836991,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 8754.975,
+        "iters": 1127
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 106.45375914836991,
+        "mean_ms": 106.45375914836991,
+        "min_ms": 106.45375914836991,
+        "max_ms": 106.45375914836991,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 8754.975,
+        "iters": 1127
+      },
+      "prepared_tokens_note": "hailortcli benchmark measures frames per second; every cell is derived from that one rate",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 128,
+      "live_tokens_per_row": 118.0625,
+      "token_count_source": "unrecorded",
+      "text_path": {
+        "p50_ms": 425.81503659347965,
+        "mean_ms": 425.81503659347965,
+        "min_ms": 425.81503659347965,
+        "max_ms": 425.81503659347965,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 8872.396875,
+        "iters": 1127
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 425.81503659347965,
+        "mean_ms": 425.81503659347965,
+        "min_ms": 425.81503659347965,
+        "max_ms": 425.81503659347965,
+        "rows_per_s": 75.15,
+        "tokens_per_s": 8872.396875,
+        "iters": 1127
+      },
+      "prepared_tokens_note": "hailortcli benchmark measures frames per second; every cell is derived from that one rate",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    }
+  ],
+  "native_reference": "this is the native side: hailortcli benchmark on ~/bundles/minilm-hailo8/model.hailo8.hef for 15 s per mode; streaming FPS 75.15 (the matched figure), HW-only FPS 75.15; cells derived from the streaming rate (Hailo-8\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000); bundle identity copied from testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json"
+}

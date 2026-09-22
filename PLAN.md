@@ -810,6 +810,25 @@ per provider and then held: the budget must name the same provider, device
 and bundle, and a cell the budget has that a later run did not measure is a
 violation.
 
+The native side of a pair is the runtime driven the way its own users
+drive it (the `reference/` programs: the ONNX Runtime CUDA execution
+provider through the `ort` crate, llama.cpp through `llama-cpp-2`,
+OpenVINO's C++ API, `hailortcli benchmark`, the Metal proof of concept),
+on the exact token rows the `libturbo` run used (`turbo-bench embed
+--dump-tokens` writes them, the reference reads them, both receipts name
+the same bundle hashes), with pooling and normalization done where such a
+user would do them (on the host). `turbo-bench compare` reads the two
+receipts, matches cells, and reports `libturbo` throughput as a fraction
+of native per cell; a (device, task) is SUPPORTED when every cell reaches
+0.95 of native, nothing is unmatched, and the comparison receipt is
+committed under `testdata/receipts/turbo/bench/compare-*.json`. The first
+such receipt is `compare-cuda-krick-embed-2026-09-22.json`: the cuda
+provider on the RTX 4080 SUPER against ONNX Runtime 1.28's CUDA execution
+provider on the same 9 cells, `libturbo` at 1.04x to 2.64x of native
+(the provider keeps the hidden state on the device and pools with its own
+kernels; the plain loop copies it back), verdict SUPPORTED for EMBED on
+that device.
+
 ## 12. Risks and defaults chosen
 
 | risk | default in this plan |

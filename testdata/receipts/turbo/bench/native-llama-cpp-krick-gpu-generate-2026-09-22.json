@@ -1,0 +1,54 @@
+{
+  "receipt_version": 1,
+  "kind": "native",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "krick",
+    "os": "Linux 7.0.0-31-generic",
+    "arch": "x86_64"
+  },
+  "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8-dirty",
+  "provider": {
+    "id": "llama.cpp",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "llama.cpp through llama-cpp-2 0.1.156, CUDA backend",
+    "driver_version": "595.84"
+  },
+  "device": {
+    "name": "NVIDIA GeForce RTX 4080 SUPER",
+    "kind": "Gpu",
+    "ordinal": 0,
+    "caps": "0x0",
+    "memory_total": 17171480576
+  },
+  "bundle": {
+    "dir": "/home/krickert/opt/bundles/qwen05-gguf",
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+    "manifest_sha256": "9d0338585acf9cab9b983f01e371269d03f5ffdbae9716699a53429db72974f6",
+    "artifacts": {
+      "gguf": "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e"
+    }
+  },
+  "generate": {
+    "new_tokens_requested": 128,
+    "generated_tokens_mean": 128.0,
+    "prompt_tokens": 19,
+    "time_to_first_token_ms_p50": 3.968697,
+    "decode_tokens_per_s_p50": 623.0611239299532,
+    "total_ms_p50": 207.680529,
+    "finish_reasons": [
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length"
+    ],
+    "iters": 10
+  },
+  "native_reference": "this is the native side: llama.cpp through llama-cpp-2 with the GGUF's chat template, greedy decoding with the end token suppressed, on the prompt of /tmp/claude-1000/-work-worktrees-turboembed/32be1853-4e14-49de-84fd-dfd8ed203e3a/scratchpad/ggml-gen-turbo.json; bundle identity copied from that receipt"
+}
