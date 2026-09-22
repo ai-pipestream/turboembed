@@ -37,8 +37,8 @@ mvn test -Dturbo.library=/path/to/libturbo.so   # another build
 
 The tests are the conformance cases run through the binding against the
 mock provider, under `--enable-native-access=ALL-UNNAMED
---illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) the nine
-tests pass in under a second.
+--illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) and
+`krick-1` (JDK 25.0.4, Temurin) the twelve tests pass in under a second.
 
 ## Regenerating the raw layer
 
@@ -68,8 +68,26 @@ try (Turbo rt = Turbo.create(List.of("/opt/turbo/providers/libturbo_provider_cud
 }
 ```
 
+## Generation and the tokenizer
+
+```java
+try (Generation g = model.createGeneration(GenerateDesc.defaults().withMaxNewTokens(64))) {
+    g.prompt(List.of(Message.user("What is the capital of France?")));
+    Chunk last = g.drain(c -> { System.out.print(c.text()); return true; });
+    System.out.println(" [" + last.finishReason() + "]");
+}
+try (Tokenizer tok = rt.createTokenizer("/opt/bundles/minilm-onnx")) {
+    Encoding e = tok.encode(List.of("hello world"), 16, EncodeOptions.defaults().withMaxTokens(16));
+    System.out.println(tok.decode(e.row(0), true) + " " + tok.count("hello world", true));
+}
+```
+
+`Chunk` is copied out of native memory, so it stays valid after the next
+step; `drain` cancels when the predicate returns false and the final
+chunk reports `CANCELLED`. `Tokenizer` is thread-safe.
+
 ## Not yet in the binding
 
-Generation (`turbo_generation_*`), the tokenizer and chunk-plan functions,
-buffer allocation and import, and RUN-model binding are in the raw layer
-but have no safe wrapper yet (PLAN.md P6 and P7).
+The push form `turbo_generate`, the chunk-plan functions, buffer
+allocation and import, and RUN-model binding are in the raw layer but have
+no safe wrapper yet.

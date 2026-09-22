@@ -138,6 +138,16 @@ public final class Turbo implements AutoCloseable {
         return Context.create(this, index);
     }
 
+    /** Load the tokenizer the bundle at {@code bundlePath} declares. */
+    public Tokenizer createTokenizer(String bundlePath) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment out = arena.allocate(ValueLayout.ADDRESS);
+            MemorySegment err = Native.error(arena);
+            Native.check(turbo_tokenizer_create(handle(), Native.text(arena, bundlePath), out, err), err);
+            return new Tokenizer(out.get(ValueLayout.ADDRESS, 0));
+        }
+    }
+
     @Override
     public void close() {
         if (!closed) {

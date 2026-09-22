@@ -73,6 +73,16 @@ public final class Model implements AutoCloseable {
         }
     }
 
+    /** Create a generation on a generative model; {@code desc} may be the defaults. */
+    public Generation createGeneration(GenerateDesc desc) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment out = arena.allocate(ValueLayout.ADDRESS);
+            MemorySegment err = Native.error(arena);
+            Native.check(turbo_generation_create(handle(), desc.toNative(arena), out, err), err);
+            return new Generation(out.get(ValueLayout.ADDRESS, 0), this);
+        }
+    }
+
     @Override
     public void close() {
         if (!closed) {

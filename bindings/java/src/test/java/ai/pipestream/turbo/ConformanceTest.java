@@ -4,7 +4,9 @@ import static ai.pipestream.turbo.ffi.TurboNative.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -226,6 +228,118 @@ class ConformanceTest {
             }
             assertEquals(0, other.get(), "only TURBO_E_BUSY is acceptable under contention");
             assertTrue(ok.get() > 0, "some runs complete");
+        }
+    }
+
+    @Test
+    void generationStepsUntilLengthAndCancelIsReported() {
+        try (Turbo rt = Turbo.create();
+                Context ctx = rt.createContext(mockDevice(rt));
+                Model model = ctx.loadModel(bundle("generative"))) {
+            assertEquals(ModelKind.GENERATIVE, model.info().kind());
+            List<Message> prompt = List.of(Message.user("say something"));
+            try (Generation g = model.createGeneration(GenerateDesc.defaults().withMaxNewTokens(6))) {
+                g.prompt(prompt);
+                List<Integer> tokens = new ArrayList<>();
+                StringBuilder text = new StringBuilder();
+                Chunk first = null;
+                Chunk last = g.drain(c -> {
+                    for (int id : c.tokens()) {
+                        tokens.add(id);
+                    }
+                    text.append(c.text());
+                    if (!c.done()) {
+                        assertEquals(FinishReason.NONE, c.finishReason(), "an unfinished chunk names no reason");
+                    }
+                    return true;
+                });
+                assertTrue(last.done());
+                assertEquals(FinishReason.LENGTH, last.finishReason());
+                assertFalse(tokens.isEmpty(), "the stream produced tokens");
+                assertTrue(tokens.size() <= 6, "max_new_tokens holds: " + tokens.size());
+                assertFalse(text.isEmpty(), "the stream produced text");
+                for (int id : tokens) {
+                    assertTrue(id >= 0 && (model.info().vocabSize() == 0 || id < model.info().vocabSize()), "token in vocabulary: " + id);
+                }
+            }
+            try (Generation g = model.createGeneration(GenerateDesc.defaults().withMaxNewTokens(50))) {
+                g.prompt(prompt);
+                Chunk c = g.step();
+                assertTrue(c.promptTokens() > 0, "the first chunk reports the prompt size");
+                assertEquals(0, c.sequence());
+                assertFalse(c.done());
+                g.cancel();
+                Chunk end = g.step();
+                assertTrue(end.done());
+                assertEquals(FinishReason.CANCELLED, end.finishReason());
+            }
+            // A sink that stops ends with CANCELLED through the drain helper.
+            try (Generation g = model.createGeneration(GenerateDesc.defaults().withMaxNewTokens(50))) {
+                g.prompt(prompt);
+                Chunk end = g.drain(c -> false);
+                assertEquals(FinishReason.CANCELLED, end.finishReason());
+            }
+        }
+    }
+
+    @Test
+    void generationIsRepeatableWithASeedAndRefusesUnsupportedOptionsByField() {
+        try (Turbo rt = Turbo.create();
+                Context ctx = rt.createContext(mockDevice(rt));
+                Model model = ctx.loadModel(bundle("generative"))) {
+            List<Message> prompt = List.of(Message.user("say something"));
+            List<Integer> a = new ArrayList<>();
+            List<Integer> b = new ArrayList<>();
+            for (List<Integer> sink : List.of(a, b)) {
+                GenerateDesc d = GenerateDesc.defaults().withMaxNewTokens(8).withSampling(0.9f, 0, 0f, 0f).withSeed(42L);
+                try (Generation g = model.createGeneration(d)) {
+                    g.prompt(prompt);
+                    g.drain(c -> {
+                        for (int id : c.tokens()) {
+                            sink.add(id);
+                        }
+                        return true;
+                    });
+                }
+            }
+            assertEquals(a, b, "one seed reproduces one token sequence");
+            if (!rt.device(ctx.deviceIndex()).has(TURBO_CAP_OPT_GEN_N())) {
+                GenerateDesc d = GenerateDesc.defaults().withMaxNewTokens(2);
+                d = new GenerateDesc(d.maxNewTokens(), 0, 3, 0f, 0, 0f, 0f, 0f, 0f, 0f, null, List.of(), new int[0], Map.of(), 0, false);
+                GenerateDesc desc = d;
+                TurboException e = assertThrows(TurboException.class, () -> model.createGeneration(desc).close());
+                assertEquals(TURBO_E_UNSUPPORTED_OPTION(), e.code(), e.getMessage());
+                assertEquals(4, e.field(), "the rejection names n_sequences: " + e.getMessage());
+            }
+        }
+    }
+
+    @Test
+    void tokenizerEncodesDecodesAndCounts() {
+        try (Turbo rt = Turbo.create(); Tokenizer tok = rt.createTokenizer(BUNDLES.resolve("../minilm-tokenizer").toString())) {
+            TokenizerInfo info = tok.info();
+            assertEquals("wordpiece", info.kind());
+            assertTrue(info.vocabSize() > 1000);
+            assertEquals(2, info.specialsPerSequence());
+            Encoding enc = tok.encode(List.of("hello world", "a longer sentence with several words"), 16, EncodeOptions.defaults().withMaxTokens(16));
+            assertEquals(2, enc.rows());
+            assertEquals(4, enc.lengths()[0], "[CLS] hello world [SEP]");
+            assertTrue(enc.lengths()[1] > enc.lengths()[0]);
+            for (int r = 0; r < 2; r++) {
+                for (int c = 0; c < 16; c++) {
+                    assertEquals(c < enc.lengths()[r] ? 1 : 0, enc.mask()[r * 16 + c], "mask row " + r + " col " + c);
+                    if (c >= enc.lengths()[r]) {
+                        assertEquals(info.padId(), enc.ids()[r * 16 + c], "padding carries the pad id");
+                    }
+                }
+            }
+            assertEquals("hello world", tok.decode(enc.row(0), true));
+            assertEquals(4, tok.count("hello world", true));
+            assertEquals(2, tok.count("hello world", false));
+            TurboException e = assertThrows(TurboException.class,
+                    () -> tok.encode(List.of("one two three four five six seven eight nine ten"), 6,
+                            EncodeOptions.defaults().withMaxTokens(6).withTruncate(Truncate.NONE)));
+            assertEquals(TURBO_E_CAPACITY(), e.code(), e.getMessage());
         }
     }
 }

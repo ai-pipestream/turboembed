@@ -47,8 +47,9 @@ mvn test -Dturbo.library=/path/to/libturbo.so   # another build
 
 The tests are the conformance cases run through the binding against the
 `mock` provider, under `--enable-native-access=ALL-UNNAMED
---illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) nine tests
-pass in under a second. `.github/workflows/ci.yml`'s `java` job runs the
+--illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) and on
+`krick-1` (JDK 25.0.4, Temurin, AMD Ryzen 9 9950X) the twelve tests pass
+in under a second. `.github/workflows/ci.yml`'s `java` job runs the
 same thing on every push: `cargo build --locked -p turbo-shared` then
 `cd bindings/java && mvn -q -B test` under JDK 25 (Temurin), against the
 mock provider only (no OpenVINO/CUDA/ggml libraries are built in that job).
@@ -66,14 +67,25 @@ var-handle coordinates do not match JDK 25; the safe layer reads arrays
 through the slice accessors (`shape(struct)`) instead, and the raw layer's
 indexed forms are not used anywhere in the safe API.
 
+### Generation and the tokenizer
+
+`Model.createGeneration(GenerateDesc)` returns a `Generation`: `prompt`
+(chat messages) or `promptTokens`, then `step()` per chunk, or `drain`
+with a predicate that receives every `Chunk` and can stop the stream
+(the final chunk then reports `FinishReason.CANCELLED`); `cancel()` may
+be called from another thread. A `Chunk` is copied out of native memory
+so it outlives the next step. `GenerateDesc` is a record with `with*`
+builders; every non-default field is honored exactly or refused with the
+field index, as in C. `Turbo.createTokenizer(bundlePath)` returns a
+thread-safe `Tokenizer` with `encode` (rows of a caller-chosen stride,
+padded with the pad id), `decode`, `count`, and `info()`.
+
 ### Not yet in the binding
 
-Generation (`turbo_generation_*`, `turbo_generate`), the tokenizer and
-chunk-plan functions, buffer allocation and import, and `RUN`-model
-binding are present in the raw `ffi` layer (jextract generates the whole
-header) but have no safe wrapper yet (`PLAN.md` P6 and P7). An
-`nano1`/`krick-1` run of the Java suite is also an open item of P7
-(`PLAN.md` section 10).
+The push form `turbo_generate`, the chunk-plan functions, buffer
+allocation and import, and `RUN`-model binding are present in the raw
+`ffi` layer (jextract generates the whole header) but have no safe
+wrapper yet. The binding timings of P7 are still open.
 
 See `bindings/java/README.md` for the full walkthrough and a worked
 example, and `docs/c-api.md` for the C contract the binding wraps.
