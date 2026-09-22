@@ -40,5 +40,52 @@
     }
   ],
   "status_after": "EXPERIMENTAL; throughput receipts on krick, krick-1, M2, nano1, and the Hailo-10H Pi (PLAN.md P6 gate) are still required",
-  "commit": "see git log for the commit that adds this file"
+  "commit": "see git log for the commit that adds this file",
+  "embed": {
+    "bundle": {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "artifact": "gguf (all-MiniLM-L6-v2-ggml-model-f16.gguf from second-state/All-MiniLM-L6-v2-Embedding-GGUF)",
+      "contract": {
+        "pooling": "mean",
+        "normalize": "l2",
+        "max_seq": 256,
+        "dim": 384
+      }
+    },
+    "reference": {
+      "source": "testdata/reference_embeddings/ort_cuda_minilm_*.json",
+      "produced_by": "ONNX Runtime CUDA EP, FP32, PoC (tag poc-2026-09-21)"
+    },
+    "tests": "crates/turbo-conformance/tests/live_embed.rs (13 tests)",
+    "runs": [
+      {
+        "machine": "krick",
+        "device": "NVIDIA GeForce RTX 4080 SUPER (CUDA0), ordinal 0",
+        "device_kind": "GPU",
+        "cosine": {
+          "short": 0.999995,
+          "medium": 0.999998,
+          "empty": 0.999988,
+          "long_truncation": 0.999996
+        },
+        "output_placement": "HOST",
+        "d2h_bytes_in_run": 6144,
+        "result": "13 passed, 0 failed"
+      },
+      {
+        "machine": "krick",
+        "device": "AMD Ryzen 9 9950X3D 16-Core Processor (CPU), ordinal 1",
+        "device_kind": "CPU",
+        "cosine": {
+          "short": 0.999996,
+          "medium": 0.999998,
+          "empty": 0.999994,
+          "long_truncation": 0.999996
+        },
+        "output_placement": "HOST",
+        "result": "13 passed, 0 failed"
+      }
+    ],
+    "note": "f16 weights against an FP32 reference; the cosine floor of 0.9995 in the live test holds with margin"
+  }
 }

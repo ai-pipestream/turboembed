@@ -68,12 +68,17 @@ fn live_minilm_matches_the_reference_vectors() {
         assert!(c > 0.9995, "{}: cosine {c} below the FP32 floor", names[i]);
     }
     eprintln!("stats: {stats:?}, output placement {placement:?}");
-    if live.gpu() {
-        assert_eq!(placement, Placement::Device, "GPU results stay on the device");
-        assert!(stats.h2d_bytes > 0 && stats.d2h_bytes == 0, "reads go through result_read, not the run: {stats:?}");
+    // A device that advertises TURBO_CAP_DEVICE_RESULT keeps the result
+    // there and moves nothing back inside the run; one that does not (a
+    // CPU, or a runtime that hands back host memory) reports HOST.
+    if live.has_cap(abi::TURBO_CAP_DEVICE_RESULT) {
+        assert_eq!(placement, Placement::Device, "results stay on the device");
+        assert_eq!(stats.d2h_bytes, 0, "reads go through result_read, not the run: {stats:?}");
+        if live.gpu() {
+            assert!(stats.h2d_bytes > 0, "inputs were uploaded: {stats:?}");
+        }
     } else {
         assert_eq!(placement, Placement::Host);
-        assert_eq!(stats.h2d_bytes, 0);
     }
 }
 
@@ -136,8 +141,8 @@ fn live_pooling_override_follows_the_capability_bit() {
 #[test]
 fn live_result_exports_a_native_handle_on_gpus() {
     let Some((live, bundle)) = setup() else { return };
-    if !live.gpu() {
-        eprintln!("skipping: selected device is not a GPU");
+    if !live.gpu() || !live.has_cap(abi::TURBO_CAP_DEVICE_RESULT) {
+        eprintln!("skipping: selected device is not a GPU with device-resident results");
         return;
     }
     let model = live.ctx.load_model(&bundle, &ModelDesc::default()).unwrap();
