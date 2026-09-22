@@ -36,6 +36,10 @@ milestone that adds it. See `PLAN.md` itself for the design rationale.
              embeddings and reranking EXPERIMENTAL on Apple M2, results
              in unified memory)
  ------------------------------------------------------------------------
+ server:     Inferstream (server/, Rust): OIP v2 over gRPC (tonic) and
+             REST (axum), OpenAI-shaped /v1 routes, /info; a session pool
+             per (batch, seq) bucket for every served model
+ ------------------------------------------------------------------------
  runtimes:   none for mock/static; OpenVINO 2026.3.1 for openvino; ONNX
              Runtime 1.28 (1.24.0 on Jetson) CUDA execution provider for
              cuda; llama.cpp (via llama-cpp-2) for ggml; HailoRT 4.23 for

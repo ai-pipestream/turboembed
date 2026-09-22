@@ -406,6 +406,7 @@ today (branch `turbo-v2`, 2026-09-21); "planned" means it is scoped for a later 
 | `providers/hailo/` | Hailo provider (C++, HailoRT 4.x vstreams); EXPERIMENTAL on the Hailo-8 Pis | here |
 | `providers/cpu/` | folded into the CUDA (ONNX Runtime) and ggml providers' CPU devices | not a separate provider |
 | `providers/metal/` | Metal provider (Objective-C++, `make` + `clang++`, kernels compiled at load); EXPERIMENTAL on Apple M2 | here |
+| `server/` | Inferstream (`turbo-inferstream`): OIP v2 over gRPC and REST, OpenAI-shaped routes, session buckets per model; verified on the mock bundles and on `krick` with cuda and ggml | here |
 | `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO, Hailo and Metal providers | here |
 | `native/provider_common/` | shared C++ provider helpers (error boundary, descriptor size checks, bundle reader) | here |
 | `native/turbo_buffer/` | shared C++ arenas salvaged from the PoC | present, not yet wired into a provider |
