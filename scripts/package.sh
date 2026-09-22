@@ -87,6 +87,9 @@ present+=("include/turbo/turbo.h" "include/turbo/turbo_types.h" "include/turbo/t
 
 cp "$relq/turbo-bundle" "$stage/bin/"
 present+=("bin/turbo-bundle")
+[[ -f "$relq/turbo-bench" ]] || die "missing $relq/turbo-bench (required); cargo build --release -p turbo-bench failed"
+cp -L "$relq/turbo-bench" "$stage/bin/"
+present+=("bin/turbo-bench")
 
 # --- required provider: mock --------------------------------------------
 [[ -f "$relq/libturbo_provider_mock.so" ]] || die "missing $relq/libturbo_provider_mock.so (required)"

@@ -102,7 +102,11 @@ providers need their vendor toolchains and are built on the machines that
 have them. The Rust toolchain defaults to the repository's
 `rust-toolchain.toml` channel; pass `--toolchain` to pin a version for a
 reproducible archive. Cargo's registry and the compiled dependencies are
-kept in BuildKit cache mounts between builds.
+kept in BuildKit cache mounts between builds. The archive built this way
+on `krick` (2026-09-21, 44 MB with `turbo-bench`) needs no glibc symbol newer than
+`GLIBC_2.28` in `libturbo.so`, the providers, or the tools (`objdump -T`),
+and `bin/turbo-bench discover --provider-dir providers --strict` from the
+extracted archive is the consumer-side check that every provider loads.
 
 ### On the host
 
