@@ -67,7 +67,8 @@
     "No prebuilt aarch64 CUDA ONNX Runtime exists on PyPI or pyke's CDN; the board build depends on a local ONNX Runtime."
   ],
   "status_after": "EXPERIMENTAL; a matched-native benchmark receipt is still required before SUPPORTED",
-  "commit": "see git log for the commit that adds this file",
+  "commit": "62050ef71b4dfd057ca8cc0088c7707f42073d5b",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder",
   "tests_after_second_review": {
     "embed": "crates/turbo-conformance/tests/live_embed.rs: 14 passed, 0 failed (550 s, debug build; cosine 1.000 on every reference text, Spearman 0.9435 on the STS ranking gate)",
     "tasks": "crates/turbo-conformance/tests/live_tasks.rs: 7 passed, 0 failed (610 s)",

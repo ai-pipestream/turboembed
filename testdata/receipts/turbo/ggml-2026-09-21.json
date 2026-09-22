@@ -40,7 +40,8 @@
     }
   ],
   "status_after": "EXPERIMENTAL; throughput receipts on krick, krick-1, M2, nano1, and the Hailo-10H Pi (PLAN.md P6 gate) are still required",
-  "commit": "see git log for the commit that adds this file",
+  "commit": "6657818bd09e65cff369fe59c8e71f2b5ad251b1",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder",
   "embed": {
     "bundle": {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",

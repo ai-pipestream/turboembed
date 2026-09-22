@@ -237,18 +237,35 @@ pub fn machine() -> Result<Machine, String> {
 
 /// The commit a receipt names: the one `named` gives, else the build's own
 /// (captured by build.rs), else an error. A receipt without a commit is
-/// not a measurement of anything.
+/// not a measurement of anything, and one from a tree with uncommitted
+/// changes (`<sha>-dirty`) cannot be reproduced, so that is an error too
+/// unless `TURBO_BENCH_ALLOW_DIRTY=1` is set for a receipt that will not
+/// be committed; `compare` never calls a comparison with a dirty side
+/// SUPPORTED.
 pub fn commit(named: Option<&str>) -> Result<String, String> {
-    if let Some(named) = named {
-        return Ok(named.to_string());
+    let commit = match named {
+        Some(named) => named.to_string(),
+        None => match option_env!("TURBO_BENCH_GIT_COMMIT") {
+            Some(built) => built.to_string(),
+            None => {
+                return Err(
+                    "the binary was built from a tree without git, so the receipt cannot name a commit; pass --commit <sha>"
+                        .to_string(),
+                )
+            }
+        },
+    };
+    if commit.ends_with("-dirty") && std::env::var_os("TURBO_BENCH_ALLOW_DIRTY").is_none() {
+        return Err(format!(
+            "the binary was built from {commit}: a tree with uncommitted changes, which nobody can reproduce; commit first and rebuild, or set TURBO_BENCH_ALLOW_DIRTY=1 for a receipt that will not be committed"
+        ));
     }
-    match option_env!("TURBO_BENCH_GIT_COMMIT") {
-        Some(built) => Ok(built.to_string()),
-        None => Err(
-            "the binary was built from a tree without git, so the receipt cannot name a commit; pass --commit <sha>"
-                .to_string(),
-        ),
-    }
+    Ok(commit)
+}
+
+/// Whether a receipt's commit names a tree with uncommitted changes.
+pub fn is_dirty(commit: &str) -> bool {
+    commit.ends_with("-dirty")
 }
 
 /// Today's UTC date, `YYYY-MM-DD`.

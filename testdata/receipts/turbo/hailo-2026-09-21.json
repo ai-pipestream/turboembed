@@ -88,5 +88,6 @@
   ],
   "note": "INT8 quantization compresses absolute cosine against FP32 (0.47 to 0.71 on the reference texts) while ranking stays at parity with FP32 (Spearman 0.937 vs 0.944 on the 96-pair STS corpus); the capability cell states the 0.30 floor and the live suite gates both figures. The vectors are bitwise repeatable across runs and across the two boards.",
   "status_after": "EXPERIMENTAL; a throughput receipt (PLAN.md section 8) is still required for SUPPORTED; Hailo-8L untested; Hailo-10H needs a DFC 5 HEF",
-  "commit": "see git log for the commit that adds this file"
+  "commit": "33456d334f4f258d82fcc895d39b27c8786eb573",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder"
 }

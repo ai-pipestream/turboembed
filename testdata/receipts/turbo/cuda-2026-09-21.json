@@ -55,5 +55,6 @@
     "aggregation": "device softmax, host word-aligned grouping"
   },
   "status_after": "EXPERIMENTAL; a matched-native benchmark receipt and a Jetson (nano1) receipt are still required before SUPPORTED",
-  "commit": "see git log for the commit that adds this file"
+  "commit": "30996632511bd747ed9b6c151bb1846ad409e059",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder"
 }

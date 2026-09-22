@@ -56,5 +56,6 @@
     }
   ],
   "status_after": "EXPERIMENTAL; a matched-native benchmark receipt is still required before SUPPORTED",
-  "commit": "see git log for the commit that adds this file"
+  "commit": "a70f4658a3b5c831741dc99b095fdf24099945e2",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder"
 }

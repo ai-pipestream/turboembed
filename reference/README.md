@@ -54,7 +54,11 @@ the gap that remained was the provider's.
    cell, and gives the verdict: SUPPORTED when every cell reaches the
    floor (0.95) and nothing is unmatched. The comparison receipts are
    committed under `testdata/receipts/turbo/bench/compare-*.json`.
-   Run the two sides back to back: on a passively cooled device (the
+   A receipt names the commit of the build that produced it; turbo-bench
+   and the Rust references will not write one from a tree with
+   uncommitted changes (the commit would end in -dirty and that tree
+   cannot be rebuilt), and `compare` lists such a receipt under `dirty`
+   and marks the comparison EXPERIMENTAL. Run both back to back: on a passively cooled device (the
    M2) a long cell at the end of a ten-minute run is measured on a
    throttled GPU, and a reference run on a cooler one minutes later
    reads a few percent faster for that cell alone.

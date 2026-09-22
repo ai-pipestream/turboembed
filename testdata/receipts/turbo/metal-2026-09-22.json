@@ -83,5 +83,6 @@
   ],
   "note": "FP32 on the GPU reproduces the ORT CUDA FP32 references to six decimals and the STS ranking exactly. Unified memory is reported as SHARED placement with zero DMA bytes; the live suite checks that instead of an upload on this device class. The encoder runs the whole batch as one set of dispatches per layer with a 16x16 tiled matmul; sentence pooling, L2, the NSP pooler and the classifier head are kernels, so results never leave the GPU's memory. Throughput: testdata/receipts/turbo/bench/metal-mac-embed-2026-09-22.json and metal-mac-rerank-2026-09-22.json.",
   "status_after": "EXPERIMENTAL for EMBED x TEXT and RERANK x TEXT; SUPPORTED needs the matched-native benchmark; not yet: GPU-side WordPiece, F16 weights, multi-logit classification heads, generation through this provider",
-  "commit": "see git log for the commit that adds this file"
+  "commit": "5e72fbc9c28d228983f29c59f072cdca7170019a",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder"
 }

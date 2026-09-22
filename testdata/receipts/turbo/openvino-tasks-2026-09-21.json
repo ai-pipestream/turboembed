@@ -1,4 +1,6 @@
 {
+  "commit": "d8dffeb73f27dc87be7ba29b5059f9042e250714",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder",
   "receipt_version": 1,
   "date": "2026-09-21",
   "provider": "openvino",

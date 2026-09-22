@@ -1253,8 +1253,11 @@ struct Comparison {
     /// Cells one side has and the other does not; a comparison with any is
     /// incomplete and cannot be SUPPORTED.
     unmatched: Vec<String>,
-    /// `SUPPORTED` when every matched cell is within the floor and nothing
-    /// is unmatched, else `EXPERIMENTAL`.
+    /// Sides whose receipt came from a tree with uncommitted changes; a
+    /// comparison with any is not reproducible and cannot be SUPPORTED.
+    dirty: Vec<String>,
+    /// `SUPPORTED` when every matched cell is within the floor, nothing is
+    /// unmatched and neither side is dirty, else `EXPERIMENTAL`.
     verdict: String,
 }
 
@@ -1351,8 +1354,18 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
     if cells.is_empty() {
         return Err("the receipts share no cell to compare".to_string());
     }
-    let verdict =
-        if unmatched.is_empty() && cells.iter().all(|c| c.within_floor) { "SUPPORTED" } else { "EXPERIMENTAL" };
+    let mut dirty = Vec::new();
+    if is_dirty(&t.commit) {
+        dirty.push(format!("libturbo receipt {} is from {}", turbo_path.display(), t.commit));
+    }
+    if is_dirty(&n.commit) {
+        dirty.push(format!("native receipt {} is from {}", native_path.display(), n.commit));
+    }
+    let verdict = if unmatched.is_empty() && dirty.is_empty() && cells.iter().all(|c| c.within_floor) {
+        "SUPPORTED"
+    } else {
+        "EXPERIMENTAL"
+    };
     let side = |path: &Path, r: &Receipt| CompareSide {
         file: path.display().to_string(),
         commit: r.commit.clone(),
@@ -1369,6 +1382,7 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
         floor,
         cells,
         unmatched,
+        dirty,
         verdict: verdict.to_string(),
     })
 }
@@ -1397,6 +1411,9 @@ fn print_compare(c: &Comparison) {
     }
     for u in &c.unmatched {
         println!("unmatched: {u}");
+    }
+    for d in &c.dirty {
+        println!("dirty: {d}; a comparison with a side from an uncommitted tree is not reproducible");
     }
     println!("verdict: {} (floor {:.2} of native on every cell)", c.verdict, c.floor);
 }
