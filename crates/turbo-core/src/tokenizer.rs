@@ -592,3 +592,58 @@ mod tests {
         assert!(compared > 150, "compared only {compared} texts");
     }
 }
+
+#[cfg(all(test, feature = "hf-tokenizers"))]
+mod speed {
+    //! `cargo test -p turbo-core --features hf-tokenizers --release speed -- --ignored --nocapture`
+    //! prints the throughput of the native tokenizer and the Hugging Face
+    //! crate on the same texts, one thread each.
+    use super::*;
+    use std::time::Instant;
+
+    #[test]
+    #[ignore]
+    fn native_versus_hugging_face_throughput() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/bundles/minilm-tokenizer/tokenizer.json");
+        let native = Tokenizer::from_file(&path, "wordpiece", "", 512, "", "").unwrap();
+        let mut hf = tokenizers::Tokenizer::from_file(&path).unwrap();
+        hf.with_truncation(None).unwrap();
+        hf.with_padding(None);
+        let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/corpus/sts-pairs.jsonl");
+        let mut texts: Vec<String> = Vec::new();
+        for line in std::fs::read_to_string(&corpus).unwrap().lines().filter(|l| !l.trim().is_empty()) {
+            let v: serde_json::Value = serde_json::from_str(line).unwrap();
+            texts.push(v["text_a"].as_str().unwrap().to_string());
+            texts.push(v["text_b"].as_str().unwrap().to_string());
+        }
+        // A long paragraph as well, so per-call overhead is not the whole story.
+        let long = texts.iter().take(40).cloned().collect::<Vec<_>>().join(" ");
+        let opts = EncodeOptions { truncate: Truncate::None, ..Default::default() };
+        for (label, set) in [("short (STS sentences)", texts.clone()), ("long (about 1000 tokens)", vec![long])] {
+            let rounds = if set.len() > 1 { 200 } else { 2000 };
+            let mut tokens = 0u64;
+            let t0 = Instant::now();
+            for _ in 0..rounds {
+                for t in &set {
+                    tokens += native.encode(t, &opts).unwrap().ids.len() as u64;
+                }
+            }
+            let native_s = t0.elapsed().as_secs_f64();
+            let t1 = Instant::now();
+            for _ in 0..rounds {
+                for t in &set {
+                    hf.encode(tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw(t.as_str().into())), true).unwrap();
+                }
+            }
+            let hf_s = t1.elapsed().as_secs_f64();
+            eprintln!(
+                "{label}: native {:.0} tokens/s ({:.1} us/text), hugging face {:.0} tokens/s ({:.1} us/text), ratio {:.2}x",
+                tokens as f64 / native_s,
+                native_s * 1e6 / (rounds * set.len()) as f64,
+                tokens as f64 / hf_s,
+                hf_s * 1e6 / (rounds * set.len()) as f64,
+                hf_s / native_s
+            );
+        }
+    }
+}

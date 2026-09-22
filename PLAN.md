@@ -730,7 +730,12 @@ byte offsets and decoded text over the STS corpus and adversarial strings
 (`cargo test -p turbo-core --features hf-tokenizers`). The Hugging Face
 crate stays available behind the `hf-tokenizers` feature for BPE and
 Unigram files; without it such a file is `TURBO_E_UNSUPPORTED` naming the
-feature. A native BPE for the Qwen-style vocabularies is the next cut.
+feature. It is also faster: one thread on `krick`, release build, the
+native path encodes 5.1M tokens/s on the STS sentences (2.5 us per text)
+and 4.7M tokens/s on a 1000-token paragraph, 3.2x and 2.3x the Hugging
+Face crate on the same texts (`cargo test -p turbo-core --features
+hf-tokenizers --release speed -- --ignored --nocapture`). A native BPE
+for the Qwen-style vocabularies is the next cut.
 `turbo-inferstream` resolves tokio, axum, tonic and their runtime on top
 of that; nothing else.
 
