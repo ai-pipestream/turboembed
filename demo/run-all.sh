@@ -11,9 +11,8 @@ step() { printf '\n==> %s\n' "$*" >&2; }
 step "libturbo"
 cargo build -q -p turbo-shared
 
-step "c"
-make -s -C demo/c turbo-demo-c
-demo/c/turbo-demo-c --bundle "$bundle" "${texts[@]}"
+step "c (embed, and the streaming summarizer on the mock generative bundle)"
+make -s -C demo/c test
 
 step "python"
 python3 demo/python/turbo_demo.py --bundle "$bundle" "${texts[@]}"
