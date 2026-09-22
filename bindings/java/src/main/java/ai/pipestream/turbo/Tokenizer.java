@@ -15,12 +15,22 @@ import java.util.List;
  */
 public final class Tokenizer implements AutoCloseable {
     private final MemorySegment t;
+    /** The runtime this tokenizer came from; a tokenizer keeps it alive. */
+    private final Turbo runtime;
     private final TokenizerInfo info;
     private boolean closed;
 
-    Tokenizer(MemorySegment t) {
+    Tokenizer(MemorySegment t, Turbo runtime) {
         this.t = t;
-        this.info = readInfo();
+        this.runtime = runtime;
+        // As in Model: the handle is owned here and the caller gets no
+        // Tokenizer to close, so a failed readInfo releases it.
+        try {
+            this.info = readInfo();
+        } catch (RuntimeException e) {
+            turbo_tokenizer_release(t);
+            throw e;
+        }
     }
 
     private TokenizerInfo readInfo() {
@@ -42,6 +52,11 @@ public final class Tokenizer implements AutoCloseable {
 
     public TokenizerInfo info() {
         return info;
+    }
+
+    /** The runtime this tokenizer was created from. */
+    public Turbo runtime() {
+        return runtime;
     }
 
     /**

@@ -27,6 +27,13 @@ typedef struct {
     uint32_t max_batch;
 } engine;
 
+static void throw_oom(JNIEnv *env, const char *what) {
+    jclass oom = (*env)->FindClass(env, "java/lang/OutOfMemoryError");
+    if (oom != NULL) {
+        (*env)->ThrowNew(env, oom, what);
+    }
+}
+
 static void throw_turbo(JNIEnv *env, const char *what, int32_t rc, const turbo_error *err) {
     jclass cls = (*env)->FindClass(env, "ai/pipestream/turbo/android/TurboException");
     if (cls == NULL) {
@@ -57,11 +64,33 @@ static void throw_turbo(JNIEnv *env, const char *what, int32_t rc, const turbo_e
         }                                                                                          \
     } while (0)
 
-static turbo_text text_of(const char *s) {
-    turbo_text t;
-    t.ptr = s;
-    t.len = (uint64_t)strlen(s);
-    return t;
+/* GetStringUTFChars hands back JNI modified UTF-8 (a supplementary
+ * character as a CESU-8 surrogate pair, U+0000 as 0xC0 0x80), which is not
+ * the UTF-8 turbo_text is specified as and the library validates. The Java
+ * side encodes with StandardCharsets.UTF_8 and passes byte[]; these pin
+ * those bytes for the duration of one call. turbo_text carries its length,
+ * so no NUL terminator is needed. */
+typedef struct {
+    jbyteArray array;
+    jbyte *bytes;
+} pinned;
+
+static int pin_utf8(JNIEnv *env, jbyteArray array, pinned *p, turbo_text *out) {
+    p->array = array;
+    p->bytes = (*env)->GetByteArrayElements(env, array, NULL);
+    if (p->bytes == NULL) {
+        return 0; /* an OutOfMemoryError is already pending */
+    }
+    out->ptr = (const char *)p->bytes;
+    out->len = (uint64_t)(*env)->GetArrayLength(env, array);
+    return 1;
+}
+
+static void unpin_utf8(JNIEnv *env, pinned *p) {
+    if (p->bytes != NULL) {
+        (*env)->ReleaseByteArrayElements(env, p->array, p->bytes, JNI_ABORT);
+        p->bytes = NULL;
+    }
 }
 
 static void engine_close(engine *e) {
@@ -75,30 +104,25 @@ static void engine_close(engine *e) {
     free(e);
 }
 
-/* long open(String bundle, String providerLib, int maxBatch): providerLib may be null. */
-JNIEXPORT jlong JNICALL Java_ai_pipestream_turbo_android_TurboJni_open(JNIEnv *env, jclass cls, jstring jbundle,
-                                                                       jstring jprovider_lib, jint max_batch) {
+/* long open(byte[] bundle, byte[] providerLib, int maxBatch): UTF-8 bytes;
+ * providerLib may be null. */
+JNIEXPORT jlong JNICALL Java_ai_pipestream_turbo_android_TurboJni_open(JNIEnv *env, jclass cls, jbyteArray jbundle,
+                                                                       jbyteArray jprovider_lib, jint max_batch) {
     (void)cls;
     engine *e = calloc(1, sizeof *e);
-    const char *bundle = NULL, *provider_lib = NULL;
+    pinned bundle = {NULL, NULL}, provider_lib = {NULL, NULL};
+    turbo_text bundle_text = {NULL, 0}, lib_text = {NULL, 0};
     if (e == NULL) {
-        jclass oom = (*env)->FindClass(env, "java/lang/OutOfMemoryError");
-        if (oom) (*env)->ThrowNew(env, oom, "engine allocation failed");
+        throw_oom(env, "engine allocation failed");
         return 0;
     }
-    bundle = (*env)->GetStringUTFChars(env, jbundle, NULL);
-    if (bundle == NULL) goto fail;
-    if (jprovider_lib != NULL) {
-        provider_lib = (*env)->GetStringUTFChars(env, jprovider_lib, NULL);
-        if (provider_lib == NULL) goto fail;
-    }
+    if (!pin_utf8(env, jbundle, &bundle, &bundle_text)) goto fail;
+    if (jprovider_lib != NULL && !pin_utf8(env, jprovider_lib, &provider_lib, &lib_text)) goto fail;
     {
         turbo_runtime_desc rd;
-        turbo_text lib_text;
         memset(&rd, 0, sizeof rd);
         rd.struct_size = (uint32_t)sizeof rd;
-        if (provider_lib != NULL) {
-            lib_text = text_of(provider_lib);
+        if (provider_lib.bytes != NULL) {
             rd.n_provider_paths = 1;
             rd.provider_paths = &lib_text;
         }
@@ -109,7 +133,7 @@ JNIEXPORT jlong JNICALL Java_ai_pipestream_turbo_android_TurboJni_open(JNIEnv *e
         e->device.struct_size = (uint32_t)sizeof e->device;
         CALL("turbo_runtime_device_info", turbo_runtime_device_info(e->rt, dev, &e->device, &err_));
         CALL("turbo_context_create", turbo_context_create(e->rt, dev, NULL, &e->ctx, &err_));
-        CALL("turbo_model_load", turbo_model_load(e->ctx, text_of(bundle), NULL, &e->model, &err_));
+        CALL("turbo_model_load", turbo_model_load(e->ctx, bundle_text, NULL, &e->model, &err_));
         memset(&e->info, 0, sizeof e->info);
         e->info.struct_size = (uint32_t)sizeof e->info;
         CALL("turbo_model_get_info", turbo_model_get_info(e->model, &e->info, &err_));
@@ -126,12 +150,12 @@ JNIEXPORT jlong JNICALL Java_ai_pipestream_turbo_android_TurboJni_open(JNIEnv *e
         e->max_batch = sd.max_batch;
         CALL("turbo_session_create", turbo_session_create(e->model, &sd, &e->session, &err_));
     }
-    (*env)->ReleaseStringUTFChars(env, jbundle, bundle);
-    if (provider_lib) (*env)->ReleaseStringUTFChars(env, jprovider_lib, provider_lib);
+    unpin_utf8(env, &bundle);
+    unpin_utf8(env, &provider_lib);
     return (jlong)(intptr_t)e;
 fail:
-    if (bundle) (*env)->ReleaseStringUTFChars(env, jbundle, bundle);
-    if (provider_lib) (*env)->ReleaseStringUTFChars(env, jprovider_lib, provider_lib);
+    unpin_utf8(env, &bundle);
+    unpin_utf8(env, &provider_lib);
     engine_close(e);
     return 0;
 }
@@ -153,14 +177,14 @@ JNIEXPORT jint JNICALL Java_ai_pipestream_turbo_android_TurboJni_dim(JNIEnv *env
     return (jint)((engine *)(intptr_t)handle)->info.dim;
 }
 
-/* float[] embed(long handle, String[] texts): rows of dim floats, in order. */
+/* float[] embed(long handle, byte[][] texts): UTF-8 rows in, rows of dim
+ * floats out, in order. */
 JNIEXPORT jfloatArray JNICALL Java_ai_pipestream_turbo_android_TurboJni_embed(JNIEnv *env, jclass cls, jlong handle,
                                                                              jobjectArray jtexts) {
     (void)cls;
     engine *e = (engine *)(intptr_t)handle;
     jsize n = (*env)->GetArrayLength(env, jtexts);
-    const char **utf = NULL;
-    jstring *strs = NULL;
+    pinned *rows = NULL;
     turbo_text *views = NULL;
     turbo_result *result = NULL;
     jfloatArray out = NULL;
@@ -172,44 +196,81 @@ JNIEXPORT jfloatArray JNICALL Java_ai_pipestream_turbo_android_TurboJni_embed(JN
         if (iae) (*env)->ThrowNew(env, iae, msg);
         return NULL;
     }
-    utf = calloc((size_t)n, sizeof *utf);
-    strs = calloc((size_t)n, sizeof *strs);
+    rows = calloc((size_t)n, sizeof *rows);
     views = calloc((size_t)n, sizeof *views);
-    if (!utf || !strs || !views) goto fail;
+    if (!rows || !views) {
+        throw_oom(env, "could not allocate the per-row views for this batch");
+        goto fail;
+    }
     for (jsize i = 0; i < n; ++i) {
-        strs[i] = (jstring)(*env)->GetObjectArrayElement(env, jtexts, i);
-        if (strs[i] == NULL) goto fail;
-        utf[i] = (*env)->GetStringUTFChars(env, strs[i], NULL);
-        if (utf[i] == NULL) goto fail;
-        views[i] = text_of(utf[i]);
+        jbyteArray row = (jbyteArray)(*env)->GetObjectArrayElement(env, jtexts, i);
+        if (row == NULL) {
+            jclass npe = (*env)->FindClass(env, "java/lang/NullPointerException");
+            char msg[64];
+            snprintf(msg, sizeof msg, "texts[%d] is null", (int)i);
+            if (npe) (*env)->ThrowNew(env, npe, msg);
+            goto fail;
+        }
+        if (!pin_utf8(env, row, &rows[i], &views[i])) goto fail;
     }
     {
         CALL("turbo_session_write_text", turbo_session_write_text(e->session, views, (uint32_t)n, NULL, &err_));
         CALL("turbo_session_run", turbo_session_run(e->session, NULL, &result, &err_));
         turbo_result_info ri;
+        uint64_t expected, written = 0;
         memset(&ri, 0, sizeof ri);
         ri.struct_size = (uint32_t)sizeof ri;
         CALL("turbo_result_get_info", turbo_result_get_info(result, &ri, &err_));
+        /* This shim hands Java a float[]; any other dtype would be
+         * reinterpreted f32 pairs, which the caller cannot detect. */
+        if (ri.dtype != TURBO_DTYPE_F32) {
+            jclass ise = (*env)->FindClass(env, "java/lang/IllegalStateException");
+            char msg[160];
+            snprintf(msg, sizeof msg, "the bundle's output dtype is %u, not TURBO_DTYPE_F32 (%u); this shim returns f32 rows only",
+                     ri.dtype, (unsigned)TURBO_DTYPE_F32);
+            if (ise) (*env)->ThrowNew(env, ise, msg);
+            goto fail;
+        }
+        expected = (uint64_t)ri.batch * ri.dim * sizeof(float);
+        if (ri.bytes != expected) {
+            jclass ise = (*env)->FindClass(env, "java/lang/IllegalStateException");
+            char msg[160];
+            snprintf(msg, sizeof msg, "the result claims %llu bytes for %u x %u f32 (%llu expected)",
+                     (unsigned long long)ri.bytes, ri.batch, ri.dim, (unsigned long long)expected);
+            if (ise) (*env)->ThrowNew(env, ise, msg);
+            goto fail;
+        }
         buf = malloc((size_t)ri.bytes);
-        if (buf == NULL) goto fail;
-        uint64_t written = 0;
+        if (buf == NULL) {
+            throw_oom(env, "could not allocate the result buffer");
+            goto fail;
+        }
         CALL("turbo_result_read", turbo_result_read(result, 0, buf, ri.bytes, &written, &err_));
+        if (written != ri.bytes) {
+            jclass ise = (*env)->FindClass(env, "java/lang/IllegalStateException");
+            char msg[128];
+            snprintf(msg, sizeof msg, "turbo_result_read wrote %llu of %llu bytes", (unsigned long long)written,
+                     (unsigned long long)ri.bytes);
+            if (ise) (*env)->ThrowNew(env, ise, msg);
+            goto fail;
+        }
         out = (*env)->NewFloatArray(env, (jsize)(written / sizeof(float)));
-        if (out == NULL) goto fail;
+        if (out == NULL) {
+            throw_oom(env, "could not allocate the float[] for the embeddings");
+            goto fail;
+        }
         (*env)->SetFloatArrayRegion(env, out, 0, (jsize)(written / sizeof(float)), buf);
     }
 fail:
     free(buf);
     if (result) turbo_result_release(result);
-    if (utf && strs) {
+    if (rows) {
         for (jsize i = 0; i < n; ++i) {
-            if (utf[i]) (*env)->ReleaseStringUTFChars(env, strs[i], utf[i]);
-            if (strs[i]) (*env)->DeleteLocalRef(env, strs[i]);
+            unpin_utf8(env, &rows[i]);
         }
     }
     free(views);
-    free(strs);
-    free(utf);
+    free(rows);
     return out;
 }
 

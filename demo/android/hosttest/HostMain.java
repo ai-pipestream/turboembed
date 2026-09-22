@@ -23,6 +23,15 @@ public final class HostMain {
                     throw new AssertionError("row " + a + " is not unit norm");
                 }
             }
+            // A supplementary character crosses as UTF-8, not as the CESU-8
+            // surrogate pair GetStringUTFChars would produce, which the
+            // library refuses with TURBO_E_INVALID_UTF8.
+            float[][] supplementary = engine.embed("great work 🎉", "great work");
+            if (supplementary.length != 2 || supplementary[0].length != engine.dim()) {
+                throw new AssertionError("supplementary characters did not embed");
+            }
+            System.out.println("supplementary characters embed as UTF-8");
+
             // The engine refuses a batch wider than it holds, before touching the library.
             try {
                 engine.embed("1", "2", "3", "4", "5");

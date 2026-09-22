@@ -13,6 +13,7 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <charconv>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -48,6 +49,8 @@ grpc::Status to_status(const Failure &f) {
     case TURBO_E_INVALID_UTF8:
     case TURBO_E_INVALID_ENUM:
     case TURBO_E_UNSUPPORTED_OPTION:
+    case TURBO_E_UNSUPPORTED_DTYPE:
+    case TURBO_E_INVALID_SHAPE:
     case TURBO_E_CAPACITY:
         return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, f.message);
     case TURBO_E_BUSY:
@@ -135,11 +138,30 @@ class EmbedderService final : public turbo::demo::v1::Embedder::Service {
                 ri.struct_size = sizeof ri;
                 try {
                     call("turbo_result_get_info", [&](turbo_error *e) { return turbo_result_get_info(result, &ri, e); });
+                    // The wire format is f32; reinterpreting any other dtype
+                    // as float would serve garbage with an OK status.
+                    if (ri.dtype != TURBO_DTYPE_F32) {
+                        throw Failure{TURBO_E_UNSUPPORTED_DTYPE, 0,
+                                      "the bundle's output dtype is " + std::to_string(ri.dtype) +
+                                          ", not TURBO_DTYPE_F32 (" + std::to_string(TURBO_DTYPE_F32) + "); this server serves f32 embeddings only"};
+                    }
+                    const uint64_t expected = uint64_t(ri.batch) * ri.dim * sizeof(float);
+                    if (ri.bytes != expected) {
+                        throw Failure{TURBO_E_INVALID_SHAPE, 0,
+                                      "the result claims " + std::to_string(ri.bytes) + " bytes for " + std::to_string(ri.batch) + " x " +
+                                          std::to_string(ri.dim) + " f32 (" + std::to_string(expected) + " expected)"};
+                    }
                     std::vector<float> buf(ri.bytes / sizeof(float));
                     uint64_t written = 0;
                     call("turbo_result_read", [&](turbo_error *e) {
                         return turbo_result_read(result, 0, buf.data(), ri.bytes, &written, e);
                     });
+                    // written is an output for a reason: a short read leaves
+                    // the tail of buf at zero and would be sent as answers.
+                    if (written != ri.bytes) {
+                        throw Failure{TURBO_E_RUNTIME, 0,
+                                      "turbo_result_read wrote " + std::to_string(written) + " of " + std::to_string(ri.bytes) + " bytes"};
+                    }
                     out->set_dim(ri.dim);
                     for (uint32_t r = 0; r < ri.batch; ++r) {
                         auto *emb = out->add_embeddings();
@@ -166,6 +188,23 @@ class EmbedderService final : public turbo::demo::v1::Embedder::Service {
     std::vector<std::unique_ptr<Worker>> workers_;
 };
 
+/// Parse a flag's value as a uint32, or exit 2 naming the flag. std::stoul
+/// throws, and the parse loop runs outside main's try block.
+uint32_t parse_u32(const char *flag, const std::string &value, uint32_t least) {
+    uint32_t out = 0;
+    const char *end = value.data() + value.size();
+    const auto r = std::from_chars(value.data(), end, out);
+    if (r.ec != std::errc{} || r.ptr != end) {
+        std::cerr << flag << ": " << value << " is not a number in " << least << ".." << UINT32_MAX << "\n";
+        std::exit(2);
+    }
+    if (out < least) {
+        std::cerr << flag << ": " << value << " is below the minimum of " << least << "\n";
+        std::exit(2);
+    }
+    return out;
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -184,10 +223,10 @@ int main(int argc, char **argv) {
         if (a == "--bundle") bundle = next("--bundle");
         else if (a == "--provider-lib") provider_lib = next("--provider-lib");
         else if (a == "--provider") provider = next("--provider");
-        else if (a == "--ordinal") { ordinal = std::stoul(next("--ordinal")); have_ordinal = true; }
+        else if (a == "--ordinal") { ordinal = parse_u32("--ordinal", next("--ordinal"), 0); have_ordinal = true; }
         else if (a == "--listen") listen = next("--listen");
-        else if (a == "--sessions") sessions = std::stoul(next("--sessions"));
-        else if (a == "--max-batch") max_batch = std::stoul(next("--max-batch"));
+        else if (a == "--sessions") sessions = parse_u32("--sessions", next("--sessions"), 1);
+        else if (a == "--max-batch") max_batch = parse_u32("--max-batch", next("--max-batch"), 1);
         else { std::cerr << "unknown argument " << a << "\n"; return 2; }
     }
     if (bundle.empty() || provider.empty() != !have_ordinal) {

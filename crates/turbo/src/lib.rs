@@ -2,8 +2,10 @@
 //!
 //! This crate is the ergonomic surface over `turbo-core`. Handles are
 //! reference counted and children retain parents; sessions and generations
-//! are single-owner (`Send`, not `Sync`); every option is validated against
-//! the capability matrix before a provider is reached.
+//! are `Send + Sync` handles whose operations are single-owner, enforced at
+//! run time (a second concurrent call returns `TURBO_E_BUSY`), so a shared
+//! `Arc<Session>` compiles and the caller serializes its use; every option
+//! is validated against the capability matrix before a provider is reached.
 
 #![deny(missing_docs)]
 

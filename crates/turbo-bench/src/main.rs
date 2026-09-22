@@ -7,7 +7,7 @@
 //!                      [--out receipt.json] [--budget earlier-receipt.json]
 //! turbo-bench rerank   --provider-lib <so> --provider <id> --bundle <dir> [--docs 32] ...
 //! turbo-bench generate --provider-lib <so> --provider <id> --bundle <dir> [--new-tokens 128] ...
-//! turbo-bench discover [--provider-lib <so>]... [--provider-dir <dir>] [--bundle <dir>]... [--json]
+//! turbo-bench discover [--provider-lib <so>]... [--provider-dir <dir>] [--bundle <dir>]... [--json] [--strict]
 //! ```
 //!
 //! `discover` is the survey: it loads the named provider libraries (or, with
@@ -20,17 +20,22 @@
 //! Embedding workloads run the text path (`write_text` + `run` + read) and
 //! the prepared-token path (`write_tokens` + `run` + read, tokens encoded
 //! once up front by the core tokenizer) for every batch x seq cell, with
-//! texts built from the committed STS corpus to fill about 90% of each
-//! sequence length. Reported per cell: p50/p99/mean latency, rows/s and
-//! tokens/s, and the per-run H2D/D2H bytes, host allocations, and provider
-//! allocations from the session counters.
+//! texts built from the committed STS corpus towards 90% of each sequence
+//! length (whole sentences, so the live count the cell reports is what was
+//! reached). Reported per cell: p50/mean/min/max latency (p99 only from 100
+//! iterations up), rows/s, tokens/s when the bundle's tokenizer counted the
+//! tokens, and the per-run H2D/D2H bytes, host allocations, and provider
+//! allocations from the session counters, averaged over the timed runs.
 //!
 //! A receipt carries the machine, provider, runtime and driver versions,
-//! device, bundle identity (manifest and artifact hashes), and commit. With
-//! `--budget`, every cell's text-path p50 is checked against the earlier
-//! receipt's p50 plus a tolerance (default 25%); a regression is reported
-//! and the process exits non-zero. Budgets are set from the first run per
-//! provider and then held (PLAN.md section 11).
+//! device (with its memory), bundle identity (manifest and artifact hashes),
+//! and the commit the binary was built from (or the one `--commit` names on
+//! a machine without git). With `--budget`, the earlier receipt must be of
+//! the same provider, device and bundle; every cell either receipt has is
+//! checked (a cell missing from the new run is a violation), and a
+//! text-path p50 over the earlier p50 plus a tolerance (default 25%) is a
+//! regression: exit 1. An unusable budget file is exit 2. Budgets are set
+//! from the first run per provider and then held (PLAN.md section 11).
 //!
 //! The direct-native reference program of each pair is still to be written
 //! (a provider's README will carry it once it exists); this tool measures
@@ -73,8 +78,8 @@ struct Common {
     /// Bundle directory.
     #[arg(long)]
     bundle: PathBuf,
-    /// Timed iterations per cell.
-    #[arg(long, default_value_t = 30)]
+    /// Timed iterations per cell (p99 is reported from 100 up).
+    #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u32).range(1..))]
     iters: u32,
     /// Untimed warm-up iterations per cell.
     #[arg(long, default_value_t = 5)]
@@ -85,9 +90,18 @@ struct Common {
     /// Earlier receipt whose p50 figures are the budget.
     #[arg(long)]
     budget: Option<PathBuf>,
-    /// Allowed slowdown against the budget, as a fraction.
-    #[arg(long, default_value_t = 0.25)]
-    tolerance: f64,
+    /// Allowed slowdown against the budget, as a fraction (default 0.25); needs --budget.
+    #[arg(long)]
+    tolerance: Option<f64>,
+    /// Commit to record when the binary was built from a tree without git
+    /// (an rsynced copy); otherwise the build's own commit is recorded.
+    #[arg(long)]
+    commit: Option<String>,
+}
+
+/// The corpus option, for the workloads that read texts.
+#[derive(Args, Clone)]
+struct CorpusArg {
     /// Corpus of texts (JSON lines with `text_a`/`text_b`); default: testdata/corpus/sts-pairs.jsonl.
     #[arg(long)]
     corpus: Option<PathBuf>,
@@ -99,22 +113,26 @@ enum Cmd {
     Embed {
         #[command(flatten)]
         common: Common,
-        /// Batch sizes.
-        #[arg(long, value_delimiter = ',', default_value = "1,8,32")]
+        #[command(flatten)]
+        corpus: CorpusArg,
+        /// Batch sizes; each must be within the model's max_batch.
+        #[arg(long, value_delimiter = ',', default_value = "1,8,32", value_parser = clap::value_parser!(u32).range(1..))]
         batches: Vec<u32>,
-        /// Sequence lengths.
-        #[arg(long, value_delimiter = ',', default_value = "32,128,256")]
+        /// Sequence lengths; each must be within the model's max_seq.
+        #[arg(long, value_delimiter = ',', default_value = "32,128,256", value_parser = clap::value_parser!(u32).range(2..))]
         seqs: Vec<u32>,
     },
     /// Rerank one query against `docs` documents.
     Rerank {
         #[command(flatten)]
         common: Common,
+        #[command(flatten)]
+        corpus: CorpusArg,
         /// Documents per query.
-        #[arg(long, default_value_t = 32)]
+        #[arg(long, default_value_t = 32, value_parser = clap::value_parser!(u32).range(1..))]
         docs: u32,
         /// Sequence length of the session.
-        #[arg(long, default_value_t = 128)]
+        #[arg(long, default_value_t = 128, value_parser = clap::value_parser!(u32).range(2..))]
         seq: u32,
     },
     /// Survey the providers and devices on this machine.
@@ -132,7 +150,8 @@ enum Cmd {
         /// Print JSON instead of the table.
         #[arg(long)]
         json: bool,
-        /// Exit non-zero when a named provider library fails to load.
+        /// Exit non-zero when a named provider library fails to load or its
+        /// device probe fails.
         #[arg(long)]
         strict: bool,
     },
@@ -141,7 +160,7 @@ enum Cmd {
         #[command(flatten)]
         common: Common,
         /// New tokens per generation.
-        #[arg(long, default_value_t = 128)]
+        #[arg(long, default_value_t = 128, value_parser = clap::value_parser!(u32).range(1..))]
         new_tokens: u32,
         /// Prompt text (user role).
         #[arg(long, default_value = "Write a short paragraph about the history of the bicycle.")]
@@ -156,28 +175,40 @@ enum Cmd {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Latency {
     p50_ms: f64,
-    p99_ms: f64,
+    /// Nearest-rank p99; absent below 100 samples, where it would be the
+    /// single worst sample.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    p99_ms: Option<f64>,
     mean_ms: f64,
     min_ms: f64,
     max_ms: f64,
     rows_per_s: f64,
-    tokens_per_s: f64,
+    /// Absent when the tokens were not counted by a tokenizer (word
+    /// estimates, or a rerank cell, which has no token count).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tokens_per_s: Option<f64>,
     iters: u32,
 }
 
+/// Session counters averaged over the timed runs (a counter that moved
+/// less than once per run still shows as a fraction, never as zero).
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct PerRun {
-    h2d_bytes: u64,
-    d2h_bytes: u64,
-    host_allocs: Option<u64>,
-    provider_allocs: Option<u64>,
+    h2d_bytes: f64,
+    d2h_bytes: f64,
+    host_allocs: Option<f64>,
+    provider_allocs: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct EmbedCell {
     batch: u32,
     seq: u32,
+    /// Live tokens per row; how they were counted is `token_count_source`.
     live_tokens_per_row: f64,
+    /// `tokenizer` (the bundle's, exact) or `word-estimate` (words / 0.75 + 2).
+    #[serde(default = "default_token_count_source")]
+    token_count_source: String,
     text_path: Latency,
     /// Absent when the bundle has no Hugging Face tokenizer for the core to
     /// encode with; the reason is in `prepared_tokens_note`.
@@ -200,8 +231,14 @@ struct GenerateCell {
     new_tokens_requested: u32,
     generated_tokens_mean: f64,
     prompt_tokens: u32,
+    /// From prompt submission (the prefill included) to the first chunk
+    /// with a token.
     time_to_first_token_ms_p50: f64,
-    decode_tokens_per_s_p50: f64,
+    /// Tokens after the first chunk over the time after it; absent when no
+    /// iteration produced a second chunk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    decode_tokens_per_s_p50: Option<f64>,
+    /// From prompt submission to the final chunk.
     total_ms_p50: f64,
     finish_reasons: Vec<String>,
     iters: u32,
@@ -243,12 +280,19 @@ struct ProviderId {
     driver_version: String,
 }
 
+fn default_token_count_source() -> String {
+    "unrecorded".to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Device {
     name: String,
     kind: String,
     ordinal: u32,
     caps: String,
+    /// Bytes, as the provider reports them (0 when it does not).
+    #[serde(default)]
+    memory_total: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -266,27 +310,41 @@ struct BudgetCheck {
     violations: Vec<String>,
 }
 
-fn run_cmd(cmd: &str, args: &[&str]) -> String {
-    Command::new(cmd)
-        .args(args)
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|| "unknown".to_string())
+fn run_cmd(cmd: &str, args: &[&str]) -> Result<String, String> {
+    let out = Command::new(cmd).args(args).output().map_err(|e| format!("{cmd} {}: {e}", args.join(" ")))?;
+    if !out.status.success() {
+        return Err(format!("{cmd} {} exited with {}", args.join(" "), out.status));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-fn machine() -> Machine {
-    Machine {
-        hostname: run_cmd("uname", &["-n"]),
-        os: run_cmd("uname", &["-sr"]),
+fn machine() -> Result<Machine, String> {
+    Ok(Machine {
+        hostname: run_cmd("uname", &["-n"])?,
+        os: run_cmd("uname", &["-sr"])?,
         arch: std::env::consts::ARCH.to_string(),
+    })
+}
+
+/// The commit a receipt names: the build's own (from build.rs) unless the
+/// run names one, and an error when neither exists. A receipt without a
+/// commit is not a measurement of anything.
+fn commit(c: &Common) -> Result<String, String> {
+    if let Some(named) = &c.commit {
+        return Ok(named.clone());
+    }
+    match option_env!("TURBO_BENCH_GIT_COMMIT") {
+        Some(built) => Ok(built.to_string()),
+        None => Err("the binary was built from a tree without git, so the receipt cannot name a commit; pass --commit <sha>".to_string()),
     }
 }
 
-fn today() -> String {
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    civil_date(secs)
+fn today() -> Result<String, String> {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("the clock is before the Unix epoch: {e}"))?
+        .as_secs();
+    Ok(civil_date(secs))
 }
 
 /// The UTC civil date of an epoch second, `YYYY-MM-DD`, without a chrono
@@ -311,8 +369,12 @@ fn civil_date(secs: u64) -> String {
 // Timing helpers
 // ---------------------------------------------------------------------------
 
-fn summarize(samples: &mut [Duration], rows: u64, tokens: u64) -> Latency {
-    assert!(!samples.is_empty(), "no samples");
+/// Latency figures over the timed samples. `tokens` is `Some` only when a
+/// tokenizer counted them; a p99 is reported from 100 samples up.
+fn summarize(samples: &mut [Duration], rows: u64, tokens: Option<u64>) -> Result<Latency, String> {
+    if samples.is_empty() {
+        return Err("no timed samples (iters must be at least 1)".to_string());
+    }
     samples.sort();
     let n = samples.len();
     let pct = |p: f64| -> f64 {
@@ -321,16 +383,19 @@ fn summarize(samples: &mut [Duration], rows: u64, tokens: u64) -> Latency {
     };
     let total: f64 = samples.iter().map(|d| d.as_secs_f64()).sum();
     let mean = total / n as f64;
-    Latency {
+    if !(mean > 0.0) {
+        return Err("the mean latency is zero; the clock did not advance".to_string());
+    }
+    Ok(Latency {
         p50_ms: pct(0.5),
-        p99_ms: pct(0.99),
+        p99_ms: if n >= 100 { Some(pct(0.99)) } else { None },
         mean_ms: mean * 1e3,
         min_ms: samples[0].as_secs_f64() * 1e3,
         max_ms: samples[n - 1].as_secs_f64() * 1e3,
         rows_per_s: rows as f64 / mean,
-        tokens_per_s: tokens as f64 / mean,
+        tokens_per_s: tokens.map(|t| t as f64 / mean),
         iters: n as u32,
-    }
+    })
 }
 
 /// A selected device with its context, and the identity fields a receipt needs.
@@ -338,6 +403,7 @@ struct Target {
     ctx: Arc<Context>,
     provider: ProviderId,
     device: Device,
+    caps: u64,
 }
 
 fn open_target(c: &Common) -> Result<Target, String> {
@@ -353,7 +419,7 @@ fn open_target(c: &Common) -> Result<Target, String> {
     }
     let ordinal = match c.ordinal {
         Some(o) => o,
-        None => devices.iter().find(|d| d.info.kind != DeviceKind::Cpu).map(|d| d.info.ordinal).unwrap_or(0),
+        None => devices.iter().find(|d| d.info.kind != DeviceKind::Cpu).unwrap_or(&devices[0]).info.ordinal,
     };
     let idx = rt
         .select(&DeviceSelector {
@@ -382,7 +448,9 @@ fn open_target(c: &Common) -> Result<Target, String> {
             kind: format!("{:?}", info.kind),
             ordinal,
             caps: format!("{:#x}", info.caps),
+            memory_total: info.memory_total,
         },
+        caps: info.caps,
     })
 }
 
@@ -404,7 +472,7 @@ struct CorpusLine {
     text_b: String,
 }
 
-fn corpus(c: &Common) -> Result<Vec<String>, String> {
+fn corpus(c: &CorpusArg) -> Result<Vec<String>, String> {
     let path = c
         .corpus
         .clone()
@@ -472,27 +540,32 @@ fn texts_for(corpus: &[String], tok: &Counter, n: usize, seq: u32, offset: usize
     Ok(out)
 }
 
-fn delta(a: &turbo::SessionStats, b: &turbo::SessionStats, runs: u64) -> PerRun {
-    let per = |x: u64, y: u64| (y.saturating_sub(x)) / runs.max(1);
-    PerRun {
-        h2d_bytes: per(a.h2d_bytes, b.h2d_bytes),
-        d2h_bytes: per(a.d2h_bytes, b.d2h_bytes),
+fn delta(a: &turbo::SessionStats, b: &turbo::SessionStats, runs: u64) -> Result<PerRun, String> {
+    let per = |name: &str, x: u64, y: u64| -> Result<f64, String> {
+        if y < x {
+            return Err(format!("session counter {name} went backwards ({x} then {y}); the provider's stats are not monotonic"));
+        }
+        Ok((y - x) as f64 / runs.max(1) as f64)
+    };
+    Ok(PerRun {
+        h2d_bytes: per("h2d_bytes", a.h2d_bytes, b.h2d_bytes)?,
+        d2h_bytes: per("d2h_bytes", a.d2h_bytes, b.d2h_bytes)?,
         host_allocs: match (a.host_allocs, b.host_allocs) {
-            (Some(x), Some(y)) => Some(per(x, y)),
+            (Some(x), Some(y)) => Some(per("host_allocs", x, y)?),
             _ => None,
         },
         provider_allocs: match (a.provider_allocs, b.provider_allocs) {
-            (Some(x), Some(y)) => Some(per(x, y)),
+            (Some(x), Some(y)) => Some(per("provider_allocs", x, y)?),
             _ => None,
         },
-    }
+    })
 }
 
 // ---------------------------------------------------------------------------
 // Embed
 // ---------------------------------------------------------------------------
 
-fn bench_embed(c: &Common, batches: &[u32], seqs: &[u32]) -> Result<Receipt, String> {
+fn bench_embed(c: &Common, corpus_arg: &CorpusArg, batches: &[u32], seqs: &[u32]) -> Result<Receipt, String> {
     let t = open_target(c)?;
     let (bundle, bid) = bundle_id(&c.bundle)?;
     let (counter, tokenizer_note) = match Tokenizer::from_bundle(&bundle) {
@@ -505,22 +578,22 @@ fn bench_embed(c: &Common, batches: &[u32], seqs: &[u32]) -> Result<Receipt, Str
     let model = t.ctx.load_model(&c.bundle, &ModelDesc::default()).map_err(|e| format!("load model: {e}"))?;
     let info = model.info();
     let dim = info.dim as usize;
-    let corpus = corpus(c)?;
+    let corpus = corpus(corpus_arg)?;
+    // Every requested cell is measured or the run is an error: a receipt
+    // that quietly dropped cells would then pass any budget.
+    if let Some(seq) = seqs.iter().find(|&&s| s > info.max_seq) {
+        return Err(format!("--seqs {seq} exceeds the model's max_seq {}", info.max_seq));
+    }
+    if let Some(batch) = batches.iter().find(|&&b| b > info.max_batch) {
+        return Err(format!("--batches {batch} exceeds the model's max_batch {}", info.max_batch));
+    }
     let mut cells = Vec::new();
     for &seq in seqs {
-        if seq > info.max_seq {
-            eprintln!("skipping seq {seq}: the model's max_seq is {}", info.max_seq);
-            continue;
-        }
         for &batch in batches {
-            if batch > info.max_batch {
-                eprintln!("skipping batch {batch}: the model's max_batch is {}", info.max_batch);
-                continue;
-            }
             let session = model
                 .create_session(&SessionDesc { max_batch: batch, max_seq: seq, ..Default::default() })
                 .map_err(|e| format!("session {batch}x{seq}: {e}"))?;
-            let texts = texts_for(&corpus, &counter, batch as usize, seq, (batch * seq) as usize)?;
+            let texts = texts_for(&corpus, &counter, batch as usize, seq, batch as usize * seq as usize)?;
             let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
             let mut out = vec![0u8; batch as usize * dim * 4];
 
@@ -549,6 +622,10 @@ fn bench_embed(c: &Common, batches: &[u32], seqs: &[u32]) -> Result<Receipt, Str
             }
             let live: u64 = lengths.iter().map(|&l| l as u64).sum();
             let live_per_row = live as f64 / batch as f64;
+            // Only a tokenizer's count is a token count; a word estimate is
+            // labeled as such and yields no tokens/s.
+            let counted = matches!(counter, Counter::Tokenizer(_));
+            let tokens = counted.then_some(live);
             let token_batch = TokenBatch { batch, seq, row_stride: seq, ids: &ids, mask: &mask, types: None };
 
             let mut run_text = || -> Result<(), String> {
@@ -568,8 +645,8 @@ fn bench_embed(c: &Common, batches: &[u32], seqs: &[u32]) -> Result<Receipt, Str
                 samples.push(t0.elapsed());
             }
             let after = session.stats().map_err(|e| e.to_string())?;
-            let per_run = delta(&before, &after, c.iters as u64);
-            let text_path = summarize(&mut samples, batch as u64, live);
+            let per_run = delta(&before, &after, c.iters as u64)?;
+            let text_path = summarize(&mut samples, batch as u64, tokens)?;
 
             let prepared = if matches!(counter, Counter::Tokenizer(_)) {
                 let mut run_tokens = || -> Result<(), String> {
@@ -587,7 +664,7 @@ fn bench_embed(c: &Common, batches: &[u32], seqs: &[u32]) -> Result<Receipt, Str
                     run_tokens()?;
                     samples.push(t0.elapsed());
                 }
-                Some(summarize(&mut samples, batch as u64, live))
+                Some(summarize(&mut samples, batch as u64, tokens)?)
             } else {
                 None
             };
@@ -595,14 +672,16 @@ fn bench_embed(c: &Common, batches: &[u32], seqs: &[u32]) -> Result<Receipt, Str
                 .as_ref()
                 .map(|p| format!("{:.3} ms ({:.0} rows/s)", p.p50_ms, p.rows_per_s))
                 .unwrap_or_else(|| "skipped".to_string());
+            let tok_s = text_path.tokens_per_s.map(|t| format!("{t:.0} tok/s")).unwrap_or_else(|| "tokens estimated".to_string());
             eprintln!(
-                "embed batch {batch:>2} seq {seq:>3}: text p50 {:.3} ms ({:.0} rows/s, {:.0} tok/s); tokens p50 {prepared_p50}; live {:.1} tok/row; h2d {} d2h {} per run",
-                text_path.p50_ms, text_path.rows_per_s, text_path.tokens_per_s, live_per_row, per_run.h2d_bytes, per_run.d2h_bytes
+                "embed batch {batch:>2} seq {seq:>3}: text p50 {:.3} ms ({:.0} rows/s, {tok_s}); tokens p50 {prepared_p50}; live {:.1} tok/row; h2d {:.0} d2h {:.0} per run",
+                text_path.p50_ms, text_path.rows_per_s, live_per_row, per_run.h2d_bytes, per_run.d2h_bytes
             );
             cells.push(EmbedCell {
                 batch,
                 seq,
                 live_tokens_per_row: live_per_row,
+                token_count_source: if counted { "tokenizer" } else { "word-estimate" }.to_string(),
                 text_path,
                 prepared_tokens_path: prepared,
                 prepared_tokens_note: tokenizer_note.clone(),
@@ -610,17 +689,14 @@ fn bench_embed(c: &Common, batches: &[u32], seqs: &[u32]) -> Result<Receipt, Str
             });
         }
     }
-    if cells.is_empty() {
-        return Err("no cell fit the model's limits".to_string());
-    }
-    Ok(receipt(&t, bid, cells, None, None))
+    receipt(c, &t, bid, cells, None, None)
 }
 
 // ---------------------------------------------------------------------------
 // Rerank
 // ---------------------------------------------------------------------------
 
-fn bench_rerank(c: &Common, docs: u32, seq: u32) -> Result<Receipt, String> {
+fn bench_rerank(c: &Common, corpus_arg: &CorpusArg, docs: u32, seq: u32) -> Result<Receipt, String> {
     let t = open_target(c)?;
     let (_bundle, bid) = bundle_id(&c.bundle)?;
     let model = t.ctx.load_model(&c.bundle, &ModelDesc::default()).map_err(|e| format!("load model: {e}"))?;
@@ -628,7 +704,7 @@ fn bench_rerank(c: &Common, docs: u32, seq: u32) -> Result<Receipt, String> {
     if docs > info.max_batch || seq > info.max_seq {
         return Err(format!("{docs} docs x {seq} exceeds the model's limits {}x{}", info.max_batch, info.max_seq));
     }
-    let corpus = corpus(c)?;
+    let corpus = corpus(corpus_arg)?;
     let session = model
         .create_session(&SessionDesc { max_batch: docs, max_seq: seq, ..Default::default() })
         .map_err(|e| format!("session: {e}"))?;
@@ -652,10 +728,11 @@ fn bench_rerank(c: &Common, docs: u32, seq: u32) -> Result<Receipt, String> {
         samples.push(t0.elapsed());
     }
     let after = session.stats().map_err(|e| e.to_string())?;
-    let per_run = delta(&before, &after, c.iters as u64);
-    let text_path = summarize(&mut samples, docs as u64, 0);
+    let per_run = delta(&before, &after, c.iters as u64)?;
+    // A rerank cell counts documents, not tokens.
+    let text_path = summarize(&mut samples, docs as u64, None)?;
     eprintln!("rerank {docs} docs seq {seq}: p50 {:.3} ms ({:.0} docs/s)", text_path.p50_ms, text_path.rows_per_s);
-    Ok(receipt(&t, bid, Vec::new(), Some(RerankCell { docs, seq, text_path, per_run }), None))
+    receipt(c, &t, bid, Vec::new(), Some(RerankCell { docs, seq, text_path, per_run }), None)
 }
 
 // ---------------------------------------------------------------------------
@@ -666,10 +743,7 @@ fn bench_generate(c: &Common, new_tokens: u32, prompt: &str) -> Result<Receipt, 
     let t = open_target(c)?;
     let (_bundle, bid) = bundle_id(&c.bundle)?;
     let model = t.ctx.load_model(&c.bundle, &ModelDesc::default()).map_err(|e| format!("load model: {e}"))?;
-    let min_supported = t.device.caps.trim_start_matches("0x").chars().count() > 0
-        && (u64::from_str_radix(t.device.caps.trim_start_matches("0x"), 16).unwrap_or(0)
-            & turbo::abi::TURBO_CAP_OPT_GEN_MIN_TOKENS)
-            != 0;
+    let min_supported = t.caps & turbo::abi::TURBO_CAP_OPT_GEN_MIN_TOKENS != 0;
     let desc = GenerateDesc {
         max_new_tokens: new_tokens,
         min_new_tokens: if min_supported { new_tokens } else { 0 },
@@ -681,34 +755,44 @@ fn bench_generate(c: &Common, new_tokens: u32, prompt: &str) -> Result<Receipt, 
     let mut totals = Vec::new();
     let mut generated = Vec::new();
     let mut reasons = Vec::new();
-    let mut prompt_tokens = 0;
-    for i in 0..(c.warmup + c.iters) {
+    let mut prompt_tokens: Option<u32> = None;
+    for i in 0..(c.warmup as u64 + c.iters as u64) {
         let g = model.create_generation(&desc).map_err(|e| format!("generation: {e}"))?;
-        g.prompt(&messages).map_err(|e| format!("prompt: {e}"))?;
+        // `prompt` runs the prefill, so the clock starts before it: time to
+        // first token is what a caller waits for.
         let t0 = Instant::now();
-        let mut first: Option<Duration> = None;
+        g.prompt(&messages).map_err(|e| format!("prompt: {e}"))?;
+        let mut first: Option<(Duration, u64)> = None; // when, and how many tokens it carried
         let mut n = 0u64;
         let reason;
         loop {
             let chunk = g.step().map_err(|e| format!("step: {e}"))?;
             if first.is_none() && !chunk.tokens.is_empty() {
-                first = Some(t0.elapsed());
+                first = Some((t0.elapsed(), chunk.tokens.len() as u64));
+                match prompt_tokens {
+                    None => prompt_tokens = Some(chunk.prompt_tokens),
+                    Some(p) if p != chunk.prompt_tokens => {
+                        return Err(format!("prompt_tokens changed between iterations ({p} then {})", chunk.prompt_tokens))
+                    }
+                    Some(_) => {}
+                }
             }
             n += chunk.tokens.len() as u64;
-            prompt_tokens = chunk.prompt_tokens;
             if chunk.done {
                 reason = chunk.finish_reason;
                 break;
             }
         }
         let total = t0.elapsed();
-        if i < c.warmup {
+        if i < c.warmup as u64 {
             continue;
         }
-        let f = first.unwrap_or(total);
+        let (f, k) = first.unwrap_or((total, n));
         ttft.push(f);
         let decode = total.saturating_sub(f).as_secs_f64();
-        decode_rate.push(if n > 1 && decode > 0.0 { (n - 1) as f64 / decode } else { 0.0 });
+        if n > k && decode > 0.0 {
+            decode_rate.push((n - k) as f64 / decode);
+        }
         totals.push(total);
         generated.push(n as f64);
         reasons.push(format!("{reason:?}"));
@@ -718,42 +802,47 @@ fn bench_generate(c: &Common, new_tokens: u32, prompt: &str) -> Result<Receipt, 
             ));
         }
     }
+    if totals.is_empty() {
+        return Err("no timed iterations (iters must be at least 1)".to_string());
+    }
     let p50 = |v: &mut Vec<Duration>| {
         v.sort();
         v[v.len() / 2].as_secs_f64() * 1e3
     };
     let mut rates = decode_rate.clone();
-    rates.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    rates.sort_by(f64::total_cmp);
     let cell = GenerateCell {
         new_tokens_requested: new_tokens,
         generated_tokens_mean: generated.iter().sum::<f64>() / generated.len() as f64,
-        prompt_tokens,
+        prompt_tokens: prompt_tokens.ok_or("no iteration produced a token")?,
         time_to_first_token_ms_p50: p50(&mut ttft),
-        decode_tokens_per_s_p50: rates[rates.len() / 2],
+        decode_tokens_per_s_p50: if rates.is_empty() { None } else { Some(rates[rates.len() / 2]) },
         total_ms_p50: p50(&mut totals),
         finish_reasons: reasons,
         iters: c.iters,
     };
+    let decode = cell.decode_tokens_per_s_p50.map(|r| format!("{r:.1} tok/s p50")).unwrap_or_else(|| "no decode phase".to_string());
     eprintln!(
-        "generate {new_tokens} tokens: ttft p50 {:.1} ms, decode {:.1} tok/s p50, total p50 {:.0} ms, generated {:.1} mean",
-        cell.time_to_first_token_ms_p50, cell.decode_tokens_per_s_p50, cell.total_ms_p50, cell.generated_tokens_mean
+        "generate {new_tokens} tokens: ttft p50 {:.1} ms, decode {decode}, total p50 {:.0} ms, generated {:.1} mean",
+        cell.time_to_first_token_ms_p50, cell.total_ms_p50, cell.generated_tokens_mean
     );
-    Ok(receipt(&t, bid, Vec::new(), None, Some(cell)))
+    receipt(c, &t, bid, Vec::new(), None, Some(cell))
 }
 
 fn receipt(
+    c: &Common,
     t: &Target,
     bundle: BundleId,
     embed: Vec<EmbedCell>,
     rerank: Option<RerankCell>,
     generate: Option<GenerateCell>,
-) -> Receipt {
-    Receipt {
+) -> Result<Receipt, String> {
+    Ok(Receipt {
         receipt_version: 1,
         kind: "benchmark".to_string(),
-        date: today(),
-        machine: machine(),
-        commit: run_cmd("git", &["rev-parse", "HEAD"]),
+        date: today()?,
+        machine: machine()?,
+        commit: commit(c)?,
         provider: t.provider.clone(),
         device: t.device.clone(),
         bundle,
@@ -762,16 +851,42 @@ fn receipt(
         generate,
         budget_check: None,
         native_reference: "not run; see the provider README for the direct-native program of this pair".to_string(),
-    }
+    })
 }
 
 // ---------------------------------------------------------------------------
 // Budget check
 // ---------------------------------------------------------------------------
 
-fn check_budget(r: &mut Receipt, budget_path: &Path, tolerance: f64) -> Result<(), String> {
-    let text = std::fs::read_to_string(budget_path).map_err(|e| format!("{}: {e}", budget_path.display()))?;
-    let budget: Receipt = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", budget_path.display()))?;
+/// Why a budget check did not pass: the file could not serve as a budget
+/// at all (exit 2, nothing recorded in the receipt), or the run regressed
+/// (exit 1, recorded).
+enum BudgetFailure {
+    Unusable(String),
+    Regression(String),
+}
+
+fn check_budget(r: &mut Receipt, budget_path: &Path, tolerance: f64) -> Result<(), BudgetFailure> {
+    let unusable = |m: String| BudgetFailure::Unusable(format!("budget {}: {m}", budget_path.display()));
+    let text = std::fs::read_to_string(budget_path).map_err(|e| unusable(e.to_string()))?;
+    let budget: Receipt = serde_json::from_str(&text).map_err(|e| unusable(e.to_string()))?;
+    // A budget is held per provider, device and bundle; another run's
+    // figures are not a budget for this one.
+    if budget.provider.id != r.provider.id {
+        return Err(unusable(format!("provider.id is `{}`, this run is `{}`", budget.provider.id, r.provider.id)));
+    }
+    if budget.device.name != r.device.name || budget.device.ordinal != r.device.ordinal {
+        return Err(unusable(format!(
+            "device is `{}` ordinal {}, this run is `{}` ordinal {}",
+            budget.device.name, budget.device.ordinal, r.device.name, r.device.ordinal
+        )));
+    }
+    if budget.bundle.manifest_sha256 != r.bundle.manifest_sha256 {
+        return Err(unusable(format!(
+            "bundle manifest is {}, this run's is {}",
+            budget.bundle.manifest_sha256, r.bundle.manifest_sha256
+        )));
+    }
     let mut violations = Vec::new();
     let over = |name: &str, got: f64, want: f64, v: &mut Vec<String>| {
         let limit = want * (1.0 + tolerance);
@@ -798,18 +913,31 @@ fn check_budget(r: &mut Receipt, budget_path: &Path, tolerance: f64) -> Result<(
             None => violations.push(format!("embed {}x{}: the budget has no such cell", cell.batch, cell.seq)),
         }
     }
-    if let (Some(cell), Some(b)) = (&r.rerank, &budget.rerank) {
-        over("rerank", cell.text_path.p50_ms, b.text_path.p50_ms, &mut violations);
+    // A cell the budget has and this run did not produce is a violation:
+    // a shrunken workload is not a pass.
+    for b in &budget.embed {
+        if !r.embed.iter().any(|c| c.batch == b.batch && c.seq == b.seq) {
+            violations.push(format!("embed {}x{}: the budget has this cell and this run did not measure it", b.batch, b.seq));
+        }
     }
-    if let (Some(cell), Some(b)) = (&r.generate, &budget.generate) {
-        over("generate total", cell.total_ms_p50, b.total_ms_p50, &mut violations);
+    match (&r.rerank, &budget.rerank) {
+        (Some(cell), Some(b)) => over("rerank", cell.text_path.p50_ms, b.text_path.p50_ms, &mut violations),
+        (Some(_), None) => violations.push("rerank: the budget has no rerank figure".to_string()),
+        (None, Some(_)) => violations.push("rerank: the budget has a rerank figure and this run did not measure one".to_string()),
+        (None, None) => {}
+    }
+    match (&r.generate, &budget.generate) {
+        (Some(cell), Some(b)) => over("generate total", cell.total_ms_p50, b.total_ms_p50, &mut violations),
+        (Some(_), None) => violations.push("generate: the budget has no generate figure".to_string()),
+        (None, Some(_)) => violations.push("generate: the budget has a generate figure and this run did not measure one".to_string()),
+        (None, None) => {}
     }
     r.budget_check =
         Some(BudgetCheck { budget_file: budget_path.display().to_string(), tolerance, violations: violations.clone() });
     if violations.is_empty() {
         Ok(())
     } else {
-        Err(violations.join("\n"))
+        Err(BudgetFailure::Regression(violations.join("\n")))
     }
 }
 
@@ -911,60 +1039,49 @@ struct Survey {
     machine: Machine,
     abi_version: u32,
     provider_libraries: Vec<String>,
+    /// Libraries that did not load (dlopen, symbol, ABI, or an id already
+    /// registered by an earlier path), one line each.
     load_failures: Vec<String>,
+    /// Libraries that loaded but whose device probe failed.
+    probe_failures: Vec<String>,
     devices: Vec<DeviceSurvey>,
 }
 
 fn discover(libs: &[PathBuf], provider_dir: Option<&Path>, bundles: &[PathBuf]) -> Result<Survey, String> {
     let mut paths: Vec<PathBuf> = libs.to_vec();
     if let Some(dir) = provider_dir {
-        let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
-            .map_err(|e| format!("{}: {e}", dir.display()))?
-            .filter_map(|e| e.ok().map(|e| e.path()))
-            .filter(|p| {
-                let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                name.starts_with("libturbo_provider_") && (name.ends_with(".so") || name.ends_with(".dylib"))
-            })
-            .collect();
+        let mut found = Vec::new();
+        for entry in std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))? {
+            let entry = entry.map_err(|e| format!("{}: {e}", dir.display()))?;
+            let p = entry.path();
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if name.starts_with("libturbo_provider_") && (name.ends_with(".so") || name.ends_with(".dylib")) {
+                found.push(p);
+            }
+        }
         found.sort();
         paths.extend(found);
     }
     let provider_paths: Vec<String> = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
-    // With libraries named, the survey is of those libraries alone: the
-    // built-in providers stay out so a packaged copy of the mock or static
-    // provider can be loaded and checked (an id can register once per
-    // runtime). With none named, the survey is of the built-in providers.
-    let no_default_providers = !provider_paths.is_empty();
-    // A library that fails to load is reported, not fatal: the survey's job
-    // is to say what is here, and "this library did not load because ..."
-    // is part of that answer. Each library is tried on its own so one
-    // failure does not hide the others.
+    // With libraries named (or a directory given), the survey is of those
+    // libraries alone: the built-in providers stay out so a packaged copy
+    // of the mock or static provider can be loaded and checked (an id can
+    // register once per runtime). With nothing named, the survey is of the
+    // built-in providers.
+    let no_default_providers = !provider_paths.is_empty() || provider_dir.is_some();
+    // One runtime, one load per library: a library that fails to load is
+    // reported against its path (an id collision names the path that
+    // registered it first), a library that loaded but whose device probe
+    // failed is reported separately, and neither is fatal to the survey.
+    let rt = turbo::create_runtime(RuntimeDesc { provider_paths: Vec::new(), no_default_providers, ..Default::default() })
+        .map_err(|e| format!("runtime: {e}"))?;
     let mut load_failures = Vec::new();
-    let mut loadable = Vec::new();
     for p in &provider_paths {
-        match turbo::create_runtime(RuntimeDesc {
-            provider_paths: vec![p.clone()],
-            no_default_providers,
-            ..Default::default()
-        }) {
-            Ok(rt) => {
-                for f in rt.failures() {
-                    load_failures.push(format!("{p}: {}: {}", f.what, f.error));
-                }
-                loadable.push(p.clone());
-            }
-            Err(e) => load_failures.push(format!("{p}: {e}")),
+        if let Err(e) = rt.load_provider(Path::new(p)) {
+            load_failures.push(format!("{p}: {e}"));
         }
     }
-    let rt = turbo::create_runtime(RuntimeDesc {
-        provider_paths: loadable.clone(),
-        no_default_providers,
-        ..Default::default()
-    })
-    .map_err(|e| format!("runtime: {e}"))?;
-    for f in rt.failures() {
-        load_failures.push(format!("{}: {}", f.what, f.error));
-    }
+    let probe_failures: Vec<String> = rt.failures().iter().map(|f| format!("{}: {}", f.what, f.error)).collect();
     let opened: Vec<(PathBuf, Option<Bundle>, String)> = bundles
         .iter()
         .map(|b| match Bundle::open(b) {
@@ -1042,10 +1159,11 @@ fn discover(libs: &[PathBuf], provider_dir: Option<&Path>, bundles: &[PathBuf]) 
         });
     }
     Ok(Survey {
-        machine: machine(),
+        machine: machine()?,
         abi_version: turbo::abi::TURBO_ABI_VERSION,
         provider_libraries: provider_paths,
         load_failures,
+        probe_failures,
         devices,
     })
 }
@@ -1062,6 +1180,9 @@ fn print_survey(s: &Survey) {
     }
     for f in &s.load_failures {
         println!("  did not load: {f}");
+    }
+    for f in &s.probe_failures {
+        println!("  loaded, device probe failed: {f}");
     }
     println!();
     if s.devices.is_empty() {
@@ -1119,15 +1240,22 @@ fn main() -> ExitCode {
         return match discover(provider_libs, provider_dir.as_deref(), bundles) {
             Ok(s) => {
                 if *json {
-                    println!("{}", serde_json::to_string_pretty(&s).expect("serialize survey"));
+                    match serde_json::to_string_pretty(&s) {
+                        Ok(text) => println!("{text}"),
+                        Err(e) => {
+                            eprintln!("error: the survey does not serialize: {e}");
+                            return ExitCode::from(2);
+                        }
+                    }
                 } else {
                     print_survey(&s);
                 }
-                if *strict && !s.load_failures.is_empty() {
+                if *strict && (!s.load_failures.is_empty() || !s.probe_failures.is_empty()) {
                     eprintln!(
-                        "error: {} provider librar{} did not load",
+                        "error: {} provider librar{} did not load and {} loaded but failed the device probe",
                         s.load_failures.len(),
-                        if s.load_failures.len() == 1 { "y" } else { "ies" }
+                        if s.load_failures.len() == 1 { "y" } else { "ies" },
+                        s.probe_failures.len()
                     );
                     return ExitCode::from(1);
                 }
@@ -1139,10 +1267,27 @@ fn main() -> ExitCode {
             }
         };
     }
-    let (common, result) = match &cli.command {
-        Cmd::Embed { common, batches, seqs } => (common, bench_embed(common, batches, seqs)),
-        Cmd::Rerank { common, docs, seq } => (common, bench_rerank(common, *docs, *seq)),
-        Cmd::Generate { common, new_tokens, prompt } => (common, bench_generate(common, *new_tokens, prompt)),
+    let common = match &cli.command {
+        Cmd::Embed { common, .. } | Cmd::Rerank { common, .. } | Cmd::Generate { common, .. } => common,
+        Cmd::Discover { .. } => unreachable!("handled above"),
+    };
+    // --tolerance means nothing without a budget, so naming one without the
+    // other is an error rather than a silently ignored flag.
+    let tolerance = match (&common.budget, common.tolerance) {
+        (None, Some(_)) => {
+            eprintln!("error: --tolerance needs --budget");
+            return ExitCode::from(2);
+        }
+        (_, Some(t)) if !(t >= 0.0) => {
+            eprintln!("error: --tolerance must be a fraction of 0 or more, not {t}");
+            return ExitCode::from(2);
+        }
+        (_, t) => t.unwrap_or(0.25),
+    };
+    let result = match &cli.command {
+        Cmd::Embed { common, corpus, batches, seqs } => bench_embed(common, corpus, batches, seqs),
+        Cmd::Rerank { common, corpus, docs, seq } => bench_rerank(common, corpus, *docs, *seq),
+        Cmd::Generate { common, new_tokens, prompt } => bench_generate(common, *new_tokens, prompt),
         Cmd::Discover { .. } => unreachable!("handled above"),
     };
     let mut r = match result {
@@ -1153,10 +1298,23 @@ fn main() -> ExitCode {
         }
     };
     let budget_result = match &common.budget {
-        Some(b) => check_budget(&mut r, b, common.tolerance),
+        Some(b) => check_budget(&mut r, b, tolerance),
         None => Ok(()),
     };
-    let json = serde_json::to_string_pretty(&r).expect("serialize receipt");
+    if let Err(BudgetFailure::Unusable(m)) = &budget_result {
+        // No receipt: a run against an unusable budget measured nothing
+        // that can be compared, and a receipt with `budget_check: null`
+        // would read as "no budget was asked for".
+        eprintln!("error: {m}");
+        return ExitCode::from(2);
+    }
+    let json = match serde_json::to_string_pretty(&r) {
+        Ok(text) => text,
+        Err(e) => {
+            eprintln!("error: the receipt does not serialize: {e}");
+            return ExitCode::from(2);
+        }
+    };
     match &common.out {
         Some(path) => {
             if let Err(e) = std::fs::write(path, format!("{json}\n")) {
@@ -1169,10 +1327,11 @@ fn main() -> ExitCode {
     }
     match budget_result {
         Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
+        Err(BudgetFailure::Regression(e)) => {
             eprintln!("budget regression:\n{e}");
             ExitCode::from(1)
         }
+        Err(BudgetFailure::Unusable(_)) => unreachable!("handled before the receipt was written"),
     }
 }
 
@@ -1248,7 +1407,7 @@ mod tests {
         // `today` must be `civil_date` of the wall clock and nothing else:
         // the refactor exists so the calendar is testable without the clock.
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-        let stamp = today();
+        let stamp = today().expect("the clock is after the epoch");
         assert!(
             stamp == civil_date(now) || stamp == civil_date(now + 1),
             "today() {stamp} is not the civil date of {now} (nor the second after it)"
@@ -1266,16 +1425,16 @@ mod tests {
         // Five samples, deliberately unsorted: summarize sorts in place and
         // the percentiles are nearest-rank on the sorted set.
         let mut samples: Vec<Duration> = [5u64, 1, 4, 2, 3].iter().map(|&ms| Duration::from_millis(ms)).collect();
-        let l = summarize(&mut samples, 10, 400);
+        let l = summarize(&mut samples, 10, Some(400)).expect("five samples");
         assert_eq!(samples, (1..=5).map(Duration::from_millis).collect::<Vec<_>>(), "summarize must sort in place");
         close(l.p50_ms, 3.0, "p50");
-        close(l.p99_ms, 5.0, "p99");
+        assert_eq!(l.p99_ms, None, "a p99 needs 100 samples; five would make it the single worst one");
         close(l.min_ms, 1.0, "min");
         close(l.max_ms, 5.0, "max");
         close(l.mean_ms, 3.0, "mean");
         // Throughput is rows (and tokens) per mean second, not per p50.
         close(l.rows_per_s, 10.0 / 0.003, "rows_per_s");
-        close(l.tokens_per_s, 400.0 / 0.003, "tokens_per_s");
+        close(l.tokens_per_s.expect("tokens were counted"), 400.0 / 0.003, "tokens_per_s");
         assert_eq!(l.iters, 5, "iters counts the timed samples");
     }
 
@@ -1284,19 +1443,19 @@ mod tests {
         // 1..=100 ms: p50 is the 51st sample and p99 the 99th, by
         // `round((n - 1) * p)`. A single sample is every statistic.
         let mut samples: Vec<Duration> = (1..=100u64).map(Duration::from_millis).collect();
-        let l = summarize(&mut samples, 100, 0);
+        let l = summarize(&mut samples, 100, None).expect("a hundred samples");
         close(l.p50_ms, 51.0, "p50");
-        close(l.p99_ms, 99.0, "p99");
+        close(l.p99_ms.expect("a hundred samples carry a p99"), 99.0, "p99");
         close(l.min_ms, 1.0, "min");
         close(l.max_ms, 100.0, "max");
         close(l.mean_ms, 50.5, "mean");
-        close(l.tokens_per_s, 0.0, "tokens_per_s with no tokens");
+        assert_eq!(l.tokens_per_s, None, "no token count, no tokens/s");
         assert_eq!(l.iters, 100);
 
         let mut one = [Duration::from_micros(2500)];
-        let l = summarize(&mut one, 1, 7);
+        let l = summarize(&mut one, 1, Some(7)).expect("one sample");
         close(l.p50_ms, 2.5, "p50 of one sample");
-        close(l.p99_ms, 2.5, "p99 of one sample");
+        assert_eq!(l.p99_ms, None, "one sample has no p99");
         close(l.min_ms, 2.5, "min of one sample");
         close(l.max_ms, 2.5, "max of one sample");
         close(l.rows_per_s, 400.0, "rows_per_s of one sample");
@@ -1304,9 +1463,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "no samples")]
     fn summarize_refuses_an_empty_sample_set() {
-        summarize(&mut [], 1, 1);
+        let e = summarize(&mut [], 1, Some(1)).unwrap_err();
+        assert!(e.contains("no timed samples"), "{e}");
     }
 
     #[test]

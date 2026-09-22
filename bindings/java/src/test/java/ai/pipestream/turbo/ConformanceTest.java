@@ -409,6 +409,28 @@ class ConformanceTest {
         }
     }
 
+    /**
+     * AGENTS.md rule 5: a child handle holds its parent in a field, not in a
+     * doc comment, so a parent cannot be collected while a child is live.
+     */
+    @Test
+    void everyChildHandleHoldsItsParent() {
+        try (Turbo rt = Turbo.create();
+                Context ctx = rt.createContext(mockDevice(rt));
+                Model model = ctx.loadModel(bundle("embedding"));
+                Session s = model.createSession(2, 0);
+                Tokenizer tok = rt.createTokenizer(BUNDLES.resolve("../minilm-tokenizer").toString())) {
+            assertSame(rt, ctx.runtime(), "a context holds its runtime");
+            assertSame(ctx, model.context(), "a model holds its context");
+            assertSame(model, s.model(), "a session holds its model");
+            assertSame(rt, tok.runtime(), "a tokenizer holds its runtime");
+            s.writeText(List.of("parented"), EmbedOptions.defaults());
+            try (Result r = s.run()) {
+                assertSame(s, r.session(), "a result holds the session it leases");
+            }
+        }
+    }
+
     @Test
     void indexedArrayAccessorsAddressTheField() {
         try (java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined()) {

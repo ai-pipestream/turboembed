@@ -67,13 +67,42 @@ def text(s: str) -> Text:
     return t
 
 
+# Every function the demo calls, with its C signature. ctypes defaults an
+# undeclared argument to a C int, which silently truncates the 64-bit
+# capacity of turbo_result_read and shifts every argument after it on an ABI
+# that passes a 64-bit value in a register pair. Declaring all of them is the
+# only way the demo is honest about the ABI it documents.
+VOID = C.c_void_p
+SIGNATURES = {
+    "turbo_status_name": (C.c_char_p, [C.c_int32]),
+    "turbo_abi_version": (C.c_uint32, []),
+    "turbo_runtime_create": (C.c_int32, [C.POINTER(RuntimeDesc), C.POINTER(VOID), C.POINTER(Error)]),
+    "turbo_runtime_select_device": (C.c_int32, [VOID, C.POINTER(DeviceSelector), C.POINTER(C.c_uint32), C.POINTER(Error)]),
+    "turbo_runtime_device_info": (C.c_int32, [VOID, C.c_uint32, C.POINTER(DeviceInfo), C.POINTER(Error)]),
+    "turbo_context_create": (C.c_int32, [VOID, C.c_uint32, VOID, C.POINTER(VOID), C.POINTER(Error)]),
+    "turbo_model_load": (C.c_int32, [VOID, Text, VOID, C.POINTER(VOID), C.POINTER(Error)]),
+    "turbo_session_create": (C.c_int32, [VOID, C.POINTER(SessionDesc), C.POINTER(VOID), C.POINTER(Error)]),
+    "turbo_session_write_text": (C.c_int32, [VOID, C.POINTER(Text), C.c_uint32, VOID, C.POINTER(Error)]),
+    "turbo_session_run": (C.c_int32, [VOID, VOID, C.POINTER(VOID), C.POINTER(Error)]),
+    "turbo_result_get_info": (C.c_int32, [VOID, C.POINTER(ResultInfo), C.POINTER(Error)]),
+    "turbo_result_read": (C.c_int32, [VOID, C.c_uint32, VOID, C.c_uint64, C.POINTER(C.c_uint64), C.POINTER(Error)]),
+    "turbo_result_release": (None, [VOID]),
+    "turbo_session_release": (None, [VOID]),
+    "turbo_model_release": (None, [VOID]),
+    "turbo_context_release": (None, [VOID]),
+    "turbo_runtime_release": (None, [VOID]),
+}
+
+
 class Turbo:
     """A thin, checked wrapper over the handful of calls the demo needs."""
 
     def __init__(self, lib_path: str):
         self.lib = C.CDLL(lib_path)
-        self.lib.turbo_status_name.restype = C.c_char_p
-        self.lib.turbo_abi_version.restype = C.c_uint32
+        for name, (restype, argtypes) in SIGNATURES.items():
+            fn = getattr(self.lib, name)
+            fn.restype = restype
+            fn.argtypes = argtypes
         self.err = Error()
         self.err.struct_size = C.sizeof(Error)
 
@@ -93,7 +122,8 @@ class Turbo:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    ap.add_argument("--lib", default=os.path.join(root, "target", "debug", "libturbo.so"))
+    lib_name = "libturbo.dylib" if sys.platform == "darwin" else "libturbo.so"
+    ap.add_argument("--lib", default=os.path.join(root, "target", "debug", lib_name))
     ap.add_argument("--provider-lib")
     ap.add_argument("--provider")
     ap.add_argument("--ordinal", type=int)
@@ -126,11 +156,11 @@ def main() -> int:
     else:
         t.check(lib.turbo_runtime_select_device(rt, None, C.byref(dev), C.byref(err)), "turbo_runtime_select_device")
     di = t.sized(DeviceInfo)
-    t.check(lib.turbo_runtime_device_info(rt, dev, C.byref(di), C.byref(err)), "turbo_runtime_device_info")
+    t.check(lib.turbo_runtime_device_info(rt, dev.value, C.byref(di), C.byref(err)), "turbo_runtime_device_info")
     print(f"device: {di.name.decode()} ({di.provider_id.decode()}:{di.ordinal}, kind {di.kind}, runtime {di.runtime_version.decode()})")
 
     ctx = C.c_void_p()
-    t.check(lib.turbo_context_create(rt, dev, None, C.byref(ctx), C.byref(err)), "turbo_context_create")
+    t.check(lib.turbo_context_create(rt, dev.value, None, C.byref(ctx), C.byref(err)), "turbo_context_create")
     model = C.c_void_p()
     t.check(lib.turbo_model_load(ctx, text(a.bundle), None, C.byref(model), C.byref(err)), "turbo_model_load")
 
@@ -148,9 +178,17 @@ def main() -> int:
     t.check(lib.turbo_result_get_info(result, C.byref(ri), C.byref(err)), "turbo_result_get_info")
     if ri.dtype != TURBO_DTYPE_F32:
         raise TurboError(f"result dtype {ri.dtype} is not f32")
+    expected = ri.batch * ri.dim * 4
+    if ri.bytes != expected:
+        raise TurboError(f"result claims {ri.bytes} bytes for {ri.batch} x {ri.dim} f32 ({expected} expected)")
     buf = (C.c_float * (ri.bytes // 4))()
     written = C.c_uint64()
-    t.check(lib.turbo_result_read(result, 0, buf, ri.bytes, C.byref(written), C.byref(err)), "turbo_result_read")
+    t.check(lib.turbo_result_read(result, 0, C.cast(buf, VOID), ri.bytes, C.byref(written), C.byref(err)), "turbo_result_read")
+    # The library reports what it wrote; the untouched tail of buf is zeros,
+    # so a short read would print similarities of 0.000 or NaN as if they
+    # were the model's answer.
+    if written.value != ri.bytes:
+        raise TurboError(f"turbo_result_read wrote {written.value} of {ri.bytes} bytes")
     dim = ri.dim
     rows = [list(buf[r * dim:(r + 1) * dim]) for r in range(ri.batch)]
     print(f"embeddings: {ri.batch} x {dim} (placement {ri.placement})")

@@ -15,12 +15,23 @@ import java.util.Map;
 /** A loaded, immutable model. Sessions are created from it. */
 public final class Model implements AutoCloseable {
     private final MemorySegment m;
+    /** The context this model was loaded into; a model keeps its context, and through it the runtime, alive. */
+    private final Context context;
     private final ModelInfo info;
     private boolean closed;
 
-    Model(MemorySegment m) {
+    Model(MemorySegment m, Context context) {
         this.m = m;
-        this.info = readInfo();
+        this.context = context;
+        // The caller owns the handle by the time this runs and has no Model
+        // to close, so a failure here releases it rather than leaking the
+        // weights and everything they retain.
+        try {
+            this.info = readInfo();
+        } catch (RuntimeException e) {
+            turbo_model_release(m);
+            throw e;
+        }
     }
 
     private ModelInfo readInfo() {
@@ -50,6 +61,11 @@ public final class Model implements AutoCloseable {
     /** What loaded. */
     public ModelInfo info() {
         return info;
+    }
+
+    /** The context this model is loaded into. */
+    public Context context() {
+        return context;
     }
 
     /** Create a session with fixed maxima; 0 means the model's default. */

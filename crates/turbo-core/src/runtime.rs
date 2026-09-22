@@ -137,25 +137,30 @@ impl Runtime {
             return Err(Error::provider_load(format!("a provider with id `{id}` is already registered")));
         }
         let index = t.providers.len();
+        // Failures are recorded, and the sink called, only after the tables
+        // lock is released: a sink that calls back into the runtime must
+        // not deadlock on it.
+        let mut failures = Vec::new();
         match provider.devices() {
             Ok(list) => {
                 for info in list {
                     if info.provider_id != id {
-                        self.record_failure(
-                            &id,
-                            Error::internal(format!(
-                                "provider `{id}` reported a device with provider_id `{}`",
-                                info.provider_id
-                            )),
-                        );
+                        failures.push(Error::internal(format!(
+                            "provider `{id}` reported a device with provider_id `{}`",
+                            info.provider_id
+                        )));
                         continue;
                     }
                     t.devices.push(DeviceEntry { provider_index: index, info });
                 }
             }
-            Err(e) => self.record_failure(&id, e),
+            Err(e) => failures.push(e),
         }
         t.providers.push(provider);
+        drop(t);
+        for e in failures {
+            self.record_failure(&id, e);
+        }
         self.log(LogLevel::Info, &format!("registered provider `{id}`"));
         Ok(())
     }

@@ -15,11 +15,14 @@ import java.util.Map;
  */
 public final class Context implements AutoCloseable {
     private final MemorySegment ctx;
+    /** The runtime this context was created from; a context keeps it alive. */
+    private final Turbo runtime;
     private final int deviceIndex;
     private boolean closed;
 
-    private Context(MemorySegment ctx, int deviceIndex) {
+    private Context(MemorySegment ctx, Turbo runtime, int deviceIndex) {
         this.ctx = ctx;
+        this.runtime = runtime;
         this.deviceIndex = deviceIndex;
     }
 
@@ -37,7 +40,7 @@ public final class Context implements AutoCloseable {
             MemorySegment out = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment err = Native.error(arena);
             Native.check(turbo_context_create(rt.handle(), index, desc, out, err), err);
-            return new Context(out.get(ValueLayout.ADDRESS, 0), index);
+            return new Context(out.get(ValueLayout.ADDRESS, 0), rt, index);
         }
     }
 
@@ -51,6 +54,11 @@ public final class Context implements AutoCloseable {
     /** Index of the device this context runs on. */
     public int deviceIndex() {
         return deviceIndex;
+    }
+
+    /** The runtime this context was created from. */
+    public Turbo runtime() {
+        return runtime;
     }
 
     /** Load and verify a bundle directory. */
@@ -68,7 +76,7 @@ public final class Context implements AutoCloseable {
             MemorySegment out = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment err = Native.error(arena);
             Native.check(turbo_model_load(handle(), Native.text(arena, bundlePath), desc, out, err), err);
-            return new Model(out.get(ValueLayout.ADDRESS, 0));
+            return new Model(out.get(ValueLayout.ADDRESS, 0), this);
         }
     }
 

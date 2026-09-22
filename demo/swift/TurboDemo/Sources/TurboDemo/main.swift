@@ -58,7 +58,7 @@ do {
     let session = try model.createSession(maxBatch: UInt32(texts.count))
     try session.writeText(texts)
     let result = try session.run()
-    let (_, shape) = try result.output(0)
+    let (_, _, shape) = try result.output(0)
     let dim = Int(shape[1])
     let flat = try result.readFloats(0)
     print("embeddings: \(texts.count) x \(dim) (placement \(try result.placement))")

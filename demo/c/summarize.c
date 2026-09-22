@@ -9,8 +9,10 @@
  *   turbo-summarize [--provider-lib <so>] [--provider <id> --ordinal <n>] --bundle <dir>
  *                   [--max-new-tokens 160] [--max-chars 0] [file]
  */
+#include "demo_args.h"
 #include "turbo/turbo.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +40,7 @@ static int fail(const char *what, int32_t rc, const turbo_error *err) {
 typedef struct {
     size_t chars;
     size_t max_chars;
+    uint32_t chunks;
     uint32_t finish;
     uint32_t generated;
     uint32_t prompt_tokens;
@@ -50,7 +53,12 @@ static uint32_t on_chunk(void *user_data, const turbo_generation_chunk *chunk) {
     fflush(stdout);
     st->chars += (size_t)chunk->text.len;
     st->generated = chunk->generated_tokens;
-    st->prompt_tokens = chunk->prompt_tokens;
+    /* turbo_types.h reports prompt_tokens on the first chunk; a provider
+     * that honors that literally leaves it 0 on every later one. */
+    if (st->chunks == 0) {
+        st->prompt_tokens = chunk->prompt_tokens;
+    }
+    st->chunks += 1;
     if (chunk->done) {
         st->finish = chunk->finish_reason;
     }
@@ -64,19 +72,24 @@ static uint32_t on_chunk(void *user_data, const turbo_generation_chunk *chunk) {
     return TURBO_STREAM_CONTINUE;
 }
 
-static char *read_all(FILE *f) {
+/* Read all of `f`. On failure returns NULL and sets *status: 1 for out of
+ * memory, 2 for a read error. A short fread is not by itself EOF, so the
+ * error indicator is checked before the bytes read so far are accepted. */
+static char *read_all(FILE *f, int *status) {
     size_t cap = 4096, len = 0;
     char *buf = malloc(cap);
-    if (buf == NULL) return NULL;
+    *status = 0;
+    if (buf == NULL) { *status = 1; return NULL; }
     size_t n;
     while ((n = fread(buf + len, 1, cap - len - 1, f)) > 0) {
         len += n;
         if (cap - len < 1024) {
             char *grown = realloc(buf, cap *= 2);
-            if (grown == NULL) { free(buf); return NULL; }
+            if (grown == NULL) { free(buf); *status = 1; return NULL; }
             buf = grown;
         }
     }
+    if (ferror(f)) { free(buf); *status = 2; return NULL; }
     buf[len] = '\0';
     return buf;
 }
@@ -87,13 +100,20 @@ int main(int argc, char **argv) {
     size_t max_chars = 0;
     int have_ordinal = 0;
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "--provider-lib") == 0 && i + 1 < argc) provider_lib = argv[++i];
-        else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) provider = argv[++i];
-        else if (strcmp(argv[i], "--ordinal") == 0 && i + 1 < argc) { ordinal = (uint32_t)strtoul(argv[++i], NULL, 10); have_ordinal = 1; }
-        else if (strcmp(argv[i], "--bundle") == 0 && i + 1 < argc) bundle = argv[++i];
-        else if (strcmp(argv[i], "--max-new-tokens") == 0 && i + 1 < argc) max_new = (uint32_t)strtoul(argv[++i], NULL, 10);
-        else if (strcmp(argv[i], "--max-chars") == 0 && i + 1 < argc) max_chars = strtoul(argv[++i], NULL, 10);
-        else file = argv[i];
+        if (strcmp(argv[i], "--provider-lib") == 0) provider_lib = demo_value(argc, argv, &i);
+        else if (strcmp(argv[i], "--provider") == 0) provider = demo_value(argc, argv, &i);
+        else if (strcmp(argv[i], "--ordinal") == 0) { ordinal = demo_u32("--ordinal", demo_value(argc, argv, &i)); have_ordinal = 1; }
+        else if (strcmp(argv[i], "--bundle") == 0) bundle = demo_value(argc, argv, &i);
+        else if (strcmp(argv[i], "--max-new-tokens") == 0) max_new = demo_u32("--max-new-tokens", demo_value(argc, argv, &i));
+        else if (strcmp(argv[i], "--max-chars") == 0) max_chars = (size_t)demo_u64("--max-chars", demo_value(argc, argv, &i), (unsigned long long)SIZE_MAX);
+        else {
+            demo_reject_unknown_flag(argv[i]);
+            if (file != NULL) {
+                fprintf(stderr, "this demo summarizes one file; %s is a second one\n", argv[i]);
+                return 2;
+            }
+            file = argv[i];
+        }
     }
     if (bundle == NULL || (provider == NULL) != (have_ordinal == 0)) {
         fprintf(stderr, "usage: %s [--provider-lib <so>] [--provider <id> --ordinal <n>] --bundle <dir> [--max-new-tokens n] [--max-chars n] [file]\n", argv[0]);
@@ -101,9 +121,12 @@ int main(int argc, char **argv) {
     }
     FILE *in = file ? fopen(file, "rb") : stdin;
     if (in == NULL) { perror(file); return 2; }
-    char *document = read_all(in);
+    int read_status = 0;
+    char *document = read_all(in, &read_status);
     if (file) fclose(in);
-    if (document == NULL || document[0] == '\0') { fprintf(stderr, "no text to summarize\n"); free(document); return 2; }
+    if (read_status == 1) { fprintf(stderr, "out of memory reading %s\n", file ? file : "stdin"); return 1; }
+    if (read_status == 2) { fprintf(stderr, "read error on %s; the document is incomplete\n", file ? file : "stdin"); return 1; }
+    if (document[0] == '\0') { fprintf(stderr, "no text to summarize\n"); free(document); return 2; }
 
     turbo_error err;
     memset(&err, 0, sizeof err);

@@ -60,13 +60,18 @@ public class TurboNative {
     private static SymbolLookup lookup() {
         String explicit = System.getProperty("turbo.library", System.getenv("TURBO_LIBRARY"));
         if (explicit != null && !explicit.isEmpty()) {
-            return SymbolLookup.libraryLookup(java.nio.file.Path.of(explicit), LIBRARY_ARENA)
+            // Named by the caller: load that library or fail with what is wrong with it.
+            return SymbolLookup.libraryLookup(java.nio.file.Path.of(explicit), LIBRARY_ARENA);
+        }
+        try {
+            return SymbolLookup.libraryLookup(System.mapLibraryName("turbo"), LIBRARY_ARENA)
                     .or(SymbolLookup.loaderLookup())
                     .or(Linker.nativeLinker().defaultLookup());
+        } catch (IllegalArgumentException notLoadable) {
+            // libraryLookup throws rather than returning an empty lookup, so
+            // this is the only way to reach a libturbo the host loaded itself.
+            return SymbolLookup.loaderLookup().or(Linker.nativeLinker().defaultLookup());
         }
-        return SymbolLookup.libraryLookup(System.mapLibraryName("turbo"), LIBRARY_ARENA)
-                .or(SymbolLookup.loaderLookup())
-                .or(Linker.nativeLinker().defaultLookup());
     }
 
     public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;

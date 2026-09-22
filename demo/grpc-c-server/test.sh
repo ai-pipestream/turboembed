@@ -11,7 +11,9 @@ cmake -S "$here" -B "$here/build" >/dev/null
 cmake --build "$here/build" -j >/dev/null
 "$here/build/turbo-grpc-server" --bundle "$bundle" --listen "127.0.0.1:$port" --sessions 2 --max-batch 4 "$@" &
 server=$!
-trap 'kill $server 2>/dev/null || true' EXIT
+# Wait for the server to exit as well, so a fast re-run does not race the
+# still-bound listening socket.
+trap 'kill $server 2>/dev/null || true; wait $server 2>/dev/null || true' EXIT
 for _ in $(seq 1 50); do
     if "$here/build/turbo-grpc-client" --target "127.0.0.1:$port" ping >/dev/null 2>&1; then break; fi
     sleep 0.2

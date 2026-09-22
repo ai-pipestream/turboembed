@@ -127,7 +127,7 @@ needs is still to be written, which is why every provider stays
   `Tokenizer` wrappers mirroring the Java ones and the same conformance
   cases run as an executable (`swift run turbo-conformance`) because the
   Swift command line tools ship neither XCTest nor Swift Testing. All
-  fourteen cases pass on `krickert-mac` (Apple M2, 2026-09-22). See
+  sixteen cases pass on `krickert-mac` (Apple M2, 2026-09-22). See
   [`bindings/swift/README.md`](../bindings/swift/README.md) and
   [`docs/bindings.md`](bindings.md).
 - `tools/turbo-bundle`: `import` (derives a bundle's contract from a source
@@ -339,7 +339,7 @@ try (Turbo rt = Turbo.create(List.of("/opt/turbo/providers/libturbo_provider_cud
 
 The conformance cases run through the binding against the mock provider
 under `--illegal-native-access=deny`; on `krick` (JDK 25.0.3, Temurin) and
-`krick-1` (JDK 25.0.4, Temurin) fifteen tests pass in under a second, and
+`krick-1` (JDK 25.0.4, Temurin) sixteen tests pass in under a second, and
 the same job runs in CI (`.github/workflows/ci.yml`, `java`) against the
 mock provider only. `Model.createGeneration` and `Turbo.createTokenizer`
 add a `Generation` (pull iterator, `drain` with a stopping predicate,
@@ -406,7 +406,7 @@ today (branch `turbo-v2`, 2026-09-21); "planned" means it is scoped for a later 
 | `providers/hailo/` | Hailo provider (C++, HailoRT 4.x vstreams); EXPERIMENTAL on the Hailo-8 Pis | here |
 | `providers/cpu/` | folded into the CUDA (ONNX Runtime) and ggml providers' CPU devices | not a separate provider |
 | `providers/metal/` | Metal provider (Objective-C++, `make` + `clang++`, kernels compiled at load); EXPERIMENTAL on Apple M2 | here |
-| `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO and Hailo providers | here |
+| `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO, Hailo and Metal providers | here |
 | `native/provider_common/` | shared C++ provider helpers (error boundary, descriptor size checks, bundle reader) | here |
 | `native/turbo_buffer/` | shared C++ arenas salvaged from the PoC | present, not yet wired into a provider |
 | `bindings/java/` | JDK 25 FFM binding (`ai.pipestream:turbo`) | here |

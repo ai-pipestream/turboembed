@@ -77,8 +77,9 @@ struct ConformanceTests {
         try session.writeText(["hello world", "hello world", "something else"])
         let result = try session.run()
         expect(try result.outputCount == 1, "try result.outputCount == 1")
-        let (name, shape) = try result.output(0)
+        let (name, dtype, shape) = try result.output(0)
         expect(name == "embeddings", "name == \"embeddings\"")
+        expect(dtype == .f32, "dtype == .f32")
         expect(shape == [3, Int64(dim)], "shape == [3, Int64(dim)]")
         expect(try result.placement == .host, "try result.placement == .host")
         let v = try result.readFloats(0)
@@ -90,6 +91,45 @@ struct ConformanceTests {
         }
         expect(Array(v[0..<dim]) == Array(v[dim..<2 * dim]), "identical texts embed identically")
         expect(try session.stats().runs == 1, "try session.stats().runs == 1")
+    }
+
+    /// An empty input row crosses as `ptr == NULL, len == 0`, which
+    /// `turbo_types.h` permits; `withTexts` must not allocate a byte for it
+    /// (nothing would free it) and must not let a buffer pointer escape the
+    /// scope that produced it.
+    func emptyTextsCrossAsNullViews() throws {
+        let rt = try Runtime()
+        let ctx = try rt.createContext(device: try mockDevice(rt))
+        let model = try ctx.loadModel(bundlePath: bundle("embedding"))
+        let dim = Int(model.info.dim)
+        let session = try model.createSession(maxBatch: 3)
+        for _ in 0..<64 {
+            try session.writeText(["", "not empty", ""])
+            let r = try session.run()
+            let v = try r.readFloats(0)
+            expect(v.count == 3 * dim, "v.count == 3 * dim")
+            r.close()
+        }
+    }
+
+    /// The readers report the output's dtype rather than reinterpreting it:
+    /// an i32 output read as floats would be silently wrong numbers.
+    func readersRefuseAMismatchedOutputDtype() throws {
+        let rt = try Runtime()
+        let ctx = try rt.createContext(device: try mockDevice(rt))
+        let model = try ctx.loadModel(bundlePath: bundle("reranker"))
+        let session = try model.createSession(maxBatch: 4)
+        var opts = RerankOptions()
+        opts.returnSorted = true
+        try session.writePairs(query: "what is turbo", documents: ["turbo is a library", "unrelated text"], options: opts)
+        let result = try session.run()
+        expect(try result.output(0).dtype == .f32, "scores are f32")
+        expect(try result.output(1).dtype == .i32, "sorted indices are i32")
+        let asInts = thrown { _ = try result.readInts(0) }
+        expect(asInts?.code == TURBO_E_UNSUPPORTED_DTYPE, "readInts on an f32 output is UNSUPPORTED_DTYPE")
+        let asFloats = thrown { _ = try result.readFloats(1) }
+        expect(asFloats?.code == TURBO_E_UNSUPPORTED_DTYPE, "readFloats on an i32 output is UNSUPPORTED_DTYPE")
+        result.close()
     }
 
     func unsupportedOptionsNameTheirField() throws {
@@ -343,6 +383,8 @@ let cases: [(String, () throws -> Void)] = [
     ("devicesAreEnumeratedAndAutoNeverSelectsCpu", suite.devicesAreEnumeratedAndAutoNeverSelectsCpu),
     ("capabilityCellsAreHonest", suite.capabilityCellsAreHonest),
     ("embeddingIsDeterministicAndUnitNorm", suite.embeddingIsDeterministicAndUnitNorm),
+    ("emptyTextsCrossAsNullViews", suite.emptyTextsCrossAsNullViews),
+    ("readersRefuseAMismatchedOutputDtype", suite.readersRefuseAMismatchedOutputDtype),
     ("unsupportedOptionsNameTheirField", suite.unsupportedOptionsNameTheirField),
     ("rerankReturnsScoresAndSortedOrder", suite.rerankReturnsScoresAndSortedOrder),
     ("tokenClassificationYieldsSpansInsideTheText", suite.tokenClassificationYieldsSpansInsideTheText),

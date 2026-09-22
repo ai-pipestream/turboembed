@@ -11,10 +11,10 @@ GEN_BUNDLE ?= $(ROOT)/testdata/bundles/mock/generative
 
 all: turbo-demo-c turbo-summarize
 
-turbo-demo-c: main.c $(ROOT)/include/turbo/turbo.h
+turbo-demo-c: main.c demo_args.h $(ROOT)/include/turbo/turbo.h
 	$(CC) $(CFLAGS) -I$(ROOT)/include main.c -L$(LIBDIR) -lturbo -lm -Wl,-rpath,$(LIBDIR) -o $@
 
-turbo-summarize: summarize.c $(ROOT)/include/turbo/turbo.h
+turbo-summarize: summarize.c demo_args.h $(ROOT)/include/turbo/turbo.h
 	$(CC) $(CFLAGS) -I$(ROOT)/include summarize.c -L$(LIBDIR) -lturbo -Wl,-rpath,$(LIBDIR) -o $@
 
 test: turbo-demo-c turbo-summarize

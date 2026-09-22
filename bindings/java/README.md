@@ -39,7 +39,7 @@ mvn test -Dturbo.library=/path/to/libturbo.so   # another build
 The tests are the conformance cases run through the binding against the
 mock provider, under `--enable-native-access=ALL-UNNAMED
 --illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) and
-`krick-1` (JDK 25.0.4, Temurin) the fifteen tests pass in under a second.
+`krick-1` (JDK 25.0.4, Temurin) the sixteen tests pass in under a second.
 
 ## Regenerating the raw layer
 

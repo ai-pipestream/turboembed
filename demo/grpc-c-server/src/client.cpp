@@ -19,8 +19,17 @@ int main(int argc, char **argv) {
     std::vector<std::string> texts;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
-        if (a == "--target" && i + 1 < argc) {
+        if (a == "--target") {
+            if (i + 1 >= argc) {
+                std::cerr << "--target needs a value\n";
+                return 2;
+            }
             target = argv[++i];
+        } else if (a.rfind("--", 0) == 0) {
+            // A typo'd flag embedded as text would return a plausible
+            // looking wrong answer, so it is an error here.
+            std::cerr << "unknown argument " << a << "\n";
+            return 2;
         } else {
             texts.push_back(a);
         }

@@ -49,7 +49,7 @@ mvn test -Dturbo.library=/path/to/libturbo.so   # another build
 The tests are the conformance cases run through the binding against the
 `mock` provider, under `--enable-native-access=ALL-UNNAMED
 --illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) and on
-`krick-1` (JDK 25.0.4, Temurin, AMD Ryzen 9 9950X) the fifteen tests pass
+`krick-1` (JDK 25.0.4, Temurin, AMD Ryzen 9 9950X) the sixteen tests pass
 in under a second. `.github/workflows/ci.yml`'s `java` job runs the
 same thing on every push: `cargo build --locked -p turbo-shared` then
 `cd bindings/java && mvn -q -B test` under JDK 25 (Temurin), against the
@@ -157,7 +157,7 @@ These mirror the Java binding's `Generation` and `Tokenizer` wrappers.
 `turbo-conformance` (`Sources/TurboConformance/main.swift`) is an
 `executableTarget` running the conformance cases — the same groups the
 Java binding and the Rust conformance suite exercise, now including
-generation and the tokenizer, fourteen cases in all — through the Swift
+generation and the tokenizer, sixteen cases in all — through the Swift
 API against the mock provider. It is a plain top-level script with a
 hand-rolled `expect`/`thrown` assertion helper and a list of cases run in a
 loop, rather than an XCTest bundle or a Swift Testing suite: neither
@@ -189,7 +189,7 @@ from (default `testdata/bundles/mock`, resolved relative to `main.swift`'s
 own path).
 
 On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) all
-fourteen cases pass (2026-09-22), including generation, the tokenizer, the
+sixteen cases pass (2026-09-22), including generation, the tokenizer, the
 held-result BUSY case, and the cross-thread cancel case; see
 `docs/testing.md`.
 

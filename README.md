@@ -18,7 +18,7 @@ normalization, limits, prefixes) is frozen in a hash-verified bundle.
 ![The web demo: sentences in, a cosine similarity heat map out, and the device it ran on](demo/java-web-spring/docs/screenshots/page-minilm.png)
 
 The same app streams a summary from a GGUF model through the ggml
-provider (Qwen2.5-0.5B on an RTX 4080 SUPER here, 410 tokens/s; a 0.5B
+provider (Qwen2.5-0.5B on an RTX 4080 SUPER here, 297 tokens/s; a 0.5B
 model summarizes by trimming, which the screenshot shows as it is):
 
 ![The web demo's summarizer: a paragraph in, a streamed three-sentence summary out, with the token rate and finish reason](demo/java-web-spring/docs/screenshots/summary-qwen.png)
@@ -118,8 +118,8 @@ or sentence-transformers directory and refuses what it cannot verify. See
 ```sh
 cargo test --workspace --exclude turbo-provider-cuda   # unit tests and the provider-agnostic conformance suite (mock)
 scripts/gen-header.sh --check && scripts/gen-versioned.py --check
-cd bindings/java && mvn test                          # 15 cases under --illegal-native-access=deny
-cd bindings/swift && swift run turbo-conformance       # macOS, 14 cases
+cd bindings/java && mvn test                          # 16 cases under --illegal-native-access=deny
+cd bindings/swift && swift run turbo-conformance       # macOS, 16 cases
 make -C providers/metal test                          # macOS, the Metal provider and its 15 vtable cases
 scripts/package.sh                                    # the archive for this machine, verified by ldd, a C smoke test, and a provider load check
 scripts/package-container.sh                          # the same archive on the manylinux_2_28 floor

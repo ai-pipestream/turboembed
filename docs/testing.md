@@ -56,7 +56,7 @@ Testing in this tree today is:
   and library); see `docs/bindings.md` and `docs/packaging.md`.
 
 On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) all
-fourteen Swift binding cases pass (2026-09-22), and so does the macOS core
+sixteen Swift binding cases pass (2026-09-22), and so does the macOS core
 suite (`cargo test --workspace --exclude turbo-provider-cuda`) run on that
 same machine.
 
@@ -114,10 +114,16 @@ Environment variables the harness reads (`crates/turbo-conformance/src/lib.rs`):
 pair per provider (a direct-native reference program using the runtime
 alone, and the same workload through `libturbo`), workloads at batch
 {1, 8, 32} by sequence {32, 128, 256} for embeddings, 32 documents for
-rerank, 128 new tokens for generation. Reported: p50/p99 latency, tokens/s,
-H2D/D2H bytes, host allocations per run, device memory. Receipts carry
-machine ID, runtime/driver versions, bundle hashes, and commit, and budgets
-are set from the first run per provider and then held.
+rerank, 128 new tokens for generation. Reported: p50 latency (p99 from 100
+iterations up), tokens/s when the bundle's tokenizer counted the tokens,
+H2D/D2H bytes and host allocations per run, device memory. Receipts carry
+machine ID, runtime/driver versions, bundle hashes, and the commit the tool
+was built from (`--commit` names it on a machine without git); budgets are
+set from the first run per provider and then held, must name the same
+provider, device and bundle, and a cell the budget has that a later run did
+not measure is a violation. On the Hailo boards the live suite runs with
+`--test-threads=1`: each test opens its own vdevice and HailoRT admits one
+per process at a time.
 
 `crates/turbo-bench` is the `libturbo` half of each pair: `turbo-bench
 embed|rerank|generate` runs the workloads through the safe Rust API (the

@@ -479,7 +479,11 @@ typedef struct turbo_chunk_plan turbo_chunk_plan;
 #define TURBO_OPT_MODEL 0
 
 /**
- * Truncation: as the model contract says (`TURBO_OPT_MODEL`).
+ * Truncation: as the model contract says (`TURBO_OPT_MODEL`). The bundle
+ * contract carries no truncation field today, so every text provider
+ * resolves MODEL to RIGHT (the BERT convention: keep the head of the
+ * text); a provider that resolved it differently would say so in its
+ * README and its capability notes.
  */
 #define TURBO_TRUNCATE_MODEL 0
 

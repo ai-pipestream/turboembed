@@ -250,7 +250,7 @@ used from any thread. Context is thread-safe for allocation. Session is
 single-owner: the caller serializes; a concurrent call returns `BUSY`
 without corrupting state. Callbacks are invoked on the calling thread, never
 from provider worker threads, and must not call back into the same session.
-Bindings encode this (Rust `Send` not `Sync` for sessions; Java
+Bindings encode this (Rust sessions are `Send + Sync` handles whose calls are single-owner at run time; Java
 `Arena.ofConfined` per call with `synchronized` handle methods; Swift
 `final class` with an internal lock).
 
@@ -425,7 +425,7 @@ card is supported on Ubuntu x86_64. The provider builds for both.
 
 - **Rust** (`crates/turbo`): the safe API. Types enforce lifetimes
   (`Result` borrows `Session`, `Session` borrows `Model`, all `Arc`-retained),
-  `Send` without `Sync` for sessions, callback reentry rejected, panics
+  single-owner sessions enforced at run time with `BUSY`, callback reentry rejected, panics
   caught at the boundary. The C ABI is exported from `crates/turbo-abi`.
 - **C/C++**: the header set plus a CMake package, `-fvisibility=hidden`,
   a version script exporting only `turbo_*`, SONAME `libturbo.so.2`,
@@ -467,7 +467,7 @@ crates/turbo/            safe Rust API
 crates/turbo-conformance/ provider-agnostic contract suite (runs against any provider)
 crates/turbo-bench/      matched-native benchmark harness and receipt writer
 providers/cpu/  providers/cuda/  providers/openvino/  providers/hailo/  providers/ggml/
-providers/metal/         Swift package producing libturbo_provider_metal.dylib
+providers/metal/         Objective-C++ provider over Metal directly (make + clang++)
 native/                  shared C++: wordpiece, turbo_buffer, pooling kernels
 bindings/java/  bindings/swift/  bindings/android/
 tools/turbo-bundle/      import, verify, fetch (from crates/fetch)
@@ -755,9 +755,13 @@ Benchmarks are matched: for each provider, a direct-native reference program
 using the runtime alone, and the same workload through `libturbo`. Workloads
 are batch {1, 8, 32} by sequence {32, 128, 256} for embeddings, 32 documents
 for rerank, and 128 new tokens for generation. Reported: p50/p99 latency,
-tokens/s, H2D/D2H bytes, host allocations per run, device memory. Receipts
-carry machine ID, runtime versions, driver versions, bundle hashes, and
-commit. Budgets are set from the first run per provider and then held.
+tokens/s (when the bundle's tokenizer counted the tokens), H2D/D2H bytes
+and host allocations per run, device memory; p99 from 100 iterations up.
+Receipts carry machine ID, runtime versions, driver versions, bundle hashes,
+and the commit the tool was built from. Budgets are set from the first run
+per provider and then held: the budget must name the same provider, device
+and bundle, and a cell the budget has that a later run did not measure is a
+violation.
 
 ## 12. Risks and defaults chosen
 

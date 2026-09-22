@@ -1790,6 +1790,10 @@ pub unsafe extern "C" fn turbo_tokenizer_encode(
         let n = (count as usize)
             .checked_mul(row_stride as usize)
             .ok_or_else(|| Error::invalid_shape("count * row_stride overflows"))?;
+        // A slice may not span more than isize::MAX bytes.
+        if n.checked_mul(std::mem::size_of::<i32>()).is_none_or(|bytes| bytes > isize::MAX as usize) {
+            return Err(Error::invalid_shape("count * row_stride rows do not fit an addressable buffer"));
+        }
         // SAFETY: the caller promises `n` writable elements in each array.
         let ids_s = unsafe { std::slice::from_raw_parts_mut(ids, n) };
         let mask_s = unsafe { std::slice::from_raw_parts_mut(mask, n) };

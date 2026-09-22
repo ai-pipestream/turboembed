@@ -389,10 +389,18 @@ roles and special tokens are the model's own vocabulary, not a
 provider-side table.
 
 Bundle contract: a `gguf` artifact; `contract.max_seq` is the context
-length (must not exceed the model's training context). Embeddings through
-GGUF, tokenize/detokenize for GGUF vocabularies, and JSON-schema
-constrained output are not offered yet (`PLAN.md` section 7's secondary
-GGUF-embedding path).
+length (must not exceed the model's training context).
+
+Embeddings through GGUF are offered on the same devices: the pooling the
+bundle names runs in the llama.cpp graph, L2 on the host, and the result is
+host memory. The CPU cell is deterministic; the live embedding suite holds
+the CUDA and CPU devices of `krick` and the Metal device of `krickert-mac`
+to cosine 0.99999 or better against the FP32 references
+(`testdata/receipts/turbo/ggml-2026-09-21.json`). A row that pools to a
+zero vector is an error rather than an unnormalized result, and left
+truncation with a prompt prefix is refused naming the field, because it
+would cut the prefix. Tokenize/detokenize for GGUF vocabularies and
+JSON-schema constrained output are not offered yet.
 
 Build requirements: a C/C++ toolchain and cmake for llama.cpp's own build
 (the default CPU-only build needs nothing else, which is why `ggml` is a

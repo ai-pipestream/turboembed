@@ -101,7 +101,7 @@ public final class Session implements AutoCloseable {
             MemorySegment out = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment err = Native.error(arena);
             Native.check(turbo_session_run(handle(), o, out, err), err);
-            return new Result(out.get(ValueLayout.ADDRESS, 0));
+            return new Result(out.get(ValueLayout.ADDRESS, 0), this);
         }
     }
 

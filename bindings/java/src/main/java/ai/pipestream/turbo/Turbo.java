@@ -144,7 +144,7 @@ public final class Turbo implements AutoCloseable {
             MemorySegment out = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment err = Native.error(arena);
             Native.check(turbo_tokenizer_create(handle(), Native.text(arena, bundlePath), out, err), err);
-            return new Tokenizer(out.get(ValueLayout.ADDRESS, 0));
+            return new Tokenizer(out.get(ValueLayout.ADDRESS, 0), this);
         }
     }
 

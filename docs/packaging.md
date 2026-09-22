@@ -19,8 +19,10 @@ include/turbo/turbo.h           the generated C API header
 include/turbo/turbo_types.h     the generated types/constants header
 include/turbo/turbo_provider.h  the generated provider-plugin vtable header
 bin/turbo-bundle                import/verify/inspect for model bundles
+bin/turbo-bench                 benchmark and provider discovery (discover --strict)
 providers/libturbo_provider_mock.so       always present; contract-testing only
 providers/libturbo_provider_static.so     present if built as a cdylib
+providers/libturbo_provider_ggml.so       present if the ggml provider built (needs cmake)
 providers/libturbo_provider_cuda.so       present if the CUDA provider built
 providers/libonnxruntime_providers_cuda.so    ONNX Runtime CUDA EP, next to the CUDA provider
 providers/libonnxruntime_providers_shared.so  ONNX Runtime EP loader, next to the CUDA provider
@@ -38,10 +40,14 @@ produces `lib/`, `include/`, `bin/`, and `providers/` directly under it.
 Every path under `providers/` is a provider that this machine could build;
 a provider that could not be built is not silently missing, it is named as
 absent in the archive's own `README.md` with the reason (skipped by a flag,
-no toolkit, or a build failure), so a consumer never has to guess whether a
-missing provider is a build defect or an intentional omission. `providers/`
-is otherwise flat, matching how `turbo_runtime_load_provider` takes one
-library path at a time; there is no per-provider subdirectory.
+or no toolchain on this machine), so a consumer never has to guess whether a
+missing provider is a build defect or an intentional omission. A build
+failure is not one of the reasons: if a provider's toolchain is installed
+and its build then fails, `scripts/package.sh` exits non-zero and writes no
+archive, because the caller asked for that provider by not passing its
+`--no-*` flag. `providers/` is otherwise flat, matching how
+`turbo_runtime_load_provider` takes one library path at a time; there is no
+per-provider subdirectory.
 
 ## What is deliberately not bundled
 
@@ -81,7 +87,22 @@ scripts/package.sh                        # build everything this machine can
 scripts/package.sh --no-cuda              # leave the CUDA provider out (no build, not packaged)
 scripts/package.sh --no-openvino          # leave the OpenVINO provider out
 scripts/package.sh --no-hailo             # leave the Hailo provider out
+scripts/package.sh --no-ggml              # leave the ggml provider out (it compiles llama.cpp from source)
+scripts/package.sh --use-prebuilt-openvino  # package build/openvino as it is, without rebuilding
+scripts/package.sh --use-prebuilt-hailo     # package build/hailo as it is, without rebuilding
 ```
+
+Which optional providers are attempted is decided by what is installed:
+`nvcc` in `CUDA_PATH`, `/usr/local/cuda`, or `/usr` for CUDA; `cmake` for
+ggml; an OpenVINO SDK in `TURBO_OPENVINO_DIR` or `~/opt/openvino*` for
+OpenVINO; `hailort.h` for Hailo. When the toolchain is there, the provider
+is built from source every time, including when `build/openvino` or
+`build/hailo` already holds a library, so a tree left over from older
+provider sources cannot ship. `--use-prebuilt-openvino` and
+`--use-prebuilt-hailo` package the existing tree unchecked and are the only
+way to skip that rebuild. The script builds Linux archives only; on another
+target triple it says so and stops rather than reporting a missing
+`libturbo.so`.
 
 ### In a container (the manylinux_2_28 floor)
 
@@ -95,17 +116,29 @@ scripts/package-container.sh --toolchain 1.98.0   # pin the Rust toolchain
 `quay.io/pypa/manylinux_2_28_<arch>` (AlmaLinux 8, glibc 2.28, gcc 14), so
 `libturbo.so` and the bundled tools link against the oldest glibc the plan
 allows and run on any newer distribution. The image runs `scripts/package.sh
---no-cuda --no-openvino --no-hailo` with every check the host build has (the
-`ldd` gate, the C smoke test, and `turbo-bench discover --strict` over the
-packaged providers) and exports only `dist/`; the CUDA, OpenVINO, and Hailo
-providers need their vendor toolchains and are built on the machines that
-have them. The Rust toolchain defaults to the repository's
-`rust-toolchain.toml` channel; pass `--toolchain` to pin a version for a
-reproducible archive. Cargo's registry and the compiled dependencies are
-kept in BuildKit cache mounts between builds. The archive built this way
-on `krick` (2026-09-21, 44 MB with `turbo-bench`) needs no glibc symbol newer than
-`GLIBC_2.28` in `libturbo.so`, the providers, or the tools (`objdump -T`),
-and `bin/turbo-bench discover --provider-dir providers --strict` from the
+--no-cuda --no-openvino --no-hailo --no-ggml` with every check the host build
+has (the `ldd` gate, the C smoke test, and `turbo-bench discover --strict`
+over the packaged providers) and exports only `dist/`; the CUDA, OpenVINO,
+and Hailo providers need their vendor toolchains and are built on the
+machines that have them, and the ggml provider is left out because it
+compiles llama.cpp from source. All four are named as absent in the
+archive's own `README.md`. The image sets `RUSTUP_TOOLCHAIN` to the
+`--toolchain` value, which takes precedence over `rust-toolchain.toml`, so a
+pinned toolchain is the one that actually builds the archive; without
+`--toolchain` that value is `stable`, the repository's own channel. Cargo's
+registry and the compiled dependencies are kept in BuildKit cache mounts
+between builds.
+
+The image also sets `TURBO_GLIBC_FLOOR=2.28`, which turns the floor into a
+gate: `scripts/package.sh` reads the newest `GLIBC_<version>` symbol version
+in each packaged library's dynamic symbol table (`objdump -T`) and fails the
+build if any of them is above the floor, rather than trusting the soname
+list, which does not show symbol versions. A host build leaves
+`TURBO_GLIBC_FLOOR` unset, so it reports each library's newest glibc symbol
+version and gates nothing: a host archive makes no portability claim. The
+archive built in the container on `krick` (2026-09-21, 44 MB with
+`turbo-bench`) needs no glibc symbol newer than `GLIBC_2.28`, and
+`bin/turbo-bench discover --provider-dir providers --strict` from the
 extracted archive is the consumer-side check that every provider loads.
 
 ### On the host
@@ -138,11 +171,12 @@ own `testdata/bundles/mock` fixtures (those fixtures are test data, not
 packaged). It then runs `turbo-bench discover --provider-dir
 <extracted>/providers --strict` against that same extraction, which
 `dlopen`s every packaged provider library and fails the build if any of
-them does not load from the extracted archive — the runtimes a provider
+them does not load from the extracted archive. The runtimes a provider
 links (OpenVINO, CUDA) still come from `LD_LIBRARY_PATH`, as they would on
-a consumer machine, but a provider whose build failed and was copied from
-a stale `target/` by mistake is caught here rather than shipped silently
-broken. It prints the archive's path and size at the end.
+a consumer machine. This is a load check, not a staleness check: a library
+that still loads passes it whatever source it was built from, which is why
+`build/openvino` and `build/hailo` are rebuilt rather than reused. It prints
+the archive's path and size at the end.
 
 ## Consuming it from C
 
@@ -227,3 +261,9 @@ above is implemented: there is no classifier-artifact build, no SONAME, no
 `abidiff` gate, and no aggregator POM. This section stays a requirements
 list against the current archive layout, not a description of existing
 packaging code, until P8 builds it.
+
+The Linux archive holds no Metal provider: `scripts/package.sh` is a
+Linux tool (it exits on any other target triple), and the macOS packaging
+(an xcframework, PLAN.md P8) is not built yet. On a Mac the Metal
+provider is built in place with `make -C providers/metal` and loaded from
+`build/metal/libturbo_provider_metal.dylib`.

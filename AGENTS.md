@@ -16,8 +16,11 @@ A reviewer applies these to every change, not just provider code:
 2. **Honest capabilities.** Every option and placement maps to a
    `TURBO_CAP_*` bit. A provider either honors an option exactly or reports
    the bit clear and the call fails with `TURBO_E_UNSUPPORTED_OPTION` naming
-   the field. Reject: any code path that silently ignores, clamps, or
-   substitutes a value for an option the caller set.
+   the field; that rule covers the `TURBO_CAP_OPT_*` bits. A missing device
+   capability that is not an option (a placement, a handle import, a
+   native handle export) fails with the matching `TURBO_E_UNSUPPORTED*`
+   code and no field. Reject: any code path that silently ignores, clamps,
+   or substitutes a value for an option the caller set.
 3. **Lowest layer per device.** Pooling and normalization run where the
    hidden state was produced, not pulled to the host by default. Where a
    device cannot do a stage, the provider reports `fully_accelerated = 0`

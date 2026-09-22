@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package ai.pipestream.turbo.android;
 
+import java.nio.charset.StandardCharsets;
+
 /**
  * An embedding engine over the JNI shim: a bundle on the best device, with
  * a session of {@code maxBatch} rows. Not thread-safe; one engine per
@@ -16,7 +18,10 @@ public final class TurboEngine implements AutoCloseable {
     private final int dim;
 
     public TurboEngine(String bundlePath, String providerLib, int maxBatch) {
-        handle = TurboJni.open(bundlePath, providerLib, maxBatch);
+        // UTF-8 here, not JNI modified UTF-8: turbo_text is specified as
+        // UTF-8 and the library validates it.
+        handle = TurboJni.open(bundlePath.getBytes(StandardCharsets.UTF_8),
+                providerLib == null ? null : providerLib.getBytes(StandardCharsets.UTF_8), maxBatch);
         if (handle == 0) {
             throw new IllegalStateException("engine did not open and no exception was thrown");
         }
@@ -33,7 +38,17 @@ public final class TurboEngine implements AutoCloseable {
 
     /** One row of {@code dim()} floats per text, in order. */
     public float[][] embed(String... texts) {
-        float[] flat = TurboJni.embed(handle(), texts);
+        byte[][] utf8 = new byte[texts.length][];
+        for (int i = 0; i < texts.length; i++) {
+            utf8[i] = texts[i].getBytes(StandardCharsets.UTF_8);
+        }
+        float[] flat = TurboJni.embed(handle(), utf8);
+        if (flat == null) {
+            throw new IllegalStateException("embed returned no data and no exception");
+        }
+        if (flat.length != texts.length * dim) {
+            throw new IllegalStateException("embed returned " + flat.length + " floats for " + texts.length + " x " + dim);
+        }
         float[][] rows = new float[texts.length][];
         for (int i = 0; i < texts.length; i++) {
             rows[i] = new float[dim];

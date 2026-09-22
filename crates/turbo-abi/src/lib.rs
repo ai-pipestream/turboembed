@@ -242,7 +242,11 @@ pub const TURBO_STAGE_FUSED: u32 = 3;
 /// Option value meaning "use the model contract".
 pub const TURBO_OPT_MODEL: u32 = 0;
 
-/// Truncation: as the model contract says (`TURBO_OPT_MODEL`).
+/// Truncation: as the model contract says (`TURBO_OPT_MODEL`). The bundle
+/// contract carries no truncation field today, so every text provider
+/// resolves MODEL to RIGHT (the BERT convention: keep the head of the
+/// text); a provider that resolved it differently would say so in its
+/// README and its capability notes.
 pub const TURBO_TRUNCATE_MODEL: u32 = 0;
 /// Truncation: never; over-length input is an error.
 pub const TURBO_TRUNCATE_NONE: u32 = 1;

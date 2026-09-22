@@ -6,12 +6,17 @@
  *
  *   turbo-demo-c [--provider-lib <so>] [--provider <id> --ordinal <n>] --bundle <dir> text...
  */
+#include "demo_args.h"
 #include "turbo/turbo.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* The batch this demo holds; more inputs than this is an error, never a
+ * silently truncated matrix. */
+#define MAX_TEXTS 64
 
 static turbo_text text_of(const char *s) {
     turbo_text t;
@@ -37,19 +42,24 @@ int main(int argc, char **argv) {
     const char *provider_lib = NULL, *provider = NULL, *bundle = NULL;
     uint32_t ordinal = 0;
     int have_ordinal = 0;
-    const char *texts[64];
+    const char *texts[MAX_TEXTS];
     uint32_t n_texts = 0;
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "--provider-lib") == 0 && i + 1 < argc) {
-            provider_lib = argv[++i];
-        } else if (strcmp(argv[i], "--provider") == 0 && i + 1 < argc) {
-            provider = argv[++i];
-        } else if (strcmp(argv[i], "--ordinal") == 0 && i + 1 < argc) {
-            ordinal = (uint32_t)strtoul(argv[++i], NULL, 10);
+        if (strcmp(argv[i], "--provider-lib") == 0) {
+            provider_lib = demo_value(argc, argv, &i);
+        } else if (strcmp(argv[i], "--provider") == 0) {
+            provider = demo_value(argc, argv, &i);
+        } else if (strcmp(argv[i], "--ordinal") == 0) {
+            ordinal = demo_u32("--ordinal", demo_value(argc, argv, &i));
             have_ordinal = 1;
-        } else if (strcmp(argv[i], "--bundle") == 0 && i + 1 < argc) {
-            bundle = argv[++i];
-        } else if (n_texts < 64) {
+        } else if (strcmp(argv[i], "--bundle") == 0) {
+            bundle = demo_value(argc, argv, &i);
+        } else {
+            demo_reject_unknown_flag(argv[i]);
+            if (n_texts == MAX_TEXTS) {
+                fprintf(stderr, "this demo embeds at most %d texts in one batch; %s is the %d'th\n", MAX_TEXTS, argv[i], MAX_TEXTS + 1);
+                return 2;
+            }
             texts[n_texts++] = argv[i];
         }
     }
@@ -120,7 +130,7 @@ int main(int argc, char **argv) {
     turbo_session *session = NULL;
     CHECK("turbo_session_create", turbo_session_create(model, &sd, &session, &err));
 
-    turbo_text views[64];
+    turbo_text views[MAX_TEXTS];
     for (uint32_t i = 0; i < n_texts; ++i) {
         views[i] = text_of(texts[i]);
     }
@@ -135,13 +145,26 @@ int main(int argc, char **argv) {
         fprintf(stderr, "unexpected result: batch %u dtype %u\n", ri.batch, ri.dtype);
         return 1;
     }
-    float *out = (float *)malloc((size_t)ri.bytes);
+    const uint64_t expected = (uint64_t)ri.batch * ri.dim * sizeof(float);
+    if (ri.bytes != expected) {
+        fprintf(stderr, "result claims %llu bytes for %u x %u f32 (%llu expected)\n", (unsigned long long)ri.bytes, ri.batch, ri.dim,
+                (unsigned long long)expected);
+        return 1;
+    }
+    float *out = (float *)calloc((size_t)ri.bytes, 1);
     if (out == NULL) {
         fprintf(stderr, "out of memory\n");
         return 1;
     }
     uint64_t written = 0;
     CHECK("turbo_result_read", turbo_result_read(result, 0, out, ri.bytes, &written, &err));
+    /* The library reports what it wrote; a short read would leave the tail
+     * of the buffer untouched and the similarities below meaningless. */
+    if (written != ri.bytes) {
+        fprintf(stderr, "turbo_result_read wrote %llu of %llu bytes\n", (unsigned long long)written, (unsigned long long)ri.bytes);
+        free(out);
+        return 1;
+    }
     const uint32_t dim = ri.dim;
     printf("embeddings: %u x %u (placement %u)\n", ri.batch, dim, ri.placement);
     printf("cosine similarity:\n");

@@ -26,6 +26,15 @@ grep -E 'turbo|TURBO' "$tmp/all.txt" > "$tmp/turbo.txt"
 # The library is located through the `turbo.library` system property (a path
 # to libturbo) or the TURBO_LIBRARY environment variable, and only then
 # through the loader's own search; jextract's default is the search alone.
+#
+# SymbolLookup.libraryLookup throws IllegalArgumentException when the name or
+# path does not identify a loadable library; it does not return an empty
+# lookup, so `.or(...)` after it is never reached. The name-based branch
+# therefore catches that and falls through to the loader, which is what a
+# host that already called System.loadLibrary("turbo") needs. An explicit
+# turbo.library / TURBO_LIBRARY path stays a hard failure: the caller named
+# the library, so a library that cannot be loaded is an error, not a reason
+# to use a different one.
 python3 - "$tmp/gen/ai/pipestream/turbo/ffi/TurboNative.java" <<'EOF'
 import sys, re
 p = sys.argv[1]
@@ -36,13 +45,18 @@ new = '''    static final SymbolLookup SYMBOL_LOOKUP = lookup();
     private static SymbolLookup lookup() {
         String explicit = System.getProperty("turbo.library", System.getenv("TURBO_LIBRARY"));
         if (explicit != null && !explicit.isEmpty()) {
-            return SymbolLookup.libraryLookup(java.nio.file.Path.of(explicit), LIBRARY_ARENA)
+            // Named by the caller: load that library or fail with what is wrong with it.
+            return SymbolLookup.libraryLookup(java.nio.file.Path.of(explicit), LIBRARY_ARENA);
+        }
+        try {
+            return SymbolLookup.libraryLookup(System.mapLibraryName("turbo"), LIBRARY_ARENA)
                     .or(SymbolLookup.loaderLookup())
                     .or(Linker.nativeLinker().defaultLookup());
+        } catch (IllegalArgumentException notLoadable) {
+            // libraryLookup throws rather than returning an empty lookup, so
+            // this is the only way to reach a libturbo the host loaded itself.
+            return SymbolLookup.loaderLookup().or(Linker.nativeLinker().defaultLookup());
         }
-        return SymbolLookup.libraryLookup(System.mapLibraryName("turbo"), LIBRARY_ARENA)
-                .or(SymbolLookup.loaderLookup())
-                .or(Linker.nativeLinker().defaultLookup());
     }
 '''
 s = s.replace(old, new, 1)

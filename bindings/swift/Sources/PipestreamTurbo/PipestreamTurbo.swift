@@ -65,16 +65,30 @@ func fixedString<T>(_ tuple: T) -> String {
 }
 
 /// UTF-8 bytes of `strings`, kept alive while `body` runs, exposed as `turbo_text`.
+///
+/// The bytes of every string are packed into one buffer and the views are
+/// built inside that buffer's scope, so no pointer outlives the scope that
+/// produced it. An empty string becomes `ptr == NULL, len == 0`, which
+/// `turbo_types.h` permits, rather than a one-byte allocation nobody frees.
 func withTexts<R>(_ strings: [String], _ body: (UnsafePointer<turbo_text>, UInt32) throws -> R) rethrows -> R {
-    var storage: [[UInt8]] = strings.map { Array($0.utf8) }
-    var texts = [turbo_text](repeating: turbo_text(), count: strings.count)
-    for i in 0..<strings.count {
-        storage[i].withUnsafeMutableBufferPointer { buf in
-            texts[i] = turbo_text(ptr: UnsafeRawPointer(buf.baseAddress ?? UnsafeMutablePointer<UInt8>.allocate(capacity: 1)).assumingMemoryBound(to: CChar.self), len: UInt64(buf.count))
-        }
+    var flat: [UInt8] = []
+    var extents: [(start: Int, count: Int)] = []
+    extents.reserveCapacity(strings.count)
+    for s in strings {
+        let start = flat.count
+        flat.append(contentsOf: s.utf8)
+        extents.append((start, flat.count - start))
     }
-    return try withExtendedLifetime(storage) {
-        try texts.withUnsafeBufferPointer { try body($0.baseAddress!, UInt32(strings.count)) }
+    return try flat.withUnsafeBufferPointer { bytes in
+        var texts = [turbo_text](repeating: turbo_text(), count: strings.count)
+        for i in 0..<strings.count {
+            let e = extents[i]
+            let ptr: UnsafePointer<CChar>? = e.count == 0
+                ? nil
+                : UnsafeRawPointer(bytes.baseAddress! + e.start).assumingMemoryBound(to: CChar.self)
+            texts[i] = turbo_text(ptr: ptr, len: UInt64(e.count))
+        }
+        return try texts.withUnsafeBufferPointer { try body($0.baseAddress!, UInt32(strings.count)) }
     }
 }
 
@@ -99,6 +113,11 @@ public enum PromptRole: UInt32 { case none = 0, query = 1, document = 2 }
 public enum Normalize: UInt32 { case model = 0, none = 1, l2 = 2 }
 public enum Pooling: UInt32 { case model = 0, mean = 1, cls = 2, last = 3 }
 public enum OutputDType: UInt32 { case model = 0, f32 = 1, f16 = 2, i8 = 3 }
+/// Element type of a tensor (`TURBO_DTYPE_*`), as reported by the library.
+public enum DType: UInt32 {
+    case bool = 1, u8 = 2, u16 = 3, u32 = 4, u64 = 5, i8 = 6, i16 = 7, i32 = 8, i64 = 9
+    case f16 = 10, bf16 = 11, f32 = 12, f64 = 13, bytes = 14
+}
 public enum Aggregation: UInt32 { case model = 0, none = 1, simple = 2, first = 3, max = 4 }
 public enum Placement: UInt32 { case host = 1, pinned = 2, device = 3, shared = 4 }
 public enum FinishReason: UInt32 { case none = 0, eos = 1, stop = 2, length = 3, cancelled = 4 }
@@ -114,6 +133,8 @@ private let constantsVerified: Bool = {
     precondition(Truncate.left.rawValue == TURBO_TRUNCATE_LEFT && PromptRole.document.rawValue == TURBO_PROMPT_DOCUMENT)
     precondition(Normalize.l2.rawValue == TURBO_NORMALIZE_L2 && Pooling.last.rawValue == TURBO_POOLING_LAST)
     precondition(OutputDType.i8.rawValue == TURBO_OUTPUT_I8 && Aggregation.max.rawValue == TURBO_AGGREGATE_MAX)
+    precondition(DType.bool.rawValue == TURBO_DTYPE_BOOL && DType.f32.rawValue == TURBO_DTYPE_F32
+        && DType.i32.rawValue == TURBO_DTYPE_I32 && DType.bytes.rawValue == TURBO_DTYPE_BYTES)
     precondition(Placement.shared.rawValue == TURBO_PLACE_SHARED)
     precondition(FinishReason.cancelled.rawValue == TURBO_FINISH_CANCELLED && FinishReason.length.rawValue == TURBO_FINISH_LENGTH)
     return true
@@ -308,19 +329,29 @@ public final class Model {
             desc.struct_size = UInt32(MemoryLayout<turbo_model_desc>.size)
             try check { turbo_model_load(context.raw, path, &desc, &out, $0) }
         }
-        rawHandle = out!
-        self.context = context
-        var mi = turbo_model_info()
-        mi.struct_size = UInt32(MemoryLayout<turbo_model_info>.size)
-        try check { turbo_model_get_info(out!, &mi, $0) }
-        var labels: [String] = []
-        for i in 0..<mi.n_labels {
-            var t = turbo_text()
-            try check { turbo_model_label(out!, i, &t, $0) }
-            labels.append(t.len == 0 ? "" : String(decoding: UnsafeRawBufferPointer(start: t.ptr, count: Int(t.len)), as: UTF8.self))
+        // The instance is not fully initialized until `info` is assigned, so
+        // `deinit` does not run if the work below throws. Release the handle
+        // here rather than leaking the model, its weights, and the context
+        // and runtime it retains.
+        let handle = out!
+        do {
+            var mi = turbo_model_info()
+            mi.struct_size = UInt32(MemoryLayout<turbo_model_info>.size)
+            try check { turbo_model_get_info(handle, &mi, $0) }
+            var labels: [String] = []
+            for i in 0..<mi.n_labels {
+                var t = turbo_text()
+                try check { turbo_model_label(handle, i, &t, $0) }
+                labels.append(t.len == 0 ? "" : String(decoding: UnsafeRawBufferPointer(start: t.ptr, count: Int(t.len)), as: UTF8.self))
+            }
+            info = ModelInfo(task: try decodeEnum(mi.task, "task"), dim: mi.dim, labels: labels, maxSeq: mi.max_seq, maxBatch: mi.max_batch,
+                             fullyAccelerated: mi.fully_accelerated != 0, modelId: fixedString(mi.model_id), providerId: fixedString(mi.provider_id))
+        } catch {
+            turbo_model_release(handle)
+            throw error
         }
-        info = ModelInfo(task: try decodeEnum(mi.task, "task"), dim: mi.dim, labels: labels, maxSeq: mi.max_seq, maxBatch: mi.max_batch,
-                         fullyAccelerated: mi.fully_accelerated != 0, modelId: fixedString(mi.model_id), providerId: fixedString(mi.provider_id))
+        rawHandle = handle
+        self.context = context
     }
 
     deinit { close() }
@@ -494,38 +525,55 @@ public final class Result {
         }
     }
 
-    /// Logical shape and name of output `index`.
-    public func output(_ index: UInt32) throws -> (name: String, shape: [Int64]) {
+    /// Logical shape, element type, and name of output `index`.
+    ///
+    /// A dynamic extent (`-1`, which `turbo_types.h` permits in a declared
+    /// shape) has no element count, so it is refused here rather than
+    /// turned into a negative buffer size by a caller that multiplies.
+    public func output(_ index: UInt32) throws -> (name: String, dtype: DType, shape: [Int64]) {
         var t = turbo_tensor_info()
         t.struct_size = UInt32(MemoryLayout<turbo_tensor_info>.size)
         try check { turbo_result_output_info(handle(), index, &t, $0) }
         let shape = withUnsafePointer(to: t.shape) { p in
             p.withMemoryRebound(to: Int64.self, capacity: Int(TURBO_MAX_RANK)) { Array(UnsafeBufferPointer(start: $0, count: Int(t.ndim))) }
         }
-        return (fixedString(t.name), shape)
+        if let bad = shape.first(where: { $0 < 0 }) {
+            throw TurboError(code: TURBO_E_INVALID_SHAPE, field: 0,
+                             message: "output \(index) has the dynamic extent \(bad) in its shape \(shape); it has no element count to read")
+        }
+        return (fixedString(t.name), try decodeEnum(t.dtype, "dtype"), shape)
     }
 
-    /// Copy an `f32` output into Swift memory.
+    /// Copy an `f32` output into Swift memory. Another dtype is
+    /// `TURBO_E_UNSUPPORTED_DTYPE`; use `readBytes` for the raw payload.
     public func readFloats(_ index: UInt32) throws -> [Float] {
-        let (_, shape) = try output(index)
+        let (_, dtype, shape) = try output(index)
+        guard dtype == .f32 else {
+            throw TurboError(code: TURBO_E_UNSUPPORTED_DTYPE, field: 0, message: "output \(index) is \(dtype), not f32")
+        }
         let count = Int(shape.reduce(1, *))
         var out = [Float](repeating: 0, count: count)
         var written: UInt64 = 0
         _ = try out.withUnsafeMutableBytes { buf in
             try check { turbo_result_read(handle(), index, buf.baseAddress, UInt64(buf.count), &written, $0) }
         }
-        return out
+        return Array(out[0..<(Int(written) / MemoryLayout<Float>.size)])
     }
 
-    /// Copy an `i32` output into Swift memory.
+    /// Copy an `i32` output into Swift memory. Another dtype is
+    /// `TURBO_E_UNSUPPORTED_DTYPE`.
     public func readInts(_ index: UInt32) throws -> [Int32] {
-        let (_, shape) = try output(index)
+        let (_, dtype, shape) = try output(index)
+        guard dtype == .i32 else {
+            throw TurboError(code: TURBO_E_UNSUPPORTED_DTYPE, field: 0, message: "output \(index) is \(dtype), not i32")
+        }
         let count = Int(shape.reduce(1, *))
         var out = [Int32](repeating: 0, count: count)
+        var written: UInt64 = 0
         _ = try out.withUnsafeMutableBytes { buf in
-            try check { turbo_result_read(handle(), index, buf.baseAddress, UInt64(buf.count), nil, $0) }
+            try check { turbo_result_read(handle(), index, buf.baseAddress, UInt64(buf.count), &written, $0) }
         }
-        return out
+        return Array(out[0..<(Int(written) / MemoryLayout<Int32>.size)])
     }
 
     public func spans() throws -> [Span] {
@@ -609,13 +657,13 @@ public struct Chunk {
     public let promptTokens: UInt32
     public let generatedTokens: UInt32
 
-    init(_ c: turbo_generation_chunk) {
+    init(_ c: turbo_generation_chunk) throws {
         sequence = c.sequence
         tokens = c.n_tokens == 0 ? [] : Array(UnsafeBufferPointer(start: c.tokens, count: Int(c.n_tokens)))
         logprobs = c.n_logprobs == 0 ? [] : Array(UnsafeBufferPointer(start: c.logprobs, count: Int(c.n_logprobs)))
         text = c.text.len == 0 ? "" : String(decoding: UnsafeRawBufferPointer(start: c.text.ptr, count: Int(c.text.len)), as: UTF8.self)
         done = c.done != 0
-        finishReason = FinishReason(rawValue: c.finish_reason) ?? .none
+        finishReason = try decodeEnum(c.finish_reason, "finish reason")
         promptTokens = c.prompt_tokens
         generatedTokens = c.generated_tokens
     }
@@ -669,7 +717,7 @@ public final class Generation {
         var c = turbo_generation_chunk()
         c.struct_size = UInt32(MemoryLayout<turbo_generation_chunk>.size)
         try check { turbo_generation_step(raw, &c, $0) }
-        return Chunk(c)
+        return try Chunk(c)
     }
 
     /// Step until done, handing every chunk to `sink`; a sink that returns
@@ -751,14 +799,23 @@ public final class Tokenizer {
     init(runtime: Runtime, bundlePath: String) throws {
         var out: OpaquePointer?
         _ = try withText(bundlePath) { path in try check { turbo_tokenizer_create(runtime.raw, path, &out, $0) } }
-        rawHandle = out!
+        // As in `Model.init`: `info` is still unassigned, so a throw here
+        // skips `deinit` and the tokenizer handle (and the runtime it
+        // retains) would never be released.
+        let handle = out!
+        do {
+            var ti = turbo_tokenizer_info()
+            ti.struct_size = UInt32(MemoryLayout<turbo_tokenizer_info>.size)
+            try check { turbo_tokenizer_get_info(handle, &ti, $0) }
+            info = TokenizerInfo(vocabSize: ti.vocab_size, maxSeq: ti.max_seq, specialsPerSequence: ti.specials_per_sequence,
+                                 padId: ti.pad_id, bosId: ti.bos_id, eosId: ti.eos_id, unkId: ti.unk_id,
+                                 kind: fixedString(ti.kind), sha256: fixedString(ti.sha256))
+        } catch {
+            turbo_tokenizer_release(handle)
+            throw error
+        }
+        rawHandle = handle
         self.runtime = runtime
-        var ti = turbo_tokenizer_info()
-        ti.struct_size = UInt32(MemoryLayout<turbo_tokenizer_info>.size)
-        try check { turbo_tokenizer_get_info(out!, &ti, $0) }
-        info = TokenizerInfo(vocabSize: ti.vocab_size, maxSeq: ti.max_seq, specialsPerSequence: ti.specials_per_sequence,
-                             padId: ti.pad_id, bosId: ti.bos_id, eosId: ti.eos_id, unkId: ti.unk_id,
-                             kind: fixedString(ti.kind), sha256: fixedString(ti.sha256))
     }
 
     deinit { close() }
@@ -794,7 +851,14 @@ public final class Tokenizer {
                     turbo_tokenizer_decode(raw, ip.baseAddress, UInt32(ip.count), skipSpecialTokens ? 1 : 0, bp.baseAddress, UInt64(bp.count), &written, &e)
                 }
             }
-            if rc == TURBO_E_CAPACITY { capacity = Int(written); continue }
+            if rc == TURBO_E_CAPACITY {
+                // The library reports the size it needs; a report that is
+                // not larger than what was just offered is a contract
+                // violation, not a reason to try the same size again.
+                guard Int(written) > capacity else { throw makeError(rc, e) }
+                capacity = Int(written)
+                continue
+            }
             if rc != TURBO_OK { throw makeError(rc, e) }
             return String(decoding: buf[0..<Int(written)], as: UTF8.self)
         }

@@ -18,10 +18,18 @@ import java.util.List;
  */
 public final class Result implements AutoCloseable {
     private final MemorySegment r;
+    /** The session this result leases; a result keeps its session alive. */
+    private final Session session;
     private boolean closed;
 
-    Result(MemorySegment r) {
+    Result(MemorySegment r, Session session) {
         this.r = r;
+        this.session = session;
+    }
+
+    /** The session this result came from. */
+    public Session session() {
+        return session;
     }
 
     MemorySegment handle() {
@@ -80,6 +88,13 @@ public final class Result implements AutoCloseable {
             long[] shape = new long[ndim];
             for (int i = 0; i < ndim; i++) {
                 shape[i] = shapes.getAtIndex(ValueLayout.JAVA_LONG, i);
+                // turbo_types.h allows -1 as a dynamic extent in a declared
+                // shape. It has no element count, so it must not reach
+                // elements() and become a negative buffer size.
+                if (shape[i] < 0) {
+                    throw new IllegalStateException(
+                            "output " + index + " has the dynamic extent " + shape[i] + " at dimension " + i + "; it has no element count to read");
+                }
             }
             return new Output(Native.fixed(turbo_tensor_info.name(t)), DType.of(turbo_tensor_info.dtype(t)), shape);
         }
