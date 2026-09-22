@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Turbo demo</string>
+    <string name="hint">one sentence per line</string>
+    <string name="sample">a brown dog runs through the grass\na dog is running on the lawn\nthe stock market closed higher</string>
+    <string name="run">Embed</string>
+</resources>

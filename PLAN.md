@@ -652,11 +652,9 @@ held-result BUSY case, a cross-thread cancel case, and a regression case
 for the jextract indexed-accessor fix (H-6). The Swift
 package (`bindings/swift`, module `PipestreamTurbo`) is in, with its
 generation and tokenizer wrappers mirroring the Java ones and the same
-fourteen cases as an executable runner; the original nine pass on
-`krickert-mac` (Apple M2), and the five added for generation, the
-tokenizer, and the two review cases have not run on that machine yet. Not
-yet: the push form `turbo_generate` and the chunk planner in the bindings,
-the Mac run of the newest Swift cases, and the timings.
+fourteen cases as an executable runner, all passing on `krickert-mac`
+(Apple M2, 2026-09-22). Not yet: the push form `turbo_generate` and the
+chunk planner in the bindings, and the timings.
 
 ### P8 Packaging and SDK
 Per-platform archives built in containers (manylinux_2_28 floor for Linux

@@ -208,8 +208,8 @@ public final class Runtime {
     /// `TURBO_E_DEVICE_NOT_FOUND`.
     public func selectDevice(policy: SelectPolicy = .auto, providerId: String = "", ordinal: UInt32 = 0) throws -> UInt32 {
         var out: UInt32 = 0
-        try withText(providerId) { pid in
-            try withText("") { vendor in
+        _ = try withText(providerId) { pid in
+            _ = try withText("") { vendor in
                 var sel = turbo_device_selector()
                 sel.struct_size = UInt32(MemoryLayout<turbo_device_selector>.size)
                 sel.policy = policy.rawValue
@@ -303,7 +303,7 @@ public final class Model {
 
     init(context: Context, bundlePath: String) throws {
         var out: OpaquePointer?
-        try withText(bundlePath) { path in
+        _ = try withText(bundlePath) { path in
             var desc = turbo_model_desc()
             desc.struct_size = UInt32(MemoryLayout<turbo_model_desc>.size)
             try check { turbo_model_load(context.raw, path, &desc, &out, $0) }
@@ -427,7 +427,7 @@ public final class Session {
 
     public func writePairs(query: String, documents: [String], options: RerankOptions = RerankOptions()) throws {
         var o = options.c
-        try withText(query) { q in
+        _ = try withText(query) { q in
             var qq = q
             _ = try withTexts(documents) { d, n in try check { turbo_session_write_pairs(raw, &qq, d, n, &o, $0) } }
         }
@@ -582,9 +582,9 @@ public struct GenerateDesc {
         d.temperature = temperature; d.top_k = topK; d.top_p = topP; d.min_p = minP
         d.repeat_penalty = repeatPenalty; d.presence_penalty = presencePenalty; d.frequency_penalty = frequencyPenalty
         d.has_seed = seed == nil ? 0 : 1; d.seed = seed ?? 0
-        d.logprobs = logprobs; d.structured_kind = TURBO_STRUCTURED_NONE; d.echo = echo ? 1 : 0
-        var biases = logitBias.map { turbo_logit_bias(token: $0.token, bias: $0.bias) }
-        var stops = stopTokens
+        d.logprobs = logprobs; d.structured_kind = UInt32(TURBO_STRUCTURED_NONE); d.echo = echo ? 1 : 0
+        let biases = logitBias.map { turbo_logit_bias(token: $0.token, bias: $0.bias) }
+        let stops = stopTokens
         return try withTexts(stop) { texts, n in
             d.n_stop = n; d.stop = n == 0 ? nil : texts
             return try stops.withUnsafeBufferPointer { st in
@@ -641,7 +641,7 @@ public final class Generation {
 
     init(model: Model, desc: GenerateDesc) throws {
         var out: OpaquePointer?
-        try desc.withC { d in try check { turbo_generation_create(model.raw, d, &out, $0) } }
+        _ = try desc.withC { d in try check { turbo_generation_create(model.raw, d, &out, $0) } }
         rawHandle = out!
         self.model = model
     }
@@ -654,14 +654,14 @@ public final class Generation {
             try withTexts(messages.map { $0.content }) { contents, _ in
                 var msgs = [turbo_message](repeating: turbo_message(), count: Int(n))
                 for i in 0..<Int(n) { msgs[i] = turbo_message(role: roles[i], content: contents[i]) }
-                try msgs.withUnsafeBufferPointer { m in try check { turbo_generation_prompt(raw, m.baseAddress, n, $0) } }
+                _ = try msgs.withUnsafeBufferPointer { m in try check { turbo_generation_prompt(raw, m.baseAddress, n, $0) } }
             }
         }
     }
 
     /// Use caller-supplied prompt token ids.
     public func promptTokens(_ ids: [Int32]) throws {
-        try ids.withUnsafeBufferPointer { p in try check { turbo_generation_prompt_tokens(raw, p.baseAddress, UInt32(p.count), $0) } }
+        _ = try ids.withUnsafeBufferPointer { p in try check { turbo_generation_prompt_tokens(raw, p.baseAddress, UInt32(p.count), $0) } }
     }
 
     /// Produce the next chunk.
@@ -750,7 +750,7 @@ public final class Tokenizer {
 
     init(runtime: Runtime, bundlePath: String) throws {
         var out: OpaquePointer?
-        try withText(bundlePath) { path in try check { turbo_tokenizer_create(runtime.raw, path, &out, $0) } }
+        _ = try withText(bundlePath) { path in try check { turbo_tokenizer_create(runtime.raw, path, &out, $0) } }
         rawHandle = out!
         self.runtime = runtime
         var ti = turbo_tokenizer_info()
@@ -803,7 +803,7 @@ public final class Tokenizer {
     /// Number of tokens `text` produces, without truncation or prefix.
     public func count(_ text: String, addSpecialTokens: Bool = true) throws -> UInt32 {
         var n: UInt32 = 0
-        try withText(text) { t in try check { turbo_tokenizer_count(raw, t, addSpecialTokens ? 1 : 0, &n, $0) } }
+        _ = try withText(text) { t in try check { turbo_tokenizer_count(raw, t, addSpecialTokens ? 1 : 0, &n, $0) } }
         return n
     }
 }

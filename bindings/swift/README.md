@@ -34,10 +34,9 @@ to the linker search path; a package that consumes an installed archive
 passes its own `-Xlinker -L<dir>`. `TURBO_BUNDLES` overrides the mock
 bundle root (default `testdata/bundles/mock`).
 
-On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) the
-original nine cases pass. The five cases added for generation, the
-tokenizer, the held-result BUSY case, and the cross-thread cancel case
-have not yet been run on that machine.
+On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) all
+fourteen cases pass (2026-09-22), including generation, the tokenizer,
+the held-result BUSY case, and the cross-thread cancel case.
 
 ## Generation and the tokenizer
 

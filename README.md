@@ -122,9 +122,8 @@ needs is still to be written, which is why every provider stays
   `PipestreamTurbo` is the Swift API on top, with `Generation` and
   `Tokenizer` wrappers mirroring the Java ones and the same conformance
   cases run as an executable (`swift run turbo-conformance`) because the
-  Swift command line tools ship neither XCTest nor Swift Testing. The
-  original nine cases pass on `krickert-mac` (Apple M2); the five added for
-  generation and the tokenizer have not run on that machine yet. See
+  Swift command line tools ship neither XCTest nor Swift Testing. All
+  fourteen cases pass on `krickert-mac` (Apple M2, 2026-09-22). See
   [`bindings/swift/README.md`](bindings/swift/README.md) and
   [`docs/bindings.md`](docs/bindings.md).
 - `tools/turbo-bundle`: `import` (derives a bundle's contract from a source

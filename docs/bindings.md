@@ -188,11 +188,9 @@ DYLD_LIBRARY_PATH=../../target/debug swift run turbo-conformance
 from (default `testdata/bundles/mock`, resolved relative to `main.swift`'s
 own path).
 
-On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) the
-original nine cases pass; the five cases covering generation, the
-tokenizer, the held-result BUSY case, and the cross-thread cancel case
-were added after that run and have not yet been verified on that machine
-(`docs/reviews/2026-09-21-p3-p7.md`: "Swift pending the Mac"); see
+On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) all
+fourteen cases pass (2026-09-22), including generation, the tokenizer, the
+held-result BUSY case, and the cross-thread cancel case; see
 `docs/testing.md`.
 
 ### Not yet in the binding

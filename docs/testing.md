@@ -55,13 +55,10 @@ Testing in this tree today is:
   (extract, compile and run the C smoke test against the packaged headers
   and library); see `docs/bindings.md` and `docs/packaging.md`.
 
-On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) the
-original nine Swift binding cases pass, and so does the macOS core suite
-(`cargo test --workspace --exclude turbo-provider-cuda`) run on that same
-machine. The five cases added since for generation, the tokenizer, the
-held-result BUSY case, and the cross-thread cancel case have not yet run
-on that machine (`docs/reviews/2026-09-21-p3-p7.md`: "Swift pending the
-Mac").
+On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) all
+fourteen Swift binding cases pass (2026-09-22), and so does the macOS core
+suite (`cargo test --workspace --exclude turbo-provider-cuda`) run on that
+same machine.
 
 `docs/reviews/2026-09-21-p0-p2.md` is an independent review of the P0-P2
 tree that tracks each finding to closure; items closed by a commit carry

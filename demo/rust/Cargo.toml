@@ -1,0 +1,15 @@
+[package]
+name = "turbo-demo-rust"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Turbo Rust demo: embed sentences on the best device and print their similarities"
+publish = false
+
+# A standalone crate (the root workspace excludes demo/rust) that uses the
+# safe Rust API by path, the way an out-of-tree consumer would use it from
+# crates.io once it is published.
+[workspace]
+
+[dependencies]
+turbo = { path = "../../crates/turbo" }
