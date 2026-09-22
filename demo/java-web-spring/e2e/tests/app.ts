@@ -80,7 +80,7 @@ export async function matrixRowLabels(page: Page): Promise<string[]> {
     return page.locator("#matrix tr th.text").allInnerTexts();
 }
 
-/** A document short enough for the mock generative bundle's 64-token max_seq. */
+/** A short document that fits any generative bundle's context with room for the summary. */
 export const SHORT_DOCUMENT =
     "The provider reports its capabilities honestly instead of claiming full acceleration.";
 

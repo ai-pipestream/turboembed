@@ -1233,7 +1233,7 @@ pub fn write_mock_bundle(dir: &Path, kind: MockBundleKind) -> Result<String> {
             "token_classifier",
             serde_json::json!({ "max_seq": 16, "labels": ["O", "PER", "LOC"], "aggregation": "simple", "activation": "softmax", "tagging": "BIO" }),
         ),
-        MockBundleKind::Generative => ("generate", "generative", serde_json::json!({ "max_seq": 64 })),
+        MockBundleKind::Generative => ("generate", "generative", serde_json::json!({ "max_seq": 512 })),
         MockBundleKind::Generic => ("run", "generic", serde_json::json!({})),
     };
     let manifest = serde_json::json!({

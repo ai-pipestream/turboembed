@@ -7,7 +7,7 @@
   },
   "bundle_version": 2,
   "contract": {
-    "max_seq": 64
+    "max_seq": 512
   },
   "family": "mock",
   "kind": "generative",

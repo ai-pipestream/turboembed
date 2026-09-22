@@ -1,4 +1,5 @@
-// The page talks to /api/info and /api/embed only; errors are shown verbatim.
+// The page talks to /api/info, /api/embed, and /api/summarize; errors are
+// shown verbatim.
 const $ = (id) => document.getElementById(id);
 
 async function loadInfo() {
@@ -8,6 +9,12 @@ async function loadInfo() {
   $("device").textContent =
     `${i.modelId} (dim ${i.dim}, max_seq ${i.maxSeq}) on ${i.deviceName} — ${i.providerId}:${i.ordinal} ${i.deviceKind}, runtime ${i.runtimeVersion}` +
     (i.fullyAccelerated ? "" : " — host stages: tokenize" );
+  if (i.generate) {
+    $("generator").textContent = `${i.generate.modelId} (max_seq ${i.generate.maxSeq}) on ${i.generate.deviceName} — ${i.generate.providerId}:${i.generate.ordinal}`;
+  } else {
+    $("generator").textContent = "no generative bundle configured (start with --turbo.generate-bundle=<dir>)";
+    $("summarize").disabled = true;
+  }
 }
 
 function heat(v) {
@@ -58,7 +65,7 @@ async function summarize() {
   const text = $("document").value;
   $("gen-error").hidden = true;
   $("summary").textContent = "";
-  $("summary").hidden = false;
+  $("summary").hidden = true; // shown with the first chunk
   $("summarize").disabled = true;
   $("gen-status").textContent = "generating…";
   const t0 = performance.now();
@@ -83,7 +90,7 @@ async function summarize() {
         }
         if (!data) continue;
         const payload = JSON.parse(data);
-        if (event === "chunk") { $("summary").textContent += payload.text; generated = payload.generated; }
+        if (event === "chunk") { $("summary").hidden = false; $("summary").textContent += payload.text; generated = payload.generated; }
         else if (event === "done") {
           const s = (performance.now() - t0) / 1000;
           $("gen-status").textContent = `${payload.generated} tokens in ${s.toFixed(1)} s (${(payload.generated / s).toFixed(1)} tok/s), finish ${payload.finish}, prompt ${payload.promptTokens} tokens`;
@@ -99,18 +106,6 @@ async function summarize() {
   }
 }
 
-async function loadGenerator() {
-  const r = await fetch("/api/info");
-  const i = await r.json();
-  if (i.generate) {
-    $("generator").textContent = `${i.generate.modelId} (max_seq ${i.generate.maxSeq}) on ${i.generate.deviceName} — ${i.generate.providerId}:${i.generate.ordinal}`;
-  } else {
-    $("generator").textContent = "no generative bundle configured (start with --turbo.generate-bundle=<dir>)";
-    $("summarize").disabled = true;
-  }
-}
-
 $("embed").addEventListener("click", embed);
 $("summarize").addEventListener("click", summarize);
-loadInfo().catch((e) => { $("device").textContent = String(e.message || e); });
-loadGenerator().catch((e) => { $("generator").textContent = String(e.message || e); });
+loadInfo().catch((e) => { $("device").textContent = String(e.message || e); $("generator").textContent = ""; });

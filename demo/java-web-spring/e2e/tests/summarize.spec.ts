@@ -88,8 +88,9 @@ test("a prompt over the generative model's max_seq shows the library's refusal",
     await open(page);
 
     const info = await (await request.get("/api/info")).json();
-    // The page ships a long default document; the mock generative bundle's
-    // max_seq is small, so this is the mid-stream "error" event path.
+    // A document longer than the generative model's context: the refusal
+    // arrives mid-stream as an "error" event, not as an HTTP status.
+    await setDocument(page, `${SHORT_DOCUMENT} `.repeat(info.generate.maxSeq));
     const refusal = await summarizeExpectingError(page);
     expect(refusal, "the refusal does not name the capacity limit").toContain("TURBO_E_CAPACITY");
     expect(refusal).toContain(`max_seq is ${info.generate.maxSeq}`);

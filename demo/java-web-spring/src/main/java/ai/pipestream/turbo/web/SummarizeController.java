@@ -59,7 +59,7 @@ public class SummarizeController {
             } catch (IOException e) {
                 emitter.complete(); // the client went away after the last chunk
             } catch (TurboException e) {
-                fail(emitter, e.statusName() + (e.field() != 0 ? " (field " + e.field() + ")" : "") + ": " + e.getMessage());
+                fail(emitter, e.getMessage()); // already carries the status name and field
             } catch (TurboService.Overloaded | IllegalArgumentException | IllegalStateException e) {
                 fail(emitter, e.getMessage());
             }
