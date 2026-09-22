@@ -466,10 +466,11 @@ Status: `EXPERIMENTAL` for `EMBED x TEXT` and `RERANK x TEXT` on
 (cosine 1.000 against the FP32 references, STS Spearman gate) and the
 rerank cases of `live_tasks` pass; receipt
 `testdata/receipts/turbo/metal-2026-09-22.json`, throughput under
-`testdata/receipts/turbo/bench/metal-mac-*-2026-09-22.json` (221 rows/s
-at batch 32 by 32 tokens, 15 rows/s at 32 by 256, 23 documents/s for the
-12-layer reranker at 128 tokens; the RTX 4080 SUPER does 22k rows/s on the
-same bundle shape, so the M2 kernels have room to tune). The reranker bundle (`cross-encoder/ms-marco-MiniLM-L-12-v2`) declares the
+`testdata/receipts/turbo/bench/metal-mac-*-2026-09-22*.json` (622 rows/s
+at batch 32 by 32 tokens and 24 rows/s at 32 by 256 with the simdgroup
+matmul; 23 documents/s for the 12-layer reranker at 128 tokens before it;
+the RTX 4080 SUPER does 22k rows/s on the same bundle shape, and the
+attention and layer-norm kernels are the next to tune). The reranker bundle (`cross-encoder/ms-marco-MiniLM-L-12-v2`) declares the
 Identity activation in its config, so its scores are logits; the suites
 follow the bundle's `activation` contract. Not yet: GPU-side WordPiece, a
 tuned matmul (the kernels are one thread per output element), F16 weights,

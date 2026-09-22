@@ -59,6 +59,9 @@ static const char *kMetalSrc =
 struct Pipelines {
     id<MTLComputePipelineState> embed, ln, linear, gelu, add, residual, copyf, zerof, scores, softmax, ctx, pooler,
         classifier, softmax_row, sentence_pool, l2;
+    /// The simdgroup-matrix product and its bias pass; nil on a GPU without
+    /// simdgroup matrix units, where the tiled kernel serves.
+    id<MTLComputePipelineState> linear_simd, add_bias;
 };
 
 struct State {
@@ -112,6 +115,10 @@ struct State {
             p.embed = pipe("embed_kernel");
             p.ln = pipe("layer_norm_kernel");
             p.linear = pipe("linear_nt_kernel");
+            if ([device supportsFamily:MTLGPUFamilyApple7]) {
+                p.linear_simd = pipe("linear_nt_simd_kernel");
+                p.add_bias = pipe("add_bias_rows_kernel");
+            }
             p.gelu = pipe("gelu_erf_kernel");
             p.add = pipe("add_inplace_kernel");
             p.residual = pipe("residual_from_ctx_kernel");
@@ -625,7 +632,9 @@ struct Session {
         }
         // Scratch for the whole batch: the encoder runs every row at once.
         const uint64_t H = m->hidden, I = m->intermediate;
-        const uint64_t tokens = n;
+        // Rows are padded to a multiple of 32 so the simdgroup product can
+        // cover whole tiles; the padding rows hold nothing anyone reads.
+        const uint64_t tokens = (n + 31) / 32 * 32;
         x = shared_buffer(tokens * H * 4, nullptr);
         residual = shared_buffer(tokens * H * 4, nullptr);
         q = shared_buffer(tokens * H * 4, nullptr);
@@ -811,6 +820,29 @@ struct Session {
             struct {
                 uint32_t seq, k, out, has_bias;
             } p{N, kdim, outdim, bias != nil ? 1u : 0u};
+            if (P.linear_simd != nil && outdim % 32 == 0 && kdim % 8 == 0) {
+                // Whole 32-row tiles: the scratch is padded to 32 rows.
+                const uint32_t rows = (N + 31) / 32 * 32;
+                struct {
+                    uint32_t seq, k, out, has_bias;
+                } ps{rows, kdim, outdim, 0u};
+                [e.enc setComputePipelineState:P.linear_simd];
+                [e.enc setBuffer:in offset:0 atIndex:0];
+                [e.enc setBuffer:w offset:0 atIndex:1];
+                [e.enc setBuffer:y offset:0 atIndex:2];
+                [e.enc setBytes:&ps length:sizeof(ps) atIndex:3];
+                require(P.linear_simd.maxTotalThreadsPerThreadgroup >= 128, TURBO_E_DEVICE_UNAVAILABLE,
+                        "the simdgroup matmul needs 128 threads per threadgroup");
+                [e.enc dispatchThreadgroups:MTLSizeMake(outdim / 32, rows / 32, 1) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+                if (bias != nil) {
+                    [e.enc setComputePipelineState:P.add_bias];
+                    [e.enc setBuffer:y offset:0 atIndex:0];
+                    [e.enc setBuffer:bias offset:0 atIndex:1];
+                    [e.enc setBytes:&p length:sizeof(p) atIndex:2];
+                    e.dispatch(P.add_bias, outdim, N);
+                }
+                return;
+            }
             [e.enc setComputePipelineState:P.linear];
             [e.enc setBuffer:in offset:0 atIndex:0];
             [e.enc setBuffer:w offset:0 atIndex:1];

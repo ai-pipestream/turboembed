@@ -57,7 +57,7 @@ directories say; the Rust ones record the build's commit through the
 | ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | generate, 128 tokens | 0.99x total, 1.00x decode | SUPPORTED |
 | ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | embed, 9 (text path) | 0.94x to 1.88x; two cells under the floor by about 30 us of per-call overhead | EXPERIMENTAL |
 | hailo / hailortcli | Hailo-8 (pi5ai1) | embed, 6 | 1.00x | SUPPORTED |
-| metal / the same kernels | Apple M2 (krickert-mac) | embed, 9 | 0.98x to 1.00x (the provider adds no measurable cost around the kernels) | SUPPORTED |
+| metal / the same kernels | Apple M2 (krickert-mac) | embed, 9 | 0.98x to 1.00x before and 0.97x to 1.01x after the simdgroup matmul (the provider adds no measurable cost around the kernels) | SUPPORTED |
 
 Where `libturbo` is faster than the native loop it is because the
 provider keeps the hidden state on the device and pools with its own

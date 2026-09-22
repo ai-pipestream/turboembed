@@ -10,6 +10,7 @@
 // Included by provider.mm as a raw string.
 R"METAL(
 #include <metal_stdlib>
+#include <metal_simdgroup_matrix>
 using namespace metal;
 
 struct EmbedParams {
@@ -154,6 +155,56 @@ kernel void linear_nt_kernel(
     if (live) {
         y[ulong(s) * p.out + o] = acc;
     }
+}
+
+// The same product on simdgroup matrix units (Apple GPU family 7 and
+// later): a threadgroup of four simdgroups (128 threads) produces a 32x32
+// tile of y, each simdgroup a 16x16 block as four 8x8 accumulators, with
+// W read transposed straight from its [out, k] layout. Rows, outputs and k
+// must be multiples of 32, 32 and 8; the host pads the row count and the
+// bias is added by add_bias_rows_kernel. The accumulation order differs
+// from the scalar kernels, so results agree to float rounding, not bit
+// for bit.
+kernel void linear_nt_simd_kernel(
+    device const float *x [[buffer(0)]],
+    device const float *w [[buffer(1)]],
+    device float *y [[buffer(2)]],
+    constant LinearParams &p [[buffer(3)]],
+    uint2 tg [[threadgroup_position_in_grid]],
+    uint sg [[simdgroup_index_in_threadgroup]]
+) {
+    const uint row0 = tg.y * 32u + (sg / 2u) * 16u;
+    const uint out0 = tg.x * 32u + (sg % 2u) * 16u;
+    if (row0 >= p.seq || out0 >= p.out) return;
+    simdgroup_float8x8 c00(0.0f), c01(0.0f), c10(0.0f), c11(0.0f);
+    for (uint kk = 0; kk < p.k; kk += 8u) {
+        simdgroup_float8x8 a0, a1, b0, b1;
+        simdgroup_load(a0, x + ulong(row0) * p.k + kk, p.k);
+        simdgroup_load(a1, x + ulong(row0 + 8u) * p.k + kk, p.k);
+        simdgroup_load(b0, w + ulong(out0) * p.k + kk, p.k, ulong2(0, 0), true);
+        simdgroup_load(b1, w + ulong(out0 + 8u) * p.k + kk, p.k, ulong2(0, 0), true);
+        simdgroup_multiply_accumulate(c00, a0, b0, c00);
+        simdgroup_multiply_accumulate(c01, a0, b1, c01);
+        simdgroup_multiply_accumulate(c10, a1, b0, c10);
+        simdgroup_multiply_accumulate(c11, a1, b1, c11);
+    }
+    simdgroup_store(c00, y + ulong(row0) * p.out + out0, p.out);
+    simdgroup_store(c01, y + ulong(row0) * p.out + out0 + 8u, p.out);
+    simdgroup_store(c10, y + ulong(row0 + 8u) * p.out + out0, p.out);
+    simdgroup_store(c11, y + ulong(row0 + 8u) * p.out + out0 + 8u, p.out);
+}
+
+// y[s, o] += bias[o] over `seq` rows of `out` columns.
+kernel void add_bias_rows_kernel(
+    device float *y [[buffer(0)]],
+    device const float *bias [[buffer(1)]],
+    constant LinearParams &p [[buffer(2)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    const uint o = gid.x;
+    const uint s = gid.y;
+    if (s >= p.seq || o >= p.out) return;
+    y[ulong(s) * p.out + o] += bias[o];
 }
 
 // MSL metal_math has no erf/erfc (probed: make metal-erf-probe).

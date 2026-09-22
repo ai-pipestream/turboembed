@@ -604,12 +604,17 @@ at batch 32 by 32 tokens (5.5k tokens/s), 46 rows/s at 32 by 128, 15
 rows/s at 32 by 256, and 23 documents/s reranking 32 documents at 128
 tokens with the 12-layer cross-encoder; the whole batch is one set of
 dispatches per layer with a 16 by 16 tiled matmul, which took the first
-build from 21 to 221 rows/s. Not yet: a matmul on simdgroup matrix
-operations (the M2 is two orders of magnitude below the RTX 4080 SUPER's
-22k rows/s, and the elementwise and attention kernels are still one thread
-per output), GPU-side WordPiece, F16 weights, classification heads with
-more than one logit, and generation (which reaches the M2 through `ggml`'s
-Metal backend).
+build from 21 to 221 rows/s; the same evening the linear layers moved to
+simdgroup matrix units (`linear_nt_simd_kernel`, 32 by 32 tiles of 8 by 8
+accumulators on Apple GPU family 7 and later, the tiled kernel elsewhere),
+622 rows/s at 32 by 32 and 24 rows/s at 32 by 256
+(`metal-mac-embed-2026-09-22-simdgroup.json`), with the precision gates
+unchanged (cosine 1.000, Spearman 0.9438) and the matched comparison
+against the kernels run directly at 0.97x to 1.01x. Not yet: the
+attention and layer-norm kernels, which are one thread per output and now
+dominate at 128 and 256 tokens; GPU-side WordPiece; F16 weights;
+classification heads with more than one logit; and generation (which
+reaches the M2 through `ggml`'s Metal backend).
 
 ### P5 Hailo provider
 Hailo-8/8L on HailoRT 4.24 with `dma_map` zero-copy and async behind
@@ -827,7 +832,16 @@ provider on the RTX 4080 SUPER against ONNX Runtime 1.28's CUDA execution
 provider on the same 9 cells, `libturbo` at 1.04x to 2.64x of native
 (the provider keeps the hidden state on the device and pools with its own
 kernels; the plain loop copies it back), verdict SUPPORTED for EMBED on
-that device.
+that device. The same day: openvino embeddings on the B70 (1.15x to
+1.55x) SUPPORTED, ggml generation on the 4080 (0.99x) SUPPORTED, hailo
+embeddings on the Hailo-8 (1.00x of `hailortcli benchmark`) SUPPORTED,
+metal embeddings on the M2 (1.00x of the kernels run directly)
+SUPPORTED. Under the floor and recorded as such: openvino on the Ryzen
+CPU (0.91x on the 8x32, 8x128, 32x32 and 8x256 cells; the fused
+pooling subgraph costs more on the CPU plugin than host pooling, to be
+measured) and ggml GGUF embeddings on the GPU (0.94x on 1x32 and 8x128,
+about 30 us of per-call cost around a 0.4 ms decode: the result object
+and the copy into the result buffer are the suspects).
 
 ## 12. Risks and defaults chosen
 
