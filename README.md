@@ -16,6 +16,11 @@ normalization, limits, prefixes) is frozen in a hash-verified bundle.
 
 ![The web demo: sentences in, a cosine similarity heat map out, and the device it ran on](demo/java-web-spring/docs/screenshots/page-minilm.png)
 
+The same app streams a summary from a GGUF model through the ggml
+provider (Qwen2.5-0.5B on an RTX 4080 SUPER here, 462 tokens/s):
+
+![The web demo's summarizer: a paragraph in, a streamed three-sentence summary out, with the token rate and finish reason](demo/java-web-spring/docs/screenshots/summary-qwen.png)
+
 ## Quick start
 
 ```sh

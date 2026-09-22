@@ -3,17 +3,20 @@
 // The README screenshots, written into demo/java-web-spring/docs/screenshots.
 // Opt-in, because it overwrites committed files:
 //
-//   npm run screenshots                       # page.png, matrix.png (mock bundle)
+//   npm run screenshots                       # page.png, matrix.png (mock bundles)
 //   SHOT_TARGET=real E2E_BASE_URL=http://127.0.0.1:8092 npm run screenshots
 //                                             # page-minilm.png, against an app
 //                                             # already serving a real model
+//   SHOT_TARGET=generate E2E_BASE_URL=http://127.0.0.1:8094 npm run screenshots
+//                                             # summary-qwen.png, against an app
+//                                             # already serving a real generative model
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { DEFAULT_TEXTS, embed, open, setTexts } from "./app";
+import { DEFAULT_TEXTS, embed, open, setTexts, summarize } from "./app";
 
 const outDir = path.join(__dirname, "..", "..", "docs", "screenshots");
-const REAL = process.env.SHOT_TARGET === "real";
+const TARGET = process.env.SHOT_TARGET ?? "mock";
 
 // Two paraphrase pairs and one unrelated sentence, so a real model's heat map
 // shows two bright blocks off the diagonal and one cold row.
@@ -32,7 +35,7 @@ function underLimit(file: string, limitKb = 400): void {
 }
 
 test("page.png and matrix.png on the mock bundle", async ({ page }) => {
-    test.skip(REAL, "SHOT_TARGET=real captures the real-model screenshot instead");
+    test.skip(TARGET !== "mock", "SHOT_TARGET selects a real-model screenshot instead");
     fs.mkdirSync(outDir, { recursive: true });
     await open(page);
 
@@ -50,7 +53,7 @@ test("page.png and matrix.png on the mock bundle", async ({ page }) => {
 });
 
 test("page-minilm.png on a real model", async ({ page }) => {
-    test.skip(!REAL, "set SHOT_TARGET=real and E2E_BASE_URL to an app serving a real model");
+    test.skip(TARGET !== "real", "set SHOT_TARGET=real and E2E_BASE_URL to an app serving a real model");
     fs.mkdirSync(outDir, { recursive: true });
     await open(page);
 
@@ -63,5 +66,30 @@ test("page-minilm.png on a real model", async ({ page }) => {
 
     const out = path.join(outDir, "page-minilm.png");
     await page.screenshot({ path: out, fullPage: true, scale: "css" });
+    underLimit(out);
+});
+
+test("summary-qwen.png on a real generative model", async ({ page }) => {
+    test.skip(TARGET !== "generate", "set SHOT_TARGET=generate and E2E_BASE_URL to an app serving a real generative model");
+    test.setTimeout(180_000);
+    fs.mkdirSync(outDir, { recursive: true });
+    await open(page);
+
+    const generator = await page.locator("#generator").innerText();
+    expect(generator, "this screenshot is for a real generative model, not the mock one").not.toContain("turbo/mock-generative");
+    expect(generator, "no generative model is configured on this server").not.toContain("no generative bundle");
+
+    // The document the page ships with, summarized as a visitor would see it.
+    await summarize(page, 150_000);
+    await expect(page.locator("#summary")).toBeVisible();
+
+    const summary = ((await page.locator("#summary").textContent()) ?? "").trim();
+    expect(summary.length, "the summary box is empty").toBeGreaterThan(0);
+    console.log(`generator: ${generator}`);
+    console.log(`status:    ${(await page.locator("#gen-status").innerText()).trim()}`);
+    console.log(`summary:   ${summary}`);
+
+    const out = path.join(outDir, "summary-qwen.png");
+    await page.locator("#summarize-section").screenshot({ path: out, scale: "css" });
     underLimit(out);
 });

@@ -2,8 +2,10 @@
 
 Playwright tests that drive `demo/java-web-spring` in a real browser and check
 the JSON API directly. The default run starts the app itself on the committed
-mock bundle (`testdata/bundles/mock/embedding`), so it needs no accelerator and
-no model download, and the vectors are the same on every run.
+mock bundles (`testdata/bundles/mock/embedding` for the vectors and
+`testdata/bundles/mock/generative` for the summarizer), so it needs no
+accelerator and no model download, and both the vectors and the generated
+tokens are the same on every run.
 
 ## Running
 
@@ -21,7 +23,8 @@ npx playwright install chromium
 ```
 
 The suite starts the app with `TURBO_WEB_SKIP_BUILD=1 ../run.sh
---server.port=8091` and waits for `GET /api/info`, so the jar in
+--server.port=8091 --turbo.generate-bundle=<testdata/bundles/mock/generative>`
+and waits for `GET /api/info`, so the jar in
 `demo/java-web-spring/target` must already exist. To let the suite build it
 instead, run `TURBO_WEB_SKIP_BUILD=0 npx playwright test` (that needs Maven).
 
@@ -46,10 +49,31 @@ Environment variables the config reads:
   page does not throw, and the next embed still works
 - 17 lines shows the server's batch refusal naming the server's batch
 
+`tests/summarize.spec.ts`, through the page:
+
+- the generator line names the model, the device and the sequence limit from
+  the `generate` object in `/api/info`
+- Summarize streams generated text into the output box and the status line ends
+  with the token count, the rate, the finish reason and the prompt size; the
+  tokens the status counts are the tokens the page shows
+- the same document generates the same text twice
+- an empty document shows the server's `no text` refusal, the page does not
+  throw, and the next run still works
+- a document whose prompt is over the generative model's `max_seq` shows the
+  library's `TURBO_E_CAPACITY` refusal, which is the mid-stream `error` event
+  path rather than an HTTP status
+
 `tests/api.spec.ts`, against the API directly: the fields and values of
-`GET /api/info`, the shape of a `POST /api/embed` response (unit vectors, a
-symmetric cosine matrix, the trimmed texts echoed back), determinism across two
-identical requests, and the two 400 refusals with their messages.
+`GET /api/info` including its `generate` object, the shape of a
+`POST /api/embed` response (unit vectors, a symmetric cosine matrix, the
+trimmed texts echoed back), determinism across two identical requests, the
+`POST /api/summarize` event stream (every `chunk` before the single `done`, the
+per-step token counter, `finish LENGTH` at `maxNewTokens`, the prompt size),
+and the 400 refusals with their messages.
+
+Not covered: the 409 a summarize call returns when no generative bundle is
+configured, which needs a second server started without
+`--turbo.generate-bundle`.
 
 Every check is a hard assertion. When an embed the test expected to succeed is
 refused, the failure carries the server's own message.
@@ -68,12 +92,17 @@ three defaults) and `docs/screenshots/matrix.png` (the table alone), at 1200
 CSS pixels wide, device scale factor 1, light color scheme. The test fails if
 an image exceeds 400 KB.
 
-`docs/screenshots/page-minilm.png` comes from a run on a real model, so it
-needs an app already serving one:
+The other two images come from runs on real models, so each needs an app
+already serving one:
 
 ```bash
 cd demo/java-web-spring/e2e
+# docs/screenshots/page-minilm.png, from an app serving a real embedding model
 SHOT_TARGET=real E2E_BASE_URL=http://127.0.0.1:8092 npm run screenshots
+# docs/screenshots/summary-qwen.png, from an app serving a real generative model
+SHOT_TARGET=generate E2E_BASE_URL=http://127.0.0.1:8094 npm run screenshots
 ```
 
-The test refuses to write that file if the page reports the mock model.
+Each of those tests refuses to write its file if the page reports the mock
+model, and prints the device line, the status line and the generated text it
+captured.

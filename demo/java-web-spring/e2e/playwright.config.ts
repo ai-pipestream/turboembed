@@ -16,6 +16,11 @@ const externalUrl = process.env.E2E_BASE_URL;
 const baseURL = externalUrl ?? `http://127.0.0.1:${PORT}`;
 const SHOTS = /screenshots\.spec\.ts/;
 
+// The committed mock bundles: deterministic 8-dim vectors and deterministic
+// "tokNNN" generation, so the suite needs no accelerator and no downloads.
+const repoRoot = path.resolve(__dirname, "../../..");
+const generateBundle = path.join(repoRoot, "testdata/bundles/mock/generative");
+
 // run.sh calls java as "$JAVA_HOME/bin/java" when JAVA_HOME is set, and needs
 // Maven and java on PATH only when it builds (TURBO_WEB_SKIP_BUILD is not 1).
 const javaHome = process.env.JAVA_HOME ?? path.join(os.homedir(), ".sdkman/candidates/java/25.0.3-tem");
@@ -50,7 +55,7 @@ export default defineConfig({
     webServer: externalUrl
         ? undefined
         : {
-              command: `../run.sh --server.port=${PORT}`,
+              command: `../run.sh --server.port=${PORT} --turbo.generate-bundle=${generateBundle}`,
               url: `http://127.0.0.1:${PORT}/api/info`,
               cwd: __dirname,
               env: {

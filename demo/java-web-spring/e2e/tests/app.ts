@@ -79,3 +79,42 @@ export async function matrixCells(page: Page): Promise<string[][]> {
 export async function matrixRowLabels(page: Page): Promise<string[]> {
     return page.locator("#matrix tr th.text").allInnerTexts();
 }
+
+/** A document short enough for the mock generative bundle's 64-token max_seq. */
+export const SHORT_DOCUMENT =
+    "The provider reports its capabilities honestly instead of claiming full acceleration.";
+
+/** Replace the summarize textarea. */
+export async function setDocument(page: Page, text: string): Promise<void> {
+    await page.locator("#document").fill(text);
+}
+
+/**
+ * Click Summarize and wait for the stream to finish. If the run fails instead,
+ * the assertion carries the message the server put in the error box.
+ */
+export async function summarize(page: Page, timeout = 60_000): Promise<void> {
+    await page.locator("#summarize").click();
+    await expect
+        .poll(
+            async () => {
+                if (await page.locator("#gen-error").isVisible()) {
+                    return `server refused: ${(await page.locator("#gen-error").innerText()).trim()}`;
+                }
+                const status = (await page.locator("#gen-status").innerText()).trim();
+                return status.includes("finish ") ? "done" : `pending: ${status}`;
+            },
+            { timeout, message: "the summary stream never reached a done event" },
+        )
+        .toBe("done");
+    await expect(page.locator("#summarize")).toBeEnabled();
+}
+
+/** Click Summarize expecting a refusal, and return the text of the error box. */
+export async function summarizeExpectingError(page: Page, timeout = 60_000): Promise<string> {
+    await page.locator("#summarize").click();
+    const error = page.locator("#gen-error");
+    await expect(error, "the app showed no summarize error box").toBeVisible({ timeout });
+    await expect(page.locator("#summarize"), "the Summarize button stayed disabled after the refusal").toBeEnabled();
+    return (await error.innerText()).trim();
+}

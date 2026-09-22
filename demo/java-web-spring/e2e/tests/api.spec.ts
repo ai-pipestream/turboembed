@@ -3,7 +3,7 @@
 // The JSON API the page talks to, exercised directly: GET /api/info and
 // POST /api/embed, including the two refusals the app maps to 400.
 import { expect, test, type APIResponse } from "@playwright/test";
-import { DEFAULT_TEXTS } from "./app";
+import { DEFAULT_TEXTS, SHORT_DOCUMENT } from "./app";
 
 /** Parse a response, and fail with the body when the status is not the expected one. */
 async function body(res: APIResponse, expected: number): Promise<any> {
@@ -20,6 +20,7 @@ test("GET /api/info describes the device and the loaded model", async ({ request
             "deviceKind",
             "deviceName",
             "dim",
+            "generate",
             "fullyAccelerated",
             "maxBatch",
             "maxSeq",
@@ -98,4 +99,80 @@ test("POST /api/embed above the server's batch is refused with 400 and a message
     // The batch itself is accepted.
     const ok = await body(await request.post("/api/embed", { data: { texts: texts.slice(0, info.maxBatch) } }), 200);
     expect(ok.vectors).toHaveLength(info.maxBatch);
+});
+
+/** Server-sent event frames, in order: "event:" names the event, "data:" carries JSON. */
+function parseSse(raw: string): { event: string; data: any }[] {
+    return raw
+        .split("\n\n")
+        .filter((frame) => frame.trim().length > 0)
+        .map((frame) => {
+            let event = "message";
+            let data = "";
+            for (const line of frame.split("\n")) {
+                if (line.startsWith("event:")) event = line.slice(6).trim();
+                else if (line.startsWith("data:")) data += line.slice(5).trim();
+            }
+            expect(data, `a ${event} frame carried no data: ${frame}`).not.toBe("");
+            return { event, data: JSON.parse(data) };
+        });
+}
+
+test("POST /api/summarize streams chunk events and ends with one done event", async ({ request }) => {
+    const res = await request.post("/api/summarize", { data: { text: SHORT_DOCUMENT, maxNewTokens: 12 } });
+    const raw = await res.text();
+    expect(res.status(), `POST /api/summarize answered ${res.status()}: ${raw}`).toBe(200);
+    expect(res.headers()["content-type"]).toContain("text/event-stream");
+
+    const frames = parseSse(raw);
+    const error = frames.find((f) => f.event === "error");
+    expect(error, `the stream carried an error event: ${JSON.stringify(error?.data)}`).toBeUndefined();
+
+    // Every chunk comes before the single done event, and nothing follows it.
+    expect(frames.at(-1)!.event).toBe("done");
+    const chunks = frames.slice(0, -1);
+    expect(chunks.length, "the stream carried no chunks").toBeGreaterThan(0);
+    for (const [i, frame] of chunks.entries()) {
+        expect(frame.event, `frame ${i} is not a chunk`).toBe("chunk");
+        expect(typeof frame.data.text).toBe("string");
+        expect(frame.data.text.length, `chunk ${i} carried empty text`).toBeGreaterThan(0);
+        // generated counts the tokens produced so far, one per step.
+        expect(frame.data.generated).toBe(i + 1);
+    }
+
+    const done = frames.at(-1)!.data;
+    expect(done.finish, "the mock model should stop at maxNewTokens").toBe("LENGTH");
+    expect(done.generated).toBe(12);
+    expect(done.generated).toBe(chunks.at(-1)!.data.generated);
+    expect(done.promptTokens).toBeGreaterThan(0);
+
+    // The mock generative model emits one "tokNNN" piece per step.
+    expect(chunks.map((c) => c.data.text).join("").trim()).toMatch(/^tok\d+( tok\d+)*$/);
+});
+
+test("POST /api/summarize is deterministic on the mock generative bundle", async ({ request }) => {
+    const data = { text: SHORT_DOCUMENT, maxNewTokens: 8 };
+    const first = await (await request.post("/api/summarize", { data })).text();
+    const second = await (await request.post("/api/summarize", { data })).text();
+    expect(second, "the same prompt gave different tokens").toBe(first);
+});
+
+test("POST /api/summarize with no text is refused with 400 and a message", async ({ request }) => {
+    for (const text of ["", "   ", "\n"]) {
+        const res = await request.post("/api/summarize", { data: { text, maxNewTokens: 8 } });
+        const raw = await res.text();
+        expect(res.status(), `text ${JSON.stringify(text)} answered ${res.status()}: ${raw}`).toBe(400);
+        expect(JSON.parse(raw)).toEqual({ error: "no text" });
+    }
+});
+
+test("GET /api/info names the generative model when one is configured", async ({ request }) => {
+    const info = await body(await request.get("/api/info"), 200);
+    expect(info.generate, "the suite expects --turbo.generate-bundle").not.toBeNull();
+    expect(Object.keys(info.generate).sort()).toEqual(["deviceName", "maxSeq", "modelId", "ordinal", "providerId"]);
+    expect(info.generate.modelId).toBe("turbo/mock-generative");
+    expect(info.generate.providerId).toBe("mock");
+    expect(info.generate.deviceName).toBe("Mock accelerator");
+    expect(info.generate.maxSeq).toBeGreaterThan(0);
+    expect(info.generate.ordinal).toBeGreaterThanOrEqual(0);
 });
