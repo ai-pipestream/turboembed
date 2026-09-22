@@ -313,7 +313,7 @@ pub fn summarize(samples: &mut [Duration], rows: u64, tokens: Option<u64>) -> Re
     };
     let total: f64 = samples.iter().map(|d| d.as_secs_f64()).sum();
     let mean = total / n as f64;
-    if !(mean > 0.0) {
+    if mean.is_nan() || mean <= 0.0 {
         return Err("the mean latency is zero; the clock did not advance".to_string());
     }
     Ok(Latency {
