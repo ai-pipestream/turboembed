@@ -55,7 +55,7 @@
     "source": "testdata/reference_embeddings/ort_cuda_minilm_*.json",
     "produced_by": "ONNX Runtime CUDA EP, FP32, PoC (tag poc-2026-09-21)"
   },
-  "tests": "providers/metal/tests/provider_test.cpp (15 vtable tests), crates/turbo-conformance/tests/live_embed.rs (16 tests including the STS ranking gate and the unified-memory placement checks), and the rerank cases of crates/turbo-conformance/tests/live_tasks.rs (3 tests; classify and token-classify skip, no bundle)",
+  "tests": "providers/metal/tests/provider_test.cpp (22 vtable tests), crates/turbo-conformance/tests/live_embed.rs (16 tests including the STS ranking gate and the unified-memory placement checks), and the rerank cases of crates/turbo-conformance/tests/live_tasks.rs (3 tests; classify and token-classify skip, no bundle)",
   "runs": [
     {
       "machine": "krickert-mac",

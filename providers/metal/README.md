@@ -51,7 +51,7 @@ when present.
 ```sh
 make -C providers/metal                      # build/metal/libturbo_provider_metal.dylib
 TURBO_LIVE_BUNDLE=~/opt/bundles/minilm-metal TURBO_LIVE_RERANK_BUNDLE=~/opt/bundles/rerank-metal \
-    make -C providers/metal test             # 15 vtable-level cases
+    make -C providers/metal test             # 22 vtable-level cases
 TURBO_LIVE_LIB=build/metal/libturbo_provider_metal.dylib TURBO_LIVE_PROVIDER=metal \
     TURBO_LIVE_BUNDLE=~/opt/bundles/minilm-metal cargo test -p turbo-conformance --test live_embed
 ```

@@ -1,0 +1,126 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "/tmp/tb/metal-mac-embed-2026-09-22d.json",
+    "commit": "302c62388e20ca5df27200c0d29f6ae5eeb2d23d",
+    "provider": {
+      "id": "metal",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "Metal, MSL compiled at runtime",
+      "driver_version": "macOS Version 27.0 (Build 26A428)"
+    },
+    "device": {
+      "name": "Apple M2 (Metal)",
+      "kind": "IGpu",
+      "ordinal": 0,
+      "caps": "0x2bf0426",
+      "memory_total": 19069665280
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "/tmp/tb/native-metal-mac-embed-2026-09-22d.json",
+    "commit": "302c62388e20ca5df27200c0d29f6ae5eeb2d23d",
+    "provider": {
+      "id": "metal",
+      "version": "reference",
+      "runtime_version": "Metal, MSL compiled at runtime (the provider's kernels driven directly)",
+      "driver_version": "27.0"
+    },
+    "device": {
+      "name": "Apple M2 (Metal)",
+      "kind": "IGpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 19069665280
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "/Users/krickert/opt/bundles/minilm-metal",
+    "model_id": "nreimers/MiniLM-L6-H384-uncased",
+    "manifest_sha256": "100a3061adebe310b91a31c9ddd25d208b336150259cc7c2a6f11198c80a08c9",
+    "artifacts": {
+      "hf_config": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41",
+      "safetensors": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "embed 1x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 3.618541,
+      "native": 3.617,
+      "ratio": 0.9995741377533099,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 12.58425,
+      "native": 13.86925,
+      "ratio": 1.1021117666924924,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 51.006583,
+      "native": 59.177625,
+      "ratio": 1.1601958319772174,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 12.777084,
+      "native": 13.805167,
+      "ratio": 1.0804630383583609,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 97.6695,
+      "native": 108.277666,
+      "ratio": 1.1086128832440014,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 329.53700000000003,
+      "native": 407.793958,
+      "ratio": 1.237475482267545,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 47.326125,
+      "native": 52.810542,
+      "ratio": 1.115885612861818,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 390.837666,
+      "native": 392.408042,
+      "ratio": 1.004017975074081,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 1527.366042,
+      "native": 1534.366166,
+      "ratio": 1.004583134499202,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "verdict": "SUPPORTED"
+}

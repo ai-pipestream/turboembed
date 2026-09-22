@@ -21,12 +21,15 @@
 
 #include <dlfcn.h>
 
+#include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -238,10 +241,6 @@ float cosine(const std::vector<float> &a, const std::vector<float> &b) {
     }
     return static_cast<float>(dot / (norm(a) * norm(b)));
 }
-
-// ---------------------------------------------------------------------------
-// Devices and capabilities
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Devices and capabilities
@@ -902,6 +901,361 @@ void reranker_scores_sort_and_activate() {
     CHECK_EQ(e2.e.field, 2);
 }
 
+// ---------------------------------------------------------------------------
+// Kernel shapes: row padding and batch boundaries
+// ---------------------------------------------------------------------------
+
+void row_padding_never_reaches_a_real_row() {
+    // 24 columns, so a batch of n rows is 24n tokens and the linear kernels'
+    // 32-row tiles never line up with the batch: every size but a multiple of
+    // four carries padding rows. Nothing those rows hold may reach a real one.
+    Fixture f;
+    if (!f.open(32, 24)) {
+        return;
+    }
+    const std::string probe = "a brown dog runs through the tall grass";
+    const auto alone = f.embed({probe}, nullptr);
+    if (alone.size() != 1) {
+        return;
+    }
+    const size_t dim = alone[0].size();
+    for (uint32_t n : {2u, 3u, 5u, 31u, 32u}) {
+        std::vector<std::string> rows;
+        for (uint32_t r = 0; r < n; ++r) {
+            rows.push_back("filler row " + std::to_string(r) + " carries words of its own");
+        }
+        // First row and last row: the tile boundary falls differently for each.
+        for (uint32_t at : {0u, n - 1u}) {
+            std::vector<std::string> batch = rows;
+            batch[at] = probe;
+            const auto got = f.embed(batch, nullptr);
+            if (got.size() != n) {
+                continue;
+            }
+            // Every row is computed on its own, so the batch a row travels in
+            // cannot move a bit of it.
+            float worst = 0.0f;
+            for (size_t i = 0; i < dim; ++i) {
+                worst = std::max(worst, std::fabs(got[at][i] - alone[0][i]));
+            }
+            if (worst != 0.0f) {
+                ++g_failures;
+                std::printf("  FAIL batch %u row %u differs from the single run by %.3g\n", n, at,
+                            static_cast<double>(worst));
+            }
+            // The fillers stay themselves: a tile that bled across rows would
+            // make neighbours converge.
+            const uint32_t other = at == 0 ? n - 1 : 0;
+            CHECK(cosine(got[at], got[other]) < 0.99f);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Prepared token rows
+// ---------------------------------------------------------------------------
+
+void token_ids_outside_the_vocabulary_are_refused() {
+    Fixture f;
+    if (!f.open(2, 8)) {
+        return;
+    }
+    // [CLS] hello [SEP] in the BERT uncased vocabulary.
+    int32_t ids[8] = {101, 7592, 102, 0, 0, 0, 0, 0};
+    int32_t mask[8] = {1, 1, 1, 0, 0, 0, 0, 0};
+    turbo_token_batch b{};
+    b.struct_size = sizeof(b);
+    b.batch = 1;
+    b.seq = 8;
+    b.ids = ids;
+    b.mask = mask;
+    Err good;
+    ok(vt()->session_write_tokens(f.session, &b, good.p()), good, "session_write_tokens (valid)");
+    // Below the table and far past it: an argument error at write time, never
+    // a read past the word embedding rows inside a run.
+    for (int32_t bad : {-1, 1 << 29}) {
+        ids[1] = bad;
+        Err e;
+        CHECK_EQ(vt()->session_write_tokens(f.session, &b, e.p()), TURBO_E_INVALID_ARGUMENT);
+    }
+    ids[1] = 7592;
+    // Token types index a table of their own and are checked the same way.
+    int32_t types[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    b.types = types;
+    for (int32_t bad : {-1, 1 << 29}) {
+        types[1] = bad;
+        Err e;
+        CHECK_EQ(vt()->session_write_tokens(f.session, &b, e.p()), TURBO_E_INVALID_ARGUMENT);
+    }
+    b.types = nullptr;
+    // A refused write leaves nothing runnable behind: the earlier good write
+    // is not still standing.
+    turbo_provider_result r{};
+    r.struct_size = sizeof(r);
+    Err e2;
+    CHECK_EQ(vt()->session_run(f.session, nullptr, &r, e2.p()), TURBO_E_INVALID_STATE);
+}
+
+void token_rows_are_read_at_the_callers_stride() {
+    Fixture f;
+    if (!f.open(2, 8)) {
+        return;
+    }
+    // Two rows of 8 columns inside a 12-column buffer: the gap is never read.
+    const int32_t fill = 1 << 29; // out of range, so reading the gap would fail
+    int32_t ids[24], mask[24];
+    for (int i = 0; i < 24; ++i) {
+        ids[i] = fill;
+        mask[i] = 0;
+    }
+    const int32_t row[8] = {101, 7592, 102, 0, 0, 0, 0, 0};
+    const int32_t rmask[8] = {1, 1, 1, 0, 0, 0, 0, 0};
+    for (int i = 0; i < 8; ++i) {
+        ids[i] = row[i];
+        mask[i] = rmask[i];
+        ids[12 + i] = row[i];
+        mask[12 + i] = rmask[i];
+    }
+    turbo_token_batch b{};
+    b.struct_size = sizeof(b);
+    b.batch = 2;
+    b.seq = 8;
+    b.row_stride = 12;
+    b.ids = ids;
+    b.mask = mask;
+    Err e1;
+    if (!ok(vt()->session_write_tokens(f.session, &b, e1.p()), e1, "session_write_tokens (stride)")) {
+        return;
+    }
+    turbo_provider_result r{};
+    r.struct_size = sizeof(r);
+    Err e2;
+    if (ok(vt()->session_run(f.session, nullptr, &r, e2.p()), e2, "session_run (stride)")) {
+        CHECK_EQ(r.outputs[0].shape[0], 2);
+        const auto *p = static_cast<const float *>(r.outputs[0].buffer.host_ptr);
+        const std::vector<float> first(p, p + f.info.dim);
+        const std::vector<float> second(p + f.info.dim, p + 2 * f.info.dim);
+        CHECK(std::memcmp(first.data(), second.data(), first.size() * sizeof(float)) == 0);
+        const auto via_text = f.embed({"hello"}, nullptr);
+        if (via_text.size() == 1) {
+            CHECK(cosine(first, via_text[0]) > 0.9999f);
+        }
+    }
+    // The bounds check follows the stride too: a bad id in the second row is
+    // found where the stride puts it, not where a packed layout would.
+    ids[13] = fill;
+    Err e3;
+    CHECK_EQ(vt()->session_write_tokens(f.session, &b, e3.p()), TURBO_E_INVALID_ARGUMENT);
+}
+
+// ---------------------------------------------------------------------------
+// Truncation
+// ---------------------------------------------------------------------------
+
+void truncation_cuts_at_the_budget_and_keeps_the_same_side() {
+    Fixture f;
+    if (!f.open(1, 16)) {
+        return;
+    }
+    // Twenty single-token words: more than the fourteen a 16-token budget
+    // leaves after [CLS] and [SEP].
+    const std::string body = "one two three four five six seven eight nine ten "
+                             "eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
+    const std::string tail = " twenty one twenty two twenty three twenty four";
+    const std::string head = "aa bb cc dd ee ff gg hh ";
+    turbo_embed_options o{};
+    o.struct_size = sizeof(o);
+    o.truncate = TURBO_TRUNCATE_RIGHT;
+    const auto right = f.embed({body}, &o);
+    const auto right_longer = f.embed({body + tail}, &o);
+    o.truncate = TURBO_TRUNCATE_LEFT;
+    const auto left = f.embed({body}, &o);
+    const auto left_longer = f.embed({head + body}, &o);
+    if (right.size() != 1 || right_longer.size() != 1 || left.size() != 1 || left_longer.size() != 1) {
+        return;
+    }
+    const size_t bytes = right[0].size() * sizeof(float);
+    // RIGHT keeps the front of the text, so what follows the budget cannot
+    // change the vector; LEFT keeps the back, so what precedes it cannot.
+    CHECK(std::memcmp(right[0].data(), right_longer[0].data(), bytes) == 0);
+    CHECK(std::memcmp(left[0].data(), left_longer[0].data(), bytes) == 0);
+    // The two policies keep different halves of the same over-long text.
+    CHECK(std::memcmp(right[0].data(), left[0].data(), bytes) != 0);
+    // An over-long row is still a unit vector, not a partly filled one.
+    CHECK(std::fabs(norm(right_longer[0]) - 1.0f) < 1e-4f);
+    CHECK(std::fabs(norm(left_longer[0]) - 1.0f) < 1e-4f);
+}
+
+// ---------------------------------------------------------------------------
+// The result buffer
+// ---------------------------------------------------------------------------
+
+void the_result_buffer_is_the_shared_metal_buffer() {
+    Fixture f;
+    if (!f.open(2, 32)) {
+        return;
+    }
+    const std::string a = "first row", bb = "second row";
+    const turbo_text views[2] = {text_of(a), text_of(bb)};
+    Err e1;
+    if (!ok(vt()->session_write_text(f.session, views, 2, nullptr, e1.p()), e1, "session_write_text")) {
+        return;
+    }
+    turbo_provider_result r{};
+    r.struct_size = sizeof(r);
+    Err e2;
+    if (!ok(vt()->session_run(f.session, nullptr, &r, e2.p()), e2, "session_run")) {
+        return;
+    }
+    const turbo_provider_output &o = r.outputs[0];
+    const size_t rows = 2, dim = f.info.dim, bytes = rows * dim * sizeof(float);
+    CHECK_EQ(o.buffer.desc.placement, TURBO_PLACE_SHARED);
+    CHECK_EQ(o.buffer.desc.bytes, bytes);
+    CHECK(o.buffer.host_ptr != nullptr);
+    // The result is the GPU's own buffer, and its host pointer is that same
+    // memory: exporting either names the one allocation.
+    turbo_native_handle h{};
+    h.struct_size = sizeof(h);
+    Err e3;
+    if (ok(vt()->buffer_export(o.buffer.handle, TURBO_HANDLE_MTL_BUFFER, &h, e3.p()), e3, "buffer_export (result)")) {
+        CHECK_EQ(h.kind, TURBO_HANDLE_MTL_BUFFER);
+        CHECK(h.handle != 0);
+    }
+    turbo_native_handle hp{};
+    hp.struct_size = sizeof(hp);
+    Err e4;
+    if (ok(vt()->buffer_export(o.buffer.handle, TURBO_HANDLE_HOST_PTR, &hp, e4.p()), e4, "buffer_export (result host)")) {
+        CHECK(reinterpret_cast<void *>(hp.handle) == o.buffer.host_ptr);
+    }
+    Err e5;
+    CHECK_EQ(vt()->buffer_export(o.buffer.handle, TURBO_HANDLE_CUDA_PTR, &hp, e5.p()), TURBO_E_UNSUPPORTED);
+    // A copy out matches what the host pointer already shows: no staging step
+    // stands between them.
+    std::vector<float> back(rows * dim, 0.0f);
+    Err e6;
+    if (ok(vt()->buffer_read(o.buffer.handle, back.data(), bytes, e6.p()), e6, "buffer_read (result)")) {
+        CHECK(std::memcmp(back.data(), o.buffer.host_ptr, bytes) == 0);
+        CHECK(std::fabs(norm(std::vector<float>(back.begin(), back.begin() + dim)) - 1.0f) < 1e-4f);
+    }
+    // Reading more than the buffer holds is a capacity error, not a copy past
+    // the end.
+    std::vector<float> too_big(o.buffer.desc.bytes / sizeof(float) + 16, 0.0f);
+    Err e7;
+    CHECK_EQ(vt()->buffer_read(o.buffer.handle, too_big.data(), too_big.size() * sizeof(float), e7.p()),
+             TURBO_E_CAPACITY);
+    // The session owns the result buffer; releasing it is the session's job.
+}
+
+// ---------------------------------------------------------------------------
+// One caller at a time
+// ---------------------------------------------------------------------------
+
+void a_second_caller_on_a_running_session_is_busy() {
+    Fixture f;
+    if (!f.open(8, 128)) {
+        return;
+    }
+    std::vector<std::string> texts;
+    for (int i = 0; i < 8; ++i) {
+        texts.push_back("row " + std::to_string(i) +
+                        " holds a sentence long enough to give the encoder real work to do on the gpu");
+    }
+    std::vector<turbo_text> views;
+    for (const auto &t : texts) {
+        views.push_back(text_of(t));
+    }
+    Err e1;
+    if (!ok(vt()->session_write_text(f.session, views.data(), 8, nullptr, e1.p()), e1, "session_write_text")) {
+        return;
+    }
+    std::atomic<bool> running{true};
+    std::atomic<int> busy{0}, accepted{0}, wrong{0};
+    const std::string probe = "a second caller";
+    std::thread other([&] {
+        while (running.load(std::memory_order_relaxed)) {
+            const turbo_text v = text_of(probe);
+            Err e;
+            const int32_t rc = vt()->session_write_text(f.session, &v, 1, nullptr, e.p());
+            if (rc == TURBO_E_BUSY) {
+                ++busy;
+            } else if (rc == TURBO_OK) {
+                ++accepted;
+            } else {
+                ++wrong;
+            }
+        }
+    });
+    turbo_provider_result r{};
+    r.struct_size = sizeof(r);
+    Err e2;
+    const int32_t run_rc = vt()->session_run(f.session, nullptr, &r, e2.p());
+    running.store(false, std::memory_order_relaxed);
+    other.join();
+    // The run either owned the session or was itself turned away; it never
+    // raced the other caller's write.
+    CHECK(run_rc == TURBO_OK || run_rc == TURBO_E_BUSY);
+    CHECK_EQ(wrong.load(), 0);
+    std::printf("  concurrent writes: %d busy, %d accepted, run status %d\n", busy.load(), accepted.load(), run_rc);
+    CHECK(busy.load() > 0);
+}
+
+void session_shape_limits_are_enforced_on_every_write() {
+    Fixture f;
+    if (!f.open(2, 8)) {
+        return;
+    }
+    // More rows than the session was built for, on the text path.
+    const std::string t = "row";
+    const turbo_text views[3] = {text_of(t), text_of(t), text_of(t)};
+    Err e1;
+    CHECK_EQ(vt()->session_write_text(f.session, views, 3, nullptr, e1.p()), TURBO_E_CAPACITY);
+    Err e2;
+    CHECK_EQ(vt()->session_write_text(f.session, views, 0, nullptr, e2.p()), TURBO_E_CAPACITY);
+    // And on the token path, in either dimension.
+    int32_t ids[27], mask[27];
+    for (int i = 0; i < 27; ++i) {
+        ids[i] = 101;
+        mask[i] = 1;
+    }
+    turbo_token_batch b{};
+    b.struct_size = sizeof(b);
+    b.batch = 3;
+    b.seq = 8;
+    b.ids = ids;
+    b.mask = mask;
+    Err e3;
+    CHECK_EQ(vt()->session_write_tokens(f.session, &b, e3.p()), TURBO_E_CAPACITY);
+    b.batch = 1;
+    b.seq = 9;
+    Err e4;
+    CHECK_EQ(vt()->session_write_tokens(f.session, &b, e4.p()), TURBO_E_CAPACITY);
+    b.seq = 0;
+    Err e5;
+    CHECK_EQ(vt()->session_write_tokens(f.session, &b, e5.p()), TURBO_E_CAPACITY);
+    // A shorter row than the session is padded out, not refused: the columns
+    // past it read as padding with the mask off.
+    b.seq = 3;
+    int32_t short_ids[3] = {101, 7592, 102};
+    int32_t short_mask[3] = {1, 1, 1};
+    b.ids = short_ids;
+    b.mask = short_mask;
+    Err e6;
+    if (ok(vt()->session_write_tokens(f.session, &b, e6.p()), e6, "session_write_tokens (short row)")) {
+        turbo_provider_result r{};
+        r.struct_size = sizeof(r);
+        Err e7;
+        if (ok(vt()->session_run(f.session, nullptr, &r, e7.p()), e7, "session_run (short row)")) {
+            const auto *p = static_cast<const float *>(r.outputs[0].buffer.host_ptr);
+            const std::vector<float> v(p, p + f.info.dim);
+            CHECK(std::fabs(norm(v) - 1.0f) < 1e-4f);
+            const auto via_text = f.embed({"hello"}, nullptr);
+            if (via_text.size() == 1) {
+                CHECK(cosine(v, via_text[0]) > 0.9999f);
+            }
+        }
+    }
+}
+
 struct Test {
     const char *name;
     void (*fn)();
@@ -923,6 +1277,13 @@ const Test kTests[] = {
     {"model_options_are_checked", model_options_are_checked},
     {"buffers_are_shared_or_host", buffers_are_shared_or_host},
     {"reranker_scores_sort_and_activate", reranker_scores_sort_and_activate},
+    {"row_padding_never_reaches_a_real_row", row_padding_never_reaches_a_real_row},
+    {"token_ids_outside_the_vocabulary_are_refused", token_ids_outside_the_vocabulary_are_refused},
+    {"token_rows_are_read_at_the_callers_stride", token_rows_are_read_at_the_callers_stride},
+    {"truncation_cuts_at_the_budget_and_keeps_the_same_side", truncation_cuts_at_the_budget_and_keeps_the_same_side},
+    {"the_result_buffer_is_the_shared_metal_buffer", the_result_buffer_is_the_shared_metal_buffer},
+    {"a_second_caller_on_a_running_session_is_busy", a_second_caller_on_a_running_session_is_busy},
+    {"session_shape_limits_are_enforced_on_every_write", session_shape_limits_are_enforced_on_every_write},
 };
 
 } // namespace
