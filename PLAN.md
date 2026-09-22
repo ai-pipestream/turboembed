@@ -581,6 +581,26 @@ Gate: conformance green on both Hailo-8 Pis (capability tests assert the
 honest limits); goldens within the INT8 tolerance recorded in the bundle;
 receipt per board.
 
+Status (2026-09-21): the `hailo` provider (`providers/hailo`, C++ over the
+HailoRT 4.23 C API) serves `EMBED x TEXT` on `pi5ai1` and `cm5ai1`
+(Hailo-8) with the Model Zoo INT8 MiniLM HEF: the HEF's fixed-shape encoder
+body runs through f32 vstreams, WordPiece, the word-embedding gather (the
+`hailo_tables` artifact), pooling, L2, and `output_dim` run on the host,
+and `turbo_model_info` says so (`fully_accelerated = 0`, encode on the
+device, everything else host). The capability cell reports `dtype = I8`,
+`reference_dtype = F32`, and the measured `cosine_floor` (0.30); the live
+suite now gates on the floor the cell states instead of a fixed 0.9995 and
+adds a ranking gate (Spearman over `testdata/corpus/sts-pairs.jsonl`,
+0.937 on the Hailo-8 against 0.944 for FP32). The 14 vtable tests
+(`providers/hailo/tests/provider_test.cpp`) and the 14 live embedding
+tests pass on both boards. Receipt:
+`testdata/receipts/turbo/hailo-2026-09-21.json`. Not as planned: the
+provider uses vstreams with HailoRT's scheduler rather than `InferModel`
+with `dma_map` (the 4.23 packages on the Pis; `dma_map` zero-copy and
+`CAP_ASYNC` stay open), and HailoRT 4.23 rather than 4.24. Not yet:
+Hailo-8L (no board), Hailo-10H (needs a DFC 5 HEF), the x86_64 PCIe build,
+and the throughput receipt.
+
 ### P6 Generation
 `ggml` provider for GGUF generation across CUDA, SYCL, Metal, and CPU using
 the pull iterator, chat templates from the bundle, cancellation, logprobs;

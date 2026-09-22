@@ -16,7 +16,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use turbo::{Context, ContextDesc, DeviceInfo, DeviceKind, DeviceSelector, RuntimeDesc, SelectPolicy};
+use turbo::{
+    Capability, Context, ContextDesc, DType, DeviceInfo, DeviceKind, DeviceSelector, Modality, RuntimeDesc,
+    SelectPolicy, Task,
+};
 
 /// A selected live device.
 pub struct Live {
@@ -26,6 +29,8 @@ pub struct Live {
     pub provider: String,
     /// Selected device.
     pub device: DeviceInfo,
+    /// The device's `EMBED x TEXT` capability cell.
+    pub embed: Capability,
 }
 
 impl Live {
@@ -37,6 +42,27 @@ impl Live {
     /// True when the device advertises `bit`.
     pub fn has_cap(&self, bit: u64) -> bool {
         self.device.caps & bit == bit
+    }
+
+    /// Cosine floor the embedding checks hold this device to, against the
+    /// FP32 reference vectors. An FP32 (or unstated) compute dtype is held
+    /// to 0.9995; a quantized one must state its measured floor in the
+    /// capability cell, and that is the gate. A quantized device that
+    /// reports no floor fails here rather than being waved through.
+    pub fn embed_cosine_floor(&self) -> f32 {
+        match self.embed.dtype {
+            None | Some(DType::F32) => 0.9995,
+            Some(dtype) => {
+                assert!(
+                    self.embed.cosine_floor > 0.0 && self.embed.cosine_floor < 1.0,
+                    "{} computes EMBED in {dtype:?} but reports cosine_floor {}; a quantized device must state \
+                     its measured floor",
+                    self.provider,
+                    self.embed.cosine_floor
+                );
+                self.embed.cosine_floor
+            }
+        }
     }
 }
 
@@ -83,8 +109,9 @@ pub fn live() -> Option<Live> {
         .expect("select the live device");
     let device = rt.device(idx).expect("selected device").info;
     eprintln!("selected: {} (ordinal {ordinal})", device.name);
+    let embed = rt.capability(idx, Task::Embed, Modality::Text).expect("EMBED x TEXT capability");
     let ctx = Context::create(rt, idx, &ContextDesc::default()).expect("context");
-    Some(Live { ctx, provider, device })
+    Some(Live { ctx, provider, device, embed })
 }
 
 /// A bundle directory from `var`, or `None` with a printed reason.

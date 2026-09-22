@@ -133,9 +133,10 @@ back once per chunk until the generation finishes or the callback returns
 during the callback. See [`docs/c-api.md`](docs/c-api.md) for the full
 picture.
 
-The dedicated, MLX-based `metal` provider and `hailo` (P4, P5) are **not
-available yet**; `ggml` reaches Apple M2 today only through llama.cpp's own
-Metal backend for generation, a different code path. The Android binding
+The dedicated, MLX-based `metal` provider (P4) is **not available yet**;
+`ggml` reaches Apple M2 today only through llama.cpp's own Metal backend
+for generation, a different code path. The `hailo` provider (P5) serves
+embeddings on the Hailo-8 Pis; Hailo-10H is still open. The Android binding
 (P10) is not available yet; the Java and Swift bindings (P7) have landed.
 CUDA on Jetson (`nano1`, aarch64) now passes its live embedding
 tests (cosine 1.000); the task suite (rerank, classify, token-classify) is
@@ -157,7 +158,7 @@ qualification receipt exists (`PLAN.md` section 4.4). Today:
 | `cpu` | PLANNED (P3, folded into the CUDA/ORT provider work) | ORT CPU EP; ggml CPU |
 | `cuda` | EXPERIMENTAL on `krick` (x86_64); embedding landed on Jetson `nano1` (aarch64) | embed, rerank, classify, token-classify through the ONNX Runtime CUDA EP with device-side pooling/normalization/activation kernels; cosine 1.000 against the FP32 references on `krick`; receipt: [`testdata/receipts/turbo/cuda-2026-09-21.json`](testdata/receipts/turbo/cuda-2026-09-21.json). On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime 1.24.0 linked dynamically through `ORT_LIB_LOCATION` and `--no-default-features`) all 12 live embedding tests pass at cosine 1.000; no receipt file is committed for this run yet and the task suite (rerank/classify/token-classify) is still being verified there |
 | `metal` | PLANNED (P4) | MLX over the shared Metal arena |
-| `hailo` | PLANNED (P5) | Hailo-8/8L, Hailo-10H |
+| `hailo` | EXPERIMENTAL on `pi5ai1` and `cm5ai1` (Hailo-8); Hailo-8L untested; Hailo-10H open | embed through HailoRT 4.23 vstreams with the INT8 Model Zoo MiniLM HEF; host WordPiece, word-embedding gather, pooling, and L2; the capability cell states the measured cosine floor (0.30) against the FP32 references and the live suite gates ranking on the STS corpus (Spearman 0.937); receipt: [`testdata/receipts/turbo/hailo-2026-09-21.json`](testdata/receipts/turbo/hailo-2026-09-21.json) |
 | `ggml` | EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | GGUF generation through llama.cpp (`llama-cpp-2`); pull iterator, chat templates, stop strings/tokens, cancellation, logprobs, seeded sampling, GBNF grammars; receipt: [`testdata/receipts/turbo/ggml-2026-09-21.json`](testdata/receipts/turbo/ggml-2026-09-21.json) |
 
 A matched-native benchmark receipt is still required before OpenVINO,
@@ -368,9 +369,11 @@ today (commit `6657818`); "planned" means it is scoped for a later milestone.
 | `providers/openvino/` | OpenVINO provider (C++, built separately with CMake) | here |
 | `providers/cuda/` | CUDA provider (Rust, ONNX Runtime CUDA EP); EXPERIMENTAL on `krick` (x86_64); embedding landed on Jetson `nano1` | here |
 | `providers/ggml/` | ggml/llama.cpp provider (Rust, GGUF generation); EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | here |
-| `providers/cpu/`, `providers/hailo/` | remaining hardware providers | planned (P3, P5) |
+| `providers/hailo/` | Hailo provider (C++, HailoRT 4.x vstreams); EXPERIMENTAL on the Hailo-8 Pis | here |
+| `providers/cpu/` | folded into the CUDA (ONNX Runtime) and ggml providers' CPU devices | not a separate provider |
 | `providers/metal/` | Swift package producing `libturbo_provider_metal.dylib` | planned (P4) |
-| `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO provider | here |
+| `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO and Hailo providers | here |
+| `native/provider_common/` | shared C++ provider helpers (error boundary, descriptor size checks, bundle reader) | here |
 | `native/turbo_buffer/` | shared C++ arenas salvaged from the PoC | present, not yet wired into a provider |
 | `bindings/java/` | JDK 25 FFM binding (`ai.pipestream:turbo`) | here |
 | `bindings/swift/` | SwiftPM package over the C ABI (`PipestreamTurbo`) | here |

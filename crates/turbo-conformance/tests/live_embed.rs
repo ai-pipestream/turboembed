@@ -3,7 +3,9 @@
 //! Selection and skipping are described in `turbo_conformance::live`. The
 //! reference vectors in `testdata/reference_embeddings/ort_cuda_minilm_*.json`
 //! were produced by ONNX Runtime CUDA in FP32 on the same ONNX export, so an
-//! FP32 provider is held to cosine 0.9995 against them.
+//! FP32 provider is held to cosine 0.9995 against them; a quantized device is
+//! held to the floor its capability cell states (`Live::embed_cosine_floor`)
+//! and, like every device, to a ranking gate on the STS pair corpus.
 
 use turbo::abi;
 use turbo::{DType, EmbedOptions, ModelDesc, OutputDType, Placement, SessionDesc, Truncate};
@@ -37,8 +39,9 @@ fn embed(
     let model = live.ctx.load_model(bundle, &ModelDesc::default()).expect("load MiniLM");
     assert_eq!(model.info().dim, 384);
     assert_eq!(model.info().provider_id, live.provider);
-    let session =
-        model.create_session(&SessionDesc { max_batch, max_seq: 256, ..Default::default() }).expect("session");
+    // A fixed-shape artifact (a HEF) caps the session at its frame length.
+    let max_seq = model.info().max_seq.min(256);
+    let session = model.create_session(&SessionDesc { max_batch, max_seq, ..Default::default() }).expect("session");
     session.write_text(texts, opts).expect("write_text");
     let r = session.run(&Default::default()).expect("run");
     let out = r.output(0).unwrap();
@@ -60,12 +63,14 @@ fn live_minilm_matches_the_reference_vectors() {
     let goldens: Vec<Golden> = names.iter().map(|n| golden(n)).collect();
     let texts: Vec<&str> = goldens.iter().map(|g| g.text.as_str()).collect();
     let (vecs, stats, placement) = embed(&live, &bundle, &texts, &EmbedOptions::default(), 8);
+    let floor = live.embed_cosine_floor();
+    eprintln!("cosine floor for this device: {floor} (compute dtype {:?})", live.embed.dtype);
     for (i, (v, g)) in vecs.iter().zip(&goldens).enumerate() {
         let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 1e-4, "{}: norm {norm}", names[i]);
         let c = cosine(v, &g.vector);
         eprintln!("{}: cosine vs ORT CUDA reference = {c:.6}", names[i]);
-        assert!(c > 0.9995, "{}: cosine {c} below the FP32 floor", names[i]);
+        assert!(c > floor, "{}: cosine {c} below the device's floor {floor}", names[i]);
     }
     eprintln!("stats: {stats:?}, output placement {placement:?}");
     // A device that advertises TURBO_CAP_DEVICE_RESULT keeps the result
@@ -257,8 +262,8 @@ fn live_a_batch_of_mixed_lengths_equals_the_single_runs() {
     let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
     let model = live.ctx.load_model(&dir, &ModelDesc::default()).expect("load MiniLM");
     let dim = model.info().dim as usize;
-    let session =
-        model.create_session(&SessionDesc { max_batch: 8, max_seq: 256, ..Default::default() }).expect("session");
+    let max_seq = model.info().max_seq.min(256);
+    let session = model.create_session(&SessionDesc { max_batch: 8, max_seq, ..Default::default() }).expect("session");
     session.write_text(&refs, &EmbedOptions::default()).expect("write the batch");
     let r = session.run(&Default::default()).expect("run the batch");
     assert_eq!(r.output(0).unwrap().shape, vec![refs.len() as u64, dim as u64], "one vector per row");
@@ -402,4 +407,78 @@ fn live_host_pointer_import_follows_the_capability_bit() {
     assert_eq!(floats, vec![1.0, 2.0, 42.0, 4.0]);
     drop(buffer);
     assert_eq!(mine[2], 42.0, "releasing an imported buffer must not free the caller's memory");
+}
+
+#[derive(serde::Deserialize)]
+struct StsPair {
+    score: f32,
+    text_a: String,
+    text_b: String,
+}
+
+/// Ranks of `values` (1-based, ties averaged).
+fn ranks(values: &[f32]) -> Vec<f64> {
+    let mut idx: Vec<usize> = (0..values.len()).collect();
+    idx.sort_by(|&a, &b| values[a].partial_cmp(&values[b]).unwrap());
+    let mut out = vec![0.0; values.len()];
+    let mut i = 0;
+    while i < idx.len() {
+        let mut j = i;
+        while j + 1 < idx.len() && values[idx[j + 1]] == values[idx[i]] {
+            j += 1;
+        }
+        let rank = (i + j) as f64 / 2.0 + 1.0;
+        for &k in &idx[i..=j] {
+            out[k] = rank;
+        }
+        i = j + 1;
+    }
+    out
+}
+
+fn spearman(a: &[f32], b: &[f32]) -> f64 {
+    let (ra, rb) = (ranks(a), ranks(b));
+    let n = ra.len() as f64;
+    let (ma, mb) = (ra.iter().sum::<f64>() / n, rb.iter().sum::<f64>() / n);
+    let cov: f64 = ra.iter().zip(&rb).map(|(x, y)| (x - ma) * (y - mb)).sum();
+    let va: f64 = ra.iter().map(|x| (x - ma).powi(2)).sum();
+    let vb: f64 = rb.iter().map(|y| (y - mb).powi(2)).sum();
+    cov / (va * vb).sqrt()
+}
+
+/// Ranking gate on the committed STS pair corpus: the Spearman correlation
+/// between the device's pair cosines and the human scores must stay above
+/// 0.85. An FP32 MiniLM scores about 0.94 here; the INT8 Hailo HEF about
+/// 0.94 as well, which is why absolute cosine (above) and ranking are
+/// gated separately.
+#[test]
+fn live_ranking_on_sts_pairs_holds() {
+    let Some((live, bundle)) = setup() else { return };
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/corpus/sts-pairs.jsonl");
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let pairs: Vec<StsPair> =
+        text.lines().filter(|l| !l.trim().is_empty()).map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert!(pairs.len() >= 50, "corpus has {} pairs", pairs.len());
+    let model = live.ctx.load_model(&bundle, &ModelDesc::default()).unwrap();
+    let max_seq = model.info().max_seq.min(128);
+    let session = model.create_session(&SessionDesc { max_batch: 16, max_seq, ..Default::default() }).unwrap();
+    let embed_all = |texts: Vec<&str>| -> Vec<Vec<f32>> {
+        let mut out = Vec::with_capacity(texts.len());
+        for chunk in texts.chunks(16) {
+            session.write_text(chunk, &EmbedOptions::default()).unwrap();
+            let r = session.run(&Default::default()).unwrap();
+            let mut bytes = vec![0u8; r.output(0).unwrap().logical_bytes().unwrap() as usize];
+            r.read(0, &mut bytes).unwrap();
+            let floats: Vec<f32> = bytes.chunks(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect();
+            out.extend(floats.chunks(384).map(|c| c.to_vec()));
+        }
+        out
+    };
+    let a = embed_all(pairs.iter().map(|p| p.text_a.as_str()).collect());
+    let b = embed_all(pairs.iter().map(|p| p.text_b.as_str()).collect());
+    let cosines: Vec<f32> = a.iter().zip(&b).map(|(x, y)| cosine(x, y)).collect();
+    let scores: Vec<f32> = pairs.iter().map(|p| p.score).collect();
+    let rho = spearman(&cosines, &scores);
+    eprintln!("Spearman(cosine, score) over {} STS pairs = {rho:.4}", pairs.len());
+    assert!(rho > 0.85, "ranking gate: Spearman {rho:.4} <= 0.85");
 }

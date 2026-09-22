@@ -28,7 +28,9 @@ it. See `PLAN.md` itself for the design rationale.
              ggml (providers/ggml, Rust, loaded as a plugin library; GGUF
              generation EXPERIMENTAL on CUDA/CPU on krick and on Metal on
              Apple M2, all via llama.cpp)
-             metal, hailo: planned (P4, P5)
+             hailo (providers/hailo, C++ over HailoRT 4.x; embeddings
+             EXPERIMENTAL on the Hailo-8 Pis with an INT8 HEF)
+             metal: planned (P4)
  ------------------------------------------------------------------------
  runtimes:   none for mock/static; OpenVINO 2026.3.1 for openvino; ONNX
              Runtime 1.28 (1.24.0 on Jetson) CUDA execution provider for

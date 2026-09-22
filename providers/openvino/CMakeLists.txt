@@ -32,6 +32,7 @@ add_library(turbo_provider_openvino SHARED
 
 target_include_directories(turbo_provider_openvino PRIVATE
     ${TURBO_ROOT}/include
+    ${TURBO_ROOT}/native/provider_common
     ${TURBO_ROOT}/native/wordpiece
     ${TURBO_ROOT}/native/wordpiece/include
     ${TURBO_ROOT}/third_party
