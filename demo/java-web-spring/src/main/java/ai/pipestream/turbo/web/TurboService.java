@@ -54,8 +54,7 @@ public class TurboService implements AutoCloseable {
             @Value("${turbo.provider:}") String provider,
             @Value("${turbo.ordinal:0}") int ordinal,
             @Value("${turbo.sessions:2}") int sessionCount,
-            @Value("${turbo.max-batch:16}") int maxBatch) {
-        this.maxBatch = maxBatch;
+            @Value("${turbo.max-batch:0}") int maxBatchProperty) {
         runtime = providerLib.isBlank() ? Turbo.create() : Turbo.create(List.of(providerLib));
         int device = provider.isBlank() ? runtime.selectDevice() : runtime.selectDevice(SelectPolicy.EXPLICIT, provider, ordinal);
         DeviceInfo di = runtime.device(device);
@@ -66,6 +65,9 @@ public class TurboService implements AutoCloseable {
             close();
             throw new IllegalArgumentException(bundle + " is not an embedding bundle: " + mi.kind());
         }
+        // 0 means the model's own batch limit; a larger request is refused by
+        // the library at session creation, which is the right place.
+        this.maxBatch = maxBatchProperty > 0 ? maxBatchProperty : mi.maxBatch();
         sessions = new ArrayBlockingQueue<>(sessionCount);
         for (int i = 0; i < sessionCount; i++) {
             sessions.add(model.createSession(maxBatch, 0));
