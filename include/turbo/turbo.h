@@ -386,8 +386,13 @@ int32_t turbo_generation_cancel(turbo_generation *g,
 void turbo_generation_release(turbo_generation *g);
 
 /**
- * Push-style generation over `turbo_generation_step`. Declared from P0;
- * implemented in P6 once the pull iterator passes streaming conformance.
+ * Push-style generation over the pull iterator: creates a generation,
+ * applies `messages`, and calls `callback` with every chunk until the
+ * generation finishes or the callback returns `TURBO_STREAM_STOP`. The
+ * chunk and its pointers are valid during the callback only. A stopped
+ * generation is cancelled and released before this returns `TURBO_OK`; a
+ * callback result other than `TURBO_STREAM_CONTINUE` or
+ * `TURBO_STREAM_STOP` is `TURBO_E_INVALID_ARGUMENT`.
  */
 int32_t turbo_generate(turbo_model *m,
                        const turbo_generate_desc *desc,

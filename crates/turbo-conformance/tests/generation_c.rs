@@ -2,6 +2,7 @@
 //! `turbo_generation_*`, and the push form `turbo_generate`, which is
 //! declared from P0 and must say `TURBO_E_NOT_IMPLEMENTED` until P6.
 
+use std::ffi::c_void;
 use std::ptr;
 
 use turbo_abi::*;
@@ -390,28 +391,77 @@ fn generation_descriptor_struct_size_is_validated() {
     }
 }
 
+/// Collects what the push form delivers.
+struct Pushed {
+    tokens: Vec<i32>,
+    chunks: u32,
+    done: bool,
+    finish: u32,
+    stop_after: u32,
+}
+
+unsafe extern "C" fn collect(user_data: *mut c_void, chunk: *const turbo_generation_chunk) -> u32 {
+    // SAFETY: the library passes the Pushed pointer we gave it and a chunk
+    // valid for the duration of this call.
+    let p = unsafe { &mut *user_data.cast::<Pushed>() };
+    let c = unsafe { &*chunk };
+    assert_eq!(c.struct_size as usize, std::mem::size_of::<turbo_generation_chunk>());
+    if c.n_tokens > 0 {
+        p.tokens.extend_from_slice(unsafe { std::slice::from_raw_parts(c.tokens, c.n_tokens as usize) });
+    }
+    p.chunks += 1;
+    p.done = c.done != 0;
+    p.finish = c.finish_reason;
+    if p.stop_after != 0 && p.chunks >= p.stop_after {
+        TURBO_STREAM_STOP
+    } else {
+        TURBO_STREAM_CONTINUE
+    }
+}
+
 #[test]
-fn generation_push_form_is_not_implemented_until_p6() {
+fn generation_push_form_delivers_the_pull_forms_tokens() {
     let t = Target::from_env();
     let f = Gen::new(&t);
     let mut e = c::err();
     let msg = turbo_message { role: c::text("user"), content: c::text("hello") };
     let mut gd = c::generate_desc();
-    gd.max_new_tokens = 2;
-    // A valid model, a valid descriptor, a valid message: the only reason to
-    // fail is that the push form is not implemented yet (PLAN.md P6).
-    // SAFETY: valid model handle; the message outlives the call.
+    gd.max_new_tokens = 6;
+    // Pull first, for the reference sequence.
+    let mut g = ptr::null_mut();
+    assert_rc!(unsafe { turbo_generation_create(f.model, &gd, &mut g, &mut e) }, TURBO_OK, e);
+    assert_rc!(unsafe { turbo_generation_prompt(g, &msg, 1, &mut e) }, TURBO_OK, e);
+    let mut pulled = Vec::new();
+    loop {
+        let mut chunk =
+            turbo_generation_chunk { struct_size: ssz::<turbo_generation_chunk>(), ..unsafe { std::mem::zeroed() } };
+        assert_rc!(unsafe { turbo_generation_step(g, &mut chunk, &mut e) }, TURBO_OK, e);
+        pulled.extend_from_slice(unsafe { std::slice::from_raw_parts(chunk.tokens, chunk.n_tokens as usize) });
+        if chunk.done != 0 {
+            break;
+        }
+    }
+    unsafe { turbo_generation_release(g) };
+    // Push: the same tokens, in order, through the callback.
+    let mut pushed = Pushed { tokens: Vec::new(), chunks: 0, done: false, finish: 0, stop_after: 0 };
+    let rc =
+        unsafe { turbo_generate(f.model, &gd, &msg, 1, Some(collect), (&mut pushed as *mut Pushed).cast(), &mut e) };
+    assert_rc!(rc, TURBO_OK, e);
+    assert_eq!(pushed.tokens, pulled, "push and pull must produce one token sequence");
+    assert!(pushed.done, "the last chunk is the finished one");
+    assert_ne!(pushed.finish, TURBO_FINISH_NONE);
+    // TURBO_STREAM_STOP ends the stream after the chunk that returned it.
+    let mut early = Pushed { tokens: Vec::new(), chunks: 0, done: false, finish: 0, stop_after: 2 };
+    let rc =
+        unsafe { turbo_generate(f.model, &gd, &msg, 1, Some(collect), (&mut early as *mut Pushed).cast(), &mut e) };
+    assert_rc!(rc, TURBO_OK, e);
+    assert_eq!(early.chunks, 2);
+    assert_eq!(early.tokens, pulled[..early.tokens.len()]);
+    assert!(!early.done, "a stopped stream never reports a finished chunk");
+    // Argument checks: NULL callback, NULL model.
     let rc = unsafe { turbo_generate(f.model, &gd, &msg, 1, None, ptr::null_mut(), &mut e) };
-    assert_eq!(
-        rc,
-        TURBO_E_NOT_IMPLEMENTED,
-        "turbo_generate must report NOT_IMPLEMENTED until P6 lands it, got {}",
-        c::status_name(rc)
-    );
-    assert!(c::message(&e).contains("turbo_generate"), "the message must name the entry point: {}", c::message(&e));
-    // It is still a handle check first.
-    // SAFETY: the NULL handle is deliberate.
-    let rc = unsafe { turbo_generate(ptr::null_mut(), &gd, &msg, 1, None, ptr::null_mut(), &mut e) };
+    assert_eq!(rc, TURBO_E_INVALID_ARGUMENT, "{}", c::message(&e));
+    let rc = unsafe { turbo_generate(ptr::null_mut(), &gd, &msg, 1, Some(collect), ptr::null_mut(), &mut e) };
     assert_eq!(rc, TURBO_E_INVALID_HANDLE);
 }
 

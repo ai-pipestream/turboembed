@@ -1520,8 +1520,13 @@ pub unsafe extern "C" fn turbo_generation_release(g: *mut turbo_generation) {
     unsafe { reclaim(g as *mut Generation) };
 }
 
-/// Push-style generation over `turbo_generation_step`. Declared from P0;
-/// implemented in P6 once the pull iterator passes streaming conformance.
+/// Push-style generation over the pull iterator: creates a generation,
+/// applies `messages`, and calls `callback` with every chunk until the
+/// generation finishes or the callback returns `TURBO_STREAM_STOP`. The
+/// chunk and its pointers are valid during the callback only. A stopped
+/// generation is cancelled and released before this returns `TURBO_OK`; a
+/// callback result other than `TURBO_STREAM_CONTINUE` or
+/// `TURBO_STREAM_STOP` is `TURBO_E_INVALID_ARGUMENT`.
 #[no_mangle]
 pub unsafe extern "C" fn turbo_generate(
     m: *mut turbo_model,
@@ -1533,9 +1538,64 @@ pub unsafe extern "C" fn turbo_generate(
     err: *mut turbo_error,
 ) -> i32 {
     boundary(err, || {
-        let _ = unsafe { handle(m as *const Model, "turbo_model") }?;
-        let _ = (desc, messages, count, callback, user_data);
-        Err(Error::not_implemented("turbo_generate (push streaming); use turbo_generation_step"))
+        let m = unsafe { arc(m as *const Model, "turbo_model") }?;
+        let Some(callback) = callback else {
+            return Err(Error::invalid_argument("callback is NULL"));
+        };
+        if count == 0 {
+            return Err(Error::invalid_argument("at least one message is required"));
+        }
+        if messages.is_null() {
+            return Err(Error::invalid_argument("messages is NULL"));
+        }
+        let gd = unsafe { generate_desc(desc) }?;
+        let raw = unsafe { std::slice::from_raw_parts(messages, count as usize) };
+        let mut list = Vec::with_capacity(raw.len());
+        for (i, msg) in raw.iter().enumerate() {
+            list.push(Message {
+                role: unsafe { text(&msg.role, &format!("messages[{i}].role")) }?,
+                content: unsafe { text(&msg.content, &format!("messages[{i}].content")) }?,
+            });
+        }
+        let g = m.create_generation(&gd)?;
+        g.prompt(&list)?;
+        loop {
+            let chunk = g.step()?;
+            let full = turbo_generation_chunk {
+                struct_size: std::mem::size_of::<turbo_generation_chunk>() as u32,
+                sequence: chunk.sequence,
+                n_tokens: chunk.tokens.len() as u32,
+                n_logprobs: chunk.logprobs.len() as u32,
+                tokens: chunk.tokens.as_ptr(),
+                text: turbo_text { ptr: chunk.text.as_ptr().cast(), len: chunk.text.len() as u64 },
+                logprobs: if chunk.logprobs.is_empty() { std::ptr::null() } else { chunk.logprobs.as_ptr() },
+                done: chunk.done as u32,
+                finish_reason: chunk.finish_reason.as_abi(),
+                prompt_tokens: chunk.prompt_tokens,
+                generated_tokens: chunk.generated_tokens,
+            };
+            let done = chunk.done;
+            // The callback runs while the chunk guard is held, so its
+            // pointers stay valid; it must not call back into this generation.
+            let verdict = unsafe { callback(user_data, &full) };
+            drop(chunk);
+            match verdict {
+                TURBO_STREAM_CONTINUE => {}
+                TURBO_STREAM_STOP => {
+                    g.cancel()?;
+                    return Ok(());
+                }
+                other => {
+                    g.cancel()?;
+                    return Err(Error::invalid_argument(format!(
+                        "callback returned {other}; expected TURBO_STREAM_CONTINUE (0) or TURBO_STREAM_STOP (1)"
+                    )));
+                }
+            }
+            if done {
+                return Ok(());
+            }
+        }
     })
 }
 
