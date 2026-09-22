@@ -79,16 +79,60 @@ TURBO_LIVE_NER_BUNDLE=~/opt/bundles/ner-onnx \
 cargo test -p turbo-conformance --test live_embed --test live_tasks -- --test-threads=1
 ```
 
+`crates/turbo-conformance/tests/live_cuda.rs` is this provider's own live
+file; add `--test live_cuda` to the line above to run it. It covers the four
+bundle kinds on one context with the placement each stage really ran at, the
+error paths (an over-long pair, a token id outside the vocabulary, batch and
+sequence limits, a task written to the wrong model kind, a `prompt_role` the
+bundle has no prefix for), the H2D/D2H byte accounting across repeated runs,
+two models running concurrently on one device, and the refusal to resolve a
+device ordinal that does not exist. See `docs/testing.md`'s "Live provider
+tests" section.
+
 Bundles come from `turbo-bundle import` (see `docs/bundles.md`). Results for
 `krick` (RTX 4080 SUPER) are in `testdata/receipts/turbo/cuda-2026-09-21.json`.
 
+## On a Jetson (`nano1`)
+
+The Jetson has no prebuilt ONNX Runtime CUDA bundle for
+`aarch64-unknown-linux-gnu`, so the provider builds against JetPack's own
+CUDA and a locally staged ONNX Runtime 1.24.0. This is the environment every
+command on `nano1` runs under:
+
+```bash
+export PATH=$HOME/.cargo/bin:/usr/local/cuda/bin:$PATH
+export ORT_LIB_LOCATION=$HOME/ort-1.24/lib   # holds libonnxruntime.so and the CUDA EP libraries
+export ORT_PREFER_DYNAMIC_LINK=1
+export CUDA_PATH=/usr/local/cuda
+export TURBO_CUDA_ARCHS=87                   # Orin only
+export LD_LIBRARY_PATH=$HOME/ort-1.24/lib:/usr/local/cuda/lib64
+export TURBO_CUDA_LIB_DIR=/usr/local/cuda/lib64
+```
+
+Every `cargo` command then adds `--no-default-features` so the `ort` crate
+does not try to download a bundle that does not exist for this target:
+
+```bash
+cargo build --release -p turbo-provider-cuda --no-default-features
+cargo test -p turbo-provider-cuda --no-default-features
+```
+
+A non-login `ssh` shell does not have cargo on `PATH`, hence the first line.
+Results for `nano1` are in `testdata/receipts/turbo/bench/cuda-nano1-*.json`
+and `compare-cuda-nano1-embed-2026-09-22.json`; `docs/testing.md`'s "The CUDA
+provider on Jetson (`nano1`)" section lists what passes there.
+
 ## Status
 
-Every cell is `EXPERIMENTAL`: precision matches the FP32 reference to cosine
-1.000, but the matched-native benchmark and the Jetson receipt required for
-`SUPPORTED` are not recorded yet. Sessions of one model share the ONNX
-Runtime session under a lock (`ort::Session::run_binding` takes the session
-exclusively), so two Turbo sessions on the same model run one at a time
-rather than concurrently as `PLAN.md` section 4 describes; the alternative,
-one ONNX Runtime session per Turbo session, would give up weight sharing; `user_compute_stream` import (`TURBO_CAP_EXTERNAL_QUEUE`) and
-CUDA graphs are not implemented.
+Every cell is `EXPERIMENTAL`. Precision matches the FP32 reference to cosine
+1.000 and the matched-native benchmark is now recorded on both machines
+(`krick` 1.04x to 2.64x and `nano1` 0.96x to 1.04x of ONNX Runtime CUDA
+alone, both SUPPORTED), but no conformance or precision receipt file is
+committed for `nano1` yet, so the cells stay `EXPERIMENTAL` until one is.
+
+Sessions of one model share the ONNX Runtime session under a lock
+(`ort::Session::run_binding` takes the session exclusively), so two Turbo
+sessions on the same model run one at a time rather than concurrently as
+`PLAN.md` section 4 describes; the alternative, one ONNX Runtime session per
+Turbo session, would give up weight sharing. `user_compute_stream` import
+(`TURBO_CAP_EXTERNAL_QUEUE`) and CUDA graphs are not implemented.

@@ -108,8 +108,14 @@ fn run(cli: &Cli) -> Result<Receipt, String> {
     let mut fields = smi.split(',').map(str::trim);
     let gpu_name = fields.next().unwrap_or("").to_string();
     let driver = fields.next().unwrap_or("").to_string();
-    let memory_mib: u64 =
-        fields.next().unwrap_or("0").parse().map_err(|e| format!("nvidia-smi memory.total `{smi}`: {e}"))?;
+    // An integrated GPU (a Jetson, where the GPU shares system memory)
+    // reports `[N/A]` for memory.total. Record 0 for "the driver does not
+    // report it" rather than failing or inventing a number.
+    let memory_field = fields.next().unwrap_or("0");
+    let memory_mib: u64 = match memory_field {
+        "[N/A]" | "N/A" | "" => 0,
+        v => v.parse().map_err(|e| format!("nvidia-smi memory.total `{smi}`: {e}"))?,
+    };
 
     let ep = ort::ep::CUDA::default().with_device_id(cli.device);
     let mut session = Session::builder()

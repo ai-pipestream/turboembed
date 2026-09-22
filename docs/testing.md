@@ -426,7 +426,7 @@ against FP32 with Spearman 0.937 against 0.944); see
   (`cargo test -p turbo-provider-cuda --no-default-features`: 4 WordPiece
   unit tests, 12 kernel tests, 8 provider tests, 4 word-span tests);
 - `live_embed.rs`, all 16, at cosine 1.000 against the FP32 reference
-  vectors, and `live_tasks.rs`, all 7 (rerank, classify, token-classify);
+  vectors, and `live_tasks.rs`, all 10 (rerank, classify, token-classify);
 - `live_cuda.rs`, all 9 (the CUDA-specific file described above);
 - the conformance groups that do not need a bundle, run against the
   provider library with `TURBO_CONFORMANCE_PROVIDER_PATHS` and
