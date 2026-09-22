@@ -27,6 +27,17 @@ use inference::{
 
 pub use inference::grpc_inference_service_server::GrpcInferenceServiceServer;
 
+/// Inferstream's extension service, generated from `proto/turbo_inferstream.proto`.
+#[allow(missing_docs)]
+pub mod ext {
+    include!(concat!(env!("OUT_DIR"), "/ext/turbo.inferstream.rs"));
+}
+
+pub use ext::inferstream_extension_server::InferstreamExtensionServer;
+
+/// The file descriptor set of both protos, for the reflection service.
+pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("inferstream_descriptor");
+
 /// The service over the engine.
 pub struct Service {
     /// Every model this service answers for.
@@ -207,7 +218,7 @@ impl GrpcInferenceService for Service {
         &self,
         _: Request<ServerReadyRequest>,
     ) -> std::result::Result<Response<ServerReadyResponse>, Status> {
-        Ok(Response::new(ServerReadyResponse { ready: !self.engine.models.is_empty() }))
+        Ok(Response::new(ServerReadyResponse { ready: !self.engine.is_empty() }))
     }
 
     async fn model_ready(
@@ -296,5 +307,184 @@ fn check_version(v: &str) -> std::result::Result<(), Status> {
             "model version `{v}` does not exist; this server serves version {}",
             oip::MODEL_VERSION
         )))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Extension service: streamed inference and the model repository
+// ---------------------------------------------------------------------------
+
+use ext::inferstream_extension_server::InferstreamExtension;
+use ext::{
+    repository_index_response, ModelStreamInferResponse, RepositoryIndexRequest, RepositoryIndexResponse,
+    RepositoryModelLoadRequest, RepositoryModelLoadResponse, RepositoryModelUnloadRequest,
+    RepositoryModelUnloadResponse,
+};
+
+/// The extension service over the engine.
+pub struct ExtService {
+    /// Every model this service answers for.
+    pub engine: Arc<Engine>,
+}
+
+fn response_to_proto(resp: &oip::InferResponse) -> ModelInferResponse {
+    ModelInferResponse {
+        model_name: resp.model_name.clone(),
+        model_version: resp.model_version.clone(),
+        id: resp.id.clone(),
+        parameters: params_to(&resp.parameters),
+        outputs: resp
+            .outputs
+            .iter()
+            .map(|t| model_infer_response::InferOutputTensor {
+                name: t.name.clone(),
+                datatype: t.datatype.clone(),
+                shape: t.shape.clone(),
+                parameters: params_to(&t.parameters),
+                contents: Some(contents_of(&t.data)),
+            })
+            .collect(),
+        raw_output_contents: Vec::new(),
+    }
+}
+
+#[tonic::async_trait]
+impl InferstreamExtension for ExtService {
+    type ModelStreamInferStream = std::pin::Pin<
+        Box<dyn futures_core::Stream<Item = std::result::Result<ModelStreamInferResponse, Status>> + Send + 'static>,
+    >;
+
+    async fn model_stream_infer(
+        &self,
+        req: Request<ModelInferRequest>,
+    ) -> std::result::Result<Response<Self::ModelStreamInferStream>, Status> {
+        let r = req.into_inner();
+        check_version(&r.model_version)?;
+        let served = self.engine.model(&r.model_name).map_err(|e| e.grpc_status())?;
+        let request = request_from(&r).map_err(|e| e.grpc_status())?;
+        let (tx, rx) = tokio::sync::mpsc::channel::<std::result::Result<ModelStreamInferResponse, Status>>(16);
+        if served.info().kind != turbo::types::ModelKind::Generative {
+            // One response with the whole result.
+            let resp = oip::infer(served, request).await.map_err(|e| e.grpc_status())?;
+            let _ = tx
+                .send(Ok(ModelStreamInferResponse {
+                    error_message: String::new(),
+                    infer_response: Some(response_to_proto(&resp)),
+                }))
+                .await;
+        } else {
+            let (messages, desc) = oip::generation_inputs(&request).map_err(|e| e.grpc_status())?;
+            let mut pieces =
+                crate::engine::generate(served.clone(), messages, desc).await.map_err(|e| e.grpc_status())?;
+            let name = served.name.clone();
+            let id = request.id.clone();
+            tokio::spawn(async move {
+                while let Some(piece) = pieces.recv().await {
+                    let msg = match piece {
+                        Ok(p) => {
+                            let mut parameters = BTreeMap::new();
+                            if p.done {
+                                parameters.insert(
+                                    "finish_reason".to_string(),
+                                    Param::Str(format!("{:?}", p.finish_reason).to_lowercase()),
+                                );
+                                parameters.insert("prompt_tokens".to_string(), Param::Int(p.prompt_tokens as i64));
+                                parameters
+                                    .insert("generated_tokens".to_string(), Param::Int(p.generated_tokens as i64));
+                            }
+                            let resp = oip::InferResponse {
+                                model_name: name.clone(),
+                                model_version: oip::MODEL_VERSION.to_string(),
+                                id: id.clone(),
+                                parameters,
+                                outputs: vec![Tensor {
+                                    name: "text".into(),
+                                    datatype: "BYTES".into(),
+                                    shape: vec![1],
+                                    data: Data::Bytes(vec![p.text.into_bytes()]),
+                                    parameters: BTreeMap::new(),
+                                }],
+                            };
+                            Ok(ModelStreamInferResponse {
+                                error_message: String::new(),
+                                infer_response: Some(response_to_proto(&resp)),
+                            })
+                        }
+                        Err(e) => Ok(ModelStreamInferResponse { error_message: e.to_string(), infer_response: None }),
+                    };
+                    if tx.send(msg).await.is_err() {
+                        // The client went away; dropping `pieces` cancels the generation.
+                        return;
+                    }
+                }
+            });
+        }
+        Ok(Response::new(Box::pin(ReceiverStream { rx })))
+    }
+
+    async fn repository_index(
+        &self,
+        _: Request<RepositoryIndexRequest>,
+    ) -> std::result::Result<Response<RepositoryIndexResponse>, Status> {
+        let models = self
+            .engine
+            .snapshot()
+            .iter()
+            .map(|s| repository_index_response::ModelIndex {
+                name: s.name.clone(),
+                version: oip::MODEL_VERSION.to_string(),
+                state: "READY".to_string(),
+                reason: String::new(),
+                bundle: s.spec.bundle.display().to_string(),
+                provider: s.spec.provider.clone(),
+                device: s.device.name.clone(),
+                kind: format!("{:?}", s.info().kind),
+            })
+            .collect();
+        Ok(Response::new(RepositoryIndexResponse { models }))
+    }
+
+    async fn repository_model_load(
+        &self,
+        req: Request<RepositoryModelLoadRequest>,
+    ) -> std::result::Result<Response<RepositoryModelLoadResponse>, Status> {
+        let r = req.into_inner();
+        let spec = crate::config::ModelSpec::from_request(
+            if r.model_name.is_empty() { None } else { Some(r.model_name.clone()) },
+            &r.bundle,
+            &r.provider,
+            r.ordinal,
+            &r.buckets,
+            r.sessions,
+            r.generations,
+        )
+        .map_err(|e| e.grpc_status())?;
+        let engine = self.engine.clone();
+        let name = tokio::task::spawn_blocking(move || engine.load_model(&spec))
+            .await
+            .map_err(|e| Status::internal(format!("load task failed: {e}")))?
+            .map_err(|e| e.grpc_status())?;
+        Ok(Response::new(RepositoryModelLoadResponse { model_name: name }))
+    }
+
+    async fn repository_model_unload(
+        &self,
+        req: Request<RepositoryModelUnloadRequest>,
+    ) -> std::result::Result<Response<RepositoryModelUnloadResponse>, Status> {
+        let r = req.into_inner();
+        self.engine.unload(&r.model_name).map_err(|e| e.grpc_status())?;
+        Ok(Response::new(RepositoryModelUnloadResponse {}))
+    }
+}
+
+/// A receiver as a `Stream`, without another crate.
+struct ReceiverStream<T> {
+    rx: tokio::sync::mpsc::Receiver<T>,
+}
+
+impl<T> futures_core::Stream for ReceiverStream<T> {
+    type Item = T;
+    fn poll_next(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Option<T>> {
+        self.rx.poll_recv(cx)
     }
 }

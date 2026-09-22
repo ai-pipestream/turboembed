@@ -97,7 +97,11 @@ async fn server_metadata_names_the_server_and_its_extensions() {
     let m = c.server_metadata(ServerMetadataRequest {}).await.expect("ServerMetadata").into_inner();
     assert_eq!(m.name, SERVER_NAME, "ServerMetadata.name");
     assert_eq!(m.version, SERVER_VERSION, "ServerMetadata.version");
-    assert_eq!(m.extensions, ["turbo_parameters"], "ServerMetadata.extensions");
+    assert_eq!(
+        m.extensions,
+        ["turbo_parameters", "turbo_stream_infer", "turbo_model_repository"],
+        "ServerMetadata.extensions"
+    );
 }
 
 #[tokio::test]

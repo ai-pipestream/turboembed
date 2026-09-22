@@ -98,12 +98,18 @@ async fn main() -> ExitCode {
     };
     let app = http::router(engine.clone());
     let grpc_svc = grpc::GrpcInferenceServiceServer::new(grpc::Service { engine: engine.clone() });
-    eprintln!(
-        "inferstream: http on http://{}  grpc on {}  models: {}",
-        cli.http,
-        cli.grpc,
-        engine.models.keys().cloned().collect::<Vec<_>>().join(", ")
-    );
+    let ext_svc = grpc::InferstreamExtensionServer::new(grpc::ExtService { engine: engine.clone() });
+    let reflection = match tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(grpc::FILE_DESCRIPTOR_SET)
+        .build_v1()
+    {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("error: gRPC reflection: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    eprintln!("inferstream: http on http://{}  grpc on {}  models: {}", cli.http, cli.grpc, engine.names().join(", "));
 
     let http_task = tokio::spawn(async move {
         axum::serve(http_listener, app).with_graceful_shutdown(shutdown()).await.map_err(|e| format!("http: {e}"))
@@ -112,6 +118,8 @@ async fn main() -> ExitCode {
     let grpc_task = tokio::spawn(async move {
         tonic::transport::Server::builder()
             .add_service(grpc_svc)
+            .add_service(ext_svc)
+            .add_service(reflection)
             .serve_with_shutdown(grpc_addr, shutdown())
             .await
             .map_err(|e| format!("grpc on {grpc_addr}: {e}"))

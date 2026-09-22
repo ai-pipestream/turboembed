@@ -15,13 +15,17 @@ fn rows(tensor: &Value) -> Vec<Vec<f32>> {
 }
 
 #[tokio::test]
-async fn server_metadata_names_the_server_and_the_turbo_parameters_extension() {
+async fn server_metadata_names_the_server_and_the_turbo_extensions() {
     let r = get("/v2").await;
     assert_eq!(r.status, 200, "GET /v2: {}", r.text);
     let body = r.json();
     assert_eq!(body["name"], SERVER_NAME, "server name in {body}");
     assert_eq!(body["version"], SERVER_VERSION, "server version in {body}");
-    assert_eq!(body["extensions"], json!(["turbo_parameters"]), "extensions in {body}");
+    assert_eq!(
+        body["extensions"],
+        json!(["turbo_parameters", "turbo_stream_infer", "turbo_model_repository"]),
+        "extensions in {body}"
+    );
 }
 
 #[tokio::test]

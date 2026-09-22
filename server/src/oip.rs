@@ -175,7 +175,7 @@ pub const MODEL_VERSION: &str = "1";
 
 /// Extensions this server implements beyond the core protocol.
 pub fn extensions() -> Vec<String> {
-    vec!["turbo_parameters".to_string()]
+    vec!["turbo_parameters".to_string(), "turbo_stream_infer".to_string(), "turbo_model_repository".to_string()]
 }
 
 fn meta(name: &str, datatype: &str, shape: &[i64]) -> TensorMeta {
@@ -457,6 +457,34 @@ pub fn generate_desc(params: &BTreeMap<String, Param>) -> Result<GenerateDesc> {
 // Infer
 // ---------------------------------------------------------------------------
 
+/// The chat messages and the generation descriptor an inference request
+/// carries for a generative model (`messages` as JSON turns, or `prompt`).
+pub fn generation_inputs(req: &InferRequest) -> Result<(Vec<(String, String)>, GenerateDesc)> {
+    let messages = if let Some(t) = req.inputs.iter().find(|t| t.name == "messages") {
+        let turns = texts(t)?;
+        let mut msgs = Vec::new();
+        for (i, turn) in turns.iter().enumerate() {
+            #[derive(Deserialize)]
+            struct Turn {
+                role: String,
+                content: String,
+            }
+            let t: Turn = serde_json::from_str(turn).map_err(|e| {
+                ServeError::bad_request(format!("input `messages`[{i}] is not a {{\"role\", \"content\"}} object: {e}"))
+            })?;
+            msgs.push((t.role, t.content));
+        }
+        msgs
+    } else {
+        let p = texts(input(&req, "prompt")?)?;
+        if p.len() != 1 {
+            return Err(ServeError::bad_request(format!("input `prompt` must hold one string, not {}", p.len())));
+        }
+        vec![("user".to_string(), p.into_iter().next().expect("one"))]
+    };
+    Ok((messages, generate_desc(&req.parameters)?))
+}
+
 /// Run an inference request against a served model.
 pub async fn infer(served: Arc<Served>, req: InferRequest) -> Result<InferResponse> {
     let mut parameters = BTreeMap::new();
@@ -556,34 +584,8 @@ pub async fn infer(served: Arc<Served>, req: InferRequest) -> Result<InferRespon
             ]
         }
         ModelKind::Generative => {
-            let messages = if let Some(t) = req.inputs.iter().find(|t| t.name == "messages") {
-                let turns = texts(t)?;
-                let mut msgs = Vec::new();
-                for (i, turn) in turns.iter().enumerate() {
-                    #[derive(Deserialize)]
-                    struct Turn {
-                        role: String,
-                        content: String,
-                    }
-                    let t: Turn = serde_json::from_str(turn).map_err(|e| {
-                        ServeError::bad_request(format!(
-                            "input `messages`[{i}] is not a {{\"role\", \"content\"}} object: {e}"
-                        ))
-                    })?;
-                    msgs.push((t.role, t.content));
-                }
-                msgs
-            } else {
-                let p = texts(input(&req, "prompt")?)?;
-                if p.len() != 1 {
-                    return Err(ServeError::bad_request(format!(
-                        "input `prompt` must hold one string, not {}",
-                        p.len()
-                    )));
-                }
-                vec![("user".to_string(), p.into_iter().next().expect("one"))]
-            };
-            let mut rx = engine::generate(served.clone(), messages, generate_desc(&req.parameters)?).await?;
+            let (messages, desc) = generation_inputs(&req)?;
+            let mut rx = engine::generate(served.clone(), messages, desc).await?;
             let mut text = String::new();
             let mut generated = 0;
             let mut prompt_tokens = 0;

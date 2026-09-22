@@ -114,6 +114,44 @@ impl Config {
 }
 
 impl ModelSpec {
+    /// A specification from a repository load request; buckets are
+    /// `BATCHxSEQ` strings, zero sessions or generations mean the default.
+    pub fn from_request(
+        name: Option<String>,
+        bundle: &str,
+        provider: &str,
+        ordinal: u32,
+        buckets: &[String],
+        sessions: u32,
+        generations: u32,
+    ) -> Result<ModelSpec> {
+        if bundle.is_empty() {
+            return Err(ServeError::bad_request("load: `bundle` is required"));
+        }
+        if provider.is_empty() {
+            return Err(ServeError::bad_request("load: `provider` is required"));
+        }
+        let mut parsed = Vec::new();
+        for b in buckets {
+            let (batch, seq) = b
+                .trim()
+                .split_once('x')
+                .ok_or_else(|| ServeError::bad_request(format!("load: bucket `{b}` is not BATCHxSEQ")))?;
+            parsed.push(Bucket { batch: parse_u32("bucket batch", batch)?, seq: parse_u32("bucket seq", seq)? });
+        }
+        let spec = ModelSpec {
+            name,
+            bundle: PathBuf::from(bundle),
+            provider: provider.to_string(),
+            ordinal,
+            buckets: parsed,
+            sessions: if sessions == 0 { 1 } else { sessions },
+            generations: if generations == 0 { 1 } else { generations },
+        };
+        spec.validate()?;
+        Ok(spec)
+    }
+
     /// Reject a specification the server cannot serve: no sessions, no
     /// generations, or a bucket too small to hold a row.
     pub fn validate(&self) -> Result<()> {

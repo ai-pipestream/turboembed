@@ -7,7 +7,7 @@
 //! longest bucket. Nothing is truncated unless the request asks for it.
 
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
@@ -25,6 +25,8 @@ use crate::error::{Result, ServeError};
 
 /// A served model.
 pub struct Served {
+    /// The specification it was loaded from.
+    pub spec: ModelSpec,
     /// Name clients use for this model.
     pub name: String,
     /// The loaded model handle.
@@ -61,10 +63,11 @@ impl Drop for Leased {
     }
 }
 
-/// Every model, by name.
+/// Every served model, by the name clients use; models load and unload
+/// at run time through the repository extension.
 pub struct Engine {
-    /// Every served model, by the name clients use.
-    pub models: BTreeMap<String, Arc<Served>>,
+    runtime: Arc<Runtime>,
+    models: RwLock<BTreeMap<String, Arc<Served>>>,
 }
 
 impl Engine {
@@ -79,47 +82,77 @@ impl Engine {
         if let Some(f) = runtime.failures().into_iter().next() {
             return Err(ServeError::internal(format!("provider `{}` failed: {}", f.what, f.error)));
         }
-        let mut models = BTreeMap::new();
+        let engine = Arc::new(Self { runtime, models: RwLock::new(BTreeMap::new()) });
         for spec in &config.models {
-            spec.validate()?;
-            let served = Served::load(&runtime, spec)?;
-            if models.contains_key(&served.name) {
-                return Err(ServeError::bad_request(format!(
-                    "two models are named `{}`; give one a `name=`",
-                    served.name
-                )));
-            }
-            eprintln!(
-                "model `{}`: {} ({:?}) on {} ordinal {} via `{}`; buckets {}",
-                served.name,
-                served.model.info().model_id,
-                served.model.info().kind,
-                served.device.name,
-                spec.ordinal,
-                spec.provider,
-                served
-                    .buckets
-                    .iter()
-                    .map(|b| format!("{}x{}", b.shape.batch, b.shape.seq))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-            models.insert(served.name.clone(), Arc::new(served));
+            engine.load_model(spec)?;
         }
-        if models.is_empty() {
+        if engine.is_empty() {
             return Err(ServeError::bad_request("no models configured; pass --model or --config"));
         }
-        Ok(Arc::new(Self { models }))
+        Ok(engine)
+    }
+
+    /// Load one more model; its name must be new.
+    pub fn load_model(&self, spec: &ModelSpec) -> Result<String> {
+        spec.validate()?;
+        let served = Served::load(&self.runtime, spec)?;
+        let name = served.name.clone();
+        let mut models = self.models.write().unwrap_or_else(|p| p.into_inner());
+        if models.contains_key(&name) {
+            return Err(ServeError::bad_request(format!(
+                "a model named `{name}` is already served; give the new one a `name=`"
+            )));
+        }
+        eprintln!(
+            "model `{}`: {} ({:?}) on {} ordinal {} via `{}`; buckets {}",
+            name,
+            served.model.info().model_id,
+            served.model.info().kind,
+            served.device.name,
+            spec.ordinal,
+            spec.provider,
+            served.buckets.iter().map(|b| format!("{}x{}", b.shape.batch, b.shape.seq)).collect::<Vec<_>>().join(", ")
+        );
+        models.insert(name.clone(), Arc::new(served));
+        Ok(name)
+    }
+
+    /// Unload a model. Requests already holding its `Arc` finish; new
+    /// ones are not found. The sessions and the model are released when
+    /// the last holder drops.
+    pub fn unload(&self, name: &str) -> Result<()> {
+        let mut models = self.models.write().unwrap_or_else(|p| p.into_inner());
+        if models.remove(name).is_none() {
+            return Err(ServeError::not_found(format!("no model named `{name}` to unload")));
+        }
+        eprintln!("model `{name}` unloaded");
+        Ok(())
     }
 
     /// The model of that name, or a not-found naming what is served.
     pub fn model(&self, name: &str) -> Result<Arc<Served>> {
-        self.models.get(name).cloned().ok_or_else(|| {
+        let models = self.models.read().unwrap_or_else(|p| p.into_inner());
+        models.get(name).cloned().ok_or_else(|| {
             ServeError::not_found(format!(
                 "no model named `{name}`; served: {}",
-                self.models.keys().cloned().collect::<Vec<_>>().join(", ")
+                models.keys().cloned().collect::<Vec<_>>().join(", ")
             ))
         })
+    }
+
+    /// The served names, sorted.
+    pub fn names(&self) -> Vec<String> {
+        self.models.read().unwrap_or_else(|p| p.into_inner()).keys().cloned().collect()
+    }
+
+    /// Every served model, in name order.
+    pub fn snapshot(&self) -> Vec<Arc<Served>> {
+        self.models.read().unwrap_or_else(|p| p.into_inner()).values().cloned().collect()
+    }
+
+    /// True when no model is served.
+    pub fn is_empty(&self) -> bool {
+        self.models.read().unwrap_or_else(|p| p.into_inner()).is_empty()
     }
 }
 
@@ -183,6 +216,7 @@ impl Served {
             buckets.sort_by_key(|b| (b.shape.seq, b.shape.batch));
         }
         Ok(Self {
+            spec: spec.clone(),
             name,
             model,
             tokenizer,

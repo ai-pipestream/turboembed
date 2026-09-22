@@ -37,6 +37,10 @@ pub fn router(engine: Arc<Engine>) -> Router {
         .route("/v2/models/{name}/versions/{version}/ready", get(model_ready_versioned))
         .route("/v2/models/{name}/infer", post(infer))
         .route("/v2/models/{name}/versions/{version}/infer", post(infer_versioned))
+        // The model repository extension (index, load, unload at run time).
+        .route("/v2/repository/index", post(repository_index))
+        .route("/v2/repository/models/{name}/load", post(repository_load))
+        .route("/v2/repository/models/{name}/unload", post(repository_unload))
         // OpenAI-shaped routes.
         .route("/v1/models", get(v1_models))
         .route("/v1/embeddings", post(v1_embeddings))
@@ -90,7 +94,7 @@ async fn live() -> StatusCode {
 }
 
 async fn ready(State(app): State<App>) -> StatusCode {
-    if app.models.is_empty() {
+    if app.is_empty() {
         StatusCode::SERVICE_UNAVAILABLE
     } else {
         StatusCode::OK
@@ -98,7 +102,7 @@ async fn ready(State(app): State<App>) -> StatusCode {
 }
 
 async fn list_models(State(app): State<App>) -> Json<Value> {
-    Json(json!({ "models": app.models.values().map(|s| oip::model_meta(s)).collect::<Vec<_>>() }))
+    Json(json!({ "models": app.snapshot().iter().map(|s| oip::model_meta(s)).collect::<Vec<_>>() }))
 }
 
 async fn model_metadata(State(app): State<App>, Path(name): Path<String>) -> Reply<Json<oip::ModelMeta>> {
@@ -114,7 +118,7 @@ async fn model_metadata_versioned(
 }
 
 async fn model_ready(State(app): State<App>, Path(name): Path<String>) -> StatusCode {
-    if app.models.contains_key(&name) {
+    if app.model(&name).is_ok() {
         StatusCode::OK
     } else {
         StatusCode::NOT_FOUND
@@ -337,13 +341,75 @@ async fn infer_versioned(
 }
 
 // ---------------------------------------------------------------------------
+// Model repository extension
+// ---------------------------------------------------------------------------
+
+async fn repository_index(State(app): State<App>) -> Json<Value> {
+    Json(json!(app
+        .snapshot()
+        .iter()
+        .map(|s| json!({
+            "name": s.name,
+            "version": oip::MODEL_VERSION,
+            "state": "READY",
+            "reason": "",
+            "bundle": s.spec.bundle.display().to_string(),
+            "provider": s.spec.provider,
+            "device": s.device.name,
+            "kind": format!("{:?}", s.info().kind),
+        }))
+        .collect::<Vec<_>>()))
+}
+
+/// The body of a load: the same keys as a `--model` flag.
+#[derive(Deserialize)]
+struct LoadRequest {
+    bundle: String,
+    provider: String,
+    #[serde(default)]
+    ordinal: u32,
+    #[serde(default)]
+    buckets: Vec<String>,
+    #[serde(default)]
+    sessions: u32,
+    #[serde(default)]
+    generations: u32,
+}
+
+async fn repository_load(
+    State(app): State<App>,
+    Path(name): Path<String>,
+    Json(req): Json<LoadRequest>,
+) -> Reply<Json<Value>> {
+    let spec = crate::config::ModelSpec::from_request(
+        Some(name),
+        &req.bundle,
+        &req.provider,
+        req.ordinal,
+        &req.buckets,
+        req.sessions,
+        req.generations,
+    )?;
+    let engine = app.clone();
+    let loaded = tokio::task::spawn_blocking(move || engine.load_model(&spec))
+        .await
+        .map_err(|e| ServeError::internal(format!("load task failed: {e}")))??;
+    Ok(Json(json!({ "name": loaded })))
+}
+
+async fn repository_unload(State(app): State<App>, Path(name): Path<String>) -> Reply<Json<Value>> {
+    app.unload(&name)?;
+    Ok(Json(json!({ "name": name, "state": "UNAVAILABLE" })))
+}
+
+// ---------------------------------------------------------------------------
 // OpenAI-shaped routes
 // ---------------------------------------------------------------------------
 
 async fn v1_models(State(app): State<App>) -> Json<Value> {
     Json(json!({
         "object": "list",
-        "data": app.models.values().map(|s| json!({
+        "data": app.snapshot().iter().map(|s| json!({
             "id": s.name,
             "object": "model",
             "owned_by": s.info().provider_id,
@@ -797,11 +863,11 @@ struct Info {
 }
 
 async fn info(State(app): State<App>) -> Json<Info> {
-    let primary = app
-        .models
-        .values()
+    let models = app.snapshot();
+    let primary = models
+        .iter()
         .find(|s| s.info().kind == ModelKind::Embedding)
-        .or_else(|| app.models.values().next())
+        .or_else(|| models.first())
         .expect("the engine serves at least one model");
     let i = primary.info();
     let model_type = match i.kind {
@@ -816,9 +882,8 @@ async fn info(State(app): State<App>) -> Json<Info> {
         }
         other => json!({ format!("{other:?}").to_lowercase(): {} }),
     };
-    let models: Vec<Value> = app
-        .models
-        .values()
+    let models: Vec<Value> = models
+        .iter()
         .map(|s| {
             json!({
                 "name": s.name,

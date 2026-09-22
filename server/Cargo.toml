@@ -21,6 +21,8 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net",
 axum = { version = "0.8", features = ["json", "http1", "tokio"] }
 tonic = { version = "0.14", features = ["server", "router", "codegen"] }
 tonic-prost = "0.14"
+# gRPC server reflection, so grpcurl and the KServe clients need no proto file.
+tonic-reflection = "0.14"
 prost = "0.14"
 clap = { version = "4", features = ["derive"] }
 # Already in the tree through axum and tonic; declared for the Stream trait only.

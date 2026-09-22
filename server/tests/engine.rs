@@ -165,7 +165,7 @@ async fn two_models_of_the_same_name_fail_the_load() {
     let flag = format!("name=twice,bundle={},provider=mock,ordinal=1", bundle("embedding"));
     let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag), spec(&flag)] };
     let err = match Engine::load(&config) {
-        Ok(e) => panic!("two models named `twice` loaded; served: {:?}", e.models.keys().collect::<Vec<_>>()),
+        Ok(e) => panic!("two models named `twice` loaded; served: {:?}", e.names()),
         Err(e) => e,
     };
     assert!(err.message.contains("twice"), "the error names the clashing name: {err}");
@@ -180,10 +180,7 @@ async fn a_bucket_past_the_models_limits_fails_the_load() {
         let flag = format!("name=embed,bundle={},provider=mock,ordinal=1,buckets={buckets}", bundle("embedding"));
         let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag)] };
         let err = match Engine::load(&config) {
-            Ok(e) => panic!(
-                "bucket {buckets} loaded although it is {what}; served: {:?}",
-                e.models.keys().collect::<Vec<_>>()
-            ),
+            Ok(e) => panic!("bucket {buckets} loaded although it is {what}; served: {:?}", e.names()),
             Err(e) => e,
         };
         assert!(err.message.contains(buckets), "the error does not name the bucket {buckets}: {err}");
@@ -210,7 +207,7 @@ async fn a_model_the_runtime_cannot_serve_fails_the_load() {
     for (flag, what) in cases {
         let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag)] };
         match Engine::load(&config) {
-            Ok(e) => panic!("{what} loaded anyway; served: {:?}", e.models.keys().collect::<Vec<_>>()),
+            Ok(e) => panic!("{what} loaded anyway; served: {:?}", e.names()),
             Err(e) => assert!(e.code != 0, "{what} failed as a server condition rather than a Turbo status: {e}"),
         }
     }
