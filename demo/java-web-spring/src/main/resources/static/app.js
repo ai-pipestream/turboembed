@@ -79,6 +79,7 @@ function select(tab) {
   }
   tab.focus();
   if (tab.id === "tab-devices") loadDevices();
+  if (tab.id === "tab-benchmarks") loadBenchmarks();
 }
 
 for (const tab of tabs) {
@@ -446,6 +447,284 @@ async function loadDevices() {
     devicesLoaded = true;
   } catch (e) {
     showError($("devices-error"), null, e);
+  }
+}
+
+/* ------------------------------------------------------------- benchmarks */
+
+let benchmarksLoaded = false;
+
+/** A throughput figure, grouped, or "none" when the receipt carries none. */
+function rate(value) {
+  return value === null || value === undefined ? "none" : Math.round(value).toLocaleString("en-US");
+}
+
+function ms(value) {
+  return value === null || value === undefined ? "none" : fmt(value);
+}
+
+function ratioText(ratio) {
+  return `${ratio.toFixed(2)}x`;
+}
+
+/** The ratio bar: 1.0 is the centre line, 4x is the right edge and 0.25x the left. */
+function ratioBar(ratio) {
+  const bar = el("span", "bar");
+  const fill = el("i");
+  const f = Math.max(-1, Math.min(1, Math.log2(ratio) / 2));
+  const width = Math.abs(f) * 50;
+  fill.style.left = `${f >= 0 ? 50 : 50 - width}%`;
+  fill.style.width = `${width}%`;
+  bar.appendChild(fill);
+  return bar;
+}
+
+/** The cell with the highest and the one with the lowest ratio. */
+function extremes(cells) {
+  let best = cells[0];
+  let worst = cells[0];
+  for (const c of cells) {
+    if (c.ratio > best.ratio) best = c;
+    if (c.ratio < worst.ratio) worst = c;
+  }
+  return { best, worst };
+}
+
+/** "libturbo at 1.58x of onnxruntime-cuda", or a range when the cells differ. */
+function headline(comparison) {
+  const { best, worst } = extremes(comparison.cells);
+  const span = best.ratio === worst.ratio
+    ? ratioText(best.ratio)
+    : `${ratioText(worst.ratio)} to ${ratioText(best.ratio)}`;
+  return `libturbo at ${span} of ${comparison.native_provider}`;
+}
+
+function row(parent, cells) {
+  const tr = parent.insertRow();
+  for (const cell of cells) tr.appendChild(cell);
+  return tr;
+}
+
+function th(text, className) {
+  return el("th", className, text);
+}
+
+function td(text, className) {
+  return el("td", className, text);
+}
+
+function table(caption) {
+  const t = document.createElement("table");
+  if (caption) {
+    const cap = el("caption", "receipt", caption);
+    t.appendChild(cap);
+  }
+  return t;
+}
+
+function head(t, labels) {
+  const thead = t.createTHead();
+  const tr = thead.insertRow();
+  for (const [text, className] of labels) tr.appendChild(th(text, className));
+  return t.createTBody();
+}
+
+function benchSummary(report) {
+  const out = $("bench-summary");
+  out.replaceChildren();
+  const t = table(null);
+  t.id = "bench-table";
+  t.className = "bench-summary";
+  const body = head(t, [
+    ["device", "text"], ["task", "text"], ["libturbo vs the runtime alone", "text"],
+    ["best cell", "text"], ["worst cell", "text"], ["verdict", "text"], ["receipt", "text"],
+  ]);
+  for (const c of report.comparisons) {
+    const { best, worst } = extremes(c.cells);
+    const under = c.cells.filter((cell) => !cell.within_floor);
+    const tr = row(body, [
+      td(c.device, "text"),
+      td(c.task, "text"),
+      td(`${c.provider} vs ${c.native_provider}`, "text"),
+      td(`${ratioText(best.ratio)} ${best.cell}`, "text"),
+      td(`${ratioText(worst.ratio)} ${worst.cell}`, "text"),
+      td("", "text"),
+      td(c.file, "text receipt"),
+    ]);
+    tr.className = `bench-row ${c.verdict}`;
+    tr.dataset.file = c.file;
+    const verdict = tr.cells[5];
+    verdict.appendChild(el("span", `chip ${c.verdict}`, c.verdict));
+    if (under.length) {
+      verdict.appendChild(el("span", "under note",
+        `${under.length} of ${c.cells.length} ${under.length === 1 ? "cell" : "cells"} under ${c.floor}`));
+    }
+    if (c.unmatched.length) {
+      verdict.appendChild(el("span", "under note", plural(c.unmatched.length, "unmatched cell")));
+    }
+    tr.cells[3].title = best.measure;
+    tr.cells[4].title = worst.measure;
+    tr.cells[2].title = `${c.runtime} against ${c.native_runtime}`;
+  }
+  out.appendChild(t);
+}
+
+function benchCells(report) {
+  const out = $("bench-cells");
+  out.replaceChildren();
+  for (const c of report.comparisons) {
+    const box = document.createElement("details");
+    box.className = "bench-detail";
+    box.dataset.file = c.file;
+    box.appendChild(el("summary", null, `${c.device}, ${c.task}: ${headline(c)} (${c.verdict})`));
+    box.appendChild(el("p", "muted",
+      `${c.provider} ${c.provider_version} on ${c.runtime}` +
+      (c.driver ? `, driver ${c.driver}` : "") +
+      ` against ${c.native_provider} on ${c.native_runtime}` +
+      (c.native_driver ? `, driver ${c.native_driver}` : "") +
+      `; bundle ${c.model_id}; ${c.date}, commit ${c.commit}`));
+    const t = table(`receipt ${c.file}`);
+    const body = head(t, [
+      ["cell", "text"], ["measure", "text"], ["libturbo"], ["the runtime alone"], ["ratio", "text"],
+    ]);
+    for (const cell of c.cells) {
+      const ratio = td("", "text ratio");
+      ratio.appendChild(ratioBar(cell.ratio));
+      ratio.appendChild(document.createTextNode(ratioText(cell.ratio)));
+      if (!cell.within_floor) ratio.appendChild(el("span", "under", ` under ${c.floor}`));
+      const tr = row(body, [
+        td(cell.cell, "text"),
+        td(cell.measure, "text"),
+        td(cell.turbo.toFixed(cell.turbo >= 100 ? 1 : 3)),
+        td(cell.native.toFixed(cell.native >= 100 ? 1 : 3)),
+        ratio,
+      ]);
+      if (!cell.within_floor) tr.className = "under";
+    }
+    box.appendChild(t);
+    for (const missing of c.unmatched) box.appendChild(el("p", "under", missing));
+    out.appendChild(box);
+  }
+}
+
+function embedTable(run) {
+  const t = table(`receipt ${run.file}, ${run.date}, commit ${run.commit}`);
+  t.dataset.file = run.file;
+  const body = head(t, [
+    ["cell", "text"], ["text p50 ms"], ["text rows/s"], ["text tok/s"],
+    ["prepared p50 ms"], ["prepared rows/s"], ["prepared tok/s"],
+  ]);
+  for (const cell of run.embed) {
+    const prepared = cell.prepared_tokens || null;
+    const tr = row(body, [
+      td(`${cell.batch}x${cell.seq}`, "text"),
+      td(ms(cell.text.p50_ms)),
+      td(rate(cell.text.rows_per_s)),
+      td(rate(cell.text.tokens_per_s)),
+      td(prepared ? ms(prepared.p50_ms) : "none"),
+      td(prepared ? rate(prepared.rows_per_s) : "none"),
+      td(prepared ? rate(prepared.tokens_per_s) : "none"),
+    ]);
+    tr.dataset.cell = `${cell.batch}x${cell.seq}`;
+    if (!prepared && cell.prepared_tokens_note) tr.cells[4].title = cell.prepared_tokens_note;
+    tr.cells[0].title = `${cell.live_tokens_per_row} live tokens per row` +
+      (cell.token_count_source ? `, counted by ${cell.token_count_source}` : "");
+  }
+  return t;
+}
+
+function rerankTable(run) {
+  const t = table(`receipt ${run.file}, ${run.date}, commit ${run.commit}`);
+  t.dataset.file = run.file;
+  const body = head(t, [["cell", "text"], ["p50 ms"], ["documents/s"], ["iterations"]]);
+  const r = run.rerank;
+  row(body, [
+    td(`rerank ${r.docs}x${r.seq}`, "text"),
+    td(ms(r.text.p50_ms)),
+    td(rate(r.text.rows_per_s)),
+    td(String(r.text.iters)),
+  ]);
+  return t;
+}
+
+function generateTable(run) {
+  const t = table(`receipt ${run.file}, ${run.date}, commit ${run.commit}`);
+  t.dataset.file = run.file;
+  const body = head(t, [
+    ["cell", "text"], ["ttft p50 ms"], ["decode tok/s"], ["total p50 ms"], ["prompt tokens"], ["iterations"],
+  ]);
+  const g = run.generate;
+  row(body, [
+    td(`generate ${g.new_tokens_requested}`, "text"),
+    td(ms(g.time_to_first_token_ms_p50)),
+    td(rate(g.decode_tokens_per_s_p50)),
+    td(ms(g.total_ms_p50)),
+    td(String(g.prompt_tokens)),
+    td(String(g.iters)),
+  ]);
+  return t;
+}
+
+function benchThroughput(report) {
+  const out = $("bench-throughput");
+  out.replaceChildren();
+  // One card per device as one provider sees it: the same silicon under two
+  // providers is two runtimes, so it is two cards.
+  const byDevice = new Map();
+  for (const run of report.turbo) {
+    const key = `${run.provider}\u0000${run.device}`;
+    if (!byDevice.has(key)) byDevice.set(key, []);
+    byDevice.get(key).push(run);
+  }
+  for (const runs of byDevice.values()) {
+    const first = runs[0];
+    const card = el("div", "card bench-device");
+    card.dataset.device = first.device;
+    card.dataset.provider = first.provider;
+    card.appendChild(el("h4", null, `${first.device} (${first.provider}:${first.ordinal} ${first.device_kind})`));
+    card.appendChild(el("p", "muted",
+      `${first.hostname}, runtime ${first.runtime}` + (first.driver ? `, driver ${first.driver}` : "")));
+    for (const run of runs) {
+      card.appendChild(el("p", "muted", `${run.task}, ${run.model_id}`));
+      if (run.embed.length) card.appendChild(embedTable(run));
+      if (run.rerank) card.appendChild(rerankTable(run));
+      if (run.generate) card.appendChild(generateTable(run));
+    }
+    out.appendChild(card);
+  }
+}
+
+function renderBenchmarks(report) {
+  $("bench-dir").textContent =
+    `${plural(report.receipt_count, "receipt")} from ${report.directory}`;
+  const floors = [...new Set(report.comparisons.map((c) => c.floor))].sort((a, b) => a - b);
+  $("bench-rule").textContent = floors.length
+    ? `SUPPORTED: every cell at ${floors.join(" or ")} of the runtime alone or better.`
+    : "";
+  benchSummary(report);
+  benchCells(report);
+  benchThroughput(report);
+}
+
+async function loadBenchmarks() {
+  if (benchmarksLoaded) return;
+  try {
+    const response = await fetch("/api/v1/benchmarks");
+    const text = await response.text();
+    let body = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`GET /api/v1/benchmarks answered ${response.status} with a body that is not JSON`);
+      }
+    }
+    if (!response.ok) throw new Error(refusal(body, `GET /api/v1/benchmarks answered ${response.status}`));
+    renderBenchmarks(body);
+    benchmarksLoaded = true;
+  } catch (e) {
+    $("bench-dir").textContent = "";
+    showError($("bench-error"), null, e);
   }
 }
 

@@ -141,6 +141,37 @@ pre { overflow: auto; font-size: .82rem; background: var(--card); padding: .75re
 .foot { padding: 1.25rem 0 2rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
 .foot p { margin: 0; }
 
+.bench-summary { table-layout: fixed; font-size: .85rem; }
+.bench-summary th.text, .bench-summary td.text { white-space: normal; max-width: none; overflow: visible; }
+.bench-summary .note { display: block; font-size: .75rem; }
+#bench-summary { overflow-x: auto; }
+
+caption.receipt {
+  caption-side: bottom; text-align: left; color: var(--muted); font-size: .76rem; padding: .35rem 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+td.receipt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; color: var(--muted); }
+.chip.SUPPORTED { color: var(--accent); border-color: currentColor; }
+.chip.EXPERIMENTAL { color: #b8860b; border-color: currentColor; }
+.under { color: var(--err); }
+tr.under td { background: color-mix(in srgb, var(--err) 8%, transparent); }
+
+td.ratio { text-align: left; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bar {
+  position: relative; display: inline-block; width: 7rem; height: .7rem; margin-right: .45rem;
+  vertical-align: middle; border-radius: .2rem; background: color-mix(in srgb, var(--muted) 15%, transparent);
+}
+.bar::before { content: ""; position: absolute; left: 50%; top: -.15rem; bottom: -.15rem; width: 1px; background: var(--muted); }
+.bar i { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: .2rem; }
+tr.under .bar i { background: var(--err); }
+
+.bench-detail {
+  border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem .9rem; background: var(--card);
+}
+.bench-detail summary { color: var(--fg); font-weight: 600; }
+.bench-detail[open] summary { color: var(--accent); }
+.bench-device table { margin-top: .5rem; }
+
 @media (max-width: 40rem) {
   .links { width: 100%; }
   th.text, td.text { max-width: 9rem; }

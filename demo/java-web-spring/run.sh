@@ -27,9 +27,13 @@ lib="${TURBO_LIBRARY:-$root/target/debug/libturbo.so}"
 [[ -f "$lib" ]] || { echo "missing $lib; run: cargo build -p turbo-shared" >&2; exit 2; }
 bundle_arg=("--turbo.bundle=$root/testdata/bundles/mock/embedding")
 for a in "$@"; do [[ "$a" == --turbo.bundle=* ]] && bundle_arg=(); done
+# The Benchmarks panel reads the committed receipts; the default turbo.receipts
+# is relative to the working directory, so name them absolutely from here.
+receipts_arg=("--turbo.receipts=$root/testdata/receipts/turbo/bench")
+for a in "$@"; do [[ "$a" == --turbo.receipts=* ]] && receipts_arg=(); done
 if [[ "${TURBO_WEB_SKIP_BUILD:-0}" != "1" ]]; then
     mvn -q -B -f "$root/bindings/java/pom.xml" install -DskipTests
     mvn -q -B -f "$root/demo/java-web-spring/pom.xml" package -DskipTests
 fi
 jar="$(ls "$root"/demo/java-web-spring/target/turbo-demo-web-*.jar | grep -v original | head -1)"
-exec "${JAVA_HOME:+$JAVA_HOME/bin/}java" --enable-native-access=ALL-UNNAMED -Dturbo.library="$lib" -jar "$jar" "${bundle_arg[@]}" "$@"
+exec "${JAVA_HOME:+$JAVA_HOME/bin/}java" --enable-native-access=ALL-UNNAMED -Dturbo.library="$lib" -jar "$jar" "${bundle_arg[@]}" "${receipts_arg[@]}" "$@"

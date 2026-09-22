@@ -112,6 +112,7 @@ startup rather than shadowing a model.
 | `turbo.generate-provider-lib`, `turbo.generate-provider`, `turbo.generate-ordinal` | as above | Device selection for the generative model. |
 | `turbo.generations` | `2` | Concurrent generations allowed; beyond that a request is refused with 503. |
 | `turbo.models[i].name` / `.bundle` / `.provider-lib` / `.provider` / `.ordinal` / `.sessions` / `.max-batch` / `.generations` / `.tokenizer-bundle` | as above | The same keys, per listed model. |
+| `turbo.receipts` | `../../testdata/receipts/turbo/bench` | Directory the Benchmarks panel reads. A directory that is not there is a 404, never an empty answer. |
 | `turbo.oip.server-name` | `turbo` | The `name` in `GET /v2`. |
 | `turbo.oip.server-version` | `2.0.0-alpha.0` | The `version` in `GET /v2`. |
 | `server.port` | `8080` | HTTP port. |
@@ -170,6 +171,24 @@ model id and revision, tokenizer hash and the bundle's prompt prefixes.
 curl -s localhost:8080/api/v1/models
 curl -s localhost:8080/api/v1/models/mock-embedding
 ```
+
+### GET /api/v1/benchmarks
+
+The committed receipts under `turbo.receipts`, in three groups. `comparisons`
+is one entry per `compare-*.json`: the device, the libturbo provider and its
+runtime, the runtime the reference program drove directly, the bundle, both
+sides' dates and commits, every matched cell with its ratio, and the verdict.
+`turbo` is one entry per libturbo receipt and `native` one per direct-native
+receipt, each with the embed cells, the rerank cell and the generation cell it
+carries.
+
+```sh
+curl -s localhost:8080/api/v1/benchmarks | jq '.comparisons[] | {device, task, verdict, best: ([.cells[].ratio] | max)}'
+```
+
+Nothing is computed here. A figure a receipt does not carry is absent rather
+than defaulted, and a `turbo.receipts` that is not a directory, or that holds
+no receipt, is a 404 naming the path.
 
 ### POST /api/v1/embed
 
@@ -393,10 +412,11 @@ curl -s localhost:8080/v3/api-docs | jq '.paths | keys'
 ## The page
 
 Dependency-free static HTML, CSS and JavaScript with no build step, served
-from `src/main/resources/static`. Five panels behind one tab bar: Embed (the
-cosine heat map), Rerank, Tokenize, Summarize (the streamed generation) and
-Devices (the survey and the loaded contracts). Every call shows the device it
-ran on, the server-side time, the output placement and the round trip.
+from `src/main/resources/static`. Six panels behind one tab bar: Embed (the
+cosine heat map), Rerank, Tokenize, Summarize (the streamed generation),
+Devices (the survey and the loaded contracts) and Benchmarks (the committed
+receipts). Every call shows the device it ran on, the server-side time, the
+output placement and the round trip.
 
 The tab bar follows the ARIA tabs pattern: arrow keys, Home and End move
 between tabs, only the selected tab is in the tab order, and each panel is
@@ -405,16 +425,52 @@ loaded model performs is disabled and says which flag would enable it.
 
 ![The devices panel](docs/screenshots/devices.png)
 
+## Benchmarks
+
+The Benchmarks panel draws `GET /api/v1/benchmarks`, so a visitor can see how
+libturbo did against the runtime it sits on, per device, without leaving the
+page. It needs no accelerator: the numbers are the receipts committed under
+`testdata/receipts/turbo/bench`, each one taken on the machine it names.
+
+The panel has three parts:
+
+- a summary table, one row per comparison, with the device, the task, the
+  libturbo provider against the runtime the reference program drove directly,
+  the best and the worst cell, the verdict, and the receipt file the row came
+  from. A comparison with cells under the floor says how many.
+- every cell of a comparison, one expandable table each: the measure, both
+  sides' figures, and the ratio as a bar centered on 1.00x, so a cell above and
+  a cell below the runtime alone are told apart at a glance. Cells under the
+  floor are marked.
+- the libturbo throughput per device, straight from the `benchmark` receipts:
+  p50, rows per second and tokens per second for each batch by sequence-length
+  cell on both the text path and the prepared-tokens path, the rerank cell's
+  documents per second (a rerank cell carries no token count), and the
+  generation cell's time to first token, decode rate and total. A figure the
+  receipt does not carry reads "none" rather than a zero.
+
+A ratio is libturbo's throughput as a fraction of that runtime's, which the
+panel words as "libturbo at 1.58x of onnxruntime-cuda": 1.00x is parity and
+above 1.00x is faster than the runtime alone. The verdict rule is stated once,
+at the top of the panel: SUPPORTED means every cell reached 0.95 of the runtime
+alone or better with nothing unmatched, and a comparison that did not reach it
+is EXPERIMENTAL. `crates/turbo-bench` writes both sides and the verdict; the
+protocol is [`reference/README.md`](../../reference/README.md) and
+[`PLAN.md`](../../PLAN.md) section 11.
+
+![The benchmarks panel: every comparison, one expanded, and the per-device throughput](docs/screenshots/benchmarks.png)
+
 ## Tests
 
 ```sh
-mvn -f demo/java-web-spring/pom.xml test        # 65 cases, MockMvc, the mock bundles
+mvn -f demo/java-web-spring/pom.xml test        # 75 cases, MockMvc, the mock bundles
 ```
 
-Nine classes over one server built from the five committed mock bundles:
+Ten classes over one server built from the five committed mock bundles:
 `MetaApiTest`, `EmbedApiTest`, `RerankApiTest`, `ClassifyApiTest`,
-`TokenizeApiTest`, `GenerateApiTest`, `OipTest`, `ServerSurfaceTest` and
-`ConfigurationTest`. They cover every endpoint and the refusals each one is
+`TokenizeApiTest`, `GenerateApiTest`, `BenchmarkApiTest`, `OipTest`,
+`ServerSurfaceTest` and `ConfigurationTest`. They cover every endpoint and the
+refusals each one is
 documented to produce: an unknown model name (404), a model of another task
 (409), an unknown enum constant (400 naming the field and what it accepts), a
 request past the model's contract (422 with `TURBO_E_CAPACITY` and the field
@@ -424,5 +480,12 @@ index), an option the device does not implement (501 with
 event, and a sink that stops a generation, which is the path a disconnected
 client takes.
 
-The browser and protocol suite is `e2e/` (Playwright, 46 cases); see
+`BenchmarkApiTest` reads the committed receipts through the endpoint: the three
+groups, both sides of a comparison, the cells under the floor, the embed, rerank
+and generation figures, and the fields a receipt leaves out staying absent.
+`BenchmarkReceiptsDirectoryTest` points `turbo.receipts` at a directory with no
+receipt and at one that does not exist, and insists on a 404 naming the path
+rather than an empty answer.
+
+The browser and protocol suite is `e2e/` (Playwright, 50 cases); see
 `e2e/README.md` for running it and for regenerating the screenshots.

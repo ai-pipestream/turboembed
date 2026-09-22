@@ -30,6 +30,7 @@
     <button type="button" role="tab" id="tab-tokenize" aria-controls="panel-tokenize" aria-selected="false" tabindex="-1">Tokenize</button>
     <button type="button" role="tab" id="tab-summarize" aria-controls="panel-summarize" aria-selected="false" tabindex="-1">Summarize</button>
     <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" aria-selected="false" tabindex="-1">Devices</button>
+    <button type="button" role="tab" id="tab-benchmarks" aria-controls="panel-benchmarks" aria-selected="false" tabindex="-1">Benchmarks</button>
   </div>
 
   <section id="panel-embed" class="panel" role="tabpanel" aria-labelledby="tab-embed" tabindex="0">
@@ -122,6 +123,26 @@ the library never copies a tensor to the host</textarea>
     <div id="devices"></div>
     <h3>Loaded models</h3>
     <div id="models"></div>
+  </section>
+
+  <section id="panel-benchmarks" class="panel" role="tabpanel" aria-labelledby="tab-benchmarks" tabindex="0" hidden>
+    <h2>Benchmarks</h2>
+    <p class="hint">The committed receipts, from <code>GET /api/v1/benchmarks</code>. Each comparison runs the same
+      bundle on the same device twice: once through libturbo, once with the runtime driven directly on the same token
+      rows. A ratio is libturbo's throughput as a fraction of that runtime, so 1.00x is parity and above 1.00x is
+      faster than the runtime alone. <span id="bench-rule"></span></p>
+    <p id="bench-dir" class="muted">loading receipts…</p>
+    <div id="bench-error" class="error" hidden role="alert"></div>
+    <div id="bench-summary"></div>
+
+    <h3>Every cell</h3>
+    <p class="hint">One row per measured cell. Open a comparison to see what each side did.</p>
+    <div id="bench-cells"></div>
+
+    <h3>libturbo throughput</h3>
+    <p class="hint">Straight from the libturbo receipts, per device: what the library itself measured, with the
+      receipt every row came from.</p>
+    <div id="bench-throughput"></div>
   </section>
 </main>
 

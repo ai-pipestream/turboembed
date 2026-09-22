@@ -13,7 +13,7 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { DEFAULT_TEXTS, embed, open, rerank, setTexts, summarize, tab, tokenize } from "./app";
+import { benchmarks, DEFAULT_TEXTS, embed, open, rerank, setTexts, summarize, tab, tokenize } from "./app";
 
 const outDir = path.join(__dirname, "..", "..", "docs", "screenshots");
 const TARGET = process.env.SHOT_TARGET ?? "mock";
@@ -63,7 +63,30 @@ test("the mock-bundle images", async ({ page }) => {
     const devicesPng = path.join(outDir, "devices.png");
     await page.locator("#panel-devices").screenshot({ path: devicesPng, scale: "css" });
 
+    await benchmarks(page);
+    // One comparison opened, so the image carries the summary, the cells of a
+    // comparison and the first throughput table. The whole panel is every
+    // committed receipt, which is far too tall for a README image.
+    await page.locator('#bench-cells details[data-file="compare-cuda-krick-embed-2026-09-22.json"] summary').click();
+    // Page coordinates of the panel down to the end of its first throughput
+    // table, read in one go so no scrolling happens between the two rectangles.
+    const clip = await page.evaluate(() => {
+        const panel = document.getElementById("panel-benchmarks")!.getBoundingClientRect();
+        const table = document.querySelector("#bench-throughput table")!.getBoundingClientRect();
+        return {
+            x: panel.x + window.scrollX,
+            y: panel.y + window.scrollY,
+            width: panel.width,
+            height: table.bottom - panel.top,
+        };
+    });
+    const benchmarksPng = path.join(outDir, "benchmarks.png");
+    await page.screenshot({ path: benchmarksPng, fullPage: true, scale: "css", clip });
+
     for (const file of [pagePng, matrixPng, rerankPng, tokenizePng, devicesPng]) underLimit(file);
+    // The benchmarks panel is a table of every committed receipt, so it is the
+    // one image with a larger budget.
+    underLimit(benchmarksPng, 512);
 });
 
 test("page-minilm.png on a real model", async ({ page }) => {

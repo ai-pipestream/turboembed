@@ -2,6 +2,7 @@
 package ai.pipestream.turbo.web.api;
 
 import ai.pipestream.turbo.TurboException;
+import ai.pipestream.turbo.web.BenchmarkReceipts;
 import ai.pipestream.turbo.web.TurboService;
 import ai.pipestream.turbo.web.TurboStatus;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
@@ -46,6 +47,13 @@ public class ApiExceptionHandler {
     /** A name this server does not serve. */
     @ExceptionHandler(TurboService.ModelNotFound.class)
     public ResponseEntity<ApiError> notFound(TurboService.ModelNotFound e, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiError(e.getMessage(), null, null, request.getRequestURI()));
+    }
+
+    /** The receipts directory is not there, or holds no receipt: a configuration answer. */
+    @ExceptionHandler(BenchmarkReceipts.ReceiptsNotFound.class)
+    public ResponseEntity<ApiError> noReceipts(BenchmarkReceipts.ReceiptsNotFound e, HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiError(e.getMessage(), null, null, request.getRequestURI()));
     }

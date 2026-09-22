@@ -5,6 +5,9 @@ exercise both HTTP surfaces directly. The default run starts the app itself on
 the committed mock bundles, so it needs no accelerator and no model download,
 and every vector, score and generated token is the same on every run.
 
+The Benchmarks panel needs no model: it reads the committed receipts under
+`testdata/receipts/turbo/bench`, which `run.sh` points the app at.
+
 The suite starts the app with five models: the mock embedding bundle
 (`testdata/bundles/mock/embedding`, through `run.sh`'s default), the mock
 generative bundle for the summarizer, and the mock reranker, classifier and
@@ -89,6 +92,17 @@ feature bits as chips and only its offered capability cells, one card per
 loaded model with its contract, labels and prompt prefixes, and the header
 links reaching the API explorer, the OpenAPI document and `/v2`.
 
+`tests/benchmarks.spec.ts`, the Benchmarks panel: a summary row and an
+expandable cell table for every comparison the endpoint returns, each naming the
+receipt file it came from, the floor rule stated once at the top of the panel,
+the cells under the floor marked in both the summary and the cell table with a
+comparison that has none marking nothing, a comparison expanded to every cell
+with both sides' figures and a ratio bar whose width follows the ratio, and the
+committed CUDA receipt's 32x32 cell in the per-device throughput table with the
+rows and tokens per second the receipt carries. Every expectation is read from
+`GET /api/v1/benchmarks`, so a receipt added to
+`testdata/receipts/turbo/bench` does not break the suite.
+
 `tests/api.spec.ts`, `/api/v1` directly: health, the whole device survey
 including the capability matrix and the bits the mock does not advertise, the
 model contracts field by field, embed, similarity, rerank with `top_n` and the
@@ -118,8 +132,11 @@ cd demo/java-web-spring/e2e && npm run screenshots
 That writes, at 1200 CSS pixels wide, device scale factor 1, light color
 scheme: `docs/screenshots/page.png` (the whole page after embedding the three
 defaults), `matrix.png` (the table alone), `rerank.png`, `tokenize.png` and
-`devices.png` (each panel after running it). The test fails if an image
-exceeds 400 KB.
+`devices.png` (each panel after running it), and `benchmarks.png` (the
+Benchmarks panel from its heading down to the end of the first throughput
+table, with one comparison opened; the whole panel is every committed receipt,
+which is far too tall for a README image). The test fails if an image exceeds
+400 KB, or 512 KB for `benchmarks.png`, which is a table of every receipt.
 
 The other two images come from runs on real models, so each needs an app
 already serving one:

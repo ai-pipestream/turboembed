@@ -30,7 +30,7 @@ test("every tab opens its panel, by click and by arrow key", async ({ page }) =>
     const errors = watchPageErrors(page);
     await open(page);
 
-    const names = ["embed", "rerank", "tokenize", "summarize", "devices"] as const;
+    const names = ["embed", "rerank", "tokenize", "summarize", "devices", "benchmarks"] as const;
     for (const name of names) {
         await tab(page, name);
         for (const other of names) {
@@ -50,7 +50,7 @@ test("every tab opens its panel, by click and by arrow key", async ({ page }) =>
     await expect(page.locator("#tab-rerank")).toHaveAttribute("aria-selected", "true");
     await expect(page.locator("#panel-rerank")).toBeVisible();
     await page.keyboard.press("End");
-    await expect(page.locator("#tab-devices")).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#tab-benchmarks")).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Home");
     await expect(page.locator("#tab-embed")).toHaveAttribute("aria-selected", "true");
     expect(errors).toEqual([]);

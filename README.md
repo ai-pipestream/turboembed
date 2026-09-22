@@ -86,7 +86,11 @@ measures the `libturbo` side, the programs under [`reference/`](reference/README
 drive each runtime alone on the same token rows, and `turbo-bench
 compare` writes the verdict (every cell at 0.95 of native or better) into
 `testdata/receipts/turbo/bench/compare-*.json`. Hailo-10H is planned; see
-[`PLAN.md`](PLAN.md).
+[`PLAN.md`](PLAN.md). The web demo's Benchmarks panel renders those receipts,
+so the same comparison can be read per device in a browser
+([`demo/java-web-spring`](demo/java-web-spring/README.md#benchmarks)).
+
+![The web demo's benchmarks panel: every comparison with its verdict, one expanded to the ratio of each cell against the runtime alone](demo/java-web-spring/docs/screenshots/benchmarks.png)
 
 ## Bindings and demos
 

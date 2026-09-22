@@ -51,10 +51,20 @@ export async function open(page: Page): Promise<void> {
 }
 
 /** Click a tab and wait for its panel. */
-export async function tab(page: Page, name: "embed" | "rerank" | "tokenize" | "summarize" | "devices"): Promise<void> {
+export async function tab(
+    page: Page,
+    name: "embed" | "rerank" | "tokenize" | "summarize" | "devices" | "benchmarks",
+): Promise<void> {
     await page.locator(`#tab-${name}`).click();
     await expect(page.locator(`#tab-${name}`)).toHaveAttribute("aria-selected", "true");
     await expect(page.locator(`#panel-${name}`)).toBeVisible();
+}
+
+/** Open the Benchmarks panel and wait for the receipts to be drawn. */
+export async function benchmarks(page: Page): Promise<void> {
+    await tab(page, "benchmarks");
+    await expect(page.locator("#bench-error"), "the benchmarks panel showed the server's refusal").toBeHidden();
+    await expect(page.locator("#bench-table tbody tr").first()).toBeVisible();
 }
 
 /**

@@ -136,6 +136,8 @@ public class TurboProperties {
     private int generations = 2;
     private String generateTokenizerBundle = "";
 
+    private String receipts = "../../testdata/receipts/turbo/bench";
+
     public List<ModelConfig> getModels() {
         return models;
     }
@@ -262,6 +264,21 @@ public class TurboProperties {
 
     public void setGenerateTokenizerBundle(String generateTokenizerBundle) {
         this.generateTokenizerBundle = generateTokenizerBundle;
+    }
+
+    /**
+     * Directory the committed benchmark receipts are read from by
+     * {@code GET /api/v1/benchmarks}. The default is the repository's own
+     * {@code testdata/receipts/turbo/bench} as seen from
+     * {@code demo/java-web-spring}; a directory that is not there is a 404,
+     * never an empty answer.
+     */
+    public String getReceipts() {
+        return receipts;
+    }
+
+    public void setReceipts(String receipts) {
+        this.receipts = receipts;
     }
 
     /** The configured models in load order: the {@code turbo.bundle} shorthand, the generative shorthand, then the list. */

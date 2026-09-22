@@ -29,6 +29,7 @@ class ServerSurfaceTest extends ApiTestBase {
                 .andExpect(jsonPath("$.paths['/api/v1/devices']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/models']").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/models/{name}']").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/benchmarks'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/embed'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/similarity'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/rerank'].post").exists())
@@ -50,7 +51,8 @@ class ServerSurfaceTest extends ApiTestBase {
                         .exists())
                 .andExpect(jsonPath("$.components.schemas.EmbedRequest").exists())
                 .andExpect(jsonPath("$.components.schemas.OipInferRequest").exists())
-                .andExpect(jsonPath("$.components.schemas.ApiError").exists());
+                .andExpect(jsonPath("$.components.schemas.ApiError").exists())
+                .andExpect(jsonPath("$.components.schemas.BenchmarkReport").exists());
     }
 
     @Test
