@@ -88,7 +88,7 @@ closing specific review findings:
 | `tasks_rust.rs`, `tasks_c.rs` | embed/rerank/classify/token-classify/tokenize/chunk task behavior against the mock provider's bundle kinds |
 | `generation_rust.rs`, `generation_c.rs` | pull-iterator generation (prompt, step, cancel, finish reasons) and, in `generation_c.rs`, the push-style `turbo_generate`: push and pull yield one token sequence, and a callback returning `TURBO_STREAM_STOP` halts the stream right after the chunk that returned it |
 | `header_parity.rs` | the committed headers match a fresh `cbindgen` run |
-| `live_embed.rs`, `live_tasks.rs` | live checks against a real embedding/task provider library (`openvino` or `cuda`) and bundles; see "Live provider tests" below |
+| `live_embed.rs`, `live_tasks.rs` | live checks against a real embedding/task provider library (`openvino`, `cuda`, `ggml`, or `hailo`) and bundles; see "Live provider tests" below |
 | `live_generate.rs` | live checks against a real generation provider library (`ggml`) and a GGUF bundle; see "Live provider tests" below |
 
 A provider counts as supported for a capability only when every applicable
@@ -141,9 +141,9 @@ three files:
 
 - `TURBO_LIVE_LIB`: path to the provider library
   (`libturbo_provider_openvino.so`, `libturbo_provider_cuda.so`,
-  `libturbo_provider_ggml.so`).
+  `libturbo_provider_ggml.so`, `libturbo_provider_hailo.so`).
 - `TURBO_LIVE_PROVIDER`: the provider id it registers (`openvino`, `cuda`,
-  `ggml`).
+  `ggml`, `hailo`).
 - `TURBO_LIVE_ORDINAL` (optional): device ordinal; default is the
   provider's CPU device if it has one, else ordinal 0.
 - `TURBO_REFERENCE_DIR` (optional): directory holding the reference
@@ -152,10 +152,17 @@ three files:
   path relative to the crate.
 
 `live_embed.rs` (embed, against a MiniLM bundle), additionally gated on
-`TURBO_LIVE_BUNDLE` (a bundle with an `onnx` or `openvino_ir` artifact for
-`sentence-transformers/all-MiniLM-L6-v2`, built with `tools/turbo-bundle`).
+`TURBO_LIVE_BUNDLE` (a bundle for `sentence-transformers/all-MiniLM-L6-v2`
+with the artifact the provider reads: `onnx` or `openvino_ir`, `gguf`, or
+`hef` plus `hailo_tables`; built with `tools/turbo-bundle`).
 It checks the embedding vectors against ONNX Runtime CUDA FP32 reference
-vectors (cosine > 0.9995), that batch rows equal single-text runs, that
+vectors at the floor the device's `EMBED x TEXT` capability cell implies
+(0.9995 for an FP32 or unstated compute dtype; a quantized device is held
+to the `cosine_floor` it reports and fails if it reports none), gates
+ranking with Spearman > 0.85 over `testdata/corpus/sts-pairs.jsonl`
+(0.944 for FP32 MiniLM, 0.937 for the INT8 Hailo HEF), caps the session
+at the model's `max_seq` for fixed-shape artifacts, that batch rows equal
+single-text runs, that
 truncation policies (`NONE` rejected over budget, `LEFT` vs `RIGHT` produce
 different results) and the pooling override (honored or rejected, following
 the capability bit) are handled correctly, that GPU results stay
