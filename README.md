@@ -363,7 +363,7 @@ today (commit `6657818`); "planned" means it is scoped for a later milestone.
 | `crates/turbo-shared/` | links `turbo-capi` into `libturbo` (`cdylib` + `staticlib`) | here |
 | `crates/turbo/` | safe Rust API; `builtin_providers()` (mock, static) | here |
 | `crates/turbo-conformance/` | provider-agnostic contract suite: C smoke plus a Rust suite (24 files under `tests/`) | here |
-| `crates/turbo-bench/` | matched-native benchmark harness | planned (used from P2 on; no matched-native benchmark receipt exists yet) |
+| `crates/turbo-bench/` | benchmark harness (batch x seq grid, rerank, generation), receipt writer with budget check, and `turbo-bench discover`, which surveys the providers, devices, features, and runnable bundles on a machine | here |
 | `providers/mock/` | mock provider, loadable and statically linked | here |
 | `providers/static/` | model2vec-style static embedding provider | here |
 | `providers/openvino/` | OpenVINO provider (C++, built separately with CMake) | here |

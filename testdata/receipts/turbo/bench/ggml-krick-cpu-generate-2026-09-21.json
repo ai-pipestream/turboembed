@@ -1,0 +1,46 @@
+{
+  "receipt_version": 1,
+  "kind": "benchmark",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "krick",
+    "os": "Linux 7.0.0-31-generic",
+    "arch": "x86_64"
+  },
+  "commit": "0c2bd42fa931826c36ab7c93ed32748be1284daf",
+  "provider": {
+    "id": "ggml",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "llama.cpp (llama-cpp-2 0.1.156)",
+    "driver_version": ""
+  },
+  "device": {
+    "name": "AMD Ryzen 9 9950X3D 16-Core Processor (CPU)",
+    "kind": "Cpu",
+    "ordinal": 1,
+    "caps": "0xff9002f00c0"
+  },
+  "bundle": {
+    "dir": "/home/krickert/opt/bundles/qwen05-gguf",
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+    "manifest_sha256": "9d0338585acf9cab9b983f01e371269d03f5ffdbae9716699a53429db72974f6",
+    "artifacts": {
+      "gguf": "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e"
+    }
+  },
+  "generate": {
+    "new_tokens_requested": 128,
+    "generated_tokens_mean": 128.0,
+    "prompt_tokens": 19,
+    "time_to_first_token_ms_p50": 11.921835,
+    "decode_tokens_per_s_p50": 81.11207739084433,
+    "total_ms_p50": 1577.656607,
+    "finish_reasons": [
+      "Length",
+      "Length",
+      "Length"
+    ],
+    "iters": 3
+  },
+  "native_reference": "not run; see the provider README for the direct-native program of this pair"
+}

@@ -116,10 +116,24 @@ alone, and the same workload through `libturbo`), workloads at batch
 rerank, 128 new tokens for generation. Reported: p50/p99 latency, tokens/s,
 H2D/D2H bytes, host allocations per run, device memory. Receipts carry
 machine ID, runtime/driver versions, bundle hashes, and commit, and budgets
-are set from the first run per provider and then held. No benchmark receipt
-exists in this tree yet (`crates/turbo-bench/` is not written); this is why
-`static`, `openvino`, `cuda`, and `ggml` are `EXPERIMENTAL` rather than
-`SUPPORTED`.
+are set from the first run per provider and then held.
+
+`crates/turbo-bench` is the `libturbo` half of each pair: `turbo-bench
+embed|rerank|generate` runs the workloads through the safe Rust API (the
+text path and, where the bundle carries a tokenizer, the prepared-token
+path), records p50/p99/mean latency, rows/s and tokens/s, and the per-run
+H2D/D2H bytes and allocation counters from the session, and writes a
+receipt with the machine, provider, runtime and driver versions, device,
+bundle hashes, and commit. `--budget <earlier receipt>` holds a run to the
+earlier p50 figures plus a tolerance (25% by default) and fails on a
+regression; the first receipt per provider is the budget. `turbo-bench
+discover` surveys a machine: every device with its features and
+task-by-modality capability cells, and which of the named bundles it can
+run. Benchmark receipts live under `testdata/receipts/turbo/bench/`
+(2026-09-21: OpenVINO CPU and GPU, CUDA, ggml CUDA and CPU on `krick`;
+Hailo-8 on `pi5ai1`). The direct-native reference program of each pair is
+still to be written, which is why `openvino`, `cuda`, `ggml`, and `hailo`
+stay `EXPERIMENTAL` rather than `SUPPORTED`.
 
 ## Live provider tests
 
