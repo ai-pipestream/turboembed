@@ -2,21 +2,28 @@
 //!
 //! The encoder runs through ONNX Runtime's CUDA execution provider with
 //! IoBinding: token rows are tokenized natively on the host into pinned
-//! memory, copied once to device input buffers that stay bound for the
-//! session's lifetime, and the model's output stays on the device. Pooling,
+//! memory, copied to device input buffers in one transfer per run, bound at
+//! the run's shape, and the model's output stays on the device. Pooling,
 //! L2 normalization, sigmoid, and softmax are the provider's own kernels
-//! (`src/kernels.cu`), launched on the session's stream straight from the
-//! model output. Results are device buffers exported as
-//! `TURBO_HANDLE_CUDA_PTR`; nothing is pulled to the host unless the caller
-//! reads it, or the task needs host post-processing (rerank ordering, span
-//! aggregation), in which case the bytes moved are counted in the session's
-//! `d2h_bytes`.
+//! (`src/kernels.cu`), launched straight from the model output. Results are
+//! device buffers exported as `TURBO_HANDLE_CUDA_PTR`; nothing is pulled to
+//! the host unless the caller reads it, or the task needs host
+//! post-processing (rerank ordering, span aggregation), in which case the
+//! bytes moved are counted in the session's `d2h_bytes`.
 //!
 //! Bundle contract: an `onnx` artifact with inputs `input_ids`,
 //! `attention_mask`, and optionally `token_type_ids` (all rank 2, int64 or
 //! int32) and exactly one float32 output; a BERT WordPiece `tokenizer.json`;
 //! `contract.pooling`, `contract.normalize`, and `contract.dim` for embedding
 //! models; `contract.labels` for classifiers.
+//!
+//! One stream per model: the execution provider is given the model's stream
+//! as its `user_compute_stream`, so the input copies, the graph, the
+//! provider's kernels, and a read of the result are ordered on that one
+//! stream. A run then synchronizes once, after its kernels, instead of
+//! once after the upload and again after the kernels, and a read of the
+//! result is ordered behind them instead of running on a second stream
+//! that has to be synchronized separately.
 //!
 //! Device policy: one device per CUDA ordinal, kind GPU. Every cell is
 //! `EXPERIMENTAL` until receipts land under `testdata/receipts/`.
@@ -88,6 +95,8 @@ pub const CUDA_CAPS: u64 = abi::TURBO_CAP_HOST_PTR_IMPORT
     | abi::TURBO_CAP_OPT_RAW_SCORES;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Page-locked staging size for reads of device memory, per buffer.
+const D2H_BOUNCE_BYTES: usize = 1 << 20;
 const NVIDIA_VENDOR_ID: u32 = 0x10DE;
 
 fn ort_err(what: &str, e: ort::Error) -> Error {
@@ -219,7 +228,7 @@ impl Provider for CudaProvider {
         if let Some(dir) = &lib_dir {
             preload_libraries(dir)?;
         }
-        let stream = Stream::new(props.index)?;
+        let stream = Arc::new(Stream::new(props.index)?);
         Ok(Arc::new(CudaContext { inner: Arc::new(ContextInner { ordinal, props, stream }) }))
     }
 }
@@ -309,8 +318,9 @@ fn dlopen_global(path: &Path) -> std::result::Result<(), String> {
 struct ContextInner {
     ordinal: u32,
     props: DeviceProps,
-    /// Transfer stream for buffer reads; sessions own their own streams.
-    stream: Stream,
+    /// Transfer stream for buffers allocated from the context itself; a
+    /// model's buffers carry the model's stream instead.
+    stream: Arc<Stream>,
 }
 
 impl ContextInner {
@@ -335,6 +345,16 @@ pub struct CudaBuffer {
     desc: BufferDesc,
     storage: Storage,
     ctx: Arc<ContextInner>,
+    /// Page-locked staging for reads of device memory, allocated on the
+    /// first such read. A device-to-host copy into pageable memory is
+    /// staged by the driver through a buffer of its own and costs several
+    /// times the transfer itself, which for a small result is the whole
+    /// cost of reading it.
+    bounce: Mutex<Option<PinnedMem>>,
+    /// The stream the contents are produced on, and the one a read of them
+    /// is ordered after. A read on any other stream would need a second
+    /// synchronization to be ordered at all.
+    stream: Arc<Stream>,
 }
 
 // SAFETY: imported pointers are used only through explicit copies the ABI
@@ -377,9 +397,29 @@ impl ProviderBuffer for CudaBuffer {
             Storage::Device(_) | Storage::ImportedDevice(_) => {
                 let src = self.device_ptr().expect("device storage");
                 cuda::set_device(self.ctx.device())?;
-                // SAFETY: dst is a live slice; src is our device allocation of desc.bytes.
-                unsafe { cuda::copy_d2h(dst.as_mut_ptr(), src, dst.len(), &self.ctx.stream) }?;
-                self.ctx.stream.synchronize()
+                let mut bounce = self.bounce.lock().map_err(|_| Error::internal("buffer bounce lock poisoned"))?;
+                let chunk = dst.len().min(D2H_BOUNCE_BYTES);
+                let pinned = match bounce.as_ref() {
+                    Some(p) if p.bytes() >= chunk => p,
+                    _ => {
+                        *bounce = Some(PinnedMem::new(chunk)?);
+                        bounce.as_ref().expect("just allocated")
+                    }
+                };
+                let mut done = 0usize;
+                while done < dst.len() {
+                    let n = chunk.min(dst.len() - done);
+                    // SAFETY: `pinned` holds `chunk` >= n bytes; src is a device
+                    // allocation of desc.bytes and done + n <= desc.bytes.
+                    unsafe {
+                        cuda::copy_d2h(pinned.ptr(), src.cast::<u8>().wrapping_add(done).cast(), n, &self.stream)
+                    }?;
+                    self.stream.synchronize()?;
+                    // SAFETY: both regions are live and n bytes long.
+                    unsafe { std::ptr::copy_nonoverlapping(pinned.ptr(), dst.as_mut_ptr().add(done), n) };
+                    done += n;
+                }
+                Ok(())
             }
             Storage::Pinned(_) | Storage::ImportedHost(_) => {
                 let src = self.host_ptr().expect("host storage");
@@ -445,7 +485,13 @@ impl ContextInner {
                 ))
             }
         };
-        Ok(Arc::new(CudaBuffer { desc: desc.clone(), storage, ctx: self.clone() }))
+        Ok(Arc::new(CudaBuffer {
+            desc: desc.clone(),
+            storage,
+            ctx: self.clone(),
+            stream: self.stream.clone(),
+            bounce: Mutex::new(None),
+        }))
     }
 
     fn import(self: &Arc<Self>, desc: &BufferDesc, handle: &NativeHandle) -> Result<Arc<dyn ProviderBuffer>> {
@@ -476,7 +522,13 @@ impl ContextInner {
                 )))
             }
         };
-        Ok(Arc::new(CudaBuffer { desc: desc.clone(), storage, ctx: self.clone() }))
+        Ok(Arc::new(CudaBuffer {
+            desc: desc.clone(),
+            storage,
+            ctx: self.clone(),
+            stream: self.stream.clone(),
+            bounce: Mutex::new(None),
+        }))
     }
 }
 
@@ -554,6 +606,10 @@ struct ModelInner {
     width: u32,
     vocab: Vocab,
     session: Mutex<Session>,
+    /// The stream the execution provider was given as its
+    /// `user_compute_stream`. Declared after `session` so the ONNX Runtime
+    /// session, which holds this stream, is dropped before it.
+    stream: Arc<Stream>,
     in_ids: String,
     in_mask: String,
     in_types: Option<String>,
@@ -638,7 +694,16 @@ impl ContextInner {
         // ONNX Runtime session on this device. Registration failure is an
         // error: the CPU execution provider is never a substitute.
         cuda::set_device(self.device())?;
-        let ep = ort::ep::CUDA::default().with_device_id(self.device());
+        // The execution provider runs on this stream instead of one of its
+        // own. Everything a run does (the input copies, the graph, the
+        // provider's kernels, the result read) is then ordered on one
+        // stream and needs one synchronization at the end of the run rather
+        // than one per stream boundary.
+        let stream = Arc::new(Stream::new(self.device())?);
+        // SAFETY: `stream` is owned by the ModelInner built below, which
+        // drops the ONNX Runtime session before it.
+        let ep =
+            unsafe { ort::ep::CUDA::default().with_device_id(self.device()).with_compute_stream(stream.raw().cast()) };
         if !ep.is_available().map_err(|e| ort_err("probe the CUDA execution provider", e))? {
             return Err(Error::device_unavailable(
                 "the ONNX Runtime CUDA execution provider is not available in this build",
@@ -788,6 +853,7 @@ impl ContextInner {
             width,
             vocab,
             session: Mutex::new(session),
+            stream,
             in_ids,
             in_mask,
             in_types,
@@ -830,7 +896,8 @@ struct CudaSession {
     model: Arc<ModelInner>,
     batch: u32,
     seq: u32,
-    stream: Stream,
+    /// The model's stream, which is also the execution provider's.
+    stream: Arc<Stream>,
     // Host staging (i32), row stride `seq`.
     ids: Vec<i32>,
     mask: Vec<i32>,
@@ -840,15 +907,24 @@ struct CudaSession {
     pos_scratch: Vec<i32>,
     // Pinned staging in the model's input width, compacted to `used_seq`.
     staging: PinnedMem,
-    d_ids: DeviceMem,
-    d_mask: DeviceMem,
-    d_types: Option<DeviceMem>,
+    /// The run's input tensors in one device allocation, back to back at the
+    /// run's compacted size: ids, mask, and token types when the model takes
+    /// them. One host-to-device copy per run fills it.
+    d_in: DeviceMem,
+    /// 2, or 3 when the model takes `token_type_ids`.
+    inputs: usize,
     // Result storage.
     out: Arc<CudaBuffer>,
     sorted: Arc<HostBuffer>,
     readback: PinnedMem,
     readback_valid: bool,
     binding: IoBinding,
+    /// The device memory info the input and output bindings are made with,
+    /// built once instead of once per binding per run.
+    dev_mem: MemoryInfo<'static>,
+    /// The shape the output is currently bound at, or `None` when it is not
+    /// bound.
+    bound_out: Option<(u32, u32)>,
     words: Vec<Vec<WordSpan>>,
     spans: Vec<Span>,
     eopts: EmbedOptions,
@@ -874,11 +950,10 @@ impl CudaSession {
         cuda::set_device(device)?;
         let n = batch as usize * seq as usize;
         let width = model.elem.width();
-        let stream = Stream::new(device)?;
-        let staging = PinnedMem::new(3 * n * width)?;
-        let d_ids = DeviceMem::new(device, n * width)?;
-        let d_mask = DeviceMem::new(device, n * width)?;
-        let d_types = if model.in_types.is_some() { Some(DeviceMem::new(device, n * width)?) } else { None };
+        let stream = model.stream.clone();
+        let inputs = if model.in_types.is_some() { 3 } else { 2 };
+        let staging = PinnedMem::new(inputs * n * width)?;
+        let d_in = DeviceMem::new(device, inputs * n * width)?;
         let out_shape: Vec<u64> = match model.kind {
             Kind::Embedding | Kind::Classifier => vec![batch as u64, model.width as u64],
             Kind::Reranker => vec![batch as u64],
@@ -889,16 +964,16 @@ impl CudaSession {
             storage: Storage::Device(DeviceMem::new(device, out_desc.bytes as usize)?),
             desc: out_desc.clone(),
             ctx: model.ctx.clone(),
+            stream: stream.clone(),
+            bounce: Mutex::new(None),
         });
         let sorted = HostBuffer::packed(DType::I32, &[batch as u64])?;
         let readback = PinnedMem::new(out_desc.bytes as usize)?;
+        let dev_mem = MemoryInfo::new(AllocationDevice::CUDA, device, AllocatorType::Device, MemoryType::Default)
+            .map_err(|e| ort_err("CUDA memory info", e))?;
         let binding = {
             let session = model.session.lock().map_err(|_| Error::internal("model session lock poisoned"))?;
-            let mut b = session.create_binding().map_err(|e| ort_err("create IoBinding", e))?;
-            let mem = MemoryInfo::new(AllocationDevice::CUDA, device, AllocatorType::Device, MemoryType::Default)
-                .map_err(|e| ort_err("CUDA memory info", e))?;
-            b.bind_output_to_device(model.out_name.as_str(), &mem).map_err(|e| ort_err("bind output", e))?;
-            b
+            session.create_binding().map_err(|e| ort_err("create IoBinding", e))?
         };
         let name0: Arc<str> = Arc::from(if model.kind == Kind::Embedding { "embeddings" } else { "scores" });
         Ok(Self {
@@ -912,14 +987,15 @@ impl CudaSession {
             scratch: RowScratch::new(seq),
             pos_scratch: vec![0; seq as usize],
             staging,
-            d_ids,
-            d_mask,
-            d_types,
+            d_in,
+            inputs,
             out,
             sorted,
             readback,
             readback_valid: false,
             binding,
+            dev_mem,
+            bound_out: None,
             words: (0..batch).map(|_| Vec::with_capacity(seq as usize)).collect(),
             spans: Vec::with_capacity(n),
             eopts: EmbedOptions::default(),
@@ -1004,6 +1080,17 @@ impl CudaSession {
         Ok(())
     }
 
+    /// Byte offset of input section `k` (0 ids, 1 mask, 2 token types) in
+    /// `d_in` at the shape the current run was written at.
+    fn section_bytes(&self) -> usize {
+        self.n_rows as usize * self.used_seq as usize * self.model.elem.width()
+    }
+
+    /// Pointer to input section `k` in `d_in`.
+    fn input_section(&self, k: usize) -> *mut c_void {
+        self.d_in.ptr().cast::<u8>().wrapping_add(k * self.section_bytes()).cast::<c_void>()
+    }
+
     /// Compact rows to `used_seq` columns in the model's element width,
     /// upload, and bind the input tensors at `[n_rows, used_seq]`.
     fn upload_and_bind(&mut self) -> Result<()> {
@@ -1012,11 +1099,12 @@ impl CudaSession {
         let seq = self.seq as usize;
         let elems = n_rows * used;
         let width = self.model.elem.width();
-        let section = self.batch as usize * seq * width;
-        // Sections: ids, mask, types.
+        // The sections are packed at the run's compacted size, back to back,
+        // so that one copy moves all of them.
+        let section = elems * width;
         let base = self.staging.ptr();
         for (k, src) in [&self.ids, &self.mask, &self.types].into_iter().enumerate() {
-            if k == 2 && self.d_types.is_none() {
+            if k == self.inputs {
                 break;
             }
             let dst = base.wrapping_add(k * section);
@@ -1024,7 +1112,7 @@ impl CudaSession {
                 let row = &src[r * seq..r * seq + used];
                 match self.model.elem {
                     Elem::I32 => {
-                        // SAFETY: dst section holds batch*seq i32; r*used+used <= batch*seq.
+                        // SAFETY: the section holds `elems` i32 and r*used+used <= elems.
                         let d = unsafe { std::slice::from_raw_parts_mut(dst.cast::<i32>().add(r * used), used) };
                         d.copy_from_slice(row);
                     }
@@ -1038,56 +1126,52 @@ impl CudaSession {
             }
         }
         cuda::set_device(self.model.ctx.device())?;
-        let bytes = elems * width;
-        // SAFETY: the pinned staging sections are `section` bytes each and outlive the copies (synchronized below).
-        unsafe {
-            cuda::copy_h2d(&self.d_ids, base, bytes, &self.stream)?;
-            cuda::copy_h2d(&self.d_mask, base.wrapping_add(section), bytes, &self.stream)?;
-        }
-        self.h2d += 2 * bytes as u64;
-        if let Some(t) = &self.d_types {
-            unsafe { cuda::copy_h2d(t, base.wrapping_add(2 * section), bytes, &self.stream) }?;
-            self.h2d += bytes as u64;
-        }
-        // The execution provider runs on its own stream; make the uploads
-        // visible before it starts.
-        self.stream.synchronize()?;
-        let device = self.model.ctx.device();
+        let bytes = self.inputs * section;
+        // One transfer for every input tensor. The execution provider runs
+        // on this same stream, so the copy is ordered before the graph
+        // without a synchronization here.
+        // SAFETY: the staging holds `bytes` bytes and outlives the copy (it
+        // is pinned session memory, freed with the session after the stream
+        // is synchronized at the end of every run).
+        unsafe { cuda::copy_h2d(&self.d_in, base, bytes, &self.stream) }?;
+        self.h2d += bytes as u64;
         let shape = [n_rows as i64, used as i64];
-        let bind = |b: &mut IoBinding, name: &str, mem: &DeviceMem| -> Result<()> {
-            let info = MemoryInfo::new(AllocationDevice::CUDA, device, AllocatorType::Device, MemoryType::Default)
-                .map_err(|e| ort_err("CUDA memory info", e))?;
+        let bind = |b: &mut IoBinding, name: &str, ptr: *mut c_void| -> Result<()> {
             match self.model.elem {
                 Elem::I64 => {
-                    // SAFETY: the device buffer holds at least n_rows*used i64 and outlives the binding's use.
-                    let t = unsafe { TensorRefMut::<i64>::from_raw(info, mem.ptr(), Shape::new(shape)) }
+                    // SAFETY: the section holds n_rows*used i64 and outlives the binding's use.
+                    let t = unsafe { TensorRefMut::<i64>::from_raw(self.dev_mem.clone(), ptr, Shape::new(shape)) }
                         .map_err(|e| ort_err("wrap device input", e))?;
                     b.bind_input(name, &*t).map_err(|e| ort_err("bind input", e))
                 }
                 Elem::I32 => {
-                    let t = unsafe { TensorRefMut::<i32>::from_raw(info, mem.ptr(), Shape::new(shape)) }
+                    let t = unsafe { TensorRefMut::<i32>::from_raw(self.dev_mem.clone(), ptr, Shape::new(shape)) }
                         .map_err(|e| ort_err("wrap device input", e))?;
                     b.bind_input(name, &*t).map_err(|e| ort_err("bind input", e))
                 }
             }
         };
-        bind(&mut self.binding, self.model.in_ids.as_str(), &self.d_ids)?;
-        bind(&mut self.binding, self.model.in_mask.as_str(), &self.d_mask)?;
-        if let (Some(name), Some(mem)) = (&self.model.in_types, &self.d_types) {
-            bind(&mut self.binding, name.as_str(), mem)?;
+        let sections: [*mut c_void; 3] = [self.input_section(0), self.input_section(1), self.input_section(2)];
+        bind(&mut self.binding, self.model.in_ids.as_str(), sections[0])?;
+        bind(&mut self.binding, self.model.in_mask.as_str(), sections[1])?;
+        if let Some(name) = &self.model.in_types {
+            bind(&mut self.binding, name.as_str(), sections[2])?;
         }
         // ONNX Runtime keeps the OrtValue it allocated for a bound output
-        // and reuses it on the next run of the same binding. A run whose
-        // shape is smaller than the previous one then fails inside the
-        // graph with `INVALID_ARGUMENT: The output OrtValue provided for
-        // output ...`, so the output is bound afresh for every run and the
-        // execution provider allocates for this shape.
-        self.binding.clear_outputs();
-        let out_info = MemoryInfo::new(AllocationDevice::CUDA, device, AllocatorType::Device, MemoryType::Default)
-            .map_err(|e| ort_err("CUDA memory info", e))?;
-        self.binding
-            .bind_output_to_device(self.model.out_name.as_str(), &out_info)
-            .map_err(|e| ort_err("bind output", e))?;
+        // and reuses it on the next run of the same binding, which is what
+        // a repeated run of one shape wants. A run whose shape differs from
+        // the one that value was allocated for fails inside the graph with
+        // `INVALID_ARGUMENT: The output OrtValue provided for output ...`,
+        // so the output is bound afresh whenever the shape changes and the
+        // execution provider allocates for the new shape.
+        if self.bound_out != Some((self.n_rows, self.used_seq)) {
+            self.bound_out = None;
+            self.binding.clear_outputs();
+            self.binding
+                .bind_output_to_device(self.model.out_name.as_str(), &self.dev_mem)
+                .map_err(|e| ort_err("bind output", e))?;
+            self.bound_out = Some((self.n_rows, self.used_seq));
+        }
         Ok(())
     }
 
@@ -1125,10 +1209,12 @@ impl CudaSession {
             return Err(Error::runtime("model output has no data pointer"));
         }
         let mask_width = model.elem.width() as i32;
+        let mask_ptr = self.input_section(1);
         let stream = self.stream.raw();
         let out = self.out_ptr();
-        // The EP synchronized its stream when `run` returned; our kernels
-        // consume the output on the session stream.
+        // The graph and these kernels are on one stream, so the kernels
+        // read the model output where it was produced, in order, without a
+        // synchronization between them.
         let rc = match model.kind {
             Kind::Embedding => {
                 let pool = match self.eopts.pooling {
@@ -1151,7 +1237,7 @@ impl CudaSession {
                 unsafe {
                     cuda::turbo_cuda_pool(
                         src,
-                        self.d_mask.ptr(),
+                        mask_ptr,
                         mask_width,
                         out,
                         n_rows,
@@ -1473,7 +1559,7 @@ impl ProviderSession for CudaSession {
     fn stats(&self) -> Result<SessionStats> {
         let width = self.model.elem.width() as u64;
         let n = self.batch as u64 * self.seq as u64;
-        let inputs = if self.d_types.is_some() { 3 } else { 2 };
+        let inputs = self.inputs as u64;
         Ok(SessionStats {
             runs: self.runs,
             // The result API hands the core owned vectors and names every
