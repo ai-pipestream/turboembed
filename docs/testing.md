@@ -270,6 +270,37 @@ variable is unset returns without failing. These assert semantic properties,
 not exact numbers, so the same test file holds across FP32 devices and
 providers.
 
+Three further cases in the same file compare the numbers themselves against
+references computed from the same Hugging Face checkpoints in PyTorch,
+float32, on the CPU, the way `live_embed.rs` compares embeddings against
+`testdata/reference_embeddings/`. The references are
+`testdata/reference_rerank/ms_marco_minilm_l6.json` (12 query and document
+pairs with the logit and its sigmoid),
+`testdata/reference_classify/sst2_distilbert.json` (12 texts with the logits
+and the softmax probabilities) and
+`testdata/reference_token_classify/bert_base_ner.json` (8 texts with every
+token's probability row, the word grouping, and the spans `transformers`'
+pipeline returns for aggregation strategies `simple`, `first` and `max`);
+`scripts/gen-reference-tasks.py` regenerates all three and each directory's
+`README.md` states the schema and the command. The gates are absolute
+tolerances, each eight times the worst difference measured between the `cuda`
+provider and PyTorch on `krick` on 2026-09-22: 8.5e-5 on a reranker score,
+9.5e-3 on a reranker logit, 3.3e-3 on a classifier probability, 1.9e-2 on a
+classifier logit, and 2.6e-3 on a per-token probability or a span score. Per
+token the label itself must be equal, not merely close, unless the
+reference's own top two labels are closer together than the tolerance; per
+span the byte offsets and the entity must be equal, for every aggregation
+strategy the provider offers. `TURBO_AGGREGATE_SIMPLE` and
+`TURBO_AGGREGATE_FIRST` are both held to the pipeline's `first` and
+`TURBO_AGGREGATE_MAX` to its `max`, because these providers aggregate at the
+word level (`docs/providers.md`); the pipeline's token-aligned `simple` is
+stored for comparison but is not a gate. Each case prints the three largest
+differences it saw, so a run shows its headroom. The measurements are in
+`testdata/receipts/turbo/precision-tasks-krick-2026-09-22.json`, which also
+records that the `cuda` and OpenVINO CPU devices on `krick` both pass and
+that the OpenVINO CPU device lands two to three orders of magnitude closer
+to PyTorch than `cuda` does.
+
 `live_openvino.rs` runs only when `TURBO_LIVE_PROVIDER` is `openvino`, and
 its embedding cases also need `TURBO_LIVE_BUNDLE`. It holds the provider to
 the things the provider-agnostic files cannot state for every provider:
@@ -407,10 +438,12 @@ against FP32 with Spearman 0.937 against 0.944); see
   `TURBO_E_BUNDLE_NO_ARTIFACT` before it reaches the provider. Point
   `TURBO_CONFORMANCE_BUNDLES` at a directory whose `embedding`,
   `reranker`, `classifier` and `token-classifier` subdirectories are the
-  real ONNX bundles and they do run: the whole `tasks` group passes there,
-  `tasks_c` (8) and `tasks_rust` (15). The `generative` and `generic`
-  kinds have no ONNX bundle, so the groups that load those still do not
-  run.
+  real ONNX bundles and they do run: 52 pass there, the whole `tasks`
+  group (`tasks_c` 8, `tasks_rust` 15), the whole `capability` group
+  (`capability_c` 8, `capability_rust` 15) and `honesty_rust` (6). The
+  `generative` and `generic` kinds have no ONNX bundle, so the groups that
+  load those still do not run, and `contract`, `lifetime`, `threading` and
+  `allocation` have not been run this way yet.
 
 The benchmark pair on `nano1` is
 `testdata/receipts/turbo/bench/cuda-nano1-embed-2026-09-22.json`,

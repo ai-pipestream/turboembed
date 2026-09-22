@@ -1,0 +1,131 @@
+{
+  "receipt_version": 1,
+  "date": "2026-09-22",
+  "kind": "precision",
+  "commit": "74cdd71aa48aa8a765a4aff1e5a9b5d7ba4943d2",
+  "modality": "text",
+  "tests": "crates/turbo-conformance/tests/live_tasks.rs, the three cases live_rerank_matches_the_pytorch_reference, live_classify_matches_the_pytorch_reference and live_token_classify_matches_the_pytorch_reference",
+  "machine": {
+    "name": "krick",
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "gpu": "NVIDIA GeForce RTX 4080 SUPER (sm_89)"
+  },
+  "reference": {
+    "produced_by": "PyTorch, float32, CPU, through scripts/gen-reference-tasks.py on krick, 2026-09-22",
+    "torch": "2.14.0+cu130 (CUDA wheel, run on the CPU device)",
+    "transformers": "5.17.0",
+    "numpy": "2.5.3",
+    "python": "3.12.13",
+    "files": [
+      "testdata/reference_rerank/ms_marco_minilm_l6.json",
+      "testdata/reference_classify/sst2_distilbert.json",
+      "testdata/reference_token_classify/bert_base_ner.json"
+    ]
+  },
+  "bundles": [
+    {
+      "task": "rerank",
+      "dir": "~/opt/bundles/rerank-onnx",
+      "bundle_model_id": "cross-encoder/ms-marco-MiniLM-L-12-v2",
+      "actual_model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+      "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
+      "artifact": "onnx",
+      "artifact_sha256": "5d3e70fd0c9ff14b9b5169a51e957b7a9c74897afd0a35ce4bd318150c1d4d4a",
+      "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+      "contract": { "activation": "sigmoid", "max_seq": 256, "labels": ["LABEL_0"] },
+      "note": "the bundle's model_id names L-12-v2, but the ONNX graph has six encoder layers and 22.7M parameters, which is L-6-v2; the reference is L-6-v2 and matches to 1.2e-3 on the logits, so the ONNX is L-6-v2 and the manifest field is wrong"
+    },
+    {
+      "task": "classify",
+      "dir": "~/opt/bundles/sst2-onnx",
+      "bundle_model_id": "sst2",
+      "actual_model_id": "distilbert/distilbert-base-uncased-finetuned-sst-2-english",
+      "revision": "714eb0fa89d2f80546fda750413ed43d93601a13",
+      "artifact": "onnx",
+      "artifact_sha256": "252cf7048af94a1599019fef35961b2bd3d6db13df0b0a4b032b92baeae31939",
+      "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+      "contract": { "activation": "softmax", "max_seq": 256, "labels": ["NEGATIVE", "POSITIVE"] },
+      "note": "the bundle's model_id is a local alias, not the Hugging Face id"
+    },
+    {
+      "task": "token_classify",
+      "dir": "~/opt/bundles/ner-onnx",
+      "bundle_model_id": "ner",
+      "actual_model_id": "dslim/bert-base-NER",
+      "revision": "d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc",
+      "artifact": "onnx",
+      "artifact_sha256": "963039b81eec5b33e23d84826ccdf1e8f8ada776f320e692113034cfae384617",
+      "tokenizer_sha256": "90bbb18ef0c529fd9272b7be976b82b4c107bcf7d198d4dad96b4d596a7427ab",
+      "contract": { "activation": "softmax", "aggregation": "simple", "tagging": "BIO", "max_seq": 512 },
+      "note": "the bundle's model_id is a local alias, not the Hugging Face id"
+    }
+  ],
+  "tolerances": {
+    "rule": "each tolerance is 8 times the worst absolute difference measured between the cuda provider and PyTorch float32 on the CPU, over exactly the cases in the reference files. 8 is headroom for another GPU, driver or execution provider; the OpenVINO CPU device on the same machine and day lands 2 to 3 orders of magnitude closer, so nothing in between is near a gate.",
+    "rerank_score": { "measured_cuda": 1.064e-5, "multiple": 8, "atol": 8.5e-5 },
+    "rerank_logit": { "measured_cuda": 1.19e-3, "multiple": 8, "atol": 9.5e-3 },
+    "classify_prob": { "measured_cuda": 4.085e-4, "multiple": 8, "atol": 3.3e-3 },
+    "classify_logit": { "measured_cuda": 2.351e-3, "multiple": 8, "atol": 1.9e-2 },
+    "ner_token_prob": { "measured_cuda": 3.31e-4, "multiple": 8, "atol": 2.6e-3 },
+    "ner_span_score": { "measured_cuda": 3.31e-4, "multiple": 8, "atol": 2.6e-3 },
+    "note": "a reranker logit runs to +-11 here, so the same relative error is a far larger absolute one than for a probability; that is why the logit tolerances are the widest numbers in this table. ner_token_prob doubles as the width below which two labels are a tie the arithmetic decides rather than a disagreement about the model."
+  },
+  "runs": [
+    {
+      "provider": "cuda",
+      "provider_version": "2.0.0-alpha.0",
+      "machine": "krick",
+      "device": "NVIDIA GeForce RTX 4080 SUPER (sm_89), ordinal 0",
+      "runtime": "ONNX Runtime 1.28.0 (rel-1.28.0) CUDA execution provider, CUDA 13 user-space libraries from .libs/nvidia/lib",
+      "driver": "CUDA driver API 13.2",
+      "result": "10 passed, 0 failed (the whole live_tasks file)",
+      "measured": {
+        "rerank_score": { "worst": 1.064e-5, "n": 12, "at": "short_topical, 0.013113679 against 0.013124316" },
+        "rerank_logit": { "worst": 1.19e-3, "n": 12, "at": "non_english_de, -5.330624 against -5.3294344" },
+        "classify_prob": { "worst": 4.085e-4, "n": 24, "at": "negation POSITIVE, 0.8985402 against 0.89894867" },
+        "classify_logit": { "worst": 2.351e-3, "n": 24, "at": "negation POSITIVE, 1.079118 against 1.0814689" },
+        "ner_token_prob": { "worst": 3.31e-4, "n": 1035, "at": "hyphenated column 3 I-PER, 0.9234649 against 0.92313385" },
+        "ner_span_model": { "worst": 1.783e-4, "n": 22 },
+        "ner_span_none": { "worst": 3.31e-4, "n": 35 },
+        "ner_span_simple": { "worst": 1.783e-4, "n": 22 },
+        "ner_span_first": { "worst": 1.783e-4, "n": 22 },
+        "ner_span_max": { "worst": 5.376e-5, "n": 21 }
+      },
+      "labels_and_offsets": "every per-token label and every span offset and entity equal to the reference, all five aggregation strategies, no exceptions",
+      "raw_scores": "honored for rerank and classify, so the logits were compared as well"
+    },
+    {
+      "provider": "openvino",
+      "provider_version": "2.0.0-alpha.0",
+      "machine": "krick",
+      "device": "AMD Ryzen 9 9950X3D 16-Core Processor, OpenVINO CPU, ordinal 1",
+      "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+      "result": "10 passed, 0 failed (the whole live_tasks file)",
+      "measured": {
+        "rerank_score": { "worst": 1.118e-8, "n": 12, "at": "non_english_de, 0.0048234435 against 0.0048234323" },
+        "rerank_logit": "not compared: openvino rejects raw_scores unless contract.activation is `none`",
+        "classify_prob": { "worst": 4.768e-7, "n": 24, "at": "negation POSITIVE, 0.8989482 against 0.89894867" },
+        "classify_logit": "not compared: same reason",
+        "ner_token_prob": { "worst": 1.609e-6, "n": 1035, "at": "accented column 2 I-ORG, 0.2734596 against 0.273458" },
+        "ner_span_model": { "worst": 7.153e-7, "n": 22 },
+        "ner_span_none": { "worst": 6.557e-7, "n": 35 },
+        "ner_span_simple": { "worst": 7.153e-7, "n": 22 },
+        "ner_span_first": { "worst": 7.153e-7, "n": 22 },
+        "ner_span_max": { "worst": 8.941e-7, "n": 21 }
+      },
+      "labels_and_offsets": "every per-token label and every span offset and entity equal to the reference, all five aggregation strategies, no exceptions"
+    }
+  ],
+  "aggregation_mapping": {
+    "claim": "the providers aggregate token-classification spans at the word level, so TURBO_AGGREGATE_SIMPLE and TURBO_AGGREGATE_FIRST both reproduce transformers' `first` strategy exactly, and TURBO_AGGREGATE_MAX reproduces its `max`. Measured on both providers above: offsets and entities equal, scores within 8e-4.",
+    "not_reproduced": "transformers' `simple` strategy is token-aligned and can split one word into two spans (`Sao Paulo` becomes `Sa` ORG plus `o Paulo` LOC; `Nikolaus Blome` becomes `Nikola` plus `us Blome`). No provider here can produce that shape. The difference is stated in providers/cuda/src/lib.rs's aggregate_spans and in docs/providers.md, and the reference stores transformers' `simple` spans so it is visible as numbers.",
+    "gap": "include/turbo/turbo_types.h documents TURBO_AGGREGATE_SIMPLE as `merge consecutive same-label tokens`, which reads as token-aligned and does not say the providers are word-aligned. The header is the one contract, so the rule belongs there, not only in a provider's source comment."
+  },
+  "findings": [
+    "~/opt/bundles/rerank-onnx/bundle.json declares model_id `cross-encoder/ms-marco-MiniLM-L-12-v2`; its ONNX graph has six encoder layers, and the numbers match the L-6-v2 checkpoint to 1.2e-3 on the logits. Per PLAN.md section 2 principle 6, per-model truth lives in the bundle, so the field is a defect. It is metadata only, so the gates do not fail on it.",
+    "~/opt/models/rerank pairs the L-6-v2 config.json and ONNX with a 12-layer L-12-v2 model.safetensors. Loading that directory with AutoModelForSequenceClassification silently drops half the weights and returns plausible wrong numbers with no error; the generator refuses it instead.",
+    "~/opt/bundles/sst2-onnx and ~/opt/bundles/ner-onnx declare model_id `sst2` and `ner`, local aliases rather than the Hugging Face ids the receipts name.",
+    "transformers 5.17.0 collapses `tokenizer(query, \"\")` to a single segment (`[CLS] query [SEP]`), not a pair. Both providers emit `[CLS] query [SEP] [SEP]` with the trailing [SEP] in segment 1, which is the correct pair encoding: PyTorch on that encoding gives -9.262406 against the cuda provider's -9.261698. The reference builds that pair explicitly. Before the fix this one case reported a 3.3e-1 logit difference while every other case was under 1.2e-3."
+  ],
+  "status_after": "The live task suite now gates on numbers. cuda and openvino both pass on krick; a receipt from another machine or device is still required before either cell moves past EXPERIMENTAL."
+}
