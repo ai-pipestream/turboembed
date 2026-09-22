@@ -871,7 +871,7 @@ cells; the reference's attribution knobs (`--static`, `--fuse`,
 at a 4 percent gain, so the gap was the provider's: its token writer
 built an error message string per token (about 1 us each) whether or
 not the check failed. Built only on failure, the pair is 1.03x to
-1.30x, SUPPORTED (`compare-openvino-krick-cpu-embed-2026-09-22b.json`);
+1.34x, SUPPORTED (`compare-openvino-krick-cpu-embed-2026-09-22c.json`, the re-run from a clean commit);
 the Metal and Hailo token writers had the same pattern and the same
 fix. ggml GGUF embeddings on the GPU first read 0.94x on 1x32
 and 8x128; both causes were in the protocol, not the provider: the

@@ -1206,6 +1206,12 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
                 full.status = TURBO_CAP_SUPPORTED;
                 full.cosine_floor = 0.9995f;
                 put_str(full.notes, "receipts openvino-krick-1-2026-09-22, openvino-minilm-2026-09-21, compare-openvino-krick-1-gpu-embed-2026-09-22b");
+            } else if (task == TURBO_TASK_EMBED && d.kind == TURBO_DEVICE_CPU) {
+                // Embeddings on the CPU plugin: receipts from krick (Ryzen 9
+                // 9950X3D, 2026-09-22), 1.01x to 1.34x of the C++ reference.
+                full.status = TURBO_CAP_SUPPORTED;
+                full.cosine_floor = 0.9995f;
+                put_str(full.notes, "receipts openvino-krick-1-2026-09-22, precision-tasks-krick-2026-09-22, compare-openvino-krick-cpu-embed-2026-09-22c");
             } else {
                 full.status = TURBO_CAP_EXPERIMENTAL;
                 put_str(full.notes, std::string("openvino ") + d.ov_name + ": fused pooling/activation in graph; no matched-native benchmark for this cell yet");

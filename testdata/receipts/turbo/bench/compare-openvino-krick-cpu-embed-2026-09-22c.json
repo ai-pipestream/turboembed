@@ -2,8 +2,8 @@
   "receipt_version": 1,
   "kind": "compare",
   "turbo": {
-    "file": "testdata/receipts/turbo/bench/openvino-krick-cpu-embed-2026-09-22b.json",
-    "commit": "804321e54d642970ac2866e674bbb5ca3d946136-dirty",
+    "file": "/work/worktrees/turboembed/turboembed/testdata/receipts/turbo/bench/openvino-krick-cpu-embed-2026-09-22c.json",
+    "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
     "provider": {
       "id": "openvino",
       "version": "2.0.0-alpha.0",
@@ -20,8 +20,8 @@
     "date": "2026-09-22"
   },
   "native": {
-    "file": "testdata/receipts/turbo/bench/native-openvino-krick-cpu-embed-2026-09-22b.json",
-    "commit": "4c57d5684b747e87eca9c93bbc535ce70d45e081",
+    "file": "/work/worktrees/turboembed/turboembed/testdata/receipts/turbo/bench/native-openvino-krick-cpu-embed-2026-09-22c.json",
+    "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
     "provider": {
       "id": "openvino",
       "version": "reference",
@@ -50,76 +50,77 @@
     {
       "cell": "embed 1x32",
       "measure": "prepared tokens p50 ms",
-      "turbo": 0.58732,
-      "native": 0.762922,
-      "ratio": 1.2989886263025268,
+      "turbo": 0.57651,
+      "native": 0.771037,
+      "ratio": 1.337421727290073,
       "within_floor": true
     },
     {
       "cell": "embed 8x32",
       "measure": "prepared tokens p50 ms",
-      "turbo": 2.579235,
-      "native": 2.813197,
-      "ratio": 1.0907098422594297,
+      "turbo": 2.540873,
+      "native": 2.875305,
+      "ratio": 1.1316209035241038,
       "within_floor": true
     },
     {
       "cell": "embed 32x32",
       "measure": "prepared tokens p50 ms",
-      "turbo": 7.878949,
-      "native": 8.079669,
-      "ratio": 1.025475479026454,
+      "turbo": 7.910564,
+      "native": 8.295702,
+      "ratio": 1.0486865411872024,
       "within_floor": true
     },
     {
       "cell": "embed 1x128",
       "measure": "prepared tokens p50 ms",
-      "turbo": 1.523438,
-      "native": 1.801484,
-      "ratio": 1.1825121862524106,
+      "turbo": 1.550531,
+      "native": 1.81948,
+      "ratio": 1.173456061181621,
       "within_floor": true
     },
     {
       "cell": "embed 8x128",
       "measure": "prepared tokens p50 ms",
-      "turbo": 7.821280999999999,
-      "native": 8.123732,
-      "ratio": 1.038670263860869,
+      "turbo": 7.866580999999999,
+      "native": 8.336238,
+      "ratio": 1.0597028111704438,
       "within_floor": true
     },
     {
       "cell": "embed 32x128",
       "measure": "prepared tokens p50 ms",
-      "turbo": 28.475464,
-      "native": 29.973986,
-      "ratio": 1.0526250248283926,
+      "turbo": 28.831182,
+      "native": 30.292184,
+      "ratio": 1.0506743705478325,
       "within_floor": true
     },
     {
       "cell": "embed 1x256",
       "measure": "prepared tokens p50 ms",
-      "turbo": 2.9485919999999997,
-      "native": 3.287643,
-      "ratio": 1.114987424506341,
+      "turbo": 2.8762570000000003,
+      "native": 3.368558,
+      "ratio": 1.1711602961765932,
       "within_floor": true
     },
     {
       "cell": "embed 8x256",
       "measure": "prepared tokens p50 ms",
-      "turbo": 15.782005000000002,
-      "native": 16.521512,
-      "ratio": 1.0468576077627652,
+      "turbo": 16.280006,
+      "native": 16.447844,
+      "ratio": 1.0103094556599057,
       "within_floor": true
     },
     {
       "cell": "embed 32x256",
       "measure": "prepared tokens p50 ms",
-      "turbo": 65.109315,
-      "native": 68.149019,
-      "ratio": 1.0466861615730407,
+      "turbo": 64.50876799999999,
+      "native": 69.278605,
+      "ratio": 1.0739409098620518,
       "within_floor": true
     }
   ],
   "unmatched": [],
+  "dirty": [],
   "verdict": "SUPPORTED"
 }
