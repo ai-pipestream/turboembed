@@ -17,10 +17,28 @@ fn check_steady_state(name: &str, session: &Session, mut write_and_run: impl FnM
     let after_warmup = session.stats().expect("stats");
     assert_eq!(after_warmup.runs, 1, "{name}: the warmup run must be counted");
 
+    // The allocation counters are cumulative totals of the session's whole
+    // life, so a provider that counts them at all may only ever let them
+    // grow. A counter that drops has been reset or recomputed behind the
+    // caller's back, which would make every delta taken across two reads
+    // (what `turbo-bench` reports per run) a fiction.
+    let mut previous = (after_warmup.host_allocs, after_warmup.provider_allocs);
     for i in 0..ITERATIONS {
         write_and_run();
         let now = session.stats().expect("stats");
         assert_eq!(now.runs, i + 2, "{name}: run counter drifted at iteration {i}");
+        for (label, before, after) in
+            [("host_allocs", previous.0, now.host_allocs), ("provider_allocs", previous.1, now.provider_allocs)]
+        {
+            match (before, after) {
+                (Some(before), Some(after)) => {
+                    assert!(after >= before, "{name}: {label} went backwards at run {i}: {before} then {after}")
+                }
+                (None, None) => {}
+                (a, b) => panic!("{name}: {label} flipped between counted and not counted at run {i}: {a:?}, {b:?}"),
+            }
+        }
+        previous = (now.host_allocs, now.provider_allocs);
     }
 
     let end = session.stats().expect("stats");

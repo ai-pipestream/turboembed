@@ -23,8 +23,27 @@ fn steady_state(name: &str, session: *mut turbo_session, mut step: impl FnMut())
     step();
     let warm = stats(session);
     assert_eq!(warm.runs, 1, "{name}: the warmup run must be counted");
-    for _ in 0..ITERATIONS {
+    // The allocation counters are cumulative totals of the session's whole
+    // life, so a provider that counts them at all may only ever let them
+    // grow. A counter that drops has been reset or recomputed behind the
+    // caller's back, which would make every delta taken across two reads
+    // (what `turbo-bench` reports per run) a fiction. `u64::MAX` is the
+    // "not counted" sentinel, and a counter may not switch sides mid-run.
+    let mut previous = (warm.host_allocs, warm.provider_allocs);
+    for i in 0..ITERATIONS {
         step();
+        let now = stats(session);
+        for (label, before, after) in
+            [("host_allocs", previous.0, now.host_allocs), ("provider_allocs", previous.1, now.provider_allocs)]
+        {
+            if before == u64::MAX {
+                assert_eq!(after, u64::MAX, "{name}: {label} started counting at run {i}");
+                continue;
+            }
+            assert_ne!(after, u64::MAX, "{name}: {label} stopped counting at run {i}");
+            assert!(after >= before, "{name}: {label} went backwards at run {i}: {before} then {after}");
+        }
+        previous = (now.host_allocs, now.provider_allocs);
     }
     let end = stats(session);
     assert_eq!(end.runs, ITERATIONS + 1, "{name}: runs must count every completed run");

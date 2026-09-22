@@ -950,3 +950,90 @@ fn labels_from_id2label(v: &Value) -> Result<Vec<String>, String> {
     }
     Ok(pairs.into_iter().map(|(_, l)| l).collect())
 }
+
+#[cfg(test)]
+mod labels {
+    //! `id2label` is the only place a bundle learns what its classifier's
+    //! output columns mean, so the importer either reads the whole map or
+    //! refuses it. A renumbered or partly read map would ship a bundle whose
+    //! label list silently disagrees with the model's output order.
+
+    use super::*;
+
+    fn labels(v: serde_json::Value) -> Result<Vec<String>, String> {
+        labels_from_id2label(&v)
+    }
+
+    #[test]
+    fn a_dense_map_reads_in_index_order_whatever_order_the_keys_arrive_in() {
+        let out = labels(serde_json::json!({"2": "C", "0": "A", "1": "B"})).expect("a dense map is accepted");
+        assert_eq!(out, vec!["A", "B", "C"], "the labels must come out in index order, not key order");
+        // Eleven labels: "10" sorts before "2" as text, so a map read as
+        // strings instead of integers would put label 10 in position 1.
+        let mut map = serde_json::Map::new();
+        for i in (0..11u32).rev() {
+            map.insert(i.to_string(), serde_json::Value::String(format!("L{i}")));
+        }
+        let out = labels(serde_json::Value::Object(map)).expect("eleven labels are accepted");
+        assert_eq!(out, (0..11).map(|i| format!("L{i}")).collect::<Vec<_>>(), "indices are integers, not strings");
+        // A single label is the reranker shape.
+        assert_eq!(labels(serde_json::json!({"0": "score"})).unwrap(), vec!["score"]);
+    }
+
+    #[test]
+    fn an_empty_map_is_an_empty_label_list() {
+        assert_eq!(labels(serde_json::json!({})).expect("an empty map is not an error"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_sparse_map_is_refused_rather_than_renumbered() {
+        let e = labels(serde_json::json!({"0": "A", "2": "C"})).expect_err("a gap at index 1 must be refused");
+        assert!(e.contains("must name the indices 0..2 exactly once"), "{e}");
+        assert!(e.contains("[0, 2]"), "the message must show the indices it found: {e}");
+        // A map that starts at 1 is sparse at 0.
+        let e = labels(serde_json::json!({"1": "A", "2": "B"})).expect_err("a map that skips index 0 is sparse");
+        assert!(e.contains("must name the indices"), "{e}");
+    }
+
+    #[test]
+    fn keys_that_collide_after_trimming_are_refused() {
+        // `" 0 "` and `"0"` are distinct JSON keys but the same index once
+        // trimmed; taking either one would drop a label silently.
+        let e = labels(serde_json::json!({"0": "A", " 0 ": "B"})).expect_err("a duplicate index must be refused");
+        assert!(e.contains("must name the indices 0..2 exactly once"), "{e}");
+        assert!(e.contains("[0, 0]"), "the message must show the duplicate: {e}");
+    }
+
+    #[test]
+    fn a_non_string_label_is_refused() {
+        let e = labels(serde_json::json!({"0": 1})).expect_err("an integer label must be refused");
+        assert!(e.contains("id2label[0] is not a string"), "{e}");
+        let e = labels(serde_json::json!({"0": "A", "1": null})).expect_err("a null label must be refused");
+        assert!(e.contains("id2label[1] is not a string"), "{e}");
+        let e = labels(serde_json::json!({"0": ["A"]})).expect_err("an array label must be refused");
+        assert!(e.contains("id2label[0] is not a string"), "{e}");
+    }
+
+    #[test]
+    fn a_non_integer_key_is_refused() {
+        for bad in ["LABEL_0", "", "0.0", "-1", "1e3", "0x1"] {
+            let v = serde_json::json!({ bad: "A" });
+            let e = match labels(v) {
+                Ok(out) => panic!("key {bad:?} must be refused, got {out:?}"),
+                Err(e) => e,
+            };
+            assert!(e.contains(&format!("id2label key `{bad}` is not an integer")), "key {bad:?}: {e}");
+        }
+        // The key is trimmed before it is parsed, so surrounding space is
+        // not what makes a key invalid.
+        assert_eq!(labels(serde_json::json!({" 0 ": "A"})).expect("a padded key is still index 0"), vec!["A"]);
+    }
+
+    #[test]
+    fn id2label_must_be_an_object() {
+        for v in [serde_json::json!([]), serde_json::json!("LABEL_0"), serde_json::json!(null)] {
+            let e = labels(v.clone()).expect_err("a non-object id2label must be refused");
+            assert!(e.contains("id2label is not an object"), "{v}: {e}");
+        }
+    }
+}

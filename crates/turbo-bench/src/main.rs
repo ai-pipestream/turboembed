@@ -32,8 +32,10 @@
 //! and the process exits non-zero. Budgets are set from the first run per
 //! provider and then held (PLAN.md section 11).
 //!
-//! The direct-native reference program of each pair lives with its runtime
-//! (see the provider READMEs); this tool measures the `libturbo` side only.
+//! The direct-native reference program of each pair is still to be written
+//! (a provider's README will carry it once it exists); this tool measures
+//! the `libturbo` side of the pair only, which is why every receipt's
+//! `native_reference` field reads "not run".
 
 #![deny(missing_docs)]
 
@@ -282,8 +284,14 @@ fn machine() -> Machine {
 }
 
 fn today() -> String {
-    // Date without a chrono dependency: days since the epoch to a civil date.
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    civil_date(secs)
+}
+
+/// The UTC civil date of an epoch second, `YYYY-MM-DD`, without a chrono
+/// dependency: days since the epoch through the era/day-of-era form of the
+/// proleptic Gregorian calendar.
+fn civil_date(secs: u64) -> String {
     let days = (secs / 86_400) as i64;
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
@@ -1151,5 +1159,166 @@ fn main() -> ExitCode {
             eprintln!("budget regression:\n{e}");
             ExitCode::from(1)
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A civil date computed the other way round: walk years, then months,
+    /// off the day count. Independent of the era arithmetic `civil_date`
+    /// uses, so the two agreeing is evidence and not a restatement.
+    fn reference_date(secs: u64) -> String {
+        fn leap(y: i64) -> bool {
+            (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+        }
+        let mut days = (secs / 86_400) as i64;
+        let mut year = 1970i64;
+        loop {
+            let len = if leap(year) { 366 } else { 365 };
+            if days < len {
+                break;
+            }
+            days -= len;
+            year += 1;
+        }
+        let lengths = [31, if leap(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        let mut month = 1;
+        for len in lengths {
+            if days < len {
+                break;
+            }
+            days -= len;
+            month += 1;
+        }
+        format!("{year:04}-{month:02}-{:02}", days + 1)
+    }
+
+    #[test]
+    fn civil_date_matches_an_independent_calendar_walk() {
+        // The epoch, the last second of the epoch day, the next day, a leap
+        // day, a leap-year end, a century non-leap year, and 2038.
+        let cases: [(u64, &str); 8] = [
+            (0, "1970-01-01"),
+            (86_399, "1970-01-01"),
+            (86_400, "1970-01-02"),
+            (951_782_400, "2000-02-29"),
+            (978_220_800, "2000-12-31"),
+            (1_078_012_800, "2004-02-29"),
+            (1_700_000_000, "2023-11-14"),
+            (2_147_483_647, "2038-01-19"),
+        ];
+        for (secs, expected) in cases {
+            assert_eq!(civil_date(secs), expected, "civil_date({secs}) must be the UTC civil date");
+            assert_eq!(
+                civil_date(secs),
+                reference_date(secs),
+                "civil_date({secs}) disagrees with the independent calendar walk"
+            );
+        }
+        // Every day of a leap year and the year after it, in both forms.
+        let start = 1_072_915_200; // 2004-01-01T00:00:00Z
+        for day in 0..731u64 {
+            let secs = start + day * 86_400;
+            assert_eq!(civil_date(secs), reference_date(secs), "day {day} after 2004-01-01 disagrees");
+        }
+    }
+
+    #[test]
+    fn today_is_the_civil_date_of_now() {
+        // `today` must be `civil_date` of the wall clock and nothing else:
+        // the refactor exists so the calendar is testable without the clock.
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        let stamp = today();
+        assert!(
+            stamp == civil_date(now) || stamp == civil_date(now + 1),
+            "today() {stamp} is not the civil date of {now} (nor the second after it)"
+        );
+        assert_eq!(stamp.len(), 10, "a receipt date is YYYY-MM-DD: {stamp}");
+        assert_eq!(stamp.match_indices('-').count(), 2, "a receipt date is YYYY-MM-DD: {stamp}");
+    }
+
+    fn close(actual: f64, expected: f64, what: &str) {
+        assert!((actual - expected).abs() < 1e-6, "{what}: expected {expected}, got {actual}");
+    }
+
+    #[test]
+    fn summarize_reports_the_order_statistics_of_the_sample_set() {
+        // Five samples, deliberately unsorted: summarize sorts in place and
+        // the percentiles are nearest-rank on the sorted set.
+        let mut samples: Vec<Duration> = [5u64, 1, 4, 2, 3].iter().map(|&ms| Duration::from_millis(ms)).collect();
+        let l = summarize(&mut samples, 10, 400);
+        assert_eq!(samples, (1..=5).map(Duration::from_millis).collect::<Vec<_>>(), "summarize must sort in place");
+        close(l.p50_ms, 3.0, "p50");
+        close(l.p99_ms, 5.0, "p99");
+        close(l.min_ms, 1.0, "min");
+        close(l.max_ms, 5.0, "max");
+        close(l.mean_ms, 3.0, "mean");
+        // Throughput is rows (and tokens) per mean second, not per p50.
+        close(l.rows_per_s, 10.0 / 0.003, "rows_per_s");
+        close(l.tokens_per_s, 400.0 / 0.003, "tokens_per_s");
+        assert_eq!(l.iters, 5, "iters counts the timed samples");
+    }
+
+    #[test]
+    fn summarize_percentiles_pick_the_nearest_rank() {
+        // 1..=100 ms: p50 is the 51st sample and p99 the 99th, by
+        // `round((n - 1) * p)`. A single sample is every statistic.
+        let mut samples: Vec<Duration> = (1..=100u64).map(Duration::from_millis).collect();
+        let l = summarize(&mut samples, 100, 0);
+        close(l.p50_ms, 51.0, "p50");
+        close(l.p99_ms, 99.0, "p99");
+        close(l.min_ms, 1.0, "min");
+        close(l.max_ms, 100.0, "max");
+        close(l.mean_ms, 50.5, "mean");
+        close(l.tokens_per_s, 0.0, "tokens_per_s with no tokens");
+        assert_eq!(l.iters, 100);
+
+        let mut one = [Duration::from_micros(2500)];
+        let l = summarize(&mut one, 1, 7);
+        close(l.p50_ms, 2.5, "p50 of one sample");
+        close(l.p99_ms, 2.5, "p99 of one sample");
+        close(l.min_ms, 2.5, "min of one sample");
+        close(l.max_ms, 2.5, "max of one sample");
+        close(l.rows_per_s, 400.0, "rows_per_s of one sample");
+        assert_eq!(l.iters, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "no samples")]
+    fn summarize_refuses_an_empty_sample_set() {
+        summarize(&mut [], 1, 1);
+    }
+
+    #[test]
+    fn counter_words_estimates_tokens_at_three_quarters_of_a_word() {
+        // The fallback counter, used when the bundle carries no tokenizer
+        // the core can load: ceil(words / 0.75) content tokens plus the two
+        // special tokens a sequence carries.
+        let count = |text: &str| Counter::Words.count(text).expect("the word counter never fails");
+        assert_eq!(count(""), 2, "an empty text is still the two special tokens");
+        assert_eq!(count("   \t\n  "), 2, "whitespace alone is no words");
+        assert_eq!(count("hello"), 4);
+        assert_eq!(count("hello world"), 5);
+        assert_eq!(count("a b c"), 6);
+        assert_eq!(count("a b c d"), 8, "four words are exactly 16/3 -> 6, plus 2");
+        assert_eq!(count("  hello   world  "), count("hello world"), "runs of whitespace do not add words");
+        assert_eq!(count("héllo wörld"), count("hello world"), "the counter splits on whitespace, not bytes");
+        // Monotonic in the word count, so `texts_for` can grow a text until
+        // it reaches its budget instead of looping forever.
+        let mut text = String::new();
+        let mut previous = count(&text);
+        for i in 0..64 {
+            text.push_str(&format!(" w{i}"));
+            let now = count(&text);
+            assert!(now >= previous, "the word counter went backwards at word {i}: {previous} then {now}");
+            previous = now;
+        }
+        assert!(previous > 64, "64 words must estimate more than 64 tokens, got {previous}");
     }
 }

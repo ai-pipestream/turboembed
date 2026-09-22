@@ -485,3 +485,139 @@ fn generation_on_a_non_generative_model_is_unsupported_task() {
     unsafe { turbo_context_release(ctx) };
     drop(ct);
 }
+
+/// Raw handles are pointers, which are not `Send` by default. A generation
+/// handle is usable from any thread (PLAN.md section 4.6; the operations on
+/// it are single-owner, the handle is not), so the suite wraps it exactly as
+/// a binding would to hand it to a cancel thread.
+struct Shared<T>(*mut T);
+
+impl<T> Clone for Shared<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+// A raw pointer is `Copy` whatever it points at; the derive would add a
+// needless `T: Copy` bound that opaque handle types cannot satisfy.
+impl<T> Copy for Shared<T> {}
+// SAFETY: `turbo_generation_cancel` is documented as callable from any
+// thread at any time; it records the request and the next step honors it.
+unsafe impl<T> Send for Shared<T> {}
+unsafe impl<T> Sync for Shared<T> {}
+
+#[test]
+fn generation_cancel_from_another_thread_is_never_busy() {
+    let t = Target::from_env();
+    let f = Gen::new(&t);
+    let mut gd = c::generate_desc();
+    gd.max_new_tokens = 64;
+    let g = f.prompted(&gd);
+    let mut e = c::err();
+    let mut chunk = c::chunk();
+    // Thread A takes one chunk, then hands the handle to thread B.
+    // SAFETY: valid generation handle and chunk.
+    assert_rc!(unsafe { turbo_generation_step(g, &mut chunk, &mut e) }, TURBO_OK, e);
+    assert_eq!(chunk.done, 0, "the stream ended before it could be cancelled");
+
+    let shared = Shared(g);
+    let rc = std::thread::spawn(move || {
+        let shared = shared;
+        let mut e = c::err();
+        // SAFETY: the generation outlives the thread; cancel is thread-safe.
+        let rc = unsafe { turbo_generation_cancel(shared.0, &mut e) };
+        (rc, c::message(&e))
+    })
+    .join()
+    .expect("cancel thread");
+    assert_eq!(
+        rc.0,
+        TURBO_OK,
+        "a cancel from another thread must be TURBO_OK, never {}: {}",
+        c::status_name(rc.0),
+        rc.1
+    );
+
+    // SAFETY: valid generation handle and chunk.
+    unsafe {
+        assert_rc!(turbo_generation_step(g, &mut chunk, &mut e), TURBO_OK, e);
+        assert_eq!(chunk.done, 1, "a cancel from another thread must end the stream on the very next step");
+        assert_eq!(chunk.finish_reason, TURBO_FINISH_CANCELLED, "got {}", chunk.finish_reason);
+        assert_rc!(turbo_generation_step(g, &mut chunk, &mut e), TURBO_E_INVALID_STATE, e);
+        turbo_generation_release(g);
+    }
+}
+
+#[test]
+fn generation_a_chunk_with_no_tokens_nulls_its_arrays() {
+    // `turbo_generation_chunk` documents `tokens` as the new token ids and
+    // `logprobs` as "Logprobs, or NULL": a chunk that carries neither must
+    // hand back NULL for both rather than a stale or dangling pointer, so a
+    // binding can branch on the pointer as well as on the count.
+    let t = Target::from_env();
+    let f = Gen::new(&t);
+    let mut gd = c::generate_desc();
+    gd.max_new_tokens = 8;
+    if t.caps() & TURBO_CAP_OPT_GEN_LOGPROBS != 0 {
+        // Ask for logprobs so the empty chunk is empty because it has no
+        // tokens, not because the whole generation was never asked for any.
+        gd.logprobs = 2;
+    }
+    let g = f.prompted(&gd);
+    let mut e = c::err();
+
+    // Poison both pointers: the library must overwrite them with NULL, not
+    // leave whatever the caller had there.
+    let mut chunk = c::chunk();
+    chunk.tokens = 8usize as *const i32;
+    chunk.logprobs = 8usize as *const f32;
+
+    // Take one chunk, cancel, and read the chunk that reports it: the mock
+    // emits no new tokens on a cancelled stream.
+    // SAFETY: valid generation handle and chunk throughout.
+    unsafe {
+        assert_rc!(turbo_generation_step(g, &mut chunk, &mut e), TURBO_OK, e);
+        assert!(chunk.n_tokens > 0, "the first chunk carries a token");
+        assert!(!chunk.tokens.is_null(), "n_tokens > 0 needs a token array");
+        chunk.tokens = 8usize as *const i32;
+        chunk.logprobs = 8usize as *const f32;
+        assert_rc!(turbo_generation_cancel(g, &mut e), TURBO_OK, e);
+        assert_rc!(turbo_generation_step(g, &mut chunk, &mut e), TURBO_OK, e);
+    }
+    assert_eq!(chunk.done, 1, "cancel is reported on the next chunk");
+    assert_eq!(chunk.finish_reason, TURBO_FINISH_CANCELLED);
+    assert_eq!(chunk.n_tokens, 0, "a cancelled stream emits no new tokens");
+    assert!(chunk.tokens.is_null(), "n_tokens == 0 must carry a NULL token array, got {:p}", chunk.tokens);
+    assert_eq!(chunk.n_logprobs, 0, "no tokens means no logprobs");
+    assert!(chunk.logprobs.is_null(), "n_logprobs == 0 must carry a NULL logprob array, got {:p}", chunk.logprobs);
+    // SAFETY: released once.
+    unsafe { turbo_generation_release(g) };
+
+    // The same rule on every chunk of an ordinary stream, in case this
+    // provider ever yields an empty one mid-flight.
+    let g = f.prompted(&gd);
+    let mut chunk = c::chunk();
+    let mut empty = 0;
+    loop {
+        chunk.tokens = 8usize as *const i32;
+        chunk.logprobs = 8usize as *const f32;
+        // SAFETY: valid generation handle and chunk.
+        assert_rc!(unsafe { turbo_generation_step(g, &mut chunk, &mut e) }, TURBO_OK, e);
+        if chunk.n_tokens == 0 {
+            empty += 1;
+            assert!(chunk.tokens.is_null(), "an empty chunk must carry a NULL token array");
+        } else {
+            assert!(!chunk.tokens.is_null(), "n_tokens {} needs a token array", chunk.n_tokens);
+        }
+        if chunk.n_logprobs == 0 {
+            assert!(chunk.logprobs.is_null(), "an empty logprob list must be NULL");
+        } else {
+            assert!(!chunk.logprobs.is_null(), "n_logprobs {} needs an array", chunk.n_logprobs);
+        }
+        if chunk.done != 0 {
+            break;
+        }
+    }
+    println!("generation_empty_chunk_arrays: {empty} chunk(s) carried no tokens");
+    // SAFETY: released once.
+    unsafe { turbo_generation_release(g) };
+}

@@ -2,6 +2,10 @@
 //! Prompt, step until done, finish reasons, cancellation, seeds, logprobs,
 //! and the state machine around all of it.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Barrier};
+use std::thread;
+
 use turbo::abi::*;
 use turbo::provider::{GenerateDesc, Message, SessionDesc};
 use turbo::types::FinishReason;
@@ -354,4 +358,125 @@ fn generation_unknown_provider_options_are_rejected() {
         ..Default::default()
     };
     assert_err!(model.create_generation(&desc), TURBO_E_INVALID_ARGUMENT, field = 1);
+}
+
+#[test]
+fn generation_cancel_from_another_thread_is_never_busy() {
+    // `Generation` is `Send + Sync` (crates/turbo-core/src/handles.rs): the
+    // state sits behind a mutex and the cancel request is an atomic, so the
+    // handle itself crosses threads and only the operations are
+    // single-owner. `create_generation` hands back an `Arc`, which is what a
+    // binding shares between a decode loop and a cancel button. Cancel is
+    // the one operation that must never report TURBO_E_BUSY.
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<turbo::handles::Generation>();
+
+    let t = Target::from_env();
+    let model = t.model(BundleKind::Generative);
+    let desc = GenerateDesc { max_new_tokens: 64, ..Default::default() };
+    let generation = model.create_generation(&desc).expect("generation");
+    generation.prompt(&PROMPT).expect("prompt");
+
+    // Thread A steps once and keeps the chunk borrowed, so thread B's cancel
+    // runs while the chunk storage is still leased out.
+    let chunk = generation.step().expect("step");
+    assert!(!chunk.done, "the stream ended before it could be cancelled");
+
+    let shared = Arc::clone(&generation);
+    let result = thread::spawn(move || shared.cancel()).join().expect("cancel thread");
+    if let Err(e) = result {
+        panic!(
+            "cancel from another thread must be Ok, never {} ({}): {}",
+            turbo::error::status_name(e.code()),
+            e.code(),
+            e.message()
+        );
+    }
+    drop(chunk);
+
+    let chunk = generation.step().expect("the chunk that reports the cancellation");
+    assert!(chunk.done, "a cancel from another thread must end the stream on the very next step");
+    assert_eq!(chunk.finish_reason, FinishReason::Cancelled, "the stream must say it was cancelled, not why else");
+    drop(chunk);
+    assert_err!(generation.step(), TURBO_E_INVALID_STATE);
+}
+
+#[test]
+fn generation_cancel_while_another_thread_steps_never_errors() {
+    // A cancel never touches the state lock: it is recorded with an atomic
+    // and honored at the start of the next step (crates/turbo-core/src/
+    // handles.rs). The contract this pins: the cancel returns Ok, a step
+    // racing it never fails, and the stream ends with `Cancelled` within
+    // two further steps - the one already in flight, then the one that
+    // reports the cancellation.
+    const GRACE: usize = 2;
+    let t = Target::from_env();
+    if !t.has(TURBO_CAP_OPT_GEN_MIN_TOKENS) {
+        println!("generation_concurrent_cancel: device does not advertise TURBO_CAP_OPT_GEN_MIN_TOKENS");
+        return;
+    }
+    let model = t.model(BundleKind::Generative);
+    // A budget the loop cannot exhaust in the time a cancel takes, with the
+    // EOS floor raised to the same number so an early end-of-sequence cannot
+    // be mistaken for the cancel landing: only a cancel can stop this stream.
+    const BUDGET: u32 = 100_000;
+    let desc = GenerateDesc { max_new_tokens: BUDGET, min_new_tokens: BUDGET, ..Default::default() };
+    let generation = model.create_generation(&desc).expect("generation");
+    generation.prompt(&PROMPT).expect("prompt");
+
+    let steps = Arc::new(AtomicUsize::new(0));
+    let barrier = Arc::new(Barrier::new(2));
+    let (reason, total, at_cancel) = thread::scope(|scope| {
+        let canceller = {
+            let generation = Arc::clone(&generation);
+            let steps = Arc::clone(&steps);
+            let barrier = Arc::clone(&barrier);
+            scope.spawn(move || {
+                barrier.wait();
+                // Wait until the stepping thread is under way, so the cancel
+                // is delivered into a running loop rather than before it.
+                while steps.load(Ordering::SeqCst) == 0 {
+                    std::hint::spin_loop();
+                }
+                let result = generation.cancel();
+                let seen = steps.load(Ordering::SeqCst);
+                (result, seen)
+            })
+        };
+        barrier.wait();
+        let mut reason = FinishReason::None;
+        for _ in 0..BUDGET as usize + GRACE {
+            // A cancel from another thread never makes a step fail: the
+            // cancel takes no lock, so there is no instant at which the
+            // step could find the state held.
+            let chunk = generation.step().unwrap_or_else(|e| panic!("a step racing a cancel must not fail: {e}"));
+            let done = chunk.done;
+            let finish = chunk.finish_reason;
+            drop(chunk);
+            steps.fetch_add(1, Ordering::SeqCst);
+            if done {
+                reason = finish;
+                break;
+            }
+            std::thread::yield_now();
+        }
+        let (result, seen) = canceller.join().expect("cancel thread");
+        if let Err(e) = result {
+            panic!(
+                "a cancel racing a step must be Ok, never {} ({}): {}",
+                turbo::error::status_name(e.code()),
+                e.code(),
+                e.message()
+            );
+        }
+        (reason, steps.load(Ordering::SeqCst), seen)
+    });
+
+    assert_eq!(reason, FinishReason::Cancelled, "the stream must end with CANCELLED, not {reason:?}");
+    assert!(
+        total <= at_cancel + GRACE,
+        "the cancel returned after step {at_cancel} but the stream ran to step {total}; \
+         it must end within {GRACE} further steps"
+    );
+    assert_err!(generation.step(), TURBO_E_INVALID_STATE);
 }

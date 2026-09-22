@@ -446,6 +446,54 @@ fn spearman(a: &[f32], b: &[f32]) -> f64 {
     cov / (va * vb).sqrt()
 }
 
+/// The ranking statistics above decide whether a device passes or fails the
+/// STS gate below, so they are pinned here with hand-checked cases. These
+/// cases need no hardware and run in every `cargo test`, unlike the gate.
+#[test]
+fn ranks_are_one_based_and_average_their_ties() {
+    assert_eq!(ranks(&[]), Vec::<f64>::new(), "an empty sample has no ranks");
+    assert_eq!(ranks(&[42.0]), vec![1.0], "ranks are 1-based, not 0-based");
+    assert_eq!(ranks(&[10.0, 20.0, 30.0]), vec![1.0, 2.0, 3.0], "ranks follow the values, not the positions");
+    assert_eq!(ranks(&[30.0, 20.0, 10.0]), vec![3.0, 2.0, 1.0]);
+    assert_eq!(ranks(&[5.0, 5.0]), vec![1.5, 1.5], "a two-way tie takes the mean of ranks 1 and 2");
+    assert_eq!(ranks(&[1.0, 2.0, 2.0, 3.0]), vec![1.0, 2.5, 2.5, 4.0], "a tie must not shift the ranks after it");
+    assert_eq!(ranks(&[7.0, 7.0, 7.0]), vec![2.0, 2.0, 2.0], "an all-tie sample is the mean rank throughout");
+    assert_eq!(ranks(&[2.0, 1.0, 2.0, 1.0]), vec![3.5, 1.5, 3.5, 1.5], "ties need not be adjacent in the input");
+    // Averaged ties keep the rank sum at n(n+1)/2, which is what makes the
+    // correlation comparable across samples with different tie counts.
+    for values in [vec![3.0f32, 1.0, 2.0], vec![1.0, 1.0, 2.0, 2.0, 2.0], vec![0.5; 7]] {
+        let n = values.len() as f64;
+        let sum: f64 = ranks(&values).iter().sum();
+        assert!((sum - n * (n + 1.0) / 2.0).abs() < 1e-9, "rank sum of {values:?} is {sum}, not n(n+1)/2");
+    }
+}
+
+#[test]
+fn spearman_matches_the_rank_difference_formula() {
+    let ascending = [1.0f32, 2.0, 3.0, 4.0, 5.0];
+    let descending = [5.0f32, 4.0, 3.0, 2.0, 1.0];
+    assert!((spearman(&ascending, &ascending) - 1.0).abs() < 1e-12, "an identical ranking is +1");
+    let shifted = [10.0f32, 20.0, 30.0, 40.0, 50.0];
+    assert!((spearman(&ascending, &shifted) - 1.0).abs() < 1e-12, "only the order matters, not the scale");
+    assert!((spearman(&ascending, &descending) + 1.0).abs() < 1e-12, "a reversed ranking is -1");
+
+    // Tie-free case, against 1 - 6*sum(d^2) / (n * (n^2 - 1)): the rank
+    // differences are -1, 1, -1, 1, 0, so rho = 1 - 24/120 = 0.8.
+    let b = [2.0f32, 1.0, 4.0, 3.0, 5.0];
+    assert!((spearman(&ascending, &b) - 0.8).abs() < 1e-12, "expected 0.8, got {}", spearman(&ascending, &b));
+
+    // Tied case, worked by hand: ranks [1,2,3,4,5] against [1,2,3.5,5,3.5]
+    // give covariance 8 and variances 10 and 9.5, so rho = 8 / sqrt(95).
+    let tied = [5.0f32, 6.0, 7.0, 8.0, 7.0];
+    let expected = 8.0 / 95.0f64.sqrt();
+    let got = spearman(&ascending, &tied);
+    assert!((got - expected).abs() < 1e-12, "expected {expected}, got {got}");
+
+    // The gate reads one number, so the statistic must not depend on which
+    // side the human scores are passed on.
+    assert!((got - spearman(&tied, &ascending)).abs() < 1e-12, "spearman is symmetric in its arguments");
+}
+
 /// Ranking gate on the committed STS pair corpus: the Spearman correlation
 /// between the device's pair cosines and the human scores must stay above
 /// 0.85. An FP32 MiniLM scores about 0.94 here; the INT8 Hailo HEF about

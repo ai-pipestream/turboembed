@@ -928,17 +928,13 @@ impl Generation {
         Ok(chunk)
     }
 
-    /// Cancel. Safe from any thread at any time: when a step on another
-    /// thread holds the state, the request is recorded and honored at the
-    /// start of the next step, and the final chunk reports `Cancelled`.
+    /// Cancel. Safe from any thread at any time and never contends with a
+    /// step: the request is only recorded here, and the next `step` (the
+    /// one in flight completes first) tells the provider, then reports
+    /// `Cancelled` as the final chunk. Taking the state lock here, even
+    /// without blocking, made a concurrent `step` fail with BUSY.
     pub fn cancel(&self) -> Result<()> {
         self.cancel_requested.store(true, std::sync::atomic::Ordering::SeqCst);
-        if let Ok(mut st) = self.state.try_lock() {
-            if !st.finished && !st.cancelled {
-                st.cancelled = true;
-                st.inner.cancel();
-            }
-        }
         Ok(())
     }
 }

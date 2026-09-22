@@ -19,3 +19,4 @@ __pycache__/
 /.libs/
 /bindings/swift/.build/
 /bindings/swift/.build/
+/target-*/
