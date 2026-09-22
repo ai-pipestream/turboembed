@@ -41,8 +41,23 @@ Testing in this tree today is:
   count, the truncation cases where a word is cut in half, and the
   `raw_scores`-with-no-fused-activation acceptance that `turbo-core`'s
   central `OPT_RAW_SCORES` gate would otherwise always reject for this
-  provider). See `providers/openvino/README.md` and `docs/providers.md`'s
-  "The OpenVINO provider" section.
+  provider). It links OpenCL as well, so its eleventh case takes the
+  `TURBO_HANDLE_CL_MEM` a GPU result exports and reads that device buffer
+  back itself, comparing it byte for byte with `buffer_read`; it skips on a
+  device without `TURBO_CAP_DEVICE_RESULT`. The bundles come from the same
+  `TURBO_LIVE_*` variables the Rust live tests read, and a case whose bundle
+  is unset skips and says so, so run it with them set:
+
+  ```bash
+  TURBO_LIVE_BUNDLE=~/turbo-p2/minilm-onnx \
+  TURBO_LIVE_RERANK_BUNDLE=~/turbo-p2/rerank-onnx \
+  TURBO_LIVE_NER_BUNDLE=~/turbo-p2/ner-onnx \
+  TURBO_LIVE_ORDINAL=0 ctest --test-dir build/openvino --output-on-failure
+  ```
+
+  All eleven cases pass on `krick-1` on both the GPU (ordinal 0) and the CPU
+  (ordinal 1) device, 2026-09-22. See `providers/openvino/README.md` and
+  `docs/providers.md`'s "The OpenVINO provider" section.
 - Header parity (`scripts/gen-header.sh --check`), the `struct_size` table
   (`scripts/gen-versioned.py --check`), and mock fixture parity (`cargo run
   -p turbo-core --example write_mock_bundles` diffed against
@@ -70,9 +85,9 @@ the test that would have failed before the fix (for example
 `crates/turbo-conformance/src/lib.rs` is the harness: it resolves a target
 (runtime, device, bundle root) from the environment and provides the mock
 bundle fixtures as defaults. The cases live under `tests/`, over 200 tests
-across 25 files; most groups appear twice, once through the safe Rust API
+across 27 files; most groups appear twice, once through the safe Rust API
 (`*_rust.rs`) and once through the C ABI called directly (`*_c.rs`), plus
-`header_parity.rs`, the three live-hardware files, and two Rust-only files
+`header_parity.rs`, the five live-hardware files, and two Rust-only files
 closing specific review findings:
 
 | file | group |
@@ -91,6 +106,8 @@ closing specific review findings:
 | `header_parity.rs` | the committed headers match a fresh `cbindgen` run |
 | `live_embed.rs`, `live_tasks.rs` | live checks against a real embedding/task provider library (`openvino`, `cuda`, `ggml`, or `hailo`) and bundles; see "Live provider tests" below |
 | `live_generate.rs` | live checks against a real generation provider library (`ggml`) and a GGUF bundle; see "Live provider tests" below |
+| `live_openvino.rs` | live checks that only apply to the `openvino` provider; see "Live provider tests" below |
+| `live_cuda.rs` | live checks that only apply to the `cuda` provider; see "Live provider tests" below |
 
 A provider counts as supported for a capability only when every applicable
 group passes, or is explicitly excluded by a capability bit the suite
@@ -222,6 +239,79 @@ variable is unset returns without failing. These assert semantic properties,
 not exact numbers, so the same test file holds across FP32 devices and
 providers.
 
+`live_openvino.rs` runs only when `TURBO_LIVE_PROVIDER` is `openvino`, and
+its embedding cases also need `TURBO_LIVE_BUNDLE`. It holds the provider to
+the things the provider-agnostic files cannot state for every provider:
+
+- each device repeats an identical batch the way its
+  `TURBO_CAP_DETERMINISTIC` bit says it will, and its device bits and its
+  `EMBED x TEXT` cell agree about that. A device claiming the bit must
+  return identical bits over twenty repeats; a device not claiming it must
+  stay inside floating-point reduction noise and must actually vary, so a
+  device that has become reproducible is reported rather than left
+  under-claimed.
+- one session asked for a wide batch, then a single row, then a narrower
+  batch, then the wide batch again answers the wide batch the same way both
+  times, held to the reproducibility that device claims. This is
+  `live_embed.rs`'s shape-order case in the form that also runs on a device
+  that is not bit-reproducible, and `live_embed.rs`'s version of it fails on
+  the `krick-1` GPU for that reason.
+- every listed device carries the capability set its kind allows: NPU
+  devices are listed with `caps = 0` and an `UNSUPPORTED` cell, non-NPU
+  devices all claim `HOST_PTR_IMPORT`, only GPUs claim `DEVICE_RESULT`,
+  neither override bit is ever set, and an ordinal past the last device is
+  an error.
+- the limits and malformed inputs the provider refuses before OpenVINO sees
+  them: a session past the model's `max_batch` or `max_seq`
+  (`TURBO_E_CAPACITY` naming field 2 or 3), more rows than the session
+  holds, a token id outside the tokenizer's vocabulary on either side
+  (`TURBO_E_INVALID_ARGUMENT` naming the id and its row and column), and a
+  `prompt_role` the bundle declares no prefix for (field 4).
+- two contexts on one device answer the same text the same way.
+
+All five pass on `krick-1` on both the GPU and the CPU device, 2026-09-22.
+
+`live_cuda.rs` runs only when `TURBO_LIVE_PROVIDER` is `cuda`, and each of
+its cases skips when the bundle it needs is unset. It holds the provider to
+what the provider-agnostic files cannot state for every provider:
+
+- all four bundle kinds load and run on one context, and each reports the
+  placement its stages really ran at: tokenization on the host for every
+  kind, encode on the device, pooling and L2 normalization on the device
+  for an embedder, the sigmoid and softmax on the device for a reranker and
+  a classifier, and span aggregation on the host for a token classifier, so
+  no model claims to be fully accelerated.
+- an over-long query/document pair with `truncate = NONE` is
+  `TURBO_E_CAPACITY`, the same pair packs under the model's own truncation,
+  and `truncate = LEFT` on a pair is `TURBO_E_UNSUPPORTED_OPTION` naming the
+  field. The capacity case is the regression test for the packer status the
+  Rust wrapper used to map to `TURBO_E_INTERNAL`.
+- prepared tokens refuse an id at `vocab_size`, a negative id, and a mask
+  value that is neither 0 nor 1, and the session still runs the previous
+  good row afterwards.
+- the batch and sequence limits are capacity errors: more rows than the
+  session holds, `max_tokens` over the model's `max_seq` (naming the field)
+  and over the session's narrower width, a prepared-token row wider than
+  the session, and a session wider than the model.
+- a task written to the wrong model kind is `TURBO_E_UNSUPPORTED_TASK`
+  (rerank or classify on an embedder, embed on a reranker), and a run with
+  nothing written is `TURBO_E_INVALID_STATE`.
+- a `prompt_role` the bundle declares no prefix for is refused naming the
+  field; a bundle that does declare one must produce a different vector,
+  so the role can never be silently dropped.
+- the byte counters add up: an embedding run uploads and reads nothing
+  back, an identical second run uploads exactly the same bytes again, and
+  the one path that does move data back inside a run (sorting a rerank
+  result) accounts for exactly one f32 per row.
+- an embedding session and a classification session on one device run from
+  two threads for eight rounds each and both answer what they answered
+  alone.
+- a device ordinal past the last one is `TURBO_E_DEVICE_NOT_FOUND`, never a
+  quiet return of ordinal 0; on a machine with a second CUDA device the
+  case runs the same bundle there and holds the two to cosine 0.9995.
+
+All nine pass on `nano1` (Jetson Orin Nano), 2026-09-22.
+
 `live_generate.rs` (generation), gated on `TURBO_LIVE_GGUF_BUNDLE` (an
 instruct GGUF model such as Qwen2.5-0.5B-Instruct, built with
 `tools/turbo-bundle` per `docs/bundles.md`'s GGUF example). Its seven checks
@@ -267,11 +357,38 @@ against FP32 with Spearman 0.937 against 0.944); see
 `cudaGetDeviceProperties`) unblocked running the provider on the Jetson
 `nano1` board. On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime
 1.24.0 linked dynamically through `ORT_LIB_LOCATION` and
-`--no-default-features`, per `providers/cuda/README.md`) the CUDA provider
-passes all 12 live embedding tests (`live_embed.rs`) at cosine 1.000
-against the FP32 reference vectors. There is no receipt file committed for
-this machine yet, and the task suite (`live_tasks.rs`: rerank, classify,
-token-classify) is still being verified there.
+`--no-default-features`, per `providers/cuda/README.md`) these pass on
+2026-09-22:
+
+- the crate's own tests, 28 of them
+  (`cargo test -p turbo-provider-cuda --no-default-features`: 4 WordPiece
+  unit tests, 12 kernel tests, 8 provider tests, 4 word-span tests);
+- `live_embed.rs`, all 16, at cosine 1.000 against the FP32 reference
+  vectors, and `live_tasks.rs`, all 7 (rerank, classify, token-classify);
+- `live_cuda.rs`, all 9 (the CUDA-specific file described above);
+- the conformance groups that do not need a bundle, run against the
+  provider library with `TURBO_CONFORMANCE_PROVIDER_PATHS` and
+  `TURBO_CONFORMANCE_PROVIDER=cuda`: `device_c` (10), `device_rust` (9),
+  `bundle_rust` (13), `bundle_integrity_rust` (6), `header_parity` (5).
+  The bundle-dependent groups cannot run against the committed fixtures
+  under `testdata/bundles/mock` on any real provider: those carry a `mock`
+  artifact and no `onnx` one, so every case that loads one fails with
+  `TURBO_E_BUNDLE_NO_ARTIFACT` before it reaches the provider. Point
+  `TURBO_CONFORMANCE_BUNDLES` at a directory whose `embedding`,
+  `reranker`, `classifier` and `token-classifier` subdirectories are the
+  real ONNX bundles and they do run: the whole `tasks` group passes there,
+  `tasks_c` (8) and `tasks_rust` (15). The `generative` and `generic`
+  kinds have no ONNX bundle, so the groups that load those still do not
+  run.
+
+The benchmark pair on `nano1` is
+`testdata/receipts/turbo/bench/cuda-nano1-embed-2026-09-22.json`,
+`native-ort-cuda-nano1-embed-2026-09-22.json` and
+`compare-cuda-nano1-embed-2026-09-22.json`: 0.96x to 1.04x of ONNX Runtime
+CUDA alone across the nine batch x sequence cells, verdict SUPPORTED, plus
+`cuda-nano1-rerank-2026-09-22.json` (16 documents, the bundle's
+`max_batch`). There is still no conformance or precision receipt file
+committed for this machine.
 
 ## Running what exists today
 

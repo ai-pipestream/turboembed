@@ -18,8 +18,8 @@ detail and milestone gates this table summarizes.
 | `cpu` | PLANNED (folded into the CUDA/ORT provider, P3) | any; explicit selection only, never `AUTO` | ORT 1.30 CPU EP; ggml CPU for GGUF | host arena, write-through tokens |
 | `openvino` | SUPPORTED for embeddings on the B70 (`compare-openvino-krick-1-gpu-embed-2026-09-22.json`, 1.15x to 1.55x of the OpenVINO C++ loop) and on the Ryzen 9 CPU of `krick` (`compare-openvino-krick-cpu-embed-2026-09-22b.json`, 1.03x to 1.30x); EXPERIMENTAL for the other tasks; NPU listed, not qualified | `krick-1` Battlemage B70 (GPU), any CPU; Intel NPU when available | OpenVINO 2026.3.1 | `ov::Core` compiled model with pooling/normalization/post-processing fused into the graph; `cl_mem` remote tensors on GPU; native WordPiece (`native/wordpiece/`) |
 | `cuda` | SUPPORTED for embeddings on `krick` (`compare-cuda-krick-embed-2026-09-22.json`, 1.04x to 2.64x of the ONNX Runtime CUDA loop); EXPERIMENTAL for the other tasks; embedding landed on `nano1` (aarch64), task suite still being verified there | `krick` RTX 4080 SUPER (x86_64, landed); `nano1` Orin Nano Super (aarch64, embedding landed) | ONNX Runtime 1.28 CUDA execution provider on `krick` (`ort` crate prebuilt CUDA 13 bundle); ONNX Runtime 1.24.0 linked dynamically (`ORT_LIB_LOCATION`, `--no-default-features`) on `nano1` | IoBinding on pinned/device arena; device kernels (`kernels.cu`) for mean/CLS/last pooling, L2 normalization, sigmoid, and softmax |
-| `metal` | SUPPORTED for embeddings on `krickert-mac` (`compare-metal-mac-embed-2026-09-22.json`, 1.00x of the kernels run directly); EXPERIMENTAL for rerank | Apple M2 (any Apple GPU with unified memory) | Metal directly: MSL kernels compiled at load, no MLX, no Xcode | shared `MTLBuffer`s for tokens, weights, scratch and results; encoder, pooling, L2 and the reranker head as kernels; results `TURBO_PLACE_SHARED` in unified memory |
-| `hailo` | SUPPORTED for embeddings on `pi5ai1` (`compare-hailo-pi5ai1-embed-2026-09-22.json`, 1.00x of `hailortcli benchmark`); EXPERIMENTAL on `cm5ai1`; Hailo-8L untested; Hailo-10H open | two Pis with Hailo-8 (landed); Hailo-8L boards; one Pi with Hailo-10H (needs a DFC 5 HEF); x86_64 hosts with a PCIe Hailo-8 card | HailoRT 4.23.0 (`hailo-all`) | `hailo_vdevice` bound to one device with the scheduler on; the HEF's fixed-shape encoder body through f32 vstreams; host WordPiece, word-embedding gather from the `hailo_tables` artifact, pooling, L2; INT8 compute reported in the capability cell with the measured cosine floor |
+| `metal` | SUPPORTED for embeddings on `krickert-mac` (`compare-metal-mac-embed-2026-09-22d.json`, 1.00x to 1.24x of the kernels run directly); EXPERIMENTAL for rerank | Apple M2 (any Apple GPU with unified memory) | Metal directly: MSL kernels compiled at load, no MLX, no Xcode | shared `MTLBuffer`s for tokens, weights, scratch and results; encoder, pooling, L2 and the reranker head as kernels; results `TURBO_PLACE_SHARED` in unified memory |
+| `hailo` | SUPPORTED for embeddings on `pi5ai1` (`compare-hailo-pi5ai1-embed-2026-09-22.json`, 1.00x of `hailortcli benchmark`); EXPERIMENTAL on `cm5ai1`; Hailo-8L untested; Hailo-10H open; board bring-up in `docs/hailo-pi-setup.md` | two Pis with Hailo-8 (landed); Hailo-8L boards; one Pi with Hailo-10H (needs a DFC 5 HEF); x86_64 hosts with a PCIe Hailo-8 card | HailoRT 4.23.0 (`hailo-all`) | `hailo_vdevice` bound to one device with the scheduler on; the HEF's fixed-shape encoder body through f32 vstreams; host WordPiece, word-embedding gather from the `hailo_tables` artifact, pooling, L2; INT8 compute reported in the capability cell with the measured cosine floor |
 | `ggml` | SUPPORTED on the RTX 4080 SUPER of `krick` for generation (`compare-ggml-krick-gpu-generate-2026-09-22.json`, 0.99x of llama.cpp) and GGUF embeddings (`compare-ggml-krick-gpu-embed-2026-09-22b.json`, 0.98x to 1.90x); EXPERIMENTAL on the CPU and on `krickert-mac` (Metal) | every machine; landed on `krick` (RTX 4080 SUPER and CPU) and `krickert-mac` (Apple M2, Metal backend) | llama.cpp through the `llama-cpp-2` binding, built from source with cmake (CUDA backend on `krick`; Metal backend on `krickert-mac`; CPU backend everywhere, including CI) | `ggml_backend_dev` registry; `llama_batch` decode, one token per `step`; a generation owns its own `llama_context` (KV cache) |
 | `hailo` GenAI | PLANNED (P6) | Hailo-10H Pi | `hailort::genai::LLM` (HailoRT 5.4) | native LLM on the NPU with its own sampler |
 
@@ -77,10 +77,12 @@ bits it needs for its one capability cell (no
 `OPT_TOP_N`/`OPT_AGGREGATION`/`OPT_RAW_SCORES`, since it offers neither
 `RERANK` nor `CLASSIFY`). `openvino` (`kCapsCommon`/`caps_of`,
 `providers/openvino/src/provider.cpp`) sets `OPT_TRUNCATE`, `OPT_MAX_TOKENS`,
-`OPT_PROMPT_ROLE`, `OPT_TOP_N`, `OPT_AGGREGATION`, `DETERMINISTIC`, and
+`OPT_PROMPT_ROLE`, `OPT_TOP_N`, `OPT_AGGREGATION`, and
 `HOST_PTR_IMPORT` on every non-NPU device (host-pointer import is
 implemented the same way for the CPU device as for GPU, so both advertise
-the bit), plus `DEVICE_RESULT` only on GPU/iGPU; it sets neither
+the bit), plus `DEVICE_RESULT` and `DETERMINISTIC` on separate devices:
+`DEVICE_RESULT` only on GPU/iGPU, `DETERMINISTIC` only on CPU (see "The
+OpenVINO provider" below for the measurement); it sets neither
 `OPT_NORMALIZE` nor `OPT_POOLING_OVERRIDE` (pooling and normalization always
 follow the bundle contract) nor `DEVICE_POSTPROCESS`. `cuda` (`CUDA_CAPS`,
 `providers/cuda/src/lib.rs`) is the only provider setting
@@ -249,6 +251,18 @@ behavior, also in `providers/openvino/README.md`:
 - **CPU vendor reporting.** The CPU device reports the vendor actually read
   from the host CPU (`GenuineIntel`/`AuthenticAMD`, else `unknown`) instead
   of always reporting Intel.
+- **Only the CPU device claims determinism.** `TURBO_CAP_DETERMINISTIC` and
+  the capability cell's `deterministic` flag mean the same bits back for the
+  same input on every run. The OpenVINO CPU plugin does that; the GPU plugin
+  does not, because its kernels reduce in an order the driver picks per
+  dispatch. On `krick-1` (Intel Battlemage B70, driver 26.05.037020,
+  OpenVINO 2026.3.1) twenty repeats of one identical MiniLM batch in one
+  session differ by up to 2.3e-7 absolute on every repeat, with or without
+  padding columns and across two contexts, while the same repeats on that
+  machine's CPU device are bit-identical. `deterministic_device` in
+  `provider.cpp` therefore sets the bit for CPU devices only, and
+  `crates/turbo-conformance/tests/live_openvino.rs` holds each device to
+  whichever answer it gives.
 - **Results and allocated buffers keep the caller's declared `struct_size`**
   (`x_session_run`/`x_buffer_alloc` copy through `write_sized`), and release
   entry points delete through a `noexcept` helper so a throwing `clRelease`
@@ -260,7 +274,19 @@ drives `turbo_provider_vtbl` directly instead of going through
 `turbo-core`, because several of the fixes above (the `struct_size`
 clamping, the word-cut-in-half truncation cases, the unknown-enum checks)
 are things `turbo-core` already filters out before a provider ever sees
-them through the public API; see `docs/testing.md`.
+them through the public API. It also links OpenCL, so
+`device_result_exports_the_cl_mem_it_computed_into` takes the
+`TURBO_HANDLE_CL_MEM` a GPU result exports, asks OpenCL for the buffer's
+size and owning context, reads it back on its own queue, and compares that
+byte for byte with `buffer_read`; that test skips on a device without
+`TURBO_CAP_DEVICE_RESULT`. `crates/turbo-conformance/tests/live_openvino.rs`
+covers the rest of what is specific to this provider through the safe API:
+the determinism claim per device, shape-order independence within one
+session, the per-kind capability sets including the listed but unqualified
+NPU, and the limit and bad-input paths (a session past the model's
+`max_batch`/`max_seq`, more rows than the session holds, a token id outside
+the vocabulary, a `prompt_role` the bundle declares no prefix for). See
+`docs/testing.md`.
 
 ## The CUDA provider
 
@@ -461,16 +487,17 @@ buffers whose `host_ptr` is the GPU's memory, so `h2d_bytes` and
 unified-memory devices instead of demanding an upload.
 
 Status: `EXPERIMENTAL` for `EMBED x TEXT` and `RERANK x TEXT` on
-`krickert-mac` (Apple M2). The 15 vtable tests
+`krickert-mac` (Apple M2). The 22 vtable tests
 (`providers/metal/tests/provider_test.cpp`), the 16 live embedding tests
 (cosine 1.000 against the FP32 references, STS Spearman gate) and the
 rerank cases of `live_tasks` pass; receipt
 `testdata/receipts/turbo/metal-2026-09-22.json`, throughput under
-`testdata/receipts/turbo/bench/metal-mac-*-2026-09-22*.json` (622 rows/s
-at batch 32 by 32 tokens and 24 rows/s at 32 by 256 with the simdgroup
-matmul; 23 documents/s for the 12-layer reranker at 128 tokens before it;
-the RTX 4080 SUPER does 22k rows/s on the same bundle shape, and the
-attention and layer-norm kernels are the next to tune). The reranker bundle (`cross-encoder/ms-marco-MiniLM-L-12-v2`) declares the
+`testdata/receipts/turbo/bench/metal-mac-*-2026-09-22*.json` (with the
+simdgroup matmul: 625 rows/s at batch 32 by 32 tokens, 21 rows/s at 32 by
+256, and 48 documents/s for the 12-layer reranker at 128 tokens, against
+23 documents/s before it; the RTX 4080 SUPER does 22k rows/s on the same
+bundle shape, and the attention and layer-norm kernels are the next to
+tune). The reranker bundle (`cross-encoder/ms-marco-MiniLM-L-12-v2`) declares the
 Identity activation in its config, so its scores are logits; the suites
 follow the bundle's `activation` contract. Not yet: GPU-side WordPiece, a
 tuned matmul (the kernels are one thread per output element), F16 weights,

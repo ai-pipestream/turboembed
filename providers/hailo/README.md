@@ -70,7 +70,10 @@ Batches are looped on the host one row at a time (the HEF is batch 1);
 ## Build
 
 On Raspberry Pi OS with the `hailo-all` package (HailoRT 4.23, header in
-`/usr/include/hailo`, library `/usr/lib/libhailort.so`):
+`/usr/include/hailo`, library `/usr/lib/libhailort.so`);
+[`docs/hailo-pi-setup.md`](../../docs/hailo-pi-setup.md) covers getting a
+Raspberry Pi 5 AI HAT board to that point for both the Hailo-8 and the
+Hailo-10H package lines:
 
 ```sh
 cmake -S providers/hailo -B build/hailo
