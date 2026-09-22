@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turbo web demo</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Turbo</h1>
+    <p id="device" class="muted">loading device…</p>
+  </header>
+  <section class="input">
+    <label for="texts">One sentence per line</label>
+    <textarea id="texts" rows="6">a brown dog runs through the grass
+a dog is running on the lawn
+the stock market closed higher</textarea>
+    <div class="row">
+      <button id="embed" type="button">Embed</button>
+      <span id="status" class="muted" aria-live="polite"></span>
+    </div>
+  </section>
+  <section id="result" hidden>
+    <h2>Cosine similarity</h2>
+    <table id="matrix"></table>
+    <details>
+      <summary>Vectors</summary>
+      <pre id="vectors"></pre>
+    </details>
+  </section>
+  <section id="error" class="error" hidden role="alert"></section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
