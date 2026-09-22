@@ -3,7 +3,7 @@
 # dist/turbo-<version>-<target>.tar.gz, containing libturbo, the headers,
 # turbo-bundle, and every provider library this machine can produce.
 #
-# Usage: scripts/package.sh [--no-cuda] [--no-openvino]
+# Usage: scripts/package.sh [--no-cuda] [--no-openvino] [--no-hailo]
 #
 # Everything the script writes lives under dist/ (the archive) and target/
 # (build output and a staging tree); nothing else in the repository is
@@ -16,13 +16,15 @@ cd "$root"
 
 no_cuda=0
 no_openvino=0
+no_hailo=0
 for arg in "$@"; do
     case "$arg" in
         --no-cuda) no_cuda=1 ;;
         --no-openvino) no_openvino=1 ;;
+        --no-hailo) no_hailo=1 ;;
         *)
             echo "package.sh: unknown argument: $arg" >&2
-            echo "usage: scripts/package.sh [--no-cuda] [--no-openvino]" >&2
+            echo "usage: scripts/package.sh [--no-cuda] [--no-openvino] [--no-hailo]" >&2
             exit 2
             ;;
     esac
@@ -105,7 +107,7 @@ else
         warn "turbo-provider-cuda build failed; packaging without it"
     fi
 fi
-if [[ -f "$relq/libturbo_provider_cuda.so" ]]; then
+if [[ $no_cuda -eq 0 && -f "$relq/libturbo_provider_cuda.so" ]]; then
     cp -L "$relq/libturbo_provider_cuda.so" "$stage/providers/"
     present+=("providers/libturbo_provider_cuda.so")
     for extra in libonnxruntime_providers_cuda.so libonnxruntime_providers_shared.so; do
@@ -154,7 +156,7 @@ else
         warn "no OpenVINO SDK found (set TURBO_OPENVINO_DIR); packaging without the OpenVINO provider"
     fi
 fi
-if [[ -f "$ov_lib" ]]; then
+if [[ $no_openvino -eq 0 && -f "$ov_lib" ]]; then
     cp -L "$ov_lib" "$stage/providers/"
     present+=("providers/libturbo_provider_openvino.so")
 else
@@ -162,6 +164,36 @@ else
         absent+=("providers/libturbo_provider_openvino.so -- skipped by --no-openvino")
     else
         absent+=("providers/libturbo_provider_openvino.so -- not built on this machine (no OpenVINO SDK found, or the build failed; see the log above)")
+    fi
+fi
+
+# --- optional provider: hailo ---------------------------------------------
+hailo_lib="$root/build/hailo/libturbo_provider_hailo.so"
+if [[ $no_hailo -eq 1 ]]; then
+    log "skipping the Hailo provider build (--no-hailo)"
+elif [[ -f "$hailo_lib" ]]; then
+    log "using the existing Hailo provider build at build/hailo"
+elif [[ -f /usr/include/hailo/hailort.h || -n "${HAILORT_INCLUDE_DIR:-}" ]]; then
+    log "building the Hailo provider"
+    if cmake -S "$root/providers/hailo" -B "$root/build/hailo" -DCMAKE_BUILD_TYPE=Release \
+            ${HAILORT_INCLUDE_DIR:+-DHAILORT_INCLUDE_DIR="$HAILORT_INCLUDE_DIR"} \
+            ${HAILORT_LIBRARY:+-DHAILORT_LIBRARY="$HAILORT_LIBRARY"} >&2 \
+        && cmake --build "$root/build/hailo" -j >&2; then
+        :
+    else
+        warn "Hailo provider build failed; packaging without it"
+    fi
+else
+    log "no HailoRT headers found; packaging without the Hailo provider"
+fi
+if [[ $no_hailo -eq 0 && -f "$hailo_lib" ]]; then
+    cp -L "$hailo_lib" "$stage/providers/"
+    present+=("providers/libturbo_provider_hailo.so")
+else
+    if [[ $no_hailo -eq 1 ]]; then
+        absent+=("providers/libturbo_provider_hailo.so -- skipped by --no-hailo")
+    else
+        absent+=("providers/libturbo_provider_hailo.so -- not built on this machine (no HailoRT, or the build failed; see the log above)")
     fi
 fi
 

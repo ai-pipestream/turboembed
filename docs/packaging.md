@@ -71,15 +71,16 @@ Both are named, with the same reasoning, in the `README.md` that
 
 ```bash
 scripts/package.sh                        # build everything this machine can
-scripts/package.sh --no-cuda              # skip trying to build the CUDA provider
-scripts/package.sh --no-openvino          # skip trying to build the OpenVINO provider
+scripts/package.sh --no-cuda              # leave the CUDA provider out (no build, not packaged)
+scripts/package.sh --no-openvino          # leave the OpenVINO provider out
+scripts/package.sh --no-hailo             # leave the Hailo provider out
 ```
 
 Run from the repository root. It writes only under `dist/` (the final
 archive) and `target/` (build output and a staging tree at
 `target/package/turbo-<version>-<target>/`); nothing else in the tree is
 modified. It fails loudly if `libturbo.so`, the generated headers, or
-`turbo-bundle` cannot be built; the CUDA and OpenVINO providers are optional
+`turbo-bundle` cannot be built; the CUDA, OpenVINO, and Hailo providers are optional
 and their absence is reported, never silently skipped without a note.
 
 The script checks every `.so` it packages with `ldd` and prints its
