@@ -6,6 +6,15 @@ the exact workload the `libturbo` run used, writing a receipt of kind
 `native` that `turbo-bench compare` sets against the `libturbo` receipt.
 No libturbo code is in any timed path.
 
+The OpenVINO program also has attribution knobs, off by default:
+`--static` compiles the model reshaped to the cell's `[batch, seq]`,
+`--fuse` pools and normalizes inside the graph, `--i32` declares the
+inputs i32 through the pre-processor. Together they reproduce the
+provider's graph, so a gap between the plain loop and the provider can
+be split into what the graph choices cost and what the provider adds;
+on the Ryzen CPU the graph choices are a gain of about 4 percent, and
+the gap that remained was the provider's.
+
 | provider | reference | what it drives |
 |---|---|---|
 | `cuda` | `reference/ort-cuda` (Rust) | ONNX Runtime's CUDA execution provider through the `ort` crate, the crate the provider links; input tensors per run, hidden state read back, pooling and L2 on the host |
@@ -59,7 +68,7 @@ directories say; the Rust ones record the build's commit through the
 |---|---|---|---|---|
 | cuda / ONNX Runtime 1.28 CUDA EP | RTX 4080 SUPER (krick) | embed, 9 | 1.04x to 2.64x | SUPPORTED |
 | openvino / OpenVINO 2026.3.1 C++ | Battlemage B70 (krick-1) | embed, 9 | 1.15x to 1.55x | SUPPORTED |
-| openvino / OpenVINO 2026.3.1 C++ | Ryzen 9 9950X3D CPU (krick) | embed, 9 | 0.91x to 1.24x; four cells under the floor | EXPERIMENTAL |
+| openvino / OpenVINO 2026.3.1 C++ | Ryzen 9 9950X3D CPU (krick) | embed, 9 | 1.03x to 1.30x (the first run read 0.91x on the larger cells: the provider's token writer built an error message per token, about 1 us each, fixed the same day; `compare-openvino-krick-cpu-embed-2026-09-22b.json`) | SUPPORTED |
 | ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | generate, 128 tokens | 0.99x total, 1.00x decode | SUPPORTED |
 | ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | embed, 9 (text path) | 0.98x to 1.90x (the first run, 0.94x on two cells, had the reference tokenizing outside its timed loop and a count-only warm-up; `compare-ggml-krick-gpu-embed-2026-09-22b.json` is the matched one) | SUPPORTED |
 | hailo / hailortcli | Hailo-8 (pi5ai1) | embed, 6 | 1.00x | SUPPORTED |

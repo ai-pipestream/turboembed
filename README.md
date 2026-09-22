@@ -73,7 +73,7 @@ and comes from committed receipts under `testdata/receipts/turbo/`.
 | provider | devices with receipts | runtime | status |
 |---|---|---|---|
 | `cuda` | RTX 4080 SUPER (`krick`), Jetson Orin Nano (`nano1`) | ONNX Runtime CUDA EP, own pooling and activation kernels | SUPPORTED for embeddings on the 4080 (1.04x to 2.64x the ONNX Runtime CUDA loop, `compare-cuda-krick-embed-2026-09-22.json`); EXPERIMENTAL elsewhere; cosine 1.000 vs FP32 |
-| `openvino` | Battlemage B70 (`krick-1`), any CPU | OpenVINO 2026.3, fused graph, `cl_mem` results on GPU | SUPPORTED for embeddings on the B70 (1.15x to 1.55x the OpenVINO C++ loop); EXPERIMENTAL on CPU (0.91x on four cells); cosine 1.000 vs FP32 |
+| `openvino` | Battlemage B70 (`krick-1`), any CPU | OpenVINO 2026.3, fused graph, `cl_mem` results on GPU | SUPPORTED for embeddings on the B70 (1.15x to 1.55x the OpenVINO C++ loop) and on the Ryzen 9 CPU (1.03x to 1.30x); cosine 1.000 vs FP32 |
 | `ggml` | RTX 4080 SUPER and CPU (`krick`), Apple M2 Metal (`krickert-mac`) | llama.cpp through `llama-cpp-2` | SUPPORTED on the 4080 for generation (0.99x of llama.cpp itself) and GGUF embeddings (0.98x to 1.90x) |
 | `metal` | Apple M2 (`krickert-mac`) | Metal directly: MSL kernels compiled at load, shared `MTLBuffer`s end to end, no MLX | SUPPORTED for embeddings on the M2 (1.00x of the kernels run directly); EXPERIMENTAL for rerank; cosine 1.000 vs FP32 |
 | `hailo` | Hailo-8 on two Raspberry Pis (`pi5ai1`, `cm5ai1`) | HailoRT 4.23 vstreams, INT8 HEF | SUPPORTED for embeddings on the Hailo-8 (1.00x of `hailortcli benchmark`); cosine floor 0.45 vs FP32, ranking at parity (Spearman 0.937 vs 0.944) |

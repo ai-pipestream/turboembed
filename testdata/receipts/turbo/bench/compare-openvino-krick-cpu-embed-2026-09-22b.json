@@ -1,0 +1,125 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "testdata/receipts/turbo/bench/openvino-krick-cpu-embed-2026-09-22b.json",
+    "commit": "804321e54d642970ac2866e674bbb5ca3d946136-dirty",
+    "provider": {
+      "id": "openvino",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+      "driver_version": ""
+    },
+    "device": {
+      "name": "AMD Ryzen 9 9950X3D 16-Core Processor           (CPU)",
+      "kind": "Cpu",
+      "ordinal": 1,
+      "caps": "0x1870402",
+      "memory_total": 0
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "testdata/receipts/turbo/bench/native-openvino-krick-cpu-embed-2026-09-22b.json",
+    "commit": "4c57d5684b747e87eca9c93bbc535ce70d45e081",
+    "provider": {
+      "id": "openvino",
+      "version": "reference",
+      "runtime_version": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3 C++ API",
+      "driver_version": ""
+    },
+    "device": {
+      "name": "AMD Ryzen 9 9950X3D 16-Core Processor          ",
+      "kind": "Cpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 0
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "/home/krickert/opt/bundles/minilm-onnx",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
+    "artifacts": {
+      "onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "embed 1x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.58732,
+      "native": 0.762922,
+      "ratio": 1.2989886263025268,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 2.579235,
+      "native": 2.813197,
+      "ratio": 1.0907098422594297,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 7.878949,
+      "native": 8.079669,
+      "ratio": 1.025475479026454,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 1.523438,
+      "native": 1.801484,
+      "ratio": 1.1825121862524106,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 7.821280999999999,
+      "native": 8.123732,
+      "ratio": 1.038670263860869,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 28.475464,
+      "native": 29.973986,
+      "ratio": 1.0526250248283926,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 2.9485919999999997,
+      "native": 3.287643,
+      "ratio": 1.114987424506341,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 15.782005000000002,
+      "native": 16.521512,
+      "ratio": 1.0468576077627652,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 65.109315,
+      "native": 68.149019,
+      "ratio": 1.0466861615730407,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "verdict": "SUPPORTED"
+}

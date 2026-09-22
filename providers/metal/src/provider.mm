@@ -1275,19 +1275,24 @@ static int32_t x_session_write_tokens(void *s, const turbo_token_batch *batch, t
         S.n_rows = 0;
         const uint32_t stride = tb.row_stride == 0 ? tb.seq : tb.row_stride;
         // Every id (and type) is checked here, so a bad token is a write-time
-        // argument error and never a silent row or a fault inside a run.
+        // argument error and never a silent row or a fault inside a run. The
+        // message is built only for a failing id: a `require` with a string
+        // argument builds its message on every call, about 1 us per token.
         const int32_t n_ids = static_cast<int32_t>(S.model->word_rows);
         for (uint32_t r = 0; r < tb.batch; ++r) {
             for (uint32_t c = 0; c < tb.seq; ++c) {
                 const int32_t id = tb.ids[static_cast<size_t>(r) * stride + c];
-                require(id >= 0 && id < n_ids, TURBO_E_INVALID_ARGUMENT,
-                        "row " + std::to_string(r) + " column " + std::to_string(c) + ": token id " + std::to_string(id) +
-                            " is outside the " + std::to_string(n_ids) + "-entry vocabulary");
+                if (id < 0 || id >= n_ids) {
+                    fail(TURBO_E_INVALID_ARGUMENT, "row " + std::to_string(r) + " column " + std::to_string(c) + ": token id " +
+                                                       std::to_string(id) + " is outside the " + std::to_string(n_ids) + "-entry vocabulary");
+                }
                 if (tb.types != nullptr) {
                     const int32_t ty = tb.types[static_cast<size_t>(r) * stride + c];
-                    require(ty >= 0 && ty < static_cast<int32_t>(S.model->type_rows), TURBO_E_INVALID_ARGUMENT,
-                            "row " + std::to_string(r) + " column " + std::to_string(c) + ": token type " + std::to_string(ty) +
-                                " is outside the checkpoint's " + std::to_string(S.model->type_rows) + " token types");
+                    if (ty < 0 || ty >= static_cast<int32_t>(S.model->type_rows)) {
+                        fail(TURBO_E_INVALID_ARGUMENT, "row " + std::to_string(r) + " column " + std::to_string(c) + ": token type " +
+                                                           std::to_string(ty) + " is outside the checkpoint's " + std::to_string(S.model->type_rows) +
+                                                           " token types");
+                    }
                 }
             }
         }

@@ -1376,14 +1376,18 @@ static int32_t x_session_write_tokens(void *s, const turbo_token_batch *batch, t
         require(tb.batch >= 1 && tb.batch <= S.batch && tb.seq >= 1 && tb.seq <= S.seq, TURBO_E_CAPACITY, "token batch exceeds the session shape");
         const uint32_t stride = tb.row_stride == 0 ? tb.seq : tb.row_stride;
         // Every id (and type) is checked here, so a bad token is a write-time
-        // argument error and never a silent row or a fault inside a run.
+        // argument error and never a silent row or a fault inside a run. The
+        // message is built only for the failing id: a `require` with a
+        // string argument builds its message on every call, which cost about
+        // 1 us per token on this path (measured on krick, 2026-09-22).
         const int32_t n_ids = wordpiece_vocab_size(S.model->vocab);
         for (uint32_t r = 0; r < tb.batch; ++r) {
             for (uint32_t c = 0; c < tb.seq; ++c) {
                 const int32_t id = tb.ids[static_cast<size_t>(r) * stride + c];
-                require(id >= 0 && id < n_ids, TURBO_E_INVALID_ARGUMENT,
-                        "row " + std::to_string(r) + " column " + std::to_string(c) + ": token id " + std::to_string(id) +
-                            " is outside the " + std::to_string(n_ids) + "-entry vocabulary");
+                if (id < 0 || id >= n_ids) {
+                    fail(TURBO_E_INVALID_ARGUMENT, "row " + std::to_string(r) + " column " + std::to_string(c) + ": token id " +
+                                                       std::to_string(id) + " is outside the " + std::to_string(n_ids) + "-entry vocabulary");
+                }
             }
         }
         const int32_t pad = wordpiece_pad_id(S.model->vocab);

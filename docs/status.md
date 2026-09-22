@@ -74,9 +74,8 @@ alone on the same token rows, and `turbo-bench compare` writes the
 verdict. As of 2026-09-22, SUPPORTED: cuda embeddings on the RTX 4080
 SUPER, openvino embeddings on the Battlemage B70, ggml generation on the
 RTX 4080 SUPER, hailo embeddings on the Hailo-8, metal embeddings on the
-M2, ggml embeddings on the RTX 4080 SUPER; EXPERIMENTAL with a
-comparison receipt: openvino on the CPU (0.91x on four cells). What
-exists today:
+M2, ggml embeddings on the RTX 4080 SUPER, openvino embeddings on the
+Ryzen 9 CPU. What exists today:
 
 - The generated C header set (`include/turbo/turbo.h`,
   `include/turbo/turbo_types.h`, `include/turbo/turbo_provider.h`), produced
@@ -187,7 +186,7 @@ qualification receipt exists (`PLAN.md` section 4.4). Today:
 | `mock` | supported for contract testing only | deterministic, hash-derived; serves only `mock`-artifact bundles; never a real model |
 | `static` | EXPERIMENTAL | one capability cell, `EMBED x TEXT x CPU`; table lookup + mean + L2 on host, explicit device selection only; precision receipt against model2vec still pending |
 | `openvino` GPU | EXPERIMENTAL | embed, rerank, classify, token-classify on `krick-1` (Battlemage B70); fused mean+L2 graph, device-resident results; receipts: [`testdata/receipts/turbo/openvino-minilm-2026-09-21.json`](../testdata/receipts/turbo/openvino-minilm-2026-09-21.json), [`openvino-tasks-2026-09-21.json`](../testdata/receipts/turbo/openvino-tasks-2026-09-21.json) |
-| `openvino` CPU | EXPERIMENTAL | same tasks, explicit selection only; same receipts |
+| `openvino` CPU | SUPPORTED for embeddings on `krick` (`compare-openvino-krick-cpu-embed-2026-09-22b.json`, 1.03x to 1.30x); EXPERIMENTAL for the other tasks | same tasks, explicit selection only; same receipts |
 | `cpu` | PLANNED (P3, folded into the CUDA/ORT provider work) | ORT CPU EP; ggml CPU |
 | `cuda` | SUPPORTED for embeddings on `krick` (`compare-cuda-krick-embed-2026-09-22.json`); EXPERIMENTAL for the other tasks and on Jetson `nano1` (aarch64) | embed, rerank, classify, token-classify through the ONNX Runtime CUDA EP with device-side pooling/normalization/activation kernels; cosine 1.000 against the FP32 references on `krick`; receipt: [`testdata/receipts/turbo/cuda-2026-09-21.json`](../testdata/receipts/turbo/cuda-2026-09-21.json). On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime 1.24.0 linked dynamically through `ORT_LIB_LOCATION` and `--no-default-features`) all 12 live embedding tests pass at cosine 1.000; no receipt file is committed for this run yet and the task suite (rerank/classify/token-classify) is still being verified there |
 | `metal` | SUPPORTED for embeddings on `krickert-mac` (`compare-metal-mac-embed-2026-09-22.json`); EXPERIMENTAL for rerank | embed and rerank through Metal directly: MSL kernels compiled at load, shared `MTLBuffer`s end to end, results `SHARED` in unified memory at cosine 1.000 against the FP32 references; receipt: [`testdata/receipts/turbo/metal-2026-09-22.json`](../testdata/receipts/turbo/metal-2026-09-22.json) |

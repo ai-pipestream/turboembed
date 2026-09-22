@@ -10,6 +10,8 @@
 // kind `native` that `turbo-bench compare` reads.
 
 #include <openvino/openvino.hpp>
+#include <openvino/core/preprocess/pre_post_process.hpp>
+#include <openvino/opsets/opset13.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -35,6 +37,14 @@ struct Options {
     std::string commit;
     unsigned iters = 30;
     unsigned warmup = 5;
+    // Attribution knobs, off by default (the plain user loop): compile the
+    // model reshaped to the cell's static [batch, seq], and pool and
+    // normalize inside the graph, the two choices the provider makes.
+    bool static_shape = false;
+    bool fuse = false;
+    // A third: the inputs declared i32 through the pre-processor, as the
+    // provider declares them (the ONNX graph's are i64).
+    bool i32 = false;
 };
 
 [[noreturn]] void die(const std::string &m) {
@@ -64,6 +74,12 @@ Options parse(int argc, char **argv) {
             o.iters = static_cast<unsigned>(std::stoul(value("--iters")));
         } else if (a == "--warmup") {
             o.warmup = static_cast<unsigned>(std::stoul(value("--warmup")));
+        } else if (a == "--static") {
+            o.static_shape = true;
+        } else if (a == "--fuse") {
+            o.fuse = true;
+        } else if (a == "--i32") {
+            o.i32 = true;
         } else {
             die("unknown flag " + a);
         }
@@ -165,6 +181,56 @@ int main(int argc, char **argv) {
     // The same properties the provider compiles with.
     const ov::AnyMap props = {ov::hint::performance_mode(ov::hint::PerformanceMode::LATENCY),
                               ov::hint::inference_precision(ov::element::f32)};
+    // The provider's graph: reshaped to the cell and with the pooling and
+    // the normalization appended; used only with --static or --fuse.
+    auto shaped = [&](size_t b, size_t s) {
+        auto m = model->clone();
+        if (o.i32) {
+            ov::preprocess::PrePostProcessor ppp(m);
+            for (const auto &input : m->inputs()) {
+                ppp.input(input.get_any_name()).tensor().set_element_type(ov::element::i32);
+            }
+            m = ppp.build();
+        }
+        if (o.static_shape) {
+            std::map<std::string, ov::PartialShape> shapes;
+            for (const auto &input : m->inputs()) {
+                shapes[input.get_any_name()] = ov::PartialShape{static_cast<int64_t>(b), static_cast<int64_t>(s)};
+            }
+            m->reshape(shapes);
+        }
+        if (o.fuse) {
+            namespace op = ov::opset13;
+            ov::Output<ov::Node> mask;
+            for (const auto &input : m->inputs()) {
+                if (input.get_any_name() == "attention_mask") {
+                    mask = input;
+                }
+            }
+            const auto out = m->get_results().at(0)->input_value(0);
+            const auto axis1 = op::Constant::create(ov::element::i64, ov::Shape{1}, {1});
+            const auto axis2 = op::Constant::create(ov::element::i64, ov::Shape{1}, {2});
+            const auto fmask = std::make_shared<op::Convert>(mask, ov::element::f32);
+            ov::Output<ov::Node> y;
+            if (pooling == "cls") {
+                y = std::make_shared<op::Gather>(out, op::Constant::create(ov::element::i64, ov::Shape{}, {0}), axis1);
+            } else {
+                const auto expanded = std::make_shared<op::Unsqueeze>(fmask, axis2);
+                const auto sum = std::make_shared<op::ReduceSum>(std::make_shared<op::Multiply>(out, expanded), axis1, false);
+                const auto count = std::make_shared<op::ReduceSum>(fmask, axis1, true);
+                const auto denom = std::make_shared<op::Maximum>(count, op::Constant::create(ov::element::f32, ov::Shape{}, {1.0f}));
+                y = std::make_shared<op::Divide>(sum, denom);
+            }
+            if (normalize) {
+                const auto sq = std::make_shared<op::Multiply>(y, y);
+                const auto norm = std::make_shared<op::Sqrt>(std::make_shared<op::ReduceSum>(sq, axis1, true));
+                const auto d = std::make_shared<op::Maximum>(norm, op::Constant::create(ov::element::f32, ov::Shape{}, {1e-12f}));
+                y = std::make_shared<op::Divide>(y, d);
+            }
+            m = std::make_shared<ov::Model>(ov::OutputVector{y}, m->get_parameters(), "fused");
+        }
+        return m;
+    };
     auto compiled = core.compile_model(model, o.device, props);
     auto request = compiled.create_infer_request();
     bool has_types = false;
@@ -173,7 +239,6 @@ int main(int argc, char **argv) {
             has_types = true;
         }
     }
-    const auto input_type = compiled.input("input_ids").get_element_type();
 
     json cells = json::array();
     for (const auto &cell : dump["cells"]) {
@@ -194,6 +259,11 @@ int main(int argc, char **argv) {
         std::vector<int32_t> types32(b * s, 0);
         const ov::Shape shape{b, s};
         std::vector<float> out;
+        if (o.static_shape || o.fuse || o.i32) {
+            compiled = core.compile_model(shaped(b, s), o.device, props);
+            request = compiled.create_infer_request();
+        }
+        const auto input_type = compiled.input("input_ids").get_element_type();
         auto run_once = [&]() {
             // An OpenVINO user's loop: set the input tensors, infer, read
             // the hidden state, pool and normalize on the host.
@@ -214,6 +284,14 @@ int main(int argc, char **argv) {
             request.infer();
             const ov::Tensor hidden = request.get_output_tensor(0);
             const auto hs = hidden.get_shape();
+            if (o.fuse) {
+                // Pooled and normalized in the graph: the result is [batch, hidden].
+                if (hs.size() != 2 || hs[0] != b) {
+                    die("fused output shape is not [batch, hidden]");
+                }
+                out.assign(hidden.data<const float>(), hidden.data<const float>() + b * hs[1]);
+                return;
+            }
             if (hs.size() != 3 || hs[0] != b || hs[1] != s) {
                 die("output shape is not [batch, seq, hidden]");
             }
@@ -297,7 +375,9 @@ int main(int argc, char **argv) {
     r["bundle"] = dump["bundle_id"];
     r["embed"] = cells;
     r["native_reference"] = "this is the native side: OpenVINO C++ API (" + o.device + ") on the token rows of " + o.tokens +
-                            "; bundle identity copied from that dump; host-side " + pooling + " pooling and " +
+                            "; bundle identity copied from that dump; " + std::string(o.static_shape ? "static [batch, seq] shape; " : "") +
+                            std::string(o.i32 ? "i32 inputs; " : "") +
+                            std::string(o.fuse ? "pooling and normalization in the graph; " : "host-side ") + pooling + " pooling and " +
                             (normalize ? "l2" : "no") + " normalization; no session counters";
     const std::string text = r.dump(2) + "\n";
     if (o.out.empty()) {

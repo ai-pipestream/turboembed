@@ -846,10 +846,15 @@ that device. The same day: openvino embeddings on the B70 (1.15x to
 1.55x) SUPPORTED, ggml generation on the 4080 (0.99x) SUPPORTED, hailo
 embeddings on the Hailo-8 (1.00x of `hailortcli benchmark`) SUPPORTED,
 metal embeddings on the M2 (1.00x of the kernels run directly)
-SUPPORTED. Under the floor and recorded as such: openvino on the Ryzen
-CPU (0.91x on the 8x32, 8x128, 32x32 and 8x256 cells; the fused
-pooling subgraph costs more on the CPU plugin than host pooling, to be
-measured). ggml GGUF embeddings on the GPU first read 0.94x on 1x32
+SUPPORTED. openvino on the Ryzen CPU first read 0.91x on the larger
+cells; the reference's attribution knobs (`--static`, `--fuse`,
+`--i32`, which reproduce the provider's graph) put the graph choices
+at a 4 percent gain, so the gap was the provider's: its token writer
+built an error message string per token (about 1 us each) whether or
+not the check failed. Built only on failure, the pair is 1.03x to
+1.30x, SUPPORTED (`compare-openvino-krick-cpu-embed-2026-09-22b.json`);
+the Metal and Hailo token writers had the same pattern and the same
+fix. ggml GGUF embeddings on the GPU first read 0.94x on 1x32
 and 8x128; both causes were in the protocol, not the provider: the
 llama.cpp reference tokenized outside its timed loop while the
 provider's text path tokenizes inside it, and a warm-up counted in
