@@ -39,8 +39,15 @@ fn device_auto_honors_kind_and_provider_filters() {
     let (runtime, index) = t.detached();
     let kind = runtime.device(index).expect("device").info.kind;
     let filtered = DeviceSelector { kinds: vec![kind], ..Default::default() };
-    let picked = runtime.select(&filtered).expect("AUTO with the device's own kind");
-    assert_eq!(runtime.device(picked).expect("device").info.kind, kind);
+    if kind == DeviceKind::Cpu {
+        // AUTO never selects a CPU, even when the filter asks for that kind
+        // alone (a CPU target such as openvino ordinal 1 or ggml's CPU).
+        let e = assert_err!(runtime.select(&filtered), TURBO_E_DEVICE_NOT_FOUND);
+        assert!(e.message().contains("CPU"), "the refusal must say why: {}", e.message());
+    } else {
+        let picked = runtime.select(&filtered).expect("AUTO with the device's own kind");
+        assert_eq!(runtime.device(picked).expect("device").info.kind, kind);
+    }
 
     let wrong_provider = DeviceSelector { provider_id: "no-such-provider".into(), ..Default::default() };
     assert_err!(runtime.select(&wrong_provider), TURBO_E_DEVICE_NOT_FOUND);

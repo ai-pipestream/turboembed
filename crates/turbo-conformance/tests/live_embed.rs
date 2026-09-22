@@ -316,7 +316,15 @@ fn live_one_session_serves_every_shape_it_is_asked_for_in_any_order() {
     session.run(&Default::default()).expect("run a narrower batch");
     session.write_text(&wide, &EmbedOptions::default()).expect("write the wide batch again");
     let again = read_f32(&session.run(&Default::default()).expect("run the wide batch again"), 0);
-    assert_eq!(first, again, "the same input must give the same vectors whatever shapes ran in between");
+    // A device claiming TURBO_CAP_DETERMINISTIC must return the same bits;
+    // one that does not (the OpenVINO GPU plugin reduces in a driver-chosen
+    // order) must stay inside reduction noise, far below any caching fault.
+    if live.has_cap(abi::TURBO_CAP_DETERMINISTIC) {
+        assert_eq!(first, again, "the same input must give the same vectors whatever shapes ran in between");
+    } else {
+        let worst = first.iter().zip(&again).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
+        assert!(worst < 1e-5, "the same input drifted by {worst} after other shapes ran in between");
+    }
     let c = cosine(&first[3 * dim..], &short);
     assert!(c > 0.9999, "row 3 of the batch and the same text run alone differ: cosine {c}");
 }
