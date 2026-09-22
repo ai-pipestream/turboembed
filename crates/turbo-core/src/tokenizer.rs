@@ -1,12 +1,14 @@
 //! Tokenizers loaded from bundles.
 //!
-//! The default path is the native WordPiece tokenizer in [`crate::wordpiece`],
-//! which reads BERT-family `tokenizer.json` files with no dependency beyond
-//! `serde_json` and reproduces the Hugging Face `tokenizers` crate's ids and
-//! byte offsets for them. With the `hf-tokenizers` feature the Hugging Face
-//! crate (Apache-2.0) serves the files the native path does not (BPE and
-//! Unigram); without it, such a file is `TURBO_E_UNSUPPORTED` naming the
-//! feature. Providers with a native fast path (the C++ WordPiece
+//! The default path is native: the WordPiece tokenizer in
+//! [`crate::wordpiece`] for BERT-family `tokenizer.json` files and the
+//! byte-level BPE tokenizer in [`crate::bpe`] for the GPT-2 family (Qwen,
+//! GPT-2, RoBERTa, Llama 3), with no dependency beyond `serde_json`; both
+//! reproduce the Hugging Face `tokenizers` crate's ids and byte offsets.
+//! With the `hf-tokenizers` feature the Hugging Face crate (Apache-2.0)
+//! serves the files the native path does not (Unigram, sentencepiece BPE
+//! with byte fallback); without it, such a file is `TURBO_E_UNSUPPORTED`
+//! naming what it declares. Providers with a native fast path (the C++ WordPiece
 //! write-through) verify their ids against this implementation in the
 //! conformance suite.
 //!
@@ -19,6 +21,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::bpe::Bpe;
 use crate::bundle::Bundle;
 use crate::error::{Error, Result};
 use crate::types::{PromptRole, Truncate};
@@ -107,6 +110,8 @@ pub struct Encoding {
 /// The implementation behind a tokenizer.
 enum Backend {
     Native(WordPiece),
+    /// Boxed: the BPE state is several times the WordPiece state.
+    Bpe(Box<Bpe>),
     #[cfg(feature = "hf-tokenizers")]
     Hf(tokenizers::Tokenizer),
 }
@@ -164,9 +169,15 @@ impl Tokenizer {
         }
         let what = format!("tokenizer `{}`", path.display());
         let text = std::fs::read_to_string(path).map_err(|e| Error::bundle_invalid(format!("{what}: {e}")))?;
+        // WordPiece, then byte-level BPE; a file neither serves goes to the
+        // Hugging Face crate when it is built in, else its reason is the error.
         let backend = match WordPiece::from_json(&text, &what) {
             Ok(wp) => Backend::Native(wp),
-            Err(e) if e.code() == turbo_abi::TURBO_E_UNSUPPORTED => Self::other_backend(&text, &what, e)?,
+            Err(e) if e.code() == turbo_abi::TURBO_E_UNSUPPORTED => match Bpe::from_json(&text, &what) {
+                Ok(bpe) => Backend::Bpe(Box::new(bpe)),
+                Err(e) if e.code() == turbo_abi::TURBO_E_UNSUPPORTED => Self::other_backend(&text, &what, e)?,
+                Err(e) => return Err(e),
+            },
             Err(e) => return Err(e),
         };
         let info = Self::info_of(&backend, kind, sha256, max_seq)?;
@@ -197,6 +208,7 @@ impl Tokenizer {
     fn info_of(backend: &Backend, kind: &str, sha256: &str, max_seq: u32) -> Result<TokenizerInfo> {
         let (vocab_size, id_of, specials): (u32, Box<dyn Fn(&str) -> Option<i32> + '_>, u32) = match backend {
             Backend::Native(wp) => (wp.vocab_size(), Box::new(|t| wp.token_to_id(t)), wp.specials_per_sequence()),
+            Backend::Bpe(bpe) => (bpe.vocab_size(), Box::new(|t| bpe.token_to_id(t)), bpe.specials_per_sequence()),
             #[cfg(feature = "hf-tokenizers")]
             Backend::Hf(hf) => {
                 let n = hf
@@ -259,10 +271,19 @@ impl Tokenizer {
                 let n = ids.len();
                 Ok(Encoding { ids, type_ids, mask: vec![1; n], offsets, truncated: false })
             }
+            Backend::Bpe(bpe) => {
+                let content = bpe.tokenize(input);
+                let (ids, type_ids, offsets) = bpe.apply_template(&content, add_special_tokens);
+                let n = ids.len();
+                Ok(Encoding { ids, type_ids, mask: vec![1; n], offsets, truncated: false })
+            }
             #[cfg(feature = "hf-tokenizers")]
             Backend::Hf(hf) => {
                 let enc = hf
-                    .encode(tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw(input.into())), add_special_tokens)
+                    .encode(
+                        tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw(input.into())),
+                        add_special_tokens,
+                    )
                     .map_err(|e| Error::runtime(format!("tokenizer encode: {e}")))?;
                 let n = enc.get_ids().len();
                 let mut out = Encoding {
@@ -291,6 +312,7 @@ impl Tokenizer {
     fn is_template_special(&self, enc: &Encoding, i: usize) -> bool {
         match &self.backend {
             Backend::Native(wp) => enc.offsets[i] == (0, 0) && wp.is_special(enc.ids[i]),
+            Backend::Bpe(bpe) => enc.offsets[i] == (0, 0) && bpe.is_special(enc.ids[i]),
             #[cfg(feature = "hf-tokenizers")]
             Backend::Hf(_) => {
                 enc.offsets[i] == (0, 0)
@@ -401,6 +423,7 @@ impl Tokenizer {
         }
         match &self.backend {
             Backend::Native(wp) => wp.decode(ids, skip_special_tokens),
+            Backend::Bpe(bpe) => bpe.decode(ids, skip_special_tokens),
             #[cfg(feature = "hf-tokenizers")]
             Backend::Hf(hf) => {
                 let u: Vec<u32> = ids.iter().map(|&i| i as u32).collect();
@@ -583,13 +606,109 @@ mod tests {
             assert_eq!(got.ids, want_ids, "ids differ for {text:?}");
             let want_types: Vec<i32> = expect.get_type_ids().iter().map(|&i| i as i32).collect();
             assert_eq!(got.type_ids, want_types, "type ids differ for {text:?}");
-            let want_offsets: Vec<(u32, u32)> = expect.get_offsets().iter().map(|&(s, e)| (s as u32, e as u32)).collect();
+            let want_offsets: Vec<(u32, u32)> =
+                expect.get_offsets().iter().map(|&(s, e)| (s as u32, e as u32)).collect();
             assert_eq!(got.offsets, want_offsets, "offsets differ for {text:?}");
             let want_text = hf.decode(expect.get_ids(), true).unwrap();
             assert_eq!(native.decode(&got.ids, true).unwrap(), want_text, "decode differs for {text:?}");
             compared += 1;
         }
         assert!(compared > 150, "compared only {compared} texts");
+    }
+
+    /// The byte-level BPE file the BPE tests use: `TURBO_BPE_TOKENIZER`, or
+    /// Qwen3-Embedding-0.6B's `tokenizer.json` under `~/opt/models`. The
+    /// file is 11 MB, so it is not a fixture in the tree; a machine without
+    /// it skips these tests and says so.
+    pub(super) fn bpe_path() -> Option<std::path::PathBuf> {
+        let path = match std::env::var_os("TURBO_BPE_TOKENIZER") {
+            Some(p) => std::path::PathBuf::from(p),
+            None => {
+                let home = std::env::var_os("HOME")?;
+                Path::new(&home).join("opt/models/qwen3-embed-0.6b/tokenizer.json")
+            }
+        };
+        if path.is_file() {
+            Some(path)
+        } else {
+            eprintln!("skipped: no byte-level BPE tokenizer at {} (set TURBO_BPE_TOKENIZER)", path.display());
+            None
+        }
+    }
+
+    #[cfg(feature = "hf-tokenizers")]
+    fn bpe_texts() -> Vec<String> {
+        let mut texts: Vec<String> = Vec::new();
+        for name in ["sts-pairs.jsonl", "multilingual.jsonl"] {
+            let corpus_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/corpus").join(name);
+            for line in std::fs::read_to_string(&corpus_path).unwrap().lines().filter(|l| !l.trim().is_empty()) {
+                let v: serde_json::Value = serde_json::from_str(line).unwrap();
+                for key in ["text", "text_a", "text_b"] {
+                    if let Some(t) = v[key].as_str() {
+                        texts.push(t.to_string());
+                    }
+                }
+            }
+        }
+        texts
+    }
+
+    #[test]
+    fn qwen_reference_ids() {
+        let Some(path) = bpe_path() else { return };
+        let t = Tokenizer::from_file(&path, "bpe", "", 512, "", "").unwrap();
+        let opts = EncodeOptions { truncate: Truncate::None, max_tokens: 512, ..Default::default() };
+        // Qwen3's ids for "hello world" and the template's <|endoftext|>.
+        let e = t.encode("hello world", &opts).unwrap();
+        assert_eq!(e.ids, vec![14990, 1879, 151643]);
+        assert_eq!(e.offsets, vec![(0, 5), (5, 11), (0, 0)]);
+        assert_eq!(e.type_ids, vec![0, 0, 0]);
+        assert_eq!(t.info().specials_per_sequence, 1);
+        assert_eq!(t.info().pad_id, Some(151643));
+        assert_eq!(t.info().vocab_size, 151669);
+        assert_eq!(t.decode(&e.ids, true).unwrap(), "hello world");
+        // Digits are one token each; a special token in the text is itself.
+        let e = t.encode("2026 <|im_end|>", &opts).unwrap();
+        assert_eq!(e.ids, vec![17, 15, 17, 21, 220, 151645, 151643]);
+        // NFC: a decomposed e + acute is the composed character's bytes.
+        let composed = t.encode("caf\u{e9}", &opts).unwrap();
+        let decomposed = t.encode("cafe\u{301}", &opts).unwrap();
+        assert_eq!(composed.ids, decomposed.ids);
+        assert_eq!(decomposed.offsets.last().unwrap(), &(0, 0));
+        // The composed character keeps the base letter's bytes; the mark's
+        // two bytes belong to no token (the Hugging Face alignment rule).
+        assert_eq!(decomposed.offsets[decomposed.offsets.len() - 2].1, 4);
+    }
+
+    /// The native BPE must agree with the Hugging Face crate on ids, type
+    /// ids, offsets and decoded text over both corpora.
+    #[cfg(feature = "hf-tokenizers")]
+    #[test]
+    fn native_bpe_matches_hugging_face() {
+        let Some(path) = bpe_path() else { return };
+        let native = Tokenizer::from_file(&path, "bpe", "", 4096, "", "").unwrap();
+        let mut hf = tokenizers::Tokenizer::from_file(&path).unwrap();
+        hf.with_truncation(None).unwrap();
+        hf.with_padding(None);
+        let opts = EncodeOptions { truncate: Truncate::None, max_tokens: 4096, ..Default::default() };
+        let mut compared = 0;
+        for text in &bpe_texts() {
+            let expect = hf
+                .encode(tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw(text.as_str().into())), true)
+                .unwrap();
+            let got = native.encode(text, &opts).unwrap();
+            let want_ids: Vec<i32> = expect.get_ids().iter().map(|&i| i as i32).collect();
+            assert_eq!(got.ids, want_ids, "ids differ for {text:?}");
+            let want_types: Vec<i32> = expect.get_type_ids().iter().map(|&i| i as i32).collect();
+            assert_eq!(got.type_ids, want_types, "type ids differ for {text:?}");
+            let want_offsets: Vec<(u32, u32)> =
+                expect.get_offsets().iter().map(|&(s, e)| (s as u32, e as u32)).collect();
+            assert_eq!(got.offsets, want_offsets, "offsets differ for {text:?}");
+            let want_text = hf.decode(expect.get_ids(), true).unwrap();
+            assert_eq!(native.decode(&got.ids, true).unwrap(), want_text, "decode differs for {text:?}");
+            compared += 1;
+        }
+        assert!(compared > 200, "compared only {compared} texts");
     }
 }
 
@@ -605,8 +724,16 @@ mod speed {
     #[ignore]
     fn native_versus_hugging_face_throughput() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/bundles/minilm-tokenizer/tokenizer.json");
-        let native = Tokenizer::from_file(&path, "wordpiece", "", 512, "", "").unwrap();
-        let mut hf = tokenizers::Tokenizer::from_file(&path).unwrap();
+        throughput("wordpiece", &path);
+        if let Some(path) = super::tests::bpe_path() {
+            throughput("byte-level BPE", &path);
+        }
+    }
+
+    fn throughput(label: &str, path: &Path) {
+        eprintln!("{label}: {}", path.display());
+        let native = Tokenizer::from_file(path, "tokenizer", "", 4096, "", "").unwrap();
+        let mut hf = tokenizers::Tokenizer::from_file(path).unwrap();
         hf.with_truncation(None).unwrap();
         hf.with_padding(None);
         let corpus = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/corpus/sts-pairs.jsonl");
@@ -632,7 +759,8 @@ mod speed {
             let t1 = Instant::now();
             for _ in 0..rounds {
                 for t in &set {
-                    hf.encode(tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw(t.as_str().into())), true).unwrap();
+                    hf.encode(tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw(t.as_str().into())), true)
+                        .unwrap();
                 }
             }
             let hf_s = t1.elapsed().as_secs_f64();

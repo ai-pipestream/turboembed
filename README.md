@@ -153,7 +153,7 @@ every receipt in `testdata/receipts/turbo/` records one such run. See
 include/turbo/      the generated, committed C headers
 crates/             turbo-abi, turbo-core, turbo-capi, turbo (safe API), turbo-conformance, turbo-bench
 providers/          mock, static, cuda, ggml (Rust); openvino, hailo (C++); metal (Objective-C++)
-native/             the shared WordPiece tokenizer and C++ provider helpers
+native/             the shared C++ WordPiece tokenizer and provider helpers
 bindings/           java (FFM), swift
 server/             Inferstream (turbo-inferstream): OIP v2 gRPC and REST, extension service, OpenAI-shaped routes
 packaging/          the distribution archive Dockerfile, the Inferstream image, KServe manifests

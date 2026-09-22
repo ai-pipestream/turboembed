@@ -5,8 +5,9 @@
 //! generated Unicode tables in `unicode_data.rs`.
 //!
 //! It reproduces the Hugging Face `tokenizers` crate's ids and byte offsets
-//! for these files (the `hf-tokenizers` feature keeps that crate available
-//! for BPE and Unigram files and for the parity test). Anything the file
+//! for these files (`bpe.rs` does the same for byte-level BPE files; the
+//! `hf-tokenizers` feature keeps that crate available for Unigram and
+//! other files and for the parity tests). Anything the file
 //! declares that this implementation does not do is an error naming it,
 //! never a silent approximation.
 
@@ -30,9 +31,79 @@ pub struct Token {
 
 /// One piece of the single-sequence template.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Piece {
+pub(crate) enum Piece {
     Special { id: i32, type_id: i32 },
     Sequence { type_id: i32 },
+}
+
+/// The single-sequence template of a `TemplateProcessing` post-processor
+/// node: its `single` pieces, with each special token's id from the
+/// node's `special_tokens` or the vocabulary.
+pub(crate) fn template_from_json(p: &Value, vocab: &HashMap<Box<str>, i32>, what: &str) -> Result<Vec<Piece>> {
+    let single = p
+        .get("single")
+        .and_then(Value::as_array)
+        .ok_or_else(|| Error::bundle_invalid(format!("{what}: TemplateProcessing has no `single`")))?;
+    let specials = p.get("special_tokens").and_then(Value::as_object);
+    let mut pieces = Vec::new();
+    for item in single {
+        if let Some(s) = item.get("SpecialToken") {
+            let name = s.get("id").and_then(Value::as_str).unwrap_or("");
+            let type_id = s.get("type_id").and_then(Value::as_i64).unwrap_or(0) as i32;
+            let id = specials
+                .and_then(|m| m.get(name))
+                .and_then(|e| e.get("ids"))
+                .and_then(Value::as_array)
+                .and_then(|ids| ids.first())
+                .and_then(Value::as_i64)
+                .map(|i| i as i32)
+                .or_else(|| vocab.get(name).copied())
+                .ok_or_else(|| Error::bundle_invalid(format!("{what}: template special token `{name}` has no id")))?;
+            pieces.push(Piece::Special { id, type_id });
+        } else if let Some(s) = item.get("Sequence") {
+            let which = s.get("id").and_then(Value::as_str).unwrap_or("A");
+            if which != "A" {
+                return Err(Error::unsupported(format!("{what}: single-sequence template names sequence `{which}`")));
+            }
+            pieces.push(Piece::Sequence { type_id: s.get("type_id").and_then(Value::as_i64).unwrap_or(0) as i32 });
+        } else {
+            return Err(Error::bundle_invalid(format!(
+                "{what}: template piece {item} is neither SpecialToken nor Sequence"
+            )));
+        }
+    }
+    Ok(pieces)
+}
+
+/// Wrap content tokens in a template: `(ids, type_ids, offsets)`; the
+/// template's specials have offsets `(0, 0)`.
+pub(crate) fn apply_template(
+    template: &[Piece],
+    content: &[Token],
+    add_special_tokens: bool,
+) -> (Vec<i32>, Vec<i32>, Vec<(u32, u32)>) {
+    let mut ids = Vec::with_capacity(content.len() + 2);
+    let mut type_ids = Vec::with_capacity(content.len() + 2);
+    let mut offsets = Vec::with_capacity(content.len() + 2);
+    for piece in template {
+        match piece {
+            Piece::Special { id, type_id } => {
+                if add_special_tokens {
+                    ids.push(*id);
+                    type_ids.push(*type_id);
+                    offsets.push((0, 0));
+                }
+            }
+            Piece::Sequence { type_id } => {
+                for t in content {
+                    ids.push(t.id);
+                    type_ids.push(*type_id);
+                    offsets.push((t.start, t.end));
+                }
+            }
+        }
+    }
+    (ids, type_ids, offsets)
 }
 
 /// A loaded WordPiece tokenizer.
@@ -115,7 +186,7 @@ impl WordPiece {
         let model_type = model.get("type").and_then(Value::as_str).unwrap_or("");
         if model_type != "WordPiece" {
             return Err(Error::unsupported(format!(
-                "{what}: model type `{model_type}` is not served by the native tokenizer (WordPiece); build libturbo with the `hf-tokenizers` feature for BPE and Unigram files"
+                "{what}: model type `{model_type}` is not served by the native WordPiece tokenizer"
             )));
         }
         let vocab_json = model
@@ -125,7 +196,9 @@ impl WordPiece {
         let mut vocab: HashMap<Box<str>, i32> = HashMap::with_capacity(vocab_json.len());
         let mut max_id = -1i64;
         for (tok, id) in vocab_json {
-            let id = id.as_i64().ok_or_else(|| Error::bundle_invalid(format!("{what}: vocab entry `{tok}` has no integer id")))?;
+            let id = id
+                .as_i64()
+                .ok_or_else(|| Error::bundle_invalid(format!("{what}: vocab entry `{tok}` has no integer id")))?;
             if id < 0 || id > i32::MAX as i64 {
                 return Err(Error::bundle_invalid(format!("{what}: vocab id {id} of `{tok}` is outside i32")));
             }
@@ -136,8 +209,14 @@ impl WordPiece {
         let mut special_ids: Vec<i32> = Vec::new();
         if let Some(list) = j.get("added_tokens").and_then(Value::as_array) {
             for a in list {
-                let content = a.get("content").and_then(Value::as_str).ok_or_else(|| Error::bundle_invalid(format!("{what}: an added token has no content")))?;
-                let id = a.get("id").and_then(Value::as_i64).ok_or_else(|| Error::bundle_invalid(format!("{what}: added token `{content}` has no id")))?;
+                let content = a
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| Error::bundle_invalid(format!("{what}: an added token has no content")))?;
+                let id = a
+                    .get("id")
+                    .and_then(Value::as_i64)
+                    .ok_or_else(|| Error::bundle_invalid(format!("{what}: added token `{content}` has no id")))?;
                 if id < 0 || id > i32::MAX as i64 {
                     return Err(Error::bundle_invalid(format!("{what}: added token id {id} is outside i32")));
                 }
@@ -158,8 +237,13 @@ impl WordPiece {
                 *slot = Some(tok.clone());
             }
         }
-        let unk_token = model.get("unk_token").and_then(Value::as_str).ok_or_else(|| Error::bundle_invalid(format!("{what}: model.unk_token is missing")))?;
-        let unk_id = *vocab.get(unk_token).ok_or_else(|| Error::bundle_invalid(format!("{what}: unk_token `{unk_token}` is not in the vocabulary")))?;
+        let unk_token = model
+            .get("unk_token")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::bundle_invalid(format!("{what}: model.unk_token is missing")))?;
+        let unk_id = *vocab.get(unk_token).ok_or_else(|| {
+            Error::bundle_invalid(format!("{what}: unk_token `{unk_token}` is not in the vocabulary"))
+        })?;
         let prefix = model.get("continuing_subword_prefix").and_then(Value::as_str).unwrap_or("##");
         let max_chars = model.get("max_input_chars_per_word").and_then(Value::as_u64).unwrap_or(100) as usize;
 
@@ -168,7 +252,9 @@ impl WordPiece {
             Some(n) => {
                 let t = n.get("type").and_then(Value::as_str).unwrap_or("");
                 if t != "BertNormalizer" {
-                    return Err(Error::unsupported(format!("{what}: normalizer `{t}` is not served by the native tokenizer (BertNormalizer)")));
+                    return Err(Error::unsupported(format!(
+                        "{what}: normalizer `{t}` is not served by the native tokenizer (BertNormalizer)"
+                    )));
                 }
                 let lowercase = n.get("lowercase").and_then(Value::as_bool).unwrap_or(true);
                 // `strip_accents: null` means "as lowercase", the BERT rule.
@@ -185,46 +271,23 @@ impl WordPiece {
             Some(p) if !p.is_null() => {
                 let t = p.get("type").and_then(Value::as_str).unwrap_or("");
                 if t != "BertPreTokenizer" {
-                    return Err(Error::unsupported(format!("{what}: pre_tokenizer `{t}` is not served by the native tokenizer (BertPreTokenizer)")));
+                    return Err(Error::unsupported(format!(
+                        "{what}: pre_tokenizer `{t}` is not served by the native tokenizer (BertPreTokenizer)"
+                    )));
                 }
             }
-            _ => return Err(Error::unsupported(format!("{what}: a WordPiece file without a BertPreTokenizer is not served by the native tokenizer"))),
+            _ => {
+                return Err(Error::unsupported(format!(
+                    "{what}: a WordPiece file without a BertPreTokenizer is not served by the native tokenizer"
+                )))
+            }
         }
         let template = match j.get("post_processor") {
             None | Some(Value::Null) => vec![Piece::Sequence { type_id: 0 }],
             Some(p) => {
                 let t = p.get("type").and_then(Value::as_str).unwrap_or("");
                 match t {
-                    "TemplateProcessing" => {
-                        let single = p.get("single").and_then(Value::as_array).ok_or_else(|| Error::bundle_invalid(format!("{what}: TemplateProcessing has no `single`")))?;
-                        let specials = p.get("special_tokens").and_then(Value::as_object);
-                        let mut pieces = Vec::new();
-                        for item in single {
-                            if let Some(s) = item.get("SpecialToken") {
-                                let name = s.get("id").and_then(Value::as_str).unwrap_or("");
-                                let type_id = s.get("type_id").and_then(Value::as_i64).unwrap_or(0) as i32;
-                                let id = specials
-                                    .and_then(|m| m.get(name))
-                                    .and_then(|e| e.get("ids"))
-                                    .and_then(Value::as_array)
-                                    .and_then(|ids| ids.first())
-                                    .and_then(Value::as_i64)
-                                    .map(|i| i as i32)
-                                    .or_else(|| vocab.get(name).copied())
-                                    .ok_or_else(|| Error::bundle_invalid(format!("{what}: template special token `{name}` has no id")))?;
-                                pieces.push(Piece::Special { id, type_id });
-                            } else if let Some(s) = item.get("Sequence") {
-                                let which = s.get("id").and_then(Value::as_str).unwrap_or("A");
-                                if which != "A" {
-                                    return Err(Error::unsupported(format!("{what}: single-sequence template names sequence `{which}`")));
-                                }
-                                pieces.push(Piece::Sequence { type_id: s.get("type_id").and_then(Value::as_i64).unwrap_or(0) as i32 });
-                            } else {
-                                return Err(Error::bundle_invalid(format!("{what}: template piece {item} is neither SpecialToken nor Sequence")));
-                            }
-                        }
-                        pieces
-                    }
+                    "TemplateProcessing" => template_from_json(p, &vocab, what)?,
                     "BertProcessing" => {
                         let id_of = |key: &str| -> Result<i32> {
                             p.get(key)
@@ -249,11 +312,15 @@ impl WordPiece {
             Some(d) => {
                 let t = d.get("type").and_then(Value::as_str).unwrap_or("");
                 if t != "WordPiece" {
-                    return Err(Error::unsupported(format!("{what}: decoder `{t}` is not served by the native tokenizer (WordPiece)")));
+                    return Err(Error::unsupported(format!(
+                        "{what}: decoder `{t}` is not served by the native tokenizer (WordPiece)"
+                    )));
                 }
                 if let Some(p) = d.get("prefix").and_then(Value::as_str) {
                     if p != prefix {
-                        return Err(Error::bundle_invalid(format!("{what}: decoder prefix `{p}` differs from the model's `{prefix}`")));
+                        return Err(Error::bundle_invalid(format!(
+                            "{what}: decoder prefix `{p}` differs from the model's `{prefix}`"
+                        )));
                     }
                 }
                 d.get("cleanup").and_then(Value::as_bool).unwrap_or(true)
@@ -417,28 +484,7 @@ impl WordPiece {
     /// Wrap content tokens in the template: `(ids, type_ids, offsets)`; the
     /// template's specials have offsets `(0, 0)`.
     pub fn apply_template(&self, content: &[Token], add_special_tokens: bool) -> (Vec<i32>, Vec<i32>, Vec<(u32, u32)>) {
-        let mut ids = Vec::with_capacity(content.len() + 2);
-        let mut type_ids = Vec::with_capacity(content.len() + 2);
-        let mut offsets = Vec::with_capacity(content.len() + 2);
-        for piece in &self.template {
-            match piece {
-                Piece::Special { id, type_id } => {
-                    if add_special_tokens {
-                        ids.push(*id);
-                        type_ids.push(*type_id);
-                        offsets.push((0, 0));
-                    }
-                }
-                Piece::Sequence { type_id } => {
-                    for t in content {
-                        ids.push(t.id);
-                        type_ids.push(*type_id);
-                        offsets.push((t.start, t.end));
-                    }
-                }
-            }
-        }
-        (ids, type_ids, offsets)
+        apply_template(&self.template, content, add_special_tokens)
     }
 
     /// Decode ids to text with the WordPiece decoder's joining and, when
@@ -447,11 +493,9 @@ impl WordPiece {
     pub fn decode(&self, ids: &[i32], skip_special_tokens: bool) -> Result<String> {
         let mut words: Vec<&str> = Vec::with_capacity(ids.len());
         for &id in ids {
-            let tok = self
-                .tokens
-                .get(id as usize)
-                .and_then(|t| t.as_deref())
-                .ok_or_else(|| Error::invalid_argument(format!("token id {id} is outside the vocabulary of {}", self.tokens.len())))?;
+            let tok = self.tokens.get(id as usize).and_then(|t| t.as_deref()).ok_or_else(|| {
+                Error::invalid_argument(format!("token id {id} is outside the vocabulary of {}", self.tokens.len()))
+            })?;
             if skip_special_tokens && self.is_special(id) {
                 continue;
             }

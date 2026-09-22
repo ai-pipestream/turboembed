@@ -175,9 +175,11 @@ directly.
 ## Tokenizer and chunker (`turbo_tokenizer_*`, `turbo_chunk_plan_*`)
 
 `turbo_tokenizer_create(rt, bundle_path, out, err)` loads the tokenizer a
-bundle declares (`tokenizer.files["tokenizer.json"]`); the general path is
-the Hugging Face `tokenizers` crate (`crates/turbo-core/src/tokenizer.rs`),
-which reads WordPiece, BPE, and Unigram `tokenizer.json` files. There is no
+bundle declares (`tokenizer.files["tokenizer.json"]`): WordPiece and
+byte-level BPE files are read by the native tokenizers
+(`crates/turbo-core/src/wordpiece.rs`, `bpe.rs`), and the Hugging Face
+`tokenizers` crate behind the `hf-tokenizers` feature reads the rest
+(Unigram, sentencepiece BPE with byte fallback). There is no
 C entry point that takes a bare `tokenizer.json` path directly; a tokenizer
 is always loaded from a bundle directory, including a tokenizer-only bundle
 with no artifacts (`testdata/bundles/minilm-tokenizer/`, `task: "tokenize"`).

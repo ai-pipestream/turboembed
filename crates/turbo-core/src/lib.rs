@@ -13,6 +13,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 pub mod abi_convert;
+pub mod bpe;
 pub mod buffer;
 pub mod bundle;
 pub mod chunker;

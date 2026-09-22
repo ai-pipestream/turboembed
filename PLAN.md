@@ -732,15 +732,29 @@ BERT-family `tokenizer.json` files (BertNormalizer, BertPreTokenizer,
 WordPiece, TemplateProcessing or BertProcessing, the WordPiece decoder)
 and a parity test holds it to the Hugging Face crate's ids, type ids,
 byte offsets and decoded text over the STS corpus and adversarial strings
-(`cargo test -p turbo-core --features hf-tokenizers`). The Hugging Face
-crate stays available behind the `hf-tokenizers` feature for BPE and
-Unigram files; without it such a file is `TURBO_E_UNSUPPORTED` naming the
-feature. It is also faster: one thread on `krick`, release build, the
-native path encodes 5.1M tokens/s on the STS sentences (2.5 us per text)
-and 4.7M tokens/s on a 1000-token paragraph, 3.2x and 2.3x the Hugging
-Face crate on the same texts (`cargo test -p turbo-core --features
-hf-tokenizers --release speed -- --ignored --nocapture`). A native BPE
-for the Qwen-style vocabularies is the next cut.
+(`cargo test -p turbo-core --features hf-tokenizers`). It is also faster:
+one thread on `krick`, release build, the native path encodes 5.1M
+tokens/s on the STS sentences (2.5 us per text) and 4.7M tokens/s on a
+1000-token paragraph, 3.2x and 2.3x the Hugging Face crate on the same
+texts (`cargo test -p turbo-core --features hf-tokenizers --release speed
+-- --ignored --nocapture`).
+
+Later on 2026-09-22 the byte-level BPE of the GPT-2 family is native too
+(`crates/turbo-core/src/bpe.rs`): an NFC normalizer over the generated
+composition table, the GPT-2, Qwen2 and cl100k (GPT-4, Llama 3) split
+patterns matched by hand (`\p{L}`, `\p{N}` and `\s` from generated
+class tables), the byte-to-character table, ranked merges with the
+crate's pre-token cache, `ByteLevel`, `TemplateProcessing` and
+`RobertaProcessing` post-processors and the `ByteLevel` decoder. The same
+parity test holds it to the crate over the STS corpus and a multilingual
+corpus (`testdata/corpus/multilingual.jsonl`: 26 languages and scripts,
+emoji, decomposed accents, Hangul jamo, special tokens in text, CRLF) on
+Qwen3-Embedding-0.6B's file, and it encodes 5.9M tokens/s on the
+sentences and 5.5M on the paragraph, 4.1x and 3.4x the crate. Files
+neither native path serves (Unigram, sentencepiece BPE with byte
+fallback, as e5-mistral and bge-m3 declare) still go to the Hugging Face
+crate behind `hf-tokenizers`, or are `TURBO_E_UNSUPPORTED` naming what
+they declare.
 `turbo-inferstream` resolves tokio, axum, tonic and their runtime on top
 of that; nothing else.
 

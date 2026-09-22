@@ -17,8 +17,10 @@ libloading = { workspace = true }
 tokenizers = { workspace = true, optional = true }
 
 [features]
-# The Hugging Face `tokenizers` crate for BPE and Unigram tokenizer.json
-# files (WordPiece is native). Off by default: it adds about 70 crates.
+# The Hugging Face `tokenizers` crate for the tokenizer.json files the
+# native path does not serve (Unigram, sentencepiece BPE with byte
+# fallback); WordPiece and byte-level BPE are native. Off by default: it
+# adds about 70 crates.
 hf-tokenizers = ["dep:tokenizers"]
 
 [dev-dependencies]
