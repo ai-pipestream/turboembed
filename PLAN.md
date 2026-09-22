@@ -801,7 +801,12 @@ load and unload while the server runs; 16 more tests for them; the
 200 MB, the ggml provider on the CPU) with a KServe `ClusterServingRuntime`
 and `InferenceService` under `packaging/kserve/`; and `demo/rag/`, embed,
 rerank and a streamed cited answer through the OpenAI SDK and through
-KServe's own OIP clients. Not yet: the parity suites on all three GPU
+KServe's own OIP clients; and `--pages DIR`, which serves a directory of
+static files at `/`, for `demo/search/`, a page that embeds 48 passages
+in 8 languages with MiniLM and Qwen3-Embedding-0.6B (both through `ggml`
+on the 4080) and ranks them for a query in any language side by side,
+where Qwen3 returns all 8 same-topic passages for each of 8 queries and
+MiniLM 1 to 5. Not yet: the parity suites on all three GPU
 machines, a catalog of aliases (the repository extension is where they
 would resolve), and the CUDA and OpenVINO providers in the image.
 

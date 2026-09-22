@@ -111,7 +111,9 @@ runs, the OpenAI-shaped `/v1/embeddings`, `/v1/rerank`,
 any served bundle with pooled fixed-shape sessions. It ships as a
 container image with KServe manifests (`packaging/`), and `demo/rag/`
 runs embed, rerank and a cited streamed answer over it through the
-OpenAI SDK and through KServe's own clients. See
+OpenAI SDK and through KServe's own clients, and `demo/search/` is a
+page it serves that searches 48 passages in 8 languages with MiniLM and
+Qwen3-Embedding-0.6B side by side. See
 [`server/README.md`](server/README.md).
 
 `demo/` holds a small program per language that embeds sentences and
@@ -157,7 +159,7 @@ native/             the shared C++ WordPiece tokenizer and provider helpers
 bindings/           java (FFM), swift
 server/             Inferstream (turbo-inferstream): OIP v2 gRPC and REST, extension service, OpenAI-shaped routes
 packaging/          the distribution archive Dockerfile, the Inferstream image, KServe manifests
-demo/               c, python, rust, java, swift, grpc-c-server, android, java-web-spring, rag
+demo/               c, python, rust, java, swift, grpc-c-server, android, java-web-spring, rag, search
 tools/turbo-bundle  bundle import, verify, inspect
 scripts/            header and size-table generators, packaging, table export
 testdata/           mock bundles, reference vectors, corpora, receipts

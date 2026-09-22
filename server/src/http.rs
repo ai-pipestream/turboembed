@@ -54,6 +54,52 @@ pub fn router(engine: Arc<Engine>) -> Router {
 }
 
 // ---------------------------------------------------------------------------
+// Static pages
+// ---------------------------------------------------------------------------
+
+/// Serve the files under `dir` for every route the API does not define:
+/// `/` is `index.html`, `/x/y.js` is `dir/x/y.js`. Only regular files
+/// under the directory are served (a path that resolves outside it is
+/// 404), with the content type from the extension. `dir` must exist.
+pub fn with_pages(router: Router, dir: &std::path::Path) -> std::io::Result<Router> {
+    let root = Arc::new(dir.canonicalize()?);
+    if !root.is_dir() {
+        return Err(std::io::Error::new(std::io::ErrorKind::NotADirectory, "not a directory"));
+    }
+    Ok(router.fallback(move |uri: axum::http::Uri| {
+        let root = root.clone();
+        async move { page(&root, uri.path()).await }
+    }))
+}
+
+async fn page(root: &std::path::Path, path: &str) -> Response {
+    let rel = path.trim_start_matches('/');
+    let rel = if rel.is_empty() { "index.html" } else { rel };
+    if rel.split('/').any(|seg| seg.is_empty() || seg == "." || seg == "..") {
+        return (StatusCode::NOT_FOUND, "no such page").into_response();
+    }
+    let file = match root.join(rel).canonicalize() {
+        Ok(f) if f.starts_with(root) && f.is_file() => f,
+        _ => return (StatusCode::NOT_FOUND, "no such page").into_response(),
+    };
+    let content_type = match file.extension().and_then(|e| e.to_str()) {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js") => "text/javascript; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("json") => "application/json",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("ico") => "image/x-icon",
+        Some("txt") | Some("md") => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
+    };
+    match tokio::fs::read(&file).await {
+        Ok(bytes) => ([(axum::http::header::CONTENT_TYPE, content_type)], bytes).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("{}: {e}", file.display())).into_response(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Errors as JSON
 // ---------------------------------------------------------------------------
 
@@ -916,6 +962,9 @@ async fn info(State(app): State<App>) -> Json<Info> {
                 "max_seq": s.max_seq(),
                 "max_batch": s.max_batch(),
                 "truncate_default": format!("{:?}", Truncate::Model).to_lowercase(),
+                // The bundle's prompt prefixes; a client sends `prompt_role`
+                // only for a role that has one (an empty prefix is rejected).
+                "prompts": { "query": s.info().prefix_query, "document": s.info().prefix_document },
             })
         })
         .collect();

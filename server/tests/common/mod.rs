@@ -37,7 +37,7 @@ pub fn spec(flag: &str) -> ModelSpec {
 
 /// An engine over the given `--model` flags.
 pub fn engine_of(flags: &[&str]) -> Arc<Engine> {
-    let config = Config { provider_libs: Vec::new(), models: flags.iter().map(|f| spec(f)).collect() };
+    let config = Config { provider_libs: Vec::new(), models: flags.iter().map(|f| spec(f)).collect(), pages: None };
     Engine::load(&config).unwrap_or_else(|e| panic!("engine over {flags:?}: {e}"))
 }
 

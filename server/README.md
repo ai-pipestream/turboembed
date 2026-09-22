@@ -38,7 +38,10 @@ target/debug/inferstream \
 Or a JSON file, `--config server.json`, with `provider_libs` and `models`
 (the same keys as the flag). `--http` and `--grpc` also read
 `INFERSTREAM_HTTP` and `INFERSTREAM_GRPC` (the flag wins), which is how
-the container image binds every interface. `--model` keys: `bundle` and `provider`
+the container image binds every interface. `--pages DIR` (or `pages` in
+the file) serves the regular files under `DIR` at `/` for the routes
+the API does not define (`/` is `index.html`; a path that resolves
+outside the directory is 404), which is how `demo/search` is served. `--model` keys: `bundle` and `provider`
 (required), `name` (default: the last segment of the bundle's
 `model_id`), `ordinal` (default 0), `buckets` (`1x128;8x256`), `sessions`
 (per bucket, default 1), `generations` (concurrent generations, default
@@ -160,12 +163,16 @@ docker run --rm -p 8000:8000 -p 8001:8001 -v ~/opt/bundles/minilm-gguf:/models/m
 `packaging/kserve/` holds a `ClusterServingRuntime` for the image and an
 `InferenceService` that points it at a bundle; see the README there.
 
-## RAG demo
+## Demos
 
 `demo/rag/` answers a question over a small corpus in three calls, embed,
 rerank and a streamed generation with citations, once through the OpenAI
 Python SDK (`rag.py`) and once through KServe's own OIP clients
-(`rag_oip.py`, REST or gRPC), against the same server.
+(`rag_oip.py`, REST or gRPC), against the same server. `demo/search/` is
+a page the server serves with `--pages` that embeds 48 passages in 8
+languages with two served embedding models (MiniLM and
+Qwen3-Embedding-0.6B) and ranks them for a query in any language, side
+by side.
 
 `raw_input_contents` is accepted (little-endian rows; BYTES as 4-byte
 length-prefixed items). The server has one model version, `1`; another
@@ -181,7 +188,7 @@ busy, 404 for an unknown model; on gRPC, `InvalidArgument`,
 - `POST /v1/rerank` `{model, query, documents, top_n?, return_documents?, raw_scores?, truncate?}` returns `results` best first with `index` and `relevance_score`, and every score in `turbo.scores`.
 - `POST /v1/classify` `{model, inputs: string | [string], raw_scores?, truncate?, aggregation?}` returns, per input, labels with scores best first (a classifier) or entity spans with `entity_group`, `score`, `word`, `start`, `end` (a token classifier).
 - `POST /v1/chat/completions` `{model, messages, stream?, max_tokens | max_completion_tokens, temperature, top_p, top_k, seed, stop, n}` returns a `chat.completion`, or with `stream: true` an SSE stream of `chat.completion.chunk` objects ending with `data: [DONE]`; a provider error mid-stream is an `event: error` with the Turbo status. `n` other than 1 is rejected naming the field.
-- `GET /v1/models` lists the served models; `GET /info` reports the text-embeddings-inference fields for the first embedding model plus every model with its served limits.
+- `GET /v1/models` lists the served models; `GET /info` reports the text-embeddings-inference fields for the first embedding model plus every model with its served limits and its bundle's `prompts` (the query and document prefixes, so a client sends `prompt_role` only where one exists).
 
 ## Tests
 
@@ -196,8 +203,9 @@ from `testdata/bundles/mock` on mock ordinal 1, so the suite needs no
 hardware and no provider library. `tests/oip_rest.rs` covers the REST
 binding, `tests/oip_grpc.rs` the gRPC binding, `tests/ext_grpc.rs` the
 extension service and reflection, `tests/repository_rest.rs` the
-repository routes, `tests/openai.rs` the OpenAI-shaped routes and
-`/info`, and `tests/engine.rs` the bucket chunking, the session pool,
+repository routes, `tests/pages.rs` the `--pages` directory,
+`tests/openai.rs` the OpenAI-shaped routes and `/info`, and
+`tests/engine.rs` the bucket chunking, the session pool,
 the generation bound and the model loads that must fail. `--model`
 parsing is unit-tested in `src/config.rs`.
 

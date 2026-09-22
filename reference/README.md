@@ -54,6 +54,10 @@ the gap that remained was the provider's.
    cell, and gives the verdict: SUPPORTED when every cell reaches the
    floor (0.95) and nothing is unmatched. The comparison receipts are
    committed under `testdata/receipts/turbo/bench/compare-*.json`.
+   Run the two sides back to back: on a passively cooled device (the
+   M2) a long cell at the end of a ten-minute run is measured on a
+   throttled GPU, and a reference run on a cooler one minutes later
+   reads a few percent faster for that cell alone.
 
 The Rust references are workspace members (`cargo build -p
 turbo-reference-ort-cuda`, `cargo build --release -p

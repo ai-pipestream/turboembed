@@ -163,7 +163,7 @@ async fn a_client_that_hangs_up_mid_stream_leaves_the_server_serving() {
 #[tokio::test]
 async fn two_models_of_the_same_name_fail_the_load() {
     let flag = format!("name=twice,bundle={},provider=mock,ordinal=1", bundle("embedding"));
-    let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag), spec(&flag)] };
+    let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag), spec(&flag)], pages: None };
     let err = match Engine::load(&config) {
         Ok(e) => panic!("two models named `twice` loaded; served: {:?}", e.names()),
         Err(e) => e,
@@ -178,7 +178,7 @@ async fn a_bucket_past_the_models_limits_fails_the_load() {
         [("16x16", "batch 16 over the model's max_batch 8"), ("1x64", "sequence 64 over the model's max_seq 16")]
     {
         let flag = format!("name=embed,bundle={},provider=mock,ordinal=1,buckets={buckets}", bundle("embedding"));
-        let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag)] };
+        let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag)], pages: None };
         let err = match Engine::load(&config) {
             Ok(e) => panic!("bucket {buckets} loaded although it is {what}; served: {:?}", e.names()),
             Err(e) => e,
@@ -205,7 +205,7 @@ async fn a_model_the_runtime_cannot_serve_fails_the_load() {
         ),
     ];
     for (flag, what) in cases {
-        let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag)] };
+        let config = Config { provider_libs: Vec::new(), models: vec![spec(&flag)], pages: None };
         match Engine::load(&config) {
             Ok(e) => panic!("{what} loaded anyway; served: {:?}", e.names()),
             Err(e) => assert!(e.code != 0, "{what} failed as a server condition rather than a Turbo status: {e}"),

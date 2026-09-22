@@ -50,6 +50,9 @@ struct Cli {
     /// gRPC listen address (the flag overrides the variable).
     #[arg(long, env = "INFERSTREAM_GRPC", default_value = "127.0.0.1:8001")]
     grpc: SocketAddr,
+    /// Directory of static pages to serve at `/` (for example `demo/search`).
+    #[arg(long)]
+    pages: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -96,7 +99,17 @@ async fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let app = http::router(engine.clone());
+    let pages = cli.pages.clone().or(config.pages.clone());
+    let app = match &pages {
+        Some(dir) => match http::with_pages(http::router(engine.clone()), dir) {
+            Ok(app) => app,
+            Err(e) => {
+                eprintln!("error: --pages {}: {e}", dir.display());
+                return ExitCode::from(2);
+            }
+        },
+        None => http::router(engine.clone()),
+    };
     let grpc_svc = grpc::GrpcInferenceServiceServer::new(grpc::Service { engine: engine.clone() });
     let ext_svc = grpc::InferstreamExtensionServer::new(grpc::ExtService { engine: engine.clone() });
     let reflection = match tonic_reflection::server::Builder::configure()

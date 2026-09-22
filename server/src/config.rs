@@ -59,6 +59,9 @@ pub struct Config {
     /// Models to serve.
     #[serde(default)]
     pub models: Vec<ModelSpec>,
+    /// A directory of static pages served at `/` (a demo front end); none by default.
+    #[serde(default)]
+    pub pages: Option<PathBuf>,
 }
 
 impl Config {

@@ -17,7 +17,7 @@ path = "src/main.rs"
 turbo = { path = "../crates/turbo" }
 serde.workspace = true
 serde_json.workspace = true
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net", "signal", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "net", "signal", "time", "fs"] }
 axum = { version = "0.8", features = ["json", "http1", "tokio"] }
 tonic = { version = "0.14", features = ["server", "router", "codegen"] }
 tonic-prost = "0.14"
@@ -37,5 +37,7 @@ tonic-prost-build = "0.14"
 tonic = { version = "0.14", features = ["channel"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+# The pages test writes a directory of files to serve.
+tempfile = "3"
 # The reflection test decodes the descriptors the reflection service returns.
 prost-types = "0.14"
