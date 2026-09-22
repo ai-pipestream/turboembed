@@ -10,7 +10,9 @@
     "model_id": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
     "artifact": "gguf (qwen2.5-0.5b-instruct-q8_0.gguf)",
     "artifact_sha256": "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e",
-    "contract": { "max_seq": 4096 },
+    "contract": {
+      "max_seq": 4096
+    },
     "chat_template": "from the GGUF metadata"
   },
   "tests": "crates/turbo-conformance/tests/live_generate.rs (7 tests: EOS stop, exact length budget, greedy determinism and seeded reproduction, stop strings and stop tokens, cancel and logprobs, min_new_tokens, refusal of JSON schema and n_sequences)",
@@ -29,6 +31,12 @@
       "device": "AMD Ryzen 9 9950X3D 16-Core Processor (CPU), ordinal 1 (explicit selection)",
       "device_kind": "CPU",
       "result": "7 passed, 0 failed (328 s including seven model loads); greedy decoding bit-reproducible across runs"
+    },
+    {
+      "machine": "krickert-mac",
+      "device": "Apple M2 (MTL0), ordinal 0; macOS 27, llama.cpp Metal backend (cargo feature `metal`)",
+      "device_kind": "GPU",
+      "result": "7 passed, 0 failed (446 s including seven model loads, debug build of the Rust side)"
     }
   ],
   "status_after": "EXPERIMENTAL; throughput receipts on krick, krick-1, M2, nano1, and the Hailo-10H Pi (PLAN.md P6 gate) are still required",
