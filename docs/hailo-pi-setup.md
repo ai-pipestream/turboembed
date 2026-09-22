@@ -501,10 +501,21 @@ HailoRT entry point it calls is one of `hailo_create_vdevice`,
 `hailo_vstream_read_raw_buffer`, and `hailo_get_status_message`
 ([`providers/hailo/src/provider.cpp`](../providers/hailo/src/provider.cpp)).
 
-Whether that set still compiles against HailoRT 5.1.1 was not established.
-The build check on `pi5v3` did not run, because the machine did not come
-back from the reboot described in section 3, so no `cmake -S
-providers/hailo` result exists for HailoRT 5 and none is claimed here.
+Whether that set still compiles against HailoRT 5.1.1 is not established
+here. The build check on `pi5v3` did not complete, because the machine was
+not stable long enough to finish it (see the troubleshooting table), so no
+`cmake -S providers/hailo` result exists for HailoRT 5 and none is claimed.
+The command to settle it, from the repository root:
+
+```sh
+cmake -S providers/hailo -B build/hailo -DCMAKE_BUILD_TYPE=Release
+cmake --build build/hailo -j
+```
+
+One thing HailoRT 5 is already known to have moved is the CLI surface:
+`hailortcli run` is refused on the Hailo-10H in favor of `run2`, and
+`benchmark` prints a different summary (section 5). Treat the 4.x C API as
+something to check rather than assume.
 
 Either way the Hailo-10H is not usable through this provider yet, because
 there is no `hailo10h` MiniLM HEF to load (section 4).
@@ -522,7 +533,7 @@ Hailo-10H generation work through `hailort::genai::LLM`.
 | `/dev/hailo0` exists, `hailortcli scan` finds nothing | the runtime and the driver are from different lines | `hailortcli --version` and `modinfo <module> \| grep ^version` must agree (4.23.0 with `hailo_pci`, 5.1.1 with `hailo1x_pci`) |
 | `hailortcli` reports the wrong architecture for the HEF | the HEF was compiled for another chip | match the HEF to the `Device Architecture` line from `hailortcli fw-control identify` |
 | `HAILO_DEVICE_IN_USE` | a second process or a second `hailo_vdevice` in the same process | one vdevice at a time; run the live suite with `--test-threads=1` and stop any `hailortcli` still running |
-| the Pi does not come back from the reboot after the install | not diagnosed; seen once on `pi5v3` (Hailo-10H, kernel 6.18.50+rpt-rpi-2712, 2026-09-22), unreachable for 68 minutes until it was power cycled, after which it booted normally with the module loaded | the install brings the device up with no reboot at all, so verify the stack first and treat the reboot as the last step; do not run it on a board you cannot reach the power of |
+| the Pi does not come back from a reboot, or restarts under load | not diagnosed; on `pi5v3` (Hailo-10H, kernel 6.18.50+rpt-rpi-2712, 2026-09-22) the first reboot after the install left it unreachable for 68 minutes until it was power cycled, and it then restarted twice more under network and disk load, each time coming back with the module loaded and the device working | the install brings the device up with no reboot at all, so verify the stack before rebooting, and do not reboot a board whose power you cannot reach. The Hailo-10H HAT adds a substantial load on top of the Pi 5, so check the supply and `vcgencmd get_throttled` before looking at the driver |
 | `hailortcli benchmark` fails in its third phase after printing both FPS figures | HailoRT 4.23 fails to reconfigure the vdevice for the MiniLM HEF after the two FPS phases | the FPS figures are already complete, so treat a non-zero exit after them as the latency phase only; [`reference/hailo/native-receipt.py`](../reference/hailo/native-receipt.py) tolerates it for this reason |
 | `TURBO_E_INVALID_STATE` on every run after one failed run | a vstream write or read failed mid-run and left frames in flight | reload the model; the provider marks it unusable on purpose rather than returning wrong data |
 | CMake says HailoRT was not found | no `hailo-all`/`hailo-h10-all`, or an install outside `/usr` | install the metapackage, or pass `-DHAILORT_INCLUDE_DIR=` and `-DHAILORT_LIBRARY=` |
