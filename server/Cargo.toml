@@ -24,7 +24,7 @@ tonic-prost = "0.14"
 # gRPC server reflection, so grpcurl and the KServe clients need no proto file.
 tonic-reflection = "0.14"
 prost = "0.14"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 # Already in the tree through axum and tonic; declared for the Stream trait only.
 futures-core = "0.3"
 
@@ -37,3 +37,5 @@ tonic-prost-build = "0.14"
 tonic = { version = "0.14", features = ["channel"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+# The reflection test decodes the descriptors the reflection service returns.
+prost-types = "0.14"

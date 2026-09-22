@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::convert::Infallible;
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{FromRequest, Path, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
@@ -80,6 +80,28 @@ impl From<ServeError> for HttpError {
 }
 
 type Reply<T> = std::result::Result<T, HttpError>;
+
+/// A JSON request body; a body that is missing, malformed or of the
+/// wrong shape is refused with the same error object as every other
+/// failure (400, `BAD_REQUEST`), not axum's plain-text rejection.
+struct Body<T>(T);
+
+impl<S, T> FromRequest<S> for Body<T>
+where
+    S: Send + Sync,
+    T: serde::de::DeserializeOwned,
+{
+    type Rejection = HttpError;
+
+    async fn from_request(req: axum::extract::Request, state: &S) -> std::result::Result<Self, Self::Rejection> {
+        match Json::<T>::from_request(req, state).await {
+            Ok(Json(v)) => Ok(Body(v)),
+            Err(rejection) => {
+                Err(HttpError(ServeError::bad_request(format!("request body: {}", rejection.body_text()))))
+            }
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // OIP v2 REST
@@ -296,7 +318,7 @@ fn data_to_json(data: &Data) -> Vec<Value> {
 async fn infer(
     State(app): State<App>,
     Path(name): Path<String>,
-    Json(req): Json<JsonInferRequest>,
+    Body(req): Body<JsonInferRequest>,
 ) -> Reply<Json<Value>> {
     let served = app.model(&name)?;
     let mut inputs = Vec::new();
@@ -334,10 +356,10 @@ async fn infer(
 async fn infer_versioned(
     State(app): State<App>,
     Path((name, version)): Path<(String, String)>,
-    Json(req): Json<JsonInferRequest>,
+    Body(req): Body<JsonInferRequest>,
 ) -> Reply<Json<Value>> {
     check_version(&version)?;
-    infer(State(app), Path(name), Json(req)).await
+    infer(State(app), Path(name), Body(req)).await
 }
 
 // ---------------------------------------------------------------------------
@@ -379,7 +401,7 @@ struct LoadRequest {
 async fn repository_load(
     State(app): State<App>,
     Path(name): Path<String>,
-    Json(req): Json<LoadRequest>,
+    Body(req): Body<LoadRequest>,
 ) -> Reply<Json<Value>> {
     let spec = crate::config::ModelSpec::from_request(
         Some(name),
@@ -467,7 +489,7 @@ fn find_model(app: &Engine, name: &str, kind: ModelKind) -> Result<Arc<Served>> 
     Ok(served)
 }
 
-async fn v1_embeddings(State(app): State<App>, Json(req): Json<EmbeddingsRequest>) -> Reply<Json<Value>> {
+async fn v1_embeddings(State(app): State<App>, Body(req): Body<EmbeddingsRequest>) -> Reply<Json<Value>> {
     let served = find_model(&app, &req.model, ModelKind::Embedding)?;
     let format = req.encoding_format.as_deref().unwrap_or("float");
     if format != "float" && format != "base64" {
@@ -520,7 +542,7 @@ struct RerankRequest {
     truncate: Option<String>,
 }
 
-async fn v1_rerank(State(app): State<App>, Json(req): Json<RerankRequest>) -> Reply<Json<Value>> {
+async fn v1_rerank(State(app): State<App>, Body(req): Body<RerankRequest>) -> Reply<Json<Value>> {
     let served = find_model(&app, &req.model, ModelKind::Reranker)?;
     let opts = RerankOptions {
         truncate: engine::parse_truncate(req.truncate.as_deref())?,
@@ -564,7 +586,7 @@ struct ClassifyRequest {
 /// `/v1/classify`: sequence classification returns, per input, labels
 /// with scores best first; token classification returns, per input, the
 /// entity spans.
-async fn v1_classify(State(app): State<App>, Json(req): Json<ClassifyRequest>) -> Reply<Json<Value>> {
+async fn v1_classify(State(app): State<App>, Body(req): Body<ClassifyRequest>) -> Reply<Json<Value>> {
     let served = app.model(&req.model)?;
     let opts = ClassifyOptions {
         truncate: engine::parse_truncate(req.truncate.as_deref())?,
@@ -709,7 +731,7 @@ fn now_secs() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
-async fn v1_chat(State(app): State<App>, Json(req): Json<ChatRequest>) -> Reply<Response> {
+async fn v1_chat(State(app): State<App>, Body(req): Body<ChatRequest>) -> Reply<Response> {
     let served = find_model(&app, &req.model, ModelKind::Generative)?;
     let desc = chat_desc(&req)?;
     let messages: Vec<(String, String)> = req.messages.iter().map(|m| (m.role.clone(), m.content.clone())).collect();

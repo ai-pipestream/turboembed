@@ -2196,6 +2196,7 @@ dependencies = [
  "futures-core",
  "http-body-util",
  "prost",
+ "prost-types",
  "serde",
  "serde_json",
  "tokio",

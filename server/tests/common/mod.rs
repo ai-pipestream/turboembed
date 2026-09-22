@@ -19,7 +19,11 @@ use tower::ServiceExt;
 use turbo_inferstream::config::{Config, ModelSpec};
 use turbo_inferstream::engine::Engine;
 use turbo_inferstream::grpc;
+use turbo_inferstream::grpc::ext::inferstream_extension_client::InferstreamExtensionClient;
 use turbo_inferstream::grpc::inference::grpc_inference_service_client::GrpcInferenceServiceClient;
+
+/// The extension service's generated client over a connected channel.
+pub type ExtClient = InferstreamExtensionClient<Channel>;
 
 /// Path of a mock bundle directory.
 pub fn bundle(kind: &str) -> String {
@@ -98,7 +102,12 @@ async fn send(router: Router, request: Request<Body>) -> Res {
 
 /// `GET uri` against the shared engine's router.
 pub async fn get(uri: &str) -> Res {
-    send(app(), Request::builder().uri(uri).body(Body::empty()).expect("request")).await
+    get_on(app(), uri).await
+}
+
+/// `GET uri` against a given router.
+pub async fn get_on(router: Router, uri: &str) -> Res {
+    send(router, Request::builder().uri(uri).body(Body::empty()).expect("request")).await
 }
 
 /// `POST uri` with a JSON body against the shared engine's router.
@@ -141,25 +150,56 @@ pub fn http_post_bytes(addr: std::net::SocketAddr, path: &str, body: &Value) -> 
     .into_bytes()
 }
 
-/// Serve `engine` over gRPC on an ephemeral port and connect the generated
-/// client to it. The server lives as long as the calling test's runtime.
-pub async fn grpc_client(engine: Arc<Engine>) -> GrpcInferenceServiceClient<Channel> {
+/// Serve `engine` over gRPC on an ephemeral port: the Open Inference
+/// Protocol service, Inferstream's extension service and reflection over
+/// both, the same three the binary serves. The server lives as long as the
+/// calling test's runtime.
+pub async fn serve_grpc(engine: Arc<Engine>) -> std::net::SocketAddr {
     let incoming = tonic::transport::server::TcpIncoming::bind("127.0.0.1:0".parse().expect("addr"))
         .expect("bind an ephemeral port for the gRPC server");
     let addr = incoming.local_addr().expect("the bound address");
-    let service = grpc::GrpcInferenceServiceServer::new(grpc::Service { engine });
+    let service = grpc::GrpcInferenceServiceServer::new(grpc::Service { engine: engine.clone() });
+    let ext = grpc::InferstreamExtensionServer::new(grpc::ExtService { engine });
+    let reflection = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(grpc::FILE_DESCRIPTOR_SET)
+        .build_v1()
+        .expect("the reflection service over the file descriptor set");
     tokio::spawn(async move {
-        Server::builder().add_service(service).serve_with_incoming(incoming).await.expect("gRPC server");
+        Server::builder()
+            .add_service(service)
+            .add_service(ext)
+            .add_service(reflection)
+            .serve_with_incoming(incoming)
+            .await
+            .expect("gRPC server");
     });
+    addr
+}
+
+/// A channel to a gRPC server that may still be coming up.
+pub async fn grpc_channel(addr: std::net::SocketAddr) -> Channel {
     let endpoint = format!("http://{addr}");
     for attempt in 0..50 {
-        match GrpcInferenceServiceClient::connect(endpoint.clone()).await {
+        match Channel::from_shared(endpoint.clone()).expect("endpoint").connect().await {
             Ok(c) => return c,
             Err(e) if attempt == 49 => panic!("cannot connect to {endpoint}: {e}"),
             Err(_) => tokio::time::sleep(std::time::Duration::from_millis(10)).await,
         }
     }
     unreachable!("the loop returns or panics")
+}
+
+/// Serve `engine` over gRPC on an ephemeral port and connect the generated
+/// client to it. The server lives as long as the calling test's runtime.
+pub async fn grpc_client(engine: Arc<Engine>) -> GrpcInferenceServiceClient<Channel> {
+    let addr = serve_grpc(engine).await;
+    GrpcInferenceServiceClient::new(grpc_channel(addr).await)
+}
+
+/// The extension service's client over its own server.
+pub async fn ext_client(engine: Arc<Engine>) -> ExtClient {
+    let addr = serve_grpc(engine).await;
+    ExtClient::new(grpc_channel(addr).await)
 }
 
 /// The SSE `data:` payloads of a stream body, in order.

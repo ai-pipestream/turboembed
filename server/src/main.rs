@@ -44,11 +44,11 @@ struct Cli {
     /// Model to serve: `bundle=DIR,provider=ID[,name=N][,ordinal=K][,buckets=1x128;8x256][,sessions=S][,generations=G]`; repeatable.
     #[arg(long = "model")]
     models: Vec<String>,
-    /// HTTP listen address.
-    #[arg(long, default_value = "127.0.0.1:8000")]
+    /// HTTP listen address (the flag overrides the variable).
+    #[arg(long, env = "INFERSTREAM_HTTP", default_value = "127.0.0.1:8000")]
     http: SocketAddr,
-    /// gRPC listen address.
-    #[arg(long, default_value = "127.0.0.1:8001")]
+    /// gRPC listen address (the flag overrides the variable).
+    #[arg(long, env = "INFERSTREAM_GRPC", default_value = "127.0.0.1:8001")]
     grpc: SocketAddr,
 }
 

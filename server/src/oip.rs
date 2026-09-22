@@ -476,7 +476,7 @@ pub fn generation_inputs(req: &InferRequest) -> Result<(Vec<(String, String)>, G
         }
         msgs
     } else {
-        let p = texts(input(&req, "prompt")?)?;
+        let p = texts(input(req, "prompt")?)?;
         if p.len() != 1 {
             return Err(ServeError::bad_request(format!("input `prompt` must hold one string, not {}", p.len())));
         }

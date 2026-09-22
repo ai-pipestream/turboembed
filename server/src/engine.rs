@@ -95,13 +95,21 @@ impl Engine {
     /// Load one more model; its name must be new.
     pub fn load_model(&self, spec: &ModelSpec) -> Result<String> {
         spec.validate()?;
+        let taken = |name: &str| {
+            ServeError::bad_request(format!("a model named `{name}` is already served; give the new one a `name=`"))
+        };
+        // A name given up front is refused before the load; one taken from
+        // the bundle is known only after it.
+        if let Some(name) = &spec.name {
+            if self.models.read().unwrap_or_else(|p| p.into_inner()).contains_key(name) {
+                return Err(taken(name));
+            }
+        }
         let served = Served::load(&self.runtime, spec)?;
         let name = served.name.clone();
         let mut models = self.models.write().unwrap_or_else(|p| p.into_inner());
         if models.contains_key(&name) {
-            return Err(ServeError::bad_request(format!(
-                "a model named `{name}` is already served; give the new one a `name=`"
-            )));
+            return Err(taken(&name));
         }
         eprintln!(
             "model `{}`: {} ({:?}) on {} ordinal {} via `{}`; buckets {}",
