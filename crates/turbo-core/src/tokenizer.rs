@@ -206,7 +206,9 @@ impl Tokenizer {
     }
 
     fn info_of(backend: &Backend, kind: &str, sha256: &str, max_seq: u32) -> Result<TokenizerInfo> {
-        let (vocab_size, id_of, specials): (u32, Box<dyn Fn(&str) -> Option<i32> + '_>, u32) = match backend {
+        /// A backend's token-to-id lookup.
+        type IdOf<'a> = Box<dyn Fn(&str) -> Option<i32> + 'a>;
+        let (vocab_size, id_of, specials): (u32, IdOf<'_>, u32) = match backend {
             Backend::Native(wp) => (wp.vocab_size(), Box::new(|t| wp.token_to_id(t)), wp.specials_per_sequence()),
             Backend::Bpe(bpe) => (bpe.vocab_size(), Box::new(|t| bpe.token_to_id(t)), bpe.specials_per_sequence()),
             #[cfg(feature = "hf-tokenizers")]

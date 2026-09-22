@@ -28,8 +28,7 @@ use crate::provider::{
 };
 use crate::runtime::Runtime;
 use crate::types::{
-    Aggregation, DType, HandleKind, ModelKind, Normalize, OutputDType, Pooling, PromptRole, StructuredKind,
-    Truncate,
+    Aggregation, DType, HandleKind, ModelKind, Normalize, OutputDType, Pooling, PromptRole, StructuredKind, Truncate,
 };
 
 /// Device plus memory domain.
@@ -541,9 +540,9 @@ impl Session {
             }
             // A provider panic under the lock leaves the state half updated;
             // the mutex stays poisoned, so every later call lands here.
-            Err(TryLockError::Poisoned(_)) => {
-                Err(Error::invalid_state("the session was left inconsistent by a panic in a provider call; create a new session"))
-            }
+            Err(TryLockError::Poisoned(_)) => Err(Error::invalid_state(
+                "the session was left inconsistent by a panic in a provider call; create a new session",
+            )),
         }
     }
 
@@ -689,7 +688,7 @@ impl Session {
         if info.inputs.iter().any(|t| t.name == name) && !st.bound_inputs.iter().any(|b| b == name) {
             st.bound_inputs.push(name.to_string());
         }
-        st.inputs_ready = !info.inputs.is_empty() && info.inputs.iter().all(|t| st.bound_inputs.iter().any(|b| *b == t.name));
+        st.inputs_ready = !info.inputs.is_empty() && info.inputs.iter().all(|t| st.bound_inputs.contains(&t.name));
         Ok(())
     }
 
@@ -699,9 +698,12 @@ impl Session {
         self.require_no_lease()?;
         if !st.inputs_ready {
             let info = self.model.info();
-            if let Some(missing) = info.inputs.iter().find(|t| !st.bound_inputs.iter().any(|b| *b == t.name)) {
+            if let Some(missing) = info.inputs.iter().find(|t| !st.bound_inputs.contains(&t.name)) {
                 if !st.bound_inputs.is_empty() {
-                    return Err(Error::invalid_state(format!("input `{}` is not bound; bind every input before run", missing.name)));
+                    return Err(Error::invalid_state(format!(
+                        "input `{}` is not bound; bind every input before run",
+                        missing.name
+                    )));
                 }
             }
             return Err(Error::invalid_state("no valid inputs are written; call a write function before run"));
