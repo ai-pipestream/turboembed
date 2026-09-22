@@ -79,6 +79,10 @@ target_compile_options(turbo_provider_openvino_test PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic -Werror=return-type>
 )
 
-target_link_libraries(turbo_provider_openvino_test PRIVATE ${CMAKE_DL_LIBS})
+# The test reads a GPU result's exported cl_mem back through OpenCL, so it
+# links OpenCL as well as dlopen'ing the provider.
+target_compile_definitions(turbo_provider_openvino_test PRIVATE CL_TARGET_OPENCL_VERSION=300)
+
+target_link_libraries(turbo_provider_openvino_test PRIVATE ${CMAKE_DL_LIBS} OpenCL::OpenCL)
 
 add_test(NAME provider_test COMMAND turbo_provider_openvino_test)

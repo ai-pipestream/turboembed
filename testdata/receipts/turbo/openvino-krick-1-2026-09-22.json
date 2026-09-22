@@ -1,0 +1,98 @@
+{
+  "receipt_version": 1,
+  "date": "2026-09-22",
+  "provider": "openvino",
+  "provider_version": "2.0.0-alpha.0",
+  "machine": "krick-1",
+  "os": "Linux 7.0.0-31-generic, x86_64",
+  "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+  "commit": "302c62388e20ca5df27200c0d29f6ae5eeb2d23d",
+  "note": "The tree was rsynced to this machine, so the commit is the one turbo-bench and the reference program were given with --commit, not one read from git.",
+  "devices": [
+    {
+      "ordinal": 0,
+      "name": "Intel(R) Graphics [0xe223] (dGPU), OpenVINO GPU.0",
+      "device_kind": "GPU",
+      "driver": "26.05.037020",
+      "memory_total": 32530182144,
+      "caps": "0x1870006",
+      "deterministic": false
+    },
+    {
+      "ordinal": 1,
+      "name": "AMD Ryzen 9 9950X 16-Core Processor, OpenVINO CPU",
+      "device_kind": "CPU",
+      "caps": "0x1870402",
+      "deterministic": true
+    }
+  ],
+  "bundles": {
+    "embed": {
+      "dir": "~/turbo-p2/minilm-onnx",
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
+      "artifact_sha256": { "onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452" }
+    },
+    "rerank": {
+      "dir": "~/turbo-p2/rerank-onnx",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-12-v2",
+      "manifest_sha256": "55a51a02e2387212e1fbe72a17db06be01c25c0df36da9139f9de429a9321057",
+      "artifact_sha256": { "onnx": "5d3e70fd0c9ff14b9b5169a51e957b7a9c74897afd0a35ce4bd318150c1d4d4a" }
+    },
+    "classify": {
+      "dir": "~/turbo-p2/sst2-onnx",
+      "model_id": "sst2 (distilbert-base-uncased-finetuned-sst-2-english)",
+      "manifest_sha256": "1cc76596f985925c3faa07ab415764b1af8e60b53154f32aa8f7adfe4b1693ac",
+      "artifact_sha256": { "onnx": "252cf7048af94a1599019fef35961b2bd3d6db13df0b0a4b032b92baeae31939" }
+    },
+    "token_classify": {
+      "dir": "~/turbo-p2/ner-onnx",
+      "model_id": "ner (dslim/bert-base-NER)",
+      "manifest_sha256": "0cc8372133c86eacd4d5045f0df99c62e660ad33e11de471dcf9ae857079d22d",
+      "artifact_sha256": { "onnx": "963039b81eec5b33e23d84826ccdf1e8f8ada776f320e692113034cfae384617" }
+    }
+  },
+  "suites": [
+    {
+      "suite": "providers/openvino/tests/provider_test.cpp (ctest, vtable level)",
+      "gpu": "11 cases, 0 failed checks",
+      "cpu": "11 cases, 0 failed checks; device_result_exports_the_cl_mem_it_computed_into skips without TURBO_CAP_DEVICE_RESULT"
+    },
+    {
+      "suite": "crates/turbo-conformance/tests/live_embed.rs",
+      "gpu": "15 passed, 1 failed",
+      "cpu": "16 passed",
+      "failure": "live_one_session_serves_every_shape_it_is_asked_for_in_any_order compares vectors for exact equality; the GPU device is not bit-reproducible and no longer claims TURBO_CAP_DETERMINISTIC, so the assertion cannot hold there. The same invariant, held to the device's own reproducibility, passes in live_openvino.rs."
+    },
+    {
+      "suite": "crates/turbo-conformance/tests/live_tasks.rs",
+      "gpu": "7 passed",
+      "cpu": "7 passed"
+    },
+    {
+      "suite": "crates/turbo-conformance/tests/live_openvino.rs",
+      "gpu": "5 passed",
+      "cpu": "5 passed"
+    },
+    {
+      "suite": "crates/turbo-conformance (mock-bundle groups)",
+      "gpu": "not applicable",
+      "cpu": "not applicable",
+      "note": "The contract, lifetime, capability, threading, allocation, tasks and generation groups load the committed mock bundles, which carry a `mock` artifact and no `onnx` or `openvino_ir`, so every case that reaches turbo_model_load fails with TURBO_E_BUNDLE_NO_ARTIFACT against this provider. The mock-bundle-independent groups pass on both devices: bundle_rust 13, bundle_integrity_rust 6, device_c 10, header_parity 5, device_rust 9 on the GPU and 8 of 9 on the CPU (device_auto_honors_kind_and_provider_filters asks AUTO for the target's own kind, which is correctly refused when the target is a CPU)."
+    }
+  ],
+  "determinism": {
+    "method": "20 repeats of one identical 4-row MiniLM batch in one session, plus 10 repeats with rows that exactly fill max_seq so no padding column exists, plus one repeat from a second context (crates/turbo-conformance/tests/live_openvino.rs)",
+    "gpu": "every repeat differs; worst absolute difference 2.3e-7 over the runs recorded here, cosine 0.9999999999997 against the first run",
+    "cpu": "every repeat bit-identical",
+    "consequence": "TURBO_CAP_DETERMINISTIC and the capability cell's deterministic flag are now set for the CPU device only (deterministic_device in providers/openvino/src/provider.cpp)"
+  },
+  "benchmarks": {
+    "embed_gpu": "testdata/receipts/turbo/bench/openvino-krick-1-gpu-embed-2026-09-22b.json",
+    "native_embed_gpu": "testdata/receipts/turbo/bench/native-openvino-krick-1-gpu-embed-2026-09-22b.json",
+    "compare_embed_gpu": "testdata/receipts/turbo/bench/compare-openvino-krick-1-gpu-embed-2026-09-22b.json",
+    "rerank_gpu": "testdata/receipts/turbo/bench/openvino-krick-1-gpu-rerank-2026-09-22b.json",
+    "verdict": "SUPPORTED; libturbo is 1.19x to 1.56x the matched native OpenVINO C++ reference on every embed cell, floor 0.95"
+  },
+  "status_after": "EMBED x TEXT on the B70 GPU has a conformance run, a matched-native benchmark and this receipt; the capability cells stay EXPERIMENTAL until a precision receipt is recorded for the four model kinds."
+}

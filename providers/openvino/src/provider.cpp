@@ -152,8 +152,21 @@ void release(void *p) noexcept {
     }
 }
 
-constexpr uint64_t kCapsCommon = TURBO_CAP_DETERMINISTIC | TURBO_CAP_OPT_TRUNCATE | TURBO_CAP_OPT_MAX_TOKENS |
-                                 TURBO_CAP_OPT_PROMPT_ROLE | TURBO_CAP_OPT_TOP_N | TURBO_CAP_OPT_AGGREGATION;
+constexpr uint64_t kCapsCommon = TURBO_CAP_OPT_TRUNCATE | TURBO_CAP_OPT_MAX_TOKENS | TURBO_CAP_OPT_PROMPT_ROLE |
+                                 TURBO_CAP_OPT_TOP_N | TURBO_CAP_OPT_AGGREGATION;
+
+/// True when this device returns the same bits for the same input on every
+/// run. The OpenVINO CPU plugin does; the GPU plugin does not, because its
+/// kernels reduce in an order the driver picks per dispatch. Measured on
+/// `krick-1` (Intel Battlemage B70, driver 26.05.037020, OpenVINO 2026.3.1):
+/// twenty repeats of one identical MiniLM batch in one session differ by up
+/// to 2.3e-7 absolute, on every repeat, with or without padding columns,
+/// while the same repeats on the CPU device are bit-identical
+/// (`crates/turbo-conformance/tests/live_openvino.rs`). The bit says
+/// "deterministic across runs", so a GPU device must not claim it.
+bool deterministic_device(const Device &d) {
+    return d.kind == TURBO_DEVICE_CPU;
+}
 
 uint64_t caps_of(const Device &d) {
     if (d.kind == TURBO_DEVICE_NPU) {
@@ -162,6 +175,9 @@ uint64_t caps_of(const Device &d) {
     // Host-pointer import is implemented for every device this provider
     // serves (see `import_buffer`); only GPUs keep results device-resident.
     uint64_t caps = kCapsCommon | TURBO_CAP_HOST_PTR_IMPORT;
+    if (deterministic_device(d)) {
+        caps |= TURBO_CAP_DETERMINISTIC;
+    }
     if (d.kind != TURBO_DEVICE_CPU) {
         caps |= TURBO_CAP_DEVICE_RESULT;
     }
@@ -1179,7 +1195,7 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
             full.status = TURBO_CAP_EXPERIMENTAL;
             full.dtype = TURBO_DTYPE_F32;
             full.reference_dtype = TURBO_DTYPE_F32;
-            full.deterministic = 1;
+            full.deterministic = deterministic_device(d) ? 1 : 0;
             put_str(full.notes, std::string("openvino ") + d.ov_name + ": fused pooling/activation in graph; precision receipt pending");
         } else {
             full.status = TURBO_CAP_UNSUPPORTED;

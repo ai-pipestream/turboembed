@@ -6,7 +6,9 @@
 // the cases the core filters out before a provider sees them: a caller that
 // declares a smaller `struct_size`, an option enumeration this build does
 // not know, a `top_n` above the row count, and the token-classification rows
-// where truncation cuts a word in half.
+// where truncation cuts a word in half. It also links OpenCL, so it can look
+// at the `cl_mem` a GPU result exports and read the device buffer back
+// itself, which the Rust suite can only check the existence of.
 //
 // The library under test is the one built next to this binary; set
 // `TURBO_PROVIDER_LIB` to test another build (for example a baseline, to see
@@ -18,6 +20,7 @@
 #include "turbo/turbo_provider.h"
 #include "turbo/turbo_types.h"
 
+#include <CL/cl.h>
 #include <dlfcn.h>
 
 #include <cmath>
@@ -626,6 +629,123 @@ void span_score_is_the_mean_of_the_word_scores() {
     CHECK(discriminating > 0);
 }
 
+// ---------------------------------------------------------------------------
+// The device-resident result path (GPU only)
+// ---------------------------------------------------------------------------
+
+/// A GPU result stays in an OpenCL buffer until someone reads it, and the
+/// handle the provider exports is that buffer, not a copy. The test reads it
+/// back through OpenCL on the exported context and compares byte for byte
+/// with what `buffer_read` returns, so a provider that exported a stale
+/// handle, a host pointer cast to `cl_mem`, or a buffer from another context
+/// fails here. A device that does not claim `TURBO_CAP_DEVICE_RESULT` skips.
+void device_result_exports_the_cl_mem_it_computed_into() {
+    const turbo_device_info info = device_info(ordinal());
+    if ((info.caps & TURBO_CAP_DEVICE_RESULT) == 0) {
+        std::printf("  skipped: device `%s` does not claim TURBO_CAP_DEVICE_RESULT\n", info.name);
+        return;
+    }
+    Fixture f;
+    if (!f.open("TURBO_LIVE_BUNDLE", 2, 32)) {
+        return;
+    }
+    Err err;
+    turbo_embed_options eo{};
+    eo.struct_size = sizeof(eo);
+    const std::string a = "a device resident result";
+    const std::string b = "a second row";
+    const turbo_text texts[2] = {text_of(a), text_of(b)};
+    if (!ok(vt()->session_write_text(f.session, texts, 2, &eo, err.p()), err, "write_text")) {
+        return;
+    }
+    turbo_provider_result res{};
+    res.struct_size = sizeof(res);
+    if (!ok(vt()->session_run(f.session, nullptr, &res, err.p()), err, "session_run")) {
+        return;
+    }
+    CHECK_EQ(res.n_outputs, 1);
+    if (res.n_outputs == 0) {
+        return;
+    }
+    const turbo_provider_output &out = res.outputs[0];
+    CHECK_EQ(out.ndim, 2);
+    CHECK_EQ(out.shape[0], 2);
+    const uint64_t rows = out.shape[0];
+    const uint64_t dim = out.shape[1];
+    const size_t logical = static_cast<size_t>(rows * dim * sizeof(float));
+
+    // The result is on the device, with no host pointer to shortcut through.
+    CHECK_EQ(out.buffer.desc.placement, TURBO_PLACE_DEVICE);
+    CHECK(out.buffer.host_ptr == nullptr);
+
+    // A device buffer exports its `cl_mem` and nothing else.
+    turbo_native_handle wrong{};
+    wrong.struct_size = sizeof(wrong);
+    Err werr;
+    CHECK_EQ(vt()->buffer_export(out.buffer.handle, TURBO_HANDLE_HOST_PTR, &wrong, werr.p()), TURBO_E_UNSUPPORTED);
+
+    turbo_native_handle h{};
+    h.struct_size = sizeof(h);
+    if (!ok(vt()->buffer_export(out.buffer.handle, TURBO_HANDLE_CL_MEM, &h, err.p()), err, "buffer_export")) {
+        return;
+    }
+    CHECK_EQ(h.kind, TURBO_HANDLE_CL_MEM);
+    CHECK_EQ(h.offset, 0);
+    CHECK(h.handle != 0);
+    CHECK(h.aux != 0);
+    if (h.handle == 0 || h.aux == 0) {
+        return;
+    }
+    auto mem = reinterpret_cast<cl_mem>(h.handle);
+    auto cl = reinterpret_cast<cl_context>(h.aux);
+
+    // OpenCL itself agrees this is a buffer, big enough for the logical
+    // shape, on the context the provider handed over.
+    size_t mem_bytes = 0;
+    CHECK_EQ(clGetMemObjectInfo(mem, CL_MEM_SIZE, sizeof(mem_bytes), &mem_bytes, nullptr), CL_SUCCESS);
+    CHECK(mem_bytes >= logical);
+    cl_mem_object_type type = 0;
+    CHECK_EQ(clGetMemObjectInfo(mem, CL_MEM_TYPE, sizeof(type), &type, nullptr), CL_SUCCESS);
+    CHECK_EQ(type, CL_MEM_OBJECT_BUFFER);
+    cl_context owner = nullptr;
+    CHECK_EQ(clGetMemObjectInfo(mem, CL_MEM_CONTEXT, sizeof(owner), &owner, nullptr), CL_SUCCESS);
+    CHECK(owner == cl);
+    std::printf("  cl_mem %p on context %p: %zu bytes for a %llux%llu result\n", static_cast<void *>(mem),
+                static_cast<void *>(cl), mem_bytes, static_cast<unsigned long long>(rows),
+                static_cast<unsigned long long>(dim));
+
+    // Read it back on our own queue and compare with the provider's read.
+    cl_device_id dev = nullptr;
+    CHECK_EQ(clGetContextInfo(cl, CL_CONTEXT_DEVICES, sizeof(dev), &dev, nullptr), CL_SUCCESS);
+    if (dev == nullptr) {
+        return;
+    }
+    cl_int rc = CL_SUCCESS;
+    cl_command_queue q = clCreateCommandQueueWithProperties(cl, dev, nullptr, &rc);
+    CHECK_EQ(rc, CL_SUCCESS);
+    if (q == nullptr) {
+        return;
+    }
+    std::vector<float> ours(static_cast<size_t>(rows * dim), 0.0f);
+    CHECK_EQ(clEnqueueReadBuffer(q, mem, CL_TRUE, 0, logical, ours.data(), 0, nullptr, nullptr), CL_SUCCESS);
+    clReleaseCommandQueue(q);
+
+    std::vector<float> theirs(ours.size(), 0.0f);
+    ok(vt()->buffer_read(out.buffer.handle, theirs.data(), logical, err.p()), err, "buffer_read");
+    CHECK(std::memcmp(ours.data(), theirs.data(), logical) == 0);
+
+    // The bundle contract normalizes, so every row read off the device is a
+    // unit vector; a wrong handle would read zeros or noise and fail this.
+    for (uint64_t r = 0; r < rows; ++r) {
+        double norm = 0.0;
+        for (uint64_t i = 0; i < dim; ++i) {
+            const double v = ours[static_cast<size_t>(r * dim + i)];
+            norm += v * v;
+        }
+        CHECK(std::fabs(std::sqrt(norm) - 1.0) < 1e-4);
+    }
+}
+
 struct Test {
     const char *name;
     void (*fn)();
@@ -642,6 +762,7 @@ const Test kTests[] = {
     {"left_truncation_maps_words_to_their_columns", left_truncation_maps_words_to_their_columns},
     {"right_truncation_drops_the_word_that_straddles_the_budget", right_truncation_drops_the_word_that_straddles_the_budget},
     {"span_score_is_the_mean_of_the_word_scores", span_score_is_the_mean_of_the_word_scores},
+    {"device_result_exports_the_cl_mem_it_computed_into", device_result_exports_the_cl_mem_it_computed_into},
 };
 
 } // namespace

@@ -1,0 +1,125 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "openvino-krick-1-gpu-embed-2026-09-22b.json",
+    "commit": "302c62388e20ca5df27200c0d29f6ae5eeb2d23d",
+    "provider": {
+      "id": "openvino",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "2026.3.1-22476-759c5a6ab8c-releases/2026/3",
+      "driver_version": "26.05.037020"
+    },
+    "device": {
+      "name": "Intel(R) Graphics [0xe223] (dGPU) (GPU)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x1870006",
+      "memory_total": 32530182144
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "native-openvino-krick-1-gpu-embed-2026-09-22b.json",
+    "commit": "302c62388e20ca5df27200c0d29f6ae5eeb2d23d",
+    "provider": {
+      "id": "openvino",
+      "version": "reference",
+      "runtime_version": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3 C++ API",
+      "driver_version": ""
+    },
+    "device": {
+      "name": "Intel(R) Graphics [0xe223] (dGPU)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 0
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "/home/krickert/turbo-p2/minilm-onnx",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
+    "artifacts": {
+      "onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "embed 1x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.436165,
+      "native": 0.546535,
+      "ratio": 1.2530464388476836,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.686309,
+      "native": 0.90319,
+      "ratio": 1.316010718204191,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 1.593395,
+      "native": 1.900146,
+      "ratio": 1.1925140972577422,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.590969,
+      "native": 0.845209,
+      "ratio": 1.4302086911496203,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 1.714134,
+      "native": 2.299643,
+      "ratio": 1.3415771462441093,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 7.060794,
+      "native": 8.879665,
+      "ratio": 1.257601482212907,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.823748,
+      "native": 1.281716,
+      "ratio": 1.5559564332781386,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 4.42796,
+      "native": 6.046424,
+      "ratio": 1.36551007687513,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 17.036183,
+      "native": 22.620953,
+      "ratio": 1.3278181503450626,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "verdict": "SUPPORTED"
+}
