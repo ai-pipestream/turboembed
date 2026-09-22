@@ -10,6 +10,7 @@ members = [
     "providers/mock",
     "providers/static",
     "providers/cuda",
+    "providers/ggml",
     "tools/turbo-bundle",
 ]
 

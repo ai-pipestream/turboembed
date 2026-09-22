@@ -1,0 +1,33 @@
+[package]
+name = "turbo-provider-ggml"
+description = "ggml / llama.cpp provider for Turbo: GGUF generation on CUDA, Metal, and CPU"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "turbo_provider_ggml"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# ggml backends compiled into llama.cpp at build time. Without one, the
+# provider offers the CPU device only (reached by explicit selection).
+cuda = ["llama-cpp-2/cuda"]
+metal = ["llama-cpp-2/metal"]
+vulkan = ["llama-cpp-2/vulkan"]
+
+[dependencies]
+turbo-core = { workspace = true }
+libc = { workspace = true }
+# llama.cpp through the maintained Rust binding; builds llama.cpp from
+# source with cmake at compile time.
+llama-cpp-2 = { version = "0.1.156", features = ["sampler"] }
+llama-cpp-sys-2 = { version = "0.1.156" }
+
+[dev-dependencies]
+tempfile = "3"

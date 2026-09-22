@@ -585,6 +585,16 @@ seed reproducibility on CPU, pull and push producing identical token
 sequences for one seed), throughput receipts on `krick`, `krick-1`, M2,
 `nano1`, and the Hailo-10H Pi.
 
+Status (2026-09-21): the `ggml` provider (`providers/ggml`, llama.cpp through
+`llama-cpp-2`) generates from GGUF bundles on the CUDA and CPU devices of
+`krick`, with the pull iterator, chat templates from the bundle or the GGUF,
+stop strings and tokens, cancellation, logprobs, seeded sampling, and GBNF
+grammars; `turbo_generate` (push) is implemented over the pull iterator and
+its C conformance test checks the two forms yield one token sequence.
+Receipt: `testdata/receipts/turbo/ggml-2026-09-21.json`. Not yet: MLX and
+Hailo-10H generation, GGUF embeddings, tokenize/detokenize for GGUF
+vocabularies, JSON-schema constrained output, and the throughput receipts.
+
 ### P7 Java FFM and Swift packages
 Port the conformance suite to Java and Swift (the same cases through the
 bindings). Publish native, prepared-token Java, and text Java timings
