@@ -413,7 +413,7 @@ The existing fetch manifests remain the hash-pinned source list. A catalog
 | `cpu` | any; explicit only | ORT 1.30 CPU EP; ggml CPU for GGUF (MIT) | host arena, write-through tokens | `ort_cuda.rs` CPU path, `backend-llamacpp` | none; never AUTO |
 | `cuda` | `krick` RTX 4080 (x86_64); `nano1` Orin Nano Super (aarch64) | ORT 1.30 CUDA EP (CUDA 13 build for x86; JetPack 7.2.1 with CUDA 13.2 / TensorRT 10.16 on Jetson, using the `sbsa/cu130` ORT wheel if it carries sm_87 kernels, otherwise a pinned ORT source build on the board); TensorRT EP via session option; llama.cpp CUDA arch 87/89 | IoBinding on pinned/device arena, `user_compute_stream` import, `gpu_external_alloc` pool, device mean+L2 kernel, ORT 1.30 `CreateSyncStreamForEpDevice` for external queues | `ort_cuda.rs`, `ort_allocator.rs`, `pool_cuda.cu`, `turbo_buffer/cuda.cpp` | TensorRT plan cache is SM-locked; Jetson wheels unverified for sm_87 |
 | `openvino` | `krick-1` Battlemage B70; Intel NPU when the Core Ultra host arrives | OpenVINO 2026.4.0 (Apache-2) | `ov::Core` compiled model with mean+L2 fused into the graph; `ClContext` USM/`cl_mem` remote tensors on GPU; `ZeroContext` remote tensors on NPU; explicit `"CPU"` | `prepared.cpp` (graph fusion, OpenCL lease), `turbo_buffer/ze.cpp`, `wordpiece` | NPU is static-shape only (fixed `max_seq`, batch from bundle); OpenVINO GenAI RAG pipelines are not used on the hot path because they allocate their own outputs |
-| `metal` | Apple M2 | MLX 0.32 via mlx-swift 0.31 (MIT); Swift 6.3+ `@c` exports | MLX arrays over Metal shared buffers via managed (no-copy) construction with pointer verification; pooling and L2 as MLX ops on the GPU stream; results resident in shared memory | `swift/Sources/TurboEmbed`, `MetalArena`, `MlxEngine` (pooling rewritten) | no CPU accelerator path (CPU means MLX CPU stream, explicit); `MTLBuffer` import is C++-only in mlx-c, so the Swift provider wraps it |
+| `metal` | Apple M2 | Metal directly (Objective-C++; MSL kernels compiled at load; no MLX, no Xcode) | shared `MTLBuffer`s for tokens, weights, scratch and results; encoder, pooling, L2 and the reranker head as kernels; results resident in unified memory as `TURBO_PLACE_SHARED` | `providers/metal` (landed 2026-09-22; the PoC kernels from `native/turborerank`) | no CPU device (the CPU is reached through `ggml` or OpenVINO); WordPiece on the host; F32 weights only |
 | `hailo` | two Pis with Hailo-8 (HailoRT 4.24.0, `hailo8` branch); one Pi with Hailo-10H 8 GB (HailoRT 5.4.0); also x86_64 hosts with a PCIe Hailo-8 card | HailoRT (MIT); DFC is proprietary and used offline only | `VDevice` + `InferModel` + `ConfiguredInferModel::Bindings` with `dma_map` on page-aligned arena rows; async `run_async` behind `CAP_ASYNC` | `hailo.cpp` split pipeline | encoder body only on NPU: host gather and host pooling reported as `fully_accelerated = 0`; batch 1, fixed seq 128; HEF locked to chip and HailoRT line; Hailo-10H embedding HEF needs a DFC 5 compile (open) |
 | `ggml` | every machine | llama.cpp v0.4.1 / ggml 0.24 (MIT) with CUDA, SYCL, Metal, CPU backends | `ggml_backend_dev` registry for device identity; `llama_batch` decode; embeddings copied once from `llama_get_embeddings_seq` into the result buffer (no caller-owned output in llama.h); KV cache owned by the generation handle | `backend-llamacpp` | generation is the primary use; GGUF embeddings are a secondary path with `pooling_type` from the bundle |
 | `hailo` GenAI | Hailo-10H Pi | `hailort::genai::LLM` in HailoRT 5.4 | native LLM on the NPU with its own sampler | new | model set limited to the Hailo GenAI zoo (Qwen2.5/3 1.5B, Llama 3.2 1B); ~8 to 10 tok/s |
@@ -572,6 +572,45 @@ struct laid out in C, not as a Swift struct.
 Gate: conformance green on M2; goldens; no host copy of the hidden state
 (measured); receipt.
 
+Status (2026-09-22): landed as `providers/metal`, an Objective-C++
+provider over Metal directly rather than the Swift-plus-MLX design above.
+The change of route is deliberate: the plan's rule is the lowest, fastest
+layer the platform allows, and on Apple silicon that is Metal itself, with
+no MLX runtime in between and no dependency on Xcode (the provider builds
+with `make` and the Command Line Tools' `clang++`, and compiles its Metal
+Shading Language kernels at load time). The kernels are the ones the
+2026-09-21 proof of concept validated (`native/turborerank`, tag
+`poc-2026-09-21`) plus pooling, L2, the NSP pooler and the classifier
+head, so every stage after WordPiece runs on the GPU and `turbo_model_info`
+says so (`fully_accelerated = 0` for the tokenizer, every other stage
+`DEVICE`). Weights come from an F32 `safetensors` artifact and the
+architecture from the model's `config.json` (`hf_config` artifact),
+cross-checked at load. Unified memory is reported honestly: the device is
+`IGPU` with `DEVICE_RESULT`, `UNIFIED_MEMORY` and `HOST_PTR_IMPORT`; token
+rows are written straight into shared `MTLBuffer`s, results are
+`TURBO_PLACE_SHARED` (exportable as `TURBO_HANDLE_MTL_BUFFER` or a host
+pointer), and `h2d_bytes` and `d2h_bytes` stay at zero, which the live
+suite now checks for unified-memory devices instead of demanding an
+upload. On `krickert-mac` (Apple M2, macOS 27): the 15 vtable tests
+(`providers/metal/tests/provider_test.cpp`) pass; `live_embed` passes 16
+of 16 at cosine 1.000 against the FP32 references with the STS ranking
+gate; the rerank cases of `live_tasks` pass with
+`cross-encoder/ms-marco-MiniLM-L-12-v2` (whose contract declares the
+Identity activation, so scores are logits and the suite now follows the
+bundle's `activation` rather than assuming a sigmoid). Receipt:
+`testdata/receipts/turbo/metal-2026-09-22.json`; throughput under
+`testdata/receipts/turbo/bench/metal-mac-*-2026-09-22.json`: 221 rows/s
+at batch 32 by 32 tokens (5.5k tokens/s), 46 rows/s at 32 by 128, 15
+rows/s at 32 by 256, and 23 documents/s reranking 32 documents at 128
+tokens with the 12-layer cross-encoder; the whole batch is one set of
+dispatches per layer with a 16 by 16 tiled matmul, which took the first
+build from 21 to 221 rows/s. Not yet: a matmul on simdgroup matrix
+operations (the M2 is two orders of magnitude below the RTX 4080 SUPER's
+22k rows/s, and the elementwise and attention kernels are still one thread
+per output), GPU-side WordPiece, F16 weights, classification heads with
+more than one logit, and generation (which reaches the M2 through `ggml`'s
+Metal backend).
+
 ### P5 Hailo provider
 Hailo-8/8L on HailoRT 4.24 with `dma_map` zero-copy and async behind
 `CAP_ASYNC`; Hailo-10H on HailoRT 5.4 for the same encoder split once a DFC 5
@@ -727,7 +766,7 @@ commit. Budgets are set from the first run per provider and then held.
 | Hailo-10H embedding HEF needs a DFC 5 encoder compile | Ship Hailo-10H generation first (HailoRT GenAI); track the embedding HEF as an open item with the DFC steps documented |
 | No JetPack 7 ORT wheel channel; the `sbsa/cu130` aarch64 wheel may lack sm_87 kernels | `nano1` stays on JetPack 7.2.1 (owner keeps it current); probe the wheel first, fall back to a pinned ORT source build (CUDA 13.2, TensorRT 10.16, sm_87); the recipe is committed under `providers/cuda/jetson/` |
 | Intel NPU hardware not yet available | NPU code path built and unit-tested with static shapes; supported status withheld until a receipt exists |
-| MLX no-copy import silently falls back to a copy | Provider compares the array's data pointer to the arena pointer and reports `HOST_PTR_IMPORT` clear if it ever differs |
+| A Metal result that is not the GPU's own memory | Every buffer is `MTLResourceStorageModeShared`; the result's `host_ptr` is the `MTLBuffer` contents and `d2h_bytes` is 0, which the live suite asserts on unified-memory devices |
 | OpenVINO GenAI RAG pipelines allocate outputs | Not used; the fused-graph path is the provider |
 | Swift `@c` needs Swift 6.3 | Toolchain floor Swift 6.3; `@_cdecl` only as a temporary shim |
 | GraalVM has no macOS x64 FFM | Documented; macOS Intel is not a target |

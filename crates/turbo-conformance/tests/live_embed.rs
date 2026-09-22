@@ -76,12 +76,21 @@ fn live_minilm_matches_the_reference_vectors() {
     // A device that advertises TURBO_CAP_DEVICE_RESULT keeps the result
     // there and moves nothing back inside the run; one that does not (a
     // CPU, or a runtime that hands back host memory) reports HOST.
+    // Unified memory (Apple GPUs) is the SHARED placement: the result is
+    // the device's memory and the host's at once, and nothing is uploaded
+    // or downloaded, so the byte counters stay at zero.
     if live.has_cap(abi::TURBO_CAP_DEVICE_RESULT) {
-        assert_eq!(placement, Placement::Device, "results stay on the device");
-        assert_eq!(stats.d2h_bytes, 0, "reads go through result_read, not the run: {stats:?}");
-        if live.gpu() {
-            assert!(stats.h2d_bytes > 0, "inputs were uploaded: {stats:?}");
+        let unified = live.has_cap(abi::TURBO_CAP_UNIFIED_MEMORY);
+        if unified {
+            assert_eq!(placement, Placement::Shared, "unified memory results are SHARED");
+            assert_eq!(stats.h2d_bytes, 0, "unified memory copies nothing in: {stats:?}");
+        } else {
+            assert_eq!(placement, Placement::Device, "results stay on the device");
+            if live.gpu() {
+                assert!(stats.h2d_bytes > 0, "inputs were uploaded: {stats:?}");
+            }
         }
+        assert_eq!(stats.d2h_bytes, 0, "reads go through result_read, not the run: {stats:?}");
     } else {
         assert_eq!(placement, Placement::Host);
     }
@@ -158,12 +167,20 @@ fn live_result_exports_a_native_handle_on_gpus() {
     let kind = match live.provider.as_str() {
         "cuda" => turbo::HandleKind::CudaPtr,
         "openvino" => turbo::HandleKind::ClMem,
+        "metal" => turbo::HandleKind::MtlBuffer,
         other => panic!("no native handle kind known for provider `{other}`"),
     };
     let h = buffer.export(kind).expect("device result exports its native handle");
     assert_eq!(h.kind, kind);
     assert_ne!(h.handle, 0);
-    assert_eq!(buffer.export(turbo::HandleKind::HostPtr).unwrap_err().code(), abi::TURBO_E_UNSUPPORTED);
+    // Device memory has no host pointer; unified memory has one, and it is
+    // the same bytes the result was read from.
+    if live.has_cap(abi::TURBO_CAP_UNIFIED_MEMORY) {
+        let hp = buffer.export(turbo::HandleKind::HostPtr).expect("shared memory exports its host pointer");
+        assert_ne!(hp.handle, 0);
+    } else {
+        assert_eq!(buffer.export(turbo::HandleKind::HostPtr).unwrap_err().code(), abi::TURBO_E_UNSUPPORTED);
+    }
 }
 
 #[test]

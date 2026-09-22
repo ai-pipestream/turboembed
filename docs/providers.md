@@ -18,7 +18,7 @@ detail and milestone gates this table summarizes.
 | `cpu` | PLANNED (folded into the CUDA/ORT provider, P3) | any; explicit selection only, never `AUTO` | ORT 1.30 CPU EP; ggml CPU for GGUF | host arena, write-through tokens |
 | `openvino` | EXPERIMENTAL (GPU and CPU); NPU listed, not qualified | `krick-1` Battlemage B70 (GPU), any CPU; Intel NPU when available | OpenVINO 2026.3.1 | `ov::Core` compiled model with pooling/normalization/post-processing fused into the graph; `cl_mem` remote tensors on GPU; native WordPiece (`native/wordpiece/`) |
 | `cuda` | EXPERIMENTAL on `krick` (x86_64); embedding landed on `nano1` (aarch64), task suite still being verified there | `krick` RTX 4080 SUPER (x86_64, landed); `nano1` Orin Nano Super (aarch64, embedding landed) | ONNX Runtime 1.28 CUDA execution provider on `krick` (`ort` crate prebuilt CUDA 13 bundle); ONNX Runtime 1.24.0 linked dynamically (`ORT_LIB_LOCATION`, `--no-default-features`) on `nano1` | IoBinding on pinned/device arena; device kernels (`kernels.cu`) for mean/CLS/last pooling, L2 normalization, sigmoid, and softmax |
-| `metal` | PLANNED (P4) | Apple M2 | MLX 0.32 via mlx-swift 0.31 | MLX arrays over Metal shared buffers, no-copy construction; pooling and L2 as MLX ops |
+| `metal` | EXPERIMENTAL (embed, rerank) on `krickert-mac` | Apple M2 (any Apple GPU with unified memory) | Metal directly: MSL kernels compiled at load, no MLX, no Xcode | shared `MTLBuffer`s for tokens, weights, scratch and results; encoder, pooling, L2 and the reranker head as kernels; results `TURBO_PLACE_SHARED` in unified memory |
 | `hailo` | EXPERIMENTAL (Hailo-8) on `pi5ai1` and `cm5ai1`; Hailo-8L untested; Hailo-10H open | two Pis with Hailo-8 (landed); Hailo-8L boards; one Pi with Hailo-10H (needs a DFC 5 HEF); x86_64 hosts with a PCIe Hailo-8 card | HailoRT 4.23.0 (`hailo-all`) | `hailo_vdevice` bound to one device with the scheduler on; the HEF's fixed-shape encoder body through f32 vstreams; host WordPiece, word-embedding gather from the `hailo_tables` artifact, pooling, L2; INT8 compute reported in the capability cell with the measured cosine floor |
 | `ggml` | EXPERIMENTAL (GPU and CPU) on `krick`; EXPERIMENTAL (Metal GPU) on `krickert-mac` | every machine; landed on `krick` (RTX 4080 SUPER and CPU) and `krickert-mac` (Apple M2, Metal backend) | llama.cpp through the `llama-cpp-2` binding, built from source with cmake (CUDA backend on `krick`; Metal backend on `krickert-mac`; CPU backend everywhere, including CI) | `ggml_backend_dev` registry; `llama_batch` decode, one token per `step`; a generation owns its own `llama_context` (KV cache) |
 | `hailo` GenAI | PLANNED (P6) | Hailo-10H Pi | `hailort::genai::LLM` (HailoRT 5.4) | native LLM on the NPU with its own sampler |
@@ -413,13 +413,60 @@ tests/live_generate.rs`'s seven checks pass through the safe API with
 Qwen2.5-0.5B-Instruct (Q8_0) on three machines: on `krick`, both the RTX
 4080 SUPER (CUDA device, `cuda` feature) and the CPU, where greedy decoding
 is bit-reproducible across runs; and on `krickert-mac` (Apple M2), the
-Metal device (`metal` feature) — llama.cpp's own Metal backend, not the
-separate MLX-based `metal` provider `PLAN.md` section 10 (P4) scopes
-(`testdata/receipts/turbo/ggml-2026-09-21.json`). Not yet: MLX generation
+Metal device (`metal` feature), which is llama.cpp's own Metal backend,
+not the separate `metal` provider below
+(`testdata/receipts/turbo/ggml-2026-09-21.json`). Not yet: generation
 through the dedicated `metal` provider and Hailo-10H generation (`PLAN.md`
 section 10, P6), GGUF embeddings, tokenize/detokenize for GGUF
 vocabularies, JSON-schema constrained output, and the throughput receipts a
 `SUPPORTED` status needs.
+
+## The Metal provider
+
+`providers/metal` (`libturbo_provider_metal.dylib`, Objective-C++) runs
+BERT-family embedding and cross-encoder reranking models on Apple GPUs
+through Metal directly. There is no MLX, Core ML or offline shader step:
+the Metal Shading Language kernels in `providers/metal/src/kernels.inc`
+(the ones the 2026-09-21 proof of concept validated, plus pooling, L2, the
+NSP pooler and the classifier head) are compiled by the provider when it
+loads, with safe math so the arithmetic matches the FP32 references. The
+build needs `make` and the Command Line Tools' `clang++` only.
+
+Bundles carry an F32 `safetensors` checkpoint and the model's own
+`config.json` as the `hf_config` artifact; the provider cross-checks the
+two (layer count, hidden size, vocabulary rows, `model_type: bert`, erf
+GELU) and refuses anything else naming what it found. WordPiece runs on
+the host through `native/wordpiece`; every other stage runs on the GPU and
+`turbo_model_info` reports it (`fully_accelerated = 0`, encode, pool,
+normalize and postprocess `DEVICE`).
+
+Unified memory is reported as it is. The device is `TURBO_DEVICE_IGPU`
+with `TURBO_CAP_DEVICE_RESULT`, `TURBO_CAP_UNIFIED_MEMORY` and
+`TURBO_CAP_HOST_PTR_IMPORT`. Buffers are `TURBO_PLACE_SHARED`
+(`MTLResourceStorageModeShared`) or `TURBO_PLACE_HOST`; `DEVICE` and
+`PINNED` are refused with `TURBO_E_UNSUPPORTED_PLACEMENT` because they are
+not distinct placements on this hardware. Token rows are written straight
+into the shared buffers the kernels read and results come back as `SHARED`
+buffers whose `host_ptr` is the GPU's memory, so `h2d_bytes` and
+`d2h_bytes` are 0; a shared result exports `TURBO_HANDLE_MTL_BUFFER` or
+`TURBO_HANDLE_HOST_PTR`. The live embedding suite checks exactly this for
+unified-memory devices instead of demanding an upload.
+
+Status: `EXPERIMENTAL` for `EMBED x TEXT` and `RERANK x TEXT` on
+`krickert-mac` (Apple M2). The 15 vtable tests
+(`providers/metal/tests/provider_test.cpp`), the 16 live embedding tests
+(cosine 1.000 against the FP32 references, STS Spearman gate) and the
+rerank cases of `live_tasks` pass; receipt
+`testdata/receipts/turbo/metal-2026-09-22.json`, throughput under
+`testdata/receipts/turbo/bench/metal-mac-*-2026-09-22.json` (221 rows/s
+at batch 32 by 32 tokens, 15 rows/s at 32 by 256, 23 documents/s for the
+12-layer reranker at 128 tokens; the RTX 4080 SUPER does 22k rows/s on the
+same bundle shape, so the M2 kernels have room to tune). The reranker bundle (`cross-encoder/ms-marco-MiniLM-L-12-v2`) declares the
+Identity activation in its config, so its scores are logits; the suites
+follow the bundle's `activation` contract. Not yet: GPU-side WordPiece, a
+tuned matmul (the kernels are one thread per output element), F16 weights,
+classification heads, and generation (the M2 generates through `ggml`'s
+Metal backend). See `providers/metal/README.md`.
 
 ## Honesty rules
 

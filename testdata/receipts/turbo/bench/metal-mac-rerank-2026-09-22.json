@@ -1,0 +1,53 @@
+{
+  "receipt_version": 1,
+  "kind": "benchmark",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "krickert-mac",
+    "os": "Darwin 27.0.0",
+    "arch": "aarch64"
+  },
+  "commit": "unknown",
+  "provider": {
+    "id": "metal",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "Metal, MSL compiled at runtime",
+    "driver_version": "macOS Version 27.0 (Build 26A428)"
+  },
+  "device": {
+    "name": "Apple M2 (Metal)",
+    "kind": "IGpu",
+    "ordinal": 0,
+    "caps": "0x2bf0426"
+  },
+  "bundle": {
+    "dir": "/Users/krickert/opt/bundles/rerank-metal",
+    "model_id": "cross-encoder/ms-marco-MiniLM-L-12-v2",
+    "manifest_sha256": "a7e73b432cb82b595ba921f3a722e117f5dc882f0ec7f6ae7656083959551cad",
+    "artifacts": {
+      "hf_config": "69a745055b0307584d2903ea5cf4e1899254e511834f358be80d049918b144d8",
+      "safetensors": "1ed84b90cdf3518f76ec9bb93a16f97887eea7c4e7ee5dfb03cc297e394fbbc3"
+    }
+  },
+  "rerank": {
+    "docs": 32,
+    "seq": 128,
+    "text_path": {
+      "p50_ms": 1399.774291,
+      "p99_ms": 1402.28825,
+      "mean_ms": 1399.8607736,
+      "min_ms": 1398.940542,
+      "max_ms": 1402.28825,
+      "rows_per_s": 22.85941616729934,
+      "tokens_per_s": 0.0,
+      "iters": 30
+    },
+    "per_run": {
+      "h2d_bytes": 0,
+      "d2h_bytes": 0,
+      "host_allocs": null,
+      "provider_allocs": null
+    }
+  },
+  "native_reference": "not run; see the provider README for the direct-native program of this pair"
+}

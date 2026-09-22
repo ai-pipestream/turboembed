@@ -53,7 +53,7 @@ enum Command {
         /// Kind override: embedding, reranker, classifier, token_classifier, generative, generic.
         #[arg(long)]
         kind: Option<String>,
-        /// Artifact as format=path (onnx, openvino_ir, gguf, hef, mlx_safetensors). Repeatable.
+        /// Artifact as format=path (onnx, openvino_ir, gguf, hef, hailo_tables, safetensors, hf_config). Repeatable.
         #[arg(long = "artifact", value_name = "FORMAT=PATH")]
         artifacts: Vec<String>,
         /// Build a `static` embedding table from a safetensors file: path[:tensor].

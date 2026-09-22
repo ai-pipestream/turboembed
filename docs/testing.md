@@ -219,15 +219,17 @@ cancellation and logprobs work, `min_new_tokens` suppresses the end token,
 and `structured_kind = JSON_SCHEMA` plus `n_sequences > 1` are refused
 naming the field. All seven pass on `krick` (RTX 4080 SUPER CUDA device,
 and the CPU device) and on `krickert-mac` (Apple M2, llama.cpp's own Metal
-backend — the provider's `metal` Cargo feature, not the separate,
-not-yet-built MLX-based `metal` provider `PLAN.md` scopes for P4).
+backend, the provider's `metal` Cargo feature, which is not the separate
+`metal` provider under `providers/metal`).
 
 Receipts from real runs are committed under `testdata/receipts/turbo/`:
 `openvino-minilm-2026-09-21.json` and `openvino-tasks-2026-09-21.json` for
 the OpenVINO provider, `cuda-2026-09-21.json` for the CUDA provider
 (`krick`, RTX 4080 SUPER, cosine 1.000 against the FP32 references),
 `ggml-2026-09-21.json` for the `ggml` provider (`krick`'s CUDA and CPU
-devices, and `krickert-mac`'s Metal device), and `hailo-2026-09-21.json`
+devices, and `krickert-mac`'s Metal device), `metal-2026-09-22.json` for
+the `metal` provider (`krickert-mac`, Apple M2, cosine 1.000 against the
+FP32 references with results in unified memory), and `hailo-2026-09-21.json`
 for the `hailo` provider (`pi5ai1` and `cm5ai1`, Hailo-8, cosine 0.32-0.71
 against FP32 with Spearman 0.937 against 0.944); see
 `docs/providers.md` for what they record.

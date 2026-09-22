@@ -160,9 +160,10 @@ back once per chunk until the generation finishes or the callback returns
 during the callback. See [`docs/c-api.md`](c-api.md) for the full
 picture.
 
-The dedicated, MLX-based `metal` provider (P4) is **not available yet**;
-`ggml` reaches Apple M2 today only through llama.cpp's own Metal backend
-for generation, a different code path. The `hailo` provider (P5) serves
+The dedicated `metal` provider (P4) landed on 2026-09-22 as a direct
+Metal provider (Objective-C++, kernels compiled at load, no MLX) serving
+embeddings and reranking on Apple M2; `ggml` reaches the same GPU for
+generation through llama.cpp's own Metal backend. The `hailo` provider (P5) serves
 embeddings on the Hailo-8 Pis; Hailo-10H is still open. The Android binding
 (P10) is not available yet; the Java and Swift bindings (P7) have landed.
 CUDA on Jetson (`nano1`, aarch64) now passes its live embedding
@@ -184,7 +185,7 @@ qualification receipt exists (`PLAN.md` section 4.4). Today:
 | `openvino` CPU | EXPERIMENTAL | same tasks, explicit selection only; same receipts |
 | `cpu` | PLANNED (P3, folded into the CUDA/ORT provider work) | ORT CPU EP; ggml CPU |
 | `cuda` | EXPERIMENTAL on `krick` (x86_64); embedding landed on Jetson `nano1` (aarch64) | embed, rerank, classify, token-classify through the ONNX Runtime CUDA EP with device-side pooling/normalization/activation kernels; cosine 1.000 against the FP32 references on `krick`; receipt: [`testdata/receipts/turbo/cuda-2026-09-21.json`](../testdata/receipts/turbo/cuda-2026-09-21.json). On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime 1.24.0 linked dynamically through `ORT_LIB_LOCATION` and `--no-default-features`) all 12 live embedding tests pass at cosine 1.000; no receipt file is committed for this run yet and the task suite (rerank/classify/token-classify) is still being verified there |
-| `metal` | PLANNED (P4) | MLX over the shared Metal arena |
+| `metal` | EXPERIMENTAL on `krickert-mac` (Apple M2) | embed and rerank through Metal directly: MSL kernels compiled at load, shared `MTLBuffer`s end to end, results `SHARED` in unified memory at cosine 1.000 against the FP32 references; receipt: [`testdata/receipts/turbo/metal-2026-09-22.json`](../testdata/receipts/turbo/metal-2026-09-22.json) |
 | `hailo` | EXPERIMENTAL on `pi5ai1` and `cm5ai1` (Hailo-8); Hailo-8L untested; Hailo-10H open | embed through HailoRT 4.23 vstreams with the INT8 Model Zoo MiniLM HEF; host WordPiece, word-embedding gather, pooling, and L2; the capability cell reports a measured cosine floor of 0.30, and the live suite holds cosine to its own, higher floor for this provider and dtype ([`testdata/reference_embeddings/quantized_floors.json`](../testdata/reference_embeddings/quantized_floors.json), 0.45) plus a ranking gate on the STS corpus (Spearman 0.937 against 0.944 for FP32); throughput 76 rows/s at every batch and sequence length ([`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json)); receipt: [`testdata/receipts/turbo/hailo-2026-09-21.json`](../testdata/receipts/turbo/hailo-2026-09-21.json) |
 | `ggml` | EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | GGUF generation through llama.cpp (`llama-cpp-2`): pull iterator, chat templates, stop strings/tokens, cancellation, logprobs, seeded sampling, GBNF grammars; GGUF embedding on the same devices at cosine 0.99999 or better against the FP32 references; receipt: [`testdata/receipts/turbo/ggml-2026-09-21.json`](../testdata/receipts/turbo/ggml-2026-09-21.json) |
 
@@ -404,7 +405,7 @@ today (branch `turbo-v2`, 2026-09-21); "planned" means it is scoped for a later 
 | `providers/ggml/` | ggml/llama.cpp provider (Rust, GGUF generation); EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | here |
 | `providers/hailo/` | Hailo provider (C++, HailoRT 4.x vstreams); EXPERIMENTAL on the Hailo-8 Pis | here |
 | `providers/cpu/` | folded into the CUDA (ONNX Runtime) and ggml providers' CPU devices | not a separate provider |
-| `providers/metal/` | Swift package producing `libturbo_provider_metal.dylib` | planned (P4) |
+| `providers/metal/` | Metal provider (Objective-C++, `make` + `clang++`, kernels compiled at load); EXPERIMENTAL on Apple M2 | here |
 | `native/wordpiece/` | shared C++ WordPiece tokenizer, used by the OpenVINO and Hailo providers | here |
 | `native/provider_common/` | shared C++ provider helpers (error boundary, descriptor size checks, bundle reader) | here |
 | `native/turbo_buffer/` | shared C++ arenas salvaged from the PoC | present, not yet wired into a provider |

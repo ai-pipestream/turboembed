@@ -28,7 +28,7 @@ Top level:
 | `family` | string | no (default `""`) | informational only (e.g. `bert`, `xlm-roberta`) |
 | `tokenizer` | object or absent | no | see below |
 | `contract` | object | no (default empty) | see below; required sub-fields depend on `kind` |
-| `artifacts` | map | no (default empty) | format name (`onnx`, `openvino_ir`, `gguf`, `hef`, `mlx_safetensors`, `static`, `mock`, ...) to `FileEntry`; the bundle must declare at least one artifact or at least one `tokenizer.files` entry |
+| `artifacts` | map | no (default empty) | format name (`onnx`, `openvino_ir`, `gguf`, `hef`, `hailo_tables`, `safetensors`, `hf_config`, `static`, `mock`, ...) to `FileEntry`; the bundle must declare at least one artifact or at least one `tokenizer.files` entry |
 | `limits` | object | no | see below |
 
 `tokenizer` (`TokenizerSpec`):
@@ -217,7 +217,7 @@ than guesses when a file is ambiguous or missing a needed field:
   `[PAD]`/`[UNK]`/`[CLS]`/`[SEP]`/`[MASK]` must all be present in
   `vocab.txt`.
 - **Artifacts** are copied into the bundle by `--artifact format=path`
-  (repeatable; `onnx`, `openvino_ir`, `gguf`, `hef`, `mlx_safetensors`, ...);
+  (repeatable; `onnx`, `openvino_ir`, `gguf`, `hef`, `hailo_tables`, `safetensors`, `hf_config`, ...);
   an `openvino_ir` artifact also requires and copies the sibling `.bin`
   weights file (recorded as `openvino_ir_weights`).
 - **`--static-from path[:tensor]`** builds a `static` artifact (a

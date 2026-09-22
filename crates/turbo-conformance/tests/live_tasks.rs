@@ -34,9 +34,17 @@ fn live_rerank_orders_relevant_documents_first() {
     let sorted = read_i32(&r, 1);
     eprintln!("scores {scores:?} sorted {sorted:?}");
     assert_eq!(scores.len(), 3);
-    assert!(scores.iter().all(|s| (0.0..=1.0).contains(s)), "sigmoid scores in [0, 1]");
+    // The bundle's contract says whether the head's logits are activated:
+    // a sigmoid reranker scores in [0, 1] with 0.5 as the midpoint, an
+    // identity one (the ms-marco cross-encoders declare Identity) hands
+    // back logits with 0 as the midpoint. Either way Berlin ranks first.
+    let sigmoid = model.bundle().contract().activation.as_deref() == Some("sigmoid");
+    let midpoint = if sigmoid { 0.5 } else { 0.0 };
+    if sigmoid {
+        assert!(scores.iter().all(|s| (0.0..=1.0).contains(s)), "sigmoid scores in [0, 1]");
+    }
     assert_eq!(sorted[0], 0, "the Berlin passage ranks first");
-    assert!(scores[0] > 0.5 && scores[1] < 0.5 && scores[2] < 0.5, "{scores:?}");
+    assert!(scores[0] > midpoint && scores[1] < midpoint && scores[2] < midpoint, "{scores:?}");
     drop(r);
     // top_n limits the sorted output length and never exceeds the row count.
     session.write_pairs(query, &docs, &RerankOptions { top_n: 2, ..Default::default() }).unwrap();
@@ -54,7 +62,11 @@ fn live_rerank_orders_relevant_documents_first() {
             let logits = read_f32(&r, 0);
             eprintln!("raw logits {logits:?}");
             assert!(logits[0] > logits[1] && logits[0] > logits[2]);
-            assert!(logits.iter().any(|l| !(0.0..=1.0).contains(l)), "logits, not activated scores");
+            if sigmoid {
+                assert!(logits.iter().any(|l| !(0.0..=1.0).contains(l)), "logits, not activated scores");
+            } else {
+                assert_eq!(logits, scores, "an identity head's raw scores are its scores");
+            }
         }
         Err(e) => {
             assert_eq!(e.code(), abi::TURBO_E_UNSUPPORTED_OPTION);
@@ -197,7 +209,10 @@ fn live_rerank_raw_scores_preserve_the_activated_ranking() {
     let r = session.run(&Default::default()).unwrap();
     let activated = read_f32(&r, 0);
     drop(r);
-    assert!(activated.iter().all(|s| (0.0..=1.0).contains(s)), "activated scores are in [0, 1]: {activated:?}");
+    let sigmoid = model.bundle().contract().activation.as_deref() == Some("sigmoid");
+    if sigmoid {
+        assert!(activated.iter().all(|s| (0.0..=1.0).contains(s)), "activated scores are in [0, 1]: {activated:?}");
+    }
 
     let raw = RerankOptions { raw_scores: true, ..Default::default() };
     match session.write_pairs(query, &docs, &raw) {
@@ -216,10 +231,18 @@ fn live_rerank_raw_scores_preserve_the_activated_ranking() {
                 order(&activated),
                 "the activation is monotonic, so logits rank the documents exactly as the scores do"
             );
-            assert!(
-                logits.iter().any(|l| !(0.0..=1.0).contains(l)),
-                "raw_scores must return logits, not activated scores: {logits:?}"
-            );
+            if sigmoid {
+                assert!(
+                    logits.iter().any(|l| !(0.0..=1.0).contains(l)),
+                    "raw_scores must return logits, not activated scores: {logits:?}"
+                );
+                for (l, a) in logits.iter().zip(&activated) {
+                    let s = 1.0 / (1.0 + (-l).exp());
+                    assert!((s - a).abs() < 1e-4, "the score is the sigmoid of the logit: {l} -> {a}");
+                }
+            } else {
+                assert_eq!(logits, activated, "an identity head's raw scores are its scores");
+            }
         }
         Err(e) => {
             assert_eq!(e.code(), abi::TURBO_E_UNSUPPORTED_OPTION, "raw_scores is honored or rejected: {e}");

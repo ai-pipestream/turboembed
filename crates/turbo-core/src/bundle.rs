@@ -150,7 +150,7 @@ pub struct Manifest {
     /// Frozen contract.
     #[serde(default)]
     pub contract: Contract,
-    /// Artifacts by format: `onnx`, `openvino_ir`, `gguf`, `hef`, `mlx_safetensors`, `static`, `mock`.
+    /// Artifacts by format: `onnx`, `openvino_ir`, `gguf`, `hef`, `hailo_tables`, `safetensors`, `hf_config`, `static`, `mock`.
     #[serde(default)]
     pub artifacts: BTreeMap<String, FileEntry>,
     /// Limits.

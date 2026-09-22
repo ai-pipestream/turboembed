@@ -5,8 +5,9 @@ accelerator a machine has: a single C ABI (`libturbo`, `turbo_` prefix), a
 safe Rust API on top, Java and Swift bindings, and hardware support as
 provider libraries loaded at runtime rather than compile-time flags. The
 same program embeds on an NVIDIA GPU, an Intel GPU or CPU through OpenVINO,
-a Hailo-8 NPU on a Raspberry Pi, a Jetson, or an Apple M2, and generates
-text from GGUF models through llama.cpp, without changing a line.
+a Hailo-8 NPU on a Raspberry Pi, a Jetson, or an Apple M2 through Metal
+directly, and generates text from GGUF models through llama.cpp, without
+changing a line.
 
 Its rules are simple and enforced: every option is honored exactly or the
 call fails naming the field; a device is never silently swapped for a
@@ -74,6 +75,7 @@ and comes from committed receipts under `testdata/receipts/turbo/`.
 | `cuda` | RTX 4080 SUPER (`krick`), Jetson Orin Nano (`nano1`) | ONNX Runtime CUDA EP, own pooling and activation kernels | EXPERIMENTAL, cosine 1.000 vs FP32 |
 | `openvino` | Battlemage B70 (`krick-1`), any CPU | OpenVINO 2026.3, fused graph, `cl_mem` results on GPU | EXPERIMENTAL, cosine 1.000 vs FP32 |
 | `ggml` | RTX 4080 SUPER and CPU (`krick`), Apple M2 Metal (`krickert-mac`) | llama.cpp through `llama-cpp-2` | EXPERIMENTAL (GGUF generation and embeddings) |
+| `metal` | Apple M2 (`krickert-mac`) | Metal directly: MSL kernels compiled at load, shared `MTLBuffer`s end to end, no MLX | EXPERIMENTAL, cosine 1.000 vs FP32 (embed, rerank) |
 | `hailo` | Hailo-8 on two Raspberry Pis (`pi5ai1`, `cm5ai1`) | HailoRT 4.23 vstreams, INT8 HEF | EXPERIMENTAL, cosine floor 0.45 vs FP32, ranking at parity (Spearman 0.937 vs 0.944) |
 | `static` | any CPU, explicit only | model2vec-style table lookup | EXPERIMENTAL |
 | `mock` | two synthetic devices | none | for contract tests only, never a real model |
@@ -81,8 +83,8 @@ and comes from committed receipts under `testdata/receipts/turbo/`.
 `SUPPORTED` needs a matched-native benchmark on top of the conformance and
 precision receipts; `crates/turbo-bench` writes the `libturbo` half of
 that comparison (`testdata/receipts/turbo/bench/`), and the direct-native
-reference programs are still to be written. Metal through MLX and
-Hailo-10H are planned; see [`PLAN.md`](PLAN.md).
+reference programs are still to be written. Hailo-10H is planned; see
+[`PLAN.md`](PLAN.md).
 
 ## Bindings and demos
 
@@ -118,6 +120,7 @@ cargo test --workspace --exclude turbo-provider-cuda   # unit tests and the prov
 scripts/gen-header.sh --check && scripts/gen-versioned.py --check
 cd bindings/java && mvn test                          # 15 cases under --illegal-native-access=deny
 cd bindings/swift && swift run turbo-conformance       # macOS, 14 cases
+make -C providers/metal test                          # macOS, the Metal provider and its 15 vtable cases
 scripts/package.sh                                    # the archive for this machine, verified by ldd, a C smoke test, and a provider load check
 scripts/package-container.sh                          # the same archive on the manylinux_2_28 floor
 ```
@@ -132,7 +135,7 @@ every receipt in `testdata/receipts/turbo/` records one such run. See
 ```
 include/turbo/      the generated, committed C headers
 crates/             turbo-abi, turbo-core, turbo-capi, turbo (safe API), turbo-conformance, turbo-bench
-providers/          mock, static, cuda, ggml (Rust); openvino, hailo (C++)
+providers/          mock, static, cuda, ggml (Rust); openvino, hailo (C++); metal (Objective-C++)
 native/             the shared WordPiece tokenizer and C++ provider helpers
 bindings/           java (FFM), swift
 demo/               c, python, rust, java, swift, grpc-c-server, android, java-web-spring

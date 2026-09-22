@@ -32,7 +32,9 @@ milestone that adds it. See `PLAN.md` itself for the design rationale.
              Apple M2, all via llama.cpp)
              hailo (providers/hailo, C++ over HailoRT 4.x; embeddings
              EXPERIMENTAL on the Hailo-8 Pis with an INT8 HEF)
-             metal: planned (P4)
+             metal (providers/metal, Objective-C++ over Metal directly;
+             embeddings and reranking EXPERIMENTAL on Apple M2, results
+             in unified memory)
  ------------------------------------------------------------------------
  runtimes:   none for mock/static; OpenVINO 2026.3.1 for openvino; ONNX
              Runtime 1.28 (1.24.0 on Jetson) CUDA execution provider for
