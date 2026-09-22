@@ -2,8 +2,8 @@
   "receipt_version": 1,
   "kind": "compare",
   "turbo": {
-    "file": "testdata/receipts/turbo/bench/ggml-krick-gpu-embed-2026-09-22b.json",
-    "commit": "804321e54d642970ac2866e674bbb5ca3d946136-dirty",
+    "file": "/work/worktrees/turboembed/turboembed/testdata/receipts/turbo/bench/ggml-krick-gpu-embed-2026-09-22c.json",
+    "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
     "provider": {
       "id": "ggml",
       "version": "2.0.0-alpha.0",
@@ -20,8 +20,8 @@
     "date": "2026-09-22"
   },
   "native": {
-    "file": "testdata/receipts/turbo/bench/native-llama-cpp-krick-gpu-embed-2026-09-22b.json",
-    "commit": "804321e54d642970ac2866e674bbb5ca3d946136-dirty",
+    "file": "/work/worktrees/turboembed/turboembed/testdata/receipts/turbo/bench/native-llama-cpp-krick-gpu-embed-2026-09-22c.json",
+    "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
     "provider": {
       "id": "llama.cpp",
       "version": "2.0.0-alpha.0",
@@ -50,76 +50,77 @@
     {
       "cell": "embed 1x32",
       "measure": "text p50 ms",
-      "turbo": 0.413472,
-      "native": 0.409714,
-      "ratio": 0.9909111136908908,
+      "turbo": 0.41255,
+      "native": 0.413602,
+      "ratio": 1.0025499939401286,
       "within_floor": true
     },
     {
       "cell": "embed 8x32",
       "measure": "text p50 ms",
-      "turbo": 0.770296,
-      "native": 0.7657970000000001,
-      "ratio": 0.9941593880793878,
+      "turbo": 0.773783,
+      "native": 0.768543,
+      "ratio": 0.993228075571575,
       "within_floor": true
     },
     {
       "cell": "embed 32x32",
       "measure": "text p50 ms",
-      "turbo": 3.235915,
-      "native": 3.2846070000000003,
-      "ratio": 1.015047366818968,
+      "turbo": 3.28505,
+      "native": 3.2773749999999997,
+      "ratio": 0.9976636580873959,
       "within_floor": true
     },
     {
       "cell": "embed 1x128",
       "measure": "text p50 ms",
-      "turbo": 0.609552,
-      "native": 0.6080490000000001,
-      "ratio": 0.9975342546657219,
+      "turbo": 0.60829,
+      "native": 0.611115,
+      "ratio": 1.0046441664337733,
       "within_floor": true
     },
     {
       "cell": "embed 8x128",
       "measure": "text p50 ms",
-      "turbo": 3.803027,
-      "native": 3.869322,
-      "ratio": 1.0174321665347104,
+      "turbo": 3.852242,
+      "native": 3.836202,
+      "ratio": 0.9958361909765794,
       "within_floor": true
     },
     {
       "cell": "embed 32x128",
       "measure": "text p50 ms",
-      "turbo": 51.270081000000005,
-      "native": 51.330175,
-      "ratio": 1.001172106593707,
+      "turbo": 52.343631,
+      "native": 52.260714,
+      "ratio": 0.9984159104285295,
       "within_floor": true
     },
     {
       "cell": "embed 1x256",
       "measure": "text p50 ms",
-      "turbo": 0.791927,
-      "native": 0.790714,
-      "ratio": 0.998468293163385,
+      "turbo": 0.797548,
+      "native": 0.791636,
+      "ratio": 0.9925872800132406,
       "within_floor": true
     },
     {
       "cell": "embed 8x256",
       "measure": "text p50 ms",
-      "turbo": 14.091962,
-      "native": 13.792064,
-      "ratio": 0.9787185063371587,
+      "turbo": 13.918502,
+      "native": 13.772185,
+      "ratio": 0.9894875899719668,
       "within_floor": true
     },
     {
       "cell": "embed 32x256",
       "measure": "text p50 ms",
-      "turbo": 101.953103,
-      "native": 194.121846,
-      "ratio": 1.904030777758672,
+      "turbo": 103.834309,
+      "native": 196.637495,
+      "ratio": 1.8937622534763534,
       "within_floor": true
     }
   ],
   "unmatched": [],
+  "dirty": [],
   "verdict": "SUPPORTED"
 }

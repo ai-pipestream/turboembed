@@ -215,25 +215,38 @@ impl Provider for GgmlProvider {
         if modality != Modality::Text || !matches!(task, Task::Generate | Task::Embed) {
             return Capability::unsupported();
         }
+        // SUPPORTED needs a conformance receipt, a precision receipt and a
+        // matched-native benchmark from a named machine (AGENTS.md rule 7);
+        // the cell names them. Both tasks on a CUDA GPU have all three from
+        // krick (RTX 4080 SUPER, 2026-09-21 and 2026-09-22). The CPU and the
+        // Metal backend are EXPERIMENTAL until theirs exist.
+        let supported = d.kind == DeviceKind::Gpu && d.name.contains("CUDA");
+        let receipts = match task {
+            Task::Embed => "receipts ggml-2026-09-21, compare-ggml-krick-gpu-embed-2026-09-22c",
+            _ => "receipts ggml-2026-09-21, compare-ggml-krick-gpu-generate-2026-09-22c",
+        };
         Capability {
-            status: CapStatus::Experimental,
+            status: if supported { CapStatus::Supported } else { CapStatus::Experimental },
             // llama.cpp keeps activations in f32; a quantized GGUF's weight
             // products run at the file's quantization (int8 dot products for
             // the Q types), which model info reports per model as dtype_used.
             dtype: Some(DType::F32),
             reference_dtype: Some(DType::F32),
-            cosine_floor: 0.0,
+            // The precision receipt's gate: cosine 0.9995 to the FP32 references.
+            cosine_floor: if supported { 0.9995 } else { 0.0 },
             max_abs_error: 0.0,
             // Embeddings are bit-reproducible on the CPU; sampled generation
             // draws a seed when none is given, so it never claims to be.
             deterministic: d.kind == DeviceKind::Cpu && task == Task::Embed,
-            notes: match task {
-                Task::Embed => format!(
-                    "llama.cpp on {}; f32 activations, weight products at the GGUF's quantization; pooling in the graph, L2 on the host, result in host memory; receipts pending",
+            notes: match (task, supported) {
+                (Task::Embed, true) => format!("llama.cpp on {}; {receipts}; f32 activations, pooling in the graph, L2 on the host", d.name),
+                (Task::Embed, false) => format!(
+                    "llama.cpp on {}; f32 activations, weight products at the GGUF's quantization; pooling in the graph, L2 on the host; no matched-native benchmark on this device yet",
                     d.name
                 ),
-                _ => format!(
-                    "llama.cpp on {}; f32 activations, weight products at the GGUF's quantization; receipts pending",
+                (_, true) => format!("llama.cpp on {}; {receipts}; f32 activations", d.name),
+                (_, false) => format!(
+                    "llama.cpp on {}; f32 activations, weight products at the GGUF's quantization; no matched-native benchmark on this device yet",
                     d.name
                 ),
             },

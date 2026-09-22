@@ -880,8 +880,8 @@ provider's text path tokenizes inside it, and a warm-up counted in
 iterations left the first cells of a run on a GPU still raising its
 clocks. With the reference tokenizing in the loop and a warm-up of at
 least 0.5 s on both sides (`turbo_bench::receipt::warm_up`), the pair
-is 0.98x to 1.90x, SUPPORTED
-(`compare-ggml-krick-gpu-embed-2026-09-22b.json`).
+is 0.99x to 1.89x, SUPPORTED
+(`compare-ggml-krick-gpu-embed-2026-09-22c.json`, re-run from a clean commit).
 
 ## 12. Risks and defaults chosen
 

@@ -79,7 +79,7 @@ directories say; the Rust ones record the build's commit through the
 | openvino / OpenVINO 2026.3.1 C++ | Battlemage B70 (krick-1) | embed, 9 | 1.15x to 1.55x | SUPPORTED |
 | openvino / OpenVINO 2026.3.1 C++ | Ryzen 9 9950X3D CPU (krick) | embed, 9 | 1.01x to 1.34x, re-run from commit c540fb3 (the first run read 0.91x on the larger cells: the provider's token writer built an error message per token, about 1 us each, fixed the same day; `compare-openvino-krick-cpu-embed-2026-09-22c.json`) | SUPPORTED |
 | ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | generate, 128 tokens | 0.99x total, 1.00x decode | SUPPORTED |
-| ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | embed, 9 (text path) | 0.98x to 1.90x (the first run, 0.94x on two cells, had the reference tokenizing outside its timed loop and a count-only warm-up; `compare-ggml-krick-gpu-embed-2026-09-22b.json` is the matched one) | SUPPORTED |
+| ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | embed, 9 (text path) | 0.99x to 1.89x, re-run from commit c540fb3 (`compare-ggml-krick-gpu-embed-2026-09-22c.json`; the first run, 0.94x on two cells, had the reference tokenizing outside its timed loop and a count-only warm-up) | SUPPORTED |
 | hailo / hailortcli | Hailo-8 (pi5ai1) | embed, 6 | 1.00x to 1.01x (`compare-hailo-pi5ai1-embed-2026-09-22b.json`, re-run from commit 5cb4cad; the first pair named no commit) | SUPPORTED |
 | metal / the same kernels | Apple M2 (krickert-mac) | embed, 9 | 0.98x to 1.00x before and 0.97x to 1.01x after the simdgroup matmul (the provider adds no measurable cost around the kernels) | SUPPORTED |
 
