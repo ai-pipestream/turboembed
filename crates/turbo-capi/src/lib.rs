@@ -1626,10 +1626,10 @@ pub unsafe extern "C" fn turbo_generate(
                 n_logprobs: chunk.logprobs.len() as u32,
                 tokens: if chunk.tokens.is_empty() { std::ptr::null() } else { chunk.tokens.as_ptr() },
                 text: if chunk.text.is_empty() {
-                turbo_text { ptr: std::ptr::null(), len: 0 }
-            } else {
-                turbo_text { ptr: chunk.text.as_ptr().cast(), len: chunk.text.len() as u64 }
-            },
+                    turbo_text { ptr: std::ptr::null(), len: 0 }
+                } else {
+                    turbo_text { ptr: chunk.text.as_ptr().cast(), len: chunk.text.len() as u64 }
+                },
                 logprobs: if chunk.logprobs.is_empty() { std::ptr::null() } else { chunk.logprobs.as_ptr() },
                 done: chunk.done as u32,
                 finish_reason: chunk.finish_reason.as_abi(),

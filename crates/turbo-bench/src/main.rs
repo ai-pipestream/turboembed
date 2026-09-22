@@ -1152,7 +1152,7 @@ fn main() -> ExitCode {
             eprintln!("error: --tolerance needs --budget");
             return ExitCode::from(2);
         }
-        (_, Some(t)) if !(t >= 0.0) => {
+        (_, Some(t)) if t.is_nan() || t < 0.0 => {
             eprintln!("error: --tolerance must be a fraction of 0 or more, not {t}");
             return ExitCode::from(2);
         }
