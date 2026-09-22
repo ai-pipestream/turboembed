@@ -139,7 +139,9 @@ fn device_explicit_cpu_loads_and_runs() {
         .map(|i| (i, device_info(ct.rt, i)))
         .find(|(_, d)| d.kind == TURBO_DEVICE_CPU && c::fixed(&d.provider_id) == t.provider_id());
     let Some((_, cpu_info)) = cpu else {
-        println!("device_explicit_cpu_loads_and_runs: no CPU device on this provider");
+        // The other half of the policy (AUTO never picks a CPU) is asserted
+        // in `device_auto_never_selects_a_cpu` on every provider.
+        println!("not applicable: provider `{}` enumerates no CPU device", t.provider_id());
         return;
     };
     let provider = c::fixed(&cpu_info.provider_id);
@@ -170,7 +172,8 @@ fn device_explicit_cpu_loads_and_runs() {
         let ri = c::result_info(result);
         assert!(ri.dim > 0 && ri.batch == 1);
         let v = c::read_f32(result, 0, ri.dim as usize);
-        assert!(v.iter().all(|x| x.is_finite()));
+        assert!(v.iter().all(|x| x.is_finite()), "the CPU device produced a non-finite vector");
+        assert!(v.iter().any(|x| *x != 0.0), "the CPU device produced an all-zero vector");
         turbo_result_release(result);
         turbo_session_release(session);
         turbo_model_release(model);
@@ -268,6 +271,53 @@ fn device_context_descriptor_is_validated() {
         assert_rc!(turbo_context_create(ct.rt, ct.device, &base, &mut ctx, &mut e), TURBO_OK, e);
         turbo_context_release(ctx);
     }
+}
+
+#[test]
+fn device_load_provider_reports_its_failures() {
+    // turbo.h: `turbo_runtime_load_provider` keeps the library for the
+    // process and rejects a provider whose id is already registered with
+    // TURBO_E_PROVIDER_LOAD. Nothing else in the suite reaches that code.
+    let t = Target::from_env();
+    let ct = c::CTarget::new(&t);
+    let mut e = c::err();
+    let scratch = turbo_conformance::fixtures::empty();
+    let not_a_library = scratch.path().join("not-a-library.so");
+    std::fs::write(&not_a_library, b"this is not an ELF object").expect("write");
+    let not_a_library = not_a_library.to_string_lossy().into_owned();
+    // SAFETY: valid runtime handle; every path outlives its call.
+    unsafe {
+        assert_rc!(turbo_runtime_load_provider(ct.rt, c::text(""), &mut e), TURBO_E_INVALID_ARGUMENT, e);
+        assert_rc!(
+            turbo_runtime_load_provider(ptr::null_mut(), c::text("/nonexistent"), &mut e),
+            TURBO_E_INVALID_HANDLE,
+            e
+        );
+        assert_rc!(
+            turbo_runtime_load_provider(ct.rt, c::text("/definitely/not/a/provider.so"), &mut e),
+            TURBO_E_PROVIDER_LOAD,
+            e
+        );
+        assert_rc!(turbo_runtime_load_provider(ct.rt, c::text(&not_a_library), &mut e), TURBO_E_PROVIDER_LOAD, e);
+        // A provider already registered on this runtime is refused by id.
+        // The suite's own runtime loaded every path in
+        // TURBO_CONFORMANCE_PROVIDER_PATHS, so loading one again is the
+        // duplicate case; with no paths set the built-in providers cover
+        // only the three refusals above.
+        let paths = turbo_conformance::runtime_desc_from_env().provider_paths;
+        match paths.first() {
+            Some(path) => {
+                assert_rc!(turbo_runtime_load_provider(ct.rt, c::text(path), &mut e), TURBO_E_PROVIDER_LOAD, e);
+                let message = c::message(&e);
+                assert!(message.contains("already registered"), "the refusal must say why: {message}");
+            }
+            None => println!(
+                "not applicable: no provider library is loaded ({}), so no id can be registered twice",
+                turbo_conformance::ENV_PROVIDER_PATHS
+            ),
+        }
+    }
+    drop(ct);
 }
 
 #[test]

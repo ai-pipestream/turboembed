@@ -24,6 +24,14 @@ fn contract_empty_text_produces_a_vector() {
     let v = read_f32(&result, 0);
     assert_eq!(v.len(), model.info().dim as usize, "an empty input still produces one full-width vector");
     assert!(v.iter().all(|x| x.is_finite()), "vector for empty text must be finite: {v:?}");
+    // A row of zeros is what a provider returns when it skipped the input
+    // rather than embedding it, and it is also the one vector no normalizer
+    // can produce, so the contract rules it out.
+    assert!(v.iter().any(|x| *x != 0.0), "an empty input must still be embedded, not zeroed: {v:?}");
+    if model.info().normalize == Some(turbo::types::Normalize::L2) {
+        let n = turbo_conformance::norm(&v);
+        assert!((n - 1.0).abs() < 1e-5, "the bundle declares L2, so the row must be unit length (norm {n})");
+    }
 }
 
 #[test]
@@ -37,8 +45,14 @@ fn contract_empty_and_nonempty_text_in_one_batch_are_accepted() {
     let v = read_f32(&result, 0);
     assert_eq!(v.len(), 3 * dim);
     let first = &v[..dim];
+    let second = &v[dim..2 * dim];
     let third = &v[2 * dim..];
     assert_eq!(first, third, "the same input must produce the same row");
+    assert_ne!(first, second, "a different input in the same batch must produce a different row");
+    assert!(v.iter().all(|x| x.is_finite()), "every row of a mixed batch must be finite");
+    // Equal rows of zeros would satisfy the equality above without anything
+    // having been embedded at all.
+    assert!(first.iter().any(|x| *x != 0.0), "the empty rows were zeroed instead of embedded: {first:?}");
 }
 
 #[test]
@@ -55,6 +69,7 @@ fn contract_embedded_nul_is_preserved() {
     // rule (a BERT normalizer drops control characters, the mock hashes
     // every byte); the library's contract is only that the text after it is
     // seen, so the vector cannot equal the C-string reading of the input.
+    assert_eq!(with_nul.len(), truncated_at_nul.len(), "both inputs produce one full-width row");
     assert_ne!(with_nul, truncated_at_nul, "the NUL must not have terminated the view");
 }
 
@@ -174,6 +189,10 @@ fn contract_token_batch_bad_ids_and_mask_are_invalid_argument() {
     needs!(t, Embedding);
     let (model, session) = t.session(BundleKind::Embedding);
     let vocab = model.info().vocab_size;
+    // A model that reports no vocabulary size cannot bound-check an id at
+    // all (`TokenBatch::validate` skips the upper bound when it is 0), so the
+    // refusal below would be unreachable.
+    assert_ne!(vocab, 0, "a loaded model must report its vocabulary size so token ids can be bounded");
     let ids = [1, 2];
     let mask = [1, 1];
     let good = TokenBatch { batch: 1, seq: 2, row_stride: 2, ids: &ids, mask: &mask, types: None };
@@ -181,10 +200,8 @@ fn contract_token_batch_bad_ids_and_mask_are_invalid_argument() {
 
     let negative = [1, -3];
     assert_err!(session.write_tokens(&TokenBatch { ids: &negative, ..good }), TURBO_E_INVALID_ARGUMENT);
-    if vocab != 0 {
-        let above = [1, vocab as i32];
-        assert_err!(session.write_tokens(&TokenBatch { ids: &above, ..good }), TURBO_E_INVALID_ARGUMENT);
-    }
+    let above = [1, vocab as i32];
+    assert_err!(session.write_tokens(&TokenBatch { ids: &above, ..good }), TURBO_E_INVALID_ARGUMENT);
     let bad_mask = [1, 2];
     assert_err!(session.write_tokens(&TokenBatch { mask: &bad_mask, ..good }), TURBO_E_INVALID_ARGUMENT);
     let bad_types = [0, 5];
@@ -281,6 +298,24 @@ fn contract_status_names_cover_every_code() {
     ];
     for (code, name) in all {
         assert_eq!(turbo::error::status_name(*code), *name, "status_name({code:#x})");
+    }
+    // The table above is the whole vocabulary, not a sample: every status
+    // constant the committed header defines has to appear in it, so a new
+    // code cannot be added without a name and a case.
+    let header = turbo_conformance::repo_root().join("include").join("turbo").join("turbo_types.h");
+    let text = std::fs::read_to_string(&header).unwrap_or_else(|e| panic!("reading {}: {e}", header.display()));
+    for line in text.lines() {
+        let Some(rest) = line.trim_start().strip_prefix("#define TURBO_") else { continue };
+        let Some(name) = rest.split_whitespace().next() else { continue };
+        if !(name.starts_with("E_") || name == "OK") {
+            continue;
+        }
+        let name = format!("TURBO_{name}");
+        assert!(
+            all.iter().any(|(_, n)| *n == name),
+            "{} defines {name}, which contract_status_names_cover_every_code does not check",
+            header.display()
+        );
     }
     assert_eq!(turbo::error::status_name(-1), "TURBO_E_UNKNOWN");
     assert_eq!(turbo::error::status_name(0x7FFF), "TURBO_E_UNKNOWN");

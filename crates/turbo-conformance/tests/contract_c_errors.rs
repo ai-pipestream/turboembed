@@ -114,7 +114,9 @@ fn contract_struct_size_of_an_older_caller_is_accepted() {
 
     // The same rule on an output struct: only the declared prefix is written.
     let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
-    let short = 16u32;
+    // The end of `modality`, which is also where `dim` starts: a layout the
+    // struct really has, and one that stops short of the sentinel field.
+    let short = std::mem::offset_of!(turbo_model_info, dim) as u32;
     info.struct_size = short;
     let sentinel = 0xDEAD_BEEFu32;
     info.dim = sentinel;
@@ -286,6 +288,14 @@ fn contract_status_names_are_static_c_strings() {
     }
     assert_eq!(c::status_name(-7), "TURBO_E_UNKNOWN");
     assert_eq!(c::status_name(0x999), "TURBO_E_UNKNOWN");
+    // "Static, never NULL" (turbo.h): the same code must hand back the same
+    // pointer every time, so a caller may keep it without copying.
+    for code in [TURBO_OK, TURBO_E_BUSY, -7] {
+        let first = turbo_status_name(code);
+        let second = turbo_status_name(code);
+        assert!(!first.is_null(), "status_name({code:#x}) returned NULL");
+        assert_eq!(first, second, "status_name({code:#x}) is not a static string");
+    }
 }
 
 #[test]

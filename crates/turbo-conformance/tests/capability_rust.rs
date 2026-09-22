@@ -8,7 +8,7 @@
 use turbo::abi::*;
 use turbo::provider::{ClassifyOptions, EmbedOptions, GenerateDesc, Message, RerankOptions, RunOptions, SessionDesc};
 use turbo::types::{
-    Aggregation, Modality, Normalize, OutputDType, Pooling, PromptRole, StructuredKind, Task, Truncate,
+    Aggregation, CapStatus, Modality, Normalize, OutputDType, Pooling, PromptRole, StructuredKind, Task, Truncate,
 };
 use turbo_conformance::{assert_err, fixtures, needs, norm, read_f32, read_i32, BundleKind, Target};
 
@@ -383,6 +383,35 @@ fn capability_generation_options_are_honored_or_rejected() {
         assert_err!(model.create_generation(&stop), TURBO_E_UNSUPPORTED_OPTION, field = 14);
     }
 
+    // A grammar is the one structured kind this tree's providers offer, and
+    // it says exactly what the output must be, so an advertised
+    // TURBO_CAP_OPT_GEN_STRUCTURED is checked by what it produces, not by
+    // the descriptor being accepted.
+    let grammar = GenerateDesc {
+        max_new_tokens: 4,
+        structured_kind: StructuredKind::Grammar,
+        structured: "root ::= \"a\"".into(),
+        ..Default::default()
+    };
+    if t.has(TURBO_CAP_OPT_GEN_STRUCTURED) {
+        let generation = model.create_generation(&grammar).expect("grammar");
+        generation.prompt(&[Message { role: "user", content: "hello" }]).expect("prompt");
+        let mut text = String::new();
+        loop {
+            let chunk = generation.step().expect("step under a grammar");
+            text.push_str(&chunk.text);
+            if chunk.done {
+                break;
+            }
+        }
+        assert!(
+            text.chars().all(|c| c == 'a'),
+            "the grammar `root ::= \"a\"` admits only the letter a, but the stream delivered {text:?}"
+        );
+    } else {
+        assert_err!(model.create_generation(&grammar), TURBO_E_UNSUPPORTED_OPTION, field = 21);
+    }
+
     // The gated fields that have no honor test beyond being accepted.
     let cases: [(u64, u32, GenerateDesc); 8] = [
         (TURBO_CAP_OPT_GEN_N, 4, GenerateDesc { n_sequences: 2, ..Default::default() }),
@@ -441,7 +470,11 @@ fn capability_unsupported_modality_cell_is_unsupported() {
     for modality in [Modality::Audio, Modality::Image, Modality::Video] {
         let cell = t.runtime.capability(t.device_index, Task::Embed, modality).expect("capability cell");
         if cell.is_offered() {
-            continue; // A provider that really offers it is not a violation.
+            // A provider that really offers the modality is not a violation;
+            // the refusal is asserted for every modality it does not offer,
+            // and no provider in this tree offers any of the three.
+            println!("not applicable: {} offers Embed x {modality:?} ({:?})", t.provider_id(), cell.status);
+            continue;
         }
         // A bundle declaring that modality cannot load on this device.
         let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
@@ -477,6 +510,7 @@ fn capability_can_run_agrees_with_model_load() {
     for kind in BundleKind::ALL {
         let path = t.bundle(*kind);
         if !path.is_dir() {
+            println!("not applicable: no {} bundle is configured ({})", kind.dir_name(), path.display());
             continue;
         }
         let bundle = turbo::bundle::Bundle::open(&path).expect("the test bundles are valid");
@@ -521,15 +555,30 @@ fn capability_cells_report_a_dtype_and_determinism() {
     let t = Target::from_env();
     let cell = t.runtime.capability(t.device_index, Task::Embed, Modality::Text).expect("cell");
     if !cell.is_offered() {
-        return;
+        // A device under test must offer Embed x Text (`Target::require`),
+        // so this is unreachable rather than a skip.
+        panic!("{} device {} does not offer Embed x Text", t.provider_id(), t.ordinal());
     }
     assert!(cell.dtype.is_some(), "an offered cell must name the compute dtype");
+    assert!(cell.reference_dtype.is_some(), "an offered cell must name the dtype its receipt compares against");
     // A device claiming DETERMINISTIC must say so in its embed cell too.
     if t.has(TURBO_CAP_DETERMINISTIC) {
         assert!(cell.deterministic, "TURBO_CAP_DETERMINISTIC and the capability cell must agree");
     }
+    assert!(cell.cosine_floor.is_finite(), "cosine floor {}", cell.cosine_floor);
+    assert!(cell.max_abs_error.is_finite(), "max abs error {}", cell.max_abs_error);
     assert!(cell.cosine_floor >= 0.0 && cell.cosine_floor <= 1.0, "cosine floor {}", cell.cosine_floor);
     assert!(cell.max_abs_error >= 0.0, "max abs error {}", cell.max_abs_error);
+    assert!(!cell.notes.is_empty(), "an offered cell must say what it is");
+    // PLAN.md principle 7: SUPPORTED is the receipt-backed state, so a cell
+    // in it carries the numbers a receipt records. EXPERIMENTAL and PLANNED
+    // are the honest states for a cell that has none yet.
+    if cell.status == CapStatus::Supported {
+        assert!(
+            cell.cosine_floor > 0.0,
+            "a SUPPORTED cell claims a precision receipt, so its cosine floor cannot be 0"
+        );
+    }
 }
 
 #[test]
@@ -537,15 +586,21 @@ fn capability_session_options_are_rejected_when_unknown() {
     let t = Target::from_env();
     needs!(t, Embedding);
     let model = t.model(BundleKind::Embedding);
-    // Provider knobs are validated, never ignored (PLAN.md section 5).
-    let desc = SessionDesc { options: turbo::handles::options_from_pairs([("tensorrt", "1")]), ..Default::default() };
-    match model.create_session(&desc) {
-        Ok(_) => {} // the provider really offers this knob
-        Err(e) => assert_eq!(
-            e.code(),
-            TURBO_E_INVALID_ARGUMENT,
-            "an unknown session option must be TURBO_E_INVALID_ARGUMENT, got {}",
-            e.code_name()
-        ),
+    // Provider knobs are validated, never ignored (PLAN.md section 5). A key
+    // no provider can plausibly own has one correct answer on every device:
+    // the refusal, naming the options field. Accepting it would mean the
+    // provider ignores what the caller asked for.
+    for key in ["turbo_conformance_not_an_option", "tensorrt"] {
+        let desc = SessionDesc { options: turbo::handles::options_from_pairs([(key, "1")]), ..Default::default() };
+        let e = assert_err!(model.create_session(&desc), TURBO_E_INVALID_ARGUMENT);
+        assert_eq!(e.field(), 1, "the refusal of option `{key}` must name the option's 1-based index: {}", e.message());
     }
+    // An empty key is a malformed options array rather than an unknown knob.
+    // Only the code is asserted here: a built-in provider reports it through
+    // `Options::reject_unknown` with the option's 1-based index (field 1),
+    // while a plugin provider's argument conversion
+    // (`crates/turbo-core/src/abi_convert.rs`, `options`) reports the same
+    // entry with no field at all.
+    let empty = SessionDesc { options: turbo::handles::options_from_pairs([("", "1")]), ..Default::default() };
+    assert_err!(model.create_session(&empty), TURBO_E_INVALID_ARGUMENT);
 }

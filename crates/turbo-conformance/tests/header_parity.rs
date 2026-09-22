@@ -134,8 +134,7 @@ fn header_parity_struct_layouts_match_a_c_compiler() {
 
     let Some(cc) = cc() else {
         println!(
-            "header_parity_struct_layouts_match_a_c_compiler: no C compiler found (set CC); \
-             the Rust-side table was still checked against {}",
+            "not applicable: no C compiler found (set CC); the Rust-side table was still checked against {}",
             header.display()
         );
         return;
@@ -172,7 +171,7 @@ fn header_parity_struct_layouts_match_a_c_compiler() {
 #[test]
 fn header_parity_constants_match_a_c_compiler() {
     let Some(cc) = cc() else {
-        println!("header_parity_constants_match_a_c_compiler: no C compiler found (set CC)");
+        println!("not applicable: no C compiler found (set CC)");
         return;
     };
     // A representative constant from every family, including the ones whose
@@ -193,14 +192,25 @@ fn header_parity_constants_match_a_c_compiler() {
         ("TURBO_E_UNSUPPORTED", TURBO_E_UNSUPPORTED as i64),
         ("TURBO_E_UNSUPPORTED_OPTION", TURBO_E_UNSUPPORTED_OPTION as i64),
         ("TURBO_E_UNSUPPORTED_TASK", TURBO_E_UNSUPPORTED_TASK as i64),
+        ("TURBO_E_UNSUPPORTED_DTYPE", TURBO_E_UNSUPPORTED_DTYPE as i64),
+        ("TURBO_E_UNSUPPORTED_PLACEMENT", TURBO_E_UNSUPPORTED_PLACEMENT as i64),
         ("TURBO_E_NOT_IMPLEMENTED", TURBO_E_NOT_IMPLEMENTED as i64),
+        ("TURBO_E_UNSUPPORTED_MODALITY", TURBO_E_UNSUPPORTED_MODALITY as i64),
+        ("TURBO_E_OUT_OF_MEMORY", TURBO_E_OUT_OF_MEMORY as i64),
         ("TURBO_E_BUSY", TURBO_E_BUSY as i64),
+        ("TURBO_E_OVERLOADED", TURBO_E_OVERLOADED as i64),
         ("TURBO_E_CAPACITY", TURBO_E_CAPACITY as i64),
         ("TURBO_E_DEVICE_NOT_FOUND", TURBO_E_DEVICE_NOT_FOUND as i64),
+        ("TURBO_E_DEVICE_UNAVAILABLE", TURBO_E_DEVICE_UNAVAILABLE as i64),
+        ("TURBO_E_RUNTIME", TURBO_E_RUNTIME as i64),
+        ("TURBO_E_PROVIDER_LOAD", TURBO_E_PROVIDER_LOAD as i64),
+        ("TURBO_E_ABI_MISMATCH", TURBO_E_ABI_MISMATCH as i64),
+        ("TURBO_E_CANCELLED", TURBO_E_CANCELLED as i64),
         ("TURBO_E_BUNDLE_NOT_FOUND", TURBO_E_BUNDLE_NOT_FOUND as i64),
         ("TURBO_E_BUNDLE_INVALID", TURBO_E_BUNDLE_INVALID as i64),
         ("TURBO_E_BUNDLE_INTEGRITY", TURBO_E_BUNDLE_INTEGRITY as i64),
         ("TURBO_E_BUNDLE_NO_ARTIFACT", TURBO_E_BUNDLE_NO_ARTIFACT as i64),
+        ("TURBO_E_INTERNAL", TURBO_E_INTERNAL as i64),
         ("TURBO_E_PANIC", TURBO_E_PANIC as i64),
         ("TURBO_DEVICE_CPU", TURBO_DEVICE_CPU as i64),
         ("TURBO_DEVICE_ACCEL", TURBO_DEVICE_ACCEL as i64),
@@ -225,12 +235,22 @@ fn header_parity_constants_match_a_c_compiler() {
         ("TURBO_HANDLE_DMABUF_FD", TURBO_HANDLE_DMABUF_FD as i64),
         ("TURBO_IO_OUTPUT", TURBO_IO_OUTPUT as i64),
         ("TURBO_STAGE_FUSED", TURBO_STAGE_FUSED as i64),
+        ("TURBO_CAP_UNSUPPORTED", TURBO_CAP_UNSUPPORTED as i64),
+        ("TURBO_CAP_PLANNED", TURBO_CAP_PLANNED as i64),
+        ("TURBO_CAP_EXPERIMENTAL", TURBO_CAP_EXPERIMENTAL as i64),
         ("TURBO_CAP_SUPPORTED", TURBO_CAP_SUPPORTED as i64),
     ];
     let bits: &[(&str, u64)] = &[
         ("TURBO_CAP_ASYNC", TURBO_CAP_ASYNC),
         ("TURBO_CAP_HOST_PTR_IMPORT", TURBO_CAP_HOST_PTR_IMPORT),
         ("TURBO_CAP_DEVICE_RESULT", TURBO_CAP_DEVICE_RESULT),
+        ("TURBO_CAP_EXTERNAL_QUEUE", TURBO_CAP_EXTERNAL_QUEUE),
+        ("TURBO_CAP_DMABUF", TURBO_CAP_DMABUF),
+        ("TURBO_CAP_UNIFIED_MEMORY", TURBO_CAP_UNIFIED_MEMORY),
+        ("TURBO_CAP_DYNAMIC_SHAPE", TURBO_CAP_DYNAMIC_SHAPE),
+        ("TURBO_CAP_WEIGHT_SHARING", TURBO_CAP_WEIGHT_SHARING),
+        ("TURBO_CAP_DEVICE_TOKENIZE", TURBO_CAP_DEVICE_TOKENIZE),
+        ("TURBO_CAP_DEVICE_POSTPROCESS", TURBO_CAP_DEVICE_POSTPROCESS),
         ("TURBO_CAP_DETERMINISTIC", TURBO_CAP_DETERMINISTIC),
         ("TURBO_CAP_OPT_TRUNCATE", TURBO_CAP_OPT_TRUNCATE),
         ("TURBO_CAP_OPT_MAX_TOKENS", TURBO_CAP_OPT_MAX_TOKENS),
@@ -241,11 +261,51 @@ fn header_parity_constants_match_a_c_compiler() {
         ("TURBO_CAP_OPT_OUTPUT_DTYPE", TURBO_CAP_OPT_OUTPUT_DTYPE),
         ("TURBO_CAP_OPT_TOP_N", TURBO_CAP_OPT_TOP_N),
         ("TURBO_CAP_OPT_AGGREGATION", TURBO_CAP_OPT_AGGREGATION),
+        ("TURBO_CAP_OPT_RAW_SCORES", TURBO_CAP_OPT_RAW_SCORES),
         // The generation bits (1 << 32 and above) are checked separately:
         // the committed header defines them as `int` shifts, which no C
         // compiler can evaluate. See
         // `header_parity_sixty_four_bit_capability_bits_are_usable_from_c`.
     ];
+
+    // The two tables are the whole vocabulary of codes and capability bits,
+    // not a sample of it: a constant the header defines and neither table
+    // names would go to a C caller unchecked. The 64-bit generation bits are
+    // covered by `header_parity_sixty_four_bit_capability_bits_are_usable_from_c`.
+    let sixty_four_bit: &[&str] = &[
+        "TURBO_CAP_OPT_GEN_STRUCTURED",
+        "TURBO_CAP_OPT_GEN_JSON_SCHEMA",
+        "TURBO_CAP_OPT_GEN_TOOLS",
+        "TURBO_CAP_OPT_GEN_N",
+        "TURBO_CAP_OPT_GEN_LOGIT_BIAS",
+        "TURBO_CAP_OPT_GEN_PENALTIES",
+        "TURBO_CAP_OPT_GEN_LOGPROBS",
+        "TURBO_CAP_OPT_GEN_STOP_STRINGS",
+        "TURBO_CAP_OPT_GEN_SEED",
+        "TURBO_CAP_OPT_GEN_STOP_TOKENS",
+        "TURBO_CAP_OPT_GEN_MIN_TOKENS",
+        "TURBO_CAP_OPT_GEN_SAMPLING",
+        "TURBO_CAP_OPT_GEN_ECHO",
+    ];
+    let header = header_path();
+    let header_text = std::fs::read_to_string(&header).unwrap_or_else(|e| panic!("reading {}: {e}", header.display()));
+    for line in header_text.lines() {
+        let Some(rest) = line.trim_start().strip_prefix("#define TURBO_") else { continue };
+        let Some(suffix) = rest.split_whitespace().next() else { continue };
+        let name = format!("TURBO_{suffix}");
+        let is_status = suffix.starts_with("E_") || name == "TURBO_OK";
+        let is_cap_bit = suffix.starts_with("CAP_");
+        if !(is_status || is_cap_bit) {
+            continue;
+        }
+        assert!(
+            constants.iter().any(|(n, _)| *n == name)
+                || bits.iter().any(|(n, _)| *n == name)
+                || sixty_four_bit.contains(&name.as_str()),
+            "{} defines {name}, which no header-parity table checks against turbo-abi",
+            header.display()
+        );
+    }
 
     let mut source = String::from("#include \"turbo/turbo_types.h\"\n#include <stdio.h>\n\nint main(void) {\n");
     for (name, _) in constants {
@@ -278,14 +338,14 @@ fn header_parity_constants_match_a_c_compiler() {
 #[test]
 fn header_parity_the_public_header_compiles_as_cpp() {
     let Some(cc) = cc() else {
-        println!("header_parity_the_public_header_compiles_as_cpp: no C compiler found (set CC)");
+        println!("not applicable: no C compiler found (set CC)");
         return;
     };
     // The header set is consumed from C++ too (PLAN.md section 8); a C++
     // compiler must accept it with no warnings.
     let cxx = std::env::var("CXX").unwrap_or_else(|_| "c++".to_string());
     if Command::new(&cxx).arg("--version").output().map(|o| !o.status.success()).unwrap_or(true) {
-        println!("header_parity_the_public_header_compiles_as_cpp: no C++ compiler found (set CXX)");
+        println!("not applicable: no C++ compiler found (set CXX)");
         return;
     }
     let dir = tempfile::tempdir().expect("temp dir");
@@ -310,68 +370,82 @@ fn header_parity_the_public_header_compiles_as_cpp() {
 #[test]
 fn header_parity_every_exported_symbol_is_declared() {
     // The header is the contract: every `turbo_*` entry point the library
-    // exports must be declared in it, and nothing else may be.
+    // exports must be declared in it, and nothing else may be. Both sides are
+    // read from the tree rather than from a list kept here, so a new export
+    // that never reaches the header, or a declaration with nothing behind it,
+    // fails this case instead of going unnoticed.
     let header = include_dir().join("turbo").join("turbo.h");
     let text = std::fs::read_to_string(&header).unwrap_or_else(|e| panic!("reading {}: {e}", header.display()));
-    let declared: Vec<&str> = text
-        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
-        .filter(|w| w.starts_with("turbo_") && !w.is_empty())
-        .collect();
-    for symbol in [
-        "turbo_abi_version",
-        "turbo_version",
-        "turbo_status_name",
-        "turbo_runtime_create",
-        "turbo_runtime_release",
-        "turbo_runtime_load_provider",
-        "turbo_runtime_device_count",
-        "turbo_runtime_device_info",
-        "turbo_runtime_select_device",
-        "turbo_runtime_capability",
-        "turbo_can_run",
-        "turbo_context_create",
-        "turbo_context_release",
-        "turbo_context_device",
-        "turbo_buffer_alloc",
-        "turbo_buffer_import",
-        "turbo_buffer_release",
-        "turbo_buffer_get_desc",
-        "turbo_buffer_host_ptr",
-        "turbo_buffer_export",
-        "turbo_model_load",
-        "turbo_model_release",
-        "turbo_model_get_info",
-        "turbo_model_io_info",
-        "turbo_model_label",
-        "turbo_session_create",
-        "turbo_session_release",
-        "turbo_session_write_text",
-        "turbo_session_write_tokens",
-        "turbo_session_write_pairs",
-        "turbo_session_write_text_classify",
-        "turbo_session_bind",
-        "turbo_session_run",
-        "turbo_session_get_stats",
-        "turbo_result_get_info",
-        "turbo_result_output_info",
-        "turbo_result_buffer",
-        "turbo_result_read",
-        "turbo_result_spans",
-        "turbo_result_release",
-        "turbo_generation_create",
-        "turbo_generation_prompt",
-        "turbo_generation_prompt_tokens",
-        "turbo_generation_step",
-        "turbo_generation_cancel",
-        "turbo_generation_release",
-        "turbo_generate",
-    ] {
+    let mut declared: Vec<String> = Vec::new();
+    for line in text.lines() {
+        // A declaration starts at column 0 and names the function before its
+        // parameter list; every other mention of a `turbo_` name (parameter
+        // types, doc comments) is indented or has no `(` after it.
+        if line.starts_with(char::is_whitespace) || line.is_empty() {
+            continue;
+        }
+        let Some(open) = line.find('(') else { continue };
+        let name: String = line[..open]
+            .chars()
+            .rev()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        if name.starts_with("turbo_") {
+            declared.push(name);
+        }
+    }
+    declared.sort();
+    declared.dedup();
+    assert!(!declared.is_empty(), "{} declares no functions at all", header.display());
+
+    let capi = turbo_conformance::repo_root().join("crates").join("turbo-capi").join("src");
+    let mut exported: Vec<String> = Vec::new();
+    let mut files = vec![capi.clone()];
+    while let Some(dir) = files.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("reading {}: {e}", dir.display())) {
+            let path = entry.expect("dir entry").path();
+            if path.is_dir() {
+                files.push(path);
+                continue;
+            }
+            if path.extension().map(|e| e != "rs").unwrap_or(true) {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+            for line in src.lines() {
+                let Some(rest) = line.split("extern \"C\" fn ").nth(1) else { continue };
+                if !line.trim_start().starts_with("pub ") {
+                    continue;
+                }
+                let name: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+                if name.starts_with("turbo_") {
+                    exported.push(name);
+                }
+            }
+        }
+    }
+    exported.sort();
+    exported.dedup();
+    assert!(exported.len() > 40, "only {} exports found under {}", exported.len(), capi.display());
+
+    for symbol in &exported {
         assert!(
-            declared.contains(&symbol),
-            "{} does not declare `{symbol}`, which the library exports",
+            declared.contains(symbol),
+            "{} does not declare `{symbol}`, which turbo-capi exports",
             header.display()
         );
     }
+    for symbol in &declared {
+        assert!(
+            exported.contains(symbol),
+            "{} declares `{symbol}`, which turbo-capi does not export",
+            header.display()
+        );
+    }
+    println!("header parity: {} exported functions are declared and nothing else is", exported.len());
 }
 
 #[test]
@@ -383,7 +457,7 @@ fn header_parity_sixty_four_bit_capability_bits_are_usable_from_c() {
     // rejects it, and without that flag the value is not 2^32. A `ULL`
     // suffix (or a `(uint64_t)1 << 32` form) is what the ABI needs.
     let Some(cc) = cc() else {
-        println!("header_parity_sixty_four_bit_capability_bits: no C compiler found (set CC)");
+        println!("not applicable: no C compiler found (set CC)");
         return;
     };
     let bits: &[(&str, u64)] = &[

@@ -160,6 +160,8 @@ fn threading_one_session_from_many_threads_never_corrupts_or_lies() {
     let dim = info.dim as usize;
     let session = Shared(ct.session(model));
     let expected = run_once(session.0, dim);
+    // Every thread writes the same text; see the Rust case of this name.
+    let deterministic = t.caps() & TURBO_CAP_DETERMINISTIC != 0;
 
     let barrier = Arc::new(Barrier::new(4));
     let ok = Arc::new(AtomicUsize::new(0));
@@ -187,6 +189,10 @@ fn threading_one_session_from_many_threads_never_corrupts_or_lies() {
                         ok.fetch_add(1, Ordering::Relaxed);
                         let v = c::read_f32(r, 0, dim);
                         assert_eq!(v.len(), expected.len());
+                        assert!(v.iter().all(|x| x.is_finite()), "a concurrent run produced garbage");
+                        if deterministic {
+                            assert_eq!(&v, expected, "a concurrent run returned a different vector for one input");
+                        }
                         // SAFETY: released once.
                         unsafe { turbo_result_release(r) };
                     } else {
@@ -213,7 +219,10 @@ fn threading_results_are_deterministic_across_sessions() {
     let t = Target::from_env();
     needs!(t, Embedding);
     if t.caps() & TURBO_CAP_DETERMINISTIC == 0 {
-        println!("threading_results_are_deterministic: device does not claim TURBO_CAP_DETERMINISTIC");
+        // See the Rust case of the same name: the bit itself is checked
+        // against the embed capability cell in
+        // `capability_cells_report_a_dtype_and_determinism`.
+        println!("not applicable: the device does not claim TURBO_CAP_DETERMINISTIC");
         return;
     }
     let ct = c::CTarget::new(&t);
@@ -267,23 +276,30 @@ fn threading_a_generation_reports_busy_to_a_second_thread() {
     assert_rc!(unsafe { turbo_generation_prompt(gen, &msg, 1, &mut e) }, TURBO_OK, e);
     let shared = Shared(gen);
 
-    // Two threads stepping one generation: every status is OK or BUSY, the
-    // token order never repeats, and the stream still terminates.
+    // Two threads stepping one generation: every status is OK or BUSY, no
+    // token is delivered twice or lost between the two, and the stream still
+    // terminates. The last chunk's own `generated_tokens` is the generation's
+    // count of what it produced, so comparing it with the tokens the two
+    // threads actually received is a construction check, not a timing one.
     let barrier = Arc::new(Barrier::new(2));
-    let tokens: Vec<Vec<i32>> = thread::scope(|scope| {
+    let reported = Arc::new(AtomicUsize::new(usize::MAX));
+    let results: Vec<(Vec<i32>, usize)> = thread::scope(|scope| {
         (0..2)
             .map(|_| {
                 let barrier = barrier.clone();
+                let reported = reported.clone();
                 scope.spawn(move || {
                     let shared = shared;
                     barrier.wait();
                     let mut e = c::err();
                     let mut chunk = c::chunk();
                     let mut mine = Vec::new();
+                    let mut busy = 0usize;
                     loop {
                         // SAFETY: the generation handle is valid for the test.
                         let rc = unsafe { turbo_generation_step(shared.0, &mut chunk, &mut e) };
                         if rc == TURBO_E_BUSY {
+                            busy += 1;
                             continue;
                         }
                         if rc == TURBO_E_INVALID_STATE {
@@ -292,10 +308,11 @@ fn threading_a_generation_reports_busy_to_a_second_thread() {
                         assert_eq!(rc, TURBO_OK, "step: {} {}", c::status_name(rc), c::message(&e));
                         mine.extend(c::chunk_tokens(&chunk));
                         if chunk.done != 0 {
+                            reported.store(chunk.generated_tokens as usize, Ordering::Relaxed);
                             break;
                         }
                     }
-                    mine
+                    (mine, busy)
                 })
             })
             .collect::<Vec<_>>()
@@ -303,9 +320,20 @@ fn threading_a_generation_reports_busy_to_a_second_thread() {
             .map(|h| h.join().expect("thread"))
             .collect()
     });
-    let total: usize = tokens.iter().map(|t| t.len()).sum();
+    println!(
+        "concurrent generation: tokens per thread {:?}, TURBO_E_BUSY steps per thread {:?}",
+        results.iter().map(|(t, _)| t.len()).collect::<Vec<_>>(),
+        results.iter().map(|(_, b)| *b).collect::<Vec<_>>()
+    );
+    let total: usize = results.iter().map(|(t, _)| t.len()).sum();
     assert!(total > 0, "no thread produced a token");
     assert!(total <= 64, "more tokens were produced than max_new_tokens allows");
+    let reported = reported.load(Ordering::Relaxed);
+    assert_ne!(reported, usize::MAX, "no thread saw the stream finish");
+    assert_eq!(
+        total, reported,
+        "the generation reports {reported} generated tokens but the two threads received {total}:          concurrent stepping dropped or duplicated a chunk"
+    );
     // SAFETY: each handle is released once.
     unsafe {
         turbo_generation_release(gen);

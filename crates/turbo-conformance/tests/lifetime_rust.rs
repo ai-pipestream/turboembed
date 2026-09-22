@@ -85,6 +85,11 @@ fn lifetime_generation_outlives_its_model_and_context() {
         steps += 1;
         if chunk.done {
             assert_eq!(chunk.generated_tokens, 3);
+            assert_eq!(
+                chunk.finish_reason,
+                turbo::types::FinishReason::Length,
+                "max_new_tokens = 3 ended the stream, so the reason is LENGTH"
+            );
             break;
         }
         assert!(steps < 10, "generation did not finish");
@@ -101,7 +106,9 @@ fn lifetime_buffer_outlives_its_context() {
     drop(ctx);
     drop(runtime);
     assert_eq!(buffer.desc().bytes, 16);
-    assert!(buffer.context().device_index() == index, "the buffer still knows its context");
+    assert_eq!(buffer.desc().dtype, DType::F32, "the descriptor survives its context");
+    assert_eq!(buffer.desc().shape, vec![4], "the descriptor survives its context");
+    assert_eq!(buffer.context().device_index(), index, "the buffer still knows its context");
 }
 
 #[test]
@@ -117,9 +124,15 @@ fn lifetime_result_view_keeps_the_lease_after_the_result_is_released() {
     // The view still holds the lease: the session is busy.
     assert_err!(session.run(&RunOptions::default()), TURBO_E_BUSY);
     assert_err!(session.write_text(&[TEXT], &EmbedOptions::default()), TURBO_E_BUSY);
-    // The view's memory is still readable.
+    // The view's memory is still readable, and holds what the run produced.
+    let expected = reference_vector(&t);
     let mut bytes = vec![0u8; view.desc().bytes as usize];
     view.read_to_host(&mut bytes).expect("read the leased buffer");
+    let leased: Vec<f32> = bytes.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+    // The view spans the session's preallocated output, so the run's row is
+    // its leading `dim` values; the rest is unused capacity.
+    assert!(leased.len() >= expected.len(), "the view is smaller than one row");
+    assert_eq!(leased[..expected.len()], expected[..], "the leased memory must still hold this run's vector");
     drop(view);
     session.run(&RunOptions::default()).expect("the lease came back with the last view");
 }

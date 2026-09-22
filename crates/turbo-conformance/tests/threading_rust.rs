@@ -111,6 +111,10 @@ fn threading_one_session_from_many_threads_never_corrupts_or_lies() {
     let t = Target::from_env();
     needs!(t, Embedding);
     let expected = sequential_rows(&t);
+    // Every thread writes the same text, so a device that promises
+    // determinism must hand every thread the same vector; one that does not
+    // is still held to the shape and to finite values.
+    let deterministic = t.has(TURBO_CAP_DETERMINISTIC);
     let (_m, session) = t.session(BundleKind::Embedding);
     let barrier = Arc::new(Barrier::new(4));
     let busy = Arc::new(AtomicUsize::new(0));
@@ -140,6 +144,13 @@ fn threading_one_session_from_many_threads_never_corrupts_or_lies() {
                             ok.fetch_add(1, Ordering::Relaxed);
                             let row = read_f32(&result, 0);
                             assert_eq!(row.len(), expected[0].len(), "a concurrent run produced a wrong shape");
+                            assert!(row.iter().all(|x| x.is_finite()), "a concurrent run produced garbage: {row:?}");
+                            if deterministic {
+                                assert_eq!(
+                                    row, expected[0],
+                                    "a concurrent run returned another input's vector, or a torn one"
+                                );
+                            }
                         }
                         Err(e) => {
                             assert!(
@@ -168,7 +179,11 @@ fn threading_results_are_deterministic_across_runs_and_sessions() {
     let t = Target::from_env();
     needs!(t, Embedding);
     if !t.has(TURBO_CAP_DETERMINISTIC) {
-        println!("threading_results_are_deterministic: device does not claim TURBO_CAP_DETERMINISTIC");
+        // The honest-capability half of the rule is asserted for every
+        // device in `capability_cells_report_a_dtype_and_determinism`: the
+        // bit and the embed cell's `deterministic` flag must agree, so a
+        // device cannot claim run-to-run equality here and deny it there.
+        println!("not applicable: the device does not claim TURBO_CAP_DETERMINISTIC");
         return;
     }
     let expected = sequential_rows(&t);

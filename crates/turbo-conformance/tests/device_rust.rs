@@ -106,7 +106,11 @@ fn device_explicit_cpu_loads_and_runs() {
         .filter(|d| d.info.kind == DeviceKind::Cpu && d.info.provider_id == t.provider_id())
         .collect();
     let Some(cpu) = cpus.first() else {
-        println!("device_explicit_cpu_loads_and_runs: no CPU device on provider `{}`", t.provider_id());
+        // The AUTO-never-picks-a-CPU half of the rule is asserted in
+        // `device_auto_never_selects_a_cpu` and
+        // `device_auto_with_a_cpu_only_mask_is_device_not_found`, which run
+        // on every provider.
+        println!("not applicable: provider `{}` enumerates no CPU device", t.provider_id());
         return;
     };
     let selector = DeviceSelector {
@@ -128,7 +132,8 @@ fn device_explicit_cpu_loads_and_runs() {
     let result = session.run(&RunOptions::default()).expect("run on the CPU device");
     let v = read_f32(&result, 0);
     assert_eq!(v.len(), model.info().dim as usize);
-    assert!(v.iter().all(|x| x.is_finite()));
+    assert!(v.iter().all(|x| x.is_finite()), "the CPU device produced a non-finite vector: {v:?}");
+    assert!(v.iter().any(|x| *x != 0.0), "the CPU device produced an all-zero vector");
 }
 
 #[test]
@@ -146,13 +151,27 @@ fn device_out_of_range_index_is_device_not_found() {
 #[test]
 fn device_info_is_self_consistent() {
     let t = Target::from_env();
-    for entry in t.runtime.devices() {
+    let count = t.runtime.device_count();
+    assert!(count > 0, "a runtime with no devices cannot be conformance-tested");
+    for index in 0..count {
+        let entry = t.runtime.device(index).expect("device");
         let d = &entry.info;
         assert!(!d.provider_id.is_empty(), "every device names its provider");
         assert!(!d.name.is_empty(), "every device has a name");
         assert!(DeviceKind::ALL.contains(&d.kind), "device kind {:?} is not a known constant", d.kind);
         assert!(d.memory_free <= d.memory_total || d.memory_total == 0, "{}: free > total", d.name);
-        let provider = t.runtime.provider_for(0).expect("provider for device 0");
-        assert!(!provider.id().is_empty());
+        // The device's provider is the one it names, not just some provider.
+        let provider = t.runtime.provider_for(index).expect("provider for the device");
+        assert_eq!(provider.id(), d.provider_id, "device {index} ({}) names another provider", d.name);
+        // The ordinal is the device's index within its own provider, so
+        // re-selecting it explicitly must land on this same device.
+        let selector = turbo::runtime::DeviceSelector {
+            policy: SelectPolicy::Explicit,
+            provider_id: d.provider_id.clone(),
+            ordinal: d.ordinal,
+            ..Default::default()
+        };
+        let again = t.runtime.select(&selector).expect("re-selecting an enumerated device");
+        assert_eq!(again, index, "{}/{} does not select back to device {index}", d.provider_id, d.ordinal);
     }
 }

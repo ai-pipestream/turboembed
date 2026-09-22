@@ -244,31 +244,86 @@ fn contract_oversized_buffer_shapes_are_invalid_shape() {
         bytes: 0,
         next: ptr::null(),
     };
-    // SAFETY: valid context and descriptor pointer.
+    // Rank above TURBO_MAX_RANK.
+    let deep = turbo_buffer_desc { ndim: (TURBO_MAX_RANK + 1) as u32, shape: [1; TURBO_MAX_RANK], ..base };
+    // Byte count smaller than the shape needs.
+    let short = turbo_buffer_desc { shape: [4, 4, 0, 0, 0, 0, 0, 0], bytes: 8, ..base };
+    // Strides that reach past the allocation.
+    let strided =
+        turbo_buffer_desc { shape: [4, 4, 0, 0, 0, 0, 0, 0], strides: [1024, 4, 0, 0, 0, 0, 0, 0], bytes: 64, ..base };
+    // An unknown dtype or placement is an enum error, not a shape error.
+    let bad_dtype = turbo_buffer_desc { dtype: 99, shape: [2, 2, 0, 0, 0, 0, 0, 0], ..base };
+    let bad_place = turbo_buffer_desc { placement: 99, shape: [2, 2, 0, 0, 0, 0, 0, 0], ..base };
+    let cases: [(&str, i32, &turbo_buffer_desc); 6] = [
+        ("shape product overflows u64", TURBO_E_INVALID_SHAPE, &base),
+        ("rank above TURBO_MAX_RANK", TURBO_E_INVALID_SHAPE, &deep),
+        ("bytes smaller than the shape", TURBO_E_INVALID_SHAPE, &short),
+        ("strides past the allocation", TURBO_E_INVALID_SHAPE, &strided),
+        ("unknown dtype", TURBO_E_INVALID_ENUM, &bad_dtype),
+        ("unknown placement", TURBO_E_INVALID_ENUM, &bad_place),
+    ];
+    // SAFETY: valid context and descriptor pointers.
     unsafe {
-        assert_rc!(turbo_buffer_alloc(f.ctx, &base, &mut out, &mut e), TURBO_E_INVALID_SHAPE, e);
-        // Rank above TURBO_MAX_RANK.
-        let deep = turbo_buffer_desc { ndim: (TURBO_MAX_RANK + 1) as u32, shape: [1; TURBO_MAX_RANK], ..base };
-        assert_rc!(turbo_buffer_alloc(f.ctx, &deep, &mut out, &mut e), TURBO_E_INVALID_SHAPE, e);
-        // Byte count smaller than the shape needs.
-        let short = turbo_buffer_desc { shape: [4, 4, 0, 0, 0, 0, 0, 0], bytes: 8, ..base };
-        assert_rc!(turbo_buffer_alloc(f.ctx, &short, &mut out, &mut e), TURBO_E_INVALID_SHAPE, e);
-        // Strides that reach past the allocation.
-        let strided = turbo_buffer_desc {
-            shape: [4, 4, 0, 0, 0, 0, 0, 0],
-            strides: [1024, 4, 0, 0, 0, 0, 0, 0],
-            bytes: 64,
-            ..base
-        };
-        assert_rc!(turbo_buffer_alloc(f.ctx, &strided, &mut out, &mut e), TURBO_E_INVALID_SHAPE, e);
-        assert!(out.is_null(), "a rejected descriptor must not produce a buffer");
-        // An unknown dtype or placement is an enum error, not a shape error.
-        let bad_dtype = turbo_buffer_desc { dtype: 99, shape: [2, 2, 0, 0, 0, 0, 0, 0], ..base };
-        assert_rc!(turbo_buffer_alloc(f.ctx, &bad_dtype, &mut out, &mut e), TURBO_E_INVALID_ENUM, e);
-        let bad_place = turbo_buffer_desc { placement: 99, shape: [2, 2, 0, 0, 0, 0, 0, 0], ..base };
-        assert_rc!(turbo_buffer_alloc(f.ctx, &bad_place, &mut out, &mut e), TURBO_E_INVALID_ENUM, e);
+        for (what, code, desc) in cases {
+            out = ptr::null_mut();
+            let rc = turbo_buffer_alloc(f.ctx, desc, &mut out, &mut e);
+            assert_eq!(rc, code, "{what}: got {} ({})", c::status_name(rc), c::message(&e));
+            // Every rejection, not just the last one, must leave the out
+            // pointer alone rather than hand back a half-built buffer.
+            assert!(out.is_null(), "{what}: a rejected descriptor produced a buffer");
+        }
         // NULL descriptor.
         assert_rc!(turbo_buffer_alloc(f.ctx, ptr::null(), &mut out, &mut e), TURBO_E_INVALID_ARGUMENT, e);
+        assert!(out.is_null(), "a NULL descriptor produced a buffer");
+    }
+}
+
+#[test]
+fn contract_buffer_export_follows_the_placement() {
+    // PLAN.md principle 2: a native handle export the device cannot do fails
+    // with TURBO_E_UNSUPPORTED and no field, never with a substitute handle.
+    let f = Fixture::new();
+    let mut e = c::err();
+    let desc = turbo_buffer_desc {
+        struct_size: ssz::<turbo_buffer_desc>(),
+        placement: TURBO_PLACE_HOST,
+        dtype: TURBO_DTYPE_F32,
+        ndim: 1,
+        shape: [4, 0, 0, 0, 0, 0, 0, 0],
+        strides: [0; TURBO_MAX_RANK],
+        bytes: 0,
+        next: ptr::null(),
+    };
+    let mut buf: *mut turbo_buffer = ptr::null_mut();
+    // SAFETY: valid context handle and descriptor.
+    unsafe {
+        assert_rc!(turbo_buffer_alloc(f.ctx, &desc, &mut buf, &mut e), TURBO_OK, e);
+        let mut host: *mut std::ffi::c_void = ptr::null_mut();
+        assert_rc!(turbo_buffer_host_ptr(buf, &mut host, &mut e), TURBO_OK, e);
+        assert!(!host.is_null());
+        // The exported host pointer is the same memory, not a copy.
+        let mut h =
+            turbo_native_handle { struct_size: ssz::<turbo_native_handle>(), kind: 0, handle: 0, aux: 0, offset: 0 };
+        assert_rc!(turbo_buffer_export(buf, TURBO_HANDLE_HOST_PTR, &mut h, &mut e), TURBO_OK, e);
+        assert_eq!(h.kind, TURBO_HANDLE_HOST_PTR, "the export must report the kind it produced");
+        assert_eq!(h.handle, host as u64, "the exported handle is not the buffer's host pointer");
+        // A kind this placement cannot produce is refused by code, with no
+        // field index (it is a device capability, not an option).
+        for kind in [TURBO_HANDLE_CUDA_PTR, TURBO_HANDLE_CL_MEM, TURBO_HANDLE_DMABUF_FD] {
+            let mut other = turbo_native_handle { struct_size: ssz::<turbo_native_handle>(), ..h };
+            let rc = turbo_buffer_export(buf, kind, &mut other, &mut e);
+            assert_eq!(rc, TURBO_E_UNSUPPORTED, "kind {kind}: got {}", c::status_name(rc));
+            assert_eq!(e.field, 0, "a placement refusal names no field: {}", c::message(&e));
+        }
+        // An unknown kind is an enum error, never mapped onto a default.
+        let mut other = turbo_native_handle { struct_size: ssz::<turbo_native_handle>(), ..h };
+        assert_rc!(turbo_buffer_export(buf, 9999, &mut other, &mut e), TURBO_E_INVALID_ENUM, e);
+        assert_rc!(
+            turbo_buffer_export(buf, TURBO_HANDLE_HOST_PTR, ptr::null_mut(), &mut e),
+            TURBO_E_INVALID_ARGUMENT,
+            e
+        );
+        turbo_buffer_release(buf);
     }
 }
 

@@ -187,7 +187,9 @@ fn allocation_embed_with_a_prompt_role_is_allocation_free_after_warmup() {
     let t = Target::from_env();
     needs!(t, Embedding);
     if !t.has(turbo::abi::TURBO_CAP_OPT_PROMPT_ROLE) {
-        println!("allocation_embed_with_a_prompt_role: device does not advertise TURBO_CAP_OPT_PROMPT_ROLE");
+        // The refusal of the option on a device without the bit is asserted
+        // in `capability_prompt_role_is_honored_or_rejected` (field 4).
+        println!("not applicable: the device does not advertise TURBO_CAP_OPT_PROMPT_ROLE");
         return;
     }
     let (model, session) = t.session(BundleKind::Embedding);
@@ -215,6 +217,11 @@ fn allocation_counters_are_reported_and_plausible() {
     let (_m, session) = t.session(BundleKind::Embedding);
     let before = session.stats().expect("stats");
     assert_eq!(before.runs, 0, "a fresh session has not run");
+    // The comparisons below are only meaningful because a session that has
+    // not run has moved no bytes; without this the `>=` checks would hold
+    // for any value at all.
+    assert_eq!(before.h2d_bytes, 0, "a fresh session has copied nothing to the device");
+    assert_eq!(before.d2h_bytes, 0, "a fresh session has copied nothing back");
     assert!(
         matches!(before.host_allocs, None | Some(0)),
         "host_allocs starts at zero or is not counted: {:?}",
@@ -230,6 +237,16 @@ fn allocation_counters_are_reported_and_plausible() {
     assert!(after.h2d_bytes >= before.h2d_bytes, "byte counters never go backwards");
     // Stats are readable while a result is leased.
     drop(result);
+    // A second run may only add to the byte counters, and may not change the
+    // storage the session reserved when it was created.
+    session.write_text(&["hello world"], &EmbedOptions::default()).expect("write");
+    drop(session.run(&RunOptions::default()).expect("run"));
+    let twice = session.stats().expect("stats");
+    assert_eq!(twice.runs, 2);
+    assert!(twice.d2h_bytes >= after.d2h_bytes, "byte counters never go backwards");
+    assert!(twice.h2d_bytes >= after.h2d_bytes, "byte counters never go backwards");
+    assert_eq!(twice.input_bytes, after.input_bytes, "the reserved input storage is fixed at session creation");
+    assert_eq!(twice.output_bytes, after.output_bytes, "the reserved output storage is fixed at session creation");
     // A session whose max shape is smaller reserves less.
     let model = t.model(BundleKind::Embedding);
     let small = model

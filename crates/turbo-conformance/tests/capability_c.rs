@@ -361,7 +361,18 @@ fn capability_matrix_reports_every_cell_and_rejects_unknown_axes() {
             assert!(c::is_nul_terminated(&cell.notes), "notes must be NUL-terminated");
             if cell.status == TURBO_CAP_UNSUPPORTED {
                 assert_eq!(cell.dtype, 0, "an unsupported cell reports no dtype");
+                assert_eq!(cell.reference_dtype, 0, "an unsupported cell reports no reference dtype");
+                assert_eq!(cell.deterministic, 0, "an unsupported cell claims nothing about determinism");
+            } else {
+                // The same rule the Rust layer asserts in
+                // `capability_cells_report_a_dtype_and_determinism`.
+                assert_ne!(cell.dtype, 0, "task {task} x modality {modality} is offered but names no compute dtype");
+                assert!(!c::fixed(&cell.notes).is_empty(), "an offered cell must say what it is");
+                assert!(cell.deterministic <= 1, "deterministic is a boolean, got {}", cell.deterministic);
+                assert!((0.0..=1.0).contains(&cell.cosine_floor), "cosine floor {} is not a cosine", cell.cosine_floor);
+                assert!(cell.max_abs_error >= 0.0, "max abs error {}", cell.max_abs_error);
             }
+            assert_eq!(cell.reserved, 0, "reserved is always zero");
         }
     }
     // SAFETY: valid runtime handle; the axes are deliberately wrong.
@@ -399,6 +410,7 @@ fn capability_can_run_agrees_with_model_load() {
     for kind in BundleKind::ALL {
         let path = ct.bundle(*kind);
         if !std::path::Path::new(&path).is_dir() {
+            println!("not applicable: no {} bundle is configured ({path})", kind.dir_name());
             continue;
         }
         let bundle = turbo::bundle::Bundle::open(std::path::Path::new(&path)).expect("valid bundle");
@@ -486,7 +498,14 @@ fn capability_unsupported_modality_bundle_is_unsupported_task() {
         e
     );
     if cell.status != TURBO_CAP_UNSUPPORTED {
-        return; // the provider really offers audio
+        // A provider that really offers audio is not a violation. No
+        // provider in this tree does, and the Rust layer asserts the same
+        // refusal for image and video in
+        // `capability_unsupported_modality_cell_is_unsupported`.
+        println!("not applicable: {} offers Embed x Audio (status {})", t.provider_id(), cell.status);
+        // SAFETY: released once.
+        unsafe { turbo_context_release(ctx) };
+        return;
     }
     let scratch = fixtures::copy_of(&t.bundle(BundleKind::Embedding));
     scratch.patch_manifest(|m| m["modality"] = serde_json::Value::String("audio".into()));

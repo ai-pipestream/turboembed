@@ -222,12 +222,19 @@ fn bundle_without_an_artifact_this_provider_can_load_is_no_artifact() {
 fn bundle_contract_is_reported_verbatim_by_model_info() {
     let t = Target::from_env();
     for kind in BundleKind::ALL {
-        let path = t.bundle(*kind);
-        if !path.is_dir() {
+        // A kind the device does not offer is refused by `turbo_can_run` and
+        // by `load`, which `capability_can_run_agrees_with_model_load`
+        // asserts; here only the kinds it does offer have a contract to
+        // report, and for those the load must succeed.
+        if let Err(why) = t.offered(*kind) {
+            println!("not applicable: {why}");
             continue;
         }
+        let path = t.bundle(*kind);
         let bundle = Bundle::open(&path).expect("a committed bundle opens");
-        let Ok(model) = load(&t, &path) else { continue };
+        let model = load(&t, &path).unwrap_or_else(|e| {
+            panic!("{} offers {:?} but loading {} failed: {e}", t.provider_id(), kind.task(), path.display())
+        });
         let info = model.info();
         let manifest = bundle.manifest();
         assert_eq!(info.model_id, manifest.model_id, "model_id must come from the bundle");

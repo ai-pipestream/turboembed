@@ -20,7 +20,9 @@ fn honesty_max_tokens_above_the_session_width_is_refused_not_clamped() {
     let t = Target::from_env();
     needs!(t, Embedding);
     if !t.has(TURBO_CAP_OPT_MAX_TOKENS) {
-        println!("honesty_max_tokens: device does not advertise TURBO_CAP_OPT_MAX_TOKENS");
+        // The refusal without the bit is asserted in
+        // `capability_max_tokens_is_honored_or_rejected` (field 3).
+        println!("not applicable: the device does not advertise TURBO_CAP_OPT_MAX_TOKENS");
         return;
     }
     let model = t.model(BundleKind::Embedding);
@@ -38,10 +40,14 @@ fn honesty_max_tokens_above_the_session_width_is_refused_not_clamped() {
 fn honesty_prompt_role_without_a_bundle_prefix_is_refused() {
     let t = Target::from_env();
     needs!(t, Embedding);
-    if !t.is_mock() {
-        println!("honesty_prompt_role: needs a mock bundle to edit");
+    if !t.has(TURBO_CAP_OPT_PROMPT_ROLE) {
+        // Without the bit the role is refused before the prefix is looked
+        // at, which `capability_prompt_role_is_honored_or_rejected` asserts.
+        println!("not applicable: the device does not advertise TURBO_CAP_OPT_PROMPT_ROLE");
         return;
     }
+    // Any bundle serves: only the manifest's declared prefixes are edited,
+    // so every artifact still hashes as recorded.
     let scratch = copy_of(&t.bundle(BundleKind::Embedding));
     scratch.patch_manifest(|m| {
         m["contract"]["prompts"] = serde_json::json!({ "query": "", "document": "passage: " });
@@ -63,7 +69,10 @@ fn honesty_left_truncation_keeps_the_prompt_prefix() {
     let t = Target::from_env();
     needs!(t, Embedding);
     if !t.has(TURBO_CAP_OPT_TRUNCATE | TURBO_CAP_OPT_PROMPT_ROLE) {
-        println!("honesty_left_truncation: device does not advertise truncate and prompt_role");
+        // Each option's refusal without its bit is asserted in
+        // `capability_truncate_is_honored_or_rejected` (field 2) and
+        // `capability_prompt_role_is_honored_or_rejected` (field 4).
+        println!("not applicable: the device does not advertise both TRUNCATE and PROMPT_ROLE");
         return;
     }
     let model = t.model(BundleKind::Embedding);
@@ -95,7 +104,10 @@ fn honesty_return_sorted_names_its_own_field() {
     let t = Target::from_env();
     needs!(t, Reranker);
     if t.has(TURBO_CAP_OPT_TOP_N) {
-        println!("honesty_return_sorted: device honors top_n; the refusal path is not reachable");
+        // With the bit set the option is honored instead, which
+        // `capability_top_n_is_honored_or_rejected` asserts (it also asserts
+        // the field-5 refusal of a `return_sorted` value other than 0 or 1).
+        println!("not applicable: the device advertises TURBO_CAP_OPT_TOP_N, so return_sorted is honored");
         return;
     }
     let (_, session) = t.session(BundleKind::Reranker);

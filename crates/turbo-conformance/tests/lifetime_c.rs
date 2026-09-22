@@ -32,6 +32,24 @@ fn chain(t: &Target) -> (c::CTarget, Chain) {
     (ct, Chain { ctx, model, session, dim: info.dim as usize })
 }
 
+/// The vector the device under test produces for `TEXT` on a chain of its
+/// own, so the cases below compare against an independent run rather than
+/// against the first iteration of their own loop.
+fn reference_vector(t: &Target) -> Vec<f32> {
+    let (ct, ch) = chain(t);
+    let result = write_and_run(ch.session);
+    let v = c::read_f32(result, 0, ch.dim);
+    // SAFETY: each handle is released exactly once.
+    unsafe {
+        turbo_result_release(result);
+        turbo_session_release(ch.session);
+        turbo_model_release(ch.model);
+        turbo_context_release(ch.ctx);
+    }
+    drop(ct);
+    v
+}
+
 fn write_and_run(session: *mut turbo_session) -> *mut turbo_result {
     let mut e = c::err();
     let texts = [c::text(TEXT)];
@@ -46,7 +64,8 @@ fn write_and_run(session: *mut turbo_session) -> *mut turbo_result {
 #[test]
 fn lifetime_releasing_parents_in_every_order_keeps_the_result_readable() {
     let t = Target::from_env();
-    let mut expected: Option<Vec<f32>> = None;
+    t.require(BundleKind::Embedding);
+    let expected = reference_vector(&t);
     for perm in permutations(4) {
         let (ct, ch) = chain(&t);
         let result = write_and_run(ch.session);
@@ -63,10 +82,7 @@ fn lifetime_releasing_parents_in_every_order_keeps_the_result_readable() {
             releases[i]();
         }
         let v = c::read_f32(result, 0, ch.dim);
-        match &expected {
-            None => expected = Some(v),
-            Some(want) => assert_eq!(&v, want, "release order {perm:?} changed the result"),
-        }
+        assert_eq!(v, expected, "release order {perm:?} changed the result");
         // Result metadata survives too.
         let ri = c::result_info(result);
         assert_eq!(ri.batch, 1);
@@ -79,7 +95,8 @@ fn lifetime_releasing_parents_in_every_order_keeps_the_result_readable() {
 #[test]
 fn lifetime_releasing_parents_in_every_order_keeps_the_session_usable() {
     let t = Target::from_env();
-    let mut expected: Option<Vec<f32>> = None;
+    t.require(BundleKind::Embedding);
+    let expected = reference_vector(&t);
     for perm in permutations(3) {
         let (ct, ch) = chain(&t);
         let rt = ct.rt;
@@ -94,10 +111,7 @@ fn lifetime_releasing_parents_in_every_order_keeps_the_session_usable() {
         }
         let result = write_and_run(ch.session);
         let v = c::read_f32(result, 0, ch.dim);
-        match &expected {
-            None => expected = Some(v),
-            Some(want) => assert_eq!(&v, want, "release order {perm:?} changed the result"),
-        }
+        assert_eq!(v, expected, "release order {perm:?} changed the result");
         // SAFETY: each handle is released exactly once here.
         unsafe {
             turbo_result_release(result);
@@ -109,6 +123,7 @@ fn lifetime_releasing_parents_in_every_order_keeps_the_session_usable() {
 #[test]
 fn lifetime_result_view_keeps_the_lease_after_the_result_is_released() {
     let t = Target::from_env();
+    t.require(BundleKind::Embedding);
     let (ct, ch) = chain(&t);
     let result = write_and_run(ch.session);
     let mut e = c::err();
@@ -152,6 +167,7 @@ fn lifetime_result_view_keeps_the_lease_after_the_result_is_released() {
 #[test]
 fn lifetime_releasing_the_last_of_several_views_returns_the_lease() {
     let t = Target::from_env();
+    t.require(BundleKind::Embedding);
     let (ct, ch) = chain(&t);
     let result = write_and_run(ch.session);
     let mut e = c::err();

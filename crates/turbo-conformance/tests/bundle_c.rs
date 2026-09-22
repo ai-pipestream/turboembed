@@ -206,13 +206,24 @@ fn bundle_model_info_strings_are_nul_terminated() {
     let ctx = ct.context();
     let mut e = c::err();
     for kind in BundleKind::ALL {
+        // Only the kinds this device offers can load; the refusal of the
+        // rest is asserted in `capability_can_run_agrees_with_model_load`.
+        if let Err(why) = t.offered(*kind) {
+            println!("not applicable: {why}");
+            continue;
+        }
         let path = ct.bundle(*kind);
         let mut m: *mut turbo_model = ptr::null_mut();
         // SAFETY: valid context handle; `path` outlives the call.
         let rc = unsafe { turbo_model_load(ctx, c::text(&path), ptr::null(), &mut m, &mut e) };
-        if rc != TURBO_OK {
-            continue;
-        }
+        assert_eq!(
+            rc,
+            TURBO_OK,
+            "{} offers {:?} but loading {path} failed: {}",
+            t.provider_id(),
+            kind.task(),
+            c::message(&e)
+        );
         let mut info = turbo_model_info { struct_size: ssz::<turbo_model_info>(), ..unsafe { std::mem::zeroed() } };
         // SAFETY: valid model handle and out pointer.
         assert_rc!(unsafe { turbo_model_get_info(m, &mut info, &mut e) }, TURBO_OK, e);
