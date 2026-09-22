@@ -83,6 +83,29 @@ scripts/package.sh --no-openvino          # leave the OpenVINO provider out
 scripts/package.sh --no-hailo             # leave the Hailo provider out
 ```
 
+### In a container (the manylinux_2_28 floor)
+
+```bash
+scripts/package-container.sh            # x86_64 archive built on glibc 2.28
+scripts/package-container.sh aarch64    # needs qemu binfmt on an x86_64 host
+scripts/package-container.sh --toolchain 1.98.0   # pin the Rust toolchain
+```
+
+`packaging/Dockerfile` builds the same archive inside
+`quay.io/pypa/manylinux_2_28_<arch>` (AlmaLinux 8, glibc 2.28, gcc 14), so
+`libturbo.so` and the bundled tools link against the oldest glibc the plan
+allows and run on any newer distribution. The image runs `scripts/package.sh
+--no-cuda --no-openvino --no-hailo` with every check the host build has (the
+`ldd` gate, the C smoke test, and `turbo-bench discover --strict` over the
+packaged providers) and exports only `dist/`; the CUDA, OpenVINO, and Hailo
+providers need their vendor toolchains and are built on the machines that
+have them. The Rust toolchain defaults to the repository's
+`rust-toolchain.toml` channel; pass `--toolchain` to pin a version for a
+reproducible archive. Cargo's registry and the compiled dependencies are
+kept in BuildKit cache mounts between builds.
+
+### On the host
+
 Run from the repository root. It writes only under `dist/` (the final
 archive) and `target/` (build output and a staging tree at
 `target/package/turbo-<version>-<target>/`); nothing else in the tree is

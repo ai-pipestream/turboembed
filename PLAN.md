@@ -667,6 +667,17 @@ clean-consumer install test per platform.
 Gate: a fresh machine per platform installs, verifies a bundle, and runs
 the conformance smoke without a source checkout.
 
+Status (2026-09-21): `scripts/package.sh` builds the per-machine archive
+(libturbo, headers, `turbo-bundle`, `turbo-bench`, and every provider the
+machine can build), gates `libturbo.so` and the mock provider on `ldd`,
+compiles and runs the C smoke test against the extracted archive, and
+dlopens every packaged provider through `turbo-bench discover --strict`.
+`scripts/package-container.sh` builds the Linux x86_64 archive on the
+manylinux_2_28 floor in a container (`packaging/Dockerfile`; aarch64 through
+qemu binfmt, untested). Not yet: the macOS xcframework, Debian packages for
+the Pi, the SONAME and `abidiff` gate, Maven classifier artifacts and the
+Central Publisher Portal, and the clean-consumer install test per platform.
+
 ### P9 Inferstream on the new ABI
 Rebuild the server as a consumer: OIP v2 for `ModelInfer`/metadata over the
 `RUN` and `EMBED` tasks, plus OpenAI-shaped `/v1/embeddings`, `/v1/rerank`,

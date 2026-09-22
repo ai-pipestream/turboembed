@@ -10,8 +10,8 @@
 //! turbo-bench discover [--provider-lib <so>]... [--provider-dir <dir>] [--bundle <dir>]... [--json]
 //! ```
 //!
-//! `discover` is the survey: it loads the named provider libraries (plus
-//! the built-in ones), and for every device prints the name, kind, runtime
+//! `discover` is the survey: it loads the named provider libraries (or, with
+//! none named, the built-in providers), and for every device prints the name, kind, runtime
 //! and driver versions, the option features it honors (decoded from the
 //! capability bits), the task x modality capability matrix with status,
 //! compute dtype and measured cosine floor, and, for each bundle named,
@@ -122,7 +122,8 @@ enum Cmd {
         /// Provider libraries to load; repeatable.
         #[arg(long = "provider-lib")]
         provider_libs: Vec<PathBuf>,
-        /// Directory whose `libturbo_provider_*` libraries are all loaded.
+        /// Directory whose `libturbo_provider_*` libraries are all loaded. With any
+        /// library named, the built-in providers are left out of the survey.
         #[arg(long)]
         provider_dir: Option<PathBuf>,
         /// Bundles to check with `can_run` on every device; repeatable.
@@ -929,6 +930,11 @@ fn discover(libs: &[PathBuf], provider_dir: Option<&Path>, bundles: &[PathBuf]) 
         paths.extend(found);
     }
     let provider_paths: Vec<String> = paths.iter().map(|p| p.to_string_lossy().into_owned()).collect();
+    // With libraries named, the survey is of those libraries alone: the
+    // built-in providers stay out so a packaged copy of the mock or static
+    // provider can be loaded and checked (an id can register once per
+    // runtime). With none named, the survey is of the built-in providers.
+    let no_default_providers = !provider_paths.is_empty();
     // A library that fails to load is reported, not fatal: the survey's job
     // is to say what is here, and "this library did not load because ..."
     // is part of that answer. Each library is tried on its own so one
@@ -936,7 +942,11 @@ fn discover(libs: &[PathBuf], provider_dir: Option<&Path>, bundles: &[PathBuf]) 
     let mut load_failures = Vec::new();
     let mut loadable = Vec::new();
     for p in &provider_paths {
-        match turbo::create_runtime(RuntimeDesc { provider_paths: vec![p.clone()], ..Default::default() }) {
+        match turbo::create_runtime(RuntimeDesc {
+            provider_paths: vec![p.clone()],
+            no_default_providers,
+            ..Default::default()
+        }) {
             Ok(rt) => {
                 for f in rt.failures() {
                     load_failures.push(format!("{p}: {}: {}", f.what, f.error));
@@ -946,8 +956,12 @@ fn discover(libs: &[PathBuf], provider_dir: Option<&Path>, bundles: &[PathBuf]) 
             Err(e) => load_failures.push(format!("{p}: {e}")),
         }
     }
-    let rt = turbo::create_runtime(RuntimeDesc { provider_paths: loadable.clone(), ..Default::default() })
-        .map_err(|e| format!("runtime: {e}"))?;
+    let rt = turbo::create_runtime(RuntimeDesc {
+        provider_paths: loadable.clone(),
+        no_default_providers,
+        ..Default::default()
+    })
+    .map_err(|e| format!("runtime: {e}"))?;
     for f in rt.failures() {
         load_failures.push(format!("{}: {}", f.what, f.error));
     }
