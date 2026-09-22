@@ -1,10 +1,14 @@
 //! Tokenizers loaded from bundles.
 //!
-//! The general path is the Hugging Face `tokenizers` crate (Apache-2.0),
-//! which reads `tokenizer.json` for WordPiece, BPE, and Unigram models and
-//! reproduces the reference token ids exactly. Providers with a native fast
-//! path (the C++ WordPiece write-through) verify their ids against this
-//! implementation in the conformance suite.
+//! The default path is the native WordPiece tokenizer in [`crate::wordpiece`],
+//! which reads BERT-family `tokenizer.json` files with no dependency beyond
+//! `serde_json` and reproduces the Hugging Face `tokenizers` crate's ids and
+//! byte offsets for them. With the `hf-tokenizers` feature the Hugging Face
+//! crate (Apache-2.0) serves the files the native path does not (BPE and
+//! Unigram); without it, such a file is `TURBO_E_UNSUPPORTED` naming the
+//! feature. Providers with a native fast path (the C++ WordPiece
+//! write-through) verify their ids against this implementation in the
+//! conformance suite.
 //!
 //! Encoding writes directly into caller-owned `[rows, row_stride]` arrays so
 //! a session's input buffers can be filled without an intermediate copy.
@@ -15,13 +19,10 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use tokenizers::{
-    EncodeInput, InputSequence, Tokenizer as HfTokenizer, TruncationDirection, TruncationParams, TruncationStrategy,
-};
-
 use crate::bundle::Bundle;
 use crate::error::{Error, Result};
 use crate::types::{PromptRole, Truncate};
+use crate::wordpiece::WordPiece;
 
 /// Encode options.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -103,9 +104,16 @@ pub struct Encoding {
     pub truncated: bool,
 }
 
+/// The implementation behind a tokenizer.
+enum Backend {
+    Native(WordPiece),
+    #[cfg(feature = "hf-tokenizers")]
+    Hf(tokenizers::Tokenizer),
+}
+
 /// A tokenizer. Thread-safe; encode calls do not mutate it.
 pub struct Tokenizer {
-    inner: HfTokenizer,
+    backend: Backend,
     info: TokenizerInfo,
     prefix_query: String,
     prefix_document: String,
@@ -116,6 +124,13 @@ impl std::fmt::Debug for Tokenizer {
         f.debug_struct("Tokenizer").field("info", &self.info).finish()
     }
 }
+
+/// The token strings a tokenizer file may use for its specials, in the
+/// order they are looked up.
+const PAD_TOKENS: &[&str] = &["[PAD]", "<pad>", "<|endoftext|>"];
+const BOS_TOKENS: &[&str] = &["[CLS]", "<s>", "<bos>", "<|im_start|>"];
+const EOS_TOKENS: &[&str] = &["[SEP]", "</s>", "<eos>", "<|im_end|>", "<|endoftext|>"];
+const UNK_TOKENS: &[&str] = &["[UNK]", "<unk>"];
 
 impl Tokenizer {
     /// Load the tokenizer a bundle declares (`tokenizer.files["tokenizer.json"]`).
@@ -147,40 +162,62 @@ impl Tokenizer {
         if max_seq == 0 {
             return Err(Error::invalid_argument("max_seq must be non-zero"));
         }
-        let mut inner = HfTokenizer::from_file(path)
-            .map_err(|e| Error::bundle_invalid(format!("tokenizer `{}`: {e}", path.display())))?;
-        // The library controls truncation and padding per call; disable any
-        // defaults baked into the file so behavior never depends on it.
-        inner.with_truncation(None).map_err(|e| Error::internal(format!("tokenizer truncation reset: {e}")))?;
-        inner.with_padding(None);
-        let vocab_size = inner.get_vocab_size(true) as u32;
-        let id_of = |tok: &str| inner.token_to_id(tok).map(|i| i as i32);
-        let pad_id = ["[PAD]", "<pad>", "<|endoftext|>"].iter().find_map(|t| id_of(t));
-        let bos_id = ["[CLS]", "<s>", "<bos>", "<|im_start|>"].iter().find_map(|t| id_of(t));
-        let eos_id = ["[SEP]", "</s>", "<eos>", "<|im_end|>", "<|endoftext|>"].iter().find_map(|t| id_of(t));
-        let unk_id = ["[UNK]", "<unk>"].iter().find_map(|t| id_of(t));
-        let specials_per_sequence = inner
-            .encode(EncodeInput::Single(InputSequence::Raw("".into())), true)
-            .map_err(|e| Error::internal(format!("tokenizer probe: {e}")))?
-            .get_ids()
-            .len() as u32;
-        let info = TokenizerInfo {
-            vocab_size,
-            max_seq,
-            pad_id,
-            bos_id,
-            eos_id,
-            unk_id,
-            specials_per_sequence,
-            kind: kind.to_string(),
-            sha256: sha256.to_string(),
+        let what = format!("tokenizer `{}`", path.display());
+        let text = std::fs::read_to_string(path).map_err(|e| Error::bundle_invalid(format!("{what}: {e}")))?;
+        let backend = match WordPiece::from_json(&text, &what) {
+            Ok(wp) => Backend::Native(wp),
+            Err(e) if e.code() == turbo_abi::TURBO_E_UNSUPPORTED => Self::other_backend(&text, &what, e)?,
+            Err(e) => return Err(e),
         };
+        let info = Self::info_of(&backend, kind, sha256, max_seq)?;
         Ok(Arc::new(Self {
-            inner,
+            backend,
             info,
             prefix_query: prefix_query.to_string(),
             prefix_document: prefix_document.to_string(),
         }))
+    }
+
+    #[cfg(feature = "hf-tokenizers")]
+    fn other_backend(text: &str, what: &str, _native: Error) -> Result<Backend> {
+        let mut inner = tokenizers::Tokenizer::from_bytes(text.as_bytes())
+            .map_err(|e| Error::bundle_invalid(format!("{what}: {e}")))?;
+        // The library controls truncation and padding per call; disable any
+        // defaults baked into the file so behavior never depends on it.
+        inner.with_truncation(None).map_err(|e| Error::internal(format!("tokenizer truncation reset: {e}")))?;
+        inner.with_padding(None);
+        Ok(Backend::Hf(inner))
+    }
+
+    #[cfg(not(feature = "hf-tokenizers"))]
+    fn other_backend(_text: &str, _what: &str, native: Error) -> Result<Backend> {
+        Err(native)
+    }
+
+    fn info_of(backend: &Backend, kind: &str, sha256: &str, max_seq: u32) -> Result<TokenizerInfo> {
+        let (vocab_size, id_of, specials): (u32, Box<dyn Fn(&str) -> Option<i32> + '_>, u32) = match backend {
+            Backend::Native(wp) => (wp.vocab_size(), Box::new(|t| wp.token_to_id(t)), wp.specials_per_sequence()),
+            #[cfg(feature = "hf-tokenizers")]
+            Backend::Hf(hf) => {
+                let n = hf
+                    .encode(tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw("".into())), true)
+                    .map_err(|e| Error::internal(format!("tokenizer probe: {e}")))?
+                    .get_ids()
+                    .len() as u32;
+                (hf.get_vocab_size(true) as u32, Box::new(|t| hf.token_to_id(t).map(|i| i as i32)), n)
+            }
+        };
+        Ok(TokenizerInfo {
+            vocab_size,
+            max_seq,
+            pad_id: PAD_TOKENS.iter().find_map(|t| id_of(t)),
+            bos_id: BOS_TOKENS.iter().find_map(|t| id_of(t)),
+            eos_id: EOS_TOKENS.iter().find_map(|t| id_of(t)),
+            unk_id: UNK_TOKENS.iter().find_map(|t| id_of(t)),
+            specials_per_sequence: specials,
+            kind: kind.to_string(),
+            sha256: sha256.to_string(),
+        })
     }
 
     /// Static facts.
@@ -213,6 +250,55 @@ impl Tokenizer {
         Ok(b as usize)
     }
 
+    /// The full, untruncated encoding of `input` (prefix already applied).
+    fn encode_full(&self, input: &str, add_special_tokens: bool) -> Result<Encoding> {
+        match &self.backend {
+            Backend::Native(wp) => {
+                let content = wp.tokenize(input);
+                let (ids, type_ids, offsets) = wp.apply_template(&content, add_special_tokens);
+                let n = ids.len();
+                Ok(Encoding { ids, type_ids, mask: vec![1; n], offsets, truncated: false })
+            }
+            #[cfg(feature = "hf-tokenizers")]
+            Backend::Hf(hf) => {
+                let enc = hf
+                    .encode(tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw(input.into())), add_special_tokens)
+                    .map_err(|e| Error::runtime(format!("tokenizer encode: {e}")))?;
+                let n = enc.get_ids().len();
+                let mut out = Encoding {
+                    ids: Vec::with_capacity(n),
+                    type_ids: Vec::with_capacity(n),
+                    mask: vec![1; n],
+                    offsets: Vec::with_capacity(n),
+                    truncated: false,
+                };
+                for (i, &id) in enc.get_ids().iter().enumerate() {
+                    if id > i32::MAX as u32 {
+                        return Err(Error::internal(format!("token id {id} exceeds i32")));
+                    }
+                    out.ids.push(id as i32);
+                    out.type_ids.push(enc.get_type_ids()[i] as i32);
+                    let (s, e) = enc.get_offsets()[i];
+                    out.offsets.push((s as u32, e as u32));
+                }
+                Ok(out)
+            }
+        }
+    }
+
+    /// Whether `id` at position `i` of a full encoding is one of the
+    /// template's special tokens (kept whole by truncation).
+    fn is_template_special(&self, enc: &Encoding, i: usize) -> bool {
+        match &self.backend {
+            Backend::Native(wp) => enc.offsets[i] == (0, 0) && wp.is_special(enc.ids[i]),
+            #[cfg(feature = "hf-tokenizers")]
+            Backend::Hf(_) => {
+                enc.offsets[i] == (0, 0)
+                    && (Some(enc.ids[i]) == self.info.bos_id || Some(enc.ids[i]) == self.info.eos_id)
+            }
+        }
+    }
+
     /// Encode one text. Applies the prefix for `opts.prompt_role`, special
     /// tokens, and truncation. Over-budget input with truncation `None` is
     /// `TURBO_E_CAPACITY`.
@@ -226,46 +312,34 @@ impl Tokenizer {
             owned = format!("{prefix}{text}");
             &owned
         };
-        let mut tk = self.inner.clone_for_call();
-        let direction = match opts.truncate {
-            Truncate::Left => TruncationDirection::Left,
-            _ => TruncationDirection::Right,
-        };
-        if opts.truncate != Truncate::None {
-            tk.with_truncation(Some(TruncationParams {
-                max_length: budget,
-                strategy: TruncationStrategy::LongestFirst,
-                stride: 0,
-                direction,
-            }))
-            .map_err(|e| Error::internal(format!("tokenizer truncation: {e}")))?;
+        let mut enc = self.encode_full(input, opts.add_special_tokens)?;
+        let n = enc.ids.len();
+        if n <= budget {
+            return Ok(enc);
         }
-        let enc = tk
-            .encode(EncodeInput::Single(InputSequence::Raw(input.into())), opts.add_special_tokens)
-            .map_err(|e| Error::runtime(format!("tokenizer encode: {e}")))?;
-        let n = enc.get_ids().len();
-        if n > budget {
+        if opts.truncate == Truncate::None {
             return Err(Error::capacity(format!(
                 "input tokenizes to {n} tokens but the budget is {budget} and truncation is NONE"
             )));
         }
-        let mut out = Encoding {
-            ids: Vec::with_capacity(n),
-            type_ids: Vec::with_capacity(n),
-            mask: vec![1; n],
-            offsets: Vec::with_capacity(n),
-            truncated: !enc.get_overflowing().is_empty(),
+        // Truncation keeps the template's specials and cuts content from
+        // the end (Right, the model default) or the start (Left): the same
+        // rule as the Hugging Face crate's LongestFirst on one sequence.
+        let leading = (0..n).take_while(|&i| self.is_template_special(&enc, i)).count();
+        let trailing = (0..n).rev().take_while(|&i| self.is_template_special(&enc, i)).count();
+        let content = n - leading - trailing;
+        let keep = budget.saturating_sub(leading + trailing);
+        let cut = content - keep;
+        let (drop_from, drop_to) = match opts.truncate {
+            Truncate::Left => (leading, leading + cut),
+            _ => (leading + keep, leading + content),
         };
-        for (i, &id) in enc.get_ids().iter().enumerate() {
-            if id > i32::MAX as u32 {
-                return Err(Error::internal(format!("token id {id} exceeds i32")));
-            }
-            out.ids.push(id as i32);
-            out.type_ids.push(enc.get_type_ids()[i] as i32);
-            let (s, e) = enc.get_offsets()[i];
-            out.offsets.push((s as u32, e as u32));
-        }
-        Ok(out)
+        enc.ids.drain(drop_from..drop_to);
+        enc.type_ids.drain(drop_from..drop_to);
+        enc.mask.drain(drop_from..drop_to);
+        enc.offsets.drain(drop_from..drop_to);
+        enc.truncated = true;
+        Ok(enc)
     }
 
     /// Encode `texts` directly into caller-owned `[texts.len(), row_stride]`
@@ -320,35 +394,24 @@ impl Tokenizer {
 
     /// Decode ids to text.
     pub fn decode(&self, ids: &[i32], skip_special_tokens: bool) -> Result<String> {
-        let mut u: Vec<u32> = Vec::with_capacity(ids.len());
         for &id in ids {
             if id < 0 || id as u32 >= self.info.vocab_size {
                 return Err(Error::invalid_argument(format!("token id {id} is outside 0..{}", self.info.vocab_size)));
             }
-            u.push(id as u32);
         }
-        self.inner.decode(&u, skip_special_tokens).map_err(|e| Error::runtime(format!("tokenizer decode: {e}")))
+        match &self.backend {
+            Backend::Native(wp) => wp.decode(ids, skip_special_tokens),
+            #[cfg(feature = "hf-tokenizers")]
+            Backend::Hf(hf) => {
+                let u: Vec<u32> = ids.iter().map(|&i| i as u32).collect();
+                hf.decode(&u, skip_special_tokens).map_err(|e| Error::runtime(format!("tokenizer decode: {e}")))
+            }
+        }
     }
 
     /// Number of tokens `text` produces (no truncation, no prefix).
     pub fn count(&self, text: &str, add_special_tokens: bool) -> Result<u32> {
-        let enc = self
-            .inner
-            .encode(EncodeInput::Single(InputSequence::Raw(text.into())), add_special_tokens)
-            .map_err(|e| Error::runtime(format!("tokenizer encode: {e}")))?;
-        Ok(enc.get_ids().len() as u32)
-    }
-}
-
-/// Cheap per-call clone so truncation can be set without a lock; the
-/// heavyweight model is shared behind `Arc`s inside `tokenizers`.
-trait CloneForCall {
-    fn clone_for_call(&self) -> HfTokenizer;
-}
-
-impl CloneForCall for HfTokenizer {
-    fn clone_for_call(&self) -> HfTokenizer {
-        self.clone()
+        Ok(self.encode_full(text, add_special_tokens)?.ids.len() as u32)
     }
 }
 
@@ -363,9 +426,12 @@ impl crate::chunker::TokenCounter for Tokenizer {
 mod tests {
     use super::*;
 
+    fn minilm_path() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/bundles/minilm-tokenizer/tokenizer.json")
+    }
+
     fn minilm() -> Arc<Tokenizer> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/bundles/minilm-tokenizer/tokenizer.json");
-        Tokenizer::from_file(&root, "wordpiece", "", 128, "query: ", "passage: ").unwrap()
+        Tokenizer::from_file(&minilm_path(), "wordpiece", "", 128, "query: ", "passage: ").unwrap()
     }
 
     #[test]
@@ -434,5 +500,95 @@ mod tests {
     fn decode_rejects_out_of_vocab() {
         let t = minilm();
         assert_eq!(t.decode(&[999_999], true).unwrap_err().code(), turbo_abi::TURBO_E_INVALID_ARGUMENT);
+    }
+
+    #[test]
+    fn normalization_follows_the_bert_rules() {
+        let t = minilm();
+        let opts = EncodeOptions { add_special_tokens: false, ..Default::default() };
+        // Accents are stripped and case folded: "Café" is "cafe".
+        let e = t.encode("Café", &opts).unwrap();
+        assert_eq!(t.decode(&e.ids, true).unwrap(), "cafe");
+        assert_eq!(e.offsets, vec![(0, 5)], "the token spans the accented source bytes");
+        // Punctuation is its own token and offsets point at it.
+        let e = t.encode("hi, there!", &opts).unwrap();
+        assert_eq!(t.decode(&e.ids, true).unwrap(), "hi, there!");
+        assert_eq!(e.offsets, vec![(0, 2), (2, 3), (4, 9), (9, 10)]);
+        // A subword split reports the offsets of each piece.
+        let e = t.encode("turboembedding", &opts).unwrap();
+        assert!(e.ids.len() > 1, "{:?}", e.ids);
+        assert_eq!(e.offsets.first().unwrap().0, 0);
+        assert_eq!(e.offsets.last().unwrap().1, 14);
+        assert_eq!(t.decode(&e.ids, true).unwrap(), "turboembedding");
+        // CJK characters are one token each; a control character vanishes.
+        let e = t.encode("你好\u{0}x", &opts).unwrap();
+        assert_eq!(e.ids.len(), 3);
+        assert_eq!(e.offsets[2], (7, 8));
+        // Special tokens in the text are matched verbatim.
+        let e = t.encode("[SEP] a", &opts).unwrap();
+        assert_eq!(e.ids[0], 102);
+        // An unknown script maps to [UNK] with the word's offsets.
+        let e = t.encode("\u{0e01}\u{0e02}", &opts).unwrap();
+        assert_eq!(e.ids, vec![100]);
+    }
+
+    /// With the Hugging Face crate available, the native tokenizer must
+    /// agree with it on ids, type ids and offsets over the STS corpus, the
+    /// reference texts and a set of adversarial strings.
+    #[cfg(feature = "hf-tokenizers")]
+    #[test]
+    fn native_matches_hugging_face() {
+        let native = minilm();
+        let mut hf = tokenizers::Tokenizer::from_file(minilm_path()).unwrap();
+        hf.with_truncation(None).unwrap();
+        hf.with_padding(None);
+        let corpus_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/corpus/sts-pairs.jsonl");
+        let mut texts: Vec<String> = Vec::new();
+        for line in std::fs::read_to_string(&corpus_path).unwrap().lines().filter(|l| !l.trim().is_empty()) {
+            let v: serde_json::Value = serde_json::from_str(line).unwrap();
+            texts.push(v["text_a"].as_str().unwrap().to_string());
+            texts.push(v["text_b"].as_str().unwrap().to_string());
+        }
+        texts.extend(
+            [
+                "",
+                " ",
+                "Hello, World!",
+                "naïve café résumé Ångström",
+                "ΑΒΓ αβγ Straße İstanbul",
+                "日本語のテキスト and 中文",
+                "e-mail: a.b@c.com (see http://x.y/z?q=1&r=2)",
+                "tabs\tand\nnewlines\r\n  and   runs   of   spaces",
+                "emoji 😀 and \u{200b} zero width and \u{0301} lone mark",
+                "[CLS] embedded [SEP] specials [MASK] [UNK] [PAD]",
+                "超长的中文句子用来检查每个字符都是独立的词元",
+                "a".repeat(150).as_str(),
+                "ﬁ ligature ㎡ squared Ⅻ roman ①②③",
+                "'Tis n't 's 're 've 'm quotes' and \"double\"",
+            ]
+            .iter()
+            .map(|s| s.to_string()),
+        );
+        let opts = EncodeOptions { truncate: Truncate::None, max_tokens: 128, ..Default::default() };
+        let mut compared = 0;
+        for text in &texts {
+            let expect = hf
+                .encode(tokenizers::EncodeInput::Single(tokenizers::InputSequence::Raw(text.as_str().into())), true)
+                .unwrap();
+            if expect.get_ids().len() > 128 {
+                continue;
+            }
+            let got = native.encode(text, &opts).unwrap();
+            let want_ids: Vec<i32> = expect.get_ids().iter().map(|&i| i as i32).collect();
+            assert_eq!(got.ids, want_ids, "ids differ for {text:?}");
+            let want_types: Vec<i32> = expect.get_type_ids().iter().map(|&i| i as i32).collect();
+            assert_eq!(got.type_ids, want_types, "type ids differ for {text:?}");
+            let want_offsets: Vec<(u32, u32)> = expect.get_offsets().iter().map(|&(s, e)| (s as u32, e as u32)).collect();
+            assert_eq!(got.offsets, want_offsets, "offsets differ for {text:?}");
+            let want_text = hf.decode(expect.get_ids(), true).unwrap();
+            assert_eq!(native.decode(&got.ids, true).unwrap(), want_text, "decode differs for {text:?}");
+            compared += 1;
+        }
+        assert!(compared > 150, "compared only {compared} texts");
     }
 }

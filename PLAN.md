@@ -471,7 +471,7 @@ providers/metal/         Objective-C++ provider over Metal directly (make + clan
 native/                  shared C++: wordpiece, turbo_buffer, pooling kernels
 bindings/java/  bindings/swift/  bindings/android/
 tools/turbo-bundle/      import, verify, fetch (from crates/fetch)
-server/                  Inferstream on the new ABI (OIP v2 + OpenAI-shaped routes)
+server/                  Inferstream: OIP v2 over gRPC and REST, OpenAI-shaped routes (landed 2026-09-22)
 docs/  testdata/  scripts/
 ```
 
@@ -715,6 +715,25 @@ qemu binfmt, untested). Not yet: the macOS xcframework, Debian packages for
 the Pi, the SONAME and `abidiff` gate, Maven classifier artifacts and the
 Central Publisher Portal, and the clean-consumer install test per platform.
 
+### Dependency budget
+Fewer crates is faster to build, smaller to ship and easier to audit, so
+every crate declares only what it uses and test-only crates live in
+`[dev-dependencies]`. Counted with `cargo tree -e normal` on 2026-09-22:
+`libturbo` (turbo-shared) resolved 86 crates in the morning, 72 of them
+through the Hugging Face `tokenizers` crate; by the evening it resolves
+26. The core tokenizer is now native (`crates/turbo-core/src/wordpiece.rs`
+over generated Unicode tables, `scripts/gen-unicode-nfd.py`): it reads
+BERT-family `tokenizer.json` files (BertNormalizer, BertPreTokenizer,
+WordPiece, TemplateProcessing or BertProcessing, the WordPiece decoder)
+and a parity test holds it to the Hugging Face crate's ids, type ids,
+byte offsets and decoded text over the STS corpus and adversarial strings
+(`cargo test -p turbo-core --features hf-tokenizers`). The Hugging Face
+crate stays available behind the `hf-tokenizers` feature for BPE and
+Unigram files; without it such a file is `TURBO_E_UNSUPPORTED` naming the
+feature. A native BPE for the Qwen-style vocabularies is the next cut.
+`turbo-inferstream` resolves tokio, axum, tonic and their runtime on top
+of that; nothing else.
+
 ### P9 Inferstream on the new ABI
 Rebuild the server as a consumer: OIP v2 for `ModelInfer`/metadata over the
 `RUN` and `EMBED` tasks, plus OpenAI-shaped `/v1/embeddings`, `/v1/rerank`,
@@ -728,6 +747,29 @@ classification are served through OIP `ModelInfer` and a `/v1/classify`
 extension route.
 Gate: existing e2e parity suites pass against the new server on all three
 GPU machines; catalog aliases resolve to bundles.
+
+Status (2026-09-22): landed as `server/` (`turbo-inferstream`, binary
+`inferstream`, Rust): one engine, two listeners. gRPC serves
+`inference.GRPCInferenceService` generated from the protocol's own
+`open_inference_grpc.proto` (tonic 0.14, the current line); HTTP serves
+the OIP v2 REST binding under `/v2`, the OpenAI-shaped `/v1/embeddings`,
+`/v1/rerank`, `/v1/chat/completions` (SSE streaming with cancellation on
+disconnect) and `/v1/classify`, and `/info` with the
+text-embeddings-inference fields. Every model kind the ABI has is mapped
+(embedding, reranker, classifier, token classifier, generative, generic
+RUN with typed tensors). Sessions are pooled per `(batch, seq)` bucket
+as planned: a request is served by the smallest fitting bucket, split by
+the widest batch, and rejected with `TURBO_E_CAPACITY` naming the limit
+when its longest text exceeds the longest bucket unless it sets
+`truncate` to `right` or `left`; the default never cuts. Errors carry the
+Turbo status name and field index on both bindings. Direct dependencies
+are tokio, axum, tonic, tonic-prost, prost, serde, serde_json, clap and
+futures-core (all already in the tree). Verified on `krick`: every route
+on the six mock bundles, and MiniLM plus the ms-marco reranker through
+`cuda` on the RTX 4080 SUPER with Qwen2.5-0.5B through `ggml`, over both
+bindings (`server/README.md`). Not yet: the parity suites on all three
+GPU machines, a catalog of aliases, gRPC reflection, `ModelStreamInfer`,
+and the repository extension (index, load, unload).
 
 ### P10 Android JNI and GraalVM/OpenNLP
 JNI adapter implementing `turbo-api`, AAR with `arm64-v8a` and `x86_64`, one

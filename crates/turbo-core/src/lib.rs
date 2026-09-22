@@ -25,6 +25,8 @@ pub mod provider;
 pub mod runtime;
 pub mod tokenizer;
 pub mod types;
+mod unicode_data;
+pub mod wordpiece;
 
 pub use turbo_abi as abi;
 

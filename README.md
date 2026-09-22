@@ -97,6 +97,12 @@ reference programs are still to be written. Hailo-10H is planned; see
 | Python | `demo/python` | `ctypes` over the C ABI, no extension module |
 | Android | `demo/android` | a JNI shim over the C ABI (FFM is not on Android) |
 
+`server/` is Inferstream, the inference server: the KServe Open Inference
+Protocol v2 over gRPC and REST, the OpenAI-shaped `/v1/embeddings`,
+`/v1/rerank`, `/v1/chat/completions` (streaming) and `/v1/classify`, and
+`/info`, over any served bundle with pooled fixed-shape sessions. See
+[`server/README.md`](server/README.md).
+
 `demo/` holds a small program per language that embeds sentences and
 prints their similarities, a C summarizer that streams from a GGUF model
 through the push generation API, a gRPC C++ server, and a Spring Boot web
@@ -117,7 +123,7 @@ or sentence-transformers directory and refuses what it cannot verify. See
 
 ```sh
 cargo test --workspace --exclude turbo-provider-cuda   # unit tests and the provider-agnostic conformance suite (mock)
-scripts/gen-header.sh --check && scripts/gen-versioned.py --check
+scripts/gen-header.sh --check && scripts/gen-versioned.py --check && scripts/gen-unicode-nfd.py --check
 cd bindings/java && mvn test                          # 16 cases under --illegal-native-access=deny
 cd bindings/swift && swift run turbo-conformance       # macOS, 16 cases
 make -C providers/metal test                          # macOS, the Metal provider and its 15 vtable cases
@@ -138,6 +144,7 @@ crates/             turbo-abi, turbo-core, turbo-capi, turbo (safe API), turbo-c
 providers/          mock, static, cuda, ggml (Rust); openvino, hailo (C++); metal (Objective-C++)
 native/             the shared WordPiece tokenizer and C++ provider helpers
 bindings/           java (FFM), swift
+server/             Inferstream (turbo-inferstream): OIP v2 gRPC and REST, OpenAI-shaped routes
 demo/               c, python, rust, java, swift, grpc-c-server, android, java-web-spring
 tools/turbo-bundle  bundle import, verify, inspect
 scripts/            header and size-table generators, packaging, table export

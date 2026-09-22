@@ -14,7 +14,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 libloading = { workspace = true }
-tokenizers = { workspace = true }
+tokenizers = { workspace = true, optional = true }
+
+[features]
+# The Hugging Face `tokenizers` crate for BPE and Unigram tokenizer.json
+# files (WordPiece is native). Off by default: it adds about 70 crates.
+hf-tokenizers = ["dep:tokenizers"]
 
 [dev-dependencies]
 tempfile = "3"

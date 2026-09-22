@@ -567,8 +567,20 @@ impl Default for GenerateDesc {
 }
 
 impl GenerateDesc {
+    /// ABI field index of `max_new_tokens`.
+    pub const FIELD_MAX_NEW_TOKENS: u32 = 2;
+    /// ABI field index of `min_new_tokens`.
+    pub const FIELD_MIN_NEW_TOKENS: u32 = 3;
     /// ABI field index of `n_sequences`.
     pub const FIELD_N_SEQUENCES: u32 = 4;
+    /// ABI field index of `temperature`.
+    pub const FIELD_TEMPERATURE: u32 = 5;
+    /// ABI field index of `top_k`.
+    pub const FIELD_TOP_K: u32 = 6;
+    /// ABI field index of `top_p`.
+    pub const FIELD_TOP_P: u32 = 7;
+    /// ABI field index of `min_p`.
+    pub const FIELD_MIN_P: u32 = 8;
     /// ABI field index of `repeat_penalty`.
     pub const FIELD_REPEAT_PENALTY: u32 = 9;
     /// ABI field index of `presence_penalty`.

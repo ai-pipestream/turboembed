@@ -228,6 +228,12 @@ and the CPU device) and on `krickert-mac` (Apple M2, llama.cpp's own Metal
 backend, the provider's `metal` Cargo feature, which is not the separate
 `metal` provider under `providers/metal`).
 
+The core tokenizer is native WordPiece; `cargo test -p turbo-core
+--features hf-tokenizers` adds the parity test against the Hugging Face
+`tokenizers` crate (ids, type ids, byte offsets and decoded text over the
+STS corpus and adversarial strings), and `scripts/gen-unicode-nfd.py
+--check` verifies the generated Unicode tables it reads.
+
 Receipts from real runs are committed under `testdata/receipts/turbo/`:
 `openvino-minilm-2026-09-21.json` and `openvino-tasks-2026-09-21.json` for
 the OpenVINO provider, `cuda-2026-09-21.json` for the CUDA provider
