@@ -250,13 +250,48 @@ fn live_a_batch_of_mixed_lengths_equals_the_single_runs() {
     let texts: Vec<String> =
         words.iter().map(|&n| (0..n).map(|w| lexicon[w % lexicon.len()]).collect::<Vec<_>>().join(" ")).collect();
     let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-    let (batched, _, _) = embed(&live, &dir, &refs, &EmbedOptions::default(), 8);
-    assert_eq!(batched.len(), refs.len(), "one vector per row");
+    let model = live.ctx.load_model(&dir, &ModelDesc::default()).expect("load MiniLM");
+    let dim = model.info().dim as usize;
+    let session =
+        model.create_session(&SessionDesc { max_batch: 8, max_seq: 256, ..Default::default() }).expect("session");
+    session.write_text(&refs, &EmbedOptions::default()).expect("write the batch");
+    let r = session.run(&Default::default()).expect("run the batch");
+    assert_eq!(r.output(0).unwrap().shape, vec![refs.len() as u64, dim as u64], "one vector per row");
+    let batched = read_f32(&r, 0);
+    drop(r);
     for (i, text) in refs.iter().enumerate() {
-        let (single, _, _) = embed(&live, &dir, &[text], &EmbedOptions::default(), 1);
-        let c = cosine(&batched[i], &single[0]);
+        session.write_text(&[text], &EmbedOptions::default()).expect("write one row");
+        let r = session.run(&Default::default()).expect("run one row");
+        let single = read_f32(&r, 0);
+        let c = cosine(&batched[i * dim..(i + 1) * dim], &single);
         assert!(c > 0.9999, "row {i} ({} words): batched vs single cosine {c}", words[i]);
     }
+}
+
+#[test]
+fn live_one_session_serves_every_shape_it_is_asked_for_in_any_order() {
+    let Some((live, dir)) = setup() else { return };
+    let model = live.ctx.load_model(&dir, &ModelDesc::default()).expect("load MiniLM");
+    let dim = model.info().dim as usize;
+    let session =
+        model.create_session(&SessionDesc { max_batch: 4, max_seq: 128, ..Default::default() }).expect("session");
+    let long = "sequence ".repeat(100);
+    let wide = [long.as_str(), "a second long row", "third", "x"];
+    // A wide, long batch first, then a single short row, then the wide
+    // batch again: a session that caches anything sized for the first run
+    // fails on the second and produces a different answer on the third.
+    session.write_text(&wide, &EmbedOptions::default()).expect("write the wide batch");
+    let first = read_f32(&session.run(&Default::default()).expect("run the wide batch"), 0);
+    session.write_text(&["x"], &EmbedOptions::default()).expect("write one short row");
+    let short = read_f32(&session.run(&Default::default()).expect("run one short row after a wider one"), 0);
+    assert_eq!(short.len(), dim, "the short run produces one vector");
+    session.write_text(&wide[..2], &EmbedOptions::default()).expect("write a narrower batch");
+    session.run(&Default::default()).expect("run a narrower batch");
+    session.write_text(&wide, &EmbedOptions::default()).expect("write the wide batch again");
+    let again = read_f32(&session.run(&Default::default()).expect("run the wide batch again"), 0);
+    assert_eq!(first, again, "the same input must give the same vectors whatever shapes ran in between");
+    let c = cosine(&first[3 * dim..], &short);
+    assert!(c > 0.9999, "row 3 of the batch and the same text run alone differ: cosine {c}");
 }
 
 #[test]

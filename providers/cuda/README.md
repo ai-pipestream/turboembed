@@ -47,6 +47,20 @@ hosted runners have no CUDA.
   CPU execution provider. On `krick` these come from the NVIDIA PyPI wheels
   unpacked into `.libs/nvidia/lib`.
 
+## Running the crate tests
+
+```bash
+TURBO_CUDA_LIB_DIR=$PWD/.libs/nvidia/lib TURBO_LIVE_BUNDLE=~/opt/bundles/minilm-onnx \
+cargo test -p turbo-provider-cuda
+```
+
+`tests/kernels.rs` checks the pooling, sigmoid, and softmax kernels against
+sequential CPU references; `tests/provider.rs` loads the provider by path
+and checks devices, capability cells, buffers, imports, and session
+counters; `tests/wordpiece.rs` checks word spans under truncation. Each
+test skips with a printed reason when the device, the library, or the
+bundle is absent.
+
 ## Running the live tests
 
 ```bash

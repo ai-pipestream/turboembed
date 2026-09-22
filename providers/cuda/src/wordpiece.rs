@@ -235,7 +235,7 @@ impl RowScratch {
 /// Encode `text` with an optional `prefix` into one row: `[CLS] prefix text
 /// [SEP] [PAD...]`. `budget` counts specials. Returns the live token count.
 /// When `words` is given it receives the word boundaries that survived
-/// truncation, in row order.
+/// truncation whole, in row order.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_row(
     vocab: &Vocab,
@@ -325,7 +325,9 @@ pub fn encode_row(
 /// Word boundaries for span aggregation: whitespace-delimited runs, with
 /// each ASCII punctuation character as its own word, each tokenized alone so
 /// sub-token counts line up with the row (WordPiece never crosses
-/// whitespace).
+/// whitespace). A word that truncation cut in half is not reported, because
+/// the row does not hold all of its pieces, but the pieces it does hold are
+/// counted so the following words name their own columns.
 fn collect_words(
     vocab: &Vocab,
     text: &str,
@@ -361,7 +363,21 @@ fn collect_words(
             seen += nw;
             continue;
         }
-        if seen >= skip + take {
+        if seen < skip {
+            // Left truncation cut this word: only its last `seen + nw -
+            // skip` pieces are in the row, so it owns none of its columns
+            // as a whole word. Reporting it claimed columns it does not
+            // own, and skipping it without counting the pieces that did
+            // survive shifted every later word's `first_token` right by
+            // that many columns, so the whole row was mislabeled.
+            tok += (seen + nw - skip) as u32;
+            seen += nw;
+            continue;
+        }
+        if seen + nw > skip + take {
+            // Right truncation cut this word: the row holds only its
+            // leading pieces and the columns the rest would occupy hold
+            // [SEP] or padding, so the word is not reported.
             break;
         }
         words.push(WordSpan { start: start as u64, end: i as u64, first_token: tok, n_tokens: nw as u32 });

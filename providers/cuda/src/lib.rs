@@ -226,8 +226,9 @@ impl Provider for CudaProvider {
 }
 
 fn ort_version() -> &'static str {
-    // ort-sys pins the ONNX Runtime release it links; report that pin.
-    "1.28"
+    // The version string of the ONNX Runtime library actually linked or
+    // loaded (a Jetson build links a local one).
+    ort::info()
 }
 
 /// Preload every `lib*.so*` in `dir` with `RTLD_GLOBAL` so the ONNX Runtime
@@ -1074,6 +1075,18 @@ impl CudaSession {
         if let (Some(name), Some(mem)) = (&self.model.in_types, &self.d_types) {
             bind(&mut self.binding, name.as_str(), mem)?;
         }
+        // ONNX Runtime keeps the OrtValue it allocated for a bound output
+        // and reuses it on the next run of the same binding. A run whose
+        // shape is smaller than the previous one then fails inside the
+        // graph with `INVALID_ARGUMENT: The output OrtValue provided for
+        // output ...`, so the output is bound afresh for every run and the
+        // execution provider allocates for this shape.
+        self.binding.clear_outputs();
+        let out_info = MemoryInfo::new(AllocationDevice::CUDA, device, AllocatorType::Device, MemoryType::Default)
+            .map_err(|e| ort_err("CUDA memory info", e))?;
+        self.binding
+            .bind_output_to_device(self.model.out_name.as_str(), &out_info)
+            .map_err(|e| ort_err("bind output", e))?;
         Ok(())
     }
 
