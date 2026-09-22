@@ -70,9 +70,11 @@ and `output_dtype` other than `MODEL`/`F32`.
 Honored (each behind its capability bit): `temperature`, `top_k`, `top_p`,
 `min_p`, `repeat_penalty`, `presence_penalty`, `frequency_penalty`,
 `logit_bias`, `logprobs`, `stop` strings, `stop_tokens`, `min_new_tokens`,
-`echo`, `seed`, and `structured_kind = GRAMMAR` with a GBNF grammar.
-Refused naming the field: `structured_kind = JSON_SCHEMA`, `n_sequences >
-1`, `tools`. `max_new_tokens = 0` means 512.
+`echo`, `seed`, and `structured_kind = GRAMMAR` with a GBNF grammar
+(`TURBO_CAP_OPT_GEN_STRUCTURED`). Refused naming the field, with the bit
+clear: `structured_kind = JSON_SCHEMA` (`TURBO_CAP_OPT_GEN_JSON_SCHEMA`),
+`n_sequences > 1`, `tools`. `max_new_tokens = 0` means 512. A stop string
+ends the stream before itself and is not delivered (`docs/c-api.md`).
 
 ## Running the live tests
 

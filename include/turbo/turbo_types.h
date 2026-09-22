@@ -798,7 +798,8 @@ typedef struct turbo_chunk_plan turbo_chunk_plan;
 #define TURBO_CAP_OPT_RAW_SCORES 33554432
 
 /**
- * Generation: structured output (JSON schema / grammar).
+ * Generation: structured output as a GBNF grammar (`structured_kind =
+ * TURBO_STRUCTURED_GRAMMAR`); a JSON schema needs `TURBO_CAP_OPT_GEN_JSON_SCHEMA` too.
  */
 #define TURBO_CAP_OPT_GEN_STRUCTURED 4294967296
 
@@ -856,6 +857,13 @@ typedef struct turbo_chunk_plan turbo_chunk_plan;
  * Generation: stop token ids.
  */
 #define TURBO_CAP_OPT_GEN_STOP_TOKENS 8796093022208
+
+/**
+ * Generation: `structured_kind = TURBO_STRUCTURED_JSON_SCHEMA` (the
+ * provider turns a JSON schema into a constraint itself). Needs
+ * `TURBO_CAP_OPT_GEN_STRUCTURED` as well; that bit alone covers GBNF.
+ */
+#define TURBO_CAP_OPT_GEN_JSON_SCHEMA 17592186044416
 
 /**
  * Length of `turbo_error.message` including the terminating NUL.
@@ -1710,6 +1718,11 @@ typedef struct turbo_generate_desc {
     uint64_t seed;
     /**
      * Number of stop strings. Gated by `TURBO_CAP_OPT_GEN_STOP_STRINGS`.
+     * The stream ends with `TURBO_FINISH_STOP` when the generated text
+     * would contain one; the text delivered ends before the match, and the
+     * matched string and whatever followed it in the same piece are never
+     * delivered. Text that could still complete a stop string is held back
+     * until it cannot, so a match spanning pieces is caught too.
      */
     uint32_t n_stop;
     /**

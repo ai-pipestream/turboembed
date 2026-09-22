@@ -22,15 +22,17 @@
 //! moved back are counted in `d2h_bytes`. The pooling type is fixed at
 //! context creation, so a pooling override is not offered.
 //!
-//! Honesty: structured output is honored for GBNF grammars only (a JSON
-//! schema is refused naming the field), `n_sequences > 1` and tool
-//! definitions are not offered. Every cell is `EXPERIMENTAL` until receipts
-//! land.
+//! Honesty: structured output is offered for GBNF grammars
+//! (`TURBO_CAP_OPT_GEN_STRUCTURED`) and not for JSON schemas (the
+//! `TURBO_CAP_OPT_GEN_JSON_SCHEMA` bit stays clear, so that kind is refused
+//! naming the field); `n_sequences > 1` and tool definitions are not
+//! offered. Every cell is `EXPERIMENTAL` until receipts land.
 
 #![deny(missing_docs)]
 
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::num::NonZeroU32;
+use std::ptr::NonNull;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use llama_cpp_2::context::params::{LlamaContextParams, LlamaPoolingType};
@@ -38,7 +40,7 @@ use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::logit_bias::LlamaLogitBias;
 use llama_cpp_2::token::LlamaToken;
@@ -215,8 +217,11 @@ impl Provider for GgmlProvider {
         }
         Capability {
             status: CapStatus::Experimental,
-            dtype: None,
-            reference_dtype: None,
+            // llama.cpp keeps activations in f32; a quantized GGUF's weight
+            // products run at the file's quantization (int8 dot products for
+            // the Q types), which model info reports per model as dtype_used.
+            dtype: Some(DType::F32),
+            reference_dtype: Some(DType::F32),
             cosine_floor: 0.0,
             max_abs_error: 0.0,
             // Embeddings are bit-reproducible on the CPU; sampled generation
@@ -224,10 +229,13 @@ impl Provider for GgmlProvider {
             deterministic: d.kind == DeviceKind::Cpu && task == Task::Embed,
             notes: match task {
                 Task::Embed => format!(
-                    "llama.cpp on {}; pooling in the graph, L2 on the host, result in host memory; receipts pending",
+                    "llama.cpp on {}; f32 activations, weight products at the GGUF's quantization; pooling in the graph, L2 on the host, result in host memory; receipts pending",
                     d.name
                 ),
-                _ => format!("llama.cpp on {}; GGUF quantization decides the compute dtype; receipts pending", d.name),
+                _ => format!(
+                    "llama.cpp on {}; f32 activations, weight products at the GGUF's quantization; receipts pending",
+                    d.name
+                ),
             },
         }
     }
@@ -316,6 +324,7 @@ impl ProviderContext for GgmlContext {
         };
         let model = LlamaModel::load_from_file(backend()?, &path, &params)
             .map_err(|e| Error::runtime(format!("llama.cpp could not load `{}`: {e}", path.display())))?;
+        let vocab = VocabModel::load(&path)?;
         let c = bundle.contract();
         let max_seq = if c.max_seq == 0 { model.n_ctx_train() } else { c.max_seq };
         if max_seq > model.n_ctx_train() {
@@ -398,8 +407,15 @@ impl ProviderContext for GgmlContext {
             prefix_query: c.prompts.query.clone(),
             prefix_document: c.prompts.document.clone(),
         };
-        let inner =
-            Arc::new(ModelInner { model, template, embed, info, device_kind: device.kind, _ctx: self.inner.clone() });
+        let inner = Arc::new(ModelInner {
+            model,
+            vocab,
+            template,
+            embed,
+            info,
+            device_kind: device.kind,
+            _ctx: self.inner.clone(),
+        });
         Ok(Arc::new(GgmlModel { inner }))
     }
 }
@@ -412,8 +428,91 @@ struct EmbedContract {
     dim: u32,
 }
 
+/// A second, vocabulary-only load of the GGUF, for tokenizing text through
+/// `llama_tokenize`, which takes a length: the binding's `str_to_token`
+/// takes a C string and refuses a NUL byte, which the contract treats as
+/// data. A vocabulary-only load reads the metadata and no tensors.
+struct VocabModel(NonNull<llama_cpp_sys_2::llama_model>);
+
+// SAFETY: llama.cpp's tokenizer reads the vocabulary only; the pointer is
+// released once, on drop.
+unsafe impl Send for VocabModel {}
+unsafe impl Sync for VocabModel {}
+
+impl VocabModel {
+    fn load(path: &std::path::Path) -> Result<Self> {
+        let c_path = CString::new(path.as_os_str().as_encoded_bytes())
+            .map_err(|_| Error::invalid_argument(format!("path `{}` contains a NUL byte", path.display())))?;
+        // SAFETY: a default parameter block with vocab_only set; the path is
+        // a valid C string for the duration of the call.
+        let raw = unsafe {
+            let mut params = llama_cpp_sys_2::llama_model_default_params();
+            params.vocab_only = true;
+            llama_cpp_sys_2::llama_model_load_from_file(c_path.as_ptr(), params)
+        };
+        NonNull::new(raw)
+            .map(Self)
+            .ok_or_else(|| Error::runtime(format!("llama.cpp could not load the vocabulary of `{}`", path.display())))
+    }
+
+    /// The token ids of `text`, with the model's special tokens (BOS, or CLS
+    /// and SEP) when `add_special` is set. Every byte of `text` is passed,
+    /// NUL included.
+    fn tokenize(&self, text: &str, add_special: bool) -> Result<Vec<LlamaToken>> {
+        // SAFETY: the model pointer is live for the life of self.
+        let vocab = unsafe { llama_cpp_sys_2::llama_model_get_vocab(self.0.as_ptr()) };
+        let len = i32::try_from(text.len()).map_err(|_| {
+            Error::invalid_argument(format!("text of {} bytes exceeds the tokenizer's range", text.len()))
+        })?;
+        let mut buf: Vec<llama_cpp_sys_2::llama_token> = Vec::with_capacity((text.len() / 2 + 8).max(8));
+        // SAFETY: `text` outlives the call and `buf` holds `capacity` slots;
+        // a negative result names the size the tokens need.
+        let mut n = unsafe {
+            llama_cpp_sys_2::llama_tokenize(
+                vocab,
+                text.as_ptr().cast(),
+                len,
+                buf.as_mut_ptr(),
+                buf.capacity() as i32,
+                add_special,
+                true,
+            )
+        };
+        if n < 0 {
+            buf.reserve_exact(n.unsigned_abs() as usize);
+            // SAFETY: as above, with the capacity llama.cpp asked for.
+            n = unsafe {
+                llama_cpp_sys_2::llama_tokenize(
+                    vocab,
+                    text.as_ptr().cast(),
+                    len,
+                    buf.as_mut_ptr(),
+                    buf.capacity() as i32,
+                    add_special,
+                    true,
+                )
+            };
+        }
+        if n < 0 {
+            return Err(Error::internal(format!("llama_tokenize failed with {n}")));
+        }
+        // SAFETY: llama.cpp wrote `n` tokens into the buffer's capacity.
+        unsafe { buf.set_len(n as usize) };
+        Ok(buf.into_iter().map(LlamaToken).collect())
+    }
+}
+
+impl Drop for VocabModel {
+    fn drop(&mut self) {
+        // SAFETY: the pointer came from llama_model_load_from_file and is freed once.
+        unsafe { llama_cpp_sys_2::llama_model_free(self.0.as_ptr()) };
+    }
+}
+
 struct ModelInner {
     model: LlamaModel,
+    /// The vocabulary alone, for tokenizing by length (see [`VocabModel`]).
+    vocab: VocabModel,
     /// Present for generative bundles.
     template: Option<LlamaChatTemplate>,
     /// Present for embedding bundles.
@@ -497,7 +596,7 @@ impl Plan {
             StructuredKind::JsonSchema => {
                 return Err(Error::unsupported_option(
                     GenerateDesc::FIELD_STRUCTURED_KIND,
-                    "structured_kind=JSON_SCHEMA (the ggml provider takes GBNF grammars only)",
+                    "structured_kind=JSON_SCHEMA (the ggml provider claims TURBO_CAP_OPT_GEN_STRUCTURED for GBNF grammars, not TURBO_CAP_OPT_GEN_JSON_SCHEMA)",
                     GGML_PROVIDER_ID,
                 ))
             }
@@ -530,8 +629,11 @@ impl Plan {
                 .with_field(6));
         }
         if u64::from(desc.logprobs) > vocab as u64 {
-            return Err(Error::invalid_argument(format!("logprobs {} exceeds the vocabulary of {vocab}", desc.logprobs))
-                .with_field(GenerateDesc::FIELD_LOGPROBS));
+            return Err(Error::invalid_argument(format!(
+                "logprobs {} exceeds the vocabulary of {vocab}",
+                desc.logprobs
+            ))
+            .with_field(GenerateDesc::FIELD_LOGPROBS));
         }
         // The ABI seed is 64 bits; llama.cpp's is 32 and reserves
         // 0xFFFFFFFF as "draw one". Neither is silently mapped.
@@ -542,8 +644,10 @@ impl Plan {
                     .with_field(GenerateDesc::FIELD_SEED))
             }
             Some(s) if s == u64::from(u32::MAX) => {
-                return Err(Error::invalid_argument("seed 0xFFFFFFFF is llama.cpp's random-seed sentinel and cannot be honored as a fixed seed")
-                    .with_field(GenerateDesc::FIELD_SEED))
+                return Err(Error::invalid_argument(
+                    "seed 0xFFFFFFFF is llama.cpp's random-seed sentinel and cannot be honored as a fixed seed",
+                )
+                .with_field(GenerateDesc::FIELD_SEED))
             }
             Some(s) => s as u32,
         };
@@ -783,11 +887,13 @@ impl Generation {
         }
         let bytes = match self.inner.model.token_to_piece_bytes(token, 16, false, None) {
             Ok(b) => b,
-            Err(TokenToStringError::InsufficientBufferSpace(need)) => self
-                .inner
-                .model
-                .token_to_piece_bytes(token, need.unsigned_abs() as usize, false, None)
-                .map_err(|e| Error::internal(format!("token {} has no piece at {} bytes: {e}", token.0, need.unsigned_abs())))?,
+            Err(TokenToStringError::InsufficientBufferSpace(need)) => {
+                self.inner.model.token_to_piece_bytes(token, need.unsigned_abs() as usize, false, None).map_err(
+                    |e| {
+                        Error::internal(format!("token {} has no piece at {} bytes: {e}", token.0, need.unsigned_abs()))
+                    },
+                )?
+            }
             Err(e) => return Err(Error::internal(format!("token {} has no piece: {e}", token.0))),
         };
         self.pending.extend_from_slice(&bytes);
@@ -893,8 +999,8 @@ impl ProviderGeneration for Generation {
             .map_err(|e| Error::invalid_argument(format!("chat template could not render the messages: {e}")))?;
         let tokens = self
             .inner
-            .model
-            .str_to_token(&text, AddBos::Never)
+            .vocab
+            .tokenize(&text, false)
             .map_err(|e| Error::invalid_argument(format!("prompt tokenization failed: {e}")))?;
         self.prompt_text = text;
         self.prompt_tokens = tokens;
@@ -1158,8 +1264,8 @@ impl ProviderSession for EmbedSession {
             // llama.cpp adds the model's special tokens ([CLS] ... [SEP]).
             let full = if prefix.is_empty() { (*text).to_string() } else { format!("{prefix}{text}") };
             let tokens = model
-                .model
-                .str_to_token(&full, AddBos::Always)
+                .vocab
+                .tokenize(&full, true)
                 .map_err(|e| Error::invalid_argument(format!("row {r} could not be tokenized: {e}")))?;
             let row = &mut self.rows[r];
             row.clear();

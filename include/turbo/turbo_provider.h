@@ -792,7 +792,8 @@
 #define TURBO_CAP_OPT_RAW_SCORES 33554432
 
 /**
- * Generation: structured output (JSON schema / grammar).
+ * Generation: structured output as a GBNF grammar (`structured_kind =
+ * TURBO_STRUCTURED_GRAMMAR`); a JSON schema needs `TURBO_CAP_OPT_GEN_JSON_SCHEMA` too.
  */
 #define TURBO_CAP_OPT_GEN_STRUCTURED 4294967296
 
@@ -850,6 +851,13 @@
  * Generation: stop token ids.
  */
 #define TURBO_CAP_OPT_GEN_STOP_TOKENS 8796093022208
+
+/**
+ * Generation: `structured_kind = TURBO_STRUCTURED_JSON_SCHEMA` (the
+ * provider turns a JSON schema into a constraint itself). Needs
+ * `TURBO_CAP_OPT_GEN_STRUCTURED` as well; that bit alone covers GBNF.
+ */
+#define TURBO_CAP_OPT_GEN_JSON_SCHEMA 17592186044416
 
 /**
  * Length of `turbo_error.message` including the terminating NUL.

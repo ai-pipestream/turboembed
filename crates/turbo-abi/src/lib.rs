@@ -390,7 +390,8 @@ pub const TURBO_CAP_OPT_AGGREGATION: u64 = 0x1000000;
 /// Rerank and classify `raw_scores` (logits instead of activated scores) is honored.
 pub const TURBO_CAP_OPT_RAW_SCORES: u64 = 0x2000000;
 
-/// Generation: structured output (JSON schema / grammar).
+/// Generation: structured output as a GBNF grammar (`structured_kind =
+/// TURBO_STRUCTURED_GRAMMAR`); a JSON schema needs `TURBO_CAP_OPT_GEN_JSON_SCHEMA` too.
 pub const TURBO_CAP_OPT_GEN_STRUCTURED: u64 = 0x100000000;
 /// Generation: tool definitions in the prompt template.
 pub const TURBO_CAP_OPT_GEN_TOOLS: u64 = 0x200000000;
@@ -414,6 +415,10 @@ pub const TURBO_CAP_OPT_GEN_MIN_TOKENS: u64 = 0x20000000000;
 pub const TURBO_CAP_OPT_GEN_ECHO: u64 = 0x40000000000;
 /// Generation: stop token ids.
 pub const TURBO_CAP_OPT_GEN_STOP_TOKENS: u64 = 0x80000000000;
+/// Generation: `structured_kind = TURBO_STRUCTURED_JSON_SCHEMA` (the
+/// provider turns a JSON schema into a constraint itself). Needs
+/// `TURBO_CAP_OPT_GEN_STRUCTURED` as well; that bit alone covers GBNF.
+pub const TURBO_CAP_OPT_GEN_JSON_SCHEMA: u64 = 0x100000000000;
 
 // ---------------------------------------------------------------------------
 // Views and errors
@@ -990,6 +995,11 @@ pub struct turbo_generate_desc {
     /// Random seed.
     pub seed: u64,
     /// Number of stop strings. Gated by `TURBO_CAP_OPT_GEN_STOP_STRINGS`.
+    /// The stream ends with `TURBO_FINISH_STOP` when the generated text
+    /// would contain one; the text delivered ends before the match, and the
+    /// matched string and whatever followed it in the same piece are never
+    /// delivered. Text that could still complete a stop string is held back
+    /// until it cannot, so a match spanning pieces is caught too.
     pub n_stop: u32,
     /// Number of stop token ids. Gated by `TURBO_CAP_OPT_GEN_STOP_TOKENS`.
     pub n_stop_tokens: u32,

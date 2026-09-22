@@ -5029,5 +5029,14 @@ public class TurboNative {
     public static long TURBO_CAP_OPT_GEN_STOP_TOKENS() {
         return TURBO_CAP_OPT_GEN_STOP_TOKENS;
     }
+    private static final long TURBO_CAP_OPT_GEN_JSON_SCHEMA = 17592186044416L;
+    /**
+     * {@snippet lang=c :
+     * #define TURBO_CAP_OPT_GEN_JSON_SCHEMA 17592186044416
+     * }
+     */
+    public static long TURBO_CAP_OPT_GEN_JSON_SCHEMA() {
+        return TURBO_CAP_OPT_GEN_JSON_SCHEMA;
+    }
 }
 

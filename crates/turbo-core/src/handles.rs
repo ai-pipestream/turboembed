@@ -242,6 +242,12 @@ impl Model {
     /// Create a session. Requested maxima default to the model's and may not exceed them.
     pub fn create_session(self: &Arc<Self>, desc: &SessionDesc) -> Result<Arc<Session>> {
         let info = self.info();
+        if info.kind == ModelKind::Generative {
+            return Err(Error::unsupported_task(format!(
+                "model `{}` is generative; create a generation, not a session",
+                info.model_id
+            )));
+        }
         let mut resolved = desc.clone();
         if resolved.max_batch == 0 {
             resolved.max_batch = info.max_batch;
@@ -339,6 +345,12 @@ impl Model {
             abi::TURBO_CAP_OPT_GEN_STRUCTURED,
             GenerateDesc::FIELD_STRUCTURED_KIND,
             "structured_kind",
+        )?;
+        self.gated(
+            d.structured_kind == StructuredKind::JsonSchema,
+            abi::TURBO_CAP_OPT_GEN_JSON_SCHEMA,
+            GenerateDesc::FIELD_STRUCTURED_KIND,
+            "structured_kind=JSON_SCHEMA",
         )?;
         self.gated(!d.tools.is_empty(), abi::TURBO_CAP_OPT_GEN_TOOLS, GenerateDesc::FIELD_N_TOOLS, "tools")?;
         if d.structured_kind != StructuredKind::None && d.structured.trim().is_empty() {

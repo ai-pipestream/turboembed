@@ -440,7 +440,8 @@ impl ProviderModel for MockModel {
             prompt_text: String::new(),
             state: 0,
             generated: 0,
-            acc: String::new(),
+            hold: String::new(),
+            hold_max: desc.stop.iter().map(String::len).max().unwrap_or(0).saturating_sub(1),
             cancelled: false,
             done: false,
         }))
@@ -1052,7 +1053,10 @@ struct MockGeneration {
     prompt_text: String,
     state: u64,
     generated: u32,
-    acc: String,
+    /// Text not yet delivered: with stop strings set, the last `hold_max`
+    /// bytes wait until no stop string can still complete through them.
+    hold: String,
+    hold_max: usize,
     cancelled: bool,
     done: bool,
 }
@@ -1067,16 +1071,49 @@ impl MockGeneration {
         }
         self.state = h;
         self.generated = 0;
-        self.acc.clear();
-        if self.echo {
-            self.acc.push_str(&self.prompt_text);
-        }
+        self.hold.clear();
     }
 
+    /// End the stream; text held back for stop matching is the model's
+    /// and goes out with the last chunk.
     fn finish(&mut self, out: &mut Chunk, reason: FinishReason) {
+        out.text.push_str(&self.hold);
+        self.hold.clear();
         out.done = true;
         out.finish_reason = reason;
         self.done = true;
+    }
+
+    /// Append one piece of text and deliver what no stop string can still
+    /// reach: the piece plus the `hold_max` bytes before it are searched,
+    /// the earliest match ends the stream before itself, and otherwise all
+    /// but the last `hold_max` bytes go out.
+    fn deliver(&mut self, piece: &str, out: &mut Chunk) -> bool {
+        self.hold.push_str(piece);
+        let mut from = self.hold.len().saturating_sub(piece.len() + self.hold_max);
+        while from > 0 && !self.hold.is_char_boundary(from) {
+            from -= 1;
+        }
+        let earliest = self
+            .stop
+            .iter()
+            .filter(|s| !s.is_empty())
+            .filter_map(|s| self.hold[from..].find(s.as_str()).map(|i| from + i))
+            .min();
+        if let Some(at) = earliest {
+            out.text.push_str(&self.hold[..at]);
+            self.hold.clear();
+            return true;
+        }
+        if self.hold.len() > self.hold_max {
+            let mut cut = self.hold.len() - self.hold_max;
+            while cut > 0 && !self.hold.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            out.text.push_str(&self.hold[..cut]);
+            self.hold.drain(..cut);
+        }
+        false
     }
 }
 
@@ -1137,11 +1174,22 @@ impl ProviderGeneration for MockGeneration {
             return Ok(());
         }
         self.state = fnv(&self.generated.to_le_bytes(), self.state);
+        // The greedy token is the rank-0 candidate; sampling draws a rank
+        // below the pool size with the seeded generator and takes the
+        // candidate at that rank, so a pool of one is greedy decoding and
+        // a wider pool is a superset of it, as top_k is for a real model.
+        let greedy = (self.state % self.vocab as u64) as i32;
         let mut token = match self.sampling {
-            None => (self.state % self.vocab as u64) as i32,
+            None => greedy,
             Some(pool) => {
                 let draw = fnv(&self.seed.unwrap_or(self.salt).to_le_bytes(), self.state);
-                MOCK_FIRST_WORD + (draw % pool as u64) as i32
+                let rank = (draw % pool as u64) as i32;
+                if rank == 0 {
+                    greedy
+                } else {
+                    let words = self.vocab as i32 - MOCK_FIRST_WORD;
+                    MOCK_FIRST_WORD + (greedy.max(MOCK_FIRST_WORD) - MOCK_FIRST_WORD + rank).rem_euclid(words)
+                }
             }
         };
         // EOS only once the minimum is met.
@@ -1157,7 +1205,6 @@ impl ProviderGeneration for MockGeneration {
         if self.generated == 1 && self.echo {
             out.text.push_str(&self.prompt_text);
         }
-        let _ = write!(out.text, "tok{token} ");
         if self.logprobs > 0 {
             for k in 0..self.logprobs {
                 out.logprobs.push(-0.05 * (k as f32 + 1.0));
@@ -1168,12 +1215,15 @@ impl ProviderGeneration for MockGeneration {
             return Ok(());
         }
         if self.stop_tokens.contains(&token) {
+            // Like EOS: the token ends the stream and its text is withheld.
             self.finish(out, FinishReason::Stop);
             return Ok(());
         }
-        self.acc.push_str(&out.text[out.text.len() - format!("tok{token} ").len()..]);
-        if self.stop.iter().any(|s| !s.is_empty() && self.acc.ends_with(s.as_str())) {
-            self.finish(out, FinishReason::Stop);
+        let piece = format!("tok{token} ");
+        if self.deliver(&piece, out) {
+            out.done = true;
+            out.finish_reason = FinishReason::Stop;
+            self.done = true;
             return Ok(());
         }
         if self.generated >= self.max_new {

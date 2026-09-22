@@ -307,7 +307,7 @@ generation options and `raw_scores`, closed in commit `b85ccf1`).
 | `n_stop_tokens` | 15 | `TURBO_CAP_OPT_GEN_STOP_TOKENS` (`> 0`) |
 | `n_logit_bias` | 18 | `TURBO_CAP_OPT_GEN_LOGIT_BIAS` (`> 0`) |
 | `logprobs` | 19 | `TURBO_CAP_OPT_GEN_LOGPROBS` (`> 0`) |
-| `structured_kind` | 21 | `TURBO_CAP_OPT_GEN_STRUCTURED` (`!= TURBO_STRUCTURED_NONE`) |
+| `structured_kind` | 21 | `TURBO_CAP_OPT_GEN_STRUCTURED` (`!= TURBO_STRUCTURED_NONE`), and `TURBO_CAP_OPT_GEN_JSON_SCHEMA` as well for `TURBO_STRUCTURED_JSON_SCHEMA` |
 | `echo` | 22 | `TURBO_CAP_OPT_GEN_ECHO` (set) |
 | `n_tools` | 24 | `TURBO_CAP_OPT_GEN_TOOLS` (`> 0`) |
 
@@ -333,7 +333,7 @@ The six providers in this tree (`crates/turbo-core/src/mock.rs`
 | `DEVICE_POSTPROCESS` | no | no | no | no | yes | no | no |
 | `DYNAMIC_SHAPE` | yes | yes | no | no | yes | yes | no |
 | `WEIGHT_SHARING` | yes | yes | no | no | yes | yes | no |
-| `DETERMINISTIC` | yes | yes | yes | yes | no | no | yes |
+| `DETERMINISTIC` | yes | yes | no | yes | no | no | yes |
 | `OPT_TRUNCATE` | yes | yes | yes | yes | yes | no | yes |
 | `OPT_MAX_TOKENS` | yes | yes | yes | yes | yes | no | yes |
 | `OPT_PROMPT_ROLE` | yes | yes | yes | yes | yes | no | yes |
@@ -353,6 +353,7 @@ The six providers in this tree (`crates/turbo-core/src/mock.rs`
 | `OPT_GEN_ECHO` | yes | no | no | no | no | yes | no |
 | `OPT_GEN_PENALTIES` | no | no | no | no | no | yes | no |
 | `OPT_GEN_STRUCTURED` | no | no | no | no | no | yes | no |
+| `OPT_GEN_JSON_SCHEMA` | no | no | no | no | no | no | no |
 
 `static` and `openvino`'s CPU device offer no task where `EMBED`-only bits
 like `OPT_NORMALIZE`/`OPT_POOLING_OVERRIDE`/`OPT_RAW_SCORES` would matter
@@ -364,12 +365,19 @@ a silent default. `hailo` offers only `EMBED x TEXT`, so its `OPT_TOP_N`,
 `OPT_GEN_*` bit stay clear the same way `static`'s do. `mock` and `ggml`
 are the providers offering `GENERATE`; `static`, `openvino`, `cuda`, and
 `hailo` fail a generation call with `TURBO_E_UNSUPPORTED_TASK` before any
-option is checked. `ggml`'s
-`OPT_GEN_STRUCTURED` only honors `structured_kind = GRAMMAR` (a GBNF
-grammar); `structured_kind = JSON_SCHEMA` is refused naming the field even
-though the bit is set, because the bit gates the option family, not every
-value within it (`providers/ggml/README.md`). `openvino`'s NPU device
+option is checked. `ggml` sets `OPT_GEN_STRUCTURED` (a GBNF grammar) and
+not `OPT_GEN_JSON_SCHEMA`, so `structured_kind = JSON_SCHEMA` is refused
+naming field 21 (`providers/ggml/README.md`). `openvino`'s NPU device
 (enumerated, not qualified) reports `caps = 0`.
+
+Stop strings (`n_stop`, `stop`): the stream ends with `TURBO_FINISH_STOP`
+when the generated text would contain one. The text delivered ends before
+the match; the matched string, and whatever followed it in the same piece,
+is never delivered. A provider holds back the tail that could still
+complete a stop string until it cannot, so a match spanning pieces is
+caught; the held text goes out with the last chunk when the stream ends
+for another reason. Stop token ids end the stream the way EOS does: the
+token is reported and its text is withheld.
 
 ## Descriptor versioning rule
 
