@@ -208,6 +208,14 @@ than guesses when a file is ambiguous or missing a needed field:
   `sbert_ce_default_activation_function` maps a class name ending in
   `Sigmoid` to `sigmoid`, one ending in `Identity` to `none`, and absent to
   `sigmoid`; any other value is refused naming it.
+- **Model id**: `--model-id` when given, else `config.json`'s `_name_or_path`,
+  else the directory name. `_name_or_path` is whatever the checkpoint's
+  author left in the file and can name another model: the hub's
+  `cross-encoder/ms-marco-MiniLM-L-6-v2` config says
+  `cross-encoder/ms-marco-MiniLM-L-12-v2` (the model it was distilled
+  from), and a bundle imported from it without `--model-id` carried the
+  wrong id until the precision references caught it on 2026-09-22. Pass
+  `--model-id` and `--revision` for a bundle that will be cited.
 - **Tokenizer**: a `tokenizer.json` in the source is copied as-is (its kind
   detected from the file's `model.type`: WordPiece, BPE, Unigram,
   WordLevel). Without one, a `vocab.txt` plus `tokenizer_config.json`'s

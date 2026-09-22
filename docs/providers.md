@@ -497,7 +497,7 @@ simdgroup matmul: 625 rows/s at batch 32 by 32 tokens, 21 rows/s at 32 by
 256, and 48 documents/s for the 12-layer reranker at 128 tokens, against
 23 documents/s before it; the RTX 4080 SUPER does 22k rows/s on the same
 bundle shape, and the attention and layer-norm kernels are the next to
-tune). The reranker bundle (`cross-encoder/ms-marco-MiniLM-L-12-v2`) declares the
+tune). The reranker bundle (`cross-encoder/ms-marco-MiniLM-L-6-v2`) declares the
 Identity activation in its config, so its scores are logits; the suites
 follow the bundle's `activation` contract. Not yet: GPU-side WordPiece, a
 tuned matmul (the kernels are one thread per output element), F16 weights,

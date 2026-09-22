@@ -595,7 +595,7 @@ upload. On `krickert-mac` (Apple M2, macOS 27): the 15 vtable tests
 (`providers/metal/tests/provider_test.cpp`) pass; `live_embed` passes 16
 of 16 at cosine 1.000 against the FP32 references with the STS ranking
 gate; the rerank cases of `live_tasks` pass with
-`cross-encoder/ms-marco-MiniLM-L-12-v2` (whose contract declares the
+`cross-encoder/ms-marco-MiniLM-L-6-v2` (whose contract declares the
 Identity activation, so scores are logits and the suite now follows the
 bundle's `activation` rather than assuming a sigmoid). Receipt:
 `testdata/receipts/turbo/metal-2026-09-22.json`; throughput under

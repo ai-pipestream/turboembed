@@ -289,13 +289,22 @@ pub const TURBO_OUTPUT_I8: u32 = 3;
 
 /// Token-classification aggregation: as the model contract says.
 pub const TURBO_AGGREGATE_MODEL: u32 = 0;
-/// Token-classification aggregation: none, per-token labels only.
+/// Token-classification aggregation: one span per word, the word's label
+/// from its first sub-token, no merging of neighbouring words. Words are
+/// whitespace-delimited runs with each ASCII punctuation character its own
+/// word; a word cut by truncation is dropped, not clipped.
 pub const TURBO_AGGREGATE_NONE: u32 = 1;
-/// Token-classification aggregation: merge consecutive same-label tokens.
+/// Token-classification aggregation: the word's label from its first
+/// sub-token, then neighbouring words of the same entity merged into one
+/// span (the transformers pipeline's `first` strategy; its `simple`
+/// strategy is sub-token aligned and can split a word, which no provider
+/// here produces).
 pub const TURBO_AGGREGATE_SIMPLE: u32 = 2;
-/// Token-classification aggregation: label of the first sub-token wins.
+/// Token-classification aggregation: the same as `TURBO_AGGREGATE_SIMPLE`.
 pub const TURBO_AGGREGATE_FIRST: u32 = 3;
-/// Token-classification aggregation: highest-scoring sub-token wins.
+/// Token-classification aggregation: the word's label from its
+/// highest-scoring sub-token, then neighbouring words of the same entity
+/// merged into one span (the transformers pipeline's `max` strategy).
 pub const TURBO_AGGREGATE_MAX: u32 = 4;
 
 /// Generation finish reason: not finished.

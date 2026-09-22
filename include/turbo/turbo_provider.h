@@ -572,22 +572,31 @@
 #define TURBO_AGGREGATE_MODEL 0
 
 /**
- * Token-classification aggregation: none, per-token labels only.
+ * Token-classification aggregation: one span per word, the word's label
+ * from its first sub-token, no merging of neighbouring words. Words are
+ * whitespace-delimited runs with each ASCII punctuation character its own
+ * word; a word cut by truncation is dropped, not clipped.
  */
 #define TURBO_AGGREGATE_NONE 1
 
 /**
- * Token-classification aggregation: merge consecutive same-label tokens.
+ * Token-classification aggregation: the word's label from its first
+ * sub-token, then neighbouring words of the same entity merged into one
+ * span (the transformers pipeline's `first` strategy; its `simple`
+ * strategy is sub-token aligned and can split a word, which no provider
+ * here produces).
  */
 #define TURBO_AGGREGATE_SIMPLE 2
 
 /**
- * Token-classification aggregation: label of the first sub-token wins.
+ * Token-classification aggregation: the same as `TURBO_AGGREGATE_SIMPLE`.
  */
 #define TURBO_AGGREGATE_FIRST 3
 
 /**
- * Token-classification aggregation: highest-scoring sub-token wins.
+ * Token-classification aggregation: the word's label from its
+ * highest-scoring sub-token, then neighbouring words of the same entity
+ * merged into one span (the transformers pipeline's `max` strategy).
  */
 #define TURBO_AGGREGATE_MAX 4
 
