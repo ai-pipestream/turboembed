@@ -25,6 +25,7 @@ providers/libturbo_provider_cuda.so       present if the CUDA provider built
 providers/libonnxruntime_providers_cuda.so    ONNX Runtime CUDA EP, next to the CUDA provider
 providers/libonnxruntime_providers_shared.so  ONNX Runtime EP loader, next to the CUDA provider
 providers/libturbo_provider_openvino.so   present if the OpenVINO provider built
+providers/libturbo_provider_hailo.so      present if the Hailo provider built
 LICENSE                         Apache-2.0
 NOTICE                          only if the repository has one (it does not, today)
 README.md                       written by the script for this specific archive
@@ -66,7 +67,12 @@ library path at a time; there is no per-provider subdirectory.
   independently of the one already installed for OpenVINO's other uses.
 
 Both are named, with the same reasoning, in the `README.md` that
-`scripts/package.sh` writes into the archive.
+`scripts/package.sh` writes into the archive. HailoRT (`libhailort.so` and
+the `hailo-all` package) is not bundled either, for the same reason as the
+other two — it is tied to the board's installed HailoRT/firmware pairing
+(4.23 on the Pis this tree has receipts from) and `libturbo_provider_hailo.so`
+finds it through the loader's normal search — but the generated archive
+`README.md` does not yet call it out the way it does CUDA and OpenVINO.
 
 ## Building it
 
@@ -102,7 +108,14 @@ links it against the extracted `lib/libturbo.so` (the same compiler
 invocation `scripts/c-smoke.sh` uses), and runs the resulting binary with
 `LD_LIBRARY_PATH` pointing at the extracted `lib/` against the repository's
 own `testdata/bundles/mock` fixtures (those fixtures are test data, not
-packaged). It prints the archive's path and size at the end.
+packaged). It then runs `turbo-bench discover --provider-dir
+<extracted>/providers --strict` against that same extraction, which
+`dlopen`s every packaged provider library and fails the build if any of
+them does not load from the extracted archive — the runtimes a provider
+links (OpenVINO, CUDA) still come from `LD_LIBRARY_PATH`, as they would on
+a consumer machine, but a provider whose build failed and was copied from
+a stale `target/` by mistake is caught here rather than shipped silently
+broken. It prints the archive's path and size at the end.
 
 ## Consuming it from C
 
@@ -180,6 +193,10 @@ needs from this archive:
   or vendors before it is unpacked into the JAR, the same way `turbo-bundle`
   verifies a model bundle before loading it.
 
-None of this is implemented; P7 (the FFM binding itself) has not started in
-this tree, so this section is a requirements list against the current
-archive layout, not a description of existing code.
+P7 (the Java FFM binding itself, `bindings/java`) has landed and its
+conformance cases pass against `libturbo.so` built straight from the
+workspace (`docs/bindings.md`), but none of the Maven-specific packaging
+above is implemented: there is no classifier-artifact build, no SONAME, no
+`abidiff` gate, and no aggregator POM. This section stays a requirements
+list against the current archive layout, not a description of existing
+packaging code, until P8 builds it.

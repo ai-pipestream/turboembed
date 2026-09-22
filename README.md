@@ -48,18 +48,26 @@ verified by content hash before anything loads. See
 
 ## Status
 
-This tree is at commit `6657818` on branch `turbo-v2`: milestones P0 and P1
+This tree is at commit `5a227b7` on branch `turbo-v2`: milestones P0 and P1
 of `PLAN.md` section 10 are done, P2 (the OpenVINO provider) has landed its
 embed, rerank, classify, and token-classify tasks (including the review
 fixes in `docs/reviews/2026-09-21-p0-p2.md`), P3 (the CUDA provider) has
 landed the same four tasks on x86_64 and now also runs embedding on Jetson
-`nano1`, P6 (the `ggml` provider) has landed GGUF generation on CUDA and
-CPU (`krick`) and on Metal (`krickert-mac`, Apple M2) together with the
-push-style `turbo_generate`, and P7 (the Java and Swift bindings) has
-landed the JDK 25 FFM binding and the Swift package. Every per-call option
-now either honors exactly what the caller asked for, gated by a
-`TURBO_CAP_OPT_*` bit, or fails; see [`docs/c-api.md`](docs/c-api.md)'s
-capability-bit tables. What exists today:
+`nano1`, P5 (the `hailo` provider) has landed `EMBED x TEXT` on two
+Raspberry Pi boards with a Hailo-8, P6 (the `ggml` provider) has landed
+GGUF generation and GGUF embeddings on CUDA and CPU (`krick`) and on Metal
+(`krickert-mac`, Apple M2) together with the push-style `turbo_generate`,
+and P7 (the Java and Swift bindings) has landed the JDK 25 FFM binding and
+the Swift package, both with generation and tokenizer wrappers. A second
+review (`docs/reviews/2026-09-21-p3-p7.md`) closed its highs and mediums
+the same day. Every per-call option now either honors exactly what the
+caller asked for, gated by a `TURBO_CAP_OPT_*` bit, or fails; see
+[`docs/c-api.md`](docs/c-api.md)'s capability-bit tables.
+`crates/turbo-bench` now benchmarks every landed provider (embed, rerank,
+generate) and writes receipts under `testdata/receipts/turbo/bench/`; the
+direct-native reference program each receipt's matched-native comparison
+needs is still to be written, which is why every provider stays
+`EXPERIMENTAL`. What exists today:
 
 - The generated C header set (`include/turbo/turbo.h`,
   `include/turbo/turbo_types.h`, `include/turbo/turbo_provider.h`), produced
@@ -79,7 +87,7 @@ capability-bit tables. What exists today:
   under `providers/mock`) and `static` (`providers/static`, model2vec-style
   token-table embeddings, one capability cell `EMBED x TEXT x CPU`,
   `EXPERIMENTAL`).
-- Three more loadable providers, each built separately: `openvino`
+- Four more loadable providers, each built separately: `openvino`
   (`providers/openvino`, a C++ library built with CMake, implementing
   `turbo_provider.h` directly rather than through the Rust
   `export_provider!` macro) with embed, rerank, classify, and token-classify
@@ -87,28 +95,36 @@ capability-bit tables. What exists today:
   using `export_provider!`, built with `cargo build -p turbo-provider-cuda`)
   with the same four tasks `EXPERIMENTAL` on `krick` (RTX 4080 SUPER,
   x86_64) through the ONNX Runtime CUDA execution provider, and now also
-  passing its live embedding tests on Jetson `nano1`; and `ggml`
+  passing its live embedding tests on Jetson `nano1`; `ggml`
   (`providers/ggml`, a Rust library using `export_provider!` over the
   `llama-cpp-2` binding to llama.cpp, a workspace member built by the
-  default workspace commands) with GGUF `GENERATE` `EXPERIMENTAL` on the
-  CUDA and CPU devices of `krick` and, through llama.cpp's own Metal
-  backend, on `krickert-mac` (Apple M2). See
-  [`providers/openvino/README.md`](providers/openvino/README.md),
+  default workspace commands) with GGUF `GENERATE` and GGUF `EMBED`
+  `EXPERIMENTAL` on the CUDA and CPU devices of `krick` and, through
+  llama.cpp's own Metal backend, on `krickert-mac` (Apple M2); and `hailo`
+  (`providers/hailo`, a C++ library built with CMake against HailoRT 4.23,
+  also implementing `turbo_provider.h` directly) with `EMBED x TEXT`
+  `EXPERIMENTAL` on two Raspberry Pi boards with a Hailo-8 (`pi5ai1`,
+  `cm5ai1`). See [`providers/openvino/README.md`](providers/openvino/README.md),
   [`providers/cuda/README.md`](providers/cuda/README.md),
-  [`providers/ggml/README.md`](providers/ggml/README.md), and
+  [`providers/ggml/README.md`](providers/ggml/README.md),
+  [`providers/hailo/README.md`](providers/hailo/README.md), and
   [`docs/providers.md`](docs/providers.md).
 - `bindings/java` (`ai.pipestream:turbo`): a JDK 25 foreign-function binding
   with a raw layer generated from `include/turbo/turbo.h` by jextract and a
-  safe `AutoCloseable` API on top; its conformance cases pass through the
-  binding against the mock provider under `--illegal-native-access=deny`.
+  safe `AutoCloseable` API on top, including `Generation` (the pull
+  iterator, `drain` with a stopping predicate, cross-thread `cancel`) and a
+  `Tokenizer` wrapper; its conformance cases pass through the binding
+  against the mock provider under `--illegal-native-access=deny`.
   See [`bindings/java/README.md`](bindings/java/README.md) and
   [`docs/bindings.md`](docs/bindings.md).
 - `bindings/swift` (`PipestreamTurbo`): a SwiftPM package over `libturbo`'s C
   ABI; `CTurbo` exposes the generated header as a clang module and
-  `PipestreamTurbo` is the Swift API on top, with the same conformance cases
-  run as an executable (`swift run turbo-conformance`) because the Swift
-  command line tools ship neither XCTest nor Swift Testing. All nine cases
-  pass on `krickert-mac` (Apple M2). See
+  `PipestreamTurbo` is the Swift API on top, with `Generation` and
+  `Tokenizer` wrappers mirroring the Java ones and the same conformance
+  cases run as an executable (`swift run turbo-conformance`) because the
+  Swift command line tools ship neither XCTest nor Swift Testing. The
+  original nine cases pass on `krickert-mac` (Apple M2); the five added for
+  generation and the tokenizer have not run on that machine yet. See
   [`bindings/swift/README.md`](bindings/swift/README.md) and
   [`docs/bindings.md`](docs/bindings.md).
 - `tools/turbo-bundle`: `import` (derives a bundle's contract from a source
@@ -119,6 +135,14 @@ capability-bit tables. What exists today:
   `tests/`) covering the P0 groups from `PLAN.md` section 10 plus live
   provider tests (`tests/live_embed.rs`, `tests/live_tasks.rs`,
   `tests/live_generate.rs`) that skip themselves without hardware. See
+  [`docs/testing.md`](docs/testing.md).
+- `crates/turbo-bench`: `embed`/`rerank`/`generate` benchmark workloads run
+  through the safe Rust API, a receipt writer, a `--budget` regression
+  check against an earlier receipt, and `turbo-bench discover`, which
+  surveys a machine's providers, devices, features, and capability matrix
+  and says which named bundles it can run. Receipts are committed under
+  `testdata/receipts/turbo/bench/`; the direct-native reference program of
+  each matched pair is still to be written. See
   [`docs/testing.md`](docs/testing.md).
 - Mock bundle fixtures under `testdata/bundles/mock/` (embedding, reranker,
   classifier, token-classifier, generative, generic) and a tokenizer-only
@@ -158,13 +182,15 @@ qualification receipt exists (`PLAN.md` section 4.4). Today:
 | `cpu` | PLANNED (P3, folded into the CUDA/ORT provider work) | ORT CPU EP; ggml CPU |
 | `cuda` | EXPERIMENTAL on `krick` (x86_64); embedding landed on Jetson `nano1` (aarch64) | embed, rerank, classify, token-classify through the ONNX Runtime CUDA EP with device-side pooling/normalization/activation kernels; cosine 1.000 against the FP32 references on `krick`; receipt: [`testdata/receipts/turbo/cuda-2026-09-21.json`](testdata/receipts/turbo/cuda-2026-09-21.json). On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime 1.24.0 linked dynamically through `ORT_LIB_LOCATION` and `--no-default-features`) all 12 live embedding tests pass at cosine 1.000; no receipt file is committed for this run yet and the task suite (rerank/classify/token-classify) is still being verified there |
 | `metal` | PLANNED (P4) | MLX over the shared Metal arena |
-| `hailo` | EXPERIMENTAL on `pi5ai1` and `cm5ai1` (Hailo-8); Hailo-8L untested; Hailo-10H open | embed through HailoRT 4.23 vstreams with the INT8 Model Zoo MiniLM HEF; host WordPiece, word-embedding gather, pooling, and L2; the capability cell states the measured cosine floor (0.30) against the FP32 references and the live suite gates ranking on the STS corpus (Spearman 0.937); receipt: [`testdata/receipts/turbo/hailo-2026-09-21.json`](testdata/receipts/turbo/hailo-2026-09-21.json) |
-| `ggml` | EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | GGUF generation through llama.cpp (`llama-cpp-2`); pull iterator, chat templates, stop strings/tokens, cancellation, logprobs, seeded sampling, GBNF grammars; receipt: [`testdata/receipts/turbo/ggml-2026-09-21.json`](testdata/receipts/turbo/ggml-2026-09-21.json) |
+| `hailo` | EXPERIMENTAL on `pi5ai1` and `cm5ai1` (Hailo-8); Hailo-8L untested; Hailo-10H open | embed through HailoRT 4.23 vstreams with the INT8 Model Zoo MiniLM HEF; host WordPiece, word-embedding gather, pooling, and L2; the capability cell reports a measured cosine floor of 0.30, and the live suite holds cosine to its own, higher floor for this provider and dtype ([`testdata/reference_embeddings/quantized_floors.json`](testdata/reference_embeddings/quantized_floors.json), 0.45) plus a ranking gate on the STS corpus (Spearman 0.937 against 0.944 for FP32); throughput 76 rows/s at every batch and sequence length ([`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`](testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json)); receipt: [`testdata/receipts/turbo/hailo-2026-09-21.json`](testdata/receipts/turbo/hailo-2026-09-21.json) |
+| `ggml` | EXPERIMENTAL on `krick` (CUDA and CPU) and `krickert-mac` (Apple M2, Metal) | GGUF generation through llama.cpp (`llama-cpp-2`): pull iterator, chat templates, stop strings/tokens, cancellation, logprobs, seeded sampling, GBNF grammars; GGUF embedding on the same devices at cosine 0.99999 or better against the FP32 references; receipt: [`testdata/receipts/turbo/ggml-2026-09-21.json`](testdata/receipts/turbo/ggml-2026-09-21.json) |
 
 A matched-native benchmark receipt is still required before OpenVINO,
-`cuda`, `ggml`, or `static` can move from `EXPERIMENTAL` to `SUPPORTED`
-(`PLAN.md` section 2, item 7); the receipts above record this explicitly
-under `status_after`.
+`cuda`, `ggml`, `hailo`, or `static` can move from `EXPERIMENTAL` to
+`SUPPORTED` (`PLAN.md` section 2, item 7); the receipts above record this
+explicitly under `status_after`, and `crates/turbo-bench` already writes
+the `libturbo`-side half of that comparison (`testdata/receipts/turbo/bench/`)
+even though the direct-native reference programs are not written yet.
 
 See [`docs/providers.md`](docs/providers.md) for the full table (hardware,
 runtime, lowest layer, machine) from `PLAN.md` section 7, and
@@ -308,12 +334,15 @@ try (Turbo rt = Turbo.create(List.of("/opt/turbo/providers/libturbo_provider_cud
 ```
 
 The conformance cases run through the binding against the mock provider
-under `--illegal-native-access=deny`; on `krick` (JDK 25.0.3, Temurin) nine
-tests pass in under a second, and the same job runs in CI
-(`.github/workflows/ci.yml`, `java`). See
+under `--illegal-native-access=deny`; on `krick` (JDK 25.0.3, Temurin) and
+`krick-1` (JDK 25.0.4, Temurin) fifteen tests pass in under a second, and
+the same job runs in CI (`.github/workflows/ci.yml`, `java`) against the
+mock provider only. `Model.createGeneration` and `Turbo.createTokenizer`
+add a `Generation` (pull iterator, `drain` with a stopping predicate,
+cross-thread `cancel`) and a `Tokenizer` wrapper; see
 [`bindings/java/README.md`](bindings/java/README.md) and
 [`docs/bindings.md`](docs/bindings.md) for locating the library, building,
-and regenerating the raw layer.
+regenerating the raw layer, and a generation/tokenizer example.
 
 ## Build and test
 
@@ -339,11 +368,12 @@ compile check under both C11 and C++17. `turbo-provider-ggml` is a workspace
 member with no `--exclude`, so these commands build and unit-test it too
 (CPU backend only; the `cuda`/`metal`/`vulkan` ggml backends are opt-in
 Cargo features, not exercised by CI). CI excludes `turbo-provider-cuda`
-(hosted runners have no CUDA toolkit) and does not build the OpenVINO
-provider (it needs the OpenVINO SDK); both providers are built and their
-live tests run manually, see
+(hosted runners have no CUDA toolkit) and does not build the OpenVINO or
+Hailo providers (they need the OpenVINO SDK and HailoRT respectively);
+these providers are built and their live tests run manually, see
 [`providers/openvino/README.md`](providers/openvino/README.md),
-[`providers/cuda/README.md`](providers/cuda/README.md), and
+[`providers/cuda/README.md`](providers/cuda/README.md),
+[`providers/hailo/README.md`](providers/hailo/README.md), and
 [`docs/testing.md`](docs/testing.md). Two further CI jobs: the Java binding's
 conformance cases run under JDK 25 against the mock provider
 (`bindings/java`, `docs/bindings.md`), and `scripts/package.sh --no-cuda
@@ -353,7 +383,7 @@ build artifact (`docs/packaging.md`).
 ## Repository layout
 
 From `PLAN.md` section 9. "Here" means the directory exists in this tree
-today (commit `6657818`); "planned" means it is scoped for a later milestone.
+today (commit `5a227b7`); "planned" means it is scoped for a later milestone.
 
 | path | purpose | status |
 |---|---|---|
@@ -362,7 +392,7 @@ today (commit `6657818`); "planned" means it is scoped for a later milestone.
 | `crates/turbo-core/` | registry, device discovery, buffers, bundles, tokenizers, chunker, sessions, provider plugin loading | here |
 | `crates/turbo-shared/` | links `turbo-capi` into `libturbo` (`cdylib` + `staticlib`) | here |
 | `crates/turbo/` | safe Rust API; `builtin_providers()` (mock, static) | here |
-| `crates/turbo-conformance/` | provider-agnostic contract suite: C smoke plus a Rust suite (24 files under `tests/`) | here |
+| `crates/turbo-conformance/` | provider-agnostic contract suite: C smoke plus a Rust suite (25 files under `tests/`) | here |
 | `crates/turbo-bench/` | benchmark harness (batch x seq grid, rerank, generation), receipt writer with budget check, and `turbo-bench discover`, which surveys the providers, devices, features, and runnable bundles on a machine | here |
 | `providers/mock/` | mock provider, loadable and statically linked | here |
 | `providers/static/` | model2vec-style static embedding provider | here |

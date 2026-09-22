@@ -1,18 +1,20 @@
 # Architecture
 
-This describes what the code in this tree does at commit `6657818`
-(milestones P0, P1, and P2 done; P3 landed on x86_64 and, for embedding,
-on Jetson `nano1`; P6 landed the `ggml` generation provider and the
-push-style `turbo_generate`; P7 landed the Java FFM binding). It is derived
-from `PLAN.md` section 4; where this tree does not yet implement something
-`PLAN.md` describes, that is marked "planned" with the milestone that adds
-it. See `PLAN.md` itself for the design rationale.
+This describes what the code in this tree does at commit `5a227b7`
+(milestones P0, P1, and P2 done; P3 landed on x86_64 and, for embedding, on
+Jetson `nano1`; P5 landed the `hailo` embedding provider on two Hailo-8
+Pis; P6 landed the `ggml` generation provider and the push-style
+`turbo_generate`; P7 landed the Java FFM binding and the Swift package).
+It is derived from `PLAN.md` section 4; where this tree does not yet
+implement something `PLAN.md` describes, that is marked "planned" with the
+milestone that adds it. See `PLAN.md` itself for the design rationale.
 
 ## Layers
 
 ```
- bindings:   Rust crate (crates/turbo) | Java (bindings/java, JDK 25 FFM): landed
-             Swift, C/C++: planned (P7, P10)
+ bindings:   Rust crate (crates/turbo) | Java (bindings/java, JDK 25 FFM) |
+             Swift (bindings/swift, PipestreamTurbo over the C ABI): landed
+             Android/JNI: planned (P10)
  ------------------------------------------------------------------------
  libturbo:   crates/turbo-capi (C ABI) over crates/turbo-core, packaged as
              libturbo by crates/turbo-shared
@@ -34,7 +36,8 @@ it. See `PLAN.md` itself for the design rationale.
  ------------------------------------------------------------------------
  runtimes:   none for mock/static; OpenVINO 2026.3.1 for openvino; ONNX
              Runtime 1.28 (1.24.0 on Jetson) CUDA execution provider for
-             cuda; llama.cpp (via llama-cpp-2) for ggml
+             cuda; llama.cpp (via llama-cpp-2) for ggml; HailoRT 4.23 for
+             hailo
 ```
 
 `crates/turbo-capi` is a thin, panic-safe adapter: it validates handles and
@@ -182,6 +185,15 @@ for embedding models, and `POSTPROCESS` as `DEVICE` for rerank/classify
 (the activation kernel) but `HOST` for token-classify (span aggregation
 reads the device output back once); `fully_accelerated` is therefore also 0
 for every CUDA model (`providers/cuda/src/lib.rs`, see `docs/providers.md`).
+`ggml` reports `ENCODE` and, for its GGUF embedding cells, `POOL` as
+`DEVICE` on a GPU device and `HOST` on its CPU device (the same
+`llama_batch` decode either way, just on a different `ggml_backend_dev`),
+`NORMALIZE` always `HOST` (L2 and `output_dim` run after the pooled vector
+comes back), and `TOKENIZE` and, for generation, `POSTPROCESS` always
+`HOST` (`providers/ggml/src/lib.rs`). `hailo` reports `ENCODE` as `DEVICE`
+(the HEF through vstreams) and every other stage — `TOKENIZE`, the
+word-embedding gather, `POOL`, `NORMALIZE` — as `HOST`, since the public
+HEF holds only the transformer body. `fully_accelerated` is 0 for both.
 
 ## Capability matrix
 
@@ -202,17 +214,19 @@ numbers, and models sampled generation deterministically: a positive
 `temperature` shrinks the token pool by `top_k`/`top_p`/`min_p` and draws
 from a seeded distribution, while `temperature == 0` (greedy) always picks
 the same token and ignores `seed` (`crates/turbo-core/src/mock.rs`).
-`static`, `openvino`, `cuda`, and `ggml` report `EXPERIMENTAL` for the cells
-they offer (`EMBED x TEXT x CPU` for `static`;
+`static`, `openvino`, `cuda`, `ggml`, and `hailo` report `EXPERIMENTAL` for
+the cells they offer (`EMBED x TEXT x CPU` for `static`;
 `{EMBED,RERANK,CLASSIFY,TOKEN_CLASSIFY} x TEXT x {GPU,CPU}` for `openvino`;
 the same four tasks x `TEXT` x GPU for `cuda` on `krick`, x86_64;
-`GENERATE` x GPU and CPU for `ggml` on `krick` and `krickert-mac`) because
-a conformance and precision receipt exists for each
+`GENERATE` x GPU and CPU for `ggml` on `krick` and `krickert-mac`;
+`EMBED x TEXT` on the Hailo-8 NPU for `hailo` on `pi5ai1` and `cm5ai1`)
+because a conformance and precision receipt exists for each
 (`testdata/receipts/turbo/openvino-*-2026-09-21.json`,
 `testdata/receipts/turbo/cuda-2026-09-21.json`,
-`testdata/receipts/turbo/ggml-2026-09-21.json`) but the matched-native
+`testdata/receipts/turbo/ggml-2026-09-21.json`,
+`testdata/receipts/turbo/hailo-2026-09-21.json`) but the matched-native
 benchmark receipt `PLAN.md` section 2 item 7 requires before `SUPPORTED`
-does not yet exist for any of the four. OpenVINO NPU devices are enumerated
+does not yet exist for any of the five. OpenVINO NPU devices are enumerated
 but offer no capability cells (listed, not qualified). CUDA on Jetson
 (`nano1`, aarch64) is no longer untried: the device-enumeration fix in
 `providers/cuda/src/cuda.rs` (reading compute capability through

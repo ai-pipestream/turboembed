@@ -27,9 +27,9 @@ count the frames moved through HailoRT's DMA pipeline.
 The HEF is quantized. The capability cell for `EMBED x TEXT` reports
 `dtype = I8`, `reference_dtype = F32`, and the measured `cosine_floor`
 against the FP32 reference vectors. Absolute cosine is not preserved
-(0.32 to 0.71 on the reference texts); ranking is (Spearman 0.94 on the
-STS corpus, the same as FP32). The live suite gates both: cosine against
-the floor the suite owns for this provider and dtype
+(0.32 to 0.71 on the reference texts); ranking stays near parity with FP32
+(Spearman 0.937 against 0.944 on the STS corpus). The live suite gates
+both: cosine against the floor the suite owns for this provider and dtype
 (`testdata/reference_embeddings/quantized_floors.json`, 0.45, set from the
 receipt; the cell's own floor must not exceed it), and Spearman over
 `testdata/corpus/sts-pairs.jsonl`.
@@ -108,6 +108,21 @@ serialize their runs on the model's mutex because vstreams are not
 reentrant. A vstream write or read that fails mid-run leaves frames in
 flight that nothing can drain, so the model is marked unusable and every
 later run fails with `TURBO_E_INVALID_STATE` until it is reloaded.
+
+## Status
+
+`EXPERIMENTAL` for `EMBED x TEXT` on Hailo-8: the 14 vtable tests
+(`providers/hailo/tests/provider_test.cpp`) and the 14 live embedding tests
+(`crates/turbo-conformance/tests/live_embed.rs`, including the STS ranking
+gate) pass on both `pi5ai1` (Raspberry Pi 5 with AI HAT+ 26 TOPS) and
+`cm5ai1` (CM5 IO Board, Hailo-8 M.2 module); receipt:
+`testdata/receipts/turbo/hailo-2026-09-21.json`. Throughput on `pi5ai1`
+(`turbo-bench embed`, `testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`):
+76 rows/s at every batch and sequence length, since the HEF is batch 1 with
+a fixed 128-token frame (about 13.2 ms per row). Hailo-8L is untested (no
+board), Hailo-10H needs a DFC 5 HEF, and the x86_64 PCIe build is untried.
+A matched-native benchmark receipt is still required before this cell can
+move from `EXPERIMENTAL` to `SUPPORTED`.
 
 ## Not offered
 

@@ -1,13 +1,13 @@
 # Providers
 
 A provider is a set of devices plus the ability to run tasks on them, reached
-through the plugin vtable in `include/turbo/turbo_provider.h`. Five
+through the plugin vtable in `include/turbo/turbo_provider.h`. Six
 providers exist in this tree today: `mock` and `static` (Rust, built into
-`libturbo`) and `openvino` (C++), `cuda` (Rust), and `ggml` (Rust), each
-(other than `mock`/`static`) built separately and loaded as a plugin
-library. Every other row below is planned; see `PLAN.md` sections 7 and 10
-for the full hardware/runtime detail and milestone gates this table
-summarizes.
+`libturbo`) and `openvino` (C++), `cuda` (Rust), `ggml` (Rust), and `hailo`
+(C++), each (other than `mock`/`static`) built separately and loaded as a
+plugin library. Every other row below (`cpu`, `metal`, `hailo` GenAI) is
+planned; see `PLAN.md` sections 7 and 10 for the full hardware/runtime
+detail and milestone gates this table summarizes.
 
 ## Provider table
 
@@ -52,7 +52,12 @@ a workspace member with no `--exclude` in the standard build/test/clippy
 commands, because its default (CPU-only) build needs no GPU toolkit. See
 "The ggml provider" below, `providers/ggml/README.md` for the build and the
 live-test command, and `testdata/receipts/turbo/ggml-2026-09-21.json` for
-the receipt behind its `EXPERIMENTAL` status. All five report a status of
+the receipt behind its `EXPERIMENTAL` status. `hailo` (`providers/hailo`) is
+a C++ library, `libturbo_provider_hailo.so`, built separately with CMake
+against the HailoRT 4.23 SDK and implementing `turbo_provider.h` directly
+like `openvino`; see `providers/hailo/README.md` for the build and the
+live-test commands, and `testdata/receipts/turbo/hailo-2026-09-21.json` for
+the receipt behind its `EXPERIMENTAL` status. All six report a status of
 `EXPERIMENTAL` or better only for cells with a receipt; none has a
 matched-native benchmark receipt yet, so none is `SUPPORTED`
 (`PLAN.md` section 2, item 7).
@@ -63,7 +68,7 @@ section 2, item 4). On OpenVINO, GPU device ordinals come first (`GPU.0`,
 `GPU.1`, ...), then CPU, then NPU (`providers/openvino/src/provider.cpp`).
 
 `docs/c-api.md`'s "Which providers set which bits" table is the full bit
-matrix for all five; in outline: `mock` (`MOCK_CAPS`,
+matrix for all six; in outline: `mock` (`MOCK_CAPS`,
 `crates/turbo-core/src/mock.rs`) sets the most bits, including every
 `GENERATE` option bit it offers and `OPT_NORMALIZE`/`OPT_RAW_SCORES`, but
 not `DEVICE_RESULT`, `OPT_POOLING_OVERRIDE`, or `OPT_OUTPUT_DTYPE`. `static`
@@ -79,12 +84,18 @@ the bit), plus `DEVICE_RESULT` only on GPU/iGPU; it sets neither
 `OPT_NORMALIZE` nor `OPT_POOLING_OVERRIDE` (pooling and normalization always
 follow the bundle contract) nor `DEVICE_POSTPROCESS`. `cuda` (`CUDA_CAPS`,
 `providers/cuda/src/lib.rs`) is the only provider setting
-`OPT_POOLING_OVERRIDE` and `DEVICE_POSTPROCESS`; see "The CUDA provider"
-below for its full list. `ggml` (`GGML_CAPS`, `providers/ggml/src/lib.rs`)
-sets `DYNAMIC_SHAPE`, `WEIGHT_SHARING`, and every `OPT_GEN_*` bit except
-`OPT_GEN_N` and `OPT_GEN_TOOLS` (`n_sequences > 1` and `tools` are refused
-naming the field, gated by the clear bit like every other capability
-check); see "The ggml provider" below. The NPU device OpenVINO enumerates
+`DEVICE_POSTPROCESS`; see "The CUDA provider" below for its full list.
+`ggml` (`GGML_CAPS`, `providers/ggml/src/lib.rs`) sets `DYNAMIC_SHAPE`,
+`WEIGHT_SHARING`, and every `OPT_GEN_*` bit except `OPT_GEN_N` and
+`OPT_GEN_TOOLS` (`n_sequences > 1` and `tools` are refused naming the
+field, gated by the clear bit like every other capability check); see "The
+ggml provider" below. `hailo` (`kCaps`, `providers/hailo/src/provider.cpp`)
+sets `DETERMINISTIC`, `HOST_PTR_IMPORT`, `OPT_TRUNCATE`, `OPT_MAX_TOKENS`,
+`OPT_PROMPT_ROLE`, `OPT_NORMALIZE`, `OPT_POOLING_OVERRIDE`, and
+`OPT_OUTPUT_DIM` for its one `EMBED x TEXT` cell (the second provider,
+after CUDA, to set `OPT_POOLING_OVERRIDE`); it offers neither `RERANK` nor
+`CLASSIFY`, so `OPT_TOP_N`/`OPT_AGGREGATION`/`OPT_RAW_SCORES` stay clear,
+and it does not offer `GENERATE`. The NPU device OpenVINO enumerates
 reports `caps = 0` (listed, not qualified).
 
 ## Writing a provider

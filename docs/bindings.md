@@ -15,9 +15,10 @@ generated C. It has two layers (`bindings/java/README.md`):
   function and constant, generated from `include/turbo/turbo.h` by
   jextract and committed to the repository, not written by hand.
 - **`ai.pipestream.turbo`**: the safe API. `Turbo` (runtime), `Context`,
-  `Model`, `Session`, and `Result` are `AutoCloseable` handles over the C
-  handles; option records (`EmbedOptions`, `RerankOptions`,
-  `ClassifyOptions`) mirror the C descriptors; enums mirror the `uint32_t`
+  `Model`, `Session`, `Result`, `Generation`, and `Tokenizer` are
+  `AutoCloseable` handles over the C handles; option records
+  (`EmbedOptions`, `RerankOptions`, `ClassifyOptions`, `GenerateDesc`,
+  `EncodeOptions`) mirror the C descriptors; enums mirror the `uint32_t`
   ABI constants; every non-`TURBO_OK` status becomes a `TurboException`
   carrying the status code, the 1-based field index, and the library's
   message.
@@ -48,7 +49,7 @@ mvn test -Dturbo.library=/path/to/libturbo.so   # another build
 The tests are the conformance cases run through the binding against the
 `mock` provider, under `--enable-native-access=ALL-UNNAMED
 --illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) and on
-`krick-1` (JDK 25.0.4, Temurin, AMD Ryzen 9 9950X) the twelve tests pass
+`krick-1` (JDK 25.0.4, Temurin, AMD Ryzen 9 9950X) the fifteen tests pass
 in under a second. `.github/workflows/ci.yml`'s `java` job runs the
 same thing on every push: `cargo build --locked -p turbo-shared` then
 `cd bindings/java && mvn -q -B test` under JDK 25 (Temurin), against the
@@ -105,16 +106,18 @@ conformance runner.
   only to give the target the one compilation unit a C target needs, since
   the module is otherwise header-only.
 - **`PipestreamTurbo`**: the Swift API, depending on `CTurbo`. `Runtime`,
-  `Context`, `Model`, `Session`, and `Result` are `final` classes that each
-  own one C handle and release it in `deinit` (`Result` additionally exposes
-  an idempotent `close()`); a child keeps its parent alive exactly as the C
-  contract requires, so releasing a parent before a live child is safe.
-  Option structs (`EmbedOptions`, `RerankOptions`, `ClassifyOptions`) mirror
-  the C descriptors field for field. Twelve enums (`DeviceKind`,
-  `SelectPolicy`, `Task`, `Modality`, `CapStatus`, `Truncate`, `PromptRole`,
-  `Normalize`, `Pooling`, `OutputDType`, `Aggregation`, `Placement`) mirror
-  the ABI's `uint32_t` constants. Every failing call throws `TurboError`
-  with the status code, the 1-based field index (0 when the failure names no
+  `Context`, `Model`, `Session`, `Result`, `Generation`, and `Tokenizer` are
+  `final` classes that each own one C handle and release it in `deinit`
+  (`Result` additionally exposes an idempotent `close()`, and so do
+  `Generation` and `Tokenizer`); a child keeps its parent alive exactly as
+  the C contract requires, so releasing a parent before a live child is
+  safe. Option structs (`EmbedOptions`, `RerankOptions`, `ClassifyOptions`,
+  `GenerateDesc`, `EncodeOptions`) mirror the C descriptors field for field.
+  Thirteen enums (`DeviceKind`, `SelectPolicy`, `Task`, `Modality`,
+  `CapStatus`, `Truncate`, `PromptRole`, `Normalize`, `Pooling`,
+  `OutputDType`, `Aggregation`, `Placement`, `FinishReason`) mirror the
+  ABI's `uint32_t` constants. Every failing call throws `TurboError` with
+  the status code, the 1-based field index (0 when the failure names no
   field), and the library's message.
 
 The module and product are named `PipestreamTurbo`, not `Turbo`: on a
@@ -125,7 +128,7 @@ ABI lives in.
 
 ### Enum values are checked once, at first use
 
-The twelve enums above are hand-written, not generated, with `UInt32` raw
+The thirteen enums above are hand-written, not generated, with `UInt32` raw
 values chosen to match the header's named constants. A private
 lazily-initialized value, `constantsVerified`
 (`Sources/PipestreamTurbo/PipestreamTurbo.swift`), runs a block of
@@ -136,11 +139,25 @@ value before doing anything else, so the check runs once, at first use, and
 a header change that renumbers a constant without a matching Swift edit
 traps immediately instead of silently miscompiling a wire value.
 
+### Generation and the tokenizer
+
+`Model.createGeneration(_:)` returns a `Generation`: `prompt(_:)` (chat
+messages) or `promptTokens(_:)`, then `step()` per chunk, or `drain(_:)`
+with a closure that receives every `Chunk` and can stop the stream by
+returning `false` (the final chunk then reports `.cancelled`); `cancel()`
+may be called from another thread. `Chunk` is a struct copied out of native
+memory, so it outlives the next step. `GenerateDesc` mirrors the C
+descriptor field for field; every non-default field is honored exactly or
+the generation throws naming the field, as in C. `Runtime.createTokenizer(bundlePath:)`
+returns a `Tokenizer` with `encode`, `decode`, `count`, and `info()`.
+These mirror the Java binding's `Generation` and `Tokenizer` wrappers.
+
 ### The conformance runner is an executable, not XCTest
 
 `turbo-conformance` (`Sources/TurboConformance/main.swift`) is an
-`executableTarget` running the conformance cases — the same nine cases the
-Java binding and the Rust conformance suite exercise — through the Swift
+`executableTarget` running the conformance cases — the same groups the
+Java binding and the Rust conformance suite exercise, now including
+generation and the tokenizer, fourteen cases in all — through the Swift
 API against the mock provider. It is a plain top-level script with a
 hand-rolled `expect`/`thrown` assertion helper and a list of cases run in a
 loop, rather than an XCTest bundle or a Swift Testing suite: neither
@@ -172,13 +189,17 @@ from (default `testdata/bundles/mock`, resolved relative to `main.swift`'s
 own path).
 
 On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) the
-nine cases pass; see `docs/testing.md`.
+original nine cases pass; the five cases covering generation, the
+tokenizer, the held-result BUSY case, and the cross-thread cancel case
+were added after that run and have not yet been verified on that machine
+(`docs/reviews/2026-09-21-p3-p7.md`: "Swift pending the Mac"); see
+`docs/testing.md`.
 
 ### Not yet in the binding
 
-Generation, the tokenizer and chunk-plan functions, buffer allocation and
-import, and `RUN`-model binding are reachable through `CTurbo` (the whole
-header is exposed as a module) but have no `PipestreamTurbo` wrapper yet
-(`PLAN.md` P6 and P7).
+The push form `turbo_generate`, the chunk-plan functions, buffer
+allocation and import, and `RUN`-model binding are reachable through
+`CTurbo` (the whole header is exposed as a module) but have no
+`PipestreamTurbo` wrapper yet.
 
 See `bindings/swift/README.md` for the walkthrough this section summarizes.

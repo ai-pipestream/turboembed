@@ -8,9 +8,10 @@ foreign function and memory API (no JNI, no generated C). It has two layers:
   committed. One class per struct with layout and field accessors, and
   `TurboNative` with every function and constant.
 - `ai.pipestream.turbo`: the safe API. `Turbo` (runtime), `Context`,
-  `Model`, `Session`, `Result` are `AutoCloseable` handles over the C
-  handles; option records (`EmbedOptions`, `RerankOptions`,
-  `ClassifyOptions`) mirror the C descriptors; enums mirror the `uint32_t`
+  `Model`, `Session`, `Result`, `Generation`, and `Tokenizer` are
+  `AutoCloseable` handles over the C handles; option records
+  (`EmbedOptions`, `RerankOptions`, `ClassifyOptions`, `GenerateDesc`,
+  `EncodeOptions`) mirror the C descriptors; enums mirror the `uint32_t`
   constants; every non-`TURBO_OK` status is a `TurboException` carrying the
   code, the 1-based field index, and the library's message.
 
@@ -38,7 +39,7 @@ mvn test -Dturbo.library=/path/to/libturbo.so   # another build
 The tests are the conformance cases run through the binding against the
 mock provider, under `--enable-native-access=ALL-UNNAMED
 --illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) and
-`krick-1` (JDK 25.0.4, Temurin) the twelve tests pass in under a second.
+`krick-1` (JDK 25.0.4, Temurin) the fifteen tests pass in under a second.
 
 ## Regenerating the raw layer
 

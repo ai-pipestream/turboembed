@@ -318,48 +318,51 @@ threading sections for what each currently means in this tree.
 
 ## Which providers set which bits
 
-The five providers in this tree (`crates/turbo-core/src/mock.rs`
+The six providers in this tree (`crates/turbo-core/src/mock.rs`
 `MOCK_CAPS`, `providers/static/src/lib.rs` `STATIC_CAPS`,
 `providers/openvino/src/provider.cpp` `caps_of`/`kCapsCommon`,
 `providers/cuda/src/lib.rs` `CUDA_CAPS`, `providers/ggml/src/lib.rs`
-`GGML_CAPS`):
+`GGML_CAPS`, `providers/hailo/src/provider.cpp` `kCaps`):
 
-| bit | mock | static | openvino (GPU/iGPU) | openvino (CPU) | cuda | ggml |
-|---|---|---|---|---|---|---|
-| `HOST_PTR_IMPORT` | yes | yes | yes | yes | yes | no |
-| `DEVICE_RESULT` | no | no | yes | no | yes | no |
-| `DEVICE_POSTPROCESS` | no | no | no | no | yes | no |
-| `DYNAMIC_SHAPE` | yes | yes | no | no | yes | yes |
-| `WEIGHT_SHARING` | yes | yes | no | no | yes | yes |
-| `DETERMINISTIC` | yes | yes | yes | yes | no | no |
-| `OPT_TRUNCATE` | yes | yes | yes | yes | yes | no |
-| `OPT_MAX_TOKENS` | yes | yes | yes | yes | yes | no |
-| `OPT_PROMPT_ROLE` | yes | yes | yes | yes | yes | no |
-| `OPT_NORMALIZE` | yes | no | no | no | yes | no |
-| `OPT_POOLING_OVERRIDE` | no | no | no | no | yes | no |
-| `OPT_OUTPUT_DIM` | yes | yes | no | no | yes | no |
-| `OPT_OUTPUT_DTYPE` | no | no | no | no | no | no |
-| `OPT_TOP_N` | yes | no | yes | yes | yes | no |
-| `OPT_AGGREGATION` | yes | no | yes | yes | yes | no |
-| `OPT_RAW_SCORES` | yes | no | no | no | yes | no |
-| `OPT_GEN_STOP_STRINGS` | yes | no | no | no | no | yes |
-| `OPT_GEN_STOP_TOKENS` | yes | no | no | no | no | yes |
-| `OPT_GEN_SEED` | yes | no | no | no | no | yes |
-| `OPT_GEN_LOGPROBS` | yes | no | no | no | no | yes |
-| `OPT_GEN_SAMPLING` | yes | no | no | no | no | yes |
-| `OPT_GEN_MIN_TOKENS` | yes | no | no | no | no | yes |
-| `OPT_GEN_ECHO` | yes | no | no | no | no | yes |
-| `OPT_GEN_PENALTIES` | no | no | no | no | no | yes |
-| `OPT_GEN_STRUCTURED` | no | no | no | no | no | yes |
+| bit | mock | static | openvino (GPU/iGPU) | openvino (CPU) | cuda | ggml | hailo |
+|---|---|---|---|---|---|---|---|
+| `HOST_PTR_IMPORT` | yes | yes | yes | yes | yes | no | yes |
+| `DEVICE_RESULT` | no | no | yes | no | yes | no | no |
+| `DEVICE_POSTPROCESS` | no | no | no | no | yes | no | no |
+| `DYNAMIC_SHAPE` | yes | yes | no | no | yes | yes | no |
+| `WEIGHT_SHARING` | yes | yes | no | no | yes | yes | no |
+| `DETERMINISTIC` | yes | yes | yes | yes | no | no | yes |
+| `OPT_TRUNCATE` | yes | yes | yes | yes | yes | no | yes |
+| `OPT_MAX_TOKENS` | yes | yes | yes | yes | yes | no | yes |
+| `OPT_PROMPT_ROLE` | yes | yes | yes | yes | yes | no | yes |
+| `OPT_NORMALIZE` | yes | no | no | no | yes | no | yes |
+| `OPT_POOLING_OVERRIDE` | no | no | no | no | yes | no | yes |
+| `OPT_OUTPUT_DIM` | yes | yes | no | no | yes | no | yes |
+| `OPT_OUTPUT_DTYPE` | no | no | no | no | no | no | no |
+| `OPT_TOP_N` | yes | no | yes | yes | yes | no | no |
+| `OPT_AGGREGATION` | yes | no | yes | yes | yes | no | no |
+| `OPT_RAW_SCORES` | yes | no | no | no | yes | no | no |
+| `OPT_GEN_STOP_STRINGS` | yes | no | no | no | no | yes | no |
+| `OPT_GEN_STOP_TOKENS` | yes | no | no | no | no | yes | no |
+| `OPT_GEN_SEED` | yes | no | no | no | no | yes | no |
+| `OPT_GEN_LOGPROBS` | yes | no | no | no | no | yes | no |
+| `OPT_GEN_SAMPLING` | yes | no | no | no | no | yes | no |
+| `OPT_GEN_MIN_TOKENS` | yes | no | no | no | no | yes | no |
+| `OPT_GEN_ECHO` | yes | no | no | no | no | yes | no |
+| `OPT_GEN_PENALTIES` | no | no | no | no | no | yes | no |
+| `OPT_GEN_STRUCTURED` | no | no | no | no | no | yes | no |
 
 `static` and `openvino`'s CPU device offer no task where `EMBED`-only bits
 like `OPT_NORMALIZE`/`OPT_POOLING_OVERRIDE`/`OPT_RAW_SCORES` would matter
 differently than shown; a `no` above means the bit is clear in
 `device_info.caps`, so a non-default value for the corresponding option
 field on that provider always fails with `TURBO_E_UNSUPPORTED_OPTION`, never
-a silent default. `mock` and `ggml` are the providers offering `GENERATE`;
-`static`, `openvino`, and `cuda` fail a generation call with
-`TURBO_E_UNSUPPORTED_TASK` before any option is checked. `ggml`'s
+a silent default. `hailo` offers only `EMBED x TEXT`, so its `OPT_TOP_N`,
+`OPT_AGGREGATION`, and `OPT_RAW_SCORES` (rerank/classify-only) and every
+`OPT_GEN_*` bit stay clear the same way `static`'s do. `mock` and `ggml`
+are the providers offering `GENERATE`; `static`, `openvino`, `cuda`, and
+`hailo` fail a generation call with `TURBO_E_UNSUPPORTED_TASK` before any
+option is checked. `ggml`'s
 `OPT_GEN_STRUCTURED` only honors `structured_kind = GRAMMAR` (a GBNF
 grammar); `structured_kind = JSON_SCHEMA` is refused naming the field even
 though the bit is set, because the bit gates the option family, not every
@@ -402,6 +405,6 @@ are also implemented (see above); `turbo_generation_create`/`_prompt`/
 implemented and exercised by the conformance suite's generation tests
 against the `mock` provider (`MockGeneration` in `crates/turbo-core/src/mock.rs`).
 `ggml` (`providers/ggml`) also offers `GENERATE`, for GGUF bundles on its
-CUDA and CPU devices; see `docs/providers.md`. `static`, `openvino`, and
-`cuda` do not offer `GENERATE`; a generation call on any of them fails with
-`TURBO_E_UNSUPPORTED_TASK`.
+CUDA and CPU devices; see `docs/providers.md`. `static`, `openvino`,
+`cuda`, and `hailo` do not offer `GENERATE`; a generation call on any of
+them fails with `TURBO_E_UNSUPPORTED_TASK`.

@@ -56,8 +56,12 @@ Testing in this tree today is:
   and library); see `docs/bindings.md` and `docs/packaging.md`.
 
 On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) the
-nine Swift binding cases pass, and so does the macOS core suite (`cargo
-test --workspace --exclude turbo-provider-cuda`) run on that same machine.
+original nine Swift binding cases pass, and so does the macOS core suite
+(`cargo test --workspace --exclude turbo-provider-cuda`) run on that same
+machine. The five cases added since for generation, the tokenizer, the
+held-result BUSY case, and the cross-thread cancel case have not yet run
+on that machine (`docs/reviews/2026-09-21-p3-p7.md`: "Swift pending the
+Mac").
 
 `docs/reviews/2026-09-21-p0-p2.md` is an independent review of the P0-P2
 tree that tracks each finding to closure; items closed by a commit carry
@@ -170,9 +174,14 @@ three files:
 with the artifact the provider reads: `onnx` or `openvino_ir`, `gguf`, or
 `hef` plus `hailo_tables`; built with `tools/turbo-bundle`).
 It checks the embedding vectors against ONNX Runtime CUDA FP32 reference
-vectors at the floor the device's `EMBED x TEXT` capability cell implies
-(0.9995 for an FP32 or unstated compute dtype; a quantized device is held
-to the `cosine_floor` it reports and fails if it reports none), gates
+vectors at a floor `Live::embed_cosine_floor` derives from the device's
+`EMBED x TEXT` capability cell (`crates/turbo-conformance/src/live.rs`):
+0.9995 for an FP32 or unstated compute dtype; for a quantized dtype, the
+floor the suite itself owns per provider and dtype
+(`testdata/reference_embeddings/quantized_floors.json`, set from a
+committed receipt — Hailo I8: 0.45), and the device must also report a
+measured `cosine_floor` no higher than the suite's, so a provider cannot
+set its own gate and one the suite has no floor for fails outright. Gates
 ranking with Spearman > 0.85 over `testdata/corpus/sts-pairs.jsonl`
 (0.944 for FP32 MiniLM, 0.937 for the INT8 Hailo HEF), caps the session
 at the model's `max_seq` for fixed-shape artifacts, that batch rows equal
@@ -219,9 +228,11 @@ not-yet-built MLX-based `metal` provider `PLAN.md` scopes for P4).
 Receipts from real runs are committed under `testdata/receipts/turbo/`:
 `openvino-minilm-2026-09-21.json` and `openvino-tasks-2026-09-21.json` for
 the OpenVINO provider, `cuda-2026-09-21.json` for the CUDA provider
-(`krick`, RTX 4080 SUPER, cosine 1.000 against the FP32 references), and
+(`krick`, RTX 4080 SUPER, cosine 1.000 against the FP32 references),
 `ggml-2026-09-21.json` for the `ggml` provider (`krick`'s CUDA and CPU
-devices, and `krickert-mac`'s Metal device); see
+devices, and `krickert-mac`'s Metal device), and `hailo-2026-09-21.json`
+for the `hailo` provider (`pi5ai1` and `cm5ai1`, Hailo-8, cosine 0.32-0.71
+against FP32 with Spearman 0.937 against 0.944); see
 `docs/providers.md` for what they record.
 
 ### The CUDA provider on Jetson (`nano1`)
@@ -256,10 +267,11 @@ and a standalone C11/C++17 compile of the header; `turbo-provider-ggml` is a
 plain workspace member with no `--exclude`, so these same commands build
 and unit-test it (CPU backend; the `cuda`/`metal`/`vulkan` features are
 opt-in and not exercised here). It excludes `turbo-provider-cuda` because
-hosted runners have no CUDA toolkit, and does not build the OpenVINO
-provider at all; run either provider's live tests, or `ggml`'s, by hand per
-`providers/openvino/README.md`, `providers/cuda/README.md`, or
-`providers/ggml/README.md`.
+hosted runners have no CUDA toolkit, and does not build the OpenVINO or
+Hailo providers at all (no OpenVINO SDK or HailoRT on the runner); run any
+of these providers' live tests, or `ggml`'s, by hand per
+`providers/openvino/README.md`, `providers/cuda/README.md`,
+`providers/ggml/README.md`, or `providers/hailo/README.md`.
 
 Two further CI jobs, separate from `contract`: `java` builds `libturbo`
 (`cargo build --locked -p turbo-shared`) and runs the Java binding's
