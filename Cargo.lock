@@ -1497,6 +1497,17 @@ name = "turbo-abi"
 version = "2.0.0-alpha.0"
 
 [[package]]
+name = "turbo-bench"
+version = "2.0.0-alpha.0"
+dependencies = [
+ "clap",
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-core",
+]
+
+[[package]]
 name = "turbo-bundle"
 version = "2.0.0-alpha.0"
 dependencies = [

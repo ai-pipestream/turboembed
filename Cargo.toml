@@ -12,6 +12,7 @@ members = [
     "providers/cuda",
     "providers/ggml",
     "tools/turbo-bundle",
+    "crates/turbo-bench",
 ]
 
 [workspace.package]
