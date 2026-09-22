@@ -3,7 +3,7 @@
 // The README screenshots, written into demo/java-web-spring/docs/screenshots.
 // Opt-in, because it overwrites committed files:
 //
-//   npm run screenshots                       # page.png, matrix.png (mock bundles)
+//   npm run screenshots                       # the mock-bundle images
 //   SHOT_TARGET=real E2E_BASE_URL=http://127.0.0.1:8092 npm run screenshots
 //                                             # page-minilm.png, against an app
 //                                             # already serving a real model
@@ -13,7 +13,7 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { DEFAULT_TEXTS, embed, open, setTexts, summarize } from "./app";
+import { DEFAULT_TEXTS, embed, open, rerank, setTexts, summarize, tab, tokenize } from "./app";
 
 const outDir = path.join(__dirname, "..", "..", "docs", "screenshots");
 const TARGET = process.env.SHOT_TARGET ?? "mock";
@@ -34,7 +34,7 @@ function underLimit(file: string, limitKb = 400): void {
     expect(kb, `${path.basename(file)} is ${kb.toFixed(0)} KB, over the ${limitKb} KB limit`).toBeLessThan(limitKb);
 }
 
-test("page.png and matrix.png on the mock bundle", async ({ page }) => {
+test("the mock-bundle images", async ({ page }) => {
     test.skip(TARGET !== "mock", "SHOT_TARGET selects a real-model screenshot instead");
     fs.mkdirSync(outDir, { recursive: true });
     await open(page);
@@ -48,8 +48,22 @@ test("page.png and matrix.png on the mock bundle", async ({ page }) => {
     const matrixPng = path.join(outDir, "matrix.png");
     await page.locator("#matrix").screenshot({ path: matrixPng, scale: "css" });
 
-    underLimit(pagePng);
-    underLimit(matrixPng);
+    await tab(page, "rerank");
+    await rerank(page);
+    const rerankPng = path.join(outDir, "rerank.png");
+    await page.locator("#panel-rerank").screenshot({ path: rerankPng, scale: "css" });
+
+    await tab(page, "tokenize");
+    await tokenize(page);
+    const tokenizePng = path.join(outDir, "tokenize.png");
+    await page.locator("#panel-tokenize").screenshot({ path: tokenizePng, scale: "css" });
+
+    await tab(page, "devices");
+    await expect(page.locator("#devices .card").first()).toBeVisible();
+    const devicesPng = path.join(outDir, "devices.png");
+    await page.locator("#panel-devices").screenshot({ path: devicesPng, scale: "css" });
+
+    for (const file of [pagePng, matrixPng, rerankPng, tokenizePng, devicesPng]) underLimit(file);
 });
 
 test("page-minilm.png on a real model", async ({ page }) => {
@@ -63,6 +77,8 @@ test("page-minilm.png on a real model", async ({ page }) => {
     await setTexts(page, REAL_TEXTS);
     await embed(page);
     await expect(page.locator("#matrix tr")).toHaveCount(REAL_TEXTS.length + 1);
+    console.log(`device: ${device}`);
+    console.log(`status: ${(await page.locator("#status").innerText()).trim()}`);
 
     const out = path.join(outDir, "page-minilm.png");
     await page.screenshot({ path: out, fullPage: true, scale: "css" });
@@ -74,6 +90,7 @@ test("summary-qwen.png on a real generative model", async ({ page }) => {
     test.setTimeout(180_000);
     fs.mkdirSync(outDir, { recursive: true });
     await open(page);
+    await tab(page, "summarize");
 
     const generator = await page.locator("#generator").innerText();
     expect(generator, "this screenshot is for a real generative model, not the mock one").not.toContain("turbo/mock-generative");

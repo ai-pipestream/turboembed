@@ -5,19 +5,37 @@
 // names the cause instead of timing out on a selector.
 import { expect, type Page } from "@playwright/test";
 
-/** The sentences index.html ships in the textarea. */
+/** The sentences index.html ships in the embed textarea. */
 export const DEFAULT_TEXTS = [
     "a brown dog runs through the grass",
     "a dog is running on the lawn",
     "the stock market closed higher",
 ];
 
+/** The documents index.html ships in the rerank textarea. */
+export const DEFAULT_DOCUMENTS = [
+    "the accelerator sustains two and a half teraflops",
+    "the card draws three hundred watts under load",
+    "the recipe needs two eggs and a cup of flour",
+    "the library never copies a tensor to the host",
+];
+
+/** The query index.html ships with. */
+export const DEFAULT_QUERY = "how fast is the accelerator";
+
+/** The text index.html ships in the tokenize textarea. */
+export const DEFAULT_TOKENIZE_TEXT = "a brown dog runs through the grass";
+
+/** A short document that fits any generative bundle's context with room for the summary. */
+export const SHORT_DOCUMENT =
+    "The provider reports its capabilities honestly instead of claiming full acceleration.";
+
 /** Uncaught page errors, collected so a test can insist the page never crashed. */
 export function watchPageErrors(page: Page): string[] {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e.stack ?? e)));
     page.on("console", (m) => {
-        // A 4xx from /api/embed is logged by the browser itself; the tests that
+        // A 4xx from the API is logged by the browser itself; the tests that
         // provoke one assert on the error box instead, so it is not a crash.
         if (m.type() === "error" && !m.text().startsWith("Failed to load resource")) {
             errors.push(`console.error: ${m.text()}`);
@@ -26,44 +44,78 @@ export function watchPageErrors(page: Page): string[] {
     return errors;
 }
 
-/** Open the page and wait for the device line the app fills from GET /api/info. */
+/** Open the page and wait for the device line the app fills from GET /api/v1/models. */
 export async function open(page: Page): Promise<void> {
     await page.goto("/");
     await expect(page.locator("#device")).not.toHaveText("loading device…");
 }
 
-/** Replace the textarea contents with one sentence per line. */
+/** Click a tab and wait for its panel. */
+export async function tab(page: Page, name: "embed" | "rerank" | "tokenize" | "summarize" | "devices"): Promise<void> {
+    await page.locator(`#tab-${name}`).click();
+    await expect(page.locator(`#tab-${name}`)).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator(`#panel-${name}`)).toBeVisible();
+}
+
+/**
+ * Click {@code button} and wait for either the result element or the error box.
+ * Returns "ok" when the result appeared, or the server's message when it did not.
+ */
+async function run(page: Page, button: string, result: string, errorBox: string, timeout = 20_000): Promise<string> {
+    await page.locator(button).click();
+    await expect
+        .poll(
+            async () => {
+                if (await page.locator(errorBox).isVisible()) {
+                    return `refused: ${(await page.locator(errorBox).innerText()).trim()}`;
+                }
+                return (await page.locator(result).isVisible()) ? "ok" : "pending";
+            },
+            { timeout, message: `${button} never produced ${result} or ${errorBox}` },
+        )
+        .not.toBe("pending");
+    await expect(page.locator(button)).toBeEnabled();
+    if (await page.locator(errorBox).isVisible()) {
+        return (await page.locator(errorBox).innerText()).trim();
+    }
+    return "ok";
+}
+
+/** Replace the embed textarea with one sentence per line. */
 export async function setTexts(page: Page, texts: string[]): Promise<void> {
     await page.locator("#texts").fill(texts.join("\n"));
 }
 
-/**
- * Click Embed and wait for the result table. If the app shows the error box
- * instead, the assertion fails with the server's message verbatim.
- */
+/** Click Embed and insist on a result table. */
 export async function embed(page: Page): Promise<void> {
-    await page.locator("#embed").click();
-    await expect
-        .poll(
-            async () => {
-                if (await page.locator("#error").isVisible()) {
-                    return `server refused: ${(await page.locator("#error").innerText()).trim()}`;
-                }
-                return (await page.locator("#result").isVisible()) ? "ok" : "pending";
-            },
-            { timeout: 15_000, message: "the embed request never produced a result table" },
-        )
-        .toBe("ok");
-    await expect(page.locator("#embed")).toBeEnabled();
+    const outcome = await run(page, "#embed", "#result", "#error");
+    expect(outcome, "the embed the test expected to succeed was refused").toBe("ok");
 }
 
 /** Click Embed expecting a refusal, and return the text of the error box. */
 export async function embedExpectingError(page: Page): Promise<string> {
-    await page.locator("#embed").click();
-    const error = page.locator("#error");
-    await expect(error, "the app showed no error box").toBeVisible({ timeout: 15_000 });
-    await expect(page.locator("#embed"), "the Embed button stayed disabled after the refusal").toBeEnabled();
-    return (await error.innerText()).trim();
+    const outcome = await run(page, "#embed", "#result", "#error");
+    expect(outcome, "the embed the test expected to fail succeeded").not.toBe("ok");
+    return outcome;
+}
+
+/** Click Rerank and insist on a ranking table. */
+export async function rerank(page: Page): Promise<void> {
+    const outcome = await run(page, "#rerank", "#rerank-result", "#rerank-error");
+    expect(outcome, "the rerank the test expected to succeed was refused").toBe("ok");
+}
+
+/** Click Rerank expecting a refusal, and return the text of the error box. */
+export async function rerankExpectingError(page: Page): Promise<string> {
+    const outcome = await run(page, "#rerank", "#rerank-result", "#rerank-error");
+    expect(outcome, "the rerank the test expected to fail succeeded").not.toBe("ok");
+    return outcome;
+}
+
+/** Click Tokenize and insist on token chips. */
+export async function tokenize(page: Page): Promise<void> {
+    const outcome = await run(page, "#tokenize", "#tok-result", "#tok-error");
+    expect(outcome, "the tokenize the test expected to succeed was refused").toBe("ok");
 }
 
 /** The similarity cells as the page rendered them, one array per row. */
@@ -80,9 +132,15 @@ export async function matrixRowLabels(page: Page): Promise<string[]> {
     return page.locator("#matrix tr th.text").allInnerTexts();
 }
 
-/** A short document that fits any generative bundle's context with room for the summary. */
-export const SHORT_DOCUMENT =
-    "The provider reports its capabilities honestly instead of claiming full acceleration.";
+/** The ranking rows the page rendered: rank, score and document. */
+export async function rankingRows(page: Page): Promise<{ rank: string; score: string; document: string }[]> {
+    return page.locator("#ranking tbody tr").evaluateAll((rows) =>
+        rows.map((row) => {
+            const cells = Array.from(row.querySelectorAll("td"), (cell) => (cell.textContent ?? "").trim());
+            return { rank: cells[0], score: cells[1], document: cells[2] };
+        }),
+    );
+}
 
 /** Replace the summarize textarea. */
 export async function setDocument(page: Page, text: string): Promise<void> {

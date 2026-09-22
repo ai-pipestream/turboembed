@@ -1,26 +1,58 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// The page against the committed mock bundle: deterministic 8-dim vectors, no
-// hardware. Every check is a hard assertion; a refusal from the server is
-// reported with its own message rather than swallowed.
+// The Embed panel and the tab bar, against the committed mock bundle:
+// deterministic 8-dim vectors, no hardware. Every check is a hard assertion; a
+// refusal from the server is reported with its own message rather than
+// swallowed.
 import { expect, test } from "@playwright/test";
-import { DEFAULT_TEXTS, embed, embedExpectingError, matrixCells, matrixRowLabels, open, setTexts, watchPageErrors } from "./app";
+import { DEFAULT_TEXTS, embed, embedExpectingError, matrixCells, matrixRowLabels, open, setTexts, tab, watchPageErrors } from "./app";
 
 test("the device line names the mock provider and the mock model", async ({ page, request }) => {
     const errors = watchPageErrors(page);
     await open(page);
 
-    const info = await (await request.get("/api/info")).json();
-    expect(info.providerId, "the suite expects the mock provider").toBe("mock");
-    expect(info.modelId).toBe("turbo/mock-embedding");
+    const models = await (await request.get("/api/v1/models")).json();
+    const embedder = models.find((m: any) => m.task === "EMBED");
+    expect(embedder, "the suite expects an embedding bundle").toBeTruthy();
+    expect(embedder.model_id).toBe("turbo/mock-embedding");
 
     const device = (await page.locator("#device").innerText()).trim();
     expect(device).toBe(
-        `${info.modelId} (dim ${info.dim}, max_seq ${info.maxSeq}) on ${info.deviceName} — ` +
-            `${info.providerId}:${info.ordinal} ${info.deviceKind}, runtime ${info.runtimeVersion}` +
-            (info.fullyAccelerated ? "" : " — host stages: tokenize"),
+        `${embedder.model_id} (dim ${embedder.dim}, max_seq ${embedder.max_seq}, batch ${embedder.max_batch})` +
+            ` on ${embedder.device.name} (${embedder.device.provider_id}:${embedder.device.ordinal}` +
+            ` ${embedder.device.kind}), runtime ${embedder.device.runtime_version}` +
+            (embedder.fully_accelerated ? "" : "; host stages: tokenize, encode, pool, normalize"),
     );
-    expect(device).toContain("mock");
+    expect(errors).toEqual([]);
+});
+
+test("every tab opens its panel, by click and by arrow key", async ({ page }) => {
+    const errors = watchPageErrors(page);
+    await open(page);
+
+    const names = ["embed", "rerank", "tokenize", "summarize", "devices"] as const;
+    for (const name of names) {
+        await tab(page, name);
+        for (const other of names) {
+            if (other === name) await expect(page.locator(`#panel-${other}`)).toBeVisible();
+            else await expect(page.locator(`#panel-${other}`), `panel ${other} with ${name} selected`).toBeHidden();
+        }
+    }
+
+    // Roving tabindex: the selected tab is the only one in the tab order.
+    await tab(page, "embed");
+    await expect(page.locator("#tab-embed")).toHaveAttribute("tabindex", "0");
+    await expect(page.locator("#tab-rerank")).toHaveAttribute("tabindex", "-1");
+
+    // The arrow keys move the selection and the focus together.
+    await page.locator("#tab-embed").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.locator("#tab-rerank")).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#panel-rerank")).toBeVisible();
+    await page.keyboard.press("End");
+    await expect(page.locator("#tab-devices")).toHaveAttribute("aria-selected", "true");
+    await page.keyboard.press("Home");
+    await expect(page.locator("#tab-embed")).toHaveAttribute("aria-selected", "true");
     expect(errors).toEqual([]);
 });
 
@@ -32,7 +64,11 @@ test("embedding the three default sentences renders a 3x3 matrix", async ({ page
     await expect(page.locator("#result")).toBeHidden();
     await embed(page);
 
-    await expect(page.locator("#status")).toHaveText(/^3 × \d+ in [\d.]+ ms$/);
+    // The status line carries the batch, the dimension, the device time, the
+    // device itself, the output placement and the round trip.
+    await expect(page.locator("#status")).toHaveText(
+        /^3 × \d+ in [\d.]+ ms on Mock accelerator \(mock:\d+\), placement HOST, [\d.]+ ms round trip$/,
+    );
 
     const cells = await matrixCells(page);
     expect(cells).toHaveLength(3);
@@ -50,13 +86,22 @@ test("embedding the three default sentences renders a 3x3 matrix", async ({ page
     }
 
     expect(await matrixRowLabels(page)).toEqual(DEFAULT_TEXTS.map((t, i) => `${i + 1}. ${t}`));
-
-    // Header row: a blank corner plus one column number per sentence.
     expect(await page.locator("#matrix tr").first().locator("th").allInnerTexts()).toEqual(["", "1", "2", "3"]);
 
     const vectors = ((await page.locator("#vectors").textContent()) ?? "").trim().split("\n");
     expect(vectors).toHaveLength(3);
     for (const line of vectors) expect(line).toMatch(/^\d+: \[-?\d\.\d{4}(, -?\d\.\d{4})*(, …)?\]$/);
+    expect(errors).toEqual([]);
+});
+
+test("ctrl+enter in the textarea runs the embed", async ({ page }) => {
+    const errors = watchPageErrors(page);
+    await open(page);
+
+    await page.locator("#texts").focus();
+    await page.keyboard.press("Control+Enter");
+    await expect(page.locator("#result")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#status")).toContainText("round trip");
     expect(errors).toEqual([]);
 });
 
@@ -86,7 +131,7 @@ test("an empty textarea shows the server's refusal and leaves the page working",
     await open(page);
 
     await setTexts(page, []);
-    expect(await embedExpectingError(page)).toBe("no texts");
+    expect(await embedExpectingError(page)).toBe("texts must not be empty");
     await expect(page.locator("#result")).toBeHidden();
     await expect(page.locator("#status")).toHaveText("");
     expect(errors, "the page threw while handling the refusal").toEqual([]);
@@ -98,16 +143,19 @@ test("an empty textarea shows the server's refusal and leaves the page working",
     expect(errors).toEqual([]);
 });
 
-test("more sentences than the server's batch shows the batch refusal", async ({ page, request }) => {
+test("more sentences than the model's batch shows the batch refusal", async ({ page, request }) => {
     const errors = watchPageErrors(page);
     await open(page);
 
-    const info = await (await request.get("/api/info")).json();
-    expect(info.maxBatch, "the server reports no batch limit").toBeGreaterThan(0);
-    expect(17, "this test needs more lines than the server's batch").toBeGreaterThan(info.maxBatch);
+    const models = await (await request.get("/api/v1/models")).json();
+    const embedder = models.find((m: any) => m.task === "EMBED");
+    expect(embedder.max_batch, "the server reports no batch limit").toBeGreaterThan(0);
+    const lines = embedder.max_batch + 1;
 
-    await setTexts(page, Array.from({ length: 17 }, (_, i) => `sentence number ${i + 1}`));
-    expect(await embedExpectingError(page)).toBe(`request has 17 texts but the server's batch is ${info.maxBatch}`);
+    await setTexts(page, Array.from({ length: lines }, (_, i) => `sentence number ${i + 1}`));
+    expect(await embedExpectingError(page)).toBe(
+        `request has ${lines} texts but model \`${embedder.name}\` has a batch of ${embedder.max_batch}`,
+    );
     await expect(page.locator("#result")).toBeHidden();
     expect(errors, "the page threw while handling the refusal").toEqual([]);
 });

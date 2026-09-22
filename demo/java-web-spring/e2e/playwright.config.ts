@@ -16,10 +16,23 @@ const externalUrl = process.env.E2E_BASE_URL;
 const baseURL = externalUrl ?? `http://127.0.0.1:${PORT}`;
 const SHOTS = /screenshots\.spec\.ts/;
 
-// The committed mock bundles: deterministic 8-dim vectors and deterministic
-// "tokNNN" generation, so the suite needs no accelerator and no downloads.
+// The committed mock bundles: deterministic 8-dim vectors, deterministic
+// token-overlap rerank scores and deterministic "tokNNN" generation, so the
+// suite needs no accelerator and no downloads. The mock bundles declare a
+// "mock" tokenizer with no tokenizer.json, so the embedding model is given the
+// committed MiniLM tokenizer bundle for /api/v1/tokenize.
 const repoRoot = path.resolve(__dirname, "../../..");
-const generateBundle = path.join(repoRoot, "testdata/bundles/mock/generative");
+const bundle = (name: string) => path.join(repoRoot, "testdata/bundles", name);
+const modelArgs = [
+    `--turbo.generate-bundle=${bundle("mock/generative")}`,
+    `--turbo.tokenizer-bundle=${bundle("minilm-tokenizer")}`,
+    `--turbo.models[0].name=rerank`,
+    `--turbo.models[0].bundle=${bundle("mock/reranker")}`,
+    `--turbo.models[1].name=classify`,
+    `--turbo.models[1].bundle=${bundle("mock/classifier")}`,
+    `--turbo.models[2].name=ner`,
+    `--turbo.models[2].bundle=${bundle("mock/token-classifier")}`,
+].join(" ");
 
 // run.sh calls java as "$JAVA_HOME/bin/java" when JAVA_HOME is set, and needs
 // Maven and java on PATH only when it builds (TURBO_WEB_SKIP_BUILD is not 1).
@@ -30,7 +43,7 @@ const screenshotProject: Project = {
     testMatch: SHOTS,
     use: {
         ...devices["Desktop Chrome"],
-        viewport: { width: 1200, height: 640 },
+        viewport: { width: 1200, height: 720 },
         deviceScaleFactor: 1,
         colorScheme: "light",
     },
@@ -55,8 +68,8 @@ export default defineConfig({
     webServer: externalUrl
         ? undefined
         : {
-              command: `../run.sh --server.port=${PORT} --turbo.generate-bundle=${generateBundle}`,
-              url: `http://127.0.0.1:${PORT}/api/info`,
+              command: `../run.sh --server.port=${PORT} ${modelArgs}`,
+              url: `http://127.0.0.1:${PORT}/api/v1/health`,
               cwd: __dirname,
               env: {
                   // The jar must already be built: run demo/java-web-spring/run.sh

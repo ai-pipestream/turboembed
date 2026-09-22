@@ -1,10 +1,23 @@
 #!/usr/bin/env bash
 # Build the Turbo Java binding and this app, then serve it.
 #
-#   demo/java-web-spring/run.sh                                   # mock bundle, port 8080
-#   demo/java-web-spring/run.sh --turbo.bundle=/opt/bundles/minilm-onnx \
+#   demo/java-web-spring/run.sh                       # mock embedding bundle, port 8080
+#
+#   # one real embedding model on an explicit device
+#   demo/java-web-spring/run.sh --turbo.bundle=$HOME/opt/bundles/minilm-onnx \
 #       --turbo.provider-lib=build/openvino/libturbo_provider_openvino.so \
 #       --turbo.provider=openvino --turbo.ordinal=1 --server.port=8080
+#
+#   # several models at once: an embedder, a reranker and a generator
+#   demo/java-web-spring/run.sh --turbo.bundle=$HOME/opt/bundles/minilm-onnx \
+#       --turbo.provider-lib=target/debug/libturbo_provider_cuda.so --turbo.provider=cuda \
+#       --turbo.models[0].name=rerank --turbo.models[0].bundle=$HOME/opt/bundles/rerank-onnx \
+#       --turbo.models[0].provider=cuda \
+#       --turbo.generate-bundle=$HOME/opt/bundles/qwen05-gguf \
+#       --turbo.generate-provider-lib=target/debug/libturbo_provider_ggml.so --turbo.generate-provider=ggml
+#
+# The page is at /, the REST API under /api/v1, the KServe Open Inference
+# Protocol v2 surface under /v2, and the API explorer at /swagger-ui.html.
 #
 # Needs JDK 25 (JAVA_HOME or PATH), Maven, and libturbo (cargo build -p turbo-shared).
 # Provider runtimes (OpenVINO, CUDA) come from LD_LIBRARY_PATH as usual.

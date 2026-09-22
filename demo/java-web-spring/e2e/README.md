@@ -1,11 +1,17 @@
 # End-to-end tests for the web demo
 
-Playwright tests that drive `demo/java-web-spring` in a real browser and check
-the JSON API directly. The default run starts the app itself on the committed
-mock bundles (`testdata/bundles/mock/embedding` for the vectors and
-`testdata/bundles/mock/generative` for the summarizer), so it needs no
-accelerator and no model download, and both the vectors and the generated
-tokens are the same on every run.
+Playwright tests that drive `demo/java-web-spring` in a real browser and
+exercise both HTTP surfaces directly. The default run starts the app itself on
+the committed mock bundles, so it needs no accelerator and no model download,
+and every vector, score and generated token is the same on every run.
+
+The suite starts the app with five models: the mock embedding bundle
+(`testdata/bundles/mock/embedding`, through `run.sh`'s default), the mock
+generative bundle for the summarizer, and the mock reranker, classifier and
+token classifier as `turbo.models[0..2]`. The mock bundles declare a `mock`
+tokenizer with no `tokenizer.json`, so the embedding model is given
+`testdata/bundles/minilm-tokenizer` as its `turbo.tokenizer-bundle`; the ids
+the Tokenize panel shows are that WordPiece vocabulary's.
 
 ## Running
 
@@ -22,11 +28,10 @@ cd demo/java-web-spring/e2e && npm ci && npx playwright test
 npx playwright install chromium
 ```
 
-The suite starts the app with `TURBO_WEB_SKIP_BUILD=1 ../run.sh
---server.port=8091 --turbo.generate-bundle=<testdata/bundles/mock/generative>`
-and waits for `GET /api/info`, so the jar in
-`demo/java-web-spring/target` must already exist. To let the suite build it
-instead, run `TURBO_WEB_SKIP_BUILD=0 npx playwright test` (that needs Maven).
+The suite starts its own app on `E2E_PORT` and waits for
+`GET /api/v1/health`, so the jar in `demo/java-web-spring/target` must already
+exist. To let the suite build it instead, run `TURBO_WEB_SKIP_BUILD=0 npx
+playwright test` (that needs Maven).
 
 Environment variables the config reads:
 
@@ -39,43 +44,66 @@ Environment variables the config reads:
 
 ## What is covered
 
-`tests/ui.spec.ts`, through the page:
+`tests/ui.spec.ts`, the Embed panel and the tab bar:
 
-- the device line names the provider, the device and the model from `/api/info`
+- the device line names the model, the dimension, the sequence and batch
+  limits, the device, the provider and ordinal, the runtime version and, when
+  the model is not fully accelerated, the stages that ran on the host
+- every tab opens its own panel and hides the others, by click and by arrow
+  key, Home and End; only the selected tab is in the tab order
 - the three sentences the textarea ships with render a 3x3 matrix: 1.000 down
   the diagonal, every cell in [-1, 1], and the matrix symmetric
+- the status line carries the batch, the dimension, the server-side time, the
+  device, the output placement and the round trip
+- `Ctrl` + `Enter` in the textarea runs the embed
 - the same sentence entered twice produces identical rows and identical vectors
-- an empty textarea shows the server's `no texts` refusal in the error box, the
+- an empty textarea shows the server's `texts must not be empty` refusal, the
   page does not throw, and the next embed still works
-- 17 lines shows the server's batch refusal naming the server's batch
+- one line over the model's batch shows the server's batch refusal naming the
+  model and its batch
 
-`tests/summarize.spec.ts`, through the page:
+`tests/rerank.spec.ts`, the Rerank panel: the reranker line, the ranking
+ordered best first with every document shown once, the unrelated document
+last, input order when the ranking is turned off, a blank query refused with
+the server's message and the panel still working afterwards, and the batch
+refusal.
 
-- the generator line names the model, the device and the sequence limit from
-  the `generate` object in `/api/info`
-- Summarize streams generated text into the output box and the status line ends
-  with the token count, the rate, the finish reason and the prompt size; the
-  tokens the status counts are the tokens the page shows
-- the same document generates the same text twice
-- an empty document shows the server's `no text` refusal, the page does not
-  throw, and the next run still works
-- a document whose prompt is over the generative model's `max_seq` shows the
-  library's `TURBO_E_CAPACITY` refusal, which is the mid-stream `error` event
-  path rather than an HTTP status
+`tests/tokenize.spec.ts`, the Tokenize panel: the line naming the bundle the
+tokenizer comes from, the pieces with their ids and the two special tokens
+marked, `add_special_tokens` off dropping exactly those two, and a second line
+tokenized as its own row.
 
-`tests/api.spec.ts`, against the API directly: the fields and values of
-`GET /api/info` including its `generate` object, the shape of a
-`POST /api/embed` response (unit vectors, a symmetric cosine matrix, the
-trimmed texts echoed back), determinism across two identical requests, the
-`POST /api/summarize` event stream (every `chunk` before the single `done`, the
-per-step token counter, `finish LENGTH` at `maxNewTokens`, the prompt size),
-and the 400 refusals with their messages.
+`tests/summarize.spec.ts`, the Summarize panel: the generator line, text
+streamed into the output box with the status line ending in the token count,
+the rate, the finish reason, the prompt size and the device, the same document
+generating the same text twice, an empty document showing the validation
+refusal, a prompt over the model's `max_seq` showing the library's
+`TURBO_E_CAPACITY` through the mid-stream `error` event rather than an HTTP
+status, and Stop leaving the panel usable. The mock model produces its 160
+tokens faster than a click, so cancellation itself is covered deterministically
+by `GenerateApiTest.aSinkThatStopsCancelsTheGenerationOnTheDevice`, which is
+the same path a disconnected client takes.
 
-Not covered: the 409 a summarize call returns when no generative bundle is
-configured, which needs a second server started without
-`--turbo.generate-bundle`.
+`tests/devices.spec.ts`, the Devices panel: one card per device with its
+feature bits as chips and only its offered capability cells, one card per
+loaded model with its contract, labels and prompt prefixes, and the header
+links reaching the API explorer, the OpenAPI document and `/v2`.
 
-Every check is a hard assertion. When an embed the test expected to succeed is
+`tests/api.spec.ts`, `/api/v1` directly: health, the whole device survey
+including the capability matrix and the bits the mock does not advertise, the
+model contracts field by field, embed, similarity, rerank with `top_n` and the
+ranking, classify and token-classify with the span offsets checked against the
+input bytes, tokenize and detokenize, generation whole and streamed, and every
+documented refusal with its status, its `TURBO_E_*` code and its field index.
+
+`tests/oip.spec.ts`, `/v2` as a protocol client: server metadata, the probe
+objects, model metadata for each model kind, inference for embedding,
+reranker, classifier, token classifier and generative models, `outputs`
+narrowing the response, the embedding tensor matching the `/api/v1` vectors
+flattened row-major, and the `{"error": "..."}` refusals with 400, 404 and
+500.
+
+Every check is a hard assertion. When a call the test expected to succeed is
 refused, the failure carries the server's own message.
 
 ## Screenshots
@@ -87,10 +115,11 @@ not part of a normal run, because it overwrites committed files:
 cd demo/java-web-spring/e2e && npm run screenshots
 ```
 
-That writes `docs/screenshots/page.png` (the whole page after embedding the
-three defaults) and `docs/screenshots/matrix.png` (the table alone), at 1200
-CSS pixels wide, device scale factor 1, light color scheme. The test fails if
-an image exceeds 400 KB.
+That writes, at 1200 CSS pixels wide, device scale factor 1, light color
+scheme: `docs/screenshots/page.png` (the whole page after embedding the three
+defaults), `matrix.png` (the table alone), `rerank.png`, `tokenize.png` and
+`devices.png` (each panel after running it). The test fails if an image
+exceeds 400 KB.
 
 The other two images come from runs on real models, so each needs an app
 already serving one:
