@@ -971,7 +971,7 @@ impl ProviderSession for MockSession {
         let in_bytes = (self.ids.len() * 4 * 2) as u64;
         SessionStats {
             runs: self.runs,
-            host_allocs: 0,
+            host_allocs: None,
             h2d_bytes: 0,
             d2h_bytes: 0,
             input_bytes: in_bytes,

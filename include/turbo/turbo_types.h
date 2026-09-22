@@ -1528,7 +1528,8 @@ typedef struct turbo_session_stats {
      */
     uint64_t runs;
     /**
-     * Host heap allocations made by the adapter on the run path since warmup.
+     * Host heap allocations made by the adapter on the run path since
+     * warmup, or `UINT64_MAX` when the adapter does not count them.
      */
     uint64_t host_allocs;
     /**

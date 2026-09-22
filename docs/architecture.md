@@ -262,7 +262,7 @@ that need them, starting P4; there is no code path that produces them yet.
 Sessions preallocate their input/output storage at creation for the declared
 maximum shape (`MockModel::create_session` sizes `out`, `sorted`, `ids`,
 `mask` once); `run` does not grow them. `turbo_session_stats` /
-`SessionStats` reports `host_allocs`, `h2d_bytes`, `d2h_bytes`,
+`SessionStats` reports `host_allocs` (or "not counted" when the adapter keeps no tally; a hardcoded zero is not allowed), `h2d_bytes`, `d2h_bytes`,
 `input_bytes`, `output_bytes`, and a provider-reported `provider_allocs`
 counter (`u64::MAX` sentinel for "unknown" at the ABI boundary). The mock's
 own `allocs` counter only increments after the first run (see

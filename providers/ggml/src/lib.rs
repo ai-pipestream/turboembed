@@ -534,7 +534,10 @@ impl Plan {
             stop_tokens: desc.stop_tokens.clone(),
             logprobs: desc.logprobs,
             echo: desc.echo,
-            seed: desc.seed.map(|s| (s & 0xFFFF_FFFF) as u32).unwrap_or(0xDEAD_BEEF),
+            // An unseeded sampled generation is a fresh draw, as a caller who
+            // omitted the seed expects; the chunk stream does not report the
+            // seed, so a caller who wants reproduction sets one.
+            seed: desc.seed.map(|s| (s & 0xFFFF_FFFF) as u32).unwrap_or_else(fresh_seed),
             temperature: desc.temperature,
             top_k: desc.top_k,
             top_p: desc.top_p,
@@ -613,7 +616,11 @@ struct Generation {
     prompt_text: String,
     n_past: i32,
     generated: u32,
-    text_acc: String,
+    /// Decoded text not yet handed out: the last `hold_max` bytes stay
+    /// here so a stop string that spans token boundaries can be withheld
+    /// whole instead of leaking its prefix in earlier chunks.
+    hold: String,
+    hold_max: usize,
     pending: Vec<u8>,
     prompted: bool,
     cancelled: bool,
@@ -629,6 +636,7 @@ unsafe impl Send for Generation {}
 impl Generation {
     fn new(inner: Arc<ModelInner>, desc: &GenerateDesc) -> Result<Self> {
         let plan = Plan::from_desc(desc, &inner)?;
+        let hold_max = hold_max_of(&plan.stop);
         let sampler = plan.sampler(&inner.model, false)?;
         let sampler_no_eog = if plan.min_new > 0 { Some(plan.sampler(&inner.model, true)?) } else { None };
         let n_ctx = inner.info.max_seq;
@@ -654,7 +662,8 @@ impl Generation {
             prompt_text: String::new(),
             n_past: 0,
             generated: 0,
-            text_acc: String::new(),
+            hold: String::new(),
+            hold_max,
             pending: Vec::new(),
             prompted: false,
             cancelled: false,
@@ -703,7 +712,7 @@ impl Generation {
         }
         self.n_past = pos;
         self.generated = 0;
-        self.text_acc.clear();
+        self.hold.clear();
         self.pending.clear();
         self.prompted = true;
         self.done = false;
@@ -715,9 +724,27 @@ impl Generation {
     }
 
     fn finish(&mut self, out: &mut Chunk, reason: FinishReason) {
+        // Whatever was held back for stop-string matching is text the
+        // model produced; the stream ends with it.
+        out.text.push_str(&self.hold);
+        self.hold.clear();
         out.done = true;
         out.finish_reason = reason;
         self.done = true;
+    }
+
+    /// Hand out the held text except the last `hold_max` bytes, cut on a
+    /// character boundary.
+    fn release_held(&mut self, out: &mut Chunk) {
+        if self.hold.len() <= self.hold_max {
+            return;
+        }
+        let mut cut = self.hold.len() - self.hold_max;
+        while cut > 0 && !self.hold.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        out.text.push_str(&self.hold[..cut]);
+        self.hold.drain(..cut);
     }
 
     /// Append a token's bytes and return the text that became decodable.
@@ -737,16 +764,49 @@ impl Generation {
         Ok(text)
     }
 
-    /// Top-`k` log probabilities of the distribution the last decode produced.
+    /// Top-`k` log probabilities of the model's own distribution for the
+    /// last decode: the log-softmax of the raw logits, before the sampler
+    /// chain (temperature, top-k/p, penalties, logit bias, grammar) and in
+    /// descending order without token ids. That is what the ABI's
+    /// `logprobs` field carries (see the provider README); it is not the
+    /// probability the sampled token was drawn with.
     fn top_logprobs(&mut self, k: u32, out: &mut Vec<f32>) {
         let idx = self.batch.n_tokens() - 1;
         let logits = self.ctx().get_logits_ith(idx);
         let max = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         let lse = max + logits.iter().map(|l| (l - max).exp()).sum::<f32>().ln();
-        let mut top: Vec<f32> = logits.iter().map(|l| l - lse).collect();
+        let k = (k as usize).min(logits.len());
+        if k == 0 {
+            return;
+        }
+        let mut all: Vec<f32> = logits.iter().map(|l| l - lse).collect();
+        all.select_nth_unstable_by(k - 1, |a, b| b.total_cmp(a));
+        let top = &mut all[..k];
         top.sort_by(|a, b| b.total_cmp(a));
-        out.extend(top.into_iter().take(k as usize));
+        out.extend_from_slice(top);
     }
+}
+
+/// Most tokens one embedding decode carries. llama.cpp's encoder needs a
+/// whole decode inside one micro-batch and its compute buffer grows with
+/// the square of the micro-batch, so a run is split into groups of rows
+/// that fit this many tokens (or one sequence, when that is larger).
+const EMBED_UBATCH_CAP: u32 = 4096;
+
+/// A seed from the OS for generations that name none.
+fn fresh_seed() -> u32 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u64(
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(0),
+    );
+    (h.finish() & 0xFFFF_FFFF) as u32
+}
+
+/// Bytes to hold back so no stop string can be partly delivered: the
+/// longest stop string minus one byte (a match needs the new piece).
+fn hold_max_of(stop: &[String]) -> usize {
+    stop.iter().map(|s| s.len()).max().unwrap_or(0).saturating_sub(1)
 }
 
 impl ProviderGeneration for Generation {
@@ -842,19 +902,24 @@ impl ProviderGeneration for Generation {
             return Ok(());
         }
         let piece = self.piece(token)?;
-        out.text.push_str(&piece);
-        self.text_acc.push_str(&piece);
+        self.hold.push_str(&piece);
         if self.plan.stop_tokens.contains(&token.0) {
             self.finish(out, FinishReason::Stop);
             return Ok(());
         }
-        if let Some(s) = self.plan.stop.iter().find(|s| !s.is_empty() && self.text_acc.ends_with(s.as_str())) {
-            // Hand back the text before the stop string only.
-            let keep = out.text.len().saturating_sub(s.len());
-            out.text.truncate(keep);
-            self.finish(out, FinishReason::Stop);
+        if let Some(s) = self.plan.stop.iter().find(|s| !s.is_empty() && self.hold.ends_with(s.as_str())) {
+            // The held text always covers the stop string (at least
+            // `len - 1` bytes were retained before this piece), so the whole
+            // match is withheld and only the text before it goes out.
+            let keep = self.hold.len() - s.len();
+            out.text.push_str(&self.hold[..keep]);
+            self.hold.clear();
+            out.done = true;
+            out.finish_reason = FinishReason::Stop;
+            self.done = true;
             return Ok(());
         }
+        self.release_held(out);
         // Feed the token back for the next step.
         self.batch.clear();
         self.batch.add(token, self.n_past, &[0], true).map_err(|e| Error::internal(format!("batch add: {e}")))?;
@@ -886,6 +951,8 @@ struct EmbedSession {
     ctx: Option<LlamaContext<'static>>,
     batch: LlamaBatch<'static>,
     rows: Vec<Vec<LlamaToken>>,
+    /// Tokens one decode call may carry (the context's micro-batch).
+    ubatch: usize,
     out: Arc<HostBuffer>,
     opts: EmbedOptions,
     n_rows: u32,
@@ -911,24 +978,31 @@ impl EmbedSession {
         };
         let n_tokens =
             max_batch.checked_mul(max_seq).ok_or_else(|| Error::invalid_shape("max_batch * max_seq overflows"))?;
-        // An encoder-only model attends over the whole batch at once, so the
-        // context, batch, and micro-batch all hold every token of a run.
+        // llama.cpp's encoder path requires every token of a decode call to
+        // fit one micro-batch (`n_ubatch >= n_tokens`, a hard assert), and
+        // its compute buffer (the attention mask included) grows with the
+        // square of the micro-batch. So the micro-batch is capped at
+        // `EMBED_UBATCH_CAP` tokens (never below one sequence) and a run
+        // decodes its rows in groups that fit; the context only ever holds
+        // one group.
+        let ubatch = n_tokens.min(EMBED_UBATCH_CAP).max(max_seq);
         let params = LlamaContextParams::default()
-            .with_n_ctx(NonZeroU32::new(n_tokens))
-            .with_n_batch(n_tokens)
-            .with_n_ubatch(n_tokens)
+            .with_n_ctx(NonZeroU32::new(ubatch))
+            .with_n_batch(ubatch)
+            .with_n_ubatch(ubatch)
             .with_n_seq_max(max_batch)
             .with_embeddings(true)
             .with_pooling_type(pooling);
         let ctx = inner.model.new_context(backend()?, params).map_err(|e| {
-            Error::runtime(format!("llama.cpp could not create an embedding context of {n_tokens} tokens: {e}"))
+            Error::runtime(format!("llama.cpp could not create an embedding context of {ubatch} tokens: {e}"))
         })?;
         // SAFETY: as for `Generation`: `inner` outlives the context, which is
         // declared first so it drops first.
         let ctx: LlamaContext<'static> = unsafe { std::mem::transmute(ctx) };
         Ok(Self {
             ctx: Some(ctx),
-            batch: LlamaBatch::new(n_tokens as usize, max_batch as i32),
+            batch: LlamaBatch::new(ubatch as usize, max_batch as i32),
+            ubatch: ubatch as usize,
             rows: (0..max_batch).map(|_| Vec::with_capacity(max_seq as usize)).collect(),
             out: HostBuffer::packed(DType::F32, &[max_batch as u64, embed.dim as u64])?,
             opts: EmbedOptions::default(),
@@ -996,10 +1070,15 @@ impl ProviderSession for EmbedSession {
             if tokens.len() <= budget {
                 row.extend_from_slice(&tokens);
             } else {
-                // Keep the special tokens at both ends and cut the content.
-                let (first, last) = (tokens[0], tokens[tokens.len() - 1]);
-                let content = &tokens[1..tokens.len() - 1];
-                let keep = budget - 2;
+                // Keep the leading special token, and the trailing one when
+                // the vocabulary added one (BERT's [SEP]; a decoder-style
+                // embedder adds BOS only and its last token is content), and
+                // cut the content between them.
+                let first = tokens[0];
+                let last_is_special = model.model.is_eog_token(tokens[tokens.len() - 1]);
+                let last = if last_is_special { Some(tokens[tokens.len() - 1]) } else { None };
+                let content = if last_is_special { &tokens[1..tokens.len() - 1] } else { &tokens[1..] };
+                let keep = budget - 1 - usize::from(last_is_special);
                 let kept = match opts.truncate {
                     Truncate::None => {
                         return Err(Error::capacity(format!(
@@ -1012,7 +1091,9 @@ impl ProviderSession for EmbedSession {
                 };
                 row.push(first);
                 row.extend_from_slice(kept);
-                row.push(last);
+                if let Some(l) = last {
+                    row.push(l);
+                }
             }
         }
         self.opts = *opts;
@@ -1030,13 +1111,32 @@ impl ProviderSession for EmbedSession {
         for r in 0..batch.batch as usize {
             let ids = batch.ids_row(r);
             let mask = batch.mask_row(r);
-            let row = &mut self.rows[r];
-            row.clear();
-            // Masked positions carry padding; the graph sees live tokens only.
-            row.extend(ids.iter().zip(mask).filter(|(_, m)| **m != 0).map(|(&id, _)| LlamaToken(id)));
-            if row.is_empty() {
+            // The mask is honored as trailing padding: live tokens, then
+            // zeros. A zero inside the live run would have to be dropped or
+            // attended to, and llama.cpp offers neither for an encoder, so
+            // it is refused rather than reinterpreted.
+            let live = mask.iter().position(|&m| m == 0).unwrap_or(mask.len());
+            if let Some(bad) = mask[live..].iter().position(|&m| m != 0) {
+                return Err(Error::invalid_argument(format!(
+                    "token batch row {r} has a masked position at column {live} followed by a live token at column {}; \
+                     the ggml provider takes the mask as trailing padding only",
+                    live + bad
+                )));
+            }
+            if live == 0 {
                 return Err(Error::invalid_argument(format!("token batch row {r} has no live tokens")));
             }
+            if let Some(types) = batch.types {
+                let stride = batch.row_stride as usize;
+                if types[r * stride..r * stride + live].iter().any(|&t| t != 0) {
+                    return Err(Error::unsupported(format!(
+                        "token batch row {r} carries token_type_ids other than 0; GGUF encoders take no token types"
+                    )));
+                }
+            }
+            let row = &mut self.rows[r];
+            row.clear();
+            row.extend(ids[..live].iter().map(|&id| LlamaToken(id)));
         }
         self.opts = EmbedOptions::default();
         self.n_rows = batch.batch;
@@ -1057,37 +1157,56 @@ impl ProviderSession for EmbedSession {
             Normalize::L2 => true,
             Normalize::None => false,
         };
-        self.batch.clear();
-        for r in 0..n {
-            self.batch
-                .add_sequence(&self.rows[r], r as i32, true)
-                .map_err(|e| Error::internal(format!("batch add for row {r}: {e}")))?;
-        }
         let ctx = self.ctx.as_mut().expect("context");
-        ctx.clear_kv_cache();
-        ctx.decode(&mut self.batch).map_err(|e| Error::runtime(format!("llama.cpp decode failed: {e}")))?;
         // SAFETY: the core holds the session lock with no result lease outstanding.
         let out = unsafe { self.out.as_f32_mut()? };
-        for r in 0..n {
-            let v = ctx
-                .embeddings_seq_ith(r as i32)
-                .map_err(|e| Error::runtime(format!("llama.cpp returned no embedding for row {r}: {e}")))?;
-            if v.len() != dim {
+        // Rows are decoded in groups whose token total fits the micro-batch;
+        // a row is never longer than one sequence, so every group holds at
+        // least one row.
+        let mut start = 0usize;
+        while start < n {
+            let mut end = start;
+            let mut total = 0usize;
+            while end < n && (end == start || total + self.rows[end].len() <= self.ubatch) {
+                total += self.rows[end].len();
+                end += 1;
+            }
+            if total > self.ubatch {
                 return Err(Error::internal(format!(
-                    "llama.cpp returned {} values for row {r}, expected {dim}",
-                    v.len()
+                    "row {start} holds {total} tokens but the micro-batch holds {}",
+                    self.ubatch
                 )));
             }
-            let dst = &mut out[r * dim_out..(r + 1) * dim_out];
-            dst.copy_from_slice(&v[..dim_out]);
-            if normalize {
-                let norm = dst.iter().map(|x| x * x).sum::<f32>().sqrt();
-                if norm > 1e-12 {
-                    for x in dst.iter_mut() {
-                        *x /= norm;
+            self.batch.clear();
+            for r in start..end {
+                self.batch
+                    .add_sequence(&self.rows[r], (r - start) as i32, true)
+                    .map_err(|e| Error::internal(format!("batch add for row {r}: {e}")))?;
+            }
+            ctx.clear_kv_cache();
+            ctx.decode(&mut self.batch).map_err(|e| Error::runtime(format!("llama.cpp decode failed: {e}")))?;
+            for r in start..end {
+                let v = ctx
+                    .embeddings_seq_ith((r - start) as i32)
+                    .map_err(|e| Error::runtime(format!("llama.cpp returned no embedding for row {r}: {e}")))?;
+                if v.len() != dim {
+                    return Err(Error::internal(format!(
+                        "llama.cpp returned {} values for row {r}, expected {dim}",
+                        v.len()
+                    )));
+                }
+                let dst = &mut out[r * dim_out..(r + 1) * dim_out];
+                dst.copy_from_slice(&v[..dim_out]);
+                if normalize {
+                    let norm = dst.iter().map(|x| x * x).sum::<f32>().sqrt();
+                    if norm > 1e-12 {
+                        for x in dst.iter_mut() {
+                            *x /= norm;
+                        }
                     }
                 }
             }
+            start = end;
         }
         if self.inner.device_kind != DeviceKind::Cpu {
             // llama.cpp copied the pooled vectors from the device.
@@ -1107,7 +1226,9 @@ impl ProviderSession for EmbedSession {
     fn stats(&self) -> SessionStats {
         SessionStats {
             runs: self.runs,
-            host_allocs: 0,
+            // Not counted: the result API and llama.cpp both allocate on
+            // the run path (see the CUDA provider's note).
+            host_allocs: None,
             h2d_bytes: 0,
             d2h_bytes: self.d2h,
             input_bytes: (self.max_batch as u64) * (self.max_seq as u64) * 4,

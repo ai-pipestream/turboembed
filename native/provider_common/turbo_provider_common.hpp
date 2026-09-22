@@ -10,6 +10,8 @@
 // headers only.
 #pragma once
 
+#include "turbo_versioned.hpp"
+
 #include "turbo/turbo_types.h"
 
 #include <nlohmann/json.hpp>
@@ -125,17 +127,16 @@ inline std::string text_of(turbo_text t) {
     return std::string(t.ptr, static_cast<size_t>(t.len));
 }
 
-/// Accept a descriptor of the exact current size or an older, smaller one.
+/// Accept a descriptor whose `struct_size` is a layout this ABI has had:
+/// the current size or the end of an earlier field (the same table the
+/// Rust core applies, generated into `turbo_versioned.hpp`). A size that
+/// ends inside a field is refused; it was never a layout.
 template <typename T>
 inline void check_size(const char *what, uint32_t got) {
-    const size_t expected = sizeof(T);
-    if (got == expected) {
-        return;
-    }
-    if (got < 4 || got > expected) {
+    if (!turbo_versioned::size_is_known(static_cast<const T *>(nullptr), got)) {
         fail(TURBO_E_INVALID_STRUCT_SIZE,
              std::string(what) + ".struct_size is " + std::to_string(got) + "; this provider understands " +
-                 std::to_string(expected));
+                 std::to_string(sizeof(T)) + " and the earlier layouts of the struct");
     }
 }
 

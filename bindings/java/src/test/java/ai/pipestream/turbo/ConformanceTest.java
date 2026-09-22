@@ -342,4 +342,84 @@ class ConformanceTest {
             assertEquals(TURBO_E_CAPACITY(), e.code(), e.getMessage());
         }
     }
+
+    @Test
+    void aHeldResultMakesEveryRunOnAnotherThreadBusy() throws Exception {
+        try (Turbo rt = Turbo.create();
+                Context ctx = rt.createContext(mockDevice(rt));
+                Model model = ctx.loadModel(bundle("embedding"));
+                Session s = model.createSession(2, 0)) {
+            s.writeText(List.of("held"), EmbedOptions.defaults());
+            AtomicInteger busy = new AtomicInteger();
+            AtomicInteger other = new AtomicInteger();
+            try (Result held = s.run()) {
+                Thread t = new Thread(() -> {
+                    for (int i = 0; i < 20; i++) {
+                        try {
+                            s.writeText(List.of("contender"), EmbedOptions.defaults());
+                            other.incrementAndGet();
+                        } catch (TurboException e) {
+                            if (e.code() == TURBO_E_BUSY()) {
+                                busy.incrementAndGet();
+                            } else {
+                                other.incrementAndGet();
+                            }
+                        }
+                    }
+                });
+                t.start();
+                t.join();
+                assertEquals(1, held.outputCount());
+            }
+            assertEquals(20, busy.get(), "every attempt while the result is held is BUSY");
+            assertEquals(0, other.get(), "nothing else happened");
+            s.writeText(List.of("after"), EmbedOptions.defaults());
+            try (Result r = s.run()) {
+                assertEquals(model.info().dim(), r.readFloats(0).length);
+            }
+        }
+    }
+
+    @Test
+    void cancelFromAnotherThreadIsNeverBusyAndEndsTheStream() throws Exception {
+        try (Turbo rt = Turbo.create();
+                Context ctx = rt.createContext(mockDevice(rt));
+                Model model = ctx.loadModel(bundle("generative"));
+                Generation g = model.createGeneration(GenerateDesc.defaults().withMaxNewTokens(64))) {
+            g.prompt(List.of(Message.user("say something")));
+            Chunk first = g.step();
+            assertFalse(first.done());
+            CountDownLatch cancelled = new CountDownLatch(1);
+            AtomicInteger failures = new AtomicInteger();
+            Thread t = new Thread(() -> {
+                try {
+                    g.cancel();
+                } catch (TurboException e) {
+                    failures.incrementAndGet();
+                }
+                cancelled.countDown();
+            });
+            t.start();
+            cancelled.await();
+            t.join();
+            assertEquals(0, failures.get(), "cancel from another thread never fails");
+            Chunk next = g.step();
+            assertTrue(next.done(), "the step after a cancel is the last one");
+            assertEquals(FinishReason.CANCELLED, next.finishReason());
+        }
+    }
+
+    @Test
+    void indexedArrayAccessorsAddressTheField() {
+        try (java.lang.foreign.Arena arena = java.lang.foreign.Arena.ofConfined()) {
+            java.lang.foreign.MemorySegment d = ai.pipestream.turbo.ffi.turbo_buffer_desc.allocate(arena);
+            ai.pipestream.turbo.ffi.turbo_buffer_desc.struct_size(d, 4242);
+            ai.pipestream.turbo.ffi.turbo_buffer_desc.shape(d, 0, 7L);
+            ai.pipestream.turbo.ffi.turbo_buffer_desc.shape(d, 2, 9L);
+            assertEquals(4242, ai.pipestream.turbo.ffi.turbo_buffer_desc.struct_size(d), "the setter must not touch struct_size");
+            assertEquals(7L, ai.pipestream.turbo.ffi.turbo_buffer_desc.shape(d, 0));
+            assertEquals(9L, ai.pipestream.turbo.ffi.turbo_buffer_desc.shape(d, 2));
+            assertEquals(7L, ai.pipestream.turbo.ffi.turbo_buffer_desc.shape(d).getAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG, 0));
+        }
+    }
 }

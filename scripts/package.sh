@@ -17,6 +17,9 @@ cd "$root"
 no_cuda=0
 no_openvino=0
 no_hailo=0
+cuda_ok=0
+ov_ok=0
+hailo_ok=0
 for arg in "$@"; do
     case "$arg" in
         --no-cuda) no_cuda=1 ;;
@@ -62,8 +65,8 @@ present=()
 absent=()
 
 # --- required: libturbo, headers, turbo-bundle --------------------------
-log "building libturbo (turbo-shared), turbo-bundle, and the mock/static providers"
-cargo build --release -p turbo-shared -p turbo-provider-mock -p turbo-provider-static -p turbo-bundle
+log "building libturbo (turbo-shared), turbo-bundle, turbo-bench, and the mock/static providers"
+cargo build --release -p turbo-shared -p turbo-provider-mock -p turbo-provider-static -p turbo-bundle -p turbo-bench
 
 [[ -f "$relq/libturbo.so" ]] || die "missing $relq/libturbo.so (required); cargo build --release -p turbo-shared failed"
 [[ -f "$root/include/turbo/turbo.h" && -f "$root/include/turbo/turbo_types.h" && -f "$root/include/turbo/turbo_provider.h" ]] \
@@ -103,11 +106,13 @@ if [[ $no_cuda -eq 1 ]]; then
     log "skipping the CUDA provider build (--no-cuda)"
 else
     log "building the CUDA provider (turbo-provider-cuda)"
-    if ! cargo build --release -p turbo-provider-cuda; then
-        warn "turbo-provider-cuda build failed; packaging without it"
+    if cargo build --release -p turbo-provider-cuda; then
+        cuda_ok=1
+    else
+        warn "turbo-provider-cuda build failed; packaging without it (a stale library in target/ is not packaged)"
     fi
 fi
-if [[ $no_cuda -eq 0 && -f "$relq/libturbo_provider_cuda.so" ]]; then
+if [[ $cuda_ok -eq 1 && -f "$relq/libturbo_provider_cuda.so" ]]; then
     cp -L "$relq/libturbo_provider_cuda.so" "$stage/providers/"
     present+=("providers/libturbo_provider_cuda.so")
     for extra in libonnxruntime_providers_cuda.so libonnxruntime_providers_shared.so; do
@@ -136,6 +141,7 @@ if [[ $no_openvino -eq 1 ]]; then
     log "skipping the OpenVINO provider build (--no-openvino)"
 elif [[ -f "$ov_lib" ]]; then
     log "using the existing OpenVINO provider build at build/openvino"
+    ov_ok=1
 else
     ov_dir="${TURBO_OPENVINO_DIR:-}"
     if [[ -z "$ov_dir" ]]; then
@@ -148,7 +154,7 @@ else
         if cmake -S "$root/providers/openvino" -B "$root/build/openvino" \
                 -DOpenVINO_DIR="$ov_dir/runtime/cmake" -DCMAKE_BUILD_TYPE=Release >&2 \
             && cmake --build "$root/build/openvino" -j >&2; then
-            :
+            ov_ok=1
         else
             warn "OpenVINO provider build failed; packaging without it"
         fi
@@ -156,7 +162,7 @@ else
         warn "no OpenVINO SDK found (set TURBO_OPENVINO_DIR); packaging without the OpenVINO provider"
     fi
 fi
-if [[ $no_openvino -eq 0 && -f "$ov_lib" ]]; then
+if [[ $ov_ok -eq 1 && -f "$ov_lib" ]]; then
     cp -L "$ov_lib" "$stage/providers/"
     present+=("providers/libturbo_provider_openvino.so")
 else
@@ -173,20 +179,21 @@ if [[ $no_hailo -eq 1 ]]; then
     log "skipping the Hailo provider build (--no-hailo)"
 elif [[ -f "$hailo_lib" ]]; then
     log "using the existing Hailo provider build at build/hailo"
+    hailo_ok=1
 elif [[ -f /usr/include/hailo/hailort.h || -n "${HAILORT_INCLUDE_DIR:-}" ]]; then
     log "building the Hailo provider"
     if cmake -S "$root/providers/hailo" -B "$root/build/hailo" -DCMAKE_BUILD_TYPE=Release \
             ${HAILORT_INCLUDE_DIR:+-DHAILORT_INCLUDE_DIR="$HAILORT_INCLUDE_DIR"} \
             ${HAILORT_LIBRARY:+-DHAILORT_LIBRARY="$HAILORT_LIBRARY"} >&2 \
         && cmake --build "$root/build/hailo" -j >&2; then
-        :
+        hailo_ok=1
     else
         warn "Hailo provider build failed; packaging without it"
     fi
 else
     log "no HailoRT headers found; packaging without the Hailo provider"
 fi
-if [[ $no_hailo -eq 0 && -f "$hailo_lib" ]]; then
+if [[ $hailo_ok -eq 1 && -f "$hailo_lib" ]]; then
     cp -L "$hailo_lib" "$stage/providers/"
     present+=("providers/libturbo_provider_hailo.so")
 else
@@ -287,9 +294,11 @@ $(list_or_none "${present[@]}")
 
 $(list_or_none "${absent[@]}")
 
-The CUDA 13 user-space libraries the CUDA provider's ONNX Runtime execution
-provider links against (cuBLAS, cuBLASLt, cuDNN 9, NVRTC, the CUDA 13
-runtime) are never bundled: they are large, GPU-driver-version-sensitive,
+The CUDA user-space libraries the CUDA provider needs are never bundled: the
+ONNX Runtime execution provider links the CUDA 13 set (cuBLAS, cuBLASLt,
+cuDNN 9, NVRTC, the CUDA 13 runtime), and the provider's own kernels link
+the \`libcudart\` of the toolkit that compiled them (\`libcudart.so.12\` on the
+build machine; see \`ldd\` above). They are they are large, GPU-driver-version-sensitive,
 and already managed by whatever CUDA install or NVIDIA PyPI wheel set the
 target machine uses. Point the provider at them with the \`TURBO_CUDA_LIB_DIR\`
 environment variable (or the context option \`cuda_lib_dir\`); the provider
@@ -356,6 +365,14 @@ smoke_bin="$root/target/package/turbo-c-smoke-$name"
 ld_path="$verify_dir/lib"
 [[ -n "${LD_LIBRARY_PATH:-}" ]] && ld_path="$ld_path:$LD_LIBRARY_PATH"
 LD_LIBRARY_PATH="$ld_path" "$smoke_bin" "$root/testdata/bundles/mock"
+
+# Every packaged provider must load from the extracted archive: the survey
+# dlopens each library, and --strict fails on any that does not load. The
+# runtimes the providers link (OpenVINO, CUDA) come from LD_LIBRARY_PATH as
+# they would on a consumer machine.
+log "verifying the archive: loading every packaged provider"
+LD_LIBRARY_PATH="$ld_path" "$relq/turbo-bench" discover --provider-dir "$verify_dir/providers" --strict >&2 \
+    || die "a packaged provider does not load from the extracted archive (see above)"
 
 size_bytes="$(stat -c '%s' "$archive" 2>/dev/null || stat -f '%z' "$archive")"
 size_human="$(numfmt --to=iec --suffix=B "$size_bytes" 2>/dev/null || echo "${size_bytes} bytes")"

@@ -92,3 +92,30 @@ cargo test -p turbo-conformance --test live_embed -- --test-threads=1
 Every cell is `EXPERIMENTAL`. Not yet: rerank and classification through
 GGUF, tokenize/detokenize for GGUF vocabularies, JSON-schema constrained
 output, and the throughput receipts.
+
+## Semantics worth knowing
+
+- `logprobs`: the top-k log-softmax of the model's raw logits for the step,
+  descending, without token ids. That is the model's own distribution
+  before the sampler chain (temperature, top-k/p, penalties, logit bias,
+  grammar), not the probability the sampled token was drawn with.
+- Stop strings: decoded text is held back by the longest stop string's
+  length minus one, so a stop string that spans token boundaries is
+  withheld whole; the final chunk flushes what was held.
+- An unseeded sampled generation draws its seed from the OS; set `seed`
+  for reproduction.
+- `write_tokens`: the attention mask is honored as trailing padding (live
+  tokens then zeros); a zero inside the live run is refused, and token
+  types other than 0 are refused.
+- Truncation keeps the leading special token and the trailing one only when
+  the vocabulary added one (BERT's `[SEP]`); a BOS-only embedder keeps its
+  head.
+- The embedding context's micro-batch is capped at 4096 tokens (or one
+  sequence, when a sequence is longer): llama.cpp's encoder path needs
+  every token of a decode call inside one micro-batch and its compute
+  buffer grows with the micro-batch squared, so a run decodes its rows in
+  groups that fit the cap rather than sizing the context at the whole
+  batch.
+- `host_allocs` is reported as not counted: the result API hands the core
+  owned vectors every run.
+

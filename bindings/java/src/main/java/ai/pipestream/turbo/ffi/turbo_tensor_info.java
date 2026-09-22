@@ -286,7 +286,7 @@ public class turbo_tensor_info {
      * }
      */
     public static long shape(MemorySegment struct, long index0) {
-        return (long)shape$ELEM_HANDLE.get(struct, 0L, index0);
+        return shape(struct).getAtIndex(JAVA_LONG, index0);
     }
 
     /**
@@ -296,7 +296,7 @@ public class turbo_tensor_info {
      * }
      */
     public static void shape(MemorySegment struct, long index0, long fieldValue) {
-        shape$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        shape(struct).setAtIndex(JAVA_LONG, index0, fieldValue);
     }
 
     private static final SequenceLayout name$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("name"));
@@ -363,7 +363,7 @@ public class turbo_tensor_info {
      * }
      */
     public static byte name(MemorySegment struct, long index0) {
-        return (byte)name$ELEM_HANDLE.get(struct, 0L, index0);
+        return name(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -373,7 +373,7 @@ public class turbo_tensor_info {
      * }
      */
     public static void name(MemorySegment struct, long index0, byte fieldValue) {
-        name$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        name(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     /**

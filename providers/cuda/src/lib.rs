@@ -180,10 +180,9 @@ impl Provider for CudaProvider {
             cosine_floor: 0.0,
             max_abs_error: 0.0,
             deterministic: false,
-            notes: format!(
-                "onnxruntime CUDA EP on {} with device-side pooling and activation kernels; precision and benchmark receipts pending",
-                p.name
-            ),
+            // The ABI field holds 127 bytes; the device name is cut first so
+            // the status words always fit.
+            notes: format!("ORT CUDA EP, device-side pooling/activation; receipts pending; {}", p.name),
         }
     }
 
@@ -1475,7 +1474,10 @@ impl ProviderSession for CudaSession {
         let inputs = if self.d_types.is_some() { 3 } else { 2 };
         SessionStats {
             runs: self.runs,
-            host_allocs: 0,
+            // The result API hands the core owned vectors and names every
+            // run, so this path is not allocation-free and the provider
+            // keeps no count of it; "not counted" rather than a false zero.
+            host_allocs: None,
             h2d_bytes: self.h2d,
             d2h_bytes: self.d2h,
             input_bytes: inputs * n * width,

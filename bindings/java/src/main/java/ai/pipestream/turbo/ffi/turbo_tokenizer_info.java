@@ -470,7 +470,7 @@ public class turbo_tokenizer_info {
      * }
      */
     public static byte kind(MemorySegment struct, long index0) {
-        return (byte)kind$ELEM_HANDLE.get(struct, 0L, index0);
+        return kind(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -480,7 +480,7 @@ public class turbo_tokenizer_info {
      * }
      */
     public static void kind(MemorySegment struct, long index0, byte fieldValue) {
-        kind$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        kind(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout sha256$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("sha256"));
@@ -547,7 +547,7 @@ public class turbo_tokenizer_info {
      * }
      */
     public static byte sha256(MemorySegment struct, long index0) {
-        return (byte)sha256$ELEM_HANDLE.get(struct, 0L, index0);
+        return sha256(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -557,7 +557,7 @@ public class turbo_tokenizer_info {
      * }
      */
     public static void sha256(MemorySegment struct, long index0, byte fieldValue) {
-        sha256$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        sha256(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     /**

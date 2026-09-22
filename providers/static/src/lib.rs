@@ -405,7 +405,7 @@ impl ProviderSession for StaticSession {
     fn stats(&self) -> SessionStats {
         SessionStats {
             runs: self.runs,
-            host_allocs: 0,
+            host_allocs: None,
             h2d_bytes: 0,
             d2h_bytes: 0,
             input_bytes: (self.ids.len() * 8) as u64,

@@ -113,9 +113,10 @@ public final class Session implements AutoCloseable {
             MemorySegment err = Native.error(arena);
             Native.check(turbo_session_get_stats(handle(), st, err), err);
             long allocs = turbo_session_stats.provider_allocs(st);
+            long hostAllocs = turbo_session_stats.host_allocs(st);
             return new SessionStats(
                     turbo_session_stats.runs(st),
-                    turbo_session_stats.host_allocs(st),
+                    hostAllocs == -1L ? null : hostAllocs,
                     turbo_session_stats.h2d_bytes(st),
                     turbo_session_stats.d2h_bytes(st),
                     turbo_session_stats.input_bytes(st),

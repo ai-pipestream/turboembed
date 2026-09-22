@@ -27,12 +27,13 @@ fn check_steady_state(name: &str, session: &Session, mut write_and_run: impl FnM
     assert_eq!(end.runs, ITERATIONS + 1, "{name}: runs must count every completed run");
     assert_eq!(end.input_bytes, after_warmup.input_bytes, "{name}: bound input storage must not grow after warmup");
     assert_eq!(end.output_bytes, after_warmup.output_bytes, "{name}: bound output storage must not grow after warmup");
-    assert_eq!(
-        end.host_allocs,
-        after_warmup.host_allocs,
-        "{name}: the adapter allocated on the run path ({} allocations)",
-        end.host_allocs.saturating_sub(after_warmup.host_allocs)
-    );
+    match (after_warmup.host_allocs, end.host_allocs) {
+        (Some(start), Some(finish)) => {
+            assert_eq!(finish, start, "{name}: the adapter allocated on the run path ({} allocations)", finish - start)
+        }
+        (None, None) => eprintln!("{name}: host allocations are not counted by this provider"),
+        (a, b) => panic!("{name}: host_allocs changed between counted and not counted: {a:?} then {b:?}"),
+    }
     match (after_warmup.provider_allocs, end.provider_allocs) {
         (Some(start), Some(finish)) => {
             assert_eq!(
@@ -49,7 +50,7 @@ fn check_steady_state(name: &str, session: &Session, mut write_and_run: impl FnM
 
 fn report(name: &str, stats: &SessionStats) {
     println!(
-        "{name}: runs={} host_allocs={} provider_allocs={:?} h2d={} d2h={} in={} out={}",
+        "{name}: runs={} host_allocs={:?} provider_allocs={:?} h2d={} d2h={} in={} out={}",
         stats.runs,
         stats.host_allocs,
         stats.provider_allocs,
@@ -179,7 +180,11 @@ fn allocation_counters_are_reported_and_plausible() {
     let (_m, session) = t.session(BundleKind::Embedding);
     let before = session.stats().expect("stats");
     assert_eq!(before.runs, 0, "a fresh session has not run");
-    assert_eq!(before.host_allocs, 0, "host_allocs starts at zero");
+    assert!(
+        matches!(before.host_allocs, None | Some(0)),
+        "host_allocs starts at zero or is not counted: {:?}",
+        before.host_allocs
+    );
     session.write_text(&["hello world"], &EmbedOptions::default()).expect("write");
     let result = session.run(&RunOptions::default()).expect("run");
     let after = session.stats().expect("stats");

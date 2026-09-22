@@ -872,7 +872,8 @@ pub struct turbo_session_stats {
     pub reserved: u32,
     /// Completed runs.
     pub runs: u64,
-    /// Host heap allocations made by the adapter on the run path since warmup.
+    /// Host heap allocations made by the adapter on the run path since
+    /// warmup, or `UINT64_MAX` when the adapter does not count them.
     pub host_allocs: u64,
     /// Explicit host-to-device bytes.
     pub h2d_bytes: u64,

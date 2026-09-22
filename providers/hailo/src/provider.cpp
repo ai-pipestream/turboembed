@@ -16,7 +16,8 @@
 //            add an additive attention-bias input [seq, seq])
 //        --> masked pooling, L2 normalization, output_dim (host)
 //
-// Front ends, selected from the HEF or by the `front_end` model option:
+// Front ends, inferred for two-input HEFs or named by the `front_end` model
+// option (a single-input HEF must name one):
 //   `word`            the official Hailo Model Zoo contract: the raw word
 //                     embedding row at every position (the PAD row on
 //                     padding); position and token-type embeddings and the
@@ -505,6 +506,10 @@ struct Model {
     hailo_output_vstream output = nullptr;
     size_t hidden_bytes = 0, mask_bytes = 0, output_bytes = 0;
     std::mutex run_mu; // vstreams are not reentrant
+    /// Non-empty after a vstream write or read failed mid-run: the pipeline
+    /// may hold a frame the next read would return as this run's result,
+    /// so every later run is refused until the model is reloaded.
+    std::string poisoned;
 
     ~Model() {
         if (n_inputs > 0) {
@@ -669,7 +674,13 @@ std::unique_ptr<Model> load_model(Context *ctx, const std::string &dir, const st
     // embeddings from the host. The option overrides the inference.
     const auto fe = opts.find("front_end");
     if (fe == opts.end()) {
-        m->front_end = m->mask != nullptr ? FrontEnd::Word : FrontEnd::BertEmbeddings;
+        // Only the two-input Model Zoo contract is inferred; it is the one
+        // the receipts measure. A single-input HEF must say which front
+        // end it expects, and `bert_embeddings` carries no receipt yet.
+        require(m->mask != nullptr, TURBO_E_BUNDLE_INVALID,
+                "the HEF has one input, so the provider cannot tell which front end it expects; load it with the "
+                "model option front_end=word or front_end=bert_embeddings (the latter has no precision receipt)");
+        m->front_end = FrontEnd::Word;
     } else if (fe->second == "word") {
         m->front_end = FrontEnd::Word;
     } else if (fe->second == "bert_embeddings") {
@@ -738,6 +749,8 @@ struct Session {
     Session(Model *m, uint32_t b, uint32_t s) : model(m), batch(b), seq(s) {
         require(s <= m->seq_len, TURBO_E_CAPACITY,
                 "session max_seq " + std::to_string(s) + " exceeds the HEF frame of " + std::to_string(m->seq_len) + " tokens");
+        require(b <= m->max_batch, TURBO_E_CAPACITY,
+                "session max_batch " + std::to_string(b) + " exceeds the model's max_batch " + std::to_string(m->max_batch));
         const size_t n = static_cast<size_t>(b) * s;
         ids.assign(n, wordpiece_pad_id(m->vocab));
         mask.assign(n, 0);
@@ -757,8 +770,10 @@ struct Session {
     }
 
     uint32_t budget(uint32_t max_tokens) const {
-        const uint32_t b = max_tokens == 0 ? seq : std::min(max_tokens, seq);
-        require(b >= 2, TURBO_E_CAPACITY, "token budget must be at least 2 for [CLS] and [SEP]");
+        require(max_tokens <= seq, TURBO_E_CAPACITY,
+                "max_tokens " + std::to_string(max_tokens) + " exceeds the session's max_seq " + std::to_string(seq), 3);
+        const uint32_t b = max_tokens == 0 ? seq : max_tokens;
+        require(b >= 2, TURBO_E_CAPACITY, "token budget must be at least 2 for [CLS] and [SEP]", 3);
         return b;
     }
 
@@ -963,21 +978,32 @@ struct Session {
                 "output_dim " + std::to_string(dim_out) + " exceeds the model dimension " + std::to_string(m.dim), 7);
         {
             std::lock_guard<std::mutex> lock(m.run_mu);
-            for (uint32_t r = 0; r < n_rows; ++r) {
-                build_frame(r);
-                hailo_check(hailo_vstream_write_raw_buffer(m.hidden, in_frame.data(), m.hidden_bytes),
-                            "hailo_vstream_write_raw_buffer (hidden state)");
-                h2d += m.hidden_bytes;
-                if (m.mask != nullptr) {
-                    build_mask(r);
-                    hailo_check(hailo_vstream_write_raw_buffer(m.mask, mask_frame.data(), m.mask_bytes),
-                                "hailo_vstream_write_raw_buffer (attention bias)");
-                    h2d += m.mask_bytes;
+            require(m.poisoned.empty(), TURBO_E_INVALID_STATE,
+                    "the HailoRT pipeline is out of step after an earlier failure (" + m.poisoned +
+                        "); reload the model");
+            try {
+                for (uint32_t r = 0; r < n_rows; ++r) {
+                    build_frame(r);
+                    hailo_check(hailo_vstream_write_raw_buffer(m.hidden, in_frame.data(), m.hidden_bytes),
+                                "hailo_vstream_write_raw_buffer (hidden state)");
+                    h2d += m.hidden_bytes;
+                    if (m.mask != nullptr) {
+                        build_mask(r);
+                        hailo_check(hailo_vstream_write_raw_buffer(m.mask, mask_frame.data(), m.mask_bytes),
+                                    "hailo_vstream_write_raw_buffer (attention bias)");
+                        h2d += m.mask_bytes;
+                    }
+                    hailo_check(hailo_vstream_read_raw_buffer(m.output, out_frame.data(), m.output_bytes),
+                                "hailo_vstream_read_raw_buffer");
+                    d2h += m.output_bytes;
+                    pool_row(r, pool, normalize, dim_out);
                 }
-                hailo_check(hailo_vstream_read_raw_buffer(m.output, out_frame.data(), m.output_bytes),
-                            "hailo_vstream_read_raw_buffer");
-                d2h += m.output_bytes;
-                pool_row(r, pool, normalize, dim_out);
+            } catch (const Failure &e) {
+                // A write that failed after the hidden frame went in, or a
+                // read that timed out, leaves frames in flight; nothing
+                // here can drain them, so the model is marked unusable.
+                m.poisoned = e.what();
+                throw;
             }
         }
         ++runs;
@@ -1235,6 +1261,7 @@ static int32_t x_session_write_text(void *s, const turbo_text *texts, uint32_t c
         default:
             fail(TURBO_E_INVALID_ENUM, "output_dtype " + std::to_string(o.output_dtype) + " is not a TURBO_OUTPUT_* value", 8);
         }
+        S.n_rows = 0; // a failed write leaves nothing runnable
         S.eopts = o;
         const uint32_t budget = S.budget(o.max_tokens);
         const std::string &prefix = o.prompt_role == TURBO_PROMPT_QUERY      ? S.model->bundle.prefix_query
@@ -1255,6 +1282,7 @@ static int32_t x_session_write_tokens(void *s, const turbo_token_batch *batch, t
         require(batch->batch >= 1 && batch->batch <= S.batch && batch->seq >= 1 && batch->seq <= S.seq, TURBO_E_CAPACITY,
                 "token batch exceeds the session shape");
         require(batch->ids != nullptr && batch->mask != nullptr, TURBO_E_INVALID_ARGUMENT, "token batch ids and mask are required");
+        S.n_rows = 0; // a failed write leaves nothing runnable
         const uint32_t stride = batch->row_stride == 0 ? batch->seq : batch->row_stride;
         const int32_t pad = wordpiece_pad_id(S.model->vocab);
         for (uint32_t r = 0; r < batch->batch; ++r) {
@@ -1320,7 +1348,7 @@ static int32_t x_session_stats(void *s, turbo_session_stats *out, turbo_error *e
         turbo_session_stats full{};
         full.struct_size = out->struct_size;
         full.runs = S.runs;
-        full.host_allocs = 0;
+        full.host_allocs = UINT64_MAX; // not counted: the result path allocates and the provider keeps no tally
         // Frames written to and read from the NPU through HailoRT's DMA pipeline.
         full.h2d_bytes = S.h2d;
         full.d2h_bytes = S.d2h;

@@ -1,0 +1,10 @@
+{
+  "_comment": "Cosine floors the live embedding suite holds quantized devices to, against the FP32 reference vectors. Keyed by provider id then compute dtype. Set from the minimum measured in the committed receipt with a margin; raise only with a new receipt. The provider's own capability floor is checked as well and must not exceed the measurement.",
+  "hailo": {
+    "I8": {
+      "floor": 0.45,
+      "receipt": "testdata/receipts/turbo/hailo-2026-09-21.json",
+      "measured_min": 0.472835
+    }
+  }
+}

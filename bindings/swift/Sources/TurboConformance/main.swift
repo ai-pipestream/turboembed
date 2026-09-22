@@ -151,12 +151,14 @@ struct ConformanceTests {
     }
 
     func aHeldResultBlocksTheSessionAndParentsOutliveTheirChildren() throws {
-        var rt: Runtime? = try Runtime()
-        var ctx: Context? = try rt!.createContext(device: try mockDevice(rt!))
-        var model: Model? = try ctx!.loadModel(bundlePath: bundle("embedding"))
-        let session = try model!.createSession(maxBatch: 2)
-        // Parents released first: the session keeps them alive.
-        rt = nil; ctx = nil; model = nil
+        let rt = try Runtime()
+        let ctx = try rt.createContext(device: try mockDevice(rt))
+        let model = try ctx.loadModel(bundlePath: bundle("embedding"))
+        let session = try model.createSession(maxBatch: 2)
+        // Parents closed first, explicitly (not just dropped by ARC, which
+        // the child's back-reference would prevent): the C side keeps them
+        // alive for the session.
+        model.close(); ctx.close(); rt.close()
         try session.writeText(["still works"])
         let result = try session.run()
         let busy = thrown { try session.writeText(["again"]) }
@@ -199,6 +201,137 @@ struct ConformanceTests {
         expect(other == 0, "only TURBO_E_BUSY is acceptable under contention")
         expect(ok > 0, "some runs complete")
     }
+
+    func generationStepsUntilLengthAndCancelIsReported() throws {
+        let rt = try Runtime()
+        let ctx = try rt.createContext(device: try mockDevice(rt))
+        let model = try ctx.loadModel(bundlePath: bundle("generative"))
+        expect(model.info.task == .generate, "a generative bundle")
+        let prompt = [Message.user("say something")]
+        var d = GenerateDesc(); d.maxNewTokens = 6
+        let g = try model.createGeneration(d)
+        try g.prompt(prompt)
+        var tokens: [Int32] = []
+        var text = ""
+        let last = try g.drain { c in
+            tokens += c.tokens; text += c.text
+            if !c.done { expect(c.finishReason == .none, "an unfinished chunk names no reason") }
+            return true
+        }
+        expect(last.done && last.finishReason == .length, "finishes with LENGTH")
+        expect(!tokens.isEmpty && tokens.count <= 6, "max_new_tokens holds: \(tokens.count)")
+        expect(!text.isEmpty, "the stream produced text")
+        expect(tokens.allSatisfy { $0 >= 0 }, "token ids are never negative")
+        var d2 = GenerateDesc(); d2.maxNewTokens = 50
+        let g2 = try model.createGeneration(d2)
+        try g2.prompt(prompt)
+        let first = try g2.step()
+        expect(first.promptTokens > 0 && first.sequence == 0 && !first.done, "the first chunk reports the prompt size")
+        try g2.cancel()
+        let end = try g2.step()
+        expect(end.done && end.finishReason == .cancelled, "cancel is reported on the next step")
+        let g3 = try model.createGeneration(d2)
+        try g3.prompt(prompt)
+        let stopped = try g3.drain { _ in false }
+        expect(stopped.finishReason == .cancelled, "a stopping sink cancels")
+    }
+
+    func generationIsRepeatableWithASeedAndRefusesUnsupportedOptionsByField() throws {
+        let rt = try Runtime()
+        let ctx = try rt.createContext(device: try mockDevice(rt))
+        let model = try ctx.loadModel(bundlePath: bundle("generative"))
+        let prompt = [Message.user("say something")]
+        var runs: [[Int32]] = []
+        for _ in 0..<2 {
+            var d = GenerateDesc(); d.maxNewTokens = 8; d.temperature = 0.9; d.seed = 42
+            let g = try model.createGeneration(d)
+            try g.prompt(prompt)
+            var out: [Int32] = []
+            try g.drain { c in out += c.tokens; return true }
+            runs.append(out)
+        }
+        expect(runs[0] == runs[1], "one seed reproduces one token sequence")
+        let dev = try rt.device(ctx.deviceIndex)
+        if !dev.has(UInt64(TURBO_CAP_OPT_GEN_N)) {
+            var d = GenerateDesc(); d.maxNewTokens = 2; d.nSequences = 3
+            let e = thrown { _ = try model.createGeneration(d) }
+            expect(e?.code == TURBO_E_UNSUPPORTED_OPTION, "n_sequences is refused: \(String(describing: e))")
+            expect(e?.field == 4, "the rejection names n_sequences (field 4): \(String(describing: e))")
+        }
+    }
+
+    func tokenizerEncodesDecodesAndCounts() throws {
+        let rt = try Runtime()
+        let tok = try rt.createTokenizer(bundlePath: Self.bundles + "/../minilm-tokenizer")
+        expect(tok.info.kind == "wordpiece", "kind is wordpiece")
+        expect(tok.info.vocabSize > 1000 && tok.info.specialsPerSequence == 2, "MiniLM tokenizer facts")
+        var o = EncodeOptions(); o.maxTokens = 16
+        let enc = try tok.encode(["hello world", "a longer sentence with several words"], rowStride: 16, options: o)
+        expect(enc.lengths[0] == 4, "[CLS] hello world [SEP]")
+        expect(enc.lengths[1] > enc.lengths[0], "the longer text has more tokens")
+        for r in 0..<2 {
+            for c in 0..<16 {
+                expect(enc.mask[r * 16 + c] == (c < Int(enc.lengths[r]) ? 1 : 0), "mask row \(r) col \(c)")
+                if c >= Int(enc.lengths[r]) { expect(enc.ids[r * 16 + c] == tok.info.padId, "padding carries the pad id") }
+            }
+        }
+        expect(try tok.decode(enc.row(0)) == "hello world", "decode round-trips")
+        expect(try tok.count("hello world") == 4 && tok.count("hello world", addSpecialTokens: false) == 2, "count")
+        var none = EncodeOptions(); none.maxTokens = 6; none.truncate = .none
+        let e = thrown { _ = try tok.encode(["one two three four five six seven eight nine ten"], rowStride: 6, options: none) }
+        expect(e?.code == TURBO_E_CAPACITY, "NONE over budget is a capacity error: \(String(describing: e))")
+    }
+
+    func aHeldResultMakesEveryRunOnAnotherThreadBusy() throws {
+        let rt = try Runtime()
+        let ctx = try rt.createContext(device: try mockDevice(rt))
+        let model = try ctx.loadModel(bundlePath: bundle("embedding"))
+        let session = try model.createSession(maxBatch: 2)
+        try session.writeText(["held"])
+        let held = try session.run()
+        let lock = NSLock()
+        var busy = 0, other = 0
+        let group = DispatchGroup()
+        group.enter()
+        Thread {
+            for _ in 0..<20 {
+                if let e = thrown({ try session.writeText(["contender"]) }) {
+                    lock.lock(); if e.code == TURBO_E_BUSY { busy += 1 } else { other += 1 }; lock.unlock()
+                } else {
+                    lock.lock(); other += 1; lock.unlock()
+                }
+            }
+            group.leave()
+        }.start()
+        group.wait()
+        expect(busy == 20, "every attempt while the result is held is BUSY (\(busy))")
+        expect(other == 0, "nothing else happened (\(other))")
+        held.close()
+        try session.writeText(["after"])
+        _ = try session.run()
+    }
+
+    func cancelFromAnotherThreadIsNeverBusyAndEndsTheStream() throws {
+        let rt = try Runtime()
+        let ctx = try rt.createContext(device: try mockDevice(rt))
+        let model = try ctx.loadModel(bundlePath: bundle("generative"))
+        var d = GenerateDesc(); d.maxNewTokens = 64
+        let g = try model.createGeneration(d)
+        try g.prompt([Message.user("say something")])
+        let first = try g.step()
+        expect(!first.done, "first chunk is not the last")
+        let group = DispatchGroup()
+        var failed = false
+        group.enter()
+        Thread {
+            if thrown({ try g.cancel() }) != nil { failed = true }
+            group.leave()
+        }.start()
+        group.wait()
+        expect(!failed, "cancel from another thread never fails")
+        let next = try g.step()
+        expect(next.done && next.finishReason == .cancelled, "the step after a cancel is the last one and says CANCELLED")
+    }
 }
 
 
@@ -215,6 +348,11 @@ let cases: [(String, () throws -> Void)] = [
     ("tokenClassificationYieldsSpansInsideTheText", suite.tokenClassificationYieldsSpansInsideTheText),
     ("aHeldResultBlocksTheSessionAndParentsOutliveTheirChildren", suite.aHeldResultBlocksTheSessionAndParentsOutliveTheirChildren),
     ("concurrentUseOfOneSessionIsBusyNeverWrong", suite.concurrentUseOfOneSessionIsBusyNeverWrong),
+    ("generationStepsUntilLengthAndCancelIsReported", suite.generationStepsUntilLengthAndCancelIsReported),
+    ("generationIsRepeatableWithASeedAndRefusesUnsupportedOptionsByField", suite.generationIsRepeatableWithASeedAndRefusesUnsupportedOptionsByField),
+    ("tokenizerEncodesDecodesAndCounts", suite.tokenizerEncodesDecodesAndCounts),
+    ("aHeldResultMakesEveryRunOnAnotherThreadBusy", suite.aHeldResultMakesEveryRunOnAnotherThreadBusy),
+    ("cancelFromAnotherThreadIsNeverBusyAndEndsTheStream", suite.cancelFromAnotherThreadIsNeverBusyAndEndsTheStream),
 ]
 var passed = 0
 for (name, body) in cases {

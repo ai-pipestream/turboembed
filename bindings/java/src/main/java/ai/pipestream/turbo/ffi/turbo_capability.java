@@ -468,7 +468,7 @@ public class turbo_capability {
      * }
      */
     public static byte notes(MemorySegment struct, long index0) {
-        return (byte)notes$ELEM_HANDLE.get(struct, 0L, index0);
+        return notes(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -478,7 +478,7 @@ public class turbo_capability {
      * }
      */
     public static void notes(MemorySegment struct, long index0, byte fieldValue) {
-        notes$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        notes(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     /**

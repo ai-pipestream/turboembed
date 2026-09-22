@@ -670,7 +670,7 @@ public class turbo_model_info {
      * }
      */
     public static int stage_placement(MemorySegment struct, long index0) {
-        return (int)stage_placement$ELEM_HANDLE.get(struct, 0L, index0);
+        return stage_placement(struct).getAtIndex(JAVA_INT, index0);
     }
 
     /**
@@ -680,7 +680,7 @@ public class turbo_model_info {
      * }
      */
     public static void stage_placement(MemorySegment struct, long index0, int fieldValue) {
-        stage_placement$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        stage_placement(struct).setAtIndex(JAVA_INT, index0, fieldValue);
     }
 
     private static final OfInt n_inputs$LAYOUT = (OfInt)$LAYOUT.select(groupElement("n_inputs"));
@@ -879,7 +879,7 @@ public class turbo_model_info {
      * }
      */
     public static byte model_id(MemorySegment struct, long index0) {
-        return (byte)model_id$ELEM_HANDLE.get(struct, 0L, index0);
+        return model_id(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -889,7 +889,7 @@ public class turbo_model_info {
      * }
      */
     public static void model_id(MemorySegment struct, long index0, byte fieldValue) {
-        model_id$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        model_id(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout revision$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("revision"));
@@ -956,7 +956,7 @@ public class turbo_model_info {
      * }
      */
     public static byte revision(MemorySegment struct, long index0) {
-        return (byte)revision$ELEM_HANDLE.get(struct, 0L, index0);
+        return revision(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -966,7 +966,7 @@ public class turbo_model_info {
      * }
      */
     public static void revision(MemorySegment struct, long index0, byte fieldValue) {
-        revision$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        revision(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout tokenizer_sha256$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("tokenizer_sha256"));
@@ -1033,7 +1033,7 @@ public class turbo_model_info {
      * }
      */
     public static byte tokenizer_sha256(MemorySegment struct, long index0) {
-        return (byte)tokenizer_sha256$ELEM_HANDLE.get(struct, 0L, index0);
+        return tokenizer_sha256(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -1043,7 +1043,7 @@ public class turbo_model_info {
      * }
      */
     public static void tokenizer_sha256(MemorySegment struct, long index0, byte fieldValue) {
-        tokenizer_sha256$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        tokenizer_sha256(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout provider_id$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("provider_id"));
@@ -1110,7 +1110,7 @@ public class turbo_model_info {
      * }
      */
     public static byte provider_id(MemorySegment struct, long index0) {
-        return (byte)provider_id$ELEM_HANDLE.get(struct, 0L, index0);
+        return provider_id(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -1120,7 +1120,7 @@ public class turbo_model_info {
      * }
      */
     public static void provider_id(MemorySegment struct, long index0, byte fieldValue) {
-        provider_id$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        provider_id(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout prefix_query$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("prefix_query"));
@@ -1187,7 +1187,7 @@ public class turbo_model_info {
      * }
      */
     public static byte prefix_query(MemorySegment struct, long index0) {
-        return (byte)prefix_query$ELEM_HANDLE.get(struct, 0L, index0);
+        return prefix_query(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -1197,7 +1197,7 @@ public class turbo_model_info {
      * }
      */
     public static void prefix_query(MemorySegment struct, long index0, byte fieldValue) {
-        prefix_query$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        prefix_query(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout prefix_document$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("prefix_document"));
@@ -1264,7 +1264,7 @@ public class turbo_model_info {
      * }
      */
     public static byte prefix_document(MemorySegment struct, long index0) {
-        return (byte)prefix_document$ELEM_HANDLE.get(struct, 0L, index0);
+        return prefix_document(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -1274,7 +1274,7 @@ public class turbo_model_info {
      * }
      */
     public static void prefix_document(MemorySegment struct, long index0, byte fieldValue) {
-        prefix_document$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        prefix_document(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     /**

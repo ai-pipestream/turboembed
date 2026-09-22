@@ -2,9 +2,14 @@
 //!
 //! A caller declares the layout it was compiled against through
 //! `struct_size`. The library accepts a size only when it is the end of a
-//! field the struct has ever had, so every accepted prefix is a layout that
-//! could have shipped: fields are only ever appended, and a prefix that ends
-//! inside a field (half a pointer, half a count) is never a layout.
+//! field the struct has ever had (fields are only ever appended), so an
+//! accepted prefix never ends inside a field. Not every accepted prefix is
+//! a layout that shipped: a count field can precede the pointer it counts,
+//! and a prefix that ends between them is accepted. That is safe because
+//! the bytes beyond `struct_size` are never read: the prefix is copied into
+//! a zeroed full struct, the pointer reads NULL, and every consumer
+//! refuses NULL with a non-zero count (`abi_convert.rs`). That is the
+//! invariant these tables rely on.
 //! Everything else is `TURBO_E_INVALID_STRUCT_SIZE`.
 //!
 //! Generated from the field lists of `lib.rs` and `provider.rs` by

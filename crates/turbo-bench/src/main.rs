@@ -129,6 +129,9 @@ enum Cmd {
         /// Print JSON instead of the table.
         #[arg(long)]
         json: bool,
+        /// Exit non-zero when a named provider library fails to load.
+        #[arg(long)]
+        strict: bool,
     },
     /// Generate `new_tokens` tokens from a fixed prompt.
     Generate {
@@ -163,7 +166,7 @@ struct Latency {
 struct PerRun {
     h2d_bytes: u64,
     d2h_bytes: u64,
-    host_allocs: u64,
+    host_allocs: Option<u64>,
     provider_allocs: Option<u64>,
 }
 
@@ -465,7 +468,10 @@ fn delta(a: &turbo::SessionStats, b: &turbo::SessionStats, runs: u64) -> PerRun 
     PerRun {
         h2d_bytes: per(a.h2d_bytes, b.h2d_bytes),
         d2h_bytes: per(a.d2h_bytes, b.d2h_bytes),
-        host_allocs: per(a.host_allocs, b.host_allocs),
+        host_allocs: match (a.host_allocs, b.host_allocs) {
+            (Some(x), Some(y)) => Some(per(x, y)),
+            _ => None,
+        },
         provider_allocs: match (a.provider_allocs, b.provider_allocs) {
             (Some(x), Some(y)) => Some(per(x, y)),
             _ => None,
@@ -1087,13 +1093,21 @@ fn print_survey(s: &Survey) {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    if let Cmd::Discover { provider_libs, provider_dir, bundles, json } = &cli.command {
+    if let Cmd::Discover { provider_libs, provider_dir, bundles, json, strict } = &cli.command {
         return match discover(provider_libs, provider_dir.as_deref(), bundles) {
             Ok(s) => {
                 if *json {
                     println!("{}", serde_json::to_string_pretty(&s).expect("serialize survey"));
                 } else {
                     print_survey(&s);
+                }
+                if *strict && !s.load_failures.is_empty() {
+                    eprintln!(
+                        "error: {} provider librar{} did not load",
+                        s.load_failures.len(),
+                        if s.load_failures.len() == 1 { "y" } else { "ies" }
+                    );
+                    return ExitCode::from(1);
                 }
                 ExitCode::SUCCESS
             }

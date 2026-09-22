@@ -29,6 +29,15 @@ public struct TurboError: Error, CustomStringConvertible {
     }
 }
 
+/// Decode an ABI enumeration; an unknown value is `TURBO_E_INVALID_ENUM`,
+/// never a trap.
+func decodeEnum<T: RawRepresentable>(_ raw: UInt32, _ what: String) throws -> T where T.RawValue == UInt32 {
+    guard let v = T(rawValue: raw) else {
+        throw TurboError(code: TURBO_E_INVALID_ENUM, field: 0, message: "\(what) \(raw) is not a value this binding knows")
+    }
+    return v
+}
+
 /// Run a C call with a caller-owned error struct and throw on failure.
 @discardableResult
 func check(_ body: (UnsafeMutablePointer<turbo_error>) -> Int32) throws -> Int32 {
@@ -36,10 +45,16 @@ func check(_ body: (UnsafeMutablePointer<turbo_error>) -> Int32) throws -> Int32
     err.struct_size = UInt32(MemoryLayout<turbo_error>.size)
     let rc = withUnsafeMutablePointer(to: &err) { body($0) }
     if rc == TURBO_OK { return rc }
-    let message = withUnsafePointer(to: &err.message) { p in
+    throw makeError(rc, err)
+}
+
+/// The Swift error for a failed call's status and error record.
+func makeError(_ rc: Int32, _ err: turbo_error) -> TurboError {
+    var e = err
+    let message = withUnsafePointer(to: &e.message) { p in
         p.withMemoryRebound(to: CChar.self, capacity: Int(TURBO_ERROR_MESSAGE_LEN)) { String(cString: $0) }
     }
-    throw TurboError(code: rc, field: err.field, message: message)
+    return TurboError(code: rc, field: err.field, message: message)
 }
 
 /// Read a NUL-terminated fixed-size `char[]` tuple field.
@@ -86,6 +101,7 @@ public enum Pooling: UInt32 { case model = 0, mean = 1, cls = 2, last = 3 }
 public enum OutputDType: UInt32 { case model = 0, f32 = 1, f16 = 2, i8 = 3 }
 public enum Aggregation: UInt32 { case model = 0, none = 1, simple = 2, first = 3, max = 4 }
 public enum Placement: UInt32 { case host = 1, pinned = 2, device = 3, shared = 4 }
+public enum FinishReason: UInt32 { case none = 0, eos = 1, stop = 2, length = 3, cancelled = 4 }
 
 // The Swift raw values above are checked against the C constants once, at
 // first use, so a header change cannot silently skew them.
@@ -99,6 +115,7 @@ private let constantsVerified: Bool = {
     precondition(Normalize.l2.rawValue == TURBO_NORMALIZE_L2 && Pooling.last.rawValue == TURBO_POOLING_LAST)
     precondition(OutputDType.i8.rawValue == TURBO_OUTPUT_I8 && Aggregation.max.rawValue == TURBO_AGGREGATE_MAX)
     precondition(Placement.shared.rawValue == TURBO_PLACE_SHARED)
+    precondition(FinishReason.cancelled.rawValue == TURBO_FINISH_CANCELLED && FinishReason.length.rawValue == TURBO_FINISH_LENGTH)
     return true
 }()
 
@@ -137,7 +154,17 @@ public struct Capability {
 
 /// The provider registry and device list.
 public final class Runtime {
-    let raw: OpaquePointer
+    private var rawHandle: OpaquePointer?
+    var raw: OpaquePointer {
+        guard let r = rawHandle else { preconditionFailure("Runtime is closed") }
+        return r
+    }
+
+    /// Release the C handle now (idempotent); children created from it stay
+    /// valid because each keeps its own reference on the C side.
+    public func close() {
+        if let r = rawHandle { turbo_runtime_release(r); rawHandle = nil }
+    }
 
     /// Create a runtime; `providerPaths` are provider libraries to load, and
     /// a failure to load any of them fails creation.
@@ -151,10 +178,10 @@ public final class Runtime {
             desc.provider_paths = count == 0 ? nil : texts
             try check { turbo_runtime_create(&desc, &out, $0) }
         }
-        raw = out!
+        rawHandle = out!
     }
 
-    deinit { turbo_runtime_release(raw) }
+    deinit { close() }
 
     /// `TURBO_ABI_VERSION` of the library.
     public static var abiVersion: UInt32 { turbo_abi_version() }
@@ -170,7 +197,7 @@ public final class Runtime {
         info.struct_size = UInt32(MemoryLayout<turbo_device_info>.size)
         try check { turbo_runtime_device_info(raw, index, &info, $0) }
         return DeviceInfo(
-            index: index, kind: DeviceKind(rawValue: info.kind)!, ordinal: info.ordinal, vendorId: info.vendor_id,
+            index: index, kind: try decodeEnum(info.kind, "device kind"), ordinal: info.ordinal, vendorId: info.vendor_id,
             caps: info.caps, memoryTotal: info.memory_total, memoryFree: info.memory_free,
             name: fixedString(info.name), vendor: fixedString(info.vendor), providerId: fixedString(info.provider_id),
             providerVersion: fixedString(info.provider_version), runtimeVersion: fixedString(info.runtime_version),
@@ -199,8 +226,13 @@ public final class Runtime {
         var cap = turbo_capability()
         cap.struct_size = UInt32(MemoryLayout<turbo_capability>.size)
         try check { turbo_runtime_capability(raw, index, task.rawValue, modality.rawValue, &cap, $0) }
-        return Capability(status: CapStatus(rawValue: cap.status)!, cosineFloor: cap.cosine_floor,
+        return Capability(status: try decodeEnum(cap.status, "capability status"), cosineFloor: cap.cosine_floor,
                           maxAbsError: cap.max_abs_error, deterministic: cap.deterministic != 0, notes: fixedString(cap.notes))
+    }
+
+    /// Load the tokenizer the bundle at `bundlePath` declares.
+    public func createTokenizer(bundlePath: String) throws -> Tokenizer {
+        try Tokenizer(runtime: self, bundlePath: bundlePath)
     }
 
     public func createContext(device index: UInt32) throws -> Context {
@@ -211,7 +243,17 @@ public final class Runtime {
 // MARK: - Context and model
 
 public final class Context {
-    let raw: OpaquePointer
+    private var rawHandle: OpaquePointer?
+    var raw: OpaquePointer {
+        guard let r = rawHandle else { preconditionFailure("Context is closed") }
+        return r
+    }
+
+    /// Release the C handle now (idempotent); children created from it stay
+    /// valid because each keeps its own reference on the C side.
+    public func close() {
+        if let r = rawHandle { turbo_context_release(r); rawHandle = nil }
+    }
     public let deviceIndex: UInt32
     private let runtime: Runtime
 
@@ -220,12 +262,12 @@ public final class Context {
         var desc = turbo_context_desc()
         desc.struct_size = UInt32(MemoryLayout<turbo_context_desc>.size)
         try check { turbo_context_create(runtime.raw, index, &desc, &out, $0) }
-        raw = out!
+        rawHandle = out!
         deviceIndex = index
         self.runtime = runtime
     }
 
-    deinit { turbo_context_release(raw) }
+    deinit { close() }
 
     public func loadModel(bundlePath: String) throws -> Model {
         try Model(context: self, bundlePath: bundlePath)
@@ -245,7 +287,17 @@ public struct ModelInfo {
 }
 
 public final class Model {
-    let raw: OpaquePointer
+    private var rawHandle: OpaquePointer?
+    var raw: OpaquePointer {
+        guard let r = rawHandle else { preconditionFailure("Model is closed") }
+        return r
+    }
+
+    /// Release the C handle now (idempotent); children created from it stay
+    /// valid because each keeps its own reference on the C side.
+    public func close() {
+        if let r = rawHandle { turbo_model_release(r); rawHandle = nil }
+    }
     public let info: ModelInfo
     private let context: Context
 
@@ -256,7 +308,7 @@ public final class Model {
             desc.struct_size = UInt32(MemoryLayout<turbo_model_desc>.size)
             try check { turbo_model_load(context.raw, path, &desc, &out, $0) }
         }
-        raw = out!
+        rawHandle = out!
         self.context = context
         var mi = turbo_model_info()
         mi.struct_size = UInt32(MemoryLayout<turbo_model_info>.size)
@@ -267,15 +319,20 @@ public final class Model {
             try check { turbo_model_label(out!, i, &t, $0) }
             labels.append(t.len == 0 ? "" : String(decoding: UnsafeRawBufferPointer(start: t.ptr, count: Int(t.len)), as: UTF8.self))
         }
-        info = ModelInfo(task: Task(rawValue: mi.task)!, dim: mi.dim, labels: labels, maxSeq: mi.max_seq, maxBatch: mi.max_batch,
+        info = ModelInfo(task: try decodeEnum(mi.task, "task"), dim: mi.dim, labels: labels, maxSeq: mi.max_seq, maxBatch: mi.max_batch,
                          fullyAccelerated: mi.fully_accelerated != 0, modelId: fixedString(mi.model_id), providerId: fixedString(mi.provider_id))
     }
 
-    deinit { turbo_model_release(raw) }
+    deinit { close() }
 
     /// Create a session with fixed maxima; 0 means the model's default.
     public func createSession(maxBatch: UInt32 = 0, maxSeq: UInt32 = 0) throws -> Session {
         try Session(model: self, maxBatch: maxBatch, maxSeq: maxSeq)
+    }
+
+    /// Create a generation on a generative model.
+    public func createGeneration(_ desc: GenerateDesc = GenerateDesc()) throws -> Generation {
+        try Generation(model: self, desc: desc)
     }
 }
 
@@ -337,7 +394,17 @@ public struct ClassifyOptions {
 // MARK: - Session and result
 
 public final class Session {
-    let raw: OpaquePointer
+    private var rawHandle: OpaquePointer?
+    var raw: OpaquePointer {
+        guard let r = rawHandle else { preconditionFailure("Session is closed") }
+        return r
+    }
+
+    /// Release the C handle now (idempotent); children created from it stay
+    /// valid because each keeps its own reference on the C side.
+    public func close() {
+        if let r = rawHandle { turbo_session_release(r); rawHandle = nil }
+    }
     public let model: Model
 
     init(model: Model, maxBatch: UInt32, maxSeq: UInt32) throws {
@@ -347,11 +414,11 @@ public final class Session {
         desc.max_batch = maxBatch
         desc.max_seq = maxSeq
         try check { turbo_session_create(model.raw, &desc, &out, $0) }
-        raw = out!
+        rawHandle = out!
         self.model = model
     }
 
-    deinit { turbo_session_release(raw) }
+    deinit { close() }
 
     public func writeText(_ texts: [String], options: EmbedOptions = EmbedOptions()) throws {
         var o = options.c
@@ -423,7 +490,7 @@ public final class Result {
             var info = turbo_result_info()
             info.struct_size = UInt32(MemoryLayout<turbo_result_info>.size)
             try check { turbo_result_get_info(handle(), &info, $0) }
-            return Placement(rawValue: info.placement)!
+            return try decodeEnum(info.placement, "placement")
         }
     }
 
@@ -470,5 +537,273 @@ public final class Result {
             try check { turbo_result_spans(handle(), buf.baseAddress, n, &n, $0) }
         }
         return raw.map { Span(row: $0.row, byteStart: $0.byte_start, byteEnd: $0.byte_end, label: $0.label, score: $0.score) }
+    }
+}
+
+// MARK: - Generation
+
+/// One chat message (`turbo_message`).
+public struct Message {
+    public var role: String
+    public var content: String
+    public init(role: String, content: String) { self.role = role; self.content = content }
+    public static func user(_ content: String) -> Message { Message(role: "user", content: content) }
+    public static func system(_ content: String) -> Message { Message(role: "system", content: content) }
+    public static func assistant(_ content: String) -> Message { Message(role: "assistant", content: content) }
+}
+
+/// Generation parameters (`turbo_generate_desc`). Zero and empty values mean
+/// the model's defaults; anything else is honored exactly or the generation
+/// fails with `TURBO_E_UNSUPPORTED_OPTION` naming the field.
+public struct GenerateDesc {
+    public var maxNewTokens: UInt32 = 0
+    public var minNewTokens: UInt32 = 0
+    public var nSequences: UInt32 = 0
+    public var temperature: Float = 0
+    public var topK: UInt32 = 0
+    public var topP: Float = 0
+    public var minP: Float = 0
+    public var repeatPenalty: Float = 0
+    public var presencePenalty: Float = 0
+    public var frequencyPenalty: Float = 0
+    public var seed: UInt64? = nil
+    public var stop: [String] = []
+    public var stopTokens: [Int32] = []
+    public var logitBias: [(token: Int32, bias: Float)] = []
+    public var logprobs: UInt32 = 0
+    public var echo: Bool = false
+    public init() {}
+
+    /// Run `body` with the C descriptor; every pointer it holds lives for the call.
+    func withC<R>(_ body: (UnsafePointer<turbo_generate_desc>) throws -> R) throws -> R {
+        var d = turbo_generate_desc()
+        d.struct_size = UInt32(MemoryLayout<turbo_generate_desc>.size)
+        d.max_new_tokens = maxNewTokens; d.min_new_tokens = minNewTokens; d.n_sequences = nSequences
+        d.temperature = temperature; d.top_k = topK; d.top_p = topP; d.min_p = minP
+        d.repeat_penalty = repeatPenalty; d.presence_penalty = presencePenalty; d.frequency_penalty = frequencyPenalty
+        d.has_seed = seed == nil ? 0 : 1; d.seed = seed ?? 0
+        d.logprobs = logprobs; d.structured_kind = TURBO_STRUCTURED_NONE; d.echo = echo ? 1 : 0
+        var biases = logitBias.map { turbo_logit_bias(token: $0.token, bias: $0.bias) }
+        var stops = stopTokens
+        return try withTexts(stop) { texts, n in
+            d.n_stop = n; d.stop = n == 0 ? nil : texts
+            return try stops.withUnsafeBufferPointer { st in
+                d.n_stop_tokens = UInt32(st.count); d.stop_tokens = st.count == 0 ? nil : st.baseAddress
+                return try biases.withUnsafeBufferPointer { lb in
+                    d.n_logit_bias = UInt32(lb.count); d.logit_bias = lb.count == 0 ? nil : lb.baseAddress
+                    return try withUnsafePointer(to: &d) { try body($0) }
+                }
+            }
+        }
+    }
+}
+
+/// One step of a generation, copied out of native memory.
+public struct Chunk {
+    public let sequence: UInt32
+    public let tokens: [Int32]
+    public let text: String
+    public let logprobs: [Float]
+    public let done: Bool
+    public let finishReason: FinishReason
+    public let promptTokens: UInt32
+    public let generatedTokens: UInt32
+
+    init(_ c: turbo_generation_chunk) {
+        sequence = c.sequence
+        tokens = c.n_tokens == 0 ? [] : Array(UnsafeBufferPointer(start: c.tokens, count: Int(c.n_tokens)))
+        logprobs = c.n_logprobs == 0 ? [] : Array(UnsafeBufferPointer(start: c.logprobs, count: Int(c.n_logprobs)))
+        text = c.text.len == 0 ? "" : String(decoding: UnsafeRawBufferPointer(start: c.text.ptr, count: Int(c.text.len)), as: UTF8.self)
+        done = c.done != 0
+        finishReason = FinishReason(rawValue: c.finish_reason) ?? .none
+        promptTokens = c.prompt_tokens
+        generatedTokens = c.generated_tokens
+    }
+}
+
+/// A generation on a generative model: the pull iterator over
+/// `turbo_generation_*`. Prompt once, then `step()` until a chunk is done.
+/// `cancel()` may be called from another thread; the next step reports
+/// `.cancelled`.
+public final class Generation {
+    private var rawHandle: OpaquePointer?
+    var raw: OpaquePointer {
+        guard let r = rawHandle else { preconditionFailure("Generation is closed") }
+        return r
+    }
+
+    /// Release the C handle now (idempotent); children created from it stay
+    /// valid because each keeps its own reference on the C side.
+    public func close() {
+        if let r = rawHandle { turbo_generation_release(r); rawHandle = nil }
+    }
+    public let model: Model
+
+    init(model: Model, desc: GenerateDesc) throws {
+        var out: OpaquePointer?
+        try desc.withC { d in try check { turbo_generation_create(model.raw, d, &out, $0) } }
+        rawHandle = out!
+        self.model = model
+    }
+
+    deinit { close() }
+
+    /// Apply the chat template to `messages` and tokenize the prompt.
+    public func prompt(_ messages: [Message]) throws {
+        try withTexts(messages.map { $0.role }) { roles, n in
+            try withTexts(messages.map { $0.content }) { contents, _ in
+                var msgs = [turbo_message](repeating: turbo_message(), count: Int(n))
+                for i in 0..<Int(n) { msgs[i] = turbo_message(role: roles[i], content: contents[i]) }
+                try msgs.withUnsafeBufferPointer { m in try check { turbo_generation_prompt(raw, m.baseAddress, n, $0) } }
+            }
+        }
+    }
+
+    /// Use caller-supplied prompt token ids.
+    public func promptTokens(_ ids: [Int32]) throws {
+        try ids.withUnsafeBufferPointer { p in try check { turbo_generation_prompt_tokens(raw, p.baseAddress, UInt32(p.count), $0) } }
+    }
+
+    /// Produce the next chunk.
+    public func step() throws -> Chunk {
+        var c = turbo_generation_chunk()
+        c.struct_size = UInt32(MemoryLayout<turbo_generation_chunk>.size)
+        try check { turbo_generation_step(raw, &c, $0) }
+        return Chunk(c)
+    }
+
+    /// Step until done, handing every chunk to `sink`; a sink that returns
+    /// false cancels, and the final chunk reports `.cancelled`.
+    @discardableResult
+    public func drain(_ sink: (Chunk) throws -> Bool) throws -> Chunk {
+        while true {
+            let c = try step()
+            let go = try sink(c)
+            if c.done { return c }
+            if !go { try cancel() }
+        }
+    }
+
+    /// Cancel; the next step reports `.cancelled`.
+    public func cancel() throws {
+        try check { turbo_generation_cancel(raw, $0) }
+    }
+}
+
+// MARK: - Tokenizer
+
+public struct TokenizerInfo {
+    public let vocabSize: UInt32
+    public let maxSeq: UInt32
+    public let specialsPerSequence: UInt32
+    public let padId: Int32
+    public let bosId: Int32
+    public let eosId: Int32
+    public let unkId: Int32
+    public let kind: String
+    public let sha256: String
+}
+
+public struct EncodeOptions {
+    public var addSpecialTokens: Bool = true
+    public var truncate: Truncate = .model
+    public var maxTokens: UInt32 = 0
+    public var padTo: UInt32 = 0
+    public var promptRole: PromptRole = .none
+    public init() {}
+
+    var c: turbo_encode_options {
+        var o = turbo_encode_options()
+        o.struct_size = UInt32(MemoryLayout<turbo_encode_options>.size)
+        o.add_special_tokens = addSpecialTokens ? 1 : 0; o.truncate = truncate.rawValue
+        o.max_tokens = maxTokens; o.pad_to = padTo; o.prompt_role = promptRole.rawValue
+        return o
+    }
+}
+
+/// Encoded rows: `ids` and `mask` are `rows x rowStride`, row-major;
+/// `lengths` holds each row's live token count.
+public struct Encoding {
+    public let rows: Int
+    public let rowStride: Int
+    public let ids: [Int32]
+    public let mask: [Int32]
+    public let lengths: [UInt32]
+    public func row(_ r: Int) -> [Int32] { Array(ids[r * rowStride ..< r * rowStride + Int(lengths[r])]) }
+}
+
+/// The tokenizer a bundle declares. Thread-safe and independent of any device.
+public final class Tokenizer {
+    private var rawHandle: OpaquePointer?
+    var raw: OpaquePointer {
+        guard let r = rawHandle else { preconditionFailure("Tokenizer is closed") }
+        return r
+    }
+
+    /// Release the C handle now (idempotent); children created from it stay
+    /// valid because each keeps its own reference on the C side.
+    public func close() {
+        if let r = rawHandle { turbo_tokenizer_release(r); rawHandle = nil }
+    }
+    public let info: TokenizerInfo
+    private let runtime: Runtime
+
+    init(runtime: Runtime, bundlePath: String) throws {
+        var out: OpaquePointer?
+        try withText(bundlePath) { path in try check { turbo_tokenizer_create(runtime.raw, path, &out, $0) } }
+        rawHandle = out!
+        self.runtime = runtime
+        var ti = turbo_tokenizer_info()
+        ti.struct_size = UInt32(MemoryLayout<turbo_tokenizer_info>.size)
+        try check { turbo_tokenizer_get_info(out!, &ti, $0) }
+        info = TokenizerInfo(vocabSize: ti.vocab_size, maxSeq: ti.max_seq, specialsPerSequence: ti.specials_per_sequence,
+                             padId: ti.pad_id, bosId: ti.bos_id, eosId: ti.eos_id, unkId: ti.unk_id,
+                             kind: fixedString(ti.kind), sha256: fixedString(ti.sha256))
+    }
+
+    deinit { close() }
+
+    /// Encode `texts` into rows of `rowStride` ids, padded with the pad id and mask 0.
+    public func encode(_ texts: [String], rowStride: Int, options: EncodeOptions = EncodeOptions()) throws -> Encoding {
+        var ids = [Int32](repeating: 0, count: texts.count * rowStride)
+        var mask = [Int32](repeating: 0, count: texts.count * rowStride)
+        var lengths = [UInt32](repeating: 0, count: texts.count)
+        var o = options.c
+        _ = try withTexts(texts) { t, n in
+            try ids.withUnsafeMutableBufferPointer { ip in
+                try mask.withUnsafeMutableBufferPointer { mp in
+                    try lengths.withUnsafeMutableBufferPointer { lp in
+                        try check { turbo_tokenizer_encode(raw, t, n, &o, ip.baseAddress, mp.baseAddress, nil, UInt32(rowStride), lp.baseAddress, $0) }
+                    }
+                }
+            }
+        }
+        return Encoding(rows: texts.count, rowStride: rowStride, ids: ids, mask: mask, lengths: lengths)
+    }
+
+    /// Decode ids to text.
+    public func decode(_ ids: [Int32], skipSpecialTokens: Bool = true) throws -> String {
+        var capacity = max(64, ids.count * 8)
+        while true {
+            var buf = [UInt8](repeating: 0, count: capacity)
+            var written: UInt64 = 0
+            var e = turbo_error()
+            e.struct_size = UInt32(MemoryLayout<turbo_error>.size)
+            let rc = ids.withUnsafeBufferPointer { ip in
+                buf.withUnsafeMutableBufferPointer { bp in
+                    turbo_tokenizer_decode(raw, ip.baseAddress, UInt32(ip.count), skipSpecialTokens ? 1 : 0, bp.baseAddress, UInt64(bp.count), &written, &e)
+                }
+            }
+            if rc == TURBO_E_CAPACITY { capacity = Int(written); continue }
+            if rc != TURBO_OK { throw makeError(rc, e) }
+            return String(decoding: buf[0..<Int(written)], as: UTF8.self)
+        }
+    }
+
+    /// Number of tokens `text` produces, without truncation or prefix.
+    public func count(_ text: String, addSpecialTokens: Bool = true) throws -> UInt32 {
+        var n: UInt32 = 0
+        try withText(text) { t in try check { turbo_tokenizer_count(raw, t, addSpecialTokens ? 1 : 0, &n, $0) } }
+        return n
     }
 }

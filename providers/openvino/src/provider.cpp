@@ -1516,7 +1516,7 @@ static int32_t x_session_stats(void *s, turbo_session_stats *out, turbo_error *e
         turbo_session_stats full{};
         full.struct_size = out->struct_size;
         full.runs = S.runs;
-        full.host_allocs = 0;
+        full.host_allocs = UINT64_MAX; // not counted: the result path allocates and the provider keeps no tally
         full.h2d_bytes = S.h2d;
         full.d2h_bytes = S.d2h;
         full.input_bytes = (S.ids.size() + S.mask.size() + S.types.size()) * 4;

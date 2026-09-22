@@ -432,7 +432,7 @@ public class turbo_device_info {
      * }
      */
     public static byte name(MemorySegment struct, long index0) {
-        return (byte)name$ELEM_HANDLE.get(struct, 0L, index0);
+        return name(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -442,7 +442,7 @@ public class turbo_device_info {
      * }
      */
     public static void name(MemorySegment struct, long index0, byte fieldValue) {
-        name$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        name(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout vendor$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("vendor"));
@@ -509,7 +509,7 @@ public class turbo_device_info {
      * }
      */
     public static byte vendor(MemorySegment struct, long index0) {
-        return (byte)vendor$ELEM_HANDLE.get(struct, 0L, index0);
+        return vendor(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -519,7 +519,7 @@ public class turbo_device_info {
      * }
      */
     public static void vendor(MemorySegment struct, long index0, byte fieldValue) {
-        vendor$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        vendor(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout provider_id$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("provider_id"));
@@ -586,7 +586,7 @@ public class turbo_device_info {
      * }
      */
     public static byte provider_id(MemorySegment struct, long index0) {
-        return (byte)provider_id$ELEM_HANDLE.get(struct, 0L, index0);
+        return provider_id(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -596,7 +596,7 @@ public class turbo_device_info {
      * }
      */
     public static void provider_id(MemorySegment struct, long index0, byte fieldValue) {
-        provider_id$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        provider_id(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout provider_version$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("provider_version"));
@@ -663,7 +663,7 @@ public class turbo_device_info {
      * }
      */
     public static byte provider_version(MemorySegment struct, long index0) {
-        return (byte)provider_version$ELEM_HANDLE.get(struct, 0L, index0);
+        return provider_version(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -673,7 +673,7 @@ public class turbo_device_info {
      * }
      */
     public static void provider_version(MemorySegment struct, long index0, byte fieldValue) {
-        provider_version$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        provider_version(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout runtime_version$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("runtime_version"));
@@ -740,7 +740,7 @@ public class turbo_device_info {
      * }
      */
     public static byte runtime_version(MemorySegment struct, long index0) {
-        return (byte)runtime_version$ELEM_HANDLE.get(struct, 0L, index0);
+        return runtime_version(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -750,7 +750,7 @@ public class turbo_device_info {
      * }
      */
     public static void runtime_version(MemorySegment struct, long index0, byte fieldValue) {
-        runtime_version$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        runtime_version(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     private static final SequenceLayout driver_version$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("driver_version"));
@@ -817,7 +817,7 @@ public class turbo_device_info {
      * }
      */
     public static byte driver_version(MemorySegment struct, long index0) {
-        return (byte)driver_version$ELEM_HANDLE.get(struct, 0L, index0);
+        return driver_version(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -827,7 +827,7 @@ public class turbo_device_info {
      * }
      */
     public static void driver_version(MemorySegment struct, long index0, byte fieldValue) {
-        driver_version$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        driver_version(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     /**

@@ -49,6 +49,29 @@ s = s.replace(old, new, 1)
 open(p, 'w').write(s)
 EOF
 
+# jextract 22's indexed array accessors call the element var handle with a
+# base offset of 0 instead of the field's offset, so on JDK 25 they read and
+# write the wrong bytes (a `shape(desc, 0, n)` overwrote `struct_size`).
+# Route them through the slice accessor, which is correct on every JDK.
+python3 - "$tmp/gen/ai/pipestream/turbo/ffi" <<'EOF2'
+import sys, re, pathlib
+layouts = {'long': 'JAVA_LONG', 'int': 'JAVA_INT', 'short': 'JAVA_SHORT', 'byte': 'JAVA_BYTE',
+           'float': 'JAVA_FLOAT', 'double': 'JAVA_DOUBLE', 'MemorySegment': 'ADDRESS'}
+get = re.compile(r'return \((\w+)\)(\w+)\$ELEM_HANDLE\.get\(struct, 0L, index0\);')
+put = re.compile(r'(\w+)\$ELEM_HANDLE\.set\(struct, 0L, index0, fieldValue\);')
+for f in pathlib.Path(sys.argv[1]).glob('*.java'):
+    s = f.read_text()
+    def g(m):
+        return f'return {m.group(2)}(struct).getAtIndex({layouts[m.group(1)]}, index0);'
+    def p(m):
+        # the setter's element type is the getter's, found on the line above
+        t = re.search(r'public static (\w+) ' + m.group(1) + r'\(MemorySegment struct, long index0\)', s).group(1)
+        return f'{m.group(1)}(struct).setAtIndex({layouts[t]}, index0, fieldValue);'
+    s2 = put.sub(p, get.sub(g, s))
+    if s2 != s:
+        f.write_text(s2)
+EOF2
+
 if [ "${1:-}" = "--check" ]; then
     if ! diff -r "$tmp/gen/ai/pipestream/turbo/ffi" "$out/ai/pipestream/turbo/ffi" >/dev/null; then
         echo "bindings/java ffi sources are stale; run scripts/gen-java-ffi.sh" >&2

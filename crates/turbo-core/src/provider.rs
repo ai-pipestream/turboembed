@@ -414,8 +414,11 @@ impl<'a> TokenBatch<'a> {
 pub struct SessionStats {
     /// Completed runs.
     pub runs: u64,
-    /// Host heap allocations on the run path since warmup.
-    pub host_allocs: u64,
+    /// Host heap allocations the adapter made on the run path since
+    /// warmup, or `None` when the adapter does not count them (`UINT64_MAX`
+    /// on the ABI). A provider that counts reports the number; one that
+    /// does not must not report zero.
+    pub host_allocs: Option<u64>,
     /// Explicit host-to-device bytes.
     pub h2d_bytes: u64,
     /// Explicit device-to-host bytes.

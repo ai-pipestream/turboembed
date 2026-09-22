@@ -288,6 +288,7 @@ impl Model {
             model: self.clone(),
             state: Mutex::new(GenState { inner, prompted: false, finished: false, cancelled: false }),
             chunk: Mutex::new(Chunk::default()),
+            cancel_requested: std::sync::atomic::AtomicBool::new(false),
         }))
     }
 
@@ -837,6 +838,10 @@ pub struct Generation {
     state: Mutex<GenState>,
     chunk: Mutex<Chunk>,
     model: Arc<Model>,
+    /// Set by `cancel` from any thread; `step` reads it before decoding, so
+    /// a cancel that arrives while a step holds the state lock takes effect
+    /// on the next step instead of failing with BUSY.
+    cancel_requested: std::sync::atomic::AtomicBool,
 }
 
 impl Generation {
@@ -901,6 +906,10 @@ impl Generation {
         if st.finished {
             return Err(Error::invalid_state("generation already finished; create a new generation"));
         }
+        if self.cancel_requested.load(std::sync::atomic::Ordering::SeqCst) && !st.cancelled {
+            st.cancelled = true;
+            st.inner.cancel();
+        }
         let mut chunk = match self.chunk.try_lock() {
             Ok(g) => g,
             Err(TryLockError::WouldBlock) => {
@@ -919,12 +928,16 @@ impl Generation {
         Ok(chunk)
     }
 
-    /// Cancel.
+    /// Cancel. Safe from any thread at any time: when a step on another
+    /// thread holds the state, the request is recorded and honored at the
+    /// start of the next step, and the final chunk reports `Cancelled`.
     pub fn cancel(&self) -> Result<()> {
-        let mut st = self.lock()?;
-        if !st.finished {
-            st.cancelled = true;
-            st.inner.cancel();
+        self.cancel_requested.store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Ok(mut st) = self.state.try_lock() {
+            if !st.finished && !st.cancelled {
+                st.cancelled = true;
+                st.inner.cancel();
+            }
         }
         Ok(())
     }

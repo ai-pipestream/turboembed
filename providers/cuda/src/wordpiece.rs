@@ -296,11 +296,11 @@ pub fn encode_row(
             let n = vocab.tokenize_into(text.as_bytes(), &mut row_ids[col..col + take])?;
             col += n;
         } else {
+            // Left truncation stages the whole text; the staging row grows
+            // to the text, so a long document is truncated rather than
+            // refused (the row itself is bounded by `seq`).
             if n_text > scratch.ids.len() {
-                return Err(Error::capacity(format!(
-                    "left truncation needs {n_text} staging tokens but the session holds {}",
-                    scratch.ids.len()
-                )));
+                scratch.ids.resize(n_text, 0);
             }
             vocab.tokenize_into(text.as_bytes(), &mut scratch.ids)?;
             row_ids[col..col + take].copy_from_slice(&scratch.ids[skip..skip + take]);
@@ -359,6 +359,13 @@ fn collect_words(
             }
         }
         let nw = vocab.count(&bytes[start..i])?;
+        if nw == 0 {
+            // The normalizer dropped the run (a lone combining mark, a
+            // zero-width joiner, a soft hyphen): it occupies no column, so
+            // it is not a word. Reporting it would name the next word's
+            // column.
+            continue;
+        }
         if seen + nw <= skip {
             seen += nw;
             continue;

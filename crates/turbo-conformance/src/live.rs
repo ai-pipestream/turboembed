@@ -46,21 +46,40 @@ impl Live {
 
     /// Cosine floor the embedding checks hold this device to, against the
     /// FP32 reference vectors. An FP32 (or unstated) compute dtype is held
-    /// to 0.9995; a quantized one must state its measured floor in the
-    /// capability cell, and that is the gate. A quantized device that
-    /// reports no floor fails here rather than being waved through.
+    /// to 0.9995. A quantized dtype is held to the floor the suite owns for
+    /// this provider and dtype (`testdata/reference_embeddings/quantized_floors.json`,
+    /// set from a committed receipt), and the device must also state a
+    /// measured floor in its capability cell that is no higher than the
+    /// suite's; a provider cannot set its own gate, and one the suite has
+    /// no floor for fails until a receipt adds one.
     pub fn embed_cosine_floor(&self) -> f32 {
         match self.embed.dtype {
             None | Some(DType::F32) => 0.9995,
             Some(dtype) => {
+                let path = reference_dir().join("quantized_floors.json");
+                let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+                let table: serde_json::Value = serde_json::from_str(&text).expect("quantized_floors.json");
+                let key = format!("{dtype:?}");
+                let suite = table
+                    .get(&self.provider)
+                    .and_then(|p| p.get(&key))
+                    .and_then(|c| c.get("floor"))
+                    .and_then(serde_json::Value::as_f64)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "{} computes EMBED in {dtype:?} but {} has no floor for it; add one from a receipt",
+                            self.provider,
+                            path.display()
+                        )
+                    }) as f32;
                 assert!(
-                    self.embed.cosine_floor > 0.0 && self.embed.cosine_floor < 1.0,
-                    "{} computes EMBED in {dtype:?} but reports cosine_floor {}; a quantized device must state \
-                     its measured floor",
+                    self.embed.cosine_floor > 0.0 && self.embed.cosine_floor <= suite,
+                    "{} reports cosine_floor {} for {dtype:?}; the suite's floor from the receipt is {suite}, and a \
+                     provider must state a measured floor no higher than that",
                     self.provider,
                     self.embed.cosine_floor
                 );
-                self.embed.cosine_floor
+                suite
             }
         }
     }

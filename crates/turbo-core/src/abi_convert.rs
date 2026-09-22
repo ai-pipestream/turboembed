@@ -682,7 +682,7 @@ pub fn session_stats_to_abi(s: &SessionStats, struct_size: u32) -> abi::turbo_se
         struct_size,
         reserved: 0,
         runs: s.runs,
-        host_allocs: s.host_allocs,
+        host_allocs: s.host_allocs.unwrap_or(u64::MAX),
         h2d_bytes: s.h2d_bytes,
         d2h_bytes: s.d2h_bytes,
         input_bytes: s.input_bytes,
@@ -695,7 +695,7 @@ pub fn session_stats_to_abi(s: &SessionStats, struct_size: u32) -> abi::turbo_se
 pub fn session_stats_from_abi(s: &abi::turbo_session_stats) -> SessionStats {
     SessionStats {
         runs: s.runs,
-        host_allocs: s.host_allocs,
+        host_allocs: if s.host_allocs == u64::MAX { None } else { Some(s.host_allocs) },
         h2d_bytes: s.h2d_bytes,
         d2h_bytes: s.d2h_bytes,
         input_bytes: s.input_bytes,

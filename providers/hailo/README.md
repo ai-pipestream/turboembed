@@ -29,7 +29,10 @@ The HEF is quantized. The capability cell for `EMBED x TEXT` reports
 against the FP32 reference vectors. Absolute cosine is not preserved
 (0.32 to 0.71 on the reference texts); ranking is (Spearman 0.94 on the
 STS corpus, the same as FP32). The live suite gates both: cosine against
-the floor the cell states, and Spearman over `testdata/corpus/sts-pairs.jsonl`.
+the floor the suite owns for this provider and dtype
+(`testdata/reference_embeddings/quantized_floors.json`, 0.45, set from the
+receipt; the cell's own floor must not exceed it), and Spearman over
+`testdata/corpus/sts-pairs.jsonl`.
 
 ## Bundle
 
@@ -54,10 +57,12 @@ turbo-bundle import --source all-MiniLM-L6-v2 --output minilm-hailo8 \
 
 Front end: a two-input HEF (hidden state plus the `[seq, seq]` additive
 attention bias) is the official Model Zoo contract and takes the raw word
-rows, PAD row on padding (`front_end=word`). A single-input HEF is treated
-as a community export that expects the full BERT embeddings from the host
-(`front_end=bert_embeddings`). The model option `front_end` overrides the
-inference; any other option is rejected.
+rows, PAD row on padding (`front_end=word`); it is inferred, and it is the
+front end the receipts measure. A single-input HEF must name its front end
+with the model option `front_end=word` or `front_end=bert_embeddings` (the
+host computes the full BERT embeddings; no receipt covers it yet, so the
+capability's cosine floor does not speak for it). Any other option is
+rejected.
 
 Batches are looped on the host one row at a time (the HEF is batch 1);
 `max_batch` is a host-side limit only.
@@ -100,7 +105,9 @@ library version and `driver_version` the device firmware. A context is a
 `hailo_vdevice` bound to that one device with HailoRT's scheduler on, so
 several models can be configured on one context. Sessions of one model
 serialize their runs on the model's mutex because vstreams are not
-reentrant.
+reentrant. A vstream write or read that fails mid-run leaves frames in
+flight that nothing can drain, so the model is marked unusable and every
+later run fails with `TURBO_E_INVALID_STATE` until it is reloaded.
 
 ## Not offered
 

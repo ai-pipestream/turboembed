@@ -47,7 +47,8 @@ library path at a time; there is no per-provider subdirectory.
 - **The CUDA 13 user-space libraries** (cuBLAS, cuBLASLt, cuDNN 9, NVRTC, the
   CUDA 13 runtime) that the CUDA provider's ONNX Runtime execution provider
   links against. On `krick` these come from NVIDIA's PyPI wheels unpacked
-  into `.libs/nvidia/lib`, which `scripts/package.sh` explicitly excludes.
+  into `.libs/nvidia/lib`; `scripts/package.sh` copies only the files it
+  names, so nothing under `.libs` is ever staged.
   They are large (several hundred megabytes), tied to a specific CUDA/driver
   combination, and already managed by whatever CUDA install the target
   machine has; bundling a copy would either duplicate what is already there

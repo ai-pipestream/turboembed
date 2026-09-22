@@ -238,7 +238,7 @@ public class turbo_error {
      * }
      */
     public static byte message(MemorySegment struct, long index0) {
-        return (byte)message$ELEM_HANDLE.get(struct, 0L, index0);
+        return message(struct).getAtIndex(JAVA_BYTE, index0);
     }
 
     /**
@@ -248,7 +248,7 @@ public class turbo_error {
      * }
      */
     public static void message(MemorySegment struct, long index0, byte fieldValue) {
-        message$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        message(struct).setAtIndex(JAVA_BYTE, index0, fieldValue);
     }
 
     /**

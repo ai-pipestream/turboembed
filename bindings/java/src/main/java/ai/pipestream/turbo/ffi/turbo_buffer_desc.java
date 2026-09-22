@@ -290,7 +290,7 @@ public class turbo_buffer_desc {
      * }
      */
     public static long shape(MemorySegment struct, long index0) {
-        return (long)shape$ELEM_HANDLE.get(struct, 0L, index0);
+        return shape(struct).getAtIndex(JAVA_LONG, index0);
     }
 
     /**
@@ -300,7 +300,7 @@ public class turbo_buffer_desc {
      * }
      */
     public static void shape(MemorySegment struct, long index0, long fieldValue) {
-        shape$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        shape(struct).setAtIndex(JAVA_LONG, index0, fieldValue);
     }
 
     private static final SequenceLayout strides$LAYOUT = (SequenceLayout)$LAYOUT.select(groupElement("strides"));
@@ -367,7 +367,7 @@ public class turbo_buffer_desc {
      * }
      */
     public static long strides(MemorySegment struct, long index0) {
-        return (long)strides$ELEM_HANDLE.get(struct, 0L, index0);
+        return strides(struct).getAtIndex(JAVA_LONG, index0);
     }
 
     /**
@@ -377,7 +377,7 @@ public class turbo_buffer_desc {
      * }
      */
     public static void strides(MemorySegment struct, long index0, long fieldValue) {
-        strides$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        strides(struct).setAtIndex(JAVA_LONG, index0, fieldValue);
     }
 
     private static final OfLong bytes$LAYOUT = (OfLong)$LAYOUT.select(groupElement("bytes"));

@@ -154,7 +154,13 @@ fn derive_pooling(source: &Path, notes: &mut Vec<String>) -> Result<DerivedPooli
         map_pooling(mode)?
     };
     notes.push(format!("normalization: {}", if normalize { "l2 (Normalize module present)" } else { "none" }));
-    let dim = cfg.get("word_embedding_dimension").and_then(Value::as_u64).map(|v| v as u32);
+    // sentence-transformers wrote `word_embedding_dimension` up to v5 and
+    // `embedding_dimension` from v6; either names the pooled width.
+    let dim = cfg
+        .get("word_embedding_dimension")
+        .or_else(|| cfg.get("embedding_dimension"))
+        .and_then(Value::as_u64)
+        .map(|v| v as u32);
     Ok(DerivedPooling {
         pooling: Some(pooling),
         normalize: Some(if normalize { "l2".into() } else { "none".into() }),
@@ -303,17 +309,10 @@ pub fn import(req: &ImportRequest) -> Result<ImportReport, String> {
     let vocab_size =
         hf_config.as_ref().and_then(|c| c.get("vocab_size")).and_then(Value::as_u64).map(|v| v as u32).unwrap_or(0);
     let family = hf_config.as_ref().and_then(|c| c.get("model_type")).and_then(Value::as_str).unwrap_or("").to_string();
-    let labels: Vec<String> = hf_config
-        .as_ref()
-        .and_then(|c| c.get("id2label"))
-        .and_then(Value::as_object)
-        .map(|m| {
-            let mut v: Vec<(u32, String)> =
-                m.iter().filter_map(|(k, v)| Some((k.parse().ok()?, v.as_str()?.to_string()))).collect();
-            v.sort();
-            v.into_iter().map(|(_, l)| l).collect()
-        })
-        .unwrap_or_default();
+    let labels: Vec<String> = match hf_config.as_ref().and_then(|c| c.get("id2label")) {
+        None => Vec::new(),
+        Some(v) => labels_from_id2label(v)?,
+    };
 
     // Kind and task.
     let kind_name = match &req.kind {
@@ -925,4 +924,29 @@ mod refusals {
             assert_eq!(report.manifest.contract.activation.as_deref(), Some(want), "problem_type {problem:?}");
         }
     }
+}
+
+/// The label list of an `id2label` map. The map must name every index from
+/// 0 to n-1 exactly once with a string label; a sparse, duplicated, or
+/// non-string map is refused rather than renumbered, because the label
+/// index is what the model's output column means.
+fn labels_from_id2label(v: &Value) -> Result<Vec<String>, String> {
+    let m = v.as_object().ok_or_else(|| "config.json id2label is not an object".to_string())?;
+    let mut pairs: Vec<(u32, String)> = Vec::with_capacity(m.len());
+    for (k, l) in m {
+        let idx: u32 = k.trim().parse().map_err(|_| format!("config.json id2label key `{k}` is not an integer"))?;
+        let label = l.as_str().ok_or_else(|| format!("config.json id2label[{k}] is not a string: {l}"))?;
+        pairs.push((idx, label.to_string()));
+    }
+    pairs.sort();
+    for (i, (idx, _)) in pairs.iter().enumerate() {
+        if *idx != i as u32 {
+            return Err(format!(
+                "config.json id2label must name the indices 0..{} exactly once; it has {:?}",
+                pairs.len(),
+                pairs.iter().map(|(i, _)| *i).collect::<Vec<_>>()
+            ));
+        }
+    }
+    Ok(pairs.into_iter().map(|(_, l)| l).collect())
 }

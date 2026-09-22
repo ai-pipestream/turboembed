@@ -28,7 +28,11 @@ fn steady_state(name: &str, session: *mut turbo_session, mut step: impl FnMut())
     }
     let end = stats(session);
     assert_eq!(end.runs, ITERATIONS + 1, "{name}: runs must count every completed run");
-    assert_eq!(end.host_allocs, warm.host_allocs, "{name}: the adapter allocated on the run path");
+    if warm.host_allocs != u64::MAX {
+        assert_eq!(end.host_allocs, warm.host_allocs, "{name}: the adapter allocated on the run path");
+    } else {
+        assert_eq!(end.host_allocs, u64::MAX, "{name}: host_allocs switched from not counted to counted");
+    }
     assert_eq!(end.input_bytes, warm.input_bytes, "{name}: input storage grew after warmup");
     assert_eq!(end.output_bytes, warm.output_bytes, "{name}: output storage grew after warmup");
     if warm.provider_allocs == u64::MAX || end.provider_allocs == u64::MAX {

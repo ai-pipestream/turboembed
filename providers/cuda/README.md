@@ -13,7 +13,12 @@ normalization, sigmoid, and softmax. See the crate documentation in
   `/usr/local/cuda`, else `/usr`). The kernels are compiled for
   `TURBO_CUDA_ARCHS` (default `87;89`: Jetson Orin and Ada) plus PTX for the
   last architecture listed.
-- `libcudart.so` from that toolkit.
+- `libcudart.so` from that toolkit. The provider's own kernels link the
+  runtime of the toolkit that compiled them (`libcudart.so.12` for the
+  12.4 toolkit on `krick`), while the ONNX Runtime execution provider it
+  loads needs the CUDA 13 user-space libraries below; both must be present
+  on the consumer machine, and `ldd` on the packaged library names the
+  first.
 - Network access on the first build: with the default `download` feature
   the `ort` crate downloads the ONNX Runtime 1.28 CUDA 13 bundle for
   `x86_64-unknown-linux-gnu` into `~/.cache/ort.pyke.io`. There is no
@@ -82,6 +87,8 @@ Bundles come from `turbo-bundle import` (see `docs/bundles.md`). Results for
 Every cell is `EXPERIMENTAL`: precision matches the FP32 reference to cosine
 1.000, but the matched-native benchmark and the Jetson receipt required for
 `SUPPORTED` are not recorded yet. Sessions of one model share the ONNX
-Runtime session under a lock, so two Turbo sessions on the same model run
-one at a time; `user_compute_stream` import (`TURBO_CAP_EXTERNAL_QUEUE`) and
+Runtime session under a lock (`ort::Session::run_binding` takes the session
+exclusively), so two Turbo sessions on the same model run one at a time
+rather than concurrently as `PLAN.md` section 4 describes; the alternative,
+one ONNX Runtime session per Turbo session, would give up weight sharing; `user_compute_stream` import (`TURBO_CAP_EXTERNAL_QUEUE`) and
 CUDA graphs are not implemented.
