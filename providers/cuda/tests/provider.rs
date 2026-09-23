@@ -133,26 +133,50 @@ fn cuda_devices_are_nvidia_gpus_with_memory_and_the_declared_capability_bits() {
 }
 
 #[test]
-fn cuda_capability_cells_are_experimental_for_text_tasks_and_unsupported_elsewhere() {
+fn cuda_capability_cells_follow_the_receipts() {
     let Some(rt) = runtime() else { return };
     let (index, info) = device_zero(&rt);
+    // Embeddings are SUPPORTED on a discrete GPU (precision receipt plus the
+    // RTX 4080 SUPER matched-native pair) and EXPERIMENTAL on an integrated one (the
+    // Orin Nano pair is under the 0.95 line at 1x32); the other text tasks have
+    // no matched-native benchmark and stay EXPERIMENTAL everywhere.
+    let integrated = cuda::devices().expect("enumerate CUDA devices")[0].integrated;
     let offered = [Task::Embed, Task::Rerank, Task::Classify, Task::TokenClassify];
     for &task in Task::ALL {
         for &modality in Modality::ALL {
             let cap = rt.capability(index, task, modality).expect("query the capability cell");
-            let want = if modality == Modality::Text && offered.contains(&task) {
-                CapStatus::Experimental
-            } else {
+            let want = if modality != Modality::Text || !offered.contains(&task) {
                 CapStatus::Unsupported
+            } else if task == Task::Embed && !integrated {
+                CapStatus::Supported
+            } else {
+                CapStatus::Experimental
             };
             assert_eq!(
                 cap.status, want,
-                "`{}` reports {:?} for {task:?} x {modality:?}, expected {want:?}",
+                "`{}` (integrated {integrated}) reports {:?} for {task:?} x {modality:?}, expected {want:?}",
                 info.name, cap.status
             );
-            if want == CapStatus::Experimental {
-                assert_eq!(cap.dtype, Some(DType::F32), "{task:?}: the CUDA path runs in f32");
-                assert!(!cap.notes.is_empty(), "{task:?}: an EXPERIMENTAL cell must say why it is not SUPPORTED");
+            match want {
+                CapStatus::Supported => {
+                    assert_eq!(cap.dtype, Some(DType::F32), "{task:?}: the CUDA path runs in f32");
+                    assert!(cap.cosine_floor >= 0.999, "{task:?}: a SUPPORTED cell states its cosine floor: {cap:?}");
+                    assert!(
+                        cap.notes.contains("cuda-2026-09-21") && cap.notes.contains("compare-cuda-rtx4080-embed"),
+                        "{task:?}: a SUPPORTED cell names its receipts: {}",
+                        cap.notes
+                    );
+                }
+                CapStatus::Experimental => {
+                    assert_eq!(cap.dtype, Some(DType::F32), "{task:?}: the CUDA path runs in f32");
+                    assert_eq!(cap.cosine_floor, 0.0, "{task:?}: no floor is claimed without a benchmark");
+                    assert!(
+                        cap.notes.contains("no matched-native benchmark") || cap.notes.contains("integrated GPU"),
+                        "{task:?}: an EXPERIMENTAL cell must say why it is not SUPPORTED: {}",
+                        cap.notes
+                    );
+                }
+                _ => {}
             }
         }
     }

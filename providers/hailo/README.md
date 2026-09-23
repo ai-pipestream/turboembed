@@ -124,7 +124,7 @@ later run fails with `TURBO_E_INVALID_STATE` until it is reloaded.
 gate) pass on both a Raspberry Pi 5 with the AI HAT+ 26 TOPS and a
 Raspberry Pi CM5 on the CM5 IO Board with a Hailo-8 M.2 module; receipt:
 `testdata/receipts/turbo/hailo-2026-09-21.json`. Throughput on the Pi 5
-(`turbo-bench embed`, `testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json`):
+(`turbo-bench embed`, `testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-22b.json`):
 76 rows/s at every batch and sequence length, since the HEF is batch 1 with
 a fixed 128-token frame (about 13.2 ms per row). Hailo-8L is untested (no
 board). On a Raspberry Pi 5 with the AI HAT+ 2, Hailo-10H (HailoRT 5.1.1,

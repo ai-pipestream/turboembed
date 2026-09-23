@@ -72,7 +72,7 @@ and comes from committed receipts under `testdata/receipts/turbo/`.
 
 | provider | devices with receipts | runtime | status |
 |---|---|---|---|
-| `cuda` | RTX 4080 SUPER on x86_64, Jetson Orin Nano on aarch64 | ONNX Runtime CUDA EP, own pooling and activation kernels | SUPPORTED for embeddings on the 4080 (1.04x to 2.64x the ONNX Runtime CUDA loop, `compare-cuda-rtx4080-embed-2026-09-22.json`); EXPERIMENTAL elsewhere; cosine 1.000 vs FP32 |
+| `cuda` | RTX 4080 SUPER on x86_64, Jetson Orin Nano on aarch64 | ONNX Runtime CUDA EP, own pooling and activation kernels | SUPPORTED for embeddings on the 4080 (1.00x to 1.15x the ONNX Runtime CUDA loop, `compare-cuda-rtx4080-embed-2026-09-23.json`); EXPERIMENTAL on the Jetson (0.92x to 1.05x, `compare-cuda-orin-nano-embed-2026-09-22c.json`) and for the other tasks; cosine 1.000 vs FP32 |
 | `openvino` | Intel Arc B70 (Battlemage) on x86_64, any CPU | OpenVINO 2026.3, fused graph, `cl_mem` results on GPU | SUPPORTED for embeddings on the B70 (1.15x to 1.55x the OpenVINO C++ loop) and on the Ryzen 9 CPU (1.01x to 1.34x); cosine 1.000 vs FP32 |
 | `ggml` | RTX 4080 SUPER and its CPU, Apple M2 Metal | llama.cpp through `llama-cpp-2` | SUPPORTED on the 4080 for generation (0.99x of llama.cpp itself) and GGUF embeddings (0.99x to 1.89x) |
 | `metal` | Apple M2 | Metal directly: MSL kernels compiled at load, shared `MTLBuffer`s end to end, no MLX | SUPPORTED for embeddings on the M2 (1.00x of the kernels run directly); EXPERIMENTAL for rerank; cosine 1.000 vs FP32 |

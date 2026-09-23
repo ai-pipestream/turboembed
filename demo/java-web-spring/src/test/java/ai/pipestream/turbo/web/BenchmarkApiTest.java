@@ -10,16 +10,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.TestPropertySource;
 
 /**
- * {@code GET /api/v1/benchmarks} over the committed receipts in
- * {@code testdata/receipts/turbo/bench}, which the default {@code
- * turbo.receipts} points at from this module's directory.
+ * {@code GET /api/v1/benchmarks} over a frozen copy of receipts in
+ * {@code src/test/resources/receipts}: the values asserted below are those
+ * files' values, so a benchmark re-run in the tree (which replaces the
+ * receipts under {@code testdata/receipts/turbo/bench}) does not move them.
+ * The copies are receipts that were committed at some point, with the
+ * machine named by its architecture label.
  *
- * <p>The receipts grow as machines are measured, so these cases assert the
- * shape of the answer and the receipts that are already committed, not a
- * total count that a new run would change.
+ * <p>The application's default {@code turbo.receipts} still points at the
+ * tree's directory; {@link BenchmarkReceiptsDirectoryTest} covers that path.
  */
+@TestPropertySource(properties = "turbo.receipts=src/test/resources/receipts")
 class BenchmarkApiTest extends ApiTestBase {
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -51,13 +55,13 @@ class BenchmarkApiTest extends ApiTestBase {
     @Test
     void everyReceiptInTheDirectoryIsGroupedByItsKind() throws Exception {
         JsonNode report = report();
-        assertTrue(report.path("directory").asText().endsWith("testdata/receipts/turbo/bench"),
+        assertTrue(report.path("directory").asText().endsWith("src/test/resources/receipts"),
                 "the report names the directory it read: " + report.path("directory").asText());
         int comparisons = report.path("comparisons").size();
         int turbo = report.path("turbo").size();
         int natives = report.path("native").size();
-        assertTrue(comparisons > 0, "the committed tree carries compare receipts");
-        assertTrue(turbo > 0, "the committed tree carries libturbo receipts");
+        assertTrue(comparisons > 0, "the fixtures carry compare receipts");
+        assertTrue(turbo > 0, "the fixtures carry libturbo receipts");
         assertTrue(natives > 0, "the committed tree carries direct-native receipts");
         assertEquals(report.path("receipt_count").asInt(), comparisons + turbo + natives,
                 "every file read is in exactly one group");

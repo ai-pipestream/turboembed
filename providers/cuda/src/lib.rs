@@ -182,16 +182,31 @@ impl Provider for CudaProvider {
         if !Self::offers(task, modality) {
             return Capability::unsupported();
         }
+        // SUPPORTED needs a precision receipt and a matched-native benchmark
+        // at or above 0.95 of native on a device of this kind. Embeddings
+        // have both on a discrete GPU (testdata/receipts/turbo/cuda-2026-09-21
+        // and bench/compare-cuda-rtx4080-embed-2026-09-23). The Jetson Orin Nano pair
+        // (compare-cuda-orin-nano-embed-2026-09-22c) is 0.92x at 1x32, so an
+        // integrated GPU stays EXPERIMENTAL; the other tasks have a precision
+        // receipt and no matched-native benchmark.
+        let supported = task == Task::Embed && !p.integrated;
+        let why = if supported {
+            "receipts cuda-2026-09-21, compare-cuda-rtx4080-embed-2026-09-23"
+        } else if p.integrated {
+            "integrated GPU: compare-cuda-orin-nano-embed-2026-09-22c is 0.92x at 1x32; cuda-jetson-2026-09-21"
+        } else {
+            "precision receipt cuda-2026-09-21; no matched-native benchmark for this task"
+        };
         Capability {
-            status: CapStatus::Experimental,
+            status: if supported { CapStatus::Supported } else { CapStatus::Experimental },
             dtype: Some(DType::F32),
             reference_dtype: Some(DType::F32),
-            cosine_floor: 0.0,
+            cosine_floor: if supported { 0.9999 } else { 0.0 },
             max_abs_error: 0.0,
             deterministic: false,
             // The ABI field holds 127 bytes; the device name is cut first so
             // the status words always fit.
-            notes: format!("ORT CUDA EP, device-side pooling/activation; receipts pending; {}", p.name),
+            notes: format!("{why}; {}", p.name),
         }
     }
 

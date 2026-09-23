@@ -453,13 +453,14 @@ Orin Nano board. On that board (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime
   `allocation` have not been run this way yet.
 
 The benchmark pair on the Orin Nano is
-`testdata/receipts/turbo/bench/cuda-orin-nano-embed-2026-09-22.json`,
-`native-ort-cuda-orin-nano-embed-2026-09-22.json` and
-`compare-cuda-orin-nano-embed-2026-09-22.json`: 0.96x to 1.04x of ONNX Runtime
-CUDA alone across the nine batch x sequence cells, verdict SUPPORTED, plus
-`cuda-orin-nano-rerank-2026-09-22.json` (16 documents, the bundle's
-`max_batch`). There is still no conformance or precision receipt file
-committed for this machine.
+`testdata/receipts/turbo/bench/cuda-orin-nano-embed-2026-09-22c.json`,
+`native-ort-cuda-orin-nano-embed-2026-09-22c.json` and
+`compare-cuda-orin-nano-embed-2026-09-22c.json` (commit 0906ca1): 0.92x to 1.05x of
+ONNX Runtime CUDA alone across the nine batch x sequence cells, with
+1x32 at 0.916x, 1x128 at 0.947x under the 0.95 line, verdict EXPERIMENTAL; plus
+`cuda-orin-nano-rerank-2026-09-22b.json` (16 documents, the bundle's
+`max_batch`). The precision receipt for this kind of machine is
+`testdata/receipts/turbo/cuda-jetson-2026-09-21.json`.
 
 ## Running what exists today
 

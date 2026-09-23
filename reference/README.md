@@ -78,8 +78,8 @@ directories say; the Rust ones record the build's commit through the
 
 | pair | device | cells | libturbo versus native | verdict |
 |---|---|---|---|---|
-| cuda / ONNX Runtime 1.28 CUDA EP | RTX 4080 SUPER, x86_64 (`rtx4080`) | embed, 9 | 1.04x to 2.64x | SUPPORTED |
-| cuda / ONNX Runtime 1.24 CUDA EP | Jetson Orin Nano Super 8 GB, sm_87 (`orin-nano`) | embed, 9 | 0.88x to 1.03x; 1x32, 1x128 and 8x32 under the line by a fixed per-run cost of about 0.3 to 0.5 ms (`compare-cuda-orin-nano-embed-2026-09-22b.json`) | EXPERIMENTAL |
+| cuda / ONNX Runtime 1.28 CUDA EP | RTX 4080 SUPER, x86_64 (`rtx4080`) | embed, 9 | 1.00x to 1.15x, re-run from commit 8d7b6dc (`compare-cuda-rtx4080-embed-2026-09-23.json`; the first pair, 1.04x to 2.64x, had an older and slower native side) | SUPPORTED |
+| cuda / ONNX Runtime 1.24 CUDA EP | Jetson Orin Nano Super 8 GB, sm_87 (`orin-nano`) | embed, 9 | 0.92x to 1.05x from commit 0906ca1 (`compare-cuda-orin-nano-embed-2026-09-22c.json`); 1x32 at 0.916x, 1x128 at 0.947x under the line. The per-run cost outside ONNX Runtime is about 150 us after 0906ca1 (210 us before it, `compare-cuda-orin-nano-embed-2026-09-22b.json` at 0.88x to 1.03x), and the board's run-to-run spread on the batch-1 cells is about 0.04, so those cells land on either side of 0.95 | EXPERIMENTAL |
 | openvino / OpenVINO 2026.3.1 C++ | Intel Arc B70 (Battlemage), x86_64 (`b70`) | embed, 9 | 1.15x to 1.55x | SUPPORTED |
 | openvino / OpenVINO 2026.3.1 C++ | Ryzen 9 9950X3D CPU of the RTX 4080 SUPER host (`rtx4080`) | embed, 9 | 1.01x to 1.34x, re-run from commit c540fb3 (the first run read 0.91x on the larger cells: the provider's token writer built an error message per token, about 1 us each, fixed the same day; `compare-openvino-rtx4080-cpu-embed-2026-09-22c.json`) | SUPPORTED |
 | ggml / llama.cpp CUDA | RTX 4080 SUPER, x86_64 (`rtx4080`) | generate, 128 tokens | 0.99x total, 1.00x decode | SUPPORTED |

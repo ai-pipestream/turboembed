@@ -862,12 +862,15 @@ receipts, matches cells, and reports `libturbo` throughput as a fraction
 of native per cell; a (device, task) is SUPPORTED when every cell reaches
 0.95 of native, nothing is unmatched, and the comparison receipt is
 committed under `testdata/receipts/turbo/bench/compare-*.json`. The first
-such receipt is `compare-cuda-rtx4080-embed-2026-09-22.json`: the cuda
-provider on the RTX 4080 SUPER against ONNX Runtime 1.28's CUDA execution
-provider on the same 9 cells, `libturbo` at 1.04x to 2.64x of native
+such receipt was `compare-cuda-rtx4080-embed-2026-09-22.json`, since
+re-run from commit 8d7b6dc as `compare-cuda-rtx4080-embed-2026-09-23.json`:
+the cuda provider on the RTX 4080 SUPER against ONNX Runtime 1.28's CUDA
+execution provider on the same 9 cells, `libturbo` at 1.00x to 1.15x of native
 (the provider keeps the hidden state on the device and pools with its own
 kernels; the plain loop copies it back), verdict SUPPORTED for EMBED on
-that device. The same day: openvino embeddings on the B70 (1.15x to
+that device. On the Jetson (`compare-cuda-orin-nano-embed-2026-09-22c.json`)
+the same pair is 0.92x to 1.05x with 1x32 at 0.916x, 1x128 at 0.947x under the line, so the integrated GPU
+stays EXPERIMENTAL. The same day: openvino embeddings on the B70 (1.15x to
 1.55x) SUPPORTED, ggml generation on the 4080 (0.99x) SUPPORTED, hailo
 embeddings on the Hailo-8 (1.00x of `hailortcli benchmark`) SUPPORTED,
 metal embeddings on the M2 (1.00x of the kernels run directly)

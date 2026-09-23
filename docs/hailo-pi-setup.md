@@ -350,7 +350,7 @@ The Hailo-8 path has receipts: the Model Zoo's `all_minilm_l6_v2` HEF for
 the measurements in
 [`testdata/receipts/turbo/hailo-2026-09-21.json`](../testdata/receipts/turbo/hailo-2026-09-21.json)
 and
-[`testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json).
+[`testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-22b.json`](../testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-22b.json).
 
 The Hailo-10H path does not. There is no public `hailo10h` MiniLM HEF, so
 one has to be compiled with the Hailo Dataflow Compiler 5 line, which is
@@ -501,7 +501,7 @@ the rest of the live-test environment.
 What this gets on a Hailo-8: 76 rows per second at every batch and
 sequence length on the Hailo-8 Pi, 2026-09-22, about 13.2 ms per row, because
 the HEF is batch 1 with a fixed 128-token frame
-([`testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json)).
+([`testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-22b.json`](../testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-22b.json)).
 That is 1.00x of what `hailortcli benchmark` gets from the same HEF
 ([`testdata/receipts/turbo/bench/compare-hailo-pi5-hailo8-embed-2026-09-22b.json`](../testdata/receipts/turbo/bench/compare-hailo-pi5-hailo8-embed-2026-09-22b.json)).
 The HEF is quantized, so the vectors are not the FP32 ones; see

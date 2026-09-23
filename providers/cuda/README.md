@@ -122,16 +122,23 @@ cargo test -p turbo-provider-cuda --no-default-features
 A non-login `ssh` shell does not have cargo on `PATH`, hence the first line.
 Results for the Orin Nano are in
 `testdata/receipts/turbo/bench/cuda-orin-nano-*.json` and
-`compare-cuda-orin-nano-embed-2026-09-22.json`; `docs/testing.md`'s "The CUDA
+`compare-cuda-orin-nano-embed-2026-09-22c.json`; `docs/testing.md`'s "The CUDA
 provider on the Jetson Orin Nano" section lists what passes there.
 
 ## Status
 
-Every cell is `EXPERIMENTAL`. Precision matches the FP32 reference to cosine
-1.000 and the matched-native benchmark is now recorded on both machines
-(1.04x to 2.64x on the RTX 4080 SUPER and 0.96x to 1.04x on the Orin Nano,
-of ONNX Runtime CUDA alone, both SUPPORTED), but no conformance or precision
-receipt file is committed for the Orin Nano yet, so the cells stay `EXPERIMENTAL` until one is.
+`EMBED x TEXT` is `SUPPORTED` on a discrete GPU and `EXPERIMENTAL` on an
+integrated one (Jetson); the other text tasks are `EXPERIMENTAL`
+everywhere. Precision matches the FP32 reference to cosine 1.000 on both
+kinds of machine (`testdata/receipts/turbo/cuda-2026-09-21.json`,
+`cuda-jetson-2026-09-21.json`). The matched-native pair on the RTX 4080
+SUPER is 1.00x to 1.15x of ONNX Runtime CUDA alone
+(`compare-cuda-rtx4080-embed-2026-09-23.json`, SUPPORTED); on the Orin
+Nano it is 0.92x to 1.05x (`compare-cuda-orin-nano-embed-2026-09-22c.json`) with
+1x32 at 0.916x, 1x128 at 0.947x under the 0.95 line, so that cell stays `EXPERIMENTAL`. The
+provider tells the two apart by `cudaDevAttrIntegrated`. Rerank, classify
+and token classification have precision receipts and no matched-native
+benchmark yet.
 
 Sessions of one model share the ONNX Runtime session under a lock
 (`ort::Session::run_binding` takes the session exclusively), so two Turbo

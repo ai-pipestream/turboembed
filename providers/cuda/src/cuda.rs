@@ -85,6 +85,8 @@ pub struct DeviceProps {
     pub major: i32,
     /// Compute capability minor.
     pub minor: i32,
+    /// `cudaDevAttrIntegrated`: the GPU shares the host's memory (Jetson).
+    pub integrated: bool,
     /// `cudaRuntimeGetVersion`.
     pub runtime_version: i32,
     /// `cudaDriverGetVersion`.
@@ -93,6 +95,7 @@ pub struct DeviceProps {
 
 const CUDA_DEV_ATTR_COMPUTE_CAPABILITY_MAJOR: c_int = 75;
 const CUDA_DEV_ATTR_COMPUTE_CAPABILITY_MINOR: c_int = 76;
+const CUDA_DEV_ATTR_INTEGRATED: c_int = 18;
 
 /// Device name through the driver API, which keeps a stable symbol across
 /// toolkit majors (the runtime's `cudaGetDeviceProperties` is re-versioned
@@ -157,6 +160,11 @@ pub fn devices() -> Result<Vec<DeviceProps>> {
             unsafe { cudaDeviceGetAttribute(&mut minor, CUDA_DEV_ATTR_COMPUTE_CAPABILITY_MINOR, i) },
             "cudaDeviceGetAttribute(compute capability minor)",
         )?;
+        let mut integrated: c_int = 0;
+        check(
+            unsafe { cudaDeviceGetAttribute(&mut integrated, CUDA_DEV_ATTR_INTEGRATED, i) },
+            "cudaDeviceGetAttribute(integrated)",
+        )?;
         let name = device_name(i)?;
         let (mut free, mut total) = (0usize, 0usize);
         check(unsafe { cudaSetDevice(i) }, "cudaSetDevice")?;
@@ -168,6 +176,7 @@ pub fn devices() -> Result<Vec<DeviceProps>> {
             free_mem: free as u64,
             major,
             minor,
+            integrated: integrated != 0,
             runtime_version: rt,
             driver_version: drv,
         });

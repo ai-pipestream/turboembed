@@ -1,0 +1,126 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "/work/worktrees/turboembed/turboembed/testdata/receipts/turbo/bench/cuda-rtx4080-embed-2026-09-22c.json",
+    "commit": "8d7b6dc1f5f7b2e86f6dd22aed9ce3198eb8f46a",
+    "provider": {
+      "id": "cuda",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "onnxruntime ORT Build Info: git-branch=rel-1.28.0, git-commit-i",
+      "driver_version": "13.2"
+    },
+    "device": {
+      "name": "NVIDIA GeForce RTX 4080 SUPER (sm_89)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x3bf02c6",
+      "memory_total": 16717119488
+    },
+    "date": "2026-09-23"
+  },
+  "native": {
+    "file": "/work/worktrees/turboembed/turboembed/testdata/receipts/turbo/bench/native-ort-cuda-rtx4080-embed-2026-09-22c.json",
+    "commit": "8d7b6dc1f5f7b2e86f6dd22aed9ce3198eb8f46a",
+    "provider": {
+      "id": "onnxruntime-cuda",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "ONNX Runtime ORT Build Info: git-branch=rel-1.28.0, git-commit-id=da9b5e3, quick-build=1, build type=Release (ort 2.0.0-rc.13), CUDA execution provider",
+      "driver_version": "595.84"
+    },
+    "device": {
+      "name": "NVIDIA GeForce RTX 4080 SUPER",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 17171480576
+    },
+    "date": "2026-09-23"
+  },
+  "bundle": {
+    "dir": "/home/krickert/opt/bundles/minilm-onnx",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
+    "artifacts": {
+      "onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "embed 1x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.482682,
+      "native": 0.484907,
+      "ratio": 1.004609660190353,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.635151,
+      "native": 0.6930900000000001,
+      "ratio": 1.0912208278031523,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 1.2614150000000002,
+      "native": 1.455331,
+      "ratio": 1.1537289472536791,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.554508,
+      "native": 0.5645570000000001,
+      "ratio": 1.018122371543783,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 1.314094,
+      "native": 1.499033,
+      "ratio": 1.140734985472881,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 4.221079,
+      "native": 4.7611490000000005,
+      "ratio": 1.1279459588413296,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 0.711805,
+      "native": 0.7381249999999999,
+      "ratio": 1.0369764191035464,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 2.683392,
+      "native": 2.885143,
+      "ratio": 1.0751850642768555,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 13.620394,
+      "native": 14.990184,
+      "ratio": 1.100569043744256,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "dirty": [],
+  "verdict": "SUPPORTED"
+}
