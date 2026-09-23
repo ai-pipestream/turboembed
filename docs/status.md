@@ -168,7 +168,7 @@ The dedicated `metal` provider (P4) landed on 2026-09-22 as a direct
 Metal provider (Objective-C++, kernels compiled at load, no MLX) serving
 embeddings and reranking on Apple M2; `ggml` reaches the same GPU for
 generation through llama.cpp's own Metal backend. The `hailo` provider (P5) serves
-embeddings on the Hailo-8 Pis; Hailo-10H is still open. The Android binding
+embeddings on the Hailo-8 Pis; on the Hailo-10H the provider builds and finds the device on HailoRT 5.1.1 (`pi5ai2p`) and waits on a DFC 5 HEF. The Android binding
 (P10) is not available yet; the Java and Swift bindings (P7) have landed.
 CUDA on Jetson (`nano1`, aarch64) now passes its live embedding
 tests (cosine 1.000); the task suite (rerank, classify, token-classify) is

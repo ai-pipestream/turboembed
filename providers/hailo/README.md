@@ -127,7 +127,12 @@ gate) pass on both `pi5ai1` (Raspberry Pi 5 with AI HAT+ 26 TOPS) and
 (`turbo-bench embed`, `testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`):
 76 rows/s at every batch and sequence length, since the HEF is batch 1 with
 a fixed 128-token frame (about 13.2 ms per row). Hailo-8L is untested (no
-board), Hailo-10H needs a DFC 5 HEF, and the x86_64 PCIe build is untried.
+board). On the Hailo-10H (`pi5ai2p`, HailoRT 5.1.1, 2026-09-22) the library
+builds, links and enumerates the device through the same 4.x C API, and
+the vtable tests' device and capability cases pass; the bundle cases wait
+on a DFC 5 MiniLM HEF, which does not exist yet
+([`docs/hailo-pi-setup.md`](../../docs/hailo-pi-setup.md) section 6). The
+x86_64 PCIe build is untried.
 A matched-native benchmark receipt is still required before this cell can
 move from `EXPERIMENTAL` to `SUPPORTED`.
 
