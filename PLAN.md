@@ -403,7 +403,10 @@ importer refuses ambiguous inputs rather than guessing. Providers read the
 contract; they never infer pooling from an alias.
 
 The existing fetch manifests remain the hash-pinned source list. A catalog
-(alias to bundle path) exists only in the server layer.
+(alias to bundle path) exists only in the server layer until P11, which
+adds the model zoo: a published catalog of bundles per model and target,
+with the recipe that produced each artifact and the receipts that prove
+it (section 10, P11).
 
 ## 7. Providers and the lowest layer on each device
 
@@ -826,10 +829,100 @@ OpenNLP repository against `turbo-api`.
 Gate: Android conformance subset on the device; native-image sample runs on
 linux-x64, linux-aarch64, macos-aarch64.
 
+### P11 Model zoo and repositories
+Decided 2026-09-23. A zoo is the layer that produces bundle artifacts
+reproducibly, says what has been proven about each one, and serves them
+from ordinary storage. The bundle (section 6) stays the unit every binding
+opens; the zoo is an index over bundles plus the recipes and receipts
+behind them. Nothing in it touches the run path.
+
+Schema. One `zoo.proto` defines the cold-layer types: `Catalog`, `Entry`,
+`Artifact`, `Target`, `Source`, `Recipe`, `ReceiptRef`, and the bundle
+contract fields already in `bundle.json`. On disk they are written as
+proto3 JSON, so the index stays readable and diffable; over gRPC the same
+messages travel as binary. Every language binding gets the same typed
+objects from the one schema (prost, protobuf-java, swift-protobuf, C++),
+none hand-mirrored. An entry names: the model (`groupId`, `artifactId`,
+`version`, `application` in DJL's taxonomy such as `nlp/text_embedding`),
+the target (`arch` such as `sm_89`, `aarch64-cuda`, `openvino-gpu`,
+`metal`, `hailo8`, `hailo10h`; `format` such as `onnx`, `openvino_ir`,
+`gguf`, `hef`; `runtime` and its version range; `quantized`), the
+contract copied from the bundle, the source (checkpoint, revision,
+sha256), the recipe (id, version, toolchain versions, calibration set
+hash), the files (path, size, `sha256`, and `sha1Hash` for DJL clients),
+and the receipts (precision, matched-native, conformance) with their
+verdicts. An entry with no receipts is `EXPERIMENTAL`; the same rule as
+the capability cells, so the zoo and the runtime never disagree.
+
+DJL compatibility. The index is also published in Deep Java Library's
+`metadata.json` layout (`metadataVersion`, `resourceType`, `application`,
+`groupId`, `artifactId`, `artifacts[]` with `version`, `properties`,
+`arguments`, `options`, `files{uri, sha1Hash, size}`), produced from the
+same proto messages through `json_name` mappings. A stock DJL client, and
+therefore SageMaker's DJL Serving, can list and download our bundles; our
+target and contract fields ride in `properties` and `arguments` under
+documented names, and the untyped maps are never the source of truth.
+The reverse direction, DJL's mlrepo and the Hugging Face Hub as sources
+for `turbo-bundle import`, uses the same repository layer. The reference
+copy of DJL lives outside this tree.
+
+Repositories. One `Repository` interface (resolve, fetch, verify) with
+thin implementations: local directory (`file://`, and `pvc://` as a
+mounted path; the local case also serves single-node edge clusters where
+the bundle sits on the node); HTTPS static (DJL's mlrepo, GitHub
+releases, any web server; no code beyond a fetch and a hash check); S3
+through the REST API with SigV4 signing over the HTTP client the server
+already has, no vendor SDK, so it also builds for mobile; the Hugging
+Face Hub through its resolve endpoint; OCI artifact registries (ORAS
+layout, cosign signatures later), which every cloud offers and which is
+where model artifacts are converging. Google Cloud Storage and Azure Blob
+follow S3 for cloud parity. The URI schemes match KServe's storage
+initializer (`file://`, `pvc://`, `https://`, `s3://`, `gs://`, `hf://`,
+`oci://`), so the `storageUri` in the KServe manifest and a
+`turbo-bundle zoo fetch` argument are the same string. Every file is
+content-addressed by sha256 in the index; the repository type never
+changes what verified means. The local cache keeps a small index (what is
+present, hashes, last use) for offline listing and eviction; SQLite
+through the system `libsqlite3` behind a feature if a flat JSON index
+proves too slow, and not before.
+
+Recipes. A recipe takes a source checkpoint and a target and yields the
+artifact plus the facts the bundle needs (frame length, fixed shape,
+quantization). They live in the toolchain's language, Python under
+`zoo/recipes/<format>/` with a lock file: ONNX export with pinned opset
+and shapes; GGUF conversion with the quant type; Hailo compile through
+the Dataflow Compiler with the model script and calibration set, one
+recipe emitting `hailo8`, `hailo8l` and `hailo10h`; Core ML conversion.
+`turbo-bundle zoo build|fetch|verify|index` drives them; the Rust side
+never depends on those toolchains.
+
+Vector storage is outside this library. The library produces vectors and
+stays storage-agnostic. The search demo gains a `sqlite-vec` backend
+(plain C, runs on the Pi, on mobile and in the browser); usearch and
+LanceDB are the other embedded options a consumer may choose; pgvector and
+the server-class stores are the deployment's business.
+
+First entry: MiniLM for `hailo10h`, compiled with Dataflow Compiler 5.1 to
+match the HailoRT 5.1.1 on the Hailo-10H Pi, since no public HEF exists
+and it exercises every field the schema has. Then the bundles already in
+use (MiniLM ONNX and GGUF, the ms-marco reranker, SST-2, BERT NER, Qwen2.5
+GGUF, MiniLM `hailo8`) get entries with the receipts they already have.
+
+Order: schema and the local and HTTPS repositories; the `turbo-bundle zoo`
+commands; the DJL index view; S3; the Hailo-10H recipe and entry; OCI; Hub
+import through the repository layer.
+Gate: a stock DJL client lists and downloads a bundle from our HTTPS index;
+`turbo-bundle zoo fetch` refuses a file whose sha256 does not match; the
+Hailo-10H entry carries its three receipts or is `EXPERIMENTAL` with the
+reason stated; the KServe manifest pulls the same bundle through `s3://`
+and through `file://`.
+
 Dependencies: P0 then P1 are strictly first. P2, P3, P4, P5 are independent
 after P1 and can run in parallel on their machines; P2 sets the correctness
 baseline so it starts first. P6 needs P1 and at least one GPU provider. P7
-needs P2 or P3. P8 needs P7. P9 needs P8. P10 needs P8.
+needs P2 or P3. P8 needs P7. P9 needs P8. P10 needs P8. P11 needs P8 for
+`turbo-bundle` and P5 for its first entry; its DJL view needs nothing
+else.
 
 ## 11. Conformance and benchmark protocol
 
