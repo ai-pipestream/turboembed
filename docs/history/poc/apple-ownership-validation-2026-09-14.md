@@ -8,7 +8,7 @@ isolated checkout.
 ## Environment
 
 - SSH alias supplied by the project owner: `kristians-macbook-air`; hostname
-  `krickert-mac`, Apple M2 MacBook Air (`Mac14,2`), 24 GiB memory.
+  an Apple M2 MacBook Air (`Mac14,2`), 24 GiB memory.
 - macOS 26.5.1, build `25F80`, arm64.
 - Xcode 26.6, build `17F113`; Swift 6.3.3.
 - `mlx-swift` 0.31.6, revision `0bb916c67f4b9e5c682cbe02a42c701c93ab5021`,
@@ -16,7 +16,7 @@ isolated checkout.
 - The existing `/Volumes/pipework/work/inferstream` checkout remains at
   `9d03af9`; its running server and files were left unchanged.
 - Validation checkout:
-  `/Users/krickert/te-validation/native-foundations-20260914-e97b494`.
+  `$HOME/te-validation/native-foundations-20260914-e97b494`.
 
 The ten MiniLM files were copied from the existing Mac checkout only after all
 sizes and hashes matched `models/manifests/mlx.json`. Copied files were verified

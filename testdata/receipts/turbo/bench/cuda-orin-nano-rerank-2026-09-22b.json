@@ -1,0 +1,52 @@
+{
+  "receipt_version": 1,
+  "kind": "benchmark",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "orin-nano",
+    "os": "Linux 6.8.12-1021-tegra",
+    "arch": "aarch64"
+  },
+  "commit": "ad22c9983fe0f163b92e1e5691d275ae7c1bf67e",
+  "provider": {
+    "id": "cuda",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "onnxruntime ORT Build Info: git-branch=rel-1.24.0, git-commit-i",
+    "driver_version": "13.2"
+  },
+  "device": {
+    "name": "Orin (sm_87)",
+    "kind": "Gpu",
+    "ordinal": 0,
+    "caps": "0x3bf02c6",
+    "memory_total": 7848525824
+  },
+  "bundle": {
+    "dir": "$HOME/opt/bundles/rerank-onnx",
+    "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    "manifest_sha256": "2692487e58e7eb74d539baee9f7d313d0c83d51f56a9f90ac25a70773ebd8b46",
+    "artifacts": {
+      "onnx": "5d3e70fd0c9ff14b9b5169a51e957b7a9c74897afd0a35ce4bd318150c1d4d4a"
+    }
+  },
+  "rerank": {
+    "docs": 16,
+    "seq": 128,
+    "text_path": {
+      "p50_ms": 8.667266,
+      "p99_ms": 8.980046,
+      "mean_ms": 8.3423663,
+      "min_ms": 7.497719,
+      "max_ms": 9.003342,
+      "rows_per_s": 1917.9210579616959,
+      "iters": 100
+    },
+    "per_run": {
+      "h2d_bytes": 12288.0,
+      "d2h_bytes": 0.0,
+      "host_allocs": null,
+      "provider_allocs": null
+    }
+  },
+  "native_reference": "not run; see the provider README for the direct-native program of this pair"
+}

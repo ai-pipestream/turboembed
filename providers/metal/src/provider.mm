@@ -1067,7 +1067,7 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
             // SUPPORTED needs a conformance receipt, a precision receipt and a
             // matched-native benchmark from a named machine (AGENTS.md rule
             // 7); the cell names them. Embeddings have all three from
-            // krickert-mac (Apple M2, 2026-09-22); rerank has no benchmark
+            // an Apple M2 Mac (2026-09-22); rerank has no benchmark
             // pair yet (the reference program runs the encoder alone).
             if (task == TURBO_TASK_EMBED) {
                 full.status = TURBO_CAP_SUPPORTED;

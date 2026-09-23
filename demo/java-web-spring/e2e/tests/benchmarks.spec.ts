@@ -7,9 +7,9 @@ import { expect, test } from "@playwright/test";
 import { benchmarks, open, watchPageErrors } from "./app";
 
 /** The comparison the CUDA provider's SUPPORTED verdict rests on. */
-const CUDA = "compare-cuda-krick-embed-2026-09-22.json";
+const CUDA = "compare-cuda-rtx4080-embed-2026-09-22.json";
 /** The comparison with cells under the floor, which is why the CPU cell is EXPERIMENTAL. */
-const OPENVINO_CPU = "compare-openvino-krick-cpu-embed-2026-09-22.json";
+const OPENVINO_CPU = "compare-openvino-rtx4080-cpu-embed-2026-09-22.json";
 
 async function report(request: any) {
     const response = await request.get("/api/v1/benchmarks");
@@ -128,7 +128,7 @@ test("a comparison expands to every cell with its libturbo and native figures", 
 test("the throughput table carries the cuda 32x32 cell", async ({ page, request }) => {
     const errors = watchPageErrors(page);
     const data = await report(request);
-    const run = data.turbo.find((r: any) => r.file === "cuda-krick-embed-2026-09-22.json");
+    const run = data.turbo.find((r: any) => r.file === "cuda-rtx4080-embed-2026-09-22.json");
     expect(run, "the suite expects the committed CUDA embedding receipt").toBeTruthy();
     const cell = run.embed.find((c: any) => c.batch === 32 && c.seq === 32);
     expect(cell, "that receipt carries a 32x32 cell").toBeTruthy();

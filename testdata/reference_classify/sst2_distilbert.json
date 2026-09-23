@@ -1,7 +1,7 @@
 {
   "model_id": "distilbert/distilbert-base-uncased-finetuned-sst-2-english",
   "revision": "714eb0fa89d2f80546fda750413ed43d93601a13",
-  "source": "weights from the hub; tokenizer and config from the local checkout /home/krickert/opt/models/sst2",
+  "source": "weights from the hub; tokenizer and config from the local checkout $HOME/opt/models/sst2",
   "produced_by": {
     "framework": "pytorch",
     "dtype": "float32",
@@ -11,7 +11,7 @@
     "numpy": "2.5.3",
     "python": "3.12.13"
   },
-  "machine": "krick",
+  "machine": "rtx4080",
   "date": "2026-09-22",
   "command": "uv run --no-project --with torch --with transformers --with numpy python scripts/gen-reference-tasks.py",
   "schema": "turbo-reference-classify/1",

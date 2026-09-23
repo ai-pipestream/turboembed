@@ -7,13 +7,14 @@ and its acceptance criteria remain those in [the roadmap](../ROADMAP.md).
 
 ## Environment and source
 
-- Host: `krick-1`, Linux `7.0.0-31-generic`, x86_64.
+- Host: an x86_64 host with an Intel Arc B70 (Battlemage), Linux
+  `7.0.0-31-generic`.
 - GPU: Intel Battlemage G31 (`8086:e223`), using the `xe` kernel driver.
 - Runtime: `/work/opt/openvino_genai`, a symlink to
   `/work/opt/openvino_genai_ubuntu26_2026.3.1.0_x86_64`; runtime version
   `2026.3.1-22476-56d9685302d-releases/2026/3`.
 - Toolchains: Rust/Cargo 1.98.1, CMake 4.2.3, GCC/G++ 15.2.0, and clang++
-  21.1.8. Cargo was supplied by `/home/krickert/.cargo/bin`.
+  21.1.8. Cargo was supplied by `$HOME/.cargo/bin`.
 - Source: isolated clone `/work/bench/turboembed-baseline-20260914`, commit
   `d476e8ce3027ed0409cb27a4b35c86188f524a2e`, branch
   `native-sdk-foundations`. The source checkout was clean at capture time.

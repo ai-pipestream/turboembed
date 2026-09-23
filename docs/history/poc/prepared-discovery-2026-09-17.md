@@ -5,7 +5,8 @@ This receipt covers the additive device-discovery symbols
 and a CPU re-validation of the prepared execution path on a GPU-less host. It
 does not exercise an Intel GPU: GPU discovery, GPU parity, OpenCL results, and
 the native-overhead pilot are outside this receipt and remain covered by the
-Machine B (`krick-1`) receipts and their pending re-runs. No artifact was
+Machine B (the Intel Arc B70 host) receipts and their pending re-runs.
+No artifact was
 published or deployed.
 
 ## Environment and model

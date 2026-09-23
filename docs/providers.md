@@ -16,11 +16,11 @@ detail and milestone gates this table summarizes.
 | `mock` | supported for contract testing only | any host; two synthetic devices (CPU ordinal 0, Accel ordinal 1) | none (pure Rust) | deterministic hash-derived math on host; serves only bundles with a `mock` artifact |
 | `static` | EXPERIMENTAL | any CPU; explicit selection only | none (pure Rust, model2vec-style static token embeddings) | table lookup + mean + L2 on host; one capability cell `EMBED x TEXT x CPU`; tokenizes through the Hugging Face `tokenizers` crate |
 | `cpu` | PLANNED (folded into the CUDA/ORT provider, P3) | any; explicit selection only, never `AUTO` | ORT 1.30 CPU EP; ggml CPU for GGUF | host arena, write-through tokens |
-| `openvino` | SUPPORTED for embeddings on the B70 (`compare-openvino-krick-1-gpu-embed-2026-09-22.json`, 1.15x to 1.55x of the OpenVINO C++ loop) and on the Ryzen 9 CPU of `krick` (`compare-openvino-krick-cpu-embed-2026-09-22c.json`, 1.01x to 1.34x); EXPERIMENTAL for the other tasks; NPU listed, not qualified | `krick-1` Battlemage B70 (GPU), any CPU; Intel NPU when available | OpenVINO 2026.3.1 | `ov::Core` compiled model with pooling/normalization/post-processing fused into the graph; `cl_mem` remote tensors on GPU; native WordPiece (`native/wordpiece/`) |
-| `cuda` | SUPPORTED for embeddings on `krick` (`compare-cuda-krick-embed-2026-09-22.json`, 1.04x to 2.64x of the ONNX Runtime CUDA loop); EXPERIMENTAL for the other tasks; embedding landed on `nano1` (aarch64), task suite still being verified there | `krick` RTX 4080 SUPER (x86_64, landed); `nano1` Orin Nano Super (aarch64, embedding landed) | ONNX Runtime 1.28 CUDA execution provider on `krick` (`ort` crate prebuilt CUDA 13 bundle); ONNX Runtime 1.24.0 linked dynamically (`ORT_LIB_LOCATION`, `--no-default-features`) on `nano1` | IoBinding on pinned/device arena; device kernels (`kernels.cu`) for mean/CLS/last pooling, L2 normalization, sigmoid, and softmax |
-| `metal` | SUPPORTED for embeddings on `krickert-mac` (`compare-metal-mac-embed-2026-09-22d.json`, 1.00x to 1.24x of the kernels run directly); EXPERIMENTAL for rerank | Apple M2 (any Apple GPU with unified memory) | Metal directly: MSL kernels compiled at load, no MLX, no Xcode | shared `MTLBuffer`s for tokens, weights, scratch and results; encoder, pooling, L2 and the reranker head as kernels; results `TURBO_PLACE_SHARED` in unified memory |
-| `hailo` | SUPPORTED for embeddings on `pi5ai1` (`compare-hailo-pi5ai1-embed-2026-09-22b.json`, 1.00x of `hailortcli benchmark`); EXPERIMENTAL on `cm5ai1`; Hailo-8L untested; Hailo-10H open; board bring-up in `docs/hailo-pi-setup.md` | two Pis with Hailo-8 (landed); Hailo-8L boards; one Pi with Hailo-10H (needs a DFC 5 HEF); x86_64 hosts with a PCIe Hailo-8 card | HailoRT 4.23.0 (`hailo-all`) | `hailo_vdevice` bound to one device with the scheduler on; the HEF's fixed-shape encoder body through f32 vstreams; host WordPiece, word-embedding gather from the `hailo_tables` artifact, pooling, L2; INT8 compute reported in the capability cell with the measured cosine floor |
-| `ggml` | SUPPORTED on the RTX 4080 SUPER of `krick` for generation (`compare-ggml-krick-gpu-generate-2026-09-22c.json`, 0.99x of llama.cpp) and GGUF embeddings (`compare-ggml-krick-gpu-embed-2026-09-22c.json`, 0.99x to 1.89x); EXPERIMENTAL on the CPU and on `krickert-mac` (Metal) | every machine; landed on `krick` (RTX 4080 SUPER and CPU) and `krickert-mac` (Apple M2, Metal backend) | llama.cpp through the `llama-cpp-2` binding, built from source with cmake (CUDA backend on `krick`; Metal backend on `krickert-mac`; CPU backend everywhere, including CI) | `ggml_backend_dev` registry; `llama_batch` decode, one token per `step`; a generation owns its own `llama_context` (KV cache) |
+| `openvino` | SUPPORTED for embeddings on the B70 (`compare-openvino-b70-gpu-embed-2026-09-22.json`, 1.15x to 1.55x of the OpenVINO C++ loop) and on a Ryzen 9 9950X3D CPU (`compare-openvino-rtx4080-cpu-embed-2026-09-22c.json`, 1.01x to 1.34x); EXPERIMENTAL for the other tasks; NPU listed, not qualified | an x86_64 host with an Intel Arc B70, Battlemage (GPU), any CPU; Intel NPU when available | OpenVINO 2026.3.1 | `ov::Core` compiled model with pooling/normalization/post-processing fused into the graph; `cl_mem` remote tensors on GPU; native WordPiece (`native/wordpiece/`) |
+| `cuda` | SUPPORTED for embeddings on an RTX 4080 SUPER (`compare-cuda-rtx4080-embed-2026-09-22.json`, 1.04x to 2.64x of the ONNX Runtime CUDA loop); EXPERIMENTAL for the other tasks; embedding landed on the Jetson Orin Nano (aarch64), task suite still being verified there | an x86_64 host with an NVIDIA RTX 4080 SUPER, 16 GB (landed); an NVIDIA Jetson Orin Nano Super 8 GB (aarch64, embedding landed) | ONNX Runtime 1.28 CUDA execution provider on x86_64 (`ort` crate prebuilt CUDA 13 bundle); ONNX Runtime 1.24.0 linked dynamically (`ORT_LIB_LOCATION`, `--no-default-features`) on the Orin Nano | IoBinding on pinned/device arena; device kernels (`kernels.cu`) for mean/CLS/last pooling, L2 normalization, sigmoid, and softmax |
+| `metal` | SUPPORTED for embeddings on an Apple M2 Mac (`compare-metal-mac-embed-2026-09-22d.json`, 1.00x to 1.24x of the kernels run directly); EXPERIMENTAL for rerank | Apple M2 (any Apple GPU with unified memory) | Metal directly: MSL kernels compiled at load, no MLX, no Xcode | shared `MTLBuffer`s for tokens, weights, scratch and results; encoder, pooling, L2 and the reranker head as kernels; results `TURBO_PLACE_SHARED` in unified memory |
+| `hailo` | SUPPORTED for embeddings on a Raspberry Pi 5 with the AI HAT+ 26 TOPS, Hailo-8 (`compare-hailo-pi5-hailo8-embed-2026-09-22b.json`, 1.00x of `hailortcli benchmark`); EXPERIMENTAL on a Raspberry Pi CM5 with a Hailo-8 M.2 module; Hailo-8L untested; Hailo-10H open; board bring-up in `docs/hailo-pi-setup.md` | two Pis with Hailo-8 (landed); Hailo-8L boards; one Pi with Hailo-10H (needs a DFC 5 HEF); x86_64 hosts with a PCIe Hailo-8 card | HailoRT 4.23.0 (`hailo-all`) | `hailo_vdevice` bound to one device with the scheduler on; the HEF's fixed-shape encoder body through f32 vstreams; host WordPiece, word-embedding gather from the `hailo_tables` artifact, pooling, L2; INT8 compute reported in the capability cell with the measured cosine floor |
+| `ggml` | SUPPORTED on an RTX 4080 SUPER for generation (`compare-ggml-rtx4080-gpu-generate-2026-09-22c.json`, 0.99x of llama.cpp) and GGUF embeddings (`compare-ggml-rtx4080-gpu-embed-2026-09-22c.json`, 0.99x to 1.89x); EXPERIMENTAL on the CPU and on an Apple M2 (Metal) | every machine; landed on an x86_64 host with an RTX 4080 SUPER (GPU and CPU) and on an Apple M2 Mac (Metal backend) | llama.cpp through the `llama-cpp-2` binding, built from source with cmake (CUDA backend on the 4080; Metal backend on the M2; CPU backend everywhere, including CI) | `ggml_backend_dev` registry; `llama_batch` decode, one token per `step`; a generation owns its own `llama_context` (KV cache) |
 | `hailo` GenAI | PLANNED (P6) | Hailo-10H Pi | `hailort::genai::LLM` (HailoRT 5.4) | native LLM on the NPU with its own sampler |
 
 `PLAN.md` section 7 lists the CUDA provider's planned runtime as ORT 1.30;
@@ -258,7 +258,7 @@ behavior, also in `providers/openvino/README.md`:
   the capability cell's `deterministic` flag mean the same bits back for the
   same input on every run. The OpenVINO CPU plugin does that; the GPU plugin
   does not, because its kernels reduce in an order the driver picks per
-  dispatch. On `krick-1` (Intel Battlemage B70, driver 26.05.037020,
+  dispatch. On an Intel Arc B70 (Battlemage, driver 26.05.037020,
   OpenVINO 2026.3.1) twenty repeats of one identical MiniLM batch in one
   session differ by up to 2.3e-7 absolute on every repeat, with or without
   padding columns and across two contexts, while the same repeats on that
@@ -375,11 +375,12 @@ build time (network access needed on the first build). Building with
 Runtime through `ORT_LIB_LOCATION`; this is the Jetson (`aarch64`) path,
 since there is no prebuilt CUDA bundle for that target, and it also avoids
 the downloader's OpenSSL dependency. See `providers/cuda/README.md` for the
-exact flags (`nano1` links ONNX Runtime 1.24.0 this way, `TURBO_CUDA_ARCHS=87`).
+exact flags (the Orin Nano links ONNX Runtime 1.24.0 this way,
+`TURBO_CUDA_ARCHS=87`).
 
-Status: `EXPERIMENTAL` on `krick` (RTX 4080 SUPER, x86_64) for all four
+Status: `EXPERIMENTAL` on an x86_64 host with an RTX 4080 SUPER for all four
 tasks; precision matches the FP32 reference vectors at cosine 1.000
-(`testdata/receipts/turbo/cuda-2026-09-21.json`). On Jetson `nano1`
+(`testdata/receipts/turbo/cuda-2026-09-21.json`). On the Jetson Orin Nano
 (aarch64, JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime 1.24.0 linked
 dynamically through `ORT_LIB_LOCATION` and `--no-default-features`) the
 device enumeration fix above unblocked loading the provider, and all 12
@@ -423,8 +424,8 @@ length (must not exceed the model's training context).
 Embeddings through GGUF are offered on the same devices: the pooling the
 bundle names runs in the llama.cpp graph, L2 on the host, and the result is
 host memory. The CPU cell is deterministic; the live embedding suite holds
-the CUDA and CPU devices of `krick` and the Metal device of `krickert-mac`
-to cosine 0.99999 or better against the FP32 references
+the CUDA and CPU devices of the RTX 4080 SUPER host and the Metal device of
+an Apple M2 to cosine 0.99999 or better against the FP32 references
 (`testdata/receipts/turbo/ggml-2026-09-21.json`). A row that pools to a
 zero vector is an error rather than an unnormalized result, and left
 truncation with a prompt prefix is refused naming the field, because it
@@ -438,18 +439,18 @@ plain workspace member with no `--exclude`, unlike `cuda`).
 build in the workspace, because llama.cpp's objects end up linked into a
 shared library (`libturbo_provider_ggml.so`) and non-PIC objects cannot be.
 The `cuda` feature additionally needs a CUDA toolkit whose `nvcc` accepts
-the host compiler — on `krick`, `CUDAHOSTCXX=/usr/bin/g++-13` points nvcc
+the host compiler — on the RTX 4080 SUPER host, `CUDAHOSTCXX=/usr/bin/g++-13` points nvcc
 12.4 at GCC 13 (the machine's default GCC 15 is not accepted) — and a CUDA
 library directory the `llama-cpp-sys-2` build can find via
-`CUDA_LIBRARY_PATH` (on `krick`, a directory whose `lib64` links into
+`CUDA_LIBRARY_PATH` (on that host, a directory whose `lib64` links into
 `/usr/lib/x86_64-linux-gnu`, where the runtime actually lives). CI builds
 the CPU backend only.
 
 Status: `EXPERIMENTAL` for every cell. `crates/turbo-conformance/
 tests/live_generate.rs`'s seven checks pass through the safe API with
-Qwen2.5-0.5B-Instruct (Q8_0) on three machines: on `krick`, both the RTX
-4080 SUPER (CUDA device, `cuda` feature) and the CPU, where greedy decoding
-is bit-reproducible across runs; and on `krickert-mac` (Apple M2), the
+Qwen2.5-0.5B-Instruct (Q8_0) on three machines: on the x86_64 host, both the
+RTX 4080 SUPER (CUDA device, `cuda` feature) and the CPU, where greedy
+decoding is bit-reproducible across runs; and on an Apple M2 Mac, the
 Metal device (`metal` feature), which is llama.cpp's own Metal backend,
 not the separate `metal` provider below
 (`testdata/receipts/turbo/ggml-2026-09-21.json`). Not yet: generation
@@ -489,8 +490,8 @@ buffers whose `host_ptr` is the GPU's memory, so `h2d_bytes` and
 `TURBO_HANDLE_HOST_PTR`. The live embedding suite checks exactly this for
 unified-memory devices instead of demanding an upload.
 
-Status: `EXPERIMENTAL` for `EMBED x TEXT` and `RERANK x TEXT` on
-`krickert-mac` (Apple M2). The 22 vtable tests
+Status: `EXPERIMENTAL` for `EMBED x TEXT` and `RERANK x TEXT` on an
+Apple M2 Mac. The 22 vtable tests
 (`providers/metal/tests/provider_test.cpp`), the 16 live embedding tests
 (cosine 1.000 against the FP32 references, STS Spearman gate) and the
 rerank cases of `live_tasks` pass; receipt

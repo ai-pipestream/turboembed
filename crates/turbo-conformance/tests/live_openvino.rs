@@ -19,9 +19,9 @@
 //!   OpenVINO, which the mock-bundle groups of the suite cannot reach for a
 //!   provider that serves only real bundles.
 //!
-//! Recorded on `krick-1` (Intel Battlemage B70 as ordinal 0, AMD Ryzen 9
-//! 9950X CPU as ordinal 1, OpenVINO 2026.3.1, driver 26.05.037020): the GPU
-//! device is not bit-reproducible and the CPU device is.
+//! Recorded on an x86_64 host with an Intel Arc B70 (Battlemage) as ordinal
+//! 0 and an AMD Ryzen 9 9950X CPU as ordinal 1, OpenVINO 2026.3.1, driver
+//! 26.05.037020: the GPU device is not bit-reproducible and the CPU device is.
 
 use turbo::abi;
 use turbo::{

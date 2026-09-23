@@ -29,9 +29,9 @@ Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalArenaCreateRentsShare
 Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalArenaCreateRentsSharedAndLookupHits]' passed (0.035 seconds).
 Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalEmbedResultIsArenaOwnedAndZeroAllocsAfterWarmup]' started.
 [turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
-[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[mlx-engine] loading embedder $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
-[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] loaded minilm from $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
 Test Case '-[TurboEmbedTests.MetalArenaEmbedTests testMetalEmbedResultIsArenaOwnedAndZeroAllocsAfterWarmup]' passed (2.696 seconds).
@@ -40,13 +40,13 @@ Test Suite 'MetalArenaEmbedTests' passed at 2026-09-14 22:58:36.527.
 Test Suite 'MetalWrapperOwnershipTests' started at 2026-09-14 22:58:36.527.
 Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testIndependentMetalEnginesRunConcurrentWrapperCalls]' started.
 [turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
-[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[mlx-engine] loading embedder $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
-[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] loaded minilm from $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
 [turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
-[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[mlx-engine] loading embedder $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
-[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] loaded minilm from $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
@@ -69,12 +69,12 @@ Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testIndependentMetalEngi
 Test Case '-[TurboEmbedTests.MetalWrapperOwnershipTests testMetalResultRetainsItsEngineAndSurvivorRemainsUsable]' started.
 [turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
 [turboembed] mlx ping device=Device(gpu, 0) metal=true matmul_ok=true aliases=minilm — FP MiniLM path is live
-[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[mlx-engine] loading embedder $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
-[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
-[mlx-engine] loading embedder /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
+[turboembed] loaded minilm from $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[mlx-engine] loading embedder $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm on Device(gpu, 0)
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
-[turboembed] loaded minilm from /Users/krickert/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
+[turboembed] loaded minilm from $HOME/te-validation/native-foundations-20260914-e97b494/models/mlx/minilm dim=384 pooling=mean device=Device(gpu, 0)
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock
 [turboembed] mlx embed minilm pooling=mean normalize=1 dim=384 n=1 — arena SHARED tokens/activations/result, hidden-state mean+L2, not BERT pooler, not mock

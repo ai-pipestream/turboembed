@@ -2,7 +2,7 @@
 
 This receipt records roadmap M4 for the NVIDIA provider: the M0–M2 contract
 gates, packaging, and the matched native-overhead measurement, all run live
-on Machine A (`krick`, NVIDIA GeForce RTX 4080 SUPER, driver 595.84, ORT
+on Machine A (x86_64, NVIDIA GeForce RTX 4080 SUPER, driver 595.84, ORT
 1.28.0 `da9b5e3`, CUDA 13 user-space libraries). Apple is deliberately **not**
 qualified here; its gates are listed in
 [apple-m4-machine-c-checklist.md](apple-m4-machine-c-checklist.md).

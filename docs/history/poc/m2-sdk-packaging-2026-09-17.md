@@ -4,7 +4,8 @@ This receipt covers the roadmap M2 packaging work: the scripted release
 archive, manifest-pinned model provisioning, and the clean-consumer acceptance
 run. It was produced on a GPU-less build VM, so it validates the complete
 install and explicit-CPU path only. Intel GPU coverage remains gated on the
-Machine B (`krick-1`) reference host, as listed at the end. No artifact was
+Machine B (the Intel Arc B70 host) reference machine, as listed at the end.
+No artifact was
 published to a hosted registry.
 
 ## Environment
@@ -17,7 +18,7 @@ published to a hosted registry.
   `openvino_toolkit_ubuntu24_2025.3.0.19807.44526285f24_x86_64.tgz`
   (SHA-256 `de0d5e16b161efea013a5c017e3b2bce1191ca009a1947d392ccab8ed9d0f6e4`),
   reporting `2025.3.0-19807-44526285f24-releases/2025/3`. The GPU-qualified
-  baseline on `krick-1` remains `2026.3.1-22476-759c5a6ab8c` per the
+  baseline on the B70 host remains `2026.3.1-22476-759c5a6ab8c` per the
   [2026-09-14 receipt](intel-prepared-sdk-2026-09-14.md); this run additionally
   demonstrates the packaging path against the runtime pinned for hosted CI.
 - Source: this branch at the M1 merge base `3492119`, plus the M2 packaging
@@ -94,7 +95,7 @@ absent-GPU failure check.
 - `cargo fmt --all -- --check` and default-feature workspace Clippy: recorded
   in the same summary.
 
-## Remaining Machine B (`krick-1`) gates
+## Remaining Machine B (the Intel Arc B70 host) gates
 
 Everything GPU-specific in this packaging remains hardware-unverified until
 run on the reference Intel Battlemage host:

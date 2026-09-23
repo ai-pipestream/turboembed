@@ -55,8 +55,9 @@ Testing in this tree today is:
   TURBO_LIVE_ORDINAL=0 ctest --test-dir build/openvino --output-on-failure
   ```
 
-  All eleven cases pass on `krick-1` on both the GPU (ordinal 0) and the CPU
-  (ordinal 1) device, 2026-09-22. See `providers/openvino/README.md` and
+  All eleven cases pass on an x86_64 host with an Intel Arc B70
+  (Battlemage) on both the GPU (ordinal 0) and the CPU (ordinal 1) device,
+  2026-09-22. See `providers/openvino/README.md` and
   `docs/providers.md`'s "The OpenVINO provider" section.
 - Header parity (`scripts/gen-header.sh --check`), the `struct_size` table
   (`scripts/gen-versioned.py --check`), and mock fixture parity (`cargo run
@@ -70,7 +71,7 @@ Testing in this tree today is:
   (extract, compile and run the C smoke test against the packaged headers
   and library); see `docs/bindings.md` and `docs/packaging.md`.
 
-On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) all
+On an Apple M2 Mac (macOS 27, Swift 6.4 command line tools) all
 sixteen Swift binding cases pass (2026-09-22), and so does the macOS core
 suite (`cargo test --workspace --exclude turbo-provider-cuda`) run on that
 same machine.
@@ -137,7 +138,7 @@ cell is UNSUPPORTED or PLANNED) the case prints `not applicable: ...` and
 returns, and the run's log counts those lines; when the device offers the
 task but no bundle of that kind is configured, the case fails naming the
 variable to set. A case is never skipped without a printed reason. The
-whole suite on a real provider on `krick`, 2026-09-22:
+whole suite on a real provider on the RTX 4080 SUPER host, 2026-09-22:
 
 ```bash
 # cuda on the RTX 4080 SUPER: 269 passed, 34 not applicable (Generate, Run)
@@ -179,14 +180,18 @@ text path and, where the bundle carries a tokenizer, the prepared-token
 path), records p50/p99/mean latency, rows/s and tokens/s, and the per-run
 H2D/D2H bytes and allocation counters from the session, and writes a
 receipt with the machine, provider, runtime and driver versions, device,
-bundle hashes, and commit. `--budget <earlier receipt>` holds a run to the
+bundle hashes, and commit. The receipt's machine name is `uname -n` unless
+`TURBO_BENCH_MACHINE` is set, in which case that value is recorded instead,
+which is how the committed receipts name a machine by its architecture
+(`rtx4080`, `b70`, `orin-nano`, `pi5-hailo8`, `m2`) rather than by its host
+name. `--budget <earlier receipt>` holds a run to the
 earlier p50 figures plus a tolerance (25% by default) and fails on a
 regression; the first receipt per provider is the budget. `turbo-bench
 discover` surveys a machine: every device with its features and
 task-by-modality capability cells, and which of the named bundles it can
 run. Benchmark receipts live under `testdata/receipts/turbo/bench/`
-(2026-09-21: OpenVINO CPU and GPU, CUDA, ggml CUDA and CPU on `krick`;
-Hailo-8 on `pi5ai1`; 2026-09-22: the matched pairs). The native side of
+(2026-09-21: OpenVINO CPU and GPU, CUDA, ggml CUDA and CPU on the RTX 4080
+SUPER host; Hailo-8 on the Hailo-8 Pi; 2026-09-22: the matched pairs). The native side of
 each pair is a program under `reference/` (`reference/README.md`): it
 runs the token rows `turbo-bench embed --dump-tokens` wrote through the
 runtime alone, and `turbo-bench compare` writes the per-cell ratio and
@@ -284,7 +289,8 @@ pipeline returns for aggregation strategies `simple`, `first` and `max`);
 `scripts/gen-reference-tasks.py` regenerates all three and each directory's
 `README.md` states the schema and the command. The gates are absolute
 tolerances, each eight times the worst difference measured between the `cuda`
-provider and PyTorch on `krick` on 2026-09-22: 8.5e-5 on a reranker score,
+provider and PyTorch on the RTX 4080 SUPER host on 2026-09-22: 8.5e-5 on a
+reranker score,
 9.5e-3 on a reranker logit, 3.3e-3 on a classifier probability, 1.9e-2 on a
 classifier logit, and 2.6e-3 on a per-token probability or a span score. Per
 token the label itself must be equal, not merely close, unless the
@@ -296,8 +302,8 @@ strategy the provider offers. `TURBO_AGGREGATE_SIMPLE` and
 word level (`docs/providers.md`); the pipeline's token-aligned `simple` is
 stored for comparison but is not a gate. Each case prints the three largest
 differences it saw, so a run shows its headroom. The measurements are in
-`testdata/receipts/turbo/precision-tasks-krick-2026-09-22.json`, which also
-records that the `cuda` and OpenVINO CPU devices on `krick` both pass and
+`testdata/receipts/turbo/precision-tasks-rtx4080-2026-09-22.json`, which also
+records that the `cuda` and OpenVINO CPU devices on that host both pass and
 that the OpenVINO CPU device lands two to three orders of magnitude closer
 to PyTorch than `cuda` does.
 
@@ -317,7 +323,7 @@ the things the provider-agnostic files cannot state for every provider:
   times, held to the reproducibility that device claims. This is
   `live_embed.rs`'s shape-order case in the form that also runs on a device
   that is not bit-reproducible, and `live_embed.rs`'s version of it fails on
-  the `krick-1` GPU for that reason.
+  the Intel Arc B70 GPU for that reason.
 - every listed device carries the capability set its kind allows: NPU
   devices are listed with `caps = 0` and an `UNSUPPORTED` cell, non-NPU
   devices all claim `HOST_PTR_IMPORT`, only GPUs claim `DEVICE_RESULT`,
@@ -331,7 +337,8 @@ the things the provider-agnostic files cannot state for every provider:
   `prompt_role` the bundle declares no prefix for (field 4).
 - two contexts on one device answer the same text the same way.
 
-All five pass on `krick-1` on both the GPU and the CPU device, 2026-09-22.
+All five pass on the Intel Arc B70 host on both the GPU and the CPU device,
+2026-09-22.
 
 `live_cuda.rs` runs only when `TURBO_LIVE_PROVIDER` is `cuda`, and each of
 its cases skips when the bundle it needs is unset. It holds the provider to
@@ -372,7 +379,7 @@ what the provider-agnostic files cannot state for every provider:
   quiet return of ordinal 0; on a machine with a second CUDA device the
   case runs the same bundle there and holds the two to cosine 0.9995.
 
-All nine pass on `nano1` (Jetson Orin Nano), 2026-09-22.
+All nine pass on the Jetson Orin Nano, 2026-09-22.
 
 `live_generate.rs` (generation), gated on `TURBO_LIVE_GGUF_BUNDLE` (an
 instruct GGUF model such as Qwen2.5-0.5B-Instruct, built with
@@ -383,8 +390,8 @@ the exact `max_new_tokens` budget, greedy decoding is deterministic and a
 seeded sample reproduces, stop strings and stop tokens end the stream,
 cancellation and logprobs work, `min_new_tokens` suppresses the end token,
 and `structured_kind = JSON_SCHEMA` plus `n_sequences > 1` are refused
-naming the field. All seven pass on `krick` (RTX 4080 SUPER CUDA device,
-and the CPU device) and on `krickert-mac` (Apple M2, llama.cpp's own Metal
+naming the field. All seven pass on the RTX 4080 SUPER host (its CUDA device
+and its CPU device) and on an Apple M2 Mac (llama.cpp's own Metal
 backend, the provider's `metal` Cargo feature, which is not the separate
 `metal` provider under `providers/metal`).
 
@@ -401,23 +408,23 @@ machine without it skips them and says so.
 Receipts from real runs are committed under `testdata/receipts/turbo/`:
 `openvino-minilm-2026-09-21.json` and `openvino-tasks-2026-09-21.json` for
 the OpenVINO provider, `cuda-2026-09-21.json` for the CUDA provider
-(`krick`, RTX 4080 SUPER, cosine 1.000 against the FP32 references),
-`ggml-2026-09-21.json` for the `ggml` provider (`krick`'s CUDA and CPU
-devices, and `krickert-mac`'s Metal device), `metal-2026-09-22.json` for
-the `metal` provider (`krickert-mac`, Apple M2, cosine 1.000 against the
-FP32 references with results in unified memory), and `hailo-2026-09-21.json`
-for the `hailo` provider (`pi5ai1` and `cm5ai1`, Hailo-8, cosine 0.32-0.71
-against FP32 with Spearman 0.937 against 0.944); see
+(an RTX 4080 SUPER, cosine 1.000 against the FP32 references),
+`ggml-2026-09-21.json` for the `ggml` provider (the RTX 4080 SUPER host's
+CUDA and CPU devices, and an Apple M2's Metal device),
+`metal-2026-09-22.json` for the `metal` provider (an Apple M2, cosine 1.000
+against the FP32 references with results in unified memory), and
+`hailo-2026-09-21.json` for the `hailo` provider (a Hailo-8 Pi and a Hailo-8
+CM5, cosine 0.32-0.71 against FP32 with Spearman 0.937 against 0.944); see
 `docs/providers.md` for what they record.
 
-### The CUDA provider on Jetson (`nano1`)
+### The CUDA provider on the Jetson Orin Nano
 
 `providers/cuda`'s device-enumeration fix
 (`providers/cuda/src/cuda.rs`, reading compute capability through
 `cudaDeviceGetAttribute` and the device name through the driver library's
 `cuDeviceGetName` instead of the ONNX Runtime's re-versioned
 `cudaGetDeviceProperties`) unblocked running the provider on the Jetson
-`nano1` board. On `nano1` (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime
+Orin Nano board. On that board (JetPack R39 rev 2.0, CUDA 13.2, ONNX Runtime
 1.24.0 linked dynamically through `ORT_LIB_LOCATION` and
 `--no-default-features`, per `providers/cuda/README.md`) these pass on
 2026-09-22:
@@ -445,12 +452,12 @@ against FP32 with Spearman 0.937 against 0.944); see
   load those still do not run, and `contract`, `lifetime`, `threading` and
   `allocation` have not been run this way yet.
 
-The benchmark pair on `nano1` is
-`testdata/receipts/turbo/bench/cuda-nano1-embed-2026-09-22.json`,
-`native-ort-cuda-nano1-embed-2026-09-22.json` and
-`compare-cuda-nano1-embed-2026-09-22.json`: 0.96x to 1.04x of ONNX Runtime
+The benchmark pair on the Orin Nano is
+`testdata/receipts/turbo/bench/cuda-orin-nano-embed-2026-09-22.json`,
+`native-ort-cuda-orin-nano-embed-2026-09-22.json` and
+`compare-cuda-orin-nano-embed-2026-09-22.json`: 0.96x to 1.04x of ONNX Runtime
 CUDA alone across the nine batch x sequence cells, verdict SUPPORTED, plus
-`cuda-nano1-rerank-2026-09-22.json` (16 documents, the bundle's
+`cuda-orin-nano-rerank-2026-09-22.json` (16 documents, the bundle's
 `max_batch`). There is still no conformance or precision receipt file
 committed for this machine.
 

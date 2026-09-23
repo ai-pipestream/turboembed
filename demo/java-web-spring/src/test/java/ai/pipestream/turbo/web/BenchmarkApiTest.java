@@ -75,7 +75,7 @@ class BenchmarkApiTest extends ApiTestBase {
 
     @Test
     void aComparisonCarriesBothSidesTheBundleAndEveryCell() throws Exception {
-        JsonNode c = named(report().path("comparisons"), "compare-cuda-krick-embed-2026-09-22.json");
+        JsonNode c = named(report().path("comparisons"), "compare-cuda-rtx4080-embed-2026-09-22.json");
         assertEquals("SUPPORTED", c.path("verdict").asText());
         assertEquals(0.95, c.path("floor").asDouble(), 1e-9);
         assertEquals("embed", c.path("task").asText());
@@ -100,7 +100,7 @@ class BenchmarkApiTest extends ApiTestBase {
 
     @Test
     void aComparisonWithCellsUnderTheFloorIsExperimentalAndSaysWhich() throws Exception {
-        JsonNode c = named(report().path("comparisons"), "compare-openvino-krick-cpu-embed-2026-09-22.json");
+        JsonNode c = named(report().path("comparisons"), "compare-openvino-rtx4080-cpu-embed-2026-09-22.json");
         assertEquals("EXPERIMENTAL", c.path("verdict").asText());
         assertEquals("openvino", c.path("provider").asText());
         assertEquals("openvino", c.path("native_provider").asText());
@@ -134,9 +134,9 @@ class BenchmarkApiTest extends ApiTestBase {
 
     @Test
     void aLibturboEmbedReceiptCarriesP50RowsAndTokensPerCell() throws Exception {
-        JsonNode run = named(report().path("turbo"), "cuda-krick-embed-2026-09-22.json");
+        JsonNode run = named(report().path("turbo"), "cuda-rtx4080-embed-2026-09-22.json");
         assertEquals("embed", run.path("task").asText());
-        assertEquals("krick", run.path("hostname").asText());
+        assertEquals("rtx4080", run.path("hostname").asText());
         assertEquals("cuda", run.path("provider").asText());
         assertEquals(0, run.path("ordinal").asInt());
         assertEquals("sentence-transformers/all-MiniLM-L6-v2", run.path("model_id").asText());
@@ -157,7 +157,7 @@ class BenchmarkApiTest extends ApiTestBase {
 
     @Test
     void theRerankReceiptCarriesItsSingleCell() throws Exception {
-        JsonNode run = named(report().path("turbo"), "cuda-krick-rerank-2026-09-21.json");
+        JsonNode run = named(report().path("turbo"), "cuda-rtx4080-rerank-2026-09-21.json");
         assertEquals("rerank", run.path("task").asText());
         assertEquals("cross-encoder/ms-marco-MiniLM-L-12-v2", run.path("model_id").asText());
         assertEquals(0, run.path("embed").size());
@@ -170,7 +170,7 @@ class BenchmarkApiTest extends ApiTestBase {
 
     @Test
     void theGenerationReceiptCarriesTtftTheDecodeRateAndTheTotal() throws Exception {
-        JsonNode run = named(report().path("turbo"), "ggml-krick-gpu-generate-2026-09-22.json");
+        JsonNode run = named(report().path("turbo"), "ggml-rtx4080-gpu-generate-2026-09-22.json");
         assertEquals("generate", run.path("task").asText());
         assertEquals("ggml", run.path("provider").asText());
         JsonNode g = run.path("generate");
@@ -189,14 +189,14 @@ class BenchmarkApiTest extends ApiTestBase {
         JsonNode report = report();
         // Thirty samples are too few for a p99, so the receipt records none and
         // the endpoint does not fill one in.
-        JsonNode cuda = named(report.path("turbo"), "cuda-krick-embed-2026-09-22.json");
+        JsonNode cuda = named(report.path("turbo"), "cuda-rtx4080-embed-2026-09-22.json");
         assertTrue(cuda.path("embed").get(0).path("text").path("p99_ms").isMissingNode(),
                 "a p99 needs a hundred samples; this cell has thirty");
         // The ggml provider reports no driver version, so there is no driver field.
-        JsonNode ggml = named(report.path("turbo"), "ggml-krick-gpu-generate-2026-09-22.json");
+        JsonNode ggml = named(report.path("turbo"), "ggml-rtx4080-gpu-generate-2026-09-22.json");
         assertTrue(ggml.path("driver").isMissingNode(), "the ggml receipt records an empty driver version");
         // A receipt written before token_count_source existed does not gain one.
-        JsonNode hailo = named(report.path("turbo"), "hailo-pi5ai1-embed-2026-09-21.json");
+        JsonNode hailo = named(report.path("turbo"), "hailo-pi5-hailo8-embed-2026-09-21.json");
         assertTrue(hailo.path("embed").get(0).path("token_count_source").isMissingNode(),
                 "this receipt predates token_count_source");
     }

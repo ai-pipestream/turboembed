@@ -44,7 +44,7 @@
   "tests": "providers/hailo/tests/provider_test.cpp (14 vtable tests) and crates/turbo-conformance/tests/live_embed.rs (14 tests including the STS ranking gate)",
   "runs": [
     {
-      "machine": "pi5ai1",
+      "machine": "pi5-hailo8",
       "board": "Raspberry Pi 5 with AI HAT+ 26 TOPS",
       "device": "Hailo-8 (Hailo-8, 0001:01:00.0), ordinal 0",
       "device_kind": "NPU",
@@ -65,7 +65,7 @@
       "live_embed": "14 passed, 0 failed (102 s, debug build of the Rust side, one HEF load per test)"
     },
     {
-      "machine": "cm5ai1",
+      "machine": "cm5-hailo8",
       "board": "Raspberry Pi Compute Module 5 on the CM5 IO Board with a Hailo-8 M.2 M-key module",
       "device": "Hailo-8 (Hailo-8, 0001:01:00.0), ordinal 0",
       "device_kind": "NPU",

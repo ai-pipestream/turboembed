@@ -136,7 +136,7 @@ fn live_batch_rows_equal_single_runs() {
     assert!(cosine(&both[1], &only_b[0]) > 0.99999);
     let unrelated = cosine(&both[0], &both[1]);
     eprintln!("cosine between two unrelated sentences: {unrelated:.6}");
-    // Measured -0.05 on MiniLM FP32 (krick, RTX 4080 SUPER, cuda provider);
+    // Measured -0.05 on MiniLM FP32 (RTX 4080 SUPER, cuda provider);
     // a device that answers above 0.5 here is not discriminating at all.
     assert!(unrelated < 0.5, "unrelated sentences should not be near-identical: cosine {unrelated}");
 }

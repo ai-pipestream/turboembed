@@ -303,7 +303,7 @@ void capability_states_the_quantized_floor() {
     // precision, matched benchmark); any other architecture is EXPERIMENTAL.
     if (std::string(embed.notes).find("Hailo-8;") != std::string::npos) {
         CHECK_EQ(embed.status, TURBO_CAP_SUPPORTED);
-        CHECK(std::string(embed.notes).find("compare-hailo-pi5ai1-embed") != std::string::npos);
+        CHECK(std::string(embed.notes).find("compare-hailo-pi5-hailo8-embed") != std::string::npos);
     } else {
         CHECK_EQ(embed.status, TURBO_CAP_EXPERIMENTAL);
     }
@@ -463,8 +463,8 @@ void embeddings_are_unit_norm_and_bitwise_repeatable() {
     }
     const float c = cosine(first[0], first[1]);
     std::printf("  cosine(dog, market) = %.4f\n", static_cast<double>(c));
-    // Unrelated sentences must stay far apart. The measurement on pi5ai1
-    // (Hailo-8, HailoRT 4.23.0) is 0.3599, so the check holds it to about
+    // Unrelated sentences must stay far apart. The measurement on a Hailo-8
+    // Pi (HailoRT 4.23.0) is 0.3599, so the check holds it to about
     // twice that rather than to a cosine any two vectors would pass. The
     // threshold is well above an FP32 encoder's: the same pair measures
     // -0.0188 on the Metal provider, and INT8 activations pull unrelated
@@ -565,7 +565,7 @@ void truncation_none_over_budget_is_a_capacity_error() {
         const float c_left = cosine(left[0], tail_alone[0]);
         std::printf("  truncation: right vs `%s` = %.6f, left vs `%s` = %.6f\n", kept_head.c_str(),
                     static_cast<double>(c_right), kept_tail.c_str(), static_cast<double>(c_left));
-        // Measured 1.000000 both ways on pi5ai1: the kept window tokenizes
+        // Measured 1.000000 both ways on a Hailo-8 Pi: the kept window tokenizes
         // to the same frame as the text on its own, so even INT8 lands on
         // the same vector.
         CHECK(c_right > 0.9999f);

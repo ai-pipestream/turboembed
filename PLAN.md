@@ -411,8 +411,8 @@ The existing fetch manifests remain the hash-pinned source list. A catalog
 |---|---|---|---|---|---|
 | `static` | any CPU | none (pure Rust/C++; model2vec-style static token embeddings, Apache-2 models) | table lookup + mean + L2 on host; one capability cell `EMBED x TEXT x CPU` | new | no context, no attention; documented quality gap vs transformer embedders; first real conformance target after mock |
 | `cpu` | any; explicit only | ORT 1.30 CPU EP; ggml CPU for GGUF (MIT) | host arena, write-through tokens | `ort_cuda.rs` CPU path, `backend-llamacpp` | none; never AUTO |
-| `cuda` | `krick` RTX 4080 (x86_64); `nano1` Orin Nano Super (aarch64) | ORT 1.30 CUDA EP (CUDA 13 build for x86; JetPack 7.2.1 with CUDA 13.2 / TensorRT 10.16 on Jetson, using the `sbsa/cu130` ORT wheel if it carries sm_87 kernels, otherwise a pinned ORT source build on the board); TensorRT EP via session option; llama.cpp CUDA arch 87/89 | IoBinding on pinned/device arena, `user_compute_stream` import, `gpu_external_alloc` pool, device mean+L2 kernel, ORT 1.30 `CreateSyncStreamForEpDevice` for external queues | `ort_cuda.rs`, `ort_allocator.rs`, `pool_cuda.cu`, `turbo_buffer/cuda.cpp` | TensorRT plan cache is SM-locked; Jetson wheels unverified for sm_87 |
-| `openvino` | `krick-1` Battlemage B70; Intel NPU when the Core Ultra host arrives | OpenVINO 2026.4.0 (Apache-2) | `ov::Core` compiled model with mean+L2 fused into the graph; `ClContext` USM/`cl_mem` remote tensors on GPU; `ZeroContext` remote tensors on NPU; explicit `"CPU"` | `prepared.cpp` (graph fusion, OpenCL lease), `turbo_buffer/ze.cpp`, `wordpiece` | NPU is static-shape only (fixed `max_seq`, batch from bundle); OpenVINO GenAI RAG pipelines are not used on the hot path because they allocate their own outputs |
+| `cuda` | an x86_64 host with an RTX 4080 SUPER; an NVIDIA Jetson Orin Nano Super 8 GB (aarch64) | ORT 1.30 CUDA EP (CUDA 13 build for x86; JetPack 7.2.1 with CUDA 13.2 / TensorRT 10.16 on Jetson, using the `sbsa/cu130` ORT wheel if it carries sm_87 kernels, otherwise a pinned ORT source build on the board); TensorRT EP via session option; llama.cpp CUDA arch 87/89 | IoBinding on pinned/device arena, `user_compute_stream` import, `gpu_external_alloc` pool, device mean+L2 kernel, ORT 1.30 `CreateSyncStreamForEpDevice` for external queues | `ort_cuda.rs`, `ort_allocator.rs`, `pool_cuda.cu`, `turbo_buffer/cuda.cpp` | TensorRT plan cache is SM-locked; Jetson wheels unverified for sm_87 |
+| `openvino` | an x86_64 host with an Intel Arc B70 (Battlemage); Intel NPU when the Core Ultra host arrives | OpenVINO 2026.4.0 (Apache-2) | `ov::Core` compiled model with mean+L2 fused into the graph; `ClContext` USM/`cl_mem` remote tensors on GPU; `ZeroContext` remote tensors on NPU; explicit `"CPU"` | `prepared.cpp` (graph fusion, OpenCL lease), `turbo_buffer/ze.cpp`, `wordpiece` | NPU is static-shape only (fixed `max_seq`, batch from bundle); OpenVINO GenAI RAG pipelines are not used on the hot path because they allocate their own outputs |
 | `metal` | Apple M2 | Metal directly (Objective-C++; MSL kernels compiled at load; no MLX, no Xcode) | shared `MTLBuffer`s for tokens, weights, scratch and results; encoder, pooling, L2 and the reranker head as kernels; results resident in unified memory as `TURBO_PLACE_SHARED` | `providers/metal` (landed 2026-09-22; the PoC kernels from `native/turborerank`) | no CPU device (the CPU is reached through `ggml` or OpenVINO); WordPiece on the host; F32 weights only |
 | `hailo` | two Pis with Hailo-8 (HailoRT 4.24.0, `hailo8` branch); one Pi with Hailo-10H 8 GB (HailoRT 5.4.0); also x86_64 hosts with a PCIe Hailo-8 card | HailoRT (MIT); DFC is proprietary and used offline only | `VDevice` + `InferModel` + `ConfiguredInferModel::Bindings` with `dma_map` on page-aligned arena rows; async `run_async` behind `CAP_ASYNC` | `hailo.cpp` split pipeline | encoder body only on NPU: host gather and host pooling reported as `fully_accelerated = 0`; batch 1, fixed seq 128; HEF locked to chip and HailoRT line; Hailo-10H embedding HEF needs a DFC 5 compile (open) |
 | `ggml` | every machine | llama.cpp v0.4.1 / ggml 0.24 (MIT) with CUDA, SYCL, Metal, CPU backends | `ggml_backend_dev` registry for device identity; `llama_batch` decode; embeddings copied once from `llama_get_embeddings_seq` into the result buffer (no caller-owned output in llama.h); KV cache owned by the generation handle | `backend-llamacpp` | generation is the primary use; GGUF embeddings are a secondary path with `pooling_type` from the bundle |
@@ -524,11 +524,13 @@ shapes, validated when hardware arrives.
 Gate: conformance green on GPU and CPU; MiniLM and BGE goldens within
 tolerance; `d2h_hidden_bytes == 0`; matched-native overhead within the
 budget set by the first benchmark run (recorded, then held); two-context
-isolation; receipt from `krick-1`. This is the baseline all other providers
+isolation; receipt from the Intel Arc B70 host. This is the baseline all
+other providers
 are compared against for correctness.
 
 ### P3 CUDA provider
-x86_64 first (`krick`), then Jetson (`nano1`) on JetPack 7.2.1. The first
+x86_64 first (the RTX 4080 SUPER host), then the Jetson Orin Nano on
+JetPack 7.2.1. The first
 Jetson step is a runtime probe of the `sbsa/cu130` ORT wheel for sm_87
 kernels; on `cudaErrorNoKernelImageForDevice` the pinned source build
 (ORT 1.30, CUDA 13.2, TensorRT 10.16, sm_87) is used instead. IoBinding, stream
@@ -541,7 +543,8 @@ Gate: conformance green on both machines; goldens; `d2h_hidden_bytes == 0`;
 two engines with interleaved create/run/destroy under the allocator pool;
 receipts from both machines.
 
-Status (2026-09-21): x86_64 has landed on `krick` (`providers/cuda/`).
+Status (2026-09-21): x86_64 has landed on the RTX 4080 SUPER host
+(`providers/cuda/`).
 Embed, rerank, classify, and token-classify run through the ONNX Runtime
 CUDA execution provider with IoBinding and the provider's own device
 kernels for pooling, L2 normalization, sigmoid, and softmax; results stay
@@ -549,7 +552,7 @@ on the device and are exported as `TURBO_HANDLE_CUDA_PTR`. Precision
 matches the FP32 reference vectors at cosine 1.000
 (`testdata/receipts/turbo/cuda-2026-09-21.json`). Every cell stays
 `EXPERIMENTAL`: the matched-native benchmark and the two-engine
-interleaving test above are not yet done. Jetson (`nano1`) has moved past
+interleaving test above are not yet done. The Jetson Orin Nano has moved past
 "not started": device enumeration originally used the runtime's
 `cudaGetDeviceProperties_v2`, which CUDA 13 does not export under that
 name, so the provider failed to load there; it now reads compute
@@ -558,7 +561,7 @@ the driver library's `cuDeviceGetName`, both stable across CUDA toolkit
 majors (`providers/cuda/src/cuda.rs`). With that fixed, and building
 `--no-default-features` against a dynamically linked ONNX Runtime 1.24.0
 via `ORT_LIB_LOCATION` (`TURBO_CUDA_ARCHS=87`, JetPack R39 rev 2.0, CUDA
-13.2), all 12 live embedding tests pass on `nano1` at cosine 1.000; there
+13.2), all 12 live embedding tests pass on the Orin Nano at cosine 1.000; there
 is no committed receipt for that machine yet and the task suite (rerank,
 classify, token-classify) is still being verified there. TensorRT EP,
 `user_compute_stream` import, and the GPU WordPiece stretch goal are not
@@ -591,7 +594,7 @@ rows are written straight into shared `MTLBuffer`s, results are
 `TURBO_PLACE_SHARED` (exportable as `TURBO_HANDLE_MTL_BUFFER` or a host
 pointer), and `h2d_bytes` and `d2h_bytes` stay at zero, which the live
 suite now checks for unified-memory devices instead of demanding an
-upload. On `krickert-mac` (Apple M2, macOS 27): the 15 vtable tests
+upload. On an Apple M2 Mac (macOS 27): the 15 vtable tests
 (`providers/metal/tests/provider_test.cpp`) pass; `live_embed` passes 16
 of 16 at cosine 1.000 against the FP32 references with the STS ranking
 gate; the rerank cases of `live_tasks` pass with
@@ -626,8 +629,8 @@ honest limits); goldens within the INT8 tolerance recorded in the bundle;
 receipt per board.
 
 Status (2026-09-21): the `hailo` provider (`providers/hailo`, C++ over the
-HailoRT 4.23 C API) serves `EMBED x TEXT` on `pi5ai1` and `cm5ai1`
-(Hailo-8) with the Model Zoo INT8 MiniLM HEF: the HEF's fixed-shape encoder
+HailoRT 4.23 C API) serves `EMBED x TEXT` on a Raspberry Pi 5 with the AI
+HAT+ 26 TOPS and on a Raspberry Pi CM5 with a Hailo-8 M.2 module with the Model Zoo INT8 MiniLM HEF: the HEF's fixed-shape encoder
 body runs through f32 vstreams, WordPiece, the word-embedding gather (the
 `hailo_tables` artifact), pooling, L2, and `output_dim` run on the host,
 and `turbo_model_info` says so (`fully_accelerated = 0`, encode on the
@@ -644,7 +647,7 @@ with `dma_map` (the 4.23 packages on the Pis; `dma_map` zero-copy and
 `CAP_ASYNC` stay open), and HailoRT 4.23 rather than 4.24. Not yet:
 Hailo-8L (no board), Hailo-10H (needs a DFC 5 HEF), the x86_64 PCIe build,
 and the x86_64 PCIe build. Throughput (2026-09-21, `turbo-bench`,
-`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-22b.json`): 76
+`testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-22b.json`): 76
 rows/s at every batch and sequence length (the HEF is batch 1 with a
 128-token frame; 13.2 ms per row).
 
@@ -657,14 +660,14 @@ MLX generation on Apple through the same provider vtable; Hailo-10H GenAI
 LLM. Tokenize/detokenize for generative bundles.
 Gate: streaming conformance (token order, stop strings, cancel mid-stream,
 seed reproducibility on CPU, pull and push producing identical token
-sequences for one seed), throughput receipts on `krick`, `krick-1`, M2,
-`nano1`, and the Hailo-10H Pi.
+sequences for one seed), throughput receipts on the RTX 4080 SUPER host, the
+Intel Arc B70 host, the M2, the Jetson Orin Nano, and the Hailo-10H Pi.
 
 Status (2026-09-21): the `ggml` provider (`providers/ggml`, llama.cpp through
 `llama-cpp-2`) generates from GGUF bundles on the CUDA and CPU devices of
-`krick` and, through llama.cpp's own Metal backend (the provider's `metal`
+the RTX 4080 SUPER host and, through llama.cpp's own Metal backend (the provider's `metal`
 Cargo feature, not the separate MLX-based `metal` provider this section
-scopes), on `krickert-mac` (Apple M2); all with the pull iterator, chat
+scopes), on an Apple M2 Mac; all with the pull iterator, chat
 templates from the bundle or the GGUF, stop strings and tokens,
 cancellation, logprobs, seeded sampling, and GBNF grammars.
 `turbo_generate` (push) is implemented over the pull iterator and its C
@@ -672,8 +675,8 @@ conformance test checks the two forms yield one token sequence. Receipt:
 `testdata/receipts/turbo/ggml-2026-09-21.json`. GGUF embedding bundles
 run through the same provider (pooling in the graph, L2 and `output_dim`
 on the host, results placed in host memory) with the 13 live embedding
-checks green on the CUDA and CPU devices of `krick` and the Metal and CPU
-devices of `krickert-mac`, all at cosine 0.99999 or better against the
+checks green on the CUDA and CPU devices of the RTX 4080 SUPER host and the
+Metal and CPU devices of an Apple M2, all at cosine 0.99999 or better against the
 FP32 references; the runs are in the same receipt. Not yet: MLX generation
 through the dedicated `metal` provider, Hailo-10H generation,
 tokenize/detokenize for GGUF vocabularies, JSON-schema constrained output,
@@ -683,21 +686,23 @@ and the throughput receipts.
 Port the conformance suite to Java and Swift (the same cases through the
 bindings). Publish native, prepared-token Java, and text Java timings
 separately against the C numbers.
-Gate: Java suite green under `--illegal-native-access=deny` on `krick-1`
-and `krick`; Swift suite green on M2; documented binding overhead.
+Gate: Java suite green under `--illegal-native-access=deny` on the Intel Arc
+B70 host and the RTX 4080 SUPER host; Swift suite green on M2; documented
+binding overhead.
 
 Status (2026-09-21): the Java binding (`bindings/java`, `ai.pipestream:turbo`)
 is in, with the raw layer generated by jextract from `include/turbo/turbo.h`
-and the conformance cases passing through it on the mock provider on
-`krick` and `krick-1` under `--illegal-native-access=deny`: twelve cases
+and the conformance cases passing through it on the mock provider on the
+RTX 4080 SUPER host and the Intel Arc B70 host under
+`--illegal-native-access=deny`: twelve cases
 including generation (pull iterator, cancel, seeded repeatability, refusal
 by field) and the tokenizer, then fifteen once the second review added a
 held-result BUSY case, a cross-thread cancel case, and a regression case
 for the jextract indexed-accessor fix (H-6). The Swift
 package (`bindings/swift`, module `PipestreamTurbo`) is in, with its
 generation and tokenizer wrappers mirroring the Java ones and the same
-fourteen cases as an executable runner, all passing on `krickert-mac`
-(Apple M2, 2026-09-22). Not yet: the push form `turbo_generate` and the
+fourteen cases as an executable runner, all passing on an Apple M2 Mac
+(2026-09-22). Not yet: the push form `turbo_generate` and the
 chunk planner in the bindings, and the timings.
 
 ### P8 Packaging and SDK
@@ -733,7 +738,7 @@ WordPiece, TemplateProcessing or BertProcessing, the WordPiece decoder)
 and a parity test holds it to the Hugging Face crate's ids, type ids,
 byte offsets and decoded text over the STS corpus and adversarial strings
 (`cargo test -p turbo-core --features hf-tokenizers`). It is also faster:
-one thread on `krick`, release build, the native path encodes 5.1M
+one thread on the RTX 4080 SUPER host, release build, the native path encodes 5.1M
 tokens/s on the STS sentences (2.5 us per text) and 4.7M tokens/s on a
 1000-token paragraph, 3.2x and 2.3x the Hugging Face crate on the same
 texts (`cargo test -p turbo-core --features hf-tokenizers --release speed
@@ -788,7 +793,8 @@ when its longest text exceeds the longest bucket unless it sets
 `truncate` to `right` or `left`; the default never cuts. Errors carry the
 Turbo status name and field index on both bindings. Direct dependencies
 are tokio, axum, tonic, tonic-prost, prost, serde, serde_json, clap and
-futures-core (all already in the tree). Verified on `krick`: every route
+futures-core (all already in the tree). Verified on the RTX 4080 SUPER host:
+every route
 on the six mock bundles, and MiniLM plus the ms-marco reranker through
 `cuda` on the RTX 4080 SUPER with Qwen2.5-0.5B through `ggml`, over both
 bindings (`server/README.md`). Also landed (2026-09-22): gRPC server
@@ -856,7 +862,7 @@ receipts, matches cells, and reports `libturbo` throughput as a fraction
 of native per cell; a (device, task) is SUPPORTED when every cell reaches
 0.95 of native, nothing is unmatched, and the comparison receipt is
 committed under `testdata/receipts/turbo/bench/compare-*.json`. The first
-such receipt is `compare-cuda-krick-embed-2026-09-22.json`: the cuda
+such receipt is `compare-cuda-rtx4080-embed-2026-09-22.json`: the cuda
 provider on the RTX 4080 SUPER against ONNX Runtime 1.28's CUDA execution
 provider on the same 9 cells, `libturbo` at 1.04x to 2.64x of native
 (the provider keeps the hidden state on the device and pools with its own
@@ -871,7 +877,7 @@ cells; the reference's attribution knobs (`--static`, `--fuse`,
 at a 4 percent gain, so the gap was the provider's: its token writer
 built an error message string per token (about 1 us each) whether or
 not the check failed. Built only on failure, the pair is 1.03x to
-1.34x, SUPPORTED (`compare-openvino-krick-cpu-embed-2026-09-22c.json`, the re-run from a clean commit);
+1.34x, SUPPORTED (`compare-openvino-rtx4080-cpu-embed-2026-09-22c.json`, the re-run from a clean commit);
 the Metal and Hailo token writers had the same pattern and the same
 fix. ggml GGUF embeddings on the GPU first read 0.94x on 1x32
 and 8x128; both causes were in the protocol, not the provider: the
@@ -881,14 +887,14 @@ iterations left the first cells of a run on a GPU still raising its
 clocks. With the reference tokenizing in the loop and a warm-up of at
 least 0.5 s on both sides (`turbo_bench::receipt::warm_up`), the pair
 is 0.99x to 1.89x, SUPPORTED
-(`compare-ggml-krick-gpu-embed-2026-09-22c.json`, re-run from a clean commit).
+(`compare-ggml-rtx4080-gpu-embed-2026-09-22c.json`, re-run from a clean commit).
 
 ## 12. Risks and defaults chosen
 
 | risk | default in this plan |
 |---|---|
 | Hailo-10H embedding HEF needs a DFC 5 encoder compile | Ship Hailo-10H generation first (HailoRT GenAI); track the embedding HEF as an open item with the DFC steps documented |
-| No JetPack 7 ORT wheel channel; the `sbsa/cu130` aarch64 wheel may lack sm_87 kernels | `nano1` stays on JetPack 7.2.1 (owner keeps it current); probe the wheel first, fall back to a pinned ORT source build (CUDA 13.2, TensorRT 10.16, sm_87); the recipe is committed under `providers/cuda/jetson/` |
+| No JetPack 7 ORT wheel channel; the `sbsa/cu130` aarch64 wheel may lack sm_87 kernels | The Orin Nano stays on JetPack 7.2.1 (owner keeps it current); probe the wheel first, fall back to a pinned ORT source build (CUDA 13.2, TensorRT 10.16, sm_87); the recipe is committed under `providers/cuda/jetson/` |
 | Intel NPU hardware not yet available | NPU code path built and unit-tested with static shapes; supported status withheld until a receipt exists |
 | A Metal result that is not the GPU's own memory | Every buffer is `MTLResourceStorageModeShared`; the result's `host_ptr` is the `MTLBuffer` contents and `d2h_bytes` is 0, which the live suite asserts on unified-memory devices |
 | OpenVINO GenAI RAG pipelines allocate outputs | Not used; the fused-graph path is the provider |
@@ -903,7 +909,7 @@ is 0.99x to 1.89x, SUPPORTED
    project name. Decided 2026-09-21.
 2. Refactor in place: tag the PoC and remove it from the tree. Decided
    2026-09-21.
-3. Jetson runs JetPack 7.2.1, which is what `nano1` has. Decided 2026-09-21.
+3. Jetson runs JetPack 7.2.1, which is what the Orin Nano has. Decided 2026-09-21.
 4. Generation streaming: both forms in the header; pull iterator first,
    push wrapper stubbed until pull passes conformance. Decided 2026-09-21.
 5. Java package `ai.pipestream.turbo`, Maven group `ai.pipestream`.

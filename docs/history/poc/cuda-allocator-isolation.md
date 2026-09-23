@@ -32,7 +32,8 @@ and pool recreation, release after a load without allocations, and overflow-safe
 byte rounding. These use CPU-backed storage to test the ownership logic.
 
 The live test `ort_allocator::tests::cuda_engines_release_external_pool` passed
-on `krick`, NVIDIA GeForce RTX 4080 SUPER, driver 595.84, using ORT 1.28.0
+on an x86_64 host with an NVIDIA GeForce RTX 4080 SUPER, driver 595.84,
+using ORT 1.28.0
 (reported build commit `da9b5e3`). Two MiniLM engines ran eight requests each
 from separate threads. Outputs matched the initial engine's output within
 absolute error `1e-5`. The surviving engine remained usable after the first

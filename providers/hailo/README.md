@@ -117,17 +117,18 @@ later run fails with `TURBO_E_INVALID_STATE` until it is reloaded.
 ## Status
 
 `SUPPORTED` for `EMBED x TEXT` on Hailo-8 (the capability cell names
-`hailo-2026-09-21` and `compare-hailo-pi5ai1-embed-2026-09-22b`);
+`hailo-2026-09-21` and `compare-hailo-pi5-hailo8-embed-2026-09-22b`);
 `EXPERIMENTAL` on other Hailo architectures: the 14 vtable tests
 (`providers/hailo/tests/provider_test.cpp`) and the 14 live embedding tests
 (`crates/turbo-conformance/tests/live_embed.rs`, including the STS ranking
-gate) pass on both `pi5ai1` (Raspberry Pi 5 with AI HAT+ 26 TOPS) and
-`cm5ai1` (CM5 IO Board, Hailo-8 M.2 module); receipt:
-`testdata/receipts/turbo/hailo-2026-09-21.json`. Throughput on `pi5ai1`
-(`turbo-bench embed`, `testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`):
+gate) pass on both a Raspberry Pi 5 with the AI HAT+ 26 TOPS and a
+Raspberry Pi CM5 on the CM5 IO Board with a Hailo-8 M.2 module; receipt:
+`testdata/receipts/turbo/hailo-2026-09-21.json`. Throughput on the Pi 5
+(`turbo-bench embed`, `testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json`):
 76 rows/s at every batch and sequence length, since the HEF is batch 1 with
 a fixed 128-token frame (about 13.2 ms per row). Hailo-8L is untested (no
-board). On the Hailo-10H (`pi5ai2p`, HailoRT 5.1.1, 2026-09-22) the library
+board). On a Raspberry Pi 5 with the AI HAT+ 2, Hailo-10H (HailoRT 5.1.1,
+2026-09-22) the library
 builds, links and enumerates the device through the same 4.x C API, and
 the vtable tests' device and capability cases pass; the bundle cases wait
 on a DFC 5 MiniLM HEF, which does not exist yet

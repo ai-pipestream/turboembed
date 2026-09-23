@@ -12,8 +12,8 @@ can read it. The figures are hailortcli's, not a per-cell timing; the
 receipt says so.
 
 Usage:
-  reference/hailo/native-receipt.py --hef model.hailo8.hef --turbo-receipt hailo-pi5ai1-embed.json \
-      --commit <sha> --out native.json [--time-to-run 15] [--ssh pi5ai1]
+  reference/hailo/native-receipt.py --hef model.hailo8.hef --turbo-receipt hailo-pi5-hailo8-embed.json \
+      --commit <sha> --out native.json [--time-to-run 15] [--ssh <host>]
 """
 import argparse
 import datetime

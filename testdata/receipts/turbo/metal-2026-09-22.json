@@ -58,7 +58,7 @@
   "tests": "providers/metal/tests/provider_test.cpp (22 vtable tests), crates/turbo-conformance/tests/live_embed.rs (16 tests including the STS ranking gate and the unified-memory placement checks), and the rerank cases of crates/turbo-conformance/tests/live_tasks.rs (3 tests; classify and token-classify skip, no bundle)",
   "runs": [
     {
-      "machine": "krickert-mac",
+      "machine": "m2",
       "board": "Apple M2, 24 GB unified memory, macOS 27.0 (26A428)",
       "device": "Apple M2 (Metal), IGPU, ordinal 0, recommendedMaxWorkingSetSize 17.8 GiB",
       "device_kind": "IGPU",

@@ -26,7 +26,7 @@ for `dslim/bert-base-NER`, revision
   "vocab_sha256": "...",          // the checkout's vocab.txt
   "produced_by": { "framework": "pytorch", "dtype": "float32", "device": "cpu",
                    "torch": "...", "transformers": "...", "numpy": "...", "python": "..." },
-  "machine": "krick",
+  "machine": "rtx4080",
   "date": "2026-09-22",
   "command": "...",               // the command that regenerates this file
   "cases": [
@@ -99,7 +99,7 @@ line up with the pipeline's like this, and this is what
 | `TURBO_AGGREGATE_SIMPLE` | `aggregation.first` | the provider takes a word's label from its first sub-token, which is the pipeline's `first` |
 | `TURBO_AGGREGATE_FIRST` | `aggregation.first` | same rule, same result |
 | `TURBO_AGGREGATE_MAX` | `aggregation.max` | the word's label is its highest-scoring sub-token's |
-| `TURBO_AGGREGATE_MODEL` | whatever `contract.aggregation` names | `simple` in the bundle on `krick` |
+| `TURBO_AGGREGATE_MODEL` | whatever `contract.aggregation` names | `simple` in the bundle on the reference host |
 
 `aggregation.simple` is stored but is not a gate. The pipeline's `simple`
 strategy is token-aligned: it can split one word into two spans, as it does
@@ -116,13 +116,13 @@ From the repository root, on a machine with the checkouts under
 
 ```bash
 uv run --no-project --with torch --with transformers --with numpy \
-    python scripts/gen-reference-tasks.py --machine krick --only token_classify
+    python scripts/gen-reference-tasks.py --machine rtx4080 --only token_classify
 ```
 
 The weights come from the hub at the pinned revision; the cased tokenizer
 (`vocab.txt`, `do_lower_case` false) and the config come from
 `~/opt/models/ner`, which holds no PyTorch weights of its own. The bundle
-under `~/opt/bundles/ner-onnx` on `krick` declares `model_id` `ner` rather
+under `~/opt/bundles/ner-onnx` on the reference host declares `model_id` `ner` rather
 than the Hugging Face id, so the id above comes from the checkout's
 `config.json` and the receipts, not from the bundle.
 

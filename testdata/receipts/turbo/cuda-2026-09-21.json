@@ -6,7 +6,7 @@
   "modality": "text",
   "runtime": "ONNX Runtime 1.28 (ort 2.0.0-rc.13 prebuilt, CUDA 13 execution provider) with CUDA 13 user-space libraries from the NVIDIA PyPI wheels (cuda-runtime 13.2.86, cublas 13.6.2.16, cudnn-cu13 9.26.0.51, nvrtc 13.2.86); provider kernels compiled with nvcc 12.4 for sm_87 and sm_89",
   "machine": {
-    "name": "krick",
+    "name": "rtx4080",
     "device": "NVIDIA GeForce RTX 4080 SUPER (sm_89)",
     "device_kind": "GPU",
     "driver": "595.84 (CUDA driver API 13.2)"
@@ -54,7 +54,7 @@
     "spans": [["Ada Lovelace", "B-PER"], ["Berlin", "B-LOC"], ["Microsoft", "B-ORG"]],
     "aggregation": "device softmax, host word-aligned grouping"
   },
-  "status_after": "EXPERIMENTAL; a matched-native benchmark receipt and a Jetson (nano1) receipt are still required before SUPPORTED",
+  "status_after": "EXPERIMENTAL; a matched-native benchmark receipt and a Jetson (orin-nano) receipt are still required before SUPPORTED",
   "commit": "30996632511bd747ed9b6c151bb1846ad409e059",
   "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder"
 }

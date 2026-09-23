@@ -3,7 +3,7 @@
   "kind": "benchmark",
   "date": "2026-09-22",
   "machine": {
-    "hostname": "krickert-mac",
+    "hostname": "m2",
     "os": "Darwin 27.0.0",
     "arch": "aarch64"
   },
@@ -21,7 +21,7 @@
     "caps": "0x2bf0426"
   },
   "bundle": {
-    "dir": "/Users/krickert/opt/bundles/rerank-metal",
+    "dir": "$HOME/opt/bundles/rerank-metal",
     "model_id": "cross-encoder/ms-marco-MiniLM-L-12-v2",
     "manifest_sha256": "a7e73b432cb82b595ba921f3a722e117f5dc882f0ec7f6ae7656083959551cad",
     "artifacts": {

@@ -427,14 +427,14 @@ fn live_token_classify_aggregation_modes_group_words_differently() {
 //
 // The tolerances are absolute. Each is eight times the worst difference
 // measured between ONNX Runtime on the `cuda` provider (RTX 4080 SUPER,
-// krick, 2026-09-22) and PyTorch float32 on the CPU, over exactly the cases
+// 2026-09-22) and PyTorch float32 on the CPU, over exactly the cases
 // below. Eight is headroom for another GPU, driver or execution provider
 // without leaving room for a real regression: the OpenVINO CPU device on
 // the same machine and day lands two to three orders of magnitude closer
 // than cuda does, so nothing in between is near a gate. Every case prints
 // the three largest differences it saw, so a later run shows its headroom
 // without a debugger. The measurements are recorded in
-// `testdata/receipts/turbo/precision-tasks-krick-2026-09-22.json`.
+// `testdata/receipts/turbo/precision-tasks-rtx4080-2026-09-22.json`.
 
 /// Reranker activated scores: 8 x the 1.064e-5 measured on cuda.
 const RERANK_SCORE_ATOL: f32 = 8.5e-5;

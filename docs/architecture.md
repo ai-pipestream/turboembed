@@ -2,7 +2,7 @@
 
 This describes what the code in this tree does on branch `turbo-v2` as of 2026-09-21
 (milestones P0, P1, and P2 done; P3 landed on x86_64 and, for embedding, on
-Jetson `nano1`; P5 landed the `hailo` embedding provider on two Hailo-8
+the Jetson Orin Nano; P5 landed the `hailo` embedding provider on two Hailo-8
 Pis; P6 landed the `ggml` generation provider and the push-style
 `turbo_generate`; P7 landed the Java FFM binding and the Swift package).
 It is derived from `PLAN.md` section 4; where this tree does not yet
@@ -28,8 +28,8 @@ milestone that adds it. See `PLAN.md` itself for the design rationale.
              cuda (providers/cuda, Rust, loaded as a plugin library; x86_64
              EXPERIMENTAL, embedding landed on Jetson aarch64)
              ggml (providers/ggml, Rust, loaded as a plugin library; GGUF
-             generation EXPERIMENTAL on CUDA/CPU on krick and on Metal on
-             Apple M2, all via llama.cpp)
+             generation EXPERIMENTAL on CUDA/CPU on an RTX 4080 SUPER
+             host and on Metal on Apple M2, all via llama.cpp)
              hailo (providers/hailo, C++ over HailoRT 4.x; embeddings
              EXPERIMENTAL on the Hailo-8 Pis with an INT8 HEF)
              metal (providers/metal, Objective-C++ over Metal directly;
@@ -230,9 +230,10 @@ the same token and ignores `seed` (`crates/turbo-core/src/mock.rs`).
 `static`, `openvino`, `cuda`, `ggml`, and `hailo` report `EXPERIMENTAL` for
 the cells they offer (`EMBED x TEXT x CPU` for `static`;
 `{EMBED,RERANK,CLASSIFY,TOKEN_CLASSIFY} x TEXT x {GPU,CPU}` for `openvino`;
-the same four tasks x `TEXT` x GPU for `cuda` on `krick`, x86_64;
-`GENERATE` x GPU and CPU for `ggml` on `krick` and `krickert-mac`;
-`EMBED x TEXT` on the Hailo-8 NPU for `hailo` on `pi5ai1` and `cm5ai1`)
+the same four tasks x `TEXT` x GPU for `cuda` on an x86_64 RTX 4080 SUPER
+host; `GENERATE` x GPU and CPU for `ggml` on that host and on an Apple M2;
+`EMBED x TEXT` on the Hailo-8 NPU for `hailo` on a Hailo-8 Pi 5 and a
+Hailo-8 CM5)
 because a conformance and precision receipt exists for each
 (`testdata/receipts/turbo/openvino-*-2026-09-21.json`,
 `testdata/receipts/turbo/cuda-2026-09-21.json`,
@@ -240,15 +241,15 @@ because a conformance and precision receipt exists for each
 `testdata/receipts/turbo/hailo-2026-09-21.json`) but the matched-native
 benchmark receipt `PLAN.md` section 2 item 7 requires before `SUPPORTED`
 does not yet exist for any of the five. OpenVINO NPU devices are enumerated
-but offer no capability cells (listed, not qualified). CUDA on Jetson
-(`nano1`, aarch64) is no longer untried: the device-enumeration fix in
+but offer no capability cells (listed, not qualified). CUDA on the Jetson
+Orin Nano (aarch64) is no longer untried: the device-enumeration fix in
 `providers/cuda/src/cuda.rs` (reading compute capability through
 `cudaDeviceGetAttribute` and the device name through the driver library's
 `cuDeviceGetName`, both stable across CUDA toolkit majors, instead of the
 runtime's re-versioned `cudaGetDeviceProperties`) unblocked loading the
 provider there, and all 12 live embedding tests now pass at cosine 1.000
 against a dynamically linked ONNX Runtime 1.24.0; there is no committed
-receipt for `nano1` yet and the task suite (rerank, classify,
+receipt for that board yet and the task suite (rerank, classify,
 token-classify) is still being verified on that board (`PLAN.md`
 section 10, P3).
 

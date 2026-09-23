@@ -27,7 +27,11 @@ the gap that remained was the provider's.
 
 1. Run the `libturbo` side with a token dump:
    `turbo-bench embed ... --dump-tokens tokens.json --out turbo.json`.
-   The dump holds every cell's texts, ids, mask and lengths, the bundle's
+   Both sides record the machine in `machine.hostname`: `uname -n` by
+   default, or the value of `TURBO_BENCH_MACHINE` when it is set, which is
+   how the committed receipts name a machine by its architecture
+   (`rtx4080`, `b70`, `orin-nano`, `pi5-hailo8`, `m2`) rather than by its
+   host name. The dump holds every cell's texts, ids, mask and lengths, the bundle's
    identity (manifest and artifact hashes) and its pooling and
    normalization, so the native side runs the same rows and names the
    same bundle. A GGUF bundle has no core tokenizer: its dump carries the
@@ -40,7 +44,7 @@ the gap that remained was the provider's.
    `reference-llama-cpp generate --gguf model.gguf --turbo-receipt
    turbo.json --out native.json`; for Hailo,
    `reference/hailo/native-receipt.py --hef model.hef --turbo-receipt
-   turbo.json --commit <sha> --ssh pi5ai1 --out native.json`.
+   turbo.json --commit <sha> --ssh <host> --out native.json`.
    Both sides warm up by the same rule before a cell's timed samples: at
    least `--warmup` iterations and at least 0.5 s of them
    (`turbo_bench::receipt::warm_up`; the C++ programs carry the same
@@ -74,14 +78,17 @@ directories say; the Rust ones record the build's commit through the
 
 | pair | device | cells | libturbo versus native | verdict |
 |---|---|---|---|---|
-| cuda / ONNX Runtime 1.28 CUDA EP | RTX 4080 SUPER (krick) | embed, 9 | 1.04x to 2.64x | SUPPORTED |
-| cuda / ONNX Runtime 1.24 CUDA EP | Jetson Orin Nano, sm_87 (nano1) | embed, 9 | 0.88x to 1.03x; 1x32, 1x128 and 8x32 under the line by a fixed per-run cost of about 0.3 to 0.5 ms (`compare-cuda-nano1-embed-2026-09-22b.json`) | EXPERIMENTAL |
-| openvino / OpenVINO 2026.3.1 C++ | Battlemage B70 (krick-1) | embed, 9 | 1.15x to 1.55x | SUPPORTED |
-| openvino / OpenVINO 2026.3.1 C++ | Ryzen 9 9950X3D CPU (krick) | embed, 9 | 1.01x to 1.34x, re-run from commit c540fb3 (the first run read 0.91x on the larger cells: the provider's token writer built an error message per token, about 1 us each, fixed the same day; `compare-openvino-krick-cpu-embed-2026-09-22c.json`) | SUPPORTED |
-| ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | generate, 128 tokens | 0.99x total, 1.00x decode | SUPPORTED |
-| ggml / llama.cpp CUDA | RTX 4080 SUPER (krick) | embed, 9 (text path) | 0.99x to 1.89x, re-run from commit c540fb3 (`compare-ggml-krick-gpu-embed-2026-09-22c.json`; the first run, 0.94x on two cells, had the reference tokenizing outside its timed loop and a count-only warm-up) | SUPPORTED |
-| hailo / hailortcli | Hailo-8 (pi5ai1) | embed, 6 | 1.00x to 1.01x (`compare-hailo-pi5ai1-embed-2026-09-22b.json`, re-run from commit 5cb4cad; the first pair named no commit) | SUPPORTED |
-| metal / the same kernels | Apple M2 (krickert-mac) | embed, 9 | 0.98x to 1.00x before and 0.97x to 1.01x after the simdgroup matmul (the provider adds no measurable cost around the kernels) | SUPPORTED |
+| cuda / ONNX Runtime 1.28 CUDA EP | RTX 4080 SUPER, x86_64 (`rtx4080`) | embed, 9 | 1.04x to 2.64x | SUPPORTED |
+| cuda / ONNX Runtime 1.24 CUDA EP | Jetson Orin Nano Super 8 GB, sm_87 (`orin-nano`) | embed, 9 | 0.88x to 1.03x; 1x32, 1x128 and 8x32 under the line by a fixed per-run cost of about 0.3 to 0.5 ms (`compare-cuda-orin-nano-embed-2026-09-22b.json`) | EXPERIMENTAL |
+| openvino / OpenVINO 2026.3.1 C++ | Intel Arc B70 (Battlemage), x86_64 (`b70`) | embed, 9 | 1.15x to 1.55x | SUPPORTED |
+| openvino / OpenVINO 2026.3.1 C++ | Ryzen 9 9950X3D CPU of the RTX 4080 SUPER host (`rtx4080`) | embed, 9 | 1.01x to 1.34x, re-run from commit c540fb3 (the first run read 0.91x on the larger cells: the provider's token writer built an error message per token, about 1 us each, fixed the same day; `compare-openvino-rtx4080-cpu-embed-2026-09-22c.json`) | SUPPORTED |
+| ggml / llama.cpp CUDA | RTX 4080 SUPER, x86_64 (`rtx4080`) | generate, 128 tokens | 0.99x total, 1.00x decode | SUPPORTED |
+| ggml / llama.cpp CUDA | RTX 4080 SUPER, x86_64 (`rtx4080`) | embed, 9 (text path) | 0.99x to 1.89x, re-run from commit c540fb3 (`compare-ggml-rtx4080-gpu-embed-2026-09-22c.json`; the first run, 0.94x on two cells, had the reference tokenizing outside its timed loop and a count-only warm-up) | SUPPORTED |
+| hailo / hailortcli | Hailo-8 on a Raspberry Pi 5 with the AI HAT+ 26 TOPS (`pi5-hailo8`) | embed, 6 | 1.00x to 1.01x (`compare-hailo-pi5-hailo8-embed-2026-09-22b.json`, re-run from commit 5cb4cad; the first pair named no commit) | SUPPORTED |
+| metal / the same kernels | Apple M2 Mac, Metal (`m2`) | embed, 9 | 0.98x to 1.00x before and 0.97x to 1.01x after the simdgroup matmul (the provider adds no measurable cost around the kernels) | SUPPORTED |
+
+The name in parentheses is the machine label the receipts carry in
+`machine.hostname`, and the one the receipt file names use.
 
 Where `libturbo` is faster than the native loop it is because the
 provider keeps the hidden state on the device and pools with its own

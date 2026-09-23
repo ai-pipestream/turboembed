@@ -3,8 +3,8 @@
 `scripts/package.sh` builds one archive per target triple for using Turbo
 outside this repository: `dist/turbo-<version>-<target>.tar.gz`. `<version>`
 is `workspace.package.version` from `Cargo.toml` (`2.0.0-alpha.0` today);
-`<target>` is the `host:` line of `rustc -vV` (`x86_64-unknown-linux-gnu` on
-`krick`). This is a working packaging script for local and machine-to-machine
+`<target>` is the `host:` line of `rustc -vV` (`x86_64-unknown-linux-gnu` on an
+x86_64 Linux host). This is a working packaging script for local and machine-to-machine
 distribution, not the containerized, notarized, `abidiff`-gated per-platform
 release pipeline `PLAN.md` section 10 (P8) scopes; P8 gets its version
 script, SONAME policy, and clean-consumer install test from what this script
@@ -53,7 +53,8 @@ per-provider subdirectory.
 
 - **The CUDA 13 user-space libraries** (cuBLAS, cuBLASLt, cuDNN 9, NVRTC, the
   CUDA 13 runtime) that the CUDA provider's ONNX Runtime execution provider
-  links against. On `krick` these come from NVIDIA's PyPI wheels unpacked
+  links against. On the RTX 4080 SUPER host these come from NVIDIA's PyPI
+  wheels unpacked
   into `.libs/nvidia/lib`; `scripts/package.sh` copies only the files it
   names, so nothing under `.libs` is ever staged.
   They are large (several hundred megabytes), tied to a specific CUDA/driver
@@ -66,7 +67,7 @@ per-provider subdirectory.
 - **The OpenVINO runtime** (`libopenvino.so`, its device plugins, and the
   TBB library it ships). It is a multi-hundred-megabyte SDK with its own
   versioned install tree (`openvino_genai_ubuntu26_2026.3.1.0_x86_64` on
-  `krick-1` and `krick`); `libturbo_provider_openvino.so` is built with a
+  both x86_64 hosts); `libturbo_provider_openvino.so` is built with a
   RUNPATH into that tree, so it finds the runtime automatically as long as
   the SDK stays where it was built, or through `LD_LIBRARY_PATH` if moved.
   Bundling it would mean shipping and updating a second copy of a large SDK
@@ -136,7 +137,7 @@ build if any of them is above the floor, rather than trusting the soname
 list, which does not show symbol versions. A host build leaves
 `TURBO_GLIBC_FLOOR` unset, so it reports each library's newest glibc symbol
 version and gates nothing: a host archive makes no portability claim. The
-archive built in the container on `krick` (2026-09-21, 44 MB with
+archive built in the container on the RTX 4080 SUPER host (2026-09-21, 44 MB with
 `turbo-bench`) needs no glibc symbol newer than `GLIBC_2.28`, and
 `bin/turbo-bench discover --provider-dir providers --strict` from the
 extracted archive is the consumer-side check that every provider loads.

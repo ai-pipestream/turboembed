@@ -18,7 +18,7 @@
   "tests": "crates/turbo-conformance/tests/live_generate.rs (7 tests: EOS stop, exact length budget, greedy determinism and seeded reproduction, stop strings and stop tokens, cancel and logprobs, min_new_tokens, refusal of JSON schema and n_sequences)",
   "runs": [
     {
-      "machine": "krick",
+      "machine": "rtx4080",
       "device": "NVIDIA GeForce RTX 4080 SUPER (CUDA0), ordinal 0",
       "device_kind": "GPU",
       "greedy_answer": "The capital of France is Paris.",
@@ -27,19 +27,19 @@
       "result": "7 passed, 0 failed (200 s including seven model loads, debug build of the Rust side)"
     },
     {
-      "machine": "krick",
+      "machine": "rtx4080",
       "device": "AMD Ryzen 9 9950X3D 16-Core Processor (CPU), ordinal 1 (explicit selection)",
       "device_kind": "CPU",
       "result": "7 passed, 0 failed (328 s including seven model loads); greedy decoding bit-reproducible across runs"
     },
     {
-      "machine": "krickert-mac",
+      "machine": "m2",
       "device": "Apple M2 (MTL0), ordinal 0; macOS 27, llama.cpp Metal backend (cargo feature `metal`)",
       "device_kind": "GPU",
       "result": "7 passed, 0 failed (446 s including seven model loads, debug build of the Rust side)"
     }
   ],
-  "status_after": "EXPERIMENTAL; throughput receipts on krick, krick-1, M2, nano1, and the Hailo-10H Pi (PLAN.md P6 gate) are still required",
+  "status_after": "EXPERIMENTAL; throughput receipts on rtx4080, b70, M2, orin-nano, and the Hailo-10H Pi (PLAN.md P6 gate) are still required",
   "commit": "6657818bd09e65cff369fe59c8e71f2b5ad251b1",
   "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder",
   "embed": {
@@ -60,7 +60,7 @@
     "tests": "crates/turbo-conformance/tests/live_embed.rs (13 tests)",
     "runs": [
       {
-        "machine": "krick",
+        "machine": "rtx4080",
         "device": "NVIDIA GeForce RTX 4080 SUPER (CUDA0), ordinal 0",
         "device_kind": "GPU",
         "cosine": {
@@ -74,7 +74,7 @@
         "result": "13 passed, 0 failed"
       },
       {
-        "machine": "krick",
+        "machine": "rtx4080",
         "device": "AMD Ryzen 9 9950X3D 16-Core Processor (CPU), ordinal 1",
         "device_kind": "CPU",
         "cosine": {
@@ -87,7 +87,7 @@
         "result": "13 passed, 0 failed"
       },
       {
-        "machine": "krickert-mac",
+        "machine": "m2",
         "device": "Apple M2 (MTL0), ordinal 0; macOS 27, llama.cpp Metal backend (cargo feature `metal`)",
         "device_kind": "GPU",
         "cosine": {
@@ -101,7 +101,7 @@
         "result": "13 passed, 0 failed"
       },
       {
-        "machine": "krickert-mac",
+        "machine": "m2",
         "device": "Apple M2 (CPU), ordinal 1",
         "device_kind": "CPU",
         "cosine": {

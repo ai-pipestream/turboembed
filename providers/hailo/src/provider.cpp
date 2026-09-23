@@ -1091,11 +1091,11 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
             // SUPPORTED needs a conformance receipt, a precision receipt and a
             // matched-native benchmark from a named machine (AGENTS.md rule
             // 7); the cell names them. Hailo-8 embeddings have all three from
-            // pi5ai1 (2026-09-21 and 2026-09-22); other architectures are
-            // EXPERIMENTAL until theirs exist.
+            // a Hailo-8 Pi (2026-09-21 and 2026-09-22); other architectures
+            // are EXPERIMENTAL until theirs exist.
             if (d.arch == HAILO_ARCH_HAILO8) {
                 full.status = TURBO_CAP_SUPPORTED;
-                put_str(full.notes, "INT8 encoder on Hailo-8; receipts hailo-2026-09-21, compare-hailo-pi5ai1-embed-2026-09-22b; ranking parity with FP32");
+                put_str(full.notes, "INT8 encoder on Hailo-8; receipts hailo-2026-09-21, compare-hailo-pi5-hailo8-embed-2026-09-22b; ranking parity with FP32");
             } else {
                 full.status = TURBO_CAP_EXPERIMENTAL;
                 put_str(full.notes, "INT8 encoder on " + arch_name(d.arch) +

@@ -14,8 +14,7 @@ aliases (plus LLMs); the slim file is what this run started.
 |---|---|
 | listen | `0.0.0.0:8461` |
 | token | `change-me` (`INFERSTREAM_E2E_TOKEN`) |
-| LAN | `192.168.1.242:8461`, `192.168.1.243:8461` |
-| Tailscale | `100.110.72.95:8461` |
+| reachable at | `<machine-a>:8461` on the LAN and over the VPN |
 | GPU | RTX 4080 SUPER, CUDA EP (`device=cuda` in session log) |
 
 `make fetch-corpus` landed SHA-pinned `testdata/corpus/tiny-shakespeare.txt`
@@ -57,14 +56,14 @@ golden within ~5e-5 — fp32 session noise, not a different vector.
 | peer | reach | result |
 |---|---|---|
 | apple / Machine C | **yes** — live capture on Machine C after the pooling fix | **before:** minilm min **-0.1404** / mean **-0.0085** (BERT pooler). **after (FP + mean+L2):** minilm min **0.9795** / mean **0.9997** (n=213); bge-small min **0.9938** / mean **0.9999**. See `testdata/e2e/goldens/apple/README.md`. |
-| intel / Machine B | host up (`192.168.1.195`, Tailscale `100.124.224.59`) | **no inferstream** on `:8461` / `:8471`. Only llama-server `:8085`. Goldens not on `origin/main` yet. |
+| intel / Machine B | host up, reachable on the LAN and over the VPN | **no inferstream** on `:8461` / `:8471`. Only llama-server `:8085`. Goldens not on `origin/main` yet. |
 
 Retry when intel is serving:
 
 ```bash
-INFERSTREAM_E2E_NVIDIA_ADDR=192.168.1.242:8461 \
-INFERSTREAM_E2E_INTEL_ADDR=192.168.1.195:8461 \
-INFERSTREAM_E2E_APPLE_ADDR=192.168.1.241:8461 \
+INFERSTREAM_E2E_NVIDIA_ADDR=<machine-a>:8461 \
+INFERSTREAM_E2E_INTEL_ADDR=<machine-b>:8461 \
+INFERSTREAM_E2E_APPLE_ADDR=<machine-c>:8461 \
 INFERSTREAM_E2E_TOKEN=change-me \
   make e2e-parity
 ```

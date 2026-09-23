@@ -20,7 +20,7 @@ checkout reproduces the same numbers.
 Usage (uv brings its own CPU wheels; nothing is installed into the tree):
 
     uv run --no-project --with torch --with transformers --with numpy \
-        python scripts/gen-reference-tasks.py --machine krick
+        python scripts/gen-reference-tasks.py --machine rtx4080
 
 Options:
     --machine NAME   machine name recorded in each file (default: hostname)
@@ -184,10 +184,10 @@ def f32(x):
 def load_checked(auto, repo_id, revision, torch, allow=()):
     """Load `repo_id` in float32 and refuse a checkpoint that does not fit.
 
-    A config and a weight file that disagree (the reranker checkout on krick
-    pairs a 6-layer config with a 12-layer safetensors) load without an
-    exception and produce numbers that look plausible and are wrong, so the
-    unused and missing keys are checked here instead.
+    A config and a weight file that disagree (the reranker checkout used for
+    these references pairs a 6-layer config with a 12-layer safetensors) load
+    without an exception and produce numbers that look plausible and are
+    wrong, so the unused and missing keys are checked here instead.
     """
     model, info = auto.from_pretrained(
         repo_id, revision=revision, dtype=torch.float32, output_loading_info=True

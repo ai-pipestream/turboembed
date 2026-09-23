@@ -48,8 +48,9 @@ mvn test -Dturbo.library=/path/to/libturbo.so   # another build
 
 The tests are the conformance cases run through the binding against the
 `mock` provider, under `--enable-native-access=ALL-UNNAMED
---illegal-native-access=deny`. On `krick` (JDK 25.0.3, Temurin) and on
-`krick-1` (JDK 25.0.4, Temurin, AMD Ryzen 9 9950X) the sixteen tests pass
+--illegal-native-access=deny`. On the RTX 4080 SUPER host (JDK 25.0.3,
+Temurin) and on the Intel Arc B70 host (JDK 25.0.4, Temurin, AMD Ryzen 9
+9950X) the sixteen tests pass
 in under a second. `.github/workflows/ci.yml`'s `java` job runs the
 same thing on every push: `cargo build --locked -p turbo-shared` then
 `cd bindings/java && mvn -q -B test` under JDK 25 (Temurin), against the
@@ -188,7 +189,7 @@ DYLD_LIBRARY_PATH=../../target/debug swift run turbo-conformance
 from (default `testdata/bundles/mock`, resolved relative to `main.swift`'s
 own path).
 
-On `krickert-mac` (Apple M2, macOS 27, Swift 6.4 command line tools) all
+On an Apple M2 Mac (macOS 27, Swift 6.4 command line tools) all
 sixteen cases pass (2026-09-22), including generation, the tokenizer, the
 held-result BUSY case, and the cross-thread cancel case; see
 `docs/testing.md`.

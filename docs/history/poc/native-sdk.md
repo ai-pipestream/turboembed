@@ -40,8 +40,8 @@ smoke-only). Both Apple scripts refuse to run off macOS arm64.
 | Component | Supported in this preview | Evidence |
 |---|---|---|
 | Model | `sentence-transformers/all-MiniLM-L6-v2` @ `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, self-contained ONNX, f32, mean pooling, L2 normalization, 384 dims, no prefixes | [pins](../models/manifests/prepared-sources.json), [receipt](intel-prepared-sdk-2026-09-14.md) |
-| Devices | OpenVINO Intel GPU (explicit or default); OpenVINO CPU (explicit selection only, never a fallback) | GPU: Battlemage G31 on `krick-1`; CPU: [CPU-only hosts](m2-sdk-packaging-2026-09-17.md) |
-| Runtime | OpenVINO archive distribution, Linux x86_64. GPU-qualified build: `2026.3.1-22476-759c5a6ab8c` (Ubuntu 26.04, krick-1). CPU package path also exercised with `2025.3.0-19807-44526285f24` (Ubuntu 24.04, hosted CI and receipt below) | receipts above, [CI](../.github/workflows/ci.yml) |
+| Devices | OpenVINO Intel GPU (explicit or default); OpenVINO CPU (explicit selection only, never a fallback) | GPU: Battlemage G31 on the Intel Arc B70 host; CPU: [CPU-only hosts](m2-sdk-packaging-2026-09-17.md) |
+| Runtime | OpenVINO archive distribution, Linux x86_64. GPU-qualified build: `2026.3.1-22476-759c5a6ab8c` (Ubuntu 26.04, the Intel Arc B70 host). CPU package path also exercised with `2025.3.0-19807-44526285f24` (Ubuntu 24.04, hosted CI and receipt below) | receipts above, [CI](../.github/workflows/ci.yml) |
 | Capabilities | Text embed, prepared i32 tokens, explicit host read; leased OpenCL result (GPU only) | [header](../include/turboembed_prepared.h) |
 | Bindings | C (installed header + CMake package), Rust `turboembed` crate `prepared` feature, JDK 25 FFM | [Rust](rust-prepared-sdk.md), [Java](java-ffm.md) |
 | Not in this preview | Reranking, external buffer/queue import, asynchronous submission, GPU tokenization, other model families, non-Linux targets, the `turboembed.h` text ABI as an installed artifact | see notes below |
@@ -242,4 +242,4 @@ discovery. Discovery has been validated on CPU-only hosts — see the
 [M2 packaging](m2-sdk-packaging-2026-09-17.md) receipts — and remains
 hardware-unverified on an Intel GPU until the contract test, the `gpu`-mode
 acceptance run, and the ignored `machine_b_gpu_discovery_receipt` Rust test are
-re-run on the Machine B (`krick-1`) reference host.
+re-run on the Machine B (Intel Arc B70) reference machine.

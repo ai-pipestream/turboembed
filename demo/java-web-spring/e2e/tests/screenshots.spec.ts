@@ -67,7 +67,7 @@ test("the mock-bundle images", async ({ page }) => {
     // One comparison opened, so the image carries the summary, the cells of a
     // comparison and the first throughput table. The whole panel is every
     // committed receipt, which is far too tall for a README image.
-    await page.locator('#bench-cells details[data-file="compare-cuda-krick-embed-2026-09-22.json"] summary').click();
+    await page.locator('#bench-cells details[data-file="compare-cuda-rtx4080-embed-2026-09-22.json"] summary').click();
     // Page coordinates of the panel down to the end of its first throughput
     // table, read in one go so no scrolling happens between the two rectangles.
     const clip = await page.evaluate(() => {

@@ -157,8 +157,8 @@ constexpr uint64_t kCapsCommon = TURBO_CAP_OPT_TRUNCATE | TURBO_CAP_OPT_MAX_TOKE
 
 /// True when this device returns the same bits for the same input on every
 /// run. The OpenVINO CPU plugin does; the GPU plugin does not, because its
-/// kernels reduce in an order the driver picks per dispatch. Measured on
-/// `krick-1` (Intel Battlemage B70, driver 26.05.037020, OpenVINO 2026.3.1):
+/// kernels reduce in an order the driver picks per dispatch. Measured on an
+/// Intel Arc B70 (Battlemage, driver 26.05.037020, OpenVINO 2026.3.1):
 /// twenty repeats of one identical MiniLM batch in one session differ by up
 /// to 2.3e-7 absolute, on every repeat, with or without padding columns,
 /// while the same repeats on the CPU device are bit-identical
@@ -1200,18 +1200,19 @@ static int32_t x_capability(void *, uint32_t ordinal, uint32_t task, uint32_t mo
             // SUPPORTED needs a conformance receipt, a precision receipt and a
             // matched-native benchmark from a named machine (AGENTS.md rule
             // 7); the cell names them. Embeddings on an Intel GPU have all
-            // three from krick-1 (Battlemage B70, 2026-09-22). Every other
-            // cell is EXPERIMENTAL until its receipts exist.
+            // three from an Intel Arc B70 (Battlemage) host (2026-09-22).
+            // Every other cell is EXPERIMENTAL until its receipts exist.
             if (task == TURBO_TASK_EMBED && d.kind == TURBO_DEVICE_GPU) {
                 full.status = TURBO_CAP_SUPPORTED;
                 full.cosine_floor = 0.9995f;
-                put_str(full.notes, "receipts openvino-krick-1-2026-09-22, openvino-minilm-2026-09-21, compare-openvino-krick-1-gpu-embed-2026-09-22b");
+                put_str(full.notes, "receipts openvino-b70-2026-09-22, openvino-minilm-2026-09-21, compare-openvino-b70-gpu-embed-2026-09-22b");
             } else if (task == TURBO_TASK_EMBED && d.kind == TURBO_DEVICE_CPU) {
-                // Embeddings on the CPU plugin: receipts from krick (Ryzen 9
-                // 9950X3D, 2026-09-22), 1.01x to 1.34x of the C++ reference.
+                // Embeddings on the CPU plugin: receipts from the CPU of an
+                // RTX 4080 SUPER host (Ryzen 9 9950X3D, 2026-09-22), 1.01x to
+                // 1.34x of the C++ reference.
                 full.status = TURBO_CAP_SUPPORTED;
                 full.cosine_floor = 0.9995f;
-                put_str(full.notes, "receipts openvino-krick-1-2026-09-22, precision-tasks-krick-2026-09-22, compare-openvino-krick-cpu-embed-2026-09-22c");
+                put_str(full.notes, "receipts openvino-b70-2026-09-22, precision-tasks-rtx4080-2026-09-22, compare-openvino-rtx4080-cpu-embed-2026-09-22c");
             } else {
                 full.status = TURBO_CAP_EXPERIMENTAL;
                 put_str(full.notes, std::string("openvino ") + d.ov_name + ": fused pooling/activation in graph; no matched-native benchmark for this cell yet");
@@ -1414,7 +1415,8 @@ static int32_t x_session_write_tokens(void *s, const turbo_token_batch *batch, t
         // argument error and never a silent row or a fault inside a run. The
         // message is built only for the failing id: a `require` with a
         // string argument builds its message on every call, which cost about
-        // 1 us per token on this path (measured on krick, 2026-09-22).
+        // 1 us per token on this path (measured on an RTX 4080 SUPER host,
+        // 2026-09-22).
         const int32_t n_ids = wordpiece_vocab_size(S.model->vocab);
         for (uint32_t r = 0; r < tb.batch; ++r) {
             for (uint32_t c = 0; c < tb.seq; ++c) {

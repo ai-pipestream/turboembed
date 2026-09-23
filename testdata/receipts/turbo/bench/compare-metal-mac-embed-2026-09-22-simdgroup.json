@@ -38,7 +38,7 @@
     "date": "2026-09-22"
   },
   "bundle": {
-    "dir": "/Users/krickert/opt/bundles/minilm-metal",
+    "dir": "$HOME/opt/bundles/minilm-metal",
     "model_id": "nreimers/MiniLM-L6-H384-uncased",
     "manifest_sha256": "100a3061adebe310b91a31c9ddd25d208b336150259cc7c2a6f11198c80a08c9",
     "artifacts": {

@@ -226,13 +226,15 @@ pub fn run_cmd(cmd: &str, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-/// This machine, by `uname`.
+/// This machine, by `uname`. `TURBO_BENCH_MACHINE`, when set, is recorded
+/// in place of the host name, so a published receipt can name the machine
+/// by what it is (`rtx4080`, `orin-nano`) instead of what it is called.
 pub fn machine() -> Result<Machine, String> {
-    Ok(Machine {
-        hostname: run_cmd("uname", &["-n"])?,
-        os: run_cmd("uname", &["-sr"])?,
-        arch: std::env::consts::ARCH.to_string(),
-    })
+    let hostname = match std::env::var("TURBO_BENCH_MACHINE") {
+        Ok(name) if !name.trim().is_empty() => name.trim().to_string(),
+        _ => run_cmd("uname", &["-n"])?,
+    };
+    Ok(Machine { hostname, os: run_cmd("uname", &["-sr"])?, arch: std::env::consts::ARCH.to_string() })
 }
 
 /// The commit a receipt names: the one `named` gives, else the build's own

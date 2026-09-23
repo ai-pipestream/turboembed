@@ -15,7 +15,8 @@ normalization, sigmoid, and softmax. See the crate documentation in
   last architecture listed.
 - `libcudart.so` from that toolkit. The provider's own kernels link the
   runtime of the toolkit that compiled them (`libcudart.so.12` for the
-  12.4 toolkit on `krick`), while the ONNX Runtime execution provider it
+  12.4 toolkit on the RTX 4080 SUPER host), while the ONNX Runtime execution
+  provider it
   loads needs the CUDA 13 user-space libraries below; both must be present
   on the consumer machine, and `ldd` on the packaged library names the
   first.
@@ -25,7 +26,7 @@ normalization, sigmoid, and softmax. See the crate documentation in
   prebuilt CUDA bundle for `aarch64-unknown-linux-gnu`; a Jetson build
   passes `--no-default-features` and points `ORT_LIB_LOCATION` at a
   directory holding `lib/libonnxruntime.so` plus the CUDA execution provider
-  libraries (ONNX Runtime 1.17 or newer; `nano1` uses 1.24.0), with
+  libraries (ONNX Runtime 1.17 or newer; the Orin Nano uses 1.24.0), with
   `TURBO_CUDA_ARCHS=87`.
 
 ```bash
@@ -49,8 +50,8 @@ hosted runners have no CUDA.
   or the environment variable `TURBO_CUDA_LIB_DIR`; the provider preloads
   every `lib*.so*` there before creating a session. A missing library is
   `TURBO_E_DEVICE_UNAVAILABLE` at context creation, never a fallback to the
-  CPU execution provider. On `krick` these come from the NVIDIA PyPI wheels
-  unpacked into `.libs/nvidia/lib`.
+  CPU execution provider. On the RTX 4080 SUPER host these come from the
+  NVIDIA PyPI wheels unpacked into `.libs/nvidia/lib`.
 
 ## Running the crate tests
 
@@ -90,14 +91,15 @@ device ordinal that does not exist. See `docs/testing.md`'s "Live provider
 tests" section.
 
 Bundles come from `turbo-bundle import` (see `docs/bundles.md`). Results for
-`krick` (RTX 4080 SUPER) are in `testdata/receipts/turbo/cuda-2026-09-21.json`.
+the RTX 4080 SUPER host are in
+`testdata/receipts/turbo/cuda-2026-09-21.json`.
 
-## On a Jetson (`nano1`)
+## On a Jetson Orin Nano
 
 The Jetson has no prebuilt ONNX Runtime CUDA bundle for
 `aarch64-unknown-linux-gnu`, so the provider builds against JetPack's own
 CUDA and a locally staged ONNX Runtime 1.24.0. This is the environment every
-command on `nano1` runs under:
+command on the Orin Nano runs under:
 
 ```bash
 export PATH=$HOME/.cargo/bin:/usr/local/cuda/bin:$PATH
@@ -118,17 +120,18 @@ cargo test -p turbo-provider-cuda --no-default-features
 ```
 
 A non-login `ssh` shell does not have cargo on `PATH`, hence the first line.
-Results for `nano1` are in `testdata/receipts/turbo/bench/cuda-nano1-*.json`
-and `compare-cuda-nano1-embed-2026-09-22.json`; `docs/testing.md`'s "The CUDA
-provider on Jetson (`nano1`)" section lists what passes there.
+Results for the Orin Nano are in
+`testdata/receipts/turbo/bench/cuda-orin-nano-*.json` and
+`compare-cuda-orin-nano-embed-2026-09-22.json`; `docs/testing.md`'s "The CUDA
+provider on the Jetson Orin Nano" section lists what passes there.
 
 ## Status
 
 Every cell is `EXPERIMENTAL`. Precision matches the FP32 reference to cosine
 1.000 and the matched-native benchmark is now recorded on both machines
-(`krick` 1.04x to 2.64x and `nano1` 0.96x to 1.04x of ONNX Runtime CUDA
-alone, both SUPPORTED), but no conformance or precision receipt file is
-committed for `nano1` yet, so the cells stay `EXPERIMENTAL` until one is.
+(1.04x to 2.64x on the RTX 4080 SUPER and 0.96x to 1.04x on the Orin Nano,
+of ONNX Runtime CUDA alone, both SUPPORTED), but no conformance or precision
+receipt file is committed for the Orin Nano yet, so the cells stay `EXPERIMENTAL` until one is.
 
 Sessions of one model share the ONNX Runtime session under a lock
 (`ort::Session::run_binding` takes the session exclusively), so two Turbo

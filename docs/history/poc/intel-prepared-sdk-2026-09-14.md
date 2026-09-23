@@ -6,7 +6,8 @@ budget or qualify Rust/Java bindings. No artifact was published or deployed.
 
 ## Environment and model
 
-- Host: `krick-1`, Linux x86_64, Ubuntu 26.04.1, kernel `7.0.0-31-generic`.
+- Host: an x86_64 host with an Intel Arc B70 (Battlemage), Ubuntu 26.04.1,
+  kernel `7.0.0-31-generic`.
 - GPU: Intel Battlemage G31, PCI `8086:e223`, reported by OpenVINO as
   `Intel(R) Graphics [0xe223] (dGPU)`.
 - CPU reference: AMD Ryzen 9 9950X, explicitly selected.

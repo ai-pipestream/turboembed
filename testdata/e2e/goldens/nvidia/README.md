@@ -16,8 +16,7 @@ Captured **2026-09-12** on **Machine A** (RTX 4080 SUPER) from Origin `main`
 - config: `config/nvidia-parity.toml` (`serve = ["minilm", "bge-small"]`)
 - listen: **`0.0.0.0:8461`**
 - bearer: **`change-me`**
-- LAN: `192.168.1.242:8461` / `192.168.1.243:8461`
-- Tailscale: `100.110.72.95:8461`
+- reachable at: `<machine-a>:8461` on the LAN and over the VPN
 
 `minilm` loads TEI's HF ONNX snapshot; `bge-small` loads
 `models/onnx/bge-small/onnx/model.onnx`.
@@ -46,7 +45,7 @@ make e2e-parity \
 
 # live nvidia + a peer dump
 cargo run -p inferstream-e2e -- --parity-cross \
-  --peer nvidia=192.168.1.242:8461 \
+  --peer nvidia=<machine-a>:8461 \
   --dump intel=testdata/e2e/goldens/intel \
   --token change-me
 ```

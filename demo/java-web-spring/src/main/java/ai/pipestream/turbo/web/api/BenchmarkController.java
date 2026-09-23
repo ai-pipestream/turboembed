@@ -40,7 +40,7 @@ public class BenchmarkController {
                     examples = @ExampleObject(name = "one comparison and its libturbo side",
                             value = "{\"directory\":\"/src/turbo/testdata/receipts/turbo/bench\","
                                     + "\"receipt_count\":31,"
-                                    + "\"comparisons\":[{\"file\":\"compare-cuda-krick-embed-2026-09-22.json\","
+                                    + "\"comparisons\":[{\"file\":\"compare-cuda-rtx4080-embed-2026-09-22.json\","
                                     + "\"verdict\":\"SUPPORTED\",\"floor\":0.95,\"task\":\"embed\","
                                     + "\"device\":\"NVIDIA GeForce RTX 4080 SUPER (sm_89)\",\"device_kind\":\"Gpu\","
                                     + "\"provider\":\"cuda\",\"native_provider\":\"onnxruntime-cuda\","
@@ -49,7 +49,7 @@ public class BenchmarkController {
                                     + "\"measure\":\"prepared tokens p50 ms\",\"turbo\":1.452284,"
                                     + "\"native\":3.08509,\"ratio\":2.1243021337424364,\"within_floor\":true}],"
                                     + "\"unmatched\":[]}],"
-                                    + "\"turbo\":[{\"file\":\"cuda-krick-embed-2026-09-22.json\","
+                                    + "\"turbo\":[{\"file\":\"cuda-rtx4080-embed-2026-09-22.json\","
                                     + "\"kind\":\"benchmark\",\"task\":\"embed\",\"date\":\"2026-09-22\","
                                     + "\"provider\":\"cuda\",\"device\":\"NVIDIA GeForce RTX 4080 SUPER (sm_89)\","
                                     + "\"embed\":[{\"batch\":8,\"seq\":128,\"live_tokens_per_row\":21.0,"

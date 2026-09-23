@@ -27,8 +27,8 @@ side is plain C++ already in this repo (`native/wordpiece`,
 
 | Board | Chip | Status |
 |---|---|---|
-| AI HAT+ 26 TOPS (`pi5ai1`) | Hailo-8 | supported via the official Hailo Model Zoo `all_minilm_l6_v2` hailo8 HEF |
-| CM5 IO Board + Hailo-8 M.2 M-key module (`cm5ai1`) | Hailo-8 | same hailo8 HEF; the CM5IO has no FFC connector — use a standalone B+M/M-key M.2 module (the A+E-key module on the AI HAT+ does not fit) |
+| Raspberry Pi 5, AI HAT+ 26 TOPS | Hailo-8 | supported via the official Hailo Model Zoo `all_minilm_l6_v2` hailo8 HEF |
+| Raspberry Pi CM5 on the CM5 IO Board + Hailo-8 M.2 M-key module | Hailo-8 | same hailo8 HEF; the CM5IO has no FFC connector — use a standalone B+M/M-key M.2 module (the A+E-key module on the AI HAT+ does not fit) |
 | AI HAT+ 13 TOPS | Hailo-8L | supported via the official hailo8l HEF |
 | AI HAT+ 2 (8 GB) | Hailo-10H | blocked on a DFC 5.x encoder compile — see "Hailo-10H" below |
 
@@ -37,7 +37,7 @@ Hailo-8 and vice versa. It is also **HailoRT-version-locked**: the v2.19.0
 zoo HEFs expect the HailoRT 4.x line (the `hailo-all` apt stack); the 10H
 uses `hailo-h10-all` (HailoRT 5.x) and the two stacks conflict.
 
-## Board bring-up (`pi5ai1`, `cm5ai1`)
+## Board bring-up (the Hailo-8 Pi 5 and the Hailo-8 CM5)
 
 1. Raspberry Pi OS **Trixie, 64-bit**.
 2. `sudo apt update && sudo apt install dkms hailo-all`
@@ -51,7 +51,7 @@ its 3.3 V rail is gated by the CM5's `PCIE_PWR_EN` pin (default off via a
 (`sudo rpi-eeprom-update -a`) with `PCIE_PROBE=1`
 (`sudo rpi-eeprom-config --edit`). If `lspci` shows no `1e60:` device after
 a cold boot, reseat the module — insert at ~30°, screw flat; one reseat
-fixed a persistent `brcm-pcie ... link down` during the `cm5ai1` bring-up.
+fixed a persistent `brcm-pcie ... link down` during the CM5 bring-up.
 
 ## Provision the model (once per board, or rsync)
 
@@ -86,10 +86,10 @@ mean 0.54) while ranking stays near-parity. The quality gate is Spearman ≥
 0.85 on `testdata/corpus/sts-pairs.jsonl`. Never relax or overwrite the
 FP32 goldens.
 
-## Measured (pi5ai1 + cm5ai1, Hailo-8, 2026-09-20/21)
+## Measured (the Hailo-8 Pi 5 and the Hailo-8 CM5, 2026-09-20/21)
 
-Full receipts: [testdata/receipts/turboembed/pi5ai1-hailo8.json](../testdata/receipts/turboembed/pi5ai1-hailo8.json),
-[testdata/receipts/turboembed/cm5ai1-hailo8.json](../testdata/receipts/turboembed/cm5ai1-hailo8.json).
+Full receipts: [testdata/receipts/turboembed/pi5-hailo8.json](../testdata/receipts/turboembed/pi5-hailo8.json),
+[testdata/receipts/turboembed/cm5-hailo8.json](../testdata/receipts/turboembed/cm5-hailo8.json).
 
 - **Throughput**: 75.5 embeddings/s steady state (p50 13.24 ms), flat in
   text length (fixed 128-token frame), ≈10× the Pi 5 CPU lane; batch-32

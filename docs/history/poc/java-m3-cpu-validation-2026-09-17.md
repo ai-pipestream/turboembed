@@ -5,7 +5,7 @@ FFM adapter and Java API validated against the M2 packaged SDK on the
 explicit-CPU path, including device discovery, the cpu-only contract mode,
 the clean consumer example, and matched native/Java CPU binding timings.
 Intel GPU coverage of the M3 additions remains gated on the Machine B
-(`krick-1`) reference host, as listed at the end. The
+(the Intel Arc B70 host) reference machine, as listed at the end. The
 [2026-09-14 receipt](intel-bindings-2026-09-14.md) remains the Java GPU
 validation and performance record for the pre-existing surface.
 
@@ -19,7 +19,7 @@ validation and performance record for the pre-existing surface.
   `openvino_toolkit_ubuntu24_2025.3.0.19807.44526285f24_x86_64.tgz`
   (SHA-256 verified against the CI pin), reporting
   `2025.3.0-19807-44526285f24-releases/2025/3`. The GPU-qualified baseline
-  on `krick-1` remains `2026.3.1-22476-759c5a6ab8c`.
+  on the B70 host remains `2026.3.1-22476-759c5a6ab8c`.
 - SDK: `scripts/make-sdk-release.sh` on this branch (M2 merge base
   `1f0f764`) produced `turboembed-prepared-sdk-1.0.0-linux-x86_64.tar.gz`,
   SHA-256 `9db8d6fb727a05e84819707f30a799c3c0c0f9eed16dd58f8cf4cd53d8462297`.
@@ -107,7 +107,7 @@ These CPU numbers document the Java-versus-native boundary on this host.
 They do not stand in for the roadmap's Intel GPU performance budget; the
 [2026-09-14 GPU pilot](intel-bindings-2026-09-14.md) remains that record.
 
-## Remaining Machine B (`krick-1`) gates
+## Remaining Machine B (the Intel Arc B70 host) gates
 
 The M3 additions in this change are hardware-unverified on an Intel GPU
 until run on the reference host:

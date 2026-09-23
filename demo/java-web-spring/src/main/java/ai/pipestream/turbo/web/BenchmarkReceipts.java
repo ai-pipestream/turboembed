@@ -213,7 +213,7 @@ public class BenchmarkReceipts {
     @Schema(name = "BenchmarkComparison", description = "libturbo against the same runtime driven directly")
     public record Comparison(
             @Schema(description = "The receipt file this entry was read from",
-                    example = "compare-cuda-krick-embed-2026-09-22.json")
+                    example = "compare-cuda-rtx4080-embed-2026-09-22.json")
             String file,
             @Schema(description = "SUPPORTED when every cell is at the floor or better and nothing is unmatched, "
                     + "else EXPERIMENTAL", example = "SUPPORTED")
@@ -282,7 +282,7 @@ public class BenchmarkReceipts {
     @Schema(name = "BenchmarkRun", description = "One measured run, through libturbo or against the runtime alone")
     public record Run(
             @Schema(description = "The receipt file this entry was read from",
-                    example = "cuda-krick-embed-2026-09-22.json")
+                    example = "cuda-rtx4080-embed-2026-09-22.json")
             String file,
             @Schema(description = "benchmark (through libturbo) or native (the runtime alone)", example = "benchmark")
             String kind,
@@ -292,7 +292,7 @@ public class BenchmarkReceipts {
             String date,
             @Schema(description = "Commit the tool was built from")
             String commit,
-            @Schema(description = "The machine, by uname -n", example = "krick")
+            @Schema(description = "The machine, by uname -n, or by TURBO_BENCH_MACHINE when the run set it", example = "rtx4080")
             String hostname,
             @Schema(description = "Provider id, or the runtime's name on a native receipt", example = "cuda")
             String provider,

@@ -1,7 +1,7 @@
 {
   "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2",
   "revision": "233902d25c440f23af6f7d6e94d2946bac0bee0a",
-  "source": "weights from the hub; tokenizer from the local checkout /home/krickert/opt/models/rerank",
+  "source": "weights from the hub; tokenizer from the local checkout $HOME/opt/models/rerank",
   "produced_by": {
     "framework": "pytorch",
     "dtype": "float32",
@@ -11,7 +11,7 @@
     "numpy": "2.5.3",
     "python": "3.12.13"
   },
-  "machine": "krick",
+  "machine": "rtx4080",
   "date": "2026-09-22",
   "command": "uv run --no-project --with torch --with transformers --with numpy python scripts/gen-reference-tasks.py",
   "schema": "turbo-reference-rerank/1",

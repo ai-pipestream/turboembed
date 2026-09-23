@@ -50,7 +50,7 @@ the core's native tokenizer), last-token pooling from
 `config_sentence_transformers.json`, which the page sends as
 `prompt_role: query`.
 
-## What it shows (krick, RTX 4080 SUPER, 2026-09-22)
+## What it shows (RTX 4080 SUPER host, 2026-09-22)
 
 Eight queries, one per language, the top 8 of 48 passages per model:
 

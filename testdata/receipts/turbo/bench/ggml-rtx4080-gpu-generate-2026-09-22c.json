@@ -1,0 +1,54 @@
+{
+  "receipt_version": 1,
+  "kind": "benchmark",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "rtx4080",
+    "os": "Linux 7.0.0-31-generic",
+    "arch": "x86_64"
+  },
+  "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
+  "provider": {
+    "id": "ggml",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "llama.cpp (llama-cpp-2 0.1.156)",
+    "driver_version": ""
+  },
+  "device": {
+    "name": "NVIDIA GeForce RTX 4080 SUPER (CUDA0)",
+    "kind": "Gpu",
+    "ordinal": 0,
+    "caps": "0xff9002f00c0",
+    "memory_total": 16717119488
+  },
+  "bundle": {
+    "dir": "$HOME/opt/bundles/qwen05-gguf",
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+    "manifest_sha256": "9d0338585acf9cab9b983f01e371269d03f5ffdbae9716699a53429db72974f6",
+    "artifacts": {
+      "gguf": "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e"
+    }
+  },
+  "generate": {
+    "new_tokens_requested": 128,
+    "generated_tokens_mean": 128.0,
+    "prompt_tokens": 19,
+    "time_to_first_token_ms_p50": 5.425606999999999,
+    "decode_tokens_per_s_p50": 628.3481338592294,
+    "total_ms_p50": 208.374944,
+    "finish_reasons": [
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length",
+      "Length"
+    ],
+    "iters": 10
+  },
+  "native_reference": "not run; see the provider README for the direct-native program of this pair"
+}

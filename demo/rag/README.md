@@ -17,7 +17,7 @@ the timings printed are the server's.
 ## Run
 
 Start the server with an embedding model, a reranker and a generative
-model (on `krick`, MiniLM and Qwen2.5-0.5B as GGUF on the 4080 through
+model (on the RTX 4080 SUPER host, MiniLM and Qwen2.5-0.5B as GGUF on the 4080 through
 `ggml`, the ms-marco reranker through `cuda`):
 
 ```sh
@@ -40,7 +40,7 @@ uv run demo/rag/rag_oip.py --grpc 127.0.0.1:8001   # gRPC
 uv run demo/rag/rag.py --question "what is a session bucket?"
 ```
 
-The output of `rag.py` on `krick` (2026-09-22):
+The output of `rag.py` on the RTX 4080 SUPER host (2026-09-22):
 
 ```
 embed   12 passages + 1 question in 20.8 ms (dim 384, device NVIDIA GeForce RTX 4080 SUPER (CUDA0))

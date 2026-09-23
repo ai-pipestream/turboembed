@@ -25,7 +25,7 @@ revision `233902d25c440f23af6f7d6e94d2946bac0bee0a`.
   "tokenizer_sha256": "...",      // the checkout's tokenizer.json
   "produced_by": { "framework": "pytorch", "dtype": "float32", "device": "cpu",
                    "torch": "...", "transformers": "...", "numpy": "...", "python": "..." },
-  "machine": "krick",
+  "machine": "rtx4080",
   "date": "2026-09-22",
   "command": "...",               // the command that regenerates this file
   "cases": [
@@ -52,8 +52,8 @@ French pair, and a pair whose document is the query.
 
 The checkpoint's sentence-transformers default activation is Identity
 (`config.json`'s `sbert_ce_default_activation_function`), so the head's own
-output is the logit. The bundle under `~/opt/bundles/rerank-onnx` on `krick`
-declares `contract.activation` `sigmoid`. Both numbers are stored, so
+output is the logit. The bundle under `~/opt/bundles/rerank-onnx` on the
+reference host declares `contract.activation` `sigmoid`. Both numbers are stored, so
 `crates/turbo-conformance/tests/live_tasks.rs` compares a provider's scores
 against whichever its bundle declares, and compares `raw_scores` output
 against `logit` on a provider that offers that option.
@@ -74,13 +74,13 @@ From the repository root, on a machine with the checkouts under
 
 ```bash
 uv run --no-project --with torch --with transformers --with numpy \
-    python scripts/gen-reference-tasks.py --machine krick --only rerank
+    python scripts/gen-reference-tasks.py --machine rtx4080 --only rerank
 ```
 
 The generator loads the weights from the hub at the pinned revision and the
 tokenizer from `~/opt/models/rerank`, and refuses a checkpoint whose keys do
 not match the architecture. It does not load `~/opt/models/rerank` as a whole,
-because on `krick` on 2026-09-22 that directory pairs the 6-layer L-6-v2
+because on the reference host on 2026-09-22 that directory pairs the 6-layer L-6-v2
 `config.json` and ONNX export with a 12-layer L-12-v2 `model.safetensors`;
 loading it silently drops half the weights and produces wrong numbers without
 an error.

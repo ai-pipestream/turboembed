@@ -218,12 +218,12 @@ impl Provider for GgmlProvider {
         // SUPPORTED needs a conformance receipt, a precision receipt and a
         // matched-native benchmark from a named machine (AGENTS.md rule 7);
         // the cell names them. Both tasks on a CUDA GPU have all three from
-        // krick (RTX 4080 SUPER, 2026-09-21 and 2026-09-22). The CPU and the
-        // Metal backend are EXPERIMENTAL until theirs exist.
+        // an RTX 4080 SUPER host (2026-09-21 and 2026-09-22). The CPU and
+        // the Metal backend are EXPERIMENTAL until theirs exist.
         let supported = d.kind == DeviceKind::Gpu && d.name.contains("CUDA");
         let receipts = match task {
-            Task::Embed => "receipts ggml-2026-09-21, compare-ggml-krick-gpu-embed-2026-09-22c",
-            _ => "receipts ggml-2026-09-21, compare-ggml-krick-gpu-generate-2026-09-22c",
+            Task::Embed => "receipts ggml-2026-09-21, compare-ggml-rtx4080-gpu-embed-2026-09-22c",
+            _ => "receipts ggml-2026-09-21, compare-ggml-rtx4080-gpu-generate-2026-09-22c",
         };
         Capability {
             status: if supported { CapStatus::Supported } else { CapStatus::Experimental },

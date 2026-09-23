@@ -32,9 +32,9 @@
     }
   ],
   "runs": [
-    { "machine": "krick-1", "device": "Intel(R) Graphics [0xe223] (dGPU), OpenVINO GPU.0", "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3", "driver": "26.05.037020", "result": "3 passed" },
-    { "machine": "krick", "device": "AMD Ryzen 9 9950X3D, OpenVINO CPU", "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3", "result": "3 passed" },
-    { "machine": "krick", "device": "NVIDIA GeForce RTX 4080 SUPER through the OpenVINO GPU plugin (OpenCL)", "note": "not a supported configuration", "result": "3 passed" }
+    { "machine": "b70", "device": "Intel(R) Graphics [0xe223] (dGPU), OpenVINO GPU.0", "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3", "driver": "26.05.037020", "result": "3 passed" },
+    { "machine": "rtx4080", "device": "AMD Ryzen 9 9950X3D, OpenVINO CPU", "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3", "result": "3 passed" },
+    { "machine": "rtx4080", "device": "NVIDIA GeForce RTX 4080 SUPER through the OpenVINO GPU plugin (OpenCL)", "note": "not a supported configuration", "result": "3 passed" }
   ],
   "status_after": "EXPERIMENTAL; benchmark receipts still required before SUPPORTED"
 }

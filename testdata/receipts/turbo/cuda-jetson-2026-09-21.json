@@ -5,7 +5,7 @@
   "provider_version": "2.0.0-alpha.0",
   "modality": "text",
   "machine": {
-    "name": "nano1",
+    "name": "orin-nano",
     "device": "NVIDIA Jetson Orin Nano Super 8GB, `Orin (sm_87)`",
     "device_kind": "GPU",
     "os": "JetPack R39 rev 2.0 (Ubuntu 24.04), CUDA 13.2, cuDNN 9.20, TensorRT 10.16",
@@ -73,6 +73,6 @@
     "embed": "crates/turbo-conformance/tests/live_embed.rs: 14 passed, 0 failed (550 s, debug build; cosine 1.000 on every reference text, Spearman 0.9435 on the STS ranking gate)",
     "tasks": "crates/turbo-conformance/tests/live_tasks.rs: 7 passed, 0 failed (610 s)",
     "cuda_unit": "cargo test -p turbo-provider-cuda --no-default-features: 4 + 12 + 8 + 4 passed, including the word-span tests for runs the normalizer drops and long left-truncated documents",
-    "note": "re-run on nano1 after the second review's fixes (docs/reviews/2026-09-21-p3-p7.md)"
+    "note": "re-run on orin-nano after the second review's fixes (docs/reviews/2026-09-21-p3-p7.md)"
   }
 }

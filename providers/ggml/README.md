@@ -16,9 +16,9 @@ cargo build -p turbo-provider-ggml --features metal    # macOS
 ```
 
 The CUDA build needs a toolkit whose `nvcc` accepts the host compiler
-(`CUDAHOSTCXX` points nvcc 12.4 at GCC 13 on `krick`, whose default GCC is
-15) and a CUDA library directory the `llama-cpp-sys-2` build finds: on
-`krick` the runtime lives in `/usr/lib/x86_64-linux-gnu`, so
+(`CUDAHOSTCXX` points nvcc 12.4 at GCC 13 on the RTX 4080 SUPER host, whose
+default GCC is 15) and a CUDA library directory the `llama-cpp-sys-2` build
+finds: on that host the runtime lives in `/usr/lib/x86_64-linux-gnu`, so
 `CUDA_LIBRARY_PATH` names a directory whose `lib64` links there
 (`~/opt/cuda-sys`). `.cargo/config.toml` sets
 `CMAKE_POSITION_INDEPENDENT_CODE=ON` for every build, because the llama.cpp

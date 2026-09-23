@@ -211,7 +211,7 @@ parsing is unit-tested in `src/config.rs`.
 
 ## Verified
 
-On `krick` (2026-09-22): the six mock bundles over both bindings
+On the RTX 4080 SUPER host (2026-09-22): the six mock bundles over both bindings
 (metadata, infer for each kind, the error paths); MiniLM and the ms-marco
 reranker through the `cuda` provider on the RTX 4080 SUPER and
 Qwen2.5-0.5B through `ggml` (CUDA backend) for embeddings, an over-long

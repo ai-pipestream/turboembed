@@ -57,16 +57,16 @@ Every command output below was captured on one of these, on
 
 | machine | board | chip | kernel | stack |
 |---|---|---|---|---|
-| `pi5ai1` | Raspberry Pi 5, AI HAT+ 26 TOPS | Hailo-8 | `6.18.39+rpt-rpi-2712` | `hailo-all` 5.1.1, HailoRT 4.23.0 |
-| `pi5v3` | Raspberry Pi 5, AI HAT+ 2, USB NVMe boot | Hailo-10H | `6.18.50+rpt-rpi-2712` | `hailo-h10-all` 5.1.1, HailoRT 5.1.1 |
-| `pi5ai2p` | Raspberry Pi 5 Rev 1.1 16 GB, AI HAT+ 2, USB stick boot | Hailo-10H | `6.18.50+rpt-rpi-2712` | `hailo-h10-all` 5.1.1, HailoRT 5.1.1 |
+| Hailo-8 Pi 5 | Raspberry Pi 5, AI HAT+ 26 TOPS | Hailo-8 | `6.18.39+rpt-rpi-2712` | `hailo-all` 5.1.1, HailoRT 4.23.0 |
+| Hailo-10H Pi 5, first board | Raspberry Pi 5, AI HAT+ 2, USB NVMe boot | Hailo-10H | `6.18.50+rpt-rpi-2712` | `hailo-h10-all` 5.1.1, HailoRT 5.1.1 |
+| Hailo-10H Pi 5, replacement board | Raspberry Pi 5 Rev 1.1 16 GB, AI HAT+ 2, USB stick boot | Hailo-10H | `6.18.50+rpt-rpi-2712` | `hailo-h10-all` 5.1.1, HailoRT 5.1.1 |
 
 All run Raspberry Pi OS Trixie (`Debian GNU/Linux 13 (trixie)`), aarch64,
-with the 2712 kernel flavor that the Pi 5 uses. `pi5v3` failed as a board
-later the same day (section 7) and the same HAT moved to `pi5ai2p`, a
-fresh install on a 128 GB USB stick with the official 27 W supply and no
-hub; the outputs in sections 5 and 6 from that machine are the ones that
-stand.
+with the 2712 kernel flavor that the Pi 5 uses. The first Hailo-10H board
+failed later the same day (section 7) and the same HAT moved to the
+replacement board, a fresh install on a 128 GB USB stick with the official
+27 W supply and no hub; the outputs in sections 5 and 6 from that machine
+are the ones that stand.
 
 ## 1. PCIe Gen 3
 
@@ -85,14 +85,14 @@ grep pciex1_gen /boot/firmware/config.txt
 lspci | grep -i hailo
 ```
 
-On `pi5ai1`:
+On the Hailo-8 Pi:
 
 ```
 dtparam=pciex1_gen=3
 0001:01:00.0 Co-processor: Hailo Technologies Ltd. Hailo-8 AI Processor (rev 01)
 ```
 
-On `pi5v3`:
+On the first Hailo-10H board:
 
 ```
 dtparam=pciex1_gen=3
@@ -109,7 +109,8 @@ driver packages declare only `Depends: build-essential`; neither pulls
 `dkms` in. Their `postinst` tries DKMS first and falls back to a plain
 build against the running kernel when `dkms` is absent, which produces a
 working module now and no module after the next kernel upgrade. This is
-what the fallback looks like, from the `hailo-h10-all` install on `pi5v3`:
+what the fallback looks like, from the `hailo-h10-all` install on the first
+Hailo-10H board:
 
 ```
 Setting up h10-hailort-pcie-driver (5.1.1) ...
@@ -133,9 +134,9 @@ sudo reboot
 ```
 
 Either install pulls in TAPPAS and the OpenCV and GStreamer development
-stacks they need, so it is large. The `hailo-h10-all` install on `pi5v3`
-on 2026-09-22 fetched 224 packages, 397 MB, of which the driver package
-`h10-hailort-pcie-driver` was 21.9 MB (the driver source plus the
+stacks they need, so it is large. The `hailo-h10-all` install on the first
+Hailo-10H board on 2026-09-22 fetched 224 packages, 397 MB, of which the
+driver package `h10-hailort-pcie-driver` was 21.9 MB (the driver source plus the
 Hailo-10H firmware images that the driver pushes to the chip at probe).
 
 To swap a machine from one line to the other, install the other
@@ -145,7 +146,7 @@ try to hold both.
 ### What the DKMS build produces
 
 With `dkms` installed, the module lands in the DKMS tree and is rebuilt on
-every kernel upgrade. On `pi5ai1`:
+every kernel upgrade. On the Hailo-8 Pi:
 
 ```
 $ sudo dkms status
@@ -160,7 +161,7 @@ author:         Hailo Technologies Ltd.
 ```
 
 Without it, the fallback build installs straight into the running kernel's
-module tree and DKMS knows nothing about it. On `pi5v3`:
+module tree and DKMS knows nothing about it. On the first Hailo-10H board:
 
 ```
 $ modinfo hailo1x_pci
@@ -179,7 +180,7 @@ path for both lines). If a DKMS build fails, its log is at
 
 Run these after the reboot. `hailortcli` needs no root.
 
-### Hailo-8, on `pi5ai1`
+### Hailo-8, on the Hailo-8 Pi
 
 ```
 $ lsmod | grep hailo
@@ -208,7 +209,7 @@ $ python3 -c "import hailo_platform; print(hailo_platform.__version__)"
 4.23.0
 ```
 
-### Hailo-10H, on `pi5v3`
+### Hailo-10H, on the first Hailo-10H board
 
 ```
 $ lsmod | grep hailo
@@ -246,12 +247,13 @@ boots; only the name matters.
 
 The two chips differ in how firmware reaches them. The Hailo-8 has a
 single image that the runtime loads
-(`/lib/firmware/hailo/hailo8_fw.bin` on `pi5ai1`). The Hailo-10H is an SoC
-and the driver programs a whole boot chain into it over PCIe at probe: a
+(`/lib/firmware/hailo/hailo8_fw.bin` on the Hailo-8 Pi). The Hailo-10H is an
+SoC and the driver programs a whole boot chain into it over PCIe at probe: a
 certificate, the SCU firmware, a signed device tree picked by the board's
 SKU, then SPL, TF-A, the kernel image and the root filesystem. `sudo
 dmesg | grep -i hailo` shows the sequence, and it is the fastest way to
-tell a firmware problem from a bus problem. From `pi5v3`, 2026-09-22:
+tell a firmware problem from a bus problem. From the first Hailo-10H board,
+2026-09-22:
 
 ```
 hailo1x 0001:01:00.0: Probing: Device enabled
@@ -288,9 +290,9 @@ hailo1x 0001:01:00.0: Probing: Added board 1e60-45c4, /dev/hailo0
 
 The images ship in `h10-hailort-pcie-driver` and land in
 `/lib/firmware/hailo/hailo10h/`. `Board SKU-ID is: 6` is read off the
-board and picks which `u-boot-<n>.dtb.signed` is written; on `pi5v3` that
-directory holds SKUs 0, 1, 3, 4, 5, 6 and a default, so a board whose SKU
-has no file fails here and nowhere else. The chain took 2607 ms, which is
+board and picks which `u-boot-<n>.dtb.signed` is written; on the first
+Hailo-10H board that directory holds SKUs 0, 1, 3, 4, 5, 6 and a default, so
+a board whose SKU has no file fails here and nowhere else. The chain took 2607 ms, which is
 why the device node does not appear the instant the module loads.
 
 This ran at probe both times the module was inserted: once when `apt`
@@ -309,7 +311,7 @@ sources.
 `hailo-models` is in the Raspberry Pi archive and is pulled in by both
 metapackages. It installs into `/usr/share/hailo-models/` and carries both
 architectures, with the target in the file name (`_h8`, `_h8l`, `_h10`).
-On `pi5ai1` and `pi5v3`, `hailo-models` 1.0.0-2:
+On the Hailo-8 Pi and the first Hailo-10H board, `hailo-models` 1.0.0-2:
 
 ```
 resnet_v1_50_h10.hef       resnet_v1_50_h8l.hef      scrfd_2.5g_h8l.hef
@@ -348,7 +350,7 @@ The Hailo-8 path has receipts: the Model Zoo's `all_minilm_l6_v2` HEF for
 the measurements in
 [`testdata/receipts/turbo/hailo-2026-09-21.json`](../testdata/receipts/turbo/hailo-2026-09-21.json)
 and
-[`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json).
+[`testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json).
 
 The Hailo-10H path does not. There is no public `hailo10h` MiniLM HEF, so
 one has to be compiled with the Hailo Dataflow Compiler 5 line, which is
@@ -363,7 +365,7 @@ reason.
 
 The two tools differ between the lines, so this section is written twice.
 
-### Hailo-8, on `pi5ai1`
+### Hailo-8, on the Hailo-8 Pi
 
 `hailortcli run` runs one HEF; `hailortcli benchmark` runs it in three
 phases (hardware-only FPS, streaming FPS, hardware latency) and prints a
@@ -387,13 +389,13 @@ FPS     (hw_only)                 = 309.58
 Latency (hw)                      = 6.66137 ms
 ```
 
-### Hailo-10H, on `pi5v3`
+### Hailo-10H, on the first Hailo-10H board
 
 `hailortcli run` is gone on this device. HailoRT 5.1.1 answers it with:
 
 ```
 $ hailortcli run ~/models/hailo10h/resnet_v1_50_h10.hef --time-to-run 5
-Running streaming inference (/home/krickert/models/hailo10h/resnet_v1_50_h10.hef):
+Running streaming inference ($HOME/models/hailo10h/resnet_v1_50_h10.hef):
   Transform data: true
     Type:      auto
     Quantized: true
@@ -445,9 +447,9 @@ Both HEFs were copied out of `/usr/share/hailo-models/` into
 run above, so the FPS figures of the different chips are not comparable
 with each other; each one only shows that the board in front of you runs.
 
-The same commands on `pi5ai2p`, the replacement board with the same HAT,
-give the same figures to a tenth of a frame, which is what a healthy board
-looks like next to another healthy board:
+The same commands on the replacement Hailo-10H board, which carries the same
+HAT, give the same figures to a tenth of a frame, which is what a healthy
+board looks like next to another healthy board:
 
 ```
 $ hailortcli benchmark ~/models/hailo10h/resnet_v1_50_h10.hef --time-to-run 5
@@ -497,11 +499,11 @@ fails with `HAILO_DEVICE_IN_USE`. See [`docs/testing.md`](testing.md) for
 the rest of the live-test environment.
 
 What this gets on a Hailo-8: 76 rows per second at every batch and
-sequence length on `pi5ai1`, 2026-09-22, about 13.2 ms per row, because
+sequence length on the Hailo-8 Pi, 2026-09-22, about 13.2 ms per row, because
 the HEF is batch 1 with a fixed 128-token frame
-([`testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5ai1-embed-2026-09-21.json)).
+([`testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json`](../testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-21.json)).
 That is 1.00x of what `hailortcli benchmark` gets from the same HEF
-([`testdata/receipts/turbo/bench/compare-hailo-pi5ai1-embed-2026-09-22b.json`](../testdata/receipts/turbo/bench/compare-hailo-pi5ai1-embed-2026-09-22b.json)).
+([`testdata/receipts/turbo/bench/compare-hailo-pi5-hailo8-embed-2026-09-22b.json`](../testdata/receipts/turbo/bench/compare-hailo-pi5-hailo8-embed-2026-09-22b.json)).
 The HEF is quantized, so the vectors are not the FP32 ones; see
 [`providers/hailo/README.md`](../providers/hailo/README.md) for the cosine
 and ranking figures the live suite gates on.
@@ -523,7 +525,7 @@ HailoRT entry point it calls is one of `hailo_create_vdevice`,
 ([`providers/hailo/src/provider.cpp`](../providers/hailo/src/provider.cpp)).
 
 That set compiles and links against HailoRT 5.1.1 unchanged. On
-`pi5ai2p` (2026-09-22), from the repository root:
+the replacement Hailo-10H board (2026-09-22), from the repository root:
 
 ```sh
 cmake -S providers/hailo -B build/hailo -DCMAKE_BUILD_TYPE=Release
@@ -545,7 +547,7 @@ red until one exists rather than quietly skipped.
 ```
 $ build/hailo/turbo_provider_hailo_test
 test devices_are_hailo_npus
-provider `hailo` 2.0.0-alpha.0 from /home/krickert/turbo/build/hailo/libturbo_provider_hailo.so
+provider `hailo` 2.0.0-alpha.0 from $HOME/turbo/build/hailo/libturbo_provider_hailo.so
   device 0 `Hailo-10H (, 0001:01:00.0)` vendor `Hailo` runtime `HailoRT 5.1.1` driver `firmware 5.1.1` caps 0x3f0402
   ok
 test capability_states_the_quantized_floor
@@ -596,7 +598,7 @@ Hailo-10H generation work through `hailort::genai::LLM`.
 | `hailortcli` reports the wrong architecture for the HEF | the HEF was compiled for another chip | match the HEF to the `Device Architecture` line from `hailortcli fw-control identify` |
 | `HAILO_DEVICE_IN_USE` | a second process or a second `hailo_vdevice` in the same process | one vdevice at a time; run the live suite with `--test-threads=1` and stop any `hailortcli` still running |
 | the board resets the moment a USB SSD is plugged in, before any boot | the Pi 5 allows USB devices 600 mA until it negotiates a 5 A supply, and an NVMe in a USB enclosure (or an SSD-class stick) draws more than that at power-up | a 5 A supply (the official 27 W one) so the bootloader raises the budget to 1.6 A; `usb_max_current_enable=1` in `config.txt` for the kernel side; `PSU_MAX_CURRENT=5000` in the EEPROM config for a 5 A supply that does not negotiate; or a powered hub whose brick does not backfeed |
-| the board boots, runs cleanly for seconds to minutes, then loses power with nothing in the log; a bare microSD on the official supply does the same; the bootloader eventually shows a LED code of 4 long flashes | the board's power management chip is damaged. On `pi5v3` (2026-09-22) this followed a USB hub whose brick backfed 5 V into the Pi's USB port; the journal, once made persistent with `SyncIntervalSec=2s`, showed an idle system with `vcgencmd pmic_read_adc EXT5V_V` at 5.10 to 5.14 V and `get_throttled` 0x0 right up to the cut, and the 4-long-flash family (4/4 board type, 4/5 firmware, 4/6 and 4/7 power failure) is the bootloader's fatal class | replace the board; the SSD, HAT and supply survive. Before that, one five-minute check: the Bootloader recovery image from Raspberry Pi Imager on a microSD, which rewrites the EEPROM and clears the 4/4 and 4/5 codes if they were corruption rather than hardware. Use a hub that does not backfeed, or none; the `hailo-h10-all` install itself needs no reboot, so verify the stack before rebooting |
+| the board boots, runs cleanly for seconds to minutes, then loses power with nothing in the log; a bare microSD on the official supply does the same; the bootloader eventually shows a LED code of 4 long flashes | the board's power management chip is damaged. On the replacement Hailo-10H board (2026-09-22) this followed a USB hub whose brick backfed 5 V into the Pi's USB port; the journal, once made persistent with `SyncIntervalSec=2s`, showed an idle system with `vcgencmd pmic_read_adc EXT5V_V` at 5.10 to 5.14 V and `get_throttled` 0x0 right up to the cut, and the 4-long-flash family (4/4 board type, 4/5 firmware, 4/6 and 4/7 power failure) is the bootloader's fatal class | replace the board; the SSD, HAT and supply survive. Before that, one five-minute check: the Bootloader recovery image from Raspberry Pi Imager on a microSD, which rewrites the EEPROM and clears the 4/4 and 4/5 codes if they were corruption rather than hardware. Use a hub that does not backfeed, or none; the `hailo-h10-all` install itself needs no reboot, so verify the stack before rebooting |
 | `hailortcli benchmark` fails in its third phase after printing both FPS figures | HailoRT 4.23 fails to reconfigure the vdevice for the MiniLM HEF after the two FPS phases | the FPS figures are already complete, so treat a non-zero exit after them as the latency phase only; [`reference/hailo/native-receipt.py`](../reference/hailo/native-receipt.py) tolerates it for this reason |
 | `TURBO_E_INVALID_STATE` on every run after one failed run | a vstream write or read failed mid-run and left frames in flight | reload the model; the provider marks it unusable on purpose rather than returning wrong data |
 | CMake says HailoRT was not found | no `hailo-all`/`hailo-h10-all`, or an install outside `/usr` | install the metapackage, or pass `-DHAILORT_INCLUDE_DIR=` and `-DHAILORT_LIBRARY=` |

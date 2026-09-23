@@ -8,7 +8,7 @@
   {"title": "Matched benchmarks", "source": "reference/README.md",
    "text": "A provider's speed is checked against a reference program that drives the vendor runtime directly on the same tokens. turbo-bench compare reports libturbo as a fraction of native per cell; SUPPORTED means every cell reaches 0.95 of native."},
   {"title": "Hailo benchmark", "source": "reference/README.md",
-   "text": "For hailo the reference is hailortcli benchmark on the HEF, HailoRT's own tool; its streaming frames per second are the rows per second. On pi5ai1 the comparison is 1.00x and the verdict is SUPPORTED."},
+   "text": "For hailo the reference is hailortcli benchmark on the HEF, HailoRT's own tool; its streaming frames per second are the rows per second. On the Hailo-8 Pi the comparison is 1.00x and the verdict is SUPPORTED."},
   {"title": "Metal provider", "source": "providers/metal/README.md",
    "text": "The metal provider compiles its kernels from source at load and runs the linear layers on the simdgroup matrix units of Apple GPU family 7 and later. On an M2 it embeds 622 vectors per second at batch 32 and 32 tokens."},
   {"title": "Native tokenizer", "source": "crates/turbo-core/src/wordpiece.rs",

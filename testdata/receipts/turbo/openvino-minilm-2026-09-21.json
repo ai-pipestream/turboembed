@@ -19,7 +19,7 @@
   },
   "runs": [
     {
-      "machine": "krick-1",
+      "machine": "b70",
       "device": "Intel(R) Graphics [0xe223] (dGPU), OpenVINO GPU.0",
       "device_kind": "GPU",
       "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3",
@@ -33,7 +33,7 @@
       "tests": "crates/turbo-conformance/tests/openvino_live.rs (3 passed)"
     },
     {
-      "machine": "krick",
+      "machine": "rtx4080",
       "device": "AMD Ryzen 9 9950X3D, OpenVINO CPU",
       "device_kind": "CPU",
       "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3",
@@ -44,7 +44,7 @@
       "tests": "crates/turbo-conformance/tests/openvino_live.rs (3 passed)"
     },
     {
-      "machine": "krick",
+      "machine": "rtx4080",
       "device": "NVIDIA GeForce RTX 4080 SUPER through the OpenVINO GPU plugin (OpenCL), driver 595.84",
       "device_kind": "GPU",
       "runtime": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3",

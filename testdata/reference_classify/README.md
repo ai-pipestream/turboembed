@@ -24,7 +24,7 @@ Frozen sequence-classification logits and softmax probabilities for
   "tokenizer_sha256": "...",      // the checkout's tokenizer.json
   "produced_by": { "framework": "pytorch", "dtype": "float32", "device": "cpu",
                    "torch": "...", "transformers": "...", "numpy": "...", "python": "..." },
-  "machine": "krick",
+  "machine": "rtx4080",
   "date": "2026-09-22",
   "command": "...",               // the command that regenerates this file
   "cases": [
@@ -62,11 +62,11 @@ From the repository root, on a machine with the checkouts under
 
 ```bash
 uv run --no-project --with torch --with transformers --with numpy \
-    python scripts/gen-reference-tasks.py --machine krick --only classify
+    python scripts/gen-reference-tasks.py --machine rtx4080 --only classify
 ```
 
 The weights come from the hub at the pinned revision; the tokenizer and the
 config come from `~/opt/models/sst2`, which holds no PyTorch weights of its
-own. The bundle under `~/opt/bundles/sst2-onnx` on `krick` declares
+own. The bundle under `~/opt/bundles/sst2-onnx` on the reference host declares
 `model_id` `sst2` rather than the Hugging Face id, so the id above comes from
 the checkout's `config.json` and the receipts, not from the bundle.

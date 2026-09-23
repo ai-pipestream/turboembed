@@ -1,0 +1,233 @@
+{
+  "receipt_version": 1,
+  "kind": "native",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "rtx4080",
+    "os": "Linux 7.0.0-31-generic",
+    "arch": "x86_64"
+  },
+  "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
+  "provider": {
+    "id": "llama.cpp",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "llama.cpp through llama-cpp-2 0.1.156, CUDA backend",
+    "driver_version": "595.84"
+  },
+  "device": {
+    "name": "NVIDIA GeForce RTX 4080 SUPER",
+    "kind": "Gpu",
+    "ordinal": 0,
+    "caps": "0x0",
+    "memory_total": 17171480576
+  },
+  "bundle": {
+    "dir": "$HOME/opt/bundles/minilm-gguf",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9cb7ca35fa56d3f08c15d6f0e531fc88ddf5f0b178cac3d5c39ebf55f3119cc2",
+    "artifacts": {
+      "gguf": "797b70c4edf85907fe0a49eb85811256f65fa0f7bf52166b147fd16be2be4662"
+    }
+  },
+  "embed": [
+    {
+      "batch": 1,
+      "seq": 32,
+      "live_tokens_per_row": 21.0,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 0.413602,
+        "p99_ms": 0.701657,
+        "mean_ms": 0.42854713,
+        "min_ms": 0.411688,
+        "max_ms": 1.128934,
+        "rows_per_s": 2333.465633056509,
+        "tokens_per_s": 49002.77829418668,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 32,
+      "live_tokens_per_row": 26.0,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 0.768543,
+        "p99_ms": 1.63467,
+        "mean_ms": 0.8040231200000001,
+        "min_ms": 0.755849,
+        "max_ms": 1.743816,
+        "rows_per_s": 9949.96263291533,
+        "tokens_per_s": 258699.0284557986,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 32,
+      "live_tokens_per_row": 24.8125,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 3.2773749999999997,
+        "p99_ms": 4.484177,
+        "mean_ms": 3.4079726699999973,
+        "min_ms": 3.115109,
+        "max_ms": 4.794914,
+        "rows_per_s": 9389.74666131933,
+        "tokens_per_s": 232983.0890339859,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 1,
+      "seq": 128,
+      "live_tokens_per_row": 122.0,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 0.611115,
+        "p99_ms": 1.111722,
+        "mean_ms": 0.6472935599999999,
+        "min_ms": 0.6075079999999999,
+        "max_ms": 1.673222,
+        "rows_per_s": 1544.8940972006583,
+        "tokens_per_s": 188477.0798584803,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 128,
+      "live_tokens_per_row": 116.5,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 3.836202,
+        "p99_ms": 5.308165,
+        "mean_ms": 3.9699095800000017,
+        "min_ms": 3.616707,
+        "max_ms": 5.508634,
+        "rows_per_s": 2015.1592470274843,
+        "tokens_per_s": 234766.0522787019,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 128,
+      "live_tokens_per_row": 118.0625,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 52.260714,
+        "p99_ms": 54.018427,
+        "mean_ms": 52.25733015000001,
+        "min_ms": 50.530173,
+        "max_ms": 54.105672,
+        "rows_per_s": 612.3542842343237,
+        "tokens_per_s": 72296.07768241485,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 1,
+      "seq": 256,
+      "live_tokens_per_row": 235.0,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 0.791636,
+        "p99_ms": 1.340064,
+        "mean_ms": 0.8457184499999997,
+        "min_ms": 0.781878,
+        "max_ms": 1.766129,
+        "rows_per_s": 1182.426610179783,
+        "tokens_per_s": 277870.253392249,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 256,
+      "live_tokens_per_row": 236.125,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 13.772184999999999,
+        "p99_ms": 16.619628000000002,
+        "mean_ms": 14.247650439999992,
+        "min_ms": 12.500792,
+        "max_ms": 16.823523,
+        "rows_per_s": 561.4960890351549,
+        "tokens_per_s": 132583.26402342596,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 256,
+      "live_tokens_per_row": 235.625,
+      "token_count_source": "tokenizer",
+      "text_path": {
+        "p50_ms": 196.637495,
+        "p99_ms": 200.450904,
+        "mean_ms": 196.96570677,
+        "min_ms": 193.528077,
+        "max_ms": 200.541686,
+        "rows_per_s": 162.46482966381,
+        "tokens_per_s": 38280.775489535234,
+        "iters": 100
+      },
+      "prepared_tokens_path": null,
+      "prepared_tokens_note": "llama.cpp tokenizes the texts inside the timed path, as the ggml provider's text path does",
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    }
+  ],
+  "native_reference": "this is the native side: llama.cpp through llama-cpp-2 tokenizing and pooling the texts of /tmp/claude-1000/-work-worktrees-turboembed/32be1853-4e14-49de-84fd-dfd8ed203e3a/scratchpad/ggml-tokens.json; bundle identity copied from that dump"
+}
