@@ -102,8 +102,9 @@ a reject rule: a change that breaks one is sent back with the number.
     generators under `scripts/` that produce committed files, and demos.
 14. **Public tree.** No private hostnames, addresses, user names or checkout
     paths in code, docs or receipts. Machines are named by architecture
-    label (`rtx4080`, `b70`, `orin-nano`, `pi5-hailo8`, `pi5-hailo10h`,
-    `m2`); `turbo-bench` takes `TURBO_BENCH_MACHINE` and writes `$HOME`.
+    label (`rtx4080`, `b70`, `intel-npu`, `orin-nano`, `pi5-hailo8`,
+    `pi5-hailo10h`, `m2`); `turbo-bench` takes `TURBO_BENCH_MACHINE` and
+    writes `$HOME`.
 15. **The README states; it does not sell.** Mission, one example, the
     matrix, the benchmark table. Screenshots live with the demo they show.
 

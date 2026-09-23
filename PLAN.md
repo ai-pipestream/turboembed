@@ -16,8 +16,10 @@ with it, this section wins.
 
 One native library with one interface. For each kind of hardware it goes
 to the lowest, fastest layer that hardware has, with nothing in between:
-Metal directly on Apple, HailoRT on the Pi, OpenVINO on Intel, CUDA with
-its own kernels on NVIDIA, llama.cpp for GGUF. On NVIDIA that means CUDA
+Metal directly on Apple, HailoRT on the Pi, OpenVINO on Intel GPUs and
+CPUs and, through its NPU plugin, on the Intel NPU (static shapes, so the
+session's buckets are the shapes it compiles), CUDA with its own kernels
+on NVIDIA, llama.cpp for GGUF. On NVIDIA that means CUDA
 itself: the encoder runs on the provider's own kernels over cuBLASLt from
 the bundle's weights, resident from upload to result. ONNX Runtime is the
 last resort, taken only for a model the direct path does not implement,
@@ -60,7 +62,12 @@ is the copy.
 
 - Hardware (device). What is physically in the machine: kind (GPU, NPU,
   CPU), vendor, architecture label, memory, the vendor runtime and driver
-  version. Discovered at runtime, never configured.
+  version. Discovered at runtime, never configured. The list today: the
+  RTX 4080 SUPER and the Jetson Orin Nano (NVIDIA GPU), the Arc B70
+  (Intel GPU), the Intel NPU (through OpenVINO, pending the vendor's
+  approval of the device), the Hailo-8 and Hailo-10H (NPU), the M2 (Apple
+  GPU), and the x86 and Arm CPUs of those machines. Each is a column of
+  the matrix, and a provider that serves it has the rows.
 - Provider. The implementation that drives one hardware family through
   its lowest layer: `cuda`, `openvino`, `metal`, `hailo`, `ggml`, and the
   explicit CPU providers. Loaded as a library. It offers tasks per device;
