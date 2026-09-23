@@ -196,7 +196,7 @@ pub struct Device {
 /// The bundle a receipt measured.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BundleId {
-    /// Bundle directory as given.
+    /// Bundle directory as given, with the home directory written as `$HOME`.
     pub dir: String,
     /// `model_id` from the manifest.
     pub model_id: String,

@@ -31,7 +31,8 @@ the gap that remained was the provider's.
    default, or the value of `TURBO_BENCH_MACHINE` when it is set, which is
    how the committed receipts name a machine by its architecture
    (`rtx4080`, `b70`, `orin-nano`, `pi5-hailo8`, `m2`) rather than by its
-   host name. The dump holds every cell's texts, ids, mask and lengths, the bundle's
+   host name. The bundle directory is written with the home directory
+   as `$HOME`, for the same reason. The dump holds every cell's texts, ids, mask and lengths, the bundle's
    identity (manifest and artifact hashes) and its pooling and
    normalization, so the native side runs the same rows and names the
    same bundle. A GGUF bundle has no core tokenizer: its dump carries the

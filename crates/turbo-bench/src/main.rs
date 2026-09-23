@@ -246,11 +246,22 @@ fn open_target(c: &Common) -> Result<Target, String> {
     })
 }
 
+/// The bundle directory as a receipt records it: the home directory prefix
+/// is written as the literal `$HOME`, so a committed receipt does not name
+/// the account it was produced under.
+fn portable_dir(dir: &Path) -> String {
+    let shown = dir.display().to_string();
+    match std::env::var("HOME") {
+        Ok(home) if !home.is_empty() && shown.starts_with(&home) => format!("$HOME{}", &shown[home.len()..]),
+        _ => shown,
+    }
+}
+
 fn bundle_id(dir: &Path) -> Result<(Bundle, BundleId), String> {
     let b = Bundle::open(dir).map_err(|e| format!("bundle {}: {e}", dir.display()))?;
     let artifacts = b.manifest().artifacts.iter().map(|(k, v)| (k.clone(), v.sha256.clone())).collect();
     let id = BundleId {
-        dir: dir.display().to_string(),
+        dir: portable_dir(dir),
         model_id: b.manifest().model_id.clone(),
         manifest_sha256: b.manifest_sha256().to_string(),
         artifacts,

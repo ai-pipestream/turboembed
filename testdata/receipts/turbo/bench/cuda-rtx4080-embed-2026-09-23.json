@@ -22,7 +22,7 @@
     "memory_total": 16717119488
   },
   "bundle": {
-    "dir": "/home/krickert/opt/bundles/minilm-onnx",
+    "dir": "$HOME/opt/bundles/minilm-onnx",
     "model_id": "sentence-transformers/all-MiniLM-L6-v2",
     "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
     "artifacts": {
