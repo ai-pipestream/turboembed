@@ -2,10 +2,10 @@
 
 A native library that runs text models on whatever accelerator a machine
 has, through one C interface, with each backend written directly against
-the vendor's lowest layer. Embedding, reranking, classification, token
-tagging and chunking now; generation through llama.cpp as well. Java,
-Swift, Rust and a gRPC server sit on the C interface and add nothing to
-it.
+the vendor's lowest layer. Embedding first. Reranking, classification,
+token tagging, chunking and generation follow one at a time, each
+landed on every machine we own before the next starts. Java, Swift,
+Rust and a gRPC server sit on the C interface and add nothing to it.
 
 This is a restart. The previous attempt is in `ai-slop-generated-shit/`,
 moved there whole with its history on 2026-09-23. Its two audits
@@ -127,10 +127,12 @@ layers offer per pipeline stage is in
 research this restart stands on and move here once the first backend
 uses them.
 
-**Order of work.** Read the headers and cut them to what the tasks need.
-Write the core against them with one backend on one machine, measured
-against the vendor's best. Add the next machine. Bindings and the server
-after the core holds on every machine we own.
+**Order of work.** The header is cut to embedding. Next: the Rust core
+against it with the CUDA backend on the RTX 4080, measured against
+TensorRT and the fastest known embedding server on the same inputs.
+Then the same feature on the B70, the M2, the two Pis and the Jetson,
+so the hard parts show up before any second task is added. Bindings and
+the server after the core holds on every machine.
 
 ## Licence
 
