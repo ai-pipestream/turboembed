@@ -17,7 +17,11 @@ with it, this section wins.
 One native library with one interface. For each kind of hardware it goes
 to the lowest, fastest layer that hardware has, with nothing in between:
 Metal directly on Apple, HailoRT on the Pi, OpenVINO on Intel, CUDA with
-its own kernels on NVIDIA, llama.cpp for GGUF. Speed is the reason it
+its own kernels on NVIDIA, llama.cpp for GGUF. On NVIDIA that means CUDA
+itself: the encoder runs on the provider's own kernels over cuBLASLt from
+the bundle's weights, resident from upload to result. ONNX Runtime is the
+last resort, taken only for a model the direct path does not implement,
+and a result that came through it says so. Speed is the reason it
 exists, and it is proven by matched benchmarks against the vendor's own
 loop, never claimed. A program written against the interface, from Java,
 Swift, Rust, C or over gRPC, embeds, ranks, classifies, chunks and
@@ -27,7 +31,12 @@ Serving and bindings are how people reach it; they are not the product.
 
 Slow hardware is fine. A path slower than the hardware's own best is not.
 A feature that exists on one configuration and not another is fine, and
-the compliance matrix says so. Existing unifying libraries fail on one of
+the compliance matrix says so. Performance over elegance: ONNX Runtime is
+built for elegance, one graph format and one session API over every
+backend, and pays for it in copies and host round trips. This library is
+a better ONNX, the same one interface as close to the metal as each
+hardware allows. When a cleaner abstraction and a faster path disagree,
+the faster path wins and the abstraction is made to fit it. Existing unifying libraries fail on one of
 two sides: they lower every task to generic operations and pay for the
 copies between them, or they keep the vendor pipeline and lose the common
 interface. This library keeps the vendor pipeline and puts the common
@@ -63,8 +72,9 @@ is the copy.
   dimension, labels, prompts). An application meets it as a bundle.
 - Bundle. The hash-verified directory: contract, tokenizer, one or more
   artifacts (section 6).
-- Artifact. The model made runnable for one target: a format (`onnx`,
-  `gguf`, `hef`, `openvino_ir`, Metal weights) for an architecture. The
+- Artifact. The model made runnable for one target: a format (weights
+  for the cuda and metal providers' own kernels, `openvino_ir`, `hef`,
+  `gguf`, and `onnx` for the fallback engine) for an architecture. The
   thing a provider loads. A recipe produced it.
 - Stage. One step of a task: normalize text, tokenize, encode, pool,
   normalize vectors, pool segments, score, decode. A provider states per
@@ -154,9 +164,10 @@ R2. Selection on the interface. Resolve: task plus constraints or a name
 
 R3. The bar per machine. Build the fastest known loop from the pinned
     checkouts and measure it with `turbo-bench`'s token dumps: on the RTX
-    4080, onnxruntime with IO binding and its fused graph, a TensorRT
-    FP16 engine from the same ONNX with pooling in the graph, and TEI's
-    unpadded FlashBert; on the B70, openvino.genai's pipeline against a
+    4080, a TensorRT FP16 engine with pooling in the graph and TEI's
+    unpadded FlashBert on candle's kernels (onnxruntime with IO binding
+    is measured too, as the bar for the fallback engine only, never as
+    the target); on the B70, openvino.genai's pipeline against a
     hand loop with USM tensors; on the M2, MLX (whose fused attention
     does not cover MiniLM's head size, so the composed path); on the Pi,
     `hailortcli run2` in full async mode; for GGUF, `llama-embedding`.
@@ -164,8 +175,18 @@ R3. The bar per machine. Build the fastest known loop from the pinned
     compare verdicts recomputed against the fastest of them, cells
     regraded.
 
-R4. Providers to the bar. Wherever R3 puts a cell under 0.95: cuda keeps
-    outputs resident between calls and adds segment pooling; openvino
+R4. Providers to the bar. First, and not conditional on R3's numbers:
+    the cuda provider's direct path. Today its encoder runs through ONNX
+    Runtime's CUDA execution provider with the provider's own kernels
+    only for pooling, normalization, sigmoid and softmax (P3). The direct
+    path runs the encoder on the provider's own kernels: cuBLASLt for the
+    projections, a fused attention kernel for head sizes 32 and 64, fused
+    add and layernorm, GELU, then the existing pooling and segment
+    pooling, all resident, with weights read from the bundle by the
+    safetensors reader `tools/turbo-bundle` already has. ONNX Runtime
+    stays as the fallback engine for an architecture the direct path does
+    not implement, named in the placement and in the cell. Then, wherever
+    R3 puts a cell under 0.95: openvino
     fuses segment pooling with the pooling it already has and moves
     inputs and outputs to USM device tensors; metal takes the head size
     32 attention path that MLX lacks; ggml avoids the host readback the
@@ -755,6 +776,14 @@ is no committed receipt for that machine yet and the task suite (rerank,
 classify, token-classify) is still being verified there. TensorRT EP,
 `user_compute_stream` import, and the GPU WordPiece stretch goal are not
 implemented on either machine yet.
+
+Status (2026-09-23): the ONNX Runtime engine described above is the
+fallback, not the target. Section 0 and roadmap item R4 make the direct
+CUDA encoder on the provider's own kernels the cuda provider's path, with
+ONNX Runtime kept only for a model the direct path does not implement.
+The matched benchmarks in `testdata/receipts/turbo/bench/` compare the
+fallback engine with its own native loop; the direct path is measured
+against TensorRT and TEI (R3).
 
 ### P4 Metal provider
 Swift provider library exporting the plugin vtable; MLX arrays over the

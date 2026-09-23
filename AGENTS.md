@@ -13,7 +13,10 @@ Swift, Android or over gRPC, chunks, tokenizes, embeds, reranks, classifies
 and generates the same way on an NVIDIA GPU, an Intel GPU or NPU, a Hailo
 NPU, a Jetson or an Apple machine. The interface speaks in tasks, and a
 provider runs the whole task on the vendor's own pipeline, at the lowest
-layer that hardware has, with nothing in between. A stage runs where its
+layer that hardware has, with nothing in between: CUDA itself on NVIDIA,
+not a framework runtime over it. A framework engine such as ONNX Runtime
+is the last resort, taken only for a model the direct path does not
+implement, and reported when taken. A stage runs where its
 data already is; the hidden state never comes back to the host for a stage
 the device can run, and a copy that is taken is reported. The model's
 contract travels in a hash-verified bundle, so the answer is the same
@@ -26,11 +29,18 @@ thing that turns a capability cell green. Slow hardware is fine. A path
 slower than that hardware's best is a bug. A feature one configuration has
 and another lacks is fine, and the matrix says so.
 
-Existing unifying libraries fail on one of two sides: they lower every task
-to generic operations and pay for the copies between them, or they keep
-the vendor pipeline and lose the common interface. This library keeps the
-vendor pipeline and puts the common interface above it. That is the whole
-point, and everything in the tree either serves it or does not belong.
+Performance over elegance. ONNX Runtime is built for elegance: one graph
+format, one session API, every backend behind it, and the copies and the
+host round trips that buys. This library is a better ONNX: the same one
+interface, as close to the metal as each hardware allows, and no layer
+between the task and the kernels. Existing unifying libraries fail on one
+of two sides: they lower every task to generic operations and pay for the
+copies between them, or they keep the vendor pipeline and lose the common
+interface. This library keeps the vendor pipeline and puts the common
+interface above it. That is the whole point, and everything in the tree
+either serves it or does not belong. When a choice is between a cleaner
+abstraction and a faster path, the faster path wins and the abstraction
+is made to fit it.
 
 ## What every change is checked against
 
@@ -46,11 +56,15 @@ a reject rule: a change that breaks one is sent back with the number.
    the field. A missing device capability that is not an option fails with
    the matching `TURBO_E_UNSUPPORTED*` code. Reject: any path that silently
    ignores, clamps, or substitutes a value for an option the caller set.
-3. **Lowest layer per device.** Pooling, normalization, segment pooling and
-   any other stage run where the hidden state was produced. Where a device
-   cannot do a stage, the provider reports `fully_accelerated = 0` and
-   names the stage in `stage_placement`. Reject: host pooling behind a
-   fused-looking API; a device-to-host copy that is not reported.
+3. **Lowest layer per device.** The encoder runs on the vendor's compute
+   layer (CUDA kernels, Metal, OpenVINO, HailoRT, ggml), and pooling,
+   normalization, segment pooling and any other stage run where the
+   hidden state was produced. A framework engine is a fallback that the
+   placement and the cell name. Where a device cannot do a stage, the
+   provider reports `fully_accelerated = 0` and names the stage in
+   `stage_placement`. Reject: host pooling behind a fused-looking API; a
+   device-to-host copy that is not reported; a framework engine presented
+   as the direct path.
 4. **Device policy.** `AUTO` never selects a CPU. CPU runs only when
    explicitly selected. An absent device is an error, never a silent
    fallback. The mock provider serves only mock bundles.
