@@ -1378,7 +1378,7 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
         "EXPERIMENTAL"
     };
     let side = |path: &Path, r: &Receipt| CompareSide {
-        file: path.display().to_string(),
+        file: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string()),
         commit: r.commit.clone(),
         provider: r.provider.clone(),
         device: r.device.clone(),

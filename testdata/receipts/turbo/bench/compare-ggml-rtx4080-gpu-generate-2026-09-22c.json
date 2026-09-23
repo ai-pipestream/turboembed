@@ -2,7 +2,7 @@
   "receipt_version": 1,
   "kind": "compare",
   "turbo": {
-    "file": "/work/worktrees/turboembed/turboembed/testdata/receipts/turbo/bench/ggml-rtx4080-gpu-generate-2026-09-22c.json",
+    "file": "ggml-rtx4080-gpu-generate-2026-09-22c.json",
     "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
     "provider": {
       "id": "ggml",
@@ -20,7 +20,7 @@
     "date": "2026-09-22"
   },
   "native": {
-    "file": "/work/worktrees/turboembed/turboembed/testdata/receipts/turbo/bench/native-llama-cpp-rtx4080-gpu-generate-2026-09-22c.json",
+    "file": "native-llama-cpp-rtx4080-gpu-generate-2026-09-22c.json",
     "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
     "provider": {
       "id": "llama.cpp",
