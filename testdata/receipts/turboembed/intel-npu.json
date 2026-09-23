@@ -11,7 +11,7 @@
   "create": "UNSUPPORTED_DEVICE",
   "device": "NPU",
   "error": "OpenVINO NPU plugin unavailable (listed: [CPU, GPU]); NPU was requested — refusing CPU fallback. Need Intel NPU silicon + intel-npu/accel driver + libopenvino_intel_npu_plugin.so. Live probe of TextEmbeddingPipeline(..., \"NPU\") fails with: Device with \"NPU\" name is not registered in the OpenVINO Runtime. Battlemage dGPU + AMD CPU hosts do not provide an NPU.",
-  "host": "krick-1",
+  "host": "b70",
   "live_probe": {
     "constructor": "TextEmbeddingPipeline(models/ov/minilm, \"NPU\")",
     "exception": "Device with \"NPU\" name is not registered in the OpenVINO Runtime",

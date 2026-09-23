@@ -15,7 +15,7 @@
   "golden": "testdata/e2e/goldens/nvidia/minilm.json",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
   "hello_world_cosine": 0.9999998211860657,
-  "host": "krick",
+  "host": "rtx4080",
   "hot_path": {
     "arena_allocs": 0,
     "cuda_forward_allocs": 0,

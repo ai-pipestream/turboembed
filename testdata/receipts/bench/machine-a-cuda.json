@@ -7,7 +7,7 @@
   "device": "CUDA",
   "git_sha": "b07f6d32180f201e0f00105454c2c9edcf1fb0b9",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
-  "host": "krick",
+  "host": "rtx4080",
   "kind": "turbo-bench",
   "machine": "Machine A",
   "notes": "SOLIDIFY (7) Machine A CUDA bench. p50/p99 are nearest-rank over N≥100 timed forwards after warmup. token_h2d and embed hidden_d2h are intercepted counters (must be 0 on the fixed paths). allocs/forward must be 0. Berlin HF CE and nvidia MiniLM embed goldens must stay in band. Numbers are measured on this GPU — do not hand-edit.",
@@ -38,7 +38,7 @@
       "worst_cosine": 0.9999998211860656
     },
     "gpu": "NVIDIA GeForce RTX 4080 SUPER",
-    "host": "krick",
+    "host": "rtx4080",
     "latency_us": {
       "max": 829,
       "mean": 750.355,
@@ -93,7 +93,7 @@
       "threshold_abs": 0.0020000000949949026
     },
     "gpu": "NVIDIA GeForce RTX 4080 SUPER",
-    "host": "krick",
+    "host": "rtx4080",
     "latency_us": {
       "max": 730,
       "mean": 720.32,

@@ -1,0 +1,102 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "testdata/receipts/turbo/bench/hailo-pi5-hailo8-embed-2026-09-22b.json",
+    "commit": "5cb4cadd0e073e0b844824e65264cb9017fb8b9d",
+    "provider": {
+      "id": "hailo",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "HailoRT 4.23.0",
+      "driver_version": "firmware 4.23.0"
+    },
+    "device": {
+      "name": "Hailo-8 (Hailo-8, 0001:01:00.0)",
+      "kind": "Npu",
+      "ordinal": 0,
+      "caps": "0x3f0402",
+      "memory_total": 0
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "testdata/receipts/turbo/bench/native-hailortcli-pi5-hailo8-embed-2026-09-22b.json",
+    "commit": "5cb4cadd0e073e0b844824e65264cb9017fb8b9d",
+    "provider": {
+      "id": "hailortcli",
+      "version": "reference",
+      "runtime_version": "HailoRT-CLI version 4.23.0",
+      "driver_version": "firmware 4.23.0 (release,app,extended context switch buffer)"
+    },
+    "device": {
+      "name": "Hailo-8 (Hailo-8, 0001:01:00.0)",
+      "kind": "Npu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 0
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "$HOME/bundles/minilm-hailo8",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "434a08e0c91bada7b2c2a8682f1b186d9cf53e47d004b9e1a679d6bb69450273",
+    "artifacts": {
+      "hailo_tables": "91a364c081e1bd99d4bba486e31b6efb30bb75439562e925fe17d20de2af9425",
+      "hef": "dcfef3218da6bbabe61448216ece3ac21807573d91728a27bc631ca5bdbd8024"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "embed 1x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 13.240449,
+      "native": 13.30671989354624,
+      "ratio": 1.005005184759689,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 105.935715,
+      "native": 106.45375914836993,
+      "ratio": 1.0048901746532783,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 423.75144,
+      "native": 425.8150365934797,
+      "ratio": 1.004869827919593,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 13.241448,
+      "native": 13.30671989354624,
+      "ratio": 1.0049293622227902,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 105.932995,
+      "native": 106.45375914836993,
+      "ratio": 1.0049159768245004,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 423.74339,
+      "native": 425.8150365934797,
+      "ratio": 1.004888917779885,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "verdict": "SUPPORTED"
+}

@@ -1,0 +1,11 @@
+# Build context for packaging/Dockerfile: sources only. Build output, the
+# CUDA user-space libraries, provider build trees, and git history stay out.
+target
+target-*
+.libs
+build
+dist
+.git
+bindings/java/target
+bindings/swift/.build
+**/*.log

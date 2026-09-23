@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turbo inference server</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the panels</a>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1>Turbo</h1>
+      <p class="tagline">One library, whatever accelerator this machine has</p>
+    </div>
+    <p id="device" class="device">loading device…</p>
+    <nav class="links" aria-label="API documentation">
+      <a href="/swagger-ui.html" id="swagger-link">API explorer</a>
+      <a href="/v3/api-docs">OpenAPI</a>
+      <a href="/v2">Open Inference Protocol</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <div class="tabs" role="tablist" aria-label="What to run">
+    <button type="button" role="tab" id="tab-embed" aria-controls="panel-embed" aria-selected="true" tabindex="0">Embed</button>
+    <button type="button" role="tab" id="tab-rerank" aria-controls="panel-rerank" aria-selected="false" tabindex="-1">Rerank</button>
+    <button type="button" role="tab" id="tab-tokenize" aria-controls="panel-tokenize" aria-selected="false" tabindex="-1">Tokenize</button>
+    <button type="button" role="tab" id="tab-summarize" aria-controls="panel-summarize" aria-selected="false" tabindex="-1">Summarize</button>
+    <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" aria-selected="false" tabindex="-1">Devices</button>
+    <button type="button" role="tab" id="tab-benchmarks" aria-controls="panel-benchmarks" aria-selected="false" tabindex="-1">Benchmarks</button>
+  </div>
+
+  <section id="panel-embed" class="panel" role="tabpanel" aria-labelledby="tab-embed" tabindex="0">
+    <h2>Cosine similarity</h2>
+    <p class="hint">One sentence per line. The server embeds them in one batch and returns the full cosine matrix.
+      <kbd>Ctrl</kbd> + <kbd>Enter</kbd> runs it.</p>
+    <label for="texts">Sentences</label>
+    <textarea id="texts" rows="5" spellcheck="false">a brown dog runs through the grass
+a dog is running on the lawn
+the stock market closed higher</textarea>
+    <div class="row">
+      <button id="embed" type="button" class="go">Embed</button>
+      <span id="status" class="meter" aria-live="polite"></span>
+    </div>
+    <div id="error" class="error" hidden role="alert"></div>
+    <div id="result" hidden>
+      <table id="matrix"></table>
+      <p class="legend"><span class="swatch cold"></span> -1 <span class="swatch mid"></span> 0 <span class="swatch hot"></span> 1</p>
+      <details>
+        <summary>Vectors</summary>
+        <pre id="vectors"></pre>
+      </details>
+    </div>
+  </section>
+
+  <section id="panel-rerank" class="panel" role="tabpanel" aria-labelledby="tab-rerank" tabindex="0" hidden>
+    <h2>Rerank</h2>
+    <p class="hint">A cross-encoder scores every document against the query. <kbd>Ctrl</kbd> + <kbd>Enter</kbd> runs it.</p>
+    <p id="reranker" class="muted">checking for a reranker…</p>
+    <label for="query">Query</label>
+    <input id="query" type="text" spellcheck="false" value="how fast is the accelerator">
+    <label for="documents">Documents, one per line</label>
+    <textarea id="documents" rows="5" spellcheck="false">the accelerator sustains two and a half teraflops
+the card draws three hundred watts under load
+the recipe needs two eggs and a cup of flour
+the library never copies a tensor to the host</textarea>
+    <div class="row">
+      <button id="rerank" type="button" class="go">Rerank</button>
+      <label class="check"><input id="rerank-sorted" type="checkbox" checked> return the ranking</label>
+      <span id="rerank-status" class="meter" aria-live="polite"></span>
+    </div>
+    <div id="rerank-error" class="error" hidden role="alert"></div>
+    <div id="rerank-result" hidden>
+      <table id="ranking"></table>
+    </div>
+  </section>
+
+  <section id="panel-tokenize" class="panel" role="tabpanel" aria-labelledby="tab-tokenize" tabindex="0" hidden>
+    <h2>Tokenize</h2>
+    <p class="hint">The bundle's own tokenizer, hash-verified on load, so these are the ids the model sees.
+      <kbd>Ctrl</kbd> + <kbd>Enter</kbd> runs it.</p>
+    <p id="tokenizer" class="muted">checking for a tokenizer…</p>
+    <label for="tok-text">Text, one per line</label>
+    <textarea id="tok-text" rows="4" spellcheck="false">a brown dog runs through the grass</textarea>
+    <div class="row">
+      <button id="tokenize" type="button" class="go">Tokenize</button>
+      <label class="check"><input id="tok-specials" type="checkbox" checked> add special tokens</label>
+      <span id="tok-status" class="meter" aria-live="polite"></span>
+    </div>
+    <div id="tok-error" class="error" hidden role="alert"></div>
+    <div id="tok-result" hidden>
+      <div id="tokens"></div>
+    </div>
+  </section>
+
+  <section id="panel-summarize" class="panel" role="tabpanel" aria-labelledby="tab-summarize" tabindex="0" hidden>
+    <div id="summarize-section">
+      <h2>Summarize</h2>
+      <p class="hint">Streamed token by token over server-sent events. Stop ends the stream and cancels the
+        generation on the device.</p>
+      <p id="generator" class="muted">checking for a generative model…</p>
+      <label for="document">Text to summarize</label>
+      <textarea id="document" rows="7" spellcheck="false">The town library on Maple Street reopened on Saturday after two years of repairs. The old reading room now has tall windows, a corner for children with low shelves and cushions, and a small cafe run by volunteers from the garden club. About four hundred people came on the first day. The mayor cut a ribbon, the school choir sang two songs, and the head librarian read a picture book to the youngest visitors while their parents queued for new library cards. The building will stay open until eight on weekdays, which the council agreed to after a petition signed by six hundred residents.</textarea>
+      <div class="row">
+        <button id="summarize" type="button" class="go">Summarize</button>
+        <button id="stop" type="button" class="quiet" hidden>Stop</button>
+        <span id="gen-status" class="meter" aria-live="polite"></span>
+      </div>
+      <div id="gen-error" class="error" hidden role="alert"></div>
+      <pre id="summary" class="summary" hidden></pre>
+    </div>
+  </section>
+
+  <section id="panel-devices" class="panel" role="tabpanel" aria-labelledby="tab-devices" tabindex="0" hidden>
+    <h2>Devices and models</h2>
+    <p class="hint">What this machine offers and what the server loaded, straight from
+      <code>GET /api/v1/devices</code> and <code>GET /api/v1/models</code>. A cell marked SUPPORTED carries a
+      conformance receipt; PLANNED and EXPERIMENTAL are honest, non-blocking states.</p>
+    <div id="devices-error" class="error" hidden role="alert"></div>
+    <div id="devices"></div>
+    <h3>Loaded models</h3>
+    <div id="models"></div>
+  </section>
+
+  <section id="panel-benchmarks" class="panel" role="tabpanel" aria-labelledby="tab-benchmarks" tabindex="0" hidden>
+    <h2>Benchmarks</h2>
+    <p class="hint">The committed receipts, from <code>GET /api/v1/benchmarks</code>. Each comparison runs the same
+      bundle on the same device twice: once through libturbo, once with the runtime driven directly on the same token
+      rows. A ratio is libturbo's throughput as a fraction of that runtime, so 1.00x is parity and above 1.00x is
+      faster than the runtime alone. <span id="bench-rule"></span></p>
+    <p id="bench-dir" class="muted">loading receipts…</p>
+    <div id="bench-error" class="error" hidden role="alert"></div>
+    <div id="bench-summary"></div>
+
+    <h3>Every cell</h3>
+    <p class="hint">One row per measured cell. Open a comparison to see what each side did.</p>
+    <div id="bench-cells"></div>
+
+    <h3>libturbo throughput</h3>
+    <p class="hint">Straight from the libturbo receipts, per device: what the library itself measured, with the
+      receipt every row came from.</p>
+    <div id="bench-throughput"></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <p>Every option is honored exactly or the call fails naming the field. No fallbacks, no clamping.</p>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

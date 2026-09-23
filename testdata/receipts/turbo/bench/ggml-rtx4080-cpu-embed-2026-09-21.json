@@ -1,0 +1,220 @@
+{
+  "receipt_version": 1,
+  "kind": "benchmark",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "rtx4080",
+    "os": "Linux 7.0.0-31-generic",
+    "arch": "x86_64"
+  },
+  "commit": "b82820d480cf370e38dad0cb87ea875118573cf5",
+  "provider": {
+    "id": "ggml",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "llama.cpp (llama-cpp-2 0.1.156)",
+    "driver_version": ""
+  },
+  "device": {
+    "name": "AMD Ryzen 9 9950X3D 16-Core Processor (CPU)",
+    "kind": "Cpu",
+    "ordinal": 1,
+    "caps": "0xff9002f00c0"
+  },
+  "bundle": {
+    "dir": "$HOME/opt/bundles/minilm-gguf",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9cb7ca35fa56d3f08c15d6f0e531fc88ddf5f0b178cac3d5c39ebf55f3119cc2",
+    "artifacts": {
+      "gguf": "797b70c4edf85907fe0a49eb85811256f65fa0f7bf52166b147fd16be2be4662"
+    }
+  },
+  "embed": [
+    {
+      "batch": 1,
+      "seq": 32,
+      "live_tokens_per_row": 21.0,
+      "text_path": {
+        "p50_ms": 1.478184,
+        "p99_ms": 1.8052219999999999,
+        "mean_ms": 1.5055726,
+        "min_ms": 1.323953,
+        "max_ms": 1.8052219999999999,
+        "rows_per_s": 664.1991226460949,
+        "tokens_per_s": 13948.181575567995,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 1.2168999999999999,
+        "p99_ms": 1.478033,
+        "mean_ms": 1.2265938666666665,
+        "min_ms": 1.1643510000000001,
+        "max_ms": 1.478033,
+        "rows_per_s": 815.2657755558104,
+        "tokens_per_s": 17120.58128667202,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 0,
+        "d2h_bytes": 0,
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 32,
+      "live_tokens_per_row": 26.0,
+      "text_path": {
+        "p50_ms": 7.291481,
+        "p99_ms": 9.33835,
+        "mean_ms": 7.667153333333332,
+        "min_ms": 6.956589,
+        "max_ms": 9.33835,
+        "rows_per_s": 1043.412026888728,
+        "tokens_per_s": 27128.712699106927,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 7.424323,
+        "p99_ms": 9.453748999999998,
+        "mean_ms": 7.781232000000001,
+        "min_ms": 6.901815,
+        "max_ms": 9.453748999999998,
+        "rows_per_s": 1028.1148280889195,
+        "tokens_per_s": 26730.985530311907,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 0,
+        "d2h_bytes": 0,
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 32,
+      "live_tokens_per_row": 24.8125,
+      "text_path": {
+        "p50_ms": 18.216269999999998,
+        "p99_ms": 19.822426,
+        "mean_ms": 18.252874,
+        "min_ms": 17.29064,
+        "max_ms": 19.822426,
+        "rows_per_s": 1753.1485726576539,
+        "tokens_per_s": 43499.998959068034,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 17.743467,
+        "p99_ms": 19.649408,
+        "mean_ms": 17.9670314,
+        "min_ms": 16.938415,
+        "max_ms": 19.649408,
+        "rows_per_s": 1781.039910688863,
+        "tokens_per_s": 44192.05278396742,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 0,
+        "d2h_bytes": 0,
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 1,
+      "seq": 128,
+      "live_tokens_per_row": 122.0,
+      "text_path": {
+        "p50_ms": 6.031981,
+        "p99_ms": 8.373817,
+        "mean_ms": 6.571468133333333,
+        "min_ms": 5.778271,
+        "max_ms": 8.373817,
+        "rows_per_s": 152.17299691792869,
+        "tokens_per_s": 18565.1056239873,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 6.037621,
+        "p99_ms": 8.112293,
+        "mean_ms": 6.4648769999999995,
+        "min_ms": 5.724489999999999,
+        "max_ms": 8.112293,
+        "rows_per_s": 154.68198389543994,
+        "tokens_per_s": 18871.20203524367,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 0,
+        "d2h_bytes": 0,
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 128,
+      "live_tokens_per_row": 116.5,
+      "text_path": {
+        "p50_ms": 23.850399000000003,
+        "p99_ms": 26.623089999999998,
+        "mean_ms": 24.002062533333334,
+        "min_ms": 22.610495,
+        "max_ms": 26.623089999999998,
+        "rows_per_s": 333.3046894986564,
+        "tokens_per_s": 38829.996326593464,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 23.462856000000002,
+        "p99_ms": 25.336807999999998,
+        "mean_ms": 23.53332906666667,
+        "min_ms": 22.260033,
+        "max_ms": 25.336807999999998,
+        "rows_per_s": 339.9434044090024,
+        "tokens_per_s": 39603.40661364878,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 0,
+        "d2h_bytes": 0,
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 128,
+      "live_tokens_per_row": 118.0625,
+      "text_path": {
+        "p50_ms": 163.87355100000002,
+        "p99_ms": 175.340884,
+        "mean_ms": 162.9845823666667,
+        "min_ms": 154.147307,
+        "max_ms": 175.340884,
+        "rows_per_s": 196.33758933105432,
+        "tokens_per_s": 23180.1066403976,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 162.483653,
+        "p99_ms": 167.405677,
+        "mean_ms": 161.43677306666675,
+        "min_ms": 153.779052,
+        "max_ms": 167.405677,
+        "rows_per_s": 198.22001760890822,
+        "tokens_per_s": 23402.350828951727,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 0,
+        "d2h_bytes": 0,
+        "host_allocs": null,
+        "provider_allocs": null
+      }
+    }
+  ],
+  "native_reference": "not run; see the provider README for the direct-native program of this pair"
+}

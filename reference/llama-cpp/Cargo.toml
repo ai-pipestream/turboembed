@@ -1,0 +1,28 @@
+[package]
+name = "turbo-reference-llama-cpp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Direct-native reference for the ggml provider: llama.cpp through llama-cpp-2 alone, on turbo-bench's workload"
+publish = false
+
+[[bin]]
+name = "reference-llama-cpp"
+path = "src/main.rs"
+
+[features]
+default = []
+# The same backends the ggml provider offers.
+cuda = ["llama-cpp-2/cuda"]
+metal = ["llama-cpp-2/metal"]
+vulkan = ["llama-cpp-2/vulkan"]
+
+[dependencies]
+turbo-bench = { path = "../../crates/turbo-bench" }
+serde_json.workspace = true
+clap = { version = "4", features = ["derive"] }
+# The same crate and version the ggml provider links; called directly.
+llama-cpp-2 = { version = "0.1.156", features = ["sampler"] }

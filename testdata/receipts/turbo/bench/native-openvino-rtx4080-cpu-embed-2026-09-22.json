@@ -1,0 +1,287 @@
+{
+  "bundle": {
+    "artifacts": {
+      "onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    },
+    "dir": "$HOME/opt/bundles/minilm-onnx",
+    "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2"
+  },
+  "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8",
+  "date": "2026-09-22",
+  "device": {
+    "caps": "0x0",
+    "kind": "Cpu",
+    "memory_total": 0,
+    "name": "AMD Ryzen 9 9950X3D 16-Core Processor          ",
+    "ordinal": 0
+  },
+  "embed": [
+    {
+      "batch": 1,
+      "live_tokens_per_row": 21.0,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 0.904558,
+        "mean_ms": 0.8629969333333333,
+        "min_ms": 0.830129,
+        "p50_ms": 0.863181,
+        "rows_per_s": 1158.7526691867736,
+        "tokens_per_s": 24333.806052922246
+      },
+      "seq": 32,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 0.904558,
+        "mean_ms": 0.8629969333333333,
+        "min_ms": 0.830129,
+        "p50_ms": 0.863181,
+        "rows_per_s": 1158.7526691867736,
+        "tokens_per_s": 24333.806052922246
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 8,
+      "live_tokens_per_row": 26.0,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 3.222969,
+        "mean_ms": 2.9565920333333335,
+        "min_ms": 2.697185,
+        "p50_ms": 2.952748,
+        "rows_per_s": 2705.818019465001,
+        "tokens_per_s": 70351.26850609003
+      },
+      "seq": 32,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 3.222969,
+        "mean_ms": 2.9565920333333335,
+        "min_ms": 2.697185,
+        "p50_ms": 2.952748,
+        "rows_per_s": 2705.818019465001,
+        "tokens_per_s": 70351.26850609003
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 32,
+      "live_tokens_per_row": 24.8125,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 8.271355,
+        "mean_ms": 7.998064366666668,
+        "min_ms": 7.646215,
+        "p50_ms": 8.055057,
+        "rows_per_s": 4000.968050890612,
+        "tokens_per_s": 99274.01976272331
+      },
+      "seq": 32,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 8.271355,
+        "mean_ms": 7.998064366666668,
+        "min_ms": 7.646215,
+        "p50_ms": 8.055057,
+        "rows_per_s": 4000.968050890612,
+        "tokens_per_s": 99274.01976272331
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 1,
+      "live_tokens_per_row": 122.0,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 2.193153,
+        "mean_ms": 1.7925729999999995,
+        "min_ms": 1.687107,
+        "p50_ms": 1.757279,
+        "rows_per_s": 557.8573369118023,
+        "tokens_per_s": 68058.59510323989
+      },
+      "seq": 128,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 2.193153,
+        "mean_ms": 1.7925729999999995,
+        "min_ms": 1.687107,
+        "p50_ms": 1.757279,
+        "rows_per_s": 557.8573369118023,
+        "tokens_per_s": 68058.59510323989
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 8,
+      "live_tokens_per_row": 116.5,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 8.321199,
+        "mean_ms": 8.082978533333334,
+        "min_ms": 7.685559,
+        "p50_ms": 8.178951,
+        "rows_per_s": 989.7341638368655,
+        "tokens_per_s": 115304.03008699483
+      },
+      "seq": 128,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 8.321199,
+        "mean_ms": 8.082978533333334,
+        "min_ms": 7.685559,
+        "p50_ms": 8.178951,
+        "rows_per_s": 989.7341638368655,
+        "tokens_per_s": 115304.03008699483
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 32,
+      "live_tokens_per_row": 118.0625,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 30.695136,
+        "mean_ms": 30.044380966666665,
+        "min_ms": 29.301914,
+        "p50_ms": 30.128295,
+        "rows_per_s": 1065.0910077163192,
+        "tokens_per_s": 125747.30709850794
+      },
+      "seq": 128,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 30.695136,
+        "mean_ms": 30.044380966666665,
+        "min_ms": 29.301914,
+        "p50_ms": 30.128295,
+        "rows_per_s": 1065.0910077163192,
+        "tokens_per_s": 125747.30709850794
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 1,
+      "live_tokens_per_row": 235.0,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 3.445248,
+        "mean_ms": 3.3160277,
+        "min_ms": 3.148118,
+        "p50_ms": 3.323989,
+        "rows_per_s": 301.56563529309483,
+        "tokens_per_s": 70867.92429387728
+      },
+      "seq": 256,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 3.445248,
+        "mean_ms": 3.3160277,
+        "min_ms": 3.148118,
+        "p50_ms": 3.323989,
+        "rows_per_s": 301.56563529309483,
+        "tokens_per_s": 70867.92429387728
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 8,
+      "live_tokens_per_row": 236.125,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 16.80686,
+        "mean_ms": 16.290923866666667,
+        "min_ms": 15.850994,
+        "p50_ms": 16.303499,
+        "rows_per_s": 491.0709831729698,
+        "tokens_per_s": 115954.1359017175
+      },
+      "seq": 256,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 16.80686,
+        "mean_ms": 16.290923866666667,
+        "min_ms": 15.850994,
+        "p50_ms": 16.303499,
+        "rows_per_s": 491.0709831729698,
+        "tokens_per_s": 115954.1359017175
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 32,
+      "live_tokens_per_row": 235.625,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 74.430016,
+        "mean_ms": 72.24662426666666,
+        "min_ms": 70.335841,
+        "p50_ms": 72.240449,
+        "rows_per_s": 442.92726926431976,
+        "tokens_per_s": 104364.73782040534
+      },
+      "seq": 256,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 74.430016,
+        "mean_ms": 72.24662426666666,
+        "min_ms": 70.335841,
+        "p50_ms": 72.240449,
+        "rows_per_s": 442.92726926431976,
+        "tokens_per_s": 104364.73782040534
+      },
+      "token_count_source": "tokenizer"
+    }
+  ],
+  "kind": "native",
+  "machine": {
+    "arch": "x86_64",
+    "hostname": "rtx4080",
+    "os": "Linux 7.0.0-31-generic"
+  },
+  "native_reference": "this is the native side: OpenVINO C++ API (CPU) on the token rows of /tmp/claude-1000/-work-worktrees-turboembed/32be1853-4e14-49de-84fd-dfd8ed203e3a/scratchpad/ov-tokens.json; bundle identity copied from that dump; host-side mean pooling and l2 normalization; no session counters",
+  "provider": {
+    "driver_version": "",
+    "id": "openvino",
+    "runtime_version": "OpenVINO 2026.3.1-22476-759c5a6ab8c-releases/2026/3 C++ API",
+    "version": "reference"
+  },
+  "receipt_version": 1
+}

@@ -1,0 +1,24 @@
+[package]
+name = "turbo-conformance"
+description = "Provider-agnostic conformance suite for the Turbo contract"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+turbo = { workspace = true }
+turbo_capi = { package = "turbo-capi", path = "../turbo-capi" }
+turbo-abi = { workspace = true }
+tempfile = "3"
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# The mock provider's cdylib is what the ABI-mismatch case loads through
+# `turbo_runtime_load_provider`. Depending on the package here makes cargo
+# build that artifact before this crate's tests run; nothing links it.
+turbo-provider-mock = { path = "../../providers/mock" }

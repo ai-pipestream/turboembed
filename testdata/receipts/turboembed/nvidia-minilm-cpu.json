@@ -8,7 +8,7 @@
   "dims": 384,
   "git_sha": "e39469dfcd5a1044947c1701c29be48902ba64dd",
   "hello_world_cosine": 0.9999997615814209,
-  "host": "krick",
+  "host": "rtx4080",
   "hot_path": {
     "arena_allocs": 0,
     "cuda_forward_allocs": 0,

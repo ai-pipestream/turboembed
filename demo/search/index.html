@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multilingual search: two embedding models side by side</title>
+<style>
+  :root { --ink: #1c1c1c; --muted: #666; --line: #ddd; --hit: #e8f4e8; --miss: #fff; --accent: #2b5797; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans CJK JP", sans-serif; color: var(--ink); background: #fafafa; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  p.lead { margin: 0 0 12px; color: var(--muted); }
+  form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  input[type=text] { flex: 1 1 320px; font-size: 1rem; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; }
+  button { font-size: 1rem; padding: 8px 14px; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 6px; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .examples button { background: #fff; color: var(--accent); padding: 4px 10px; font-size: .9rem; }
+  .status { color: var(--muted); margin-bottom: 12px; min-height: 1.4em; }
+  .status.error { color: #b00020; }
+  .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+  .model { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+  .model h2 { font-size: 1.05rem; margin: 0 0 2px; }
+  .model .meta { color: var(--muted); font-size: .85rem; margin-bottom: 10px; }
+  ol { list-style: none; padding: 0; margin: 0; }
+  li { display: grid; grid-template-columns: 3.2em 1fr; gap: 8px; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; background: var(--miss); border: 1px solid transparent; }
+  li.cross { background: var(--hit); border-color: #bcd9bc; }
+  li .score { font-variant-numeric: tabular-nums; color: var(--muted); font-size: .85rem; }
+  li .lang { display: inline-block; min-width: 2.2em; text-align: center; font-size: .75rem; font-weight: 600; padding: 1px 4px; border-radius: 4px; background: #eee; color: #333; margin-right: 6px; }
+  li .text { display: block; }
+  li .gloss { display: block; color: var(--muted); font-size: .85rem; }
+  .legend { color: var(--muted); font-size: .85rem; margin-top: 10px; }
+  .legend span { display: inline-block; width: 1em; height: 1em; vertical-align: -2px; background: var(--hit); border: 1px solid #bcd9bc; border-radius: 3px; margin-right: 4px; }
+  table.timing { border-collapse: collapse; font-size: .85rem; margin-top: 8px; }
+  table.timing td { padding: 1px 8px 1px 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<h1>Multilingual search, two models side by side</h1>
+<p class="lead">The same 48 passages (6 topics in 8 languages) embedded by two models on this server. Type a query in any language; each column ranks the passages by cosine similarity of the vectors the model returns. Shaded rows are passages in a language other than the query's.</p>
+
+<form id="form">
+  <input id="query" type="text" placeholder="Ask in any language, for example: how do I bake bread at home?" autocomplete="off">
+  <button id="go" type="submit" disabled>Search</button>
+</form>
+<div class="examples" id="examples"></div>
+<div class="status" id="status">Loading models…</div>
+<div class="columns" id="columns"></div>
+<p class="legend"><span></span> passage in another language than the query (the cross-lingual hits a monolingual model cannot make)</p>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  // Which served models to compare: ?models=a,b, else the first two embedding models.
+  const wanted = (params.get("models") || "").split(",").filter(Boolean);
+  const EXAMPLES = [
+    "how do I bake bread at home?",
+    "Wie backt man Brot?",
+    "quel est le plus grand planète du système solaire ?",
+    "el portero paró el penalti",
+    "気候変動と海面上昇",
+    "爵士乐即兴演奏",
+    "Rust 메모리 안전성",
+    "гонки данных при компиляции",
+  ];
+  let models = [];     // [{name, dim, device, prompts, vectors: [[...]], embedMs}]
+  let corpus = [];
+
+  const status = (text, error) => { const s = $("status"); s.textContent = text; s.className = "status" + (error ? " error" : ""); };
+
+  const detectLang = (text) => {
+    if (/[぀-ヿ]/.test(text)) return "ja";
+    if (/[가-힯]/.test(text)) return "ko";
+    if (/[一-鿿]/.test(text)) return "zh";
+    if (/[Ѐ-ӿ]/.test(text)) return "ru";
+    if (/[äöüß]/i.test(text)) return "de";
+    if (/[àâçéèêëîïôûùÿœ]/i.test(text) && /\b(le|la|les|des|est|une|du|quel|quelle)\b/i.test(text)) return "fr";
+    if (/[áéíóúñ¿¡]/i.test(text)) return "es";
+    return "en";
+  };
+
+  const cosine = (a, b) => {
+    let dot = 0, na = 0, nb = 0;
+    for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+    return dot / (Math.sqrt(na) * Math.sqrt(nb));
+  };
+
+  async function embed(model, input, role) {
+    const body = { model: model.name, input };
+    // A prompt role is sent only when the bundle declares that prefix; the
+    // server rejects the option otherwise instead of ignoring it.
+    if (role && model.prompts && model.prompts[role]) body.prompt_role = role;
+    const t0 = performance.now();
+    const r = await fetch("/v1/embeddings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(`${model.name}: ${j.error || r.statusText}`);
+    return { vectors: j.data.map((d) => d.embedding), ms: performance.now() - t0, turbo: j.turbo || {} };
+  }
+
+  async function load() {
+    const info = await (await fetch("/info")).json();
+    const embedders = (info.models || []).filter((m) => m.kind === "Embedding");
+    let chosen = wanted.length ? wanted.map((n) => embedders.find((m) => m.name === n)).filter(Boolean) : embedders.slice(0, 2);
+    if (chosen.length < 1) throw new Error("the server serves no embedding model (see /info)");
+    corpus = await (await fetch("corpus.json")).json();
+    models = chosen.map((m) => ({ name: m.name, model_id: m.model_id, device: m.device, prompts: m.prompts || {}, max_seq: m.max_seq }));
+    for (const m of models) {
+      status(`Embedding ${corpus.length} passages with ${m.name}…`);
+      const e = await embed(m, corpus.map((d) => d.text), "document");
+      m.vectors = e.vectors; m.embedMs = e.ms; m.dim = e.vectors[0].length; m.deviceMs = e.turbo.device_ms;
+    }
+    render(null);
+    status(`Ready: ${models.map((m) => `${m.name} (${m.dim} dims, ${m.embedMs.toFixed(0)} ms for ${corpus.length} passages)`).join(", ")}.`);
+    $("go").disabled = false;
+    $("query").focus();
+  }
+
+  async function search(query) {
+    const lang = detectLang(query);
+    $("go").disabled = true;
+    status(`Embedding the query with ${models.length} models…`);
+    try {
+      for (const m of models) {
+        const e = await embed(m, query, "query");
+        const q = e.vectors[0];
+        m.queryMs = e.ms;
+        m.results = corpus.map((d, i) => ({ doc: d, score: cosine(q, m.vectors[i]) })).sort((a, b) => b.score - a.score).slice(0, 10);
+      }
+      render(lang);
+      const cross = models.map((m) => `${m.name}: ${m.results.filter((r) => r.doc.lang !== lang).length} of 10 cross-lingual`);
+      status(`Query language ${lang}. ${cross.join("; ")}.`);
+    } catch (e) {
+      status(String(e.message || e), true);
+    }
+    $("go").disabled = false;
+  }
+
+  function render(queryLang) {
+    const root = $("columns");
+    root.innerHTML = "";
+    for (const m of models) {
+      const box = document.createElement("div");
+      box.className = "model";
+      const prompts = m.prompts.query ? `query prefix: “${m.prompts.query.slice(0, 40)}${m.prompts.query.length > 40 ? "…" : ""}”` : "no prompt prefixes";
+      box.innerHTML = `<h2>${m.name}</h2><div class="meta">${m.model_id} on ${m.device}; ${m.dim} dimensions; ${prompts}</div>`;
+      const list = document.createElement("ol");
+      for (const r of m.results || []) {
+        const li = document.createElement("li");
+        if (queryLang && r.doc.lang !== queryLang) li.className = "cross";
+        li.innerHTML = `<span class="score">${r.score.toFixed(3)}</span><span><span class="lang">${r.doc.lang}</span><span class="text"></span><span class="gloss"></span></span>`;
+        li.querySelector(".text").textContent = r.doc.text;
+        li.querySelector(".gloss").textContent = r.doc.lang === "en" ? "" : r.doc.gloss;
+        list.appendChild(li);
+      }
+      box.appendChild(list);
+      const timing = document.createElement("table");
+      timing.className = "timing";
+      timing.innerHTML = `<tr><td>corpus (${corpus.length} passages)</td><td>${m.embedMs.toFixed(0)} ms wall${m.deviceMs != null ? `, ${Number(m.deviceMs).toFixed(1)} ms on the device` : ""}</td></tr>` +
+        (m.queryMs != null ? `<tr><td>query</td><td>${m.queryMs.toFixed(0)} ms wall</td></tr>` : "");
+      box.appendChild(timing);
+      root.appendChild(box);
+    }
+  }
+
+  for (const ex of EXAMPLES) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = ex;
+    b.addEventListener("click", () => { $("query").value = ex; search(ex); });
+    $("examples").appendChild(b);
+  }
+  $("form").addEventListener("submit", (ev) => { ev.preventDefault(); const q = $("query").value.trim(); if (q) search(q); });
+  load().catch((e) => status(String(e.message || e), true));
+})();
+</script>
+</body>
+</html>

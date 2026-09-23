@@ -2329,11 +2329,11 @@
   },
   "git_sha": "b07f6d32180f201e0f00105454c2c9edcf1fb0b9",
   "gpu": "NVIDIA GeForce RTX 4080 SUPER",
-  "host": "krick",
-  "model": "/work/tei-model-cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/onnx/model.onnx",
+  "host": "rtx4080",
+  "model": "<model-cache>/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/onnx/model.onnx",
   "ort_build": "ORT Build Info: git-branch=rel-1.28.0, git-commit-id=da9b5e3, quick-build=1, build type=Release",
   "pass": true,
   "provider": "NVIDIA ORT CUDA",
   "quick": false,
-  "tokenizer": "/work/tei-model-cache/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/tokenizer.json"
+  "tokenizer": "<model-cache>/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/tokenizer.json"
 }

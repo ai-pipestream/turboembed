@@ -1,192 +1,79 @@
-name: CI
+name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, turbo-v2]
   pull_request:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
 
 jobs:
-  test:
-    name: Build & test (Linux, default features)
+  contract:
+    name: Contract (Linux, mock provider)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler g++
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+        with:
+          components: rustfmt, clippy
+      - name: Install cbindgen
+        run: cargo install cbindgen --locked
       - name: Format
         run: cargo fmt --all -- --check
+      # providers/cuda needs a CUDA toolkit (nvcc); hosted runners have none,
+      # so the workspace commands exclude it. It is built and tested on the
+      # GPU machines named in PLAN.md section 11.
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test (default features — no engine/Apple deps)
-        run: cargo test --workspace
-      - name: LLM fetch tooling (no python3)
-        run: bash scripts/test-fetch-llms.sh
-
-  arch-binaries:
-    name: Build arch binaries (Linux, stub engines)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler g++
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # Default features build the full routing surface with stub engines —
-      # no CUDA, TensorRT-LLM, oneAPI, or Apple frameworks required. The real
-      # GPU link (e.g. --features trtllm-sys) is deliberately NOT built here.
-      - name: inferstream-nvidia
-        run: cargo build -p inferstream-arch-nvidia
-      - name: inferstream-intel
-        run: cargo build -p inferstream-arch-intel
-      - name: inferstream-apple (compiles as stub on Linux; functional only on macOS)
-        run: cargo build -p inferstream-arch-apple
-
-  ort-runtime:
-    name: Build nvidia binary with real ORT (CPU EP) + bundling scripts
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler g++
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Shell scripts parse
+        run: cargo clippy --locked --workspace --exclude turbo-provider-cuda --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --locked --workspace --exclude turbo-provider-cuda
+      - name: Headers are up to date
+        run: scripts/gen-header.sh --check
+      - name: struct_size tables are up to date
+        run: scripts/gen-versioned.py --check
+      - name: Mock bundle fixtures are up to date
         run: |
-          bash -n scripts/fetch-runtime-libs.sh
-          bash -n scripts/run-nvidia.sh
-          bash -n scripts/fetch-llms.sh
-          bash -n scripts/test-fetch-llms.sh
-          bash -n scripts/smoke-llms.sh
-          bash -n scripts/smoke-embeddings.sh
-          bash -n scripts/smoke-apple.sh
-          bash -n scripts/ensure-models.sh
-          bash -n scripts/setup-llamacpp-sycl.sh
-          bash -n scripts/run-intel.sh
-          bash -n scripts/prove-intel-genai.sh
-          bash -n scripts/build-intel.sh
-      # Real ONNX Runtime link, CPU execution provider: `ort`'s
-      # download-binaries feature fetches libonnxruntime at build time, so
-      # this proves the non-stub engine path compiles and its unit tests pass
-      # with zero GPU libraries. The CUDA EP (ort-cuda) additionally needs the
-      # CUDA 13 user-space libs from scripts/fetch-runtime-libs.sh nvidia and
-      # a GPU host, so it is not exercised in CI.
-      - name: Build with ort-runtime (CPU EP)
-        run: cargo build -p inferstream-arch-nvidia --features ort-runtime
-      - name: Test backend-ort with runtime feature
-        run: cargo test -p inferstream-backend-ort --features runtime
+          cargo run -p turbo-core --example write_mock_bundles
+          git diff --exit-code -- testdata/bundles
+      - name: C smoke test against libturbo
+        run: scripts/c-smoke.sh
+      - name: Header compiles as C11 and C++17
+        run: |
+          printf '#include "turbo/turbo.h"\nint main(void){return 0;}\n' > /tmp/h.c
+          cc -std=c11 -Wall -Wextra -Wpedantic -Werror -Iinclude -c /tmp/h.c -o /dev/null
+          c++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -Iinclude -x c++ -c /tmp/h.c -o /dev/null
 
-  java-ffm:
-    # M3 build gate without hardware: compile the common API (Java 17
-    # bytecode) and the JDK 25 FFM adapter, and run the C-header layout
-    # conformance test. Hardware contract tests need an installed SDK and
-    # run in the prepared-sdk job (CPU) and on Machine B (GPU).
-    name: Java API + FFM adapter (build & layout conformance)
+  java:
+    name: Java binding (JDK 25, mock provider)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - name: Build and test the Java modules
-        run: mvn -f java/pom.xml --batch-mode verify
-      - name: Common API stays adapter-neutral (no java.lang.foreign)
-        run: |
-          jdeps -verbose:class java/turboembed-api/target/turboembed-api-*-SNAPSHOT.jar | tee /tmp/api-deps.txt
-          if grep -q 'java\.lang\.foreign' /tmp/api-deps.txt; then
-            echo "turboembed-api must not reference FFM classes" >&2
-            exit 1
-          fi
+      - name: Build libturbo
+        run: cargo build --locked -p turbo-shared
+      - name: Conformance through the binding
+        run: cd bindings/java && mvn -q -B test
 
-  prepared-sdk:
-    # M2 package gate, CPU path only: build the release archive against the
-    # pinned OpenVINO runtime, provision the MiniLM bundle from the committed
-    # manifest, and run the clean-consumer acceptance plus the Rust bindings
-    # against the packaged library. Intel GPU coverage stays on Machine B
-    # (krick-1); a hosted runner has no GPU, and the acceptance script proves
-    # the fail-loud device policy instead.
-    name: Prepared Intel SDK package (CPU path)
+  packaging:
+    name: Packaging (Linux, mock/static providers only)
     runs-on: ubuntu-latest
-    env:
-      OPENVINO_URL: https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.3/linux/openvino_toolkit_ubuntu24_2025.3.0.19807.44526285f24_x86_64.tgz
-      OPENVINO_SHA256: de0d5e16b161efea013a5c017e3b2bce1191ca009a1947d392ccab8ed9d0f6e4
     steps:
       - uses: actions/checkout@v4
-      - name: Install build prerequisites
-        run: sudo apt-get update && sudo apt-get install -y cmake g++ python3 ocl-icd-opencl-dev opencl-headers
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Cache OpenVINO runtime archive
-        id: openvino-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/openvino.tgz
-          key: openvino-${{ env.OPENVINO_SHA256 }}
-      - name: Download OpenVINO runtime archive
-        if: steps.openvino-cache.outputs.cache-hit != 'true'
-        run: curl -sSfL -o ~/openvino.tgz "$OPENVINO_URL"
-      - name: Verify and extract OpenVINO
-        run: |
-          echo "$OPENVINO_SHA256  $HOME/openvino.tgz" | sha256sum -c -
-          mkdir -p "$HOME/openvino-root"
-          tar -xzf "$HOME/openvino.tgz" -C "$HOME/openvino-root" --strip-components=1
-      - name: Bundle provisioning unit tests
-        run: python3 -m unittest scripts.tests.test_prepare_native_bundle
-      - name: Build the SDK release archive
-        run: ./scripts/make-sdk-release.sh --openvino-root "$HOME/openvino-root" --output-dir dist
-      - name: Cache MiniLM prepared sources
-        uses: actions/cache@v4
-        with:
-          path: models/prepared-src
-          key: prepared-src-${{ hashFiles('models/manifests/prepared-sources.json') }}
-      - name: Fetch pinned MiniLM sources (hash-verified)
-        run: cargo run -p inferstream-fetch -- --prepared minilm
-      - name: Provision the MiniLM bundle from the installed package
-        run: |
-          mkdir -p /tmp/te-sdk
-          tar -xzf dist/turboembed-prepared-sdk-*.tar.gz -C /tmp/te-sdk
-          ./scripts/provision-minilm-bundle.sh /tmp/te-sdk/turboembed-prepared-sdk-* /tmp/te-bundle
-      - name: Clean-consumer acceptance (CPU, fail-loud GPU policy)
-        run: ./scripts/sdk-consumer-acceptance.sh dist/turboembed-prepared-sdk-*.tar.gz /tmp/te-bundle cpu-only
-      - name: Rust bindings against the packaged library (CPU)
-        run: |
-          SDK="$(echo /tmp/te-sdk/turboembed-prepared-sdk-*)"
-          TURBOEMBED_PREPARED_SDK="$SDK" \
-          TURBOEMBED_PREPARED_BUNDLE=/tmp/te-bundle \
-          LD_LIBRARY_PATH="$SDK/lib" \
-            cargo test -p turboembed --features prepared --test prepared_sdk -- --ignored \
-              device_discovery_and_explicit_selection prepared_cpu_reference_execution
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-      - name: Java FFM contracts against the packaged library (CPU)
-        run: |
-          SDK="$(echo /tmp/te-sdk/turboembed-prepared-sdk-*)"
-          TURBOEMBED_PREPARED_SDK="$SDK" \
-          TURBOEMBED_PREPARED_BUNDLE=/tmp/te-bundle \
-          TURBOEMBED_PREPARED_DEVICES=cpu-only \
-            mvn -f java/pom.xml --batch-mode verify
-      - name: Standalone Java consumer example (explicit CPU, jars + SDK only)
-        run: |
-          SDK="$(echo /tmp/te-sdk/turboembed-prepared-sdk-*)"
-          CONSUMER="$(mktemp -d)"
-          cp java/examples/Embed.java "$CONSUMER/"
-          cp java/turboembed-api/target/turboembed-api-*-SNAPSHOT.jar "$CONSUMER/api.jar"
-          cp java/turboembed-ffm/target/turboembed-ffm-*-SNAPSHOT.jar "$CONSUMER/ffm.jar"
-          cd "$CONSUMER"
-          javac --release 25 -cp "api.jar:ffm.jar" Embed.java
-          java --enable-native-access=ALL-UNNAMED -cp ".:api.jar:ffm.jar" \
-            Embed "$SDK" /tmp/te-bundle cpu
-      - name: Upload release archive
+      # Hosted runners have no CUDA toolkit and no OpenVINO SDK, so this
+      # builds and packages only libturbo, turbo-bundle, and the mock and
+      # static providers; see docs/packaging.md.
+      - name: Build and verify the distribution archive
+        run: scripts/package.sh --no-cuda --no-openvino
+      - name: Upload the archive
         uses: actions/upload-artifact@v4
         with:
-          name: turboembed-prepared-sdk-linux-x86_64
-          path: dist/
+          name: turbo-dist-${{ github.sha }}
+          path: dist/*.tar.gz

@@ -1,0 +1,70 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "ggml-rtx4080-gpu-generate-2026-09-22c.json",
+    "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
+    "provider": {
+      "id": "ggml",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "llama.cpp (llama-cpp-2 0.1.156)",
+      "driver_version": ""
+    },
+    "device": {
+      "name": "NVIDIA GeForce RTX 4080 SUPER (CUDA0)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0xff9002f00c0",
+      "memory_total": 16717119488
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "native-llama-cpp-rtx4080-gpu-generate-2026-09-22c.json",
+    "commit": "c540fb3e51ece3fda5a0b2ec409e265c19623b2b",
+    "provider": {
+      "id": "llama.cpp",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "llama.cpp through llama-cpp-2 0.1.156, CUDA backend",
+      "driver_version": "595.84"
+    },
+    "device": {
+      "name": "NVIDIA GeForce RTX 4080 SUPER",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 17171480576
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "$HOME/opt/bundles/qwen05-gguf",
+    "model_id": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+    "manifest_sha256": "9d0338585acf9cab9b983f01e371269d03f5ffdbae9716699a53429db72974f6",
+    "artifacts": {
+      "gguf": "ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "generate 128",
+      "measure": "total p50 ms",
+      "turbo": 208.374944,
+      "native": 207.443303,
+      "ratio": 0.9955290161949605,
+      "within_floor": true
+    },
+    {
+      "cell": "generate 128",
+      "measure": "decode tokens/s",
+      "turbo": 628.3481338592294,
+      "native": 624.3994733588681,
+      "ratio": 1.0063239331050682,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "dirty": [],
+  "verdict": "SUPPORTED"
+}

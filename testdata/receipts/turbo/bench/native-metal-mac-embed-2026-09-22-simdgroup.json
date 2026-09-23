@@ -1,0 +1,288 @@
+{
+  "bundle": {
+    "artifacts": {
+      "hf_config": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41",
+      "safetensors": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db"
+    },
+    "dir": "$HOME/opt/bundles/minilm-metal",
+    "manifest_sha256": "100a3061adebe310b91a31c9ddd25d208b336150259cc7c2a6f11198c80a08c9",
+    "model_id": "nreimers/MiniLM-L6-H384-uncased"
+  },
+  "commit": "f4a2034422200b1fa8efcee6fa4fda03460d43a8",
+  "date": "2026-09-22",
+  "device": {
+    "caps": "0x0",
+    "kind": "IGpu",
+    "memory_total": 19069665280,
+    "name": "Apple M2 (Metal)",
+    "ordinal": 0
+  },
+  "embed": [
+    {
+      "batch": 1,
+      "live_tokens_per_row": 21.0,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 5.121334,
+        "mean_ms": 3.7946264666666663,
+        "min_ms": 3.568334,
+        "p50_ms": 3.616292,
+        "rows_per_s": 263.5305500513296,
+        "tokens_per_s": 5534.141551077922
+      },
+      "seq": 32,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 5.121334,
+        "mean_ms": 3.7946264666666663,
+        "min_ms": 3.568334,
+        "p50_ms": 3.616292,
+        "rows_per_s": 263.5305500513296,
+        "tokens_per_s": 5534.141551077922
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 8,
+      "live_tokens_per_row": 26.0,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 14.000166,
+        "mean_ms": 13.051241733333333,
+        "min_ms": 12.485375,
+        "p50_ms": 12.569416,
+        "rows_per_s": 612.968494757684,
+        "tokens_per_s": 15937.180863699785
+      },
+      "seq": 32,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 14.000166,
+        "mean_ms": 13.051241733333333,
+        "min_ms": 12.485375,
+        "p50_ms": 12.569416,
+        "rows_per_s": 612.968494757684,
+        "tokens_per_s": 15937.180863699785
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 32,
+      "live_tokens_per_row": 24.8125,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 52.45125,
+        "mean_ms": 51.17107909999999,
+        "min_ms": 49.615459,
+        "p50_ms": 50.965584,
+        "rows_per_s": 625.3532378604853,
+        "tokens_per_s": 15516.57721441329
+      },
+      "seq": 32,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 52.45125,
+        "mean_ms": 51.17107909999999,
+        "min_ms": 49.615459,
+        "p50_ms": 50.965584,
+        "rows_per_s": 625.3532378604853,
+        "tokens_per_s": 15516.57721441329
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 1,
+      "live_tokens_per_row": 122.0,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 13.893209,
+        "mean_ms": 12.968895833333333,
+        "min_ms": 12.343458,
+        "p50_ms": 12.461958,
+        "rows_per_s": 77.107566661901,
+        "tokens_per_s": 9407.123132751922
+      },
+      "seq": 128,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 13.893209,
+        "mean_ms": 12.968895833333333,
+        "min_ms": 12.343458,
+        "p50_ms": 12.461958,
+        "rows_per_s": 77.107566661901,
+        "tokens_per_s": 9407.123132751922
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 8,
+      "live_tokens_per_row": 116.5,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 97.436167,
+        "mean_ms": 96.79894993333329,
+        "min_ms": 94.868125,
+        "p50_ms": 97.087166,
+        "rows_per_s": 82.64552462097683,
+        "tokens_per_s": 9628.2036183438
+      },
+      "seq": 128,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 97.436167,
+        "mean_ms": 96.79894993333329,
+        "min_ms": 94.868125,
+        "p50_ms": 97.087166,
+        "rows_per_s": 82.64552462097683,
+        "tokens_per_s": 9628.2036183438
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 32,
+      "live_tokens_per_row": 118.0625,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 329.520291,
+        "mean_ms": 328.5328791333334,
+        "min_ms": 326.306958,
+        "p50_ms": 328.739542,
+        "rows_per_s": 97.40273206266507,
+        "tokens_per_s": 11499.610054148394
+      },
+      "seq": 128,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 329.520291,
+        "mean_ms": 328.5328791333334,
+        "min_ms": 326.306958,
+        "p50_ms": 328.739542,
+        "rows_per_s": 97.40273206266507,
+        "tokens_per_s": 11499.610054148394
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 1,
+      "live_tokens_per_row": 235.0,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 48.991333,
+        "mean_ms": 47.95087643333334,
+        "min_ms": 47.014417,
+        "p50_ms": 47.579917,
+        "rows_per_s": 20.854676168230448,
+        "tokens_per_s": 4900.848899534156
+      },
+      "seq": 256,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 48.991333,
+        "mean_ms": 47.95087643333334,
+        "min_ms": 47.014417,
+        "p50_ms": 47.579917,
+        "rows_per_s": 20.854676168230448,
+        "tokens_per_s": 4900.848899534156
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 8,
+      "live_tokens_per_row": 236.125,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 353.526166,
+        "mean_ms": 352.19925559999996,
+        "min_ms": 350.56225,
+        "p50_ms": 352.043667,
+        "rows_per_s": 22.714414845571866,
+        "tokens_per_s": 5363.441205410657
+      },
+      "seq": 256,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 353.526166,
+        "mean_ms": 352.19925559999996,
+        "min_ms": 350.56225,
+        "p50_ms": 352.043667,
+        "rows_per_s": 22.714414845571866,
+        "tokens_per_s": 5363.441205410657
+      },
+      "token_count_source": "tokenizer"
+    },
+    {
+      "batch": 32,
+      "live_tokens_per_row": 235.625,
+      "per_run": {
+        "host_allocs": null,
+        "provider_allocs": null
+      },
+      "prepared_tokens_path": {
+        "iters": 30,
+        "max_ms": 1520.270833,
+        "mean_ms": 1375.7157056333338,
+        "min_ms": 1358.452917,
+        "p50_ms": 1361.31325,
+        "rows_per_s": 23.26061981335618,
+        "tokens_per_s": 5480.7835435220495
+      },
+      "seq": 256,
+      "text_path": {
+        "iters": 30,
+        "max_ms": 1520.270833,
+        "mean_ms": 1375.7157056333338,
+        "min_ms": 1358.452917,
+        "p50_ms": 1361.31325,
+        "rows_per_s": 23.26061981335618,
+        "tokens_per_s": 5480.7835435220495
+      },
+      "token_count_source": "tokenizer"
+    }
+  ],
+  "kind": "native",
+  "machine": {
+    "arch": "arm64",
+    "hostname": "m2",
+    "os": "Darwin 27.0.0"
+  },
+  "native_reference": "this is the native side: the metal provider's kernels driven by a plain Objective-C++ program on the token rows of /tmp/tb/metal-tokens.json; bundle identity copied from that dump; the same pooling and normalization kernels; no session counters",
+  "provider": {
+    "driver_version": "27.0",
+    "id": "metal",
+    "runtime_version": "Metal, MSL compiled at runtime (the provider's kernels driven directly)",
+    "version": "reference"
+  },
+  "receipt_version": 1
+}

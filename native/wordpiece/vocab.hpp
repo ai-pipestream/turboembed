@@ -32,6 +32,13 @@ struct wordpiece_vocab {
     int32_t mask_id = -1;
     // Bit order: PAD, UNK, CLS, SEP, MASK; matched before normalization.
     uint8_t added_specials = 0;
+    // BertNormalizer settings from tokenizer.json: uncased models lowercase
+    // and strip accents; cased models do neither.
+    uint8_t lowercase = 1;
+    uint8_t strip_accents = 1;
+    // One past the largest token id in the vocabulary (the row count of a
+    // matching embedding table).
+    int32_t n_ids = 0;
     int loaded = 0;
     int fd = -1;
     int blob_mmap = 0;

@@ -1,0 +1,4117 @@
+{
+  "model_id": "dslim/bert-base-NER",
+  "revision": "d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc",
+  "source": "weights from the hub; tokenizer (vocab.txt, cased) and config from the local checkout $HOME/opt/models/ner",
+  "produced_by": {
+    "framework": "pytorch",
+    "dtype": "float32",
+    "device": "cpu",
+    "torch": "2.14.0+cu130",
+    "transformers": "5.17.0",
+    "numpy": "2.5.3",
+    "python": "3.12.13"
+  },
+  "machine": "rtx4080",
+  "date": "2026-09-22",
+  "command": "uv run --no-project --with torch --with transformers --with numpy python scripts/gen-reference-tasks.py",
+  "schema": "turbo-reference-token-classify/1",
+  "task": "token_classify",
+  "labels": [
+    "O",
+    "B-MISC",
+    "I-MISC",
+    "B-PER",
+    "I-PER",
+    "B-ORG",
+    "I-ORG",
+    "B-LOC",
+    "I-LOC"
+  ],
+  "activation": "softmax",
+  "tagging": "BIO",
+  "tokenization": {
+    "truncation": "longest_first",
+    "max_length": 512
+  },
+  "aggregation_note": "`aggregation` holds the spans transformers' token-classification pipeline returns for aggregation_strategy simple, first and max, with the pipeline's character offsets converted to byte offsets in `text`. `entity` is the pipeline's entity_group, that is the label with its BIO prefix stripped. `words` is the same word grouping applied to the per-token labels, which is what a word-aligned provider reports for TURBO_AGGREGATE_NONE; transformers' own \"none\" is per token and has no word-aligned equivalent.",
+  "config_sha256": "a5dc77a0d60dadf5645103017f3c7b8ece4ef1b450bc1ea68e17da1d3ae7e515",
+  "vocab_sha256": "eeaa9875b23b04b4c54ef759d03db9d1ba1554838f8fb26c5d96fa551df93d02",
+  "cases": [
+    {
+      "id": "classic",
+      "text": "Ada Lovelace visited Berlin with colleagues from Microsoft.",
+      "n_tokens": 12,
+      "input_ids": [
+        101,
+        19222,
+        2185,
+        17510,
+        3891,
+        3206,
+        1114,
+        8304,
+        1121,
+        6998,
+        119,
+        102
+      ],
+      "tokens": [
+        {
+          "column": 0,
+          "token": "[CLS]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9994222521781921,
+          "probs": [
+            0.9994222521781921,
+            9.833848162088543e-05,
+            7.707093755016103e-05,
+            7.884026126703247e-05,
+            5.5423872254323214e-05,
+            9.849332127487287e-05,
+            5.7806675613392144e-05,
+            4.2751031287480146e-05,
+            6.904856854816899e-05
+          ]
+        },
+        {
+          "column": 1,
+          "token": "Ada",
+          "special": false,
+          "byte_start": 0,
+          "byte_end": 3,
+          "label_id": 3,
+          "label": "B-PER",
+          "score": 0.9996710419654846,
+          "probs": [
+            3.146550079691224e-05,
+            5.23670096299611e-05,
+            1.2994353710382711e-05,
+            0.9996710419654846,
+            2.0984447473892942e-05,
+            0.0001296256377827376,
+            7.6044475463277195e-06,
+            6.019428474246524e-05,
+            1.3722103176405653e-05
+          ]
+        },
+        {
+          "column": 2,
+          "token": "Love",
+          "special": false,
+          "byte_start": 4,
+          "byte_end": 8,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9996729493141174,
+          "probs": [
+            5.881002653040923e-05,
+            2.996607327077072e-05,
+            3.590105916373432e-05,
+            2.9446220651152544e-05,
+            0.9996729493141174,
+            1.5877169062150642e-05,
+            9.868511551758274e-05,
+            2.2163150788401254e-05,
+            3.6173132684780285e-05
+          ]
+        },
+        {
+          "column": 3,
+          "token": "##lace",
+          "special": false,
+          "byte_start": 8,
+          "byte_end": 12,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.999212384223938,
+          "probs": [
+            0.00023416226031258702,
+            4.446011007530615e-05,
+            5.717431486118585e-05,
+            9.826682071434334e-05,
+            0.999212384223938,
+            3.071118408115581e-05,
+            0.00019153069297317415,
+            5.4302199714584276e-05,
+            7.700802234467119e-05
+          ]
+        },
+        {
+          "column": 4,
+          "token": "visited",
+          "special": false,
+          "byte_start": 13,
+          "byte_end": 20,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999646544456482,
+          "probs": [
+            0.9999646544456482,
+            5.731017608923139e-06,
+            3.9405585994245484e-06,
+            3.28249052472529e-06,
+            3.4614724881976144e-06,
+            3.9270084926101845e-06,
+            5.3388030210044235e-06,
+            4.0559634726378135e-06,
+            5.6260723795276135e-06
+          ]
+        },
+        {
+          "column": 5,
+          "token": "Berlin",
+          "special": false,
+          "byte_start": 21,
+          "byte_end": 27,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.9997569918632507,
+          "probs": [
+            4.601119871949777e-05,
+            4.43063436250668e-05,
+            9.881044206849765e-06,
+            3.730418757186271e-05,
+            9.029335160448682e-06,
+            5.92983269598335e-05,
+            1.5913763490971178e-05,
+            0.9997569918632507,
+            2.124100319633726e-05
+          ]
+        },
+        {
+          "column": 6,
+          "token": "with",
+          "special": false,
+          "byte_start": 28,
+          "byte_end": 32,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999680519104004,
+          "probs": [
+            0.9999680519104004,
+            3.852613190247212e-06,
+            4.103808805666631e-06,
+            3.3952640023926506e-06,
+            3.864319751301082e-06,
+            2.6540992621448822e-06,
+            6.146708983578719e-06,
+            2.355575361434603e-06,
+            5.59591717319563e-06
+          ]
+        },
+        {
+          "column": 7,
+          "token": "colleagues",
+          "special": false,
+          "byte_start": 33,
+          "byte_end": 43,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999714493751526,
+          "probs": [
+            0.9999714493751526,
+            4.3845957407029346e-06,
+            2.9091684154991526e-06,
+            3.6981143693992635e-06,
+            3.122154339507688e-06,
+            2.9226614515209803e-06,
+            4.771254225488519e-06,
+            2.2321296455629636e-06,
+            4.487716068979353e-06
+          ]
+        },
+        {
+          "column": 8,
+          "token": "from",
+          "special": false,
+          "byte_start": 44,
+          "byte_end": 48,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.999970018863678,
+          "probs": [
+            0.999970018863678,
+            4.238204383000266e-06,
+            3.0897151646058774e-06,
+            3.1061406389198964e-06,
+            3.203585038136225e-06,
+            3.7611150673910743e-06,
+            5.255883934296435e-06,
+            2.5699694106151583e-06,
+            4.760381216328824e-06
+          ]
+        },
+        {
+          "column": 9,
+          "token": "Microsoft",
+          "special": false,
+          "byte_start": 49,
+          "byte_end": 58,
+          "label_id": 5,
+          "label": "B-ORG",
+          "score": 0.9988786578178406,
+          "probs": [
+            0.00010888933320529759,
+            0.0002495648222975433,
+            5.424081609817222e-05,
+            0.0005513408686965704,
+            4.023023211630061e-05,
+            0.9988786578178406,
+            4.463877485250123e-05,
+            5.659123053192161e-05,
+            1.5854684534133412e-05
+          ]
+        },
+        {
+          "column": 10,
+          "token": ".",
+          "special": false,
+          "byte_start": 58,
+          "byte_end": 59,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999701976776123,
+          "probs": [
+            0.9999701976776123,
+            3.7057275221741293e-06,
+            4.407309461385012e-06,
+            3.4056336062349146e-06,
+            2.9770753826596774e-06,
+            2.707380417632521e-06,
+            5.745796897826949e-06,
+            1.8966643438034225e-06,
+            4.944625288771931e-06
+          ]
+        },
+        {
+          "column": 11,
+          "token": "[SEP]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9639837145805359,
+          "probs": [
+            0.9639837145805359,
+            0.010879995301365852,
+            0.0013003925560042262,
+            0.008173550479114056,
+            0.003140111919492483,
+            0.005173233337700367,
+            0.0015207611722871661,
+            0.0048615294508636,
+            0.0009667047415859997
+          ]
+        }
+      ],
+      "words": [
+        {
+          "byte_start": 0,
+          "byte_end": 3,
+          "text": "Ada",
+          "first_column": 1,
+          "n_tokens": 1,
+          "first_label": "B-PER",
+          "first_score": 0.9996710419654846,
+          "max_label": "B-PER",
+          "max_score": 0.9996710419654846
+        },
+        {
+          "byte_start": 4,
+          "byte_end": 12,
+          "text": "Lovelace",
+          "first_column": 2,
+          "n_tokens": 2,
+          "first_label": "I-PER",
+          "first_score": 0.9996729493141174,
+          "max_label": "I-PER",
+          "max_score": 0.9996729493141174
+        },
+        {
+          "byte_start": 13,
+          "byte_end": 20,
+          "text": "visited",
+          "first_column": 4,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999646544456482,
+          "max_label": "O",
+          "max_score": 0.9999646544456482
+        },
+        {
+          "byte_start": 21,
+          "byte_end": 27,
+          "text": "Berlin",
+          "first_column": 5,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.9997569918632507,
+          "max_label": "B-LOC",
+          "max_score": 0.9997569918632507
+        },
+        {
+          "byte_start": 28,
+          "byte_end": 32,
+          "text": "with",
+          "first_column": 6,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999680519104004,
+          "max_label": "O",
+          "max_score": 0.9999680519104004
+        },
+        {
+          "byte_start": 33,
+          "byte_end": 43,
+          "text": "colleagues",
+          "first_column": 7,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999714493751526,
+          "max_label": "O",
+          "max_score": 0.9999714493751526
+        },
+        {
+          "byte_start": 44,
+          "byte_end": 48,
+          "text": "from",
+          "first_column": 8,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.999970018863678,
+          "max_label": "O",
+          "max_score": 0.999970018863678
+        },
+        {
+          "byte_start": 49,
+          "byte_end": 58,
+          "text": "Microsoft",
+          "first_column": 9,
+          "n_tokens": 1,
+          "first_label": "B-ORG",
+          "first_score": 0.9988786578178406,
+          "max_label": "B-ORG",
+          "max_score": 0.9988786578178406
+        },
+        {
+          "byte_start": 58,
+          "byte_end": 59,
+          "text": ".",
+          "first_column": 10,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999701976776123,
+          "max_label": "O",
+          "max_score": 0.9999701976776123
+        }
+      ],
+      "aggregation": {
+        "simple": [
+          {
+            "byte_start": 0,
+            "byte_end": 12,
+            "text": "Ada Lovelace",
+            "entity": "PER",
+            "score": 0.999518871307373
+          },
+          {
+            "byte_start": 21,
+            "byte_end": 27,
+            "text": "Berlin",
+            "entity": "LOC",
+            "score": 0.9997569918632507
+          },
+          {
+            "byte_start": 49,
+            "byte_end": 58,
+            "text": "Microsoft",
+            "entity": "ORG",
+            "score": 0.9988786578178406
+          }
+        ],
+        "first": [
+          {
+            "byte_start": 0,
+            "byte_end": 12,
+            "text": "Ada Lovelace",
+            "entity": "PER",
+            "score": 0.9996720552444458
+          },
+          {
+            "byte_start": 21,
+            "byte_end": 27,
+            "text": "Berlin",
+            "entity": "LOC",
+            "score": 0.9997569918632507
+          },
+          {
+            "byte_start": 49,
+            "byte_end": 58,
+            "text": "Microsoft",
+            "entity": "ORG",
+            "score": 0.9988786578178406
+          }
+        ],
+        "max": [
+          {
+            "byte_start": 0,
+            "byte_end": 12,
+            "text": "Ada Lovelace",
+            "entity": "PER",
+            "score": 0.9996720552444458
+          },
+          {
+            "byte_start": 21,
+            "byte_end": 27,
+            "text": "Berlin",
+            "entity": "LOC",
+            "score": 0.9997569918632507
+          },
+          {
+            "byte_start": 49,
+            "byte_end": 58,
+            "text": "Microsoft",
+            "entity": "ORG",
+            "score": 0.9988786578178406
+          }
+        ]
+      }
+    },
+    {
+      "id": "politics",
+      "text": "Angela Merkel met Barack Obama in Washington last Monday.",
+      "n_tokens": 14,
+      "input_ids": [
+        101,
+        10516,
+        2508,
+        4661,
+        1883,
+        1899,
+        14319,
+        7661,
+        1107,
+        1994,
+        1314,
+        6356,
+        119,
+        102
+      ],
+      "tokens": [
+        {
+          "column": 0,
+          "token": "[CLS]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9998506307601929,
+          "probs": [
+            0.9998506307601929,
+            3.2910676964093e-05,
+            2.0632574887713417e-05,
+            2.450188185321167e-05,
+            1.3976354239275679e-05,
+            1.478054400649853e-05,
+            1.0591453246888705e-05,
+            1.2526753380370792e-05,
+            1.9453567801974714e-05
+          ]
+        },
+        {
+          "column": 1,
+          "token": "Angela",
+          "special": false,
+          "byte_start": 0,
+          "byte_end": 6,
+          "label_id": 3,
+          "label": "B-PER",
+          "score": 0.9998023509979248,
+          "probs": [
+            2.6621477445587516e-05,
+            3.1343290174845606e-05,
+            1.1020045349141583e-05,
+            0.9998023509979248,
+            2.454317655065097e-05,
+            3.41874074365478e-05,
+            5.6907906582637224e-06,
+            4.821133552468382e-05,
+            1.6007912563509308e-05
+          ]
+        },
+        {
+          "column": 2,
+          "token": "Me",
+          "special": false,
+          "byte_start": 7,
+          "byte_end": 9,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9997527003288269,
+          "probs": [
+            5.8205085224471986e-05,
+            3.06666006508749e-05,
+            2.8989830752834678e-05,
+            2.1645226297550835e-05,
+            0.9997527003288269,
+            9.08012589206919e-06,
+            4.6560737246181816e-05,
+            1.7982738427235745e-05,
+            3.4161897929152474e-05
+          ]
+        },
+        {
+          "column": 3,
+          "token": "##rk",
+          "special": false,
+          "byte_start": 9,
+          "byte_end": 11,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9981380105018616,
+          "probs": [
+            0.0005936089437454939,
+            0.00011811718286480755,
+            0.0001382462796755135,
+            0.0004265272000338882,
+            0.9981380105018616,
+            2.9859485948691145e-05,
+            0.00022722869471181184,
+            0.00011384001845726743,
+            0.00021453385124914348
+          ]
+        },
+        {
+          "column": 4,
+          "token": "##el",
+          "special": false,
+          "byte_start": 11,
+          "byte_end": 13,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9760173559188843,
+          "probs": [
+            0.014639712870121002,
+            0.0005947781610302627,
+            0.0005035251961089671,
+            0.005820521153509617,
+            0.9760173559188843,
+            0.000153133092680946,
+            0.0007399320602416992,
+            0.0007746141636744142,
+            0.0007564467377960682
+          ]
+        },
+        {
+          "column": 5,
+          "token": "met",
+          "special": false,
+          "byte_start": 14,
+          "byte_end": 17,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999719262123108,
+          "probs": [
+            0.9999719262123108,
+            3.904946424881928e-06,
+            4.250983693054877e-06,
+            3.712660372912069e-06,
+            3.2574619126535254e-06,
+            2.038148295469e-06,
+            4.037754024466267e-06,
+            2.709753971430473e-06,
+            4.188431830698391e-06
+          ]
+        },
+        {
+          "column": 6,
+          "token": "Barack",
+          "special": false,
+          "byte_start": 18,
+          "byte_end": 24,
+          "label_id": 3,
+          "label": "B-PER",
+          "score": 0.9995890855789185,
+          "probs": [
+            6.217364716576412e-05,
+            7.321891462197527e-05,
+            1.1318355063849594e-05,
+            0.9995890855789185,
+            3.847088009933941e-05,
+            4.14662754337769e-05,
+            8.18044372863369e-06,
+            0.000158982104039751,
+            1.7093967471737415e-05
+          ]
+        },
+        {
+          "column": 7,
+          "token": "Obama",
+          "special": false,
+          "byte_start": 25,
+          "byte_end": 30,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9996655583381653,
+          "probs": [
+            4.324963083490729e-05,
+            3.740546526387334e-05,
+            5.007972504245117e-05,
+            2.4737824787735008e-05,
+            0.9996655583381653,
+            1.0397042387921829e-05,
+            6.423940794775262e-05,
+            2.948991459561512e-05,
+            7.481723878299817e-05
+          ]
+        },
+        {
+          "column": 8,
+          "token": "in",
+          "special": false,
+          "byte_start": 31,
+          "byte_end": 33,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999642372131348,
+          "probs": [
+            0.9999642372131348,
+            5.3512958402279764e-06,
+            5.9841840993613005e-06,
+            3.3226199320779415e-06,
+            3.208361476936261e-06,
+            2.759490826065303e-06,
+            4.991954938304843e-06,
+            3.505507265799679e-06,
+            6.620510248467326e-06
+          ]
+        },
+        {
+          "column": 9,
+          "token": "Washington",
+          "special": false,
+          "byte_start": 34,
+          "byte_end": 44,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.9996591210365295,
+          "probs": [
+            7.815282879164442e-05,
+            4.0096445445669815e-05,
+            1.072402847057674e-05,
+            8.412081660935655e-05,
+            1.3684044461115263e-05,
+            7.07367216818966e-05,
+            1.9034807337448e-05,
+            0.9996591210365295,
+            2.435346323181875e-05
+          ]
+        },
+        {
+          "column": 10,
+          "token": "last",
+          "special": false,
+          "byte_start": 45,
+          "byte_end": 49,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999750256538391,
+          "probs": [
+            0.9999750256538391,
+            4.3032159737776965e-06,
+            3.2712921438360354e-06,
+            2.515453843443538e-06,
+            2.677110387594439e-06,
+            2.3388470253848936e-06,
+            3.6111523513682187e-06,
+            2.280401304233237e-06,
+            3.986160209024092e-06
+          ]
+        },
+        {
+          "column": 11,
+          "token": "Monday",
+          "special": false,
+          "byte_start": 50,
+          "byte_end": 56,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999756813049316,
+          "probs": [
+            0.9999756813049316,
+            4.127315150981303e-06,
+            3.2030752663558815e-06,
+            2.4953094452939695e-06,
+            2.1364214717323193e-06,
+            2.7132327886647545e-06,
+            3.286403170932317e-06,
+            2.506842292859801e-06,
+            3.876375103573082e-06
+          ]
+        },
+        {
+          "column": 12,
+          "token": ".",
+          "special": false,
+          "byte_start": 56,
+          "byte_end": 57,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999741911888123,
+          "probs": [
+            0.9999741911888123,
+            3.52830261363124e-06,
+            3.929616468667518e-06,
+            3.869129159284057e-06,
+            2.6704694846557686e-06,
+            2.3086333840183215e-06,
+            3.642252977442695e-06,
+            1.9721230728464434e-06,
+            3.8852608668094035e-06
+          ]
+        },
+        {
+          "column": 13,
+          "token": "[SEP]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.7219023704528809,
+          "probs": [
+            0.7219023704528809,
+            0.013960348442196846,
+            0.003965325187891722,
+            0.17783977091312408,
+            0.050938766449689865,
+            0.0014666591305285692,
+            0.0024949817452579737,
+            0.019984908401966095,
+            0.007446847390383482
+          ]
+        }
+      ],
+      "words": [
+        {
+          "byte_start": 0,
+          "byte_end": 6,
+          "text": "Angela",
+          "first_column": 1,
+          "n_tokens": 1,
+          "first_label": "B-PER",
+          "first_score": 0.9998023509979248,
+          "max_label": "B-PER",
+          "max_score": 0.9998023509979248
+        },
+        {
+          "byte_start": 7,
+          "byte_end": 13,
+          "text": "Merkel",
+          "first_column": 2,
+          "n_tokens": 3,
+          "first_label": "I-PER",
+          "first_score": 0.9997527003288269,
+          "max_label": "I-PER",
+          "max_score": 0.9997527003288269
+        },
+        {
+          "byte_start": 14,
+          "byte_end": 17,
+          "text": "met",
+          "first_column": 5,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999719262123108,
+          "max_label": "O",
+          "max_score": 0.9999719262123108
+        },
+        {
+          "byte_start": 18,
+          "byte_end": 24,
+          "text": "Barack",
+          "first_column": 6,
+          "n_tokens": 1,
+          "first_label": "B-PER",
+          "first_score": 0.9995890855789185,
+          "max_label": "B-PER",
+          "max_score": 0.9995890855789185
+        },
+        {
+          "byte_start": 25,
+          "byte_end": 30,
+          "text": "Obama",
+          "first_column": 7,
+          "n_tokens": 1,
+          "first_label": "I-PER",
+          "first_score": 0.9996655583381653,
+          "max_label": "I-PER",
+          "max_score": 0.9996655583381653
+        },
+        {
+          "byte_start": 31,
+          "byte_end": 33,
+          "text": "in",
+          "first_column": 8,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999642372131348,
+          "max_label": "O",
+          "max_score": 0.9999642372131348
+        },
+        {
+          "byte_start": 34,
+          "byte_end": 44,
+          "text": "Washington",
+          "first_column": 9,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.9996591210365295,
+          "max_label": "B-LOC",
+          "max_score": 0.9996591210365295
+        },
+        {
+          "byte_start": 45,
+          "byte_end": 49,
+          "text": "last",
+          "first_column": 10,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999750256538391,
+          "max_label": "O",
+          "max_score": 0.9999750256538391
+        },
+        {
+          "byte_start": 50,
+          "byte_end": 56,
+          "text": "Monday",
+          "first_column": 11,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999756813049316,
+          "max_label": "O",
+          "max_score": 0.9999756813049316
+        },
+        {
+          "byte_start": 56,
+          "byte_end": 57,
+          "text": ".",
+          "first_column": 12,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999741911888123,
+          "max_label": "O",
+          "max_score": 0.9999741911888123
+        }
+      ],
+      "aggregation": {
+        "simple": [
+          {
+            "byte_start": 0,
+            "byte_end": 13,
+            "text": "Angela Merkel",
+            "entity": "PER",
+            "score": 0.9934276342391968
+          },
+          {
+            "byte_start": 18,
+            "byte_end": 30,
+            "text": "Barack Obama",
+            "entity": "PER",
+            "score": 0.9996273517608643
+          },
+          {
+            "byte_start": 34,
+            "byte_end": 44,
+            "text": "Washington",
+            "entity": "LOC",
+            "score": 0.9996591806411743
+          }
+        ],
+        "first": [
+          {
+            "byte_start": 0,
+            "byte_end": 13,
+            "text": "Angela Merkel",
+            "entity": "PER",
+            "score": 0.9997775554656982
+          },
+          {
+            "byte_start": 18,
+            "byte_end": 30,
+            "text": "Barack Obama",
+            "entity": "PER",
+            "score": 0.9996273517608643
+          },
+          {
+            "byte_start": 34,
+            "byte_end": 44,
+            "text": "Washington",
+            "entity": "LOC",
+            "score": 0.9996591806411743
+          }
+        ],
+        "max": [
+          {
+            "byte_start": 0,
+            "byte_end": 13,
+            "text": "Angela Merkel",
+            "entity": "PER",
+            "score": 0.9997775554656982
+          },
+          {
+            "byte_start": 18,
+            "byte_end": 30,
+            "text": "Barack Obama",
+            "entity": "PER",
+            "score": 0.9996273517608643
+          },
+          {
+            "byte_start": 34,
+            "byte_end": 44,
+            "text": "Washington",
+            "entity": "LOC",
+            "score": 0.9996591806411743
+          }
+        ]
+      }
+    },
+    {
+      "id": "adjacent_same_type",
+      "text": "Germany, France and Italy signed the agreement.",
+      "n_tokens": 11,
+      "input_ids": [
+        101,
+        1860,
+        117,
+        1699,
+        1105,
+        2413,
+        1878,
+        1103,
+        3311,
+        119,
+        102
+      ],
+      "tokens": [
+        {
+          "column": 0,
+          "token": "[CLS]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9997835755348206,
+          "probs": [
+            0.9997835755348206,
+            6.297170330071822e-05,
+            2.7076152036897838e-05,
+            1.9646422515506856e-05,
+            1.7884471162687987e-05,
+            3.164366353303194e-05,
+            1.5088267900864594e-05,
+            1.621845513000153e-05,
+            2.5869701858027838e-05
+          ]
+        },
+        {
+          "column": 1,
+          "token": "Germany",
+          "special": false,
+          "byte_start": 0,
+          "byte_end": 7,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.9997889399528503,
+          "probs": [
+            3.163883957313374e-05,
+            4.971072849002667e-05,
+            1.4348579497891478e-05,
+            2.244338065793272e-05,
+            1.275233444175683e-05,
+            2.2812051611253992e-05,
+            2.1199843104113825e-05,
+            0.9997889399528503,
+            3.616750836954452e-05
+          ]
+        },
+        {
+          "column": 2,
+          "token": ",",
+          "special": false,
+          "byte_start": 7,
+          "byte_end": 8,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999698996543884,
+          "probs": [
+            0.9999698996543884,
+            5.134477760293521e-06,
+            3.799815885940916e-06,
+            2.477577254467178e-06,
+            2.6031748348032124e-06,
+            2.7689168291544775e-06,
+            4.5400261114991736e-06,
+            2.971483581859502e-06,
+            5.795944161945954e-06
+          ]
+        },
+        {
+          "column": 3,
+          "token": "France",
+          "special": false,
+          "byte_start": 9,
+          "byte_end": 15,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.999785840511322,
+          "probs": [
+            3.4374297683825716e-05,
+            5.194996265345253e-05,
+            1.2445329048205167e-05,
+            2.931460039690137e-05,
+            1.183069161925232e-05,
+            2.7246484023635276e-05,
+            2.0211598894093186e-05,
+            0.999785840511322,
+            2.6773743229568936e-05
+          ]
+        },
+        {
+          "column": 4,
+          "token": "and",
+          "special": false,
+          "byte_start": 16,
+          "byte_end": 19,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999710917472839,
+          "probs": [
+            0.9999710917472839,
+            4.9554219003766775e-06,
+            4.088669356860919e-06,
+            2.111501316903741e-06,
+            2.7110506835015258e-06,
+            2.254261289635906e-06,
+            4.51372852694476e-06,
+            2.6942116164718755e-06,
+            5.607156253972789e-06
+          ]
+        },
+        {
+          "column": 5,
+          "token": "Italy",
+          "special": false,
+          "byte_start": 20,
+          "byte_end": 25,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.999811053276062,
+          "probs": [
+            2.8654952984652482e-05,
+            5.003284240956418e-05,
+            1.0280627975589596e-05,
+            2.361369479331188e-05,
+            9.361125194118358e-06,
+            2.459999086568132e-05,
+            1.8769032976706512e-05,
+            0.999811053276062,
+            2.3657825295231305e-05
+          ]
+        },
+        {
+          "column": 6,
+          "token": "signed",
+          "special": false,
+          "byte_start": 26,
+          "byte_end": 32,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.999976634979248,
+          "probs": [
+            0.999976634979248,
+            4.836846528633032e-06,
+            3.2039499728853116e-06,
+            2.381760396019672e-06,
+            2.253674438179587e-06,
+            2.0166182821412804e-06,
+            3.4079737361025764e-06,
+            1.957065478563891e-06,
+            3.3301469102298142e-06
+          ]
+        },
+        {
+          "column": 7,
+          "token": "the",
+          "special": false,
+          "byte_start": 33,
+          "byte_end": 36,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999766945838928,
+          "probs": [
+            0.9999766945838928,
+            4.760930551128695e-06,
+            3.604968014769838e-06,
+            2.0995066734030843e-06,
+            2.188509370171232e-06,
+            1.9575936676119454e-06,
+            3.460182597336825e-06,
+            2.0089382815058343e-06,
+            3.201481149517349e-06
+          ]
+        },
+        {
+          "column": 8,
+          "token": "agreement",
+          "special": false,
+          "byte_start": 37,
+          "byte_end": 46,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999743103981018,
+          "probs": [
+            0.9999743103981018,
+            5.745941962231882e-06,
+            3.3150713534269016e-06,
+            2.8592291982931783e-06,
+            2.095820264003123e-06,
+            2.4685832613613456e-06,
+            3.5640443911688635e-06,
+            2.1425498744065408e-06,
+            3.4997030979866395e-06
+          ]
+        },
+        {
+          "column": 9,
+          "token": ".",
+          "special": false,
+          "byte_start": 46,
+          "byte_end": 47,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999751448631287,
+          "probs": [
+            0.9999751448631287,
+            5.542726739804493e-06,
+            3.495512828521896e-06,
+            2.6939742383547127e-06,
+            2.3050070012686774e-06,
+            2.553308831920731e-06,
+            3.1845454486756353e-06,
+            1.9026317659154302e-06,
+            3.190561756127863e-06
+          ]
+        },
+        {
+          "column": 10,
+          "token": "[SEP]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9497024416923523,
+          "probs": [
+            0.9497024416923523,
+            0.012754290364682674,
+            0.00177490315400064,
+            0.0007353720138780773,
+            0.0008064817520789802,
+            0.002416006289422512,
+            0.0016221567057073116,
+            0.02798880636692047,
+            0.0021995175629854202
+          ]
+        }
+      ],
+      "words": [
+        {
+          "byte_start": 0,
+          "byte_end": 7,
+          "text": "Germany",
+          "first_column": 1,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.9997889399528503,
+          "max_label": "B-LOC",
+          "max_score": 0.9997889399528503
+        },
+        {
+          "byte_start": 7,
+          "byte_end": 8,
+          "text": ",",
+          "first_column": 2,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999698996543884,
+          "max_label": "O",
+          "max_score": 0.9999698996543884
+        },
+        {
+          "byte_start": 9,
+          "byte_end": 15,
+          "text": "France",
+          "first_column": 3,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.999785840511322,
+          "max_label": "B-LOC",
+          "max_score": 0.999785840511322
+        },
+        {
+          "byte_start": 16,
+          "byte_end": 19,
+          "text": "and",
+          "first_column": 4,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999710917472839,
+          "max_label": "O",
+          "max_score": 0.9999710917472839
+        },
+        {
+          "byte_start": 20,
+          "byte_end": 25,
+          "text": "Italy",
+          "first_column": 5,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.999811053276062,
+          "max_label": "B-LOC",
+          "max_score": 0.999811053276062
+        },
+        {
+          "byte_start": 26,
+          "byte_end": 32,
+          "text": "signed",
+          "first_column": 6,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.999976634979248,
+          "max_label": "O",
+          "max_score": 0.999976634979248
+        },
+        {
+          "byte_start": 33,
+          "byte_end": 36,
+          "text": "the",
+          "first_column": 7,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999766945838928,
+          "max_label": "O",
+          "max_score": 0.9999766945838928
+        },
+        {
+          "byte_start": 37,
+          "byte_end": 46,
+          "text": "agreement",
+          "first_column": 8,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999743103981018,
+          "max_label": "O",
+          "max_score": 0.9999743103981018
+        },
+        {
+          "byte_start": 46,
+          "byte_end": 47,
+          "text": ".",
+          "first_column": 9,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999751448631287,
+          "max_label": "O",
+          "max_score": 0.9999751448631287
+        }
+      ],
+      "aggregation": {
+        "simple": [
+          {
+            "byte_start": 0,
+            "byte_end": 7,
+            "text": "Germany",
+            "entity": "LOC",
+            "score": 0.9997890591621399
+          },
+          {
+            "byte_start": 9,
+            "byte_end": 15,
+            "text": "France",
+            "entity": "LOC",
+            "score": 0.9997857213020325
+          },
+          {
+            "byte_start": 20,
+            "byte_end": 25,
+            "text": "Italy",
+            "entity": "LOC",
+            "score": 0.9998111128807068
+          }
+        ],
+        "first": [
+          {
+            "byte_start": 0,
+            "byte_end": 7,
+            "text": "Germany",
+            "entity": "LOC",
+            "score": 0.9997890591621399
+          },
+          {
+            "byte_start": 9,
+            "byte_end": 15,
+            "text": "France",
+            "entity": "LOC",
+            "score": 0.9997857213020325
+          },
+          {
+            "byte_start": 20,
+            "byte_end": 25,
+            "text": "Italy",
+            "entity": "LOC",
+            "score": 0.9998111128807068
+          }
+        ],
+        "max": [
+          {
+            "byte_start": 0,
+            "byte_end": 7,
+            "text": "Germany",
+            "entity": "LOC",
+            "score": 0.9997890591621399
+          },
+          {
+            "byte_start": 9,
+            "byte_end": 15,
+            "text": "France",
+            "entity": "LOC",
+            "score": 0.9997857213020325
+          },
+          {
+            "byte_start": 20,
+            "byte_end": 25,
+            "text": "Italy",
+            "entity": "LOC",
+            "score": 0.9998111128807068
+          }
+        ]
+      }
+    },
+    {
+      "id": "org_then_loc",
+      "text": "Siemens opened a research office in Munich and in Prague.",
+      "n_tokens": 13,
+      "input_ids": [
+        101,
+        24824,
+        1533,
+        170,
+        1844,
+        1701,
+        1107,
+        6947,
+        1105,
+        1107,
+        8254,
+        119,
+        102
+      ],
+      "tokens": [
+        {
+          "column": 0,
+          "token": "[CLS]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9993550777435303,
+          "probs": [
+            0.9993550777435303,
+            0.0001050382197718136,
+            8.304513903567567e-05,
+            4.383585473988205e-05,
+            4.121420352021232e-05,
+            0.0001289816718781367,
+            8.73825847520493e-05,
+            5.2135826990706846e-05,
+            0.0001032983127515763
+          ]
+        },
+        {
+          "column": 1,
+          "token": "Siemens",
+          "special": false,
+          "byte_start": 0,
+          "byte_end": 7,
+          "label_id": 5,
+          "label": "B-ORG",
+          "score": 0.9989537000656128,
+          "probs": [
+            0.00012944229820277542,
+            0.0002153803943656385,
+            4.373254705569707e-05,
+            0.0004953232710249722,
+            3.2790947443572804e-05,
+            0.9989537000656128,
+            5.332007276592776e-05,
+            6.129583925940096e-05,
+            1.4996376194176264e-05
+          ]
+        },
+        {
+          "column": 2,
+          "token": "opened",
+          "special": false,
+          "byte_start": 8,
+          "byte_end": 14,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999620914459229,
+          "probs": [
+            0.9999620914459229,
+            4.327409897086909e-06,
+            3.505527956804144e-06,
+            3.0553514989151154e-06,
+            2.196423110945034e-06,
+            4.779292794410139e-06,
+            1.1112429092463572e-05,
+            2.9809459647367476e-06,
+            5.980401965643978e-06
+          ]
+        },
+        {
+          "column": 3,
+          "token": "a",
+          "special": false,
+          "byte_start": 15,
+          "byte_end": 16,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999701380729675,
+          "probs": [
+            0.9999701380729675,
+            3.644726803031517e-06,
+            2.941314733106992e-06,
+            2.4302009933308e-06,
+            2.1634036784234922e-06,
+            3.3810074455686845e-06,
+            8.086080924840644e-06,
+            2.3978823264769744e-06,
+            4.82449286209885e-06
+          ]
+        },
+        {
+          "column": 4,
+          "token": "research",
+          "special": false,
+          "byte_start": 17,
+          "byte_end": 25,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999663233757019,
+          "probs": [
+            0.9999663233757019,
+            4.898210590909002e-06,
+            3.5072148421022575e-06,
+            2.613158358144574e-06,
+            2.081216962324106e-06,
+            4.0228155739896465e-06,
+            9.458172826271039e-06,
+            2.15401996683795e-06,
+            4.946498847857583e-06
+          ]
+        },
+        {
+          "column": 5,
+          "token": "office",
+          "special": false,
+          "byte_start": 26,
+          "byte_end": 32,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999554753303528,
+          "probs": [
+            0.9999554753303528,
+            4.479014023672789e-06,
+            4.262299171386985e-06,
+            2.960719029942993e-06,
+            2.6576699383440427e-06,
+            4.264914878149284e-06,
+            1.5541141692665406e-05,
+            2.759362587312353e-06,
+            7.619101324962685e-06
+          ]
+        },
+        {
+          "column": 6,
+          "token": "in",
+          "special": false,
+          "byte_start": 33,
+          "byte_end": 35,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999548196792603,
+          "probs": [
+            0.9999548196792603,
+            4.969275778421434e-06,
+            4.70802842755802e-06,
+            3.7629558846674627e-06,
+            2.9351374450925505e-06,
+            4.503503987507429e-06,
+            9.84019698080374e-06,
+            4.967871063854545e-06,
+            9.494440746493638e-06
+          ]
+        },
+        {
+          "column": 7,
+          "token": "Munich",
+          "special": false,
+          "byte_start": 36,
+          "byte_end": 42,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.9993577003479004,
+          "probs": [
+            0.00018786065629683435,
+            9.313037298852578e-05,
+            1.2859813978138845e-05,
+            0.0001381486508762464,
+            2.106889041897375e-05,
+            0.00013826067151967436,
+            2.5808327336562797e-05,
+            0.9993577003479004,
+            2.514794687158428e-05
+          ]
+        },
+        {
+          "column": 8,
+          "token": "and",
+          "special": false,
+          "byte_start": 43,
+          "byte_end": 46,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999575018882751,
+          "probs": [
+            0.9999575018882751,
+            3.969852514273953e-06,
+            4.944276497553801e-06,
+            2.6009645353042288e-06,
+            2.8778583782695932e-06,
+            3.740489091796917e-06,
+            8.905381946533453e-06,
+            3.56413738700212e-06,
+            1.1882131730089895e-05
+          ]
+        },
+        {
+          "column": 9,
+          "token": "in",
+          "special": false,
+          "byte_start": 47,
+          "byte_end": 49,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999538660049438,
+          "probs": [
+            0.9999538660049438,
+            5.477130343933823e-06,
+            4.292168341635261e-06,
+            3.987327090726467e-06,
+            2.380235173404799e-06,
+            5.028737632528646e-06,
+            8.261708899226505e-06,
+            5.630501618725248e-06,
+            1.1096753951278515e-05
+          ]
+        },
+        {
+          "column": 10,
+          "token": "Prague",
+          "special": false,
+          "byte_start": 50,
+          "byte_end": 56,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.9995232224464417,
+          "probs": [
+            0.0001161092150141485,
+            6.923941691638902e-05,
+            1.2296454769966658e-05,
+            0.00010516375186853111,
+            1.6031950508477166e-05,
+            0.00011124692537123337,
+            2.272049277962651e-05,
+            0.9995232224464417,
+            2.3953973141033202e-05
+          ]
+        },
+        {
+          "column": 11,
+          "token": ".",
+          "special": false,
+          "byte_start": 56,
+          "byte_end": 57,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999605417251587,
+          "probs": [
+            0.9999605417251587,
+            4.57748274129699e-06,
+            5.499010057974374e-06,
+            3.041312311324873e-06,
+            2.289310259584454e-06,
+            3.665853228085325e-06,
+            7.786796231812332e-06,
+            2.2826664007880026e-06,
+            1.0308580385753885e-05
+          ]
+        },
+        {
+          "column": 12,
+          "token": "[SEP]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9932688474655151,
+          "probs": [
+            0.9932688474655151,
+            0.0018206299282610416,
+            0.00024135792045854032,
+            0.00011845437256852165,
+            8.684063504915684e-05,
+            0.0012670628493651748,
+            0.0005275884759612381,
+            0.002397723263129592,
+            0.000271512457402423
+          ]
+        }
+      ],
+      "words": [
+        {
+          "byte_start": 0,
+          "byte_end": 7,
+          "text": "Siemens",
+          "first_column": 1,
+          "n_tokens": 1,
+          "first_label": "B-ORG",
+          "first_score": 0.9989537000656128,
+          "max_label": "B-ORG",
+          "max_score": 0.9989537000656128
+        },
+        {
+          "byte_start": 8,
+          "byte_end": 14,
+          "text": "opened",
+          "first_column": 2,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999620914459229,
+          "max_label": "O",
+          "max_score": 0.9999620914459229
+        },
+        {
+          "byte_start": 15,
+          "byte_end": 16,
+          "text": "a",
+          "first_column": 3,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999701380729675,
+          "max_label": "O",
+          "max_score": 0.9999701380729675
+        },
+        {
+          "byte_start": 17,
+          "byte_end": 25,
+          "text": "research",
+          "first_column": 4,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999663233757019,
+          "max_label": "O",
+          "max_score": 0.9999663233757019
+        },
+        {
+          "byte_start": 26,
+          "byte_end": 32,
+          "text": "office",
+          "first_column": 5,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999554753303528,
+          "max_label": "O",
+          "max_score": 0.9999554753303528
+        },
+        {
+          "byte_start": 33,
+          "byte_end": 35,
+          "text": "in",
+          "first_column": 6,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999548196792603,
+          "max_label": "O",
+          "max_score": 0.9999548196792603
+        },
+        {
+          "byte_start": 36,
+          "byte_end": 42,
+          "text": "Munich",
+          "first_column": 7,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.9993577003479004,
+          "max_label": "B-LOC",
+          "max_score": 0.9993577003479004
+        },
+        {
+          "byte_start": 43,
+          "byte_end": 46,
+          "text": "and",
+          "first_column": 8,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999575018882751,
+          "max_label": "O",
+          "max_score": 0.9999575018882751
+        },
+        {
+          "byte_start": 47,
+          "byte_end": 49,
+          "text": "in",
+          "first_column": 9,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999538660049438,
+          "max_label": "O",
+          "max_score": 0.9999538660049438
+        },
+        {
+          "byte_start": 50,
+          "byte_end": 56,
+          "text": "Prague",
+          "first_column": 10,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.9995232224464417,
+          "max_label": "B-LOC",
+          "max_score": 0.9995232224464417
+        },
+        {
+          "byte_start": 56,
+          "byte_end": 57,
+          "text": ".",
+          "first_column": 11,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999605417251587,
+          "max_label": "O",
+          "max_score": 0.9999605417251587
+        }
+      ],
+      "aggregation": {
+        "simple": [
+          {
+            "byte_start": 0,
+            "byte_end": 7,
+            "text": "Siemens",
+            "entity": "ORG",
+            "score": 0.9989538192749023
+          },
+          {
+            "byte_start": 36,
+            "byte_end": 42,
+            "text": "Munich",
+            "entity": "LOC",
+            "score": 0.9993577599525452
+          },
+          {
+            "byte_start": 50,
+            "byte_end": 56,
+            "text": "Prague",
+            "entity": "LOC",
+            "score": 0.9995232820510864
+          }
+        ],
+        "first": [
+          {
+            "byte_start": 0,
+            "byte_end": 7,
+            "text": "Siemens",
+            "entity": "ORG",
+            "score": 0.9989538192749023
+          },
+          {
+            "byte_start": 36,
+            "byte_end": 42,
+            "text": "Munich",
+            "entity": "LOC",
+            "score": 0.9993577599525452
+          },
+          {
+            "byte_start": 50,
+            "byte_end": 56,
+            "text": "Prague",
+            "entity": "LOC",
+            "score": 0.9995232820510864
+          }
+        ],
+        "max": [
+          {
+            "byte_start": 0,
+            "byte_end": 7,
+            "text": "Siemens",
+            "entity": "ORG",
+            "score": 0.9989538192749023
+          },
+          {
+            "byte_start": 36,
+            "byte_end": 42,
+            "text": "Munich",
+            "entity": "LOC",
+            "score": 0.9993577599525452
+          },
+          {
+            "byte_start": 50,
+            "byte_end": 56,
+            "text": "Prague",
+            "entity": "LOC",
+            "score": 0.9995232820510864
+          }
+        ]
+      }
+    },
+    {
+      "id": "hyphenated",
+      "text": "Jean-Claude Juncker worked for the European Commission in Brussels.",
+      "n_tokens": 15,
+      "input_ids": [
+        101,
+        2893,
+        118,
+        7695,
+        12865,
+        8638,
+        1589,
+        1111,
+        1103,
+        1735,
+        2827,
+        1107,
+        9062,
+        119,
+        102
+      ],
+      "tokens": [
+        {
+          "column": 0,
+          "token": "[CLS]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9984495639801025,
+          "probs": [
+            0.9984495639801025,
+            0.0003227624692954123,
+            0.00016116219921968877,
+            0.00030750338919460773,
+            0.0001111814781324938,
+            0.00021411204943433404,
+            0.00010253177606500685,
+            0.00014584281598217785,
+            0.0001853589783422649
+          ]
+        },
+        {
+          "column": 1,
+          "token": "Jean",
+          "special": false,
+          "byte_start": 0,
+          "byte_end": 4,
+          "label_id": 3,
+          "label": "B-PER",
+          "score": 0.9995971918106079,
+          "probs": [
+            0.00011300142068648711,
+            0.00013502065849024802,
+            1.4202312740962952e-05,
+            0.9995971918106079,
+            4.216226079734042e-05,
+            3.780138649744913e-05,
+            9.256453267880715e-06,
+            3.22865234920755e-05,
+            1.9059023543377407e-05
+          ]
+        },
+        {
+          "column": 2,
+          "token": "-",
+          "special": false,
+          "byte_start": 4,
+          "byte_end": 5,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.4501931965351105,
+          "probs": [
+            0.2948841452598572,
+            0.004774902481585741,
+            0.0046316273510456085,
+            0.23021742701530457,
+            0.4501931965351105,
+            0.0008118940168060362,
+            0.007204436231404543,
+            0.0022663893178105354,
+            0.005015975795686245
+          ]
+        },
+        {
+          "column": 3,
+          "token": "Claude",
+          "special": false,
+          "byte_start": 5,
+          "byte_end": 11,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9231338500976562,
+          "probs": [
+            0.004892878700047731,
+            0.0003682384267449379,
+            0.0007266977336257696,
+            0.06901135295629501,
+            0.9231338500976562,
+            0.0001452451106160879,
+            0.0008516411180607975,
+            0.00037330680061131716,
+            0.0004967631539329886
+          ]
+        },
+        {
+          "column": 4,
+          "token": "Jun",
+          "special": false,
+          "byte_start": 12,
+          "byte_end": 15,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9997102618217468,
+          "probs": [
+            6.446993938880041e-05,
+            5.228756708675064e-05,
+            3.2058294891612604e-05,
+            6.081022002035752e-05,
+            0.9997102618217468,
+            1.4967223251005635e-05,
+            2.8968390324735083e-05,
+            1.9436251022852957e-05,
+            1.674185841693543e-05
+          ]
+        },
+        {
+          "column": 5,
+          "token": "##cker",
+          "special": false,
+          "byte_start": 15,
+          "byte_end": 19,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9981491565704346,
+          "probs": [
+            0.00078464241232723,
+            0.0001388074888382107,
+            0.00018363067647442222,
+            0.00046286426368169487,
+            0.9981491565704346,
+            3.2007556001190096e-05,
+            0.00012374419020488858,
+            6.989963731030002e-05,
+            5.524150037672371e-05
+          ]
+        },
+        {
+          "column": 6,
+          "token": "worked",
+          "special": false,
+          "byte_start": 20,
+          "byte_end": 26,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999685883522034,
+          "probs": [
+            0.9999685883522034,
+            4.497034751693718e-06,
+            3.595527914512786e-06,
+            4.312438250053674e-06,
+            3.365210659467266e-06,
+            2.935395741587854e-06,
+            4.3585255298239645e-06,
+            3.237887995055644e-06,
+            5.110774054628564e-06
+          ]
+        },
+        {
+          "column": 7,
+          "token": "for",
+          "special": false,
+          "byte_start": 27,
+          "byte_end": 30,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.999960720539093,
+          "probs": [
+            0.999960720539093,
+            5.345012596080778e-06,
+            3.455211754044285e-06,
+            4.335034645919222e-06,
+            3.11425287691236e-06,
+            5.082013103674399e-06,
+            7.514126991736703e-06,
+            4.321121650718851e-06,
+            6.116033546277322e-06
+          ]
+        },
+        {
+          "column": 8,
+          "token": "the",
+          "special": false,
+          "byte_start": 31,
+          "byte_end": 34,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999605417251587,
+          "probs": [
+            0.9999605417251587,
+            4.853860900766449e-06,
+            3.7996710489096586e-06,
+            4.452929715625942e-06,
+            2.9204736620158656e-06,
+            4.84907513964572e-06,
+            7.894745067460462e-06,
+            4.211491614114493e-06,
+            6.460987151513109e-06
+          ]
+        },
+        {
+          "column": 9,
+          "token": "European",
+          "special": false,
+          "byte_start": 35,
+          "byte_end": 43,
+          "label_id": 5,
+          "label": "B-ORG",
+          "score": 0.9995071291923523,
+          "probs": [
+            5.74635632801801e-05,
+            0.00015691631415393203,
+            3.338009992148727e-05,
+            8.162001904565841e-05,
+            1.511993832536973e-05,
+            0.9995071291923523,
+            5.3645264415536076e-05,
+            8.302347850985825e-05,
+            1.16903274829383e-05
+          ]
+        },
+        {
+          "column": 10,
+          "token": "Commission",
+          "special": false,
+          "byte_start": 44,
+          "byte_end": 54,
+          "label_id": 6,
+          "label": "I-ORG",
+          "score": 0.9992923736572266,
+          "probs": [
+            0.00017563426808919758,
+            2.2842576072434895e-05,
+            0.00019011041149497032,
+            1.764136140991468e-05,
+            6.58751669107005e-05,
+            0.00012209780106786638,
+            0.9992923736572266,
+            3.7260015233187005e-05,
+            7.616537186549976e-05
+          ]
+        },
+        {
+          "column": 11,
+          "token": "in",
+          "special": false,
+          "byte_start": 55,
+          "byte_end": 57,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999309182167053,
+          "probs": [
+            0.9999309182167053,
+            7.641077900188975e-06,
+            9.29036923480453e-06,
+            5.3773901527165435e-06,
+            3.910321538569406e-06,
+            4.934365279041231e-06,
+            1.733510180201847e-05,
+            7.201860171335284e-06,
+            1.33989433379611e-05
+          ]
+        },
+        {
+          "column": 12,
+          "token": "Brussels",
+          "special": false,
+          "byte_start": 58,
+          "byte_end": 66,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.9993219971656799,
+          "probs": [
+            0.00013478670734912157,
+            0.00012021333532175049,
+            1.675910607445985e-05,
+            9.565155778545886e-05,
+            2.223132469225675e-05,
+            0.0002148769417544827,
+            3.965135692851618e-05,
+            0.9993219971656799,
+            3.3809817978180945e-05
+          ]
+        },
+        {
+          "column": 13,
+          "token": ".",
+          "special": false,
+          "byte_start": 66,
+          "byte_end": 67,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999574422836304,
+          "probs": [
+            0.9999574422836304,
+            4.381169674161356e-06,
+            6.1890077631687745e-06,
+            5.585658072959632e-06,
+            2.7771170607593376e-06,
+            2.9882028229621937e-06,
+            7.98949804448057e-06,
+            2.7803719149233075e-06,
+            9.866575965133961e-06
+          ]
+        },
+        {
+          "column": 14,
+          "token": "[SEP]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9649226069450378,
+          "probs": [
+            0.9649226069450378,
+            0.007627334911376238,
+            0.001272230059839785,
+            0.011596576310694218,
+            0.006262722425162792,
+            0.0017071011243388057,
+            0.002822655951604247,
+            0.003052609506994486,
+            0.0007361609023064375
+          ]
+        }
+      ],
+      "words": [
+        {
+          "byte_start": 0,
+          "byte_end": 4,
+          "text": "Jean",
+          "first_column": 1,
+          "n_tokens": 1,
+          "first_label": "B-PER",
+          "first_score": 0.9995971918106079,
+          "max_label": "B-PER",
+          "max_score": 0.9995971918106079
+        },
+        {
+          "byte_start": 4,
+          "byte_end": 5,
+          "text": "-",
+          "first_column": 2,
+          "n_tokens": 1,
+          "first_label": "I-PER",
+          "first_score": 0.4501931965351105,
+          "max_label": "I-PER",
+          "max_score": 0.4501931965351105
+        },
+        {
+          "byte_start": 5,
+          "byte_end": 11,
+          "text": "Claude",
+          "first_column": 3,
+          "n_tokens": 1,
+          "first_label": "I-PER",
+          "first_score": 0.9231338500976562,
+          "max_label": "I-PER",
+          "max_score": 0.9231338500976562
+        },
+        {
+          "byte_start": 12,
+          "byte_end": 19,
+          "text": "Juncker",
+          "first_column": 4,
+          "n_tokens": 2,
+          "first_label": "I-PER",
+          "first_score": 0.9997102618217468,
+          "max_label": "I-PER",
+          "max_score": 0.9997102618217468
+        },
+        {
+          "byte_start": 20,
+          "byte_end": 26,
+          "text": "worked",
+          "first_column": 6,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999685883522034,
+          "max_label": "O",
+          "max_score": 0.9999685883522034
+        },
+        {
+          "byte_start": 27,
+          "byte_end": 30,
+          "text": "for",
+          "first_column": 7,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.999960720539093,
+          "max_label": "O",
+          "max_score": 0.999960720539093
+        },
+        {
+          "byte_start": 31,
+          "byte_end": 34,
+          "text": "the",
+          "first_column": 8,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999605417251587,
+          "max_label": "O",
+          "max_score": 0.9999605417251587
+        },
+        {
+          "byte_start": 35,
+          "byte_end": 43,
+          "text": "European",
+          "first_column": 9,
+          "n_tokens": 1,
+          "first_label": "B-ORG",
+          "first_score": 0.9995071291923523,
+          "max_label": "B-ORG",
+          "max_score": 0.9995071291923523
+        },
+        {
+          "byte_start": 44,
+          "byte_end": 54,
+          "text": "Commission",
+          "first_column": 10,
+          "n_tokens": 1,
+          "first_label": "I-ORG",
+          "first_score": 0.9992923736572266,
+          "max_label": "I-ORG",
+          "max_score": 0.9992923736572266
+        },
+        {
+          "byte_start": 55,
+          "byte_end": 57,
+          "text": "in",
+          "first_column": 11,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999309182167053,
+          "max_label": "O",
+          "max_score": 0.9999309182167053
+        },
+        {
+          "byte_start": 58,
+          "byte_end": 66,
+          "text": "Brussels",
+          "first_column": 12,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.9993219971656799,
+          "max_label": "B-LOC",
+          "max_score": 0.9993219971656799
+        },
+        {
+          "byte_start": 66,
+          "byte_end": 67,
+          "text": ".",
+          "first_column": 13,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999574422836304,
+          "max_label": "O",
+          "max_score": 0.9999574422836304
+        }
+      ],
+      "aggregation": {
+        "simple": [
+          {
+            "byte_start": 0,
+            "byte_end": 19,
+            "text": "Jean-Claude Juncker",
+            "entity": "PER",
+            "score": 0.8741567730903625
+          },
+          {
+            "byte_start": 35,
+            "byte_end": 54,
+            "text": "European Commission",
+            "entity": "ORG",
+            "score": 0.9993997812271118
+          },
+          {
+            "byte_start": 58,
+            "byte_end": 66,
+            "text": "Brussels",
+            "entity": "LOC",
+            "score": 0.9993220567703247
+          }
+        ],
+        "first": [
+          {
+            "byte_start": 0,
+            "byte_end": 19,
+            "text": "Jean-Claude Juncker",
+            "entity": "PER",
+            "score": 0.8431586623191833
+          },
+          {
+            "byte_start": 35,
+            "byte_end": 54,
+            "text": "European Commission",
+            "entity": "ORG",
+            "score": 0.9993997812271118
+          },
+          {
+            "byte_start": 58,
+            "byte_end": 66,
+            "text": "Brussels",
+            "entity": "LOC",
+            "score": 0.9993220567703247
+          }
+        ],
+        "max": [
+          {
+            "byte_start": 0,
+            "byte_end": 19,
+            "text": "Jean-Claude Juncker",
+            "entity": "PER",
+            "score": 0.8431586623191833
+          },
+          {
+            "byte_start": 35,
+            "byte_end": 54,
+            "text": "European Commission",
+            "entity": "ORG",
+            "score": 0.9993997812271118
+          },
+          {
+            "byte_start": 58,
+            "byte_end": 66,
+            "text": "Brussels",
+            "entity": "LOC",
+            "score": 0.9993220567703247
+          }
+        ]
+      }
+    },
+    {
+      "id": "accented",
+      "text": "Sao Paulo and Zurich hosted the meeting of the World Bank.",
+      "n_tokens": 15,
+      "input_ids": [
+        101,
+        17784,
+        1186,
+        8764,
+        1105,
+        16142,
+        3567,
+        1103,
+        2309,
+        1104,
+        1103,
+        1291,
+        2950,
+        119,
+        102
+      ],
+      "tokens": [
+        {
+          "column": 0,
+          "token": "[CLS]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9997714161872864,
+          "probs": [
+            0.9997714161872864,
+            5.065336881671101e-05,
+            2.6880987206823193e-05,
+            2.0092378690605983e-05,
+            1.5719713701400906e-05,
+            4.4986405555391684e-05,
+            1.9517025066306815e-05,
+            2.135440445272252e-05,
+            2.939262230938766e-05
+          ]
+        },
+        {
+          "column": 1,
+          "token": "Sa",
+          "special": false,
+          "byte_start": 0,
+          "byte_end": 2,
+          "label_id": 5,
+          "label": "B-ORG",
+          "score": 0.6205906271934509,
+          "probs": [
+            0.002077528741210699,
+            0.000735152920242399,
+            0.00018861264106817544,
+            0.0029716903809458017,
+            0.00014813157031312585,
+            0.6205906271934509,
+            0.000332502881065011,
+            0.3727272152900696,
+            0.0002285475784447044
+          ]
+        },
+        {
+          "column": 2,
+          "token": "##o",
+          "special": false,
+          "byte_start": 2,
+          "byte_end": 3,
+          "label_id": 8,
+          "label": "I-LOC",
+          "score": 0.710395097732544,
+          "probs": [
+            0.0030186909716576338,
+            0.0003066437493544072,
+            0.0005856695934198797,
+            0.0004176631337031722,
+            0.0032864122185856104,
+            0.004858674947172403,
+            0.27345800399780273,
+            0.003673125756904483,
+            0.710395097732544
+          ]
+        },
+        {
+          "column": 3,
+          "token": "Paulo",
+          "special": false,
+          "byte_start": 4,
+          "byte_end": 9,
+          "label_id": 8,
+          "label": "I-LOC",
+          "score": 0.6550782322883606,
+          "probs": [
+            0.0009693207684904337,
+            0.0001522707607364282,
+            0.0004501011280808598,
+            0.00017632253002375364,
+            0.0025536888279020786,
+            0.0008745079976506531,
+            0.3392232060432434,
+            0.0005223640473559499,
+            0.6550782322883606
+          ]
+        },
+        {
+          "column": 4,
+          "token": "and",
+          "special": false,
+          "byte_start": 10,
+          "byte_end": 13,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999536871910095,
+          "probs": [
+            0.9999536871910095,
+            5.045260422775755e-06,
+            6.358447990351124e-06,
+            2.7976452656730544e-06,
+            3.054611624975223e-06,
+            3.8243479139055125e-06,
+            9.989043064706493e-06,
+            3.96529048884986e-06,
+            1.128363874158822e-05
+          ]
+        },
+        {
+          "column": 5,
+          "token": "Zurich",
+          "special": false,
+          "byte_start": 14,
+          "byte_end": 20,
+          "label_id": 7,
+          "label": "B-LOC",
+          "score": 0.979927122592926,
+          "probs": [
+            0.00025232680491171777,
+            0.00017864289111457765,
+            5.89857590966858e-05,
+            0.0005214750999584794,
+            5.3916846809443086e-05,
+            0.018782373517751694,
+            0.00014959323743823916,
+            0.979927122592926,
+            7.556290074717253e-05
+          ]
+        },
+        {
+          "column": 6,
+          "token": "hosted",
+          "special": false,
+          "byte_start": 21,
+          "byte_end": 27,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999629855155945,
+          "probs": [
+            0.9999629855155945,
+            4.363786047179019e-06,
+            5.706270258087898e-06,
+            2.7639937343337806e-06,
+            2.590635176602518e-06,
+            3.6202666251483606e-06,
+            8.728379725653213e-06,
+            2.77841877505125e-06,
+            6.4380865296698175e-06
+          ]
+        },
+        {
+          "column": 7,
+          "token": "the",
+          "special": false,
+          "byte_start": 28,
+          "byte_end": 31,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.999972939491272,
+          "probs": [
+            0.999972939491272,
+            4.510201961238636e-06,
+            3.930352249881253e-06,
+            2.5712390652188333e-06,
+            1.9295546280773124e-06,
+            3.3153667118313024e-06,
+            4.249031007930171e-06,
+            2.5129932055278914e-06,
+            4.068784164701356e-06
+          ]
+        },
+        {
+          "column": 8,
+          "token": "meeting",
+          "special": false,
+          "byte_start": 32,
+          "byte_end": 39,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999562501907349,
+          "probs": [
+            0.9999562501907349,
+            7.444409220624948e-06,
+            4.235675532981986e-06,
+            4.314119451009901e-06,
+            2.1660930542566348e-06,
+            7.941021976876073e-06,
+            6.984809260757174e-06,
+            4.850075129070319e-06,
+            5.7950210248236544e-06
+          ]
+        },
+        {
+          "column": 9,
+          "token": "of",
+          "special": false,
+          "byte_start": 40,
+          "byte_end": 42,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999667406082153,
+          "probs": [
+            0.9999667406082153,
+            4.936925961374072e-06,
+            5.0607218327058945e-06,
+            2.5125116280833026e-06,
+            2.5843210096354596e-06,
+            4.422791334945941e-06,
+            5.868447260581888e-06,
+            2.9715047276113182e-06,
+            4.928883299726294e-06
+          ]
+        },
+        {
+          "column": 10,
+          "token": "the",
+          "special": false,
+          "byte_start": 43,
+          "byte_end": 46,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999690055847168,
+          "probs": [
+            0.9999690055847168,
+            5.048327693657484e-06,
+            4.295805410947651e-06,
+            2.9954990168334916e-06,
+            1.9111485016765073e-06,
+            4.381563485367224e-06,
+            4.795033419213723e-06,
+            3.0873343348503113e-06,
+            4.467775852390332e-06
+          ]
+        },
+        {
+          "column": 11,
+          "token": "World",
+          "special": false,
+          "byte_start": 47,
+          "byte_end": 52,
+          "label_id": 5,
+          "label": "B-ORG",
+          "score": 0.9991345405578613,
+          "probs": [
+            0.00010804596968227997,
+            0.0004064679378643632,
+            4.0293100028065965e-05,
+            0.00012487753701861948,
+            1.381902620778419e-05,
+            0.9991345405578613,
+            3.815392483375035e-05,
+            0.00012378403334878385,
+            1.0013696737587452e-05
+          ]
+        },
+        {
+          "column": 12,
+          "token": "Bank",
+          "special": false,
+          "byte_start": 53,
+          "byte_end": 57,
+          "label_id": 6,
+          "label": "I-ORG",
+          "score": 0.9984951019287109,
+          "probs": [
+            0.00036517163971439004,
+            3.5808683605864644e-05,
+            0.0005780892097391188,
+            2.256454354210291e-05,
+            0.00010837569425348192,
+            0.0001492401643190533,
+            0.9984951019287109,
+            4.878129402641207e-05,
+            0.00019689241889864206
+          ]
+        },
+        {
+          "column": 13,
+          "token": ".",
+          "special": false,
+          "byte_start": 57,
+          "byte_end": 58,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999637603759766,
+          "probs": [
+            0.9999637603759766,
+            5.302374120219611e-06,
+            6.035189926478779e-06,
+            3.1814354315429227e-06,
+            2.5282804472226417e-06,
+            4.531746526481584e-06,
+            6.557408596563619e-06,
+            2.52245195042633e-06,
+            5.581121513387188e-06
+          ]
+        },
+        {
+          "column": 14,
+          "token": "[SEP]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9847617745399475,
+          "probs": [
+            0.9847617745399475,
+            0.003072811523452401,
+            0.0003285686834715307,
+            0.00012194410373922437,
+            0.00017170347564388067,
+            0.003746022703126073,
+            0.004031318239867687,
+            0.00264350906945765,
+            0.0011223545297980309
+          ]
+        }
+      ],
+      "words": [
+        {
+          "byte_start": 0,
+          "byte_end": 3,
+          "text": "Sao",
+          "first_column": 1,
+          "n_tokens": 2,
+          "first_label": "B-ORG",
+          "first_score": 0.6205906271934509,
+          "max_label": "I-LOC",
+          "max_score": 0.710395097732544
+        },
+        {
+          "byte_start": 4,
+          "byte_end": 9,
+          "text": "Paulo",
+          "first_column": 3,
+          "n_tokens": 1,
+          "first_label": "I-LOC",
+          "first_score": 0.6550782322883606,
+          "max_label": "I-LOC",
+          "max_score": 0.6550782322883606
+        },
+        {
+          "byte_start": 10,
+          "byte_end": 13,
+          "text": "and",
+          "first_column": 4,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999536871910095,
+          "max_label": "O",
+          "max_score": 0.9999536871910095
+        },
+        {
+          "byte_start": 14,
+          "byte_end": 20,
+          "text": "Zurich",
+          "first_column": 5,
+          "n_tokens": 1,
+          "first_label": "B-LOC",
+          "first_score": 0.979927122592926,
+          "max_label": "B-LOC",
+          "max_score": 0.979927122592926
+        },
+        {
+          "byte_start": 21,
+          "byte_end": 27,
+          "text": "hosted",
+          "first_column": 6,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999629855155945,
+          "max_label": "O",
+          "max_score": 0.9999629855155945
+        },
+        {
+          "byte_start": 28,
+          "byte_end": 31,
+          "text": "the",
+          "first_column": 7,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.999972939491272,
+          "max_label": "O",
+          "max_score": 0.999972939491272
+        },
+        {
+          "byte_start": 32,
+          "byte_end": 39,
+          "text": "meeting",
+          "first_column": 8,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999562501907349,
+          "max_label": "O",
+          "max_score": 0.9999562501907349
+        },
+        {
+          "byte_start": 40,
+          "byte_end": 42,
+          "text": "of",
+          "first_column": 9,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999667406082153,
+          "max_label": "O",
+          "max_score": 0.9999667406082153
+        },
+        {
+          "byte_start": 43,
+          "byte_end": 46,
+          "text": "the",
+          "first_column": 10,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999690055847168,
+          "max_label": "O",
+          "max_score": 0.9999690055847168
+        },
+        {
+          "byte_start": 47,
+          "byte_end": 52,
+          "text": "World",
+          "first_column": 11,
+          "n_tokens": 1,
+          "first_label": "B-ORG",
+          "first_score": 0.9991345405578613,
+          "max_label": "B-ORG",
+          "max_score": 0.9991345405578613
+        },
+        {
+          "byte_start": 53,
+          "byte_end": 57,
+          "text": "Bank",
+          "first_column": 12,
+          "n_tokens": 1,
+          "first_label": "I-ORG",
+          "first_score": 0.9984951019287109,
+          "max_label": "I-ORG",
+          "max_score": 0.9984951019287109
+        },
+        {
+          "byte_start": 57,
+          "byte_end": 58,
+          "text": ".",
+          "first_column": 13,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999637603759766,
+          "max_label": "O",
+          "max_score": 0.9999637603759766
+        }
+      ],
+      "aggregation": {
+        "simple": [
+          {
+            "byte_start": 0,
+            "byte_end": 2,
+            "text": "Sa",
+            "entity": "ORG",
+            "score": 0.6205905675888062
+          },
+          {
+            "byte_start": 2,
+            "byte_end": 9,
+            "text": "o Paulo",
+            "entity": "LOC",
+            "score": 0.6827366352081299
+          },
+          {
+            "byte_start": 14,
+            "byte_end": 20,
+            "text": "Zurich",
+            "entity": "LOC",
+            "score": 0.9799270629882812
+          },
+          {
+            "byte_start": 47,
+            "byte_end": 57,
+            "text": "World Bank",
+            "entity": "ORG",
+            "score": 0.9988148212432861
+          }
+        ],
+        "first": [
+          {
+            "byte_start": 0,
+            "byte_end": 3,
+            "text": "Sao",
+            "entity": "ORG",
+            "score": 0.6205905675888062
+          },
+          {
+            "byte_start": 4,
+            "byte_end": 9,
+            "text": "Paulo",
+            "entity": "LOC",
+            "score": 0.6550782322883606
+          },
+          {
+            "byte_start": 14,
+            "byte_end": 20,
+            "text": "Zurich",
+            "entity": "LOC",
+            "score": 0.9799270629882812
+          },
+          {
+            "byte_start": 47,
+            "byte_end": 57,
+            "text": "World Bank",
+            "entity": "ORG",
+            "score": 0.9988148212432861
+          }
+        ],
+        "max": [
+          {
+            "byte_start": 0,
+            "byte_end": 9,
+            "text": "Sao Paulo",
+            "entity": "LOC",
+            "score": 0.6827366352081299
+          },
+          {
+            "byte_start": 14,
+            "byte_end": 20,
+            "text": "Zurich",
+            "entity": "LOC",
+            "score": 0.9799270629882812
+          },
+          {
+            "byte_start": 47,
+            "byte_end": 57,
+            "text": "World Bank",
+            "entity": "ORG",
+            "score": 0.9988148212432861
+          }
+        ]
+      }
+    },
+    {
+      "id": "subword_names",
+      "text": "Wolfgang Schaeuble and Nikolaus Blome interviewed Ursula von der Leyen.",
+      "n_tokens": 21,
+      "input_ids": [
+        101,
+        14326,
+        20452,
+        2328,
+        14272,
+        2165,
+        1105,
+        28010,
+        1361,
+        139,
+        2858,
+        3263,
+        10361,
+        23500,
+        3262,
+        4167,
+        3180,
+        4980,
+        1179,
+        119,
+        102
+      ],
+      "tokens": [
+        {
+          "column": 0,
+          "token": "[CLS]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9997424483299255,
+          "probs": [
+            0.9997424483299255,
+            5.127198892296292e-05,
+            3.307375300209969e-05,
+            4.339811493991874e-05,
+            2.5264134819735773e-05,
+            3.1888695957604796e-05,
+            2.2151400116854347e-05,
+            1.830843393690884e-05,
+            3.2210176868829876e-05
+          ]
+        },
+        {
+          "column": 1,
+          "token": "Wolfgang",
+          "special": false,
+          "byte_start": 0,
+          "byte_end": 8,
+          "label_id": 3,
+          "label": "B-PER",
+          "score": 0.9997981786727905,
+          "probs": [
+            2.9290282327565365e-05,
+            2.9888886274420656e-05,
+            7.93678373156581e-06,
+            0.9997981786727905,
+            2.055393451882992e-05,
+            5.490272451424971e-05,
+            6.0389365899027325e-06,
+            4.080467624589801e-05,
+            1.2404401786625385e-05
+          ]
+        },
+        {
+          "column": 2,
+          "token": "Sc",
+          "special": false,
+          "byte_start": 9,
+          "byte_end": 11,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9997726678848267,
+          "probs": [
+            4.775282650371082e-05,
+            2.0184801542200148e-05,
+            2.474271423125174e-05,
+            2.2352911400957964e-05,
+            0.9997726678848267,
+            1.2053556019964162e-05,
+            5.6056291214190423e-05,
+            2.365568798268214e-05,
+            2.0538069293252192e-05
+          ]
+        },
+        {
+          "column": 3,
+          "token": "##ha",
+          "special": false,
+          "byte_start": 11,
+          "byte_end": 13,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9994664192199707,
+          "probs": [
+            0.0001381359325023368,
+            3.187848051311448e-05,
+            4.45016885350924e-05,
+            5.525877350009978e-05,
+            0.9994664192199707,
+            2.1805515643791296e-05,
+            0.0001667599572101608,
+            2.517436041671317e-05,
+            5.00845599162858e-05
+          ]
+        },
+        {
+          "column": 4,
+          "token": "##eu",
+          "special": false,
+          "byte_start": 13,
+          "byte_end": 15,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9956085085868835,
+          "probs": [
+            0.00100567692425102,
+            0.000280086969723925,
+            0.00027413811767473817,
+            0.001163564738817513,
+            0.9956085085868835,
+            0.00020951637998223305,
+            0.0010198813397437334,
+            0.0001933790772454813,
+            0.0002452305343467742
+          ]
+        },
+        {
+          "column": 5,
+          "token": "##ble",
+          "special": false,
+          "byte_start": 15,
+          "byte_end": 18,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9995157122612,
+          "probs": [
+            0.0001476920151617378,
+            3.4049302485072985e-05,
+            3.566655868780799e-05,
+            7.66720186220482e-05,
+            0.9995157122612,
+            2.2730764612788334e-05,
+            0.0001127531286329031,
+            2.788835990941152e-05,
+            2.685672188817989e-05
+          ]
+        },
+        {
+          "column": 6,
+          "token": "and",
+          "special": false,
+          "byte_start": 19,
+          "byte_end": 22,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999631643295288,
+          "probs": [
+            0.9999631643295288,
+            3.1555478017253336e-06,
+            5.051634161645779e-06,
+            6.483629022113746e-06,
+            4.222742063575424e-06,
+            2.929577476606937e-06,
+            7.01573026162805e-06,
+            2.368304194533266e-06,
+            5.633207365463022e-06
+          ]
+        },
+        {
+          "column": 7,
+          "token": "Nikola",
+          "special": false,
+          "byte_start": 23,
+          "byte_end": 29,
+          "label_id": 3,
+          "label": "B-PER",
+          "score": 0.9996689558029175,
+          "probs": [
+            5.233516640146263e-05,
+            9.497977589489892e-05,
+            1.1229212759644724e-05,
+            0.9996689558029175,
+            2.0370840502437204e-05,
+            7.282196020241827e-05,
+            7.590980203531217e-06,
+            5.850974048371427e-05,
+            1.3221208973845933e-05
+          ]
+        },
+        {
+          "column": 8,
+          "token": "##us",
+          "special": false,
+          "byte_start": 29,
+          "byte_end": 31,
+          "label_id": 3,
+          "label": "B-PER",
+          "score": 0.9447144865989685,
+          "probs": [
+            0.012308002449572086,
+            0.00017178028065245599,
+            0.0005985265015624464,
+            0.9447144865989685,
+            0.03904243931174278,
+            0.0003244774998165667,
+            0.0014933602651581168,
+            0.000510206155013293,
+            0.0008367463015019894
+          ]
+        },
+        {
+          "column": 9,
+          "token": "B",
+          "special": false,
+          "byte_start": 32,
+          "byte_end": 33,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9995646476745605,
+          "probs": [
+            9.01230814633891e-05,
+            2.2944841475691646e-05,
+            2.99902239930816e-05,
+            7.16478971298784e-05,
+            0.9995646476745605,
+            3.603869481594302e-05,
+            0.0001057724075508304,
+            4.7875597374513745e-05,
+            3.098122761002742e-05
+          ]
+        },
+        {
+          "column": 10,
+          "token": "##lo",
+          "special": false,
+          "byte_start": 33,
+          "byte_end": 35,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9819968342781067,
+          "probs": [
+            0.005327001214027405,
+            0.001325294142588973,
+            0.0005521916318684816,
+            0.005878362338989973,
+            0.9819968342781067,
+            0.0008958030375652015,
+            0.002488554921001196,
+            0.0008088450995273888,
+            0.000727103091776371
+          ]
+        },
+        {
+          "column": 11,
+          "token": "##me",
+          "special": false,
+          "byte_start": 35,
+          "byte_end": 37,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9952278733253479,
+          "probs": [
+            0.0028954888693988323,
+            0.00014378741616383195,
+            0.000210336220334284,
+            0.000561621505767107,
+            0.9952278733253479,
+            9.503396722720936e-05,
+            0.0005578456330113113,
+            0.0001873566652648151,
+            0.00012067808711435646
+          ]
+        },
+        {
+          "column": 12,
+          "token": "interviewed",
+          "special": false,
+          "byte_start": 38,
+          "byte_end": 49,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999686479568481,
+          "probs": [
+            0.9999686479568481,
+            4.700565114035271e-06,
+            5.251113634585636e-06,
+            4.540257577900775e-06,
+            2.6924540179606993e-06,
+            2.910845523729222e-06,
+            4.3390114115027245e-06,
+            2.25849043999915e-06,
+            4.632694071915466e-06
+          ]
+        },
+        {
+          "column": 13,
+          "token": "Ursula",
+          "special": false,
+          "byte_start": 50,
+          "byte_end": 56,
+          "label_id": 3,
+          "label": "B-PER",
+          "score": 0.9995108246803284,
+          "probs": [
+            4.6230736188590527e-05,
+            7.118519715731964e-05,
+            9.90393618849339e-06,
+            0.9995108246803284,
+            2.5913710487657227e-05,
+            0.00024325988488271832,
+            7.850366273487452e-06,
+            7.096157787600532e-05,
+            1.3864308129996061e-05
+          ]
+        },
+        {
+          "column": 14,
+          "token": "von",
+          "special": false,
+          "byte_start": 57,
+          "byte_end": 60,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.999306857585907,
+          "probs": [
+            0.0002075659722322598,
+            2.536099054850638e-05,
+            4.3721967813326046e-05,
+            7.215581717900932e-05,
+            0.999306857585907,
+            2.2794851247454062e-05,
+            0.00019382420578040183,
+            5.60841872356832e-05,
+            7.166141585912555e-05
+          ]
+        },
+        {
+          "column": 15,
+          "token": "der",
+          "special": false,
+          "byte_start": 61,
+          "byte_end": 64,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9988688230514526,
+          "probs": [
+            0.0003584103542380035,
+            4.73153886559885e-05,
+            5.8541540056467056e-05,
+            0.00013105064863339067,
+            0.9988688230514526,
+            5.643445911118761e-05,
+            0.0002082410646835342,
+            0.00017345136438962072,
+            9.77484742179513e-05
+          ]
+        },
+        {
+          "column": 16,
+          "token": "Le",
+          "special": false,
+          "byte_start": 65,
+          "byte_end": 67,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.9991824626922607,
+          "probs": [
+            0.00020212825620546937,
+            5.081911513116211e-05,
+            5.674755448126234e-05,
+            9.312973998021334e-05,
+            0.9991824626922607,
+            5.5280830565607175e-05,
+            0.00020164983288850635,
+            0.00010138062498299405,
+            5.6392655096715316e-05
+          ]
+        },
+        {
+          "column": 17,
+          "token": "##ye",
+          "special": false,
+          "byte_start": 67,
+          "byte_end": 69,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.8891146183013916,
+          "probs": [
+            0.06103957071900368,
+            0.002461173804476857,
+            0.010642969980835915,
+            0.005776677746325731,
+            0.8891146183013916,
+            0.004050771705806255,
+            0.014404349029064178,
+            0.004637638106942177,
+            0.007872228510677814
+          ]
+        },
+        {
+          "column": 18,
+          "token": "##n",
+          "special": false,
+          "byte_start": 69,
+          "byte_end": 70,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9796673059463501,
+          "probs": [
+            0.9796673059463501,
+            0.0001446368987672031,
+            0.001676979591138661,
+            0.0014181381557136774,
+            0.012435583397746086,
+            0.00018642884970176965,
+            0.002769452054053545,
+            0.0004980744561180472,
+            0.0012034004321321845
+          ]
+        },
+        {
+          "column": 19,
+          "token": ".",
+          "special": false,
+          "byte_start": 70,
+          "byte_end": 71,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.999972939491272,
+          "probs": [
+            0.999972939491272,
+            4.083703061041888e-06,
+            4.170703050476732e-06,
+            4.079236987308832e-06,
+            2.2605672711506486e-06,
+            2.5029510197782656e-06,
+            4.22038510805578e-06,
+            1.7828655245466507e-06,
+            3.983813712693518e-06
+          ]
+        },
+        {
+          "column": 20,
+          "token": "[SEP]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 4,
+          "label": "I-PER",
+          "score": 0.5965607762336731,
+          "probs": [
+            0.09859935939311981,
+            0.009767542593181133,
+            0.008295613341033459,
+            0.2646584212779999,
+            0.5965607762336731,
+            0.00205836514942348,
+            0.004635038785636425,
+            0.006405677646398544,
+            0.009019223041832447
+          ]
+        }
+      ],
+      "words": [
+        {
+          "byte_start": 0,
+          "byte_end": 8,
+          "text": "Wolfgang",
+          "first_column": 1,
+          "n_tokens": 1,
+          "first_label": "B-PER",
+          "first_score": 0.9997981786727905,
+          "max_label": "B-PER",
+          "max_score": 0.9997981786727905
+        },
+        {
+          "byte_start": 9,
+          "byte_end": 18,
+          "text": "Schaeuble",
+          "first_column": 2,
+          "n_tokens": 4,
+          "first_label": "I-PER",
+          "first_score": 0.9997726678848267,
+          "max_label": "I-PER",
+          "max_score": 0.9997726678848267
+        },
+        {
+          "byte_start": 19,
+          "byte_end": 22,
+          "text": "and",
+          "first_column": 6,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999631643295288,
+          "max_label": "O",
+          "max_score": 0.9999631643295288
+        },
+        {
+          "byte_start": 23,
+          "byte_end": 31,
+          "text": "Nikolaus",
+          "first_column": 7,
+          "n_tokens": 2,
+          "first_label": "B-PER",
+          "first_score": 0.9996689558029175,
+          "max_label": "B-PER",
+          "max_score": 0.9996689558029175
+        },
+        {
+          "byte_start": 32,
+          "byte_end": 37,
+          "text": "Blome",
+          "first_column": 9,
+          "n_tokens": 3,
+          "first_label": "I-PER",
+          "first_score": 0.9995646476745605,
+          "max_label": "I-PER",
+          "max_score": 0.9995646476745605
+        },
+        {
+          "byte_start": 38,
+          "byte_end": 49,
+          "text": "interviewed",
+          "first_column": 12,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999686479568481,
+          "max_label": "O",
+          "max_score": 0.9999686479568481
+        },
+        {
+          "byte_start": 50,
+          "byte_end": 56,
+          "text": "Ursula",
+          "first_column": 13,
+          "n_tokens": 1,
+          "first_label": "B-PER",
+          "first_score": 0.9995108246803284,
+          "max_label": "B-PER",
+          "max_score": 0.9995108246803284
+        },
+        {
+          "byte_start": 57,
+          "byte_end": 60,
+          "text": "von",
+          "first_column": 14,
+          "n_tokens": 1,
+          "first_label": "I-PER",
+          "first_score": 0.999306857585907,
+          "max_label": "I-PER",
+          "max_score": 0.999306857585907
+        },
+        {
+          "byte_start": 61,
+          "byte_end": 64,
+          "text": "der",
+          "first_column": 15,
+          "n_tokens": 1,
+          "first_label": "I-PER",
+          "first_score": 0.9988688230514526,
+          "max_label": "I-PER",
+          "max_score": 0.9988688230514526
+        },
+        {
+          "byte_start": 65,
+          "byte_end": 70,
+          "text": "Leyen",
+          "first_column": 16,
+          "n_tokens": 3,
+          "first_label": "I-PER",
+          "first_score": 0.9991824626922607,
+          "max_label": "I-PER",
+          "max_score": 0.9991824626922607
+        },
+        {
+          "byte_start": 70,
+          "byte_end": 71,
+          "text": ".",
+          "first_column": 19,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.999972939491272,
+          "max_label": "O",
+          "max_score": 0.999972939491272
+        }
+      ],
+      "aggregation": {
+        "simple": [
+          {
+            "byte_start": 0,
+            "byte_end": 18,
+            "text": "Wolfgang Schaeuble",
+            "entity": "PER",
+            "score": 0.9988323450088501
+          },
+          {
+            "byte_start": 23,
+            "byte_end": 29,
+            "text": "Nikola",
+            "entity": "PER",
+            "score": 0.9996689558029175
+          },
+          {
+            "byte_start": 29,
+            "byte_end": 37,
+            "text": "us Blome",
+            "entity": "PER",
+            "score": 0.9803760051727295
+          },
+          {
+            "byte_start": 50,
+            "byte_end": 69,
+            "text": "Ursula von der Leye",
+            "entity": "PER",
+            "score": 0.9771966934204102
+          }
+        ],
+        "first": [
+          {
+            "byte_start": 0,
+            "byte_end": 18,
+            "text": "Wolfgang Schaeuble",
+            "entity": "PER",
+            "score": 0.9997854232788086
+          },
+          {
+            "byte_start": 23,
+            "byte_end": 37,
+            "text": "Nikolaus Blome",
+            "entity": "PER",
+            "score": 0.9996168613433838
+          },
+          {
+            "byte_start": 50,
+            "byte_end": 70,
+            "text": "Ursula von der Leyen",
+            "entity": "PER",
+            "score": 0.9992172122001648
+          }
+        ],
+        "max": [
+          {
+            "byte_start": 0,
+            "byte_end": 18,
+            "text": "Wolfgang Schaeuble",
+            "entity": "PER",
+            "score": 0.9997854232788086
+          },
+          {
+            "byte_start": 23,
+            "byte_end": 37,
+            "text": "Nikolaus Blome",
+            "entity": "PER",
+            "score": 0.9996168613433838
+          },
+          {
+            "byte_start": 50,
+            "byte_end": 70,
+            "text": "Ursula von der Leyen",
+            "entity": "PER",
+            "score": 0.9992172122001648
+          }
+        ]
+      }
+    },
+    {
+      "id": "no_entities",
+      "text": "The weather turned cold and the meeting was moved indoors.",
+      "n_tokens": 14,
+      "input_ids": [
+        101,
+        1109,
+        4250,
+        1454,
+        2504,
+        1105,
+        1103,
+        2309,
+        1108,
+        1427,
+        9287,
+        1116,
+        119,
+        102
+      ],
+      "tokens": [
+        {
+          "column": 0,
+          "token": "[CLS]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.998838484287262,
+          "probs": [
+            0.998838484287262,
+            0.00025583518436178565,
+            0.0001390661345794797,
+            8.990854257717729e-05,
+            6.73734029987827e-05,
+            0.00023137855168897659,
+            0.00010521970398258418,
+            0.00013576321362052113,
+            0.0001369523670291528
+          ]
+        },
+        {
+          "column": 1,
+          "token": "The",
+          "special": false,
+          "byte_start": 0,
+          "byte_end": 3,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999727606773376,
+          "probs": [
+            0.9999727606773376,
+            3.7139636788197095e-06,
+            3.968531018472277e-06,
+            3.1344654871645616e-06,
+            1.6891326595214196e-06,
+            4.0347513277083635e-06,
+            3.3300427730864612e-06,
+            3.130587401756202e-06,
+            4.255309249856509e-06
+          ]
+        },
+        {
+          "column": 2,
+          "token": "weather",
+          "special": false,
+          "byte_start": 4,
+          "byte_end": 11,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999714493751526,
+          "probs": [
+            0.9999714493751526,
+            3.492724545139936e-06,
+            3.940738224628149e-06,
+            2.862947212634026e-06,
+            2.1433113488456e-06,
+            3.205001803507912e-06,
+            5.077676632936345e-06,
+            2.89940749098605e-06,
+            4.934701337333536e-06
+          ]
+        },
+        {
+          "column": 3,
+          "token": "turned",
+          "special": false,
+          "byte_start": 12,
+          "byte_end": 18,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999753832817078,
+          "probs": [
+            0.9999753832817078,
+            4.5661731746804435e-06,
+            3.3256508231715998e-06,
+            2.548597649365547e-06,
+            1.8226738802695763e-06,
+            2.969725073853624e-06,
+            3.005364533237298e-06,
+            2.4163014131772798e-06,
+            3.961251422879286e-06
+          ]
+        },
+        {
+          "column": 4,
+          "token": "cold",
+          "special": false,
+          "byte_start": 19,
+          "byte_end": 23,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999743103981018,
+          "probs": [
+            0.9999743103981018,
+            4.73265208711382e-06,
+            3.428119271120522e-06,
+            2.826563331836951e-06,
+            1.8682131894820486e-06,
+            3.2108259802043904e-06,
+            3.1962597404344706e-06,
+            2.6596885618346278e-06,
+            3.7766490095236804e-06
+          ]
+        },
+        {
+          "column": 5,
+          "token": "and",
+          "special": false,
+          "byte_start": 24,
+          "byte_end": 27,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999751448631287,
+          "probs": [
+            0.9999751448631287,
+            3.7542899917752948e-06,
+            4.119026016269345e-06,
+            2.798304194584489e-06,
+            2.1270902834658045e-06,
+            2.5537794954288984e-06,
+            3.364593112564762e-06,
+            2.4757564460742287e-06,
+            3.660681159090018e-06
+          ]
+        },
+        {
+          "column": 6,
+          "token": "the",
+          "special": false,
+          "byte_start": 28,
+          "byte_end": 31,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999749660491943,
+          "probs": [
+            0.9999749660491943,
+            3.5554789974412415e-06,
+            3.518028506732662e-06,
+            2.9947484563308535e-06,
+            1.696085178082285e-06,
+            2.9879583962610923e-06,
+            3.543761067703599e-06,
+            2.8521653803181835e-06,
+            3.878641109622549e-06
+          ]
+        },
+        {
+          "column": 7,
+          "token": "meeting",
+          "special": false,
+          "byte_start": 32,
+          "byte_end": 39,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999688267707825,
+          "probs": [
+            0.9999688267707825,
+            5.1129550229234155e-06,
+            3.5492164442985086e-06,
+            3.3818414522102103e-06,
+            1.70712985436694e-06,
+            4.2822798604902346e-06,
+            4.741036264022114e-06,
+            3.650427970569581e-06,
+            4.72195642942097e-06
+          ]
+        },
+        {
+          "column": 8,
+          "token": "was",
+          "special": false,
+          "byte_start": 40,
+          "byte_end": 43,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999722242355347,
+          "probs": [
+            0.9999722242355347,
+            3.867179657390807e-06,
+            3.710656301336712e-06,
+            2.8572665087267524e-06,
+            2.1446867322083563e-06,
+            3.2377195111621404e-06,
+            4.168598479736829e-06,
+            2.8216177270223852e-06,
+            4.964582785760285e-06
+          ]
+        },
+        {
+          "column": 9,
+          "token": "moved",
+          "special": false,
+          "byte_start": 44,
+          "byte_end": 49,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999697208404541,
+          "probs": [
+            0.9999697208404541,
+            4.5840447455702815e-06,
+            3.5164302971679717e-06,
+            3.2338227811123943e-06,
+            1.9842580059048487e-06,
+            4.265997176844394e-06,
+            4.083416570210829e-06,
+            3.1800993838260183e-06,
+            5.442174824565882e-06
+          ]
+        },
+        {
+          "column": 10,
+          "token": "indoor",
+          "special": false,
+          "byte_start": 50,
+          "byte_end": 56,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999649524688721,
+          "probs": [
+            0.9999649524688721,
+            5.867127129022265e-06,
+            4.953700681653572e-06,
+            2.646874236233998e-06,
+            2.441078549964004e-06,
+            3.4825004604499554e-06,
+            4.87316538055893e-06,
+            3.002275889230077e-06,
+            7.79349466029089e-06
+          ]
+        },
+        {
+          "column": 11,
+          "token": "##s",
+          "special": false,
+          "byte_start": 56,
+          "byte_end": 57,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999670386314392,
+          "probs": [
+            0.9999670386314392,
+            3.2828047551447526e-06,
+            5.545071417145664e-06,
+            2.5676504264993127e-06,
+            2.497766445230809e-06,
+            2.6958527996612247e-06,
+            5.248899014986819e-06,
+            2.835138502632617e-06,
+            8.275234904431272e-06
+          ]
+        },
+        {
+          "column": 12,
+          "token": ".",
+          "special": false,
+          "byte_start": 57,
+          "byte_end": 58,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9999716877937317,
+          "probs": [
+            0.9999716877937317,
+            4.708163487521233e-06,
+            3.832590664387681e-06,
+            2.9825473575328942e-06,
+            2.0205600321787642e-06,
+            3.398078888494638e-06,
+            3.999601631221594e-06,
+            2.746097152339644e-06,
+            4.6095306061033625e-06
+          ]
+        },
+        {
+          "column": 13,
+          "token": "[SEP]",
+          "special": true,
+          "byte_start": 0,
+          "byte_end": 0,
+          "label_id": 0,
+          "label": "O",
+          "score": 0.9973357319831848,
+          "probs": [
+            0.9973357319831848,
+            0.000864206871483475,
+            0.0002805457916110754,
+            0.00010545012628426775,
+            9.232266893377528e-05,
+            0.0003714789927471429,
+            0.00028963462682440877,
+            0.00041398784378543496,
+            0.0002466308942530304
+          ]
+        }
+      ],
+      "words": [
+        {
+          "byte_start": 0,
+          "byte_end": 3,
+          "text": "The",
+          "first_column": 1,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999727606773376,
+          "max_label": "O",
+          "max_score": 0.9999727606773376
+        },
+        {
+          "byte_start": 4,
+          "byte_end": 11,
+          "text": "weather",
+          "first_column": 2,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999714493751526,
+          "max_label": "O",
+          "max_score": 0.9999714493751526
+        },
+        {
+          "byte_start": 12,
+          "byte_end": 18,
+          "text": "turned",
+          "first_column": 3,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999753832817078,
+          "max_label": "O",
+          "max_score": 0.9999753832817078
+        },
+        {
+          "byte_start": 19,
+          "byte_end": 23,
+          "text": "cold",
+          "first_column": 4,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999743103981018,
+          "max_label": "O",
+          "max_score": 0.9999743103981018
+        },
+        {
+          "byte_start": 24,
+          "byte_end": 27,
+          "text": "and",
+          "first_column": 5,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999751448631287,
+          "max_label": "O",
+          "max_score": 0.9999751448631287
+        },
+        {
+          "byte_start": 28,
+          "byte_end": 31,
+          "text": "the",
+          "first_column": 6,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999749660491943,
+          "max_label": "O",
+          "max_score": 0.9999749660491943
+        },
+        {
+          "byte_start": 32,
+          "byte_end": 39,
+          "text": "meeting",
+          "first_column": 7,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999688267707825,
+          "max_label": "O",
+          "max_score": 0.9999688267707825
+        },
+        {
+          "byte_start": 40,
+          "byte_end": 43,
+          "text": "was",
+          "first_column": 8,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999722242355347,
+          "max_label": "O",
+          "max_score": 0.9999722242355347
+        },
+        {
+          "byte_start": 44,
+          "byte_end": 49,
+          "text": "moved",
+          "first_column": 9,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999697208404541,
+          "max_label": "O",
+          "max_score": 0.9999697208404541
+        },
+        {
+          "byte_start": 50,
+          "byte_end": 57,
+          "text": "indoors",
+          "first_column": 10,
+          "n_tokens": 2,
+          "first_label": "O",
+          "first_score": 0.9999649524688721,
+          "max_label": "O",
+          "max_score": 0.9999670386314392
+        },
+        {
+          "byte_start": 57,
+          "byte_end": 58,
+          "text": ".",
+          "first_column": 12,
+          "n_tokens": 1,
+          "first_label": "O",
+          "first_score": 0.9999716877937317,
+          "max_label": "O",
+          "max_score": 0.9999716877937317
+        }
+      ],
+      "aggregation": {
+        "simple": [],
+        "first": [],
+        "max": []
+      }
+    }
+  ]
+}

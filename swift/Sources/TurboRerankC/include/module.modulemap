@@ -1,4 +1,0 @@
-module TurboRerankC {
-    header "turborerank.h"
-    export *
-}

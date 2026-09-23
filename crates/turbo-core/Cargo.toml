@@ -1,0 +1,27 @@
+[package]
+name = "turbo-core"
+description = "Turbo runtime: provider registry, devices, buffers, bundles, sessions, results"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+turbo-abi = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+libloading = { workspace = true }
+tokenizers = { workspace = true, optional = true }
+
+[features]
+# The Hugging Face `tokenizers` crate for the tokenizer.json files the
+# native path does not serve (Unigram, sentencepiece BPE with byte
+# fallback); WordPiece and byte-level BPE are native. Off by default: it
+# adds about 70 crates.
+hf-tokenizers = ["dep:tokenizers"]
+
+[dev-dependencies]
+tempfile = "3"

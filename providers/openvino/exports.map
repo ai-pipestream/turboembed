@@ -1,0 +1,4 @@
+TURBO_PROVIDER_2 {
+    global: turbo_provider_get;
+    local: *;
+};

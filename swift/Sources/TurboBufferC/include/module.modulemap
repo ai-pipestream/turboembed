@@ -1,4 +1,0 @@
-module TurboBufferC {
-    header "turbo_buffer.h"
-    export *
-}

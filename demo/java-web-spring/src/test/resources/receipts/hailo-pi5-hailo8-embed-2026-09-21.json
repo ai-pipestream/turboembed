@@ -1,0 +1,221 @@
+{
+  "receipt_version": 1,
+  "kind": "benchmark",
+  "date": "2026-09-22",
+  "machine": {
+    "hostname": "pi5-hailo8",
+    "os": "Linux 6.18.39+rpt-rpi-2712",
+    "arch": "aarch64"
+  },
+  "commit": "unknown",
+  "provider": {
+    "id": "hailo",
+    "version": "2.0.0-alpha.0",
+    "runtime_version": "HailoRT 4.23.0",
+    "driver_version": "firmware 4.23.0"
+  },
+  "device": {
+    "name": "Hailo-8 (Hailo-8, 0001:01:00.0)",
+    "kind": "Npu",
+    "ordinal": 0,
+    "caps": "0x3f0402"
+  },
+  "bundle": {
+    "dir": "$HOME/bundles/minilm-hailo8",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "434a08e0c91bada7b2c2a8682f1b186d9cf53e47d004b9e1a679d6bb69450273",
+    "artifacts": {
+      "hailo_tables": "91a364c081e1bd99d4bba486e31b6efb30bb75439562e925fe17d20de2af9425",
+      "hef": "dcfef3218da6bbabe61448216ece3ac21807573d91728a27bc631ca5bdbd8024"
+    }
+  },
+  "embed": [
+    {
+      "batch": 1,
+      "seq": 32,
+      "live_tokens_per_row": 21.0,
+      "text_path": {
+        "p50_ms": 13.242745,
+        "p99_ms": 13.263375000000002,
+        "mean_ms": 13.243975433333333,
+        "min_ms": 13.227746,
+        "max_ms": 13.263375000000002,
+        "rows_per_s": 75.5060295176275,
+        "tokens_per_s": 1585.6266198701774,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 13.241635,
+        "p99_ms": 13.289838999999999,
+        "mean_ms": 13.242469333333336,
+        "min_ms": 13.201931,
+        "max_ms": 13.289838999999999,
+        "rows_per_s": 75.51461701201345,
+        "tokens_per_s": 1585.8069572522825,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 262144,
+        "d2h_bytes": 196608,
+        "host_allocs": 0,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 32,
+      "live_tokens_per_row": 26.0,
+      "text_path": {
+        "p50_ms": 105.92817000000001,
+        "p99_ms": 105.979985,
+        "mean_ms": 105.92909156666666,
+        "min_ms": 105.87787399999999,
+        "max_ms": 105.979985,
+        "rows_per_s": 75.52221851128768,
+        "tokens_per_s": 1963.5776812934796,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 105.93693,
+        "p99_ms": 106.012299,
+        "mean_ms": 105.93762803333331,
+        "min_ms": 105.907855,
+        "max_ms": 106.012299,
+        "rows_per_s": 75.51613292193777,
+        "tokens_per_s": 1963.4194559703822,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 2097152,
+        "d2h_bytes": 1572864,
+        "host_allocs": 0,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 32,
+      "live_tokens_per_row": 24.8125,
+      "text_path": {
+        "p50_ms": 423.75005100000004,
+        "p99_ms": 423.79042,
+        "mean_ms": 423.74522939999997,
+        "min_ms": 423.668939,
+        "max_ms": 423.79042,
+        "rows_per_s": 75.51707436402351,
+        "tokens_per_s": 1873.7674076573333,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 423.751143,
+        "p99_ms": 423.792087,
+        "mean_ms": 423.75175096666675,
+        "min_ms": 423.716661,
+        "max_ms": 423.792087,
+        "rows_per_s": 75.51591215139827,
+        "tokens_per_s": 1873.7385702565696,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 8388608,
+        "d2h_bytes": 6291456,
+        "host_allocs": 0,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 1,
+      "seq": 128,
+      "live_tokens_per_row": 122.0,
+      "text_path": {
+        "p50_ms": 13.243024,
+        "p99_ms": 13.290263999999999,
+        "mean_ms": 13.243282233333332,
+        "min_ms": 13.203931,
+        "max_ms": 13.290263999999999,
+        "rows_per_s": 75.50998176894552,
+        "tokens_per_s": 9212.217775811354,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 13.241746000000001,
+        "p99_ms": 13.271876,
+        "mean_ms": 13.242284633333332,
+        "min_ms": 13.217227,
+        "max_ms": 13.271876,
+        "rows_per_s": 75.51567027058239,
+        "tokens_per_s": 9212.911773011052,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 262144,
+        "d2h_bytes": 196608,
+        "host_allocs": 0,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 8,
+      "seq": 128,
+      "live_tokens_per_row": 116.5,
+      "text_path": {
+        "p50_ms": 105.92639199999999,
+        "p99_ms": 105.944615,
+        "mean_ms": 105.92764286666666,
+        "min_ms": 105.911282,
+        "max_ms": 105.944615,
+        "rows_per_s": 75.52325137707224,
+        "tokens_per_s": 8798.458785428917,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 105.937595,
+        "p99_ms": 106.025948,
+        "mean_ms": 105.93908603333333,
+        "min_ms": 105.908929,
+        "max_ms": 106.025948,
+        "rows_per_s": 75.51509362165756,
+        "tokens_per_s": 8797.508406923105,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 2097152,
+        "d2h_bytes": 1572864,
+        "host_allocs": 0,
+        "provider_allocs": null
+      }
+    },
+    {
+      "batch": 32,
+      "seq": 128,
+      "live_tokens_per_row": 118.0625,
+      "text_path": {
+        "p50_ms": 423.745939,
+        "p99_ms": 423.82966100000004,
+        "mean_ms": 423.74646883333327,
+        "min_ms": 423.70169899999996,
+        "max_ms": 423.82966100000004,
+        "rows_per_s": 75.51685348105201,
+        "tokens_per_s": 8915.708514106702,
+        "iters": 30
+      },
+      "prepared_tokens_path": {
+        "p50_ms": 423.751773,
+        "p99_ms": 423.775569,
+        "mean_ms": 423.74946710000006,
+        "min_ms": 423.719588,
+        "max_ms": 423.775569,
+        "rows_per_s": 75.51631915668784,
+        "tokens_per_s": 8915.645430436458,
+        "iters": 30
+      },
+      "per_run": {
+        "h2d_bytes": 8388608,
+        "d2h_bytes": 6291456,
+        "host_allocs": 0,
+        "provider_allocs": null
+      }
+    }
+  ],
+  "native_reference": "not run; see the provider README for the direct-native program of this pair"
+}

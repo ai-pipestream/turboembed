@@ -1,0 +1,93 @@
+{
+  "receipt_version": 1,
+  "date": "2026-09-21",
+  "provider": "hailo",
+  "provider_version": "2.0.0-alpha.0",
+  "task": "embed",
+  "modality": "text",
+  "runtime": "HailoRT 4.23.0 (hailo-all 5.1.1), device firmware 4.23.0, libhailort.so.4.23.0; vstreams with HAILO_FORMAT_TYPE_FLOAT32 in and out; HailoRT scheduler on",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "artifacts": {
+      "hef": "model.hailo8.hef (Hailo Model Zoo all_minilm_l6_v2, hailo8 build; INT8 encoder body, 128-token frame, batch 1, two inputs: hidden state [128, 384] and additive attention bias [128, 128])",
+      "hef_sha256": "dcfef3218da6bbabe61448216ece3ac21807573d91728a27bc631ca5bdbd8024",
+      "hailo_tables": "embedding_tables.bin exported by scripts/export-hailo-tables.py from sentence-transformers/all-MiniLM-L6-v2",
+      "hailo_tables_sha256": "91a364c081e1bd99d4bba486e31b6efb30bb75439562e925fe17d20de2af9425"
+    },
+    "contract": {
+      "pooling": "mean",
+      "normalize": "l2",
+      "max_seq": 128,
+      "dim": 384,
+      "fixed_shape": true
+    },
+    "import": "turbo-bundle import --source all-MiniLM-L6-v2 --license Apache-2.0 --model-id sentence-transformers/all-MiniLM-L6-v2 --artifact hef=model.hailo8.hef --artifact hailo_tables=embedding_tables.bin --max-seq 128 --fixed-shape --max-batch 32"
+  },
+  "capability": {
+    "status": "EXPERIMENTAL",
+    "dtype": "I8",
+    "reference_dtype": "F32",
+    "cosine_floor": 0.3,
+    "stage_placement": {
+      "tokenize": "host",
+      "encode": "device",
+      "pool": "host",
+      "normalize": "host",
+      "postprocess": "unused"
+    },
+    "fully_accelerated": 0
+  },
+  "reference": {
+    "source": "testdata/reference_embeddings/ort_cuda_minilm_*.json",
+    "produced_by": "ONNX Runtime CUDA EP, FP32, PoC (tag poc-2026-09-21)"
+  },
+  "tests": "providers/hailo/tests/provider_test.cpp (14 vtable tests) and crates/turbo-conformance/tests/live_embed.rs (14 tests including the STS ranking gate)",
+  "runs": [
+    {
+      "machine": "pi5-hailo8",
+      "board": "Raspberry Pi 5 with AI HAT+ 26 TOPS",
+      "device": "Hailo-8 (Hailo-8, 0001:01:00.0), ordinal 0",
+      "device_kind": "NPU",
+      "cosine_vs_f32_reference": {
+        "short": 0.705192,
+        "medium": 0.533772,
+        "empty": 0.660805,
+        "long_truncation": 0.472835
+      },
+      "spearman_sts_pairs": 0.9371,
+      "spearman_sts_pairs_f32_reference": 0.9438,
+      "output_placement": "HOST",
+      "dma_bytes_per_row": {
+        "h2d": 262144,
+        "d2h": 196608
+      },
+      "vtable_tests": "14 tests, 0 failed checks",
+      "live_embed": "14 passed, 0 failed (102 s, debug build of the Rust side, one HEF load per test)"
+    },
+    {
+      "machine": "cm5-hailo8",
+      "board": "Raspberry Pi Compute Module 5 on the CM5 IO Board with a Hailo-8 M.2 M-key module",
+      "device": "Hailo-8 (Hailo-8, 0001:01:00.0), ordinal 0",
+      "device_kind": "NPU",
+      "cosine_vs_f32_reference": {
+        "short": 0.705192,
+        "medium": 0.533772,
+        "empty": 0.660805,
+        "long_truncation": 0.472835
+      },
+      "spearman_sts_pairs": 0.9371,
+      "spearman_sts_pairs_f32_reference": 0.9438,
+      "output_placement": "HOST",
+      "dma_bytes_per_row": {
+        "h2d": 262144,
+        "d2h": 196608
+      },
+      "vtable_tests": "14 tests, 0 failed checks",
+      "live_embed": "14 passed, 0 failed (103 s, debug build of the Rust side, one HEF load per test)"
+    }
+  ],
+  "note": "INT8 quantization compresses absolute cosine against FP32 (0.47 to 0.71 on the reference texts) while ranking stays at parity with FP32 (Spearman 0.937 vs 0.944 on the 96-pair STS corpus); the capability cell states the 0.30 floor and the live suite gates both figures. The vectors are bitwise repeatable across runs and across the two boards.",
+  "status_after": "EXPERIMENTAL; a throughput receipt (PLAN.md section 8) is still required for SUPPORTED; Hailo-8L untested; Hailo-10H needs a DFC 5 HEF",
+  "commit": "33456d334f4f258d82fcc895d39b27c8786eb573",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder"
+}

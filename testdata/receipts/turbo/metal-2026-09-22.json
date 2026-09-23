@@ -1,0 +1,88 @@
+{
+  "receipt_version": 1,
+  "date": "2026-09-22",
+  "provider": "metal",
+  "provider_version": "2.0.0-alpha.0",
+  "task": ["embed", "rerank"],
+  "modality": "text",
+  "runtime": "Metal directly (Objective-C++ provider, no MLX, no Core ML); Metal Shading Language kernels compiled at load with newLibraryWithSource and MTLMathModeSafe; every buffer MTLResourceStorageModeShared; built with make and the Command Line Tools clang++ on macOS 27.0 (26A428), no Xcode",
+  "bundles": {
+    "embed": {
+      "model_id": "nreimers/MiniLM-L6-H384-uncased (sentence-transformers/all-MiniLM-L6-v2 checkpoint, revision c9745ed1d9f207416be6d2e6f8de32d1f16199bf)",
+      "artifacts": {
+        "safetensors": "model.safetensors (F32, 6 layers, hidden 384, 12 heads, tensor names without the bert. prefix)",
+        "safetensors_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+        "hf_config": "config.json (model_type bert, hidden_act gelu, layer_norm_eps 1e-12, max_position_embeddings 512)"
+      },
+      "contract": {
+        "pooling": "mean",
+        "normalize": "l2",
+        "max_seq": 256,
+        "dim": 384
+      },
+      "import": "turbo-bundle import --source all-MiniLM-L6-v2 --output minilm-metal --license Apache-2.0 --revision c9745ed1d9f207416be6d2e6f8de32d1f16199bf --artifact safetensors=.../model.safetensors --artifact hf_config=.../config.json"
+    },
+    "rerank": {
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-12-v2",
+      "artifacts": {
+        "safetensors": "model.safetensors (F32, 12 layers, hidden 384, 12 heads, bert. prefix, pooler present, classifier.weight [1, 384])",
+        "safetensors_sha256": "1ed84b90cdf3518f76ec9bb93a16f97887eea7c4e7ee5dfb03cc297e394fbbc3",
+        "hf_config": "config.json (num_hidden_layers 12, sbert_ce_default_activation_function torch.nn.modules.linear.Identity)"
+      },
+      "contract": {
+        "activation": "none",
+        "max_seq": 512
+      },
+      "import": "turbo-bundle import --source ms-marco-MiniLM-L-12-v2 --output rerank-metal --license Apache-2.0 --model-id cross-encoder/ms-marco-MiniLM-L-12-v2 --artifact safetensors=.../model.safetensors --artifact hf_config=.../config.json"
+    }
+  },
+  "capability": {
+    "status": "EXPERIMENTAL",
+    "dtype": "F32",
+    "reference_dtype": "F32",
+    "cosine_floor": 0.0,
+    "device_caps": "DEVICE_RESULT, UNIFIED_MEMORY, HOST_PTR_IMPORT, DETERMINISTIC, OPT_TRUNCATE, OPT_MAX_TOKENS, OPT_PROMPT_ROLE, OPT_NORMALIZE, OPT_POOLING_OVERRIDE, OPT_OUTPUT_DIM, OPT_TOP_N, OPT_RAW_SCORES (0x2bf0426)",
+    "stage_placement": {
+      "tokenize": "host",
+      "encode": "device",
+      "pool": "device",
+      "normalize": "device",
+      "postprocess": "device (reranker: pooler and classifier)"
+    },
+    "fully_accelerated": 0
+  },
+  "reference": {
+    "source": "testdata/reference_embeddings/ort_cuda_minilm_*.json",
+    "produced_by": "ONNX Runtime CUDA EP, FP32, PoC (tag poc-2026-09-21)"
+  },
+  "tests": "providers/metal/tests/provider_test.cpp (22 vtable tests), crates/turbo-conformance/tests/live_embed.rs (16 tests including the STS ranking gate and the unified-memory placement checks), and the rerank cases of crates/turbo-conformance/tests/live_tasks.rs (3 tests; classify and token-classify skip, no bundle)",
+  "runs": [
+    {
+      "machine": "m2",
+      "board": "Apple M2, 24 GB unified memory, macOS 27.0 (26A428)",
+      "device": "Apple M2 (Metal), IGPU, ordinal 0, recommendedMaxWorkingSetSize 17.8 GiB",
+      "device_kind": "IGPU",
+      "cosine_vs_f32_reference": {
+        "short": 1.0,
+        "medium": 1.0,
+        "empty": 0.999999,
+        "long_truncation": 0.999999
+      },
+      "spearman_sts_pairs": 0.9438,
+      "spearman_sts_pairs_f32_reference": 0.9438,
+      "output_placement": "SHARED",
+      "dma_bytes_per_run": {
+        "h2d": 0,
+        "d2h": 0
+      },
+      "vtable_tests": "15 tests, 0 failed checks",
+      "live_embed": "16 passed, 0 failed (13 s, debug build of the Rust side)",
+      "live_tasks": "7 passed, 0 failed (3 rerank cases ran; 4 skipped for want of classify and token-classify bundles)",
+      "rerank_scores": "logits (the bundle's contract declares the Identity activation); raw_scores returns the same values; sorted output descending; bitwise repeatable"
+    }
+  ],
+  "note": "FP32 on the GPU reproduces the ORT CUDA FP32 references to six decimals and the STS ranking exactly. Unified memory is reported as SHARED placement with zero DMA bytes; the live suite checks that instead of an upload on this device class. The encoder runs the whole batch as one set of dispatches per layer with a 16x16 tiled matmul; sentence pooling, L2, the NSP pooler and the classifier head are kernels, so results never leave the GPU's memory. Throughput: testdata/receipts/turbo/bench/metal-mac-embed-2026-09-22.json and metal-mac-rerank-2026-09-22.json.",
+  "status_after": "EXPERIMENTAL for EMBED x TEXT and RERANK x TEXT; SUPPORTED needs the matched-native benchmark; not yet: GPU-side WordPiece, F16 weights, multi-logit classification heads, generation through this provider",
+  "commit": "5e72fbc9c28d228983f29c59f072cdca7170019a",
+  "commit_note": "the commit that added this receipt to the tree; recorded on 2026-09-22 from git history, since the receipt was written with a placeholder"
+}

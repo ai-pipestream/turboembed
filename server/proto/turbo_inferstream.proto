@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Inferstream's extensions to the Open Inference Protocol v2, on the same
+// messages: streamed inference for generative models and the model
+// repository (list, load, unload at run time). The core protocol in
+// open_inference_grpc.proto is not changed; ServerMetadata.extensions
+// names these as `turbo_stream_infer` and `turbo_model_repository`.
+
+syntax = "proto3";
+package turbo.inferstream;
+
+import "open_inference_grpc.proto";
+
+service InferstreamExtension {
+  // ModelInfer for a generative model, one response per chunk: each
+  // carries the new text in the `text` output and, on the last, the
+  // finish reason and token counts in its parameters. The request is the
+  // OIP ModelInferRequest; a non-generative model answers with one
+  // response holding the whole result.
+  rpc ModelStreamInfer(inference.ModelInferRequest) returns (stream ModelStreamInferResponse) {}
+
+  // Every model the server serves, with its state.
+  rpc RepositoryIndex(RepositoryIndexRequest) returns (RepositoryIndexResponse) {}
+
+  // Load a bundle under a name; the model is ready when the call returns.
+  rpc RepositoryModelLoad(RepositoryModelLoadRequest) returns (RepositoryModelLoadResponse) {}
+
+  // Unload a model; in-flight requests finish first, new ones are NotFound.
+  rpc RepositoryModelUnload(RepositoryModelUnloadRequest) returns (RepositoryModelUnloadResponse) {}
+}
+
+message ModelStreamInferResponse {
+  // Empty on success; a message when the stream ended in an error.
+  string error_message = 1;
+  inference.ModelInferResponse infer_response = 2;
+}
+
+message RepositoryIndexRequest {}
+
+message RepositoryIndexResponse {
+  message ModelIndex {
+    string name = 1;
+    string version = 2;
+    // READY (serving) or UNAVAILABLE (being unloaded).
+    string state = 3;
+    string reason = 4;
+    // Bundle directory, provider id, device name, model kind.
+    string bundle = 5;
+    string provider = 6;
+    string device = 7;
+    string kind = 8;
+  }
+  repeated ModelIndex models = 1;
+}
+
+message RepositoryModelLoadRequest {
+  // Name clients will use; empty means the bundle's model id.
+  string model_name = 1;
+  // Bundle directory on the server's file system.
+  string bundle = 2;
+  // Provider id and device ordinal.
+  string provider = 3;
+  uint32 ordinal = 4;
+  // Session buckets as "BATCHxSEQ" (embedding, reranker, classifier models).
+  repeated string buckets = 5;
+  uint32 sessions = 6;
+  uint32 generations = 7;
+}
+
+message RepositoryModelLoadResponse {
+  string model_name = 1;
+}
+
+message RepositoryModelUnloadRequest {
+  string model_name = 1;
+}
+
+message RepositoryModelUnloadResponse {}

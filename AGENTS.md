@@ -1,49 +1,230 @@
-# Working on TurboEmbed
+# Agent and contributor rules for Turbo
 
-This guidance applies to the whole repository.
+Read [`PLAN.md`](PLAN.md) before touching this tree. It is the governing
+plan: architecture, naming, principles, and milestone scope. This file gives
+the working rules that follow from it. If this file and `PLAN.md` conflict,
+`PLAN.md` wins and the conflict should be fixed here, not worked around.
 
-## Scope and orientation
+## Non-negotiable principles (PLAN.md section 2), as review checks
 
-- TurboEmbed is the in-process embedding library. TurboRerank provides reranking, TurboBuffer manages native buffers, and Inferstream is the serving layer. Preserve these boundaries and existing public names unless a task explicitly changes them.
-- Start by reading the task, Git status, relevant headers, and the implementation behind the requested feature. Preserve unrelated edits and untracked review notes. Inspect actual remotes before publishing; do not assume a hosting policy from another repository.
-- Read `MUSE-REVIEW.md` and `docs/code-review-2026-09-13.md` for orientation. They are dated reviews, not specifications or evidence that a feature works today. Verify their claims against the current checkout.
-- Read `ROADMAP.md` and `docs/library-design.md` for product direction: Intel OpenVINO is the confirmed first GPU correctness/performance baseline, followed by NVIDIA and Apple qualification. Prioritize direct execution, reusable native buffers, and thin bindings measured against matched native execution. Inferstream is an optional server consumer.
-- The initial work is review and planning. Do not implement Java bindings, new backends, or review fixes until the user requests implementation. Future implementation requests authorize their stated scope.
-- Desktop Java targets JDK 25+ through Panama FFM. JNI delivery belongs to the later Android phase, with its own native provider/build path. These are confirmed choices; follow the roadmap's dependencies. OpenNLP integration remains optional and later.
+A reviewer applies these to every change, not just provider code:
 
-## Code map
+1. **One contract.** No second header, no vendor-specific API surface for a
+   capability the common header can express. If a provider needs something
+   the header cannot say, the header is extended for every provider, not
+   forked.
+2. **Honest capabilities.** Every option and placement maps to a
+   `TURBO_CAP_*` bit. A provider either honors an option exactly or reports
+   the bit clear and the call fails with `TURBO_E_UNSUPPORTED_OPTION` naming
+   the field; that rule covers the `TURBO_CAP_OPT_*` bits. A missing device
+   capability that is not an option (a placement, a handle import, a
+   native handle export) fails with the matching `TURBO_E_UNSUPPORTED*`
+   code and no field. Reject: any code path that silently ignores, clamps,
+   or substitutes a value for an option the caller set.
+3. **Lowest layer per device.** Pooling and normalization run where the
+   hidden state was produced, not pulled to the host by default. Where a
+   device cannot do a stage, the provider reports `fully_accelerated = 0`
+   and names the stage in `stage_placement`. Reject: unconditional host
+   pooling behind a fused-looking API.
+4. **Device policy.** `AUTO` never selects a CPU. CPU runs only when
+   explicitly selected. An absent device is an error, never a silent
+   fallback to something else. The mock provider serves only mock bundles.
+5. **Ownership is executable.** Child handles hold an `Arc`/reference to
+   their parent; releasing a parent must not invalidate a live child.
+   Reject: any handle relationship enforced only by a comment or a doc
+   string instead of the type.
+6. **Per-model truth lives in the bundle.** Pooling, normalization, sequence
+   limit, prefixes, dimension, dtype, and tokenizer identity come from
+   `bundle.json`, not from a model-name heuristic or an alias table.
+7. **Measured, not claimed.** A capability cell marked `SUPPORTED` needs a
+   conformance receipt, a precision receipt, and a matched-native benchmark
+   from a named machine. `EXPERIMENTAL` and `PLANNED` are honest,
+   non-blocking states — use them instead of overclaiming.
+8. **No one-offs.** A specific consumer's need is met by extending the
+   common surface, not by adding a special-cased function or flag for that
+   consumer alone.
 
-- `include/`: canonical C contracts. Keep corresponding headers in `swift/Sources/*C/include/` identical. Rust declarations must match their layouts and semantics.
-- `crates/turboembed/` and `native/turboembed/`: Rust wrapper, ORT hooks, C ABI dispatch, and Intel implementation. Despite its filename, `stub.cpp` also dispatches real providers. `native/turboembed/src/hailo.cpp` is the Raspberry Pi AI HAT+ (Hailo) provider behind `--features hailo` (host-side wordpiece + embedding tables + pooling, encoder body on the NPU via HailoRT); see `docs/hailo-embed.md`.
-- `native/turbo_buffer/`, `native/wordpiece/`, and `native/turborerank/`: allocation, tokenization, and reranking implementations shared across callers.
-- `swift/`: supported Apple implementation and server. The Rust Apple server crate is a Linux compile stub; `native/mlx-engine/` is legacy material.
-- `crates/backend*`, `crates/server/`, `crates/arch-*`, and `proto/`: backend contracts, serving, platform construction, and wire contracts. Keep engine-specific behavior behind the backend boundary.
-- `config/catalog.toml`, `crates/fetch/`, and `crates/xtask/`: model configuration and fetching. `testdata/` contains fixtures and historical receipts; `docs/` contains contracts and runbooks.
+## Where things live
 
-## Correctness requirements
+- `crates/turbo-abi` — `#[repr(C)]` types and constants, including the
+  provider vtable types (`provider.rs`); the single source cbindgen reads to
+  produce the headers. `no_std`.
+- `crates/turbo-capi` — `extern "C"` exports; thin, panic-safe adapters over
+  `turbo-core`.
+- `crates/turbo-shared` — links `turbo-capi` into `libturbo` (`cdylib` +
+  `staticlib`, crate name `turbo`). Nothing is defined here.
+- `crates/turbo-core` — the runtime, device registry, buffers, bundle
+  loader/verifier, tokenizers (`tokenizer.rs`), the chunk planner
+  (`chunker.rs`), handles (ownership/lifetime/lease enforcement), the
+  provider trait set (`provider.rs`), provider plugin loading
+  (`plugin.rs`, the C vtable to Rust trait adapter) and exporting
+  (`plugin_export.rs`, the `export_provider!` macro), and the `mock`
+  provider.
+- `crates/turbo` — the safe Rust API; re-exports `turbo-core` and adds
+  `builtin_providers()` (`mock`, `static`).
+- `bindings/java` — the JDK 25 FFM binding; `ai/pipestream/turbo/ffi` is
+  generated by `scripts/gen-java-ffi.sh` from the header, not edited by hand.
+- `bindings/swift` — the SwiftPM package (`PipestreamTurbo`) over the C ABI;
+  `CTurbo` wraps `include/turbo/turbo.h` as a clang module, and the
+  conformance cases run as an executable (`swift run turbo-conformance`),
+  not XCTest.
+- `crates/turbo-conformance` — the provider-agnostic contract suite:
+  `c/smoke.c` and a Rust suite (`tests/`, one file per group: contract,
+  lifetime, capability, device, threading, allocation, bundle, tasks,
+  generation, each in a `_c` and a `_rust` variant, plus `header_parity.rs`
+  and the live provider tests described below).
+- `providers/mock/`, `providers/static/`, `providers/cuda/`,
+  `providers/ggml/` — Rust providers built with `export_provider!`.
+  `providers/openvino/` — a C++ provider that implements
+  `turbo_provider.h`'s vtable directly and builds separately with CMake;
+  see its own `README.md`.
+- `tools/turbo-bundle/` — `import`, `verify`, `inspect` (`docs/bundles.md`).
+- `include/turbo/` — generated headers (`turbo.h`, `turbo_types.h`,
+  `turbo_provider.h`). Never hand-edit.
+- `crates/turbo-core/src/unicode_data.rs` — generated by
+  `scripts/gen-unicode-nfd.py` (Unicode data for the native tokenizer).
+  Do not hand-edit.
+- `testdata/bundles/mock/` — generated mock bundle fixtures.
+  `testdata/bundles/minilm-tokenizer/` — an imported tokenizer-only fixture;
+  edit it only by re-running the importer or the fixture writer, never by
+  hand.
+- `testdata/receipts/turbo/` — conformance and precision receipts for this
+  tree's providers (OpenVINO today).
+- `docs/` — current documentation; `docs/history/poc/` holds retired PoC
+  documentation, unedited.
 
-- Treat ownership as executable behavior. Safe wrappers must enforce engine/result lifetimes and prevent concurrent access or callback reentry that violates the native contract. Comments asking callers to avoid unsafe behavior are insufficient.
-- Honor pointer-plus-length inputs, including empty strings, embedded NULs, and non-ASCII text. Validate dimensions and arithmetic before allocating or narrowing sizes. Contain failures at language boundaries.
-- Preserve the device policy: AUTO selects the host GPU; unavailable accelerators return errors. CPU must be explicitly selected. Mock is for explicit smoke tests and must never impersonate a catalog model.
-- Verify separate-engine isolation, including allocator callbacks and error storage. A mutex around one handle does not protect process-wide state used by other engines.
-- Preserve model tokenizer, pooling, normalization, truncation, and output-layout semantics. An unsupported option must be reported rather than silently ignored. Compare token IDs as well as output vectors when optimizing tokenization.
-- Model tokenization must be correct for supported text inputs. GPU tokenization and richer analysis may remain explicit unsupported capabilities. Initial chunking can be native CPU work with model token budgets and original source offsets.
-- The C header declares ABI v1 frozen. Do not silently change layouts or semantics. Flag contract defects and propose a compatibility strategy before changing the ABI. Provider registration currently returns NOT_IMPLEMENTED.
-- Keep future FFM and JNI adapters thin. They should share native semantics and enforce resource lifetime, string encoding, error handling, and thread ownership. Android needs its own verified runtime/build support.
+## Validation commands and what CI runs
 
-## Validation
+```bash
+cargo fmt --all -- --check
+cargo clippy --locked --workspace --exclude turbo-provider-cuda --all-targets -- -D warnings
+cargo test --locked --workspace --exclude turbo-provider-cuda
+scripts/gen-header.sh --check
+scripts/gen-versioned.py --check
+cargo run -p turbo-core --example write_mock_bundles && git diff --exit-code -- testdata/bundles
+scripts/c-smoke.sh
+```
 
-- Baseline: `cargo test --locked --workspace`. Rust, a C++17 compiler, and `protoc` are needed. Review `.github/workflows/ci.yml` for the current CI commands and feature coverage.
-- Formatting check: `cargo fmt --all -- --check`. Default-feature lint: `cargo clippy --locked --workspace --all-targets -- -D warnings`. Do not substitute `--all-features`; it pulls platform-specific dependencies.
-- Use targeted existing tests for the change. Inspect Make prerequisites before running targets that fetch models or start hardware work. Bound benchmarks by a stated machine, workload, and finish line.
-- Report failed, ignored, conditionally skipped, and unexecuted tests separately. A serial rerun is diagnostic evidence, not proof that the default parallel command passes.
-- GPU validation needs the actual provider, device, model revision, and workload. Report local checks, hosted CI, publication, and deployment separately. Do not overwrite reference goldens to make a regression pass.
+`.github/workflows/ci.yml`'s `contract` job runs exactly this sequence,
+plus a check that `include/turbo/turbo.h` compiles standalone as both C11
+and C++17. Run all of it locally before opening a PR; a change to
+`turbo-abi` or `turbo-capi` almost always requires regenerating headers
+and, if it touches the mock provider's manifests, regenerating fixtures.
+`turbo-provider-ggml` is a plain workspace member with no `--exclude`, so
+these commands build and unit-test it too (CPU backend only). CI does not
+build the OpenVINO provider (needs an OpenVINO install) and excludes
+`turbo-provider-cuda` (hosted runners have no CUDA toolkit), so it does not
+run any provider's live tests (`crates/turbo-conformance/tests/live_embed.rs`,
+`live_tasks.rs`, `live_generate.rs`); those load one real provider library
+and skip themselves when `TURBO_LIVE_LIB` or `TURBO_LIVE_PROVIDER` is
+unset. Two further CI jobs run independently of `contract`: `java` (the
+Java binding's conformance cases under JDK 25 against the mock provider)
+and `packaging` (`scripts/package.sh --no-cuda --no-openvino`, uploaded as
+a build artifact). See `docs/testing.md` for running the live tests by
+hand, and `docs/bindings.md`/`docs/packaging.md` for the other two jobs.
 
-## Documentation
+## ABI rules
 
-- Write for a new human contributor. State what an API does, what it requires, and where its limits are. Use repository-relative links and commands that work outside a particular developer's checkout.
-- Separate current behavior, measured results, proposals, and unsupported features. Put dated machine results in receipts or runbooks; do not repeat them throughout API documentation.
-- Describe allocation and copy claims precisely: which buffers, counters, transfer direction, batch/sequence sizes, and warmup. Zero arena allocations does not mean zero process allocations or zero data movement.
-- Avoid slogans, repeated disclaimers, unexplained phase names, and labels such as LIVE or DONE without scope and evidence. Prefer one maintained explanation with links over repeated status prose.
-- Describe our requirements and measured behavior professionally. Do not disparage competing libraries or attribute overhead to a language/binding without measurement. Keep comparative benchmarks scoped to equivalent workloads.
-- Keep changes focused. Do not rename the product, rewrite all documentation, commit, push, or publish as a side effect of a review.
+- Every public struct starts with `uint32_t struct_size`. The library reads
+  only fields below the caller's declared size, and accepts a size only when
+  it is the end of a field the struct has ever had (every accepted prefix is
+  a layout that could have shipped); a size that ends inside a field, or any
+  other size the struct has never had, is `TURBO_E_INVALID_STRUCT_SIZE`. The
+  accepted sizes are a per-struct table (`crates/turbo-abi/src/versioned.rs`,
+  the `Versioned` trait), generated from the struct field lists by
+  `scripts/gen-versioned.py`; regenerate it when a struct's fields change,
+  and `scripts/gen-versioned.py --check` fails CI if it drifts.
+- ABI-position enumerations are `uint32_t` named constants, never a C
+  `enum`. An unrecognized value is `TURBO_E_INVALID_ENUM`, never mapped to a
+  default.
+- Errors are caller-owned (`turbo_error`, may be `NULL`). No thread-local or
+  shared error state anywhere in the library.
+- Handles are opaque and reference counted. A child handle retains its
+  parent; a release function accepts `NULL` and is a no-op.
+- Sessions and generations are single-owner: a concurrent call on the same
+  handle returns `TURBO_E_BUSY` rather than racing.
+- Every capability bit either gates an option (the provider honors it) or
+  the corresponding call rejects the option with `TURBO_E_UNSUPPORTED_OPTION`
+  and the 1-based field index. There is no third behavior.
+- No silent fallbacks, no swallowed errors, fail loudly. If you are tempted
+  to catch an error and substitute a default, that substitution needs its
+  own capability bit and an honest `UNSUPPORTED`/`PLANNED` status instead.
+
+## The header is generated
+
+Never hand-edit `include/turbo/turbo.h`, `include/turbo/turbo_types.h`, or
+`include/turbo/turbo_provider.h`. Change `crates/turbo-abi` (constants and
+`#[repr(C)]` types, including `crates/turbo-abi/src/provider.rs` for the
+plugin vtable) or `crates/turbo-capi` (function signatures and doc
+comments), then run:
+
+```bash
+scripts/gen-header.sh
+```
+
+Commit the regenerated headers alongside the Rust change in the same PR.
+`scripts/gen-header.sh --check` (what CI runs) fails the build if they drift.
+
+## Mock fixtures are generated
+
+`testdata/bundles/mock/*/bundle.json` and `mock.json` are written by:
+
+```bash
+cargo run -p turbo-core --example write_mock_bundles
+```
+
+Do not hand-edit them. If you change `crates/turbo-core/src/mock.rs`
+(bundle shape, contract fields, salt/vocab constants), regenerate and commit
+the fixtures in the same PR; CI diffs the working tree against a fresh run.
+
+## Adding a provider
+
+1. A Rust provider implements the traits in `crates/turbo-core/src/
+   provider.rs` (`Provider`, `ProviderContext`, `ProviderModel`,
+   `ProviderSession`, `ProviderGeneration` as applicable) and exports them
+   with `turbo_core::export_provider!` (see `providers/mock`,
+   `providers/static`). A provider in another language implements
+   `include/turbo/turbo_provider.h`'s vtable directly and exports
+   `turbo_provider_get` (see `providers/openvino`, C++). Either way the
+   library is loaded with `turbo_runtime_load_provider` or
+   `turbo_runtime_desc.provider_paths`; see `docs/providers.md`.
+2. Report an honest capability matrix from `Provider::capability`
+   (`(*capability)` in the C vtable): mark a cell `SUPPORTED` only once it
+   has a conformance receipt, a precision receipt, and a benchmark; use
+   `EXPERIMENTAL` or `PLANNED` otherwise. Set `fully_accelerated` and
+   `stage_placement` in `ModelInfo` to what the provider actually did, not
+   what it intends to do.
+3. Run the conformance suite (`crates/turbo-conformance`) against the new
+   provider: set `TURBO_CONFORMANCE_PROVIDER_PATHS` to the provider's
+   library path (and `TURBO_CONFORMANCE_PROVIDER`/`TURBO_CONFORMANCE_ORDINAL`
+   to select its device) and run `cargo test -p turbo-conformance`; see
+   `docs/testing.md`. A provider with no real bundle to test against yet
+   should at least carry the handle-lifetime, capability-honesty, and
+   device-policy unit tests the `mock` provider and `turbo-core` carry (see
+   `handles.rs`, `runtime.rs`, `mock.rs` test modules for the pattern).
+4. Ship receipts under `testdata/receipts/turbo/` per `PLAN.md` sections
+   10-11: machine ID, runtime/driver versions, bundle hashes, and commit
+   (see `testdata/receipts/turbo/openvino-minilm-2026-09-21.json` for the
+   shape).
+
+## Documentation rules
+
+- Separate current behavior from plans. State what the code does today in
+  plain sentences; mark anything not yet implemented as planned, naming the
+  milestone (`PLAN.md` section 10).
+- Name the machine for any measurement (latency, throughput, memory). A
+  number without a named machine and commit is not a claim, it is noise.
+- No repeated status prose. State a fact once, in the file that owns it, and
+  link to it elsewhere instead of restating it.
+- No slogans, marketing adjectives, or emoji. Plain sentences, no
+  em-dashes, repository-relative links, commands that work from the
+  repository root.
+
+## Commit rules
+
+- Focused commits: one logical change per commit, not a batch of unrelated
+  fixes.
+- No AI attribution lines in commit messages or code comments.
+- No product renames. The library is `turbo` / `libturbo`; the project and
+  repository stay `TurboEmbed`; the server stays `Inferstream`
+  (`PLAN.md` section 3). Do not introduce another name for any of these.

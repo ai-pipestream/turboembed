@@ -1,0 +1,126 @@
+{
+  "receipt_version": 1,
+  "kind": "compare",
+  "turbo": {
+    "file": "cuda-orin-nano-embed-2026-09-22c.json",
+    "commit": "0906ca1",
+    "provider": {
+      "id": "cuda",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "onnxruntime ORT Build Info: git-branch=rel-1.24.0, git-commit-i",
+      "driver_version": "13.2"
+    },
+    "device": {
+      "name": "Orin (sm_87)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x3bf02c6",
+      "memory_total": 7848525824
+    },
+    "date": "2026-09-22"
+  },
+  "native": {
+    "file": "native-ort-cuda-orin-nano-embed-2026-09-22c.json",
+    "commit": "0906ca1",
+    "provider": {
+      "id": "onnxruntime-cuda",
+      "version": "2.0.0-alpha.0",
+      "runtime_version": "ONNX Runtime ORT Build Info: git-branch=rel-1.24.0, git-commit-id=526e527c85, build type=Release (ort 2.0.0-rc.13), CUDA execution provider",
+      "driver_version": "595.78"
+    },
+    "device": {
+      "name": "Orin (nvgpu)",
+      "kind": "Gpu",
+      "ordinal": 0,
+      "caps": "0x0",
+      "memory_total": 0
+    },
+    "date": "2026-09-22"
+  },
+  "bundle": {
+    "dir": "$HOME/opt/bundles/minilm-onnx",
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "manifest_sha256": "9ed46c593f1b8a5d6bc2c26945b1a487192560512afee4292d02cda196b56889",
+    "artifacts": {
+      "onnx": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    }
+  },
+  "floor": 0.95,
+  "cells": [
+    {
+      "cell": "embed 1x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 4.086539,
+      "native": 3.744219,
+      "ratio": 0.9162322933905684,
+      "within_floor": false
+    },
+    {
+      "cell": "embed 8x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 3.733949,
+      "native": 3.669112,
+      "ratio": 0.9826358099695524,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x32",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 15.631438,
+      "native": 15.766540999999998,
+      "ratio": 1.0086430307947356,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 4.055913,
+      "native": 3.840767,
+      "ratio": 0.9469549765983638,
+      "within_floor": false
+    },
+    {
+      "cell": "embed 8x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 15.643918,
+      "native": 16.494828,
+      "ratio": 1.0543923843119096,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x128",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 56.17857,
+      "native": 58.983339,
+      "ratio": 1.049925959311531,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 1x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 4.5893749999999995,
+      "native": 4.49641,
+      "ratio": 0.9797434291161652,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 8x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 35.670894000000004,
+      "native": 36.539048,
+      "ratio": 1.0243378817475108,
+      "within_floor": true
+    },
+    {
+      "cell": "embed 32x256",
+      "measure": "prepared tokens p50 ms",
+      "turbo": 127.310017,
+      "native": 130.970791,
+      "ratio": 1.0287547993964998,
+      "within_floor": true
+    }
+  ],
+  "unmatched": [],
+  "dirty": [],
+  "verdict": "EXPERIMENTAL"
+}

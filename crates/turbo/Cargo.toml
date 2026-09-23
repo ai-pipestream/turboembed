@@ -1,0 +1,14 @@
+[package]
+name = "turbo"
+description = "Safe Rust API for Turbo: embeddings, reranking, classification, generation, and generic inference across providers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+turbo-core = { workspace = true }
+turbo-abi = { workspace = true }
+turbo-provider-static = { workspace = true }

@@ -1,0 +1,37 @@
+[package]
+name = "turbo-provider-cuda"
+description = "NVIDIA CUDA provider for Turbo: ONNX Runtime CUDA EP with IoBinding and device-side pooling kernels"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "turbo_provider_cuda"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["download"]
+# Fetch the prebuilt ONNX Runtime 1.28 CUDA bundle at build time (x86_64
+# only). Off when linking a local ONNX Runtime through ORT_LIB_LOCATION,
+# which is how the Jetson (aarch64) build works; that path also avoids the
+# OpenSSL dependency of the downloader.
+download = ["ort/download-binaries", "ort/tls-native"]
+
+[dependencies]
+turbo-core = { workspace = true }
+libc = { workspace = true }
+# ONNX Runtime CUDA execution provider through the ort crate (CUDA 13
+# user-space libraries at runtime). `copy-dylibs` links the
+# execution-provider libraries into the cargo target directory so tests find
+# them next to the provider.
+ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "cuda", "copy-dylibs"] }
+
+[build-dependencies]
+cc = "1"
+
+[dev-dependencies]
+tempfile = "3"

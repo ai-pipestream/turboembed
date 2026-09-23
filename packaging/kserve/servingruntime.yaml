@@ -1,0 +1,64 @@
+# A KServe ServingRuntime for Inferstream: one container per model,
+# serving the Open Inference Protocol v2 over REST and gRPC.
+#
+#   kubectl apply -f packaging/kserve/servingruntime.yaml
+#
+# KServe's storage initializer fetches the InferenceService's storageUri
+# (a Turbo bundle directory) into /mnt/models and the runtime serves it
+# under the InferenceService's name. The provider is fixed per runtime
+# because the image decides which providers exist: this one is the CPU
+# image with the ggml provider, so it serves GGUF bundles (generation and
+# embeddings). A cluster with GPUs adds a runtime on turbo-inferstream:cuda
+# with `provider=ggml,ordinal=0` and an nvidia.com/gpu limit.
+#
+# KServe routes one container port; this runtime exposes the REST
+# listener on 8080, and the gRPC listener is on 8081 in the pod for
+# in-cluster clients (a plain Service on the predictor pods reaches it).
+# To route gRPC through KServe instead, name the 8081 port `h2c` and
+# drop the 8080 entry.
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  name: turbo-inferstream-cpu
+spec:
+  supportedModelFormats:
+    - name: turbo-bundle
+      version: "1"
+      autoSelect: true
+  protocolVersions:
+    - v2
+    - grpc-v2
+  containers:
+    - name: kserve-container
+      image: turbo-inferstream:cpu
+      args:
+        - --model
+        - name={{.Name}},bundle=/mnt/models,provider=ggml,generations=2
+        # KServe expects its port here; the flags override the image's
+        # INFERSTREAM_HTTP and INFERSTREAM_GRPC defaults.
+        - --http
+        - 0.0.0.0:8080
+        - --grpc
+        - 0.0.0.0:8081
+      ports:
+        - containerPort: 8080
+          name: http1
+          protocol: TCP
+      readinessProbe:
+        httpGet:
+          path: /v2/health/ready
+          port: 8080
+        initialDelaySeconds: 5
+        periodSeconds: 5
+      livenessProbe:
+        httpGet:
+          path: /v2/health/live
+          port: 8080
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: "2"
+          memory: 2Gi
+        limits:
+          cpu: "8"
+          memory: 8Gi

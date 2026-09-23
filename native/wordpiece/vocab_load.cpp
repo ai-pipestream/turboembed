@@ -73,6 +73,9 @@ bool insert_slot(
             s.len = len;
             s.occupied = 1;
             s.id = id;
+            if (id >= 0 && id + 1 > v->n_ids) {
+                v->n_ids = id + 1;
+            }
             return true;
         }
         if (s.len == len && std::memcmp(v->blob + s.off, v->blob + off, len) == 0) {
@@ -277,11 +280,18 @@ bool supported_config(const Json &j, wordpiece_vocab *v) {
         m.at("continuing_subword_prefix") != "##" ||
         m.at("max_input_chars_per_word") != 100) { return false; }
     auto normal = j.at("normalizer");
-    if (normal.at("strip_accents").is_null()) { normal["strip_accents"] = true; }
+    // Hugging Face semantics: strip_accents defaults to the lowercase setting.
+    const bool lowercase = normal.value("lowercase", true);
+    if (normal.at("strip_accents").is_null()) { normal["strip_accents"] = lowercase; }
+    const bool strip = normal.at("strip_accents").get<bool>();
+    // Supported: uncased (lowercase + strip accents) and cased (neither).
+    if (lowercase != strip) { return false; }
     if (normal != Json{{"type", "BertNormalizer"}, {"clean_text", true},
-            {"handle_chinese_chars", true}, {"strip_accents", true}, {"lowercase", true}} ||
+            {"handle_chinese_chars", true}, {"strip_accents", strip}, {"lowercase", lowercase}} ||
         j.at("pre_tokenizer") != Json{{"type", "BertPreTokenizer"}} ||
         !supported_processor(j.at("post_processor"), v)) { return false; }
+    v->lowercase = lowercase ? 1 : 0;
+    v->strip_accents = strip ? 1 : 0;
 
     const auto &added = j.at("added_tokens");
     if (!added.is_array()) { return false; }
@@ -446,6 +456,9 @@ int32_t wordpiece_sep_id(const wordpiece_vocab *v) {
 }
 int32_t wordpiece_pad_id(const wordpiece_vocab *v) {
     return v ? v->pad_id : 0;
+}
+int32_t wordpiece_vocab_size(const wordpiece_vocab *v) {
+    return v ? v->n_ids : 0;
 }
 
 } // extern "C"

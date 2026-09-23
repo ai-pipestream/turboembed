@@ -1,2 +1,6 @@
-[alias]
-xtask = "run -p inferstream-xtask --"
+# Workspace build environment.
+[env]
+# llama.cpp (providers/ggml) is linked into a shared provider library, so its
+# objects must be position-independent; llama-cpp-sys-2 forwards CMAKE_*
+# variables to cmake. Harmless for the other build scripts.
+CMAKE_POSITION_INDEPENDENT_CODE = "ON"
