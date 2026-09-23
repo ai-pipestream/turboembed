@@ -46,6 +46,118 @@ Present before this list and not re-pinned, recorded at the commit found:
 
 Re-pin a checkout in this second table the first time a receipt cites it.
 
+## What the source says (read 2026-09-23, at the commits above)
+
+Read from the checkouts, not built or measured. Paths are relative to
+each repository root.
+
+### Tokenization is a host stage on every stack
+
+- OpenVINO tokenizers are `ov::op::Op` subclasses that implement
+  `evaluate()` in host C++ (`src/ov_extension.cpp:72-106`,
+  `src/wordpiece_tokenizer.cpp`, `src/bpe_tokenizer.cpp`,
+  `src/unigram_tokenizer.cpp`, `src/sentence_piece.cpp`); the README
+  states CPU only (`README.md:170`); compiling one for the GPU plugin
+  fails at `openvino/src/plugins/intel_gpu/src/plugin/program_builder.cpp:210-231`
+  with no fallback. openvino.genai hardcodes the tokenizer device to CPU
+  (`src/cpp/src/tokenizer/tokenizer_impl.cpp:394`).
+- onnxruntime has no GPU tokenizer; its only tokenizer op is a CPU
+  splitter (`onnxruntime/contrib_ops/cpu/tokenizer.cc`).
+- text-embeddings-inference tokenizes on host threads with the
+  `tokenizers` crate (`core/src/tokenization.rs`).
+- llama.cpp, MLX, CTranslate2 and HailoRT tokenize on the host; the
+  GenAI HEFs carry a tokenizer as an external resource that also runs on
+  the host (`hailort/src/genai/llm/llm.cpp:201-225`).
+- The one GPU tokenizer is cudf's `nvtext::wordpiece_tokenize`
+  (`cpp/include/nvtext/wordpiece_tokenize.hpp:106-111`, vocabulary from
+  `load_wordpiece_vocabulary`, ids are row indices, a `cuco::static_map`
+  in `cpp/src/text/wordpiece_tokenize.cu:34-58`). It needs
+  `normalize_characters` first (`normalize.hpp:79-154`), returns a lists
+  column of int32 ids with no mask, no padding and no special tokens
+  (`wordpiece_tokenize.cu:847`), and every call takes an RMM stream and
+  memory resource. Its BPE returns strings, not ids.
+
+### Pooling and normalization can sit in the graph, except on Hailo
+
+- openvino.genai inserts pooling (CLS: Slice and Squeeze; mean: mask
+  Broadcast, Multiply, ReduceSum, Divide; last token: Slice or Gather)
+  and `NormalizeL2` into the encoder graph with
+  `PrePostProcessor::postprocess().custom`
+  (`src/cpp/src/rag/text_embedding_utils.cpp:30-122,147-162`) on GPU and
+  CPU. On the NPU a dynamic model goes through the NPUW path with
+  pooling in a separate CPU model and the whole hidden state on the host
+  (`src/cpp/src/rag/npu/text_embedding_pipeline.cpp:44-50`). No segment
+  pooling. Its reranker appends Sigmoid or Softmax
+  (`text_rerank_pipeline.cpp:61-86`).
+- onnxruntime's CUDA provider fuses attention, embedding layernorm, skip
+  layernorm and padding removal (`onnxruntime/contrib_ops/cuda/bert/`),
+  registered for in-session fusion at
+  `core/optimizer/graph_transformer_utils.cc:405-418`.
+- TensorRT's open-source BERT plugins (`plugin/embLayerNormPlugin`,
+  `plugin/skipLayerNormPlugin`, `plugin/bertQKVToContextPlugin`) are
+  deprecated in favour of `INetworkDefinition::addAttention`; the fused
+  attention cubins for head size 32 exist for sm75 and sm80 only, and
+  whether sm89 dispatches to one or falls back to cuBLAS
+  (`mhaRunner.cu:403`) is not settled by the source. No pooling or
+  normalization plugin.
+- text-embeddings-inference pools on the device (`models/flash_bert.rs`:
+  CLS and last token 399-426, mean 441-461) over an unpadded batch with
+  `cu_seqlens` (376-391), then copies to the host (`lib.rs:685`) and
+  normalizes there in f32 (`core/src/infer.rs:288-302`).
+- llama.cpp pools inside the ggml graph (`src/llama-graph.cpp:3704-3754`;
+  mean is a matmul with an `inp_mean` matrix filled on the host per
+  sequence id, 234-274, so one sequence id per chunk is segment pooling);
+  L2 is host code (`common/common.cpp:1940`).
+- MLX has Metal kernels for layer norm and RMS norm
+  (`mlx/backend/metal/normalization.cpp`) and fused attention for head
+  sizes 64 to 256 only (`scaled_dot_product_attention.cpp:661-671`), so
+  MiniLM's head size 32 takes the composed path; pooling, segment pooling
+  and L2 are compositions that stay on the GPU stream.
+- HailoRT's only host post-process ops are argmax, softmax, NMS and the
+  detection decoders (`src/net_flow/ops/`); quantize and dequantize run on
+  the host (`libhailort/src/transform/transform.cpp:35-52`). Pooling and
+  normalization are host stages on Hailo.
+- CTranslate2 has only BERT's CLS gather and pooler dense on the device
+  (`src/models/language_model.cc:388-399`); no mean pooling, no L2.
+
+### Keeping an output on the device for the next stage
+
+- onnxruntime: IO binding with a device-allocated output
+  (`include/onnxruntime/core/session/onnxruntime_c_api.h:2883-2970`) and
+  CUDA graphs (`cuda_provider_options.h:31`).
+- OpenVINO GPU: remote tensors from `cl_mem` or USM
+  (`src/inference/include/openvino/runtime/intel_gpu/ocl/ocl.hpp:286-379`);
+  a remote input is used without a copy
+  (`intel_gpu/src/plugin/sync_infer_request.cpp:900-907`), a remote
+  output is not mapped to the host (515-518), and two compiled models
+  share the default context when their plugin options match
+  (`remote-tensor-api-gpu-plugin.rst:160-163`). USM host memory can slow
+  a discrete GPU (`sync_infer_request.cpp:932-933`).
+- MLX: arrays are lazy and stay in shared-mode Metal buffers
+  (`backend/metal/allocator.cpp:15-16`); a host read is a pointer, not a
+  copy (`array.h:375`).
+- llama.cpp: no public API keeps the output in a backend buffer; every
+  result is read back with `ggml_backend_tensor_get_async`
+  (`src/llama-context.cpp:1546-1603`).
+- TEI: every result is copied to the host.
+- CTranslate2: the output `StorageView` stays on the device.
+
+### Zero copy and the fastest loop per stack
+
+- HailoRT 5.1.1: `ConfiguredInferModel::run_async` (C++ only; `hailortcli
+  run2` defaults to it, `run2_command.cpp:383-390`); buffers page aligned
+  and pre-mapped with `VDevice::dma_map` or `dma_map_dmabuf`
+  (`vdevice.hpp:210,246`, `infer_model.hpp:85-131`). HailoRT 5 on the
+  main branch serves Hailo-10 and Hailo-15 only; Hailo-8 is the `hailo8`
+  branch, and the 5.x C API drops the ethernet and MIPI functions and
+  changes the device capability struct, so the two providers stay
+  separate builds.
+- Intel NPU: static shapes only (`npu-device.rst:409-411`); batching is
+  batch one with concurrent requests
+  (`npu-device/batching-on-npu-plugin.rst:10-28`).
+- The source gives no ranking on any machine; the loops to measure are
+  listed in `PLAN.md` section 0, item R3.
+
 ## How the checkouts were made
 
 Shallow clones at the tag (`git clone --depth 1 --branch <tag>`), so the

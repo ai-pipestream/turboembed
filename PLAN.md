@@ -66,10 +66,25 @@ is the copy.
 - Artifact. The model made runnable for one target: a format (`onnx`,
   `gguf`, `hef`, `openvino_ir`, Metal weights) for an architecture. The
   thing a provider loads. A recipe produced it.
+- Stage. One step of a task: normalize text, tokenize, encode, pool,
+  normalize vectors, pool segments, score, decode. A provider states per
+  stage where it runs (device or host) and whether a copy was taken to get
+  there. Boundaries for chunking are a host stage everywhere (they are
+  computed over text before anything reaches a device); pooling the
+  segments they define is a device stage wherever the stack allows it
+  (CUDA, OpenVINO, Metal, ggml) and a host stage on Hailo. Tokenization is
+  a host stage on every stack today; the core tokenizer is the reference
+  and a fused provider tokenizer replaces it only after an equivalence
+  check.
 - Receipt. Proof binding provider, device architecture, runtime, bundle
   and artifact hashes, and task: conformance, precision, matched-native
   (section 11). It fills the matrix and it is the data path selection
-  ranks on.
+  ranks on. The matched benchmark's other side is the fastest known
+  program for that hardware, at the commit `docs/reference-code.md` pins.
+- Provenance. What one result carries back: provider, device
+  architecture, runtime version, artifact hash, tokenizer hash, and the
+  placement of every stage with any copy taken. Receipts are per
+  configuration and committed; provenance is per result and returned.
 - Interface. The common layer: the C ABI and the Rust API over it. Every
   surface (Java FFM, Swift, Android JNI, C and C++, gRPC and REST, the
   web routes) is a thin projection of the same calls and adds no
@@ -101,29 +116,79 @@ bundle can hold artifacts for several targets; the server is an
 interface and a deployment at once; a receipt binds five entities, which
 is why it is the ranking data and why it must name hashes, not claims.
 
-### What exists and what is left
+### What exists and what is left: the roadmap
 
 The common layer exists: the ABI, the core, the conformance suite, the
 five providers with receipts for embeddings on five machines, the bundle
-contract, the bindings and the server (P0 to P9). What is left, in order:
+contract, the bindings and the server (P0 to P9). What is disjointed is
+the spine: tasks as the unit, selection on the interface, placement and
+provenance on every result, and one bar for "fast". The roadmap is that
+spine, in order. Each item names what ends it; an item without its
+receipt is not done. What the pinned reference source says about each
+stack, with file and line, is in `docs/reference-code.md`, and the items
+below follow from it.
 
-1. The two selection calls on the interface, specified first (inputs,
-   outputs, ranking rule, report), then implemented in the core and
-   projected into every binding. This is an ABI change: the selector
-   takes the task, and resolve is new.
-2. The local catalog behind them, from the bundle directories and the
-   committed receipts, in the P11 schema cut down to that purpose.
-3. The matrix filled where the hardware allows it: rerank, classify and
-   token classification on the B70 with their receipts; the Jetson cells;
-   the Hailo-10H artifact.
-4. Chunk and tokenize as tasks on the interface, with the OpenNLP native
-   fallback for chunking, and each provider stating which stages it fuses.
-5. Bindings checked as pure projections of the interface, including the
-   two new calls.
+R0. The mission where every reader starts. `AGENTS.md` opens with the
+    mission and the reject rules; the README states the mission, one
+    example, the matrix and the benchmark table, and nothing else.
+    Ends: both files reviewed and merged.
 
-Deferred until those five are done, and not on the front of the plan:
-remote repositories, the DJL index view, signing, mirrors, and any
-tooling that is not needed by the calls above.
+R1. Stages, placement and provenance on the interface. The stage list
+    above becomes an ABI enumeration; `stage_placement` names every stage
+    and whether a copy was taken; a result carries its provenance. Chunk
+    becomes two stages: boundaries (host: the core's rules, or the
+    OpenNLP native image as a provider of that stage) and segment
+    pooling (device where the stack allows it), with the embed task
+    taking an optional segment plan. Ends: headers regenerated, the mock
+    provider and every real provider report placement for every stage,
+    the conformance suite checks provenance, bindings compile.
+
+R2. Selection on the interface. Resolve: task plus constraints or a name
+    to the bundles on this machine with an artifact for its hardware.
+    Select: task plus bundle to the device and provider ranked by cell
+    status then by receipts for that device class and task, with the
+    reason reported. The local catalog behind them is built from the
+    bundle directories and the committed receipts (P11 cut to that).
+    Ends: the calls specified, implemented, conformance cases for both,
+    the reason string checked, every binding projecting them.
+
+R3. The bar per machine. Build the fastest known loop from the pinned
+    checkouts and measure it with `turbo-bench`'s token dumps: on the RTX
+    4080, onnxruntime with IO binding and its fused graph, a TensorRT
+    FP16 engine from the same ONNX with pooling in the graph, and TEI's
+    unpadded FlashBert; on the B70, openvino.genai's pipeline against a
+    hand loop with USM tensors; on the M2, MLX (whose fused attention
+    does not cover MiniLM's head size, so the composed path); on the Pi,
+    `hailortcli run2` in full async mode; for GGUF, `llama-embedding`.
+    Ends: a native receipt per loop naming the reference commit, the
+    compare verdicts recomputed against the fastest of them, cells
+    regraded.
+
+R4. Providers to the bar. Wherever R3 puts a cell under 0.95: cuda keeps
+    outputs resident between calls and adds segment pooling; openvino
+    fuses segment pooling with the pooling it already has and moves
+    inputs and outputs to USM device tensors; metal takes the head size
+    32 attention path that MLX lacks; ggml avoids the host readback the
+    public API forces where it can and reports it where it cannot; hailo
+    measures the host transform against raw async streams. Ends: the
+    verdicts at or above 0.95, or the cell EXPERIMENTAL with the number.
+
+R5. The matrix filled where the hardware allows. Rerank, classify and
+    token classification on the B70 (the bench workloads and OpenVINO
+    reference are parked on `wip/b70-task-benchmarks`); the Jetson cells;
+    the Hailo-10H artifact (needs DFC 5.1); the Intel NPU as static-shape
+    buckets, batch one, when the approval arrives. Ends: receipts per
+    cell.
+
+R6. Bindings as projections. Java, Swift, gRPC and REST expose provenance
+    and the two selection calls and add nothing else. Ends: the binding
+    conformance cases cover both.
+
+Deferred until R0 to R6 are done, and not on the front of the plan:
+remote repositories, the DJL index view, signing, mirrors, GPU-side
+tokenization (cudf's WordPiece is the only one and needs its own
+normalize and pack steps; a PLANNED cell on cuda, nothing else), and any
+tooling not needed by the items above.
 
 ## 1. Verdict on the current code and what we keep
 
