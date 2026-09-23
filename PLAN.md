@@ -41,9 +41,18 @@ boundaries as an input, or computes them with its own rules, and the
 OpenNLP service (a separate gRPC server, a separate effort) is composed
 in front of the core at the Inferstream layer, where a network hop for a
 few kilobytes of text is fine and where both services are exposed
-together. DJL compatibility means DJL's repository format, so a DJL
-program can load our ONNX artifacts from a small jar; it does not mean
-DJL's features, and it is deferred (P11).
+together. The Java layer is JDK 25 with the foreign function API over
+the C ABI; under the ABI the core is Rust and the providers are Rust, C++
+and Objective-C++, and Java never sees which. ONNX is a format a user
+brings, never the endpoint: a provider compiles it (OpenVINO, TensorRT,
+the Hailo compiler), takes the weights out of it for its own kernels
+(the direct CUDA and Metal paths), or, for an architecture with no
+kernels yet, runs the graph through the fallback engine and says so. DJL
+compatibility, when it comes (P11, deferred), means a DJL Engine
+implemented over the Java binding, so a DJL program runs its tasks on
+the metal through this library; the repository view, which only lets
+DJL fetch an ONNX file and run it in its own engine, is the lesser
+option and comes with it or not at all.
 
 Slow hardware is fine. A path slower than the hardware's own best is not.
 A feature that exists on one configuration and not another is fine, and
