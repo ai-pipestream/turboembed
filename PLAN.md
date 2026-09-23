@@ -31,6 +31,20 @@ generates the same way on any of those machines. The model's contract
 travels in a hash-verified bundle so the answer is the same everywhere.
 Serving and bindings are how people reach it; they are not the product.
 
+Three deliverables, in this order: the core library, which is what people
+build their own applications on; Inferstream, the gRPC and REST service
+over it for deployments that want a server (the Open Inference Protocol,
+so it runs under KServe); and the front end for people to try models
+and hardware. The second and third are projections of the first and add
+no semantics. The core carries no OpenNLP dependency: it takes sentence
+boundaries as an input, or computes them with its own rules, and the
+OpenNLP service (a separate gRPC server, a separate effort) is composed
+in front of the core at the Inferstream layer, where a network hop for a
+few kilobytes of text is fine and where both services are exposed
+together. DJL compatibility means DJL's repository format, so a DJL
+program can load our ONNX artifacts from a small jar; it does not mean
+DJL's features, and it is deferred (P11).
+
 Slow hardware is fine. A path slower than the hardware's own best is not.
 A feature that exists on one configuration and not another is fine, and
 the compliance matrix says so. Performance over elegance: ONNX Runtime is
