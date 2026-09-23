@@ -6,6 +6,125 @@ milestone, by an agent or a contributor who has not seen the prior code.
 Research inputs (runtime versions, API designs, binding technology) were
 verified against primary sources on the plan date and are cited inline.
 
+## 0. The point, the entities, and what is left (2026-09-23)
+
+This section was written after two days of building and is the statement
+the rest of the plan is held against. Where a later section disagrees
+with it, this section wins.
+
+### The point
+
+One native library with one interface. For each kind of hardware it goes
+to the lowest, fastest layer that hardware has, with nothing in between:
+Metal directly on Apple, HailoRT on the Pi, OpenVINO on Intel, CUDA with
+its own kernels on NVIDIA, llama.cpp for GGUF. Speed is the reason it
+exists, and it is proven by matched benchmarks against the vendor's own
+loop, never claimed. A program written against the interface, from Java,
+Swift, Rust, C or over gRPC, embeds, ranks, classifies, chunks and
+generates the same way on any of those machines. The model's contract
+travels in a hash-verified bundle so the answer is the same everywhere.
+Serving and bindings are how people reach it; they are not the product.
+
+Slow hardware is fine. A path slower than the hardware's own best is not.
+A feature that exists on one configuration and not another is fine, and
+the compliance matrix says so. Existing unifying libraries fail on one of
+two sides: they lower every task to generic operations and pay for the
+copies between them, or they keep the vendor pipeline and lose the common
+interface. This library keeps the vendor pipeline and puts the common
+interface above it.
+
+Tasks, not operations. The interface speaks in the units an application
+needs, and a provider receives the whole task and runs it on the
+hardware's own pipeline, fused the way that vendor's stack fuses it. The
+vendor pipelines on CUDA and on Intel take text in and hand vectors out,
+with tokenizing and chunking inside them; that is why the tokenizer was
+rewritten natively in the core: one implementation that feeds any
+provider with no copies, which a provider replaces with its own fused
+stage when the hardware does that stage faster. A stage runs where its
+data already is: if the tokens are on the GPU and the GPU can gather,
+pool or chunk, it does, and the host fallback, with the copy it costs, is
+taken only when the provider cannot run that stage. Where a stage runs is
+the provider's decision and is reported like any other placement, and so
+is the copy.
+
+### The entities
+
+- Hardware (device). What is physically in the machine: kind (GPU, NPU,
+  CPU), vendor, architecture label, memory, the vendor runtime and driver
+  version. Discovered at runtime, never configured.
+- Provider. The implementation that drives one hardware family through
+  its lowest layer: `cuda`, `openvino`, `metal`, `hailo`, `ggml`, and the
+  explicit CPU providers. Loaded as a library. It offers tasks per device;
+  that offer, with its status, is the compliance matrix (section 4.4).
+- Task. The unit of work: chunk, tokenize, embed, rerank, classify, tag
+  tokens, generate; audio and image later. Defined once on the interface
+  with its inputs, options and outputs (sections 4 and 5).
+- Model. A checkpoint with a contract per task (pooling, normalization,
+  dimension, labels, prompts). An application meets it as a bundle.
+- Bundle. The hash-verified directory: contract, tokenizer, one or more
+  artifacts (section 6).
+- Artifact. The model made runnable for one target: a format (`onnx`,
+  `gguf`, `hef`, `openvino_ir`, Metal weights) for an architecture. The
+  thing a provider loads. A recipe produced it.
+- Receipt. Proof binding provider, device architecture, runtime, bundle
+  and artifact hashes, and task: conformance, precision, matched-native
+  (section 11). It fills the matrix and it is the data path selection
+  ranks on.
+- Interface. The common layer: the C ABI and the Rust API over it. Every
+  surface (Java FFM, Swift, Android JNI, C and C++, gRPC and REST, the
+  web routes) is a thin projection of the same calls and adds no
+  semantics of its own.
+- Runtime objects. A context on a device; a model loaded on it through a
+  provider; a session with its buckets; buffers, host and device, with
+  zero-copy import; results resident on the device with an explicit read
+  (section 4.5).
+- Selection. Two calls the interface does not have yet. Resolve: a task
+  plus constraints (dimension, languages, size, licence, or a name) to
+  the bundles available on this machine that have an artifact for its
+  hardware. Select: a task plus a bundle to the device and provider that
+  will run it fastest here, ranked by cell status (SUPPORTED before
+  EXPERIMENTAL) and then by the receipts' measured throughput for that
+  device class and task, with the choice and its reason reported. Today
+  `AUTO` returns the first accelerator in load order and takes no task;
+  that is the gap between the README and the code, and the README is
+  corrected until the calls exist.
+- Catalog. The typed data selection reads: model, artifact, target,
+  receipts. Built locally from the bundles on disk and the committed
+  receipts; the protobuf schema in P11 is this and nothing more.
+- Fallbacks. Explicit, never silent: the CPU providers, and for chunking
+  an OpenNLP native-image build (in progress in a separate effort),
+  plugged in as a provider of that task.
+
+Overlaps to keep straight: one device can be served by two providers
+(an RTX 4080 by `cuda` and by `ggml`), and selection arbitrates; one
+bundle can hold artifacts for several targets; the server is an
+interface and a deployment at once; a receipt binds five entities, which
+is why it is the ranking data and why it must name hashes, not claims.
+
+### What exists and what is left
+
+The common layer exists: the ABI, the core, the conformance suite, the
+five providers with receipts for embeddings on five machines, the bundle
+contract, the bindings and the server (P0 to P9). What is left, in order:
+
+1. The two selection calls on the interface, specified first (inputs,
+   outputs, ranking rule, report), then implemented in the core and
+   projected into every binding. This is an ABI change: the selector
+   takes the task, and resolve is new.
+2. The local catalog behind them, from the bundle directories and the
+   committed receipts, in the P11 schema cut down to that purpose.
+3. The matrix filled where the hardware allows it: rerank, classify and
+   token classification on the B70 with their receipts; the Jetson cells;
+   the Hailo-10H artifact.
+4. Chunk and tokenize as tasks on the interface, with the OpenNLP native
+   fallback for chunking, and each provider stating which stages it fuses.
+5. Bindings checked as pure projections of the interface, including the
+   two new calls.
+
+Deferred until those five are done, and not on the front of the plan:
+remote repositories, the DJL index view, signing, mirrors, and any
+tooling that is not needed by the calls above.
+
 ## 1. Verdict on the current code and what we keep
 
 The repo is a proof of concept whose layers overclaimed. Two independent
@@ -832,6 +951,12 @@ Gate: Android conformance subset on the device; native-image sample runs on
 linux-x64, linux-aarch64, macos-aarch64.
 
 ### P11 Model zoo and repositories
+Scope note (2026-09-23, later the same day): section 0 cuts this milestone
+down to the local catalog that the selection calls read, built from the
+bundles on disk and the committed receipts. The repository layer, the DJL
+view, signing and mirrors below are deferred and kept here as the design
+that was reviewed, not as work in order.
+
 Decided 2026-09-23; revised the same day after a review against the
 Deep Java Library source, the KServe storage initializer and this tree's
 dependency graph. A zoo is the layer that produces bundle artifacts

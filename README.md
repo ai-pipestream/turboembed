@@ -7,7 +7,12 @@ provider libraries loaded at runtime rather than compile-time flags. The
 same program embeds on an NVIDIA GPU, an Intel GPU or CPU through OpenVINO,
 a Hailo-8 NPU on a Raspberry Pi, a Jetson, or an Apple M2 through Metal
 directly, and generates text from GGUF models through llama.cpp, without
-changing a line.
+changing a line of the program; the bundle it points at carries the
+artifact for that hardware. Each provider is the lowest layer its hardware
+has, and a committed matched benchmark shows it at or above the vendor's
+own loop. Device selection today is explicit, or the first accelerator
+that offers the task; ranking candidates by their receipts is the next
+change to the interface (PLAN.md, section 0).
 
 Its rules are simple and enforced: every option is honored exactly or the
 call fails naming the field; a device is never silently swapped for a
