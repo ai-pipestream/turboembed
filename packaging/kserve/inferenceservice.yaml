@@ -6,7 +6,7 @@
 #
 # storageUri is any scheme the storage initializer supports: pvc://,
 # s3://, gs://, https://, oci://. The bundle is the directory turbo-bundle
-# import writes (manifest.json and the artifacts); for a PVC, the claim
+# import writes (bundle.json and the artifacts); for a PVC, the claim
 # holds one bundle per directory. The model is served under the
 # InferenceService's name, so the routes are
 #   POST /v2/models/qwen/infer          (Open Inference Protocol v2)

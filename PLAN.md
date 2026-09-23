@@ -377,8 +377,9 @@ measured against them so their overhead is known.
 
 A bundle is a directory with `bundle.json` (version 2) written last:
 
-- identity: `model_id`, `revision`, `source_sha256`, `license`, `task`,
-  `kind`, `family` (bert, xlm-roberta, mpnet, qwen3, llama, ...).
+- identity: `model_id`, `revision`, `license`, `task`, `kind`, `family`
+  (bert, xlm-roberta, mpnet, qwen3, llama, ...); the source checkpoint's
+  hash is recorded by the zoo catalog (P11), not here.
 - tokenizer: files with hashes, `tokenizer_kind` (wordpiece, bpe, unigram,
   sentencepiece, gguf-vocab), `chat_template` for generative models.
 - contract: for classifiers `labels[]`, `id2label`, `activation` (softmax,
@@ -417,7 +418,7 @@ it (section 10, P11).
 | `cuda` | an x86_64 host with an RTX 4080 SUPER; an NVIDIA Jetson Orin Nano Super 8 GB (aarch64) | ORT 1.30 CUDA EP (CUDA 13 build for x86; JetPack 7.2.1 with CUDA 13.2 / TensorRT 10.16 on Jetson, using the `sbsa/cu130` ORT wheel if it carries sm_87 kernels, otherwise a pinned ORT source build on the board); TensorRT EP via session option; llama.cpp CUDA arch 87/89 | IoBinding on pinned/device arena, `user_compute_stream` import, `gpu_external_alloc` pool, device mean+L2 kernel, ORT 1.30 `CreateSyncStreamForEpDevice` for external queues | `ort_cuda.rs`, `ort_allocator.rs`, `pool_cuda.cu`, `turbo_buffer/cuda.cpp` | TensorRT plan cache is SM-locked; Jetson wheels unverified for sm_87 |
 | `openvino` | an x86_64 host with an Intel Arc B70 (Battlemage); Intel NPU when the Core Ultra host arrives | OpenVINO 2026.4.0 (Apache-2) | `ov::Core` compiled model with mean+L2 fused into the graph; `ClContext` USM/`cl_mem` remote tensors on GPU; `ZeroContext` remote tensors on NPU; explicit `"CPU"` | `prepared.cpp` (graph fusion, OpenCL lease), `turbo_buffer/ze.cpp`, `wordpiece` | NPU is static-shape only (fixed `max_seq`, batch from bundle); OpenVINO GenAI RAG pipelines are not used on the hot path because they allocate their own outputs |
 | `metal` | Apple M2 | Metal directly (Objective-C++; MSL kernels compiled at load; no MLX, no Xcode) | shared `MTLBuffer`s for tokens, weights, scratch and results; encoder, pooling, L2 and the reranker head as kernels; results resident in unified memory as `TURBO_PLACE_SHARED` | `providers/metal` (landed 2026-09-22; the PoC kernels from `native/turborerank`) | no CPU device (the CPU is reached through `ggml` or OpenVINO); WordPiece on the host; F32 weights only |
-| `hailo` | two Pis with Hailo-8 (HailoRT 4.24.0, `hailo8` branch); one Pi with Hailo-10H 8 GB (HailoRT 5.4.0); also x86_64 hosts with a PCIe Hailo-8 card | HailoRT (MIT); DFC is proprietary and used offline only | `VDevice` + `InferModel` + `ConfiguredInferModel::Bindings` with `dma_map` on page-aligned arena rows; async `run_async` behind `CAP_ASYNC` | `hailo.cpp` split pipeline | encoder body only on NPU: host gather and host pooling reported as `fully_accelerated = 0`; batch 1, fixed seq 128; HEF locked to chip and HailoRT line; Hailo-10H embedding HEF needs a DFC 5 compile (open) |
+| `hailo` | two Pis with Hailo-8 (HailoRT 4.24.0, `hailo8` branch); one Pi with Hailo-10H (HailoRT 5.1.1 from the Pi OS packages today; 5.4 is the planned upgrade); also x86_64 hosts with a PCIe Hailo-8 card | HailoRT (MIT); DFC is proprietary and used offline only | `VDevice` + `InferModel` + `ConfiguredInferModel::Bindings` with `dma_map` on page-aligned arena rows; async `run_async` behind `CAP_ASYNC` | `hailo.cpp` split pipeline | encoder body only on NPU: host gather and host pooling reported as `fully_accelerated = 0`; batch 1, fixed seq 128; HEF locked to chip and HailoRT line; Hailo-10H embedding HEF needs a DFC 5 compile (open) |
 | `ggml` | every machine | llama.cpp v0.4.1 / ggml 0.24 (MIT) with CUDA, SYCL, Metal, CPU backends | `ggml_backend_dev` registry for device identity; `llama_batch` decode; embeddings copied once from `llama_get_embeddings_seq` into the result buffer (no caller-owned output in llama.h); KV cache owned by the generation handle | `backend-llamacpp` | generation is the primary use; GGUF embeddings are a secondary path with `pooling_type` from the bundle |
 | `hailo` GenAI | Hailo-10H Pi | `hailort::genai::LLM` in HailoRT 5.4 | native LLM on the NPU with its own sampler | new | model set limited to the Hailo GenAI zoo (Qwen2.5/3 1.5B, Llama 3.2 1B); ~8 to 10 tok/s |
 
@@ -473,7 +474,8 @@ providers/cpu/  providers/cuda/  providers/openvino/  providers/hailo/  provider
 providers/metal/         Objective-C++ provider over Metal directly (make + clang++)
 native/                  shared C++: wordpiece, turbo_buffer, pooling kernels
 bindings/java/  bindings/swift/  bindings/android/
-tools/turbo-bundle/      import, verify, fetch (from crates/fetch)
+tools/turbo-bundle/      import, verify, fetch; `zoo` subcommands (P11) behind a `net` feature
+proto/zoo.proto          the zoo catalog schema (P11); Java and Swift types ship as `turbo-zoo`
 server/                  Inferstream: OIP v2 over gRPC and REST, OpenAI-shaped routes (landed 2026-09-22)
 docs/  testdata/  scripts/
 ```
@@ -624,8 +626,8 @@ reaches the M2 through `ggml`'s Metal backend).
 
 ### P5 Hailo provider
 Hailo-8/8L on HailoRT 4.24 with `dma_map` zero-copy and async behind
-`CAP_ASYNC`; Hailo-10H on HailoRT 5.4 for the same encoder split once a DFC 5
-HEF exists (tracked as open); `fully_accelerated = 0` with stage placement
+`CAP_ASYNC`; Hailo-10H on HailoRT 5 (5.1.1 on the board today, 5.4 planned)
+for the same encoder split once a DFC 5 HEF exists (tracked as open, P11); `fully_accelerated = 0` with stage placement
 reported; x86_64 build for PCIe cards.
 Gate: conformance green on both Hailo-8 Pis (capability tests assert the
 honest limits); goldens within the INT8 tolerance recorded in the bundle;
@@ -830,85 +832,151 @@ Gate: Android conformance subset on the device; native-image sample runs on
 linux-x64, linux-aarch64, macos-aarch64.
 
 ### P11 Model zoo and repositories
-Decided 2026-09-23. A zoo is the layer that produces bundle artifacts
+Decided 2026-09-23; revised the same day after a review against the
+Deep Java Library source, the KServe storage initializer and this tree's
+dependency graph. A zoo is the layer that produces bundle artifacts
 reproducibly, says what has been proven about each one, and serves them
 from ordinary storage. The bundle (section 6) stays the unit every binding
 opens; the zoo is an index over bundles plus the recipes and receipts
 behind them. Nothing in it touches the run path.
 
-Schema. One `zoo.proto` defines the cold-layer types: `Catalog`, `Entry`,
-`Artifact`, `Target`, `Source`, `Recipe`, `ReceiptRef`, and the bundle
-contract fields already in `bundle.json`. On disk they are written as
-proto3 JSON, so the index stays readable and diffable; over gRPC the same
-messages travel as binary. Every language binding gets the same typed
-objects from the one schema (prost, protobuf-java, swift-protobuf, C++),
-none hand-mirrored. An entry names: the model (`groupId`, `artifactId`,
+Schema. `proto/zoo.proto` owns the catalog and nothing else: `Catalog`,
+`Entry`, `Target`, `Source`, `Recipe`, `ReceiptRef`, `License`. On disk
+the catalog is proto3 JSON written with the proto field names preserved
+(snake_case, like `bundle.json`) and parsed with unknown fields ignored;
+over gRPC the same messages travel as binary. `bundle.json` stays serde
+and stays the one source of truth for the contract: the catalog records
+the bundle's `manifest_sha256` and its artifact hashes, never a copied
+contract. An entry names the model (`group_id`, `artifact_id`,
 `version`, `application` in DJL's taxonomy such as `nlp/text_embedding`),
 the target (`arch` such as `sm_89`, `aarch64-cuda`, `openvino-gpu`,
 `metal`, `hailo8`, `hailo10h`; `format` such as `onnx`, `openvino_ir`,
-`gguf`, `hef`; `runtime` and its version range; `quantized`), the
-contract copied from the bundle, the source (checkpoint, revision,
-sha256), the recipe (id, version, toolchain versions, calibration set
-hash), the files (path, size, `sha256`, and `sha1Hash` for DJL clients),
-and the receipts (precision, matched-native, conformance) with their
-verdicts. An entry with no receipts is `EXPERIMENTAL`; the same rule as
-the capability cells, so the zoo and the runtime never disagree.
+`gguf`, `hef`; `runtime` and its version range; `quantized`), the source
+(checkpoint, revision, sha256; this is where the checkpoint hash lives,
+not in `bundle.json`), the licence (SPDX id, url, `redistributable`),
+the recipe, the files (path, size, `sha256`; `sha1` computed at index
+time for the DJL view), and receipt references. Rust reads and writes the
+JSON through `pbjson`, counted in the Dependency budget before it lands;
+the Java and Swift zoo types ship as separate artifacts (`turbo-zoo`) so
+`turbo-api` gains no protobuf dependency.
 
-DJL compatibility. The index is also published in Deep Java Library's
-`metadata.json` layout (`metadataVersion`, `resourceType`, `application`,
-`groupId`, `artifactId`, `artifacts[]` with `version`, `properties`,
-`arguments`, `options`, `files{uri, sha1Hash, size}`), produced from the
-same proto messages through `json_name` mappings. A stock DJL client, and
-therefore SageMaker's DJL Serving, can list and download our bundles; our
-target and contract fields ride in `properties` and `arguments` under
-documented names, and the untyped maps are never the source of truth.
-The reverse direction, DJL's mlrepo and the Hugging Face Hub as sources
-for `turbo-bundle import`, uses the same repository layer. The reference
-copy of DJL lives outside this tree.
+Status is derived, never stored. A `ReceiptRef` is `{kind, path, sha256
+of the receipt file, machine label}`. `turbo-bundle zoo verify` marks an
+entry SUPPORTED only when all three kinds (conformance, precision,
+matched-native) are present, each receipt's hash matches, each names the
+entry's `manifest_sha256` and artifact hashes, each names the entry's
+arch and runtime version, and the matched-native receipt has verdict
+SUPPORTED with an empty `dirty` list. Anything less is EXPERIMENTAL with
+the missing or failing item named. That is principle 7 applied
+mechanically, and it is the same rule the capability cells follow.
+Receipts name the files they compare by file name, never by absolute
+path (the compare tool was corrected on 2026-09-23 after five receipts
+carried a checkout path).
 
-Repositories. One `Repository` interface (resolve, fetch, verify) with
-thin implementations: local directory (`file://`, and `pvc://` as a
-mounted path; the local case also serves single-node edge clusters where
-the bundle sits on the node); HTTPS static (DJL's mlrepo, GitHub
-releases, any web server; no code beyond a fetch and a hash check); S3
-through the REST API with SigV4 signing over the HTTP client the server
-already has, no vendor SDK, so it also builds for mobile; the Hugging
-Face Hub through its resolve endpoint; OCI artifact registries (ORAS
-layout, cosign signatures later), which every cloud offers and which is
-where model artifacts are converging. Google Cloud Storage and Azure Blob
-follow S3 for cloud parity. The URI schemes match KServe's storage
-initializer (`file://`, `pvc://`, `https://`, `s3://`, `gs://`, `hf://`,
-`oci://`), so the `storageUri` in the KServe manifest and a
-`turbo-bundle zoo fetch` argument are the same string. Every file is
-content-addressed by sha256 in the index; the repository type never
-changes what verified means. The local cache keeps a small index (what is
-present, hashes, last use) for offline listing and eviction; SQLite
-through the system `libsqlite3` behind a feature if a flat JSON index
-proves too slow, and not before.
+Signing and licences. The catalog is signed (an ed25519 detached
+signature over the canonical JSON; Sigstore model-signing when KServe
+settles on it) and `zoo fetch` verifies the signature before trusting
+any hash in it; a sha256 in an unsigned index fetched from a mirror
+proves only agreement with that mirror. `zoo index` refuses to publish
+an artifact whose licence forbids redistribution and publishes its
+recipe instead; a Hub fetch of a gated checkpoint needs a token and the
+entry records that it did.
+
+DJL compatibility, stated exactly. A stock Deep Java Library client can
+consume two things without any code on its side: a mirror of our
+catalog laid out as a DJL local repository
+(`model/<application>/<group id as a path>/<artifact id>/metadata.json`,
+artifact files under `<version>/`), loaded through the
+`ai.djl.repository.zoo.location=file://...` property, where DJL lists
+every `metadata.json`, downloads items and verifies `sha1Hash`; and a
+single bundle archive URL passed to `Criteria.optModelUrls`, which DJL
+downloads without a checksum. Listing over HTTPS is not something stock
+DJL does for a third-party index: `djl://` is wired to DJL's own
+repository, `ModelZoo.listModels()` only sees zoos registered on the
+classpath, and a bare `https://` index URL is treated as an RPC
+endpoint. So we ship a small `turbo-djl-zoo` jar that registers a
+`ModelZoo` over a `RemoteRepository` at our base URL; with it on the
+classpath the public HTTPS index lists and downloads the same way. The
+DJL view is produced by an explicit transform (`zoo index --djl`) from
+its own message set (`DjlMetadata`, `DjlArtifact`, `DjlItem`), with
+enum-to-DJL-string tables and a golden test that round-trips DJL's own
+sample `metadata.json`; `json_name` alone cannot regroup entries by
+artifact group or key `files` by item id, so it is not the mechanism.
+The view publishes only what DJL can run: ONNX artifacts for embed,
+classify and token-classify, each bundle as one zip item with
+`arguments.engine=OnnxRuntime`, DJL's translator factory, `pooling` in
+DJL's spelling, `normalize` as a boolean and `maxLength`. HEF, GGUF and
+OpenVINO artifacts are not listed there, because DJL has no engine for
+them; running them from DJL needs a DJL `Engine` over `turbo-ffm`, which
+is a separate deliverable and not part of this claim. SageMaker's DJL
+Serving is not claimed until that jar has been run inside it. The
+reverse direction, DJL's repository and the Hugging Face Hub as sources
+for `turbo-bundle import`, uses the repository layer below.
+
+Repositories. One `Repository` interface (resolve, fetch, verify) in
+`turbo-bundle` behind a `net` feature; libturbo never fetches, and the
+mobile bindings open bundles already on disk. The tree has no HTTP
+client or TLS stack of its own today (the server's hyper is plain HTTP
+through tonic), so the feature brings one blocking client, `ureq` with
+`rustls` and `webpki-roots`, counted in the Dependency budget before it
+lands. Implementations are thin: local directory (`file://`); HTTPS
+static (DJL's repository, GitHub releases, any web server); S3 through
+the REST API with SigV4 hand-written over the `sha2` already present
+and a small HMAC, no vendor SDK; the Hugging Face Hub through its
+resolve endpoint (a redirect to a CDN, a bearer token for gated repos);
+OCI artifact registries in the ORAS layout (token flow, blobs by
+digest). Google Cloud Storage and Azure Blob follow S3. `zoo mirror
+<dir>` writes a self-contained tree with the catalog, the bundles and
+the receipts, which is both the offline answer for an air-gapped Pi and
+the DJL local-repository tree above; `--offline` never opens a socket.
+Every file is content-addressed by sha256 in the index; the repository
+type never changes what verified means, and `Bundle::open` hashes every
+file against `bundle.json` at load on every path regardless.
+
+KServe, stated exactly. `s3://`, `gs://` and `https://` (a bundle
+archive, since the initializer unpacks a single file) mean the same
+bytes to KServe's storage initializer and to `zoo fetch`. `pvc://` is
+KServe-only: the controller mounts the claim and `turbo-bundle` cannot
+resolve a claim name outside a cluster. `oci://` in KServe is a Modelcar
+image (a container with `/models`, run as a sidecar), not an ORAS pull,
+so a Modelcar image is published beside our OCI artifact. `hf://` in
+KServe fetches a Hub snapshot, a checkpoint source, not our bundle.
+`file://` is a path inside the initializer container and is only useful
+with a hostPath, so it is not in the gate. The initializer verifies no
+checksums, so the serving runtime takes `--expect-manifest-sha256` and
+refuses a bundle that is not the qualified one.
 
 Recipes. A recipe takes a source checkpoint and a target and yields the
 artifact plus the facts the bundle needs (frame length, fixed shape,
 quantization). No Python enters this tree for it. A recipe is a
-declarative record in the catalog: the toolchain as a container image
-pinned by digest (Hailo's AI Software Suite image for the Dataflow
-Compiler; a llama.cpp image for GGUF quantization; a Core ML converter
-image), the command lines, the inputs by hash (checkpoint, model script,
-calibration set), and the expected outputs. `turbo-bundle zoo build`
-runs the container, captures the artifact, hashes it and writes the
-entry; `fetch`, `verify` and `index` are the other verbs. The vendor's
-Python runs inside the vendor's image, which pins it better than a lock
-file would, and our side is Rust. Import beats convert wherever an
-artifact is already published: ONNX and GGUF from the Hugging Face Hub,
-HEFs from Hailo's zoo where they exist; a toolchain runs only for what
-nobody publishes, which today is the Hailo-10H compile and later Core ML.
-The one conversion the Hailo bundles need in-house, the fp32 embedding
-tables exported from the checkpoint (`scripts/export-hailo-tables.py`
-today), is ported into `turbo-bundle` (`tools/turbo-bundle`) over a
-small safetensors reader (a JSON header and raw tensors, no new
-dependency), and the script is removed. The Python that remains in the
-tree is the reference edge (PyTorch reference generators, the Hailo
-native receipt over `hailortcli`) and demos over the OpenAI SDK; none of
-it is distributed and none of it is on a build path.
+declarative record in the catalog: the toolchain as a container image,
+the command lines, the inputs by hash (checkpoint, model script,
+calibration set), the host architecture it runs on, and the outputs.
+`turbo-bundle zoo build` runs the container, captures the artifact,
+hashes it and writes the entry; `fetch`, `verify`, `index` and `mirror`
+are the other verbs. The vendor's Python runs inside the vendor's image
+and our side is Rust. Import beats convert wherever an artifact is
+already published: ONNX and GGUF from the Hugging Face Hub, HEFs from
+Hailo's zoo where they exist; a toolchain runs only for what nobody
+publishes, which today is the Hailo-10H compile. Reproducibility is
+stated honestly: Hailo's AI Software Suite image is downloaded from the
+Developer Zone under an EULA that bars redistribution, so there is no
+public registry digest to pin; the recipe records the archive's sha256
+and the loaded image id, rerunning it needs the vendor's account, it
+runs on x86_64 only, and quantization is not promised bit-identical, so
+a rebuilt artifact is accepted by its precision and conformance
+receipts, with byte equality recorded when it happens. llama.cpp's GGUF
+quantizer is public and is pinned by digest. There is no Core ML
+recipe, because there is no Core ML provider; the Metal provider uses
+Metal directly (section 7). The one conversion the Hailo bundles need
+in-house, the fp32 embedding tables exported from the checkpoint
+(`scripts/export-hailo-tables.py` today), moves into `turbo-bundle`
+over the safetensors reader it already has
+(`tools/turbo-bundle/src/safetensors.rs`), and the script is removed.
+The Python that remains in the tree is the reference edge (PyTorch
+reference generators, the Hailo native receipt over `hailortcli`) and
+demos over the OpenAI SDK; none of it is distributed and none of it is
+on a build path.
 
 Vector storage is outside this library. The library produces vectors and
 stays storage-agnostic. The search demo gains a `sqlite-vec` backend
@@ -917,26 +985,34 @@ LanceDB are the other embedded options a consumer may choose; pgvector and
 the server-class stores are the deployment's business.
 
 First entry: MiniLM for `hailo10h`, compiled with Dataflow Compiler 5.1 to
-match the HailoRT 5.1.1 on the Hailo-10H Pi, since no public HEF exists
-and it exercises every field the schema has. Then the bundles already in
-use (MiniLM ONNX and GGUF, the ms-marco reranker, SST-2, BERT NER, Qwen2.5
-GGUF, MiniLM `hailo8`) get entries with the receipts they already have.
+match the HailoRT 5.1.1 on the Hailo-10H Pi (5.4 is a later upgrade of
+both, taken together), since no public HEF exists and it exercises every
+field the schema has. Then the bundles already in use (MiniLM ONNX and
+GGUF, the ms-marco reranker, SST-2, BERT NER, Qwen2.5 GGUF, MiniLM
+`hailo8`) get entries with the receipts they already have.
 
-Order: schema and the local and HTTPS repositories; the `turbo-bundle zoo`
-commands; the DJL index view; S3; the Hailo-10H recipe and entry; OCI; Hub
-import through the repository layer.
-Gate: a stock DJL client lists and downloads a bundle from our HTTPS index;
-`turbo-bundle zoo fetch` refuses a file whose sha256 does not match; the
-Hailo-10H entry carries its three receipts or is `EXPERIMENTAL` with the
-reason stated; the KServe manifest pulls the same bundle through `s3://`
-and through `file://`.
+Order: the schema, `verify` and the local repository with `zoo mirror`;
+the DJL local-repository view with its golden test; the `net` feature
+with HTTPS and S3; the Hailo-10H recipe and entry; OCI plus the Modelcar
+image; Hub import; the `turbo-djl-zoo` jar last.
+Gates: a stock DJL 0.39 client with `ai.djl.repository.zoo.location`
+pointed at a `zoo mirror` tree lists the MiniLM entry, downloads it with
+`sha1Hash` verified, and fails on a tampered file; with `turbo-djl-zoo`
+on the classpath the same holds against the public HTTPS index. `zoo
+fetch` refuses a file whose sha256 does not match and refuses a catalog
+whose signature does not verify. `zoo verify` reports the Hailo-10H
+entry SUPPORTED only with its three receipts bound to its hashes, and
+names what is missing otherwise. The KServe manifest serves the same
+bundle through `pvc://` and through `s3://` (a MinIO in the test
+cluster) and refuses a mismatched manifest hash. No hostname, home path
+or checkout path appears in the catalog, the receipts or the mirror.
 
 Dependencies: P0 then P1 are strictly first. P2, P3, P4, P5 are independent
 after P1 and can run in parallel on their machines; P2 sets the correctness
 baseline so it starts first. P6 needs P1 and at least one GPU provider. P7
 needs P2 or P3. P8 needs P7. P9 needs P8. P10 needs P8. P11 needs P8 for
-`turbo-bundle` and P5 for its first entry; its DJL view needs nothing
-else.
+`turbo-bundle`, P5 for its first entry, and P7 for the `turbo-djl-zoo`
+jar.
 
 ## 11. Conformance and benchmark protocol
 
