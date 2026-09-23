@@ -31,6 +31,20 @@ it.
 | `TensorRT` | NVIDIA/TensorRT | v11.3 | `98adec82349b3ae22aa3f753d733b9a1a84d497d` | The open-source plugins and samples (fused BERT layers); NVIDIA's own fastest path and, with TEI, the bar for the cuda provider's direct path |
 | `model2vec-rs` | MinishLab/model2vec-rs | v0.3.0 | `a66e495a49fe1a22c87a87774d889301ae1cdbab` | Static embeddings: the bar for the static provider |
 | `cudf` | rapidsai/cudf | v26.08.01 | `ee6d3d2564869c910f8efa93c6668cf0f50ae5bb` | `nvtext` WordPiece on the GPU: tokenization as a device stage on NVIDIA |
+| `cutlass` | NVIDIA/cutlass | v4.8.0 | `098de2a652cf8f00fd70b2df54051c7eccbb855a` | Fused GEMM with epilogues and the fused attention example: the direct CUDA path's building blocks |
+| `cudnn-frontend` | NVIDIA/cudnn-frontend | v1.30.0 | `42286a6fb8792055f3db80403350e80114ea086c` | cuDNN's graph API: fused attention, layernorm, what cuDNN can fuse per version |
+| `cuda-samples` | NVIDIA/cuda-samples | v13.4 | `5443602d89ed99aede2e4b7bf329daddeadb320e` | Streams, graphs, pinned and managed memory as NVIDIA shows them |
+| `flash-attention` | Dao-AILab/flash-attention | v2.8.3 | `060c9188beec3a8b62b33a3bfa6d5d2d44975fab` | The attention kernels TEI uses; head sizes and architectures covered |
+| `oneDNN` | uxlfoundation/oneDNN | v3.13.2 | `71094df451909e95ceeefc8f64c275cdcbbcdff5` | Intel's fused primitives beneath OpenVINO: matmul with post-ops, attention graph, layernorm, on CPU and GPU |
+| `level-zero` | oneapi-src/level-zero | v1.34.0 | `934714b278f850d164627eeaaa043eee02785a9e` | Intel's driver API: command lists, USM, events, the graph extension the NPU uses |
+| `linux-npu-driver` | intel/linux-npu-driver | v1.38.0 | `aea583dcd86a4723a8d3bb06ad94b6eb2f80c6f2` | The Intel NPU user-mode driver and compiler in driver: the only route below OpenVINO to the NPU |
+| `compute-runtime` | intel/compute-runtime | 26.35.39758.11 | `758f83a4e7be78f56946dab16c9568a9b0862a1f` | Intel's OpenCL and Level Zero runtime for Xe2 (Battlemage): `cl_mem` and USM as the B70 sees them |
+| `oneMath` | uxlfoundation/oneMath | v0.9 | `6ff3a43e555dbb20357017d48f0f6c6263259895` | oneAPI math interfaces, checked for anything oneDNN lacks |
+| `kleidiai` | ARM-software/kleidiai | v1.31.0 | `02f7b3df98c39df1884eead7461c3269feca4ddc` | Arm microkernels for the host stages on the Pi and Jetson cores |
+| `ComputeLibrary` | ARM-software/ComputeLibrary | v53.3.0 | `8b12c290ca0107ea264e96ce4ab3b685be3cd509` | Arm's compute library, checked against KleidiAI for the host stages |
+| `hailo_model_zoo` | hailo-ai/hailo_model_zoo | v5.1.0 | `c13e20e18f8d2913549b9061d7ea2b47d1a18a51` | Which transformer text models exist per Hailo target, and the compile recipes |
+| `tappas` | hailo-ai/tappas | v5.1.0 | `c28209396149d91e6a084890ccd4974a6c144e9a` | Hailo's pipeline framework, checked for anything that matters to text |
+| `metal-cpp` | bkaradzic/metal-cpp (mirror) | main | `c9727bc9468a90d7ea8fc89d5ee03b8d8992a570` | Apple's metal-cpp headers; Apple's own download is the source of truth, the mirror is for reading on Linux |
 
 Present before this list and not re-pinned, recorded at the commit found:
 
