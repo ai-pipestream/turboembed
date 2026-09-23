@@ -76,10 +76,13 @@ to fit it.
 
 ## How
 
-**The header is the design.** `include/turbo/turbo.h`,
-`turbo_types.h` and `turbo_provider.h` came out of the previous attempt
-and are the one thing kept. They are hand-edited now. Changing them is a
-design decision made in the open, not a build step.
+**The header is the design.** `include/turbo/turbo.h` is one file,
+hand-written, cut from the previous attempt's three headers to what the
+first feature needs: text embedding, tokens in and vectors out, on one
+device, with a summary of where each stage ran and every byte that
+crossed the bus. The other tasks and chunking are added to it when they
+are built, not before. Changing it is a design decision made in the
+open, not a build step. It compiles standalone as C11 and C++17.
 
 **Rust core, vendor backends in whatever the vendor speaks.** The core
 loads bundles, tokenizes once on the host, hands token rows to a
@@ -114,7 +117,7 @@ time by being long.
 9. Add only what the header needs. A file that exists to wrap another
    file is deleted.
 
-**What is here now.** The three headers, this file, the licence. The
+**What is here now.** The header, this file, the licence. The
 previous attempt, for reading. The vendor stacks and the fastest known
 programs for each machine are checked out at pinned versions under a
 reference directory outside the tree; the list with commits is in
