@@ -247,6 +247,8 @@ fn run(cli: &Cli) -> Result<Receipt, String> {
         bundle: dump.bundle_id.clone(),
         embed: cells,
         rerank: None,
+        classify: Vec::new(),
+        token_classify: Vec::new(),
         generate: None,
         budget_check: None,
         native_reference: format!(

@@ -85,6 +85,11 @@ pub struct RerankCell {
     pub seq: u32,
     /// Query and documents in, scores out.
     pub text_path: Latency,
+    /// The same query and documents as prepared token rows (ids, mask and
+    /// segment ids built once up front with the core tokenizer), scores
+    /// out; absent in receipts written before it was measured.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prepared_tokens_path: Option<Latency>,
     /// Session counters per run.
     pub per_run: PerRun,
 }
@@ -138,6 +143,14 @@ pub struct Receipt {
     /// The rerank cell.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rerank: Option<RerankCell>,
+    /// Sequence classification cells, shaped as the embedding cells are
+    /// (texts in, activated label scores out).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub classify: Vec<EmbedCell>,
+    /// Token classification cells, shaped as the embedding cells are
+    /// (texts in, activated per-token label scores out).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub token_classify: Vec<EmbedCell>,
     /// The generation cell.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generate: Option<GenerateCell>,
@@ -347,11 +360,22 @@ pub fn summarize(samples: &mut [Duration], rows: u64, tokens: Option<u64>) -> Re
     })
 }
 
+/// The task of a token dump written before the field existed.
+pub fn default_dump_task() -> String {
+    "embed".to_string()
+}
+
 /// The tokens a workload fed a session, written by `turbo-bench embed
-/// --dump-tokens` and read by the native reference programs so both sides
-/// run the same ids: one entry per embedding cell.
+/// --dump-tokens` (and `rerank`, `classify`, `token-classify`) and read by
+/// the native reference programs so both sides run the same ids: one entry
+/// per cell.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenDump {
+    /// `embed`, `rerank`, `classify` or `token_classify`: which output the
+    /// reference computes from the model's and which receipt field its
+    /// cells go in.
+    #[serde(default = "default_dump_task")]
+    pub task: String,
     /// Bundle directory the tokens were encoded for.
     pub bundle: String,
     /// The bundle's identity, as the libturbo receipt records it, so the
@@ -364,11 +388,18 @@ pub struct TokenDump {
     pub pooling: String,
     /// `l2` or `none`.
     pub normalize: String,
+    /// The bundle contract's activation for the other tasks (`sigmoid`,
+    /// `softmax`, `none`; empty when the contract names none, which the
+    /// providers read as sigmoid for a reranker and softmax for a
+    /// classifier), so the reference returns the same scores.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub activation: String,
     /// The texts and their token rows, per cell.
     pub cells: Vec<TokenCell>,
 }
 
-/// The token rows of one embedding cell, padded to `seq`.
+/// The token rows of one cell, padded to `seq`. For rerank, `texts` holds
+/// the query followed by the documents, one row per document.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TokenCell {
     /// Rows per run.
@@ -382,6 +413,10 @@ pub struct TokenCell {
     pub ids: Vec<i32>,
     /// Row-major `[batch, seq]` attention mask; empty with `ids`.
     pub mask: Vec<i32>,
+    /// Row-major `[batch, seq]` segment ids for a query and document row
+    /// (rerank); empty when every segment id is 0.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub types: Vec<i32>,
     /// Live tokens per row.
     pub lengths: Vec<u32>,
 }

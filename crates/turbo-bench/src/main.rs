@@ -5,7 +5,9 @@
 //! turbo-bench embed    --provider-lib <so> --provider <id> --bundle <dir> [--ordinal N]
 //!                      [--batches 1,8,32] [--seqs 32,128,256] [--iters 30] [--warmup 5]
 //!                      [--out receipt.json] [--budget earlier-receipt.json]
-//! turbo-bench rerank   --provider-lib <so> --provider <id> --bundle <dir> [--docs 32] ...
+//! turbo-bench rerank   --provider-lib <so> --provider <id> --bundle <dir> [--docs 32] [--dump-tokens t.json] ...
+//! turbo-bench classify --provider-lib <so> --provider <id> --bundle <dir> [--batches ..] [--seqs ..] [--dump-tokens t.json] ...
+//! turbo-bench token-classify ... (the same options as classify)
 //! turbo-bench generate --provider-lib <so> --provider <id> --bundle <dir> [--new-tokens 128] ...
 //! turbo-bench discover [--provider-lib <so>]... [--provider-dir <dir>] [--bundle <dir>]... [--json] [--strict]
 //! ```
@@ -27,6 +29,15 @@
 //! tokens, and the per-run H2D/D2H bytes, host allocations, and provider
 //! allocations from the session counters, averaged over the timed runs.
 //!
+//! Classification and token classification run the same batch x seq cells
+//! and the same two paths (`write_text_classify` for the text path), and
+//! read the activated scores back: `[batch, labels]` and `[batch, seq,
+//! labels]`. Rerank runs one query against `docs` documents through
+//! `write_pairs`, and the same rows as prepared tokens (the query and each
+//! document encoded once with the core tokenizer, `[CLS] query [SEP] doc
+//! [SEP]` with segment ids 0 then 1); before timing, the prepared rows must
+//! give the scores `write_pairs` gave, so both paths are the same work.
+//!
 //! A receipt carries the machine, provider, runtime and driver versions,
 //! device (with its memory), bundle identity (manifest and artifact hashes),
 //! and the commit the binary was built from (or the one `--commit` names on
@@ -37,10 +48,9 @@
 //! regression: exit 1. An unusable budget file is exit 2. Budgets are set
 //! from the first run per provider and then held (PLAN.md section 11).
 //!
-//! The direct-native reference program of each pair is still to be written
-//! (a provider's README will carry it once it exists); this tool measures
-//! the `libturbo` side of the pair only, which is why every receipt's
-//! `native_reference` field reads "not run".
+//! This tool measures the `libturbo` side only, which is why its receipts'
+//! `native_reference` field reads "not run"; the direct-native programs
+//! are under `reference/` and `compare` sets the two receipts side by side.
 
 #![deny(missing_docs)]
 
@@ -52,7 +62,9 @@ use std::time::{Duration, Instant};
 use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use turbo::bundle::Bundle;
-use turbo::provider::{EmbedOptions, GenerateDesc, Message, ModelDesc, RerankOptions, SessionDesc, TokenBatch};
+use turbo::provider::{
+    ClassifyOptions, EmbedOptions, GenerateDesc, Message, ModelDesc, RerankOptions, SessionDesc, TokenBatch,
+};
 use turbo::tokenizer::{EncodeOptions, EncodeTarget, Tokenizer};
 use turbo::types::{FinishReason, Modality, Task};
 use turbo::{Context, ContextDesc, DeviceKind, DeviceSelector, RuntimeDesc, SelectPolicy};
@@ -100,6 +112,24 @@ struct Common {
     commit: Option<String>,
 }
 
+/// The cell grid of the workloads that run rows of texts (embed, classify,
+/// token-classify).
+#[derive(Args, Clone)]
+struct RowArgs {
+    #[command(flatten)]
+    corpus: CorpusArg,
+    /// Batch sizes; each must be within the model's max_batch.
+    #[arg(long, value_delimiter = ',', default_value = "1,8,32", value_parser = clap::value_parser!(u32).range(1..))]
+    batches: Vec<u32>,
+    /// Sequence lengths; each must be within the model's max_seq.
+    #[arg(long, value_delimiter = ',', default_value = "32,128,256", value_parser = clap::value_parser!(u32).range(2..))]
+    seqs: Vec<u32>,
+    /// Write the texts and token rows of every cell to this JSON file,
+    /// for a direct-native reference program to run the same ids.
+    #[arg(long)]
+    dump_tokens: Option<PathBuf>,
+}
+
 /// The corpus option, for the workloads that read texts.
 #[derive(Args, Clone)]
 struct CorpusArg {
@@ -115,22 +145,26 @@ enum Cmd {
         #[command(flatten)]
         common: Common,
         #[command(flatten)]
-        corpus: CorpusArg,
-        /// Batch sizes; each must be within the model's max_batch.
-        #[arg(long, value_delimiter = ',', default_value = "1,8,32", value_parser = clap::value_parser!(u32).range(1..))]
-        batches: Vec<u32>,
-        /// Sequence lengths; each must be within the model's max_seq.
-        #[arg(long, value_delimiter = ',', default_value = "32,128,256", value_parser = clap::value_parser!(u32).range(2..))]
-        seqs: Vec<u32>,
-        /// Write the texts and token rows of every cell to this JSON file,
-        /// for a direct-native reference program to run the same ids.
-        #[arg(long)]
-        dump_tokens: Option<PathBuf>,
+        rows: RowArgs,
+    },
+    /// Sequence classification over batch x seq cells.
+    Classify {
+        #[command(flatten)]
+        common: Common,
+        #[command(flatten)]
+        rows: RowArgs,
+    },
+    /// Token classification over batch x seq cells.
+    TokenClassify {
+        #[command(flatten)]
+        common: Common,
+        #[command(flatten)]
+        rows: RowArgs,
     },
     /// Compare a `libturbo` receipt with the direct-native receipt of the
     /// same bundle on the same device, cell by cell.
     Compare {
-        /// The receipt `turbo-bench embed|rerank|generate` wrote.
+        /// The receipt `turbo-bench embed|rerank|classify|token-classify|generate` wrote.
         #[arg(long)]
         turbo: PathBuf,
         /// The receipt the reference program wrote (kind `native`).
@@ -156,6 +190,10 @@ enum Cmd {
         /// Sequence length of the session.
         #[arg(long, default_value_t = 128, value_parser = clap::value_parser!(u32).range(2..))]
         seq: u32,
+        /// Write the query, documents and prepared token rows to this JSON
+        /// file, for a direct-native reference program to run the same ids.
+        #[arg(long)]
+        dump_tokens: Option<PathBuf>,
     },
     /// Survey the providers and devices on this machine.
     Discover {
@@ -367,16 +405,38 @@ fn delta(a: &turbo::SessionStats, b: &turbo::SessionStats, runs: u64) -> Result<
 }
 
 // ---------------------------------------------------------------------------
-// Embed
+// Embed, classify, token-classify
 // ---------------------------------------------------------------------------
 
-fn bench_embed(
-    c: &Common,
-    corpus_arg: &CorpusArg,
-    batches: &[u32],
-    seqs: &[u32],
-    dump_tokens: Option<&Path>,
-) -> Result<Receipt, String> {
+/// A workload over batch x seq cells of texts.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum RowTask {
+    Embed,
+    Classify,
+    TokenClassify,
+}
+
+impl RowTask {
+    /// The name the dump, the log lines and `compare` use.
+    fn name(self) -> &'static str {
+        match self {
+            RowTask::Embed => "embed",
+            RowTask::Classify => "classify",
+            RowTask::TokenClassify => "token_classify",
+        }
+    }
+
+    fn task(self) -> Task {
+        match self {
+            RowTask::Embed => Task::Embed,
+            RowTask::Classify => Task::Classify,
+            RowTask::TokenClassify => Task::TokenClassify,
+        }
+    }
+}
+
+fn bench_rows(c: &Common, rows: &RowArgs, task: RowTask) -> Result<Receipt, String> {
+    let (batches, seqs, dump_tokens) = (&rows.batches, &rows.seqs, rows.dump_tokens.as_deref());
     let t = open_target(c)?;
     let (bundle, bid) = bundle_id(&c.bundle)?;
     let (counter, tokenizer_note) = match Tokenizer::from_bundle(&bundle) {
@@ -388,8 +448,20 @@ fn bench_embed(
     };
     let model = t.ctx.load_model(&c.bundle, &ModelDesc::default()).map_err(|e| format!("load model: {e}"))?;
     let info = model.info();
-    let dim = info.dim as usize;
-    let corpus = corpus(corpus_arg)?;
+    if info.task != task.task() {
+        return Err(format!("`{}` is a {:?} model; this workload is {:?}", info.model_id, info.task, task.task()));
+    }
+    // Floats per row of the output this workload reads back.
+    let labels = info.labels.len();
+    if task != RowTask::Embed && labels == 0 {
+        return Err(format!("`{}` declares no labels", info.model_id));
+    }
+    let row_floats = |seq: u32| match task {
+        RowTask::Embed => info.dim as usize,
+        RowTask::Classify => labels,
+        RowTask::TokenClassify => seq as usize * labels,
+    };
+    let corpus = corpus(&rows.corpus)?;
     // Every requested cell is measured or the run is an error: a receipt
     // that quietly dropped cells would then pass any budget.
     if let Some(seq) = seqs.iter().find(|&&s| s > info.max_seq) {
@@ -407,7 +479,7 @@ fn bench_embed(
                 .map_err(|e| format!("session {batch}x{seq}: {e}"))?;
             let texts = texts_for(&corpus, &counter, batch as usize, seq, batch as usize * seq as usize)?;
             let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-            let mut out = vec![0u8; batch as usize * dim * 4];
+            let mut out = vec![0u8; batch as usize * row_floats(seq) * 4];
 
             // Prepared tokens: encoded once by the core tokenizer, padded to seq.
             let stride = seq as usize;
@@ -444,6 +516,7 @@ fn bench_embed(
                     texts: texts.clone(),
                     ids: if counted { ids.clone() } else { Vec::new() },
                     mask: if counted { mask.clone() } else { Vec::new() },
+                    types: Vec::new(),
                     lengths: lengths.clone(),
                 });
             }
@@ -455,7 +528,14 @@ fn bench_embed(
             let token_batch = TokenBatch { batch, seq, row_stride: seq, ids: &ids, mask: &mask, types: None };
 
             let mut run_text = || -> Result<(), String> {
-                session.write_text(&refs, &EmbedOptions::default()).map_err(|e| format!("write_text: {e}"))?;
+                match task {
+                    RowTask::Embed => {
+                        session.write_text(&refs, &EmbedOptions::default()).map_err(|e| format!("write_text: {e}"))?
+                    }
+                    RowTask::Classify | RowTask::TokenClassify => session
+                        .write_text_classify(&refs, &ClassifyOptions::default())
+                        .map_err(|e| format!("write_text_classify: {e}"))?,
+                }
                 let r = session.run(&Default::default()).map_err(|e| format!("run: {e}"))?;
                 r.read(0, &mut out).map_err(|e| format!("read: {e}"))?;
                 Ok(())
@@ -499,8 +579,8 @@ fn bench_embed(
                 .map(|t| format!("{t:.0} tok/s"))
                 .unwrap_or_else(|| "tokens estimated".to_string());
             eprintln!(
-                "embed batch {batch:>2} seq {seq:>3}: text p50 {:.3} ms ({:.0} rows/s, {tok_s}); tokens p50 {prepared_p50}; live {:.1} tok/row; h2d {:.0} d2h {:.0} per run",
-                text_path.p50_ms, text_path.rows_per_s, live_per_row, per_run.h2d_bytes.unwrap_or(0.0), per_run.d2h_bytes.unwrap_or(0.0)
+                "{} batch {batch:>2} seq {seq:>3}: text p50 {:.3} ms ({:.0} rows/s, {tok_s}); tokens p50 {prepared_p50}; live {:.1} tok/row; h2d {:.0} d2h {:.0} per run",
+                task.name(), text_path.p50_ms, text_path.rows_per_s, live_per_row, per_run.h2d_bytes.unwrap_or(0.0), per_run.d2h_bytes.unwrap_or(0.0)
             );
             cells.push(EmbedCell {
                 batch,
@@ -515,34 +595,112 @@ fn bench_embed(
         }
     }
     if let Some(path) = dump_tokens {
-        let artifacts = bundle
-            .manifest()
-            .artifacts
-            .iter()
-            .map(|(k, v)| (k.clone(), bundle.dir().join(&v.path).display().to_string()))
-            .collect();
-        let dump = TokenDump {
-            bundle: bid.dir.clone(),
-            bundle_id: bid.clone(),
-            artifacts,
-            pooling: bundle.contract().pooling.clone().unwrap_or_default(),
-            normalize: bundle.contract().normalize.clone().unwrap_or_default(),
-            cells: dumped,
-        };
-        let text = serde_json::to_string(&dump).map_err(|e| format!("token dump: {e}"))?;
-        std::fs::write(path, text).map_err(|e| format!("write {}: {e}", path.display()))?;
-        eprintln!("tokens written to {}", path.display());
+        write_dump(path, &bundle, &bid, task.name(), dumped)?;
     }
-    receipt(c, &t, bid, cells, None, None)
+    let mut r = receipt(c, &t, bid)?;
+    match task {
+        RowTask::Embed => r.embed = cells,
+        RowTask::Classify => r.classify = cells,
+        RowTask::TokenClassify => r.token_classify = cells,
+    }
+    Ok(r)
+}
+
+/// Write the token dump the native reference programs read.
+fn write_dump(path: &Path, bundle: &Bundle, bid: &BundleId, task: &str, cells: Vec<TokenCell>) -> Result<(), String> {
+    let artifacts = bundle
+        .manifest()
+        .artifacts
+        .iter()
+        .map(|(k, v)| (k.clone(), bundle.dir().join(&v.path).display().to_string()))
+        .collect();
+    let contract = bundle.contract();
+    let dump = TokenDump {
+        task: task.to_string(),
+        bundle: bid.dir.clone(),
+        bundle_id: bid.clone(),
+        artifacts,
+        pooling: contract.pooling.clone().unwrap_or_default(),
+        normalize: contract.normalize.clone().unwrap_or_default(),
+        activation: contract.activation.clone().unwrap_or_default(),
+        cells,
+    };
+    let text = serde_json::to_string(&dump).map_err(|e| format!("token dump: {e}"))?;
+    std::fs::write(path, text).map_err(|e| format!("write {}: {e}", path.display()))?;
+    eprintln!("tokens written to {}", path.display());
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
 // Rerank
 // ---------------------------------------------------------------------------
 
-fn bench_rerank(c: &Common, corpus_arg: &CorpusArg, docs: u32, seq: u32) -> Result<Receipt, String> {
+/// The query and document rows a cross-encoder reads, built with the core
+/// tokenizer: `[CLS] query [SEP] doc [SEP]`, segment id 0 up to and
+/// including the first `[SEP]` and 1 after it, padded to `seq`. A row that
+/// does not fit `seq` is an error (no truncation, so there is no policy to
+/// match).
+struct PairRows {
+    ids: Vec<i32>,
+    mask: Vec<i32>,
+    types: Vec<i32>,
+    lengths: Vec<u32>,
+}
+
+fn pair_rows(tok: &Tokenizer, query: &str, docs: &[&str], seq: u32) -> Result<PairRows, String> {
+    let info = tok.info();
+    let sep = info.eos_id.ok_or("the tokenizer defines no [SEP] id")?;
+    let pad = info.pad_id.unwrap_or(0);
+    let q = tok
+        .encode(query, &EncodeOptions { max_tokens: seq, ..Default::default() })
+        .map_err(|e| format!("encode query: {e}"))?;
+    if q.truncated {
+        return Err(format!("the query alone exceeds {seq} tokens"));
+    }
+    let stride = seq as usize;
+    let mut out = PairRows {
+        ids: vec![pad; docs.len() * stride],
+        mask: vec![0; docs.len() * stride],
+        types: vec![0; docs.len() * stride],
+        lengths: vec![0; docs.len()],
+    };
+    for (r, doc) in docs.iter().enumerate() {
+        let d = tok
+            .encode(doc, &EncodeOptions { add_special_tokens: false, ..Default::default() })
+            .map_err(|e| format!("encode document {r}: {e}"))?;
+        if d.truncated {
+            return Err(format!("document {r} exceeds the bundle's max_seq on its own"));
+        }
+        let n = q.ids.len() + d.ids.len() + 1;
+        if n > stride {
+            return Err(format!("document {r} with the query is {n} tokens, over the session's {seq}"));
+        }
+        let row = r * stride;
+        let mut col = row;
+        for &id in &q.ids {
+            out.ids[col] = id;
+            col += 1;
+        }
+        for &id in d.ids.iter().chain(std::iter::once(&sep)) {
+            out.ids[col] = id;
+            out.types[col] = 1;
+            col += 1;
+        }
+        out.mask[row..row + n].fill(1);
+        out.lengths[r] = n as u32;
+    }
+    Ok(out)
+}
+
+fn bench_rerank(
+    c: &Common,
+    corpus_arg: &CorpusArg,
+    docs: u32,
+    seq: u32,
+    dump_tokens: Option<&Path>,
+) -> Result<Receipt, String> {
     let t = open_target(c)?;
-    let (_bundle, bid) = bundle_id(&c.bundle)?;
+    let (bundle, bid) = bundle_id(&c.bundle)?;
     let model = t.ctx.load_model(&c.bundle, &ModelDesc::default()).map_err(|e| format!("load model: {e}"))?;
     let info = model.info();
     if docs > info.max_batch || seq > info.max_seq {
@@ -573,8 +731,84 @@ fn bench_rerank(c: &Common, corpus_arg: &CorpusArg, docs: u32, seq: u32) -> Resu
     let per_run = delta(&before, &after, c.iters as u64)?;
     // A rerank cell counts documents, not tokens.
     let text_path = summarize(&mut samples, docs as u64, None)?;
-    eprintln!("rerank {docs} docs seq {seq}: p50 {:.3} ms ({:.0} docs/s)", text_path.p50_ms, text_path.rows_per_s);
-    receipt(c, &t, bid, Vec::new(), Some(RerankCell { docs, seq, text_path, per_run }), None)
+    let from_pairs = floats(&out);
+
+    // The same work as prepared token rows, when the core has a tokenizer
+    // for the bundle.
+    let prepared = match Tokenizer::from_bundle(&bundle) {
+        Err(e) => {
+            if dump_tokens.is_some() {
+                return Err(format!("--dump-tokens needs the core tokenizer: {e}"));
+            }
+            eprintln!("no core tokenizer for this bundle ({e}); the prepared-token path is skipped");
+            None
+        }
+        Ok(tok) => {
+            let rows = pair_rows(&tok, &query, &doc_texts, seq)?;
+            let token_batch = TokenBatch {
+                batch: docs,
+                seq,
+                row_stride: seq,
+                ids: &rows.ids,
+                mask: &rows.mask,
+                types: Some(&rows.types),
+            };
+            let run_tokens = |out: &mut [u8]| -> Result<(), String> {
+                session.write_tokens(&token_batch).map_err(|e| format!("write_tokens: {e}"))?;
+                let r = session.run(&Default::default()).map_err(|e| format!("run: {e}"))?;
+                r.read(0, out).map_err(|e| format!("read: {e}"))?;
+                Ok(())
+            };
+            // The prepared rows must be the rows write_pairs packs: the
+            // scores agree to within what a GPU's run-to-run spread allows.
+            run_tokens(&mut out)?;
+            let from_tokens = floats(&out);
+            let worst = from_pairs.iter().zip(&from_tokens).map(|(a, b)| (a - b).abs()).fold(0.0f32, f32::max);
+            if worst.is_nan() || worst > 1e-3 {
+                return Err(format!(
+                    "the prepared rows score up to {worst:e} away from write_pairs; they are not the rows the provider packs"
+                ));
+            }
+            warm_up(c.warmup, || run_tokens(&mut out))?;
+            let mut samples = Vec::with_capacity(c.iters as usize);
+            for _ in 0..c.iters {
+                let t0 = Instant::now();
+                run_tokens(&mut out)?;
+                samples.push(t0.elapsed());
+            }
+            if let Some(path) = dump_tokens {
+                let mut texts = vec![query.clone()];
+                texts.extend(doc_texts.iter().map(|d| d.to_string()));
+                let cell = TokenCell {
+                    batch: docs,
+                    seq,
+                    texts,
+                    ids: rows.ids.clone(),
+                    mask: rows.mask.clone(),
+                    types: rows.types.clone(),
+                    lengths: rows.lengths.clone(),
+                };
+                write_dump(path, &bundle, &bid, "rerank", vec![cell])?;
+            }
+            Some(summarize(&mut samples, docs as u64, None)?)
+        }
+    };
+    let prepared_p50 = prepared
+        .as_ref()
+        .map(|p| format!("{:.3} ms ({:.0} docs/s)", p.p50_ms, p.rows_per_s))
+        .unwrap_or_else(|| "skipped".to_string());
+    eprintln!(
+        "rerank {docs} docs seq {seq}: text p50 {:.3} ms ({:.0} docs/s); tokens p50 {prepared_p50}",
+        text_path.p50_ms, text_path.rows_per_s
+    );
+    let mut r = receipt(c, &t, bid)?;
+    r.rerank = Some(RerankCell { docs, seq, text_path, prepared_tokens_path: prepared, per_run });
+    Ok(r)
+}
+
+/// Little-endian f32 values of a read-back buffer.
+fn floats(bytes: &[u8]) -> Vec<f32> {
+    bytes.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -674,17 +908,14 @@ fn bench_generate(c: &Common, new_tokens: u32, prompt: &str) -> Result<Receipt, 
         "generate {new_tokens} tokens: ttft p50 {:.1} ms, decode {decode}, total p50 {:.0} ms, generated {:.1} mean",
         cell.time_to_first_token_ms_p50, cell.total_ms_p50, cell.generated_tokens_mean
     );
-    receipt(c, &t, bid, Vec::new(), None, Some(cell))
+    let mut r = receipt(c, &t, bid)?;
+    r.generate = Some(cell);
+    Ok(r)
 }
 
-fn receipt(
-    c: &Common,
-    t: &Target,
-    bundle: BundleId,
-    embed: Vec<EmbedCell>,
-    rerank: Option<RerankCell>,
-    generate: Option<GenerateCell>,
-) -> Result<Receipt, String> {
+/// A receipt of this run with no workload recorded yet; the caller fills
+/// in the one it measured.
+fn receipt(c: &Common, t: &Target, bundle: BundleId) -> Result<Receipt, String> {
     Ok(Receipt {
         receipt_version: 1,
         kind: "benchmark".to_string(),
@@ -694,9 +925,11 @@ fn receipt(
         provider: t.provider.clone(),
         device: t.device.clone(),
         bundle,
-        embed,
-        rerank,
-        generate,
+        embed: Vec::new(),
+        rerank: None,
+        classify: Vec::new(),
+        token_classify: Vec::new(),
+        generate: None,
         budget_check: None,
         native_reference: "not run; see the provider README for the direct-native program of this pair".to_string(),
     })
@@ -745,32 +978,43 @@ fn check_budget(r: &mut Receipt, budget_path: &Path, tolerance: f64) -> Result<(
             ));
         }
     };
-    for cell in &r.embed {
-        match budget.embed.iter().find(|b| b.batch == cell.batch && b.seq == cell.seq) {
-            Some(b) => {
-                over(
-                    &format!("embed {}x{} text", cell.batch, cell.seq),
-                    cell.text_path.p50_ms,
-                    b.text_path.p50_ms,
-                    &mut violations,
-                );
-                if let (Some(p), Some(bp)) = (&cell.prepared_tokens_path, &b.prepared_tokens_path) {
-                    over(&format!("embed {}x{} tokens", cell.batch, cell.seq), p.p50_ms, bp.p50_ms, &mut violations);
+    for (task, mine, theirs) in
+        [("embed", &r.embed, &budget.embed), ("classify", &r.classify, &budget.classify), ("token_classify", &r.token_classify, &budget.token_classify)]
+    {
+        for cell in mine {
+            match theirs.iter().find(|b| b.batch == cell.batch && b.seq == cell.seq) {
+                Some(b) => {
+                    over(
+                        &format!("{task} {}x{} text", cell.batch, cell.seq),
+                        cell.text_path.p50_ms,
+                        b.text_path.p50_ms,
+                        &mut violations,
+                    );
+                    if let (Some(p), Some(bp)) = (&cell.prepared_tokens_path, &b.prepared_tokens_path) {
+                        over(&format!("{task} {}x{} tokens", cell.batch, cell.seq), p.p50_ms, bp.p50_ms, &mut violations);
+                    }
                 }
+                None => violations.push(format!("{task} {}x{}: the budget has no such cell", cell.batch, cell.seq)),
             }
-            None => violations.push(format!("embed {}x{}: the budget has no such cell", cell.batch, cell.seq)),
         }
-    }
-    // A cell the budget has and this run did not produce is a violation:
-    // a shrunken workload is not a pass.
-    for b in &budget.embed {
-        if !r.embed.iter().any(|c| c.batch == b.batch && c.seq == b.seq) {
-            violations
-                .push(format!("embed {}x{}: the budget has this cell and this run did not measure it", b.batch, b.seq));
+        // A cell the budget has and this run did not produce is a violation:
+        // a shrunken workload is not a pass.
+        for b in theirs {
+            if !mine.iter().any(|c| c.batch == b.batch && c.seq == b.seq) {
+                violations.push(format!(
+                    "{task} {}x{}: the budget has this cell and this run did not measure it",
+                    b.batch, b.seq
+                ));
+            }
         }
     }
     match (&r.rerank, &budget.rerank) {
-        (Some(cell), Some(b)) => over("rerank", cell.text_path.p50_ms, b.text_path.p50_ms, &mut violations),
+        (Some(cell), Some(b)) => {
+            over("rerank", cell.text_path.p50_ms, b.text_path.p50_ms, &mut violations);
+            if let (Some(p), Some(bp)) = (&cell.prepared_tokens_path, &b.prepared_tokens_path) {
+                over("rerank tokens", p.p50_ms, bp.p50_ms, &mut violations);
+            }
+        }
         (Some(_), None) => violations.push("rerank: the budget has no rerank figure".to_string()),
         (None, Some(_)) => {
             violations.push("rerank: the budget has a rerank figure and this run did not measure one".to_string())
@@ -1153,7 +1397,11 @@ fn main() -> ExitCode {
         };
     }
     let common = match &cli.command {
-        Cmd::Embed { common, .. } | Cmd::Rerank { common, .. } | Cmd::Generate { common, .. } => common,
+        Cmd::Embed { common, .. }
+        | Cmd::Classify { common, .. }
+        | Cmd::TokenClassify { common, .. }
+        | Cmd::Rerank { common, .. }
+        | Cmd::Generate { common, .. } => common,
         Cmd::Discover { .. } | Cmd::Compare { .. } => unreachable!("handled above"),
     };
     // --tolerance means nothing without a budget, so naming one without the
@@ -1170,10 +1418,12 @@ fn main() -> ExitCode {
         (_, t) => t.unwrap_or(0.25),
     };
     let result = match &cli.command {
-        Cmd::Embed { common, corpus, batches, seqs, dump_tokens } => {
-            bench_embed(common, corpus, batches, seqs, dump_tokens.as_deref())
+        Cmd::Embed { common, rows } => bench_rows(common, rows, RowTask::Embed),
+        Cmd::Classify { common, rows } => bench_rows(common, rows, RowTask::Classify),
+        Cmd::TokenClassify { common, rows } => bench_rows(common, rows, RowTask::TokenClassify),
+        Cmd::Rerank { common, corpus, docs, seq, dump_tokens } => {
+            bench_rerank(common, corpus, *docs, *seq, dump_tokens.as_deref())
         }
-        Cmd::Rerank { common, corpus, docs, seq } => bench_rerank(common, corpus, *docs, *seq),
         Cmd::Generate { common, new_tokens, prompt } => bench_generate(common, *new_tokens, prompt),
         Cmd::Discover { .. } | Cmd::Compare { .. } => unreachable!("handled above"),
     };
@@ -1229,7 +1479,7 @@ fn main() -> ExitCode {
 /// One cell of the comparison.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct CompareCell {
-    /// `embed 8x128`, `rerank 32x128`, `generate 128`.
+    /// `embed 8x128`, `classify 8x128`, `token_classify 8x128`, `rerank 32x128`, `generate 128`.
     cell: String,
     /// What was compared: `prepared tokens p50`, `text p50`, `decode tokens/s`, `total p50`.
     measure: String,
@@ -1314,23 +1564,27 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
             within_floor: ratio >= floor,
         });
     };
-    for tc in &t.embed {
-        let name = format!("embed {}x{}", tc.batch, tc.seq);
-        match n.embed.iter().find(|c| c.batch == tc.batch && c.seq == tc.seq) {
-            None => unmatched.push(format!("{name}: only in the libturbo receipt")),
-            Some(nc) => {
-                // The prepared-token path is the matched one: both sides run
-                // the same ids; the text path differs by the tokenizer.
-                match (&tc.prepared_tokens_path, &nc.prepared_tokens_path) {
-                    (Some(a), Some(b)) => push(name.clone(), "prepared tokens p50 ms", a.p50_ms, b.p50_ms, false),
-                    _ => push(name.clone(), "text p50 ms", tc.text_path.p50_ms, nc.text_path.p50_ms, false),
+    for (task, tcells, ncells) in
+        [("embed", &t.embed, &n.embed), ("classify", &t.classify, &n.classify), ("token_classify", &t.token_classify, &n.token_classify)]
+    {
+        for tc in tcells {
+            let name = format!("{task} {}x{}", tc.batch, tc.seq);
+            match ncells.iter().find(|c| c.batch == tc.batch && c.seq == tc.seq) {
+                None => unmatched.push(format!("{name}: only in the libturbo receipt")),
+                Some(nc) => {
+                    // The prepared-token path is the matched one: both sides run
+                    // the same ids; the text path differs by the tokenizer.
+                    match (&tc.prepared_tokens_path, &nc.prepared_tokens_path) {
+                        (Some(a), Some(b)) => push(name.clone(), "prepared tokens p50 ms", a.p50_ms, b.p50_ms, false),
+                        _ => push(name.clone(), "text p50 ms", tc.text_path.p50_ms, nc.text_path.p50_ms, false),
+                    }
                 }
             }
         }
-    }
-    for nc in &n.embed {
-        if !t.embed.iter().any(|c| c.batch == nc.batch && c.seq == nc.seq) {
-            unmatched.push(format!("embed {}x{}: only in the native receipt", nc.batch, nc.seq));
+        for nc in ncells {
+            if !tcells.iter().any(|c| c.batch == nc.batch && c.seq == nc.seq) {
+                unmatched.push(format!("{task} {}x{}: only in the native receipt", nc.batch, nc.seq));
+            }
         }
     }
     match (&t.rerank, &n.rerank) {
@@ -1338,7 +1592,13 @@ fn compare(turbo_path: &Path, native_path: &Path, floor: f64) -> Result<Comparis
             if a.docs != b.docs || a.seq != b.seq {
                 unmatched.push(format!("rerank: {}x{} versus {}x{}", a.docs, a.seq, b.docs, b.seq));
             } else {
-                push(format!("rerank {}x{}", a.docs, a.seq), "p50 ms", a.text_path.p50_ms, b.text_path.p50_ms, false);
+                // As for embeddings, the prepared rows are the matched path
+                // when both sides have them.
+                let name = format!("rerank {}x{}", a.docs, a.seq);
+                match (&a.prepared_tokens_path, &b.prepared_tokens_path) {
+                    (Some(x), Some(y)) => push(name, "prepared tokens p50 ms", x.p50_ms, y.p50_ms, false),
+                    _ => push(name, "p50 ms", a.text_path.p50_ms, b.text_path.p50_ms, false),
+                }
             }
         }
         (Some(_), None) => unmatched.push("rerank: only in the libturbo receipt".into()),

@@ -3,11 +3,14 @@
 // The direct-native half of the openvino provider's matched benchmark
 // (PLAN.md section 11): OpenVINO's C++ API alone, with no libturbo in the
 // timed path. It reads the ONNX model the bundle names, runs the token rows
-// `turbo-bench embed --dump-tokens` wrote (the same ids, masks and shapes
-// libturbo's prepared-token path ran) through an infer request the way an
-// OpenVINO user would (input tensors set per run, the hidden state read
-// back, mean or CLS pooling and L2 on the host), and writes a receipt of
-// kind `native` that `turbo-bench compare` reads.
+// `turbo-bench embed|rerank|classify|token-classify --dump-tokens` wrote
+// (the same ids, masks, segment ids and shapes libturbo's prepared-token
+// path ran) through an infer request the way an OpenVINO user would (input
+// tensors set per run, the model's output read back, and the rest done on
+// the host: mean or CLS pooling and L2 for embeddings, the bundle's
+// activation on the reranker logit, softmax or sigmoid over a classifier's
+// logits, softmax per token for token classification), and writes a
+// receipt of kind `native` that `turbo-bench compare` reads.
 
 #include <openvino/openvino.hpp>
 #include <openvino/core/preprocess/pre_post_process.hpp>
@@ -145,6 +148,69 @@ json latency(std::vector<double> &samples, double rows, double tokens) {
     return l;
 }
 
+/// What a plain OpenVINO user computes from a task model's logits on the
+/// host, into `out`: the reranker's `[batch]` scores (sigmoid or the logit
+/// itself), a classifier's `[batch, labels]` scores (softmax, sigmoid, or
+/// the logits), a token classifier's `[batch, seq, labels]` per-token
+/// softmax.
+void scores(const std::string &task, const std::string &activation, const ov::Tensor &logits, size_t b, size_t s,
+            std::vector<float> &out) {
+    const auto shape = logits.get_shape();
+    const float *x = logits.data<const float>();
+    auto softmax = [](const float *in, float *dst, size_t n) {
+        float m = in[0];
+        for (size_t k = 1; k < n; ++k) {
+            m = std::max(m, in[k]);
+        }
+        float sum = 0;
+        for (size_t k = 0; k < n; ++k) {
+            dst[k] = std::exp(in[k] - m);
+            sum += dst[k];
+        }
+        for (size_t k = 0; k < n; ++k) {
+            dst[k] /= sum;
+        }
+    };
+    auto sigmoid = [](float v) { return 1.0f / (1.0f + std::exp(-v)); };
+    if (task == "rerank") {
+        if (shape.empty() || shape[0] != b || logits.get_size() != b) {
+            die("reranker output is not one logit per row");
+        }
+        out.assign(x, x + b);
+        if (activation == "sigmoid") {
+            for (float &v : out) {
+                v = sigmoid(v);
+            }
+        }
+        return;
+    }
+    if (task == "classify") {
+        if (shape.size() != 2 || shape[0] != b) {
+            die("classifier output shape is not [batch, labels]");
+        }
+        const size_t n = shape[1];
+        out.resize(b * n);
+        for (size_t r = 0; r < b; ++r) {
+            if (activation == "softmax") {
+                softmax(x + r * n, out.data() + r * n, n);
+            } else {
+                for (size_t k = 0; k < n; ++k) {
+                    out[r * n + k] = activation == "sigmoid" ? sigmoid(x[r * n + k]) : x[r * n + k];
+                }
+            }
+        }
+        return;
+    }
+    if (shape.size() != 3 || shape[0] != b || shape[1] != s) {
+        die("token classifier output shape is not [batch, seq, labels]");
+    }
+    const size_t n = shape[2];
+    out.resize(b * s * n);
+    for (size_t t = 0; t < b * s; ++t) {
+        softmax(x + t * n, out.data() + t * n, n);
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -159,14 +225,42 @@ int main(int argc, char **argv) {
         die("the token dump names no `onnx` artifact");
     }
     const std::string onnx = dump["artifacts"]["onnx"];
+    const std::string task = dump.value("task", "embed");
+    if (task != "embed" && task != "rerank" && task != "classify" && task != "token_classify") {
+        die("task `" + task + "` is not embed, rerank, classify or token_classify");
+    }
+    const bool embed = task == "embed";
     const std::string pooling = dump.value("pooling", "");
-    if (pooling != "mean" && pooling != "cls") {
+    if (embed && pooling != "mean" && pooling != "cls") {
         die("pooling `" + pooling + "` is not implemented by this reference (mean, cls)");
     }
     const std::string norm = dump.value("normalize", "");
-    const bool normalize = norm == "l2";
-    if (!normalize && norm != "none" && !norm.empty()) {
+    const bool normalize = embed && norm == "l2";
+    if (embed && !normalize && norm != "none" && !norm.empty()) {
         die("normalize `" + norm + "` is not l2 or none");
+    }
+    // The activation the provider fuses, applied here on the host: the
+    // bundle's, or sigmoid for a reranker and softmax for a classifier when
+    // it names none; token classification is always a per-token softmax.
+    std::string activation = dump.value("activation", "");
+    if (task == "rerank" && activation.empty()) {
+        activation = "sigmoid";
+    } else if (task == "classify" && activation.empty()) {
+        activation = "softmax";
+    } else if (task == "token_classify") {
+        activation = "softmax";
+    }
+    if (task == "rerank" && activation != "sigmoid" && activation != "none") {
+        die("reranker activation `" + activation + "` is not sigmoid or none");
+    }
+    if (task == "classify" && activation != "softmax" && activation != "sigmoid" && activation != "none") {
+        die("classifier activation `" + activation + "` is not softmax, sigmoid or none");
+    }
+    if (!embed && o.fuse) {
+        die("--fuse fuses pooling and normalization, which only an embedding model has");
+    }
+    if (task == "rerank" && dump["cells"].size() != 1) {
+        die("a rerank dump holds one cell");
     }
 
     ov::Core core;
@@ -253,10 +347,16 @@ int main(int argc, char **argv) {
         for (const auto &l : cell["lengths"]) {
             live += l.get<double>();
         }
+        std::vector<int32_t> types32(b * s, 0);
+        if (cell.contains("types")) {
+            types32 = cell["types"].get<std::vector<int32_t>>();
+            if (types32.size() != b * s) {
+                die("cell " + std::to_string(b) + "x" + std::to_string(s) + ": types do not hold batch*seq elements");
+            }
+        }
         std::vector<int64_t> ids64(ids32.begin(), ids32.end());
         std::vector<int64_t> mask64(mask32.begin(), mask32.end());
-        std::vector<int64_t> types64(b * s, 0);
-        std::vector<int32_t> types32(b * s, 0);
+        std::vector<int64_t> types64(types32.begin(), types32.end());
         const ov::Shape shape{b, s};
         std::vector<float> out;
         if (o.static_shape || o.fuse || o.i32) {
@@ -284,6 +384,10 @@ int main(int argc, char **argv) {
             request.infer();
             const ov::Tensor hidden = request.get_output_tensor(0);
             const auto hs = hidden.get_shape();
+            if (!embed) {
+                scores(task, activation, hidden, b, s, out);
+                return;
+            }
             if (o.fuse) {
                 // Pooled and normalized in the graph: the result is [batch, hidden].
                 if (hs.size() != 2 || hs[0] != b) {
@@ -347,8 +451,20 @@ int main(int argc, char **argv) {
             samples.push_back(std::chrono::duration<double, std::milli>(clock_type::now() - t0).count());
         }
         json lat = latency(samples, static_cast<double>(b), live);
-        std::fprintf(stderr, "embed batch %2zu seq %3zu: tokens p50 %.3f ms (%.0f rows/s)\n", b, s,
+        std::fprintf(stderr, "%s batch %2zu seq %3zu: tokens p50 %.3f ms (%.0f rows/s)\n", task.c_str(), b, s,
                      lat["p50_ms"].get<double>(), lat["rows_per_s"].get<double>());
+        if (task == "rerank") {
+            // A rerank cell counts documents, not tokens, as turbo-bench's does.
+            lat.erase("tokens_per_s");
+            json c;
+            c["docs"] = b;
+            c["seq"] = s;
+            c["text_path"] = lat;
+            c["prepared_tokens_path"] = lat;
+            c["per_run"] = {{"host_allocs", nullptr}, {"provider_allocs", nullptr}};
+            cells.push_back(c);
+            continue;
+        }
         json c;
         c["batch"] = b;
         c["seq"] = s;
@@ -373,12 +489,20 @@ int main(int argc, char **argv) {
     r["provider"] = {{"id", "openvino"}, {"version", "reference"}, {"runtime_version", "OpenVINO " + version + " C++ API"}, {"driver_version", ""}};
     r["device"] = {{"name", device_name}, {"kind", o.device == "CPU" ? "Cpu" : "Gpu"}, {"ordinal", 0}, {"caps", "0x0"}, {"memory_total", 0}};
     r["bundle"] = dump["bundle_id"];
-    r["embed"] = cells;
+    if (task == "rerank") {
+        r["rerank"] = cells.at(0);
+    } else {
+        r[task] = cells;
+    }
+    const std::string host_work =
+        embed ? std::string(o.fuse ? "pooling and normalization in the graph; " : "host-side ") + pooling + " pooling and " +
+                    (normalize ? "l2" : "no") + " normalization"
+        : task == "token_classify" ? std::string("host-side softmax over each token's label logits")
+        : task == "rerank"         ? "host-side " + activation + " activation on the logit"
+                                   : "host-side " + activation + " over the label logits";
     r["native_reference"] = "this is the native side: OpenVINO C++ API (" + o.device + ") on the token rows of " + o.tokens +
                             "; bundle identity copied from that dump; " + std::string(o.static_shape ? "static [batch, seq] shape; " : "") +
-                            std::string(o.i32 ? "i32 inputs; " : "") +
-                            std::string(o.fuse ? "pooling and normalization in the graph; " : "host-side ") + pooling + " pooling and " +
-                            (normalize ? "l2" : "no") + " normalization; no session counters";
+                            std::string(o.i32 ? "i32 inputs; " : "") + host_work + "; no session counters";
     const std::string text = r.dump(2) + "\n";
     if (o.out.empty()) {
         std::cout << text;
