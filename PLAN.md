@@ -77,15 +77,24 @@ is the copy.
   `gguf`, and `onnx` for the fallback engine) for an architecture. The
   thing a provider loads. A recipe produced it.
 - Stage. One step of a task: normalize text, tokenize, encode, pool,
-  normalize vectors, pool segments, score, decode. A provider states per
-  stage where it runs (device or host) and whether a copy was taken to get
-  there. Boundaries for chunking are a host stage everywhere (they are
-  computed over text before anything reaches a device); pooling the
-  segments they define is a device stage wherever the stack allows it
-  (CUDA, OpenVINO, Metal, ggml) and a host stage on Hailo. Tokenization is
-  a host stage on every stack today; the core tokenizer is the reference
-  and a fused provider tokenizer replaces it only after an equivalence
-  check.
+  normalize vectors, pool segments, group, centroid, score, decode. A
+  provider states per stage where it runs (device or host) and whether a
+  copy was taken to get there. Boundaries for chunking are a host stage
+  everywhere (they are computed over text before anything reaches a
+  device; OpenNLP's native image is the provider of that stage, with
+  sentence detection and its analysis, and the core's rules are the
+  other). Pooling the segments they define, grouping sentence embeddings
+  by neighbour similarity or a running centroid, and the centroids
+  themselves are vector math over data that is already resident, so they
+  are device stages wherever the stack allows it (CUDA, OpenVINO, Metal)
+  and host stages on Hailo and, until its public API keeps an output on
+  the device, on ggml. Generative chunking (a generator turns a span of
+  text into statements of fact, which are then embedded) is the generate
+  task followed by one small host hop, detokenize and retokenize, because
+  the generator's vocabulary is not the embedder's; the hop is reported
+  as the copy it is. Tokenization is a host stage on every stack today;
+  the core tokenizer is the reference and a fused provider tokenizer
+  replaces it only after an equivalence check.
 - Receipt. Proof binding provider, device architecture, runtime, bundle
   and artifact hashes, and task: conformance, precision, matched-native
   (section 11). It fills the matrix and it is the data path selection
@@ -146,10 +155,16 @@ R0. The mission where every reader starts. `AGENTS.md` opens with the
 R1. Stages, placement and provenance on the interface. The stage list
     above becomes an ABI enumeration; `stage_placement` names every stage
     and whether a copy was taken; a result carries its provenance. Chunk
-    becomes two stages: boundaries (host: the core's rules, or the
-    OpenNLP native image as a provider of that stage) and segment
-    pooling (device where the stack allows it), with the embed task
-    taking an optional segment plan. Ends: headers regenerated, the mock
+    becomes one task with a strategy and a plan of stages, asked for in
+    one call so the provider can keep it resident: fixed (the core's
+    rules), boundaries (the OpenNLP native image as the provider of that
+    stage), semantic (boundaries, embed the sentences, group them by
+    neighbour similarity or running centroid, centroids as segment
+    means, optionally re-embed the merged chunks, all on the device where
+    the stack allows it), and generative (the generate task producing
+    statements of fact, the text hop, then embed). The output is the
+    spans, and the chunk embeddings when asked, with a placement per
+    stage. The embed task takes an optional segment plan. Ends: headers regenerated, the mock
     provider and every real provider report placement for every stage,
     the conformance suite checks provenance, bindings compile.
 
