@@ -888,13 +888,27 @@ proves too slow, and not before.
 
 Recipes. A recipe takes a source checkpoint and a target and yields the
 artifact plus the facts the bundle needs (frame length, fixed shape,
-quantization). They live in the toolchain's language, Python under
-`zoo/recipes/<format>/` with a lock file: ONNX export with pinned opset
-and shapes; GGUF conversion with the quant type; Hailo compile through
-the Dataflow Compiler with the model script and calibration set, one
-recipe emitting `hailo8`, `hailo8l` and `hailo10h`; Core ML conversion.
-`turbo-bundle zoo build|fetch|verify|index` drives them; the Rust side
-never depends on those toolchains.
+quantization). No Python enters this tree for it. A recipe is a
+declarative record in the catalog: the toolchain as a container image
+pinned by digest (Hailo's AI Software Suite image for the Dataflow
+Compiler; a llama.cpp image for GGUF quantization; a Core ML converter
+image), the command lines, the inputs by hash (checkpoint, model script,
+calibration set), and the expected outputs. `turbo-bundle zoo build`
+runs the container, captures the artifact, hashes it and writes the
+entry; `fetch`, `verify` and `index` are the other verbs. The vendor's
+Python runs inside the vendor's image, which pins it better than a lock
+file would, and our side is Rust. Import beats convert wherever an
+artifact is already published: ONNX and GGUF from the Hugging Face Hub,
+HEFs from Hailo's zoo where they exist; a toolchain runs only for what
+nobody publishes, which today is the Hailo-10H compile and later Core ML.
+The one conversion the Hailo bundles need in-house, the fp32 embedding
+tables exported from the checkpoint (`scripts/export-hailo-tables.py`
+today), is ported into `turbo-bundle` (`tools/turbo-bundle`) over a
+small safetensors reader (a JSON header and raw tensors, no new
+dependency), and the script is removed. The Python that remains in the
+tree is the reference edge (PyTorch reference generators, the Hailo
+native receipt over `hailortcli`) and demos over the OpenAI SDK; none of
+it is distributed and none of it is on a build path.
 
 Vector storage is outside this library. The library produces vectors and
 stays storage-agnostic. The search demo gains a `sqlite-vec` backend
