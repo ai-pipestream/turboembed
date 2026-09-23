@@ -21,7 +21,7 @@
     "caps": "0x3f0402"
   },
   "bundle": {
-    "dir": "/home/rtx4080ert/bundles/minilm-hailo8",
+    "dir": "$HOME/bundles/minilm-hailo8",
     "model_id": "sentence-transformers/all-MiniLM-L6-v2",
     "manifest_sha256": "434a08e0c91bada7b2c2a8682f1b186d9cf53e47d004b9e1a679d6bb69450273",
     "artifacts": {

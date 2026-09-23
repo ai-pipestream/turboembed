@@ -22,7 +22,7 @@
     "memory_total": 16717119488
   },
   "bundle": {
-    "dir": "/home/rtx4080ert/opt/bundles/qwen05-gguf",
+    "dir": "$HOME/opt/bundles/qwen05-gguf",
     "model_id": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
     "manifest_sha256": "9d0338585acf9cab9b983f01e371269d03f5ffdbae9716699a53429db72974f6",
     "artifacts": {
