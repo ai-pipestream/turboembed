@@ -29,6 +29,6 @@ jobs:
         run: cargo test --workspace
       - name: header compiles as C11 and C++17 with no padding
         run: |
-          echo '#include <turbo/turbo.h>' > "$RUNNER_TEMP/h.c"
+          printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
           cc  -std=c11   -Wall -Wextra -Wpadded -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
           c++ -std=c++17 -Wall -Wextra -Wpadded -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"

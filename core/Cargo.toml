@@ -22,3 +22,8 @@ unicode_categories = "0.1.1"
 # The upstream tokenizer sentence-transformers runs through; the tests
 # compare the core's ids with it on the upstream tokenizer.json.
 tokenizers = { version = "0.22", default-features = false, features = ["fancy-regex"] }
+
+[features]
+default = ["cpu"]
+# Backends are linked in by feature; turbo_version() lists them.
+cpu = []
