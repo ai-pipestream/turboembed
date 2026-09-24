@@ -1,8 +1,9 @@
 //! libturbo: the C interface in include/turbo/turbo.h.
 //!
 //! This cut has the runtime handle, status names, contexts, buffers,
-//! models and the tokenizer. The types below mirror the header's;
-//! tests/abi.rs checks their layout against a C compiler's.
+//! models, the tokenizer, and embed sessions and their results. The types
+//! below mirror the header's; tests/abi.rs checks their layout against a
+//! C compiler's.
 
 #![allow(non_camel_case_types)]
 
@@ -18,8 +19,11 @@ pub mod cpu;
 pub mod manifest;
 pub mod model;
 pub mod safetensors;
+mod session;
 pub mod status;
 pub mod tokenizer;
+
+pub use session::*;
 
 use backend::cstr;
 use manifest::{PromptRole, Truncation};
@@ -76,6 +80,22 @@ pub const TURBO_POOLING_MODEL: u32 = 0;
 pub const TURBO_POOLING_MEAN: u32 = 1;
 pub const TURBO_POOLING_CLS: u32 = 2;
 pub const TURBO_POOLING_LAST: u32 = 3;
+
+pub const TURBO_STAGE_MAX: usize = 16;
+
+pub const TURBO_EMBED_STAGE_TOKENIZE: usize = 0;
+pub const TURBO_EMBED_STAGE_UPLOAD: usize = 1;
+pub const TURBO_EMBED_STAGE_LOOKUP: usize = 2;
+pub const TURBO_EMBED_STAGE_ENCODE: usize = 3;
+pub const TURBO_EMBED_STAGE_POOL: usize = 4;
+pub const TURBO_EMBED_STAGE_NORMALIZE: usize = 5;
+pub const TURBO_EMBED_STAGE_DOWNLOAD: usize = 6;
+pub const TURBO_EMBED_STAGE_COUNT: usize = 7;
+
+pub const TURBO_STAGE_UNUSED: u32 = 0;
+pub const TURBO_STAGE_HOST: u32 = 1;
+pub const TURBO_STAGE_DEVICE: u32 = 2;
+pub const TURBO_STAGE_FUSED: u32 = 3;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -287,7 +307,11 @@ impl Runtime {
                 cap.dtype = 0;
                 cap.options_honored = 0;
             }
-            backend::TURBO_CAP_EXPERIMENTAL => write_str(&mut cap.reason, "no benchmark record for this cell"),
+            backend::TURBO_CAP_EXPERIMENTAL => {
+                write_str(&mut cap.reason, "no benchmark record for this cell");
+                // The options the core applies before a backend sees the rows.
+                cap.options_honored |= session::CORE_HONORED;
+            }
             s => {
                 return Err(Error::new(
                     status::INTERNAL,
@@ -356,19 +380,32 @@ pub struct turbo_context {
     inner: Arc<Context>,
 }
 
-/// A buffer the backend made or wrapped. It holds its context, so the
-/// backend's buffer is released before the backend's context.
+/// A buffer the backend made or wrapped, or a result's output. It holds
+/// its context, so the backend's buffer is released before the backend's
+/// context.
 struct Buffer {
     context: Arc<Context>,
     desc: turbo_buffer_desc,
     raw: *mut c_void,
     host: *mut c_void,
-    release: unsafe extern "C" fn(*mut c_void),
+    release: Release,
+}
+
+/// What releasing a buffer does.
+enum Release {
+    /// The backend's buffer, released through its table.
+    Backend(unsafe extern "C" fn(*mut c_void)),
+    /// A session's output, which the session owns: the buffer holds the
+    /// result, and releasing it lets the result go.
+    Result(Arc<session::SessionInner>),
 }
 
 impl Drop for Buffer {
     fn drop(&mut self) {
-        unsafe { (self.release)(self.raw) };
+        match &self.release {
+            Release::Backend(release) => unsafe { release(self.raw) },
+            Release::Result(s) => s.let_go(),
+        }
     }
 }
 
@@ -780,7 +817,7 @@ fn new_buffer(
     release: unsafe extern "C" fn(*mut c_void),
     out: &mut *mut turbo_buffer,
 ) -> Result<()> {
-    let inner = Buffer { context: ctx.inner.clone(), desc, raw, host, release };
+    let inner = Buffer { context: ctx.inner.clone(), desc, raw, host, release: Release::Backend(release) };
     let device = desc.placement == TURBO_PLACE_DEVICE;
     if host.is_null() != device {
         let b = ctx.inner.backend.name();
@@ -934,9 +971,6 @@ pub unsafe extern "C" fn turbo_buffer_export(
 
 /// A bundle loaded on a context's device. It holds its context, so the
 /// backend's model is released before the backend's context.
-// The context and the weights are held for their lifetimes, and read only
-// by what runs a session.
-#[cfg_attr(not(feature = "internals"), allow(dead_code))]
 struct Model {
     context: Arc<Context>,
     raw: *mut c_void,
@@ -947,9 +981,10 @@ struct Model {
     weights: model::Weights,
     /// The bundle's tokenizer, checked against its reference at load, for
     /// turbo_embed_write_text.
-    #[allow(dead_code)]
     tokenizer: Tokenizer,
     info: turbo_model_info,
+    /// The widths embed.output_dims allows besides dim.
+    output_dims: Vec<u32>,
 }
 
 // As for Context: the backend's model may be used from any thread.
@@ -1025,7 +1060,8 @@ fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let desc = weights.desc(&tensors);
     let mut raw = std::ptr::null_mut();
     backend::check(b, "model_load", |err| unsafe { load(c.raw, &desc, &mut raw, err) })?; // rule 9
-    Ok(Model { context: c.clone(), raw, release, weights, tokenizer, info })
+    let output_dims = e.output_dims.clone();
+    Ok(Model { context: c.clone(), raw, release, weights, tokenizer, info, output_dims })
 }
 
 /// # Safety
@@ -1099,6 +1135,21 @@ pub unsafe fn model_weights<'a>(m: *mut turbo_model) -> Option<ModelWeights<'a>>
     #[cfg(not(feature = "cpu"))]
     let held = None;
     Some(ModelWeights { files: m.weights.files(), held })
+}
+
+/// Where the CPU backend's F32 copy of an F16 or BF16 model's weights is,
+/// once a session has made it. Built only with the `internals` feature.
+///
+/// # Safety
+/// As for model_weights.
+#[cfg(feature = "internals")]
+pub unsafe fn model_converted_weights(m: *mut turbo_model) -> Option<Vec<*const c_void>> {
+    let m = &unsafe { model_handle(m) }.ok()?.inner;
+    #[cfg(feature = "cpu")]
+    if std::ptr::eq(m.context.backend, &cpu::BACKEND) {
+        return unsafe { cpu::converted_data(m.raw) };
+    }
+    None
 }
 
 // ---- Tokenizer -----------------------------------------------------------------

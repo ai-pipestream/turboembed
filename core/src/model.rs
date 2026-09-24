@@ -307,6 +307,16 @@ impl Weights {
         }
     }
 
+    /// Ids a row may hold: the rows of the word embedding table.
+    pub fn vocab_size(&self) -> u32 {
+        self.arch[4]
+    }
+
+    /// Token types a row may hold: the rows of the type embedding table.
+    pub fn token_types(&self) -> u32 {
+        self.arch[6]
+    }
+
     /// The verified bytes of each file, in the artifact's order.
     pub fn files(&self) -> Vec<&[u8]> {
         self.files.iter().map(|f| &f[..]).collect()

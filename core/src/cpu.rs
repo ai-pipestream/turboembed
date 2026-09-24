@@ -1,16 +1,25 @@
 //! The CPU backend: the host processor, through turbo_backend.h like any
-//! other backend. This cut lists the device, its memory and the models
-//! loaded on it; no task runs on it yet.
+//! other backend. It lists the device and its memory, holds the models
+//! loaded on it, and runs embed sessions with the encoder in encoder.rs.
+
+mod encoder;
 
 use std::alloc::Layout;
 use std::ffi::{c_char, c_void};
+use std::sync::OnceLock;
 
 use crate::backend::{
-    TURBO_CAP_UNSUPPORTED, TURBO_FAMILY_BERT, refuse, turbo_backend, turbo_backend_model, turbo_backend_tensor,
+    TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT, refuse, refuse_field, turbo_backend, turbo_backend_embed_rows,
+    turbo_backend_model, turbo_backend_run, turbo_backend_tensor,
 };
-use crate::status::{INVALID_ARGUMENT, OUT_OF_MEMORY, UNSUPPORTED};
+use crate::status::{
+    INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
+};
 use crate::{
-    TURBO_DEVICE_CPU, TURBO_HANDLE_HOST_PTR, TURBO_PLACE_DEVICE, turbo_buffer_desc, turbo_device_info, turbo_error,
+    TURBO_DEVICE_CPU, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_EMBED_STAGE_DOWNLOAD, TURBO_EMBED_STAGE_ENCODE,
+    TURBO_EMBED_STAGE_LOOKUP, TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL, TURBO_EMBED_STAGE_UPLOAD,
+    TURBO_HANDLE_HOST_PTR, TURBO_NORMALIZE_L2, TURBO_PLACE_DEVICE, TURBO_PLACE_HOST, TURBO_PRECISION_MODEL,
+    TURBO_STAGE_HOST, TURBO_STAGE_UNUSED, TURBO_TASK_EMBED, turbo_buffer_desc, turbo_device_info, turbo_error,
     turbo_log_fn, turbo_native_handle, write_str,
 };
 
@@ -30,6 +39,10 @@ pub static BACKEND: turbo_backend = turbo_backend {
     buffer_export: Some(buffer_export),
     model_load: Some(model_load),
     model_release: Some(model_release),
+    session_create: Some(session_create),
+    session_release: Some(session_release),
+    embed_write: Some(embed_write),
+    session_run: Some(session_run),
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {
@@ -64,6 +77,16 @@ unsafe extern "C" fn device_info(ordinal: u32, out: *mut turbo_device_info, err:
     0
 }
 
+/// Bits of turbo_embed_options the run honors: normalize (4), pooling (5)
+/// and output_dim (6), every value of each.
+const EMBED_HONORED: u32 = 0b111000;
+
+/// Embed runs at every precision, in F32: the one dtype the encoder
+/// computes in. FASTEST is F32 too, and says so. A model whose weights are
+/// F16 or BF16 computes in F32 at EXACT and FASTEST, from a converted copy
+/// (see session_create); at MODEL it would compute in its storage dtype,
+/// which the encoder does not, so that session is refused. A cell cannot
+/// say that, since it is not for one model; turbo_session_get_info does.
 #[allow(clippy::too_many_arguments)]
 unsafe extern "C" fn capability(
     ordinal: u32,
@@ -80,11 +103,11 @@ unsafe extern "C" fn capability(
         return rc;
     }
     unsafe {
-        *status = TURBO_CAP_UNSUPPORTED;
-        *dtype = 0;
-        *options_honored = 0;
+        *status = TURBO_CAP_EXPERIMENTAL;
+        *dtype = TURBO_DTYPE_F32;
+        *options_honored = EMBED_HONORED;
         let r = std::slice::from_raw_parts_mut(reason, reason_len as usize);
-        write_str(r, "the cpu backend has no embed kernels in this build");
+        write_str(r, "");
     }
     0
 }
@@ -162,11 +185,21 @@ unsafe extern "C" fn buffer_alloc(
         return too_big();
     };
     // Not zeroed: turbo.h promises no contents, and the caller writes them.
-    let ptr = unsafe { std::alloc::alloc(layout) };
-    if ptr.is_null() {
-        return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of host memory")) };
+    match Buffer::alloc(layout) {
+        Some(buf) => unsafe { give(buf, out, host) },
+        None => unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of host memory")) },
     }
-    unsafe { give(Buffer { ptr, layout: Some(layout) }, out, host) }
+}
+
+impl Buffer {
+    /// Host memory of `layout`, not zeroed: turbo.h promises no contents.
+    fn alloc(layout: Layout) -> Option<Buffer> {
+        // A zero-size layout is not the allocator's to take; the core
+        // never asks for one, and a session's output is never empty.
+        debug_assert!(layout.size() > 0);
+        let ptr = unsafe { std::alloc::alloc(layout) };
+        (!ptr.is_null()).then_some(Buffer { ptr, layout: Some(layout) })
+    }
 }
 
 /// The caller's own pointer plus offset. Nothing is copied.
@@ -200,9 +233,14 @@ unsafe extern "C" fn buffer_import(
 }
 
 unsafe extern "C" fn buffer_release(buf: *mut c_void) {
-    let buf = unsafe { Box::from_raw(buf as *mut Buffer) };
-    if let Some(layout) = buf.layout {
-        unsafe { std::alloc::dealloc(buf.ptr, layout) };
+    drop(unsafe { Box::from_raw(buf as *mut Buffer) });
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        if let Some(layout) = self.layout {
+            unsafe { std::alloc::dealloc(self.ptr, layout) };
+        }
     }
 }
 
@@ -230,15 +268,68 @@ unsafe extern "C" fn buffer_export(
 // The weights stay where the core read them: its one verified host copy of
 // each weights file, which it keeps unchanged until model_release returns.
 // The CPU reads them in place. A model here is the architecture and a table
-// of pointers into those bytes; nothing of the weights is copied.
+// of pointers into those bytes; nothing of F32 weights is copied. F16 and
+// BF16 weights are widened once, for the sessions that compute in F32.
 
-// Read by the kernels that run a session.
-#[cfg_attr(not(feature = "internals"), allow(dead_code))]
 struct Model {
     desc: turbo_backend_model,
     /// Each tensor as the core described it, its name dropped: the name is
     /// valid only for the load.
     tensors: Vec<turbo_backend_tensor>,
+    /// For F16 or BF16 weights, each tensor converted to F32: turbo.h's
+    /// one resident copy per compute dtype. The first session that
+    /// computes in F32 makes it, every later one shares it, and it goes
+    /// with the model. It is made outside any run, so no result counts it.
+    f32: OnceLock<Vec<Vec<f32>>>,
+}
+
+// The tensors point into the core's weights, which it keeps unchanged
+// until model_release; the copy is written once, then only read.
+unsafe impl Send for Model {}
+unsafe impl Sync for Model {}
+
+impl Model {
+    /// Each tensor as F32 values, in TURBO_BERT_* order.
+    fn f32_tensors(&self) -> Vec<&[f32]> {
+        if self.desc.dtype == TURBO_DTYPE_F32 {
+            // The loader placed each tensor at a multiple of its element
+            // size in a 64-byte aligned file.
+            return self
+                .tensors
+                .iter()
+                .map(|t| unsafe { std::slice::from_raw_parts(t.data as *const f32, t.bytes as usize / 4) })
+                .collect();
+        }
+        let copy = self.f32.get_or_init(|| {
+            self.tensors
+                .iter()
+                .map(|t| {
+                    let h = unsafe { std::slice::from_raw_parts(t.data as *const u16, t.bytes as usize / 2) };
+                    let widen = if self.desc.dtype == TURBO_DTYPE_F16 { f16_to_f32 } else { bf16_to_f32 };
+                    h.iter().map(|&v| widen(v)).collect()
+                })
+                .collect()
+        });
+        copy.iter().map(Vec::as_slice).collect()
+    }
+}
+
+/// An IEEE half to the single it names exactly.
+fn f16_to_f32(h: u16) -> f32 {
+    let sign = if h & 0x8000 != 0 { -1.0 } else { 1.0 };
+    let exp = (h >> 10) & 0x1f;
+    let man = (h & 0x3ff) as u32;
+    match exp {
+        // Zero and subnormals: man * 2^-24, exact in F32.
+        0 => sign * man as f32 * f32::from_bits(0x3380_0000),
+        0x1f => f32::from_bits(((h as u32 & 0x8000) << 16) | 0x7f80_0000 | (man << 13)),
+        e => f32::from_bits(((h as u32 & 0x8000) << 16) | ((e as u32 + 112) << 23) | (man << 13)),
+    }
+}
+
+/// A bfloat16 is the top half of the single it names.
+fn bf16_to_f32(h: u16) -> f32 {
+    f32::from_bits((h as u32) << 16)
 }
 
 unsafe extern "C" fn model_load(
@@ -256,7 +347,7 @@ unsafe extern "C" fn model_load(
         .map(|t| turbo_backend_tensor { name: std::ptr::null(), ..*t })
         .collect();
     let desc = turbo_backend_model { tensors: std::ptr::null(), ..desc };
-    unsafe { *out = Box::into_raw(Box::new(Model { desc, tensors })) as *mut c_void };
+    unsafe { *out = Box::into_raw(Box::new(Model { desc, tensors, f32: OnceLock::new() })) as *mut c_void };
     0
 }
 
@@ -274,6 +365,136 @@ pub(crate) unsafe fn tensor_data(model: *mut c_void) -> Vec<*const c_void> {
     let m = unsafe { &*(model as *const Model) };
     debug_assert_eq!(m.desc.tensor_count as usize, m.tensors.len());
     m.tensors.iter().map(|t| t.data).collect()
+}
+
+/// Where the F32 copy of each tensor of a model this backend loaded is,
+/// if one was made.
+///
+/// # Safety
+/// As for tensor_data.
+#[cfg(feature = "internals")]
+pub(crate) unsafe fn converted_data(model: *mut c_void) -> Option<Vec<*const c_void>> {
+    let m = unsafe { &*(model as *const Model) };
+    m.f32.get().map(|c| c.iter().map(|t| t.as_ptr() as *const c_void).collect())
+}
+
+// ---- Sessions -------------------------------------------------------------
+//
+// A session is an encoder sized for its largest batch, and the buffer its
+// vectors are written to. Every byte either needs is allocated here; a run
+// reads the rows embed_write copied in, computes into that memory, and
+// allocates nothing. The CPU's memory is the host's: the rows embed_write
+// copies into the session are its input, with no crossing to count, and
+// the vectors are where the caller reads them. So UPLOAD and DOWNLOAD do
+// not run here, and h2d_bytes and d2h_bytes are 0.
+
+struct Session {
+    encoder: encoder::Encoder,
+    /// [max_batch, hidden] F32, the buffer handed out as the run's output.
+    output: Box<Buffer>,
+    /// Rows are written and not yet run.
+    written: bool,
+}
+
+#[allow(clippy::too_many_arguments)]
+unsafe extern "C" fn session_create(
+    model: *mut c_void,
+    task: u32,
+    max_batch: u32,
+    max_seq: u32,
+    precision: u32,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let m = unsafe { &*(model as *const Model) };
+    if task != TURBO_TASK_EMBED {
+        return unsafe { refuse(err, UNSUPPORTED_TASK, &format!("task {task}: the cpu runs embed")) };
+    }
+    if precision == TURBO_PRECISION_MODEL && m.desc.dtype != TURBO_DTYPE_F32 {
+        let stored = if m.desc.dtype == TURBO_DTYPE_F16 { "F16" } else { "BF16" };
+        let msg = format!(
+            "precision: MODEL computes in the weights' {stored}, and the cpu computes in F32 only; \
+             EXACT and FASTEST compute this model in F32"
+        );
+        return unsafe { refuse_field(err, UNSUPPORTED_OPTION, 3, &msg) };
+    }
+    if max_seq > m.desc.max_positions {
+        let msg = format!("max_seq {max_seq} is over the model's {} positions", m.desc.max_positions);
+        return unsafe { refuse_field(err, UNSUPPORTED_OPTION, 2, &msg) };
+    }
+    let hidden = m.desc.hidden as usize;
+    let bytes = max_batch as usize * hidden * 4;
+    let output = Layout::from_size_align(bytes, ALIGN).ok().and_then(Buffer::alloc);
+    let Some(output) = output else {
+        return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's vectors")) };
+    };
+    let encoder = match encoder::Encoder::new(&m.desc, m.f32_tensors(), max_batch as usize, max_seq as usize) {
+        Ok(e) => e,
+        Err(bytes) => {
+            return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of scratch for the session")) };
+        }
+    };
+    let s = Session { encoder, output: Box::new(output), written: false };
+    unsafe {
+        *compute_dtype = TURBO_DTYPE_F32;
+        *out = Box::into_raw(Box::new(s)) as *mut c_void;
+    }
+    0
+}
+
+unsafe extern "C" fn session_release(session: *mut c_void) {
+    drop(unsafe { Box::from_raw(session as *mut Session) });
+}
+
+/// The rows, copied into the session: see above.
+unsafe extern "C" fn embed_write(
+    session: *mut c_void,
+    rows: *const turbo_backend_embed_rows,
+    _err: *mut turbo_error,
+) -> i32 {
+    let (s, r) = unsafe { (&mut *(session as *mut Session), &*rows) };
+    let span = (r.batch as usize - 1) * r.row_stride as usize + r.seq as usize;
+    let (ids, mask) = unsafe { (std::slice::from_raw_parts(r.ids, span), std::slice::from_raw_parts(r.mask, span)) };
+    let types = (!r.types.is_null()).then(|| unsafe { std::slice::from_raw_parts(r.types, span) });
+    s.encoder.write(r, ids, mask, types);
+    s.written = true;
+    0
+}
+
+unsafe extern "C" fn session_run(session: *mut c_void, out: *mut turbo_backend_run, err: *mut turbo_error) -> i32 {
+    let (s, out) = unsafe { (&mut *(session as *mut Session), &mut *out) };
+    if !std::mem::take(&mut s.written) {
+        return unsafe { refuse(err, INVALID_STATE, "the cpu session has no rows written since its last run") };
+    }
+    let floats = unsafe { std::slice::from_raw_parts_mut(s.output.ptr as *mut f32, s.output_len()) };
+    s.encoder.run(floats);
+    out.placement = TURBO_PLACE_HOST;
+    out.output = &*s.output as *const Buffer as *mut c_void;
+    out.host = s.output.ptr as *mut c_void;
+    out.h2d_bytes = 0;
+    out.d2h_bytes = 0;
+    // Nothing on this path allocates: the encoder computes in the memory
+    // session_create gave it. tests/allocations.rs holds this to a
+    // counting allocator.
+    out.host_allocs = 0;
+    out.device_allocs = 0;
+    let st = &mut out.stage;
+    st[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_UNUSED;
+    st[TURBO_EMBED_STAGE_LOOKUP] = TURBO_STAGE_HOST;
+    st[TURBO_EMBED_STAGE_ENCODE] = TURBO_STAGE_HOST;
+    st[TURBO_EMBED_STAGE_POOL] = TURBO_STAGE_HOST;
+    st[TURBO_EMBED_STAGE_NORMALIZE] =
+        if s.encoder.normalize() == TURBO_NORMALIZE_L2 { TURBO_STAGE_HOST } else { TURBO_STAGE_UNUSED };
+    st[TURBO_EMBED_STAGE_DOWNLOAD] = TURBO_STAGE_UNUSED;
+    0
+}
+
+impl Session {
+    /// F32 values the output buffer holds.
+    fn output_len(&self) -> usize {
+        self.output.layout.map_or(0, |l| l.size() / 4)
+    }
 }
 
 /// What the operating system says about the processor and memory. A value

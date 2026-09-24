@@ -164,7 +164,8 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_EMBED_STAGE_COUNT     7
 
 /* Where a stage ran. */
-#define TURBO_STAGE_UNUSED 0   /* the model does not have this stage, or the index is
+#define TURBO_STAGE_UNUSED 0   /* the run had no such stage (rows written as tokens are
+                                  not tokenized; a CPU uploads nothing), or the index is
                                   at or past stage_count */
 #define TURBO_STAGE_HOST   1
 #define TURBO_STAGE_DEVICE 2   /* its own kernel or graph node */
@@ -439,7 +440,11 @@ typedef struct turbo_embed_options {
 
 /* Caller-prepared rows, [batch, seq] int32, row_stride elements between row
  * starts (0 = seq). types may be NULL for all zero. The memory may be a
- * buffer the caller imported, in which case nothing is copied on the host. */
+ * buffer the caller imported, in which case nothing is copied on the host
+ * on its way to a device with its own memory; a CPU session copies the
+ * rows into its own. Every row has at least one mask entry of 1. The rows
+ * are already cut: truncate and prompt_role are for text, and a value
+ * other than 0 in either is TURBO_E_INVALID_ARGUMENT naming it. */
 typedef struct turbo_token_batch {
     uint32_t       struct_size;
     uint32_t       batch;
@@ -471,7 +476,11 @@ int32_t turbo_embed_write_text(turbo_session *s, const turbo_text *texts, uint32
 int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batch,
                                  const turbo_embed_options *opts, turbo_error *err);
 
-/* Run what was written. The result holds the session until released. */
+/* Run what was written. A write replaces what an earlier write left, and
+ * a run takes it: a run with nothing written since the last run, or after
+ * a failed write, is TURBO_E_INVALID_STATE. The result holds the session
+ * until it and every buffer from turbo_result_buffer are released; until
+ * then a write or run on the session is TURBO_E_BUSY. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
 /* ---- Result ------------------------------------------------------------ */
@@ -490,8 +499,8 @@ typedef struct turbo_result_info {
     uint64_t bytes;
     uint64_t h2d_bytes;                        /* every byte that crossed to the device in this run */
     uint64_t d2h_bytes;                        /* every byte that crossed back, including reads */
-    uint64_t host_allocs;                      /* heap allocations on the run path */
-    uint64_t device_allocs;                    /* device allocations on the run path */
+    uint64_t host_allocs;                      /* heap allocations in turbo_session_run */
+    uint64_t device_allocs;                    /* device allocations in turbo_session_run */
     uint32_t stage_count;                      /* the task's TURBO_<TASK>_STAGE_COUNT */
     uint32_t reserved;
     uint32_t stage[TURBO_STAGE_MAX];           /* by TURBO_<TASK>_STAGE_*: TURBO_STAGE_HOST / DEVICE /

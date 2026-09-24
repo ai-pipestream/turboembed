@@ -4,7 +4,9 @@
 use std::ffi::{CStr, c_char, c_void};
 
 use crate::status::{Error, INTERNAL, Result, UNSUPPORTED};
-use crate::{turbo_buffer_desc, turbo_device_info, turbo_error, turbo_log_fn, turbo_native_handle, write_str};
+use crate::{
+    TURBO_STAGE_MAX, turbo_buffer_desc, turbo_device_info, turbo_error, turbo_log_fn, turbo_native_handle, write_str,
+};
 
 pub const TURBO_CAP_UNSUPPORTED: u32 = 0;
 pub const TURBO_CAP_EXPERIMENTAL: u32 = 1;
@@ -43,6 +45,36 @@ pub struct turbo_backend_model {
     pub tensor_count: u32,
     pub reserved: u32,
     pub tensors: *const turbo_backend_tensor,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turbo_backend_embed_rows {
+    pub struct_size: u32,
+    pub batch: u32,
+    pub seq: u32,
+    pub row_stride: u32,
+    pub ids: *const i32,
+    pub mask: *const i32,
+    pub types: *const i32,
+    pub pooling: u32,
+    pub normalize: u32,
+    pub output_dim: u32,
+    pub reserved: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turbo_backend_run {
+    pub struct_size: u32,
+    pub placement: u32,
+    pub output: *mut c_void,
+    pub host: *mut c_void,
+    pub h2d_bytes: u64,
+    pub d2h_bytes: u64,
+    pub host_allocs: u64,
+    pub device_allocs: u64,
+    pub stage: [u32; TURBO_STAGE_MAX],
 }
 
 #[repr(C)]
@@ -108,6 +140,25 @@ pub struct turbo_backend {
         ) -> i32,
     >,
     pub model_release: Option<unsafe extern "C" fn(model: *mut c_void)>,
+    #[allow(clippy::type_complexity)]
+    pub session_create: Option<
+        unsafe extern "C" fn(
+            model: *mut c_void,
+            task: u32,
+            max_batch: u32,
+            max_seq: u32,
+            precision: u32,
+            compute_dtype: *mut u32,
+            out: *mut *mut c_void,
+            err: *mut turbo_error,
+        ) -> i32,
+    >,
+    pub session_release: Option<unsafe extern "C" fn(session: *mut c_void)>,
+    pub embed_write: Option<
+        unsafe extern "C" fn(session: *mut c_void, rows: *const turbo_backend_embed_rows, err: *mut turbo_error) -> i32,
+    >,
+    pub session_run:
+        Option<unsafe extern "C" fn(session: *mut c_void, out: *mut turbo_backend_run, err: *mut turbo_error) -> i32>,
 }
 
 // The table is immutable static data, read from any thread.
@@ -131,9 +182,10 @@ static LINKED: &[&turbo_backend] = &[
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.
-const TABLE_SIZES: [usize; 3] = [
+const TABLE_SIZES: [usize; 4] = [
     std::mem::offset_of!(turbo_backend, context_create),
     std::mem::offset_of!(turbo_backend, model_load),
+    std::mem::offset_of!(turbo_backend, session_create),
     size_of::<turbo_backend>(),
 ];
 
@@ -163,6 +215,8 @@ pub fn check_table(backend: &turbo_backend) -> Result<()> {
         ("buffer_alloc", has!(buffer_alloc), "buffer_release", has!(buffer_release)),
         ("buffer_import", has!(buffer_import), "buffer_release", has!(buffer_release)),
         ("model_load", has!(model_load), "model_release", has!(model_release)),
+        ("session_create", has!(session_create), "session_release", has!(session_release)),
+        ("session_create", has!(session_create), "session_run", has!(session_run)),
     ];
     for (f, has, release, has_release) in pairs {
         if has && !has_release {
@@ -221,6 +275,18 @@ pub unsafe fn refuse(err: *mut turbo_error, code: i32, message: &str) -> i32 {
     code
 }
 
+/// As `refuse`, naming the 1-based option field the two field codes carry.
+///
+/// # Safety
+/// `err` is NULL or valid for the call.
+pub unsafe fn refuse_field(err: *mut turbo_error, code: i32, field: u32, message: &str) -> i32 {
+    unsafe { refuse(err, code, message) };
+    if let Some(e) = unsafe { err.as_mut() } {
+        e.field = field;
+    }
+    code
+}
+
 /// A C string in a fixed buffer, read only up to the buffer's end whether
 /// or not it holds a NUL.
 pub(crate) fn cstr(b: &[c_char]) -> String {
@@ -261,6 +327,30 @@ mod tests {
         let t = cpu_table(std::mem::offset_of!(turbo_backend, context_create));
         check_table(&t).unwrap();
         assert_eq!(offered!(&t, context_create).err().unwrap().code, UNSUPPORTED);
+    }
+
+    #[test]
+    fn a_table_from_before_the_session_functions_is_known_and_offers_none() {
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, session_create));
+        check_table(&t).unwrap();
+        assert!(offered!(&t, model_load).is_ok());
+        let e = offered!(&t, session_create).err().unwrap();
+        assert_eq!(e, Error::new(UNSUPPORTED, "the cpu backend does not offer session_create"));
+        assert_eq!(offered!(&t, session_run).err().unwrap().code, UNSUPPORTED);
+    }
+
+    #[test]
+    fn a_session_without_its_release_or_its_run_is_refused() {
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.session_release = None;
+        let e = check_table(&t).unwrap_err();
+        assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has session_create and no session_release"));
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.session_run = None;
+        let e = check_table(&t).unwrap_err();
+        assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has session_create and no session_run"));
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, session_release));
+        assert_eq!(check_table(&t).unwrap_err().code, INTERNAL, "a size inside the session group is unknown");
     }
 
     #[test]

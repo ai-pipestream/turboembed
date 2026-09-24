@@ -1,7 +1,7 @@
 //! The header against the library: turbo.h compiles standalone as C11 and
 //! C++17, the Rust mirrors of its structs have the C compiler's layout, and
 //! a C program linked against libturbo makes a context and buffers on the
-//! CPU, loads a model there, and gets the upstream ids.
+//! CPU, loads a model there, gets the upstream ids, and embeds two texts.
 
 mod common;
 
@@ -40,11 +40,22 @@ fn the_header_compiles_standalone() {
     let c = d.join("h.c");
     std::fs::write(&c, "#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n").unwrap();
     run(Command::new("cc")
-        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic", "-fsyntax-only", "-I"])
+        .args(["-std=c11", "-Wall", "-Wextra", "-Wpadded", "-Werror", "-pedantic", "-fsyntax-only", "-I"])
         .arg(include())
         .arg(&c));
     run(Command::new("c++")
-        .args(["-std=c++17", "-Wall", "-Wextra", "-Werror", "-pedantic", "-fsyntax-only", "-x", "c++", "-I"])
+        .args([
+            "-std=c++17",
+            "-Wall",
+            "-Wextra",
+            "-Wpadded",
+            "-Werror",
+            "-pedantic",
+            "-fsyntax-only",
+            "-x",
+            "c++",
+            "-I",
+        ])
         .arg(include())
         .arg(&c));
     std::fs::remove_dir_all(d).unwrap();
@@ -114,10 +125,77 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_model", "reserved", offset_of!(turbo_backend_model, reserved)),
         ("turbo_backend_model", "tensors", offset_of!(turbo_backend_model, tensors)),
     ];
+    use turbo::backend::{turbo_backend_embed_rows, turbo_backend_run};
+    let session_fields: &[(&str, &str, usize)] = &[
+        ("turbo_session_desc", "max_batch", offset_of!(turbo_session_desc, max_batch)),
+        ("turbo_session_desc", "max_seq", offset_of!(turbo_session_desc, max_seq)),
+        ("turbo_session_desc", "precision", offset_of!(turbo_session_desc, precision)),
+        ("turbo_embed_options", "truncate", offset_of!(turbo_embed_options, truncate)),
+        ("turbo_embed_options", "max_tokens", offset_of!(turbo_embed_options, max_tokens)),
+        ("turbo_embed_options", "prompt_role", offset_of!(turbo_embed_options, prompt_role)),
+        ("turbo_embed_options", "normalize", offset_of!(turbo_embed_options, normalize)),
+        ("turbo_embed_options", "pooling", offset_of!(turbo_embed_options, pooling)),
+        ("turbo_embed_options", "output_dim", offset_of!(turbo_embed_options, output_dim)),
+        ("turbo_token_batch", "batch", offset_of!(turbo_token_batch, batch)),
+        ("turbo_token_batch", "seq", offset_of!(turbo_token_batch, seq)),
+        ("turbo_token_batch", "row_stride", offset_of!(turbo_token_batch, row_stride)),
+        ("turbo_token_batch", "ids", offset_of!(turbo_token_batch, ids)),
+        ("turbo_token_batch", "mask", offset_of!(turbo_token_batch, mask)),
+        ("turbo_token_batch", "types", offset_of!(turbo_token_batch, types)),
+        ("turbo_session_info", "max_batch", offset_of!(turbo_session_info, max_batch)),
+        ("turbo_session_info", "max_seq", offset_of!(turbo_session_info, max_seq)),
+        ("turbo_session_info", "precision", offset_of!(turbo_session_info, precision)),
+        ("turbo_session_info", "compute_dtype", offset_of!(turbo_session_info, compute_dtype)),
+        ("turbo_session_info", "reserved", offset_of!(turbo_session_info, reserved)),
+        ("turbo_result_info", "task", offset_of!(turbo_result_info, task)),
+        ("turbo_result_info", "batch", offset_of!(turbo_result_info, batch)),
+        ("turbo_result_info", "dim", offset_of!(turbo_result_info, dim)),
+        ("turbo_result_info", "dtype", offset_of!(turbo_result_info, dtype)),
+        ("turbo_result_info", "compute_dtype", offset_of!(turbo_result_info, compute_dtype)),
+        ("turbo_result_info", "placement", offset_of!(turbo_result_info, placement)),
+        ("turbo_result_info", "device", offset_of!(turbo_result_info, device)),
+        ("turbo_result_info", "bytes", offset_of!(turbo_result_info, bytes)),
+        ("turbo_result_info", "h2d_bytes", offset_of!(turbo_result_info, h2d_bytes)),
+        ("turbo_result_info", "d2h_bytes", offset_of!(turbo_result_info, d2h_bytes)),
+        ("turbo_result_info", "host_allocs", offset_of!(turbo_result_info, host_allocs)),
+        ("turbo_result_info", "device_allocs", offset_of!(turbo_result_info, device_allocs)),
+        ("turbo_result_info", "stage_count", offset_of!(turbo_result_info, stage_count)),
+        ("turbo_result_info", "reserved", offset_of!(turbo_result_info, reserved)),
+        ("turbo_result_info", "stage", offset_of!(turbo_result_info, stage)),
+        ("turbo_result_info", "backend", offset_of!(turbo_result_info, backend)),
+        ("turbo_result_info", "arch", offset_of!(turbo_result_info, arch)),
+        ("turbo_result_info", "runtime_version", offset_of!(turbo_result_info, runtime_version)),
+        ("turbo_result_info", "manifest_sha256", offset_of!(turbo_result_info, manifest_sha256)),
+        ("turbo_result_info", "artifact_sha256", offset_of!(turbo_result_info, artifact_sha256)),
+        ("turbo_result_info", "tokenizer_sha256", offset_of!(turbo_result_info, tokenizer_sha256)),
+        ("turbo_backend", "session_create", offset_of!(turbo_backend, session_create)),
+        ("turbo_backend", "session_release", offset_of!(turbo_backend, session_release)),
+        ("turbo_backend", "embed_write", offset_of!(turbo_backend, embed_write)),
+        ("turbo_backend", "session_run", offset_of!(turbo_backend, session_run)),
+        ("turbo_backend_embed_rows", "batch", offset_of!(turbo_backend_embed_rows, batch)),
+        ("turbo_backend_embed_rows", "seq", offset_of!(turbo_backend_embed_rows, seq)),
+        ("turbo_backend_embed_rows", "row_stride", offset_of!(turbo_backend_embed_rows, row_stride)),
+        ("turbo_backend_embed_rows", "ids", offset_of!(turbo_backend_embed_rows, ids)),
+        ("turbo_backend_embed_rows", "mask", offset_of!(turbo_backend_embed_rows, mask)),
+        ("turbo_backend_embed_rows", "types", offset_of!(turbo_backend_embed_rows, types)),
+        ("turbo_backend_embed_rows", "pooling", offset_of!(turbo_backend_embed_rows, pooling)),
+        ("turbo_backend_embed_rows", "normalize", offset_of!(turbo_backend_embed_rows, normalize)),
+        ("turbo_backend_embed_rows", "output_dim", offset_of!(turbo_backend_embed_rows, output_dim)),
+        ("turbo_backend_embed_rows", "reserved", offset_of!(turbo_backend_embed_rows, reserved)),
+        ("turbo_backend_run", "placement", offset_of!(turbo_backend_run, placement)),
+        ("turbo_backend_run", "output", offset_of!(turbo_backend_run, output)),
+        ("turbo_backend_run", "host", offset_of!(turbo_backend_run, host)),
+        ("turbo_backend_run", "h2d_bytes", offset_of!(turbo_backend_run, h2d_bytes)),
+        ("turbo_backend_run", "d2h_bytes", offset_of!(turbo_backend_run, d2h_bytes)),
+        ("turbo_backend_run", "host_allocs", offset_of!(turbo_backend_run, host_allocs)),
+        ("turbo_backend_run", "device_allocs", offset_of!(turbo_backend_run, device_allocs)),
+        ("turbo_backend_run", "stage", offset_of!(turbo_backend_run, stage)),
+    ];
     use turbo::backend::turbo_backend;
     let fields = [
         fields,
         model_fields,
+        session_fields,
         &[
             ("turbo_device_info", "kind", offset_of!(turbo_device_info, kind)),
             ("turbo_device_info", "ordinal", offset_of!(turbo_device_info, ordinal)),
@@ -174,6 +252,13 @@ fn struct_layouts_match_the_header() {
         ("turbo_model_info", size_of::<turbo_model_info>()),
         ("turbo_backend_tensor", size_of::<turbo_backend_tensor>()),
         ("turbo_backend_model", size_of::<turbo_backend_model>()),
+        ("turbo_session_desc", size_of::<turbo_session_desc>()),
+        ("turbo_embed_options", size_of::<turbo_embed_options>()),
+        ("turbo_token_batch", size_of::<turbo_token_batch>()),
+        ("turbo_session_info", size_of::<turbo_session_info>()),
+        ("turbo_result_info", size_of::<turbo_result_info>()),
+        ("turbo_backend_embed_rows", size_of::<turbo_backend_embed_rows>()),
+        ("turbo_backend_run", size_of::<turbo_backend_run>()),
     ];
     let mut src = String::from(
         "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
@@ -225,6 +310,19 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_POOLING_MEAN", TURBO_POOLING_MEAN.into()),
         ("TURBO_POOLING_CLS", TURBO_POOLING_CLS.into()),
         ("TURBO_POOLING_LAST", TURBO_POOLING_LAST.into()),
+        ("TURBO_STAGE_MAX", TURBO_STAGE_MAX as i64),
+        ("TURBO_EMBED_STAGE_TOKENIZE", TURBO_EMBED_STAGE_TOKENIZE as i64),
+        ("TURBO_EMBED_STAGE_UPLOAD", TURBO_EMBED_STAGE_UPLOAD as i64),
+        ("TURBO_EMBED_STAGE_LOOKUP", TURBO_EMBED_STAGE_LOOKUP as i64),
+        ("TURBO_EMBED_STAGE_ENCODE", TURBO_EMBED_STAGE_ENCODE as i64),
+        ("TURBO_EMBED_STAGE_POOL", TURBO_EMBED_STAGE_POOL as i64),
+        ("TURBO_EMBED_STAGE_NORMALIZE", TURBO_EMBED_STAGE_NORMALIZE as i64),
+        ("TURBO_EMBED_STAGE_DOWNLOAD", TURBO_EMBED_STAGE_DOWNLOAD as i64),
+        ("TURBO_EMBED_STAGE_COUNT", TURBO_EMBED_STAGE_COUNT as i64),
+        ("TURBO_STAGE_UNUSED", TURBO_STAGE_UNUSED.into()),
+        ("TURBO_STAGE_HOST", TURBO_STAGE_HOST.into()),
+        ("TURBO_STAGE_DEVICE", TURBO_STAGE_DEVICE.into()),
+        ("TURBO_STAGE_FUSED", TURBO_STAGE_FUSED.into()),
         ("TURBO_BERT_EMBEDDING_TENSORS", turbo::backend::TURBO_BERT_EMBEDDING_TENSORS.into()),
         ("TURBO_BERT_LAYER_TENSORS", turbo::backend::TURBO_BERT_LAYER_TENSORS.into()),
         ("TURBO_FAMILY_BERT", turbo::backend::TURBO_FAMILY_BERT.into()),
@@ -325,7 +423,7 @@ int main(int argc, char **argv) {
     turbo_runtime *rt = NULL;
     turbo_tokenizer *tok = NULL;
     int32_t rc;
-    if (argc != 4) return 2;
+    if (argc != 5) return 2;
     if (turbo_runtime_create(NULL, &rt, &err)) { printf("runtime %s\n", err.message); return 1; }
     uint32_t n = 0, pick = 99;
     turbo_device_info info = { sizeof(turbo_device_info) };
@@ -365,8 +463,9 @@ int main(int argc, char **argv) {
     bd.placement = TURBO_PLACE_DEVICE;
     rc = turbo_buffer_alloc(ctx, &bd, &buf, &err);
     printf("device placement %s\n", turbo_status_name(rc));
-    turbo_model *model = NULL;
+    turbo_model *model = NULL, *tiny = NULL;
     if (turbo_model_load(ctx, T(argv[3]), &model, &err)) { printf("model %s\n", err.message); return 1; }
+    if (turbo_model_load(ctx, T(argv[4]), &tiny, &err)) { printf("tiny model %s\n", err.message); return 1; }
     turbo_context_release(ctx); /* the buffers and the model keep it */
     turbo_buffer_release(wrapped);
     turbo_buffer_release(buf);
@@ -392,6 +491,53 @@ int main(int argc, char **argv) {
     for (uint32_t i = 0; i < len; i++) printf("%d%s", ids[i], i + 1 < len ? " " : "\n");
     turbo_tokenizer_release(tok);
     turbo_tokenizer_release(NULL);
+
+    turbo_session *s = NULL;
+    turbo_session_desc sd2 = { sizeof(turbo_session_desc), 4, 0, TURBO_PRECISION_EXACT };
+    if (turbo_session_create(tiny, &sd2, &s, &err)) { printf("session %s\n", err.message); return 1; }
+    turbo_model_release(tiny); /* the session keeps it */
+    turbo_session_info si = { sizeof(turbo_session_info) };
+    if (turbo_session_get_info(s, &si, &err)) { printf("session info %s\n", err.message); return 1; }
+    printf("session max_batch %u max_seq %u precision %u compute %u\n", si.max_batch, si.max_seq, si.precision,
+           si.compute_dtype);
+    turbo_result *res = NULL;
+    rc = turbo_session_run(s, &res, &err);
+    printf("run before write %s\n", turbo_status_name(rc));
+    turbo_text two[2] = { T("The quick brown fox jumps over the lazy dog."), T("reset a password") };
+    turbo_embed_options eo = { sizeof(turbo_embed_options), 0, 0, TURBO_PROMPT_QUERY, 0, 0, 0 };
+    if (turbo_embed_write_text(s, two, 2, &eo, &err)) { printf("write %s\n", err.message); return 1; }
+    if (turbo_session_run(s, &res, &err)) { printf("run %s\n", err.message); return 1; }
+    rc = turbo_embed_write_text(s, two, 1, NULL, &err);
+    printf("write while held %s\n", turbo_status_name(rc));
+    float vec[2][32];
+    uint64_t got_bytes = 0;
+    if (turbo_result_read(res, vec, sizeof(vec), &got_bytes, &err)) { printf("read %s\n", err.message); return 1; }
+    turbo_result_info ri = { sizeof(turbo_result_info) };
+    if (turbo_result_get_info(res, &ri, &err)) { printf("result info %s\n", err.message); return 1; }
+    printf("result task %u batch %u dim %u dtype %u compute %u placement %u bytes %llu read %llu\n", ri.task,
+           ri.batch, ri.dim, ri.dtype, ri.compute_dtype, ri.placement, (unsigned long long)ri.bytes,
+           (unsigned long long)got_bytes);
+    printf("h2d %llu d2h %llu host_allocs %llu device_allocs %llu backend %s stages %u:",
+           (unsigned long long)ri.h2d_bytes, (unsigned long long)ri.d2h_bytes, (unsigned long long)ri.host_allocs,
+           (unsigned long long)ri.device_allocs, ri.backend, ri.stage_count);
+    for (uint32_t i = 0; i < ri.stage_count; i++) printf(" %u", ri.stage[i]);
+    printf("\n");
+    for (int r = 0; r < 2; r++) {
+        double norm = 0;
+        for (int i = 0; i < 32; i++) norm += (double)vec[r][i] * vec[r][i];
+        printf("row %d: %.4f %.4f %.4f %.4f norm %.6f\n", r, vec[r][0], vec[r][1], vec[r][2], vec[r][3], norm);
+    }
+    turbo_buffer *out = NULL;
+    void *where = NULL;
+    if (turbo_result_buffer(res, &out, &err) || turbo_buffer_host_ptr(out, &where, &err)) {
+        printf("result buffer %s\n", err.message); return 1;
+    }
+    turbo_result_release(res);
+    turbo_session_release(s); /* the buffer keeps the result, and the result the session */
+    printf("buffer same %d\n", (int)(memcmp(where, vec, sizeof(vec)) == 0));
+    turbo_buffer_release(out);
+    turbo_result_release(NULL);
+    turbo_session_release(NULL);
     turbo_runtime_release(NULL);
     printf("%s\n", turbo_version());
     return 0;
@@ -434,15 +580,34 @@ fn a_c_program_loads_a_model_and_gets_the_upstream_ids() {
     let model = Fixture::model("c-program-model");
     model.write();
     let text = "Café naïve RÉSUMÉ, 东京 🙂";
-    let out = run(Command::new(d.join("p")).arg(&f.dir).arg(text).arg(&model.dir));
+    let tiny = tiny_bundle();
+    let out = run(Command::new(d.join("p")).arg(&f.dir).arg(text).arg(&model.dir).arg(&tiny));
+    // The same two vectors through the library from Rust.
+    let l = Loaded::load(&tiny).unwrap();
+    let s = Session::create(l.m, Some(&session_desc(4, 0, TURBO_PRECISION_EXACT))).unwrap();
+    let o = turbo_embed_options { prompt_role: TURBO_PROMPT_QUERY, ..embed_options() };
+    let rows = s.embed(&["The quick brown fox jumps over the lazy dog.", "reset a password"], Some(&o)).unwrap();
+    let vectors: String = rows
+        .iter()
+        .enumerate()
+        .map(|(r, v)| {
+            let norm: f64 = v.iter().map(|x| *x as f64 * *x as f64).sum();
+            format!("row {r}: {:.4} {:.4} {:.4} {:.4} norm {norm:.6}\n", v[0], v[1], v[2], v[3])
+        })
+        .collect();
     let ids: Vec<String> = upstream_ids(&upstream(), text).iter().map(i32::to_string).collect();
     let want = format!(
-        "devices 1, device 0 is cpu kind 1, embed status 0\nselect TURBO_E_DEVICE_NOT_FOUND 99\n\
+        "devices 1, device 0 is cpu kind 1, embed status 1\nselect TURBO_E_DEVICE_NOT_FOUND 99\n\
          context on device 0, buffer 48 bytes, aligned 1\nimport at +8, stack[3] 7, export same 1\n\
          device placement TURBO_E_UNSUPPORTED\n\
          missing TURBO_E_BUNDLE_NOT_FOUND {}\n\
          model task 1 dim 8 pooling 1 normalize 2 max_seq 256 max_batch 64 dtype 12\n\
-         sentence-transformers/all-MiniLM-L6-v2 revision 3\nartifact {}\n{}\n0.1.0 cpu\n",
+         sentence-transformers/all-MiniLM-L6-v2 revision 3\nartifact {}\n{}\n\
+         session max_batch 4 max_seq 64 precision 2 compute 12\nrun before write TURBO_E_INVALID_STATE\n\
+         write while held TURBO_E_BUSY\n\
+         result task 1 batch 2 dim 32 dtype 12 compute 12 placement 1 bytes 256 read 256\n\
+         h2d 0 d2h 256 host_allocs 0 device_allocs 0 backend cpu stages 7: 1 0 1 1 1 1 0\n\
+         {vectors}buffer same 1\n0.1.0 cpu\n",
         turbo::status::BUNDLE_NOT_FOUND,
         model.sha256("weights/model.safetensors"),
         ids.join(" ")
