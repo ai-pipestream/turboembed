@@ -158,7 +158,7 @@
         }
       ],
       "produced_by": {
-        "container": "turbo-reference@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        "container": "turbo-reference@sha256:4ecaa4960b1b55ca626d6871377d3b001f92ccb491a893beac1a0ab89c5707d5"
       }
     }
   },
@@ -170,31 +170,40 @@
     },
     {
       "path": "model.safetensors",
-      "to": "weights/model.safetensors"
+      "to": "weights/model.safetensors",
+      "sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db"
     },
     {
-      "path": "config.json"
+      "path": "config.json",
+      "sha256": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41"
     },
     {
-      "path": "config_sentence_transformers.json"
+      "path": "config_sentence_transformers.json",
+      "sha256": "061ca9d39661d6c6d6de5ba27f79a1cd5770ea247f8d46412a68a498dc5ac9f3"
     },
     {
-      "path": "modules.json"
+      "path": "modules.json",
+      "sha256": "84e40c8e006c9b1d6c122e02cba9b02458120b5fb0c87b746c41e0207cf642cf"
     },
     {
-      "path": "sentence_bert_config.json"
+      "path": "sentence_bert_config.json",
+      "sha256": "fc1993fde0a95c24ec6c022539d41cf6e2f7c9721e5415d6fb6897472a9cd4b7"
     },
     {
-      "path": "1_Pooling/config.json"
+      "path": "1_Pooling/config.json",
+      "sha256": "4be450dde3b0273bb9787637cfbd28fe04a7ba6ab9d36ac48e92b11e350ffc23"
     },
     {
-      "path": "tokenizer_config.json"
+      "path": "tokenizer_config.json",
+      "sha256": "acb92769e8195aabd29b7b2137a9e6d6e25c476a4f15aa4355c233426c61576b"
     },
     {
-      "path": "special_tokens_map.json"
+      "path": "special_tokens_map.json",
+      "sha256": "303df45a03609e4ead04bc3dc1536d0ab19b5358db685b6f3da123d05ec200e3"
     },
     {
-      "path": "vocab.txt"
+      "path": "vocab.txt",
+      "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
     }
   ]
 }
