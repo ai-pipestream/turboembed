@@ -20,6 +20,7 @@ pub mod safetensors;
 pub mod status;
 pub mod tokenizer;
 
+use backend::cstr;
 use manifest::{PromptRole, Truncation};
 use status::{Error, INVALID_ARGUMENT, INVALID_ENUM, INVALID_HANDLE, INVALID_STRUCT_SIZE, INVALID_UTF8, PANIC, Result};
 use tokenizer::{Encode, Tokenizer};
@@ -165,23 +166,24 @@ impl Runtime {
     }
 
     /// Every device each linked backend lists. A backend whose probe fails
-    /// lists nothing, and the log says why.
-    fn enumerate(&mut self) {
+    /// lists nothing, and the log says why; a table of the wrong size fails
+    /// the runtime.
+    fn enumerate(&mut self) -> Result<()> {
         for b in backend::linked() {
+            backend::check_table(b)?;
             let mut n = 0u32;
             if let Err(e) = backend::check(b, "device_count", |err| unsafe { (b.device_count)(&mut n, err) }) {
                 self.log(LOG_WARNING, &e.message);
                 continue;
             }
             for ordinal in 0..n {
-                let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
-                info.struct_size = size_of::<turbo_device_info>() as u32;
-                match backend::check(b, "device_info", |err| unsafe { (b.device_info)(ordinal, &mut info, err) }) {
-                    Ok(()) => self.devices.push(Device { backend: b, ordinal, info }),
+                match probe(b, ordinal) {
+                    Ok(info) => self.devices.push(Device { backend: b, ordinal, info }),
                     Err(e) => self.log(LOG_WARNING, &e.message),
                 }
             }
         }
+        Ok(())
     }
 
     /// The (device, task, precision) cell. The backend says what it has
@@ -211,7 +213,11 @@ impl Runtime {
             )
         })?;
         match cap.status {
-            backend::TURBO_CAP_UNSUPPORTED => {}
+            backend::TURBO_CAP_UNSUPPORTED => {
+                // A cell that does not run computes in nothing.
+                cap.dtype = 0;
+                cap.options_honored = 0;
+            }
             backend::TURBO_CAP_EXPERIMENTAL => write_str(&mut cap.reason, "no benchmark record for this cell"),
             s => {
                 return Err(Error::new(
@@ -225,6 +231,16 @@ impl Runtime {
         }
         Ok(cap)
     }
+}
+
+/// Ask a backend about one of its devices, now.
+fn probe(b: &'static backend::turbo_backend, ordinal: u32) -> Result<turbo_device_info> {
+    let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
+    info.struct_size = size_of::<turbo_device_info>() as u32;
+    backend::check(b, "device_info", |err| unsafe { (b.device_info)(ordinal, &mut info, err) })?;
+    info.struct_size = size_of::<turbo_device_info>() as u32;
+    write_str(&mut info.backend, b.name());
+    Ok(info)
 }
 
 pub struct turbo_runtime {
@@ -368,7 +384,7 @@ pub unsafe extern "C" fn turbo_runtime_create(
                 None => (None, 0),
             };
             let mut inner = Runtime { log, log_user_data: user, devices: Vec::new() };
-            inner.enumerate();
+            inner.enumerate()?;
             let rt = turbo_runtime { magic: RUNTIME_MAGIC, inner: Arc::new(inner) };
             *out = Box::into_raw(Box::new(rt));
             Ok(())
@@ -407,7 +423,9 @@ pub unsafe extern "C" fn turbo_runtime_device_info(
             let rt = runtime(rt)?;
             let out = out_ptr(out, "out")?;
             sized(out.struct_size, size_of::<turbo_device_info>(), "turbo_device_info")?;
-            *out = rt.inner.device(index)?.info.clone();
+            // Probed again, so memory_free is the device's now.
+            let d = rt.inner.device(index)?;
+            *out = probe(d.backend, d.ordinal)?;
             Ok(())
         })
     }
@@ -474,6 +492,7 @@ fn select(rt: &Runtime, task: u32) -> Result<(Option<u32>, String)> {
         return Err(Error::new(INVALID_ENUM, format!("task: {task} is not a TURBO_TASK_* value")));
     }
     let mut best: Option<(u32, turbo_capability)> = None;
+    let mut ties = 0u32;
     let mut skipped = Vec::new();
     for (i, d) in rt.devices.iter().enumerate() {
         let i = i as u32;
@@ -487,33 +506,36 @@ fn select(rt: &Runtime, task: u32) -> Result<(Option<u32>, String)> {
             skipped.push(format!("{label}: {}", cstr(&cap.reason)));
             continue;
         }
-        let better = match &best {
-            None => true,
-            Some((_, b)) => {
-                cap.status > b.status
-                    || (cap.status == b.status
-                        && cap.speed_ratio > 0.0
-                        && (b.speed_ratio == 0.0 || cap.speed_ratio < b.speed_ratio))
+        match &best {
+            Some((_, b)) if !ranks_above(&cap, b) => {
+                if !ranks_above(b, &cap) {
+                    ties += 1;
+                }
             }
-        };
-        if better {
-            best = Some((i, cap));
+            _ => {
+                best = Some((i, cap));
+                ties = 1;
+            }
         }
     }
     Ok(match best {
         Some((i, cap)) => {
             let d = &rt.devices[i as usize];
             let status = if cap.status == backend::TURBO_CAP_SUPPORTED { "supported" } else { "experimental" };
-            (Some(i), format!("device {i} ({} {}): {status}", d.backend.name(), cstr(&d.info.name)))
+            let tie = if ties > 1 { format!(", first in device order of {ties} that tie") } else { String::new() };
+            (Some(i), format!("device {i} ({} {}): {status}{tie}", d.backend.name(), cstr(&d.info.name)))
         }
         None if skipped.is_empty() => (None, "no device is listed".to_owned()),
         None => (None, format!("no device offers the task: {}", skipped.join("; "))),
     })
 }
 
-fn cstr(b: &[c_char]) -> String {
-    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
-    String::from_utf8_lossy(&bytes).into_owned()
+/// Whether cell `a` ranks above cell `b`: a higher status, or the same
+/// status and a lower speed_ratio, where 0 is no record and ranks below any.
+/// Neither ranking above the other is a tie.
+pub fn ranks_above(a: &turbo_capability, b: &turbo_capability) -> bool {
+    a.status > b.status
+        || (a.status == b.status && a.speed_ratio > 0.0 && (b.speed_ratio == 0.0 || a.speed_ratio < b.speed_ratio))
 }
 
 /// # Safety

@@ -4,7 +4,7 @@
 use std::ffi::{CStr, c_char};
 
 use crate::status::{Error, INTERNAL, Result};
-use crate::{turbo_device_info, turbo_error};
+use crate::{turbo_device_info, turbo_error, write_str};
 
 pub const TURBO_CAP_UNSUPPORTED: u32 = 0;
 pub const TURBO_CAP_EXPERIMENTAL: u32 = 1;
@@ -52,13 +52,44 @@ static LINKED: &[&turbo_backend] = &[
     &crate::cpu::BACKEND,
 ];
 
+/// The table's size is one this core knows. A table built against another
+/// header is a build fault, not a missing driver.
+pub fn check_table(backend: &turbo_backend) -> Result<()> {
+    let want = size_of::<turbo_backend>();
+    if backend.struct_size as usize != want {
+        return Err(Error::new(
+            INTERNAL,
+            format!("{} backend: its table is {} bytes, this core knows {want}", backend.name(), backend.struct_size),
+        ));
+    }
+    Ok(())
+}
+
 /// A backend's status as an Error, with its message.
-pub fn failed(backend: &turbo_backend, what: &str, code: i32, err: &turbo_error) -> Error {
-    let msg = unsafe { CStr::from_ptr(err.message.as_ptr()) }.to_string_lossy();
-    let code = if code == 0 { INTERNAL } else { code };
-    let mut e = Error::new(code, format!("{} backend, {what}: {msg}", backend.name()));
+fn failed(backend: &turbo_backend, what: &str, code: i32, err: &turbo_error) -> Error {
+    let mut e = Error::new(code, format!("{} backend, {what}: {}", backend.name(), cstr(&err.message)));
     e.field = err.field;
     e
+}
+
+/// A backend refusing a call: fill `err` when the caller passed one.
+///
+/// # Safety
+/// `err` is NULL or valid for the call.
+pub unsafe fn refuse(err: *mut turbo_error, code: i32, message: &str) -> i32 {
+    if let Some(e) = unsafe { err.as_mut() } {
+        e.code = code;
+        e.field = 0;
+        write_str(&mut e.message, message);
+    }
+    code
+}
+
+/// A C string in a fixed buffer, read only up to the buffer's end whether
+/// or not it holds a NUL.
+pub(crate) fn cstr(b: &[c_char]) -> String {
+    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    String::from_utf8_lossy(&bytes).into_owned()
 }
 
 /// Call a backend function with a fresh turbo_error and turn a failure into

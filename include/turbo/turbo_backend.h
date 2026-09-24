@@ -16,8 +16,19 @@
  *     TURBO_CAP_EXPERIMENTAL or TURBO_CAP_UNSUPPORTED, with a reason. Only
  *     the core says SUPPORTED, and only when a benchmark record for that
  *     cell exists; a backend cannot claim it.
+ *   - Every function in the table may be called from any thread, at the
+ *     same time as any other. A backend that needs a lock takes its own.
+ *   - The core checks ordinal against device_count, and task and precision
+ *     against the TURBO_* values, before it calls. A backend need not, and
+ *     answers only for the ordinals it listed.
+ *   - A backend keeps no per-runtime state and has no init or shutdown.
+ *     What it owns hangs off the handles later functions return, a context
+ *     first. It has no log function of its own: its warnings reach the
+ *     caller through the log function the core hands it with a context.
  *   - The table grows only at the end, and struct_size says how much of it
- *     a backend fills.
+ *     a backend fills. The core refuses a table whose struct_size is not
+ *     one it knows. A function added after the first three may be NULL,
+ *     and the core calls it only when struct_size covers it.
  */
 
 #ifndef TURBO_BACKEND_H
@@ -36,13 +47,16 @@ typedef struct turbo_backend {
     const char *runtime_version;   /* the vendor runtime this build linked; "" where there is none */
 
     int32_t (*device_count)(uint32_t *out, turbo_error *err);
-    /* ordinal < device_count. Fills every field but struct_size. */
+    /* ordinal < device_count. Fills every field but struct_size and
+     * backend, which the core writes from name. Called again on every
+     * turbo_runtime_device_info, so memory_free is current. */
     int32_t (*device_info)(uint32_t ordinal, turbo_device_info *out, turbo_error *err);
     /* What this backend has built for (task, precision) on the device.
      * status is TURBO_CAP_EXPERIMENTAL or TURBO_CAP_UNSUPPORTED; dtype is
-     * the compute dtype the precision resolves to; options_honored as in
-     * turbo_capability; reason (NUL-terminated, reason_len bytes) says why
-     * it is not EXPERIMENTAL, else is empty. */
+     * the compute dtype the precision resolves to and options_honored is
+     * as in turbo_capability, both read only when status is EXPERIMENTAL;
+     * reason (NUL-terminated, reason_len bytes) says why it is not
+     * EXPERIMENTAL, else is empty. */
     int32_t (*capability)(uint32_t ordinal, uint32_t task, uint32_t precision,
                           uint32_t *status, uint32_t *dtype, uint32_t *options_honored,
                           char *reason, uint32_t reason_len, turbo_error *err);

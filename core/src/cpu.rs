@@ -3,8 +3,9 @@
 
 use std::ffi::c_char;
 
-use crate::backend::{TURBO_CAP_UNSUPPORTED, turbo_backend};
-use crate::{TURBO_DEVICE_CPU, TURBO_DTYPE_F32, turbo_device_info, turbo_error, write_str};
+use crate::backend::{TURBO_CAP_UNSUPPORTED, refuse, turbo_backend};
+use crate::status::INVALID_ARGUMENT;
+use crate::{TURBO_DEVICE_CPU, turbo_device_info, turbo_error, write_str};
 
 pub static BACKEND: turbo_backend = turbo_backend {
     struct_size: size_of::<turbo_backend>() as u32,
@@ -21,7 +22,15 @@ unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 
     0
 }
 
-unsafe extern "C" fn device_info(_ordinal: u32, out: *mut turbo_device_info, _err: *mut turbo_error) -> i32 {
+/// The host is the one device this backend lists.
+unsafe fn only(ordinal: u32, err: *mut turbo_error) -> Option<i32> {
+    (ordinal != 0).then(|| unsafe { refuse(err, INVALID_ARGUMENT, &format!("cpu device {ordinal}: only 0 is listed")) })
+}
+
+unsafe extern "C" fn device_info(ordinal: u32, out: *mut turbo_device_info, err: *mut turbo_error) -> i32 {
+    if let Some(rc) = unsafe { only(ordinal, err) } {
+        return rc;
+    }
     let out = unsafe { &mut *out };
     let host = Host::read();
     out.kind = TURBO_DEVICE_CPU;
@@ -29,10 +38,12 @@ unsafe extern "C" fn device_info(_ordinal: u32, out: *mut turbo_device_info, _er
     out.unified_memory = 1;
     out.memory_total = host.memory_total;
     out.memory_free = host.memory_free;
+    // The instruction set, not the processor: arch[32] cannot hold a model
+    // name. A CPU benchmark record is filed under arch and name together,
+    // so a record for one x86_64 processor backs no other.
     write_str(&mut out.arch, std::env::consts::ARCH);
     write_str(&mut out.name, &host.name);
     write_str(&mut out.vendor, &host.vendor);
-    write_str(&mut out.backend, "cpu");
     write_str(&mut out.runtime_version, "");
     write_str(&mut out.driver_version, "");
     0
@@ -40,7 +51,7 @@ unsafe extern "C" fn device_info(_ordinal: u32, out: *mut turbo_device_info, _er
 
 #[allow(clippy::too_many_arguments)]
 unsafe extern "C" fn capability(
-    _ordinal: u32,
+    ordinal: u32,
     _task: u32,
     _precision: u32,
     status: *mut u32,
@@ -48,11 +59,14 @@ unsafe extern "C" fn capability(
     options_honored: *mut u32,
     reason: *mut c_char,
     reason_len: u32,
-    _err: *mut turbo_error,
+    err: *mut turbo_error,
 ) -> i32 {
+    if let Some(rc) = unsafe { only(ordinal, err) } {
+        return rc;
+    }
     unsafe {
         *status = TURBO_CAP_UNSUPPORTED;
-        *dtype = TURBO_DTYPE_F32;
+        *dtype = 0;
         *options_honored = 0;
         let r = std::slice::from_raw_parts_mut(reason, reason_len as usize);
         write_str(r, "the cpu backend has no embed kernels in this build");
