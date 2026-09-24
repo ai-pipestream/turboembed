@@ -96,7 +96,7 @@ pub fn verify(bundle: &Path) -> Result<()> {
     if emb.shape != [n as u64, dim as u64] {
         return Err(format!("{}: embeddings are {:?}, not [{n}, {dim}]", m.reference.file, emb.shape));
     }
-    let values: Vec<f32> = emb.data.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+    let values = emb.f32s();
     for (i, row) in values.chunks_exact(dim).enumerate() {
         let norm = row.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>().sqrt();
         if !row.iter().all(|v| v.is_finite()) || norm == 0.0 {
@@ -113,7 +113,8 @@ fn walk(root: &Path, dir: &Path) -> Result<Vec<String>> {
     let mut out = Vec::new();
     for e in fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))? {
         let path = e.map_err(|e| e.to_string())?.path();
-        if path.is_dir() {
+        let meta = fs::symlink_metadata(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        if meta.is_dir() {
             out.extend(walk(root, &path)?);
         } else {
             let rel = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");

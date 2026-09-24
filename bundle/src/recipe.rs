@@ -42,6 +42,8 @@ impl Recipe {
         if commit.len() != 40 || !commit.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()) {
             return Err(format!("model.source.commit {commit:?} is not a 40-hex commit"));
         }
+        // Every path the manifest names, before anything is fetched.
+        crate::seal::named_paths(&r.manifest)?;
         for u in &r.upstream {
             check_rel(&u.path)?;
             if let Some(to) = &u.to {

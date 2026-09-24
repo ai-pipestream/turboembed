@@ -10,6 +10,7 @@ import sys
 import numpy as np
 import sentence_transformers
 import torch
+import transformers
 from safetensors.numpy import save_file
 from sentence_transformers import SentenceTransformer
 
@@ -27,9 +28,15 @@ def main(model_dir, cases_path, out_path, produced_by_path):
     ids = features["input_ids"].numpy().astype(np.int32)
     lengths = features["attention_mask"].numpy().sum(axis=1).astype(np.int32)
 
-    # One text at a time, so no row is computed beside padding.
+    # One text at a time, so no row is computed beside padding. Then all of
+    # them in batches of max_batch, which must give the same rows: that is
+    # what the manifest's max_batch says was checked.
     with torch.no_grad():
         embeddings = model.encode(texts, batch_size=1, convert_to_numpy=True, precision="float32")
+        batched = model.encode(texts, batch_size=spec["max_batch"], convert_to_numpy=True, precision="float32")
+    worst = float(np.abs(embeddings - batched).max())
+    if worst > 1e-4:
+        sys.exit(f"batch {spec['max_batch']} differs from batch 1 by {worst}")
     save_file(
         {
             "ids": np.ascontiguousarray(ids),
@@ -42,14 +49,11 @@ def main(model_dir, cases_path, out_path, produced_by_path):
         json.dump(
             {
                 "tool": "sentence-transformers",
-                "tool_version": sentence_transformers.__version__,
-                "args": [
-                    "--device", "cpu",
-                    "--dtype", "float32",
-                    "--batch-size", "1",
-                    "--max-seq", str(spec["max_seq"]),
-                    "--torch", torch.__version__,
-                ],
+                "tool_version": (
+                    f"{sentence_transformers.__version__} "
+                    f"(transformers {transformers.__version__}, torch {torch.__version__}, cpu, float32)"
+                ),
+                "args": sys.argv[1:],
             },
             f,
         )

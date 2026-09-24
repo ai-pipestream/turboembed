@@ -34,6 +34,10 @@ impl Tensor<'_> {
     pub fn i32s(&self) -> Vec<i32> {
         self.data.chunks_exact(4).map(|b| i32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect()
     }
+
+    pub fn f32s(&self) -> Vec<f32> {
+        self.data.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect()
+    }
 }
 
 pub struct File<'a> {

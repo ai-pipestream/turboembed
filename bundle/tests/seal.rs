@@ -190,7 +190,7 @@ fn the_container_gets_the_cases_with_their_prefixes() {
     let d = scratch("cases");
     let r = Recipe::load(&tiny_recipe(&d)).unwrap();
     let c = reference::cases(&r).unwrap();
-    assert_eq!(c["max_seq"], 64);
+    assert_eq!((c["max_seq"].as_u64(), c["max_batch"].as_u64()), (Some(64), Some(64)));
     let cases = c["cases"].as_array().unwrap();
     assert_eq!(cases.len(), r.manifest["reference"]["cases"].as_array().unwrap().len());
     assert_eq!(cases[5], json!({ "text": "how do I reset a password", "prefix": "query: " }));

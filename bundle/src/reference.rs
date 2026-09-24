@@ -26,6 +26,7 @@ pub fn check_pinned(container: &str) -> Result<&str> {
 pub fn cases(recipe: &Recipe) -> Result<Value> {
     let m = &recipe.manifest;
     let max_seq = m["embed"]["max_seq"].as_u64().ok_or("manifest.embed.max_seq: missing")?;
+    let max_batch = m["embed"]["max_batch"].as_u64().ok_or("manifest.embed.max_batch: missing")?;
     let prefix = |role: &str| -> Result<String> {
         Ok(match role {
             "PROMPT_NONE" => String::new(),
@@ -40,7 +41,7 @@ pub fn cases(recipe: &Recipe) -> Result<Value> {
         let role = c["prompt_role"].as_str().ok_or(format!("reference.cases[{i}].prompt_role: missing"))?;
         out.push(json!({ "text": text, "prefix": prefix(role)? }));
     }
-    Ok(json!({ "max_seq": max_seq, "cases": out }))
+    Ok(json!({ "max_seq": max_seq, "max_batch": max_batch, "cases": out }))
 }
 
 /// Run the container on `upstream` and put the reference file in `bundle`.
@@ -54,15 +55,15 @@ pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Value> {
         return Err(format!("the reference container {container} is not present; pull or build it first"));
     }
 
-    let work = scratch()?;
+    let work = scratch(bundle)?;
     fs::write(work.join("cases.json"), serde_json::to_vec_pretty(&cases(recipe)?).unwrap())
         .map_err(|e| format!("{}: {e}", work.display()))?;
     let abs = |p: &Path| fs::canonicalize(p).map_err(|e| format!("{}: {e}", p.display()));
     let mut cmd = Command::new("docker");
-    cmd.args(["run", "--rm", "--network", "none", "--volume"])
-        .arg(format!("{}:/model:ro", abs(upstream)?.display()))
-        .arg("--volume")
-        .arg(format!("{}:/work", abs(&work)?.display()));
+    cmd.args(["run", "--rm", "--network", "none", "--mount"])
+        .arg(format!("type=bind,src={},dst=/model,readonly", abs(upstream)?.display()))
+        .arg("--mount")
+        .arg(format!("type=bind,src={},dst=/work", abs(&work)?.display()));
     if let Some(user) = current_user() {
         cmd.args(["--user", &user]);
     }
@@ -125,8 +126,12 @@ fn current_user() -> Option<String> {
     Some(format!("{}:{}", id("-u")?, id("-g")?))
 }
 
-fn scratch() -> Result<PathBuf> {
-    let d = std::env::temp_dir().join(format!("turbo-bundle-reference-{}", std::process::id()));
+/// Beside the bundle directory, not under /tmp, which some Docker
+/// installations cannot mount.
+fn scratch(bundle: &Path) -> Result<PathBuf> {
+    let bundle = fs::canonicalize(bundle).map_err(|e| format!("{}: {e}", bundle.display()))?;
+    let parent = bundle.parent().ok_or_else(|| format!("{} has no parent directory", bundle.display()))?;
+    let d = parent.join(format!(".turbo-bundle-work-{}", std::process::id()));
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).map_err(|e| format!("{}: {e}", d.display()))?;
     Ok(d)

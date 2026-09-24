@@ -14,17 +14,18 @@ pub fn url(repository: &str, commit: &str, path: &str) -> String {
     format!("{}/resolve/{commit}/{path}", repository.trim_end_matches('/'))
 }
 
-/// Fetch every upstream file into `dir` at its upstream path. A file that
-/// is already there is kept when it matches its pinned hash, or when no
-/// hash is pinned. Prints each file's hash so it can be pinned.
+/// Fetch every upstream file into `dir` at its upstream path. Prints each
+/// file's hash so it can be pinned in the recipe.
 pub fn fetch(recipe: &Recipe, dir: &Path) -> Result<()> {
     let (repository, commit) = recipe.source()?;
     for u in &recipe.upstream {
         let dest = dir.join(&u.path);
         let have = fs::read(&dest).ok().map(|b| sha256_hex(&b));
+        // A file already there is kept only when its hash is pinned and
+        // matches; an unpinned one is fetched again, so a directory left
+        // from another commit is never used.
         let hash = match (&have, &u.sha256) {
             (Some(h), Some(want)) if h == want => h.clone(),
-            (Some(h), None) => h.clone(),
             _ => {
                 let bytes = get(&url(repository, commit, &u.path))?;
                 let h = sha256_hex(&bytes);
@@ -52,7 +53,9 @@ fn get(url: &str) -> Result<Vec<u8>> {
 pub fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
     let parent = dest.parent().ok_or_else(|| format!("{}: no parent directory", dest.display()))?;
     fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
-    let tmp = dest.with_extension("partial");
+    let mut name = dest.file_name().ok_or_else(|| format!("{}: no file name", dest.display()))?.to_owned();
+    name.push(".partial");
+    let tmp = dest.with_file_name(name);
     let mut f = fs::File::create(&tmp).map_err(|e| format!("{}: {e}", tmp.display()))?;
     f.write_all(bytes).and_then(|_| f.sync_all()).map_err(|e| format!("{}: {e}", tmp.display()))?;
     fs::rename(&tmp, dest).map_err(|e| format!("{}: {e}", dest.display()))

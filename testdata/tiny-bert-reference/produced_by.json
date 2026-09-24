@@ -1,0 +1,1 @@
+{"tool": "sentence-transformers", "tool_version": "6.1.0 (transformers 5.17.0, torch 2.14.0+cu130, cpu, float32)", "args": ["up2", "runner/cases.tool.json", "ref2.safetensors", "pb2.json"]}
