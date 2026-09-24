@@ -172,6 +172,7 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend", "session_release", offset_of!(turbo_backend, session_release)),
         ("turbo_backend", "embed_write", offset_of!(turbo_backend, embed_write)),
         ("turbo_backend", "session_run", offset_of!(turbo_backend, session_run)),
+        ("turbo_backend", "buffer_read", offset_of!(turbo_backend, buffer_read)),
         ("turbo_backend_embed_rows", "batch", offset_of!(turbo_backend_embed_rows, batch)),
         ("turbo_backend_embed_rows", "seq", offset_of!(turbo_backend_embed_rows, seq)),
         ("turbo_backend_embed_rows", "row_stride", offset_of!(turbo_backend_embed_rows, row_stride)),

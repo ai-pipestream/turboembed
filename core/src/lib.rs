@@ -16,6 +16,8 @@ pub mod backend;
 pub mod bundle;
 #[cfg(feature = "cpu")]
 pub mod cpu;
+#[cfg(feature = "cuda")]
+pub mod cuda;
 pub mod manifest;
 pub mod model;
 pub mod safetensors;
@@ -511,9 +513,13 @@ pub extern "C" fn turbo_version() -> *const c_char {
 }
 
 /// The version and the backends linked into this build, in device order.
-#[cfg(feature = "cpu")]
+#[cfg(all(feature = "cuda", feature = "cpu"))]
+const VERSION: &std::ffi::CStr = c"0.1.0 cuda cpu";
+#[cfg(all(feature = "cuda", not(feature = "cpu")))]
+const VERSION: &std::ffi::CStr = c"0.1.0 cuda";
+#[cfg(all(not(feature = "cuda"), feature = "cpu"))]
 const VERSION: &std::ffi::CStr = c"0.1.0 cpu";
-#[cfg(not(feature = "cpu"))]
+#[cfg(not(any(feature = "cuda", feature = "cpu")))]
 const VERSION: &std::ffi::CStr = c"0.1.0";
 
 pub(crate) fn new_error() -> turbo_error {
@@ -1148,6 +1154,12 @@ pub unsafe fn model_converted_weights(m: *mut turbo_model) -> Option<Vec<*const 
     #[cfg(feature = "cpu")]
     if std::ptr::eq(m.context.backend, &cpu::BACKEND) {
         return unsafe { cpu::converted_data(m.raw) };
+    }
+    // The CUDA backend widens every tensor into one device allocation: its
+    // address stands for the copy.
+    #[cfg(feature = "cuda")]
+    if std::ptr::eq(m.context.backend, cuda::backend()) {
+        return unsafe { cuda::widened(m.raw) }.map(|p| vec![p]);
     }
     None
 }

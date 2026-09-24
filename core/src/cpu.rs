@@ -43,6 +43,8 @@ pub static BACKEND: turbo_backend = turbo_backend {
     session_release: Some(session_release),
     embed_write: Some(embed_write),
     session_run: Some(session_run),
+    // Every buffer here has a host address, which the core reads itself.
+    buffer_read: None,
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {

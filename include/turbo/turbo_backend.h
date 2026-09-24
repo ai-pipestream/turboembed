@@ -26,11 +26,11 @@
  *     first. It has no log function of its own: its warnings reach the
  *     caller through the log function the core hands it with a context.
  *   - The table grows only at the end, and struct_size says how much of it
- *     a backend fills. The core knows four sizes: through capability,
- *     through buffer_export, through model_release, and through
- *     session_run, which is sizeof(turbo_backend). It refuses any other. A
- *     function added after the first three may be NULL, and the core calls
- *     it only when struct_size covers it.
+ *     a backend fills. The core knows five sizes: through capability,
+ *     through buffer_export, through model_release, through session_run,
+ *     and through buffer_read, which is sizeof(turbo_backend). It refuses
+ *     any other. A function added after the first three may be NULL, and
+ *     the core calls it only when struct_size covers it.
  *   - A backend that offers context_create offers context_release, one
  *     that offers buffer_alloc or buffer_import offers buffer_release, one
  *     that offers model_load offers model_release, and one that offers
@@ -237,6 +237,15 @@ typedef struct turbo_backend {
      * struct_size is set and stage[TURBO_EMBED_STAGE_TOKENIZE] is filled
      * in; the backend fills in the rest. */
     int32_t (*session_run)(void *session, turbo_backend_run *out, turbo_error *err);
+
+    /* Reads. NULL where every buffer the backend gives has a host address. */
+
+    /* Copy the first bytes of a buffer with no host address (a
+     * TURBO_PLACE_DEVICE one: a session's output, say) to dst, host memory
+     * the caller owns, and return once they are there. The core calls it
+     * for turbo_result_read, after the run that wrote the buffer returned,
+     * and counts the bytes in d2h_bytes. */
+    int32_t (*buffer_read)(void *buf, void *dst, uint64_t bytes, turbo_error *err);
 } turbo_backend;
 
 #ifdef __cplusplus

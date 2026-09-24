@@ -19,7 +19,8 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<device> \
   `testdata/tiny-bert-bundle`.
 - `TURBO_TEST_DEVICE`: a runtime device index, or a backend name
   (`cpu`, `cuda`, ...) for the first device that backend lists. Unset,
-  the CPU.
+  the CPU. A backend behind a feature needs it on the command line too:
+  `--features cuda` for `cuda` (docs/cuda.md).
 
 With `--ignored` it also runs `a_real_bundle_matches_its_reference`,
 which fails unless `TURBO_TEST_BUNDLE` is set, so a run meant for a real

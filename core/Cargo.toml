@@ -29,5 +29,8 @@ turbo = { path = ".", features = ["internals"] }
 default = ["cpu"]
 # Backends are linked in by feature; turbo_version() lists them.
 cpu = []
+# NVIDIA GPUs through CUDA and cuBLAS: needs the CUDA toolkit to build
+# (build.rs, docs/cuda.md).
+cuda = []
 # Test-only views of the core's state, never in a release library.
 internals = []
