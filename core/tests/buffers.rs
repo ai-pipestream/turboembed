@@ -376,10 +376,12 @@ fn bad_shapes_are_refused() {
     }
     let e = ctx.alloc(&desc(TURBO_PLACE_HOST, TURBO_DTYPE_F32, &[4, 0])).err().unwrap();
     assert!(e.is(status::INVALID_SHAPE, "shape[1] is 0"), "{e:?}");
+    // A shape entry past ndim is not read: a desc reused from a 2-D buffer
+    // makes a 1-D one, and get_desc reports it as 0.
     let mut d = desc(TURBO_PLACE_HOST, TURBO_DTYPE_F32, &[4]);
     d.shape[1] = 4;
-    let e = ctx.alloc(&d).err().unwrap();
-    assert!(e.is(status::INVALID_SHAPE, "ndim is 1"), "{e:?}");
+    let b = ctx.alloc(&d).ok().unwrap();
+    assert_eq!((b.desc().shape, b.desc().bytes), ([4, 0], 16));
     for shape in [&[u64::MAX][..], &[1 << 32, 1 << 31][..], &[u64::MAX / 4 + 1][..]] {
         let e = ctx.alloc(&desc(TURBO_PLACE_HOST, TURBO_DTYPE_F32, shape)).err().unwrap();
         assert!(e.is(status::INVALID_SHAPE, "2^64"), "{shape:?}: {e:?}");

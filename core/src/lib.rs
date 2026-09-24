@@ -718,10 +718,12 @@ unsafe fn buffer_desc(desc: *const turbo_buffer_desc) -> Result<turbo_buffer_des
     }
     let size = dtype_size(d.dtype)
         .ok_or_else(|| Error::new(INVALID_ENUM, format!("dtype: {} is not a TURBO_DTYPE_* value", d.dtype)))?;
+    // Entries past ndim are not read, and the backend sees them as 0.
+    let mut d = d;
+    if d.ndim == 1 {
+        d.shape[1] = 0;
+    }
     let dims = match d.ndim {
-        1 if d.shape[1] != 0 => {
-            return Err(Error::new(INVALID_SHAPE, format!("shape[1] is {} and ndim is 1", d.shape[1])));
-        }
         1 => &d.shape[..1],
         2 => &d.shape[..],
         n => return Err(Error::new(INVALID_SHAPE, format!("ndim is {n}, not 1 or 2"))),
