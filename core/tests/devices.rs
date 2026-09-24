@@ -159,7 +159,7 @@ fn device_info_is_read_at_query_time() {
     let (mut a, mut b) = (rt.info(i).unwrap(), rt.info(i).unwrap());
     let mut free = Vec::new();
     for _ in 0..50 {
-        let _held = vec![1u8; 64 << 20];
+        let _held = std::hint::black_box(vec![1u8; 64 << 20]);
         free.push(rt.info(i).unwrap().memory_free);
     }
     if cfg!(target_os = "linux") {
