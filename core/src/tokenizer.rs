@@ -158,7 +158,7 @@ impl Tokenizer {
         let role = |r: SpecialRole| t.special_tokens.iter().find(|s| s.role == r).map_or(-1, |s| s.id as i32);
         let mut specials: Vec<(String, i32)> =
             t.special_tokens.iter().map(|s| (s.content.clone(), s.id as i32)).collect();
-        specials.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        specials.sort_by_key(|a| std::cmp::Reverse(a.0.len()));
         let e = m.embed();
         Ok(Tokenizer {
             vocab,

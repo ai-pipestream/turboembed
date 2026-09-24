@@ -509,18 +509,20 @@ fn sized(struct_size: u32, want: usize, what: &str) -> Result<()> {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn turbo_version() -> *const c_char {
-    VERSION.as_ptr()
+    VERSION.get_or_init(version).as_ptr()
 }
 
 /// The version and the backends linked into this build, in device order.
-#[cfg(all(feature = "cuda", feature = "cpu"))]
-const VERSION: &std::ffi::CStr = c"0.1.0 cuda cpu";
-#[cfg(all(feature = "cuda", not(feature = "cpu")))]
-const VERSION: &std::ffi::CStr = c"0.1.0 cuda";
-#[cfg(all(not(feature = "cuda"), feature = "cpu"))]
-const VERSION: &std::ffi::CStr = c"0.1.0 cpu";
-#[cfg(not(any(feature = "cuda", feature = "cpu")))]
-const VERSION: &std::ffi::CStr = c"0.1.0";
+static VERSION: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
+
+fn version() -> std::ffi::CString {
+    let mut v = String::from("0.1.0");
+    for b in backend::linked() {
+        v.push(' ');
+        v.push_str(b.name());
+    }
+    std::ffi::CString::new(v).expect("backend names hold no NUL")
+}
 
 pub(crate) fn new_error() -> turbo_error {
     turbo_error {
