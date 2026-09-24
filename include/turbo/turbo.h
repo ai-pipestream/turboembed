@@ -53,7 +53,12 @@
  *                                                        TURBO_STAGE_MAX
  *       manifest block       "<task>" in docs/bundle.md  the model facts the task needs
  *       model facts          fields at the end of        0 or empty for a model of
- *                            turbo_model_info            another task
+ *                            turbo_model_info            another task; that 0 is not an
+ *                                                        option value
+ *       tokenizer            turbo_tokenizer_encode_     only when the input is not one
+ *                            <input>                     text per row (pairs, say); the
+ *                                                        manifest template gets the
+ *                                                        matching form
  *
  *   - turbo_session_run, turbo_result_get_info, turbo_result_read and
  *     turbo_result_buffer serve every task. turbo_result_info.stage_count
@@ -157,13 +162,13 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_EMBED_STAGE_COUNT     7
 
 /* Where a stage ran. */
-#define TURBO_STAGE_UNUSED 0   /* the model does not have this stage */
+#define TURBO_STAGE_UNUSED 0   /* the model does not have this stage, or the index is
+                                  at or past stage_count */
 #define TURBO_STAGE_HOST   1
 #define TURBO_STAGE_DEVICE 2   /* its own kernel or graph node */
 #define TURBO_STAGE_FUSED  3   /* inside the neighbouring stage's kernel */
 
 /* Option values. 0 always means "what the bundle says". */
-#define TURBO_OPT_MODEL 0
 
 #define TURBO_TRUNCATE_MODEL 0
 #define TURBO_TRUNCATE_NONE  1   /* too long is an error */
@@ -190,6 +195,13 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_PRECISION_FASTEST 1   /* the fastest compute dtype this backend has for the
                                        artifact, which may be below the weights' dtype */
 #define TURBO_PRECISION_EXACT   2   /* F32 throughout */
+/* When a precision computes in a dtype other than the one the weights are
+ * stored in, the model keeps one resident copy of its weights per such
+ * dtype. The copy is made by the first turbo_session_create that needs it,
+ * is shared by every session of that model at that dtype, is released with
+ * the model, and is never counted in a result's allocations. The session's
+ * compute dtype is fixed at turbo_session_create; turbo_session_get_info
+ * reports it before any run. */
 
 /* Native memory handle kinds, for import and export. */
 #define TURBO_HANDLE_HOST_PTR   1   /* aux unused */
@@ -246,7 +258,9 @@ typedef struct turbo_device_info {
 
 /* One cell of the matrix: what (device, task, precision) can do, and the
  * proof. Each precision is its own cell with its own record, so the caller
- * who asks for FASTEST can read what it costs before asking. */
+ * who asks for FASTEST can read what it costs before asking. The numbers are
+ * for the bundle the record names; for another bundle, the dtype a precision
+ * resolves to is what turbo_session_get_info reports. */
 typedef struct turbo_capability {
     uint32_t struct_size;
     uint32_t status;              /* TURBO_CAP_* */
@@ -323,9 +337,9 @@ int32_t turbo_buffer_export(turbo_buffer *buf, uint32_t kind, turbo_native_handl
 typedef struct turbo_model_info {
     uint32_t struct_size;
     uint32_t task;              /* TURBO_TASK_* */
-    uint32_t dim;
-    uint32_t pooling;           /* TURBO_POOLING_* as the bundle says */
-    uint32_t normalize;         /* TURBO_NORMALIZE_* as the bundle says */
+    uint32_t dim;               /* values per output row */
+    uint32_t pooling;           /* embed: TURBO_POOLING_* as the bundle says */
+    uint32_t normalize;         /* embed: TURBO_NORMALIZE_* as the bundle says */
     uint32_t max_seq;           /* tokens */
     uint32_t max_batch;         /* rows a session may take */
     uint32_t dtype;             /* the artifact's: its compute_dtype if the manifest fixes one,
@@ -335,8 +349,9 @@ typedef struct turbo_model_info {
     char     manifest_sha256[72];    /* hex, of manifest.json: the contract this load was made against */
     char     artifact_sha256[72];    /* hex, of the artifact file this device loaded */
     char     tokenizer_sha256[72];   /* hex, of the tokenizer file */
-    char     prefix_query[128];
-    char     prefix_document[128];
+    char     prefix_query[128];      /* embed */
+    char     prefix_document[128];   /* embed */
+    /* Fields marked embed are 0 or empty for a model of another task. */
 } turbo_model_info;
 
 /* Load a bundle directory on the context's device. Every file is checked
@@ -367,7 +382,8 @@ typedef struct turbo_encode_options {
     uint32_t struct_size;
     uint32_t omit_special_tokens;  /* 1: 0 = the bundle's template, 1 = the text's ids alone */
     uint32_t truncate;             /* 2: TURBO_TRUNCATE_* */
-    uint32_t max_tokens;           /* 3: including specials; 0 = the bundle's max_seq */
+    uint32_t max_tokens;           /* 3: including specials; 0 = the bundle's max_seq. No
+                                      session limit applies here: rows are cut where told */
     uint32_t prompt_role;          /* 4: TURBO_PROMPT_* */
 } turbo_encode_options;
 
@@ -427,8 +443,18 @@ typedef struct turbo_token_batch {
     const int32_t *types;
 } turbo_token_batch;
 
+typedef struct turbo_session_info {
+    uint32_t struct_size;
+    uint32_t max_batch;       /* in effect, after 0 was resolved */
+    uint32_t max_seq;
+    uint32_t precision;       /* TURBO_PRECISION_* asked for */
+    uint32_t compute_dtype;   /* TURBO_DTYPE_* it resolved to */
+    uint32_t reserved;
+} turbo_session_info;
+
 int32_t turbo_session_create(turbo_model *m, const turbo_session_desc *desc, turbo_session **out, turbo_error *err);
 void    turbo_session_release(turbo_session *s);
+int32_t turbo_session_get_info(turbo_session *s, turbo_session_info *out, turbo_error *err);
 
 /* Tokenize with the bundle's tokenizer, then write the rows. opts may be NULL. */
 int32_t turbo_embed_write_text(turbo_session *s, const turbo_text *texts, uint32_t count,

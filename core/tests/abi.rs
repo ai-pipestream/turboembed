@@ -113,6 +113,7 @@ fn struct_layouts_match_the_header() {
 #[test]
 fn mirrored_constants_match_the_header() {
     use turbo::status::*;
+    // Every constant the Rust side mirrors belongs here.
     let constants: &[(&str, i64)] = &[
         ("TURBO_ERROR_MESSAGE_LEN", TURBO_ERROR_MESSAGE_LEN as i64),
         ("TURBO_TRUNCATE_MODEL", TURBO_TRUNCATE_MODEL.into()),
