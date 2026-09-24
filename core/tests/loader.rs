@@ -307,6 +307,23 @@ fn a_reference_without_a_long_case_is_invalid() {
 }
 
 #[test]
+fn a_bundle_that_does_not_cut_is_invalid() {
+    // The reference must carry a case longer than max_seq, so a bundle
+    // that never cuts could not load; it is refused as a bundle, not as
+    // the long case's CAPACITY.
+    let e = with("truncate-none", |m| m["tokenizer"]["truncation"] = json!("TRUNCATE_NONE"));
+    assert!(e.is(BUNDLE_INVALID, "tokenizer.truncation"), "{e:?}");
+}
+
+#[test]
+fn a_bundle_that_cuts_on_the_left_loads() {
+    let mut m = manifest();
+    m["tokenizer"]["truncation"] = json!("TRUNCATE_LEFT");
+    let f = Fixture::new("truncate-left", m);
+    f.open().expect("the reference ids were cut on the left too");
+}
+
+#[test]
 fn a_manifest_that_disagrees_with_tokenizer_json_is_invalid() {
     let e = with("no-lowercase", |m| m["tokenizer"]["normalizer"]["lowercase"] = json!(false));
     assert!(e.is(BUNDLE_INVALID, "tokenizer.json: normalizer"), "{e:?}");

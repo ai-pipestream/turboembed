@@ -219,9 +219,15 @@ pub fn reference_file(ids: &[Vec<i32>], width: usize, pad: i32, dim: usize) -> V
     out
 }
 
-/// Upstream's ids for each case of `m`, with its prefixes applied.
+/// Upstream's ids for each case of `m`, with its prefixes applied and cut
+/// on the side its tokenizer.truncation names.
 pub fn reference_ids(m: &Value) -> Vec<Vec<i32>> {
-    let up = upstream();
+    let mut up = upstream();
+    if m["tokenizer"]["truncation"] == "TRUNCATE_LEFT" {
+        let mut t = up.get_truncation().unwrap().clone();
+        t.direction = tokenizers::TruncationDirection::Left;
+        up.with_truncation(Some(t)).unwrap();
+    }
     let prefix = |role: &str| match role {
         "PROMPT_QUERY" => m["embed"]["prefix_query"].as_str().unwrap_or_default().to_owned(),
         "PROMPT_DOCUMENT" => m["embed"]["prefix_document"].as_str().unwrap_or_default().to_owned(),

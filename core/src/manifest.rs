@@ -468,6 +468,13 @@ impl Manifest {
                 return Err(invalid(format!("manifest.json: tokenizer.template[{i}]: {s:?} is not a special token")));
             }
         }
+        // TRUNCATE_NONE is a caller's choice, not a model's: a bundle names
+        // the side it cuts, and its reference carries a case that is cut.
+        if t.truncation == Truncation::None {
+            return Err(invalid(
+                "manifest.json: tokenizer.truncation: TRUNCATE_NONE is a caller option; a bundle says TRUNCATE_RIGHT or TRUNCATE_LEFT",
+            ));
+        }
         let specials = t.template.len() as u32 - 1;
         if e.max_seq <= specials {
             return Err(invalid(format!(

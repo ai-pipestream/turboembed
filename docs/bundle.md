@@ -229,7 +229,7 @@ field means the proto3 default. The gRPC definition is the same message.
 | `tokenizer.wordpiece`, `.bpe`, `.unigram` | message | one of | The kind and its parameters. Only wordpiece is defined in this cut. |
 | `tokenizer.special_tokens[]` | role, content, id | yes | Fills `pad_id`, `bos_id`, `eos_id`, `unk_id`. |
 | `tokenizer.template` | string[] | yes | The row layout around `$TEXT`. |
-| `tokenizer.truncation` | enum | yes | What `TURBO_TRUNCATE_MODEL` means. |
+| `tokenizer.truncation` | enum | yes | What `TURBO_TRUNCATE_MODEL` means: `TRUNCATE_RIGHT` or `TRUNCATE_LEFT`. `TRUNCATE_NONE` is a caller option and is rejected here. |
 | `architecture.*` | message | when an artifact is raw weights | Everything a kernel path needs that a weights file does not carry. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
