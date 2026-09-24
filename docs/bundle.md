@@ -222,7 +222,7 @@ this form before it is written or loaded.
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
-| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to. Any other `output_dim` is refused. |
+| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to. Any other `output_dim` is refused. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged. Its hash is `tokenizer_sha256`. |
 | `tokenizer.normalizer.*` | bool, enum | yes | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. |
 | `tokenizer.wordpiece`, `.bpe`, `.unigram` | message | one of | The kind and its parameters. Only wordpiece is defined in this cut. |

@@ -187,9 +187,9 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_NORMALIZE_L2    2
 
 #define TURBO_POOLING_MODEL 0
-#define TURBO_POOLING_MEAN  1
-#define TURBO_POOLING_CLS   2
-#define TURBO_POOLING_LAST  3
+#define TURBO_POOLING_MEAN  1   /* the mean over the tokens whose mask is 1 */
+#define TURBO_POOLING_CLS   2   /* the row's first column, whatever its mask */
+#define TURBO_POOLING_LAST  3   /* the last token whose mask is 1 */
 
 /* How a session computes. The artifact is chosen at load, in manifest
  * order; precision chooses how that artifact computes, never another one. */
@@ -435,7 +435,9 @@ typedef struct turbo_embed_options {
     uint32_t prompt_role;   /* 3: TURBO_PROMPT_* */
     uint32_t normalize;     /* 4: TURBO_NORMALIZE_* */
     uint32_t pooling;       /* 5: TURBO_POOLING_* */
-    uint32_t output_dim;    /* 6: keep only the first output_dim values of each vector */
+    uint32_t output_dim;    /* 6: keep only the first output_dim values of each vector, cut
+                               before normalize: an L2-normalized vector is unit length at
+                               output_dim */
 } turbo_embed_options;
 
 /* Caller-prepared rows, [batch, seq] int32, row_stride elements between row
@@ -477,10 +479,11 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
                                  const turbo_embed_options *opts, turbo_error *err);
 
 /* Run what was written. A write replaces what an earlier write left, and
- * a run takes it: a run with nothing written since the last run, or after
- * a failed write, is TURBO_E_INVALID_STATE. The result holds the session
- * until it and every buffer from turbo_result_buffer are released; until
- * then a write or run on the session is TURBO_E_BUSY. */
+ * a run takes it, even when the run fails: a run with nothing written
+ * since the last run, or after a failed write, is TURBO_E_INVALID_STATE.
+ * The result holds the session until it and every buffer from
+ * turbo_result_buffer are released; until then a write or run on the
+ * session is TURBO_E_BUSY. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
 /* ---- Result ------------------------------------------------------------ */

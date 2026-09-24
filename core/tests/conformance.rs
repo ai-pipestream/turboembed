@@ -3,10 +3,11 @@
 //! pipeline produced. The same test serves every backend; docs/conformance.md
 //! says how to run it and what it checks.
 //!
-//! TURBO_TEST_BUNDLE names the bundle directory; without it, the small
-//! sealed bundle in testdata/tiny-bert-bundle. TURBO_TEST_DEVICE names the
-//! device, as a runtime device index or a backend name (the first device
-//! that backend lists); without it, the CPU.
+//! TURBO_TEST_BUNDLE names the bundle directory, absolute or relative to
+//! the workspace root; without it, the small sealed bundle in
+//! testdata/tiny-bert-bundle. TURBO_TEST_DEVICE names the device, as a
+//! runtime device index or a backend name (the first device that backend
+//! lists); without it, the CPU.
 
 mod common;
 
@@ -17,8 +18,15 @@ use common::*;
 use serde_json::Value;
 use turbo::*;
 
+/// TURBO_TEST_BUNDLE, a relative path read from the workspace root (cargo
+/// runs tests in the package directory), or None.
+fn named_bundle() -> Option<PathBuf> {
+    let p = PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
+    Some(if p.is_absolute() { p } else { Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
+}
+
 fn bundle() -> PathBuf {
-    std::env::var_os("TURBO_TEST_BUNDLE").map_or_else(tiny_bundle, PathBuf::from)
+    named_bundle().unwrap_or_else(tiny_bundle)
 }
 
 /// The device TURBO_TEST_DEVICE names, or the CPU.
@@ -234,6 +242,5 @@ fn a_fixed_shape_refuses_the_cases_it_cannot_hold() {
 #[test]
 #[ignore = "needs a real bundle directory in TURBO_TEST_BUNDLE"]
 fn a_real_bundle_matches_its_reference() {
-    let dir = std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set");
-    check(Path::new(&dir));
+    check(&named_bundle().expect("TURBO_TEST_BUNDLE is not set"));
 }

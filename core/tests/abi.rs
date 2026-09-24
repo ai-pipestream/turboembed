@@ -474,6 +474,8 @@ int main(int argc, char **argv) {
     rc = turbo_tokenizer_create(rt, T("/nonexistent/bundle"), &tok, &err);
     printf("missing %s %d\n", turbo_status_name(rc), err.code);
     if (turbo_tokenizer_create(rt, T(argv[1]), &tok, &err)) { printf("create %s\n", err.message); return 1; }
+    turbo_tokenizer *tinytok = NULL;
+    if (turbo_tokenizer_create(rt, T(argv[4]), &tinytok, &err)) { printf("tiny tok %s\n", err.message); return 1; }
     turbo_runtime_release(rt); /* the tokenizer and the model keep what they need */
     turbo_model_info mi = { sizeof(turbo_model_info) };
     if (turbo_model_get_info(model, &mi, &err)) { printf("model info %s\n", err.message); return 1; }
@@ -527,6 +529,26 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 32; i++) norm += (double)vec[r][i] * vec[r][i];
         printf("row %d: %.4f %.4f %.4f %.4f norm %.6f\n", r, vec[r][0], vec[r][1], vec[r][2], vec[r][3], norm);
     }
+    turbo_result_release(res);
+
+    /* The same two texts, tokenized by the caller and written as tokens. */
+    int32_t tids[2][64], tmask[2][64];
+    uint32_t tlen[2] = { 0, 0 };
+    turbo_encode_options qo = { sizeof(turbo_encode_options), 0, 0, 0, TURBO_PROMPT_QUERY };
+    if (turbo_tokenizer_encode(tinytok, two, 2, &qo, &tids[0][0], &tmask[0][0], NULL, 64, tlen, &err)) {
+        printf("encode two %s\n", err.message); return 1;
+    }
+    turbo_tokenizer_release(tinytok);
+    uint32_t seq = tlen[0] > tlen[1] ? tlen[0] : tlen[1];
+    turbo_token_batch tb = { sizeof(turbo_token_batch), 2, seq, 64, &tids[0][0], &tmask[0][0], NULL };
+    printf("tokens %u and %u, seq %u, row_stride 64\n", tlen[0], tlen[1], seq);
+    if (turbo_embed_write_tokens(s, &tb, NULL, &err)) { printf("write tokens %s\n", err.message); return 1; }
+    if (turbo_session_run(s, &res, &err)) { printf("run tokens %s\n", err.message); return 1; }
+    float tvec[2][32];
+    if (turbo_result_read(res, tvec, sizeof(tvec), NULL, &err)) { printf("read tokens %s\n", err.message); return 1; }
+    for (int r = 0; r < 2; r++)
+        printf("tokens row %d: %.4f %.4f %.4f %.4f\n", r, tvec[r][0], tvec[r][1], tvec[r][2], tvec[r][3]);
+    printf("tokens same as text %d\n", (int)(memcmp(tvec, vec, sizeof(vec)) == 0));
     turbo_buffer *out = NULL;
     void *where = NULL;
     if (turbo_result_buffer(res, &out, &err) || turbo_buffer_host_ptr(out, &where, &err)) {
@@ -534,7 +556,7 @@ int main(int argc, char **argv) {
     }
     turbo_result_release(res);
     turbo_session_release(s); /* the buffer keeps the result, and the result the session */
-    printf("buffer same %d\n", (int)(memcmp(where, vec, sizeof(vec)) == 0));
+    printf("buffer same %d\n", (int)(memcmp(where, tvec, sizeof(tvec)) == 0));
     turbo_buffer_release(out);
     turbo_result_release(NULL);
     turbo_session_release(NULL);
@@ -545,7 +567,7 @@ int main(int argc, char **argv) {
 "#;
 
 #[test]
-fn a_c_program_loads_a_model_and_gets_the_upstream_ids() {
+fn a_c_program_loads_a_model_tokenizes_and_embeds() {
     // target/<profile>/deps/abi-* -> target/<profile>/libturbo.so
     let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
     // `cargo test` builds the rlib the tests link, not the cdylib; build
@@ -586,7 +608,16 @@ fn a_c_program_loads_a_model_and_gets_the_upstream_ids() {
     let l = Loaded::load(&tiny).unwrap();
     let s = Session::create(l.m, Some(&session_desc(4, 0, TURBO_PRECISION_EXACT))).unwrap();
     let o = turbo_embed_options { prompt_role: TURBO_PROMPT_QUERY, ..embed_options() };
-    let rows = s.embed(&["The quick brown fox jumps over the lazy dog.", "reset a password"], Some(&o)).unwrap();
+    let two = ["The quick brown fox jumps over the lazy dog.", "reset a password"];
+    let rows = s.embed(&two, Some(&o)).unwrap();
+    let tok = Tok::create(&tiny).unwrap();
+    let q = options(0, 0, 0, TURBO_PROMPT_QUERY);
+    let lens: Vec<usize> = two.iter().map(|t| tok.row(t, Some(&q)).unwrap().len()).collect();
+    let tokens: String = rows
+        .iter()
+        .enumerate()
+        .map(|(r, v)| format!("tokens row {r}: {:.4} {:.4} {:.4} {:.4}\n", v[0], v[1], v[2], v[3]))
+        .collect();
     let vectors: String = rows
         .iter()
         .enumerate()
@@ -607,10 +638,14 @@ fn a_c_program_loads_a_model_and_gets_the_upstream_ids() {
          write while held TURBO_E_BUSY\n\
          result task 1 batch 2 dim 32 dtype 12 compute 12 placement 1 bytes 256 read 256\n\
          h2d 0 d2h 256 host_allocs 0 device_allocs 0 backend cpu stages 7: 1 0 1 1 1 1 0\n\
-         {vectors}buffer same 1\n0.1.0 cpu\n",
+         {vectors}tokens {} and {}, seq {}, row_stride 64\n{tokens}tokens same as text 1\n\
+         buffer same 1\n0.1.0 cpu\n",
         turbo::status::BUNDLE_NOT_FOUND,
         model.sha256("weights/model.safetensors"),
-        ids.join(" ")
+        ids.join(" "),
+        lens[0],
+        lens[1],
+        lens[0].max(lens[1]),
     );
     assert_eq!(out, want);
     std::fs::remove_dir_all(d).unwrap();

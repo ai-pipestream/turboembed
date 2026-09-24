@@ -130,6 +130,60 @@ fn sessions_on_one_model_run_from_many_threads() {
     });
 }
 
+/// Two threads on one session at once, which turbo.h gives one owner at a
+/// time: a call that finds another inside the session is TURBO_E_BUSY,
+/// and every run that succeeds is one write's rows, whole.
+#[test]
+fn one_session_used_from_two_threads_is_busy_not_corrupt() {
+    let l = tiny();
+    let s = session(&l);
+    let a: Vec<String> = (0..64).map(|i| format!("{} {i}", PARAGRAPH)).collect();
+    let b: Vec<String> = (0..64).map(|i| format!("reset a password {i}")).collect();
+    let views = |t: &[String]| t.iter().map(|x| text(x)).collect::<Vec<_>>();
+    let want = [s.embed(&a.iter().map(String::as_str).collect::<Vec<_>>(), None).unwrap(), {
+        s.embed(&b.iter().map(String::as_str).collect::<Vec<_>>(), None).unwrap()
+    }];
+    let sp = s.0 as usize;
+    let inside = std::sync::atomic::AtomicU32::new(0);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    std::thread::scope(|sc| {
+        for t in [&a, &b] {
+            let (want, inside) = (&want, &inside);
+            sc.spawn(move || {
+                let s = sp as *mut turbo_session;
+                let v = views(t);
+                while inside.load(std::sync::atomic::Ordering::Relaxed) < 3 && std::time::Instant::now() < deadline {
+                    let mut err = new_error();
+                    let rc = unsafe { turbo_embed_write_text(s, v.as_ptr(), 64, ptr::null(), &mut err) };
+                    if rc == BUSY && failure(rc, &err).message.contains("another call is using the session") {
+                        inside.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    assert!(rc == 0 || rc == BUSY, "{:?}", failure(rc, &err));
+                    let mut r = ptr::null_mut();
+                    let rc = unsafe { turbo_session_run(s, &mut r, &mut err) };
+                    match rc {
+                        0 => {
+                            let rows = Outcome(r).rows();
+                            assert!(rows == want[0] || rows == want[1], "a run gave rows of neither write");
+                        }
+                        BUSY => {
+                            if failure(rc, &err).message.contains("another call is using the session") {
+                                inside.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            }
+                        }
+                        // The other thread's run took the write.
+                        INVALID_STATE => {}
+                        _ => panic!("{:?}", failure(rc, &err)),
+                    }
+                }
+            });
+        }
+    });
+    assert!(inside.into_inner() >= 3, "no call found another inside the session in a minute");
+    // The session is whole after it.
+    assert_eq!(s.embed(&b.iter().map(String::as_str).collect::<Vec<_>>(), None).unwrap(), want[1]);
+}
+
 // ---- State -----------------------------------------------------------------------
 
 #[test]

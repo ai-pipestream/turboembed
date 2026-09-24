@@ -4,7 +4,7 @@
 //! backend keeps the rows it was written and computes.
 //!
 //! State. A write replaces what an earlier one left, and a run takes it,
-//! so every run is of exactly one write. A write that fails leaves nothing
+//! even when the run fails, so every run is of exactly one write. A write that fails leaves nothing
 //! written. While a result, or a buffer made from it, is held, the
 //! session's output is in use and a write or run is TURBO_E_BUSY; so is a
 //! call made while another is still inside the session.

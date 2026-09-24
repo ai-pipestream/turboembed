@@ -13,8 +13,10 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<device> \
     cargo test --release -p turbo --test conformance -- --nocapture
 ```
 
-- `TURBO_TEST_BUNDLE`: the bundle directory. Unset, the small sealed
-  bundle in `testdata/tiny-bert-bundle`.
+- `TURBO_TEST_BUNDLE`: the bundle directory, absolute or relative to
+  the workspace root (the directory with the top `Cargo.toml`), wherever
+  cargo is run from. Unset, the small sealed bundle in
+  `testdata/tiny-bert-bundle`.
 - `TURBO_TEST_DEVICE`: a runtime device index, or a backend name
   (`cpu`, `cuda`, ...) for the first device that backend lists. Unset,
   the CPU.
