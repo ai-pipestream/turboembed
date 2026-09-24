@@ -361,7 +361,8 @@ typedef struct turbo_model_info {
 } turbo_model_info;
 
 /* Load a bundle directory on the context's device. Every file is checked
- * against the manifest's hash before use. */
+ * against the manifest's hash before use. A device whose backend loads no
+ * models is TURBO_E_UNSUPPORTED before the bundle is read. */
 int32_t turbo_model_load(turbo_context *ctx, turbo_text bundle_path, turbo_model **out, turbo_error *err);
 void    turbo_model_release(turbo_model *m);
 int32_t turbo_model_get_info(turbo_model *m, turbo_model_info *out, turbo_error *err);

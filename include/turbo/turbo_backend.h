@@ -26,9 +26,11 @@
  *     first. It has no log function of its own: its warnings reach the
  *     caller through the log function the core hands it with a context.
  *   - The table grows only at the end, and struct_size says how much of it
- *     a backend fills. The core refuses a table whose struct_size is not
- *     one it knows. A function added after the first three may be NULL,
- *     and the core calls it only when struct_size covers it.
+ *     a backend fills. The core knows three sizes: through capability,
+ *     through buffer_export, and through model_release, which is
+ *     sizeof(turbo_backend). It refuses any other. A function added after
+ *     the first three may be NULL, and the core calls it only when
+ *     struct_size covers it.
  *   - A backend that offers context_create offers context_release, one
  *     that offers buffer_alloc or buffer_import offers buffer_release, and
  *     one that offers model_load offers model_release. The core refuses a
@@ -88,7 +90,7 @@ extern "C" {
  * against the manifest's hash. Packed row-major, little-endian. */
 typedef struct turbo_backend_tensor {
     const char *name;       /* its name in the weights file, for messages */
-    const void *data;
+    const void *data;       /* aligned to at least the dtype's element size */
     uint64_t    shape[2];   /* entries past ndim are 0 */
     uint32_t    ndim;       /* 1 or 2 */
     uint32_t    dtype;      /* TURBO_DTYPE_*: the model's dtype */

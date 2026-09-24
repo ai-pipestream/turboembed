@@ -232,6 +232,8 @@ unsafe extern "C" fn buffer_export(
 // The CPU reads them in place. A model here is the architecture and a table
 // of pointers into those bytes; nothing of the weights is copied.
 
+// Read by the kernels that run a session.
+#[cfg_attr(not(feature = "internals"), allow(dead_code))]
 struct Model {
     desc: turbo_backend_model,
     /// Each tensor as the core described it, its name dropped: the name is
@@ -267,6 +269,7 @@ unsafe extern "C" fn model_release(model: *mut c_void) {
 ///
 /// # Safety
 /// `model` is one model_load returned and model_release has not taken.
+#[cfg(feature = "internals")]
 pub(crate) unsafe fn tensor_data(model: *mut c_void) -> Vec<*const c_void> {
     let m = unsafe { &*(model as *const Model) };
     debug_assert_eq!(m.desc.tensor_count as usize, m.tensors.len());

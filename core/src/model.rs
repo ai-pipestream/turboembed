@@ -11,32 +11,24 @@ use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, turbo_backend_model,
     turbo_backend_tensor,
 };
-use crate::bundle::{Bundle, sha256_hex};
-use crate::manifest::{Architecture, Artifact, Dtype, Format, GraphInput, Manifest, TensorRole, role_name};
+use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
+use crate::manifest::{
+    Activation, Architecture, Artifact, Family, Format, Manifest, PositionEmbedding, TensorRole, role_name,
+};
 use crate::safetensors;
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, Result, invalid};
-use crate::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I32};
+use crate::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
 /// The manifest's name for an enum value, as it is written there.
 fn enum_name(v: impl Serialize) -> String {
     serde_json::to_value(v).ok().and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default()
 }
 
-/// A manifest dtype as TURBO_DTYPE_*, where the header has one.
-pub fn header_dtype(d: Dtype) -> Option<u32> {
-    match d {
-        Dtype::I8 => None,
-        Dtype::I32 => Some(TURBO_DTYPE_I32),
-        Dtype::F16 => Some(TURBO_DTYPE_F16),
-        Dtype::Bf16 => Some(TURBO_DTYPE_BF16),
-        Dtype::F32 => Some(TURBO_DTYPE_F32),
-    }
-}
-
 /// Rule 6: the first artifact, in manifest order, that lists `backend`,
 /// was built for `arch` or for any device, and is something this build
-/// hands a backend. In this build that is raw weights that start at token
-/// ids, the one form model_load takes. None is BUNDLE_NO_ARTIFACT, saying
+/// hands a backend. In this build that is raw weights, the one form
+/// model_load takes; the manifest has already required that they start at
+/// token ids and fix no compute_dtype. None is BUNDLE_NO_ARTIFACT, saying
 /// why each was skipped.
 pub fn choose(m: &Manifest, backend: &str, arch: &str) -> Result<usize> {
     let mut skipped = Vec::new();
@@ -47,10 +39,6 @@ pub fn choose(m: &Manifest, backend: &str, arch: &str) -> Result<usize> {
             format!("target {} is not this device's {arch}", a.target)
         } else if a.format != Format::Safetensors {
             format!("{} is not a format the {backend} backend loads in this build", enum_name(a.format))
-        } else if a.graph_input != GraphInput::TokenIds {
-            format!("{} needs a host embedding lookup this build does not have", enum_name(a.graph_input))
-        } else if let Some(d) = a.compute_dtype.filter(|&d| header_dtype(d).is_none()) {
-            format!("compute_dtype {} has no TURBO_DTYPE_* value in this build", enum_name(d))
         } else {
             return Ok(i);
         };
@@ -155,6 +143,15 @@ pub fn bert_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Ve
     Ok(out)
 }
 
+/// The family model_load is told. Every combination the manifest can name
+/// is listed, so a new family, activation or position embedding does not
+/// compile until it has a place here.
+fn family(a: &Architecture) -> u32 {
+    match (a.family, a.activation, a.position_embedding) {
+        (Family::Bert, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_BERT,
+    }
+}
+
 /// A tensor found in one of the artifact's files.
 struct Placed {
     name: CString,
@@ -167,7 +164,7 @@ struct Placed {
 /// of its files, read once, and where each tensor is in them. These bytes
 /// are the only host copy; the tensors handed to a backend point into them.
 pub struct Weights {
-    files: Vec<Vec<u8>>,
+    files: Vec<AlignedBytes>,
     tensors: Vec<Placed>,
     /// TURBO_DTYPE_* every tensor is stored in.
     pub dtype: u32,
@@ -184,16 +181,9 @@ impl Weights {
         let m = &bundle.manifest;
         let art = &m.artifacts[index];
         let a = m.architecture.as_ref().expect("validate() requires architecture for raw weights");
-        let embed = m.embed();
-        if embed.dim != a.hidden {
-            return Err(invalid(format!(
-                "manifest.json: embed.dim: {} is not architecture.hidden {}, the width of the pooled hidden states",
-                embed.dim, a.hidden
-            )));
-        }
         let expected = bert_tensors(index, art, a)?;
 
-        let files = art.files.iter().map(|f| bundle.read_verified(f)).collect::<Result<Vec<_>>>()?;
+        let files = art.files.iter().map(|f| bundle.read_verified_aligned(f)).collect::<Result<Vec<_>>>()?;
         if !art.host_weights.is_empty() {
             let host = m.artifacts.iter().find(|h| h.name == art.host_weights).expect("validate() checks the name");
             for f in host.files.iter().filter(|f| !art.files.contains(f)) {
@@ -204,7 +194,7 @@ impl Weights {
             .files
             .iter()
             .zip(&files)
-            .map(|(name, bytes)| safetensors::File::parse(name, bytes))
+            .map(|(name, bytes)| safetensors::File::parse(name, &bytes[..]))
             .collect::<Result<Vec<_>>>()?;
 
         let mut dtype = None;
@@ -225,22 +215,20 @@ impl Weights {
                 safetensors::Dtype::F32 => TURBO_DTYPE_F32,
                 safetensors::Dtype::F16 => TURBO_DTYPE_F16,
                 safetensors::Dtype::Bf16 => TURBO_DTYPE_BF16,
-                other => {
-                    let is =
-                        if other == safetensors::Dtype::I32 { "I32" } else { "of a dtype this build does not read" };
+                _ => {
                     return Err(invalid(format!(
-                        "{at}: {} ({}) is {is}; weights are F32, F16 or BF16",
-                        e.name, e.what
+                        "{at}: {} ({}) is {}; weights are F32, F16 or BF16",
+                        e.name, e.what, t.dtype_name
                     )));
                 }
             };
             let want = *dtype.get_or_insert(d);
             if d != want {
                 return Err(invalid(format!(
-                    "{at}: {} ({}) is {:?}; the other weights are {}",
+                    "{at}: {} ({}) is {}; the other weights are {}",
                     e.name,
                     e.what,
-                    t.dtype,
+                    t.dtype_name,
                     dtype_name(want)
                 )));
             }
@@ -250,7 +238,16 @@ impl Weights {
                     e.name, e.what, t.shape, e.shape
                 )));
             }
+            // The file starts on a 64-byte boundary, so an offset that is a
+            // multiple of the element size is an aligned address.
             let begin = t.data.as_ptr() as usize - files[file].as_ptr() as usize;
+            let size = t.dtype.size().expect("a weights dtype has a size");
+            if !begin.is_multiple_of(size) {
+                return Err(invalid(format!(
+                    "{at}: {} ({}) starts at byte {begin}, not a multiple of its {size}-byte elements",
+                    e.name, e.what
+                )));
+            }
             tensors.push(Placed {
                 name: CString::new(e.name.as_str()).map_err(|_| invalid(format!("{:?}: a NUL in the name", e.name)))?,
                 file,
@@ -263,7 +260,7 @@ impl Weights {
             files,
             tensors,
             dtype: dtype.expect("a BERT encoder has tensors"),
-            family: TURBO_FAMILY_BERT,
+            family: family(a),
             arch: [a.layers, a.hidden, a.heads, a.intermediate, a.vocab_size, a.max_positions, a.token_types],
             layer_norm_eps: a.layer_norm_eps,
         })
@@ -312,7 +309,7 @@ impl Weights {
 
     /// The verified bytes of each file, in the artifact's order.
     pub fn files(&self) -> Vec<&[u8]> {
-        self.files.iter().map(Vec::as_slice).collect()
+        self.files.iter().map(|f| &f[..]).collect()
     }
 }
 

@@ -934,6 +934,9 @@ pub unsafe extern "C" fn turbo_buffer_export(
 
 /// A bundle loaded on a context's device. It holds its context, so the
 /// backend's model is released before the backend's context.
+// The context and the weights are held for their lifetimes, and read only
+// by what runs a session.
+#[cfg_attr(not(feature = "internals"), allow(dead_code))]
 struct Model {
     context: Arc<Context>,
     raw: *mut c_void,
@@ -1005,7 +1008,9 @@ fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let fixed = |model: u32, artifact: u32| if artifact == 0 { model } else { model.min(artifact) };
     info.max_seq = fixed(e.max_seq, art.fixed_seq);
     info.max_batch = fixed(e.max_batch, art.fixed_batch);
-    info.dtype = art.compute_dtype.and_then(model::header_dtype).unwrap_or(weights.dtype);
+    // Raw weights fix no compute_dtype (the manifest refuses one), so the
+    // artifact's dtype is the one its weights are stored in.
+    info.dtype = weights.dtype;
     // The manifest's strings were checked against these buffers when it
     // was parsed (rule 2), and a hash is 64 hex digits: nothing is cut.
     write_str(&mut info.model_id, &m.model.id);
@@ -1074,8 +1079,9 @@ pub unsafe extern "C" fn turbo_model_get_info(
 }
 
 /// Where a model's weights are, for the tests that check the CPU backend
-/// holds no copy of its own. Not part of the C interface.
-#[doc(hidden)]
+/// holds no copy of its own. Not part of the C interface, and built only
+/// with the `internals` feature.
+#[cfg(feature = "internals")]
 pub struct ModelWeights<'a> {
     /// The core's verified bytes of each weights file.
     pub files: Vec<&'a [u8]>,
@@ -1085,7 +1091,7 @@ pub struct ModelWeights<'a> {
 
 /// # Safety
 /// `m` is a live handle from turbo_model_load, and outlives what is returned.
-#[doc(hidden)]
+#[cfg(feature = "internals")]
 pub unsafe fn model_weights<'a>(m: *mut turbo_model) -> Option<ModelWeights<'a>> {
     let m = &unsafe { model_handle(m) }.ok()?.inner;
     #[cfg(feature = "cpu")]

@@ -70,16 +70,15 @@ fn a_model_reports_what_its_manifest_and_files_say() {
 }
 
 #[test]
-fn a_fixed_compute_dtype_and_shape_are_what_is_reported() {
+fn a_fixed_shape_is_what_is_reported() {
     let mut f = Fixture::model("fixed");
     let a = &mut f.manifest["artifacts"][0];
-    a["compute_dtype"] = json!("DTYPE_F16");
     a["fixed_seq"] = json!(128);
     a["fixed_batch"] = json!(8);
     f.manifest["embed"]["pooling"] = json!("POOLING_CLS");
     f.manifest["embed"]["normalize"] = json!("NORMALIZE_NONE");
     let info = f.load().unwrap().info();
-    assert_eq!(info.dtype, TURBO_DTYPE_F16);
+    assert_eq!(info.dtype, TURBO_DTYPE_F32);
     assert_eq!((info.max_seq, info.max_batch), (128, 8));
     assert_eq!((info.pooling, info.normalize), (TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE));
 }
@@ -190,6 +189,8 @@ fn the_cpu_reads_the_weights_where_the_core_verified_them() {
         let off = at.iter().find(|(n, _)| n == name).unwrap().1;
         assert_eq!(*p as usize, base + off, "{name}");
     }
+    assert_eq!(base % 64, 0, "the weights start on a 64-byte boundary");
+    assert!(held.iter().all(|&p| (p as usize).is_multiple_of(4)), "every F32 tensor is aligned to 4 bytes");
 }
 
 #[test]
@@ -342,12 +343,15 @@ fn the_first_artifact_the_device_can_load_is_chosen() {
 }
 
 #[test]
-fn an_artifact_that_starts_at_embeddings_is_skipped() {
+fn raw_weights_that_start_at_embeddings_or_fix_a_dtype_are_invalid() {
     let e = with("embeddings", |m| {
         m["artifacts"][0]["graph_input"] = json!("INPUT_EMBEDDINGS");
         m["artifacts"][0]["host_weights"] = json!("weights-f32");
     });
-    assert!(e.is(BUNDLE_NO_ARTIFACT, "INPUT_EMBEDDINGS needs a host embedding lookup"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "artifacts[0].graph_input: raw weights start at INPUT_TOKEN_IDS"), "{e:?}");
+    // What raw weights compute in is the session's precision to say.
+    let e = with("compute-dtype", |m| m["artifacts"][0]["compute_dtype"] = json!("DTYPE_F16"));
+    assert!(e.is(BUNDLE_INVALID, "artifacts[0].compute_dtype: fixed by a compilation"), "{e:?}");
 }
 
 // Rule 7
@@ -385,6 +389,8 @@ fn a_host_weights_artifact_is_verified_too() {
     other["files"] = json!(["weights/other.safetensors"]);
     other["backends"] = json!([]);
     f.manifest["artifacts"].as_array_mut().unwrap().push(other);
+    // host_weights is for an artifact whose graph starts at embeddings; the
+    // loader verifies the files it names whichever artifact names it.
     f.manifest["artifacts"][0]["host_weights"] = json!("weights-other");
     f.load().expect("both verify");
     fs::write(f.dir.join("weights/other.safetensors"), b"changed").unwrap();
@@ -435,7 +441,39 @@ fn a_tensor_of_the_wrong_dtype_is_invalid_and_named() {
     assert!(e.is(BUNDLE_INVALID, "is F16; the other weights are F32"), "{e:?}");
     let t = edited("encoder.layer.1.output.LayerNorm.weight", |t| t.dtype = "I64");
     let e = with_weights("dtype-other", &t);
-    assert!(e.is(BUNDLE_INVALID, "is of a dtype this build does not read"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "(ffn_ln_weight of layer 1) is I64; weights are F32, F16 or BF16"), "{e:?}");
+}
+
+#[test]
+fn a_tensor_not_aligned_to_its_elements_is_invalid() {
+    // A tensor the model does not use, three bytes long, first in the data.
+    let mut t = tiny_weights(0);
+    t.insert(0, Tensor { name: "extra".into(), dtype: "U8", shape: vec![3], data: vec![1, 2, 3] });
+    let e = with_weights("misaligned", &t);
+    assert!(e.message.ends_with(", not a multiple of its 4-byte elements"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "embeddings.word_embeddings.weight (word_embeddings) starts at byte "), "{e:?}");
+    // Four bytes, and every tensor after it is aligned again.
+    t[0] = Tensor { name: "extra".into(), dtype: "U8", shape: vec![4], data: vec![1, 2, 3, 4] };
+    let mut f = Fixture::model("aligned-again");
+    f.weights("weights/model.safetensors", &t);
+    f.load().expect("aligned");
+}
+
+#[test]
+fn a_header_length_not_a_multiple_of_8_is_invalid() {
+    let mut bytes = safetensors_file(&tiny_weights(0));
+    let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
+    // One more space in the header, and the data one byte later.
+    bytes.insert(8 + n, b' ');
+    bytes[..8].copy_from_slice(&(n as u64 + 1).to_le_bytes());
+    let mut f = Fixture::model("header-length");
+    fs::write(f.dir.join("weights/model.safetensors"), &bytes).unwrap();
+    f.list("weights/model.safetensors");
+    let e = refused(&f);
+    assert!(
+        e.is(BUNDLE_INVALID, &format!("weights/model.safetensors: header length {} is not a multiple of 8", n + 1)),
+        "{e:?}"
+    );
 }
 
 #[test]
@@ -448,7 +486,11 @@ fn half_precision_weights_load_as_their_dtype() {
     }
     let mut f = Fixture::model("bf16");
     f.weights("weights/model.safetensors", &t);
-    assert_eq!(f.load().unwrap().info().dtype, TURBO_DTYPE_BF16);
+    let l = f.load().unwrap();
+    assert_eq!(l.info().dtype, TURBO_DTYPE_BF16);
+    let ModelWeights { files, held } = unsafe { model_weights(l.m) }.unwrap();
+    assert_eq!(files[0].as_ptr() as usize % 64, 0);
+    assert!(held.unwrap().iter().all(|&p| (p as usize).is_multiple_of(2)), "every BF16 tensor is aligned to 2 bytes");
 }
 
 #[test]

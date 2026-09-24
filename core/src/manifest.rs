@@ -509,6 +509,13 @@ impl Manifest {
             if !(a.layer_norm_eps > 0.0 && a.layer_norm_eps.is_finite()) {
                 return Err(invalid("manifest.json: architecture.layer_norm_eps: not a positive number"));
             }
+            // The vectors are pooled hidden states, and no role projects them.
+            if e.dim != a.hidden {
+                return Err(invalid(format!(
+                    "manifest.json: embed.dim: {} is not architecture.hidden {}, the width of the pooled hidden states",
+                    e.dim, a.hidden
+                )));
+            }
             if e.max_seq > a.max_positions {
                 return Err(invalid(format!(
                     "manifest.json: embed.max_seq: {} is over architecture.max_positions {}",
@@ -564,6 +571,20 @@ impl Manifest {
                     return Err(invalid(format!(
                         "manifest.json: architecture: required by raw weights in {}",
                         at("name")
+                    )));
+                }
+                // Raw weights compute in what the session's precision says,
+                // and start where the weights do: at token ids.
+                if a.compute_dtype.is_some() {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: fixed by a compilation; raw weights have none",
+                        at("compute_dtype")
+                    )));
+                }
+                if a.graph_input != GraphInput::TokenIds {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: raw weights start at INPUT_TOKEN_IDS",
+                        at("graph_input")
                     )));
                 }
             }
