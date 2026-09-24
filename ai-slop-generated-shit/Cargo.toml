@@ -1,0 +1,51 @@
+[workspace]
+resolver = "2"
+exclude = ["demo/rust"]
+members = [
+    "crates/turbo-abi",
+    "crates/turbo-core",
+    "crates/turbo-capi",
+    "crates/turbo-shared",
+    "crates/turbo",
+    "crates/turbo-conformance",
+    "providers/mock",
+    "providers/static",
+    "providers/cuda",
+    "providers/ggml",
+    "tools/turbo-bundle",
+    "crates/turbo-bench",
+    "server",
+    "reference/ort-cuda",
+    "reference/llama-cpp",
+]
+
+[workspace.package]
+version = "2.0.0-alpha.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/ai-pipestream/turboembed"
+authors = ["Pipestream contributors"]
+
+[workspace.dependencies]
+turbo-abi = { path = "crates/turbo-abi" }
+turbo-core = { path = "crates/turbo-core" }
+turbo-capi = { path = "crates/turbo-capi" }
+turbo = { path = "crates/turbo" }
+turbo-provider-static = { path = "providers/static" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+sha2 = "0.10"
+libc = "0.2"
+libloading = "0.8"
+# Hugging Face tokenizers, without the oniguruma C dependency.
+tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
+
+[profile.release]
+debug = 1
+lto = "thin"
+codegen-units = 4
+
+[profile.dev]
+debug = 1

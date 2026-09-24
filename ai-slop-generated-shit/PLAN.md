@@ -6,6 +6,257 @@ milestone, by an agent or a contributor who has not seen the prior code.
 Research inputs (runtime versions, API designs, binding technology) were
 verified against primary sources on the plan date and are cited inline.
 
+## 0. The point, the entities, and what is left (2026-09-23)
+
+This section was written after two days of building and is the statement
+the rest of the plan is held against. Where a later section disagrees
+with it, this section wins.
+
+### The point
+
+One native library with one interface. For each kind of hardware it goes
+to the lowest, fastest layer that hardware has, with nothing in between:
+Metal directly on Apple, HailoRT on the Pi, OpenVINO on Intel GPUs and
+CPUs and, through its NPU plugin, on the Intel NPU (static shapes, so the
+session's buckets are the shapes it compiles), CUDA with its own kernels
+on NVIDIA, llama.cpp for GGUF. On NVIDIA that means CUDA
+itself: the encoder runs on the provider's own kernels over cuBLASLt from
+the bundle's weights, resident from upload to result. ONNX Runtime is the
+last resort, taken only for a model the direct path does not implement,
+and a result that came through it says so. Speed is the reason it
+exists, and it is proven by matched benchmarks against the vendor's own
+loop, never claimed. A program written against the interface, from Java,
+Swift, Rust, C or over gRPC, embeds, ranks, classifies, chunks and
+generates the same way on any of those machines. The model's contract
+travels in a hash-verified bundle so the answer is the same everywhere.
+Serving and bindings are how people reach it; they are not the product.
+
+Three deliverables, in this order: the core library, which is what people
+build their own applications on; Inferstream, the gRPC and REST service
+over it for deployments that want a server (the Open Inference Protocol,
+so it runs under KServe); and the front end for people to try models
+and hardware. The second and third are projections of the first and add
+no semantics. The core carries no OpenNLP dependency: it takes sentence
+boundaries as an input, or computes them with its own rules, and the
+OpenNLP service (a separate gRPC server, a separate effort) is composed
+in front of the core at the Inferstream layer, where a network hop for a
+few kilobytes of text is fine and where both services are exposed
+together. The Java layer is JDK 25 with the foreign function API over
+the C ABI; under the ABI the core is Rust and the providers are Rust, C++
+and Objective-C++, and Java never sees which. ONNX is a format a user
+brings, never the endpoint: a provider compiles it (OpenVINO, TensorRT,
+the Hailo compiler), takes the weights out of it for its own kernels
+(the direct CUDA and Metal paths), or, for an architecture with no
+kernels yet, runs the graph through the fallback engine and says so. DJL
+is not an integration target; it is the feature list to beat. Its
+capabilities (a model zoo with lookup by criteria, per-task pre and post
+processing, batching, image and audio tasks, serving) are covered one by
+one as layers of our own over the core, in our shape, each a cell in the
+matrix, after R0 to R6. If DJL wants an Engine over our Java binding,
+that is their work to do against a stable ABI, not ours.
+
+Slow hardware is fine. A path slower than the hardware's own best is not.
+A feature that exists on one configuration and not another is fine, and
+the compliance matrix says so. Performance over elegance: ONNX Runtime is
+built for elegance, one graph format and one session API over every
+backend, and pays for it in copies and host round trips. This library is
+a better ONNX, the same one interface as close to the metal as each
+hardware allows. When a cleaner abstraction and a faster path disagree,
+the faster path wins and the abstraction is made to fit it. Existing unifying libraries fail on one of
+two sides: they lower every task to generic operations and pay for the
+copies between them, or they keep the vendor pipeline and lose the common
+interface. This library keeps the vendor pipeline and puts the common
+interface above it.
+
+Tasks, not operations. The interface speaks in the units an application
+needs, and a provider receives the whole task and runs it on the
+hardware's own pipeline, fused the way that vendor's stack fuses it. The
+vendor pipelines on CUDA and on Intel take text in and hand vectors out,
+with tokenizing and chunking inside them; that is why the tokenizer was
+rewritten natively in the core: one implementation that feeds any
+provider with no copies, which a provider replaces with its own fused
+stage when the hardware does that stage faster. A stage runs where its
+data already is: if the tokens are on the GPU and the GPU can gather,
+pool or chunk, it does, and the host fallback, with the copy it costs, is
+taken only when the provider cannot run that stage. Where a stage runs is
+the provider's decision and is reported like any other placement, and so
+is the copy.
+
+### The entities
+
+- Hardware (device). What is physically in the machine: kind (GPU, NPU,
+  CPU), vendor, architecture label, memory, the vendor runtime and driver
+  version. Discovered at runtime, never configured. The list today: the
+  RTX 4080 SUPER and the Jetson Orin Nano (NVIDIA GPU), the Arc B70
+  (Intel GPU), the Intel NPU (through OpenVINO, pending the vendor's
+  approval of the device), the Hailo-8 and Hailo-10H (NPU), the M2 (Apple
+  GPU), and the x86 and Arm CPUs of those machines. Each is a column of
+  the matrix, and a provider that serves it has the rows.
+- Provider. The implementation that drives one hardware family through
+  its lowest layer: `cuda`, `openvino`, `metal`, `hailo`, `ggml`, and the
+  explicit CPU providers. Loaded as a library. It offers tasks per device;
+  that offer, with its status, is the compliance matrix (section 4.4).
+- Task. The unit of work: chunk, tokenize, embed, rerank, classify, tag
+  tokens, generate; audio and image later. Defined once on the interface
+  with its inputs, options and outputs (sections 4 and 5).
+- Model. A checkpoint with a contract per task (pooling, normalization,
+  dimension, labels, prompts). An application meets it as a bundle.
+- Bundle. The hash-verified directory: contract, tokenizer, one or more
+  artifacts (section 6).
+- Artifact. The model made runnable for one target: a format (weights
+  for the cuda and metal providers' own kernels, `openvino_ir`, `hef`,
+  `gguf`, and `onnx` for the fallback engine) for an architecture. The
+  thing a provider loads. A recipe produced it.
+- Stage. One step of a task: normalize text, tokenize, encode, pool,
+  normalize vectors, pool segments, group, centroid, score, decode. A
+  provider states per stage where it runs (device or host) and whether a
+  copy was taken to get there. Boundaries for chunking are a host stage
+  everywhere (they are computed over text before anything reaches a
+  device; OpenNLP's native image is the provider of that stage, with
+  sentence detection and its analysis, and the core's rules are the
+  other). Pooling the segments they define, grouping sentence embeddings
+  by neighbour similarity or a running centroid, and the centroids
+  themselves are vector math over data that is already resident, so they
+  are device stages wherever the stack allows it (CUDA, OpenVINO, Metal)
+  and host stages on Hailo and, until its public API keeps an output on
+  the device, on ggml. Generative chunking (a generator turns a span of
+  text into statements of fact, which are then embedded) is the generate
+  task followed by one small host hop, detokenize and retokenize, because
+  the generator's vocabulary is not the embedder's; the hop is reported
+  as the copy it is. Tokenization is a host stage on every stack today;
+  the core tokenizer is the reference and a fused provider tokenizer
+  replaces it only after an equivalence check.
+- Receipt. Proof binding provider, device architecture, runtime, bundle
+  and artifact hashes, and task: conformance, precision, matched-native
+  (section 11). It fills the matrix and it is the data path selection
+  ranks on. The matched benchmark's other side is the fastest known
+  program for that hardware, at the commit `docs/reference-code.md` pins.
+- Provenance. What one result carries back: provider, device
+  architecture, runtime version, artifact hash, tokenizer hash, and the
+  placement of every stage with any copy taken. Receipts are per
+  configuration and committed; provenance is per result and returned.
+- Interface. The common layer: the C ABI and the Rust API over it. Every
+  surface (Java FFM, Swift, Android JNI, C and C++, gRPC and REST, the
+  web routes) is a thin projection of the same calls and adds no
+  semantics of its own.
+- Runtime objects. A context on a device; a model loaded on it through a
+  provider; a session with its buckets; buffers, host and device, with
+  zero-copy import; results resident on the device with an explicit read
+  (section 4.5).
+- Selection. Two calls the interface does not have yet. Resolve: a task
+  plus constraints (dimension, languages, size, licence, or a name) to
+  the bundles available on this machine that have an artifact for its
+  hardware. Select: a task plus a bundle to the device and provider that
+  will run it fastest here, ranked by cell status (SUPPORTED before
+  EXPERIMENTAL) and then by the receipts' measured throughput for that
+  device class and task, with the choice and its reason reported. Today
+  `AUTO` returns the first accelerator in load order and takes no task;
+  that is the gap between the README and the code, and the README is
+  corrected until the calls exist.
+- Catalog. The typed data selection reads: model, artifact, target,
+  receipts. Built locally from the bundles on disk and the committed
+  receipts; the protobuf schema in P11 is this and nothing more.
+- Fallbacks. Explicit, never silent: the CPU providers, and for chunking
+  an OpenNLP native-image build (in progress in a separate effort),
+  plugged in as a provider of that task.
+
+Overlaps to keep straight: one device can be served by two providers
+(an RTX 4080 by `cuda` and by `ggml`), and selection arbitrates; one
+bundle can hold artifacts for several targets; the server is an
+interface and a deployment at once; a receipt binds five entities, which
+is why it is the ranking data and why it must name hashes, not claims.
+
+### What exists and what is left: the roadmap
+
+The common layer exists: the ABI, the core, the conformance suite, the
+five providers with receipts for embeddings on five machines, the bundle
+contract, the bindings and the server (P0 to P9). What is disjointed is
+the spine: tasks as the unit, selection on the interface, placement and
+provenance on every result, and one bar for "fast". The roadmap is that
+spine, in order. Each item names what ends it; an item without its
+receipt is not done. What the pinned reference source says about each
+stack, with file and line, is in `docs/reference-code.md`, and the items
+below follow from it.
+
+R0. The mission where every reader starts. `AGENTS.md` opens with the
+    mission and the reject rules; the README states the mission, one
+    example, the matrix and the benchmark table, and nothing else.
+    Ends: both files reviewed and merged.
+
+R1. Stages, placement and provenance on the interface. The stage list
+    above becomes an ABI enumeration; `stage_placement` names every stage
+    and whether a copy was taken; a result carries its provenance. Chunk
+    becomes one task with a strategy and a plan of stages, asked for in
+    one call so the provider can keep it resident: fixed (the core's
+    rules), boundaries (the OpenNLP native image as the provider of that
+    stage), semantic (boundaries, embed the sentences, group them by
+    neighbour similarity or running centroid, centroids as segment
+    means, optionally re-embed the merged chunks, all on the device where
+    the stack allows it), and generative (the generate task producing
+    statements of fact, the text hop, then embed). The output is the
+    spans, and the chunk embeddings when asked, with a placement per
+    stage. The embed task takes an optional segment plan. Ends: headers regenerated, the mock
+    provider and every real provider report placement for every stage,
+    the conformance suite checks provenance, bindings compile.
+
+R2. Selection on the interface. Resolve: task plus constraints or a name
+    to the bundles on this machine with an artifact for its hardware.
+    Select: task plus bundle to the device and provider ranked by cell
+    status then by receipts for that device class and task, with the
+    reason reported. The local catalog behind them is built from the
+    bundle directories and the committed receipts (P11 cut to that).
+    Ends: the calls specified, implemented, conformance cases for both,
+    the reason string checked, every binding projecting them.
+
+R3. The bar per machine. Build the fastest known loop from the pinned
+    checkouts and measure it with `turbo-bench`'s token dumps: on the RTX
+    4080, a TensorRT FP16 engine with pooling in the graph and TEI's
+    unpadded FlashBert on candle's kernels (onnxruntime with IO binding
+    is measured too, as the bar for the fallback engine only, never as
+    the target); on the B70, openvino.genai's pipeline against a
+    hand loop with USM tensors; on the M2, MLX (whose fused attention
+    does not cover MiniLM's head size, so the composed path); on the Pi,
+    `hailortcli run2` in full async mode; for GGUF, `llama-embedding`.
+    Ends: a native receipt per loop naming the reference commit, the
+    compare verdicts recomputed against the fastest of them, cells
+    regraded.
+
+R4. Providers to the bar. First, and not conditional on R3's numbers:
+    the cuda provider's direct path. Today its encoder runs through ONNX
+    Runtime's CUDA execution provider with the provider's own kernels
+    only for pooling, normalization, sigmoid and softmax (P3). The direct
+    path runs the encoder on the provider's own kernels: cuBLASLt for the
+    projections, a fused attention kernel for head sizes 32 and 64, fused
+    add and layernorm, GELU, then the existing pooling and segment
+    pooling, all resident, with weights read from the bundle by the
+    safetensors reader `tools/turbo-bundle` already has. ONNX Runtime
+    stays as the fallback engine for an architecture the direct path does
+    not implement, named in the placement and in the cell. Then, wherever
+    R3 puts a cell under 0.95: openvino
+    fuses segment pooling with the pooling it already has and moves
+    inputs and outputs to USM device tensors; metal takes the head size
+    32 attention path that MLX lacks; ggml avoids the host readback the
+    public API forces where it can and reports it where it cannot; hailo
+    measures the host transform against raw async streams. Ends: the
+    verdicts at or above 0.95, or the cell EXPERIMENTAL with the number.
+
+R5. The matrix filled where the hardware allows. Rerank, classify and
+    token classification on the B70 (the bench workloads and OpenVINO
+    reference are parked on `wip/b70-task-benchmarks`); the Jetson cells;
+    the Hailo-10H artifact (needs DFC 5.1); the Intel NPU as static-shape
+    buckets, batch one, when the approval arrives. Ends: receipts per
+    cell.
+
+R6. Bindings as projections. Java, Swift, gRPC and REST expose provenance
+    and the two selection calls and add nothing else. Ends: the binding
+    conformance cases cover both.
+
+Deferred until R0 to R6 are done, and not on the front of the plan:
+remote repositories, the DJL index view, signing, mirrors, GPU-side
+tokenization (cudf's WordPiece is the only one and needs its own
+normalize and pack steps; a PLANNED cell on cuda, nothing else), and any
+tooling not needed by the items above.
+
 ## 1. Verdict on the current code and what we keep
 
 The repo is a proof of concept whose layers overclaimed. Two independent
@@ -572,6 +823,14 @@ classify, token-classify) is still being verified there. TensorRT EP,
 `user_compute_stream` import, and the GPU WordPiece stretch goal are not
 implemented on either machine yet.
 
+Status (2026-09-23): the ONNX Runtime engine described above is the
+fallback, not the target. Section 0 and roadmap item R4 make the direct
+CUDA encoder on the provider's own kernels the cuda provider's path, with
+ONNX Runtime kept only for a model the direct path does not implement.
+The matched benchmarks in `testdata/receipts/turbo/bench/` compare the
+fallback engine with its own native loop; the direct path is measured
+against TensorRT and TEI (R3).
+
 ### P4 Metal provider
 Swift provider library exporting the plugin vtable; MLX arrays over the
 shared arena without copies (pointer-verified); pooling and L2 on the GPU
@@ -832,6 +1091,12 @@ Gate: Android conformance subset on the device; native-image sample runs on
 linux-x64, linux-aarch64, macos-aarch64.
 
 ### P11 Model zoo and repositories
+Scope note (2026-09-23, later the same day): section 0 cuts this milestone
+down to the local catalog that the selection calls read, built from the
+bundles on disk and the committed receipts. The repository layer, the DJL
+view, signing and mirrors below are deferred and kept here as the design
+that was reviewed, not as work in order.
+
 Decided 2026-09-23; revised the same day after a review against the
 Deep Java Library source, the KServe storage initializer and this tree's
 dependency graph. A zoo is the layer that produces bundle artifacts

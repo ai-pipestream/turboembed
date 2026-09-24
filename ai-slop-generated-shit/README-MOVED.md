@@ -1,0 +1,1 @@
+The previous attempt, moved here whole on 2026-09-23 with its history. Kept for reference and for salvage. Its two audits are in docs/reviews/2026-09-23-audit-*.md, its research on vendor layers in docs/hardware-layers.md and docs/reference-code.md. Nothing in here is built or tested from the repository root.

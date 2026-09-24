@@ -1,179 +1,139 @@
-# Turbo
+# TurboEmbed
 
-Turbo is one native library for embeddings and inference on whatever
-accelerator a machine has: a single C ABI (`libturbo`, `turbo_` prefix), a
-safe Rust API on top, Java and Swift bindings, and hardware support as
-provider libraries loaded at runtime rather than compile-time flags. The
-same program embeds on an NVIDIA GPU, an Intel GPU or CPU through OpenVINO,
-a Hailo-8 NPU on a Raspberry Pi, a Jetson, or an Apple M2 through Metal
-directly, and generates text from GGUF models through llama.cpp, without
-changing a line.
+A native library that runs text models on whatever accelerator a machine
+has, through one C interface, with each backend written directly against
+the vendor's lowest layer. Embedding first. Reranking, classification,
+token tagging, chunking and generation follow one at a time, each
+landed on every machine we own before the next starts. Java, Swift,
+Rust and a gRPC server sit on the C interface and add nothing to it.
 
-Its rules are simple and enforced: every option is honored exactly or the
-call fails naming the field; a device is never silently swapped for a
-slower one; every claim about precision or speed comes with a committed
-receipt from a named machine; and a model's contract (pooling,
-normalization, limits, prefixes) is frozen in a hash-verified bundle.
+This is a restart. The previous attempt is in `ai-slop-generated-shit/`,
+moved there whole with its history on 2026-09-23. Its two audits
+(`docs/reviews/2026-09-23-audit-*.md` in that folder) say why: the
+benchmarks compared the code with itself or with a crippled reference,
+the test records were hand-written, the default device was a fake, and
+the "one interface" had three tokenizers, two copies of its C
+conversions and five copies of the data on the way to Java. The header
+files were the one part worth keeping, and they are the starting point
+here. Everything else is written again, against the rules below, and
+nothing from that folder comes back without being read first.
 
-![The web demo: sentences in, a cosine similarity heat map out, and the device it ran on](demo/java-web-spring/docs/screenshots/page-minilm.png)
+## What we are building
 
-The same app streams a summary from a GGUF model through the ggml
-provider (Qwen2.5-0.5B on an RTX 4080 SUPER here, 297 tokens/s; a 0.5B
-model summarizes by trimming, which the screenshot shows as it is):
+One library, `libturbo`, with one C header. A program calls it the same
+way on every machine we own:
 
-![The web demo's summarizer: a paragraph in, a streamed three-sentence summary out, with the token rate and finish reason](demo/java-web-spring/docs/screenshots/summary-qwen.png)
+- an x86 box with an RTX 4080 SUPER
+- an x86 box with an Intel Arc B70
+- an Intel NPU (leased now, a laptop later)
+- a Jetson Orin Nano
+- a Raspberry Pi 5 with a Hailo-8, and one with a Hailo-10H
+- an M2 Mac
 
-## Quick start
+For each of those, the backend is the lowest thing the vendor gives us:
+CUDA kernels and cuBLASLt on NVIDIA, OpenVINO's compiled graph on Intel
+GPU, CPU and NPU, our own Metal kernels on Apple, HailoRT on the Pi,
+llama.cpp for GGUF models. Not ONNX Runtime, not a framework. ONNX is a
+file format users bring; it is never the thing that runs.
 
-```sh
-cargo build -p turbo-shared -p turbo-bench          # libturbo.so and the survey/benchmark tool
-target/debug/turbo-bench discover                   # what this machine can run (built-in providers)
-target/debug/turbo-bench discover --provider-dir build/openvino --provider-lib target/debug/libturbo_provider_cuda.so \
-    --bundle ~/opt/bundles/minilm-onnx              # every device, its features, and whether it can run the bundle
+The unit of work is a task, not an operation. "Embed these texts" or
+"chunk this document and embed the chunks" is one call, and the backend
+runs the whole thing on the device, keeping the data there between
+stages. The only things that come back to the host are the vectors, or
+the spans, that the caller asked for.
 
-make -C demo/c test                                 # C: embed three sentences on the mock bundle
-demo/java-web-spring/run.sh --turbo.bundle=~/opt/bundles/minilm-onnx \
-    --turbo.provider-lib=build/openvino/libturbo_provider_openvino.so --turbo.provider=openvino --turbo.ordinal=1
-```
+The model's settings (pooling, normalization, sequence length, prefixes,
+dimension, which tokenizer) travel in a bundle: a directory with a
+manifest and hashes. Point two different machines at the same bundle and
+they give the same answer.
 
-`turbo-bench discover` prints, per device, the provider and runtime
-versions, the option features it honors, the task-by-modality capability
-matrix with its compute dtype and measured cosine floor, and, for each
-bundle named, whether the device can run it and why not.
+Selection is part of the interface. The caller names a task and, if it
+wants, constraints; the library says which bundles on this machine can
+do it and which backend and device will do it fastest, and why.
 
-## What it does
+## Why
 
-| task | what you get |
-|---|---|
-| `EMBED` | dense vectors with the bundle's pooling and normalization, on the device |
-| `RERANK` | cross-encoder scores, optionally sorted, optionally raw logits |
-| `CLASSIFY`, `TOKEN_CLASSIFY` | labels with activations, and word-aligned entity spans |
-| `GENERATE` | a pull iterator over chunks (and a push form), with chat templates, stop strings and tokens, seeds, logprobs, grammars, cancellation from any thread |
-| `TOKENIZE` | the bundle's tokenizer as a thread-safe object: encode into caller rows, decode, count |
+I build text pipelines and I was developing them on a Mac and deploying
+them on Linux. Every accelerator has its own vocabulary, and you relearn
+it with every new card. The libraries that promise to hide that either
+go through a generic runtime, which is convenient and slow because the
+data keeps crossing the bus, or they keep the vendor's pipeline and lose
+the common interface.
 
-One object model for every provider:
+I own an NVIDIA card, an Intel card, two Hailo boards and a Mac, and I
+want all of them used to their limit through one API. Slow hardware is
+fine. A path that is slower than what the hardware can do is a bug.
 
-```
-turbo_runtime -> turbo_device -> turbo_context -> turbo_model -> turbo_session -> turbo_result
-                                                             \-> turbo_generation
-                    turbo_tokenizer (from a bundle)
-```
+The specific thing that started this: running chunking and embedding as
+separate services on one GPU makes the data go GPU, host, GPU, host for
+no reason. If both stages are on the card, the card should do both in
+one pass. That is what "a stage runs where its data is" means.
 
-Every option a caller can pass maps to a `TURBO_CAP_*` bit. A provider
-either honors it exactly or the call fails with
-`TURBO_E_UNSUPPORTED_OPTION` and the 1-based field index. Device selection
-with `AUTO` never picks a CPU; a CPU is an explicit choice.
+ONNX is built for elegance: one format, one session API, every backend
+behind it. This is built for speed. When a cleaner abstraction and a
+faster path disagree, the faster path wins and the abstraction is bent
+to fit it.
 
-## Hardware
+## How
 
-Providers are separate libraries (`libturbo_provider_<name>`) exporting one
-symbol, `turbo_provider_get`. Status is per (device, task, modality) cell
-and comes from committed receipts under `testdata/receipts/turbo/`.
+**The header is the design.** `include/turbo/turbo.h` is one file,
+hand-written, cut from the previous attempt's three headers to what the
+first feature needs: text embedding, tokens in and vectors out, on one
+device, with a summary of where each stage ran and every byte that
+crossed the bus. The other tasks and chunking are added to it when they
+are built, not before. Changing it is a design decision made in the
+open, not a build step. It compiles standalone as C11 and C++17.
 
-| provider | devices with receipts | runtime | status |
-|---|---|---|---|
-| `cuda` | RTX 4080 SUPER on x86_64, Jetson Orin Nano on aarch64 | ONNX Runtime CUDA EP, own pooling and activation kernels | SUPPORTED for embeddings on the 4080 (1.00x to 1.15x the ONNX Runtime CUDA loop, `compare-cuda-rtx4080-embed-2026-09-23.json`); EXPERIMENTAL on the Jetson (0.92x to 1.05x, `compare-cuda-orin-nano-embed-2026-09-22c.json`) and for the other tasks; cosine 1.000 vs FP32 |
-| `openvino` | Intel Arc B70 (Battlemage) on x86_64, any CPU | OpenVINO 2026.3, fused graph, `cl_mem` results on GPU | SUPPORTED for embeddings on the B70 (1.15x to 1.55x the OpenVINO C++ loop) and on the Ryzen 9 CPU (1.01x to 1.34x); cosine 1.000 vs FP32 |
-| `ggml` | RTX 4080 SUPER and its CPU, Apple M2 Metal | llama.cpp through `llama-cpp-2` | SUPPORTED on the 4080 for generation (0.99x of llama.cpp itself) and GGUF embeddings (0.99x to 1.89x) |
-| `metal` | Apple M2 | Metal directly: MSL kernels compiled at load, shared `MTLBuffer`s end to end, no MLX | SUPPORTED for embeddings on the M2 (1.00x of the kernels run directly); EXPERIMENTAL for rerank; cosine 1.000 vs FP32 |
-| `hailo` | Hailo-8 on two Raspberry Pis (a Pi 5 with the AI HAT+ 26 TOPS and a CM5 with a Hailo-8 M.2 module) | HailoRT 4.23 vstreams, INT8 HEF | SUPPORTED for embeddings on the Hailo-8 (1.00x of `hailortcli benchmark`); cosine floor 0.45 vs FP32, ranking at parity (Spearman 0.937 vs 0.944) |
-| `static` | any CPU, explicit only | model2vec-style table lookup | EXPERIMENTAL |
-| `mock` | two synthetic devices | none | for contract tests only, never a real model |
+**Rust core, vendor backends in whatever the vendor speaks.** The core
+loads bundles, tokenizes once on the host, hands token rows to a
+backend, and hands results back. Backends are C++ (OpenVINO, HailoRT),
+Objective-C++ (Metal), or Rust with CUDA kernels. Java uses JDK 25's
+foreign function interface over the C header. Swift wraps the same
+header. The gRPC server speaks the Open Inference Protocol so it runs
+under KServe. None of these know anything the header does not say.
 
-`SUPPORTED` is earned per (device, task) by a matched-native benchmark on
-top of the conformance and precision receipts: `crates/turbo-bench`
-measures the `libturbo` side, the programs under [`reference/`](reference/README.md)
-drive each runtime alone on the same token rows, and `turbo-bench
-compare` writes the verdict (every cell at 0.95 of native or better) into
-`testdata/receipts/turbo/bench/compare-*.json`. Hailo-10H is planned; see
-[`PLAN.md`](PLAN.md). The web demo's Benchmarks panel renders those receipts,
-so the same comparison can be read per device in a browser
-([`demo/java-web-spring`](demo/java-web-spring/README.md#benchmarks)).
+**Rules.** These are short because every one of them was broken last
+time by being long.
 
-![The web demo's benchmarks panel: every comparison with its verdict, one expanded to the ratio of each cell against the runtime alone](demo/java-web-spring/docs/screenshots/benchmarks.png)
+1. Nothing is called working until it has run on the real hardware.
+   There is no fake device in the normal path. A test that cannot run on
+   the current machine is skipped and says so; it never passes.
+2. A performance claim is a number from a named machine at a named
+   commit, measured against the vendor's fastest program at a pinned
+   version, on the same inputs. The programs and their versions are
+   listed in the tree. If the comparison is not fair, there is no
+   number.
+3. A stage runs where its data is. Every copy between host and device is
+   counted, and the count is returned with the result.
+4. The model's settings live in the bundle, never in code.
+5. If the hardware cannot do what was asked, the call fails and says
+   what it cannot do. Nothing is substituted, defaulted or clamped.
+6. Tokens are the same on every machine. One tokenizer, in the core.
+7. No Python in the tree. A vendor's Python tool runs inside a pinned
+   container, driven from Rust.
+8. No machine names, user names or paths from our machines in anything
+   committed. Machines are named by what they are: `rtx4080`, `b70`,
+   `intel-npu`, `orin-nano`, `pi5-hailo8`, `pi5-hailo10h`, `m2`.
+9. Add only what the header needs. A file that exists to wrap another
+   file is deleted.
 
-## Bindings and demos
+**What is here now.** The header, this file, the licence. The
+previous attempt, for reading. The vendor stacks and the fastest known
+programs for each machine are checked out at pinned versions under a
+reference directory outside the tree; the list with commits is in
+`ai-slop-generated-shit/docs/reference-code.md`, and what each vendor's
+layers offer per pipeline stage is in
+`ai-slop-generated-shit/docs/hardware-layers.md`. Those two are the
+research this restart stands on and move here once the first backend
+uses them.
 
-| language | where | notes |
-|---|---|---|
-| C, C++ | `include/turbo/turbo.h` | the ABI everything else sits on; struct sizes are versioned |
-| Rust | `crates/turbo` | safe API; lifetimes enforced by types |
-| Java 25 | `bindings/java` (`ai.pipestream:turbo`) | FFM, generated by jextract; embed, rerank, classify, generate, tokenize |
-| Swift | `bindings/swift` (`PipestreamTurbo`) | SwiftPM over a clang module of the header |
-| Python | `demo/python` | `ctypes` over the C ABI, no extension module |
-| Android | `demo/android` | a JNI shim over the C ABI (FFM is not on Android) |
+**Order of work.** The header is cut to embedding. Next: the Rust core
+against it with the CUDA backend on the RTX 4080, measured against
+TensorRT and the fastest known embedding server on the same inputs.
+Then the same feature on the B70, the M2, the two Pis and the Jetson,
+so the hard parts show up before any second task is added. Bindings and
+the server after the core holds on every machine.
 
-`server/` is Inferstream, the inference server: the KServe Open Inference
-Protocol v2 over gRPC (with reflection) and REST, an extension service
-that streams generation and loads or unloads bundles while the server
-runs, the OpenAI-shaped `/v1/embeddings`, `/v1/rerank`,
-`/v1/chat/completions` (streaming) and `/v1/classify`, and `/info`, over
-any served bundle with pooled fixed-shape sessions. It ships as a
-container image with KServe manifests (`packaging/`), and `demo/rag/`
-runs embed, rerank and a cited streamed answer over it through the
-OpenAI SDK and through KServe's own clients, and `demo/search/` is a
-page it serves that searches 48 passages in 8 languages with MiniLM and
-Qwen3-Embedding-0.6B side by side. See
-[`server/README.md`](server/README.md).
+## Licence
 
-`demo/` holds a small program per language that embeds sentences and
-prints their similarities, a C summarizer that streams from a GGUF model
-through the push generation API, a gRPC C++ server, and a Spring Boot web
-app with the page above and a streaming summarizer; `demo/run-all.sh` runs
-every one this machine can on the mock bundles. See
-[`demo/README.md`](demo/README.md).
-
-## Models
-
-A model is a bundle directory: `bundle.json` freezes the contract (task,
-pooling, normalization, `max_seq`, dimension, prefixes, labels, tokenizer
-identity) and hashes every artifact (`onnx`, `openvino_ir`, `gguf`, `hef`
-plus `hailo_tables`). `turbo-bundle import` builds one from a Hugging Face
-or sentence-transformers directory and refuses what it cannot verify. See
-[`docs/bundles.md`](docs/bundles.md).
-
-## Build and test
-
-```sh
-cargo test --workspace --exclude turbo-provider-cuda   # unit tests and the provider-agnostic conformance suite (mock)
-scripts/gen-header.sh --check && scripts/gen-versioned.py --check && scripts/gen-unicode-nfd.py --check
-cd bindings/java && mvn test                          # 16 cases under --illegal-native-access=deny
-cd bindings/swift && swift run turbo-conformance       # macOS, 16 cases
-make -C providers/metal test                          # macOS, the Metal provider and its 15 vtable cases
-scripts/package.sh                                    # the archive for this machine, verified by ldd, a C smoke test, and a provider load check
-scripts/package-container.sh                          # the same archive on the manylinux_2_28 floor
-```
-
-Live suites run against real providers and bundles through environment
-variables (`TURBO_LIVE_LIB`, `TURBO_LIVE_PROVIDER`, `TURBO_LIVE_BUNDLE`);
-every receipt in `testdata/receipts/turbo/` records one such run. See
-[`docs/testing.md`](docs/testing.md).
-
-## Repository
-
-```
-include/turbo/      the generated, committed C headers
-crates/             turbo-abi, turbo-core, turbo-capi, turbo (safe API), turbo-conformance, turbo-bench
-providers/          mock, static, cuda, ggml (Rust); openvino, hailo (C++); metal (Objective-C++)
-native/             the shared C++ WordPiece tokenizer and provider helpers
-bindings/           java (FFM), swift
-server/             Inferstream (turbo-inferstream): OIP v2 gRPC and REST, extension service, OpenAI-shaped routes
-packaging/          the distribution archive Dockerfile, the Inferstream image, KServe manifests
-demo/               c, python, rust, java, swift, grpc-c-server, android, java-web-spring, rag, search
-tools/turbo-bundle  bundle import, verify, inspect
-scripts/            header and size-table generators, packaging, table export
-testdata/           mock bundles, reference vectors, corpora, receipts
-docs/               architecture, C API, bundles, providers, testing, packaging, bindings, reviews, status
-```
-
-## Documentation
-
-- [`PLAN.md`](PLAN.md): the design, its principles, the milestones and their status.
-- [`docs/status.md`](docs/status.md): the long-form account of what has landed, per machine.
-- [`docs/architecture.md`](docs/architecture.md), [`docs/c-api.md`](docs/c-api.md), [`docs/providers.md`](docs/providers.md), [`docs/bundles.md`](docs/bundles.md), [`docs/bindings.md`](docs/bindings.md), [`docs/packaging.md`](docs/packaging.md), [`docs/testing.md`](docs/testing.md).
-- [`docs/reviews/`](docs/reviews/): the independent reviews and how each finding was closed.
-- [`AGENTS.md`](AGENTS.md): the rules for contributors, human or otherwise.
-
-## License
-
-Apache-2.0. See [`LICENSE`](LICENSE).
+Apache-2.0. See `LICENSE`.

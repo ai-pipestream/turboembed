@@ -1,0 +1,22 @@
+/target/
+**/target/
+/build/
+/dist/
+/include/turbo/*.h.tmp
+__pycache__/
+.venv/
+.DS_Store
+# Fetched model artifacts stay out of git; SHA-256 manifests are committed.
+/models/*
+!/models/manifests/
+/testdata/corpus/tiny-shakespeare.txt
+# Provider build trees
+/providers/*/build/
+/providers/metal/.build/
+/native/*/build/
+/bindings/java/**/target/
+/bindings/swift/.build/
+/.libs/
+/bindings/swift/.build/
+/bindings/swift/.build/
+/target-*/
