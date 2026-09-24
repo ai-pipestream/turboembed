@@ -69,7 +69,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_tokenizer_info", "unk_id", offset_of!(turbo_tokenizer_info, unk_id)),
         ("turbo_tokenizer_info", "kind", offset_of!(turbo_tokenizer_info, kind)),
         ("turbo_tokenizer_info", "sha256", offset_of!(turbo_tokenizer_info, sha256)),
-        ("turbo_encode_options", "add_special_tokens", offset_of!(turbo_encode_options, add_special_tokens)),
+        ("turbo_tokenizer_info", "manifest_sha256", offset_of!(turbo_tokenizer_info, manifest_sha256)),
+        ("turbo_encode_options", "omit_special_tokens", offset_of!(turbo_encode_options, omit_special_tokens)),
         ("turbo_encode_options", "truncate", offset_of!(turbo_encode_options, truncate)),
         ("turbo_encode_options", "max_tokens", offset_of!(turbo_encode_options, max_tokens)),
         ("turbo_encode_options", "prompt_role", offset_of!(turbo_encode_options, prompt_role)),
@@ -107,6 +108,69 @@ fn struct_layouts_match_the_header() {
     }
     assert_eq!(out, want);
     std::fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn mirrored_constants_match_the_header() {
+    use turbo::status::*;
+    // Every constant the Rust side mirrors belongs here.
+    let constants: &[(&str, i64)] = &[
+        ("TURBO_ERROR_MESSAGE_LEN", TURBO_ERROR_MESSAGE_LEN as i64),
+        ("TURBO_TRUNCATE_MODEL", TURBO_TRUNCATE_MODEL.into()),
+        ("TURBO_TRUNCATE_NONE", TURBO_TRUNCATE_NONE.into()),
+        ("TURBO_TRUNCATE_RIGHT", TURBO_TRUNCATE_RIGHT.into()),
+        ("TURBO_TRUNCATE_LEFT", TURBO_TRUNCATE_LEFT.into()),
+        ("TURBO_PROMPT_NONE", TURBO_PROMPT_NONE.into()),
+        ("TURBO_PROMPT_QUERY", TURBO_PROMPT_QUERY.into()),
+        ("TURBO_PROMPT_DOCUMENT", TURBO_PROMPT_DOCUMENT.into()),
+        ("TURBO_OK", OK.into()),
+        ("TURBO_E_INVALID_ARGUMENT", INVALID_ARGUMENT.into()),
+        ("TURBO_E_INVALID_STRUCT_SIZE", INVALID_STRUCT_SIZE.into()),
+        ("TURBO_E_INVALID_UTF8", INVALID_UTF8.into()),
+        ("TURBO_E_INVALID_HANDLE", INVALID_HANDLE.into()),
+        ("TURBO_E_INVALID_SHAPE", INVALID_SHAPE.into()),
+        ("TURBO_E_INVALID_STATE", INVALID_STATE.into()),
+        ("TURBO_E_INVALID_ENUM", INVALID_ENUM.into()),
+        ("TURBO_E_UNSUPPORTED", UNSUPPORTED.into()),
+        ("TURBO_E_UNSUPPORTED_OPTION", UNSUPPORTED_OPTION.into()),
+        ("TURBO_E_UNSUPPORTED_TASK", UNSUPPORTED_TASK.into()),
+        ("TURBO_E_OUT_OF_MEMORY", OUT_OF_MEMORY.into()),
+        ("TURBO_E_BUSY", BUSY.into()),
+        ("TURBO_E_CAPACITY", CAPACITY.into()),
+        ("TURBO_E_DEVICE_NOT_FOUND", DEVICE_NOT_FOUND.into()),
+        ("TURBO_E_DEVICE_UNAVAILABLE", DEVICE_UNAVAILABLE.into()),
+        ("TURBO_E_RUNTIME", RUNTIME.into()),
+        ("TURBO_E_BUNDLE_NOT_FOUND", BUNDLE_NOT_FOUND.into()),
+        ("TURBO_E_BUNDLE_INVALID", BUNDLE_INVALID.into()),
+        ("TURBO_E_BUNDLE_INTEGRITY", BUNDLE_INTEGRITY.into()),
+        ("TURBO_E_BUNDLE_NO_ARTIFACT", BUNDLE_NO_ARTIFACT.into()),
+        ("TURBO_E_INTERNAL", INTERNAL.into()),
+        ("TURBO_E_PANIC", PANIC.into()),
+    ];
+    let mut src = String::from("#include <stdio.h>\n#include <turbo/turbo.h>\nint main(void) {\n");
+    for (name, _) in constants {
+        src += &format!("  printf(\"{name} %lld\\n\", (long long)({name}));\n");
+    }
+    src += "  return 0;\n}\n";
+    let d = scratch("constants");
+    std::fs::write(d.join("constants.c"), src).unwrap();
+    run(Command::new("cc")
+        .args(["-std=c11", "-Wall", "-Werror", "-o"])
+        .arg(d.join("constants"))
+        .arg(d.join("constants.c"))
+        .arg("-I")
+        .arg(include()));
+    let out = run(&mut Command::new(d.join("constants")));
+    let want: String = constants.iter().map(|(name, v)| format!("{name} {v}\n")).collect();
+    assert_eq!(out, want);
+    for (name, v) in constants.iter().filter(|(n, _)| n.starts_with("TURBO_OK") || n.starts_with("TURBO_E_")) {
+        assert_eq!(turbo_status_name_str(*v as i32), *name);
+    }
+    std::fs::remove_dir_all(d).unwrap();
+}
+
+fn turbo_status_name_str(code: i32) -> String {
+    unsafe { std::ffi::CStr::from_ptr(turbo_status_name(code)) }.to_str().unwrap().to_owned()
 }
 
 const PROGRAM: &str = r#"

@@ -414,10 +414,10 @@ impl Encoded {
     }
 }
 
-pub fn options(add_special_tokens: u32, truncate: u32, max_tokens: u32, prompt_role: u32) -> turbo_encode_options {
+pub fn options(omit_special_tokens: u32, truncate: u32, max_tokens: u32, prompt_role: u32) -> turbo_encode_options {
     turbo_encode_options {
         struct_size: size_of::<turbo_encode_options>() as u32,
-        add_special_tokens,
+        omit_special_tokens,
         truncate,
         max_tokens,
         prompt_role,
