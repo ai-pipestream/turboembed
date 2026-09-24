@@ -10,6 +10,41 @@ pub const TURBO_CAP_UNSUPPORTED: u32 = 0;
 pub const TURBO_CAP_EXPERIMENTAL: u32 = 1;
 pub const TURBO_CAP_SUPPORTED: u32 = 2;
 
+pub const TURBO_BERT_EMBEDDING_TENSORS: u32 = 5;
+pub const TURBO_BERT_LAYER_TENSORS: u32 = 16;
+
+pub const TURBO_FAMILY_BERT: u32 = 1;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turbo_backend_tensor {
+    pub name: *const c_char,
+    pub data: *const c_void,
+    pub shape: [u64; 2],
+    pub ndim: u32,
+    pub dtype: u32,
+    pub bytes: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turbo_backend_model {
+    pub struct_size: u32,
+    pub family: u32,
+    pub dtype: u32,
+    pub layers: u32,
+    pub hidden: u32,
+    pub heads: u32,
+    pub intermediate: u32,
+    pub vocab_size: u32,
+    pub max_positions: u32,
+    pub token_types: u32,
+    pub layer_norm_eps: f64,
+    pub tensor_count: u32,
+    pub reserved: u32,
+    pub tensors: *const turbo_backend_tensor,
+}
+
 #[repr(C)]
 pub struct turbo_backend {
     pub struct_size: u32,
@@ -64,6 +99,15 @@ pub struct turbo_backend {
     pub buffer_export: Option<
         unsafe extern "C" fn(buf: *mut c_void, kind: u32, out: *mut turbo_native_handle, err: *mut turbo_error) -> i32,
     >,
+    pub model_load: Option<
+        unsafe extern "C" fn(
+            ctx: *mut c_void,
+            desc: *const turbo_backend_model,
+            out: *mut *mut c_void,
+            err: *mut turbo_error,
+        ) -> i32,
+    >,
+    pub model_release: Option<unsafe extern "C" fn(model: *mut c_void)>,
 }
 
 // The table is immutable static data, read from any thread.
@@ -86,22 +130,39 @@ static LINKED: &[&turbo_backend] = &[
     &crate::cpu::BACKEND,
 ];
 
+/// The sizes the table has had, one per group of functions appended to it.
+const TABLE_SIZES: [usize; 3] = [
+    std::mem::offset_of!(turbo_backend, context_create),
+    std::mem::offset_of!(turbo_backend, model_load),
+    size_of::<turbo_backend>(),
+];
+
 /// The table's size is one this core knows, and what it offers comes with
 /// its release. A table built against another header is a build fault,
 /// not a missing driver.
 pub fn check_table(backend: &turbo_backend) -> Result<()> {
-    let want = size_of::<turbo_backend>();
-    if backend.struct_size as usize != want {
+    if !TABLE_SIZES.contains(&(backend.struct_size as usize)) {
         return Err(Error::new(
             INTERNAL,
-            format!("{} backend: its table is {} bytes, this core knows {want}", backend.name(), backend.struct_size),
+            format!(
+                "{} backend: its table is {} bytes, this core knows {TABLE_SIZES:?}",
+                backend.name(),
+                backend.struct_size
+            ),
         ));
     }
     let b = backend;
+    // A function past struct_size is not read.
+    macro_rules! has {
+        ($f:ident) => {
+            b.struct_size as usize > std::mem::offset_of!(turbo_backend, $f) && b.$f.is_some()
+        };
+    }
     let pairs = [
-        ("context_create", b.context_create.is_some(), "context_release", b.context_release.is_some()),
-        ("buffer_alloc", b.buffer_alloc.is_some(), "buffer_release", b.buffer_release.is_some()),
-        ("buffer_import", b.buffer_import.is_some(), "buffer_release", b.buffer_release.is_some()),
+        ("context_create", has!(context_create), "context_release", has!(context_release)),
+        ("buffer_alloc", has!(buffer_alloc), "buffer_release", has!(buffer_release)),
+        ("buffer_import", has!(buffer_import), "buffer_release", has!(buffer_release)),
+        ("model_load", has!(model_load), "model_release", has!(model_release)),
     ];
     for (f, has, release, has_release) in pairs {
         if has && !has_release {
@@ -116,15 +177,26 @@ pub fn check_table(backend: &turbo_backend) -> Result<()> {
 /// function.
 macro_rules! offered {
     ($b:expr, $f:ident) => {
-        $crate::backend::covered($b, ::std::mem::offset_of!($crate::backend::turbo_backend, $f), $b.$f, stringify!($f))
+        $crate::backend::covered(
+            $b,
+            ::std::mem::offset_of!($crate::backend::turbo_backend, $f),
+            || $b.$f,
+            stringify!($f),
+        )
     };
 }
 pub(crate) use offered;
 
-pub(crate) fn covered<F>(backend: &turbo_backend, offset: usize, f: Option<F>, what: &str) -> Result<F> {
+/// `f` reads the function, and is called only when struct_size covers it.
+pub(crate) fn covered<F>(
+    backend: &turbo_backend,
+    offset: usize,
+    f: impl FnOnce() -> Option<F>,
+    what: &str,
+) -> Result<F> {
     let covers = backend.struct_size as usize >= offset + size_of::<Option<F>>();
     covers
-        .then_some(f)
+        .then(f)
         .flatten()
         .ok_or_else(|| Error::new(UNSUPPORTED, format!("the {} backend does not offer {what}", backend.name())))
 }
@@ -165,4 +237,39 @@ pub fn check(backend: &turbo_backend, what: &str, f: impl FnOnce(*mut turbo_erro
         return Err(failed(backend, what, code, &err));
     }
     Ok(())
+}
+
+#[cfg(all(test, feature = "cpu"))]
+mod tests {
+    use super::*;
+
+    /// The CPU backend's table as a backend built before `field` was
+    /// appended would have it.
+    fn cpu_table(struct_size: usize) -> turbo_backend {
+        let mut t = unsafe { std::ptr::read(&crate::cpu::BACKEND) };
+        t.struct_size = struct_size as u32;
+        t
+    }
+
+    #[test]
+    fn a_table_from_before_the_model_functions_is_known_and_offers_none() {
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, model_load));
+        check_table(&t).unwrap();
+        assert!(offered!(&t, buffer_alloc).is_ok());
+        let e = offered!(&t, model_load).err().unwrap();
+        assert_eq!(e, Error::new(UNSUPPORTED, "the cpu backend does not offer model_load"));
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, context_create));
+        check_table(&t).unwrap();
+        assert_eq!(offered!(&t, context_create).err().unwrap().code, UNSUPPORTED);
+    }
+
+    #[test]
+    fn a_table_of_an_unknown_size_or_a_load_without_its_release_is_refused() {
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, model_release));
+        assert_eq!(check_table(&t).unwrap_err().code, INTERNAL);
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.model_release = None;
+        let e = check_table(&t).unwrap_err();
+        assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has model_load and no model_release"));
+    }
 }

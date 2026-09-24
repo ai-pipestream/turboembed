@@ -258,7 +258,8 @@ impl Fixture {
         fs::copy(upstream_tokenizer_json(), dir.join("tokenizer.json")).unwrap();
         let ids = reference_ids(&manifest);
         let width = ids.iter().map(Vec::len).max().unwrap_or(1).max(1);
-        fs::write(dir.join("reference/reference.safetensors"), reference_file(&ids, width, 0, 384)).unwrap();
+        let dim = manifest["embed"]["dim"].as_u64().unwrap() as usize;
+        fs::write(dir.join("reference/reference.safetensors"), reference_file(&ids, width, 0, dim)).unwrap();
         let mut f = Fixture { dir, manifest };
         f.list("tokenizer.json");
         f.list("reference/reference.safetensors");
@@ -267,6 +268,32 @@ impl Fixture {
 
     pub fn standard(name: &str) -> Fixture {
         Fixture::new(name, manifest())
+    }
+
+    /// The small BERT of `model_manifest`, with its weights on disk.
+    pub fn model(name: &str) -> Fixture {
+        let mut f = Fixture::new(name, model_manifest());
+        f.weights("weights/model.safetensors", &tiny_weights(0));
+        f
+    }
+
+    /// Write `tensors` as a safetensors file at `path` and list it.
+    pub fn weights(&mut self, path: &str, tensors: &[Tensor]) {
+        let p = self.dir.join(path);
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(&p, safetensors_file(tensors)).unwrap();
+        self.list(path);
+    }
+
+    /// The hash files[] gives `path`.
+    pub fn sha256(&self, path: &str) -> String {
+        let files = self.manifest["files"].as_array().unwrap();
+        files.iter().find(|f| f["path"] == path).unwrap()["sha256"].as_str().unwrap().to_owned()
+    }
+
+    pub fn load(&self) -> Result<Loaded, Failure> {
+        self.write();
+        Loaded::load(&self.dir)
     }
 
     /// Put `path`'s size and hash in files[], replacing any entry for it.
@@ -431,4 +458,197 @@ pub fn parity_texts() -> Vec<String> {
         .lines()
         .map(|l| serde_json::from_str::<Value>(l).unwrap()["text"].as_str().unwrap().to_owned())
         .collect()
+}
+
+// ---- A small BERT --------------------------------------------------------
+
+/// Two layers, hidden 8, two heads, intermediate 16, over the upstream
+/// vocabulary: the shapes of a BERT encoder at a size a test writes in
+/// a moment.
+pub fn tiny_architecture() -> Value {
+    json!({
+        "family": "FAMILY_BERT",
+        "layers": 2,
+        "hidden": 8,
+        "heads": 2,
+        "intermediate": 16,
+        "activation": "ACTIVATION_GELU_ERF",
+        "layer_norm_eps": 1e-12,
+        "position_embedding": "POSITION_ABSOLUTE",
+        "max_positions": 512,
+        "token_types": 2,
+        "vocab_size": 30522
+    })
+}
+
+/// The standard manifest for the small BERT, loadable on the CPU: its
+/// architecture, a dim of its hidden width, and cpu among the weights
+/// artifact's backends, as the MiniLM recipe has it.
+pub fn model_manifest() -> Value {
+    let mut m = manifest();
+    m["architecture"] = tiny_architecture();
+    m["embed"]["dim"] = json!(8);
+    m["artifacts"][0]["backends"] = json!(["cuda", "metal", "cpu"]);
+    m["files"] = json!([]);
+    m
+}
+
+pub struct Tensor {
+    pub name: String,
+    pub dtype: &'static str,
+    pub shape: Vec<u64>,
+    pub data: Vec<u8>,
+}
+
+/// Every tensor of the small BERT under the upstream names, F32, with
+/// values that depend on `seed` and the element's place and nothing else.
+pub fn tiny_weights(seed: u32) -> Vec<Tensor> {
+    let (h, i, v, p, t) = (8u64, 16u64, 30522u64, 512u64, 2u64);
+    let mut shapes: Vec<(String, Vec<u64>)> = vec![
+        ("embeddings.word_embeddings.weight".into(), vec![v, h]),
+        ("embeddings.position_embeddings.weight".into(), vec![p, h]),
+        ("embeddings.token_type_embeddings.weight".into(), vec![t, h]),
+        ("embeddings.LayerNorm.weight".into(), vec![h]),
+        ("embeddings.LayerNorm.bias".into(), vec![h]),
+    ];
+    for l in 0..2 {
+        let at = |s: &str| format!("encoder.layer.{l}.{s}");
+        for (s, shape) in [
+            ("attention.self.query.weight", vec![h, h]),
+            ("attention.self.query.bias", vec![h]),
+            ("attention.self.key.weight", vec![h, h]),
+            ("attention.self.key.bias", vec![h]),
+            ("attention.self.value.weight", vec![h, h]),
+            ("attention.self.value.bias", vec![h]),
+            ("attention.output.dense.weight", vec![h, h]),
+            ("attention.output.dense.bias", vec![h]),
+            ("attention.output.LayerNorm.weight", vec![h]),
+            ("attention.output.LayerNorm.bias", vec![h]),
+            ("intermediate.dense.weight", vec![i, h]),
+            ("intermediate.dense.bias", vec![i]),
+            ("output.dense.weight", vec![h, i]),
+            ("output.dense.bias", vec![h]),
+            ("output.LayerNorm.weight", vec![h]),
+            ("output.LayerNorm.bias", vec![h]),
+        ] {
+            shapes.push((at(s), shape));
+        }
+    }
+    // A tensor upstream carries that a BERT encoder does not use.
+    shapes.push(("pooler.dense.bias".into(), vec![h]));
+    let mut k = 0u64;
+    shapes
+        .into_iter()
+        .map(|(name, shape)| {
+            let n: u64 = shape.iter().product();
+            let data = (0..n)
+                .flat_map(|_| {
+                    k += 1;
+                    let x = ((k * 7919 + seed as u64 * 104729) % 2001) as f32 / 1000.0 - 1.0;
+                    x.to_le_bytes()
+                })
+                .collect();
+            Tensor { name, dtype: "F32", shape, data }
+        })
+        .collect()
+}
+
+/// A safetensors file of `tensors`, in the order given.
+pub fn safetensors_file(tensors: &[Tensor]) -> Vec<u8> {
+    let mut header = serde_json::Map::new();
+    header.insert("__metadata__".into(), json!({ "format": "pt" }));
+    let mut at = 0usize;
+    for t in tensors {
+        let end = at + t.data.len();
+        header.insert(t.name.clone(), json!({ "dtype": t.dtype, "shape": t.shape, "data_offsets": [at, end] }));
+        at = end;
+    }
+    let mut h = serde_json::to_vec(&header).unwrap();
+    while !h.len().is_multiple_of(8) {
+        h.push(b' ');
+    }
+    let mut out = (h.len() as u64).to_le_bytes().to_vec();
+    out.extend(h);
+    for t in tensors {
+        out.extend(&t.data);
+    }
+    out
+}
+
+/// A model loaded through the C interface on the CPU, with the runtime and
+/// context it was loaded with.
+pub struct Loaded {
+    pub rt: *mut turbo_runtime,
+    pub ctx: *mut turbo_context,
+    pub m: *mut turbo_model,
+}
+
+impl Loaded {
+    pub fn load(dir: &Path) -> Result<Loaded, Failure> {
+        let mut err = new_error();
+        let mut rt = ptr::null_mut();
+        assert_eq!(unsafe { turbo_runtime_create(ptr::null(), &mut rt, &mut err) }, 0);
+        let mut ctx = ptr::null_mut();
+        let rc = unsafe { turbo_context_create(rt, cpu(rt), &mut ctx, &mut err) };
+        assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+        let mut m = ptr::null_mut();
+        let path = dir.to_str().unwrap();
+        let rc = unsafe { turbo_model_load(ctx, text(path), &mut m, &mut err) };
+        let loaded = Loaded { rt, ctx, m };
+        if rc != 0 {
+            assert!(m.is_null(), "a failed load wrote out");
+            return Err(failure(rc, &err));
+        }
+        Ok(loaded)
+    }
+
+    /// The handles, which the caller now releases.
+    pub fn into_raw(self) -> (*mut turbo_runtime, *mut turbo_context, *mut turbo_model) {
+        let l = std::mem::ManuallyDrop::new(self);
+        (l.rt, l.ctx, l.m)
+    }
+
+    /// A model handle alone, released on drop.
+    pub fn model(m: *mut turbo_model) -> Loaded {
+        Loaded { rt: ptr::null_mut(), ctx: ptr::null_mut(), m }
+    }
+
+    pub fn info(&self) -> turbo_model_info {
+        let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
+        info.struct_size = size_of::<turbo_model_info>() as u32;
+        let mut err = new_error();
+        let rc = unsafe { turbo_model_get_info(self.m, &mut info, &mut err) };
+        assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+        info
+    }
+}
+
+impl Drop for Loaded {
+    fn drop(&mut self) {
+        unsafe {
+            turbo_model_release(self.m);
+            turbo_context_release(self.ctx);
+            turbo_runtime_release(self.rt);
+        }
+    }
+}
+
+/// The index of the device the cpu backend lists.
+pub fn cpu(rt: *mut turbo_runtime) -> u32 {
+    let mut n = 0;
+    assert_eq!(unsafe { turbo_runtime_device_count(rt, &mut n, ptr::null_mut()) }, 0);
+    (0..n)
+        .find(|&i| {
+            let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
+            info.struct_size = size_of::<turbo_device_info>() as u32;
+            assert_eq!(unsafe { turbo_runtime_device_info(rt, i, &mut info, ptr::null_mut()) }, 0);
+            info.kind == TURBO_DEVICE_CPU
+        })
+        .expect("the cpu backend lists the host")
+}
+
+/// A fixed-size C string field as a String.
+pub fn field(b: &[std::ffi::c_char]) -> String {
+    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    String::from_utf8(bytes).unwrap()
 }

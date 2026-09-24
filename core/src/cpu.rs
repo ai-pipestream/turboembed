@@ -1,11 +1,13 @@
 //! The CPU backend: the host processor, through turbo_backend.h like any
-//! other backend. This cut lists the device and its memory; no task runs
-//! on it yet.
+//! other backend. This cut lists the device, its memory and the models
+//! loaded on it; no task runs on it yet.
 
 use std::alloc::Layout;
 use std::ffi::{c_char, c_void};
 
-use crate::backend::{TURBO_CAP_UNSUPPORTED, refuse, turbo_backend};
+use crate::backend::{
+    TURBO_CAP_UNSUPPORTED, TURBO_FAMILY_BERT, refuse, turbo_backend, turbo_backend_model, turbo_backend_tensor,
+};
 use crate::status::{INVALID_ARGUMENT, OUT_OF_MEMORY, UNSUPPORTED};
 use crate::{
     TURBO_DEVICE_CPU, TURBO_HANDLE_HOST_PTR, TURBO_PLACE_DEVICE, turbo_buffer_desc, turbo_device_info, turbo_error,
@@ -26,6 +28,8 @@ pub static BACKEND: turbo_backend = turbo_backend {
     buffer_import: Some(buffer_import),
     buffer_release: Some(buffer_release),
     buffer_export: Some(buffer_export),
+    model_load: Some(model_load),
+    model_release: Some(model_release),
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {
@@ -219,6 +223,54 @@ unsafe extern "C" fn buffer_export(
     out.aux = 0;
     out.offset = 0;
     0
+}
+
+// ---- Models --------------------------------------------------------------
+//
+// The weights stay where the core read them: its one verified host copy of
+// each weights file, which it keeps unchanged until model_release returns.
+// The CPU reads them in place. A model here is the architecture and a table
+// of pointers into those bytes; nothing of the weights is copied.
+
+struct Model {
+    desc: turbo_backend_model,
+    /// Each tensor as the core described it, its name dropped: the name is
+    /// valid only for the load.
+    tensors: Vec<turbo_backend_tensor>,
+}
+
+unsafe extern "C" fn model_load(
+    _ctx: *mut c_void,
+    desc: *const turbo_backend_model,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let desc = unsafe { *desc };
+    if desc.family != TURBO_FAMILY_BERT {
+        return unsafe { refuse(err, UNSUPPORTED, &format!("family {}: the cpu holds BERT encoders", desc.family)) };
+    }
+    let tensors = unsafe { std::slice::from_raw_parts(desc.tensors, desc.tensor_count as usize) }
+        .iter()
+        .map(|t| turbo_backend_tensor { name: std::ptr::null(), ..*t })
+        .collect();
+    let desc = turbo_backend_model { tensors: std::ptr::null(), ..desc };
+    unsafe { *out = Box::into_raw(Box::new(Model { desc, tensors })) as *mut c_void };
+    0
+}
+
+unsafe extern "C" fn model_release(model: *mut c_void) {
+    drop(unsafe { Box::from_raw(model as *mut Model) });
+}
+
+/// Where each tensor of a model this backend loaded is read from, in the
+/// order it was handed them.
+///
+/// # Safety
+/// `model` is one model_load returned and model_release has not taken.
+pub(crate) unsafe fn tensor_data(model: *mut c_void) -> Vec<*const c_void> {
+    let m = unsafe { &*(model as *const Model) };
+    debug_assert_eq!(m.desc.tensor_count as usize, m.tensors.len());
+    m.tensors.iter().map(|t| t.data).collect()
 }
 
 /// What the operating system says about the processor and memory. A value

@@ -299,7 +299,8 @@ On a fixed-shape artifact, `turbo_model_info` reports the smaller
 with `CAPACITY` rather than being cut differently on one device.
 
 The artifact hash reported for a multi-file artifact is the SHA-256 of
-the files' hashes concatenated in listed order.
+the files' hashes, as the 64 hex digits `files` gives each, concatenated
+in listed order with nothing between.
 
 ## Bundles without their weights
 

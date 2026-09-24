@@ -1,9 +1,8 @@
 //! libturbo: the C interface in include/turbo/turbo.h.
 //!
-//! This cut has the runtime handle, status names, contexts, buffers and
-//! the tokenizer. The
-//! types below mirror the header's; tests/abi.rs checks their layout
-//! against a C compiler's.
+//! This cut has the runtime handle, status names, contexts, buffers,
+//! models and the tokenizer. The types below mirror the header's;
+//! tests/abi.rs checks their layout against a C compiler's.
 
 #![allow(non_camel_case_types)]
 
@@ -17,6 +16,7 @@ pub mod bundle;
 #[cfg(feature = "cpu")]
 pub mod cpu;
 pub mod manifest;
+pub mod model;
 pub mod safetensors;
 pub mod status;
 pub mod tokenizer;
@@ -67,6 +67,15 @@ pub const TURBO_TRUNCATE_LEFT: u32 = 3;
 pub const TURBO_PROMPT_NONE: u32 = 0;
 pub const TURBO_PROMPT_QUERY: u32 = 1;
 pub const TURBO_PROMPT_DOCUMENT: u32 = 2;
+
+pub const TURBO_NORMALIZE_MODEL: u32 = 0;
+pub const TURBO_NORMALIZE_NONE: u32 = 1;
+pub const TURBO_NORMALIZE_L2: u32 = 2;
+
+pub const TURBO_POOLING_MODEL: u32 = 0;
+pub const TURBO_POOLING_MEAN: u32 = 1;
+pub const TURBO_POOLING_CLS: u32 = 2;
+pub const TURBO_POOLING_LAST: u32 = 3;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -145,6 +154,26 @@ pub struct turbo_buffer_desc {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
+pub struct turbo_model_info {
+    pub struct_size: u32,
+    pub task: u32,
+    pub dim: u32,
+    pub pooling: u32,
+    pub normalize: u32,
+    pub max_seq: u32,
+    pub max_batch: u32,
+    pub dtype: u32,
+    pub model_id: [c_char; 128],
+    pub revision: [c_char; 64],
+    pub manifest_sha256: [c_char; 72],
+    pub artifact_sha256: [c_char; 72],
+    pub tokenizer_sha256: [c_char; 72],
+    pub prefix_query: [c_char; 128],
+    pub prefix_document: [c_char; 128],
+}
+
+#[repr(C)]
 pub struct turbo_tokenizer_info {
     pub struct_size: u32,
     pub vocab_size: u32,
@@ -174,6 +203,7 @@ const RUNTIME_MAGIC: u64 = 0x7475_7262_6f72_7431; // "turbort1"
 const TOKENIZER_MAGIC: u64 = 0x7475_7262_6f74_6b31; // "turbotk1"
 const CONTEXT_MAGIC: u64 = 0x7475_7262_6f63_7431; // "turboct1"
 const BUFFER_MAGIC: u64 = 0x7475_7262_6f62_6631; // "turbobf1"
+const MODEL_MAGIC: u64 = 0x7475_7262_6f6d_6431; // "turbomd1"
 
 struct Runtime {
     log: turbo_log_fn,
@@ -300,10 +330,10 @@ unsafe fn runtime<'a>(rt: *mut turbo_runtime) -> Result<&'a turbo_runtime> {
     }
 }
 
-/// A device's context: the backend's own, released when the last handle
-/// or buffer holding it goes.
+/// A device's context: the backend's own, released when the last handle,
+/// buffer or model holding it goes.
 struct Context {
-    _runtime: Arc<Runtime>,
+    runtime: Arc<Runtime>,
     device: u32,
     backend: &'static backend::turbo_backend,
     raw: *mut c_void,
@@ -670,7 +700,7 @@ pub unsafe extern "C" fn turbo_context_create(
             let mut raw = std::ptr::null_mut();
             let user = rt.inner.log_user_data as *mut c_void;
             backend::check(b, "context_create", |err| create(d.ordinal, rt.inner.log, user, &mut raw, err))?;
-            let inner = Context { _runtime: rt.inner.clone(), device, backend: b, raw, release };
+            let inner = Context { runtime: rt.inner.clone(), device, backend: b, raw, release };
             *out = Box::into_raw(Box::new(turbo_context { magic: CONTEXT_MAGIC, inner: Arc::new(inner) }));
             Ok(())
         })
@@ -898,6 +928,171 @@ pub unsafe extern "C" fn turbo_buffer_export(
             Ok(())
         })
     }
+}
+
+// ---- Model -----------------------------------------------------------------------
+
+/// A bundle loaded on a context's device. It holds its context, so the
+/// backend's model is released before the backend's context.
+struct Model {
+    context: Arc<Context>,
+    raw: *mut c_void,
+    release: unsafe extern "C" fn(*mut c_void),
+    /// The core's one verified host copy of the weights. A backend with its
+    /// own memory copied them there at load; the CPU backend reads them
+    /// here, in place, so they live exactly as long as the backend's model.
+    weights: model::Weights,
+    /// The bundle's tokenizer, checked against its reference at load, for
+    /// turbo_embed_write_text.
+    #[allow(dead_code)]
+    tokenizer: Tokenizer,
+    info: turbo_model_info,
+}
+
+// As for Context: the backend's model may be used from any thread.
+unsafe impl Send for Model {}
+unsafe impl Sync for Model {}
+
+impl Drop for Model {
+    fn drop(&mut self) {
+        // The weights and the context are dropped after this, with the
+        // struct's fields.
+        unsafe { (self.release)(self.raw) };
+    }
+}
+
+pub struct turbo_model {
+    magic: u64,
+    inner: Arc<Model>,
+}
+
+unsafe fn model_handle<'a>(m: *mut turbo_model) -> Result<&'a turbo_model> {
+    match unsafe { m.as_ref() } {
+        Some(r) if r.magic == MODEL_MAGIC => Ok(r),
+        _ => Err(Error::new(INVALID_HANDLE, "not a turbo_model")),
+    }
+}
+
+/// docs/bundle.md's loader rules, in order, for the context's device.
+fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
+    let c = &ctx.inner;
+    let b = c.backend;
+    let load = backend::offered!(b, model_load)?;
+    let release = backend::offered!(b, model_release)?;
+    let bundle = bundle::Bundle::open(Path::new(path))?; // rules 1 to 4
+    let tokenizer = Tokenizer::load(&bundle)?; // rule 5
+    let m = &bundle.manifest;
+    let arch = cstr(&c.runtime.devices[c.device as usize].info.arch);
+    let index = model::choose(m, b.name(), &arch)?; // rule 6
+    let weights = model::Weights::load(&bundle, index)?; // rules 7 and 8
+    let art = &m.artifacts[index];
+
+    let e = m.embed();
+    let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
+    info.struct_size = size_of::<turbo_model_info>() as u32;
+    info.task = TURBO_TASK_EMBED;
+    info.dim = e.dim;
+    info.pooling = match e.pooling {
+        manifest::Pooling::Mean => TURBO_POOLING_MEAN,
+        manifest::Pooling::Cls => TURBO_POOLING_CLS,
+        manifest::Pooling::Last => TURBO_POOLING_LAST,
+    };
+    info.normalize = match e.normalize {
+        manifest::Normalize::None => TURBO_NORMALIZE_NONE,
+        manifest::Normalize::L2 => TURBO_NORMALIZE_L2,
+    };
+    // A fixed-shape artifact reports the smaller of its shape and the model's.
+    let fixed = |model: u32, artifact: u32| if artifact == 0 { model } else { model.min(artifact) };
+    info.max_seq = fixed(e.max_seq, art.fixed_seq);
+    info.max_batch = fixed(e.max_batch, art.fixed_batch);
+    info.dtype = art.compute_dtype.and_then(model::header_dtype).unwrap_or(weights.dtype);
+    // The manifest's strings were checked against these buffers when it
+    // was parsed (rule 2), and a hash is 64 hex digits: nothing is cut.
+    write_str(&mut info.model_id, &m.model.id);
+    write_str(&mut info.revision, &m.model.revision);
+    write_str(&mut info.manifest_sha256, &bundle.manifest_sha256);
+    write_str(&mut info.artifact_sha256, &model::artifact_sha256(m, art));
+    write_str(&mut info.tokenizer_sha256, &tokenizer.sha256);
+    write_str(&mut info.prefix_query, &e.prefix_query);
+    write_str(&mut info.prefix_document, &e.prefix_document);
+
+    let tensors = weights.tensors();
+    let desc = weights.desc(&tensors);
+    let mut raw = std::ptr::null_mut();
+    backend::check(b, "model_load", |err| unsafe { load(c.raw, &desc, &mut raw, err) })?; // rule 9
+    Ok(Model { context: c.clone(), raw, release, weights, tokenizer, info })
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_model_load(
+    ctx: *mut turbo_context,
+    bundle_path: turbo_text,
+    out: *mut *mut turbo_model,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let ctx = context(ctx)?;
+            let out = out_ptr(out, "out")?;
+            let path = text(bundle_path, "bundle_path")?;
+            let inner = load_model(ctx, path)?;
+            *out = Box::into_raw(Box::new(turbo_model { magic: MODEL_MAGIC, inner: Arc::new(inner) }));
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// `m` is NULL or a handle from turbo_model_load, released once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_model_release(m: *mut turbo_model) {
+    if unsafe { model_handle(m) }.is_ok() {
+        let mut b = unsafe { Box::from_raw(m) };
+        b.magic = 0;
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_model_get_info(
+    m: *mut turbo_model,
+    out: *mut turbo_model_info,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let m = model_handle(m)?;
+            let out = out_ptr(out, "out")?;
+            sized(out.struct_size, size_of::<turbo_model_info>(), "turbo_model_info")?;
+            *out = m.inner.info;
+            Ok(())
+        })
+    }
+}
+
+/// Where a model's weights are, for the tests that check the CPU backend
+/// holds no copy of its own. Not part of the C interface.
+#[doc(hidden)]
+pub struct ModelWeights<'a> {
+    /// The core's verified bytes of each weights file.
+    pub files: Vec<&'a [u8]>,
+    /// On the CPU backend, the address of each tensor the backend keeps.
+    pub held: Option<Vec<*const c_void>>,
+}
+
+/// # Safety
+/// `m` is a live handle from turbo_model_load, and outlives what is returned.
+#[doc(hidden)]
+pub unsafe fn model_weights<'a>(m: *mut turbo_model) -> Option<ModelWeights<'a>> {
+    let m = &unsafe { model_handle(m) }.ok()?.inner;
+    #[cfg(feature = "cpu")]
+    let held = std::ptr::eq(m.context.backend, &cpu::BACKEND).then(|| unsafe { cpu::tensor_data(m.raw) });
+    #[cfg(not(feature = "cpu"))]
+    let held = None;
+    Some(ModelWeights { files: m.weights.files(), held })
 }
 
 // ---- Tokenizer -----------------------------------------------------------------

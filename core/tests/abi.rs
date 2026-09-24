@@ -1,7 +1,7 @@
 //! The header against the library: turbo.h compiles standalone as C11 and
 //! C++17, the Rust mirrors of its structs have the C compiler's layout, and
 //! a C program linked against libturbo makes a context and buffers on the
-//! CPU and gets the upstream ids.
+//! CPU, loads a model there, and gets the upstream ids.
 
 mod common;
 
@@ -75,10 +75,49 @@ fn struct_layouts_match_the_header() {
         ("turbo_encode_options", "truncate", offset_of!(turbo_encode_options, truncate)),
         ("turbo_encode_options", "max_tokens", offset_of!(turbo_encode_options, max_tokens)),
         ("turbo_encode_options", "prompt_role", offset_of!(turbo_encode_options, prompt_role)),
+        ("turbo_model_info", "task", offset_of!(turbo_model_info, task)),
+        ("turbo_model_info", "dim", offset_of!(turbo_model_info, dim)),
+        ("turbo_model_info", "pooling", offset_of!(turbo_model_info, pooling)),
+        ("turbo_model_info", "normalize", offset_of!(turbo_model_info, normalize)),
+        ("turbo_model_info", "max_seq", offset_of!(turbo_model_info, max_seq)),
+        ("turbo_model_info", "max_batch", offset_of!(turbo_model_info, max_batch)),
+        ("turbo_model_info", "dtype", offset_of!(turbo_model_info, dtype)),
+        ("turbo_model_info", "model_id", offset_of!(turbo_model_info, model_id)),
+        ("turbo_model_info", "revision", offset_of!(turbo_model_info, revision)),
+        ("turbo_model_info", "manifest_sha256", offset_of!(turbo_model_info, manifest_sha256)),
+        ("turbo_model_info", "artifact_sha256", offset_of!(turbo_model_info, artifact_sha256)),
+        ("turbo_model_info", "tokenizer_sha256", offset_of!(turbo_model_info, tokenizer_sha256)),
+        ("turbo_model_info", "prefix_query", offset_of!(turbo_model_info, prefix_query)),
+        ("turbo_model_info", "prefix_document", offset_of!(turbo_model_info, prefix_document)),
+    ];
+    use turbo::backend::{turbo_backend_model, turbo_backend_tensor};
+    let model_fields: &[(&str, &str, usize)] = &[
+        ("turbo_backend", "model_load", offset_of!(turbo_backend, model_load)),
+        ("turbo_backend", "model_release", offset_of!(turbo_backend, model_release)),
+        ("turbo_backend_tensor", "name", offset_of!(turbo_backend_tensor, name)),
+        ("turbo_backend_tensor", "data", offset_of!(turbo_backend_tensor, data)),
+        ("turbo_backend_tensor", "shape", offset_of!(turbo_backend_tensor, shape)),
+        ("turbo_backend_tensor", "ndim", offset_of!(turbo_backend_tensor, ndim)),
+        ("turbo_backend_tensor", "dtype", offset_of!(turbo_backend_tensor, dtype)),
+        ("turbo_backend_tensor", "bytes", offset_of!(turbo_backend_tensor, bytes)),
+        ("turbo_backend_model", "family", offset_of!(turbo_backend_model, family)),
+        ("turbo_backend_model", "dtype", offset_of!(turbo_backend_model, dtype)),
+        ("turbo_backend_model", "layers", offset_of!(turbo_backend_model, layers)),
+        ("turbo_backend_model", "hidden", offset_of!(turbo_backend_model, hidden)),
+        ("turbo_backend_model", "heads", offset_of!(turbo_backend_model, heads)),
+        ("turbo_backend_model", "intermediate", offset_of!(turbo_backend_model, intermediate)),
+        ("turbo_backend_model", "vocab_size", offset_of!(turbo_backend_model, vocab_size)),
+        ("turbo_backend_model", "max_positions", offset_of!(turbo_backend_model, max_positions)),
+        ("turbo_backend_model", "token_types", offset_of!(turbo_backend_model, token_types)),
+        ("turbo_backend_model", "layer_norm_eps", offset_of!(turbo_backend_model, layer_norm_eps)),
+        ("turbo_backend_model", "tensor_count", offset_of!(turbo_backend_model, tensor_count)),
+        ("turbo_backend_model", "reserved", offset_of!(turbo_backend_model, reserved)),
+        ("turbo_backend_model", "tensors", offset_of!(turbo_backend_model, tensors)),
     ];
     use turbo::backend::turbo_backend;
     let fields = [
         fields,
+        model_fields,
         &[
             ("turbo_device_info", "kind", offset_of!(turbo_device_info, kind)),
             ("turbo_device_info", "ordinal", offset_of!(turbo_device_info, ordinal)),
@@ -132,6 +171,9 @@ fn struct_layouts_match_the_header() {
         ("turbo_encode_options", size_of::<turbo_encode_options>()),
         ("turbo_native_handle", size_of::<turbo_native_handle>()),
         ("turbo_buffer_desc", size_of::<turbo_buffer_desc>()),
+        ("turbo_model_info", size_of::<turbo_model_info>()),
+        ("turbo_backend_tensor", size_of::<turbo_backend_tensor>()),
+        ("turbo_backend_model", size_of::<turbo_backend_model>()),
     ];
     let mut src = String::from(
         "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
@@ -176,6 +218,16 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_PROMPT_NONE", TURBO_PROMPT_NONE.into()),
         ("TURBO_PROMPT_QUERY", TURBO_PROMPT_QUERY.into()),
         ("TURBO_PROMPT_DOCUMENT", TURBO_PROMPT_DOCUMENT.into()),
+        ("TURBO_NORMALIZE_MODEL", TURBO_NORMALIZE_MODEL.into()),
+        ("TURBO_NORMALIZE_NONE", TURBO_NORMALIZE_NONE.into()),
+        ("TURBO_NORMALIZE_L2", TURBO_NORMALIZE_L2.into()),
+        ("TURBO_POOLING_MODEL", TURBO_POOLING_MODEL.into()),
+        ("TURBO_POOLING_MEAN", TURBO_POOLING_MEAN.into()),
+        ("TURBO_POOLING_CLS", TURBO_POOLING_CLS.into()),
+        ("TURBO_POOLING_LAST", TURBO_POOLING_LAST.into()),
+        ("TURBO_BERT_EMBEDDING_TENSORS", turbo::backend::TURBO_BERT_EMBEDDING_TENSORS.into()),
+        ("TURBO_BERT_LAYER_TENSORS", turbo::backend::TURBO_BERT_LAYER_TENSORS.into()),
+        ("TURBO_FAMILY_BERT", turbo::backend::TURBO_FAMILY_BERT.into()),
         ("TURBO_TASK_EMBED", TURBO_TASK_EMBED.into()),
         ("TURBO_DEVICE_CPU", TURBO_DEVICE_CPU.into()),
         ("TURBO_DEVICE_GPU", TURBO_DEVICE_GPU.into()),
@@ -225,8 +277,18 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_E_INTERNAL", INTERNAL.into()),
         ("TURBO_E_PANIC", PANIC.into()),
     ];
-    let mut src = String::from("#include <stdio.h>\n#include <turbo/turbo.h>\nint main(void) {\n");
-    for (name, _) in constants {
+    // Where the core puts each BERT tensor is where the header says.
+    let roles =
+        turbo::model::BERT_EMBEDDING_ROLES.iter().enumerate().chain(turbo::model::BERT_LAYER_ROLES.iter().enumerate());
+    let roles: Vec<(String, i64)> = roles
+        .map(|(i, &r)| (format!("TURBO_BERT_{}", turbo::manifest::role_name(r).to_uppercase()), i as i64))
+        .collect();
+    let constants: Vec<(&str, i64)> =
+        constants.iter().copied().chain(roles.iter().map(|(n, i)| (n.as_str(), *i))).collect();
+    let mut src = String::from(
+        "#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
+    );
+    for (name, _) in &constants {
         src += &format!("  printf(\"{name} %lld\\n\", (long long)({name}));\n");
     }
     src += "  return 0;\n}\n";
@@ -263,7 +325,7 @@ int main(int argc, char **argv) {
     turbo_runtime *rt = NULL;
     turbo_tokenizer *tok = NULL;
     int32_t rc;
-    if (argc != 3) return 2;
+    if (argc != 4) return 2;
     if (turbo_runtime_create(NULL, &rt, &err)) { printf("runtime %s\n", err.message); return 1; }
     uint32_t n = 0, pick = 99;
     turbo_device_info info = { sizeof(turbo_device_info) };
@@ -303,7 +365,9 @@ int main(int argc, char **argv) {
     bd.placement = TURBO_PLACE_DEVICE;
     rc = turbo_buffer_alloc(ctx, &bd, &buf, &err);
     printf("device placement %s\n", turbo_status_name(rc));
-    turbo_context_release(ctx); /* the buffers keep it */
+    turbo_model *model = NULL;
+    if (turbo_model_load(ctx, T(argv[3]), &model, &err)) { printf("model %s\n", err.message); return 1; }
+    turbo_context_release(ctx); /* the buffers and the model keep it */
     turbo_buffer_release(wrapped);
     turbo_buffer_release(buf);
     turbo_buffer_release(NULL);
@@ -311,7 +375,14 @@ int main(int argc, char **argv) {
     rc = turbo_tokenizer_create(rt, T("/nonexistent/bundle"), &tok, &err);
     printf("missing %s %d\n", turbo_status_name(rc), err.code);
     if (turbo_tokenizer_create(rt, T(argv[1]), &tok, &err)) { printf("create %s\n", err.message); return 1; }
-    turbo_runtime_release(rt); /* the tokenizer keeps what it needs */
+    turbo_runtime_release(rt); /* the tokenizer and the model keep what they need */
+    turbo_model_info mi = { sizeof(turbo_model_info) };
+    if (turbo_model_get_info(model, &mi, &err)) { printf("model info %s\n", err.message); return 1; }
+    printf("model task %u dim %u pooling %u normalize %u max_seq %u max_batch %u dtype %u\n", mi.task, mi.dim,
+           mi.pooling, mi.normalize, mi.max_seq, mi.max_batch, mi.dtype);
+    printf("%s revision %s\nartifact %s\n", mi.model_id, mi.revision, mi.artifact_sha256);
+    turbo_model_release(model);
+    turbo_model_release(NULL);
     turbo_text text = T(argv[2]);
     int32_t ids[64], mask[64];
     uint32_t len = 0;
@@ -328,7 +399,7 @@ int main(int argc, char **argv) {
 "#;
 
 #[test]
-fn a_c_program_gets_the_upstream_ids() {
+fn a_c_program_loads_a_model_and_gets_the_upstream_ids() {
     // target/<profile>/deps/abi-* -> target/<profile>/libturbo.so
     let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
     // `cargo test` builds the rlib the tests link, not the cdylib; build
@@ -360,15 +431,20 @@ fn a_c_program_gets_the_upstream_ids() {
 
     let f = Fixture::standard("c-program");
     f.write();
+    let model = Fixture::model("c-program-model");
+    model.write();
     let text = "Café naïve RÉSUMÉ, 东京 🙂";
-    let out = run(Command::new(d.join("p")).arg(&f.dir).arg(text));
+    let out = run(Command::new(d.join("p")).arg(&f.dir).arg(text).arg(&model.dir));
     let ids: Vec<String> = upstream_ids(&upstream(), text).iter().map(i32::to_string).collect();
     let want = format!(
         "devices 1, device 0 is cpu kind 1, embed status 0\nselect TURBO_E_DEVICE_NOT_FOUND 99\n\
          context on device 0, buffer 48 bytes, aligned 1\nimport at +8, stack[3] 7, export same 1\n\
          device placement TURBO_E_UNSUPPORTED\n\
-         missing TURBO_E_BUNDLE_NOT_FOUND {}\n{}\n0.1.0 cpu\n",
+         missing TURBO_E_BUNDLE_NOT_FOUND {}\n\
+         model task 1 dim 8 pooling 1 normalize 2 max_seq 256 max_batch 64 dtype 12\n\
+         sentence-transformers/all-MiniLM-L6-v2 revision 3\nartifact {}\n{}\n0.1.0 cpu\n",
         turbo::status::BUNDLE_NOT_FOUND,
+        model.sha256("weights/model.safetensors"),
         ids.join(" ")
     );
     assert_eq!(out, want);

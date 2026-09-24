@@ -11,14 +11,17 @@ use crate::status::{Result, invalid};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dtype {
     I32,
+    F16,
+    Bf16,
     F32,
     Other,
 }
 
 impl Dtype {
-    fn size(self) -> Option<usize> {
+    pub fn size(self) -> Option<usize> {
         match self {
             Dtype::I32 | Dtype::F32 => Some(4),
+            Dtype::F16 | Dtype::Bf16 => Some(2),
             Dtype::Other => None,
         }
     }
@@ -76,6 +79,8 @@ impl<'a> File<'a> {
             let e: Entry = serde_json::from_value(v).map_err(|e| bad(format!("{key}: {e}")))?;
             let dtype = match e.dtype.as_str() {
                 "I32" => Dtype::I32,
+                "F16" => Dtype::F16,
+                "BF16" => Dtype::Bf16,
                 "F32" => Dtype::F32,
                 _ => Dtype::Other,
             };
@@ -93,6 +98,11 @@ impl<'a> File<'a> {
             tensors.insert(key, Tensor { dtype, shape: e.shape, data });
         }
         Ok(File { name: name.to_owned(), tensors })
+    }
+
+    /// The tensor `key`, if the file has it.
+    pub fn tensor(&self, key: &str) -> Option<&Tensor<'a>> {
+        self.tensors.get(key)
     }
 
     /// The tensor `key`, which must have `dtype` and `ndim` dimensions.
