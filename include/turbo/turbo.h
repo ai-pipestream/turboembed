@@ -147,6 +147,8 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_PLACE_PINNED  2   /* page-locked host memory the device can read */
 #define TURBO_PLACE_DEVICE  3   /* device memory */
 #define TURBO_PLACE_SHARED  4   /* one allocation both can address */
+/* A CPU has no memory apart from the host's: on a CPU device HOST, PINNED
+ * and SHARED are all host memory, and DEVICE is TURBO_E_UNSUPPORTED. */
 
 /* Entries in turbo_result_info.stage; no task has more stages. */
 #define TURBO_STAGE_MAX 16

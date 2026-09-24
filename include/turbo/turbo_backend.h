@@ -29,6 +29,13 @@
  *     a backend fills. The core refuses a table whose struct_size is not
  *     one it knows. A function added after the first three may be NULL,
  *     and the core calls it only when struct_size covers it.
+ *   - A backend that offers context_create offers context_release, and one
+ *     that offers buffer_alloc or buffer_import offers buffer_release. The
+ *     core refuses a table that does not.
+ *   - The core checks every struct's struct_size, every enumeration and
+ *     every shape before it calls, and fills in turbo_buffer_desc.bytes.
+ *     It releases every buffer before the context it was made on, and
+ *     each handle once. Release functions return nothing, as turbo.h's do.
  */
 
 #ifndef TURBO_BACKEND_H
@@ -60,6 +67,28 @@ typedef struct turbo_backend {
     int32_t (*capability)(uint32_t ordinal, uint32_t task, uint32_t precision,
                           uint32_t *status, uint32_t *dtype, uint32_t *options_honored,
                           char *reason, uint32_t reason_len, turbo_error *err);
+
+    /* Contexts and buffers. NULL where the backend has none. */
+
+    /* A context on the device. log (which may be NULL) and log_user_data
+     * are the runtime's, for the warnings of this context and its buffers.
+     * *out is the backend's own, handed back to buffer_alloc and
+     * buffer_import. */
+    int32_t (*context_create)(uint32_t ordinal, turbo_log_fn log, void *log_user_data,
+                              void **out, turbo_error *err);
+    void    (*context_release)(void *ctx);
+    /* host receives the memory's host address for HOST, PINNED and SHARED
+     * placements, and NULL for DEVICE. *out is the backend's own, handed
+     * back to buffer_export and buffer_release. */
+    int32_t (*buffer_alloc)(void *ctx, const turbo_buffer_desc *desc,
+                            void **out, void **host, turbo_error *err);
+    /* As buffer_alloc, over memory the caller owns: nothing is copied and
+     * nothing of the caller's is freed on release. */
+    int32_t (*buffer_import)(void *ctx, const turbo_buffer_desc *desc, const turbo_native_handle *handle,
+                             void **out, void **host, turbo_error *err);
+    void    (*buffer_release)(void *buf);
+    /* Fills every field of out but struct_size. */
+    int32_t (*buffer_export)(void *buf, uint32_t kind, turbo_native_handle *out, turbo_error *err);
 } turbo_backend;
 
 #ifdef __cplusplus

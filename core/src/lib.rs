@@ -1,6 +1,7 @@
 //! libturbo: the C interface in include/turbo/turbo.h.
 //!
-//! This cut has the runtime handle, status names and the tokenizer. The
+//! This cut has the runtime handle, status names, contexts, buffers and
+//! the tokenizer. The
 //! types below mirror the header's; tests/abi.rs checks their layout
 //! against a C compiler's.
 
@@ -22,7 +23,10 @@ pub mod tokenizer;
 
 use backend::cstr;
 use manifest::{PromptRole, Truncation};
-use status::{Error, INVALID_ARGUMENT, INVALID_ENUM, INVALID_HANDLE, INVALID_STRUCT_SIZE, INVALID_UTF8, PANIC, Result};
+use status::{
+    Error, INVALID_ARGUMENT, INVALID_ENUM, INVALID_HANDLE, INVALID_SHAPE, INVALID_STRUCT_SIZE, INVALID_UTF8, PANIC,
+    Result,
+};
 use tokenizer::{Encode, Tokenizer};
 
 pub const TURBO_ERROR_MESSAGE_LEN: usize = 496;
@@ -38,6 +42,18 @@ pub const TURBO_DTYPE_I32: u32 = 8;
 pub const TURBO_DTYPE_F16: u32 = 10;
 pub const TURBO_DTYPE_BF16: u32 = 11;
 pub const TURBO_DTYPE_F32: u32 = 12;
+
+pub const TURBO_PLACE_HOST: u32 = 1;
+pub const TURBO_PLACE_PINNED: u32 = 2;
+pub const TURBO_PLACE_DEVICE: u32 = 3;
+pub const TURBO_PLACE_SHARED: u32 = 4;
+
+pub const TURBO_HANDLE_HOST_PTR: u32 = 1;
+pub const TURBO_HANDLE_CUDA_PTR: u32 = 2;
+pub const TURBO_HANDLE_CL_MEM: u32 = 3;
+pub const TURBO_HANDLE_ZE_USM: u32 = 4;
+pub const TURBO_HANDLE_MTL_BUFFER: u32 = 5;
+pub const TURBO_HANDLE_DMABUF_FD: u32 = 6;
 
 pub const TURBO_PRECISION_MODEL: u32 = 0;
 pub const TURBO_PRECISION_FASTEST: u32 = 1;
@@ -108,6 +124,27 @@ pub struct turbo_capability {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct turbo_native_handle {
+    pub struct_size: u32,
+    pub kind: u32,
+    pub handle: u64,
+    pub aux: u64,
+    pub offset: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct turbo_buffer_desc {
+    pub struct_size: u32,
+    pub placement: u32,
+    pub dtype: u32,
+    pub ndim: u32,
+    pub shape: [u64; 2],
+    pub bytes: u64,
+}
+
+#[repr(C)]
 pub struct turbo_tokenizer_info {
     pub struct_size: u32,
     pub vocab_size: u32,
@@ -135,6 +172,8 @@ pub struct turbo_encode_options {
 
 const RUNTIME_MAGIC: u64 = 0x7475_7262_6f72_7431; // "turbort1"
 const TOKENIZER_MAGIC: u64 = 0x7475_7262_6f74_6b31; // "turbotk1"
+const CONTEXT_MAGIC: u64 = 0x7475_7262_6f63_7431; // "turboct1"
+const BUFFER_MAGIC: u64 = 0x7475_7262_6f62_6631; // "turbobf1"
 
 struct Runtime {
     log: turbo_log_fn,
@@ -258,6 +297,67 @@ unsafe fn runtime<'a>(rt: *mut turbo_runtime) -> Result<&'a turbo_runtime> {
     match unsafe { rt.as_ref() } {
         Some(r) if r.magic == RUNTIME_MAGIC => Ok(r),
         _ => Err(Error::new(INVALID_HANDLE, "not a turbo_runtime")),
+    }
+}
+
+/// A device's context: the backend's own, released when the last handle
+/// or buffer holding it goes.
+struct Context {
+    _runtime: Arc<Runtime>,
+    device: u32,
+    backend: &'static backend::turbo_backend,
+    raw: *mut c_void,
+    release: unsafe extern "C" fn(*mut c_void),
+}
+
+// turbo_backend.h: every function in the table may be called from any
+// thread, and what the context points to is the backend's.
+unsafe impl Send for Context {}
+unsafe impl Sync for Context {}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        unsafe { (self.release)(self.raw) };
+    }
+}
+
+pub struct turbo_context {
+    magic: u64,
+    inner: Arc<Context>,
+}
+
+/// A buffer the backend made or wrapped. It holds its context, so the
+/// backend's buffer is released before the backend's context.
+struct Buffer {
+    context: Arc<Context>,
+    desc: turbo_buffer_desc,
+    raw: *mut c_void,
+    host: *mut c_void,
+    release: unsafe extern "C" fn(*mut c_void),
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        unsafe { (self.release)(self.raw) };
+    }
+}
+
+pub struct turbo_buffer {
+    magic: u64,
+    inner: Buffer,
+}
+
+unsafe fn context<'a>(c: *mut turbo_context) -> Result<&'a turbo_context> {
+    match unsafe { c.as_ref() } {
+        Some(r) if r.magic == CONTEXT_MAGIC => Ok(r),
+        _ => Err(Error::new(INVALID_HANDLE, "not a turbo_context")),
+    }
+}
+
+unsafe fn buffer<'a>(b: *mut turbo_buffer) -> Result<&'a turbo_buffer> {
+    match unsafe { b.as_ref() } {
+        Some(r) if r.magic == BUFFER_MAGIC => Ok(r),
+        _ => Err(Error::new(INVALID_HANDLE, "not a turbo_buffer")),
     }
 }
 
@@ -545,6 +645,256 @@ pub unsafe extern "C" fn turbo_runtime_release(rt: *mut turbo_runtime) {
     if unsafe { runtime(rt) }.is_ok() {
         let mut b = unsafe { Box::from_raw(rt) };
         b.magic = 0;
+    }
+}
+
+// ---- Context and buffers ---------------------------------------------------------
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_context_create(
+    rt: *mut turbo_runtime,
+    device: u32,
+    out: *mut *mut turbo_context,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let rt = runtime(rt)?;
+            let out = out_ptr(out, "out")?;
+            let d = rt.inner.device(device)?;
+            let b = d.backend;
+            let create = backend::offered!(b, context_create)?;
+            let release = backend::offered!(b, context_release)?;
+            let mut raw = std::ptr::null_mut();
+            let user = rt.inner.log_user_data as *mut c_void;
+            backend::check(b, "context_create", |err| create(d.ordinal, rt.inner.log, user, &mut raw, err))?;
+            let inner = Context { _runtime: rt.inner.clone(), device, backend: b, raw, release };
+            *out = Box::into_raw(Box::new(turbo_context { magic: CONTEXT_MAGIC, inner: Arc::new(inner) }));
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// `ctx` is NULL or a handle from turbo_context_create, released once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_context_release(ctx: *mut turbo_context) {
+    if unsafe { context(ctx) }.is_ok() {
+        let mut b = unsafe { Box::from_raw(ctx) };
+        b.magic = 0;
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_context_device(ctx: *mut turbo_context, out: *mut u32, err: *mut turbo_error) -> i32 {
+    unsafe {
+        call(err, || {
+            let ctx = context(ctx)?;
+            *out_ptr(out, "out")? = ctx.inner.device;
+            Ok(())
+        })
+    }
+}
+
+fn dtype_size(dtype: u32) -> Option<u64> {
+    match dtype {
+        TURBO_DTYPE_I32 | TURBO_DTYPE_F32 => Some(4),
+        TURBO_DTYPE_F16 | TURBO_DTYPE_BF16 => Some(2),
+        _ => None,
+    }
+}
+
+/// The caller's desc as a backend gets it: every field checked, and bytes
+/// filled in from shape and dtype.
+unsafe fn buffer_desc(desc: *const turbo_buffer_desc) -> Result<turbo_buffer_desc> {
+    let d = *unsafe { desc.as_ref() }.ok_or_else(|| Error::new(INVALID_ARGUMENT, "desc is NULL"))?;
+    sized(d.struct_size, size_of::<turbo_buffer_desc>(), "turbo_buffer_desc")?;
+    if !(TURBO_PLACE_HOST..=TURBO_PLACE_SHARED).contains(&d.placement) {
+        return Err(Error::new(INVALID_ENUM, format!("placement: {} is not a TURBO_PLACE_* value", d.placement)));
+    }
+    let size = dtype_size(d.dtype)
+        .ok_or_else(|| Error::new(INVALID_ENUM, format!("dtype: {} is not a TURBO_DTYPE_* value", d.dtype)))?;
+    let dims = match d.ndim {
+        1 if d.shape[1] != 0 => {
+            return Err(Error::new(INVALID_SHAPE, format!("shape[1] is {} and ndim is 1", d.shape[1])));
+        }
+        1 => &d.shape[..1],
+        2 => &d.shape[..],
+        n => return Err(Error::new(INVALID_SHAPE, format!("ndim is {n}, not 1 or 2"))),
+    };
+    if let Some(i) = dims.iter().position(|&n| n == 0) {
+        return Err(Error::new(INVALID_SHAPE, format!("shape[{i}] is 0")));
+    }
+    let bytes = dims.iter().try_fold(size, |a, &n| a.checked_mul(n)).ok_or_else(|| {
+        Error::new(INVALID_SHAPE, format!("shape {dims:?} of {size}-byte elements is past 2^64 bytes"))
+    })?;
+    if d.bytes != 0 && d.bytes != bytes {
+        return Err(Error::new(INVALID_ARGUMENT, format!("bytes is {}, shape and dtype make {bytes}", d.bytes)));
+    }
+    Ok(turbo_buffer_desc { bytes, ..d })
+}
+
+/// Wrap what the backend returned. Host memory has a host address; device
+/// memory has none.
+fn new_buffer(
+    ctx: &turbo_context,
+    desc: turbo_buffer_desc,
+    raw: *mut c_void,
+    host: *mut c_void,
+    release: unsafe extern "C" fn(*mut c_void),
+    out: &mut *mut turbo_buffer,
+) -> Result<()> {
+    let inner = Buffer { context: ctx.inner.clone(), desc, raw, host, release };
+    let device = desc.placement == TURBO_PLACE_DEVICE;
+    if host.is_null() != device {
+        let b = ctx.inner.backend.name();
+        return Err(Error::new(
+            status::INTERNAL,
+            format!("{b} backend: placement {} came back with host address {host:?}", desc.placement),
+        ));
+    }
+    *out = Box::into_raw(Box::new(turbo_buffer { magic: BUFFER_MAGIC, inner }));
+    Ok(())
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_alloc(
+    ctx: *mut turbo_context,
+    desc: *const turbo_buffer_desc,
+    out: *mut *mut turbo_buffer,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let ctx = context(ctx)?;
+            let out = out_ptr(out, "out")?;
+            let desc = buffer_desc(desc)?;
+            let b = ctx.inner.backend;
+            let alloc = backend::offered!(b, buffer_alloc)?;
+            let release = backend::offered!(b, buffer_release)?;
+            let (mut raw, mut host) = (std::ptr::null_mut(), std::ptr::null_mut());
+            backend::check(b, "buffer_alloc", |err| alloc(ctx.inner.raw, &desc, &mut raw, &mut host, err))?;
+            new_buffer(ctx, desc, raw, host, release, out)
+        })
+    }
+}
+
+fn handle_kind(kind: u32) -> Result<u32> {
+    if !(TURBO_HANDLE_HOST_PTR..=TURBO_HANDLE_DMABUF_FD).contains(&kind) {
+        return Err(Error::new(INVALID_ENUM, format!("kind: {kind} is not a TURBO_HANDLE_* value")));
+    }
+    Ok(kind)
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says; the memory
+/// `handle` names holds the buffer's bytes while the buffer is in use.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_import(
+    ctx: *mut turbo_context,
+    desc: *const turbo_buffer_desc,
+    handle: *const turbo_native_handle,
+    out: *mut *mut turbo_buffer,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let ctx = context(ctx)?;
+            let out = out_ptr(out, "out")?;
+            let desc = buffer_desc(desc)?;
+            let handle = *handle.as_ref().ok_or_else(|| Error::new(INVALID_ARGUMENT, "handle is NULL"))?;
+            sized(handle.struct_size, size_of::<turbo_native_handle>(), "turbo_native_handle")?;
+            handle_kind(handle.kind)?;
+            let b = ctx.inner.backend;
+            let import = backend::offered!(b, buffer_import)?;
+            let release = backend::offered!(b, buffer_release)?;
+            let (mut raw, mut host) = (std::ptr::null_mut(), std::ptr::null_mut());
+            backend::check(b, "buffer_import", |err| import(ctx.inner.raw, &desc, &handle, &mut raw, &mut host, err))?;
+            new_buffer(ctx, desc, raw, host, release, out)
+        })
+    }
+}
+
+/// # Safety
+/// `buf` is NULL or a handle from turbo_buffer_alloc or turbo_buffer_import,
+/// released once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_release(buf: *mut turbo_buffer) {
+    if unsafe { buffer(buf) }.is_ok() {
+        let mut b = unsafe { Box::from_raw(buf) };
+        b.magic = 0;
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_get_desc(
+    buf: *mut turbo_buffer,
+    out: *mut turbo_buffer_desc,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let buf = buffer(buf)?;
+            let out = out_ptr(out, "out")?;
+            sized(out.struct_size, size_of::<turbo_buffer_desc>(), "turbo_buffer_desc")?;
+            *out = buf.inner.desc;
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_host_ptr(
+    buf: *mut turbo_buffer,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let buf = &buffer(buf)?.inner;
+            let out = out_ptr(out, "out")?;
+            if buf.desc.placement == TURBO_PLACE_DEVICE {
+                return Err(Error::new(status::UNSUPPORTED, "a DEVICE buffer has no host pointer"));
+            }
+            *out = buf.host;
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_export(
+    buf: *mut turbo_buffer,
+    kind: u32,
+    out: *mut turbo_native_handle,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let buf = &buffer(buf)?.inner;
+            let out = out_ptr(out, "out")?;
+            sized(out.struct_size, size_of::<turbo_native_handle>(), "turbo_native_handle")?;
+            handle_kind(kind)?;
+            let b = buf.context.backend;
+            let export = backend::offered!(b, buffer_export)?;
+            let mut h: turbo_native_handle = std::mem::zeroed();
+            backend::check(b, "buffer_export", |err| export(buf.raw, kind, &mut h, err))?;
+            h.struct_size = size_of::<turbo_native_handle>() as u32;
+            *out = h;
+            Ok(())
+        })
     }
 }
 

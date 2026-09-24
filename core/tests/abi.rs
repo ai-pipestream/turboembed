@@ -1,6 +1,7 @@
 //! The header against the library: turbo.h compiles standalone as C11 and
 //! C++17, the Rust mirrors of its structs have the C compiler's layout, and
-//! a C program linked against libturbo gets the upstream ids.
+//! a C program linked against libturbo makes a context and buffers on the
+//! CPU and gets the upstream ids.
 
 mod common;
 
@@ -102,6 +103,21 @@ fn struct_layouts_match_the_header() {
             ("turbo_backend", "device_count", offset_of!(turbo_backend, device_count)),
             ("turbo_backend", "device_info", offset_of!(turbo_backend, device_info)),
             ("turbo_backend", "capability", offset_of!(turbo_backend, capability)),
+            ("turbo_backend", "context_create", offset_of!(turbo_backend, context_create)),
+            ("turbo_backend", "context_release", offset_of!(turbo_backend, context_release)),
+            ("turbo_backend", "buffer_alloc", offset_of!(turbo_backend, buffer_alloc)),
+            ("turbo_backend", "buffer_import", offset_of!(turbo_backend, buffer_import)),
+            ("turbo_backend", "buffer_release", offset_of!(turbo_backend, buffer_release)),
+            ("turbo_backend", "buffer_export", offset_of!(turbo_backend, buffer_export)),
+            ("turbo_native_handle", "kind", offset_of!(turbo_native_handle, kind)),
+            ("turbo_native_handle", "handle", offset_of!(turbo_native_handle, handle)),
+            ("turbo_native_handle", "aux", offset_of!(turbo_native_handle, aux)),
+            ("turbo_native_handle", "offset", offset_of!(turbo_native_handle, offset)),
+            ("turbo_buffer_desc", "placement", offset_of!(turbo_buffer_desc, placement)),
+            ("turbo_buffer_desc", "dtype", offset_of!(turbo_buffer_desc, dtype)),
+            ("turbo_buffer_desc", "ndim", offset_of!(turbo_buffer_desc, ndim)),
+            ("turbo_buffer_desc", "shape", offset_of!(turbo_buffer_desc, shape)),
+            ("turbo_buffer_desc", "bytes", offset_of!(turbo_buffer_desc, bytes)),
         ],
     ]
     .concat();
@@ -114,6 +130,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_runtime_desc", size_of::<turbo_runtime_desc>()),
         ("turbo_tokenizer_info", size_of::<turbo_tokenizer_info>()),
         ("turbo_encode_options", size_of::<turbo_encode_options>()),
+        ("turbo_native_handle", size_of::<turbo_native_handle>()),
+        ("turbo_buffer_desc", size_of::<turbo_buffer_desc>()),
     ];
     let mut src = String::from(
         "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
@@ -167,6 +185,16 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_DTYPE_F16", TURBO_DTYPE_F16.into()),
         ("TURBO_DTYPE_BF16", TURBO_DTYPE_BF16.into()),
         ("TURBO_DTYPE_F32", TURBO_DTYPE_F32.into()),
+        ("TURBO_PLACE_HOST", TURBO_PLACE_HOST.into()),
+        ("TURBO_PLACE_PINNED", TURBO_PLACE_PINNED.into()),
+        ("TURBO_PLACE_DEVICE", TURBO_PLACE_DEVICE.into()),
+        ("TURBO_PLACE_SHARED", TURBO_PLACE_SHARED.into()),
+        ("TURBO_HANDLE_HOST_PTR", TURBO_HANDLE_HOST_PTR.into()),
+        ("TURBO_HANDLE_CUDA_PTR", TURBO_HANDLE_CUDA_PTR.into()),
+        ("TURBO_HANDLE_CL_MEM", TURBO_HANDLE_CL_MEM.into()),
+        ("TURBO_HANDLE_ZE_USM", TURBO_HANDLE_ZE_USM.into()),
+        ("TURBO_HANDLE_MTL_BUFFER", TURBO_HANDLE_MTL_BUFFER.into()),
+        ("TURBO_HANDLE_DMABUF_FD", TURBO_HANDLE_DMABUF_FD.into()),
         ("TURBO_PRECISION_MODEL", TURBO_PRECISION_MODEL.into()),
         ("TURBO_PRECISION_FASTEST", TURBO_PRECISION_FASTEST.into()),
         ("TURBO_PRECISION_EXACT", TURBO_PRECISION_EXACT.into()),
@@ -248,6 +276,38 @@ int main(int argc, char **argv) {
     printf("devices %u, device 0 is %s kind %u, embed status %u\n", n, info.backend, info.kind, cap.status);
     rc = turbo_runtime_select(rt, TURBO_TASK_EMBED, &pick, NULL, 0, &err);
     printf("select %s %u\n", turbo_status_name(rc), pick);
+    turbo_context *ctx = NULL;
+    turbo_buffer *buf = NULL, *wrapped = NULL;
+    uint32_t dev = 99;
+    if (turbo_context_create(rt, 0, &ctx, &err)) { printf("context %s\n", err.message); return 1; }
+    if (turbo_context_device(ctx, &dev, &err)) { printf("context device %s\n", err.message); return 1; }
+    turbo_buffer_desc bd = { sizeof(turbo_buffer_desc), TURBO_PLACE_HOST, TURBO_DTYPE_F32, 2, { 3, 4 }, 0 };
+    if (turbo_buffer_alloc(ctx, &bd, &buf, &err)) { printf("alloc %s\n", err.message); return 1; }
+    turbo_buffer_desc got = { sizeof(turbo_buffer_desc) };
+    void *host = NULL;
+    if (turbo_buffer_get_desc(buf, &got, &err) || turbo_buffer_host_ptr(buf, &host, &err)) {
+        printf("buffer %s\n", err.message); return 1;
+    }
+    printf("context on device %u, buffer %llu bytes, aligned %d\n", dev, (unsigned long long)got.bytes,
+           (int)((uintptr_t)host % 64 == 0));
+    int32_t stack[8] = { 0 };
+    turbo_buffer_desc sd = { sizeof(turbo_buffer_desc), TURBO_PLACE_HOST, TURBO_DTYPE_I32, 1, { 6, 0 }, 24 };
+    turbo_native_handle nh = { sizeof(turbo_native_handle), TURBO_HANDLE_HOST_PTR, (uint64_t)(uintptr_t)stack, 0, 8 };
+    if (turbo_buffer_import(ctx, &sd, &nh, &wrapped, &err)) { printf("import %s\n", err.message); return 1; }
+    if (turbo_buffer_host_ptr(wrapped, &host, &err)) { printf("import host %s\n", err.message); return 1; }
+    ((int32_t *)host)[1] = 7;
+    turbo_native_handle ex = { sizeof(turbo_native_handle) };
+    if (turbo_buffer_export(wrapped, TURBO_HANDLE_HOST_PTR, &ex, &err)) { printf("export %s\n", err.message); return 1; }
+    printf("import at +%d, stack[3] %d, export same %d\n", (int)((char *)host - (char *)stack), stack[3],
+           (int)(ex.handle == (uint64_t)(uintptr_t)host && ex.offset == 0));
+    bd.placement = TURBO_PLACE_DEVICE;
+    rc = turbo_buffer_alloc(ctx, &bd, &buf, &err);
+    printf("device placement %s\n", turbo_status_name(rc));
+    turbo_context_release(ctx); /* the buffers keep it */
+    turbo_buffer_release(wrapped);
+    turbo_buffer_release(buf);
+    turbo_buffer_release(NULL);
+    turbo_context_release(NULL);
     rc = turbo_tokenizer_create(rt, T("/nonexistent/bundle"), &tok, &err);
     printf("missing %s %d\n", turbo_status_name(rc), err.code);
     if (turbo_tokenizer_create(rt, T(argv[1]), &tok, &err)) { printf("create %s\n", err.message); return 1; }
@@ -304,7 +364,10 @@ fn a_c_program_gets_the_upstream_ids() {
     let out = run(Command::new(d.join("p")).arg(&f.dir).arg(text));
     let ids: Vec<String> = upstream_ids(&upstream(), text).iter().map(i32::to_string).collect();
     let want = format!(
-        "devices 1, device 0 is cpu kind 1, embed status 0\nselect TURBO_E_DEVICE_NOT_FOUND 99\nmissing TURBO_E_BUNDLE_NOT_FOUND {}\n{}\n0.1.0 cpu\n",
+        "devices 1, device 0 is cpu kind 1, embed status 0\nselect TURBO_E_DEVICE_NOT_FOUND 99\n\
+         context on device 0, buffer 48 bytes, aligned 1\nimport at +8, stack[3] 7, export same 1\n\
+         device placement TURBO_E_UNSUPPORTED\n\
+         missing TURBO_E_BUNDLE_NOT_FOUND {}\n{}\n0.1.0 cpu\n",
         turbo::status::BUNDLE_NOT_FOUND,
         ids.join(" ")
     );
