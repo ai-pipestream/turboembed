@@ -27,6 +27,21 @@ fn the_standard_bundle_loads() {
     Fixture::standard("loads").open().expect("loads");
 }
 
+#[test]
+fn a_written_manifest_loads_and_writes_the_same_bytes_again() {
+    let mut f = Fixture::standard("written");
+    let parsed = turbo::manifest::Manifest::parse(&serde_json::to_vec(&f.manifest).unwrap()).unwrap();
+    let written = serde_json::to_vec_pretty(&parsed).unwrap();
+    // Optional fields at their default are left out; required ones stay.
+    let value: Value = serde_json::from_slice(&written).unwrap();
+    assert!(value["embed"].get("prefix_query").is_none(), "{value}");
+    assert_eq!(value["artifacts"][0]["backends"], json!(["cuda", "metal"]));
+    f.manifest = value;
+    f.open().expect("the written manifest loads");
+    let again = turbo::manifest::Manifest::parse(&written).unwrap();
+    assert_eq!(serde_json::to_vec_pretty(&again).unwrap(), written);
+}
+
 // Rule 1
 
 #[test]

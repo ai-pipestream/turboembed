@@ -9,3 +9,12 @@
   upstream `tokenizers` on: scripts, spacing, control characters, emoji,
   special-token strings. Taken from the previous attempt's
   `testdata/corpus/multilingual.jsonl`, text only.
+- `tiny-bert-reference/reference.safetensors`: the reference file
+  `bundle/reference/reference.py` wrote for the cases of
+  `bundle/recipes/all-minilm-l6-v2.json`, with `max_seq` 64, on a
+  randomly initialised two-layer BERT (hidden 32, four heads, seed 0)
+  saved by sentence-transformers 6.1.0 with mean pooling and L2
+  normalization, and the tokenizer above. The query prefix was
+  `"query: "`. Its vectors are real outputs of the upstream pipeline for
+  that model, not of MiniLM; the bundle tool's tests use it to check
+  sealing and verification, never numerics.
