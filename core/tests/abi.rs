@@ -37,7 +37,7 @@ fn run(cmd: &mut Command) -> String {
 fn the_header_compiles_standalone() {
     let d = scratch("standalone");
     let c = d.join("h.c");
-    std::fs::write(&c, "#include <turbo/turbo.h>\n").unwrap();
+    std::fs::write(&c, "#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n").unwrap();
     run(Command::new("cc")
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pedantic", "-fsyntax-only", "-I"])
         .arg(include())
@@ -75,15 +75,50 @@ fn struct_layouts_match_the_header() {
         ("turbo_encode_options", "max_tokens", offset_of!(turbo_encode_options, max_tokens)),
         ("turbo_encode_options", "prompt_role", offset_of!(turbo_encode_options, prompt_role)),
     ];
+    use turbo::backend::turbo_backend;
+    let fields = [
+        fields,
+        &[
+            ("turbo_device_info", "kind", offset_of!(turbo_device_info, kind)),
+            ("turbo_device_info", "ordinal", offset_of!(turbo_device_info, ordinal)),
+            ("turbo_device_info", "unified_memory", offset_of!(turbo_device_info, unified_memory)),
+            ("turbo_device_info", "memory_total", offset_of!(turbo_device_info, memory_total)),
+            ("turbo_device_info", "memory_free", offset_of!(turbo_device_info, memory_free)),
+            ("turbo_device_info", "arch", offset_of!(turbo_device_info, arch)),
+            ("turbo_device_info", "name", offset_of!(turbo_device_info, name)),
+            ("turbo_device_info", "vendor", offset_of!(turbo_device_info, vendor)),
+            ("turbo_device_info", "backend", offset_of!(turbo_device_info, backend)),
+            ("turbo_device_info", "runtime_version", offset_of!(turbo_device_info, runtime_version)),
+            ("turbo_device_info", "driver_version", offset_of!(turbo_device_info, driver_version)),
+            ("turbo_capability", "status", offset_of!(turbo_capability, status)),
+            ("turbo_capability", "dtype", offset_of!(turbo_capability, dtype)),
+            ("turbo_capability", "options_honored", offset_of!(turbo_capability, options_honored)),
+            ("turbo_capability", "cosine_floor", offset_of!(turbo_capability, cosine_floor)),
+            ("turbo_capability", "speed_ratio", offset_of!(turbo_capability, speed_ratio)),
+            ("turbo_capability", "benchmark", offset_of!(turbo_capability, benchmark)),
+            ("turbo_capability", "reason", offset_of!(turbo_capability, reason)),
+            ("turbo_backend", "name", offset_of!(turbo_backend, name)),
+            ("turbo_backend", "runtime_version", offset_of!(turbo_backend, runtime_version)),
+            ("turbo_backend", "device_count", offset_of!(turbo_backend, device_count)),
+            ("turbo_backend", "device_info", offset_of!(turbo_backend, device_info)),
+            ("turbo_backend", "capability", offset_of!(turbo_backend, capability)),
+        ],
+    ]
+    .concat();
     let sizes: &[(&str, usize)] = &[
+        ("turbo_device_info", size_of::<turbo_device_info>()),
+        ("turbo_capability", size_of::<turbo_capability>()),
+        ("turbo_backend", size_of::<turbo_backend>()),
         ("turbo_text", size_of::<turbo_text>()),
         ("turbo_error", size_of::<turbo_error>()),
         ("turbo_runtime_desc", size_of::<turbo_runtime_desc>()),
         ("turbo_tokenizer_info", size_of::<turbo_tokenizer_info>()),
         ("turbo_encode_options", size_of::<turbo_encode_options>()),
     ];
-    let mut src = String::from("#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\nint main(void) {\n");
-    for (s, f, _) in fields {
+    let mut src = String::from(
+        "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
+    );
+    for (s, f, _) in &fields {
         src += &format!("  printf(\"{s}.{f} %zu\\n\", offsetof({s}, {f}));\n");
     }
     for (s, _) in sizes {
@@ -100,7 +135,7 @@ fn struct_layouts_match_the_header() {
         .arg(include()));
     let out = run(&mut Command::new(d.join("layout")));
     let mut want = String::new();
-    for (s, f, o) in fields {
+    for (s, f, o) in &fields {
         want += &format!("{s}.{f} {o}\n");
     }
     for (s, n) in sizes {
@@ -123,6 +158,21 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_PROMPT_NONE", TURBO_PROMPT_NONE.into()),
         ("TURBO_PROMPT_QUERY", TURBO_PROMPT_QUERY.into()),
         ("TURBO_PROMPT_DOCUMENT", TURBO_PROMPT_DOCUMENT.into()),
+        ("TURBO_TASK_EMBED", TURBO_TASK_EMBED.into()),
+        ("TURBO_DEVICE_CPU", TURBO_DEVICE_CPU.into()),
+        ("TURBO_DEVICE_GPU", TURBO_DEVICE_GPU.into()),
+        ("TURBO_DEVICE_IGPU", TURBO_DEVICE_IGPU.into()),
+        ("TURBO_DEVICE_NPU", TURBO_DEVICE_NPU.into()),
+        ("TURBO_DTYPE_I32", TURBO_DTYPE_I32.into()),
+        ("TURBO_DTYPE_F16", TURBO_DTYPE_F16.into()),
+        ("TURBO_DTYPE_BF16", TURBO_DTYPE_BF16.into()),
+        ("TURBO_DTYPE_F32", TURBO_DTYPE_F32.into()),
+        ("TURBO_PRECISION_MODEL", TURBO_PRECISION_MODEL.into()),
+        ("TURBO_PRECISION_FASTEST", TURBO_PRECISION_FASTEST.into()),
+        ("TURBO_PRECISION_EXACT", TURBO_PRECISION_EXACT.into()),
+        ("TURBO_CAP_UNSUPPORTED", turbo::backend::TURBO_CAP_UNSUPPORTED.into()),
+        ("TURBO_CAP_EXPERIMENTAL", turbo::backend::TURBO_CAP_EXPERIMENTAL.into()),
+        ("TURBO_CAP_SUPPORTED", turbo::backend::TURBO_CAP_SUPPORTED.into()),
         ("TURBO_OK", OK.into()),
         ("TURBO_E_INVALID_ARGUMENT", INVALID_ARGUMENT.into()),
         ("TURBO_E_INVALID_STRUCT_SIZE", INVALID_STRUCT_SIZE.into()),
@@ -184,9 +234,21 @@ int main(int argc, char **argv) {
     turbo_error err = { sizeof(turbo_error) };
     turbo_runtime *rt = NULL;
     turbo_tokenizer *tok = NULL;
+    int32_t rc;
     if (argc != 3) return 2;
     if (turbo_runtime_create(NULL, &rt, &err)) { printf("runtime %s\n", err.message); return 1; }
-    int32_t rc = turbo_tokenizer_create(rt, T("/nonexistent/bundle"), &tok, &err);
+    uint32_t n = 0, pick = 99;
+    turbo_device_info info = { sizeof(turbo_device_info) };
+    turbo_capability cap = { sizeof(turbo_capability) };
+    if (turbo_runtime_device_count(rt, &n, &err)) { printf("count %s\n", err.message); return 1; }
+    if (turbo_runtime_device_info(rt, 0, &info, &err)) { printf("info %s\n", err.message); return 1; }
+    if (turbo_runtime_capability(rt, 0, TURBO_TASK_EMBED, TURBO_PRECISION_MODEL, &cap, &err)) {
+        printf("capability %s\n", err.message); return 1;
+    }
+    printf("devices %u, device 0 is %s kind %u, embed status %u\n", n, info.backend, info.kind, cap.status);
+    rc = turbo_runtime_select(rt, TURBO_TASK_EMBED, &pick, NULL, 0, &err);
+    printf("select %s %u\n", turbo_status_name(rc), pick);
+    rc = turbo_tokenizer_create(rt, T("/nonexistent/bundle"), &tok, &err);
     printf("missing %s %d\n", turbo_status_name(rc), err.code);
     if (turbo_tokenizer_create(rt, T(argv[1]), &tok, &err)) { printf("create %s\n", err.message); return 1; }
     turbo_runtime_release(rt); /* the tokenizer keeps what it needs */
@@ -241,8 +303,11 @@ fn a_c_program_gets_the_upstream_ids() {
     let text = "Café naïve RÉSUMÉ, 东京 🙂";
     let out = run(Command::new(d.join("p")).arg(&f.dir).arg(text));
     let ids: Vec<String> = upstream_ids(&upstream(), text).iter().map(i32::to_string).collect();
-    let want =
-        format!("missing TURBO_E_BUNDLE_NOT_FOUND {}\n{}\n0.1.0\n", turbo::status::BUNDLE_NOT_FOUND, ids.join(" "));
+    let want = format!(
+        "devices 1, device 0 is cpu kind 1, embed status 0\nselect TURBO_E_DEVICE_NOT_FOUND 99\nmissing TURBO_E_BUNDLE_NOT_FOUND {}\n{}\n0.1.0 cpu\n",
+        turbo::status::BUNDLE_NOT_FOUND,
+        ids.join(" ")
+    );
     assert_eq!(out, want);
     std::fs::remove_dir_all(d).unwrap();
 }

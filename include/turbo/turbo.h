@@ -248,7 +248,9 @@ typedef struct turbo_device_info {
     uint32_t unified_memory;     /* 1 if host and device share one memory */
     uint64_t memory_total;       /* bytes, 0 if unknown */
     uint64_t memory_free;        /* bytes at query time, 0 if unknown */
-    char     arch[32];           /* the label benchmarks are filed under: rtx4080, b70, m2, ... */
+    char     arch[32];           /* the label benchmarks are filed under: rtx4080, b70, m2, ...;
+                                  * for a CPU the instruction set, and a CPU record is
+                                  * filed under arch and name together */
     char     name[128];          /* what the driver calls it */
     char     vendor[64];
     char     backend[32];        /* cuda, openvino, metal, hailo, ggml */
@@ -264,8 +266,9 @@ typedef struct turbo_device_info {
 typedef struct turbo_capability {
     uint32_t struct_size;
     uint32_t status;              /* TURBO_CAP_* */
-    uint32_t dtype;               /* compute dtype used, TURBO_DTYPE_* */
-    uint32_t options_honored;     /* bit (i-1) set: field i of the task's options struct is honored */
+    uint32_t dtype;               /* compute dtype used, TURBO_DTYPE_*; 0 when UNSUPPORTED */
+    uint32_t options_honored;     /* bit (i-1) set: field i of the task's options struct is
+                                   * honored; 0 when UNSUPPORTED */
     float    cosine_floor;        /* lowest cosine against the fp32 reference in the record, 0 if none */
     float    speed_ratio;         /* our p50 latency over the reference's, from the record, 0 if none */
     char     benchmark[96];       /* file name of the record that backs SUPPORTED, else empty */
@@ -288,7 +291,8 @@ int32_t turbo_runtime_capability(turbo_runtime *rt, uint32_t index, uint32_t tas
 
 /* The device that will run task fastest here: the highest capability status
  * at TURBO_PRECISION_MODEL, then the best speed_ratio among equals. Never a
- * CPU. reason receives one line saying why, if non-NULL.
+ * CPU. Among devices that still tie, the first in device order. reason
+ * receives one line saying why, if non-NULL and reason_len is not 0.
  * TURBO_E_DEVICE_NOT_FOUND when nothing offers the task. */
 int32_t turbo_runtime_select(turbo_runtime *rt, uint32_t task, uint32_t *out,
                              char *reason, uint32_t reason_len, turbo_error *err);

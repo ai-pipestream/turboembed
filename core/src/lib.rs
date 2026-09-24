@@ -11,17 +11,37 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::Arc;
 
+pub mod backend;
 pub mod bundle;
+#[cfg(feature = "cpu")]
+pub mod cpu;
 pub mod manifest;
 pub mod safetensors;
 pub mod status;
 pub mod tokenizer;
 
+use backend::cstr;
 use manifest::{PromptRole, Truncation};
 use status::{Error, INVALID_ARGUMENT, INVALID_ENUM, INVALID_HANDLE, INVALID_STRUCT_SIZE, INVALID_UTF8, PANIC, Result};
 use tokenizer::{Encode, Tokenizer};
 
 pub const TURBO_ERROR_MESSAGE_LEN: usize = 496;
+
+pub const TURBO_TASK_EMBED: u32 = 1;
+
+pub const TURBO_DEVICE_CPU: u32 = 1;
+pub const TURBO_DEVICE_GPU: u32 = 2;
+pub const TURBO_DEVICE_IGPU: u32 = 3;
+pub const TURBO_DEVICE_NPU: u32 = 4;
+
+pub const TURBO_DTYPE_I32: u32 = 8;
+pub const TURBO_DTYPE_F16: u32 = 10;
+pub const TURBO_DTYPE_BF16: u32 = 11;
+pub const TURBO_DTYPE_F32: u32 = 12;
+
+pub const TURBO_PRECISION_MODEL: u32 = 0;
+pub const TURBO_PRECISION_FASTEST: u32 = 1;
+pub const TURBO_PRECISION_EXACT: u32 = 2;
 
 pub const TURBO_TRUNCATE_MODEL: u32 = 0;
 pub const TURBO_TRUNCATE_NONE: u32 = 1;
@@ -58,6 +78,36 @@ pub struct turbo_runtime_desc {
 }
 
 #[repr(C)]
+#[derive(Clone, Debug)]
+pub struct turbo_device_info {
+    pub struct_size: u32,
+    pub kind: u32,
+    pub ordinal: u32,
+    pub unified_memory: u32,
+    pub memory_total: u64,
+    pub memory_free: u64,
+    pub arch: [c_char; 32],
+    pub name: [c_char; 128],
+    pub vendor: [c_char; 64],
+    pub backend: [c_char; 32],
+    pub runtime_version: [c_char; 64],
+    pub driver_version: [c_char; 64],
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct turbo_capability {
+    pub struct_size: u32,
+    pub status: u32,
+    pub dtype: u32,
+    pub options_honored: u32,
+    pub cosine_floor: f32,
+    pub speed_ratio: f32,
+    pub benchmark: [c_char; 96],
+    pub reason: [c_char; 160],
+}
+
+#[repr(C)]
 pub struct turbo_tokenizer_info {
     pub struct_size: u32,
     pub vocab_size: u32,
@@ -87,9 +137,110 @@ const RUNTIME_MAGIC: u64 = 0x7475_7262_6f72_7431; // "turbort1"
 const TOKENIZER_MAGIC: u64 = 0x7475_7262_6f74_6b31; // "turbotk1"
 
 struct Runtime {
-    // Kept for the stages that log; nothing in this cut does.
-    _log: turbo_log_fn,
-    _log_user_data: usize,
+    log: turbo_log_fn,
+    log_user_data: usize,
+    devices: Vec<Device>,
+}
+
+/// A device a linked backend listed when the runtime was made.
+struct Device {
+    backend: &'static backend::turbo_backend,
+    ordinal: u32,
+    info: turbo_device_info,
+}
+
+const LOG_WARNING: u32 = 1;
+
+impl Runtime {
+    fn log(&self, level: u32, message: &str) {
+        if let Some(f) = self.log {
+            let t = turbo_text { ptr: message.as_ptr() as *const c_char, len: message.len() as u64 };
+            unsafe { f(self.log_user_data as *mut c_void, level, t) };
+        }
+    }
+
+    fn device(&self, index: u32) -> Result<&Device> {
+        self.devices.get(index as usize).ok_or_else(|| {
+            Error::new(INVALID_ARGUMENT, format!("device {index}: the runtime has {} devices", self.devices.len()))
+        })
+    }
+
+    /// Every device each linked backend lists. A backend whose probe fails
+    /// lists nothing, and the log says why; a table of the wrong size fails
+    /// the runtime.
+    fn enumerate(&mut self) -> Result<()> {
+        for b in backend::linked() {
+            backend::check_table(b)?;
+            let mut n = 0u32;
+            if let Err(e) = backend::check(b, "device_count", |err| unsafe { (b.device_count)(&mut n, err) }) {
+                self.log(LOG_WARNING, &e.message);
+                continue;
+            }
+            for ordinal in 0..n {
+                match probe(b, ordinal) {
+                    Ok(info) => self.devices.push(Device { backend: b, ordinal, info }),
+                    Err(e) => self.log(LOG_WARNING, &e.message),
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The (device, task, precision) cell. The backend says what it has
+    /// built; SUPPORTED needs a benchmark record, and this build reads none.
+    fn capability(&self, index: u32, task: u32, precision: u32) -> Result<turbo_capability> {
+        let d = self.device(index)?;
+        if task != TURBO_TASK_EMBED {
+            return Err(Error::new(INVALID_ENUM, format!("task: {task} is not a TURBO_TASK_* value")));
+        }
+        if precision > TURBO_PRECISION_EXACT {
+            return Err(Error::new(INVALID_ENUM, format!("precision: {precision} is not a TURBO_PRECISION_* value")));
+        }
+        let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
+        cap.struct_size = size_of::<turbo_capability>() as u32;
+        let b = d.backend;
+        backend::check(b, "capability", |err| unsafe {
+            (b.capability)(
+                d.ordinal,
+                task,
+                precision,
+                &mut cap.status,
+                &mut cap.dtype,
+                &mut cap.options_honored,
+                cap.reason.as_mut_ptr(),
+                cap.reason.len() as u32,
+                err,
+            )
+        })?;
+        match cap.status {
+            backend::TURBO_CAP_UNSUPPORTED => {
+                // A cell that does not run computes in nothing.
+                cap.dtype = 0;
+                cap.options_honored = 0;
+            }
+            backend::TURBO_CAP_EXPERIMENTAL => write_str(&mut cap.reason, "no benchmark record for this cell"),
+            s => {
+                return Err(Error::new(
+                    status::INTERNAL,
+                    format!(
+                        "{} backend reported status {s}; only EXPERIMENTAL or UNSUPPORTED are its to report",
+                        b.name()
+                    ),
+                ));
+            }
+        }
+        Ok(cap)
+    }
+}
+
+/// Ask a backend about one of its devices, now.
+fn probe(b: &'static backend::turbo_backend, ordinal: u32) -> Result<turbo_device_info> {
+    let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
+    info.struct_size = size_of::<turbo_device_info>() as u32;
+    backend::check(b, "device_info", |err| unsafe { (b.device_info)(ordinal, &mut info, err) })?;
+    info.struct_size = size_of::<turbo_device_info>() as u32;
+    write_str(&mut info.backend, b.name());
+    Ok(info)
 }
 
 pub struct turbo_runtime {
@@ -149,7 +300,7 @@ unsafe fn call(err: *mut turbo_error, f: impl FnOnce() -> Result<()>) -> i32 {
 }
 
 /// Copy `s` into a NUL-terminated buffer, cut at a character boundary.
-fn write_str(dst: &mut [c_char], s: &str) {
+pub(crate) fn write_str(dst: &mut [c_char], s: &str) {
     let mut n = s.len().min(dst.len() - 1);
     while !s.is_char_boundary(n) {
         n -= 1;
@@ -189,7 +340,22 @@ fn sized(struct_size: u32, want: usize, what: &str) -> Result<()> {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn turbo_version() -> *const c_char {
-    c"0.1.0".as_ptr()
+    VERSION.as_ptr()
+}
+
+/// The version and the backends linked into this build, in device order.
+#[cfg(feature = "cpu")]
+const VERSION: &std::ffi::CStr = c"0.1.0 cpu";
+#[cfg(not(feature = "cpu"))]
+const VERSION: &std::ffi::CStr = c"0.1.0";
+
+pub(crate) fn new_error() -> turbo_error {
+    turbo_error {
+        struct_size: size_of::<turbo_error>() as u32,
+        code: 0,
+        field: 0,
+        message: [0; TURBO_ERROR_MESSAGE_LEN],
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -217,12 +383,159 @@ pub unsafe extern "C" fn turbo_runtime_create(
                 }
                 None => (None, 0),
             };
-            let rt =
-                turbo_runtime { magic: RUNTIME_MAGIC, inner: Arc::new(Runtime { _log: log, _log_user_data: user }) };
+            let mut inner = Runtime { log, log_user_data: user, devices: Vec::new() };
+            inner.enumerate()?;
+            let rt = turbo_runtime { magic: RUNTIME_MAGIC, inner: Arc::new(inner) };
             *out = Box::into_raw(Box::new(rt));
             Ok(())
         })
     }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_runtime_device_count(
+    rt: *mut turbo_runtime,
+    out: *mut u32,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let rt = runtime(rt)?;
+            *out_ptr(out, "out")? = rt.inner.devices.len() as u32;
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_runtime_device_info(
+    rt: *mut turbo_runtime,
+    index: u32,
+    out: *mut turbo_device_info,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let rt = runtime(rt)?;
+            let out = out_ptr(out, "out")?;
+            sized(out.struct_size, size_of::<turbo_device_info>(), "turbo_device_info")?;
+            // Probed again, so memory_free is the device's now.
+            let d = rt.inner.device(index)?;
+            *out = probe(d.backend, d.ordinal)?;
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_runtime_capability(
+    rt: *mut turbo_runtime,
+    index: u32,
+    task: u32,
+    precision: u32,
+    out: *mut turbo_capability,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let rt = runtime(rt)?;
+            let out = out_ptr(out, "out")?;
+            sized(out.struct_size, size_of::<turbo_capability>(), "turbo_capability")?;
+            *out = rt.inner.capability(index, task, precision)?;
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says; `reason` is
+/// NULL or holds `reason_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_runtime_select(
+    rt: *mut turbo_runtime,
+    task: u32,
+    out: *mut u32,
+    reason: *mut c_char,
+    reason_len: u32,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let rt = &runtime(rt)?.inner;
+            let out = out_ptr(out, "out")?;
+            let (pick, why) = select(rt, task)?;
+            if !reason.is_null() && reason_len > 0 {
+                write_str(std::slice::from_raw_parts_mut(reason, reason_len as usize), &why);
+            }
+            match pick {
+                Some(i) => {
+                    *out = i;
+                    Ok(())
+                }
+                None => Err(Error::new(status::DEVICE_NOT_FOUND, why)),
+            }
+        })
+    }
+}
+
+/// turbo.h's rule: the highest status at TURBO_PRECISION_MODEL, then the
+/// lowest speed_ratio among equals (0 is no record, so it loses), never a
+/// CPU. Returns the device, or none, and one line saying why.
+fn select(rt: &Runtime, task: u32) -> Result<(Option<u32>, String)> {
+    if task != TURBO_TASK_EMBED {
+        return Err(Error::new(INVALID_ENUM, format!("task: {task} is not a TURBO_TASK_* value")));
+    }
+    let mut best: Option<(u32, turbo_capability)> = None;
+    let mut ties = 0u32;
+    let mut skipped = Vec::new();
+    for (i, d) in rt.devices.iter().enumerate() {
+        let i = i as u32;
+        let label = format!("device {i} ({} {})", d.backend.name(), cstr(&d.info.name));
+        if d.info.kind == TURBO_DEVICE_CPU {
+            skipped.push(format!("{label}: a CPU is never selected"));
+            continue;
+        }
+        let cap = rt.capability(i, task, TURBO_PRECISION_MODEL)?;
+        if cap.status == backend::TURBO_CAP_UNSUPPORTED {
+            skipped.push(format!("{label}: {}", cstr(&cap.reason)));
+            continue;
+        }
+        match &best {
+            Some((_, b)) if !ranks_above(&cap, b) => {
+                if !ranks_above(b, &cap) {
+                    ties += 1;
+                }
+            }
+            _ => {
+                best = Some((i, cap));
+                ties = 1;
+            }
+        }
+    }
+    Ok(match best {
+        Some((i, cap)) => {
+            let d = &rt.devices[i as usize];
+            let status = if cap.status == backend::TURBO_CAP_SUPPORTED { "supported" } else { "experimental" };
+            let tie = if ties > 1 { format!(", first in device order of {ties} that tie") } else { String::new() };
+            (Some(i), format!("device {i} ({} {}): {status}{tie}", d.backend.name(), cstr(&d.info.name)))
+        }
+        None if skipped.is_empty() => (None, "no device is listed".to_owned()),
+        None => (None, format!("no device offers the task: {}", skipped.join("; "))),
+    })
+}
+
+/// Whether cell `a` ranks above cell `b`: a higher status, or the same
+/// status and a lower speed_ratio, where 0 is no record and ranks below any.
+/// Neither ranking above the other is a tie.
+pub fn ranks_above(a: &turbo_capability, b: &turbo_capability) -> bool {
+    a.status > b.status
+        || (a.status == b.status && a.speed_ratio > 0.0 && (b.speed_ratio == 0.0 || a.speed_ratio < b.speed_ratio))
 }
 
 /// # Safety
