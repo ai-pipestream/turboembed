@@ -69,12 +69,13 @@ pub struct turbo_tokenizer_info {
     pub unk_id: i32,
     pub kind: [c_char; 32],
     pub sha256: [c_char; 72],
+    pub manifest_sha256: [c_char; 72],
 }
 
 #[repr(C)]
 pub struct turbo_encode_options {
     pub struct_size: u32,
-    pub add_special_tokens: u32,
+    pub omit_special_tokens: u32,
     pub truncate: u32,
     pub max_tokens: u32,
     pub prompt_role: u32,
@@ -291,12 +292,14 @@ pub unsafe extern "C" fn turbo_tokenizer_get_info(
             out.unk_id = tok.unk_id;
             write_str(&mut out.kind, "wordpiece");
             write_str(&mut out.sha256, &tok.sha256);
+            write_str(&mut out.manifest_sha256, &tok.manifest_sha256);
             Ok(())
         })
     }
 }
 
-/// The options as the tokenizer takes them; NULL is the defaults.
+/// The options as the tokenizer takes them; NULL, or 0 in every field, is
+/// what the bundle says.
 unsafe fn encode_options(tok: &Tokenizer, opts: *const turbo_encode_options) -> Result<Encode> {
     let mut e = Encode {
         add_special_tokens: true,
@@ -308,11 +311,11 @@ unsafe fn encode_options(tok: &Tokenizer, opts: *const turbo_encode_options) -> 
         return Ok(e);
     };
     sized(o.struct_size, size_of::<turbo_encode_options>(), "turbo_encode_options")?;
-    e.add_special_tokens = match o.add_special_tokens {
-        0 => false,
-        1 => true,
+    e.add_special_tokens = match o.omit_special_tokens {
+        0 => true,
+        1 => false,
         v => {
-            return Err(Error::field(INVALID_ARGUMENT, 1, format!("add_special_tokens is {v}, not 0 or 1")));
+            return Err(Error::field(INVALID_ARGUMENT, 1, format!("omit_special_tokens is {v}, not 0 or 1")));
         }
     };
     e.truncation = match o.truncate {
@@ -327,15 +330,17 @@ unsafe fn encode_options(tok: &Tokenizer, opts: *const turbo_encode_options) -> 
     if o.max_tokens != 0 {
         e.max_tokens = o.max_tokens;
     }
-    e.prompt = match o.prompt_role {
-        TURBO_PROMPT_NONE => PromptRole::None,
-        TURBO_PROMPT_QUERY => PromptRole::Query,
-        TURBO_PROMPT_DOCUMENT => PromptRole::Document,
-        v => {
-            return Err(Error::new(INVALID_ENUM, format!("prompt_role: {v} is not a TURBO_PROMPT_* value")));
-        }
-    };
+    e.prompt = prompt_role(o.prompt_role)?;
     Ok(e)
+}
+
+fn prompt_role(v: u32) -> Result<PromptRole> {
+    match v {
+        TURBO_PROMPT_NONE => Ok(PromptRole::None),
+        TURBO_PROMPT_QUERY => Ok(PromptRole::Query),
+        TURBO_PROMPT_DOCUMENT => Ok(PromptRole::Document),
+        v => Err(Error::new(INVALID_ENUM, format!("prompt_role: {v} is not a TURBO_PROMPT_* value"))),
+    }
 }
 
 /// # Safety
@@ -413,14 +418,16 @@ pub unsafe extern "C" fn turbo_tokenizer_encode(
 pub unsafe extern "C" fn turbo_tokenizer_count(
     t: *mut turbo_tokenizer,
     txt: turbo_text,
+    prompt: u32,
     out: *mut u32,
     err: *mut turbo_error,
 ) -> i32 {
     unsafe {
         call(err, || {
             let tok = &tokenizer(t)?.tok;
+            let prompt = prompt_role(prompt)?;
             let out = out_ptr(out, "out")?;
-            *out = tok.count(text(txt, "text")?, PromptRole::None) as u32;
+            *out = tok.count(text(txt, "text")?, prompt) as u32;
             Ok(())
         })
     }

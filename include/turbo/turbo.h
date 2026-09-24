@@ -4,7 +4,8 @@
  * follows it.
  *
  * First cut: text embedding, tokens in and vectors out, on one device. The
- * other tasks and chunking are added here when they are built, not before.
+ * other tasks and chunking are added here when they are built, not before,
+ * by the rule under "Tasks" below.
  *
  * Conventions
  *   - Every struct the caller fills or receives starts with
@@ -26,6 +27,42 @@
  *     fails the call with TURBO_E_UNSUPPORTED_OPTION and turbo_error.field
  *     naming the field (1-based). Nothing is ignored, clamped or replaced.
  *   - There is no fake device. Every device listed is real hardware.
+ *
+ * Tasks
+ *   - A bundle has one task. turbo_model_load reads it from the manifest and
+ *     turbo_model_info.task reports it. A session and its results belong to
+ *     that task. Calling another task's function on it is
+ *     TURBO_E_UNSUPPORTED_TASK.
+ *   - A task is added by a change to this file alone, made before any of its
+ *     code. It adds exactly these, named after the task, and changes nothing
+ *     an earlier task uses:
+ *
+ *       what                 name                        rule
+ *       task number          TURBO_TASK_<TASK>           next free number, never reused
+ *       options              turbo_<task>_options        struct_size first, then fields
+ *                                                        numbered from 1; 0 in every field
+ *                                                        is what the bundle says
+ *       write                turbo_<task>_write_<input>  one per input shape, each taking
+ *                                                        the session and the task's options
+ *       read                 turbo_<task>_read_<what>    only when the output is not one
+ *                                                        [batch, dim] block, which
+ *                                                        turbo_result_read and
+ *                                                        turbo_result_buffer already give
+ *       stages               TURBO_<TASK>_STAGE_*        in pipeline order from 0, and
+ *                                                        TURBO_<TASK>_STAGE_COUNT, at most
+ *                                                        TURBO_STAGE_MAX
+ *       manifest block       "<task>" in docs/bundle.md  the model facts the task needs
+ *       model facts          fields at the end of        0 or empty for a model of
+ *                            turbo_model_info            another task
+ *
+ *   - turbo_session_run, turbo_result_get_info, turbo_result_read and
+ *     turbo_result_buffer serve every task. turbo_result_info.stage_count
+ *     says how many entries of stage[] the task uses; the rest are
+ *     TURBO_STAGE_UNUSED.
+ *   - turbo_capability.options_honored and turbo_error.field count the
+ *     fields of the task's own options struct.
+ *   - A task whose output is not a finished block per run (generation, with
+ *     state kept across calls) gets its own handle, designed with it.
  */
 
 #ifndef TURBO_H
@@ -106,14 +143,18 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_PLACE_DEVICE  3   /* device memory */
 #define TURBO_PLACE_SHARED  4   /* one allocation both can address */
 
+/* Entries in turbo_result_info.stage; no task has more stages. */
+#define TURBO_STAGE_MAX 16
+
 /* Pipeline stages of an embed run, in order. */
-#define TURBO_STAGE_TOKENIZE  0
-#define TURBO_STAGE_UPLOAD    1
-#define TURBO_STAGE_ENCODE    2
-#define TURBO_STAGE_POOL      3
-#define TURBO_STAGE_NORMALIZE 4
-#define TURBO_STAGE_DOWNLOAD  5
-#define TURBO_STAGE_COUNT     6
+#define TURBO_EMBED_STAGE_TOKENIZE  0
+#define TURBO_EMBED_STAGE_UPLOAD    1
+#define TURBO_EMBED_STAGE_LOOKUP    2   /* word, position and type embedding lookup */
+#define TURBO_EMBED_STAGE_ENCODE    3
+#define TURBO_EMBED_STAGE_POOL      4
+#define TURBO_EMBED_STAGE_NORMALIZE 5
+#define TURBO_EMBED_STAGE_DOWNLOAD  6
+#define TURBO_EMBED_STAGE_COUNT     7
 
 /* Where a stage ran. */
 #define TURBO_STAGE_UNUSED 0   /* the model does not have this stage */
@@ -141,6 +182,14 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_POOLING_MEAN  1
 #define TURBO_POOLING_CLS   2
 #define TURBO_POOLING_LAST  3
+
+/* How a session computes. The artifact is chosen at load, in manifest
+ * order; precision chooses how that artifact computes, never another one. */
+#define TURBO_PRECISION_MODEL   0   /* the artifact's compute_dtype if the manifest fixes one,
+                                       else the dtype its weights are stored in */
+#define TURBO_PRECISION_FASTEST 1   /* the fastest compute dtype this backend has for the
+                                       artifact, which may be below the weights' dtype */
+#define TURBO_PRECISION_EXACT   2   /* F32 throughout */
 
 /* Native memory handle kinds, for import and export. */
 #define TURBO_HANDLE_HOST_PTR   1   /* aux unused */
@@ -195,12 +244,14 @@ typedef struct turbo_device_info {
     char     driver_version[64];    /* empty where there is none */
 } turbo_device_info;
 
-/* One cell of the matrix: what (device, task) can do, and the proof. */
+/* One cell of the matrix: what (device, task, precision) can do, and the
+ * proof. Each precision is its own cell with its own record, so the caller
+ * who asks for FASTEST can read what it costs before asking. */
 typedef struct turbo_capability {
     uint32_t struct_size;
     uint32_t status;              /* TURBO_CAP_* */
     uint32_t dtype;               /* compute dtype used, TURBO_DTYPE_* */
-    uint32_t options_honored;     /* bit (i-1) set: field i of turbo_embed_options is honored */
+    uint32_t options_honored;     /* bit (i-1) set: field i of the task's options struct is honored */
     float    cosine_floor;        /* lowest cosine against the fp32 reference in the record, 0 if none */
     float    speed_ratio;         /* our p50 latency over the reference's, from the record, 0 if none */
     char     benchmark[96];       /* file name of the record that backs SUPPORTED, else empty */
@@ -217,12 +268,14 @@ const char *turbo_status_name(int32_t code);
 
 int32_t turbo_runtime_device_count(turbo_runtime *rt, uint32_t *out, turbo_error *err);
 int32_t turbo_runtime_device_info(turbo_runtime *rt, uint32_t index, turbo_device_info *out, turbo_error *err);
-int32_t turbo_runtime_capability(turbo_runtime *rt, uint32_t index, uint32_t task, turbo_capability *out, turbo_error *err);
+/* precision is TURBO_PRECISION_*. */
+int32_t turbo_runtime_capability(turbo_runtime *rt, uint32_t index, uint32_t task, uint32_t precision,
+                                 turbo_capability *out, turbo_error *err);
 
-/* The device that will run task fastest here: the highest capability status,
- * then the best speed_ratio among equals. Never a CPU. reason receives one
- * line saying why, if non-NULL. TURBO_E_DEVICE_NOT_FOUND when nothing
- * offers the task. */
+/* The device that will run task fastest here: the highest capability status
+ * at TURBO_PRECISION_MODEL, then the best speed_ratio among equals. Never a
+ * CPU. reason receives one line saying why, if non-NULL.
+ * TURBO_E_DEVICE_NOT_FOUND when nothing offers the task. */
 int32_t turbo_runtime_select(turbo_runtime *rt, uint32_t task, uint32_t *out,
                              char *reason, uint32_t reason_len, turbo_error *err);
 
@@ -275,9 +328,11 @@ typedef struct turbo_model_info {
     uint32_t normalize;         /* TURBO_NORMALIZE_* as the bundle says */
     uint32_t max_seq;           /* tokens */
     uint32_t max_batch;         /* rows a session may take */
-    uint32_t dtype;             /* compute dtype in use */
+    uint32_t dtype;             /* the artifact's: its compute_dtype if the manifest fixes one,
+                                   else its weights' storage dtype */
     char     model_id[128];
     char     revision[64];
+    char     manifest_sha256[72];    /* hex, of manifest.json: the contract this load was made against */
     char     artifact_sha256[72];    /* hex, of the artifact file this device loaded */
     char     tokenizer_sha256[72];   /* hex, of the tokenizer file */
     char     prefix_query[128];
@@ -302,15 +357,18 @@ typedef struct turbo_tokenizer_info {
     int32_t  eos_id;
     int32_t  unk_id;
     char     kind[32];  /* wordpiece, bpe, unigram */
-    char     sha256[72];
+    char     sha256[72];            /* hex, of the tokenizer file */
+    char     manifest_sha256[72];   /* hex, of manifest.json */
 } turbo_tokenizer_info;
 
+/* Fields are numbered from 1 for turbo_error.field. 0 in every field, or
+ * opts NULL, is what the bundle says. */
 typedef struct turbo_encode_options {
     uint32_t struct_size;
-    uint32_t add_special_tokens;   /* 1 = yes (the default when opts is NULL) */
-    uint32_t truncate;             /* TURBO_TRUNCATE_* */
-    uint32_t max_tokens;           /* including specials; 0 = the bundle's max_seq */
-    uint32_t prompt_role;          /* TURBO_PROMPT_* */
+    uint32_t omit_special_tokens;  /* 1: 0 = the bundle's template, 1 = the text's ids alone */
+    uint32_t truncate;             /* 2: TURBO_TRUNCATE_* */
+    uint32_t max_tokens;           /* 3: including specials; 0 = the bundle's max_seq */
+    uint32_t prompt_role;          /* 4: TURBO_PROMPT_* */
 } turbo_encode_options;
 
 /* The tokenizer the bundle names. Thread-safe. The same ids on every machine. */
@@ -326,15 +384,21 @@ int32_t turbo_tokenizer_encode(turbo_tokenizer *t, const turbo_text *texts, uint
                                int32_t *ids, int32_t *mask, int32_t *types,
                                uint32_t row_stride, uint32_t *lengths, turbo_error *err);
 
-/* Tokens text produces, with special tokens and no truncation. */
-int32_t turbo_tokenizer_count(turbo_tokenizer *t, turbo_text text, uint32_t *out, turbo_error *err);
+/* Tokens text produces with the prompt role's prefix (TURBO_PROMPT_*), with
+ * special tokens and no truncation. */
+int32_t turbo_tokenizer_count(turbo_tokenizer *t, turbo_text text, uint32_t prompt_role,
+                              uint32_t *out, turbo_error *err);
 
 /* ---- Session and run --------------------------------------------------- */
 
+/* Fields are numbered from 1 for turbo_error.field. A precision the
+ * artifact cannot compute in (EXACT on one compiled to a lower dtype, say)
+ * fails with TURBO_E_UNSUPPORTED_OPTION naming field 3. */
 typedef struct turbo_session_desc {
     uint32_t struct_size;
-    uint32_t max_batch;   /* 0 = the model's */
-    uint32_t max_seq;     /* 0 = the model's */
+    uint32_t max_batch;   /* 1: 0 = the model's */
+    uint32_t max_seq;     /* 2: 0 = the model's */
+    uint32_t precision;   /* 3: TURBO_PRECISION_* */
 } turbo_session_desc;
 
 /* Fields are numbered from 1 for turbo_error.field and options_honored.
@@ -342,7 +406,8 @@ typedef struct turbo_session_desc {
 typedef struct turbo_embed_options {
     uint32_t struct_size;
     uint32_t truncate;      /* 1: TURBO_TRUNCATE_* */
-    uint32_t max_tokens;    /* 2: token budget per row */
+    uint32_t max_tokens;    /* 2: token budget per row; above the session's max_seq is
+                               TURBO_E_CAPACITY */
     uint32_t prompt_role;   /* 3: TURBO_PROMPT_* */
     uint32_t normalize;     /* 4: TURBO_NORMALIZE_* */
     uint32_t pooling;       /* 5: TURBO_POOLING_* */
@@ -366,12 +431,12 @@ int32_t turbo_session_create(turbo_model *m, const turbo_session_desc *desc, tur
 void    turbo_session_release(turbo_session *s);
 
 /* Tokenize with the bundle's tokenizer, then write the rows. opts may be NULL. */
-int32_t turbo_session_write_text(turbo_session *s, const turbo_text *texts, uint32_t count,
-                                 const turbo_embed_options *opts, turbo_error *err);
+int32_t turbo_embed_write_text(turbo_session *s, const turbo_text *texts, uint32_t count,
+                               const turbo_embed_options *opts, turbo_error *err);
 
 /* Write rows the caller tokenized. opts may be NULL. */
-int32_t turbo_session_write_tokens(turbo_session *s, const turbo_token_batch *batch,
-                                   const turbo_embed_options *opts, turbo_error *err);
+int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batch,
+                                 const turbo_embed_options *opts, turbo_error *err);
 
 /* Run what was written. The result holds the session until released. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
@@ -381,21 +446,27 @@ int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err
 /* One summary per run: what produced it and what it cost. */
 typedef struct turbo_result_info {
     uint32_t struct_size;
+    uint32_t task;                             /* TURBO_TASK_* */
     uint32_t batch;
-    uint32_t dim;
-    uint32_t dtype;                            /* TURBO_DTYPE_* of the vectors */
+    uint32_t dim;                              /* values per row: the vector width for embed */
+    uint32_t dtype;                            /* TURBO_DTYPE_* of the output: F32 in this cut,
+                                                  whatever the compute dtype */
+    uint32_t compute_dtype;                    /* TURBO_DTYPE_* the session's precision ran in */
     uint32_t placement;                        /* TURBO_PLACE_* where they are now */
     uint32_t device;                           /* runtime device index */
     uint64_t bytes;
-    uint32_t stage[TURBO_STAGE_COUNT];         /* TURBO_STAGE_HOST / DEVICE / FUSED / UNUSED */
-    uint32_t reserved;
     uint64_t h2d_bytes;                        /* every byte that crossed to the device in this run */
     uint64_t d2h_bytes;                        /* every byte that crossed back, including reads */
     uint64_t host_allocs;                      /* heap allocations on the run path */
     uint64_t device_allocs;                    /* device allocations on the run path */
+    uint32_t stage_count;                      /* the task's TURBO_<TASK>_STAGE_COUNT */
+    uint32_t reserved;
+    uint32_t stage[TURBO_STAGE_MAX];           /* by TURBO_<TASK>_STAGE_*: TURBO_STAGE_HOST / DEVICE /
+                                                  FUSED / UNUSED */
     char     backend[32];
     char     arch[32];
     char     runtime_version[64];
+    char     manifest_sha256[72];
     char     artifact_sha256[72];
     char     tokenizer_sha256[72];
 } turbo_result_info;

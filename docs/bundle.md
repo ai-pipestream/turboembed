@@ -7,12 +7,6 @@ to tokenize for it, what it computes, which artifact each backend runs,
 and carries a small reference the loader checks itself against on every
 machine.
 
-This design was chosen on 2026-09-23 from three candidates (one written
-fresh, one written by an agent that saw only the README and the header,
-one read from the previous attempt). It is the second, with the
-per-artifact quality floor and the device-kind list removed, and the
-previous attempt's three verification rules added.
-
 ## Layout
 
 ```
@@ -33,10 +27,15 @@ contain `..` or a leading `/`.
 
 ## Manifest
 
-The manifest is the proto3 JSON encoding of a `Bundle` message: field
-names in snake_case, enum values as the header constant without the
-`TURBO_` prefix, lists rather than maps except `tensor_names`. An absent
-field means the proto3 default. The gRPC definition is the same message.
+The manifest is JSON in one canonical form, the one the bundle tool
+writes: field names in snake_case, enum values as the header constant
+without the `TURBO_` prefix, 64-bit integers as JSON numbers, lists
+rather than maps except `tensor_names`. A field the table below marks
+required is present even when its value is empty, false or 0; a field
+marked "no" may be left out. Nothing else is accepted: no lowerCamelCase
+names, no integers as strings, no field filled in from a default. A
+service that carries a `Bundle` message in another encoding converts to
+this form before it is written or loaded.
 
 ```json
 {
@@ -218,14 +217,14 @@ field means the proto3 default. The gRPC definition is the same message.
 | `model.source.repository`, `.commit` | string | yes | Where the checkpoint came from. |
 | `model.license` | string | yes | SPDX identifier. Nothing is redistributed without one. |
 | `model.license_file` | path | no | The licence text. |
-| `task` | enum | yes | `TASK_EMBED`. Names the task block that follows. |
+| `task` | enum | yes | `TASK_EMBED`. Names the task block that follows. Any other `TASK_*` name is a task this build does not have. |
 | `embed.dim`, `.pooling`, `.normalize` | uint32, enum | yes | Vector width; what `TURBO_POOLING_MODEL` and `TURBO_NORMALIZE_MODEL` mean. |
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
 | `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to. Any other `output_dim` is refused. |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged. Its hash is `tokenizer_sha256`. |
-| `tokenizer.normalizer.*` | bool, enum | yes | What the core applies to the text, in the listed order. |
+| `tokenizer.normalizer.*` | bool, enum | yes | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. |
 | `tokenizer.wordpiece`, `.bpe`, `.unigram` | message | one of | The kind and its parameters. Only wordpiece is defined in this cut. |
 | `tokenizer.special_tokens[]` | role, content, id | yes | Fills `pad_id`, `bos_id`, `eos_id`, `unk_id`. |
 | `tokenizer.template` | string[] | yes | The row layout around `$TEXT`. |
@@ -237,13 +236,14 @@ field means the proto3 default. The gRPC definition is the same message.
 | `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |
 | `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. |
-| `artifacts[].compute_dtype` | enum | no | Fixed by the compilation; otherwise the backend's choice. |
+| `artifacts[].compute_dtype` | enum | no | Fixed by the compilation. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
 | `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. |
 | `artifacts[].host_weights` | string | when input is embeddings | The artifact whose embedding tensors the host lookup uses. |
 | `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. |
 | `artifacts[].produced_by` | message | no | Absent means the upstream file, unchanged. |
 | `produced_by.tool`, `.tool_version`, `.container`, `.reproducible` | string, bool | yes when present | What ran, in which pinned container, and whether two runs give identical bytes. |
-| `produced_by.from`, `.inputs`, `.args` | string, path[], string[] | no | The source artifact, the other files read, the arguments. |
+| `produced_by.from` | string | yes in an artifact, empty in `reference` | The artifact this one was converted from. The reference is made from the upstream model, so its `from` is empty. |
+| `produced_by.inputs`, `.args` | path[], string[] | no | The other files read, the arguments. |
 | `reference.file` | path | yes | A safetensors file with `ids` (I32 `[n, L]`, padded with `pad_id`), `lengths` (I32 `[n]`) and `embeddings` (F32 `[n, dim]`), row `i` for `cases[i]`. |
 | `reference.cases[]` | text, prompt_role | yes | The exact bytes the core is handed. If a service normalizes text upstream, these are post-normalization. One case is longer than `max_seq`, so truncation is checked too. |
 | `reference.produced_by` | message | yes | The upstream pipeline, fp32 on CPU, in a pinned container. |
@@ -257,13 +257,15 @@ Status codes are the header's `TURBO_E_*`.
 2. The manifest is parsed strictly. An unknown field or enum value at
    any level, a missing required field, a string longer than its header
    buffer, a path with `..` or a leading `/`, or a path not present in
-   `files`: `BUNDLE_INVALID`, naming the field. A task this build does
-   not have: `UNSUPPORTED_TASK`.
+   `files`: `BUNDLE_INVALID`, naming the field. Any `TASK_*` name other
+   than the ones this build has: `UNSUPPORTED_TASK`.
 3. Every path is canonicalized and must resolve under the bundle
    directory's canonical path. A symlink that leaves the directory is
    `BUNDLE_INVALID`. A hash never vouches for a file elsewhere on disk.
 4. The manifest bytes are hashed. That hash identifies the contract and
-   is reported beside the artifact and tokenizer hashes.
+   is reported beside the artifact and tokenizer hashes, as
+   `manifest_sha256` in `turbo_tokenizer_info`, `turbo_model_info` and
+   `turbo_result_info`.
 5. The tokenizer file and the reference file are verified by size, then
    SHA-256. Then the core encodes every reference case and compares the
    ids exactly with the reference's. Any difference is `BUNDLE_INVALID`
@@ -274,6 +276,8 @@ Status codes are the header's `TURBO_E_*`.
    device's architecture label, and whose format and family the backend
    implements. Manifest order is the preference. None:
    `BUNDLE_NO_ARTIFACT`, with the message saying why each was skipped.
+   A session's `precision` never picks another artifact; it says how the
+   chosen one computes.
 7. The chosen artifact's files, and its `host_weights` artifact's files,
    are verified by size, then SHA-256, before any byte is used. Where a
    backend's API takes memory, the bytes handed to it are the bytes
@@ -283,10 +287,11 @@ Status codes are the header's `TURBO_E_*`.
    linear layer), else `BUNDLE_INVALID` naming the tensor.
 9. A vendor load failure is `RUNTIME` with the vendor's text.
 
-A missing file, a size mismatch or a hash mismatch is
-`BUNDLE_INTEGRITY`, naming the path and both values. Nothing loads and
-no other artifact is tried. A file not listed in `files` is never
-opened.
+A size mismatch or a hash mismatch is `BUNDLE_INTEGRITY`, naming the
+path and both values. A listed file that is absent is
+`BUNDLE_NOT_FOUND`, naming the path, as for a bundle shipped without
+its weights (below). Either way nothing loads and no other artifact is
+tried. A file not listed in `files` is never opened.
 
 On a fixed-shape artifact, `turbo_model_info` reports the smaller
 `max_seq` and `max_batch`. `TURBO_TRUNCATE_MODEL` still cuts at

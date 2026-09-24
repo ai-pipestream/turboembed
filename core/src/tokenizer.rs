@@ -30,7 +30,10 @@ pub struct Tokenizer {
     pub bos_id: i32,
     pub eos_id: i32,
     pub unk_id: i32,
+    /// SHA-256 of the tokenizer file.
     pub sha256: String,
+    /// SHA-256 of the manifest the tokenizer was made from.
+    pub manifest_sha256: String,
 }
 
 /// How to lay out one row. `max_tokens` includes the special tokens when
@@ -173,6 +176,7 @@ impl Tokenizer {
             eos_id: role(SpecialRole::Eos),
             unk_id: role(SpecialRole::Unk),
             sha256: crate::bundle::sha256_hex(&bytes),
+            manifest_sha256: bundle.manifest_sha256.clone(),
         })
     }
 
