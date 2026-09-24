@@ -19,8 +19,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const SOURCES: [&str; 2] = ["cuda/kernels.cu", "cuda/backend.cpp"];
-const DEPENDS: [&str; 4] =
-    ["cuda/kernels.h", "../include/turbo/turbo.h", "../include/turbo/turbo_backend.h", "build.rs"];
+const DEPENDS: [&str; 3] = ["cuda/kernels.h", "../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");

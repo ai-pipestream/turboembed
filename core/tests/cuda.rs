@@ -7,7 +7,9 @@
 //!
 //! Built with the `cuda` feature only. A test that needs a device says it
 //! was skipped, and passes, when the backend lists none; nothing is run
-//! on anything else in its place. docs/cuda.md says how to run them.
+//! on anything else in its place. With TURBO_TEST_REQUIRE_CUDA=1 it fails
+//! instead, so a run on a GPU machine cannot pass by finding no GPU.
+//! docs/cuda.md says how to run them.
 
 #![cfg(feature = "cuda")]
 
@@ -71,11 +73,17 @@ impl Drop for Rt {
     }
 }
 
+/// TURBO_TEST_REQUIRE_CUDA=1: a test that finds no device fails.
+fn required() -> bool {
+    std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1")
+}
+
 /// The first CUDA device, or None after saying the test is skipped.
 fn cuda_device(test: &str) -> Option<u32> {
     let rt = Rt::new();
     let d = first_of(rt.0, "cuda");
     if d.is_none() {
+        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_CUDA=1 and the cuda backend lists no device");
         println!("{test}: skipped: the cuda feature is on and the cuda backend lists no device");
     }
     d
@@ -127,6 +135,8 @@ fn arch_labels_come_from_the_device_name() {
         ("Quadro RTX 8000", "rtx8000"),
         ("NVIDIA RTX A6000", "rtxa6000"),
         ("NVIDIA RTX 6000 Ada Generation", "rtx6000ada"),
+        ("NVIDIA RTX 2000 Ada Generation", "rtx2000ada"),
+        ("NVIDIA RTX 4000 SFF Ada Generation", "rtx4000sffada"),
         ("Orin", "orin"),
     ] {
         assert_eq!(turbo::cuda::arch_label(name), want, "{name}");
@@ -145,6 +155,7 @@ fn the_devices_listed_are_the_drivers() {
     assert_eq!(unsafe { turbo_runtime_device_count(rt.0, &mut n, null_err()) }, 0);
     let listed: Vec<turbo_device_info> = (0..n).map(|i| rt.info(i)).filter(|d| field(&d.backend) == "cuda").collect();
     if listed.is_empty() {
+        assert!(!required(), "TURBO_TEST_REQUIRE_CUDA=1 and the cuda backend lists no device");
         println!("the cuda backend lists no device: nothing to check but that the runtime was made");
         assert!(n >= 1, "the cpu is still listed");
         return;
@@ -667,6 +678,14 @@ fn half_weights_compute_in_f32_from_one_shared_copy() {
         assert_eq!(a.embed(&TEXTS, None).unwrap(), want, "{dtype}");
         assert_eq!(b.embed(&TEXTS, None).unwrap(), want, "{dtype}");
         assert!(unsafe { model_converted_weights(lw.m) }.is_none(), "F32 weights are used as loaded");
+
+        // The same F16 or BF16 bundle on the CPU, which widens it too.
+        let lc = f.load().unwrap();
+        let cpu = Session::create(lc.m, Some(&session_desc(0, 0, TURBO_PRECISION_EXACT))).unwrap();
+        for (r, (g, c)) in want.iter().zip(cpu.embed(&TEXTS, None).unwrap()).enumerate() {
+            let cos = cosine(g, &c);
+            assert!(cos >= 0.9999, "{dtype} row {r}: cosine {cos} with the cpu");
+        }
     }
 }
 
@@ -750,4 +769,110 @@ fn an_output_dim_is_cut_then_normalized_on_the_device() {
             assert!((*a as f64 - b).abs() < 1e-5, "{a} vs {b}");
         }
     }
+}
+
+// ---- Limits and the largest shape ----------------------------------------------------
+
+/// A session over 65535 rows is refused by field 1: a grid dimension of
+/// the kernels that run one block per row.
+#[test]
+fn more_rows_than_a_launch_takes_are_refused_by_field() {
+    let _t = turn();
+    let Some(_) = cuda_device("more_rows_than_a_launch_takes_are_refused_by_field") else { return };
+    let mut m = model_manifest();
+    m["embed"]["max_batch"] = json!(70000);
+    let mut f = Fixture::new("cuda-rows", m);
+    f.weights("weights/model.safetensors", &tiny_weights(0));
+    let l = f.load_on(cuda).unwrap();
+    let e = Session::create(l.m, Some(&session_desc(65536, 8, 0))).err().unwrap();
+    assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 1), "{e:?}");
+    assert!(e.message.contains("at most 65535 rows"), "{e:?}");
+    Session::create(l.m, Some(&session_desc(65535, 8, 0))).unwrap();
+}
+
+/// A session longer than attention's shared memory holds on this device
+/// is refused by field 2. 65536 positions need 256 KiB of scores per
+/// block, more than any device gives one.
+#[test]
+fn more_tokens_than_attention_holds_are_refused_by_field() {
+    let _t = turn();
+    let Some(_) = cuda_device("more_tokens_than_attention_holds_are_refused_by_field") else { return };
+    let positions = 65536u64;
+    let mut m = model_manifest();
+    m["architecture"]["max_positions"] = json!(positions);
+    m["embed"]["max_seq"] = json!(positions);
+    // A case longer than max_seq, which a manifest needs: 600 paragraphs of
+    // about 120 tokens.
+    m["reference"]["cases"][8]["text"] = json!(vec![PARAGRAPH; 600].join(" "));
+    let mut f = Fixture::new("cuda-positions", m);
+    let weights: Vec<Tensor> = tiny_weights(0)
+        .into_iter()
+        .map(|t| {
+            if t.name != "embeddings.position_embeddings.weight" {
+                return t;
+            }
+            let n = positions as usize * 8;
+            let data = (0..n).flat_map(|i| (((i * 37 % 101) as f32 - 50.0) / 500.0).to_le_bytes()).collect();
+            Tensor { shape: vec![positions, 8], data, ..t }
+        })
+        .collect();
+    f.weights("weights/model.safetensors", &weights);
+    let l = f.load_on(cuda).unwrap();
+    let e = Session::create(l.m, Some(&session_desc(1, positions as u32, 0))).err().unwrap();
+    assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 2), "{e:?}");
+    assert!(e.message.contains("shared memory"), "{e:?}");
+    Session::create(l.m, Some(&session_desc(1, 512, 0))).unwrap();
+}
+
+/// TURBO_TEST_BUNDLE, a relative path read from the workspace root, as
+/// tests/conformance.rs reads it.
+fn named_bundle() -> Option<std::path::PathBuf> {
+    let p = std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
+    Some(if p.is_absolute() { p } else { std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
+}
+
+/// One run at the session's largest shape, max_batch rows of max_seq
+/// tokens, on the device and on the CPU: every row's cosine reaches
+/// 0.9999. Rows are full or end early, so the padding is exercised too.
+fn largest_shape_matches_the_cpu(dir: &std::path::Path) {
+    let (g, c) = (on_cuda(dir), Loaded::load(dir).unwrap());
+    let (gs, cs) = (Session::create(g.m, None).unwrap(), Session::create(c.m, None).unwrap());
+    let si = gs.info();
+    let (batch, seq) = (si.max_batch as usize, si.max_seq as usize);
+    let vocab = Tok::create(dir).unwrap().info().vocab_size as usize;
+    let rows: Vec<Vec<i32>> = (0..batch)
+        .map(|r| {
+            let len = seq - (r * 7) % (seq / 2);
+            (0..len).map(|p| (1000 + (r * 131 + p * 17) % (vocab - 1000)) as i32).collect()
+        })
+        .collect();
+    let t = Tokens::new(&rows, 0);
+    assert_eq!((t.batch as usize, t.seq as usize), (batch, seq));
+    gs.write_tokens(&t.batch(), None).unwrap();
+    let got = gs.run().unwrap().rows();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    let want = cs.run().unwrap().rows();
+    let mut lowest = 1f64;
+    for (r, (a, b)) in got.iter().zip(&want).enumerate() {
+        let cos = cosine(a, b);
+        lowest = lowest.min(cos);
+        assert!(cos >= 0.9999, "row {r}: cosine {cos} with the cpu");
+    }
+    println!("{}: {batch} rows of {seq} tokens, 1 - lowest cosine with the cpu {:.3e}", dir.display(), 1.0 - lowest);
+}
+
+#[test]
+fn the_largest_shape_matches_the_cpu() {
+    let _t = turn();
+    let Some(_) = cuda_device("the_largest_shape_matches_the_cpu") else { return };
+    largest_shape_matches_the_cpu(&tiny_bundle());
+}
+
+#[test]
+#[ignore = "needs a real bundle directory in TURBO_TEST_BUNDLE"]
+fn the_largest_shape_of_a_real_bundle_matches_the_cpu() {
+    let _t = turn();
+    let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
+    let Some(_) = cuda_device("the_largest_shape_of_a_real_bundle_matches_the_cpu") else { return };
+    largest_shape_matches_the_cpu(&dir);
 }

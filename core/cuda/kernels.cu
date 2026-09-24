@@ -12,6 +12,8 @@
 
 #include "kernels.h"
 
+#include <turbo/turbo.h>
+
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
 
@@ -24,10 +26,6 @@ namespace {
 /* Threads per block for the row kernels: four warps. */
 constexpr int BLOCK = 128;
 constexpr int WARPS = BLOCK / 32;
-
-/* TURBO_POOLING_* in turbo.h. */
-constexpr uint32_t POOLING_CLS = 2;
-constexpr uint32_t POOLING_LAST = 3;
 
 __device__ double warp_sum(double v) {
     for (int o = 16; o > 0; o >>= 1) v += __shfl_down_sync(0xffffffffu, v, o);
@@ -221,9 +219,9 @@ __global__ void __launch_bounds__(BLOCK) pool_kernel(const float *x, const int32
     double ss = 0;
     for (int d = threadIdx.x; d < output_dim; d += BLOCK) {
         float val;
-        if (pooling == POOLING_CLS) {
+        if (pooling == TURBO_POOLING_CLS) {
             val = rows[d];
-        } else if (pooling == POOLING_LAST) {
+        } else if (pooling == TURBO_POOLING_LAST) {
             val = rows[(size_t)last * hidden + d];
         } else {
             // Mean over the tokens whose mask is 1, summed in position order.

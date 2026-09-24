@@ -444,7 +444,9 @@ typedef struct turbo_embed_options {
  * starts (0 = seq). types may be NULL for all zero. The memory may be a
  * buffer the caller imported, in which case nothing is copied on the host
  * on its way to a device with its own memory; a CPU session copies the
- * rows into its own. Every row has at least one mask entry of 1. The rows
+ * rows into its own. On a device with its own memory, page-locked or
+ * managed rows go straight to the device, and pageable rows are staged
+ * through the session's page-locked memory first. Every row has at least one mask entry of 1. The rows
  * are already cut: truncate and prompt_role are for text, and a value
  * other than 0 in either is TURBO_E_INVALID_ARGUMENT naming it. */
 typedef struct turbo_token_batch {

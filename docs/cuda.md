@@ -37,9 +37,12 @@ cargo build -p turbo --release --features cuda
 
 The library links the toolkit's shared `libcudart.so.<major>` and
 `libcublas.so.<major>`, with the toolkit's library directory as its run
-path. A machine that runs it needs those libraries, from the toolkit or
-a CUDA runtime install of the same major version; a build without the
-feature needs none of them. Without a driver, or with no GPU, the
+path. That run path covers this package's own library and tests only: a
+binary elsewhere that links the `turbo` rlib with the feature finds the
+libraries through `LD_LIBRARY_PATH` or a run path of its own. A machine
+that runs it needs those libraries, from the toolkit or a CUDA runtime
+install of the same major version; a build without the feature needs
+none of them. Without a driver, or with no GPU, the
 backend lists no device and the runtime is made as usual. With a driver
 older than the runtime, it lists none and the runtime's log says why.
 
@@ -50,13 +53,13 @@ older than the runtime, it lists none and the runtime's log says why.
   (`cudaMemGetInfo`), `unified_memory` for an integrated GPU, the
   runtime's version, and the driver's as its kernel module version and
   the CUDA version it supports (`580.82.07, CUDA 13.0`). `arch`, the
-  label benchmark records are filed under, is the device name's model:
-  a few names are mapped outright (`NVIDIA GeForce RTX 4080` is
-  `rtx4080`), and any other is derived from the name, without the
-  vendor's and brand's words (NVIDIA, GeForce, Tesla, Quadro, GPU), up to
-  a memory size or form factor (80GB, PCIe, SXM4, HBM3, NVL), in lower
-  case letters and digits: `NVIDIA A100-SXM4-80GB` is `a100`,
-  `NVIDIA GeForce RTX 4070 Ti SUPER` is `rtx4070tisuper`.
+  label benchmark records are filed under, is the device name's model,
+  derived by one rule: the name's words without the vendor's and brand's
+  (NVIDIA, GeForce, Tesla, Quadro, GPU, Generation), up to a memory size
+  or form factor (80GB, PCIe, SXM4, HBM3, NVL), in lower case letters and
+  digits. `NVIDIA GeForce RTX 4080` is `rtx4080`, `NVIDIA A100-SXM4-80GB`
+  is `a100`, `NVIDIA GeForce RTX 4070 Ti SUPER` is `rtx4070tisuper`,
+  `NVIDIA RTX 6000 Ada Generation` is `rtx6000ada`.
 - **Capability.** Embed is EXPERIMENTAL at every precision, computing in
   F32, honoring every field of `turbo_embed_options`. A model stored in
   F16 or BF16 computes in F32 from a converted copy at EXACT and FASTEST;
@@ -86,7 +89,9 @@ older than the runtime, it lists none and the runtime's log says why.
   output buffer and page-locked staging for the rows. `embed_write` sends
   the rows to the device, from the caller's memory when it is page-locked
   (a `PINNED` buffer's) and through the staging otherwise, and waits for
-  them. The run computes on the device over the written `[batch, seq]`
+  them. Rows in device memory are refused (`TURBO_E_INVALID_ARGUMENT`):
+  the core reads and checks every row on the host before the backend
+  sees it. The run computes on the device over the written `[batch, seq]`
   grid: the embedding lookup and its LayerNorm in one kernel; per layer
   the Q, K and V projections, the attention output and the feed-forward
   layers as `cublasSgemm`, one attention kernel (scaled dot products over
@@ -96,6 +101,13 @@ older than the runtime, it lists none and the runtime's log says why.
   and normalizes. It waits for the stream before it returns, and leaves
   the vectors in the session's `DEVICE` buffer: `turbo_result_buffer`
   hands out that memory, and `turbo_result_read` copies it back.
+- **Session limits.** Beyond the model's own, two refusals come from
+  the device, both `TURBO_E_UNSUPPORTED_OPTION`: a `max_batch` over 65535
+  names field 1, since the kernels run one block per row and a grid
+  dimension holds 65535; a `max_seq` whose attention scores do not fit
+  the shared memory the device gives one block (about 4 bytes per token
+  plus the head's width; 99 KiB on sm_89, so about 25000 tokens) names
+  field 2.
 - **Numerics.** F32 throughout, with TF32 off: the cuBLAS handle's math
   mode is `CUBLAS_DEFAULT_MATH`, which computes an F32 GEMM in F32. The
   arithmetic follows the CPU encoder where order matters: LayerNorm sums
@@ -116,26 +128,35 @@ older than the runtime, it lists none and the runtime's log says why.
 
 ## Testing on a GPU machine
 
-With `TURBO_CUDA_ROOT` set as above, from the workspace root:
+With `TURBO_CUDA_ROOT` set as above, from the workspace root.
+`TURBO_TEST_REQUIRE_CUDA=1` makes every test in `core/tests/cuda.rs` that
+needs a device fail when the backend lists none, where without it the
+test passes with a line saying it was skipped; set it on a GPU machine,
+so a run that found no GPU cannot pass.
 
 ```
+export TURBO_TEST_REQUIRE_CUDA=1
+
 # Everything, with the CUDA-only tests in core/tests/cuda.rs:
 cargo test -p turbo --features cuda
 
 # The CUDA-only tests, with what they print (the device, the largest
-# difference from the f64 encoder and the CPU):
-cargo test -p turbo --features cuda --test cuda -- --nocapture
+# difference from the f64 encoder and the CPU), in release too for the
+# largest shape:
+cargo test --release -p turbo --features cuda --test cuda -- --nocapture
 
 # Conformance on the small sealed bundle (docs/conformance.md):
 TURBO_TEST_DEVICE=cuda cargo test --release -p turbo --features cuda --test conformance -- --nocapture
 
-# Conformance on a real bundle, made with turbo-bundle (bundle/README.md):
+# On a real bundle, made with turbo-bundle (bundle/README.md): conformance,
+# and one run at the bundle's max_batch x max_seq against the CPU.
 TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=cuda \
     cargo test --release -p turbo --features cuda --test conformance -- --include-ignored --nocapture
+TURBO_TEST_BUNDLE=<bundle-dir> \
+    cargo test --release -p turbo --features cuda --test cuda -- --include-ignored --nocapture
 ```
 
 `TURBO_TEST_DEVICE=cuda` picks the first device the cuda backend lists,
 and the conformance test fails when it lists none. The tests in
-`core/tests/cuda.rs` that need a device pass with a line saying they were
-skipped when the backend lists none; the ones that do not (the table,
-the arch labels) run everywhere the feature builds.
+`core/tests/cuda.rs` that need no device (the table, the arch labels)
+run everywhere the feature builds.

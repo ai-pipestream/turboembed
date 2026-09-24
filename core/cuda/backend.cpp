@@ -33,13 +33,9 @@
 
 #include "kernels.h"
 
-/* The architectures build.rs compiled for, as TURBO_CUDA_ARCH gave them. */
-#if __has_include("turbo_cuda_build.h")
+/* TURBO_CUDA_ARCHS: the architectures build.rs compiled for, as
+ * TURBO_CUDA_ARCH gave them. */
 #include "turbo_cuda_build.h"
-#endif
-#ifndef TURBO_CUDA_ARCHS
-#define TURBO_CUDA_ARCHS "89"
-#endif
 
 using namespace turbo_cuda;
 
@@ -244,27 +240,14 @@ constexpr VersionText version_text(int v) {
 constexpr VersionText LINKED_RUNTIME = version_text(CUDART_VERSION);
 
 /* The label benchmark records for a device are filed under (turbo.h's
- * turbo_device_info.arch). A name in KNOWN gets its label; any other is
- * derived: the words of the name, split at spaces and hyphens, without
- * the vendor's and brand's words (NVIDIA, GeForce, Tesla, Quadro, GPU),
- * up to the first word that gives a memory size or a form factor (80GB,
- * PCIe, SXM4, HBM3, NVL), in lower case with only letters and digits:
+ * turbo_device_info.arch), from the name the driver gives it: the words
+ * of the name, split at spaces and hyphens, without the vendor's and
+ * brand's words (NVIDIA, GeForce, Tesla, Quadro, GPU, Generation), up to
+ * the first word that gives a memory size or a form factor (80GB, PCIe,
+ * SXM4, HBM3, NVL), in lower case with only letters and digits:
  * "NVIDIA GeForce RTX 4080" is rtx4080, "NVIDIA A100-SXM4-80GB" is a100,
- * "NVIDIA GeForce RTX 4070 Ti SUPER" is rtx4070tisuper, "Tesla T4" is t4. */
-struct Known {
-    const char *name;
-    const char *arch;
-};
-
-const Known KNOWN[] = {
-    {"NVIDIA GeForce RTX 4080", "rtx4080"},
-    {"NVIDIA GeForce RTX 4090", "rtx4090"},
-    {"NVIDIA RTX 6000 Ada Generation", "rtx6000ada"},
-    {"NVIDIA RTX 5000 Ada Generation", "rtx5000ada"},
-    {"NVIDIA RTX 4500 Ada Generation", "rtx4500ada"},
-    {"NVIDIA RTX 4000 Ada Generation", "rtx4000ada"},
-    {"NVIDIA RTX 4000 SFF Ada Generation", "rtx4000sffada"},
-};
+ * "NVIDIA GeForce RTX 4070 Ti SUPER" is rtx4070tisuper,
+ * "NVIDIA RTX 6000 Ada Generation" is rtx6000ada, "Tesla T4" is t4. */
 
 bool word_is(const char *w, size_t n, const char *lit) { return strlen(lit) == n && strncasecmp(w, lit, n) == 0; }
 
@@ -280,12 +263,6 @@ bool ends_name(const char *w, size_t n) {
 
 void arch_label(const char *name, char *out, size_t len) {
     if (len == 0) return;
-    for (const Known &k : KNOWN) {
-        if (strcmp(name, k.name) == 0) {
-            copy_str(out, len, k.arch);
-            return;
-        }
-    }
     size_t o = 0;
     const char *p = name;
     while (*p) {
@@ -295,7 +272,7 @@ void arch_label(const char *name, char *out, size_t len) {
         const size_t n = (size_t)(p - w);
         if (n == 0) break;
         if (word_is(w, n, "nvidia") || word_is(w, n, "geforce") || word_is(w, n, "tesla") || word_is(w, n, "quadro") ||
-            word_is(w, n, "gpu"))
+            word_is(w, n, "gpu") || word_is(w, n, "generation"))
             continue;
         if (ends_name(w, n)) break;
         for (size_t i = 0; i < n && o + 1 < len; i++) {
@@ -314,7 +291,8 @@ bool kernel_module_version(char *out, size_t len) {
     char line[256];
     bool found = false;
     if (fgets(line, sizeof line, f)) {
-        for (char *w = strtok(line, " \t\n"); w; w = strtok(nullptr, " \t\n")) {
+        char *save = nullptr;
+        for (char *w = strtok_r(line, " \t\n", &save); w; w = strtok_r(nullptr, " \t\n", &save)) {
             if (isdigit((unsigned char)w[0]) && strchr(w, '.')) {
                 copy_str(out, len, w);
                 found = true;
@@ -998,11 +976,15 @@ void session_release(void *session) {
 }
 
 /* One [batch, seq] array of the rows to dst on the device, row_stride
- * elements apart in src. Returns the bytes sent. */
+ * elements apart in src, adding the bytes sent to *sent. Device memory is
+ * refused: the core has read and checked the rows on the host, so they
+ * are host memory, page-locked, managed or pageable. */
 int32_t upload(Session &s, const int32_t *src, uint32_t batch, uint32_t seq, uint32_t stride, int32_t *staging,
                int32_t *dst, uint64_t *sent, turbo_error *err) {
     const size_t row = (size_t)seq * 4;
     const cudaPointerAttributes a = attributes(src);
+    if (a.type == cudaMemoryTypeDevice)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "rows are device memory; the core reads rows on the host");
     if (a.type == cudaMemoryTypeHost || a.type == cudaMemoryTypeManaged) {
         TRY_CUDA(
             cudaMemcpy2DAsync(dst, row, src, (size_t)stride * 4, row, batch, cudaMemcpyHostToDevice, s.ctx->stream),
