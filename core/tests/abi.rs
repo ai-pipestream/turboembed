@@ -145,6 +145,19 @@ int main(int argc, char **argv) {
 fn a_c_program_gets_the_upstream_ids() {
     // target/<profile>/deps/abi-* -> target/<profile>/libturbo.so
     let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
+    // `cargo test` builds the rlib the tests link, not the cdylib; build
+    // it here, with the same profile and target directory, so the program
+    // links the library as it is now.
+    let profile = lib_dir.file_name().unwrap().to_str().unwrap();
+    let profile = match profile {
+        "debug" => "dev",
+        p => p,
+    };
+    run(Command::new(env!("CARGO"))
+        .args(["build", "--lib", "--profile", profile, "--manifest-path"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
+        .arg("--target-dir")
+        .arg(lib_dir.parent().unwrap()));
     assert!(lib_dir.join("libturbo.so").exists(), "libturbo.so is not in {}", lib_dir.display());
     let d = scratch("program");
     std::fs::write(d.join("p.c"), PROGRAM).unwrap();
