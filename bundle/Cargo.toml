@@ -1,0 +1,16 @@
+[package]
+name = "turbo-bundle"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "turbo-bundle"
+path = "src/main.rs"
+
+[dependencies]
+turbo = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = "3"

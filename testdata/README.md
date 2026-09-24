@@ -9,3 +9,12 @@
   upstream `tokenizers` on: scripts, spacing, control characters, emoji,
   special-token strings. Taken from the previous attempt's
   `testdata/corpus/multilingual.jsonl`, text only.
+- `tiny-bert-reference/reference.safetensors`: the reference file
+  `bundle/reference/reference.py` wrote for the cases of
+  `bundle/recipes/all-minilm-l6-v2.json` with `max_seq` 64 and the query
+  prefix `"query: "`, on the small BERT `bundle/reference/tiny_bert.py`
+  writes from the tokenizer above. `produced_by.json` is what the script
+  reported for that run. Running both scripts again with the pinned
+  versions gave the same bytes. Its vectors are real outputs of the
+  upstream pipeline for that model, not of MiniLM; the bundle tool's
+  tests use it to check sealing and verification, never numerics.

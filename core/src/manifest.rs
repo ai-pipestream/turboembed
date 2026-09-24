@@ -1,51 +1,55 @@
-//! `manifest.json`: the proto3 JSON encoding of the `Bundle` message in
-//! docs/bundle.md, parsed strictly. An unknown field or enum value, a
+//! `manifest.json` in the one canonical JSON form docs/bundle.md
+//! describes, parsed strictly and written by the bundle tool. An unknown field or enum value, a
 //! missing required field, an over-long string or a bad path is
 //! BUNDLE_INVALID naming the field.
 
 use std::collections::{BTreeMap, HashSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::status::{Error, Result, UNSUPPORTED_TASK, invalid};
 
 pub const BUNDLE_VERSION: u32 = 1;
 
-#[derive(Debug, Deserialize)]
+fn is_zero(v: &u32) -> bool {
+    *v == 0
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     pub bundle_version: u32,
     pub model: Model,
     pub task: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub embed: Option<Embed>,
     pub tokenizer: Tokenizer,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub architecture: Option<Architecture>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Model {
     pub id: String,
     pub revision: String,
     pub source: Source,
     pub license: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub license_file: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Source {
     pub repository: String,
     pub commit: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Embed {
     pub dim: u32,
@@ -53,15 +57,15 @@ pub struct Embed {
     pub normalize: Normalize,
     pub max_seq: u32,
     pub max_batch: u32,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub prefix_query: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub prefix_document: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub output_dims: Vec<u32>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Pooling {
     #[serde(rename = "POOLING_MEAN")]
     Mean,
@@ -71,7 +75,7 @@ pub enum Pooling {
     Last,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Normalize {
     #[serde(rename = "NORMALIZE_NONE")]
     None,
@@ -79,7 +83,7 @@ pub enum Normalize {
     L2,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Tokenizer {
     pub file: String,
@@ -90,7 +94,7 @@ pub struct Tokenizer {
     pub truncation: Truncation,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Normalizer {
     pub clean_text: bool,
@@ -102,20 +106,20 @@ pub struct Normalizer {
 
 /// Only UNICODE_NONE is read in this cut; the other forms arrive with a
 /// tokenizer that needs them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnicodeForm {
     #[serde(rename = "UNICODE_NONE")]
     None,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WordPiece {
     pub continuing_prefix: String,
     pub max_chars_per_word: u32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpecialToken {
     pub role: SpecialRole,
@@ -123,7 +127,7 @@ pub struct SpecialToken {
     pub id: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SpecialRole {
     #[serde(rename = "SPECIAL_PAD")]
     Pad,
@@ -137,7 +141,7 @@ pub enum SpecialRole {
     Mask,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Truncation {
     #[serde(rename = "TRUNCATE_NONE")]
     None,
@@ -147,7 +151,7 @@ pub enum Truncation {
     Left,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Architecture {
     pub family: Family,
@@ -163,50 +167,50 @@ pub struct Architecture {
     pub vocab_size: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Family {
     #[serde(rename = "FAMILY_BERT")]
     Bert,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Activation {
     #[serde(rename = "ACTIVATION_GELU_ERF")]
     GeluErf,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PositionEmbedding {
     #[serde(rename = "POSITION_ABSOLUTE")]
     Absolute,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Artifact {
     pub name: String,
     pub format: Format,
     pub files: Vec<String>,
     pub backends: Vec<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub target: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub fixed_seq: u32,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub fixed_batch: u32,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compute_dtype: Option<Dtype>,
     pub graph_input: GraphInput,
     pub graph_output: GraphOutput,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub host_weights: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tensor_names: BTreeMap<TensorRole, String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub produced_by: Option<ProducedBy>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Format {
     #[serde(rename = "FORMAT_SAFETENSORS")]
     Safetensors,
@@ -223,7 +227,7 @@ pub enum Format {
 /// What a compiled artifact computes in. DTYPE_I8 has no header constant
 /// yet (docs/bundle.md: it is added with the Hailo backend) but a HEF
 /// artifact records it today.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Dtype {
     #[serde(rename = "DTYPE_I8")]
     I8,
@@ -237,7 +241,7 @@ pub enum Dtype {
     F32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GraphInput {
     #[serde(rename = "INPUT_TOKEN_IDS")]
     TokenIds,
@@ -245,13 +249,13 @@ pub enum GraphInput {
     Embeddings,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GraphOutput {
     #[serde(rename = "OUTPUT_HIDDEN_STATES")]
     HiddenStates,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TensorRole {
     WordEmbeddings,
@@ -291,22 +295,22 @@ impl TensorRole {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProducedBy {
     pub tool: String,
     pub tool_version: String,
     pub container: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub from: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inputs: Vec<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
     pub reproducible: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Reference {
     pub file: String,
@@ -314,14 +318,14 @@ pub struct Reference {
     pub produced_by: ProducedBy,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Case {
     pub text: String,
     pub prompt_role: PromptRole,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PromptRole {
     #[serde(rename = "PROMPT_NONE")]
     None,
@@ -331,7 +335,7 @@ pub enum PromptRole {
     Document,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FileEntry {
     pub path: String,

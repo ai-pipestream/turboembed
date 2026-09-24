@@ -1,0 +1,219 @@
+//! The bundle tool on real files: the MiniLM recipe, cut to the small BERT
+//! whose reference the upstream pipeline wrote into testdata, and the
+//! upstream tokenizer.json.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use serde_json::{Value, json};
+use turbo_bundle::recipe::Recipe;
+use turbo_bundle::{reference, seal};
+
+fn root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
+}
+
+fn scratch(name: &str) -> PathBuf {
+    let d = std::env::temp_dir().join(format!("turbo-bundle-test-{}-{name}", std::process::id()));
+    let _ = fs::remove_dir_all(&d);
+    fs::create_dir_all(&d).unwrap();
+    d
+}
+
+/// The MiniLM recipe as the small BERT's reference was made from it.
+fn tiny_recipe(dir: &Path) -> PathBuf {
+    let mut r: Value =
+        serde_json::from_slice(&fs::read(root().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap()).unwrap();
+    let m = &mut r["manifest"];
+    m["embed"]["dim"] = json!(32);
+    m["embed"]["max_seq"] = json!(64);
+    m["embed"]["prefix_query"] = json!("query: ");
+    m["architecture"]["layers"] = json!(2);
+    m["architecture"]["hidden"] = json!(32);
+    m["architecture"]["heads"] = json!(4);
+    m["architecture"]["intermediate"] = json!(64);
+    r["upstream"] = json!([
+        { "path": "tokenizer.json", "to": "tokenizer.json" },
+        { "path": "model.safetensors", "to": "weights/model.safetensors" }
+    ]);
+    let p = dir.join("recipe.json");
+    fs::write(&p, serde_json::to_vec_pretty(&r).unwrap()).unwrap();
+    p
+}
+
+/// An upstream directory: the tokenizer, and a weights file. Sealing hashes
+/// the weights and never reads them; loading them is the model loader's
+/// job, not the tool's.
+fn upstream(dir: &Path) -> PathBuf {
+    let up = dir.join("upstream");
+    fs::create_dir_all(&up).unwrap();
+    fs::copy(root().join("testdata/all-minilm-l6-v2/tokenizer.json"), up.join("tokenizer.json")).unwrap();
+    let header = br#"{"__metadata__":{"format":"pt"}}      "#;
+    let mut w = (header.len() as u64).to_le_bytes().to_vec();
+    w.extend_from_slice(header);
+    fs::write(up.join("model.safetensors"), w).unwrap();
+    up
+}
+
+fn reported() -> Value {
+    json!({ "tool": "sentence-transformers", "tool_version": "6.1.0", "args": ["--device", "cpu"] })
+}
+
+const CONTAINER: &str = "turbo-reference@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+/// Stage, put the reference in, and seal: everything `make` does after the
+/// container has run.
+fn sealed(name: &str, edit: impl FnOnce(&mut Recipe)) -> (PathBuf, Result<(), String>) {
+    let d = scratch(name);
+    let mut r = Recipe::load(&tiny_recipe(&d)).unwrap();
+    edit(&mut r);
+    let bundle = d.join("bundle");
+    seal::stage(&r, &upstream(&d), &bundle).unwrap();
+    fs::create_dir_all(bundle.join("reference")).unwrap();
+    fs::copy(
+        root().join("testdata/tiny-bert-reference/reference.safetensors"),
+        bundle.join("reference/reference.safetensors"),
+    )
+    .unwrap();
+    let pb = reference::produced_by(&reported(), CONTAINER).unwrap();
+    let out = seal::seal(&r, &bundle, pb);
+    (bundle, out)
+}
+
+#[test]
+fn a_sealed_bundle_loads_through_the_core() {
+    let (bundle, out) = sealed("loads", |_| {});
+    out.expect("sealed and verified");
+    let m: Value = serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+    let pb = &m["reference"]["produced_by"];
+    assert_eq!(pb["container"], CONTAINER);
+    assert_eq!(pb["tool_version"], "6.1.0", "from the run, not the recipe");
+    let paths: Vec<&str> = m["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
+    assert_eq!(paths, ["reference/reference.safetensors", "tokenizer.json", "weights/model.safetensors"]);
+    // The loader opens it as a machine would.
+    seal::verify(&bundle).unwrap();
+    let tok = bundle.join("tokenizer.json");
+    assert_eq!(
+        m["files"][1]["sha256"].as_str().unwrap(),
+        turbo::bundle::sha256_hex(&fs::read(tok).unwrap()),
+        "hashes are computed, not copied from the recipe"
+    );
+    fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn a_reference_whose_ids_differ_is_refused() {
+    // Another case text: the reference file's ids no longer match what the
+    // core's tokenizer gives, which is loader rule 5.
+    let (bundle, out) = sealed("ids", |r| {
+        r.manifest["reference"]["cases"][1]["text"] = json!("The quick brown fox jumps over the lazy cat.");
+    });
+    let e = out.unwrap_err();
+    assert!(e.contains("case") || e.contains("ids"), "{e}");
+    fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn a_reference_that_is_not_normalized_is_refused() {
+    let (bundle, out) = sealed("norm", |_| {});
+    out.unwrap();
+    // Scale every vector: the ids still match, the norms no longer do.
+    let path = bundle.join("reference/reference.safetensors");
+    let mut bytes = fs::read(&path).unwrap();
+    let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
+    let header: Value = serde_json::from_slice(&bytes[8..8 + n]).unwrap();
+    let [a, b] = [0, 1].map(|i| header["embeddings"]["data_offsets"][i].as_u64().unwrap() as usize + 8 + n);
+    for c in bytes[a..b].chunks_exact_mut(4) {
+        let v = f32::from_le_bytes([c[0], c[1], c[2], c[3]]) * 2.0;
+        c.copy_from_slice(&v.to_le_bytes());
+    }
+    fs::write(&path, &bytes).unwrap();
+    let r = Recipe::load(&bundle.parent().unwrap().join("recipe.json")).unwrap();
+    let e = seal::seal(&r, &bundle, reference::produced_by(&reported(), CONTAINER).unwrap()).unwrap_err();
+    assert!(e.contains("norm"), "{e}");
+    fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn verify_refuses_a_changed_file_and_an_unlisted_one() {
+    let (bundle, out) = sealed("verify", |_| {});
+    out.unwrap();
+    let w = bundle.join("weights/model.safetensors");
+    let mut bytes = fs::read(&w).unwrap();
+    let last = bytes.len() - 1;
+    bytes[last] ^= 1;
+    fs::write(&w, &bytes).unwrap();
+    let e = seal::verify(&bundle).unwrap_err();
+    assert!(e.contains("weights/model.safetensors") && e.contains("SHA-256"), "{e}");
+
+    bytes[last] ^= 1;
+    fs::write(&w, &bytes).unwrap();
+    seal::verify(&bundle).unwrap();
+    fs::write(bundle.join("notes.txt"), "x").unwrap();
+    let e = seal::verify(&bundle).unwrap_err();
+    assert!(e.contains("notes.txt"), "{e}");
+    fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn recipes_are_checked() {
+    let d = scratch("recipes");
+    let write = |edit: &dyn Fn(&mut Value)| {
+        let mut r: Value = serde_json::from_slice(&fs::read(tiny_recipe(&d)).unwrap()).unwrap();
+        edit(&mut r);
+        let p = d.join("edited.json");
+        fs::write(&p, serde_json::to_vec(&r).unwrap()).unwrap();
+        Recipe::load(&p).map(|_| ())
+    };
+    write(&|_| {}).unwrap();
+    let e = write(&|r| r["manifest"]["files"] = json!([])).unwrap_err();
+    assert!(e.contains("files"), "{e}");
+    let e = write(&|r| r["manifest"]["model"]["source"]["commit"] = json!("main")).unwrap_err();
+    assert!(e.contains("commit"), "{e}");
+    let e = write(&|r| r["upstream"][0]["to"] = json!("../tokenizer.json")).unwrap_err();
+    assert!(e.contains("relative"), "{e}");
+    let e = write(&|r| r["upstream"][0]["sha256"] = json!("ABC")).unwrap_err();
+    assert!(e.contains("sha256"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn the_container_is_pinned_by_content() {
+    assert!(reference::check_pinned(CONTAINER).is_ok());
+    for bad in ["turbo-reference", "turbo-reference:latest", "turbo-reference@sha256:abc", "x@sha256:ABCDEF"] {
+        assert!(reference::check_pinned(bad).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn the_container_gets_the_cases_with_their_prefixes() {
+    let d = scratch("cases");
+    let r = Recipe::load(&tiny_recipe(&d)).unwrap();
+    let c = reference::cases(&r).unwrap();
+    assert_eq!((c["max_seq"].as_u64(), c["max_batch"].as_u64()), (Some(64), Some(64)));
+    let cases = c["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), r.manifest["reference"]["cases"].as_array().unwrap().len());
+    assert_eq!(cases[5], json!({ "text": "how do I reset a password", "prefix": "query: " }));
+    assert_eq!(cases[6]["prefix"], "", "the recipe has no document prefix");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn produced_by_comes_from_the_run() {
+    let pb = reference::produced_by(&reported(), CONTAINER).unwrap();
+    assert_eq!(pb["reproducible"], false);
+    assert!(reference::produced_by(&json!({ "tool": "x", "args": [] }), CONTAINER).is_err());
+    assert!(reference::produced_by(&json!({ "tool": "x", "tool_version": "1", "args": [1] }), CONTAINER).is_err());
+}
+
+#[test]
+fn upstream_files_are_fetched_at_the_commit() {
+    assert_eq!(
+        turbo_bundle::fetch::url(
+            "https://huggingface.co/org/model/",
+            "c9745ed1d9f207416be6d2e6f8de32d1f16199bf",
+            "1_Pooling/config.json"
+        ),
+        "https://huggingface.co/org/model/resolve/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/1_Pooling/config.json"
+    );
+}
