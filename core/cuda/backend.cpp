@@ -1429,7 +1429,8 @@ struct Session {
     /* What the last write left. */
     bool written = false;
     RunArgs run{};
-    /* The packed tokens the last write holds, counted on the host. */
+    /* The packed tokens the last write holds, counted on the host where
+     * cuBLAS or a second graph needs them, else 0. */
     uint32_t tokens = 0;
     uint64_t h2d = 0;
 };
@@ -1952,14 +1953,16 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
         // The packed size, which picks the run's token bin and which
         // cuBLAS's GEMMs take from the host: each row through its last
         // live token, as pack_rows finds it on the device from the same
-        // entries, the host memory the core read.
+        // entries, the host memory the core read. A session of one graph
+        // needs neither, and leaves it 0.
         uint32_t packed = 0;
-        for (uint32_t b = 0; b < r->batch; b++) {
-            const int32_t *m = r->mask + (size_t)b * r->row_stride;
-            uint32_t n = r->seq;
-            while (n > 0 && m[n - 1] == 0) n--;
-            packed += n;
-        }
+        if (s.cublas || s.graph_count > 1)
+            for (uint32_t b = 0; b < r->batch; b++) {
+                const int32_t *m = r->mask + (size_t)b * r->row_stride;
+                uint32_t n = r->seq;
+                while (n > 0 && m[n - 1] == 0) n--;
+                packed += n;
+            }
         uint64_t sent = 0;
         {
             std::lock_guard<std::mutex> g(s.ctx->lock);

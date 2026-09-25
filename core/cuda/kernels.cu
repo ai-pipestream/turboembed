@@ -688,16 +688,21 @@ template <int N> __device__ inline void copy_wait() {
 struct Share {
     long long lo, hi, work;
     int blocks, steps;
-    int unit; /* the steps a share is a multiple of: 1, or a tile's with SK_WHOLE_TILES */
 };
 
-/* This block's share of tiles x steps of work, or an empty one. With
- * min_steps SK_WHOLE_TILES, whole tiles to a block, so no tile is split
- * and no block waits on another. */
+/* The first step of block b's share. With min_steps SK_WHOLE_TILES,
+ * whole tiles to a block, so no tile is split and no block waits on
+ * another; min_steps is the kernel's argument, read where it is needed
+ * rather than held in the share. */
+__device__ inline long long share_start(const Share &s, int b, int min_steps) {
+    if (min_steps == SK_WHOLE_TILES) return s.work / s.steps * b / s.blocks * s.steps;
+    return s.work * b / s.blocks;
+}
+
+/* This block's share of tiles x steps of work, or an empty one. */
 __device__ inline Share share_of(int tiles, int steps, int min_steps) {
     Share s;
     s.work = (long long)tiles * steps;
-    s.unit = min_steps == SK_WHOLE_TILES ? steps : 1;
     const int least = min_steps > 0 ? min_steps : SK_MIN_STEPS;
     const long long want = min_steps == SK_WHOLE_TILES ? tiles : s.work / least;
     const long long most = want > 0 ? want : 1;
@@ -706,14 +711,11 @@ __device__ inline Share share_of(int tiles, int steps, int min_steps) {
     if ((int)blockIdx.x >= s.blocks) {
         s.lo = s.hi = 0;
     } else {
-        s.lo = s.work / s.unit * blockIdx.x / s.blocks * s.unit;
-        s.hi = s.work / s.unit * (blockIdx.x + 1) / s.blocks * s.unit;
+        s.lo = share_start(s, (int)blockIdx.x, min_steps);
+        s.hi = share_start(s, (int)blockIdx.x + 1, min_steps);
     }
     return s;
 }
-
-/* The first step of block b's share. */
-__device__ inline long long share_start(const Share &s, int b) { return s.work / s.unit * b / s.blocks * s.unit; }
 
 /* A partial product stored: once every thread's values are, one thread
  * raises the flag with a release at device scope, which orders the
@@ -939,7 +941,7 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
             at = begin;
             continue;
         }
-        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1) > first; b--) {
+        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1, g.min_steps) > first; b--) {
             sk_wait(g.flags + b, g.fault);
             const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
 #pragma unroll
@@ -1182,7 +1184,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
             at = begin;
             continue;
         }
-        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1) > first; b--) {
+        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1, g.min_steps) > first; b--) {
             sk_wait(g.flags + b, g.fault);
             const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
 #pragma unroll
@@ -1604,7 +1606,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             continue;
         }
         const Share sh = share();
-        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1) > first; b--) {
+        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1, g.min_steps) > first; b--) {
             sk_wait(g.flags + b, g.fault);
             const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
 #pragma unroll

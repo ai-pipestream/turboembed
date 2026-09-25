@@ -266,8 +266,9 @@ older than the runtime, it lists none and the runtime's log says why.
   more; the bins past `max_batch` × `max_seq` do not exist for the
   session) whose kernel choices differ, all bins sharing one graph when
   they choose alike, as they do unless their choices were forced apart.
-  `embed_write` counts the packed tokens on the host, and the run
-  launches its bin's graph.
+  With more than one graph, `embed_write` counts the packed tokens on
+  the host and the run launches its bin's graph; with one, it counts
+  nothing.
   `embed_write` hands the rows over laid out at the run's own width,
   each array's rows back to back and the arrays one after another, so
   only the entries the caller passed are sent. When every array is in
