@@ -135,6 +135,8 @@ pub(crate) struct Context {
     pub max_local: u32,
     /// Nanoseconds per tick of the device's timestamps.
     timer_ns: u64,
+    /// Hardware threads: the sub-groups the device runs at once.
+    pub threads: u32,
     /// With TURBO_LEVELZERO_PROFILE set: each append's name, how many
     /// times it ran, and its nanoseconds on the device.
     profile: Mutex<std::collections::BTreeMap<String, (u64, u64)>>,
@@ -528,6 +530,7 @@ pub(crate) unsafe fn create(
         module: Mutex::new(None),
         max_local: dev.max_local,
         timer_ns: dev.timer_ns,
+        threads: dev.threads,
         profile: Mutex::new(std::collections::BTreeMap::new()),
         log,
         log_user_data,
@@ -592,8 +595,8 @@ pub(crate) fn append_failure_recovers(
         let old = q.list;
         unsafe { c.copy(&mut q, dst, src, n * 4) }.map_err(text)?;
         // The general attention kernel's last argument is its local memory.
-        let mut args = [Arg::U64(0); 8];
-        args[7] = Arg::Local(c.max_local as usize + 4096);
+        let mut args = [Arg::U64(0); 9];
+        args[8] = Arg::Local(c.max_local as usize + 4096);
         if k.launch(&c, &mut q, "the refused launch", &args, [1, 1, 1]).is_ok() {
             return Err("the driver took a launch with more local memory than the device has".into());
         }

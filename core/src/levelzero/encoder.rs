@@ -114,8 +114,9 @@ pub(crate) struct Model {
     f16: Mutex<Option<Half>>,
 }
 
-/// Each layer's linear weights in F16, in one allocation: the fused Q, K
-/// and V, the attention output, and the feed-forward input and output.
+/// Each layer's linear weights in F16, transposed to [n_in, n_out] for the
+/// matrix engines' 2D reads, in one allocation: the fused Q, K and V, the
+/// attention output, and the feed-forward input and output.
 #[derive(Clone)]
 struct Half {
     layers: Vec<[u64; 4]>,
@@ -187,28 +188,31 @@ impl Model {
         let d = &self.desc;
         let (h, i) = (d.hidden as u64, d.intermediate as u64);
         let t = |l: u32, r: u32| w.tensors[(TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
-        // Each layer's four weights: where they are in F32, and their size.
+        // Each layer's four weights: where they are in F32, and their
+        // outputs and inputs.
         let mut parts = Vec::with_capacity(4 * d.layers as usize);
         for l in 0..d.layers {
-            parts.push((w.qkv[l as usize].0, 3 * h * h));
-            parts.push((t(l, ATTN_OUT_WEIGHT), h * h));
-            parts.push((t(l, FFN_IN_WEIGHT), i * h));
-            parts.push((t(l, FFN_OUT_WEIGHT), h * i));
+            parts.push((w.qkv[l as usize].0, 3 * h, h));
+            parts.push((t(l, ATTN_OUT_WEIGHT), h, h));
+            parts.push((t(l, FFN_IN_WEIGHT), i, h));
+            parts.push((t(l, FFN_OUT_WEIGHT), h, i));
         }
         let mut at = Vec::with_capacity(parts.len());
         let mut total = 0usize;
-        for &(_, n) in &parts {
+        for &(_, n_out, n_in) in &parts {
             at.push(total as u64);
-            total += round_up(n as usize * 2, DEVICE_ALIGN);
+            total += round_up((n_out * n_in) as usize * 2, DEVICE_ALIGN);
         }
         let alloc = c.alloc_device(total)?;
         let narrowed = (|| {
-            let k = c.kernel("narrow_f16", [WIDE, 1, 1])?;
+            let k = c.kernel("narrow_f16_transposed", [WIDE, 1, 1])?;
             let mut q = c.lock_queue()?;
             let appended = (|| {
-                for (p, &(src, n)) in parts.iter().enumerate() {
-                    let args = [Arg::Ptr(src), Arg::U64(n), Arg::Ptr(alloc as u64 + at[p])];
-                    k.launch(c, &mut q, "narrow_f16", &args, [elementwise_groups(n), 1, 1])?;
+                for (p, &(src, n_out, n_in)) in parts.iter().enumerate() {
+                    let args =
+                        [Arg::Ptr(src), Arg::I32(n_out as i32), Arg::I32(n_in as i32), Arg::Ptr(alloc as u64 + at[p])];
+                    let groups = [elementwise_groups(n_out * n_in), 1, 1];
+                    k.launch(c, &mut q, "narrow_f16_transposed", &args, groups)?;
                 }
                 Ok(())
             })();
@@ -421,10 +425,13 @@ struct Kernels {
     /// The same for 8 tokens at most, a group's sub-groups sharing the
     /// terms.
     linear_gemv: Kernel,
-    /// The linear layers on the matrix engines, for a session at FASTEST:
-    /// F32 activations to F32, F32 to F16, and F16 to F32; then the same
-    /// with a group's sub-groups sharing its tile.
-    linear_xmx: Option<[Kernel; 12]>,
+    /// The linear layers on the matrix engines, for a session at FASTEST,
+    /// from F16 activations: to F32 and to F16, then the same for at most
+    /// 8 tokens.
+    linear_dpas: Option<[Kernel; 4]>,
+    /// At FASTEST, the attention output and the feed-forward output with
+    /// the LayerNorm after them, for a hidden width a group spans.
+    linear_dpas_layer_norm: Option<Kernel>,
     embed_layer_norm: Kernel,
     add_layer_norm: Kernel,
     /// The same, a group per token, for few tokens.
@@ -446,10 +453,12 @@ enum Attention {
 }
 
 impl Kernels {
-    fn new(c: &Context, head_dim: u32, xmx: bool) -> Res<Kernels> {
+    fn new(c: &Context, hidden: u32, head_dim: u32, xmx: bool) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
+        // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
-            32 if xmx => Attention::Xmx(c.kernel("attention_xmx_32", [16, 1, 1])?),
+            32 | 64 if xmx => Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_KS, 1, 1])?),
+            128 if xmx => Attention::Tiled(c.kernel(&format!("attention_{head_dim}_to_half"), [QUERIES, 1, 1])?),
             32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
             _ => Attention::General(c.kernel("attention", row)?),
         };
@@ -457,21 +466,18 @@ impl Kernels {
             linear: c.kernel("linear", [16, 16, 1])?,
             linear_sg: c.kernel("linear_sg", [16, 1, 1])?,
             linear_gemv: c.kernel("linear_gemv", [16 * GEMV_SUBGROUPS, 1, 1])?,
-            linear_xmx: if xmx {
-                let (one, shared) = ([16, 1, 1], [16 * XMX_SUBGROUPS, 1, 1]);
+            linear_dpas_layer_norm: if xmx && hidden / DPAS_TN <= DPAS_LN_SUBGROUPS {
+                Some(c.kernel("linear_dpas_layer_norm", [16 * (hidden / DPAS_TN), 1, 1])?)
+            } else {
+                None
+            },
+            linear_dpas: if xmx {
+                let (main, few) = ([16 * DPAS_WM * DPAS_WN, 1, 1], [16 * FEW_WM * FEW_WN, 1, 1]);
                 Some([
-                    c.kernel("linear_xmx", one)?,
-                    c.kernel("linear_xmx_to_half", one)?,
-                    c.kernel("linear_xmx_from_half", one)?,
-                    c.kernel("linear_xmx_shared", shared)?,
-                    c.kernel("linear_xmx_shared_to_half", shared)?,
-                    c.kernel("linear_xmx_shared_from_half", shared)?,
-                    c.kernel("linear_xmx_wg", [128, 1, 1])?,
-                    c.kernel("linear_xmx_wg_to_half", [128, 1, 1])?,
-                    c.kernel("linear_xmx_wg_from_half", [128, 1, 1])?,
-                    c.kernel("linear_xmx_gemv", [16 * GEMV_SUBGROUPS, 1, 1])?,
-                    c.kernel("linear_xmx_gemv_to_half", [16 * GEMV_SUBGROUPS, 1, 1])?,
-                    c.kernel("linear_xmx_gemv_from_half", [16 * GEMV_SUBGROUPS, 1, 1])?,
+                    c.kernel("linear_dpas", main)?,
+                    c.kernel("linear_dpas_to_half", main)?,
+                    c.kernel("linear_dpas_few", few)?,
+                    c.kernel("linear_dpas_few_to_half", few)?,
                 ])
             } else {
                 None
@@ -492,47 +498,54 @@ impl Kernels {
 /// after it adds them.
 const SPLITS: u32 = 4;
 
-/// Operands of the XMX linear kernels: F32 activations to F32, F32 to
-/// F16, and F16 to F32.
-const XMX_F32: usize = 0;
-const XMX_TO_F16: usize = 1;
-const XMX_FROM_F16: usize = 2;
-
 /// The F32 sub-group linear kernel's tile, as encoder.cl's SG_N and SG_T.
 const SG_N: u32 = 64;
 const SG_T: u32 = 8;
 
-/// The XMX linear kernel's output tile, as encoder.cl's XM and XN, and the
-/// sub-groups of a group, each summing its own share of the terms, as
-/// encoder.cl's KS.
-const XMX_TILE: u32 = 32;
-const XMX_SUBGROUPS: u32 = 4;
-/// Below this many tiles a layer's groups share theirs among sub-groups.
-const XMX_FEW_TILES: u32 = 512;
-/// The XMX kernel that stages its operands through local memory: tiles of
-/// WG_M tokens by WG_N outputs, WG_K terms at a time, as encoder.cl's; it
-/// runs when a layer has at least XMX_WG_TILES of them.
-const WG_M: u32 = 64;
-const WG_N: u32 = 128;
-const WG_K: u32 = 32;
-const XMX_WG_TILES: u32 = 64;
+/// The XMX linear kernels' tiles, as encoder.cl's instances of
+/// LINEAR_DPAS: a sub-group's DPAS_TM tokens by DPAS_TN outputs, and a
+/// group's DPAS_WM by DPAS_WN sub-groups; for at most FEW_TOKENS_DPAS
+/// tokens, FEW_TM by DPAS_TN, and FEW_WM by FEW_WN. The terms go DPAS_K a
+/// step.
+const DPAS_TM: u32 = 16;
+const DPAS_TN: u32 = 32;
+const DPAS_WM: u32 = 8;
+const DPAS_WN: u32 = 2;
+const FEW_TOKENS_DPAS: u32 = 8;
+const FEW_TM: u32 = 8;
+const FEW_WM: u32 = 1;
+const FEW_WN: u32 = 4;
+const DPAS_K: u32 = 32;
+/// The LayerNorm-fused XMX kernel's tokens a group, and its most
+/// sub-groups, DPAS_TN outputs each, as encoder.cl's.
+const DPAS_LN_TM: u32 = 16;
+const DPAS_LN_SUBGROUPS: u32 = 64;
 /// The kernels for 8 tokens at most: GEMV_SUBGROUPS sub-groups a group,
 /// each summing a share of the terms, as encoder.cl's GV_KS and GV.
 const GEMV_SUBGROUPS: u32 = 8;
 
-/// The terms each of a GEMV group's sub-groups sums, as xmx_share.
+/// The terms each of a GEMV group's sub-groups sums: an equal share, a
+/// multiple of 16, of k_len. None when no such share covers k_len exactly
+/// with the sub-groups there are.
 fn gemv_share(k_len: u32) -> Option<u32> {
     let share = k_len.div_ceil(16 * GEMV_SUBGROUPS) * 16;
     (k_len.is_multiple_of(share) && k_len / share <= GEMV_SUBGROUPS).then_some(share)
 }
 
-/// The terms each of an XMX group's sub-groups sums: an equal share, a
-/// multiple of 16, of k_len. None when no such share covers k_len
-/// exactly with the sub-groups there are.
-fn xmx_share(k_len: u32) -> Option<u32> {
-    let share = k_len.div_ceil(16 * XMX_SUBGROUPS) * 16;
-    (k_len.is_multiple_of(share) && k_len / share <= XMX_SUBGROUPS).then_some(share)
+/// The parts an XMX linear layer's sums split into, at most `most`: enough
+/// that its sub-groups fill the device's threads, each an equal share of
+/// the n_in terms, a multiple of DPAS_K.
+fn dpas_splits(threads: u32, subgroups: u32, n_in: u32, most: u32) -> u32 {
+    let mut splits = threads.div_ceil(subgroups.max(1)).clamp(1, most.max(1));
+    while splits > 1 && !n_in.is_multiple_of(splits * DPAS_K) {
+        splits -= 1;
+    }
+    splits
 }
+
+/// Sub-groups of an XMX attention group, splitting the row's keys, as
+/// encoder.cl's ATT_KS.
+const ATT_KS: u32 = 4;
 
 /// Queries a tiled attention group takes, as encoder.cl's QUERIES.
 const QUERIES: u32 = 256;
@@ -568,6 +581,8 @@ struct Session {
     // feed-forward block.
     packed_mask: u64,
     x: u64,
+    /// At FASTEST, x in F16, for the linear layers that read it.
+    xh: u64,
     qkv: u64,
     att: u64,
     tmp: u64,
@@ -644,17 +659,14 @@ pub(crate) unsafe extern "C" fn session_create(
                 ));
             }
             let head_dim = d.hidden / d.heads;
-            // FASTEST runs the linear layers on the matrix engines, 16
-            // terms at a time.
-            let ffn_out_terms =
-                if d.intermediate.is_multiple_of(SPLITS * 16) { d.intermediate / SPLITS } else { d.intermediate };
+            // FASTEST runs the linear layers on the matrix engines, whose
+            // 2D reads take whole steps of DPAS_K terms and tiles of
+            // DPAS_TN outputs, from F16 activations: the attention kernels
+            // write an F16 context.
             let xmx = precision == TURBO_PRECISION_FASTEST
-                && d.hidden.is_multiple_of(16)
-                && d.intermediate.is_multiple_of(16)
-                && xmx_share(d.hidden).is_some()
-                && xmx_share(d.intermediate).is_some()
-                && xmx_share(ffn_out_terms).is_some();
-            let kernels = Kernels::new(c, head_dim, xmx)?;
+                && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
+                && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
+            let kernels = Kernels::new(c, d.hidden, head_dim, xmx)?;
             if let Attention::General(k) = &kernels.attention {
                 // The driver keeps some of a work-group's local memory for
                 // the kernel's own use (its reductions); the scores get the
@@ -686,9 +698,10 @@ pub(crate) unsafe extern "C" fn session_create(
             let ints = round_up(tokens * 4, DEVICE_ALIGN);
             let table = round_up(max_batch as usize * 8, DEVICE_ALIGN);
             let wide = round_up(tokens * d.hidden as usize * 4, DEVICE_ALIGN);
+            let narrow = if xmx { round_up(tokens * d.hidden as usize * 2, DEVICE_ALIGN) } else { 0 };
             let ffn = round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN);
             let output = round_up(max_batch as usize * d.hidden as usize * 4, DEVICE_ALIGN);
-            let scratch = c.alloc_device(ints + table + (5 + SPLITS as usize) * wide + ffn + output)?;
+            let scratch = c.alloc_device(ints + table + (5 + SPLITS as usize) * wide + narrow + ffn + output)?;
             let mut s = Box::new(Session {
                 model: m,
                 ctx: c,
@@ -701,6 +714,7 @@ pub(crate) unsafe extern "C" fn session_create(
                 rows: 0,
                 packed_mask: 0,
                 x: 0,
+                xh: 0,
                 qkv: 0,
                 att: 0,
                 tmp: 0,
@@ -727,6 +741,7 @@ pub(crate) unsafe extern "C" fn session_create(
             s.packed_mask = take(ints);
             s.rows = take(table);
             s.x = take(wide);
+            s.xh = take(narrow);
             s.qkv = take(3 * wide);
             s.att = take(wide);
             s.tmp = take(SPLITS as usize * wide);
@@ -817,9 +832,11 @@ impl Session {
         let half_attention = matches!(k.attention, Attention::Xmx(_));
         // Few tokens: a group per token keeps each LayerNorm short.
         let few_tokens = tokens < FEW_TOKENS;
+        let xmx = k.linear_dpas.is_some();
         // A linear layer: `which` of the layer's four weights, for the F16
         // copy at FASTEST, and the F32 weight; its sums split over its
-        // terms into `splits` parts; and at FASTEST, which operands.
+        // terms into at most `splits` parts; and at FASTEST, whether it
+        // writes F16. x is F16 at FASTEST, else F32. Returns the parts.
         let linear = |q: &mut Queue,
                       x: u64,
                       n_in: u32,
@@ -828,13 +845,17 @@ impl Session {
                       n_out: u32,
                       y: u64,
                       flags: i32,
-                      (splits, operands): (u32, usize),
-                      what: &str| {
-            // A split takes an equal share of the terms, a multiple of 16.
-            let splits = if n_in.is_multiple_of(splits * 16) { splits } else { 1 };
-            let k_len = n_in / splits;
-            if let (Some(kx), Some(half)) = (&k.linear_xmx, &self.half) {
-                let groups = [n_out.div_ceil(XMX_TILE), tokens.div_ceil(XMX_TILE), splits];
+                      (splits, to_half): (u32, bool),
+                      what: &str|
+         -> Res<u32> {
+            if let (Some(kd), Some(half)) = (&k.linear_dpas, &self.half) {
+                let (tm, wm, wn, kernel) = if tokens <= FEW_TOKENS_DPAS {
+                    (FEW_TM, FEW_WM, FEW_WN, &kd[2 + to_half as usize])
+                } else {
+                    (DPAS_TM, DPAS_WM, DPAS_WN, &kd[to_half as usize])
+                };
+                let subgroups = n_out.div_ceil(DPAS_TN) * tokens.div_ceil(tm);
+                let splits = dpas_splits(c.threads, subgroups, n_in, splits);
                 let args = [
                     Ptr(x),
                     Ptr(half.layers[l as usize][which]),
@@ -844,48 +865,15 @@ impl Session {
                     I32(n_out as i32),
                     I32(n_in as i32),
                     I32(flags),
-                    I32(k_len as i32),
-                    I32(xmx_share(k_len).unwrap_or(k_len) as i32),
+                    I32((n_in / splits) as i32),
                 ];
-                // A handful of tokens: the layer is its weights' read, spread
-                // over as many sub-groups as the terms allow.
-                if tokens <= 8
-                    && let Some(share) = gemv_share(k_len)
-                {
-                    let args = [
-                        args[0],
-                        args[1],
-                        args[2],
-                        args[3],
-                        args[4],
-                        args[5],
-                        args[6],
-                        args[7],
-                        args[8],
-                        I32(share as i32),
-                    ];
-                    return kx[operands + 9].launch(c, q, what, &args, [n_out.div_ceil(32), 1, splits]);
-                }
-                // Tiles of 64 x 128 staged through local memory where
-                // there are enough of them to fill the device.
-                let wide = [n_out.div_ceil(WG_N), tokens.div_ceil(WG_M), splits];
-                if k_len.is_multiple_of(WG_K) && wide[0] * wide[1] * wide[2] >= XMX_WG_TILES {
-                    let args =
-                        [args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], I32(0)];
-                    return kx[operands + 6].launch(c, q, what, &args, wide);
-                }
-                // Too few tiles to fill the device: each group's
-                // sub-groups share one.
-                let few = groups[0] * groups[1] * groups[2] < XMX_FEW_TILES;
-                let groups = if few { groups } else { [n_out.div_ceil(SG_N), tokens.div_ceil(SG_T), splits] };
-                let kernel = &kx[operands + if few { 3 } else { 0 }];
-                let args = if few {
-                    args
-                } else {
-                    [args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], I32(k_len as i32)]
-                };
-                return kernel.launch(c, q, what, &args, groups);
+                let groups = [n_out.div_ceil(DPAS_TN * wn), tokens.div_ceil(tm * wm), splits];
+                kernel.launch(c, q, what, &args, groups)?;
+                return Ok(splits);
             }
+            // A split takes an equal share of the terms, a multiple of 16.
+            let splits = if n_in.is_multiple_of(splits * 16) { splits } else { 1 };
+            let k_len = n_in / splits;
             if tokens <= 8
                 && let Some(share) = gemv_share(k_len)
             {
@@ -901,7 +889,7 @@ impl Session {
                     I32(k_len as i32),
                     I32(share as i32),
                 ];
-                return k.linear_gemv.launch(c, q, what, &args, [n_out.div_ceil(32), 1, splits]);
+                return k.linear_gemv.launch(c, q, what, &args, [n_out.div_ceil(32), 1, splits]).map(|()| splits);
             }
             if k_len.is_multiple_of(16) {
                 let groups = [n_out.div_ceil(SG_N), tokens.div_ceil(SG_T), splits];
@@ -916,7 +904,7 @@ impl Session {
                     I32(flags),
                     I32(k_len as i32),
                 ];
-                return k.linear_sg.launch(c, q, what, &args, groups);
+                return k.linear_sg.launch(c, q, what, &args, groups).map(|()| splits);
             }
             let groups = [n_out.div_ceil(TILE), tokens.div_ceil(TILE), splits];
             let args = [
@@ -930,7 +918,7 @@ impl Session {
                 I32(flags),
                 I32(k_len as i32),
             ];
-            k.linear.launch(c, q, what, &args, groups)
+            k.linear.launch(c, q, what, &args, groups).map(|()| splits)
         };
         let add_ln = |q: &mut Queue, bias: u64, lnw: u64, lnb: u64, parts: u32, what: &str| {
             let args = [
@@ -943,6 +931,7 @@ impl Session {
                 I32(h as i32),
                 I32(parts as i32),
                 I32(tokens as i32),
+                Ptr(self.xh),
             ];
             if few_tokens {
                 k.add_layer_norm_group.launch(c, q, what, &args, [tokens, 1, 1])
@@ -951,6 +940,29 @@ impl Session {
             }
         };
 
+        // At FASTEST, a projection back to the hidden width with the
+        // LayerNorm after it, in one kernel, from F16 act; false where
+        // that kernel does not run, for more than a handful of tokens.
+        let fused = |q: &mut Queue, act: u64, n_in: u32, (l, which): (u32, usize), (bias, lnw, lnb), what: &str| {
+            let (Some(kln), Some(half)) = (&k.linear_dpas_layer_norm, &self.half) else { return Ok(false) };
+            if tokens <= FEW_TOKENS_DPAS {
+                return Ok(false);
+            }
+            let args = [
+                Ptr(act),
+                Ptr(half.layers[l as usize][which]),
+                Ptr(bias),
+                Ptr(self.x),
+                Ptr(self.xh),
+                Ptr(lnw),
+                Ptr(lnb),
+                F32(eps),
+                I32(tokens as i32),
+                I32(h as i32),
+                I32(n_in as i32),
+            ];
+            kln.launch(c, q, what, &args, [tokens.div_ceil(DPAS_LN_TM), 1, 1]).map(|()| true)
+        };
         let n = self.max_batch as u64 * self.max_seq as u64 * 4;
         let staging = self.staging as u64;
         let args = [
@@ -972,6 +984,7 @@ impl Session {
             Ptr(self.packed_mask),
             Ptr(self.rows),
             I32(tokens as i32),
+            Ptr(self.xh),
         ];
         if few_tokens {
             k.embed_layer_norm_group.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1])?;
@@ -979,17 +992,20 @@ impl Session {
             k.embed_layer_norm.launch(c, q, "the embedding lookup", &args, [tokens.div_ceil(ROWS), 1, 1])?;
         }
         for l in 0..d.layers {
+            // The linear layers that read the hidden states read them in F16 at
+            // FASTEST, as the LayerNorms leave them.
+            let x = if xmx { self.xh } else { self.x };
             let (qkv_w, qkv_b) = self.weights.qkv[l as usize];
             linear(
                 q,
-                self.x,
+                x,
                 h,
                 (l, 0, qkv_w),
                 qkv_b,
                 3 * h,
                 self.qkv,
                 LINEAR_BIAS,
-                (1, if half_attention { XMX_TO_F16 } else { XMX_F32 }),
+                (1, half_attention),
                 "the query, key and value projection",
             )?;
             match &k.attention {
@@ -1023,46 +1039,42 @@ impl Session {
                         I32(h as i32),
                         I32(head_dim as i32),
                         F32(scale),
-                        Ptr(self.att),
+                        Ptr(if xmx { 0 } else { self.att }),
+                        Ptr(if xmx { self.att } else { 0 }),
                         Local(attention_local_bytes(self.longest, head_dim) as usize),
                     ];
                     a.launch(c, q, "attention", &args, [self.longest, d.heads, batch])?;
                 }
             }
             let wo = (l, 1, layer(l, ATTN_OUT_WEIGHT));
-            let operands = if half_attention { XMX_FROM_F16 } else { XMX_F32 };
-            linear(q, self.att, h, wo, 0, h, self.tmp, 0, (1, operands), "the attention output projection")?;
-            add_ln(
-                q,
-                layer(l, ATTN_OUT_BIAS),
-                layer(l, ATTN_LN_WEIGHT),
-                layer(l, ATTN_LN_BIAS),
-                1,
-                "the attention LayerNorm",
-            )?;
+            let ln = (layer(l, ATTN_OUT_BIAS), layer(l, ATTN_LN_WEIGHT), layer(l, ATTN_LN_BIAS));
+            if !fused(q, self.att, h, (l, 1), ln, "the attention output and LayerNorm")? {
+                // At FASTEST the LayerNorm after it adds split sums as well.
+                let most = if xmx { SPLITS } else { 1 };
+                let parts =
+                    linear(q, self.att, h, wo, 0, h, self.tmp, 0, (most, false), "the attention output projection")?;
+                add_ln(q, ln.0, ln.1, ln.2, parts, "the attention LayerNorm")?;
+            }
             let (wi, bi) = ((l, 2, layer(l, FFN_IN_WEIGHT)), layer(l, FFN_IN_BIAS));
             linear(
                 q,
-                self.x,
+                x,
                 h,
                 wi,
                 bi,
                 inter,
                 self.ffn,
                 LINEAR_BIAS | LINEAR_GELU,
-                (1, XMX_TO_F16),
+                (1, true),
                 "the feed-forward input and GELU",
             )?;
             let wf = (l, 3, layer(l, FFN_OUT_WEIGHT));
-            linear(q, self.ffn, inter, wf, 0, h, self.tmp, 0, (SPLITS, XMX_FROM_F16), "the feed-forward output")?;
-            add_ln(
-                q,
-                layer(l, FFN_OUT_BIAS),
-                layer(l, FFN_LN_WEIGHT),
-                layer(l, FFN_LN_BIAS),
-                if inter.is_multiple_of(SPLITS * 16) { SPLITS } else { 1 },
-                "the feed-forward LayerNorm",
-            )?;
+            let ln = (layer(l, FFN_OUT_BIAS), layer(l, FFN_LN_WEIGHT), layer(l, FFN_LN_BIAS));
+            if !fused(q, self.ffn, inter, (l, 3), ln, "the feed-forward output and LayerNorm")? {
+                let parts =
+                    linear(q, self.ffn, inter, wf, 0, h, self.tmp, 0, (SPLITS, false), "the feed-forward output")?;
+                add_ln(q, ln.0, ln.1, ln.2, parts, "the feed-forward LayerNorm")?;
+            }
         }
         let args = [
             Ptr(self.x),
