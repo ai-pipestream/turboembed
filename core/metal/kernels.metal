@@ -287,8 +287,9 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
                       ushort tid [[thread_index_in_threadgroup]], ushort sg [[simdgroup_index_in_threadgroup]],
                       ushort lane [[thread_index_in_simdgroup]]) {
     // Threadgroup memory, given at dispatch: the queries, a chunk's K and V,
-    // each row padded by 4 floats, and each group's scores.
-    const uint LDH = p.head_dim + 4;
+    // rows unpadded so a head width of 32 fits in 16 KB, and each group's
+    // scores.
+    const uint LDH = p.head_dim;
     threadgroup float *qs = mem;
     threadgroup float *ks = qs + 32 * LDH;
     threadgroup float *vs = ks + KC * LDH;

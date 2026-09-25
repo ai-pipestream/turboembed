@@ -904,10 +904,10 @@ size_t capacity(size_t tokens) { return round_up(tokens, 32); }
 bool wide_heads(uint32_t head_dim) { return head_dim % 8 == 0 && head_dim <= 64; }
 
 /* Attention's threadgroup memory: for the matrix kernel, 32 queries and a
- * chunk of 32 keys' K and V, rows padded by 4 floats, and four groups' 8 x
+ * chunk of 32 keys' K and V, rows unpadded, and four groups' 8 x
  * 32 scores; for the narrow one, one query's scores against seq keys. */
 size_t attention_bytes(uint32_t head_dim, uint32_t seq) {
-    const size_t floats = wide_heads(head_dim) ? 3 * 32 * (head_dim + 4) + 4 * 8 * 32 : round_up(seq, 8);
+    const size_t floats = wide_heads(head_dim) ? 3 * 32 * head_dim + 4 * 8 * 32 : round_up(seq, 8);
     return round_up(sizeof(float) * floats, 16);
 }
 
