@@ -21,7 +21,7 @@ fn new_error() -> turbo_error {
 
 /// A fixed C string buffer as text, up to its NUL.
 pub fn field(b: &[c_char]) -> String {
-    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();
     String::from_utf8_lossy(&bytes).into_owned()
 }
 

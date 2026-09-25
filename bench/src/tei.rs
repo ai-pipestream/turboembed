@@ -161,10 +161,11 @@ pub fn first_changed(sent: &[Vec<i32>], back: &[Vec<i32>]) -> Option<(usize, Vec
 
 /// The files TEI will read are the bundle's: tokenizer.json has the
 /// bundle tokenizer's hash, model.safetensors the loaded artifact's, and
-/// config.json is there. Returns why not.
+/// config.json is there. Returns why not, which a record keeps, so the
+/// directory is named by its placeholder.
 pub fn check_model_dir(dir: &Path, m: &Measurement) -> std::result::Result<(), String> {
     let hash =
-        |f: &str| fs::read(dir.join(f)).map(|b| sha256_hex(&b)).map_err(|e| format!("{}: {e}", dir.join(f).display()));
+        |f: &str| fs::read(dir.join(f)).map(|b| sha256_hex(&b)).map_err(|e| format!("{}/{f}: {e}", docker::TEI_MODEL));
     let want_tok = field(&m.model.tokenizer_sha256);
     let want_art = field(&m.model.artifact_sha256);
     let art = m.manifest.artifacts.iter().find(|a| turbo::model::artifact_sha256(&m.manifest, a) == want_art);
@@ -172,12 +173,12 @@ pub fn check_model_dir(dir: &Path, m: &Measurement) -> std::result::Result<(), S
         return Err("the artifact the device loaded is not one safetensors file TEI can read".into());
     }
     if hash("tokenizer.json")? != want_tok {
-        return Err(format!("{}/tokenizer.json is not the bundle's tokenizer ({want_tok})", dir.display()));
+        return Err(format!("{}/tokenizer.json is not the bundle's tokenizer ({want_tok})", docker::TEI_MODEL));
     }
     if hash("model.safetensors")? != want_art {
-        return Err(format!("{}/model.safetensors is not the loaded artifact ({want_art})", dir.display()));
+        return Err(format!("{}/model.safetensors is not the loaded artifact ({want_art})", docker::TEI_MODEL));
     }
-    fs::metadata(dir.join("config.json")).map_err(|e| format!("{}/config.json: {e}", dir.display()))?;
+    fs::metadata(dir.join("config.json")).map_err(|e| format!("{}/config.json: {e}", docker::TEI_MODEL))?;
     Ok(())
 }
 
@@ -231,8 +232,9 @@ pub fn run(tei: &Tei, m: &Measurement, gpu: Option<u32>, warmup: u32, iterations
     docker::require_image(&mut log, image)?;
 
     let container = format!("turbo-bench-tei-{}", std::process::id());
-    let cmd = run_argv(image, &dir, &container, gpu, dtype, pooling(m.pooling()), m.rows.batch, m.rows.seq);
-    log.run(&cmd)?;
+    let start_argv =
+        |dir: &Path| run_argv(image, dir, &container, gpu, dtype, pooling(m.pooling()), m.rows.batch, m.rows.seq);
+    log.run_as(&start_argv(&dir), start_argv(Path::new(docker::TEI_MODEL)))?;
     let _running = Running { name: container.clone() };
     let port = docker::parse_port(&log.run(&argv(&["docker", "port", &container, "80/tcp"]))?)?;
     let base = format!("http://127.0.0.1:{port}");

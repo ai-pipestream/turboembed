@@ -25,6 +25,7 @@ pub const STRUCTURE_TYPE_KERNEL_PROPERTIES: u32 = 0x1e;
 pub const STRUCTURE_TYPE_EVENT_POOL_DESC: u32 = 0x10;
 pub const STRUCTURE_TYPE_EVENT_DESC: u32 = 0x11;
 pub const EVENT_POOL_FLAG_HOST_VISIBLE: u32 = 1;
+pub const EVENT_POOL_FLAG_KERNEL_TIMESTAMP: u32 = 4;
 pub const EVENT_SCOPE_FLAG_HOST: u32 = 4;
 pub const DEVICE_MODULE_FLAG_FP64: u32 = 2;
 pub const MEMORY_TYPE_UNKNOWN: u32 = 0;
@@ -350,6 +351,7 @@ pub struct ComputeApi {
     pub event_destroy: unsafe extern "C" fn(Handle) -> Status,
     pub event_host_synchronize: unsafe extern "C" fn(Handle, u64) -> Status,
     pub event_host_reset: unsafe extern "C" fn(Handle) -> Status,
+    pub event_query_kernel_timestamp: unsafe extern "C" fn(Handle, *mut [u64; 4]) -> Status,
 }
 
 pub struct SysmanApi {
@@ -432,6 +434,7 @@ impl Api {
                 event_destroy: sym!("zeEventDestroy"),
                 event_host_synchronize: sym!("zeEventHostSynchronize"),
                 event_host_reset: sym!("zeEventHostReset"),
+                event_query_kernel_timestamp: sym!("zeEventQueryKernelTimestamp"),
             },
             loader_get_versions: opt!("zelLoaderGetVersions"),
             sysman,

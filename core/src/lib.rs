@@ -18,6 +18,8 @@ pub mod bundle;
 pub mod cpu;
 #[cfg(feature = "cuda")]
 pub mod cuda;
+#[cfg(feature = "hailo")]
+pub mod hailo;
 #[cfg(feature = "levelzero")]
 pub mod levelzero;
 pub mod manifest;
@@ -98,6 +100,8 @@ pub const TURBO_EMBED_STAGE_POOL: usize = 4;
 pub const TURBO_EMBED_STAGE_NORMALIZE: usize = 5;
 pub const TURBO_EMBED_STAGE_DOWNLOAD: usize = 6;
 pub const TURBO_EMBED_STAGE_COUNT: usize = 7;
+
+pub const TURBO_OUTPUT_DIMS_MAX: usize = 16;
 
 pub const TURBO_STAGE_UNUSED: u32 = 0;
 pub const TURBO_STAGE_HOST: u32 = 1;
@@ -198,7 +202,13 @@ pub struct turbo_model_info {
     pub tokenizer_sha256: [c_char; 72],
     pub prefix_query: [c_char; 128],
     pub prefix_document: [c_char; 128],
+    pub output_dims_count: u32,
+    pub output_dims: [u32; TURBO_OUTPUT_DIMS_MAX],
 }
+
+/// The size of turbo_model_info before output_dims_count was appended,
+/// which turbo_model_get_info still accepts.
+pub const TURBO_MODEL_INFO_SIZE_V1: usize = std::mem::offset_of!(turbo_model_info, output_dims_count);
 
 #[repr(C)]
 pub struct turbo_tokenizer_info {
@@ -514,7 +524,7 @@ unsafe fn text<'a>(t: turbo_text, what: &str) -> Result<&'a str> {
     if t.ptr.is_null() {
         return Err(Error::new(INVALID_ARGUMENT, format!("{what}: NULL with length {}", t.len)));
     }
-    let bytes = unsafe { std::slice::from_raw_parts(t.ptr as *const u8, t.len as usize) };
+    let bytes = unsafe { std::slice::from_raw_parts(t.ptr.cast::<u8>(), t.len as usize) };
     std::str::from_utf8(bytes).map_err(|e| Error::new(INVALID_UTF8, format!("{what}: {e}")))
 }
 
@@ -1090,6 +1100,11 @@ fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     write_str(&mut info.tokenizer_sha256, &tokenizer.sha256);
     write_str(&mut info.prefix_query, &e.prefix_query);
     write_str(&mut info.prefix_document, &e.prefix_document);
+    // The manifest refuses more than TURBO_OUTPUT_DIMS_MAX (rule 2).
+    let mut dims = e.output_dims.clone();
+    dims.sort_unstable();
+    info.output_dims_count = dims.len() as u32;
+    info.output_dims[..dims.len()].copy_from_slice(&dims);
 
     let tensors = weights.tensors();
     let desc = weights.desc(&tensors);
@@ -1141,9 +1156,23 @@ pub unsafe extern "C" fn turbo_model_get_info(
     unsafe {
         call(err, || {
             let m = model_handle(m)?;
-            let out = out_ptr(out, "out")?;
-            sized(out.struct_size, size_of::<turbo_model_info>(), "turbo_model_info")?;
-            *out = m.inner.info;
+            if out.is_null() {
+                return Err(Error::new(INVALID_ARGUMENT, "out is NULL"));
+            }
+            // A caller built against the struct before output_dims_count
+            // has only that much memory: it is read and written through
+            // the raw pointer, never as the whole struct.
+            let size = (out as *const u32).read();
+            let want = size_of::<turbo_model_info>();
+            if size as usize != TURBO_MODEL_INFO_SIZE_V1 {
+                sized(size, want, "turbo_model_info")?;
+            }
+            let info = m.inner.info;
+            std::ptr::copy_nonoverlapping(
+                (&info as *const turbo_model_info).cast::<u8>().add(4),
+                out.cast::<u8>().add(4),
+                size as usize - 4,
+            );
             Ok(())
         })
     }
@@ -1173,7 +1202,9 @@ pub unsafe fn model_weights<'a>(m: *mut turbo_model) -> Option<ModelWeights<'a>>
 }
 
 /// Where the CPU backend's F32 copy of an F16 or BF16 model's weights is,
-/// once a session has made it. Built only with the `internals` feature.
+/// once a session has made it; for a GPU backend, where each copy of the
+/// weights in another dtype than the stored one is. Built only with the
+/// `internals` feature.
 ///
 /// # Safety
 /// As for model_weights.
@@ -1184,11 +1215,13 @@ pub unsafe fn model_converted_weights(m: *mut turbo_model) -> Option<Vec<*const 
     if std::ptr::eq(m.context.backend, &cpu::BACKEND) {
         return unsafe { cpu::converted_data(m.raw) };
     }
-    // The CUDA backend widens every tensor into one device allocation: its
-    // address stands for the copy.
+    // The CUDA backend widens every tensor into one device allocation, and
+    // narrows the GEMM weights to F16 into another: each address stands
+    // for its copy, the F32 one first.
     #[cfg(feature = "cuda")]
     if std::ptr::eq(m.context.backend, cuda::backend()) {
-        return unsafe { cuda::widened(m.raw) }.map(|p| vec![p]);
+        let copies: Vec<_> = unsafe { [cuda::widened(m.raw), cuda::narrowed(m.raw)] }.into_iter().flatten().collect();
+        return (!copies.is_empty()).then_some(copies);
     }
     // So does the levelzero backend.
     #[cfg(feature = "levelzero")]

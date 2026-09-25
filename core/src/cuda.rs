@@ -1,4 +1,4 @@
-//! The CUDA backend: NVIDIA GPUs through the CUDA runtime and cuBLAS. It
+//! The CUDA backend: NVIDIA GPUs through the CUDA runtime. It
 //! is written in C++ and CUDA in core/cuda/, compiled by build.rs into a
 //! static library, and reached only through its turbo_backend table, like
 //! any other backend. docs/cuda.md says how to build and test it.
@@ -21,6 +21,81 @@ unsafe extern "C" {
     fn turbo_cuda_allocations(host: *mut u64, device: *mut u64);
     fn turbo_cuda_arch_label(name: *const std::ffi::c_char, out: *mut std::ffi::c_char, len: usize);
     fn turbo_cuda_widened(model: *mut std::ffi::c_void) -> *const std::ffi::c_void;
+    fn turbo_cuda_narrowed(model: *mut std::ffi::c_void) -> *const std::ffi::c_void;
+    fn turbo_cuda_gemm_check(
+        ordinal: u32,
+        m: i32,
+        n: i32,
+        k: i32,
+        epilogue: i32,
+        half: i32,
+        tensor_cores: i32,
+        splits: i32,
+        heads: i32,
+        max_diff: *mut f64,
+        max_ref: *mut f64,
+    ) -> i32;
+    fn turbo_cuda_use_cublas(gemms: i32);
+}
+
+/// The epilogues of the backend's own GEMMs, as [`gemm_check`] names them.
+#[cfg(feature = "internals")]
+#[derive(Clone, Copy, Debug)]
+pub enum Epilogue {
+    /// + bias, written head-major for attention.
+    Qkv = 0,
+    /// + bias, then GELU with the error function.
+    Gelu = 1,
+    /// The bare product, split over k into partial products.
+    Partial = 2,
+}
+
+/// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
+/// operands on CUDA device `ordinal`, against cuBLAS's product with the
+/// epilogue done on the host: the largest absolute difference and the
+/// largest reference value. `half` takes F16 operands, on the tensor
+/// cores when `tensor_cores` (else with FMAs); `splits` is the k split
+/// asked of a partial product; `heads` the QKV epilogue's, n being three
+/// times the hidden width. Built only with `internals`.
+#[cfg(feature = "internals")]
+#[allow(clippy::too_many_arguments)]
+pub fn gemm_check(
+    ordinal: u32,
+    m: i32,
+    n: i32,
+    k: i32,
+    epilogue: Epilogue,
+    half: bool,
+    tensor_cores: bool,
+    splits: i32,
+    heads: i32,
+) -> Result<(f64, f64), i32> {
+    let (mut diff, mut reference) = (0.0, 0.0);
+    let rc = unsafe {
+        turbo_cuda_gemm_check(
+            ordinal,
+            m,
+            n,
+            k,
+            epilogue as i32,
+            i32::from(half),
+            i32::from(tensor_cores),
+            splits,
+            heads,
+            &mut diff,
+            &mut reference,
+        )
+    };
+    if rc == 0 { Ok((diff, reference)) } else { Err(rc) }
+}
+
+/// The GEMMs sessions made from now on compute with cuBLAS, as
+/// TURBO_CUDA_CUBLAS names them (1 QKV, 2 attention output, 4 feed-forward
+/// input, 8 feed-forward output), or `None` to read the variable again.
+/// Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_cublas(gemms: Option<u32>) {
+    unsafe { turbo_cuda_use_cublas(gemms.map_or(-1, |g| g as i32)) };
 }
 
 /// Every allocation the CUDA backend has made in this process, host and
@@ -50,5 +125,16 @@ pub fn arch_label(name: &str) -> String {
 #[cfg(feature = "internals")]
 pub(crate) unsafe fn widened(model: *mut std::ffi::c_void) -> Option<*const std::ffi::c_void> {
     let p = unsafe { turbo_cuda_widened(model) };
+    (!p.is_null()).then_some(p)
+}
+
+/// The device address of the F16 copy of an F32 or BF16 model's GEMM
+/// weights, once an F16 session made it.
+///
+/// # Safety
+/// `model` is one this backend's model_load returned, not yet released.
+#[cfg(feature = "internals")]
+pub(crate) unsafe fn narrowed(model: *mut std::ffi::c_void) -> Option<*const std::ffi::c_void> {
+    let p = unsafe { turbo_cuda_narrowed(model) };
     (!p.is_null()).then_some(p)
 }

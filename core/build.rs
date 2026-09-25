@@ -25,6 +25,12 @@
 //! Metal compiles them for the device a context is made on. docs/metal.md
 //! says more.
 //!
+//! The Hailo backend (core/hailo/), for `hailo`: C++ compiled by the host
+//! C++ compiler (CXX, else c++) into a static library linked into libturbo
+//! against HailoRT's shared library. TURBO_HAILORT_ROOT is the prefix with
+//! include/hailo/hailort.h and lib/libhailort.so (or lib/<arch>-linux-gnu/),
+//! default /usr. docs/hailo.md says more.
+//!
 //! The levelzero backend's kernels (core/levelzero/), for `levelzero`:
 //! OpenCL C compiled to SPIR-V by clang, which TURBO_CLANG names when the
 //! one on the PATH is not the one to use. docs/levelzero.md says more.
@@ -47,6 +53,9 @@ fn main() {
     }
     if env::var_os("CARGO_FEATURE_METAL").is_some() {
         metal();
+    }
+    if env::var_os("CARGO_FEATURE_HAILO").is_some() {
+        hailo();
     }
 }
 
@@ -137,7 +146,10 @@ fn levelzero() {
                  that translates through llvm-spirv needs it on the PATH): set TURBO_CLANG to one";
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("levelzero_encoder.spv");
     let mut cmd = Command::new(&clang);
-    cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-c", SOURCE, "-o"]).arg(&out);
+    // The kernels read a sub-group's operands with Intel's block reads.
+    cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-mllvm", "--spirv-ext=+SPV_INTEL_subgroups", "-c", SOURCE])
+        .arg("-o")
+        .arg(&out);
     let done = cmd.output().unwrap_or_else(|e| fail(&format!("{needs}; {shown} did not run: {e}")));
     let stderr = String::from_utf8_lossy(&done.stderr);
     if !done.status.success() {
@@ -231,6 +243,64 @@ fn metal() {
     println!("cargo:rustc-link-lib=framework=Metal");
     println!("cargo:rustc-link-lib=framework=Foundation");
     println!("cargo:rustc-link-lib=dylib=c++");
+}
+
+const HAILO_SOURCES: [&str; 1] = ["hailo/backend.cpp"];
+const HAILO_DEPENDS: [&str; 2] = ["../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
+
+fn hailo() {
+    for f in HAILO_SOURCES.iter().chain(&HAILO_DEPENDS) {
+        println!("cargo:rerun-if-changed={f}");
+    }
+    for v in ["TURBO_HAILORT_ROOT", "CXX"] {
+        println!("cargo:rerun-if-env-changed={v}");
+    }
+    let root = env::var_os("TURBO_HAILORT_ROOT").filter(|s| !s.is_empty()).map_or_else(|| "/usr".into(), PathBuf::from);
+    let header = root.join("include/hailo/hailort.h");
+    if !header.is_file() {
+        fail(&format!(
+            "the hailo feature needs HailoRT's headers, and {} is not there: set TURBO_HAILORT_ROOT to the prefix \
+             HailoRT is installed under",
+            header.display()
+        ));
+    }
+    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_else(|_| env::consts::ARCH.to_owned());
+    let lib = ["lib".to_owned(), format!("lib/{arch}-linux-gnu"), "lib64".to_owned()]
+        .iter()
+        .map(|d| root.join(d))
+        .find(|d| d.join("libhailort.so").exists())
+        .unwrap_or_else(|| {
+            fail(&format!("no libhailort.so under {}/lib, lib/{arch}-linux-gnu or lib64", root.display()))
+        });
+
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let cxx = env::var_os("CXX").unwrap_or_else(|| "c++".into());
+    let mut objects = Vec::new();
+    for src in HAILO_SOURCES {
+        let obj = out.join(Path::new(src).file_name().unwrap()).with_extension("o");
+        run(Command::new(&cxx)
+            .args(["-c", "-O2", "-std=c++17", "-fPIC", "-Wall", "-Wextra"])
+            .arg("-I")
+            .arg(manifest.join("../include"))
+            .arg("-I")
+            .arg(root.join("include"))
+            .arg("-o")
+            .arg(&obj)
+            .arg(manifest.join(src)));
+        objects.push(obj);
+    }
+    let archive = out.join("libturbo_hailo.a");
+    let _ = std::fs::remove_file(&archive);
+    let ar = env::var("AR").unwrap_or_else(|_| "ar".to_owned());
+    run(Command::new(ar).arg("crs").arg(&archive).args(&objects));
+
+    println!("cargo:rustc-link-search=native={}", out.display());
+    println!("cargo:rustc-link-lib=static=turbo_hailo");
+    println!("cargo:rustc-link-search=native={}", lib.display());
+    println!("cargo:rustc-link-lib=dylib=hailort");
+    println!("cargo:rustc-link-lib=dylib=stdc++");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib.display());
 }
 
 /// Every `*.json` file in benchmarks/records/ as `EMBEDDED`, its file name

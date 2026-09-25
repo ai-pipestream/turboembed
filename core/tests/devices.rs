@@ -64,7 +64,7 @@ impl Drop for Rt {
 }
 
 fn s(b: &[c_char]) -> String {
-    b.iter().take_while(|&&c| c != 0).map(|&c| c as u8 as char).collect()
+    b.iter().take_while(|&&c| c != 0).map(|&c| char::from(u8::from_ne_bytes(c.to_ne_bytes()))).collect()
 }
 
 fn cpu(rt: &Rt) -> u32 {
@@ -99,6 +99,7 @@ fn the_version_lists_the_linked_backends() {
         (cfg!(feature = "cuda"), "cuda"),
         (cfg!(feature = "levelzero"), "levelzero"),
         (cfg!(feature = "metal"), "metal"),
+        (cfg!(feature = "hailo"), "hailo"),
         (true, "cpu"),
     ] {
         if on {

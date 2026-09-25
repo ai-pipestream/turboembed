@@ -348,7 +348,8 @@ pub fn new_error() -> turbo_error {
 }
 
 pub fn failure(code: i32, e: &turbo_error) -> Failure {
-    let bytes: Vec<u8> = e.message.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    let bytes: Vec<u8> =
+        e.message.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();
     assert_eq!(e.code, code, "turbo_error.code and the returned status differ");
     Failure { code, field: e.field, message: String::from_utf8(bytes).expect("message is UTF-8") }
 }
@@ -683,7 +684,7 @@ pub fn first_of(rt: *mut turbo_runtime, backend: &str) -> Option<u32> {
 
 /// A fixed-size C string field as a String.
 pub fn field(b: &[std::ffi::c_char]) -> String {
-    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();
     String::from_utf8(bytes).unwrap()
 }
 

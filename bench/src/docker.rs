@@ -1,6 +1,8 @@
 //! Reference programs run in containers pinned by digest, through the
 //! docker command line. Every command is kept as its argv, so the record
-//! says exactly what ran.
+//! says exactly what ran, with each host path in it written as a fixed
+//! placeholder: records are published, and a path on the machine that
+//! made one says nothing about the measurement and may name its user.
 
 use std::process::Command;
 
@@ -14,6 +16,15 @@ pub fn check_pinned<'a>(what: &str, image: &'a str) -> Result<&'a str> {
         .map(|_| image)
 }
 
+/// The bundle directory, as a recorded command names it.
+pub const BUNDLE: &str = "<bundle>";
+
+/// The directory the tool writes a program's input files to.
+pub const WORK: &str = "<work>";
+
+/// The model directory TEI serves.
+pub const TEI_MODEL: &str = "<tei-model>";
+
 /// The commands run so far, in order, as the record keeps them.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Log {
@@ -21,10 +32,18 @@ pub struct Log {
 }
 
 impl Log {
-    /// Run `argv`, keeping it in the log; its standard output on success,
-    /// else an error with the command, its status and its output.
+    /// Run `argv`, a command with no host path in it, keeping it in the
+    /// log; its standard output on success, else an error with the
+    /// command, its status and its output.
     pub fn run(&mut self, argv: &[String]) -> Result<String> {
-        self.commands.push(argv.to_vec());
+        self.run_as(argv, argv.to_vec())
+    }
+
+    /// Run `argv`, keeping `recorded` in the log in its place: the same
+    /// command built with the placeholders above for its host paths. The
+    /// error, which is not recorded, names the command as run.
+    pub fn run_as(&mut self, argv: &[String], recorded: Vec<String>) -> Result<String> {
+        self.commands.push(recorded);
         let out = Command::new(&argv[0]).args(&argv[1..]).output().map_err(|e| format!("{}: {e}", argv.join(" ")))?;
         if !out.status.success() {
             return Err(format!(

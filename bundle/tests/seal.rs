@@ -34,16 +34,18 @@ fn tiny_recipe(dir: &Path) -> PathBuf {
     m["architecture"]["intermediate"] = json!(64);
     r["upstream"] = json!([
         { "path": "tokenizer.json", "to": "tokenizer.json" },
-        { "path": "model.safetensors", "to": "weights/model.safetensors" }
+        { "path": "model.safetensors", "to": "weights/model.safetensors" },
+        { "path": "onnx/model.onnx", "to": "onnx/model.onnx" }
     ]);
     let p = dir.join("recipe.json");
     fs::write(&p, serde_json::to_vec_pretty(&r).unwrap()).unwrap();
     p
 }
 
-/// An upstream directory: the tokenizer, and a weights file. Sealing hashes
-/// the weights and never reads them; loading them is the model loader's
-/// job, not the tool's.
+/// An upstream directory: the tokenizer, a weights file and an ONNX file.
+/// Sealing hashes the weights and the ONNX file and never reads them;
+/// loading weights is the model loader's job, and ONNX is read only by
+/// reference programs.
 fn upstream(dir: &Path) -> PathBuf {
     let up = dir.join("upstream");
     fs::create_dir_all(&up).unwrap();
@@ -52,8 +54,14 @@ fn upstream(dir: &Path) -> PathBuf {
     let mut w = (header.len() as u64).to_le_bytes().to_vec();
     w.extend_from_slice(header);
     fs::write(up.join("model.safetensors"), w).unwrap();
+    fs::create_dir_all(up.join("onnx")).unwrap();
+    fs::write(up.join("onnx/model.onnx"), ONNX).unwrap();
     up
 }
+
+/// The bytes the upstream ONNX file has here: the tool copies and hashes
+/// it, and nothing in the tool or the core parses it.
+const ONNX: &[u8] = b"an ONNX graph, as far as sealing is concerned";
 
 fn reported() -> Value {
     json!({ "tool": "sentence-transformers", "tool_version": "6.1.0", "args": ["--device", "cpu"] })
@@ -89,15 +97,71 @@ fn a_sealed_bundle_loads_through_the_core() {
     assert_eq!(pb["container"], CONTAINER);
     assert_eq!(pb["tool_version"], "6.1.0", "from the run, not the recipe");
     let paths: Vec<&str> = m["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
-    assert_eq!(paths, ["reference/reference.safetensors", "tokenizer.json", "weights/model.safetensors"]);
+    assert_eq!(
+        paths,
+        ["onnx/model.onnx", "reference/reference.safetensors", "tokenizer.json", "weights/model.safetensors"]
+    );
     // The loader opens it as a machine would.
     seal::verify(&bundle).unwrap();
     let tok = bundle.join("tokenizer.json");
     assert_eq!(
-        m["files"][1]["sha256"].as_str().unwrap(),
+        m["files"][2]["sha256"].as_str().unwrap(),
         turbo::bundle::sha256_hex(&fs::read(tok).unwrap()),
         "hashes are computed, not copied from the recipe"
     );
+    fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
+}
+
+/// The backends the core runs an artifact on.
+const BACKENDS: [&str; 4] = ["cuda", "levelzero", "metal", "cpu"];
+
+#[test]
+fn the_recipe_carries_upstreams_onnx_export_for_reference_programs_only() {
+    let r = Recipe::load(&root().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap();
+    let arts = r.manifest["artifacts"].as_array().unwrap();
+    let onnx: Vec<&Value> = arts.iter().filter(|a| a["format"] == "FORMAT_ONNX").collect();
+    assert_eq!(onnx.len(), 1, "one ONNX artifact");
+    assert_eq!(onnx[0]["name"], "onnx-f32");
+    assert_eq!(onnx[0]["files"], json!(["onnx/model.onnx"]));
+    assert_eq!(onnx[0]["backends"], json!([]), "no backend loads it");
+    assert!(onnx[0].get("produced_by").is_none(), "the upstream file, unchanged");
+    assert_eq!(arts[0]["format"], "FORMAT_SAFETENSORS", "manifest order: the weights come first");
+    let up = r.upstream.iter().find(|u| u.path == "onnx/model.onnx").expect("fetched from upstream");
+    assert_eq!(up.to.as_deref(), Some("onnx/model.onnx"), "and carried at the path the artifact names");
+    assert!(seal::named_paths(&r.manifest).unwrap().contains("onnx/model.onnx"));
+}
+
+#[test]
+fn the_onnx_file_is_copied_and_sealed_and_no_backend_chooses_it() {
+    let (bundle, out) = sealed("onnx", |_| {});
+    out.expect("sealed and verified");
+    assert_eq!(fs::read(bundle.join("onnx/model.onnx")).unwrap(), ONNX, "copied byte for byte");
+    let b = turbo::bundle::Bundle::open(&bundle).unwrap();
+    let f = b.manifest.file("onnx/model.onnx");
+    assert_eq!((f.size, f.sha256.as_str()), (ONNX.len() as u64, turbo::bundle::sha256_hex(ONNX).as_str()));
+    assert_eq!(b.read_verified("onnx/model.onnx").unwrap(), ONNX);
+    let i = b.manifest.artifacts.iter().position(|a| a.format == turbo::manifest::Format::Onnx).unwrap();
+    assert_eq!(b.manifest.artifacts[i].files, ["onnx/model.onnx"]);
+    assert!(b.manifest.artifacts[i].backends.is_empty());
+    for backend in BACKENDS {
+        assert_ne!(turbo::model::choose(&b.manifest, backend, "any").unwrap(), i, "{backend}");
+    }
+    let e = turbo::model::choose(&b.manifest, "openvino", "any").unwrap_err();
+    assert!(e.message.contains("onnx-f32: backends [] has no openvino"), "{}", e.message);
+
+    // A changed ONNX file fails verification like any other.
+    fs::write(bundle.join("onnx/model.onnx"), b"another graph").unwrap();
+    let e = seal::verify(&bundle).unwrap_err();
+    assert!(e.contains("onnx/model.onnx"), "{e}");
+    fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
+}
+
+#[test]
+fn a_recipe_without_the_onnx_upstream_file_is_not_sealed() {
+    let (bundle, out) = sealed("no-onnx", |r| r.upstream.retain(|u| u.path != "onnx/model.onnx"));
+    let e = out.unwrap_err();
+    assert!(e.contains("onnx/model.onnx"), "{e}");
+    assert!(!bundle.join("manifest.json").exists());
     fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
 }
 
