@@ -45,6 +45,9 @@ cuda = []
 # Apple GPUs through Metal: needs the Xcode command line tools to build
 # (build.rs, docs/metal.md).
 metal = []
+# Hailo accelerators through HailoRT: needs HailoRT's headers and library
+# to build (build.rs, docs/hailo.md).
+hailo = []
 # Test-only views of the core's state, never in a release library.
 internals = []
 levelzero = ["dep:libloading"]

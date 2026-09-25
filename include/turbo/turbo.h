@@ -11,7 +11,8 @@
  *   - Every struct the caller fills or receives starts with
  *     uint32_t struct_size = sizeof(struct). The library reads and writes
  *     only fields below that size. A size it does not know is
- *     TURBO_E_INVALID_STRUCT_SIZE.
+ *     TURBO_E_INVALID_STRUCT_SIZE. A struct grows only at its end, and a
+ *     size an earlier version of this file had stays known.
  *   - Enumerations are uint32_t constants. An unknown value is
  *     TURBO_E_INVALID_ENUM. Nothing is mapped to a default.
  *   - Strings are UTF-8 views (turbo_text), valid for the call. Bad UTF-8 is
@@ -175,7 +176,7 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 /* Option values. 0 always means "what the bundle says". */
 
 #define TURBO_TRUNCATE_MODEL 0
-#define TURBO_TRUNCATE_NONE  1   /* too long is an error */
+#define TURBO_TRUNCATE_NONE  1   /* too long is TURBO_E_CAPACITY */
 #define TURBO_TRUNCATE_RIGHT 2
 #define TURBO_TRUNCATE_LEFT  3
 
@@ -286,6 +287,9 @@ void    turbo_runtime_release(turbo_runtime *rt);
 /* The library version and the backends compiled into this build, as a
  * static string: "0.1.0 cuda openvino". */
 const char *turbo_version(void);
+/* The status constant's name as this file spells it: "TURBO_OK" for 0,
+ * "TURBO_E_CAPACITY" for 771, and "TURBO_E_UNKNOWN" for a code this file
+ * does not define. The string is static. */
 const char *turbo_status_name(int32_t code);
 
 int32_t turbo_runtime_device_count(turbo_runtime *rt, uint32_t *out, turbo_error *err);
@@ -343,6 +347,9 @@ int32_t turbo_buffer_export(turbo_buffer *buf, uint32_t kind, turbo_native_handl
 
 /* ---- Model ------------------------------------------------------------- */
 
+/* Entries in turbo_model_info.output_dims. */
+#define TURBO_OUTPUT_DIMS_MAX 16
+
 typedef struct turbo_model_info {
     uint32_t struct_size;
     uint32_t task;              /* TURBO_TASK_* */
@@ -360,7 +367,13 @@ typedef struct turbo_model_info {
     char     tokenizer_sha256[72];   /* hex, of the tokenizer file */
     char     prefix_query[128];      /* embed */
     char     prefix_document[128];   /* embed */
-    /* Fields marked embed are 0 or empty for a model of another task. */
+    uint32_t output_dims_count;      /* embed: entries of output_dims in use */
+    uint32_t output_dims[TURBO_OUTPUT_DIMS_MAX];   /* embed: the widths besides dim that
+                                                      turbo_embed_options.output_dim may
+                                                      name, ascending; 0 past the count */
+    /* Fields marked embed are 0 or empty for a model of another task. The
+     * library also accepts a struct_size that ends before output_dims_count
+     * and then writes nothing from there on. */
 } turbo_model_info;
 
 /* Load a bundle directory on the context's device. Every file is checked
@@ -432,14 +445,17 @@ typedef struct turbo_session_desc {
 typedef struct turbo_embed_options {
     uint32_t struct_size;
     uint32_t truncate;      /* 1: TURBO_TRUNCATE_* */
-    uint32_t max_tokens;    /* 2: token budget per row; above the session's max_seq is
-                               TURBO_E_CAPACITY */
+    uint32_t max_tokens;    /* 2: token budget per row, specials included; 0 = the
+                               bundle's embed.max_seq, not the session's. Above the
+                               session's max_seq is TURBO_E_CAPACITY */
     uint32_t prompt_role;   /* 3: TURBO_PROMPT_* */
     uint32_t normalize;     /* 4: TURBO_NORMALIZE_* */
     uint32_t pooling;       /* 5: TURBO_POOLING_* */
     uint32_t output_dim;    /* 6: keep only the first output_dim values of each vector, cut
                                before normalize: an L2-normalized vector is unit length at
-                               output_dim */
+                               output_dim. Above turbo_model_info.dim is
+                               TURBO_E_INVALID_ARGUMENT; neither dim nor one of
+                               turbo_model_info.output_dims is TURBO_E_UNSUPPORTED_OPTION */
 } turbo_embed_options;
 
 /* Caller-prepared rows, [batch, seq] int32, row_stride elements between row
@@ -450,7 +466,9 @@ typedef struct turbo_embed_options {
  * managed rows go straight to the device, and pageable rows are staged
  * through the session's page-locked memory first. Every row has at least one mask entry of 1. The rows
  * are already cut: truncate and prompt_role are for text, and a value
- * other than 0 in either is TURBO_E_INVALID_ARGUMENT naming it. */
+ * other than 0 in either is TURBO_E_INVALID_ARGUMENT naming it. max_tokens
+ * is checked, not applied: a row whose tokens through its last mask entry
+ * of 1 are more than a max_tokens other than 0 is TURBO_E_CAPACITY. */
 typedef struct turbo_token_batch {
     uint32_t       struct_size;
     uint32_t       batch;
@@ -521,6 +539,9 @@ typedef struct turbo_result_info {
 } turbo_result_info;
 
 int32_t turbo_result_get_info(turbo_result *r, turbo_result_info *out, turbo_error *err);
+
+/* The output of a run is one block, the vectors: [batch, dim] values of
+ * turbo_result_info.dtype, packed row-major, turbo_result_info.bytes long. */
 
 /* Copy the vectors into dst (capacity bytes). Counted in d2h_bytes. */
 int32_t turbo_result_read(turbo_result *r, void *dst, uint64_t capacity, uint64_t *written, turbo_error *err);

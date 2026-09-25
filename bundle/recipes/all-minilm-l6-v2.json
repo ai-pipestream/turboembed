@@ -116,6 +116,16 @@
           "ffn_ln_weight": "encoder.layer.{layer}.output.LayerNorm.weight",
           "ffn_ln_bias": "encoder.layer.{layer}.output.LayerNorm.bias"
         }
+      },
+      {
+        "name": "onnx-f32",
+        "format": "FORMAT_ONNX",
+        "files": [
+          "onnx/model.onnx"
+        ],
+        "backends": [],
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES"
       }
     ],
     "reference": {
@@ -173,6 +183,11 @@
       "path": "model.safetensors",
       "to": "weights/model.safetensors",
       "sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db"
+    },
+    {
+      "path": "onnx/model.onnx",
+      "to": "onnx/model.onnx",
+      "sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
     },
     {
       "path": "config.json",

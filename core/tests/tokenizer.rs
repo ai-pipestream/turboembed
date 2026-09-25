@@ -150,7 +150,9 @@ fn info_describes_the_bundle() {
     assert_eq!(info.max_seq, MAX_SEQ as u32);
     assert_eq!(info.specials_per_sequence, 2);
     assert_eq!((info.pad_id, info.bos_id, info.eos_id, info.unk_id), (0, 101, 102, 100));
-    let s = |b: &[std::ffi::c_char]| b.iter().take_while(|&&c| c != 0).map(|&c| c as u8 as char).collect::<String>();
+    let s = |b: &[std::ffi::c_char]| {
+        b.iter().take_while(|&&c| c != 0).map(|&c| char::from(u8::from_ne_bytes(c.to_ne_bytes()))).collect::<String>()
+    };
     assert_eq!(s(&info.kind), "wordpiece");
     let bytes = std::fs::read(upstream_tokenizer_json()).unwrap();
     assert_eq!(s(&info.sha256), sha256_hex(&bytes));

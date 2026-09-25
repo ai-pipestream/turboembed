@@ -8,6 +8,8 @@ pub mod api;
 pub mod docker;
 pub mod git;
 pub mod measure;
+pub mod onnx;
+pub mod openvino;
 pub mod tei;
 pub mod tensorrt;
 
@@ -68,6 +70,42 @@ pub fn check_not_testdata(bundle: &Path, testdata: &[PathBuf]) -> Result<()> {
                 bundle.display(),
                 t.display()
             ));
+        }
+    }
+    Ok(())
+}
+
+/// Every reference program the tool knows: its record name, what the
+/// command line calls it, and how to name or disable it there.
+pub const PROGRAMS: [(&str, &str, &str); 3] = [
+    (tei::NAME, "TEI", "give --tei-image and --tei-model, or --no-tei"),
+    (tensorrt::NAME, "TensorRT", "give --tensorrt-image, or --no-tensorrt"),
+    (openvino::NAME, "OpenVINO", "give --openvino-image, or --no-openvino"),
+];
+
+/// The reference programs for a backend, in the order a record lists
+/// them: TEI's GPU image and TensorRT for cuda; TEI's CPU image for the
+/// CPU; OpenVINO on the GPU and TEI's CPU image, the end-to-end baseline
+/// on that machine, for levelzero; none for another backend, whose
+/// records back nothing.
+pub fn applies(backend: &str) -> &'static [&'static str] {
+    match backend {
+        "cuda" => &[tei::NAME, tensorrt::NAME],
+        "cpu" => &[tei::NAME],
+        "levelzero" => &[tei::NAME, openvino::NAME],
+        _ => &[],
+    }
+}
+
+/// Each reference program for the backend is named or disabled on the
+/// command line, and none that is not for it is either; `given` says
+/// whether a program, by its record name, was.
+pub fn wanted(backend: &str, given: impl Fn(&str) -> bool) -> Result<()> {
+    for (name, label, how) in PROGRAMS {
+        match (applies(backend).contains(&name), given(name)) {
+            (true, false) => return Err(format!("{backend}: {label} is a reference here: {how}")),
+            (false, true) => return Err(format!("{backend}: {label} is not a reference for this backend")),
+            _ => {}
         }
     }
     Ok(())

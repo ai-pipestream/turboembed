@@ -222,7 +222,7 @@ this form before it is written or loaded.
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
-| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to. Any other `output_dim` is refused. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
+| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to, each in 1 to `dim` and listed once, at most `TURBO_OUTPUT_DIMS_MAX` (16) of them. `turbo_model_info.output_dims` reports them ascending. An `output_dim` above `dim` is `INVALID_ARGUMENT`; one that is neither `dim` nor listed is `UNSUPPORTED_OPTION`. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged. Its hash is `tokenizer_sha256`. |
 | `tokenizer.normalizer.*` | bool, enum | yes | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. |
 | `tokenizer.wordpiece`, `.bpe`, `.unigram` | message | one of | The kind and its parameters. Only wordpiece is defined in this cut. |
@@ -233,7 +233,7 @@ this form before it is written or loaded.
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
 | `artifacts[].files` | path[] | yes | Each listed in `files`. |
-| `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it. |
+| `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it, as for an ONNX file carried only for the reference programs and the converters. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |
 | `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. |
 | `artifacts[].compute_dtype` | enum | no | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
@@ -256,8 +256,9 @@ Status codes are the header's `TURBO_E_*`.
 1. No directory or no manifest: `BUNDLE_NOT_FOUND`.
 2. The manifest is parsed strictly. An unknown field or enum value at
    any level, a missing required field, a string longer than its header
-   buffer, a path with `..` or a leading `/`, or a path not present in
-   `files`: `BUNDLE_INVALID`, naming the field. Any `TASK_*` name other
+   buffer, more `embed.output_dims` than `TURBO_OUTPUT_DIMS_MAX`, a path
+   with `..` or a leading `/`, or a path not present in `files`:
+   `BUNDLE_INVALID`, naming the field. Any `TASK_*` name other
    than the ones this build has: `UNSUPPORTED_TASK`.
 3. Every path is canonicalized and must resolve under the bundle
    directory's canonical path. A symlink that leaves the directory is
@@ -318,9 +319,14 @@ refuses to finish unless every hash matches.
 ## Decisions taken with the design
 
 - ONNX is a file in the bundle because the IR and the HEF are compiled
-  from it and the manifest records that. Nothing executes it. If a
-  fallback engine is ever built it is a backend like any other and gets
-  its name in `backends`.
+  from it and the manifest records that, and because the benchmark's
+  reference programs (TensorRT's `trtexec`, OpenVINO's `benchmark_app`,
+  docs/benchmarks.md) run it; they find it by its format,
+  `FORMAT_ONNX`. The core never executes it: its `backends` is empty,
+  so rule 6 skips it on every device. If a fallback engine is ever
+  built it is a backend like any other and gets its name in `backends`.
+  The MiniLM recipe carries upstream's `onnx/model.onnx` unchanged, as
+  the artifact `onnx-f32`.
 - The header has no int8 dtype today. It is added when the Hailo
   backend lands, not before; the example shows the value it will use.
 - Every load verifies every file it opens. No hash cache. If a
