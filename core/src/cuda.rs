@@ -44,6 +44,8 @@ unsafe extern "C" {
     fn turbo_cuda_variants(ordinal: u32, precision: u32, out: *mut std::ffi::c_char, len: usize) -> i32;
     fn turbo_cuda_use_split_attention(split: i32);
     fn turbo_cuda_use_wide_attention(wide: i32);
+    fn turbo_cuda_use_exact_attention(exact: i32);
+    fn turbo_cuda_use_fa32_attention(fa32: i32);
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
     fn turbo_cuda_use_column_pool(columns: i32);
     fn turbo_cuda_use_tf32(tf32: i32);
@@ -263,6 +265,26 @@ pub fn use_split_attention(split: Option<bool>) {
 #[cfg(feature = "internals")]
 pub fn use_wide_attention(wide: Option<bool>) {
     unsafe { turbo_cuda_use_wide_attention(wide.map_or(-1, i32::from)) };
+}
+
+/// The softmax of the attention of 128 queries in sessions made from now
+/// on: `Some(true)` exp2f on scores scaled before the largest is taken,
+/// the earlier arithmetic TURBO_CUDA_ATTENTION=exact keeps, `Some(false)`
+/// the default's ex2.approx with the scale in the exponent's multiply-add,
+/// `None` to read the variable again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_exact_attention(exact: Option<bool>) {
+    unsafe { turbo_cuda_use_exact_attention(exact.map_or(-1, i32::from)) };
+}
+
+/// The attention of 128 queries at heads of 32 in sessions made from now
+/// on: `Some(true)` 32 queries to each of four warps, as
+/// TURBO_CUDA_ATTENTION=fa32 picks it, `Some(false)` the default of 16 to
+/// each of eight, `None` to read the variable again. Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn use_fa32_attention(fa32: Option<bool>) {
+    unsafe { turbo_cuda_use_fa32_attention(fa32.map_or(-1, i32::from)) };
 }
 
 /// The LayerNorms of sessions made from now on: `Some(true)` a kernel of

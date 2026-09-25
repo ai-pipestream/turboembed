@@ -24,7 +24,7 @@ const char *tile_name(Tile t) {
     return "?";
 }
 
-constexpr const char *ATTN_NAME[] = {"fma-tiled", "fma-split", "mma64", "mma128"};
+constexpr const char *ATTN_NAME[] = {"fma-tiled", "fma-split", "mma64", "mma128", "mma128-exact", "mma128-fa32"};
 constexpr const char *LN_NAME[] = {"separate", "fused"};
 constexpr const char *POOL_NAME[] = {"groups", "columns"};
 
@@ -186,8 +186,13 @@ void canonicalize(const Shape &base, Choices *c) {
         // attention_kernel_for: the tensor cores' kernel wherever it
         // applies, 128 queries only when asked; else the FMA kernel,
         // split only when asked.
-        if (mma_attention)
-            bc.attention = bc.attention == ATT_MMA_128 ? ATT_MMA_128 : ATT_MMA_64;
+        if (mma_attention && bc.attention == ATT_MMA_128_FA32 && d != 32)
+            bc.attention = ATT_MMA_128;
+        else if (mma_attention)
+            bc.attention = bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT ||
+                                   bc.attention == ATT_MMA_128_FA32
+                               ? bc.attention
+                               : ATT_MMA_64;
         else
             bc.attention = bc.attention == ATT_FMA_SPLIT ? ATT_FMA_SPLIT : ATT_FMA_TILED;
         if (base.hidden > LN_FUSED_MAX_HIDDEN) bc.ln = LN_SEPARATE;
