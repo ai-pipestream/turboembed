@@ -229,3 +229,20 @@ pub fn p99_out() -> String {
         .replace("   Min:           1.95 ms", "   Min:           880.10 us")
         .replace("   Max:           2.71 ms", "   Max:           1210.52 us")
 }
+
+/// The environment TEI's CPU image sets (its Dockerfile's base stage), as
+/// `docker image inspect --format '{{json .Config.Env}}'` prints it.
+pub const IMAGE_ENV: &str = r#"["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","HUGGINGFACE_HUB_CACHE=/data","PORT=80","MKL_ENABLE_INSTRUCTIONS=AVX512_E4","RAYON_NUM_THREADS=8","LD_PRELOAD=/usr/local/libfakeintel.so","LD_LIBRARY_PATH=/usr/local/lib"]"#;
+
+/// A sysfs CPU tree (as /sys/devices/system/cpu) of one package of
+/// `cores` cores with two threads each, numbered as Linux numbers an AMD
+/// Ryzen's: CPU n and n + cores are one core's two threads.
+pub fn smt_topology(dir: &Path, cores: usize) -> PathBuf {
+    for cpu in 0..2 * cores {
+        let t = dir.join(format!("cpu{cpu}/topology"));
+        std::fs::create_dir_all(&t).unwrap();
+        std::fs::write(t.join("physical_package_id"), "0\n").unwrap();
+        std::fs::write(t.join("core_id"), format!("{}\n", cpu % cores)).unwrap();
+    }
+    dir.to_owned()
+}

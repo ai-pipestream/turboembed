@@ -108,11 +108,39 @@ fn tei_is_started_with_every_setting_on_its_command_line() {
     assert_eq!(a[a.len() - 1], "32768");
 }
 
+/// A 9950X3D's topology: 16 cores of two threads, CPU n and n + 16 on
+/// one core; the CCD with the stacked cache is cores 0-7.
+fn ryzen(name: &str) -> Scratch {
+    let d = scratch(name);
+    smt_topology(&d, 16);
+    d
+}
+
+#[test]
+fn the_physical_cores_are_the_distinct_cores_of_the_list() {
+    let sys = ryzen("topology");
+    let cores = |l: &str| Cpus::parse(l, &sys).unwrap().cores;
+    assert_eq!(cores("0-7,16-23"), 8, "one CCD: 8 cores, 16 threads");
+    assert_eq!(cores("0-15"), 16, "one thread on each of 16 cores");
+    assert_eq!(cores("0-31"), 16);
+    assert_eq!(cores("3,19"), 1);
+    // A second package's core 0 is another core.
+    let two = scratch("topology-two");
+    smt_topology(&two, 2);
+    std::fs::write(two.join("cpu3/topology/physical_package_id"), "1\n").unwrap();
+    assert_eq!(Cpus::parse("1,3", &two).unwrap().cores, 2);
+    // A processor the tree does not describe is refused, naming it.
+    let e = Cpus::parse("0-32", &sys).unwrap_err();
+    assert!(e.contains("processor 32") && e.contains("cpu32/topology/physical_package_id"), "{e}");
+    assert!(Cpus::parse("3-1", &sys).unwrap_err().contains("runs backwards"));
+}
+
 #[test]
 fn with_cpus_tei_gets_those_processors_and_every_thread_count_its_image_reads() {
     let image = format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}");
-    let cpus = Cpus::parse("0-15").unwrap();
-    let a = tei::run_argv(&image, Path::new("/m"), "c", None, Some(&cpus), "float32", "mean", 32, 256);
+    let sys = ryzen("argv");
+    let ccd = Cpus::parse("0-7,16-23", &sys).unwrap();
+    let a = tei::run_argv(&image, Path::new("/m"), "c", None, Some(&ccd), "float32", "mean", 32, 256);
     let want = strings(&[
         "docker",
         "run",
@@ -123,11 +151,11 @@ fn with_cpus_tei_gets_those_processors_and_every_thread_count_its_image_reads() 
         "--name",
         "c",
         "--cpuset-cpus",
-        "0-15",
+        "0-7,16-23",
         "--env",
-        "OMP_NUM_THREADS=16",
+        "OMP_NUM_THREADS=8",
         "--env",
-        "MKL_NUM_THREADS=16",
+        "MKL_NUM_THREADS=8",
         "--env",
         "RAYON_NUM_THREADS=16",
         "--publish",
@@ -137,29 +165,30 @@ fn with_cpus_tei_gets_those_processors_and_every_thread_count_its_image_reads() 
     // Every option before the image: docker's, not the router's.
     let at = a.iter().position(|s| *s == image).unwrap();
     assert!(a[..at].contains(&"--cpuset-cpus".to_owned()));
-    let all = Cpus::parse("0-31").unwrap();
+    let all = Cpus::parse("0-31", &sys).unwrap();
     let a = tei::run_argv(&image, Path::new("/m"), "c", None, Some(&all), "float32", "mean", 32, 256);
-    assert!(a.contains(&"RAYON_NUM_THREADS=32".to_owned()) && a.contains(&"0-31".to_owned()));
+    for s in ["0-31", "OMP_NUM_THREADS=16", "MKL_NUM_THREADS=16", "RAYON_NUM_THREADS=32"] {
+        assert!(a.contains(&s.to_owned()), "{s}: {a:?}");
+    }
 }
-
-/// TEI's CPU image's environment, from its Dockerfile's base stage, as
-/// `docker image inspect --format '{{json .Config.Env}}'` prints it.
-const CPU_IMAGE_ENV: &str = r#"["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","HUGGINGFACE_HUB_CACHE=/data","PORT=80","MKL_ENABLE_INSTRUCTIONS=AVX512_E4","RAYON_NUM_THREADS=8","LD_PRELOAD=/usr/local/libfakeintel.so","LD_LIBRARY_PATH=/usr/local/lib"]"#;
 
 #[test]
 fn the_procedure_says_what_each_side_ran_on() {
-    let env = tei::parse_env(CPU_IMAGE_ENV).unwrap();
+    let env = tei::parse_env(IMAGE_ENV).unwrap();
     assert_eq!(cpus::image_value(&env, "RAYON_NUM_THREADS"), Some("8"));
     assert_eq!(cpus::image_value(&env, "OMP_NUM_THREADS"), None);
     assert_eq!(tei::parse_env("null\n").unwrap(), Vec::<String>::new());
     assert!(tei::parse_env("sha256:abc").is_err());
 
-    let c = Cpus::parse("0-15").unwrap();
+    let sys = ryzen("procedure");
+    let c = Cpus::parse("0-7,16-23", &sys).unwrap();
     assert_eq!(
         cpus::procedure(Some(&c), Some(16), &env),
-        "the library ran pinned to CPUs 0-15 with TURBO_CPU_THREADS=16 threads; TEI ran with --cpuset-cpus 0-15 \
-         and OMP_NUM_THREADS=16, MKL_NUM_THREADS=16, RAYON_NUM_THREADS=16 (over the image's RAYON_NUM_THREADS=8), \
-         its ONNX Runtime and tokenizer threads counted from those CPUs"
+        "the library ran pinned to CPUs 0-7,16-23 with TURBO_CPU_THREADS=16 threads, one per logical CPU; TEI ran \
+         with --cpuset-cpus 0-7,16-23 and OMP_NUM_THREADS=8, MKL_NUM_THREADS=8, RAYON_NUM_THREADS=16 (MKL's \
+         threads one per physical core of the list, as MKL itself defaults, since two on a core contend for its \
+         vector units; candle's rayon threads one per logical CPU), over the image's RAYON_NUM_THREADS=8; its \
+         ONNX Runtime and tokenizer threads counted from those CPUs"
     );
     // Without --cpus: today's command, and the counts each side had.
     assert_eq!(
@@ -173,8 +202,8 @@ fn the_procedure_says_what_each_side_ran_on() {
         "the tool ran unpinned; TEI ran unpinned with the image's thread settings: OMP_NUM_THREADS=unset, \
          MKL_NUM_THREADS=unset, RAYON_NUM_THREADS=unset"
     );
-    let over = Cpus::parse("0-7").unwrap();
-    assert!(!cpus::procedure(Some(&over), Some(8), &env).contains("over the image's"), "8 is the image's own");
+    let eight = Cpus::parse("0-7", &sys).unwrap();
+    assert!(!cpus::procedure(Some(&eight), Some(8), &env).contains("over the image's"), "8 is the image's own");
 }
 
 #[test]

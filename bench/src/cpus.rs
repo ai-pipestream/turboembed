@@ -3,22 +3,37 @@
 //!
 //! The tool pins its own process to the list (sched_setaffinity, which
 //! the session's threads inherit) and sets TURBO_CPU_THREADS to its
-//! length (docs/cpu.md). TEI is started with `--cpuset-cpus` and every
-//! thread setting its CPU image reads (THREAD_VARS) at the same count.
+//! length (docs/cpu.md): one thread per logical CPU, since the library's
+//! kernels are written to share a core's two hardware threads. TEI is
+//! started with `--cpuset-cpus` and every thread setting its CPU image
+//! reads: MKL's (MKL_VARS) at the list's physical cores, since MKL's
+//! threads contend for a core's vector units and MKL itself defaults to
+//! one per core, and RAYON_NUM_THREADS at the list's length.
+
+use std::path::Path;
 
 use crate::Result;
 
-/// The environment variables TEI's CPU image reads for its thread counts:
-/// OMP_NUM_THREADS and MKL_NUM_THREADS for MKL's matrix products (it
-/// links MKL's OpenMP threading), RAYON_NUM_THREADS for candle's other
-/// operators (the image's Dockerfile sets it to 8). ONNX Runtime's
+/// The environment variables MKL reads for its thread count in TEI's CPU
+/// image, which links MKL's OpenMP threading for its matrix products.
+/// Each is set to the list's physical cores.
+pub const MKL_VARS: [&str; 2] = ["OMP_NUM_THREADS", "MKL_NUM_THREADS"];
+
+/// The variable candle's other operators read in TEI's CPU image (its
+/// Dockerfile sets it to 8), set to the list's length. ONNX Runtime's
 /// intra-op threads and the router's tokenization workers are counted
 /// from the processors the container may use, which `--cpuset-cpus`
 /// sets.
-pub const THREAD_VARS: [&str; 3] = ["OMP_NUM_THREADS", "MKL_NUM_THREADS", "RAYON_NUM_THREADS"];
+pub const RAYON_VAR: &str = "RAYON_NUM_THREADS";
+
+/// Every thread setting TEI's CPU image reads.
+pub const THREAD_VARS: [&str; 3] = [MKL_VARS[0], MKL_VARS[1], RAYON_VAR];
 
 /// The library's thread count variable.
 pub const LIBRARY_VAR: &str = "TURBO_CPU_THREADS";
+
+/// Where Linux describes each processor's place: cpuN/topology/.
+pub const SYSFS_CPUS: &str = "/sys/devices/system/cpu";
 
 /// The most processors a list may name: the size of glibc's cpu_set_t.
 const MAX_CPU: usize = 1024;
@@ -30,49 +45,80 @@ pub struct Cpus {
     pub list: String,
     /// Each processor once, in increasing order.
     pub ids: Vec<usize>,
+    /// The physical cores they are on.
+    pub cores: usize,
 }
 
 impl Cpus {
-    /// Ranges and single numbers, comma-separated; no processor twice.
-    pub fn parse(list: &str) -> Result<Cpus> {
-        let bad = |why: &str| format!("--cpus {list:?}: {why}; give processors as 0-15 or 0-7,16-23");
-        let mut ids = Vec::new();
-        for part in list.split(',') {
-            let num = |s: &str| s.parse::<usize>().map_err(|_| bad(&format!("{s:?} is not a processor number")));
-            let (lo, hi) = match part.split_once('-') {
-                Some((a, b)) => (num(a)?, num(b)?),
-                None => (num(part)?, num(part)?),
-            };
-            if lo > hi {
-                return Err(bad(&format!("{part} runs backwards")));
-            }
-            if hi >= MAX_CPU {
-                return Err(bad(&format!("processor {hi} is past {}", MAX_CPU - 1)));
-            }
-            ids.extend(lo..=hi);
-        }
-        ids.sort_unstable();
-        if ids.windows(2).any(|w| w[0] == w[1]) {
-            return Err(bad("a processor is named twice"));
-        }
-        Ok(Cpus { list: list.to_owned(), ids })
+    /// Ranges and single numbers, comma-separated, no processor twice;
+    /// their cores read from `sysfs`, a tree laid out as SYSFS_CPUS.
+    pub fn parse(list: &str, sysfs: &Path) -> Result<Cpus> {
+        let ids = parse_ids(list)?;
+        let cores = physical_cores(&ids, sysfs)?;
+        Ok(Cpus { list: list.to_owned(), ids, cores })
     }
 
-    /// The thread count both sides are given: one per processor.
+    /// The library's thread count, and TEI's RAYON_NUM_THREADS: one per
+    /// logical CPU.
     pub fn threads(&self) -> usize {
         self.ids.len()
     }
 
     /// The `docker run` options that give the container these processors
-    /// and the same thread count.
+    /// and its thread counts.
     pub fn docker_args(&self) -> Vec<String> {
         let mut a = vec!["--cpuset-cpus".to_owned(), self.list.clone()];
-        for var in THREAD_VARS {
+        for (var, n) in self.tei_threads() {
             a.push("--env".into());
-            a.push(format!("{var}={}", self.threads()));
+            a.push(format!("{var}={n}"));
         }
         a
     }
+
+    /// Each of THREAD_VARS with the count TEI is given.
+    pub fn tei_threads(&self) -> [(&'static str, usize); 3] {
+        [(MKL_VARS[0], self.cores), (MKL_VARS[1], self.cores), (RAYON_VAR, self.threads())]
+    }
+}
+
+/// The processors a list names, each once, in increasing order.
+fn parse_ids(list: &str) -> Result<Vec<usize>> {
+    let bad = |why: &str| format!("--cpus {list:?}: {why}; give processors as 0-15 or 0-7,16-23");
+    let mut ids = Vec::new();
+    for part in list.split(',') {
+        let num = |s: &str| s.parse::<usize>().map_err(|_| bad(&format!("{s:?} is not a processor number")));
+        let (lo, hi) = match part.split_once('-') {
+            Some((a, b)) => (num(a)?, num(b)?),
+            None => (num(part)?, num(part)?),
+        };
+        if lo > hi {
+            return Err(bad(&format!("{part} runs backwards")));
+        }
+        if hi >= MAX_CPU {
+            return Err(bad(&format!("processor {hi} is past {}", MAX_CPU - 1)));
+        }
+        ids.extend(lo..=hi);
+    }
+    ids.sort_unstable();
+    if ids.windows(2).any(|w| w[0] == w[1]) {
+        return Err(bad("a processor is named twice"));
+    }
+    Ok(ids)
+}
+
+/// The distinct (package, core) pairs of `ids`, from each processor's
+/// topology/physical_package_id and topology/core_id under `sysfs`.
+pub fn physical_cores(ids: &[usize], sysfs: &Path) -> Result<usize> {
+    let mut cores = std::collections::BTreeSet::new();
+    for &id in ids {
+        let read = |f: &str| {
+            let p = sysfs.join(format!("cpu{id}/topology/{f}"));
+            let v = std::fs::read_to_string(&p).map_err(|e| format!("--cpus: processor {id}: {}: {e}", p.display()))?;
+            v.trim().parse::<i64>().map_err(|_| format!("--cpus: processor {id}: {} is {v:?}", p.display()))
+        };
+        cores.insert((read("physical_package_id")?, read("core_id")?));
+    }
+    Ok(cores.len())
 }
 
 /// The library's thread count, as session_create will read it: `var`
@@ -148,24 +194,34 @@ pub fn image_value<'a>(env: &'a [String], var: &str) -> Option<&'a str> {
 /// environment.
 pub fn procedure(cpus: Option<&Cpus>, library: Option<usize>, image_env: &[String]) -> String {
     let ours = match (cpus, library) {
-        (Some(c), Some(n)) => format!("the library ran pinned to CPUs {} with {LIBRARY_VAR}={n} threads", c.list),
+        (Some(c), Some(n)) => {
+            format!("the library ran pinned to CPUs {} with {LIBRARY_VAR}={n} threads, one per logical CPU", c.list)
+        }
         (Some(c), None) => format!("the tool ran pinned to CPUs {}", c.list),
         (None, Some(n)) => format!("the library ran unpinned with {n} threads"),
         (None, None) => "the tool ran unpinned".to_owned(),
     };
     let tei = match cpus {
         Some(c) => {
-            let n = c.threads();
-            let mut s = format!("TEI ran with --cpuset-cpus {} and ", c.list);
-            s += &THREAD_VARS.map(|v| format!("{v}={n}")).join(", ");
-            let over: Vec<String> = THREAD_VARS
+            let set: Vec<String> = c.tei_threads().iter().map(|(v, n)| format!("{v}={n}")).collect();
+            let mut s = format!(
+                "TEI ran with --cpuset-cpus {} and {} (MKL's threads one per physical core of the list, as MKL \
+                 itself defaults, since two on a core contend for its vector units; candle's rayon threads one per \
+                 logical CPU)",
+                c.list,
+                set.join(", ")
+            );
+            let over: Vec<String> = c
+                .tei_threads()
                 .iter()
-                .filter_map(|v| image_value(image_env, v).filter(|x| *x != n.to_string()).map(|x| format!("{v}={x}")))
+                .filter_map(|(v, n)| {
+                    image_value(image_env, v).filter(|x| *x != n.to_string()).map(|x| format!("{v}={x}"))
+                })
                 .collect();
             if !over.is_empty() {
-                s += &format!(" (over the image's {})", over.join(", "));
+                s += &format!(", over the image's {}", over.join(", "));
             }
-            s + ", its ONNX Runtime and tokenizer threads counted from those CPUs"
+            s + "; its ONNX Runtime and tokenizer threads counted from those CPUs"
         }
         None => {
             let vars = THREAD_VARS.map(|v| format!("{v}={}", image_value(image_env, v).unwrap_or("unset")));
@@ -181,11 +237,10 @@ mod tests {
 
     #[test]
     fn a_list_names_each_processor_once() {
-        assert_eq!(Cpus::parse("0-3").unwrap().ids, vec![0, 1, 2, 3]);
-        assert_eq!(Cpus::parse("16-17,0-1,8").unwrap().ids, vec![0, 1, 8, 16, 17]);
-        assert_eq!(Cpus::parse("5").unwrap().threads(), 1);
+        assert_eq!(parse_ids("0-3").unwrap(), vec![0, 1, 2, 3]);
+        assert_eq!(parse_ids("16-17,0-1,8").unwrap(), vec![0, 1, 8, 16, 17]);
         for bad in ["", "3-1", "0-3,2", "a", "0-", "-3", "0,,1", "1024", "0-1024", " 1"] {
-            assert!(Cpus::parse(bad).is_err(), "{bad:?}");
+            assert!(parse_ids(bad).is_err(), "{bad:?}");
         }
     }
 
