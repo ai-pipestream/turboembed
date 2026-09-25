@@ -1277,9 +1277,11 @@ template <int BM, int BN, int STAGES> constexpr size_t swz_gemm_smem() {
     return (size_t)STAGES * (BM + BN) * 64;
 }
 
-/* Two blocks to an SM when two fit in 100 KB (sm_86 and sm_89's most). */
+/* Three blocks to an SM when three fit in 100 KB (sm_86 and sm_89's
+ * most), two when two do. */
 template <int BM, int BN, int STAGES> constexpr int swz_min_blocks() {
-    return swz_gemm_smem<BM, BN, STAGES>() <= 49 * 1024 ? 2 : 1;
+    constexpr size_t smem = swz_gemm_smem<BM, BN, STAGES>();
+    return smem <= 32 * 1024 ? 3 : smem <= 49 * 1024 ? 2 : 1;
 }
 
 #ifndef TURBO_NO_MMA
@@ -1924,14 +1926,18 @@ GemmKernel swz_kernel() {
 template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
     constexpr bool wide = EPI == EPI_QKV || EPI == EPI_GELU;
     // F16 sums over the whole of k: 128 x 128 over four warps of 64 x 64,
-    // TensorRT's shape, at four stages (one block to an SM) or three (two);
-    // and 64 x 384, whole rows, over eight warps of 32 x 96 at three
-    // stages for the GEMMs with the LayerNorm in their epilogue (the
-    // others take 128 x 128 at three).
+    // TensorRT's shape, at four stages (one block to an SM), three (two)
+    // or two (three); 64 x 384, whole rows, over eight warps of 32 x 96
+    // at three stages for the GEMMs with the LayerNorm in their epilogue;
+    // and 256 x 128 over eight warps of 64 x 64 at three stages for QKV
+    // and GELU, their F16 outputs. The others take 128 x 128 at three.
     if (t == TILE_F16_WHOLE_K) return swz_kernel<128, 128, 2, 2, 4, EPI, TOut, true, true, true>();
+    if (t == TILE_F16_WHOLE_K_2) return swz_kernel<128, 128, 2, 2, 2, EPI, TOut, true, true, true>();
     if constexpr (EPI == EPI_ADD_LN)
         if (t == TILE_F16_WHOLE_K_ROWS) return swz_kernel<64, ROW_LN_WIDTH, 2, 4, 3, EPI, TOut, true, true, true>();
-    if (t == TILE_F16_WHOLE_K_3 || t == TILE_F16_WHOLE_K_ROWS)
+    if constexpr (wide && sizeof(TOut) == 2)
+        if (t == TILE_F16_WHOLE_K_256) return swz_kernel<256, 128, 4, 2, 3, EPI, TOut, true, true, true>();
+    if (t == TILE_F16_WHOLE_K_3 || t == TILE_F16_WHOLE_K_ROWS || t == TILE_F16_WHOLE_K_256)
         return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, true, true, true>();
     if constexpr (EPI == EPI_ADD_LN && !ACC16)
         if (t == TILE_SWIZZLED_ROWS) return swz_kernel<64, ROW_LN_WIDTH, 2, 4, 3, EPI, TOut, false, true>();
@@ -1991,7 +1997,9 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
         case TILE_SWIZZLED_ROWS:
         case TILE_F16_WHOLE_K:
         case TILE_F16_WHOLE_K_3:
-        case TILE_F16_WHOLE_K_ROWS: return swz_for<TOut, EPI, false>(t);
+        case TILE_F16_WHOLE_K_ROWS:
+        case TILE_F16_WHOLE_K_256:
+        case TILE_F16_WHOLE_K_2: return swz_for<TOut, EPI, false>(t);
         case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
         default: break;
         }

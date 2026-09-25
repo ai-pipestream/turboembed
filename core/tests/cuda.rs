@@ -1256,7 +1256,7 @@ fn whole_row_layer_norm_matches_the_separate_kernel() {
 
 /// FASTEST with F16 accumulators over each 64 terms of k
 /// (TURBO_CUDA_F16_ACCUMULATE=1), and over the whole of k (the tiles
-/// `f16k`, `f16k3` and `f16krow`), on a model of MiniLM's widths, the LayerNorm
+/// `f16k`, `f16k3`, `f16krow`, `f16k256` and `f16k2`), on a model of MiniLM's widths, the LayerNorm
 /// separate and in the GEMMs: the CPU's vectors within FASTEST's bound
 /// (cosine 0.999), and the same bits when run again.
 #[test]
@@ -1279,9 +1279,16 @@ fn f16_accumulators_hold_fastest_s_bound() {
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
     use turbo::cuda::Tile;
-    for (tile, separate) in [None, Some(Tile::F16WholeK), Some(Tile::F16WholeK3), Some(Tile::F16WholeKRows)]
-        .into_iter()
-        .flat_map(|tile| [(tile, true), (tile, false)])
+    for (tile, separate) in [
+        None,
+        Some(Tile::F16WholeK),
+        Some(Tile::F16WholeK3),
+        Some(Tile::F16WholeKRows),
+        Some(Tile::F16WholeK256),
+        Some(Tile::F16WholeK2),
+    ]
+    .into_iter()
+    .flat_map(|tile| [(tile, true), (tile, false)])
     {
         // The whole-k tiles are the F16 accumulators' experiment too.
         turbo::cuda::use_f16_accumulate(Some(true));
@@ -1569,6 +1576,8 @@ fn the_gemms_match_cublas() {
                     Tile::SwizzledEightWarpsF16Accumulate,
                     Tile::F16WholeK,
                     Tile::F16WholeK3,
+                    Tile::F16WholeK256,
+                    Tile::F16WholeK2,
                 ]
             } else {
                 &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
@@ -1595,6 +1604,8 @@ fn the_gemms_match_cublas() {
                                 | Tile::SwizzledEightWarpsF16Accumulate
                                 | Tile::F16WholeK
                                 | Tile::F16WholeK3
+                                | Tile::F16WholeK256
+                                | Tile::F16WholeK2
                         );
                     let bound = if f16_sums {
                         1e-2
@@ -1619,7 +1630,7 @@ fn the_gemms_match_cublas() {
 /// F16 operands (uniform in [-1, 1]), at MiniLM's shapes for the
 /// benchmark's 1353 tokens and at 8193: F32 accumulators, F16 ones over
 /// each 64 terms of k added in F32, and F16 ones over the whole of a
-/// block's k (`f16k`, `f16k3`), with the work shared among as many blocks
+/// block's k (`f16k`, `f16k3`, `f16k256`, `f16k2`), with the work shared among as many blocks
 /// as the device holds, and among 7 and 1 (so a block's segment runs to
 /// the whole of k). Each line prints the largest difference relative to
 /// the largest value; the whole-k sums stay within 1e-2 of it, the
@@ -1644,7 +1655,7 @@ fn f16_sums_over_the_whole_of_k_stay_within_their_bound() {
             for (sums, tiles) in [
                 (0, &[Tile::SwizzledEightWarps][..]),
                 (1, &[Tile::SwizzledEightWarpsF16Accumulate][..]),
-                (2, &[Tile::F16WholeK, Tile::F16WholeK3][..]),
+                (2, &[Tile::F16WholeK, Tile::F16WholeK3, Tile::F16WholeK256, Tile::F16WholeK2][..]),
             ] {
                 for &tile in tiles {
                     let (diff, reference) =
@@ -1710,9 +1721,14 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::F16WholeK,
             Tile::F16WholeK3,
             Tile::F16WholeKRows,
+            Tile::F16WholeK256,
+            Tile::F16WholeK2,
         ] {
             // The whole-k tiles sum in F16, the F16 accumulators' experiment.
-            let whole_k = matches!(tile, Tile::F16WholeK | Tile::F16WholeK3 | Tile::F16WholeKRows);
+            let whole_k = matches!(
+                tile,
+                Tile::F16WholeK | Tile::F16WholeK3 | Tile::F16WholeKRows | Tile::F16WholeK256 | Tile::F16WholeK2
+            );
             turbo::cuda::use_f16_accumulate(whole_k.then_some(true));
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
@@ -1975,16 +1991,19 @@ fn a_whole_k_tile_is_refused_without_its_switch() {
     let (_f, g) = small_model("cuda-whole-k");
     let make =
         |line: &str| forcing(line, || Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_FASTEST))));
-    for tile in ["f16k", "f16k3", "f16krow"] {
-        let line = format!("all:ffn2={tile}");
+    // (f16k256 is 256 x 128 only for QKV and GELU.)
+    for (gemm, tile) in
+        [("ffn2", "f16k"), ("ffn2", "f16k3"), ("ffn2", "f16krow"), ("ffn1", "f16k256"), ("ffn2", "f16k2")]
+    {
+        let line = format!("all:{gemm}={tile}");
         let e = make(&line).err().unwrap();
         assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{line}: {}", e.message);
-        assert!(e.message.contains(&format!("ffn2={tile}/")), "{}", e.message);
+        assert!(e.message.contains(&format!("{gemm}={tile}/")), "{}", e.message);
         turbo::cuda::use_f16_accumulate(Some(true));
         let s = make(&line);
         turbo::cuda::use_f16_accumulate(None);
         let choices = field(&s.unwrap().info().choices);
-        assert!(choices.contains(&format!("ffn2={tile}/")), "{choices}");
+        assert!(choices.contains(&format!("{gemm}={tile}/")), "{choices}");
     }
 }
 

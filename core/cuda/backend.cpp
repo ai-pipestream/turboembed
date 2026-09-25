@@ -1072,7 +1072,7 @@ int overridden(const std::atomic<int> &o) { return o.load(std::memory_order_rela
 
 /* TURBO_CUDA_TILE by name; TILE_DEFAULT, not forced, when unset or not a
  * name it takes. The F16 accumulators' eight-warp tiles are
- * TURBO_CUDA_F16_ACCUMULATE's; a whole-k tile it names (f16k, f16k3, f16krow) sets
+ * TURBO_CUDA_F16_ACCUMULATE's; a whole-k tile it names (an f16k one) sets
  * that experiment as the switch does. */
 bool tile_named(Tile *out) {
     const int o = overridden(tile_override);
