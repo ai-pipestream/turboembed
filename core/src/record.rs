@@ -256,13 +256,16 @@ pub fn dtype_name(dtype: u32) -> Option<&'static str> {
         TURBO_DTYPE_F32 => Some("DTYPE_F32"),
         TURBO_DTYPE_F16 => Some("DTYPE_F16"),
         TURBO_DTYPE_BF16 => Some("DTYPE_BF16"),
+        crate::TURBO_DTYPE_I8 => Some("DTYPE_I8"),
         _ => None,
     }
 }
 
-/// The TURBO_DTYPE_* value of a record's name; DTYPE_I8 has none yet.
+/// The TURBO_DTYPE_* value of a record's name.
 fn dtype_value(name: &str) -> Option<u32> {
-    [TURBO_DTYPE_F32, TURBO_DTYPE_F16, TURBO_DTYPE_BF16].into_iter().find(|&d| dtype_name(d) == Some(name))
+    [TURBO_DTYPE_F32, TURBO_DTYPE_F16, TURBO_DTYPE_BF16, crate::TURBO_DTYPE_I8]
+        .into_iter()
+        .find(|&d| dtype_name(d) == Some(name))
 }
 
 pub fn precision_name(precision: u32) -> Option<&'static str> {
@@ -427,7 +430,7 @@ impl Record {
         {
             return Err(format!("precision {:?} is not a PRECISION_* value", self.precision));
         }
-        if dtype_value(&self.compute_dtype).is_none() && self.compute_dtype != "DTYPE_I8" {
+        if dtype_value(&self.compute_dtype).is_none() {
             return Err(format!("compute_dtype {:?} is not a DTYPE_* value", self.compute_dtype));
         }
         let b = &self.bundle;
@@ -694,7 +697,8 @@ mod tests {
         assert_eq!(tolerance(TURBO_DTYPE_F16), Some(Tolerance { min_cosine: 0.999, max_abs_diff: None }));
         assert_eq!(tolerance(TURBO_DTYPE_BF16), tolerance(TURBO_DTYPE_F16));
         assert_eq!(tolerance(crate::TURBO_DTYPE_I32), None);
-        assert_eq!(dtype_value("DTYPE_I8"), None, "int8 is recorded and has no floor");
+        assert_eq!(dtype_value("DTYPE_I8"), Some(crate::TURBO_DTYPE_I8));
+        assert_eq!(tolerance(crate::TURBO_DTYPE_I8), None, "int8 is recorded and has no floor");
     }
 
     #[test]

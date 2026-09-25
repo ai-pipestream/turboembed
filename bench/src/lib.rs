@@ -196,7 +196,9 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
 
 /// What a record says of each side's time, a line each: its p50 and p99,
 /// and how many token positions it computed beside the rows' live
-/// tokens, so a padded time is not taken for a packed one.
+/// tokens, so a padded time is not taken for a packed one. TEI's line
+/// gives its x-total-time p50 beside its round trip, when the procedure
+/// has it.
 pub fn report(r: &Record) -> String {
     let live = r.rows.live_tokens;
     let rows = format!("[{}, {}] {}", r.rows.batch, r.rows.seq, r.rows.kind);
@@ -213,9 +215,17 @@ pub fn report(r: &Record) -> String {
         out += &match (&x.measured, &x.not_run) {
             (Some(m), _) => {
                 let computed = count(m.computed_tokens);
+                // TEI's round trip, with its own x-total-time beside it.
+                let server = match (x.name == tei::NAME).then(|| tei::total_time_p50(&x.procedure)).flatten() {
+                    Some(p50) => format!(
+                        " round trip (TEI's time from parsed request to response headers (not a kernel time), \
+                         x-total-time in whole ms: p50 {p50} ms)"
+                    ),
+                    None => String::new(),
+                };
                 format!(
-                    "{} ({}): p50 {:.4} ms, p99 {:.4} ms on {rows}: {computed} token positions computed of {live} \
-                     live\n",
+                    "{} ({}): p50 {:.4} ms, p99 {:.4} ms{server} on {rows}: {computed} token positions computed of \
+                     {live} live\n",
                     x.name, x.role, m.p50_ms, m.p99_ms
                 )
             }

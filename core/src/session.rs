@@ -287,7 +287,7 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
     backend::check(b, "session_create", |err| unsafe {
         create(m.raw, mi.task, max_batch, max_seq, d.precision, &mut compute_dtype, &mut raw, err)
     })?;
-    if !matches!(compute_dtype, TURBO_DTYPE_F16 | TURBO_DTYPE_BF16 | TURBO_DTYPE_F32) {
+    if !matches!(compute_dtype, TURBO_DTYPE_I8 | TURBO_DTYPE_F16 | TURBO_DTYPE_BF16 | TURBO_DTYPE_F32) {
         unsafe { release(raw) };
         return Err(Error::new(
             INTERNAL,

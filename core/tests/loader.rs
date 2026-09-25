@@ -182,8 +182,8 @@ fn cross_references_are_checked() {
 
 #[test]
 fn the_example_artifacts_parse() {
-    // docs/bundle.md's OpenVINO and HEF entries, including DTYPE_I8, which
-    // the header does not have yet. Their files are listed and absent.
+    // docs/bundle.md's OpenVINO and HEF entries, including DTYPE_I8. Their
+    // files are listed and absent.
     let mut f = Fixture::standard("example-artifacts");
     let zero = "0".repeat(64);
     let files = f.manifest["files"].as_array_mut().unwrap();

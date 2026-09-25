@@ -11,9 +11,9 @@ use std::ffi::{c_char, c_void};
 use std::sync::{Mutex, OnceLock};
 
 use crate::backend::{
-    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT, refuse,
-    refuse_field, turbo_backend, turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run,
-    turbo_backend_tensor,
+    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT,
+    TURBO_FORMAT_SAFETENSORS, format_bit, refuse, refuse_field, turbo_backend, turbo_backend_embed_rows,
+    turbo_backend_model, turbo_backend_run, turbo_backend_tensor,
 };
 use crate::status::{
     INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
@@ -48,6 +48,8 @@ pub static BACKEND: turbo_backend = turbo_backend {
     session_run: Some(session_run),
     // Every buffer here has a host address, which the core reads itself.
     buffer_read: None,
+    formats: format_bit(TURBO_FORMAT_SAFETENSORS),
+    reserved2: 0,
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {
