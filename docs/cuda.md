@@ -232,6 +232,13 @@ older than the runtime, it lists none and the runtime's log says why.
   hidden widths up to 512. By default, the attention output and
   feed-forward output GEMMs take the product alone and then a kernel of
   their own for the bias, residual and LayerNorm, a warp per token.
+  The fused one is slower because of its end: one block normalizes all
+  of a block of rows (128) with its four or eight warps, two rows at a
+  time, each pair waiting on its reads from L2 and on its reductions,
+  while the separate kernel spreads the rows over every SM. That tail
+  sits on each launch's critical path and costs more than the launch it
+  saves: on an RTX 4080's mixed run, 0.88 ms at FASTEST against 0.73,
+  1.98 at EXACT (four warps to a block) against 1.69.
 
   Last, one kernel pools each row, a block of 384 threads per row: a
   thread per four columns, and for the mean up to eight groups of such
