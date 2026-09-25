@@ -1469,16 +1469,21 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         const Share sh = share();
         left = (int)(sh.hi - sh.lo);
     }
-    if (DB && left > 0) next_stage();
-    // Whether the next step's first fragments are still to be read: at
-    // the start, and after a segment's end.
-    bool refill = true;
+    // With DB, the first fragments of the step that comes next, read
+    // where nothing else needs the registers: here, at the end of a
+    // step that does not close its segment, and after the epilogue of
+    // one that does (its stage landed at the barrier before the last
+    // MMAs). Read before the epilogue, they would be live across it.
+    auto first_fragments = [&]() {
+        if constexpr (DB)
+            if (left > 0) fragments(0, st, 0);
+    };
+    if (DB && left > 0) {
+        next_stage();
+        first_fragments();
+    }
     while (left > 0) {
-        if constexpr (DB) {
-            if (refill) fragments(0, st, 0);
-        } else {
-            next_stage();
-        }
+        if constexpr (!DB) next_stage();
         const int tile = step.x;
         const long long first = (long long)tile * steps;
         if (step.y & STEP_OPENS) {
@@ -1546,8 +1551,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                     st = after(st);
                     if (left > 0) {
                         next_stage();
-                        // At a segment's end the next step's fragments wait
-                        // for the epilogue, which needs the registers.
+                        // At a segment's end they wait for the epilogue.
                         if (!closes) fragments((kk + 1) & 1, st, 0);
                     }
                 }
@@ -1566,7 +1570,6 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             }
             if (chunk_done) break;
         }
-        refill = closes;
         if constexpr (ACC16) {
 #pragma unroll
             for (int i = 0; i < MI; i++)
@@ -1591,6 +1594,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
 #pragma unroll
                     for (int e = 0; e < 4; e++) __stcg(slot + ((i * NI + j) * 4 + e) * NT, acc[i][j][e]);
             sk_raise(g.flags + blockIdx.x);
+            first_fragments();
             continue;
         }
         const Share sh = share();
@@ -1716,6 +1720,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                     });
                 });
             });
+            first_fragments();
             continue;
         }
         if constexpr (sizeof(TOut) == 4) {
@@ -1783,6 +1788,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             });
         }
         if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
+        first_fragments();
     }
     cp_async_wait<0>();
 #else
