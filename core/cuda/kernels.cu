@@ -1514,9 +1514,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         lst = after(lst);
     };
 
-    // The F32 sums; with WHOLE, never written: the F16 sums converted as
-    // the epilogue and the partial products take them, so no F32 array
-    // is live beside them and the fragments.
+    // The F32 sums; with WHOLE, not written until the tile closes, from
+    // the F16 sums, so no F32 array is live beside them and the fragments
+    // in the mainloop.
     float acc[MI][NI][4];
     int left;
     {
@@ -1661,61 +1661,30 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             first_fragments();
             continue;
         }
+        // WHOLE: the F32 sums first written here, from the F16 sums, once
+        // the fragments are dead, so none is live in the mainloop.
+        if constexpr (WHOLE) {
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) acc[i][j][e] = product(i, j, e);
+        }
         // The earlier blocks' partial products, added in F32 from the
-        // last block to the first; with WHOLE, value by value as the
-        // epilogue takes them, in the same order.
+        // last block to the first.
         const Share sh = share();
-        int lowest = (int)blockIdx.x; // the first block with a part of the tile
         for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1, g.min_steps) > first; b--) {
             sk_wait(g.flags + b, g.fault);
-            lowest = b;
-            if constexpr (!WHOLE) {
-                const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
+            const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
 #pragma unroll
-                for (int i = 0; i < MI; i++)
+            for (int i = 0; i < MI; i++)
 #pragma unroll
-                    for (int j = 0; j < NI; j++)
+                for (int j = 0; j < NI; j++)
 #pragma unroll
-                        for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
-            }
+                    for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
         }
-        // WHOLE with earlier blocks' parts: the tile's F32 sums built in
-        // this block's scratch slot, block by block over every value, so
-        // the epilogue reads one value each and runs no loop of its own.
-        // Not the block's own slot: it does its last segment first, so a
-        // later block may still be reading its partial product there. The
-        // scratch slots follow the launch's partial-product slots, and
-        // only this block touches its own.
-        float *const own = g.ws + ((size_t)gridDim.x + blockIdx.x) * SLOT + threadIdx.x;
-        const bool parts = WHOLE && lowest < (int)blockIdx.x;
-        if constexpr (WHOLE) {
-            if (parts) {
-#pragma unroll
-                for (int i = 0; i < MI; i++)
-#pragma unroll
-                    for (int j = 0; j < NI; j++)
-#pragma unroll
-                        for (int e = 0; e < 4; e++) __stcg(own + ((i * NI + j) * 4 + e) * NT, product(i, j, e));
-                for (int b = (int)blockIdx.x - 1; b >= lowest; b--) {
-                    const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
-#pragma unroll
-                    for (int i = 0; i < MI; i++)
-#pragma unroll
-                        for (int j = 0; j < NI; j++)
-#pragma unroll
-                            for (int e = 0; e < 4; e++) {
-                                const int o = ((i * NI + j) * 4 + e) * NT;
-                                __stcg(own + o, __ldcg(own + o) + __ldcg(slot + o));
-                            }
-                }
-            }
-        }
-        auto total = [&](int i, int j, int e) -> float {
-            if constexpr (WHOLE) {
-                if (parts) return __ldcg(own + ((i * NI + j) * 4 + e) * NT);
-            }
-            return product(i, j, e);
-        };
+        auto total = [&](int i, int j, int e) -> float { return acc[i][j][e]; };
 
         // The finished tile, from registers.
         const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
@@ -3067,9 +3036,7 @@ cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int s
     // As many blocks as fit, whatever the tokens: the kernel counts the
     // tiles of the run's M, read on the device, and shares them out.
     const cudaError_t err = resident(reinterpret_cast<const void *>(k.fn), k.threads, k.smem, sms, grid);
-    // A slot per block for its partial product, then one per block for a
-    // whole-k finisher's sums.
-    *ws_floats = (size_t)*grid * k.bm * k.bn * 2;
+    *ws_floats = (size_t)*grid * k.bm * k.bn;
     if (crowded && *grid < k.per_sm * sms) *crowded = true;
     return err;
 }
