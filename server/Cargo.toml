@@ -1,0 +1,36 @@
+[package]
+name = "turbo-kserve"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_kserve"
+path = "src/lib.rs"
+
+[[bin]]
+name = "turbo-kserve"
+path = "src/main.rs"
+
+[dependencies]
+turbo = { path = "../core" }
+# The response's vectors are handed to the encoder in place (Bytes::from_owner).
+bytes = "1.9"
+prost = "0.14"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync"] }
+tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "router", "server", "channel"] }
+tonic-prost = "0.14"
+
+[build-dependencies]
+# Compiles the vendored .proto without protoc.
+protox = "0.9"
+tonic-prost-build = { version = "0.14", default-features = false, features = ["transport"] }
+
+[dev-dependencies]
+# The tests read the bundle's manifest and reference.
+serde_json = "1"
+
+[features]
+# Links the CUDA backend into the library the server runs (docs/cuda.md).
+cuda = ["turbo/cuda"]
