@@ -39,6 +39,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_cublas(gemms: i32);
     fn turbo_cuda_use_tile(tile: i32);
     fn turbo_cuda_use_split_attention(split: i32);
+    fn turbo_cuda_use_wide_attention(wide: i32);
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
     fn turbo_cuda_use_column_pool(columns: i32);
     fn turbo_cuda_use_tf32(tf32: i32);
@@ -84,6 +85,20 @@ pub enum Tile {
     /// The eight-warp tiles with F16 accumulators over each 64 terms of
     /// k, added into F32 ones; F16 operands only.
     EightWarpsF16Accumulate = 8,
+    /// F16 operands on the swizzled kernel (stage rows of 64 bytes, loads
+    /// running ahead across tiles, the epilogue from registers): 128 x 128
+    /// over four warps of 64 x 64, two blocks to an SM.
+    Swizzled = 9,
+    /// The swizzled kernel at the eight-warp mix's shapes.
+    SwizzledEightWarps = 10,
+    /// `Swizzled`, but 256 x 128 over eight warps for GELU.
+    Swizzled256x128 = 11,
+    /// `SwizzledEightWarps` with F16 accumulators over each 64 terms of k.
+    SwizzledEightWarpsF16Accumulate = 12,
+    /// `SwizzledEightWarps`, but the attention output and second
+    /// feed-forward GEMMs 64 x 384, whole rows, with the residual and the
+    /// LayerNorm in their epilogue (hidden widths up to 384, F16).
+    SwizzledRows = 13,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
@@ -194,6 +209,17 @@ pub fn use_tile(tile: Option<Tile>) {
 #[cfg(feature = "internals")]
 pub fn use_split_attention(split: Option<bool>) {
     unsafe { turbo_cuda_use_split_attention(split.map_or(-1, i32::from)) };
+}
+
+/// FASTEST's attention on the tensor cores in sessions made from now on:
+/// `Some(true)` the kernel of 128 queries to a block, keys and values
+/// through cp.async 64 at a time, the default, `Some(false)` the kernel
+/// of 64 that TURBO_CUDA_ATTENTION=64 picks, `None` to read the variable
+/// again.
+/// Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_wide_attention(wide: Option<bool>) {
+    unsafe { turbo_cuda_use_wide_attention(wide.map_or(-1, i32::from)) };
 }
 
 /// The LayerNorms of sessions made from now on: `Some(true)` a kernel of

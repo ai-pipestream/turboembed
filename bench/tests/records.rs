@@ -551,6 +551,20 @@ fn only_a_mixed_record_backs_the_cell() {
         );
         assert_eq!(verdict(&[&dense], cell), Verdict::Not(NO_RECORD.into()));
     });
+    // turbo-bench check says so too.
+    let dir = scratch("dense-check");
+    let name = record::file_name(&dense).unwrap();
+    let path = dir.join(&name);
+    std::fs::write(&path, serde_json::to_vec(&dense).unwrap()).unwrap();
+    let o = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-bench"))
+        .args(["check", path.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert_eq!(
+        String::from_utf8(o.stdout).unwrap(),
+        format!("{name}: does not back SUPPORTED: rows.kind ROWS_DENSE; only ROWS_MIXED rows do\n")
+    );
 }
 
 #[test]

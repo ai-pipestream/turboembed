@@ -79,7 +79,7 @@ pub fn check_not_testdata(bundle: &Path, testdata: &[PathBuf]) -> Result<()> {
 /// Every reference program the tool knows: its record name, what the
 /// command line calls it, and how to name or disable it there.
 pub const PROGRAMS: [(&str, &str, &str); 3] = [
-    (tei::NAME, "TEI", "give --tei-image and --tei-model, or --no-tei"),
+    (tei::NAME, "TEI", "give --tei-image (or --tei-bin) and --tei-model, or --no-tei"),
     (tensorrt::NAME, "TensorRT", "give --tensorrt-image, or --no-tensorrt"),
     (openvino::NAME, "OpenVINO", "give --openvino-image, or --no-openvino"),
 ];
@@ -87,13 +87,14 @@ pub const PROGRAMS: [(&str, &str, &str); 3] = [
 /// The reference programs for a backend, in the order a record lists
 /// them: TEI's GPU image and TensorRT for cuda; TEI's CPU image for the
 /// CPU; OpenVINO on the GPU and TEI's CPU image, the end-to-end baseline
-/// on that machine, for levelzero; none for another backend, whose
-/// records back nothing.
+/// on that machine, for levelzero; TEI's router built natively with Metal
+/// for metal; none for another backend, whose records back nothing.
 pub fn applies(backend: &str) -> &'static [&'static str] {
     match backend {
         "cuda" => &[tei::NAME, tensorrt::NAME],
         "cpu" => &[tei::NAME],
         "levelzero" => &[tei::NAME, openvino::NAME],
+        "metal" => &[tei::NAME],
         _ => &[],
     }
 }

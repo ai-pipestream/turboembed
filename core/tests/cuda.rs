@@ -1202,6 +1202,55 @@ fn bert_weights(h: u64, i: u64) -> Vec<Tensor> {
         .collect()
 }
 
+/// The whole-row tile, TURBO_CUDA_TILE=swrow: the attention output and
+/// second feed-forward GEMMs add the residual and run the LayerNorm in
+/// their epilogue, summing each row in another order than the separate
+/// kernel, so FASTEST's vectors are the default's within FASTEST's bound
+/// (cosine 0.999), on hidden widths of 64 and 384 and rows of very
+/// different lengths; a row alone gives its vector in the batch within
+/// the bound, and the same rows the same bits again. A model wider than
+/// the tile runs the eight-warp shapes instead.
+#[test]
+fn whole_row_layer_norm_matches_the_separate_kernel() {
+    let _t = turn();
+    let Some(_) = cuda_device("whole_row_layer_norm_matches_the_separate_kernel") else { return };
+    use turbo::cuda::Tile;
+    for hidden in [64, 384, 512] {
+        let mut m = model_manifest();
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(hidden / 32);
+        m["architecture"]["intermediate"] = json!(4 * hidden);
+        m["embed"]["dim"] = json!(hidden);
+        m["embed"]["max_seq"] = json!(300);
+        m["embed"]["max_batch"] = json!(6);
+        m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+        let mut f = Fixture::new(&format!("cuda-row-ln-{hidden}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(hidden, 4 * hidden));
+        let g = f.load_on(cuda).unwrap();
+        let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+        let base = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST))).unwrap();
+        base.write_tokens(&t.batch(), None).unwrap();
+        let want = base.run().unwrap().rows();
+        let tol = record::tolerance(base.info().compute_dtype).unwrap();
+        turbo::cuda::use_tile(Some(Tile::SwizzledRows));
+        let s = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
+        turbo::cuda::use_tile(None);
+        let s = s.unwrap();
+        s.write_tokens(&t.batch(), None).unwrap();
+        let got = s.run().unwrap().rows();
+        let what = format!("hidden {hidden}, whole rows");
+        let (cos, abs) = within(&what, &got, &want, tol);
+        println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+        s.write_tokens(&t.batch(), None).unwrap();
+        assert_eq!(s.run().unwrap().rows(), got, "{what}: the same bits again");
+        for r in [0, 3, 5] {
+            s.write_tokens(&one_row(&t, r).batch(), None).unwrap();
+            let alone = s.run().unwrap().rows();
+            within(&format!("{what}: row {r} alone"), &alone, &got[r..r + 1], tol);
+        }
+    }
+}
+
 /// FASTEST with F16 accumulators over each 64 terms of k
 /// (TURBO_CUDA_F16_ACCUMULATE=1), on a model of MiniLM's widths, the
 /// LayerNorm separate and in the GEMMs: the CPU's vectors within
@@ -1277,6 +1326,62 @@ fn heads_of_32_match_the_cpu() {
         gs.write_tokens(&t.batch(), None).unwrap();
         assert_eq!(gs.run().unwrap().rows(), got, "precision {precision}: the same bits again");
     }
+    attention_matches(&g, &t, 8, 512, &want, "heads of 32");
+}
+
+/// FASTEST with each tensor-core attention kernel, 128 queries to a block
+/// (the default) and 64 (TURBO_CUDA_ATTENTION=64): the CPU's vectors
+/// `want` within FASTEST's bound, the same bits again, and each of the
+/// first rows alone within the bound of its vector in the batch.
+fn attention_matches(g: &Loaded, t: &Tokens, batch: u32, seq: u32, want: &[Vec<f32>], what: &str) {
+    for wide in [true, false] {
+        attention_kernel_matches(g, t, batch, seq, want, what, wide);
+    }
+}
+
+fn attention_kernel_matches(g: &Loaded, t: &Tokens, batch: u32, seq: u32, want: &[Vec<f32>], what: &str, wide: bool) {
+    turbo::cuda::use_wide_attention(Some(wide));
+    let gs = Session::create(g.m, Some(&session_desc(batch, seq, TURBO_PRECISION_FASTEST)));
+    turbo::cuda::use_wide_attention(None);
+    let gs = gs.unwrap();
+    let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+    gs.write_tokens(&t.batch(), None).unwrap();
+    let got = gs.run().unwrap().rows();
+    let what = format!("{what}, attention of {} queries", if wide { 128 } else { 64 });
+    let (cos, abs) = within(&what, &got, want, tol);
+    println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+    gs.write_tokens(&t.batch(), None).unwrap();
+    assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
+    for r in 0..3.min(t.batch as usize) {
+        gs.write_tokens(&one_row(t, r).batch(), None).unwrap();
+        let alone = gs.run().unwrap().rows();
+        within(&format!("{what}: row {r} alone"), &alone, &got[r..r + 1], tol);
+    }
+}
+
+/// Heads 64 wide: the attention of 128 queries to a block, and of 64,
+/// match the CPU within FASTEST's bound on rows of 300, 129, 64, 63, 17 and 1
+/// tokens with masked tokens inside.
+#[test]
+fn wide_attention_matches_the_cpu_at_heads_of_64() {
+    let _t = turn();
+    let Some(_) = cuda_device("wide_attention_matches_the_cpu_at_heads_of_64") else { return };
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(128);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(128);
+    m["embed"]["max_seq"] = json!(300);
+    m["embed"]["max_batch"] = json!(6);
+    m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+    let mut f = Fixture::new("cuda-wide-attention-64", m);
+    f.weights("weights/model.safetensors", &bert_weights(128, 256));
+    let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+    let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+    let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    let want = cs.run().unwrap().rows();
+    attention_matches(&g, &t, 6, 300, &want, "heads of 64");
 }
 
 /// The LayerNorm inside the attention output and second feed-forward
@@ -1314,6 +1419,10 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
                 Tile::T256x128,
                 Tile::EightWarps,
                 Tile::EightWarpsF16Accumulate,
+                Tile::Swizzled,
+                Tile::SwizzledEightWarps,
+                Tile::Swizzled256x128,
+                Tile::SwizzledEightWarpsF16Accumulate,
             ] {
                 let mut bits = Vec::new();
                 for separate in [true, false] {
@@ -1439,6 +1548,10 @@ fn the_gemms_match_cublas() {
                     Tile::T256x128,
                     Tile::EightWarps,
                     Tile::EightWarpsF16Accumulate,
+                    Tile::Swizzled,
+                    Tile::SwizzledEightWarps,
+                    Tile::Swizzled256x128,
+                    Tile::SwizzledEightWarpsF16Accumulate,
                 ]
             } else {
                 &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
@@ -1456,7 +1569,9 @@ fn the_gemms_match_cublas() {
                     let f16_out = half && !matches!(epilogue, Plain);
                     let tf32 = !half && tensor_cores;
                     // F16 accumulators round each 64 terms' sum to 11 bits.
-                    let f16_sums = half && tensor_cores && matches!(tile, Tile::EightWarpsF16Accumulate);
+                    let f16_sums = half
+                        && tensor_cores
+                        && matches!(tile, Tile::EightWarpsF16Accumulate | Tile::SwizzledEightWarpsF16Accumulate);
                     let bound = if f16_sums {
                         1e-2
                     } else if f16_out || tf32 {
@@ -1510,6 +1625,9 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::T128x128Warps4,
             Tile::T256x128,
             Tile::EightWarps,
+            Tile::Swizzled,
+            Tile::SwizzledEightWarps,
+            Tile::Swizzled256x128,
         ] {
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));

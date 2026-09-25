@@ -1,6 +1,9 @@
 //! text-embeddings-inference (TEI), the end-to-end reference: its HTTP
 //! server in a container pinned by digest, the GPU image for a CUDA
-//! device and the CPU image for the CPU, sent the same token rows.
+//! device and the CPU image for the CPU, sent the same token rows. For a
+//! Metal device, which no container reaches, it is TEI's router built
+//! with its Metal feature and run natively, pinned by the binary's
+//! SHA-256.
 //!
 //! TEI serves a model directory in the upstream layout (config.json,
 //! tokenizer.json, model.safetensors), not a bundle: the directory
@@ -82,12 +85,19 @@ pub struct Tei {
     /// The processors the container gets, with the thread count to
     /// match (`--cpus`); None: docker's and the image's defaults.
     pub cpus: Option<Cpus>,
+    /// TEI's router built natively (`--tei-bin`), run in place of an
+    /// image; `image` is then empty.
+    pub binary: Option<PathBuf>,
 }
+
+/// The native router, as a recorded command names it.
+pub const TEI_BIN: &str = "<tei-bin>";
 
 /// TEI's --dtype for a compute dtype, or why it has none. `gpu` is
 /// whether TEI runs on a GPU: its CPU image takes float16 but computes it
 /// in software, many times slower than its own float32, so an F16 row
-/// there would measure the emulation rather than a reference.
+/// there would measure the emulation rather than a reference. The native
+/// router built with Metal runs on the GPU.
 pub fn dtype(compute_dtype: u32, gpu: bool) -> std::result::Result<&'static str, String> {
     match compute_dtype {
         TURBO_DTYPE_F32 => Ok("float32"),
@@ -156,6 +166,54 @@ pub fn run_argv(
         &(batch as u64 * seq as u64).max(DEFAULT_BATCH_TOKENS).to_string(),
     ]));
     a
+}
+
+/// The native router's argv: the loopback at `port`, the model and the
+/// options run_argv gives the image.
+pub fn native_argv(
+    bin: &str,
+    model_dir: &str,
+    port: u16,
+    dtype: &str,
+    pooling: &str,
+    batch: u32,
+    seq: u32,
+) -> Vec<String> {
+    argv(&[
+        bin,
+        "--model-id",
+        model_dir,
+        "--hostname",
+        "127.0.0.1",
+        "--port",
+        &port.to_string(),
+        "--dtype",
+        dtype,
+        "--pooling",
+        pooling,
+        "--max-client-batch-size",
+        &batch.to_string(),
+        "--max-batch-tokens",
+        &(batch as u64 * seq as u64).max(DEFAULT_BATCH_TOKENS).to_string(),
+    ])
+}
+
+/// The native router as a record pins it: its file's SHA-256.
+pub fn native_pin(bin: &Path) -> Result<String> {
+    let bytes = fs::read(bin).map_err(|e| format!("--tei-bin {}: {e}", bin.display()))?;
+    Ok(format!("text-embeddings-router@sha256:{}", sha256_hex(&bytes)))
+}
+
+/// A native router started by the tool, and the file its output goes
+/// to: the router is stopped and the file removed when this goes.
+struct Native(std::process::Child, PathBuf);
+
+impl Drop for Native {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+        let _ = fs::remove_file(&self.1);
+    }
 }
 
 /// An image's environment as `docker image inspect --format '{{json
@@ -538,8 +596,14 @@ pub fn run(
     warmup: u32,
     iterations: u32,
 ) -> Result<ReferenceRun> {
-    let image = docker::check_pinned("--tei-image", &tei.image)?;
-    let mut procedure = format!(
+    // What names the program: the image's digest, or the native
+    // router's SHA-256.
+    let pinned = match &tei.binary {
+        Some(bin) => native_pin(bin)?,
+        None => docker::check_pinned("--tei-image", &tei.image)?.to_owned(),
+    };
+    let image = pinned.as_str();
+    let procedure = format!(
         "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the \
          batch's {} rows as token ids, {warmup} untimed then {iterations} timed, each timed from sending the \
          request to reading the whole response, the p50 and p99 of TEI's {} headers beside it, and TEI's /metrics read \
@@ -549,7 +613,7 @@ pub fn run(
         compared(m)
     );
     let mut log = Log::default();
-    let dtype = match dtype(m.compute_dtype, gpu.is_some()) {
+    let dtype = match dtype(m.compute_dtype, gpu.is_some() || tei.binary.is_some()) {
         Ok(d) => d,
         Err(why) => return Ok(not_run(image, log, &procedure, why)),
     };
@@ -557,11 +621,13 @@ pub fn run(
     if let Err(why) = check_model_dir(&dir, m) {
         return Ok(not_run(image, log, &procedure, why));
     }
+    if let Some(bin) = &tei.binary {
+        return run_native(bin, image, &dir, m, dtype, procedure, library, warmup, iterations, log);
+    }
     docker::require_image(&mut log, image)?;
     let env =
         parse_env(&log.run(&argv(&["docker", "image", "inspect", "--format", "{{json .Config.Env}}", image]))?)?;
     let (what, threads) = (procedure, cpus::procedure(tei.cpus.as_ref(), library, &env));
-    procedure = format!("{what}; {threads}");
 
     let container = format!("turbo-bench-tei-{}", std::process::id());
     let start_argv = |dir: &Path| {
@@ -581,6 +647,75 @@ pub fn run(
         }
         std::thread::sleep(Duration::from_secs(1));
     }
+    against(&base, image, log, what, threads, m, warmup, iterations)
+}
+
+/// TEI's router run natively on the model directory, as run() runs the
+/// image: `what` is the procedure so far.
+#[allow(clippy::too_many_arguments)]
+fn run_native(
+    bin: &Path,
+    pinned: &str,
+    dir: &Path,
+    m: &Measurement,
+    dtype: &str,
+    what: String,
+    library: Option<usize>,
+    warmup: u32,
+    iterations: u32,
+    log: Log,
+) -> Result<ReferenceRun> {
+    let bin = fs::canonicalize(bin).map_err(|e| format!("--tei-bin {}: {e}", bin.display()))?;
+    let threads = cpus::procedure(None, library, &[]);
+    let what = format!("{what}; TEI's router built natively and run on this machine, not in a container");
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|l| l.local_addr())
+        .map_err(|e| format!("a loopback port for TEI: {e}"))?
+        .port();
+    let (pool, batch, seq) = (pooling(m.pooling()), m.rows.batch, m.rows.seq);
+    let run = native_argv(&bin.to_string_lossy(), &dir.to_string_lossy(), port, dtype, pool, batch, seq);
+    let mut log = log;
+    log.commands.push(native_argv(TEI_BIN, docker::TEI_MODEL, port, dtype, pool, batch, seq));
+    let out = std::env::temp_dir().join(format!("turbo-bench-tei-{}.log", std::process::id()));
+    let file = fs::File::create(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+    let err = file.try_clone().map_err(|e| format!("{}: {e}", out.display()))?;
+    let child = std::process::Command::new(&run[0])
+        .args(&run[1..])
+        .env("HF_HUB_OFFLINE", "1")
+        .stdout(file)
+        .stderr(err)
+        .spawn()
+        .map_err(|e| {
+            let _ = fs::remove_file(&out);
+            format!("{}: {e}", run.join(" "))
+        })?;
+    let mut server = Native(child, out.clone());
+    let base = format!("http://127.0.0.1:{port}");
+    let start = Instant::now();
+    while get(&format!("{base}/health")).is_err() {
+        let exited = server.0.try_wait().map_err(|e| format!("TEI: {e}"))?;
+        if exited.is_some() || start.elapsed() > START_TIMEOUT {
+            let logs = fs::read_to_string(&out).unwrap_or_default();
+            return Err(format!("TEI did not become healthy within {START_TIMEOUT:?}:\n{logs}"));
+        }
+        std::thread::sleep(Duration::from_secs(1));
+    }
+    against(&base, pinned, log, what, threads, m, warmup, iterations)
+}
+
+/// Check, warm up and time the server at `base`, as the procedure says.
+#[allow(clippy::too_many_arguments)]
+fn against(
+    base: &str,
+    image: &str,
+    log: Log,
+    what: String,
+    threads: String,
+    m: &Measurement,
+    warmup: u32,
+    iterations: u32,
+) -> Result<ReferenceRun> {
+    let procedure = format!("{what}; {threads}");
     let info = parse_info(&get(&format!("{base}/info"))?)?;
 
     // The rows as TEI will see them.

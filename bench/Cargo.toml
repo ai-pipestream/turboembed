@@ -20,3 +20,6 @@ ureq = "3"
 cuda = ["turbo/cuda"]
 # Links the Level Zero backend (docs/levelzero.md).
 levelzero = ["turbo/levelzero"]
+# Links the Metal backend (docs/metal.md); TEI is then its router built
+# natively with Metal (--tei-bin).
+metal = ["turbo/metal"]

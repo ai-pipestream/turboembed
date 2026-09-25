@@ -44,6 +44,7 @@ the same files copied elsewhere pass it.
 | `--repo <dir>` | The git working tree the library was built from; its commit must be the tool's build commit (Provenance). Default: the one the tool was built in. |
 | `--out <dir>` | Where the record goes. Default `<repo>/benchmarks/records`. |
 | `--tei-image <name@sha256:…>`, `--tei-model <dir>` | text-embeddings-inference: its image, and the model in the upstream layout (the directory `turbo-bundle fetch` fills). |
+| `--tei-bin <path>` | TEI's router built natively, run in place of an image: for metal, whose GPU no container reaches (Reference programs). Goes with `--tei-model`, not `--tei-image`. |
 | `--no-tei` | TEI is not run; the record says so. |
 | `--tensorrt-image <name@sha256:…>` | NVIDIA's TensorRT container. |
 | `--tensorrt-inputs <ids,mask,types>` | The ONNX inputs, in that order, each of `[A-Za-z0-9_.]+` and neither `.` nor `..` (each names a file and a part of trtexec's lists). Default `input_ids,attention_mask,token_type_ids`. |
@@ -347,11 +348,8 @@ with dense rows `rtx4080.cuda.embed.model-dense.all-minilm-l6-v2-<8 hex>.<12 hex
 | cpu | text-embeddings-inference | end to end | its CPU image, over HTTP |
 | levelzero | OpenVINO `benchmark_app` | kernel | an OpenVINO container, on the bundle's ONNX file, on the GPU |
 | levelzero | text-embeddings-inference | end to end | its CPU image, over HTTP: the end-to-end baseline on that machine |
-| metal | none yet | | a record of it backs nothing |
+| metal | text-embeddings-inference | end to end | its router built natively with the Metal feature, over HTTP |
 | any other | none yet | | a record of it backs nothing |
-
-Metal has no reference program yet, so a Metal cell cannot reach
-SUPPORTED.
 
 Images are pinned as `name@sha256:<64 hex>`, the name of lower-case
 letters, digits and `._/:-`, starting with a letter or digit (so never
@@ -367,6 +365,19 @@ real paths; only the recorded copy is rewritten. A `not_run` reason
 names those directories the same way. The core refuses a record with
 `/home/` or `/Users/` anywhere in its text, so one written by hand or
 by an older tool cannot carry a home directory either.
+
+**TEI on Metal** is its router built from source with the Metal feature
+(`cargo build --release -p text-embeddings-router -F metal` in TEI's
+tree), since no container reaches a Mac's GPU. `--tei-bin` names the
+binary; the record pins it as `text-embeddings-router@sha256:<its
+SHA-256>` and gives the version `/info` reports. The tool starts it on
+the loopback at a free port with the options the image gets
+(`--model-id <tei-model>`, `--dtype`, `--pooling`,
+`--max-client-batch-size`, `--max-batch-tokens`, `HF_HUB_OFFLINE=1`),
+records the command with `<tei-bin>` for its path, checks and times it
+as the image, and stops it when the run ends. It computes on the GPU, in
+float32 or in float16 as the session's compute dtype asks. `--tei-bin` is
+refused for any other backend, and with `--cpus`.
 
 **TensorRT** builds an engine from one of the bundle's `FORMAT_ONNX`
 artifacts, checked against its hash, and times the rows loaded from raw
@@ -491,8 +502,9 @@ token, and all of it without `te_batch_next_size`, or when `/metrics`
 could not be read before the timed requests after warmup requests had
 run. The container is removed when the tool is done with
 it. TEI has no BF16 dtype; a BF16 session
-records it as `not_run`. So does an F16 session when TEI runs on the
-CPU, as it does for every device but a CUDA one: its CPU image computes
+records it as `not_run`. So does an F16 session when TEI's container
+gets no `--gpus`, which today is every device but a CUDA one (a native
+TEI on Metal would have its own runner): its CPU image computes
 float16 in software, many times slower than its own float32, so that
 row would time the emulation.
 

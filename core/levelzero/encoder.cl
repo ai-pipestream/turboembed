@@ -208,6 +208,64 @@ linear_gemv(__global const float *x, __global const float *w, __global const flo
     }
 }
 
+/* The same in F32 from weights transposed to wt [n_in, n_out], for more
+ * than a handful of tokens: a sub-group computes 8 tokens by 32 outputs,
+ * a lane each two outputs 16 apart, 16 terms a step. A 2D block read gives
+ * each lane its outputs' 16 weights, and each token's 16 terms are one
+ * load the whole sub-group shares, so every multiply-add takes its token's
+ * term as a scalar operand. A group of 4 x 2 sub-groups computes 32
+ * tokens by 64 outputs, sharing its rows of x and wt in cache. The sums
+ * are never split: each output adds its products in term order. n_in is
+ * a multiple of 16, n_out of 32, and wt 64-byte aligned. */
+
+__attribute__((overloadable)) void intel_sub_group_2d_block_read_32b_16r16x1c(__global void *base, int width,
+                                                                              int height, int pitch, int2 coord,
+                                                                              __private uint *dst);
+
+#define SGEMM_TM 8
+#define SGEMM_TN 32
+#define SGEMM_WM 4
+#define SGEMM_WN 2
+
+__kernel __attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((reqd_work_group_size(16 * SGEMM_WM * SGEMM_WN, 1, 1))) void
+linear_sgemm(__global const float *x, __global const float *wt, __global const float *bias, __global float *y,
+             int tokens, int n_out, int n_in, int flags) {
+    const int sg = get_sub_group_id(), lane = get_sub_group_local_id();
+    const int o0 = (get_group_id(0) * SGEMM_WN + sg % SGEMM_WN) * SGEMM_TN;
+    const int t0 = (get_group_id(1) * SGEMM_WM + sg / SGEMM_WN) * SGEMM_TM;
+    if (o0 >= n_out || t0 >= tokens) return;
+    float acc[SGEMM_TM][2];
+    __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++) acc[m][0] = acc[m][1] = 0.0f;
+    __global const float *xr[SGEMM_TM];
+    __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++)
+        xr[m] = x + (size_t)min(t0 + m, tokens - 1) * n_in;
+    for (int k = 0; k < n_in; k += 16) {
+        float16 a[SGEMM_TM];
+        __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++) a[m] = vload16(0, xr[m] + k);
+        float b[2][16];
+        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++)
+            intel_sub_group_2d_block_read_32b_16r16x1c((__global void *)wt, n_out * 4, n_in, n_out * 4,
+                                                       (int2)(o0 + 16 * j, k), (__private uint *)b[j]);
+        __attribute__((opencl_unroll_hint)) for (int kk = 0; kk < 16; kk++)
+            __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++)
+                __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) acc[m][j] =
+                    fma(a[m][kk], b[j][kk], acc[m][j]);
+    }
+    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {
+        const int o = o0 + 16 * j + lane;
+        const float bo = flags & LINEAR_BIAS ? bias[o] : 0.0f;
+        __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++) {
+            const int t = t0 + m;
+            if (t >= tokens) break;
+            float v = acc[m][j];
+            if (flags & LINEAR_BIAS) v = v + bo;
+            if (flags & LINEAR_GELU) v = gelu(v);
+            y[(size_t)t * n_out + o] = v;
+        }
+    }
+}
+
 /* The linear layers at FASTEST, on the matrix engines (XMX,
  * cl_intel_subgroup_matrix_multiply_accumulate): the same y, from F16
  * activations and F16 weights transposed to wt [n_in, n_out], with F32
@@ -219,13 +277,13 @@ linear_gemv(__global const float *x, __global const float *w, __global const flo
  * already in the product's layout: A as rows of x, B through the read's
  * VNNI transform, which pairs two rows of wt in each lane. A read past the
  * last token gives zeros and a write past it is dropped, so a tile needs
- * no bounds of its own. n_in, k_len and n_out are multiples of 32, and the
+ * no bounds of its own. n_in and n_out are multiples of 32, and the
  * buffers 64-byte aligned.
  *
  * A sub-group computes TM tokens by TN outputs, 32 terms a step; a group
  * of WM x WN sub-groups computes a TM * WM by TN * WN tile, so the group's
- * sub-groups read the same rows of x and wt from cache. Group z sums the
- * z-th k_len of the terms into its own slice of y, as linear does. */
+ * sub-groups read the same rows of x and wt from cache. The sums are never
+ * split, so each output is summed in one order at every batch size. */
 
 __attribute__((overloadable)) float8 intel_sub_group_f16_f16_matrix_mad_k16(short8 a, int8 b, float8 acc);
 __attribute__((overloadable)) void intel_sub_group_2d_block_read_16b_8r16x2c(__global void *base, int width,
@@ -246,7 +304,8 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
                                                                               __private ushort *src);
 
 /* A's two k-halves for 8 or 16 tokens: a 2D read of 8 or 16 rows by two
- * 16-term blocks, block by block, 8 rows a short8. */
+ * 16-term blocks, block by block, 8 rows a short8. A LINEAR_DPAS instance
+ * names the one for its TM. */
 #define DPAS_READ_A8(x, w, h, k, t, a)                                                                              \
     do {                                                                                                            \
         short8 r_[2];                                                                                               \
@@ -264,6 +323,9 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
         a[1][i + 1] = r_[3];                                                                                        \
     } while (0)
 
+#define DPAS_READ_A_16(x, w, h, k, t, a) DPAS_READ_A16(x, w, h, k, t, a, 0)
+#define DPAS_READ_A_8(x, w, h, k, t, a) DPAS_READ_A8(x, w, h, k, t, a)
+
 #define DPAS_STORE_F32(y, n_out, tokens, o, t, v)                                                                   \
     intel_sub_group_2d_block_write_32b_8r16x1c((__global void *)(y), (n_out) * 4, tokens, (n_out) * 4, (int2)(o, t), \
                                                (__private uint *)&(v))
@@ -274,29 +336,22 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
                                                    (int2)(o, t), (__private ushort *)&h_);                          \
     } while (0)
 
-#define LINEAR_DPAS(NAME, TM, TN, WM, WN, Y, STORE)                                                                 \
+#define LINEAR_DPAS(NAME, TM, TN, WM, WN, READ_A, Y, STORE)                                                         \
     __kernel __attribute__((intel_reqd_sub_group_size(16)))                                                         \
     __attribute__((reqd_work_group_size(16 * (WM) * (WN), 1, 1))) void                                              \
     NAME(__global const half *x, __global const half *wt, __global const float *bias, __global Y *y, int tokens,    \
-         int n_out, int n_in, int flags, int k_len) {                                                               \
+         int n_out, int n_in, int flags) {                                                                          \
         const int sg = get_sub_group_id(), lane = get_sub_group_local_id();                                         \
         const int o0 = (get_group_id(0) * (WN) + sg % (WN)) * (TN);                                                 \
         const int t0 = (get_group_id(1) * (WM) + sg / (WN)) * (TM);                                                 \
         if (o0 >= n_out || t0 >= tokens) return;                                                                    \
-        const int k0 = get_group_id(2) * k_len;                                                                     \
-        y += (size_t)get_group_id(2) * tokens * n_out;                                                              \
         float8 acc[(TM) / 8][(TN) / 16];                                                                            \
         __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++)                                      \
             __attribute__((opencl_unroll_hint)) for (int j = 0; j < (TN) / 16; j++) acc[i][j] = (float8)(0.0f);     \
-        for (int k = k0; k < k0 + k_len; k += 32) {                                                                 \
+        for (int k = 0; k < n_in; k += 32) {                                                                        \
             short8 a[2][(TM) / 8];                                                                                  \
             int8 b[2][(TN) / 16];                                                                                   \
-            if ((TM) == 8) {                                                                                        \
-                DPAS_READ_A8(x, n_in * 2, tokens, k, t0, a);                                                        \
-            } else {                                                                                                \
-                __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i += 2)                           \
-                    DPAS_READ_A16(x, n_in * 2, tokens, k, t0 + 8 * i, a, i);                                        \
-            }                                                                                                       \
+            READ_A(x, n_in * 2, tokens, k, t0, a);                                                                  \
             __attribute__((opencl_unroll_hint)) for (int j = 0; j < (TN) / 16; j++) {                               \
                 int8 r[2];                                                                                          \
                 intel_sub_group_2d_block_read_transform_16b_32r16x1c((__global void *)wt, n_out * 2, n_in,          \
@@ -325,10 +380,10 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
 
 /* A group of 8 x 2 sub-groups of 16 tokens by 32 outputs; and for at most
  * 8 tokens, 1 x 4 sub-groups of 8 by 32. */
-LINEAR_DPAS(linear_dpas, 16, 32, 8, 2, float, DPAS_STORE_F32)
-LINEAR_DPAS(linear_dpas_to_half, 16, 32, 8, 2, half, DPAS_STORE_F16)
-LINEAR_DPAS(linear_dpas_few, 8, 32, 1, 4, float, DPAS_STORE_F32)
-LINEAR_DPAS(linear_dpas_few_to_half, 8, 32, 1, 4, half, DPAS_STORE_F16)
+LINEAR_DPAS(linear_dpas, 16, 32, 8, 2, DPAS_READ_A_16, float, DPAS_STORE_F32)
+LINEAR_DPAS(linear_dpas_to_half, 16, 32, 8, 2, DPAS_READ_A_16, half, DPAS_STORE_F16)
+LINEAR_DPAS(linear_dpas_few, 8, 32, 1, 4, DPAS_READ_A_8, float, DPAS_STORE_F32)
+LINEAR_DPAS(linear_dpas_few_to_half, 8, 32, 1, 4, DPAS_READ_A_8, half, DPAS_STORE_F16)
 
 /* The attention output and the feed-forward output at FASTEST, with the
  * LayerNorm after them: x = LayerNorm(x + (y + bias)) as add_layer_norm,
@@ -637,21 +692,21 @@ FLASH(attention_128, 128, float, vstore4)
 /* At FASTEST, for the next layer's F16 operand. */
 FLASH(attention_128_to_half, 128, half, vstore_half4)
 
-/* At FASTEST, on the matrix engines: a group of ATT_KS sub-groups takes 16
- * queries of a row and head, a lane each; sub-group g walks the row's keys
- * 32 at a time from the g-th 32, ATT_KS * 32 apart. The scores are K
+/* At FASTEST, on the matrix engines: a sub-group takes 16 queries of a row
+ * and head, a lane each, and walks the row's keys 32 at a time; a group's
+ * ATT_SUBGROUPS sub-groups take consecutive blocks of queries, so they
+ * read the row's keys and values from cache between them. The scores are K
  * times Q transposed, so a lane holds its own query's 32 scores (K as A,
  * 8 keys a product and a lane per term; Q as B, a lane per query), and its
  * online softmax needs no other lane. The context is V transposed times
  * the weights (V as A, 8 of the width a product and a lane per key; the
  * weights as B, a lane per query). K and V arrive by 2D block reads, V's
  * transposed; rows past the row's last token read as zeros. The softmax
- * runs in base 2 on scores scaled by log2(e). The sub-groups' maxima, sums
- * and contexts meet in local memory, rescaled to the largest maximum. qkv
- * and ctx are F16, the sums and the softmax F32. The head width is a
- * multiple of 32, and so is hidden, so a head's keys and values start
- * 64-byte aligned for the 2D reads. */
-#define ATT_KS 4
+ * runs in base 2 on scores scaled by log2(e). qkv and ctx are F16, the
+ * sums and the softmax F32. The head width is a multiple of 32, and so is
+ * hidden, so a head's keys and values start 64-byte aligned for the 2D
+ * reads. */
+#define ATT_SUBGROUPS 4
 
 __attribute__((overloadable)) void intel_sub_group_2d_block_read_transpose_32b_16r8x1c(__global void *base, int width,
                                                                                        int height, int pitch,
@@ -671,13 +726,12 @@ int8 pack_probabilities(float8 lo, float8 hi) {
 
 #define FLASH_XMX(HD)                                                                                              \
     __kernel __attribute__((intel_reqd_sub_group_size(16)))                                                        \
-    __attribute__((reqd_work_group_size(16 * ATT_KS, 1, 1))) void                                                  \
+    __attribute__((reqd_work_group_size(16 * ATT_SUBGROUPS, 1, 1))) void                                           \
     attention_xmx_##HD(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden,   \
                        float scale, __global half *ctx) {                                                          \
-        __local float red_m[ATT_KS][16], red_l[ATT_KS][16];                                                        \
-        __local float8 red_acc[ATT_KS][HD / 8][16];                                                                \
-        const int lane = get_sub_group_local_id(), sg = get_sub_group_id();                                        \
-        const int q0 = get_group_id(0) * 16, head = get_group_id(1), r = get_group_id(2);                          \
+        const int lane = get_sub_group_local_id();                                                                 \
+        const int q0 = (get_group_id(0) * ATT_SUBGROUPS + get_sub_group_id()) * 16;                                \
+        const int head = get_group_id(1), r = get_group_id(2);                                                     \
         const int start = rows[2 * r], len = rows[2 * r + 1];                                                      \
         if (q0 >= len) return;                                                                                     \
         const int stride = 3 * hidden, col = head * HD;                                                            \
@@ -690,7 +744,7 @@ int8 pack_probabilities(float8 lo, float8 hi) {
         float8 acc[HD / 8];                                                                                        \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] = (float8)(0.0f);              \
         float mx = -INFINITY, l = 0.0f;                                                                            \
-        for (int j0 = sg * 32; j0 < len; j0 += 32 * ATT_KS) {                                                      \
+        for (int j0 = 0; j0 < len; j0 += 32) {                                                                     \
             /* s[2c + h]: keys j0 + 16c + 8h .. + 7. */                                                            \
             float8 s[4] = {(float8)(0.0f), (float8)(0.0f), (float8)(0.0f), (float8)(0.0f)};                       \
             __attribute__((opencl_unroll_hint)) for (int c = 0; c < 2; c++)                                        \
@@ -711,7 +765,8 @@ int8 pack_probabilities(float8 lo, float8 hi) {
             if (!sub_group_all(live0 && live1)) {                                                                  \
                 __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++)                                    \
                     __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                              \
-                    const bool live = sub_group_broadcast(h < 2 ? live0 : live1, (h & 1) * 8 + m);                 \
+                    const bool live =                                                                              \
+                        sub_group_broadcast((int)(h < 2 ? live0 : live1), (h & 1) * 8 + m) != 0;                  \
                     if (!live) s[h][m] = -INFINITY;                                                                \
                 }                                                                                                  \
             }                                                                                                      \
@@ -720,7 +775,7 @@ int8 pack_probabilities(float8 lo, float8 hi) {
             const float cmax = fmax(fmax(t4.x, t4.y), fmax(t4.z, t4.w));                                           \
             const float newm = fmax(mx, cmax);                                                                     \
             if (newm == -INFINITY) continue;                                                                       \
-            const float corr = native_exp2(mx - newm);                                                             \
+            const float corr = mx == -INFINITY ? 0.0f : native_exp2(mx - newm);                                    \
             float8 p[4];                                                                                           \
             __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++) p[h] = native_exp2(s[h] - newm);        \
             const float8 p8 = (p[0] + p[1]) + (p[2] + p[3]);                                                       \
@@ -742,22 +797,8 @@ int8 pack_probabilities(float8 lo, float8 hi) {
                 }                                                                                                  \
             }                                                                                                      \
         }                                                                                                          \
-        red_m[sg][lane] = mx;                                                                                      \
-        red_l[sg][lane] = l;                                                                                       \
-        __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) red_acc[sg][b][lane] = acc[b];        \
-        barrier(CLK_LOCAL_MEM_FENCE);                                                                              \
-        if (sg != 0 || q0 + lane >= len) return;                                                                   \
-        float m_all = -INFINITY;                                                                                   \
-        for (int g = 0; g < ATT_KS; g++) m_all = fmax(m_all, red_m[g][lane]);                                      \
-        float l_all = 0.0f;                                                                                        \
-        __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] = (float8)(0.0f);              \
-        for (int g = 0; g < ATT_KS; g++) {                                                                         \
-            const float mg = red_m[g][lane];                                                                       \
-            const float c = mg == -INFINITY ? 0.0f : native_exp2(mg - m_all);                                      \
-            l_all += red_l[g][lane] * c;                                                                           \
-            __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] += red_acc[g][b][lane] * c; \
-        }                                                                                                          \
-        const float inv = 1.0f / l_all;                                                                            \
+        if (q0 + lane >= len) return;                                                                              \
+        const float inv = 1.0f / l;                                                                                \
         __global half *out = ctx + (size_t)(start + q0 + lane) * hidden + col;                                     \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++)                                       \
             vstore_half8(acc[b] * inv, b, out);                                                                    \
@@ -917,8 +958,14 @@ __kernel void widen_f16(__global const half *src, ulong n, __global float *dst) 
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) dst[i] = vload_half(i, src);
 }
 
-__kernel void narrow_f16(__global const float *src, ulong n, __global half *dst) {
-    for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) dst[i] = convert_half(src[i]);
+/* w [n_out, n_in] in F32 to wt [n_in, n_out] in F32, the layout
+ * linear_sgemm reads. */
+__kernel void transpose_f32(__global const float *w, int n_out, int n_in, __global float *wt) {
+    const size_t n = (size_t)n_out * n_in;
+    for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
+        const size_t k = i / n_out, o = i % n_out;
+        wt[i] = w[o * n_in + k];
+    }
 }
 
 /* w [n_out, n_in] in F32 to wt [n_in, n_out] in F16, the layout the

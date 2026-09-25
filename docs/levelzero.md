@@ -20,6 +20,10 @@ then says `0.1.0 levelzero cpu`. Its devices come before the CPU's.
   at Level Zero 1.9 or newer for in-order immediate lists), with the
   kernel's `xe` or `i915` driver bound to the GPU and
   the user able to open its render node (the `render` group).
+- A GPU with 2D block reads and writes (`cl_intel_subgroup_2d_block_io`:
+  Xe2, such as the B70, and Xe-HPC), which the kernels are built with;
+  on an older part, such as the Arc A-series, the module does not build
+  and no session runs.
 - A GPU whose driver computes in F64: the encoder sums LayerNorm and the
   L2 norm in F64. A device without it is listed, and its capability cell
   says UNSUPPORTED with that reason.
@@ -82,8 +86,10 @@ of any run.
   into one device allocation. The first session makes the rest, on the
   device, shared by every later one and freed with the model: an F16 or
   BF16 model's F32 copy; each layer's Q, K and V weights and biases side
-  by side, for one projection; and, for the first session at FASTEST, the
-  linear layers' weights in F16, transposed to [inputs, outputs].
+  by side, for one projection; and the linear layers' weights transposed
+  to [inputs, outputs], in F16 for the first session at FASTEST and in
+  F32 for the first session in F32 (for a model whose hidden and
+  intermediate widths are multiples of 32).
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: device scratch, the
   output buffer, host staging the device reads, and the session's own
@@ -100,15 +106,21 @@ of any run.
   attention kernel (scaled dot products over the keys whose mask is 1,
   with an online softmax), the attention output projection, a residual
   and LayerNorm kernel, the feed-forward input with GELU (erf) in its
-  epilogue, the feed-forward output with its sums split four ways over its
-  terms, and a kernel that adds the parts, the residual and the
-  LayerNorm; then one kernel pools (mean over the mask, the first token,
+  epilogue, the feed-forward output (its sums split four ways over its
+  terms where the kernels below split them), and a kernel that adds the
+  parts, the residual and the LayerNorm; then one kernel pools (mean over the mask, the first token,
   or the last live one) and cuts to `output_dim`, and when asked another
   normalizes. The LayerNorms run a sub-group per token, or a group per
-  token below 256 tokens. The linear layers run by sub-group, 8 tokens by
-  64 outputs each, in F32 on the vector engines; with 8 tokens or fewer, a
-  group of up to 8 sub-groups computes 32 outputs, each summing an equal
-  share of the terms, in F32. Attention for head widths 32, 64 and 128
+  token below 256 tokens. In F32 the linear layers run on the vector
+  engines from the transposed weights: a sub-group computes 8 tokens by
+  32 outputs, a group 4 x 2 of them, a 2D block read handing each lane
+  its outputs' weights and each token's terms loaded once for the whole
+  sub-group, so every multiply-add takes its term as a scalar operand;
+  each output adds its products in term order. With 8 tokens or fewer, a
+  group of up to 8 sub-groups computes 32 outputs from the untransposed
+  weights, each summing an equal share of the terms. A model whose widths
+  are not multiples of 32 runs 8 tokens by 64 outputs a sub-group from
+  the untransposed weights. Attention for head widths 32, 64 and 128
   keeps each query and its running context in registers and streams the
   row's keys and values through local memory.
 
@@ -118,19 +130,20 @@ of any run.
   read's VNNI transform. A sub-group computes 16 tokens by 32 outputs, 32
   terms a step, and a group of 8 by 2 sub-groups shares its rows of both
   in cache; with 8 tokens or fewer, 8 tokens by 32 outputs, 4 sub-groups a
-  group. The LayerNorms write the hidden states in F16 too, for the
-  layers that read them; the Q, K and V projection and the feed-forward
-  input write F16. The attention output and the feed-forward output each
+  group. A layer's sums are never split, so each output is summed in one
+  order at every batch size. The LayerNorms write the hidden states in F16
+  too, for the layers that read them; the feed-forward input writes F16,
+  and so does the Q, K and V projection for the head widths whose
+  attention runs on the matrix engines. The attention output and the feed-forward output each
   take their residual and LayerNorm in their own epilogue: a group
   computes 16 tokens by the whole hidden width, a sub-group each 32
-  outputs, and the rows' sums meet in local memory. With 8 tokens or
-  fewer, and for a hidden width over 2048, they instead split their sums
-  and the LayerNorm kernel adds the parts. Attention for head widths 32
-  and 64 runs on the matrix engines: a group of 4 sub-groups takes 16
-  queries, a lane each, the sub-groups walking the row's keys 32 at a time
-  in turn (K and V by 2D block reads), and their running maxima, sums and
-  contexts meet in local memory at the end; other widths write an F16
-  context from the kernels above. The run waits for the queue before it returns, and
+  outputs, and the rows' sums meet in local memory. For a hidden width over
+  2048 the LayerNorm kernel follows them instead. Attention for head widths 32
+  and 64 runs on the matrix engines: a sub-group takes 16 queries, a lane
+  each, and walks the row's keys 32 at a time (K and V by 2D block
+  reads); a group's 4 sub-groups take consecutive blocks of queries, so
+  they read the row's keys and values from cache between them. Other
+  widths write an F16 context from the kernels above. The run waits for the queue before it returns, and
   leaves the vectors in the session's `DEVICE` buffer:
   `turbo_result_buffer` hands out that memory, and `turbo_result_read`
   copies it back.
@@ -156,10 +169,10 @@ of any run.
   the linear layers' and attention's multiply-adds. Cosine against the
   fp32 reference must reach 0.9999. At FASTEST the linear layers take F16
   operands, the hidden states kept in F32 beside their F16 copy; the
-  projections and the feed-forward block's middle are F16; for head
-  widths 32 and 64 attention takes F16 operands, its softmax in base 2 on
-  the device's native exponential, and for other widths it runs as in
-  F32. Every sum and the softmax are F32, and so are the LayerNorms in
+  feed-forward block's middle and the attention context are F16; for
+  head widths 32 and 64 attention takes F16 operands, its softmax in base
+  2 on the device's native exponential, and for other widths it runs as
+  in F32 and rounds its context to F16. Every sum and the softmax are F32, and so are the LayerNorms in
   the projections' epilogues; cosine must reach 0.999.
 - **What a result reports.** Stages: tokenize on the host for text,
   upload fused into the lookup kernel, which reads the packed rows over

@@ -57,6 +57,10 @@ struct Packing {
     float *key_bias;
 };
 
+/* The widest hidden state TILE_SWIZZLED_ROWS normalizes in the attention
+ * output and second feed-forward GEMMs' epilogue: its tile's width. */
+constexpr int ROW_LN_WIDTH = 384;
+
 /* The widest head attention computes. */
 constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 
@@ -80,7 +84,24 @@ enum Tile : int {
     /* TILE_EIGHT_WARPS with F16 accumulators over each 64 terms of k,
      * added into F32 ones (TURBO_CUDA_F16_ACCUMULATE=1); F16 operands
      * only, other GEMMs take TILE_DEFAULT. */
-    TILE_EIGHT_WARPS_F16_ACCUMULATE = 8
+    TILE_EIGHT_WARPS_F16_ACCUMULATE = 8,
+    /* F16 operands on the swizzled kernel: stage rows of 64 bytes, the
+     * loads running ahead across tiles, the epilogue from registers.
+     * 128 x 128 over four warps of 64 x 64, two blocks to an SM. */
+    TILE_SWIZZLED = 9,
+    /* The swizzled kernel at the eight-warp mix's shapes, three stages. */
+    TILE_SWIZZLED_8W = 10,
+    /* TILE_SWIZZLED, but 256 x 128 over eight warps for GELU. */
+    TILE_SWIZZLED_256x128 = 11,
+    /* TILE_SWIZZLED_8W with F16 accumulators over each 64 terms of k, as
+     * TILE_EIGHT_WARPS_F16_ACCUMULATE. (Warps of 64 x 64 have no
+     * registers for both kinds of accumulator.) */
+    TILE_SWIZZLED_8W_F16_ACCUMULATE = 12,
+    /* TILE_SWIZZLED_8W, but the attention output and second feed-forward
+     * GEMMs 64 x 384, whole rows (hidden widths up to ROW_LN_WIDTH), over
+     * eight warps of 32 x 96, one block to an SM, with the residual and
+     * the LayerNorm in their epilogue. */
+    TILE_SWIZZLED_ROWS = 13
 };
 
 /* A session's fixed shape, from which make_plan sizes every launch. */
@@ -99,6 +120,10 @@ struct Shape {
      * (TURBO_CUDA_ATTENTION=split), for measuring against the default,
      * which computes Q K^T and P V as register tiles. */
     bool split_attention = false;
+    /* FASTEST's attention on the tensor cores at 128 queries to a block,
+     * keys and values through cp.async (TURBO_CUDA_ATTENTION=128), for
+     * measuring against the default of 64. */
+    bool wide_attention = false;
     /* The GEMMs' fewest k steps per block (TURBO_CUDA_SK_STEPS), 0 for
      * the kernels' own. */
     int sk_steps = 0;

@@ -49,6 +49,8 @@ record options:
   --work <dir>                 scratch for reference inputs (default: the
                                system's temporary directory)
   --tei-image <name@sha256:..> text-embeddings-inference, pinned
+  --tei-bin <path>             TEI's router built natively, run in place of
+                               an image (metal, which no container reaches)
   --tei-model <dir>            the model in the upstream layout
   --no-tei                     record that TEI was not run
   --tensorrt-image <name@sha256:..>
@@ -156,10 +158,16 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let out = o.take("--out");
     let work = o.take("--work").map_or_else(std::env::temp_dir, PathBuf::from);
     let no_tei = o.flag("--no-tei");
-    let tei = match (o.take("--tei-image"), o.take("--tei-model")) {
-        (Some(image), Some(model)) => Some(Tei { image, model_dir: model.into(), cpus: cpus.clone() }),
-        (None, None) => None,
-        _ => return Err("--tei-image and --tei-model go together".into()),
+    let tei = match (o.take("--tei-image"), o.take("--tei-bin"), o.take("--tei-model")) {
+        (Some(image), None, Some(model)) => {
+            Some(Tei { image, model_dir: model.into(), cpus: cpus.clone(), binary: None })
+        }
+        (None, Some(bin), Some(model)) => {
+            Some(Tei { image: String::new(), model_dir: model.into(), cpus: cpus.clone(), binary: Some(bin.into()) })
+        }
+        (None, None, None) => None,
+        (Some(_), Some(_), _) => return Err("--tei-image and --tei-bin are two ways to run TEI; give one".into()),
+        _ => return Err("--tei-model goes with --tei-image or --tei-bin".into()),
     };
     let no_trt = o.flag("--no-tensorrt");
     let inputs = onnx_inputs(o.take("--tensorrt-inputs"), "--tensorrt-inputs")?;
@@ -207,7 +215,18 @@ fn record_cmd(args: &[String]) -> Result<()> {
         return Err("a reference program is both named and disabled".into());
     }
     if let Some(t) = &tei {
-        turbo_bench::docker::check_pinned("--tei-image", &t.image)?;
+        match &t.binary {
+            // Read now, so a wrong path fails before anything is measured.
+            Some(bin) => {
+                tei::native_pin(bin)?;
+                if cpus.is_some() {
+                    return Err("--cpus pins TEI's container; the native router (--tei-bin) takes none".into());
+                }
+            }
+            None => {
+                turbo_bench::docker::check_pinned("--tei-image", &t.image)?;
+            }
+        }
     }
     if let Some(t) = &trt {
         turbo_bench::docker::check_pinned("--tensorrt-image", &t.image)?;
@@ -226,6 +245,11 @@ fn record_cmd(args: &[String]) -> Result<()> {
     drop(rt);
     let given = Given { tei: (tei.is_some(), no_tei), trt: (trt.is_some(), no_trt), ov: (ov.is_some(), no_ov) };
     given.check(&backend)?;
+    // The native router is the reference where no container reaches the
+    // GPU; elsewhere TEI runs from its image.
+    if tei.as_ref().is_some_and(|t| t.binary.is_some()) && backend != "metal" {
+        return Err(format!("--tei-bin is TEI's native router for metal; give --tei-image for {backend}"));
+    }
 
     // Refused before anything is measured, and checked again after.
     let before = git::provenance(&repo)?;
@@ -403,6 +427,11 @@ fn check(path: &Path) -> Result<()> {
         version: record::library_version(),
         os: &r.machine.os,
     };
+    // Only mixed rows back a capability; a dense record is a measurement.
+    if r.rows.kind != record::ROWS_MIXED {
+        println!("{name}: does not back SUPPORTED: rows.kind {}; only {} rows do", r.rows.kind, record::ROWS_MIXED);
+        return Ok(());
+    }
     match r.falls_short(&cell) {
         None => println!("{name}: backs SUPPORTED, speed_ratio {:?}", r.speed_ratio),
         Some(why) => println!("{name}: does not back SUPPORTED: {why}"),

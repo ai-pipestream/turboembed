@@ -1064,6 +1064,10 @@ Tile tile_named() {
     if (!strcasecmp(v, "128x128-4w")) return TILE_128x128_4W;
     if (!strcasecmp(v, "256x128")) return TILE_256x128;
     if (!strcasecmp(v, "8w")) return TILE_EIGHT_WARPS;
+    if (!strcasecmp(v, "sw")) return TILE_SWIZZLED;
+    if (!strcasecmp(v, "sw8w")) return TILE_SWIZZLED_8W;
+    if (!strcasecmp(v, "sw256")) return TILE_SWIZZLED_256x128;
+    if (!strcasecmp(v, "swrow")) return TILE_SWIZZLED_ROWS;
     return TILE_DEFAULT;
 }
 
@@ -1076,6 +1080,19 @@ bool split_attention_named() {
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_ATTENTION");
     return v && !strcasecmp(v, "split");
+}
+
+/* What the tests set in place of TURBO_CUDA_ATTENTION=64: 1 for the
+ * tensor cores' kernel of 128 queries, the default, 0 for the kernel of
+ * 64; -1 for the variable. On an RTX 4080 SUPER at 32 x 256 full rows
+ * the kernel of 128 takes 324 us a pass against 398 for 64's. */
+std::atomic<int> wide_attention_override{-1};
+
+bool wide_attention_named() {
+    const int o = wide_attention_override.load(std::memory_order_relaxed);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_ATTENTION");
+    return !(v && !strcmp(v, "64"));
 }
 
 /* What the tests set in place of TURBO_CUDA_TF32: 1 for TF32 at MODEL,
@@ -1097,7 +1114,8 @@ std::atomic<int> f16_accumulate_override{-1};
 
 /* TURBO_CUDA_F16_ACCUMULATE=1 gives FASTEST's GEMMs on the tensor cores
  * F16 accumulators over each 64 terms of k, added into F32 ones
- * (TILE_EIGHT_WARPS_F16_ACCUMULATE, whatever TURBO_CUDA_TILE says); unset,
+ * (TILE_EIGHT_WARPS_F16_ACCUMULATE, or TILE_SWIZZLED_8W_F16_ACCUMULATE
+ * when TURBO_CUDA_TILE=sw8w, whatever other tile it names); unset,
  * F32 accumulators throughout. */
 bool f16_accumulate_named() {
     const int o = f16_accumulate_override.load(std::memory_order_relaxed);
@@ -1480,10 +1498,21 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         sh.tensor_cores = major >= 8 && (half || (precision != TURBO_PRECISION_EXACT && tf32_named()));
         sh.sms = sms;
         sh.smem_optin = (size_t)optin;
-        sh.tile = sh.half && sh.tensor_cores && f16_accumulate_named() ? TILE_EIGHT_WARPS_F16_ACCUMULATE : tile_named();
+        sh.tile = tile_named();
+        if (sh.half && sh.tensor_cores && f16_accumulate_named())
+            sh.tile = sh.tile == TILE_SWIZZLED_8W ? TILE_SWIZZLED_8W_F16_ACCUMULATE : TILE_EIGHT_WARPS_F16_ACCUMULATE;
         sh.split_attention = split_attention_named();
+        sh.wide_attention = wide_attention_named();
         sh.sk_steps = sk_steps_named();
         sh.fused_ln = !separate_ln_named();
+        // Whole rows take the LayerNorm in the epilogue; wider hidden
+        // states than their tile, the eight-warp shapes.
+        if (sh.tile == TILE_SWIZZLED_ROWS && sh.half && sh.tensor_cores) {
+            if (sh.hidden <= ROW_LN_WIDTH)
+                sh.fused_ln = true;
+            else
+                sh.tile = TILE_SWIZZLED_8W;
+        }
         sh.column_pool = column_pool_named();
         Plan plan;
         TRY_CUDA(make_plan(sh, &plan), "planning the session's launches");
@@ -1998,6 +2027,11 @@ void turbo_cuda_use_tile(int32_t tile) { tile_override.store(tile, std::memory_o
 void turbo_cuda_use_split_attention(int32_t split) {
     split_attention_override.store(split, std::memory_order_relaxed);
 }
+
+/* FASTEST's attention on the tensor cores in sessions made from now on:
+ * 1 the kernel of 128 queries to a block, the default, 0 the kernel of
+ * 64 (TURBO_CUDA_ATTENTION=64), -1 to read the variable again. */
+void turbo_cuda_use_wide_attention(int32_t wide) { wide_attention_override.store(wide, std::memory_order_relaxed); }
 
 /* The LayerNorms of sessions made from now on: 1 a kernel of their own
  * after the GEMM (the default), 0 the GEMM's epilogue

@@ -437,13 +437,58 @@ fn tei_on_another_models_files_is_recorded_as_not_run_before_docker() {
         image: format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}"),
         model_dir: d.to_owned(),
         cpus: None,
+        binary: None,
     };
     let r = tei::run(&t, m, None, Some(1), 1, 1).unwrap();
     assert!(r.measured.is_none());
     assert!(r.not_run.unwrap().contains("is not the bundle's tokenizer"));
     assert!(r.commands.is_empty(), "nothing ran");
-    let t = Tei { image: "text-embeddings-inference:latest".into(), model_dir: ".".into(), cpus: None };
+    let t = Tei { image: "text-embeddings-inference:latest".into(), model_dir: ".".into(), cpus: None, binary: None };
     assert!(tei::run(&t, m, None, Some(1), 1, 1).unwrap_err().contains("is not pinned"));
+}
+
+#[test]
+fn the_native_router_is_pinned_by_its_bytes_and_started_on_the_loopback() {
+    let d = upstream_dir("tei-native-pin");
+    let bin = d.join("text-embeddings-router");
+    std::fs::write(&bin, b"a router").unwrap();
+    let pin = tei::native_pin(&bin).unwrap();
+    assert_eq!(pin, format!("text-embeddings-router@sha256:{}", turbo::bundle::sha256_hex(b"a router")));
+    assert!(turbo::record::pinned(&pin).is_some(), "{pin} is pinned as a record reads it");
+    let a = tei::native_argv(tei::TEI_BIN, turbo_bench::docker::TEI_MODEL, 4242, "float32", "mean", 32, 256);
+    assert_eq!(a[0], "<tei-bin>");
+    let at = |flag: &str| a[a.iter().position(|x| x == flag).unwrap() + 1].clone();
+    assert_eq!(at("--hostname"), "127.0.0.1", "the loopback only");
+    assert_eq!(at("--port"), "4242");
+    assert_eq!(
+        (at("--model-id"), at("--dtype"), at("--pooling")),
+        ("<tei-model>".into(), "float32".into(), "mean".into())
+    );
+    assert_eq!((at("--max-client-batch-size"), at("--max-batch-tokens")), ("32".into(), "16384".into()));
+    assert!(tei::native_pin(&d.join("absent")).unwrap_err().contains("--tei-bin"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_native_router_that_exits_is_an_error_with_its_output_and_leaves_nothing() {
+    use std::os::unix::fs::PermissionsExt;
+    let m = cpu_measurement();
+    let d = upstream_dir("tei-native-exits");
+    let bin = d.join("router");
+    std::fs::write(&bin, "#!/bin/sh\necho no model here\nexit 3\n").unwrap();
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let t = Tei { image: String::new(), model_dir: d.to_owned(), cpus: None, binary: Some(bin) };
+    let e = tei::run(&t, m, None, Some(1), 1, 1).unwrap_err();
+    assert!(e.contains("TEI did not become healthy") && e.contains("no model here"), "{e}");
+    let log = std::env::temp_dir().join(format!("turbo-bench-tei-{}.log", std::process::id()));
+    assert!(!log.exists(), "the router's output file is removed");
+}
+
+#[test]
+fn f16_is_offered_to_a_router_on_a_gpu_only() {
+    assert_eq!(tei::dtype(turbo::TURBO_DTYPE_F16, true), Ok("float16"));
+    assert!(tei::dtype(turbo::TURBO_DTYPE_F16, false).is_err());
+    assert_eq!(tei::dtype(turbo::TURBO_DTYPE_F32, false), Ok("float32"));
 }
 
 // ---- TensorRT ----
@@ -867,7 +912,7 @@ fn each_backend_gets_its_reference_programs() {
     assert_eq!(applies("cuda"), [TEI, TRT]);
     assert_eq!(applies("cpu"), [TEI]);
     assert_eq!(applies("levelzero"), [TEI, openvino::NAME], "OpenVINO, and TEI's CPU image as the end-to-end baseline");
-    assert!(applies("metal").is_empty(), "none yet");
+    assert_eq!(applies("metal"), [TEI], "TEI's router built natively with Metal");
     for backend in ["cuda", "cpu", "levelzero", "metal"] {
         for name in applies(backend) {
             assert!(turbo::record::REFERENCES.iter().any(|r| r.0 == *name), "{name}");
@@ -882,6 +927,8 @@ fn each_backend_gets_its_reference_programs() {
     assert!(e.is_ok());
     let e = wanted("cuda", |_| true).unwrap_err();
     assert_eq!(e, "cuda: OpenVINO is not a reference for this backend");
-    wanted("metal", |_| false).unwrap();
-    assert_eq!(wanted("metal", |n| n == TEI).unwrap_err(), "metal: TEI is not a reference for this backend");
+    wanted("metal", |n| n == TEI).unwrap();
+    let e = wanted("metal", |_| false).unwrap_err();
+    assert_eq!(e, "metal: TEI is a reference here: give --tei-image (or --tei-bin) and --tei-model, or --no-tei");
+    assert_eq!(wanted("metal", |_| true).unwrap_err(), "metal: TensorRT is not a reference for this backend");
 }

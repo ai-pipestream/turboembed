@@ -51,8 +51,34 @@ the tensor cores), and for the tensor cores `128x128-4w` (four warps of
 F32 output) or `8w`, the eight-warp tiles, FASTEST's default: `128x128`
 over warps of 32 × 64 for the QKV and first feed-forward GEMMs and
 `128x64` for the other two (the FMA kernels take `128x64` for these
-three). Unset, the FMA kernels and TF32 take `128x64`, and F16 on the
-tensor cores `8w`. On an RTX 4080 at 32 × 256, `8w` is faster than the
+three). F16 on the tensor cores also takes `sw`, `sw8w` and `sw256`, the
+swizzled kernel: stage rows of 64 bytes with 16-byte chunk c of row r
+at c ^ ((r >> 1) & 3) in place of rows padded to 80 bytes, so three
+stages of 128 × 128 take 48 KB and two blocks share an SM; the loads
+running STAGES - 1 steps ahead across the end of a tile, so the next
+tile's first stages load while a tile is finished; and the epilogue from
+registers (F32 a float2 a lane, F16 gathered by shuffles into 16-byte
+stores), with no pass through shared memory. Where a warp has the
+registers for two sets of fragments (warps of 64 × 64, 32 × 96, and
+32 × 32 at four stages), the mainloop is software-pipelined: the
+fragments of the next 16 values of k are read while the MMAs of the
+current 16 run, the next step's first after a step's last, so a step's
+barrier comes before its last MMAs rather than before its first reads.
+`sw` is 128 × 128 over four warps of 64 × 64 for every GEMM; `sw256` the same but 256 × 128 over eight such warps
+for the first feed-forward GEMM, one block to an SM; `sw8w` the
+eight-warp mix's shapes at three and four stages; `swrow` is `sw8w` but
+the attention output and second feed-forward GEMMs on 64 × 384 tiles,
+whole rows, over eight warps of 32 × 96, one block to an SM: their
+epilogue adds the bias and the residual and runs the LayerNorm on the
+rows in registers (each lane's values of a row summed, then the quad's
+by shuffles, then the four warps across the row in warp order through
+shared memory; the mean, then the variance about it), writing the F32
+hidden states and their F16 copy once, with no LayerNorm kernel after
+it. It sums in another order than the separate kernel, so its vectors
+agree with the default's within FASTEST's bound, not bit for bit; a
+hidden width over 384 takes `sw8w`. The other precisions take `128x64`
+for these. Unset, the FMA kernels and TF32 take `128x64`,
+and F16 on the tensor cores `8w`. On an RTX 4080 at 32 × 256, `8w` is faster than the
 four-warp tiles (`128x128-4w` with `256x128` for the first feed-forward
 GEMM): about 0.73 against 0.83 ms on mixed rows and 3.5 against 3.9 ms
 on full rows. EXACT is about 4% slower with `128x128-16x8` than with
@@ -64,13 +90,24 @@ precision's bound, not bit for bit; only the time should differ.
 that compute attention with FMAs the kernel that splits each query's
 keys among four warps (a lane per query, 64 queries to a block, the
 partial softmaxes merged in a fixed order), for measuring against the
-default. `TURBO_CUDA_LAYER_NORM=fused`, read the same way, has the
+default. FASTEST's attention on the tensor cores (heads 32 or 64 wide)
+runs 128 queries to a block of eight warps, so each chunk of keys and
+values in shared memory serves 128 queries; the keys and values go 64
+at a time through two buffers filled by `cp.async`, the next chunk
+loading while this one's products and softmax run, and the softmax is
+taken in base 2 (the scores scaled by the scale times log2 e, `exp2f`
+for `expf`). Heads of 32 fit two blocks to an SM, heads of 64 one. On
+an RTX 4080 SUPER at 32 x 256 full rows it takes 324 µs a pass against
+398 for the earlier kernel of 64 queries to four warps, which
+`TURBO_CUDA_ATTENTION=64` still gives; the two round differently, so
+their vectors agree within FASTEST's bound, not bit for bit. `TURBO_CUDA_LAYER_NORM=fused`, read the same way, has the
 N = hidden GEMMs' epilogue run the LayerNorm in place of the default's
 kernel of its own after the GEMM (see Pipeline; the bits are the same
 either way, and on an RTX 4080 the separate kernel is faster).
 `TURBO_CUDA_F16_ACCUMULATE=1`, read the same way, gives FASTEST's GEMMs
 on the tensor cores F16 accumulators (`mma.sync.m16n8k16` with an F16
-C and D), `8w`'s tiles whatever `TURBO_CUDA_TILE` says: each 64 terms
+C and D), `8w`'s tiles (`sw8w`'s with `TURBO_CUDA_TILE=sw8w`, and
+whatever other tile it names): each 64 terms
 of k are summed in F16, and each such sum is added into the F32
 accumulators, in k's order, the chunks counted from k 0 so a tile's
 sums do not depend on which blocks share it. F16 accumulation is twice
