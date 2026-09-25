@@ -462,6 +462,9 @@ struct Kernels {
     /// the LayerNorm after them, for a hidden width a group spans: groups of
     /// one block of tokens, and of as many as dpas_ln_blocks gives.
     linear_dpas_layer_norm: Option<[Kernel; 2]>,
+    /// At FASTEST, the whole feed-forward block in one kernel for large
+    /// batches, and its blocks of tokens a group.
+    linear_dpas_mlp: Option<(Kernel, u32)>,
     embed_layer_norm: Kernel,
     add_layer_norm: Kernel,
     /// The same, a group per token, for few tokens.
@@ -483,7 +486,7 @@ enum Attention {
 }
 
 impl Kernels {
-    fn new(c: &Context, hidden: u32, head_dim: u32, xmx: bool) -> Res<Kernels> {
+    fn new(c: &Context, hidden: u32, intermediate: u32, head_dim: u32, xmx: bool) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
@@ -508,6 +511,7 @@ impl Kernels {
             } else {
                 None
             },
+            linear_dpas_mlp: if xmx { mlp_kernel(c, hidden, intermediate)? } else { None },
             linear_dpas: if xmx {
                 let (main, few) = ([16 * DPAS_WM * DPAS_WN, 1, 1], [16 * FEW_WM * FEW_WN, 1, 1]);
                 Some([
@@ -581,6 +585,37 @@ const GEMV_SUBGROUPS: u32 = 8;
 fn gemv_share(k_len: u32) -> Option<u32> {
     let share = k_len.div_ceil(16 * GEMV_SUBGROUPS) * 16;
     (k_len.is_multiple_of(share) && k_len / share <= GEMV_SUBGROUPS).then_some(share)
+}
+
+/// Tokens from which FASTEST runs the whole feed-forward block in one
+/// kernel, where its 2-byte middle, intermediate values a token, would
+/// otherwise go through memory; fewer tokens fill too few of its groups.
+const MLP_TOKENS: u32 = 4096;
+
+/// Bytes of local memory the feed-forward kernel's middle takes: blocks of
+/// DPAS_LN_TM tokens by hidden values in F16.
+fn mlp_local_bytes(hidden: u32, blocks: u32) -> u32 {
+    DPAS_LN_TM * blocks * hidden * 2
+}
+
+/// The one-kernel feed-forward block and its blocks of tokens a group: as
+/// many as dpas_ln_blocks gives, fewer where its middle and the kernel's
+/// own local memory do not fit the device's; None where no block fits, or
+/// the intermediate width is not a multiple of the hidden width, a chunk
+/// of the middle at a time.
+fn mlp_kernel(c: &Context, hidden: u32, intermediate: u32) -> Res<Option<(Kernel, u32)>> {
+    if hidden / DPAS_TN > DPAS_LN_SUBGROUPS || intermediate == 0 || !intermediate.is_multiple_of(hidden) {
+        return Ok(None);
+    }
+    let cols = hidden / DPAS_TN;
+    let most = dpas_ln_blocks(hidden);
+    let k = c.kernel("linear_dpas_mlp", [16 * cols * most, 1, 1])?;
+    let own = k.local_bytes()?;
+    match (1..=most).rev().find(|&b| own + mlp_local_bytes(hidden, b) <= c.max_local) {
+        Some(b) if b == most => Ok(Some((k, b))),
+        Some(b) => Ok(Some((c.kernel("linear_dpas_mlp", [16 * cols * b, 1, 1])?, b))),
+        None => Ok(None),
+    }
 }
 
 /// Sub-groups of an XMX attention group, 16 queries each, as encoder.cl's
@@ -712,7 +747,7 @@ pub(crate) unsafe extern "C" fn session_create(
             let xmx = precision == TURBO_PRECISION_FASTEST
                 && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
                 && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
-            let kernels = Kernels::new(c, d.hidden, head_dim, xmx)?;
+            let kernels = Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx)?;
             if let Attention::General(k) = &kernels.attention {
                 // The driver keeps some of a work-group's local memory for
                 // the kernel's own use (its reductions); the scores get the
@@ -1129,6 +1164,30 @@ impl Session {
                 let parts =
                     linear(q, self.att, h, wo, 0, h, self.tmp, 0, (1, false), "the attention output projection")?;
                 add_ln(q, ln.0, ln.1, ln.2, parts, "the attention LayerNorm")?;
+            }
+            // Large batches: the whole block in one kernel, its middle kept
+            // in local memory.
+            if let (Some((kmlp, blocks)), Some(half)) = (&k.linear_dpas_mlp, &self.half)
+                && tokens >= MLP_TOKENS
+            {
+                let args = [
+                    Ptr(half.layers[l as usize][2]),
+                    Ptr(layer(l, FFN_IN_BIAS)),
+                    Ptr(half.layers[l as usize][3]),
+                    Ptr(layer(l, FFN_OUT_BIAS)),
+                    Ptr(if l + 1 == d.layers { self.x } else { 0 }),
+                    Ptr(self.xh),
+                    Ptr(layer(l, FFN_LN_WEIGHT)),
+                    Ptr(layer(l, FFN_LN_BIAS)),
+                    F32(eps),
+                    I32(tokens as i32),
+                    I32(h as i32),
+                    I32(inter as i32),
+                    Local(mlp_local_bytes(h, *blocks) as usize),
+                ];
+                let groups = [tokens.div_ceil(DPAS_LN_TM * blocks), 1, 1];
+                kmlp.launch(c, q, "the feed-forward block", &args, groups)?;
+                continue;
             }
             let (wi, bi) = ((l, 2, layer(l, FFN_IN_WEIGHT)), layer(l, FFN_IN_BIAS));
             linear(

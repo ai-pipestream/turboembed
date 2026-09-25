@@ -40,6 +40,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_tile(tile: i32);
     fn turbo_cuda_use_sk_steps(steps: i32);
     fn turbo_cuda_use_choices(choices: *const std::ffi::c_char);
+    fn turbo_cuda_fail_variant(name: *const std::ffi::c_char);
     fn turbo_cuda_variants(ordinal: u32, precision: u32, out: *mut std::ffi::c_char, len: usize) -> i32;
     fn turbo_cuda_use_split_attention(split: i32);
     fn turbo_cuda_use_wide_attention(wide: i32);
@@ -310,6 +311,16 @@ pub fn use_f16_accumulate(f16: Option<bool>) {
 pub fn use_choices(choices: Option<&str>) {
     let c = choices.map(|c| std::ffi::CString::new(c).unwrap());
     unsafe { turbo_cuda_use_choices(c.as_ref().map_or(std::ptr::null(), |c| c.as_ptr())) };
+}
+
+/// Makes the GEMM variant `name` (as [`variants`] names it) fail to
+/// launch in the sessions made next, as on a device that cannot take it:
+/// the tuner skips it and a session that forces it is refused. `None` for
+/// none. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn fail_variant(name: Option<&str>) {
+    let c = name.map(|c| std::ffi::CString::new(c).unwrap());
+    unsafe { turbo_cuda_fail_variant(c.as_ref().map_or(std::ptr::null(), |c| c.as_ptr())) };
 }
 
 /// A GEMM kernel variant a session may force: its name as a choices

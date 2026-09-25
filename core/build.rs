@@ -46,6 +46,7 @@ const DEPENDS: [&str; 4] =
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     records();
+    kernels_id();
     if env::var_os("CARGO_FEATURE_CUDA").is_some() {
         cuda();
     }
@@ -58,6 +59,32 @@ fn main() {
     if env::var_os("CARGO_FEATURE_HAILO").is_some() {
         hailo();
     }
+}
+
+/// The kernel sources the backends compile, whose hash names this
+/// build's kernels in a tuning cache's key: kernels changed are a new
+/// entry, and nothing else retires one.
+const KERNEL_DIRS: [&str; 4] = ["cuda", "metal", "hailo", "levelzero"];
+
+/// TURBO_KERNELS_ID: the FNV-1a hash of every file under KERNEL_DIRS, by
+/// name and bytes in name order, as 16 hex digits.
+fn kernels_id() {
+    let mut files = Vec::new();
+    for d in KERNEL_DIRS {
+        println!("cargo:rerun-if-changed={d}");
+        if let Ok(entries) = std::fs::read_dir(d) {
+            files.extend(entries.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.is_file()));
+        }
+    }
+    files.sort();
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for f in &files {
+        let name = f.to_string_lossy().replace('\\', "/");
+        for b in name.bytes().chain(std::fs::read(f).unwrap_or_default()) {
+            h = (h ^ b as u64).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+    println!("cargo:rustc-env=TURBO_KERNELS_ID={h:016x}");
 }
 
 fn cuda() {

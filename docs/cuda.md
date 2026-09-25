@@ -58,12 +58,13 @@ stages of 128 × 128 take 48 KB and two blocks share an SM; the loads
 running STAGES - 1 steps ahead across the end of a tile, so the next
 tile's first stages load while a tile is finished; and the epilogue from
 registers (F32 a float2 a lane, F16 gathered by shuffles into 16-byte
-stores), with no pass through shared memory. Where a warp has the
-registers for two sets of fragments (warps of 64 × 64, 32 × 96, and
-32 × 32 at four stages), the mainloop is software-pipelined: the
-fragments of the next 16 values of k are read while the MMAs of the
-current 16 run, the next step's first after a step's last, so a step's
-barrier comes before its last MMAs rather than before its first reads.
+stores), with no pass through shared memory. On warps of 64 × 64 and
+32 × 96 the mainloop is software-pipelined: the fragments of the next
+16 values of k are read while the MMAs of the current 16 run, the next
+step's first after a step's last, so a step's barrier comes before its
+last MMAs rather than before its first reads. The eight-warp mix's
+shapes wait at each step's barrier instead: there the pipeline measured
+slower, with or without registers to spare.
 `sw` is 128 × 128 over four warps of 64 × 64 for every GEMM; `sw256` the same but 256 × 128 over eight such warps
 for the first feed-forward GEMM, one block to an SM; `sw8w` the
 eight-warp mix's shapes at three and four stages; `swrow` is `sw8w` but
@@ -166,7 +167,8 @@ stream-K (`sk<steps>` or `tiles`), then `/tf32` when it computes in TF32;
 the kernels that run: a tile the session's operands or device do not
 take is reported as the one that runs in its place. `forced=` lists the
 knobs (`tile`, `sk`, `tf32`, `attn`, `ln`, `pool`) the environment
-fixed; `tuned` says `default`, or `forced` when every knob was.
+fixed; `tuned` says `default`, `forced` when every knob was, and
+`measured` or `cache` for a tuned session (below).
 
 `TURBO_CUDA_CHOICES`, read when a session is made after the switches
 above, forces the items it names, over them: the line a session
@@ -186,9 +188,82 @@ kernel of either forced through `TURBO_CUDA_CHOICES` is
 `TURBO_E_UNSUPPORTED_OPTION` naming field 3 and the kernel, unless its
 experiment's switch is set for the session (`TURBO_CUDA_TF32=1` at MODEL,
 `TURBO_CUDA_F16_ACCUMULATE=1` or `TURBO_CUDA_TILE` naming an `f16k` tile at
-FASTEST), which widens that session's set. A session computes in its precision's classes, and in another only
-where a kernel it chose computes in it: a switch the line overrides
-widens nothing.
+FASTEST), which widens that session's set. A session computes in its
+precision's classes, and in another only where a kernel it chose
+computes in it: a switch the line overrides widens nothing.
+
+### Autotuning
+
+A session made with `turbo_session_desc.tuning` ON or RETUNE (or
+`TURBO_AUTOTUNE=on` or `retune`, when the desc leaves it to the
+environment) times its GEMMs' kernel variants when it is made and runs
+the fastest; docs/autotune.md has the switches, the cache and what
+holds across backends. It is off by default.
+
+What is timed: each token bin's four GEMMs, each over the tiles its
+precision's classes allow: at FASTEST on tensor cores `8w` and `sw8w`
+(and `acc16-8w`, `acc16-sw8w` when the F16 accumulators' experiment is
+set); on the FMA kernels `128x64`, `128x128-16x8`, `128x128` and
+`64x64`; with `TURBO_CUDA_TF32=1` at MODEL, `128x64/tf32` and
+`128x128/tf32` too. The other tiles, and the `f16k` tiles, are forced
+only. A GEMM whose tile a switch forces is not timed. Stream-K,
+attention, the LayerNorm and the pooling keep their defaults.
+
+How: after the session's memory is allocated and cleared, under the
+context's lock, on its stream and its own buffers. Each bin, those
+nearest a mixed batch first (`le4k`, `le1k`, `le16k`, `le256`,
+`gt16k`), gets rows of its upper edge's tokens (the session's size when
+smaller, 32768 at most past 16384) in the lengths of a mixed batch, ids 1
+and types 0; the first runs the whole encoder once, which loads the
+modules and brings the clocks up. Each variant of a GEMM of the first
+layer is launched once untimed, then timed five times with event pairs,
+and five more while the times are more than 10% apart, up to 15. The
+least time ranks, and a variant replaces the incumbent (the cached
+choice, else the default) only when 5% faster, so measuring again on
+the same device keeps the choice. When the first incumbent's five times
+have a median more than 25% above their least, it is timed again, up to three times in all,
+since a cold device's clocks may still be coming up; still apart, the
+device is shared or throttling: the session keeps its incumbents, is
+not cached, and the log says so. A
+variant that cannot launch here is not timed, and an INFO line says so
+once. The graphs are captured from the choices after the memory is
+cleared again.
+
+The budget is `tuning_budget_ms`, else `TURBO_AUTOTUNE_BUDGET_MS`, else
+150 ms, or 750 ms with a disk cache (`TURBO_AUTOTUNE_CACHE`); past it,
+what is left is not timed, and DEBUG lines name it. The context's lock
+is held that long, so the context's other sessions wait: a server that
+makes sessions while it serves makes them on a context of their own, or
+with tuning off. A session whose GEMMs cuBLAS computes
+(`TURBO_CUDA_CUBLAS`) is not tuned and takes no cached choice: it
+reports `default`, and an INFO line says why.
+
+A measured session reports `tuned` MEASURED and `tune_ms`, and logs at
+INFO `cuda device 0: kernels chosen in <ms> ms for <n> token bins:
+<choices> (<bin>: the GEMMs of a layer <ms> ms, the incumbents <ms> ms;
+...; <n> not timed)`; each variant's least and median time is a DEBUG
+line. A session of the same device, driver, build, bundle, precision
+and size then takes the choice unmeasured, `tuned` CACHE, unless it
+forces or widens something: only a measured session with nothing
+forced and no experiment's class run is cached, and an INFO line says
+why another measured session was not.
+
+What the first tuned session costs, on an RTX 4080 with
+all-MiniLM-L6-v2 at 32 rows of 256 tokens (bins up to 16384) and the
+default 150 ms budget without a disk cache:
+
+| Precision | `tune_ms` | Not timed |
+|---|---|---|
+| FASTEST | 14 ms | 0 |
+| EXACT | 100 ms | 0 |
+
+Measured with:
+
+```sh
+TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_BUNDLE=<all-MiniLM-L6-v2 bundle> \
+    cargo test --release -p turbo --features cuda --test cuda the_first_tuned_session_s_cost \
+    -- --include-ignored --nocapture
+```
 
 The library links the toolkit's shared `libcudart.so.<major>` and
 `libcublas.so.<major>`, with the toolkit's library directory as its run
@@ -465,6 +540,11 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=cuda \
     cargo test --release -p turbo --features cuda --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test --release -p turbo --features cuda --test cuda -- --include-ignored --nocapture
+
+# Conformance again with its sessions tuned (tests/common's session_desc
+# asks for tuning ON), at each precision as above:
+TURBO_TEST_TUNING=1 TURBO_TEST_DEVICE=cuda \
+    cargo test --release -p turbo --features cuda --test conformance -- --nocapture
 ```
 
 `TURBO_TEST_DEVICE=cuda` picks the first device the cuda backend lists,

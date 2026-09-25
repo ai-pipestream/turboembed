@@ -1437,7 +1437,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
     // next after a k step's last half is the next step's first, so each
     // step's barrier comes before its last half's MMAs, not before its
     // first ldmatrix: the pipeline of cutlass's multistage mainloop.
-    // Without (warps with no registers for two sets), each step waits at
+    // Without (the eight-warp mix's shapes), each step waits at
     // its barrier, then reads A's fragments and B's a pair of n8 tiles at
     // a time, each pair's MMAs issued as it arrives.
     uint32_t af[DB ? 2 : 1][MI][4], bf[DB ? 2 : 1][NI][2];
@@ -1982,7 +1982,12 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
         // (The plain product fits in 128 registers only as warps of 16 x 64.)
         if constexpr (ACC16 && EPI == EPI_PLAIN) return swz_kernel<128, 64, 8, 1, 3, EPI, TOut, true, false>();
         if constexpr (ACC16 && EPI != EPI_PLAIN) return swz_kernel<128, 64, 4, 2, 3, EPI, TOut, true, false>();
-        if (t == TILE_SWIZZLED_8W) return swz_kernel<128, 64, 4, 2, 4, EPI, TOut, false, true>();
+        // Warps of 32 x 32 without the pipelined mainloop, like the other
+        // eight-warp shapes: on eight warps the cross-step pipeline itself
+        // costs time, not the registers (the plain product on an RTX 4080,
+        // dense rows: 961 us pipelined, 960 with one block to an SM and so
+        // no register cap, 899 without).
+        if (t == TILE_SWIZZLED_8W) return swz_kernel<128, 64, 4, 2, 4, EPI, TOut, false, false>();
     }
     if constexpr (!ACC16) {
         if constexpr (EPI == EPI_GELU)

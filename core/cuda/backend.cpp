@@ -23,8 +23,11 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -439,7 +442,8 @@ struct Context {
 
     __attribute__((format(printf, 3, 4))) void say(uint32_t level, const char *fmt, ...) {
         if (!log) return;
-        char m[256];
+        // Room for a session's choices line and what the tuner says of it.
+        char m[2048];
         va_list ap;
         va_start(ap, fmt);
         const int n = vsnprintf(m, sizeof m, fmt, ap);
@@ -450,6 +454,7 @@ struct Context {
 };
 
 constexpr uint32_t LOG_WARNING = 1;
+constexpr uint32_t LOG_INFO = 2;
 constexpr uint32_t LOG_DEBUG = 3;
 
 void release_context(Context *c) {
@@ -1271,12 +1276,14 @@ Choices defaults(const Shape &base) {
  * in every bin. *tf32 and *f16_accumulate say whether the switch of that
  * name is in effect for the session: TF32 needs F32 operands on a device
  * with tensor cores at a precision other than EXACT, F16 accumulators F16
- * operands on one. */
-void forced_from_environment(const Shape &base, uint32_t precision, Choices *c, bool *tf32, bool *f16_accumulate) {
+ * operands on one. In a tuned session the two widen the kernels the tuner
+ * may time instead of forcing their own, unless a tile is forced too. */
+void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, Choices *c, bool *tf32,
+                             bool *f16_accumulate) {
     Tile tile = TILE_DEFAULT;
     const bool tile_forced = tile_named(&tile);
     *f16_accumulate = base.half && base.tensor_cores && (f16_accumulate_named() || f16_accumulates(tile));
-    const bool acc_forced = *f16_accumulate && !f16_accumulates(tile);
+    const bool acc_forced = *f16_accumulate && !f16_accumulates(tile) && (!tuned || tile_forced);
     if (acc_forced) tile = tile == TILE_SWIZZLED_8W ? TILE_SWIZZLED_8W_F16_ACCUMULATE : TILE_EIGHT_WARPS_F16_ACCUMULATE;
     *tf32 = !base.half && base.tensor_cores && precision != TURBO_PRECISION_EXACT && tf32_named();
     GemmChoice sk;
@@ -1299,7 +1306,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, Choices *c, 
                 gc.sk_steps = sk.sk_steps;
                 bc.gemm_forced[g] |= KNOB_SK;
             }
-            if (*tf32) {
+            if (*tf32 && (!tuned || tile_forced)) {
                 gc.tf32 = true;
                 bc.gemm_forced[g] |= KNOB_TF32;
             }
@@ -1660,6 +1667,431 @@ int32_t capture_bins(Session &s, turbo_error *err) {
     return TURBO_OK;
 }
 
+// ---- The tuner ---------------------------------------------------------------------
+//
+// A tuned session times its GEMMs' kernel variants on its own buffers when
+// it is made, after its memory is allocated and cleared and before its
+// graphs are captured, under the context's lock on the context's stream,
+// and takes per bin and GEMM the fastest whose numeric class the session
+// allows (docs/autotune.md).
+
+/* The variant name the tests make fail to launch, in place of a device
+ * that cannot take it; empty for none. */
+std::mutex fail_lock;
+std::string fail_name;
+
+bool made_to_fail(const GemmChoice &g) {
+    std::lock_guard<std::mutex> l(fail_lock);
+    return !fail_name.empty() && fail_name == variant_name(g);
+}
+
+/* Whether a GEMM's variant can launch here: its kernel's shared memory
+ * set, a grid of at least one block, its workspace in *ws floats. */
+cudaError_t launchable(const Shape &base, Epilogue ep, const GemmChoice &g, int *grid, size_t *ws) {
+    if (made_to_fail(g)) return cudaErrorInvalidValue;
+    const bool mma = base.tensor_cores && (base.half || g.tf32);
+    cudaError_t e = gemm_prepare(ep, base.half, mma, g.tile);
+    if (e == cudaSuccess) e = gemm_grid(ep, base.half, mma, g.tile, base.sms, grid, ws);
+    if (e == cudaSuccess && *grid <= 0) e = cudaErrorInvalidConfiguration;
+    if (e != cudaSuccess) (void)cudaGetLastError();
+    return e;
+}
+
+/* The packed tokens a bin is tuned at: its upper edge, or the session's
+ * tokens when fewer; past 16384, at most 32768. */
+int tuning_tokens(int bin, int tcap) {
+    const int edge = bin == BIN_COUNT - 1 ? 32768 : BIN_EDGE[bin];
+    return edge < tcap ? edge : tcap;
+}
+
+/* The bins in the order they are tuned, those nearest a mixed batch's
+ * size first, so a budget spent early skips the least used. */
+constexpr int TUNE_ORDER[BIN_COUNT] = {2, 1, 3, 0, 4};
+
+/* A GEMM's variant the tuner may time: its choice and its launch. */
+struct Candidate {
+    GemmChoice c;
+    int grid = 0;
+};
+
+/* What the tuner does for one session: the candidates of each bin's
+ * GEMMs, the incumbent first, and what it logs and reports. */
+struct Tuning {
+    std::vector<Candidate> cand[BIN_COUNT][GEMM_COUNT];
+    std::vector<std::string> unlaunchable; /* logged once each */
+};
+
+/* Every variant a GEMM of each bin may be timed as, with the workspace
+ * and flags the largest of them needs added to *sk_floats and *sk_flags:
+ * the incumbent (the bin's choice, which its plan launches), then the
+ * candidates whose class runs allows, each once by the kernel it runs.
+ * A GEMM whose tile is forced is not timed. */
+void find_candidates(Context &c, const Shape &base, const Choices &ch, const Plan *plan, uint32_t runs, Tuning *t,
+                     size_t *sk_floats, int *sk_flags) {
+    Variant vs[32];
+    const int nv = gemm_variants(base, vs, 32);
+    for (int b = 0; b < ch.bins; b++)
+        for (int g = 0; g < GEMM_COUNT; g++) {
+            const BinChoices &bc = ch.bin[b];
+            std::vector<Candidate> &list = t->cand[b][g];
+            if (bc.gemm_forced[g] & KNOB_TILE) continue;
+            const Epilogue ep = gemm_epilogue((Gemm)g, plan[b].fused_ln);
+            list.push_back(Candidate{bc.gemm[g], plan[b].gemm_grid[g]});
+            for (int i = 0; i < nv; i++) {
+                if (!vs[i].candidate) continue;
+                if ((bc.gemm_forced[g] & KNOB_TF32) && vs[i].tf32 != bc.gemm[g].tf32) continue;
+                GemmChoice gc = bc.gemm[g];
+                gc.tile = vs[i].tile;
+                gc.tf32 = vs[i].tf32;
+                gc = canonical_gemm((Gemm)g, base, gc);
+                if (!(gemm_numeric(base, gc) & runs)) continue;
+                bool seen = false;
+                for (const Candidate &k : list) seen = seen || (k.c.tile == gc.tile && k.c.tf32 == gc.tf32);
+                if (seen) continue;
+                int grid = 0;
+                size_t ws = 0;
+                const cudaError_t e = launchable(base, ep, gc, &grid, &ws);
+                if (e != cudaSuccess) {
+                    const std::string name = variant_name(gc);
+                    bool said = false;
+                    for (const std::string &u : t->unlaunchable) said = said || u == name;
+                    if (!said) {
+                        t->unlaunchable.push_back(name);
+                        c.say(LOG_INFO, "cuda device %d: the GEMM kernel %s cannot launch here (%s), so it is not timed",
+                              c.ordinal, name.c_str(), cudaGetErrorName(e));
+                    }
+                    continue;
+                }
+                *sk_floats = ws > *sk_floats ? ws : *sk_floats;
+                *sk_flags = grid > *sk_flags ? grid : *sk_flags;
+                list.push_back(Candidate{gc, grid});
+            }
+        }
+}
+
+/* The tuner's rows for m packed tokens into the staging, as embed_write
+ * leaves a write: ids 1 and types 0, the row lengths of a mixed batch
+ * (fractions of max_seq in a fixed order, cut to what is left), then rows
+ * topped up to max_seq, until exactly m tokens are live. */
+void stage_rows(Session &s, int m) {
+    static constexpr int EIGHTHS[8] = {8, 3, 5, 1, 6, 2, 7, 4};
+    const int seq = (int)s.max_seq, cap = (int)s.max_batch;
+    std::vector<int> len((size_t)cap, 0);
+    int left = m, rows = 0;
+    for (int r = 0; r < cap && left > 0; r++) {
+        int n = seq * EIGHTHS[r % 8] / 8;
+        n = n < 1 ? 1 : n > left ? left : n;
+        len[(size_t)r] = n;
+        left -= n;
+        rows = r + 1;
+    }
+    for (int r = 0; r < cap && left > 0; r++) {
+        const int more = seq - len[(size_t)r] < left ? seq - len[(size_t)r] : left;
+        len[(size_t)r] += more;
+        left -= more;
+        rows = r + 1 > rows ? r + 1 : rows;
+    }
+    const size_t plane = (size_t)rows * seq;
+    int32_t *ids = s.staging, *mask = s.staging + plane;
+    for (int r = 0; r < rows; r++)
+        for (int i = 0; i < seq; i++) {
+            const bool live = i < len[(size_t)r];
+            ids[(size_t)r * seq + i] = live ? 1 : 0;
+            mask[(size_t)r * seq + i] = live ? 1 : 0;
+        }
+    s.fetch.n = (int32_t)(2 * plane);
+    s.run = RunArgs{rows, seq, TURBO_POOLING_MEAN, 0, (int32_t)s.model->desc.hidden, 0};
+    s.pack.run = s.run;
+    s.tokens = (uint32_t)m;
+}
+
+/* The first layer's GEMM of the bin as encode launches it, with the
+ * epilogue ep. */
+GemmArgs layer_gemm(const Session &s, int bin, Gemm which, Epilogue ep) {
+    const Model &mo = *s.model;
+    const turbo_backend_model &d = mo.desc;
+    auto at = [](int r) { return (size_t)TURBO_BERT_EMBEDDING_TENSORS + r; };
+    auto weight = [&](int r) -> const void * {
+        return s.half ? static_cast<const void *>(mo.f16[at(r)]) : static_cast<const void *>(mo.f32[at(r)]);
+    };
+    auto layer = [&](int r) { return mo.f32[at(r)]; };
+    const int h = (int)d.hidden;
+    GemmArgs g{};
+    g.info = s.pk.info;
+    g.heads = (int)d.heads;
+    g.head_dim = h / (int)d.heads;
+    g.hidden = h;
+    g.tcap = s.shape[bin].tcap;
+    g.ws = s.ws;
+    g.flags = s.flags;
+    g.fault = s.fault_dev;
+    g.rows_done = s.rows_done;
+    g.eps = (float)d.layer_norm_eps;
+    g.x16 = s.x16;
+    const void *xin = s.half ? static_cast<const void *>(s.x16) : s.x;
+    const bool ln = ep == EPI_ADD_LN;
+    switch (which) {
+    case GEMM_QKV:
+        g.a = xin;
+        g.w = weight(TURBO_BERT_Q_WEIGHT);
+        g.bias = layer(TURBO_BERT_Q_BIAS);
+        g.out = s.qkv;
+        g.n = 3 * h;
+        g.k = h;
+        break;
+    case GEMM_OUT:
+        g.a = s.att;
+        g.w = weight(TURBO_BERT_ATTN_OUT_WEIGHT);
+        g.bias = ln ? layer(TURBO_BERT_ATTN_OUT_BIAS) : nullptr;
+        g.out = ln ? static_cast<void *>(s.x) : s.part;
+        g.ln_w = layer(TURBO_BERT_ATTN_LN_WEIGHT);
+        g.ln_b = layer(TURBO_BERT_ATTN_LN_BIAS);
+        g.n = h;
+        g.k = h;
+        break;
+    case GEMM_FFN1:
+        g.a = xin;
+        g.w = weight(TURBO_BERT_FFN_IN_WEIGHT);
+        g.bias = layer(TURBO_BERT_FFN_IN_BIAS);
+        g.out = s.ffn;
+        g.n = (int)d.intermediate;
+        g.k = h;
+        break;
+    default:
+        g.a = s.ffn;
+        g.w = weight(TURBO_BERT_FFN_OUT_WEIGHT);
+        g.bias = ln ? layer(TURBO_BERT_FFN_OUT_BIAS) : nullptr;
+        g.out = ln ? static_cast<void *>(s.x) : s.part;
+        g.ln_w = layer(TURBO_BERT_FFN_LN_WEIGHT);
+        g.ln_b = layer(TURBO_BERT_FFN_LN_BIAS);
+        g.n = h;
+        g.k = (int)d.intermediate;
+        break;
+    }
+    return g;
+}
+
+using Clock = std::chrono::steady_clock;
+
+double ms_since(Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); }
+
+/* A kernel's times in milliseconds: the least of them ranks it, the
+ * median shows a lucky least; spread is the first five's (median - min) /
+ * min. */
+struct Timed {
+    float min = 0, median = 0, spread = 0;
+    int n = 0;
+};
+
+/* How far apart the least and the most of n times are, over the least. */
+float spread_of(const float *ms, int n) {
+    float lo = ms[0], hi = ms[0];
+    for (int i = 1; i < n; i++) {
+        lo = ms[i] < lo ? ms[i] : lo;
+        hi = ms[i] > hi ? ms[i] : hi;
+    }
+    return lo > 0 ? (hi - lo) / lo : 0;
+}
+
+/* How far the median of ms[0..n) is above the least, over the least: one
+ * slow launch in five moves it less than the whole range would. */
+float lift_of(const float *ms, int n) {
+    float v[16];
+    for (int i = 0; i < n; i++) v[i] = ms[i];
+    std::sort(v, v + n);
+    return v[0] > 0 ? (v[n / 2] - v[0]) / v[0] : 0;
+}
+
+constexpr int TIMED_FIRST = 5, TIMED_MOST = 15;
+constexpr float TIMED_NOISY = 0.10f;
+
+/* launch timed on the stream with event pairs: once untimed, then five
+ * times, and five more while the times are more than 10% apart, up to 15
+ * while the deadline allows. */
+template <typename F>
+cudaError_t time_kernel(cudaStream_t st, cudaEvent_t *ev, F launch, Clock::time_point deadline, Timed *out) {
+    cudaError_t e = launch();
+    if (e != cudaSuccess) return e;
+    float ms[TIMED_MOST];
+    int n = 0;
+    do {
+        for (int i = 0; i < TIMED_FIRST; i++) {
+            if ((e = cudaEventRecord(ev[2 * i], st)) != cudaSuccess) return e;
+            if ((e = launch()) != cudaSuccess) return e;
+            if ((e = cudaEventRecord(ev[2 * i + 1], st)) != cudaSuccess) return e;
+        }
+        if ((e = cudaStreamSynchronize(st)) != cudaSuccess) return e;
+        for (int i = 0; i < TIMED_FIRST; i++)
+            if ((e = cudaEventElapsedTime(&ms[n++], ev[2 * i], ev[2 * i + 1])) != cudaSuccess) return e;
+        if (n == TIMED_FIRST) out->spread = lift_of(ms, n);
+    } while (n < TIMED_MOST && spread_of(ms, n) > TIMED_NOISY && Clock::now() < deadline);
+    for (int i = 1; i < n; i++)
+        for (int j = i; j > 0 && ms[j] < ms[j - 1]; j--) std::swap(ms[j], ms[j - 1]);
+    out->min = ms[0];
+    out->median = ms[n / 2];
+    out->n = n;
+    return cudaSuccess;
+}
+
+/* A candidate replaces the incumbent only when this much faster, so a
+ * measurement again on the same device keeps the choice. */
+constexpr float MARGIN = 0.95f;
+/* The median of the incumbent's first five times further above their
+ * least than this, in each of BUSY_ROUNDS timings, says the device is
+ * shared or throttling. */
+constexpr float BUSY = 0.25f;
+/* How many times the first incumbent is timed before its times apart
+ * say the device is busy. */
+constexpr int BUSY_ROUNDS = 3;
+
+/* What the tuner found: whether it measured, or stopped for a busy
+ * device, and what it says in the log and the record. */
+struct Tuned {
+    bool measured = false, busy = false;
+    int skipped = 0;
+    std::string timings, summary;
+};
+
+/* The tuner over s.choices, from the incumbents: each bin in TUNE_ORDER
+ * gets the tuner's rows for its tokens, each of its GEMMs times its
+ * incumbent then its candidates, and the fastest by 5% is the bin's
+ * choice. The first bin runs the whole encoder first, untimed as a
+ * choice, which loads the modules, brings the clocks up and leaves
+ * activations for the GEMMs to read. */
+int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_error *err) {
+    Context &c = *s.ctx;
+    cudaStream_t st = c.stream;
+    const Clock::time_point start = Clock::now();
+    const Clock::time_point deadline = start + std::chrono::milliseconds(budget_ms);
+    cudaEvent_t ev[2 * TIMED_FIRST] = {};
+    struct Events {
+        cudaEvent_t *ev;
+        ~Events() {
+            for (int i = 0; i < 2 * TIMED_FIRST; i++)
+                if (ev[i]) cudaEventDestroy(ev[i]);
+        }
+    } events{ev};
+    for (cudaEvent_t &e : ev) TRY_CUDA(cudaEventCreate(&e), "the tuner's events");
+    const Choices before = s.choices;
+    bool first = true, busy_checked = false;
+    char line[160];
+    for (int b : TUNE_ORDER) {
+        if (b >= s.choices.bins) continue;
+        const Plan &plan = s.plan[b];
+        const int m = tuning_tokens(b, s.shape[b].tcap);
+        stage_rows(s, m);
+        if (first) {
+            TRY(encode(s, b, err));
+        } else {
+            s.pack.queries = plan.attn_queries;
+            TRY_CUDA(fetch_rows(st, s.fetch, plan), "the tuner's rows");
+            TRY_CUDA(pack_rows(st, s.pack, plan), "the tuner's rows");
+        }
+        TRY_CUDA(cudaStreamSynchronize(st), "the tuner's rows");
+        double was = 0, now = 0;
+        for (int g = 0; g < GEMM_COUNT; g++) {
+            const std::vector<Candidate> &list = t.cand[b][g];
+            if (list.empty()) continue;
+            const Epilogue ep = gemm_epilogue((Gemm)g, plan.fused_ln);
+            GemmArgs ga = layer_gemm(s, b, (Gemm)g, ep);
+            int best = -1;
+            float incumbent = 0, fastest = 0;
+            for (size_t i = 0; i < list.size(); i++) {
+                const Candidate &k = list[i];
+                const std::string name = variant_name(k.c);
+                if (Clock::now() >= deadline) {
+                    // Past the budget: what is left is not timed, and
+                    // without its incumbent's time nothing replaces it.
+                    for (size_t j = i; j < list.size(); j++) {
+                        out->skipped++;
+                        c.say(LOG_DEBUG, "cuda device %d: %s/%s/%s not timed: the budget of %u ms is spent",
+                              c.ordinal, BIN_NAME[b], GEMM_NAMES[g], variant_name(list[j].c).c_str(), budget_ms);
+                    }
+                    break;
+                }
+                ga.min_steps = min_steps(k.c);
+                const bool mma = s.shape[b].tensor_cores && (s.half || k.c.tf32);
+                auto launch = [&]() { return gemm(st, ep, s.half, mma, k.c.tile, ga, k.grid); };
+                Timed tm;
+                const cudaError_t e = time_kernel(st, ev, launch, deadline, &tm);
+                if (e != cudaSuccess) {
+                    // A launch that fails leaves the stream as it was; a
+                    // fault in a kernel fails the session.
+                    (void)cudaGetLastError();
+                    TRY_CUDA(cudaStreamSynchronize(st), "the tuner's GEMM");
+                    c.say(LOG_INFO, "cuda device %d: %s/%s/%s failed to launch (%s), so it is not chosen", c.ordinal,
+                          BIN_NAME[b], GEMM_NAMES[g], name.c_str(), cudaGetErrorName(e));
+                    if (i == 0) break;
+                    continue;
+                }
+                // The first incumbent's times far apart may be the clocks
+                // still coming up or a moment's contention: timed again,
+                // up to BUSY_ROUNDS in all, before the device is called
+                // busy. A shared or throttling device stays apart.
+                for (int r = 1; i == 0 && !busy_checked && tm.spread > BUSY && r < BUSY_ROUNDS &&
+                                Clock::now() < deadline;
+                     r++) {
+                    c.say(LOG_DEBUG, "cuda device %d: %s/%s/%s's times were %.0f%% apart, so it is timed again",
+                          c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str(), 100.0 * tm.spread);
+                    TRY_CUDA(time_kernel(st, ev, launch, deadline, &tm), "the tuner's GEMM");
+                }
+                if (*reinterpret_cast<volatile int *>(s.fault)) {
+                    // A stream-K wait gave up: the time is not the
+                    // kernel's, and its flags are cleared for the next.
+                    *reinterpret_cast<volatile int *>(s.fault) = 0;
+                    TRY_CUDA(cudaMemsetAsync(s.flags, 0, (size_t)s.flag_ints * 4, st), "the tuner's GEMM");
+                    TRY_CUDA(cudaStreamSynchronize(st), "the tuner's GEMM");
+                    c.say(LOG_INFO, "cuda device %d: %s/%s/%s waited too long for a partial product, so it is not chosen",
+                          c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str());
+                    if (i == 0) break;
+                    continue;
+                }
+                c.say(LOG_DEBUG, "cuda device %d: %s/%s/%s at %d tokens: least %.4f ms, median %.4f ms of %d",
+                      c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str(), m, tm.min, tm.median, tm.n);
+                snprintf(line, sizeof line, "%s/%s/%s=%.4f\n", BIN_NAME[b], GEMM_NAMES[g], name.c_str(), tm.min);
+                out->timings += line;
+                out->measured = true;
+                if (i == 0) {
+                    incumbent = tm.min;
+                    if (!busy_checked && tm.spread > BUSY) {
+                        out->busy = true;
+                        c.say(LOG_WARNING,
+                              "cuda device %d: not tuned: the same GEMM's times were %.0f%% apart, so the device is "
+                              "shared or throttling; the next session measures again",
+                              c.ordinal, 100.0 * tm.spread);
+                        s.choices = before;
+                        out->measured = false;
+                        return TURBO_OK;
+                    }
+                    busy_checked = true;
+                    continue;
+                }
+                if (best < 0 || tm.min < fastest) {
+                    best = (int)i;
+                    fastest = tm.min;
+                }
+            }
+            if (incumbent <= 0) continue;
+            float chosen = incumbent;
+            if (best > 0 && fastest <= MARGIN * incumbent) {
+                GemmChoice &gc = s.choices.bin[b].gemm[g];
+                gc.tile = list[(size_t)best].c.tile;
+                gc.tf32 = list[(size_t)best].c.tf32;
+                chosen = fastest;
+            }
+            was += incumbent;
+            now += chosen;
+        }
+        first = false;
+        if (was > 0) {
+            snprintf(line, sizeof line, "%s%s: the GEMMs of a layer %.3f ms, the incumbents %.3f ms",
+                     out->summary.empty() ? "" : "; ", BIN_NAME[b], now, was);
+            out->summary += line;
+        }
+    }
+    return TURBO_OK;
+}
+
 int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
                              turbo_backend_tuning *tuning, uint32_t *compute_dtype, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
@@ -1726,9 +2158,11 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         base.tensor_cores = major >= 8;
         base.sms = sms;
         base.smem_optin = (size_t)optin;
+        const uint32_t mode = tuning ? tuning->mode : (uint32_t)TURBO_AUTOTUNE_OFF;
+        const bool tuned = mode == TURBO_AUTOTUNE_ON || mode == TURBO_AUTOTUNE_RETUNE;
         Choices ch = defaults(base);
         bool tf32 = false, f16_accumulate = false;
-        forced_from_environment(base, precision, &ch, &tf32, &f16_accumulate);
+        forced_from_environment(base, precision, tuned, &ch, &tf32, &f16_accumulate);
         char why[TURBO_ERROR_MESSAGE_LEN];
         uint32_t absent = 0;
         if (!choices_named(&ch, &absent, why, sizeof why)) return refuse(err, TURBO_E_INVALID_ARGUMENT, "%s", why);
@@ -1752,10 +2186,54 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
                                 "precision %s: %s computes in %s, which the precision does not allow",
                                 precision_name(precision), named, numeric);
-        // What the kernels compute in: the precision's classes, widened
-        // only by a class a chosen kernel runs in beyond them.
-        const uint32_t ran = numerics_of(base, ch);
-        const uint32_t used = allowed | (ran & ~tier);
+        for (int b = 0; b < ch.bins; b++)
+            for (int g = 0; g < GEMM_COUNT; g++)
+                if (made_to_fail(ch.bin[b].gemm[g]))
+                    return refuse(err, TURBO_E_UNSUPPORTED, "%s:%s=%s: the GEMM kernel cannot launch on this device",
+                                  BIN_NAME[b], GEMM_NAMES[g], variant_name(ch.bin[b].gemm[g]).c_str());
+        // The choices an earlier session with the same key measured, the
+        // incumbents here: taken only by a session that forces nothing and
+        // widens nothing, as the core caches only such sessions.
+        // cuBLAS's GEMMs run without a graph and have no variants to time,
+        // and a cached line would name kernels they do not run: such a
+        // session takes neither.
+        const unsigned cublas = cublas_gemms();
+        if (tuned && cublas)
+            c->say(LOG_INFO,
+                   "cuda device %d: not tuned: TURBO_CUDA_CUBLAS hands GEMMs to cuBLAS, whose kernels are its own",
+                   c->ordinal);
+        bool cached = false;
+        const bool plain = !forced_knobs(ch) && !tf32 && !f16_accumulate && !cublas;
+        if (tuned && tuning->cached && *tuning->cached && plain) {
+            Choices cc = ch;
+            uint32_t missing = 0;
+            char no[TURBO_ERROR_MESSAGE_LEN] = "a kernel of it cannot launch here";
+            bool ok = parse_choices(tuning->cached, &cc, &missing, no, sizeof no);
+            if (ok) {
+                for (BinChoices &bc : cc.bin) {
+                    bc.forced = 0;
+                    for (uint32_t &f : bc.gemm_forced) f = 0;
+                }
+                cc.pool_forced = 0;
+                whole_rows(base, &cc);
+                canonicalize(base, &cc);
+                ok = !outside(base, cc, tier, named, sizeof named, &numeric);
+                if (!ok) snprintf(no, sizeof no, "%s computes in %s", named, numeric);
+                for (int b = 0; ok && b < cc.bins; b++)
+                    for (int g = 0; g < GEMM_COUNT; g++) ok = ok && !made_to_fail(cc.bin[b].gemm[g]);
+            }
+            if (ok) {
+                ch = cc;
+                cached = true;
+                c->say(LOG_DEBUG, "cuda device %d: kernels from the cache: %s", c->ordinal, tuning->cached);
+            } else {
+                c->say(LOG_DEBUG, "cuda device %d: the cached kernels are not taken (%s): %s", c->ordinal, no,
+                       tuning->cached);
+            }
+        }
+        // ON with a cached choice takes it unmeasured; RETUNE measures
+        // against it.
+        const bool measure = tuned && !cublas && !(cached && mode == TURBO_AUTOTUNE_ON);
 
         Session *s = make<Session>();
         s->model = m;
@@ -1764,39 +2242,40 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         s->max_seq = max_seq;
         s->half = half;
         s->choices = ch;
-        s->cublas = cublas_gemms();
+        s->cublas = cublas;
         // Every bin's launches, and the workspace the largest of them needs.
         size_t sk_floats = 0;
         int sk_flags = 0, ln_counts = 0;
         bool crowded = false;
-        for (int b = 0; b < ch.bins; b++) {
-            s->shape[b] = shape_for(base, ch, b);
-            int same = 0;
-            while (same < b && !same_kernels(ch.bin[same], ch.bin[b])) same++;
-            cudaError_t e = cudaSuccess;
-            if (same < b)
-                s->plan[b] = s->plan[same];
-            else
-                e = make_plan(s->shape[b], &s->plan[b]);
-            if (e != cudaSuccess) {
-                release_session(s);
-                return cuda_failed(err, e, "planning the session's launches");
+        auto plan_bins = [&]() -> cudaError_t {
+            crowded = false;
+            for (int b = 0; b < s->choices.bins; b++) {
+                s->shape[b] = shape_for(base, s->choices, b);
+                int same = 0;
+                while (same < b && !same_kernels(s->choices.bin[same], s->choices.bin[b])) same++;
+                if (same < b) {
+                    s->plan[b] = s->plan[same];
+                } else {
+                    s->plan[b] = Plan{};
+                    const cudaError_t e = make_plan(s->shape[b], &s->plan[b]);
+                    if (e != cudaSuccess) return e;
+                }
+                const Plan &p = s->plan[b];
+                sk_floats = p.sk_floats > sk_floats ? p.sk_floats : sk_floats;
+                sk_flags = p.sk_flags > sk_flags ? p.sk_flags : sk_flags;
+                ln_counts = p.ln_counts > ln_counts ? p.ln_counts : ln_counts;
+                crowded = crowded || p.gemm_crowded;
             }
-            const Plan &p = s->plan[b];
-            sk_floats = p.sk_floats > sk_floats ? p.sk_floats : sk_floats;
-            sk_flags = p.sk_flags > sk_flags ? p.sk_flags : sk_flags;
-            ln_counts = p.ln_counts > ln_counts ? p.ln_counts : ln_counts;
-            crowded = crowded || p.gemm_crowded;
+            return cudaSuccess;
+        };
+        if (const cudaError_t e = plan_bins(); e != cudaSuccess) {
+            release_session(s);
+            return cuda_failed(err, e, "planning the session's launches");
         }
-        // The pooling as the plan takes it: a thread per column for hidden
-        // states too wide for the groups.
-        ch.pool = s->plan[0].column_pool ? POOL_COLUMNS : POOL_GROUPS;
-        s->choices.pool = ch.pool;
-        if (crowded)
-            c->say(LOG_WARNING,
-                   "cuda device %d: a GEMM's kernel fits fewer blocks to an SM than it was built for, so it runs "
-                   "slower than it should",
-                   c->ordinal);
+        // The variants the tuner may time, and the workspace the largest
+        // needs: the session's memory holds every one of them.
+        Tuning tn;
+        if (measure) find_candidates(*c, base, s->choices, s->plan, runs, &tn, &sk_floats, &sk_flags);
         const size_t act = half ? 2 : 4;
         const size_t h = d.hidden, inter = d.intermediate;
         const size_t ints = round_up(tokens * 4, DEVICE_ALIGN);
@@ -1814,6 +2293,8 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         const size_t widest = 3 * h > inter ? 3 * h : inter;
         const size_t raw = s->cublas & (CUBLAS_QKV | CUBLAS_FFN1) ? round_up(tokens * widest * 4, DEVICE_ALIGN) : 0;
         const size_t output = round_up((size_t)max_batch * h * 4, DEVICE_ALIGN);
+        Tuned found;
+        uint32_t tune_ms = 0;
         const size_t total = 5 * ints + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output;
         const int32_t rc = [&]() -> int32_t {
             TRY_CUDA(device_malloc(&s->scratch, total), "device memory for the session");
@@ -1867,12 +2348,48 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             // once, they hold finite values whatever reads them.
             TRY_CUDA(cudaMemsetAsync(s->scratch, 0, total, c->stream), "clearing the session's memory");
             TRY_CUDA(cudaStreamSynchronize(c->stream), "clearing the session's memory");
+            if (measure) {
+                const Clock::time_point tune_start = Clock::now();
+                TRY(tune(*s, tn, tuning->budget_ms, &found, err));
+                // The chosen kernels' launches, in the memory sized for
+                // every candidate's, cleared again for the graphs.
+                TRY_CUDA(plan_bins(), "planning the session's launches");
+                *s->fault = 0;
+                TRY_CUDA(cudaMemsetAsync(s->scratch, 0, total, c->stream), "clearing the session's memory");
+                TRY_CUDA(cudaStreamSynchronize(c->stream), "clearing the session's memory");
+                s->fetch.n = 0;
+                s->tokens = 0;
+                s->run = RunArgs{};
+                tune_ms = (uint32_t)std::ceil(ms_since(tune_start));
+            }
             if (!s->cublas) TRY(capture_bins(*s, err));
             return TURBO_OK;
         }();
         if (rc != TURBO_OK) {
             release_session(s);
             return rc;
+        }
+        // The pooling as the plan takes it: a thread per column for hidden
+        // states too wide for the groups.
+        s->choices.pool = s->plan[0].column_pool ? POOL_COLUMNS : POOL_GROUPS;
+        if (crowded)
+            c->say(LOG_WARNING,
+                   "cuda device %d: a GEMM's kernel fits fewer blocks to an SM than it was built for, so it runs "
+                   "slower than it should",
+                   c->ordinal);
+        // What the kernels compute in: the precision's classes, widened
+        // only by a class a chosen kernel runs in beyond them.
+        const uint32_t ran = numerics_of(base, s->choices);
+        const uint32_t used = allowed | (ran & ~tier);
+        char line[TURBO_CHOICES_LEN];
+        format_choices(s->choices, line, sizeof line);
+        if (found.measured) {
+            c->say(LOG_INFO, "cuda device %d: kernels chosen in %u ms for %d token bins: %s (%s%s%d not timed)",
+                   c->ordinal, tune_ms, s->choices.bins, line, found.summary.c_str(),
+                   found.summary.empty() ? "" : "; ", found.skipped);
+        } else if (cached && !measure) {
+            c->say(LOG_DEBUG, "cuda device %d: kernels from the cache for %d token bins: %s", c->ordinal,
+                   s->choices.bins, line);
         }
         c->say(LOG_DEBUG,
                "cuda device %d: an embed session of %u rows of %u tokens, its GEMMs computing in %s%s; attention %zu "
@@ -1881,10 +2398,24 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
                s->cublas ? ", some GEMMs on cuBLAS, without a graph" : ", as graphs", s->plan[0].attn_smem,
                s->plan[0].attn_chunk);
         if (tuning) {
-            tuning->tuned = all_forced(s->choices) ? TURBO_TUNED_FORCED : TURBO_TUNED_DEFAULT;
-            tuning->tune_ms = 0;
-            format_choices(s->choices, tuning->choices, sizeof tuning->choices);
-            if (tuning->timings && tuning->timings_len) tuning->timings[0] = 0;
+            if (found.measured)
+                tuning->tuned = TURBO_TUNED_MEASURED;
+            else if (cached)
+                tuning->tuned = TURBO_TUNED_CACHE;
+            else
+                tuning->tuned = all_forced(s->choices) ? TURBO_TUNED_FORCED : TURBO_TUNED_DEFAULT;
+            tuning->tune_ms = found.measured ? tune_ms : 0;
+            copy_str(tuning->choices, sizeof tuning->choices, line);
+            if (tuning->timings && tuning->timings_len) {
+                // Whole lines, as many as fit.
+                std::string tl = found.measured ? found.timings : std::string();
+                if (tl.size() >= tuning->timings_len) {
+                    tl.resize(tuning->timings_len - 1);
+                    const size_t end = tl.rfind('\n');
+                    tl.resize(end == std::string::npos ? 0 : end + 1);
+                }
+                copy_str(tuning->timings, tuning->timings_len, tl.c_str());
+            }
             tuning->numerics_used = used;
         }
         *compute_dtype = half ? TURBO_DTYPE_F16 : TURBO_DTYPE_F32;
@@ -2351,6 +2882,15 @@ int32_t turbo_cuda_variants(uint32_t ordinal, uint32_t precision, char *out, siz
  * TURBO_CUDA_SK_STEPS would name it: 0 the kernels' own, 1 to 64 the
  * fewest k steps a block takes, -2 whole tiles to a block; -1 to read the
  * variable again. */
+/* The GEMM variant, by the name a choices string gives its kernel
+ * ("sw8w", "128x64/tf32"), that fails to launch in the sessions made next,
+ * or NULL for none: the tuner skips it and a session that forces it is
+ * refused. For the tests. */
+void turbo_cuda_fail_variant(const char *name) {
+    std::lock_guard<std::mutex> l(fail_lock);
+    fail_name = name ? name : "";
+}
+
 void turbo_cuda_use_sk_steps(int32_t steps) { sk_override.store(steps, std::memory_order_relaxed); }
 
 /* The FMA attention of sessions made from now on: 1 the key-split kernel

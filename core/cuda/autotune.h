@@ -53,6 +53,9 @@ inline int bin_of(uint32_t tokens, int bins) {
     return b;
 }
 
+/* The GEMMs by name, as a choices string's items spell them, by Gemm. */
+constexpr const char *GEMM_NAMES[GEMM_COUNT] = {"qkv", "out", "ffn1", "ffn2"};
+
 /* The tiles by name, as a choices string spells them, and whether
  * TURBO_CUDA_TILE takes the name: every one but the F16 accumulators'
  * eight-warp tiles, which TURBO_CUDA_F16_ACCUMULATE picks. */
@@ -142,6 +145,14 @@ bool all_forced(const Choices &c);
  * runs, so the string reports what ran and forcing it back runs the same.
  * The pooling is set from the plan, after. */
 void canonicalize(const Shape &base, Choices *c);
+
+/* g as it runs in a GEMM of the base shape: the tile the kernel family
+ * takes in its place, and TF32 only for F32 operands on tensor cores. */
+GemmChoice canonical_gemm(Gemm which, const Shape &base, GemmChoice g);
+
+/* A GEMM's kernel as the variants name it: its tile, then "/tf32" when
+ * it computes in TF32. */
+std::string variant_name(const GemmChoice &g);
 
 /* The TURBO_NUMERIC_* class a GEMM of the choice computes in. */
 uint32_t gemm_numeric(const Shape &base, const GemmChoice &g);
