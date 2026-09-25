@@ -53,11 +53,14 @@ frameworks and libc++, which every macOS has.
   name's first word. `runtime_version` is the SDK the build compiled
   against (`Metal, macOS SDK 27.0`); `driver_version` is the macOS
   version and build, since Metal ships with it (`macOS 27.0 (26A428)`).
-- **Capability.** Embed is EXPERIMENTAL at every precision, computing in
+- **Capability.** Embed runs at every precision, computing in
   F32, honoring every field of `turbo_embed_options`. A model stored in
   F16 or BF16 computes in F32 from a converted copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
-  as on the CPU.
+  as on the CPU. A cell is SUPPORTED where a benchmark record in
+  `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
+  records against TEI's router built natively with Metal. Elsewhere it is
+  EXPERIMENTAL.
 - **Contexts.** A context is a command queue on its device and the
   kernels, compiled from their source without fast math, so `exp`,
   `sqrt` and division are the precise ones: with the macOS 15 SDK or
