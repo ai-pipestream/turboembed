@@ -17,6 +17,8 @@ pub mod bundle;
 #[cfg(feature = "cpu")]
 pub mod cpu;
 pub mod manifest;
+#[cfg(feature = "metal")]
+pub mod metal;
 pub mod model;
 pub mod safetensors;
 mod session;

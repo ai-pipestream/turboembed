@@ -179,6 +179,8 @@ pub fn linked() -> &'static [&'static turbo_backend] {
 static LINKED: &[&turbo_backend] = &[
     #[cfg(feature = "cpu")]
     &crate::cpu::BACKEND,
+    #[cfg(feature = "metal")]
+    &crate::metal::turbo_metal_backend,
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.

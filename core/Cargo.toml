@@ -25,9 +25,13 @@ tokenizers = { version = "0.22", default-features = false, features = ["fancy-re
 # The tests read where a model's weights are through `internals`.
 turbo = { path = ".", features = ["internals"] }
 
+[build-dependencies]
+cc = { version = "1", optional = true }
+
 [features]
 default = ["cpu"]
 # Backends are linked in by feature; turbo_version() lists them.
 cpu = []
+metal = ["dep:cc"]
 # Test-only views of the core's state, never in a release library.
 internals = []
