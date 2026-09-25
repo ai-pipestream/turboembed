@@ -53,6 +53,15 @@ header fixes a session's compute dtype at `turbo_session_create` and has
 no per-run choice, so a request cannot name either; a request parameter
 `precision` or `device` is an unknown parameter (Errors).
 
+The command line gives each model as one `--model` of comma-separated
+settings, so a bundle path may not contain a comma.
+
+One setting is the server's, not a model's: `--max-message-bytes`, the
+largest request message gRPC reads, 64 MiB when absent. A request larger
+than it is refused by gRPC with `RESOURCE_EXHAUSTED` before it is read,
+and carries no `turbo-code`: no turbo call is made for it, and texts have
+no session bound that would refuse it first.
+
 A failure in any of these calls stops the server before it is ready. It
 logs the call, `turbo_status_name` of the code, the field if the error
 names one, and `turbo_error.message`, and exits with a non-zero status.
@@ -96,7 +105,8 @@ A model is ready only after `turbo_model_load` and every one of its
 `turbo_session_create` calls have returned `TURBO_OK`. Until then
 `ModelReady` is false, `ServerReady` is false, and `ModelMetadata` and
 `ModelInfer` for it are `TURBO_E_INVALID_STATE`: a call made before the
-state it needs. A client polls `ModelReady` until it is true rather
+state it needs. Before load the revision is unknown, so `ModelReady`
+with any version is false. A client polls `ModelReady` until it is true rather
 than retrying `ModelInfer` on that status. Once ready, a model stays
 ready until the server stops; the server has no unload.
 
@@ -120,7 +130,9 @@ The properties are the header's facts about the model on its device,
 keyed by struct and field, the struct named without its `turbo_`
 prefix. Integers are decimal, enum values are constant names without
 `TURBO_`, floats are the shortest decimal that reads back as the same
-`float`, and strings are the struct's, up to its NUL.
+`float`, and strings are the struct's, up to its NUL. An enum value the
+header has no constant for (`capability.dtype` 0, say) is written in
+decimal.
 
 | Key | Source |
 |---|---|
@@ -132,7 +144,9 @@ prefix. Integers are decimal, enum values are constant names without
 `options_honored` is the bit mask as a decimal integer: bit (i-1) is
 field i of `turbo_embed_options` (Parameters). `memory_free` is left
 out; it is a reading of the moment, not a fact about the model. The
-server reads these on each call.
+server reads these on each call, except `session_info`, which the header
+fixes at `turbo_session_create`: it is read once at load, so a held
+session is never asked.
 
 ## Inference
 
@@ -154,7 +168,8 @@ names are the header's parameter and field names.
 Any other set of inputs, a name given twice, or another datatype (INT64
 ids, say) is `TURBO_E_INVALID_ARGUMENT`; nothing is converted. A shape
 of the wrong rank, a negative extent, `mask` or `types` shaped unlike
-`ids`, or contents whose element count is not the shape's product is
+`ids`, contents whose element count is not the shape's product, or, for
+raw contents, a byte count other than 4 × batch × seq is
 `TURBO_E_INVALID_SHAPE`. An extent larger than a `uint32_t` holds is
 `TURBO_E_INVALID_SHAPE`.
 
@@ -215,6 +230,7 @@ reorder, round or convert them. The response always uses
 another, the datatype would be its name in the protocol (`DTYPE_F16`
 FP16, `DTYPE_BF16` BF16, `DTYPE_I32` INT32), never a conversion. BF16
 is the proto's own name for it, from the note on `raw_input_contents`.
+A result dtype with no protocol name is `TURBO_E_INTERNAL`.
 
 Where the vectors are decides how they reach the wire. The protobuf
 encoder copies every `bytes` field into the frame it sends; that copy
@@ -242,7 +258,8 @@ revision, and `id` the request's `id`.
 The response's `parameters` are the scalar fields of
 `turbo_result_info`, read with `turbo_result_get_info` after the vectors
 are read, so `d2h_bytes` includes that read. Integers are `int64_param`,
-enum values and strings `string_param` as in Metadata.
+enum values and strings `string_param` as in Metadata. A `uint64_t`
+counter above the largest `int64_t` is clamped to it.
 
 | Parameter | Field |
 |---|---|
@@ -328,6 +345,12 @@ until then. When every session of the model is held, the request is
 answered at once with `TURBO_E_BUSY`, the status the header gives a call
 on a busy session. The server keeps no queue and does not wait.
 
+A request is checked (inputs, contents, parameters) before a session is
+taken; only a request the server would send to the library is told
+`TURBO_E_BUSY`. The raw-contents `TURBO_E_CAPACITY` refusal (Contents)
+is made against the sessions' limits before one is taken, so it too
+comes before `TURBO_E_BUSY`.
+
 The header has no way to stop a run. A request whose client cancels,
 or whose deadline passes, during a run keeps its session until the run
 ends and the result is released; the answer is then dropped.
@@ -337,7 +360,8 @@ ends and the result is released; the answer is then dropped.
 
 ## Errors
 
-Every error the server answers is a turbo status code. The gRPC status
+Every error the server answers is a turbo status code, except a message
+over `--max-message-bytes` (Serving a bundle). The gRPC status
 code is from the table; the status message is
 
 ```
