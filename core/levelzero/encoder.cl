@@ -388,11 +388,10 @@ LINEAR_DPAS(linear_dpas_few_to_half, 8, 32, 1, 4, DPAS_READ_A_8, half, DPAS_STOR
 /* The attention output and the feed-forward output at FASTEST, with the
  * LayerNorm after them: x = LayerNorm(x + (y + bias)) as add_layer_norm,
  * and xh its F16 copy, y = act . wt as in LINEAR_DPAS with n_out = hidden.
- * A sub-group computes TM tokens by 32 outputs, and a group of hidden / 32
- * by up to DPAS_LN_BLOCKS of them the whole hidden width of up to
- * DPAS_LN_BLOCKS blocks of TM tokens, so a group holds whole rows, the
- * rows' sums meet in local memory, and a block's sub-groups read the
- * weights of their columns from cache after the first. The sums are F32,
+ * A sub-group computes TM tokens by 32 outputs. A group has hidden / 32
+ * sub-groups for each of its blocks of TM tokens, up to DPAS_LN_BLOCKS, so
+ * it holds whole rows, the rows' sums meet in local memory, and each block
+ * after the first reads its columns' weights from cache. The sums are F32,
  * each row's in one order whatever the blocks. hidden / 32 times the
  * blocks is at most DPAS_LN_SUBGROUPS. */
 

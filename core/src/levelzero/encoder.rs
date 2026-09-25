@@ -1027,7 +1027,7 @@ impl Session {
                 I32(n_in as i32),
             ];
             // Fewer tokens than a full group of blocks: one block a group,
-            // so no sub-group computes rows past the last token. A row's
+            // so at most one block's tail computes rows past the last token. A row's
             // sums run in one order either way.
             let blocks = dpas_ln_blocks(h);
             let (kln, rows) =
