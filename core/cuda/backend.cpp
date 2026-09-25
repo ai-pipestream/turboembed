@@ -986,11 +986,11 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // later kernel reads the count there and is launched for the session's
 // max_batch x max_seq tokens, its blocks looping over the work there is,
 // so the run's launches never change: session_create captures them once
-// into a graph, and a run is one graph launch, after the pack kernel's
-// argument (the rows' shape and the embed options) is set in it when it
-// differs from the last run's. The rows go to the device as they are, one
-// [k][batch][seq] array, and the kernels read their shape from the
-// packing, so no launch depends on the rows' width either.
+// into a graph, and a run is one graph launch, after the fetch and pack
+// kernels' arguments (the rows' shape and the embed options) are set in
+// it when they differ from the last run's. The rows go to the device as
+// they are, one [k][batch][seq] array, and the kernels read their shape
+// from the packing, so no launch depends on the rows' width either.
 //
 // An F16 session (FASTEST) keeps the hidden states, the residuals, the
 // LayerNorms, softmax and pooling in F32, as an F32 session does; its
@@ -998,9 +998,9 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // accumulate in F32; the QKV and feed-forward input GEMMs and attention
 // write F16, which only a GEMM or attention reads.
 //
-// TURBO_CUDA_TILE, read when a session is made, names the tile of the QKV
-// and feed-forward input GEMMs: 64x64, 128x64 (the default) or 128x128
-// (F32 only), for measuring one against another.
+// TURBO_CUDA_TILE, read when a session is made, names the GEMMs' tile:
+// 64x64, 128x64 (the default) or 128x128 (the FMA kernel only), for
+// measuring one against another.
 //
 // TURBO_CUDA_CUBLAS, read when a session is made, hands the GEMMs it names
 // to cuBLAS: a comma-separated list of qkv, out, ffn1 and ffn2, or all.
@@ -1009,12 +1009,13 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // token count embed_write finds on the host.
 //
 // embed_write sends the rows to the device: from the caller's memory when
-// it is page-locked (a PINNED buffer's, say), waiting for the copy, since
-// that memory is the caller's again when the call returns; else through
-// the session's staging, laid out as on the device, in one copy, without
-// waiting: the run is queued behind the copy, and the next write waits
-// for it before it writes the staging again. Only the run's end waits on the stream. run then leaves the
-// vectors on the device, in the session's DEVICE buffer:
+// every array is page-locked (a PINNED buffer's, say) or managed and its
+// rows are back to back, one contiguous copy each, waiting for them,
+// since that memory is the caller's again when the call returns; else
+// into the session's page-locked staging, laid out as on the device,
+// which the run's first kernel reads over the bus, so nothing is queued
+// ahead of the graph. Only the run's end waits on the stream. run then
+// leaves the vectors on the device, in the session's DEVICE buffer:
 // turbo_result_buffer hands out that memory, and turbo_result_read copies
 // it back through buffer_read.
 // So UPLOAD is a device stage, DOWNLOAD does not run, h2d_bytes is the
@@ -1081,25 +1082,31 @@ struct Session {
     /* The QKV GEMM's head-major output, attention's context and GELU's
      * output: F16 in an F16 session, else F32. */
     void *qkv = nullptr, *att = nullptr, *ffn = nullptr;
-    /* The output and feed-forward GEMMs' partial products,
-     * [splits, tokens, hidden], plan.part_rows rows at most. */
+    /* The attention output and feed-forward output GEMMs' products,
+     * [tokens, hidden], which add_layer_norm adds. */
     float *part = nullptr;
+    /* The GEMMs' stream-K workspace and flags. */
+    float *ws = nullptr;
+    int *flags = nullptr;
     /* A cuBLAS product before its epilogue, when cuBLAS computes one. */
     float *raw = nullptr;
     /* [max_batch, hidden] F32 on the device, handed out as the output. */
     Buffer output;
-    /* [3, max_batch * max_seq] int32, page-locked, and the event that
-     * says the last write's copies from it are done. */
+    /* [3, max_batch * max_seq] int32, page-locked, which the run's fetch
+     * kernel reads, and the event that says a write's copies from the
+     * caller's memory are done. */
     int32_t *staging = nullptr;
     cudaEvent_t sent = nullptr;
-    /* The run as a graph, its pack kernel's node and argument, and the
-     * rows' shape and options last set in it. */
+    /* The run as a graph, its fetch and pack kernels' nodes and arguments,
+     * and the arguments last set in it. */
     cudaGraph_t graph = nullptr;
     cudaGraphExec_t exec = nullptr;
-    cudaGraphNode_t pack_node = nullptr;
+    cudaGraphNode_t pack_node = nullptr, fetch_node = nullptr;
     PackArgs pack{};
-    void *pack_argv[1] = {nullptr};
+    FetchArgs fetch{};
+    void *pack_argv[1] = {nullptr}, *fetch_argv[1] = {nullptr};
     RunArgs in_graph{};
+    int32_t fetch_in_graph = 0;
     bool graph_set = false;
     /* What the last write left. */
     bool written = false;
@@ -1135,8 +1142,6 @@ cublasStatus_t linear(cublasHandle_t h, bool half, const void *x, int tokens, in
                         n_in, &zero, y, CUDA_R_32F, n_out, CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT);
 }
 
-int round32(int n) { return (n + 31) & ~31; }
-
 /* The encoder, queued on the context's stream: captured into the graph,
  * or run as it is queued when cuBLAS computes a GEMM. */
 int32_t encode(Session &s, turbo_error *err) {
@@ -1160,6 +1165,7 @@ int32_t encode(Session &s, turbo_error *err) {
     const void *xin = half ? static_cast<const void *>(s.x16) : s.x;
     const Info *info = s.pk.info;
 
+    TRY_CUDA(fetch_rows(st, s.fetch, plan), "fetching the rows");
     TRY_CUDA(pack_rows(st, s.pack, plan), "packing the rows");
     TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
                               h, s.x, s.x16, plan),
@@ -1170,6 +1176,8 @@ int32_t encode(Session &s, turbo_error *err) {
     g.head_dim = hd;
     g.hidden = h;
     g.tcap = tcap;
+    g.ws = s.ws;
+    g.flags = s.flags;
     AttnArgs aa{};
     aa.qkv = s.qkv;
     aa.ctx = s.att;
@@ -1192,9 +1200,6 @@ int32_t encode(Session &s, turbo_error *err) {
         g.out = s.qkv;
         g.n = 3 * h;
         g.k = h;
-        g.slot = NO_SPLIT;
-        g.splits = 1;
-        g.ksplit = round32(h);
         if (s.cublas & CUBLAS_QKV) {
             TRY_CUBLAS(linear(blas, half, xin, tokens, h, g.w, 3 * h, s.raw), "the query, key and value projections");
             TRY_CUDA(qkv_epilogue(st, s.raw, g, half, plan), "the query, key and value biases");
@@ -1208,20 +1213,17 @@ int32_t encode(Session &s, turbo_error *err) {
         g.bias = nullptr;
         g.out = s.part;
         g.n = h;
-        SplitSlot slot = NO_SPLIT;
         if (s.cublas & CUBLAS_OUT) {
             TRY_CUBLAS(linear(blas, half, s.att, tokens, h, g.w, h, s.part), "the attention output projection");
         } else {
-            g.slot = slot = SPLIT_OUT;
-            TRY_CUDA(gemm(st, EPI_PARTIAL, half, tc, tile, g, plan.out_grid), "the attention output projection");
+            TRY_CUDA(gemm(st, EPI_PLAIN, half, tc, tile, g, plan.out_grid), "the attention output projection");
         }
-        TRY_CUDA(add_layer_norm(st, s.x, s.part, slot, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
+        TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
                                 layer(l, TURBO_BERT_ATTN_LN_WEIGHT), layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info, h,
                                 s.x16, plan),
                  "the attention LayerNorm");
 
         g.a = xin;
-        g.slot = NO_SPLIT;
         g.w = weight(l, TURBO_BERT_FFN_IN_WEIGHT);
         g.bias = layer(l, TURBO_BERT_FFN_IN_BIAS);
         g.out = s.ffn;
@@ -1239,14 +1241,12 @@ int32_t encode(Session &s, turbo_error *err) {
         g.out = s.part;
         g.n = h;
         g.k = inter;
-        slot = NO_SPLIT;
         if (s.cublas & CUBLAS_FFN2) {
             TRY_CUBLAS(linear(blas, half, s.ffn, tokens, inter, g.w, h, s.part), "the feed-forward output");
         } else {
-            g.slot = slot = SPLIT_FFN2;
-            TRY_CUDA(gemm(st, EPI_PARTIAL, half, tc, tile, g, plan.ffn2_grid), "the feed-forward output");
+            TRY_CUDA(gemm(st, EPI_PLAIN, half, tc, tile, g, plan.ffn2_grid), "the feed-forward output");
         }
-        TRY_CUDA(add_layer_norm(st, s.x, s.part, slot, layer(l, TURBO_BERT_FFN_OUT_BIAS),
+        TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_FFN_OUT_BIAS),
                                 layer(l, TURBO_BERT_FFN_LN_WEIGHT), layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h,
                                 s.x16, plan),
                  "the feed-forward LayerNorm");
@@ -1281,8 +1281,10 @@ int32_t capture(Session &s, turbo_error *err) {
         cudaKernelNodeParams kp;
         TRY_CUDA(cudaGraphKernelNodeGetParams(node, &kp), "the run's graph");
         if (kp.func == pack_rows_function()) s.pack_node = node;
+        if (kp.func == fetch_rows_function()) s.fetch_node = node;
     }
-    if (!s.pack_node) return refuse(err, TURBO_E_INTERNAL, "the run's graph has no packing kernel");
+    if (!s.pack_node || !s.fetch_node)
+        return refuse(err, TURBO_E_INTERNAL, "the run's graph has no packing or fetch kernel");
     TRY_CUDA(cudaGraphInstantiateWithFlags(&s.exec, graph, 0), "cudaGraphInstantiate");
     TRY_CUDA(cudaGraphUpload(s.exec, st), "cudaGraphUpload");
     TRY_CUDA(cudaStreamSynchronize(st), "cudaGraphUpload");
@@ -1375,13 +1377,13 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         const size_t qkv = round_up(3 * tokens * h * act, DEVICE_ALIGN);
         const size_t att = round_up(tokens * h * act, DEVICE_ALIGN);
         const size_t ffn = round_up(tokens * inter * act, DEVICE_ALIGN);
-        const size_t part_rows = plan.part_rows > tokens ? plan.part_rows : tokens;
-        const size_t part = round_up(part_rows * h * 4, DEVICE_ALIGN);
-        const size_t raw =
-            s->cublas & (CUBLAS_QKV | CUBLAS_FFN1) ? round_up(tokens * (3 * h > inter ? 3 * h : inter) * 4, DEVICE_ALIGN)
-                                                   : 0;
+        const size_t part = round_up(tokens * h * 4, DEVICE_ALIGN);
+        const size_t ws = round_up(plan.sk_floats * 4, DEVICE_ALIGN);
+        const size_t flags = round_up((size_t)plan.sk_flags * 4, DEVICE_ALIGN);
+        const size_t widest = 3 * h > inter ? 3 * h : inter;
+        const size_t raw = s->cublas & (CUBLAS_QKV | CUBLAS_FFN1) ? round_up(tokens * widest * 4, DEVICE_ALIGN) : 0;
         const size_t output = round_up((size_t)max_batch * h * 4, DEVICE_ALIGN);
-        const size_t total = 5 * ints + 5 * rows + info + x + x16 + qkv + att + ffn + part + raw + output;
+        const size_t total = 5 * ints + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output;
         const int32_t rc = [&]() -> int32_t {
             TRY_CUDA(device_malloc(&s->scratch, total), "device memory for the session");
             TRY_CUDA(pinned_malloc(reinterpret_cast<void **>(&s->staging), 3 * tokens * 4),
@@ -1408,6 +1410,8 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             s->att = take(att);
             s->ffn = take(ffn);
             s->part = reinterpret_cast<float *>(take(part));
+            s->ws = reinterpret_cast<float *>(take(ws));
+            s->flags = reinterpret_cast<int *>(take(flags));
             if (raw) s->raw = reinterpret_cast<float *>(take(raw));
             s->output.ctx = c;
             s->output.ptr = take(output);
@@ -1417,12 +1421,12 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             s->pack.rows = s->rows;
             s->pack.heads = (int32_t)d.heads;
             s->pack.queries = plan.attn_queries;
-            s->pack.hidden = (int32_t)d.hidden;
-            s->pack.inter = (int32_t)d.intermediate;
-            s->pack.part_bm = plan.part_bm;
-            s->pack.part_bn = plan.part_bn;
-            s->pack.sms = sh.sms;
             s->pack.p = s->pk;
+            void *staged = nullptr;
+            TRY_CUDA(cudaHostGetDevicePointer(&staged, s->staging, 0), "the staging's device address");
+            s->fetch.src = static_cast<const int32_t *>(staged);
+            s->fetch.dst = s->rows;
+            s->fetch.n = 0;
             std::lock_guard<std::mutex> g(c->lock);
             // Rows past a run's tokens are never read into an output; zeroed
             // once, they hold finite values whatever reads them.
@@ -1454,51 +1458,44 @@ void session_release(void *session) {
     }
 }
 
-/* The rows to the device, into s.rows as [k][batch][seq]: each array the
- * caller's memory holds page-locked or managed straight from there, with
- * *direct set; the rest through the staging, laid out as on the device,
- * in one copy when they follow each other there. Device memory is
- * refused: the core has read and checked the rows on the host, so they
- * are host memory, page-locked, managed or pageable. *sent is the bytes
- * sent. */
+/* The rows to the device, into s.rows as [k][batch][seq]. When every
+ * array is page-locked or managed and its rows are back to back, each is
+ * one contiguous copy from the caller's memory, with *direct set, and the
+ * run's fetch kernel does nothing. Otherwise the arrays are laid out in
+ * the page-locked staging as on the device and the run's fetch kernel
+ * reads them from there, so no copy is queued ahead of the run. Device
+ * memory is refused: the core has read and checked the rows on the host,
+ * so they are host memory, page-locked, managed or pageable. *sent is the
+ * bytes sent. */
 int32_t upload(Session &s, const turbo_backend_embed_rows *r, uint64_t *sent, bool *direct, turbo_error *err) {
     const int32_t *src[3] = {r->ids, r->mask, r->types};
     const int k = r->types ? 3 : 2;
     const size_t row = (size_t)r->seq * 4, plane = (size_t)r->batch * r->seq;
-    bool staged[3] = {false, false, false};
+    bool pinned = r->row_stride == r->seq;
     for (int i = 0; i < k; i++) {
         const cudaPointerAttributes a = attributes(src[i]);
         if (a.type == cudaMemoryTypeDevice)
             return refuse(err, TURBO_E_INVALID_ARGUMENT, "rows are device memory; the core reads rows on the host");
-        int32_t *dst = s.rows + i * plane;
-        if (a.type == cudaMemoryTypeHost || a.type == cudaMemoryTypeManaged) {
-            TRY_CUDA(cudaMemcpy2DAsync(dst, row, src[i], (size_t)r->row_stride * 4, row, r->batch,
-                                       cudaMemcpyHostToDevice, s.ctx->stream),
+        if (a.type != cudaMemoryTypeHost && a.type != cudaMemoryTypeManaged) pinned = false;
+    }
+    *sent = (uint64_t)k * row * r->batch;
+    if (pinned) {
+        for (int i = 0; i < k; i++)
+            TRY_CUDA(cudaMemcpyAsync(s.rows + i * plane, src[i], plane * 4, cudaMemcpyHostToDevice, s.ctx->stream),
                      "sending the rows");
-            *direct = true;
-        } else {
-            int32_t *at = s.staging + i * plane;
-            if (r->row_stride == r->seq)
-                memcpy(at, src[i], row * r->batch);
-            else
-                for (uint32_t b = 0; b < r->batch; b++)
-                    memcpy(at + (size_t)b * r->seq, src[i] + (size_t)b * r->row_stride, row);
-            staged[i] = true;
-        }
-        *sent += row * r->batch;
+        *direct = true;
+        s.fetch.n = 0;
+        return TURBO_OK;
     }
-    for (int i = 0; i < k;) {
-        if (!staged[i]) {
-            i++;
-            continue;
-        }
-        int j = i;
-        while (j < k && staged[j]) j++;
-        TRY_CUDA(cudaMemcpyAsync(s.rows + i * plane, s.staging + i * plane, (j - i) * plane * 4,
-                                 cudaMemcpyHostToDevice, s.ctx->stream),
-                 "sending the rows");
-        i = j;
+    for (int i = 0; i < k; i++) {
+        int32_t *at = s.staging + i * plane;
+        if (r->row_stride == r->seq)
+            memcpy(at, src[i], row * r->batch);
+        else
+            for (uint32_t b = 0; b < r->batch; b++)
+                memcpy(at + (size_t)b * r->seq, src[i] + (size_t)b * r->row_stride, row);
     }
+    s.fetch.n = (int32_t)(k * plane);
     return TURBO_OK;
 }
 
@@ -1521,10 +1518,8 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
         {
             std::lock_guard<std::mutex> g(s.ctx->lock);
             ON_DEVICE(s.ctx->ordinal);
-            // The staging is written again here: the last write's copies
-            // from it are done first (at once, after a run, which waited
-            // for them).
-            TRY_CUDA(cudaEventSynchronize(s.sent), "sending the rows");
+            // Nothing reads the staging or the device's rows now: a run
+            // waits for its end, and a write for its own copies.
             bool direct = false;
             const int32_t rc = upload(s, r, &sent, &direct, err);
             if (rc != TURBO_OK) {
@@ -1532,13 +1527,14 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
                 (void)cudaStreamSynchronize(s.ctx->stream);
                 return rc;
             }
-            TRY_CUDA(cudaEventRecord(s.sent, s.ctx->stream), "sending the rows");
             // Rows copied from the caller's page-locked or managed memory
             // are read by the device until the copy ends, and the caller's
-            // arrays are valid for this call only: wait for them. Rows
-            // copied through the staging are the session's, and the run
-            // that reads them is queued behind the copy.
-            if (direct) TRY_CUDA(cudaEventSynchronize(s.sent), "sending the rows");
+            // arrays are valid for this call only: wait for them. Rows in
+            // the staging are the session's, and the run reads them.
+            if (direct) {
+                TRY_CUDA(cudaEventRecord(s.sent, s.ctx->stream), "sending the rows");
+                TRY_CUDA(cudaEventSynchronize(s.sent), "sending the rows");
+            }
         }
         s.run.batch = (int32_t)r->batch;
         s.run.seq = (int32_t)r->seq;
@@ -1554,18 +1550,22 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
 }
 
 /* The written rows through the encoder: the graph, with this run's rows'
- * shape and options set in its pack kernel when they differ from the
- * last run's, or the launches one by one when cuBLAS computes a GEMM. */
+ * shape and options set in its fetch and pack kernels when they differ
+ * from the last run's, or the launches one by one when cuBLAS computes a
+ * GEMM. */
 int32_t launch(Session &s, turbo_error *err) {
     s.pack.run = s.run;
     if (s.cublas) return encode(s, err);
-    if (!s.graph_set || memcmp(&s.in_graph, &s.run, sizeof s.run) != 0) {
-        // Marked unset first: a failure leaves the graph's argument unknown.
+    if (!s.graph_set || memcmp(&s.in_graph, &s.run, sizeof s.run) != 0 || s.fetch_in_graph != s.fetch.n) {
+        // Marked unset first: a failure leaves the graph's arguments unknown.
         s.graph_set = false;
         cudaKernelNodeParams kp;
         pack_rows_node(&s.pack, s.pack_argv, s.plan, &kp);
         TRY_CUDA(cudaGraphExecKernelNodeSetParams(s.exec, s.pack_node, &kp), "setting the run's rows");
+        fetch_rows_node(&s.fetch, s.fetch_argv, s.plan, &kp);
+        TRY_CUDA(cudaGraphExecKernelNodeSetParams(s.exec, s.fetch_node, &kp), "setting the run's rows");
         s.in_graph = s.run;
+        s.fetch_in_graph = s.fetch.n;
         s.graph_set = true;
     }
     TRY_CUDA(cudaGraphLaunch(s.exec, s.ctx->stream), "cudaGraphLaunch");
@@ -1626,29 +1626,32 @@ struct Lcg {
 };
 
 int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t epilogue, int32_t half,
-                   int32_t tensor_cores, int32_t tile_in, int32_t splits, int32_t heads, double *max_diff,
+                   int32_t tensor_cores, int32_t tile_in, int32_t blocks, int32_t heads, double *max_diff,
                    double *max_ref) {
     turbo_error e0{};
     turbo_error *err = &e0;
     ON_DEVICE((int)ordinal);
     const Epilogue epi = (Epilogue)epilogue;
-    const bool h16 = half != 0;
+    const bool h16 = half != 0, tc = tensor_cores != 0;
     const Tile tile = (Tile)tile_in;
     const int hidden = epi == EPI_QKV ? n / 3 : n;
+    int sms = 0, grid = 0;
+    size_t ws_floats = 0;
+    TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, (int)ordinal), "the device's SMs");
+    TRY_CUDA(gemm_prepare(epi, h16, tc, tile), "gemm_prepare");
+    TRY_CUDA(gemm_grid(epi, h16, tc, tile, sms, &grid, &ws_floats), "gemm_grid");
+    // Fewer blocks than the device holds, when asked: other shares of the
+    // same work. Never more, which could wait on a block not yet running.
+    if (blocks > 0 && blocks < grid) grid = blocks;
     GemmArgs g{};
-    // A split product takes its split from Info, as a run's do.
-    g.slot = epi == EPI_PARTIAL ? SPLIT_FFN2 : NO_SPLIT;
     g.n = n;
     g.k = k;
-    g.ksplit = round32((k + splits - 1) / splits);
-    g.splits = epi == EPI_PARTIAL ? (k + g.ksplit - 1) / g.ksplit : 1;
-    if (epi != EPI_PARTIAL) g.ksplit = round32(k);
     g.heads = heads;
     g.hidden = hidden;
     g.head_dim = hidden / heads;
     g.tcap = m;
-    const size_t in = h16 ? 2 : 4, outb = epi == EPI_PARTIAL ? 4 : in;
-    const size_t out_n = (size_t)(epi == EPI_PARTIAL ? g.splits : 1) * m * n;
+    const size_t in = h16 ? 2 : 4, outb = epi == EPI_PLAIN ? 4 : in;
+    const size_t out_n = (size_t)m * n;
     std::vector<float> a((size_t)m * k), w((size_t)n * k), bias(n);
     Lcg r;
     for (float &v : a) v = r.next();
@@ -1663,7 +1666,9 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
     const size_t sa = round_up(a.size() * in, DEVICE_ALIGN), sw = round_up(w.size() * in, DEVICE_ALIGN);
     const size_t sb = round_up((size_t)n * 4, DEVICE_ALIGN), so = round_up(out_n * outb, DEVICE_ALIGN);
     const size_t sr = round_up((size_t)m * n * 4, DEVICE_ALIGN), si = round_up(sizeof(Info), DEVICE_ALIGN);
-    TRY_CUDA(cudaMalloc(reinterpret_cast<void **>(&dev), sa + sw + sb + so + sr + si), "cudaMalloc");
+    const size_t sws = round_up(ws_floats * 4, DEVICE_ALIGN), sf = round_up((size_t)grid * 4, DEVICE_ALIGN);
+    const size_t total = sa + sw + sb + so + sr + si + sws + sf;
+    TRY_CUDA(cudaMalloc(reinterpret_cast<void **>(&dev), total), "cudaMalloc");
     cudaStream_t st = nullptr;
     cublasHandle_t blas = nullptr;
     const int32_t rc = [&]() -> int32_t {
@@ -1672,6 +1677,8 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         TRY_CUBLAS(cublasSetStream(blas, st), "cublasSetStream");
         TRY_CUBLAS(cublasSetMathMode(blas, CUBLAS_DEFAULT_MATH), "cublasSetMathMode");
         char *pa = dev, *pw = pa + sa, *pb = pw + sw, *po = pb + sb, *pr = po + so, *pi = pr + sr;
+        char *pws = pi + si, *pf = pws + sws;
+        TRY_CUDA(cudaMemset(dev, 0, total), "cudaMemset");
         TRY_CUDA(cudaMemcpy(pa, h16 ? (const void *)a16.data() : (const void *)a.data(), a.size() * in,
                             cudaMemcpyHostToDevice),
                  "cudaMemcpy");
@@ -1681,25 +1688,28 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         TRY_CUDA(cudaMemcpy(pb, bias.data(), (size_t)n * 4, cudaMemcpyHostToDevice), "cudaMemcpy");
         Info info{};
         info.tokens = m;
-        info.splits[SPLIT_FFN2] = g.splits;
-        info.ksplit[SPLIT_FFN2] = g.ksplit;
         TRY_CUDA(cudaMemcpy(pi, &info, sizeof info, cudaMemcpyHostToDevice), "cudaMemcpy");
         g.a = pa;
         g.w = pw;
         g.bias = reinterpret_cast<const float *>(pb);
         g.out = po;
         g.info = reinterpret_cast<const Info *>(pi);
-        int sms = 0, grid = 0;
-        TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, (int)ordinal), "the device's SMs");
-        TRY_CUDA(gemm_prepare(epi, h16, tensor_cores != 0, tile), "gemm_prepare");
-        TRY_CUDA(gemm_grid(epi, h16, tensor_cores != 0, tile, n, m, g.splits, sms, &grid), "gemm_grid");
-        TRY_CUDA(gemm(st, epi, h16, tensor_cores != 0, tile, g, grid), "the GEMM");
+        g.ws = reinterpret_cast<float *>(pws);
+        g.flags = reinterpret_cast<int *>(pf);
+        std::vector<char> got(out_n * outb), again(out_n * outb);
+        // Twice: the second launch must find the flags the first cleared
+        // and repeat its bits.
+        TRY_CUDA(gemm(st, epi, h16, tc, tile, g, grid), "the GEMM");
+        TRY_CUDA(cudaMemcpyAsync(again.data(), po, again.size(), cudaMemcpyDeviceToHost, st), "cudaMemcpy");
+        TRY_CUDA(cudaMemsetAsync(po, 0, again.size(), st), "cudaMemset");
+        TRY_CUDA(gemm(st, epi, h16, tc, tile, g, grid), "the GEMM");
         TRY_CUBLAS(linear(blas, h16, pa, m, k, pw, n, reinterpret_cast<float *>(pr)), "cuBLAS");
         TRY_CUDA(cudaStreamSynchronize(st), "the GEMMs");
         std::vector<float> ref((size_t)m * n);
-        std::vector<char> got(out_n * outb);
         TRY_CUDA(cudaMemcpy(ref.data(), pr, ref.size() * 4, cudaMemcpyDeviceToHost), "cudaMemcpy");
         TRY_CUDA(cudaMemcpy(got.data(), po, got.size(), cudaMemcpyDeviceToHost), "cudaMemcpy");
+        if (got != again)
+            return refuse(err, TURBO_E_INTERNAL, "the GEMM gave other bits when launched again");
         auto value = [&](size_t i) -> float {
             if (outb == 4) return reinterpret_cast<const float *>(got.data())[i];
             return __half2float(__ushort_as_half(reinterpret_cast<const uint16_t *>(got.data())[i]));
@@ -1708,8 +1718,8 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         for (int t = 0; t < m; t++)
             for (int c = 0; c < n; c++) {
                 float want = ref[(size_t)t * n + c], have = 0;
-                if (epi == EPI_PARTIAL) {
-                    for (int s = 0; s < g.splits; s++) have += value(((size_t)s * m + t) * n + c);
+                if (epi == EPI_PLAIN) {
+                    have = value((size_t)t * n + c);
                 } else if (epi == EPI_GELU) {
                     const float v = want + bias[c];
                     want = 0.5f * v * (1.0f + erff(v * 0.70710678118654752440f));
@@ -1800,16 +1810,18 @@ const void *turbo_cuda_narrowed(void *model) {
 
 /* One of the backend's GEMMs against cuBLAS on random operands, on
  * device ordinal: epilogue is an Epilogue, half F16 operands, tensor_cores
- * whether the F16 GEMM takes mma.sync (else FMAs), tile a Tile (for QKV
- * and GELU), splits the k split asked for (the PARTIAL epilogue's), heads
- * the QKV epilogue's heads, n being 3 * hidden. The largest absolute difference from cuBLAS's product
- * with the epilogue done on the host (rounded to F16 where the GEMM's
- * output is), and the largest reference value. */
+ * whether the F16 GEMM takes mma.sync (else FMAs), tile a Tile, blocks
+ * the launch's blocks (0 for what the device holds at once, and never
+ * more), heads the QKV epilogue's heads, n being 3 * hidden. The GEMM
+ * runs twice, and must give the same bits both times. The largest
+ * absolute difference from cuBLAS's product with the epilogue done on the
+ * host (rounded to F16 where the GEMM's output is), and the largest
+ * reference value. */
 int32_t turbo_cuda_gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t epilogue, int32_t half,
-                              int32_t tensor_cores, int32_t tile, int32_t splits, int32_t heads, double *max_diff,
+                              int32_t tensor_cores, int32_t tile, int32_t blocks, int32_t heads, double *max_diff,
                               double *max_ref) {
     try {
-        return gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, tile, splits, heads, max_diff, max_ref);
+        return gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, tile, blocks, heads, max_diff, max_ref);
     } catch (...) {
         return TURBO_E_INTERNAL;
     }
@@ -1820,9 +1832,8 @@ int32_t turbo_cuda_gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k,
  * feed-forward output); -1 to read the variable again. */
 void turbo_cuda_use_cublas(int32_t gemms) { cublas_override.store(gemms, std::memory_order_relaxed); }
 
-/* The tile of the QKV and feed-forward input GEMMs of sessions made from
- * now on, as TURBO_CUDA_TILE would name it (a Tile); -1 to read the
- * variable again. */
+/* The GEMMs' tile in sessions made from now on, as TURBO_CUDA_TILE would
+ * name it (a Tile); -1 to read the variable again. */
 void turbo_cuda_use_tile(int32_t tile) { tile_override.store(tile, std::memory_order_relaxed); }
 
 } // extern "C"
