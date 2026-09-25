@@ -2682,11 +2682,12 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
 // 16), so each chunk of keys and values in shared memory serves twice
 // the queries. Keys and values go 64 at a time through two buffers
 // filled by cp.async, the next chunk's in flight while this one's
-// products and softmax run. The softmax is in base 2: the scores are
-// scaled by scale x log2(e) once and exp2f takes the place of expf (the
-// key bias is 0 or -1e30, the same in either base). Only rows whose
-// items the pack puts first, longest first, change the schedule, not
-// the sums: each query's keys go in position order, 64 at a time.
+// products and softmax run. The softmax is in base 2: scale x log2(e)
+// goes into each exponent's one multiply-add, and exp2f takes the place
+// of expf (a masked key's p is 0, as the key bias of -1e30 makes it in
+// the other kernels). Only rows whose items the pack puts first, longest
+// first, change the schedule, not the sums: each query's keys go in
+// position order, 64 at a time.
 
 constexpr int FA_QUERIES = 128, FA_THREADS = 256, FA_KEYS = 64;
 
@@ -2697,10 +2698,18 @@ template <int D> constexpr size_t fa_smem(int) {
 template <int D> constexpr int fa_min_blocks() { return fa_smem<D>(0) * 2 <= 96 * 1024 ? 2 : 1; }
 
 #ifndef TURBO_NO_MMA
+// A masked key's score in place of its product, unscaled, as the key
+// bias's -1e30 is scaled: a power of two, so its product with the scale
+// is exact and, while a row has no live key yet, each masked key's p is
+// exactly 1, as it was with the bias; the first live key's rescaling
+// takes them to 0.
+constexpr float FA_MASKED = -0x1p100f;
+
 // One chunk of keys for a warp's 16 queries: S = Q K^T, the running
-// softmax, O += P V. WHOLE: the chunk's 64 keys are all the row's and
-// none is masked, so no score is tested or biased; the sums are the
-// same either way.
+// softmax, O += P V. The largest score and m are kept unscaled (the
+// scale is positive), and each p is exp2f of one fused multiply-add,
+// s sl2 - m sl2. WHOLE: the chunk's 64 keys are all the row's and none
+// is masked, so no score is tested; the sums are the same either way.
 template <int D, bool WHOLE>
 __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[D / 16][4], float (&o)[D / 8][4], float (&m)[2],
                                          float (&l)[2], const __half *Ks, const __half *Vs, const float *kb, int cn,
@@ -2725,13 +2734,13 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[D / 16][4], float 
     for (int j = 0; j < 8; j++)
 #pragma unroll
         for (int e = 0; e < 4; e++) {
-            float v = s[j][e] * sl2;
+            float v = s[j][e];
             if constexpr (!WHOLE) {
                 const int key = j * 8 + (lane & 3) * 2 + (e & 1);
                 if (key >= cn)
                     v = -INFINITY;
-                else if (holes)
-                    v += kb[key];
+                else if (holes && kb[key] != 0.0f)
+                    v = FA_MASKED;
             }
             s[j][e] = v;
             mx[e >> 1] = fmaxf(mx[e >> 1], v);
@@ -2741,13 +2750,14 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[D / 16][4], float 
         mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 1));
         mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 2));
     }
-    const float corr[2] = {exp2f(m[0] - mx[0]), exp2f(m[1] - mx[1])};
+    const float corr[2] = {exp2f((m[0] - mx[0]) * sl2), exp2f((m[1] - mx[1]) * sl2)};
+    const float nm[2] = {-mx[0] * sl2, -mx[1] * sl2};
     float sum[2] = {0.0f, 0.0f};
 #pragma unroll
     for (int j = 0; j < 8; j++)
 #pragma unroll
         for (int e = 0; e < 4; e++) {
-            s[j][e] = exp2f(s[j][e] - mx[e >> 1]);
+            s[j][e] = exp2f(fmaf(s[j][e], sl2, nm[e >> 1]));
             sum[e >> 1] += s[j][e];
         }
 #pragma unroll
