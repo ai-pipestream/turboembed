@@ -283,7 +283,7 @@ fn a_session_computes_in_i8_and_exact_is_refused() {
         assert_eq!(s.info().compute_dtype, TURBO_DTYPE_I8, "precision {p}");
     }
     let f = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_EXACT))).err().expect("refused");
-    assert!(f.message.contains("EXACT asks for F32"), "{f:?}");
+    assert!(f.is(UNSUPPORTED_OPTION, "EXACT") && f.field == 3, "{f:?}");
 }
 
 /// Each row is one frame: its word rows and bias go to the device and its
@@ -293,8 +293,9 @@ fn a_session_computes_in_i8_and_exact_is_refused() {
 #[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
 fn a_run_reports_its_frames_and_where_each_stage_ran() {
     let l = on_hailo();
-    let s = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_MODEL))).unwrap();
-    let batch = s.info().max_batch as usize;
+    let s = Session::create(l.m, Some(&session_desc(4, 0, TURBO_PRECISION_MODEL))).unwrap();
+    assert_eq!(s.info().max_batch, 4, "the HEF's frame of one row does not cap the session");
+    let batch = 4;
     let seq = s.info().max_seq as u64;
     let hidden = l.info().dim as u64;
     let texts = ["The quick brown fox jumps over the lazy dog.", "how do I reset a password", "a"];
@@ -331,14 +332,16 @@ fn a_run_reports_its_frames_and_where_each_stage_ran() {
 #[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
 fn a_token_type_other_than_0_is_refused() {
     let l = on_hailo();
-    let s = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_MODEL))).unwrap();
-    let mut t = Tokens::new(&[vec![101, 7592, 102]], 0);
-    t.types = Some(vec![0, 1, 0]);
+    let s = Session::create(l.m, Some(&session_desc(2, 0, TURBO_PRECISION_MODEL))).unwrap();
+    let mut t = Tokens::new(&[vec![101, 7592, 102], vec![101, 2088, 102]], 0);
+    let mut types = vec![0; t.ids.len()];
+    types[4] = 1;
+    t.types = Some(types);
     let f = s.write_tokens(&t.batch(), None).unwrap_err();
-    assert!(f.is(UNSUPPORTED_OPTION, "token type 1 in row 0"), "{f:?}");
+    assert!(f.is(UNSUPPORTED_OPTION, "token type 1 in row 1"), "{f:?}");
     t.types = Some(vec![0; t.ids.len()]);
     s.write_tokens(&t.batch(), None).unwrap();
-    assert_eq!(s.run().unwrap().info().batch, 1);
+    assert_eq!(s.run().unwrap().info().batch, 2);
 }
 
 /// Pooling and normalize are the backend's, on the host: CLS differs from
