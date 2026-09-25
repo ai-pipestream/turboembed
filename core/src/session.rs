@@ -29,6 +29,7 @@ use crate::status::{
     Result, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
 };
 use crate::tokenizer::Encode;
+use crate::tuning;
 use crate::*;
 
 #[repr(C)]
@@ -38,7 +39,17 @@ pub struct turbo_session_desc {
     pub max_batch: u32,
     pub max_seq: u32,
     pub precision: u32,
+    pub tuning: u32,
+    pub tuning_budget_ms: u32,
 }
+
+/// The size of turbo_session_desc before tuning was appended, which
+/// turbo_session_create still accepts.
+pub const TURBO_SESSION_DESC_SIZE_V1: usize = std::mem::offset_of!(turbo_session_desc, tuning);
+
+/// The size of turbo_session_info before tuned was appended, which
+/// turbo_session_get_info still accepts.
+pub const TURBO_SESSION_INFO_SIZE_V1: usize = std::mem::offset_of!(turbo_session_info, tuned);
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -73,6 +84,9 @@ pub struct turbo_session_info {
     pub precision: u32,
     pub compute_dtype: u32,
     pub reserved: u32,
+    pub tuned: u32,
+    pub tune_ms: u32,
+    pub choices: [c_char; TURBO_CHOICES_LEN],
 }
 
 #[repr(C)]
@@ -238,14 +252,29 @@ pub unsafe extern "C" fn turbo_session_create(
         call(err, || {
             let m = &model_handle(m)?.inner;
             let out = out_ptr(out, "out")?;
-            // NULL is 0 in every field, as for turbo_runtime_create.
-            let d = match desc.as_ref() {
-                Some(d) => {
-                    sized(d.struct_size, size_of::<turbo_session_desc>(), "turbo_session_desc")?;
-                    *d
-                }
-                None => turbo_session_desc { struct_size: 0, max_batch: 0, max_seq: 0, precision: 0 },
+            // NULL is 0 in every field, as for turbo_runtime_create. A
+            // caller built against the struct before tuning has only that
+            // much memory: it is read through the raw pointer, and the
+            // fields past it are 0.
+            let mut d = turbo_session_desc {
+                struct_size: 0,
+                max_batch: 0,
+                max_seq: 0,
+                precision: 0,
+                tuning: 0,
+                tuning_budget_ms: 0,
             };
+            if !desc.is_null() {
+                let size = (desc as *const u32).read();
+                if size as usize != TURBO_SESSION_DESC_SIZE_V1 {
+                    sized(size, size_of::<turbo_session_desc>(), "turbo_session_desc")?;
+                }
+                std::ptr::copy_nonoverlapping(
+                    desc.cast::<u8>(),
+                    (&mut d as *mut turbo_session_desc).cast::<u8>(),
+                    size as usize,
+                );
+            }
             let inner = create_session(m, d)?;
             *out = Box::into_raw(Box::new(turbo_session { magic: SESSION_MAGIC, inner: Arc::new(inner) }));
             Ok(())
@@ -270,9 +299,15 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
     let max_batch = limit(1, "max_batch", d.max_batch, mi.max_batch)?;
     let max_seq = limit(2, "max_seq", d.max_seq, mi.max_seq)?;
 
+    let tuning_mode = tuning::mode(d.tuning)?;
     let c = &m.context;
     let b = c.backend;
-    let create = backend::offered!(b, session_create)?;
+    // A backend with tuned sessions is made them through session_create_tuned.
+    let tuned = backend::offered!(b, session_create_tuned).ok();
+    let create = match tuned {
+        Some(_) => None,
+        None => Some(backend::offered!(b, session_create)?),
+    };
     let release = backend::offered!(b, session_release)?;
     let run = backend::offered!(b, session_run)?;
     let cap = c.runtime.capability(c.device, mi.task, d.precision)?;
@@ -293,9 +328,38 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
     }
     let mut compute_dtype = 0;
     let mut raw = std::ptr::null_mut();
-    backend::check(b, "session_create", |err| unsafe {
-        create(m.raw, mi.task, max_batch, max_seq, d.precision, &mut compute_dtype, &mut raw, err)
-    })?;
+    let mut t: backend::turbo_backend_tuning = unsafe { std::mem::zeroed() };
+    t.struct_size = size_of::<backend::turbo_backend_tuning>() as u32;
+    t.mode = tuning_mode;
+    t.budget_ms = tuning::budget(tuning_mode, d.tuning_budget_ms, false)?;
+    t.numerics_allowed = tuning::numerics_allowed(d.precision);
+    match (tuned, create) {
+        (Some(f), _) => backend::check(b, "session_create_tuned", |err| unsafe {
+            f(m.raw, mi.task, max_batch, max_seq, d.precision, &mut t, &mut compute_dtype, &mut raw, err)
+        })?,
+        (None, Some(f)) => backend::check(b, "session_create", |err| unsafe {
+            f(m.raw, mi.task, max_batch, max_seq, d.precision, &mut compute_dtype, &mut raw, err)
+        })?,
+        (None, None) => unreachable!("offered above"),
+    }
+    // A table without tuned sessions made its choices itself, and has one path.
+    if tuned.is_none() {
+        t.tuned = TURBO_TUNED_DEFAULT;
+        t.tune_ms = 0;
+        t.choices[0] = 0;
+    }
+    let choices_end = t.choices.iter().position(|&c| c == 0);
+    if tuning::tuned_name(t.tuned).is_none() || choices_end.is_none() {
+        unsafe { release(raw) };
+        return Err(Error::new(
+            INTERNAL,
+            format!(
+                "{} backend: tuned {} or its choices, not NUL-terminated, are not what it may report",
+                b.name(),
+                t.tuned
+            ),
+        ));
+    }
     if !matches!(compute_dtype, TURBO_DTYPE_I8 | TURBO_DTYPE_F16 | TURBO_DTYPE_BF16 | TURBO_DTYPE_F32) {
         unsafe { release(raw) };
         return Err(Error::new(
@@ -310,6 +374,9 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
         precision: d.precision,
         compute_dtype,
         reserved: 0,
+        tuned: t.tuned,
+        tune_ms: if t.tuned == TURBO_TUNED_MEASURED { t.tune_ms } else { 0 },
+        choices: t.choices,
     };
     let rows = max_batch as usize * max_seq as usize;
     let result = Box::into_raw(Box::new(turbo_result {
@@ -380,9 +447,22 @@ pub unsafe extern "C" fn turbo_session_get_info(
     unsafe {
         call(err, || {
             let s = session(s)?;
-            let out = out_ptr(out, "out")?;
-            sized(out.struct_size, size_of::<turbo_session_info>(), "turbo_session_info")?;
-            *out = s.inner.info;
+            if out.is_null() {
+                return Err(Error::new(INVALID_ARGUMENT, "out is NULL"));
+            }
+            // A caller built against the struct before tuned has only that
+            // much memory: it is written through the raw pointer, never as
+            // the whole struct.
+            let size = (out as *const u32).read();
+            if size as usize != TURBO_SESSION_INFO_SIZE_V1 {
+                sized(size, size_of::<turbo_session_info>(), "turbo_session_info")?;
+            }
+            let info = s.inner.info;
+            std::ptr::copy_nonoverlapping(
+                (&info as *const turbo_session_info).cast::<u8>().add(4),
+                out.cast::<u8>().add(4),
+                size as usize - 4,
+            );
             Ok(())
         })
     }

@@ -10,6 +10,7 @@
 #ifndef TURBO_CUDA_AUTOTUNE_H
 #define TURBO_CUDA_AUTOTUNE_H
 
+#include <cstddef>
 #include <cstdint>
 
 #include "kernels.h"
@@ -116,6 +117,58 @@ inline uint32_t forced_knobs(const Choices &c) {
     }
     return k;
 }
+
+/* The knobs' names, as a choices string's forced= item lists them. */
+constexpr const char *KNOB_NAMES[] = {"tile", "sk", "tf32", "attn", "ln", "pool"};
+
+/* Whether every knob of c was forced: each GEMM's tile and stream-K,
+ * each bin's attention and LayerNorm, and the pooling. */
+bool all_forced(const Choices &c);
+
+/* The kernels of c as they run in a session of the base shape: each
+ * choice a name that runs no kernel of its own (a tile the operands or the
+ * device do not take, the default tile, stream-K's default steps,
+ * attention the session does not have) becomes the name of the kernel it
+ * runs, so the string reports what ran and forcing it back runs the same.
+ * The pooling is set from the plan, after. */
+void canonicalize(const Shape &base, Choices *c);
+
+/* The TURBO_NUMERIC_* class a GEMM of the choice computes in. */
+uint32_t gemm_numeric(const Shape &base, const GemmChoice &g);
+
+/* NULL when every kernel c chooses computes in a class of allowed, else
+ * the name of the first that does not, as the string spells it, and its
+ * class's name in *numeric. */
+const char *outside(const Shape &base, const Choices &c, uint32_t allowed, char *name, size_t len,
+                    const char **numeric);
+
+/* c as one line: per bin that exists, "<bin>:qkv=<tile>/<sk>[/tf32],out=
+ * ...,ffn1=...,ffn2=...,attn=<attention>,ln=<layer norm>", then
+ * "pool=<pooling>" and "forced=<knob>,...", separated by ";". Writes what
+ * fits in len bytes with the NUL; returns the length it needs without. */
+size_t format_choices(const Choices &c, char *out, size_t len);
+
+/* Fills only the items s names, as format_choices writes them, and sets
+ * their forced bits. "all:" names every bin; a GEMM's item may leave out
+ * the stream-K, which is then not forced; forced= is ignored. An unknown
+ * item or value fails with why naming it. */
+bool parse_choices(const char *s, Choices *into, char *why, size_t why_len);
+
+/* One kernel variant of a GEMM that a session of the shape can force:
+ * its name as the string spells a GEMM's tile ("8w", "128x64/tf32"), its
+ * tile and TF32, its TURBO_NUMERIC_* class, and whether the tuner times
+ * it. */
+struct Variant {
+    char name[24];
+    Tile tile;
+    bool tf32;
+    uint32_t numeric;
+    bool candidate;
+};
+
+/* The GEMM variants of a session of the shape, candidates first, into
+ * out (cap entries at most): how many. */
+int gemm_variants(const Shape &base, Variant *out, int cap);
 
 } // namespace turbo_cuda
 

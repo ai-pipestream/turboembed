@@ -596,6 +596,7 @@ const turbo_backend turbo_hailo_backend = {
     nullptr,
     TURBO_FORMAT_BIT(TURBO_FORMAT_HEF),
     0,
+    nullptr,
 };
 
 } // extern "C"

@@ -12,7 +12,7 @@ use turbo::record::{Conformance, ROWS_DENSE, ROWS_MIXED, Timing};
 use turbo::safetensors::{self, Dtype};
 use turbo::{
     TURBO_DEVICE_CPU, TURBO_PROMPT_DOCUMENT, TURBO_PROMPT_NONE, TURBO_PROMPT_QUERY, TURBO_TASK_EMBED,
-    turbo_device_info, turbo_model_info,
+    turbo_device_info, turbo_model_info, turbo_session_info,
 };
 
 use crate::Result;
@@ -347,13 +347,25 @@ pub fn compare(vectors: &[Vec<f32>], cases: &[u32], reference: &Reference) -> Re
     Ok(c)
 }
 
-/// Each of record::LIBRARY_VARS for `backend` that is set in this
-/// process, as `NAME=value`, in that order.
-pub fn library_settings(backend: &str) -> Vec<String> {
+/// Each of record::LIBRARY_VARS for `backend`, as `NAME=value`, in that
+/// order: the variables set in this process, and what the session reports
+/// of its kernel choices, whatever the environment said:
+/// TURBO_<BACKEND>_TUNED, where they came from, and
+/// TURBO_<BACKEND>_CHOICES, the choices themselves, for a backend that
+/// reports any.
+pub fn library_settings(backend: &str, session: &turbo_session_info) -> Vec<String> {
+    let choices = field(&session.choices);
+    let prefix = format!("TURBO_{}_", backend.to_uppercase());
     turbo::record::LIBRARY_VARS
         .iter()
         .filter(|(b, _)| *b == backend)
-        .filter_map(|(_, v)| std::env::var(v).ok().map(|x| format!("{v}={x}")))
+        .filter_map(|(_, v)| match v.strip_prefix(prefix.as_str()) {
+            Some("TUNED") => (!choices.is_empty())
+                .then(|| turbo::tuning::tuned_name(session.tuned).map(|t| format!("{v}={t}")))
+                .flatten(),
+            Some("CHOICES") => (!choices.is_empty()).then(|| format!("{v}={choices}")),
+            _ => std::env::var(v).ok().map(|x| format!("{v}={x}")),
+        })
         .collect()
 }
 
@@ -474,7 +486,7 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         rows_per_second: (batch as f64 * plan.iterations as f64) / total,
         computed_tokens: Some(rows.packed_tokens()),
     };
-    let settings = library_settings(&field(&device.backend));
+    let settings = library_settings(&field(&device.backend), &si);
     Ok(Measurement {
         device,
         host_cpu,

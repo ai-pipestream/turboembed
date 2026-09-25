@@ -31,6 +31,7 @@
 #include <cstring>
 #include <mutex>
 #include <new>
+#include <string>
 #include <strings.h>
 #include <utility>
 #include <vector>
@@ -1211,6 +1212,38 @@ unsigned cublas_gemms() {
     return mask;
 }
 
+/* What the tests set in place of TURBO_CUDA_CHOICES, when set. */
+std::mutex choices_lock;
+bool choices_set = false;
+std::string choices_override;
+
+/* TURBO_CUDA_CHOICES, or the tests' string in its place: the items it
+ * names forced over the switches, each where it names it. */
+bool choices_named(Choices *c, char *why, size_t len) {
+    std::string v;
+    {
+        std::lock_guard<std::mutex> g(choices_lock);
+        if (choices_set) {
+            v = choices_override;
+        } else {
+            const char *e = getenv("TURBO_CUDA_CHOICES");
+            if (!e) return true;
+            v = e;
+        }
+    }
+    return parse_choices(v.c_str(), c, why, len);
+}
+
+/* The numeric classes each precision allows when the core hands none (a
+ * session made through session_create): the core's own table. */
+uint32_t default_numerics(uint32_t precision) {
+    return precision == TURBO_PRECISION_FASTEST ? TURBO_NUMERIC_F16_F32ACC : TURBO_NUMERIC_F32_FMA;
+}
+
+const char *precision_name(uint32_t p) {
+    return p == TURBO_PRECISION_FASTEST ? "FASTEST" : p == TURBO_PRECISION_EXACT ? "EXACT" : "MODEL";
+}
+
 /* Whether a session of the shape takes the tensor cores' attention. */
 bool mma_attention(const Shape &base) {
     const int d = base.hidden / base.heads;
@@ -1621,8 +1654,8 @@ int32_t capture_bins(Session &s, turbo_error *err) {
     return TURBO_OK;
 }
 
-int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
-                       uint32_t *compute_dtype, void **out, turbo_error *err) {
+int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                             turbo_backend_tuning *tuning, uint32_t *compute_dtype, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Model *m = static_cast<Model *>(model);
         Context *c = m->ctx;
@@ -1690,7 +1723,23 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         Choices ch = defaults(base);
         bool tf32 = false, f16_accumulate = false;
         forced_from_environment(base, precision, &ch, &tf32, &f16_accumulate);
+        char why[TURBO_ERROR_MESSAGE_LEN];
+        if (!choices_named(&ch, why, sizeof why)) return refuse(err, TURBO_E_INVALID_ARGUMENT, "%s", why);
         whole_rows(base, &ch);
+        canonicalize(base, &ch);
+        // The classes the precision allows, as the environment's
+        // experiments widen them; the F32 kernels are FASTEST's too, for a
+        // model past F16's range.
+        const uint32_t allowed = tuning ? tuning->numerics_allowed : default_numerics(precision);
+        const uint32_t used = allowed | (tf32 ? TURBO_NUMERIC_TF32 : 0u) |
+                              (f16_accumulate ? TURBO_NUMERIC_F16_CHUNKACC : 0u);
+        const uint32_t runs = used | (half ? 0u : TURBO_NUMERIC_F32_FMA);
+        char named[160];
+        const char *numeric = nullptr;
+        if (outside(base, ch, runs, named, sizeof named, &numeric))
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision %s: %s computes in %s, which the precision does not allow",
+                                precision_name(precision), named, numeric);
 
         Session *s = make<Session>();
         s->model = m;
@@ -1723,6 +1772,10 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             ln_counts = p.ln_counts > ln_counts ? p.ln_counts : ln_counts;
             crowded = crowded || p.gemm_crowded;
         }
+        // The pooling as the plan takes it: a thread per column for hidden
+        // states too wide for the groups.
+        ch.pool = s->plan[0].column_pool ? POOL_COLUMNS : POOL_GROUPS;
+        s->choices.pool = ch.pool;
         if (crowded)
             c->say(LOG_WARNING,
                    "cuda device %d: a GEMM's kernel fits fewer blocks to an SM than it was built for, so it runs "
@@ -1811,10 +1864,24 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
                c->ordinal, max_batch, max_seq, half ? "F16 with F32 accumulation" : "F32",
                s->cublas ? ", some GEMMs on cuBLAS, without a graph" : ", as graphs", s->plan[0].attn_smem,
                s->plan[0].attn_chunk);
+        if (tuning) {
+            tuning->tuned = all_forced(s->choices) ? TURBO_TUNED_FORCED : TURBO_TUNED_DEFAULT;
+            tuning->tune_ms = 0;
+            format_choices(s->choices, tuning->choices, sizeof tuning->choices);
+            if (tuning->timings && tuning->timings_len) tuning->timings[0] = 0;
+            tuning->numerics_used = used;
+        }
         *compute_dtype = half ? TURBO_DTYPE_F16 : TURBO_DTYPE_F32;
         *out = s;
         return TURBO_OK;
     });
+}
+
+/* A session with the built-in choices and what the environment forces, as
+ * session_create_tuned makes it with tuning OFF. */
+int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                       uint32_t *compute_dtype, void **out, turbo_error *err) {
+    return session_create_tuned(model, task, max_batch, max_seq, precision, nullptr, compute_dtype, out, err);
 }
 
 void session_release(void *session) {
@@ -2157,6 +2224,7 @@ const turbo_backend turbo_cuda_backend = {
     buffer_read,
     TURBO_FORMAT_BIT(TURBO_FORMAT_SAFETENSORS),
     0,
+    session_create_tuned,
 };
 
 /* Every allocation this backend has made in the process, host and device,
@@ -2222,6 +2290,44 @@ void turbo_cuda_use_cublas(int32_t gemms) { cublas_override.store(gemms, std::me
 /* The GEMMs' tile in sessions made from now on, as TURBO_CUDA_TILE would
  * name it (a Tile); -1 to read the variable again. */
 void turbo_cuda_use_tile(int32_t tile) { tile_override.store(tile, std::memory_order_relaxed); }
+
+/* The choices string of sessions made from now on, in place of
+ * TURBO_CUDA_CHOICES; NULL to read the variable again. */
+void turbo_cuda_use_choices(const char *choices) {
+    std::lock_guard<std::mutex> g(choices_lock);
+    choices_set = choices != nullptr;
+    choices_override = choices ? choices : "";
+}
+
+/* The GEMM kernel variants a session at precision on device ordinal may
+ * force, as lines of "<name> <TURBO_NUMERIC_*> <1 when the tuner times
+ * it, else 0>", into out (len bytes with the NUL). A FASTEST session is
+ * taken to have F16 operands. */
+int32_t turbo_cuda_variants(uint32_t ordinal, uint32_t precision, char *out, size_t len) {
+    try {
+        int major = 0;
+        if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, (int)ordinal) != cudaSuccess) {
+            (void)cudaGetLastError();
+            return TURBO_E_RUNTIME;
+        }
+        Shape base;
+        base.half = precision == TURBO_PRECISION_FASTEST;
+        base.tensor_cores = major >= 8;
+        Variant v[32];
+        const int n = gemm_variants(base, v, 32);
+        std::string s;
+        for (int i = 0; i < n; i++) {
+            s += v[i].name;
+            s += ' ';
+            s += std::to_string(v[i].numeric);
+            s += v[i].candidate ? " 1\n" : " 0\n";
+        }
+        copy_str(out, len, s.c_str());
+        return TURBO_OK;
+    } catch (...) {
+        return TURBO_E_INTERNAL;
+    }
+}
 
 /* The GEMMs' stream-K in sessions made from now on, as
  * TURBO_CUDA_SK_STEPS would name it: 0 the kernels' own, 1 to 64 the

@@ -205,8 +205,15 @@ impl Model {
     }
 
     pub fn session(&self, max_batch: u32, max_seq: u32, precision: u32) -> Result<Session> {
-        let desc =
-            turbo_session_desc { struct_size: size_of::<turbo_session_desc>() as u32, max_batch, max_seq, precision };
+        // Tuning as TURBO_AUTOTUNE says, which the record's settings name.
+        let desc = turbo_session_desc {
+            struct_size: size_of::<turbo_session_desc>() as u32,
+            max_batch,
+            max_seq,
+            precision,
+            tuning: 0,
+            tuning_budget_ms: 0,
+        };
         let mut s = ptr::null_mut();
         check("turbo_session_create", |e| unsafe { turbo_session_create(self.0, &desc, &mut s, e) })?;
         Ok(Session(s))

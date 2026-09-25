@@ -436,14 +436,35 @@ int32_t turbo_tokenizer_count(turbo_tokenizer *t, turbo_text text, uint32_t prom
 
 /* ---- Session and run --------------------------------------------------- */
 
+/* turbo_session_desc.tuning: whether the backend times its kernel
+ * variants for the session and takes the fastest (docs/autotune.md). */
+#define TURBO_AUTOTUNE_RUNTIME 0   /* what the TURBO_AUTOTUNE variable says; unset is OFF */
+#define TURBO_AUTOTUNE_OFF     1   /* the backend's built-in choices, and what the environment forces */
+#define TURBO_AUTOTUNE_ON      2   /* the cached choice for this device, driver, build, bundle,
+                                      precision and shape; else measured now and cached */
+#define TURBO_AUTOTUNE_RETUNE  3   /* measured now; replaces the cached choice only when faster */
+
+/* turbo_session_info.tuned: where the session's kernel choices came from. */
+#define TURBO_TUNED_DEFAULT  0   /* the backend's built-in */
+#define TURBO_TUNED_FORCED   1   /* every choice named by the environment */
+#define TURBO_TUNED_MEASURED 2   /* timed when this session was made */
+#define TURBO_TUNED_CACHE    3   /* timed for an earlier session with the same key, reused */
+
+#define TURBO_CHOICES_LEN 1024
+
 /* Fields are numbered from 1 for turbo_error.field. A precision the
  * artifact cannot compute in (EXACT on one compiled to a lower dtype, say)
  * fails with TURBO_E_UNSUPPORTED_OPTION naming field 3. */
 typedef struct turbo_session_desc {
     uint32_t struct_size;
-    uint32_t max_batch;   /* 1: 0 = the model's */
-    uint32_t max_seq;     /* 2: 0 = the model's */
-    uint32_t precision;   /* 3: TURBO_PRECISION_* */
+    uint32_t max_batch;          /* 1: 0 = the model's */
+    uint32_t max_seq;            /* 2: 0 = the model's */
+    uint32_t precision;          /* 3: TURBO_PRECISION_* */
+    /* A struct_size of 16 ends here; the fields below are then RUNTIME and 0. */
+    uint32_t tuning;             /* 4: TURBO_AUTOTUNE_* */
+    uint32_t tuning_budget_ms;   /* 5: the time the backend may spend measuring; 0 = the
+                                    TURBO_AUTOTUNE_BUDGET_MS variable, else 750 with a disk
+                                    cache directory (TURBO_AUTOTUNE_CACHE), 150 without */
 } turbo_session_desc;
 
 /* Fields are numbered from 1 for turbo_error.field and options_honored.
@@ -492,6 +513,12 @@ typedef struct turbo_session_info {
     uint32_t precision;       /* TURBO_PRECISION_* asked for */
     uint32_t compute_dtype;   /* TURBO_DTYPE_* it resolved to */
     uint32_t reserved;
+    /* A struct_size of 24 ends here. */
+    uint32_t tuned;                       /* TURBO_TUNED_* */
+    uint32_t tune_ms;                     /* time spent measuring; 0 unless MEASURED */
+    char     choices[TURBO_CHOICES_LEN];  /* the backend's kernel choices as one line, in the form
+                                             its docs give and its TURBO_<BACKEND>_CHOICES accepts;
+                                             empty for a backend with one path */
 } turbo_session_info;
 
 int32_t turbo_session_create(turbo_model *m, const turbo_session_desc *desc, turbo_session **out, turbo_error *err);
