@@ -431,6 +431,13 @@ impl Manifest {
         positive("embed.max_batch", e.max_batch)?;
         fits("embed.prefix_query", &e.prefix_query, 128)?;
         fits("embed.prefix_document", &e.prefix_document, 128)?;
+        if e.output_dims.len() > crate::TURBO_OUTPUT_DIMS_MAX {
+            return Err(invalid(format!(
+                "manifest.json: embed.output_dims: {} widths, and turbo_model_info holds {}",
+                e.output_dims.len(),
+                crate::TURBO_OUTPUT_DIMS_MAX
+            )));
+        }
         let mut dims = HashSet::new();
         for (i, &d) in e.output_dims.iter().enumerate() {
             if d == 0 || d > e.dim {

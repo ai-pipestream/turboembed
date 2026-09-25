@@ -67,6 +67,40 @@ fn a_model_reports_what_its_manifest_and_files_say() {
     assert_eq!(field(&info.tokenizer_sha256), read("tokenizer.json"));
     assert_eq!(field(&info.prefix_query), "query: ");
     assert_eq!(field(&info.prefix_document), "passage: ");
+    assert_eq!((info.output_dims_count, info.output_dims), (0, [0; TURBO_OUTPUT_DIMS_MAX]));
+}
+
+#[test]
+fn the_output_dims_are_reported_ascending() {
+    let mut f = Fixture::model("output-dims");
+    f.manifest["embed"]["output_dims"] = json!([6, 2, 4]);
+    let info = f.load().unwrap().info();
+    let mut want = [0; TURBO_OUTPUT_DIMS_MAX];
+    want[..3].copy_from_slice(&[2, 4, 6]);
+    assert_eq!((info.output_dims_count, info.output_dims), (3, want));
+}
+
+#[test]
+fn the_struct_before_output_dims_is_accepted_and_its_end_left_alone() {
+    let mut f = Fixture::model("old-struct-size");
+    f.manifest["embed"]["output_dims"] = json!([4]);
+    let l = f.load().unwrap();
+    assert_eq!(TURBO_MODEL_INFO_SIZE_V1, 696);
+    let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
+    info.struct_size = TURBO_MODEL_INFO_SIZE_V1 as u32;
+    info.output_dims_count = 99;
+    info.output_dims = [7; TURBO_OUTPUT_DIMS_MAX];
+    let mut err = new_error();
+    assert_eq!(unsafe { turbo_model_get_info(l.m, &mut info, &mut err) }, OK);
+    assert_eq!((info.struct_size as usize, info.dim), (TURBO_MODEL_INFO_SIZE_V1, 8));
+    assert_eq!(field(&info.model_id), "sentence-transformers/all-MiniLM-L6-v2");
+    assert_eq!((info.output_dims_count, info.output_dims), (99, [7; TURBO_OUTPUT_DIMS_MAX]));
+}
+
+#[test]
+fn more_output_dims_than_the_header_holds_are_invalid() {
+    let e = with("output-dims-17", |m| m["embed"]["output_dims"] = json!((1..=17).collect::<Vec<u32>>()));
+    assert!(e.is(BUNDLE_INVALID, "embed.output_dims: 17 widths, and turbo_model_info holds 16"), "{e:?}");
 }
 
 #[test]
