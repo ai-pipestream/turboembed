@@ -135,9 +135,11 @@ of any run.
   too, for the layers that read them; the feed-forward input writes F16,
   and so does the Q, K and V projection for the head widths whose
   attention runs on the matrix engines. The attention output and the feed-forward output each
-  take their residual and LayerNorm in their own epilogue: a group
-  computes 16 tokens by the whole hidden width, a sub-group each 32
-  outputs, and the rows' sums meet in local memory. For a hidden width over
+  take their residual and LayerNorm in their own epilogue: a sub-group
+  computes 16 tokens by 32 outputs, and a group the whole hidden width
+  for up to 4 blocks of 16 tokens (as many as 64 sub-groups hold; one
+  block below a full group's tokens), so each block after the first
+  reads the weights from cache; the rows' sums meet in local memory. For a hidden width over
   2048 the LayerNorm kernel follows them instead. Attention for head widths 32
   and 64 runs on the matrix engines: a sub-group takes 16 queries, a lane
   each, and walks the row's keys 32 at a time (K and V by 2D block
