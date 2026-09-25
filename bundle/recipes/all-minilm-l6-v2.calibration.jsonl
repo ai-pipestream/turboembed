@@ -1,0 +1,180 @@
+{"text": "A faint radio broadcast crackled from the old set."}
+{"text": "สุนัขจิ้งจอกสีน้ำตาลกระโดดข้ามสุนัขขี้เกียจ"}
+{"text": "விரைவான பழுப்பு நரி சோம்பேறி நாயின் மேல் குதிக்கிறது."}
+{"text": "FP16 OpenVINO IR can drift a little from FP32 ONNX."}
+{"text": "The printer jammed on the third page."}
+{"text": "Detokenize skips special tokens when asked."}
+{"text": "¿Dónde está la biblioteca? ¡Está allí, en la esquina!"}
+{"text": "Math: ∑ x² + √y ≈ ∞; currency: € £ ¥ ₹ $; arrows: → ← ↑ ↓"}
+{"text": "Pairwise cosine compares live vectors across two hosts."}
+{"text": "A manhã estava fresca e o café ainda não tinha sido servido."}
+{"text": "Fresh water meets the tide at the river mouth."}
+{"text": "She placed the compass on the worn map."}
+{"text": "fn main() {\n    println!(\"hello, world\");\n}\n"}
+{"text": "All night, rain fell steadily on the tin roof."}
+{"text": "email@example.com https://example.org/path?q=1&r=2 #hashtag @mention"}
+{"text": "Clients speak the same gRPC contract to every architecture."}
+{"text": "I love it 😍🔥 so much!! 👍🏽 family: 👨‍👩‍👧‍👦 flags: 🇯🇵🇩🇪"}
+{"text": "Київ стоїть на берегах Дніпра вже понад тисячу років."}
+{"text": "There should be no Python or JVM hop on the inference path."}
+{"text": "MiniLM uses 384 dimensions and a 256-token context."}
+{"text": "The façade keeps auth and routing in one Rust process."}
+{"text": "A blacksmith hammered a glowing horseshoe."}
+{"text": "SHA-256 pins every fetched corpus byte."}
+{"text": "Cinnamon rolls cooled on a wire rack."}
+{"text": "He poured coffee into a chipped mug."}
+{"text": "I can't believe it's already 2026; we've got 3,141 items and they're all sold out!"}
+{"text": "Add a couple of garlic cloves to the pan."}
+{"text": "দ্রুত বাদামী শিয়াল অলস কুকুরের উপর দিয়ে লাফ দেয়।"}
+{"text": "On a Mac, MiniLM embeddings come from a quantized MLX graph."}
+{"text": "The small MiniLM model outputs 384-d vectors and truncates at 256 tokens."}
+{"text": "A quick brown fox is a classic pangram subject."}
+{"text": "Fog delayed every departure from the airport."}
+{"text": "Fishermen mended nets on the pier."}
+{"text": "Wind rattled the loose boards of the barn."}
+{"text": "Over the quiet lake, the moon rose."}
+{"text": "OpenVINO GenAI needs a tokenizer IR beside the model."}
+{"text": "café résumé naïve (composed) vs café résumé naïve (decomposed)"}
+{"text": "Flights sat on the tarmac waiting for the weather to clear."}
+{"text": "BGE models pool the CLS token rather than the mean."}
+{"text": "Con cáo nâu nhanh nhẹn nhảy qua con chó lười biếng."}
+{"text": "Hikers reached the ridge before the storm."}
+{"text": "tabs\tand\nnewlines\r\nmixed \n\n with   runs of    spaces"}
+{"text": "People often meet in the old town square."}
+{"text": "non-breaking space and ideographic　space and thin space"}
+{"text": "Golden files store per-arch embedding dumps."}
+{"text": "Numbers and units: 384 dims, cosine 0.99, 256 tokens."}
+{"text": "İstanbul'da güzel bir gün; çay içtik ve şiir okuduk."}
+{"text": "The train pulled in a couple of minutes behind schedule."}
+{"text": "The auditorium filled with students attending the lecture."}
+{"text": "A cat slept on the sunny windowsill."}
+{"text": "Second Citizen asks whether they should target Marcius."}
+{"text": "Make fetch-corpus downloads Tiny Shakespeare."}
+{"text": "ONNX Runtime on CUDA produced the MiniLM vectors."}
+{"text": "A red fox sat at the edge of the meadow."}
+{"text": "An insect flew loops around the lamp on the porch."}
+{"text": "Apple 4-bit MiniLM may miss a 0.99 cosine against FP32."}
+{"text": "Empty-adjacent: a single punctuation mark."}
+{"text": "A child flew a red kite on the hill."}
+{"text": "Long texts are split into stable paragraph ids before embedding."}
+{"text": "Some embedding families use the first special token as the sentence vector."}
+{"text": "How far is it from here to the harbor?"}
+{"text": "The train arrived two minutes late."}
+{"text": "The tide chart was posted on the shack wall."}
+{"text": "He repaired the broken bicycle chain."}
+{"text": "敏捷的棕色狐狸跳过了懒狗。"}
+{"text": "The soccer match ended in a draw."}
+{"text": "Tokenizers must emit the same ids for the same text."}
+{"text": "llama.cpp streams one token chunk per decode step."}
+{"text": "A storm was building in the hills."}
+{"text": "\n"}
+{"text": "rock 'n' roll, o'clock, 'quoted', it's, 'S, 'T, 'LL, 'Re, don’t (curly)"}
+{"text": "Snow covered the abandoned railroad tracks."}
+{"text": "The checksum must match before the file is kept."}
+{"text": "A brown dog runs through the grass."}
+{"text": "query: the quick brown fox"}
+{"text": "The server embeds each sentence into a fixed-length vector."}
+{"text": ""}
+{"text": "Příliš žluťoučký kůň úpěl ďábelské ódy."}
+{"text": "Ça y est, l'œuvre est achevée ; à bientôt !"}
+{"text": "What is the distance from this place to the harbor?"}
+{"text": "He filled a chipped mug with coffee."}
+{"text": "The judge asked the witness to speak more slowly."}
+{"text": "Unicode check: café, naïve, 東京, emoji 🙂."}
+{"text": "The chemist labeled every flask on the bench."}
+{"text": "After finishing a note she went out to mail it."}
+{"text": "Crowds gathered under the clock tower at noon."}
+{"text": "Größenwahn, Übermut und Ärger: das Mädchen hieß Jürgen."}
+{"text": "The library shut its doors one hour sooner than it normally does."}
+{"text": "The moon rose over the quiet lake."}
+{"text": "After mean-pooling the token states, the vector is L2-normalized."}
+{"text": "MPNet is wider, at 768 dimensions."}
+{"text": "Nets were repaired beside the boats."}
+{"text": "Cosine similarity near one means the vectors agree."}
+{"text": "Lower-precision math may change the last bits of a vector."}
+{"text": "They shared a loaf of bread beside the river."}
+{"text": "Apple Metal runs MiniLM as a 4-bit MLX model."}
+{"text": "The Intel path runs embeddings through an in-process OpenVINO GenAI pipeline."}
+{"text": "The tide comes in after sunset."}
+{"text": "Spring is a busy season for outdoor work."}
+{"text": "A swan glided under the stone bridge."}
+{"text": "The orchestra tuned before the concerto."}
+{"text": "The archive smelled of paper and dust."}
+{"text": "השועל החום המהיר קופץ מעל הכלב העצלן."}
+{"text": "Mean pooling averages token states, then L2-normalizes."}
+{"text": "The MiniLM embeddings came from ONNX Runtime using the CUDA execution provider."}
+{"text": "Old boxes of documents filled the basement shelves."}
+{"text": "The river is shallow enough to wade in summer."}
+{"text": "Mountain silt travels downriver and settles in the delta."}
+{"text": "Rain fell steadily on the tin roof all night."}
+{"text": "Het is één van de mooiste plekjes van Nederland."}
+{"text": "Protobuf messages carry raw little-endian tensors."}
+{"text": "MiniLM outputs 384-dimensional vectors."}
+{"text": "The group made the ridgeline just ahead of the weather."}
+{"text": "gRPC bidirectional streams multiplex request ids."}
+{"text": "Each sentence is embedded by the server into a fixed-length vector."}
+{"text": "東京タワーは1958年に完成しました。高さは333メートルです。"}
+{"text": "The compass was placed on the worn map."}
+{"text": "Rivers flow toward the sea."}
+{"text": "A moth circled the porch light."}
+{"text": "Tokyo mornings are crowded with commuters."}
+{"text": "北京是中华人民共和国的首都，人口超过两千万。"}
+{"text": "Rivers carry silt from the mountains to the delta."}
+{"text": "Thunder rolled over the valley."}
+{"text": "A shared Rust server handles bearer auth and model routing."}
+{"text": "Maps show elevation with contour lines."}
+{"text": "روباه قهوه‌ای سریع از روی سگ تنبل می‌پرد."}
+{"text": "The baker opened the shop before sunrise."}
+{"text": "text with <|endoftext|> inside and <|im_start|>user at the end<|im_end|>"}
+{"text": "Beside the river they split a loaf of bread."}
+{"text": "numbers 1234567890 and 12.5% of 1,000,000 or 3.14159"}
+{"text": "A sudden gust slammed the barn door."}
+{"text": "The mock backend is deterministic for CI."}
+{"text": "Winter weather had closed several mountain passes."}
+{"text": "Astronauts floated past the cupola window."}
+{"text": "Unit tests should not download multi-megabyte corpora."}
+{"text": "At the meadow’s edge sat a red fox."}
+{"text": "Intel GenAI loads an OpenVINO embedding pipeline."}
+{"text": "Reference vectors are written once and compared later."}
+{"text": "Travelers checked the board for gate changes."}
+{"text": "Laboratory glassware needs clear markings to avoid mix-ups."}
+{"text": "Η γρήγορη καφέ αλεπού πηδάει πάνω από το τεμπέλικο σκυλί."}
+{"text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+{"text": "DON'T SHOUT, I'M RIGHT HERE. You'll see, we'd better hurry."}
+{"text": "Switch the lights off before you go."}
+{"text": "素早い茶色の狐が怠け者の犬を飛び越える。"}
+{"text": "Ships rely on coastal markers in bad weather."}
+{"text": "Cross-architecture embeddings should stay nearly identical."}
+{"text": "The ferry crossed the harbor in a fog."}
+{"text": "The gardener pruned the rose bushes in March."}
+{"text": "A soak test chunks a long public-domain play."}
+{"text": "Four-bit quantization trades a little fidelity for size."}
+{"text": "The library closed an hour earlier than usual."}
+{"text": "The city approved a new bus route."}
+{"text": "The quick brown fox jumps over the lazy dog."}
+{"text": "빠른 갈색 여우가 게으른 개를 뛰어넘습니다."}
+{"text": "Hangul jamo: 한글 should compose to 한글"}
+{"text": "MPNet is 768 dimensions and is not served on apple."}
+{"text": "Identical input text should produce matching tokenizer ids on every host."}
+{"text": "한글은 1443년에 세종대왕이 창제했습니다."}
+{"text": "The café near the station serves excellent espresso."}
+{"text": "Die Straße war voller Menschen, die über die Brücke gingen."}
+{"text": "The API key is sent as a bearer token."}
+{"text": "Oak leaves turned copper in late October."}
+{"text": "The bicycle was locked to the iron railing by her."}
+{"text": "الثعلب البني السريع يقفز فوق الكلب الكسول."}
+{"text": "line one\r\nline two\r\n\r\nline four"}
+{"text": "Someone had leftover cake in the break room."}
+{"text": "Can you tell me the way down to the waterfront?"}
+{"text": "The witness was told by the judge to slow down."}
+{"text": "The soak corpus is a small public-domain drama transcript."}
+{"text": "They measured the table with a folding ruler."}
+{"text": "Tiny Shakespeare is about one megabyte of play text."}
+{"text": "Smaller weights are faster to load on a laptop GPU."}
+{"text": "Perché non vieni con noi? È una bellissima città."}
+{"text": "A tabby dozed in a patch of sun by the window."}
+{"text": "   leading spaces, trailing spaces   "}
+{"text": "Räven hoppade över den lata hunden på ängen."}
+{"text": "A boat moved slowly through mist on the water."}
+{"text": "Mixed 日本語 and English with Ελληνικά, кириллица and العربية in one line."}
+{"text": "Please turn off the lights when you leave."}

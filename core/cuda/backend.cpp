@@ -1068,6 +1068,8 @@ Tile tile_named() {
     if (!strcasecmp(v, "sw8w")) return TILE_SWIZZLED_8W;
     if (!strcasecmp(v, "sw256")) return TILE_SWIZZLED_256x128;
     if (!strcasecmp(v, "swrow")) return TILE_SWIZZLED_ROWS;
+    if (!strcasecmp(v, "f16k")) return TILE_F16_WHOLE_K;
+    if (!strcasecmp(v, "f16k3")) return TILE_F16_WHOLE_K_3;
     return TILE_DEFAULT;
 }
 

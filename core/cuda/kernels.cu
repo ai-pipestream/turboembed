@@ -27,6 +27,7 @@
 
 #include <cfloat>
 #include <type_traits>
+#include <utility>
 
 /* mma.sync m16n8k16 with F16 inputs and cp.async are sm_80's. A build for
  * an older architecture carries the kernels that use them as stubs, which
@@ -1310,6 +1311,16 @@ struct SwzCursor {
  * and the tile's last. */
 constexpr int STEP_K = 0xffffff, STEP_OPENS = 1 << 24, STEP_CLOSES = 1 << 25, STEP_ENDS = 1 << 26;
 
+/* f(std::integral_constant<int, i>) for i from 0 to N - 1: a loop the
+ * compiler cannot leave rolled, for loops whose index picks registers
+ * (an index known only at run time puts the array in local memory). */
+template <typename F, int... I> __device__ __forceinline__ void static_for_(F &&f, std::integer_sequence<int, I...>) {
+    (f(std::integral_constant<int, I>{}), ...);
+}
+template <int N, typename F> __device__ __forceinline__ void static_for(F &&f) {
+    static_for_(f, std::make_integer_sequence<int, N>{});
+}
+
 /* A quad's F16 row of four n8 tiles, a half2 of each from each lane
  * (mine[u] is tile u's), gathered so lane tq holds tile tq's 8 values in
  * column order: a 4 x 4 transpose in two exchanges, across bit 0 of tq,
@@ -1328,21 +1339,47 @@ __device__ inline uint4 quad_gather(const uint32_t (&mine)[4], int tq) {
     const uint32_t wlo = b ? w1 : w0, whi = b ? w0 : w1;
     return make_uint4(c1 ? wlo : plo, c1 ? whi : phi, c1 ? plo : wlo, c1 ? phi : whi);
 }
+
+/* The eight halves of w to eight head-major columns, the first at col
+ * (qkv_column's) and d within its head, for a head width not a multiple
+ * of 8: the halves by shifts, so w stays in registers, and each next
+ * column by a step, a head's end stepping to the next head's start
+ * (the next head, or the next of Q, K and V, is the next head-major
+ * block), with no division. */
+__device__ inline void qkv_store8(const GemmArgs &g, __half *o, size_t col, int d, uint4 w) {
+    const uint32_t wv[4] = {w.x, w.y, w.z, w.w};
+    const size_t jump = (size_t)g.tcap * g.head_dim - (size_t)(g.head_dim - 1);
+#pragma unroll
+    for (int u = 0; u < 8; u++) {
+        o[col] = __ushort_as_half((unsigned short)(wv[u >> 1] >> ((u & 1) * 16)));
+        if (++d == g.head_dim) {
+            d = 0;
+            col += jump;
+        } else {
+            col++;
+        }
+    }
+}
 #endif
 
-template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB>
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB,
+          bool WHOLE = false>
 __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()))
     gemm_swz_kernel(GemmArgs g) {
 #ifndef TURBO_NO_MMA
     constexpr int NT = WM * WN * 32, WTM = BM / WM, WTN = BN / WN, MI = WTM / 16, NI = WTN / 8;
     constexpr int MMA_K = 32, SLOT = BM * BN, KK = MMA_K / 16;
     constexpr int ACC16_STEPS = 64 / MMA_K;
+    // WHOLE: the F16 accumulators over the whole of a segment's k, with
+    // no F32 sums but the stream-K partial products and their total.
+    static_assert(!WHOLE || ACC16, "whole-k F16 sums are F16 accumulators");
     static_assert(NI % 4 == 0, "F16 stores gather four n8 tiles");
     static_assert(STAGES >= 2, "a pipeline");
     // ADD_LN on a tile of whole rows (N <= BN, which the plan sees to):
     // the LayerNorm in the epilogue, from registers.
     constexpr bool ROW_LN = EPI == EPI_ADD_LN && BN == ROW_LN_WIDTH;
     __shared__ float row_sums[ROW_LN ? 2 : 1][ROW_LN ? BM : 1][WN];
+    static_assert(!DB || KK == 2, "the fragments alternate between two sets, the next step's first in set 0");
     extern __shared__ __align__(16) unsigned char gemm_sm[];
     __half *As = reinterpret_cast<__half *>(gemm_sm);
     __half *Bs = As + STAGES * BM * MMA_K;
@@ -1388,6 +1425,47 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         cp_async_commit();
     }
     int st = 0, lst = STAGES - 1; // the stage computed, the stage loaded next
+    auto after = [](int x) { return x + 1 == STAGES ? 0 : x + 1; };
+
+    // With DB, the fragments of two halves of k, 16 each: those of the
+    // half whose MMAs run and those of the next, read while they do. The
+    // next after a k step's last half is the next step's first, so each
+    // step's barrier comes before its last half's MMAs, not before its
+    // first ldmatrix: the pipeline of cutlass's multistage mainloop.
+    // Without (warps with no registers for two sets), each step waits at
+    // its barrier, then reads A's fragments and B's a pair of n8 tiles at
+    // a time, each pair's MMAs issued as it arrives.
+    uint32_t af[DB ? 2 : 1][MI][4], bf[DB ? 2 : 1][NI][2];
+    auto fragments = [&](int f, int stage, int kk) {
+        f %= DB ? 2 : 1;
+        const __half *as = As + stage * BM * MMA_K, *bs = Bs + stage * BN * MMA_K;
+#pragma unroll
+        for (int i = 0; i < MI; i++)
+            ldsm_x4(af[f][i], as + swz_chunk(wm * WTM + i * 16 + (lane & 15), kk * 2 + (lane >> 4)) * 8);
+#pragma unroll
+        for (int j = 0; j < NI / 2; j++) {
+            uint32_t r[4];
+            ldsm_x4(r, bs + swz_chunk(wn * WTN + j * 16 + (lane >> 4) * 8 + (lane & 7), kk * 2 + ((lane >> 3) & 1)) * 8);
+            bf[f][2 * j][0] = r[0];
+            bf[f][2 * j][1] = r[1];
+            bf[f][2 * j + 1][0] = r[2];
+            bf[f][2 * j + 1][1] = r[3];
+        }
+    };
+    // The barrier before a step's MMAs: its stage has landed, the stage
+    // the step before it read is free for the loads STAGES - 1 steps on.
+    int2 step = make_int2(0, 0); // the flags of the step whose stage landed last
+    auto next_stage = [&]() {
+        cp_async_wait<STAGES - 2>();
+        __syncthreads();
+        step = stage_step[st];
+        if (ld.live()) {
+            load_stage(lst, ld);
+            ld.next(share);
+        }
+        cp_async_commit();
+        lst = after(lst);
+    };
 
     float acc[MI][NI][4];
     int left;
@@ -1395,13 +1473,24 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         const Share sh = share();
         left = (int)(sh.hi - sh.lo);
     }
-    for (; left > 0;) {
-        cp_async_wait<STAGES - 2>();
-        __syncthreads();
-        int2 step = stage_step[st];
+    // With DB, the first fragments of the step that comes next, read
+    // where nothing else needs the registers: here, at the end of a
+    // step that does not close its segment, and after the epilogue of
+    // one that does (its stage landed at the barrier before the last
+    // MMAs). Read before the epilogue, they would be live across it.
+    auto first_fragments = [&]() {
+        if constexpr (DB)
+            if (left > 0) fragments(0, st, 0);
+    };
+    if (DB && left > 0) {
+        next_stage();
+        first_fragments();
+    }
+    while (left > 0) {
+        if constexpr (!DB) next_stage();
         const int tile = step.x;
         const long long first = (long long)tile * steps;
-        if (step.y & STEP_OPENS) {
+        if (!WHOLE && (step.y & STEP_OPENS)) {
 #pragma unroll
             for (int i = 0; i < MI; i++)
 #pragma unroll
@@ -1419,57 +1508,18 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                 for (int j = 0; j < NI; j++) hacc[i][j][0] = hacc[i][j][1] = 0u;
         }
         bool closes, chunk_done;
+        int flags;
         for (bool again = false;; again = true) {
-            if (again) {
-                cp_async_wait<STAGES - 2>();
-                __syncthreads();
-                step = stage_step[st];
+            if (!DB && again) {
+                next_stage();
             }
-            const int k = step.y & STEP_K;
-            closes = step.y & STEP_CLOSES;
-            chunk_done = !ACC16 || closes || (k + 1) % ACC16_STEPS == 0;
-            if (ld.live()) {
-                load_stage(lst, ld);
-                ld.next(share);
-            }
-            cp_async_commit();
-            lst = lst + 1 == STAGES ? 0 : lst + 1;
-            const __half *as = As + st * BM * MMA_K, *bs = Bs + st * BN * MMA_K;
-            uint32_t af[DB ? KK : 1][MI][4], bf[DB ? KK : 1][NI][2];
-            auto fragments = [&](int f, int kk) {
-#pragma unroll
-                for (int i = 0; i < MI; i++)
-                    ldsm_x4(af[f][i], as + swz_chunk(wm * WTM + i * 16 + (lane & 15), kk * 2 + (lane >> 4)) * 8);
-#pragma unroll
-                for (int j = 0; j < NI / 2; j++) {
-                    uint32_t r[4];
-                    ldsm_x4(r,
-                            bs + swz_chunk(wn * WTN + j * 16 + (lane >> 4) * 8 + (lane & 7), kk * 2 + ((lane >> 3) & 1)) * 8);
-                    bf[f][2 * j][0] = r[0];
-                    bf[f][2 * j][1] = r[1];
-                    bf[f][2 * j + 1][0] = r[2];
-                    bf[f][2 * j + 1][1] = r[3];
-                }
-            };
-            auto mmas = [&](int f) {
-#pragma unroll
-                for (int i = 0; i < MI; i++)
-#pragma unroll
-                    for (int j = 0; j < NI; j++) {
-                        if constexpr (ACC16)
-                            mma16816_f16(hacc[i][j], af[f][i], bf[f][j][0], bf[f][j][1]);
-                        else
-                            mma16816(acc[i][j], af[f][i], bf[f][j][0], bf[f][j][1]);
-                    }
-            };
-            if constexpr (DB) {
-#pragma unroll
-                for (int kk = 0; kk < KK; kk++) fragments(kk, kk);
-#pragma unroll
-                for (int kk = 0; kk < KK; kk++) mmas(kk);
-            } else {
-                // A's fragments, then B's a pair of n8 tiles at a time,
-                // each pair's MMAs issued as it arrives.
+            flags = step.y;
+            const int k = flags & STEP_K;
+            closes = flags & STEP_CLOSES;
+            chunk_done = !ACC16 || closes || (!WHOLE && (k + 1) % ACC16_STEPS == 0);
+            const int cur = st;
+            if constexpr (!DB) {
+                const __half *as = As + cur * BM * MMA_K, *bs = Bs + cur * BN * MMA_K;
 #pragma unroll
                 for (int kk = 0; kk < KK; kk++) {
 #pragma unroll
@@ -1493,9 +1543,35 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                         }
                     }
                 }
+                left--;
+                st = after(st);
+            } else {
+#pragma unroll
+            for (int kk = 0; kk < KK; kk++) {
+                if (kk + 1 < KK) {
+                    fragments((kk + 1) & 1, cur, kk + 1);
+                } else {
+                    left--;
+                    st = after(st);
+                    if (left > 0) {
+                        next_stage();
+                        // At a segment's end they wait for the epilogue.
+                        if (!closes) fragments((kk + 1) & 1, st, 0);
+                    }
+                }
+#pragma unroll
+                for (int i = 0; i < MI; i++)
+#pragma unroll
+                    for (int j = 0; j < NI; j++) {
+                        if constexpr (ACC16)
+                            mma16816_f16(hacc[i][j], af[(kk & 1) % (DB ? 2 : 1)][i], bf[(kk & 1) % (DB ? 2 : 1)][j][0],
+                                         bf[(kk & 1) % (DB ? 2 : 1)][j][1]);
+                        else
+                            mma16816(acc[i][j], af[(kk & 1) % (DB ? 2 : 1)][i], bf[(kk & 1) % (DB ? 2 : 1)][j][0],
+                                     bf[(kk & 1) % (DB ? 2 : 1)][j][1]);
+                    }
             }
-            st = st + 1 == STAGES ? 0 : st + 1;
-            left--;
+            }
             if (chunk_done) break;
         }
         if constexpr (ACC16) {
@@ -1506,13 +1582,14 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
 #pragma unroll
                     for (int h = 0; h < 2; h++) {
                         const float2 v = __half22float2(*reinterpret_cast<const __half2 *>(&hacc[i][j][h]));
-                        acc[i][j][2 * h] += v.x;
-                        acc[i][j][2 * h + 1] += v.y;
+                        // WHOLE: a segment is one chunk, and its sum the product.
+                        acc[i][j][2 * h] = WHOLE ? v.x : acc[i][j][2 * h] + v.x;
+                        acc[i][j][2 * h + 1] = WHOLE ? v.y : acc[i][j][2 * h + 1] + v.y;
                     }
         }
         if (!closes) continue;
 
-        if (!(step.y & STEP_ENDS)) {
+        if (!(flags & STEP_ENDS)) {
             // The start of a tile a later block finishes.
             float *slot = g.ws + (size_t)blockIdx.x * SLOT + threadIdx.x;
 #pragma unroll
@@ -1522,6 +1599,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
 #pragma unroll
                     for (int e = 0; e < 4; e++) __stcg(slot + ((i * NI + j) * 4 + e) * NT, acc[i][j][e]);
             sk_raise(g.flags + blockIdx.x);
+            first_fragments();
             continue;
         }
         const Share sh = share();
@@ -1539,23 +1617,35 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         // The finished tile, from registers.
         const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
         const int cw = n0 + wn * WTN;
-        // Bias, and GELU, in place first.
-        if constexpr (EPI != EPI_PLAIN) {
-#pragma unroll
-            for (int j = 0; j < NI; j++) {
+        // Every index into acc below is a template constant (static_for),
+        // never a loop the compiler may leave rolled.
+        // Bias, and GELU, in place first. An F16 output is packed as each
+        // n8 tile is done, two half2 of its four values, and its floats
+        // not read again: half the registers live into the stores.
+        constexpr bool f16_out = sizeof(TOut) == 2;
+        static_assert(!f16_out || EPI != EPI_PLAIN, "F16 outputs have a bias, which packs them");
+        [[maybe_unused]] uint32_t packed[f16_out ? MI : 1][f16_out ? NI : 1][2];
+        if constexpr (EPI != EPI_PLAIN)
+            static_for<NI>([&](auto J) {
+                constexpr int j = J.value;
                 const int c = cw + j * 8 + tq * 2;
                 const float b0 = c < N ? __ldg(g.bias + c) : 0.0f, b1 = c < N ? __ldg(g.bias + c + 1) : 0.0f;
-#pragma unroll
-                for (int i = 0; i < MI; i++) {
+                static_for<MI>([&](auto I) {
+                    constexpr int i = I.value;
 #pragma unroll
                     for (int e = 0; e < 4; e++) {
                         float &v = acc[i][j][e];
                         v += e & 1 ? b1 : b0;
                         if constexpr (EPI == EPI_GELU) v = gelu(v);
                     }
-                }
-            }
-        }
+                    if constexpr (f16_out)
+                        static_for<2>([&](auto H) {
+                            constexpr int h = H.value;
+                            const __half2 p = __floats2half2_rn(acc[i][j][2 * h], acc[i][j][2 * h + 1]);
+                            packed[i][j][h] = *reinterpret_cast<const uint32_t *>(&p);
+                        });
+                });
+            });
         if constexpr (ROW_LN) {
             // The residual, then the LayerNorm of each row, which this
             // tile holds whole: a lane's 2 x NI values of a row summed, a
@@ -1563,72 +1653,69 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             // in warp order through shared memory; the mean, then the
             // variance about it, each over the row's N columns.
             float *x = static_cast<float *>(g.out);
-#pragma unroll
-            for (int i = 0; i < MI; i++)
-#pragma unroll
-                for (int h = 0; h < 2; h++) {
+            static_for<MI>([&](auto I) {
+                static_for<2>([&](auto H) {
+                    constexpr int i = I.value, h = H.value;
                     const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
-#pragma unroll
-                    for (int j = 0; j < NI; j++) {
+                    static_for<NI>([&](auto J) {
+                        constexpr int j = J.value;
                         const int c = cw + j * 8 + tq * 2;
                         float2 r = make_float2(0.0f, 0.0f);
                         if (t < M && c < N) r = __ldcg(reinterpret_cast<const float2 *>(x + (size_t)t * N + c));
                         acc[i][j][2 * h] = c < N ? acc[i][j][2 * h] + r.x : 0.0f;
                         acc[i][j][2 * h + 1] = c < N ? acc[i][j][2 * h + 1] + r.y : 0.0f;
-                    }
-                }
+                    });
+                });
+            });
             float mean[MI][2], inv[MI][2];
-#pragma unroll
-            for (int pass = 0; pass < 2; pass++) {
-#pragma unroll
-                for (int i = 0; i < MI; i++)
-#pragma unroll
-                    for (int h = 0; h < 2; h++) {
+            static_for<2>([&](auto PASS) {
+                constexpr int pass = PASS.value;
+                static_for<MI>([&](auto I) {
+                    static_for<2>([&](auto H) {
+                        constexpr int i = I.value, h = H.value;
                         float q = 0.0f;
-#pragma unroll
-                        for (int j = 0; j < NI; j++) {
-                            const bool in = cw + j * 8 + tq * 2 < N;
+                        static_for<NI>([&](auto J) {
+                            constexpr int j = J.value;
 #pragma unroll
                             for (int e = 0; e < 2; e++) {
                                 const float v = acc[i][j][2 * h + e];
-                                if (pass == 0) {
+                                if constexpr (pass == 0) {
                                     q += v;
-                                } else if (in) {
+                                } else if (cw + j * 8 + tq * 2 < N) {
                                     const float d = v - mean[i][h];
                                     q += d * d;
                                 }
                             }
-                        }
+                        });
                         q += __shfl_xor_sync(0xffffffffu, q, 1);
                         q += __shfl_xor_sync(0xffffffffu, q, 2);
                         if (tq == 0) row_sums[pass][wm * WTM + i * 16 + gq + h * 8][wn] = q;
-                    }
+                    });
+                });
                 __syncthreads();
-#pragma unroll
-                for (int i = 0; i < MI; i++)
-#pragma unroll
-                    for (int h = 0; h < 2; h++) {
+                static_for<MI>([&](auto I) {
+                    static_for<2>([&](auto H) {
+                        constexpr int i = I.value, h = H.value;
                         const float *rs = row_sums[pass][wm * WTM + i * 16 + gq + h * 8];
                         float q = rs[0];
 #pragma unroll
                         for (int w = 1; w < WN; w++) q += rs[w];
-                        if (pass == 0)
+                        if constexpr (pass == 0)
                             mean[i][h] = q / (float)N;
                         else
                             inv[i][h] = 1.0f / sqrtf(q / (float)N + g.eps);
-                    }
-            }
+                    });
+                });
+            });
             __half *x16 = reinterpret_cast<__half *>(g.x16);
-#pragma unroll
-            for (int jq = 0; jq < NI / 4; jq++)
-#pragma unroll
-                for (int i = 0; i < MI; i++)
-#pragma unroll
-                    for (int h = 0; h < 2; h++) {
+            static_for<NI / 4>([&](auto JQ) {
+                static_for<MI>([&](auto I) {
+                    static_for<2>([&](auto H) {
+                        constexpr int jq = JQ.value, i = I.value, h = H.value;
                         const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
                         uint32_t mine[4];
-#pragma unroll
-                        for (int u = 0; u < 4; u++) {
+                        static_for<4>([&](auto U) {
+                            constexpr int u = U.value;
                             const int c = cw + (jq * 4 + u) * 8 + tq * 2;
                             float y0 = 0.0f, y1 = 0.0f;
                             if (c < N) {
@@ -1641,27 +1728,29 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                             }
                             const __half2 p = __floats2half2_rn(y0, y1);
                             mine[u] = *reinterpret_cast<const uint32_t *>(&p);
-                        }
+                        });
                         if (x16) {
                             const uint4 w = quad_gather(mine, tq);
                             const int c = cw + (jq * 4 + tq) * 8;
                             if (t < M && c < N) *reinterpret_cast<uint4 *>(x16 + (size_t)t * N + c) = w;
                         }
-                    }
+                    });
+                });
+            });
+            first_fragments();
             continue;
         }
         if constexpr (sizeof(TOut) == 4) {
             // F32: a float2 a lane, 32 contiguous bytes a quad.
-#pragma unroll
-            for (int i = 0; i < MI; i++)
-#pragma unroll
-                for (int h = 0; h < 2; h++) {
+            static_for<MI>([&](auto I) {
+                static_for<2>([&](auto H) {
+                    constexpr int i = I.value, h = H.value;
                     const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
-                    if (t >= M) continue;
+                    if (t >= M) return;
                     float2 *row = reinterpret_cast<float2 *>(out_at<float>(g, t, cw + tq * 2));
-#pragma unroll
-                    for (int j = 0; j < NI; j++) {
-                        if (cw + j * 8 >= N) continue;
+                    static_for<NI>([&](auto J) {
+                        constexpr int j = J.value;
+                        if (cw + j * 8 >= N) return;
                         float2 v = make_float2(acc[i][j][2 * h], acc[i][j][2 * h + 1]);
                         if constexpr (EPI == EPI_ADD_LN) {
                             const float2 r = row[j * 4];
@@ -1669,46 +1758,49 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                             v.y += r.y;
                         }
                         row[j * 4] = v;
+                    });
+                });
+            });
+        } else {
+            // F16: lane tq of a quad stores n8 tile jq * 4 + tq's 8 columns.
+            // Their head-major place (QKV) is worked out once for all the
+            // rows, outside the loops over them: its divisions compile to
+            // a call, which the loops must not hold.
+            const bool whole = EPI != EPI_QKV || g.head_dim % 8 == 0;
+            static_for<NI / 4>([&](auto JQ) {
+                const int c = cw + (JQ.value * 4 + tq) * 8;
+                [[maybe_unused]] size_t col = 0;
+                [[maybe_unused]] int d = 0;
+                if constexpr (EPI == EPI_QKV)
+                    if (c < N) {
+                        const int which = c / g.hidden, hc = c - which * g.hidden;
+                        const int head = hc / g.head_dim;
+                        d = hc - head * g.head_dim;
+                        col = ((size_t)(which * g.heads + head) * g.tcap) * g.head_dim + d;
                     }
-                }
-        }
-#pragma unroll
-        for (int jq = 0; jq < (sizeof(TOut) == 2 ? NI / 4 : 0); jq++)
-#pragma unroll
-            for (int i = 0; i < MI; i++)
-#pragma unroll
-                for (int h = 0; h < 2; h++) {
-                    const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
-                    uint32_t mine[4];
-#pragma unroll
-                    for (int u = 0; u < 4; u++) {
-                        const __half2 p = __floats2half2_rn(acc[i][jq * 4 + u][2 * h], acc[i][jq * 4 + u][2 * h + 1]);
-                        mine[u] = *reinterpret_cast<const uint32_t *>(&p);
-                    }
-                    {
+                static_for<MI>([&](auto I) {
+                    static_for<2>([&](auto H) {
+                        constexpr int jq = JQ.value, i = I.value, h = H.value;
+                        const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+                        uint32_t mine[4];
+                        static_for<4>([&](auto U) { mine[U.value] = packed[i][jq * 4 + U.value][h]; });
                         const uint4 w = quad_gather(mine, tq);
-                        const int c = cw + (jq * 4 + tq) * 8;
-                        if (t < M && c < N) {
-                            if constexpr (EPI == EPI_QKV) {
-                                TOut *o = static_cast<TOut *>(g.out) + (size_t)t * g.head_dim;
-                                if (g.head_dim % 8 == 0) {
-                                    *reinterpret_cast<uint4 *>(o + qkv_column(g, c)) = w;
-                                } else {
-                                    // The halves by shifts, not through w's
-                                    // address, so w stays in registers.
-                                    const uint32_t wv[4] = {w.x, w.y, w.z, w.w};
-#pragma unroll
-                                    for (int u = 0; u < 8; u++)
-                                        o[qkv_column(g, c + u)] =
-                                            __ushort_as_half((unsigned short)(wv[u >> 1] >> ((u & 1) * 16)));
-                                }
-                            } else {
-                                *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = w;
-                            }
+                        if (t >= M || c >= N) return;
+                        if constexpr (EPI == EPI_QKV) {
+                            __half *o = static_cast<__half *>(g.out) + (size_t)t * g.head_dim;
+                            if (whole)
+                                *reinterpret_cast<uint4 *>(o + col) = w;
+                            else
+                                qkv_store8(g, o, col, d, w);
+                        } else {
+                            *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = w;
                         }
-                    }
-                }
+                    });
+                });
+            });
+        }
         if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
+        first_fragments();
     }
     cp_async_wait<0>();
 #else
@@ -1753,9 +1845,10 @@ GemmKernel mma_kernel() {
             mma_min_blocks<BM, BN, STAGES, TOut>()};
 }
 
-template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB>
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB,
+          bool WHOLE = false>
 GemmKernel swz_kernel() {
-    return {gemm_swz_kernel<BM, BN, WM, WN, STAGES, EPI, TOut, ACC16, DB>,
+    return {gemm_swz_kernel<BM, BN, WM, WN, STAGES, EPI, TOut, ACC16, DB, WHOLE>,
             WM * WN * 32,
             swz_gemm_smem<BM, BN, STAGES>(),
             BM,
@@ -1769,6 +1862,10 @@ GemmKernel swz_kernel() {
  * one block to an SM, for GELU; TILE_SWIZZLED_8W the eight-warp mix. */
 template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
     constexpr bool wide = EPI == EPI_QKV || EPI == EPI_GELU;
+    // F16 sums over the whole of k: 128 x 128 over four warps of 64 x 64,
+    // TensorRT's shape, at four stages (one block to an SM) or three (two).
+    if (t == TILE_F16_WHOLE_K) return swz_kernel<128, 128, 2, 2, 4, EPI, TOut, true, true, true>();
+    if (t == TILE_F16_WHOLE_K_3) return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, true, true, true>();
     if constexpr (EPI == EPI_ADD_LN && !ACC16)
         if (t == TILE_SWIZZLED_ROWS) return swz_kernel<64, ROW_LN_WIDTH, 2, 4, 3, EPI, TOut, false, true>();
     if (t == TILE_SWIZZLED_ROWS) t = TILE_SWIZZLED_8W;
@@ -1824,7 +1921,9 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
         case TILE_SWIZZLED:
         case TILE_SWIZZLED_8W:
         case TILE_SWIZZLED_256x128:
-        case TILE_SWIZZLED_ROWS: return swz_for<TOut, EPI, false>(t);
+        case TILE_SWIZZLED_ROWS:
+        case TILE_F16_WHOLE_K:
+        case TILE_F16_WHOLE_K_3: return swz_for<TOut, EPI, false>(t);
         case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
         default: break;
         }
