@@ -91,7 +91,7 @@ fn cuda() {
     for f in SOURCES.iter().chain(&DEPENDS) {
         println!("cargo:rerun-if-changed={f}");
     }
-    for v in ["TURBO_CUDA_ROOT", "CUDA_PATH", "CUDA_HOME", "TURBO_CUDA_ARCH", "NVCC_CCBIN"] {
+    for v in ["TURBO_CUDA_ROOT", "CUDA_PATH", "CUDA_HOME", "TURBO_CUDA_ARCH", "NVCC_CCBIN", "TURBO_ATT_ABLATE"] {
         println!("cargo:rerun-if-env-changed={v}");
     }
 
@@ -138,6 +138,10 @@ fn cuda() {
             .arg(&obj)
             .arg(manifest.join(src));
         if src.ends_with(".cu") {
+            // Scratch branch only: attention ablations for timing.
+            if let Ok(v) = env::var("TURBO_ATT_ABLATE") {
+                cmd.arg(format!("-DTURBO_ATT_ABLATE={v}"));
+            }
             for (i, a) in archs.iter().enumerate() {
                 let code = if i + 1 == archs.len() { format!("[sm_{a},compute_{a}]") } else { format!("sm_{a}") };
                 cmd.arg("-gencode").arg(format!("arch=compute_{a},code={code}"));

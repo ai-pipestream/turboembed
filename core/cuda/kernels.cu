@@ -2725,6 +2725,12 @@ __device__ inline float ex2_approx(float x) {
     return y;
 }
 
+// Scratch, never merged: TURBO_ATT_ABLATE=1|2|3 cuts one part of the
+// attention of 128 queries, for timing only; the results are wrong.
+#ifndef TURBO_ATT_ABLATE
+#define TURBO_ATT_ABLATE 0
+#endif
+
 // One chunk of keys for a warp's MT tiles of 16 queries: S = Q K^T,
 // the running softmax, O += P V, each key and value fragment serving
 // every tile. The largest score and m are kept unscaled (the scale is
@@ -2758,9 +2764,11 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], fl
                 mma16816(s[t][2 * j + 1], qf[t][k], r[2], r[3]);
             }
         }
+    // Timing only, wrong by design: TURBO_ATT_ABLATE=1 takes P as S
+    // rounded, with no maximum, exponent or sum.
     float corr[MT][2];
 #pragma unroll
-    for (int t = 0; t < MT; t++) {
+    for (int t = 0; t < MT && TURBO_ATT_ABLATE != 1; t++) {
         float mx[2] = {m[t][0], m[t][1]};
 #pragma unroll
         for (int j = 0; j < 8; j++)
@@ -2812,8 +2820,9 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], fl
             o[t][j][3] *= corr[t][1];
         }
     }
+    // TURBO_ATT_ABLATE=2: no P V; the sums keep the softmax alive.
 #pragma unroll
-    for (int kk = 0; kk < 4; kk++) {
+    for (int kk = 0; kk < 4 && TURBO_ATT_ABLATE != 2; kk++) {
         uint32_t pa[MT][4];
 #pragma unroll
         for (int t = 0; t < MT; t++) {
@@ -2866,6 +2875,9 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
         }
     };
     auto load_chunk = [&](const Item &x, int b, int c0) {
+#if TURBO_ATT_ABLATE == 3
+        if (c0 > 0) return; // timing only: later chunks compute on stale buffers
+#endif
         const __half *Kg = qkv + (size_t)(a.heads + x.head) * hs + (size_t)x.base * D;
         const __half *Vg = Kg + (size_t)a.heads * hs;
         __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
