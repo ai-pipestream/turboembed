@@ -486,7 +486,9 @@ impl Kernels {
         let row = [BLOCK, 1, 1];
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
-            32 | 64 if xmx => Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_KS, 1, 1])?),
+            32 | 64 if xmx => {
+                Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_SUBGROUPS, 1, 1])?)
+            }
             128 if xmx => Attention::Tiled(c.kernel(&format!("attention_{head_dim}_to_half"), [QUERIES, 1, 1])?),
             32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
             _ => Attention::General(c.kernel("attention", row)?),
@@ -568,9 +570,9 @@ fn gemv_share(k_len: u32) -> Option<u32> {
     (k_len.is_multiple_of(share) && k_len / share <= GEMV_SUBGROUPS).then_some(share)
 }
 
-/// Sub-groups of an XMX attention group, splitting the row's keys, as
-/// encoder.cl's ATT_KS.
-const ATT_KS: u32 = 4;
+/// Sub-groups of an XMX attention group, 16 queries each, as encoder.cl's
+/// ATT_SUBGROUPS.
+const ATT_SUBGROUPS: u32 = 4;
 
 /// Queries a tiled attention group takes, as encoder.cl's QUERIES.
 const QUERIES: u32 = 256;
@@ -864,7 +866,7 @@ impl Session {
         use Arg::*;
         // Attention on the matrix engines reads F16 projections and writes
         // an F16 context.
-        let half_attention = matches!(k.attention, Attention::Xmx(_));
+        let half_attention = matches!(k.attention, Attention::Xmx(..));
         // Few tokens: a group per token keeps each LayerNorm short.
         let few_tokens = tokens < FEW_TOKENS;
         let xmx = k.linear_dpas.is_some();
@@ -1068,7 +1070,8 @@ impl Session {
                         F32(scale),
                         Ptr(self.att),
                     ];
-                    a.launch(c, q, "attention", &args, [self.longest.div_ceil(16), d.heads, batch])?;
+                    let groups = [self.longest.div_ceil(16 * ATT_SUBGROUPS), d.heads, batch];
+                    a.launch(c, q, "attention", &args, groups)?;
                 }
                 Attention::Tiled(a) => {
                     let args = [

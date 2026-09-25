@@ -139,11 +139,11 @@ of any run.
   computes 16 tokens by the whole hidden width, a sub-group each 32
   outputs, and the rows' sums meet in local memory. For a hidden width over
   2048 the LayerNorm kernel follows them instead. Attention for head widths 32
-  and 64 runs on the matrix engines: a group of 4 sub-groups takes 16
-  queries, a lane each, the sub-groups walking the row's keys 32 at a time
-  in turn (K and V by 2D block reads), and their running maxima, sums and
-  contexts meet in local memory at the end; other widths write an F16
-  context from the kernels above. The run waits for the queue before it returns, and
+  and 64 runs on the matrix engines: a sub-group takes 16 queries, a lane
+  each, and walks the row's keys 32 at a time (K and V by 2D block
+  reads); a group's 4 sub-groups take consecutive blocks of queries, so
+  they read the row's keys and values from cache between them. Other
+  widths write an F16 context from the kernels above. The run waits for the queue before it returns, and
   leaves the vectors in the session's `DEVICE` buffer:
   `turbo_result_buffer` hands out that memory, and `turbo_result_read`
   copies it back.
