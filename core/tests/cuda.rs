@@ -1413,7 +1413,9 @@ fn wide_attention_matches_the_cpu_at_heads_of_64() {
 /// 65, 63, 17 and 1): the CPU's vectors within FASTEST's bound, with its
 /// default softmax and with TURBO_CUDA_ATTENTION=exact's, which is the
 /// earlier arithmetic; the same bits again; and the two softmaxes within
-/// the bound of each other. Each session reports the kernel it runs.
+/// the bound of each other. At heads of 32, TURBO_CUDA_ATTENTION=fa32's
+/// kernel of 32 queries to a warp gives the default's bits, so its
+/// bound too. Each session reports the kernel it runs.
 #[test]
 fn attention_of_128_queries_matches_on_whole_chunks_and_holes() {
     let _t = turn();
@@ -1458,6 +1460,19 @@ fn attention_of_128_queries_matches_on_whole_chunks_and_holes() {
             let what = format!("heads of {}, rows {lens:?}, exact against the default", hidden / 2);
             let (cos, abs) = within(&what, &runs[1].0, &runs[0].0, runs[0].1);
             println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+            if hidden == 64 {
+                turbo::cuda::use_fa32_attention(Some(true));
+                let gs = Session::create(g.m, Some(&session_desc(6, 512, TURBO_PRECISION_FASTEST)));
+                turbo::cuda::use_fa32_attention(None);
+                let gs = gs.unwrap();
+                let choices = field(&gs.info().choices);
+                assert!(choices.contains("attn=mma128-fa32,"), "{choices}");
+                gs.write_tokens(&t.batch(), None).unwrap();
+                let got = gs.run().unwrap().rows();
+                let what = format!("heads of 32, rows {lens:?}, fa32");
+                within(&what, &got, &want, runs[0].1);
+                assert_eq!(got, runs[0].0, "{what}: the default's bits");
+            }
         }
     }
 }

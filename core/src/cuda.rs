@@ -45,6 +45,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_split_attention(split: i32);
     fn turbo_cuda_use_wide_attention(wide: i32);
     fn turbo_cuda_use_exact_attention(exact: i32);
+    fn turbo_cuda_use_fa32_attention(fa32: i32);
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
     fn turbo_cuda_use_column_pool(columns: i32);
     fn turbo_cuda_use_tf32(tf32: i32);
@@ -276,6 +277,16 @@ pub fn use_wide_attention(wide: Option<bool>) {
 #[cfg(feature = "internals")]
 pub fn use_exact_attention(exact: Option<bool>) {
     unsafe { turbo_cuda_use_exact_attention(exact.map_or(-1, i32::from)) };
+}
+
+/// The attention of 128 queries at heads of 32 in sessions made from now
+/// on: `Some(true)` 32 queries to each of four warps, as
+/// TURBO_CUDA_ATTENTION=fa32 picks it, `Some(false)` the default of 16 to
+/// each of eight, `None` to read the variable again. Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn use_fa32_attention(fa32: Option<bool>) {
+    unsafe { turbo_cuda_use_fa32_attention(fa32.map_or(-1, i32::from)) };
 }
 
 /// The LayerNorms of sessions made from now on: `Some(true)` a kernel of

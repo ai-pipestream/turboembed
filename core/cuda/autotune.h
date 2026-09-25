@@ -22,8 +22,15 @@ namespace turbo_cuda {
  * split among warps (F32, and F16 without the tensor cores' attention),
  * and the tensor cores' kernel of 64 or 128 queries to a block (F16 on
  * heads of 32 or 64), the latter also with its earlier softmax of
- * exp2f. */
-enum AttnVariant : int { ATT_FMA_TILED = 0, ATT_FMA_SPLIT = 1, ATT_MMA_64 = 2, ATT_MMA_128 = 3, ATT_MMA_128_EXACT = 4 };
+ * exp2f, or at heads of 32 with 32 queries to each of four warps. */
+enum AttnVariant : int {
+    ATT_FMA_TILED = 0,
+    ATT_FMA_SPLIT = 1,
+    ATT_MMA_64 = 2,
+    ATT_MMA_128 = 3,
+    ATT_MMA_128_EXACT = 4,
+    ATT_MMA_128_FA32 = 5, /* heads of 32 only: 32 queries to a warp, four warps */
+};
 
 /* The attention output and second feed-forward GEMMs' LayerNorm: a kernel
  * of its own after the product, or in the GEMM's epilogue. */

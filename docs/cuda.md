@@ -108,7 +108,12 @@ the probabilities take for P V. `TURBO_CUDA_ATTENTION=exact` keeps the
 earlier softmax, the scores scaled before the maximum is taken and
 `exp2f` for each probability, which gives the earlier bits; the default
 agrees with it within FASTEST's bound. Heads of 32 fit two blocks to an
-SM, heads of 64 one. On an RTX 4080 SUPER at 32 x 256 full rows the
+SM, heads of 64 one. `TURBO_CUDA_ATTENTION=fa32`, for measuring, gives
+heads of 32 the same kernel with two tiles of 16 queries to a warp over
+four warps, so each fragment of keys and values read from shared memory
+feeds four products in place of two, at two blocks of four warps to an
+SM (shared memory holds it to two). It gives the default's bits; heads
+of 64 keep the default. On an RTX 4080 SUPER at 32 x 256 full rows the
 kernel, with two buffers and `exp2f`, took 324 µs a pass against 398
 for the earlier kernel of 64 queries to four warps, which
 `TURBO_CUDA_ATTENTION=64` still gives; the two round differently, so
@@ -173,8 +178,8 @@ Each GEMM (`qkv`, `out`, `ffn1`, `ffn2`) names its tile as
 `TURBO_CUDA_TILE` spells it (`acc16-8w` and `acc16-sw8w` being the
 F16 accumulators' eight-warp and swizzled eight-warp tiles), then its
 stream-K (`sk<steps>` or `tiles`), then `/tf32` when it computes in TF32;
-`attn` is `fma-tiled`, `fma-split`, `mma64`, `mma128` or
-`mma128-exact`; `ln` is
+`attn` is `fma-tiled`, `fma-split`, `mma64`, `mma128`, `mma128-exact`
+or `mma128-fa32`; `ln` is
 `separate` or `fused`; `pool` is `groups` or `columns`. The names are of
 the kernels that run: a tile the session's operands or device do not
 take is reported as the one that runs in its place. `forced=` lists the

@@ -175,6 +175,10 @@ struct Shape {
      * before ex2.approx and the scale in the exponent's multiply-add, for
      * comparing bits and times with the default. */
     bool exact_exp2 = false;
+    /* At heads of 32, that attention with two tiles of 16 queries to a
+     * warp over four warps (TURBO_CUDA_ATTENTION=fa32), for measuring
+     * against the default: the same sums. */
+    bool fa32 = false;
     /* LayerNorm in the attention output and second feed-forward GEMMs
      * (EPI_ADD_LN) when the hidden width allows and
      * TURBO_CUDA_LAYER_NORM=fused asks for it; otherwise the GEMM's
