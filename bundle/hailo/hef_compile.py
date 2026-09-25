@@ -144,7 +144,10 @@ def frames(tok, table, texts, seq, heads):
 
 
 def check_cut(export, cut_path, tok, texts, rows, bias, masks):
-    """The cut graph gives the export's hidden states on every kept position."""
+    """The cut graph gives the export's hidden states on every kept position.
+
+    Both graphs are compared on their first output: the export's
+    last_hidden_state and the cut graph's only output."""
     full = ort.InferenceSession(export)
     part = ort.InferenceSession(cut_path)
     typed = any(i.name == "token_type_ids" for i in full.get_inputs())
@@ -196,7 +199,10 @@ def main():
     texts = [json.loads(line)["text"] for line in open(a.calibration, encoding="utf-8") if line.strip()]
     tok = Tokenizer.from_file(a.tokenizer)
     tok.enable_truncation(a.seq)
-    tok.enable_padding(length=a.seq, pad_id=tok.token_to_id("[PAD]") or 0)
+    pad = tok.token_to_id("[PAD]")
+    if pad is None:
+        sys.exit(f"hef_compile: {a.tokenizer} has no [PAD] token")
+    tok.enable_padding(length=a.seq, pad_id=pad)
 
     export = onnx.load(a.onnx)
     word = word_gather(export.graph)
