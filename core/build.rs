@@ -3,8 +3,9 @@
 //! variables it reads:
 //!
 //! - TURBO_CUDA_ROOT: the toolkit's directory, with bin/nvcc, include/ and
-//!   lib64/ (or lib/, or targets/<arch>-linux/lib/). Else CUDA_PATH, else
-//!   CUDA_HOME, else /usr/local/cuda.
+//!   lib64/ (or lib/, targets/<arch>-linux/lib/, or lib/<arch>-linux-gnu/,
+//!   where a distribution's package puts it, so /usr serves). Else
+//!   CUDA_PATH, else CUDA_HOME, else /usr/local/cuda.
 //! - TURBO_CUDA_ARCH: the SM architectures to compile for, comma
 //!   separated, as nvcc numbers them (89 for sm_89). Default 89. Each gets
 //!   its machine code, and the highest its PTX too, so a newer device can
@@ -41,11 +42,17 @@ fn main() {
             nvcc.display()
         ));
     }
-    let lib = ["lib64", "lib", &format!("targets/{}-linux/lib", env::consts::ARCH)]
+    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_else(|_| env::consts::ARCH.to_owned());
+    let lib = ["lib64", "lib", &format!("targets/{arch}-linux/lib"), &format!("lib/{arch}-linux-gnu")]
         .iter()
         .map(|d| root.join(d))
         .find(|d| d.join("libcudart.so").exists())
-        .unwrap_or_else(|| fail(&format!("no libcudart.so under {}/lib64, lib or targets/*/lib", root.display())));
+        .unwrap_or_else(|| {
+            fail(&format!(
+                "no libcudart.so under {}/lib64, lib, targets/{arch}-linux/lib or lib/{arch}-linux-gnu",
+                root.display()
+            ))
+        });
     let archs = archs();
 
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
