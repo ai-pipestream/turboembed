@@ -1096,6 +1096,30 @@ fn largest_shape_on(dir: &std::path::Path, gs: &Session, cs: &Session, floor: f6
     );
 }
 
+/// Every row full, at FASTEST: the small model's 64 x 64 tokens give its
+/// narrow layers tiles enough for the matrix kernel that stages through
+/// local memory, with outputs that end inside its 128-wide tiles.
+#[test]
+fn a_full_batch_at_fastest_matches_the_cpu() {
+    let _t = turn();
+    let Some(_) = gpu_device("a_full_batch_at_fastest_matches_the_cpu") else { return };
+    let dir = tiny_bundle();
+    let (g, c) = (on_gpu(&dir), Loaded::load(&dir).unwrap());
+    let gs = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
+    let cs = Session::create(c.m, None).unwrap();
+    let si = gs.info();
+    let (batch, seq) = (si.max_batch as usize, si.max_seq as usize);
+    let rows: Vec<Vec<i32>> =
+        (0..batch).map(|r| (0..seq).map(|p| (1000 + (r * 131 + p * 17) % 20000) as i32).collect()).collect();
+    let t = Tokens::new(&rows, 0);
+    gs.write_tokens(&t.batch(), None).unwrap();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    for (r, (a, b)) in gs.run().unwrap().rows().iter().zip(cs.run().unwrap().rows()).enumerate() {
+        let cos = cosine(a, &b);
+        assert!(cos >= 0.999, "row {r}: cosine {cos} with the cpu");
+    }
+}
+
 #[test]
 fn the_largest_shape_matches_the_cpu() {
     let _t = turn();

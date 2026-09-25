@@ -278,7 +278,8 @@ __attribute__((overloadable)) ushort8 intel_sub_group_block_read_us8(const __loc
  * both operands through local memory, as F16, so a product's operands are
  * read from global memory once per group rather than once per sub-group.
  * The tokens are staged as the products take them, 8 rows of 16 terms
- * together, so one block read gives a sub-group its A.
+ * together, so one block read gives a sub-group its A. k_sub is unused,
+ * kept so every XMX kernel takes the same arguments.
  * k_len is a multiple of 32. */
 #define WG_M 64
 #define WG_N 128
