@@ -1950,13 +1950,18 @@ fn a_variant_outside_the_precision_is_refused() {
             }
             let e = make().err().unwrap();
             assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{v:?}: {}", e.message);
-            assert!(e.message.contains(v.name.split('/').next().unwrap()), "{}", e.message);
+            // The refusal names the kernel a GEMM runs: the variant, or
+            // on a GEMM it does not serve, the tile it gives way to there.
+            let named = e.message.contains(v.name.split('/').next().unwrap());
             // The experiment's switch widens the session's classes.
+            let mut widened = None;
             if v.numeric == TURBO_NUMERIC_TF32 && precision == TURBO_PRECISION_MODEL {
                 turbo::cuda::use_tf32(Some(true));
                 let s = make();
                 turbo::cuda::use_tf32(None);
-                assert!(field(&s.unwrap().info().choices).contains("/tf32"));
+                let choices = field(&s.unwrap().info().choices);
+                assert!(choices.contains("/tf32"), "{choices}");
+                widened = Some(choices);
             }
             if v.numeric == TURBO_NUMERIC_F16_CHUNKACC {
                 turbo::cuda::use_f16_accumulate(Some(true));
@@ -1964,6 +1969,16 @@ fn a_variant_outside_the_precision_is_refused() {
                 turbo::cuda::use_f16_accumulate(None);
                 let choices = field(&s.unwrap().info().choices);
                 assert!(choices.contains(&format!("={}/", v.name)), "{choices}");
+                widened = Some(choices);
+            }
+            if !named {
+                // "<bin>:<gemm>=<tile>/..." is what that GEMM of that bin
+                // runs once the switch allows it.
+                let item = e.message.split(' ').find(|w| w.contains(":") && w.contains("=")).unwrap();
+                let (bin, run) = item.split_once(':').unwrap();
+                let choices = widened.unwrap_or_else(|| panic!("{v:?}: {}", e.message));
+                let in_bin = choices.split(';').find(|b| b.starts_with(&format!("{bin}:"))).unwrap();
+                assert!(in_bin.contains(run), "{v:?}: {} runs as {in_bin}", e.message);
             }
         }
     }
