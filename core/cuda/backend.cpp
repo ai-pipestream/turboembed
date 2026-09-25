@@ -1750,7 +1750,7 @@ void find_candidates(Context &c, const Shape &base, const Choices &ch, const Pla
             const BinChoices &bc = ch.bin[b];
             std::vector<Candidate> &list = t->cand[b][g];
             if (bc.gemm_forced[g] & KNOB_TILE) continue;
-            const Epilogue ep = gemm_epilogue((Gemm)g, plan[b].fused_ln);
+            const Epilogue ep = gemm_epilogue((Gemm)g, plan[b].fused_ln, base.gelu_erf);
             list.push_back(Candidate{bc.gemm[g], plan[b].gemm_grid[g]});
             for (int i = 0; i < nv; i++) {
                 if (!vs[i].candidate) continue;
@@ -2007,7 +2007,7 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
         for (int g = 0; g < GEMM_COUNT; g++) {
             const std::vector<Candidate> &list = t.cand[b][g];
             if (list.empty()) continue;
-            const Epilogue ep = gemm_epilogue((Gemm)g, plan.fused_ln);
+            const Epilogue ep = gemm_epilogue((Gemm)g, plan.fused_ln, s.shape[b].gelu_erf);
             GemmArgs ga = layer_gemm(s, b, (Gemm)g, ep);
             int best = -1;
             float incumbent = 0, fastest = 0;
