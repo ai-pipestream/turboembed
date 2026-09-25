@@ -2349,18 +2349,23 @@ fn a_variant_that_cannot_launch_is_skipped() {
     assert!(e.message.contains(&v.name), "{}", e.message);
 }
 
-/// A session whose GEMMs cuBLAS computes is not tuned, and the log says why.
+/// A session whose GEMMs cuBLAS computes is not tuned and takes no cached
+/// choice, whose kernels its GEMMs would not run; the log says why.
 #[test]
 fn cublas_refuses_tuning() {
     let _t = turn();
     let Some(_) = cuda_device("cublas_refuses_tuning") else { return };
     let (f, _) = small_model("cuda-cublas-tuning");
     let (g, lines) = load_logged(&f.dir);
-    turbo::cuda::use_cublas(Some(15));
+    let desc = tuned_desc(40, 160, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_ON, 0);
     let s = caching(None, || {
-        Session::create(g.m, Some(&tuned_desc(40, 160, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_ON, 0)))
+        // An entry for the key first, which the cuBLAS session must not take.
+        assert_eq!(Session::create(g.m, Some(&desc)).unwrap().info().tuned, TURBO_TUNED_MEASURED);
+        turbo::cuda::use_cublas(Some(15));
+        let s = Session::create(g.m, Some(&desc));
+        turbo::cuda::use_cublas(None);
+        s
     });
-    turbo::cuda::use_cublas(None);
     assert_eq!(s.unwrap().info().tuned, TURBO_TUNED_DEFAULT);
     let lines = lines.lock().unwrap();
     assert!(

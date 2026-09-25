@@ -226,7 +226,8 @@ what is left is not timed, and DEBUG lines name it. The context's lock
 is held that long, so the context's other sessions wait: a server that
 makes sessions while it serves makes them on a context of their own, or
 with tuning off. A session whose GEMMs cuBLAS computes
-(`TURBO_CUDA_CUBLAS`) is not tuned, and an INFO line says why.
+(`TURBO_CUDA_CUBLAS`) is not tuned and takes no cached choice: it
+reports `default`, and an INFO line says why.
 
 A measured session reports `tuned` MEASURED and `tune_ms`, and logs at
 INFO `cuda device 0: kernels chosen in <ms> ms for <n> token bins:

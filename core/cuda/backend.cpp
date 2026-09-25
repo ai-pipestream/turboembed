@@ -2167,8 +2167,16 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         // The choices an earlier session with the same key measured, the
         // incumbents here: taken only by a session that forces nothing and
         // widens nothing, as the core caches only such sessions.
+        // cuBLAS's GEMMs run without a graph and have no variants to time,
+        // and a cached line would name kernels they do not run: such a
+        // session takes neither.
+        const unsigned cublas = cublas_gemms();
+        if (tuned && cublas)
+            c->say(LOG_INFO,
+                   "cuda device %d: not tuned: TURBO_CUDA_CUBLAS hands GEMMs to cuBLAS, whose kernels are its own",
+                   c->ordinal);
         bool cached = false;
-        const bool plain = !forced_knobs(ch) && !tf32 && !f16_accumulate;
+        const bool plain = !forced_knobs(ch) && !tf32 && !f16_accumulate && !cublas;
         if (tuned && tuning->cached && *tuning->cached && plain) {
             Choices cc = ch;
             uint32_t missing = 0;
@@ -2196,17 +2204,9 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
                        tuning->cached);
             }
         }
-        const unsigned cublas = cublas_gemms();
         // ON with a cached choice takes it unmeasured; RETUNE measures
-        // against it. cuBLAS's GEMMs run without a graph and have no
-        // variants to time.
-        bool measure = tuned && !(cached && mode == TURBO_AUTOTUNE_ON);
-        if (measure && cublas) {
-            measure = false;
-            c->say(LOG_INFO,
-                   "cuda device %d: not tuned: TURBO_CUDA_CUBLAS hands GEMMs to cuBLAS, whose kernels are its own",
-                   c->ordinal);
-        }
+        // against it.
+        const bool measure = tuned && !cublas && !(cached && mode == TURBO_AUTOTUNE_ON);
 
         Session *s = make<Session>();
         s->model = m;
