@@ -132,7 +132,8 @@ of any run.
   in cache; with 8 tokens or fewer, 8 tokens by 32 outputs, 4 sub-groups a
   group. A layer's sums are never split, so each output is summed in one
   order at every batch size. The LayerNorms write the hidden states in F16
-  too, for the layers that read them; the feed-forward input writes F16,
+  too, for the layers that read them, and the LayerNorm-fused projections
+  keep the residual stream in F16 alone; the feed-forward input writes F16,
   and so does the Q, K and V projection for the head widths whose
   attention runs on the matrix engines. The attention output and the feed-forward output each
   take their residual and LayerNorm in their own epilogue: a sub-group
@@ -170,7 +171,9 @@ of any run.
   F64 and floored at 1e-12. Products and sums round separately except in
   the linear layers' and attention's multiply-adds. Cosine against the
   fp32 reference must reach 0.9999. At FASTEST the linear layers take F16
-  operands, the hidden states kept in F32 beside their F16 copy; the
+  operands; where the projections take their LayerNorm in their epilogue
+  the residual stream between layers is F16, and the last layer's output
+  is written in F32 as well for the pooling; the
   feed-forward block's middle and the attention context are F16; for
   head widths 32 and 64 attention takes F16 operands, its softmax in base
   2 on the device's native exponential, and for other widths it runs as
