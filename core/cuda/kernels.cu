@@ -1279,6 +1279,15 @@ template <int BM, int BN, int STAGES> constexpr int swz_min_blocks() {
     return swz_gemm_smem<BM, BN, STAGES>() <= 49 * 1024 ? 2 : 1;
 }
 
+/* Probe: the eight-warp pipelined plain product (sw8w's attention output
+ * and second feed-forward GEMMs) at one block to an SM, which lets ptxas
+ * give it up to 255 registers. */
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, bool ACC16, bool DB>
+constexpr int swz_launch_blocks() {
+    if (BM == 128 && BN == 64 && WM == 4 && WN == 2 && STAGES == 4 && EPI == EPI_PLAIN && !ACC16 && DB) return 1;
+    return swz_min_blocks<BM, BN, STAGES>();
+}
+
 #ifndef TURBO_NO_MMA
 /* A block's place in its share, walked as gemm_mma_kernel walks it: the
  * segments last to first, each segment's k steps first to last. */
@@ -1363,7 +1372,7 @@ __device__ inline void qkv_store8(const GemmArgs &g, __half *o, size_t col, int 
 #endif
 
 template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB>
-__global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()))
+__global__ void __launch_bounds__(WM *WN * 32, (swz_launch_blocks<BM, BN, WM, WN, STAGES, EPI, ACC16, DB>()))
     gemm_swz_kernel(GemmArgs g) {
 #ifndef TURBO_NO_MMA
     constexpr int NT = WM * WN * 32, WTM = BM / WM, WTN = BN / WN, MI = WTM / 16, NI = WTN / 8;
@@ -1840,7 +1849,7 @@ GemmKernel swz_kernel() {
             swz_gemm_smem<BM, BN, STAGES>(),
             BM,
             BN,
-            swz_min_blocks<BM, BN, STAGES>()};
+            swz_launch_blocks<BM, BN, WM, WN, STAGES, EPI, ACC16, DB>()};
 }
 
 /* The swizzled kernel's tiles (F16 operands), three stages each:
