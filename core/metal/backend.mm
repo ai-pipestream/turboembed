@@ -328,8 +328,8 @@ int32_t capability(uint32_t ordinal, uint32_t, uint32_t, uint32_t *status, uint3
 constexpr uint32_t LOG_WARNING = 1;
 constexpr uint32_t LOG_DEBUG = 3;
 
-enum Kernel { EMBED_LN, ADD_LN, GEMM, ATTENTION, ATTENTION_NARROW, POOL, WIDEN_F16, WIDEN_BF16, KERNELS };
-const char *const KERNEL_NAMES[KERNELS] = {"embed_layer_norm", "add_layer_norm", "gemm", "attention",
+enum Kernel { EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, WIDEN_F16, WIDEN_BF16, KERNELS };
+const char *const KERNEL_NAMES[KERNELS] = {"embed_layer_norm", "add_layer_norm", "gemm", "gemm_small", "attention",
                                            "attention_narrow", "pool", "widen_f16", "widen_bf16"};
 
 /* The kernels compiled for one device. */
@@ -427,7 +427,7 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
         int32_t rc = c->queue ? TURBO_OK : refuse(err, TURBO_E_RUNTIME, "newCommandQueue gave none");
         if (rc == TURBO_OK) rc = kernels_for(ordinal, &c->kernels, err);
         // kernels.metal's reductions and matrices take SIMD groups of 32.
-        for (Kernel kk : {GEMM, ATTENTION})
+        for (Kernel kk : {GEMM, GEMM_SMALL, ATTENTION})
             if (rc == TURBO_OK && c->kernels->k[kk].maxTotalThreadsPerThreadgroup < 128)
                 rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs the %s kernel in threadgroups of %lu; it needs 128",
                             ordinal, KERNEL_NAMES[kk], (unsigned long)c->kernels->k[kk].maxTotalThreadsPerThreadgroup);
@@ -891,6 +891,11 @@ enum : uint32_t { EPILOGUE_NONE = 0, EPILOGUE_BIAS = 1, EPILOGUE_BIAS_GELU = 2 }
  * cores busy: several per core on the largest Apple GPUs. */
 constexpr uint32_t SPREAD = 128;
 
+/* Up to this many packed tokens, the linear layers run the small kernel,
+ * which reads the weights with more threadgroups in flight; above it the
+ * tiled kernel, which reuses them more, is faster. */
+constexpr uint32_t SMALL_TOKENS = 128;
+
 /* The packed tokens a batch of `tokens` can take, rounded up to a
  * multiple of 32. */
 size_t capacity(size_t tokens) { return round_up(tokens, 32); }
@@ -1093,16 +1098,18 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     auto gemm = [&](uint64_t x, uint32_t n_in, uint32_t n_out, uint32_t epilogue,
                     std::initializer_list<std::pair<const Ref *, uint64_t>> outs,
                     std::initializer_list<const Ref *> biases) -> uint32_t {
+        // Few tokens: the small kernel, over all of k.
+        const bool small = tokens <= SMALL_TOKENS && n_out % 16 == 0;
         const uint32_t tiles = (n_out + 63) / 64 * (tokens / 32);
         uint32_t splits = 1;
-        if (outs.size() == 1 && epilogue == EPILOGUE_NONE && tiles < SPREAD) {
+        if (!small && outs.size() == 1 && epilogue == EPILOGUE_NONE && tiles < SPREAD) {
             splits = std::min({(SPREAD + tiles - 1) / tiles, n_in / 64, s.cap / tokens, 8u});
             splits = std::max(splits, 1u);
         }
         const uint32_t kchunk = (uint32_t)round_up((n_in + splits - 1) / splits, 16);
         splits = (n_in + kchunk - 1) / kchunk;
         const GemmParams p{tokens, n_out, n_in, epilogue, splits, kchunk};
-        [enc setComputePipelineState:kn.k[GEMM]];
+        [enc setComputePipelineState:kn.k[small ? GEMM_SMALL : GEMM]];
         [enc setBuffer:sc offset:x atIndex:0];
         NSUInteger i = 0;
         for (const auto &o : outs) {
@@ -1120,8 +1127,11 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             [enc setBuffer:sc offset:0 atIndex:7 + j];
         }
         [enc setBytes:&p length:sizeof p atIndex:10];
-        [enc dispatchThreadgroups:MTLSizeMake((n_out + 63) / 64, tokens / 32, n * splits)
-            threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+        if (small)
+            [enc dispatchThreadgroups:MTLSizeMake(n_out / 16, tokens / 32, n) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+        else
+            [enc dispatchThreadgroups:MTLSizeMake((n_out + 63) / 64, tokens / 32, n * splits)
+                threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
         return splits;
     };
     const RowParams rp{h, (float)d.layer_norm_eps};
