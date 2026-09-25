@@ -1939,7 +1939,7 @@ struct Tuned {
 /* The tuner over s.choices, from the incumbents: each bin in TUNE_ORDER
  * gets the tuner's rows for its tokens, each of its GEMMs times its
  * incumbent then its candidates, and the fastest by 5% is the bin's
- * choice. The first bin runs the whole encoder first, untimed as a
+ * choice. The first bin runs the whole encoder twice first, untimed as a
  * choice, which loads the modules, brings the clocks up and leaves
  * activations for the GEMMs to read. */
 int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_error *err) {
@@ -1965,6 +1965,9 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
         const int m = tuning_tokens(b, s.shape[b].tcap);
         stage_rows(s, m);
         if (first) {
+            // Twice: a cold device's clocks come up during the first, so
+            // the incumbent's times are the device's, not its warming.
+            TRY(encode(s, b, err));
             TRY(encode(s, b, err));
         } else {
             s.pack.queries = plan.attn_queries;

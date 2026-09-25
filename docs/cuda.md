@@ -207,7 +207,7 @@ context's lock, on its stream and its own buffers. Each bin, those
 nearest a mixed batch first (`le4k`, `le1k`, `le16k`, `le256`,
 `gt16k`), gets rows of its upper edge's tokens (the session's size when
 smaller, 32768 at most past 16384) in the lengths of a mixed batch, ids 1
-and types 0; the first runs the whole encoder once, which loads the
+and types 0; the first runs the whole encoder twice, which loads the
 modules and brings the clocks up. Each variant of a GEMM of the first
 layer is launched once untimed, then timed five times with event pairs,
 and five more while the times are more than 10% apart, up to 15. The
