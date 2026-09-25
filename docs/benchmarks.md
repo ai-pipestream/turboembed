@@ -272,16 +272,17 @@ read with that in mind:
   whole response: TEI decodes the ids and tokenizes them again, queues
   and batches the inputs, runs the forward pass, pools, and writes the
   vectors as JSON, and the loopback carries it. Its own headers split
-  that up; `procedure` gives their p50 and p99 (below). TEI's server
-  time for the request is `x-total-time` minus `x-tokenization-time`, not
-  `x-inference-time`: TEI queues a request's inputs one at a time and
-  its batcher takes whatever has arrived, so one request can run as
-  several backend batches in turn, and each input's inference time is
-  that of the batch it ran in, the header their mean (as of v1.8.3:
-  `router/src/http/server.rs`, `core/src/infer.rs`, `core/src/queue.rs`).
-  `procedure` gives that server time's p50 and p99, and from TEI's
-  `te_batch_next_size` metric how many batches the timed requests ran as
-  per request and their mean size.
+  that up; `procedure` gives their p50 and p99 (below), but none of
+  them is the request's compute. `x-inference-time` is, for each input,
+  the time of the backend batch it ran in, and the header their mean:
+  TEI queues a request's inputs one at a time and its batcher takes
+  whatever has arrived, so one request can run as several batches in
+  turn (as of v1.8.3: `router/src/http/server.rs`, `core/src/infer.rs`,
+  `core/src/queue.rs`). `procedure` gives how many batches the timed
+  requests ran as, per request, and their mean size, from TEI's
+  `/metrics`. Tokenization overlaps inference, so no difference of the
+  headers is the compute alone either; TEI's compute is compared through
+  a kernel-time profile.
 - **TensorRT and OpenVINO** (`measured`, kernel): the model's graph
   alone, on the rows padded to the batch's `seq`, as the vendor's tool
   times it (trtexec: the inputs' copy to the GPU, the compute and the
@@ -465,21 +466,30 @@ library's vector of the row alone for a dense row cut to `seq`.
 Each `/embed` answer also carries TEI's own timing, in whole
 milliseconds (`router/src/lib.rs`, `impl From<ResponseMetadata> for
 HeaderMap`, and the embed handler in `router/src/http/server.rs`, as of
-v1.8.3): `x-total-time`, from the request's arrival to its headers being
-made, so without writing the JSON or the transfer;
-`x-tokenization-time`, `x-queue-time` and `x-inference-time`, for a
-request of several inputs the mean over its inputs of the time each
-spent being tokenized, waiting in the queue, and in the forward pass.
-`procedure` gives the round trip's p50 and p99 and each header's p50
-and p99 over the same timed requests, or that TEI did not send one; and
-the p50 and p99 of `x-total-time` minus `x-tokenization-time`, TEI's
-server time without tokenization and HTTP, which the tool's summary
-prints beside the round trip. The tool also reads TEI's Prometheus
-`/metrics` before and after the timed requests, and from the difference
-in its `te_batch_next_size` histogram (`_count`, `_sum`, and the buckets,
-one sample per backend batch) gives how many batches the timed requests
-ran as, per request, and their mean size; without that metric
-`procedure` says so. The container is removed when the tool is done with
+v1.8.3): `x-total-time`, from the handler's start, the request body
+already parsed, to the response headers being built, so without HTTP,
+parsing the body or writing the JSON; and `x-tokenization-time`,
+`x-queue-time` and `x-inference-time`, for a request of several inputs
+the mean over its inputs of: the time from the input's own start to its
+entering the queue, waiting behind the request's other inputs included
+(`core/src/infer.rs`); its time in the queue; and the duration of the
+backend batch it ran in. `procedure` gives the round trip's p50 and p99
+and each header's p50 and p99 over the same timed requests, or that TEI
+did not send one, and the tool's summary prints the `x-total-time` p50
+beside the round trip. The tool also reads TEI's Prometheus `/metrics`
+before and after the timed requests. Its batcher records the inputs
+and the tokens of each batch it takes in `te_batch_next_size` and
+`te_batch_next_tokens`, and a 0 in both each time it finds the queue
+empty (`core/src/queue.rs`). With every row at least 2 tokens, no batch
+has 1 token or fewer, so the tokens histogram's `le="1"` bucket counts
+the empty polls; less those, the difference in `te_batch_next_size`
+(`_count`, `_sum` and the buckets) gives the timed requests' inputs, how
+many batches they ran as, per request, their mean size and how many fell
+in each size bucket. What cannot be told that way, `procedure` says is
+unknown: the batches without `te_batch_next_tokens` or with a row of 1
+token, and all of it without `te_batch_next_size`, or when `/metrics`
+could not be read before the timed requests after warmup requests had
+run. The container is removed when the tool is done with
 it. TEI has no BF16 dtype; a BF16 session
 records it as `not_run`.
 

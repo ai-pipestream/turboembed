@@ -156,7 +156,7 @@ fn the_report_gives_each_sides_time_beside_the_tokens_it_computed() {
     assert!(lines[2].ends_with(&format!(": {padded} token positions computed of {live} live")), "{text}");
     assert!(padded > live);
 
-    // TEI's server time, when its procedure gives it, beside its round trip.
+    // TEI's x-total-time, when its procedure gives it, beside its round trip.
     let mut tei = measured_reference(TEI);
     let rt: Vec<f64> = vec![20.0; 10];
     tei.procedure = format!(
@@ -167,8 +167,8 @@ fn the_report_gives_each_sides_time_beside_the_tokens_it_computed() {
     let tei_line = text.lines().nth(1).unwrap();
     assert!(
         tei_line.contains(
-            " ms round trip (TEI's server time without tokenization and HTTP, from its whole-ms headers: p50 16 ms; \
-             not a kernel time) on [32, "
+            " ms round trip (TEI's time from parsed request to response headers (not a kernel time), x-total-time in \
+             whole ms: p50 19 ms) on [32, "
         ),
         "{text}"
     );
