@@ -1,7 +1,7 @@
 //! The Hailo backend: Hailo accelerators through HailoRT's C API. It is
 //! written in C++ in core/hailo/, compiled by build.rs into a static
 //! library, and reached only through its turbo_backend table, like any
-//! other backend. It lists devices and runs no task yet. docs/hailo.md
+//! other backend. It lists devices and runs no task. docs/hailo.md
 //! says how to build and test it.
 
 use crate::backend::turbo_backend;

@@ -8,7 +8,7 @@ core reaches it only through its `turbo_backend` table
 feature of the `turbo` crate links it, and `turbo_version()` then names
 `hailo`.
 
-Today it lists devices and runs no task. Its table stops at
+It lists devices and runs no task. Its table stops at
 `capability`, so contexts, buffers, models and sessions on a Hailo
 device are refused with `TURBO_E_UNSUPPORTED`, naming the function.
 
@@ -50,8 +50,12 @@ device.
   `driver_version` the kernel module's and the firmware's
   (`hailo1x_pci 5.1.1, firmware 5.1.1`). A device HailoRT scans but that
   does not answer identify is left out, and the runtime's log says why.
+  The list is made the first time a runtime asks for devices and kept
+  for the life of the process: load the driver before the process
+  starts, and restart it after a device that failed to answer is
+  brought back.
 - **Capability.** Every cell is UNSUPPORTED, with the reason that the
-  backend runs no task yet, so `turbo_runtime_select` never picks a Hailo
+  backend runs no task, so `turbo_runtime_select` never picks a Hailo
   device.
 
 ## Testing on a Hailo machine

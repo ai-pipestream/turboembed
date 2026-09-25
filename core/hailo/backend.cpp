@@ -4,13 +4,13 @@
  * include/turbo/turbo_backend.h. It lists the devices HailoRT finds, each
  * identified once, and says what it can run on each. One that does not
  * answer is refused by device_info with the reason, which the runtime logs
- * as it leaves the device out. It runs no task yet, so its table stops
- * at capability.
+ * as it leaves the device out. It runs no task, so its table stops at
+ * capability.
  *
  * Every function here is called from any thread. The device list is made
- * once per process, on first need, under std::call_once: HailoRT opens a
- * device to identify it, and devices do not come and go while a process
- * runs.
+ * once per process, on first need, under std::call_once, and kept: HailoRT
+ * opens a device to identify it, and a device that failed to answer is
+ * not asked again until the process restarts.
  */
 
 #include <turbo/turbo_backend.h>
@@ -189,11 +189,20 @@ Listing make_listing() {
         snprintf(s, sizeof s, "%u.%u.%u", v.major, v.minor, v.revision);
         l.library = s;
     }
-    // More devices than one machine holds; HailoRT says so if not.
+    // On HAILO_INSUFFICIENT_BUFFER, HailoRT sets n to the devices it found,
+    // and the scan is repeated with room for them.
     std::vector<hailo_device_id_t> ids(32);
     size_t n = ids.size();
-    const hailo_status s = hailo_scan_devices(nullptr, ids.data(), &n);
-    if (s == HAILO_DRIVER_NOT_INSTALLED) return l;   // no driver: nothing to list
+    hailo_status s = hailo_scan_devices(nullptr, ids.data(), &n);
+    while (s == HAILO_INSUFFICIENT_BUFFER && n > ids.size()) {
+        ids.resize(n);
+        s = hailo_scan_devices(nullptr, ids.data(), &n);
+    }
+    // On Linux, HailoRT scans the driver's class in sysfs: with no driver
+    // loaded it returns HAILO_SUCCESS and no devices. It is not known to
+    // return HAILO_DRIVER_NOT_INSTALLED there; that status also means
+    // nothing to list.
+    if (s == HAILO_DRIVER_NOT_INSTALLED) return l;
     if (s != HAILO_SUCCESS) {
         l.failure = "hailo_scan_devices: " + status_text(s);
         return l;
@@ -241,14 +250,14 @@ int32_t device_info(uint32_t ordinal, turbo_device_info *out, turbo_error *err) 
     });
 }
 
-/* No task runs on a Hailo device through this backend yet. */
+/* No task runs on a Hailo device through this backend. */
 int32_t capability(uint32_t, uint32_t, uint32_t, uint32_t *status, uint32_t *dtype, uint32_t *options_honored,
                    char *reason, uint32_t reason_len, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         *status = TURBO_CAP_UNSUPPORTED;
         *dtype = 0;
         *options_honored = 0;
-        if (reason_len) copy_str(reason, reason_len, "the hailo backend lists devices and runs no task yet");
+        if (reason_len) copy_str(reason, reason_len, "the hailo backend lists devices and runs no task");
         return TURBO_OK;
     });
 }
@@ -260,7 +269,7 @@ extern "C" {
 extern const turbo_backend turbo_hailo_backend;
 
 /* The table through capability: the backend offers no contexts, models or
- * sessions yet. */
+ * sessions. */
 const turbo_backend turbo_hailo_backend = {
     (uint32_t)offsetof(turbo_backend, context_create),
     0,
