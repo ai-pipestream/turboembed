@@ -48,7 +48,7 @@ tile for every GEMM: `64x64`, `128x64`, `128x128` or `128x128-16x8`
 kernels, where the other tiles give a thread 8 × 8; plain `128x128` on
 the tensor cores), and for the tensor cores `128x128-4w` (four warps of
 64 × 64), `256x128` (eight such warps; `128x128-4w` for a GEMM with an
-F32 output) or `8w`, the eight-warp tiles FASTEST took before: `128x128`
+F32 output) or `8w`, the eight-warp tiles, FASTEST's default: `128x128`
 over warps of 32 × 64 for the QKV and first feed-forward GEMMs and
 `128x64` for the other two (the FMA kernels take `128x64` for these
 three). Unset, the FMA kernels and TF32 take `128x64`, and F16 on the
@@ -68,6 +68,15 @@ default. `TURBO_CUDA_LAYER_NORM=fused`, read the same way, has the
 N = hidden GEMMs' epilogue run the LayerNorm in place of the default's
 kernel of its own after the GEMM (see Pipeline; the bits are the same
 either way, and on an RTX 4080 the separate kernel is faster).
+`TURBO_CUDA_F16_ACCUMULATE=1`, read the same way, gives FASTEST's GEMMs
+on the tensor cores F16 accumulators (`mma.sync.m16n8k16` with an F16
+C and D), `8w`'s tiles whatever `TURBO_CUDA_TILE` says: each 64 terms
+of k are summed in F16, and each such sum is added into the F32
+accumulators, in k's order, the chunks counted from k 0 so a tile's
+sums do not depend on which blocks share it. F16 accumulation is twice
+the tensor cores' F32 rate on GeForce cards. It is off by default; the
+CUDA tests hold it to FASTEST's bound, cosine 0.999, and print the
+cosine and largest absolute difference they measure.
 `TURBO_CUDA_POOL=columns` gives the pooling of a thread per column, for
 measuring against the default. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
 a GEMM's block takes before the GEMM runs on fewer blocks (a count from
@@ -234,6 +243,13 @@ older than the runtime, it lists none and the runtime's log says why.
   hidden widths up to 512. By default, the attention output and
   feed-forward output GEMMs take the product alone and then a kernel of
   their own for the bias, residual and LayerNorm, a warp per token.
+  The fused one is slower because of its end: one block normalizes all
+  of a block of rows (128) with its four or eight warps, two rows at a
+  time, each pair waiting on its reads from L2 and on its reductions,
+  while the separate kernel spreads the rows over every SM. That tail
+  sits on each launch's critical path and costs more than the launch it
+  saves: on an RTX 4080's mixed run, 0.88 ms at FASTEST against 0.73,
+  1.98 at EXACT (four warps to a block) against 1.69.
 
   Last, one kernel pools each row, a block of 384 threads per row: a
   thread per four columns, and for the mean up to eight groups of such
@@ -246,10 +262,10 @@ older than the runtime, it lists none and the runtime's log says why.
   The GEMMs are the backend's own, their bias, GELU and head-major
   layout applied in the epilogue. At FASTEST they take F16 operands with
   `mma.sync.m16n8k16` and F32 accumulators, 32 values of k to a step
-  through a three-stage `cp.async` pipeline, one block to an SM, each
-  warp 64 × 64 outputs, so each `ldmatrix` feeds four MMAs: 256 × 128
-  tiles over eight warps for the first feed-forward GEMM, the widest,
-  and 128 × 128 tiles over four for the others. The outputs are staged
+  through a `cp.async` pipeline, eight warps to a block: 128 × 128 tiles
+  of warps of 32 × 64 at two stages for the QKV and first feed-forward
+  GEMMs, the widest, and 128 × 64 tiles of warps of 32 × 32 at three
+  for the other two, two blocks to an SM either way. The outputs are staged
   through shared memory to be stored 16 bytes at a time. At MODEL with
   `TURBO_CUDA_TF32=1`, on sm_80 and newer, the same kernel takes F32
   operands, 16 values of k to
