@@ -1202,7 +1202,9 @@ pub unsafe fn model_weights<'a>(m: *mut turbo_model) -> Option<ModelWeights<'a>>
 }
 
 /// Where the CPU backend's F32 copy of an F16 or BF16 model's weights is,
-/// once a session has made it. Built only with the `internals` feature.
+/// once a session has made it; for a GPU backend, where each copy of the
+/// weights in another dtype than the stored one is. Built only with the
+/// `internals` feature.
 ///
 /// # Safety
 /// As for model_weights.
@@ -1213,11 +1215,13 @@ pub unsafe fn model_converted_weights(m: *mut turbo_model) -> Option<Vec<*const 
     if std::ptr::eq(m.context.backend, &cpu::BACKEND) {
         return unsafe { cpu::converted_data(m.raw) };
     }
-    // The CUDA backend widens every tensor into one device allocation: its
-    // address stands for the copy.
+    // The CUDA backend widens every tensor into one device allocation, and
+    // narrows the GEMM weights to F16 into another: each address stands
+    // for its copy, the F32 one first.
     #[cfg(feature = "cuda")]
     if std::ptr::eq(m.context.backend, cuda::backend()) {
-        return unsafe { cuda::widened(m.raw) }.map(|p| vec![p]);
+        let copies: Vec<_> = unsafe { [cuda::widened(m.raw), cuda::narrowed(m.raw)] }.into_iter().flatten().collect();
+        return (!copies.is_empty()).then_some(copies);
     }
     // So does the levelzero backend.
     #[cfg(feature = "levelzero")]
