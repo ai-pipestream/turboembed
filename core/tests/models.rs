@@ -482,7 +482,7 @@ fn half_precision_weights_load_as_their_dtype() {
     for t in &mut t {
         t.dtype = "BF16";
         // The upper half of each F32 is its BF16.
-        t.data = t.data.chunks_exact(4).flat_map(|b| [b[2], b[3]]).collect();
+        t.data = t.data.as_chunks::<4>().0.iter().flat_map(|b| [b[2], b[3]]).collect();
     }
     let mut f = Fixture::model("bf16");
     f.weights("weights/model.safetensors", &t);

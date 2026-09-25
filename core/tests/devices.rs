@@ -46,6 +46,17 @@ impl Rt {
     }
 }
 
+impl Rt {
+    /// The first device that is not a CPU and runs embed: what selection
+    /// picks while no cell has a benchmark record.
+    fn first_gpu_offering_embed(&self) -> Option<u32> {
+        (0..self.count()).find(|&i| {
+            self.info(i).unwrap().kind != TURBO_DEVICE_CPU
+                && self.capability(i, TURBO_TASK_EMBED, TURBO_PRECISION_MODEL).unwrap().status != 0
+        })
+    }
+}
+
 impl Drop for Rt {
     fn drop(&mut self) {
         unsafe { turbo_runtime_release(self.0) };
@@ -82,7 +93,9 @@ fn the_host_processor_is_listed() {
 #[test]
 fn the_version_lists_the_linked_backends() {
     let v = unsafe { std::ffi::CStr::from_ptr(turbo_version()) }.to_str().unwrap();
-    assert_eq!(v, "0.1.0 cpu");
+    // In device order: a GPU backend's devices come before the CPU's.
+    let want = if cfg!(feature = "cuda") { "0.1.0 cuda cpu" } else { "0.1.0 cpu" };
+    assert_eq!(v, want);
 }
 
 #[test]
@@ -140,8 +153,13 @@ fn selection_never_picks_a_cpu_and_says_why() {
     let rc = unsafe {
         turbo_runtime_select(rt.0, TURBO_TASK_EMBED, &mut pick, reason.as_mut_ptr(), reason.len() as u32, &mut err)
     };
-    // This build links only the cpu backend, so nothing can be selected,
-    // though the cpu runs the task.
+    // A GPU that runs the task is picked, the first in device order.
+    if let Some(first) = rt.first_gpu_offering_embed() {
+        assert_eq!(rc, 0, "{}", s(&err.message));
+        assert_eq!(pick, first, "{}", s(&reason));
+        return;
+    }
+    // Else nothing can be selected, though the cpu runs the task.
     assert_eq!(rc, status::DEVICE_NOT_FOUND);
     assert_eq!(pick, 99, "out is untouched on failure");
     assert!(s(&reason).contains("a CPU is never selected"), "{}", s(&reason));
@@ -210,16 +228,17 @@ fn null_err() -> *mut turbo_error {
 fn the_select_reason_fits_the_buffer_it_is_given() {
     let rt = Rt::new();
     let mut pick = 0u32;
+    let want = if rt.first_gpu_offering_embed().is_some() { 0 } else { status::DEVICE_NOT_FOUND };
     let mut reason = [b'x' as c_char; 16];
     let rc = unsafe { turbo_runtime_select(rt.0, TURBO_TASK_EMBED, &mut pick, reason.as_mut_ptr(), 8, null_err()) };
-    assert_eq!(rc, status::DEVICE_NOT_FOUND);
+    assert_eq!(rc, want);
     assert_eq!(reason[7], 0, "cut and terminated within 8 bytes");
     assert_eq!(s(&reason).len(), 7);
     assert!(reason[8..].iter().all(|&c| c == b'x' as c_char), "nothing written past reason_len");
 
     let mut reason = [b'x' as c_char; 16];
     let rc = unsafe { turbo_runtime_select(rt.0, TURBO_TASK_EMBED, &mut pick, reason.as_mut_ptr(), 0, null_err()) };
-    assert_eq!(rc, status::DEVICE_NOT_FOUND);
+    assert_eq!(rc, want);
     assert!(reason.iter().all(|&c| c == b'x' as c_char), "reason_len 0 writes nothing");
 }
 

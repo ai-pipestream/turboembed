@@ -48,11 +48,11 @@ pub struct Tensor<'a> {
 
 impl Tensor<'_> {
     pub fn i32s(&self) -> Vec<i32> {
-        self.data.chunks_exact(4).map(|b| i32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect()
+        self.data.as_chunks::<4>().0.iter().map(|b| i32::from_le_bytes(*b)).collect()
     }
 
     pub fn f32s(&self) -> Vec<f32> {
-        self.data.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect()
+        self.data.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect()
     }
 }
 

@@ -159,6 +159,8 @@ pub struct turbo_backend {
     >,
     pub session_run:
         Option<unsafe extern "C" fn(session: *mut c_void, out: *mut turbo_backend_run, err: *mut turbo_error) -> i32>,
+    pub buffer_read:
+        Option<unsafe extern "C" fn(buf: *mut c_void, dst: *mut c_void, bytes: u64, err: *mut turbo_error) -> i32>,
 }
 
 // The table is immutable static data, read from any thread.
@@ -171,21 +173,28 @@ impl turbo_backend {
 }
 
 /// The backends linked into this build, in the order their devices are
-/// numbered.
+/// numbered: a GPU backend's before the CPU's, so its devices come first
+/// wherever order decides.
 pub fn linked() -> &'static [&'static turbo_backend] {
     LINKED
 }
 
 static LINKED: &[&turbo_backend] = &[
+    #[cfg(feature = "cuda")]
+    // A table the C++ side fills at compile time and never writes.
+    unsafe {
+        &crate::cuda::turbo_cuda_backend
+    },
     #[cfg(feature = "cpu")]
     &crate::cpu::BACKEND,
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.
-const TABLE_SIZES: [usize; 4] = [
+const TABLE_SIZES: [usize; 5] = [
     std::mem::offset_of!(turbo_backend, context_create),
     std::mem::offset_of!(turbo_backend, model_load),
     std::mem::offset_of!(turbo_backend, session_create),
+    std::mem::offset_of!(turbo_backend, buffer_read),
     size_of::<turbo_backend>(),
 ];
 
@@ -337,6 +346,15 @@ mod tests {
         let e = offered!(&t, session_create).err().unwrap();
         assert_eq!(e, Error::new(UNSUPPORTED, "the cpu backend does not offer session_create"));
         assert_eq!(offered!(&t, session_run).err().unwrap().code, UNSUPPORTED);
+    }
+
+    #[test]
+    fn a_table_from_before_buffer_read_is_known_and_offers_none() {
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, buffer_read));
+        check_table(&t).unwrap();
+        assert!(offered!(&t, session_run).is_ok());
+        let e = offered!(&t, buffer_read).err().unwrap();
+        assert_eq!(e, Error::new(UNSUPPORTED, "the cpu backend does not offer buffer_read"));
     }
 
     #[test]

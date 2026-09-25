@@ -224,11 +224,13 @@ pub fn reference_file(ids: &[Vec<i32>], width: usize, pad: i32, dim: usize) -> V
 /// on the side its tokenizer.truncation names.
 pub fn reference_ids(m: &Value) -> Vec<Vec<i32>> {
     let mut up = upstream();
+    let mut t = up.get_truncation().unwrap().clone();
+    // Cut where the manifest's max_seq says, MAX_SEQ in the standard one.
+    t.max_length = m["embed"]["max_seq"].as_u64().map_or(MAX_SEQ, |n| n as usize);
     if m["tokenizer"]["truncation"] == "TRUNCATE_LEFT" {
-        let mut t = up.get_truncation().unwrap().clone();
         t.direction = tokenizers::TruncationDirection::Left;
-        up.with_truncation(Some(t)).unwrap();
     }
+    up.with_truncation(Some(t)).unwrap();
     let prefix = |role: &str| match role {
         "PROMPT_QUERY" => m["embed"]["prefix_query"].as_str().unwrap_or_default().to_owned(),
         "PROMPT_DOCUMENT" => m["embed"]["prefix_document"].as_str().unwrap_or_default().to_owned(),
@@ -295,6 +297,12 @@ impl Fixture {
     pub fn load(&self) -> Result<Loaded, Failure> {
         self.write();
         Loaded::load(&self.dir)
+    }
+
+    /// As load, on the device `device` picks.
+    pub fn load_on(&self, device: impl Fn(*mut turbo_runtime) -> u32) -> Result<Loaded, Failure> {
+        self.write();
+        Loaded::load_on(&self.dir, device)
     }
 
     /// Put `path`'s size and hash in files[], replacing any entry for it.
@@ -586,11 +594,16 @@ pub struct Loaded {
 
 impl Loaded {
     pub fn load(dir: &Path) -> Result<Loaded, Failure> {
+        Loaded::load_on(dir, cpu)
+    }
+
+    /// The bundle loaded on the device `device` picks from the runtime.
+    pub fn load_on(dir: &Path, device: impl Fn(*mut turbo_runtime) -> u32) -> Result<Loaded, Failure> {
         let mut err = new_error();
         let mut rt = ptr::null_mut();
         assert_eq!(unsafe { turbo_runtime_create(ptr::null(), &mut rt, &mut err) }, 0);
         let mut ctx = ptr::null_mut();
-        let rc = unsafe { turbo_context_create(rt, cpu(rt), &mut ctx, &mut err) };
+        let rc = unsafe { turbo_context_create(rt, device(rt), &mut ctx, &mut err) };
         assert_eq!(rc, 0, "{:?}", failure(rc, &err));
         let mut m = ptr::null_mut();
         let path = dir.to_str().unwrap();
@@ -646,6 +659,18 @@ pub fn cpu(rt: *mut turbo_runtime) -> u32 {
             info.kind == TURBO_DEVICE_CPU
         })
         .expect("the cpu backend lists the host")
+}
+
+/// The index of the first device the backend named lists, if any.
+pub fn first_of(rt: *mut turbo_runtime, backend: &str) -> Option<u32> {
+    let mut n = 0;
+    assert_eq!(unsafe { turbo_runtime_device_count(rt, &mut n, ptr::null_mut()) }, 0);
+    (0..n).find(|&i| {
+        let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
+        info.struct_size = size_of::<turbo_device_info>() as u32;
+        assert_eq!(unsafe { turbo_runtime_device_info(rt, i, &mut info, ptr::null_mut()) }, 0);
+        field(&info.backend) == backend
+    })
 }
 
 /// A fixed-size C string field as a String.

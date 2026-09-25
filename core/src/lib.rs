@@ -16,6 +16,8 @@ pub mod backend;
 pub mod bundle;
 #[cfg(feature = "cpu")]
 pub mod cpu;
+#[cfg(feature = "cuda")]
+pub mod cuda;
 pub mod manifest;
 pub mod model;
 pub mod safetensors;
@@ -507,14 +509,20 @@ fn sized(struct_size: u32, want: usize, what: &str) -> Result<()> {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn turbo_version() -> *const c_char {
-    VERSION.as_ptr()
+    VERSION.get_or_init(version).as_ptr()
 }
 
 /// The version and the backends linked into this build, in device order.
-#[cfg(feature = "cpu")]
-const VERSION: &std::ffi::CStr = c"0.1.0 cpu";
-#[cfg(not(feature = "cpu"))]
-const VERSION: &std::ffi::CStr = c"0.1.0";
+static VERSION: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
+
+fn version() -> std::ffi::CString {
+    let mut v = String::from("0.1.0");
+    for b in backend::linked() {
+        v.push(' ');
+        v.push_str(b.name());
+    }
+    std::ffi::CString::new(v).expect("backend names hold no NUL")
+}
 
 pub(crate) fn new_error() -> turbo_error {
     turbo_error {
@@ -1148,6 +1156,12 @@ pub unsafe fn model_converted_weights(m: *mut turbo_model) -> Option<Vec<*const 
     #[cfg(feature = "cpu")]
     if std::ptr::eq(m.context.backend, &cpu::BACKEND) {
         return unsafe { cpu::converted_data(m.raw) };
+    }
+    // The CUDA backend widens every tensor into one device allocation: its
+    // address stands for the copy.
+    #[cfg(feature = "cuda")]
+    if std::ptr::eq(m.context.backend, cuda::backend()) {
+        return unsafe { cuda::widened(m.raw) }.map(|p| vec![p]);
     }
     None
 }

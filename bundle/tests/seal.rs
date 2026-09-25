@@ -123,8 +123,8 @@ fn a_reference_that_is_not_normalized_is_refused() {
     let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
     let header: Value = serde_json::from_slice(&bytes[8..8 + n]).unwrap();
     let [a, b] = [0, 1].map(|i| header["embeddings"]["data_offsets"][i].as_u64().unwrap() as usize + 8 + n);
-    for c in bytes[a..b].chunks_exact_mut(4) {
-        let v = f32::from_le_bytes([c[0], c[1], c[2], c[3]]) * 2.0;
+    for c in bytes[a..b].as_chunks_mut::<4>().0 {
+        let v = f32::from_le_bytes(*c) * 2.0;
         c.copy_from_slice(&v.to_le_bytes());
     }
     fs::write(&path, &bytes).unwrap();

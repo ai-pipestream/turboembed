@@ -311,6 +311,10 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
         output: std::ptr::null_mut(),
         host: std::ptr::null_mut(),
     }));
+    let state = Mutex::new(State { written: None, ids: vec![0; rows], mask: vec![0; rows] });
+    // Where the lock is a pthread mutex (macOS), std allocates it on first
+    // use; take it once here so no write or run allocates it later.
+    drop(state.try_lock());
     Ok(SessionInner {
         model: m.clone(),
         backend: b,
@@ -319,7 +323,7 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
         run,
         info,
         honored: cap.options_honored,
-        state: Mutex::new(State { written: None, ids: vec![0; rows], mask: vec![0; rows] }),
+        state,
         holders: AtomicU32::new(0),
         result,
     })
@@ -831,9 +835,18 @@ pub unsafe extern "C" fn turbo_result_read(
                 ));
             }
             if r.host.is_null() {
-                return Err(Error::new(UNSUPPORTED, "the vectors are in device memory, and this build reads none"));
+                // Device memory: the backend copies it back.
+                let b = r.hold.as_ref().expect("a held result holds its session").backend;
+                let read = backend::offered!(b, buffer_read).map_err(|_| {
+                    Error::new(
+                        UNSUPPORTED,
+                        format!("the vectors are in device memory, and the {} backend reads none", b.name()),
+                    )
+                })?;
+                backend::check(b, "buffer_read", |err| read(r.output, dst, bytes, err))?;
+            } else {
+                std::ptr::copy_nonoverlapping(r.host as *const u8, dst as *mut u8, bytes as usize);
             }
-            std::ptr::copy_nonoverlapping(r.host as *const u8, dst as *mut u8, bytes as usize);
             // turbo.h counts a read in d2h_bytes, whether or not the copy
             // crossed a bus: on a CPU it is a copy within host memory.
             r.read.fetch_add(bytes, Ordering::Relaxed);
