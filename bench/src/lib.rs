@@ -5,6 +5,7 @@
 //! and the commit is the clean, pushed one the library was built from.
 
 pub mod api;
+pub mod cpus;
 pub mod docker;
 pub mod git;
 pub mod measure;

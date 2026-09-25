@@ -38,6 +38,7 @@ the same files copied elsewhere pass it.
 | `--device <index\|backend>` | A runtime device index, or a backend name for the first device it lists. Default `cpu`. |
 | `--precision model\|fastest\|exact` | The session's precision. Default `model`. |
 | `--batch <n>`, `--seq <n>` | The rows' shape. Default: 32 rows, or the model's `max_batch` if fewer; the longest reference case that fits the model's `max_seq`. |
+| `--cpus <list>` | Processors to run on, as `0-15` or `0-7,16-23` (Linux). The tool pins itself to them before it starts the library, sets `TURBO_CPU_THREADS` to their count (docs/cpu.md), and gives TEI's container the same processors and thread counts (below). Default: unpinned. |
 | `--warmup <n>`, `--iterations <n>` | Untimed runs, then timed runs. Default 20 and 200. |
 | `--repo <dir>` | The git working tree the library was built from; its commit must be the tool's build commit (Provenance). Default: the one the tool was built in. |
 | `--out <dir>` | Where the record goes. Default `<repo>/benchmarks/records`. |
@@ -70,6 +71,20 @@ CUDA_DEVICE_ORDER=PCI_BUS_ID TURBO_CUDA_ROOT=/usr/local/cuda cargo run --release
     --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the 89-* image> \
     --tei-model upstream/ \
     --tensorrt-image nvcr.io/nvidia/tensorrt@sha256:<digest>
+```
+
+On a CPU, TEI's CPU image against the library on the same processors
+and threads. On a Ryzen 9 9950X3D the CCD with the stacked cache is the
+one CPU 0 is on; `cat /sys/devices/system/cpu/cpu0/cache/index3/shared_cpu_list`
+names its 16 threads (`0-7,16-23` as Linux usually numbers them: CPU
+`n` and `n + 16` are one core's two threads). `--cpus 0-31` gives both
+sides all 32:
+
+```
+cargo run --release -p turbo-bench -- record \
+    --bundle all-minilm-l6-v2/ --device cpu --precision model --cpus 0-7,16-23 \
+    --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu-* image> \
+    --tei-model upstream/
 ```
 
 On an Intel Arc GPU, with Level Zero installed, one Intel GPU listed,
@@ -299,13 +314,28 @@ there; otherwise the reference is `not_run`. The command:
 
 ```
 docker run --detach --rm --pull never --name turbo-bench-tei-<pid> [--gpus device=<ordinal>] \
+    [--cpuset-cpus <list> --env OMP_NUM_THREADS=<n> --env MKL_NUM_THREADS=<n> --env RAYON_NUM_THREADS=<n>] \
     --publish 127.0.0.1::80 --env HF_HUB_OFFLINE=1 \
     --mount type=bind,src=<tei-model>,dst=/model,readonly <image> \
     --model-id /model --port 80 --dtype <float32|float16> --pooling <mean|cls|last-token> \
     --max-client-batch-size <batch> --max-batch-tokens <max(batch x seq, 16384)>
 ```
 
-then `docker port` for the host port, `GET /health` until it answers
+With `--cpus`, the bracketed options give the container the same
+processors as the tool and `<n>`, their count, for every thread count
+TEI's CPU image reads: `OMP_NUM_THREADS` and `MKL_NUM_THREADS` for MKL's
+matrix products, and `RAYON_NUM_THREADS` for candle's other operators,
+which the image's Dockerfile sets to 8. ONNX Runtime's intra-op threads
+and the router's tokenization workers are counted from the processors
+the container may use. Before starting it, the tool reads the image's
+environment (`docker image inspect --format '{{json .Config.Env}}'`), and
+`procedure` says what each side ran on: the CPU list and the library's
+thread count, and TEI's CPU list and thread settings, noting any the
+image set otherwise. Without `--cpus` the command is unchanged, and
+`procedure` still gives the library's thread count and the thread
+settings TEI had from its image.
+
+Once it is started: `docker port` for the host port, `GET /health` until it answers
 (at most 600 s, and never after the container stops), and `GET /info`
 for its version and dtype. TEI takes rows as token ids but decodes them
 to text and encodes that again without special tokens; the tool asks it

@@ -18,6 +18,7 @@ use common::*;
 use serde_json::{Value, json};
 use turbo::TURBO_PRECISION_MODEL;
 use turbo::bundle::sha256_hex;
+use turbo_bench::cpus::Cpus;
 use turbo_bench::measure::{Measurement, Plan, measure};
 use turbo_bench::openvino::{self, OpenVino};
 use turbo_bench::tei::{self, Tei};
@@ -116,6 +117,9 @@ fn tei_server(m: &Measurement) -> u16 {
 /// A `docker` that logs its arguments to `calls` and answers each command
 /// the runners give: the image is present, the TEI container starts and
 /// publishes `port`, and trtexec and benchmark_app print their reports.
+/// The environment TEI's CPU image sets (its Dockerfile's base stage).
+const IMAGE_ENV: &str = r#"["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","HUGGINGFACE_HUB_CACHE=/data","PORT=80","MKL_ENABLE_INSTRUCTIONS=AVX512_E4","RAYON_NUM_THREADS=8","LD_PRELOAD=/usr/local/libfakeintel.so","LD_LIBRARY_PATH=/usr/local/lib"]"#;
+
 fn fake_docker(bin: &Path, out: &Path, port: u16) {
     std::fs::create_dir_all(bin).unwrap();
     std::fs::write(out.join("trtexec.out"), TRTEXEC_OUT).unwrap();
@@ -127,6 +131,7 @@ fn fake_docker(bin: &Path, out: &Path, port: u16) {
         "#!/bin/sh\n\
          printf '%s\\n' \"$*\" >> {o}/calls\n\
          case \"$*\" in\n\
+         'image inspect --format {{{{json .Config.Env}}}}'*) echo '{IMAGE_ENV}' ;;\n\
          'image inspect'*) echo sha256:{DIGEST} ;;\n\
          'port '*) echo 127.0.0.1:{port} ;;\n\
          'rm '*) ;;\n\
@@ -184,9 +189,11 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
         &Tei {
             image: format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}"),
             model_dir: model.clone(),
+            cpus: Some(Cpus::parse("0-1").unwrap()),
         },
         &m,
         None,
+        Some(2),
         1,
         3,
     )
@@ -221,9 +228,14 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
     // TEI on another model's files: the reason names no path either.
     std::fs::write(model.join("tokenizer.json"), "{}").unwrap();
     let tei_not_run = tei::run(
-        &Tei { image: format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}"), model_dir: model },
+        &Tei {
+            image: format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}"),
+            model_dir: model,
+            cpus: None,
+        },
         &m,
         None,
+        Some(2),
         1,
         1,
     )
@@ -236,6 +248,24 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
     let joined =
         |r: &turbo::record::ReferenceRun| r.commands.iter().map(|c| c.join(" ")).collect::<Vec<_>>().join("\n");
     assert!(joined(&tei_run).contains("type=bind,src=<tei-model>,dst=/model,readonly"), "{}", joined(&tei_run));
+    // --cpus: the container's processors and threads are in the command
+    // run, and both sides' are in the procedure, over the image's own.
+    assert!(
+        joined(&tei_run)
+            .contains("--cpuset-cpus 0-1 --env OMP_NUM_THREADS=2 --env MKL_NUM_THREADS=2 --env RAYON_NUM_THREADS=2"),
+        "{}",
+        joined(&tei_run)
+    );
+    assert!(joined(&tei_run).contains("docker image inspect --format {{json .Config.Env}}"));
+    assert!(
+        tei_run.procedure.ends_with(
+            "; the library ran pinned to CPUs 0-1 with TURBO_CPU_THREADS=2 threads; TEI ran with --cpuset-cpus 0-1 \
+             and OMP_NUM_THREADS=2, MKL_NUM_THREADS=2, RAYON_NUM_THREADS=2 (over the image's RAYON_NUM_THREADS=8), \
+             its ONNX Runtime and tokenizer threads counted from those CPUs"
+        ),
+        "{}",
+        tei_run.procedure
+    );
     for r in [&trt_run, &ov_run] {
         let j = joined(r);
         assert!(j.contains("type=bind,src=<bundle>,dst=/bundle,readonly"), "{j}");

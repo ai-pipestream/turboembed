@@ -29,6 +29,11 @@ record options:
   --batch <n>, --seq <n>       the rows' shape (default: 32 or the model's
                                max_batch if smaller; the longest reference
                                case that fits)
+  --cpus <list>                processors to run on, as 0-15 or 0-7,16-23:
+                               the tool is pinned to them with as many
+                               library threads, and TEI's container is
+                               given them and the same thread counts
+                               (Linux; default: unpinned)
   --warmup <n>                 untimed runs first (default 20)
   --iterations <n>             timed runs (default 200)
   --repo <dir>                 the git working tree the library was built
@@ -140,12 +145,13 @@ fn record_cmd(args: &[String]) -> Result<()> {
         warmup: o.number("--warmup")?.unwrap_or(20),
         iterations: o.number("--iterations")?.unwrap_or(200),
     };
+    let cpus = o.take("--cpus").map(|l| turbo_bench::cpus::Cpus::parse(&l)).transpose()?;
     let repo = o.take("--repo").map_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join(".."), PathBuf::from);
     let out = o.take("--out");
     let work = o.take("--work").map_or_else(std::env::temp_dir, PathBuf::from);
     let no_tei = o.flag("--no-tei");
     let tei = match (o.take("--tei-image"), o.take("--tei-model")) {
-        (Some(image), Some(model)) => Some(Tei { image, model_dir: model.into() }),
+        (Some(image), Some(model)) => Some(Tei { image, model_dir: model.into(), cpus: cpus.clone() }),
         (None, None) => None,
         _ => return Err("--tei-image and --tei-model go together".into()),
     };
@@ -202,6 +208,10 @@ fn record_cmd(args: &[String]) -> Result<()> {
     }
     if let Some(v) = &ov {
         turbo_bench::docker::check_pinned("--openvino-image", &v.image)?;
+    }
+    // Before the runtime starts a thread, which would not inherit it.
+    if let Some(c) = &cpus {
+        turbo_bench::cpus::pin(c)?;
     }
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     turbo_bench::check_not_testdata(&plan.bundle, &[workspace.join("testdata"), repo.join("testdata")])?;
@@ -310,6 +320,11 @@ fn references(
     let backend = m.backend();
     given.check(&backend)?;
     let gpu = (backend == "cuda").then_some(m.device.ordinal);
+    let library = if m.is_cpu() {
+        Some(turbo_bench::cpus::library_threads(std::env::var(turbo_bench::cpus::LIBRARY_VAR).ok().as_deref())?)
+    } else {
+        None
+    };
     // docker numbers GPUs in the driver's (PCI bus) order, CUDA fastest
     // first unless told otherwise: with more than one, they must agree.
     let named = tei.is_some() || trt.is_some();
@@ -337,7 +352,7 @@ fn references(
     for &name in turbo_bench::applies(&backend) {
         out.push(match name {
             tei::NAME => match &tei {
-                Some(t) => tei::run(t, m, gpu, plan.warmup, plan.iterations)?,
+                Some(t) => tei::run(t, m, gpu, library, plan.warmup, plan.iterations)?,
                 None => disabled(tei::NAME, "end_to_end", "--no-tei"),
             },
             tensorrt::NAME => match &trt {
