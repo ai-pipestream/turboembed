@@ -7,13 +7,14 @@
 //! lets the encoder split a run over threads and still give the same bits
 //! for the same input on any number of them. In particular no sum over the
 //! reduction dimension of a product is split: each output of a linear
-//! layer is one chain of fused multiply-adds over k = 0, 1, .. n_in - 1,
-//! then its bias, in every kernel that fuses (AVX-512, AVX2, and the
-//! portable one on processors with FMA). Attention is written once over
-//! sixteen lanes (Simd) and keeps the same rule: each score and each
-//! context value is one chain in a fixed order. So those kernels give the
-//! same bits as each other too; the portable kernel on an x86 without FMA
-//! multiplies and adds in two roundings instead.
+//! layer is one chain of multiply-adds over k = 0, 1, .. n_in - 1, then
+//! its bias. Attention is written once over sixteen lanes (Simd) and keeps
+//! the same rule: each score and each context value is one chain in a
+//! fixed order. The AVX-512 and AVX2 kernels, chosen at run time, fuse
+//! each multiply-add, so they give the same bits as each other. The
+//! portable kernel fuses only where it is compiled for aarch64, where
+//! every processor has FMA: a compile-time choice, not a detected one; on
+//! x86_64 it multiplies and adds in two roundings.
 
 use crate::backend::turbo_backend_model;
 

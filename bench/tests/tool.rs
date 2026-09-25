@@ -209,7 +209,8 @@ fn the_tool_pins_itself_to_the_cpus_it_is_given() {
     let e = with("0", Some("1"));
     assert!(e.contains("a test fixture under"), "{e}");
     assert!(with("0", Some("4")).contains("TURBO_CPU_THREADS=4 is set, and --cpus 0 names 1"));
-    assert!(with("1023", None).contains("--cpus 1023: sched_setaffinity failed"));
+    // A processor this machine does not have: its topology is not there.
+    assert!(with("1023", None).contains("--cpus: processor 1023"));
     assert!(with("3-1", None).contains("3-1 runs backwards"));
     assert!(!out.exists());
 }

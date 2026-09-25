@@ -30,10 +30,10 @@ record options:
                                max_batch if smaller; the longest reference
                                case that fits)
   --cpus <list>                processors to run on, as 0-15 or 0-7,16-23:
-                               the tool is pinned to them with as many
-                               library threads, and TEI's container is
-                               given them and the same thread counts
-                               (Linux; default: unpinned)
+                               the tool is pinned to them with a library
+                               thread per CPU, and TEI's container is given
+                               them, MKL a thread per physical core and
+                               rayon one per CPU (Linux; default: unpinned)
   --warmup <n>                 untimed runs first (default 20)
   --iterations <n>             timed runs (default 200)
   --repo <dir>                 the git working tree the library was built
@@ -145,7 +145,8 @@ fn record_cmd(args: &[String]) -> Result<()> {
         warmup: o.number("--warmup")?.unwrap_or(20),
         iterations: o.number("--iterations")?.unwrap_or(200),
     };
-    let cpus = o.take("--cpus").map(|l| turbo_bench::cpus::Cpus::parse(&l)).transpose()?;
+    let sysfs = Path::new(turbo_bench::cpus::SYSFS_CPUS);
+    let cpus = o.take("--cpus").map(|l| turbo_bench::cpus::Cpus::parse(&l, sysfs)).transpose()?;
     let repo = o.take("--repo").map_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join(".."), PathBuf::from);
     let out = o.take("--out");
     let work = o.take("--work").map_or_else(std::env::temp_dir, PathBuf::from);

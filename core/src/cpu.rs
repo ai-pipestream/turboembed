@@ -8,7 +8,7 @@ mod pool;
 
 use std::alloc::Layout;
 use std::ffi::{c_char, c_void};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT, refuse,
@@ -291,6 +291,9 @@ struct Model {
     /// The linear layers packed for this processor's matrix kernel, made
     /// by the first session and shared by every later one, like `f32`.
     packed: OnceLock<kernels::Packed>,
+    /// Held while `packed` is made. A failed pack leaves it unset, and the
+    /// next session tries again.
+    packing: Mutex<()>,
 }
 
 // The tensors point into the core's weights, which it keeps unchanged
@@ -329,14 +332,16 @@ impl Model {
         if let Some(p) = self.packed.get() {
             return Ok(p);
         }
+        // Sessions made at once wait here, so the weights are packed once.
+        let _one = self.packing.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(p) = self.packed.get() {
+            return Ok(p);
+        }
         let layer = |l: usize, r: usize| {
             tensors[(TURBO_BERT_EMBEDDING_TENSORS + l as u32 * TURBO_BERT_LAYER_TENSORS) as usize + r]
         };
         let p = kernels::Packed::new(&self.desc, layer, kernels::Isa::detect())?;
-        // Two sessions made at once may both pack; the first kept wins,
-        // and the two are the same.
-        let _ = self.packed.set(p);
-        Ok(self.packed.get().expect("set above"))
+        Ok(self.packed.get_or_init(|| p))
     }
 }
 
@@ -374,8 +379,13 @@ unsafe extern "C" fn model_load(
         .collect();
     let desc = turbo_backend_model { tensors: std::ptr::null(), ..desc };
     unsafe {
-        *out = Box::into_raw(Box::new(Model { desc, tensors, f32: OnceLock::new(), packed: OnceLock::new() }))
-            as *mut c_void
+        *out = Box::into_raw(Box::new(Model {
+            desc,
+            tensors,
+            f32: OnceLock::new(),
+            packed: OnceLock::new(),
+            packing: Mutex::new(()),
+        })) as *mut c_void
     };
     0
 }

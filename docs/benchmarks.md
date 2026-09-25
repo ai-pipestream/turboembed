@@ -38,7 +38,7 @@ the same files copied elsewhere pass it.
 | `--device <index\|backend>` | A runtime device index, or a backend name for the first device it lists. Default `cpu`. |
 | `--precision model\|fastest\|exact` | The session's precision. Default `model`. |
 | `--batch <n>`, `--seq <n>` | The rows' shape. Default: 32 rows, or the model's `max_batch` if fewer; the longest reference case that fits the model's `max_seq`. |
-| `--cpus <list>` | Processors to run on, as `0-15` or `0-7,16-23` (Linux). The tool pins itself to them before it starts the library, sets `TURBO_CPU_THREADS` to their count (docs/cpu.md), and gives TEI's container the same processors and thread counts (below). Default: unpinned. |
+| `--cpus <list>` | Processors to run on, as `0-15` or `0-7,16-23` (Linux). The tool pins itself to them before it starts the library, sets `TURBO_CPU_THREADS` to their count (docs/cpu.md), and gives TEI's container the same processors, with MKL a thread per physical core and rayon one per processor (below). Default: unpinned. |
 | `--warmup <n>`, `--iterations <n>` | Untimed runs, then timed runs. Default 20 and 200. |
 | `--repo <dir>` | The git working tree the library was built from; its commit must be the tool's build commit (Provenance). Default: the one the tool was built in. |
 | `--out <dir>` | Where the record goes. Default `<repo>/benchmarks/records`. |
@@ -314,7 +314,7 @@ there; otherwise the reference is `not_run`. The command:
 
 ```
 docker run --detach --rm --pull never --name turbo-bench-tei-<pid> [--gpus device=<ordinal>] \
-    [--cpuset-cpus <list> --env OMP_NUM_THREADS=<n> --env MKL_NUM_THREADS=<n> --env RAYON_NUM_THREADS=<n>] \
+    [--cpuset-cpus <list> --env OMP_NUM_THREADS=<c> --env MKL_NUM_THREADS=<c> --env RAYON_NUM_THREADS=<n>] \
     --publish 127.0.0.1::80 --env HF_HUB_OFFLINE=1 \
     --mount type=bind,src=<tei-model>,dst=/model,readonly <image> \
     --model-id /model --port 80 --dtype <float32|float16> --pooling <mean|cls|last-token> \
@@ -322,10 +322,19 @@ docker run --detach --rm --pull never --name turbo-bench-tei-<pid> [--gpus devic
 ```
 
 With `--cpus`, the bracketed options give the container the same
-processors as the tool and `<n>`, their count, for every thread count
-TEI's CPU image reads: `OMP_NUM_THREADS` and `MKL_NUM_THREADS` for MKL's
-matrix products, and `RAYON_NUM_THREADS` for candle's other operators,
-which the image's Dockerfile sets to 8. ONNX Runtime's intra-op threads
+processors as the tool, and set every thread count TEI's CPU image
+reads. `OMP_NUM_THREADS` and `MKL_NUM_THREADS`, for MKL's matrix
+products, are `<c>`, the physical cores the list is on (the distinct
+`physical_package_id` and `core_id` pairs under
+`/sys/devices/system/cpu/cpuN/topology/`): MKL itself defaults to one
+thread per core, since two on one core contend for its vector units,
+and a thread per hardware thread would handicap it. `RAYON_NUM_THREADS`,
+for candle's other operators, is `<n>`, the list's length; the image's
+Dockerfile sets it to 8. The library runs `<n>` threads, one per
+hardware thread: its kernels are written to share a core. So
+`--cpus 0-7,16-23` on a Ryzen with two threads per core gives the
+library 16 threads, and TEI `OMP_NUM_THREADS=8`, `MKL_NUM_THREADS=8`,
+`RAYON_NUM_THREADS=16`. ONNX Runtime's intra-op threads
 and the router's tokenization workers are counted from the processors
 the container may use. Before starting it, the tool reads the image's
 environment (`docker image inspect --format '{{json .Config.Env}}'`), and
