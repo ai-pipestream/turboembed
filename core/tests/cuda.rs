@@ -1226,7 +1226,8 @@ fn both_fma_attentions_match_the_cpu() {
 /// The backend's GEMMs against cuBLAS on random operands, every epilogue,
 /// F32, F16 on the tensor cores and F16 with FMAs (the path of devices
 /// before sm_80), every tile, at MiniLM's shapes for the benchmark's 1353
-/// tokens and at shapes no tile divides, with the work shared among as
+/// tokens, at shapes no tile divides, and at a token count past 8192
+/// that no tile divides either, with the work shared among as
 /// many blocks as the device holds and among 1, 7 and 33 (so tiles split
 /// between blocks at other points): F32 within 1e-5 of the largest value,
 /// F16 outputs within 2e-3 (an F16 rounding either side). Each GEMM runs
@@ -1252,6 +1253,7 @@ fn the_gemms_match_cublas() {
         (33, 8, 16, Plain, 1),
         (200, 72, 96, Plain, 1),
         (300, 384, 1536, Plain, 1),
+        (8193, 384, 1536, Plain, 1),
     ] {
         for (half, tensor_cores) in [(false, false), (true, true), (true, false)] {
             let tiles: &[Tile] = if half && tensor_cores {
@@ -1260,7 +1262,10 @@ fn the_gemms_match_cublas() {
                 &[Tile::T64x64, Tile::T128x64, Tile::T128x128]
             };
             for &tile in tiles {
-                for blocks in [0, 1, 7, 33] {
+                // A token count past a few thousand only as many blocks
+                // as fit and 7: one block would take seconds.
+                let counts: &[i32] = if m > 4096 { &[0, 7] } else { &[0, 1, 7, 33] };
+                for &blocks in counts {
                     let (diff, reference) =
                         turbo::cuda::gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, tile, blocks, heads)
                             .unwrap();

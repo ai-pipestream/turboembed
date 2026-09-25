@@ -82,6 +82,9 @@ struct Shape {
      * (TURBO_CUDA_ATTENTION=split), for measuring against the default,
      * which computes Q K^T and P V as register tiles. */
     bool split_attention = false;
+    /* The GEMMs' fewest k steps per block (TURBO_CUDA_SK_STEPS), 0 for
+     * the kernels' own. */
+    int sk_steps = 0;
 };
 
 /* Grids and shared memory for every launch of a session. */
@@ -96,6 +99,8 @@ struct Plan {
      * of the largest launch, floats in all, and a flag per block. */
     size_t sk_floats = 0;
     int sk_flags = 0;
+    /* A GEMM whose kernel was built for more blocks to an SM than fit. */
+    bool gemm_crowded = false;
     int attn_grid = 0, attn_chunk = 0, attn_queries = 0;
     size_t attn_smem = 0;
 };
@@ -171,8 +176,8 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 // QKV and GELU store F16 when the operands are F16, F32 otherwise. The
 // launch is the blocks the device holds at once, sharing the tiles' k
 // steps evenly among them (stream-K): a tile split between blocks is
-// finished by the block holding its first k step, which adds the others'
-// partial products, from the workspace, in block order. So the sums
+// finished by the block holding its last k step, which adds the others'
+// partial products, from the workspace, nearest block first. So the sums
 // depend on the token count and the launch, never on which rows run
 // beside a row in a batch of the same token count. n and k are multiples
 // of 8.
@@ -190,12 +195,24 @@ struct GemmArgs {
      * flag per block, 0 between launches. */
     float *ws;
     int *flags;
+    /* Set to 1 by a wait that gave up; the host reads it after the run.
+     * Host memory the device writes, so reading it copies nothing. */
+    int *fault;
+    /* The fewest k steps a block takes before the kernel runs on fewer
+     * blocks; 0 for the kernels' own. */
+    int min_steps;
 };
 
 /* A GEMM's launch: the blocks the device holds at once, and the
  * workspace floats it needs; and the shared memory setting its kernel
- * needs, made outside any run. */
-cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int sms, int *grid, size_t *ws_floats);
+ * needs, made outside any run. The launch never depends on the token
+ * count, which only the device knows (the graph is made once for every
+ * run): the kernel shares out the tiles of the run's M, and the launch
+ * is sized for the device, not for the largest M's tiles. *crowded,
+ * when given, is set when fewer blocks fit on an SM than the kernel was
+ * built for. */
+cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int sms, int *grid, size_t *ws_floats,
+                      bool *crowded = nullptr);
 cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile);
 cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile tile, const GemmArgs &g, int grid);
 
