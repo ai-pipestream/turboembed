@@ -58,8 +58,8 @@ of any run.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
   every field of `turbo_embed_options`. MODEL and EXACT compute in F32;
   FASTEST in F16 on the matrix engines (XMX), for a model whose hidden and
-  intermediate widths the kernels take (multiples of 16 that split
-  evenly), and in F32 otherwise, which `turbo_session_get_info` says. A
+  intermediate widths are multiples of 32, and in F32 otherwise, which
+  `turbo_session_get_info` says. A
   model stored in F16 or BF16 computes from an F32 copy at EXACT and
   FASTEST; its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`,
   field 3), as on the CPU.
@@ -83,7 +83,7 @@ of any run.
   device, shared by every later one and freed with the model: an F16 or
   BF16 model's F32 copy; each layer's Q, K and V weights and biases side
   by side, for one projection; and, for the first session at FASTEST, the
-  linear layers' weights in F16.
+  linear layers' weights in F16, transposed to [inputs, outputs].
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: device scratch, the
   output buffer, host staging the device reads, and the session's own
@@ -108,16 +108,29 @@ of any run.
   token below 256 tokens. The linear layers run by sub-group, 8 tokens by
   64 outputs each, in F32 on the vector engines; with 8 tokens or fewer, a
   group of up to 8 sub-groups computes 32 outputs, each summing an equal
-  share of the terms, in F32 or on the matrix engines. At FASTEST they run on
-  the matrix engines: where a layer has tiles enough, a group of 8
-  sub-groups computes 64 tokens by 128 outputs and stages its operands
-  through local memory as F16; with fewer, 8 tokens by 64 outputs a
-  sub-group; and with too few of those to fill the device, tiles of 32
-  tokens by 32 outputs each shared by a group's four sub-groups.
-  Attention for head widths 32, 64 and 128 keeps each query and its
-  running context in registers and streams the row's keys and values
-  through local memory; at FASTEST, for width 32, it runs on the matrix
-  engines. The run waits for the queue before it returns, and
+  share of the terms, in F32. Attention for head widths 32, 64 and 128
+  keeps each query and its running context in registers and streams the
+  row's keys and values through local memory.
+
+  At FASTEST the linear layers run on the matrix engines (DPAS), both
+  operands arriving by 2D block reads already in the instruction's
+  layout: the activations as rows, the transposed weights through the
+  read's VNNI transform. A sub-group computes 16 tokens by 32 outputs, 32
+  terms a step, and a group of 8 by 2 sub-groups shares its rows of both
+  in cache; with 8 tokens or fewer, 8 tokens by 32 outputs, 4 sub-groups a
+  group. The LayerNorms write the hidden states in F16 too, for the
+  layers that read them; the Q, K and V projection and the feed-forward
+  input write F16. The attention output and the feed-forward output each
+  take their residual and LayerNorm in their own epilogue: a group
+  computes 16 tokens by the whole hidden width, a sub-group each 32
+  outputs, and the rows' sums meet in local memory. With 8 tokens or
+  fewer, and for a hidden width over 2048, they instead split their sums
+  and the LayerNorm kernel adds the parts. Attention for head widths 32
+  and 64 runs on the matrix engines: a group of 4 sub-groups takes 16
+  queries, a lane each, the sub-groups walking the row's keys 32 at a time
+  in turn (K and V by 2D block reads), and their running maxima, sums and
+  contexts meet in local memory at the end; other widths write an F16
+  context from the kernels above. The run waits for the queue before it returns, and
   leaves the vectors in the session's `DEVICE` buffer:
   `turbo_result_buffer` hands out that memory, and `turbo_result_read`
   copies it back.
@@ -142,10 +155,12 @@ of any run.
   F64 and floored at 1e-12. Products and sums round separately except in
   the linear layers' and attention's multiply-adds. Cosine against the
   fp32 reference must reach 0.9999. At FASTEST the linear layers take F16
-  operands and the feed-forward block's middle is F16; for a head width
-  of 32 attention too takes F16 operands, its inputs and output F16, and
-  for other widths it runs as in F32. Every sum, the softmax and the
-  LayerNorms are F32; cosine must reach 0.999.
+  operands, the hidden states kept in F32 beside their F16 copy; the
+  projections and the feed-forward block's middle are F16; for head
+  widths 32 and 64 attention takes F16 operands, its softmax in base 2 on
+  the device's native exponential, and for other widths it runs as in
+  F32. Every sum and the softmax are F32, and so are the LayerNorms in
+  the projections' epilogues; cosine must reach 0.999.
 - **What a result reports.** Stages: tokenize on the host for text,
   upload fused into the lookup kernel, which reads the packed rows over
   the bus, lookup, encode, pool and (when asked) normalize on the device,

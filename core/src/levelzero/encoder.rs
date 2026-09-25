@@ -457,8 +457,8 @@ impl Kernels {
         let row = [BLOCK, 1, 1];
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
-            32 if xmx => Attention::Xmx(c.kernel("attention_xmx_32", [16, 1, 1])?),
-            64 | 128 if xmx => Attention::Tiled(c.kernel(&format!("attention_{head_dim}_to_half"), [QUERIES, 1, 1])?),
+            32 | 64 if xmx => Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_KS, 1, 1])?),
+            128 if xmx => Attention::Tiled(c.kernel(&format!("attention_{head_dim}_to_half"), [QUERIES, 1, 1])?),
             32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
             _ => Attention::General(c.kernel("attention", row)?),
         };
@@ -542,6 +542,10 @@ fn dpas_splits(threads: u32, subgroups: u32, n_in: u32, most: u32) -> u32 {
     }
     splits
 }
+
+/// Sub-groups of an XMX attention group, splitting the row's keys, as
+/// encoder.cl's ATT_KS.
+const ATT_KS: u32 = 4;
 
 /// Queries a tiled attention group takes, as encoder.cl's QUERIES.
 const QUERIES: u32 = 256;

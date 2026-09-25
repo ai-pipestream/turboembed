@@ -18,7 +18,8 @@
  * F64 and floored at 1e-12. Softmax runs online over the keys, rescaling
  * as a larger score arrives, which equals subtracting the largest. At
  * FASTEST the linear layers and attention run on the matrix engines from
- * F16 operands with F32 sums; the rest is as in F32.
+ * F16 operands with F32 sums, and the LayerNorms after the projections
+ * sum in F32 in their epilogues; the rest is as in F32.
  */
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
@@ -634,24 +635,48 @@ FLASH(attention_32, 32, float, vstore4)
 FLASH(attention_64, 64, float, vstore4)
 FLASH(attention_128, 128, float, vstore4)
 /* At FASTEST, for the next layer's F16 operand. */
-FLASH(attention_64_to_half, 64, half, vstore_half4)
 FLASH(attention_128_to_half, 128, half, vstore_half4)
 
-/* At FASTEST, on the matrix engines: a sub-group takes 16 queries of a row
- * and head, a lane each, and walks the row's keys 16 at a time. The scores
- * are K times Q transposed, so a lane holds its own query's 16 scores
- * (K as A, 8 keys a product and a lane per term; Q as B, a lane per
- * query), and its online softmax needs no other lane. The context is V
- * transposed times the weights (V as A, 8 of the width a product and a
- * lane per key; the weights as B, a lane per query). qkv and ctx are F16,
- * the sums and the softmax F32. */
-__attribute__((overloadable)) ushort intel_sub_group_block_read_us(const __global ushort *p);
+/* At FASTEST, on the matrix engines: a group of ATT_KS sub-groups takes 16
+ * queries of a row and head, a lane each; sub-group g walks the row's keys
+ * 32 at a time from the g-th 32, ATT_KS * 32 apart. The scores are K
+ * times Q transposed, so a lane holds its own query's 32 scores (K as A,
+ * 8 keys a product and a lane per term; Q as B, a lane per query), and its
+ * online softmax needs no other lane. The context is V transposed times
+ * the weights (V as A, 8 of the width a product and a lane per key; the
+ * weights as B, a lane per query). K and V arrive by 2D block reads, V's
+ * transposed; rows past the row's last token read as zeros. The softmax
+ * runs in base 2 on scores scaled by log2(e). The sub-groups' maxima, sums
+ * and contexts meet in local memory, rescaled to the largest maximum. qkv
+ * and ctx are F16, the sums and the softmax F32. The head width is a
+ * multiple of 32, and so is hidden, so a head's keys and values start
+ * 64-byte aligned for the 2D reads. */
+#define ATT_KS 4
+
+__attribute__((overloadable)) void intel_sub_group_2d_block_read_transpose_32b_16r8x1c(__global void *base, int width,
+                                                                                       int height, int pitch,
+                                                                                       int2 coord,
+                                                                                       __private uint *dst);
+
+/* Two float8s of probabilities, rounded to F16 in pairs: the B operand for
+ * 16 keys, a lane per query. */
+int8 pack_probabilities(float8 lo, float8 hi) {
+    int8 pb;
+    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) {
+        pb[j] = as_int((ushort2)(as_ushort(convert_half(lo[2 * j])), as_ushort(convert_half(lo[2 * j + 1]))));
+        pb[j + 4] = as_int((ushort2)(as_ushort(convert_half(hi[2 * j])), as_ushort(convert_half(hi[2 * j + 1]))));
+    }
+    return pb;
+}
 
 #define FLASH_XMX(HD)                                                                                              \
-    __kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16, 1, 1))) void   \
+    __kernel __attribute__((intel_reqd_sub_group_size(16)))                                                        \
+    __attribute__((reqd_work_group_size(16 * ATT_KS, 1, 1))) void                                                  \
     attention_xmx_##HD(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden,   \
                        float scale, __global half *ctx) {                                                          \
-        const int lane = get_sub_group_local_id();                                                                 \
+        __local float red_m[ATT_KS][16], red_l[ATT_KS][16];                                                        \
+        __local float8 red_acc[ATT_KS][HD / 8][16];                                                                \
+        const int lane = get_sub_group_local_id(), sg = get_sub_group_id();                                        \
         const int q0 = get_group_id(0) * 16, head = get_group_id(1), r = get_group_id(2);                          \
         const int start = rows[2 * r], len = rows[2 * r + 1];                                                      \
         if (q0 >= len) return;                                                                                     \
@@ -661,62 +686,85 @@ __attribute__((overloadable)) ushort intel_sub_group_block_read_us(const __globa
         int8 qb[HD / 16];                                                                                          \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 16; b++) qb[b] =                              \
             as_int8(vload8(0, (__global const uint *)(base + (size_t)query * stride + b * 16)));                   \
+        const float scale2 = scale * 1.44269504088896340736f;                                                      \
         float8 acc[HD / 8];                                                                                        \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] = (float8)(0.0f);              \
         float mx = -INFINITY, l = 0.0f;                                                                            \
-        for (int j0 = 0; j0 < len; j0 += 16) {                                                                     \
-            float8 s[2];                                                                                           \
-            __attribute__((opencl_unroll_hint)) for (int h = 0; h < 2; h++) {                                      \
-                s[h] = (float8)(0.0f);                                                                             \
-                __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 16; b++) {                            \
-                    short8 ka;                                                                                     \
+        for (int j0 = sg * 32; j0 < len; j0 += 32 * ATT_KS) {                                                      \
+            /* s[2c + h]: keys j0 + 16c + 8h .. + 7. */                                                            \
+            float8 s[4] = {(float8)(0.0f), (float8)(0.0f), (float8)(0.0f), (float8)(0.0f)};                       \
+            __attribute__((opencl_unroll_hint)) for (int c = 0; c < 2; c++)                                        \
+                __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 32; b++) {                            \
+                short8 ka[4];                                                                                      \
+                intel_sub_group_2d_block_read_16b_16r16x2c((__global void *)(base + hidden), HD * 2, len,          \
+                                                           stride * 2, (int2)(32 * b, j0 + 16 * c),                \
+                                                           (__private ushort *)ka);                                \
+                s[2 * c] = intel_sub_group_f16_f16_matrix_mad_k16(ka[0], qb[2 * b], s[2 * c]);                    \
+                s[2 * c + 1] = intel_sub_group_f16_f16_matrix_mad_k16(ka[1], qb[2 * b], s[2 * c + 1]);            \
+                s[2 * c] = intel_sub_group_f16_f16_matrix_mad_k16(ka[2], qb[2 * b + 1], s[2 * c]);                \
+                s[2 * c + 1] = intel_sub_group_f16_f16_matrix_mad_k16(ka[3], qb[2 * b + 1], s[2 * c + 1]);        \
+            }                                                                                                      \
+            /* Lane i reads the mask of keys j0 + i and j0 + 16 + i. */                                            \
+            const bool live0 = j0 + lane < len && mask[start + min(j0 + lane, len - 1)] != 0;                       \
+            const bool live1 = j0 + 16 + lane < len && mask[start + min(j0 + 16 + lane, len - 1)] != 0;             \
+            __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++) s[h] *= scale2;                        \
+            if (!sub_group_all(live0 && live1)) {                                                                  \
+                __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++)                                    \
                     __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                              \
-                        const int key = min(j0 + h * 8 + m, len - 1);                                              \
-                        ka[m] = as_short(intel_sub_group_block_read_us(                                            \
-                            (__global const ushort *)(base + (size_t)key * stride + hidden + b * 16)));            \
-                    }                                                                                              \
-                    s[h] = intel_sub_group_f16_f16_matrix_mad_k16(ka, qb[b], s[h]);                                \
+                    const bool live = sub_group_broadcast(h < 2 ? live0 : live1, (h & 1) * 8 + m);                 \
+                    if (!live) s[h][m] = -INFINITY;                                                                \
                 }                                                                                                  \
             }                                                                                                      \
-            float cmax = -INFINITY;                                                                                \
-            /* Each lane reads one key's mask entry; every lane takes them all. */                                  \
-            const int mine = j0 + lane < len && mask[start + min(j0 + lane, len - 1)] != 0;                         \
-            __attribute__((opencl_unroll_hint)) for (int h = 0; h < 2; h++)                                        \
-                __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                                  \
-                const bool live = sub_group_broadcast(mine, h * 8 + m) != 0;                                       \
-                s[h][m] = live ? s[h][m] * scale : -INFINITY;                                                      \
-                cmax = fmax(cmax, s[h][m]);                                                                        \
-            }                                                                                                      \
+            const float8 top = fmax(fmax(s[0], s[1]), fmax(s[2], s[3]));                                           \
+            const float4 t4 = fmax(top.lo, top.hi);                                                                \
+            const float cmax = fmax(fmax(t4.x, t4.y), fmax(t4.z, t4.w));                                           \
             const float newm = fmax(mx, cmax);                                                                     \
-            const float corr = newm == -INFINITY ? 1.0f : exp(mx - newm);                                          \
-            float8 p[2];                                                                                           \
-            float psum = 0.0f;                                                                                     \
-            __attribute__((opencl_unroll_hint)) for (int h = 0; h < 2; h++)                                        \
-                __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                                  \
-                p[h][m] = s[h][m] == -INFINITY ? 0.0f : exp(s[h][m] - newm);                                       \
-                psum += p[h][m];                                                                                   \
-            }                                                                                                      \
-            l = l * corr + psum;                                                                                   \
+            if (newm == -INFINITY) continue;                                                                       \
+            const float corr = native_exp2(mx - newm);                                                             \
+            float8 p[4];                                                                                           \
+            __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++) p[h] = native_exp2(s[h] - newm);        \
+            const float8 p8 = (p[0] + p[1]) + (p[2] + p[3]);                                                       \
+            const float4 p4 = p8.lo + p8.hi;                                                                       \
+            l = l * corr + ((p4.x + p4.y) + (p4.z + p4.w));                                                        \
             mx = newm;                                                                                             \
-            int8 pb;                                                                                               \
-            __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) {                                      \
-                pb[j] = as_int((ushort2)(as_ushort(convert_half(p[0][2 * j])), as_ushort(convert_half(p[0][2 * j + 1])))); \
-                pb[j + 4] = as_int((ushort2)(as_ushort(convert_half(p[1][2 * j])), as_ushort(convert_half(p[1][2 * j + 1])))); \
-            }                                                                                                      \
-            __global const half *vrow = base + (size_t)min(j0 + lane, len - 1) * stride + 2 * hidden;              \
-            __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) {                                 \
-                const short8 va = as_short8(vload8(b, (__global const ushort *)vrow));                             \
-                acc[b] = intel_sub_group_f16_f16_matrix_mad_k16(va, pb, acc[b] * corr);                            \
+            __attribute__((opencl_unroll_hint)) for (int c = 0; c < 2; c++) {                                      \
+                const int8 pb = pack_probabilities(p[2 * c], p[2 * c + 1]);                                        \
+                __attribute__((opencl_unroll_hint)) for (int v = 0; v < HD / 16; v++) {                            \
+                    uint8 va;                                                                                      \
+                    intel_sub_group_2d_block_read_transpose_32b_16r8x1c((__global void *)(base + 2 * hidden),      \
+                                                                        HD * 2, len, stride * 2,                   \
+                                                                        (int2)(8 * v, j0 + 16 * c),                \
+                                                                        (__private uint *)&va);                    \
+                    const float8 a0 = c == 0 ? acc[2 * v] * corr : acc[2 * v];                                     \
+                    const float8 a1 = c == 0 ? acc[2 * v + 1] * corr : acc[2 * v + 1];                             \
+                    acc[2 * v] = intel_sub_group_f16_f16_matrix_mad_k16(as_short8(va.lo), pb, a0);                 \
+                    acc[2 * v + 1] = intel_sub_group_f16_f16_matrix_mad_k16(as_short8(va.hi), pb, a1);             \
+                }                                                                                                  \
             }                                                                                                      \
         }                                                                                                          \
-        if (q0 + lane >= len) return;                                                                              \
-        const float inv = 1.0f / l;                                                                                \
+        red_m[sg][lane] = mx;                                                                                      \
+        red_l[sg][lane] = l;                                                                                       \
+        __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) red_acc[sg][b][lane] = acc[b];        \
+        barrier(CLK_LOCAL_MEM_FENCE);                                                                              \
+        if (sg != 0 || q0 + lane >= len) return;                                                                   \
+        float m_all = -INFINITY;                                                                                   \
+        for (int g = 0; g < ATT_KS; g++) m_all = fmax(m_all, red_m[g][lane]);                                      \
+        float l_all = 0.0f;                                                                                        \
+        __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] = (float8)(0.0f);              \
+        for (int g = 0; g < ATT_KS; g++) {                                                                         \
+            const float mg = red_m[g][lane];                                                                       \
+            const float c = mg == -INFINITY ? 0.0f : native_exp2(mg - m_all);                                      \
+            l_all += red_l[g][lane] * c;                                                                           \
+            __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] += red_acc[g][b][lane] * c; \
+        }                                                                                                          \
+        const float inv = 1.0f / l_all;                                                                            \
         __global half *out = ctx + (size_t)(start + q0 + lane) * hidden + col;                                     \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++)                                       \
             vstore_half8(acc[b] * inv, b, out);                                                                    \
     }
 
 FLASH_XMX(32)
+FLASH_XMX(64)
 
 /* Any other head width: one group per (query, head, row), the row's
  * scores in local memory, sized by the host: the query's head, the row's
