@@ -18,3 +18,5 @@ ureq = "3"
 [features]
 # Links the CUDA backend into the library the tool measures (docs/cuda.md).
 cuda = ["turbo/cuda"]
+# Links the Level Zero backend (docs/levelzero.md).
+levelzero = ["turbo/levelzero"]

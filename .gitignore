@@ -20,3 +20,5 @@ __pycache__/
 /bindings/swift/.build/
 /bindings/swift/.build/
 /target-*/
+# HailoRT writes its log into the directory a program runs in.
+hailort.log
