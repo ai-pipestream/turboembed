@@ -108,6 +108,16 @@ pub enum Tile {
     F16WholeK = 14,
     /// `F16WholeK` at three stages, two blocks to an SM.
     F16WholeK3 = 15,
+    /// `F16WholeK3`, but the attention output and second feed-forward
+    /// GEMMs as `SwizzledRows` takes them: 64 x 384, whole rows, with the
+    /// residual and the LayerNorm in their epilogue (hidden widths up to
+    /// 384).
+    F16WholeKRows = 16,
+    /// `F16WholeK3`, but QKV and GELU 256 x 128 over eight warps of
+    /// 64 x 64, one block to an SM.
+    F16WholeK256 = 17,
+    /// `F16WholeK` at two stages, three blocks to an SM.
+    F16WholeK2 = 18,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random

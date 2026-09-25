@@ -107,7 +107,17 @@ enum Tile : int {
      * over four warps of 64 x 64, four stages, one block to an SM; and at
      * three stages, two. An experiment, for its accuracy first. */
     TILE_F16_WHOLE_K = 14,
-    TILE_F16_WHOLE_K_3 = 15
+    TILE_F16_WHOLE_K_3 = 15,
+    /* TILE_F16_WHOLE_K_3, but the attention output and second
+     * feed-forward GEMMs as TILE_SWIZZLED_ROWS takes them: 64 x 384,
+     * whole rows, over eight warps of 32 x 96, one block to an SM, with
+     * the residual and the LayerNorm in their epilogue. */
+    TILE_F16_WHOLE_K_ROWS = 16,
+    /* TILE_F16_WHOLE_K_3, but QKV and GELU 256 x 128 over eight warps of
+     * 64 x 64, one block to an SM. */
+    TILE_F16_WHOLE_K_256 = 17,
+    /* TILE_F16_WHOLE_K at two stages, three blocks to an SM. */
+    TILE_F16_WHOLE_K_2 = 18
 };
 
 /* The four GEMMs of a layer, in the order a layer runs them. */

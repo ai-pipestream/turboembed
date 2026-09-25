@@ -119,7 +119,13 @@ cosine and largest absolute difference they measure.
 in F16 over the whole of a block's k, with no F32 accumulators but the
 stream-K partial products and their total (TensorRT's F16 GEMMs), on the
 swizzled kernel at 128 × 128 over four warps of 64 × 64, four stages, one
-block to an SM; `f16k3` is the same at three stages, two blocks to an SM.
+block to an SM; `f16k3` is the same at three stages, two blocks to an SM;
+`f16krow` is `f16k3` but the attention output and second feed-forward
+GEMMs as `swrow` takes them, 64 × 384 whole rows with the residual and
+the LayerNorm in their epilogue (`f16k3`'s tile for hidden states wider
+than 384); `f16k256` is `f16k3` but QKV and GELU at 256 × 128 over
+eight warps of 64 × 64, one block to an SM; `f16k2` is `f16k` at two
+stages, three blocks to an SM.
 Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
 uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
 F32 sums, sums over 64 and whole-k sums side by side, and hold the last
@@ -176,12 +182,12 @@ so one line forces sessions of any size. An unknown item or value is
 A kernel is allowed a precision by the numeric class it computes in:
 F32 FMAs at EXACT and MODEL, F16 operands with F32 sums at FASTEST (and
 F32 FMAs for a model past F16's range). TF32 and F16 sums within a
-chunk (the `acc16-` tiles, and `f16k` and `f16k3`, whose chunk is a
+chunk (the `acc16-` tiles, and the `f16k` tiles, whose chunk is a
 block's whole k) are in no precision's set until a decision adds them; a
 kernel of either forced through `TURBO_CUDA_CHOICES` is
 `TURBO_E_UNSUPPORTED_OPTION` naming field 3 and the kernel, unless its
 experiment's switch is set for the session (`TURBO_CUDA_TF32=1` at MODEL,
-`TURBO_CUDA_F16_ACCUMULATE=1` or `TURBO_CUDA_TILE=f16k` or `f16k3` at
+`TURBO_CUDA_F16_ACCUMULATE=1` or `TURBO_CUDA_TILE` naming an `f16k` tile at
 FASTEST), which widens that session's set. A session computes in its
 precision's classes, and in another only where a kernel it chose
 computes in it: a switch the line overrides widens nothing.
@@ -199,7 +205,7 @@ precision's classes allow: at FASTEST on tensor cores `8w` and `sw8w`
 (and `acc16-8w`, `acc16-sw8w` when the F16 accumulators' experiment is
 set); on the FMA kernels `128x64`, `128x128-16x8`, `128x128` and
 `64x64`; with `TURBO_CUDA_TF32=1` at MODEL, `128x64/tf32` and
-`128x128/tf32` too. The other tiles, and `f16k` and `f16k3`, are forced
+`128x128/tf32` too. The other tiles, and the `f16k` tiles, are forced
 only. A GEMM whose tile a switch forces is not timed. Stream-K,
 attention, the LayerNorm and the pooling keep their defaults.
 

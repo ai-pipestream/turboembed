@@ -62,6 +62,9 @@ Tile canonical_tile(Gemm which, const Shape &base, bool mma, Tile t) {
     case TILE_SWIZZLED_256x128: return which == GEMM_FFN1 ? t : TILE_SWIZZLED;
     // Whole rows only for the GEMMs that normalize them, when they fit.
     case TILE_SWIZZLED_ROWS: return narrow && base.hidden <= ROW_LN_WIDTH ? t : TILE_SWIZZLED_8W;
+    case TILE_F16_WHOLE_K_ROWS: return narrow && base.hidden <= ROW_LN_WIDTH ? t : TILE_F16_WHOLE_K_3;
+    // Whole-k 256 x 128 only for QKV and GELU, their F16 outputs.
+    case TILE_F16_WHOLE_K_256: return narrow ? TILE_F16_WHOLE_K_3 : t;
     default: return t;
     }
 }
@@ -344,7 +347,8 @@ int gemm_variants(const Shape &base, Variant *out, int cap) {
         // F16 sums over the whole of a block's k are F16 sums within a
         // chunk, the block's segment of k, and are never timed.
         for (Tile t : {TILE_64x64, TILE_128x64, TILE_128x128, TILE_128x128_4W, TILE_256x128, TILE_SWIZZLED,
-                       TILE_SWIZZLED_256x128, TILE_SWIZZLED_ROWS, TILE_F16_WHOLE_K, TILE_F16_WHOLE_K_3})
+                       TILE_SWIZZLED_256x128, TILE_SWIZZLED_ROWS, TILE_F16_WHOLE_K, TILE_F16_WHOLE_K_3,
+                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256, TILE_F16_WHOLE_K_2})
             add(t, false, false);
         return n;
     }
