@@ -86,8 +86,10 @@ of any run.
   into one device allocation. The first session makes the rest, on the
   device, shared by every later one and freed with the model: an F16 or
   BF16 model's F32 copy; each layer's Q, K and V weights and biases side
-  by side, for one projection; and, for the first session at FASTEST, the
-  linear layers' weights in F16, transposed to [inputs, outputs].
+  by side, for one projection; and the linear layers' weights transposed
+  to [inputs, outputs], in F16 for the first session at FASTEST and in
+  F32 for the first session in F32 (for a model whose hidden and
+  intermediate widths are multiples of 32).
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: device scratch, the
   output buffer, host staging the device reads, and the session's own
@@ -104,15 +106,21 @@ of any run.
   attention kernel (scaled dot products over the keys whose mask is 1,
   with an online softmax), the attention output projection, a residual
   and LayerNorm kernel, the feed-forward input with GELU (erf) in its
-  epilogue, the feed-forward output with its sums split four ways over its
-  terms, and a kernel that adds the parts, the residual and the
-  LayerNorm; then one kernel pools (mean over the mask, the first token,
+  epilogue, the feed-forward output (its sums split four ways over its
+  terms where the kernels below split them), and a kernel that adds the
+  parts, the residual and the LayerNorm; then one kernel pools (mean over the mask, the first token,
   or the last live one) and cuts to `output_dim`, and when asked another
   normalizes. The LayerNorms run a sub-group per token, or a group per
-  token below 256 tokens. The linear layers run by sub-group, 8 tokens by
-  64 outputs each, in F32 on the vector engines; with 8 tokens or fewer, a
-  group of up to 8 sub-groups computes 32 outputs, each summing an equal
-  share of the terms, in F32. Attention for head widths 32, 64 and 128
+  token below 256 tokens. In F32 the linear layers run on the vector
+  engines from the transposed weights: a sub-group computes 8 tokens by
+  32 outputs, a group 4 x 2 of them, a 2D block read handing each lane
+  its outputs' weights and each token's terms loaded once for the whole
+  sub-group, so every multiply-add takes its term as a scalar operand;
+  each output adds its products in term order. With 8 tokens or fewer, a
+  group of up to 8 sub-groups computes 32 outputs from the untransposed
+  weights, each summing an equal share of the terms. A model whose widths
+  are not multiples of 32 runs 8 tokens by 64 outputs a sub-group from
+  the untransposed weights. Attention for head widths 32, 64 and 128
   keeps each query and its running context in registers and streams the
   row's keys and values through local memory.
 

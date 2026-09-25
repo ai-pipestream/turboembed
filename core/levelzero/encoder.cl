@@ -208,6 +208,64 @@ linear_gemv(__global const float *x, __global const float *w, __global const flo
     }
 }
 
+/* The same in F32 from weights transposed to wt [n_in, n_out], for more
+ * than a handful of tokens: a sub-group computes 8 tokens by 32 outputs,
+ * a lane each two outputs 16 apart, 16 terms a step. A 2D block read gives
+ * each lane its outputs' 16 weights, and each token's 16 terms are one
+ * load the whole sub-group shares, so every multiply-add takes its token's
+ * term as a scalar operand. A group of 4 x 2 sub-groups computes 32
+ * tokens by 64 outputs, sharing its rows of x and wt in cache. The sums
+ * are never split: each output adds its products in term order. n_in is
+ * a multiple of 16, n_out of 32, and wt 64-byte aligned. */
+
+__attribute__((overloadable)) void intel_sub_group_2d_block_read_32b_16r16x1c(__global void *base, int width,
+                                                                              int height, int pitch, int2 coord,
+                                                                              __private uint *dst);
+
+#define SGEMM_TM 8
+#define SGEMM_TN 32
+#define SGEMM_WM 4
+#define SGEMM_WN 2
+
+__kernel __attribute__((intel_reqd_sub_group_size(16)))
+__attribute__((reqd_work_group_size(16 * SGEMM_WM * SGEMM_WN, 1, 1))) void
+linear_sgemm(__global const float *x, __global const float *wt, __global const float *bias, __global float *y,
+             int tokens, int n_out, int n_in, int flags) {
+    const int sg = get_sub_group_id(), lane = get_sub_group_local_id();
+    const int o0 = (get_group_id(0) * SGEMM_WN + sg % SGEMM_WN) * SGEMM_TN;
+    const int t0 = (get_group_id(1) * SGEMM_WM + sg / SGEMM_WN) * SGEMM_TM;
+    if (o0 >= n_out || t0 >= tokens) return;
+    float acc[SGEMM_TM][2];
+    __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++) acc[m][0] = acc[m][1] = 0.0f;
+    __global const float *xr[SGEMM_TM];
+    __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++)
+        xr[m] = x + (size_t)min(t0 + m, tokens - 1) * n_in;
+    for (int k = 0; k < n_in; k += 16) {
+        float16 a[SGEMM_TM];
+        __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++) a[m] = vload16(0, xr[m] + k);
+        float b[2][16];
+        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++)
+            intel_sub_group_2d_block_read_32b_16r16x1c((__global void *)wt, n_out * 4, n_in, n_out * 4,
+                                                       (int2)(o0 + 16 * j, k), (__private uint *)b[j]);
+        __attribute__((opencl_unroll_hint)) for (int kk = 0; kk < 16; kk++)
+            __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++)
+                __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) acc[m][j] =
+                    fma(a[m][kk], b[j][kk], acc[m][j]);
+    }
+    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {
+        const int o = o0 + 16 * j + lane;
+        const float bo = flags & LINEAR_BIAS ? bias[o] : 0.0f;
+        __attribute__((opencl_unroll_hint)) for (int m = 0; m < SGEMM_TM; m++) {
+            const int t = t0 + m;
+            if (t >= tokens) break;
+            float v = acc[m][j];
+            if (flags & LINEAR_BIAS) v = v + bo;
+            if (flags & LINEAR_GELU) v = gelu(v);
+            y[(size_t)t * n_out + o] = v;
+        }
+    }
+}
+
 /* The linear layers at FASTEST, on the matrix engines (XMX,
  * cl_intel_subgroup_matrix_multiply_accumulate): the same y, from F16
  * activations and F16 weights transposed to wt [n_in, n_out], with F32
@@ -913,6 +971,16 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void normalize(__glo
 
 __kernel void widen_f16(__global const half *src, ulong n, __global float *dst) {
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) dst[i] = vload_half(i, src);
+}
+
+/* w [n_out, n_in] in F32 to wt [n_in, n_out] in F32, the layout
+ * linear_sgemm reads. */
+__kernel void transpose_f32(__global const float *w, int n_out, int n_in, __global float *wt) {
+    const size_t n = (size_t)n_out * n_in;
+    for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
+        const size_t k = i / n_out, o = i % n_out;
+        wt[i] = w[o * n_in + k];
+    }
 }
 
 /* w [n_out, n_in] in F32 to wt [n_in, n_out] in F16, the layout the
