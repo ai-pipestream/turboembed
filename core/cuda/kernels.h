@@ -110,18 +110,46 @@ enum Tile : int {
     TILE_F16_WHOLE_K_3 = 15
 };
 
+/* The four GEMMs of a layer, in the order a layer runs them. */
+enum Gemm : int { GEMM_QKV = 0, GEMM_OUT = 1, GEMM_FFN1 = 2, GEMM_FFN2 = 3, GEMM_COUNT = 4 };
+
+/* How a GEMM's launch shares out its work: stream-K, each block an equal
+ * run of k steps (a tile may be split between blocks, finished by the one
+ * holding its last step), or whole tiles to a block, with no partial
+ * products and no waits. */
+enum SkMode : int { SK_STREAM = 0, SK_TILES = 1 };
+
+/* Fewer k steps than this per block and a stream-K launch uses fewer
+ * blocks; GemmArgs.min_steps, when set, in its place. */
+constexpr int SK_MIN_STEPS = 4;
+
+/* GemmArgs.min_steps for SK_TILES. */
+constexpr int SK_WHOLE_TILES = -1;
+
+/* One GEMM's kernel: its tile, how its launch shares the work, and, for
+ * F32 operands on a device with tensor cores, whether it computes in TF32
+ * on them (FASTEST's F16 operands take them whenever the device has
+ * them). */
+struct GemmChoice {
+    Tile tile = TILE_DEFAULT;
+    SkMode sk = SK_STREAM;
+    int sk_steps = 0; /* SK_STREAM's fewest k steps per block; 0 for SK_MIN_STEPS */
+    bool tf32 = false;
+};
+
 /* A session's fixed shape, from which make_plan sizes every launch. */
 struct Shape {
     int batch_cap = 0, seq_cap = 0; /* max_batch, max_seq */
     int tcap = 0;                   /* batch_cap * seq_cap */
     int hidden = 0, heads = 0, inter = 0;
     bool half = false;         /* FASTEST: F16 GEMM operands and attention */
-    /* sm_80 or newer, and mma.sync for the GEMMs: F16 at FASTEST, TF32
-     * for F32 operands with TURBO_CUDA_TF32=1, never at EXACT. */
+    /* sm_80 or newer: mma.sync for F16 GEMMs and attention, and for the
+     * F32 GEMMs whose choice asks for TF32. */
     bool tensor_cores = false;
     int sms = 0;
     size_t smem_optin = 0; /* cudaDevAttrMaxSharedMemoryPerBlockOptin */
-    Tile tile = TILE_DEFAULT;
+    /* Each GEMM's kernel, by Gemm. */
+    GemmChoice gemm[GEMM_COUNT];
     /* The FMA attention with each query's keys split among four warps
      * (TURBO_CUDA_ATTENTION=split), for measuring against the default,
      * which computes Q K^T and P V as register tiles. */
@@ -130,9 +158,6 @@ struct Shape {
      * keys and values through cp.async (TURBO_CUDA_ATTENTION=128), for
      * measuring against the default of 64. */
     bool wide_attention = false;
-    /* The GEMMs' fewest k steps per block (TURBO_CUDA_SK_STEPS), 0 for
-     * the kernels' own. */
-    int sk_steps = 0;
     /* LayerNorm in the attention output and second feed-forward GEMMs
      * (EPI_ADD_LN) when the hidden width allows and
      * TURBO_CUDA_LAYER_NORM=fused asks for it; otherwise the GEMM's
@@ -143,6 +168,9 @@ struct Shape {
     bool column_pool = false;
 };
 
+/* Whether a GEMM of the shape runs on the tensor cores. */
+inline bool gemm_mma(const Shape &s, Gemm g) { return s.tensor_cores && (s.half || s.gemm[g].tf32); }
+
 /* Grids and shared memory for every launch of a session. */
 struct Plan {
     size_t pack_smem = 0;
@@ -150,7 +178,7 @@ struct Plan {
     int pool_grid = 0;
     int epi_grid = 0; /* the cuBLAS epilogues */
     int fetch_grid = 0;
-    int qkv_grid = 0, out_grid = 0, ffn1_grid = 0, ffn2_grid = 0;
+    int gemm_grid[GEMM_COUNT] = {0, 0, 0, 0}; /* by Gemm */
     /* The GEMMs' stream-K workspace: a slot of partial products per block
      * of the largest launch, floats in all, and a flag per block. */
     size_t sk_floats = 0;
@@ -259,6 +287,14 @@ constexpr int LN_FUSED_MAX_HIDDEN = 512;
  * the smallest tile's rows. */
 inline int ln_counters(int tcap) { return tcap / 64 + 1; }
 
+/* The epilogue a GEMM of a layer runs: the attention output and second
+ * feed-forward GEMMs normalize their rows when the LayerNorm is fused. */
+inline Epilogue gemm_epilogue(Gemm g, bool fused_ln) {
+    if (g == GEMM_QKV) return EPI_QKV;
+    if (g == GEMM_FFN1) return EPI_GELU;
+    return fused_ln ? EPI_ADD_LN : EPI_PLAIN;
+}
+
 struct GemmArgs {
     const void *a, *w;
     const float *bias;
@@ -274,7 +310,8 @@ struct GemmArgs {
      * Host memory the device writes, so reading it copies nothing. */
     int *fault;
     /* The fewest k steps a block takes before the kernel runs on fewer
-     * blocks; 0 for the kernels' own. */
+     * blocks; 0 for the kernels' own, SK_MIN_STEPS; SK_WHOLE_TILES for
+     * whole tiles to a block. */
     int min_steps;
     /* ADD_LN only: the LayerNorm's weight and bias and epsilon, the F16
      * copy of the hidden states (NULL at F32), and a counter per block of

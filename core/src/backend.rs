@@ -28,6 +28,28 @@ pub const fn format_bit(f: u32) -> u32 {
     1 << (f - 1)
 }
 
+pub const TURBO_NUMERIC_F32_FMA: u32 = 1;
+pub const TURBO_NUMERIC_TF32: u32 = 2;
+pub const TURBO_NUMERIC_F16_F32ACC: u32 = 4;
+pub const TURBO_NUMERIC_F16_CHUNKACC: u32 = 8;
+
+/// The core's tuning policy for a session, and what the backend chose.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct turbo_backend_tuning {
+    pub struct_size: u32,
+    pub mode: u32,
+    pub budget_ms: u32,
+    pub numerics_allowed: u32,
+    pub cached: *const c_char,
+    pub tuned: u32,
+    pub tune_ms: u32,
+    pub choices: [c_char; crate::TURBO_CHOICES_LEN],
+    pub timings: *mut c_char,
+    pub timings_len: u32,
+    pub numerics_used: u32,
+}
+
 pub const TURBO_INPUT_TOKEN_IDS: u32 = 1;
 pub const TURBO_INPUT_EMBEDDINGS: u32 = 2;
 pub const TURBO_OUTPUT_HIDDEN_STATES: u32 = 1;
@@ -186,6 +208,20 @@ pub struct turbo_backend {
         Option<unsafe extern "C" fn(buf: *mut c_void, dst: *mut c_void, bytes: u64, err: *mut turbo_error) -> i32>,
     pub formats: u32,
     pub reserved2: u32,
+    #[allow(clippy::type_complexity)]
+    pub session_create_tuned: Option<
+        unsafe extern "C" fn(
+            model: *mut c_void,
+            task: u32,
+            max_batch: u32,
+            max_seq: u32,
+            precision: u32,
+            tuning: *mut turbo_backend_tuning,
+            compute_dtype: *mut u32,
+            out: *mut *mut c_void,
+            err: *mut turbo_error,
+        ) -> i32,
+    >,
 }
 
 // The table is immutable static data, read from any thread.
@@ -237,12 +273,13 @@ static LINKED: &[&turbo_backend] = &[
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.
-const TABLE_SIZES: [usize; 6] = [
+const TABLE_SIZES: [usize; 7] = [
     std::mem::offset_of!(turbo_backend, context_create),
     std::mem::offset_of!(turbo_backend, model_load),
     std::mem::offset_of!(turbo_backend, session_create),
     std::mem::offset_of!(turbo_backend, buffer_read),
     std::mem::offset_of!(turbo_backend, formats),
+    std::mem::offset_of!(turbo_backend, session_create_tuned),
     size_of::<turbo_backend>(),
 ];
 
@@ -274,6 +311,8 @@ pub fn check_table(backend: &turbo_backend) -> Result<()> {
         ("model_load", has!(model_load), "model_release", has!(model_release)),
         ("session_create", has!(session_create), "session_release", has!(session_release)),
         ("session_create", has!(session_create), "session_run", has!(session_run)),
+        ("session_create_tuned", has!(session_create_tuned), "session_release", has!(session_release)),
+        ("session_create_tuned", has!(session_create_tuned), "session_run", has!(session_run)),
     ];
     for (f, has, release, has_release) in pairs {
         if has && !has_release {
@@ -424,6 +463,59 @@ mod tests {
         assert_eq!(t.formats(), 0b101);
         let t = cpu_table(std::mem::offset_of!(turbo_backend, reserved2));
         assert_eq!(check_table(&t).unwrap_err().code, INTERNAL, "a size inside the formats group is unknown");
+    }
+
+    /// The CPU table with a session_create_tuned, as a backend with
+    /// tuned sessions has it: the CPU's own session_create under the
+    /// other signature, never called.
+    unsafe extern "C" fn no_tuned(
+        _: *mut c_void,
+        _: u32,
+        _: u32,
+        _: u32,
+        _: u32,
+        _: *mut turbo_backend_tuning,
+        _: *mut u32,
+        _: *mut *mut c_void,
+        _: *mut turbo_error,
+    ) -> i32 {
+        crate::status::INTERNAL
+    }
+
+    #[test]
+    fn a_table_from_before_tuned_sessions_is_known_and_offers_none() {
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, session_create_tuned));
+        assert_eq!(std::mem::offset_of!(turbo_backend, session_create_tuned), 160);
+        assert_eq!(size_of::<turbo_backend>(), 168);
+        check_table(&t).unwrap();
+        assert!(offered!(&t, session_run).is_ok());
+        // Whatever lies past the table's end is not read.
+        let mut t = cpu_table(std::mem::offset_of!(turbo_backend, session_create_tuned));
+        t.session_create_tuned = Some(no_tuned);
+        let e = offered!(&t, session_create_tuned).err().unwrap();
+        assert_eq!(e, Error::new(UNSUPPORTED, "the cpu backend does not offer session_create_tuned"));
+        // The whole table offers it when it is there.
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        assert_eq!(offered!(&t, session_create_tuned).err().unwrap().code, UNSUPPORTED);
+        t.session_create_tuned = Some(no_tuned);
+        assert!(offered!(&t, session_create_tuned).is_ok());
+        check_table(&t).unwrap();
+    }
+
+    #[test]
+    fn a_tuned_session_without_its_release_or_its_run_is_refused() {
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.session_create = None;
+        t.session_create_tuned = Some(no_tuned);
+        t.session_release = None;
+        let e = check_table(&t).unwrap_err();
+        assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has session_create_tuned and no session_release"));
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.session_create = None;
+        t.session_create_tuned = Some(no_tuned);
+        t.session_run = None;
+        let e = check_table(&t).unwrap_err();
+        assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has session_create_tuned and no session_run"));
     }
 
     #[test]

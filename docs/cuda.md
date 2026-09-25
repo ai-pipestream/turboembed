@@ -128,9 +128,11 @@ from run to run on one device). The other precisions take `128x64`.
 `TURBO_CUDA_POOL=columns` gives the pooling of a thread per column, for
 measuring against the default. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
 a GEMM's block takes before the GEMM runs on fewer blocks (a count from
-1 to 64; 4 when unset), for measuring how finely the work is shared.
-Like the tile, it moves where the sums split, so the vectors agree
-within the bound, not bit for bit.
+1 to 64; 4 when unset), for measuring how finely the work is shared, or
+`tiles`: whole tiles to a block, so no tile is split between blocks and
+no block waits on another's partial product (the blocks then share the
+tiles, not the k steps, evenly). Like the tile, it moves where the sums
+split, so the vectors agree within the bound, not bit for bit.
 
 A GEMM's block that finishes a tile waits for the blocks that computed
 its other k steps. Should one never arrive (the device running a later
@@ -138,6 +140,49 @@ block before an earlier one could leave it waiting), the wait gives up
 after about a second, and the run fails with `TURBO_E_RUNTIME` instead
 of hanging; a session whose GEMM kernels fit fewer blocks to an SM than
 they were built for logs a warning when it is made.
+
+### Kernel choices
+
+A session's kernels are chosen per bin of packed tokens (up to 256,
+1024, 4096, 16384, and past 16384), and `turbo_session_get_info`
+reports them in `choices` as one line, the bins the session has first:
+
+```
+le256:qkv=8w/sk4,out=8w/sk4,ffn1=8w/sk4,ffn2=8w/sk4,attn=mma128,ln=separate;le1k:...;pool=groups;forced=
+```
+
+Each GEMM (`qkv`, `out`, `ffn1`, `ffn2`) names its tile as
+`TURBO_CUDA_TILE` spells it (`acc16-8w` and `acc16-sw8w` being the
+F16 accumulators' eight-warp and swizzled eight-warp tiles), then its
+stream-K (`sk<steps>` or `tiles`), then `/tf32` when it computes in TF32;
+`attn` is `fma-tiled`, `fma-split`, `mma64` or `mma128`; `ln` is
+`separate` or `fused`; `pool` is `groups` or `columns`. The names are of
+the kernels that run: a tile the session's operands or device do not
+take is reported as the one that runs in its place. `forced=` lists the
+knobs (`tile`, `sk`, `tf32`, `attn`, `ln`, `pool`) the environment
+fixed; `tuned` says `default`, or `forced` when every knob was.
+
+`TURBO_CUDA_CHOICES`, read when a session is made after the switches
+above, forces the items it names, over them: the line a session
+reported gives a session of the same kernels, so the same bits. It may
+name fewer items (`all:qkv=sw8w/tiles` forces the first GEMM of every
+bin, a GEMM's stream-K may be left out) and leaves the rest as they
+were. A bin the session does not have is left out, with a DEBUG line,
+so one line forces sessions of any size. An unknown item or value is
+`TURBO_E_INVALID_ARGUMENT` naming it.
+
+A kernel is allowed a precision by the numeric class it computes in:
+F32 FMAs at EXACT and MODEL, F16 operands with F32 sums at FASTEST (and
+F32 FMAs for a model past F16's range). TF32 and F16 sums within a
+chunk (the `acc16-` tiles, and `f16k` and `f16k3`, whose chunk is a
+block's whole k) are in no precision's set until a decision adds them; a
+kernel of either forced through `TURBO_CUDA_CHOICES` is
+`TURBO_E_UNSUPPORTED_OPTION` naming field 3 and the kernel, unless its
+experiment's switch is set for the session (`TURBO_CUDA_TF32=1` at MODEL,
+`TURBO_CUDA_F16_ACCUMULATE=1` or `TURBO_CUDA_TILE=f16k` or `f16k3` at
+FASTEST), which widens that session's set. A session computes in its precision's classes, and in another only
+where a kernel it chose computes in it: a switch the line overrides
+widens nothing.
 
 The library links the toolkit's shared `libcudart.so.<major>` and
 `libcublas.so.<major>`, with the toolkit's library directory as its run
@@ -216,7 +261,14 @@ older than the runtime, it lists none and the runtime's log says why.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: device scratch, the
   output buffer and page-locked staging for the rows; and the run is
-  captured into a CUDA graph, instantiated and uploaded to the device.
+  captured into a CUDA graph, instantiated and uploaded to the device:
+  one graph per bin of packed tokens (up to 256, 1024, 4096, 16384 and
+  more; the bins past `max_batch` × `max_seq` do not exist for the
+  session) whose kernel choices differ, all bins sharing one graph when
+  they choose alike, as they do unless their choices were forced apart.
+  With more than one graph, `embed_write` counts the packed tokens on
+  the host and the run launches its bin's graph; with one, it counts
+  nothing.
   `embed_write` hands the rows over laid out at the run's own width,
   each array's rows back to back and the arrays one after another, so
   only the entries the caller passed are sent. When every array is in

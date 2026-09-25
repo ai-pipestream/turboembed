@@ -298,6 +298,41 @@ fn a_record_that_is_not_well_formed_is_refused() {
     assert_eq!(Record::parse(&name, &serde_json::to_vec(&v).unwrap()).unwrap(), r);
 }
 
+/// A CUDA record names the kernels its session ran, after the variables
+/// that were set, in LIBRARY_VARS's order, and one out of that order is
+/// refused.
+#[test]
+fn a_cuda_record_names_its_kernel_choices_last() {
+    let mut g = cpu_record("choices", vec![measured_reference(TEI)]);
+    g.device.kind = "DEVICE_GPU".into();
+    g.device.backend = "cuda".into();
+    g.machine.arch = "rtx4080".into();
+    let choices = "TURBO_CUDA_CHOICES=le256:qkv=8w/sk4,out=8w/sk4,ffn1=8w/sk4,ffn2=8w/sk4,attn=mma128,ln=separate;\
+                   pool=groups;forced=tile";
+    g.library.settings = vec![
+        "TURBO_CUDA_TILE=8w".into(),
+        "TURBO_AUTOTUNE=on".into(),
+        "TURBO_CUDA_TUNED=measured".into(),
+        choices.into(),
+    ];
+    assert_eq!(reparse(&g).unwrap(), g);
+    // A record from before the choices, with only the variables set.
+    let mut old = g.clone();
+    old.library.settings = vec!["TURBO_CUDA_TILE=8w".into(), "TURBO_CUDA_CUBLAS=all".into()];
+    assert_eq!(reparse(&old).unwrap(), old);
+    let mut x = g.clone();
+    x.library.settings = vec![choices.into(), "TURBO_CUDA_TUNED=measured".into()];
+    assert!(reparse(&x).unwrap_err().contains("in that order"));
+    let mut x = g.clone();
+    x.library.settings = vec!["TURBO_CUDA_TUNED=measured".into(), "TURBO_CUDA_TILE=8w".into()];
+    assert!(reparse(&x).unwrap_err().contains("library.settings"));
+    // The CPU does not report choices.
+    let mut x = g.clone();
+    x.device.kind = "DEVICE_CPU".into();
+    x.device.backend = "cpu".into();
+    assert!(reparse(&x).unwrap_err().contains("library.settings"));
+}
+
 #[test]
 fn a_record_with_no_reference_measured_does_not_back_supported() {
     let r = cpu_record("no-reference", vec![]);

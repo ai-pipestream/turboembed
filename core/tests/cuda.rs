@@ -1279,7 +1279,8 @@ fn f16_accumulators_hold_fastest_s_bound() {
     for (tile, separate) in
         [None, Some(Tile::F16WholeK), Some(Tile::F16WholeK3)].into_iter().flat_map(|tile| [(tile, true), (tile, false)])
     {
-        turbo::cuda::use_f16_accumulate(tile.is_none().then_some(true));
+        // The whole-k tiles are the F16 accumulators' experiment too.
+        turbo::cuda::use_f16_accumulate(Some(true));
         turbo::cuda::use_tile(tile);
         turbo::cuda::use_separate_layer_norm(Some(separate));
         let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
@@ -1705,9 +1706,13 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::F16WholeK,
             Tile::F16WholeK3,
         ] {
+            // The whole-k tiles sum in F16, the F16 accumulators' experiment.
+            let whole_k = matches!(tile, Tile::F16WholeK | Tile::F16WholeK3);
+            turbo::cuda::use_f16_accumulate(whole_k.then_some(true));
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
             turbo::cuda::use_tile(None);
+            turbo::cuda::use_f16_accumulate(None);
             let s = s.unwrap();
             s.write_tokens(&t.batch(), None).unwrap();
             let got = s.run().unwrap().rows();
@@ -1715,6 +1720,306 @@ fn every_gemm_tile_gives_the_same_vectors() {
             assert_eq!(s.run().unwrap().rows(), got, "precision {precision}, tile {tile:?}: the same bits again");
             let (cos, abs) = within(&format!("precision {precision}, tile {tile:?}"), &got, &want, tol);
             println!("precision {precision}, tile {tile:?}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+        }
+    }
+}
+
+/// TURBO_CUDA_SK_STEPS shares the GEMMs' k steps out among the blocks at
+/// other points, or gives each block whole tiles (`tiles`): every choice
+/// gives the vectors of the default within the bound of the precision,
+/// at every precision, on ragged rows, and repeats its own bits.
+#[test]
+fn every_stream_k_mode_gives_the_same_vectors() {
+    let _t = turn();
+    let Some(_) = cuda_device("every_stream_k_mode_gives_the_same_vectors") else { return };
+    use turbo::cuda::StreamK;
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(64);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(64);
+    m["embed"]["max_seq"] = json!(160);
+    m["embed"]["max_batch"] = json!(40);
+    let mut f = Fixture::new("cuda-stream-k", m);
+    f.weights("weights/model.safetensors", &bert_weights(64, 256));
+    let g = f.load_on(cuda).unwrap();
+    let t = ragged_rows(&f.dir, 40, 160);
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
+        let own = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
+        let tol = record::tolerance(own.info().compute_dtype).unwrap();
+        own.write_tokens(&t.batch(), None).unwrap();
+        let want = own.run().unwrap().rows();
+        for sk in [
+            StreamK::Default,
+            StreamK::Steps(1),
+            StreamK::Steps(2),
+            StreamK::Steps(8),
+            StreamK::Steps(16),
+            StreamK::Tiles,
+        ] {
+            turbo::cuda::use_stream_k(Some(sk));
+            let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
+            turbo::cuda::use_stream_k(None);
+            let s = s.unwrap();
+            s.write_tokens(&t.batch(), None).unwrap();
+            let got = s.run().unwrap().rows();
+            s.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(s.run().unwrap().rows(), got, "precision {precision}, {sk:?}: the same bits again");
+            if matches!(sk, StreamK::Default) {
+                assert_eq!(got, want, "precision {precision}: the kernels' own steps, forced, are the default");
+            }
+            let (cos, abs) = within(&format!("precision {precision}, {sk:?}"), &got, &want, tol);
+            println!("precision {precision}, {sk:?}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+        }
+    }
+}
+
+/// A session's kernel choices without its forced= item, which says only
+/// what fixed them.
+fn kernels_of(choices: &str) -> String {
+    choices.split(';').filter(|i| !i.starts_with("forced=")).collect::<Vec<_>>().join(";")
+}
+
+/// f with TURBO_CUDA_CHOICES in its place for the sessions f makes.
+fn forcing<T>(choices: &str, f: impl FnOnce() -> T) -> T {
+    turbo::cuda::use_choices(Some(choices));
+    let r = f();
+    turbo::cuda::use_choices(None);
+    r
+}
+
+/// The small model of the tile tests, heads of 32, whose sessions of 40
+/// rows of 160 tokens have the bins up to 256, 1024, 4096 and 16384.
+fn small_model(name: &str) -> (Fixture, Loaded) {
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(64);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(64);
+    m["embed"]["max_seq"] = json!(160);
+    m["embed"]["max_batch"] = json!(40);
+    let mut f = Fixture::new(name, m);
+    f.weights("weights/model.safetensors", &bert_weights(64, 256));
+    let g = f.load_on(cuda).unwrap();
+    (f, g)
+}
+
+/// A session reports the kernels it chose, per token bin, as one line;
+/// forcing that line back with TURBO_CUDA_CHOICES makes a session of the
+/// same kernels, every knob forced, which gives the same bits. So do the
+/// choices the switches force, and a line read back reports itself.
+#[test]
+fn a_sessions_choices_forced_back_give_its_bits() {
+    let _t = turn();
+    let Some(_) = cuda_device("a_sessions_choices_forced_back_give_its_bits") else { return };
+    use turbo::cuda::{StreamK, Tile};
+    let (f, g) = small_model("cuda-choices");
+    let t = ragged_rows(&f.dir, 40, 160);
+    let run = |s: &Session| {
+        s.write_tokens(&t.batch(), None).unwrap();
+        s.run().unwrap().rows()
+    };
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
+        for switched in [false, true] {
+            if switched {
+                turbo::cuda::use_tile(Some(if precision == TURBO_PRECISION_FASTEST {
+                    Tile::SwizzledEightWarps
+                } else {
+                    Tile::T64x64
+                }));
+                turbo::cuda::use_stream_k(Some(StreamK::Tiles));
+            }
+            let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
+            turbo::cuda::use_tile(None);
+            turbo::cuda::use_stream_k(None);
+            let s = s.unwrap();
+            let info = s.info();
+            let choices = field(&info.choices);
+            println!("precision {precision}: {choices}");
+            assert!(choices.starts_with("le256:") && choices.contains(";le16k:"), "{choices}");
+            assert!(!choices.contains("gt16k"), "40 x 160 tokens have no bin past 16384: {choices}");
+            if switched {
+                assert!(choices.ends_with(";forced=tile,sk"), "{choices}");
+                assert!(choices.contains("/tiles,"), "{choices}");
+            } else {
+                assert!(choices.ends_with(";forced="), "{choices}");
+                assert_eq!(info.tuned, TURBO_TUNED_DEFAULT);
+            }
+            assert_eq!(info.tune_ms, 0);
+            let want = run(&s);
+            let back = forcing(&choices, || strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))));
+            let back = back.unwrap();
+            let bi = back.info();
+            assert_eq!(bi.tuned, TURBO_TUNED_FORCED, "precision {precision}: every knob named");
+            assert_eq!(kernels_of(&field(&bi.choices)), kernels_of(&choices));
+            assert_eq!(run(&back), want, "precision {precision}, {choices}: the same bits");
+            // The line a forced session reports forces the same again.
+            let again = forcing(&field(&bi.choices), || {
+                strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))))
+            });
+            assert_eq!(field(&again.unwrap().info().choices), field(&bi.choices));
+        }
+    }
+}
+
+/// Bins forced apart run apart: a batch in the bin up to 256 tokens runs
+/// that bin's kernels, one in another bin the others', each within the
+/// precision's bound of the default and repeating its bits. A bin the
+/// session does not have is left out of what it forces.
+#[test]
+fn bins_forced_apart_run_their_own_kernels() {
+    let _t = turn();
+    let Some(_) = cuda_device("bins_forced_apart_run_their_own_kernels") else { return };
+    let (f, g) = small_model("cuda-bins");
+    let small = ragged_rows(&f.dir, 3, 60);
+    let large = ragged_rows(&f.dir, 40, 160);
+    for precision in [TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
+        let own = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
+        let tol = record::tolerance(own.info().compute_dtype).unwrap();
+        let tile = if precision == TURBO_PRECISION_FASTEST { "sw8w" } else { "64x64" };
+        // The bin past 16384 tokens, which the session does not have, is
+        // left out: one line forces sessions of any size.
+        let apart = format!(
+            "le256:qkv={tile}/sk2,out={tile}/tiles,ffn1={tile}/sk8,ffn2={tile}/sk1,ln=fused;gt16k:qkv=64x64/tiles"
+        );
+        let s = forcing(&apart, || strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))));
+        let s = s.unwrap();
+        let choices = field(&s.info().choices);
+        assert!(choices.starts_with(&format!("le256:qkv={tile}/sk2,out={tile}/tiles,")), "{choices}");
+        assert!(choices.ends_with(";forced=tile,sk,tf32,ln"), "{choices}");
+        assert!(!choices.contains("gt16k"), "{choices}");
+        for t in [&small, &large] {
+            own.write_tokens(&t.batch(), None).unwrap();
+            let want = own.run().unwrap().rows();
+            s.write_tokens(&t.batch(), None).unwrap();
+            let got = s.run().unwrap().rows();
+            s.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(s.run().unwrap().rows(), got, "precision {precision}: the same bits again");
+            within(&format!("precision {precision}, {} rows", t.batch().batch), &got, &want, tol);
+        }
+    }
+}
+
+/// A variant is eligible for a precision by the numeric class it
+/// computes in, which the core's table allows: every variant has one of
+/// the four classes; one outside the precision's is refused when forced,
+/// naming it, unless the experiment's switch widens the session's set;
+/// and TURBO_CUDA_TF32 at EXACT changes nothing. An unknown item is
+/// refused.
+#[test]
+fn a_variant_outside_the_precision_is_refused() {
+    let _t = turn();
+    let Some(dev) = cuda_device("a_variant_outside_the_precision_is_refused") else { return };
+    let ordinal = Rt::new().info(dev).ordinal;
+    use turbo::backend::*;
+    let (_f, g) = small_model("cuda-numerics");
+    let classes = [TURBO_NUMERIC_F32_FMA, TURBO_NUMERIC_TF32, TURBO_NUMERIC_F16_F32ACC, TURBO_NUMERIC_F16_CHUNKACC];
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
+        let vs = turbo::cuda::variants(ordinal, precision).unwrap();
+        assert!(!vs.is_empty());
+        for v in &vs {
+            assert!(classes.contains(&v.numeric), "{v:?}");
+            let make = || {
+                let all = format!("all:qkv={0},out={0},ffn1={0},ffn2={0}", v.name);
+                forcing(&all, || Session::create(g.m, Some(&session_desc(40, 160, precision))))
+            };
+            if v.numeric & turbo::tuning::numerics_allowed(precision) != 0 {
+                make().unwrap();
+                continue;
+            }
+            let e = make().err().unwrap();
+            assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{v:?}: {}", e.message);
+            assert!(e.message.contains(v.name.split('/').next().unwrap()), "{}", e.message);
+            // The experiment's switch widens the session's classes.
+            if v.numeric == TURBO_NUMERIC_TF32 && precision == TURBO_PRECISION_MODEL {
+                turbo::cuda::use_tf32(Some(true));
+                let s = make();
+                turbo::cuda::use_tf32(None);
+                assert!(field(&s.unwrap().info().choices).contains("/tf32"));
+            }
+            if v.numeric == TURBO_NUMERIC_F16_CHUNKACC {
+                turbo::cuda::use_f16_accumulate(Some(true));
+                let s = make();
+                turbo::cuda::use_f16_accumulate(None);
+                let choices = field(&s.unwrap().info().choices);
+                assert!(choices.contains(&format!("={}/", v.name)), "{choices}");
+            }
+        }
+    }
+    // Neither accuracy-changing class is a default candidate's anywhere.
+    turbo::cuda::use_tf32(Some(true));
+    let s = Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_EXACT)));
+    turbo::cuda::use_tf32(None);
+    let choices = field(&s.unwrap().info().choices);
+    assert!(!choices.contains("/tf32") && choices.ends_with("forced="), "{choices}");
+    for bad in ["le9k:qkv=8w", "le256:qkv=9w", "le256:qkv=8w/sk99", "le256:gelu=8w", "pool=rows", "tiles"] {
+        let e = forcing(bad, || Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_FASTEST))));
+        let e = e.err().unwrap();
+        assert_eq!(e.code, INVALID_ARGUMENT, "{bad}: {}", e.message);
+        assert!(e.message.contains("TURBO_CUDA_CHOICES"), "{}", e.message);
+    }
+}
+
+/// The whole-k tiles sum in F16: FASTEST refuses one forced through
+/// TURBO_CUDA_CHOICES without the F16 accumulators' switch, naming field 3
+/// and the kernel, and takes it with the switch.
+#[test]
+fn a_whole_k_tile_is_refused_without_its_switch() {
+    let _t = turn();
+    let Some(_) = cuda_device("a_whole_k_tile_is_refused_without_its_switch") else { return };
+    let (_f, g) = small_model("cuda-whole-k");
+    let make =
+        |line: &str| forcing(line, || Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_FASTEST))));
+    for tile in ["f16k", "f16k3"] {
+        let line = format!("all:ffn2={tile}");
+        let e = make(&line).err().unwrap();
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{line}: {}", e.message);
+        assert!(e.message.contains(&format!("ffn2={tile}/")), "{}", e.message);
+        turbo::cuda::use_f16_accumulate(Some(true));
+        let s = make(&line);
+        turbo::cuda::use_f16_accumulate(None);
+        let choices = field(&s.unwrap().info().choices);
+        assert!(choices.contains(&format!("ffn2={tile}/")), "{choices}");
+    }
+}
+
+/// Every GEMM variant a precision allows, forced for every GEMM in every
+/// bin, gives the default's vectors within the precision's bound, at
+/// every precision, and repeats its own bits.
+#[test]
+fn every_variant_gives_the_same_vectors() {
+    let _t = turn();
+    let Some(dev) = cuda_device("every_variant_gives_the_same_vectors") else { return };
+    let ordinal = Rt::new().info(dev).ordinal;
+    let (f, g) = small_model("cuda-variants");
+    let t = ragged_rows(&f.dir, 40, 160);
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
+        let own = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
+        let tol = record::tolerance(own.info().compute_dtype).unwrap();
+        own.write_tokens(&t.batch(), None).unwrap();
+        let want = own.run().unwrap().rows();
+        let allowed = turbo::tuning::numerics_allowed(precision);
+        for v in turbo::cuda::variants(ordinal, precision).unwrap().iter().filter(|v| v.numeric & allowed != 0) {
+            let all = format!("all:qkv={0},out={0},ffn1={0},ffn2={0}", v.name);
+            let s = forcing(&all, || Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
+            s.write_tokens(&t.batch(), None).unwrap();
+            let got = s.run().unwrap().rows();
+            s.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(s.run().unwrap().rows(), got, "precision {precision}, {}: the same bits again", v.name);
+            // What the session reports it ran, forced back, runs the same
+            // kernels: the reported names are the kernels', not the asked.
+            let line = field(&s.info().choices);
+            let back = forcing(&line, || Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
+            assert_eq!(
+                kernels_of(&field(&back.info().choices)),
+                kernels_of(&line),
+                "precision {precision}, {}",
+                v.name
+            );
+            back.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(back.run().unwrap().rows(), got, "precision {precision}, {} forced back as {line}", v.name);
+            let (cos, abs) = within(&format!("precision {precision}, {}", v.name), &got, &want, tol);
+            println!("precision {precision}, {}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}", v.name);
         }
     }
 }

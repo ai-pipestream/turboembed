@@ -26,10 +26,11 @@
  *     first. It has no log function of its own: its warnings reach the
  *     caller through the log function the core hands it with a context.
  *   - The table grows only at the end, and struct_size says how much of it
- *     a backend fills. The core knows six sizes: through capability,
+ *     a backend fills. The core knows seven sizes: through capability,
  *     through buffer_export, through model_release, through session_run,
- *     through buffer_read, and through reserved2, which is
- *     sizeof(turbo_backend). It refuses any other. A function added after
+ *     through buffer_read, through reserved2, and through
+ *     session_create_tuned, which is sizeof(turbo_backend). It refuses
+ *     any other. A function added after
  *     the first three may be NULL, and the core calls it only when
  *     struct_size covers it; formats it reads only when struct_size
  *     covers it, and a table that ends before it loads FORMAT_SAFETENSORS
@@ -37,8 +38,8 @@
  *   - A backend that offers context_create offers context_release, one
  *     that offers buffer_alloc or buffer_import offers buffer_release, one
  *     that offers model_load offers model_release, and one that offers
- *     session_create offers session_release and session_run. The core
- *     refuses a table that does not.
+ *     session_create or session_create_tuned offers session_release and
+ *     session_run. The core refuses a table that does not.
  *   - The core checks every struct's struct_size, every enumeration and
  *     every shape before it calls, and fills in turbo_buffer_desc.bytes.
  *     It releases every buffer and model before the context it was made
@@ -111,6 +112,43 @@ extern "C" {
                                            everything after, and computes token type 0 only */
 #define TURBO_OUTPUT_HIDDEN_STATES  1   /* the last layer's hidden states, [batch, seq, hidden];
                                            pooling and normalize are the backend's to add */
+
+/* What a kernel computes in: the classes a precision may run, as bits. A
+ * backend's kernel variant computes in exactly one; the core allows a
+ * session's precision a set (turbo_backend_tuning.numerics_allowed), and
+ * a variant outside the set is never launched, timed or forced. */
+#define TURBO_NUMERIC_F32_FMA        1   /* F32 operands, F32 FMAs */
+#define TURBO_NUMERIC_TF32           2   /* F32 operands rounded to TF32 on tensor cores, F32 sums */
+#define TURBO_NUMERIC_F16_F32ACC     4   /* F16 operands, F32 sums */
+#define TURBO_NUMERIC_F16_CHUNKACC   8   /* F16 operands, F16 sums within a k chunk, F32 across chunks */
+
+/* The core's tuning policy and cache for a session, and what the backend
+ * chose: passed to session_create_tuned, in and out. Grows at its end
+ * under struct_size. */
+typedef struct turbo_backend_tuning {
+    uint32_t    struct_size;
+    /* In. */
+    uint32_t    mode;              /* TURBO_AUTOTUNE_OFF, ON or RETUNE; never RUNTIME */
+    uint32_t    budget_ms;         /* the time the backend may spend measuring; 0 when OFF */
+    uint32_t    numerics_allowed;  /* TURBO_NUMERIC_* bits the precision allows: the core's
+                                      table, which only a decision widens */
+    const char *cached;            /* the choices string an earlier session reported for this
+                                      key, NUL-terminated, or NULL: the incumbent every
+                                      candidate must beat by the backend's margin */
+    /* Out: filled by the backend before it returns TURBO_OK. */
+    uint32_t    tuned;             /* TURBO_TUNED_* */
+    uint32_t    tune_ms;
+    char        choices[TURBO_CHOICES_LEN];   /* the session's choices, empty for one path */
+    /* Out, may be NULL: the timings the choice was made on, for the cache
+     * and the record, as "<bin>/<knob>/<variant>=<min ms>" lines separated
+     * by "\n", at most timings_len bytes with the NUL; the backend writes
+     * what fits and never fails for want of room. */
+    char       *timings;
+    uint32_t    timings_len;
+    uint32_t    numerics_used;     /* numerics_allowed as the backend's own experiment variables
+                                      widened it, for the record and the log. A session where it
+                                      differs from numerics_allowed is never cached */
+} turbo_backend_tuning;
 
 /* One tensor, in the bytes the core read from the weights file and checked
  * against the manifest's hash. Packed row-major, little-endian. */
@@ -309,6 +347,22 @@ typedef struct turbo_backend {
      * 6 of docs/bundle.md chooses only an artifact whose format is here. */
     uint32_t formats;
     uint32_t reserved2;
+
+    /* Tuned sessions. NULL where the backend has one path. */
+
+    /* session_create with the core's tuning: a backend that offers it is
+     * called through it, and session_create is then never called. With
+     * tuning->mode ON or RETUNE the backend may spend about budget_ms
+     * timing its kernel variants for this session, using the context's
+     * log function, and takes the fastest whose numeric class is in
+     * numerics_allowed; OFF, it takes its built-in choices. Its own
+     * environment variables force choices in every mode, and a forced
+     * variant outside numerics_allowed is TURBO_E_UNSUPPORTED_OPTION with
+     * turbo_error.field 3. It fills the out fields whatever the mode.
+     * tuning is valid for the call. */
+    int32_t (*session_create_tuned)(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq,
+                                    uint32_t precision, turbo_backend_tuning *tuning,
+                                    uint32_t *compute_dtype, void **out, turbo_error *err);
 } turbo_backend;
 
 #ifdef __cplusplus
