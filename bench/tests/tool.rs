@@ -238,7 +238,7 @@ fn the_tool_wants_each_reference_named_or_disabled() {
     let o = tool(&args);
     assert!(
         String::from_utf8_lossy(&o.stderr)
-            .contains("cpu: TEI is a reference here: give --tei-image and --tei-model, or --no-tei")
+            .contains("cpu: TEI is a reference here: give --tei-image (or --tei-bin) and --tei-model, or --no-tei")
     );
     let mut args = record_args(&repo, out.to_str().unwrap(), bundle.to_str().unwrap());
     args.push("--no-tensorrt");

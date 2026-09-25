@@ -16,7 +16,7 @@ use crate::manifest::{
     Activation, Architecture, Artifact, Family, Format, GraphInput, Manifest, PositionEmbedding, TensorRole, role_name,
 };
 use crate::safetensors;
-use crate::status::{BUNDLE_NO_ARTIFACT, Error, Result, invalid};
+use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, Result, invalid};
 use crate::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
 /// The manifest's name for an enum value, as it is written there.
@@ -212,7 +212,7 @@ impl Weights {
                 let hef = bundle.read_verified_aligned(&art.files[0])?;
                 (Some(hef), if art.graph_input == GraphInput::Embeddings { host } else { None })
             }
-            f => unreachable!("choose() hands on no {f:?}"),
+            f => return Err(Error::new(INTERNAL, format!("artifact {:?}: the core hands on no {f:?}", art.name))),
         };
         let (files, tensors, dtype) = match tensor_art {
             Some(t) => {

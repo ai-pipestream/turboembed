@@ -1091,6 +1091,21 @@ bool tf32_named() {
     return v && strcmp(v, "1") == 0;
 }
 
+/* What the tests set in place of TURBO_CUDA_F16_ACCUMULATE: 1 for F16
+ * accumulators at FASTEST, 0 for the default; -1 for the variable. */
+std::atomic<int> f16_accumulate_override{-1};
+
+/* TURBO_CUDA_F16_ACCUMULATE=1 gives FASTEST's GEMMs on the tensor cores
+ * F16 accumulators over each 64 terms of k, added into F32 ones
+ * (TILE_EIGHT_WARPS_F16_ACCUMULATE, whatever TURBO_CUDA_TILE says); unset,
+ * F32 accumulators throughout. */
+bool f16_accumulate_named() {
+    const int o = f16_accumulate_override.load(std::memory_order_relaxed);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_F16_ACCUMULATE");
+    return v && strcmp(v, "1") == 0;
+}
+
 /* What the tests set in place of TURBO_CUDA_LAYER_NORM: 1 for the
  * separate kernel (the default), 0 for the fused epilogue; -1 for the
  * variable. */
@@ -1465,7 +1480,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         sh.tensor_cores = major >= 8 && (half || (precision != TURBO_PRECISION_EXACT && tf32_named()));
         sh.sms = sms;
         sh.smem_optin = (size_t)optin;
-        sh.tile = tile_named();
+        sh.tile = sh.half && sh.tensor_cores && f16_accumulate_named() ? TILE_EIGHT_WARPS_F16_ACCUMULATE : tile_named();
         sh.split_attention = split_attention_named();
         sh.sk_steps = sk_steps_named();
         sh.fused_ln = !separate_ln_named();
@@ -1995,6 +2010,11 @@ void turbo_cuda_use_separate_layer_norm(int32_t separate) {
  * cores (TURBO_CUDA_TF32=1), 0 the FMA kernels (the default), -1 to read
  * the variable again. */
 void turbo_cuda_use_tf32(int32_t tf32) { tf32_override.store(tf32, std::memory_order_relaxed); }
+
+/* The F16 GEMMs of FASTEST sessions made from now on: 1 F16 accumulators
+ * over each 64 terms (TURBO_CUDA_F16_ACCUMULATE=1), 0 F32 throughout (the
+ * default), -1 to read the variable again. */
+void turbo_cuda_use_f16_accumulate(int32_t f16) { f16_accumulate_override.store(f16, std::memory_order_relaxed); }
 
 /* The pooling of sessions made from now on: 1 the kernel of a thread per
  * column (TURBO_CUDA_POOL=columns), 0 the default, -1 to read the
