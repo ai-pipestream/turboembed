@@ -5,8 +5,9 @@
  * cudaGetLastError says about the launch; none of them allocates, and
  * none of them waits.
  *
- * The written rows are [batch, seq] int32, row b's position p at
- * b * pitch + p, pitch being the session's max_seq. The encoder computes
+ * The written rows are one int32 array of [k][batch][seq], k 2 or 3:
+ * the ids, the mask and, when the run has them, the token types, each
+ * [batch, seq] with row b's position p at b * seq + p. The encoder computes
  * them packed, as the CPU encoder does: row b's positions up to its last
  * live token, len[b] of them, sit one after another from packed token
  * start[b], and the rows follow each other, so the padding past a row's
@@ -42,7 +43,33 @@ struct Info {
     int32_t tokens; /* packed tokens: the GEMMs' M */
     int32_t batch, seq, pooling, l2, output_dim, has_types;
     int32_t items; /* attention's work items, (row, head, query tile) */
+    /* The k split of the GEMMs whose products add_layer_norm sums, by
+     * SPLIT_OUT and SPLIT_FFN2: how many, and k per split. */
+    int32_t splits[2], ksplit[2];
 };
+
+/* Which of Info's splits a GEMM or add_layer_norm reads; NO_SPLIT for
+ * one product. */
+enum SplitSlot : int { NO_SPLIT = -1, SPLIT_OUT = 0, SPLIT_FFN2 = 1 };
+
+/* The k split for a GEMM of m rows by n outputs over k whose products add
+ * up in add_layer_norm, of bm x bn tiles, on a device of sms SMs: split
+ * while the tiles fit about seven per SM and each split keeps 192 of k
+ * or more, at most four. *ksplit is k per split, a multiple of 32; the
+ * return, the splits. The same on the host, which sizes the partial
+ * products by it, and on the device, where the packing picks it for the
+ * run's token count. */
+__host__ __device__ inline int choose_split(int m, int n, int k, int bm, int bn, int sms, int *ksplit) {
+    const long long base = (long long)((m + bm - 1) / bm) * ((n + bn - 1) / bn);
+    int best = 1;
+    for (int s = 2; s <= 4; s++) {
+        const int ks = ((k + s - 1) / s + 31) & ~31;
+        if (ks < 192 || base * s > 7LL * sms) break;
+        best = s;
+    }
+    *ksplit = ((k + best - 1) / best + 31) & ~31;
+    return (k + *ksplit - 1) / *ksplit;
+}
 
 /* The packing, in device memory. start, len and holes (whether a masked
  * token sits before the last live one) are by row; order is the rows
@@ -56,14 +83,16 @@ struct Packing {
     float *key_bias;
 };
 
-/* Queries per attention block. */
-constexpr int ATTENTION_QUERIES = 64;
-
 /* The widest head attention computes. */
 constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 
 /* The widest hidden state the row kernels hold in registers. */
-constexpr int MAX_HIDDEN = 1024;
+constexpr int MAX_HIDDEN = 2048;
+
+/* The tile of the QKV and feed-forward input GEMMs, rows by columns:
+ * TILE_DEFAULT is 128 x 64; TURBO_CUDA_TILE names another. The tensor
+ * cores take 64 x 64 and 128 x 64, the FMA GEMM those and 128 x 128. */
+enum Tile : int { TILE_DEFAULT = 0, TILE_64x64 = 1, TILE_128x64 = 2, TILE_128x128 = 3 };
 
 /* A session's fixed shape, from which make_plan sizes every launch. */
 struct Shape {
@@ -74,6 +103,7 @@ struct Shape {
     bool tensor_cores = false; /* sm_80 or newer: mma.sync */
     int sms = 0;
     size_t smem_optin = 0; /* cudaDevAttrMaxSharedMemoryPerBlockOptin */
+    Tile tile = TILE_DEFAULT;
 };
 
 /* Grids and shared memory for every launch of a session. */
@@ -83,8 +113,12 @@ struct Plan {
     int pool_grid = 0;
     int epi_grid = 0; /* the cuBLAS epilogues */
     int qkv_grid = 0, out_grid = 0, ffn1_grid = 0, ffn2_grid = 0;
-    int ffn2_splits = 1, ffn2_ksplit = 0;
-    int attn_grid = 0, attn_chunk = 0;
+    /* The tile of the GEMMs whose products are split, for choose_split,
+     * and the most partial products a run writes, in token rows of
+     * hidden values: the largest splits x tokens over every token count. */
+    int part_bm = 0, part_bn = 0;
+    size_t part_rows = 0;
+    int attn_grid = 0, attn_chunk = 0, attn_queries = 0;
     size_t attn_smem = 0;
 };
 
@@ -93,9 +127,9 @@ cudaError_t make_plan(const Shape &shape, Plan *plan);
 // ---- The packing -------------------------------------------------------------
 
 struct PackArgs {
-    const int32_t *mask;
-    int32_t pitch; /* the session's max_seq */
-    int32_t heads;
+    const int32_t *rows; /* the written rows, [k][batch][seq] */
+    int32_t heads, queries; /* attention's heads and queries per work item */
+    int32_t hidden, inter, part_bm, part_bn, sms; /* for choose_split */
     Packing p;
     RunArgs run;
 };
@@ -114,23 +148,24 @@ const void *pack_rows_function();
 // ---- Row kernels --------------------------------------------------------------
 
 /* x[t] = LayerNorm(word[ids] + position[p] + type[types]) for every packed
- * token t, its row and position from the packing; types are read only
- * when the run has them. */
-cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *ids, const int32_t *types, int pitch, const float *word,
+ * token t, its row and position from the packing, rows being the written
+ * rows; types are read only when the run has them. */
+cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *word,
                              const float *position, const float *type, const float *ln_w, const float *ln_b, float eps,
                              const Packing &p, int hidden, float *x, uint16_t *x16, const Plan &plan);
 
 /* x[t] = LayerNorm(x[t] + ((part[0][t] + ... + part[splits - 1][t]) + bias)),
- * part being splits partial products of tcap rows each, summed in order;
- * the result into x16 as F16 too when it is not NULL. */
-cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *part, int splits, int tcap, const float *bias,
+ * part being the partial products of the split slot names, tokens rows
+ * each, summed in order (one for NO_SPLIT); the result into x16 as F16
+ * too when it is not NULL. */
+cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *part, SplitSlot slot, const float *bias,
                            const float *ln_w, const float *ln_b, float eps, const Info *info, int hidden,
                            uint16_t *x16, const Plan &plan);
 
 /* out[b] = the row's pooled vector, cut to output_dim, L2-normalized when
  * the run asks: the pooling, output_dim and normalization are the Info's. */
-cudaError_t pool(cudaStream_t s, const float *x, const int32_t *mask, int pitch, const Packing &p, int hidden,
-                 float *out, const Plan &plan);
+cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Packing &p, int hidden, float *out,
+                 const Plan &plan);
 
 // ---- GEMMs --------------------------------------------------------------------
 //
@@ -142,7 +177,7 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *mask, int pitch,
 //   QKV: + bias, written head-major, [3][heads][tcap][head_dim], so
 //        attention reads each (row, head)'s keys contiguously;
 //   GELU: + bias, then GELU with the error function, [tokens, n];
-//   PARTIAL: the bare product of split s's share of k, [splits][tcap][n],
+//   PARTIAL: the bare product of split s's share of k, [splits][tokens][n],
 //        which add_layer_norm sums in order: split-K without atomics.
 //
 // QKV and GELU store F16 when the operands are F16, F32 otherwise.
@@ -157,14 +192,22 @@ struct GemmArgs {
     void *out;
     const Info *info; /* info->tokens is M */
     int n, k;
-    int splits, ksplit; /* k per split, a multiple of 32 */
+    /* The k split: Info's for a slot, else splits of ksplit each (a
+     * multiple of 32). */
+    SplitSlot slot;
+    int splits, ksplit;
     int heads, head_dim, hidden, tcap;
 };
 
 /* The grid for a GEMM: enough blocks for the largest M's tiles, capped at
- * what the device holds at once. */
-cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, int n, int tcap, int splits, int sms, int *grid);
-cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, const GemmArgs &g, int grid);
+ * what the device holds at once; and the shared memory setting its kernel
+ * needs, made outside any run. */
+cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int n, int tcap, int splits, int sms,
+                      int *grid);
+cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile);
+/* The tile of GEMMs of that kind, rows by columns. */
+void gemm_tile(Epilogue e, bool half, bool tensor_cores, Tile tile, int *bm, int *bn);
+cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile tile, const GemmArgs &g, int grid);
 
 /* The same epilogues over a product cuBLAS made, raw [tokens, n] F32, for
  * sessions told to compute a GEMM with cuBLAS (TURBO_CUDA_CUBLAS). */
@@ -177,14 +220,14 @@ cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, b
  * row's live keys: ctx[t, head] = softmax(q_t . k_j / sqrt(d)) v_j. q, k and
  * v are the QKV GEMM's head-major output with their biases, F32 or F16;
  * the context goes to ctx in the same dtype, [tokens, hidden]. One block
- * per 64 queries of one (row, head), rows longest first; keys go through
- * shared memory plan.attn_chunk at a time, the softmax carried from chunk
- * to chunk. */
+ * per plan.attn_queries queries of one (row, head), rows longest first;
+ * keys go through shared memory plan.attn_chunk at a time, the softmax
+ * carried from chunk to chunk. */
 struct AttnArgs {
     const void *qkv;
     void *ctx;
     Packing p;
-    int heads, head_dim, hidden, tcap, chunk;
+    int heads, head_dim, hidden, tcap, chunk, queries;
     float scale;
 };
 
