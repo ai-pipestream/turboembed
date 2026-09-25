@@ -62,11 +62,12 @@ precision's bound, not bit for bit; only the time should differ.
 that compute attention with FMAs the kernel that splits each query's
 keys among four warps (a lane per query, 64 queries to a block, the
 partial softmaxes merged in a fixed order), for measuring against the
-default. `TURBO_CUDA_LAYER_NORM=separate` and `TURBO_CUDA_POOL=columns`,
-read the same way, give the LayerNorm after each GEMM as a kernel of its
-own and the pooling of a thread per column (see Pipeline), for
-measuring against the default; the LayerNorm's bits are the same either
-way. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
+default. `TURBO_CUDA_LAYER_NORM=fused`, read the same way, has the
+N = hidden GEMMs' epilogue run the LayerNorm in place of the default's
+kernel of its own after the GEMM (see Pipeline; the bits are the same
+either way, and on an RTX 4080 the separate kernel is faster).
+`TURBO_CUDA_POOL=columns` gives the pooling of a thread per column, for
+measuring against the default. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
 a GEMM's block takes before the GEMM runs on fewer blocks (a count from
 1 to 64; 4 when unset), for measuring how finely the work is shared.
 Like the tile, it moves where the sums split, so the vectors agree
@@ -227,9 +228,10 @@ older than the runtime, it lists none and the runtime's log says why.
   5. the feed-forward output GEMM, with its bias, the residual and
      LayerNorm, as in 3.
 
-  Hidden widths past 512, and `TURBO_CUDA_LAYER_NORM=separate`, take
-  the product alone and then a kernel of their own for the bias,
-  residual and LayerNorm, a warp per token.
+  That fused epilogue runs only with `TURBO_CUDA_LAYER_NORM=fused` and
+  hidden widths up to 512. By default, the attention output and
+  feed-forward output GEMMs take the product alone and then a kernel of
+  their own for the bias, residual and LayerNorm, a warp per token.
 
   Last, one kernel pools each row, a block of 384 threads per row: a
   thread per four columns, and for the mean up to eight groups of such

@@ -1015,10 +1015,12 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // attention that splits each query's keys among four warps, in place of
 // the default that computes Q K^T and P V as register tiles.
 //
-// TURBO_CUDA_LAYER_NORM=separate, read when a session is made, computes
-// the attention output and second feed-forward GEMMs' product alone and
-// then the bias, residual and LayerNorm in a kernel of their own, in
-// place of the GEMM's epilogue doing it (the same bits either way).
+// TURBO_CUDA_LAYER_NORM=fused, read when a session is made, has the
+// attention output and second feed-forward GEMMs' epilogue add the bias
+// and residual and run the LayerNorm, in place of the default that
+// computes the product alone and then the bias, residual and LayerNorm in
+// a kernel of their own (the same bits either way; on an RTX 4080 the
+// separate kernel is faster).
 // TURBO_CUDA_POOL=columns pools with a thread per column, in place of
 // the default's groups of tokens summed apart.
 //
@@ -1090,14 +1092,15 @@ bool tf32_named() {
 }
 
 /* What the tests set in place of TURBO_CUDA_LAYER_NORM: 1 for the
- * separate kernel, 0 for the default; -1 for the variable. */
+ * separate kernel (the default), 0 for the fused epilogue; -1 for the
+ * variable. */
 std::atomic<int> separate_ln_override{-1};
 
 bool separate_ln_named() {
     const int o = separate_ln_override.load(std::memory_order_relaxed);
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_LAYER_NORM");
-    return v && !strcasecmp(v, "separate");
+    return !(v && !strcasecmp(v, "fused"));
 }
 
 /* What the tests set in place of TURBO_CUDA_POOL: 1 for the kernel of a
@@ -1980,8 +1983,8 @@ void turbo_cuda_use_split_attention(int32_t split) {
 }
 
 /* The LayerNorms of sessions made from now on: 1 a kernel of their own
- * after the GEMM (TURBO_CUDA_LAYER_NORM=separate), 0 the default, -1 to
- * read the variable again. */
+ * after the GEMM (the default), 0 the GEMM's epilogue
+ * (TURBO_CUDA_LAYER_NORM=fused), -1 to read the variable again. */
 void turbo_cuda_use_separate_layer_norm(int32_t separate) {
     separate_ln_override.store(separate, std::memory_order_relaxed);
 }

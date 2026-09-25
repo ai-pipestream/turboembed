@@ -100,9 +100,9 @@ struct Shape {
      * the kernels' own. */
     int sk_steps = 0;
     /* LayerNorm in the attention output and second feed-forward GEMMs
-     * (EPI_ADD_LN) when the hidden width allows, unless
-     * TURBO_CUDA_LAYER_NORM=separate asks for the GEMM's product and
-     * add_layer_norm after it. */
+     * (EPI_ADD_LN) when the hidden width allows and
+     * TURBO_CUDA_LAYER_NORM=fused asks for it; otherwise the GEMM's
+     * product and add_layer_norm after it. The session sets it. */
     bool fused_ln = true;
     /* The pooling kernel of a thread per column
      * (TURBO_CUDA_POOL=columns), for measuring against the default. */
