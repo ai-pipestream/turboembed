@@ -40,14 +40,14 @@
 
 float gelu(float v) { return 0.5f * v * (1.0f + erf(v * 0.70710678118654752440f)); }
 
-/* GELU for the XMX kernels, whose outputs are F16: erf(v / sqrt 2) as
- * v Q(v^2), a least-squares fit for |v| <= 3 sqrt 2 within 2e-5 of erf,
- * and +-1 past it, where erf is within 2.3e-5 of it; both far inside an
- * F16 output's rounding. Multiply-adds only, where erf takes an
- * exponential and a division. */
+/* GELU for the XMX kernels, which the host calls with it only where they
+ * write F16: erf(v / sqrt 2) as v Q(v^2), a least-squares fit for |v| <=
+ * 3 sqrt 2, scaled to pass +-1 there so the clamp holds it at +-1 past it;
+ * within 4.5e-5 of erf everywhere, far inside an F16 output's rounding.
+ * Multiply-adds only, where erf takes an exponential and a division. */
 float gelu_f16(float v) {
     const float c = clamp(v, -4.2426406871f, 4.2426406871f), u = c * c;
-    return 0.5f * v * (1.0f + clamp(c * fma(fma(fma(fma(fma(fma(fma(fma(1.124900500e-10f, u, -1.075010077e-08f), u, 4.542393560e-07f), u, -1.131010661e-05f), u, 1.874482164e-04f), u, -2.220966108e-03f), u, 1.964544270e-02f), u, -1.327118883e-01f), u, 7.978175978e-01f), -1.0f, 1.0f));
+    return 0.5f * v * (1.0f + clamp(c * fma(fma(fma(fma(fma(fma(fma(fma(1.124930235e-10f, u, -1.075038494e-08f), u, 4.542513633e-07f), u, -1.131040558e-05f), u, 1.874531714e-04f), u, -2.221024817e-03f), u, 1.964596200e-02f), u, -1.327153964e-01f), u, 7.978386872e-01f), -1.0f, 1.0f));
 }
 
 
