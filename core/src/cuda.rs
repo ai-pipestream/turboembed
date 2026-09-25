@@ -213,8 +213,9 @@ pub fn use_split_attention(split: Option<bool>) {
 
 /// FASTEST's attention on the tensor cores in sessions made from now on:
 /// `Some(true)` the kernel of 128 queries to a block, keys and values
-/// through cp.async 64 at a time, as TURBO_CUDA_ATTENTION=128 picks it,
-/// `Some(false)` the default of 64, `None` to read the variable again.
+/// through cp.async 64 at a time, the default, `Some(false)` the kernel
+/// of 64 that TURBO_CUDA_ATTENTION=64 picks, `None` to read the variable
+/// again.
 /// Built only with `internals`.
 #[cfg(feature = "internals")]
 pub fn use_wide_attention(wide: Option<bool>) {

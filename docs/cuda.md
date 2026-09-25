@@ -86,16 +86,17 @@ precision's bound, not bit for bit; only the time should differ.
 that compute attention with FMAs the kernel that splits each query's
 keys among four warps (a lane per query, 64 queries to a block, the
 partial softmaxes merged in a fixed order), for measuring against the
-default. `TURBO_CUDA_ATTENTION=128` gives FASTEST's attention on the
-tensor cores (heads 32 or 64 wide) 128 queries to a block of eight
-warps in place of 64 to four, so each chunk of keys and values in
-shared memory serves twice the queries; the keys and values go 64 at a
-time through two buffers filled by `cp.async`, the next chunk loading
-while this one's products and softmax run, and the softmax is taken in
-base 2 (the scores scaled by the scale times log2 e, `exp2f` for
-`expf`), which moves its rounding, so the vectors agree with the
-default's within FASTEST's bound, not bit for bit. Heads of 32 fit two
-blocks to an SM, heads of 64 one. `TURBO_CUDA_LAYER_NORM=fused`, read the same way, has the
+default. FASTEST's attention on the tensor cores (heads 32 or 64 wide)
+runs 128 queries to a block of eight warps, so each chunk of keys and
+values in shared memory serves 128 queries; the keys and values go 64
+at a time through two buffers filled by `cp.async`, the next chunk
+loading while this one's products and softmax run, and the softmax is
+taken in base 2 (the scores scaled by the scale times log2 e, `exp2f`
+for `expf`). Heads of 32 fit two blocks to an SM, heads of 64 one. On
+an RTX 4080 SUPER at 32 x 256 full rows it takes 324 µs a pass against
+398 for the earlier kernel of 64 queries to four warps, which
+`TURBO_CUDA_ATTENTION=64` still gives; the two round differently, so
+their vectors agree within FASTEST's bound, not bit for bit. `TURBO_CUDA_LAYER_NORM=fused`, read the same way, has the
 N = hidden GEMMs' epilogue run the LayerNorm in place of the default's
 kernel of its own after the GEMM (see Pipeline; the bits are the same
 either way, and on an RTX 4080 the separate kernel is faster).
