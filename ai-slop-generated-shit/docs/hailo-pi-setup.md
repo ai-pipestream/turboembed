@@ -53,7 +53,7 @@ will enumerate on the PCI bus and get no driver.
 ## The machines in this document
 
 Every command output below was captured on one of these, on
-2026-09-22.
+2026-09-22 unless it names another date.
 
 | machine | board | chip | kernel | stack |
 |---|---|---|---|---|
@@ -70,20 +70,32 @@ are the ones that stand.
 
 ## 1. PCIe Gen 3
 
-The HAT sits on the Pi 5's PCIe connector, which comes up at Gen 2 by
-default. Both Hailo lines want Gen 3. Add this to
-`/boot/firmware/config.txt` and reboot:
+The Pi 5's PCIe connector comes up at Gen 2 by default, and both Hailo
+lines want Gen 3. The AI HAT+ and the AI HAT+ 2 switch the link to Gen 3
+themselves, so nothing needs adding for them. The older AI Kit does not;
+for it, add this to `/boot/firmware/config.txt` and reboot:
 
 ```
 dtparam=pciex1_gen=3
 ```
 
-Check it before installing anything:
+Check the device and the link speed before installing anything:
 
 ```sh
-grep pciex1_gen /boot/firmware/config.txt
 lspci | grep -i hailo
+cat /sys/bus/pci/devices/0001:01:00.0/current_link_speed
 ```
+
+On the replacement Hailo-10H board, 2026-09-24, with no `pciex1_gen`
+line in `config.txt`:
+
+```
+0001:01:00.0 Co-processor: Hailo Technologies Ltd. Hailo-10H AI Processor (rev 01)
+8.0 GT/s PCIe
+```
+
+The two outputs below are from 2026-09-22, when both boards also carried
+the `config.txt` line:
 
 On the Hailo-8 Pi:
 
@@ -103,6 +115,22 @@ If `lspci` shows no Hailo device at all, the stack cannot be installed:
 that is a seating, ribbon, or `config.txt` problem, not a software one.
 
 ## 2. Install
+
+Bring the OS and the bootloader EEPROM up to date first, as the
+Raspberry Pi AI HAT documentation does, then power the board off:
+
+```sh
+sudo apt update
+sudo apt full-upgrade -y
+sudo rpi-eeprom-update -a
+sudo poweroff
+```
+
+`rpi-eeprom-update -a` only stages the new image (`pieeprom.upd` in
+`/boot/firmware/`); the bootloader writes it on the next boot. The
+replacement Hailo-10H board was still on the 2025-06-13 bootloader on
+2026-09-24 when its Hailo-10H stopped loading firmware (section 7); it
+came back after this step and a cold start on the 2026-05-26 bootloader.
 
 Install `dkms` in the same command as the Hailo stack, or before it. Both
 driver packages declare only `Depends: build-essential`; neither pulls
@@ -594,6 +622,10 @@ Hailo-10H generation work through `hailort::genai::LLM`.
 | `Failed to install PCIe driver to the DKMS tree` during `apt install` | `dkms` is not installed; neither driver package depends on it | `sudo apt install -y dkms`, then `sudo apt install --reinstall hailort-pcie-driver` (or `h10-hailort-pcie-driver`), then reboot |
 | module loads now, gone after a kernel upgrade | the module was built by the non-DKMS fallback into the old kernel's tree | same fix as above; `dkms status` should name the module and the running kernel |
 | no `/dev/hailo0` and nothing in `lsmod` | the module was not built or not loaded | `modinfo hailo_pci` (or `hailo1x_pci`) to see whether a module exists at all; if not, check `/var/lib/dkms/*/*/build/make.log`; if it exists, `sudo modprobe hailo_pci` and read `sudo dmesg \| grep -i hailo` |
+| Hailo-10H: `/dev/hailo0` exists, `hailortcli scan` lists the device, `fw-control identify` fails with `HAILO_DRIVER_OPERATION_FAILED(36)`, and the kernel log says `Device disconnected while opening device` | the chip dropped its state under a bound driver: `lspci -vv` shows it in D3hot with `Mem- BusMaster-`. Seen on the replacement Hailo-10H board on 2026-09-24 after a day of uptime; the trigger is not established | a warm reboot and a driver reload do not recover it (next two rows). Update the bootloader (section 2), then `sudo poweroff` and unplug the supply for a few seconds |
+| Hailo-10H: after a warm reboot, no `/dev/hailo0`; the kernel log shows stage 2 complete, then `Timeout waiting for firmware file`, `Failed writing SOC firmware on stage 3` and `probe with driver hailo1x failed with error -110` | the chip did not come back up from its previous failure; a reboot does not always remove power from the HAT | same as the row above. The firmware files are not the problem when `dpkg -V h10-hailort-pcie-driver` prints nothing |
+| Hailo-10H: `sudo rmmod hailo1x_pci && sudo modprobe hailo1x_pci` logs `Failed reading device BARs, device may be disconnected` | the chip no longer answers memory reads on the bus | only a cold start recovers it; see the two rows above |
+| `/boot/firmware/cmdline.txt` or `config.txt` is empty or missing an edit after the board was unplugged | `/boot/firmware` is FAT and the edit was still in the page cache when power was cut. An empty `cmdline.txt` has no `root=` and the next boot fails | run `sync` after editing anything under `/boot/firmware`, and shut down with `sudo poweroff` before unplugging. Keep a copy of both files before editing them |
 | `/dev/hailo0` exists, `hailortcli scan` finds nothing | the runtime and the driver are from different lines | `hailortcli --version` and `modinfo <module> \| grep ^version` must agree (4.23.0 with `hailo_pci`, 5.1.1 with `hailo1x_pci`) |
 | `hailortcli` reports the wrong architecture for the HEF | the HEF was compiled for another chip | match the HEF to the `Device Architecture` line from `hailortcli fw-control identify` |
 | `HAILO_DEVICE_IN_USE` | a second process or a second `hailo_vdevice` in the same process | one vdevice at a time; run the live suite with `--test-threads=1` and stop any `hailortcli` still running |
@@ -602,3 +634,13 @@ Hailo-10H generation work through `hailort::genai::LLM`.
 | `hailortcli benchmark` fails in its third phase after printing both FPS figures | HailoRT 4.23 fails to reconfigure the vdevice for the MiniLM HEF after the two FPS phases | the FPS figures are already complete, so treat a non-zero exit after them as the latency phase only; [`reference/hailo/native-receipt.py`](../reference/hailo/native-receipt.py) tolerates it for this reason |
 | `TURBO_E_INVALID_STATE` on every run after one failed run | a vstream write or read failed mid-run and left frames in flight | reload the model; the provider marks it unusable on purpose rather than returning wrong data |
 | CMake says HailoRT was not found | no `hailo-all`/`hailo-h10-all`, or an install outside `/usr` | install the metapackage, or pass `-DHAILORT_INCLUDE_DIR=` and `-DHAILORT_LIBRARY=` |
+
+Two further changes are published for Hailo-10H vDMA timeouts under load:
+`pcie_aspm=off` in `cmdline.txt`, and the 4 KB page kernel
+(`kernel=kernel8.img`) with `options hailo1x_pci force_desc_page_size=4096`
+in `/etc/modprobe.d/`. Neither kernel change was needed to recover the
+replacement Hailo-10H board on 2026-09-24. The module option changes nothing
+on the 16 KB page kernel with driver 5.1.1: the driver already uses
+4096-byte descriptor pages there, and the option only changes the probe log
+line from `Setting max_desc_page_size to 4096` to
+`Force setting max_desc_page_size to 4096`.
