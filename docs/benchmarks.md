@@ -491,8 +491,9 @@ token, and all of it without `te_batch_next_size`, or when `/metrics`
 could not be read before the timed requests after warmup requests had
 run. The container is removed when the tool is done with
 it. TEI has no BF16 dtype; a BF16 session
-records it as `not_run`. So does an F16 session when TEI runs on the
-CPU, as it does for every device but a CUDA one: its CPU image computes
+records it as `not_run`. So does an F16 session when TEI's container
+gets no `--gpus`, which today is every device but a CUDA one (a native
+TEI on Metal would have its own runner): its CPU image computes
 float16 in software, many times slower than its own float32, so that
 row would time the emulation.
 

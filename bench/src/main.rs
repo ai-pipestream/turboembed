@@ -403,6 +403,11 @@ fn check(path: &Path) -> Result<()> {
         version: record::library_version(),
         os: &r.machine.os,
     };
+    // Only mixed rows back a capability; a dense record is a measurement.
+    if r.rows.kind != record::ROWS_MIXED {
+        println!("{name}: does not back SUPPORTED: rows.kind {}; only {} rows do", r.rows.kind, record::ROWS_MIXED);
+        return Ok(());
+    }
     match r.falls_short(&cell) {
         None => println!("{name}: backs SUPPORTED, speed_ratio {:?}", r.speed_ratio),
         Some(why) => println!("{name}: does not back SUPPORTED: {why}"),
