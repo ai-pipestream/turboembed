@@ -1125,7 +1125,7 @@ fn a_row_at_fastest_gives_the_same_bits_alone_and_among_others() {
     // run the two kernels. Both are over the LayerNorm kernels' switch.
     let si = s.info();
     let (batch, seq) = (si.max_batch as usize, si.max_seq as usize);
-    assert!(batch * seq >= 4096 && 8 * seq >= 256, "the small model's session spans both");
+    assert!(batch * seq >= 4096 && (256..4096).contains(&(8 * seq)), "the small model's session spans both");
     let rows: Vec<Vec<i32>> =
         (0..batch).map(|r| (0..seq).map(|p| (1000 + (r * 131 + p * 17) % 20000) as i32).collect()).collect();
     s.write_tokens(&Tokens::new(&rows, 0).batch(), None).unwrap();

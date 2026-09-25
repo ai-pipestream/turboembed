@@ -424,37 +424,10 @@ float8 sub_group_sum8(float8 v) {
     return s;
 }
 
-#define LINEAR_DPAS_LN(NAME, TM)                                                                                    \
-    __kernel __attribute__((intel_reqd_sub_group_size(16))) void NAME(                                              \
-        __global const half *act, __global const half *wt, __global const float *bias, __global float *x,           \
-        __global half *xh, __global const float *ln_w, __global const float *ln_b, float eps, int tokens,           \
-        int hidden, int n_in) {                                                                                     \
-        __local float part[DPAS_LN_SUBGROUPS][DPAS_LN_BLOCKS * (TM)];                                               \
-        __local float mean[DPAS_LN_BLOCKS * (TM)], inv[DPAS_LN_BLOCKS * (TM)];                                      \
-        const int sg = get_sub_group_id(), lane = get_sub_group_local_id(), lid = get_local_id(0);                  \
-        const int cols = hidden / 32, blocks = get_num_sub_groups() / cols;                                         \
-        const int col = sg % cols, row = sg / cols * (TM), rows = blocks * (TM);                                    \
-        const int o0 = col * 32, t0 = get_group_id(0) * rows + row;                                                 \
-        float8 acc[(TM) / 8][2];                                                                                    \
-        __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++) acc[i][0] = acc[i][1] = (float8)(0.0f); \
-        for (int k = 0; k < n_in; k += 32) {                                                                        \
-            short8 a[2][(TM) / 8];                                                                                  \
-            int8 b[2][2];                                                                                           \
-            __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i += 2)                               \
-                DPAS_READ_A16(act, n_in * 2, tokens, k, t0 + 8 * i, a, i);                                          \
-            __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                       \
-                int8 r[2];                                                                                          \
-                intel_sub_group_2d_block_read_transform_16b_32r16x1c((__global void *)wt, hidden * 2, n_in,         \
-                                                                     hidden * 2, (int2)(o0 + 16 * j, k),            \
-                                                                     (__private uint *)r);                          \
-                b[0][j] = r[0];                                                                                     \
-                b[1][j] = r[1];                                                                                     \
-            }                                                                                                       \
-            __attribute__((opencl_unroll_hint)) for (int h = 0; h < 2; h++)                                         \
-                __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++)                              \
-                    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) acc[i][j] =                     \
-                        intel_sub_group_f16_f16_matrix_mad_k16(a[h][i], b[h][j], acc[i][j]);                        \
-        }                                                                                                           \
+/* LINEAR_DPAS_LN's epilogue, which the one-kernel feed-forward block shares:
+ * the residual and bias added to acc, then the rows' LayerNorm, to xh and,
+ * where given, x. */
+#define DPAS_LN_EPILOGUE(TM)                                                                                        \
         /* The residual and the bias, then each row's mean. */                                                      \
         __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                           \
             const float bo = bias[o0 + 16 * j + lane];                                                              \
@@ -498,7 +471,40 @@ float8 sub_group_sum8(float8 v) {
                 if (x) DPAS_STORE_F32(x, hidden, tokens, o, t0 + 8 * i, y);                                         \
                 DPAS_STORE_F16(xh, hidden, tokens, o, t0 + 8 * i, y);                                               \
             }                                                                                                       \
+        }
+
+#define LINEAR_DPAS_LN(NAME, TM)                                                                                    \
+    __kernel __attribute__((intel_reqd_sub_group_size(16))) void NAME(                                              \
+        __global const half *act, __global const half *wt, __global const float *bias, __global float *x,           \
+        __global half *xh, __global const float *ln_w, __global const float *ln_b, float eps, int tokens,           \
+        int hidden, int n_in) {                                                                                     \
+        __local float part[DPAS_LN_SUBGROUPS][DPAS_LN_BLOCKS * (TM)];                                               \
+        __local float mean[DPAS_LN_BLOCKS * (TM)], inv[DPAS_LN_BLOCKS * (TM)];                                      \
+        const int sg = get_sub_group_id(), lane = get_sub_group_local_id(), lid = get_local_id(0);                  \
+        const int cols = hidden / 32, blocks = get_num_sub_groups() / cols;                                         \
+        const int col = sg % cols, row = sg / cols * (TM), rows = blocks * (TM);                                    \
+        const int o0 = col * 32, t0 = get_group_id(0) * rows + row;                                                 \
+        float8 acc[(TM) / 8][2];                                                                                    \
+        __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++) acc[i][0] = acc[i][1] = (float8)(0.0f); \
+        for (int k = 0; k < n_in; k += 32) {                                                                        \
+            short8 a[2][(TM) / 8];                                                                                  \
+            int8 b[2][2];                                                                                           \
+            __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i += 2)                               \
+                DPAS_READ_A16(act, n_in * 2, tokens, k, t0 + 8 * i, a, i);                                          \
+            __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                       \
+                int8 r[2];                                                                                          \
+                intel_sub_group_2d_block_read_transform_16b_32r16x1c((__global void *)wt, hidden * 2, n_in,         \
+                                                                     hidden * 2, (int2)(o0 + 16 * j, k),            \
+                                                                     (__private uint *)r);                          \
+                b[0][j] = r[0];                                                                                     \
+                b[1][j] = r[1];                                                                                     \
+            }                                                                                                       \
+            __attribute__((opencl_unroll_hint)) for (int h = 0; h < 2; h++)                                         \
+                __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++)                              \
+                    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) acc[i][j] =                     \
+                        intel_sub_group_f16_f16_matrix_mad_k16(a[h][i], b[h][j], acc[i][j]);                        \
         }                                                                                                           \
+        DPAS_LN_EPILOGUE(TM);                                                                                       \
     }
 
 LINEAR_DPAS_LN(linear_dpas_layer_norm, 16)
@@ -582,52 +588,8 @@ __kernel __attribute__((intel_reqd_sub_group_size(16))) void linear_dpas_mlp(
                         acc[i][j] = intel_sub_group_f16_f16_matrix_mad_k16(a[hh][i], b[hh][j], acc[i][j]);
         }
     }
-        /* The residual and the bias, then each row's mean. */                                                      
-        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                           
-            const float bo = bias[o0 + 16 * j + lane];                                                              
-            __attribute__((opencl_unroll_hint)) for (int i = 0; i < TM / 8; i++) {                                
-                ushort8 r;                                                                                          
-                intel_sub_group_2d_block_read_16b_8r16x1c((__global void *)xh, hidden * 2, tokens, hidden * 2,      
-                                                          (int2)(o0 + 16 * j, t0 + 8 * i), (__private ushort *)&r); 
-                acc[i][j] = convert_float8(as_half8(r)) + (acc[i][j] + bo);                                         
-            }                                                                                                       
-        }                                                                                                           
-        __attribute__((opencl_unroll_hint)) for (int i = 0; i < TM / 8; i++) {                                    
-            const float8 s = sub_group_sum8(acc[i][0] + acc[i][1]);                                                 
-            if (lane == 0) vstore8(s, 0, &part[col][row + 8 * i]);                                                  
-        }                                                                                                           
-        barrier(CLK_LOCAL_MEM_FENCE);                                                                               
-        if (lid < rows) {                                                                                           
-            float s = 0.0f;                                                                                         
-            for (int g = 0; g < cols; g++) s += part[g][lid];                                                       
-            mean[lid] = s / hidden;                                                                                 
-        }                                                                                                           
-        barrier(CLK_LOCAL_MEM_FENCE);                                                                               
-        /* The biased variance about it. */                                                                         
-        __attribute__((opencl_unroll_hint)) for (int i = 0; i < TM / 8; i++) {                                    
-            const float8 mu = vload8(0, &mean[row + 8 * i]);                                                        
-            const float8 d0 = acc[i][0] - mu, d1 = acc[i][1] - mu;                                                  
-            const float8 s = sub_group_sum8(d0 * d0 + d1 * d1);                                                     
-            if (lane == 0) vstore8(s, 0, &part[col][row + 8 * i]);                                                  
-        }                                                                                                           
-        barrier(CLK_LOCAL_MEM_FENCE);                                                                               
-        if (lid < rows) {                                                                                           
-            float s = 0.0f;                                                                                         
-            for (int g = 0; g < cols; g++) s += part[g][lid];                                                       
-            inv[lid] = 1.0f / sqrt(s / hidden + eps);                                                               
-        }                                                                                                           
-        barrier(CLK_LOCAL_MEM_FENCE);                                                                               
-        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                           
-            const int o = o0 + 16 * j;                                                                              
-            const float w = ln_w[o + lane], sh = ln_b[o + lane];                                                    
-            __attribute__((opencl_unroll_hint)) for (int i = 0; i < TM / 8; i++) {                                
-                float8 y = (acc[i][j] - vload8(0, &mean[row + 8 * i])) * vload8(0, &inv[row + 8 * i]) * w + sh;     
-                if (x) DPAS_STORE_F32(x, hidden, tokens, o, t0 + 8 * i, y);                                         
-                DPAS_STORE_F16(xh, hidden, tokens, o, t0 + 8 * i, y);                                               
-            }                                                                                                       
-        }                                                                                                           
-    }
-
+    DPAS_LN_EPILOGUE(TM);
+}
 
 /* ---- Rows ---------------------------------------------------------------- */
 
