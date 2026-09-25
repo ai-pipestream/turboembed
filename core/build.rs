@@ -356,7 +356,6 @@ fn archs() -> Vec<String> {
     archs
 }
 
-/// Run a compiler step; its warnings are shown, and a failure stops the build.
 /// A source's object in OUT_DIR, named for its whole path under core/
 /// (cuda/backend.cpp is cuda_backend.o), so no backend's object is
 /// another's when several features are on.
@@ -364,6 +363,7 @@ fn object(out: &Path, src: &str) -> PathBuf {
     out.join(Path::new(src).with_extension("o").to_string_lossy().replace('/', "_"))
 }
 
+/// Run a compiler step; its warnings are shown, and a failure stops the build.
 fn run(cmd: &mut Command) {
     let out = cmd.output().unwrap_or_else(|e| fail(&format!("{cmd:?}: {e}")));
     let stderr = String::from_utf8_lossy(&out.stderr);

@@ -42,6 +42,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
     fn turbo_cuda_use_column_pool(columns: i32);
     fn turbo_cuda_use_tf32(tf32: i32);
+    fn turbo_cuda_use_f16_accumulate(f16: i32);
 }
 
 /// The epilogues of the backend's own GEMMs, as [`gemm_check`] names them.
@@ -77,9 +78,12 @@ pub enum Tile {
     /// On the tensor cores 256 x 128 over eight warps of 64 x 64 (128 x 128
     /// over four for an F32 output); 128 x 64 for the FMA kernel.
     T256x128 = 6,
-    /// The tensor cores' eight-warp tiles as FASTEST took them before:
-    /// 128 x 128 for QKV and GELU, 128 x 64 for the others.
+    /// The tensor cores' eight-warp tiles, FASTEST's default: 128 x 128
+    /// for QKV and GELU, 128 x 64 for the others.
     EightWarps = 7,
+    /// The eight-warp tiles with F16 accumulators over each 64 terms of
+    /// k, added into F32 ones; F16 operands only.
+    EightWarpsF16Accumulate = 8,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
@@ -217,4 +221,14 @@ pub fn use_column_pool(columns: Option<bool>) {
 #[cfg(feature = "internals")]
 pub fn use_tf32(tf32: Option<bool>) {
     unsafe { turbo_cuda_use_tf32(tf32.map_or(-1, i32::from)) };
+}
+
+/// The F16 GEMMs of FASTEST sessions made from now on: `Some(true)` F16
+/// accumulators over each 64 terms of k, added into F32 ones, as
+/// TURBO_CUDA_F16_ACCUMULATE=1 picks it, `Some(false)` F32 accumulators
+/// throughout, the default, `None` to read the variable again. Built only
+/// with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_f16_accumulate(f16: Option<bool>) {
+    unsafe { turbo_cuda_use_f16_accumulate(f16.map_or(-1, i32::from)) };
 }
