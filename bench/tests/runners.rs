@@ -211,9 +211,13 @@ fn tei_settings_follow_the_bundle_and_the_compute_dtype() {
     assert_eq!(tei::pooling(Pooling::Mean), "mean");
     assert_eq!(tei::pooling(Pooling::Cls), "cls");
     assert_eq!(tei::pooling(Pooling::Last), "last-token");
-    assert_eq!(tei::dtype(TURBO_DTYPE_F32), Ok("float32"));
-    assert_eq!(tei::dtype(TURBO_DTYPE_F16), Ok("float16"));
-    assert!(tei::dtype(TURBO_DTYPE_BF16).is_err());
+    assert_eq!(tei::dtype(TURBO_DTYPE_F32, true), Ok("float32"));
+    assert_eq!(tei::dtype(TURBO_DTYPE_F16, true), Ok("float16"));
+    assert!(tei::dtype(TURBO_DTYPE_BF16, true).is_err());
+    // On the CPU, F32 runs and F16 is not run, saying why.
+    assert_eq!(tei::dtype(TURBO_DTYPE_F32, false), Ok("float32"));
+    let why = tei::dtype(TURBO_DTYPE_F16, false).unwrap_err();
+    assert!(why.contains("emulates float16"), "{why}");
 }
 
 /// /info as TEI's router serializes its Info struct (router/src/lib.rs),
