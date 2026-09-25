@@ -1,0 +1,244 @@
+//! TensorRT, the kernel reference: trtexec in NVIDIA's TensorRT container,
+//! pinned by digest, building an engine from the ONNX file the bundle
+//! carries and timing it on the same token rows, on the same GPU.
+//!
+//! The library never executes ONNX; a reference program may. A bundle
+//! with no FORMAT_ONNX artifact gives a record that says trtexec could
+//! not run. The ONNX graph is the encoder as exported upstream: it stops
+//! at the hidden states, so trtexec's time has no pooling or
+//! normalization in it, and its inputs are named and typed as the export
+//! made them (the tool's options say which).
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use turbo::bundle::Bundle;
+use turbo::manifest::Format;
+use turbo::record::{Measured, ReferenceRun};
+use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
+
+use crate::Result;
+use crate::docker::{self, Log, argv};
+use crate::measure::{Measurement, Rows};
+
+pub const NAME: &str = "tensorrt";
+
+#[derive(Debug, Clone)]
+pub struct TensorRt {
+    /// `name@sha256:<64 hex>`.
+    pub image: String,
+    /// trtexec inside the image.
+    pub trtexec: String,
+    /// The ONNX inputs for ids, mask and types, in that order.
+    pub inputs: [String; 3],
+    /// `int64` or `int32`: the element type of those inputs.
+    pub input_dtype: String,
+    /// trtexec's --warmUp, in milliseconds.
+    pub warmup_ms: u32,
+    /// Where the input files are written for the container to read.
+    pub work: PathBuf,
+}
+
+/// trtexec's precision flags for a compute dtype: F32 with TF32 off, as
+/// the library computes; F16 or BF16 allowed where asked.
+pub fn precision_flags(compute_dtype: u32) -> std::result::Result<Vec<String>, String> {
+    match compute_dtype {
+        TURBO_DTYPE_F32 => Ok(argv(&["--noTF32"])),
+        TURBO_DTYPE_F16 => Ok(argv(&["--fp16"])),
+        TURBO_DTYPE_BF16 => Ok(argv(&["--bf16"])),
+        d => Err(format!("trtexec has no flag for compute dtype {d}")),
+    }
+}
+
+/// The rows as the raw little-endian files --loadInputs reads, in `dtype`.
+pub fn input_bytes(values: &[i32], dtype: &str) -> Result<Vec<u8>> {
+    match dtype {
+        "int64" => Ok(values.iter().flat_map(|&v| (v as i64).to_le_bytes()).collect()),
+        "int32" => Ok(values.iter().flat_map(|&v| v.to_le_bytes()).collect()),
+        d => Err(format!("--tensorrt-input-dtype {d:?} is not int64 or int32")),
+    }
+}
+
+/// The `docker run` of trtexec: no network, no pulls, the bundle and the
+/// inputs mounted read-only.
+#[allow(clippy::too_many_arguments)]
+pub fn run_argv(
+    t: &TensorRt,
+    bundle: &Path,
+    work: &Path,
+    onnx: &str,
+    gpu: u32,
+    rows: &Rows,
+    iterations: u32,
+    precision: &[String],
+) -> Vec<String> {
+    let shape = format!("{}x{}", rows.batch, rows.seq);
+    let shapes: Vec<String> = t.inputs.iter().map(|n| format!("{n}:{shape}")).collect();
+    let loads: Vec<String> = t.inputs.iter().map(|n| format!("{n}:/work/{n}.bin")).collect();
+    let mut a = argv(&[
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--network",
+        "none",
+        "--gpus",
+        &format!("device={gpu}"),
+        "--mount",
+        &format!("type=bind,src={},dst=/bundle,readonly", bundle.display()),
+        "--mount",
+        &format!("type=bind,src={},dst=/work,readonly", work.display()),
+        &t.image,
+        &t.trtexec,
+        &format!("--onnx=/bundle/{onnx}"),
+        &format!("--shapes={}", shapes.join(",")),
+        &format!("--loadInputs={}", loads.join(",")),
+        &format!("--warmUp={}", t.warmup_ms),
+        &format!("--iterations={iterations}"),
+        "--duration=0",
+        "--percentile=99",
+    ]);
+    a.extend(precision.iter().cloned());
+    a
+}
+
+/// What trtexec's performance summary says.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Summary {
+    pub version: String,
+    /// Queries timed; each query is the whole batch.
+    pub queries: u64,
+    pub qps: f64,
+    /// Latency: H2D, GPU compute and D2H of one query, in ms.
+    pub latency_median: f64,
+    pub latency_p99: f64,
+    pub compute_median: f64,
+    pub compute_p99: f64,
+}
+
+/// `name = <value> ms` in a summary line.
+fn value(line: &str, name: &str) -> Option<f64> {
+    let at = line.find(&format!("{name} = "))? + name.len() + 3;
+    line[at..].split_whitespace().next()?.trim_end_matches(',').parse().ok()
+}
+
+/// The line whose text after its `[I] ` tag starts with `tag`.
+fn line<'a>(out: &'a str, tag: &str) -> Option<&'a str> {
+    out.lines().find(|l| l.split_once("[I] ").is_some_and(|(_, rest)| rest.starts_with(tag)))
+}
+
+/// Parse trtexec's output. It must end in `&&&& PASSED`, name its
+/// TensorRT version, and give the summary's Throughput, Latency and GPU
+/// Compute Time lines with median and percentile(99%), and the number of
+/// queries timed.
+pub fn parse(out: &str) -> Result<Summary> {
+    if !out.lines().any(|l| l.starts_with("&&&& PASSED")) {
+        return Err("trtexec did not report &&&& PASSED".into());
+    }
+    let missing = |what: &str| format!("trtexec output has no {what}");
+    let version = line(out, "TensorRT version: ")
+        .and_then(|l| l.rsplit("TensorRT version: ").next())
+        .map(|v| v.trim().to_owned())
+        .ok_or_else(|| missing("TensorRT version line"))?;
+    let queries = line(out, "Timing trace has ")
+        .and_then(|l| l.split("Timing trace has ").nth(1)?.split_whitespace().next()?.parse().ok())
+        .ok_or_else(|| missing("Timing trace line"))?;
+    let qps = line(out, "Throughput: ")
+        .and_then(|l| l.split("Throughput: ").nth(1)?.split_whitespace().next()?.parse().ok())
+        .ok_or_else(|| missing("Throughput line"))?;
+    let latency = line(out, "Latency: ").ok_or_else(|| missing("Latency line"))?;
+    let compute = line(out, "GPU Compute Time: ").ok_or_else(|| missing("GPU Compute Time line"))?;
+    let get = |l: &str, n: &str| value(l, n).ok_or_else(|| format!("trtexec line {l:?} has no {n}"));
+    Ok(Summary {
+        version,
+        queries,
+        qps,
+        latency_median: get(latency, "median")?,
+        latency_p99: get(latency, "percentile(99%)")?,
+        compute_median: get(compute, "median")?,
+        compute_p99: get(compute, "percentile(99%)")?,
+    })
+}
+
+fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun {
+    ReferenceRun {
+        name: NAME.into(),
+        role: "kernel".into(),
+        pinned: image.into(),
+        version: String::new(),
+        commands: log.commands,
+        procedure: procedure.into(),
+        measured: None,
+        not_run: Some(why),
+    }
+}
+
+/// The bundle's ONNX file, or why there is none to run.
+pub fn onnx_file(m: &Measurement) -> std::result::Result<String, String> {
+    let a = m.manifest.artifacts.iter().find(|a| a.format == Format::Onnx);
+    match a.map(|a| a.files.as_slice()) {
+        None => Err("the bundle carries no FORMAT_ONNX artifact for trtexec to build an engine from".into()),
+        Some([one]) => Ok(one.clone()),
+        Some(_) => Err("the bundle's FORMAT_ONNX artifact is not one file".into()),
+    }
+}
+
+/// Build and time the engine on `gpu`, the device's CUDA ordinal. A thing
+/// trtexec cannot do for this bundle is a record that says so; a failure
+/// of docker or of trtexec is an error.
+pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<ReferenceRun> {
+    let image = docker::check_pinned("--tensorrt-image", &t.image)?;
+    let procedure = format!(
+        "trtexec builds an engine from the bundle's ONNX file and times {iterations} queries of the batch's \
+         [{}, {}] rows loaded from files; p50 and p99 are its Latency (H2D, GPU compute, D2H) median and \
+         percentile(99%)",
+        m.rows.batch, m.rows.seq
+    );
+    let log = Log::default();
+    let onnx = match onnx_file(m) {
+        Ok(f) => f,
+        Err(why) => return Ok(not_run(image, log, &procedure, why)),
+    };
+    let precision = match precision_flags(m.compute_dtype) {
+        Ok(p) => p,
+        Err(why) => return Ok(not_run(image, log, &procedure, why)),
+    };
+    // The file the manifest lists, checked against its hash.
+    Bundle::open(&m.bundle_dir).and_then(|b| b.read_verified(&onnx)).map_err(|e| e.message)?;
+    let mut log = log;
+    docker::require_image(&mut log, image)?;
+
+    let work = t.work.join(format!("turbo-bench-trtexec-{}", std::process::id()));
+    fs::create_dir_all(&work).map_err(|e| format!("{}: {e}", work.display()))?;
+    let result = (|| {
+        for (name, values) in t.inputs.iter().zip([&m.rows.ids, &m.rows.mask, &m.rows.types]) {
+            let path = work.join(format!("{name}.bin"));
+            fs::write(&path, input_bytes(values, &t.input_dtype)?).map_err(|e| format!("{}: {e}", path.display()))?;
+        }
+        let work = fs::canonicalize(&work).map_err(|e| format!("{}: {e}", work.display()))?;
+        let cmd = run_argv(t, &m.bundle_dir, &work, &onnx, gpu, &m.rows, iterations, &precision);
+        parse(&log.run(&cmd)?)
+    })();
+    let _ = fs::remove_dir_all(&work);
+    let s = result?;
+    Ok(ReferenceRun {
+        name: NAME.into(),
+        role: "kernel".into(),
+        pinned: image.into(),
+        version: s.version,
+        commands: log.commands,
+        procedure: format!(
+            "{procedure}; its GPU Compute Time was median {} ms, percentile(99%) {} ms",
+            s.compute_median, s.compute_p99
+        ),
+        measured: Some(Measured {
+            iterations: s.queries,
+            p50_ms: s.latency_median,
+            p99_ms: s.latency_p99,
+            rows_per_second: s.qps * m.rows.batch as f64,
+            min_cosine: None,
+        }),
+        not_run: None,
+    })
+}

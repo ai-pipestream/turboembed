@@ -160,3 +160,10 @@ TURBO_TEST_BUNDLE=<bundle-dir> \
 and the conformance test fails when it lists none. The tests in
 `core/tests/cuda.rs` that need no device (the table, the arch labels)
 run everywhere the feature builds.
+
+## Recording a benchmark
+
+Embed stays EXPERIMENTAL here until a benchmark record backs the cell:
+one made by `turbo-bench` on the GPU, with TensorRT and
+text-embeddings-inference measured on the same token rows
+(docs/benchmarks.md, which has the command).
