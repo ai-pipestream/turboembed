@@ -367,7 +367,15 @@ fn embed_is_offered_in_f32_and_f16_as_sessions_run_it() {
         let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
         cap.struct_size = size_of::<turbo_capability>() as u32;
         assert_eq!(unsafe { turbo_runtime_capability(l.rt, gpu(l.rt), TURBO_TASK_EMBED, p, &mut cap, null_err()) }, 0);
-        assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&cap.reason));
+        // A benchmark record compiled into the build for this machine's
+        // cell makes it SUPPORTED, naming the record; else it runs
+        // unmeasured.
+        if cap.status == backend::TURBO_CAP_SUPPORTED {
+            assert!(field(&cap.benchmark).starts_with(&format!("{}.levelzero.embed.", field(&arch_of(&l)))));
+            assert!(cap.cosine_floor > 0.999 && cap.speed_ratio > 0.0, "a record's numbers");
+        } else {
+            assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&cap.reason));
+        }
         // FASTEST runs the linear layers on the matrix engines in F16.
         let want = if p == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
         assert_eq!(cap.dtype, want, "precision {p}");
@@ -375,6 +383,14 @@ fn embed_is_offered_in_f32_and_f16_as_sessions_run_it() {
         let info = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap().info();
         assert_eq!(info.compute_dtype, cap.dtype, "precision {p}");
     }
+}
+
+/// The arch label of the levelzero device a bundle is loaded on.
+fn arch_of(l: &Loaded) -> [c_char; 32] {
+    let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
+    info.struct_size = size_of::<turbo_device_info>() as u32;
+    assert_eq!(unsafe { turbo_runtime_device_info(l.rt, gpu(l.rt), &mut info, null_err()) }, 0);
+    info.arch
 }
 
 #[test]
