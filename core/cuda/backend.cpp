@@ -371,8 +371,10 @@ int32_t device_info(uint32_t ordinal, turbo_device_info *out, turbo_error *err) 
  * and output_dim (6), every value of each. */
 constexpr uint32_t EMBED_HONORED = 0x38;
 
-/* Embed at every precision: MODEL and EXACT in F32, FASTEST in F16 (F16
- * GEMM inputs, F32 accumulation, and everything else in F32). As on the
+/* Embed at every precision: MODEL and EXACT in F32 (F32 FMAs; with
+ * TURBO_CUDA_TF32=1, MODEL's GEMMs as TF32 on the tensor cores from
+ * sm_80, F32 accumulation), FASTEST in F16 (F16 GEMM inputs, F32 accumulation, and
+ * everything else in F32). As on the
  * CPU, a model stored in F16 or BF16 computes in F32 at EXACT from a
  * converted copy, and its session at MODEL is refused. A model with a
  * GEMM weight past F16's range computes in F32 at FASTEST too, and
@@ -1000,10 +1002,13 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 //
 // TURBO_CUDA_TILE, read when a session is made, names the GEMMs' tile
 // for all four: 64x64, 128x64, 128x128 or 128x128-16x8 (the FMA kernel's
-// 128x128 over 128 threads of 16 x 8 outputs; 128x128 elsewhere), for
+// 128x128 over 128 threads of 16 x 8 outputs; 128x128 elsewhere), and
+// on the tensor cores 128x128-4w (four warps of 64 x 64), 256x128 (eight
+// such warps) or 8w (the eight-warp mix FASTEST took before: 128x128 for
+// QKV and the first feed-forward GEMM, 128x64 for the other two), for
 // measuring one against another and against the default (128x64 for
-// the FMA kernel; on the tensor cores 128x128 for QKV and the first
-// feed-forward GEMM, 128x64 for the other two).
+// the FMA kernel and TF32; F16 on the tensor cores 256x128 for the
+// first feed-forward GEMM and 128x128-4w for the others).
 //
 // TURBO_CUDA_ATTENTION=split, read when a session is made, gives an F32
 // session (and an F16 one without the tensor cores' attention) the FMA
@@ -1054,6 +1059,9 @@ Tile tile_named() {
     if (!strcasecmp(v, "128x64")) return TILE_128x64;
     if (!strcasecmp(v, "128x128")) return TILE_128x128;
     if (!strcasecmp(v, "128x128-16x8")) return TILE_128x128_16x8;
+    if (!strcasecmp(v, "128x128-4w")) return TILE_128x128_4W;
+    if (!strcasecmp(v, "256x128")) return TILE_256x128;
+    if (!strcasecmp(v, "8w")) return TILE_EIGHT_WARPS;
     return TILE_DEFAULT;
 }
 
@@ -1066,6 +1074,19 @@ bool split_attention_named() {
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_ATTENTION");
     return v && !strcasecmp(v, "split");
+}
+
+/* What the tests set in place of TURBO_CUDA_TF32: 1 for TF32 at MODEL,
+ * 0 for the default; -1 for the variable. */
+std::atomic<int> tf32_override{-1};
+
+/* TURBO_CUDA_TF32=1 puts MODEL's F32 GEMMs on the tensor cores as TF32;
+ * unset, they are EXACT's FMA kernels. */
+bool tf32_named() {
+    const int o = tf32_override.load(std::memory_order_relaxed);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_TF32");
+    return v && strcmp(v, "1") == 0;
 }
 
 /* What the tests set in place of TURBO_CUDA_LAYER_NORM: 1 for the
@@ -1436,7 +1457,9 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, c->ordinal), "the device's SMs");
         TRY_CUDA(cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, c->ordinal),
                  "the device's shared memory");
-        sh.tensor_cores = major >= 8;
+        // The tensor cores: F16 at FASTEST; TF32 for F32 products when
+        // TURBO_CUDA_TF32=1 asks, but at EXACT, F32 FMAs throughout.
+        sh.tensor_cores = major >= 8 && (half || (precision != TURBO_PRECISION_EXACT && tf32_named()));
         sh.sms = sms;
         sh.smem_optin = (size_t)optin;
         sh.tile = tile_named();
@@ -1922,7 +1945,8 @@ const void *turbo_cuda_narrowed(void *model) {
 
 /* One of the backend's GEMMs against cuBLAS on random operands, on
  * device ordinal: epilogue is an Epilogue, half F16 operands, tensor_cores
- * whether the F16 GEMM takes mma.sync (else FMAs), tile a Tile, blocks
+ * whether the GEMM takes mma.sync (F16, or TF32 for F32 operands; else
+ * FMAs), tile a Tile, blocks
  * the launch's blocks (0 for what the device holds at once, and never
  * more), heads the QKV epilogue's heads, n being 3 * hidden. The GEMM
  * runs twice, and must give the same bits both times. The largest
@@ -1961,6 +1985,11 @@ void turbo_cuda_use_split_attention(int32_t split) {
 void turbo_cuda_use_separate_layer_norm(int32_t separate) {
     separate_ln_override.store(separate, std::memory_order_relaxed);
 }
+
+/* The F32 GEMMs of MODEL sessions made from now on: 1 TF32 on the tensor
+ * cores (TURBO_CUDA_TF32=1), 0 the FMA kernels (the default), -1 to read
+ * the variable again. */
+void turbo_cuda_use_tf32(int32_t tf32) { tf32_override.store(tf32, std::memory_order_relaxed); }
 
 /* The pooling of sessions made from now on: 1 the kernel of a thread per
  * column (TURBO_CUDA_POOL=columns), 0 the default, -1 to read the
