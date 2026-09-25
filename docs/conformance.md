@@ -27,6 +27,11 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<device> \
   or `exact`. Unset, `model`. The tolerance is the one for the compute
   dtype the session reports, so `fastest` on a backend that computes it
   in F16 is held to the F16 row below.
+- `TURBO_TEST_DUMP_DIR`: a directory the check writes every row it
+  compares to, as raw little-endian f32 in case order, one file for each
+  way of writing (`write_text_batch_1.f32` and so on), so two builds'
+  bits can be compared with `cmp`. Run one test with it set, since each
+  check writes the same names.
 
 With `--ignored` it also runs `a_real_bundle_matches_its_reference`,
 which fails unless `TURBO_TEST_BUNDLE` is set, so a run meant for a real
