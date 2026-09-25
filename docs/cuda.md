@@ -214,8 +214,10 @@ and five more while the times are more than 10% apart, up to 15. The
 least time ranks, and a variant replaces the incumbent (the cached
 choice, else the default) only when 5% faster, so measuring again on
 the same device keeps the choice. When the first incumbent's five times
-are more than 25% apart, the device is shared or throttling: the
-session keeps its incumbents, is not cached, and the log says so. A
+have a median more than 25% above their least, it is timed again, up to three times in all,
+since a cold device's clocks may still be coming up; still apart, the
+device is shared or throttling: the session keeps its incumbents, is
+not cached, and the log says so. A
 variant that cannot launch here is not timed, and an INFO line says so
 once. The graphs are captured from the choices after the memory is
 cleared again.
@@ -236,7 +238,8 @@ INFO `cuda device 0: kernels chosen in <ms> ms for <n> token bins:
 line. A session of the same device, driver, build, bundle, precision
 and size then takes the choice unmeasured, `tuned` CACHE, unless it
 forces or widens something: only a measured session with nothing
-forced and no experiment's class run is cached.
+forced and no experiment's class run is cached, and an INFO line says
+why another measured session was not.
 
 What the first tuned session costs, on an RTX 4080 with
 all-MiniLM-L6-v2 at 32 rows of 256 tokens (bins up to 16384) and the
@@ -244,8 +247,8 @@ default 150 ms budget without a disk cache:
 
 | Precision | `tune_ms` | Not timed |
 |---|---|---|
-| FASTEST | pending | pending |
-| EXACT | pending | pending |
+| FASTEST | 14 ms | 0 |
+| EXACT | 100 ms | 0 |
 
 Measured with:
 

@@ -272,6 +272,7 @@ struct Device {
 }
 
 const LOG_WARNING: u32 = 1;
+const LOG_INFO: u32 = 2;
 
 impl Runtime {
     fn log(&self, level: u32, message: &str) {

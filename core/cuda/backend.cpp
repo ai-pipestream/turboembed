@@ -23,6 +23,7 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <chrono>
@@ -1873,7 +1874,7 @@ using Clock = std::chrono::steady_clock;
 double ms_since(Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); }
 
 /* A kernel's times in milliseconds: the least of them ranks it, the
- * median shows a lucky least; spread is the first five's (max - min) /
+ * median shows a lucky least; spread is the first five's (median - min) /
  * min. */
 struct Timed {
     float min = 0, median = 0, spread = 0;
@@ -1888,6 +1889,15 @@ float spread_of(const float *ms, int n) {
         hi = ms[i] > hi ? ms[i] : hi;
     }
     return lo > 0 ? (hi - lo) / lo : 0;
+}
+
+/* How far the median of ms[0..n) is above the least, over the least: one
+ * slow launch in five moves it less than the whole range would. */
+float lift_of(const float *ms, int n) {
+    float v[16];
+    for (int i = 0; i < n; i++) v[i] = ms[i];
+    std::sort(v, v + n);
+    return v[0] > 0 ? (v[n / 2] - v[0]) / v[0] : 0;
 }
 
 constexpr int TIMED_FIRST = 5, TIMED_MOST = 15;
@@ -1911,7 +1921,7 @@ cudaError_t time_kernel(cudaStream_t st, cudaEvent_t *ev, F launch, Clock::time_
         if ((e = cudaStreamSynchronize(st)) != cudaSuccess) return e;
         for (int i = 0; i < TIMED_FIRST; i++)
             if ((e = cudaEventElapsedTime(&ms[n++], ev[2 * i], ev[2 * i + 1])) != cudaSuccess) return e;
-        if (n == TIMED_FIRST) out->spread = spread_of(ms, n);
+        if (n == TIMED_FIRST) out->spread = lift_of(ms, n);
     } while (n < TIMED_MOST && spread_of(ms, n) > TIMED_NOISY && Clock::now() < deadline);
     for (int i = 1; i < n; i++)
         for (int j = i; j > 0 && ms[j] < ms[j - 1]; j--) std::swap(ms[j], ms[j - 1]);
@@ -1924,9 +1934,13 @@ cudaError_t time_kernel(cudaStream_t st, cudaEvent_t *ev, F launch, Clock::time_
 /* A candidate replaces the incumbent only when this much faster, so a
  * measurement again on the same device keeps the choice. */
 constexpr float MARGIN = 0.95f;
-/* The incumbent's first five times further apart than this, over their
- * least, say the device is shared or throttling. */
+/* The median of the incumbent's first five times further above their
+ * least than this, in each of BUSY_ROUNDS timings, says the device is
+ * shared or throttling. */
 constexpr float BUSY = 0.25f;
+/* How many times the first incumbent is timed before its times apart
+ * say the device is busy. */
+constexpr int BUSY_ROUNDS = 3;
 
 /* What the tuner found: whether it measured, or stopped for a busy
  * device, and what it says in the log and the record. */
@@ -2007,6 +2021,17 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
                           BIN_NAME[b], GEMM_NAMES[g], name.c_str(), cudaGetErrorName(e));
                     if (i == 0) break;
                     continue;
+                }
+                // The first incumbent's times far apart may be the clocks
+                // still coming up or a moment's contention: timed again,
+                // up to BUSY_ROUNDS in all, before the device is called
+                // busy. A shared or throttling device stays apart.
+                for (int r = 1; i == 0 && !busy_checked && tm.spread > BUSY && r < BUSY_ROUNDS &&
+                                Clock::now() < deadline;
+                     r++) {
+                    c.say(LOG_DEBUG, "cuda device %d: %s/%s/%s's times were %.0f%% apart, so it is timed again",
+                          c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str(), 100.0 * tm.spread);
+                    TRY_CUDA(time_kernel(st, ev, launch, deadline, &tm), "the tuner's GEMM");
                 }
                 if (*reinterpret_cast<volatile int *>(s.fault)) {
                     // A stream-K wait gave up: the time is not the

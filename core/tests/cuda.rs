@@ -2192,6 +2192,27 @@ fn load_logged(dir: &std::path::Path) -> (Loaded, &'static Lines) {
     (Loaded { rt, ctx, m }, lines)
 }
 
+/// A tuned session of desc on m that measured. The tuner declines a
+/// device whose times stay far apart, which a card at its power cap can
+/// be for a moment: a session that says so in the log is made again, up
+/// to three times; any other session that did not measure fails, with
+/// the log.
+fn measured_session(m: *mut turbo_model, lines: &Lines, desc: &turbo_session_desc) -> Session {
+    for attempt in 1..=3 {
+        let from = lines.lock().unwrap().len();
+        let s = caching(None, || Session::create(m, Some(desc)).unwrap());
+        let info = s.info();
+        if info.tuned == TURBO_TUNED_MEASURED {
+            return s;
+        }
+        let log: Vec<(u32, String)> = lines.lock().unwrap()[from..].to_vec();
+        let busy = log.iter().any(|(level, l)| *level == 1 && l.contains("not tuned:") && l.contains("apart"));
+        println!("attempt {attempt}: tuned {} ({}), log: {log:#?}", info.tuned, field(&info.choices));
+        assert!(busy, "tuned {} without the device found busy: {log:#?}", info.tuned);
+    }
+    panic!("the device was busy for three tuned sessions in a row");
+}
+
 /// A tuned session reports MEASURED, the time it took and its choices;
 /// that line forced back with tuning off runs the same kernels and gives
 /// the same bits, at FASTEST and EXACT.
@@ -2199,16 +2220,14 @@ fn load_logged(dir: &std::path::Path) -> (Loaded, &'static Lines) {
 fn a_measured_session_forced_back_gives_its_bits() {
     let _t = turn();
     let Some(_) = cuda_device("a_measured_session_forced_back_gives_its_bits") else { return };
-    let (f, g) = small_model("cuda-measured");
+    let (f, _) = small_model("cuda-measured");
+    let (g, lines) = load_logged(&f.dir);
     let t = ragged_rows(&f.dir, 40, 160);
     for precision in [TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
-        let s = caching(None, || {
-            Session::create(g.m, Some(&tuned_desc(40, 160, precision, TURBO_AUTOTUNE_ON, 0))).unwrap()
-        });
+        let s = measured_session(g.m, lines, &tuned_desc(40, 160, precision, TURBO_AUTOTUNE_ON, 0));
         let info = s.info();
         let choices = field(&info.choices);
         println!("precision {precision}: measured in {} ms: {choices}", info.tune_ms);
-        assert_eq!(info.tuned, TURBO_TUNED_MEASURED, "{choices}");
         assert!(info.tune_ms > 0 && choices.ends_with(";forced="), "{choices}");
         s.write_tokens(&t.batch(), None).unwrap();
         let want = s.run().unwrap().rows();

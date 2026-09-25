@@ -407,10 +407,21 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
     // kept: any other session's choice is not the key's to give.
     if let Some(k) = key {
         let choices = backend::cstr(&t.choices);
-        if t.tuned == TURBO_TUNED_MEASURED
-            && tuning::forced_knobs(&choices).is_empty()
-            && t.numerics_used == t.numerics_allowed
-        {
+        let forced = tuning::forced_knobs(&choices);
+        if t.tuned == TURBO_TUNED_MEASURED && !forced.is_empty() {
+            rt.log(LOG_INFO, &format!("the measured kernels are not cached: the session forces {}", forced.join(",")));
+        } else if t.tuned == TURBO_TUNED_MEASURED && t.numerics_used != t.numerics_allowed {
+            rt.log(
+                LOG_INFO,
+                &format!(
+                    "the measured kernels are not cached: they compute in numeric classes 0x{:x} beyond the \
+                     precision's 0x{:x}",
+                    t.numerics_used & !t.numerics_allowed,
+                    t.numerics_allowed
+                ),
+            );
+        }
+        if t.tuned == TURBO_TUNED_MEASURED && forced.is_empty() && t.numerics_used == t.numerics_allowed {
             let timings = if t.timings.is_null() { String::new() } else { backend::cstr(&timings) };
             let e = tuning::TuneEntry::measured(k, &choices, t.tune_ms, &timings);
             if let Err(err) = rt.tune_cache.put(e, dir.as_deref()) {
