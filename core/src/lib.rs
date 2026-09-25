@@ -260,6 +260,8 @@ struct Runtime {
     log: turbo_log_fn,
     log_user_data: usize,
     devices: Vec<Device>,
+    /// The kernel choices its tuned sessions measured (docs/autotune.md).
+    tune_cache: tuning::Cache,
 }
 
 /// A device a linked backend listed when the runtime was made.
@@ -609,7 +611,8 @@ pub unsafe extern "C" fn turbo_runtime_create(
                 }
                 None => (None, 0),
             };
-            let mut inner = Runtime { log, log_user_data: user, devices: Vec::new() };
+            let mut inner =
+                Runtime { log, log_user_data: user, devices: Vec::new(), tune_cache: tuning::Cache::default() };
             inner.enumerate()?;
             let rt = turbo_runtime { magic: RUNTIME_MAGIC, inner: Arc::new(inner) };
             *out = Box::into_raw(Box::new(rt));
