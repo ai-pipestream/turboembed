@@ -120,6 +120,10 @@ struct Shape {
      * (TURBO_CUDA_ATTENTION=split), for measuring against the default,
      * which computes Q K^T and P V as register tiles. */
     bool split_attention = false;
+    /* FASTEST's attention on the tensor cores at 128 queries to a block,
+     * keys and values through cp.async (TURBO_CUDA_ATTENTION=128), for
+     * measuring against the default of 64. */
+    bool wide_attention = false;
     /* The GEMMs' fewest k steps per block (TURBO_CUDA_SK_STEPS), 0 for
      * the kernels' own. */
     int sk_steps = 0;

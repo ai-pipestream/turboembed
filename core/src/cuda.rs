@@ -39,6 +39,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_cublas(gemms: i32);
     fn turbo_cuda_use_tile(tile: i32);
     fn turbo_cuda_use_split_attention(split: i32);
+    fn turbo_cuda_use_wide_attention(wide: i32);
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
     fn turbo_cuda_use_column_pool(columns: i32);
     fn turbo_cuda_use_tf32(tf32: i32);
@@ -208,6 +209,16 @@ pub fn use_tile(tile: Option<Tile>) {
 #[cfg(feature = "internals")]
 pub fn use_split_attention(split: Option<bool>) {
     unsafe { turbo_cuda_use_split_attention(split.map_or(-1, i32::from)) };
+}
+
+/// FASTEST's attention on the tensor cores in sessions made from now on:
+/// `Some(true)` the kernel of 128 queries to a block, keys and values
+/// through cp.async 64 at a time, as TURBO_CUDA_ATTENTION=128 picks it,
+/// `Some(false)` the default of 64, `None` to read the variable again.
+/// Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_wide_attention(wide: Option<bool>) {
+    unsafe { turbo_cuda_use_wide_attention(wide.map_or(-1, i32::from)) };
 }
 
 /// The LayerNorms of sessions made from now on: `Some(true)` a kernel of

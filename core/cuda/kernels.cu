@@ -2499,6 +2499,187 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
 }
 
 
+// The same attention, 128 queries to a block of eight warps (a warp per
+// 16), so each chunk of keys and values in shared memory serves twice
+// the queries. Keys and values go 64 at a time through two buffers
+// filled by cp.async, the next chunk's in flight while this one's
+// products and softmax run. The softmax is in base 2: the scores are
+// scaled by scale x log2(e) once and exp2f takes the place of expf (the
+// key bias is 0 or -1e30, the same in either base). Only rows whose
+// items the pack puts first, longest first, change the schedule, not
+// the sums: each query's keys go in position order, 64 at a time.
+
+constexpr int FA_QUERIES = 128, FA_THREADS = 256, FA_KEYS = 64;
+
+template <int D> constexpr size_t fa_smem(int) {
+    return (size_t)(FA_QUERIES + 4 * FA_KEYS) * (D + 8) * sizeof(__half) + 2 * FA_KEYS * sizeof(float);
+}
+
+template <int D> constexpr int fa_min_blocks() { return fa_smem<D>(0) * 2 <= 96 * 1024 ? 2 : 1; }
+
+template <int D>
+__global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa_kernel(AttnArgs a) {
+#ifndef TURBO_NO_MMA
+    constexpr int LD = D + 8, DK = D / 16, DN = D / 8, CH = D / 8; // CH: 16-byte chunks of a row
+    extern __shared__ __align__(16) unsigned char att_sm[];
+    __half *Qs = reinterpret_cast<__half *>(att_sm);
+    __half *KV = Qs + FA_QUERIES * LD; // buffer b: K at KV + 2 b FA_KEYS LD, V after it
+    float *kbs = reinterpret_cast<float *>(KV + 4 * FA_KEYS * LD);
+    const int items = a.p.info->items, batch = a.p.info->batch;
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    const __half *qkv = static_cast<const __half *>(a.qkv);
+    const size_t hs = (size_t)a.tcap * D;
+    const float sl2 = a.scale * 1.4426950408889634f;
+
+    for (int item = blockIdx.x; item < items; item += gridDim.x) {
+        const Item it = decode(a, item, batch);
+        const __half *Qg = qkv + (size_t)it.head * hs + (size_t)it.base * D;
+        const __half *Kg = qkv + (size_t)(a.heads + it.head) * hs + (size_t)it.base * D;
+        const __half *Vg = qkv + (size_t)(2 * a.heads + it.head) * hs + (size_t)it.base * D;
+        const bool live = it.q0 + warp * 16 < it.n;
+        const int chunks = (it.n + FA_KEYS - 1) / FA_KEYS;
+        // Keys c0 on into buffer b; the key bias with plain loads, which
+        // the barrier before the chunk's use orders.
+        auto load_chunk = [&](int b, int c0) {
+            __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
+            for (int i = threadIdx.x; i < FA_KEYS * CH; i += FA_THREADS) {
+                const int r = i / CH, c = (i % CH) * 8;
+                const bool in = c0 + r < it.n;
+                cp_async16(Ks + r * LD + c, in ? Kg + (size_t)(c0 + r) * D + c : Kg, in);
+                cp_async16(Vs + r * LD + c, in ? Vg + (size_t)(c0 + r) * D + c : Vg, in);
+            }
+            if (it.holes && threadIdx.x < FA_KEYS && c0 + (int)threadIdx.x < it.n)
+                kbs[b * FA_KEYS + threadIdx.x] = a.p.key_bias[it.base + c0 + threadIdx.x];
+        };
+        __syncthreads(); // the last item's reads of every buffer are done
+        for (int i = threadIdx.x; i < FA_QUERIES * CH; i += FA_THREADS) {
+            const int r = i / CH, c = (i % CH) * 8;
+            const bool in = it.q0 + r < it.n;
+            cp_async16(Qs + r * LD + c, in ? Qg + (size_t)(it.q0 + r) * D + c : Qg, in);
+        }
+        load_chunk(0, 0);
+        cp_async_commit();
+
+        uint32_t qf[DK][4];
+        float o[DN][4];
+#pragma unroll
+        for (int j = 0; j < DN; j++)
+#pragma unroll
+            for (int e = 0; e < 4; e++) o[j][e] = 0.0f;
+        float m[2] = {-INFINITY, -INFINITY}, l[2] = {0.0f, 0.0f};
+
+        for (int c = 0; c < chunks; c++) {
+            const int b = c & 1, c0 = c * FA_KEYS, cn = min(FA_KEYS, it.n - c0);
+            if (c + 1 < chunks) load_chunk(b ^ 1, c0 + FA_KEYS);
+            cp_async_commit();
+            cp_async_wait<1>();
+            __syncthreads();
+            if (c == 0)
+#pragma unroll
+                for (int k = 0; k < DK; k++)
+                    ldsm_x4(qf[k], Qs + (warp * 16 + (lane & 15)) * LD + k * 16 + (lane >> 4) * 8);
+            if (live) {
+                const __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
+                const float *kb = kbs + b * FA_KEYS;
+                float s[8][4];
+#pragma unroll
+                for (int j = 0; j < 8; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) s[j][e] = 0.0f;
+#pragma unroll
+                for (int k = 0; k < DK; k++)
+#pragma unroll
+                    for (int j = 0; j < 4; j++) {
+                        uint32_t r[4];
+                        ldsm_x4(r, Ks + (j * 16 + (lane >> 4) * 8 + (lane & 7)) * LD + k * 16 + ((lane >> 3) & 1) * 8);
+                        mma16816(s[2 * j], qf[k], r[0], r[1]);
+                        mma16816(s[2 * j + 1], qf[k], r[2], r[3]);
+                    }
+                float mx[2] = {m[0], m[1]};
+#pragma unroll
+                for (int j = 0; j < 8; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) {
+                        const int key = j * 8 + (lane & 3) * 2 + (e & 1);
+                        float v = s[j][e] * sl2;
+                        if (key >= cn)
+                            v = -INFINITY;
+                        else if (it.holes)
+                            v += kb[key];
+                        s[j][e] = v;
+                        mx[e >> 1] = fmaxf(mx[e >> 1], v);
+                    }
+#pragma unroll
+                for (int h = 0; h < 2; h++) {
+                    mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 1));
+                    mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 2));
+                }
+                const float corr[2] = {exp2f(m[0] - mx[0]), exp2f(m[1] - mx[1])};
+                float sum[2] = {0.0f, 0.0f};
+#pragma unroll
+                for (int j = 0; j < 8; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) {
+                        s[j][e] = exp2f(s[j][e] - mx[e >> 1]);
+                        sum[e >> 1] += s[j][e];
+                    }
+#pragma unroll
+                for (int h = 0; h < 2; h++) {
+                    l[h] = l[h] * corr[h] + sum[h];
+                    m[h] = mx[h];
+                }
+#pragma unroll
+                for (int j = 0; j < DN; j++) {
+                    o[j][0] *= corr[0];
+                    o[j][1] *= corr[0];
+                    o[j][2] *= corr[1];
+                    o[j][3] *= corr[1];
+                }
+#pragma unroll
+                for (int kk = 0; kk < 4; kk++) {
+                    const uint32_t pa[4] = {pack_half2(s[2 * kk][0], s[2 * kk][1]),
+                                            pack_half2(s[2 * kk][2], s[2 * kk][3]),
+                                            pack_half2(s[2 * kk + 1][0], s[2 * kk + 1][1]),
+                                            pack_half2(s[2 * kk + 1][2], s[2 * kk + 1][3])};
+#pragma unroll
+                    for (int j = 0; j < D / 16; j++) {
+                        uint32_t r[4];
+                        ldsm_x4_trans(r, Vs + (kk * 16 + (lane & 7) + ((lane >> 3) & 1) * 8) * LD + j * 16 +
+                                             (lane >> 4) * 8);
+                        mma16816(o[2 * j], pa, r[0], r[1]);
+                        mma16816(o[2 * j + 1], pa, r[2], r[3]);
+                    }
+                }
+            }
+            __syncthreads(); // buffer b is free for chunk c + 2
+        }
+        cp_async_wait<0>();
+        if (!live) continue;
+#pragma unroll
+        for (int h = 0; h < 2; h++) {
+            l[h] += __shfl_xor_sync(FULL, l[h], 1);
+            l[h] += __shfl_xor_sync(FULL, l[h], 2);
+        }
+        const float inv[2] = {1.0f / l[0], 1.0f / l[1]};
+        __half *ctx = static_cast<__half *>(a.ctx);
+#pragma unroll
+        for (int h = 0; h < 2; h++) {
+            const int q = it.q0 + warp * 16 + (lane >> 2) + h * 8;
+            if (q >= it.n) continue;
+            __half *dst = ctx + (size_t)(it.base + q) * a.hidden + it.head * D + (lane & 3) * 2;
+#pragma unroll
+            for (int j = 0; j < DN; j++)
+                *reinterpret_cast<__half2 *>(dst + j * 8) =
+                    __floats2half2_rn(o[j][2 * h] * inv[h], o[j][2 * h + 1] * inv[h]);
+        }
+    }
+#else
+    (void)a;
+    __trap();
+#endif
+}
+
+
 // ---- Weights -----------------------------------------------------------------------
 
 __global__ void widen_f16_kernel(const uint16_t *src, size_t n, float *dst) {
@@ -2545,6 +2726,10 @@ constexpr int SIMT_CHUNK = 128;
 AttnKernel attention_kernel_for(const Shape &s) {
     const int d = s.hidden / s.heads;
     if (s.half && s.tensor_cores && (d == 32 || d == 64)) {
+        if (s.wide_attention) {
+            if (d == 32) return {attention_fa_kernel<32>, FA_THREADS, fa_smem<32>, FA_QUERIES, FA_KEYS};
+            return {attention_fa_kernel<64>, FA_THREADS, fa_smem<64>, FA_QUERIES, FA_KEYS};
+        }
         if (d == 32) return {attention_mma_kernel<32>, MMA_ATT_THREADS, mma_smem<32>, MMA_QUERIES, 256};
         return {attention_mma_kernel<64>, MMA_ATT_THREADS, mma_smem<64>, MMA_QUERIES, 256};
     }
