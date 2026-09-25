@@ -63,9 +63,9 @@ pub(super) struct Pool {
     jobs: u64,
 }
 
-/// Aborts the process if a task panics on a worker: a caller waiting on
-/// its task would otherwise wait forever, and a panic on the caller's own
-/// thread aborts at the C boundary anyway.
+/// Aborts the process if a task panics: on a worker, the caller would
+/// otherwise wait for its task forever; on the caller, it would leave
+/// run() while workers may still use the job it borrowed.
 struct AbortOnUnwind;
 
 impl Drop for AbortOnUnwind {
@@ -111,6 +111,9 @@ impl Pool {
     /// f(task, thread) for every task in 0..tasks, spread over the pool's
     /// threads; returns when all are done. `thread` is under threads().
     pub(super) fn run(&mut self, tasks: usize, f: &Task<'_>) {
+        // A task that panics on this thread must not unwind out of here
+        // while workers may still call f, which borrows this frame.
+        let _abort = AbortOnUnwind;
         if self.workers.is_empty() || tasks <= 1 {
             (0..tasks).for_each(|t| f(t, 0));
             return;
