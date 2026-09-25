@@ -38,6 +38,7 @@ unsafe extern "C" {
     ) -> i32;
     fn turbo_cuda_use_cublas(gemms: i32);
     fn turbo_cuda_use_tile(tile: i32);
+    fn turbo_cuda_use_split_attention(split: i32);
 }
 
 /// The epilogues of the backend's own GEMMs, as [`gemm_check`] names them.
@@ -164,4 +165,13 @@ pub(crate) unsafe fn narrowed(model: *mut std::ffi::c_void) -> Option<*const std
 #[cfg(feature = "internals")]
 pub fn use_tile(tile: Option<Tile>) {
     unsafe { turbo_cuda_use_tile(tile.map_or(-1, |t| t as i32)) };
+}
+
+/// The FMA attention of sessions made from now on: `Some(true)` the
+/// kernel that splits each query's keys among four warps, as
+/// TURBO_CUDA_ATTENTION=split picks it, `Some(false)` the default, `None`
+/// to read the variable again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_split_attention(split: Option<bool>) {
+    unsafe { turbo_cuda_use_split_attention(split.map_or(-1, i32::from)) };
 }

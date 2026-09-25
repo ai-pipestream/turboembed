@@ -1233,6 +1233,165 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
 
 constexpr int MMA_QUERIES = 64;
 
+// -- FMA attention as two small GEMMs: EXACT and MODEL -------------------------------
+//
+// A block of 128 threads takes 32 queries of one head of one row and the
+// row's keys 64 at a time. S = Q K^T for the chunk is a register tile,
+// each thread 4 queries by 4 keys, summed over the head's values in
+// order from Q and K held transposed in shared memory (a warp's reads
+// are two broadcast rows of Q and 16 consecutive 16-byte pieces of K).
+// The 16 threads of a query row agree on its running largest score and
+// the chunk's sum by four shuffles; the probabilities replace K in shared
+// memory, and O += P V is a second register tile, each thread the same 4
+// queries by HD / 16 values, summed over the chunk's keys in position
+// order. Keys and chunks go in position order, so every sum's order is
+// fixed.
+
+constexpr int TILED_THREADS = 128;
+constexpr int TILED_QUERIES = 32;
+constexpr int TILED_CHUNK = 64;
+constexpr int TILED_LDQ = TILED_QUERIES + 4; // Q^T's row, and P's
+constexpr int TILED_LDK = TILED_CHUNK + 4;   // K^T's row
+
+template <int HD> __host__ __device__ constexpr size_t tiled_region() {
+    const size_t k = (size_t)HD * TILED_LDK, p = (size_t)TILED_CHUNK * TILED_LDQ;
+    return k > p ? k : p;
+}
+
+template <int HD> constexpr size_t tiled_smem_floats() {
+    return (size_t)HD * TILED_LDQ + tiled_region<HD>() + (size_t)TILED_CHUNK * HD + TILED_CHUNK;
+}
+
+template <typename T, int HD> size_t tiled_smem(int) { return tiled_smem_floats<HD>() * sizeof(float); }
+
+template <typename T, int HD>
+__global__ void __launch_bounds__(TILED_THREADS, HD == 64 ? 2 : 4) attention_tiled_kernel(AttnArgs a) {
+    constexpr int W = HD / 16; // values of the context per thread and query
+    extern __shared__ __align__(16) unsigned char att_sm[];
+    float *Qt = reinterpret_cast<float *>(att_sm); // [HD][LDQ]
+    float *Kt = Qt + HD * TILED_LDQ;                // [HD][LDK], then P [CHUNK][LDQ]
+    float *Ps = Kt;
+    float *Vs = Kt + tiled_region<HD>(); // [CHUNK][HD]
+    float *kbs = Vs + TILED_CHUNK * HD;  // [CHUNK]
+    const int items = a.p.info->items, batch = a.p.info->batch;
+    const int tx = threadIdx.x & 15, ty = threadIdx.x >> 4;
+    const int d = a.head_dim;
+    const T *qkv = static_cast<const T *>(a.qkv);
+    const size_t hs = (size_t)a.tcap * d;
+
+    for (int item = blockIdx.x; item < items; item += gridDim.x) {
+        const Item it = decode(a, item, batch);
+        const T *Qg = qkv + (size_t)it.head * hs + (size_t)it.base * d;
+        const T *Kg = qkv + (size_t)(a.heads + it.head) * hs + (size_t)it.base * d;
+        const T *Vg = qkv + (size_t)(2 * a.heads + it.head) * hs + (size_t)it.base * d;
+        const int nq = min(TILED_QUERIES, it.n - it.q0);
+        __syncthreads();
+        for (int i = threadIdx.x; i < TILED_QUERIES * HD; i += TILED_THREADS) {
+            const int q = i / HD, c = i - q * HD;
+            Qt[c * TILED_LDQ + q] = q < nq && c < d ? to_float(Qg[(size_t)(it.q0 + q) * d + c]) : 0.0f;
+        }
+        float o[4][W], m[4], l[4];
+#pragma unroll
+        for (int i = 0; i < 4; i++) {
+            m[i] = -INFINITY;
+            l[i] = 0.0f;
+#pragma unroll
+            for (int w = 0; w < W; w++) o[i][w] = 0.0f;
+        }
+        for (int c0 = 0; c0 < it.n; c0 += TILED_CHUNK) {
+            const int cn = min(TILED_CHUNK, it.n - c0);
+            __syncthreads();
+            for (int i = threadIdx.x; i < cn * HD; i += TILED_THREADS) {
+                const int k = i / HD, c = i - k * HD;
+                const bool in = c < d;
+                const size_t at = (size_t)(c0 + k) * d + c;
+                Kt[c * TILED_LDK + k] = in ? to_float(Kg[at]) : 0.0f;
+                Vs[k * HD + c] = in ? to_float(Vg[at]) : 0.0f;
+            }
+            if (it.holes)
+                for (int j = threadIdx.x; j < cn; j += TILED_THREADS) kbs[j] = a.p.key_bias[it.base + c0 + j];
+            __syncthreads();
+
+            // S = Q K^T, this thread's queries 4 ty + i and keys 4 tx + j.
+            float s[4][4];
+#pragma unroll
+            for (int i = 0; i < 4; i++)
+#pragma unroll
+                for (int j = 0; j < 4; j++) s[i][j] = 0.0f;
+#pragma unroll 8
+            for (int c = 0; c < HD; c++) {
+                const float4 qv = *reinterpret_cast<const float4 *>(Qt + c * TILED_LDQ + 4 * ty);
+                const float4 kv = *reinterpret_cast<const float4 *>(Kt + c * TILED_LDK + 4 * tx);
+                const float qa[4] = {qv.x, qv.y, qv.z, qv.w}, ka[4] = {kv.x, kv.y, kv.z, kv.w};
+#pragma unroll
+                for (int i = 0; i < 4; i++)
+#pragma unroll
+                    for (int j = 0; j < 4; j++) s[i][j] = fmaf(qa[i], ka[j], s[i][j]);
+            }
+            // The online softmax, a query row's 16 threads agreeing by
+            // shuffles within their half warp.
+            float corr[4];
+#pragma unroll
+            for (int i = 0; i < 4; i++) {
+                float mx = -INFINITY;
+#pragma unroll
+                for (int j = 0; j < 4; j++) {
+                    const int k = 4 * tx + j;
+                    s[i][j] = k < cn ? s[i][j] * a.scale + (it.holes ? kbs[k] : 0.0f) : -INFINITY;
+                    mx = fmaxf(mx, s[i][j]);
+                }
+#pragma unroll
+                for (int off = 8; off > 0; off >>= 1) mx = fmaxf(mx, __shfl_xor_sync(FULL, mx, off));
+                const float mn = fmaxf(m[i], mx);
+                corr[i] = expf(m[i] - mn);
+                float sum = 0.0f;
+#pragma unroll
+                for (int j = 0; j < 4; j++) {
+                    s[i][j] = expf(s[i][j] - mn);
+                    sum += s[i][j];
+                }
+#pragma unroll
+                for (int off = 8; off > 0; off >>= 1) sum += __shfl_xor_sync(FULL, sum, off);
+                l[i] = l[i] * corr[i] + sum;
+                m[i] = mn;
+#pragma unroll
+                for (int w = 0; w < W; w++) o[i][w] *= corr[i];
+            }
+            // P over K^T, once every thread is done with K.
+            __syncthreads();
+#pragma unroll
+            for (int j = 0; j < 4; j++)
+                *reinterpret_cast<float4 *>(Ps + (4 * tx + j) * TILED_LDQ + 4 * ty) =
+                    make_float4(s[0][j], s[1][j], s[2][j], s[3][j]);
+            __syncthreads();
+
+            // O += P V over the chunk's keys in position order.
+            for (int k = 0; k < cn; k++) {
+                const float4 pv = *reinterpret_cast<const float4 *>(Ps + k * TILED_LDQ + 4 * ty);
+                const float pa[4] = {pv.x, pv.y, pv.z, pv.w};
+                float v[W];
+#pragma unroll
+                for (int w = 0; w < W; w++) v[w] = Vs[k * HD + W * tx + w];
+#pragma unroll
+                for (int i = 0; i < 4; i++)
+#pragma unroll
+                    for (int w = 0; w < W; w++) o[i][w] = fmaf(pa[i], v[w], o[i][w]);
+            }
+        }
+        T *ctx = static_cast<T *>(a.ctx);
+#pragma unroll
+        for (int i = 0; i < 4; i++) {
+            const int q = 4 * ty + i;
+            if (q >= nq) continue;
+            const float inv = 1.0f / l[i];
+            T *dst = ctx + (size_t)(it.base + it.q0 + q) * a.hidden + it.head * d;
+#pragma unroll
+            for (int w = 0; w < W; w++)
+                if (W * tx + w < d) put(dst + W * tx + w, o[i][w] * inv);
+        }
+    }
+}
+
 // -- Tensor core attention: FASTEST, heads of 32 or 64 --------------------------------
 //
 // Four warps, 16 queries each, as flash attention 2 lays them out: S =
@@ -1452,7 +1611,9 @@ AttnKernel attention_kernel_for(const Shape &s) {
         return {attention_mma_kernel<64>, MMA_ATT_THREADS, mma_smem<64>, MMA_QUERIES, 256};
     }
 #define SIMT_ATT(T, HD)                                                                                                \
-    AttnKernel { attention_simt_kernel<T, HD>, SIMT_ATT_THREADS, simt_smem<T, HD>, SIMT_ATT_QUERIES, SIMT_CHUNK }
+    (s.split_attention                                                                                                 \
+         ? AttnKernel{attention_simt_kernel<T, HD>, SIMT_ATT_THREADS, simt_smem<T, HD>, SIMT_ATT_QUERIES, SIMT_CHUNK}  \
+         : AttnKernel{attention_tiled_kernel<T, HD>, TILED_THREADS, tiled_smem<T, HD>, TILED_QUERIES, TILED_CHUNK})
     if (s.half) {
         if (d <= 16) return SIMT_ATT(__half, 16);
         if (d <= 32) return SIMT_ATT(__half, 32);

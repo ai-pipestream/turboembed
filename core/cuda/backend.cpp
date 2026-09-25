@@ -1002,6 +1002,11 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // 64x64, 128x64 (the default) or 128x128 (the FMA kernel only), for
 // measuring one against another.
 //
+// TURBO_CUDA_ATTENTION=split, read when a session is made, gives an F32
+// session (and an F16 one without the tensor cores' attention) the FMA
+// attention that splits each query's keys among four warps, in place of
+// the default that computes Q K^T and P V as register tiles.
+//
 // TURBO_CUDA_CUBLAS, read when a session is made, hands the GEMMs it names
 // to cuBLAS: a comma-separated list of qkv, out, ffn1 and ffn2, or all.
 // cuBLAS's product then goes through a kernel of the same epilogue, and
@@ -1039,6 +1044,17 @@ Tile tile_named() {
     if (!strcasecmp(v, "128x64")) return TILE_128x64;
     if (!strcasecmp(v, "128x128")) return TILE_128x128;
     return TILE_DEFAULT;
+}
+
+/* What the tests set in place of TURBO_CUDA_ATTENTION: 1 for the
+ * key-split kernel, 0 for the default; -1 for the variable. */
+std::atomic<int> split_attention_override{-1};
+
+bool split_attention_named() {
+    const int o = split_attention_override.load(std::memory_order_relaxed);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_ATTENTION");
+    return v && !strcasecmp(v, "split");
 }
 
 unsigned cublas_gemms() {
@@ -1355,6 +1371,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         sh.sms = sms;
         sh.smem_optin = (size_t)optin;
         sh.tile = tile_named();
+        sh.split_attention = split_attention_named();
         Plan plan;
         TRY_CUDA(make_plan(sh, &plan), "planning the session's launches");
 
@@ -1835,5 +1852,12 @@ void turbo_cuda_use_cublas(int32_t gemms) { cublas_override.store(gemms, std::me
 /* The GEMMs' tile in sessions made from now on, as TURBO_CUDA_TILE would
  * name it (a Tile); -1 to read the variable again. */
 void turbo_cuda_use_tile(int32_t tile) { tile_override.store(tile, std::memory_order_relaxed); }
+
+/* The FMA attention of sessions made from now on: 1 the key-split kernel
+ * (TURBO_CUDA_ATTENTION=split), 0 the default, -1 to read the variable
+ * again. */
+void turbo_cuda_use_split_attention(int32_t split) {
+    split_attention_override.store(split, std::memory_order_relaxed);
+}
 
 } // extern "C"
