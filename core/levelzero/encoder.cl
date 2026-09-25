@@ -246,7 +246,8 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
                                                                               __private ushort *src);
 
 /* A's two k-halves for 8 or 16 tokens: a 2D read of 8 or 16 rows by two
- * 16-term blocks, block by block, 8 rows a short8. */
+ * 16-term blocks, block by block, 8 rows a short8. A LINEAR_DPAS instance
+ * names the one for its TM. */
 #define DPAS_READ_A8(x, w, h, k, t, a)                                                                              \
     do {                                                                                                            \
         short8 r_[2];                                                                                               \
@@ -264,6 +265,9 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
         a[1][i + 1] = r_[3];                                                                                        \
     } while (0)
 
+#define DPAS_READ_A_16(x, w, h, k, t, a) DPAS_READ_A16(x, w, h, k, t, a, 0)
+#define DPAS_READ_A_8(x, w, h, k, t, a) DPAS_READ_A8(x, w, h, k, t, a)
+
 #define DPAS_STORE_F32(y, n_out, tokens, o, t, v)                                                                   \
     intel_sub_group_2d_block_write_32b_8r16x1c((__global void *)(y), (n_out) * 4, tokens, (n_out) * 4, (int2)(o, t), \
                                                (__private uint *)&(v))
@@ -274,7 +278,7 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
                                                    (int2)(o, t), (__private ushort *)&h_);                          \
     } while (0)
 
-#define LINEAR_DPAS(NAME, TM, TN, WM, WN, Y, STORE)                                                                 \
+#define LINEAR_DPAS(NAME, TM, TN, WM, WN, READ_A, Y, STORE)                                                                 \
     __kernel __attribute__((intel_reqd_sub_group_size(16)))                                                         \
     __attribute__((reqd_work_group_size(16 * (WM) * (WN), 1, 1))) void                                              \
     NAME(__global const half *x, __global const half *wt, __global const float *bias, __global Y *y, int tokens,    \
@@ -291,12 +295,7 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
         for (int k = k0; k < k0 + k_len; k += 32) {                                                                 \
             short8 a[2][(TM) / 8];                                                                                  \
             int8 b[2][(TN) / 16];                                                                                   \
-            if ((TM) == 8) {                                                                                        \
-                DPAS_READ_A8(x, n_in * 2, tokens, k, t0, a);                                                        \
-            } else {                                                                                                \
-                __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i += 2)                           \
-                    DPAS_READ_A16(x, n_in * 2, tokens, k, t0 + 8 * i, a, i);                                        \
-            }                                                                                                       \
+            READ_A(x, n_in * 2, tokens, k, t0, a);                                                                  \
             __attribute__((opencl_unroll_hint)) for (int j = 0; j < (TN) / 16; j++) {                               \
                 int8 r[2];                                                                                          \
                 intel_sub_group_2d_block_read_transform_16b_32r16x1c((__global void *)wt, n_out * 2, n_in,          \
@@ -325,10 +324,10 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
 
 /* A group of 8 x 2 sub-groups of 16 tokens by 32 outputs; and for at most
  * 8 tokens, 1 x 4 sub-groups of 8 by 32. */
-LINEAR_DPAS(linear_dpas, 16, 32, 8, 2, float, DPAS_STORE_F32)
-LINEAR_DPAS(linear_dpas_to_half, 16, 32, 8, 2, half, DPAS_STORE_F16)
-LINEAR_DPAS(linear_dpas_few, 8, 32, 1, 4, float, DPAS_STORE_F32)
-LINEAR_DPAS(linear_dpas_few_to_half, 8, 32, 1, 4, half, DPAS_STORE_F16)
+LINEAR_DPAS(linear_dpas, 16, 32, 8, 2, DPAS_READ_A_16, float, DPAS_STORE_F32)
+LINEAR_DPAS(linear_dpas_to_half, 16, 32, 8, 2, DPAS_READ_A_16, half, DPAS_STORE_F16)
+LINEAR_DPAS(linear_dpas_few, 8, 32, 1, 4, DPAS_READ_A_8, float, DPAS_STORE_F32)
+LINEAR_DPAS(linear_dpas_few_to_half, 8, 32, 1, 4, DPAS_READ_A_8, half, DPAS_STORE_F16)
 
 /* The attention output and the feed-forward output at FASTEST, with the
  * LayerNorm after them: x = LayerNorm(x + (y + bias)) as add_layer_norm,
@@ -711,7 +710,7 @@ int8 pack_probabilities(float8 lo, float8 hi) {
             if (!sub_group_all(live0 && live1)) {                                                                  \
                 __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++)                                    \
                     __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                              \
-                    const bool live = sub_group_broadcast(h < 2 ? live0 : live1, (h & 1) * 8 + m);                 \
+                    const bool live = sub_group_broadcast((int)(h < 2 ? live0 : live1), (h & 1) * 8 + m) != 0;                 \
                     if (!live) s[h][m] = -INFINITY;                                                                \
                 }                                                                                                  \
             }                                                                                                      \
@@ -720,7 +719,7 @@ int8 pack_probabilities(float8 lo, float8 hi) {
             const float cmax = fmax(fmax(t4.x, t4.y), fmax(t4.z, t4.w));                                           \
             const float newm = fmax(mx, cmax);                                                                     \
             if (newm == -INFINITY) continue;                                                                       \
-            const float corr = native_exp2(mx - newm);                                                             \
+            const float corr = mx == -INFINITY ? 0.0f : native_exp2(mx - newm);                                    \
             float8 p[4];                                                                                           \
             __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++) p[h] = native_exp2(s[h] - newm);        \
             const float8 p8 = (p[0] + p[1]) + (p[2] + p[3]);                                                       \
@@ -915,10 +914,6 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void normalize(__glo
 
 __kernel void widen_f16(__global const half *src, ulong n, __global float *dst) {
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) dst[i] = vload_half(i, src);
-}
-
-__kernel void narrow_f16(__global const float *src, ulong n, __global half *dst) {
-    for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) dst[i] = convert_half(src[i]);
 }
 
 /* w [n_out, n_in] in F32 to wt [n_in, n_out] in F16, the layout the

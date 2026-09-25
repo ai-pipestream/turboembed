@@ -20,6 +20,10 @@ then says `0.1.0 levelzero cpu`. Its devices come before the CPU's.
   at Level Zero 1.9 or newer for in-order immediate lists), with the
   kernel's `xe` or `i915` driver bound to the GPU and
   the user able to open its render node (the `render` group).
+- A GPU with 2D block reads and writes (`cl_intel_subgroup_2d_block_io`:
+  Xe2, such as the B70, and Xe-HPC), which the kernels are built with;
+  on an older part, such as the Arc A-series, the module does not build
+  and no session runs.
 - A GPU whose driver computes in F64: the encoder sums LayerNorm and the
   L2 norm in F64. A device without it is listed, and its capability cell
   says UNSUPPORTED with that reason.
@@ -118,14 +122,15 @@ of any run.
   read's VNNI transform. A sub-group computes 16 tokens by 32 outputs, 32
   terms a step, and a group of 8 by 2 sub-groups shares its rows of both
   in cache; with 8 tokens or fewer, 8 tokens by 32 outputs, 4 sub-groups a
-  group. The LayerNorms write the hidden states in F16 too, for the
-  layers that read them; the Q, K and V projection and the feed-forward
-  input write F16. The attention output and the feed-forward output each
+  group. A layer's sums are never split, so each output is summed in one
+  order at every batch size. The LayerNorms write the hidden states in F16
+  too, for the layers that read them; the feed-forward input writes F16,
+  and so does the Q, K and V projection for the head widths whose
+  attention runs on the matrix engines. The attention output and the feed-forward output each
   take their residual and LayerNorm in their own epilogue: a group
   computes 16 tokens by the whole hidden width, a sub-group each 32
-  outputs, and the rows' sums meet in local memory. With 8 tokens or
-  fewer, and for a hidden width over 2048, they instead split their sums
-  and the LayerNorm kernel adds the parts. Attention for head widths 32
+  outputs, and the rows' sums meet in local memory. For a hidden width over
+  2048 the LayerNorm kernel follows them instead. Attention for head widths 32
   and 64 runs on the matrix engines: a group of 4 sub-groups takes 16
   queries, a lane each, the sub-groups walking the row's keys 32 at a time
   in turn (K and V by 2D block reads), and their running maxima, sums and
@@ -156,10 +161,10 @@ of any run.
   the linear layers' and attention's multiply-adds. Cosine against the
   fp32 reference must reach 0.9999. At FASTEST the linear layers take F16
   operands, the hidden states kept in F32 beside their F16 copy; the
-  projections and the feed-forward block's middle are F16; for head
-  widths 32 and 64 attention takes F16 operands, its softmax in base 2 on
-  the device's native exponential, and for other widths it runs as in
-  F32. Every sum and the softmax are F32, and so are the LayerNorms in
+  feed-forward block's middle and the attention context are F16; for
+  head widths 32 and 64 attention takes F16 operands, its softmax in base
+  2 on the device's native exponential, and for other widths it runs as
+  in F32 and rounds its context to F16. Every sum and the softmax are F32, and so are the LayerNorms in
   the projections' epilogues; cosine must reach 0.999.
 - **What a result reports.** Stages: tokenize on the host for text,
   upload fused into the lookup kernel, which reads the packed rows over

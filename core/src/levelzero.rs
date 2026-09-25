@@ -223,8 +223,6 @@ pub(crate) struct Device {
     max_local: u32,
     /// Nanoseconds per tick of the device's timestamps.
     timer_ns: u64,
-    /// Hardware threads: the sub-groups the device runs at once.
-    threads: u32,
     /// Whether the device computes in F64, which the encoder sums in.
     fp64: bool,
     arch: String,
@@ -314,7 +312,6 @@ impl Driver {
                     memory_total: mem.iter().map(|m| m.total_size).sum(),
                     max_local: compute.max_shared_local_memory,
                     timer_ns: p.timer_resolution,
-                    threads: p.num_slices * p.num_subslices_per_slice * p.num_eus_per_subslice * p.num_threads_per_eu,
                     fp64: module.flags & ze::DEVICE_MODULE_FLAG_FP64 != 0,
                     arch: arch(p.vendor_id, p.device_id),
                     name: ze::string(&p.name),
