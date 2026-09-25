@@ -31,6 +31,7 @@ pub mod safetensors;
 mod session;
 pub mod status;
 pub mod tokenizer;
+pub mod tuning;
 
 pub use session::*;
 
@@ -72,6 +73,18 @@ pub const TURBO_HANDLE_DMABUF_FD: u32 = 6;
 pub const TURBO_PRECISION_MODEL: u32 = 0;
 pub const TURBO_PRECISION_FASTEST: u32 = 1;
 pub const TURBO_PRECISION_EXACT: u32 = 2;
+
+pub const TURBO_AUTOTUNE_RUNTIME: u32 = 0;
+pub const TURBO_AUTOTUNE_OFF: u32 = 1;
+pub const TURBO_AUTOTUNE_ON: u32 = 2;
+pub const TURBO_AUTOTUNE_RETUNE: u32 = 3;
+
+pub const TURBO_TUNED_DEFAULT: u32 = 0;
+pub const TURBO_TUNED_FORCED: u32 = 1;
+pub const TURBO_TUNED_MEASURED: u32 = 2;
+pub const TURBO_TUNED_CACHE: u32 = 3;
+
+pub const TURBO_CHOICES_LEN: usize = 1024;
 
 pub const TURBO_TRUNCATE_MODEL: u32 = 0;
 pub const TURBO_TRUNCATE_NONE: u32 = 1;

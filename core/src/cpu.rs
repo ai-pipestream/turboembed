@@ -50,6 +50,7 @@ pub static BACKEND: turbo_backend = turbo_backend {
     buffer_read: None,
     formats: format_bit(TURBO_FORMAT_SAFETENSORS),
     reserved2: 0,
+    session_create_tuned: None,
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {

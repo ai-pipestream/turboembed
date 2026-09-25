@@ -175,6 +175,8 @@ impl State {
                 max_batch: c.max_batch,
                 max_seq: c.max_seq,
                 precision: c.precision,
+                tuning: 0,
+                tuning_budget_ms: 0,
             };
             let mut slots = Vec::new();
             for _ in 0..c.sessions {

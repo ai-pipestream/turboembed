@@ -66,6 +66,46 @@ fn a_session_larger_than_the_model_is_refused_by_field() {
     assert_eq!(Session::create(l.m, Some(&d)).err().unwrap().code, INVALID_STRUCT_SIZE);
 }
 
+/// A backend with one path reports no kernel choices, whatever the
+/// tuning asked; the structs' sizes from before tuning are still taken,
+/// the fields past them read as 0 and never written; and a tuning mode
+/// that is not one is refused.
+#[test]
+fn a_session_of_one_path_reports_no_choices_and_old_sizes_are_known() {
+    let l = tiny();
+    for tuning in [TURBO_AUTOTUNE_RUNTIME, TURBO_AUTOTUNE_OFF, TURBO_AUTOTUNE_ON, TURBO_AUTOTUNE_RETUNE] {
+        if tuning == TURBO_AUTOTUNE_RUNTIME && std::env::var_os("TURBO_AUTOTUNE").is_some() {
+            continue;
+        }
+        let mut d = session_desc(8, 16, TURBO_PRECISION_EXACT);
+        d.tuning = tuning;
+        d.tuning_budget_ms = 20;
+        let info = Session::create(l.m, Some(&d)).unwrap().info();
+        assert_eq!((info.tuned, info.tune_ms, info.choices[0]), (TURBO_TUNED_DEFAULT, 0, 0), "tuning {tuning}");
+    }
+    let mut d = session_desc(8, 16, 0);
+    d.tuning = 4;
+    let e = Session::create(l.m, Some(&d)).err().unwrap();
+    assert_eq!(e.code, INVALID_ENUM, "{e:?}");
+
+    // turbo_session_desc of 16 bytes: tuning is RUNTIME.
+    let d = session_desc(8, 16, 0);
+    let old: [u32; 4] = [TURBO_SESSION_DESC_SIZE_V1 as u32, d.max_batch, d.max_seq, d.precision];
+    assert_eq!(TURBO_SESSION_DESC_SIZE_V1, 16);
+    let mut out = ptr::null_mut();
+    let rc = unsafe { turbo_session_create(l.m, old.as_ptr().cast(), &mut out, null_err()) };
+    assert_eq!(rc, 0);
+    let s = Session(out);
+    // turbo_session_info of 24 bytes: nothing past them is written.
+    assert_eq!(TURBO_SESSION_INFO_SIZE_V1, 24);
+    let mut buf = [0xa5u8; 64];
+    buf[..4].copy_from_slice(&(TURBO_SESSION_INFO_SIZE_V1 as u32).to_ne_bytes());
+    assert_eq!(unsafe { turbo_session_get_info(s.0, buf.as_mut_ptr().cast(), null_err()) }, 0);
+    assert_eq!(u32::from_ne_bytes(buf[4..8].try_into().unwrap()), 8);
+    assert_eq!(u32::from_ne_bytes(buf[8..12].try_into().unwrap()), 16);
+    assert!(buf[24..].iter().all(|&b| b == 0xa5), "past struct_size is the caller's");
+}
+
 #[test]
 fn session_calls_refuse_null_and_wrong_handles() {
     let l = tiny();
