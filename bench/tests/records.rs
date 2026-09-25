@@ -24,6 +24,7 @@ fn cpu_cell(f: impl FnOnce(&Cell)) {
         precision: TURBO_PRECISION_MODEL,
         dtype: TURBO_DTYPE_F32,
         version: record::library_version(),
+        os: std::env::consts::OS,
     };
     f(&cell)
 }
@@ -124,7 +125,7 @@ fn a_written_record_parses_back_the_same_and_is_never_replaced() {
 
 #[test]
 fn a_record_that_is_not_well_formed_is_refused() {
-    let r = cpu_record("refused", vec![measured_reference("a")]);
+    let r = cpu_record("refused", vec![measured_reference(TEI)]);
     reparse(&r).unwrap();
     let name = record::file_name(&r).unwrap();
     let bytes = serde_json::to_vec(&r).unwrap();
@@ -158,6 +159,12 @@ fn a_record_that_is_not_well_formed_is_refused() {
     refused(&|x| x.compute_dtype = "DTYPE_F64".into(), "not a DTYPE_* value");
     refused(&|x| x.precision = "PRECISION_BEST".into(), "not a PRECISION_* value");
     refused(&|x| x.record_version = 2, "record_version 2");
+    refused(&|x| x.conformance.max_abs_diff = -1e-9, "max_abs_diff finite and not negative");
+    refused(&|x| x.conformance.min_cosine = -1.5, "min_cosine in [-1, 1]");
+    refused(&|x| x.references[0].measured.as_mut().unwrap().min_cosine = Some(-2.0), "is not in [-1, 1]");
+    refused(&|x| x.references[0].name = "a-faster-program".into(), "is not one of");
+    refused(&|x| x.references[0].role = "kernel".into(), "is not one of");
+    refused(&|x| x.references[0].pinned = format!("--privileged@sha256:{}", "0".repeat(64)), "is not name@sha256");
 }
 
 #[test]
@@ -168,7 +175,7 @@ fn a_record_with_no_reference_measured_does_not_back_supported() {
         let v = verdict(&[&r], cell);
         assert_eq!(v, Verdict::Not(format!("{}: no reference program measured", record::file_name(&r).unwrap())));
     });
-    let mut disabled = measured_reference("tensorrt");
+    let mut disabled = measured_reference(TRT);
     disabled.measured = None;
     disabled.not_run = Some("the bundle carries no FORMAT_ONNX artifact".into());
     let r = cpu_record("not-run", vec![disabled]);
@@ -179,7 +186,7 @@ fn a_record_with_no_reference_measured_does_not_back_supported() {
 
 #[test]
 fn a_conforming_record_with_a_reference_backs_supported_with_its_numbers() {
-    let r = cpu_record("supported", vec![measured_reference("a")]);
+    let r = cpu_record("supported", vec![measured_reference(TEI)]);
     let m = cpu_measurement();
     cpu_cell(|cell| {
         let v = verdict(&[&r], cell);
@@ -187,22 +194,22 @@ fn a_conforming_record_with_a_reference_backs_supported_with_its_numbers() {
         assert_eq!(benchmark, record::file_name(&r).unwrap());
         assert_eq!(cosine_floor, m.conformance.min_cosine);
         assert_eq!(speed_ratio, 0.5, "our p50 over a reference at twice it");
-        assert_eq!(r.speed_reference.as_deref(), Some("a"));
+        assert_eq!(r.speed_reference.as_deref(), Some(TEI));
     });
 }
 
 #[test]
 fn the_fastest_measured_reference_sets_the_speed_ratio() {
-    let mut slow = measured_reference("slow");
+    let mut slow = measured_reference(TRT);
     slow.measured.as_mut().unwrap().p50_ms *= 4.0;
     slow.measured.as_mut().unwrap().p99_ms *= 4.0;
-    let r = cpu_record("fastest", vec![slow, measured_reference("fast")]);
-    assert_eq!((r.speed_ratio, r.speed_reference.as_deref()), (Some(0.5), Some("fast")));
+    let r = cpu_record("fastest", vec![slow, measured_reference(TEI)]);
+    assert_eq!((r.speed_ratio, r.speed_reference.as_deref()), (Some(0.5), Some(TEI)));
 }
 
 #[test]
 fn a_record_backs_only_its_own_cell() {
-    let r = cpu_record("own-cell", vec![measured_reference("a")]);
+    let r = cpu_record("own-cell", vec![measured_reference(TEI)]);
     cpu_cell(|cell| {
         let other_cpu = Cell { name: "another processor", ..*cell };
         assert_eq!(verdict(&[&r], &other_cpu), Verdict::Not(NO_RECORD.into()), "a CPU is keyed on its name");
@@ -210,6 +217,8 @@ fn a_record_backs_only_its_own_cell() {
         assert_eq!(verdict(&[&r], &other_arch), Verdict::Not(NO_RECORD.into()));
         let other_backend = Cell { backend: "cuda", ..*cell };
         assert_eq!(verdict(&[&r], &other_backend), Verdict::Not(NO_RECORD.into()));
+        let other_os = Cell { os: "macos", ..*cell };
+        assert_eq!(verdict(&[&r], &other_os), Verdict::Not(NO_RECORD.into()), "a machine is keyed on its OS too");
         let other_precision = Cell { precision: TURBO_PRECISION_EXACT, ..*cell };
         assert_eq!(verdict(&[&r], &other_precision), Verdict::Not(NO_RECORD.into()));
         let v = verdict(&[&r], &Cell { version: "0.2.0", ..*cell });
@@ -227,7 +236,7 @@ fn a_record_backs_only_its_own_cell() {
 
 #[test]
 fn f32_must_reach_the_cosine_and_the_absolute_difference() {
-    let base = cpu_record("f32-floor", vec![measured_reference("a")]);
+    let base = cpu_record("f32-floor", vec![measured_reference(TEI)]);
     cpu_cell(|cell| {
         let mut r = base.clone();
         r.conformance.min_cosine = 0.99989;
@@ -246,7 +255,7 @@ fn f32_must_reach_the_cosine_and_the_absolute_difference() {
 
 #[test]
 fn f16_and_bf16_need_only_the_cosine_and_int8_is_never_supported() {
-    let base = cpu_record("half", vec![measured_reference("a")]);
+    let base = cpu_record("half", vec![measured_reference(TEI)]);
     cpu_cell(|cell| {
         let half = Cell { dtype: TURBO_DTYPE_F16, ..*cell };
         let mut r = base.clone();
@@ -271,8 +280,8 @@ fn f16_and_bf16_need_only_the_cosine_and_int8_is_never_supported() {
 
 #[test]
 fn the_newest_record_that_backs_the_cell_is_the_one_named() {
-    let older = cpu_record("older", vec![measured_reference("a")]);
-    let mut newer = cpu_record("newer", vec![measured_reference("a")]);
+    let older = cpu_record("older", vec![measured_reference(TEI)]);
+    let mut newer = cpu_record("newer", vec![measured_reference(TEI)]);
     newer.recorded_at = "2026-06-01T00:00:00Z".into();
     let mut newest_failing = cpu_record("newest", vec![]);
     newest_failing.recorded_at = "2026-07-01T00:00:00Z".into();

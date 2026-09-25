@@ -55,6 +55,27 @@ fn an_untracked_file_is_refused_unless_it_is_a_record_or_ignored() {
 }
 
 #[test]
+fn a_committed_record_changed_or_deleted_is_a_change() {
+    let root = scratch("tracked-record");
+    let work = pushed_repo(&root);
+    std::fs::create_dir_all(work.join("benchmarks/records")).unwrap();
+    std::fs::write(work.join("benchmarks/records/a.json"), "{}").unwrap();
+    git(&work, &["add", "benchmarks"]);
+    git(&work, &["commit", "--quiet", "-m", "a record"]);
+    git(&work, &["push", "--quiet", "origin", "main"]);
+    provenance(&work).unwrap();
+    std::fs::write(work.join("benchmarks/records/a.json"), "{\"edited\": true}").unwrap();
+    let e = provenance(&work).unwrap_err();
+    assert!(e.contains("not clean (1 path:  M benchmarks/records/a.json)"), "{e}");
+    std::fs::remove_file(work.join("benchmarks/records/a.json")).unwrap();
+    let e = provenance(&work).unwrap_err();
+    assert!(e.contains("not clean (1 path:  D benchmarks/records/a.json)"), "{e}");
+    git(&work, &["add", "-A"]);
+    let e = provenance(&work).unwrap_err();
+    assert!(e.contains("not clean (1 path: D  benchmarks/records/a.json)"), "{e}");
+}
+
+#[test]
 fn a_commit_on_no_branch_of_origin_is_refused() {
     let root = scratch("unpushed");
     let work = pushed_repo(&root);

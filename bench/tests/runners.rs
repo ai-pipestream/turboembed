@@ -31,6 +31,11 @@ fn images_are_pinned_by_digest_only() {
         format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{}", &DIGEST[1..]),
         format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{}", DIGEST.to_uppercase()),
         format!("text-embeddings-inference:1.8@sha512:{DIGEST}"),
+        format!("-v/etc:/x@sha256:{DIGEST}"),
+        format!("--privileged@sha256:{DIGEST}"),
+        format!("GHCR.io/tei@sha256:{DIGEST}"),
+        format!("ghcr.io/tei name@sha256:{DIGEST}"),
+        format!("@sha256:{DIGEST}"),
     ] {
         let e = docker::check_pinned("--tei-image", &bad).unwrap_err();
         assert!(e.contains("is not pinned as name@sha256:<64 hex>"), "{e}");
@@ -81,14 +86,13 @@ fn tei_is_started_with_every_setting_on_its_command_line() {
         "32",
         "--max-batch-tokens",
         "16384",
-        "--auto-truncate",
-        "false",
     ]);
     assert_eq!(a, want);
+    assert!(!a.iter().any(|s| s.contains("truncate")), "the request says truncate: false; the flag is not portable");
     // The CPU image: no GPU; a batch past TEI's default token budget raises it.
     let a = tei::run_argv(&image, Path::new("/m"), "c", None, "float32", "cls", 512, 64);
     assert!(!a.iter().any(|s| s == "--gpus"));
-    assert_eq!(a[a.len() - 3], "32768");
+    assert_eq!(a[a.len() - 1], "32768");
 }
 
 #[test]
@@ -242,6 +246,18 @@ fn trtexec_inputs_are_the_rows_in_the_exports_element_type() {
     assert_eq!(tensorrt::input_bytes(&[1], "int64").unwrap(), [1, 0, 0, 0, 0, 0, 0, 0]);
     assert_eq!(tensorrt::input_bytes(&[-1], "int64").unwrap(), [0xff; 8]);
     assert!(tensorrt::input_bytes(&[1], "fp32").is_err());
+}
+
+#[test]
+fn trtexec_input_names_are_plain_names() {
+    let names = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+    tensorrt::check_inputs(&names(&["input_ids", "attention_mask", "token_type_ids"])).unwrap();
+    tensorrt::check_inputs(&names(&["onnx::Input.0"])).unwrap_err();
+    tensorrt::check_inputs(&names(&["input.1", "Mask_2"])).unwrap();
+    for bad in [".", "..", "", "../x", "a/b", "a,b", "a:b", "a b", "-x"] {
+        let e = tensorrt::check_inputs(&names(&[bad])).unwrap_err();
+        assert!(e.contains("is not an input name of [A-Za-z0-9_.]+"), "{bad:?}: {e}");
+    }
 }
 
 /// trtexec's output in the form TensorRT's samples print it: the version

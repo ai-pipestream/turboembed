@@ -113,6 +113,14 @@ fn records() {
         let name = p.file_name().unwrap().to_str().unwrap_or_else(|| fail(&format!("{}: not UTF-8", p.display())));
         let path = p.canonicalize().unwrap_or_else(|e| fail(&format!("{}: {e}", p.display())));
         let path = path.to_str().unwrap_or_else(|| fail(&format!("{}: not UTF-8", p.display())));
+        // A record that is not even JSON fails the build here, by name; the
+        // core's parser judges the rest when a capability is asked for.
+        let bytes = std::fs::read(&p).unwrap_or_else(|e| fail(&format!("benchmarks/records/{name}: {e}")));
+        let text =
+            std::str::from_utf8(&bytes).unwrap_or_else(|e| fail(&format!("benchmarks/records/{name}: not UTF-8: {e}")));
+        if let Err(e) = serde_json::from_str::<serde_json::Value>(text) {
+            fail(&format!("benchmarks/records/{name}: not JSON: {e}"));
+        }
         code.push_str(&format!("    ({name:?}, include_str!({path:?})),\n"));
     }
     code.push_str("];\n");

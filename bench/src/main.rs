@@ -17,7 +17,8 @@ const USAGE: &str = "\
 usage:
   turbo-bench record --bundle <dir> [options]
       measure the library on one device, run the reference programs on
-      the same token rows, and write the record
+      the same token rows, and write the record; a bundle under
+      testdata/ is refused
   turbo-bench check <record.json>...
       parse records and say whether each backs SUPPORTED for its cell
 
@@ -30,7 +31,9 @@ record options:
   --warmup <n>                 untimed runs first (default 20)
   --iterations <n>             timed runs (default 200)
   --repo <dir>                 the git working tree the library was built
-                               from (default: the one this tool was built in)
+                               from: clean, pushed, and at the commit this
+                               tool was built from (default: the one this
+                               tool was built in)
   --out <dir>                  where the record goes (default
                                <repo>/benchmarks/records)
   --work <dir>                 scratch for reference inputs (default: the
@@ -141,6 +144,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let inputs: Vec<String> = inputs.split(',').map(str::to_owned).collect();
     let inputs: [String; 3] =
         inputs.try_into().map_err(|_| "--tensorrt-inputs names three inputs: ids, mask, types".to_owned())?;
+    tensorrt::check_inputs(&inputs)?;
     let trt = o.take("--tensorrt-image").map(|image| TensorRt {
         image,
         trtexec: String::new(),
@@ -171,9 +175,16 @@ fn record_cmd(args: &[String]) -> Result<()> {
     if let Some(t) = &trt {
         turbo_bench::docker::check_pinned("--tensorrt-image", &t.image)?;
     }
+    let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    turbo_bench::check_not_testdata(&plan.bundle, &[workspace.join("testdata"), repo.join("testdata")])?;
+    let rt = turbo_bench::api::Runtime::create()?;
+    let backend = turbo_bench::api::field(&rt.device_info(rt.find(&plan.device)?)?.backend);
+    drop(rt);
+    wanted(&backend, tei.is_some(), no_tei, trt.is_some(), no_trt)?;
 
     // Refused before anything is measured, and checked again after.
     let before = git::provenance(&repo)?;
+    turbo_bench::check_build(&before.commit, turbo_bench::BUILD_COMMIT, turbo_bench::BUILD_CHANGES)?;
     let m = measure::measure(&plan)?;
     eprintln!(
         "{} {}: p50 {:.4} ms, p99 {:.4} ms over {} runs of [{}, {}]; min cosine {}, max abs diff {:e}",
@@ -213,9 +224,39 @@ fn disabled(name: &str, role: &str, flag: &str) -> ReferenceRun {
     }
 }
 
-/// Every reference program for the device's backend: TEI and TensorRT
-/// for cuda, TEI's CPU image for the CPU, none for another backend. Each
-/// is named or disabled on the command line; neither is an error.
+/// The reference programs for a backend, TEI and TensorRT: TEI's GPU
+/// image and TensorRT for cuda, TEI's CPU image for the CPU, none for
+/// another backend.
+fn applies(backend: &str) -> (bool, bool) {
+    match backend {
+        "cuda" => (true, true),
+        "cpu" => (true, false),
+        _ => (false, false),
+    }
+}
+
+/// Each reference program for the backend is named or disabled on the
+/// command line, and none that is not for it is either.
+fn wanted(backend: &str, tei: bool, no_tei: bool, trt: bool, no_trt: bool) -> Result<()> {
+    let (wants_tei, wants_trt) = applies(backend);
+    match (wants_tei, tei || no_tei) {
+        (true, false) => {
+            return Err(format!("{backend}: TEI is a reference here: give --tei-image and --tei-model, or --no-tei"));
+        }
+        (false, true) => return Err(format!("{backend}: TEI is not a reference for this backend")),
+        _ => {}
+    }
+    match (wants_trt, trt || no_trt) {
+        (true, false) => {
+            Err(format!("{backend}: TensorRT is a reference here: give --tensorrt-image, or --no-tensorrt"))
+        }
+        (false, true) => Err(format!("{backend}: TensorRT is not a reference for this backend")),
+        _ => Ok(()),
+    }
+}
+
+/// Every reference program for the device's backend, run or recorded as
+/// disabled; `wanted` has checked the command line against the backend.
 fn references(
     m: &Measurement,
     plan: &Plan,
@@ -225,11 +266,8 @@ fn references(
     no_trt: bool,
 ) -> Result<Vec<ReferenceRun>> {
     let backend = m.backend();
-    let (wants_tei, wants_trt) = match backend.as_str() {
-        "cuda" => (true, true),
-        "cpu" => (true, false),
-        _ => (false, false),
-    };
+    wanted(&backend, tei.is_some(), no_tei, trt.is_some(), no_trt)?;
+    let (wants_tei, wants_trt) = applies(&backend);
     let gpu = (backend == "cuda").then_some(m.device.ordinal);
     // docker numbers GPUs in the driver's (PCI bus) order, CUDA fastest
     // first unless told otherwise: with more than one, they must agree.
@@ -248,27 +286,17 @@ fn references(
         }
     }
     let mut out = Vec::new();
-    match (wants_tei, tei, no_tei) {
-        (true, Some(t), _) => out.push(tei::run(&t, m, gpu, plan.warmup, plan.iterations)?),
-        (true, None, true) => out.push(disabled(tei::NAME, "end_to_end", "--no-tei")),
-        (true, None, false) => {
-            return Err(format!("{backend}: TEI is a reference here: give --tei-image and --tei-model, or --no-tei"));
-        }
-        (false, Some(_), _) | (false, None, true) => {
-            return Err(format!("{backend}: TEI is not a reference for this backend"));
-        }
-        (false, None, false) => {}
+    if wants_tei {
+        out.push(match tei {
+            Some(t) => tei::run(&t, m, gpu, plan.warmup, plan.iterations)?,
+            None => disabled(tei::NAME, "end_to_end", "--no-tei"),
+        });
     }
-    match (wants_trt, trt, no_trt) {
-        (true, Some(t), _) => out.push(tensorrt::run(&t, m, m.device.ordinal, plan.iterations)?),
-        (true, None, true) => out.push(disabled(tensorrt::NAME, "kernel", "--no-tensorrt")),
-        (true, None, false) => {
-            return Err(format!("{backend}: TensorRT is a reference here: give --tensorrt-image, or --no-tensorrt"));
-        }
-        (false, Some(_), _) | (false, None, true) => {
-            return Err(format!("{backend}: TensorRT is not a reference for this backend"));
-        }
-        (false, None, false) => {}
+    if wants_trt {
+        out.push(match trt {
+            Some(t) => tensorrt::run(&t, m, m.device.ordinal, plan.iterations)?,
+            None => disabled(tensorrt::NAME, "kernel", "--no-tensorrt"),
+        });
     }
     Ok(out)
 }
@@ -294,6 +322,7 @@ fn check(path: &Path) -> Result<()> {
             .find(|&d| record::dtype_name(d) == Some(r.compute_dtype.as_str()))
             .unwrap_or(0),
         version: record::library_version(),
+        os: &r.machine.os,
     };
     match r.falls_short(&cell) {
         None => println!("{name}: backs SUPPORTED, speed_ratio {:?}", r.speed_ratio),

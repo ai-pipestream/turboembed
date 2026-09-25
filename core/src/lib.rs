@@ -324,6 +324,7 @@ impl Runtime {
                     precision,
                     dtype: cap.dtype,
                     version: record::library_version(),
+                    os: std::env::consts::OS,
                 };
                 match record::decide_embedded(&cell) {
                     record::Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {

@@ -39,12 +39,19 @@ pub fn git(dir: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim_end().to_owned())
 }
 
+/// A `git status --porcelain=v1` line for an untracked file under
+/// benchmarks/records/: a record made and not yet committed. A tracked
+/// record changed or deleted is a change like any other.
+pub fn is_new_record(line: &str) -> bool {
+    line.strip_prefix("?? ").is_some_and(|p| p.starts_with(RECORDS_DIR))
+}
+
 /// The commit checked out in `dir`'s working tree, when the tree is
 /// clean and the commit is on a branch of origin. Refused:
 ///
 /// - a tree with any change, staged or not, or any untracked file that
-///   is not ignored, outside benchmarks/records/ (`git status
-///   --porcelain --untracked-files=all`);
+///   is not ignored, except new files under benchmarks/records/ (`git
+///   status --porcelain --untracked-files=all`);
 /// - no remote named origin (`git remote get-url origin`);
 /// - a commit no remote-tracking branch of origin contains (`git
 ///   for-each-ref --contains HEAD refs/remotes/origin/`). Those refs are
@@ -54,7 +61,7 @@ pub fn provenance(dir: &Path) -> Result<Provenance> {
         .map_err(|e| format!("{}: not a git working tree: {e}", dir.display()))?;
     let top_path = Path::new(&top);
     let status = git(top_path, &["status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none"])?;
-    let changed: Vec<&str> = status.lines().filter(|l| !l.get(3..).unwrap_or("").starts_with(RECORDS_DIR)).collect();
+    let changed: Vec<&str> = status.lines().filter(|l| !is_new_record(l)).collect();
     if !changed.is_empty() {
         let shown: Vec<&str> = changed.iter().take(5).copied().collect();
         return Err(format!(

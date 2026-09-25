@@ -24,6 +24,55 @@ use measure::Measurement;
 
 pub type Result<T> = std::result::Result<T, String>;
 
+/// The commit this tool and the library in it were built from (bench/build.rs);
+/// empty when the build was not in a git tree.
+pub const BUILD_COMMIT: &str = env!("TURBO_BENCH_BUILD_COMMIT");
+
+/// The working tree's changes when this was built, as `git status
+/// --porcelain` gives them; empty when it was clean.
+pub const BUILD_CHANGES: &str = env!("TURBO_BENCH_BUILD_CHANGES");
+
+/// A record may name `commit` only when this build is that commit, with
+/// no changes: otherwise the library measured is not the one it names.
+pub fn check_build(commit: &str, built_from: &str, changes: &str) -> Result<()> {
+    if built_from.is_empty() {
+        return Err("this tool was not built in a git working tree, so no commit names the library in it".into());
+    }
+    if built_from != commit {
+        return Err(format!(
+            "this tool and its library were built from {built_from}, and --repo is at {commit}: build and run it \
+             from that tree (cargo run --release -p turbo-bench)"
+        ));
+    }
+    if !changes.is_empty() {
+        return Err(format!(
+            "this tool was built from {built_from} with changes in the working tree ({changes}): the library \
+             measured is not that commit; rebuild from the clean tree"
+        ));
+    }
+    Ok(())
+}
+
+/// A bundle under the repository's testdata/ is a test fixture, not a
+/// model anyone deploys: no record is made of it. `bundle` and each
+/// `testdata` are compared as canonical paths, and so is the manifest,
+/// so a link into testdata is refused too.
+pub fn check_not_testdata(bundle: &Path, testdata: &[PathBuf]) -> Result<()> {
+    let dir = fs::canonicalize(bundle).map_err(|e| format!("--bundle {}: {e}", bundle.display()))?;
+    let manifest = fs::canonicalize(bundle.join("manifest.json")).unwrap_or_else(|_| dir.clone());
+    for t in testdata {
+        let Ok(t) = fs::canonicalize(t) else { continue };
+        if dir.starts_with(&t) || manifest.starts_with(&t) {
+            return Err(format!(
+                "--bundle {}: a test fixture under {}; a record is of a bundle made for use (bundle/README.md)",
+                bundle.display(),
+                t.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// A time as `YYYY-MM-DDTHH:MM:SSZ`, UTC.
 pub fn utc(t: SystemTime) -> String {
     let secs = t.duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
@@ -120,4 +169,24 @@ pub fn write(r: &Record, dir: &Path) -> Result<PathBuf> {
         .map_err(|e| format!("{}: {e}; a record is never replaced", path.display()))?;
     std::io::Write::write_all(&mut f, &bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{Duration, UNIX_EPOCH};
+
+    use super::utc;
+
+    #[test]
+    fn utc_gives_the_civil_time_of_known_epochs() {
+        for (secs, want) in [
+            (0, "1970-01-01T00:00:00Z"),
+            (951_782_399, "2000-02-28T23:59:59Z"),
+            (951_782_400, "2000-02-29T00:00:00Z"),
+            (1_790_294_723, "2026-09-25T00:05:23Z"),
+            (4_107_542_400, "2100-03-01T00:00:00Z"),
+        ] {
+            assert_eq!(utc(UNIX_EPOCH + Duration::from_secs(secs)), want, "{secs}");
+        }
+    }
 }

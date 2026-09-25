@@ -50,6 +50,20 @@ pub fn precision_flags(compute_dtype: u32) -> std::result::Result<Vec<String>, S
     }
 }
 
+/// The ONNX input names, each of `[A-Za-z0-9_.]+` and neither `.` nor
+/// `..`: each becomes a file name under the work directory and a part of
+/// trtexec's `--shapes` and `--loadInputs`, so it can hold no path
+/// separator and none of the characters those lists are split on.
+pub fn check_inputs(inputs: &[String]) -> Result<()> {
+    for n in inputs {
+        let plain = !n.is_empty() && n.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.');
+        if !plain || n == "." || n == ".." {
+            return Err(format!("--tensorrt-inputs: {n:?} is not an input name of [A-Za-z0-9_.]+"));
+        }
+    }
+    Ok(())
+}
+
 /// The rows as the raw little-endian files --loadInputs reads, in `dtype`.
 pub fn input_bytes(values: &[i32], dtype: &str) -> Result<Vec<u8>> {
     match dtype {
@@ -209,6 +223,7 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
     let mut log = log;
     docker::require_image(&mut log, image)?;
 
+    check_inputs(&t.inputs)?;
     let work = t.work.join(format!("turbo-bench-trtexec-{}", std::process::id()));
     fs::create_dir_all(&work).map_err(|e| format!("{}: {e}", work.display()))?;
     let result = (|| {

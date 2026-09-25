@@ -66,6 +66,11 @@ pub fn pooling(p: Pooling) -> &'static str {
 /// The `docker run` that starts the server: detached, removed on stop,
 /// the model mounted read-only, no pulls, its port published on the
 /// loopback only.
+///
+/// It gives no `--auto-truncate`: through 1.8 that is a bare flag (a
+/// value after it is a stray argument and the router exits), and from
+/// 1.9 it takes a value. Either way it is only the default for a request
+/// that says nothing, and every /embed request here says `truncate: false`.
 #[allow(clippy::too_many_arguments)]
 pub fn run_argv(
     image: &str,
@@ -101,8 +106,6 @@ pub fn run_argv(
         &batch.to_string(),
         "--max-batch-tokens",
         &(batch as u64 * seq as u64).max(DEFAULT_BATCH_TOKENS).to_string(),
-        "--auto-truncate",
-        "false",
     ]));
     a
 }

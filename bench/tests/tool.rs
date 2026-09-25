@@ -1,6 +1,8 @@
-//! The tool end to end: turbo-bench run as a program on the CPU backend
-//! with the small bundle, reference programs disabled, writing its record
-//! to a temporary directory.
+//! The tool as a program: its refusals, on git trees made for the test,
+//! and, when this checkout is a clean commit on a branch of origin (the
+//! only tree the tool will name), a record made end to end on the CPU
+//! backend with the small bundle, TEI disabled, into a temporary
+//! directory.
 
 mod common;
 
@@ -39,12 +41,26 @@ fn record_args<'a>(repo: &'a str, out: &'a str, bundle: &'a str) -> Vec<&'a str>
     ]
 }
 
+/// Why this checkout cannot be recorded from, or None when it can: the
+/// tool names only the commit it was built from, clean and pushed.
+fn unrecordable() -> Option<String> {
+    let p = match turbo_bench::git::provenance(&workspace()) {
+        Ok(p) => p,
+        Err(e) => return Some(e),
+    };
+    turbo_bench::check_build(&p.commit, turbo_bench::BUILD_COMMIT, turbo_bench::BUILD_CHANGES).err()
+}
+
 #[test]
 fn a_cpu_record_is_measured_and_without_a_reference_backs_nothing() {
+    if let Some(why) = unrecordable() {
+        println!("skipped: this checkout cannot be recorded from: {why}");
+        return;
+    }
     let root = scratch("tool-cpu");
-    let repo = pushed_repo(&root);
+    let repo = workspace().canonicalize().unwrap();
     let out = root.join("records");
-    let bundle = tiny_bundle();
+    let bundle = bundle_copy(&root.join("bundle"));
     let o = tool(&record_args(repo.to_str().unwrap(), out.to_str().unwrap(), bundle.to_str().unwrap()));
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     let path = String::from_utf8(o.stdout).unwrap().trim().to_owned();
@@ -60,7 +76,9 @@ fn a_cpu_record_is_measured_and_without_a_reference_backs_nothing() {
     assert_eq!(r.machine.arch, field(&cpu.arch));
     assert_eq!(r.device.memory_total, cpu.memory_total);
     assert_eq!(r.library.commit, git(&repo, &["rev-parse", "HEAD"]));
-    assert_eq!(r.library.pushed_to, vec!["origin/main".to_owned()]);
+    assert_eq!(r.library.commit, turbo_bench::BUILD_COMMIT);
+    assert_eq!(r.library.pushed_to, turbo_bench::git::provenance(&repo).unwrap().pushed_to);
+    assert_eq!(r.machine.os, std::env::consts::OS);
     assert_eq!(r.library.build, turbo_bench::api::version());
     let manifest = std::fs::read(bundle.join("manifest.json")).unwrap();
     assert_eq!(r.bundle.manifest_sha256, sha256_hex(&manifest));
@@ -90,6 +108,7 @@ fn a_cpu_record_is_measured_and_without_a_reference_backs_nothing() {
         precision: TURBO_PRECISION_MODEL,
         dtype: TURBO_DTYPE_F32,
         version: record::library_version(),
+        os: std::env::consts::OS,
     };
     assert_eq!(record::decide([(name, &r)], &cell), Verdict::Not(format!("{name}: no reference program measured")));
     let o = tool(&["check", path.to_str().unwrap()]);
@@ -106,12 +125,63 @@ fn a_cpu_record_is_measured_and_without_a_reference_backs_nothing() {
 }
 
 #[test]
+fn the_tool_refuses_a_tree_it_was_not_built_from() {
+    let root = scratch("tool-other-tree");
+    let repo = pushed_repo(&root);
+    let out = root.join("records");
+    let bundle = bundle_copy(&root.join("bundle"));
+    let o = tool(&record_args(repo.to_str().unwrap(), out.to_str().unwrap(), bundle.to_str().unwrap()));
+    assert!(!o.status.success());
+    let e = String::from_utf8_lossy(&o.stderr);
+    let head = git(&repo, &["rev-parse", "HEAD"]);
+    assert!(
+        e.contains(&format!(
+            "this tool and its library were built from {}, and --repo is at {head}",
+            turbo_bench::BUILD_COMMIT
+        )),
+        "{e}"
+    );
+    assert!(!out.exists(), "nothing is measured or written");
+}
+
+#[test]
+fn the_build_is_named_only_when_it_is_the_commit_and_clean() {
+    let c = "0123456789abcdef0123456789abcdef01234567";
+    turbo_bench::check_build(c, c, "").unwrap();
+    let other = "f".repeat(40);
+    assert!(turbo_bench::check_build(c, &other, "").unwrap_err().contains("were built from ffff"));
+    let e = turbo_bench::check_build(c, c, " M core/src/lib.rs").unwrap_err();
+    assert!(e.contains("with changes in the working tree ( M core/src/lib.rs)"), "{e}");
+    assert!(turbo_bench::check_build(c, "", "").unwrap_err().contains("not built in a git working tree"));
+}
+
+#[test]
+fn the_tool_refuses_a_bundle_from_testdata() {
+    let root = scratch("tool-testdata");
+    let repo = pushed_repo(&root);
+    let out = root.join("records");
+    let o = tool(&record_args(repo.to_str().unwrap(), out.to_str().unwrap(), tiny_bundle().to_str().unwrap()));
+    assert!(!o.status.success());
+    assert!(String::from_utf8_lossy(&o.stderr).contains("a test fixture under"), "{o:?}");
+    // Nor through a link, or a path that only reaches it with `..`.
+    let link = root.join("linked");
+    std::os::unix::fs::symlink(tiny_bundle(), &link).unwrap();
+    let dotted = workspace().join("bench/../testdata/tiny-bert-bundle");
+    for b in [link, dotted] {
+        let o = tool(&record_args(repo.to_str().unwrap(), out.to_str().unwrap(), b.to_str().unwrap()));
+        assert!(String::from_utf8_lossy(&o.stderr).contains("a test fixture under"), "{o:?}");
+    }
+    assert!(!out.exists());
+}
+
+#[test]
 fn the_tool_refuses_a_dirty_tree_before_measuring() {
     let root = scratch("tool-dirty");
     let repo = pushed_repo(&root);
     std::fs::write(repo.join("README"), "edited\n").unwrap();
     let out = root.join("records");
-    let o = tool(&record_args(repo.to_str().unwrap(), out.to_str().unwrap(), tiny_bundle().to_str().unwrap()));
+    let bundle = bundle_copy(&root.join("bundle"));
+    let o = tool(&record_args(repo.to_str().unwrap(), out.to_str().unwrap(), bundle.to_str().unwrap()));
     assert!(!o.status.success());
     assert!(String::from_utf8_lossy(&o.stderr).contains("the working tree is not clean"));
     assert!(!out.exists(), "nothing is written");
@@ -121,7 +191,7 @@ fn the_tool_refuses_a_dirty_tree_before_measuring() {
 fn the_tool_wants_each_reference_named_or_disabled() {
     let root = scratch("tool-references");
     let repo = pushed_repo(&root);
-    let (repo, out, bundle) = (repo.to_str().unwrap().to_owned(), root.join("o"), tiny_bundle());
+    let (repo, out, bundle) = (repo.to_str().unwrap().to_owned(), root.join("o"), bundle_copy(&root.join("b")));
     let mut args = record_args(&repo, out.to_str().unwrap(), bundle.to_str().unwrap());
     args.pop();
     let o = tool(&args);

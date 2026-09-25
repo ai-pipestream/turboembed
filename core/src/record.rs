@@ -24,6 +24,10 @@ pub const NAME_MAX: usize = 95;
 /// The reason a cell without any record for it gives.
 pub const NO_RECORD: &str = "no benchmark record for this cell";
 
+/// The reference programs a record may name, each with its role: the
+/// vendor's fastest kernel path and the fastest known embedding server.
+pub const REFERENCES: [(&str, &str); 2] = [("text-embeddings-inference", "end_to_end"), ("tensorrt", "kernel")];
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Record {
@@ -148,9 +152,10 @@ pub struct Conformance {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReferenceRun {
-    /// `tensorrt` or `text-embeddings-inference`.
+    /// `tensorrt` or `text-embeddings-inference` (REFERENCES).
     pub name: String,
-    /// `kernel` or `end_to_end`: what it is compared on.
+    /// `kernel` for tensorrt, `end_to_end` for text-embeddings-inference:
+    /// what it is compared on.
     pub role: String,
     /// The container image, as `name@sha256:<64 hex>`; empty only when it
     /// was not run and none was named.
@@ -385,10 +390,22 @@ impl Record {
             return Err("timing: iterations above 0, every figure finite and above 0, min <= p50 <= p99 <= max".into());
         }
         let c = &self.conformance;
-        if c.rows == 0 || !(c.min_cosine.is_finite() && c.min_cosine <= 1.0 + 1e-6) || !c.max_abs_diff.is_finite() {
-            return Err("conformance: rows above 0 and finite figures".into());
+        if c.rows == 0
+            || !(c.min_cosine.is_finite() && (-1.0..=1.0 + 1e-6).contains(&c.min_cosine))
+            || !(c.max_abs_diff.is_finite() && c.max_abs_diff >= 0.0)
+        {
+            return Err("conformance: rows above 0, min_cosine in [-1, 1], max_abs_diff finite and not negative".into());
         }
         for r in &self.references {
+            if !REFERENCES.contains(&(r.name.as_str(), r.role.as_str())) {
+                return Err(format!("reference {:?} with role {:?} is not one of {REFERENCES:?}", r.name, r.role));
+            }
+            if let Some(m) = &r.measured
+                && let Some(c) = m.min_cosine
+                && !(c.is_finite() && (-1.0..=1.0 + 1e-6).contains(&c))
+            {
+                return Err(format!("reference {}: min_cosine {c} is not in [-1, 1]", r.name));
+            }
             match (&r.measured, &r.not_run) {
                 (Some(m), None) => {
                     if m.iterations == 0
@@ -428,9 +445,15 @@ impl Record {
     }
 }
 
-/// The digest of a container image pinned as `name@sha256:<64 hex>`.
+/// The digest of a container image pinned as `name@sha256:<64 hex>`,
+/// where the name is lower-case letters, digits and `._/:-`, starting
+/// with a letter or digit (so it can never be read as an option).
 pub fn pinned(image: &str) -> Option<&str> {
-    image.split_once("@sha256:").map(|(_, h)| h).filter(|h| is_hex(h, 64))
+    let (name, digest) = image.split_once("@sha256:")?;
+    let mut b = name.bytes();
+    let first = b.next()?;
+    let ok = |c: u8| c.is_ascii_lowercase() || c.is_ascii_digit();
+    (ok(first) && b.all(|c| ok(c) || b"._/:-".contains(&c)) && is_hex(digest, 64)).then_some(digest)
 }
 
 /// One capability cell as the core asks about it.
@@ -448,6 +471,8 @@ pub struct Cell<'a> {
     pub dtype: u32,
     /// This build's version number.
     pub version: &'a str,
+    /// The operating system this build is for, std::env::consts::OS.
+    pub os: &'a str,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -462,10 +487,12 @@ pub enum Verdict {
 }
 
 impl Record {
-    /// Whether the record is for the cell: the same arch label, backend,
-    /// task and precision, and for a CPU the same processor.
+    /// Whether the record is for the cell: the same arch label, operating
+    /// system, backend, task and precision, and for a CPU the same
+    /// processor.
     pub fn is_for(&self, cell: &Cell) -> bool {
         self.machine.arch == cell.arch
+            && self.machine.os == cell.os
             && self.device.backend == cell.backend
             && task_name(cell.task) == Some(self.task.as_str())
             && precision_name(cell.precision) == Some(self.precision.as_str())
@@ -495,7 +522,7 @@ impl Record {
         {
             return Some(format!("max abs diff {:e} is over {most:e}", c.max_abs_diff));
         }
-        if self.references.iter().all(|r| r.measured.is_none()) {
+        if !self.references.iter().any(|r| r.measured.is_some() && REFERENCES.iter().any(|&(n, _)| n == r.name)) {
             return Some("no reference program measured".into());
         }
         None
@@ -563,5 +590,17 @@ mod tests {
         assert_eq!(tolerance(TURBO_DTYPE_BF16), tolerance(TURBO_DTYPE_F16));
         assert_eq!(tolerance(crate::TURBO_DTYPE_I32), None);
         assert_eq!(dtype_value("DTYPE_I8"), None, "int8 is recorded and has no floor");
+    }
+
+    #[test]
+    fn an_image_is_pinned_by_digest_under_a_plain_name() {
+        let d = "0".repeat(64);
+        assert_eq!(pinned(&format!("nvcr.io/nvidia/tensorrt@sha256:{d}")), Some(d.as_str()));
+        assert_eq!(pinned(&format!("localhost:5000/tei@sha256:{d}")), Some(d.as_str()));
+        for bad in ["-v/:/x", "", "Upper/case", "a b", "a;b", "a@b"] {
+            assert_eq!(pinned(&format!("{bad}@sha256:{d}")), None, "{bad:?}");
+        }
+        assert_eq!(pinned("nvcr.io/nvidia/tensorrt:25.01"), None);
+        assert_eq!(pinned(&format!("tei@sha256:{}", "A".repeat(64))), None);
     }
 }

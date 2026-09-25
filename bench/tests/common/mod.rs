@@ -9,7 +9,7 @@ use std::process::Command;
 use std::sync::OnceLock;
 
 use turbo::TURBO_PRECISION_MODEL;
-use turbo::record::{Measured, Record, ReferenceRun};
+use turbo::record::{self, Measured, Record, ReferenceRun};
 use turbo_bench::git::Provenance;
 use turbo_bench::measure::{Measurement, Plan, measure};
 
@@ -19,6 +19,24 @@ pub fn workspace() -> PathBuf {
 
 pub fn tiny_bundle() -> PathBuf {
     workspace().join("testdata/tiny-bert-bundle")
+}
+
+/// A copy of the small bundle at `dir`, outside testdata/, where the tool
+/// takes it as it would any bundle.
+pub fn bundle_copy(dir: &Path) -> PathBuf {
+    fn copy(from: &Path, to: &Path) {
+        std::fs::create_dir_all(to).unwrap();
+        for e in std::fs::read_dir(from).unwrap() {
+            let e = e.unwrap();
+            if e.file_type().unwrap().is_dir() {
+                copy(&e.path(), &to.join(e.file_name()));
+            } else {
+                std::fs::copy(e.path(), to.join(e.file_name())).unwrap();
+            }
+        }
+    }
+    copy(&tiny_bundle(), dir);
+    dir.to_owned()
 }
 
 /// A fresh, empty directory, removed with everything in it when this goes.
@@ -76,6 +94,10 @@ pub fn pushed_repo(root: &Path) -> PathBuf {
     work
 }
 
+/// The reference programs' names, as records give them.
+pub const TEI: &str = turbo_bench::tei::NAME;
+pub const TRT: &str = turbo_bench::tensorrt::NAME;
+
 /// The CPU backend on the small bundle, measured once for every test
 /// here.
 pub fn cpu_measurement() -> &'static Measurement {
@@ -112,9 +134,10 @@ pub fn cpu_record(name: &str, references: Vec<ReferenceRun>) -> Record {
 /// pulls; it is never written where the core reads records.
 pub fn measured_reference(name: &str) -> ReferenceRun {
     let m = cpu_measurement();
+    let role = record::REFERENCES.iter().find(|r| r.0 == name).unwrap_or_else(|| panic!("{name}: no such reference")).1;
     ReferenceRun {
         name: name.into(),
-        role: "end_to_end".into(),
+        role: role.into(),
         pinned: format!("example.invalid/{name}@sha256:{}", "0".repeat(64)),
         version: "0.0.0".into(),
         commands: vec![vec!["turbo-bench".into(), "record".into()]],

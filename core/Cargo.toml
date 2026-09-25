@@ -18,6 +18,10 @@ sha2 = "0.10"
 unicode-normalization-alignments = "0.1.12"
 unicode_categories = "0.1.1"
 
+[build-dependencies]
+# build.rs refuses a record that is not JSON, naming the file.
+serde_json = "1"
+
 [dev-dependencies]
 # The upstream tokenizer sentence-transformers runs through; the tests
 # compare the core's ids with it on the upstream tokenizer.json.
