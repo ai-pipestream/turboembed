@@ -13,15 +13,19 @@ feature of the `turbo` crate links it, and `turbo_version()` then lists
 
 ## Requirements
 
-- macOS 11 or later on Apple silicon (the M1 and later, Metal's Apple7
+- macOS 14 or later on Apple silicon (the M1 and later, Metal's Apple7
   family and up), where the GPU shares the host's memory. The linear
-  layers use SIMD-group matrices, which that family has.
+  layers and attention use SIMD-group matrices, which that family has,
+  and read their elements the way Metal 3.1, which macOS has from 14 on,
+  allows.
+- A model whose hidden and intermediate widths are multiples of 8. A
+  model that is not is refused at load with `TURBO_E_UNSUPPORTED`.
 - The Xcode command line tools, for clang, the macOS SDK and `xcrun`.
   Xcode itself is not needed, nor is its offline `metal` compiler.
 
-A Mac whose GPU has memory of its own (an AMD GPU in an Intel Mac), or an
-Intel Mac's integrated GPU, is listed, its capability cell says
-UNSUPPORTED with the reason, and a context on it is refused with
+A Mac whose GPU has memory of its own (an AMD GPU in an Intel Mac), an
+Intel Mac's integrated GPU, or a Mac on macOS before 14, is listed, its
+capability cell says UNSUPPORTED with the reason, and a context on it is refused with
 `TURBO_E_UNSUPPORTED` and the same reason.
 
 ## Building
@@ -59,8 +63,9 @@ frameworks and libc++, which every macOS has.
   `sqrt` and division are the precise ones: with the macOS 15 SDK or
   later and on macOS 15 or later, by `MTLMathModeSafe`, else by turning
   fast math off. The first context on a device compiles them, and every
-  later one in the process uses that compilation. The queue is used
-  under the context's lock.
+  later one in the process uses that compilation. The context's queue,
+  for widening weights and reading `DEVICE` buffers, is used under the
+  context's lock; runs go on their sessions' own queues.
 - **Buffers.** All four placements are the one memory. `DEVICE` is a
   private Metal buffer, with no host address; `PINNED` and `SHARED` are
   shared Metal buffers, one address for the host and the device; `HOST`
@@ -88,34 +93,47 @@ frameworks and libc++, which every macOS has.
   computes in F32, shared by every later one, and freed with the model.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: private scratch,
-  shared memory for the rows and the shared buffer the vectors are
-  written to. `embed_write` copies the rows into the session's shared
-  memory, where the GPU reads them. The run encodes the encoder into one
-  compute pass over the written `[batch, seq]` grid: the embedding lookup
-  and its LayerNorm in one kernel; per layer the Q, K and V projections,
-  the attention output and the feed-forward layers as one tiled GEMM
-  kernel on SIMD-group matrices, one attention kernel (scaled dot
-  products over the keys whose mask is 1, softmax from the largest
-  score), residual and LayerNorm kernels, and GELU with erf; then one
-  kernel pools (mean over the mask, the first token, or the last live
-  one), cuts to `output_dim` and normalizes. It waits for the pass to
+  shared memory for the rows, the shared buffer the vectors are written
+  to, and a command queue of the session's own, so sessions on one
+  context run at the same time, each on the GPU cores the others leave
+  free. `embed_write` packs the rows into the session's shared memory,
+  where the GPU reads them: each row's columns up to its last live token,
+  one row after another, with each token's column for its position
+  embedding. Padding past a row's last live token is never computed; no
+  output depends on it. The run encodes the encoder into one compute pass
+  over the packed tokens: the embedding lookup and its LayerNorm in one
+  kernel; per layer the Q, K and V projections in one dispatch, with
+  their biases added as they are stored; attention; the attention
+  output; a residual and LayerNorm; the feed-forward input with its bias
+  and GELU added as it is stored; the feed-forward output; a residual and
+  LayerNorm; then one kernel pools (mean over the mask, the first token,
+  or the last live one), cuts to `output_dim` and normalizes. The linear
+  layers are one GEMM kernel: four SIMD groups per 32 x 64 tile of the
+  output, each 16 x 32 of it in SIMD-group matrices, over k in steps of
+  16 staged in threadgroup memory. A linear layer that would leave most
+  of the GPU idle, as on a small batch, has its k split across more
+  threadgroups, and the residual kernel sums the parts. Attention takes
+  32 queries of a row and one head per threadgroup, and goes through the
+  row's keys in chunks of 32 staged in threadgroup memory, with a running
+  softmax; a head width that is not a multiple of 8, or is over 64, runs
+  a narrower kernel, one query at a time. The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
   `SHARED` buffer, which `turbo_result_buffer` hands out and
   `turbo_result_read` copies from.
-- **Session limits.** Beyond the model's own, a `max_seq` whose attention
-  scores do not fit the threadgroup memory the device gives (about 4
-  bytes per token plus the head's width; 32 KiB on Apple GPUs, so about
-  8000 tokens) is `TURBO_E_UNSUPPORTED_OPTION` naming field 2, and a
-  session whose scratch is more than one Metal buffer holds names field
-  1.
+- **Session limits.** Beyond the model's own, a session whose scratch is
+  more than one Metal buffer holds is `TURBO_E_UNSUPPORTED_OPTION` naming
+  field 1. For a model whose heads run the narrow attention kernel, a
+  `max_seq` whose scores do not fit the threadgroup memory the device
+  gives (4 bytes per token; 32 KiB on Apple GPUs, so about 8000 tokens)
+  names field 2.
 - **Numerics.** F32 throughout. Apple GPUs have no F64, so where the CPU
   encoder sums in F64 this backend sums in F32: LayerNorm takes the mean,
   then the variance around it, in two passes, and the L2 norm is summed
-  in F32 and floored at 1e-12. Softmax subtracts the largest live score
-  and mean pooling sums in position order, as on the CPU. Metal has no
-  `erf`; GELU's comes from erfc's Chebyshev fit in Numerical Recipes,
-  with relative error under 1.2e-7. Cosine against the fp32 reference
-  must reach 0.9999.
+  in F32 and floored at 1e-12. Softmax works from the largest live score,
+  kept as it goes through the keys, and mean pooling sums in position
+  order, as on the CPU. Metal has no `erf`; GELU's comes from erfc's
+  Chebyshev fit in Numerical Recipes, with relative error under 1.2e-7.
+  Cosine against the fp32 reference must reach 0.9999.
 - **What a result reports.** Stages: tokenize on the host for text,
   no upload (the rows were copied into the session's shared memory by
   the write, as on the CPU), lookup, encode and pool on the device,
