@@ -103,14 +103,19 @@ of any run.
   epilogue, the feed-forward output with its sums split four ways over its
   terms, and a kernel that adds the parts, the residual and the
   LayerNorm; then one kernel pools (mean over the mask, the first token,
-  or the last live one), cuts to `output_dim` and normalizes. The linear
-  layers run by sub-group, 8 tokens by 64 outputs each, in F32 on the
-  vector engines or at FASTEST on the matrix engines; there a layer with
-  too few of those tiles to fill the device runs as tiles of 32 tokens by
-  32 outputs instead, each shared by a group's four sub-groups. Attention for head widths 32, 64 and 128 keeps each
-  query and its running context in registers and streams the row's keys
-  and values through local memory; at FASTEST, for width 32, it runs on
-  the matrix engines. The run waits for the queue before it returns, and
+  or the last live one) and cuts to `output_dim`, and when asked another
+  normalizes. The LayerNorms run a sub-group per token, or a group per
+  token below 256 tokens. The linear layers run by sub-group, 8 tokens by
+  64 outputs each, in F32 on the vector engines. At FASTEST they run on
+  the matrix engines: where a layer has tiles enough, a group of 8
+  sub-groups computes 64 tokens by 128 outputs and stages its operands
+  through local memory as F16; with fewer, 8 tokens by 64 outputs a
+  sub-group; and with too few of those to fill the device, tiles of 32
+  tokens by 32 outputs each shared by a group's four sub-groups.
+  Attention for head widths 32, 64 and 128 keeps each query and its
+  running context in registers and streams the row's keys and values
+  through local memory; at FASTEST, for width 32, it runs on the matrix
+  engines. The run waits for the queue before it returns, and
   leaves the vectors in the session's `DEVICE` buffer:
   `turbo_result_buffer` hands out that memory, and `turbo_result_read`
   copies it back.
@@ -141,8 +146,8 @@ of any run.
   LayerNorms are F32; cosine must reach 0.999.
 - **What a result reports.** Stages: tokenize on the host for text,
   upload fused into the lookup kernel, which reads the packed rows over
-  the bus, lookup, encode and pool on the device, normalize fused into the
-  pooling kernel when it runs, and no download: the vectors stay where
+  the bus, lookup, encode, pool and (when asked) normalize on the device,
+  and no download: the vectors stay where
   they are. `h2d_bytes` is what the lookup reads over the bus: 4 bytes per
   packed token for each of ids, positions, mask and (when given) types,
   and 8 per row for the table. `d2h_bytes` is 0 after the run and grows by

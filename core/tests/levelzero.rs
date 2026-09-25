@@ -745,7 +745,7 @@ fn a_run_leaves_its_vectors_on_the_device_and_counts_what_crossed() {
     assert_eq!(i.d2h_bytes, 0, "nothing came back yet");
     assert_eq!((i.host_allocs, i.device_allocs), (0, 0));
     let (h, d, f, u) = (TURBO_STAGE_HOST, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED, TURBO_STAGE_UNUSED);
-    assert_eq!(i.stage[..7], [h, f, d, d, d, f, u], "tokenize, upload, lookup, encode, pool, normalize, download");
+    assert_eq!(i.stage[..7], [h, f, d, d, d, d, u], "tokenize, upload, lookup, encode, pool, normalize, download");
     assert!(i.stage[7..].iter().all(|&s| s == u));
     assert_eq!(field(&i.backend), "levelzero");
     assert_eq!(field(&i.manifest_sha256), field(&mi.manifest_sha256));

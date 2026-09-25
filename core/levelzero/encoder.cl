@@ -712,44 +712,59 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention(
 
 /* ---- Pooling ----------------------------------------------------------------
  *
- * One group per row: the mean over the tokens whose mask is 1, the first
- * token, or the last live one; cut to output_dim; then, when l2 is set,
- * divided by its L2 norm. */
+ * Each row's vector, cut to output_dim: the mean over the tokens whose mask
+ * is 1, the first token, or the last live one. A group takes 16 of a row's
+ * dimensions, a lane each, and its 8 sub-groups each sum every eighth of
+ * the row's tokens; the eight sums are added in order. Then, when asked,
+ * normalize divides each row by its L2 norm, summed in F64 and floored at
+ * 1e-12. */
 
-__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void pool(__global const float *x,
-                                                                    __global const int *mask,
-                                                                    __global const int *rows, int hidden,
-                                                                    int output_dim, int pooling, int l2,
-                                                                    __global float *out) {
-    const int b = get_group_id(0);
-    const int lid = get_local_id(0);
+#define POOL_SLICES 8
+
+__kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * POOL_SLICES, 1, 1)))
+void pool(__global const float *x, __global const int *mask, __global const int *rows, int hidden, int output_dim,
+          int pooling, __global float *out) {
+    __local float part[POOL_SLICES][16];
+    __local uint count[POOL_SLICES];
+    const int b = get_group_id(0), lane = get_sub_group_local_id(), sg = get_sub_group_id();
+    const int d = get_group_id(1) * 16 + lane;
     const int start = rows[2 * b], len = rows[2 * b + 1];
     __global const int *m = mask + start;
     __global const float *tokens = x + (size_t)start * hidden;
-    __global float *dst = out + (size_t)b * output_dim;
-    double ss = 0;
-    for (int d = lid; d < output_dim; d += BLOCK) {
-        float val;
-        if (pooling == POOLING_CLS) {
-            val = tokens[d];
-        } else if (pooling == POOLING_LAST) {
-            val = tokens[(size_t)(len - 1) * hidden + d];
-        } else {
-            float s = 0.0f;
-            uint n = 0;
-            for (int p = 0; p < len; p++) {
-                if (m[p] == 0) continue;
-                s += tokens[(size_t)p * hidden + d];
-                n++;
-            }
-            val = s * (1.0f / (float)n);
+    const int dd = min(d, output_dim - 1);
+    float s = 0.0f;
+    uint n = 0;
+    if (pooling == POOLING_CLS) {
+        s = sg == 0 ? tokens[dd] : 0.0f;
+    } else if (pooling == POOLING_LAST) {
+        s = sg == 0 ? tokens[(size_t)(len - 1) * hidden + dd] : 0.0f;
+    } else {
+        for (int p = sg; p < len; p += POOL_SLICES) {
+            if (m[p] == 0) continue;
+            s += tokens[(size_t)p * hidden + dd];
+            n++;
         }
-        dst[d] = val;
-        ss += (double)val * (double)val;
     }
-    const double total = work_group_reduce_add(ss);
-    if (!l2) return;
-    const double norm = fmax(sqrt(total), 1e-12);
+    part[sg][lane] = s;
+    if (lane == 0) count[sg] = n;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (sg != 0 || d >= output_dim) return;
+    float v = part[0][lane];
+    uint total = count[0];
+    for (int g = 1; g < POOL_SLICES; g++) {
+        v += part[g][lane];
+        total += count[g];
+    }
+    if (pooling != POOLING_CLS && pooling != POOLING_LAST) v = v * (1.0f / (float)total);
+    out[(size_t)b * output_dim + d] = v;
+}
+
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void normalize(__global float *out, int output_dim) {
+    __global float *dst = out + (size_t)get_group_id(0) * output_dim;
+    const int lid = get_local_id(0);
+    double ss = 0;
+    for (int d = lid; d < output_dim; d += BLOCK) ss += (double)dst[d] * (double)dst[d];
+    const double norm = fmax(sqrt(work_group_reduce_add(ss)), 1e-12);
     const float inv = (float)(1.0 / norm);
     for (int d = lid; d < output_dim; d += BLOCK) dst[d] *= inv;
 }

@@ -70,6 +70,9 @@ const DEVICE_ALIGN: usize = 256;
 /// encoder.cl's ROWS; below FEW_TOKENS a group takes one token instead.
 const ROWS: u32 = 8;
 const FEW_TOKENS: u32 = 256;
+/// Sub-groups of a pooling group, each summing every so-many tokens, as
+/// encoder.cl's POOL_SLICES.
+const POOL_SLICES: u32 = 8;
 /// Work-items per group for the row kernels, as encoder.cl's BLOCK.
 const BLOCK: u32 = 128;
 /// Work-items per group for the elementwise kernels.
@@ -426,6 +429,7 @@ struct Kernels {
     add_layer_norm_group: Kernel,
     attention: Attention,
     pool: Kernel,
+    normalize: Kernel,
 }
 
 /// Attention for the model's head width: a tiled kernel where one is
@@ -470,7 +474,8 @@ impl Kernels {
             embed_layer_norm_group: c.kernel("embed_layer_norm_group", row)?,
             add_layer_norm_group: c.kernel("add_layer_norm_group", row)?,
             attention,
-            pool: c.kernel("pool", row)?,
+            pool: c.kernel("pool", [16 * POOL_SLICES, 1, 1])?,
+            normalize: c.kernel("normalize", row)?,
         })
     }
 }
@@ -1014,10 +1019,14 @@ impl Session {
             I32(h as i32),
             I32(self.output_dim as i32),
             I32(self.pooling as i32),
-            I32((self.normalize == TURBO_NORMALIZE_L2) as i32),
             Ptr(self.output.ptr as u64),
         ];
-        k.pool.launch(c, q, "pooling", &args, [batch, 1, 1])
+        k.pool.launch(c, q, "pooling", &args, [batch, self.output_dim.div_ceil(16), 1])?;
+        if self.normalize != TURBO_NORMALIZE_L2 {
+            return Ok(());
+        }
+        let args = [Ptr(self.output.ptr as u64), I32(self.output_dim as i32)];
+        k.normalize.launch(c, q, "normalization", &args, [batch, 1, 1])
     }
 }
 
@@ -1083,9 +1092,8 @@ pub(crate) unsafe extern "C" fn session_run(
             st[TURBO_EMBED_STAGE_LOOKUP] = TURBO_STAGE_DEVICE;
             st[TURBO_EMBED_STAGE_ENCODE] = TURBO_STAGE_DEVICE;
             st[TURBO_EMBED_STAGE_POOL] = TURBO_STAGE_DEVICE;
-            // Normalization is the last step of the pooling kernel.
             st[TURBO_EMBED_STAGE_NORMALIZE] =
-                if s.normalize == TURBO_NORMALIZE_L2 { TURBO_STAGE_FUSED } else { TURBO_STAGE_UNUSED };
+                if s.normalize == TURBO_NORMALIZE_L2 { TURBO_STAGE_DEVICE } else { TURBO_STAGE_UNUSED };
             st[TURBO_EMBED_STAGE_DOWNLOAD] = TURBO_STAGE_UNUSED;
             Ok(())
         })
