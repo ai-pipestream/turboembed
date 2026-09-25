@@ -1952,12 +1952,13 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
         // live token, as pack_rows finds it on the device from the same
         // entries, the host memory the core read.
         uint32_t packed = 0;
-        for (uint32_t b = 0; b < r->batch; b++) {
-            const int32_t *m = r->mask + (size_t)b * r->row_stride;
-            uint32_t n = r->seq;
-            while (n > 0 && m[n - 1] == 0) n--;
-            packed += n;
-        }
+        if (s.cublas)
+            for (uint32_t b = 0; b < r->batch; b++) {
+                const int32_t *m = r->mask + (size_t)b * r->row_stride;
+                uint32_t n = r->seq;
+                while (n > 0 && m[n - 1] == 0) n--;
+                packed += n;
+            }
         uint64_t sent = 0;
         {
             std::lock_guard<std::mutex> g(s.ctx->lock);
