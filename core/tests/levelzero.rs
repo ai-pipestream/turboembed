@@ -1096,10 +1096,12 @@ fn largest_shape_on(dir: &std::path::Path, gs: &Session, cs: &Session, floor: f6
     );
 }
 
-/// At FASTEST a row's vector does not depend on the rows around it, below
-/// the LayerNorm kernels' own switch at 256 tokens: the linear layers never
-/// split their sums, and each projection back to the hidden width takes its
-/// LayerNorm in its epilogue at every batch size. So a row of a few tokens
+/// At FASTEST a row's vector does not depend on the rows around it, on
+/// either side of the LayerNorm kernels' own switch at 256 tokens: the
+/// linear layers never split their sums, each projection back to the
+/// hidden width takes its LayerNorm in its epilogue at every batch size,
+/// and the one-kernel feed-forward block of large batches computes what
+/// its two kernels do. So a row of a few tokens
 /// alone, which runs the 8-token tiles, gives the same bits as the same row
 /// among others, which run the wider ones.
 #[test]
@@ -1119,6 +1121,18 @@ fn a_row_at_fastest_gives_the_same_bits_alone_and_among_others() {
     s.write_tokens(&Tokens::new(&rows[..1], 0).batch(), None).unwrap();
     let alone = s.run().unwrap().rows();
     assert_eq!(alone[0], together[0], "a row of 5 tokens alone and among 86");
+    // A full batch runs the feed-forward block in one kernel; 8 of its rows
+    // run the two kernels. Both are over the LayerNorm kernels' switch.
+    let si = s.info();
+    let (batch, seq) = (si.max_batch as usize, si.max_seq as usize);
+    assert!(batch * seq >= 4096 && (256..4096).contains(&(8 * seq)), "the small model's session spans both");
+    let rows: Vec<Vec<i32>> =
+        (0..batch).map(|r| (0..seq).map(|p| (1000 + (r * 131 + p * 17) % 20000) as i32).collect()).collect();
+    s.write_tokens(&Tokens::new(&rows, 0).batch(), None).unwrap();
+    let full = s.run().unwrap().rows();
+    s.write_tokens(&Tokens::new(&rows[..8], 0).batch(), None).unwrap();
+    let some = s.run().unwrap().rows();
+    assert_eq!(some, full[..8], "8 full rows alone and among {batch}");
 }
 
 /// Every row full, at FASTEST: the small model's 64 x 64 tokens fill whole
