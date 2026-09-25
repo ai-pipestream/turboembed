@@ -1680,11 +1680,13 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             }
         }
         // WHOLE with earlier blocks' parts: the tile's F32 sums built in
-        // this block's own slot, block by block over every value, so the
-        // epilogue reads one value each and runs no loop of its own. The
-        // slot is free: a block writes it only for the tile it starts
-        // last, after it finishes its first.
-        float *const own = g.ws + (size_t)blockIdx.x * SLOT + threadIdx.x;
+        // this block's scratch slot, block by block over every value, so
+        // the epilogue reads one value each and runs no loop of its own.
+        // Not the block's own slot: it does its last segment first, so a
+        // later block may still be reading its partial product there. The
+        // scratch slots follow the launch's partial-product slots, and
+        // only this block touches its own.
+        float *const own = g.ws + ((size_t)gridDim.x + blockIdx.x) * SLOT + threadIdx.x;
         const bool parts = WHOLE && lowest < (int)blockIdx.x;
         if constexpr (WHOLE) {
             if (parts) {
@@ -3060,7 +3062,9 @@ cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int s
     // As many blocks as fit, whatever the tokens: the kernel counts the
     // tiles of the run's M, read on the device, and shares them out.
     const cudaError_t err = resident(reinterpret_cast<const void *>(k.fn), k.threads, k.smem, sms, grid);
-    *ws_floats = (size_t)*grid * k.bm * k.bn;
+    // A slot per block for its partial product, then one per block for a
+    // whole-k finisher's sums.
+    *ws_floats = (size_t)*grid * k.bm * k.bn * 2;
     if (crowded && *grid < k.per_sm * sms) *crowded = true;
     return err;
 }
