@@ -12,8 +12,9 @@ then says `0.1.0 levelzero cpu`. Its devices come before the CPU's.
 ## Requirements
 
 - To build: clang 15 or newer, which compiles OpenCL C to SPIR-V
-  (`--target=spirv64`). Before clang 20 it does so through the
-  `llvm-spirv` translator, which must then be on the `PATH`. Nothing of
+  (`--target=spirv64`). Some clang builds do that through the
+  `llvm-spirv` translator, which must then be on the `PATH`; the clang 21
+  Ubuntu ships uses its own SPIR-V backend and needs none. Nothing of
   Level Zero is needed at build time.
 - To run: the Level Zero loader (`libze_loader.so.1`, 1.10 or newer) and
   Intel's GPU driver for it (`libze_intel_gpu.so.1`, the compute runtime,
@@ -102,9 +103,12 @@ of any run.
   partial sums; 128 KiB less 4 KiB on a B70, so about 31500 tokens) is
   `TURBO_E_UNSUPPORTED_OPTION` naming field 2.
 - **Failures.** The driver's immediate list cannot finish or be destroyed
-  after an append to it fails. When one does, the call waits for the
-  whole device instead, sets that list aside, gives the context a new
-  one, logs a warning, and returns the failure.
+  after an append to it fails. Every append signals an event of the
+  context's, so when one fails the call waits for the event of the last
+  append that succeeded, which the in-order list signals after all the
+  work before it, and frees nothing before then. It then sets that list
+  aside, gives the context a new one, logs a warning, and returns the
+  failure.
 - **Numerics.** F32 throughout. The arithmetic follows the CPU encoder
   where order matters: LayerNorm sums its mean and variance in F64,
   softmax subtracts the largest live score, mean pooling sums in position

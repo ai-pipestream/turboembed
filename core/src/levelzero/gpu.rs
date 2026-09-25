@@ -16,7 +16,7 @@ use std::cell::Cell;
 use std::ffi::{CString, c_void};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::ze::{self, ComputeApi, Handle};
 use crate::backend::{refuse, refuse_field};
@@ -127,14 +127,12 @@ pub(crate) struct Context {
     pub handle: Handle,
     /// The in-order immediate command list, and the lock every use of it
     /// takes.
-    pub queue: Mutex<Shared>,
+    pub queue: Mutex<Queue>,
     /// The encoder's module, built on first need; the failure is kept, so
     /// a device that cannot build it says why each time.
     module: Mutex<Option<Result<Shared, String>>>,
     /// The most local memory one work-group may have.
     pub max_local: u32,
-    /// An append failed since the queue last synchronized.
-    wedged: AtomicBool,
     log: turbo_log_fn,
     log_user_data: *mut c_void,
 }
@@ -286,54 +284,93 @@ impl Context {
     ///
     /// # Safety
     /// Both ranges stay valid until the queue has synchronized.
-    pub unsafe fn copy(&self, queue: Handle, dst: *mut c_void, src: *const c_void, bytes: usize) -> Res<()> {
-        let (no_event, no_waits) = (std::ptr::null_mut(), std::ptr::null_mut());
-        let rc = unsafe { (self.api.command_list_append_memory_copy)(queue, dst, src, bytes, no_event, 0, no_waits) };
-        self.appended("zeCommandListAppendMemoryCopy", rc)
+    pub unsafe fn copy(&self, q: &mut Queue, dst: *mut c_void, src: *const c_void, bytes: usize) -> Res<()> {
+        let e = self.next_event(q)?;
+        let no_waits = std::ptr::null_mut();
+        let rc = unsafe { (self.api.command_list_append_memory_copy)(q.list, dst, src, bytes, e, 0, no_waits) };
+        self.appended(q, "zeCommandListAppendMemoryCopy", rc)
+    }
+
+    /// The event the next append signals. When every event is taken, the
+    /// queue is first waited for, and they are all free again.
+    fn next_event(&self, q: &mut Queue) -> Res<Handle> {
+        if q.used == q.events.len() {
+            self.sync(q)?;
+        }
+        Ok(q.events[q.used])
     }
 
     /// An append's status. A failed append leaves the driver's immediate
-    /// list unable to synchronize or be destroyed, so sync replaces it.
-    fn appended(&self, what: &str, rc: ze::Status) -> Res<()> {
-        if rc != 0 {
-            self.wedged.store(true, Ordering::Relaxed);
+    /// list unable to synchronize or be destroyed, which sync handles.
+    fn appended(&self, q: &mut Queue, what: &str, rc: ze::Status) -> Res<()> {
+        match rc {
+            0 => q.used += 1,
+            _ => q.wedged = true,
         }
         ze(what, rc)
     }
 
     /// Waits for everything appended to the queue, which the caller holds.
-    /// After a failed append the list never finishes: the device is waited
-    /// for as a whole instead, and the list is set aside for a new one.
-    pub fn sync(&self, queue: &mut Shared) -> Res<()> {
-        if !self.wedged.swap(false, Ordering::Relaxed) {
-            return ze("zeCommandListHostSynchronize", unsafe {
-                (self.api.command_list_host_synchronize)(queue.0, u64::MAX)
-            });
+    /// After a failed append the list never finishes, so the event of the
+    /// last append that succeeded is waited for instead: the list runs in
+    /// order, so everything before it is done too. Then that list is set
+    /// aside for a new one.
+    pub fn sync(&self, q: &mut Queue) -> Res<()> {
+        let a = self.api;
+        if !q.wedged {
+            ze("zeCommandListHostSynchronize", unsafe { (a.command_list_host_synchronize)(q.list, u64::MAX) })?;
+        } else {
+            if q.used > 0 {
+                let last = q.events[q.used - 1];
+                ze("zeEventHostSynchronize", unsafe { (a.event_host_synchronize)(last, u64::MAX) })?;
+            }
+            self.say(
+                LOG_WARNING,
+                &format!("levelzero device {}: an append failed; the queue is set aside for a new one", self.ordinal),
+            );
+            // Destroying the old list would wait for it forever; it is left.
+            q.list = std::ptr::null_mut();
+            q.wedged = false;
+            let mut list = std::ptr::null_mut();
+            ze("zeCommandListCreateImmediate", unsafe {
+                (a.command_list_create_immediate)(self.handle, self.device, &queue_desc(), &mut list)
+            })?;
+            q.list = list;
         }
-        ze("zeContextSystemBarrier", unsafe { (self.api.context_system_barrier)(self.handle, self.device) })?;
-        self.say(
-            LOG_WARNING,
-            &format!("levelzero device {}: an append failed; the queue is set aside for a new one", self.ordinal),
-        );
-        // Destroying the old list would wait for it forever; it is left.
-        queue.0 = std::ptr::null_mut();
-        let mut list = std::ptr::null_mut();
-        ze("zeCommandListCreateImmediate", unsafe {
-            (self.api.command_list_create_immediate)(self.handle, self.device, &queue_desc(), &mut list)
-        })?;
-        queue.0 = list;
+        for &e in &q.events[..q.used] {
+            ze("zeEventHostReset", unsafe { (a.event_host_reset)(e) })?;
+        }
+        q.used = 0;
         Ok(())
     }
 
-    /// The queue, which is null only when replacing it failed.
-    pub fn lock_queue(&self) -> Res<std::sync::MutexGuard<'_, Shared>> {
+    /// The queue, which has no list only when replacing it failed.
+    pub fn lock_queue(&self) -> Res<std::sync::MutexGuard<'_, Queue>> {
         let q = self.queue.lock().unwrap_or_else(|p| p.into_inner());
-        if q.0.is_null() {
+        if q.list.is_null() {
             return Err(fail(RUNTIME, format!("levelzero device {}: the context's queue is gone", self.ordinal)));
         }
         Ok(q)
     }
 }
+
+/// Events each queue has for its appends to signal, reused once it has
+/// synchronized.
+const EVENTS: u32 = 256;
+
+/// The context's in-order immediate list and the events its appends
+/// signal, used under the context's lock.
+pub(crate) struct Queue {
+    pub list: Handle,
+    pool: Handle,
+    events: Vec<Handle>,
+    /// Events signalled, or to be, by appends since the last sync.
+    used: usize,
+    /// An append failed since the last sync.
+    wedged: bool,
+}
+
+unsafe impl Send for Queue {}
 
 impl Drop for Context {
     fn drop(&mut self) {
@@ -341,9 +378,15 @@ impl Drop for Context {
         if let Some(Ok(m)) = module.take() {
             unsafe { (self.api.module_destroy)(m.0) };
         }
-        let queue = self.queue.get_mut().unwrap_or_else(|p| p.into_inner());
-        if !queue.0.is_null() {
-            unsafe { (self.api.command_list_destroy)(queue.0) };
+        let q = self.queue.get_mut().unwrap_or_else(|p| p.into_inner());
+        if !q.list.is_null() {
+            unsafe { (self.api.command_list_destroy)(q.list) };
+        }
+        for &e in &q.events {
+            unsafe { (self.api.event_destroy)(e) };
+        }
+        if !q.pool.is_null() {
+            unsafe { (self.api.event_pool_destroy)(q.pool) };
         }
         unsafe { (self.api.context_destroy)(self.handle) };
     }
@@ -388,7 +431,7 @@ impl Kernel {
 
     /// Sets the arguments and appends a launch of `groups` work-groups to
     /// the queue, which the caller holds. Allocates nothing.
-    pub fn launch(&self, c: &Context, queue: Handle, name: &str, args: &[Arg], groups: [u32; 3]) -> Res<()> {
+    pub fn launch(&self, c: &Context, q: &mut Queue, name: &str, args: &[Arg], groups: [u32; 3]) -> Res<()> {
         for (i, a) in args.iter().enumerate() {
             let (n, p) = match a {
                 Arg::Ptr(v) | Arg::U64(v) => (8, v as *const u64 as *const c_void),
@@ -402,9 +445,10 @@ impl Kernel {
             }
         }
         let g = ze::GroupCount { x: groups[0], y: groups[1], z: groups[2] };
-        let (no_event, no_waits) = (std::ptr::null_mut(), std::ptr::null_mut());
-        let rc = unsafe { (self.api.command_list_append_launch_kernel)(queue, self.handle, &g, no_event, 0, no_waits) };
-        c.appended(name, rc)
+        let e = c.next_event(q)?;
+        let no_waits = std::ptr::null_mut();
+        let rc = unsafe { (self.api.command_list_append_launch_kernel)(q.list, self.handle, &g, e, 0, no_waits) };
+        c.appended(q, name, rc)
     }
 }
 
@@ -430,20 +474,98 @@ pub(crate) unsafe fn create(
         ordinal,
         device: dev.handle,
         handle,
-        queue: Mutex::new(Shared(std::ptr::null_mut())),
+        queue: Mutex::new(Queue {
+            list: std::ptr::null_mut(),
+            pool: std::ptr::null_mut(),
+            events: Vec::with_capacity(EVENTS as usize),
+            used: 0,
+            wedged: false,
+        }),
         module: Mutex::new(None),
         max_local: dev.max_local,
-        wedged: AtomicBool::new(false),
         log,
         log_user_data,
     });
-    let mut list = std::ptr::null_mut();
+    let q = ctx.queue.get_mut().unwrap_or_else(|p| p.into_inner());
+    let pd = ze::EventPoolDesc {
+        stype: ze::STRUCTURE_TYPE_EVENT_POOL_DESC,
+        p_next: std::ptr::null(),
+        flags: ze::EVENT_POOL_FLAG_HOST_VISIBLE,
+        count: EVENTS,
+    };
+    let no_devices = std::ptr::null_mut();
+    ze("zeEventPoolCreate", unsafe { (api.event_pool_create)(handle, &pd, 0, no_devices, &mut q.pool) })?;
+    for index in 0..EVENTS {
+        let ed = ze::EventDesc {
+            stype: ze::STRUCTURE_TYPE_EVENT_DESC,
+            p_next: std::ptr::null(),
+            index,
+            signal: ze::EVENT_SCOPE_FLAG_HOST,
+            wait: ze::EVENT_SCOPE_FLAG_HOST,
+        };
+        let mut e = std::ptr::null_mut();
+        ze("zeEventCreate", unsafe { (api.event_create)(q.pool, &ed, &mut e) })?;
+        q.events.push(e);
+    }
     ze("zeCommandListCreateImmediate", unsafe {
-        (api.command_list_create_immediate)(handle, dev.handle, &queue_desc(), &mut list)
+        (api.command_list_create_immediate)(handle, dev.handle, &queue_desc(), &mut q.list)
     })?;
-    ctx.queue = Mutex::new(Shared(list));
     ctx.say(LOG_DEBUG, &format!("levelzero context on device {ordinal} ({}): one in-order queue", dev.name));
     unsafe { *out = Box::into_raw(ctx) as *mut c_void };
+    Ok(())
+}
+
+/// A failed append on a real queue, and what follows it: a large copy is
+/// appended, then a launch the driver refuses (more local memory than the
+/// device has). sync must return once the copy is done, the copy's bytes
+/// must all have arrived, and the new queue must work. Built only with
+/// `internals`, for tests/levelzero.rs.
+#[cfg(feature = "internals")]
+pub(crate) fn append_failure_recovers(
+    driver: &'static super::Driver,
+    dev: &'static super::Device,
+) -> Result<(), String> {
+    let text = |f: Fail| f.message;
+    let mut out = std::ptr::null_mut();
+    unsafe { create(driver, dev, 0, None, std::ptr::null_mut(), &mut out) }.map_err(text)?;
+    let c = unsafe { Box::from_raw(out as *mut Context) };
+    let n = 64usize << 20;
+    let host = c.alloc_pinned(n * 4).map_err(text)?;
+    let (src, dst) = (c.alloc_device(n * 4).map_err(text)?, c.alloc_device(n * 4).map_err(text)?);
+    let values = unsafe { std::slice::from_raw_parts_mut(host as *mut u32, n) };
+    for (i, v) in values.iter_mut().enumerate() {
+        *v = i as u32 ^ 0x5a5a_5a5a;
+    }
+    let k = c.kernel("attention", [128, 1, 1]).map_err(text)?;
+    let result: Result<(), String> = (|| {
+        let mut q = c.lock_queue().map_err(text)?;
+        unsafe { c.copy(&mut q, src, host, n * 4) }.map_err(text)?;
+        c.sync(&mut q).map_err(text)?;
+        let old = q.list;
+        unsafe { c.copy(&mut q, dst, src, n * 4) }.map_err(text)?;
+        let mut args = [Arg::U64(0); 13];
+        args[12] = Arg::Local(c.max_local as usize + 4096);
+        if k.launch(&c, &mut q, "the refused launch", &args, [1, 1, 1]).is_ok() {
+            return Err("the driver took a launch with more local memory than the device has".into());
+        }
+        c.sync(&mut q).map_err(text)?;
+        if q.list == old || q.list.is_null() {
+            return Err("the failed queue was not replaced".into());
+        }
+        unsafe { c.copy(&mut q, host, dst, n * 4) }.map_err(text)?;
+        c.sync(&mut q).map_err(text)?;
+        Ok(())
+    })();
+    let back = unsafe { std::slice::from_raw_parts(host as *const u32, n) };
+    let whole = back.iter().enumerate().all(|(i, &v)| v == i as u32 ^ 0x5a5a_5a5a);
+    drop(k);
+    for p in [host, src, dst] {
+        c.free(p, "the test's memory");
+    }
+    result?;
+    if !whole {
+        return Err("the copy appended before the failure did not arrive whole".into());
+    }
     Ok(())
 }
 
@@ -733,7 +855,7 @@ pub(crate) unsafe extern "C" fn buffer_read(
             }
             let c = &*b.ctx;
             let mut q = c.lock_queue()?;
-            let copied = c.copy(q.0, dst, b.ptr, bytes as usize);
+            let copied = c.copy(&mut q, dst, b.ptr, bytes as usize);
             let synced = c.sync(&mut q);
             copied?;
             synced

@@ -21,7 +21,7 @@ use std::ffi::c_void;
 use std::sync::Mutex;
 
 use super::gpu::{
-    Arg, Buffer, Context, Kernel, LOG_DEBUG, Res, device_allocs_here, fail, fail_field, guarded, quietly,
+    Arg, Buffer, Context, Kernel, LOG_DEBUG, Queue, Res, device_allocs_here, fail, fail_field, guarded, quietly,
 };
 use super::ze;
 use crate::backend::{
@@ -141,7 +141,7 @@ impl Model {
                 for (i, &n) in self.counts.iter().enumerate() {
                     let args =
                         [Arg::Ptr(base + self.offsets[i] as u64), Arg::U64(n), Arg::Ptr(wide as u64 + at[i] as u64)];
-                    k.launch(c, q.0, name, &args, [elementwise_groups(n), 1, 1])?;
+                    k.launch(c, &mut q, name, &args, [elementwise_groups(n), 1, 1])?;
                 }
                 Ok(())
             })();
@@ -219,7 +219,7 @@ pub(crate) unsafe extern "C" fn model_load(
                 let appended = (|| {
                     for (i, t) in tensors.iter().enumerate() {
                         let dst = (stored as *mut u8).add(m.offsets[i]) as *mut c_void;
-                        c.copy(q.0, dst, t.data, t.bytes as usize)?;
+                        c.copy(&mut q, dst, t.data, t.bytes as usize)?;
                     }
                     Ok(())
                 })();
@@ -486,7 +486,7 @@ impl Session {
     /// queue and synchronizes it before the arrays go away.
     unsafe fn upload(
         &self,
-        queue: ze::Handle,
+        q: &mut Queue,
         r: &turbo_backend_embed_rows,
         src: *const i32,
         slot: usize,
@@ -501,17 +501,12 @@ impl Session {
                 return Err(fail(INVALID_ARGUMENT, "rows are device memory; the core reads rows on the host"));
             }
             ze::MEMORY_TYPE_HOST | ze::MEMORY_TYPE_SHARED if stride == r.seq as usize => unsafe {
-                c.copy(queue, dst as usize as *mut c_void, src as *const c_void, row * batch)?;
+                c.copy(q, dst as usize as *mut c_void, src as *const c_void, row * batch)?;
             },
             ze::MEMORY_TYPE_HOST | ze::MEMORY_TYPE_SHARED => {
                 for b in 0..batch {
                     unsafe {
-                        c.copy(
-                            queue,
-                            (dst as usize + b * row) as *mut c_void,
-                            src.add(b * stride) as *const c_void,
-                            row,
-                        )?;
+                        c.copy(q, (dst as usize + b * row) as *mut c_void, src.add(b * stride) as *const c_void, row)?;
                     }
                 }
             }
@@ -527,14 +522,14 @@ impl Session {
                         )
                     };
                 }
-                unsafe { c.copy(queue, dst as usize as *mut c_void, staging as *const c_void, row * batch)? };
+                unsafe { c.copy(q, dst as usize as *mut c_void, staging as *const c_void, row * batch)? };
             }
         }
         Ok((row * batch) as u64)
     }
 
     /// The encoder over the written rows, appended to the queue.
-    fn encode(&self, queue: ze::Handle) -> Res<()> {
+    fn encode(&self, q: &mut Queue) -> Res<()> {
         let c = self.ctx();
         let d = &self.model().desc;
         let w = &self.weights;
@@ -546,14 +541,14 @@ impl Session {
         let head_dim = h / d.heads;
         let layer = |l: u32, r: u32| w[(TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
         use Arg::*;
-        let linear = |x: u64, n_in: u32, weight: u64, n_out: u32, y: u64, what: &str| {
+        let linear = |q: &mut Queue, x: u64, n_in: u32, weight: u64, n_out: u32, y: u64, what: &str| {
             let groups = [n_out.div_ceil(TILE), tokens.div_ceil(TILE), 1];
             let args = [Ptr(x), Ptr(weight), Ptr(y), I32(tokens as i32), I32(n_out as i32), I32(n_in as i32)];
-            k.linear.launch(c, queue, what, &args, groups)
+            k.linear.launch(c, q, what, &args, groups)
         };
-        let add_ln = |bias: u64, lnw: u64, lnb: u64, what: &str| {
+        let add_ln = |q: &mut Queue, bias: u64, lnw: u64, lnb: u64, what: &str| {
             let args = [Ptr(self.x), Ptr(self.tmp), Ptr(bias), Ptr(lnw), Ptr(lnb), F32(eps), I32(h as i32)];
-            k.add_layer_norm.launch(c, queue, what, &args, [tokens, 1, 1])
+            k.add_layer_norm.launch(c, q, what, &args, [tokens, 1, 1])
         };
 
         let args = [
@@ -570,11 +565,11 @@ impl Session {
             I32(h as i32),
             Ptr(self.x),
         ];
-        k.embed_layer_norm.launch(c, queue, "the embedding lookup", &args, [tokens, 1, 1])?;
+        k.embed_layer_norm.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1])?;
         for l in 0..d.layers {
-            linear(self.x, h, layer(l, Q_WEIGHT), h, self.q, "the query projection")?;
-            linear(self.x, h, layer(l, K_WEIGHT), h, self.k, "the key projection")?;
-            linear(self.x, h, layer(l, V_WEIGHT), h, self.v, "the value projection")?;
+            linear(q, self.x, h, layer(l, Q_WEIGHT), h, self.q, "the query projection")?;
+            linear(q, self.x, h, layer(l, K_WEIGHT), h, self.k, "the key projection")?;
+            linear(q, self.x, h, layer(l, V_WEIGHT), h, self.v, "the value projection")?;
             let args = [
                 Ptr(self.q),
                 Ptr(self.k),
@@ -590,20 +585,22 @@ impl Session {
                 Ptr(self.att),
                 Local(attention_local_bytes(seq, head_dim) as usize),
             ];
-            k.attention.launch(c, queue, "attention", &args, [seq, d.heads, batch])?;
-            linear(self.att, h, layer(l, ATTN_OUT_WEIGHT), h, self.tmp, "the attention output projection")?;
+            k.attention.launch(c, q, "attention", &args, [seq, d.heads, batch])?;
+            linear(q, self.att, h, layer(l, ATTN_OUT_WEIGHT), h, self.tmp, "the attention output projection")?;
             add_ln(
+                q,
                 layer(l, ATTN_OUT_BIAS),
                 layer(l, ATTN_LN_WEIGHT),
                 layer(l, ATTN_LN_BIAS),
                 "the attention LayerNorm",
             )?;
-            linear(self.x, h, layer(l, FFN_IN_WEIGHT), inter, self.ffn, "the feed-forward input")?;
+            linear(q, self.x, h, layer(l, FFN_IN_WEIGHT), inter, self.ffn, "the feed-forward input")?;
             let n = tokens as u64 * inter as u64;
             let args = [Ptr(self.ffn), Ptr(layer(l, FFN_IN_BIAS)), U64(n), I32(inter as i32)];
-            k.bias_gelu.launch(c, queue, "GELU", &args, [elementwise_groups(n), 1, 1])?;
-            linear(self.ffn, inter, layer(l, FFN_OUT_WEIGHT), h, self.tmp, "the feed-forward output")?;
+            k.bias_gelu.launch(c, q, "GELU", &args, [elementwise_groups(n), 1, 1])?;
+            linear(q, self.ffn, inter, layer(l, FFN_OUT_WEIGHT), h, self.tmp, "the feed-forward output")?;
             add_ln(
+                q,
                 layer(l, FFN_OUT_BIAS),
                 layer(l, FFN_LN_WEIGHT),
                 layer(l, FFN_LN_BIAS),
@@ -620,7 +617,7 @@ impl Session {
             I32((self.normalize == TURBO_NORMALIZE_L2) as i32),
             Ptr(self.output.ptr as u64),
         ];
-        k.pool.launch(c, queue, "pooling", &args, [batch, 1, 1])
+        k.pool.launch(c, q, "pooling", &args, [batch, 1, 1])
     }
 }
 
@@ -640,10 +637,10 @@ pub(crate) unsafe extern "C" fn embed_write(
                 // The queue is left idle whether or not every copy was
                 // appended: the caller's arrays are valid for this call only.
                 let appended = (|| {
-                    sent += s.upload(q.0, r, r.ids, 0, s.ids)?;
-                    sent += s.upload(q.0, r, r.mask, 1, s.mask)?;
+                    sent += s.upload(&mut q, r, r.ids, 0, s.ids)?;
+                    sent += s.upload(&mut q, r, r.mask, 1, s.mask)?;
                     if !r.types.is_null() {
-                        sent += s.upload(q.0, r, r.types, 2, s.types)?;
+                        sent += s.upload(&mut q, r, r.types, 2, s.types)?;
                     }
                     Ok(())
                 })();
@@ -679,7 +676,7 @@ pub(crate) unsafe extern "C" fn session_run(
             {
                 let c = s.ctx();
                 let mut q = c.lock_queue()?;
-                let encoded = s.encode(q.0);
+                let encoded = s.encode(&mut q);
                 // The queue is left idle whether or not the run finished.
                 let synced = c.sync(&mut q);
                 encoded?;

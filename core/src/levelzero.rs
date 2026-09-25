@@ -142,6 +142,15 @@ pub(crate) unsafe fn widened(model: *mut c_void) -> Option<*const c_void> {
     unsafe { encoder::widened(model) }
 }
 
+/// Recovery from a failed append on the first listed device's queue, as
+/// gpu.rs describes it. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn append_failure_recovers() -> Result<(), String> {
+    let d = driver().map_err(str::to_owned)?.ok_or("no device is listed")?;
+    let dev = d.devices.first().ok_or("no device is listed")?;
+    gpu::append_failure_recovers(d, dev)
+}
+
 /// Fields of turbo_embed_options a run honors: normalize (4), pooling (5)
 /// and output_dim (6), every value of each.
 const EMBED_HONORED: u32 = 0b111000;

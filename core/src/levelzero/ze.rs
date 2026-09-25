@@ -22,6 +22,10 @@ pub const STRUCTURE_TYPE_DEVICE_COMPUTE_PROPERTIES: u32 = 0x4;
 pub const STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES: u32 = 0x5;
 pub const STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES: u32 = 0x17;
 pub const STRUCTURE_TYPE_KERNEL_PROPERTIES: u32 = 0x1e;
+pub const STRUCTURE_TYPE_EVENT_POOL_DESC: u32 = 0x10;
+pub const STRUCTURE_TYPE_EVENT_DESC: u32 = 0x11;
+pub const EVENT_POOL_FLAG_HOST_VISIBLE: u32 = 1;
+pub const EVENT_SCOPE_FLAG_HOST: u32 = 4;
 pub const DEVICE_MODULE_FLAG_FP64: u32 = 2;
 pub const MEMORY_TYPE_UNKNOWN: u32 = 0;
 pub const MEMORY_TYPE_HOST: u32 = 1;
@@ -141,6 +145,23 @@ pub struct MemoryAllocationProperties {
     pub kind: u32,
     pub id: u64,
     pub page_size: u64,
+}
+
+#[repr(C)]
+pub struct EventPoolDesc {
+    pub stype: u32,
+    pub p_next: *const c_void,
+    pub flags: u32,
+    pub count: u32,
+}
+
+#[repr(C)]
+pub struct EventDesc {
+    pub stype: u32,
+    pub p_next: *const c_void,
+    pub index: u32,
+    pub signal: u32,
+    pub wait: u32,
 }
 
 #[repr(C)]
@@ -291,7 +312,6 @@ pub struct Api {
 pub struct ComputeApi {
     pub context_create: unsafe extern "C" fn(Handle, *const ContextDesc, *mut Handle) -> Status,
     pub context_destroy: unsafe extern "C" fn(Handle) -> Status,
-    pub context_system_barrier: unsafe extern "C" fn(Handle, Handle) -> Status,
     pub mem_alloc_device:
         unsafe extern "C" fn(Handle, *const DeviceMemAllocDesc, usize, usize, Handle, *mut *mut c_void) -> Status,
     pub mem_alloc_host: unsafe extern "C" fn(Handle, *const HostMemAllocDesc, usize, usize, *mut *mut c_void) -> Status,
@@ -324,6 +344,12 @@ pub struct ComputeApi {
     pub command_list_append_memory_copy:
         unsafe extern "C" fn(Handle, *mut c_void, *const c_void, usize, Handle, u32, *mut Handle) -> Status,
     pub command_list_host_synchronize: unsafe extern "C" fn(Handle, u64) -> Status,
+    pub event_pool_create: unsafe extern "C" fn(Handle, *const EventPoolDesc, u32, *mut Handle, *mut Handle) -> Status,
+    pub event_pool_destroy: unsafe extern "C" fn(Handle) -> Status,
+    pub event_create: unsafe extern "C" fn(Handle, *const EventDesc, *mut Handle) -> Status,
+    pub event_destroy: unsafe extern "C" fn(Handle) -> Status,
+    pub event_host_synchronize: unsafe extern "C" fn(Handle, u64) -> Status,
+    pub event_host_reset: unsafe extern "C" fn(Handle) -> Status,
 }
 
 pub struct SysmanApi {
@@ -381,7 +407,6 @@ impl Api {
             compute: ComputeApi {
                 context_create: sym!("zeContextCreate"),
                 context_destroy: sym!("zeContextDestroy"),
-                context_system_barrier: sym!("zeContextSystemBarrier"),
                 mem_alloc_device: sym!("zeMemAllocDevice"),
                 mem_alloc_host: sym!("zeMemAllocHost"),
                 mem_alloc_shared: sym!("zeMemAllocShared"),
@@ -401,6 +426,12 @@ impl Api {
                 command_list_append_launch_kernel: sym!("zeCommandListAppendLaunchKernel"),
                 command_list_append_memory_copy: sym!("zeCommandListAppendMemoryCopy"),
                 command_list_host_synchronize: sym!("zeCommandListHostSynchronize"),
+                event_pool_create: sym!("zeEventPoolCreate"),
+                event_pool_destroy: sym!("zeEventPoolDestroy"),
+                event_create: sym!("zeEventCreate"),
+                event_destroy: sym!("zeEventDestroy"),
+                event_host_synchronize: sym!("zeEventHostSynchronize"),
+                event_host_reset: sym!("zeEventHostReset"),
             },
             loader_get_versions: opt!("zelLoaderGetVersions"),
             sysman,
@@ -478,6 +509,8 @@ mod tests {
         assert_eq!(std::mem::offset_of!(DeviceModuleProperties, flags), 20);
         assert_eq!(size_of::<MemoryAllocationProperties>(), 40);
         assert_eq!(size_of::<KernelProperties>(), 96);
+        assert_eq!(size_of::<EventPoolDesc>(), 24);
+        assert_eq!(size_of::<EventDesc>(), 32);
         assert_eq!(std::mem::offset_of!(KernelProperties, local_mem_size), 48);
     }
 }

@@ -270,14 +270,14 @@ fn intel_gpus() -> Vec<u32> {
 }
 
 /// The version in an installed library's file name: libze_loader.so.1
-/// links to libze_loader.so.1.28.2, which is "1.28.2".
-fn installed_version(soname: &str) -> String {
+/// links to libze_loader.so.1.28.2, which is "1.28.2". None where the
+/// library is not in one of the usual directories.
+fn installed_version(soname: &str) -> Option<String> {
     let lib = ["/usr/lib/x86_64-linux-gnu", "/usr/lib64", "/usr/lib"]
         .iter()
-        .find_map(|d| std::fs::read_link(format!("{d}/{soname}")).ok())
-        .unwrap_or_else(|| panic!("{soname} is installed"));
-    let name = lib.file_name().unwrap().to_str().unwrap();
-    name.strip_prefix(soname.trim_end_matches(".1")).unwrap().trim_start_matches('.').to_owned()
+        .find_map(|d| std::fs::read_link(format!("{d}/{soname}")).ok())?;
+    let name = lib.file_name()?.to_str()?;
+    Some(name.strip_prefix(soname.trim_end_matches(".1"))?.trim_start_matches('.').to_owned())
 }
 
 /// Every Intel GPU the kernel drives is listed, and each reads as the
@@ -288,10 +288,11 @@ fn the_devices_listed_are_the_kernels() {
     let rt = Rt::new();
     let want = intel_gpus();
     let listed = rt.listed();
-    if want.is_empty() {
-        assert!(!required(), "TURBO_TEST_REQUIRE_LEVELZERO=1 and the kernel drives no Intel GPU");
-        println!("the kernel drives no Intel GPU: nothing to check but that none is listed");
-        assert!(listed.is_empty());
+    if listed.is_empty() {
+        // No GPU, or one without the compute runtime: the listing says
+        // nothing about the kernel's unless a device is required.
+        assert!(!required(), "TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        println!("the_devices_listed_are_the_kernels: skipped: the levelzero backend lists no device");
         return;
     }
     assert_eq!(listed.len(), want.len(), "the kernel drives {want:x?}");
@@ -301,7 +302,7 @@ fn the_devices_listed_are_the_kernels() {
         want.iter().map(|&id| if id == 0xe223 { "b70".to_owned() } else { format!("intel-{id:04x}") }).collect();
     expect.sort();
     assert_eq!(archs, expect);
-    let build = installed_version("libze_intel_gpu.so.1").rsplit('.').next().unwrap().to_owned();
+    let (loader, driver) = (installed_version("libze_loader.so.1"), installed_version("libze_intel_gpu.so.1"));
     for (ordinal, &i) in listed.iter().enumerate() {
         let d = rt.info(i);
         assert_eq!(d.ordinal, ordinal as u32, "numbered within the backend");
@@ -309,8 +310,12 @@ fn the_devices_listed_are_the_kernels() {
         assert_eq!(d.unified_memory, u32::from(d.kind == TURBO_DEVICE_IGPU));
         assert_eq!(field(&d.vendor), "Intel");
         assert!(!field(&d.name).is_empty(), "the driver names it");
-        assert_eq!(field(&d.runtime_version), installed_version("libze_loader.so.1"), "the loader's version");
-        assert!(field(&d.driver_version).ends_with(&format!(".{build}")), "the installed driver's build {build}");
+        if let Some(loader) = &loader {
+            assert_eq!(&field(&d.runtime_version), loader, "the loader's version");
+        }
+        if let Some(build) = driver.as_ref().and_then(|v| v.rsplit('.').next()) {
+            assert!(field(&d.driver_version).ends_with(&format!(".{build}")), "the installed driver's build {build}");
+        }
         assert!(d.memory_total > 0);
         assert!(d.memory_free > 0 && d.memory_free <= d.memory_total, "sysman reads free memory");
         println!(
@@ -937,6 +942,16 @@ fn an_output_dim_is_cut_then_normalized_on_the_device() {
             assert!((*a as f64 - b).abs() < 1e-5, "{a} vs {b}");
         }
     }
+}
+
+/// After an append the driver refuses, its immediate list never finishes.
+/// The call that saw the failure waits for the work appended before it,
+/// which arrives whole, and the context gets a queue that works.
+#[test]
+fn a_failed_append_waits_for_what_came_before_and_replaces_the_queue() {
+    let _t = turn();
+    let Some(_) = gpu_device("a_failed_append_waits_for_what_came_before_and_replaces_the_queue") else { return };
+    turbo::levelzero::append_failure_recovers().unwrap();
 }
 
 // ---- Limits and the largest shape ----------------------------------------------------------
