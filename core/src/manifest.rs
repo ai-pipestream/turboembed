@@ -623,6 +623,12 @@ impl Manifest {
                 if self.architecture.is_none() {
                     return Err(invalid(format!("manifest.json: architecture: required by the HEF in {}", at("name"))));
                 }
+                // A HEF's shape is compiled in; its backend has no dynamic one.
+                for (field, v) in [("fixed_seq", a.fixed_seq), ("fixed_batch", a.fixed_batch)] {
+                    if v == 0 {
+                        return Err(invalid(format!("manifest.json: {}: required for a compiled HEF", at(field))));
+                    }
+                }
             }
             if a.graph_input == GraphInput::Embeddings && a.host_weights.is_empty() {
                 return Err(invalid(format!(

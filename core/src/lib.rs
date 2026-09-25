@@ -1086,10 +1086,11 @@ fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
         manifest::Normalize::None => TURBO_NORMALIZE_NONE,
         manifest::Normalize::L2 => TURBO_NORMALIZE_L2,
     };
-    // A fixed-shape artifact reports the smaller of its shape and the model's.
-    let fixed = |model: u32, artifact: u32| if artifact == 0 { model } else { model.min(artifact) };
-    info.max_seq = fixed(e.max_seq, art.fixed_seq);
-    info.max_batch = fixed(e.max_batch, art.fixed_batch);
+    // A fixed-shape artifact reports the smaller of its sequence and the
+    // model's. Its fixed_batch is the frame the backend runs, and a backend
+    // runs as many frames as a batch needs, so the model's max_batch stands.
+    info.max_seq = if art.fixed_seq == 0 { e.max_seq } else { e.max_seq.min(art.fixed_seq) };
+    info.max_batch = e.max_batch;
     // A compiled artifact's compute_dtype, else the dtype raw weights are
     // stored in: raw weights fix none (the manifest refuses one).
     info.dtype = weights.info_dtype();

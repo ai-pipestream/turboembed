@@ -206,7 +206,7 @@ fn the_example_artifacts_parse() {
     }));
     arts.push(json!({
       "name": "hef-hailo10h-s128", "format": "FORMAT_HEF", "files": ["hailo/model-hailo10h-s128.hef"],
-      "backends": ["hailo"], "target": "hailo10h", "fixed_seq": 128, "compute_dtype": "DTYPE_I8",
+      "backends": ["hailo"], "target": "hailo10h", "fixed_seq": 128, "fixed_batch": 1, "compute_dtype": "DTYPE_I8",
       "graph_input": "INPUT_EMBEDDINGS", "host_weights": "weights-f32", "graph_output": "OUTPUT_HIDDEN_STATES",
       "produced_by": { "tool": "hailo-dataflow-compiler", "tool_version": "v", "container": "c", "from": "onnx-f32",
         "inputs": ["calibration/texts.txt"], "args": ["--hw-arch", "hailo10h"], "reproducible": false }
