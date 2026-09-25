@@ -468,6 +468,22 @@ fn the_native_router_is_pinned_by_its_bytes_and_started_on_the_loopback() {
     assert!(tei::native_pin(&d.join("absent")).unwrap_err().contains("--tei-bin"));
 }
 
+#[cfg(unix)]
+#[test]
+fn a_native_router_that_exits_is_an_error_with_its_output_and_leaves_nothing() {
+    use std::os::unix::fs::PermissionsExt;
+    let m = cpu_measurement();
+    let d = upstream_dir("tei-native-exits");
+    let bin = d.join("router");
+    std::fs::write(&bin, "#!/bin/sh\necho no model here\nexit 3\n").unwrap();
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let t = Tei { image: String::new(), model_dir: d.to_owned(), cpus: None, binary: Some(bin) };
+    let e = tei::run(&t, m, None, Some(1), 1, 1).unwrap_err();
+    assert!(e.contains("TEI did not become healthy") && e.contains("no model here"), "{e}");
+    let log = std::env::temp_dir().join(format!("turbo-bench-tei-{}.log", std::process::id()));
+    assert!(!log.exists(), "the router's output file is removed");
+}
+
 #[test]
 fn f16_is_offered_to_a_router_on_a_gpu_only() {
     assert_eq!(tei::dtype(turbo::TURBO_DTYPE_F16, true), Ok("float16"));

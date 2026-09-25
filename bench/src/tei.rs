@@ -204,13 +204,15 @@ pub fn native_pin(bin: &Path) -> Result<String> {
     Ok(format!("text-embeddings-router@sha256:{}", sha256_hex(&bytes)))
 }
 
-/// A native router started by the tool, stopped when this goes.
-struct Native(std::process::Child);
+/// A native router started by the tool, and the file its output goes
+/// to: the router is stopped and the file removed when this goes.
+struct Native(std::process::Child, PathBuf);
 
 impl Drop for Native {
     fn drop(&mut self) {
         let _ = self.0.kill();
         let _ = self.0.wait();
+        let _ = fs::remove_file(&self.1);
     }
 }
 
@@ -620,7 +622,7 @@ pub fn run(
         return Ok(not_run(image, log, &procedure, why));
     }
     if let Some(bin) = &tei.binary {
-        return run_native(tei, bin, image, &dir, m, dtype, procedure, library, warmup, iterations, log);
+        return run_native(bin, image, &dir, m, dtype, procedure, library, warmup, iterations, log);
     }
     docker::require_image(&mut log, image)?;
     let env =
@@ -652,7 +654,6 @@ pub fn run(
 /// image: `what` is the procedure so far.
 #[allow(clippy::too_many_arguments)]
 fn run_native(
-    tei: &Tei,
     bin: &Path,
     pinned: &str,
     dir: &Path,
@@ -665,7 +666,7 @@ fn run_native(
     log: Log,
 ) -> Result<ReferenceRun> {
     let bin = fs::canonicalize(bin).map_err(|e| format!("--tei-bin {}: {e}", bin.display()))?;
-    let threads = cpus::procedure(tei.cpus.as_ref(), library, &[]);
+    let threads = cpus::procedure(None, library, &[]);
     let what = format!("{what}; TEI's router built natively and run on this machine, not in a container");
     let port = std::net::TcpListener::bind("127.0.0.1:0")
         .and_then(|l| l.local_addr())
@@ -684,8 +685,11 @@ fn run_native(
         .stdout(file)
         .stderr(err)
         .spawn()
-        .map_err(|e| format!("{}: {e}", run.join(" ")))?;
-    let mut server = Native(child);
+        .map_err(|e| {
+            let _ = fs::remove_file(&out);
+            format!("{}: {e}", run.join(" "))
+        })?;
+    let mut server = Native(child, out.clone());
     let base = format!("http://127.0.0.1:{port}");
     let start = Instant::now();
     while get(&format!("{base}/health")).is_err() {
@@ -696,10 +700,7 @@ fn run_native(
         }
         std::thread::sleep(Duration::from_secs(1));
     }
-    let r = against(&base, pinned, log, what, threads, m, warmup, iterations);
-    drop(server);
-    let _ = fs::remove_file(&out);
-    r
+    against(&base, pinned, log, what, threads, m, warmup, iterations)
 }
 
 /// Check, warm up and time the server at `base`, as the procedure says.

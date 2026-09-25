@@ -375,8 +375,9 @@ the loopback at a free port with the options the image gets
 (`--model-id <tei-model>`, `--dtype`, `--pooling`,
 `--max-client-batch-size`, `--max-batch-tokens`, `HF_HUB_OFFLINE=1`),
 records the command with `<tei-bin>` for its path, checks and times it
-as the image, and stops it when the run ends. It computes on the GPU in
-float32 and float16 both.
+as the image, and stops it when the run ends. It computes on the GPU, in
+float32 or in float16 as the session's compute dtype asks. `--tei-bin` is
+refused for any other backend, and with `--cpus`.
 
 **TensorRT** builds an engine from one of the bundle's `FORMAT_ONNX`
 artifacts, checked against its hash, and times the rows loaded from raw

@@ -214,8 +214,19 @@ fn record_cmd(args: &[String]) -> Result<()> {
     if (no_tei && tei.is_some()) || (no_trt && trt.is_some()) || (no_ov && ov.is_some()) {
         return Err("a reference program is both named and disabled".into());
     }
-    if let Some(t) = tei.as_ref().filter(|t| t.binary.is_none()) {
-        turbo_bench::docker::check_pinned("--tei-image", &t.image)?;
+    if let Some(t) = &tei {
+        match &t.binary {
+            // Read now, so a wrong path fails before anything is measured.
+            Some(bin) => {
+                tei::native_pin(bin)?;
+                if cpus.is_some() {
+                    return Err("--cpus pins TEI's container; the native router (--tei-bin) takes none".into());
+                }
+            }
+            None => {
+                turbo_bench::docker::check_pinned("--tei-image", &t.image)?;
+            }
+        }
     }
     if let Some(t) = &trt {
         turbo_bench::docker::check_pinned("--tensorrt-image", &t.image)?;
@@ -234,6 +245,11 @@ fn record_cmd(args: &[String]) -> Result<()> {
     drop(rt);
     let given = Given { tei: (tei.is_some(), no_tei), trt: (trt.is_some(), no_trt), ov: (ov.is_some(), no_ov) };
     given.check(&backend)?;
+    // The native router is the reference where no container reaches the
+    // GPU; elsewhere TEI runs from its image.
+    if tei.as_ref().is_some_and(|t| t.binary.is_some()) && backend != "metal" {
+        return Err(format!("--tei-bin is TEI's native router for metal; give --tei-image for {backend}"));
+    }
 
     // Refused before anything is measured, and checked again after.
     let before = git::provenance(&repo)?;
