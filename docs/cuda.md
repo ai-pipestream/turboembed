@@ -62,8 +62,18 @@ stores), with no pass through shared memory. `sw` is 128 × 128 over
 four warps of 64 × 64 for every GEMM, each k step's fragments read
 before its MMAs; `sw256` the same but 256 × 128 over eight such warps
 for the first feed-forward GEMM, one block to an SM; `sw8w` the
-eight-warp mix's shapes at three and four stages. The other precisions
-take `128x64` for these. Unset, the FMA kernels and TF32 take `128x64`,
+eight-warp mix's shapes at three and four stages; `swrow` is `sw8w` but
+the attention output and second feed-forward GEMMs on 64 × 384 tiles,
+whole rows, over eight warps of 32 × 96, one block to an SM: their
+epilogue adds the bias and the residual and runs the LayerNorm on the
+rows in registers (each lane's values of a row summed, then the quad's
+by shuffles, then the four warps across the row in warp order through
+shared memory; the mean, then the variance about it), writing the F32
+hidden states and their F16 copy once, with no LayerNorm kernel after
+it. It sums in another order than the separate kernel, so its vectors
+agree with the default's within FASTEST's bound, not bit for bit; a
+hidden width over 384 takes `sw8w`. The other precisions take `128x64`
+for these. Unset, the FMA kernels and TF32 take `128x64`,
 and F16 on the tensor cores `8w`. On an RTX 4080 at 32 × 256, `8w` is faster than the
 four-warp tiles (`128x128-4w` with `256x128` for the first feed-forward
 GEMM): about 0.73 against 0.83 ms on mixed rows and 3.5 against 3.9 ms

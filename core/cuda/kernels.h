@@ -57,6 +57,10 @@ struct Packing {
     float *key_bias;
 };
 
+/* The widest hidden state TILE_SWIZZLED_ROWS normalizes in the attention
+ * output and second feed-forward GEMMs' epilogue: its tile's width. */
+constexpr int ROW_LN_WIDTH = 384;
+
 /* The widest head attention computes. */
 constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 
@@ -92,7 +96,12 @@ enum Tile : int {
     /* TILE_SWIZZLED_8W with F16 accumulators over each 64 terms of k, as
      * TILE_EIGHT_WARPS_F16_ACCUMULATE. (Warps of 64 x 64 have no
      * registers for both kinds of accumulator.) */
-    TILE_SWIZZLED_8W_F16_ACCUMULATE = 12
+    TILE_SWIZZLED_8W_F16_ACCUMULATE = 12,
+    /* TILE_SWIZZLED_8W, but the attention output and second feed-forward
+     * GEMMs 64 x 384, whole rows (hidden widths up to ROW_LN_WIDTH), over
+     * eight warps of 32 x 96, one block to an SM, with the residual and
+     * the LayerNorm in their epilogue. */
+    TILE_SWIZZLED_ROWS = 13
 };
 
 /* A session's fixed shape, from which make_plan sizes every launch. */
