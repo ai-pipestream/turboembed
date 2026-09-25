@@ -20,8 +20,9 @@ feature of the `turbo` crate links it, and `turbo_version()` then lists
   Xcode itself is not needed, nor is its offline `metal` compiler.
 
 A Mac whose GPU has memory of its own (an AMD GPU in an Intel Mac), or an
-Intel Mac's integrated GPU, is listed, and its capability cell says
-UNSUPPORTED with the reason.
+Intel Mac's integrated GPU, is listed, its capability cell says
+UNSUPPORTED with the reason, and a context on it is refused with
+`TURBO_E_UNSUPPORTED` and the same reason.
 
 ## Building
 
@@ -55,8 +56,11 @@ frameworks and libc++, which every macOS has.
   as on the CPU.
 - **Contexts.** A context is a command queue on its device and the
   kernels, compiled from their source without fast math, so `exp`,
-  `sqrt` and division are the precise ones. The queue is used under the
-  context's lock.
+  `sqrt` and division are the precise ones: with the macOS 15 SDK or
+  later and on macOS 15 or later, by `MTLMathModeSafe`, else by turning
+  fast math off. The first context on a device compiles them, and every
+  later one in the process uses that compilation. The queue is used
+  under the context's lock.
 - **Buffers.** All four placements are the one memory. `DEVICE` is a
   private Metal buffer, with no host address; `PINNED` and `SHARED` are
   shared Metal buffers, one address for the host and the device; `HOST`
@@ -67,13 +71,19 @@ frameworks and libc++, which every macOS has.
   `TURBO_HANDLE_HOST_PTR` as `HOST`, or as `PINNED` or `SHARED` when it is
   whole pages, which Metal then maps without a copy. Export gives the
   Metal buffer of every placement but `HOST`, and the host pointer of
-  every one but `DEVICE`. Any other kind is `TURBO_E_UNSUPPORTED`, naming
+  every one but `DEVICE`. Reading a `DEVICE` buffer back goes through one
+  shared staging buffer per context, kept at the size of the largest
+  read. Any other kind is `TURBO_E_UNSUPPORTED`, naming
   it.
 - **Models.** Loading copies nothing: the pages the core holds the
   weights in are mapped as shared Metal buffers, one per run of tensors
   that lie together (a weights file's), and each tensor is read where it
-  is. Where Metal will not map them, they are copied once
-  into a shared buffer, and the context's log says so. An F16 or BF16
+  is. Metal documents mapping for memory from `vm_allocate` or `mmap`;
+  the core's weights are an aligned heap allocation, which Metal maps
+  on the macOS versions tested (`core/tests/metal.rs` checks that nothing
+  is copied, so a release that stops mapping it fails that test). A run of
+  tensors Metal will not map is copied once into a shared buffer of its
+  own, and the context's log says how many bytes. An F16 or BF16
   model's F32 copy is made on the device by the first session that
   computes in F32, shared by every later one, and freed with the model.
 - **Sessions.** Every byte a run touches is allocated when the session is
