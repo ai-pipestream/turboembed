@@ -429,6 +429,9 @@ struct Kernels {
     /// from F16 activations: to F32 and to F16, then the same for at most
     /// 8 tokens.
     linear_dpas: Option<[Kernel; 4]>,
+    /// At FASTEST, the attention output and the feed-forward output with
+    /// the LayerNorm after them, for a hidden width a group spans.
+    linear_dpas_layer_norm: Option<Kernel>,
     embed_layer_norm: Kernel,
     add_layer_norm: Kernel,
     /// The same, a group per token, for few tokens.
@@ -450,7 +453,7 @@ enum Attention {
 }
 
 impl Kernels {
-    fn new(c: &Context, head_dim: u32, xmx: bool) -> Res<Kernels> {
+    fn new(c: &Context, hidden: u32, head_dim: u32, xmx: bool) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
@@ -463,6 +466,11 @@ impl Kernels {
             linear: c.kernel("linear", [16, 16, 1])?,
             linear_sg: c.kernel("linear_sg", [16, 1, 1])?,
             linear_gemv: c.kernel("linear_gemv", [16 * GEMV_SUBGROUPS, 1, 1])?,
+            linear_dpas_layer_norm: if xmx && hidden / DPAS_TN <= DPAS_LN_SUBGROUPS {
+                Some(c.kernel("linear_dpas_layer_norm", [16 * (hidden / DPAS_TN), 1, 1])?)
+            } else {
+                None
+            },
             linear_dpas: if xmx {
                 let (main, few) = ([16 * DPAS_WM * DPAS_WN, 1, 1], [16 * FEW_WM * FEW_WN, 1, 1]);
                 Some([
@@ -508,6 +516,10 @@ const FEW_TM: u32 = 8;
 const FEW_WM: u32 = 1;
 const FEW_WN: u32 = 4;
 const DPAS_K: u32 = 32;
+/// The LayerNorm-fused XMX kernel's tokens a group, and its most
+/// sub-groups, DPAS_TN outputs each, as encoder.cl's.
+const DPAS_LN_TM: u32 = 16;
+const DPAS_LN_SUBGROUPS: u32 = 64;
 /// The kernels for 8 tokens at most: GEMV_SUBGROUPS sub-groups a group,
 /// each summing a share of the terms, as encoder.cl's GV_KS and GV.
 const GEMV_SUBGROUPS: u32 = 8;
@@ -650,7 +662,7 @@ pub(crate) unsafe extern "C" fn session_create(
             let xmx = precision == TURBO_PRECISION_FASTEST
                 && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
                 && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
-            let kernels = Kernels::new(c, head_dim, xmx)?;
+            let kernels = Kernels::new(c, d.hidden, head_dim, xmx)?;
             if let Attention::General(k) = &kernels.attention {
                 // The driver keeps some of a work-group's local memory for
                 // the kernel's own use (its reductions); the scores get the
@@ -924,6 +936,29 @@ impl Session {
             }
         };
 
+        // At FASTEST, a projection back to the hidden width with the
+        // LayerNorm after it, in one kernel, from F16 act; false where
+        // that kernel does not run, for more than a handful of tokens.
+        let fused = |q: &mut Queue, act: u64, n_in: u32, (l, which): (u32, usize), (bias, lnw, lnb), what: &str| {
+            let (Some(kln), Some(half)) = (&k.linear_dpas_layer_norm, &self.half) else { return Ok(false) };
+            if tokens <= FEW_TOKENS_DPAS {
+                return Ok(false);
+            }
+            let args = [
+                Ptr(act),
+                Ptr(half.layers[l as usize][which]),
+                Ptr(bias),
+                Ptr(self.x),
+                Ptr(self.xh),
+                Ptr(lnw),
+                Ptr(lnb),
+                F32(eps),
+                I32(tokens as i32),
+                I32(h as i32),
+                I32(n_in as i32),
+            ];
+            kln.launch(c, q, what, &args, [tokens.div_ceil(DPAS_LN_TM), 1, 1]).map(|()| true)
+        };
         let n = self.max_batch as u64 * self.max_seq as u64 * 4;
         let staging = self.staging as u64;
         let args = [
@@ -1008,18 +1043,14 @@ impl Session {
                 }
             }
             let wo = (l, 1, layer(l, ATTN_OUT_WEIGHT));
-            // At FASTEST the LayerNorm after it adds split sums as well.
-            let most = if xmx { SPLITS } else { 1 };
-            let parts =
-                linear(q, self.att, h, wo, 0, h, self.tmp, 0, (most, false), "the attention output projection")?;
-            add_ln(
-                q,
-                layer(l, ATTN_OUT_BIAS),
-                layer(l, ATTN_LN_WEIGHT),
-                layer(l, ATTN_LN_BIAS),
-                parts,
-                "the attention LayerNorm",
-            )?;
+            let ln = (layer(l, ATTN_OUT_BIAS), layer(l, ATTN_LN_WEIGHT), layer(l, ATTN_LN_BIAS));
+            if !fused(q, self.att, h, (l, 1), ln, "the attention output and LayerNorm")? {
+                // At FASTEST the LayerNorm after it adds split sums as well.
+                let most = if xmx { SPLITS } else { 1 };
+                let parts =
+                    linear(q, self.att, h, wo, 0, h, self.tmp, 0, (most, false), "the attention output projection")?;
+                add_ln(q, ln.0, ln.1, ln.2, parts, "the attention LayerNorm")?;
+            }
             let (wi, bi) = ((l, 2, layer(l, FFN_IN_WEIGHT)), layer(l, FFN_IN_BIAS));
             linear(
                 q,
@@ -1034,15 +1065,12 @@ impl Session {
                 "the feed-forward input and GELU",
             )?;
             let wf = (l, 3, layer(l, FFN_OUT_WEIGHT));
-            let parts = linear(q, self.ffn, inter, wf, 0, h, self.tmp, 0, (SPLITS, false), "the feed-forward output")?;
-            add_ln(
-                q,
-                layer(l, FFN_OUT_BIAS),
-                layer(l, FFN_LN_WEIGHT),
-                layer(l, FFN_LN_BIAS),
-                parts,
-                "the feed-forward LayerNorm",
-            )?;
+            let ln = (layer(l, FFN_OUT_BIAS), layer(l, FFN_LN_WEIGHT), layer(l, FFN_LN_BIAS));
+            if !fused(q, self.ffn, inter, (l, 3), ln, "the feed-forward output and LayerNorm")? {
+                let parts =
+                    linear(q, self.ffn, inter, wf, 0, h, self.tmp, 0, (SPLITS, false), "the feed-forward output")?;
+                add_ln(q, ln.0, ln.1, ln.2, parts, "the feed-forward LayerNorm")?;
+            }
         }
         let args = [
             Ptr(self.x),
