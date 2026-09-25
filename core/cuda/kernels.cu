@@ -1614,19 +1614,31 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         const int cw = n0 + wn * WTN;
         // Every index into acc below is a template constant (static_for),
         // never a loop the compiler may leave rolled.
-        // Bias, and GELU, in place first.
+        // Bias, and GELU, in place first. An F16 output is packed as each
+        // n8 tile is done, two half2 of its four values, and its floats
+        // not read again: half the registers live into the stores.
+        constexpr bool f16_out = sizeof(TOut) == 2;
+        static_assert(!f16_out || EPI != EPI_PLAIN, "F16 outputs have a bias, which packs them");
+        [[maybe_unused]] uint32_t packed[f16_out ? MI : 1][f16_out ? NI : 1][2];
         if constexpr (EPI != EPI_PLAIN)
             static_for<NI>([&](auto J) {
                 constexpr int j = J.value;
                 const int c = cw + j * 8 + tq * 2;
                 const float b0 = c < N ? __ldg(g.bias + c) : 0.0f, b1 = c < N ? __ldg(g.bias + c + 1) : 0.0f;
                 static_for<MI>([&](auto I) {
+                    constexpr int i = I.value;
 #pragma unroll
                     for (int e = 0; e < 4; e++) {
-                        float &v = acc[I.value][j][e];
+                        float &v = acc[i][j][e];
                         v += e & 1 ? b1 : b0;
                         if constexpr (EPI == EPI_GELU) v = gelu(v);
                     }
+                    if constexpr (f16_out)
+                        static_for<2>([&](auto H) {
+                            constexpr int h = H.value;
+                            const __half2 p = __floats2half2_rn(acc[i][j][2 * h], acc[i][j][2 * h + 1]);
+                            packed[i][j][h] = *reinterpret_cast<const uint32_t *>(&p);
+                        });
                 });
             });
         if constexpr (ROW_LN) {
@@ -1766,12 +1778,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                         constexpr int jq = JQ.value, i = I.value, h = H.value;
                         const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
                         uint32_t mine[4];
-                        static_for<4>([&](auto U) {
-                            constexpr int u = U.value;
-                            const __half2 p =
-                                __floats2half2_rn(acc[i][jq * 4 + u][2 * h], acc[i][jq * 4 + u][2 * h + 1]);
-                            mine[u] = *reinterpret_cast<const uint32_t *>(&p);
-                        });
+                        static_for<4>([&](auto U) { mine[U.value] = packed[i][jq * 4 + U.value][h]; });
                         const uint4 w = quad_gather(mine, tq);
                         if (t >= M || c >= N) return;
                         if constexpr (EPI == EPI_QKV) {
