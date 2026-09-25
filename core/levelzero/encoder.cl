@@ -702,9 +702,10 @@ FLASH(attention_128_to_half, 128, half, vstore_half4)
  * the weights (V as A, 8 of the width a product and a lane per key; the
  * weights as B, a lane per query). K and V arrive by 2D block reads, V's
  * transposed; rows past the row's last token read as zeros. The softmax
- * runs in base 2 on scores scaled by log2(e). qkv and ctx are F16, the sums and the softmax F32. The head width is a
- * multiple of 32, and so is hidden, so a head's keys and values start
- * 64-byte aligned for the 2D reads. */
+ * runs in base 2 on scores scaled by log2(e). qkv and ctx are F16, the
+ * sums and the softmax F32. The head width is a multiple of 32, and so is
+ * hidden, so a head's keys and values start 64-byte aligned for the 2D
+ * reads. */
 #define ATT_SUBGROUPS 4
 
 __attribute__((overloadable)) void intel_sub_group_2d_block_read_transpose_32b_16r8x1c(__global void *base, int width,
