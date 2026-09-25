@@ -192,6 +192,11 @@ static LINKED: &[&turbo_backend] = &[
     unsafe {
         &crate::metal::turbo_metal_backend
     },
+    #[cfg(feature = "hailo")]
+    // A table the C++ side fills at compile time and never writes.
+    unsafe {
+        &crate::hailo::turbo_hailo_backend
+    },
     #[cfg(feature = "cpu")]
     &crate::cpu::BACKEND,
 ];

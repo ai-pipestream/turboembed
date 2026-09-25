@@ -99,6 +99,7 @@ fn the_version_lists_the_linked_backends() {
         (cfg!(feature = "cuda"), "cuda"),
         (cfg!(feature = "levelzero"), "levelzero"),
         (cfg!(feature = "metal"), "metal"),
+        (cfg!(feature = "hailo"), "hailo"),
         (true, "cpu"),
     ] {
         if on {
