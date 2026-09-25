@@ -117,9 +117,11 @@ cosine and largest absolute difference they measure.
 `TURBO_CUDA_POOL=columns` gives the pooling of a thread per column, for
 measuring against the default. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
 a GEMM's block takes before the GEMM runs on fewer blocks (a count from
-1 to 64; 4 when unset), for measuring how finely the work is shared.
-Like the tile, it moves where the sums split, so the vectors agree
-within the bound, not bit for bit.
+1 to 64; 4 when unset), for measuring how finely the work is shared, or
+`tiles`: whole tiles to a block, so no tile is split between blocks and
+no block waits on another's partial product (the blocks then share the
+tiles, not the k steps, evenly). Like the tile, it moves where the sums
+split, so the vectors agree within the bound, not bit for bit.
 
 A GEMM's block that finishes a tile waits for the blocks that computed
 its other k steps. Should one never arrive (the device running a later
@@ -205,7 +207,13 @@ older than the runtime, it lists none and the runtime's log says why.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: device scratch, the
   output buffer and page-locked staging for the rows; and the run is
-  captured into a CUDA graph, instantiated and uploaded to the device.
+  captured into a CUDA graph, instantiated and uploaded to the device:
+  one graph per bin of packed tokens (up to 256, 1024, 4096, 16384 and
+  more; the bins past `max_batch` × `max_seq` do not exist for the
+  session) whose kernel choices differ, all bins sharing one graph when
+  they choose alike, as they do unless their choices were forced apart.
+  `embed_write` counts the packed tokens on the host, and the run
+  launches its bin's graph.
   `embed_write` hands the rows over laid out at the run's own width,
   each array's rows back to back and the arrays one after another, so
   only the entries the caller passed are sent. When every array is in

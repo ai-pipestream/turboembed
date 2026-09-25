@@ -38,6 +38,7 @@ unsafe extern "C" {
     ) -> i32;
     fn turbo_cuda_use_cublas(gemms: i32);
     fn turbo_cuda_use_tile(tile: i32);
+    fn turbo_cuda_use_sk_steps(steps: i32);
     fn turbo_cuda_use_split_attention(split: i32);
     fn turbo_cuda_use_wide_attention(wide: i32);
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
@@ -200,6 +201,32 @@ pub(crate) unsafe fn narrowed(model: *mut std::ffi::c_void) -> Option<*const std
 #[cfg(feature = "internals")]
 pub fn use_tile(tile: Option<Tile>) {
     unsafe { turbo_cuda_use_tile(tile.map_or(-1, |t| t as i32)) };
+}
+
+/// How the GEMMs of a session share out their work, as TURBO_CUDA_SK_STEPS
+/// names it.
+#[cfg(feature = "internals")]
+#[derive(Clone, Copy, Debug)]
+pub enum StreamK {
+    /// Stream-K with the kernels' own fewest k steps to a block.
+    Default,
+    /// Stream-K with at least this many k steps to a block, 1 to 64.
+    Steps(u32),
+    /// Whole tiles to a block: no tile split between blocks.
+    Tiles,
+}
+
+/// The GEMMs' stream-K in sessions made from now on, or `None` to read
+/// TURBO_CUDA_SK_STEPS again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_stream_k(sk: Option<StreamK>) {
+    let v = match sk {
+        None => -1,
+        Some(StreamK::Default) => 0,
+        Some(StreamK::Steps(n)) => n as i32,
+        Some(StreamK::Tiles) => -2,
+    };
+    unsafe { turbo_cuda_use_sk_steps(v) };
 }
 
 /// The FMA attention of sessions made from now on: `Some(true)` the

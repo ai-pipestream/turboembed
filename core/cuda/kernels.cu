@@ -685,34 +685,35 @@ template <int N> __device__ inline void copy_wait() {
 // same device give the same bits; every output is a fixed sum of fixed
 // FMA chains.
 
-/* Fewer k steps than this per block and the launch uses fewer blocks;
- * GemmArgs.min_steps, when set, in its place. */
-constexpr int SK_MIN_STEPS = 4;
-
 struct Share {
     long long lo, hi, work;
     int blocks, steps;
+    int unit; /* the steps a share is a multiple of: 1, or a tile's with SK_WHOLE_TILES */
 };
 
-/* This block's share of tiles x steps of work, or an empty one. */
+/* This block's share of tiles x steps of work, or an empty one. With
+ * min_steps SK_WHOLE_TILES, whole tiles to a block, so no tile is split
+ * and no block waits on another. */
 __device__ inline Share share_of(int tiles, int steps, int min_steps) {
     Share s;
     s.work = (long long)tiles * steps;
+    s.unit = min_steps == SK_WHOLE_TILES ? steps : 1;
     const int least = min_steps > 0 ? min_steps : SK_MIN_STEPS;
-    const long long most = s.work / least > 0 ? s.work / least : 1;
+    const long long want = min_steps == SK_WHOLE_TILES ? tiles : s.work / least;
+    const long long most = want > 0 ? want : 1;
     s.blocks = (int)(most < (long long)gridDim.x ? most : (long long)gridDim.x);
     s.steps = steps;
     if ((int)blockIdx.x >= s.blocks) {
         s.lo = s.hi = 0;
     } else {
-        s.lo = s.work * blockIdx.x / s.blocks;
-        s.hi = s.work * (blockIdx.x + 1) / s.blocks;
+        s.lo = s.work / s.unit * blockIdx.x / s.blocks * s.unit;
+        s.hi = s.work / s.unit * (blockIdx.x + 1) / s.blocks * s.unit;
     }
     return s;
 }
 
 /* The first step of block b's share. */
-__device__ inline long long share_start(const Share &s, int b) { return s.work * b / s.blocks; }
+__device__ inline long long share_start(const Share &s, int b) { return s.work / s.unit * b / s.blocks * s.unit; }
 
 /* A partial product stored: once every thread's values are, one thread
  * raises the flag with a release at device scope, which orders the
@@ -2930,18 +2931,18 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     // alone, or with the LayerNorm after it.
     p->fused_ln = s.fused_ln && s.hidden <= LN_FUSED_MAX_HIDDEN;
     p->ln_counts = p->fused_ln ? ln_counters(s.tcap) : 0;
-    const Epilogue out_epi = p->fused_ln ? EPI_ADD_LN : EPI_PLAIN;
     cudaError_t e = cudaSuccess;
-    for (Epilogue ep : {EPI_QKV, EPI_GELU, out_epi})
-        if (e == cudaSuccess) e = gemm_prepare(ep, s.half, s.tensor_cores, s.tile);
-    size_t ws[3] = {0, 0, 0};
-    bool *crowded = &p->gemm_crowded;
-    if (e == cudaSuccess) e = gemm_grid(EPI_QKV, s.half, s.tensor_cores, s.tile, s.sms, &p->qkv_grid, &ws[0], crowded);
-    if (e == cudaSuccess) e = gemm_grid(out_epi, s.half, s.tensor_cores, s.tile, s.sms, &p->out_grid, &ws[1], crowded);
-    if (e == cudaSuccess) e = gemm_grid(EPI_GELU, s.half, s.tensor_cores, s.tile, s.sms, &p->ffn1_grid, &ws[2], crowded);
-    p->ffn2_grid = p->out_grid;
-    for (size_t w : ws) p->sk_floats = w > p->sk_floats ? w : p->sk_floats;
-    for (int g : {p->qkv_grid, p->out_grid, p->ffn1_grid}) p->sk_flags = g > p->sk_flags ? g : p->sk_flags;
+    for (int i = 0; i < GEMM_COUNT && e == cudaSuccess; i++) {
+        const Gemm g = (Gemm)i;
+        const Epilogue ep = gemm_epilogue(g, p->fused_ln);
+        const bool mma = gemm_mma(s, g);
+        size_t ws = 0;
+        e = gemm_prepare(ep, s.half, mma, s.gemm[g].tile);
+        if (e == cudaSuccess)
+            e = gemm_grid(ep, s.half, mma, s.gemm[g].tile, s.sms, &p->gemm_grid[g], &ws, &p->gemm_crowded);
+        p->sk_floats = ws > p->sk_floats ? ws : p->sk_floats;
+        p->sk_flags = p->gemm_grid[g] > p->sk_flags ? p->gemm_grid[g] : p->sk_flags;
+    }
     if (e != cudaSuccess) return e;
 
     int chunk = ((s.seq_cap + 63) & ~63);

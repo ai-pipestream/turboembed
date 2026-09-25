@@ -1643,6 +1643,56 @@ fn every_gemm_tile_gives_the_same_vectors() {
     }
 }
 
+/// TURBO_CUDA_SK_STEPS shares the GEMMs' k steps out among the blocks at
+/// other points, or gives each block whole tiles (`tiles`): every choice
+/// gives the vectors of the default within the bound of the precision,
+/// at every precision, on ragged rows, and repeats its own bits.
+#[test]
+fn every_stream_k_mode_gives_the_same_vectors() {
+    let _t = turn();
+    let Some(_) = cuda_device("every_stream_k_mode_gives_the_same_vectors") else { return };
+    use turbo::cuda::StreamK;
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(64);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(64);
+    m["embed"]["max_seq"] = json!(160);
+    m["embed"]["max_batch"] = json!(40);
+    let mut f = Fixture::new("cuda-stream-k", m);
+    f.weights("weights/model.safetensors", &bert_weights(64, 256));
+    let g = f.load_on(cuda).unwrap();
+    let t = ragged_rows(&f.dir, 40, 160);
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
+        let own = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
+        let tol = record::tolerance(own.info().compute_dtype).unwrap();
+        own.write_tokens(&t.batch(), None).unwrap();
+        let want = own.run().unwrap().rows();
+        for sk in [
+            StreamK::Default,
+            StreamK::Steps(1),
+            StreamK::Steps(2),
+            StreamK::Steps(8),
+            StreamK::Steps(16),
+            StreamK::Tiles,
+        ] {
+            turbo::cuda::use_stream_k(Some(sk));
+            let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
+            turbo::cuda::use_stream_k(None);
+            let s = s.unwrap();
+            s.write_tokens(&t.batch(), None).unwrap();
+            let got = s.run().unwrap().rows();
+            s.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(s.run().unwrap().rows(), got, "precision {precision}, {sk:?}: the same bits again");
+            if matches!(sk, StreamK::Default) {
+                assert_eq!(got, want, "precision {precision}: the kernels' own steps, forced, are the default");
+            }
+            let (cos, abs) = within(&format!("precision {precision}, {sk:?}"), &got, &want, tol);
+            println!("precision {precision}, {sk:?}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+        }
+    }
+}
+
 /// TURBO_CUDA_CUBLAS hands GEMMs to cuBLAS for measuring: every choice of
 /// them gives the vectors of the backend's own GEMMs within the bound of
 /// the precision, at MODEL and FASTEST.
