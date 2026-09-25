@@ -71,6 +71,15 @@ pub enum Tile {
     /// 128 x 128 with 16 x 8 outputs to a thread for the FMA kernel;
     /// 128 x 128 on the tensor cores.
     T128x128Thread16x8 = 4,
+    /// On the tensor cores 128 x 128 over four warps of 64 x 64; 128 x 64
+    /// for the FMA kernel.
+    T128x128Warps4 = 5,
+    /// On the tensor cores 256 x 128 over eight warps of 64 x 64 (128 x 128
+    /// over four for an F32 output); 128 x 64 for the FMA kernel.
+    T256x128 = 6,
+    /// The tensor cores' eight-warp tiles as FASTEST took them before:
+    /// 128 x 128 for QKV and GELU, 128 x 64 for the others.
+    EightWarps = 7,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random

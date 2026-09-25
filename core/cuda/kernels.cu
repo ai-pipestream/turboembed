@@ -1252,17 +1252,30 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
     }
 }
 
-/* The tensor cores' tiles, eight warps each but 64 x 64's four:
- * 128 x 128 at two stages, warps of 32 x 64; 128 x 64 at three, warps of
- * 32 x 32; 64 x 64 at four. The F16 default takes 128 x 128 for the wide
- * GEMMs, QKV and GELU, and 128 x 64 for the N = 384 ones; TF32's takes
- * 128 x 64 for all (its F32 output tile of 128 x 128 fits one block to
- * an SM). */
+/* The tensor cores' tiles. The F16 default is cutlass's shape: warps of
+ * 64 x 64, so each ldmatrix feeds four MMAs, one block to an SM at three
+ * stages of k 32: 256 x 128 over eight warps for GELU (the feed-forward
+ * input, the widest), 128 x 128 over four for the others. The eight-warp
+ * tiles before it: 128 x 128 at two stages, warps of 32 x 64; 128 x 64
+ * at three, warps of 32 x 32 (TF32's default, for every GEMM); and
+ * TILE_EIGHT_WARPS, the F16 default they made, 128 x 128 for QKV and
+ * GELU and 128 x 64 for the others. 64 x 64, four warps of 32 x 32, at
+ * four stages. An F32 output tile of 256 x 128 does not fit shared
+ * memory, so such a GEMM takes 128 x 128 over four warps instead. */
 template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
-    if (t == TILE_64x64) return mma_kernel<64, 64, 2, 2, 4, EPI, TOut, TIn>();
-    constexpr bool wide = (EPI == EPI_QKV || EPI == EPI_GELU) && sizeof(TIn) == 2;
-    if (t == TILE_128x128 || (t == TILE_DEFAULT && wide)) return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn>();
-    return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn>();
+    constexpr bool f16 = sizeof(TIn) == 2, wide = EPI == EPI_QKV || EPI == EPI_GELU;
+    if (t == TILE_DEFAULT && f16) t = EPI == EPI_GELU ? TILE_256x128 : TILE_128x128_4W;
+    if (t == TILE_EIGHT_WARPS) t = wide && f16 ? TILE_128x128 : TILE_128x64;
+    if (t == TILE_256x128 && sizeof(TOut) == 4) t = TILE_128x128_4W;
+    switch (t) {
+    case TILE_64x64: return mma_kernel<64, 64, 2, 2, 4, EPI, TOut, TIn>();
+    case TILE_128x128: return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn>();
+    case TILE_128x128_4W: return mma_kernel<128, 128, 2, 2, 3, EPI, TOut, TIn>();
+    case TILE_256x128:
+        if constexpr (sizeof(TOut) == 2) return mma_kernel<256, 128, 4, 2, 3, EPI, TOut, TIn>();
+        return mma_kernel<128, 128, 2, 2, 3, EPI, TOut, TIn>();
+    default: return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn>();
+    }
 }
 
 GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {

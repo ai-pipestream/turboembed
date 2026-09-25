@@ -1002,10 +1002,13 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 //
 // TURBO_CUDA_TILE, read when a session is made, names the GEMMs' tile
 // for all four: 64x64, 128x64, 128x128 or 128x128-16x8 (the FMA kernel's
-// 128x128 over 128 threads of 16 x 8 outputs; 128x128 elsewhere), for
+// 128x128 over 128 threads of 16 x 8 outputs; 128x128 elsewhere), and
+// on the tensor cores 128x128-4w (four warps of 64 x 64), 256x128 (eight
+// such warps) or 8w (the eight-warp mix FASTEST took before: 128x128 for
+// QKV and the first feed-forward GEMM, 128x64 for the other two), for
 // measuring one against another and against the default (128x64 for
-// the FMA kernel; on the tensor cores 128x128 for QKV and the first
-// feed-forward GEMM, 128x64 for the other two).
+// the FMA kernel and TF32; F16 on the tensor cores 256x128 for the
+// first feed-forward GEMM and 128x128-4w for the others).
 //
 // TURBO_CUDA_ATTENTION=split, read when a session is made, gives an F32
 // session (and an F16 one without the tensor cores' attention) the FMA
@@ -1056,6 +1059,9 @@ Tile tile_named() {
     if (!strcasecmp(v, "128x64")) return TILE_128x64;
     if (!strcasecmp(v, "128x128")) return TILE_128x128;
     if (!strcasecmp(v, "128x128-16x8")) return TILE_128x128_16x8;
+    if (!strcasecmp(v, "128x128-4w")) return TILE_128x128_4W;
+    if (!strcasecmp(v, "256x128")) return TILE_256x128;
+    if (!strcasecmp(v, "8w")) return TILE_EIGHT_WARPS;
     return TILE_DEFAULT;
 }
 

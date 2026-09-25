@@ -1255,7 +1255,7 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
         let g = f.load_on(cuda).unwrap();
         let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
         for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
-            for tile in [Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128] {
+            for tile in [Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T256x128, Tile::EightWarps] {
                 let mut bits = Vec::new();
                 for separate in [true, false] {
                     turbo::cuda::use_tile(Some(tile));
@@ -1371,7 +1371,15 @@ fn the_gemms_match_cublas() {
     ] {
         for (half, tensor_cores) in [(false, false), (false, true), (true, true), (true, false)] {
             let tiles: &[Tile] = if tensor_cores {
-                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128]
+                &[
+                    Tile::Default,
+                    Tile::T64x64,
+                    Tile::T128x64,
+                    Tile::T128x128,
+                    Tile::T128x128Warps4,
+                    Tile::T256x128,
+                    Tile::EightWarps,
+                ]
             } else {
                 &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
             };
@@ -1426,7 +1434,15 @@ fn every_gemm_tile_gives_the_same_vectors() {
         let tol = record::tolerance(own.info().compute_dtype).unwrap();
         own.write_tokens(&t.batch(), None).unwrap();
         let want = own.run().unwrap().rows();
-        for tile in [Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8] {
+        for tile in [
+            Tile::T64x64,
+            Tile::T128x64,
+            Tile::T128x128,
+            Tile::T128x128Thread16x8,
+            Tile::T128x128Warps4,
+            Tile::T256x128,
+            Tile::EightWarps,
+        ] {
             turbo::cuda::use_tile(Some(tile));
             let s = Session::create(g.m, Some(&session_desc(40, 160, precision)));
             turbo::cuda::use_tile(None);

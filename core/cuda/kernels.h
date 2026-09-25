@@ -64,11 +64,21 @@ constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 constexpr int MAX_HIDDEN = 2048;
 
 /* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64 for the
- * FMA GEMM, and on the tensor cores 128 x 128 for the wide GEMMs (QKV,
- * GELU) and 128 x 64 for the others; TURBO_CUDA_TILE names one tile for
- * all of them. The FMA GEMM gives a thread 8 x 8 outputs but at
- * TILE_128x128_16x8, 16 x 8 over 128 threads. */
-enum Tile : int { TILE_DEFAULT = 0, TILE_64x64 = 1, TILE_128x64 = 2, TILE_128x128 = 3, TILE_128x128_16x8 = 4 };
+ * FMA GEMM and TF32, and for F16 on the tensor cores 256 x 128 for GELU
+ * and 128 x 128 over four warps for the others; TURBO_CUDA_TILE names
+ * one tile for all of them. The FMA GEMM gives a thread 8 x 8 outputs
+ * but at TILE_128x128_16x8, 16 x 8 over 128 threads, and takes 128 x 64
+ * for the tensor cores' own tiles. */
+enum Tile : int {
+    TILE_DEFAULT = 0,
+    TILE_64x64 = 1,
+    TILE_128x64 = 2,
+    TILE_128x128 = 3,
+    TILE_128x128_16x8 = 4,
+    TILE_128x128_4W = 5, /* the tensor cores' 128 x 128 over four warps of 64 x 64 */
+    TILE_256x128 = 6,    /* the tensor cores' 256 x 128 over eight warps of 64 x 64 */
+    TILE_EIGHT_WARPS = 7 /* the tensor cores' eight-warp mix, FASTEST's default before */
+};
 
 /* A session's fixed shape, from which make_plan sizes every launch. */
 struct Shape {

@@ -46,11 +46,16 @@ nothing. `TURBO_CUDA_TILE`, read the same way, picks the GEMMs' output
 tile for every GEMM: `64x64`, `128x64`, `128x128` or `128x128-16x8`
 (128 × 128 over 128 threads of 16 × 8 outputs each for the FMA
 kernels, where the other tiles give a thread 8 × 8; plain `128x128` on
-the tensor cores). Unset, the FMA kernels take `128x64`, and the
-tensor-core kernels `128x128` for the QKV and first feed-forward GEMMs
-and `128x64` for the other two. On an RTX 4080, FASTEST runs as fast
-with `128x64` for every GEMM as with that mix, and EXACT about 4%
-slower with `128x128-16x8` than with `128x64`. A tile shares the
+the tensor cores), and for the tensor cores `128x128-4w` (four warps of
+64 × 64), `256x128` (eight such warps; `128x128-4w` for a GEMM with an
+F32 output) or `8w`, the eight-warp tiles FASTEST took before: `128x128`
+over warps of 32 × 64 for the QKV and first feed-forward GEMMs and
+`128x64` for the other two (the FMA kernels take `128x64` for these
+three). Unset, the FMA kernels and TF32 take `128x64`, and F16 on the
+tensor cores `256x128` for the first feed-forward GEMM and `128x128-4w`
+for the others. On an RTX 4080, `8w` ran as fast as `128x64` for every
+GEMM, and EXACT about 4% slower with `128x128-16x8` than with `128x64`.
+A tile shares the
 work among the blocks at other points, so the vectors agree within the
 precision's bound, not bit for bit; only the time should differ.
 `TURBO_CUDA_ATTENTION=split`, read the same way, gives the sessions
@@ -237,11 +242,10 @@ older than the runtime, it lists none and the runtime's log says why.
   The GEMMs are the backend's own, their bias, GELU and head-major
   layout applied in the epilogue. At FASTEST they take F16 operands with
   `mma.sync.m16n8k16` and F32 accumulators, 32 values of k to a step
-  through a `cp.async` pipeline, eight warps to a block and two blocks
-  to an SM: 128 × 128 tiles over two stages, each warp 32 × 64, for the
-  QKV and first feed-forward GEMMs, and 128 × 64 tiles over three, each
-  warp 32 × 32, for the attention output and second feed-forward GEMMs,
-  whose outputs are a third or a quarter as wide. The outputs are staged
+  through a three-stage `cp.async` pipeline, one block to an SM, each
+  warp 64 × 64 outputs, so each `ldmatrix` feeds four MMAs: 256 × 128
+  tiles over eight warps for the first feed-forward GEMM, the widest,
+  and 128 × 128 tiles over four for the others. The outputs are staged
   through shared memory to be stored 16 bytes at a time. At MODEL with
   `TURBO_CUDA_TF32=1`, on sm_80 and newer, the same kernel takes F32
   operands, 16 values of k to
