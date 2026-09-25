@@ -124,8 +124,7 @@ block to an SM; `f16k3` is the same at three stages, two blocks to an SM;
 GEMMs as `swrow` takes them, 64 × 384 whole rows with the residual and
 the LayerNorm in their epilogue (`f16k3`'s tile for hidden states wider
 than 384); `f16k256` is `f16k3` but QKV and GELU at 256 × 128 over
-eight warps of 64 × 64, one block to an SM; `f16k2` is `f16k` at two
-stages, three blocks to an SM.
+eight warps of 64 × 64, one block to an SM.
 Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
 uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
 F32 sums, sums over 64 and whole-k sums side by side, and hold the last
