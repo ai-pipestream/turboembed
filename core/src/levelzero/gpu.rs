@@ -133,6 +133,11 @@ pub(crate) struct Context {
     module: Mutex<Option<Result<Shared, String>>>,
     /// The most local memory one work-group may have.
     pub max_local: u32,
+    /// Nanoseconds per tick of the device's timestamps.
+    timer_ns: u64,
+    /// With TURBO_LEVELZERO_PROFILE set: each append's name, how many
+    /// times it ran, and its nanoseconds on the device.
+    profile: Mutex<std::collections::BTreeMap<String, (u64, u64)>>,
     log: turbo_log_fn,
     log_user_data: *mut c_void,
 }
@@ -158,7 +163,16 @@ impl Context {
     }
 
     fn build(&self) -> Result<Handle, String> {
-        let flags = c"";
+        // The matrix and attention kernels hold their tiles in registers:
+        // with the large register file they do not spill. A driver that
+        // does not take the option builds without it.
+        match self.build_with(c"") {
+            Ok(h) => Ok(h),
+            Err(_) => self.build_with(c""),
+        }
+    }
+
+    fn build_with(&self, flags: &std::ffi::CStr) -> Result<Handle, String> {
         let desc = ze::ModuleDesc {
             stype: ze::STRUCTURE_TYPE_MODULE_DESC,
             p_next: std::ptr::null(),
@@ -304,7 +318,12 @@ impl Context {
     /// list unable to synchronize or be destroyed, which sync handles.
     fn appended(&self, q: &mut Queue, what: &str, rc: ze::Status) -> Res<()> {
         match rc {
-            0 => q.used += 1,
+            0 => {
+                q.used += 1;
+                if profiling() {
+                    q.names.push(what.to_owned());
+                }
+            }
             _ => q.wedged = true,
         }
         ze(what, rc)
@@ -337,6 +356,19 @@ impl Context {
             })?;
             q.list = list;
         }
+        if profiling() {
+            let mut p = self.profile.lock().unwrap_or_else(|p| p.into_inner());
+            for (name, &e) in q.names.iter().zip(&q.events[..q.used]) {
+                // Global start and end, then this context's, in ticks.
+                let mut ts = [0u64; 4];
+                if unsafe { (a.event_query_kernel_timestamp)(e, &mut ts) } == 0 {
+                    let entry = p.entry(name.clone()).or_default();
+                    entry.0 += 1;
+                    entry.1 += ts[3].wrapping_sub(ts[2]) * self.timer_ns;
+                }
+            }
+            q.names.clear();
+        }
         for &e in &q.events[..q.used] {
             ze("zeEventHostReset", unsafe { (a.event_host_reset)(e) })?;
         }
@@ -368,12 +400,32 @@ pub(crate) struct Queue {
     used: usize,
     /// An append failed since the last sync.
     wedged: bool,
+    /// With TURBO_LEVELZERO_PROFILE set, what each signalled event's
+    /// append was.
+    names: Vec<String>,
+}
+
+/// TURBO_LEVELZERO_PROFILE set in the environment: every context times
+/// each kernel and copy on the device, and logs the totals at debug level
+/// when it is released.
+fn profiling() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("TURBO_LEVELZERO_PROFILE").is_some())
 }
 
 unsafe impl Send for Queue {}
 
 impl Drop for Context {
     fn drop(&mut self) {
+        if profiling() {
+            let p = std::mem::take(self.profile.get_mut().unwrap_or_else(|p| p.into_inner()));
+            let total: u64 = p.values().map(|v| v.1).sum();
+            for (name, (n, ns)) in p.iter() {
+                let share = 100.0 * *ns as f64 / total.max(1) as f64;
+                let line = format!("levelzero profile: {name}: {n} times, {:.3} ms, {share:.1}%", *ns as f64 / 1e6);
+                self.say(LOG_DEBUG, &line);
+            }
+        }
         let module = self.module.get_mut().unwrap_or_else(|p| p.into_inner());
         if let Some(Ok(m)) = module.take() {
             unsafe { (self.api.module_destroy)(m.0) };
@@ -480,9 +532,12 @@ pub(crate) unsafe fn create(
             events: Vec::with_capacity(EVENTS as usize),
             used: 0,
             wedged: false,
+            names: Vec::new(),
         }),
         module: Mutex::new(None),
         max_local: dev.max_local,
+        timer_ns: dev.timer_ns,
+        profile: Mutex::new(std::collections::BTreeMap::new()),
         log,
         log_user_data,
     });
@@ -490,7 +545,7 @@ pub(crate) unsafe fn create(
     let pd = ze::EventPoolDesc {
         stype: ze::STRUCTURE_TYPE_EVENT_POOL_DESC,
         p_next: std::ptr::null(),
-        flags: ze::EVENT_POOL_FLAG_HOST_VISIBLE,
+        flags: ze::EVENT_POOL_FLAG_HOST_VISIBLE | if profiling() { ze::EVENT_POOL_FLAG_KERNEL_TIMESTAMP } else { 0 },
         count: EVENTS,
     };
     let no_devices = std::ptr::null_mut();
@@ -543,8 +598,9 @@ pub(crate) fn append_failure_recovers(
         c.sync(&mut q).map_err(text)?;
         let old = q.list;
         unsafe { c.copy(&mut q, dst, src, n * 4) }.map_err(text)?;
-        let mut args = [Arg::U64(0); 13];
-        args[12] = Arg::Local(c.max_local as usize + 4096);
+        // The general attention kernel's last argument is its local memory.
+        let mut args = [Arg::U64(0); 8];
+        args[7] = Arg::Local(c.max_local as usize + 4096);
         if k.launch(&c, &mut q, "the refused launch", &args, [1, 1, 1]).is_ok() {
             return Err("the driver took a launch with more local memory than the device has".into());
         }

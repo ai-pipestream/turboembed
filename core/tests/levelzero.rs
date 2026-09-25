@@ -359,16 +359,18 @@ fn runtimes_on_many_threads_list_the_same_devices() {
 // ---- Capability and selection --------------------------------------------------------------
 
 #[test]
-fn embed_is_offered_in_f32_as_sessions_run_it() {
+fn embed_is_offered_in_f32_and_f16_as_sessions_run_it() {
     let _t = turn();
-    let Some(_) = gpu_device("embed_is_offered_in_f32_as_sessions_run_it") else { return };
+    let Some(_) = gpu_device("embed_is_offered_in_f32_and_f16_as_sessions_run_it") else { return };
     let l = on_gpu(&tiny_bundle());
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
         let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
         cap.struct_size = size_of::<turbo_capability>() as u32;
         assert_eq!(unsafe { turbo_runtime_capability(l.rt, gpu(l.rt), TURBO_TASK_EMBED, p, &mut cap, null_err()) }, 0);
         assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&cap.reason));
-        assert_eq!(cap.dtype, TURBO_DTYPE_F32);
+        // FASTEST runs the linear layers on the matrix engines in F16.
+        let want = if p == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
+        assert_eq!(cap.dtype, want, "precision {p}");
         assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");
         let info = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap().info();
         assert_eq!(info.compute_dtype, cap.dtype, "precision {p}");
@@ -698,7 +700,7 @@ fn a_run_leaves_its_vectors_on_the_device_and_counts_what_crossed() {
     assert_eq!((i.dtype, i.compute_dtype, i.placement), (TURBO_DTYPE_F32, TURBO_DTYPE_F32, TURBO_PLACE_DEVICE));
     assert_eq!(i.device, gpu(l.rt));
     assert_eq!(i.bytes, 3 * 32 * 4);
-    assert_eq!(i.h2d_bytes, 2 * 3 * seq * 4, "ids and mask, [3, {seq}] int32 each");
+    assert_eq!(i.h2d_bytes, 2 * 3 * seq * 4 + 3 * 8, "ids and mask, [3, {seq}] int32 each, and the row table");
     assert_eq!(i.d2h_bytes, 0, "nothing came back yet");
     assert_eq!((i.host_allocs, i.device_allocs), (0, 0));
     let (h, d, f, u) = (TURBO_STAGE_HOST, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED, TURBO_STAGE_UNUSED);
@@ -732,7 +734,7 @@ fn a_run_leaves_its_vectors_on_the_device_and_counts_what_crossed() {
     b.types = Some(vec![0, 1, 1]);
     s.write_tokens(&b.batch(), Some(&opts(|o| o.normalize = TURBO_NORMALIZE_NONE))).unwrap();
     let i = s.run().unwrap().info();
-    assert_eq!(i.h2d_bytes, 3 * 3 * 4);
+    assert_eq!(i.h2d_bytes, 3 * 3 * 4 + 8);
     assert_eq!(i.stage[..7], [u, d, d, d, d, u, u]);
     assert_eq!((i.batch, i.d2h_bytes), (1, 0), "a run's count starts again");
 }
@@ -767,7 +769,7 @@ fn rows_in_driver_memory_give_the_same_vectors() {
         s.write_tokens(&b, None).unwrap();
         let r = s.run().unwrap();
         assert_eq!(r.rows(), want, "placement {placement}");
-        assert_eq!(r.info().h2d_bytes, 3 * n * 4);
+        assert_eq!(r.info().h2d_bytes, 3 * n * 4 + 3 * 8);
     }
 }
 
@@ -1011,7 +1013,16 @@ fn named_bundle() -> Option<std::path::PathBuf> {
 /// 0.9999. Rows are full or end early, so the padding is exercised too.
 fn largest_shape_matches_the_cpu(dir: &std::path::Path) {
     let (g, c) = (on_gpu(dir), Loaded::load(dir).unwrap());
-    let (gs, cs) = (Session::create(g.m, None).unwrap(), Session::create(c.m, None).unwrap());
+    let cs = Session::create(c.m, None).unwrap();
+    // F32 at MODEL, and F16 on the matrix engines at FASTEST, each held
+    // to its dtype's floor.
+    for (precision, floor) in [(TURBO_PRECISION_MODEL, 0.9999), (TURBO_PRECISION_FASTEST, 0.999)] {
+        let gs = Session::create(g.m, Some(&session_desc(0, 0, precision))).unwrap();
+        largest_shape_on(dir, &gs, &cs, floor);
+    }
+}
+
+fn largest_shape_on(dir: &std::path::Path, gs: &Session, cs: &Session, floor: f64) {
     let si = gs.info();
     let (batch, seq) = (si.max_batch as usize, si.max_seq as usize);
     let vocab = Tok::create(dir).unwrap().info().vocab_size as usize;
@@ -1031,9 +1042,14 @@ fn largest_shape_matches_the_cpu(dir: &std::path::Path) {
     for (r, (a, b)) in got.iter().zip(&want).enumerate() {
         let cos = cosine(a, b);
         lowest = lowest.min(cos);
-        assert!(cos >= 0.9999, "row {r}: cosine {cos} with the cpu");
+        assert!(cos >= floor, "row {r}: cosine {cos} with the cpu");
     }
-    println!("{}: {batch} rows of {seq} tokens, 1 - lowest cosine with the cpu {:.3e}", dir.display(), 1.0 - lowest);
+    println!(
+        "{}: {batch} rows of {seq} tokens in dtype {}, 1 - lowest cosine with the cpu {:.3e}",
+        dir.display(),
+        gs.info().compute_dtype,
+        1.0 - lowest
+    );
 }
 
 #[test]

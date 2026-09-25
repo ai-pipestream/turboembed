@@ -32,8 +32,8 @@ use crate::status::{INVALID_ARGUMENT, INVALID_STATE, UNSUPPORTED, UNSUPPORTED_OP
 use crate::{
     TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_EMBED_STAGE_DOWNLOAD, TURBO_EMBED_STAGE_ENCODE, TURBO_EMBED_STAGE_LOOKUP,
     TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL, TURBO_EMBED_STAGE_UPLOAD, TURBO_NORMALIZE_L2,
-    TURBO_PLACE_DEVICE, TURBO_PRECISION_MODEL, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED, TURBO_STAGE_UNUSED,
-    TURBO_TASK_EMBED, turbo_error,
+    TURBO_PLACE_DEVICE, TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED,
+    TURBO_STAGE_UNUSED, TURBO_TASK_EMBED, turbo_error,
 };
 
 /// TURBO_BERT_* in turbo_backend.h: the embedding tensors, then each
@@ -96,9 +96,32 @@ pub(crate) struct Model {
     stored: *mut c_void,
     offsets: Vec<usize>,
     counts: Vec<u64>,
-    /// Every tensor's F32 device address: into stored for an F32 model,
-    /// else into the widened copy once a session made it.
-    f32: Mutex<Option<(Vec<u64>, *mut c_void)>>,
+    /// The weights sessions compute from, made by the first one.
+    f32: Mutex<Option<Weights>>,
+    /// The linear layers' weights in F16, for the matrix engines, made by
+    /// the first session at FASTEST.
+    f16: Mutex<Option<Half>>,
+}
+
+/// Each layer's linear weights in F16, in one allocation: the fused Q, K
+/// and V, the attention output, and the feed-forward input and output.
+#[derive(Clone)]
+struct Half {
+    layers: Vec<[u64; 4]>,
+    alloc: *mut c_void,
+}
+
+/// A model's weights in F32 on the device: every tensor, into stored for
+/// an F32 model and into a widened copy for an F16 or BF16 one; and each
+/// layer's Q, K and V weights and biases side by side, [3 * hidden,
+/// hidden] and [3 * hidden], for one projection.
+#[derive(Clone)]
+struct Weights {
+    tensors: Vec<u64>,
+    qkv: Vec<(u64, u64)>,
+    /// The widened copy; null for an F32 model.
+    widened: *mut c_void,
+    fused: *mut c_void,
 }
 
 // The context outlives the model (the core releases models first); the
@@ -112,18 +135,90 @@ impl Model {
     }
 
     /// The weights in F32, made on first need.
-    fn f32_weights(&self) -> Res<Vec<u64>> {
+    fn f32_weights(&self) -> Res<Weights> {
         let mut f = self.f32.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some((w, _)) = f.as_ref() {
+        if let Some(w) = f.as_ref() {
             return Ok(w.clone());
         }
         let c = self.ctx();
         let base = self.stored as u64;
-        if self.desc.dtype == TURBO_DTYPE_F32 {
-            let w = self.offsets.iter().map(|&o| base + o as u64).collect::<Vec<_>>();
-            *f = Some((w.clone(), std::ptr::null_mut()));
-            return Ok(w);
+        let (tensors, widened) = if self.desc.dtype == TURBO_DTYPE_F32 {
+            (self.offsets.iter().map(|&o| base + o as u64).collect::<Vec<_>>(), std::ptr::null_mut())
+        } else {
+            self.widen()?
+        };
+        let fused = match self.fuse(&tensors) {
+            Ok(p) => p,
+            Err(e) => {
+                if !widened.is_null() {
+                    c.free(widened, "the widened weights");
+                }
+                return Err(e);
+            }
+        };
+        let (h, layers) = (self.desc.hidden as u64, self.desc.layers as u64);
+        let per_layer = 3 * h * h * 4 + 3 * h * 4;
+        let qkv =
+            (0..layers).map(|l| (fused as u64 + l * per_layer, fused as u64 + l * per_layer + 3 * h * h * 4)).collect();
+        let w = Weights { tensors, qkv, widened, fused };
+        *f = Some(w.clone());
+        Ok(w)
+    }
+
+    /// The linear layers' weights in F16, made on first need from the F32
+    /// ones.
+    fn f16_weights(&self, w: &Weights) -> Res<Half> {
+        let mut f = self.f16.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(h) = f.as_ref() {
+            return Ok(h.clone());
         }
+        let c = self.ctx();
+        let d = &self.desc;
+        let (h, i) = (d.hidden as u64, d.intermediate as u64);
+        let t = |l: u32, r: u32| w.tensors[(TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
+        // Each layer's four weights: where they are in F32, and their size.
+        let mut parts = Vec::with_capacity(4 * d.layers as usize);
+        for l in 0..d.layers {
+            parts.push((w.qkv[l as usize].0, 3 * h * h));
+            parts.push((t(l, ATTN_OUT_WEIGHT), h * h));
+            parts.push((t(l, FFN_IN_WEIGHT), i * h));
+            parts.push((t(l, FFN_OUT_WEIGHT), h * i));
+        }
+        let mut at = Vec::with_capacity(parts.len());
+        let mut total = 0usize;
+        for &(_, n) in &parts {
+            at.push(total as u64);
+            total += round_up(n as usize * 2, DEVICE_ALIGN);
+        }
+        let alloc = c.alloc_device(total)?;
+        let narrowed = (|| {
+            let k = c.kernel("narrow_f16", [WIDE, 1, 1])?;
+            let mut q = c.lock_queue()?;
+            let appended = (|| {
+                for (p, &(src, n)) in parts.iter().enumerate() {
+                    let args = [Arg::Ptr(src), Arg::U64(n), Arg::Ptr(alloc as u64 + at[p])];
+                    k.launch(c, &mut q, "narrow_f16", &args, [elementwise_groups(n), 1, 1])?;
+                }
+                Ok(())
+            })();
+            let synced = c.sync(&mut q);
+            appended?;
+            synced
+        })();
+        if let Err(e) = narrowed {
+            c.free(alloc, "the F16 weights");
+            return Err(e);
+        }
+        let layers = at.chunks(4).map(|a| [0, 1, 2, 3].map(|j| alloc as u64 + a[j])).collect();
+        let half = Half { layers, alloc };
+        *f = Some(half.clone());
+        Ok(half)
+    }
+
+    /// An F16 or BF16 model's tensors widened to F32 in a new allocation.
+    fn widen(&self) -> Res<(Vec<u64>, *mut c_void)> {
+        let c = self.ctx();
+        let base = self.stored as u64;
         let mut at = Vec::with_capacity(self.counts.len());
         let mut total = 0usize;
         for &n in &self.counts {
@@ -153,9 +248,49 @@ impl Model {
             c.free(wide, "the widened weights");
             return Err(e);
         }
-        let w = at.iter().map(|&a| wide as u64 + a as u64).collect::<Vec<_>>();
-        *f = Some((w.clone(), wide));
-        Ok(w)
+        Ok((at.iter().map(|&a| wide as u64 + a as u64).collect(), wide))
+    }
+
+    /// Each layer's Q, K and V weights, then their biases, copied side by
+    /// side on the device from the F32 tensors.
+    fn fuse(&self, tensors: &[u64]) -> Res<*mut c_void> {
+        let c = self.ctx();
+        let (h, layers) = (self.desc.hidden as usize, self.desc.layers as usize);
+        let (weight, bias) = (h * h * 4, h * 4);
+        let fused = c.alloc_device(layers * 3 * (weight + bias))?;
+        let copied = (|| {
+            let mut q = c.lock_queue()?;
+            let appended = (|| {
+                for l in 0..layers {
+                    let dst = fused as usize + l * 3 * (weight + bias);
+                    let t = |r: u32| {
+                        tensors[(TURBO_BERT_EMBEDDING_TENSORS + l as u32 * TURBO_BERT_LAYER_TENSORS + r) as usize]
+                    };
+                    for (i, (w, b)) in
+                        [(Q_WEIGHT, Q_BIAS), (K_WEIGHT, K_BIAS), (V_WEIGHT, V_BIAS)].into_iter().enumerate()
+                    {
+                        unsafe {
+                            c.copy(&mut q, (dst + i * weight) as *mut c_void, t(w) as usize as *const c_void, weight)?;
+                            c.copy(
+                                &mut q,
+                                (dst + 3 * weight + i * bias) as *mut c_void,
+                                t(b) as usize as *const c_void,
+                                bias,
+                            )?;
+                        }
+                    }
+                }
+                Ok(())
+            })();
+            let synced = c.sync(&mut q);
+            appended?;
+            synced
+        })();
+        if let Err(e) = copied {
+            c.free(fused, "the fused projections");
+            return Err(e);
+        }
+        Ok(fused)
     }
 }
 
@@ -163,10 +298,15 @@ impl Drop for Model {
     fn drop(&mut self) {
         let c = unsafe { &*self.ctx };
         let f = self.f32.get_mut().unwrap_or_else(|p| p.into_inner());
-        if let Some((_, wide)) = f.take()
-            && !wide.is_null()
-        {
-            c.free(wide, "the widened weights");
+        if let Some(w) = f.take() {
+            if !w.widened.is_null() {
+                c.free(w.widened, "the widened weights");
+            }
+            c.free(w.fused, "the fused projections");
+        }
+        let h = self.f16.get_mut().unwrap_or_else(|p| p.into_inner());
+        if let Some(h) = h.take() {
+            c.free(h.alloc, "the F16 weights");
         }
         if !self.stored.is_null() {
             c.free(self.stored, "the weights");
@@ -211,6 +351,7 @@ pub(crate) unsafe extern "C" fn model_load(
                 offsets,
                 counts,
                 f32: Mutex::new(None),
+                f16: Mutex::new(None),
             });
             {
                 let mut q = c.lock_queue()?;
@@ -251,7 +392,7 @@ pub(crate) unsafe extern "C" fn model_load(
 pub(crate) unsafe fn widened(model: *mut c_void) -> Option<*const c_void> {
     let m = unsafe { &*(model as *const Model) };
     let f = m.f32.lock().unwrap_or_else(|p| p.into_inner());
-    f.as_ref().map(|(_, wide)| *wide as *const c_void).filter(|p| !p.is_null())
+    f.as_ref().map(|w| w.widened as *const c_void).filter(|p| !p.is_null())
 }
 
 pub(crate) unsafe extern "C" fn model_release(model: *mut c_void) {
@@ -263,29 +404,73 @@ pub(crate) unsafe extern "C" fn model_release(model: *mut c_void) {
 /// The encoder's kernel objects, one set per session.
 struct Kernels {
     linear: Kernel,
+    /// The linear layers on the matrix engines, for a session at FASTEST:
+    /// F32 activations to F32, F32 to F16, and F16 to F32.
+    linear_xmx: Option<[Kernel; 3]>,
     embed_layer_norm: Kernel,
     add_layer_norm: Kernel,
-    bias_gelu: Kernel,
-    attention: Kernel,
+    attention: Attention,
     pool: Kernel,
 }
 
+/// Attention for the model's head width: a tiled kernel where one is
+/// built for it, else the general one.
+enum Attention {
+    Tiled(Kernel),
+    General(Kernel),
+}
+
 impl Kernels {
-    fn new(c: &Context) -> Res<Kernels> {
+    fn new(c: &Context, head_dim: u32, xmx: bool) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
+        let attention = match head_dim {
+            32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
+            _ => Attention::General(c.kernel("attention", row)?),
+        };
         Ok(Kernels {
             linear: c.kernel("linear", [16, 16, 1])?,
+            linear_xmx: if xmx {
+                let one = [16, 1, 1];
+                Some([
+                    c.kernel("linear_xmx", one)?,
+                    c.kernel("linear_xmx_to_half", one)?,
+                    c.kernel("linear_xmx_from_half", one)?,
+                ])
+            } else {
+                None
+            },
             embed_layer_norm: c.kernel("embed_layer_norm", row)?,
             add_layer_norm: c.kernel("add_layer_norm", row)?,
-            bias_gelu: c.kernel("bias_gelu", [WIDE, 1, 1])?,
-            attention: c.kernel("attention", row)?,
+            attention,
             pool: c.kernel("pool", row)?,
         })
     }
 }
 
-/// Bytes of local memory attention takes for rows of seq tokens: the
-/// query's head, the row's scores and the partial contexts.
+/// The parts the feed-forward output's sums are split into, over its
+/// terms, so its few output tiles still fill the device; the LayerNorm
+/// after it adds them.
+const SPLITS: u32 = 4;
+
+/// Operands of the XMX linear kernels: F32 activations to F32, F32 to
+/// F16, and F16 to F32.
+const XMX_F32: usize = 0;
+const XMX_TO_F16: usize = 1;
+const XMX_FROM_F16: usize = 2;
+
+/// The XMX linear kernel's output tile, as encoder.cl's XM and XN.
+const XMX_TILE: u32 = 32;
+
+/// Queries a tiled attention group takes, as encoder.cl's QUERIES.
+const QUERIES: u32 = 256;
+
+/// The linear kernel's epilogue, as encoder.cl's LINEAR_*.
+const LINEAR_BIAS: i32 = 1;
+const LINEAR_GELU: i32 = 2;
+
+/// Bytes of local memory the general attention kernel takes for rows of
+/// seq tokens: the query's head, the row's scores and the partial
+/// contexts.
 fn attention_local_bytes(seq: u32, head_dim: u32) -> u64 {
     let part = if head_dim <= BLOCK { (BLOCK / head_dim) * head_dim } else { 0 };
     4 * (head_dim as u64 + seq as u64 + part as u64)
@@ -295,29 +480,42 @@ struct Session {
     model: *const Model,
     ctx: *const Context,
     kernels: Kernels,
-    weights: Vec<u64>,
+    weights: Weights,
+    /// The linear layers' F16 weights, for a session at FASTEST.
+    half: Option<Half>,
     max_batch: u32,
     max_seq: u32,
     scratch: *mut c_void,
+    // The written rows, [batch, seq] as written.
     ids: u64,
     mask: u64,
     types: u64,
+    /// Each row's first packed token and its length through its last live
+    /// token: [batch, 2] int32.
+    rows: u64,
+    // Packed, [tokens, ...]: the mask, the hidden states, the fused
+    // projections, the attention context, a projection's output, and the
+    // feed-forward block.
+    packed_mask: u64,
     x: u64,
-    q: u64,
-    k: u64,
-    v: u64,
+    qkv: u64,
     att: u64,
     tmp: u64,
     ffn: u64,
     /// [max_batch, hidden] F32 on the device, handed out as the output.
     output: Box<Buffer>,
-    /// [3, max_batch * max_seq] int32 the device reads directly.
+    /// The device reads these directly: [3, max_batch * max_seq] int32 for
+    /// rows the driver did not allocate, then [max_batch, 2] for the row
+    /// table.
     staging: *mut c_void,
     /// What the last write left.
     written: bool,
     has_types: bool,
     batch: u32,
     seq: u32,
+    /// Live tokens, packed.
+    tokens: u32,
+    longest: u32,
     pooling: u32,
     normalize: u32,
     output_dim: u32,
@@ -376,25 +574,33 @@ pub(crate) unsafe extern "C" fn session_create(
                     format!("max_seq {max_seq} is over the model's {} positions", d.max_positions),
                 ));
             }
-            let kernels = Kernels::new(c)?;
-            // The driver keeps some of a work-group's local memory for the
-            // kernel's own use (its reductions); the scores get the rest.
             let head_dim = d.hidden / d.heads;
-            let local = attention_local_bytes(max_seq, head_dim);
-            let room = (c.max_local as u64).saturating_sub(kernels.attention.local_bytes()? as u64);
-            if local > room {
-                return Err(fail_field(
-                    UNSUPPORTED_OPTION,
-                    2,
-                    format!(
-                        "max_seq {max_seq}: attention needs {local} bytes of local memory per work-group, and \
-                         device {} gives it {room}",
-                        c.ordinal
-                    ),
-                ));
+            // FASTEST runs the linear layers on the matrix engines, 16
+            // terms at a time.
+            let xmx = precision == TURBO_PRECISION_FASTEST
+                && d.hidden.is_multiple_of(16)
+                && d.intermediate.is_multiple_of(16);
+            let kernels = Kernels::new(c, head_dim, xmx)?;
+            if let Attention::General(k) = &kernels.attention {
+                // The driver keeps some of a work-group's local memory for
+                // the kernel's own use (its reductions); the scores get the
+                // rest.
+                let local = attention_local_bytes(max_seq, head_dim);
+                let room = (c.max_local as u64).saturating_sub(k.local_bytes()? as u64);
+                if local > room {
+                    return Err(fail_field(
+                        UNSUPPORTED_OPTION,
+                        2,
+                        format!(
+                            "max_seq {max_seq}: attention needs {local} bytes of local memory per work-group, and \
+                             device {} gives it {room}",
+                            c.ordinal
+                        ),
+                    ));
+                }
             }
             let tokens = max_batch as usize * max_seq as usize;
-            if tokens > i32::MAX as usize / d.intermediate.max(d.hidden) as usize {
+            if tokens > i32::MAX as usize / (3 * d.hidden).max(d.intermediate) as usize {
                 return Err(fail_field(
                     UNSUPPORTED_OPTION,
                     1,
@@ -402,26 +608,29 @@ pub(crate) unsafe extern "C" fn session_create(
                 ));
             }
             let weights = m.f32_weights()?;
+            let half = if xmx { Some(m.f16_weights(&weights)?) } else { None };
             let ints = round_up(tokens * 4, DEVICE_ALIGN);
+            let table = round_up(max_batch as usize * 8, DEVICE_ALIGN);
             let wide = round_up(tokens * d.hidden as usize * 4, DEVICE_ALIGN);
             let ffn = round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN);
             let output = round_up(max_batch as usize * d.hidden as usize * 4, DEVICE_ALIGN);
-            let scratch = c.alloc_device(3 * ints + 6 * wide + ffn + output)?;
+            let scratch = c.alloc_device(4 * ints + table + (5 + SPLITS as usize) * wide + ffn + output)?;
             let mut s = Box::new(Session {
                 model: m,
                 ctx: c,
                 kernels,
                 weights,
+                half,
                 max_batch,
                 max_seq,
                 scratch,
                 ids: 0,
                 mask: 0,
                 types: 0,
+                rows: 0,
+                packed_mask: 0,
                 x: 0,
-                q: 0,
-                k: 0,
-                v: 0,
+                qkv: 0,
                 att: 0,
                 tmp: 0,
                 ffn: 0,
@@ -431,12 +640,14 @@ pub(crate) unsafe extern "C" fn session_create(
                 has_types: false,
                 batch: 0,
                 seq: 0,
+                tokens: 0,
+                longest: 0,
                 pooling: 0,
                 normalize: 0,
                 output_dim: 0,
                 h2d: 0,
             });
-            s.staging = c.alloc_pinned(3 * tokens * 4)?;
+            s.staging = c.alloc_pinned(3 * tokens * 4 + max_batch as usize * 8)?;
             let mut p = scratch as u64;
             let mut take = |n: usize| {
                 let at = p;
@@ -446,16 +657,16 @@ pub(crate) unsafe extern "C" fn session_create(
             s.ids = take(ints);
             s.mask = take(ints);
             s.types = take(ints);
+            s.packed_mask = take(ints);
+            s.rows = take(table);
             s.x = take(wide);
-            s.q = take(wide);
-            s.k = take(wide);
-            s.v = take(wide);
+            s.qkv = take(3 * wide);
             s.att = take(wide);
-            s.tmp = take(wide);
+            s.tmp = take(SPLITS as usize * wide);
             s.ffn = take(ffn);
             let out_ptr = take(output) as usize as *mut c_void;
             s.output = Box::new(Buffer::session_output(c, out_ptr, max_batch as u64 * d.hidden as u64 * 4));
-            *compute_dtype = TURBO_DTYPE_F32;
+            *compute_dtype = if xmx { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
             *out = Box::into_raw(s) as *mut c_void;
             Ok(())
         })
@@ -528,26 +739,90 @@ impl Session {
         Ok((row * batch) as u64)
     }
 
-    /// The encoder over the written rows, appended to the queue.
+    /// The row table, from the mask on the host: each row's first packed
+    /// token and its length through its last live token, into the staging
+    /// the device reads. Returns the live tokens and the longest row.
+    ///
+    /// # Safety
+    /// As for upload.
+    unsafe fn pack(&self, r: &turbo_backend_embed_rows) -> (u32, u32) {
+        let tokens = self.max_batch as usize * self.max_seq as usize;
+        let table = unsafe { (self.staging as *mut i32).add(3 * tokens) };
+        let (mut t, mut longest) = (0u32, 0u32);
+        for b in 0..r.batch as usize {
+            let m = unsafe { std::slice::from_raw_parts(r.mask.add(b * r.row_stride as usize), r.seq as usize) };
+            let len = m.iter().rposition(|&v| v != 0).map_or(0, |p| p + 1) as u32;
+            unsafe {
+                *table.add(2 * b) = t as i32;
+                *table.add(2 * b + 1) = len as i32;
+            }
+            t += len;
+            longest = longest.max(len);
+        }
+        (t, longest)
+    }
+
+    /// The encoder over the packed rows, appended to the queue.
     fn encode(&self, q: &mut Queue) -> Res<()> {
         let c = self.ctx();
         let d = &self.model().desc;
-        let w = &self.weights;
+        let w = &self.weights.tensors;
         let k = &self.kernels;
-        let (batch, seq) = (self.batch, self.seq);
-        let tokens = batch * seq;
+        let (batch, tokens) = (self.batch, self.tokens);
         let (h, inter) = (d.hidden, d.intermediate);
         let eps = d.layer_norm_eps as f32;
         let head_dim = h / d.heads;
+        let scale = 1.0 / (head_dim as f32).sqrt();
         let layer = |l: u32, r: u32| w[(TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
         use Arg::*;
-        let linear = |q: &mut Queue, x: u64, n_in: u32, weight: u64, n_out: u32, y: u64, what: &str| {
-            let groups = [n_out.div_ceil(TILE), tokens.div_ceil(TILE), 1];
-            let args = [Ptr(x), Ptr(weight), Ptr(y), I32(tokens as i32), I32(n_out as i32), I32(n_in as i32)];
+        // A linear layer: `which` of the layer's four weights, for the F16
+        // copy at FASTEST, and the F32 weight; its sums split over its
+        // terms into `splits` parts; and at FASTEST, which operands.
+        let linear = |q: &mut Queue,
+                      x: u64,
+                      n_in: u32,
+                      (l, which, weight): (u32, usize, u64),
+                      bias: u64,
+                      n_out: u32,
+                      y: u64,
+                      flags: i32,
+                      (splits, operands): (u32, usize),
+                      what: &str| {
+            // A split takes an equal share of the terms, a multiple of 16.
+            let splits = if n_in.is_multiple_of(splits * 16) { splits } else { 1 };
+            let k_len = n_in / splits;
+            if let (Some(kx), Some(half)) = (&k.linear_xmx, &self.half) {
+                let groups = [n_out.div_ceil(XMX_TILE), tokens.div_ceil(XMX_TILE), splits];
+                let args = [
+                    Ptr(x),
+                    Ptr(half.layers[l as usize][which]),
+                    Ptr(bias),
+                    Ptr(y),
+                    I32(tokens as i32),
+                    I32(n_out as i32),
+                    I32(n_in as i32),
+                    I32(flags),
+                    I32(k_len as i32),
+                ];
+                return kx[operands].launch(c, q, what, &args, groups);
+            }
+            let groups = [n_out.div_ceil(TILE), tokens.div_ceil(TILE), splits];
+            let args = [
+                Ptr(x),
+                Ptr(weight),
+                Ptr(bias),
+                Ptr(y),
+                I32(tokens as i32),
+                I32(n_out as i32),
+                I32(n_in as i32),
+                I32(flags),
+                I32(k_len as i32),
+            ];
             k.linear.launch(c, q, what, &args, groups)
         };
-        let add_ln = |q: &mut Queue, bias: u64, lnw: u64, lnb: u64, what: &str| {
-            let args = [Ptr(self.x), Ptr(self.tmp), Ptr(bias), Ptr(lnw), Ptr(lnb), F32(eps), I32(h as i32)];
+        let add_ln = |q: &mut Queue, bias: u64, lnw: u64, lnb: u64, parts: u32, what: &str| {
+            let args =
+                [Ptr(self.x), Ptr(self.tmp), Ptr(bias), Ptr(lnw), Ptr(lnb), F32(eps), I32(h as i32), I32(parts as i32)];
             k.add_layer_norm.launch(c, q, what, &args, [tokens, 1, 1])
         };
 
@@ -555,62 +830,99 @@ impl Session {
             Ptr(self.ids),
             Ptr(self.types),
             I32(self.has_types as i32),
+            Ptr(self.mask),
+            Ptr(self.rows),
+            I32(batch as i32),
+            I32(self.seq as i32),
             Ptr(w[WORD]),
             Ptr(w[POSITION]),
             Ptr(w[TOKEN_TYPE]),
             Ptr(w[EMB_LN_W]),
             Ptr(w[EMB_LN_B]),
             F32(eps),
-            I32(seq as i32),
             I32(h as i32),
             Ptr(self.x),
+            Ptr(self.packed_mask),
         ];
         k.embed_layer_norm.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1])?;
         for l in 0..d.layers {
-            linear(q, self.x, h, layer(l, Q_WEIGHT), h, self.q, "the query projection")?;
-            linear(q, self.x, h, layer(l, K_WEIGHT), h, self.k, "the key projection")?;
-            linear(q, self.x, h, layer(l, V_WEIGHT), h, self.v, "the value projection")?;
-            let args = [
-                Ptr(self.q),
-                Ptr(self.k),
-                Ptr(self.v),
-                Ptr(layer(l, Q_BIAS)),
-                Ptr(layer(l, K_BIAS)),
-                Ptr(layer(l, V_BIAS)),
-                Ptr(self.mask),
-                I32(seq as i32),
-                I32(h as i32),
-                I32(head_dim as i32),
-                F32(1.0 / (head_dim as f32).sqrt()),
-                Ptr(self.att),
-                Local(attention_local_bytes(seq, head_dim) as usize),
-            ];
-            k.attention.launch(c, q, "attention", &args, [seq, d.heads, batch])?;
-            linear(q, self.att, h, layer(l, ATTN_OUT_WEIGHT), h, self.tmp, "the attention output projection")?;
+            let (qkv_w, qkv_b) = self.weights.qkv[l as usize];
+            linear(
+                q,
+                self.x,
+                h,
+                (l, 0, qkv_w),
+                qkv_b,
+                3 * h,
+                self.qkv,
+                LINEAR_BIAS,
+                (1, XMX_F32),
+                "the query, key and value projection",
+            )?;
+            match &k.attention {
+                Attention::Tiled(a) => {
+                    let args = [
+                        Ptr(self.qkv),
+                        Ptr(self.packed_mask),
+                        Ptr(self.rows),
+                        I32(h as i32),
+                        F32(scale),
+                        Ptr(self.att),
+                    ];
+                    a.launch(c, q, "attention", &args, [self.longest.div_ceil(QUERIES), d.heads, batch])?;
+                }
+                Attention::General(a) => {
+                    let args = [
+                        Ptr(self.qkv),
+                        Ptr(self.packed_mask),
+                        Ptr(self.rows),
+                        I32(h as i32),
+                        I32(head_dim as i32),
+                        F32(scale),
+                        Ptr(self.att),
+                        Local(attention_local_bytes(self.longest, head_dim) as usize),
+                    ];
+                    a.launch(c, q, "attention", &args, [self.longest, d.heads, batch])?;
+                }
+            }
+            let wo = (l, 1, layer(l, ATTN_OUT_WEIGHT));
+            linear(q, self.att, h, wo, 0, h, self.tmp, 0, (1, XMX_F32), "the attention output projection")?;
             add_ln(
                 q,
                 layer(l, ATTN_OUT_BIAS),
                 layer(l, ATTN_LN_WEIGHT),
                 layer(l, ATTN_LN_BIAS),
+                1,
                 "the attention LayerNorm",
             )?;
-            linear(q, self.x, h, layer(l, FFN_IN_WEIGHT), inter, self.ffn, "the feed-forward input")?;
-            let n = tokens as u64 * inter as u64;
-            let args = [Ptr(self.ffn), Ptr(layer(l, FFN_IN_BIAS)), U64(n), I32(inter as i32)];
-            k.bias_gelu.launch(c, q, "GELU", &args, [elementwise_groups(n), 1, 1])?;
-            linear(q, self.ffn, inter, layer(l, FFN_OUT_WEIGHT), h, self.tmp, "the feed-forward output")?;
+            let (wi, bi) = ((l, 2, layer(l, FFN_IN_WEIGHT)), layer(l, FFN_IN_BIAS));
+            linear(
+                q,
+                self.x,
+                h,
+                wi,
+                bi,
+                inter,
+                self.ffn,
+                LINEAR_BIAS | LINEAR_GELU,
+                (1, XMX_TO_F16),
+                "the feed-forward input and GELU",
+            )?;
+            let wf = (l, 3, layer(l, FFN_OUT_WEIGHT));
+            linear(q, self.ffn, inter, wf, 0, h, self.tmp, 0, (SPLITS, XMX_FROM_F16), "the feed-forward output")?;
             add_ln(
                 q,
                 layer(l, FFN_OUT_BIAS),
                 layer(l, FFN_LN_WEIGHT),
                 layer(l, FFN_LN_BIAS),
+                if inter.is_multiple_of(SPLITS * 16) { SPLITS } else { 1 },
                 "the feed-forward LayerNorm",
             )?;
         }
         let args = [
             Ptr(self.x),
-            Ptr(self.mask),
-            I32(seq as i32),
+            Ptr(self.packed_mask),
+            Ptr(self.rows),
             I32(h as i32),
             I32(self.output_dim as i32),
             I32(self.pooling as i32),
@@ -631,6 +943,7 @@ pub(crate) unsafe extern "C" fn embed_write(
             let (s, r) = (&mut *(session as *mut Session), &*rows);
             s.written = false;
             let c = s.ctx();
+            let (tokens, longest) = s.pack(r);
             let mut sent = 0;
             {
                 let mut q = c.lock_queue()?;
@@ -642,6 +955,10 @@ pub(crate) unsafe extern "C" fn embed_write(
                     if !r.types.is_null() {
                         sent += s.upload(&mut q, r, r.types, 2, s.types)?;
                     }
+                    let n = r.batch as usize * 8;
+                    let table = (s.staging as *const u8).add(3 * s.max_batch as usize * s.max_seq as usize * 4);
+                    c.copy(&mut q, s.rows as usize as *mut c_void, table as *const c_void, n)?;
+                    sent += n as u64;
                     Ok(())
                 })();
                 let synced = c.sync(&mut q);
@@ -651,6 +968,8 @@ pub(crate) unsafe extern "C" fn embed_write(
             s.has_types = !r.types.is_null();
             s.batch = r.batch;
             s.seq = r.seq;
+            s.tokens = tokens;
+            s.longest = longest;
             s.pooling = r.pooling;
             s.normalize = r.normalize;
             s.output_dim = r.output_dim;
