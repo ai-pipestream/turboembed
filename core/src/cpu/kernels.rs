@@ -48,6 +48,9 @@ impl Isa {
         Isa::Portable
     }
 
+    /// Whether this processor runs the instruction set. Only x86_64 has
+    /// more than one to choose from; elsewhere the tests alone ask.
+    #[cfg(any(target_arch = "x86_64", test))]
     pub(super) fn available(self) -> bool {
         match self {
             Isa::Portable => true,
