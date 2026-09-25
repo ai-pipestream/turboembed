@@ -76,7 +76,9 @@ struct Shape {
     int tcap = 0;                   /* batch_cap * seq_cap */
     int hidden = 0, heads = 0, inter = 0;
     bool half = false;         /* FASTEST: F16 GEMM operands and attention */
-    bool tensor_cores = false; /* sm_80 or newer: mma.sync */
+    /* sm_80 or newer, and mma.sync for the GEMMs: F16 at FASTEST, TF32
+     * for F32 operands with TURBO_CUDA_TF32=1, never at EXACT. */
+    bool tensor_cores = false;
     int sms = 0;
     size_t smem_optin = 0; /* cudaDevAttrMaxSharedMemoryPerBlockOptin */
     Tile tile = TILE_DEFAULT;

@@ -41,6 +41,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_split_attention(split: i32);
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
     fn turbo_cuda_use_column_pool(columns: i32);
+    fn turbo_cuda_use_tf32(tf32: i32);
 }
 
 /// The epilogues of the backend's own GEMMs, as [`gemm_check`] names them.
@@ -75,8 +76,9 @@ pub enum Tile {
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
 /// operands on CUDA device `ordinal`, against cuBLAS's product with the
 /// epilogue done on the host: the largest absolute difference and the
-/// largest reference value. `half` takes F16 operands, on the tensor
-/// cores when `tensor_cores` (else with FMAs); `tile` is the GEMM's tile;
+/// largest reference value. `half` takes F16 operands; `tensor_cores`
+/// computes on the tensor cores (F16, or F32 operands as TF32), else with
+/// FMAs; `tile` is the GEMM's tile;
 /// `blocks` the launch's blocks, which share the work (0 for as many as
 /// the device holds at once, and never more); `heads` the QKV epilogue's,
 /// n being three times the hidden width. The GEMM runs twice and must
@@ -197,4 +199,13 @@ pub fn use_separate_layer_norm(separate: Option<bool>) {
 #[cfg(feature = "internals")]
 pub fn use_column_pool(columns: Option<bool>) {
     unsafe { turbo_cuda_use_column_pool(columns.map_or(-1, i32::from)) };
+}
+
+/// The F32 GEMMs of MODEL sessions made from now on: `Some(true)` TF32 on
+/// the tensor cores (sm_80 and newer), as TURBO_CUDA_TF32=1 picks it,
+/// `Some(false)` the FMA kernels, the default, `None` to read the
+/// variable again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_tf32(tf32: Option<bool>) {
+    unsafe { turbo_cuda_use_tf32(tf32.map_or(-1, i32::from)) };
 }
