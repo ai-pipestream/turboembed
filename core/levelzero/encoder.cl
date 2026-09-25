@@ -386,8 +386,10 @@ LINEAR_DPAS(linear_dpas_few, 8, 32, 1, 4, DPAS_READ_A_8, float, DPAS_STORE_F32)
 LINEAR_DPAS(linear_dpas_few_to_half, 8, 32, 1, 4, DPAS_READ_A_8, half, DPAS_STORE_F16)
 
 /* The attention output and the feed-forward output at FASTEST, with the
- * LayerNorm after them: x = LayerNorm(x + (y + bias)) as add_layer_norm,
- * and xh its F16 copy, y = act . wt as in LINEAR_DPAS with n_out = hidden.
+ * LayerNorm after them: xh = LayerNorm(xh + (y + bias)) as add_layer_norm,
+ * the residual stream in F16, y = act . wt as in LINEAR_DPAS with n_out =
+ * hidden; and the same in F32 to x where that is given, for the pooling
+ * after the last layer.
  * A sub-group computes TM tokens by 32 outputs. A group has hidden / 32
  * sub-groups for each of its blocks of TM tokens, up to DPAS_LN_BLOCKS, so
  * it holds whole rows, the rows' sums meet in local memory, and each block
@@ -395,6 +397,9 @@ LINEAR_DPAS(linear_dpas_few_to_half, 8, 32, 1, 4, DPAS_READ_A_8, half, DPAS_STOR
  * each row's in one order whatever the blocks. hidden / 32 times the
  * blocks is at most DPAS_LN_SUBGROUPS. */
 
+__attribute__((overloadable)) void intel_sub_group_2d_block_read_16b_8r16x1c(__global void *base, int width,
+                                                                             int height, int pitch, int2 coord,
+                                                                             __private ushort *dst);
 __attribute__((overloadable)) void intel_sub_group_2d_block_read_32b_8r16x1c(__global void *base, int width,
                                                                              int height, int pitch, int2 coord,
                                                                              __private uint *dst);
@@ -444,10 +449,10 @@ float8 sub_group_sum8(float8 v) {
         __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                           \
             const float bo = bias[o0 + 16 * j + lane];                                                              \
             __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++) {                                \
-                float8 r;                                                                                           \
-                intel_sub_group_2d_block_read_32b_8r16x1c((__global void *)x, hidden * 4, tokens, hidden * 4,       \
-                                                          (int2)(o0 + 16 * j, t0 + 8 * i), (__private uint *)&r);   \
-                acc[i][j] = r + (acc[i][j] + bo);                                                                   \
+                ushort8 r;                                                                                          \
+                intel_sub_group_2d_block_read_16b_8r16x1c((__global void *)xh, hidden * 2, tokens, hidden * 2,      \
+                                                          (int2)(o0 + 16 * j, t0 + 8 * i), (__private ushort *)&r); \
+                acc[i][j] = convert_float8(as_half8(r)) + (acc[i][j] + bo);                                         \
             }                                                                                                       \
         }                                                                                                           \
         __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++) {                                    \
@@ -480,7 +485,7 @@ float8 sub_group_sum8(float8 v) {
             const float w = ln_w[o + lane], sh = ln_b[o + lane];                                                    \
             __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++) {                                \
                 float8 y = (acc[i][j] - vload8(0, &mean[row + 8 * i])) * vload8(0, &inv[row + 8 * i]) * w + sh;     \
-                DPAS_STORE_F32(x, hidden, tokens, o, t0 + 8 * i, y);                                                \
+                if (x) DPAS_STORE_F32(x, hidden, tokens, o, t0 + 8 * i, y);                                         \
                 DPAS_STORE_F16(xh, hidden, tokens, o, t0 + 8 * i, y);                                               \
             }                                                                                                       \
         }                                                                                                           \

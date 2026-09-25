@@ -1008,7 +1008,8 @@ impl Session {
         };
 
         // At FASTEST, a projection back to the hidden width with the
-        // LayerNorm after it, in one kernel, from F16 act; false where
+        // LayerNorm after it, in one kernel, from F16 act onto the F16
+        // residual stream; false where
         // that kernel does not run, for a hidden width wider than a group
         // spans.
         let fused = |q: &mut Queue, act: u64, n_in: u32, (l, which): (u32, usize), (bias, lnw, lnb), what: &str| {
@@ -1017,7 +1018,9 @@ impl Session {
                 Ptr(act),
                 Ptr(half.layers[l as usize][which]),
                 Ptr(bias),
-                Ptr(self.x),
+                // The residual stream is F16; the last layer's also goes to
+                // x in F32, for the pooling.
+                Ptr(if l + 1 == d.layers && which == 3 { self.x } else { 0 }),
                 Ptr(self.xh),
                 Ptr(lnw),
                 Ptr(lnb),
