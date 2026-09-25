@@ -97,6 +97,64 @@ __kernel __attribute__((reqd_work_group_size(16, 16, 1))) void linear(__global c
     }
 }
 
+/* The same in F32 by sub-group: 16 lanes compute 8 tokens by 64 outputs,
+ * each lane four outputs 16 apart, 16 terms at a time: a block read gives
+ * each lane one term of a token's row, which a shuffle hands to every
+ * lane, and each lane reads its outputs' weights itself. n_in is a
+ * multiple of 16; the split of the terms is as in linear. */
+
+__attribute__((overloadable)) float intel_sub_group_shuffle(float x, uint c);
+__attribute__((overloadable)) uint intel_sub_group_block_read(const __global uint *p);
+
+
+#define SG_T 8
+#define SG_N 64
+
+__kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16, 1, 1))) void
+linear_sg(__global const float *x, __global const float *w, __global const float *bias, __global float *y,
+          int tokens, int n_out, int n_in, int flags, int k_len) {
+    const int lane = get_sub_group_local_id();
+    const int o0 = get_group_id(0) * SG_N, t0 = get_group_id(1) * SG_T;
+    x += get_group_id(2) * k_len;
+    w += get_group_id(2) * k_len;
+    y += (size_t)get_group_id(2) * tokens * n_out;
+    float acc[SG_T][4];
+    __attribute__((opencl_unroll_hint)) for (int m = 0; m < SG_T; m++)
+        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) acc[m][j] = 0.0f;
+    __global const float *wr[4];
+    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++)
+        wr[j] = w + (size_t)min(o0 + 16 * j + lane, n_out - 1) * n_in;
+    for (int k0 = 0; k0 < k_len; k0 += 16) {
+        float a[SG_T];
+        __attribute__((opencl_unroll_hint)) for (int m = 0; m < SG_T; m++) {
+            const int t = t0 + m;
+            a[m] = t < tokens ? as_float(intel_sub_group_block_read((__global const uint *)(x + (size_t)t * n_in + k0)))
+                              : 0.0f;
+        }
+        float16 b[4];
+        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) b[j] = vload16(0, wr[j] + k0);
+        __attribute__((opencl_unroll_hint)) for (int kk = 0; kk < 16; kk++) {
+            __attribute__((opencl_unroll_hint)) for (int m = 0; m < SG_T; m++) {
+                const float am = intel_sub_group_shuffle(a[m], kk);
+                __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) acc[m][j] = fma(am, b[j][kk], acc[m][j]);
+            }
+        }
+    }
+    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) {
+        const int o = o0 + 16 * j + lane;
+        if (o >= n_out) continue;
+        const float bo = flags & LINEAR_BIAS ? bias[o] : 0.0f;
+        __attribute__((opencl_unroll_hint)) for (int m = 0; m < SG_T; m++) {
+            const int t = t0 + m;
+            if (t >= tokens) continue;
+            float v = acc[m][j];
+            if (flags & LINEAR_BIAS) v = v + bo;
+            if (flags & LINEAR_GELU) v = gelu(v);
+            y[(size_t)t * n_out + o] = v;
+        }
+    }
+}
+
 /* The linear layers at FASTEST, on the matrix engines (XMX): the same
  * y as linear, from F16 weights and activations rounded to F16 as they are
  * loaded, with F32 sums. Each sub-group of 16 computes a 32 x 32 tile of
@@ -107,7 +165,6 @@ __kernel __attribute__((reqd_work_group_size(16, 16, 1))) void linear(__global c
  * multiple of 16. */
 
 __attribute__((overloadable)) float8 intel_sub_group_f16_f16_matrix_mad_k16(short8 a, int8 b, float8 acc);
-__attribute__((overloadable)) uint intel_sub_group_block_read(const __global uint *p);
 __attribute__((overloadable)) ushort intel_sub_group_block_read_us(const __global ushort *p);
 
 #define XM 32
@@ -223,14 +280,55 @@ __attribute__((overloadable)) ushort intel_sub_group_block_read_us(const __globa
         }                                                                                                        \
     }
 
+/* The same with the F32 sub-group kernel's shape: 8 tokens by 64 outputs
+ * a sub-group, one product of 8 x 16 per 16 outputs. */
+#define LINEAR_XMX8(NAME, X, Y, TO_A, FROM_F)                                                                    \
+    __kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16, 1, 1))) void \
+    NAME(__global const X *x, __global const half *w, __global const float *bias, __global Y *y, int tokens,     \
+         int n_out, int n_in, int flags, int k_len, int k_sub) {                                                 \
+        const int lane = get_sub_group_local_id();                                                               \
+        const int o0 = get_group_id(0) * 64, t0 = get_group_id(1) * 8;                                           \
+        x += get_group_id(2) * k_len;                                                                            \
+        w += get_group_id(2) * k_len;                                                                            \
+        y += (size_t)get_group_id(2) * tokens * n_out;                                                           \
+        float8 acc[4];                                                                                           \
+        __global const half *wr[4];                                                                              \
+        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) {                                        \
+            acc[j] = (float8)(0.0f);                                                                             \
+            wr[j] = w + (size_t)min(o0 + 16 * j + lane, n_out - 1) * n_in;                                       \
+        }                                                                                                        \
+        for (int k0 = 0; k0 < k_len; k0 += 16) {                                                                 \
+            short8 a;                                                                                            \
+            __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                                    \
+                const int t = t0 + m;                                                                            \
+                a[m] = t < tokens ? TO_A(x + (size_t)t * n_in + k0) : 0;                                         \
+            }                                                                                                    \
+            __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) acc[j] =                             \
+                intel_sub_group_f16_f16_matrix_mad_k16(a, as_int8(vload8(0, (__global const uint *)(wr[j] + k0))), acc[j]); \
+        }                                                                                                        \
+        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 4; j++) {                                        \
+            const int o = o0 + 16 * j + lane;                                                                    \
+            if (o >= n_out) continue;                                                                            \
+            const float bo = flags & LINEAR_BIAS ? bias[o] : 0.0f;                                               \
+            __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                                    \
+                const int t = t0 + m;                                                                            \
+                if (t >= tokens) continue;                                                                       \
+                float v = acc[j][m];                                                                             \
+                if (flags & LINEAR_BIAS) v = v + bo;                                                             \
+                if (flags & LINEAR_GELU) v = gelu(v);                                                            \
+                y[(size_t)t * n_out + o] = FROM_F(v);                                                            \
+            }                                                                                                    \
+        }                                                                                                        \
+    }
+
 #define F32_TO_A(p) as_short(convert_half(as_float(intel_sub_group_block_read((__global const uint *)(p)))))
 #define F16_TO_A(p) as_short(intel_sub_group_block_read_us((__global const ushort *)(p)))
 #define TO_F32(v) (v)
 #define TO_F16(v) convert_half(v)
 
-LINEAR_XMX(linear_xmx, float, float, F32_TO_A, TO_F32)
-LINEAR_XMX(linear_xmx_to_half, float, half, F32_TO_A, TO_F16)
-LINEAR_XMX(linear_xmx_from_half, short, float, F16_TO_A, TO_F32)
+LINEAR_XMX8(linear_xmx, float, float, F32_TO_A, TO_F32)
+LINEAR_XMX8(linear_xmx_to_half, float, half, F32_TO_A, TO_F16)
+LINEAR_XMX8(linear_xmx_from_half, short, float, F16_TO_A, TO_F32)
 LINEAR_XMX_SHARED(linear_xmx_shared, float, float, F32_TO_A, TO_F32)
 LINEAR_XMX_SHARED(linear_xmx_shared_to_half, float, half, F32_TO_A, TO_F16)
 LINEAR_XMX_SHARED(linear_xmx_shared_from_half, short, float, F16_TO_A, TO_F32)

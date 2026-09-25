@@ -404,6 +404,9 @@ pub(crate) unsafe extern "C" fn model_release(model: *mut c_void) {
 /// The encoder's kernel objects, one set per session.
 struct Kernels {
     linear: Kernel,
+    /// The linear layers in F32 by sub-group, where the terms come in
+    /// sixteens.
+    linear_sg: Kernel,
     /// The linear layers on the matrix engines, for a session at FASTEST:
     /// F32 activations to F32, F32 to F16, and F16 to F32; then the same
     /// with a group's sub-groups sharing its tile.
@@ -430,6 +433,7 @@ impl Kernels {
         };
         Ok(Kernels {
             linear: c.kernel("linear", [16, 16, 1])?,
+            linear_sg: c.kernel("linear_sg", [16, 1, 1])?,
             linear_xmx: if xmx {
                 let (one, shared) = ([16, 1, 1], [16 * XMX_SUBGROUPS, 1, 1]);
                 Some([
@@ -461,6 +465,10 @@ const SPLITS: u32 = 4;
 const XMX_F32: usize = 0;
 const XMX_TO_F16: usize = 1;
 const XMX_FROM_F16: usize = 2;
+
+/// The F32 sub-group linear kernel's tile, as encoder.cl's SG_N and SG_T.
+const SG_N: u32 = 64;
+const SG_T: u32 = 8;
 
 /// The XMX linear kernel's output tile, as encoder.cl's XM and XN, and the
 /// sub-groups of a group, each summing its own share of the terms, as
@@ -791,6 +799,7 @@ impl Session {
                 // Too few tiles to fill the device: each group's
                 // sub-groups share one.
                 let few = groups[0] * groups[1] * groups[2] < XMX_FEW_TILES;
+                let groups = if few { groups } else { [n_out.div_ceil(SG_N), tokens.div_ceil(SG_T), splits] };
                 let kernel = &kx[operands + if few { 3 } else { 0 }];
                 let args = if few {
                     args
@@ -798,6 +807,21 @@ impl Session {
                     [args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], I32(k_len as i32)]
                 };
                 return kernel.launch(c, q, what, &args, groups);
+            }
+            if k_len.is_multiple_of(16) {
+                let groups = [n_out.div_ceil(SG_N), tokens.div_ceil(SG_T), splits];
+                let args = [
+                    Ptr(x),
+                    Ptr(weight),
+                    Ptr(bias),
+                    Ptr(y),
+                    I32(tokens as i32),
+                    I32(n_out as i32),
+                    I32(n_in as i32),
+                    I32(flags),
+                    I32(k_len as i32),
+                ];
+                return k.linear_sg.launch(c, q, what, &args, groups);
             }
             let groups = [n_out.div_ceil(TILE), tokens.div_ceil(TILE), splits];
             let args = [
