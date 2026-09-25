@@ -1098,7 +1098,8 @@ fn largest_shape_on(dir: &std::path::Path, gs: &Session, cs: &Session, floor: f6
 
 /// Every row full, at FASTEST: the small model's 64 x 64 tokens give its
 /// narrow layers tiles enough for the matrix kernel that stages through
-/// local memory, with outputs that end inside its 128-wide tiles.
+/// local memory, with outputs that end inside its 128-wide tiles. Then
+/// single short rows, for the kernels that take a handful of tokens.
 #[test]
 fn a_full_batch_at_fastest_matches_the_cpu() {
     let _t = turn();
@@ -1117,6 +1118,12 @@ fn a_full_batch_at_fastest_matches_the_cpu() {
     for (r, (a, b)) in gs.run().unwrap().rows().iter().zip(cs.run().unwrap().rows()).enumerate() {
         let cos = cosine(a, &b);
         assert!(cos >= 0.999, "row {r}: cosine {cos} with the cpu");
+    }
+    // One short row at a time: 8 tokens at most run the GEMV kernels.
+    for text in TEXTS {
+        let (a, b) = (gs.embed(&[text], None).unwrap(), cs.embed(&[text], None).unwrap());
+        let cos = cosine(&a[0], &b[0]);
+        assert!(cos >= 0.999, "{text:?}: cosine {cos} with the cpu");
     }
 }
 
