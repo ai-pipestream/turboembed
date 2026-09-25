@@ -71,7 +71,9 @@ frameworks and libc++, which every macOS has.
   `TURBO_HANDLE_HOST_PTR` as `HOST`, or as `PINNED` or `SHARED` when it is
   whole pages, which Metal then maps without a copy. Export gives the
   Metal buffer of every placement but `HOST`, and the host pointer of
-  every one but `DEVICE`. Any other kind is `TURBO_E_UNSUPPORTED`, naming
+  every one but `DEVICE`. Reading a `DEVICE` buffer back goes through one
+  shared staging buffer per context, kept at the size of the largest
+  read. Any other kind is `TURBO_E_UNSUPPORTED`, naming
   it.
 - **Models.** Loading copies nothing: the pages the core holds the
   weights in are mapped as shared Metal buffers, one per run of tensors

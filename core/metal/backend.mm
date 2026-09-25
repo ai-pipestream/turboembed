@@ -2,7 +2,7 @@
 //
 // The Metal backend: Apple GPUs through Metal, behind
 // include/turbo/turbo_backend.h. It lists the devices Metal reports, keeps
-// a command queue and the compiled kernels per context, reads a model's
+// a command queue per context and the compiled kernels per device, reads a model's
 // weights where the core holds them, and runs embed sessions with the BERT
 // encoder in kernels.metal.
 //
@@ -386,10 +386,15 @@ int32_t compile(id<MTLDevice> d, Kernels &k, turbo_error *err) {
  * it and held for the life of the process, as the device list is. A
  * failed compile is tried again by the next context. */
 int32_t kernels_for(uint32_t ordinal, const Kernels **out, turbo_error *err) {
-    static std::mutex lock;
-    static std::vector<Kernels *> compiled;
-    std::lock_guard<std::mutex> g(lock);
-    if (compiled.size() < devices().count) compiled.resize(devices().count, nullptr);
+    // Never destroyed, so a context made while the process exits finds
+    // them whole.
+    struct Cache {
+        std::mutex lock;
+        std::vector<Kernels *> compiled = std::vector<Kernels *>(devices().count, nullptr);
+    };
+    static Cache &cache = *new Cache;
+    std::lock_guard<std::mutex> g(cache.lock);
+    std::vector<Kernels *> &compiled = cache.compiled;
     if (!compiled[ordinal]) {
         Kernels *k = make<Kernels>();
         const int32_t rc = compile(device(ordinal), *k, err);
@@ -626,6 +631,8 @@ int32_t buffer_export(void *buf, uint32_t kind, turbo_native_handle *out, turbo_
 
 /* A DEVICE buffer's first bytes to the caller's host memory: a blit into a
  * shared buffer, then a copy out of it. */
+int32_t finish(id<MTLCommandBuffer> cb, turbo_error *err, const char *what);
+
 int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         const Buffer *b = static_cast<const Buffer *>(buf);
@@ -649,10 +656,7 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
         id<MTLBlitCommandEncoder> blit = [cb blitCommandEncoder];
         [blit copyFromBuffer:b->mtl sourceOffset:b->offset toBuffer:staging destinationOffset:0 size:bytes];
         [blit endEncoding];
-        [cb commit];
-        [cb waitUntilCompleted];
-        if (cb.status != MTLCommandBufferStatusCompleted)
-            return refuse(err, TURBO_E_RUNTIME, "reading the buffer: %s", text(cb.error));
+        TRY(finish(cb, err, "reading the buffer"));
         memcpy(dst, staging.contents, bytes);
         return TURBO_OK;
     });
@@ -735,7 +739,8 @@ int64_t map_weights(Model *m, const turbo_backend_model *desc) {
             m->stored[order[k]] = Ref{copy, at};
             at += round_up(t.bytes, 256);
         }
-        copied += (int64_t)total;
+        // A run of empty tensors still took a buffer: count it as copied.
+        copied += (int64_t)std::max<size_t>(total, 1);
     }
     return copied;
 }
