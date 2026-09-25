@@ -101,6 +101,48 @@ template <int W> __device__ inline void store_vec(__half *p, const float (&v)[W]
 
 __device__ inline float gelu(float v) { return 0.5f * v * (1.0f + erff(v * 0.70710678118654752440f)); }
 
+/* GELU for an F16 output, whose rounding is far coarser than erff's:
+ * 0.5 v (2 - r) for v >= 0 and 0.5 v r below it, r = erfc(z), z = |v| /
+ * sqrt 2, so the negative side has no cancellation. r = tau P(tau)
+ * exp(-z^2), tau = 1 / (1 + GELU_F16_P z): the form of Abramowitz and
+ * Stegun 7.1.26 with a sixth term, fit (minimax) to erfc's relative error
+ * for z up to 4, within 6.5e-7 of it there, where the published five terms
+ * are within 2.8e-3. Within 2.4e-7 of GELU for |v| <= 8, and rounded to F16
+ * it is GELU rounded to F16 for every F16 value there but ten ties. An
+ * exponential and a reciprocal and multiply-adds, without erff's branch;
+ * the minimum keeps the product finite at +inf. tests/cuda_gelu.rs reads
+ * these constants and computes gelu_f16 as here, operation for operation. */
+constexpr float GELU_F16_P = 0.414f;
+constexpr float GELU_F16_A1 = 2.36636847e-01f;
+constexpr float GELU_F16_A2 = 1.99737847e-01f;
+constexpr float GELU_F16_A3 = 3.66448224e-01f;
+constexpr float GELU_F16_A4 = -1.84373125e-01f;
+constexpr float GELU_F16_A5 = 5.61777592e-01f;
+constexpr float GELU_F16_A6 = -1.80227652e-01f;
+
+__device__ inline float gelu_f16(float v) {
+    const float z = fabsf(v) * 0.70710678118654752440f;
+    const float tau = __fdividef(1.0f, __fmaf_rn(GELU_F16_P, z, 1.0f));
+    float p = __fmaf_rn(GELU_F16_A6, tau, GELU_F16_A5);
+    p = __fmaf_rn(p, tau, GELU_F16_A4);
+    p = __fmaf_rn(p, tau, GELU_F16_A3);
+    p = __fmaf_rn(p, tau, GELU_F16_A2);
+    p = __fmaf_rn(p, tau, GELU_F16_A1);
+    const float r = (p * tau) * __expf(-(z * z));
+    return __fmaf_rn(0.5f * fminf(v, 16.0f), copysignf(r, -v), fmaxf(v, 0.0f));
+}
+
+/* GELU as an epilogue computes it: gelu_f16 at an F16 output, but for
+ * EPI_GELU_ERF; erff at an F32 output. */
+__host__ __device__ constexpr bool gelu_epilogue_of(int epi) { return epi == EPI_GELU || epi == EPI_GELU_ERF; }
+
+template <int EPI, typename TOut> __device__ inline float gelu_for(float v) {
+    if constexpr (sizeof(TOut) == 2 && EPI == EPI_GELU)
+        return gelu_f16(v);
+    else
+        return gelu(v);
+}
+
 /* Where column n of the QKV product goes in the head-major output, less
  * the token's own offset (t * head_dim). */
 __device__ inline size_t qkv_column(const GemmArgs &g, int n) {
@@ -967,8 +1009,8 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
                 if (c >= N) continue;
                 if constexpr (EPI == EPI_QKV)
                     put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, acc[i][j] + g.bias[c]);
-                else if constexpr (EPI == EPI_GELU)
-                    put(out_at<TOut>(g, t, c), gelu(acc[i][j] + g.bias[c]));
+                else if constexpr (gelu_epilogue_of(EPI))
+                    put(out_at<TOut>(g, t, c), gelu_for<EPI, TOut>(acc[i][j] + g.bias[c]));
                 else if constexpr (EPI == EPI_ADD_LN) {
                     float *o = out_at<float>(g, t, c);
                     *o = *o + (acc[i][j] + g.bias[c]);
@@ -1212,9 +1254,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
                 for (int h = 0; h < 2; h++) {
                     const int r = wm * WTM + i * 16 + (lane >> 2) + h * 8;
                     float v0 = acc[i][j][2 * h] + b0, v1 = acc[i][j][2 * h + 1] + b1;
-                    if constexpr (EPI == EPI_GELU) {
-                        v0 = gelu(v0);
-                        v1 = gelu(v1);
+                    if constexpr (gelu_epilogue_of(EPI)) {
+                        v0 = gelu_for<EPI, TOut>(v0);
+                        v1 = gelu_for<EPI, TOut>(v1);
                     }
                     put2(Cs + r * OLD + c, v0, v1);
                 }
@@ -1667,9 +1709,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                         static_for<2>([&](auto H) {
                             constexpr int h = H.value;
                             float v0 = total(i, j, 2 * h) + b0, v1 = total(i, j, 2 * h + 1) + b1;
-                            if constexpr (EPI == EPI_GELU) {
-                                v0 = gelu(v0);
-                                v1 = gelu(v1);
+                            if constexpr (gelu_epilogue_of(EPI)) {
+                                v0 = gelu_for<EPI, TOut>(v0);
+                                v1 = gelu_for<EPI, TOut>(v1);
                             }
                             const __half2 p = __floats2half2_rn(v0, v1);
                             packed[i][j][h] = *reinterpret_cast<const uint32_t *>(&p);
@@ -1679,7 +1721,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                         for (int e = 0; e < 4; e++) {
                             float &v = acc[i][j][e];
                             v += e & 1 ? b1 : b0;
-                            if constexpr (EPI == EPI_GELU) v = gelu(v);
+                            if constexpr (gelu_epilogue_of(EPI)) v = gelu_for<EPI, TOut>(v);
                         }
                         if constexpr (f16_out)
                             static_for<2>([&](auto H) {
@@ -1807,9 +1849,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                             const int c = cw + j * 8 + tq * 2;
                             v.x += c < N ? __ldg(g.bias + c) : 0.0f;
                             v.y += c < N ? __ldg(g.bias + c + 1) : 0.0f;
-                            if constexpr (EPI == EPI_GELU) {
-                                v.x = gelu(v.x);
-                                v.y = gelu(v.y);
+                            if constexpr (gelu_epilogue_of(EPI)) {
+                                v.x = gelu_for<EPI, TOut>(v.x);
+                                v.y = gelu_for<EPI, TOut>(v.y);
                             }
                         }
                         if constexpr (EPI == EPI_ADD_LN) {
@@ -1921,7 +1963,7 @@ GemmKernel swz_kernel() {
  * SM; TILE_SWIZZLED_256x128 the same but 256 x 128 over eight such warps,
  * one block to an SM, for GELU; TILE_SWIZZLED_8W the eight-warp mix. */
 template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
-    constexpr bool wide = EPI == EPI_QKV || EPI == EPI_GELU;
+    constexpr bool wide = EPI == EPI_QKV || gelu_epilogue_of(EPI);
     // F16 sums over the whole of k: 128 x 128 over four warps of 64 x 64,
     // TensorRT's shape, at four stages (one block to an SM) or three (two);
     // 64 x 384, whole rows, over eight warps of 32 x 96 at three stages
@@ -1956,7 +1998,7 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
         if (t == TILE_SWIZZLED_8W) return swz_kernel<128, 64, 4, 2, 4, EPI, TOut, false, false>();
     }
     if constexpr (!ACC16) {
-        if constexpr (EPI == EPI_GELU)
+        if constexpr (gelu_epilogue_of(EPI))
             if (t == TILE_SWIZZLED_256x128) return swz_kernel<256, 128, 4, 2, 3, EPI, TOut, false, true>();
         return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, false, true>();
     }
@@ -1985,7 +2027,7 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
  * four stages. An F32 output tile of 256 x 128 does not fit shared
  * memory, so such a GEMM takes 128 x 128 over four warps instead. */
 template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
-    constexpr bool f16 = sizeof(TIn) == 2, wide = EPI == EPI_QKV || EPI == EPI_GELU;
+    constexpr bool f16 = sizeof(TIn) == 2, wide = EPI == EPI_QKV || gelu_epilogue_of(EPI);
     if constexpr (f16) {
         if (t == TILE_EIGHT_WARPS_F16_ACCUMULATE) {
             if (wide) return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn, true>();
@@ -2024,6 +2066,7 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
         switch (e) {
         case EPI_QKV: return mma_for<__half, EPI_QKV, __half>(t);
         case EPI_GELU: return mma_for<__half, EPI_GELU, __half>(t);
+        case EPI_GELU_ERF: return mma_for<__half, EPI_GELU_ERF, __half>(t);
         case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN, __half>(t);
         default: return mma_for<float, EPI_PLAIN, __half>(t);
         }
@@ -2031,7 +2074,8 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     if (tc) {
         switch (e) {
         case EPI_QKV: return mma_for<float, EPI_QKV, float>(t);
-        case EPI_GELU: return mma_for<float, EPI_GELU, float>(t);
+        case EPI_GELU:
+        case EPI_GELU_ERF: return mma_for<float, EPI_GELU, float>(t);
         case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN, float>(t);
         default: return mma_for<float, EPI_PLAIN, float>(t);
         }
@@ -2040,13 +2084,15 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
         switch (e) {
         case EPI_QKV: return simt_for<__half, __half, EPI_QKV>(t);
         case EPI_GELU: return simt_for<__half, __half, EPI_GELU>(t);
+        case EPI_GELU_ERF: return simt_for<__half, __half, EPI_GELU_ERF>(t);
         case EPI_ADD_LN: return simt_for<__half, float, EPI_ADD_LN>(t);
         default: return simt_for<__half, float, EPI_PLAIN>(t);
         }
     }
     switch (e) {
     case EPI_QKV: return simt_for<float, float, EPI_QKV>(t);
-    case EPI_GELU: return simt_for<float, float, EPI_GELU>(t);
+    case EPI_GELU:
+    case EPI_GELU_ERF: return simt_for<float, float, EPI_GELU>(t);
     case EPI_ADD_LN: return simt_for<float, float, EPI_ADD_LN>(t);
     default: return simt_for<float, float, EPI_PLAIN>(t);
     }
@@ -2065,12 +2111,14 @@ __global__ void __launch_bounds__(256) qkv_epilogue_kernel(const float *raw, Gem
     }
 }
 
-template <typename TOut> __global__ void __launch_bounds__(256) gelu_epilogue_kernel(const float *raw, GemmArgs g) {
+template <typename TOut, int EPI>
+__global__ void __launch_bounds__(256) gelu_epilogue_kernel(const float *raw, GemmArgs g) {
     const int tokens = g.info->tokens;
     TOut *o = static_cast<TOut *>(g.out);
     for (int t = blockIdx.x; t < tokens; t += gridDim.x) {
         const float *r = raw + (size_t)t * g.n;
-        for (int c = threadIdx.x; c < g.n; c += blockDim.x) put(o + (size_t)t * g.n + c, gelu(r[c] + g.bias[c]));
+        for (int c = threadIdx.x; c < g.n; c += blockDim.x)
+            put(o + (size_t)t * g.n + c, gelu_for<EPI, TOut>(r[c] + g.bias[c]));
     }
 }
 
@@ -3126,11 +3174,14 @@ cudaError_t qkv_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bo
     return cudaGetLastError();
 }
 
-cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, const Plan &plan) {
-    if (half)
-        gelu_epilogue_kernel<__half><<<plan.epi_grid, 256, 0, s>>>(raw, g);
+cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, bool erf,
+                          const Plan &plan) {
+    if (half && erf)
+        gelu_epilogue_kernel<__half, EPI_GELU_ERF><<<plan.epi_grid, 256, 0, s>>>(raw, g);
+    else if (half)
+        gelu_epilogue_kernel<__half, EPI_GELU><<<plan.epi_grid, 256, 0, s>>>(raw, g);
     else
-        gelu_epilogue_kernel<float><<<plan.epi_grid, 256, 0, s>>>(raw, g);
+        gelu_epilogue_kernel<float, EPI_GELU><<<plan.epi_grid, 256, 0, s>>>(raw, g);
     return cudaGetLastError();
 }
 
@@ -3151,7 +3202,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     cudaError_t e = cudaSuccess;
     for (int i = 0; i < GEMM_COUNT && e == cudaSuccess; i++) {
         const Gemm g = (Gemm)i;
-        const Epilogue ep = gemm_epilogue(g, p->fused_ln);
+        const Epilogue ep = gemm_epilogue(g, p->fused_ln, s.gelu_erf);
         const bool mma = gemm_mma(s, g);
         size_t ws = 0;
         e = gemm_prepare(ep, s.half, mma, s.gemm[g].tile);

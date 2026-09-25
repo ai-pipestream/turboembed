@@ -436,7 +436,8 @@ older than the runtime, it lists none and the runtime's log says why.
      too for an F16 session). The sums are those of the separate
      LayerNorm kernel in the same order, so the bits are the same;
   4. the feed-forward input GEMM, its bias and GELU (erf) in its
-     epilogue;
+     epilogue, `erff`, or where it writes F16 (FASTEST) erfc from a fit
+     with `TURBO_CUDA_GELU=poly` (below);
   5. the feed-forward output GEMM, with its bias, the residual and
      LayerNorm, as in 3.
 
@@ -501,8 +502,22 @@ older than the runtime, it lists none and the runtime's log says why.
 - **Numerics.** An F32 session is F32 throughout: every GEMM output is
   a sum, in a fixed order, of chains of F32 FMAs over consecutive steps
   of k. An F16 session rounds its GEMMs' and attention's inputs to F16
-  and accumulates in F32. The arithmetic follows the CPU encoder where
-  order matters: LayerNorm takes the mean, then the variance about it
+  and accumulates in F32. Its GELU takes `erff`. `TURBO_CUDA_GELU=poly`,
+  read when a session is made, gives an F16 output's GELU erf from a fit
+  instead, for measuring against the default (`erf` names the default):
+  0.5 x (2 - erfc(z)) for x >= 0 and 0.5 x erfc(z) below, z = |x| /
+  sqrt 2, so the negative side has no cancellation, with erfc(z) =
+  t P(t) exp(-z^2), t = 1 / (1 + p z), the form of Abramowitz and Stegun
+  7.1.26 with a sixth term, fit to erfc's relative error (6.5e-7 for z
+  up to 4). It is within 2.4e-7 of GELU for |x| <= 8, and rounded to F16
+  it is GELU rounded to F16 for every F16 value there but ten that lie
+  within 2e-3 of an ulp of a tie (tests/cuda_gelu.rs, on the host). An
+  exponential, a reciprocal and multiply-adds, without `erff`'s branch;
+  on an RTX 4080 SUPER at 32 x 256 full rows it takes the same time as
+  `erff` on the default tiles and 5% less on `sw8w`'s GELU launch, whose
+  `erff` instance spills registers. The arithmetic follows the
+  CPU encoder where order matters: LayerNorm takes the mean, then the
+  variance about it
   (in F32 here, F64 on the CPU), softmax subtracts the largest live
   score (a running one, rescaling what was summed before it, where the
   CPU takes the row's largest first), mean pooling sums in position

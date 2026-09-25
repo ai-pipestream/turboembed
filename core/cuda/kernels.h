@@ -185,6 +185,10 @@ struct Shape {
     /* The pooling kernel of a thread per column
      * (TURBO_CUDA_POOL=columns), for measuring against the default. */
     bool column_pool = false;
+    /* GELU with erff at an F16 output (EPI_GELU_ERF), the default; false
+     * takes the fit (EPI_GELU, TURBO_CUDA_GELU=poly), for measuring against
+     * it. */
+    bool gelu_erf = true;
 };
 
 /* Whether a GEMM of the shape runs on the tensor cores. */
@@ -279,7 +283,11 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 //
 //   QKV: + bias, written head-major, [3][heads][tcap][head_dim], so
 //        attention reads each (row, head)'s keys contiguously;
-//   GELU: + bias, then GELU with the error function, [tokens, n];
+//   GELU: + bias, then GELU with the error function, [tokens, n]: erff
+//        at an F32 output, and at an F16 output erfc from a fit within
+//        2.4e-7 of GELU (gelu_f16 in kernels.cu);
+//   GELU_ERF: GELU with erff at an F16 output too, the default (GELU takes
+//   the fit there, TURBO_CUDA_GELU=poly);
 //   PLAIN: the bare product, F32, [tokens, n], which add_layer_norm adds;
 //   ADD_LN: out is the hidden states, F32 [tokens, n], n = hidden; each
 //        output becomes out + (product + bias), and once every tile of
@@ -297,7 +305,7 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 // beside a row in a batch of the same token count. n and k are multiples
 // of 8.
 
-enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2, EPI_ADD_LN = 3 };
+enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2, EPI_ADD_LN = 3, EPI_GELU_ERF = 4 };
 
 /* The widest hidden state ADD_LN normalizes, 16 values to a lane. */
 constexpr int LN_FUSED_MAX_HIDDEN = 512;
@@ -307,10 +315,11 @@ constexpr int LN_FUSED_MAX_HIDDEN = 512;
 inline int ln_counters(int tcap) { return tcap / 64 + 1; }
 
 /* The epilogue a GEMM of a layer runs: the attention output and second
- * feed-forward GEMMs normalize their rows when the LayerNorm is fused. */
-inline Epilogue gemm_epilogue(Gemm g, bool fused_ln) {
+ * feed-forward GEMMs normalize their rows when the LayerNorm is fused;
+ * the first feed-forward GEMM's GELU takes erff when gelu_erf. */
+inline Epilogue gemm_epilogue(Gemm g, bool fused_ln, bool gelu_erf) {
     if (g == GEMM_QKV) return EPI_QKV;
-    if (g == GEMM_FFN1) return EPI_GELU;
+    if (g == GEMM_FFN1) return gelu_erf ? EPI_GELU_ERF : EPI_GELU;
     return fused_ln ? EPI_ADD_LN : EPI_PLAIN;
 }
 
@@ -358,7 +367,8 @@ cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile 
 /* The same epilogues over a product cuBLAS made, raw [tokens, n] F32, for
  * sessions told to compute a GEMM with cuBLAS (TURBO_CUDA_CUBLAS). */
 cudaError_t qkv_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, const Plan &plan);
-cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, const Plan &plan);
+cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, bool erf,
+                          const Plan &plan);
 
 // ---- Attention ----------------------------------------------------------------
 
