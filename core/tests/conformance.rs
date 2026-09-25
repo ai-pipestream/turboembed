@@ -83,11 +83,13 @@ struct Worst {
     cosine: f64,
     abs: f64,
     rows: usize,
+    /// Every row compared, in order, for TURBO_TEST_DUMP_DIR.
+    got: Vec<f32>,
 }
 
 impl Worst {
     fn new() -> Worst {
-        Worst { cosine: 1.0, abs: 0.0, rows: 0 }
+        Worst { cosine: 1.0, abs: 0.0, rows: 0, got: Vec::new() }
     }
 
     fn add(&mut self, what: &str, got: &[f32], want: &[f32], floor: record::Tolerance) {
@@ -101,6 +103,7 @@ impl Worst {
         self.cosine = self.cosine.min(c);
         self.abs = self.abs.max(d);
         self.rows += 1;
+        self.got.extend_from_slice(got);
     }
 }
 
@@ -230,6 +233,13 @@ fn check(dir: &Path) -> usize {
     ] {
         println!("  {what}: {} rows, 1 - min cosine {:.3e}, max abs diff {:.3e}", w.rows, 1.0 - w.cosine, w.abs);
         assert_eq!(w.rows, run.len(), "{what}");
+        // TURBO_TEST_DUMP_DIR: the rows as raw little-endian f32, a file
+        // for each way of writing, to compare two builds' bits.
+        if let Some(out) = std::env::var_os("TURBO_TEST_DUMP_DIR") {
+            let name = format!("{}.f32", what.replace([',', ' '], "_").replace("__", "_"));
+            let bytes: Vec<u8> = w.got.iter().flat_map(|v| v.to_le_bytes()).collect();
+            std::fs::write(Path::new(&out).join(name), bytes).unwrap();
+        }
     }
     assert!(!run.is_empty(), "no case fits the session");
     println!("  {} cases longer than max_seq {} refused with TURBO_E_CAPACITY", cases.len() - run.len(), si.max_seq);
