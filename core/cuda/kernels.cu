@@ -1679,12 +1679,40 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                         for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
             }
         }
+        // WHOLE with earlier blocks' parts: the tile's F32 sums built in
+        // this block's own slot, block by block over every value, so the
+        // epilogue reads one value each and runs no loop of its own. The
+        // slot is free: a block writes it only for the tile it starts
+        // last, after it finishes its first.
+        float *const own = g.ws + (size_t)blockIdx.x * SLOT + threadIdx.x;
+        const bool parts = WHOLE && lowest < (int)blockIdx.x;
+        if constexpr (WHOLE) {
+            if (parts) {
+#pragma unroll
+                for (int i = 0; i < MI; i++)
+#pragma unroll
+                    for (int j = 0; j < NI; j++)
+#pragma unroll
+                        for (int e = 0; e < 4; e++) __stcg(own + ((i * NI + j) * 4 + e) * NT, product(i, j, e));
+                for (int b = (int)blockIdx.x - 1; b >= lowest; b--) {
+                    const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
+#pragma unroll
+                    for (int i = 0; i < MI; i++)
+#pragma unroll
+                        for (int j = 0; j < NI; j++)
+#pragma unroll
+                            for (int e = 0; e < 4; e++) {
+                                const int o = ((i * NI + j) * 4 + e) * NT;
+                                __stcg(own + o, __ldcg(own + o) + __ldcg(slot + o));
+                            }
+                }
+            }
+        }
         auto total = [&](int i, int j, int e) -> float {
-            float v = product(i, j, e);
-            if constexpr (WHOLE)
-                for (int b = (int)blockIdx.x - 1; b >= lowest; b--)
-                    v += __ldcg(g.ws + (size_t)b * SLOT + threadIdx.x + ((i * NI + j) * 4 + e) * NT);
-            return v;
+            if constexpr (WHOLE) {
+                if (parts) return __ldcg(own + ((i * NI + j) * 4 + e) * NT);
+            }
+            return product(i, j, e);
         };
 
         // The finished tile, from registers.
