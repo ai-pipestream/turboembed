@@ -150,6 +150,7 @@ this form before it is written or loaded.
       "backends": ["hailo"],
       "target": "hailo10h",
       "fixed_seq": 128,
+      "fixed_batch": 1,
       "compute_dtype": "DTYPE_I8",
       "graph_input": "INPUT_EMBEDDINGS",
       "host_weights": "weights-f32",
@@ -235,7 +236,7 @@ this form before it is written or loaded.
 | `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. |
 | `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it, as for an ONNX file carried only for the reference programs and the converters. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |
-| `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. |
+| `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. A FORMAT_HEF sets both. `fixed_batch` is a frame, not a limit on a session's batch. |
 | `artifacts[].compute_dtype` | enum | yes for `FORMAT_HEF` | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
 | `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. `INPUT_EMBEDDINGS` is defined under "Graph inputs" below. `OUTPUT_HIDDEN_STATES` is the last layer's hidden states, before pooling. |
 | `artifacts[].host_weights` | string | when input is embeddings | The `FORMAT_SAFETENSORS` artifact whose embedding tensors the host lookup uses. Its `tensor_names` must name the five embedding roles; the layer roles are not read. |
@@ -334,7 +335,9 @@ its weights (below). Either way nothing loads and no other artifact is
 tried. A file not listed in `files` is never opened.
 
 On a fixed-shape artifact, `turbo_model_info` reports the smaller
-`max_seq` and `max_batch`. `TURBO_TRUNCATE_MODEL` still cuts at
+`max_seq`. `fixed_batch` is the frame the artifact runs, handed to the
+backend in `turbo_backend_model.fixed_batch`; the backend runs as many
+frames as a batch needs, so `max_batch` stays `embed.max_batch`. `TURBO_TRUNCATE_MODEL` still cuts at
 `embed.max_seq`, so a row that fits the model but not the artifact fails
 with `CAPACITY` rather than being cut differently on one device.
 

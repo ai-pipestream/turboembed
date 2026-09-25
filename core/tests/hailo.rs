@@ -1,11 +1,15 @@
 //! The Hailo backend through the C interface: its table, the devices it
-//! lists against what HailoRT scans, and a capability that runs nothing.
+//! lists against what HailoRT scans, its capability, contexts and host
+//! buffers, and, on a bundle with a HEF for the device, what a session
+//! computes in and what a run reports. tests/conformance.rs holds the
+//! vectors to the bundle's reference.
 //!
 //! Built with the `hailo` feature only. A test that needs a device says it
 //! was skipped, and passes, when the backend lists none; nothing is run on
 //! anything else in its place. With TURBO_TEST_REQUIRE_HAILO=1 it fails
 //! instead, so a run on a Hailo machine cannot pass by finding no device.
-//! docs/hailo.md says how to run them.
+//! The tests that need a bundle with a HEF are ignored unless asked for,
+//! and read it from TURBO_TEST_BUNDLE. docs/hailo.md says how to run them.
 
 #![cfg(feature = "hailo")]
 
@@ -15,7 +19,7 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use common::*;
-use turbo::status::{DEVICE_NOT_FOUND, UNSUPPORTED};
+use turbo::status::{BUNDLE_NO_ARTIFACT, UNSUPPORTED, UNSUPPORTED_OPTION};
 use turbo::*;
 
 // HailoRT, which the library links, for what the tests check from the
@@ -31,6 +35,10 @@ unsafe extern "C" {
 }
 
 struct Rt(*mut turbo_runtime);
+
+// turbo.h: a runtime may be used from any thread.
+unsafe impl Send for Rt {}
+unsafe impl Sync for Rt {}
 
 impl Rt {
     fn new() -> Rt {
@@ -111,11 +119,14 @@ fn labels_by_pci_id(bdf: &str) -> Option<&'static [&'static str]> {
 // ---- Without a device ------------------------------------------------------------
 
 #[test]
-fn the_table_stops_at_capability_and_names_itself() {
+fn the_table_is_whole_and_loads_hef_alone() {
     let b = turbo::hailo::backend();
     assert_eq!(b.name(), "hailo");
-    assert_eq!(b.struct_size as usize, std::mem::offset_of!(turbo::backend::turbo_backend, context_create));
+    assert_eq!(b.struct_size as usize, size_of::<turbo::backend::turbo_backend>());
     turbo::backend::check_table(b).unwrap();
+    assert_eq!(b.formats, 1 << (backend::TURBO_FORMAT_HEF - 1), "FORMAT_HEF and nothing else");
+    assert!(b.model_load.is_some() && b.session_run.is_some() && b.buffer_alloc.is_some());
+    assert!(b.buffer_read.is_none(), "every buffer it gives has a host address");
     assert!(turbo::backend::linked().iter().any(|l| std::ptr::eq(*l, b)));
     let v = unsafe { std::ffi::CStr::from_ptr(turbo_version()) }.to_str().unwrap();
     assert!(v.split(' ').any(|w| w == "hailo"), "turbo_version() = {v}");
@@ -162,44 +173,225 @@ fn the_devices_listed_are_the_ones_hailort_scans() {
 // ---- Capability ------------------------------------------------------------------
 
 #[test]
-fn embed_is_unsupported_at_every_precision_and_says_why() {
+fn embed_is_offered_in_i8_and_exact_is_refused() {
     let rt = Rt::new();
-    let Some(d) = hailo_device(&rt, "embed_is_unsupported_at_every_precision_and_says_why") else { return };
-    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
+    let Some(d) = hailo_device(&rt, "embed_is_offered_in_i8_and_exact_is_refused") else { return };
+    let cap = |p| {
         let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
         cap.struct_size = size_of::<turbo_capability>() as u32;
         assert_eq!(unsafe { turbo_runtime_capability(rt.0, d, TURBO_TASK_EMBED, p, &mut cap, ptr::null_mut()) }, 0);
-        assert_eq!(cap.status, backend::TURBO_CAP_UNSUPPORTED);
-        assert_eq!((cap.dtype, cap.options_honored), (0, 0));
-        assert!(field(&cap.benchmark).is_empty());
-        assert!(field(&cap.reason).contains("runs no task"), "{}", field(&cap.reason));
+        cap
+    };
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+        let c = cap(p);
+        assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
+        assert_eq!(c.dtype, TURBO_DTYPE_I8);
+        assert_eq!(c.options_honored, 0b111111, "every field of turbo_embed_options");
+    }
+    let c = cap(TURBO_PRECISION_EXACT);
+    assert_eq!((c.status, c.dtype, c.options_honored), (backend::TURBO_CAP_UNSUPPORTED, 0, 0));
+    assert!(field(&c.reason).contains("EXACT"), "{}", field(&c.reason));
+}
+
+// ---- Contexts and buffers --------------------------------------------------------
+
+struct Ctx(*mut turbo_context);
+
+impl Ctx {
+    fn create(rt: &Rt, d: u32) -> Ctx {
+        let mut c = ptr::null_mut();
+        let mut err = new_error();
+        let rc = unsafe { turbo_context_create(rt.0, d, &mut c, &mut err) };
+        assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+        Ctx(c)
+    }
+
+    fn alloc(&self, placement: u32, bytes: u64) -> Result<*mut turbo_buffer, Failure> {
+        let desc = turbo_buffer_desc {
+            struct_size: size_of::<turbo_buffer_desc>() as u32,
+            placement,
+            dtype: TURBO_DTYPE_F32,
+            ndim: 1,
+            shape: [bytes / 4, 0],
+            bytes: 0,
+        };
+        let mut b = ptr::null_mut();
+        let mut err = new_error();
+        match unsafe { turbo_buffer_alloc(self.0, &desc, &mut b, &mut err) } {
+            0 => Ok(b),
+            rc => Err(failure(rc, &err)),
+        }
     }
 }
 
-/// A device that runs no task is never the one select picks.
-#[test]
-fn select_does_not_pick_a_device_that_runs_nothing() {
-    let rt = Rt::new();
-    let Some(_) = hailo_device(&rt, "select_does_not_pick_a_device_that_runs_nothing") else { return };
-    let mut out = u32::MAX;
-    let mut err = new_error();
-    let rc = unsafe { turbo_runtime_select(rt.0, TURBO_TASK_EMBED, &mut out, ptr::null_mut(), 0, &mut err) };
-    if rc == 0 {
-        assert_ne!(field(&rt.info(out).backend), "hailo");
-    } else {
-        assert_eq!(failure(rc, &err).code, DEVICE_NOT_FOUND);
+impl Drop for Ctx {
+    fn drop(&mut self) {
+        unsafe { turbo_context_release(self.0) };
     }
 }
 
+/// Two contexts on one device share its vdevice; a buffer is host memory
+/// and exports as its host address; any other placement is refused.
 #[test]
-fn a_context_is_refused_as_not_offered() {
+fn contexts_share_the_device_and_buffers_are_host_memory() {
     let rt = Rt::new();
-    let Some(d) = hailo_device(&rt, "a_context_is_refused_as_not_offered") else { return };
-    let mut ctx = ptr::null_mut();
+    let Some(d) = hailo_device(&rt, "contexts_share_the_device_and_buffers_are_host_memory") else { return };
+    let (a, b) = (Ctx::create(&rt, d), Ctx::create(&rt, d));
+    let buf = a.alloc(TURBO_PLACE_HOST, 4096).unwrap();
+    let mut host = ptr::null_mut();
+    assert_eq!(unsafe { turbo_buffer_host_ptr(buf, &mut host, ptr::null_mut()) }, 0);
+    assert_eq!(host as usize % 64, 0, "aligned to a cache line");
+    unsafe { std::ptr::write_bytes(host as *mut u8, 0xab, 4096) };
+    let mut h: turbo_native_handle = unsafe { std::mem::zeroed() };
+    h.struct_size = size_of::<turbo_native_handle>() as u32;
+    assert_eq!(unsafe { turbo_buffer_export(buf, TURBO_HANDLE_HOST_PTR, &mut h, ptr::null_mut()) }, 0);
+    assert_eq!((h.kind, h.handle as usize), (TURBO_HANDLE_HOST_PTR, host as usize));
     let mut err = new_error();
-    let rc = unsafe { turbo_context_create(rt.0, d, &mut ctx, &mut err) };
-    let f = failure(rc, &err);
-    assert_eq!(f.code, UNSUPPORTED, "{f:?}");
-    assert!(f.message.contains("hailo") && f.message.contains("context_create"), "{}", f.message);
-    assert!(ctx.is_null());
+    let rc = unsafe { turbo_buffer_export(buf, TURBO_HANDLE_DMABUF_FD, &mut h, &mut err) };
+    assert_eq!(failure(rc, &err).code, UNSUPPORTED);
+    unsafe { turbo_buffer_release(buf) };
+    for p in [TURBO_PLACE_PINNED, TURBO_PLACE_DEVICE, TURBO_PLACE_SHARED] {
+        let f = b.alloc(p, 4096).unwrap_err();
+        assert!(f.is(UNSUPPORTED, "TURBO_PLACE_HOST only"), "placement {p}: {f:?}");
+    }
+}
+
+/// Contexts made and released from several threads at once: a device's
+/// vdevice is made again only after the last one is gone, so every
+/// create succeeds.
+#[test]
+fn contexts_come_and_go_from_many_threads() {
+    let rt = Rt::new();
+    let Some(d) = hailo_device(&rt, "contexts_come_and_go_from_many_threads") else { return };
+    let rt = std::sync::Arc::new(rt);
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            let rt = rt.clone();
+            std::thread::spawn(move || {
+                for _ in 0..10 {
+                    let c = Ctx::create(&rt, d);
+                    drop(c);
+                }
+            })
+        })
+        .collect();
+    for t in threads {
+        t.join().unwrap();
+    }
+}
+
+/// A bundle of raw weights has nothing the hailo backend loads.
+#[test]
+fn raw_weights_are_not_an_artifact_for_hailo() {
+    let rt = Rt::new();
+    let Some(_) = hailo_device(&rt, "raw_weights_are_not_an_artifact_for_hailo") else { return };
+    drop(rt);
+    let f = Loaded::load_on(&tiny_bundle(), |rt| first_of(rt, "hailo").unwrap()).err().expect("no artifact");
+    assert!(f.is(BUNDLE_NO_ARTIFACT, "hailo"), "{f:?}");
+}
+
+// ---- A bundle with a HEF ---------------------------------------------------------
+
+/// TURBO_TEST_BUNDLE: a bundle with a HEF for the first hailo device.
+fn hef_bundle() -> std::path::PathBuf {
+    std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"))
+}
+
+fn on_hailo() -> Loaded {
+    Loaded::load_on(&hef_bundle(), |rt| first_of(rt, "hailo").expect("a hailo device"))
+        .unwrap_or_else(|e| panic!("{e:?}"))
+}
+
+#[test]
+#[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
+fn a_session_computes_in_i8_and_exact_is_refused() {
+    let l = on_hailo();
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+        let s = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap();
+        assert_eq!(s.info().compute_dtype, TURBO_DTYPE_I8, "precision {p}");
+    }
+    let f = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_EXACT))).err().expect("refused");
+    assert!(f.is(UNSUPPORTED_OPTION, "EXACT") && f.field == 3, "{f:?}");
+}
+
+/// Each row is one frame: its word rows and bias go to the device and its
+/// hidden states come back. The lookup, pooling and normalize run on the
+/// host, the encoder on the device, and the vectors stay on the host.
+#[test]
+#[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
+fn a_run_reports_its_frames_and_where_each_stage_ran() {
+    let l = on_hailo();
+    let s = Session::create(l.m, Some(&session_desc(4, 0, TURBO_PRECISION_MODEL))).unwrap();
+    assert_eq!(s.info().max_batch, 4, "the HEF's frame of one row does not cap the session");
+    let batch = 4;
+    let seq = s.info().max_seq as u64;
+    let hidden = l.info().dim as u64;
+    let texts = ["The quick brown fox jumps over the lazy dog.", "how do I reset a password", "a"];
+    let texts = &texts[..batch.min(texts.len())];
+    let n = texts.len() as u64;
+    s.write_text(texts, None).unwrap();
+    let r = s.run().unwrap();
+    let info = r.info();
+    assert_eq!((info.batch as u64, info.dim, info.compute_dtype), (n, hidden as u32, TURBO_DTYPE_I8));
+    assert_eq!(info.placement, TURBO_PLACE_HOST);
+    assert_eq!(field(&info.backend), "hailo");
+    // Per row: the rows [seq, hidden] and the bias [seq, heads * seq], each
+    // at least a byte an element, and the hidden states [seq, hidden] back.
+    assert!(info.h2d_bytes >= n * seq * hidden && info.h2d_bytes.is_multiple_of(n), "{}", info.h2d_bytes);
+    assert!(info.d2h_bytes >= n * seq * hidden, "{}", info.d2h_bytes);
+    assert_eq!((info.host_allocs, info.device_allocs), (0, 0));
+    let st = &info.stage;
+    assert_eq!(st[TURBO_EMBED_STAGE_TOKENIZE], TURBO_STAGE_HOST);
+    assert_eq!(st[TURBO_EMBED_STAGE_UPLOAD], TURBO_STAGE_DEVICE);
+    assert_eq!(st[TURBO_EMBED_STAGE_LOOKUP], TURBO_STAGE_HOST);
+    assert_eq!(st[TURBO_EMBED_STAGE_ENCODE], TURBO_STAGE_DEVICE);
+    assert_eq!(st[TURBO_EMBED_STAGE_POOL], TURBO_STAGE_HOST);
+    assert_eq!(st[TURBO_EMBED_STAGE_NORMALIZE], TURBO_STAGE_HOST);
+    assert_eq!(st[TURBO_EMBED_STAGE_DOWNLOAD], TURBO_STAGE_DEVICE);
+    for v in r.rows() {
+        let n = v.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
+        assert!((n - 1.0).abs() < 1e-5, "unit length: {n}");
+    }
+}
+
+/// The HEF computes token type 0 only: rows with another type are refused,
+/// naming the row, and nothing runs.
+#[test]
+#[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
+fn a_token_type_other_than_0_is_refused() {
+    let l = on_hailo();
+    let s = Session::create(l.m, Some(&session_desc(2, 0, TURBO_PRECISION_MODEL))).unwrap();
+    let mut t = Tokens::new(&[vec![101, 7592, 102], vec![101, 2088, 102]], 0);
+    let mut types = vec![0; t.ids.len()];
+    types[4] = 1;
+    t.types = Some(types);
+    let f = s.write_tokens(&t.batch(), None).unwrap_err();
+    assert!(f.is(UNSUPPORTED_OPTION, "token type 1 in row 1"), "{f:?}");
+    t.types = Some(vec![0; t.ids.len()]);
+    s.write_tokens(&t.batch(), None).unwrap();
+    assert_eq!(s.run().unwrap().info().batch, 2);
+}
+
+/// Pooling and normalize are the backend's, on the host: CLS differs from
+/// mean, and NONE leaves the vector at its own length.
+#[test]
+#[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
+fn pooling_and_normalize_follow_the_options() {
+    let l = on_hailo();
+    let s = Session::create(l.m, Some(&session_desc(1, 0, TURBO_PRECISION_MODEL))).unwrap();
+    let text = ["Embedding models turn text into vectors."];
+    let mut o = embed_options();
+    o.pooling = TURBO_POOLING_MEAN;
+    let mean = s.embed(&text, Some(&o)).unwrap().remove(0);
+    o.pooling = TURBO_POOLING_CLS;
+    let cls = s.embed(&text, Some(&o)).unwrap().remove(0);
+    let cos: f64 = mean.iter().zip(&cls).map(|(a, b)| *a as f64 * *b as f64).sum();
+    assert!(cos < 0.999, "CLS and mean pooling give different vectors: cosine {cos}");
+    o.pooling = TURBO_POOLING_MEAN;
+    o.normalize = TURBO_NORMALIZE_NONE;
+    let raw = s.embed(&text, Some(&o)).unwrap().remove(0);
+    let n = raw.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
+    assert!((n - 1.0).abs() > 1e-3, "NONE leaves the length as pooled: {n}");
+    let back: f64 = raw.iter().zip(&mean).map(|(a, b)| *a as f64 / n * *b as f64).sum();
+    assert!(back > 0.99999, "the same direction as the normalized vector: {back}");
 }

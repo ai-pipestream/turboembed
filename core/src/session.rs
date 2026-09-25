@@ -277,10 +277,19 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
     let run = backend::offered!(b, session_run)?;
     let cap = c.runtime.capability(c.device, mi.task, d.precision)?;
     if cap.status == backend::TURBO_CAP_UNSUPPORTED {
-        return Err(Error::new(
-            UNSUPPORTED_TASK,
-            format!("the {} backend does not run embed: {}", b.name(), backend::cstr(&cap.reason)),
-        ));
+        let reason = backend::cstr(&cap.reason);
+        // The task runs at another precision: the precision is the option refused.
+        let other = (TURBO_PRECISION_MODEL..=TURBO_PRECISION_EXACT).filter(|&p| p != d.precision).any(|p| {
+            c.runtime.capability(c.device, mi.task, p).is_ok_and(|o| o.status != backend::TURBO_CAP_UNSUPPORTED)
+        });
+        if other {
+            return Err(Error::field(
+                UNSUPPORTED_OPTION,
+                3,
+                format!("precision {}: the {} backend does not run it: {reason}", d.precision, b.name()),
+            ));
+        }
+        return Err(Error::new(UNSUPPORTED_TASK, format!("the {} backend does not run embed: {reason}", b.name())));
     }
     let mut compute_dtype = 0;
     let mut raw = std::ptr::null_mut();

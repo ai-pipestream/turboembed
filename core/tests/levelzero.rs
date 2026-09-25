@@ -1096,9 +1096,32 @@ fn largest_shape_on(dir: &std::path::Path, gs: &Session, cs: &Session, floor: f6
     );
 }
 
-/// Every row full, at FASTEST: the small model's 64 x 64 tokens give its
-/// narrow layers tiles enough for the matrix kernel that stages through
-/// local memory, with outputs that end inside its 128-wide tiles. Then
+/// At FASTEST a row's vector does not depend on the rows around it, below
+/// the LayerNorm kernels' own switch at 256 tokens: the linear layers never
+/// split their sums, and each projection back to the hidden width takes its
+/// LayerNorm in its epilogue at every batch size. So a row of a few tokens
+/// alone, which runs the 8-token tiles, gives the same bits as the same row
+/// among others, which run the wider ones.
+#[test]
+fn a_row_at_fastest_gives_the_same_bits_alone_and_among_others() {
+    let _t = turn();
+    let Some(_) = gpu_device("a_row_at_fastest_gives_the_same_bits_alone_and_among_others") else { return };
+    let g = on_gpu(&tiny_bundle());
+    let s = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
+    assert_eq!(s.info().compute_dtype, TURBO_DTYPE_F16);
+    // Rows of 5, 12, 19 and 26 tokens: 62 in all, below the LayerNorm
+    // kernels' own switch at 256.
+    let rows: Vec<Vec<i32>> =
+        (0..4i32).map(|r| (0..5 + 7 * r).map(|p| 1000 + (r * 131 + p * 17) % 20000).collect()).collect();
+    s.write_tokens(&Tokens::new(&rows, 0).batch(), None).unwrap();
+    let together = s.run().unwrap().rows();
+    s.write_tokens(&Tokens::new(&rows[..1], 0).batch(), None).unwrap();
+    let alone = s.run().unwrap().rows();
+    assert_eq!(alone[0], together[0], "a row of 5 tokens alone and among 62");
+}
+
+/// Every row full, at FASTEST: the small model's 64 x 64 tokens fill whole
+/// groups of the XMX linear kernels and the LayerNorm-fused ones. Then
 /// single short rows, for the kernels that take a handful of tokens.
 #[test]
 fn a_full_batch_at_fastest_matches_the_cpu() {
@@ -1119,7 +1142,8 @@ fn a_full_batch_at_fastest_matches_the_cpu() {
         let cos = cosine(a, &b);
         assert!(cos >= 0.999, "row {r}: cosine {cos} with the cpu");
     }
-    // One short row at a time: 8 tokens at most run the GEMV kernels.
+    // One short row at a time: 8 tokens at most run the XMX kernels'
+    // 8-token tiles.
     for text in TEXTS {
         let (a, b) = (gs.embed(&[text], None).unwrap(), cs.embed(&[text], None).unwrap());
         let cos = cosine(&a[0], &b[0]);

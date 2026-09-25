@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: Apache-2.0
  *
- * The Hailo backend: Hailo accelerators through HailoRT's C API, behind
+ * The Hailo backend: Hailo accelerators through HailoRT, behind
  * include/turbo/turbo_backend.h. It lists the devices HailoRT finds, each
- * identified once, and says what it can run on each. One that does not
- * answer is refused by device_info with the reason, which the runtime logs
- * as it leaves the device out. It runs no task, so its table stops at
- * capability.
+ * identified once through the C API; one that does not answer is refused
+ * by device_info with the reason, which the runtime logs as it leaves the
+ * device out. It runs embed on a HEF (FORMAT_HEF, INPUT_EMBEDDINGS to
+ * OUTPUT_HIDDEN_STATES) through the C++ InferModel API in embed.cpp: the
+ * word rows are gathered on the host, the encoder runs on the device, and
+ * pooling and normalize run on the host.
  *
  * Every function here is called from any thread. The device list is made
  * once per process, on first need, under std::call_once, and kept: HailoRT
@@ -17,7 +19,12 @@
 
 #include <hailo/hailort.h>
 
+#include "embed.h"
+
+#include <algorithm>
+#include <condition_variable>
 #include <cstdarg>
+#include <cstdlib>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -252,14 +259,308 @@ int32_t device_info(uint32_t ordinal, turbo_device_info *out, turbo_error *err) 
     });
 }
 
-/* No task runs on a Hailo device through this backend. */
-int32_t capability(uint32_t, uint32_t, uint32_t, uint32_t *status, uint32_t *dtype, uint32_t *options_honored,
-                   char *reason, uint32_t reason_len, turbo_error *err) {
+/* Fields of turbo_embed_options a run honors: normalize (4), pooling (5)
+ * and output_dim (6), every value of each. */
+constexpr uint32_t EMBED_HONORED = 0x38;
+
+/* Embed, in the dtype a HEF is compiled in: I8 at MODEL and FASTEST. A HEF
+ * never computes in F32, so EXACT is refused. */
+int32_t capability(uint32_t, uint32_t, uint32_t precision, uint32_t *status, uint32_t *dtype,
+                   uint32_t *options_honored, char *reason, uint32_t reason_len, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
-        *status = TURBO_CAP_UNSUPPORTED;
-        *dtype = 0;
-        *options_honored = 0;
-        if (reason_len) copy_str(reason, reason_len, "the hailo backend lists devices and runs no task");
+        if (precision == TURBO_PRECISION_EXACT) {
+            *status = TURBO_CAP_UNSUPPORTED;
+            *dtype = 0;
+            *options_honored = 0;
+            if (reason_len)
+                copy_str(reason, reason_len, "a HEF computes in the I8 it was compiled in; EXACT asks for F32");
+            return TURBO_OK;
+        }
+        *status = TURBO_CAP_EXPERIMENTAL;
+        *dtype = TURBO_DTYPE_I8;
+        *options_honored = EMBED_HONORED;
+        if (reason_len) reason[0] = 0;
+        return TURBO_OK;
+    });
+}
+
+__attribute__((format(printf, 4, 5))) int32_t refuse_field(turbo_error *err, int32_t code, uint32_t field,
+                                                           const char *fmt, ...) {
+    if (err) {
+        va_list ap;
+        va_start(ap, fmt);
+        err->code = code;
+        err->field = field;
+        vsnprintf(err->message, TURBO_ERROR_MESSAGE_LEN, fmt, ap);
+        va_end(ap);
+    }
+    return code;
+}
+
+int32_t failed(turbo_error *err, const turbo_hailo::Failure &f) {
+    return refuse_field(err, f.code, f.field, "%s", f.message.c_str());
+}
+
+// ---- Contexts and buffers ------------------------------------------------------
+//
+// A context is the device's HailoRT vdevice. HailoRT opens a device for one
+// vdevice at a time in a process, so every context on a device shares one,
+// made by the first and released with the last. Buffers are host memory:
+// the device's own memory is HailoRT's, reached only through the frames it
+// sends, so HOST is the one placement.
+
+struct Context {
+    std::shared_ptr<hailort::VDevice> vdevice;
+};
+
+/* The open vdevices by device id. An entry stays until its vdevice is
+ * destroyed, so a new one for the same device is made only after the old
+ * one is gone: HailoRT can refuse a vdevice while another on the device
+ * is still being torn down. */
+std::mutex vdevices_lock;
+std::condition_variable vdevices_gone;
+std::vector<std::pair<std::string, std::weak_ptr<hailort::VDevice>>> vdevices;
+
+std::shared_ptr<hailort::VDevice> shared_vdevice(const hailo_device_id_t &id, hailo_status &status) {
+    std::unique_lock<std::mutex> g(vdevices_lock);
+    const std::string key = counted(id.id, sizeof id.id, sizeof id.id);
+    auto entry = [&] {
+        return std::find_if(vdevices.begin(), vdevices.end(), [&](const auto &e) { return e.first == key; });
+    };
+    for (auto e = entry(); e != vdevices.end(); e = entry()) {
+        if (auto v = e->second.lock()) return v;
+        // Expired: the last context let it go and its destructor is running.
+        vdevices_gone.wait(g);
+    }
+    hailo_vdevice_params_t params;
+    status = hailo_init_vdevice_params(&params);
+    if (status != HAILO_SUCCESS) return nullptr;
+    hailo_device_id_t ids[1] = {id};
+    params.device_ids = ids;
+    params.device_count = 1;
+    auto v = hailort::VDevice::create(params);
+    if (!v) {
+        status = v.status();
+        return nullptr;
+    }
+    // The deleter destroys the vdevice first, then drops its entry and wakes
+    // any context waiting to make the next one.
+    std::shared_ptr<hailort::VDevice> shared(v.release().release(), [key](hailort::VDevice *d) {
+        delete d;
+        std::lock_guard<std::mutex> lg(vdevices_lock);
+        auto e = std::find_if(vdevices.begin(), vdevices.end(), [&](const auto &x) { return x.first == key; });
+        if (e != vdevices.end()) vdevices.erase(e);
+        vdevices_gone.notify_all();
+    });
+    vdevices.emplace_back(key, shared);
+    return shared;
+}
+
+int32_t context_create(uint32_t ordinal, turbo_log_fn, void *, void **out, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        const Device &d = listing().devices.at(ordinal);
+        if (!d.failure.empty()) return refuse(err, TURBO_E_DEVICE_UNAVAILABLE, "%s", d.failure.c_str());
+        hailo_status s = HAILO_SUCCESS;
+        auto v = shared_vdevice(d.id, s);
+        if (!v)
+            return refuse(err, TURBO_E_DEVICE_UNAVAILABLE, "hailo device %s: VDevice::create: %s",
+                          counted(d.id.id, sizeof d.id.id, sizeof d.id.id).c_str(), status_text(s).c_str());
+        *out = new Context{v};
+        return TURBO_OK;
+    });
+}
+
+void context_release(void *ctx) { delete static_cast<Context *>(ctx); }
+
+/* Every buffer starts on a 64-byte boundary, a cache line. */
+constexpr size_t ALIGN = 64;
+
+struct Buffer {
+    void *ptr;
+};
+
+void *aligned(uint64_t bytes) {
+    const size_t n = (size_t)((bytes + ALIGN - 1) / ALIGN * ALIGN);
+    return aligned_alloc(ALIGN, n ? n : ALIGN);
+}
+
+int32_t buffer_alloc(void *, const turbo_buffer_desc *desc, void **out, void **host, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        if (desc->placement != TURBO_PLACE_HOST)
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "placement: %u: a hailo context allocates TURBO_PLACE_HOST only; the device's memory is "
+                          "HailoRT's",
+                          desc->placement);
+        void *p = aligned(desc->bytes);
+        if (!p) return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes of host memory", (unsigned long long)desc->bytes);
+        *host = p;
+        *out = new Buffer{p};
+        return TURBO_OK;
+    });
+}
+
+void buffer_release(void *buf) {
+    Buffer *b = static_cast<Buffer *>(buf);
+    free(b->ptr);
+    delete b;
+}
+
+int32_t buffer_export(void *buf, uint32_t kind, turbo_native_handle *out, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        if (kind != TURBO_HANDLE_HOST_PTR)
+            return refuse(err, TURBO_E_UNSUPPORTED, "kind: %u is not TURBO_HANDLE_HOST_PTR, the one kind hailo exports",
+                          kind);
+        out->kind = TURBO_HANDLE_HOST_PTR;
+        out->handle = (uint64_t)(uintptr_t) static_cast<Buffer *>(buf)->ptr;
+        out->aux = 0;
+        out->offset = 0;
+        return TURBO_OK;
+    });
+}
+
+// ---- Models --------------------------------------------------------------------
+//
+// A model is a HEF that takes word-embedding rows (INPUT_EMBEDDINGS) and
+// gives hidden states, configured on the context's vdevice. Its bytes and
+// the word table stay where the core holds them until model_release.
+
+struct Model {
+    std::shared_ptr<hailort::VDevice> vdevice;
+    std::unique_ptr<turbo_hailo::Model> hef;
+};
+
+int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        if (desc->format != TURBO_FORMAT_HEF)
+            return refuse(err, TURBO_E_UNSUPPORTED, "format %u: the hailo backend loads FORMAT_HEF", desc->format);
+        if (desc->graph_input != TURBO_INPUT_EMBEDDINGS || desc->graph_output != TURBO_OUTPUT_HIDDEN_STATES)
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "graph_input %u, graph_output %u: the hailo backend runs a HEF from INPUT_EMBEDDINGS to "
+                          "OUTPUT_HIDDEN_STATES",
+                          desc->graph_input, desc->graph_output);
+        if (desc->compute_dtype != TURBO_DTYPE_I8)
+            return refuse(err, TURBO_E_UNSUPPORTED, "compute_dtype %u: the hailo backend runs I8 HEFs",
+                          desc->compute_dtype);
+        if (desc->fixed_seq == 0 || desc->fixed_batch == 0)
+            return refuse(err, TURBO_E_BUNDLE_INVALID,
+                          "fixed_seq %u, fixed_batch %u: a HEF's shape is compiled in, and the manifest must give it",
+                          desc->fixed_seq, desc->fixed_batch);
+        if (desc->fixed_batch != 1)
+            return refuse(err, TURBO_E_UNSUPPORTED, "fixed_batch %u: the hailo backend runs HEFs of one row a frame",
+                          desc->fixed_batch);
+        if (desc->family != TURBO_FAMILY_BERT || desc->tensor_count != TURBO_BERT_EMBEDDING_TENSORS ||
+            !desc->tensors)
+            return refuse(err, TURBO_E_UNSUPPORTED, "family %u with %u tensors: the hailo backend needs a BERT's %d "
+                          "embedding tensors",
+                          desc->family, desc->tensor_count, TURBO_BERT_EMBEDDING_TENSORS);
+        const turbo_backend_tensor &w = desc->tensors[TURBO_BERT_WORD_EMBEDDINGS];
+        if (w.dtype != TURBO_DTYPE_F32)
+            return refuse(err, TURBO_E_UNSUPPORTED, "%s: dtype %u: the hailo backend gathers F32 word rows", w.name,
+                          w.dtype);
+        if (desc->heads == 0 || desc->hidden % desc->heads != 0)
+            return refuse(err, TURBO_E_BUNDLE_INVALID, "hidden %u is not a multiple of heads %u", desc->hidden,
+                          desc->heads);
+        turbo_hailo::ModelDesc d;
+        d.hef = desc->artifact;
+        d.hef_bytes = desc->artifact_bytes;
+        d.word_table = static_cast<const float *>(w.data);
+        d.vocab = desc->vocab_size;
+        d.hidden = desc->hidden;
+        d.heads = desc->heads;
+        d.seq = desc->fixed_seq;
+        std::unique_ptr<Model> m(new Model());
+        m->vdevice = static_cast<Context *>(ctx)->vdevice;
+        const turbo_hailo::Failure f = turbo_hailo::Model::load(*m->vdevice, d, m->hef);
+        if (f) return failed(err, f);
+        *out = m.release();
+        return TURBO_OK;
+    });
+}
+
+void model_release(void *model) { delete static_cast<Model *>(model); }
+
+// ---- Sessions ------------------------------------------------------------------
+
+struct Session {
+    std::unique_ptr<turbo_hailo::Session> run;
+    Buffer output;
+    uint32_t hidden;
+};
+
+int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                       uint32_t *compute_dtype, void **out, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        Model *m = static_cast<Model *>(model);
+        if (task != TURBO_TASK_EMBED)
+            return refuse(err, TURBO_E_UNSUPPORTED_TASK, "task %u: the hailo backend runs embed", task);
+        if (precision == TURBO_PRECISION_EXACT)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision: EXACT computes in F32, and this HEF computes in the I8 it was compiled in");
+        std::unique_ptr<turbo_hailo::Session> s;
+        const turbo_hailo::Failure f = turbo_hailo::Session::create(*m->hef, max_batch, max_seq, s);
+        if (f) return failed(err, f);
+        const uint32_t hidden = m->hef->desc().hidden;
+        const uint64_t bytes = (uint64_t)max_batch * hidden * 4;
+        void *p = aligned(bytes);
+        if (!p)
+            return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes for the session's vectors",
+                          (unsigned long long)bytes);
+        *out = new Session{std::move(s), Buffer{p}, hidden};
+        *compute_dtype = TURBO_DTYPE_I8;
+        return TURBO_OK;
+    });
+}
+
+void session_release(void *session) {
+    Session *s = static_cast<Session *>(session);
+    free(s->output.ptr);
+    delete s;
+}
+
+int32_t embed_write(void *session, const turbo_backend_embed_rows *rows, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        turbo_hailo::Rows r;
+        r.batch = rows->batch;
+        r.seq = rows->seq;
+        r.row_stride = rows->row_stride;
+        r.ids = rows->ids;
+        r.mask = rows->mask;
+        r.types = rows->types;
+        r.pooling = rows->pooling;
+        r.normalize = rows->normalize;
+        r.output_dim = rows->output_dim;
+        const turbo_hailo::Failure f = static_cast<Session *>(session)->run->write(r);
+        return f ? failed(err, f) : TURBO_OK;
+    });
+}
+
+/* Stages: the lookup on the host into each frame, which HailoRT sends to
+ * the device; the encoder on the device; its hidden states back, pooled
+ * and normalized on the host. The vectors stay on the host. */
+int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        Session *s = static_cast<Session *>(session);
+        uint64_t h2d = 0, d2h = 0;
+        const turbo_hailo::Failure f = s->run->run(static_cast<float *>(s->output.ptr), h2d, d2h);
+        if (f) return failed(err, f);
+        out->placement = TURBO_PLACE_HOST;
+        out->output = &s->output;
+        out->host = s->output.ptr;
+        out->h2d_bytes = h2d;
+        out->d2h_bytes = d2h;
+        // The backend allocates nothing in a run: the frames, the bindings
+        // and the scratch were made with the session. What HailoRT allocates
+        // inside run_async is its own and is not counted here.
+        out->host_allocs = 0;
+        out->device_allocs = 0;
+        uint32_t *st = out->stage;
+        st[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_DEVICE;
+        st[TURBO_EMBED_STAGE_LOOKUP] = TURBO_STAGE_HOST;
+        st[TURBO_EMBED_STAGE_ENCODE] = TURBO_STAGE_DEVICE;
+        st[TURBO_EMBED_STAGE_POOL] = TURBO_STAGE_HOST;
+        st[TURBO_EMBED_STAGE_NORMALIZE] =
+            s->run->normalize() == TURBO_NORMALIZE_L2 ? TURBO_STAGE_HOST : TURBO_STAGE_UNUSED;
+        st[TURBO_EMBED_STAGE_DOWNLOAD] = TURBO_STAGE_DEVICE;
         return TURBO_OK;
     });
 }
@@ -270,10 +571,8 @@ extern "C" {
 
 extern const turbo_backend turbo_hailo_backend;
 
-/* The table through capability: the backend offers no contexts, models or
- * sessions. */
 const turbo_backend turbo_hailo_backend = {
-    (uint32_t)offsetof(turbo_backend, context_create),
+    sizeof(turbo_backend),
     0,
     "hailo",
     // HailoRT has no version in its headers; each device reports the
@@ -282,20 +581,20 @@ const turbo_backend turbo_hailo_backend = {
     device_count,
     device_info,
     capability,
+    context_create,
+    context_release,
+    buffer_alloc,
     nullptr,
+    buffer_release,
+    buffer_export,
+    model_load,
+    model_release,
+    session_create,
+    session_release,
+    embed_write,
+    session_run,
     nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    nullptr,
-    0,
+    TURBO_FORMAT_BIT(TURBO_FORMAT_HEF),
     0,
 };
 
