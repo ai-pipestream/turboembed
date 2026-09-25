@@ -300,10 +300,13 @@ pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRu
     let result = (|| {
         onnx::write_inputs(&work, &o.inputs, &o.input_dtype, "--openvino-input-dtype", &m.rows)?;
         let work = fs::canonicalize(&work).map_err(|e| format!("{}: {e}", work.display()))?;
-        let [p50, p99] =
-            PERCENTILES.map(|p| run_argv(o, &m.bundle_dir, &work, &model, gid, &m.rows, iterations, precision, p));
-        let p50 = parse(&log.run(&p50)?, PERCENTILES[0])?;
-        let p99 = parse(&log.run(&p99)?, PERCENTILES[1])?;
+        let argv = |bundle: &Path, work: &Path, p: u32| {
+            run_argv(o, bundle, work, &model, gid, &m.rows, iterations, precision, p)
+        };
+        let (bundle, shown) = (Path::new(docker::BUNDLE), Path::new(docker::WORK));
+        let [a, b] = PERCENTILES;
+        let p50 = parse(&log.run_as(&argv(&m.bundle_dir, &work, a), argv(bundle, shown, a))?, a)?;
+        let p99 = parse(&log.run_as(&argv(&m.bundle_dir, &work, b), argv(bundle, shown, b))?, b)?;
         Ok::<_, String>((p50, p99))
     })();
     let _ = fs::remove_dir_all(&work);

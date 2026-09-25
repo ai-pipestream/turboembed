@@ -165,6 +165,17 @@ fn a_record_that_is_not_well_formed_is_refused() {
     refused(&|x| x.references[0].name = "a-faster-program".into(), "is not one of");
     refused(&|x| x.references[0].role = "kernel".into(), "is not one of");
     refused(&|x| x.references[0].pinned = format!("--privileged@sha256:{}", "0".repeat(64)), "is not name@sha256");
+    let mount = "type=bind,src=/home/someone/bundles/minilm,dst=/bundle,readonly";
+    refused(&|x| x.references[0].commands[0].push(mount.into()), "holds a host path (/home/...)");
+    refused(&|x| x.references[0].procedure = "read /Users/someone/upstream".into(), "holds a host path (/Users/...)");
+    refused(
+        &|x| {
+            x.references[0].measured = None;
+            x.references[0].not_run = Some("/home/someone/upstream/tokenizer.json: not found".into());
+        },
+        "holds a host path",
+    );
+    refused(&|x| x.device.name = "/home/".into(), "holds a host path");
 }
 
 #[test]

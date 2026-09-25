@@ -165,7 +165,8 @@ fn tei_serves_only_the_bundles_own_tokenizer_and_weights() {
     let d = upstream_dir("tei-model");
     tei::check_model_dir(&d, m).unwrap();
     std::fs::write(d.join("tokenizer.json"), "{}").unwrap();
-    assert!(tei::check_model_dir(&d, m).unwrap_err().contains("is not the bundle's tokenizer"));
+    let e = tei::check_model_dir(&d, m).unwrap_err();
+    assert!(e.starts_with("<tei-model>/tokenizer.json is not the bundle's tokenizer"), "no host path: {e}");
     let d = upstream_dir("tei-model-weights");
     std::fs::copy(tiny_bundle().join("reference/reference.safetensors"), d.join("model.safetensors")).unwrap();
     assert!(tei::check_model_dir(&d, m).unwrap_err().contains("is not the loaded artifact"));
@@ -260,30 +261,6 @@ fn trtexec_input_names_are_plain_names() {
         assert!(e.contains("is not an input name of [A-Za-z0-9_.]+"), "{bad:?}: {e}");
     }
 }
-
-/// trtexec's output in the form TensorRT's samples print it: the version
-/// line from trtexec.cpp, and the prolog and performance summary from
-/// sampleReporting.cpp, with --percentile=99.
-const TRTEXEC_OUT: &str = "\
-&&&& RUNNING TensorRT.trtexec [TensorRT v100300] [b17] # trtexec --onnx=/bundle/onnx/model.onnx --percentile=99
-[09/25/2026-10:00:00] [I] === Model Options ===
-[09/25/2026-10:00:00] [I] Format: ONNX
-[09/25/2026-10:00:00] [I] TensorRT version: 10.3.0
-[09/25/2026-10:00:40] [I] Warmup completed 2710 queries over 1000 ms
-[09/25/2026-10:00:40] [I] Timing trace has 200 queries over 0.0741 s
-[09/25/2026-10:00:40] [I]
-[09/25/2026-10:00:40] [I] === Trace details ===
-[09/25/2026-10:00:40] [I] === Performance summary ===
-[09/25/2026-10:00:40] [I] Throughput: 2699.06 qps
-[09/25/2026-10:00:40] [I] Latency: min = 0.36377 ms, max = 0.52124 ms, mean = 0.374511 ms, median = 0.372559 ms, percentile(99%) = 0.412598 ms
-[09/25/2026-10:00:40] [I] Enqueue Time: min = 0.0114746 ms, max = 0.0491943 ms, mean = 0.0136421 ms, median = 0.0130615 ms, percentile(99%) = 0.0249023 ms
-[09/25/2026-10:00:40] [I] H2D Latency: min = 0.0107422 ms, max = 0.0244141 ms, mean = 0.0117093 ms, median = 0.0115967 ms, percentile(99%) = 0.0170898 ms
-[09/25/2026-10:00:40] [I] GPU Compute Time: min = 0.339966 ms, max = 0.48999 ms, mean = 0.350241 ms, median = 0.348389 ms, percentile(99%) = 0.385986 ms
-[09/25/2026-10:00:40] [I] D2H Latency: min = 0.0112305 ms, max = 0.0161133 ms, mean = 0.0125591 ms, median = 0.0124512 ms, percentile(99%) = 0.0146484 ms
-[09/25/2026-10:00:40] [I] Total Host Walltime: 0.0741 s
-[09/25/2026-10:00:40] [I] Total GPU Compute Time: 0.0700482 s
-&&&& PASSED TensorRT.trtexec [TensorRT v100300] [b17] # trtexec --onnx=/bundle/onnx/model.onnx --percentile=99
-";
 
 #[test]
 fn trtexec_output_gives_its_version_and_summary() {
@@ -445,58 +422,6 @@ fn the_container_gets_the_render_nodes_group() {
         assert_eq!(openvino::render_group(&d).unwrap(), gid);
     }
     assert!(openvino::render_group(&d.join("absent")).is_err());
-}
-
-/// benchmark_app's report in the form its Python tool prints it
-/// (tools/benchmark_tool/openvino/tools/benchmark: main.py, benchmark.py's
-/// print_version_info, utils/utils.py's next_step, and the logging format
-/// `[ %(levelname)s ] %(message)s`), for `-latency_percentile 50`.
-const BENCHMARK_APP_OUT: &str = "\
-[Step 1/11] Parsing and validating input arguments
-[ INFO ] Parsing input parameters
-[Step 2/11] Loading OpenVINO Runtime
-[ INFO ] OpenVINO:
-[ INFO ] Build ................................. 2025.3.0-19807-44526285f24-releases/2025/3
-[ INFO ] 
-[ INFO ] Device info:
-[ INFO ] GPU
-[ INFO ] Build ................................. 2025.3.0-19807-44526285f24-releases/2025/3
-[ INFO ] 
-[ INFO ] 
-[Step 3/11] Setting device configuration
-[Step 4/11] Reading model files
-[ INFO ] Loading model files
-[ INFO ] Read model took 38.91 ms
-[Step 5/11] Resizing model to match image sizes and given batch
-[ INFO ] Model batch size: 1
-[Step 6/11] Configuring input of the model
-[Step 7/11] Loading the model to the device
-[ INFO ] Compile model took 2140.27 ms
-[Step 8/11] Querying optimal runtime parameters
-[Step 9/11] Creating infer requests and preparing input tensors
-[Step 10/11] Measuring performance (Start inference synchronously, limits: 200 iterations)
-[ INFO ] Benchmarking in inference only mode (inputs filling are not included in measurement loop).
-[ INFO ] First inference took 11.84 ms
-[Step 11/11] Dumping statistics report
-[ INFO ] Execution Devices:['GPU']
-[ INFO ] Count:            200 iterations
-[ INFO ] Duration:         412.64 ms
-[ INFO ] Latency:
-[ INFO ]    Median:        2.03 ms
-[ INFO ]    Average:       2.05 ms
-[ INFO ]    Min:           1.95 ms
-[ INFO ]    Max:           2.71 ms
-[ INFO ] Throughput:   484.68 FPS
-";
-
-/// The same run with `-latency_percentile 99` and an average under a
-/// millisecond, which benchmark_app prints in microseconds.
-fn p99_out() -> String {
-    BENCHMARK_APP_OUT
-        .replace("   Median:        2.03 ms", "   99 percentile:     961.20 us")
-        .replace("   Average:       2.05 ms", "   Average:       904.33 us")
-        .replace("   Min:           1.95 ms", "   Min:           880.10 us")
-        .replace("   Max:           2.71 ms", "   Max:           1210.52 us")
 }
 
 #[test]

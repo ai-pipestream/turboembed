@@ -21,6 +21,11 @@ pub const RECORD_VERSION: u32 = 1;
 /// holds 96 bytes with its NUL.
 pub const NAME_MAX: usize = 95;
 
+/// Text no record may hold anywhere: the start of a user's home directory
+/// on Linux and on macOS. A record is published, and the tool writes each
+/// host path in it as a placeholder (docs/benchmarks.md).
+pub const HOST_PATHS: [&str; 2] = ["/home/", "/Users/"];
+
 /// The reason a cell without any record for it gives.
 pub const NO_RECORD: &str = "no benchmark record for this cell";
 
@@ -313,8 +318,8 @@ impl Record {
     /// Parse a record read from `name`, and check that it is well formed:
     /// its name is the one its contents give, every hash and number is
     /// one a measurement could have produced, each reference was either
-    /// measured or says why not, and speed_ratio is what the references
-    /// give.
+    /// measured or says why not, speed_ratio is what the references
+    /// give, and no text in it is a path under a home directory.
     pub fn parse(name: &str, bytes: &[u8]) -> Result<Record, String> {
         let r: Record = serde_json::from_slice(bytes).map_err(|e| format!("{name}: {e}"))?;
         r.check().map_err(|e| format!("{name}: {e}"))?;
@@ -430,6 +435,13 @@ impl Record {
             if (r.measured.is_some() || !r.pinned.is_empty()) && pinned(&r.pinned).is_none() {
                 return Err(format!("reference {}: {:?} is not name@sha256:<64 hex>", r.name, r.pinned));
             }
+        }
+        let text = serde_json::to_string(self).map_err(|e| e.to_string())?;
+        if let Some(home) = HOST_PATHS.iter().find(|h| text.contains(*h)) {
+            return Err(format!(
+                "the record holds a host path ({home}...): a path on the machine that made it is written as a \
+                 placeholder"
+            ));
         }
         let (ratio, by) = speed(t.p50_ms, &self.references);
         let same = match (ratio, self.speed_ratio) {

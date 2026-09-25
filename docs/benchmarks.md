@@ -201,7 +201,7 @@ field is required, and an unknown one is an error.
 | `rows` | The shape, the live tokens, the reference case each row is, and the hash of the rows (below). |
 | `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. |
 | `conformance` | The rows compared with the bundle's fp32 reference on this device, through the C interface: each distinct case alone as a batch of one at its own length, then every row of the last timed batch. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
-| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, and `min_cosine` against the reference when the program returns vectors) or `not_run` with the reason. |
+| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, and `min_cosine` against the reference when the program returns vectors) or `not_run` with the reason. |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
 
 ### Token rows
@@ -252,7 +252,16 @@ Images are pinned as `name@sha256:<64 hex>`, the name of lower-case
 letters, digits and `._/:-`, starting with a letter or digit (so never
 an option); a tag is refused. The tool
 never pulls (`--pull never`, and `docker image inspect` first), so what
-runs is what was fetched on purpose. Each command is recorded as run.
+runs is what was fetched on purpose. Each command is recorded as run,
+except that a host path in it is written as a fixed placeholder:
+`<bundle>` for the bundle directory, `<work>` for the directory the
+input files are written to, `<tei-model>` for the model directory TEI
+serves. Records are published, and the operator's paths say nothing
+about the measurement and may name a user. The command executed has the
+real paths; only the recorded copy is rewritten. A `not_run` reason
+names those directories the same way. The core refuses a record with
+`/home/` or `/Users/` anywhere in its text, so one written by hand or
+by an older tool cannot carry a home directory either.
 
 **TensorRT** builds an engine from the bundle's `FORMAT_ONNX` artifact,
 checked against its hash, and times the rows loaded from raw files. The
@@ -291,7 +300,7 @@ there; otherwise the reference is `not_run`. The command:
 ```
 docker run --detach --rm --pull never --name turbo-bench-tei-<pid> [--gpus device=<ordinal>] \
     --publish 127.0.0.1::80 --env HF_HUB_OFFLINE=1 \
-    --mount type=bind,src=<model dir>,dst=/model,readonly <image> \
+    --mount type=bind,src=<tei-model>,dst=/model,readonly <image> \
     --model-id /model --port 80 --dtype <float32|float16> --pooling <mean|cls|last-token> \
     --max-client-batch-size <batch> --max-batch-tokens <max(batch x seq, 16384)>
 ```
@@ -429,6 +438,11 @@ rule; the tool writes records through the same types and checks, and
   of the small bundle and TEI disabled, into a temporary directory:
   every field is checked against what the library, git and the bundle
   say, and the record backs nothing.
+- `redaction.rs`: every runner through its own code, with `docker` a
+  script that prints each program's canned report and TEI's API answered
+  from a local socket, on directories under a path with a sentinel user
+  name in it: the commands run name the real paths, and the records name
+  only the placeholders.
 - `runners.rs`: the reference programs' commands, argument by argument;
   their output parsed from examples in the form TEI, trtexec and
   benchmark_app print it; which programs each backend gets; and the

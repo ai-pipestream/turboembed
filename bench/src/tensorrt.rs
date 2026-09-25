@@ -212,7 +212,17 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
         onnx::write_inputs(&work, &t.inputs, &t.input_dtype, "--tensorrt-input-dtype", &m.rows)?;
         let work = fs::canonicalize(&work).map_err(|e| format!("{}: {e}", work.display()))?;
         let cmd = run_argv(t, &m.bundle_dir, &work, &onnx, gpu, &m.rows, iterations, &precision);
-        parse(&log.run(&cmd)?)
+        let shown = run_argv(
+            t,
+            Path::new(docker::BUNDLE),
+            Path::new(docker::WORK),
+            &onnx,
+            gpu,
+            &m.rows,
+            iterations,
+            &precision,
+        );
+        parse(&log.run_as(&cmd, shown)?)
     })();
     let _ = fs::remove_dir_all(&work);
     let s = result?;
