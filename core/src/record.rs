@@ -22,9 +22,9 @@ pub const RECORD_VERSION: u32 = 1;
 pub const NAME_MAX: usize = 95;
 
 /// Text no record may hold anywhere: the start of a user's home directory
-/// on Linux and on macOS. A record is published, and the tool writes each
-/// host path in it as a placeholder (docs/benchmarks.md).
-pub const HOST_PATHS: [&str; 2] = ["/home/", "/Users/"];
+/// on Linux (root's included) and on macOS. A record is published, and the
+/// tool writes each host path in it as a placeholder (docs/benchmarks.md).
+pub const HOST_PATHS: [&str; 4] = ["/home/", "/root/", "/var/home/", "/Users/"];
 
 /// The reason a cell without any record for it gives.
 pub const NO_RECORD: &str = "no benchmark record for this cell";

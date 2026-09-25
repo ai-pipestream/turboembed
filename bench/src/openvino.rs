@@ -179,14 +179,17 @@ fn latency(text: &str) -> Option<f64> {
 /// <percentile>`: the `Build` line under `OpenVINO:`, `Count:`,
 /// `Duration:`, the `Latency:` block's percentile line (`Median:` for 50)
 /// and `Average:`, and `Throughput:`. benchmark_app's Python and C++
-/// forms both print these, each after an `[ INFO ]` tag.
+/// forms both print these, each after an `[ INFO ]` tag, except the C++
+/// form's lines of the version block.
 pub fn parse(out: &str, percentile: u32) -> Result<Report> {
     let missing = |what: &str| format!("benchmark_app output has no {what}");
     let lines: Vec<&str> = info_lines(out).collect();
     let after = |tag: &str| lines.iter().find_map(|l| l.strip_prefix(tag)).map(str::trim);
-    let version = lines
-        .iter()
-        .skip_while(|l| **l != "OpenVINO:")
+    // The C++ form prints the version block untagged after its first line.
+    let version = out
+        .lines()
+        .map(|l| l.trim_start().strip_prefix("[ INFO ]").unwrap_or(l).trim())
+        .skip_while(|l| *l != "OpenVINO:")
         .find_map(|l| l.strip_prefix("Build"))
         .map(|v| v.trim_start_matches(['.', ' ', ':']).trim().to_owned())
         .filter(|v| !v.is_empty())

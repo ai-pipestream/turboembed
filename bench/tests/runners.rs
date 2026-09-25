@@ -440,7 +440,7 @@ fn benchmark_app_output_gives_its_version_and_report() {
     let cpp = BENCHMARK_APP_OUT
         .replace(
             "[ INFO ] Build ................................. 2025.3.0-19807-44526285f24-releases/2025/3\n[ INFO ] \n[ INFO ] Device info:",
-            "[ INFO ] OpenVINO Runtime\n    Version : 2025.3.0\n[ INFO ] Build   : 2025.3.0-19807-44526285f24-releases/2025/3\n[ INFO ] Device info:",
+            "[ INFO ] OpenVINO Runtime\n    Version : 2025.3.0\n    Build   : 2025.3.0-19807-44526285f24-releases/2025/3\n[ INFO ] Device info:",
         )
         .replace("Count:            200", "Count:               200")
         .replace("   Median:        2.03 ms", "   Median:           2.03 ms");
