@@ -1252,9 +1252,10 @@ fn whole_row_layer_norm_matches_the_separate_kernel() {
 }
 
 /// FASTEST with F16 accumulators over each 64 terms of k
-/// (TURBO_CUDA_F16_ACCUMULATE=1), on a model of MiniLM's widths, the
-/// LayerNorm separate and in the GEMMs: the CPU's vectors within
-/// FASTEST's bound (cosine 0.999), and the same bits when run again.
+/// (TURBO_CUDA_F16_ACCUMULATE=1), and over the whole of k (the tiles
+/// `f16k` and `f16k3`), on a model of MiniLM's widths, the LayerNorm
+/// separate and in the GEMMs: the CPU's vectors within FASTEST's bound
+/// (cosine 0.999), and the same bits when run again.
 #[test]
 fn f16_accumulators_hold_fastest_s_bound() {
     let _t = turn();
@@ -1274,17 +1275,26 @@ fn f16_accumulators_hold_fastest_s_bound() {
     let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
-    for separate in [true, false] {
-        turbo::cuda::use_f16_accumulate(Some(true));
+    use turbo::cuda::Tile;
+    for (tile, separate) in
+        [None, Some(Tile::F16WholeK), Some(Tile::F16WholeK3)].into_iter().flat_map(|tile| [(tile, true), (tile, false)])
+    {
+        turbo::cuda::use_f16_accumulate(tile.is_none().then_some(true));
+        turbo::cuda::use_tile(tile);
         turbo::cuda::use_separate_layer_norm(Some(separate));
         let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
         turbo::cuda::use_separate_layer_norm(None);
+        turbo::cuda::use_tile(None);
         turbo::cuda::use_f16_accumulate(None);
         let gs = gs.unwrap();
         let tol = record::tolerance(gs.info().compute_dtype).unwrap();
         gs.write_tokens(&t.batch(), None).unwrap();
         let got = gs.run().unwrap().rows();
-        let what = format!("F16 accumulators, separate LayerNorm {separate}");
+        let sums = match tile {
+            None => "F16 accumulators".to_string(),
+            Some(tile) => format!("tile {tile:?}"),
+        };
+        let what = format!("{sums}, separate LayerNorm {separate}");
         let (cos, abs) = within(&what, &got, &want, tol);
         println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
         gs.write_tokens(&t.batch(), None).unwrap();
@@ -1552,6 +1562,8 @@ fn the_gemms_match_cublas() {
                     Tile::SwizzledEightWarps,
                     Tile::Swizzled256x128,
                     Tile::SwizzledEightWarpsF16Accumulate,
+                    Tile::F16WholeK,
+                    Tile::F16WholeK3,
                 ]
             } else {
                 &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
@@ -1568,10 +1580,17 @@ fn the_gemms_match_cublas() {
                     // cuBLAS's F32 product does not.
                     let f16_out = half && !matches!(epilogue, Plain);
                     let tf32 = !half && tensor_cores;
-                    // F16 accumulators round each 64 terms' sum to 11 bits.
+                    // F16 accumulators round each 64 terms' sum to 11 bits,
+                    // or with the whole-k tiles every sum of a segment's k.
                     let f16_sums = half
                         && tensor_cores
-                        && matches!(tile, Tile::EightWarpsF16Accumulate | Tile::SwizzledEightWarpsF16Accumulate);
+                        && matches!(
+                            tile,
+                            Tile::EightWarpsF16Accumulate
+                                | Tile::SwizzledEightWarpsF16Accumulate
+                                | Tile::F16WholeK
+                                | Tile::F16WholeK3
+                        );
                     let bound = if f16_sums {
                         1e-2
                     } else if f16_out || tf32 {
@@ -1587,6 +1606,61 @@ fn the_gemms_match_cublas() {
                     assert!(diff <= bound, "{what}: {diff:e} over {bound:e}");
                 }
             }
+        }
+    }
+}
+
+/// The error F16 sums add to a GEMM, against cuBLAS's F32 sums of the same
+/// F16 operands (uniform in [-1, 1]), at MiniLM's shapes for the
+/// benchmark's 1353 tokens and at 8193: F32 accumulators, F16 ones over
+/// each 64 terms of k added in F32, and F16 ones over the whole of a
+/// block's k (`f16k`, `f16k3`), with the work shared among as many blocks
+/// as the device holds, and among 7 and 1 (so a block's segment runs to
+/// the whole of k). Each line prints the largest difference relative to
+/// the largest value; the whole-k sums stay within 1e-2 of it, the
+/// others within their bounds in the_gemms_match_cublas.
+#[test]
+fn f16_sums_over_the_whole_of_k_stay_within_their_bound() {
+    let _t = turn();
+    let Some(dev) = cuda_device("f16_sums_over_the_whole_of_k_stay_within_their_bound") else { return };
+    let ordinal = Rt::new().info(dev).ordinal;
+    use turbo::cuda::Epilogue::*;
+    use turbo::cuda::Tile;
+    for (m, n, k, epilogue, heads) in [
+        (1353, 1152, 384, Qkv, 12),
+        (1353, 384, 384, Plain, 1),
+        (1353, 1536, 384, Gelu, 1),
+        (1353, 384, 1536, Plain, 1),
+        (8193, 384, 1536, Plain, 1),
+    ] {
+        let counts: &[i32] = if m > 4096 { &[0, 7] } else { &[0, 7, 1] };
+        for &blocks in counts {
+            let mut worst = [0.0f64; 3];
+            for (sums, tiles) in [
+                (0, &[Tile::SwizzledEightWarps][..]),
+                (1, &[Tile::SwizzledEightWarpsF16Accumulate][..]),
+                (2, &[Tile::F16WholeK, Tile::F16WholeK3][..]),
+            ] {
+                for &tile in tiles {
+                    let (diff, reference) =
+                        turbo::cuda::gemm_check(ordinal, m, n, k, epilogue, true, true, tile, blocks, heads).unwrap();
+                    let relative = diff / reference.max(1.0);
+                    worst[sums] = worst[sums].max(relative);
+                    let what = format!("{epilogue:?} [{m}, {k}] x [{n}, {k}], tile {tile:?}, {blocks} blocks");
+                    println!("{what}: largest difference {diff:.3e} of values up to {reference:.3}, {relative:.3e}");
+                    let bound = match sums {
+                        0 if matches!(epilogue, Plain) => 1e-5,
+                        0 => 2e-3,
+                        _ => 1e-2,
+                    };
+                    assert!(relative <= bound, "{what}: {relative:e} over {bound:e}");
+                }
+            }
+            println!(
+                "{epilogue:?} [{m}, {k}] x [{n}, {k}], {blocks} blocks: relative error with F32 sums {:.3e}, F16 over \
+                 64 {:.3e}, F16 over the whole of k {:.3e}",
+                worst[0], worst[1], worst[2]
+            );
         }
     }
 }
@@ -1628,6 +1702,8 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::Swizzled,
             Tile::SwizzledEightWarps,
             Tile::Swizzled256x128,
+            Tile::F16WholeK,
+            Tile::F16WholeK3,
         ] {
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));

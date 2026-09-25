@@ -22,6 +22,16 @@ pub fn stage(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
             crate::fetch::write_atomic(&bundle.join(to), &bytes)?;
         }
     }
+    // The recipe's own files, each checked against its pinned hash.
+    for l in &recipe.local {
+        let from = recipe.dir.join(&l.path);
+        let bytes = fs::read(&from).map_err(|e| format!("local {}: {e}", from.display()))?;
+        let got = sha256_hex(&bytes);
+        if got != l.sha256 {
+            return Err(format!("local {}: sha256 {got}, the recipe pins {}", l.path, l.sha256));
+        }
+        crate::fetch::write_atomic(&bundle.join(&l.to), &bytes)?;
+    }
     Ok(())
 }
 

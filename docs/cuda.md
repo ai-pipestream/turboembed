@@ -114,6 +114,17 @@ sums do not depend on which blocks share it. F16 accumulation is twice
 the tensor cores' F32 rate on GeForce cards. It is off by default; the
 CUDA tests hold it to FASTEST's bound, cosine 0.999, and print the
 cosine and largest absolute difference they measure.
+`TURBO_CUDA_TILE=f16k` goes further, for measuring: FASTEST's GEMMs sum
+in F16 over the whole of a block's k, with no F32 accumulators but the
+stream-K partial products and their total (TensorRT's F16 GEMMs), on the
+swizzled kernel at 128 × 128 over four warps of 64 × 64, four stages, one
+block to an SM; `f16k3` is the same at three stages, two blocks to an SM.
+Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
+uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
+F32 sums, sums over 64 and whole-k sums side by side, and hold the last
+within 1e-2 of the largest value. A tile's sums depend on where the
+blocks sharing it split its k, so its bits depend on the grid (the same
+from run to run on one device). The other precisions take `128x64`.
 `TURBO_CUDA_POOL=columns` gives the pooling of a thread per column, for
 measuring against the default. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
 a GEMM's block takes before the GEMM runs on fewer blocks (a count from

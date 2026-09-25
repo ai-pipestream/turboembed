@@ -140,6 +140,30 @@
         "produced_by": {
           "from": "onnx-f32"
         }
+      },
+      {
+        "name": "hef-hailo10h-s128",
+        "format": "FORMAT_HEF",
+        "files": [
+          "hailo/model-hailo10h-s128.hef"
+        ],
+        "backends": [
+          "hailo"
+        ],
+        "target": "hailo10h",
+        "fixed_seq": 128,
+        "fixed_batch": 1,
+        "compute_dtype": "DTYPE_I8",
+        "graph_input": "INPUT_EMBEDDINGS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "host_weights": "weights-f32",
+        "produced_by": {
+          "from": "onnx-f32",
+          "container": "turbo-hailo-dfc@sha256:0972b97df2cfba9ba20abf9efa99a7f57ec675a00e6712a610f6cbd410a575b2",
+          "inputs": [
+            "calibration/texts.jsonl"
+          ]
+        }
       }
     ],
     "reference": {
@@ -234,6 +258,13 @@
     {
       "path": "vocab.txt",
       "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+    }
+  ],
+  "local": [
+    {
+      "path": "all-minilm-l6-v2.calibration.jsonl",
+      "to": "calibration/texts.jsonl",
+      "sha256": "bde646a9a523e6dbb93315343bd363890ef31510625aee4a2e8c7a6fda65c3b4"
     }
   ]
 }
