@@ -692,21 +692,20 @@ FLASH(attention_128, 128, float, vstore4)
 /* At FASTEST, for the next layer's F16 operand. */
 FLASH(attention_128_to_half, 128, half, vstore_half4)
 
-/* At FASTEST, on the matrix engines: a group of ATT_KS sub-groups takes 16
- * queries of a row and head, a lane each; sub-group g walks the row's keys
- * 32 at a time from the g-th 32, ATT_KS * 32 apart. The scores are K
+/* At FASTEST, on the matrix engines: a sub-group takes 16 queries of a row
+ * and head, a lane each, and walks the row's keys 32 at a time; a group's
+ * ATT_SUBGROUPS sub-groups take consecutive blocks of queries, so they
+ * read the row's keys and values from cache between them. The scores are K
  * times Q transposed, so a lane holds its own query's 32 scores (K as A,
  * 8 keys a product and a lane per term; Q as B, a lane per query), and its
  * online softmax needs no other lane. The context is V transposed times
  * the weights (V as A, 8 of the width a product and a lane per key; the
  * weights as B, a lane per query). K and V arrive by 2D block reads, V's
  * transposed; rows past the row's last token read as zeros. The softmax
- * runs in base 2 on scores scaled by log2(e). The sub-groups' maxima, sums
- * and contexts meet in local memory, rescaled to the largest maximum. qkv
- * and ctx are F16, the sums and the softmax F32. The head width is a
+ * runs in base 2 on scores scaled by log2(e). qkv and ctx are F16, the sums and the softmax F32. The head width is a
  * multiple of 32, and so is hidden, so a head's keys and values start
  * 64-byte aligned for the 2D reads. */
-#define ATT_KS 4
+#define ATT_SUBGROUPS 4
 
 __attribute__((overloadable)) void intel_sub_group_2d_block_read_transpose_32b_16r8x1c(__global void *base, int width,
                                                                                        int height, int pitch,
@@ -726,13 +725,12 @@ int8 pack_probabilities(float8 lo, float8 hi) {
 
 #define FLASH_XMX(HD)                                                                                              \
     __kernel __attribute__((intel_reqd_sub_group_size(16)))                                                        \
-    __attribute__((reqd_work_group_size(16 * ATT_KS, 1, 1))) void                                                  \
+    __attribute__((reqd_work_group_size(16 * ATT_SUBGROUPS, 1, 1))) void                                           \
     attention_xmx_##HD(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden,   \
                        float scale, __global half *ctx) {                                                          \
-        __local float red_m[ATT_KS][16], red_l[ATT_KS][16];                                                        \
-        __local float8 red_acc[ATT_KS][HD / 8][16];                                                                \
-        const int lane = get_sub_group_local_id(), sg = get_sub_group_id();                                        \
-        const int q0 = get_group_id(0) * 16, head = get_group_id(1), r = get_group_id(2);                          \
+        const int lane = get_sub_group_local_id();                                                                 \
+        const int q0 = (get_group_id(0) * ATT_SUBGROUPS + get_sub_group_id()) * 16;                                \
+        const int head = get_group_id(1), r = get_group_id(2);                                                     \
         const int start = rows[2 * r], len = rows[2 * r + 1];                                                      \
         if (q0 >= len) return;                                                                                     \
         const int stride = 3 * hidden, col = head * HD;                                                            \
@@ -745,7 +743,7 @@ int8 pack_probabilities(float8 lo, float8 hi) {
         float8 acc[HD / 8];                                                                                        \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] = (float8)(0.0f);              \
         float mx = -INFINITY, l = 0.0f;                                                                            \
-        for (int j0 = sg * 32; j0 < len; j0 += 32 * ATT_KS) {                                                      \
+        for (int j0 = 0; j0 < len; j0 += 32) {                                                                     \
             /* s[2c + h]: keys j0 + 16c + 8h .. + 7. */                                                            \
             float8 s[4] = {(float8)(0.0f), (float8)(0.0f), (float8)(0.0f), (float8)(0.0f)};                       \
             __attribute__((opencl_unroll_hint)) for (int c = 0; c < 2; c++)                                        \
@@ -798,22 +796,8 @@ int8 pack_probabilities(float8 lo, float8 hi) {
                 }                                                                                                  \
             }                                                                                                      \
         }                                                                                                          \
-        red_m[sg][lane] = mx;                                                                                      \
-        red_l[sg][lane] = l;                                                                                       \
-        __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) red_acc[sg][b][lane] = acc[b];        \
-        barrier(CLK_LOCAL_MEM_FENCE);                                                                              \
-        if (sg != 0 || q0 + lane >= len) return;                                                                   \
-        float m_all = -INFINITY;                                                                                   \
-        for (int g = 0; g < ATT_KS; g++) m_all = fmax(m_all, red_m[g][lane]);                                      \
-        float l_all = 0.0f;                                                                                        \
-        __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] = (float8)(0.0f);              \
-        for (int g = 0; g < ATT_KS; g++) {                                                                         \
-            const float mg = red_m[g][lane];                                                                       \
-            const float c = mg == -INFINITY ? 0.0f : native_exp2(mg - m_all);                                      \
-            l_all += red_l[g][lane] * c;                                                                           \
-            __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] += red_acc[g][b][lane] * c; \
-        }                                                                                                          \
-        const float inv = 1.0f / l_all;                                                                            \
+        if (q0 + lane >= len) return;                                                                              \
+        const float inv = 1.0f / l;                                                                                \
         __global half *out = ctx + (size_t)(start + q0 + lane) * hidden + col;                                     \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++)                                       \
             vstore_half8(acc[b] * inv, b, out);                                                                    \
