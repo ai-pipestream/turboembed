@@ -108,11 +108,16 @@ frameworks and libc++, which every macOS has.
   and GELU added as it is stored; the feed-forward output; a residual and
   LayerNorm; then one kernel pools (mean over the mask, the first token,
   or the last live one), cuts to `output_dim` and normalizes. The linear
-  layers are one GEMM kernel: four SIMD groups per 32 x 64 tile of the
-  output, each 16 x 32 of it in SIMD-group matrices, over k in steps of
-  16 staged in threadgroup memory. A linear layer that would leave most
-  of the GPU idle, as on a small batch, has its k split across more
-  threadgroups, and the residual kernel sums the parts. Attention takes
+  layers run one of two GEMM kernels. Up to 128 packed tokens, where
+  reading the weights is most of the work, a threadgroup computes a 32 x
+  16 tile of the output over all of k, its four SIMD groups each taking
+  every fourth step of 8 along k and reading straight from device
+  memory, and sums their four parts as it stores: many small
+  threadgroups keep many weight reads in flight. Above that, four SIMD
+  groups per 32 x 64 tile of the output, each 16 x 32 of it in SIMD-group
+  matrices, go over k in steps of 16 staged in threadgroup memory, and a
+  layer that would still leave most of the GPU idle has its k split
+  across more threadgroups, the residual kernel summing the parts. Attention takes
   32 queries of a row and one head per threadgroup, and goes through the
   row's keys in chunks of 32 staged in threadgroup memory, with a running
   softmax; a head width that is not a multiple of 8, or is over 64, runs

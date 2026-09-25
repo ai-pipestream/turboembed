@@ -215,6 +215,48 @@ kernel void gemm(device const float *x [[buffer(0)]], device const float *w0 [[b
     }
 }
 
+// The same, for a batch of few tokens, where the weights dominate: a
+// threadgroup computes a 32 x 16 tile of y over all of k, its four SIMD
+// groups each taking every fourth step of 8 along k, reading x and w
+// straight from device memory, and their four partial tiles are summed in
+// threadgroup memory as the epilogue stores. Many small threadgroups keep
+// many weight reads in flight. m is a multiple of 32, n of 16 and k of 8.
+kernel void gemm_small(device const float *x [[buffer(0)]], device const float *w0 [[buffer(1)]],
+                       device const float *w1 [[buffer(2)]], device const float *w2 [[buffer(3)]],
+                       device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
+                       device const float *b2 [[buffer(6)]], device float *y0 [[buffer(7)]],
+                       device float *y1 [[buffer(8)]], device float *y2 [[buffer(9)]],
+                       constant GemmParams &p [[buffer(10)]], uint3 tg [[threadgroup_position_in_grid]],
+                       ushort tid [[thread_index_in_threadgroup]], ushort sg [[simdgroup_index_in_threadgroup]]) {
+    threadgroup float red[4 * 32 * 16];
+    device const float *w = tg.z == 0 ? w0 : tg.z == 1 ? w1 : w2;
+    device const float *bias = tg.z == 0 ? b0 : tg.z == 1 ? b1 : b2;
+    device float *y = tg.z == 0 ? y0 : tg.z == 1 ? y1 : y2;
+    const uint m0 = tg.y * 32, n0 = tg.x * 16, k = p.k, n = p.n;
+    simdgroup_float8x8 acc[4][2];
+    for (uint i = 0; i < 4; i++)
+        for (uint j = 0; j < 2; j++) acc[i][j] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    device const float *xa = x + ulong(m0) * k;
+    device const float *wb = w + ulong(n0) * k;
+    for (uint kk = sg * 8; kk < k; kk += 32) {
+        simdgroup_float8x8 a[4], b[2];
+        for (uint j = 0; j < 2; j++) simdgroup_load(b[j], wb + ulong(j * 8) * k + kk, k, ulong2(0, 0), true);
+        for (uint i = 0; i < 4; i++) simdgroup_load(a[i], xa + ulong(i * 8) * k + kk, k);
+        for (uint i = 0; i < 4; i++)
+            for (uint j = 0; j < 2; j++) simdgroup_multiply_accumulate(acc[i][j], a[i], b[j], acc[i][j]);
+    }
+    for (uint i = 0; i < 4; i++)
+        for (uint j = 0; j < 2; j++) simdgroup_store(acc[i][j], red + sg * 512 + (i * 8) * 16 + j * 8, 16);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint e = tid; e < 512; e += 128) {
+        const uint col = n0 + e % 16;
+        float v = red[e] + red[512 + e] + red[1024 + e] + red[1536 + e];
+        if (p.epilogue >= 1) v += bias[col];
+        if (p.epilogue == 2) v = gelu(v);
+        y[ulong(m0 + e / 16) * n + col] = v;
+    }
+}
+
 // ---- Attention ----------------------------------------------------------------
 //
 // Four SIMD groups per 32 queries of one row, for one head, 8 queries
@@ -257,9 +299,13 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
     device const int *m = mask + p0;
 
     // The group's 32 queries, staged once.
-    for (uint e = tid; e < 32 * hd; e += 128) {
-        const uint r = e / hd, d = e % hd;
-        qs[r * LDH + d] = first + r < len ? q[ulong(p0 + first + r) * h + col + d] : 0.0f;
+    // Four floats at a time: the head width, the hidden width and the
+    // padded row are all multiples of 4.
+    const uint hd4 = hd / 4;
+    for (uint e = tid; e < 32 * hd4; e += 128) {
+        const uint r = e / hd4, d = (e % hd4) * 4;
+        *(threadgroup float4 *)(qs + r * LDH + d) =
+            first + r < len ? *(device const float4 *)(q + ulong(p0 + first + r) * h + col + d) : float4(0.0f);
     }
 
     simdgroup_float8x8 o[HD_MAX / 8];
@@ -272,14 +318,14 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
 
     for (uint c0 = 0; c0 < len; c0 += KC) {
         threadgroup_barrier(mem_flags::mem_threadgroup);
-        for (uint e = tid; e < KC * hd; e += 128) {
-            const uint r = e / hd, d = e % hd;
+        for (uint e = tid; e < KC * hd4; e += 128) {
+            const uint r = e / hd4, d = (e % hd4) * 4;
             // Keys past the row's end are staged as 0, so their dropped
             // scores multiply 0, never what another row left.
             const bool in = c0 + r < len;
             const ulong at = ulong(p0 + c0 + r) * h + col + d;
-            ks[r * LDH + d] = in ? k[at] : 0.0f;
-            vs[r * LDH + d] = in ? v[at] : 0.0f;
+            *(threadgroup float4 *)(ks + r * LDH + d) = in ? *(device const float4 *)(k + at) : float4(0.0f);
+            *(threadgroup float4 *)(vs + r * LDH + d) = in ? *(device const float4 *)(v + at) : float4(0.0f);
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
