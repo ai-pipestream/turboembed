@@ -1701,6 +1701,15 @@ int tuning_tokens(int bin, int tcap) {
     return edge < tcap ? edge : tcap;
 }
 
+/* The packed tokens at a bin's other end: just past the bin below's
+ * edge (128 for the first bin), or the session's tokens when fewer. A
+ * tile the tuner takes for a bin wins at both ends, since a wave more or
+ * less of tiles flips which tile is faster within one bin. */
+int tuning_tokens_low(int bin, int tcap) {
+    const int low = bin == 0 ? 128 : BIN_EDGE[bin - 1] + 1;
+    return low < tcap ? low : tcap;
+}
+
 /* The bins in the order they are tuned, those nearest a mixed batch's
  * size first, so a budget spent early skips the least used. */
 constexpr int TUNE_ORDER[BIN_COUNT] = {2, 1, 3, 0, 4};
@@ -1937,11 +1946,12 @@ struct Tuned {
 };
 
 /* The tuner over s.choices, from the incumbents: each bin in TUNE_ORDER
- * gets the tuner's rows for its tokens, each of its GEMMs times its
- * incumbent then its candidates, and the fastest by 5% is the bin's
- * choice. The first bin runs the whole encoder first, untimed as a
- * choice, which loads the modules, brings the clocks up and leaves
- * activations for the GEMMs to read. */
+ * gets the tuner's rows at each of its ends (tuning_tokens_low and
+ * tuning_tokens), and at each its GEMMs time their incumbent then their
+ * candidates; a candidate faster by 5% at both ends is the bin's choice,
+ * the least in sum when several are. The first bin runs the whole
+ * encoder first, untimed as a choice, which loads the modules, brings
+ * the clocks up and leaves activations for the GEMMs to read. */
 int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_error *err) {
     Context &c = *s.ctx;
     cudaStream_t st = c.stream;
@@ -1962,103 +1972,134 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
     for (int b : TUNE_ORDER) {
         if (b >= s.choices.bins) continue;
         const Plan &plan = s.plan[b];
-        const int m = tuning_tokens(b, s.shape[b].tcap);
-        stage_rows(s, m);
-        if (first) {
-            TRY(encode(s, b, err));
-        } else {
-            s.pack.queries = plan.attn_queries;
-            TRY_CUDA(fetch_rows(st, s.fetch, plan), "the tuner's rows");
-            TRY_CUDA(pack_rows(st, s.pack, plan), "the tuner's rows");
+        const int ends[2] = {tuning_tokens_low(b, s.shape[b].tcap), tuning_tokens(b, s.shape[b].tcap)};
+        const int n_ends = ends[0] < ends[1] ? 2 : 1;
+        const int *at = ends + (2 - n_ends);
+        // Each GEMM's variants' least times at each end; 0 for not timed.
+        std::vector<float> least[GEMM_COUNT][2];
+        for (int g = 0; g < GEMM_COUNT; g++)
+            for (int e = 0; e < 2; e++) least[g][e].assign(t.cand[b][g].size(), 0.0f);
+        for (int e = 0; e < n_ends; e++) {
+            const int m = at[e];
+            stage_rows(s, m);
+            if (first) {
+                TRY(encode(s, b, err));
+                first = false;
+            } else {
+                s.pack.queries = plan.attn_queries;
+                TRY_CUDA(fetch_rows(st, s.fetch, plan), "the tuner's rows");
+                TRY_CUDA(pack_rows(st, s.pack, plan), "the tuner's rows");
+            }
+            TRY_CUDA(cudaStreamSynchronize(st), "the tuner's rows");
+            for (int g = 0; g < GEMM_COUNT; g++) {
+                const std::vector<Candidate> &list = t.cand[b][g];
+                if (list.empty()) continue;
+                const Epilogue ep = gemm_epilogue((Gemm)g, plan.fused_ln);
+                GemmArgs ga = layer_gemm(s, b, (Gemm)g, ep);
+                for (size_t i = 0; i < list.size(); i++) {
+                    const Candidate &k = list[i];
+                    const std::string name = variant_name(k.c);
+                    if (Clock::now() >= deadline) {
+                        // Past the budget: what is left is not timed, and
+                        // without its incumbent's time nothing replaces it.
+                        for (size_t j = i; j < list.size(); j++) {
+                            out->skipped++;
+                            c.say(LOG_DEBUG, "cuda device %d: %s/%s/%s at %d tokens not timed: the budget of %u ms is "
+                                  "spent",
+                                  c.ordinal, BIN_NAME[b], GEMM_NAMES[g], variant_name(list[j].c).c_str(), m,
+                                  budget_ms);
+                        }
+                        break;
+                    }
+                    ga.min_steps = min_steps(k.c);
+                    const bool mma = s.shape[b].tensor_cores && (s.half || k.c.tf32);
+                    auto launch = [&]() { return gemm(st, ep, s.half, mma, k.c.tile, ga, k.grid); };
+                    Timed tm;
+                    const cudaError_t fe = time_kernel(st, ev, launch, deadline, &tm);
+                    if (fe != cudaSuccess) {
+                        // A launch that fails leaves the stream as it was; a
+                        // fault in a kernel fails the session.
+                        (void)cudaGetLastError();
+                        TRY_CUDA(cudaStreamSynchronize(st), "the tuner's GEMM");
+                        c.say(LOG_INFO, "cuda device %d: %s/%s/%s failed to launch (%s), so it is not chosen",
+                              c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str(), cudaGetErrorName(fe));
+                        if (i == 0) break;
+                        continue;
+                    }
+                    if (*reinterpret_cast<volatile int *>(s.fault)) {
+                        // A stream-K wait gave up: the time is not the
+                        // kernel's, and its flags are cleared for the next.
+                        *reinterpret_cast<volatile int *>(s.fault) = 0;
+                        TRY_CUDA(cudaMemsetAsync(s.flags, 0, (size_t)s.flag_ints * 4, st), "the tuner's GEMM");
+                        TRY_CUDA(cudaStreamSynchronize(st), "the tuner's GEMM");
+                        c.say(LOG_INFO,
+                              "cuda device %d: %s/%s/%s waited too long for a partial product, so it is not chosen",
+                              c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str());
+                        if (i == 0) break;
+                        continue;
+                    }
+                    c.say(LOG_DEBUG, "cuda device %d: %s/%s/%s at %d tokens: least %.4f ms, median %.4f ms of %d",
+                          c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str(), m, tm.min, tm.median, tm.n);
+                    snprintf(line, sizeof line, "%s/%s/%s@%d=%.4f\n", BIN_NAME[b], GEMM_NAMES[g], name.c_str(), m,
+                             tm.min);
+                    out->timings += line;
+                    out->measured = true;
+                    least[g][e][i] = tm.min;
+                    if (i == 0 && !busy_checked) {
+                        if (tm.spread > BUSY) {
+                            out->busy = true;
+                            c.say(LOG_WARNING,
+                                  "cuda device %d: not tuned: the same GEMM's times were %.0f%% apart, so the device "
+                                  "is shared or throttling; the next session measures again",
+                                  c.ordinal, 100.0 * tm.spread);
+                            s.choices = before;
+                            out->measured = false;
+                            return TURBO_OK;
+                        }
+                        busy_checked = true;
+                    }
+                }
+            }
         }
-        TRY_CUDA(cudaStreamSynchronize(st), "the tuner's rows");
+        // Per GEMM: the candidates 5% faster than the incumbent at every
+        // end timed, the least in sum of them.
         double was = 0, now = 0;
         for (int g = 0; g < GEMM_COUNT; g++) {
             const std::vector<Candidate> &list = t.cand[b][g];
             if (list.empty()) continue;
-            const Epilogue ep = gemm_epilogue((Gemm)g, plan.fused_ln);
-            GemmArgs ga = layer_gemm(s, b, (Gemm)g, ep);
-            int best = -1;
-            float incumbent = 0, fastest = 0;
-            for (size_t i = 0; i < list.size(); i++) {
-                const Candidate &k = list[i];
-                const std::string name = variant_name(k.c);
-                if (Clock::now() >= deadline) {
-                    // Past the budget: what is left is not timed, and
-                    // without its incumbent's time nothing replaces it.
-                    for (size_t j = i; j < list.size(); j++) {
-                        out->skipped++;
-                        c.say(LOG_DEBUG, "cuda device %d: %s/%s/%s not timed: the budget of %u ms is spent",
-                              c.ordinal, BIN_NAME[b], GEMM_NAMES[g], variant_name(list[j].c).c_str(), budget_ms);
-                    }
-                    break;
+            bool whole = true;
+            float incumbent = 0;
+            for (int e = 0; e < n_ends; e++) {
+                whole = whole && least[g][e][0] > 0;
+                incumbent += least[g][e][0];
+            }
+            if (!whole) continue;
+            int best = 0;
+            float chosen = incumbent;
+            for (size_t i = 1; i < list.size(); i++) {
+                bool wins = true;
+                float sum = 0;
+                for (int e = 0; e < n_ends; e++) {
+                    const float x = least[g][e][i];
+                    wins = wins && x > 0 && x <= MARGIN * least[g][e][0];
+                    sum += x;
                 }
-                ga.min_steps = min_steps(k.c);
-                const bool mma = s.shape[b].tensor_cores && (s.half || k.c.tf32);
-                auto launch = [&]() { return gemm(st, ep, s.half, mma, k.c.tile, ga, k.grid); };
-                Timed tm;
-                const cudaError_t e = time_kernel(st, ev, launch, deadline, &tm);
-                if (e != cudaSuccess) {
-                    // A launch that fails leaves the stream as it was; a
-                    // fault in a kernel fails the session.
-                    (void)cudaGetLastError();
-                    TRY_CUDA(cudaStreamSynchronize(st), "the tuner's GEMM");
-                    c.say(LOG_INFO, "cuda device %d: %s/%s/%s failed to launch (%s), so it is not chosen", c.ordinal,
-                          BIN_NAME[b], GEMM_NAMES[g], name.c_str(), cudaGetErrorName(e));
-                    if (i == 0) break;
-                    continue;
-                }
-                if (*reinterpret_cast<volatile int *>(s.fault)) {
-                    // A stream-K wait gave up: the time is not the
-                    // kernel's, and its flags are cleared for the next.
-                    *reinterpret_cast<volatile int *>(s.fault) = 0;
-                    TRY_CUDA(cudaMemsetAsync(s.flags, 0, (size_t)s.flag_ints * 4, st), "the tuner's GEMM");
-                    TRY_CUDA(cudaStreamSynchronize(st), "the tuner's GEMM");
-                    c.say(LOG_INFO, "cuda device %d: %s/%s/%s waited too long for a partial product, so it is not chosen",
-                          c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str());
-                    if (i == 0) break;
-                    continue;
-                }
-                c.say(LOG_DEBUG, "cuda device %d: %s/%s/%s at %d tokens: least %.4f ms, median %.4f ms of %d",
-                      c.ordinal, BIN_NAME[b], GEMM_NAMES[g], name.c_str(), m, tm.min, tm.median, tm.n);
-                snprintf(line, sizeof line, "%s/%s/%s=%.4f\n", BIN_NAME[b], GEMM_NAMES[g], name.c_str(), tm.min);
-                out->timings += line;
-                out->measured = true;
-                if (i == 0) {
-                    incumbent = tm.min;
-                    if (!busy_checked && tm.spread > BUSY) {
-                        out->busy = true;
-                        c.say(LOG_WARNING,
-                              "cuda device %d: not tuned: the same GEMM's times were %.0f%% apart, so the device is "
-                              "shared or throttling; the next session measures again",
-                              c.ordinal, 100.0 * tm.spread);
-                        s.choices = before;
-                        out->measured = false;
-                        return TURBO_OK;
-                    }
-                    busy_checked = true;
-                    continue;
-                }
-                if (best < 0 || tm.min < fastest) {
+                if (wins && sum < chosen) {
                     best = (int)i;
-                    fastest = tm.min;
+                    chosen = sum;
                 }
             }
-            if (incumbent <= 0) continue;
-            float chosen = incumbent;
-            if (best > 0 && fastest <= MARGIN * incumbent) {
+            if (best > 0) {
                 GemmChoice &gc = s.choices.bin[b].gemm[g];
                 gc.tile = list[(size_t)best].c.tile;
                 gc.tf32 = list[(size_t)best].c.tf32;
-                chosen = fastest;
             }
             was += incumbent;
             now += chosen;
         }
-        first = false;
         if (was > 0) {
-            snprintf(line, sizeof line, "%s%s: the GEMMs of a layer %.3f ms, the incumbents %.3f ms",
-                     out->summary.empty() ? "" : "; ", BIN_NAME[b], now, was);
+            snprintf(line, sizeof line, "%s%s at %d and %d tokens: the GEMMs of a layer %.3f ms, the incumbents %.3f ms",
+                     out->summary.empty() ? "" : "; ", BIN_NAME[b], at[0], at[n_ends - 1], now, was);
             out->summary += line;
         }
     }

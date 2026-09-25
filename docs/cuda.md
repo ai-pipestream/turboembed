@@ -205,15 +205,18 @@ attention, the LayerNorm and the pooling keep their defaults.
 How: after the session's memory is allocated and cleared, under the
 context's lock, on its stream and its own buffers. Each bin, those
 nearest a mixed batch first (`le4k`, `le1k`, `le16k`, `le256`,
-`gt16k`), gets rows of its upper edge's tokens (the session's size when
-smaller, 32768 at most past 16384) in the lengths of a mixed batch, ids 1
-and types 0; the first runs the whole encoder once, which loads the
-modules and brings the clocks up. Each variant of a GEMM of the first
-layer is launched once untimed, then timed five times with event pairs,
-and five more while the times are more than 10% apart, up to 15. The
-least time ranks, and a variant replaces the incumbent (the cached
-choice, else the default) only when 5% faster, so measuring again on
-the same device keeps the choice. When the first incumbent's five times
+`gt16k`), gets rows at each of its ends: just past the bin below's
+edge (128 tokens for `le256`) and its upper edge (32768 at most past
+16384), each the session's size when smaller, in the lengths of a mixed
+batch, ids 1 and types 0; the first runs the whole encoder once, which
+loads the modules and brings the clocks up. At each end each variant of
+a GEMM of the first layer is launched once untimed, then timed five
+times with event pairs, and five more while the times are more than 10%
+apart, up to 15. The least time ranks, and a variant replaces the
+incumbent (the cached choice, else the default) only when 5% faster at
+both ends, since a wave of tiles more or less flips which tile is
+faster within a bin; so measuring again on the same device keeps the
+choice. The timings lines name the tokens: `le4k/ffn1/sw8w@1025=0.0512`. When the first incumbent's five times
 are more than 25% apart, the device is shared or throttling: the
 session keeps its incumbents, is not cached, and the log says so. A
 variant that cannot launch here is not timed, and an INFO line says so
