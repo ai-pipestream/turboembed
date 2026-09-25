@@ -311,6 +311,10 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
         output: std::ptr::null_mut(),
         host: std::ptr::null_mut(),
     }));
+    let state = Mutex::new(State { written: None, ids: vec![0; rows], mask: vec![0; rows] });
+    // Where the lock is a pthread mutex (macOS), std allocates it on first
+    // use; take it once here so no write or run allocates it later.
+    drop(state.try_lock());
     Ok(SessionInner {
         model: m.clone(),
         backend: b,
@@ -319,7 +323,7 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
         run,
         info,
         honored: cap.options_honored,
-        state: Mutex::new(State { written: None, ids: vec![0; rows], mask: vec![0; rows] }),
+        state,
         holders: AtomicU32::new(0),
         result,
     })
