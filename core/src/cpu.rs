@@ -3,14 +3,17 @@
 //! loaded on it, and runs embed sessions with the encoder in encoder.rs.
 
 mod encoder;
+mod kernels;
+mod pool;
 
 use std::alloc::Layout;
 use std::ffi::{c_char, c_void};
 use std::sync::OnceLock;
 
 use crate::backend::{
-    TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT, refuse, refuse_field, turbo_backend, turbo_backend_embed_rows,
-    turbo_backend_model, turbo_backend_run, turbo_backend_tensor,
+    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT, refuse,
+    refuse_field, turbo_backend, turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run,
+    turbo_backend_tensor,
 };
 use crate::status::{
     INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
@@ -270,8 +273,10 @@ unsafe extern "C" fn buffer_export(
 // The weights stay where the core read them: its one verified host copy of
 // each weights file, which it keeps unchanged until model_release returns.
 // The CPU reads them in place. A model here is the architecture and a table
-// of pointers into those bytes; nothing of F32 weights is copied. F16 and
-// BF16 weights are widened once, for the sessions that compute in F32.
+// of pointers into those bytes. F16 and BF16 weights are widened once, for
+// the sessions that compute in F32. The linear layers' weight matrices are
+// also copied once into the panel layout the matrix kernel reads
+// (kernels.rs): for all-MiniLM-L6-v2, 42.5 MB beside its 90.9 MB file.
 
 struct Model {
     desc: turbo_backend_model,
@@ -283,6 +288,9 @@ struct Model {
     /// computes in F32 makes it, every later one shares it, and it goes
     /// with the model. It is made outside any run, so no result counts it.
     f32: OnceLock<Vec<Vec<f32>>>,
+    /// The linear layers packed for this processor's matrix kernel, made
+    /// by the first session and shared by every later one, like `f32`.
+    packed: OnceLock<kernels::Packed>,
 }
 
 // The tensors point into the core's weights, which it keeps unchanged
@@ -313,6 +321,22 @@ impl Model {
                 .collect()
         });
         copy.iter().map(Vec::as_slice).collect()
+    }
+
+    /// The packed linear layers, made on first use from `tensors`, which
+    /// are f32_tensors(). Err is the bytes that could not be allocated.
+    fn packed(&self, tensors: &[&[f32]]) -> Result<&kernels::Packed, usize> {
+        if let Some(p) = self.packed.get() {
+            return Ok(p);
+        }
+        let layer = |l: usize, r: usize| {
+            tensors[(TURBO_BERT_EMBEDDING_TENSORS + l as u32 * TURBO_BERT_LAYER_TENSORS) as usize + r]
+        };
+        let p = kernels::Packed::new(&self.desc, layer, kernels::Isa::detect())?;
+        // Two sessions made at once may both pack; the first kept wins,
+        // and the two are the same.
+        let _ = self.packed.set(p);
+        Ok(self.packed.get().expect("set above"))
     }
 }
 
@@ -349,7 +373,10 @@ unsafe extern "C" fn model_load(
         .map(|t| turbo_backend_tensor { name: std::ptr::null(), ..*t })
         .collect();
     let desc = turbo_backend_model { tensors: std::ptr::null(), ..desc };
-    unsafe { *out = Box::into_raw(Box::new(Model { desc, tensors, f32: OnceLock::new() })) as *mut c_void };
+    unsafe {
+        *out = Box::into_raw(Box::new(Model { desc, tensors, f32: OnceLock::new(), packed: OnceLock::new() }))
+            as *mut c_void
+    };
     0
 }
 
@@ -382,16 +409,20 @@ pub(crate) unsafe fn converted_data(model: *mut c_void) -> Option<Vec<*const c_v
 
 // ---- Sessions -------------------------------------------------------------
 //
-// A session is an encoder sized for its largest batch, and the buffer its
-// vectors are written to. Every byte either needs is allocated here; a run
-// reads the rows embed_write copied in, computes into that memory, and
-// allocates nothing. The CPU's memory is the host's: the rows embed_write
+// A session is an encoder sized for its largest batch, the threads it runs
+// on, and the buffer its vectors are written to. Every byte they need is
+// allocated here, and every thread started; a run reads the rows
+// embed_write copied in, computes into that memory on those threads, and
+// allocates nothing. Releasing the session stops and joins its threads. The CPU's memory is the host's: the rows embed_write
 // copies into the session are its input, with no crossing to count, and
 // the vectors are where the caller reads them. So UPLOAD and DOWNLOAD do
 // not run here, and h2d_bytes and d2h_bytes are 0.
 
 struct Session {
     encoder: encoder::Encoder,
+    /// One thread per processor the system lets this process use, the
+    /// caller's among them; see pool.rs.
+    pool: pool::Pool,
     /// [max_batch, hidden] F32, the buffer handed out as the run's output.
     output: Box<Buffer>,
     /// Rows are written and not yet run.
@@ -431,13 +462,23 @@ unsafe extern "C" fn session_create(
     let Some(output) = output else {
         return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's vectors")) };
     };
-    let encoder = match encoder::Encoder::new(&m.desc, m.f32_tensors(), max_batch as usize, max_seq as usize) {
-        Ok(e) => e,
+    let tensors = m.f32_tensors();
+    let packed = match m.packed(&tensors) {
+        Ok(p) => p,
         Err(bytes) => {
-            return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of scratch for the session")) };
+            return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the model's packed weights")) };
         }
     };
-    let s = Session { encoder, output: Box::new(output), written: false };
+    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    let pool = pool::Pool::new(threads);
+    let encoder =
+        match encoder::Encoder::new(&m.desc, tensors, packed, pool.threads(), max_batch as usize, max_seq as usize) {
+            Ok(e) => e,
+            Err(bytes) => {
+                return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of scratch for the session")) };
+            }
+        };
+    let s = Session { encoder, pool, output: Box::new(output), written: false };
     unsafe {
         *compute_dtype = TURBO_DTYPE_F32;
         *out = Box::into_raw(Box::new(s)) as *mut c_void;
@@ -470,15 +511,16 @@ unsafe extern "C" fn session_run(session: *mut c_void, out: *mut turbo_backend_r
         return unsafe { refuse(err, INVALID_STATE, "the cpu session has no rows written since its last run") };
     }
     let floats = unsafe { std::slice::from_raw_parts_mut(s.output.ptr as *mut f32, s.output_len()) };
-    s.encoder.run(floats);
+    s.encoder.run(&mut s.pool, floats);
     out.placement = TURBO_PLACE_HOST;
     out.output = &*s.output as *const Buffer as *mut c_void;
     out.host = s.output.ptr as *mut c_void;
     out.h2d_bytes = 0;
     out.d2h_bytes = 0;
-    // Nothing on this path allocates: the encoder computes in the memory
-    // session_create gave it. tests/allocations.rs holds this to a
-    // counting allocator.
+    // Nothing on this path allocates, on this thread or the pool's: the
+    // encoder computes in the memory session_create gave it, on the
+    // threads it started. tests/allocations.rs holds this to a counting
+    // allocator.
     out.host_allocs = 0;
     out.device_allocs = 0;
     let st = &mut out.stage;

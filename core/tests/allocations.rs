@@ -1,12 +1,16 @@
 //! turbo_result_info.host_allocs against the allocator: this binary counts
 //! every heap allocation made on the test's own thread, and a run must
 //! report exactly what was counted, which on the CPU is none, warm or
-//! cold.
+//! cold. It counts the process's allocations on every thread too, so a
+//! run that allocates on the threads the CPU backend computes on is
+//! caught as well: this file holds one test, so no other test's thread
+//! allocates meanwhile.
 
 mod common;
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use common::*;
 use turbo::*;
@@ -17,19 +21,27 @@ thread_local! {
     static COUNT: Cell<u64> = const { Cell::new(0) };
 }
 
+/// Allocations on every thread.
+static ALL: AtomicU64 = AtomicU64::new(0);
+
+fn count() {
+    COUNT.with(|c| c.set(c.get() + 1));
+    ALL.fetch_add(1, Ordering::Relaxed);
+}
+
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        COUNT.with(|c| c.set(c.get() + 1));
+        count();
         unsafe { System.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        COUNT.with(|c| c.set(c.get() + 1));
+        count();
         unsafe { System.alloc_zeroed(layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        COUNT.with(|c| c.set(c.get() + 1));
+        count();
         unsafe { System.realloc(ptr, layout, new_size) }
     }
 
@@ -46,6 +58,13 @@ fn counted<T>(f: impl FnOnce() -> T) -> (T, u64) {
     let before = COUNT.with(Cell::get);
     let out = f();
     (out, COUNT.with(Cell::get) - before)
+}
+
+/// Heap allocations on any thread while `f` runs, and those on this one.
+fn counted_all<T>(f: impl FnOnce() -> T) -> (T, u64, u64) {
+    let before = ALL.load(Ordering::SeqCst);
+    let (out, here) = counted(f);
+    (out, here, ALL.load(Ordering::SeqCst) - before)
 }
 
 #[test]
@@ -68,8 +87,9 @@ fn a_run_reports_the_allocations_it_made() {
         assert_eq!(rc, 0);
         assert_eq!(writes, 0, "run {i}: writing tokens allocates nothing either");
         let mut r = std::ptr::null_mut();
-        let (rc, allocs) = counted(|| unsafe { turbo_session_run(s.0, &mut r, std::ptr::null_mut()) });
+        let (rc, allocs, anywhere) = counted_all(|| unsafe { turbo_session_run(s.0, &mut r, std::ptr::null_mut()) });
         assert_eq!(rc, 0);
+        assert_eq!(anywhere, 0, "run {i}: nothing allocates on any thread, the session's own included");
         let r = Outcome(r);
         let mut info: turbo_result_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_result_info>() as u32;
