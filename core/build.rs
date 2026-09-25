@@ -14,9 +14,6 @@
 //!   its machine code, and the highest its PTX too, so a newer device can
 //!   compile that when it loads the library.
 //!
-//! It also compiles in the benchmark records in benchmarks/records/, with
-//! or without the feature (docs/benchmarks.md).
-//!
 //! The kernels and the host side are compiled by nvcc into a static
 //! library linked into libturbo, against the toolkit's shared cudart and
 //! cuBLAS, with the toolkit's library directory as a run path.
@@ -27,6 +24,10 @@
 //! kernels, core/metal/kernels.metal, go into the library as source, and
 //! Metal compiles them for the device a context is made on. docs/metal.md
 //! says more.
+//!
+//! The levelzero backend's kernels (core/levelzero/), for `levelzero`:
+//! OpenCL C compiled to SPIR-V by clang, which TURBO_CLANG names when the
+//! one on the PATH is not the one to use. docs/levelzero.md says more.
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -40,6 +41,9 @@ fn main() {
     records();
     if env::var_os("CARGO_FEATURE_CUDA").is_some() {
         cuda();
+    }
+    if env::var_os("CARGO_FEATURE_LEVELZERO").is_some() {
+        levelzero();
     }
     if env::var_os("CARGO_FEATURE_METAL").is_some() {
         metal();
@@ -117,6 +121,31 @@ fn cuda() {
     println!("cargo:rustc-link-lib=dylib=cudart");
     println!("cargo:rustc-link-lib=dylib=stdc++");
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib.display());
+}
+
+/// The levelzero backend's kernels, core/levelzero/encoder.cl, compiled to
+/// SPIR-V by clang (TURBO_CLANG, else clang on the PATH) into OUT_DIR,
+/// where the backend includes them. The driver builds them for the device
+/// when a context first needs them.
+fn levelzero() {
+    const SOURCE: &str = "levelzero/encoder.cl";
+    println!("cargo:rerun-if-changed={SOURCE}");
+    println!("cargo:rerun-if-env-changed=TURBO_CLANG");
+    let clang = env::var_os("TURBO_CLANG").unwrap_or_else(|| "clang".into());
+    let shown = Path::new(&clang).display().to_string();
+    let needs = "the levelzero feature needs a clang that compiles OpenCL C to SPIR-V (--target=spirv64; a clang \
+                 that translates through llvm-spirv needs it on the PATH): set TURBO_CLANG to one";
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("levelzero_encoder.spv");
+    let mut cmd = Command::new(&clang);
+    cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-c", SOURCE, "-o"]).arg(&out);
+    let done = cmd.output().unwrap_or_else(|e| fail(&format!("{needs}; {shown} did not run: {e}")));
+    let stderr = String::from_utf8_lossy(&done.stderr);
+    if !done.status.success() {
+        fail(&format!("{needs}; {cmd:?} failed:\n{stderr}"));
+    }
+    for line in stderr.lines().filter(|l| !l.trim().is_empty()) {
+        println!("cargo:warning={line}");
+    }
 }
 
 const METAL_SOURCES: [&str; 1] = ["metal/backend.mm"];

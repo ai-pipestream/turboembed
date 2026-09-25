@@ -95,7 +95,12 @@ fn the_version_lists_the_linked_backends() {
     let v = unsafe { std::ffi::CStr::from_ptr(turbo_version()) }.to_str().unwrap();
     // In device order: a GPU backend's devices come before the CPU's.
     let mut want = String::from("0.1.0");
-    for (on, name) in [(cfg!(feature = "cuda"), "cuda"), (cfg!(feature = "metal"), "metal"), (true, "cpu")] {
+    for (on, name) in [
+        (cfg!(feature = "cuda"), "cuda"),
+        (cfg!(feature = "levelzero"), "levelzero"),
+        (cfg!(feature = "metal"), "metal"),
+        (true, "cpu"),
+    ] {
         if on {
             want = want + " " + name;
         }
