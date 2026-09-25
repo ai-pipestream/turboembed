@@ -1246,6 +1246,375 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
 #endif
 }
 
+// -- The F16 GEMM on the tensor cores, swizzled -----------------------------------------
+//
+// The same product as gemm_mma_kernel at F16 operands, laid out so more
+// of it overlaps. A stage's rows are 64 bytes, unpadded: 16-byte chunk c
+// of row r is stored at c ^ ((r >> 1) & 3), so the 8 rows an ldmatrix
+// reads at one chunk fall in 8 distinct 16-byte bank groups, and 3
+// stages of 128 x 128 take 48 KB, which lets two blocks share an SM.
+// The block's share of k steps, over all its tiles, is one stream: the
+// loads run STAGES - 1 steps ahead of the MMAs across the end of a tile,
+// so the next tile's first stages are in flight while a tile is finished.
+// The finished tile goes from registers to global memory: F32 as a
+// float2 a lane (a quad of lanes writes 32 contiguous bytes), F16
+// gathered by shuffles within the quad, 8 columns to a lane, into one
+// 16-byte store. With DB a k step's two sets of fragments are both read
+// before its MMAs are issued. With ACC16 each 64 terms of k are summed in
+// F16, as in gemm_mma_kernel.
+
+#ifndef TURBO_NO_MMA
+/* Where 16-byte chunk c of row r of a swizzled stage is, in chunks. */
+__device__ constexpr int swz_chunk(int r, int c) { return r * 4 + (c ^ ((r >> 1) & 3)); }
+
+#endif
+
+template <int BM, int BN, int STAGES> constexpr size_t swz_gemm_smem() {
+    return (size_t)STAGES * (BM + BN) * 64;
+}
+
+/* Two blocks to an SM when two fit in 100 KB (sm_86 and sm_89's most). */
+template <int BM, int BN, int STAGES> constexpr int swz_min_blocks() {
+    return swz_gemm_smem<BM, BN, STAGES>() <= 49 * 1024 ? 2 : 1;
+}
+
+#ifndef TURBO_NO_MMA
+/* A block's place in its share, walked as gemm_mma_kernel walks it: the
+ * segments last to first, each segment's k steps first to last. */
+struct SwzCursor {
+    int tile, k, kb, ke; /* tile -1 past the share's end; k steps within the tile */
+    __device__ void start(const Share &s) { segment(s, s.hi); }
+    /* The segment ending before step at of the work. */
+    __device__ void segment(const Share &s, long long at) {
+        if (at <= s.lo) {
+            tile = -1;
+            return;
+        }
+        tile = (int)((at - 1) / s.steps);
+        const long long first = (long long)tile * s.steps;
+        kb = s.lo > first ? (int)(s.lo - first) : 0;
+        ke = (int)(at - first);
+        k = kb;
+    }
+    __device__ bool live() const { return tile >= 0; }
+    /* share() gives the Share, made again only at a segment's end. */
+    template <typename F> __device__ void next(F share) {
+        if (++k == ke) {
+            const Share s = share();
+            segment(s, (long long)tile * s.steps + kb);
+        }
+    }
+};
+
+/* A stage's k step and its flags: the first of its segment, the last,
+ * and the tile's last. */
+constexpr int STEP_K = 0xffffff, STEP_OPENS = 1 << 24, STEP_CLOSES = 1 << 25, STEP_ENDS = 1 << 26;
+#endif
+
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB>
+__global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()))
+    gemm_swz_kernel(GemmArgs g) {
+#ifndef TURBO_NO_MMA
+    constexpr int NT = WM * WN * 32, WTM = BM / WM, WTN = BN / WN, MI = WTM / 16, NI = WTN / 8;
+    constexpr int MMA_K = 32, SLOT = BM * BN, KK = MMA_K / 16;
+    constexpr int ACC16_STEPS = 64 / MMA_K;
+    static_assert(NI % 4 == 0, "F16 stores gather four n8 tiles");
+    static_assert(STAGES >= 2, "a pipeline");
+    extern __shared__ __align__(16) unsigned char gemm_sm[];
+    __half *As = reinterpret_cast<__half *>(gemm_sm);
+    __half *Bs = As + STAGES * BM * MMA_K;
+    const __half *A = static_cast<const __half *>(g.a), *B = static_cast<const __half *>(g.w);
+    const int M = g.info->tokens, N = g.n, K = g.k;
+    const int mt = (M + BM - 1) / BM, nt = (N + BN - 1) / BN;
+    // The Share made again where it is needed, not held in registers.
+    const int steps = (K + MMA_K - 1) / MMA_K;
+    auto share = [&]() { return share_of(mt * nt, steps, g.min_steps); };
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    const int wm = warp / WN, wn = warp % WN, gq = lane >> 2, tq = lane & 3;
+
+    // Each stage's k step, for the MMAs: its tile, and its k step with
+    // flags, written with its loads and read STAGES - 1 barriers later.
+    __shared__ int2 stage_step[STAGES];
+    auto load_stage = [&](int st, const SwzCursor &c) {
+        if (threadIdx.x == 0)
+            stage_step[st] = make_int2(c.tile, c.k | (c.k == c.kb ? STEP_OPENS : 0) |
+                                                   (c.k + 1 == c.ke ? STEP_CLOSES : 0) |
+                                                   (c.ke == steps ? STEP_ENDS : 0));
+        const int n0 = (c.tile % nt) * BN, m0 = (c.tile / nt) * BM, k0 = c.k * MMA_K;
+        __half *as = As + st * BM * MMA_K, *bs = Bs + st * BN * MMA_K;
+        for (int i = threadIdx.x; i < BM * 4; i += NT) {
+            const int r = i >> 2, ch = i & 3, gm = m0 + r, gk = k0 + ch * 8;
+            const bool ok = gm < M && gk < K;
+            cp_async16(as + swz_chunk(r, ch) * 8, ok ? A + (size_t)gm * K + gk : A, ok);
+        }
+        for (int i = threadIdx.x; i < BN * 4; i += NT) {
+            const int r = i >> 2, ch = i & 3, gn = n0 + r, gk = k0 + ch * 8;
+            const bool ok = gn < N && gk < K;
+            cp_async16(bs + swz_chunk(r, ch) * 8, ok ? B + (size_t)gn * K + gk : B, ok);
+        }
+    };
+
+    SwzCursor ld;
+    ld.start(share());
+#pragma unroll
+    for (int s = 0; s < STAGES - 1; s++) {
+        if (ld.live()) {
+            load_stage(s, ld);
+            ld.next(share);
+        }
+        cp_async_commit();
+    }
+    int st = 0, lst = STAGES - 1; // the stage computed, the stage loaded next
+
+    float acc[MI][NI][4];
+    int left;
+    {
+        const Share sh = share();
+        left = (int)(sh.hi - sh.lo);
+    }
+    for (; left > 0;) {
+        cp_async_wait<STAGES - 2>();
+        __syncthreads();
+        int2 step = stage_step[st];
+        const int tile = step.x;
+        const long long first = (long long)tile * steps;
+        if (step.y & STEP_OPENS) {
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) acc[i][j][e] = 0.0f;
+        }
+        // One k step, or with ACC16 the steps to the end of a chunk of
+        // ACC16_STEPS (or of the segment), summed in F16 and then added.
+        uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
+        if constexpr (ACC16) {
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++) hacc[i][j][0] = hacc[i][j][1] = 0u;
+        }
+        bool closes, chunk_done;
+        for (bool again = false;; again = true) {
+            if (again) {
+                cp_async_wait<STAGES - 2>();
+                __syncthreads();
+                step = stage_step[st];
+            }
+            const int k = step.y & STEP_K;
+            closes = step.y & STEP_CLOSES;
+            chunk_done = !ACC16 || closes || (k + 1) % ACC16_STEPS == 0;
+            if (ld.live()) {
+                load_stage(lst, ld);
+                ld.next(share);
+            }
+            cp_async_commit();
+            lst = lst + 1 == STAGES ? 0 : lst + 1;
+            const __half *as = As + st * BM * MMA_K, *bs = Bs + st * BN * MMA_K;
+            uint32_t af[DB ? KK : 1][MI][4], bf[DB ? KK : 1][NI][2];
+            auto fragments = [&](int f, int kk) {
+#pragma unroll
+                for (int i = 0; i < MI; i++)
+                    ldsm_x4(af[f][i], as + swz_chunk(wm * WTM + i * 16 + (lane & 15), kk * 2 + (lane >> 4)) * 8);
+#pragma unroll
+                for (int j = 0; j < NI / 2; j++) {
+                    uint32_t r[4];
+                    ldsm_x4(r,
+                            bs + swz_chunk(wn * WTN + j * 16 + (lane >> 4) * 8 + (lane & 7), kk * 2 + ((lane >> 3) & 1)) * 8);
+                    bf[f][2 * j][0] = r[0];
+                    bf[f][2 * j][1] = r[1];
+                    bf[f][2 * j + 1][0] = r[2];
+                    bf[f][2 * j + 1][1] = r[3];
+                }
+            };
+            auto mmas = [&](int f) {
+#pragma unroll
+                for (int i = 0; i < MI; i++)
+#pragma unroll
+                    for (int j = 0; j < NI; j++) {
+                        if constexpr (ACC16)
+                            mma16816_f16(hacc[i][j], af[f][i], bf[f][j][0], bf[f][j][1]);
+                        else
+                            mma16816(acc[i][j], af[f][i], bf[f][j][0], bf[f][j][1]);
+                    }
+            };
+            if constexpr (DB) {
+#pragma unroll
+                for (int kk = 0; kk < KK; kk++) fragments(kk, kk);
+#pragma unroll
+                for (int kk = 0; kk < KK; kk++) mmas(kk);
+            } else {
+                // A's fragments, then B's a pair of n8 tiles at a time,
+                // each pair's MMAs issued as it arrives.
+#pragma unroll
+                for (int kk = 0; kk < KK; kk++) {
+#pragma unroll
+                    for (int i = 0; i < MI; i++)
+                        ldsm_x4(af[0][i], as + swz_chunk(wm * WTM + i * 16 + (lane & 15), kk * 2 + (lane >> 4)) * 8);
+#pragma unroll
+                    for (int j = 0; j < NI / 2; j++) {
+                        uint32_t r[4];
+                        ldsm_x4(r, bs + swz_chunk(wn * WTN + j * 16 + (lane >> 4) * 8 + (lane & 7),
+                                                  kk * 2 + ((lane >> 3) & 1)) *
+                                            8);
+#pragma unroll
+                        for (int i = 0; i < MI; i++) {
+                            if constexpr (ACC16) {
+                                mma16816_f16(hacc[i][2 * j], af[0][i], r[0], r[1]);
+                                mma16816_f16(hacc[i][2 * j + 1], af[0][i], r[2], r[3]);
+                            } else {
+                                mma16816(acc[i][2 * j], af[0][i], r[0], r[1]);
+                                mma16816(acc[i][2 * j + 1], af[0][i], r[2], r[3]);
+                            }
+                        }
+                    }
+                }
+            }
+            st = st + 1 == STAGES ? 0 : st + 1;
+            left--;
+            if (chunk_done) break;
+        }
+        if constexpr (ACC16) {
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int h = 0; h < 2; h++) {
+                        const float2 v = __half22float2(*reinterpret_cast<const __half2 *>(&hacc[i][j][h]));
+                        acc[i][j][2 * h] += v.x;
+                        acc[i][j][2 * h + 1] += v.y;
+                    }
+        }
+        if (!closes) continue;
+
+        if (!(step.y & STEP_ENDS)) {
+            // The start of a tile a later block finishes.
+            float *slot = g.ws + (size_t)blockIdx.x * SLOT + threadIdx.x;
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) __stcg(slot + ((i * NI + j) * 4 + e) * NT, acc[i][j][e]);
+            sk_raise(g.flags + blockIdx.x);
+            continue;
+        }
+        const Share sh = share();
+        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1) > first; b--) {
+            sk_wait(g.flags + b, g.fault);
+            const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
+        }
+
+        // The finished tile, from registers.
+        const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
+        const int cw = n0 + wn * WTN;
+        // Bias, and GELU, in place first.
+        if constexpr (EPI != EPI_PLAIN) {
+#pragma unroll
+            for (int j = 0; j < NI; j++) {
+                const int c = cw + j * 8 + tq * 2;
+                const float b0 = c < N ? __ldg(g.bias + c) : 0.0f, b1 = c < N ? __ldg(g.bias + c + 1) : 0.0f;
+#pragma unroll
+                for (int i = 0; i < MI; i++) {
+#pragma unroll
+                    for (int e = 0; e < 4; e++) {
+                        float &v = acc[i][j][e];
+                        v += e & 1 ? b1 : b0;
+                        if constexpr (EPI == EPI_GELU) v = gelu(v);
+                    }
+                }
+            }
+        }
+        if constexpr (sizeof(TOut) == 4) {
+            // F32: a float2 a lane, 32 contiguous bytes a quad.
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int h = 0; h < 2; h++) {
+                    const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+                    if (t >= M) continue;
+                    float2 *row = reinterpret_cast<float2 *>(out_at<float>(g, t, cw + tq * 2));
+#pragma unroll
+                    for (int j = 0; j < NI; j++) {
+                        if (cw + j * 8 >= N) continue;
+                        float2 v = make_float2(acc[i][j][2 * h], acc[i][j][2 * h + 1]);
+                        if constexpr (EPI == EPI_ADD_LN) {
+                            const float2 r = row[j * 4];
+                            v.x += r.x;
+                            v.y += r.y;
+                        }
+                        row[j * 4] = v;
+                    }
+                }
+        }
+#pragma unroll
+        for (int jq = 0; jq < (sizeof(TOut) == 2 ? NI / 4 : 0); jq++)
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int h = 0; h < 2; h++) {
+                    const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+                    uint32_t mine[4];
+#pragma unroll
+                    for (int u = 0; u < 4; u++) {
+                        const __half2 p = __floats2half2_rn(acc[i][jq * 4 + u][2 * h], acc[i][jq * 4 + u][2 * h + 1]);
+                        mine[u] = *reinterpret_cast<const uint32_t *>(&p);
+                    }
+                    {
+                        // Lane tq gathers n8 tile jq * 4 + tq, a 4 x 4
+                        // transpose within the quad in two exchanges:
+                        // across bit 0 of tq, then across bit 1.
+                        const bool b = tq & 1, c1 = tq & 2;
+                        const uint32_t y0 = __shfl_xor_sync(0xffffffffu, b ? mine[0] : mine[1], 1);
+                        const uint32_t y1 = __shfl_xor_sync(0xffffffffu, b ? mine[2] : mine[3], 1);
+                        // Tiles b and 2 + b: this lane's piece, then its partner's.
+                        const uint32_t k0 = b ? mine[1] : mine[0], k2 = b ? mine[3] : mine[2];
+                        const uint32_t w0 = __shfl_xor_sync(0xffffffffu, c1 ? k0 : k2, 2);
+                        const uint32_t w1 = __shfl_xor_sync(0xffffffffu, c1 ? y0 : y1, 2);
+                        const uint32_t own = c1 ? k2 : k0, other = c1 ? y1 : y0;
+                        // In lane order: this pair of lanes, then the other.
+                        const uint32_t plo = b ? other : own, phi = b ? own : other;
+                        const uint32_t wlo = b ? w1 : w0, whi = b ? w0 : w1;
+                        const uint32_t got[4] = {c1 ? wlo : plo, c1 ? whi : phi, c1 ? plo : wlo, c1 ? phi : whi};
+                        const int c = cw + (jq * 4 + tq) * 8;
+                        if (t < M && c < N) {
+                            const uint4 w = make_uint4(got[0], got[1], got[2], got[3]);
+                            if constexpr (EPI == EPI_QKV) {
+                                TOut *o = static_cast<TOut *>(g.out) + (size_t)t * g.head_dim;
+                                if (g.head_dim % 8 == 0) {
+                                    *reinterpret_cast<uint4 *>(o + qkv_column(g, c)) = w;
+                                } else {
+                                    // The halves by shifts, not through w's
+                                    // address, so w stays in registers.
+                                    const uint32_t wv[4] = {w.x, w.y, w.z, w.w};
+#pragma unroll
+                                    for (int u = 0; u < 8; u++)
+                                        o[qkv_column(g, c + u)] =
+                                            __ushort_as_half((unsigned short)(wv[u >> 1] >> ((u & 1) * 16)));
+                                }
+                            } else {
+                                *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = w;
+                            }
+                        }
+                    }
+                }
+        if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
+    }
+    cp_async_wait<0>();
+#else
+    (void)g;
+    __trap();
+#endif
+}
+
 /* The tile a GEMM runs: TURBO_CUDA_TILE's, or TILE_DEFAULT, which each
  * kernel resolves to its own; the tensor cores take the FMA kernel's
  * 16 x 8 micro-tile as plain 128 x 128. */
@@ -1282,6 +1651,42 @@ GemmKernel mma_kernel() {
             mma_min_blocks<BM, BN, STAGES, TOut>()};
 }
 
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB>
+GemmKernel swz_kernel() {
+    return {gemm_swz_kernel<BM, BN, WM, WN, STAGES, EPI, TOut, ACC16, DB>,
+            WM * WN * 32,
+            swz_gemm_smem<BM, BN, STAGES>(),
+            BM,
+            BN,
+            swz_min_blocks<BM, BN, STAGES>()};
+}
+
+/* The swizzled kernel's tiles (F16 operands), three stages each:
+ * TILE_SWIZZLED 128 x 128 over four warps of 64 x 64, two blocks to an
+ * SM; TILE_SWIZZLED_256x128 the same but 256 x 128 over eight such warps,
+ * one block to an SM, for GELU; TILE_SWIZZLED_8W the eight-warp mix. */
+template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
+    constexpr bool wide = EPI == EPI_QKV || EPI == EPI_GELU;
+    // F16 accumulators only at the eight-warp mix's shapes.
+    if constexpr (wide) {
+        // Warps of 32 x 64 with F16 accumulators, 64 x 32 without: the
+        // layouts ptxas fits in 128 registers.
+        if (ACC16) return swz_kernel<128, 128, 4, 2, 3, EPI, TOut, true, false>();
+        if (t == TILE_SWIZZLED_8W) return swz_kernel<128, 128, 2, 4, 3, EPI, TOut, false, false>();
+    } else {
+        // (The plain product fits in 128 registers only as warps of 16 x 64.)
+        if constexpr (ACC16 && EPI == EPI_PLAIN) return swz_kernel<128, 64, 8, 1, 3, EPI, TOut, true, false>();
+        if constexpr (ACC16 && EPI != EPI_PLAIN) return swz_kernel<128, 64, 4, 2, 3, EPI, TOut, true, false>();
+        if (t == TILE_SWIZZLED_8W) return swz_kernel<128, 64, 4, 2, 4, EPI, TOut, false, true>();
+    }
+    if constexpr (!ACC16) {
+        if constexpr (EPI == EPI_GELU)
+            if (t == TILE_SWIZZLED_256x128) return swz_kernel<256, 128, 4, 2, 3, EPI, TOut, false, true>();
+        return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, false, true>();
+    }
+    __builtin_unreachable();
+}
+
 /* The FMA kernel's tiles, 8 x 8 outputs to a thread but the 16 x 8 of
  * 128 x 128 over 128 threads; 128 x 64 by default. */
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
@@ -1305,11 +1710,19 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
  * memory, so such a GEMM takes 128 x 128 over four warps instead. */
 template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
     constexpr bool f16 = sizeof(TIn) == 2, wide = EPI == EPI_QKV || EPI == EPI_GELU;
-    if constexpr (f16)
+    if constexpr (f16) {
         if (t == TILE_EIGHT_WARPS_F16_ACCUMULATE) {
             if (wide) return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn, true>();
             return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn, true>();
         }
+        switch (t) {
+        case TILE_SWIZZLED:
+        case TILE_SWIZZLED_8W:
+        case TILE_SWIZZLED_256x128: return swz_for<TOut, EPI, false>(t);
+        case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
+        default: break;
+        }
+    }
     if (t == TILE_DEFAULT && f16) t = TILE_EIGHT_WARPS;
     if (t == TILE_EIGHT_WARPS) t = wide && f16 ? TILE_128x128 : TILE_128x64;
     if (t == TILE_256x128 && sizeof(TOut) == 4) t = TILE_128x128_4W;
@@ -1863,6 +2276,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
         for (int c0 = 0; c0 < it.n; c0 += chunk) {
             const int cn = min(chunk, it.n - c0), padded = (cn + 63) & ~63;
             if (c0 > 0) __syncthreads();
+#pragma unroll 4
             for (int i = threadIdx.x; i < padded * (D / 8); i += MMA_ATT_THREADS) {
                 const int r = i / (D / 8), c = (i % (D / 8)) * 8;
                 const bool in = r < cn;

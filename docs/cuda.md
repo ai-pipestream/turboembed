@@ -51,8 +51,20 @@ the tensor cores), and for the tensor cores `128x128-4w` (four warps of
 F32 output) or `8w`, the eight-warp tiles, FASTEST's default: `128x128`
 over warps of 32 × 64 for the QKV and first feed-forward GEMMs and
 `128x64` for the other two (the FMA kernels take `128x64` for these
-three). Unset, the FMA kernels and TF32 take `128x64`, and F16 on the
-tensor cores `8w`. On an RTX 4080 at 32 × 256, `8w` is faster than the
+three). F16 on the tensor cores also takes `sw`, `sw8w` and `sw256`, the
+swizzled kernel: stage rows of 64 bytes with 16-byte chunk c of row r
+at c ^ ((r >> 1) & 3) in place of rows padded to 80 bytes, so three
+stages of 128 × 128 take 48 KB and two blocks share an SM; the loads
+running STAGES - 1 steps ahead across the end of a tile, so the next
+tile's first stages load while a tile is finished; and the epilogue from
+registers (F32 a float2 a lane, F16 gathered by shuffles into 16-byte
+stores), with no pass through shared memory. `sw` is 128 × 128 over
+four warps of 64 × 64 for every GEMM, each k step's fragments read
+before its MMAs; `sw256` the same but 256 × 128 over eight such warps
+for the first feed-forward GEMM, one block to an SM; `sw8w` the
+eight-warp mix's shapes at three and four stages. The other precisions
+take `128x64` for these. Unset, the FMA kernels and TF32 take `128x64`,
+and F16 on the tensor cores `8w`. On an RTX 4080 at 32 × 256, `8w` is faster than the
 four-warp tiles (`128x128-4w` with `256x128` for the first feed-forward
 GEMM): about 0.73 against 0.83 ms on mixed rows and 3.5 against 3.9 ms
 on full rows. EXACT is about 4% slower with `128x128-16x8` than with
@@ -70,7 +82,8 @@ kernel of its own after the GEMM (see Pipeline; the bits are the same
 either way, and on an RTX 4080 the separate kernel is faster).
 `TURBO_CUDA_F16_ACCUMULATE=1`, read the same way, gives FASTEST's GEMMs
 on the tensor cores F16 accumulators (`mma.sync.m16n8k16` with an F16
-C and D), `8w`'s tiles whatever `TURBO_CUDA_TILE` says: each 64 terms
+C and D), `8w`'s tiles (`sw8w`'s with `TURBO_CUDA_TILE=sw8w`, and
+whatever other tile it names): each 64 terms
 of k are summed in F16, and each such sum is added into the F32
 accumulators, in k's order, the chunks counted from k 0 so a tile's
 sums do not depend on which blocks share it. F16 accumulation is twice

@@ -1314,6 +1314,10 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
                 Tile::T256x128,
                 Tile::EightWarps,
                 Tile::EightWarpsF16Accumulate,
+                Tile::Swizzled,
+                Tile::SwizzledEightWarps,
+                Tile::Swizzled256x128,
+                Tile::SwizzledEightWarpsF16Accumulate,
             ] {
                 let mut bits = Vec::new();
                 for separate in [true, false] {
@@ -1439,6 +1443,10 @@ fn the_gemms_match_cublas() {
                     Tile::T256x128,
                     Tile::EightWarps,
                     Tile::EightWarpsF16Accumulate,
+                    Tile::Swizzled,
+                    Tile::SwizzledEightWarps,
+                    Tile::Swizzled256x128,
+                    Tile::SwizzledEightWarpsF16Accumulate,
                 ]
             } else {
                 &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
@@ -1456,7 +1464,9 @@ fn the_gemms_match_cublas() {
                     let f16_out = half && !matches!(epilogue, Plain);
                     let tf32 = !half && tensor_cores;
                     // F16 accumulators round each 64 terms' sum to 11 bits.
-                    let f16_sums = half && tensor_cores && matches!(tile, Tile::EightWarpsF16Accumulate);
+                    let f16_sums = half
+                        && tensor_cores
+                        && matches!(tile, Tile::EightWarpsF16Accumulate | Tile::SwizzledEightWarpsF16Accumulate);
                     let bound = if f16_sums {
                         1e-2
                     } else if f16_out || tf32 {
@@ -1510,6 +1520,9 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::T128x128Warps4,
             Tile::T256x128,
             Tile::EightWarps,
+            Tile::Swizzled,
+            Tile::SwizzledEightWarps,
+            Tile::Swizzled256x128,
         ] {
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
