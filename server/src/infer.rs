@@ -157,12 +157,14 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
     let rows = if raw {
         let bytes = |k: usize| -> Result<&[u8]> {
             let b = &req.raw_input_contents[k];
-            if b.len() as u64 != 4 * count {
+            // 4 x batch x seq can be past a uint64_t; no contents are that long.
+            let want = count.checked_mul(4);
+            if want != Some(b.len() as u64) {
+                let want = want.map_or_else(|| format!("4 x {count}"), |w| w.to_string());
                 return Err(bad_shape(format!(
-                    "input `{}` is shaped [{batch}, {seq}] and its raw contents are {} bytes, not {}",
+                    "input `{}` is shaped [{batch}, {seq}] and its raw contents are {} bytes, not {want}",
                     req.inputs[k].name,
                     b.len(),
-                    4 * count
                 )));
             }
             Ok(b)

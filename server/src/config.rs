@@ -103,14 +103,20 @@ pub fn names(models: &[ModelConfig]) -> Result<Vec<String>, String> {
 pub struct Args {
     pub listen: SocketAddr,
     pub models: Vec<ModelConfig>,
+    /// The largest request message gRPC reads.
+    pub max_message_bytes: usize,
 }
 
+/// `--max-message-bytes` when absent: 64 MiB.
+pub const DEFAULT_MAX_MESSAGE_BYTES: usize = 64 << 20;
+
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT --model bundle=PATH,device=INDEX|select,sessions=N\
-[,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] [--model ...]";
+[,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] [--model ...] [--max-message-bytes N]";
 
 impl Args {
     pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
         let mut listen = None;
+        let mut max_message_bytes = None;
         let mut models = Vec::new();
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
@@ -125,6 +131,13 @@ impl Args {
                     listen = Some(v.parse().map_err(|_| format!("--listen {v}: not ADDR:PORT"))?);
                 }
                 "--model" => models.push(ModelConfig::parse(&value()?)?),
+                "--max-message-bytes" => {
+                    let v = value()?;
+                    let n: usize = v.parse().map_err(|_| format!("--max-message-bytes {v}: not a byte count"))?;
+                    if max_message_bytes.replace(n).is_some() {
+                        return Err("--max-message-bytes given twice".into());
+                    }
+                }
                 _ => return Err(format!("unknown argument {a}")),
             }
         }
@@ -133,7 +146,7 @@ impl Args {
             return Err("at least one --model is required".into());
         }
         names(&models)?;
-        Ok(Args { listen, models })
+        Ok(Args { listen, models, max_message_bytes: max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES) })
     }
 }
 
@@ -148,6 +161,9 @@ mod tests {
     #[test]
     fn a_model() {
         let a = args("--listen 127.0.0.1:0 --model bundle=/b/tiny,device=0,sessions=2").unwrap();
+        assert_eq!(a.max_message_bytes, 64 * 1024 * 1024);
+        let b = args("--listen 127.0.0.1:0 --max-message-bytes 1024 --model bundle=/b/tiny,device=0,sessions=2");
+        assert_eq!(b.unwrap().max_message_bytes, 1024);
         assert_eq!(
             a.models,
             [ModelConfig {
@@ -188,6 +204,9 @@ mod tests {
             "--listen 127.0.0.1:0 --model bundle=a/.,device=0,sessions=1",
             "--listen 127.0.0.1:0 --model bundle=..,device=0,sessions=1",
             "--listen nowhere --model bundle=x,device=0,sessions=1",
+            "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes -1",
+            "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes 64MiB",
+            "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes 1 --max-message-bytes 2",
         ] {
             assert!(args(bad).is_err(), "{bad}");
         }

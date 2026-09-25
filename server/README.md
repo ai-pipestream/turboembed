@@ -23,7 +23,9 @@ failing call, its status, the field it names and the library's message.
 
 ## Configuration
 
-`--listen ADDR:PORT` is required. Each served model is one `--model`,
+`--listen ADDR:PORT` is required. `--max-message-bytes N` is the largest
+request message read, 64 MiB when absent; a larger one is refused with
+`RESOURCE_EXHAUSTED` before it is read. Each served model is one `--model`,
 repeated for more, with comma-separated settings:
 
 | Setting | Meaning | Absent |

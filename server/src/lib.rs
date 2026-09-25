@@ -20,12 +20,13 @@ use bytes::Bytes;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
+use tonic::codegen::http;
 use tonic::transport::server::TcpIncoming;
-use tonic::{Request, Response, Status};
+use tonic::{Code, Request, Response, Status};
 use turbo::{
     TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I32, TURBO_EMBED_STAGE_COUNT, TURBO_PLACE_HOST,
     TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, TURBO_TASK_EMBED, turbo_embed_options, turbo_result_info,
-    turbo_session_desc, turbo_token_batch,
+    turbo_session_desc, turbo_session_info, turbo_token_batch,
 };
 
 use crate::api::*;
@@ -39,14 +40,15 @@ use crate::proto::*;
 use crate::status::{EMBED_OPTIONS, SESSION_DESC, describe, to_status};
 
 /// One session of a model, with its three pinned I32 buffers for raw token
-/// rows, each [max_batch, max_seq].
+/// rows, each [max_batch, max_seq]. Fields are dropped in order, children
+/// first: the buffers, then the session.
 struct Slot {
     /// ids, mask and types, and their host pointers.
     _buffers: [Buffer; 3],
     ptrs: [*mut u8; 3],
-    max_batch: u32,
-    max_seq: u32,
-    // Released after its buffers.
+    /// turbo_session_get_info, read once at load: it is fixed at
+    /// turbo_session_create.
+    info: turbo_session_info,
     session: Session,
 }
 
@@ -55,12 +57,12 @@ struct Slot {
 unsafe impl Send for Slot {}
 unsafe impl Sync for Slot {}
 
-/// A loaded model and its sessions.
+/// A loaded model and its sessions, dropped sessions first, then the model.
 struct Loaded {
+    slots: Vec<Slot>,
+    model: Model,
     device: u32,
     revision: String,
-    model: Model,
-    slots: Vec<Slot>,
     idle: Mutex<Vec<usize>>,
 }
 
@@ -98,10 +100,11 @@ struct Served {
     loaded: OnceLock<Arc<Loaded>>,
 }
 
+/// Dropped models first, then contexts, then the runtime.
 struct State {
     models: Vec<Served>,
+    contexts: Mutex<Vec<(u32, Arc<Context>)>>,
     runtime: OnceLock<Runtime>,
-    contexts: Mutex<Vec<(u32, Context)>>,
 }
 
 fn not_found(name: &str) -> Failure {
@@ -157,12 +160,14 @@ impl State {
                 Device::Index(i) => i,
                 Device::Select => rt.select(TURBO_TASK_EMBED).map_err(fail(name, "turbo_runtime_select", &[]))?,
             };
-            let mut contexts = self.contexts.lock().unwrap();
-            if !contexts.iter().any(|(d, _)| *d == device) {
-                let ctx = rt.context(device).map_err(fail(name, "turbo_context_create", &[]))?;
-                contexts.push((device, ctx));
-            }
-            let ctx = &contexts.iter().find(|(d, _)| *d == device).unwrap().1;
+            let ctx = {
+                let mut contexts = self.contexts.lock().unwrap();
+                if !contexts.iter().any(|(d, _)| *d == device) {
+                    let ctx = rt.context(device).map_err(fail(name, "turbo_context_create", &[]))?;
+                    contexts.push((device, Arc::new(ctx)));
+                }
+                contexts.iter().find(|(d, _)| *d == device).unwrap().1.clone()
+            };
             let model = ctx.load(&c.bundle).map_err(fail(name, "turbo_model_load", &[]))?;
             let info = model.info().map_err(fail(name, "turbo_model_get_info", &[]))?;
             let desc = turbo_session_desc {
@@ -184,16 +189,10 @@ impl State {
                         Ok::<_, String>((b, p))
                     };
                 let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
-                slots.push(Slot {
-                    _buffers: [ids, mask, types],
-                    ptrs: [a, b, t],
-                    max_batch: si.max_batch,
-                    max_seq: si.max_seq,
-                    session,
-                });
+                slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
             }
             let idle = Mutex::new((0..slots.len()).rev().collect());
-            let loaded = Loaded { device, revision: api::field(&info.revision), model, slots, idle };
+            let loaded = Loaded { slots, model, device, revision: api::field(&info.revision), idle };
             let _ = m.loaded.set(Arc::new(loaded));
         }
         Ok(())
@@ -311,10 +310,31 @@ fn result_parameters(i: &turbo_result_info) -> HashMap<String, InferParameter> {
     p
 }
 
+/// Raw token rows fit a session's pinned buffers, or TURBO_E_CAPACITY: what
+/// turbo_embed_write_tokens gives that shape, refused before the copy.
+fn fits(si: &turbo_session_info, batch: u32, seq: u32) -> Result<()> {
+    if batch > si.max_batch || seq > si.max_seq {
+        return Err(Failure::new(
+            TURBO_E_CAPACITY,
+            0,
+            format!(
+                "token rows [{batch}, {seq}] are over the session's max_batch {} or max_seq {}",
+                si.max_batch, si.max_seq
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// One ModelInfer: one write, one run and one read on one held session.
 fn infer(state: &State, req: ModelInferRequest) -> Result<ModelInferResponse> {
     let (served, loaded) = state.ready(&req.model_name, &req.model_version)?;
     let plan = infer::plan(&req)?;
+    // Every session of a model is made alike, so the first one's limits are
+    // the held one's: an oversized raw request is refused before BUSY.
+    if let Rows::Raw { batch, seq, .. } = plan.rows {
+        fits(&loaded.slots[0].info, batch, seq)?;
+    }
     let held = loaded.take()?;
     let slot = held.slot();
     let opts: &turbo_embed_options = &plan.opts;
@@ -325,16 +345,8 @@ fn infer(state: &State, req: ModelInferRequest) -> Result<ModelInferResponse> {
             slot.session.write_tokens(&token_batch(*batch, *seq, ids.as_ptr(), mask.as_ptr(), t), opts)?
         }
         Rows::Raw { batch, seq, ids, mask, types } => {
-            if *batch > slot.max_batch || *seq > slot.max_seq {
-                return Err(Failure::new(
-                    TURBO_E_CAPACITY,
-                    0,
-                    format!(
-                        "token rows [{batch}, {seq}] are over the session's max_batch {} or max_seq {}",
-                        slot.max_batch, slot.max_seq
-                    ),
-                ));
-            }
+            // The copy below stays inside the held session's own buffers.
+            fits(&slot.info, *batch, *seq)?;
             copy_rows(ids, slot.ptrs[0]);
             copy_rows(mask, slot.ptrs[1]);
             let t = match types {
@@ -383,7 +395,7 @@ fn infer(state: &State, req: ModelInferRequest) -> Result<ModelInferResponse> {
 fn properties(state: &State, loaded: &Loaded) -> Result<HashMap<String, String>> {
     let rt = state.runtime.get().ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, "no runtime"))?;
     let mi = loaded.model.info()?;
-    let si = loaded.slots[0].session.info()?;
+    let si = loaded.slots[0].info;
     let di = rt.device_info(loaded.device)?;
     let cap = rt.capability(loaded.device, mi.task, si.precision)?;
     let dims: Vec<String> = mi
@@ -508,6 +520,20 @@ impl GrpcInferenceService for Inference {
     }
 }
 
+/// tonic refuses a request message over the decoding limit with
+/// OUT_OF_RANGE, read from the frame's length prefix before the message.
+/// The service's own refusals all carry turbo-code, so an OUT_OF_RANGE
+/// without it is that one, and is answered RESOURCE_EXHAUSTED as other gRPC
+/// servers answer it: OUT_OF_RANGE is TURBO_E_CAPACITY's (docs/kserve.md).
+fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
+    let h = r.headers_mut();
+    let out_of_range = (Code::OutOfRange as i32).to_string();
+    if h.get("grpc-status").is_some_and(|v| v.as_bytes() == out_of_range.as_bytes()) && !h.contains_key("turbo-code") {
+        h.insert("grpc-status", (Code::ResourceExhausted as i32).into());
+    }
+    r
+}
+
 /// A server answering gRPC on its listener. Models are loaded by `load`,
 /// until which ServerLive is true and ServerReady false.
 pub struct Server {
@@ -519,8 +545,14 @@ pub struct Server {
 
 impl Server {
     /// Binds `listen` and answers gRPC, with nothing loaded yet. A bundle
-    /// path that names no bundle, or two models of one name, is refused.
-    pub async fn start(listen: SocketAddr, models: Vec<ModelConfig>) -> std::result::Result<Server, String> {
+    /// path that names no bundle, or two models of one name, is refused. A
+    /// request message over `max_message_bytes` is refused by gRPC with
+    /// RESOURCE_EXHAUSTED before it is read.
+    pub async fn start(
+        listen: SocketAddr,
+        models: Vec<ModelConfig>,
+        max_message_bytes: usize,
+    ) -> std::result::Result<Server, String> {
         let names = config::names(&models)?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
@@ -533,16 +565,17 @@ impl Server {
             runtime: OnceLock::new(),
             contexts: Mutex::new(Vec::new()),
         });
-        // The limits on a request are the session's, not a message size.
-        let svc =
-            GrpcInferenceServiceServer::new(Inference { state: state.clone() }).max_decoding_message_size(usize::MAX);
+        let svc = GrpcInferenceServiceServer::new(Inference { state: state.clone() })
+            .max_decoding_message_size(max_message_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
-        let task = tokio::spawn(tonic::transport::Server::builder().add_service(svc).serve_with_incoming_shutdown(
-            TcpIncoming::from(listener),
-            async {
-                let _ = stopped.await;
-            },
-        ));
+        let task = tokio::spawn(
+            tonic::transport::Server::builder()
+                .layer(tower::util::MapResponseLayer::new(too_large))
+                .add_service(svc)
+                .serve_with_incoming_shutdown(TcpIncoming::from(listener), async {
+                    let _ = stopped.await;
+                }),
+        );
         Ok(Server { state, addr, stop: Some(stop), task })
     }
 

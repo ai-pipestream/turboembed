@@ -10,7 +10,7 @@ use tonic::transport::Channel;
 use tonic::{Code, Status};
 use turbo_kserve::Server;
 use turbo_kserve::api::{Runtime, field, version};
-use turbo_kserve::config::{Device, ModelConfig};
+use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
 use turbo_kserve::proto::grpc_inference_service_client::GrpcInferenceServiceClient;
 use turbo_kserve::proto::infer_parameter::ParameterChoice;
 use turbo_kserve::proto::model_infer_request::{InferInputTensor, InferRequestedOutputTensor};
@@ -47,7 +47,7 @@ async fn client(s: &Server) -> Client {
 
 /// A server with the tiny bundle loaded, and a client.
 async fn serve(sessions: u32) -> (Server, Client) {
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), sessions)]).await.unwrap();
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), sessions)], MAX).await.unwrap();
     s.load().await.unwrap();
     let c = client(&s).await;
     (s, c)
@@ -247,7 +247,7 @@ fn reference() -> Vec<Case> {
 
 #[tokio::test]
 async fn readiness_before_and_after_load() {
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), 1)]).await.unwrap();
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), 1)], MAX).await.unwrap();
     let mut c = client(&s).await;
     let ready = |name: &str, version: &str| ModelReadyRequest { name: name.into(), version: version.into() };
 
@@ -690,8 +690,32 @@ async fn busy_when_every_session_is_held() {
     assert!(c.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
     c.model_metadata(ModelMetadataRequest { name: NAME.into(), version: String::new() }).await.unwrap();
     c.server_metadata(ServerMetadataRequest {}).await.unwrap();
+    // A request is checked before a session is taken: only one the server
+    // would send to the library is told BUSY.
+    let e = refused(&mut c, with(texts(&["a"]), "precision", st("PRECISION_EXACT"))).await;
+    assert_eq!(refusal(&e), (Code::InvalidArgument, 256, 0));
+    let mut r = texts(&["a"]);
+    r.inputs[0].shape = vec![2];
+    assert_eq!(refusal(&refused(&mut c, r).await), (Code::InvalidArgument, 260, 0));
+    let e = refused(&mut c, raw_tokens(&vec![vec![101, 102]; 65], false)).await;
+    assert_eq!(refusal(&e), (Code::OutOfRange, 771, 0));
     drop(held);
     assert_eq!(embed(&mut c, texts(&["a"])).await.len(), 1);
+    s.stop().await;
+}
+
+/// A request message larger than --max-message-bytes is refused by gRPC with
+/// RESOURCE_EXHAUSTED before it is read, and carries no turbo-code.
+#[tokio::test]
+async fn a_message_over_the_limit() {
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), 1)], 4096).await.unwrap();
+    s.load().await.unwrap();
+    let mut c = client(&s).await;
+    let big = "a ".repeat(4096);
+    let e = refused(&mut c, texts(&[&big])).await;
+    assert_eq!(e.code(), Code::ResourceExhausted, "{e:?}");
+    assert!(e.metadata().get("turbo-code").is_none() && e.metadata().get("turbo-field").is_none(), "{e:?}");
+    assert_eq!(embed(&mut c, texts(&[&big[..1000]])).await.len(), 1);
     s.stop().await;
 }
 
@@ -820,6 +844,16 @@ async fn input_refusals() {
     let mut r = raw_tokens(&rows, false);
     r.raw_input_contents[1].extend([0, 0, 0, 0]);
     cases.push(("raw mask long", r, shape));
+    // 4 x batch x seq is 2^64 here, which wraps to 0 in a uint64_t: the
+    // empty contents must not pass for it.
+    for e in [1i64 << 31, u32::MAX as i64] {
+        let mut r = raw_tokens(&rows, false);
+        for i in &mut r.inputs {
+            i.shape = vec![e, e];
+        }
+        r.raw_input_contents = vec![vec![], vec![]];
+        cases.push(("raw rows past a uint64_t of bytes", r, shape));
+    }
 
     cases.push(("not UTF-8", raw_texts(&[b"\xff\xfe"]), (Code::InvalidArgument, 258, 0)));
 
@@ -837,30 +871,30 @@ async fn startup_refusals() {
     // Paths that name no bundle, and two models of one name.
     for bundle in [format!("{}/", t.display()), format!("{}/.", t.display()), format!("{}/..", t.display())] {
         let m = ModelConfig { bundle, ..model(&t, 1) };
-        assert!(Server::start(at, vec![m]).await.is_err());
+        assert!(Server::start(at, vec![m], MAX).await.is_err());
     }
-    assert!(Server::start(at, vec![model(&t, 1), model(&t, 1)]).await.is_err());
+    assert!(Server::start(at, vec![model(&t, 1), model(&t, 1)], MAX).await.is_err());
 
     // A load failure is the call, its status, the field and the message.
-    let s = Server::start(at, vec![model(&t.join("../no-such-bundle"), 1)]).await.unwrap();
+    let s = Server::start(at, vec![model(&t.join("../no-such-bundle"), 1)], MAX).await.unwrap();
     let e = s.load().await.unwrap_err();
     assert!(e.contains("model no-such-bundle: turbo_model_load: TURBO_E_BUNDLE_NOT_FOUND: "), "{e}");
     s.stop().await;
-    let s = Server::start(at, vec![ModelConfig { max_seq: 65, ..model(&t, 1) }]).await.unwrap();
+    let s = Server::start(at, vec![ModelConfig { max_seq: 65, ..model(&t, 1) }], MAX).await.unwrap();
     let e = s.load().await.unwrap_err();
     assert!(e.contains("turbo_session_create: TURBO_E_UNSUPPORTED_OPTION field 2 (max_seq): "), "{e}");
     let mut c = client(&s).await;
     assert!(!c.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
     s.stop().await;
     if version().split_whitespace().skip(1).all(|b| b == "cpu") {
-        let s = Server::start(at, vec![ModelConfig { device: Device::Select, ..model(&t, 1) }]).await.unwrap();
+        let s = Server::start(at, vec![ModelConfig { device: Device::Select, ..model(&t, 1) }], MAX).await.unwrap();
         let e = s.load().await.unwrap_err();
         assert!(e.contains("turbo_runtime_select: TURBO_E_DEVICE_NOT_FOUND"), "{e}");
         s.stop().await;
     }
 
     // A configured max_batch and max_seq are the session's limits.
-    let s = Server::start(at, vec![ModelConfig { max_batch: 2, max_seq: 8, ..model(&t, 1) }]).await.unwrap();
+    let s = Server::start(at, vec![ModelConfig { max_batch: 2, max_seq: 8, ..model(&t, 1) }], MAX).await.unwrap();
     s.load().await.unwrap();
     let mut c = client(&s).await;
     let m = c

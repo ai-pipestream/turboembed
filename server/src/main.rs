@@ -15,7 +15,7 @@ async fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let server = match Server::start(args.listen, args.models).await {
+    let server = match Server::start(args.listen, args.models, args.max_message_bytes).await {
         Ok(s) => s,
         Err(e) => {
             eprintln!("turbo-kserve: {e}");
