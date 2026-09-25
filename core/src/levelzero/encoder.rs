@@ -459,8 +459,9 @@ struct Kernels {
     /// 8 tokens.
     linear_dpas: Option<[Kernel; 4]>,
     /// At FASTEST, the attention output and the feed-forward output with
-    /// the LayerNorm after them, for a hidden width a group spans.
-    linear_dpas_layer_norm: Option<Kernel>,
+    /// the LayerNorm after them, for a hidden width a group spans: groups of
+    /// one block of tokens, and of as many as dpas_ln_blocks gives.
+    linear_dpas_layer_norm: Option<[Kernel; 2]>,
     embed_layer_norm: Kernel,
     add_layer_norm: Kernel,
     /// The same, a group per token, for few tokens.
@@ -499,7 +500,11 @@ impl Kernels {
             linear_gemv: c.kernel("linear_gemv", [16 * GEMV_SUBGROUPS, 1, 1])?,
             linear_sgemm: c.kernel("linear_sgemm", [16 * SGEMM_WM * SGEMM_WN, 1, 1])?,
             linear_dpas_layer_norm: if xmx && hidden / DPAS_TN <= DPAS_LN_SUBGROUPS {
-                Some(c.kernel("linear_dpas_layer_norm", [16 * (hidden / DPAS_TN), 1, 1])?)
+                let (cols, blocks) = (hidden / DPAS_TN, dpas_ln_blocks(hidden));
+                Some([
+                    c.kernel("linear_dpas_layer_norm", [16 * cols, 1, 1])?,
+                    c.kernel("linear_dpas_layer_norm", [16 * cols * blocks, 1, 1])?,
+                ])
             } else {
                 None
             },
@@ -552,6 +557,14 @@ const DPAS_K: u32 = 32;
 /// sub-groups, DPAS_TN outputs each, as encoder.cl's.
 const DPAS_LN_TM: u32 = 16;
 const DPAS_LN_SUBGROUPS: u32 = 64;
+const DPAS_LN_BLOCKS: u32 = 4;
+
+/// Blocks of DPAS_LN_TM tokens a LayerNorm-fused group takes: as many as
+/// its sub-groups allow, up to DPAS_LN_BLOCKS, so more tokens share each
+/// read of the weights.
+fn dpas_ln_blocks(hidden: u32) -> u32 {
+    (1..=DPAS_LN_BLOCKS).rev().find(|b| hidden / DPAS_TN * b <= DPAS_LN_SUBGROUPS).unwrap_or(1)
+}
 /// linear_sgemm's tiles, as encoder.cl's: a sub-group's SGEMM_TM tokens by
 /// SGEMM_TN outputs, a group's SGEMM_WM by SGEMM_WN sub-groups.
 const SGEMM_TM: u32 = 8;
@@ -1013,7 +1026,13 @@ impl Session {
                 I32(h as i32),
                 I32(n_in as i32),
             ];
-            kln.launch(c, q, what, &args, [tokens.div_ceil(DPAS_LN_TM), 1, 1]).map(|()| true)
+            // Fewer tokens than a full group of blocks: one block a group,
+            // so at most one block's tail computes rows past the last token. A row's
+            // sums run in one order either way.
+            let blocks = dpas_ln_blocks(h);
+            let (kln, rows) =
+                if tokens < DPAS_LN_TM * blocks { (&kln[0], DPAS_LN_TM) } else { (&kln[1], DPAS_LN_TM * blocks) };
+            kln.launch(c, q, what, &args, [tokens.div_ceil(rows), 1, 1]).map(|()| true)
         };
         let n = self.max_batch as u64 * self.max_seq as u64 * 4;
         let staging = self.staging as u64;
