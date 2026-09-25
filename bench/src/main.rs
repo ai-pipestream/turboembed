@@ -49,6 +49,8 @@ record options:
   --work <dir>                 scratch for reference inputs (default: the
                                system's temporary directory)
   --tei-image <name@sha256:..> text-embeddings-inference, pinned
+  --tei-bin <path>             TEI's router built natively, run in place of
+                               an image (metal, which no container reaches)
   --tei-model <dir>            the model in the upstream layout
   --no-tei                     record that TEI was not run
   --tensorrt-image <name@sha256:..>
@@ -156,10 +158,16 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let out = o.take("--out");
     let work = o.take("--work").map_or_else(std::env::temp_dir, PathBuf::from);
     let no_tei = o.flag("--no-tei");
-    let tei = match (o.take("--tei-image"), o.take("--tei-model")) {
-        (Some(image), Some(model)) => Some(Tei { image, model_dir: model.into(), cpus: cpus.clone() }),
-        (None, None) => None,
-        _ => return Err("--tei-image and --tei-model go together".into()),
+    let tei = match (o.take("--tei-image"), o.take("--tei-bin"), o.take("--tei-model")) {
+        (Some(image), None, Some(model)) => {
+            Some(Tei { image, model_dir: model.into(), cpus: cpus.clone(), binary: None })
+        }
+        (None, Some(bin), Some(model)) => {
+            Some(Tei { image: String::new(), model_dir: model.into(), cpus: cpus.clone(), binary: Some(bin.into()) })
+        }
+        (None, None, None) => None,
+        (Some(_), Some(_), _) => return Err("--tei-image and --tei-bin are two ways to run TEI; give one".into()),
+        _ => return Err("--tei-model goes with --tei-image or --tei-bin".into()),
     };
     let no_trt = o.flag("--no-tensorrt");
     let inputs = onnx_inputs(o.take("--tensorrt-inputs"), "--tensorrt-inputs")?;
@@ -206,7 +214,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
     if (no_tei && tei.is_some()) || (no_trt && trt.is_some()) || (no_ov && ov.is_some()) {
         return Err("a reference program is both named and disabled".into());
     }
-    if let Some(t) = &tei {
+    if let Some(t) = tei.as_ref().filter(|t| t.binary.is_none()) {
         turbo_bench::docker::check_pinned("--tei-image", &t.image)?;
     }
     if let Some(t) = &trt {
