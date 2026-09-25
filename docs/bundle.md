@@ -331,7 +331,11 @@ refuses to finish unless every hash matches.
   which from version 11 builds F16 only from a strongly typed F16 graph.
   The bundle tool makes the copy in the reference container with
   onnxconverter-common (`bundle/reference/onnx_f16.py`): every float
-  becomes float16, the inputs and the output keep their types. The
+  becomes float16 except in the ops on the converter's default block
+  list, which stay float32 with casts around them; constants are clamped
+  to `max_finite_val` 1e4 and `min_positive_val` 1e-7 in magnitude (its
+  defaults, passed explicitly and recorded in `args`); the inputs and
+  the output keep their types. The
   recipe names only `produced_by.from`; the tool fills in the rest from
   the run, and runs it twice to say whether it is `reproducible`.
 - The header has no int8 dtype today. It is added when the Hailo

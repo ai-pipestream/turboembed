@@ -215,7 +215,9 @@ older than the runtime, it lists none and the runtime's log says why.
   EXACT they take F32 operands with F32 FMAs (no TF32), 128 × 128
   tiles over 128 threads, each thread 16 × 8 outputs (so it reads 24
   values from shared memory per 128 FMAs, where 8 × 8 reads 16 per 64),
-  one block to an SM, 16 values of k to a step through a three-stage
+  at least one block to an SM (one on the RTX 4080, Ada with 100 KB of
+  shared memory, more where shared memory allows; the launch grid comes
+  from the occupancy query), 16 values of k to a step through a three-stage
   `cp.async` pipeline (see `TURBO_CUDA_TILE` for the other tiles).
   Devices before sm_80 take the FMA kernels at every precision, F16 at
   FASTEST with 8 × 8 outputs of a 128 × 64 tile. The token count changes with every batch, so no

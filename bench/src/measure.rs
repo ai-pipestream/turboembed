@@ -291,6 +291,9 @@ pub struct Measurement {
     /// whole case, and for a row cut to seq, the library's vector of that
     /// row run alone, which is all there is to compare it with.
     pub expected: Vec<Vec<f32>>,
+    /// Each of record::LIBRARY_VARS for the backend that was set, as
+    /// `NAME=value`: what the library read besides the session's options.
+    pub settings: Vec<String>,
 }
 
 impl Measurement {
@@ -342,6 +345,16 @@ pub fn compare(vectors: &[Vec<f32>], cases: &[u32], reference: &Reference) -> Re
         c.rows += 1;
     }
     Ok(c)
+}
+
+/// Each of record::LIBRARY_VARS for `backend` that is set in this
+/// process, as `NAME=value`, in that order.
+pub fn library_settings(backend: &str) -> Vec<String> {
+    turbo::record::LIBRARY_VARS
+        .iter()
+        .filter(|(b, _)| *b == backend)
+        .filter_map(|(_, v)| std::env::var(v).ok().map(|x| format!("{v}={x}")))
+        .collect()
 }
 
 /// Load the bundle on the device, time the runs, and check the vectors.
@@ -430,7 +443,12 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         if rows.whole(r, &reference) {
             vectors.push(v.clone());
             cases.push(rows.cases[r]);
-        } else if let Some(tol) = turbo::record::tolerance(si.compute_dtype) {
+        } else {
+            let Some(tol) = turbo::record::tolerance(si.compute_dtype) else {
+                let name = turbo::record::dtype_name(si.compute_dtype)
+                    .map_or_else(|| si.compute_dtype.to_string(), str::to_owned);
+                return Err(format!("no tolerance for dtype {name}; a dense run can't check its cut rows"));
+            };
             let (c, d) = (cosine(v, &expected[r]), max_abs_diff(v, &expected[r]));
             if c < tol.min_cosine || tol.max_abs_diff.is_some_and(|most| d > most) {
                 return Err(format!(
@@ -456,6 +474,7 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         rows_per_second: (batch as f64 * plan.iterations as f64) / total,
         computed_tokens: Some(rows.packed_tokens()),
     };
+    let settings = library_settings(&field(&device.backend));
     Ok(Measurement {
         device,
         host_cpu,
@@ -471,5 +490,6 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         conformance,
         vectors: timed,
         expected,
+        settings,
     })
 }

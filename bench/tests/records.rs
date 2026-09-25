@@ -267,6 +267,18 @@ fn a_record_that_is_not_well_formed_is_refused() {
         "holds a host path",
     );
     refused(&|x| x.device.name = "/home/".into(), "holds a host path");
+    refused(&|x| x.library.settings = vec!["TURBO_CUDA_TILE=128x64".into()], "library.settings");
+    refused(&|x| x.library.settings = vec!["TURBO_CPU_THREADS".into()], "library.settings");
+    refused(&|x| x.library.settings = vec!["TURBO_CPU_THREADS=2".into(), "TURBO_CPU_THREADS=3".into()], "each once");
+
+    // The settings the library read are kept, and a record from before
+    // the field has none.
+    let mut x = r.clone();
+    x.library.settings = vec!["TURBO_CPU_THREADS=2".into()];
+    assert_eq!(reparse(&x).unwrap(), x);
+    let mut v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    v["library"].as_object_mut().unwrap().remove("settings");
+    assert_eq!(Record::parse(&name, &serde_json::to_vec(&v).unwrap()).unwrap(), r);
 }
 
 #[test]
@@ -490,6 +502,37 @@ fn the_newest_record_that_backs_the_cell_is_the_one_named() {
         bad.conformance.min_cosine = 0.5;
         let v = verdict(&[&bad, &newest_failing], cell);
         assert!(matches!(&v, Verdict::Not(w) if w.starts_with(&record::file_name(&newest_failing).unwrap())), "{v:?}");
+    });
+}
+
+#[test]
+fn only_a_mixed_record_backs_the_cell() {
+    let mixed = cpu_record("mixed-backs", vec![measured_reference(TEI)]);
+    // A real dense measurement, newer, with a reference that gives it a
+    // speed_ratio of its own.
+    let m = dense_measurement(3, None);
+    let mut fast = measured_reference(TEI);
+    let at = fast.measured.as_mut().unwrap();
+    let k = m.timing.p50_ms * 4.0 / at.p50_ms;
+    (at.p50_ms, at.p99_ms) = (at.p50_ms * k, at.p99_ms * k);
+    at.computed_tokens = Some(m.rows.padded_tokens());
+    let dense = turbo_bench::record(&m, &provenance("dense-backs"), vec![fast], "2026-06-01T00:00:00Z".into()).unwrap();
+    assert_eq!(dense.rows.kind, "ROWS_DENSE");
+    assert!((dense.speed_ratio.unwrap() - 0.25).abs() < 1e-9, "{:?}", dense.speed_ratio);
+    reparse(&dense).unwrap();
+    cpu_cell(|cell| {
+        assert!(dense.falls_short(cell).is_none(), "it would back the cell but for its rows");
+        assert!(!dense.is_for(cell));
+        let v = verdict(&[&dense, &mixed], cell);
+        assert_eq!(
+            v,
+            Verdict::Supported {
+                benchmark: record::file_name(&mixed).unwrap(),
+                cosine_floor: mixed.conformance.min_cosine,
+                speed_ratio: 0.5,
+            }
+        );
+        assert_eq!(verdict(&[&dense], cell), Verdict::Not(NO_RECORD.into()));
     });
 }
 
