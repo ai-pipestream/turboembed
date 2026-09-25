@@ -569,7 +569,7 @@ int main(int argc, char **argv) {
 
 #[test]
 fn a_c_program_loads_a_model_tokenizes_and_embeds() {
-    // target/<profile>/deps/abi-* -> target/<profile>/libturbo.so
+    // target/<profile>/deps/abi-* -> target/<profile>/libturbo.{so,dylib}
     let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
     // `cargo test` builds the rlib the tests link, not the cdylib; build
     // it here, with the same profile and target directory, so the program
@@ -584,7 +584,8 @@ fn a_c_program_loads_a_model_tokenizes_and_embeds() {
         .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
         .arg("--target-dir")
         .arg(lib_dir.parent().unwrap()));
-    assert!(lib_dir.join("libturbo.so").exists(), "libturbo.so is not in {}", lib_dir.display());
+    let lib = format!("{}turbo{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
+    assert!(lib_dir.join(&lib).exists(), "{lib} is not in {}", lib_dir.display());
     let d = scratch("program");
     std::fs::write(d.join("p.c"), PROGRAM).unwrap();
     run(Command::new("cc")
