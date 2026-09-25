@@ -159,7 +159,7 @@
         "host_weights": "weights-f32",
         "produced_by": {
           "from": "onnx-f32",
-          "container": "turbo-hailo-dfc@sha256:7f544635bf649b2991321fb4ab7558a167f2abc8ecde36fce99aea85d00b8a71",
+          "container": "turbo-hailo-dfc@sha256:0972b97df2cfba9ba20abf9efa99a7f57ec675a00e6712a610f6cbd410a575b2",
           "inputs": [
             "calibration/texts.jsonl"
           ]
@@ -264,7 +264,7 @@
     {
       "path": "all-minilm-l6-v2.calibration.jsonl",
       "to": "calibration/texts.jsonl",
-      "sha256": "a322404cce27fafe43236d91e5d15e4945b63d3cdfff21061f23868a996c1d40"
+      "sha256": "bde646a9a523e6dbb93315343bd363890ef31510625aee4a2e8c7a6fda65c3b4"
     }
   ]
 }

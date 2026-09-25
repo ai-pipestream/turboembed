@@ -35,6 +35,7 @@ ran, then --tokenizer, --calibration (JSON lines, one {"text": ...} each),
 import argparse
 import json
 import os
+import random
 import sys
 
 import numpy as np
@@ -63,6 +64,9 @@ MODEL_SCRIPT = [
 
 # How far the cut graph may be from the export on a kept position.
 CUT_TOLERANCE = 1e-4
+
+# The seed every random generator the compiler uses starts from.
+SEED = 0
 
 
 def producers(graph):
@@ -175,6 +179,17 @@ def main():
     # The compiler reads USER, which a container run as the caller's uid
     # does not set.
     os.environ.setdefault("USER", "turbo")
+    # Every generator the compiler draws from starts at SEED, so two runs
+    # quantize alike.
+    os.environ["PYTHONHASHSEED"] = str(SEED)
+    os.environ["TF_DETERMINISTIC_OPS"] = "1"
+    random.seed(SEED)
+    np.random.seed(SEED)
+    import tensorflow as tf
+    import torch
+
+    tf.random.set_seed(SEED)
+    torch.manual_seed(SEED)
     from hailo_sdk_client import ClientRunner, __version__ as dfc_version
     from hailo_sdk_client.exposed_definitions import Dims
 
@@ -217,6 +232,7 @@ def main():
             f"seq={a.seq}",
             f"heads={a.heads}",
             f"masked={MASKED!r}",
+            f"seed={SEED}",
             f"calibration_texts={len(texts)}",
             f"cut_max_abs_diff={worst:.3g}",
         ]
