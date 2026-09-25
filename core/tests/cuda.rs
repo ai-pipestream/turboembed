@@ -1180,6 +1180,49 @@ fn heads_of_32_match_the_cpu() {
     }
 }
 
+/// Both FMA attentions, the default register-tiled one and the key-split
+/// one TURBO_CUDA_ATTENTION=split picks, on heads 16, 24, 32 and 64
+/// wide: rows of 300 tokens (five chunks of keys for the tiled kernel,
+/// three for the split one), 129, 64, 63, 17 and 1, masked tokens inside
+/// the longer ones, give the CPU's vectors within the F32 bound, and the
+/// same bits when run again.
+#[test]
+fn both_fma_attentions_match_the_cpu() {
+    let _t = turn();
+    let Some(_) = cuda_device("both_fma_attentions_match_the_cpu") else { return };
+    for (hidden, heads) in [(64, 4), (72, 3), (64, 2), (128, 2)] {
+        let mut m = model_manifest();
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(heads);
+        m["architecture"]["intermediate"] = json!(128);
+        m["embed"]["dim"] = json!(hidden);
+        m["embed"]["max_seq"] = json!(300);
+        m["embed"]["max_batch"] = json!(6);
+        m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+        let mut f = Fixture::new(&format!("cuda-attention-{hidden}-{heads}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(hidden, 128));
+        let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+        let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+        let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
+        cs.write_tokens(&t.batch(), None).unwrap();
+        let want = cs.run().unwrap().rows();
+        for split in [false, true] {
+            turbo::cuda::use_split_attention(Some(split));
+            let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_MODEL)));
+            turbo::cuda::use_split_attention(None);
+            let gs = gs.unwrap();
+            let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+            gs.write_tokens(&t.batch(), None).unwrap();
+            let got = gs.run().unwrap().rows();
+            let what = format!("heads of {}, split {split}", hidden / heads);
+            let (cos, abs) = within(&what, &got, &want, tol);
+            println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+            gs.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
+        }
+    }
+}
+
 /// The backend's GEMMs against cuBLAS on random operands, every epilogue,
 /// F32, F16 on the tensor cores and F16 with FMAs (the path of devices
 /// before sm_80), every tile, at MiniLM's shapes for the benchmark's 1353

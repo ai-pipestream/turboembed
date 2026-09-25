@@ -47,6 +47,11 @@ tile: `128x64` (the default), `64x64`, or `128x128` (the F32 kernels
 only; the tensor-core kernels take `128x64` for it). A tile shares the
 work among the blocks at other points, so the vectors agree within the
 precision's bound, not bit for bit; only the time should differ.
+`TURBO_CUDA_ATTENTION=split`, read the same way, gives the sessions
+that compute attention with FMAs the kernel that splits each query's
+keys among four warps (a lane per query, 64 queries to a block, the
+partial softmaxes merged in a fixed order), for measuring against the
+default.
 
 The library links the toolkit's shared `libcudart.so.<major>` and
 `libcublas.so.<major>`, with the toolkit's library directory as its run
@@ -161,15 +166,15 @@ older than the runtime, it lists none and the runtime's log says why.
      reads a row's keys contiguously;
   2. attention, rows longest first: the row's keys and values for the
      head go through shared memory, the whole row at once up to a chunk
-     (128 keys for the FMA kernel, 256 on the tensor cores), the softmax
+     (64 keys for the FMA kernel, 256 on the tensor cores), the softmax
      carried from one block of keys to the next by its running largest
      score (flash attention's rescaling), with no mask read but the key
-     bias of a row that has masked tokens. EXACT and MODEL take 64
-     queries of one head of one row to a block of eight warps: a lane per
-     query holds the query and its context in registers, each query's
-     keys are split four ways among the warps, and the four partial
-     softmaxes are merged in a fixed order. FASTEST with heads of 32 or
-     64 computes QKᵀ and PV with `mma.sync` on the tensor cores, 64
+     bias of a row that has masked tokens. EXACT and MODEL take 32
+     queries of one head of one row to a block of 128 threads and compute
+     QKᵀ and then PV as register tiles, each thread 4 queries by 4 keys
+     and then 4 queries by head_dim / 16 values, every sum in the order
+     of the head's values or the keys' positions. FASTEST with heads of
+     32 or 64 computes QKᵀ and PV with `mma.sync` on the tensor cores, 64
      queries to a block, F32 accumulators, softmax in F32;
   3. the attention output GEMM;
   4. its bias, the residual and LayerNorm in one kernel, a warp per token

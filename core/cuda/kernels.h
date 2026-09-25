@@ -78,6 +78,10 @@ struct Shape {
     int sms = 0;
     size_t smem_optin = 0; /* cudaDevAttrMaxSharedMemoryPerBlockOptin */
     Tile tile = TILE_DEFAULT;
+    /* The FMA attention with each query's keys split among four warps
+     * (TURBO_CUDA_ATTENTION=split), for measuring against the default,
+     * which computes Q K^T and P V as register tiles. */
+    bool split_attention = false;
 };
 
 /* Grids and shared memory for every launch of a session. */
