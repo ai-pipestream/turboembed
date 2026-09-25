@@ -50,6 +50,17 @@ fn device(rt: *mut turbo_runtime) -> u32 {
         .unwrap_or_else(|| panic!("TURBO_TEST_DEVICE={want}: no device of that backend is listed"))
 }
 
+/// The name of the backend whose device TURBO_TEST_DEVICE names.
+fn device_backend() -> String {
+    let mut rt = ptr::null_mut();
+    assert_eq!(unsafe { turbo_runtime_create(ptr::null(), &mut rt, ptr::null_mut()) }, 0);
+    let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
+    info.struct_size = size_of::<turbo_device_info>() as u32;
+    assert_eq!(unsafe { turbo_runtime_device_info(rt, device(rt), &mut info, ptr::null_mut()) }, 0);
+    unsafe { turbo_runtime_release(rt) };
+    field(&info.backend)
+}
+
 /// The precision TURBO_TEST_PRECISION names, or MODEL.
 fn precision() -> u32 {
     match std::env::var("TURBO_TEST_PRECISION").as_deref() {
@@ -239,6 +250,16 @@ fn every_reference_case_matches_upstream() {
 /// rest still match.
 #[test]
 fn a_fixed_shape_refuses_the_cases_it_cannot_hold() {
+    // The bundle is the small one's raw weights, which a backend that loads
+    // only compiled artifacts never takes; a real bundle covers it there.
+    let backend = device_backend();
+    let raw = backend::format_bit(backend::TURBO_FORMAT_SAFETENSORS);
+    if let Some(b) = backend::linked().iter().find(|b| b.name() == backend)
+        && b.formats() & raw == 0
+    {
+        eprintln!("skipped: the {backend} backend does not load FORMAT_SAFETENSORS");
+        return;
+    }
     let dir = std::env::temp_dir().join(format!("turbo-conformance-{}-fixed", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     for f in ["tokenizer.json", "reference/reference.safetensors", "weights/model.safetensors"] {

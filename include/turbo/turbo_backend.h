@@ -162,7 +162,8 @@ typedef struct turbo_backend_model {
     uint32_t    compute_dtype;    /* TURBO_DTYPE_* the compilation fixed; 0 where the manifest
                                      fixes none, as for raw weights */
     uint32_t    fixed_seq;        /* the shape compiled in; 0 is dynamic */
-    uint32_t    fixed_batch;
+    uint32_t    fixed_batch;      /* rows a frame holds; 0 is dynamic. Not a session limit:
+                                     the backend runs as many frames as a batch needs */
     const void *artifact;         /* the compiled artifact's bytes; NULL for raw weights */
     uint64_t    artifact_bytes;
 } turbo_backend_model;

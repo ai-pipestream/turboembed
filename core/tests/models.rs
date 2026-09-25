@@ -113,7 +113,8 @@ fn a_fixed_shape_is_what_is_reported() {
     f.manifest["embed"]["normalize"] = json!("NORMALIZE_NONE");
     let info = f.load().unwrap().info();
     assert_eq!(info.dtype, TURBO_DTYPE_F32);
-    assert_eq!((info.max_seq, info.max_batch), (128, 8));
+    // fixed_batch is the frame the backend runs, not a limit.
+    assert_eq!((info.max_seq, info.max_batch), (128, 64));
     assert_eq!((info.pooling, info.normalize), (TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE));
 }
 
@@ -626,6 +627,14 @@ fn a_hef_is_one_file_with_a_compute_dtype_over_raw_weights() {
         refused(&f)
     };
     assert!(e.is(BUNDLE_INVALID, "artifacts[0].host_weights: \"hef-s128\" is not FORMAT_SAFETENSORS"), "{e:?}");
+    for field in ["fixed_seq", "fixed_batch"] {
+        let e = {
+            let mut f = hef(&format!("hef-no-{field}"), "hailo10h");
+            f.manifest["artifacts"][0][field] = json!(0);
+            refused(&f)
+        };
+        assert!(e.is(BUNDLE_INVALID, &format!("artifacts[0].{field}: required for a compiled HEF")), "{e:?}");
+    }
 }
 
 // Rule 7
