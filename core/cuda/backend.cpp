@@ -1001,15 +1001,21 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // TURBO_CUDA_TILE, read when a session is made, names the GEMMs' tile
 // for all four: 64x64, 128x64, 128x128 or 128x128-16x8 (the FMA kernel's
 // 128x128 over 128 threads of 16 x 8 outputs; 128x128 elsewhere), for
-// measuring one against another and against the default (128x128-16x8
-// for the F32 FMA kernel, 128x64 for the F16 one; on the tensor cores
-// 128x128 for QKV and the first feed-forward GEMM, 128x64 for the other
-// two).
+// measuring one against another and against the default (128x64 for
+// the FMA kernel; on the tensor cores 128x128 for QKV and the first
+// feed-forward GEMM, 128x64 for the other two).
 //
 // TURBO_CUDA_ATTENTION=split, read when a session is made, gives an F32
 // session (and an F16 one without the tensor cores' attention) the FMA
 // attention that splits each query's keys among four warps, in place of
 // the default that computes Q K^T and P V as register tiles.
+//
+// TURBO_CUDA_LAYER_NORM=separate, read when a session is made, computes
+// the attention output and second feed-forward GEMMs' product alone and
+// then the bias, residual and LayerNorm in a kernel of their own, in
+// place of the GEMM's epilogue doing it (the same bits either way).
+// TURBO_CUDA_POOL=columns pools with a thread per column, in place of
+// the default's groups of tokens summed apart.
 //
 // TURBO_CUDA_CUBLAS, read when a session is made, hands the GEMMs it names
 // to cuBLAS: a comma-separated list of qkv, out, ffn1 and ffn2, or all.
@@ -1060,6 +1066,28 @@ bool split_attention_named() {
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_ATTENTION");
     return v && !strcasecmp(v, "split");
+}
+
+/* What the tests set in place of TURBO_CUDA_LAYER_NORM: 1 for the
+ * separate kernel, 0 for the default; -1 for the variable. */
+std::atomic<int> separate_ln_override{-1};
+
+bool separate_ln_named() {
+    const int o = separate_ln_override.load(std::memory_order_relaxed);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_LAYER_NORM");
+    return v && !strcasecmp(v, "separate");
+}
+
+/* What the tests set in place of TURBO_CUDA_POOL: 1 for the kernel of a
+ * thread per column, 0 for the default; -1 for the variable. */
+std::atomic<int> column_pool_override{-1};
+
+bool column_pool_named() {
+    const int o = column_pool_override.load(std::memory_order_relaxed);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_POOL");
+    return v && !strcasecmp(v, "columns");
 }
 
 /* TURBO_CUDA_SK_STEPS: the GEMMs' fewest k steps per block, 0 (the
@@ -1214,6 +1242,9 @@ int32_t encode(Session &s, turbo_error *err) {
     g.flags = s.flags;
     g.fault = s.fault_dev;
     g.min_steps = s.shape.sk_steps;
+    g.rows_done = s.flags + plan.sk_flags;
+    g.eps = eps;
+    g.x16 = s.x16;
     AttnArgs aa{};
     aa.qkv = s.qkv;
     aa.ctx = s.att;
@@ -1246,18 +1277,28 @@ int32_t encode(Session &s, turbo_error *err) {
 
         g.a = s.att;
         g.w = weight(l, TURBO_BERT_ATTN_OUT_WEIGHT);
-        g.bias = nullptr;
-        g.out = s.part;
         g.n = h;
-        if (s.cublas & CUBLAS_OUT) {
-            TRY_CUBLAS(linear(blas, half, s.att, tokens, h, g.w, h, s.part), "the attention output projection");
+        if (plan.fused_ln && !(s.cublas & CUBLAS_OUT)) {
+            // The product, its bias, the residual and the LayerNorm in one.
+            g.bias = layer(l, TURBO_BERT_ATTN_OUT_BIAS);
+            g.out = s.x;
+            g.ln_w = layer(l, TURBO_BERT_ATTN_LN_WEIGHT);
+            g.ln_b = layer(l, TURBO_BERT_ATTN_LN_BIAS);
+            TRY_CUDA(gemm(st, EPI_ADD_LN, half, tc, tile, g, plan.out_grid),
+                     "the attention output projection and LayerNorm");
         } else {
-            TRY_CUDA(gemm(st, EPI_PLAIN, half, tc, tile, g, plan.out_grid), "the attention output projection");
+            g.bias = nullptr;
+            g.out = s.part;
+            if (s.cublas & CUBLAS_OUT) {
+                TRY_CUBLAS(linear(blas, half, s.att, tokens, h, g.w, h, s.part), "the attention output projection");
+            } else {
+                TRY_CUDA(gemm(st, EPI_PLAIN, half, tc, tile, g, plan.out_grid), "the attention output projection");
+            }
+            TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
+                                    layer(l, TURBO_BERT_ATTN_LN_WEIGHT), layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info,
+                                    h, s.x16, plan),
+                     "the attention LayerNorm");
         }
-        TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
-                                layer(l, TURBO_BERT_ATTN_LN_WEIGHT), layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info, h,
-                                s.x16, plan),
-                 "the attention LayerNorm");
 
         g.a = xin;
         g.w = weight(l, TURBO_BERT_FFN_IN_WEIGHT);
@@ -1273,19 +1314,27 @@ int32_t encode(Session &s, turbo_error *err) {
 
         g.a = s.ffn;
         g.w = weight(l, TURBO_BERT_FFN_OUT_WEIGHT);
-        g.bias = nullptr;
-        g.out = s.part;
         g.n = h;
         g.k = inter;
-        if (s.cublas & CUBLAS_FFN2) {
-            TRY_CUBLAS(linear(blas, half, s.ffn, tokens, inter, g.w, h, s.part), "the feed-forward output");
+        if (plan.fused_ln && !(s.cublas & CUBLAS_FFN2)) {
+            g.bias = layer(l, TURBO_BERT_FFN_OUT_BIAS);
+            g.out = s.x;
+            g.ln_w = layer(l, TURBO_BERT_FFN_LN_WEIGHT);
+            g.ln_b = layer(l, TURBO_BERT_FFN_LN_BIAS);
+            TRY_CUDA(gemm(st, EPI_ADD_LN, half, tc, tile, g, plan.ffn2_grid), "the feed-forward output and LayerNorm");
         } else {
-            TRY_CUDA(gemm(st, EPI_PLAIN, half, tc, tile, g, plan.ffn2_grid), "the feed-forward output");
+            g.bias = nullptr;
+            g.out = s.part;
+            if (s.cublas & CUBLAS_FFN2) {
+                TRY_CUBLAS(linear(blas, half, s.ffn, tokens, inter, g.w, h, s.part), "the feed-forward output");
+            } else {
+                TRY_CUDA(gemm(st, EPI_PLAIN, half, tc, tile, g, plan.ffn2_grid), "the feed-forward output");
+            }
+            TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_FFN_OUT_BIAS),
+                                    layer(l, TURBO_BERT_FFN_LN_WEIGHT), layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info,
+                                    h, s.x16, plan),
+                     "the feed-forward LayerNorm");
         }
-        TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_FFN_OUT_BIAS),
-                                layer(l, TURBO_BERT_FFN_LN_WEIGHT), layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h,
-                                s.x16, plan),
-                 "the feed-forward LayerNorm");
     }
     TRY_CUDA(pool(st, s.x, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan), "pooling");
     return TURBO_OK;
@@ -1393,6 +1442,8 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         sh.tile = tile_named();
         sh.split_attention = split_attention_named();
         sh.sk_steps = sk_steps_named();
+        sh.fused_ln = !separate_ln_named();
+        sh.column_pool = column_pool_named();
         Plan plan;
         TRY_CUDA(make_plan(sh, &plan), "planning the session's launches");
         if (plan.gemm_crowded)
@@ -1422,7 +1473,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         const size_t ffn = round_up(tokens * inter * act, DEVICE_ALIGN);
         const size_t part = round_up(tokens * h * 4, DEVICE_ALIGN);
         const size_t ws = round_up(plan.sk_floats * 4, DEVICE_ALIGN);
-        const size_t flags = round_up((size_t)plan.sk_flags * 4, DEVICE_ALIGN);
+        const size_t flags = round_up((size_t)(plan.sk_flags + plan.ln_counts) * 4, DEVICE_ALIGN);
         const size_t widest = 3 * h > inter ? 3 * h : inter;
         const size_t raw = s->cublas & (CUBLAS_QKV | CUBLAS_FFN1) ? round_up(tokens * widest * 4, DEVICE_ALIGN) : 0;
         const size_t output = round_up((size_t)max_batch * h * 4, DEVICE_ALIGN);
@@ -1640,7 +1691,8 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
                 // The flags a wait gave up on may be left raised: cleared,
                 // so the next run starts as the first did.
                 *reinterpret_cast<volatile int *>(s.fault) = 0;
-                TRY_CUDA(cudaMemsetAsync(s.flags, 0, (size_t)s.plan.sk_flags * 4, s.ctx->stream), "the run");
+                TRY_CUDA(cudaMemsetAsync(s.flags, 0, (size_t)(s.plan.sk_flags + s.plan.ln_counts) * 4, s.ctx->stream),
+                         "the run");
                 TRY_CUDA(cudaStreamSynchronize(s.ctx->stream), "the run");
                 return refuse(err, TURBO_E_RUNTIME,
                               "a GEMM's block waited too long for another's partial product; the run's vectors "
@@ -1902,5 +1954,17 @@ void turbo_cuda_use_tile(int32_t tile) { tile_override.store(tile, std::memory_o
 void turbo_cuda_use_split_attention(int32_t split) {
     split_attention_override.store(split, std::memory_order_relaxed);
 }
+
+/* The LayerNorms of sessions made from now on: 1 a kernel of their own
+ * after the GEMM (TURBO_CUDA_LAYER_NORM=separate), 0 the default, -1 to
+ * read the variable again. */
+void turbo_cuda_use_separate_layer_norm(int32_t separate) {
+    separate_ln_override.store(separate, std::memory_order_relaxed);
+}
+
+/* The pooling of sessions made from now on: 1 the kernel of a thread per
+ * column (TURBO_CUDA_POOL=columns), 0 the default, -1 to read the
+ * variable again. */
+void turbo_cuda_use_column_pool(int32_t columns) { column_pool_override.store(columns, std::memory_order_relaxed); }
 
 } // extern "C"

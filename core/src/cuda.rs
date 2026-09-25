@@ -39,6 +39,8 @@ unsafe extern "C" {
     fn turbo_cuda_use_cublas(gemms: i32);
     fn turbo_cuda_use_tile(tile: i32);
     fn turbo_cuda_use_split_attention(split: i32);
+    fn turbo_cuda_use_separate_layer_norm(separate: i32);
+    fn turbo_cuda_use_column_pool(columns: i32);
 }
 
 /// The epilogues of the backend's own GEMMs, as [`gemm_check`] names them.
@@ -177,4 +179,22 @@ pub fn use_tile(tile: Option<Tile>) {
 #[cfg(feature = "internals")]
 pub fn use_split_attention(split: Option<bool>) {
     unsafe { turbo_cuda_use_split_attention(split.map_or(-1, i32::from)) };
+}
+
+/// The LayerNorms of sessions made from now on: `Some(true)` a kernel of
+/// their own after each GEMM, as TURBO_CUDA_LAYER_NORM=separate picks it,
+/// `Some(false)` the default, inside the GEMM, `None` to read the
+/// variable again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_separate_layer_norm(separate: Option<bool>) {
+    unsafe { turbo_cuda_use_separate_layer_norm(separate.map_or(-1, i32::from)) };
+}
+
+/// The pooling of sessions made from now on: `Some(true)` the kernel of
+/// a thread per column, as TURBO_CUDA_POOL=columns picks it, `Some(false)`
+/// the default, `None` to read the variable again. Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn use_column_pool(columns: Option<bool>) {
+    unsafe { turbo_cuda_use_column_pool(columns.map_or(-1, i32::from)) };
 }

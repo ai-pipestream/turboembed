@@ -410,7 +410,7 @@ constexpr int POOL_AHEAD = 16;
 
 /* The block's sum of one value per thread, in every thread, in a fixed
  * order: each warp's shuffle tree, then the warps in turn. */
-__device__ float block_sum(float v, float *red) {
+__device__ __forceinline__ float block_sum(float v, float *red) {
     const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
     v = warp_sum_all(v);
     __syncthreads();
@@ -472,6 +472,106 @@ __global__ void __launch_bounds__(POOL_BLOCK)
             const float scale = 1.0f / norm;
             for (int d = threadIdx.x; d < in.output_dim; d += POOL_BLOCK) dst[d] *= scale;
         }
+    }
+}
+
+/* Groups of the row's tokens the split pooling sums apart, at most. */
+constexpr int POOL_GROUPS = 8;
+/* A thread's float4 loads in flight at once. */
+constexpr int POOL_QUADS_AHEAD = 8;
+
+/* A block per row, looping over the run's rows: a thread per four
+ * columns of the pooled vector, and for the mean, as many groups of
+ * such threads as the block holds (at most POOL_GROUPS), each summing a
+ * contiguous run of the row's tokens in position order with
+ * POOL_QUADS_AHEAD loads in flight; the first group adds the groups'
+ * sums in group order. The vector stays in registers through the L2
+ * normalization and is written once. */
+__global__ void __launch_bounds__(POOL_BLOCK)
+    pool_split_kernel(const float *x, const int32_t *rows, Packing p, int hidden, float *out) {
+    __shared__ float4 part[POOL_BLOCK];
+    __shared__ unsigned counts[POOL_GROUPS];
+    __shared__ float red[POOL_WARPS];
+    const Info in = *p.info;
+    const int32_t *mask = mask_of(rows, in);
+    const int quads = (in.output_dim + 3) / 4;
+    const bool mean = in.pooling != TURBO_POOLING_CLS && in.pooling != TURBO_POOLING_LAST;
+    int groups = POOL_BLOCK / quads;
+    groups = !mean || groups < 1 ? 1 : groups > POOL_GROUPS ? POOL_GROUPS : groups;
+    const int grp = threadIdx.x / quads, q = threadIdx.x % quads, d = 4 * q;
+    for (int b = blockIdx.x; b < in.batch; b += gridDim.x) {
+        const int32_t *m = mask + (size_t)b * in.seq;
+        const int n = p.len[b];
+        const float *rw = x + (size_t)p.start[b] * hidden + d;
+        float4 val = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        if (!mean) {
+            if (threadIdx.x < quads) {
+                const int at = in.pooling == TURBO_POOLING_CLS ? 0 : n - 1;
+                val = *reinterpret_cast<const float4 *>(rw + (size_t)at * hidden);
+            }
+        } else {
+            if (grp < groups) {
+                const int per = (n + groups - 1) / groups, lo = grp * per, hi = min(n, lo + per);
+                float4 sum = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+                unsigned c = 0;
+                for (int q0 = lo; q0 < hi; q0 += POOL_QUADS_AHEAD) {
+                    float4 v[POOL_QUADS_AHEAD];
+                    int k[POOL_QUADS_AHEAD];
+#pragma unroll
+                    for (int u = 0; u < POOL_QUADS_AHEAD; u++) {
+                        k[u] = 0;
+                        v[u] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+                        if (q0 + u < hi) {
+                            k[u] = m[q0 + u];
+                            v[u] = __ldg(reinterpret_cast<const float4 *>(rw + (size_t)(q0 + u) * hidden));
+                        }
+                    }
+#pragma unroll
+                    for (int u = 0; u < POOL_QUADS_AHEAD; u++)
+                        if (k[u] != 0) {
+                            sum.x += v[u].x;
+                            sum.y += v[u].y;
+                            sum.z += v[u].z;
+                            sum.w += v[u].w;
+                            c++;
+                        }
+                }
+                part[threadIdx.x] = sum;
+                if (q == 0) counts[grp] = c;
+            }
+            __syncthreads();
+            if (threadIdx.x < quads) {
+                unsigned c = 0;
+                for (int g2 = 0; g2 < groups; g2++) {
+                    const float4 s = part[g2 * quads + threadIdx.x];
+                    val.x += s.x;
+                    val.y += s.y;
+                    val.z += s.z;
+                    val.w += s.w;
+                    c += counts[g2];
+                }
+                const float inv = 1.0f / (float)c;
+                val = make_float4(val.x * inv, val.y * inv, val.z * inv, val.w * inv);
+            }
+        }
+        float o[4] = {val.x, val.y, val.z, val.w};
+        float ss = 0.0f;
+        if (threadIdx.x < quads)
+#pragma unroll
+            for (int j = 0; j < 4; j++)
+                if (d + j < in.output_dim) ss += o[j] * o[j];
+        if (in.l2) {
+            const float scale = 1.0f / fmaxf(sqrtf(block_sum(ss, red)), 1e-12f);
+#pragma unroll
+            for (int j = 0; j < 4; j++) o[j] *= scale;
+        }
+        float *dst = out + (size_t)b * in.output_dim;
+        if (threadIdx.x < quads)
+#pragma unroll
+            for (int j = 0; j < 4; j++)
+                if (d + j < in.output_dim) dst[d + j] = o[j];
+        // part and counts are read before the next row writes them.
+        __syncthreads();
     }
 }
 
@@ -647,6 +747,54 @@ __device__ inline void sk_wait(int *flag, int *fault) {
     __syncthreads();
 }
 
+/* ADD_LN's end of a tile: once every tile of the block of rows from m0
+ * is in out, the block that finished the last of them normalizes the
+ * rows, R to a warp at a time, each as add_layer_norm's warp does (the
+ * same function, so the same sums), reading what other blocks wrote
+ * from L2. Every thread of the block calls it. */
+template <int NT>
+__device__ void ln_rows_when_done(const GemmArgs &g, int m0, int rows, int *counter, int tiles) {
+    constexpr int R = 2, W = NT / 32, V = LN_FUSED_MAX_HIDDEN / 128;
+    __shared__ int last;
+    __threadfence();
+    __syncthreads();
+    if (threadIdx.x == 0) {
+        last = atomicAdd(counter, 1) == tiles - 1;
+        if (last) *counter = 0;
+    }
+    __syncthreads();
+    if (!last) return;
+    __threadfence();
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5, n = g.n;
+    float *x = static_cast<float *>(g.out);
+    __half *x16 = reinterpret_cast<__half *>(g.x16);
+    for (int r0 = warp * R; r0 < rows; r0 += W * R) {
+        float v[R][V][4];
+#pragma unroll
+        for (int u = 0; u < R; u++)
+#pragma unroll
+            for (int i = 0; i < V; i++) {
+                const int d = 4 * lane + 128 * i;
+                if (r0 + u < rows && d < n) {
+                    const float4 q = __ldcg(reinterpret_cast<const float4 *>(x + (size_t)(m0 + r0 + u) * n + d));
+                    v[u][i][0] = q.x;
+                    v[u][i][1] = q.y;
+                    v[u][i][2] = q.z;
+                    v[u][i][3] = q.w;
+                } else {
+#pragma unroll
+                    for (int j = 0; j < 4; j++) v[u][i][j] = 0.0f;
+                }
+            }
+#pragma unroll
+        for (int u = 0; u < R; u++) {
+            if (r0 + u >= rows) break;
+            const size_t t = (size_t)(m0 + r0 + u);
+            layer_norm_regs(v[u], n, g.ln_w, g.ln_b, g.eps, x + t * n, x16 ? x16 + t * n : nullptr);
+        }
+    }
+}
+
 /* Where token t's column c goes, for the row-major epilogues. */
 template <typename TOut> __device__ inline TOut *out_at(const GemmArgs &g, int t, int c) {
     return static_cast<TOut *>(g.out) + (size_t)t * g.n + c;
@@ -661,9 +809,10 @@ template <typename TOut> __device__ inline TOut *out_at(const GemmArgs &g, int t
 // floats. k goes 16 at a time through a 3-stage cp.async pipeline of
 // rows of A and of the weight, k contiguous in each; each thread reads
 // four k values of each of its rows and columns, TM + 8 LDS.128 per
-// 32 TM FMAs: 16 per 256 at 8 x 8, 24 per 512 at 16 x 8, which is the
-// F32 default, 128 x 128 over 128 threads, since shared memory reads
-// bound the kernel. Each output's FMAs run in k order at every tile.
+// 32 TM FMAs: 16 per 256 at 8 x 8, 24 per 512 at 16 x 8 (128 x 128
+// over 128 threads, which reads less but runs one block of four warps
+// to an SM, and measured slower than 128 x 64 at 8 x 8 on an sm_89).
+// Each output's FMAs run in k order at every tile.
 
 constexpr int SIMT_BK = 16, SIMT_STAGES = 3;
 
@@ -793,10 +942,14 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
                     put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, acc[i][j] + g.bias[c]);
                 else if constexpr (EPI == EPI_GELU)
                     put(out_at<TOut>(g, t, c), gelu(acc[i][j] + g.bias[c]));
-                else
+                else if constexpr (EPI == EPI_ADD_LN) {
+                    float *o = out_at<float>(g, t, c);
+                    *o = *o + (acc[i][j] + g.bias[c]);
+                } else
                     put(out_at<TOut>(g, t, c), acc[i][j]);
             }
         }
+        if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
     }
 }
 
@@ -982,11 +1135,16 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
                     const TOut *e = reinterpret_cast<const TOut *>(&v);
                     for (int u = 0; u < E; u++) o[qkv_column(g, c + u)] = e[u];
                 }
+            } else if constexpr (EPI == EPI_ADD_LN) {
+                float4 *o = reinterpret_cast<float4 *>(out_at<float>(g, t, c));
+                const float4 p = *reinterpret_cast<const float4 *>(&v), r = *o;
+                *o = make_float4(r.x + p.x, r.y + p.y, r.z + p.z, r.w + p.w);
             } else {
                 *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = v;
             }
         }
         __syncthreads();
+        if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
     }
 #else
     (void)g;
@@ -1030,10 +1188,9 @@ template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut> Ge
 }
 
 /* The FMA kernel's tiles, 8 x 8 outputs to a thread but the 16 x 8 of
- * 128 x 128 over 128 threads, the F32 default; F16 (devices before
- * sm_80) takes 128 x 64 by default. */
+ * 128 x 128 over 128 threads; 128 x 64 by default. */
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
-    if (t == TILE_DEFAULT) t = sizeof(TIn) == 4 ? TILE_128x128_16x8 : TILE_128x64;
+    if (t == TILE_DEFAULT) t = TILE_128x64;
     switch (t) {
     case TILE_64x64: return simt_kernel<64, 64, 8, TIn, EPI, TOut>();
     case TILE_128x128: return simt_kernel<128, 128, 8, TIn, EPI, TOut>();
@@ -1048,7 +1205,7 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
  * GEMMs, QKV and GELU, and 128 x 64 for the N = 384 ones. */
 template <typename TOut, int EPI> GemmKernel mma_for(Tile t) {
     if (t == TILE_64x64) return mma_kernel<64, 64, 2, 2, 4, EPI, TOut>();
-    if (t == TILE_128x128 || (t == TILE_DEFAULT && EPI != EPI_PLAIN))
+    if (t == TILE_128x128 || (t == TILE_DEFAULT && (EPI == EPI_QKV || EPI == EPI_GELU)))
         return mma_kernel<128, 128, 4, 2, 2, EPI, TOut>();
     return mma_kernel<128, 64, 4, 2, 3, EPI, TOut>();
 }
@@ -1060,6 +1217,7 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
         switch (e) {
         case EPI_QKV: return mma_for<__half, EPI_QKV>(t);
         case EPI_GELU: return mma_for<__half, EPI_GELU>(t);
+        case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN>(t);
         default: return mma_for<float, EPI_PLAIN>(t);
         }
     }
@@ -1067,12 +1225,14 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
         switch (e) {
         case EPI_QKV: return simt_for<__half, __half, EPI_QKV>(t);
         case EPI_GELU: return simt_for<__half, __half, EPI_GELU>(t);
+        case EPI_ADD_LN: return simt_for<__half, float, EPI_ADD_LN>(t);
         default: return simt_for<__half, float, EPI_PLAIN>(t);
         }
     }
     switch (e) {
     case EPI_QKV: return simt_for<float, float, EPI_QKV>(t);
     case EPI_GELU: return simt_for<float, float, EPI_GELU>(t);
+    case EPI_ADD_LN: return simt_for<float, float, EPI_ADD_LN>(t);
     default: return simt_for<float, float, EPI_PLAIN>(t);
     }
 }
@@ -1841,16 +2001,23 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     p->pack_smem = (size_t)3 * nb * sizeof(int32_t);
     p->rows_grid = cap(((long long)s.tcap + ROW_WARPS - 1) / ROW_WARPS, s.sms * 8);
     p->pool_grid = cap(s.batch_cap, s.sms * 4);
+    p->column_pool = s.column_pool || s.hidden > 4 * POOL_BLOCK;
     p->epi_grid = cap(s.tcap, s.sms * 8);
     p->fetch_grid = cap(((long long)3 * s.tcap / 4 + FETCH_BLOCK * FETCH_LOADS - 1) / (FETCH_BLOCK * FETCH_LOADS),
                         s.sms * 2);
+    // The attention output and second feed-forward GEMMs: the product
+    // alone, or with the LayerNorm after it.
+    p->fused_ln = s.fused_ln && s.hidden <= LN_FUSED_MAX_HIDDEN;
+    p->ln_counts = p->fused_ln ? ln_counters(s.tcap) : 0;
+    const Epilogue out_epi = p->fused_ln ? EPI_ADD_LN : EPI_PLAIN;
     cudaError_t e = cudaSuccess;
-    for (Epilogue ep : {EPI_QKV, EPI_GELU, EPI_PLAIN})
+    for (Epilogue ep : {EPI_QKV, EPI_GELU, out_epi})
         if (e == cudaSuccess) e = gemm_prepare(ep, s.half, s.tensor_cores, s.tile);
     size_t ws[3] = {0, 0, 0};
-    if (e == cudaSuccess) e = gemm_grid(EPI_QKV, s.half, s.tensor_cores, s.tile, s.sms, &p->qkv_grid, &ws[0], &p->gemm_crowded);
-    if (e == cudaSuccess) e = gemm_grid(EPI_PLAIN, s.half, s.tensor_cores, s.tile, s.sms, &p->out_grid, &ws[1], &p->gemm_crowded);
-    if (e == cudaSuccess) e = gemm_grid(EPI_GELU, s.half, s.tensor_cores, s.tile, s.sms, &p->ffn1_grid, &ws[2], &p->gemm_crowded);
+    bool *crowded = &p->gemm_crowded;
+    if (e == cudaSuccess) e = gemm_grid(EPI_QKV, s.half, s.tensor_cores, s.tile, s.sms, &p->qkv_grid, &ws[0], crowded);
+    if (e == cudaSuccess) e = gemm_grid(out_epi, s.half, s.tensor_cores, s.tile, s.sms, &p->out_grid, &ws[1], crowded);
+    if (e == cudaSuccess) e = gemm_grid(EPI_GELU, s.half, s.tensor_cores, s.tile, s.sms, &p->ffn1_grid, &ws[2], crowded);
     p->ffn2_grid = p->out_grid;
     for (size_t w : ws) p->sk_floats = w > p->sk_floats ? w : p->sk_floats;
     for (int g : {p->qkv_grid, p->out_grid, p->ffn1_grid}) p->sk_flags = g > p->sk_flags ? g : p->sk_flags;
@@ -1942,7 +2109,10 @@ cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const float
 
 cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Packing &p, int hidden, float *out,
                  const Plan &plan) {
-    pool_kernel<<<plan.pool_grid, POOL_BLOCK, 0, s>>>(x, rows, p, hidden, out);
+    if (plan.column_pool)
+        pool_kernel<<<plan.pool_grid, POOL_BLOCK, 0, s>>>(x, rows, p, hidden, out);
+    else
+        pool_split_kernel<<<plan.pool_grid, POOL_BLOCK, 0, s>>>(x, rows, p, hidden, out);
     return cudaGetLastError();
 }
 

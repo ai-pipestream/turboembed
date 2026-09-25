@@ -1180,6 +1180,71 @@ fn heads_of_32_match_the_cpu() {
     }
 }
 
+/// The LayerNorm inside the attention output and second feed-forward
+/// GEMMs gives the bits of the separate kernel TURBO_CUDA_LAYER_NORM=
+/// separate picks, at every precision, with every tile (rows split among
+/// blocks of 64 and 128), on hidden widths of 64 and 384 and rows of
+/// very different lengths with masked tokens inside. And the pooling of
+/// a thread per column, TURBO_CUDA_POOL=columns, gives the default's
+/// vectors within the bound (it adds the tokens in another order), at
+/// every pooling.
+#[test]
+fn layer_norm_in_the_gemms_gives_the_separate_bits() {
+    let _t = turn();
+    let Some(_) = cuda_device("layer_norm_in_the_gemms_gives_the_separate_bits") else { return };
+    use turbo::cuda::Tile;
+    for hidden in [64, 384] {
+        let mut m = model_manifest();
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(hidden / 32);
+        m["architecture"]["intermediate"] = json!(256);
+        m["embed"]["dim"] = json!(hidden);
+        m["embed"]["max_seq"] = json!(300);
+        m["embed"]["max_batch"] = json!(6);
+        m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+        let mut f = Fixture::new(&format!("cuda-fused-ln-{hidden}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(hidden, 256));
+        let g = f.load_on(cuda).unwrap();
+        let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+        for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+            for tile in [Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128] {
+                let mut bits = Vec::new();
+                for separate in [true, false] {
+                    turbo::cuda::use_tile(Some(tile));
+                    turbo::cuda::use_separate_layer_norm(Some(separate));
+                    let s = Session::create(g.m, Some(&session_desc(6, 300, precision)));
+                    turbo::cuda::use_separate_layer_norm(None);
+                    turbo::cuda::use_tile(None);
+                    let s = s.unwrap();
+                    s.write_tokens(&t.batch(), None).unwrap();
+                    bits.push(s.run().unwrap().rows());
+                }
+                assert_eq!(bits[0], bits[1], "hidden {hidden}, precision {precision}, tile {tile:?}: other bits");
+            }
+            let gs = Session::create(g.m, Some(&session_desc(6, 300, precision))).unwrap();
+            turbo::cuda::use_column_pool(Some(true));
+            let cols = Session::create(g.m, Some(&session_desc(6, 300, precision)));
+            turbo::cuda::use_column_pool(None);
+            let cols = cols.unwrap();
+            let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+            for pooling in [TURBO_POOLING_MEAN, TURBO_POOLING_CLS, TURBO_POOLING_LAST] {
+                for normalize in [TURBO_NORMALIZE_NONE, TURBO_NORMALIZE_L2] {
+                    let o = opts(|o| {
+                        o.pooling = pooling;
+                        o.normalize = normalize;
+                    });
+                    gs.write_tokens(&t.batch(), Some(&o)).unwrap();
+                    let got = gs.run().unwrap().rows();
+                    cols.write_tokens(&t.batch(), Some(&o)).unwrap();
+                    let want = cols.run().unwrap().rows();
+                    let what = format!("hidden {hidden}, precision {precision}, pooling {pooling} {normalize}");
+                    within(&what, &got, &want, tol);
+                }
+            }
+        }
+    }
+}
+
 /// Both FMA attentions, the default register-tiled one and the key-split
 /// one TURBO_CUDA_ATTENTION=split picks, on heads 16, 24, 32 and 64
 /// wide: rows of 300 tokens (five chunks of keys for the tiled kernel,
