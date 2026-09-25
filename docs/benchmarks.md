@@ -202,7 +202,10 @@ small bundle's as it is now.
 The tool writes it with serde_json's pretty printer: two-space indent,
 every object member and every array element on a line of its own. Here
 most objects and `cases` are folded onto fewer lines. Every
-field is required, and an unknown one is an error.
+field is required, and an unknown one is an error, but for three the
+tool has always written since they were added and records made before
+may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
+`timing.computed_tokens` and `measured.computed_tokens`, read as null.
 
 | Field | Meaning |
 |---|---|

@@ -199,14 +199,19 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
 pub fn report(r: &Record) -> String {
     let live = r.rows.live_tokens;
     let rows = format!("[{}, {}] {}", r.rows.batch, r.rows.seq, r.rows.kind);
+    let count = |n: Option<u64>| n.map_or_else(|| "unknown".to_owned(), |n| n.to_string());
     let mut out = format!(
         "library ({} {}): p50 {:.4} ms, p99 {:.4} ms on {rows}: {} token positions computed of {live} live\n",
-        r.device.backend, r.device.name, r.timing.p50_ms, r.timing.p99_ms, r.timing.computed_tokens
+        r.device.backend,
+        r.device.name,
+        r.timing.p50_ms,
+        r.timing.p99_ms,
+        count(r.timing.computed_tokens)
     );
     for x in &r.references {
         out += &match (&x.measured, &x.not_run) {
             (Some(m), _) => {
-                let computed = m.computed_tokens.map_or_else(|| "unknown".to_owned(), |n| n.to_string());
+                let computed = count(m.computed_tokens);
                 format!(
                     "{} ({}): p50 {:.4} ms, p99 {:.4} ms on {rows}: {computed} token positions computed of {live} \
                      live\n",

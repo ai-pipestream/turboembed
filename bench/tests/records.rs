@@ -67,7 +67,7 @@ fn a_record_holds_what_was_measured() {
     assert_eq!(r.rows.seq as usize, reference.ids.iter().map(Vec::len).max().unwrap());
     assert_eq!(r.rows.batch, 32);
     assert_eq!(r.rows.live_tokens, reference.ids.iter().cycle().take(32).map(|r| r.len() as u64).sum::<u64>());
-    assert_eq!(r.timing.computed_tokens, r.rows.live_tokens, "packed: no row has padding before its last live token");
+    assert_eq!(r.timing.computed_tokens, Some(r.rows.live_tokens), "packed: no padding before a row's last live token");
     assert_eq!(r.bundle.manifest_sha256, bundle.manifest_sha256);
     assert_eq!(r.bundle.model_id, "sentence-transformers/all-MiniLM-L6-v2");
     assert_eq!((r.speed_ratio, r.speed_reference.as_deref()), (None, None));
@@ -243,8 +243,8 @@ fn a_record_that_is_not_well_formed_is_refused() {
     refused(&|x| x.rows.cases.pop().map(drop).unwrap_or(()), "cases one per row");
     refused(&|x| x.recorded_at = "yesterday".into(), "recorded_at");
     refused(&|x| x.rows.kind = "ROWS_SOME".into(), "is not ROWS_MIXED or ROWS_DENSE");
-    refused(&|x| x.timing.computed_tokens = x.rows.live_tokens - 1, "timing.computed_tokens");
-    refused(&|x| x.timing.computed_tokens = x.rows.batch as u64 * x.rows.seq as u64 + 1, "timing.computed_tokens");
+    refused(&|x| x.timing.computed_tokens = Some(x.rows.live_tokens - 1), "timing.computed_tokens");
+    refused(&|x| x.timing.computed_tokens = Some(x.rows.batch as u64 * x.rows.seq as u64 + 1), "timing.computed");
     refused(&|x| x.references[0].measured.as_mut().unwrap().computed_tokens = Some(0), "computed_tokens 0 is not");
     refused(&|x| x.rows.kind = "ROWS_DENSE".into(), "rows: dense, yet");
     refused(&|x| x.compute_dtype = "DTYPE_F64".into(), "not a DTYPE_* value");

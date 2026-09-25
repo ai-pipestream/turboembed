@@ -454,7 +454,7 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         min_ms: sorted[0],
         max_ms: sorted[sorted.len() - 1],
         rows_per_second: (batch as f64 * plan.iterations as f64) / total,
-        computed_tokens: rows.packed_tokens(),
+        computed_tokens: Some(rows.packed_tokens()),
     };
     Ok(Measurement {
         device,

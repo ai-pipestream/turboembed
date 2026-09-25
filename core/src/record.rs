@@ -30,6 +30,10 @@ pub const HOST_PATHS: [&str; 4] = ["/home/", "/root/", "/var/home/", "/Users/"];
 pub const ROWS_MIXED: &str = "ROWS_MIXED";
 pub const ROWS_DENSE: &str = "ROWS_DENSE";
 
+fn rows_mixed() -> String {
+    ROWS_MIXED.into()
+}
+
 /// The reason a cell without any record for it gives.
 pub const NO_RECORD: &str = "no benchmark record for this cell";
 
@@ -126,7 +130,9 @@ pub struct BundleId {
 pub struct Rows {
     /// `ROWS_MIXED`: the reference cases that fit seq, cycled, each
     /// padded; `ROWS_DENSE`: every row a case of at least seq tokens, cut
-    /// to seq the way the bundle truncates, so no token is padding.
+    /// to seq the way the bundle truncates, so no token is padding. A
+    /// record made before rows had a kind is mixed, the only kind then.
+    #[serde(default = "rows_mixed")]
     pub kind: String,
     pub batch: u32,
     pub seq: u32,
@@ -157,8 +163,9 @@ pub struct Timing {
     /// its last live token, since its backends pack the rows and skip the
     /// padding after them. Beside rows.live_tokens, and a reference's
     /// computed_tokens, so a padded and a packed time are not read as the
-    /// same work.
-    pub computed_tokens: u64,
+    /// same work. Null only in a record made before the field was.
+    #[serde(default)]
+    pub computed_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -204,7 +211,9 @@ pub struct Measured {
     /// were seen; null when the program does not return them.
     pub min_cosine: Option<f64>,
     /// Token positions it computed per run: batch x seq for a kernel on
-    /// the padded rows; null when that cannot be known from outside it.
+    /// the padded rows; null when that cannot be known from outside it,
+    /// or in a record made before the field was.
+    #[serde(default)]
     pub computed_tokens: Option<u64>,
 }
 
@@ -422,10 +431,11 @@ impl Record {
             k => return Err(format!("rows.kind {k:?} is not {ROWS_MIXED} or {ROWS_DENSE}")),
         }
         let slots = rows.live_tokens..=rows.batch as u64 * rows.seq as u64;
-        if !slots.contains(&self.timing.computed_tokens) {
+        if let Some(n) = self.timing.computed_tokens
+            && !slots.contains(&n)
+        {
             return Err(format!(
-                "timing.computed_tokens {} is not between the live tokens and batch x seq, {slots:?}",
-                self.timing.computed_tokens
+                "timing.computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}"
             ));
         }
         let t = &self.timing;

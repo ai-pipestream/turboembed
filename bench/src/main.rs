@@ -243,7 +243,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         m.rows.seq,
         m.rows.kind.name(),
         m.rows.live_tokens(),
-        m.timing.computed_tokens,
+        m.rows.packed_tokens(),
         m.conformance.min_cosine,
         m.conformance.max_abs_diff
     );
