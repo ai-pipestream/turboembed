@@ -136,7 +136,8 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
 #define TURBO_CAP_UNSUPPORTED  0
 #define TURBO_CAP_EXPERIMENTAL 1   /* runs; not yet measured against the vendor's best */
 #define TURBO_CAP_SUPPORTED    2   /* runs, matches the reference numerically, and the
-                                      benchmark record named in the cell exists */
+                                      benchmark record named in the cell exists; the rule
+                                      is in docs/benchmarks.md */
 
 #define TURBO_DTYPE_I32   8
 #define TURBO_DTYPE_F16  10
@@ -273,7 +274,8 @@ typedef struct turbo_capability {
     uint32_t options_honored;     /* bit (i-1) set: field i of the task's options struct is
                                    * honored; 0 when UNSUPPORTED */
     float    cosine_floor;        /* lowest cosine against the fp32 reference in the record, 0 if none */
-    float    speed_ratio;         /* our p50 latency over the reference's, from the record, 0 if none */
+    float    speed_ratio;         /* our p50 latency over the fastest reference program's, from the
+                                   * record, 0 if none */
     char     benchmark[96];       /* file name of the record that backs SUPPORTED, else empty */
     char     reason[160];         /* why it is not SUPPORTED, else empty */
 } turbo_capability;

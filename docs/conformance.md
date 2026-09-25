@@ -48,13 +48,19 @@ Then:
    reference's ids one at a time; and the same in full batches, padded
    with the pad id and mask 0.
 
-Every vector's cosine against the reference must reach the floor for
-the compute dtype `turbo_session_get_info` reports:
+Every vector must be within the tolerance for the compute dtype
+`turbo_session_get_info` reports: its cosine against the reference at
+least the lowest cosine, and, where the table gives one, no value
+further from the reference's than the largest absolute difference.
 
-| Compute dtype | Lowest cosine |
-|---|---|
-| F32 | 0.9999 |
-| F16, BF16 | 0.999 |
+| Compute dtype | Lowest cosine | Largest absolute difference |
+|---|---|---|
+| F32 | 0.9999 | 1e-4 |
+| F16, BF16 | 0.999 | not bounded |
+
+The table is `turbo::record::tolerance`, the rule a benchmark record
+is held to as well (docs/benchmarks.md). Int8 has no row: there is no
+int8 compute dtype yet, and a record of one backs nothing.
 
 `a_fixed_shape_refuses_the_cases_it_cannot_hold` runs the same check on
 the small bundle with its artifact fixed at 32 tokens, so the capacity

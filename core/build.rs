@@ -11,6 +11,9 @@
 //!   its machine code, and the highest its PTX too, so a newer device can
 //!   compile that when it loads the library.
 //!
+//! It also compiles in the benchmark records in benchmarks/records/, with
+//! or without the feature (docs/benchmarks.md).
+//!
 //! The kernels and the host side are compiled by nvcc into a static
 //! library linked into libturbo, against the toolkit's shared cudart and
 //! cuBLAS, with the toolkit's library directory as a run path.
@@ -24,6 +27,7 @@ const DEPENDS: [&str; 3] = ["cuda/kernels.h", "../include/turbo/turbo.h", "../in
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    records();
     if env::var_os("CARGO_FEATURE_CUDA").is_none() {
         return;
     }
@@ -97,6 +101,38 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=cudart");
     println!("cargo:rustc-link-lib=dylib=stdc++");
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib.display());
+}
+
+/// Every `*.json` file in benchmarks/records/ as `EMBEDDED`, its file name
+/// and its text, sorted by name, in OUT_DIR/records.rs. The core parses
+/// them when a capability is first asked for; the library opens no file.
+fn records() {
+    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let dir = manifest.join("../benchmarks/records");
+    // A directory: cargo looks at every file under it.
+    println!("cargo:rerun-if-changed={}", dir.display());
+    let mut files: Vec<PathBuf> =
+        std::fs::read_dir(&dir).map(|d| d.filter_map(|e| e.ok().map(|e| e.path())).collect()).unwrap_or_default();
+    files.retain(|p| p.is_file() && p.extension().is_some_and(|e| e == "json"));
+    files.sort();
+    let mut code = String::from("/* Written by build.rs. */\npub static EMBEDDED: &[(&str, &str)] = &[\n");
+    for p in files {
+        let name = p.file_name().unwrap().to_str().unwrap_or_else(|| fail(&format!("{}: not UTF-8", p.display())));
+        let path = p.canonicalize().unwrap_or_else(|e| fail(&format!("{}: {e}", p.display())));
+        let path = path.to_str().unwrap_or_else(|| fail(&format!("{}: not UTF-8", p.display())));
+        // A record that is not even JSON fails the build here, by name; the
+        // core's parser judges the rest when a capability is asked for.
+        let bytes = std::fs::read(&p).unwrap_or_else(|e| fail(&format!("benchmarks/records/{name}: {e}")));
+        let text =
+            std::str::from_utf8(&bytes).unwrap_or_else(|e| fail(&format!("benchmarks/records/{name}: not UTF-8: {e}")));
+        if let Err(e) = serde_json::from_str::<serde_json::Value>(text) {
+            fail(&format!("benchmarks/records/{name}: not JSON: {e}"));
+        }
+        code.push_str(&format!("    ({name:?}, include_str!({path:?})),\n"));
+    }
+    code.push_str("];\n");
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    std::fs::write(out.join("records.rs"), code).unwrap();
 }
 
 fn toolkit_root() -> PathBuf {
