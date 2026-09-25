@@ -1109,15 +1109,16 @@ fn a_row_at_fastest_gives_the_same_bits_alone_and_among_others() {
     let g = on_gpu(&tiny_bundle());
     let s = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
     assert_eq!(s.info().compute_dtype, TURBO_DTYPE_F16);
-    // Rows of 5, 12, 19 and 26 tokens: 62 in all, below the LayerNorm
-    // kernels' own switch at 256.
+    // Rows of 5, 16, 27 and 38 tokens: 86 in all, enough for the fused
+    // LayerNorm's groups of several blocks of tokens, and below the
+    // LayerNorm kernels' own switch at 256.
     let rows: Vec<Vec<i32>> =
-        (0..4i32).map(|r| (0..5 + 7 * r).map(|p| 1000 + (r * 131 + p * 17) % 20000).collect()).collect();
+        (0..4i32).map(|r| (0..5 + 11 * r).map(|p| 1000 + (r * 131 + p * 17) % 20000).collect()).collect();
     s.write_tokens(&Tokens::new(&rows, 0).batch(), None).unwrap();
     let together = s.run().unwrap().rows();
     s.write_tokens(&Tokens::new(&rows[..1], 0).batch(), None).unwrap();
     let alone = s.run().unwrap().rows();
-    assert_eq!(alone[0], together[0], "a row of 5 tokens alone and among 62");
+    assert_eq!(alone[0], together[0], "a row of 5 tokens alone and among 86");
 }
 
 /// Every row full, at FASTEST: the small model's 64 x 64 tokens fill whole

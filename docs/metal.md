@@ -53,11 +53,23 @@ frameworks and libc++, which every macOS has.
   name's first word. `runtime_version` is the SDK the build compiled
   against (`Metal, macOS SDK 27.0`); `driver_version` is the macOS
   version and build, since Metal ships with it (`macOS 27.0 (26A428)`).
-- **Capability.** Embed is EXPERIMENTAL at every precision, computing in
+- **Capability.** Embed runs at every precision, computing in
   F32, honoring every field of `turbo_embed_options`. A model stored in
   F16 or BF16 computes in F32 from a converted copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
-  as on the CPU.
+  as on the CPU. A cell is SUPPORTED where a benchmark record in
+  `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
+  records against TEI's router built natively with Metal. Elsewhere it is
+  EXPERIMENTAL. On the M2, one 16-token request at a time runs in 1.69 ms
+  p50 against TEI's 10.1 ms. For 32-row batches the ratio is about 50x
+  on mixed rows and 8-9x on dense, because TEI's router runs a 32-row
+  request as about 3 sequential sub-batches: its own `x-inference-time`
+  p50 was 609 ms on mixed and 1618 ms on dense, so its time is its
+  forward passes on candle Metal (77 to 1067 ms per sub-batch), with
+  HTTP and queueing under 25 ms of it. That forward grows steeply with
+  the padded batch, 3 ms for one 12-token row against 400-900 ms for a
+  sub-batch of about 10 rows padded to 256, so the 32-row ratio measures
+  TEI's forward at that shape, not its router.
 - **Contexts.** A context is a command queue on its device and the
   kernels, compiled from their source without fast math, so `exp`,
   `sqrt` and division are the precise ones: with the macOS 15 SDK or
