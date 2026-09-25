@@ -31,7 +31,7 @@ cargo build -p turbo --release --features cuda
 
 | Variable | Meaning |
 |---|---|
-| `TURBO_CUDA_ROOT` | The toolkit's directory, with `bin/nvcc`, `include/` and the libraries in `lib64/`, `lib/` or `targets/<arch>-linux/lib/`. Unset: `CUDA_PATH`, then `CUDA_HOME`, then `/usr/local/cuda`. |
+| `TURBO_CUDA_ROOT` | The toolkit's directory, with `bin/nvcc`, `include/` and the libraries in `lib64/`, `lib/`, `targets/<arch>-linux/lib/` or `lib/<arch>-linux-gnu/`. A distribution's packaged toolkit (nvcc in `/usr/bin`) works with `TURBO_CUDA_ROOT=/usr`. Unset: `CUDA_PATH`, then `CUDA_HOME`, then `/usr/local/cuda`. |
 | `TURBO_CUDA_ARCH` | The SM architectures to compile for, comma separated as nvcc numbers them: `89`, or `86,89,120`. Default `89`. |
 | `NVCC_CCBIN` | nvcc's own: the host compiler it runs, when the default is not one it accepts. |
 
