@@ -156,6 +156,56 @@ linear_sg(__global const float *x, __global const float *w, __global const float
     }
 }
 
+/* The same for a handful of tokens, 8 at most: a group of GV sub-groups
+ * computes 8 tokens by 32 outputs, each summing its own k_sub of the
+ * terms, and the sums meet in local memory. */
+#define GV 8
+__kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * GV, 1, 1))) void
+linear_gemv(__global const float *x, __global const float *w, __global const float *bias, __global float *y,
+            int tokens, int n_out, int n_in, int flags, int k_len, int k_sub) {
+    __local float part[GV][2][8][16];
+    const int lane = get_sub_group_local_id(), sg = get_sub_group_id();
+    const int o0 = get_group_id(0) * 32;
+    x += get_group_id(2) * k_len + sg * k_sub;
+    w += get_group_id(2) * k_len + sg * k_sub;
+    y += (size_t)get_group_id(2) * tokens * n_out;
+    float acc[8][2];
+    __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) acc[m][0] = acc[m][1] = 0.0f;
+    __global const float *w0 = w + (size_t)min(o0 + lane, n_out - 1) * n_in;
+    __global const float *w1 = w + (size_t)min(o0 + 16 + lane, n_out - 1) * n_in;
+    if (sg * k_sub < k_len) {
+        for (int k0 = 0; k0 < k_sub; k0 += 16) {
+            float a[8];
+            __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) a[m] =
+                m < tokens ? as_float(intel_sub_group_block_read((__global const uint *)(x + (size_t)m * n_in + k0))) : 0.0f;
+            const float16 b0 = vload16(0, w0 + k0), b1 = vload16(0, w1 + k0);
+            __attribute__((opencl_unroll_hint)) for (int kk = 0; kk < 16; kk++) {
+                __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {
+                    const float am = intel_sub_group_shuffle(a[m], kk);
+                    acc[m][0] = fma(am, b0[kk], acc[m][0]);
+                    acc[m][1] = fma(am, b1[kk], acc[m][1]);
+                }
+            }
+        }
+    }
+    __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {
+        part[sg][0][m][lane] = acc[m][0];
+        part[sg][1][m][lane] = acc[m][1];
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    /* Sub-group g finishes token g. */
+    if (sg >= tokens) return;
+    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {
+        const int o = o0 + j * 16 + lane;
+        if (o >= n_out) continue;
+        float v = part[0][j][sg][lane];
+        __attribute__((opencl_unroll_hint)) for (int s = 1; s < GV; s++) v = v + part[s][j][sg][lane];
+        if (flags & LINEAR_BIAS) v = v + bias[o];
+        if (flags & LINEAR_GELU) v = gelu(v);
+        y[(size_t)sg * n_out + o] = v;
+    }
+}
+
 /* The linear layers at FASTEST, on the matrix engines (XMX,
  * cl_intel_subgroup_matrix_multiply_accumulate): the same y, from F16
  * weights and F16 activations, with F32 sums. A product takes 8 x 16 of A
@@ -342,6 +392,50 @@ __attribute__((overloadable)) ushort8 intel_sub_group_block_read_us8(const __loc
 #define F32_LOAD16(p) convert_half16(vload16(0, p))
 #define F16_LOAD16(p) as_half16(vload16(0, (__global const ushort *)(p)))
 
+/* For a handful of tokens, 8 at most, where the layer is its weights'
+ * read: a group of GV_KS sub-groups computes 8 tokens by 32 outputs, each
+ * summing its own k_sub of the terms, and the sums meet in local memory. */
+#define GV_KS 8
+#define LINEAR_XMX_GEMV(NAME, X, Y, TO_A, FROM_F)                                                                \
+    __kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * GV_KS, 1, 1))) \
+    void NAME(__global const X *x, __global const half *w, __global const float *bias, __global Y *y,            \
+              int tokens, int n_out, int n_in, int flags, int k_len, int k_sub) {                                \
+        __local float part[GV_KS][2][8][16];                                                                     \
+        const int lane = get_sub_group_local_id(), sg = get_sub_group_id();                                      \
+        const int o0 = get_group_id(0) * 32;                                                                     \
+        x += get_group_id(2) * k_len + sg * k_sub;                                                               \
+        w += get_group_id(2) * k_len + sg * k_sub;                                                               \
+        y += (size_t)get_group_id(2) * tokens * n_out;                                                           \
+        float8 acc0 = (float8)(0.0f), acc1 = (float8)(0.0f);                                                     \
+        __global const half *w0 = w + (size_t)min(o0 + lane, n_out - 1) * n_in;                                  \
+        __global const half *w1 = w + (size_t)min(o0 + 16 + lane, n_out - 1) * n_in;                            \
+        if (sg * k_sub < k_len) {                                                                                \
+            for (int k0 = 0; k0 < k_sub; k0 += 16) {                                                             \
+                short8 a;                                                                                        \
+                __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) a[m] =                           \
+                    m < tokens ? TO_A(x + (size_t)m * n_in + k0) : 0;                                            \
+                acc0 = intel_sub_group_f16_f16_matrix_mad_k16(a, as_int8(vload8(0, (__global const uint *)(w0 + k0))), acc0); \
+                acc1 = intel_sub_group_f16_f16_matrix_mad_k16(a, as_int8(vload8(0, (__global const uint *)(w1 + k0))), acc1); \
+            }                                                                                                    \
+        }                                                                                                        \
+        __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                                        \
+            part[sg][0][m][lane] = acc0[m];                                                                      \
+            part[sg][1][m][lane] = acc1[m];                                                                      \
+        }                                                                                                        \
+        barrier(CLK_LOCAL_MEM_FENCE);                                                                            \
+        /* Sub-group g finishes token g, both blocks of 16 outputs. */                                           \
+        if (sg >= tokens) return;                                                                                \
+        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                        \
+            const int o = o0 + j * 16 + lane;                                                                    \
+            if (o >= n_out) continue;                                                                            \
+            float v = part[0][j][sg][lane];                                                                      \
+            __attribute__((opencl_unroll_hint)) for (int s = 1; s < GV_KS; s++) v = v + part[s][j][sg][lane];    \
+            if (flags & LINEAR_BIAS) v = v + bias[o];                                                            \
+            if (flags & LINEAR_GELU) v = gelu(v);                                                                \
+            y[(size_t)sg * n_out + o] = FROM_F(v);                                                               \
+        }                                                                                                        \
+    }
+
 #define F32_TO_A(p) as_short(convert_half(as_float(intel_sub_group_block_read((__global const uint *)(p)))))
 #define F16_TO_A(p) as_short(intel_sub_group_block_read_us((__global const ushort *)(p)))
 #define TO_F32(v) (v)
@@ -356,6 +450,9 @@ LINEAR_XMX_SHARED(linear_xmx_shared_from_half, short, float, F16_TO_A, TO_F32)
 LINEAR_XMX_WG(linear_xmx_wg, float, float, F32_LOAD16, TO_F32)
 LINEAR_XMX_WG(linear_xmx_wg_to_half, float, half, F32_LOAD16, TO_F16)
 LINEAR_XMX_WG(linear_xmx_wg_from_half, short, float, F16_LOAD16, TO_F32)
+LINEAR_XMX_GEMV(linear_xmx_gemv, float, float, F32_TO_A, TO_F32)
+LINEAR_XMX_GEMV(linear_xmx_gemv_to_half, float, half, F32_TO_A, TO_F16)
+LINEAR_XMX_GEMV(linear_xmx_gemv_from_half, short, float, F16_TO_A, TO_F32)
 
 /* ---- Rows ---------------------------------------------------------------- */
 

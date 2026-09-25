@@ -106,7 +106,9 @@ of any run.
   or the last live one) and cuts to `output_dim`, and when asked another
   normalizes. The LayerNorms run a sub-group per token, or a group per
   token below 256 tokens. The linear layers run by sub-group, 8 tokens by
-  64 outputs each, in F32 on the vector engines. At FASTEST they run on
+  64 outputs each, in F32 on the vector engines; with 8 tokens or fewer, a
+  group of up to 8 sub-groups computes 32 outputs, each summing an equal
+  share of the terms, in F32 or on the matrix engines. At FASTEST they run on
   the matrix engines: where a layer has tiles enough, a group of 8
   sub-groups computes 64 tokens by 128 outputs and stages its operands
   through local memory as F16; with fewer, 8 tokens by 64 outputs a
