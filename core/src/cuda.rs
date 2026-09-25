@@ -65,6 +65,9 @@ pub enum Tile {
     T128x64 = 2,
     /// 128 x 128.
     T128x128 = 3,
+    /// 128 x 128 with 16 x 8 outputs to a thread for the FMA kernel;
+    /// 128 x 128 on the tensor cores.
+    T128x128Thread16x8 = 4,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random

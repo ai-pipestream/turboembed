@@ -654,29 +654,34 @@ template <typename TOut> __device__ inline TOut *out_at(const GemmArgs &g, int t
 
 // -- The SIMT GEMM: F32 (and F16 before sm_80), FMAs ----------------------------------
 //
-// A BM x BN tile per block of (BM / 8) x (BN / 8) threads, each thread
-// 8 x 8 outputs: rows ty + (BM / 8) i and columns tx + (BN / 8) j, so a
-// quarter warp's shared memory reads are 8 consecutive rows of A or B,
-// in distinct banks for rows of 20 floats. k goes 16 at a time through a
-// 3-stage cp.async pipeline of rows of A and of the weight, k contiguous
-// in each; each thread reads four k values of each of its rows and
-// columns (16 LDS.128) per 256 FMAs.
+// A BM x BN tile per block of (BM / TM) x (BN / 8) threads, each thread
+// TM x 8 outputs: rows ty + (BM / TM) i and columns tx + (BN / 8) j, so
+// a quarter warp's shared memory reads are one row of A, which they
+// share, or 8 consecutive rows of B, in distinct banks for rows of 20
+// floats. k goes 16 at a time through a 3-stage cp.async pipeline of
+// rows of A and of the weight, k contiguous in each; each thread reads
+// four k values of each of its rows and columns, TM + 8 LDS.128 per
+// 32 TM FMAs: 16 per 256 at 8 x 8, 24 per 512 at 16 x 8, which is the
+// F32 default, 128 x 128 over 128 threads, since shared memory reads
+// bound the kernel. Each output's FMAs run in k order at every tile.
 
 constexpr int SIMT_BK = 16, SIMT_STAGES = 3;
 
 template <typename TIn> __host__ __device__ constexpr int simt_ld() { return SIMT_BK + 16 / (int)sizeof(TIn); }
 
 /* Four blocks to an SM at 64 x 64, two at 128 x 64, one at 128 x 128. */
-template <int BM, int BN> constexpr int simt_min_blocks() { return BM * BN <= 64 * 64 ? 4 : BM * BN <= 128 * 64 ? 2 : 1; }
+template <int BM, int BN> constexpr int simt_min_blocks() {
+    return BM * BN <= 64 * 64 ? 4 : BM * BN <= 128 * 64 ? 2 : 1;
+}
 
 template <int BM, int BN, typename TIn> constexpr size_t simt_gemm_smem() {
     return (size_t)SIMT_STAGES * (BM + BN) * simt_ld<TIn>() * sizeof(TIn);
 }
 
-template <int BM, int BN, typename TIn, int EPI, typename TOut>
-__global__ void __launch_bounds__((BM / 8) * (BN / 8), (simt_min_blocks<BM, BN>()))
+template <int BM, int BN, int TM, typename TIn, int EPI, typename TOut>
+__global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>()))
     gemm_simt_kernel(GemmArgs g) {
-    constexpr int TX = BN / 8, TY = BM / 8, NT = TX * TY, LD = simt_ld<TIn>(), E = 16 / (int)sizeof(TIn);
+    constexpr int TX = BN / 8, TY = BM / TM, NT = TX * TY, LD = simt_ld<TIn>(), E = 16 / (int)sizeof(TIn);
     constexpr int CH = SIMT_BK / E; // 16-byte chunks per row of a stage
     constexpr int SLOT = BM * BN;
     extern __shared__ __align__(16) unsigned char gemm_sm[];
@@ -710,9 +715,9 @@ __global__ void __launch_bounds__((BM / 8) * (BN / 8), (simt_min_blocks<BM, BN>(
             }
         };
 
-        float acc[8][8];
+        float acc[TM][8];
 #pragma unroll
-        for (int i = 0; i < 8; i++)
+        for (int i = 0; i < TM; i++)
 #pragma unroll
             for (int j = 0; j < 8; j++) acc[i][j] = 0.0f;
 
@@ -730,19 +735,20 @@ __global__ void __launch_bounds__((BM / 8) * (BN / 8), (simt_min_blocks<BM, BN>(
             copy_commit();
             const TIn *as = As + (kt % SIMT_STAGES) * BM * LD + ty * LD;
             const TIn *bs = Bs + (kt % SIMT_STAGES) * BN * LD + tx * LD;
-#pragma unroll
+#pragma unroll(TM == 16 ? 1 : SIMT_BK / 4)
             for (int kk = 0; kk < SIMT_BK; kk += 4) {
-                float a[8][4], b[8][4];
-#pragma unroll
-                for (int i = 0; i < 8; i++) lds4(as + i * TY * LD + kk, a[i]);
+                float b[8][4];
 #pragma unroll
                 for (int j = 0; j < 8; j++) lds4(bs + j * TX * LD + kk, b[j]);
 #pragma unroll
-                for (int q = 0; q < 4; q++)
+                for (int i = 0; i < TM; i++) {
+                    float a[4];
+                    lds4(as + i * TY * LD + kk, a);
 #pragma unroll
-                    for (int i = 0; i < 8; i++)
+                    for (int q = 0; q < 4; q++)
 #pragma unroll
-                        for (int j = 0; j < 8; j++) acc[i][j] = fmaf(a[i][q], b[j][q], acc[i][j]);
+                        for (int j = 0; j < 8; j++) acc[i][j] = fmaf(a[q], b[j][q], acc[i][j]);
+                }
             }
         }
         copy_wait<0>();
@@ -752,7 +758,7 @@ __global__ void __launch_bounds__((BM / 8) * (BN / 8), (simt_min_blocks<BM, BN>(
             // The start of a tile a later block finishes.
             float *slot = g.ws + (size_t)blockIdx.x * SLOT + threadIdx.x;
 #pragma unroll
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < TM; i++)
 #pragma unroll
                 for (int j = 0; j < 8; j++) __stcg(slot + (i * 8 + j) * NT, acc[i][j]);
             sk_raise(g.flags + blockIdx.x);
@@ -763,7 +769,7 @@ __global__ void __launch_bounds__((BM / 8) * (BN / 8), (simt_min_blocks<BM, BN>(
             sk_wait(g.flags + b, g.fault);
             const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
 #pragma unroll
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < TM; i++)
 #pragma unroll
                 for (int j = 0; j < 8; j++) acc[i][j] += __ldcg(slot + (i * 8 + j) * NT);
         }
@@ -776,7 +782,7 @@ __global__ void __launch_bounds__((BM / 8) * (BN / 8), (simt_min_blocks<BM, BN>(
             col[j] = EPI == EPI_QKV && c < N ? qkv_column(g, c) : 0;
         }
 #pragma unroll
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < TM; i++) {
             const int t = m0 + ty + TY * i;
             if (t >= M) continue;
 #pragma unroll
@@ -988,10 +994,11 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
 #endif
 }
 
-/* The tile a GEMM runs: TURBO_CUDA_TILE's, or TILE_DEFAULT, which the
- * FMA kernel takes as 128 x 64 and the tensor cores as their mix. */
+/* The tile a GEMM runs: TURBO_CUDA_TILE's, or TILE_DEFAULT, which each
+ * kernel resolves to its own; the tensor cores take the FMA kernel's
+ * 16 x 8 micro-tile as plain 128 x 128. */
 Tile resolve_tile(bool mma, Tile t) {
-    if (t == TILE_DEFAULT && !mma) return TILE_128x64;
+    if (t == TILE_128x128_16x8 && mma) return TILE_128x128;
     return t;
 }
 
@@ -1004,8 +1011,12 @@ struct GemmKernel {
     int per_sm; /* the blocks to an SM its launch bounds ask for */
 };
 
-template <int BM, int BN, typename TIn, int EPI, typename TOut> GemmKernel simt_kernel() {
-    return {gemm_simt_kernel<BM, BN, TIn, EPI, TOut>, (BM / 8) * (BN / 8), simt_gemm_smem<BM, BN, TIn>(), BM, BN,
+template <int BM, int BN, int TM, typename TIn, int EPI, typename TOut> GemmKernel simt_kernel() {
+    return {gemm_simt_kernel<BM, BN, TM, TIn, EPI, TOut>,
+            (BM / TM) * (BN / 8),
+            simt_gemm_smem<BM, BN, TIn>(),
+            BM,
+            BN,
             simt_min_blocks<BM, BN>()};
 }
 
@@ -1018,11 +1029,16 @@ template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut> Ge
             mma_min_blocks<BM, BN, STAGES, TOut>()};
 }
 
+/* The FMA kernel's tiles, 8 x 8 outputs to a thread but the 16 x 8 of
+ * 128 x 128 over 128 threads, the F32 default; F16 (devices before
+ * sm_80) takes 128 x 64 by default. */
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
+    if (t == TILE_DEFAULT) t = sizeof(TIn) == 4 ? TILE_128x128_16x8 : TILE_128x64;
     switch (t) {
-    case TILE_64x64: return simt_kernel<64, 64, TIn, EPI, TOut>();
-    case TILE_128x128: return simt_kernel<128, 128, TIn, EPI, TOut>();
-    default: return simt_kernel<128, 64, TIn, EPI, TOut>();
+    case TILE_64x64: return simt_kernel<64, 64, 8, TIn, EPI, TOut>();
+    case TILE_128x128: return simt_kernel<128, 128, 8, TIn, EPI, TOut>();
+    case TILE_128x128_16x8: return simt_kernel<128, 128, 16, TIn, EPI, TOut>();
+    default: return simt_kernel<128, 64, 8, TIn, EPI, TOut>();
     }
 }
 
