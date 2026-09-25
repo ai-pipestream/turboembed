@@ -106,9 +106,9 @@ of any run.
   attention kernel (scaled dot products over the keys whose mask is 1,
   with an online softmax), the attention output projection, a residual
   and LayerNorm kernel, the feed-forward input with GELU (erf) in its
-  epilogue, the feed-forward output with its sums split four ways over its
-  terms, and a kernel that adds the parts, the residual and the
-  LayerNorm; then one kernel pools (mean over the mask, the first token,
+  epilogue, the feed-forward output (its sums split four ways over its
+  terms where the kernels below split them), and a kernel that adds the
+  parts, the residual and the LayerNorm; then one kernel pools (mean over the mask, the first token,
   or the last live one) and cuts to `output_dim`, and when asked another
   normalizes. The LayerNorms run a sub-group per token, or a group per
   token below 256 tokens. In F32 the linear layers run on the vector
