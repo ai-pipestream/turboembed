@@ -15,7 +15,8 @@ are and how it times them (docs/cuda.md, Kernel choices and Autotuning).
   path reports it empty.
 - `tuned`: where the choices came from. `TURBO_TUNED_DEFAULT`, the
   backend's own; `TURBO_TUNED_FORCED`, every choice named by the
-  environment or a test; `TURBO_TUNED_MEASURED`, timed when this
+  environment or a test, or in a tuned session every choice the
+  backend would time; `TURBO_TUNED_MEASURED`, timed when this
   session was made; `TURBO_TUNED_CACHE`, timed for an earlier session
   with the same key and reused.
 - `tune_ms`: the time spent measuring, 0 unless MEASURED.

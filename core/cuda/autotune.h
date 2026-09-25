@@ -136,6 +136,10 @@ constexpr const char *KNOB_NAMES[] = {"tile", "sk", "tf32", "attn", "ln", "pool"
  * each bin's attention and LayerNorm, and the pooling. */
 bool all_forced(const Choices &c);
 
+/* Whether every GEMM's tile was forced, in each bin: the tuner has
+ * nothing to time. */
+bool tiles_forced(const Choices &c);
+
 /* The kernels of c as they run in a session of the base shape: each
  * choice a name that runs no kernel of its own (a tile the operands or the
  * device do not take, the default tile, stream-K's default steps,

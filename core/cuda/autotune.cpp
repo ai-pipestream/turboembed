@@ -164,6 +164,13 @@ bool all_forced(const Choices &c) {
     return true;
 }
 
+bool tiles_forced(const Choices &c) {
+    for (int b = 0; b < c.bins; b++)
+        for (uint32_t f : c.bin[b].gemm_forced)
+            if (!(f & KNOB_TILE)) return false;
+    return true;
+}
+
 void canonicalize(const Shape &base, Choices *c) {
     const int d = base.hidden / base.heads;
     const bool mma_attention = base.half && base.tensor_cores && (d == 32 || d == 64);
