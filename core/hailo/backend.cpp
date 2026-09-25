@@ -295,6 +295,8 @@ const turbo_backend turbo_hailo_backend = {
     nullptr,
     nullptr,
     nullptr,
+    0,
+    0,
 };
 
 } // extern "C"

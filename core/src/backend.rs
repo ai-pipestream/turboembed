@@ -17,6 +17,21 @@ pub const TURBO_BERT_LAYER_TENSORS: u32 = 16;
 
 pub const TURBO_FAMILY_BERT: u32 = 1;
 
+pub const TURBO_FORMAT_SAFETENSORS: u32 = 1;
+pub const TURBO_FORMAT_OPENVINO_IR: u32 = 2;
+pub const TURBO_FORMAT_HEF: u32 = 3;
+pub const TURBO_FORMAT_GGUF: u32 = 4;
+pub const TURBO_FORMAT_ONNX: u32 = 5;
+
+/// TURBO_FORMAT_BIT: format `f`'s bit in turbo_backend.formats.
+pub const fn format_bit(f: u32) -> u32 {
+    1 << (f - 1)
+}
+
+pub const TURBO_INPUT_TOKEN_IDS: u32 = 1;
+pub const TURBO_INPUT_EMBEDDINGS: u32 = 2;
+pub const TURBO_OUTPUT_HIDDEN_STATES: u32 = 1;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct turbo_backend_tensor {
@@ -45,6 +60,14 @@ pub struct turbo_backend_model {
     pub tensor_count: u32,
     pub reserved: u32,
     pub tensors: *const turbo_backend_tensor,
+    pub format: u32,
+    pub graph_input: u32,
+    pub graph_output: u32,
+    pub compute_dtype: u32,
+    pub fixed_seq: u32,
+    pub fixed_batch: u32,
+    pub artifact: *const c_void,
+    pub artifact_bytes: u64,
 }
 
 #[repr(C)]
@@ -161,6 +184,8 @@ pub struct turbo_backend {
         Option<unsafe extern "C" fn(session: *mut c_void, out: *mut turbo_backend_run, err: *mut turbo_error) -> i32>,
     pub buffer_read:
         Option<unsafe extern "C" fn(buf: *mut c_void, dst: *mut c_void, bytes: u64, err: *mut turbo_error) -> i32>,
+    pub formats: u32,
+    pub reserved2: u32,
 }
 
 // The table is immutable static data, read from any thread.
@@ -169,6 +194,16 @@ unsafe impl Sync for turbo_backend {}
 impl turbo_backend {
     pub fn name(&self) -> &str {
         unsafe { CStr::from_ptr(self.name) }.to_str().unwrap_or("")
+    }
+
+    /// The TURBO_FORMAT_* bits model_load takes: FORMAT_SAFETENSORS alone
+    /// for a table that ends before formats, or that leaves it 0.
+    pub fn formats(&self) -> u32 {
+        let covers = self.struct_size as usize >= std::mem::offset_of!(turbo_backend, formats) + size_of::<u32>();
+        match covers.then_some(self.formats) {
+            None | Some(0) => format_bit(TURBO_FORMAT_SAFETENSORS),
+            Some(f) => f,
+        }
     }
 }
 
@@ -202,11 +237,12 @@ static LINKED: &[&turbo_backend] = &[
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.
-const TABLE_SIZES: [usize; 5] = [
+const TABLE_SIZES: [usize; 6] = [
     std::mem::offset_of!(turbo_backend, context_create),
     std::mem::offset_of!(turbo_backend, model_load),
     std::mem::offset_of!(turbo_backend, session_create),
     std::mem::offset_of!(turbo_backend, buffer_read),
+    std::mem::offset_of!(turbo_backend, formats),
     size_of::<turbo_backend>(),
 ];
 
@@ -367,6 +403,27 @@ mod tests {
         assert!(offered!(&t, session_run).is_ok());
         let e = offered!(&t, buffer_read).err().unwrap();
         assert_eq!(e, Error::new(UNSUPPORTED, "the cpu backend does not offer buffer_read"));
+    }
+
+    #[test]
+    fn a_table_from_before_formats_is_known_and_loads_raw_weights_alone() {
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, formats));
+        check_table(&t).unwrap();
+        assert!(offered!(&t, session_run).is_ok());
+        assert_eq!(t.formats(), format_bit(TURBO_FORMAT_SAFETENSORS));
+        // Whatever lies past the table's end is not read.
+        let mut t = cpu_table(std::mem::offset_of!(turbo_backend, formats));
+        t.formats = format_bit(TURBO_FORMAT_HEF);
+        assert_eq!(t.formats(), format_bit(TURBO_FORMAT_SAFETENSORS));
+        // A whole table that leaves formats 0 means the same.
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.formats = 0;
+        assert_eq!(t.formats(), format_bit(TURBO_FORMAT_SAFETENSORS));
+        let mut t = cpu_table(size_of::<turbo_backend>());
+        t.formats = format_bit(TURBO_FORMAT_SAFETENSORS) | format_bit(TURBO_FORMAT_HEF);
+        assert_eq!(t.formats(), 0b101);
+        let t = cpu_table(std::mem::offset_of!(turbo_backend, reserved2));
+        assert_eq!(check_table(&t).unwrap_err().code, INTERNAL, "a size inside the formats group is unknown");
     }
 
     #[test]

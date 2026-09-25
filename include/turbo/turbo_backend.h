@@ -26,11 +26,14 @@
  *     first. It has no log function of its own: its warnings reach the
  *     caller through the log function the core hands it with a context.
  *   - The table grows only at the end, and struct_size says how much of it
- *     a backend fills. The core knows five sizes: through capability,
+ *     a backend fills. The core knows six sizes: through capability,
  *     through buffer_export, through model_release, through session_run,
- *     and through buffer_read, which is sizeof(turbo_backend). It refuses
- *     any other. A function added after the first three may be NULL, and
- *     the core calls it only when struct_size covers it.
+ *     through buffer_read, and through reserved2, which is
+ *     sizeof(turbo_backend). It refuses any other. A function added after
+ *     the first three may be NULL, and the core calls it only when
+ *     struct_size covers it; formats it reads only when struct_size
+ *     covers it, and a table that ends before it loads FORMAT_SAFETENSORS
+ *     alone.
  *   - A backend that offers context_create offers context_release, one
  *     that offers buffer_alloc or buffer_import offers buffer_release, one
  *     that offers model_load offers model_release, and one that offers
@@ -87,6 +90,28 @@ extern "C" {
 /* The encoder families a model may be. */
 #define TURBO_FAMILY_BERT 1   /* GELU (erf), absolute positions, post-LayerNorm */
 
+/* An artifact's format, as docs/bundle.md's artifacts[].format names it.
+ * turbo_backend.formats has bit TURBO_FORMAT_BIT(f) set for each format f
+ * the backend's model_load takes. The core hands a backend
+ * FORMAT_SAFETENSORS and FORMAT_HEF; it never chooses an artifact of the
+ * other formats for any backend. */
+#define TURBO_FORMAT_SAFETENSORS 1   /* raw weights: tensors, no artifact bytes */
+#define TURBO_FORMAT_OPENVINO_IR 2
+#define TURBO_FORMAT_HEF         3   /* a Hailo compiled graph: one file, as artifact */
+#define TURBO_FORMAT_GGUF        4
+#define TURBO_FORMAT_ONNX        5
+#define TURBO_FORMAT_BIT(f) (1u << ((f) - 1u))
+
+/* Where an artifact's graph starts and stops (docs/bundle.md,
+ * artifacts[].graph_input and graph_output). */
+#define TURBO_INPUT_TOKEN_IDS       1   /* ids, mask and types as the rows give them */
+#define TURBO_INPUT_EMBEDDINGS      2   /* the word-embedding rows gathered by id, before the
+                                           position and token type embeddings are added and
+                                           before the embeddings LayerNorm; the graph owns
+                                           everything after, and computes token type 0 only */
+#define TURBO_OUTPUT_HIDDEN_STATES  1   /* the last layer's hidden states, [batch, seq, hidden];
+                                           pooling and normalize are the backend's to add */
+
 /* One tensor, in the bytes the core read from the weights file and checked
  * against the manifest's hash. Packed row-major, little-endian. */
 typedef struct turbo_backend_tensor {
@@ -98,10 +123,27 @@ typedef struct turbo_backend_tensor {
     uint64_t    bytes;
 } turbo_backend_tensor;
 
+/* The artifact rule 6 of docs/bundle.md chose, as model_load receives it.
+ * layers through layer_norm_eps are the manifest's architecture, whatever
+ * the format.
+ *
+ *   FORMAT_SAFETENSORS  graph_input TOKEN_IDS; tensors holds every tensor
+ *                       of the encoder; artifact NULL, artifact_bytes 0.
+ *   FORMAT_HEF          artifact is the one file's bytes, as hashed. With
+ *                       graph_input EMBEDDINGS, tensors holds the
+ *                       host_weights artifact's embedding tensors,
+ *                       tensor_count TURBO_BERT_EMBEDDING_TENSORS in the
+ *                       usual order, for the lookup the backend does on
+ *                       the host; with TOKEN_IDS, tensors is NULL and
+ *                       tensor_count 0.
+ *
+ * artifact, like each tensor's data, stays where it is, unchanged, until
+ * model_release returns. */
 typedef struct turbo_backend_model {
     uint32_t    struct_size;
     uint32_t    family;           /* TURBO_FAMILY_*, which says how tensors is laid out */
-    uint32_t    dtype;            /* every tensor's: TURBO_DTYPE_F32, F16 or BF16 */
+    uint32_t    dtype;            /* every tensor's: TURBO_DTYPE_F32, F16 or BF16; 0 when
+                                     tensor_count is 0 */
     uint32_t    layers;
     uint32_t    hidden;
     uint32_t    heads;
@@ -110,9 +152,19 @@ typedef struct turbo_backend_model {
     uint32_t    max_positions;
     uint32_t    token_types;
     double      layer_norm_eps;
-    uint32_t    tensor_count;     /* BERT: TURBO_BERT_EMBEDDING_TENSORS + layers * TURBO_BERT_LAYER_TENSORS */
+    uint32_t    tensor_count;     /* BERT: TURBO_BERT_EMBEDDING_TENSORS + layers * TURBO_BERT_LAYER_TENSORS
+                                     for raw weights; as above for a HEF */
     uint32_t    reserved;
     const turbo_backend_tensor *tensors;
+    uint32_t    format;           /* TURBO_FORMAT_*, one turbo_backend.formats lists */
+    uint32_t    graph_input;      /* TURBO_INPUT_* */
+    uint32_t    graph_output;     /* TURBO_OUTPUT_* */
+    uint32_t    compute_dtype;    /* TURBO_DTYPE_* the compilation fixed; 0 where the manifest
+                                     fixes none, as for raw weights */
+    uint32_t    fixed_seq;        /* the shape compiled in; 0 is dynamic */
+    uint32_t    fixed_batch;
+    const void *artifact;         /* the compiled artifact's bytes; NULL for raw weights */
+    uint64_t    artifact_bytes;
 } turbo_backend_model;
 
 /* Rows for an embed run, as the core hands them to embed_write, [batch,
@@ -121,7 +173,9 @@ typedef struct turbo_backend_model {
  * token_types, each mask entry 0 or 1 with at least one 1 per row, batch
  * and seq within the session's, and the options resolved from
  * turbo_embed_options against the bundle, so none of them is a MODEL
- * value. */
+ * value. A backend on a TURBO_INPUT_EMBEDDINGS artifact refuses rows with
+ * a type other than 0 with TURBO_E_UNSUPPORTED_OPTION (docs/bundle.md,
+ * "Graph inputs"). */
 typedef struct turbo_backend_embed_rows {
     uint32_t       struct_size;
     uint32_t       batch;
@@ -246,6 +300,14 @@ typedef struct turbo_backend {
      * for turbo_result_read, after the run that wrote the buffer returned,
      * and counts the bytes in d2h_bytes. */
     int32_t (*buffer_read)(void *buf, void *dst, uint64_t bytes, turbo_error *err);
+
+    /* Formats. */
+
+    /* TURBO_FORMAT_BIT of each TURBO_FORMAT_* model_load takes. 0 is
+     * FORMAT_SAFETENSORS alone, as for a table that ends before this. Rule
+     * 6 of docs/bundle.md chooses only an artifact whose format is here. */
+    uint32_t formats;
+    uint32_t reserved2;
 } turbo_backend;
 
 #ifdef __cplusplus

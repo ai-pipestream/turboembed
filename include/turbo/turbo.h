@@ -140,6 +140,8 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
                                       benchmark record named in the cell exists; the rule
                                       is in docs/benchmarks.md */
 
+#define TURBO_DTYPE_I8    6   /* a compute dtype only: a session's or a capability's, never a
+                                  buffer's */
 #define TURBO_DTYPE_I32   8
 #define TURBO_DTYPE_F16  10
 #define TURBO_DTYPE_BF16 11

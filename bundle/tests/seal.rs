@@ -248,9 +248,10 @@ fn the_onnx_file_is_copied_and_sealed_and_no_backend_chooses_it() {
     assert_eq!(b.manifest.artifacts[i].files, ["onnx/model.onnx"]);
     assert!(b.manifest.artifacts[i].backends.is_empty());
     for backend in BACKENDS {
-        assert_ne!(turbo::model::choose(&b.manifest, backend, "any").unwrap(), i, "{backend}");
+        // Not even a backend that says it loads every format.
+        assert_ne!(turbo::model::choose(&b.manifest, backend, u32::MAX, "any").unwrap(), i, "{backend}");
     }
-    let e = turbo::model::choose(&b.manifest, "openvino", "any").unwrap_err();
+    let e = turbo::model::choose(&b.manifest, "openvino", u32::MAX, "any").unwrap_err();
     assert!(e.message.contains("onnx-f32: backends [] has no openvino"), "{}", e.message);
 
     // A changed ONNX file fails verification like any other.
