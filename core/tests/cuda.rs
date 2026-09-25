@@ -1257,9 +1257,9 @@ fn the_gemms_match_cublas() {
     ] {
         for (half, tensor_cores) in [(false, false), (true, true), (true, false)] {
             let tiles: &[Tile] = if half && tensor_cores {
-                &[Tile::T64x64, Tile::T128x64]
+                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128]
             } else {
-                &[Tile::T64x64, Tile::T128x64, Tile::T128x128]
+                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
             };
             for &tile in tiles {
                 // A token count past a few thousand only as many blocks
@@ -1309,7 +1309,7 @@ fn every_gemm_tile_gives_the_same_vectors() {
         let tol = record::tolerance(own.info().compute_dtype).unwrap();
         own.write_tokens(&t.batch(), None).unwrap();
         let want = own.run().unwrap().rows();
-        for tile in [Tile::T64x64, Tile::T128x64, Tile::T128x128] {
+        for tile in [Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8] {
             turbo::cuda::use_tile(Some(tile));
             let s = Session::create(g.m, Some(&session_desc(40, 160, precision)));
             turbo::cuda::use_tile(None);
