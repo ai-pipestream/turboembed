@@ -16,7 +16,8 @@ use std::sync::OnceLock;
 use crate::backend::{TURBO_CAP_EXPERIMENTAL, TURBO_CAP_UNSUPPORTED, refuse, turbo_backend};
 use crate::status::{DEVICE_UNAVAILABLE, INVALID_ARGUMENT};
 use crate::{
-    TURBO_DEVICE_GPU, TURBO_DEVICE_IGPU, TURBO_DTYPE_F32, turbo_device_info, turbo_error, turbo_log_fn, write_str,
+    TURBO_DEVICE_GPU, TURBO_DEVICE_IGPU, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_PRECISION_FASTEST, turbo_device_info,
+    turbo_error, turbo_log_fn, write_str,
 };
 
 pub static BACKEND: turbo_backend = turbo_backend {
@@ -96,7 +97,7 @@ unsafe extern "C" fn device_info(ordinal: u32, out: *mut turbo_device_info, err:
 unsafe extern "C" fn capability(
     ordinal: u32,
     _task: u32,
-    _precision: u32,
+    precision: u32,
     status: *mut u32,
     dtype: *mut u32,
     options_honored: *mut u32,
@@ -112,7 +113,10 @@ unsafe extern "C" fn capability(
         let r = std::slice::from_raw_parts_mut(reason, reason_len as usize);
         if dev.fp64 {
             *status = TURBO_CAP_EXPERIMENTAL;
-            *dtype = TURBO_DTYPE_F32;
+            // FASTEST runs the linear layers on the matrix engines in F16,
+            // for a model whose widths the kernels take; a session of any
+            // other falls back to F32 and says so in its info.
+            *dtype = if precision == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
             *options_honored = EMBED_HONORED;
             write_str(r, "");
         } else {
@@ -213,6 +217,8 @@ pub(crate) struct Device {
     memory_total: u64,
     /// The most local memory one work-group may have.
     max_local: u32,
+    /// Nanoseconds per tick of the device's timestamps.
+    timer_ns: u64,
     /// Whether the device computes in F64, which the encoder sums in.
     fp64: bool,
     arch: String,
@@ -301,6 +307,7 @@ impl Driver {
                     integrated: p.flags & ze::DEVICE_PROPERTY_FLAG_INTEGRATED != 0,
                     memory_total: mem.iter().map(|m| m.total_size).sum(),
                     max_local: compute.max_shared_local_memory,
+                    timer_ns: p.timer_resolution,
                     fp64: module.flags & ze::DEVICE_MODULE_FLAG_FP64 != 0,
                     arch: arch(p.vendor_id, p.device_id),
                     name: ze::string(&p.name),
