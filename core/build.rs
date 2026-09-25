@@ -146,7 +146,10 @@ fn levelzero() {
                  that translates through llvm-spirv needs it on the PATH): set TURBO_CLANG to one";
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("levelzero_encoder.spv");
     let mut cmd = Command::new(&clang);
-    cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-c", SOURCE, "-o"]).arg(&out);
+    // The kernels read a sub-group's operands with Intel's block reads.
+    cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-mllvm", "--spirv-ext=+SPV_INTEL_subgroups", "-c", SOURCE])
+        .arg("-o")
+        .arg(&out);
     let done = cmd.output().unwrap_or_else(|e| fail(&format!("{needs}; {shown} did not run: {e}")));
     let stderr = String::from_utf8_lossy(&done.stderr);
     if !done.status.success() {
