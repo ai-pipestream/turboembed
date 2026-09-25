@@ -11,7 +11,8 @@
  *   - Every struct the caller fills or receives starts with
  *     uint32_t struct_size = sizeof(struct). The library reads and writes
  *     only fields below that size. A size it does not know is
- *     TURBO_E_INVALID_STRUCT_SIZE.
+ *     TURBO_E_INVALID_STRUCT_SIZE. A struct grows only at its end, and a
+ *     size an earlier version of this file had stays known.
  *   - Enumerations are uint32_t constants. An unknown value is
  *     TURBO_E_INVALID_ENUM. Nothing is mapped to a default.
  *   - Strings are UTF-8 views (turbo_text), valid for the call. Bad UTF-8 is

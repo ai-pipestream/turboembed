@@ -74,7 +74,7 @@ life and are released with it (Contents).
 | `ServerLive` | `live` true | The process is up and answering gRPC. No library call. |
 | `ServerReady` | `ready` true when every configured model is ready | `ModelReady` of each. |
 | `ModelReady` | `ready` true when the model is loaded and all its sessions are made | `turbo_model_load` and every `turbo_session_create` returned `TURBO_OK`. |
-| `ServerMetadata` | `name` `turboembed`, `version` the string `turbo_version()` returns (`0.1.0 cuda cpu`, say: the version and the backends linked), `extensions` empty | `turbo_version`. |
+| `ServerMetadata` | `name` `turboembed`, `version` the string `turbo_version()` returns (`0.1.0 cuda cpu`, say: the version and the linked backends in device order), `extensions` empty | `turbo_version`. |
 | `ModelMetadata` | name, versions, platform, inputs, outputs, properties | `turbo_model_get_info`, `turbo_session_get_info`, `turbo_runtime_device_info`, `turbo_runtime_capability`. |
 | `ModelInfer` | the vectors, and the run's summary as response parameters | `turbo_embed_write_text` or `turbo_embed_write_tokens`, then `turbo_session_run`, `turbo_result_read` or `turbo_result_buffer`, `turbo_result_get_info`. |
 
@@ -189,6 +189,10 @@ would take; on a CPU, PINNED is host memory (`TURBO_PLACE_PINNED`). A
 raw input larger than its buffer (`batch` over the session's
 `max_batch` or `seq` over its `max_seq`) is not copied, and the answer
 is `TURBO_E_CAPACITY`, what `turbo_embed_write_tokens` gives that shape.
+This refusal is the server's own, made before the call, with
+`turbo-field` 0; a request that is both oversized and carries a refused
+option is told CAPACITY here, where the library would name the option
+first.
 
 Nothing else is copied by the server. Each `turbo_text` points into the
 request's own bytes, typed or raw; typed `int_contents` are already
