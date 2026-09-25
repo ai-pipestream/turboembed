@@ -1279,7 +1279,8 @@ fn f16_accumulators_hold_fastest_s_bound() {
     for (tile, separate) in
         [None, Some(Tile::F16WholeK), Some(Tile::F16WholeK3)].into_iter().flat_map(|tile| [(tile, true), (tile, false)])
     {
-        turbo::cuda::use_f16_accumulate(tile.is_none().then_some(true));
+        // The whole-k tiles are the F16 accumulators' experiment too.
+        turbo::cuda::use_f16_accumulate(Some(true));
         turbo::cuda::use_tile(tile);
         turbo::cuda::use_separate_layer_norm(Some(separate));
         let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
@@ -1705,9 +1706,13 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::F16WholeK,
             Tile::F16WholeK3,
         ] {
+            // The whole-k tiles sum in F16, the F16 accumulators' experiment.
+            let whole_k = matches!(tile, Tile::F16WholeK | Tile::F16WholeK3);
+            turbo::cuda::use_f16_accumulate(whole_k.then_some(true));
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
             turbo::cuda::use_tile(None);
+            turbo::cuda::use_f16_accumulate(None);
             let s = s.unwrap();
             s.write_tokens(&t.batch(), None).unwrap();
             let got = s.run().unwrap().rows();
@@ -1936,7 +1941,8 @@ fn a_variant_outside_the_precision_is_refused() {
                 turbo::cuda::use_f16_accumulate(Some(true));
                 let s = make();
                 turbo::cuda::use_f16_accumulate(None);
-                assert!(field(&s.unwrap().info().choices).contains("acc16-"));
+                let choices = field(&s.unwrap().info().choices);
+                assert!(choices.contains(&format!("={}/", v.name)), "{choices}");
             }
         }
     }
@@ -1951,6 +1957,29 @@ fn a_variant_outside_the_precision_is_refused() {
         let e = e.err().unwrap();
         assert_eq!(e.code, INVALID_ARGUMENT, "{bad}: {}", e.message);
         assert!(e.message.contains("TURBO_CUDA_CHOICES"), "{}", e.message);
+    }
+}
+
+/// The whole-k tiles sum in F16: FASTEST refuses one forced through
+/// TURBO_CUDA_CHOICES without the F16 accumulators' switch, naming field 3
+/// and the kernel, and takes it with the switch.
+#[test]
+fn a_whole_k_tile_is_refused_without_its_switch() {
+    let _t = turn();
+    let Some(_) = cuda_device("a_whole_k_tile_is_refused_without_its_switch") else { return };
+    let (_f, g) = small_model("cuda-whole-k");
+    let make =
+        |line: &str| forcing(line, || Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_FASTEST))));
+    for tile in ["f16k", "f16k3"] {
+        let line = format!("all:ffn2={tile}");
+        let e = make(&line).err().unwrap();
+        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{line}: {}", e.message);
+        assert!(e.message.contains(&format!("ffn2={tile}/")), "{}", e.message);
+        turbo::cuda::use_f16_accumulate(Some(true));
+        let s = make(&line);
+        turbo::cuda::use_f16_accumulate(None);
+        let choices = field(&s.unwrap().info().choices);
+        assert!(choices.contains(&format!("ffn2={tile}/")), "{choices}");
     }
 }
 

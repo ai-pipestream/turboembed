@@ -174,12 +174,13 @@ so one line forces sessions of any size. An unknown item or value is
 A kernel is allowed a precision by the numeric class it computes in:
 F32 FMAs at EXACT and MODEL, F16 operands with F32 sums at FASTEST (and
 F32 FMAs for a model past F16's range). TF32 and F16 sums within a
-chunk are in no precision's set until a decision adds them; a kernel of
-either forced through `TURBO_CUDA_CHOICES` is
+chunk (the `acc16-` tiles, and `f16k` and `f16k3`, whose chunk is a
+block's whole k) are in no precision's set until a decision adds them; a
+kernel of either forced through `TURBO_CUDA_CHOICES` is
 `TURBO_E_UNSUPPORTED_OPTION` naming field 3 and the kernel, unless its
 experiment's switch is set for the session (`TURBO_CUDA_TF32=1` at MODEL,
-`TURBO_CUDA_F16_ACCUMULATE=1` at FASTEST), which widens that session's
-set. A session computes in its precision's classes, and in another only
+`TURBO_CUDA_F16_ACCUMULATE=1` or `TURBO_CUDA_TILE=f16k` or `f16k3` at
+FASTEST), which widens that session's set. A session computes in its precision's classes, and in another only
 where a kernel it chose computes in it: a switch the line overrides
 widens nothing.
 

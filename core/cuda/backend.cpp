@@ -1071,7 +1071,9 @@ constexpr int SK_OVERRIDE_TILES = -2;
 int overridden(const std::atomic<int> &o) { return o.load(std::memory_order_relaxed); }
 
 /* TURBO_CUDA_TILE by name; TILE_DEFAULT, not forced, when unset or not a
- * name it takes. The F16 accumulators' tiles are TURBO_CUDA_F16_ACCUMULATE's. */
+ * name it takes. The F16 accumulators' eight-warp tiles are
+ * TURBO_CUDA_F16_ACCUMULATE's; a whole-k tile it names (f16k, f16k3) sets
+ * that experiment as the switch does. */
 bool tile_named(Tile *out) {
     const int o = overridden(tile_override);
     if (o >= 0) {
@@ -1080,9 +1082,9 @@ bool tile_named(Tile *out) {
     }
     const char *v = getenv("TURBO_CUDA_TILE");
     if (!v) return false;
-    for (int i = 0; i < TILE_NAMES_ACCUMULATE; i++)
-        if (!strcasecmp(v, TILE_NAMES[i].name)) {
-            *out = TILE_NAMES[i].tile;
+    for (const TileName &n : TILE_NAMES)
+        if (n.switch_names && !strcasecmp(v, n.name)) {
+            *out = n.tile;
             return true;
         }
     return false;

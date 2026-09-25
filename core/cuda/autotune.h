@@ -53,32 +53,37 @@ inline int bin_of(uint32_t tokens, int bins) {
     return b;
 }
 
-/* The tiles by name, as TURBO_CUDA_TILE spells them; the F16
- * accumulators' two, which TURBO_CUDA_F16_ACCUMULATE picks, last. */
+/* The tiles by name, as a choices string spells them, and whether
+ * TURBO_CUDA_TILE takes the name: every one but the F16 accumulators'
+ * eight-warp tiles, which TURBO_CUDA_F16_ACCUMULATE picks. */
 struct TileName {
     const char *name;
     Tile tile;
+    bool switch_names;
 };
 constexpr TileName TILE_NAMES[] = {
-    {"64x64", TILE_64x64},
-    {"128x64", TILE_128x64},
-    {"128x128", TILE_128x128},
-    {"128x128-16x8", TILE_128x128_16x8},
-    {"128x128-4w", TILE_128x128_4W},
-    {"256x128", TILE_256x128},
-    {"8w", TILE_EIGHT_WARPS},
-    {"sw", TILE_SWIZZLED},
-    {"sw8w", TILE_SWIZZLED_8W},
-    {"sw256", TILE_SWIZZLED_256x128},
-    {"swrow", TILE_SWIZZLED_ROWS},
-    {"acc16-8w", TILE_EIGHT_WARPS_F16_ACCUMULATE},
-    {"acc16-sw8w", TILE_SWIZZLED_8W_F16_ACCUMULATE},
+    {"64x64", TILE_64x64, true},
+    {"128x64", TILE_128x64, true},
+    {"128x128", TILE_128x128, true},
+    {"128x128-16x8", TILE_128x128_16x8, true},
+    {"128x128-4w", TILE_128x128_4W, true},
+    {"256x128", TILE_256x128, true},
+    {"8w", TILE_EIGHT_WARPS, true},
+    {"sw", TILE_SWIZZLED, true},
+    {"sw8w", TILE_SWIZZLED_8W, true},
+    {"sw256", TILE_SWIZZLED_256x128, true},
+    {"swrow", TILE_SWIZZLED_ROWS, true},
+    {"acc16-8w", TILE_EIGHT_WARPS_F16_ACCUMULATE, false},
+    {"acc16-sw8w", TILE_SWIZZLED_8W_F16_ACCUMULATE, false},
+    {"f16k", TILE_F16_WHOLE_K, true},
+    {"f16k3", TILE_F16_WHOLE_K_3, true},
 };
-constexpr int TILE_NAMES_ACCUMULATE = 11; /* the first of the F16 accumulators' */
 
-/* Whether a tile sums F16 products in F16 accumulators. */
+/* Whether a tile sums F16 products in F16 accumulators: over each 64
+ * terms of k, or over the whole of a block's k. */
 inline bool f16_accumulates(Tile t) {
-    return t == TILE_EIGHT_WARPS_F16_ACCUMULATE || t == TILE_SWIZZLED_8W_F16_ACCUMULATE;
+    return t == TILE_EIGHT_WARPS_F16_ACCUMULATE || t == TILE_SWIZZLED_8W_F16_ACCUMULATE || t == TILE_F16_WHOLE_K ||
+           t == TILE_F16_WHOLE_K_3;
 }
 
 /* What a choice was fixed by, rather than left to the defaults: a bit per

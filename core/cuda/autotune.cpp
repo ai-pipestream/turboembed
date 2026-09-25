@@ -331,8 +331,10 @@ int gemm_variants(const Shape &base, Variant *out, int cap) {
         for (Tile t : {TILE_EIGHT_WARPS, TILE_SWIZZLED_8W, TILE_EIGHT_WARPS_F16_ACCUMULATE,
                        TILE_SWIZZLED_8W_F16_ACCUMULATE})
             add(t, false, true);
+        // F16 sums over the whole of a block's k are F16 sums within a
+        // chunk, the block's segment of k, and are never timed.
         for (Tile t : {TILE_64x64, TILE_128x64, TILE_128x128, TILE_128x128_4W, TILE_256x128, TILE_SWIZZLED,
-                       TILE_SWIZZLED_256x128, TILE_SWIZZLED_ROWS})
+                       TILE_SWIZZLED_256x128, TILE_SWIZZLED_ROWS, TILE_F16_WHOLE_K, TILE_F16_WHOLE_K_3})
             add(t, false, false);
         return n;
     }
