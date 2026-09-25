@@ -43,33 +43,7 @@ struct Info {
     int32_t tokens; /* packed tokens: the GEMMs' M */
     int32_t batch, seq, pooling, l2, output_dim, has_types;
     int32_t items; /* attention's work items, (row, head, query tile) */
-    /* The k split of the GEMMs whose products add_layer_norm sums, by
-     * SPLIT_OUT and SPLIT_FFN2: how many, and k per split. */
-    int32_t splits[2], ksplit[2];
 };
-
-/* Which of Info's splits a GEMM or add_layer_norm reads; NO_SPLIT for
- * one product. */
-enum SplitSlot : int { NO_SPLIT = -1, SPLIT_OUT = 0, SPLIT_FFN2 = 1 };
-
-/* The k split for a GEMM of m rows by n outputs over k whose products add
- * up in add_layer_norm, of bm x bn tiles, on a device of sms SMs: split
- * while the tiles fit about seven per SM and each split keeps 192 of k
- * or more, at most four. *ksplit is k per split, a multiple of 32; the
- * return, the splits. The same on the host, which sizes the partial
- * products by it, and on the device, where the packing picks it for the
- * run's token count. */
-__host__ __device__ inline int choose_split(int m, int n, int k, int bm, int bn, int sms, int *ksplit) {
-    const long long base = (long long)((m + bm - 1) / bm) * ((n + bn - 1) / bn);
-    int best = 1;
-    for (int s = 2; s <= 4; s++) {
-        const int ks = ((k + s - 1) / s + 31) & ~31;
-        if (ks < 192 || base * s > 7LL * sms) break;
-        best = s;
-    }
-    *ksplit = ((k + best - 1) / best + 31) & ~31;
-    return (k + *ksplit - 1) / *ksplit;
-}
 
 /* The packing, in device memory. start, len and holes (whether a masked
  * token sits before the last live one) are by row; order is the rows
@@ -89,9 +63,9 @@ constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 /* The widest hidden state the row kernels hold in registers. */
 constexpr int MAX_HIDDEN = 2048;
 
-/* The tile of the QKV and feed-forward input GEMMs, rows by columns:
- * TILE_DEFAULT is 128 x 64; TURBO_CUDA_TILE names another. The tensor
- * cores take 64 x 64 and 128 x 64, the FMA GEMM those and 128 x 128. */
+/* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64;
+ * TURBO_CUDA_TILE names another. The tensor cores take 64 x 64 and
+ * 128 x 64, the FMA GEMM those and 128 x 128. */
 enum Tile : int { TILE_DEFAULT = 0, TILE_64x64 = 1, TILE_128x64 = 2, TILE_128x128 = 3 };
 
 /* A session's fixed shape, from which make_plan sizes every launch. */
@@ -112,12 +86,12 @@ struct Plan {
     int rows_grid = 0; /* the warp-per-token kernels */
     int pool_grid = 0;
     int epi_grid = 0; /* the cuBLAS epilogues */
+    int fetch_grid = 0;
     int qkv_grid = 0, out_grid = 0, ffn1_grid = 0, ffn2_grid = 0;
-    /* The tile of the GEMMs whose products are split, for choose_split,
-     * and the most partial products a run writes, in token rows of
-     * hidden values: the largest splits x tokens over every token count. */
-    int part_bm = 0, part_bn = 0;
-    size_t part_rows = 0;
+    /* The GEMMs' stream-K workspace: a slot of partial products per block
+     * of the largest launch, floats in all, and a flag per block. */
+    size_t sk_floats = 0;
+    int sk_flags = 0;
     int attn_grid = 0, attn_chunk = 0, attn_queries = 0;
     size_t attn_smem = 0;
 };
@@ -129,7 +103,6 @@ cudaError_t make_plan(const Shape &shape, Plan *plan);
 struct PackArgs {
     const int32_t *rows; /* the written rows, [k][batch][seq] */
     int32_t heads, queries; /* attention's heads and queries per work item */
-    int32_t hidden, inter, part_bm, part_bn, sms; /* for choose_split */
     Packing p;
     RunArgs run;
 };
@@ -145,6 +118,20 @@ cudaError_t pack_rows(cudaStream_t s, const PackArgs &a, const Plan &plan);
 void pack_rows_node(const PackArgs *a, void **args, const Plan &plan, cudaKernelNodeParams *out);
 const void *pack_rows_function();
 
+/* n int32 of the written rows from src, the page-locked staging as the
+ * device addresses it, to dst in device memory: the run's first kernel,
+ * so the rows reach the device inside the run's graph, with no copy
+ * queued ahead of it. n is 0 when the rows were sent another way. */
+struct FetchArgs {
+    const int32_t *src;
+    int32_t *dst;
+    int32_t n;
+};
+
+cudaError_t fetch_rows(cudaStream_t s, const FetchArgs &a, const Plan &plan);
+void fetch_rows_node(const FetchArgs *a, void **args, const Plan &plan, cudaKernelNodeParams *out);
+const void *fetch_rows_function();
+
 // ---- Row kernels --------------------------------------------------------------
 
 /* x[t] = LayerNorm(word[ids] + position[p] + type[types]) for every packed
@@ -154,11 +141,9 @@ cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *w
                              const float *position, const float *type, const float *ln_w, const float *ln_b, float eps,
                              const Packing &p, int hidden, float *x, uint16_t *x16, const Plan &plan);
 
-/* x[t] = LayerNorm(x[t] + ((part[0][t] + ... + part[splits - 1][t]) + bias)),
- * part being the partial products of the split slot names, tokens rows
- * each, summed in order (one for NO_SPLIT); the result into x16 as F16
- * too when it is not NULL. */
-cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *part, SplitSlot slot, const float *bias,
+/* x[t] = LayerNorm(x[t] + (y[t] + bias)), y a GEMM's product; the result
+ * into x16 as F16 too when it is not NULL. */
+cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const float *bias,
                            const float *ln_w, const float *ln_b, float eps, const Info *info, int hidden,
                            uint16_t *x16, const Plan &plan);
 
@@ -177,14 +162,18 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 //   QKV: + bias, written head-major, [3][heads][tcap][head_dim], so
 //        attention reads each (row, head)'s keys contiguously;
 //   GELU: + bias, then GELU with the error function, [tokens, n];
-//   PARTIAL: the bare product of split s's share of k, [splits][tokens][n],
-//        which add_layer_norm sums in order: split-K without atomics.
+//   PLAIN: the bare product, F32, [tokens, n], which add_layer_norm adds.
 //
-// QKV and GELU store F16 when the operands are F16, F32 otherwise.
-// Tiles past the packed token count do nothing, so the launch is sized
-// for the session's largest batch. n and k are multiples of 8.
+// QKV and GELU store F16 when the operands are F16, F32 otherwise. The
+// launch is the blocks the device holds at once, sharing the tiles' k
+// steps evenly among them (stream-K): a tile split between blocks is
+// finished by the block holding its first k step, which adds the others'
+// partial products, from the workspace, in block order. So the sums
+// depend on the token count and the launch, never on which rows run
+// beside a row in a batch of the same token count. n and k are multiples
+// of 8.
 
-enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PARTIAL = 2 };
+enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2 };
 
 struct GemmArgs {
     const void *a, *w;
@@ -192,21 +181,18 @@ struct GemmArgs {
     void *out;
     const Info *info; /* info->tokens is M */
     int n, k;
-    /* The k split: Info's for a slot, else splits of ksplit each (a
-     * multiple of 32). */
-    SplitSlot slot;
-    int splits, ksplit;
     int heads, head_dim, hidden, tcap;
+    /* The stream-K workspace: a slot of BM x BN floats per block, and a
+     * flag per block, 0 between launches. */
+    float *ws;
+    int *flags;
 };
 
-/* The grid for a GEMM: enough blocks for the largest M's tiles, capped at
- * what the device holds at once; and the shared memory setting its kernel
+/* A GEMM's launch: the blocks the device holds at once, and the
+ * workspace floats it needs; and the shared memory setting its kernel
  * needs, made outside any run. */
-cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int n, int tcap, int splits, int sms,
-                      int *grid);
+cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int sms, int *grid, size_t *ws_floats);
 cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile);
-/* The tile of GEMMs of that kind, rows by columns. */
-void gemm_tile(Epilogue e, bool half, bool tensor_cores, Tile tile, int *bm, int *bn);
 cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile tile, const GemmArgs &g, int grid);
 
 /* The same epilogues over a product cuBLAS made, raw [tokens, n] F32, for
