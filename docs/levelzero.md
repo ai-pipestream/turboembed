@@ -11,14 +11,14 @@ then says `0.1.0 levelzero cpu`. Its devices come before the CPU's.
 
 ## Requirements
 
-- To build: clang 15 or newer, which compiles OpenCL C to SPIR-V
-  (`--target=spirv64`). Some clang builds do that through the
-  `llvm-spirv` translator, which must then be on the `PATH`; the clang 21
-  Ubuntu ships uses its own SPIR-V backend and needs none. Nothing of
-  Level Zero is needed at build time.
+- To build: a clang whose own SPIR-V backend compiles OpenCL C to
+  SPIR-V (`--target=spirv64`) and takes `--spirv-ext`, for the Intel
+  sub-group extension the kernels use; the clang 21 Ubuntu ships does.
+  Nothing of Level Zero is needed at build time.
 - To run: the Level Zero loader (`libze_loader.so.1`, 1.10 or newer) and
   Intel's GPU driver for it (`libze_intel_gpu.so.1`, the compute runtime,
-  at Level Zero 1.9 or newer for in-order immediate lists), with the kernel's `xe` or `i915` driver bound to the GPU and
+  at Level Zero 1.9 or newer for in-order immediate lists), with the
+  kernel's `xe` or `i915` driver bound to the GPU and
   the user able to open its render node (the `render` group).
 - A GPU whose driver computes in F64: the encoder sums LayerNorm and the
   L2 norm in F64. A device without it is listed, and its capability cell
@@ -37,6 +37,7 @@ cargo build -p turbo --release --features levelzero
 | Variable | Meaning |
 |---|---|
 | `TURBO_CLANG` | The clang that compiles the kernels. Unset: `clang` on the `PATH`. |
+| `TURBO_LEVELZERO_PROFILE` | At run time: every context times each kernel and copy on the device, and logs the totals at debug level when it is released. |
 
 The driver builds the SPIR-V for the device the first time a context
 needs a kernel, when a model or session is made; that build is not part
@@ -54,11 +55,14 @@ of any run.
   where sysman is not available. `arch`, the label benchmark records are
   filed under, is from the PCI device id: `b70` for 0xe223, and
   `intel-<id>` for a device not named yet.
-- **Capability.** Embed is EXPERIMENTAL at every precision, computing in
-  F32, honoring every field of `turbo_embed_options`. A model stored in
-  F16 or BF16 computes in F32 from a converted copy at EXACT and FASTEST;
-  its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
-  as on the CPU.
+- **Capability.** Embed is EXPERIMENTAL at every precision, honoring
+  every field of `turbo_embed_options`. MODEL and EXACT compute in F32;
+  FASTEST in F16 on the matrix engines (XMX), for a model whose hidden and
+  intermediate widths the kernels take (multiples of 16 that split
+  evenly), and in F32 otherwise, which `turbo_session_get_info` says. A
+  model stored in F16 or BF16 computes from an F32 copy at EXACT and
+  FASTEST; its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`,
+  field 3), as on the CPU.
 - **Contexts.** A context is a Level Zero context on the device and one
   in-order immediate command list, used under the context's lock. The
   encoder's kernels are built into one module per context, on first
@@ -75,32 +79,47 @@ of any run.
   allocated, and the host pointer of `HOST`, `PINNED` and `SHARED`
   buffers. Any other kind is `TURBO_E_UNSUPPORTED`, naming it.
 - **Models.** Loading copies every tensor, in the dtype it is stored in,
-  into one device allocation. An F16 or BF16 model's F32 copy is made on
-  the device by the first session that computes in F32, shared by every
-  later one, and freed with the model.
+  into one device allocation. The first session makes the rest, on the
+  device, shared by every later one and freed with the model: an F16 or
+  BF16 model's F32 copy; each layer's Q, K and V weights and biases side
+  by side, for one projection; and, for the first session at FASTEST, the
+  linear layers' weights in F16.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: device scratch, the
   output buffer, host staging the device reads, and the session's own
-  kernel objects. `embed_write` sends the rows to the device, from the
-  caller's memory when the driver allocated it (a `PINNED` or `SHARED`
-  buffer's) and through the staging otherwise, and waits for them. Rows
-  in device memory are refused (`TURBO_E_INVALID_ARGUMENT`): the core
-  reads and checks every row on the host before the backend sees it. The
-  run computes on the device over the written `[batch, seq]` grid: the
-  embedding lookup and its LayerNorm in one kernel; per layer the Q, K
-  and V projections, the attention output and the feed-forward layers as
-  one tiled GEMM kernel, one attention kernel (scaled dot products over
-  the keys whose mask is 1, softmax from the largest score), residual and
-  LayerNorm kernels, and GELU with erf; then one kernel pools (mean over
-  the mask, the first token, or the last live one), cuts to `output_dim`
-  and normalizes. It waits for the queue before it returns, and leaves
-  the vectors in the session's `DEVICE` buffer: `turbo_result_buffer`
-  hands out that memory, and `turbo_result_read` copies it back.
+  kernel objects. `embed_write` packs the rows on the host into the
+  staging: each row's positions through its last live token, one after
+  another, as ids, positions, types and mask, with a table of where each
+  row starts and how long it is. The padding after a row's last live
+  token is never computed; no output depends on it. Rows in device memory
+  are refused (`TURBO_E_INVALID_ARGUMENT`): the core reads and checks
+  every row on the host before the backend sees it. The run computes on
+  the device over the packed tokens: the embedding lookup, which reads the
+  packed rows from the staging over the bus, and its LayerNorm in one
+  kernel; per layer one projection for Q, K and V with their biases, one
+  attention kernel (scaled dot products over the keys whose mask is 1,
+  with an online softmax), the attention output projection, a residual
+  and LayerNorm kernel, the feed-forward input with GELU (erf) in its
+  epilogue, the feed-forward output with its sums split four ways over its
+  terms, and a kernel that adds the parts, the residual and the
+  LayerNorm; then one kernel pools (mean over the mask, the first token,
+  or the last live one), cuts to `output_dim` and normalizes. The linear
+  layers run by sub-group, 8 tokens by 64 outputs each, in F32 on the
+  vector engines or at FASTEST on the matrix engines, where a layer with
+  too few tiles to fill the device shares each tile among a group's
+  sub-groups instead. Attention for head widths 32, 64 and 128 keeps each
+  query and its running context in registers and streams the row's keys
+  and values through local memory; at FASTEST, for width 32, it runs on
+  the matrix engines. The run waits for the queue before it returns, and
+  leaves the vectors in the session's `DEVICE` buffer:
+  `turbo_result_buffer` hands out that memory, and `turbo_result_read`
+  copies it back.
 - **Session limits.** Beyond the model's own, one refusal comes from the
-  device: a `max_seq` whose attention scores do not fit the local memory
-  the device gives one work-group, less what its driver keeps for the
-  kernel's own reductions (4 bytes per token plus the head's width and the
-  partial sums; 128 KiB less 4 KiB on a B70, so about 31500 tokens) is
+  device, for a head width other than 32, 64 or 128: a `max_seq` whose
+  attention scores do not fit the local memory the device gives one
+  work-group, less what its driver keeps for the kernel's own reductions
+  (4 bytes per token plus the head's width and the partial sums; 128 KiB
+  less 4 KiB on a B70, so about 31500 tokens) is
   `TURBO_E_UNSUPPORTED_OPTION` naming field 2.
 - **Failures.** The driver's immediate list cannot finish or be destroyed
   after an append to it fails. Every append signals an event of the
@@ -109,18 +128,24 @@ of any run.
   work before it, and frees nothing before then. It then sets that list
   aside, gives the context a new one, logs a warning, and returns the
   failure.
-- **Numerics.** F32 throughout. The arithmetic follows the CPU encoder
-  where order matters: LayerNorm sums its mean and variance in F64,
-  softmax subtracts the largest live score, mean pooling sums in position
-  order, the L2 norm is summed in F64 and floored at 1e-12. Products and
-  sums round separately except in the GEMM's multiply-add. Cosine against
-  the fp32 reference must reach 0.9999.
+- **Numerics.** In F32 the arithmetic follows the CPU encoder where order
+  matters: LayerNorm sums its mean and variance in F64, softmax is taken
+  from the largest live score (online, rescaling as a larger one
+  arrives), mean pooling sums in position order, the L2 norm is summed in
+  F64 and floored at 1e-12. Products and sums round separately except in
+  the linear layers' and attention's multiply-adds. Cosine against the
+  fp32 reference must reach 0.9999. At FASTEST the linear layers and
+  attention take F16 operands, the feed-forward block's middle and the
+  attention's inputs and output are F16, and every sum, the softmax and
+  the LayerNorms are F32; cosine must reach 0.999.
 - **What a result reports.** Stages: tokenize on the host for text,
-  upload, lookup, encode and pool on the device, normalize fused into the
+  upload fused into the lookup kernel, which reads the packed rows over
+  the bus, lookup, encode and pool on the device, normalize fused into the
   pooling kernel when it runs, and no download: the vectors stay where
-  they are. `h2d_bytes` is the rows sent by the write, 4 bytes per token
-  for each of ids, mask and (when given) types. `d2h_bytes` is 0 after the
-  run and grows by each read. `host_allocs` and `device_allocs` are what
+  they are. `h2d_bytes` is what the lookup reads over the bus: 4 bytes per
+  packed token for each of ids, positions, mask and (when given) types,
+  and 8 per row for the table. `d2h_bytes` is 0 after the run and grows by
+  each read. `host_allocs` and `device_allocs` are what
   the backend allocated on the running thread during the run; a run
   allocates nothing, cold or warm.
 

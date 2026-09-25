@@ -163,16 +163,7 @@ impl Context {
     }
 
     fn build(&self) -> Result<Handle, String> {
-        // The matrix and attention kernels hold their tiles in registers:
-        // with the large register file they do not spill. A driver that
-        // does not take the option builds without it.
-        match self.build_with(c"") {
-            Ok(h) => Ok(h),
-            Err(_) => self.build_with(c""),
-        }
-    }
-
-    fn build_with(&self, flags: &std::ffi::CStr) -> Result<Handle, String> {
+        let flags = c"";
         let desc = ze::ModuleDesc {
             stype: ze::STRUCTURE_TYPE_MODULE_DESC,
             p_next: std::ptr::null(),

@@ -661,6 +661,29 @@ fn every_option_matches_the_arithmetic_and_the_cpu() {
         1.0 - lowest
     );
 
+    // FASTEST: the linear layers on the matrix engines in F16, every
+    // option, held to the F16 floor against the cpu.
+    let fs = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
+    assert_eq!(fs.info().compute_dtype, TURBO_DTYPE_F16);
+    let mut lowest = 1f64;
+    for pooling in [TURBO_POOLING_MEAN, TURBO_POOLING_CLS, TURBO_POOLING_LAST] {
+        for normalize in [TURBO_NORMALIZE_NONE, TURBO_NORMALIZE_L2] {
+            let o = opts(|o| {
+                o.pooling = pooling;
+                o.normalize = normalize;
+            });
+            fs.write_tokens(&t.batch(), Some(&o)).unwrap();
+            let got = fs.run().unwrap().rows();
+            cs.write_tokens(&t.batch(), Some(&o)).unwrap();
+            for (r, (a, b)) in got.iter().zip(cs.run().unwrap().rows()).enumerate() {
+                let c = cosine(a, &b);
+                lowest = lowest.min(c);
+                assert!(c >= 0.999, "FASTEST pooling {pooling} normalize {normalize} row {r}: cosine {c} with the cpu");
+            }
+        }
+    }
+    println!("FASTEST: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
+
     // Text, and the same rows as tokens at a wider stride, give the same vectors.
     let from_text = gs.embed(&TEXTS, None).unwrap();
     let tok = Tok::create(&dir).unwrap();

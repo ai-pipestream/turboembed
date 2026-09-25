@@ -3,19 +3,23 @@
 //!
 //! Loading copies each tensor, in the dtype it is stored in, into one
 //! device allocation: that copy is the load, and the core's host bytes are
-//! not read again. A model stored in F16 or BF16 gets a second allocation,
-//! its weights widened to F32 on the device, made by the first session
-//! that computes in F32 and shared by every later one; it goes with the
-//! model.
+//! not read again. The first session makes, on the device, what the
+//! sessions compute from, shared by every later one and freed with the
+//! model: an F16 or BF16 model's weights widened to F32; each layer's Q, K
+//! and V weights and biases side by side; and at FASTEST the linear
+//! layers' weights in F16.
 //!
-//! A session is device scratch for its largest batch, host staging for the
-//! rows, and the buffer its vectors are written to, all allocated when it
-//! is made; a run allocates nothing. The rows are computed over the written
-//! batch's full [batch, seq] grid: attention skips masked keys and no
-//! pooling reads a masked token, so the padding a row carries changes no
-//! output. embed_write sends the rows to the device and waits for them;
-//! the run leaves the vectors on the device, in the session's DEVICE
-//! buffer, which turbo_result_read copies back through buffer_read.
+//! A session is device scratch for its largest batch, host staging the
+//! device reads, and the buffer its vectors are written to, all allocated
+//! when it is made; a run allocates nothing. embed_write packs the rows on
+//! the host into the staging: each row's positions through its last live
+//! token, one after another, and a table of where each row starts. The
+//! padding after a row's last live token is never computed: attention
+//! skips masked keys and no pooling reads past the last live token, so no
+//! output depends on it. The run's lookup kernel reads the packed rows
+//! over the bus, and the run leaves the vectors on the device, in the
+//! session's DEVICE buffer, which turbo_result_read copies back through
+//! buffer_read.
 
 use std::ffi::c_void;
 use std::sync::Mutex;
@@ -422,12 +426,16 @@ struct Kernels {
 enum Attention {
     Tiled(Kernel),
     General(Kernel),
+    /// At FASTEST, on the matrix engines, from F16 projections to an F16
+    /// context.
+    Xmx(Kernel),
 }
 
 impl Kernels {
     fn new(c: &Context, head_dim: u32, xmx: bool) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
         let attention = match head_dim {
+            32 if xmx => Attention::Xmx(c.kernel("attention_xmx_32", [16, 1, 1])?),
             32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
             _ => Attention::General(c.kernel("attention", row)?),
         };
@@ -534,7 +542,6 @@ struct Session {
     written: bool,
     has_types: bool,
     batch: u32,
-    seq: u32,
     /// Live tokens, packed.
     tokens: u32,
     longest: u32,
@@ -663,7 +670,6 @@ pub(crate) unsafe extern "C" fn session_create(
                 written: false,
                 has_types: false,
                 batch: 0,
-                seq: 0,
                 tokens: 0,
                 longest: 0,
                 pooling: 0,
@@ -766,6 +772,9 @@ impl Session {
         let scale = 1.0 / (head_dim as f32).sqrt();
         let layer = |l: u32, r: u32| w[(TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
         use Arg::*;
+        // Attention on the matrix engines reads F16 projections and writes
+        // an F16 context.
+        let half_attention = matches!(k.attention, Attention::Xmx(_));
         // A linear layer: `which` of the layer's four weights, for the F16
         // copy at FASTEST, and the F32 weight; its sums split over its
         // terms into `splits` parts; and at FASTEST, which operands.
@@ -876,10 +885,21 @@ impl Session {
                 3 * h,
                 self.qkv,
                 LINEAR_BIAS,
-                (1, XMX_F32),
+                (1, if half_attention { XMX_TO_F16 } else { XMX_F32 }),
                 "the query, key and value projection",
             )?;
             match &k.attention {
+                Attention::Xmx(a) => {
+                    let args = [
+                        Ptr(self.qkv),
+                        Ptr(self.packed_mask),
+                        Ptr(self.rows),
+                        I32(h as i32),
+                        F32(scale),
+                        Ptr(self.att),
+                    ];
+                    a.launch(c, q, "attention", &args, [self.longest.div_ceil(16), d.heads, batch])?;
+                }
                 Attention::Tiled(a) => {
                     let args = [
                         Ptr(self.qkv),
@@ -906,7 +926,8 @@ impl Session {
                 }
             }
             let wo = (l, 1, layer(l, ATTN_OUT_WEIGHT));
-            linear(q, self.att, h, wo, 0, h, self.tmp, 0, (1, XMX_F32), "the attention output projection")?;
+            let operands = if half_attention { XMX_FROM_F16 } else { XMX_F32 };
+            linear(q, self.att, h, wo, 0, h, self.tmp, 0, (1, operands), "the attention output projection")?;
             add_ln(
                 q,
                 layer(l, ATTN_OUT_BIAS),
@@ -967,7 +988,6 @@ pub(crate) unsafe extern "C" fn embed_write(
             let (tokens, longest, sent) = s.pack(r)?;
             s.has_types = !r.types.is_null();
             s.batch = r.batch;
-            s.seq = r.seq;
             s.tokens = tokens;
             s.longest = longest;
             s.pooling = r.pooling;
