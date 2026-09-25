@@ -22,7 +22,7 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<device> \
   the CPU. A backend behind a feature needs it on the command line too:
   `--features cuda` for `cuda` (docs/cuda.md), `--features levelzero`
   for `levelzero` (docs/levelzero.md), `--features metal` for `metal`
-  (docs/metal.md).
+  (docs/metal.md), `--features hailo` for `hailo` (docs/hailo.md).
 - `TURBO_TEST_PRECISION`: the session's precision, `model`, `fastest`
   or `exact`. Unset, `model`. The tolerance is the one for the compute
   dtype the session reports, so `fastest` on a backend that computes it

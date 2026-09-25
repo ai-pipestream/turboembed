@@ -245,8 +245,8 @@ fn metal() {
     println!("cargo:rustc-link-lib=dylib=c++");
 }
 
-const HAILO_SOURCES: [&str; 1] = ["hailo/backend.cpp"];
-const HAILO_DEPENDS: [&str; 2] = ["../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
+const HAILO_SOURCES: [&str; 2] = ["hailo/backend.cpp", "hailo/embed.cpp"];
+const HAILO_DEPENDS: [&str; 3] = ["hailo/embed.h", "../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
 
 fn hailo() {
     for f in HAILO_SOURCES.iter().chain(&HAILO_DEPENDS) {
