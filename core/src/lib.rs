@@ -22,6 +22,7 @@ pub mod manifest;
 #[cfg(feature = "metal")]
 pub mod metal;
 pub mod model;
+pub mod record;
 pub mod safetensors;
 mod session;
 pub mod status;
@@ -280,7 +281,9 @@ impl Runtime {
     }
 
     /// The (device, task, precision) cell. The backend says what it has
-    /// built; SUPPORTED needs a benchmark record, and this build reads none.
+    /// built; SUPPORTED needs a benchmark record compiled into this build
+    /// that backs it (record.rs, docs/benchmarks.md), and then its numbers
+    /// are the record's.
     fn capability(&self, index: u32, task: u32, precision: u32) -> Result<turbo_capability> {
         let d = self.device(index)?;
         if task != TURBO_TASK_EMBED {
@@ -312,9 +315,29 @@ impl Runtime {
                 cap.options_honored = 0;
             }
             backend::TURBO_CAP_EXPERIMENTAL => {
-                write_str(&mut cap.reason, "no benchmark record for this cell");
                 // The options the core applies before a backend sees the rows.
                 cap.options_honored |= session::CORE_HONORED;
+                let cell = record::Cell {
+                    arch: &cstr(&d.info.arch),
+                    name: &cstr(&d.info.name),
+                    cpu: d.info.kind == TURBO_DEVICE_CPU,
+                    backend: b.name(),
+                    task,
+                    precision,
+                    dtype: cap.dtype,
+                    version: record::library_version(),
+                    os: std::env::consts::OS,
+                };
+                match record::decide_embedded(&cell) {
+                    record::Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
+                        cap.status = backend::TURBO_CAP_SUPPORTED;
+                        cap.cosine_floor = cosine_floor as f32;
+                        cap.speed_ratio = speed_ratio as f32;
+                        write_str(&mut cap.benchmark, &benchmark);
+                        write_str(&mut cap.reason, "");
+                    }
+                    record::Verdict::Not(why) => write_str(&mut cap.reason, &why),
+                }
             }
             s => {
                 return Err(Error::new(
@@ -518,7 +541,7 @@ pub extern "C" fn turbo_version() -> *const c_char {
 static VERSION: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
 
 fn version() -> std::ffi::CString {
-    let mut v = String::from("0.1.0");
+    let mut v = String::from(record::library_version());
     for b in backend::linked() {
         v.push(' ');
         v.push_str(b.name());

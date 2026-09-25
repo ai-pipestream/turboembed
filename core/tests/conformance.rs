@@ -49,14 +49,10 @@ fn device(rt: *mut turbo_runtime) -> u32 {
         .unwrap_or_else(|| panic!("TURBO_TEST_DEVICE={want}: no device of that backend is listed"))
 }
 
-/// The lowest cosine a session's compute dtype must reach against the
-/// fp32 reference.
-fn tolerance(compute_dtype: u32) -> f64 {
-    match compute_dtype {
-        TURBO_DTYPE_F32 => 0.9999,
-        TURBO_DTYPE_F16 | TURBO_DTYPE_BF16 => 0.999,
-        d => panic!("compute dtype {d} has no tolerance"),
-    }
+/// What a session's compute dtype must reach against the fp32 reference:
+/// the rule benchmark records are judged by too (turbo::record).
+fn tolerance(compute_dtype: u32) -> record::Tolerance {
+    record::tolerance(compute_dtype).unwrap_or_else(|| panic!("compute dtype {compute_dtype} has no tolerance"))
 }
 
 /// The worst of a set of comparisons.
@@ -72,12 +68,16 @@ impl Worst {
         Worst { cosine: 1.0, abs: 0.0, rows: 0 }
     }
 
-    fn add(&mut self, what: &str, got: &[f32], want: &[f32], floor: f64) {
+    fn add(&mut self, what: &str, got: &[f32], want: &[f32], floor: record::Tolerance) {
         assert_eq!(got.len(), want.len(), "{what}: width");
         let c = cosine(got, want);
-        assert!(c >= floor, "{what}: cosine {c} is under {floor}");
+        assert!(c >= floor.min_cosine, "{what}: cosine {c} is under {}", floor.min_cosine);
+        let d = max_abs_diff(got, want);
+        if let Some(most) = floor.max_abs_diff {
+            assert!(d <= most, "{what}: max abs diff {d:e} is over {most:e}");
+        }
         self.cosine = self.cosine.min(c);
-        self.abs = self.abs.max(max_abs_diff(got, want));
+        self.abs = self.abs.max(d);
         self.rows += 1;
     }
 }
@@ -192,10 +192,12 @@ fn check(dir: &Path) -> usize {
     }
 
     println!(
-        "{}: {} cases on device {dev}, compute dtype {}, cosine floor {floor}",
+        "{}: {} cases on device {dev}, compute dtype {}, cosine floor {}, max abs diff {:?}",
         dir.display(),
         cases.len(),
-        si.compute_dtype
+        si.compute_dtype,
+        floor.min_cosine,
+        floor.max_abs_diff
     );
     for (what, w) in [
         ("write_text, batch 1", &text1),
