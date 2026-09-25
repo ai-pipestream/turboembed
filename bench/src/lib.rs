@@ -176,6 +176,7 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
             tokenizer_sha256: field(&m.model.tokenizer_sha256),
         },
         rows: record::Rows {
+            kind: m.rows.kind.name().into(),
             batch: m.rows.batch,
             seq: m.rows.seq,
             live_tokens: m.rows.live_tokens(),

@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use turbo::TURBO_PRECISION_MODEL;
 use turbo::bundle::sha256_hex;
 use turbo_bench::cpus::Cpus;
-use turbo_bench::measure::{Measurement, Plan, measure};
+use turbo_bench::measure::{Measurement, Plan, RowKind, measure};
 use turbo_bench::openvino::{self, OpenVino};
 use turbo_bench::tei::{self, Tei};
 use turbo_bench::tensorrt::{self, TensorRt};
@@ -48,12 +48,13 @@ fn bundle_with_onnx(dir: &Path) -> PathBuf {
 
 /// TEI's HTTP API on a local port, answering as its router does: /health,
 /// /info, /decode and /tokenize as a round trip that gives the ids back,
-/// and /embed with each row's reference vector.
-fn tei_server(m: &Measurement) -> u16 {
+/// and /embed with each row's expected vector and TEI's timing headers.
+fn tei_server(ms: &[&Measurement]) -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
-    let vectors: HashMap<Vec<i32>, Vec<f32>> = (0..m.rows.batch as usize)
-        .map(|r| (m.rows.live(r).to_vec(), m.reference.vectors[m.rows.cases[r] as usize].clone()))
+    let vectors: HashMap<Vec<i32>, Vec<f32>> = ms
+        .iter()
+        .flat_map(|m| (0..m.rows.batch as usize).map(|r| (m.rows.live(r).to_vec(), m.expected[r].clone())))
         .collect();
     std::thread::spawn(move || {
         let mut decoded: HashMap<String, Vec<i32>> = HashMap::new();
@@ -104,9 +105,16 @@ fn tei_server(m: &Measurement) -> u16 {
                 _ => json!({ "error": "not found" }),
             };
             let text = if path == "/health" { String::new() } else { answer.to_string() };
+            let timing = if path == "/embed" {
+                "x-compute-type: cpu\r\nx-total-time: 7\r\nx-tokenization-time: 1\r\nx-queue-time: 0\r\n\
+                 x-inference-time: 5\r\n"
+            } else {
+                ""
+            };
             let _ = write!(
                 stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}",
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n{timing}Content-Length: {}\r\nConnection: \
+                 close\r\n\r\n{text}",
                 text.len()
             );
         }
@@ -158,6 +166,19 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
         precision: TURBO_PRECISION_MODEL,
         batch: Some(4),
         seq: None,
+        rows: RowKind::Mixed,
+        warmup: 1,
+        iterations: 5,
+    })
+    .unwrap_or_else(|e| panic!("{e}"));
+    // Dense rows, the long cases cut to 40 tokens.
+    let dense = measure(&Plan {
+        bundle: bundle.clone(),
+        device: "cpu".into(),
+        precision: TURBO_PRECISION_MODEL,
+        batch: Some(4),
+        seq: Some(40),
+        rows: RowKind::Dense,
         warmup: 1,
         iterations: 5,
     })
@@ -174,7 +195,7 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
     std::fs::create_dir_all(&dri).unwrap();
     std::fs::write(dri.join("renderD128"), "").unwrap();
 
-    let port = tei_server(&m);
+    let port = tei_server(&[&m, &dense]);
     fake_docker(&root.join("bin"), &root, port);
     let path = format!("{}:{}", root.join("bin").display(), std::env::var("PATH").unwrap_or_default());
     // The only test in this binary, so no other thread reads the
@@ -189,6 +210,20 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
             cpus: Some(Cpus::parse("0-1", &smt_topology(&root.join("sys"), 1)).unwrap()),
         },
         &m,
+        None,
+        Some(2),
+        1,
+        3,
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    // Dense rows, before the model directory is spoiled below.
+    let dense_run = tei::run(
+        &Tei {
+            image: format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}"),
+            model_dir: model.clone(),
+            cpus: None,
+        },
+        &dense,
         None,
         Some(2),
         1,
@@ -265,6 +300,33 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
         "{}",
         tei_run.procedure
     );
+    // TEI's own timing, beside the round trip that is the measurement.
+    let measured = tei_run.measured.as_ref().unwrap();
+    let round_trip = format!("round trip (measured) p50 {:.3} ms, p99 {:.3} ms;", measured.p50_ms, measured.p99_ms);
+    assert!(tei_run.procedure.contains(&round_trip), "{}", tei_run.procedure);
+    assert!(
+        tei_run.procedure.contains(
+            "TEI's own headers, whole ms, over the same requests: x-total-time p50 7 p99 7, x-tokenization-time \
+             p50 1 p99 1, x-queue-time p50 0 p99 0, x-inference-time p50 5 p99 5;"
+        ),
+        "{}",
+        tei_run.procedure
+    );
+    assert!(
+        tei_run.procedure.contains("min_cosine is against the bundle's reference vectors;"),
+        "{}",
+        tei_run.procedure
+    );
+    assert!(measured.min_cosine.unwrap() > 0.999_999);
+
+    // Dense rows go to TEI as they are, cut, through the same check, and
+    // its vectors are compared with the library's of each cut row alone.
+    assert!(dense_run.measured.as_ref().unwrap().min_cosine.unwrap() > 0.999_999, "{dense_run:?}");
+    assert!(dense_run.procedure.contains("the library's vector of the row alone for a row cut to seq"));
+    assert!(dense_run.procedure.contains("POST /embed with the batch's 4 rows as token ids"));
+    let r = turbo_bench::record(&dense, &provenance("redaction-dense"), vec![dense_run], "2026-01-02T03:04:05Z".into())
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!((r.rows.kind.as_str(), r.rows.live_tokens), ("ROWS_DENSE", 4 * 40));
     for r in [&trt_run, &ov_run] {
         let j = joined(r);
         assert!(j.contains("type=bind,src=<bundle>,dst=/bundle,readonly"), "{j}");

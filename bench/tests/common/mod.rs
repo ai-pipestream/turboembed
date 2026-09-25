@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use turbo::TURBO_PRECISION_MODEL;
 use turbo::record::{self, Measured, Record, ReferenceRun};
 use turbo_bench::git::Provenance;
-use turbo_bench::measure::{Measurement, Plan, measure};
+use turbo_bench::measure::{Measurement, Plan, RowKind, measure};
 
 pub fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
@@ -110,11 +110,28 @@ pub fn cpu_measurement() -> &'static Measurement {
             precision: TURBO_PRECISION_MODEL,
             batch: None,
             seq: None,
+            rows: RowKind::Mixed,
             warmup: 3,
             iterations: 30,
         };
         measure(&plan).unwrap_or_else(|e| panic!("{e}"))
     })
+}
+
+/// The CPU backend on the small bundle with dense rows of `seq` tokens
+/// (None: the longest case, whole), `batch` of them.
+pub fn dense_measurement(batch: u32, seq: Option<u32>) -> Measurement {
+    let plan = Plan {
+        bundle: tiny_bundle(),
+        device: "cpu".into(),
+        precision: TURBO_PRECISION_MODEL,
+        batch: Some(batch),
+        seq,
+        rows: RowKind::Dense,
+        warmup: 2,
+        iterations: 10,
+    };
+    measure(&plan).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// The provenance of a pushed repository made for the test.

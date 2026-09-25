@@ -11,7 +11,7 @@ use turbo::manifest::Pooling;
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 use turbo_bench::cpus::{self, Cpus};
 use turbo_bench::docker::{self, parse_port};
-use turbo_bench::measure::Rows;
+use turbo_bench::measure::{RowKind, Rows};
 use turbo_bench::openvino::{self, OpenVino};
 use turbo_bench::tei::{self, Tei};
 use turbo_bench::tensorrt::{self, TensorRt};
@@ -225,6 +225,42 @@ const TEI_INFO: &str = r#"{"model_id":"thenlper/gte-base","model_sha":"fca14538a
 "docker_label":null}"#;
 
 #[test]
+fn teis_timing_headers_are_read_as_its_router_writes_them() {
+    assert_eq!(tei::TIMING_HEADERS, ["x-total-time", "x-tokenization-time", "x-queue-time", "x-inference-time"]);
+    // As router/src/lib.rs writes them: whole milliseconds, with the
+    // compute headers beside them.
+    let mut h = ureq::http::HeaderMap::new();
+    for (k, v) in [
+        ("x-compute-type", "gpu+optimized"),
+        ("x-compute-time", "12"),
+        ("x-total-time", "12"),
+        ("x-tokenization-time", "2"),
+        ("x-queue-time", "0"),
+        ("x-inference-time", "9"),
+    ] {
+        h.insert(k, v.parse().unwrap());
+    }
+    assert_eq!(tei::timing_headers(&h), [Some(12), Some(2), Some(0), Some(9)]);
+    h.insert("x-queue-time", "soon".parse().unwrap());
+    h.remove("x-inference-time");
+    assert_eq!(tei::timing_headers(&h), [Some(12), Some(2), None, None]);
+
+    // Each header's p50 and p99 over the requests, by nearest rank.
+    let rt: Vec<f64> = (1..=100).map(f64::from).collect();
+    let got: Vec<[Option<u64>; 4]> = (1..=100).map(|i| [Some(i), Some(1), Some(0), Some(i / 2)]).collect();
+    assert_eq!(
+        tei::timing_text(&rt, &got),
+        "round trip (measured) p50 50.000 ms, p99 99.000 ms; TEI's own headers, whole ms, over the same requests: \
+         x-total-time p50 50 p99 99, x-tokenization-time p50 1 p99 1, x-queue-time p50 0 p99 0, x-inference-time \
+         p50 25 p99 49"
+    );
+    // One answer without a header: it is not given a figure.
+    let mut some = got.clone();
+    some[3][2] = None;
+    assert!(tei::timing_text(&rt, &some).contains("x-queue-time not sent, x-inference-time p50 25"));
+}
+
+#[test]
 fn tei_info_gives_its_version_and_dtype() {
     let i = tei::parse_info(TEI_INFO).unwrap();
     assert_eq!((i.version.as_str(), i.model_dtype.as_str()), ("0.5.0", "float16"));
@@ -318,7 +354,15 @@ fn trt(work: &Path) -> TensorRt {
 
 #[test]
 fn trtexec_is_run_with_every_setting_on_its_command_line() {
-    let rows = Rows { batch: 2, seq: 3, ids: vec![0; 6], mask: vec![0; 6], types: vec![0; 6], cases: vec![0, 1] };
+    let rows = Rows {
+        kind: RowKind::Mixed,
+        batch: 2,
+        seq: 3,
+        ids: vec![0; 6],
+        mask: vec![0; 6],
+        types: vec![0; 6],
+        cases: vec![0, 1],
+    };
     let t = trt(Path::new("/tmp"));
     let flags = tensorrt::precision_flags(TURBO_DTYPE_F32).unwrap();
     let a = tensorrt::run_argv(&t, Path::new("/b"), Path::new("/w"), "onnx/model.onnx", 0, &rows, 200, &flags);
@@ -464,7 +508,15 @@ fn ov(work: &Path) -> OpenVino {
 
 #[test]
 fn benchmark_app_is_run_with_every_setting_on_its_command_line() {
-    let rows = Rows { batch: 2, seq: 3, ids: vec![0; 6], mask: vec![0; 6], types: vec![0; 6], cases: vec![0, 1] };
+    let rows = Rows {
+        kind: RowKind::Mixed,
+        batch: 2,
+        seq: 3,
+        ids: vec![0; 6],
+        mask: vec![0; 6],
+        types: vec![0; 6],
+        cases: vec![0, 1],
+    };
     let o = ov(Path::new("/tmp"));
     let precision = openvino::infer_precision(TURBO_DTYPE_F32).unwrap();
     let a = openvino::run_argv(&o, Path::new("/b"), Path::new("/w"), "onnx/model.onnx", 993, &rows, 200, precision, 99);

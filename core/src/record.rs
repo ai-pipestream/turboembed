@@ -26,6 +26,10 @@ pub const NAME_MAX: usize = 95;
 /// tool writes each host path in it as a placeholder (docs/benchmarks.md).
 pub const HOST_PATHS: [&str; 4] = ["/home/", "/root/", "/var/home/", "/Users/"];
 
+/// The kinds of token rows a record may be measured on.
+pub const ROWS_MIXED: &str = "ROWS_MIXED";
+pub const ROWS_DENSE: &str = "ROWS_DENSE";
+
 /// The reason a cell without any record for it gives.
 pub const NO_RECORD: &str = "no benchmark record for this cell";
 
@@ -120,6 +124,10 @@ pub struct BundleId {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rows {
+    /// `ROWS_MIXED`: the reference cases that fit seq, cycled, each
+    /// padded; `ROWS_DENSE`: every row a case of at least seq tokens, cut
+    /// to seq the way the bundle truncates, so no token is padding.
+    pub kind: String,
     pub batch: u32,
     pub seq: u32,
     /// Mask entries of 1 across the batch.
@@ -258,14 +266,16 @@ fn slug(s: &str) -> String {
 
 /// A record's file name, from its contents alone:
 ///
-/// `<machine>.<backend>.<task>.<precision>.<model>-<manifest>.<commit>.json`
+/// `<machine>.<backend>.<task>.<precision>[-dense].<model>-<manifest>.<commit>.json`
 ///
 /// machine is the arch label, and for a CPU the arch label and the first 8
 /// hex of the SHA-256 of the processor's name, since a CPU record is filed
 /// under both; task and precision are the enum names without their
 /// prefix; model is the last part of the model id, at most 32 bytes;
 /// manifest is the first 8 hex of the bundle's manifest hash, commit the
-/// first 12 of the library's. Longer than NAME_MAX is an error.
+/// first 12 of the library's; `-dense` marks dense rows, so a mixed and a
+/// dense record of one commit are both kept. Longer than NAME_MAX is an
+/// error.
 pub fn file_name(r: &Record) -> Result<String, String> {
     let mut machine = slug(&r.machine.arch);
     if r.device.kind == "DEVICE_CPU" {
@@ -277,8 +287,9 @@ pub fn file_name(r: &Record) -> Result<String, String> {
     let model = model.trim_end_matches('-');
     let manifest = r.bundle.manifest_sha256.get(..8).unwrap_or("");
     let commit = r.library.commit.get(..12).unwrap_or("");
+    let dense = if r.rows.kind == ROWS_DENSE { "-dense" } else { "" };
     let name = format!(
-        "{machine}.{}.{}.{}.{model}-{manifest}.{commit}.json",
+        "{machine}.{}.{}.{}{dense}.{model}-{manifest}.{commit}.json",
         slug(&r.device.backend),
         bare(&r.task, "TASK_"),
         bare(&r.precision, "PRECISION_"),
@@ -388,6 +399,18 @@ impl Record {
         }
         if rows.live_tokens < rows.batch as u64 || rows.live_tokens > rows.batch as u64 * rows.seq as u64 {
             return Err(format!("rows.live_tokens {} does not fit {} x {}", rows.live_tokens, rows.batch, rows.seq));
+        }
+        match rows.kind.as_str() {
+            ROWS_MIXED => {}
+            ROWS_DENSE if rows.live_tokens == rows.batch as u64 * rows.seq as u64 => {}
+            ROWS_DENSE => {
+                return Err(format!(
+                    "rows: dense, yet {} of {} tokens are live",
+                    rows.live_tokens,
+                    rows.batch as u64 * rows.seq as u64
+                ));
+            }
+            k => return Err(format!("rows.kind {k:?} is not {ROWS_MIXED} or {ROWS_DENSE}")),
         }
         let t = &self.timing;
         if t.iterations == 0
