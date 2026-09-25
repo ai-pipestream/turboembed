@@ -493,9 +493,9 @@ impl Kernels {
     }
 }
 
-/// The parts the feed-forward output's sums are split into, over its
-/// terms, so its few output tiles still fill the device; the LayerNorm
-/// after it adds them.
+/// In F32, the parts the feed-forward output's sums are split into, over
+/// its terms, so its few output tiles still fill the device; the LayerNorm
+/// after it adds them. FASTEST never splits.
 const SPLITS: u32 = 4;
 
 /// The F32 sub-group linear kernel's tile, as encoder.cl's SG_N and SG_T.
@@ -690,7 +690,10 @@ pub(crate) unsafe extern "C" fn session_create(
             let narrow = if xmx { round_up(tokens * d.hidden as usize * 2, DEVICE_ALIGN) } else { 0 };
             let ffn = round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN);
             let output = round_up(max_batch as usize * d.hidden as usize * 4, DEVICE_ALIGN);
-            let scratch = c.alloc_device(ints + table + (5 + SPLITS as usize) * wide + narrow + ffn + output)?;
+            // FASTEST's sums are one part, where they are not taken by the
+            // LayerNorm-fused kernels.
+            let parts = if xmx { 1 } else { SPLITS as usize };
+            let scratch = c.alloc_device(ints + table + (5 + parts) * wide + narrow + ffn + output)?;
             let mut s = Box::new(Session {
                 model: m,
                 ctx: c,
@@ -734,7 +737,7 @@ pub(crate) unsafe extern "C" fn session_create(
             s.xh = if xmx { take(narrow) } else { 0 };
             s.qkv = take(3 * wide);
             s.att = take(wide);
-            s.tmp = take(SPLITS as usize * wide);
+            s.tmp = take(parts * wide);
             s.ffn = take(ffn);
             let out_ptr = take(output) as usize as *mut c_void;
             s.output = Box::new(Buffer::session_output(c, out_ptr, max_batch as u64 * d.hidden as u64 * 4));
@@ -854,7 +857,6 @@ impl Session {
                     I32(n_out as i32),
                     I32(n_in as i32),
                     I32(flags),
-                    I32(n_in as i32),
                 ];
                 // Unsplit, so each output's sum runs in one order whatever
                 // the batch.

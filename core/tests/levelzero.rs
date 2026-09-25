@@ -1096,14 +1096,12 @@ fn largest_shape_on(dir: &std::path::Path, gs: &Session, cs: &Session, floor: f6
     );
 }
 
-/// Every row full, at FASTEST: the small model's 64 x 64 tokens fill whole
-/// groups of the XMX linear kernels and the LayerNorm-fused ones. Then
-/// single short rows, for the kernels that take a handful of tokens.
-/// At FASTEST a row's vector does not depend on the rows around it: the
-/// linear layers never split their sums, and each projection back to the
-/// hidden width takes its LayerNorm in its epilogue at every batch size. So
-/// a row of a few tokens alone, which runs the 8-token tiles, gives the
-/// same bits as the same row among others, which run the wider ones.
+/// At FASTEST a row's vector does not depend on the rows around it, below
+/// the LayerNorm kernels' own switch at 256 tokens: the linear layers never
+/// split their sums, and each projection back to the hidden width takes its
+/// LayerNorm in its epilogue at every batch size. So a row of a few tokens
+/// alone, which runs the 8-token tiles, gives the same bits as the same row
+/// among others, which run the wider ones.
 #[test]
 fn a_row_at_fastest_gives_the_same_bits_alone_and_among_others() {
     let _t = turn();
@@ -1122,6 +1120,9 @@ fn a_row_at_fastest_gives_the_same_bits_alone_and_among_others() {
     assert_eq!(alone[0], together[0], "a row of 5 tokens alone and among 62");
 }
 
+/// Every row full, at FASTEST: the small model's 64 x 64 tokens fill whole
+/// groups of the XMX linear kernels and the LayerNorm-fused ones. Then
+/// single short rows, for the kernels that take a handful of tokens.
 #[test]
 fn a_full_batch_at_fastest_matches_the_cpu() {
     let _t = turn();

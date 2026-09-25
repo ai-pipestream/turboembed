@@ -219,13 +219,13 @@ linear_gemv(__global const float *x, __global const float *w, __global const flo
  * already in the product's layout: A as rows of x, B through the read's
  * VNNI transform, which pairs two rows of wt in each lane. A read past the
  * last token gives zeros and a write past it is dropped, so a tile needs
- * no bounds of its own. n_in, k_len and n_out are multiples of 32, and the
+ * no bounds of its own. n_in and n_out are multiples of 32, and the
  * buffers 64-byte aligned.
  *
  * A sub-group computes TM tokens by TN outputs, 32 terms a step; a group
  * of WM x WN sub-groups computes a TM * WM by TN * WN tile, so the group's
- * sub-groups read the same rows of x and wt from cache. Group z sums the
- * z-th k_len of the terms into its own slice of y, as linear does. */
+ * sub-groups read the same rows of x and wt from cache. The sums are never
+ * split, so each output is summed in one order at every batch size. */
 
 __attribute__((overloadable)) float8 intel_sub_group_f16_f16_matrix_mad_k16(short8 a, int8 b, float8 acc);
 __attribute__((overloadable)) void intel_sub_group_2d_block_read_16b_8r16x2c(__global void *base, int width,
@@ -278,21 +278,19 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
                                                    (int2)(o, t), (__private ushort *)&h_);                          \
     } while (0)
 
-#define LINEAR_DPAS(NAME, TM, TN, WM, WN, READ_A, Y, STORE)                                                                 \
+#define LINEAR_DPAS(NAME, TM, TN, WM, WN, READ_A, Y, STORE)                                                         \
     __kernel __attribute__((intel_reqd_sub_group_size(16)))                                                         \
     __attribute__((reqd_work_group_size(16 * (WM) * (WN), 1, 1))) void                                              \
     NAME(__global const half *x, __global const half *wt, __global const float *bias, __global Y *y, int tokens,    \
-         int n_out, int n_in, int flags, int k_len) {                                                               \
+         int n_out, int n_in, int flags) {                                                                          \
         const int sg = get_sub_group_id(), lane = get_sub_group_local_id();                                         \
         const int o0 = (get_group_id(0) * (WN) + sg % (WN)) * (TN);                                                 \
         const int t0 = (get_group_id(1) * (WM) + sg / (WN)) * (TM);                                                 \
         if (o0 >= n_out || t0 >= tokens) return;                                                                    \
-        const int k0 = get_group_id(2) * k_len;                                                                     \
-        y += (size_t)get_group_id(2) * tokens * n_out;                                                              \
         float8 acc[(TM) / 8][(TN) / 16];                                                                            \
         __attribute__((opencl_unroll_hint)) for (int i = 0; i < (TM) / 8; i++)                                      \
             __attribute__((opencl_unroll_hint)) for (int j = 0; j < (TN) / 16; j++) acc[i][j] = (float8)(0.0f);     \
-        for (int k = k0; k < k0 + k_len; k += 32) {                                                                 \
+        for (int k = 0; k < n_in; k += 32) {                                                                        \
             short8 a[2][(TM) / 8];                                                                                  \
             int8 b[2][(TN) / 16];                                                                                   \
             READ_A(x, n_in * 2, tokens, k, t0, a);                                                                  \
@@ -710,7 +708,8 @@ int8 pack_probabilities(float8 lo, float8 hi) {
             if (!sub_group_all(live0 && live1)) {                                                                  \
                 __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++)                                    \
                     __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                              \
-                    const bool live = sub_group_broadcast((int)(h < 2 ? live0 : live1), (h & 1) * 8 + m) != 0;                 \
+                    const bool live =                                                                              \
+                        sub_group_broadcast((int)(h < 2 ? live0 : live1), (h & 1) * 8 + m) != 0;                  \
                     if (!live) s[h][m] = -INFINITY;                                                                \
                 }                                                                                                  \
             }                                                                                                      \
