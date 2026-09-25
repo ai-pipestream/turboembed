@@ -1326,6 +1326,56 @@ fn heads_of_32_match_the_cpu() {
         gs.write_tokens(&t.batch(), None).unwrap();
         assert_eq!(gs.run().unwrap().rows(), got, "precision {precision}: the same bits again");
     }
+    wide_attention_matches(&g, &t, 8, 512, &want, "heads of 32");
+}
+
+/// FASTEST with the attention of 128 queries to a block
+/// (TURBO_CUDA_ATTENTION=128): the CPU's vectors `want` within FASTEST's
+/// bound, the same bits again, and each of the first rows alone within
+/// the bound of its vector in the batch.
+fn wide_attention_matches(g: &Loaded, t: &Tokens, batch: u32, seq: u32, want: &[Vec<f32>], what: &str) {
+    turbo::cuda::use_wide_attention(Some(true));
+    let gs = Session::create(g.m, Some(&session_desc(batch, seq, TURBO_PRECISION_FASTEST)));
+    turbo::cuda::use_wide_attention(None);
+    let gs = gs.unwrap();
+    let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+    gs.write_tokens(&t.batch(), None).unwrap();
+    let got = gs.run().unwrap().rows();
+    let what = format!("{what}, attention of 128 queries");
+    let (cos, abs) = within(&what, &got, want, tol);
+    println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+    gs.write_tokens(&t.batch(), None).unwrap();
+    assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
+    for r in 0..3.min(t.batch as usize) {
+        gs.write_tokens(&one_row(t, r).batch(), None).unwrap();
+        let alone = gs.run().unwrap().rows();
+        within(&format!("{what}: row {r} alone"), &alone, &got[r..r + 1], tol);
+    }
+}
+
+/// Heads 64 wide: the attention of 128 queries to a block matches the
+/// CPU within FASTEST's bound on rows of 300, 129, 64, 63, 17 and 1
+/// tokens with masked tokens inside.
+#[test]
+fn wide_attention_matches_the_cpu_at_heads_of_64() {
+    let _t = turn();
+    let Some(_) = cuda_device("wide_attention_matches_the_cpu_at_heads_of_64") else { return };
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(128);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(128);
+    m["embed"]["max_seq"] = json!(300);
+    m["embed"]["max_batch"] = json!(6);
+    m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+    let mut f = Fixture::new("cuda-wide-attention-64", m);
+    f.weights("weights/model.safetensors", &bert_weights(128, 256));
+    let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+    let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+    let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    let want = cs.run().unwrap().rows();
+    wide_attention_matches(&g, &t, 6, 300, &want, "heads of 64");
 }
 
 /// The LayerNorm inside the attention output and second feed-forward
