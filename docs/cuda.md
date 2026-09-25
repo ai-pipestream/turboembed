@@ -1,7 +1,8 @@
 # The CUDA backend
 
 The `cuda` backend runs embed sessions on NVIDIA GPUs through the CUDA
-runtime and cuBLAS. It is C++ and CUDA in `core/cuda/`, compiled by
+runtime, with GEMMs of its own; it links cuBLAS to measure them against
+and to check them in the tests. It is C++ and CUDA in `core/cuda/`, compiled by
 `core/build.rs` with nvcc into a static library that libturbo links, and
 the core reaches it only through its `turbo_backend` table
 (`include/turbo/turbo_backend.h`). It is off by default: the `cuda`
@@ -35,6 +36,14 @@ cargo build -p turbo --release --features cuda
 | `TURBO_CUDA_ARCH` | The SM architectures to compile for, comma separated as nvcc numbers them: `89`, or `86,89,120`. Default `89`. |
 | `NVCC_CCBIN` | nvcc's own: the host compiler it runs, when the default is not one it accepts. |
 
+At run time, `TURBO_CUDA_CUBLAS`, read when a session is made, hands the
+GEMMs it names to cuBLAS, for measuring the backend's own against it: a
+comma-separated list of `qkv`, `out`, `ffn1` and `ffn2` (the attention
+output and the two feed-forward GEMMs), or `all`. cuBLAS's product then
+goes through a kernel doing the same epilogue, and such a session runs
+its launches one by one instead of as a graph. Unset, cuBLAS computes
+nothing.
+
 The library links the toolkit's shared `libcudart.so.<major>` and
 `libcublas.so.<major>`, with the toolkit's library directory as its run
 path. That run path covers this package's own library and tests only: a
@@ -62,17 +71,18 @@ older than the runtime, it lists none and the runtime's log says why.
   `NVIDIA RTX 6000 Ada Generation` is `rtx6000ada`.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
   every field of `turbo_embed_options`. MODEL and EXACT compute in F32;
-  FASTEST computes in F16: its GEMMs take F16 weights and activations,
-  accumulate in F32 on the tensor cores and write F32, and everything
-  else (the hidden states, residuals, LayerNorm, softmax, pooling) stays
-  F32. The cell says F32 or F16 accordingly. A model stored in F16 or
+  FASTEST computes in F16: its GEMMs take F16 weights and activations and
+  accumulate in F32 on the tensor cores, attention takes F16 queries,
+  keys and values the same way, and everything else (the hidden states,
+  residuals, LayerNorm, softmax, pooling) stays F32. The cell says F32 or F16 accordingly. A model stored in F16 or
   BF16 computes in F32 from a converted copy at EXACT; its session at
   MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3), as on the
   CPU. A model with a GEMM weight past F16's range (65504) computes in
   F32 at FASTEST too, with a warning in the log, and
   `turbo_session_get_info` reports F32 for it.
 - **Contexts.** A context is a stream and a cuBLAS handle on its device,
-  with a 32 MiB cuBLAS workspace of its own, so a GEMM never allocates.
+  with a 32 MiB cuBLAS workspace of its own, so a GEMM `TURBO_CUDA_CUBLAS`
+  hands to cuBLAS never allocates.
   The stream, the handle and its workspace are used under the context's
   lock. The calling thread's current device is set for each call and put
   back after it.
@@ -98,8 +108,10 @@ older than the runtime, it lists none and the runtime's log says why.
   by `turbo_session_create`, never by a run.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: device scratch, the
-  output buffer and page-locked staging for the rows. `embed_write` sends
-  the rows to the device: from the caller's memory when it is page-locked
+  output buffer and page-locked staging for the rows; and the run is
+  captured into a CUDA graph, instantiated and uploaded to the device.
+  `embed_write` sends the rows to the device, `max_seq` apart whatever
+  the run's width: from the caller's memory when it is page-locked
   (a `PINNED` buffer's) or managed, waiting for the copy, since that
   memory is the caller's again when the call returns; through the
   staging otherwise, without waiting (the run is queued behind the copy,
@@ -115,55 +127,72 @@ older than the runtime, it lists none and the runtime's log says why.
   the vectors in the session's `DEVICE` buffer: `turbo_result_buffer`
   hands out that memory, and `turbo_result_read` copies it back on the
   context's stream.
-- **Pipeline.** A run is 3 + 8 × layers launches, each a kernel or one
-  cuBLAS GEMM call, on the context's stream, with one wait at its end
-  (51 for MiniLM's 6 layers).
-  First `pack_rows`, one block that finds each row's length (1 + its last
-  live position) from the mask on the device and scans them into each
-  row's first packed token; then the embedding lookup and its LayerNorm,
-  a warp per live token. Per layer:
+- **Pipeline.** A run is one CUDA graph launch and one wait at its end.
+  The graph holds 3 + 7 × layers kernels (45 for MiniLM's 6 layers),
+  captured when the session is made and never again: nothing about a
+  run's shape is a launch argument. The first kernel, `pack_rows`, reads
+  the mask and writes the run's packing to device memory: each row's
+  length (1 + its last live position) and first packed token, the packed
+  token count, each token's row, a key bias of -1e30 for masked tokens
+  inside a row, and the rows ordered by length, longest first, with the
+  attention work items each starts. Its one argument, the rows' shape and
+  the embed options, is set in the graph before each launch
+  (`cudaGraphExecKernelNodeSetParams`); nothing is copied for it. Every
+  later kernel reads the token count there and is launched for the
+  session's `max_batch` × `max_seq` tokens, capped at what the device
+  holds at once, its blocks looping over the work there is and leaving
+  when there is none. Then the embedding lookup and its LayerNorm, a warp
+  per packed token. Per layer:
   1. one GEMM of the Q, K and V projections together, `[tokens, hidden]`
-     by `[3 × hidden, hidden]` (`cublasSgemm`, or `cublasGemmEx` with F16
-     inputs and `CUBLAS_COMPUTE_32F` for an F16 session);
-  2. attention, one block per tile of 16 queries of one head of one row,
-     keys and values through shared memory 32 at a time up to the row's
-     length, the Q, K and V biases added as the tiles are loaded, softmax
-     from the largest live score, each context summed over its keys in
-     position order, written in F32, or F16 for an F16 session's next GEMM;
+     by `[3 × hidden, hidden]`, their biases added in its epilogue, each
+     head's written apart (`[3][heads][tokens][head_dim]`) so attention
+     reads a row's keys contiguously;
+  2. attention, one block per 64 queries of one head of one row, rows
+     longest first: the row's keys and values go through shared memory,
+     the whole row at once up to 128 keys (256 on the tensor cores), the softmax
+     carried from one block of keys to the next by its running largest
+     score (flash attention's rescaling), with no mask read but the key
+     bias of a row that has masked tokens. EXACT gives a lane each query,
+     its keys split four ways across warps and merged in a fixed order;
+     FASTEST with heads of 32 or 64 computes QKᵀ and PV with `mma.sync`
+     on the tensor cores, F32 accumulators, softmax in F32;
   3. the attention output GEMM;
   4. its bias, the residual and LayerNorm in one kernel, a warp per token
-     (writing an F16 copy too for an F16 session);
-  5. the feed-forward input GEMM;
-  6. its bias and GELU (erf) in one kernel;
-  7. the feed-forward output GEMM;
-  8. its bias, the residual and LayerNorm, as in 4.
+     holding its row in registers (writing an F16 copy too for an F16
+     session);
+  5. the feed-forward input GEMM, its bias and GELU (erf) in its
+     epilogue;
+  6. the feed-forward output GEMM, split over k in two where k is 1536
+     (about 768 per split), each split writing its own partial product;
+  7. the partial products summed in order, the bias, the residual and
+     LayerNorm, as in 4.
 
   Last, one kernel pools each row (mean over its mask, its first token,
-  or its last live one), cuts to `output_dim` and normalizes. There is no
-  CUDA graph: the packed token count, and so every GEMM's shape and every
-  grid, changes from run to run with the rows' lengths, so a graph would
-  be captured and instantiated again on most runs, and a graph captured
-  once at the largest shape would compute the padding packing removes.
-  The GEMM token count and the longest row, which size the launches, are
-  counted on the host by `embed_write` from the mask it is handed (host
-  memory, which the core has read), so nothing is copied back for them.
-- **Session limits.** Beyond the model's own, two refusals come from
-  the device, both `TURBO_E_UNSUPPORTED_OPTION`: a `max_batch` over 65535
-  names field 1, since the kernels run one block per row and a grid
-  dimension holds 65535; a `max_seq` whose attention scores do not fit
-  the shared memory the device gives one block (16 bytes per token, four
-  queries' scores, plus the head's queries and one tile of keys; 99 KiB
-  on sm_89, so about 6000 tokens) names field 2. A head wider than 128
-  values is refused when the model is loaded (`TURBO_E_UNSUPPORTED`).
-- **Numerics.** An F32 session is F32 throughout, with TF32 off: the
-  cuBLAS handle's math mode is `CUBLAS_DEFAULT_MATH`, which computes an
-  F32 GEMM in F32. An F16 session rounds its GEMMs' inputs to F16 and
-  accumulates in F32. The arithmetic follows the CPU encoder where order
-  matters: LayerNorm takes the mean, then the variance about it (in F32
-  here, F64 on the CPU), softmax subtracts the largest live score, each
-  head's context and mean pooling sum in position order, the L2 norm is
-  summed in F64 and floored at 1e-12. No reduction uses atomics, so the
-  same rows give the same bits. Against the fp32 reference, F32 must
+  or its last live one), cuts to `output_dim` and normalizes.
+  The GEMMs are the backend's own: 64 × 64 tiles (32 × 64 where the
+  output is hidden wide), F32 operands with F32 FMAs at MODEL and EXACT
+  (no TF32), F16 operands with `mma.sync.m16n8k16` and F32 accumulators
+  at FASTEST (FMAs on devices before sm_80), a three-stage `cp.async`
+  pipeline. Tiles past the token count do nothing.
+- **Session limits.** Beyond the model's own, a `max_batch` over 65535
+  is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 1). A row may be as long
+  as the model's positions: attention streams longer rows' keys through
+  shared memory a chunk at a time. A model is refused when it is loaded
+  (`TURBO_E_UNSUPPORTED`) for a head wider than 64 values, a hidden width
+  over 1024, or a hidden or intermediate width not a multiple of 8.
+- **Numerics.** An F32 session is F32 throughout: every GEMM output is
+  one chain of F32 FMAs over k. An F16 session rounds its GEMMs' and
+  attention's inputs to F16 and accumulates in F32. The arithmetic
+  follows the CPU encoder where order matters: LayerNorm takes the mean,
+  then the variance about it (in F32 here, F64 on the CPU), softmax
+  subtracts the largest live score (a running one, rescaling what was
+  summed before it, where the CPU takes the row's largest first), mean
+  pooling sums in position order, the L2 norm is summed in F32 and
+  floored at 1e-12. No reduction uses atomics, and every sum's order is
+  fixed by the session's shape, so the same rows give the same bits, and
+  a row gives the same bits whatever rows run beside it. (The packing
+  counts rows into length bins with integer atomics; that changes which
+  block computes a row, never what it computes.) Against the fp32 reference, F32 must
   reach cosine 0.9999 and a largest absolute difference of 1e-4, F16
   cosine 0.999 (docs/conformance.md).
 - **What a result reports.** Stages: tokenize on the host for text,
