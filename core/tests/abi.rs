@@ -100,6 +100,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_model_info", "tokenizer_sha256", offset_of!(turbo_model_info, tokenizer_sha256)),
         ("turbo_model_info", "prefix_query", offset_of!(turbo_model_info, prefix_query)),
         ("turbo_model_info", "prefix_document", offset_of!(turbo_model_info, prefix_document)),
+        ("turbo_model_info", "output_dims_count", offset_of!(turbo_model_info, output_dims_count)),
+        ("turbo_model_info", "output_dims", offset_of!(turbo_model_info, output_dims)),
     ];
     use turbo::backend::{turbo_backend_model, turbo_backend_tensor};
     let model_fields: &[(&str, &str, usize)] = &[
@@ -312,6 +314,7 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_POOLING_CLS", TURBO_POOLING_CLS.into()),
         ("TURBO_POOLING_LAST", TURBO_POOLING_LAST.into()),
         ("TURBO_STAGE_MAX", TURBO_STAGE_MAX as i64),
+        ("TURBO_OUTPUT_DIMS_MAX", TURBO_OUTPUT_DIMS_MAX as i64),
         ("TURBO_EMBED_STAGE_TOKENIZE", TURBO_EMBED_STAGE_TOKENIZE as i64),
         ("TURBO_EMBED_STAGE_UPLOAD", TURBO_EMBED_STAGE_UPLOAD as i64),
         ("TURBO_EMBED_STAGE_LOOKUP", TURBO_EMBED_STAGE_LOOKUP as i64),
@@ -483,6 +486,9 @@ int main(int argc, char **argv) {
     printf("model task %u dim %u pooling %u normalize %u max_seq %u max_batch %u dtype %u\n", mi.task, mi.dim,
            mi.pooling, mi.normalize, mi.max_seq, mi.max_batch, mi.dtype);
     printf("%s revision %s\nartifact %s\n", mi.model_id, mi.revision, mi.artifact_sha256);
+    printf("output_dims %u:", mi.output_dims_count);
+    for (uint32_t i = 0; i < TURBO_OUTPUT_DIMS_MAX; i++) printf(" %u", mi.output_dims[i]);
+    printf("\n");
     turbo_model_release(model);
     turbo_model_release(NULL);
     turbo_text text = T(argv[2]);
@@ -601,7 +607,8 @@ fn a_c_program_loads_a_model_tokenizes_and_embeds() {
 
     let f = Fixture::standard("c-program");
     f.write();
-    let model = Fixture::model("c-program-model");
+    let mut model = Fixture::model("c-program-model");
+    model.manifest["embed"]["output_dims"] = serde_json::json!([4, 2]);
     model.write();
     let text = "Café naïve RÉSUMÉ, 东京 🙂";
     let tiny = tiny_bundle();
@@ -635,7 +642,8 @@ fn a_c_program_loads_a_model_tokenizes_and_embeds() {
          device placement TURBO_E_UNSUPPORTED\n\
          missing TURBO_E_BUNDLE_NOT_FOUND {}\n\
          model task 1 dim 8 pooling 1 normalize 2 max_seq 256 max_batch 64 dtype 12\n\
-         sentence-transformers/all-MiniLM-L6-v2 revision 3\nartifact {}\n{}\n\
+         sentence-transformers/all-MiniLM-L6-v2 revision 3\nartifact {}\n\
+         output_dims 2: 2 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n{}\n\
          session max_batch 4 max_seq 64 precision 2 compute 12\nrun before write TURBO_E_INVALID_STATE\n\
          write while held TURBO_E_BUSY\n\
          result task 1 batch 2 dim 32 dtype 12 compute 12 placement 1 bytes 256 read 256\n\
