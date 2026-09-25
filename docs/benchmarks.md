@@ -272,7 +272,16 @@ read with that in mind:
   whole response: TEI decodes the ids and tokenizes them again, queues
   and batches the inputs, runs the forward pass, pools, and writes the
   vectors as JSON, and the loopback carries it. Its own headers split
-  that up; `procedure` gives their p50 and p99 (below).
+  that up; `procedure` gives their p50 and p99 (below). TEI's server
+  time for the request is `x-total-time` minus `x-tokenization-time`, not
+  `x-inference-time`: TEI queues a request's inputs one at a time and
+  its batcher takes whatever has arrived, so one request can run as
+  several backend batches in turn, and each input's inference time is
+  that of the batch it ran in, the header their mean (as of v1.8.3:
+  `router/src/http/server.rs`, `core/src/infer.rs`, `core/src/queue.rs`).
+  `procedure` gives that server time's p50 and p99, and from TEI's
+  `te_batch_next_size` metric how many batches the timed requests ran as
+  per request and their mean size.
 - **TensorRT and OpenVINO** (`measured`, kernel): the model's graph
   alone, on the rows padded to the batch's `seq`, as the vendor's tool
   times it (trtexec: the inputs' copy to the GPU, the compute and the
@@ -462,8 +471,16 @@ made, so without writing the JSON or the transfer;
 request of several inputs the mean over its inputs of the time each
 spent being tokenized, waiting in the queue, and in the forward pass.
 `procedure` gives the round trip's p50 and p99 and each header's p50
-and p99 over the same timed requests, or that TEI did not send one. The container is removed
-when the tool is done with it. TEI has no BF16 dtype; a BF16 session
+and p99 over the same timed requests, or that TEI did not send one; and
+the p50 and p99 of `x-total-time` minus `x-tokenization-time`, TEI's
+server time without tokenization and HTTP, which the tool's summary
+prints beside the round trip. The tool also reads TEI's Prometheus
+`/metrics` before and after the timed requests, and from the difference
+in its `te_batch_next_size` histogram (`_count`, `_sum`, and the buckets,
+one sample per backend batch) gives how many batches the timed requests
+ran as, per request, and their mean size; without that metric
+`procedure` says so. The container is removed when the tool is done with
+it. TEI has no BF16 dtype; a BF16 session
 records it as `not_run`.
 
 The command gives no `--auto-truncate`. In TEI's router

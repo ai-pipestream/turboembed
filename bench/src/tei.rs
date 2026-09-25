@@ -15,7 +15,16 @@
 //!
 //! Each /embed answer carries TEI's own account of the request in its
 //! headers (TIMING_HEADERS). The tool keeps the round trip as the
-//! measurement and gives their percentiles in the procedure beside it.
+//! measurement and gives their percentiles in the procedure beside it,
+//! with x-total-time minus x-tokenization-time, TEI's server time for the
+//! request without tokenization and HTTP. x-inference-time is not that:
+//! each input's is the time of the backend batch it ran in, and the
+//! header is their mean. TEI's router queues a request's inputs one at a
+//! time and its batcher takes whatever has arrived, so one request can
+//! run as several batches in turn (as of v1.8.3: router/src/http/server.rs,
+//! the embed handler; core/src/infer.rs; core/src/queue.rs). How many
+//! batches it made is read from its Prometheus /metrics, the
+//! te_batch_next_size histogram, before and after the timed requests.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -45,6 +54,16 @@ const DEFAULT_BATCH_TOKENS: u64 = 16384;
 /// of several inputs, the mean over its inputs of the time each spent
 /// tokenized, queued, and in inference (router/src/http/server.rs, embed).
 pub const TIMING_HEADERS: [&str; 4] = ["x-total-time", "x-tokenization-time", "x-queue-time", "x-inference-time"];
+
+/// The histogram TEI's batcher records each batch's size in, one sample
+/// a batch it sends to the backend (core/src/queue.rs, as of v1.8.3),
+/// with power-of-two buckets from 1 to 4096 (router/src/prometheus.rs).
+pub const BATCH_SIZE_METRIC: &str = "te_batch_next_size";
+
+/// How the procedure names x-total-time minus x-tokenization-time, which
+/// report() reads back.
+pub const SERVER_TIME: &str = "TEI's server time without tokenization and HTTP (x-total-time minus \
+                               x-tokenization-time)";
 
 /// How long the server may take to load the model and answer /health.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -254,25 +273,172 @@ pub fn timing_headers(headers: &ureq::http::HeaderMap) -> [Option<u64>; 4] {
     TIMING_HEADERS.map(|h| headers.get(h).and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse().ok()))
 }
 
-/// The timed requests' round trip and TEI's headers, as the procedure
-/// gives them: each header's p50 and p99 over the requests, or that TEI
-/// did not send it with every answer.
+/// One answer's x-total-time minus its x-tokenization-time, in whole
+/// milliseconds: TEI's time for the request from its arrival to its
+/// headers, less the mean time its inputs spent being tokenized. None
+/// when either header is missing.
+pub fn server_time(h: &[Option<u64>; 4]) -> Option<u64> {
+    Some(h[0]?.saturating_sub(h[1]?))
+}
+
+/// The timed requests' round trip, TEI's server time without
+/// tokenization and HTTP, and its headers, as the procedure gives them:
+/// each one's p50 and p99 over the requests, or that TEI did not send
+/// what it needs with every answer.
 pub fn timing_text(round_trip_sorted_ms: &[f64], headers: &[[Option<u64>; 4]]) -> String {
+    let sorted = |got: Option<Vec<f64>>| {
+        got.filter(|v| !v.is_empty()).map(|mut v| {
+            v.sort_by(f64::total_cmp);
+            (percentile(&v, 50.0), percentile(&v, 99.0))
+        })
+    };
     let mut out = format!(
-        "round trip (measured) p50 {:.3} ms, p99 {:.3} ms; TEI's own headers, whole ms, over the same requests:",
+        "round trip (measured) p50 {:.3} ms, p99 {:.3} ms; ",
         percentile(round_trip_sorted_ms, 50.0),
         percentile(round_trip_sorted_ms, 99.0)
     );
+    match sorted(headers.iter().map(|h| server_time(h).map(|v| v as f64)).collect()) {
+        Some((p50, p99)) => out += &format!("{SERVER_TIME} p50 {p50} ms, p99 {p99} ms, from whole-ms headers; "),
+        None => out += &format!("{SERVER_TIME} not known: TEI did not send both headers with every answer; "),
+    }
+    out += "TEI's own headers, whole ms, over the same requests:";
     for (i, name) in TIMING_HEADERS.iter().enumerate() {
-        let got: Option<Vec<f64>> = headers.iter().map(|h| h[i].map(|v| v as f64)).collect();
         let sep = if i == 0 { " " } else { ", " };
-        match got {
-            Some(mut v) if !v.is_empty() => {
-                v.sort_by(f64::total_cmp);
-                out += &format!("{sep}{name} p50 {} p99 {}", percentile(&v, 50.0), percentile(&v, 99.0));
-            }
-            _ => out += &format!("{sep}{name} not sent"),
+        match sorted(headers.iter().map(|h| h[i].map(|v| v as f64)).collect()) {
+            Some((p50, p99)) => out += &format!("{sep}{name} p50 {p50} p99 {p99}"),
+            None => out += &format!("{sep}{name} not sent"),
         }
+    }
+    out
+}
+
+/// The p50 of TEI's server time without tokenization and HTTP, in
+/// milliseconds, as timing_text wrote it into a procedure; None when it
+/// is not there.
+pub fn server_time_p50(procedure: &str) -> Option<f64> {
+    let rest = &procedure[procedure.find(SERVER_TIME)? + SERVER_TIME.len()..];
+    rest.strip_prefix(" p50 ")?.split(' ').next()?.parse().ok()
+}
+
+/// A Prometheus histogram's samples at one reading, from the text
+/// exposition format: `_count`, `_sum`, and each `_bucket`'s upper bound
+/// (`le`, +Inf as infinity) with its cumulative count, in the order
+/// given. A summary has no buckets.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Histogram {
+    pub count: f64,
+    pub sum: f64,
+    pub buckets: Vec<(f64, f64)>,
+}
+
+/// One sample line: its metric name, its labels (the text between the
+/// braces, empty when there are none), and its value.
+fn sample(line: &str) -> Option<(&str, &str, f64)> {
+    let line = line.trim();
+    let name_end = line.find(|c: char| c == '{' || c.is_whitespace())?;
+    let (name, rest) = line.split_at(name_end);
+    let (labels, rest) = match rest.strip_prefix('{') {
+        Some(r) => r.split_once('}')?,
+        None => ("", rest),
+    };
+    Some((name, labels, prom_float(rest.split_whitespace().next()?)?))
+}
+
+fn prom_float(v: &str) -> Option<f64> {
+    match v {
+        "+Inf" => Some(f64::INFINITY),
+        "-Inf" => Some(f64::NEG_INFINITY),
+        v => v.parse().ok(),
+    }
+}
+
+/// The histogram `name` in a /metrics body; None when it has no `_count`
+/// and `_sum` (TEI has not recorded it, or the body is something else).
+/// Series of `name` with other labels than `le` are added together.
+pub fn parse_histogram(text: &str, name: &str) -> Option<Histogram> {
+    let (mut count, mut sum, mut buckets) = (None, None, Vec::<(f64, f64)>::new());
+    for line in text.lines().filter(|l| !l.trim_start().starts_with('#')) {
+        let Some((series, labels, value)) = sample(line) else { continue };
+        let Some(suffix) = series.strip_prefix(name) else { continue };
+        match suffix {
+            "_count" => *count.get_or_insert(0.0) += value,
+            "_sum" => *sum.get_or_insert(0.0) += value,
+            "_bucket" => {
+                let Some(le) = labels
+                    .split(',')
+                    .find_map(|l| l.trim().strip_prefix("le=\""))
+                    .and_then(|v| v.strip_suffix('"'))
+                    .and_then(prom_float)
+                else {
+                    continue;
+                };
+                match buckets.iter_mut().find(|(b, _)| *b == le) {
+                    Some((_, c)) => *c += value,
+                    None => buckets.push((le, value)),
+                }
+            }
+            _ => {}
+        }
+    }
+    buckets.sort_by(|a, b| a.0.total_cmp(&b.0));
+    Some(Histogram { count: count?, sum: sum?, buckets })
+}
+
+impl Histogram {
+    /// What was recorded between `before` and this reading; with no
+    /// `before`, everything this one holds.
+    pub fn since(&self, before: Option<&Histogram>) -> Histogram {
+        let Some(b) = before else { return self.clone() };
+        let earlier = |le: f64| b.buckets.iter().find(|(x, _)| *x == le).map_or(0.0, |(_, c)| *c);
+        Histogram {
+            count: self.count - b.count,
+            sum: self.sum - b.sum,
+            buckets: self.buckets.iter().map(|&(le, c)| (le, c - earlier(le))).collect(),
+        }
+    }
+}
+
+/// How TEI split the timed requests into backend batches, for the
+/// procedure: from BATCH_SIZE_METRIC read before and after them, the
+/// batches, batches per request, their mean size, and how many fell in
+/// each bucket; or that /metrics did not give it.
+pub fn batches_text(before: Option<&Histogram>, after: Option<&Histogram>, requests: u32) -> String {
+    let Some(after) = after else {
+        return format!(
+            "TEI's /metrics gave no {BATCH_SIZE_METRIC} after the timed requests, so how many backend batches they \
+             ran as is not known"
+        );
+    };
+    let d = after.since(before);
+    if d.count <= 0.0 || requests == 0 {
+        return format!("TEI's /metrics {BATCH_SIZE_METRIC} recorded no backend batch over the timed requests");
+    }
+    let mut out = format!(
+        "TEI's /metrics {BATCH_SIZE_METRIC} over the timed requests: {} backend batches of {} inputs for {requests} \
+         requests, {:.2} batches per request, mean batch size {:.2} inputs",
+        d.count,
+        d.sum,
+        d.count / requests as f64,
+        d.sum / d.count
+    );
+    let mut parts = Vec::new();
+    let (mut prev_le, mut prev_c) = (0.0_f64, 0.0);
+    for &(le, c) in &d.buckets {
+        let n = c - prev_c;
+        if n > 0.0 {
+            let low = prev_le.floor() + 1.0;
+            parts.push(if le.is_infinite() {
+                format!("above {prev_le}: {n}")
+            } else if low >= le {
+                format!("{le}: {n}")
+            } else {
+                format!("{low} to {le}: {n}")
+            });
+        }
+        (prev_le, prev_c) = (le, c);
+    }
+    if !parts.is_empty() {
+        out += &format!(" (batches by size, {})", parts.join(", "));
     }
     out
 }
@@ -317,7 +483,9 @@ pub fn run(
     let mut procedure = format!(
         "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the \
          batch's {} rows as token ids, {warmup} untimed then {iterations} timed, each timed from sending the \
-         request to reading the whole response, the p50 and p99 of TEI's {} headers beside it; {}",
+         request to reading the whole response, the p50 and p99 of TEI's {} headers and of x-total-time minus \
+         x-tokenization-time beside it, and TEI's /metrics read before and after the timed requests for its \
+         {BATCH_SIZE_METRIC} histogram; {}",
         m.rows.batch,
         TIMING_HEADERS.join(", "),
         compared(m)
@@ -392,6 +560,8 @@ pub fn run(
     for _ in 0..warmup {
         post(&url, &body)?;
     }
+    let metrics = || get(&format!("{base}/metrics")).ok().and_then(|t| parse_histogram(&t, BATCH_SIZE_METRIC));
+    let before = metrics();
     let mut ms = Vec::with_capacity(iterations as usize);
     let mut own = Vec::with_capacity(iterations as usize);
     let mut last = String::new();
@@ -404,10 +574,11 @@ pub fn run(
         own.push(timing);
     }
     let total = started.elapsed().as_secs_f64();
+    let batches = batches_text(before.as_ref(), metrics().as_ref(), iterations);
     let vectors = parse_embed(&last, m.rows.batch as usize, m.model.dim as usize)?;
     let min_cosine = vectors.iter().zip(&m.expected).map(|(v, want)| cosine(v, want)).fold(1.0, f64::min);
     ms.sort_by(f64::total_cmp);
-    let procedure = format!("{what}; {}; {threads}", timing_text(&ms, &own));
+    let procedure = format!("{what}; {}; {batches}; {threads}", timing_text(&ms, &own));
     Ok(ReferenceRun {
         name: NAME.into(),
         role: "end_to_end".into(),

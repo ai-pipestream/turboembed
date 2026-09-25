@@ -248,16 +248,90 @@ fn teis_timing_headers_are_read_as_its_router_writes_them() {
     // Each header's p50 and p99 over the requests, by nearest rank.
     let rt: Vec<f64> = (1..=100).map(f64::from).collect();
     let got: Vec<[Option<u64>; 4]> = (1..=100).map(|i| [Some(i), Some(1), Some(0), Some(i / 2)]).collect();
+    let text = tei::timing_text(&rt, &got);
     assert_eq!(
-        tei::timing_text(&rt, &got),
-        "round trip (measured) p50 50.000 ms, p99 99.000 ms; TEI's own headers, whole ms, over the same requests: \
-         x-total-time p50 50 p99 99, x-tokenization-time p50 1 p99 1, x-queue-time p50 0 p99 0, x-inference-time \
-         p50 25 p99 49"
+        text,
+        "round trip (measured) p50 50.000 ms, p99 99.000 ms; TEI's server time without tokenization and HTTP \
+         (x-total-time minus x-tokenization-time) p50 49 ms, p99 98 ms, from whole-ms headers; TEI's own headers, \
+         whole ms, over the same requests: x-total-time p50 50 p99 99, x-tokenization-time p50 1 p99 1, \
+         x-queue-time p50 0 p99 0, x-inference-time p50 25 p99 49"
     );
+    assert_eq!(tei::server_time_p50(&format!("TEI's procedure; {text}; 4 threads")), Some(49.0));
+    assert_eq!(tei::server_time_p50("round trip (measured) p50 50.000 ms"), None);
     // One answer without a header: it is not given a figure.
     let mut some = got.clone();
     some[3][2] = None;
     assert!(tei::timing_text(&rt, &some).contains("x-queue-time not sent, x-inference-time p50 25"));
+    // Without x-tokenization-time there is no server time to give.
+    some[5][1] = None;
+    let text = tei::timing_text(&rt, &some);
+    assert!(text.contains("x-tokenization-time) not known: TEI did not send both headers with every answer"), "{text}");
+    assert_eq!(tei::server_time_p50(&text), None);
+    assert_eq!(tei::server_time(&[Some(12), Some(2), Some(0), Some(9)]), Some(10));
+    assert_eq!(tei::server_time(&[Some(12), None, Some(0), Some(9)]), None);
+}
+
+/// TEI's /metrics after a warmup of 12 batches, and after 10 timed
+/// requests of 32 inputs that each ran as a batch of one and then one of
+/// 31, in the text exposition format metrics-exporter-prometheus writes:
+/// the metric names from core/src/queue.rs and core/src/infer.rs, the
+/// batch size buckets 1 to 4096 from router/src/prometheus.rs.
+fn tei_metrics(small: u32, big: u32, sum: u32) -> String {
+    let count = small + big;
+    let mut t = String::from(
+        "# TYPE te_queue_size gauge\nte_queue_size 0\n\n# TYPE te_request_count counter\n\
+         te_request_count{method=\"batch\"} 22\n\n# TYPE te_embed_duration summary\n\
+         te_embed_duration{quantile=\"0\"} 0.004113\nte_embed_duration{quantile=\"0.5\"} 0.0051\n\
+         te_embed_duration_sum 1.43\nte_embed_duration_count 704\n\n# TYPE te_batch_next_size histogram\n",
+    );
+    for i in 0..13 {
+        let le = 1u32 << i;
+        let n = if le < 32 { small } else { count };
+        t += &format!("te_batch_next_size_bucket{{le=\"{le}\"}} {n}\n");
+    }
+    t += &format!(
+        "te_batch_next_size_bucket{{le=\"+Inf\"}} {count}\nte_batch_next_size_sum {sum}\nte_batch_next_size_count \
+         {count}\n\n# TYPE te_batch_next_tokens histogram\nte_batch_next_tokens_bucket{{le=\"+Inf\"}} {count}\n\
+         te_batch_next_tokens_sum 90112\nte_batch_next_tokens_count {count}\n"
+    );
+    t
+}
+
+#[test]
+fn teis_batch_size_histogram_is_read_from_its_metrics() {
+    assert_eq!(tei::BATCH_SIZE_METRIC, "te_batch_next_size");
+    let before = tei::parse_histogram(&tei_metrics(6, 6, 6 * 31 + 6), tei::BATCH_SIZE_METRIC).unwrap();
+    assert_eq!((before.count, before.sum), (12.0, 192.0));
+    assert_eq!(before.buckets.len(), 14);
+    assert_eq!(before.buckets[0], (1.0, 6.0));
+    assert_eq!(before.buckets[13], (f64::INFINITY, 12.0));
+    let after = tei::parse_histogram(&tei_metrics(16, 16, 16 * 31 + 16), tei::BATCH_SIZE_METRIC).unwrap();
+    let d = after.since(Some(&before));
+    assert_eq!((d.count, d.sum), (20.0, 320.0));
+    assert_eq!(
+        tei::batches_text(Some(&before), Some(&after), 10),
+        "TEI's /metrics te_batch_next_size over the timed requests: 20 backend batches of 320 inputs for 10 \
+         requests, 2.00 batches per request, mean batch size 16.00 inputs (batches by size, 1: 10, 17 to 32: 10)"
+    );
+    // A request that ran whole: one batch each.
+    let whole = tei::parse_histogram(&tei_metrics(6, 16, 6 + 6 * 31 + 10 * 32), tei::BATCH_SIZE_METRIC).unwrap();
+    assert!(
+        tei::batches_text(Some(&before), Some(&whole), 10).contains(
+            "10 backend batches of 320 inputs for 10 requests, 1.00 batches per request, mean batch size 32.00"
+        )
+    );
+
+    // A summary has no buckets; its count and sum still give the figures.
+    let summary = "te_batch_next_size{quantile=\"0.5\"} 16\nte_batch_next_size_sum 320\nte_batch_next_size_count 20\n";
+    let s = tei::parse_histogram(summary, tei::BATCH_SIZE_METRIC).unwrap();
+    assert!(s.buckets.is_empty());
+    assert!(tei::batches_text(None, Some(&s), 10).ends_with("2.00 batches per request, mean batch size 16.00 inputs"));
+
+    // Missing: said, not failed.
+    let none = "# TYPE te_queue_size gauge\nte_queue_size 0\n";
+    assert_eq!(tei::parse_histogram(none, tei::BATCH_SIZE_METRIC), None);
+    assert!(tei::batches_text(Some(&before), None, 10).contains("gave no te_batch_next_size"));
+    assert!(tei::batches_text(Some(&before), Some(&before), 10).contains("recorded no backend batch"));
 }
 
 #[test]

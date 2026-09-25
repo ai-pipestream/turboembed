@@ -155,6 +155,23 @@ fn the_report_gives_each_sides_time_beside_the_tokens_it_computed() {
     assert!(lines[1].ends_with(&format!(": unknown token positions computed of {live} live")), "{text}");
     assert!(lines[2].ends_with(&format!(": {padded} token positions computed of {live} live")), "{text}");
     assert!(padded > live);
+
+    // TEI's server time, when its procedure gives it, beside its round trip.
+    let mut tei = measured_reference(TEI);
+    let rt: Vec<f64> = vec![20.0; 10];
+    tei.procedure = format!(
+        "POST /embed; {}; 4 threads",
+        turbo_bench::tei::timing_text(&rt, &[[Some(19), Some(3), Some(0), Some(4)]; 10])
+    );
+    let text = turbo_bench::report(&cpu_record("report", vec![tei]));
+    let tei_line = text.lines().nth(1).unwrap();
+    assert!(
+        tei_line.contains(
+            " ms round trip (TEI's server time without tokenization and HTTP, from its whole-ms headers: p50 16 ms; \
+             not a kernel time) on [32, "
+        ),
+        "{text}"
+    );
 }
 
 #[test]
