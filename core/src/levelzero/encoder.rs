@@ -493,9 +493,9 @@ impl Kernels {
     }
 }
 
-/// The parts the feed-forward output's sums are split into, over its
-/// terms, so its few output tiles still fill the device; the LayerNorm
-/// after it adds them.
+/// In F32, the parts the feed-forward output's sums are split into, over
+/// its terms, so its few output tiles still fill the device; the LayerNorm
+/// after it adds them. FASTEST never splits.
 const SPLITS: u32 = 4;
 
 /// The F32 sub-group linear kernel's tile, as encoder.cl's SG_N and SG_T.
@@ -530,17 +530,6 @@ const GEMV_SUBGROUPS: u32 = 8;
 fn gemv_share(k_len: u32) -> Option<u32> {
     let share = k_len.div_ceil(16 * GEMV_SUBGROUPS) * 16;
     (k_len.is_multiple_of(share) && k_len / share <= GEMV_SUBGROUPS).then_some(share)
-}
-
-/// The parts an XMX linear layer's sums split into, at most `most`: enough
-/// that its sub-groups fill the device's threads, each an equal share of
-/// the n_in terms, a multiple of DPAS_K.
-fn dpas_splits(threads: u32, subgroups: u32, n_in: u32, most: u32) -> u32 {
-    let mut splits = threads.div_ceil(subgroups.max(1)).clamp(1, most.max(1));
-    while splits > 1 && !n_in.is_multiple_of(splits * DPAS_K) {
-        splits -= 1;
-    }
-    splits
 }
 
 /// Sub-groups of an XMX attention group, splitting the row's keys, as
@@ -701,7 +690,10 @@ pub(crate) unsafe extern "C" fn session_create(
             let narrow = if xmx { round_up(tokens * d.hidden as usize * 2, DEVICE_ALIGN) } else { 0 };
             let ffn = round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN);
             let output = round_up(max_batch as usize * d.hidden as usize * 4, DEVICE_ALIGN);
-            let scratch = c.alloc_device(ints + table + (5 + SPLITS as usize) * wide + narrow + ffn + output)?;
+            // FASTEST's sums are one part, where they are not taken by the
+            // LayerNorm-fused kernels.
+            let parts = if xmx { 1 } else { SPLITS as usize };
+            let scratch = c.alloc_device(ints + table + (5 + parts) * wide + narrow + ffn + output)?;
             let mut s = Box::new(Session {
                 model: m,
                 ctx: c,
@@ -741,10 +733,11 @@ pub(crate) unsafe extern "C" fn session_create(
             s.packed_mask = take(ints);
             s.rows = take(table);
             s.x = take(wide);
-            s.xh = take(narrow);
+            // Null in F32, where the LayerNorms write no F16 copy.
+            s.xh = if xmx { take(narrow) } else { 0 };
             s.qkv = take(3 * wide);
             s.att = take(wide);
-            s.tmp = take(SPLITS as usize * wide);
+            s.tmp = take(parts * wide);
             s.ffn = take(ffn);
             let out_ptr = take(output) as usize as *mut c_void;
             s.output = Box::new(Buffer::session_output(c, out_ptr, max_batch as u64 * d.hidden as u64 * 4));
@@ -834,9 +827,10 @@ impl Session {
         let few_tokens = tokens < FEW_TOKENS;
         let xmx = k.linear_dpas.is_some();
         // A linear layer: `which` of the layer's four weights, for the F16
-        // copy at FASTEST, and the F32 weight; its sums split over its
-        // terms into at most `splits` parts; and at FASTEST, whether it
-        // writes F16. x is F16 at FASTEST, else F32. Returns the parts.
+        // copy at FASTEST, and the F32 weight; in F32 its sums split over
+        // its terms into at most `splits` parts, and at FASTEST unsplit,
+        // whether it writes F16. x is F16 at FASTEST, else F32. Returns
+        // the parts.
         let linear = |q: &mut Queue,
                       x: u64,
                       n_in: u32,
@@ -854,8 +848,6 @@ impl Session {
                 } else {
                     (DPAS_TM, DPAS_WM, DPAS_WN, &kd[to_half as usize])
                 };
-                let subgroups = n_out.div_ceil(DPAS_TN) * tokens.div_ceil(tm);
-                let splits = dpas_splits(c.threads, subgroups, n_in, splits);
                 let args = [
                     Ptr(x),
                     Ptr(half.layers[l as usize][which]),
@@ -865,11 +857,11 @@ impl Session {
                     I32(n_out as i32),
                     I32(n_in as i32),
                     I32(flags),
-                    I32((n_in / splits) as i32),
                 ];
-                let groups = [n_out.div_ceil(DPAS_TN * wn), tokens.div_ceil(tm * wm), splits];
-                kernel.launch(c, q, what, &args, groups)?;
-                return Ok(splits);
+                // Unsplit, so each output's sum runs in one order whatever
+                // the batch.
+                let groups = [n_out.div_ceil(DPAS_TN * wn), tokens.div_ceil(tm * wm), 1];
+                return kernel.launch(c, q, what, &args, groups).map(|()| 1);
             }
             // A split takes an equal share of the terms, a multiple of 16.
             let splits = if n_in.is_multiple_of(splits * 16) { splits } else { 1 };
@@ -942,12 +934,10 @@ impl Session {
 
         // At FASTEST, a projection back to the hidden width with the
         // LayerNorm after it, in one kernel, from F16 act; false where
-        // that kernel does not run, for more than a handful of tokens.
+        // that kernel does not run, for a hidden width wider than a group
+        // spans.
         let fused = |q: &mut Queue, act: u64, n_in: u32, (l, which): (u32, usize), (bias, lnw, lnb), what: &str| {
             let (Some(kln), Some(half)) = (&k.linear_dpas_layer_norm, &self.half) else { return Ok(false) };
-            if tokens <= FEW_TOKENS_DPAS {
-                return Ok(false);
-            }
             let args = [
                 Ptr(act),
                 Ptr(half.layers[l as usize][which]),
@@ -1049,10 +1039,8 @@ impl Session {
             let wo = (l, 1, layer(l, ATTN_OUT_WEIGHT));
             let ln = (layer(l, ATTN_OUT_BIAS), layer(l, ATTN_LN_WEIGHT), layer(l, ATTN_LN_BIAS));
             if !fused(q, self.att, h, (l, 1), ln, "the attention output and LayerNorm")? {
-                // At FASTEST the LayerNorm after it adds split sums as well.
-                let most = if xmx { SPLITS } else { 1 };
                 let parts =
-                    linear(q, self.att, h, wo, 0, h, self.tmp, 0, (most, false), "the attention output projection")?;
+                    linear(q, self.att, h, wo, 0, h, self.tmp, 0, (1, false), "the attention output projection")?;
                 add_ln(q, ln.0, ln.1, ln.2, parts, "the attention LayerNorm")?;
             }
             let (wi, bi) = ((l, 2, layer(l, FFN_IN_WEIGHT)), layer(l, FFN_IN_BIAS));

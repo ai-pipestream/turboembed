@@ -135,8 +135,6 @@ pub(crate) struct Context {
     pub max_local: u32,
     /// Nanoseconds per tick of the device's timestamps.
     timer_ns: u64,
-    /// Hardware threads: the sub-groups the device runs at once.
-    pub threads: u32,
     /// With TURBO_LEVELZERO_PROFILE set: each append's name, how many
     /// times it ran, and its nanoseconds on the device.
     profile: Mutex<std::collections::BTreeMap<String, (u64, u64)>>,
@@ -530,7 +528,6 @@ pub(crate) unsafe fn create(
         module: Mutex::new(None),
         max_local: dev.max_local,
         timer_ns: dev.timer_ns,
-        threads: dev.threads,
         profile: Mutex::new(std::collections::BTreeMap::new()),
         log,
         log_user_data,
