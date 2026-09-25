@@ -335,8 +335,12 @@ refuses to finish unless every hash matches.
   list, which stay float32 with casts around them; constants are clamped
   to `max_finite_val` 1e4 and `min_positive_val` 1e-7 in magnitude (its
   defaults, passed explicitly and recorded in `args`); the inputs and
-  the output keep their types. The
-  recipe names only `produced_by.from`; the tool fills in the rest from
+  the output keep their types. The converter leaves a Cast to float of
+  an integer input (BERT's attention mask) as it was, feeding F16 ops,
+  so the script makes each such Cast one to float16
+  (`float_casts_into_f16_ops=FLOAT16` in `args`) and refuses a result in
+  which any other op takes both float and float16 inputs. The recipe
+  names only `produced_by.from`; the tool fills in the rest from
   the run, and runs it twice to say whether it is `reproducible`.
 - The header has no int8 dtype today. It is added when the Hailo
   backend lands, not before; the example shows the value it will use.

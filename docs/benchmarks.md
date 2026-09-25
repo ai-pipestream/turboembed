@@ -385,7 +385,11 @@ strongly typed build is the same on TensorRT 10. `procedure` names the
 file and the flag. An F16 TensorRT time in an older record, built with
 `--fp16` on the F32 graph (weak typing), is not the same build as one
 made with `--stronglyTyped` on the F16 graph, and its `procedure` says
-which it was. The output must end in
+which it was. When trtexec exits non-zero, failing to parse the graph,
+build the engine or run it, the reference is `not_run` with its exit
+code and its first `[E]` line, and the rest of the record is still
+written; docker's own failure (exit code 125 to 127) stops the tool.
+Otherwise the output must end in
 `&&&& PASSED`; the version is its `TensorRT version:` line, p50 and p99
 the summary's `Latency` median and `percentile(99%)` (the H2D copy, the
 GPU compute and the D2H copy of one batch), the iterations its `Timing
@@ -500,7 +504,9 @@ iterations its `Count`; rows per second the first run's count times the
 batch over its `Duration`. Its `Average` and `Throughput` go in
 `procedure`. The two runs must report the same version and count, and
 the second a p99 no lower than the first's median, or the tool stops
-with an error. `-infer_precision` is `f32` for F32 and `f16` for F16;
+with an error. When benchmark_app exits non-zero in either run, the
+reference is `not_run` with its exit code and its first `[ ERROR ]`
+line, as for trtexec. `-infer_precision` is `f32` for F32 and `f16` for F16;
 the GPU plugin has no BF16, so a BF16 session records `not_run`. With
 more than one Level Zero device listed the tool refuses to run it:
 benchmark_app's `GPU` is OpenVINO's first, which need not be the device

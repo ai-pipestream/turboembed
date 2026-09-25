@@ -73,7 +73,7 @@ const ONNX_F16: &[u8] = b"the same graph in float16, as far as sealing is concer
 
 /// What the conversion run reports, in the form onnx_f16.py writes it.
 fn reported_f16() -> Value {
-    json!({ "tool": "onnxconverter-common", "tool_version": "1.16.0 (onnx 1.23.0)", "settings": ["keep_io_types=True", "max_finite_val=10000.0", "min_positive_val=1e-07"] })
+    json!({ "tool": "onnxconverter-common", "tool_version": "1.16.0 (onnx 1.23.0)", "settings": ["keep_io_types=True", "max_finite_val=10000.0", "min_positive_val=1e-07", "float_casts_into_f16_ops=FLOAT16"] })
 }
 
 /// Each converted artifact as a run makes it: its file written, and its
@@ -142,7 +142,7 @@ fn a_sealed_bundle_loads_through_the_core() {
             "tool_version": "1.16.0 (onnx 1.23.0)",
             "container": CONTAINER,
             "from": "onnx-f32",
-            "args": ["onnx/model.onnx", "onnx/model-f16.onnx", "keep_io_types=True", "max_finite_val=10000.0", "min_positive_val=1e-07"],
+            "args": ["onnx/model.onnx", "onnx/model-f16.onnx", "keep_io_types=True", "max_finite_val=10000.0", "min_positive_val=1e-07", "float_casts_into_f16_ops=FLOAT16"],
             "reproducible": true
         })
     );

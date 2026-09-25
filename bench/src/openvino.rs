@@ -20,7 +20,7 @@ use turbo::bundle::Bundle;
 use turbo::record::{Measured, ReferenceRun};
 use turbo::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
-use crate::docker::{self, Log, argv};
+use crate::docker::{self, Log, Ran, argv};
 use crate::measure::{Measurement, Rows};
 use crate::{Result, onnx};
 
@@ -273,9 +273,13 @@ pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report
     })
 }
 
+/// The tag benchmark_app's error lines carry.
+pub const ERROR_TAGS: [&str; 1] = ["[ ERROR ] "];
+
 /// Compile the bundle's ONNX file for the GPU and time it, twice. A thing
-/// benchmark_app cannot do for this bundle is a record that says so; a
-/// failure of docker or of benchmark_app is an error.
+/// benchmark_app cannot do for this bundle, benchmark_app failing to
+/// compile or run the model included, is a record that says so, with its
+/// first error line; a failure of docker is an error.
 pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRun> {
     let image = docker::check_pinned("--openvino-image", &o.image)?;
     let procedure = format!(
@@ -311,11 +315,21 @@ pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRu
         };
         let (bundle, shown) = (Path::new(docker::BUNDLE), Path::new(docker::WORK));
         let [a, b] = PERCENTILES;
-        let p50 = parse(&log.run_as(&argv(&m.bundle_dir, &work, a), argv(bundle, shown, a))?, a)?;
-        let p99 = parse(&log.run_as(&argv(&m.bundle_dir, &work, b), argv(bundle, shown, b))?, b)?;
-        Ok::<_, String>((p50, p99))
+        let mut timed =
+            |p: u32| match log.run_program(&argv(&m.bundle_dir, &work, p), argv(bundle, shown, p), &ERROR_TAGS)? {
+                Ran::Done(out) => parse(&out, p).map(Ok),
+                Ran::Failed(why) => Ok(Err(format!("benchmark_app {why}"))),
+            };
+        let p50 = match timed(a)? {
+            Ok(r) => r,
+            Err(why) => return Ok(Err(why)),
+        };
+        Ok::<_, String>(timed(b)?.map(|p99| (p50, p99)))
     })();
     let _ = fs::remove_dir_all(&work);
-    let (p50, p99) = result?;
+    let (p50, p99) = match result? {
+        Ok(r) => r,
+        Err(why) => return Ok(not_run(image, log, &procedure, why)),
+    };
     measured(image, log, &procedure, p50, p99, &m.rows)
 }
