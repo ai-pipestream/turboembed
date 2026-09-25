@@ -15,16 +15,17 @@
 //!
 //! Each /embed answer carries TEI's own account of the request in its
 //! headers (TIMING_HEADERS). The tool keeps the round trip as the
-//! measurement and gives their percentiles in the procedure beside it,
-//! with x-total-time minus x-tokenization-time, TEI's server time for the
-//! request without tokenization and HTTP. x-inference-time is not that:
-//! each input's is the time of the backend batch it ran in, and the
-//! header is their mean. TEI's router queues a request's inputs one at a
-//! time and its batcher takes whatever has arrived, so one request can
-//! run as several batches in turn (as of v1.8.3: router/src/http/server.rs,
-//! the embed handler; core/src/infer.rs; core/src/queue.rs). How many
-//! batches it made is read from its Prometheus /metrics, the
-//! te_batch_next_size histogram, before and after the timed requests.
+//! measurement and gives their percentiles in the procedure beside it.
+//! None of them is the request's compute. x-total-time runs from the
+//! parsed request to the response headers; x-inference-time is, for each
+//! input, the time of the backend batch it ran in, and the header is their
+//! mean. TEI's router queues a request's inputs one at a time and its
+//! batcher takes whatever has arrived, so one request can run as several
+//! batches in turn (as of v1.8.3: router/src/http/server.rs, the embed
+//! handler; core/src/infer.rs; core/src/queue.rs). How many it ran as is
+//! read from TEI's Prometheus /metrics before and after the timed
+//! requests: te_batch_next_size, less the empty polls te_batch_next_tokens
+//! shows.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -49,21 +50,25 @@ const DEFAULT_BATCH_TOKENS: u64 = 16384;
 
 /// The headers TEI 1.8.3 answers /embed with that time the request, as
 /// router/src/lib.rs names them (`impl From<ResponseMetadata> for
-/// HeaderMap`), each whole milliseconds: from the request's arrival to
-/// the headers being made, before the JSON is written; and for a request
-/// of several inputs, the mean over its inputs of the time each spent
-/// tokenized, queued, and in inference (router/src/http/server.rs, embed).
+/// HeaderMap`), each whole milliseconds. x-total-time runs from the
+/// handler's start, the request body already parsed, to the response
+/// headers being built, so it leaves out HTTP, parsing the body and
+/// writing the JSON. The others are, for a request of several inputs,
+/// the mean over its inputs (router/src/http/server.rs, embed) of: the
+/// time from the input's own start to its entering the queue, waiting
+/// behind the request's other inputs included (x-tokenization-time); its
+/// time in the queue (x-queue-time); and the duration of the backend
+/// batch it ran in (x-inference-time), core/src/infer.rs.
 pub const TIMING_HEADERS: [&str; 4] = ["x-total-time", "x-tokenization-time", "x-queue-time", "x-inference-time"];
 
-/// The histogram TEI's batcher records each batch's size in, one sample
-/// a batch it sends to the backend (core/src/queue.rs, as of v1.8.3),
-/// with power-of-two buckets from 1 to 4096 (router/src/prometheus.rs).
+/// The histograms TEI's batcher records each time it polls its queue
+/// (core/src/queue.rs, as of v1.8.3): the inputs and the tokens of the
+/// batch it takes, both 0 when the queue was empty and it takes none. So
+/// each drain of the queue ends with an empty poll or two. Their buckets
+/// are powers of two, from 1 to 4096 inputs and from 1 to 2^20 tokens
+/// (router/src/prometheus.rs).
 pub const BATCH_SIZE_METRIC: &str = "te_batch_next_size";
-
-/// How the procedure names x-total-time minus x-tokenization-time, which
-/// report() reads back.
-pub const SERVER_TIME: &str = "TEI's server time without tokenization and HTTP (x-total-time minus \
-                               x-tokenization-time)";
+pub const BATCH_TOKENS_METRIC: &str = "te_batch_next_tokens";
 
 /// How long the server may take to load the model and answer /health.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -273,51 +278,35 @@ pub fn timing_headers(headers: &ureq::http::HeaderMap) -> [Option<u64>; 4] {
     TIMING_HEADERS.map(|h| headers.get(h).and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse().ok()))
 }
 
-/// One answer's x-total-time minus its x-tokenization-time, in whole
-/// milliseconds: TEI's time for the request from its arrival to its
-/// headers, less the mean time its inputs spent being tokenized. None
-/// when either header is missing.
-pub fn server_time(h: &[Option<u64>; 4]) -> Option<u64> {
-    Some(h[0]?.saturating_sub(h[1]?))
-}
-
-/// The timed requests' round trip, TEI's server time without
-/// tokenization and HTTP, and its headers, as the procedure gives them:
-/// each one's p50 and p99 over the requests, or that TEI did not send
-/// what it needs with every answer.
+/// The timed requests' round trip and TEI's headers, as the procedure
+/// gives them: each header's p50 and p99 over the requests, or that TEI
+/// did not send it with every answer.
 pub fn timing_text(round_trip_sorted_ms: &[f64], headers: &[[Option<u64>; 4]]) -> String {
-    let sorted = |got: Option<Vec<f64>>| {
-        got.filter(|v| !v.is_empty()).map(|mut v| {
-            v.sort_by(f64::total_cmp);
-            (percentile(&v, 50.0), percentile(&v, 99.0))
-        })
-    };
     let mut out = format!(
-        "round trip (measured) p50 {:.3} ms, p99 {:.3} ms; ",
+        "round trip (measured) p50 {:.3} ms, p99 {:.3} ms; TEI's own headers, whole ms, over the same requests:",
         percentile(round_trip_sorted_ms, 50.0),
         percentile(round_trip_sorted_ms, 99.0)
     );
-    match sorted(headers.iter().map(|h| server_time(h).map(|v| v as f64)).collect()) {
-        Some((p50, p99)) => out += &format!("{SERVER_TIME} p50 {p50} ms, p99 {p99} ms, from whole-ms headers; "),
-        None => out += &format!("{SERVER_TIME} not known: TEI did not send both headers with every answer; "),
-    }
-    out += "TEI's own headers, whole ms, over the same requests:";
     for (i, name) in TIMING_HEADERS.iter().enumerate() {
+        let got: Option<Vec<f64>> = headers.iter().map(|h| h[i].map(|v| v as f64)).collect();
         let sep = if i == 0 { " " } else { ", " };
-        match sorted(headers.iter().map(|h| h[i].map(|v| v as f64)).collect()) {
-            Some((p50, p99)) => out += &format!("{sep}{name} p50 {p50} p99 {p99}"),
-            None => out += &format!("{sep}{name} not sent"),
+        match got {
+            Some(mut v) if !v.is_empty() => {
+                v.sort_by(f64::total_cmp);
+                out += &format!("{sep}{name} p50 {} p99 {}", percentile(&v, 50.0), percentile(&v, 99.0));
+            }
+            _ => out += &format!("{sep}{name} not sent"),
         }
     }
     out
 }
 
-/// The p50 of TEI's server time without tokenization and HTTP, in
-/// milliseconds, as timing_text wrote it into a procedure; None when it
-/// is not there.
-pub fn server_time_p50(procedure: &str) -> Option<f64> {
-    let rest = &procedure[procedure.find(SERVER_TIME)? + SERVER_TIME.len()..];
-    rest.strip_prefix(" p50 ")?.split(' ').next()?.parse().ok()
+/// The p50 of x-total-time, in milliseconds, as timing_text wrote it
+/// into a procedure; None when it is not there.
+pub fn total_time_p50(procedure: &str) -> Option<f64> {
+    let key = format!("{} p50 ", TIMING_HEADERS[0]);
+    let rest = &procedure[procedure.find(&key)? + key.len()..];
+    rest.split(' ').next()?.parse().ok()
 }
 
 /// A Prometheus histogram's samples at one reading, from the text
@@ -398,32 +387,99 @@ impl Histogram {
     }
 }
 
+/// TEI's batch histograms at one reading of /metrics: None when it has
+/// no BATCH_SIZE_METRIC; `tokens` None when it has no
+/// BATCH_TOKENS_METRIC.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BatchMetrics {
+    pub size: Histogram,
+    pub tokens: Option<Histogram>,
+}
+
+pub fn parse_batch_metrics(text: &str) -> Option<BatchMetrics> {
+    Some(BatchMetrics {
+        size: parse_histogram(text, BATCH_SIZE_METRIC)?,
+        tokens: parse_histogram(text, BATCH_TOKENS_METRIC),
+    })
+}
+
+/// A histogram's cumulative count at the bucket `le`, if it has that one.
+fn at(h: &Histogram, le: f64) -> Option<f64> {
+    h.buckets.iter().find(|(b, _)| *b == le).map(|(_, c)| *c)
+}
+
 /// How TEI split the timed requests into backend batches, for the
-/// procedure: from BATCH_SIZE_METRIC read before and after them, the
-/// batches, batches per request, their mean size, and how many fell in
-/// each bucket; or that /metrics did not give it.
-pub fn batches_text(before: Option<&Histogram>, after: Option<&Histogram>, requests: u32) -> String {
+/// procedure, from /metrics read before (`before`) and after (`after`)
+/// them. The batcher's empty polls are in te_batch_next_size as batches
+/// of 0 inputs; te_batch_next_tokens has them as 0 tokens, and, when
+/// every row has at least 2 tokens (`min_row_tokens`), no batch of inputs
+/// has fewer, so its le="1" bucket counts exactly the empty polls. The
+/// figures: the inputs, the batches without the empty polls, batches per
+/// request, their mean size, and how many fell in each size bucket. What
+/// cannot be told is said to be unknown: the batches without the tokens
+/// histogram or with a row of 1 token, and everything when /metrics was
+/// not read before the timed requests though warmup requests ran.
+pub fn batches_text(
+    before: Option<&BatchMetrics>,
+    after: Option<&BatchMetrics>,
+    requests: u32,
+    warmup: u32,
+    min_row_tokens: usize,
+) -> String {
     let Some(after) = after else {
         return format!(
             "TEI's /metrics gave no {BATCH_SIZE_METRIC} after the timed requests, so how many backend batches they \
              ran as is not known"
         );
     };
-    let d = after.since(before);
-    if d.count <= 0.0 || requests == 0 {
-        return format!("TEI's /metrics {BATCH_SIZE_METRIC} recorded no backend batch over the timed requests");
+    if before.is_none() && warmup > 0 {
+        return format!(
+            "TEI's /metrics gave no {BATCH_SIZE_METRIC} before the timed requests, after {warmup} warmup requests, so \
+             how many backend batches the timed requests ran as is not known"
+        );
     }
-    let mut out = format!(
-        "TEI's /metrics {BATCH_SIZE_METRIC} over the timed requests: {} backend batches of {} inputs for {requests} \
-         requests, {:.2} batches per request, mean batch size {:.2} inputs",
-        d.count,
-        d.sum,
-        d.count / requests as f64,
-        d.sum / d.count
+    let size = after.size.since(before.map(|b| &b.size));
+    let tokens = match (&after.tokens, before) {
+        (Some(t), None) => Some(t.clone()),
+        (Some(t), Some(b)) => b.tokens.as_ref().map(|bt| t.since(Some(bt))),
+        (None, _) => None,
+    };
+    let inputs = size.sum;
+    let mut out = format!("TEI's /metrics over the timed requests: {inputs} inputs in {requests} requests");
+    let empty = match tokens.as_ref().and_then(|t| at(t, 1.0)) {
+        None => {
+            return out
+                + &format!(
+                    "; how many backend batches they ran as is not known: {BATCH_SIZE_METRIC} also counts the \
+                     batcher's empty polls, and {BATCH_TOKENS_METRIC}, which tells them apart, was not given"
+                );
+        }
+        Some(_) if min_row_tokens < 2 => {
+            return out
+                + &format!(
+                    "; how many backend batches they ran as is not known: {BATCH_SIZE_METRIC} also counts the \
+                     batcher's empty polls, and with a row of {min_row_tokens} token {BATCH_TOKENS_METRIC} does not \
+                     tell them apart"
+                );
+        }
+        Some(z) => z,
+    };
+    let batches = size.count - empty;
+    if batches <= 0.0 || requests == 0 {
+        return out + &format!("; {BATCH_SIZE_METRIC} recorded no backend batch");
+    }
+    out += &format!(
+        ", {batches} backend batches ({BATCH_SIZE_METRIC}'s {} samples less the {empty} empty polls \
+         {BATCH_TOKENS_METRIC} shows), {:.2} batches per request, mean batch size {:.2} inputs",
+        size.count,
+        batches / requests as f64,
+        inputs / batches
     );
     let mut parts = Vec::new();
     let (mut prev_le, mut prev_c) = (0.0_f64, 0.0);
-    for &(le, c) in &d.buckets {
+    for &(le, c) in &size.buckets {
+        // Every bucket is cumulative, so each holds the empty polls.
+        let c = c - empty;
         let n = c - prev_c;
         if n > 0.0 {
             let low = prev_le.floor() + 1.0;
@@ -483,9 +539,8 @@ pub fn run(
     let mut procedure = format!(
         "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the \
          batch's {} rows as token ids, {warmup} untimed then {iterations} timed, each timed from sending the \
-         request to reading the whole response, the p50 and p99 of TEI's {} headers and of x-total-time minus \
-         x-tokenization-time beside it, and TEI's /metrics read before and after the timed requests for its \
-         {BATCH_SIZE_METRIC} histogram; {}",
+         request to reading the whole response, the p50 and p99 of TEI's {} headers beside it, and TEI's /metrics read \
+         before and after the timed requests for its {BATCH_SIZE_METRIC} and {BATCH_TOKENS_METRIC} histograms; {}",
         m.rows.batch,
         TIMING_HEADERS.join(", "),
         compared(m)
@@ -560,7 +615,7 @@ pub fn run(
     for _ in 0..warmup {
         post(&url, &body)?;
     }
-    let metrics = || get(&format!("{base}/metrics")).ok().and_then(|t| parse_histogram(&t, BATCH_SIZE_METRIC));
+    let metrics = || get(&format!("{base}/metrics")).ok().and_then(|t| parse_batch_metrics(&t));
     let before = metrics();
     let mut ms = Vec::with_capacity(iterations as usize);
     let mut own = Vec::with_capacity(iterations as usize);
@@ -574,7 +629,8 @@ pub fn run(
         own.push(timing);
     }
     let total = started.elapsed().as_secs_f64();
-    let batches = batches_text(before.as_ref(), metrics().as_ref(), iterations);
+    let min_row_tokens = (0..m.rows.batch as usize).map(|r| m.rows.live(r).len()).min().unwrap_or(0);
+    let batches = batches_text(before.as_ref(), metrics().as_ref(), iterations, warmup, min_row_tokens);
     let vectors = parse_embed(&last, m.rows.batch as usize, m.model.dim as usize)?;
     let min_cosine = vectors.iter().zip(&m.expected).map(|(v, want)| cosine(v, want)).fold(1.0, f64::min);
     ms.sort_by(f64::total_cmp);
