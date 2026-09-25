@@ -809,9 +809,10 @@ template <typename TOut> __device__ inline TOut *out_at(const GemmArgs &g, int t
 // floats. k goes 16 at a time through a 3-stage cp.async pipeline of
 // rows of A and of the weight, k contiguous in each; each thread reads
 // four k values of each of its rows and columns, TM + 8 LDS.128 per
-// 32 TM FMAs: 16 per 256 at 8 x 8, 24 per 512 at 16 x 8, which is the
-// F32 default, 128 x 128 over 128 threads, since shared memory reads
-// bound the kernel. Each output's FMAs run in k order at every tile.
+// 32 TM FMAs: 16 per 256 at 8 x 8, 24 per 512 at 16 x 8 (128 x 128
+// over 128 threads, which reads less but runs one block of four warps
+// to an SM, and measured slower than 128 x 64 at 8 x 8 on an sm_89).
+// Each output's FMAs run in k order at every tile.
 
 constexpr int SIMT_BK = 16, SIMT_STAGES = 3;
 
@@ -1187,10 +1188,9 @@ template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut> Ge
 }
 
 /* The FMA kernel's tiles, 8 x 8 outputs to a thread but the 16 x 8 of
- * 128 x 128 over 128 threads, the F32 default; F16 (devices before
- * sm_80) takes 128 x 64 by default. */
+ * 128 x 128 over 128 threads; 128 x 64 by default. */
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
-    if (t == TILE_DEFAULT) t = sizeof(TIn) == 4 ? TILE_128x128_16x8 : TILE_128x64;
+    if (t == TILE_DEFAULT) t = TILE_128x64;
     switch (t) {
     case TILE_64x64: return simt_kernel<64, 64, 8, TIn, EPI, TOut>();
     case TILE_128x128: return simt_kernel<128, 128, 8, TIn, EPI, TOut>();

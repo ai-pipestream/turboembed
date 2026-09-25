@@ -46,9 +46,11 @@ nothing. `TURBO_CUDA_TILE`, read the same way, picks the GEMMs' output
 tile for every GEMM: `64x64`, `128x64`, `128x128` or `128x128-16x8`
 (128 × 128 over 128 threads of 16 × 8 outputs each for the FMA
 kernels, where the other tiles give a thread 8 × 8; plain `128x128` on
-the tensor cores). Unset, the F32 kernels take `128x128-16x8`, the F16
-FMA kernels `128x64`, and the tensor-core kernels `128x128` for the QKV
-and first feed-forward GEMMs and `128x64` for the other two. A tile shares the
+the tensor cores). Unset, the FMA kernels take `128x64`, and the
+tensor-core kernels `128x128` for the QKV and first feed-forward GEMMs
+and `128x64` for the other two. On an RTX 4080, FASTEST runs as fast
+with `128x64` for every GEMM as with that mix, and EXACT about 4%
+slower with `128x128-16x8` than with `128x64`. A tile shares the
 work among the blocks at other points, so the vectors agree within the
 precision's bound, not bit for bit; only the time should differ.
 `TURBO_CUDA_ATTENTION=split`, read the same way, gives the sessions
@@ -230,13 +232,11 @@ older than the runtime, it lists none and the runtime's log says why.
   warp 32 × 32, for the attention output and second feed-forward GEMMs,
   whose outputs are a third or a quarter as wide. The outputs are staged
   through shared memory to be stored 16 bytes at a time. At MODEL and
-  EXACT they take F32 operands with F32 FMAs (no TF32), 128 × 128
-  tiles over 128 threads, each thread 16 × 8 outputs (so it reads 24
-  values from shared memory per 128 FMAs, where 8 × 8 reads 16 per 64),
-  one block to an SM, 16 values of k to a step through a three-stage
-  `cp.async` pipeline (see `TURBO_CUDA_TILE` for the other tiles).
-  Devices before sm_80 take the FMA kernels at every precision, F16 at
-  FASTEST with 8 × 8 outputs of a 128 × 64 tile. The token count changes with every batch, so no
+  EXACT they take F32 operands with F32 FMAs (no TF32), each thread
+  8 × 8 outputs of a 128 × 64 tile, 16 values of k to a step through a
+  three-stage `cp.async` pipeline (see `TURBO_CUDA_TILE` for the other
+  tiles). Devices before sm_80 take the FMA kernels at every precision.
+  The token count changes with every batch, so no
   fixed tiling fills the device; each GEMM is scheduled stream-K
   instead. It launches as many blocks as the device holds at once and
   gives each an equal, contiguous share of the work, counted as tiles ×
