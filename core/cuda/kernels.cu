@@ -1467,6 +1467,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         lst = after(lst);
     };
 
+    // The F32 sums; with WHOLE, never written: the F16 sums converted as
+    // the epilogue and the partial products take them, so no F32 array
+    // is live beside them and the fragments.
     float acc[MI][NI][4];
     int left;
     {
@@ -1574,7 +1577,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             }
             if (chunk_done) break;
         }
-        if constexpr (ACC16) {
+        if constexpr (ACC16 && !WHOLE) {
 #pragma unroll
             for (int i = 0; i < MI; i++)
 #pragma unroll
@@ -1582,12 +1585,21 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
 #pragma unroll
                     for (int h = 0; h < 2; h++) {
                         const float2 v = __half22float2(*reinterpret_cast<const __half2 *>(&hacc[i][j][h]));
-                        // WHOLE: a segment is one chunk, and its sum the product.
-                        acc[i][j][2 * h] = WHOLE ? v.x : acc[i][j][2 * h] + v.x;
-                        acc[i][j][2 * h + 1] = WHOLE ? v.y : acc[i][j][2 * h + 1] + v.y;
+                        acc[i][j][2 * h] += v.x;
+                        acc[i][j][2 * h + 1] += v.y;
                     }
         }
         if (!closes) continue;
+        // This block's product of the tile. WHOLE: a segment is one chunk,
+        // and its F16 sum, in F32, the product.
+        auto product = [&](int i, int j, int e) -> float {
+            if constexpr (WHOLE) {
+                const float2 v = __half22float2(*reinterpret_cast<const __half2 *>(&hacc[i][j][e >> 1]));
+                return e & 1 ? v.y : v.x;
+            } else {
+                return acc[i][j][e];
+            }
+        };
 
         if (!(flags & STEP_ENDS)) {
             // The start of a tile a later block finishes.
@@ -1597,22 +1609,36 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
 #pragma unroll
                 for (int j = 0; j < NI; j++)
 #pragma unroll
-                    for (int e = 0; e < 4; e++) __stcg(slot + ((i * NI + j) * 4 + e) * NT, acc[i][j][e]);
+                    for (int e = 0; e < 4; e++) __stcg(slot + ((i * NI + j) * 4 + e) * NT, product(i, j, e));
             sk_raise(g.flags + blockIdx.x);
             first_fragments();
             continue;
         }
+        // The earlier blocks' partial products, added in F32 from the
+        // last block to the first; with WHOLE, value by value as the
+        // epilogue takes them, in the same order.
         const Share sh = share();
+        int lowest = (int)blockIdx.x; // the first block with a part of the tile
         for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1) > first; b--) {
             sk_wait(g.flags + b, g.fault);
-            const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
+            lowest = b;
+            if constexpr (!WHOLE) {
+                const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
 #pragma unroll
-            for (int i = 0; i < MI; i++)
+                for (int i = 0; i < MI; i++)
 #pragma unroll
-                for (int j = 0; j < NI; j++)
+                    for (int j = 0; j < NI; j++)
 #pragma unroll
-                    for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
+                        for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
+            }
         }
+        auto total = [&](int i, int j, int e) -> float {
+            float v = product(i, j, e);
+            if constexpr (WHOLE)
+                for (int b = (int)blockIdx.x - 1; b >= lowest; b--)
+                    v += __ldcg(g.ws + (size_t)b * SLOT + threadIdx.x + ((i * NI + j) * 4 + e) * NT);
+            return v;
+        };
 
         // The finished tile, from registers.
         const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
@@ -1625,25 +1651,41 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         constexpr bool f16_out = sizeof(TOut) == 2;
         static_assert(!f16_out || EPI != EPI_PLAIN, "F16 outputs have a bias, which packs them");
         [[maybe_unused]] uint32_t packed[f16_out ? MI : 1][f16_out ? NI : 1][2];
-        if constexpr (EPI != EPI_PLAIN)
+        static_assert(!WHOLE || !ROW_LN, "the whole-row LayerNorm reads the F32 sums");
+        // WHOLE: an F16 output's values taken from the F16 sums as they
+        // are packed; an F32 output's bias added as it is stored.
+        if constexpr (EPI != EPI_PLAIN && (!WHOLE || f16_out))
             static_for<NI>([&](auto J) {
                 constexpr int j = J.value;
                 const int c = cw + j * 8 + tq * 2;
                 const float b0 = c < N ? __ldg(g.bias + c) : 0.0f, b1 = c < N ? __ldg(g.bias + c + 1) : 0.0f;
                 static_for<MI>([&](auto I) {
                     constexpr int i = I.value;
-#pragma unroll
-                    for (int e = 0; e < 4; e++) {
-                        float &v = acc[i][j][e];
-                        v += e & 1 ? b1 : b0;
-                        if constexpr (EPI == EPI_GELU) v = gelu(v);
-                    }
-                    if constexpr (f16_out)
+                    if constexpr (WHOLE) {
                         static_for<2>([&](auto H) {
                             constexpr int h = H.value;
-                            const __half2 p = __floats2half2_rn(acc[i][j][2 * h], acc[i][j][2 * h + 1]);
+                            float v0 = total(i, j, 2 * h) + b0, v1 = total(i, j, 2 * h + 1) + b1;
+                            if constexpr (EPI == EPI_GELU) {
+                                v0 = gelu(v0);
+                                v1 = gelu(v1);
+                            }
+                            const __half2 p = __floats2half2_rn(v0, v1);
                             packed[i][j][h] = *reinterpret_cast<const uint32_t *>(&p);
                         });
+                    } else {
+#pragma unroll
+                        for (int e = 0; e < 4; e++) {
+                            float &v = acc[i][j][e];
+                            v += e & 1 ? b1 : b0;
+                            if constexpr (EPI == EPI_GELU) v = gelu(v);
+                        }
+                        if constexpr (f16_out)
+                            static_for<2>([&](auto H) {
+                                constexpr int h = H.value;
+                                const __half2 p = __floats2half2_rn(acc[i][j][2 * h], acc[i][j][2 * h + 1]);
+                                packed[i][j][h] = *reinterpret_cast<const uint32_t *>(&p);
+                            });
+                    }
                 });
             });
         if constexpr (ROW_LN) {
@@ -1751,7 +1793,16 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                     static_for<NI>([&](auto J) {
                         constexpr int j = J.value;
                         if (cw + j * 8 >= N) return;
-                        float2 v = make_float2(acc[i][j][2 * h], acc[i][j][2 * h + 1]);
+                        float2 v = make_float2(total(i, j, 2 * h), total(i, j, 2 * h + 1));
+                        if constexpr (WHOLE && EPI != EPI_PLAIN) {
+                            const int c = cw + j * 8 + tq * 2;
+                            v.x += c < N ? __ldg(g.bias + c) : 0.0f;
+                            v.y += c < N ? __ldg(g.bias + c + 1) : 0.0f;
+                            if constexpr (EPI == EPI_GELU) {
+                                v.x = gelu(v.x);
+                                v.y = gelu(v.y);
+                            }
+                        }
                         if constexpr (EPI == EPI_ADD_LN) {
                             const float2 r = row[j * 4];
                             v.x += r.x;
