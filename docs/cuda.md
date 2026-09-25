@@ -51,7 +51,18 @@ precision's bound, not bit for bit; only the time should differ.
 that compute attention with FMAs the kernel that splits each query's
 keys among four warps (a lane per query, 64 queries to a block, the
 partial softmaxes merged in a fixed order), for measuring against the
-default.
+default. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
+a GEMM's block takes before the GEMM runs on fewer blocks (a count from
+1 to 64; 4 when unset), for measuring how finely the work is shared.
+Like the tile, it moves where the sums split, so the vectors agree
+within the bound, not bit for bit.
+
+A GEMM's block that finishes a tile waits for the blocks that computed
+its other k steps. Should one never arrive (the device running a later
+block before an earlier one could leave it waiting), the wait gives up
+after about a second, and the run fails with `TURBO_E_RUNTIME` instead
+of hanging; a session whose GEMM kernels fit fewer blocks to an SM than
+they were built for logs a warning when it is made.
 
 The library links the toolkit's shared `libcudart.so.<major>` and
 `libcublas.so.<major>`, with the toolkit's library directory as its run

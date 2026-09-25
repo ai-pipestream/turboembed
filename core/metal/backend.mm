@@ -2,18 +2,19 @@
 //
 // The Metal backend: Apple GPUs through Metal, behind
 // include/turbo/turbo_backend.h. It lists the devices Metal reports, keeps
-// a command queue per context and the compiled kernels per device, reads a model's
-// weights where the core holds them, and runs embed sessions with the BERT
-// encoder in kernels.metal.
+// the compiled kernels per device, reads a model's weights where the core
+// holds them, and runs embed sessions with the BERT encoder in
+// kernels.metal, each session on a command queue of its own.
 //
 // It runs on Apple silicon, where the GPU and the host share one memory:
 // the weights, the rows and the vectors are memory both can address, and
 // nothing is copied to reach the device. A GPU with memory of its own is
 // listed but runs nothing.
 //
-// Every function here is called from any thread. A context's queue is
-// used under the context's lock, which a run holds from encoding its
-// commands until they complete.
+// Every function here is called from any thread. A context's own queue,
+// for widening weights and reading DEVICE buffers, is used under the
+// context's lock, held until the commands complete. A session's queue is
+// its own, and a session has one owner at a time.
 
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
@@ -147,12 +148,12 @@ id<MTLBuffer> new_buffer(id<MTLDevice> d, size_t n, MTLResourceOptions o) {
 
 /* A Metal buffer over host memory already mapped, without a copy, or nil
  * when Metal will not take it: it takes whole pages only. */
-id<MTLBuffer> wrap(id<MTLDevice> d, void *p, size_t n) {
+id<MTLBuffer> wrap(id<MTLDevice> d, void *p, size_t n, MTLResourceOptions extra = 0) {
     const size_t page = (size_t)getpagesize();
     if ((uintptr_t)p % page != 0 || n == 0 || n % page != 0) return nil;
     id<MTLBuffer> b = [d newBufferWithBytesNoCopy:p
                                            length:n
-                                          options:MTLResourceStorageModeShared
+                                          options:MTLResourceStorageModeShared | extra
                                       deallocator:nil];
     if (b) counted_device();
     return b;
@@ -281,6 +282,10 @@ constexpr uint32_t EMBED_HONORED = 0x38;
 const char *cannot_run(id<MTLDevice> d) {
     if (!d.hasUnifiedMemory)
         return "the metal backend runs on Apple silicon, where the GPU shares the host's memory; this GPU has its own";
+    if (@available(macOS 14.0, *)) {
+    } else {
+        return "the metal backend's kernels need Metal 3.1, which macOS has from 14 on";
+    }
     if (![d supportsFamily:MTLGPUFamilyApple7])
         return "the metal backend needs SIMD-group matrices, which Apple GPUs have from the M1's family (Apple7) on";
     return nullptr;
@@ -323,9 +328,9 @@ int32_t capability(uint32_t ordinal, uint32_t, uint32_t, uint32_t *status, uint3
 constexpr uint32_t LOG_WARNING = 1;
 constexpr uint32_t LOG_DEBUG = 3;
 
-enum Kernel { EMBED_LN, ADD_LN, LINEAR, GELU, ATTENTION, POOL, WIDEN_F16, WIDEN_BF16, KERNELS };
-const char *const KERNEL_NAMES[KERNELS] = {"embed_layer_norm", "add_layer_norm", "linear", "bias_gelu",
-                                           "attention", "pool", "widen_f16", "widen_bf16"};
+enum Kernel { EMBED_LN, ADD_LN, GEMM, ATTENTION, ATTENTION_NARROW, POOL, WIDEN_F16, WIDEN_BF16, KERNELS };
+const char *const KERNEL_NAMES[KERNELS] = {"embed_layer_norm", "add_layer_norm", "gemm", "attention",
+                                           "attention_narrow", "pool", "widen_f16", "widen_bf16"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -422,9 +427,13 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
         int32_t rc = c->queue ? TURBO_OK : refuse(err, TURBO_E_RUNTIME, "newCommandQueue gave none");
         if (rc == TURBO_OK) rc = kernels_for(ordinal, &c->kernels, err);
         // kernels.metal's reductions and matrices take SIMD groups of 32.
-        if (rc == TURBO_OK && c->kernels->k[LINEAR].threadExecutionWidth != 32)
+        for (Kernel kk : {GEMM, ATTENTION})
+            if (rc == TURBO_OK && c->kernels->k[kk].maxTotalThreadsPerThreadgroup < 128)
+                rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs the %s kernel in threadgroups of %lu; it needs 128",
+                            ordinal, KERNEL_NAMES[kk], (unsigned long)c->kernels->k[kk].maxTotalThreadsPerThreadgroup);
+        if (rc == TURBO_OK && c->kernels->k[GEMM].threadExecutionWidth != 32)
             rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs SIMD groups of %lu threads; the kernels need 32",
-                        ordinal, (unsigned long)c->kernels->k[LINEAR].threadExecutionWidth);
+                        ordinal, (unsigned long)c->kernels->k[GEMM].threadExecutionWidth);
         if (rc != TURBO_OK) {
             delete c;
             return rc;
@@ -681,6 +690,12 @@ enum : int {
     EMB_LN_B = TURBO_BERT_EMBEDDINGS_LN_BIAS,
 };
 
+/* Weights are written once, before any session reads them, then only
+ * read, by any number of sessions at once: Metal need not track them,
+ * and tracking them would order sessions that share a model one after
+ * another. */
+constexpr MTLResourceOptions WEIGHTS = MTLResourceHazardTrackingModeUntracked;
+
 /* A tensor: its Metal buffer and where in it the tensor starts. */
 struct Ref {
     id<MTLBuffer> buf = nil;
@@ -724,13 +739,13 @@ int64_t map_weights(Model *m, const turbo_backend_model *desc) {
         uint32_t e = k + 1;
         while (e < n && start(order[e]) < (hi + page - 1) / page * page) hi = std::max(hi, stop(order[e++]));
         hi = (hi + page - 1) / page * page;
-        if (id<MTLBuffer> b = wrap(m->ctx->device, reinterpret_cast<void *>(lo), hi - lo)) {
+        if (id<MTLBuffer> b = wrap(m->ctx->device, reinterpret_cast<void *>(lo), hi - lo, WEIGHTS)) {
             for (; k < e; k++) m->stored[order[k]] = Ref{b, start(order[k]) - lo};
             continue;
         }
         size_t total = 0;
         for (uint32_t i = k; i < e; i++) total += round_up(desc->tensors[order[i]].bytes, 256);
-        id<MTLBuffer> copy = new_buffer(m->ctx->device, total, MTLResourceStorageModeShared);
+        id<MTLBuffer> copy = new_buffer(m->ctx->device, total, MTLResourceStorageModeShared | WEIGHTS);
         if (!copy) return -1;
         char *base = static_cast<char *>(copy.contents);
         for (uint64_t at = 0; k < e; k++) {
@@ -753,6 +768,11 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
         if (desc->heads == 0 || desc->hidden % desc->heads != 0)
             return refuse(err, TURBO_E_UNSUPPORTED, "hidden %u is not a multiple of heads %u", desc->hidden,
                           desc->heads);
+        // The kernels work in 8 x 8 matrices.
+        if (desc->hidden % 8 || desc->intermediate % 8)
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "hidden %u and intermediate %u: the metal backend needs each a multiple of 8", desc->hidden,
+                          desc->intermediate);
         const size_t elem = desc->dtype == TURBO_DTYPE_F32 ? 4 : 2;
         Model *m = make<Model>();
         m->ctx = c;
@@ -809,7 +829,7 @@ int32_t f32_weights(Model *m, turbo_error *err) {
         at.push_back(total);
         total += round_up(n * 4, 256);
     }
-    id<MTLBuffer> wide = new_buffer(c->device, total, MTLResourceStorageModePrivate);
+    id<MTLBuffer> wide = new_buffer(c->device, total, MTLResourceStorageModePrivate | WEIGHTS);
     if (!wide) return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the weights in F32", total);
     {
         std::lock_guard<std::mutex> cg(c->lock);
@@ -835,58 +855,79 @@ int32_t f32_weights(Model *m, turbo_error *err) {
 //
 // A session is private scratch for its largest batch, shared memory for
 // the rows, and the shared buffer its vectors are written to, all
-// allocated here; a run allocates nothing. The rows are computed over the
-// written batch's full [batch, seq] grid: attention skips masked keys and
-// no pooling reads a masked token, so the padding a row carries changes no
-// output, as on the CPU, which leaves it out.
+// allocated here; a run allocates nothing.
 //
-// embed_write copies the rows into the session's shared memory, where the
-// GPU reads them: with one memory nothing crosses to a device, so
-// h2d_bytes and d2h_bytes are 0, as on the CPU. The vectors are left in
-// the session's shared buffer, which the host reads where they are.
+// The rows are packed, as on the CPU: embed_write copies each row's
+// columns up to its last live token one after another into the session's
+// shared memory, where the GPU reads them, with each token's column for
+// its position, each row's start and length, and the attention's blocks
+// of 32 queries. Padding past a row's last live token is never computed: no
+// output depends on it. The packed tokens are rounded up to a multiple of
+// 32 for the matrix kernels, and those extra tokens are real lookups
+// (token 0 at column 0) whose results no output reads. With one memory
+// nothing crosses to a device, so h2d_bytes and d2h_bytes are 0. The
+// vectors are left in the session's shared buffer, which the host reads
+// where they are.
 
 /* Kernel parameter blocks, as kernels.metal declares them. */
 struct RowParams {
-    uint32_t seq, hidden;
+    uint32_t hidden;
     float eps;
-    uint32_t has_types;
 };
-struct LinearParams {
-    uint32_t m, n, k;
-};
-struct GeluParams {
-    uint32_t n, width;
+struct GemmParams {
+    uint32_t m, n, k, epilogue, splits, kchunk;
 };
 struct AttentionParams {
-    uint32_t seq, hidden, head_dim;
+    uint32_t hidden, head_dim;
     float scale;
 };
 struct PoolParams {
-    uint32_t seq, hidden, output_dim, pooling, l2;
+    uint32_t hidden, output_dim, pooling, l2;
 };
 
-constexpr uint32_t BLOCK = 128;
-constexpr uint32_t TILE = 32;
+enum : uint32_t { EPILOGUE_NONE = 0, EPILOGUE_BIAS = 1, EPILOGUE_BIAS_GELU = 2 };
 
-size_t attention_bytes(uint32_t seq, uint32_t head_dim) {
-    const uint32_t part = head_dim <= BLOCK ? (BLOCK / head_dim) * head_dim : 0;
-    // Threadgroup memory is given in multiples of 16 bytes.
-    return round_up(sizeof(float) * ((size_t)head_dim + seq + part), 16);
+/* Threadgroups a linear layer's dispatch should have to keep the GPU's
+ * cores busy: several per core on the largest Apple GPUs. */
+constexpr uint32_t SPREAD = 128;
+
+/* The packed tokens a batch of `tokens` can take, rounded up to a
+ * multiple of 32. */
+size_t capacity(size_t tokens) { return round_up(tokens, 32); }
+
+/* Whether attention runs on SIMD-group matrices for this head width. */
+bool wide_heads(uint32_t head_dim) { return head_dim % 8 == 0 && head_dim <= 64; }
+
+/* Attention's threadgroup memory: for the matrix kernel, 32 queries and a
+ * chunk of 32 keys' K and V, rows padded by 4 floats, and four groups' 8 x
+ * 32 scores; for the narrow one, one query's scores against seq keys. */
+size_t attention_bytes(uint32_t head_dim, uint32_t seq) {
+    const size_t floats = wide_heads(head_dim) ? 3 * 32 * (head_dim + 4) + 4 * 8 * 32 : round_up(seq, 8);
+    return round_up(sizeof(float) * floats, 16);
 }
 
 struct Session {
     Model *model = nullptr;
     Context *ctx = nullptr;
-    uint32_t max_batch = 0, max_seq = 0;
-    /* [3, max_batch * max_seq] int32: ids, mask, types. */
+    uint32_t max_batch = 0, max_seq = 0, cap = 0;
+    /* Shared, int32 each: ids, types, mask and pos [cap]; rows [max_batch]
+     * of (start, length); blocks [cap / 32 + max_batch] of (row, block of
+     * 32 queries). */
     id<MTLBuffer> rows = nil;
+    uint64_t ids = 0, types = 0, mask = 0, pos = 0, starts = 0, blocks = 0;
     id<MTLBuffer> scratch = nil;
     uint64_t x = 0, q = 0, k = 0, v = 0, att = 0, tmp = 0, ffn = 0;
+    /* The session's own queue: sessions run at the same time, each on the
+     * GPU cores the others leave free, and a session has one owner at a
+     * time, so its queue needs no lock. */
+    id<MTLCommandQueue> queue = nil;
     /* [max_batch, hidden] F32, handed out as the output. */
     Buffer output;
     bool written = false;
-    bool has_types = false;
-    uint32_t batch = 0, seq = 0, pooling = 0, normalize = 0, output_dim = 0;
+    /* What the last write left: the rows, the tokens packed and rounded
+     * up, the attention blocks, and the options. */
+    uint32_t batch = 0, tokens = 0, padded = 0, nblocks = 0, longest = 0;
+    uint32_t pooling = 0, normalize = 0, output_dim = 0;
 };
 
 int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
@@ -905,18 +946,22 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         if (max_seq > d.max_positions)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 2, "max_seq %u is over the model's %u positions",
                                 max_seq, d.max_positions);
-        const size_t shared = attention_bytes(max_seq, d.hidden / d.heads);
-        const size_t most = c->device.maxThreadgroupMemoryLength - c->kernels->k[ATTENTION].staticThreadgroupMemoryLength;
+        const size_t shared = attention_bytes(d.hidden / d.heads, max_seq);
+        const Kernel att = wide_heads(d.hidden / d.heads) ? ATTENTION : ATTENTION_NARROW;
+        const size_t most = c->device.maxThreadgroupMemoryLength - c->kernels->k[att].staticThreadgroupMemoryLength;
         if (shared > most)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 2,
                                 "max_seq %u: attention needs %zu bytes of threadgroup memory, and device %u gives it "
                                 "%zu",
                                 max_seq, shared, c->ordinal, most);
-        const size_t tokens = (size_t)max_batch * max_seq;
+        const size_t cap = capacity((size_t)max_batch * max_seq);
         const size_t widest = std::max(d.intermediate, d.hidden);
-        const size_t wide = round_up(tokens * d.hidden * 4, 256);
-        const size_t ffn = round_up(tokens * d.intermediate * 4, 256);
-        if (tokens > UINT32_MAX / widest || 6 * wide + ffn > c->device.maxBufferLength)
+        const size_t wide = round_up(cap * d.hidden * 4, 256);
+        const size_t ffn = round_up(cap * d.intermediate * 4, 256);
+        const size_t nblk = cap / 32 + max_batch;
+        const size_t ints = round_up(cap * 4, 256), pairs = round_up(max_batch * 8, 256),
+                     block_pairs = round_up(nblk * 8, 256);
+        if (cap > UINT32_MAX / widest || 6 * wide + ffn > c->device.maxBufferLength)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1,
                                 "%u rows of %u tokens is more than one of device %u's buffers holds", max_batch,
                                 max_seq, c->ordinal);
@@ -927,14 +972,23 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         s->ctx = c;
         s->max_batch = max_batch;
         s->max_seq = max_seq;
-        s->rows = new_buffer(c->device, 3 * tokens * 4, MTLResourceStorageModeShared);
+        s->cap = (uint32_t)cap;
+        s->rows = new_buffer(c->device, 4 * ints + pairs + block_pairs, MTLResourceStorageModeShared);
         s->scratch = new_buffer(c->device, 6 * wide + ffn, MTLResourceStorageModePrivate);
+        s->queue = [c->device newCommandQueue];
         const uint64_t vectors = (uint64_t)max_batch * d.hidden * 4;
         id<MTLBuffer> output = new_buffer(c->device, vectors, MTLResourceStorageModeShared);
-        if (!s->rows || !s->scratch || !output) {
+        if (!s->rows || !s->scratch || !output || !s->queue) {
             delete s;
-            return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the session", 12 * tokens + 6 * wide + ffn);
+            return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes for the session", (unsigned long long)(
+                          4 * ints + pairs + block_pairs + 6 * wide + ffn + vectors));
         }
+        s->ids = 0;
+        s->types = ints;
+        s->mask = 2 * ints;
+        s->pos = 3 * ints;
+        s->starts = 4 * ints;
+        s->blocks = 4 * ints + pairs;
         s->x = 0;
         s->q = wide;
         s->k = 2 * wide;
@@ -963,21 +1017,50 @@ void session_release(void *session) {
     }
 }
 
+/* The rows, packed into the session: see above. */
 int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Session &s = *static_cast<Session *>(session);
-        const size_t tokens = (size_t)s.max_batch * s.max_seq;
-        int32_t *dst = static_cast<int32_t *>(s.rows.contents);
-        const int32_t *src[3] = {r->ids, r->mask, r->types};
-        for (int a = 0; a < 3; a++) {
-            if (!src[a]) continue;
-            for (uint32_t row = 0; row < r->batch; row++)
-                memcpy(dst + a * tokens + (size_t)row * r->seq, src[a] + (size_t)row * r->row_stride,
-                       (size_t)r->seq * 4);
+        char *base = static_cast<char *>(s.rows.contents);
+        int32_t *ids = reinterpret_cast<int32_t *>(base + s.ids);
+        int32_t *types = reinterpret_cast<int32_t *>(base + s.types);
+        int32_t *mask = reinterpret_cast<int32_t *>(base + s.mask);
+        int32_t *pos = reinterpret_cast<int32_t *>(base + s.pos);
+        uint32_t *starts = reinterpret_cast<uint32_t *>(base + s.starts);
+        uint32_t *blocks = reinterpret_cast<uint32_t *>(base + s.blocks);
+        uint32_t t = 0, nb = 0, longest = 0;
+        for (uint32_t row = 0; row < r->batch; row++) {
+            const size_t at = (size_t)row * r->row_stride;
+            const int32_t *m = r->mask + at;
+            uint32_t len = r->seq;
+            while (m[len - 1] == 0) len--;   // the core guarantees a live token
+            memcpy(ids + t, r->ids + at, (size_t)len * 4);
+            memcpy(mask + t, m, (size_t)len * 4);
+            if (r->types)
+                memcpy(types + t, r->types + at, (size_t)len * 4);
+            else
+                memset(types + t, 0, (size_t)len * 4);
+            for (uint32_t p = 0; p < len; p++) pos[t + p] = (int32_t)p;
+            starts[2 * row] = t;
+            starts[2 * row + 1] = len;
+            for (uint32_t b = 0; b * 32 < len; b++) {
+                blocks[2 * nb] = row;
+                blocks[2 * nb + 1] = b;
+                nb++;
+            }
+            t += len;
+            longest = std::max(longest, len);
         }
-        s.has_types = r->types != nullptr;
+        const uint32_t padded = (uint32_t)capacity(t);
+        memset(ids + t, 0, (size_t)(padded - t) * 4);
+        memset(types + t, 0, (size_t)(padded - t) * 4);
+        memset(mask + t, 0, (size_t)(padded - t) * 4);
+        memset(pos + t, 0, (size_t)(padded - t) * 4);
         s.batch = r->batch;
-        s.seq = r->seq;
+        s.tokens = t;
+        s.padded = padded;
+        s.nblocks = nb;
+        s.longest = longest;
         s.pooling = r->pooling;
         s.normalize = r->normalize;
         s.output_dim = r->output_dim;
@@ -986,103 +1069,126 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
     });
 }
 
-/* The encoder over the written rows, into one compute pass. Its
+/* The encoder over the packed tokens, into one compute pass. Its
  * dispatches run in order, each seeing what the one before wrote. */
 void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     const turbo_backend_model &d = s.model->desc;
     const std::vector<Ref> &w = s.model->f32;
-    Context *c = s.ctx;
-    const uint32_t batch = s.batch, seq = s.seq, tokens = batch * seq;
+    const Kernels &kn = *s.ctx->kernels;
+    const uint32_t tokens = s.padded;
     const uint32_t h = d.hidden, inter = d.intermediate, hd = d.hidden / d.heads;
-    const size_t max_tokens = (size_t)s.max_batch * s.max_seq;
-    id<MTLBuffer> sc = s.scratch;
+    id<MTLBuffer> sc = s.scratch, rows = s.rows;
     auto bind = [&](const Ref &r, NSUInteger i) { [enc setBuffer:r.buf offset:r.at atIndex:i]; };
     auto layer = [&](uint32_t l, int r) -> const Ref & {
         return w[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
     };
-    auto rows = [&](Kernel k) {
-        [enc setComputePipelineState:c->kernels->k[k]];
-    };
     auto per_token = [&]() {
-        [enc dispatchThreadgroups:MTLSizeMake(tokens, 1, 1) threadsPerThreadgroup:MTLSizeMake(BLOCK, 1, 1)];
+        [enc dispatchThreadgroups:MTLSizeMake(tokens / 4, 1, 1) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
     };
-    auto linear = [&](uint64_t x, uint32_t n_in, const Ref &wt, uint32_t n_out, uint64_t y) {
-        const LinearParams p{tokens, n_out, n_in};
-        [enc setComputePipelineState:c->kernels->k[LINEAR]];
+    // Up to three layers of one shape, over the same input, in one
+    // dispatch. A single layer with no epilogue whose tiles would leave
+    // most of the GPU idle has its k split, so more threadgroups share the
+    // work; the splits land side by side in its output, which holds
+    // capacity rows, and add_ln sums them. Returns the splits.
+    auto gemm = [&](uint64_t x, uint32_t n_in, uint32_t n_out, uint32_t epilogue,
+                    std::initializer_list<std::pair<const Ref *, uint64_t>> outs,
+                    std::initializer_list<const Ref *> biases) -> uint32_t {
+        const uint32_t tiles = (n_out + 63) / 64 * (tokens / 32);
+        uint32_t splits = 1;
+        if (outs.size() == 1 && epilogue == EPILOGUE_NONE && tiles < SPREAD) {
+            splits = std::min({(SPREAD + tiles - 1) / tiles, n_in / 64, s.cap / tokens, 8u});
+            splits = std::max(splits, 1u);
+        }
+        const uint32_t kchunk = (uint32_t)round_up((n_in + splits - 1) / splits, 16);
+        splits = (n_in + kchunk - 1) / kchunk;
+        const GemmParams p{tokens, n_out, n_in, epilogue, splits, kchunk};
+        [enc setComputePipelineState:kn.k[GEMM]];
         [enc setBuffer:sc offset:x atIndex:0];
-        bind(wt, 1);
-        [enc setBuffer:sc offset:y atIndex:2];
-        [enc setBytes:&p length:sizeof p atIndex:3];
-        [enc dispatchThreadgroups:MTLSizeMake((n_out + TILE - 1) / TILE, (tokens + TILE - 1) / TILE, 1)
-            threadsPerThreadgroup:MTLSizeMake(BLOCK, 1, 1)];
+        NSUInteger i = 0;
+        for (const auto &o : outs) {
+            bind(*o.first, 1 + i);
+            [enc setBuffer:sc offset:o.second atIndex:7 + i];
+            i++;
+        }
+        const NSUInteger n = i;
+        i = 0;
+        for (const Ref *b : biases) bind(*b, 4 + i++);
+        // Unused bindings name something valid; the kernel never reads them.
+        for (; i < 3; i++) bind(w[0], 4 + i);
+        for (NSUInteger j = n; j < 3; j++) {
+            bind(w[0], 1 + j);
+            [enc setBuffer:sc offset:0 atIndex:7 + j];
+        }
+        [enc setBytes:&p length:sizeof p atIndex:10];
+        [enc dispatchThreadgroups:MTLSizeMake((n_out + 63) / 64, tokens / 32, n * splits)
+            threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+        return splits;
     };
-    const RowParams rp{seq, h, (float)d.layer_norm_eps, s.has_types ? 1u : 0u};
-    auto add_ln = [&](uint64_t y, const Ref &bias, const Ref &ln_w, const Ref &ln_b) {
-        rows(ADD_LN);
+    const RowParams rp{h, (float)d.layer_norm_eps};
+    auto add_ln = [&](uint64_t y, uint32_t splits, const Ref &bias, const Ref &ln_w, const Ref &ln_b) {
+        [enc setComputePipelineState:kn.k[ADD_LN]];
         [enc setBuffer:sc offset:s.x atIndex:0];
         [enc setBuffer:sc offset:y atIndex:1];
         bind(bias, 2);
         bind(ln_w, 3);
         bind(ln_b, 4);
         [enc setBytes:&rp length:sizeof rp atIndex:5];
+        [enc setBytes:&splits length:sizeof splits atIndex:6];
+        [enc setBytes:&tokens length:sizeof tokens atIndex:7];
         per_token();
     };
 
-    rows(EMBED_LN);
-    [enc setBuffer:s.rows offset:0 atIndex:0];
-    [enc setBuffer:s.rows offset:2 * max_tokens * 4 atIndex:1];
-    bind(w[WORD], 2);
-    bind(w[POSITION], 3);
-    bind(w[TOKEN_TYPE], 4);
-    bind(w[EMB_LN_W], 5);
-    bind(w[EMB_LN_B], 6);
-    [enc setBuffer:sc offset:s.x atIndex:7];
-    [enc setBytes:&rp length:sizeof rp atIndex:8];
+    [enc setComputePipelineState:kn.k[EMBED_LN]];
+    [enc setBuffer:rows offset:s.ids atIndex:0];
+    [enc setBuffer:rows offset:s.types atIndex:1];
+    [enc setBuffer:rows offset:s.pos atIndex:2];
+    bind(w[WORD], 3);
+    bind(w[POSITION], 4);
+    bind(w[TOKEN_TYPE], 5);
+    bind(w[EMB_LN_W], 6);
+    bind(w[EMB_LN_B], 7);
+    [enc setBuffer:sc offset:s.x atIndex:8];
+    [enc setBytes:&rp length:sizeof rp atIndex:9];
     per_token();
 
-    const AttentionParams ap{seq, h, hd, 1.0f / sqrtf((float)hd)};
-    const GeluParams gp{tokens * inter, inter};
+    const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd)};
     for (uint32_t l = 0; l < d.layers; l++) {
-        linear(s.x, h, layer(l, TURBO_BERT_Q_WEIGHT), h, s.q);
-        linear(s.x, h, layer(l, TURBO_BERT_K_WEIGHT), h, s.k);
-        linear(s.x, h, layer(l, TURBO_BERT_V_WEIGHT), h, s.v);
+        gemm(s.x, h, h, EPILOGUE_BIAS,
+             {{&layer(l, TURBO_BERT_Q_WEIGHT), s.q}, {&layer(l, TURBO_BERT_K_WEIGHT), s.k},
+              {&layer(l, TURBO_BERT_V_WEIGHT), s.v}},
+             {&layer(l, TURBO_BERT_Q_BIAS), &layer(l, TURBO_BERT_K_BIAS), &layer(l, TURBO_BERT_V_BIAS)});
 
-        [enc setComputePipelineState:c->kernels->k[ATTENTION]];
+        const bool wide = wide_heads(hd);
+        [enc setComputePipelineState:kn.k[wide ? ATTENTION : ATTENTION_NARROW]];
         [enc setBuffer:sc offset:s.q atIndex:0];
         [enc setBuffer:sc offset:s.k atIndex:1];
         [enc setBuffer:sc offset:s.v atIndex:2];
-        bind(layer(l, TURBO_BERT_Q_BIAS), 3);
-        bind(layer(l, TURBO_BERT_K_BIAS), 4);
-        bind(layer(l, TURBO_BERT_V_BIAS), 5);
-        [enc setBuffer:s.rows offset:max_tokens * 4 atIndex:6];
-        [enc setBuffer:sc offset:s.att atIndex:7];
-        [enc setBytes:&ap length:sizeof ap atIndex:8];
-        [enc setThreadgroupMemoryLength:attention_bytes(seq, hd) atIndex:0];
-        [enc dispatchThreadgroups:MTLSizeMake(seq, d.heads, batch) threadsPerThreadgroup:MTLSizeMake(BLOCK, 1, 1)];
+        [enc setBuffer:rows offset:s.mask atIndex:3];
+        [enc setBuffer:rows offset:s.starts atIndex:4];
+        [enc setBuffer:rows offset:s.blocks atIndex:5];
+        [enc setBuffer:sc offset:s.att atIndex:6];
+        [enc setBytes:&ap length:sizeof ap atIndex:7];
+        [enc setThreadgroupMemoryLength:attention_bytes(hd, s.longest) atIndex:0];
+        [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1) threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32, 1, 1)];
 
-        linear(s.att, h, layer(l, TURBO_BERT_ATTN_OUT_WEIGHT), h, s.tmp);
-        add_ln(s.tmp, layer(l, TURBO_BERT_ATTN_OUT_BIAS), layer(l, TURBO_BERT_ATTN_LN_WEIGHT),
+        uint32_t splits = gemm(s.att, h, h, EPILOGUE_NONE, {{&layer(l, TURBO_BERT_ATTN_OUT_WEIGHT), s.tmp}}, {});
+        add_ln(s.tmp, splits, layer(l, TURBO_BERT_ATTN_OUT_BIAS), layer(l, TURBO_BERT_ATTN_LN_WEIGHT),
                layer(l, TURBO_BERT_ATTN_LN_BIAS));
-        linear(s.x, h, layer(l, TURBO_BERT_FFN_IN_WEIGHT), inter, s.ffn);
-
-        [enc setComputePipelineState:c->kernels->k[GELU]];
-        [enc setBuffer:sc offset:s.ffn atIndex:0];
-        bind(layer(l, TURBO_BERT_FFN_IN_BIAS), 1);
-        [enc setBytes:&gp length:sizeof gp atIndex:2];
-        [enc dispatchThreads:MTLSizeMake(gp.n, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
-
-        linear(s.ffn, inter, layer(l, TURBO_BERT_FFN_OUT_WEIGHT), h, s.tmp);
-        add_ln(s.tmp, layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
+        gemm(s.x, h, inter, EPILOGUE_BIAS_GELU, {{&layer(l, TURBO_BERT_FFN_IN_WEIGHT), s.ffn}},
+             {&layer(l, TURBO_BERT_FFN_IN_BIAS)});
+        splits = gemm(s.ffn, inter, h, EPILOGUE_NONE, {{&layer(l, TURBO_BERT_FFN_OUT_WEIGHT), s.tmp}}, {});
+        add_ln(s.tmp, splits, layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                layer(l, TURBO_BERT_FFN_LN_BIAS));
     }
 
-    const PoolParams pp{seq, h, s.output_dim, s.pooling, s.normalize == TURBO_NORMALIZE_L2 ? 1u : 0u};
-    rows(POOL);
+    const PoolParams pp{h, s.output_dim, s.pooling, s.normalize == TURBO_NORMALIZE_L2 ? 1u : 0u};
+    [enc setComputePipelineState:kn.k[POOL]];
     [enc setBuffer:sc offset:s.x atIndex:0];
-    [enc setBuffer:s.rows offset:max_tokens * 4 atIndex:1];
-    [enc setBuffer:s.output.mtl offset:0 atIndex:2];
-    [enc setBytes:&pp length:sizeof pp atIndex:3];
-    [enc dispatchThreadgroups:MTLSizeMake(batch, 1, 1) threadsPerThreadgroup:MTLSizeMake(BLOCK, 1, 1)];
+    [enc setBuffer:rows offset:s.mask atIndex:1];
+    [enc setBuffer:rows offset:s.starts atIndex:2];
+    [enc setBuffer:s.output.mtl offset:0 atIndex:3];
+    [enc setBytes:&pp length:sizeof pp atIndex:4];
+    [enc dispatchThreadgroups:MTLSizeMake(s.batch, 1, 1) threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
 }
 
 int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
@@ -1093,8 +1199,7 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
         s.written = false;
         const uint64_t host0 = host_here, device0 = device_here;
         {
-            std::lock_guard<std::mutex> g(s.ctx->lock);
-            id<MTLCommandBuffer> cb = [s.ctx->queue commandBufferWithUnretainedReferences];
+            id<MTLCommandBuffer> cb = [s.queue commandBufferWithUnretainedReferences];
             id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
             encode(s, enc);
             [enc endEncoding];

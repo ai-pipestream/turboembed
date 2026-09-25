@@ -1057,6 +1057,16 @@ bool split_attention_named() {
     return v && !strcasecmp(v, "split");
 }
 
+/* TURBO_CUDA_SK_STEPS: the GEMMs' fewest k steps per block, 0 (the
+ * kernels' own) when unset or not a count from 1 to 64. */
+int sk_steps_named() {
+    const char *v = getenv("TURBO_CUDA_SK_STEPS");
+    if (!v) return 0;
+    char *end = nullptr;
+    const long n = strtol(v, &end, 10);
+    return end != v && *end == 0 && n >= 1 && n <= 64 ? (int)n : 0;
+}
+
 unsigned cublas_gemms() {
     const int o = cublas_override.load(std::memory_order_relaxed);
     if (o >= 0) return (unsigned)o;
@@ -1113,6 +1123,9 @@ struct Session {
      * caller's memory are done. */
     int32_t *staging = nullptr;
     cudaEvent_t sent = nullptr;
+    /* The GEMMs' fault word, after the staging, as the host and the
+     * device address it: set when a stream-K wait gave up. */
+    int *fault = nullptr, *fault_dev = nullptr;
     /* The run as a graph, its fetch and pack kernels' nodes and arguments,
      * and the arguments last set in it. */
     cudaGraph_t graph = nullptr;
@@ -1194,6 +1207,8 @@ int32_t encode(Session &s, turbo_error *err) {
     g.tcap = tcap;
     g.ws = s.ws;
     g.flags = s.flags;
+    g.fault = s.fault_dev;
+    g.min_steps = s.shape.sk_steps;
     AttnArgs aa{};
     aa.qkv = s.qkv;
     aa.ctx = s.att;
@@ -1372,8 +1387,14 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         sh.smem_optin = (size_t)optin;
         sh.tile = tile_named();
         sh.split_attention = split_attention_named();
+        sh.sk_steps = sk_steps_named();
         Plan plan;
         TRY_CUDA(make_plan(sh, &plan), "planning the session's launches");
+        if (plan.gemm_crowded)
+            c->say(LOG_WARNING,
+                   "cuda device %d: a GEMM's kernel fits fewer blocks to an SM than it was built for, so it runs "
+                   "slower than it should",
+                   c->ordinal);
 
         Session *s = make<Session>();
         s->model = m;
@@ -1403,7 +1424,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         const size_t total = 5 * ints + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output;
         const int32_t rc = [&]() -> int32_t {
             TRY_CUDA(device_malloc(&s->scratch, total), "device memory for the session");
-            TRY_CUDA(pinned_malloc(reinterpret_cast<void **>(&s->staging), 3 * tokens * 4),
+            TRY_CUDA(pinned_malloc(reinterpret_cast<void **>(&s->staging), 3 * tokens * 4 + 16),
                      "page-locked memory for the session's rows");
             TRY_CUDA(cudaEventCreateWithFlags(&s->sent, cudaEventDisableTiming), "cudaEventCreateWithFlags");
             char *p = static_cast<char *>(s->scratch);
@@ -1442,6 +1463,9 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             void *staged = nullptr;
             TRY_CUDA(cudaHostGetDevicePointer(&staged, s->staging, 0), "the staging's device address");
             s->fetch.src = static_cast<const int32_t *>(staged);
+            s->fault = s->staging + 3 * tokens;
+            s->fault_dev = static_cast<int32_t *>(staged) + 3 * tokens;
+            *s->fault = 0;
             s->fetch.dst = s->rows;
             s->fetch.n = 0;
             std::lock_guard<std::mutex> g(c->lock);
@@ -1607,6 +1631,16 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
                 return rc;
             }
             TRY_CUDA(e, "the run");
+            if (*reinterpret_cast<volatile int *>(s.fault)) {
+                // The flags a wait gave up on may be left raised: cleared,
+                // so the next run starts as the first did.
+                *reinterpret_cast<volatile int *>(s.fault) = 0;
+                TRY_CUDA(cudaMemsetAsync(s.flags, 0, (size_t)s.plan.sk_flags * 4, s.ctx->stream), "the run");
+                TRY_CUDA(cudaStreamSynchronize(s.ctx->stream), "the run");
+                return refuse(err, TURBO_E_RUNTIME,
+                              "a GEMM's block waited too long for another's partial product; the run's vectors "
+                              "are not valid");
+            }
         }
         out->placement = TURBO_PLACE_DEVICE;
         out->output = &s.output;
@@ -1683,7 +1717,7 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
     const size_t sa = round_up(a.size() * in, DEVICE_ALIGN), sw = round_up(w.size() * in, DEVICE_ALIGN);
     const size_t sb = round_up((size_t)n * 4, DEVICE_ALIGN), so = round_up(out_n * outb, DEVICE_ALIGN);
     const size_t sr = round_up((size_t)m * n * 4, DEVICE_ALIGN), si = round_up(sizeof(Info), DEVICE_ALIGN);
-    const size_t sws = round_up(ws_floats * 4, DEVICE_ALIGN), sf = round_up((size_t)grid * 4, DEVICE_ALIGN);
+    const size_t sws = round_up(ws_floats * 4, DEVICE_ALIGN), sf = round_up((size_t)grid * 4 + 4, DEVICE_ALIGN);
     const size_t total = sa + sw + sb + so + sr + si + sws + sf;
     TRY_CUDA(cudaMalloc(reinterpret_cast<void **>(&dev), total), "cudaMalloc");
     cudaStream_t st = nullptr;
@@ -1713,6 +1747,7 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         g.info = reinterpret_cast<const Info *>(pi);
         g.ws = reinterpret_cast<float *>(pws);
         g.flags = reinterpret_cast<int *>(pf);
+        g.fault = g.flags + grid;
         std::vector<char> got(out_n * outb), again(out_n * outb);
         // Twice: the second launch must find the flags the first cleared
         // and repeat its bits.
@@ -1725,6 +1760,9 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         std::vector<float> ref((size_t)m * n);
         TRY_CUDA(cudaMemcpy(ref.data(), pr, ref.size() * 4, cudaMemcpyDeviceToHost), "cudaMemcpy");
         TRY_CUDA(cudaMemcpy(got.data(), po, got.size(), cudaMemcpyDeviceToHost), "cudaMemcpy");
+        int fault = 0;
+        TRY_CUDA(cudaMemcpy(&fault, g.fault, 4, cudaMemcpyDeviceToHost), "cudaMemcpy");
+        if (fault) return refuse(err, TURBO_E_INTERNAL, "a block of the GEMM gave up waiting");
         if (got != again)
             return refuse(err, TURBO_E_INTERNAL, "the GEMM gave other bits when launched again");
         auto value = [&](size_t i) -> float {
