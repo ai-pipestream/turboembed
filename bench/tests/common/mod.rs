@@ -97,6 +97,7 @@ pub fn pushed_repo(root: &Path) -> PathBuf {
 /// The reference programs' names, as records give them.
 pub const TEI: &str = turbo_bench::tei::NAME;
 pub const TRT: &str = turbo_bench::tensorrt::NAME;
+pub const OV: &str = turbo_bench::openvino::NAME;
 
 /// The CPU backend on the small bundle, measured once for every test
 /// here.

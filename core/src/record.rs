@@ -25,8 +25,10 @@ pub const NAME_MAX: usize = 95;
 pub const NO_RECORD: &str = "no benchmark record for this cell";
 
 /// The reference programs a record may name, each with its role: the
-/// vendor's fastest kernel path and the fastest known embedding server.
-pub const REFERENCES: [(&str, &str); 2] = [("text-embeddings-inference", "end_to_end"), ("tensorrt", "kernel")];
+/// vendors' fastest kernel paths (TensorRT for NVIDIA GPUs, OpenVINO for
+/// Intel GPUs) and the fastest known embedding server.
+pub const REFERENCES: [(&str, &str); 3] =
+    [("text-embeddings-inference", "end_to_end"), ("tensorrt", "kernel"), ("openvino", "kernel")];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -152,10 +154,10 @@ pub struct Conformance {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReferenceRun {
-    /// `tensorrt` or `text-embeddings-inference` (REFERENCES).
+    /// `tensorrt`, `openvino` or `text-embeddings-inference` (REFERENCES).
     pub name: String,
-    /// `kernel` for tensorrt, `end_to_end` for text-embeddings-inference:
-    /// what it is compared on.
+    /// `kernel` for tensorrt and openvino, `end_to_end` for
+    /// text-embeddings-inference: what it is compared on.
     pub role: String,
     /// The container image, as `name@sha256:<64 hex>`; empty only when it
     /// was not run and none was named.

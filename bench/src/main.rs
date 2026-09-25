@@ -9,6 +9,7 @@ use std::time::SystemTime;
 use turbo::record::{self, Record, ReferenceRun};
 use turbo::{TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL};
 use turbo_bench::measure::{self, Measurement, Plan};
+use turbo_bench::openvino::{self, OpenVino};
 use turbo_bench::tei::{self, Tei};
 use turbo_bench::tensorrt::{self, TensorRt};
 use turbo_bench::{Result, git};
@@ -48,7 +49,16 @@ record options:
   --tensorrt-input-dtype <t>   int64 or int32 (default int64)
   --tensorrt-warmup-ms <n>     trtexec --warmUp (default 1000)
   --trtexec <path>             trtexec in the image (default trtexec)
-  --no-tensorrt                record that TensorRT was not run";
+  --no-tensorrt                record that TensorRT was not run
+  --openvino-image <name@sha256:..>
+                               an OpenVINO container with benchmark_app,
+                               pinned (levelzero)
+  --openvino-inputs <a,b,c>    the ONNX inputs for ids, mask and types
+                               (default input_ids,attention_mask,token_type_ids)
+  --openvino-input-dtype <t>   int64 or int32 (default int64)
+  --benchmark-app <path>       benchmark_app in the image (default
+                               benchmark_app)
+  --no-openvino                record that OpenVINO was not run";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -77,7 +87,7 @@ fn run(args: &[String]) -> Result<()> {
 /// `--name value` pairs and bare `--flag`s.
 struct Opts(BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 2] = ["--no-tei", "--no-tensorrt"];
+const FLAGS: [&str; 3] = ["--no-tei", "--no-tensorrt", "--no-openvino"];
 
 impl Opts {
     fn parse(args: &[String]) -> Result<Opts> {
@@ -140,10 +150,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         _ => return Err("--tei-image and --tei-model go together".into()),
     };
     let no_trt = o.flag("--no-tensorrt");
-    let inputs = o.take("--tensorrt-inputs").unwrap_or_else(|| "input_ids,attention_mask,token_type_ids".into());
-    let inputs: Vec<String> = inputs.split(',').map(str::to_owned).collect();
-    let inputs: [String; 3] =
-        inputs.try_into().map_err(|_| "--tensorrt-inputs names three inputs: ids, mask, types".to_owned())?;
+    let inputs = onnx_inputs(o.take("--tensorrt-inputs"), "--tensorrt-inputs")?;
     tensorrt::check_inputs(&inputs)?;
     let trt = o.take("--tensorrt-image").map(|image| TensorRt {
         image,
@@ -163,10 +170,28 @@ fn record_cmd(args: &[String]) -> Result<()> {
         }
         None => None,
     };
+    let no_ov = o.flag("--no-openvino");
+    let ov_inputs = onnx_inputs(o.take("--openvino-inputs"), "--openvino-inputs")?;
+    turbo_bench::onnx::check_inputs("--openvino-inputs", &ov_inputs)?;
+    let ov = match o.take("--openvino-image") {
+        Some(image) => {
+            let input_dtype = o.take("--openvino-input-dtype").unwrap_or_else(|| "int64".into());
+            turbo_bench::onnx::input_bytes("--openvino-input-dtype", &[], &input_dtype)?;
+            Some(OpenVino {
+                image,
+                benchmark_app: o.take("--benchmark-app").unwrap_or_else(|| "benchmark_app".into()),
+                inputs: ov_inputs,
+                input_dtype,
+                dri: PathBuf::from("/dev/dri"),
+                work: work.clone(),
+            })
+        }
+        None => None,
+    };
     if let Some(unknown) = o.0.keys().next() {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
     }
-    if (no_tei && tei.is_some()) || (no_trt && trt.is_some()) {
+    if (no_tei && tei.is_some()) || (no_trt && trt.is_some()) || (no_ov && ov.is_some()) {
         return Err("a reference program is both named and disabled".into());
     }
     if let Some(t) = &tei {
@@ -175,12 +200,16 @@ fn record_cmd(args: &[String]) -> Result<()> {
     if let Some(t) = &trt {
         turbo_bench::docker::check_pinned("--tensorrt-image", &t.image)?;
     }
+    if let Some(v) = &ov {
+        turbo_bench::docker::check_pinned("--openvino-image", &v.image)?;
+    }
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     turbo_bench::check_not_testdata(&plan.bundle, &[workspace.join("testdata"), repo.join("testdata")])?;
     let rt = turbo_bench::api::Runtime::create()?;
     let backend = turbo_bench::api::field(&rt.device_info(rt.find(&plan.device)?)?.backend);
     drop(rt);
-    wanted(&backend, tei.is_some(), no_tei, trt.is_some(), no_trt)?;
+    let given = Given { tei: (tei.is_some(), no_tei), trt: (trt.is_some(), no_trt), ov: (ov.is_some(), no_ov) };
+    given.check(&backend)?;
 
     // Refused before anything is measured, and checked again after.
     let before = git::provenance(&repo)?;
@@ -198,7 +227,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         m.conformance.min_cosine,
         m.conformance.max_abs_diff
     );
-    let references = references(&m, &plan, tei, no_tei, trt, no_trt)?;
+    let references = references(&m, &plan, tei, trt, ov, &given)?;
     let after = git::provenance(&repo)?;
     if after != before {
         return Err(format!("the working tree moved from {} to {} during the run", before.commit, after.commit));
@@ -224,35 +253,48 @@ fn disabled(name: &str, role: &str, flag: &str) -> ReferenceRun {
     }
 }
 
-/// The reference programs for a backend, TEI and TensorRT: TEI's GPU
-/// image and TensorRT for cuda, TEI's CPU image for the CPU, none for
-/// another backend.
-fn applies(backend: &str) -> (bool, bool) {
-    match backend {
-        "cuda" => (true, true),
-        "cpu" => (true, false),
-        _ => (false, false),
+/// Three input names, from a comma-separated list or the default.
+fn onnx_inputs(list: Option<String>, option: &str) -> Result<[String; 3]> {
+    let list = list.unwrap_or_else(|| "input_ids,attention_mask,token_type_ids".into());
+    let v: Vec<String> = list.split(',').map(str::to_owned).collect();
+    v.try_into().map_err(|_| format!("{option} names three inputs: ids, mask, types"))
+}
+
+/// Which reference programs the command line named, and which it
+/// disabled.
+struct Given {
+    tei: (bool, bool),
+    trt: (bool, bool),
+    ov: (bool, bool),
+}
+
+impl Given {
+    fn get(&self, name: &str) -> (bool, bool) {
+        match name {
+            tei::NAME => self.tei,
+            tensorrt::NAME => self.trt,
+            openvino::NAME => self.ov,
+            _ => (false, false),
+        }
+    }
+
+    /// Each program for the backend is named or disabled, and no other.
+    fn check(&self, backend: &str) -> Result<()> {
+        turbo_bench::wanted(backend, |name| {
+            let (named, disabled) = self.get(name);
+            named || disabled
+        })
     }
 }
 
-/// Each reference program for the backend is named or disabled on the
-/// command line, and none that is not for it is either.
-fn wanted(backend: &str, tei: bool, no_tei: bool, trt: bool, no_trt: bool) -> Result<()> {
-    let (wants_tei, wants_trt) = applies(backend);
-    match (wants_tei, tei || no_tei) {
-        (true, false) => {
-            return Err(format!("{backend}: TEI is a reference here: give --tei-image and --tei-model, or --no-tei"));
-        }
-        (false, true) => return Err(format!("{backend}: TEI is not a reference for this backend")),
-        _ => {}
+/// The devices the runtime lists for `backend`.
+fn devices_of(backend: &str) -> Result<u32> {
+    let rt = turbo_bench::api::Runtime::create()?;
+    let mut n = 0;
+    for i in 0..rt.device_count()? {
+        n += u32::from(turbo_bench::api::field(&rt.device_info(i)?.backend) == backend);
     }
-    match (wants_trt, trt || no_trt) {
-        (true, false) => {
-            Err(format!("{backend}: TensorRT is a reference here: give --tensorrt-image, or --no-tensorrt"))
-        }
-        (false, true) => Err(format!("{backend}: TensorRT is not a reference for this backend")),
-        _ => Ok(()),
-    }
+    Ok(n)
 }
 
 /// Every reference program for the device's backend, run or recorded as
@@ -261,23 +303,18 @@ fn references(
     m: &Measurement,
     plan: &Plan,
     tei: Option<Tei>,
-    no_tei: bool,
     trt: Option<TensorRt>,
-    no_trt: bool,
+    ov: Option<OpenVino>,
+    given: &Given,
 ) -> Result<Vec<ReferenceRun>> {
     let backend = m.backend();
-    wanted(&backend, tei.is_some(), no_tei, trt.is_some(), no_trt)?;
-    let (wants_tei, wants_trt) = applies(&backend);
+    given.check(&backend)?;
     let gpu = (backend == "cuda").then_some(m.device.ordinal);
     // docker numbers GPUs in the driver's (PCI bus) order, CUDA fastest
     // first unless told otherwise: with more than one, they must agree.
     let named = tei.is_some() || trt.is_some();
     if gpu.is_some() && named && std::env::var("CUDA_DEVICE_ORDER").as_deref() != Ok("PCI_BUS_ID") {
-        let rt = turbo_bench::api::Runtime::create()?;
-        let mut cuda = 0;
-        for i in 0..rt.device_count()? {
-            cuda += u32::from(turbo_bench::api::field(&rt.device_info(i)?.backend) == "cuda");
-        }
+        let cuda = devices_of("cuda")?;
         if cuda > 1 {
             return Err(format!(
                 "{cuda} CUDA devices are listed: set CUDA_DEVICE_ORDER=PCI_BUS_ID so the device measured is \
@@ -285,17 +322,33 @@ fn references(
             ));
         }
     }
-    let mut out = Vec::new();
-    if wants_tei {
-        out.push(match tei {
-            Some(t) => tei::run(&t, m, gpu, plan.warmup, plan.iterations)?,
-            None => disabled(tei::NAME, "end_to_end", "--no-tei"),
-        });
+    // benchmark_app's GPU is OpenVINO's first, which with several Intel
+    // GPUs need not be the one measured.
+    if backend == "levelzero" && ov.is_some() {
+        let n = devices_of("levelzero")?;
+        if n > 1 {
+            return Err(format!(
+                "{n} Level Zero devices are listed: OpenVINO's GPU need not be the device measured, so \
+                 benchmark_app is run only where there is one"
+            ));
+        }
     }
-    if wants_trt {
-        out.push(match trt {
-            Some(t) => tensorrt::run(&t, m, m.device.ordinal, plan.iterations)?,
-            None => disabled(tensorrt::NAME, "kernel", "--no-tensorrt"),
+    let mut out = Vec::new();
+    for &name in turbo_bench::applies(&backend) {
+        out.push(match name {
+            tei::NAME => match &tei {
+                Some(t) => tei::run(t, m, gpu, plan.warmup, plan.iterations)?,
+                None => disabled(tei::NAME, "end_to_end", "--no-tei"),
+            },
+            tensorrt::NAME => match &trt {
+                Some(t) => tensorrt::run(t, m, m.device.ordinal, plan.iterations)?,
+                None => disabled(tensorrt::NAME, "kernel", "--no-tensorrt"),
+            },
+            openvino::NAME => match &ov {
+                Some(o) => openvino::run(o, m, plan.iterations)?,
+                None => disabled(openvino::NAME, "kernel", "--no-openvino"),
+            },
+            other => return Err(format!("{other}: no runner")),
         });
     }
     Ok(out)

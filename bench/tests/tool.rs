@@ -215,6 +215,15 @@ fn the_tool_wants_each_reference_named_or_disabled() {
     let o = tool(&args);
     assert!(String::from_utf8_lossy(&o.stderr).contains("cpu: TensorRT is not a reference for this backend"));
     let mut args = record_args(&repo, out.to_str().unwrap(), bundle.to_str().unwrap());
+    args.push("--no-openvino");
+    let o = tool(&args);
+    assert!(String::from_utf8_lossy(&o.stderr).contains("cpu: OpenVINO is not a reference for this backend"));
+    let mut args = record_args(&repo, out.to_str().unwrap(), bundle.to_str().unwrap());
+    args.extend(["--openvino-image", "openvino/ubuntu24_dev:2025.3.0"]);
+    let o = tool(&args);
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("--openvino-image") && err.contains("is not pinned as name@sha256:<64 hex>"), "{o:?}");
+    let mut args = record_args(&repo, out.to_str().unwrap(), bundle.to_str().unwrap());
     args.pop();
     args.extend(["--tei-image", "ghcr.io/huggingface/text-embeddings-inference:cpu-1.8", "--tei-model", "."]);
     let o = tool(&args);

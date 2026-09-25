@@ -13,13 +13,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use turbo::bundle::Bundle;
-use turbo::manifest::Format;
 use turbo::record::{Measured, ReferenceRun};
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
-use crate::Result;
 use crate::docker::{self, Log, argv};
 use crate::measure::{Measurement, Rows};
+use crate::{Result, onnx};
 
 pub const NAME: &str = "tensorrt";
 
@@ -51,26 +50,14 @@ pub fn precision_flags(compute_dtype: u32) -> std::result::Result<Vec<String>, S
 }
 
 /// The ONNX input names, each of `[A-Za-z0-9_.]+` and neither `.` nor
-/// `..`: each becomes a file name under the work directory and a part of
-/// trtexec's `--shapes` and `--loadInputs`, so it can hold no path
-/// separator and none of the characters those lists are split on.
+/// `..` (onnx::check_inputs).
 pub fn check_inputs(inputs: &[String]) -> Result<()> {
-    for n in inputs {
-        let plain = !n.is_empty() && n.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.');
-        if !plain || n == "." || n == ".." {
-            return Err(format!("--tensorrt-inputs: {n:?} is not an input name of [A-Za-z0-9_.]+"));
-        }
-    }
-    Ok(())
+    onnx::check_inputs("--tensorrt-inputs", inputs)
 }
 
 /// The rows as the raw little-endian files --loadInputs reads, in `dtype`.
 pub fn input_bytes(values: &[i32], dtype: &str) -> Result<Vec<u8>> {
-    match dtype {
-        "int64" => Ok(values.iter().flat_map(|&v| (v as i64).to_le_bytes()).collect()),
-        "int32" => Ok(values.iter().flat_map(|&v| v.to_le_bytes()).collect()),
-        d => Err(format!("--tensorrt-input-dtype {d:?} is not int64 or int32")),
-    }
+    onnx::input_bytes("--tensorrt-input-dtype", values, dtype)
 }
 
 /// The `docker run` of trtexec: no network, no pulls, the bundle and the
@@ -190,12 +177,7 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
 
 /// The bundle's ONNX file, or why there is none to run.
 pub fn onnx_file(m: &Measurement) -> std::result::Result<String, String> {
-    let a = m.manifest.artifacts.iter().find(|a| a.format == Format::Onnx);
-    match a.map(|a| a.files.as_slice()) {
-        None => Err("the bundle carries no FORMAT_ONNX artifact for trtexec to build an engine from".into()),
-        Some([one]) => Ok(one.clone()),
-        Some(_) => Err("the bundle's FORMAT_ONNX artifact is not one file".into()),
-    }
+    onnx::file(&m.manifest, "for trtexec to build an engine from")
 }
 
 /// Build and time the engine on `gpu`, the device's CUDA ordinal. A thing
@@ -227,10 +209,7 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
     let work = t.work.join(format!("turbo-bench-trtexec-{}", std::process::id()));
     fs::create_dir_all(&work).map_err(|e| format!("{}: {e}", work.display()))?;
     let result = (|| {
-        for (name, values) in t.inputs.iter().zip([&m.rows.ids, &m.rows.mask, &m.rows.types]) {
-            let path = work.join(format!("{name}.bin"));
-            fs::write(&path, input_bytes(values, &t.input_dtype)?).map_err(|e| format!("{}: {e}", path.display()))?;
-        }
+        onnx::write_inputs(&work, &t.inputs, &t.input_dtype, "--tensorrt-input-dtype", &m.rows)?;
         let work = fs::canonicalize(&work).map_err(|e| format!("{}: {e}", work.display()))?;
         let cmd = run_argv(t, &m.bundle_dir, &work, &onnx, gpu, &m.rows, iterations, &precision);
         parse(&log.run(&cmd)?)

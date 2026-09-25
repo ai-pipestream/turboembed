@@ -5,7 +5,7 @@
 mod common;
 
 use common::*;
-use turbo::record::{self, Cell, NO_RECORD, Record, Verdict, decide};
+use turbo::record::{self, Cell, NO_RECORD, Record, ReferenceRun, Verdict, decide};
 use turbo::{TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_PRECISION_EXACT, TURBO_PRECISION_MODEL, TURBO_TASK_EMBED};
 use turbo_bench::api::{Runtime, field};
 use turbo_bench::measure::{Reference, Rows};
@@ -205,6 +205,92 @@ fn the_fastest_measured_reference_sets_the_speed_ratio() {
     slow.measured.as_mut().unwrap().p99_ms *= 4.0;
     let r = cpu_record("fastest", vec![slow, measured_reference(TEI)]);
     assert_eq!((r.speed_ratio, r.speed_reference.as_deref()), (Some(0.5), Some(TEI)));
+}
+
+/// A record of `references` as the tool makes one for an Intel GPU on
+/// Level Zero: the real CPU measurement's figures, filed as that device.
+/// No Intel GPU is measured here; the rule looks only at the fields
+/// changed.
+fn levelzero_record(name: &str, references: Vec<ReferenceRun>) -> Record {
+    let mut r = cpu_record(name, references);
+    r.device.backend = "levelzero".into();
+    r.device.kind = "DEVICE_GPU".into();
+    r.device.name = "Intel(R) Arc(TM) B580 Graphics".into();
+    r.device.vendor = "Intel(R) Corporation".into();
+    r.machine.arch = "bmg-g21".into();
+    reparse(&r).unwrap();
+    r
+}
+
+fn levelzero_cell(f: impl FnOnce(&Cell)) {
+    f(&Cell {
+        arch: "bmg-g21",
+        name: "Intel(R) Arc(TM) B580 Graphics",
+        cpu: false,
+        backend: "levelzero",
+        task: TURBO_TASK_EMBED,
+        precision: TURBO_PRECISION_MODEL,
+        dtype: TURBO_DTYPE_F32,
+        version: record::library_version(),
+        os: std::env::consts::OS,
+    })
+}
+
+fn disabled(name: &str, flag: &str) -> ReferenceRun {
+    let mut r = measured_reference(name);
+    r.measured = None;
+    r.pinned.clear();
+    r.version.clear();
+    r.commands.clear();
+    r.procedure.clear();
+    r.not_run = Some(format!("disabled on the command line ({flag})"));
+    r
+}
+
+#[test]
+fn a_levelzero_record_is_backed_by_a_measured_openvino_reference() {
+    let r = levelzero_record("lz-openvino", vec![disabled(TEI, "--no-tei"), measured_reference(OV)]);
+    assert_eq!(r.references[1].role, "kernel");
+    assert_eq!(r.speed_reference.as_deref(), Some(OV));
+    levelzero_cell(|cell| {
+        assert!(r.is_for(cell));
+        let v = verdict(&[&r], cell);
+        let Verdict::Supported { benchmark, speed_ratio, .. } = v else { panic!("{v:?}") };
+        assert_eq!(benchmark, record::file_name(&r).unwrap());
+        assert!(benchmark.starts_with("bmg-g21.levelzero.embed.model."), "{benchmark}");
+        assert_eq!(speed_ratio, 0.5);
+    });
+    cpu_cell(|cell| assert_eq!(verdict(&[&r], cell), Verdict::Not(NO_RECORD.into()), "not the CPU's cell"));
+}
+
+#[test]
+fn a_levelzero_record_without_openvino_measured_backs_nothing() {
+    let r = levelzero_record("lz-none", vec![disabled(TEI, "--no-tei"), disabled(OV, "--no-openvino")]);
+    levelzero_cell(|cell| {
+        let v = verdict(&[&r], cell);
+        assert!(matches!(&v, Verdict::Not(w) if w.ends_with("no reference program measured")), "{v:?}");
+    });
+}
+
+#[test]
+fn an_unknown_reference_backs_nothing_on_levelzero() {
+    let r = levelzero_record("lz-unknown", vec![disabled(TEI, "--no-tei"), measured_reference(OV)]);
+    for (name, role) in [("openvino-gpu", "kernel"), ("openvino", "end_to_end"), ("onnxruntime", "kernel")] {
+        let mut x = r.clone();
+        x.references[1].name = name.into();
+        x.references[1].role = role.into();
+        x.speed_reference = Some(name.into());
+        let e = reparse(&x).unwrap_err();
+        assert!(e.contains("is not one of"), "{name} {role}: {e}");
+    }
+    // Were one read without its checks, the rule still counts only the
+    // programs it knows.
+    let mut x = r.clone();
+    x.references[1].name = "openvino-gpu".into();
+    levelzero_cell(|cell| {
+        let v = verdict(&[&x], cell);
+        assert!(matches!(&v, Verdict::Not(w) if w.ends_with("no reference program measured")), "{v:?}");
+    });
 }
 
 #[test]
