@@ -150,6 +150,7 @@ this form before it is written or loaded.
       "backends": ["hailo"],
       "target": "hailo10h",
       "fixed_seq": 128,
+      "fixed_batch": 1,
       "compute_dtype": "DTYPE_I8",
       "graph_input": "INPUT_EMBEDDINGS",
       "host_weights": "weights-f32",
@@ -229,16 +230,16 @@ this form before it is written or loaded.
 | `tokenizer.special_tokens[]` | role, content, id | yes | Fills `pad_id`, `bos_id`, `eos_id`, `unk_id`. |
 | `tokenizer.template` | string[] | yes | The row layout around `$TEXT`. |
 | `tokenizer.truncation` | enum | yes | What `TURBO_TRUNCATE_MODEL` means: `TRUNCATE_RIGHT` or `TRUNCATE_LEFT`. `TRUNCATE_NONE` is a caller option and is rejected here. |
-| `architecture.*` | message | when an artifact is raw weights | Everything a kernel path needs that a weights file does not carry. |
+| `architecture.*` | message | when an artifact is raw weights or a HEF | Everything a kernel path needs that a weights file does not carry. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
-| `artifacts[].files` | path[] | yes | Each listed in `files`. |
+| `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. |
 | `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it, as for an ONNX file carried only for the reference programs and the converters. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |
-| `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. |
-| `artifacts[].compute_dtype` | enum | no | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
-| `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. |
-| `artifacts[].host_weights` | string | when input is embeddings | The artifact whose embedding tensors the host lookup uses. |
+| `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. A FORMAT_HEF sets both. `fixed_batch` is a frame, not a limit on a session's batch. |
+| `artifacts[].compute_dtype` | enum | yes for `FORMAT_HEF` | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
+| `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. `INPUT_EMBEDDINGS` is defined under "Graph inputs" below. `OUTPUT_HIDDEN_STATES` is the last layer's hidden states, before pooling. |
+| `artifacts[].host_weights` | string | when input is embeddings | The `FORMAT_SAFETENSORS` artifact whose embedding tensors the host lookup uses. Its `tensor_names` must name the five embedding roles; the layer roles are not read. |
 | `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. |
 | `artifacts[].produced_by` | message | no | Absent means the upstream file, unchanged. |
 | `produced_by.tool`, `.tool_version`, `.container`, `.reproducible` | string, bool | yes when present | What ran, in which pinned container, and whether two runs give identical bytes. |
@@ -248,6 +249,34 @@ this form before it is written or loaded.
 | `reference.cases[]` | text, prompt_role | yes | The exact bytes the core is handed. If a service normalizes text upstream, these are post-normalization. One case is longer than `max_seq`, so truncation is checked too. |
 | `reference.produced_by` | message | yes | The upstream pipeline, fp32 on CPU, in a pinned container. |
 | `files[]` | path, uint64, hex | yes | Every file in the directory except the manifest, with size and SHA-256. |
+
+## Graph inputs
+
+`INPUT_TOKEN_IDS`: the artifact takes the rows as written, ids, mask and
+token types, and does the embedding lookup itself.
+
+`INPUT_EMBEDDINGS`: the artifact takes, for each token, the row of the
+word-embedding table (`word_embeddings`, `[vocab_size, hidden]`) its id
+selects, as stored, gathered by id and nothing more: the position
+embeddings and the token type embeddings are not yet added and the
+embeddings LayerNorm is not yet applied. The artifact owns everything
+after that gather: the position and token type add, the embeddings
+LayerNorm, every layer, up to its `graph_output`. The backend does the
+gather on the host from the `host_weights` artifact's `word_embeddings`,
+which the core hands it with the other four embedding tensors, and
+passes the mask as the artifact takes it (an additive attention bias,
+say).
+
+Such an artifact is given no token type ids, so the type embedding it
+adds is the one compiled in as a constant: row 0 of
+`token_type_embeddings`. An `INPUT_EMBEDDINGS` artifact therefore
+computes token type 0 only. That limit is not a manifest field: it
+follows from `graph_input`, for every `INPUT_EMBEDDINGS` artifact. A
+backend running one refuses rows whose token types hold any value but 0
+with `UNSUPPORTED_OPTION`, the message naming the row and position, and
+runs nothing. Rows written as text, and rows with `types` NULL, are all
+type 0. An artifact that takes the type ids beside the word rows would be
+another `graph_input` value, added when one is compiled.
 
 ## Loader rules
 
@@ -275,15 +304,22 @@ Status codes are the header's `TURBO_E_*`.
 6. The artifact is the first one, in manifest order, whose `backends`
    contains the device's backend, whose `target` is empty or equals the
    device's architecture label, and whose format and family the backend
-   implements. Manifest order is the preference. None:
+   implements. The backend says which formats it loads in
+   `turbo_backend.formats` (turbo_backend.h); a backend that does not say
+   loads `FORMAT_SAFETENSORS` alone. The core hands a backend
+   `FORMAT_SAFETENSORS` and `FORMAT_HEF` artifacts only, whatever it
+   says. Manifest order is the preference. None:
    `BUNDLE_NO_ARTIFACT`, with the message saying why each was skipped.
    A session's `precision` never picks another artifact; it says how the
    chosen one computes.
 7. The chosen artifact's files, and its `host_weights` artifact's files,
    are verified by size, then SHA-256, before any byte is used. Where a
    backend's API takes memory, the bytes handed to it are the bytes
-   hashed.
-8. For raw weights, every tensor the `tensor_names` map implies must
+   hashed: a HEF reaches `model_load` as the bytes read and hashed, in
+   `turbo_backend_model.artifact`, and the embedding tensors as they
+   lie in the verified `host_weights` file.
+8. For raw weights, and for a `host_weights` artifact's embedding
+   tensors, every tensor the `tensor_names` map implies must
    exist with the shape the architecture implies (`[out, in]` for a
    linear layer), be `F32`, `F16` or `BF16` with every such tensor the
    same, and start at a byte offset in its file that is a multiple of its
@@ -299,7 +335,9 @@ its weights (below). Either way nothing loads and no other artifact is
 tried. A file not listed in `files` is never opened.
 
 On a fixed-shape artifact, `turbo_model_info` reports the smaller
-`max_seq` and `max_batch`. `TURBO_TRUNCATE_MODEL` still cuts at
+`max_seq`. `fixed_batch` is the frame the artifact runs, handed to the
+backend in `turbo_backend_model.fixed_batch`; the backend runs as many
+frames as a batch needs, so `max_batch` stays `embed.max_batch`. `TURBO_TRUNCATE_MODEL` still cuts at
 `embed.max_seq`, so a row that fits the model but not the artifact fails
 with `CAPACITY` rather than being cut differently on one device.
 
@@ -342,8 +380,10 @@ refuses to finish unless every hash matches.
   which any other op takes both float and float16 inputs. The recipe
   names only `produced_by.from`; the tool fills in the rest from
   the run, and runs it twice to say whether it is `reproducible`.
-- The header has no int8 dtype today. It is added when the Hailo
-  backend lands, not before; the example shows the value it will use.
+- `DTYPE_I8` is `TURBO_DTYPE_I8` (6), the slot the header's numbering
+  leaves for it below `TURBO_DTYPE_I32` (8). It is a compute dtype: a
+  session, a capability or a compiled artifact computes in it; no buffer
+  holds it.
 - Every load verifies every file it opens. No hash cache. If a
   multi-gigabyte file makes that slow, it is measured then.
 - The tokenizer check runs on every load. The cases are short and the

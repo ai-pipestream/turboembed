@@ -51,6 +51,7 @@ pub const TURBO_DEVICE_GPU: u32 = 2;
 pub const TURBO_DEVICE_IGPU: u32 = 3;
 pub const TURBO_DEVICE_NPU: u32 = 4;
 
+pub const TURBO_DTYPE_I8: u32 = 6;
 pub const TURBO_DTYPE_I32: u32 = 8;
 pub const TURBO_DTYPE_F16: u32 = 10;
 pub const TURBO_DTYPE_BF16: u32 = 11;
@@ -1020,9 +1021,10 @@ struct Model {
     context: Arc<Context>,
     raw: *mut c_void,
     release: unsafe extern "C" fn(*mut c_void),
-    /// The core's one verified host copy of the weights. A backend with its
-    /// own memory copied them there at load; the CPU backend reads them
-    /// here, in place, so they live exactly as long as the backend's model.
+    /// The core's one verified host copy of the weights, and of a compiled
+    /// artifact's bytes. A backend with its own memory copied them there at
+    /// load; the CPU backend reads them here, in place, so they live exactly
+    /// as long as the backend's model.
     weights: model::Weights,
     /// The bundle's tokenizer, checked against its reference at load, for
     /// turbo_embed_write_text.
@@ -1066,7 +1068,7 @@ fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let tokenizer = Tokenizer::load(&bundle)?; // rule 5
     let m = &bundle.manifest;
     let arch = cstr(&c.runtime.devices[c.device as usize].info.arch);
-    let index = model::choose(m, b.name(), &arch)?; // rule 6
+    let index = model::choose(m, b.name(), b.formats(), &arch)?; // rule 6
     let weights = model::Weights::load(&bundle, index)?; // rules 7 and 8
     let art = &m.artifacts[index];
 
@@ -1084,13 +1086,14 @@ fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
         manifest::Normalize::None => TURBO_NORMALIZE_NONE,
         manifest::Normalize::L2 => TURBO_NORMALIZE_L2,
     };
-    // A fixed-shape artifact reports the smaller of its shape and the model's.
-    let fixed = |model: u32, artifact: u32| if artifact == 0 { model } else { model.min(artifact) };
-    info.max_seq = fixed(e.max_seq, art.fixed_seq);
-    info.max_batch = fixed(e.max_batch, art.fixed_batch);
-    // Raw weights fix no compute_dtype (the manifest refuses one), so the
-    // artifact's dtype is the one its weights are stored in.
-    info.dtype = weights.dtype;
+    // A fixed-shape artifact reports the smaller of its sequence and the
+    // model's. Its fixed_batch is the frame the backend runs, and a backend
+    // runs as many frames as a batch needs, so the model's max_batch stands.
+    info.max_seq = if art.fixed_seq == 0 { e.max_seq } else { e.max_seq.min(art.fixed_seq) };
+    info.max_batch = e.max_batch;
+    // A compiled artifact's compute_dtype, else the dtype raw weights are
+    // stored in: raw weights fix none (the manifest refuses one).
+    info.dtype = weights.info_dtype();
     // The manifest's strings were checked against these buffers when it
     // was parsed (rule 2), and a hash is 64 hex digits: nothing is cut.
     write_str(&mut info.model_id, &m.model.id);

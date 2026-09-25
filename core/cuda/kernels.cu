@@ -611,6 +611,29 @@ __device__ inline void mma16816(float (&d)[4], const uint32_t (&a)[4], uint32_t 
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
 }
 
+/* d += a b for one m16n8k16 tile, d F16 (a half2 of each row's two
+ * columns in each register, rows g and g + 8, as mma16816's floats). */
+__device__ inline void mma16816_f16(uint32_t (&d)[2], const uint32_t (&a)[4], uint32_t b0, uint32_t b1) {
+    asm volatile("mma.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16 {%0,%1}, {%2,%3,%4,%5}, {%6,%7}, {%0,%1};\n"
+                 : "+r"(d[0]), "+r"(d[1])
+                 : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
+}
+
+/* d += a b for one m16n8k8 tile of TF32 operands. */
+__device__ inline void mma1688_tf32(float (&d)[4], const uint32_t (&a)[4], uint32_t b0, uint32_t b1) {
+    asm volatile("mma.sync.aligned.m16n8k8.row.col.f32.tf32.tf32.f32 {%0,%1,%2,%3}, {%4,%5,%6,%7}, {%8,%9}, "
+                 "{%0,%1,%2,%3};\n"
+                 : "+f"(d[0]), "+f"(d[1]), "+f"(d[2]), "+f"(d[3])
+                 : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b0), "r"(b1));
+}
+
+/* x rounded to TF32, to the nearest with ties away from zero. */
+__device__ inline uint32_t to_tf32(float x) {
+    uint32_t u;
+    asm("cvt.rna.tf32.f32 %0, %1;\n" : "=r"(u) : "f"(x));
+    return u;
+}
+
 __device__ inline uint32_t pack_half2(float lo, float hi) {
     const __half2 h = __floats2half2_rn(lo, hi);
     return *reinterpret_cast<const uint32_t *>(&h);
@@ -955,11 +978,15 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
 
 // -- The F16 GEMM on the tensor cores --------------------------------------------------
 //
-// mma.sync m16n8k16, F16 operands, F32 accumulators. A block of WM x WN
-// warps, each a (BM / WM) x (BN / WN) accumulator tile, computes a
-// BM x BN tile over k in steps of 32, through a STAGES-deep cp.async
-// pipeline in shared memory (rows padded to 40 halves, which keeps
-// ldmatrix free of bank conflicts). The finished tile goes through
+// mma.sync m16n8k16, F16 operands, F32 accumulators; or, at MODEL for
+// an F32 model (TIn float), m16n8k8 with F32 operands rounded to TF32
+// as each fragment is read from shared memory, F32 accumulators. A
+// block of WM x WN warps, each a (BM / WM) x (BN / WN) accumulator tile,
+// computes a BM x BN tile over k in steps of 64 bytes of each row (32
+// F16 values, 16 F32), through a STAGES-deep cp.async pipeline in
+// shared memory, rows padded to 80 bytes, which keeps ldmatrix's reads
+// of F16 and the TF32 fragments' reads of F32 (8 rows by 4 values to a
+// warp) free of bank conflicts. The finished tile goes through
 // shared memory, so every store to global memory is 16 contiguous
 // bytes. The wide GEMMs (QKV and the first feed-forward) take 128 x 128
 // over eight warps of 32 x 64: each operand byte read from L2 feeds
@@ -967,10 +994,14 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
 // worth. The N = 384 GEMMs keep 128 x 64, whose three N tiles already
 // leave few tiles to share among the SMs.
 
-constexpr int MMA_K = 32, MMA_LD = MMA_K + 8;
+/* A stage's row of k: 64 bytes, padded to 80. */
+constexpr int MMA_LD_BYTES = 80;
+
+template <typename TIn> __host__ __device__ constexpr int mma_k() { return 64 / (int)sizeof(TIn); }
+template <typename TIn> __host__ __device__ constexpr int mma_ld() { return MMA_LD_BYTES / (int)sizeof(TIn); }
 
 template <int BM, int BN, int STAGES, typename TOut> constexpr size_t mma_gemm_smem() {
-    const size_t pipe = (size_t)STAGES * (BM + BN) * MMA_LD * sizeof(__half);
+    const size_t pipe = (size_t)STAGES * (BM + BN) * MMA_LD_BYTES;
     const size_t out = (size_t)BM * (BN + 16 / sizeof(TOut)) * sizeof(TOut);
     return pipe > out ? pipe : out;
 }
@@ -986,19 +1017,26 @@ template <int BM, int BN, int STAGES, typename TOut> constexpr int mma_min_block
     return mma_gemm_smem<BM, BN, STAGES, TOut>() <= 48 * 1024 ? 2 : 1;
 }
 
-template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut>
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, typename TIn, bool ACC16 = false>
 __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, TOut>()))
     gemm_mma_kernel(GemmArgs g) {
 #ifndef TURBO_NO_MMA
     constexpr int NT = WM * WN * 32, WTM = BM / WM, WTN = BN / WN, MI = WTM / 16, NI = WTN / 8;
     constexpr int E = 16 / (int)sizeof(TOut), OLD = BN + E; // the output tile's row, in TOut
     constexpr int SLOT = BM * BN;
-    static_assert(NI % 2 == 0, "B fragments load two n8 tiles at once");
+    constexpr int MMA_K = mma_k<TIn>(), MMA_LD = mma_ld<TIn>(), CE = 16 / (int)sizeof(TIn);
+    constexpr bool TF32 = sizeof(TIn) == 4;
+    static_assert(TF32 || NI % 2 == 0, "B fragments load two n8 tiles at once");
+    static_assert(!(TF32 && ACC16), "F16 accumulators take F16 operands");
+    // F16 accumulators, with ACC16, over each ACC16_STEPS k steps (64
+    // terms), then added into acc; the chunks are whole k steps from k 0
+    // on, so a tile's sum is the same whichever blocks share it.
+    constexpr int ACC16_STEPS = 64 / MMA_K;
     extern __shared__ __align__(16) unsigned char gemm_sm[];
-    __half *As = reinterpret_cast<__half *>(gemm_sm);
-    __half *Bs = As + STAGES * BM * MMA_LD;
+    TIn *As = reinterpret_cast<TIn *>(gemm_sm);
+    TIn *Bs = As + STAGES * BM * MMA_LD;
     TOut *Cs = reinterpret_cast<TOut *>(gemm_sm);
-    const __half *A = static_cast<const __half *>(g.a), *B = static_cast<const __half *>(g.w);
+    const TIn *A = static_cast<const TIn *>(g.a), *B = static_cast<const TIn *>(g.w);
     const int M = g.info->tokens, N = g.n, K = g.k;
     const int mt = (M + BM - 1) / BM, nt = (N + BN - 1) / BN;
     const Share sh = share_of(mt * nt, (K + MMA_K - 1) / MMA_K, g.min_steps);
@@ -1014,14 +1052,14 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
         const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
         const int kb = (int)(begin - first) * MMA_K, ke = min(K, (int)(at - first) * MMA_K);
         auto load_stage = [&](int st, int k0) {
-            __half *as = As + st * BM * MMA_LD, *bs = Bs + st * BN * MMA_LD;
-            for (int i = threadIdx.x; i < BM * (MMA_K / 8); i += NT) {
-                const int r = i >> 2, ch = (i & 3) * 8, gm = m0 + r, gk = k0 + ch;
+            TIn *as = As + st * BM * MMA_LD, *bs = Bs + st * BN * MMA_LD;
+            for (int i = threadIdx.x; i < BM * (MMA_K / CE); i += NT) {
+                const int r = i >> 2, ch = (i & 3) * CE, gm = m0 + r, gk = k0 + ch;
                 const bool ok = gm < M && gk < ke;
                 cp_async16(as + r * MMA_LD + ch, ok ? A + (size_t)gm * K + gk : A, ok);
             }
-            for (int i = threadIdx.x; i < BN * (MMA_K / 8); i += NT) {
-                const int r = i >> 2, ch = (i & 3) * 8, gn = n0 + r, gk = k0 + ch;
+            for (int i = threadIdx.x; i < BN * (MMA_K / CE); i += NT) {
+                const int r = i >> 2, ch = (i & 3) * CE, gn = n0 + r, gk = k0 + ch;
                 const bool ok = gn < N && gk < ke;
                 cp_async16(bs + r * MMA_LD + ch, ok ? B + (size_t)gn * K + gk : B, ok);
             }
@@ -1035,6 +1073,14 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
 #pragma unroll
                 for (int e = 0; e < 4; e++) acc[i][j][e] = 0.0f;
 
+        uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
+        if constexpr (ACC16) {
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++) hacc[i][j][0] = hacc[i][j][1] = 0u;
+        }
+
         const int ktiles = (ke - kb + MMA_K - 1) / MMA_K;
 #pragma unroll
         for (int s = 0; s < STAGES - 1; s++) {
@@ -1047,27 +1093,75 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
             const int next = kt + STAGES - 1;
             if (next < ktiles) load_stage(next % STAGES, kb + next * MMA_K);
             cp_async_commit();
-            const __half *as = As + (kt % STAGES) * BM * MMA_LD, *bs = Bs + (kt % STAGES) * BN * MMA_LD;
+            const TIn *as = As + (kt % STAGES) * BM * MMA_LD, *bs = Bs + (kt % STAGES) * BN * MMA_LD;
+            if constexpr (TF32) {
+                // A's a0..a3 at (g, t), (g + 8, t), (g, t + 4), (g + 8, t + 4)
+                // of the 16 x 8 tile, B's b0, b1 at (k t, n g), (k t + 4, n g).
+                const int gq = lane >> 2, tq = lane & 3;
 #pragma unroll
-            for (int kk = 0; kk < MMA_K; kk += 16) {
-                uint32_t af[MI][4], bf[NI][2];
+                for (int kk = 0; kk < MMA_K; kk += 8) {
+                    uint32_t af[MI][4], bf[NI][2];
 #pragma unroll
-                for (int i = 0; i < MI; i++)
-                    ldsm_x4(af[i], as + (wm * WTM + i * 16 + (lane & 15)) * MMA_LD + kk + (lane >> 4) * 8);
+                    for (int i = 0; i < MI; i++) {
+                        const TIn *p = as + (wm * WTM + i * 16 + gq) * MMA_LD + kk + tq;
+                        af[i][0] = to_tf32(p[0]);
+                        af[i][1] = to_tf32(p[8 * MMA_LD]);
+                        af[i][2] = to_tf32(p[4]);
+                        af[i][3] = to_tf32(p[8 * MMA_LD + 4]);
+                    }
 #pragma unroll
-                for (int j = 0; j < NI / 2; j++) {
-                    uint32_t r[4];
-                    ldsm_x4(r, bs + (wn * WTN + j * 16 + (lane >> 4) * 8 + (lane & 7)) * MMA_LD + kk +
-                                   ((lane >> 3) & 1) * 8);
-                    bf[2 * j][0] = r[0];
-                    bf[2 * j][1] = r[1];
-                    bf[2 * j + 1][0] = r[2];
-                    bf[2 * j + 1][1] = r[3];
+                    for (int j = 0; j < NI; j++) {
+                        const TIn *q = bs + (wn * WTN + j * 8 + gq) * MMA_LD + kk + tq;
+                        bf[j][0] = to_tf32(q[0]);
+                        bf[j][1] = to_tf32(q[4]);
+                    }
+#pragma unroll
+                    for (int i = 0; i < MI; i++)
+#pragma unroll
+                        for (int j = 0; j < NI; j++) mma1688_tf32(acc[i][j], af[i], bf[j][0], bf[j][1]);
                 }
+            } else {
 #pragma unroll
-                for (int i = 0; i < MI; i++)
+                for (int kk = 0; kk < MMA_K; kk += 16) {
+                    uint32_t af[MI][4], bf[NI][2];
 #pragma unroll
-                    for (int j = 0; j < NI; j++) mma16816(acc[i][j], af[i], bf[j][0], bf[j][1]);
+                    for (int i = 0; i < MI; i++)
+                        ldsm_x4(af[i], as + (wm * WTM + i * 16 + (lane & 15)) * MMA_LD + kk + (lane >> 4) * 8);
+#pragma unroll
+                    for (int j = 0; j < NI / 2; j++) {
+                        uint32_t r[4];
+                        ldsm_x4(r, bs + (wn * WTN + j * 16 + (lane >> 4) * 8 + (lane & 7)) * MMA_LD + kk +
+                                       ((lane >> 3) & 1) * 8);
+                        bf[2 * j][0] = r[0];
+                        bf[2 * j][1] = r[1];
+                        bf[2 * j + 1][0] = r[2];
+                        bf[2 * j + 1][1] = r[3];
+                    }
+#pragma unroll
+                    for (int i = 0; i < MI; i++)
+#pragma unroll
+                        for (int j = 0; j < NI; j++) {
+                            if constexpr (ACC16)
+                                mma16816_f16(hacc[i][j], af[i], bf[j][0], bf[j][1]);
+                            else
+                                mma16816(acc[i][j], af[i], bf[j][0], bf[j][1]);
+                        }
+                }
+                if constexpr (ACC16) {
+                    if ((kb / MMA_K + kt + 1) % ACC16_STEPS == 0 || kt == ktiles - 1) {
+#pragma unroll
+                        for (int i = 0; i < MI; i++)
+#pragma unroll
+                            for (int j = 0; j < NI; j++)
+#pragma unroll
+                                for (int h = 0; h < 2; h++) {
+                                    const float2 v = __half22float2(*reinterpret_cast<const __half2 *>(&hacc[i][j][h]));
+                                    acc[i][j][2 * h] += v.x;
+                                    acc[i][j][2 * h + 1] += v.y;
+                                    hacc[i][j][h] = 0u;
+                                }
+                    }
+                }
             }
         }
         cp_async_wait<0>();
@@ -1178,8 +1272,9 @@ template <int BM, int BN, int TM, typename TIn, int EPI, typename TOut> GemmKern
             simt_min_blocks<BM, BN>()};
 }
 
-template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut> GemmKernel mma_kernel() {
-    return {gemm_mma_kernel<BM, BN, WM, WN, STAGES, EPI, TOut>,
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, typename TIn, bool ACC16 = false>
+GemmKernel mma_kernel() {
+    return {gemm_mma_kernel<BM, BN, WM, WN, STAGES, EPI, TOut, TIn, ACC16>,
             WM * WN * 32,
             mma_gemm_smem<BM, BN, STAGES, TOut>(),
             BM,
@@ -1199,26 +1294,52 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
     }
 }
 
-/* The tensor cores' tiles, eight warps each but 64 x 64's four:
- * 128 x 128 at two stages, warps of 32 x 64; 128 x 64 at three, warps of
- * 32 x 32; 64 x 64 at four. The default takes 128 x 128 for the wide
- * GEMMs, QKV and GELU, and 128 x 64 for the N = 384 ones. */
-template <typename TOut, int EPI> GemmKernel mma_for(Tile t) {
-    if (t == TILE_64x64) return mma_kernel<64, 64, 2, 2, 4, EPI, TOut>();
-    if (t == TILE_128x128 || (t == TILE_DEFAULT && (EPI == EPI_QKV || EPI == EPI_GELU)))
-        return mma_kernel<128, 128, 4, 2, 2, EPI, TOut>();
-    return mma_kernel<128, 64, 4, 2, 3, EPI, TOut>();
+/* The tensor cores' tiles. The F16 default is TILE_EIGHT_WARPS: 128 x 128
+ * at two stages over eight warps of 32 x 64 for QKV and GELU, 128 x 64 at
+ * three over eight warps of 32 x 32 for the others (128 x 64 is also
+ * TF32's default, for every GEMM). Cutlass's shape, warps of 64 x 64 so
+ * each ldmatrix feeds four MMAs, one block to an SM at three stages of
+ * k 32, is selectable: 256 x 128 over eight warps and 128 x 128 over
+ * four; on an RTX 4080 it is slower than the eight-warp tiles. 64 x 64, four warps of 32 x 32, at
+ * four stages. An F32 output tile of 256 x 128 does not fit shared
+ * memory, so such a GEMM takes 128 x 128 over four warps instead. */
+template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
+    constexpr bool f16 = sizeof(TIn) == 2, wide = EPI == EPI_QKV || EPI == EPI_GELU;
+    if constexpr (f16)
+        if (t == TILE_EIGHT_WARPS_F16_ACCUMULATE) {
+            if (wide) return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn, true>();
+            return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn, true>();
+        }
+    if (t == TILE_DEFAULT && f16) t = TILE_EIGHT_WARPS;
+    if (t == TILE_EIGHT_WARPS) t = wide && f16 ? TILE_128x128 : TILE_128x64;
+    if (t == TILE_256x128 && sizeof(TOut) == 4) t = TILE_128x128_4W;
+    switch (t) {
+    case TILE_64x64: return mma_kernel<64, 64, 2, 2, 4, EPI, TOut, TIn>();
+    case TILE_128x128: return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn>();
+    case TILE_128x128_4W: return mma_kernel<128, 128, 2, 2, 3, EPI, TOut, TIn>();
+    case TILE_256x128:
+        if constexpr (sizeof(TOut) == 2) return mma_kernel<256, 128, 4, 2, 3, EPI, TOut, TIn>();
+        return mma_kernel<128, 128, 2, 2, 3, EPI, TOut, TIn>();
+    default: return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn>();
+    }
 }
 
 GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
-    const bool mma = half && tc;
-    const Tile t = resolve_tile(mma, tile);
-    if (mma) {
+    const Tile t = resolve_tile(tc, tile);
+    if (tc && half) {
         switch (e) {
-        case EPI_QKV: return mma_for<__half, EPI_QKV>(t);
-        case EPI_GELU: return mma_for<__half, EPI_GELU>(t);
-        case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN>(t);
-        default: return mma_for<float, EPI_PLAIN>(t);
+        case EPI_QKV: return mma_for<__half, EPI_QKV, __half>(t);
+        case EPI_GELU: return mma_for<__half, EPI_GELU, __half>(t);
+        case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN, __half>(t);
+        default: return mma_for<float, EPI_PLAIN, __half>(t);
+        }
+    }
+    if (tc) {
+        switch (e) {
+        case EPI_QKV: return mma_for<float, EPI_QKV, float>(t);
+        case EPI_GELU: return mma_for<float, EPI_GELU, float>(t);
+        case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN, float>(t);
+        default: return mma_for<float, EPI_PLAIN, float>(t);
         }
     }
     if (half) {
@@ -1954,8 +2075,23 @@ template <typename F> cudaError_t with_row_width(int hidden, F &&f) {
 
 // ---- Launchers -------------------------------------------------------------------------
 
-cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile) {
+namespace {
+
+/* gemm_kernel's kernel, or, when its shared memory is more than the
+ * device lets a block have, 128 x 64's. */
+GemmKernel gemm_kernel_fitting(Epilogue e, bool half, bool tensor_cores, Tile tile) {
     const GemmKernel k = gemm_kernel(e, half, tensor_cores, tile);
+    int dev = 0, optin = 0;
+    if (cudaGetDevice(&dev) != cudaSuccess ||
+        cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev) != cudaSuccess)
+        return k;
+    return k.smem > (size_t)optin ? gemm_kernel(e, half, tensor_cores, TILE_128x64) : k;
+}
+
+} // namespace
+
+cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile) {
+    const GemmKernel k = gemm_kernel_fitting(e, half, tensor_cores, tile);
     const void *fn = reinterpret_cast<const void *>(k.fn);
     cudaError_t err = cudaFuncSetAttribute(fn, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)k.smem);
     if (err == cudaSuccess) err = same_carveout(fn);
@@ -1964,7 +2100,7 @@ cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile) {
 
 cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int sms, int *grid, size_t *ws_floats,
                       bool *crowded) {
-    const GemmKernel k = gemm_kernel(e, half, tensor_cores, tile);
+    const GemmKernel k = gemm_kernel_fitting(e, half, tensor_cores, tile);
     // As many blocks as fit, whatever the tokens: the kernel counts the
     // tiles of the run's M, read on the device, and shares them out.
     const cudaError_t err = resident(reinterpret_cast<const void *>(k.fn), k.threads, k.smem, sms, grid);
@@ -1974,7 +2110,7 @@ cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int s
 }
 
 cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile tile, const GemmArgs &g, int grid) {
-    const GemmKernel k = gemm_kernel(e, half, tensor_cores, tile);
+    const GemmKernel k = gemm_kernel_fitting(e, half, tensor_cores, tile);
     void *args[] = {const_cast<GemmArgs *>(&g)};
     return cudaLaunchKernel(reinterpret_cast<const void *>(k.fn), dim3(grid), dim3(k.threads), args, k.smem, s);
 }

@@ -99,7 +99,7 @@ fn cuda() {
     let include = manifest.join("../include");
     let mut objects = Vec::new();
     for src in SOURCES {
-        let obj = out.join(Path::new(src).file_name().unwrap()).with_extension("o");
+        let obj = object(&out, src);
         let mut cmd = Command::new(&nvcc);
         cmd.args(["-c", "-O3", "-std=c++17", "-Xcompiler", "-fPIC,-Wall,-Wextra"])
             .arg("-I")
@@ -219,7 +219,7 @@ fn metal() {
         });
     let mut objects = Vec::new();
     for src in METAL_SOURCES {
-        let obj = out.join(Path::new(src).file_name().unwrap()).with_extension("o");
+        let obj = object(&out, src);
         run(Command::new(&clang)
             .args(["-c", "-O2", "-std=gnu++17", "-fobjc-arc", "-fobjc-arc-exceptions", "-fPIC", "-Wall", "-Wextra"])
             // The oldest macOS with what backend.mm calls and that the
@@ -278,7 +278,7 @@ fn hailo() {
     let cxx = env::var_os("CXX").unwrap_or_else(|| "c++".into());
     let mut objects = Vec::new();
     for src in HAILO_SOURCES {
-        let obj = out.join(Path::new(src).file_name().unwrap()).with_extension("o");
+        let obj = object(&out, src);
         run(Command::new(&cxx)
             .args(["-c", "-O2", "-std=c++17", "-fPIC", "-Wall", "-Wextra"])
             .arg("-I")
@@ -354,6 +354,13 @@ fn archs() -> Vec<String> {
     archs.sort_by_key(number);
     archs.dedup();
     archs
+}
+
+/// A source's object in OUT_DIR, named for its whole path under core/
+/// (cuda/backend.cpp is cuda_backend.o), so no backend's object is
+/// another's when several features are on.
+fn object(out: &Path, src: &str) -> PathBuf {
+    out.join(Path::new(src).with_extension("o").to_string_lossy().replace('/', "_"))
 }
 
 /// Run a compiler step; its warnings are shown, and a failure stops the build.

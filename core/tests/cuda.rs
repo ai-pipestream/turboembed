@@ -42,6 +42,16 @@ fn turn() -> MutexGuard<'static, ()> {
     ONE_AT_A_TIME.lock().unwrap_or_else(|p| p.into_inner())
 }
 
+/// f with MODEL's GEMMs pinned to the FMA kernels, whatever
+/// TURBO_CUDA_TF32 says, for the sessions f makes: what a test holding
+/// MODEL to F32's bound (or to EXACT's bits) needs.
+fn strict<T>(f: impl FnOnce() -> T) -> T {
+    turbo::cuda::use_tf32(Some(false));
+    let r = f();
+    turbo::cuda::use_tf32(None);
+    r
+}
+
 fn null_err() -> *mut turbo_error {
     ptr::null_mut()
 }
@@ -432,7 +442,9 @@ fn every_option_matches_the_arithmetic_and_the_cpu() {
     let dir = tiny_bundle();
     let plain = PlainBert::new(&dir);
     let (g, c) = (on_cuda(&dir), Loaded::load(&dir).unwrap());
-    let (gs, cs) = (Session::create(g.m, None).unwrap(), Session::create(c.m, None).unwrap());
+    // EXACT: F32 FMAs throughout, which the f64 encoder's bound needs.
+    let exact = session_desc(0, 0, TURBO_PRECISION_EXACT);
+    let (gs, cs) = (Session::create(g.m, Some(&exact)).unwrap(), Session::create(c.m, None).unwrap());
     let t = awkward_rows(&dir);
     let seq = t.seq as usize;
     let types = t.types.clone().unwrap();
@@ -692,7 +704,10 @@ fn half_weights_compute_from_one_shared_copy_per_dtype() {
         let mut g = Fixture::model(&format!("cuda-half-{dtype}-wide"));
         g.weights("weights/model.safetensors", &w);
         let lw = g.load_on(cuda).unwrap();
-        let want = Session::create(lw.m, None).unwrap().embed(&TEXTS, None).unwrap();
+        let want = Session::create(lw.m, Some(&session_desc(0, 0, TURBO_PRECISION_EXACT)))
+            .unwrap()
+            .embed(&TEXTS, None)
+            .unwrap();
         assert!(unsafe { model_converted_weights(lw.m) }.is_none(), "F32 weights are used as loaded");
         assert_eq!(a.embed(&TEXTS, None).unwrap(), want, "{dtype}");
         let f16 = record::tolerance(TURBO_DTYPE_F16).unwrap();
@@ -781,7 +796,7 @@ fn an_output_dim_is_cut_then_normalized_on_the_device() {
     });
     f.weights("weights/model.safetensors", &tiny_weights(0));
     let l = f.load_on(cuda).unwrap();
-    let s = Session::create(l.m, None).unwrap();
+    let s = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_EXACT))).unwrap();
     let got = s.embed(&TEXTS, Some(&opts(|o| o.output_dim = 4))).unwrap();
     let plain = PlainBert::new(&f.dir);
     let tok = Tok::create(&f.dir).unwrap();
@@ -875,7 +890,7 @@ fn packed_rows_match_the_cpu_at_every_precision_and_pooling() {
     let mi = g.info();
     let t = ragged_rows(&dir, mi.max_batch as usize, mi.max_seq as usize);
     for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
-        let gs = Session::create(g.m, Some(&session_desc(0, 0, precision))).unwrap();
+        let gs = strict(|| Session::create(g.m, Some(&session_desc(0, 0, precision)))).unwrap();
         let dtype = gs.info().compute_dtype;
         assert_eq!(dtype, if precision == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 });
         let tol = record::tolerance(dtype).unwrap();
@@ -924,7 +939,7 @@ fn many_rows_pack_as_the_cpu_packs_them() {
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
     for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
-        let gs = Session::create(g.m, Some(&session_desc(600, 40, precision))).unwrap();
+        let gs = strict(|| Session::create(g.m, Some(&session_desc(600, 40, precision)))).unwrap();
         let tol = record::tolerance(gs.info().compute_dtype).unwrap();
         gs.write_tokens(&t.batch(), None).unwrap();
         let got = gs.run().unwrap().rows();
@@ -959,6 +974,49 @@ fn fastest_computes_in_f16_within_its_bound() {
         fast.run().unwrap()
     };
     assert_eq!((r.info().compute_dtype, r.info().dtype), (TURBO_DTYPE_F16, TURBO_DTYPE_F32), "F32 vectors out");
+}
+
+/// MODEL on an F32 model takes EXACT's FMA kernels by default, so it
+/// gives EXACT's bits; TURBO_CUDA_TF32=1 computes its GEMMs as TF32 on
+/// the tensor cores (sm_80 and newer), which still reports F32 and
+/// reaches F32's cosine (not its absolute bound) against the CPU, on the tiny bundle and on rows
+/// of very different lengths with masked tokens inside, every tile.
+#[test]
+fn model_is_exact_unless_tf32_is_asked_for() {
+    let _t = turn();
+    let Some(_) = cuda_device("model_is_exact_unless_tf32_is_asked_for") else { return };
+    use turbo::cuda::Tile;
+    let dir = tiny_bundle();
+    let (g, c) = (on_cuda(&dir), Loaded::load(&dir).unwrap());
+    let cpu = Session::create(c.m, None).unwrap().embed(&TEXTS, None).unwrap();
+    let exact = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_EXACT))).unwrap();
+    let model = strict(|| Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_MODEL)))).unwrap();
+    assert_eq!(model.embed(&TEXTS, None).unwrap(), exact.embed(&TEXTS, None).unwrap(), "MODEL is EXACT");
+    // TF32 rounds each operand to 10 bits of mantissa: F32's cosine, with
+    // no bound on the largest absolute difference.
+    let tol = record::Tolerance { max_abs_diff: None, ..record::tolerance(TURBO_DTYPE_F32).unwrap() };
+    let t = awkward_rows(&dir);
+    let want = {
+        let cs = Session::create(c.m, None).unwrap();
+        cs.write_tokens(&t.batch(), None).unwrap();
+        cs.run().unwrap().rows()
+    };
+    for tile in [Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128] {
+        turbo::cuda::use_tf32(Some(true));
+        turbo::cuda::use_tile(Some(tile));
+        let tf32 = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_MODEL)));
+        turbo::cuda::use_tile(None);
+        turbo::cuda::use_tf32(None);
+        let tf32 = tf32.unwrap();
+        assert_eq!(tf32.info().compute_dtype, TURBO_DTYPE_F32);
+        let (cos, abs) = within(&format!("TF32, tile {tile:?}"), &tf32.embed(&TEXTS, None).unwrap(), &cpu, tol);
+        println!("TF32, tile {tile:?}: 1 - lowest cosine with the cpu {cos:.3e}, max abs diff {abs:.3e}");
+        tf32.write_tokens(&t.batch(), None).unwrap();
+        let got = tf32.run().unwrap().rows();
+        within(&format!("TF32, tile {tile:?}, awkward rows"), &got, &want, tol);
+        tf32.write_tokens(&t.batch(), None).unwrap();
+        assert_eq!(tf32.run().unwrap().rows(), got, "TF32, tile {tile:?}: the same bits again");
+    }
 }
 
 // ---- Limits and the largest shape ----------------------------------------------------
@@ -1015,7 +1073,7 @@ fn rows_longer_than_a_chunk_of_keys_run_in_chunks() {
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
     for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
-        let gs = Session::create(g.m, Some(&session_desc(1, 3000, precision))).unwrap();
+        let gs = strict(|| Session::create(g.m, Some(&session_desc(1, 3000, precision)))).unwrap();
         let tol = record::tolerance(gs.info().compute_dtype).unwrap();
         gs.write_tokens(&t.batch(), None).unwrap();
         let (cos, abs) = within(&format!("precision {precision}"), &gs.run().unwrap().rows(), &want, tol);
@@ -1075,7 +1133,7 @@ fn the_packing_takes_one_long_row_and_many_short_ones() {
     };
     let want = [cpu(&long), cpu(&short), cpu(&mixed)];
     for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
-        let gs = Session::create(g.m, Some(&session_desc(32, 512, precision))).unwrap();
+        let gs = strict(|| Session::create(g.m, Some(&session_desc(32, 512, precision)))).unwrap();
         let tol = record::tolerance(gs.info().compute_dtype).unwrap();
         let run = |t: &Tokens| {
             gs.write_tokens(&t.batch(), None).unwrap();
@@ -1144,6 +1202,47 @@ fn bert_weights(h: u64, i: u64) -> Vec<Tensor> {
         .collect()
 }
 
+/// FASTEST with F16 accumulators over each 64 terms of k
+/// (TURBO_CUDA_F16_ACCUMULATE=1), on a model of MiniLM's widths, the
+/// LayerNorm separate and in the GEMMs: the CPU's vectors within
+/// FASTEST's bound (cosine 0.999), and the same bits when run again.
+#[test]
+fn f16_accumulators_hold_fastest_s_bound() {
+    let _t = turn();
+    let Some(_) = cuda_device("f16_accumulators_hold_fastest_s_bound") else { return };
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(384);
+    m["architecture"]["heads"] = json!(12);
+    m["architecture"]["intermediate"] = json!(1536);
+    m["embed"]["dim"] = json!(384);
+    m["embed"]["max_seq"] = json!(300);
+    m["embed"]["max_batch"] = json!(6);
+    m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+    let mut f = Fixture::new("cuda-f16-accumulate", m);
+    f.weights("weights/model.safetensors", &bert_weights(384, 1536));
+    let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+    let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+    let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    let want = cs.run().unwrap().rows();
+    for separate in [true, false] {
+        turbo::cuda::use_f16_accumulate(Some(true));
+        turbo::cuda::use_separate_layer_norm(Some(separate));
+        let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
+        turbo::cuda::use_separate_layer_norm(None);
+        turbo::cuda::use_f16_accumulate(None);
+        let gs = gs.unwrap();
+        let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+        gs.write_tokens(&t.batch(), None).unwrap();
+        let got = gs.run().unwrap().rows();
+        let what = format!("F16 accumulators, separate LayerNorm {separate}");
+        let (cos, abs) = within(&what, &got, &want, tol);
+        println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+        gs.write_tokens(&t.batch(), None).unwrap();
+        assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
+    }
+}
+
 /// A model of heads 32 wide, MiniLM's, so FASTEST's attention runs on the
 /// tensor cores and EXACT's streams a 512-token row's keys in chunks:
 /// rows of 512, 300, 129, 64, 63, 17 and 1 tokens, masked tokens inside
@@ -1169,7 +1268,7 @@ fn heads_of_32_match_the_cpu() {
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
     for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
-        let gs = Session::create(g.m, Some(&session_desc(8, 512, precision))).unwrap();
+        let gs = strict(|| Session::create(g.m, Some(&session_desc(8, 512, precision)))).unwrap();
         let tol = record::tolerance(gs.info().compute_dtype).unwrap();
         gs.write_tokens(&t.batch(), None).unwrap();
         let got = gs.run().unwrap().rows();
@@ -1181,9 +1280,9 @@ fn heads_of_32_match_the_cpu() {
 }
 
 /// The LayerNorm inside the attention output and second feed-forward
-/// GEMMs gives the bits of the separate kernel TURBO_CUDA_LAYER_NORM=
-/// separate picks, at every precision, with every tile (rows split among
-/// blocks of 64 and 128), on hidden widths of 64 and 384 and rows of
+/// GEMMs, which TURBO_CUDA_LAYER_NORM=fused picks, gives the bits of the
+/// separate kernel, the default, at every precision, with every tile
+/// (rows split among blocks of 64, 128 and 256), on hidden widths of 64 and 384 and rows of
 /// very different lengths with masked tokens inside. And the pooling of
 /// a thread per column, TURBO_CUDA_POOL=columns, gives the default's
 /// vectors within the bound (it adds the tokens in another order), at
@@ -1207,7 +1306,15 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
         let g = f.load_on(cuda).unwrap();
         let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
         for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
-            for tile in [Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128] {
+            for tile in [
+                Tile::Default,
+                Tile::T64x64,
+                Tile::T128x64,
+                Tile::T128x128,
+                Tile::T256x128,
+                Tile::EightWarps,
+                Tile::EightWarpsF16Accumulate,
+            ] {
                 let mut bits = Vec::new();
                 for separate in [true, false] {
                     turbo::cuda::use_tile(Some(tile));
@@ -1273,7 +1380,7 @@ fn both_fma_attentions_match_the_cpu() {
         let want = cs.run().unwrap().rows();
         for split in [false, true] {
             turbo::cuda::use_split_attention(Some(split));
-            let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_MODEL)));
+            let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_EXACT)));
             turbo::cuda::use_split_attention(None);
             let gs = gs.unwrap();
             let tol = record::tolerance(gs.info().compute_dtype).unwrap();
@@ -1289,14 +1396,15 @@ fn both_fma_attentions_match_the_cpu() {
 }
 
 /// The backend's GEMMs against cuBLAS on random operands, every epilogue,
-/// F32, F16 on the tensor cores and F16 with FMAs (the path of devices
-/// before sm_80), every tile, at MiniLM's shapes for the benchmark's 1353
+/// F32 with FMAs, F32 as TF32 on the tensor cores (MODEL), F16 on the
+/// tensor cores and F16 with FMAs (the path of devices before sm_80),
+/// every tile, at MiniLM's shapes for the benchmark's 1353
 /// tokens, at shapes no tile divides, and at a token count past 8192
 /// that no tile divides either, with the work shared among as
 /// many blocks as the device holds and among 1, 7 and 33 (so tiles split
 /// between blocks at other points): F32 within 1e-5 of the largest value,
-/// F16 outputs within 2e-3 (an F16 rounding either side). Each GEMM runs
-/// twice and repeats its bits.
+/// F16 outputs and TF32 products within 2e-3. Each GEMM runs twice and
+/// repeats its bits.
 #[test]
 fn the_gemms_match_cublas() {
     let _t = turn();
@@ -1320,9 +1428,18 @@ fn the_gemms_match_cublas() {
         (300, 384, 1536, Plain, 1),
         (8193, 384, 1536, Plain, 1),
     ] {
-        for (half, tensor_cores) in [(false, false), (true, true), (true, false)] {
-            let tiles: &[Tile] = if half && tensor_cores {
-                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128]
+        for (half, tensor_cores) in [(false, false), (false, true), (true, true), (true, false)] {
+            let tiles: &[Tile] = if tensor_cores {
+                &[
+                    Tile::Default,
+                    Tile::T64x64,
+                    Tile::T128x64,
+                    Tile::T128x128,
+                    Tile::T128x128Warps4,
+                    Tile::T256x128,
+                    Tile::EightWarps,
+                    Tile::EightWarpsF16Accumulate,
+                ]
             } else {
                 &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
             };
@@ -1334,8 +1451,19 @@ fn the_gemms_match_cublas() {
                     let (diff, reference) =
                         turbo::cuda::gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, tile, blocks, heads)
                             .unwrap();
+                    // TF32 rounds each operand to 10 bits of mantissa, which
+                    // cuBLAS's F32 product does not.
                     let f16_out = half && !matches!(epilogue, Plain);
-                    let bound = if f16_out { 2e-3 } else { 1e-5 } * reference.max(1.0);
+                    let tf32 = !half && tensor_cores;
+                    // F16 accumulators round each 64 terms' sum to 11 bits.
+                    let f16_sums = half && tensor_cores && matches!(tile, Tile::EightWarpsF16Accumulate);
+                    let bound = if f16_sums {
+                        1e-2
+                    } else if f16_out || tf32 {
+                        2e-3
+                    } else {
+                        1e-5
+                    } * reference.max(1.0);
                     let what = format!(
                         "{epilogue:?} [{m}, {k}] x [{n}, {k}], tile {tile:?}, {blocks} blocks, F16 {half}, mma \
                          {tensor_cores}"
@@ -1370,13 +1498,21 @@ fn every_gemm_tile_gives_the_same_vectors() {
     let g = f.load_on(cuda).unwrap();
     let t = ragged_rows(&f.dir, 40, 160);
     for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
-        let own = Session::create(g.m, Some(&session_desc(40, 160, precision))).unwrap();
+        let own = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
         let tol = record::tolerance(own.info().compute_dtype).unwrap();
         own.write_tokens(&t.batch(), None).unwrap();
         let want = own.run().unwrap().rows();
-        for tile in [Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8] {
+        for tile in [
+            Tile::T64x64,
+            Tile::T128x64,
+            Tile::T128x128,
+            Tile::T128x128Thread16x8,
+            Tile::T128x128Warps4,
+            Tile::T256x128,
+            Tile::EightWarps,
+        ] {
             turbo::cuda::use_tile(Some(tile));
-            let s = Session::create(g.m, Some(&session_desc(40, 160, precision)));
+            let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
             turbo::cuda::use_tile(None);
             let s = s.unwrap();
             s.write_tokens(&t.batch(), None).unwrap();
@@ -1401,13 +1537,13 @@ fn gemms_handed_to_cublas_give_the_same_vectors() {
     let mi = g.info();
     let t = ragged_rows(&dir, mi.max_batch as usize, mi.max_seq as usize);
     for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
-        let own = Session::create(g.m, Some(&session_desc(0, 0, precision))).unwrap();
+        let own = strict(|| Session::create(g.m, Some(&session_desc(0, 0, precision)))).unwrap();
         let tol = record::tolerance(own.info().compute_dtype).unwrap();
         own.write_tokens(&t.batch(), None).unwrap();
         let want = own.run().unwrap().rows();
         for gemms in [1, 2, 4, 8, 15] {
             turbo::cuda::use_cublas(Some(gemms));
-            let s = Session::create(g.m, Some(&session_desc(0, 0, precision)));
+            let s = strict(|| Session::create(g.m, Some(&session_desc(0, 0, precision))));
             turbo::cuda::use_cublas(None);
             let s = s.unwrap();
             s.write_tokens(&t.batch(), None).unwrap();
@@ -1437,8 +1573,10 @@ fn largest_shape_matches_the_cpu(dir: &std::path::Path) {
 
 fn largest_shape_matches_the_cpu_at(dir: &std::path::Path, precision: u32) {
     let (g, c) = (on_cuda(dir), Loaded::load(dir).unwrap());
-    let (gs, cs) =
-        (Session::create(g.m, Some(&session_desc(0, 0, precision))).unwrap(), Session::create(c.m, None).unwrap());
+    let (gs, cs) = (
+        strict(|| Session::create(g.m, Some(&session_desc(0, 0, precision)))).unwrap(),
+        Session::create(c.m, None).unwrap(),
+    );
     let si = gs.info();
     let tol = record::tolerance(si.compute_dtype).unwrap();
     let (batch, seq) = (si.max_batch as usize, si.max_seq as usize);

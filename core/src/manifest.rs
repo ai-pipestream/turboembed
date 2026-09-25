@@ -224,9 +224,7 @@ pub enum Format {
     Onnx,
 }
 
-/// What a compiled artifact computes in. DTYPE_I8 has no header constant
-/// yet (docs/bundle.md: it is added with the Hailo backend) but a HEF
-/// artifact records it today.
+/// What a compiled artifact computes in: the header's TURBO_DTYPE_*.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Dtype {
     #[serde(rename = "DTYPE_I8")]
@@ -239,6 +237,52 @@ pub enum Dtype {
     Bf16,
     #[serde(rename = "DTYPE_F32")]
     F32,
+}
+
+impl Format {
+    /// TURBO_FORMAT_*.
+    pub fn value(self) -> u32 {
+        use crate::backend::*;
+        match self {
+            Format::Safetensors => TURBO_FORMAT_SAFETENSORS,
+            Format::OpenvinoIr => TURBO_FORMAT_OPENVINO_IR,
+            Format::Hef => TURBO_FORMAT_HEF,
+            Format::Gguf => TURBO_FORMAT_GGUF,
+            Format::Onnx => TURBO_FORMAT_ONNX,
+        }
+    }
+}
+
+impl Dtype {
+    /// TURBO_DTYPE_*.
+    pub fn value(self) -> u32 {
+        match self {
+            Dtype::I8 => crate::TURBO_DTYPE_I8,
+            Dtype::I32 => crate::TURBO_DTYPE_I32,
+            Dtype::F16 => crate::TURBO_DTYPE_F16,
+            Dtype::Bf16 => crate::TURBO_DTYPE_BF16,
+            Dtype::F32 => crate::TURBO_DTYPE_F32,
+        }
+    }
+}
+
+impl GraphInput {
+    /// TURBO_INPUT_*.
+    pub fn value(self) -> u32 {
+        match self {
+            GraphInput::TokenIds => crate::backend::TURBO_INPUT_TOKEN_IDS,
+            GraphInput::Embeddings => crate::backend::TURBO_INPUT_EMBEDDINGS,
+        }
+    }
+}
+
+impl GraphOutput {
+    /// TURBO_OUTPUT_*.
+    pub fn value(self) -> u32 {
+        match self {
+            GraphOutput::HiddenStates => crate::backend::TURBO_OUTPUT_HIDDEN_STATES,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -561,8 +605,30 @@ impl Manifest {
                 fits(&at(&format!("backends[{j}]")), b, 32)?;
             }
             fits(&at("target"), &a.target, 32)?;
-            if a.format == Format::Hef && a.target.is_empty() {
-                return Err(invalid(format!("manifest.json: {}: required for a compiled HEF", at("target"))));
+            if a.format == Format::Hef {
+                if a.target.is_empty() {
+                    return Err(invalid(format!("manifest.json: {}: required for a compiled HEF", at("target"))));
+                }
+                // The core hands a backend a HEF as one block of bytes, over
+                // the architecture raw weights would describe.
+                if a.files.len() != 1 {
+                    return Err(invalid(format!("manifest.json: {}: a HEF is one file", at("files"))));
+                }
+                if a.compute_dtype.is_none() {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: required for a compiled HEF",
+                        at("compute_dtype")
+                    )));
+                }
+                if self.architecture.is_none() {
+                    return Err(invalid(format!("manifest.json: architecture: required by the HEF in {}", at("name"))));
+                }
+                // A HEF's shape is compiled in; its backend has no dynamic one.
+                for (field, v) in [("fixed_seq", a.fixed_seq), ("fixed_batch", a.fixed_batch)] {
+                    if v == 0 {
+                        return Err(invalid(format!("manifest.json: {}: required for a compiled HEF", at(field))));
+                    }
+                }
             }
             if a.graph_input == GraphInput::Embeddings && a.host_weights.is_empty() {
                 return Err(invalid(format!(
@@ -614,11 +680,20 @@ impl Manifest {
             }
         }
         for (i, a) in self.artifacts.iter().enumerate() {
-            if !a.host_weights.is_empty() && !names.contains(a.host_weights.as_str()) {
-                return Err(invalid(format!(
-                    "manifest.json: artifacts[{i}].host_weights: no artifact named {:?}",
-                    a.host_weights
-                )));
+            if !a.host_weights.is_empty() {
+                let Some(h) = self.artifacts.iter().find(|h| h.name == a.host_weights) else {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts[{i}].host_weights: no artifact named {:?}",
+                        a.host_weights
+                    )));
+                };
+                // The lookup reads embedding tensors, which raw weights name.
+                if h.format != Format::Safetensors {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts[{i}].host_weights: {:?} is not FORMAT_SAFETENSORS",
+                        a.host_weights
+                    )));
+                }
             }
             if let Some(p) = &a.produced_by
                 && !p.from.is_empty()

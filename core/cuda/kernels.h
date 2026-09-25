@@ -64,11 +64,24 @@ constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 constexpr int MAX_HIDDEN = 2048;
 
 /* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64 for the
- * FMA GEMM, and on the tensor cores 128 x 128 for the wide GEMMs (QKV,
- * GELU) and 128 x 64 for the others; TURBO_CUDA_TILE names one tile for
- * all of them. The FMA GEMM gives a thread 8 x 8 outputs but at
- * TILE_128x128_16x8, 16 x 8 over 128 threads. */
-enum Tile : int { TILE_DEFAULT = 0, TILE_64x64 = 1, TILE_128x64 = 2, TILE_128x128 = 3, TILE_128x128_16x8 = 4 };
+ * FMA GEMM and TF32, and for F16 on the tensor cores TILE_EIGHT_WARPS;
+ * TURBO_CUDA_TILE names one tile for all of them. The FMA GEMM gives a
+ * thread 8 x 8 outputs but at TILE_128x128_16x8, 16 x 8 over 128
+ * threads, and takes 128 x 64 for the tensor cores' own tiles. */
+enum Tile : int {
+    TILE_DEFAULT = 0,
+    TILE_64x64 = 1,
+    TILE_128x64 = 2,
+    TILE_128x128 = 3,
+    TILE_128x128_16x8 = 4,
+    TILE_128x128_4W = 5, /* the tensor cores' 128 x 128 over four warps of 64 x 64 */
+    TILE_256x128 = 6,    /* the tensor cores' 256 x 128 over eight warps of 64 x 64 */
+    TILE_EIGHT_WARPS = 7, /* F16 on the tensor cores: 128 x 128 for QKV and GELU, 128 x 64 for the others */
+    /* TILE_EIGHT_WARPS with F16 accumulators over each 64 terms of k,
+     * added into F32 ones (TURBO_CUDA_F16_ACCUMULATE=1); F16 operands
+     * only, other GEMMs take TILE_DEFAULT. */
+    TILE_EIGHT_WARPS_F16_ACCUMULATE = 8
+};
 
 /* A session's fixed shape, from which make_plan sizes every launch. */
 struct Shape {
@@ -76,7 +89,9 @@ struct Shape {
     int tcap = 0;                   /* batch_cap * seq_cap */
     int hidden = 0, heads = 0, inter = 0;
     bool half = false;         /* FASTEST: F16 GEMM operands and attention */
-    bool tensor_cores = false; /* sm_80 or newer: mma.sync */
+    /* sm_80 or newer, and mma.sync for the GEMMs: F16 at FASTEST, TF32
+     * for F32 operands with TURBO_CUDA_TF32=1, never at EXACT. */
+    bool tensor_cores = false;
     int sms = 0;
     size_t smem_optin = 0; /* cudaDevAttrMaxSharedMemoryPerBlockOptin */
     Tile tile = TILE_DEFAULT;
@@ -88,10 +103,10 @@ struct Shape {
      * the kernels' own. */
     int sk_steps = 0;
     /* LayerNorm in the attention output and second feed-forward GEMMs
-     * (EPI_ADD_LN) when the hidden width allows, unless
-     * TURBO_CUDA_LAYER_NORM=separate asks for the GEMM's product and
-     * add_layer_norm after it. */
-    bool fused_ln = true;
+     * (EPI_ADD_LN) when the hidden width allows and
+     * TURBO_CUDA_LAYER_NORM=fused asks for it; otherwise the GEMM's
+     * product and add_layer_norm after it. The session sets it. */
+    bool fused_ln = false;
     /* The pooling kernel of a thread per column
      * (TURBO_CUDA_POOL=columns), for measuring against the default. */
     bool column_pool = false;

@@ -329,6 +329,7 @@ pub mod names {
     ];
     const TASK: &[(u32, &str)] = &[(TURBO_TASK_EMBED, "TASK_EMBED")];
     const DTYPE: &[(u32, &str)] = &[
+        (TURBO_DTYPE_I8, "DTYPE_I8"),
         (TURBO_DTYPE_I32, "DTYPE_I32"),
         (TURBO_DTYPE_F16, "DTYPE_F16"),
         (TURBO_DTYPE_BF16, "DTYPE_BF16"),
