@@ -1182,36 +1182,90 @@ fn heads_of_32_match_the_cpu() {
 
 /// The backend's GEMMs against cuBLAS on random operands, every epilogue,
 /// F32, F16 on the tensor cores and F16 with FMAs (the path of devices
-/// before sm_80), at MiniLM's shapes for the benchmark's 1353 tokens and at
-/// shapes no tile divides: F32 within 1e-5 of the largest value, F16
-/// outputs within 2e-3 (an F16 rounding either side).
+/// before sm_80), every tile of the QKV and GELU GEMMs, at MiniLM's shapes
+/// for the benchmark's 1353 tokens and at shapes no tile divides, with
+/// partial products split up to four ways: F32 within 1e-5 of the largest
+/// value, F16 outputs within 2e-3 (an F16 rounding either side).
 #[test]
 fn the_gemms_match_cublas() {
     let _t = turn();
     let Some(dev) = cuda_device("the_gemms_match_cublas") else { return };
     let ordinal = Rt::new().info(dev).ordinal;
     use turbo::cuda::Epilogue::*;
+    use turbo::cuda::Tile;
     for (m, n, k, epilogue, splits, heads) in [
         (1353, 1152, 384, Qkv, 1, 12),
-        (1353, 384, 384, Partial, 1, 1),
+        (1353, 384, 384, Partial, 2, 1),
         (1353, 1536, 384, Gelu, 1, 1),
-        (1353, 384, 1536, Partial, 2, 1),
+        (1353, 384, 1536, Partial, 4, 1),
         (1, 1152, 384, Qkv, 1, 12),
         (37, 96, 32, Qkv, 1, 4),
         (65, 24, 8, Qkv, 1, 2),
         (100, 16, 8, Gelu, 1, 1),
         (129, 64, 128, Gelu, 1, 1),
+        (200, 136, 72, Gelu, 1, 1),
         (33, 8, 16, Partial, 1, 1),
         (200, 72, 96, Partial, 3, 1),
+        (300, 384, 1536, Partial, 1, 1),
     ] {
         for (half, tensor_cores) in [(false, false), (true, true), (true, false)] {
-            let (diff, reference) =
-                turbo::cuda::gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, splits, heads).unwrap();
-            let f16_out = half && !matches!(epilogue, Partial);
-            let bound = if f16_out { 2e-3 } else { 1e-5 } * reference.max(1.0);
-            let what = format!("{epilogue:?} [{m}, {k}] x [{n}, {k}], split {splits}, F16 {half}, mma {tensor_cores}");
-            println!("{what}: largest difference {diff:.3e} of values up to {reference:.3}");
-            assert!(diff <= bound, "{what}: {diff:e} over {bound:e}");
+            let tiles: &[Tile] = if matches!(epilogue, Partial) {
+                &[Tile::Default]
+            } else if half && tensor_cores {
+                &[Tile::T64x64, Tile::T128x64]
+            } else {
+                &[Tile::T64x64, Tile::T128x64, Tile::T128x128]
+            };
+            for &tile in tiles {
+                let (diff, reference) =
+                    turbo::cuda::gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, tile, splits, heads)
+                        .unwrap();
+                let f16_out = half && !matches!(epilogue, Partial);
+                let bound = if f16_out { 2e-3 } else { 1e-5 } * reference.max(1.0);
+                let what = format!(
+                    "{epilogue:?} [{m}, {k}] x [{n}, {k}], tile {tile:?}, split {splits}, F16 {half}, mma {tensor_cores}"
+                );
+                println!("{what}: largest difference {diff:.3e} of values up to {reference:.3}");
+                assert!(diff <= bound, "{what}: {diff:e} over {bound:e}");
+            }
+        }
+    }
+}
+
+/// TURBO_CUDA_TILE picks the QKV and feed-forward input GEMMs' tile for
+/// measuring: every tile gives the vectors of the default within the
+/// bound of the precision, at MODEL and FASTEST, on MiniLM-like heads of
+/// 32 and ragged rows.
+#[test]
+fn every_gemm_tile_gives_the_same_vectors() {
+    let _t = turn();
+    let Some(_) = cuda_device("every_gemm_tile_gives_the_same_vectors") else { return };
+    use turbo::cuda::Tile;
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(64);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(64);
+    m["embed"]["max_seq"] = json!(160);
+    m["embed"]["max_batch"] = json!(40);
+    let mut f = Fixture::new("cuda-tiles", m);
+    f.weights("weights/model.safetensors", &bert_weights(64, 256));
+    let g = f.load_on(cuda).unwrap();
+    let t = ragged_rows(&f.dir, 40, 160);
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+        let own = Session::create(g.m, Some(&session_desc(40, 160, precision))).unwrap();
+        let tol = record::tolerance(own.info().compute_dtype).unwrap();
+        own.write_tokens(&t.batch(), None).unwrap();
+        let want = own.run().unwrap().rows();
+        for tile in [Tile::T64x64, Tile::T128x64, Tile::T128x128] {
+            turbo::cuda::use_tile(Some(tile));
+            let s = Session::create(g.m, Some(&session_desc(40, 160, precision)));
+            turbo::cuda::use_tile(None);
+            let s = s.unwrap();
+            s.write_tokens(&t.batch(), None).unwrap();
+            let got = s.run().unwrap().rows();
+            let (cos, abs) = within(&format!("precision {precision}, tile {tile:?}"), &got, &want, tol);
+            println!("precision {precision}, tile {tile:?}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
         }
     }
 }

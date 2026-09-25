@@ -30,12 +30,14 @@ unsafe extern "C" {
         epilogue: i32,
         half: i32,
         tensor_cores: i32,
+        tile: i32,
         splits: i32,
         heads: i32,
         max_diff: *mut f64,
         max_ref: *mut f64,
     ) -> i32;
     fn turbo_cuda_use_cublas(gemms: i32);
+    fn turbo_cuda_use_tile(tile: i32);
 }
 
 /// The epilogues of the backend's own GEMMs, as [`gemm_check`] names them.
@@ -50,13 +52,29 @@ pub enum Epilogue {
     Partial = 2,
 }
 
+/// The tiles of the QKV and feed-forward input GEMMs, rows by columns, as
+/// TURBO_CUDA_TILE names them.
+#[cfg(feature = "internals")]
+#[derive(Clone, Copy, Debug)]
+pub enum Tile {
+    /// The backend's own choice.
+    Default = 0,
+    /// 64 x 64.
+    T64x64 = 1,
+    /// 128 x 64.
+    T128x64 = 2,
+    /// 128 x 128, F32 only (F16 on the tensor cores takes 128 x 64).
+    T128x128 = 3,
+}
+
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
 /// operands on CUDA device `ordinal`, against cuBLAS's product with the
 /// epilogue done on the host: the largest absolute difference and the
 /// largest reference value. `half` takes F16 operands, on the tensor
-/// cores when `tensor_cores` (else with FMAs); `splits` is the k split
-/// asked of a partial product; `heads` the QKV epilogue's, n being three
-/// times the hidden width. Built only with `internals`.
+/// cores when `tensor_cores` (else with FMAs); `tile` is the QKV and GELU
+/// GEMMs' tile; `splits` is the k split asked of a partial product;
+/// `heads` the QKV epilogue's, n being three times the hidden width.
+/// Built only with `internals`.
 #[cfg(feature = "internals")]
 #[allow(clippy::too_many_arguments)]
 pub fn gemm_check(
@@ -67,6 +85,7 @@ pub fn gemm_check(
     epilogue: Epilogue,
     half: bool,
     tensor_cores: bool,
+    tile: Tile,
     splits: i32,
     heads: i32,
 ) -> Result<(f64, f64), i32> {
@@ -80,6 +99,7 @@ pub fn gemm_check(
             epilogue as i32,
             i32::from(half),
             i32::from(tensor_cores),
+            tile as i32,
             splits,
             heads,
             &mut diff,
@@ -137,4 +157,12 @@ pub(crate) unsafe fn widened(model: *mut std::ffi::c_void) -> Option<*const std:
 pub(crate) unsafe fn narrowed(model: *mut std::ffi::c_void) -> Option<*const std::ffi::c_void> {
     let p = unsafe { turbo_cuda_narrowed(model) };
     (!p.is_null()).then_some(p)
+}
+
+/// The tile of the QKV and feed-forward input GEMMs of sessions made from
+/// now on, as TURBO_CUDA_TILE names it, or `None` to read the variable
+/// again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_tile(tile: Option<Tile>) {
+    unsafe { turbo_cuda_use_tile(tile.map_or(-1, |t| t as i32)) };
 }

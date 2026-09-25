@@ -986,16 +986,21 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // later kernel reads the count there and is launched for the session's
 // max_batch x max_seq tokens, its blocks looping over the work there is,
 // so the run's launches never change: session_create captures them once
-// into a graph, and a run is one graph launch after the pack kernel's
-// argument (the rows' shape and the embed options) is set in it. The rows
-// sit on the device max_seq apart whatever the run's width, so no launch
-// depends on that either.
+// into a graph, and a run is one graph launch, after the pack kernel's
+// argument (the rows' shape and the embed options) is set in it when it
+// differs from the last run's. The rows go to the device as they are, one
+// [k][batch][seq] array, and the kernels read their shape from the
+// packing, so no launch depends on the rows' width either.
 //
 // An F16 session (FASTEST) keeps the hidden states, the residuals, the
 // LayerNorms, softmax and pooling in F32, as an F32 session does; its
 // GEMMs read F16 (the LayerNorms write the hidden states in F16 too) and
 // accumulate in F32; the QKV and feed-forward input GEMMs and attention
 // write F16, which only a GEMM or attention reads.
+//
+// TURBO_CUDA_TILE, read when a session is made, names the tile of the QKV
+// and feed-forward input GEMMs: 64x64, 128x64 (the default) or 128x128
+// (F32 only), for measuring one against another.
 //
 // TURBO_CUDA_CUBLAS, read when a session is made, hands the GEMMs it names
 // to cuBLAS: a comma-separated list of qkv, out, ffn1 and ffn2, or all.
@@ -1006,9 +1011,9 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // embed_write sends the rows to the device: from the caller's memory when
 // it is page-locked (a PINNED buffer's, say), waiting for the copy, since
 // that memory is the caller's again when the call returns; else through
-// the session's staging, without waiting: the run is queued behind the
-// copy, and the next write waits for it before it writes the staging
-// again. Only the run's end waits on the stream. run then leaves the
+// the session's staging, laid out as on the device, in one copy, without
+// waiting: the run is queued behind the copy, and the next write waits
+// for it before it writes the staging again. Only the run's end waits on the stream. run then leaves the
 // vectors on the device, in the session's DEVICE buffer:
 // turbo_result_buffer hands out that memory, and turbo_result_read copies
 // it back through buffer_read.
@@ -1020,6 +1025,20 @@ enum : unsigned { CUBLAS_QKV = 1, CUBLAS_OUT = 2, CUBLAS_FFN1 = 4, CUBLAS_FFN2 =
 
 /* What the tests set in place of TURBO_CUDA_CUBLAS; -1 for the variable. */
 std::atomic<int> cublas_override{-1};
+
+/* What the tests set in place of TURBO_CUDA_TILE; -1 for the variable. */
+std::atomic<int> tile_override{-1};
+
+Tile tile_named() {
+    const int o = tile_override.load(std::memory_order_relaxed);
+    if (o >= 0) return (Tile)o;
+    const char *v = getenv("TURBO_CUDA_TILE");
+    if (!v) return TILE_DEFAULT;
+    if (!strcasecmp(v, "64x64")) return TILE_64x64;
+    if (!strcasecmp(v, "128x64")) return TILE_128x64;
+    if (!strcasecmp(v, "128x128")) return TILE_128x128;
+    return TILE_DEFAULT;
+}
 
 unsigned cublas_gemms() {
     const int o = cublas_override.load(std::memory_order_relaxed);
@@ -1053,8 +1072,8 @@ struct Session {
     /* The GEMMs cuBLAS computes; with any, the run is not a graph. */
     unsigned cublas = 0;
     void *scratch = nullptr;
-    /* [max_batch, max_seq] each, a run's rows max_seq apart. */
-    int32_t *ids = nullptr, *mask = nullptr, *types = nullptr;
+    /* The written rows, [k][batch][seq]: ids, mask and types. */
+    int32_t *rows = nullptr;
     Packing pk{};
     /* The hidden states, F32, and in F16 for an F16 session's GEMMs. */
     float *x = nullptr;
@@ -1063,7 +1082,7 @@ struct Session {
      * output: F16 in an F16 session, else F32. */
     void *qkv = nullptr, *att = nullptr, *ffn = nullptr;
     /* The output and feed-forward GEMMs' partial products,
-     * [plan.ffn2_splits, tokens, hidden]. */
+     * [splits, tokens, hidden], plan.part_rows rows at most. */
     float *part = nullptr;
     /* A cuBLAS product before its epilogue, when cuBLAS computes one. */
     float *raw = nullptr;
@@ -1073,12 +1092,15 @@ struct Session {
      * says the last write's copies from it are done. */
     int32_t *staging = nullptr;
     cudaEvent_t sent = nullptr;
-    /* The run as a graph, and its pack kernel's node and argument. */
+    /* The run as a graph, its pack kernel's node and argument, and the
+     * rows' shape and options last set in it. */
     cudaGraph_t graph = nullptr;
     cudaGraphExec_t exec = nullptr;
     cudaGraphNode_t pack_node = nullptr;
     PackArgs pack{};
     void *pack_argv[1] = {nullptr};
+    RunArgs in_graph{};
+    bool graph_set = false;
     /* What the last write left. */
     bool written = false;
     RunArgs run{};
@@ -1139,8 +1161,8 @@ int32_t encode(Session &s, turbo_error *err) {
     const Info *info = s.pk.info;
 
     TRY_CUDA(pack_rows(st, s.pack, plan), "packing the rows");
-    TRY_CUDA(embed_layer_norm(st, s.ids, s.types, (int)s.max_seq, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W],
-                              w[EMB_LN_B], eps, s.pk, h, s.x, s.x16, plan),
+    TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
+                              h, s.x, s.x16, plan),
              "the embedding lookup");
     GemmArgs g{};
     g.info = info;
@@ -1157,6 +1179,8 @@ int32_t encode(Session &s, turbo_error *err) {
     aa.hidden = h;
     aa.tcap = tcap;
     aa.chunk = plan.attn_chunk;
+    aa.queries = plan.attn_queries;
+    const Tile tile = sh.tile;
     aa.scale = 1.0f / sqrtf((float)hd);
     for (uint32_t l = 0; l < d.layers; l++) {
         // Q, K and V's weights back to back, as lay_out puts them: one GEMM
@@ -1168,13 +1192,14 @@ int32_t encode(Session &s, turbo_error *err) {
         g.out = s.qkv;
         g.n = 3 * h;
         g.k = h;
+        g.slot = NO_SPLIT;
         g.splits = 1;
         g.ksplit = round32(h);
         if (s.cublas & CUBLAS_QKV) {
             TRY_CUBLAS(linear(blas, half, xin, tokens, h, g.w, 3 * h, s.raw), "the query, key and value projections");
             TRY_CUDA(qkv_epilogue(st, s.raw, g, half, plan), "the query, key and value biases");
         } else {
-            TRY_CUDA(gemm(st, EPI_QKV, half, tc, g, plan.qkv_grid), "the query, key and value projections");
+            TRY_CUDA(gemm(st, EPI_QKV, half, tc, tile, g, plan.qkv_grid), "the query, key and value projections");
         }
         TRY_CUDA(attention(st, aa, sh, plan), "attention");
 
@@ -1183,16 +1208,20 @@ int32_t encode(Session &s, turbo_error *err) {
         g.bias = nullptr;
         g.out = s.part;
         g.n = h;
-        if (s.cublas & CUBLAS_OUT)
+        SplitSlot slot = NO_SPLIT;
+        if (s.cublas & CUBLAS_OUT) {
             TRY_CUBLAS(linear(blas, half, s.att, tokens, h, g.w, h, s.part), "the attention output projection");
-        else
-            TRY_CUDA(gemm(st, EPI_PARTIAL, half, tc, g, plan.out_grid), "the attention output projection");
-        TRY_CUDA(add_layer_norm(st, s.x, s.part, 1, tcap, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
+        } else {
+            g.slot = slot = SPLIT_OUT;
+            TRY_CUDA(gemm(st, EPI_PARTIAL, half, tc, tile, g, plan.out_grid), "the attention output projection");
+        }
+        TRY_CUDA(add_layer_norm(st, s.x, s.part, slot, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
                                 layer(l, TURBO_BERT_ATTN_LN_WEIGHT), layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info, h,
                                 s.x16, plan),
                  "the attention LayerNorm");
 
         g.a = xin;
+        g.slot = NO_SPLIT;
         g.w = weight(l, TURBO_BERT_FFN_IN_WEIGHT);
         g.bias = layer(l, TURBO_BERT_FFN_IN_BIAS);
         g.out = s.ffn;
@@ -1201,7 +1230,7 @@ int32_t encode(Session &s, turbo_error *err) {
             TRY_CUBLAS(linear(blas, half, xin, tokens, h, g.w, inter, s.raw), "the feed-forward input");
             TRY_CUDA(gelu_epilogue(st, s.raw, g, half, plan), "GELU");
         } else {
-            TRY_CUDA(gemm(st, EPI_GELU, half, tc, g, plan.ffn1_grid), "the feed-forward input");
+            TRY_CUDA(gemm(st, EPI_GELU, half, tc, tile, g, plan.ffn1_grid), "the feed-forward input");
         }
 
         g.a = s.ffn;
@@ -1210,20 +1239,19 @@ int32_t encode(Session &s, turbo_error *err) {
         g.out = s.part;
         g.n = h;
         g.k = inter;
-        int splits = 1;
+        slot = NO_SPLIT;
         if (s.cublas & CUBLAS_FFN2) {
             TRY_CUBLAS(linear(blas, half, s.ffn, tokens, inter, g.w, h, s.part), "the feed-forward output");
         } else {
-            g.splits = splits = plan.ffn2_splits;
-            g.ksplit = plan.ffn2_ksplit;
-            TRY_CUDA(gemm(st, EPI_PARTIAL, half, tc, g, plan.ffn2_grid), "the feed-forward output");
+            g.slot = slot = SPLIT_FFN2;
+            TRY_CUDA(gemm(st, EPI_PARTIAL, half, tc, tile, g, plan.ffn2_grid), "the feed-forward output");
         }
-        TRY_CUDA(add_layer_norm(st, s.x, s.part, splits, tcap, layer(l, TURBO_BERT_FFN_OUT_BIAS),
+        TRY_CUDA(add_layer_norm(st, s.x, s.part, slot, layer(l, TURBO_BERT_FFN_OUT_BIAS),
                                 layer(l, TURBO_BERT_FFN_LN_WEIGHT), layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h,
                                 s.x16, plan),
                  "the feed-forward LayerNorm");
     }
-    TRY_CUDA(pool(st, s.x, s.mask, (int)s.max_seq, s.pk, h, static_cast<float *>(s.output.ptr), plan), "pooling");
+    TRY_CUDA(pool(st, s.x, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan), "pooling");
     return TURBO_OK;
 }
 
@@ -1324,6 +1352,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         sh.tensor_cores = major >= 8;
         sh.sms = sms;
         sh.smem_optin = (size_t)optin;
+        sh.tile = tile_named();
         Plan plan;
         TRY_CUDA(make_plan(sh, &plan), "planning the session's launches");
 
@@ -1346,7 +1375,8 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         const size_t qkv = round_up(3 * tokens * h * act, DEVICE_ALIGN);
         const size_t att = round_up(tokens * h * act, DEVICE_ALIGN);
         const size_t ffn = round_up(tokens * inter * act, DEVICE_ALIGN);
-        const size_t part = round_up((size_t)plan.ffn2_splits * tokens * h * 4, DEVICE_ALIGN);
+        const size_t part_rows = plan.part_rows > tokens ? plan.part_rows : tokens;
+        const size_t part = round_up(part_rows * h * 4, DEVICE_ALIGN);
         const size_t raw =
             s->cublas & (CUBLAS_QKV | CUBLAS_FFN1) ? round_up(tokens * (3 * h > inter ? 3 * h : inter) * 4, DEVICE_ALIGN)
                                                    : 0;
@@ -1363,9 +1393,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
                 p += n;
                 return here;
             };
-            s->ids = reinterpret_cast<int32_t *>(take(ints));
-            s->mask = reinterpret_cast<int32_t *>(take(ints));
-            s->types = reinterpret_cast<int32_t *>(take(ints));
+            s->rows = reinterpret_cast<int32_t *>(take(3 * ints));
             s->pk.tok_row = reinterpret_cast<int32_t *>(take(ints));
             s->pk.key_bias = reinterpret_cast<float *>(take(ints));
             s->pk.start = reinterpret_cast<int32_t *>(take(rows));
@@ -1386,9 +1414,14 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             s->output.placement = TURBO_PLACE_DEVICE;
             s->output.bytes = (uint64_t)max_batch * d.hidden * 4;
             s->output.owned = false;
-            s->pack.mask = s->mask;
-            s->pack.pitch = (int32_t)max_seq;
+            s->pack.rows = s->rows;
             s->pack.heads = (int32_t)d.heads;
+            s->pack.queries = plan.attn_queries;
+            s->pack.hidden = (int32_t)d.hidden;
+            s->pack.inter = (int32_t)d.intermediate;
+            s->pack.part_bm = plan.part_bm;
+            s->pack.part_bn = plan.part_bn;
+            s->pack.sms = sh.sms;
             s->pack.p = s->pk;
             std::lock_guard<std::mutex> g(c->lock);
             // Rows past a run's tokens are never read into an output; zeroed
@@ -1421,28 +1454,51 @@ void session_release(void *session) {
     }
 }
 
-/* One [batch, seq] array of the rows to dst on the device, row_stride
- * elements apart in src and max_seq apart in dst, adding the bytes sent
- * to *sent, and setting *direct when the copy reads the caller's memory.
- * Device memory is refused: the core has read and checked the rows on the
- * host, so they are host memory, page-locked, managed or pageable. */
-int32_t upload(Session &s, const int32_t *src, uint32_t batch, uint32_t seq, uint32_t stride, int32_t *staging,
-               int32_t *dst, uint64_t *sent, bool *direct, turbo_error *err) {
-    const size_t row = (size_t)seq * 4, pitch = (size_t)s.max_seq * 4;
-    const cudaPointerAttributes a = attributes(src);
-    if (a.type == cudaMemoryTypeDevice)
-        return refuse(err, TURBO_E_INVALID_ARGUMENT, "rows are device memory; the core reads rows on the host");
-    if (a.type == cudaMemoryTypeHost || a.type == cudaMemoryTypeManaged) {
-        TRY_CUDA(cudaMemcpy2DAsync(dst, pitch, src, (size_t)stride * 4, row, batch, cudaMemcpyHostToDevice,
-                                   s.ctx->stream),
-                 "sending the rows");
-        *direct = true;
-    } else {
-        for (uint32_t r = 0; r < batch; r++) memcpy(staging + (size_t)r * seq, src + (size_t)r * stride, row);
-        TRY_CUDA(cudaMemcpy2DAsync(dst, pitch, staging, row, row, batch, cudaMemcpyHostToDevice, s.ctx->stream),
-                 "sending the rows");
+/* The rows to the device, into s.rows as [k][batch][seq]: each array the
+ * caller's memory holds page-locked or managed straight from there, with
+ * *direct set; the rest through the staging, laid out as on the device,
+ * in one copy when they follow each other there. Device memory is
+ * refused: the core has read and checked the rows on the host, so they
+ * are host memory, page-locked, managed or pageable. *sent is the bytes
+ * sent. */
+int32_t upload(Session &s, const turbo_backend_embed_rows *r, uint64_t *sent, bool *direct, turbo_error *err) {
+    const int32_t *src[3] = {r->ids, r->mask, r->types};
+    const int k = r->types ? 3 : 2;
+    const size_t row = (size_t)r->seq * 4, plane = (size_t)r->batch * r->seq;
+    bool staged[3] = {false, false, false};
+    for (int i = 0; i < k; i++) {
+        const cudaPointerAttributes a = attributes(src[i]);
+        if (a.type == cudaMemoryTypeDevice)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "rows are device memory; the core reads rows on the host");
+        int32_t *dst = s.rows + i * plane;
+        if (a.type == cudaMemoryTypeHost || a.type == cudaMemoryTypeManaged) {
+            TRY_CUDA(cudaMemcpy2DAsync(dst, row, src[i], (size_t)r->row_stride * 4, row, r->batch,
+                                       cudaMemcpyHostToDevice, s.ctx->stream),
+                     "sending the rows");
+            *direct = true;
+        } else {
+            int32_t *at = s.staging + i * plane;
+            if (r->row_stride == r->seq)
+                memcpy(at, src[i], row * r->batch);
+            else
+                for (uint32_t b = 0; b < r->batch; b++)
+                    memcpy(at + (size_t)b * r->seq, src[i] + (size_t)b * r->row_stride, row);
+            staged[i] = true;
+        }
+        *sent += row * r->batch;
     }
-    *sent += row * batch;
+    for (int i = 0; i < k;) {
+        if (!staged[i]) {
+            i++;
+            continue;
+        }
+        int j = i;
+        while (j < k && staged[j]) j++;
+        TRY_CUDA(cudaMemcpyAsync(s.rows + i * plane, s.staging + i * plane, (j - i) * plane * 4,
+                                 cudaMemcpyHostToDevice, s.ctx->stream),
+                 "sending the rows");
+        i = j;
+    }
     return TURBO_OK;
 }
 
@@ -1461,7 +1517,6 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
                 while (n > 0 && m[n - 1] == 0) n--;
                 packed += n;
             }
-        const size_t tokens = (size_t)s.max_batch * s.max_seq;
         uint64_t sent = 0;
         {
             std::lock_guard<std::mutex> g(s.ctx->lock);
@@ -1471,15 +1526,7 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
             // for them).
             TRY_CUDA(cudaEventSynchronize(s.sent), "sending the rows");
             bool direct = false;
-            const int32_t rc = [&]() -> int32_t {
-                TRY(upload(s, r->ids, r->batch, r->seq, r->row_stride, s.staging, s.ids, &sent, &direct, err));
-                TRY(upload(s, r->mask, r->batch, r->seq, r->row_stride, s.staging + tokens, s.mask, &sent, &direct,
-                           err));
-                if (r->types)
-                    TRY(upload(s, r->types, r->batch, r->seq, r->row_stride, s.staging + 2 * tokens, s.types, &sent,
-                               &direct, err));
-                return TURBO_OK;
-            }();
+            const int32_t rc = upload(s, r, &sent, &direct, err);
             if (rc != TURBO_OK) {
                 // Nothing queued may read memory the next write reuses.
                 (void)cudaStreamSynchronize(s.ctx->stream);
@@ -1506,15 +1553,21 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
     });
 }
 
-/* The written rows through the encoder: the graph with this run's rows
- * and options set in its pack kernel, or the launches one by one when
- * cuBLAS computes a GEMM. */
+/* The written rows through the encoder: the graph, with this run's rows'
+ * shape and options set in its pack kernel when they differ from the
+ * last run's, or the launches one by one when cuBLAS computes a GEMM. */
 int32_t launch(Session &s, turbo_error *err) {
     s.pack.run = s.run;
     if (s.cublas) return encode(s, err);
-    cudaKernelNodeParams kp;
-    pack_rows_node(&s.pack, s.pack_argv, s.plan, &kp);
-    TRY_CUDA(cudaGraphExecKernelNodeSetParams(s.exec, s.pack_node, &kp), "setting the run's rows");
+    if (!s.graph_set || memcmp(&s.in_graph, &s.run, sizeof s.run) != 0) {
+        // Marked unset first: a failure leaves the graph's argument unknown.
+        s.graph_set = false;
+        cudaKernelNodeParams kp;
+        pack_rows_node(&s.pack, s.pack_argv, s.plan, &kp);
+        TRY_CUDA(cudaGraphExecKernelNodeSetParams(s.exec, s.pack_node, &kp), "setting the run's rows");
+        s.in_graph = s.run;
+        s.graph_set = true;
+    }
     TRY_CUDA(cudaGraphLaunch(s.exec, s.ctx->stream), "cudaGraphLaunch");
     return TURBO_OK;
 }
@@ -1573,14 +1626,18 @@ struct Lcg {
 };
 
 int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t epilogue, int32_t half,
-                   int32_t tensor_cores, int32_t splits, int32_t heads, double *max_diff, double *max_ref) {
+                   int32_t tensor_cores, int32_t tile_in, int32_t splits, int32_t heads, double *max_diff,
+                   double *max_ref) {
     turbo_error e0{};
     turbo_error *err = &e0;
     ON_DEVICE((int)ordinal);
     const Epilogue epi = (Epilogue)epilogue;
     const bool h16 = half != 0;
+    const Tile tile = (Tile)tile_in;
     const int hidden = epi == EPI_QKV ? n / 3 : n;
     GemmArgs g{};
+    // A split product takes its split from Info, as a run's do.
+    g.slot = epi == EPI_PARTIAL ? SPLIT_FFN2 : NO_SPLIT;
     g.n = n;
     g.k = k;
     g.ksplit = round32((k + splits - 1) / splits);
@@ -1624,6 +1681,8 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         TRY_CUDA(cudaMemcpy(pb, bias.data(), (size_t)n * 4, cudaMemcpyHostToDevice), "cudaMemcpy");
         Info info{};
         info.tokens = m;
+        info.splits[SPLIT_FFN2] = g.splits;
+        info.ksplit[SPLIT_FFN2] = g.ksplit;
         TRY_CUDA(cudaMemcpy(pi, &info, sizeof info, cudaMemcpyHostToDevice), "cudaMemcpy");
         g.a = pa;
         g.w = pw;
@@ -1632,8 +1691,9 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         g.info = reinterpret_cast<const Info *>(pi);
         int sms = 0, grid = 0;
         TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, (int)ordinal), "the device's SMs");
-        TRY_CUDA(gemm_grid(epi, h16, tensor_cores != 0, n, m, g.splits, sms, &grid), "gemm_grid");
-        TRY_CUDA(gemm(st, epi, h16, tensor_cores != 0, g, grid), "the GEMM");
+        TRY_CUDA(gemm_prepare(epi, h16, tensor_cores != 0, tile), "gemm_prepare");
+        TRY_CUDA(gemm_grid(epi, h16, tensor_cores != 0, tile, n, m, g.splits, sms, &grid), "gemm_grid");
+        TRY_CUDA(gemm(st, epi, h16, tensor_cores != 0, tile, g, grid), "the GEMM");
         TRY_CUBLAS(linear(blas, h16, pa, m, k, pw, n, reinterpret_cast<float *>(pr)), "cuBLAS");
         TRY_CUDA(cudaStreamSynchronize(st), "the GEMMs");
         std::vector<float> ref((size_t)m * n);
@@ -1740,15 +1800,16 @@ const void *turbo_cuda_narrowed(void *model) {
 
 /* One of the backend's GEMMs against cuBLAS on random operands, on
  * device ordinal: epilogue is an Epilogue, half F16 operands, tensor_cores
- * whether the F16 GEMM takes mma.sync (else FMAs), splits the k split
- * asked for (the PARTIAL epilogue's), heads the QKV epilogue's heads, n
- * being 3 * hidden. The largest absolute difference from cuBLAS's product
+ * whether the F16 GEMM takes mma.sync (else FMAs), tile a Tile (for QKV
+ * and GELU), splits the k split asked for (the PARTIAL epilogue's), heads
+ * the QKV epilogue's heads, n being 3 * hidden. The largest absolute difference from cuBLAS's product
  * with the epilogue done on the host (rounded to F16 where the GEMM's
  * output is), and the largest reference value. */
 int32_t turbo_cuda_gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t epilogue, int32_t half,
-                              int32_t tensor_cores, int32_t splits, int32_t heads, double *max_diff, double *max_ref) {
+                              int32_t tensor_cores, int32_t tile, int32_t splits, int32_t heads, double *max_diff,
+                              double *max_ref) {
     try {
-        return gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, splits, heads, max_diff, max_ref);
+        return gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, tile, splits, heads, max_diff, max_ref);
     } catch (...) {
         return TURBO_E_INTERNAL;
     }
@@ -1758,5 +1819,10 @@ int32_t turbo_cuda_gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k,
  * would name them (1 QKV, 2 attention output, 4 feed-forward input, 8
  * feed-forward output); -1 to read the variable again. */
 void turbo_cuda_use_cublas(int32_t gemms) { cublas_override.store(gemms, std::memory_order_relaxed); }
+
+/* The tile of the QKV and feed-forward input GEMMs of sessions made from
+ * now on, as TURBO_CUDA_TILE would name it (a Tile); -1 to read the
+ * variable again. */
+void turbo_cuda_use_tile(int32_t tile) { tile_override.store(tile, std::memory_order_relaxed); }
 
 } // extern "C"
