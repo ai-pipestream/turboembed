@@ -7,7 +7,8 @@
 //! the workspace root; without it, the small sealed bundle in
 //! testdata/tiny-bert-bundle. TURBO_TEST_DEVICE names the device, as a
 //! runtime device index or a backend name (the first device that backend
-//! lists); without it, the CPU.
+//! lists); without it, the CPU. TURBO_TEST_PRECISION names the session's
+//! precision, model, fastest or exact; without it, model.
 
 mod common;
 
@@ -47,6 +48,16 @@ fn device(rt: *mut turbo_runtime) -> u32 {
             field(&info.backend) == want
         })
         .unwrap_or_else(|| panic!("TURBO_TEST_DEVICE={want}: no device of that backend is listed"))
+}
+
+/// The precision TURBO_TEST_PRECISION names, or MODEL.
+fn precision() -> u32 {
+    match std::env::var("TURBO_TEST_PRECISION").as_deref() {
+        Err(_) | Ok("model") => TURBO_PRECISION_MODEL,
+        Ok("fastest") => TURBO_PRECISION_FASTEST,
+        Ok("exact") => TURBO_PRECISION_EXACT,
+        Ok(p) => panic!("TURBO_TEST_PRECISION={p}: model, fastest or exact"),
+    }
 }
 
 /// What a session's compute dtype must reach against the fp32 reference:
@@ -127,7 +138,7 @@ fn check(dir: &Path) -> usize {
     assert_eq!(rc, 0, "{:?}", failure(rc, &err));
     let loaded = Loaded { rt, ctx, m: model };
     let mi = loaded.info();
-    let s = Session::create(model, None).unwrap_or_else(|e| panic!("{e:?}"));
+    let s = Session::create(model, Some(&session_desc(0, 0, precision()))).unwrap_or_else(|e| panic!("{e:?}"));
     let si = s.info();
     let floor = tolerance(si.compute_dtype);
     let prefix = |role: u32| match role {
@@ -192,9 +203,10 @@ fn check(dir: &Path) -> usize {
     }
 
     println!(
-        "{}: {} cases on device {dev}, compute dtype {}, cosine floor {}, max abs diff {:?}",
+        "{}: {} cases on device {dev}, precision {}, compute dtype {}, cosine floor {}, max abs diff {:?}",
         dir.display(),
         cases.len(),
+        si.precision,
         si.compute_dtype,
         floor.min_cosine,
         floor.max_abs_diff

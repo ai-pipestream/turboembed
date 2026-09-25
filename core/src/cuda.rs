@@ -21,6 +21,7 @@ unsafe extern "C" {
     fn turbo_cuda_allocations(host: *mut u64, device: *mut u64);
     fn turbo_cuda_arch_label(name: *const std::ffi::c_char, out: *mut std::ffi::c_char, len: usize);
     fn turbo_cuda_widened(model: *mut std::ffi::c_void) -> *const std::ffi::c_void;
+    fn turbo_cuda_narrowed(model: *mut std::ffi::c_void) -> *const std::ffi::c_void;
 }
 
 /// Every allocation the CUDA backend has made in this process, host and
@@ -50,5 +51,16 @@ pub fn arch_label(name: &str) -> String {
 #[cfg(feature = "internals")]
 pub(crate) unsafe fn widened(model: *mut std::ffi::c_void) -> Option<*const std::ffi::c_void> {
     let p = unsafe { turbo_cuda_widened(model) };
+    (!p.is_null()).then_some(p)
+}
+
+/// The device address of the F16 copy of an F32 or BF16 model's GEMM
+/// weights, once an F16 session made it.
+///
+/// # Safety
+/// `model` is one this backend's model_load returned, not yet released.
+#[cfg(feature = "internals")]
+pub(crate) unsafe fn narrowed(model: *mut std::ffi::c_void) -> Option<*const std::ffi::c_void> {
+    let p = unsafe { turbo_cuda_narrowed(model) };
     (!p.is_null()).then_some(p)
 }

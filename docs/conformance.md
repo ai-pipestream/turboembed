@@ -23,6 +23,10 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<device> \
   `--features cuda` for `cuda` (docs/cuda.md), `--features levelzero`
   for `levelzero` (docs/levelzero.md), `--features metal` for `metal`
   (docs/metal.md).
+- `TURBO_TEST_PRECISION`: the session's precision, `model`, `fastest`
+  or `exact`. Unset, `model`. The tolerance is the one for the compute
+  dtype the session reports, so `fastest` on a backend that computes it
+  in F16 is held to the F16 row below.
 
 With `--ignored` it also runs `a_real_bundle_matches_its_reference`,
 which fails unless `TURBO_TEST_BUNDLE` is set, so a run meant for a real
@@ -33,7 +37,8 @@ and the largest absolute difference.
 ## What it checks
 
 On the device, the bundle is loaded and one session is made at
-`TURBO_PRECISION_MODEL` with the model's `max_batch` and `max_seq`.
+`TURBO_TEST_PRECISION` (`TURBO_PRECISION_MODEL` unless it says
+otherwise) with the model's `max_batch` and `max_seq`.
 Then:
 
 1. Ids. Every reference case, encoded by the bundle's tokenizer with

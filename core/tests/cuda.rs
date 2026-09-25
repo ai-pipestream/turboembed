@@ -181,17 +181,20 @@ fn the_devices_listed_are_the_drivers() {
 
 // ---- Capability ------------------------------------------------------------------
 
+/// MODEL and EXACT compute in F32, FASTEST in F16, and a session says
+/// what its cell says.
 #[test]
-fn embed_is_offered_in_f32_as_sessions_run_it() {
+fn embed_is_offered_in_the_dtype_sessions_run_it() {
     let _t = turn();
-    let Some(_) = cuda_device("embed_is_offered_in_f32_as_sessions_run_it") else { return };
+    let Some(_) = cuda_device("embed_is_offered_in_the_dtype_sessions_run_it") else { return };
     let l = on_cuda(&tiny_bundle());
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
         let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
         cap.struct_size = size_of::<turbo_capability>() as u32;
         assert_eq!(unsafe { turbo_runtime_capability(l.rt, cuda(l.rt), TURBO_TASK_EMBED, p, &mut cap, null_err()) }, 0);
         assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&cap.reason));
-        assert_eq!(cap.dtype, TURBO_DTYPE_F32);
+        let want = if p == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
+        assert_eq!(cap.dtype, want, "precision {p}");
         assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");
         let info = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap().info();
         assert_eq!(info.compute_dtype, cap.dtype, "precision {p}");
@@ -587,15 +590,21 @@ fn rows_in_pinned_memory_give_the_same_vectors() {
     assert_eq!(r.info().h2d_bytes, 3 * n * 4);
 }
 
-/// A warm run allocates nothing on the host or the device: the backend's
-/// own count does not move, the result says 0, and the device's free
-/// memory is what it was.
+/// A warm run allocates nothing on the host or the device, in F32 and in
+/// F16: the backend's own count does not move, the result says 0, and the
+/// device's free memory is what it was.
 #[test]
 fn a_warm_run_allocates_nothing() {
     let _t = turn();
     let Some(_) = cuda_device("a_warm_run_allocates_nothing") else { return };
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+        warm_runs_allocate_nothing_at(p);
+    }
+}
+
+fn warm_runs_allocate_nothing_at(precision: u32) {
     let l = on_cuda(&tiny_bundle());
-    let s = Session::create(l.m, None).unwrap();
+    let s = Session::create(l.m, Some(&session_desc(0, 0, precision))).unwrap();
     let tok = Tok::create(&tiny_bundle()).unwrap();
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();
     let small = Tokens::new(&rows, 0);
@@ -622,9 +631,9 @@ fn a_warm_run_allocates_nothing() {
     };
     let (before, free_before) = (turbo::cuda::allocations(), free());
     for (i, t) in [&small, &long, &small, &long].into_iter().enumerate() {
-        assert_eq!(run(t), (0, 0), "warm run {i}: the result's count");
+        assert_eq!(run(t), (0, 0), "precision {precision} warm run {i}: the result's count");
     }
-    assert_eq!(turbo::cuda::allocations(), before, "the backend allocated nothing in warm runs");
+    assert_eq!(turbo::cuda::allocations(), before, "precision {precision}: the backend allocated nothing in warm runs");
     // The count above is exact for the backend's own allocations. This
     // catches what it cannot count, cuBLAS or the driver growing a pool:
     // the driver reserves device memory in pages of 2 MiB, so free memory
@@ -635,13 +644,15 @@ fn a_warm_run_allocates_nothing() {
     assert!(after + page > free_before, "the device's free memory fell by {} bytes", free_before - after);
 }
 
-/// A model stored in F16 or BF16: MODEL is refused, EXACT and FASTEST
-/// share one F32 copy on the device, and give the vectors of the same
-/// values stored as F32.
+/// A model stored in F16 or BF16: MODEL is refused; EXACT computes in F32
+/// from one F32 copy on the device, which FASTEST shares for all but its
+/// GEMMs, and gives the vectors of the same values stored as F32; FASTEST
+/// computes in F16, from the stored weights of an F16 model and from one
+/// F16 copy of a BF16 model's, within the F16 bound.
 #[test]
-fn half_weights_compute_in_f32_from_one_shared_copy() {
+fn half_weights_compute_from_one_shared_copy_per_dtype() {
     let _t = turn();
-    let Some(_) = cuda_device("half_weights_compute_in_f32_from_one_shared_copy") else { return };
+    let Some(_) = cuda_device("half_weights_compute_from_one_shared_copy_per_dtype") else { return };
     for (dtype, narrow) in [("F16", to_f16 as fn(f32) -> u16), ("BF16", to_bf16)] {
         let (n, w): (Vec<Tensor>, Vec<Tensor>) = tiny_weights(0)
             .into_iter()
@@ -667,17 +678,30 @@ fn half_weights_compute_in_f32_from_one_shared_copy() {
         assert!(unsafe { model_converted_weights(l.m) }.is_none(), "a refused session makes no copy");
         let a = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_EXACT))).unwrap();
         let copy = unsafe { model_converted_weights(l.m) }.expect("the first F32 session made the copy");
+        assert_eq!(copy.len(), 1, "{dtype}: the F32 copy alone");
         let b = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
-        assert_eq!(unsafe { model_converted_weights(l.m) }.unwrap(), copy, "one copy, shared");
-        assert_eq!(b.info().compute_dtype, TURBO_DTYPE_F32);
+        assert_eq!(b.info().compute_dtype, TURBO_DTYPE_F16);
+        let copies = unsafe { model_converted_weights(l.m) }.unwrap();
+        assert_eq!(copies[0], copy[0], "{dtype}: one F32 copy, shared");
+        // An F16 model's GEMMs read the weights as loaded; a BF16 model's
+        // read one F16 copy, made once.
+        assert_eq!(copies.len(), if dtype == "F16" { 1 } else { 2 }, "{dtype}");
+        let b2 = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
+        assert_eq!(unsafe { model_converted_weights(l.m) }.unwrap(), copies, "{dtype}: shared");
 
         let mut g = Fixture::model(&format!("cuda-half-{dtype}-wide"));
         g.weights("weights/model.safetensors", &w);
         let lw = g.load_on(cuda).unwrap();
         let want = Session::create(lw.m, None).unwrap().embed(&TEXTS, None).unwrap();
-        assert_eq!(a.embed(&TEXTS, None).unwrap(), want, "{dtype}");
-        assert_eq!(b.embed(&TEXTS, None).unwrap(), want, "{dtype}");
         assert!(unsafe { model_converted_weights(lw.m) }.is_none(), "F32 weights are used as loaded");
+        assert_eq!(a.embed(&TEXTS, None).unwrap(), want, "{dtype}");
+        let f16 = record::tolerance(TURBO_DTYPE_F16).unwrap();
+        for s in [&b, &b2] {
+            for (r, (g, w)) in s.embed(&TEXTS, None).unwrap().iter().zip(&want).enumerate() {
+                let cos = cosine(g, w);
+                assert!(cos >= f16.min_cosine, "{dtype} FASTEST row {r}: cosine {cos} with EXACT");
+            }
+        }
 
         // The same F16 or BF16 bundle on the CPU, which widens it too.
         let lc = f.load().unwrap();
@@ -771,6 +795,172 @@ fn an_output_dim_is_cut_then_normalized_on_the_device() {
     }
 }
 
+// ---- Packed rows --------------------------------------------------------------------
+
+/// `batch` rows of `seq` columns whose lengths through their last live
+/// token differ as much as they can: full rows, rows of the CLS token alone
+/// with every other column padding (whose ids are not the pad id, so a
+/// kernel that read them would show it), rows of two, and lengths in
+/// between; every other row longer than three has a masked token inside
+/// it, and the second half of each row has token type 1 in odd rows.
+fn ragged_rows(dir: &std::path::Path, batch: usize, seq: usize) -> Tokens {
+    let vocab = Tok::create(dir).unwrap().info().vocab_size as usize;
+    let (mut ids, mut mask, mut types) = (vec![0; batch * seq], vec![0; batch * seq], vec![0; batch * seq]);
+    for r in 0..batch {
+        let len = match r % 5 {
+            0 => seq,
+            1 => 1,
+            2 => 2.min(seq),
+            3 => 1 + (r * 13) % seq,
+            _ => seq / 2 + 1,
+        };
+        let row = r * seq..(r + 1) * seq;
+        for (p, id) in ids[row.clone()].iter_mut().enumerate() {
+            *id = (1000 + (r * 131 + p * 17) % (vocab - 1000)) as i32;
+        }
+        ids[r * seq] = 101;
+        mask[r * seq..r * seq + len].fill(1);
+        if len > 3 && r % 2 == 0 {
+            mask[r * seq + len / 2] = 0;
+        }
+        types[r * seq + len / 2..r * seq + len].fill((r % 2) as i32);
+    }
+    Tokens { ids, mask, types: Some(types), batch: batch as u32, seq: seq as u32, stride: 0 }
+}
+
+/// Row r of `t` alone, at the same width.
+fn one_row(t: &Tokens, r: usize) -> Tokens {
+    let row = r * t.seq as usize..(r + 1) * t.seq as usize;
+    Tokens {
+        ids: t.ids[row.clone()].to_vec(),
+        mask: t.mask[row.clone()].to_vec(),
+        types: t.types.as_ref().map(|ty| ty[row].to_vec()),
+        batch: 1,
+        seq: t.seq,
+        stride: 0,
+    }
+}
+
+/// Each row of `got` is within `tol` of the same row of `want`; returns
+/// one minus the lowest cosine and the largest absolute difference.
+fn within(what: &str, got: &[Vec<f32>], want: &[Vec<f32>], tol: record::Tolerance) -> (f64, f64) {
+    assert_eq!(got.len(), want.len(), "{what}: rows");
+    let (mut lowest, mut worst) = (1f64, 0f64);
+    for (r, (a, b)) in got.iter().zip(want).enumerate() {
+        let c = cosine(a, b);
+        let d = max_abs_diff(a, b);
+        assert!(c >= tol.min_cosine, "{what} row {r}: cosine {c} is under {}", tol.min_cosine);
+        if let Some(most) = tol.max_abs_diff {
+            assert!(d <= most, "{what} row {r}: max abs diff {d:e} is over {most:e}");
+        }
+        lowest = lowest.min(c);
+        worst = worst.max(d);
+    }
+    (1.0 - lowest, worst)
+}
+
+/// A full batch of rows of very different lengths, a row of CLS alone
+/// among them, at every precision and with every pooling, with and
+/// without normalization: the vectors are the CPU's within the bound of
+/// the session's compute dtype (F32: cosine 0.9999 and 1e-4; F16: cosine
+/// 0.999), each row alone gives its vector in the batch, and the same
+/// rows run again give the same bits.
+#[test]
+fn packed_rows_match_the_cpu_at_every_precision_and_pooling() {
+    let _t = turn();
+    let Some(_) = cuda_device("packed_rows_match_the_cpu_at_every_precision_and_pooling") else { return };
+    let dir = tiny_bundle();
+    let (g, c) = (on_cuda(&dir), Loaded::load(&dir).unwrap());
+    let cs = Session::create(c.m, None).unwrap();
+    let mi = g.info();
+    let t = ragged_rows(&dir, mi.max_batch as usize, mi.max_seq as usize);
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+        let gs = Session::create(g.m, Some(&session_desc(0, 0, precision))).unwrap();
+        let dtype = gs.info().compute_dtype;
+        assert_eq!(dtype, if precision == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 });
+        let tol = record::tolerance(dtype).unwrap();
+        for pooling in [TURBO_POOLING_MEAN, TURBO_POOLING_CLS, TURBO_POOLING_LAST] {
+            for normalize in [TURBO_NORMALIZE_NONE, TURBO_NORMALIZE_L2] {
+                let o = opts(|o| {
+                    o.pooling = pooling;
+                    o.normalize = normalize;
+                });
+                let what = format!("precision {precision} pooling {pooling} normalize {normalize}");
+                gs.write_tokens(&t.batch(), Some(&o)).unwrap();
+                let got = gs.run().unwrap().rows();
+                cs.write_tokens(&t.batch(), Some(&o)).unwrap();
+                let want = cs.run().unwrap().rows();
+                let (cos, abs) = within(&what, &got, &want, tol);
+                println!("{what}: 1 - lowest cosine with the cpu {cos:.3e}, max abs diff {abs:.3e}");
+
+                gs.write_tokens(&t.batch(), Some(&o)).unwrap();
+                assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same rows give the same bits");
+
+                // The shortest rows, the longest and one in between, alone.
+                for r in [0, 1, 2, 3, 4] {
+                    gs.write_tokens(&one_row(&t, r).batch(), Some(&o)).unwrap();
+                    let alone = gs.run().unwrap().rows();
+                    within(&format!("{what}: row {r} alone"), &alone, &got[r..r + 1], tol);
+                }
+            }
+        }
+    }
+}
+
+/// More rows than the packing's scan gives one thread each (600, where
+/// its block has 256 threads), of lengths from 1 to the session's longest,
+/// at MODEL and FASTEST: the CPU's vectors within the bound.
+#[test]
+fn many_rows_pack_as_the_cpu_packs_them() {
+    let _t = turn();
+    let Some(_) = cuda_device("many_rows_pack_as_the_cpu_packs_them") else { return };
+    let mut m = model_manifest();
+    m["embed"]["max_batch"] = json!(600);
+    let mut f = Fixture::new("cuda-many-rows", m);
+    f.weights("weights/model.safetensors", &tiny_weights(0));
+    let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+    let t = ragged_rows(&f.dir, 600, 40);
+    let cs = Session::create(c.m, Some(&session_desc(600, 40, 0))).unwrap();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    let want = cs.run().unwrap().rows();
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+        let gs = Session::create(g.m, Some(&session_desc(600, 40, precision))).unwrap();
+        let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+        gs.write_tokens(&t.batch(), None).unwrap();
+        let got = gs.run().unwrap().rows();
+        let (cos, abs) = within(&format!("precision {precision}"), &got, &want, tol);
+        println!("600 rows at precision {precision}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+    }
+}
+
+/// The encoder at FASTEST: F16 in the cell and the session, and every
+/// reference case of the small bundle within the F16 bound of the
+/// upstream vectors (tests/conformance.rs with TURBO_TEST_PRECISION=fastest
+/// runs the whole check).
+#[test]
+fn fastest_computes_in_f16_within_its_bound() {
+    let _t = turn();
+    let Some(_) = cuda_device("fastest_computes_in_f16_within_its_bound") else { return };
+    let dir = tiny_bundle();
+    let (g, c) = (on_cuda(&dir), Loaded::load(&dir).unwrap());
+    let fast = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
+    assert_eq!(fast.info().compute_dtype, TURBO_DTYPE_F16);
+    assert!(unsafe { model_converted_weights(g.m) }.is_some(), "the F16 copy of an F32 model's GEMM weights");
+    let exact = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_EXACT))).unwrap();
+    assert_eq!(exact.info().compute_dtype, TURBO_DTYPE_F32);
+    let cpu = Session::create(c.m, None).unwrap().embed(&TEXTS, None).unwrap();
+    let f16 = record::tolerance(TURBO_DTYPE_F16).unwrap();
+    let f32 = record::tolerance(TURBO_DTYPE_F32).unwrap();
+    let (cos, _) = within("FASTEST", &fast.embed(&TEXTS, None).unwrap(), &cpu, f16);
+    within("EXACT", &exact.embed(&TEXTS, None).unwrap(), &cpu, f32);
+    println!("FASTEST: 1 - lowest cosine with the cpu {cos:.3e}");
+    let r = {
+        fast.write_text(&TEXTS, None).unwrap();
+        fast.run().unwrap()
+    };
+    assert_eq!((r.info().compute_dtype, r.info().dtype), (TURBO_DTYPE_F16, TURBO_DTYPE_F32), "F32 vectors out");
+}
+
 // ---- Limits and the largest shape ----------------------------------------------------
 
 /// A session over 65535 rows is refused by field 1: a grid dimension of
@@ -832,12 +1022,21 @@ fn named_bundle() -> Option<std::path::PathBuf> {
 }
 
 /// One run at the session's largest shape, max_batch rows of max_seq
-/// tokens, on the device and on the CPU: every row's cosine reaches
-/// 0.9999. Rows are full or end early, so the padding is exercised too.
+/// tokens, on the device and on the CPU, at each precision: every row is
+/// within the bound of the session's compute dtype. Rows are full or end
+/// early, so the padding is exercised too.
 fn largest_shape_matches_the_cpu(dir: &std::path::Path) {
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+        largest_shape_matches_the_cpu_at(dir, p);
+    }
+}
+
+fn largest_shape_matches_the_cpu_at(dir: &std::path::Path, precision: u32) {
     let (g, c) = (on_cuda(dir), Loaded::load(dir).unwrap());
-    let (gs, cs) = (Session::create(g.m, None).unwrap(), Session::create(c.m, None).unwrap());
+    let (gs, cs) =
+        (Session::create(g.m, Some(&session_desc(0, 0, precision))).unwrap(), Session::create(c.m, None).unwrap());
     let si = gs.info();
+    let tol = record::tolerance(si.compute_dtype).unwrap();
     let (batch, seq) = (si.max_batch as usize, si.max_seq as usize);
     let vocab = Tok::create(dir).unwrap().info().vocab_size as usize;
     let rows: Vec<Vec<i32>> = (0..batch)
@@ -852,13 +1051,24 @@ fn largest_shape_matches_the_cpu(dir: &std::path::Path) {
     let got = gs.run().unwrap().rows();
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
-    let mut lowest = 1f64;
+    let (mut lowest, mut worst) = (1f64, 0f64);
     for (r, (a, b)) in got.iter().zip(&want).enumerate() {
         let cos = cosine(a, b);
         lowest = lowest.min(cos);
-        assert!(cos >= 0.9999, "row {r}: cosine {cos} with the cpu");
+        assert!(cos >= tol.min_cosine, "precision {precision} row {r}: cosine {cos} with the cpu");
+        let d = max_abs_diff(a, b);
+        worst = worst.max(d);
+        if let Some(most) = tol.max_abs_diff {
+            assert!(d <= most, "precision {precision} row {r}: max abs diff {d:e} with the cpu");
+        }
     }
-    println!("{}: {batch} rows of {seq} tokens, 1 - lowest cosine with the cpu {:.3e}", dir.display(), 1.0 - lowest);
+    println!(
+        "{}: precision {precision}, compute dtype {}, {batch} rows of {seq} tokens, 1 - lowest cosine with the cpu \
+         {:.3e}, max abs diff {worst:.3e}",
+        dir.display(),
+        si.compute_dtype,
+        1.0 - lowest
+    );
 }
 
 #[test]
