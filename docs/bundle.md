@@ -222,7 +222,7 @@ this form before it is written or loaded.
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
-| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to. Any other `output_dim` is refused. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
+| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to, each in 1 to `dim` and listed once, at most `TURBO_OUTPUT_DIMS_MAX` (16) of them. `turbo_model_info.output_dims` reports them ascending. An `output_dim` above `dim` is `INVALID_ARGUMENT`; one that is neither `dim` nor listed is `UNSUPPORTED_OPTION`. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged. Its hash is `tokenizer_sha256`. |
 | `tokenizer.normalizer.*` | bool, enum | yes | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. |
 | `tokenizer.wordpiece`, `.bpe`, `.unigram` | message | one of | The kind and its parameters. Only wordpiece is defined in this cut. |
@@ -256,8 +256,9 @@ Status codes are the header's `TURBO_E_*`.
 1. No directory or no manifest: `BUNDLE_NOT_FOUND`.
 2. The manifest is parsed strictly. An unknown field or enum value at
    any level, a missing required field, a string longer than its header
-   buffer, a path with `..` or a leading `/`, or a path not present in
-   `files`: `BUNDLE_INVALID`, naming the field. Any `TASK_*` name other
+   buffer, more `embed.output_dims` than `TURBO_OUTPUT_DIMS_MAX`, a path
+   with `..` or a leading `/`, or a path not present in `files`:
+   `BUNDLE_INVALID`, naming the field. Any `TASK_*` name other
    than the ones this build has: `UNSUPPORTED_TASK`.
 3. Every path is canonicalized and must resolve under the bundle
    directory's canonical path. A symlink that leaves the directory is
