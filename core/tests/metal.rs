@@ -286,9 +286,19 @@ fn embed_is_offered_in_f32_as_sessions_run_it() {
     let l = on_metal(&tiny_bundle());
     let rt = std::mem::ManuallyDrop::new(Rt(l.rt));
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
-        let cap = rt.capability(metal(l.rt), p);
-        assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&cap.reason));
-        assert_eq!(field(&cap.reason), "no benchmark record for this cell");
+        let i = metal(l.rt);
+        let cap = rt.capability(i, p);
+        // A benchmark record compiled into the build for this machine's
+        // cell makes it SUPPORTED, naming the record; else it runs
+        // unmeasured.
+        if cap.status == backend::TURBO_CAP_SUPPORTED {
+            assert!(field(&cap.benchmark).starts_with(&format!("{}.metal.embed.", field(&rt.info(i).arch))));
+            assert!(cap.cosine_floor > 0.999 && cap.speed_ratio > 0.0, "a record's numbers");
+            assert_eq!(field(&cap.reason), "");
+        } else {
+            assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&cap.reason));
+            assert_eq!(field(&cap.reason), "no benchmark record for this cell");
+        }
         assert_eq!(cap.dtype, TURBO_DTYPE_F32);
         assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");
         let info = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap().info();
