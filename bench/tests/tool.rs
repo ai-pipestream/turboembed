@@ -185,6 +185,36 @@ fn the_tool_refuses_a_bundle_from_testdata() {
     assert!(!out.exists());
 }
 
+/// `--cpus` pins the tool before anything else is checked: a list it can
+/// pin to gets as far as the bundle check, and one it cannot is refused.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_tool_pins_itself_to_the_cpus_it_is_given() {
+    let root = scratch("tool-cpus");
+    let repo = pushed_repo(&root);
+    let out = root.join("records");
+    let bundle = tiny_bundle();
+    let args = record_args(repo.to_str().unwrap(), out.to_str().unwrap(), bundle.to_str().unwrap());
+    let with = |cpus: &str, var: Option<&str>| {
+        let mut c = Command::new(env!("CARGO_BIN_EXE_turbo-bench"));
+        c.args(&args).args(["--cpus", cpus]).env_remove("TURBO_CPU_THREADS");
+        if let Some(v) = var {
+            c.env("TURBO_CPU_THREADS", v);
+        }
+        String::from_utf8_lossy(&c.output().unwrap().stderr).into_owned()
+    };
+    // CPU 0 is one this process may run on; pinned, it goes on.
+    let e = with("0", None);
+    assert!(e.contains("a test fixture under"), "{e}");
+    let e = with("0", Some("1"));
+    assert!(e.contains("a test fixture under"), "{e}");
+    assert!(with("0", Some("4")).contains("TURBO_CPU_THREADS=4 is set, and --cpus 0 names 1"));
+    // A processor this machine does not have: its topology is not there.
+    assert!(with("1023", None).contains("--cpus: processor 1023"));
+    assert!(with("3-1", None).contains("3-1 runs backwards"));
+    assert!(!out.exists());
+}
+
 #[test]
 fn the_tool_refuses_a_dirty_tree_before_measuring() {
     let root = scratch("tool-dirty");

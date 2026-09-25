@@ -1180,38 +1180,146 @@ fn heads_of_32_match_the_cpu() {
     }
 }
 
+/// Both FMA attentions, the default register-tiled one and the key-split
+/// one TURBO_CUDA_ATTENTION=split picks, on heads 16, 24, 32 and 64
+/// wide: rows of 300 tokens (five chunks of keys for the tiled kernel,
+/// three for the split one), 129, 64, 63, 17 and 1, masked tokens inside
+/// the longer ones, give the CPU's vectors within the F32 bound, and the
+/// same bits when run again.
+#[test]
+fn both_fma_attentions_match_the_cpu() {
+    let _t = turn();
+    let Some(_) = cuda_device("both_fma_attentions_match_the_cpu") else { return };
+    for (hidden, heads) in [(64, 4), (72, 3), (64, 2), (128, 2)] {
+        let mut m = model_manifest();
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(heads);
+        m["architecture"]["intermediate"] = json!(128);
+        m["embed"]["dim"] = json!(hidden);
+        m["embed"]["max_seq"] = json!(300);
+        m["embed"]["max_batch"] = json!(6);
+        m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+        let mut f = Fixture::new(&format!("cuda-attention-{hidden}-{heads}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(hidden, 128));
+        let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+        let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+        let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
+        cs.write_tokens(&t.batch(), None).unwrap();
+        let want = cs.run().unwrap().rows();
+        for split in [false, true] {
+            turbo::cuda::use_split_attention(Some(split));
+            let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_MODEL)));
+            turbo::cuda::use_split_attention(None);
+            let gs = gs.unwrap();
+            let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+            gs.write_tokens(&t.batch(), None).unwrap();
+            let got = gs.run().unwrap().rows();
+            let what = format!("heads of {}, split {split}", hidden / heads);
+            let (cos, abs) = within(&what, &got, &want, tol);
+            println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+            gs.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
+        }
+    }
+}
+
 /// The backend's GEMMs against cuBLAS on random operands, every epilogue,
 /// F32, F16 on the tensor cores and F16 with FMAs (the path of devices
-/// before sm_80), at MiniLM's shapes for the benchmark's 1353 tokens and at
-/// shapes no tile divides: F32 within 1e-5 of the largest value, F16
-/// outputs within 2e-3 (an F16 rounding either side).
+/// before sm_80), every tile, at MiniLM's shapes for the benchmark's 1353
+/// tokens, at shapes no tile divides, and at a token count past 8192
+/// that no tile divides either, with the work shared among as
+/// many blocks as the device holds and among 1, 7 and 33 (so tiles split
+/// between blocks at other points): F32 within 1e-5 of the largest value,
+/// F16 outputs within 2e-3 (an F16 rounding either side). Each GEMM runs
+/// twice and repeats its bits.
 #[test]
 fn the_gemms_match_cublas() {
     let _t = turn();
     let Some(dev) = cuda_device("the_gemms_match_cublas") else { return };
     let ordinal = Rt::new().info(dev).ordinal;
     use turbo::cuda::Epilogue::*;
-    for (m, n, k, epilogue, splits, heads) in [
-        (1353, 1152, 384, Qkv, 1, 12),
-        (1353, 384, 384, Partial, 1, 1),
-        (1353, 1536, 384, Gelu, 1, 1),
-        (1353, 384, 1536, Partial, 2, 1),
-        (1, 1152, 384, Qkv, 1, 12),
-        (37, 96, 32, Qkv, 1, 4),
-        (65, 24, 8, Qkv, 1, 2),
-        (100, 16, 8, Gelu, 1, 1),
-        (129, 64, 128, Gelu, 1, 1),
-        (33, 8, 16, Partial, 1, 1),
-        (200, 72, 96, Partial, 3, 1),
+    use turbo::cuda::Tile;
+    for (m, n, k, epilogue, heads) in [
+        (1353, 1152, 384, Qkv, 12),
+        (1353, 384, 384, Plain, 1),
+        (1353, 1536, 384, Gelu, 1),
+        (1353, 384, 1536, Plain, 1),
+        (1, 1152, 384, Qkv, 12),
+        (37, 96, 32, Qkv, 4),
+        (65, 24, 8, Qkv, 2),
+        (100, 16, 8, Gelu, 1),
+        (129, 64, 128, Gelu, 1),
+        (200, 136, 72, Gelu, 1),
+        (33, 8, 16, Plain, 1),
+        (200, 72, 96, Plain, 1),
+        (300, 384, 1536, Plain, 1),
+        (8193, 384, 1536, Plain, 1),
     ] {
         for (half, tensor_cores) in [(false, false), (true, true), (true, false)] {
-            let (diff, reference) =
-                turbo::cuda::gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, splits, heads).unwrap();
-            let f16_out = half && !matches!(epilogue, Partial);
-            let bound = if f16_out { 2e-3 } else { 1e-5 } * reference.max(1.0);
-            let what = format!("{epilogue:?} [{m}, {k}] x [{n}, {k}], split {splits}, F16 {half}, mma {tensor_cores}");
-            println!("{what}: largest difference {diff:.3e} of values up to {reference:.3}");
-            assert!(diff <= bound, "{what}: {diff:e} over {bound:e}");
+            let tiles: &[Tile] = if half && tensor_cores {
+                &[Tile::T64x64, Tile::T128x64]
+            } else {
+                &[Tile::T64x64, Tile::T128x64, Tile::T128x128]
+            };
+            for &tile in tiles {
+                // A token count past a few thousand only as many blocks
+                // as fit and 7: one block would take seconds.
+                let counts: &[i32] = if m > 4096 { &[0, 7] } else { &[0, 1, 7, 33] };
+                for &blocks in counts {
+                    let (diff, reference) =
+                        turbo::cuda::gemm_check(ordinal, m, n, k, epilogue, half, tensor_cores, tile, blocks, heads)
+                            .unwrap();
+                    let f16_out = half && !matches!(epilogue, Plain);
+                    let bound = if f16_out { 2e-3 } else { 1e-5 } * reference.max(1.0);
+                    let what = format!(
+                        "{epilogue:?} [{m}, {k}] x [{n}, {k}], tile {tile:?}, {blocks} blocks, F16 {half}, mma \
+                         {tensor_cores}"
+                    );
+                    println!("{what}: largest difference {diff:.3e} of values up to {reference:.3}");
+                    assert!(diff <= bound, "{what}: {diff:e} over {bound:e}");
+                }
+            }
+        }
+    }
+}
+
+/// TURBO_CUDA_TILE picks the GEMMs' tile for measuring: every tile gives
+/// the vectors of the default within the bound of the precision, at MODEL
+/// and FASTEST, on MiniLM-like heads of 32 and ragged rows. (Not the same
+/// bits: a tile shares the k steps among the blocks at other points, so
+/// the partial sums differ.) Each tile repeats its own bits.
+#[test]
+fn every_gemm_tile_gives_the_same_vectors() {
+    let _t = turn();
+    let Some(_) = cuda_device("every_gemm_tile_gives_the_same_vectors") else { return };
+    use turbo::cuda::Tile;
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(64);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(64);
+    m["embed"]["max_seq"] = json!(160);
+    m["embed"]["max_batch"] = json!(40);
+    let mut f = Fixture::new("cuda-tiles", m);
+    f.weights("weights/model.safetensors", &bert_weights(64, 256));
+    let g = f.load_on(cuda).unwrap();
+    let t = ragged_rows(&f.dir, 40, 160);
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+        let own = Session::create(g.m, Some(&session_desc(40, 160, precision))).unwrap();
+        let tol = record::tolerance(own.info().compute_dtype).unwrap();
+        own.write_tokens(&t.batch(), None).unwrap();
+        let want = own.run().unwrap().rows();
+        for tile in [Tile::T64x64, Tile::T128x64, Tile::T128x128] {
+            turbo::cuda::use_tile(Some(tile));
+            let s = Session::create(g.m, Some(&session_desc(40, 160, precision)));
+            turbo::cuda::use_tile(None);
+            let s = s.unwrap();
+            s.write_tokens(&t.batch(), None).unwrap();
+            let got = s.run().unwrap().rows();
+            s.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(s.run().unwrap().rows(), got, "precision {precision}, tile {tile:?}: the same bits again");
+            let (cos, abs) = within(&format!("precision {precision}, tile {tile:?}"), &got, &want, tol);
+            println!("precision {precision}, tile {tile:?}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
         }
     }
 }

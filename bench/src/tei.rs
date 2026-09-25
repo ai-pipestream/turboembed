@@ -25,6 +25,7 @@ use turbo::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
 use crate::Result;
 use crate::api::field;
+use crate::cpus::{self, Cpus};
 use crate::docker::{self, Log, Running, argv};
 use crate::measure::{Measurement, Rows, cosine, percentile};
 
@@ -42,6 +43,9 @@ pub struct Tei {
     pub image: String,
     /// The model in the upstream layout.
     pub model_dir: PathBuf,
+    /// The processors the container gets, with the thread count to
+    /// match (`--cpus`); None: docker's and the image's defaults.
+    pub cpus: Option<Cpus>,
 }
 
 /// TEI's --dtype for a compute dtype, or why it has none: it offers
@@ -65,7 +69,8 @@ pub fn pooling(p: Pooling) -> &'static str {
 
 /// The `docker run` that starts the server: detached, removed on stop,
 /// the model mounted read-only, no pulls, its port published on the
-/// loopback only.
+/// loopback only; with `cpus`, confined to those processors with every
+/// thread count the image reads set to their number.
 ///
 /// It gives no `--auto-truncate`: through 1.8 that is a bare flag (a
 /// value after it is a stray argument and the router exits), and from
@@ -77,6 +82,7 @@ pub fn run_argv(
     model_dir: &Path,
     container: &str,
     gpu: Option<u32>,
+    cpus: Option<&Cpus>,
     dtype: &str,
     pooling: &str,
     batch: u32,
@@ -85,6 +91,9 @@ pub fn run_argv(
     let mut a = argv(&["docker", "run", "--detach", "--rm", "--pull", "never", "--name", container]);
     if let Some(ordinal) = gpu {
         a.extend(argv(&["--gpus", &format!("device={ordinal}")]));
+    }
+    if let Some(c) = cpus {
+        a.extend(c.docker_args());
     }
     a.extend(argv(&[
         "--publish",
@@ -108,6 +117,14 @@ pub fn run_argv(
         &(batch as u64 * seq as u64).max(DEFAULT_BATCH_TOKENS).to_string(),
     ]));
     a
+}
+
+/// An image's environment as `docker image inspect --format '{{json
+/// .Config.Env}}'` prints it: a JSON array of `KEY=value`, or null.
+pub fn parse_env(out: &str) -> Result<Vec<String>> {
+    let v: Option<Vec<String>> =
+        serde_json::from_str(out.trim()).map_err(|e| format!("the image's environment {out:?}: {e}"))?;
+    Ok(v.unwrap_or_default())
 }
 
 /// What /info says of the server: its version, and the dtype it loaded.
@@ -212,9 +229,19 @@ fn get(url: &str) -> Result<String> {
 /// /embed requests of the whole batch after `warmup` untimed ones, and
 /// stop it. A thing TEI cannot do for this bundle is a record that says
 /// so; a failure of docker or the server is an error.
-pub fn run(tei: &Tei, m: &Measurement, gpu: Option<u32>, warmup: u32, iterations: u32) -> Result<ReferenceRun> {
+///
+/// `library` is the library's thread count when the device measured is
+/// the CPU, for the procedure, which says what each side ran on.
+pub fn run(
+    tei: &Tei,
+    m: &Measurement,
+    gpu: Option<u32>,
+    library: Option<usize>,
+    warmup: u32,
+    iterations: u32,
+) -> Result<ReferenceRun> {
     let image = docker::check_pinned("--tei-image", &tei.image)?;
-    let procedure = format!(
+    let mut procedure = format!(
         "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the \
          batch's {} rows as token ids, {warmup} untimed then {iterations} timed, each timed from sending the \
          request to reading the whole response",
@@ -230,10 +257,14 @@ pub fn run(tei: &Tei, m: &Measurement, gpu: Option<u32>, warmup: u32, iterations
         return Ok(not_run(image, log, &procedure, why));
     }
     docker::require_image(&mut log, image)?;
+    let env =
+        parse_env(&log.run(&argv(&["docker", "image", "inspect", "--format", "{{json .Config.Env}}", image]))?)?;
+    procedure = format!("{procedure}; {}", cpus::procedure(tei.cpus.as_ref(), library, &env));
 
     let container = format!("turbo-bench-tei-{}", std::process::id());
-    let start_argv =
-        |dir: &Path| run_argv(image, dir, &container, gpu, dtype, pooling(m.pooling()), m.rows.batch, m.rows.seq);
+    let start_argv = |dir: &Path| {
+        run_argv(image, dir, &container, gpu, tei.cpus.as_ref(), dtype, pooling(m.pooling()), m.rows.batch, m.rows.seq)
+    };
     log.run_as(&start_argv(&dir), start_argv(Path::new(docker::TEI_MODEL)))?;
     let _running = Running { name: container.clone() };
     let port = docker::parse_port(&log.run(&argv(&["docker", "port", &container, "80/tcp"]))?)?;

@@ -9,6 +9,7 @@ use std::path::Path;
 use common::*;
 use turbo::manifest::Pooling;
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
+use turbo_bench::cpus::{self, Cpus};
 use turbo_bench::docker::{self, parse_port};
 use turbo_bench::measure::Rows;
 use turbo_bench::openvino::{self, OpenVino};
@@ -56,7 +57,17 @@ fn docker_port_output_gives_the_host_port() {
 #[test]
 fn tei_is_started_with_every_setting_on_its_command_line() {
     let image = format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}");
-    let a = tei::run_argv(&image, Path::new("/models/minilm"), "turbo-bench-tei-7", Some(1), "float32", "mean", 32, 64);
+    let a = tei::run_argv(
+        &image,
+        Path::new("/models/minilm"),
+        "turbo-bench-tei-7",
+        Some(1),
+        None,
+        "float32",
+        "mean",
+        32,
+        64,
+    );
     let want = strings(&[
         "docker",
         "run",
@@ -91,9 +102,108 @@ fn tei_is_started_with_every_setting_on_its_command_line() {
     assert_eq!(a, want);
     assert!(!a.iter().any(|s| s.contains("truncate")), "the request says truncate: false; the flag is not portable");
     // The CPU image: no GPU; a batch past TEI's default token budget raises it.
-    let a = tei::run_argv(&image, Path::new("/m"), "c", None, "float32", "cls", 512, 64);
+    let a = tei::run_argv(&image, Path::new("/m"), "c", None, None, "float32", "cls", 512, 64);
     assert!(!a.iter().any(|s| s == "--gpus"));
+    assert!(!a.iter().any(|s| s == "--cpuset-cpus" || s.contains("THREADS")), "unpinned: docker's defaults");
     assert_eq!(a[a.len() - 1], "32768");
+}
+
+/// A 9950X3D's topology: 16 cores of two threads, CPU n and n + 16 on
+/// one core; the CCD with the stacked cache is cores 0-7.
+fn ryzen(name: &str) -> Scratch {
+    let d = scratch(name);
+    smt_topology(&d, 16);
+    d
+}
+
+#[test]
+fn the_physical_cores_are_the_distinct_cores_of_the_list() {
+    let sys = ryzen("topology");
+    let cores = |l: &str| Cpus::parse(l, &sys).unwrap().cores;
+    assert_eq!(cores("0-7,16-23"), 8, "one CCD: 8 cores, 16 threads");
+    assert_eq!(cores("0-15"), 16, "one thread on each of 16 cores");
+    assert_eq!(cores("0-31"), 16);
+    assert_eq!(cores("3,19"), 1);
+    // A second package's core 0 is another core.
+    let two = scratch("topology-two");
+    smt_topology(&two, 2);
+    std::fs::write(two.join("cpu3/topology/physical_package_id"), "1\n").unwrap();
+    assert_eq!(Cpus::parse("1,3", &two).unwrap().cores, 2);
+    // A processor the tree does not describe is refused, naming it.
+    let e = Cpus::parse("0-32", &sys).unwrap_err();
+    assert!(e.contains("processor 32") && e.contains("cpu32/topology/physical_package_id"), "{e}");
+    assert!(Cpus::parse("3-1", &sys).unwrap_err().contains("runs backwards"));
+}
+
+#[test]
+fn with_cpus_tei_gets_those_processors_and_every_thread_count_its_image_reads() {
+    let image = format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}");
+    let sys = ryzen("argv");
+    let ccd = Cpus::parse("0-7,16-23", &sys).unwrap();
+    let a = tei::run_argv(&image, Path::new("/m"), "c", None, Some(&ccd), "float32", "mean", 32, 256);
+    let want = strings(&[
+        "docker",
+        "run",
+        "--detach",
+        "--rm",
+        "--pull",
+        "never",
+        "--name",
+        "c",
+        "--cpuset-cpus",
+        "0-7,16-23",
+        "--env",
+        "OMP_NUM_THREADS=8",
+        "--env",
+        "MKL_NUM_THREADS=8",
+        "--env",
+        "RAYON_NUM_THREADS=16",
+        "--publish",
+        "127.0.0.1::80",
+    ]);
+    assert_eq!(a[..want.len()], want[..]);
+    // Every option before the image: docker's, not the router's.
+    let at = a.iter().position(|s| *s == image).unwrap();
+    assert!(a[..at].contains(&"--cpuset-cpus".to_owned()));
+    let all = Cpus::parse("0-31", &sys).unwrap();
+    let a = tei::run_argv(&image, Path::new("/m"), "c", None, Some(&all), "float32", "mean", 32, 256);
+    for s in ["0-31", "OMP_NUM_THREADS=16", "MKL_NUM_THREADS=16", "RAYON_NUM_THREADS=32"] {
+        assert!(a.contains(&s.to_owned()), "{s}: {a:?}");
+    }
+}
+
+#[test]
+fn the_procedure_says_what_each_side_ran_on() {
+    let env = tei::parse_env(IMAGE_ENV).unwrap();
+    assert_eq!(cpus::image_value(&env, "RAYON_NUM_THREADS"), Some("8"));
+    assert_eq!(cpus::image_value(&env, "OMP_NUM_THREADS"), None);
+    assert_eq!(tei::parse_env("null\n").unwrap(), Vec::<String>::new());
+    assert!(tei::parse_env("sha256:abc").is_err());
+
+    let sys = ryzen("procedure");
+    let c = Cpus::parse("0-7,16-23", &sys).unwrap();
+    assert_eq!(
+        cpus::procedure(Some(&c), Some(16), &env),
+        "the library ran pinned to CPUs 0-7,16-23 with TURBO_CPU_THREADS=16 threads, one per logical CPU; TEI ran \
+         with --cpuset-cpus 0-7,16-23 and OMP_NUM_THREADS=8, MKL_NUM_THREADS=8, RAYON_NUM_THREADS=16 (MKL's \
+         threads one per physical core of the list, as MKL itself defaults, since two on a core contend for its \
+         vector units; candle's rayon threads one per logical CPU), over the image's RAYON_NUM_THREADS=8; its \
+         ONNX Runtime and tokenizer threads counted from those CPUs"
+    );
+    // Without --cpus: today's command, and the counts each side had.
+    assert_eq!(
+        cpus::procedure(None, Some(32), &env),
+        "the library ran unpinned with 32 threads; TEI ran unpinned with the image's thread settings: \
+         OMP_NUM_THREADS=unset, MKL_NUM_THREADS=unset, RAYON_NUM_THREADS=8"
+    );
+    // A GPU measured: no library thread count to state.
+    assert_eq!(
+        cpus::procedure(None, None, &[]),
+        "the tool ran unpinned; TEI ran unpinned with the image's thread settings: OMP_NUM_THREADS=unset, \
+         MKL_NUM_THREADS=unset, RAYON_NUM_THREADS=unset"
+    );
+    let eight = Cpus::parse("0-7", &sys).unwrap();
+    assert!(!cpus::procedure(Some(&eight), Some(8), &env).contains("over the image's"), "8 is the image's own");
 }
 
 #[test]
@@ -183,13 +293,14 @@ fn tei_on_another_models_files_is_recorded_as_not_run_before_docker() {
     let t = Tei {
         image: format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}"),
         model_dir: d.to_owned(),
+        cpus: None,
     };
-    let r = tei::run(&t, m, None, 1, 1).unwrap();
+    let r = tei::run(&t, m, None, Some(1), 1, 1).unwrap();
     assert!(r.measured.is_none());
     assert!(r.not_run.unwrap().contains("is not the bundle's tokenizer"));
     assert!(r.commands.is_empty(), "nothing ran");
-    let t = Tei { image: "text-embeddings-inference:latest".into(), model_dir: ".".into() };
-    assert!(tei::run(&t, m, None, 1, 1).unwrap_err().contains("is not pinned"));
+    let t = Tei { image: "text-embeddings-inference:latest".into(), model_dir: ".".into(), cpus: None };
+    assert!(tei::run(&t, m, None, Some(1), 1, 1).unwrap_err().contains("is not pinned"));
 }
 
 // ---- TensorRT ----

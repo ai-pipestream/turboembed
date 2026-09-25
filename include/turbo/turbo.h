@@ -204,9 +204,13 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
  * stored in, the model keeps one resident copy of its weights per such
  * dtype. The copy is made by the first turbo_session_create that needs it,
  * is shared by every session of that model at that dtype, is released with
- * the model, and is never counted in a result's allocations. The session's
- * compute dtype is fixed at turbo_session_create; turbo_session_get_info
- * reports it before any run. */
+ * the model, and is never counted in a result's allocations. A backend may
+ * also keep the weights laid out for its kernels (the CPU keeps its linear
+ * layers packed, about half the weights' size again); that copy too is made
+ * by the first turbo_session_create, shared by every session of the model,
+ * released with the model, and never counted in a result's allocations.
+ * The session's compute dtype is fixed at turbo_session_create;
+ * turbo_session_get_info reports it before any run. */
 
 /* Native memory handle kinds, for import and export. */
 #define TURBO_HANDLE_HOST_PTR   1   /* aux unused */

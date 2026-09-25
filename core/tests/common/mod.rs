@@ -513,7 +513,14 @@ pub struct Tensor {
 /// Every tensor of the small BERT under the upstream names, F32, with
 /// values that depend on `seed` and the element's place and nothing else.
 pub fn tiny_weights(seed: u32) -> Vec<Tensor> {
-    let (h, i, v, p, t) = (8u64, 16u64, 30522u64, 512u64, 2u64);
+    bert_weights(2, 8, 16, seed, 1.0)
+}
+
+/// Every tensor of a BERT of `layers` layers, hidden width `h` and
+/// intermediate width `i` under the upstream names, F32, as tiny_weights
+/// makes them, with each weight matrix scaled by `scale`.
+pub fn bert_weights(layers: usize, h: u64, i: u64, seed: u32, scale: f32) -> Vec<Tensor> {
+    let (v, p, t) = (30522u64, 512u64, 2u64);
     let mut shapes: Vec<(String, Vec<u64>)> = vec![
         ("embeddings.word_embeddings.weight".into(), vec![v, h]),
         ("embeddings.position_embeddings.weight".into(), vec![p, h]),
@@ -521,7 +528,7 @@ pub fn tiny_weights(seed: u32) -> Vec<Tensor> {
         ("embeddings.LayerNorm.weight".into(), vec![h]),
         ("embeddings.LayerNorm.bias".into(), vec![h]),
     ];
-    for l in 0..2 {
+    for l in 0..layers {
         let at = |s: &str| format!("encoder.layer.{l}.{s}");
         for (s, shape) in [
             ("attention.self.query.weight", vec![h, h]),
@@ -551,11 +558,12 @@ pub fn tiny_weights(seed: u32) -> Vec<Tensor> {
         .into_iter()
         .map(|(name, shape)| {
             let n: u64 = shape.iter().product();
+            let s = if name.starts_with("encoder.") && shape.len() == 2 { scale } else { 1.0 };
             let data = (0..n)
                 .flat_map(|_| {
                     k += 1;
                     let x = ((k * 7919 + seed as u64 * 104729) % 2001) as f32 / 1000.0 - 1.0;
-                    x.to_le_bytes()
+                    (x * s).to_le_bytes()
                 })
                 .collect();
             Tensor { name, dtype: "F32", shape, data }

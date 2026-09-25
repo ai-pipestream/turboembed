@@ -5,8 +5,9 @@
  * cudaGetLastError says about the launch; none of them allocates, and
  * none of them waits.
  *
- * The written rows are [batch, seq] int32, row b's position p at
- * b * pitch + p, pitch being the session's max_seq. The encoder computes
+ * The written rows are one int32 array of [k][batch][seq], k 2 or 3:
+ * the ids, the mask and, when the run has them, the token types, each
+ * [batch, seq] with row b's position p at b * seq + p. The encoder computes
  * them packed, as the CPU encoder does: row b's positions up to its last
  * live token, len[b] of them, sit one after another from packed token
  * start[b], and the rows follow each other, so the padding past a row's
@@ -56,14 +57,16 @@ struct Packing {
     float *key_bias;
 };
 
-/* Queries per attention block. */
-constexpr int ATTENTION_QUERIES = 64;
-
 /* The widest head attention computes. */
 constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 
 /* The widest hidden state the row kernels hold in registers. */
-constexpr int MAX_HIDDEN = 1024;
+constexpr int MAX_HIDDEN = 2048;
+
+/* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64;
+ * TURBO_CUDA_TILE names another. The tensor cores take 64 x 64 and
+ * 128 x 64, the FMA GEMM those and 128 x 128. */
+enum Tile : int { TILE_DEFAULT = 0, TILE_64x64 = 1, TILE_128x64 = 2, TILE_128x128 = 3 };
 
 /* A session's fixed shape, from which make_plan sizes every launch. */
 struct Shape {
@@ -74,6 +77,14 @@ struct Shape {
     bool tensor_cores = false; /* sm_80 or newer: mma.sync */
     int sms = 0;
     size_t smem_optin = 0; /* cudaDevAttrMaxSharedMemoryPerBlockOptin */
+    Tile tile = TILE_DEFAULT;
+    /* The FMA attention with each query's keys split among four warps
+     * (TURBO_CUDA_ATTENTION=split), for measuring against the default,
+     * which computes Q K^T and P V as register tiles. */
+    bool split_attention = false;
+    /* The GEMMs' fewest k steps per block (TURBO_CUDA_SK_STEPS), 0 for
+     * the kernels' own. */
+    int sk_steps = 0;
 };
 
 /* Grids and shared memory for every launch of a session. */
@@ -82,9 +93,15 @@ struct Plan {
     int rows_grid = 0; /* the warp-per-token kernels */
     int pool_grid = 0;
     int epi_grid = 0; /* the cuBLAS epilogues */
+    int fetch_grid = 0;
     int qkv_grid = 0, out_grid = 0, ffn1_grid = 0, ffn2_grid = 0;
-    int ffn2_splits = 1, ffn2_ksplit = 0;
-    int attn_grid = 0, attn_chunk = 0;
+    /* The GEMMs' stream-K workspace: a slot of partial products per block
+     * of the largest launch, floats in all, and a flag per block. */
+    size_t sk_floats = 0;
+    int sk_flags = 0;
+    /* A GEMM whose kernel was built for more blocks to an SM than fit. */
+    bool gemm_crowded = false;
+    int attn_grid = 0, attn_chunk = 0, attn_queries = 0;
     size_t attn_smem = 0;
 };
 
@@ -93,9 +110,8 @@ cudaError_t make_plan(const Shape &shape, Plan *plan);
 // ---- The packing -------------------------------------------------------------
 
 struct PackArgs {
-    const int32_t *mask;
-    int32_t pitch; /* the session's max_seq */
-    int32_t heads;
+    const int32_t *rows; /* the written rows, [k][batch][seq] */
+    int32_t heads, queries; /* attention's heads and queries per work item */
     Packing p;
     RunArgs run;
 };
@@ -111,26 +127,39 @@ cudaError_t pack_rows(cudaStream_t s, const PackArgs &a, const Plan &plan);
 void pack_rows_node(const PackArgs *a, void **args, const Plan &plan, cudaKernelNodeParams *out);
 const void *pack_rows_function();
 
+/* n int32 of the written rows from src, the page-locked staging as the
+ * device addresses it, to dst in device memory: the run's first kernel,
+ * so the rows reach the device inside the run's graph, with no copy
+ * queued ahead of it. n is 0 when the rows were sent another way. */
+struct FetchArgs {
+    const int32_t *src;
+    int32_t *dst;
+    int32_t n;
+};
+
+cudaError_t fetch_rows(cudaStream_t s, const FetchArgs &a, const Plan &plan);
+void fetch_rows_node(const FetchArgs *a, void **args, const Plan &plan, cudaKernelNodeParams *out);
+const void *fetch_rows_function();
+
 // ---- Row kernels --------------------------------------------------------------
 
 /* x[t] = LayerNorm(word[ids] + position[p] + type[types]) for every packed
- * token t, its row and position from the packing; types are read only
- * when the run has them. */
-cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *ids, const int32_t *types, int pitch, const float *word,
+ * token t, its row and position from the packing, rows being the written
+ * rows; types are read only when the run has them. */
+cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *word,
                              const float *position, const float *type, const float *ln_w, const float *ln_b, float eps,
                              const Packing &p, int hidden, float *x, uint16_t *x16, const Plan &plan);
 
-/* x[t] = LayerNorm(x[t] + ((part[0][t] + ... + part[splits - 1][t]) + bias)),
- * part being splits partial products of tcap rows each, summed in order;
- * the result into x16 as F16 too when it is not NULL. */
-cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *part, int splits, int tcap, const float *bias,
+/* x[t] = LayerNorm(x[t] + (y[t] + bias)), y a GEMM's product; the result
+ * into x16 as F16 too when it is not NULL. */
+cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const float *bias,
                            const float *ln_w, const float *ln_b, float eps, const Info *info, int hidden,
                            uint16_t *x16, const Plan &plan);
 
 /* out[b] = the row's pooled vector, cut to output_dim, L2-normalized when
  * the run asks: the pooling, output_dim and normalization are the Info's. */
-cudaError_t pool(cudaStream_t s, const float *x, const int32_t *mask, int pitch, const Packing &p, int hidden,
-                 float *out, const Plan &plan);
+cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Packing &p, int hidden, float *out,
+                 const Plan &plan);
 
 // ---- GEMMs --------------------------------------------------------------------
 //
@@ -142,14 +171,18 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *mask, int pitch,
 //   QKV: + bias, written head-major, [3][heads][tcap][head_dim], so
 //        attention reads each (row, head)'s keys contiguously;
 //   GELU: + bias, then GELU with the error function, [tokens, n];
-//   PARTIAL: the bare product of split s's share of k, [splits][tcap][n],
-//        which add_layer_norm sums in order: split-K without atomics.
+//   PLAIN: the bare product, F32, [tokens, n], which add_layer_norm adds.
 //
-// QKV and GELU store F16 when the operands are F16, F32 otherwise.
-// Tiles past the packed token count do nothing, so the launch is sized
-// for the session's largest batch. n and k are multiples of 8.
+// QKV and GELU store F16 when the operands are F16, F32 otherwise. The
+// launch is the blocks the device holds at once, sharing the tiles' k
+// steps evenly among them (stream-K): a tile split between blocks is
+// finished by the block holding its last k step, which adds the others'
+// partial products, from the workspace, nearest block first. So the sums
+// depend on the token count and the launch, never on which rows run
+// beside a row in a batch of the same token count. n and k are multiples
+// of 8.
 
-enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PARTIAL = 2 };
+enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2 };
 
 struct GemmArgs {
     const void *a, *w;
@@ -157,14 +190,31 @@ struct GemmArgs {
     void *out;
     const Info *info; /* info->tokens is M */
     int n, k;
-    int splits, ksplit; /* k per split, a multiple of 32 */
     int heads, head_dim, hidden, tcap;
+    /* The stream-K workspace: a slot of BM x BN floats per block, and a
+     * flag per block, 0 between launches. */
+    float *ws;
+    int *flags;
+    /* Set to 1 by a wait that gave up; the host reads it after the run.
+     * Host memory the device writes, so reading it copies nothing. */
+    int *fault;
+    /* The fewest k steps a block takes before the kernel runs on fewer
+     * blocks; 0 for the kernels' own. */
+    int min_steps;
 };
 
-/* The grid for a GEMM: enough blocks for the largest M's tiles, capped at
- * what the device holds at once. */
-cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, int n, int tcap, int splits, int sms, int *grid);
-cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, const GemmArgs &g, int grid);
+/* A GEMM's launch: the blocks the device holds at once, and the
+ * workspace floats it needs; and the shared memory setting its kernel
+ * needs, made outside any run. The launch never depends on the token
+ * count, which only the device knows (the graph is made once for every
+ * run): the kernel shares out the tiles of the run's M, and the launch
+ * is sized for the device, not for the largest M's tiles. *crowded,
+ * when given, is set when fewer blocks fit on an SM than the kernel was
+ * built for. */
+cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int sms, int *grid, size_t *ws_floats,
+                      bool *crowded = nullptr);
+cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile);
+cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile tile, const GemmArgs &g, int grid);
 
 /* The same epilogues over a product cuBLAS made, raw [tokens, n] F32, for
  * sessions told to compute a GEMM with cuBLAS (TURBO_CUDA_CUBLAS). */
@@ -177,14 +227,14 @@ cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, b
  * row's live keys: ctx[t, head] = softmax(q_t . k_j / sqrt(d)) v_j. q, k and
  * v are the QKV GEMM's head-major output with their biases, F32 or F16;
  * the context goes to ctx in the same dtype, [tokens, hidden]. One block
- * per 64 queries of one (row, head), rows longest first; keys go through
- * shared memory plan.attn_chunk at a time, the softmax carried from chunk
- * to chunk. */
+ * per plan.attn_queries queries of one (row, head), rows longest first;
+ * keys go through shared memory plan.attn_chunk at a time, the softmax
+ * carried from chunk to chunk. */
 struct AttnArgs {
     const void *qkv;
     void *ctx;
     Packing p;
-    int heads, head_dim, hidden, tcap, chunk;
+    int heads, head_dim, hidden, tcap, chunk, queries;
     float scale;
 };
 
