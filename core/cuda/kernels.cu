@@ -2679,15 +2679,16 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
 
 
 // The same attention, 128 queries to a block of eight warps (a warp per
-// 16), so each chunk of keys and values in shared memory serves twice
-// the queries. Keys and values go 64 at a time through three buffers
-// filled by cp.async, the next two chunks' in flight while this one's
-// products and softmax run, one barrier to a chunk. The softmax is in base 2: scale x log2(e)
-// goes into each exponent's one multiply-add, and exp2f takes the place
-// of expf (a masked key's p is 0, as the key bias of -1e30 makes it in
-// the other kernels). Only rows whose items the pack puts first, longest
-// first, change the schedule, not the sums: each query's keys go in
-// position order, 64 at a time.
+// 16), so each chunk of keys and values in shared memory serves twice the
+// queries. Keys and values go 64 at a time through three buffers filled
+// by cp.async, the next two chunks' in flight while this one's products
+// and softmax run, one barrier to a chunk; the next item's queries and
+// first chunks load during an item's last. The softmax is in base 2:
+// scale x log2(e) goes into each exponent's one multiply-add, and exp2f
+// takes the place of expf (a masked key's p is 0, as the key bias of
+// -1e30 makes it in the other kernels). Only rows whose items the pack
+// puts first, longest first, change the schedule, not the sums: each
+// query's keys go in position order, 64 at a time.
 
 constexpr int FA_QUERIES = 128, FA_THREADS = 256, FA_KEYS = 64;
 
@@ -2801,37 +2802,52 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
     const __half *qkv = static_cast<const __half *>(a.qkv);
     const size_t hs = (size_t)a.tcap * D;
     const float sl2 = a.scale * 1.4426950408889634f;
+    int item = blockIdx.x;
+    if (item >= items) return;
 
-    for (int item = blockIdx.x; item < items; item += gridDim.x) {
-        const Item it = decode(a, item, batch);
-        const __half *Qg = qkv + (size_t)it.head * hs + (size_t)it.base * D;
-        const __half *Kg = qkv + (size_t)(a.heads + it.head) * hs + (size_t)it.base * D;
-        const __half *Vg = qkv + (size_t)(2 * a.heads + it.head) * hs + (size_t)it.base * D;
-        const bool live = it.q0 + warp * 16 < it.n;
-        const int chunks = (it.n + FA_KEYS - 1) / FA_KEYS;
-        // Keys c0 on into buffer b; the key bias with plain loads, which
-        // the barrier before the chunk's use orders.
-        auto load_chunk = [&](int b, int c0) {
-            __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
-            for (int i = threadIdx.x; i < FA_KEYS * CH; i += FA_THREADS) {
-                const int r = i / CH, c = (i % CH) * 8;
-                const bool in = c0 + r < it.n;
-                cp_async16(Ks + r * LD + c, in ? Kg + (size_t)(c0 + r) * D + c : Kg, in);
-                cp_async16(Vs + r * LD + c, in ? Vg + (size_t)(c0 + r) * D + c : Vg, in);
-            }
-            if (it.holes && threadIdx.x < FA_KEYS && c0 + (int)threadIdx.x < it.n)
-                kbs[b * FA_KEYS + threadIdx.x] = a.p.key_bias[it.base + c0 + threadIdx.x];
-        };
-        __syncthreads(); // the last item's reads of every buffer are done
+    // An item's queries into Qs; its keys and values c0 on into buffer
+    // b, and the key bias with plain loads, which the barrier before the
+    // chunk's use orders.
+    auto load_q = [&](const Item &x) {
+        const __half *Qg = qkv + (size_t)x.head * hs + (size_t)x.base * D;
         for (int i = threadIdx.x; i < FA_QUERIES * CH; i += FA_THREADS) {
             const int r = i / CH, c = (i % CH) * 8;
-            const bool in = it.q0 + r < it.n;
-            cp_async16(Qs + r * LD + c, in ? Qg + (size_t)(it.q0 + r) * D + c : Qg, in);
+            const bool in = x.q0 + r < x.n;
+            cp_async16(Qs + r * LD + c, in ? Qg + (size_t)(x.q0 + r) * D + c : Qg, in);
         }
-        load_chunk(0, 0);
-        cp_async_commit();
-        if (chunks > 1) load_chunk(1, FA_KEYS);
-        cp_async_commit();
+    };
+    auto load_chunk = [&](const Item &x, int b, int c0) {
+        const __half *Kg = qkv + (size_t)(a.heads + x.head) * hs + (size_t)x.base * D;
+        const __half *Vg = Kg + (size_t)a.heads * hs;
+        __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
+        for (int i = threadIdx.x; i < FA_KEYS * CH; i += FA_THREADS) {
+            const int r = i / CH, c = (i % CH) * 8;
+            const bool in = c0 + r < x.n;
+            cp_async16(Ks + r * LD + c, in ? Kg + (size_t)(c0 + r) * D + c : Kg, in);
+            cp_async16(Vs + r * LD + c, in ? Vg + (size_t)(c0 + r) * D + c : Vg, in);
+        }
+        if (x.holes && threadIdx.x < FA_KEYS && c0 + (int)threadIdx.x < x.n)
+            kbs[b * FA_KEYS + threadIdx.x] = a.p.key_bias[x.base + c0 + threadIdx.x];
+    };
+
+    // The chunks of the block's items run on as one sequence, chunk c of
+    // it in buffer c mod 3, and each group of loads committed is one
+    // chunk's (empty where there is none to load): the first item's
+    // queries and first chunk here, and its second; then one at the top
+    // of each chunk, but two at the top of an item's last, the next
+    // item's queries and first chunk, and its second.
+    Item it = decode(a, item, batch);
+    load_q(it);
+    load_chunk(it, 0, 0);
+    cp_async_commit();
+    if (it.n > FA_KEYS) load_chunk(it, 1, FA_KEYS);
+    cp_async_commit();
+    for (int b = 0;;) {
+        const int next = item + gridDim.x;
+        const bool more = next < items;
+        const Item nx = more ? decode(a, next, batch) : it;
+        const bool live = it.q0 + warp * 16 < it.n;
+        const int chunks = (it.n + FA_KEYS - 1) / FA_KEYS;
 
         uint32_t qf[DK][4];
         float o[DN][4];
@@ -2841,18 +2857,29 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
             for (int e = 0; e < 4; e++) o[j][e] = 0.0f;
         float m[2] = {-INFINITY, -INFINITY}, l[2] = {0.0f, 0.0f};
 
-        for (int c = 0, b = 0; c < chunks; c++, b = b == 2 ? 0 : b + 1) {
+        for (int c = 0; c < chunks; c++, b = b == 2 ? 0 : b + 1) {
             const int c0 = c * FA_KEYS, cn = min(FA_KEYS, it.n - c0);
             cp_async_wait<1>();
             // Chunk c is in, and every warp is done with chunk c - 1, so
             // its buffer takes chunk c + 2.
             __syncthreads();
-            if (c + 2 < chunks) load_chunk(b == 0 ? 2 : b - 1, c0 + 2 * FA_KEYS);
-            cp_async_commit();
             if (c == 0)
 #pragma unroll
                 for (int k = 0; k < DK; k++)
                     ldsm_x4(qf[k], Qs + (warp * 16 + (lane & 15)) * LD + k * 16 + (lane >> 4) * 8);
+            const int b1 = b == 2 ? 0 : b + 1, b2 = b == 0 ? 2 : b - 1;
+            if (c + 2 < chunks) {
+                load_chunk(it, b2, c0 + 2 * FA_KEYS);
+            } else if (c + 1 == chunks && more) {
+                // Qs is free once every warp has its fragments: at the
+                // barrier above past chunk 0, after one more at it.
+                if (chunks == 1) __syncthreads();
+                load_q(nx);
+                load_chunk(nx, b1, 0);
+                cp_async_commit();
+                if (nx.n > FA_KEYS) load_chunk(nx, b2, FA_KEYS);
+            }
+            cp_async_commit();
             if (live) {
                 const __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
                 const float *kb = kbs + b * FA_KEYS;
@@ -2862,25 +2889,28 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
                     fa_chunk<D, false>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
             }
         }
-        cp_async_wait<0>();
-        if (!live) continue;
+        if (live) {
 #pragma unroll
-        for (int h = 0; h < 2; h++) {
-            l[h] += __shfl_xor_sync(FULL, l[h], 1);
-            l[h] += __shfl_xor_sync(FULL, l[h], 2);
+            for (int h = 0; h < 2; h++) {
+                l[h] += __shfl_xor_sync(FULL, l[h], 1);
+                l[h] += __shfl_xor_sync(FULL, l[h], 2);
+            }
+            const float inv[2] = {1.0f / l[0], 1.0f / l[1]};
+            __half *ctx = static_cast<__half *>(a.ctx);
+#pragma unroll
+            for (int h = 0; h < 2; h++) {
+                const int q = it.q0 + warp * 16 + (lane >> 2) + h * 8;
+                if (q >= it.n) continue;
+                __half *dst = ctx + (size_t)(it.base + q) * a.hidden + it.head * D + (lane & 3) * 2;
+#pragma unroll
+                for (int j = 0; j < DN; j++)
+                    *reinterpret_cast<__half2 *>(dst + j * 8) =
+                        __floats2half2_rn(o[j][2 * h] * inv[h], o[j][2 * h + 1] * inv[h]);
+            }
         }
-        const float inv[2] = {1.0f / l[0], 1.0f / l[1]};
-        __half *ctx = static_cast<__half *>(a.ctx);
-#pragma unroll
-        for (int h = 0; h < 2; h++) {
-            const int q = it.q0 + warp * 16 + (lane >> 2) + h * 8;
-            if (q >= it.n) continue;
-            __half *dst = ctx + (size_t)(it.base + q) * a.hidden + it.head * D + (lane & 3) * 2;
-#pragma unroll
-            for (int j = 0; j < DN; j++)
-                *reinterpret_cast<__half2 *>(dst + j * 8) =
-                    __floats2half2_rn(o[j][2 * h] * inv[h], o[j][2 * h + 1] * inv[h]);
-        }
+        if (!more) break;
+        item = next;
+        it = nx;
     }
 #else
     (void)a;
