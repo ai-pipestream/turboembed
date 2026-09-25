@@ -21,8 +21,16 @@ namespace turbo_cuda {
 /* The attention kernels: the FMA kernel of register tiles or of keys
  * split among warps (F32, and F16 without the tensor cores' attention),
  * and the tensor cores' kernel of 64 or 128 queries to a block (F16 on
- * heads of 32 or 64). */
-enum AttnVariant : int { ATT_FMA_TILED = 0, ATT_FMA_SPLIT = 1, ATT_MMA_64 = 2, ATT_MMA_128 = 3 };
+ * heads of 32 or 64), the latter also with its earlier softmax of
+ * exp2f, or at heads of 32 with 32 queries to each of four warps. */
+enum AttnVariant : int {
+    ATT_FMA_TILED = 0,
+    ATT_FMA_SPLIT = 1,
+    ATT_MMA_64 = 2,
+    ATT_MMA_128 = 3,
+    ATT_MMA_128_EXACT = 4,
+    ATT_MMA_128_FA32 = 5, /* heads of 32 only: 32 queries to a warp, four warps */
+};
 
 /* The attention output and second feed-forward GEMMs' LayerNorm: a kernel
  * of its own after the product, or in the GEMM's epilogue. */
@@ -82,15 +90,13 @@ constexpr TileName TILE_NAMES[] = {
     {"f16k3", TILE_F16_WHOLE_K_3, true},
     {"f16krow", TILE_F16_WHOLE_K_ROWS, true},
     {"f16k256", TILE_F16_WHOLE_K_256, true},
-    {"f16k2", TILE_F16_WHOLE_K_2, true},
 };
 
 /* Whether a tile sums F16 products in F16 accumulators: over each 64
  * terms of k, or over the whole of a block's k. */
 inline bool f16_accumulates(Tile t) {
     return t == TILE_EIGHT_WARPS_F16_ACCUMULATE || t == TILE_SWIZZLED_8W_F16_ACCUMULATE || t == TILE_F16_WHOLE_K ||
-           t == TILE_F16_WHOLE_K_3 || t == TILE_F16_WHOLE_K_ROWS || t == TILE_F16_WHOLE_K_256 ||
-           t == TILE_F16_WHOLE_K_2;
+           t == TILE_F16_WHOLE_K_3 || t == TILE_F16_WHOLE_K_ROWS || t == TILE_F16_WHOLE_K_256;
 }
 
 /* What a choice was fixed by, rather than left to the defaults: a bit per
@@ -137,6 +143,10 @@ constexpr const char *KNOB_NAMES[] = {"tile", "sk", "tf32", "attn", "ln", "pool"
 /* Whether every knob of c was forced: each GEMM's tile and stream-K,
  * each bin's attention and LayerNorm, and the pooling. */
 bool all_forced(const Choices &c);
+
+/* Whether every GEMM's tile was forced, in each bin: the tuner has
+ * nothing to time. */
+bool tiles_forced(const Choices &c);
 
 /* The kernels of c as they run in a session of the base shape: each
  * choice a name that runs no kernel of its own (a tile the operands or the

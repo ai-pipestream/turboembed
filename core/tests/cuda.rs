@@ -1256,7 +1256,7 @@ fn whole_row_layer_norm_matches_the_separate_kernel() {
 
 /// FASTEST with F16 accumulators over each 64 terms of k
 /// (TURBO_CUDA_F16_ACCUMULATE=1), and over the whole of k (the tiles
-/// `f16k`, `f16k3`, `f16krow`, `f16k256` and `f16k2`), on a model of MiniLM's widths, the LayerNorm
+/// `f16k`, `f16k3`, `f16krow` and `f16k256`), on a model of MiniLM's widths, the LayerNorm
 /// separate and in the GEMMs: the CPU's vectors within FASTEST's bound
 /// (cosine 0.999), and the same bits when run again.
 #[test]
@@ -1279,16 +1279,10 @@ fn f16_accumulators_hold_fastest_s_bound() {
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
     use turbo::cuda::Tile;
-    for (tile, separate) in [
-        None,
-        Some(Tile::F16WholeK),
-        Some(Tile::F16WholeK3),
-        Some(Tile::F16WholeKRows),
-        Some(Tile::F16WholeK256),
-        Some(Tile::F16WholeK2),
-    ]
-    .into_iter()
-    .flat_map(|tile| [(tile, true), (tile, false)])
+    for (tile, separate) in
+        [None, Some(Tile::F16WholeK), Some(Tile::F16WholeK3), Some(Tile::F16WholeKRows), Some(Tile::F16WholeK256)]
+            .into_iter()
+            .flat_map(|tile| [(tile, true), (tile, false)])
     {
         // The whole-k tiles are the F16 accumulators' experiment too.
         turbo::cuda::use_f16_accumulate(Some(true));
@@ -1467,6 +1461,77 @@ fn wide_attention_matches_the_cpu_at_heads_of_64() {
     attention_matches(&g, &t, 6, 300, &want, "heads of 64");
 }
 
+/// The attention of 128 queries, heads 32 and 64 wide, on rows that fill
+/// its chunks of 64 keys with no masked token (512, 256, 192, 128 and 64
+/// tokens, every chunk taking the path that tests and masks no score)
+/// and on rows with a masked token and a last chunk part full (300, 129,
+/// 65, 63, 17 and 1): the CPU's vectors within FASTEST's bound, with its
+/// default softmax and with TURBO_CUDA_ATTENTION=exact's, which is the
+/// earlier arithmetic; the same bits again; and the two softmaxes within
+/// the bound of each other. At heads of 32, TURBO_CUDA_ATTENTION=fa32's
+/// kernel of 32 queries to a warp gives the default's bits, so its
+/// bound too. Each session reports the kernel it runs.
+#[test]
+fn attention_of_128_queries_matches_on_whole_chunks_and_holes() {
+    let _t = turn();
+    let Some(_) = cuda_device("attention_of_128_queries_matches_on_whole_chunks_and_holes") else { return };
+    for hidden in [64usize, 128] {
+        let mut m = model_manifest();
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(2);
+        m["architecture"]["intermediate"] = json!(2 * hidden);
+        m["embed"]["dim"] = json!(hidden);
+        m["embed"]["max_seq"] = json!(512);
+        m["embed"]["max_batch"] = json!(6);
+        m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+        let mut f = Fixture::new(&format!("cuda-attention-128-{hidden}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(hidden as u64, 2 * hidden as u64));
+        let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+        let cs = Session::create(c.m, Some(&session_desc(6, 512, 0))).unwrap();
+        for (lens, hole) in [(&[512, 256, 192, 128, 64][..], false), (&[300, 129, 65, 63, 17, 1][..], true)] {
+            let t = rows_of(&f.dir, lens, 512, hole);
+            cs.write_tokens(&t.batch(), None).unwrap();
+            let want = cs.run().unwrap().rows();
+            let mut runs = Vec::new();
+            for exact in [false, true] {
+                turbo::cuda::use_exact_attention(Some(exact));
+                let gs = Session::create(g.m, Some(&session_desc(6, 512, TURBO_PRECISION_FASTEST)));
+                turbo::cuda::use_exact_attention(None);
+                let gs = gs.unwrap();
+                let info = gs.info();
+                let choices = field(&info.choices);
+                let attn = if exact { "attn=mma128-exact," } else { "attn=mma128," };
+                assert!(choices.contains(attn), "{choices}");
+                let tol = record::tolerance(info.compute_dtype).unwrap();
+                gs.write_tokens(&t.batch(), None).unwrap();
+                let got = gs.run().unwrap().rows();
+                let what = format!("heads of {}, rows {lens:?}, exact {exact}", hidden / 2);
+                let (cos, abs) = within(&what, &got, &want, tol);
+                println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+                gs.write_tokens(&t.batch(), None).unwrap();
+                assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
+                runs.push((got, tol));
+            }
+            let what = format!("heads of {}, rows {lens:?}, exact against the default", hidden / 2);
+            let (cos, abs) = within(&what, &runs[1].0, &runs[0].0, runs[0].1);
+            println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+            if hidden == 64 {
+                turbo::cuda::use_fa32_attention(Some(true));
+                let gs = Session::create(g.m, Some(&session_desc(6, 512, TURBO_PRECISION_FASTEST)));
+                turbo::cuda::use_fa32_attention(None);
+                let gs = gs.unwrap();
+                let choices = field(&gs.info().choices);
+                assert!(choices.contains("attn=mma128-fa32,"), "{choices}");
+                gs.write_tokens(&t.batch(), None).unwrap();
+                let got = gs.run().unwrap().rows();
+                let what = format!("heads of 32, rows {lens:?}, fa32");
+                within(&what, &got, &want, runs[0].1);
+                assert_eq!(got, runs[0].0, "{what}: the default's bits");
+            }
+        }
+    }
+}
+
 /// The LayerNorm inside the attention output and second feed-forward
 /// GEMMs, which TURBO_CUDA_LAYER_NORM=fused picks, gives the bits of the
 /// separate kernel, the default, at every precision, with every tile
@@ -1640,7 +1705,6 @@ fn the_gemms_match_cublas() {
                     Tile::F16WholeK,
                     Tile::F16WholeK3,
                     Tile::F16WholeK256,
-                    Tile::F16WholeK2,
                 ]
             } else {
                 &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
@@ -1668,7 +1732,6 @@ fn the_gemms_match_cublas() {
                                 | Tile::F16WholeK
                                 | Tile::F16WholeK3
                                 | Tile::F16WholeK256
-                                | Tile::F16WholeK2
                         );
                     let bound = if f16_sums {
                         1e-2
@@ -1693,7 +1756,7 @@ fn the_gemms_match_cublas() {
 /// F16 operands (uniform in [-1, 1]), at MiniLM's shapes for the
 /// benchmark's 1353 tokens and at 8193: F32 accumulators, F16 ones over
 /// each 64 terms of k added in F32, and F16 ones over the whole of a
-/// block's k (`f16k`, `f16k3`, `f16k256`, `f16k2`), with the work shared among as many blocks
+/// block's k (`f16k`, `f16k3`, `f16k256`), with the work shared among as many blocks
 /// as the device holds, and among 7 and 1 (so a block's segment runs to
 /// the whole of k). Each line prints the largest difference relative to
 /// the largest value; the whole-k sums stay within 1e-2 of it, the
@@ -1718,7 +1781,7 @@ fn f16_sums_over_the_whole_of_k_stay_within_their_bound() {
             for (sums, tiles) in [
                 (0, &[Tile::SwizzledEightWarps][..]),
                 (1, &[Tile::SwizzledEightWarpsF16Accumulate][..]),
-                (2, &[Tile::F16WholeK, Tile::F16WholeK3, Tile::F16WholeK256, Tile::F16WholeK2][..]),
+                (2, &[Tile::F16WholeK, Tile::F16WholeK3, Tile::F16WholeK256][..]),
             ] {
                 for &tile in tiles {
                     let (diff, reference) =
@@ -1785,13 +1848,9 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::F16WholeK3,
             Tile::F16WholeKRows,
             Tile::F16WholeK256,
-            Tile::F16WholeK2,
         ] {
             // The whole-k tiles sum in F16, the F16 accumulators' experiment.
-            let whole_k = matches!(
-                tile,
-                Tile::F16WholeK | Tile::F16WholeK3 | Tile::F16WholeKRows | Tile::F16WholeK256 | Tile::F16WholeK2
-            );
+            let whole_k = matches!(tile, Tile::F16WholeK | Tile::F16WholeK3 | Tile::F16WholeKRows | Tile::F16WholeK256);
             turbo::cuda::use_f16_accumulate(whole_k.then_some(true));
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
@@ -2070,9 +2129,7 @@ fn a_whole_k_tile_is_refused_without_its_switch() {
     let make =
         |line: &str| forcing(line, || Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_FASTEST))));
     // (f16k256 is 256 x 128 only for QKV and GELU.)
-    for (gemm, tile) in
-        [("ffn2", "f16k"), ("ffn2", "f16k3"), ("ffn2", "f16krow"), ("ffn1", "f16k256"), ("ffn2", "f16k2")]
-    {
+    for (gemm, tile) in [("ffn2", "f16k"), ("ffn2", "f16k3"), ("ffn2", "f16krow"), ("ffn1", "f16k256")] {
         let line = format!("all:{gemm}={tile}");
         let e = make(&line).err().unwrap();
         assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{line}: {}", e.message);
@@ -2429,6 +2486,31 @@ fn forcing_beats_tuning() {
         assert!(!exact.contains("/tf32"), "{exact}");
     });
     std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// A tuned session whose every GEMM tile is forced has nothing to time:
+/// it reports FORCED, and says so at INFO.
+#[test]
+fn forced_tiles_leave_nothing_to_tune() {
+    let _t = turn();
+    let Some(dev) = cuda_device("forced_tiles_leave_nothing_to_tune") else { return };
+    use turbo::cuda::Tile;
+    let ordinal = Rt::new().info(dev).ordinal;
+    let (f, _) = small_model("cuda-forced-tiles");
+    let (g, lines) = load_logged(&f.dir);
+    let desc = tuned_desc(40, 160, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_ON, 0);
+    let s = caching(None, || {
+        turbo::cuda::use_tile(Some(Tile::T64x64));
+        let s = Session::create(g.m, Some(&desc));
+        turbo::cuda::use_tile(None);
+        s
+    });
+    let info = s.unwrap().info();
+    assert!(turbo::tuning::forced_knobs(&field(&info.choices)).contains(&"tile"));
+    assert_eq!((info.tuned, info.tune_ms), (TURBO_TUNED_FORCED, 0));
+    let want = format!("cuda device {ordinal}: not tuned: every GEMM tile is forced");
+    let lines = lines.lock().unwrap();
+    assert!(lines.iter().any(|(level, l)| *level == 2 && *l == want), "{lines:?}");
 }
 
 /// A variant that cannot launch is skipped: the tuner never chooses it

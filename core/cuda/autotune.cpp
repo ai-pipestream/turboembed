@@ -24,7 +24,7 @@ const char *tile_name(Tile t) {
     return "?";
 }
 
-constexpr const char *ATTN_NAME[] = {"fma-tiled", "fma-split", "mma64", "mma128"};
+constexpr const char *ATTN_NAME[] = {"fma-tiled", "fma-split", "mma64", "mma128", "mma128-exact", "mma128-fa32"};
 constexpr const char *LN_NAME[] = {"separate", "fused"};
 constexpr const char *POOL_NAME[] = {"groups", "columns"};
 
@@ -164,6 +164,13 @@ bool all_forced(const Choices &c) {
     return true;
 }
 
+bool tiles_forced(const Choices &c) {
+    for (int b = 0; b < c.bins; b++)
+        for (uint32_t f : c.bin[b].gemm_forced)
+            if (!(f & KNOB_TILE)) return false;
+    return true;
+}
+
 void canonicalize(const Shape &base, Choices *c) {
     const int d = base.hidden / base.heads;
     const bool mma_attention = base.half && base.tensor_cores && (d == 32 || d == 64);
@@ -179,8 +186,13 @@ void canonicalize(const Shape &base, Choices *c) {
         // attention_kernel_for: the tensor cores' kernel wherever it
         // applies, 128 queries only when asked; else the FMA kernel,
         // split only when asked.
-        if (mma_attention)
-            bc.attention = bc.attention == ATT_MMA_128 ? ATT_MMA_128 : ATT_MMA_64;
+        if (mma_attention && bc.attention == ATT_MMA_128_FA32 && d != 32)
+            bc.attention = ATT_MMA_128;
+        else if (mma_attention)
+            bc.attention = bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT ||
+                                   bc.attention == ATT_MMA_128_FA32
+                               ? bc.attention
+                               : ATT_MMA_64;
         else
             bc.attention = bc.attention == ATT_FMA_SPLIT ? ATT_FMA_SPLIT : ATT_FMA_TILED;
         if (base.hidden > LN_FUSED_MAX_HIDDEN) bc.ln = LN_SEPARATE;
@@ -348,7 +360,7 @@ int gemm_variants(const Shape &base, Variant *out, int cap) {
         // chunk, the block's segment of k, and are never timed.
         for (Tile t : {TILE_64x64, TILE_128x64, TILE_128x128, TILE_128x128_4W, TILE_256x128, TILE_SWIZZLED,
                        TILE_SWIZZLED_256x128, TILE_SWIZZLED_ROWS, TILE_F16_WHOLE_K, TILE_F16_WHOLE_K_3,
-                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256, TILE_F16_WHOLE_K_2})
+                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256})
             add(t, false, false);
         return n;
     }

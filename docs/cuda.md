@@ -94,12 +94,28 @@ partial softmaxes merged in a fixed order), for measuring against the
 default. FASTEST's attention on the tensor cores (heads 32 or 64 wide)
 runs 128 queries to a block of eight warps, so each chunk of keys and
 values in shared memory serves 128 queries; the keys and values go 64
-at a time through two buffers filled by `cp.async`, the next chunk
-loading while this one's products and softmax run, and the softmax is
-taken in base 2 (the scores scaled by the scale times log2 e, `exp2f`
-for `expf`). Heads of 32 fit two blocks to an SM, heads of 64 one. On
-an RTX 4080 SUPER at 32 x 256 full rows it takes 324 µs a pass against
-398 for the earlier kernel of 64 queries to four warps, which
+at a time through three buffers filled by `cp.async`, the next two
+chunks loading while this one's products and softmax run, with one
+barrier to a chunk, and a block loads its next item's queries and first
+two chunks during an item's last. A chunk whose 64 keys are all the
+row's and none masked (every chunk of a full row, all but the last of
+others) takes a path that tests no key against the row's end or the
+mask. The softmax is taken in base 2: the running maximum is of the
+unscaled scores, and each probability is `ex2.approx` of one fused
+multiply-add, the score times the scale times log2 e less the
+maximum's. `ex2.approx` is within 2 ulp of F32, below the F16 rounding
+the probabilities take for P V. `TURBO_CUDA_ATTENTION=exact` keeps the
+earlier softmax, the scores scaled before the maximum is taken and
+`exp2f` for each probability, which gives the earlier bits; the default
+agrees with it within FASTEST's bound. Heads of 32 fit two blocks to an
+SM, heads of 64 one. `TURBO_CUDA_ATTENTION=fa32`, for measuring, gives
+heads of 32 the same kernel with two tiles of 16 queries to a warp over
+four warps, so each fragment of keys and values read from shared memory
+feeds four products in place of two, at two blocks of four warps to an
+SM (shared memory holds it to two). It gives the default's bits; heads
+of 64 keep the default. On an RTX 4080 SUPER at 32 x 256 full rows the
+kernel, with two buffers and `exp2f`, took 324 µs a pass against 398
+for the earlier kernel of 64 queries to four warps, which
 `TURBO_CUDA_ATTENTION=64` still gives; the two round differently, so
 their vectors agree within FASTEST's bound, not bit for bit. `TURBO_CUDA_LAYER_NORM=fused`, read the same way, has the
 N = hidden GEMMs' epilogue run the LayerNorm in place of the default's
@@ -124,8 +140,7 @@ block to an SM; `f16k3` is the same at three stages, two blocks to an SM;
 GEMMs as `swrow` takes them, 64 × 384 whole rows with the residual and
 the LayerNorm in their epilogue (`f16k3`'s tile for hidden states wider
 than 384); `f16k256` is `f16k3` but QKV and GELU at 256 × 128 over
-eight warps of 64 × 64, one block to an SM; `f16k2` is `f16k` at two
-stages, three blocks to an SM.
+eight warps of 64 × 64, one block to an SM.
 Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
 uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
 F32 sums, sums over 64 and whole-k sums side by side, and hold the last
@@ -162,13 +177,15 @@ Each GEMM (`qkv`, `out`, `ffn1`, `ffn2`) names its tile as
 `TURBO_CUDA_TILE` spells it (`acc16-8w` and `acc16-sw8w` being the
 F16 accumulators' eight-warp and swizzled eight-warp tiles), then its
 stream-K (`sk<steps>` or `tiles`), then `/tf32` when it computes in TF32;
-`attn` is `fma-tiled`, `fma-split`, `mma64` or `mma128`; `ln` is
+`attn` is `fma-tiled`, `fma-split`, `mma64`, `mma128`, `mma128-exact`
+or `mma128-fa32`; `ln` is
 `separate` or `fused`; `pool` is `groups` or `columns`. The names are of
 the kernels that run: a tile the session's operands or device do not
 take is reported as the one that runs in its place. `forced=` lists the
 knobs (`tile`, `sk`, `tf32`, `attn`, `ln`, `pool`) the environment
-fixed; `tuned` says `default`, `forced` when every knob was, and
-`measured` or `cache` for a tuned session (below).
+fixed; `tuned` says `default`, `forced` when every knob was or a tuned
+session's every GEMM tile was, and `measured` or `cache` for a tuned
+session (below).
 
 `TURBO_CUDA_CHOICES`, read when a session is made after the switches
 above, forces the items it names, over them: the line a session
@@ -236,7 +253,10 @@ is held that long, so the context's other sessions wait: a server that
 makes sessions while it serves makes them on a context of their own, or
 with tuning off. A session whose GEMMs cuBLAS computes
 (`TURBO_CUDA_CUBLAS`) is not tuned and takes no cached choice: it
-reports `default`, and an INFO line says why.
+reports `default`, and an INFO line says why. Nor is a session whose
+every GEMM's tile is forced (`TURBO_CUDA_TILE`, or `TURBO_CUDA_CHOICES`
+naming each), since the tuner times only tiles: it reports `forced`,
+and an INFO line says so.
 
 A measured session reports `tuned` MEASURED and `tune_ms`, and logs at
 INFO `cuda device 0: kernels chosen in <ms> ms for <n> token bins:

@@ -1319,11 +1319,9 @@ template <int BM, int BN, int STAGES> constexpr size_t swz_gemm_smem() {
     return (size_t)STAGES * (BM + BN) * 64;
 }
 
-/* Three blocks to an SM when three fit in 100 KB (sm_86 and sm_89's
- * most), two when two do. */
+/* Two blocks to an SM when two fit in 100 KB (sm_86 and sm_89's most). */
 template <int BM, int BN, int STAGES> constexpr int swz_min_blocks() {
-    constexpr size_t smem = swz_gemm_smem<BM, BN, STAGES>();
-    return smem <= 32 * 1024 ? 3 : smem <= 49 * 1024 ? 2 : 1;
+    return swz_gemm_smem<BM, BN, STAGES>() <= 49 * 1024 ? 2 : 1;
 }
 
 #ifndef TURBO_NO_MMA
@@ -1967,13 +1965,12 @@ GemmKernel swz_kernel() {
 template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
     constexpr bool wide = EPI == EPI_QKV || gelu_epilogue_of(EPI);
     // F16 sums over the whole of k: 128 x 128 over four warps of 64 x 64,
-    // TensorRT's shape, at four stages (one block to an SM), three (two)
-    // or two (three); 64 x 384, whole rows, over eight warps of 32 x 96
-    // at three stages for the GEMMs with the LayerNorm in their epilogue;
-    // and 256 x 128 over eight warps of 64 x 64 at three stages for QKV
-    // and GELU, their F16 outputs. The others take 128 x 128 at three.
+    // TensorRT's shape, at four stages (one block to an SM) or three (two);
+    // 64 x 384, whole rows, over eight warps of 32 x 96 at three stages
+    // for the GEMMs with the LayerNorm in their epilogue; and 256 x 128
+    // over eight warps of 64 x 64 at three stages for QKV and GELU, their
+    // F16 outputs. The others take 128 x 128 at three.
     if (t == TILE_F16_WHOLE_K) return swz_kernel<128, 128, 2, 2, 4, EPI, TOut, true, true, true>();
-    if (t == TILE_F16_WHOLE_K_2) return swz_kernel<128, 128, 2, 2, 2, EPI, TOut, true, true, true>();
     if constexpr (EPI == EPI_ADD_LN)
         if (t == TILE_F16_WHOLE_K_ROWS) return swz_kernel<64, ROW_LN_WIDTH, 2, 4, 3, EPI, TOut, true, true, true>();
     if constexpr (wide && sizeof(TOut) == 2)
@@ -2044,8 +2041,7 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
         case TILE_F16_WHOLE_K:
         case TILE_F16_WHOLE_K_3:
         case TILE_F16_WHOLE_K_ROWS:
-        case TILE_F16_WHOLE_K_256:
-        case TILE_F16_WHOLE_K_2: return swz_for<TOut, EPI, false>(t);
+        case TILE_F16_WHOLE_K_256: return swz_for<TOut, EPI, false>(t);
         case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
         default: break;
         }
@@ -2727,178 +2723,296 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
 
 
 // The same attention, 128 queries to a block of eight warps (a warp per
-// 16), so each chunk of keys and values in shared memory serves twice
-// the queries. Keys and values go 64 at a time through two buffers
-// filled by cp.async, the next chunk's in flight while this one's
-// products and softmax run. The softmax is in base 2: the scores are
-// scaled by scale x log2(e) once and exp2f takes the place of expf (the
-// key bias is 0 or -1e30, the same in either base). Only rows whose
-// items the pack puts first, longest first, change the schedule, not
-// the sums: each query's keys go in position order, 64 at a time.
+// 16), so each chunk of keys and values in shared memory serves twice the
+// queries. Keys and values go 64 at a time through three buffers filled
+// by cp.async, the next two chunks' in flight while this one's products
+// and softmax run, one barrier to a chunk; the next item's queries and
+// first chunks load during an item's last. The softmax is in base 2:
+// scale x log2(e) goes into each exponent's one multiply-add, and
+// ex2.approx takes the place of expf (a masked key's p is 0, as the key
+// bias of -1e30 makes it in the other kernels). Only rows whose items the
+// pack puts first, longest first, change the schedule, not the sums: each
+// query's keys go in position order, 64 at a time.
+// TURBO_CUDA_ATTENTION=exact keeps the earlier softmax, bit for bit: the
+// scores scaled before the largest is taken, and exp2f.
 
 constexpr int FA_QUERIES = 128, FA_THREADS = 256, FA_KEYS = 64;
 
 template <int D> constexpr size_t fa_smem(int) {
-    return (size_t)(FA_QUERIES + 4 * FA_KEYS) * (D + 8) * sizeof(__half) + 2 * FA_KEYS * sizeof(float);
+    return (size_t)(FA_QUERIES + 6 * FA_KEYS) * (D + 8) * sizeof(__half) + 3 * FA_KEYS * sizeof(float);
 }
 
 template <int D> constexpr int fa_min_blocks() { return fa_smem<D>(0) * 2 <= 96 * 1024 ? 2 : 1; }
 
-template <int D>
-__global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa_kernel(AttnArgs a) {
+/* TURBO_CUDA_ATTENTION=fa32, heads of 32: two tiles of 16 queries to a
+ * warp, the 128 queries over four warps, so each key and value fragment
+ * read feeds four products in place of two. Shared memory holds it to
+ * two blocks to an SM, eight warps; held to 168 registers for three it
+ * spills, so it takes up to 255 for two. */
+constexpr int FA32_THREADS = 128;
+
+#ifndef TURBO_NO_MMA
+// A masked key's score in place of its product, unscaled, as the key
+// bias's -1e30 is scaled: a power of two, so its product with the scale
+// is exact and, while a row has no live key yet, each masked key's p is
+// exactly 1, as it was with the bias; the first live key's rescaling
+// takes them to 0.
+constexpr float FA_MASKED = -0x1p100f;
+
+/* 2^x by ex2.approx alone: within 2 ulp, and 0 for results below 2^-126,
+ * where exp2f takes four instructions to be exact. Each p is rounded to
+ * F16 for P V, far coarser than 2 ulp of F32 down to F16's least normal,
+ * and a result below 2^-24 is 0 in F16 either way. */
+__device__ inline float ex2_approx(float x) {
+    float y;
+    asm("ex2.approx.ftz.f32 %0, %1;\n" : "=f"(y) : "f"(x));
+    return y;
+}
+
+// One chunk of keys for a warp's MT tiles of 16 queries: S = Q K^T,
+// the running softmax, O += P V, each key and value fragment serving
+// every tile. The largest score and m are kept unscaled (the scale is
+// positive), and each p is ex2.approx of one fused multiply-add, s sl2 -
+// m sl2. EXACT (TURBO_CUDA_ATTENTION=exact): the scores are scaled first
+// and the key bias added, and each p is exp2f of the scaled score less
+// m, the arithmetic before either. WHOLE: the chunk's 64 keys are all
+// the row's and none is masked, so no score is tested; the sums are the
+// same either way, and a query's are the same at any MT.
+template <int D, int MT, bool WHOLE, bool EXACT>
+__device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], float (&o)[MT][D / 8][4],
+                                         float (&m)[MT][2], float (&l)[MT][2], const __half *Ks, const __half *Vs,
+                                         const float *kb, int cn, int holes, float sl2, int lane) {
+    constexpr int LD = D + 8, DK = D / 16, DN = D / 8;
+    float s[MT][8][4];
+#pragma unroll
+    for (int t = 0; t < MT; t++)
+#pragma unroll
+        for (int j = 0; j < 8; j++)
+#pragma unroll
+            for (int e = 0; e < 4; e++) s[t][j][e] = 0.0f;
+#pragma unroll
+    for (int k = 0; k < DK; k++)
+#pragma unroll
+        for (int j = 0; j < 4; j++) {
+            uint32_t r[4];
+            ldsm_x4(r, Ks + (j * 16 + (lane >> 4) * 8 + (lane & 7)) * LD + k * 16 + ((lane >> 3) & 1) * 8);
+#pragma unroll
+            for (int t = 0; t < MT; t++) {
+                mma16816(s[t][2 * j], qf[t][k], r[0], r[1]);
+                mma16816(s[t][2 * j + 1], qf[t][k], r[2], r[3]);
+            }
+        }
+    float corr[MT][2];
+#pragma unroll
+    for (int t = 0; t < MT; t++) {
+        float mx[2] = {m[t][0], m[t][1]};
+#pragma unroll
+        for (int j = 0; j < 8; j++)
+#pragma unroll
+            for (int e = 0; e < 4; e++) {
+                float v = EXACT ? s[t][j][e] * sl2 : s[t][j][e];
+                if constexpr (!WHOLE) {
+                    const int key = j * 8 + (lane & 3) * 2 + (e & 1);
+                    if (key >= cn)
+                        v = -INFINITY;
+                    else if (EXACT && holes)
+                        v += kb[key];
+                    else if (!EXACT && holes && kb[key] != 0.0f)
+                        v = FA_MASKED;
+                }
+                s[t][j][e] = v;
+                mx[e >> 1] = fmaxf(mx[e >> 1], v);
+            }
+#pragma unroll
+        for (int h = 0; h < 2; h++) {
+            mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 1));
+            mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 2));
+        }
+        float nm[2];
+#pragma unroll
+        for (int h = 0; h < 2; h++) {
+            corr[t][h] = EXACT ? exp2f(m[t][h] - mx[h]) : ex2_approx((m[t][h] - mx[h]) * sl2);
+            nm[h] = EXACT ? -mx[h] : -mx[h] * sl2;
+        }
+        float sum[2] = {0.0f, 0.0f};
+#pragma unroll
+        for (int j = 0; j < 8; j++)
+#pragma unroll
+            for (int e = 0; e < 4; e++) {
+                s[t][j][e] =
+                    EXACT ? exp2f(s[t][j][e] + nm[e >> 1]) : ex2_approx(fmaf(s[t][j][e], sl2, nm[e >> 1]));
+                sum[e >> 1] += s[t][j][e];
+            }
+#pragma unroll
+        for (int h = 0; h < 2; h++) {
+            l[t][h] = l[t][h] * corr[t][h] + sum[h];
+            m[t][h] = mx[h];
+        }
+#pragma unroll
+        for (int j = 0; j < DN; j++) {
+            o[t][j][0] *= corr[t][0];
+            o[t][j][1] *= corr[t][0];
+            o[t][j][2] *= corr[t][1];
+            o[t][j][3] *= corr[t][1];
+        }
+    }
+#pragma unroll
+    for (int kk = 0; kk < 4; kk++) {
+        uint32_t pa[MT][4];
+#pragma unroll
+        for (int t = 0; t < MT; t++) {
+            pa[t][0] = pack_half2(s[t][2 * kk][0], s[t][2 * kk][1]);
+            pa[t][1] = pack_half2(s[t][2 * kk][2], s[t][2 * kk][3]);
+            pa[t][2] = pack_half2(s[t][2 * kk + 1][0], s[t][2 * kk + 1][1]);
+            pa[t][3] = pack_half2(s[t][2 * kk + 1][2], s[t][2 * kk + 1][3]);
+        }
+#pragma unroll
+        for (int j = 0; j < D / 16; j++) {
+            uint32_t r[4];
+            ldsm_x4_trans(r, Vs + (kk * 16 + (lane & 7) + ((lane >> 3) & 1) * 8) * LD + j * 16 + (lane >> 4) * 8);
+#pragma unroll
+            for (int t = 0; t < MT; t++) {
+                mma16816(o[t][2 * j], pa[t], r[0], r[1]);
+                mma16816(o[t][2 * j + 1], pa[t], r[2], r[3]);
+            }
+        }
+    }
+}
+#endif
+
+template <int D, bool EXACT, int MT>
+__global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 ? fa_min_blocks<D>() : 2))
+    attention_fa_kernel(AttnArgs a) {
 #ifndef TURBO_NO_MMA
     constexpr int LD = D + 8, DK = D / 16, DN = D / 8, CH = D / 8; // CH: 16-byte chunks of a row
+    constexpr int NT = FA_THREADS / MT, WQ = 16 * MT;               // threads, and each warp's queries
     extern __shared__ __align__(16) unsigned char att_sm[];
     __half *Qs = reinterpret_cast<__half *>(att_sm);
     __half *KV = Qs + FA_QUERIES * LD; // buffer b: K at KV + 2 b FA_KEYS LD, V after it
-    float *kbs = reinterpret_cast<float *>(KV + 4 * FA_KEYS * LD);
+    float *kbs = reinterpret_cast<float *>(KV + 6 * FA_KEYS * LD);
     const int items = a.p.info->items, batch = a.p.info->batch;
     const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
     const __half *qkv = static_cast<const __half *>(a.qkv);
     const size_t hs = (size_t)a.tcap * D;
     const float sl2 = a.scale * 1.4426950408889634f;
+    int item = blockIdx.x;
+    if (item >= items) return;
 
-    for (int item = blockIdx.x; item < items; item += gridDim.x) {
-        const Item it = decode(a, item, batch);
-        const __half *Qg = qkv + (size_t)it.head * hs + (size_t)it.base * D;
-        const __half *Kg = qkv + (size_t)(a.heads + it.head) * hs + (size_t)it.base * D;
-        const __half *Vg = qkv + (size_t)(2 * a.heads + it.head) * hs + (size_t)it.base * D;
-        const bool live = it.q0 + warp * 16 < it.n;
-        const int chunks = (it.n + FA_KEYS - 1) / FA_KEYS;
-        // Keys c0 on into buffer b; the key bias with plain loads, which
-        // the barrier before the chunk's use orders.
-        auto load_chunk = [&](int b, int c0) {
-            __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
-            for (int i = threadIdx.x; i < FA_KEYS * CH; i += FA_THREADS) {
-                const int r = i / CH, c = (i % CH) * 8;
-                const bool in = c0 + r < it.n;
-                cp_async16(Ks + r * LD + c, in ? Kg + (size_t)(c0 + r) * D + c : Kg, in);
-                cp_async16(Vs + r * LD + c, in ? Vg + (size_t)(c0 + r) * D + c : Vg, in);
-            }
-            if (it.holes && threadIdx.x < FA_KEYS && c0 + (int)threadIdx.x < it.n)
-                kbs[b * FA_KEYS + threadIdx.x] = a.p.key_bias[it.base + c0 + threadIdx.x];
-        };
-        __syncthreads(); // the last item's reads of every buffer are done
-        for (int i = threadIdx.x; i < FA_QUERIES * CH; i += FA_THREADS) {
+    // An item's queries into Qs; its keys and values c0 on into buffer
+    // b, and the key bias with plain loads, which the barrier before the
+    // chunk's use orders.
+    auto load_q = [&](const Item &x) {
+        const __half *Qg = qkv + (size_t)x.head * hs + (size_t)x.base * D;
+        for (int i = threadIdx.x; i < FA_QUERIES * CH; i += NT) {
             const int r = i / CH, c = (i % CH) * 8;
-            const bool in = it.q0 + r < it.n;
-            cp_async16(Qs + r * LD + c, in ? Qg + (size_t)(it.q0 + r) * D + c : Qg, in);
+            const bool in = x.q0 + r < x.n;
+            cp_async16(Qs + r * LD + c, in ? Qg + (size_t)(x.q0 + r) * D + c : Qg, in);
         }
-        load_chunk(0, 0);
-        cp_async_commit();
+    };
+    auto load_chunk = [&](const Item &x, int b, int c0) {
+        const __half *Kg = qkv + (size_t)(a.heads + x.head) * hs + (size_t)x.base * D;
+        const __half *Vg = Kg + (size_t)a.heads * hs;
+        __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
+        for (int i = threadIdx.x; i < FA_KEYS * CH; i += NT) {
+            const int r = i / CH, c = (i % CH) * 8;
+            const bool in = c0 + r < x.n;
+            cp_async16(Ks + r * LD + c, in ? Kg + (size_t)(c0 + r) * D + c : Kg, in);
+            cp_async16(Vs + r * LD + c, in ? Vg + (size_t)(c0 + r) * D + c : Vg, in);
+        }
+        if (x.holes && threadIdx.x < FA_KEYS && c0 + (int)threadIdx.x < x.n)
+            kbs[b * FA_KEYS + threadIdx.x] = a.p.key_bias[x.base + c0 + threadIdx.x];
+    };
 
-        uint32_t qf[DK][4];
-        float o[DN][4];
-#pragma unroll
-        for (int j = 0; j < DN; j++)
-#pragma unroll
-            for (int e = 0; e < 4; e++) o[j][e] = 0.0f;
-        float m[2] = {-INFINITY, -INFINITY}, l[2] = {0.0f, 0.0f};
+    // The chunks of the block's items run on as one sequence, chunk c of
+    // it in buffer c mod 3, and each group of loads committed is one
+    // chunk's (empty where there is none to load): the first item's
+    // queries and first chunk here, and its second; then one at the top
+    // of each chunk, but two at the top of an item's last, the next
+    // item's queries and first chunk, and its second.
+    Item it = decode(a, item, batch);
+    load_q(it);
+    load_chunk(it, 0, 0);
+    cp_async_commit();
+    if (it.n > FA_KEYS) load_chunk(it, 1, FA_KEYS);
+    cp_async_commit();
+    for (int b = 0;;) {
+        const int next = item + gridDim.x;
+        const bool more = next < items;
+        const Item nx = more ? decode(a, next, batch) : it;
+        const bool live = it.q0 + warp * WQ < it.n;
+        const int chunks = (it.n + FA_KEYS - 1) / FA_KEYS;
 
-        for (int c = 0; c < chunks; c++) {
-            const int b = c & 1, c0 = c * FA_KEYS, cn = min(FA_KEYS, it.n - c0);
-            if (c + 1 < chunks) load_chunk(b ^ 1, c0 + FA_KEYS);
-            cp_async_commit();
+        uint32_t qf[MT][DK][4];
+        float o[MT][DN][4], m[MT][2], l[MT][2];
+#pragma unroll
+        for (int t = 0; t < MT; t++) {
+#pragma unroll
+            for (int j = 0; j < DN; j++)
+#pragma unroll
+                for (int e = 0; e < 4; e++) o[t][j][e] = 0.0f;
+            m[t][0] = m[t][1] = -INFINITY;
+            l[t][0] = l[t][1] = 0.0f;
+        }
+
+        for (int c = 0; c < chunks; c++, b = b == 2 ? 0 : b + 1) {
+            const int c0 = c * FA_KEYS, cn = min(FA_KEYS, it.n - c0);
             cp_async_wait<1>();
+            // Chunk c is in, and every warp is done with chunk c - 1, so
+            // its buffer takes chunk c + 2.
             __syncthreads();
             if (c == 0)
 #pragma unroll
-                for (int k = 0; k < DK; k++)
-                    ldsm_x4(qf[k], Qs + (warp * 16 + (lane & 15)) * LD + k * 16 + (lane >> 4) * 8);
+                for (int t = 0; t < MT; t++)
+#pragma unroll
+                    for (int k = 0; k < DK; k++)
+                        ldsm_x4(qf[t][k], Qs + (warp * WQ + t * 16 + (lane & 15)) * LD + k * 16 + (lane >> 4) * 8);
+            const int b1 = b == 2 ? 0 : b + 1, b2 = b == 0 ? 2 : b - 1;
+            if (c + 2 < chunks) {
+                load_chunk(it, b2, c0 + 2 * FA_KEYS);
+            } else if (c + 1 == chunks && more) {
+                // Qs is free once every warp has its fragments: at the
+                // barrier above past chunk 0, after one more at it.
+                if (chunks == 1) __syncthreads();
+                load_q(nx);
+                load_chunk(nx, b1, 0);
+                cp_async_commit();
+                if (nx.n > FA_KEYS) load_chunk(nx, b2, FA_KEYS);
+            }
+            cp_async_commit();
             if (live) {
                 const __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
                 const float *kb = kbs + b * FA_KEYS;
-                float s[8][4];
+                if (cn == FA_KEYS && !it.holes)
+                    fa_chunk<D, MT, true, EXACT>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+                else
+                    fa_chunk<D, MT, false, EXACT>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+            }
+        }
+        if (live) {
+            __half *ctx = static_cast<__half *>(a.ctx);
 #pragma unroll
-                for (int j = 0; j < 8; j++)
-#pragma unroll
-                    for (int e = 0; e < 4; e++) s[j][e] = 0.0f;
-#pragma unroll
-                for (int k = 0; k < DK; k++)
-#pragma unroll
-                    for (int j = 0; j < 4; j++) {
-                        uint32_t r[4];
-                        ldsm_x4(r, Ks + (j * 16 + (lane >> 4) * 8 + (lane & 7)) * LD + k * 16 + ((lane >> 3) & 1) * 8);
-                        mma16816(s[2 * j], qf[k], r[0], r[1]);
-                        mma16816(s[2 * j + 1], qf[k], r[2], r[3]);
-                    }
-                float mx[2] = {m[0], m[1]};
-#pragma unroll
-                for (int j = 0; j < 8; j++)
-#pragma unroll
-                    for (int e = 0; e < 4; e++) {
-                        const int key = j * 8 + (lane & 3) * 2 + (e & 1);
-                        float v = s[j][e] * sl2;
-                        if (key >= cn)
-                            v = -INFINITY;
-                        else if (it.holes)
-                            v += kb[key];
-                        s[j][e] = v;
-                        mx[e >> 1] = fmaxf(mx[e >> 1], v);
-                    }
+            for (int t = 0; t < MT; t++) {
 #pragma unroll
                 for (int h = 0; h < 2; h++) {
-                    mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 1));
-                    mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 2));
+                    l[t][h] += __shfl_xor_sync(FULL, l[t][h], 1);
+                    l[t][h] += __shfl_xor_sync(FULL, l[t][h], 2);
                 }
-                const float corr[2] = {exp2f(m[0] - mx[0]), exp2f(m[1] - mx[1])};
-                float sum[2] = {0.0f, 0.0f};
-#pragma unroll
-                for (int j = 0; j < 8; j++)
-#pragma unroll
-                    for (int e = 0; e < 4; e++) {
-                        s[j][e] = exp2f(s[j][e] - mx[e >> 1]);
-                        sum[e >> 1] += s[j][e];
-                    }
+                const float inv[2] = {1.0f / l[t][0], 1.0f / l[t][1]};
 #pragma unroll
                 for (int h = 0; h < 2; h++) {
-                    l[h] = l[h] * corr[h] + sum[h];
-                    m[h] = mx[h];
-                }
+                    const int q = it.q0 + warp * WQ + t * 16 + (lane >> 2) + h * 8;
+                    if (q >= it.n) continue;
+                    __half *dst = ctx + (size_t)(it.base + q) * a.hidden + it.head * D + (lane & 3) * 2;
 #pragma unroll
-                for (int j = 0; j < DN; j++) {
-                    o[j][0] *= corr[0];
-                    o[j][1] *= corr[0];
-                    o[j][2] *= corr[1];
-                    o[j][3] *= corr[1];
-                }
-#pragma unroll
-                for (int kk = 0; kk < 4; kk++) {
-                    const uint32_t pa[4] = {pack_half2(s[2 * kk][0], s[2 * kk][1]),
-                                            pack_half2(s[2 * kk][2], s[2 * kk][3]),
-                                            pack_half2(s[2 * kk + 1][0], s[2 * kk + 1][1]),
-                                            pack_half2(s[2 * kk + 1][2], s[2 * kk + 1][3])};
-#pragma unroll
-                    for (int j = 0; j < D / 16; j++) {
-                        uint32_t r[4];
-                        ldsm_x4_trans(r, Vs + (kk * 16 + (lane & 7) + ((lane >> 3) & 1) * 8) * LD + j * 16 +
-                                             (lane >> 4) * 8);
-                        mma16816(o[2 * j], pa, r[0], r[1]);
-                        mma16816(o[2 * j + 1], pa, r[2], r[3]);
-                    }
+                    for (int j = 0; j < DN; j++)
+                        *reinterpret_cast<__half2 *>(dst + j * 8) =
+                            __floats2half2_rn(o[t][j][2 * h] * inv[h], o[t][j][2 * h + 1] * inv[h]);
                 }
             }
-            __syncthreads(); // buffer b is free for chunk c + 2
         }
-        cp_async_wait<0>();
-        if (!live) continue;
-#pragma unroll
-        for (int h = 0; h < 2; h++) {
-            l[h] += __shfl_xor_sync(FULL, l[h], 1);
-            l[h] += __shfl_xor_sync(FULL, l[h], 2);
-        }
-        const float inv[2] = {1.0f / l[0], 1.0f / l[1]};
-        __half *ctx = static_cast<__half *>(a.ctx);
-#pragma unroll
-        for (int h = 0; h < 2; h++) {
-            const int q = it.q0 + warp * 16 + (lane >> 2) + h * 8;
-            if (q >= it.n) continue;
-            __half *dst = ctx + (size_t)(it.base + q) * a.hidden + it.head * D + (lane & 3) * 2;
-#pragma unroll
-            for (int j = 0; j < DN; j++)
-                *reinterpret_cast<__half2 *>(dst + j * 8) =
-                    __floats2half2_rn(o[j][2 * h] * inv[h], o[j][2 * h + 1] * inv[h]);
-        }
+        if (!more) break;
+        item = next;
+        it = nx;
     }
 #else
     (void)a;
@@ -2954,8 +3068,13 @@ AttnKernel attention_kernel_for(const Shape &s) {
     const int d = s.hidden / s.heads;
     if (s.half && s.tensor_cores && (d == 32 || d == 64)) {
         if (s.wide_attention) {
-            if (d == 32) return {attention_fa_kernel<32>, FA_THREADS, fa_smem<32>, FA_QUERIES, FA_KEYS};
-            return {attention_fa_kernel<64>, FA_THREADS, fa_smem<64>, FA_QUERIES, FA_KEYS};
+            if (d == 32 && s.fa32)
+                return {attention_fa_kernel<32, false, 2>, FA32_THREADS, fa_smem<32>, FA_QUERIES, FA_KEYS};
+            if (d == 32)
+                return {s.exact_exp2 ? attention_fa_kernel<32, true, 1> : attention_fa_kernel<32, false, 1>, FA_THREADS,
+                        fa_smem<32>, FA_QUERIES, FA_KEYS};
+            return {s.exact_exp2 ? attention_fa_kernel<64, true, 1> : attention_fa_kernel<64, false, 1>, FA_THREADS,
+                    fa_smem<64>, FA_QUERIES, FA_KEYS};
         }
         if (d == 32) return {attention_mma_kernel<32>, MMA_ATT_THREADS, mma_smem<32>, MMA_QUERIES, 256};
         return {attention_mma_kernel<64>, MMA_ATT_THREADS, mma_smem<64>, MMA_QUERIES, 256};

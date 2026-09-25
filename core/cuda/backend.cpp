@@ -1068,6 +1068,8 @@ std::atomic<int> cublas_override{-1};
 std::atomic<int> tile_override{-1};
 std::atomic<int> split_attention_override{-1};
 std::atomic<int> wide_attention_override{-1};
+std::atomic<int> exact_attention_override{-1};
+std::atomic<int> fa32_attention_override{-1};
 std::atomic<int> tf32_override{-1};
 std::atomic<int> f16_accumulate_override{-1};
 std::atomic<int> separate_ln_override{-1};
@@ -1126,6 +1128,35 @@ bool wide_attention_named(bool *forced) {
     const char *v = getenv("TURBO_CUDA_ATTENTION");
     *forced = *forced || v;
     return !(v && !strcmp(v, "64"));
+}
+
+/* TURBO_CUDA_ATTENTION=exact: the attention of 128 queries with its
+ * earlier softmax, exp2f on scores scaled before the largest is taken,
+ * in place of ex2.approx with the scale in the exponent's multiply-add.
+ * It gives the earlier bits, for comparing against the default. */
+bool exact_attention_named(bool *forced) {
+    const int o = overridden(exact_attention_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
+    const char *v = getenv("TURBO_CUDA_ATTENTION");
+    *forced = *forced || v;
+    return v && !strcasecmp(v, "exact");
+}
+
+/* TURBO_CUDA_ATTENTION=fa32: at heads of 32, the attention of 128
+ * queries with 32 queries to each of four warps, for measuring against
+ * the default; the same bits. Heads of 64 keep the default. */
+bool fa32_attention_named(bool *forced) {
+    const int o = overridden(fa32_attention_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
+    const char *v = getenv("TURBO_CUDA_ATTENTION");
+    *forced = *forced || v;
+    return v && !strcasecmp(v, "fa32");
 }
 
 /* TURBO_CUDA_TF32=1 puts MODEL's F32 GEMMs on the tensor cores as TF32;
@@ -1304,6 +1335,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
     const bool sk_forced = sk_named(&sk);
     bool attn_forced = false;
     const bool split = split_attention_named(&attn_forced), wide = wide_attention_named(&attn_forced);
+    const bool exact = exact_attention_named(&attn_forced), fa32 = fa32_attention_named(&attn_forced);
     bool ln_forced = false, pool_forced = false;
     const bool separate = separate_ln_named(&ln_forced);
     const bool columns = column_pool_named(&pool_forced);
@@ -1327,7 +1359,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
         }
         if (attn_forced) {
             if (mma_attention(base))
-                bc.attention = wide ? ATT_MMA_128 : ATT_MMA_64;
+                bc.attention = !wide ? ATT_MMA_64 : fa32 ? ATT_MMA_128_FA32 : exact ? ATT_MMA_128_EXACT : ATT_MMA_128;
             else
                 bc.attention = split ? ATT_FMA_SPLIT : ATT_FMA_TILED;
             bc.forced |= KNOB_ATTN;
@@ -1369,7 +1401,10 @@ Shape shape_for(const Shape &base, const Choices &c, int bin) {
     const BinChoices &bc = c.bin[bin];
     for (int g = 0; g < GEMM_COUNT; g++) sh.gemm[g] = bc.gemm[g];
     sh.split_attention = bc.attention == ATT_FMA_SPLIT;
-    sh.wide_attention = bc.attention == ATT_MMA_128;
+    sh.wide_attention =
+        bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT || bc.attention == ATT_MMA_128_FA32;
+    sh.exact_exp2 = bc.attention == ATT_MMA_128_EXACT;
+    sh.fa32 = bc.attention == ATT_MMA_128_FA32;
     sh.fused_ln = bc.ln == LN_FUSED;
     sh.column_pool = c.pool == POOL_COLUMNS;
     return sh;
@@ -2218,6 +2253,10 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             c->say(LOG_INFO,
                    "cuda device %d: not tuned: TURBO_CUDA_CUBLAS hands GEMMs to cuBLAS, whose kernels are its own",
                    c->ordinal);
+        // The tuner times only GEMM tiles: with every one forced, it has
+        // nothing to time, and the session reports FORCED.
+        const bool untimed = tuned && !cublas && tiles_forced(ch);
+        if (untimed) c->say(LOG_INFO, "cuda device %d: not tuned: every GEMM tile is forced", c->ordinal);
         bool cached = false;
         const bool plain = !forced_knobs(ch) && !tf32 && !f16_accumulate && !cublas;
         if (tuned && tuning->cached && *tuning->cached && plain) {
@@ -2249,7 +2288,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         }
         // ON with a cached choice takes it unmeasured; RETUNE measures
         // against it.
-        const bool measure = tuned && !cublas && !(cached && mode == TURBO_AUTOTUNE_ON);
+        const bool measure = tuned && !cublas && !untimed && !(cached && mode == TURBO_AUTOTUNE_ON);
 
         Session *s = make<Session>();
         s->model = m;
@@ -2419,7 +2458,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             else if (cached)
                 tuning->tuned = TURBO_TUNED_CACHE;
             else
-                tuning->tuned = all_forced(s->choices) ? TURBO_TUNED_FORCED : TURBO_TUNED_DEFAULT;
+                tuning->tuned = untimed || all_forced(s->choices) ? TURBO_TUNED_FORCED : TURBO_TUNED_DEFAULT;
             tuning->tune_ms = found.measured ? tune_ms : 0;
             copy_str(tuning->choices, sizeof tuning->choices, line);
             if (tuning->timings && tuning->timings_len) {
@@ -2920,6 +2959,18 @@ void turbo_cuda_use_split_attention(int32_t split) {
  * 1 the kernel of 128 queries to a block, the default, 0 the kernel of
  * 64 (TURBO_CUDA_ATTENTION=64), -1 to read the variable again. */
 void turbo_cuda_use_wide_attention(int32_t wide) { wide_attention_override.store(wide, std::memory_order_relaxed); }
+
+/* The softmax of the attention of 128 queries in sessions made from now
+ * on: 1 exp2f on scores scaled first (TURBO_CUDA_ATTENTION=exact), 0 the
+ * default's ex2.approx, -1 to read the variable again. */
+void turbo_cuda_use_exact_attention(int32_t exact) {
+    exact_attention_override.store(exact, std::memory_order_relaxed);
+}
+
+/* The attention of 128 queries at heads of 32 in sessions made from now
+ * on: 1 with 32 queries to each of four warps (TURBO_CUDA_ATTENTION=fa32),
+ * 0 the default of 16 to each of eight, -1 to read the variable again. */
+void turbo_cuda_use_fa32_attention(int32_t fa32) { fa32_attention_override.store(fa32, std::memory_order_relaxed); }
 
 /* The LayerNorms of sessions made from now on: 1 a kernel of their own
  * after the GEMM (the default), 0 the GEMM's epilogue
