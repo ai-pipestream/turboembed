@@ -623,6 +623,9 @@ struct Session {
     // projections, the attention context, a projection's output, and the
     // feed-forward block.
     packed_mask: u64,
+    /// At FASTEST with the LayerNorm-fused kernels, x holds the
+    /// embedding output until the last layer writes its own, for the
+    /// pooling; the layers between keep their states in xh alone.
     x: u64,
     /// At FASTEST, x in F16, for the linear layers that read it.
     xh: u64,
@@ -1009,9 +1012,8 @@ impl Session {
 
         // At FASTEST, a projection back to the hidden width with the
         // LayerNorm after it, in one kernel, from F16 act onto the F16
-        // residual stream; false where
-        // that kernel does not run, for a hidden width wider than a group
-        // spans.
+        // residual stream; false where that kernel does not run, for a
+        // hidden width wider than a group spans.
         let fused = |q: &mut Queue, act: u64, n_in: u32, (l, which): (u32, usize), (bias, lnw, lnb), what: &str| {
             let (Some(kln), Some(half)) = (&k.linear_dpas_layer_norm, &self.half) else { return Ok(false) };
             let args = [
