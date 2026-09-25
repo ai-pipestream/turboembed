@@ -23,6 +23,9 @@ const DEPENDS: [&str; 3] = ["cuda/kernels.h", "../include/turbo/turbo.h", "../in
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    if env::var_os("CARGO_FEATURE_LEVELZERO").is_some() {
+        levelzero();
+    }
     if env::var_os("CARGO_FEATURE_CUDA").is_none() {
         return;
     }
@@ -90,6 +93,21 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=cudart");
     println!("cargo:rustc-link-lib=dylib=stdc++");
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib.display());
+}
+
+/// The levelzero backend's kernels, core/levelzero/encoder.cl, compiled to
+/// SPIR-V by clang (TURBO_CLANG, else clang on the PATH, 15 or later) into
+/// OUT_DIR, where the backend includes them. The driver builds them for
+/// the device when a context first needs them.
+fn levelzero() {
+    const SOURCE: &str = "levelzero/encoder.cl";
+    println!("cargo:rerun-if-changed={SOURCE}");
+    println!("cargo:rerun-if-env-changed=TURBO_CLANG");
+    let clang = env::var_os("TURBO_CLANG").unwrap_or_else(|| "clang".into());
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("levelzero_encoder.spv");
+    let mut cmd = Command::new(&clang);
+    cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-c", SOURCE, "-o"]).arg(&out);
+    run(&mut cmd);
 }
 
 fn toolkit_root() -> PathBuf {

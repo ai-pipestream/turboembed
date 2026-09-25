@@ -18,6 +18,8 @@ pub mod bundle;
 pub mod cpu;
 #[cfg(feature = "cuda")]
 pub mod cuda;
+#[cfg(feature = "levelzero")]
+pub mod levelzero;
 pub mod manifest;
 pub mod model;
 pub mod safetensors;
@@ -1162,6 +1164,11 @@ pub unsafe fn model_converted_weights(m: *mut turbo_model) -> Option<Vec<*const 
     #[cfg(feature = "cuda")]
     if std::ptr::eq(m.context.backend, cuda::backend()) {
         return unsafe { cuda::widened(m.raw) }.map(|p| vec![p]);
+    }
+    // So does the levelzero backend.
+    #[cfg(feature = "levelzero")]
+    if std::ptr::eq(m.context.backend, &levelzero::BACKEND) {
+        return unsafe { levelzero::widened(m.raw) }.map(|p| vec![p]);
     }
     None
 }

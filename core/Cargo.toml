@@ -17,8 +17,14 @@ sha2 = "0.10"
 # The Unicode tables upstream tokenizers uses, so the ids match it exactly.
 unicode-normalization-alignments = "0.1.12"
 unicode_categories = "0.1.1"
+# Opens the Level Zero loader at run time, so a machine without it lists
+# no Intel GPU instead of failing to load libturbo.
+libloading = { version = "0.8", optional = true }
 
 [dev-dependencies]
+# The Level Zero loader, which tests/levelzero.rs calls to read device
+# memory from the caller's side.
+libloading = "0.8"
 # The upstream tokenizer sentence-transformers runs through; the tests
 # compare the core's ids with it on the upstream tokenizer.json.
 tokenizers = { version = "0.22", default-features = false, features = ["fancy-regex"] }
@@ -34,3 +40,4 @@ cpu = []
 cuda = []
 # Test-only views of the core's state, never in a release library.
 internals = []
+levelzero = ["dep:libloading"]
