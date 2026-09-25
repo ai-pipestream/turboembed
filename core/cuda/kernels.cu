@@ -1634,9 +1634,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                             if (c < N) {
                                 const float2 wv = __ldg(reinterpret_cast<const float2 *>(g.ln_w + c));
                                 const float2 bv = __ldg(reinterpret_cast<const float2 *>(g.ln_b + c));
-                                const float *a = acc[i][jq * 4 + u] + 2 * h;
-                                y0 = __fadd_rn(__fmul_rn((a[0] - mean[i][h]) * inv[i][h], wv.x), bv.x);
-                                y1 = __fadd_rn(__fmul_rn((a[1] - mean[i][h]) * inv[i][h], wv.y), bv.y);
+                                const float a0 = acc[i][jq * 4 + u][2 * h], a1 = acc[i][jq * 4 + u][2 * h + 1];
+                                y0 = __fadd_rn(__fmul_rn((a0 - mean[i][h]) * inv[i][h], wv.x), bv.x);
+                                y1 = __fadd_rn(__fmul_rn((a1 - mean[i][h]) * inv[i][h], wv.y), bv.y);
                                 if (t < M) *reinterpret_cast<float2 *>(x + (size_t)t * N + c) = make_float2(y0, y1);
                             }
                             const __half2 p = __floats2half2_rn(y0, y1);
