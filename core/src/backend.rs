@@ -306,7 +306,7 @@ pub unsafe fn refuse_field(err: *mut turbo_error, code: i32, field: u32, message
 /// A C string in a fixed buffer, read only up to the buffer's end whether
 /// or not it holds a NUL.
 pub(crate) fn cstr(b: &[c_char]) -> String {
-    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();
     String::from_utf8_lossy(&bytes).into_owned()
 }
 

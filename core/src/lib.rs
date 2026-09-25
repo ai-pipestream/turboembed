@@ -514,7 +514,7 @@ unsafe fn text<'a>(t: turbo_text, what: &str) -> Result<&'a str> {
     if t.ptr.is_null() {
         return Err(Error::new(INVALID_ARGUMENT, format!("{what}: NULL with length {}", t.len)));
     }
-    let bytes = unsafe { std::slice::from_raw_parts(t.ptr as *const u8, t.len as usize) };
+    let bytes = unsafe { std::slice::from_raw_parts(t.ptr.cast::<u8>(), t.len as usize) };
     std::str::from_utf8(bytes).map_err(|e| Error::new(INVALID_UTF8, format!("{what}: {e}")))
 }
 
