@@ -66,6 +66,10 @@ const FFN_LN_BIAS: u32 = 15;
 
 /// Tensors and scratch in one device allocation each start on 256 bytes.
 const DEVICE_ALIGN: usize = 256;
+/// Tokens per group of the LayerNorm kernels, a sub-group each, as
+/// encoder.cl's ROWS; below FEW_TOKENS a group takes one token instead.
+const ROWS: u32 = 8;
+const FEW_TOKENS: u32 = 256;
 /// Work-items per group for the row kernels, as encoder.cl's BLOCK.
 const BLOCK: u32 = 128;
 /// Work-items per group for the elementwise kernels.
@@ -414,9 +418,12 @@ struct Kernels {
     /// The linear layers on the matrix engines, for a session at FASTEST:
     /// F32 activations to F32, F32 to F16, and F16 to F32; then the same
     /// with a group's sub-groups sharing its tile.
-    linear_xmx: Option<[Kernel; 6]>,
+    linear_xmx: Option<[Kernel; 9]>,
     embed_layer_norm: Kernel,
     add_layer_norm: Kernel,
+    /// The same, a group per token, for few tokens.
+    embed_layer_norm_group: Kernel,
+    add_layer_norm_group: Kernel,
     attention: Attention,
     pool: Kernel,
 }
@@ -451,12 +458,17 @@ impl Kernels {
                     c.kernel("linear_xmx_shared", shared)?,
                     c.kernel("linear_xmx_shared_to_half", shared)?,
                     c.kernel("linear_xmx_shared_from_half", shared)?,
+                    c.kernel("linear_xmx_wg", [128, 1, 1])?,
+                    c.kernel("linear_xmx_wg_to_half", [128, 1, 1])?,
+                    c.kernel("linear_xmx_wg_from_half", [128, 1, 1])?,
                 ])
             } else {
                 None
             },
-            embed_layer_norm: c.kernel("embed_layer_norm", row)?,
-            add_layer_norm: c.kernel("add_layer_norm", row)?,
+            embed_layer_norm: c.kernel("embed_layer_norm", [16 * ROWS, 1, 1])?,
+            add_layer_norm: c.kernel("add_layer_norm", [16 * ROWS, 1, 1])?,
+            embed_layer_norm_group: c.kernel("embed_layer_norm_group", row)?,
+            add_layer_norm_group: c.kernel("add_layer_norm_group", row)?,
             attention,
             pool: c.kernel("pool", row)?,
         })
@@ -485,6 +497,13 @@ const XMX_TILE: u32 = 32;
 const XMX_SUBGROUPS: u32 = 4;
 /// Below this many tiles a layer's groups share theirs among sub-groups.
 const XMX_FEW_TILES: u32 = 512;
+/// The XMX kernel that stages its operands through local memory: tiles of
+/// WG_M tokens by WG_N outputs, WG_K terms at a time, as encoder.cl's; it
+/// runs when a layer has at least XMX_WG_TILES of them.
+const WG_M: u32 = 64;
+const WG_N: u32 = 128;
+const WG_K: u32 = 32;
+const XMX_WG_TILES: u32 = 64;
 
 /// The terms each of an XMX group's sub-groups sums: an equal share, a
 /// multiple of 16, of k_len. None when no such share covers k_len
@@ -775,6 +794,8 @@ impl Session {
         // Attention on the matrix engines reads F16 projections and writes
         // an F16 context.
         let half_attention = matches!(k.attention, Attention::Xmx(_));
+        // Few tokens: a group per token keeps each LayerNorm short.
+        let few_tokens = tokens < FEW_TOKENS;
         // A linear layer: `which` of the layer's four weights, for the F16
         // copy at FASTEST, and the F32 weight; its sums split over its
         // terms into `splits` parts; and at FASTEST, which operands.
@@ -805,6 +826,14 @@ impl Session {
                     I32(k_len as i32),
                     I32(xmx_share(k_len).unwrap_or(k_len) as i32),
                 ];
+                // Tiles of 64 x 128 staged through local memory where
+                // there are enough of them to fill the device.
+                let wide = [n_out.div_ceil(WG_N), tokens.div_ceil(WG_M), splits];
+                if k_len.is_multiple_of(WG_K) && wide[0] * wide[1] * wide[2] >= XMX_WG_TILES {
+                    let args =
+                        [args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], I32(0)];
+                    return kx[operands + 6].launch(c, q, what, &args, wide);
+                }
                 // Too few tiles to fill the device: each group's
                 // sub-groups share one.
                 let few = groups[0] * groups[1] * groups[2] < XMX_FEW_TILES;
@@ -847,9 +876,22 @@ impl Session {
             k.linear.launch(c, q, what, &args, groups)
         };
         let add_ln = |q: &mut Queue, bias: u64, lnw: u64, lnb: u64, parts: u32, what: &str| {
-            let args =
-                [Ptr(self.x), Ptr(self.tmp), Ptr(bias), Ptr(lnw), Ptr(lnb), F32(eps), I32(h as i32), I32(parts as i32)];
-            k.add_layer_norm.launch(c, q, what, &args, [tokens, 1, 1])
+            let args = [
+                Ptr(self.x),
+                Ptr(self.tmp),
+                Ptr(bias),
+                Ptr(lnw),
+                Ptr(lnb),
+                F32(eps),
+                I32(h as i32),
+                I32(parts as i32),
+                I32(tokens as i32),
+            ];
+            if few_tokens {
+                k.add_layer_norm_group.launch(c, q, what, &args, [tokens, 1, 1])
+            } else {
+                k.add_layer_norm.launch(c, q, what, &args, [tokens.div_ceil(ROWS), 1, 1])
+            }
         };
 
         let n = self.max_batch as u64 * self.max_seq as u64 * 4;
@@ -872,8 +914,13 @@ impl Session {
             Ptr(self.x),
             Ptr(self.packed_mask),
             Ptr(self.rows),
+            I32(tokens as i32),
         ];
-        k.embed_layer_norm.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1])?;
+        if few_tokens {
+            k.embed_layer_norm_group.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1])?;
+        } else {
+            k.embed_layer_norm.launch(c, q, "the embedding lookup", &args, [tokens.div_ceil(ROWS), 1, 1])?;
+        }
         for l in 0..d.layers {
             let (qkv_w, qkv_b) = self.weights.qkv[l as usize];
             linear(
