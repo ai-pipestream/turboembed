@@ -1362,13 +1362,17 @@ __device__ inline void qkv_store8(const GemmArgs &g, __half *o, size_t col, int 
 }
 #endif
 
-template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB>
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB,
+          bool WHOLE = false>
 __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()))
     gemm_swz_kernel(GemmArgs g) {
 #ifndef TURBO_NO_MMA
     constexpr int NT = WM * WN * 32, WTM = BM / WM, WTN = BN / WN, MI = WTM / 16, NI = WTN / 8;
     constexpr int MMA_K = 32, SLOT = BM * BN, KK = MMA_K / 16;
     constexpr int ACC16_STEPS = 64 / MMA_K;
+    // WHOLE: the F16 accumulators over the whole of a segment's k, with
+    // no F32 sums but the stream-K partial products and their total.
+    static_assert(!WHOLE || ACC16, "whole-k F16 sums are F16 accumulators");
     static_assert(NI % 4 == 0, "F16 stores gather four n8 tiles");
     static_assert(STAGES >= 2, "a pipeline");
     // ADD_LN on a tile of whole rows (N <= BN, which the plan sees to):
@@ -1486,7 +1490,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         if constexpr (!DB) next_stage();
         const int tile = step.x;
         const long long first = (long long)tile * steps;
-        if (step.y & STEP_OPENS) {
+        if (!WHOLE && (step.y & STEP_OPENS)) {
 #pragma unroll
             for (int i = 0; i < MI; i++)
 #pragma unroll
@@ -1512,7 +1516,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             flags = step.y;
             const int k = flags & STEP_K;
             closes = flags & STEP_CLOSES;
-            chunk_done = !ACC16 || closes || (k + 1) % ACC16_STEPS == 0;
+            chunk_done = !ACC16 || closes || (!WHOLE && (k + 1) % ACC16_STEPS == 0);
             const int cur = st;
             if constexpr (!DB) {
                 const __half *as = As + cur * BM * MMA_K, *bs = Bs + cur * BN * MMA_K;
@@ -1578,8 +1582,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
 #pragma unroll
                     for (int h = 0; h < 2; h++) {
                         const float2 v = __half22float2(*reinterpret_cast<const __half2 *>(&hacc[i][j][h]));
-                        acc[i][j][2 * h] += v.x;
-                        acc[i][j][2 * h + 1] += v.y;
+                        // WHOLE: a segment is one chunk, and its sum the product.
+                        acc[i][j][2 * h] = WHOLE ? v.x : acc[i][j][2 * h] + v.x;
+                        acc[i][j][2 * h + 1] = WHOLE ? v.y : acc[i][j][2 * h + 1] + v.y;
                     }
         }
         if (!closes) continue;
@@ -1840,9 +1845,10 @@ GemmKernel mma_kernel() {
             mma_min_blocks<BM, BN, STAGES, TOut>()};
 }
 
-template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB>
+template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB,
+          bool WHOLE = false>
 GemmKernel swz_kernel() {
-    return {gemm_swz_kernel<BM, BN, WM, WN, STAGES, EPI, TOut, ACC16, DB>,
+    return {gemm_swz_kernel<BM, BN, WM, WN, STAGES, EPI, TOut, ACC16, DB, WHOLE>,
             WM * WN * 32,
             swz_gemm_smem<BM, BN, STAGES>(),
             BM,
@@ -1856,6 +1862,10 @@ GemmKernel swz_kernel() {
  * one block to an SM, for GELU; TILE_SWIZZLED_8W the eight-warp mix. */
 template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
     constexpr bool wide = EPI == EPI_QKV || EPI == EPI_GELU;
+    // F16 sums over the whole of k: 128 x 128 over four warps of 64 x 64,
+    // TensorRT's shape, at four stages (one block to an SM) or three (two).
+    if (t == TILE_F16_WHOLE_K) return swz_kernel<128, 128, 2, 2, 4, EPI, TOut, true, true, true>();
+    if (t == TILE_F16_WHOLE_K_3) return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, true, true, true>();
     if constexpr (EPI == EPI_ADD_LN && !ACC16)
         if (t == TILE_SWIZZLED_ROWS) return swz_kernel<64, ROW_LN_WIDTH, 2, 4, 3, EPI, TOut, false, true>();
     if (t == TILE_SWIZZLED_ROWS) t = TILE_SWIZZLED_8W;
@@ -1911,7 +1921,9 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
         case TILE_SWIZZLED:
         case TILE_SWIZZLED_8W:
         case TILE_SWIZZLED_256x128:
-        case TILE_SWIZZLED_ROWS: return swz_for<TOut, EPI, false>(t);
+        case TILE_SWIZZLED_ROWS:
+        case TILE_F16_WHOLE_K:
+        case TILE_F16_WHOLE_K_3: return swz_for<TOut, EPI, false>(t);
         case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
         default: break;
         }
