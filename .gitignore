@@ -22,3 +22,5 @@ __pycache__/
 /target-*/
 # HailoRT writes its log into the directory a program runs in.
 hailort.log
+# Hailo's Dataflow Compiler wheel, which may not be redistributed (bundle/hailo/Dockerfile).
+bundle/hailo/*.whl
