@@ -19,6 +19,8 @@ pub mod cpu;
 #[cfg(feature = "cuda")]
 pub mod cuda;
 pub mod manifest;
+#[cfg(feature = "metal")]
+pub mod metal;
 pub mod model;
 pub mod record;
 pub mod safetensors;
@@ -1186,7 +1188,23 @@ pub unsafe fn model_converted_weights(m: *mut turbo_model) -> Option<Vec<*const 
     if std::ptr::eq(m.context.backend, cuda::backend()) {
         return unsafe { cuda::widened(m.raw) }.map(|p| vec![p]);
     }
+    // So does the Metal backend, into one Metal buffer.
+    #[cfg(feature = "metal")]
+    if std::ptr::eq(m.context.backend, metal::backend()) {
+        return unsafe { metal::widened(m.raw) }.map(|p| vec![p]);
+    }
     None
+}
+
+/// Whether the Metal backend reads the model's weights where the core
+/// holds them. Built only with the `internals` feature.
+///
+/// # Safety
+/// As for model_weights.
+#[cfg(all(feature = "internals", feature = "metal"))]
+pub unsafe fn model_metal_in_place(m: *mut turbo_model) -> Option<bool> {
+    let m = &unsafe { model_handle(m) }.ok()?.inner;
+    std::ptr::eq(m.context.backend, metal::backend()).then(|| unsafe { metal::in_place(m.raw) })
 }
 
 // ---- Tokenizer -----------------------------------------------------------------
