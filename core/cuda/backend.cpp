@@ -1031,9 +1031,9 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // TURBO_CUDA_POOL=columns pools with a thread per column, in place of
 // the default's groups of tokens summed apart.
 //
-// TURBO_CUDA_GELU=erf, read when a session is made, gives FASTEST's GELU
-// erff, as an F32 output's always is, in place of the default's fit
-// (gelu_f16 in kernels.cu); TURBO_CUDA_GELU=poly names the default.
+// TURBO_CUDA_GELU=poly, read when a session is made, gives FASTEST's GELU
+// erf from a fit (gelu_f16 in kernels.cu) in place of the default's erff,
+// which an F32 output's always is; TURBO_CUDA_GELU=erf names the default.
 //
 // TURBO_CUDA_CUBLAS, read when a session is made, hands the GEMMs it names
 // to cuBLAS: a comma-separated list of qkv, out, ffn1 and ffn2, or all.
@@ -1177,13 +1177,13 @@ bool column_pool_named(bool *forced) {
     return v && !strcasecmp(v, "columns");
 }
 
-/* TURBO_CUDA_GELU=erf gives an F16 output's GELU erff; unset or poly,
- * the default's fit. */
+/* TURBO_CUDA_GELU=poly gives an F16 output's GELU the fit; unset or erf,
+ * the default's erff. */
 bool gelu_erf_named() {
     const int o = overridden(gelu_erf_override);
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_GELU");
-    return v && !strcasecmp(v, "erf");
+    return !(v && !strcasecmp(v, "poly"));
 }
 
 /* TURBO_CUDA_SK_STEPS: the GEMMs' fewest k steps per block, a count from
@@ -2943,9 +2943,9 @@ void turbo_cuda_use_f16_accumulate(int32_t f16) { f16_accumulate_override.store(
  * variable again. */
 void turbo_cuda_use_column_pool(int32_t columns) { column_pool_override.store(columns, std::memory_order_relaxed); }
 
-/* FASTEST's GELU in sessions made from now on: 1 erff
- * (TURBO_CUDA_GELU=erf), 0 the default's fit, -1 to read the variable
- * again. */
+/* FASTEST's GELU in sessions made from now on: 1 erff, the default
+ * (TURBO_CUDA_GELU=erf), 0 the fit (TURBO_CUDA_GELU=poly), -1 to read the
+ * variable again. */
 void turbo_cuda_use_gelu_erf(int32_t erf) { gelu_erf_override.store(erf, std::memory_order_relaxed); }
 
 } // extern "C"

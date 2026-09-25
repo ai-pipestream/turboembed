@@ -176,9 +176,10 @@ struct Shape {
     /* The pooling kernel of a thread per column
      * (TURBO_CUDA_POOL=columns), for measuring against the default. */
     bool column_pool = false;
-    /* GELU with erff at an F16 output (EPI_GELU_ERF, TURBO_CUDA_GELU=erf),
-     * for measuring against the default's fit. */
-    bool gelu_erf = false;
+    /* GELU with erff at an F16 output (EPI_GELU_ERF), the default; false
+     * takes the fit (EPI_GELU, TURBO_CUDA_GELU=poly), for measuring against
+     * it. */
+    bool gelu_erf = true;
 };
 
 /* Whether a GEMM of the shape runs on the tensor cores. */
@@ -276,7 +277,8 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 //   GELU: + bias, then GELU with the error function, [tokens, n]: erff
 //        at an F32 output, and at an F16 output erfc from a fit within
 //        2.4e-7 of GELU (gelu_f16 in kernels.cu);
-//   GELU_ERF: GELU with erff at an F16 output too (TURBO_CUDA_GELU=erf);
+//   GELU_ERF: GELU with erff at an F16 output too, the default (GELU takes
+//   the fit there, TURBO_CUDA_GELU=poly);
 //   PLAIN: the bare product, F32, [tokens, n], which add_layer_norm adds;
 //   ADD_LN: out is the hidden states, F32 [tokens, n], n = hidden; each
 //        output becomes out + (product + bias), and once every tile of

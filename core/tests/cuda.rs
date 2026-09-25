@@ -1314,8 +1314,8 @@ fn f16_accumulators_hold_fastest_s_bound() {
     }
 }
 
-/// FASTEST's GELU, erf from a fit by default and erff as
-/// TURBO_CUDA_GELU=erf picks it, gives the CPU's vectors within FASTEST's
+/// FASTEST's GELU, erff by default and erf from a fit as
+/// TURBO_CUDA_GELU=poly picks it, gives the CPU's vectors within FASTEST's
 /// bound either way, in the GEMM's epilogue and after cuBLAS's product
 /// (TURBO_CUDA_CUBLAS=ffn1), and the same bits when run again; MODEL and
 /// EXACT, whose GELU writes F32 and takes erff whatever the switch says,

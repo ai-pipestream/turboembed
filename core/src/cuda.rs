@@ -61,7 +61,8 @@ pub enum Epilogue {
     Gelu = 1,
     /// The bare product, F32.
     Plain = 2,
-    /// GELU with erff at an F16 output too, as TURBO_CUDA_GELU=erf has it.
+    /// GELU with erff at an F16 output too, the default (`Gelu` takes the
+    /// fit there, TURBO_CUDA_GELU=poly).
     GeluErf = 4,
 }
 
@@ -307,10 +308,9 @@ pub fn use_f16_accumulate(f16: Option<bool>) {
     unsafe { turbo_cuda_use_f16_accumulate(f16.map_or(-1, i32::from)) };
 }
 
-/// The GELU of FASTEST sessions made from now on: `Some(true)` erff, as
-/// TURBO_CUDA_GELU=erf picks it, `Some(false)` erf from a fit, the
-/// default, `None` to read the variable again. Built only with
-/// `internals`.
+/// The GELU of FASTEST sessions made from now on: `Some(true)` erff, the
+/// default, `Some(false)` erf from a fit, as TURBO_CUDA_GELU=poly picks
+/// it, `None` to read the variable again. Built only with `internals`.
 #[cfg(feature = "internals")]
 pub fn use_gelu_erf(erf: Option<bool>) {
     unsafe { turbo_cuda_use_gelu_erf(erf.map_or(-1, i32::from)) };
