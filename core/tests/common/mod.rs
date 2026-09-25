@@ -497,7 +497,7 @@ pub fn model_manifest() -> Value {
     let mut m = manifest();
     m["architecture"] = tiny_architecture();
     m["embed"]["dim"] = json!(8);
-    m["artifacts"][0]["backends"] = json!(["cuda", "metal", "cpu"]);
+    m["artifacts"][0]["backends"] = json!(["cuda", "metal", "levelzero", "cpu"]);
     m["files"] = json!([]);
     m
 }
