@@ -427,6 +427,10 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
         int32_t rc = c->queue ? TURBO_OK : refuse(err, TURBO_E_RUNTIME, "newCommandQueue gave none");
         if (rc == TURBO_OK) rc = kernels_for(ordinal, &c->kernels, err);
         // kernels.metal's reductions and matrices take SIMD groups of 32.
+        for (Kernel kk : {GEMM, ATTENTION})
+            if (rc == TURBO_OK && c->kernels->k[kk].maxTotalThreadsPerThreadgroup < 128)
+                rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs the %s kernel in threadgroups of %lu; it needs 128",
+                            ordinal, KERNEL_NAMES[kk], (unsigned long)c->kernels->k[kk].maxTotalThreadsPerThreadgroup);
         if (rc == TURBO_OK && c->kernels->k[GEMM].threadExecutionWidth != 32)
             rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs SIMD groups of %lu threads; the kernels need 32",
                         ordinal, (unsigned long)c->kernels->k[GEMM].threadExecutionWidth);
@@ -857,7 +861,7 @@ int32_t f32_weights(Model *m, turbo_error *err) {
 // columns up to its last live token one after another into the session's
 // shared memory, where the GPU reads them, with each token's column for
 // its position, each row's start and length, and the attention's blocks
-// of 8 queries. Padding past a row's last live token is never computed: no
+// of 32 queries. Padding past a row's last live token is never computed: no
 // output depends on it. The packed tokens are rounded up to a multiple of
 // 32 for the matrix kernels, and those extra tokens are real lookups
 // (token 0 at column 0) whose results no output reads. With one memory
@@ -888,9 +892,8 @@ enum : uint32_t { EPILOGUE_NONE = 0, EPILOGUE_BIAS = 1, EPILOGUE_BIAS_GELU = 2 }
 constexpr uint32_t SPREAD = 128;
 
 /* The packed tokens a batch of `tokens` can take, rounded up to a
- * multiple of 32, with room for attention's last chunk of 32 keys to read
- * past the last token. */
-size_t capacity(size_t tokens) { return round_up(tokens + 31, 32); }
+ * multiple of 32. */
+size_t capacity(size_t tokens) { return round_up(tokens, 32); }
 
 /* Whether attention runs on SIMD-group matrices for this head width. */
 bool wide_heads(uint32_t head_dim) { return head_dim % 8 == 0 && head_dim <= 64; }
@@ -1082,7 +1085,6 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     auto per_token = [&]() {
         [enc dispatchThreadgroups:MTLSizeMake(tokens / 4, 1, 1) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
     };
-    // Up to three layers of one shape, over the same input, in one dispatch.
     // Up to three layers of one shape, over the same input, in one
     // dispatch. A single layer with no epilogue whose tiles would leave
     // most of the GPU idle has its k split, so more threadgroups share the

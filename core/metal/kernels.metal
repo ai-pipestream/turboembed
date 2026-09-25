@@ -8,7 +8,7 @@
 // pos gives a token's column in its row, for its position embedding.
 //
 // The linear layers and attention run on SIMD-group matrices, 8 x 8 F32
-// tiles read straight from device memory, with the next step fused into
+// tiles staged in threadgroup memory, with the next step fused into
 // the linear layers' stores: the bias, or the bias and GELU. LayerNorm and
 // pooling take one SIMD group per token or row.
 //
@@ -176,10 +176,12 @@ kernel void gemm(device const float *x [[buffer(0)]], device const float *w0 [[b
     const bool w0in = n0 + r < n, w1in = n0 + r + 32 < n;
     for (uint k0 = kbegin; k0 < kend; k0 += BK) {
         const bool kin = k0 + c < kend;
-        *(threadgroup float4 *)(xs + r * LD + c) = kin ? *(device const float4 *)(xr + k0) : float4(0.0f);
-        *(threadgroup float4 *)(ws + r * LD + c) = kin && w0in ? *(device const float4 *)(wr0 + k0) : float4(0.0f);
+        // Weights read where the core holds them are 4-byte aligned only.
+        *(threadgroup float4 *)(xs + r * LD + c) = kin ? float4(*(device const packed_float4 *)(xr + k0)) : float4(0.0f);
+        *(threadgroup float4 *)(ws + r * LD + c) =
+            kin && w0in ? float4(*(device const packed_float4 *)(wr0 + k0)) : float4(0.0f);
         *(threadgroup float4 *)(ws + (r + 32) * LD + c) =
-            kin && w1in ? *(device const float4 *)(wr1 + k0) : float4(0.0f);
+            kin && w1in ? float4(*(device const packed_float4 *)(wr1 + k0)) : float4(0.0f);
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint kk = 0; kk < BK; kk += 8) {
             simdgroup_float8x8 a[2], b[4];
@@ -257,7 +259,7 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
     // The group's 32 queries, staged once.
     for (uint e = tid; e < 32 * hd; e += 128) {
         const uint r = e / hd, d = e % hd;
-        qs[r * LDH + d] = q[ulong(p0 + first + r) * h + col + d];
+        qs[r * LDH + d] = first + r < len ? q[ulong(p0 + first + r) * h + col + d] : 0.0f;
     }
 
     simdgroup_float8x8 o[HD_MAX / 8];
@@ -272,9 +274,12 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint e = tid; e < KC * hd; e += 128) {
             const uint r = e / hd, d = e % hd;
+            // Keys past the row's end are staged as 0, so their dropped
+            // scores multiply 0, never what another row left.
+            const bool in = c0 + r < len;
             const ulong at = ulong(p0 + c0 + r) * h + col + d;
-            ks[r * LDH + d] = k[at];
-            vs[r * LDH + d] = v[at];
+            ks[r * LDH + d] = in ? k[at] : 0.0f;
+            vs[r * LDH + d] = in ? v[at] : 0.0f;
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
