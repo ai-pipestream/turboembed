@@ -217,7 +217,8 @@ fn a_record_backs_only_its_own_cell() {
         assert_eq!(verdict(&[&r], &other_arch), Verdict::Not(NO_RECORD.into()));
         let other_backend = Cell { backend: "cuda", ..*cell };
         assert_eq!(verdict(&[&r], &other_backend), Verdict::Not(NO_RECORD.into()));
-        let other_os = Cell { os: "macos", ..*cell };
+        let other = if std::env::consts::OS == "macos" { "linux" } else { "macos" };
+        let other_os = Cell { os: other, ..*cell };
         assert_eq!(verdict(&[&r], &other_os), Verdict::Not(NO_RECORD.into()), "a machine is keyed on its OS too");
         let other_precision = Cell { precision: TURBO_PRECISION_EXACT, ..*cell };
         assert_eq!(verdict(&[&r], &other_precision), Verdict::Not(NO_RECORD.into()));
