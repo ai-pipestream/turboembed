@@ -187,6 +187,11 @@ static LINKED: &[&turbo_backend] = &[
     },
     #[cfg(feature = "levelzero")]
     &crate::levelzero::BACKEND,
+    #[cfg(feature = "metal")]
+    // A table the Objective-C++ side fills at compile time and never writes.
+    unsafe {
+        &crate::metal::turbo_metal_backend
+    },
     #[cfg(feature = "cpu")]
     &crate::cpu::BACKEND,
 ];

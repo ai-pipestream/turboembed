@@ -1,6 +1,9 @@
-//! Builds the CUDA backend (core/cuda/) when the `cuda` feature is on.
-//! docs/cuda.md says what it needs and which
-//! variables it reads:
+//! Embeds the benchmark records (benchmarks/records/*.json) in every
+//! build, and builds the backends written in another language for the
+//! features that are on.
+//!
+//! The CUDA backend (core/cuda/), for `cuda`. docs/cuda.md says what it
+//! needs and which variables it reads:
 //!
 //! - TURBO_CUDA_ROOT: the toolkit's directory, with bin/nvcc, include/ and
 //!   lib64/ (or lib/, targets/<arch>-linux/lib/, or lib/<arch>-linux-gnu/,
@@ -15,12 +18,16 @@
 //! library linked into libturbo, against the toolkit's shared cudart and
 //! cuBLAS, with the toolkit's library directory as a run path.
 //!
-//! With the `levelzero` feature it compiles the levelzero backend's kernels
-//! (core/levelzero/encoder.cl) to SPIR-V with clang, which TURBO_CLANG
-//! names when the one on the PATH is not the one to use (docs/levelzero.md).
+//! The Metal backend (core/metal/), for `metal`, on macOS: its host side
+//! compiled by the Xcode command line tools' clang into a static library
+//! linked into libturbo with the Metal and Foundation frameworks. Its
+//! kernels, core/metal/kernels.metal, go into the library as source, and
+//! Metal compiles them for the device a context is made on. docs/metal.md
+//! says more.
 //!
-//! It also compiles in the benchmark records in benchmarks/records/, with
-//! or without either feature (docs/benchmarks.md).
+//! The levelzero backend's kernels (core/levelzero/), for `levelzero`:
+//! OpenCL C compiled to SPIR-V by clang, which TURBO_CLANG names when the
+//! one on the PATH is not the one to use. docs/levelzero.md says more.
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -32,12 +39,18 @@ const DEPENDS: [&str; 3] = ["cuda/kernels.h", "../include/turbo/turbo.h", "../in
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     records();
+    if env::var_os("CARGO_FEATURE_CUDA").is_some() {
+        cuda();
+    }
     if env::var_os("CARGO_FEATURE_LEVELZERO").is_some() {
         levelzero();
     }
-    if env::var_os("CARGO_FEATURE_CUDA").is_none() {
-        return;
+    if env::var_os("CARGO_FEATURE_METAL").is_some() {
+        metal();
     }
+}
+
+fn cuda() {
     for f in SOURCES.iter().chain(&DEPENDS) {
         println!("cargo:rerun-if-changed={f}");
     }
@@ -133,6 +146,91 @@ fn levelzero() {
     for line in stderr.lines().filter(|l| !l.trim().is_empty()) {
         println!("cargo:warning={line}");
     }
+}
+
+const METAL_SOURCES: [&str; 1] = ["metal/backend.mm"];
+const METAL_DEPENDS: [&str; 3] =
+    ["metal/kernels.metal", "../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
+
+fn metal() {
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("macos") {
+        fail("the metal feature builds only for macOS");
+    }
+    for f in METAL_SOURCES.iter().chain(&METAL_DEPENDS) {
+        println!("cargo:rerun-if-changed={f}");
+    }
+    let sdk = Command::new("xcrun")
+        .args(["--sdk", "macosx", "--show-sdk-version"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| {
+            fail("xcrun --sdk macosx --show-sdk-version failed: the metal feature needs the Xcode command line tools")
+        });
+    let arch = match env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
+        Ok("aarch64") => "arm64",
+        Ok("x86_64") => "x86_64",
+        a => fail(&format!("the metal feature builds for arm64 and x86_64 Macs, not {a:?}")),
+    };
+
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    // The kernels' source as a C string the backend hands to Metal.
+    let kernels = std::fs::read_to_string(manifest.join("metal/kernels.metal")).unwrap();
+    let mut header = String::from("/* Written by build.rs. */\n");
+    header += &format!("#define TURBO_METAL_SDK \"{sdk}\"\n");
+    header += "static const char TURBO_METAL_KERNELS[] =\n";
+    for line in kernels.lines() {
+        header += &format!("    \"{}\\n\"\n", line.replace('\\', "\\\\").replace('"', "\\\""));
+    }
+    header += "    ;\n";
+    std::fs::write(out.join("turbo_metal_build.h"), header).unwrap();
+
+    let clang = Command::new("xcrun")
+        .args(["--sdk", "macosx", "--find", "clang++"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()))
+        .unwrap_or_else(|| fail("xcrun --find clang++ failed: the metal feature needs the Xcode command line tools"));
+    let sysroot = Command::new("xcrun")
+        .args(["--sdk", "macosx", "--show-sdk-path"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| {
+            fail("xcrun --sdk macosx --show-sdk-path failed: the metal feature needs the Xcode command line tools")
+        });
+    let mut objects = Vec::new();
+    for src in METAL_SOURCES {
+        let obj = out.join(Path::new(src).file_name().unwrap()).with_extension("o");
+        run(Command::new(&clang)
+            .args(["-c", "-O2", "-std=gnu++17", "-fobjc-arc", "-fobjc-arc-exceptions", "-fPIC", "-Wall", "-Wextra"])
+            // The oldest macOS with what backend.mm calls and that the
+            // SDK's libc++ still supports; rustc's x86_64 default is older.
+            .args(["-arch", arch, "-mmacosx-version-min=11.0", "-isysroot", &sysroot])
+            .arg("-I")
+            .arg(manifest.join("../include"))
+            .arg("-I")
+            .arg(&out)
+            .arg("-o")
+            .arg(&obj)
+            .arg(manifest.join(src)));
+        objects.push(obj);
+    }
+    let archive = out.join("libturbo_metal.a");
+    let _ = std::fs::remove_file(&archive);
+    run(Command::new("xcrun").args(["ar", "crs"]).arg(&archive).args(&objects));
+
+    println!("cargo:rustc-link-search=native={}", out.display());
+    println!("cargo:rustc-link-lib=static=turbo_metal");
+    println!("cargo:rustc-link-lib=framework=Metal");
+    println!("cargo:rustc-link-lib=framework=Foundation");
+    println!("cargo:rustc-link-lib=dylib=c++");
 }
 
 /// Every `*.json` file in benchmarks/records/ as `EMBEDDED`, its file name

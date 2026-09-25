@@ -42,6 +42,9 @@ cpu = []
 # NVIDIA GPUs through CUDA and cuBLAS: needs the CUDA toolkit to build
 # (build.rs, docs/cuda.md).
 cuda = []
+# Apple GPUs through Metal: needs the Xcode command line tools to build
+# (build.rs, docs/metal.md).
+metal = []
 # Test-only views of the core's state, never in a release library.
 internals = []
 levelzero = ["dep:libloading"]
