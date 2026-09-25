@@ -2680,9 +2680,9 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
 
 // The same attention, 128 queries to a block of eight warps (a warp per
 // 16), so each chunk of keys and values in shared memory serves twice
-// the queries. Keys and values go 64 at a time through two buffers
-// filled by cp.async, the next chunk's in flight while this one's
-// products and softmax run. The softmax is in base 2: scale x log2(e)
+// the queries. Keys and values go 64 at a time through three buffers
+// filled by cp.async, the next two chunks' in flight while this one's
+// products and softmax run, one barrier to a chunk. The softmax is in base 2: scale x log2(e)
 // goes into each exponent's one multiply-add, and exp2f takes the place
 // of expf (a masked key's p is 0, as the key bias of -1e30 makes it in
 // the other kernels). Only rows whose items the pack puts first, longest
@@ -2692,7 +2692,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
 constexpr int FA_QUERIES = 128, FA_THREADS = 256, FA_KEYS = 64;
 
 template <int D> constexpr size_t fa_smem(int) {
-    return (size_t)(FA_QUERIES + 4 * FA_KEYS) * (D + 8) * sizeof(__half) + 2 * FA_KEYS * sizeof(float);
+    return (size_t)(FA_QUERIES + 6 * FA_KEYS) * (D + 8) * sizeof(__half) + 3 * FA_KEYS * sizeof(float);
 }
 
 template <int D> constexpr int fa_min_blocks() { return fa_smem<D>(0) * 2 <= 96 * 1024 ? 2 : 1; }
@@ -2795,7 +2795,7 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
     extern __shared__ __align__(16) unsigned char att_sm[];
     __half *Qs = reinterpret_cast<__half *>(att_sm);
     __half *KV = Qs + FA_QUERIES * LD; // buffer b: K at KV + 2 b FA_KEYS LD, V after it
-    float *kbs = reinterpret_cast<float *>(KV + 4 * FA_KEYS * LD);
+    float *kbs = reinterpret_cast<float *>(KV + 6 * FA_KEYS * LD);
     const int items = a.p.info->items, batch = a.p.info->batch;
     const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
     const __half *qkv = static_cast<const __half *>(a.qkv);
@@ -2830,6 +2830,8 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
         }
         load_chunk(0, 0);
         cp_async_commit();
+        if (chunks > 1) load_chunk(1, FA_KEYS);
+        cp_async_commit();
 
         uint32_t qf[DK][4];
         float o[DN][4];
@@ -2839,12 +2841,14 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
             for (int e = 0; e < 4; e++) o[j][e] = 0.0f;
         float m[2] = {-INFINITY, -INFINITY}, l[2] = {0.0f, 0.0f};
 
-        for (int c = 0; c < chunks; c++) {
-            const int b = c & 1, c0 = c * FA_KEYS, cn = min(FA_KEYS, it.n - c0);
-            if (c + 1 < chunks) load_chunk(b ^ 1, c0 + FA_KEYS);
-            cp_async_commit();
+        for (int c = 0, b = 0; c < chunks; c++, b = b == 2 ? 0 : b + 1) {
+            const int c0 = c * FA_KEYS, cn = min(FA_KEYS, it.n - c0);
             cp_async_wait<1>();
+            // Chunk c is in, and every warp is done with chunk c - 1, so
+            // its buffer takes chunk c + 2.
             __syncthreads();
+            if (c + 2 < chunks) load_chunk(b == 0 ? 2 : b - 1, c0 + 2 * FA_KEYS);
+            cp_async_commit();
             if (c == 0)
 #pragma unroll
                 for (int k = 0; k < DK; k++)
@@ -2857,7 +2861,6 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
                 else
                     fa_chunk<D, false>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
             }
-            __syncthreads(); // buffer b is free for chunk c + 2
         }
         cp_async_wait<0>();
         if (!live) continue;
