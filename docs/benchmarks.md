@@ -491,7 +491,9 @@ token, and all of it without `te_batch_next_size`, or when `/metrics`
 could not be read before the timed requests after warmup requests had
 run. The container is removed when the tool is done with
 it. TEI has no BF16 dtype; a BF16 session
-records it as `not_run`.
+records it as `not_run`. Nor does an F16 session when TEI runs on the
+CPU, which it does for every device but a CUDA one: its CPU image computes float16 in software, many
+times slower than its own float32, so that row would time the emulation.
 
 The command gives no `--auto-truncate`. In TEI's router
 (`router/src/main.rs`) it is a bare flag through 1.8, so a value after

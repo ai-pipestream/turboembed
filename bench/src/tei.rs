@@ -84,12 +84,15 @@ pub struct Tei {
     pub cpus: Option<Cpus>,
 }
 
-/// TEI's --dtype for a compute dtype, or why it has none: it offers
-/// float32 and float16 in its GPU and CPU images.
-pub fn dtype(compute_dtype: u32) -> std::result::Result<&'static str, String> {
+/// TEI's --dtype for a compute dtype, or why it has none. `gpu` is
+/// whether TEI runs on a GPU: its CPU image takes float16 but computes it
+/// in software, many times slower than its own float32, so an F16 row
+/// there would measure the emulation rather than a reference.
+pub fn dtype(compute_dtype: u32, gpu: bool) -> std::result::Result<&'static str, String> {
     match compute_dtype {
         TURBO_DTYPE_F32 => Ok("float32"),
-        TURBO_DTYPE_F16 => Ok("float16"),
+        TURBO_DTYPE_F16 if gpu => Ok("float16"),
+        TURBO_DTYPE_F16 => Err("TEI on the CPU emulates float16 in software; no F16 reference runs there".into()),
         d => Err(format!("TEI has no --dtype for compute dtype {d}")),
     }
 }
@@ -546,7 +549,7 @@ pub fn run(
         compared(m)
     );
     let mut log = Log::default();
-    let dtype = match dtype(m.compute_dtype) {
+    let dtype = match dtype(m.compute_dtype, gpu.is_some()) {
         Ok(d) => d,
         Err(why) => return Ok(not_run(image, log, &procedure, why)),
     };
