@@ -66,7 +66,10 @@ frameworks and libc++, which every macOS has.
   request as about 3 sequential sub-batches: its own `x-inference-time`
   p50 was 609 ms on mixed and 1618 ms on dense, so its time is its
   forward passes on candle Metal (77 to 1067 ms per sub-batch), with
-  HTTP and queueing under 25 ms of it.
+  HTTP and queueing under 25 ms of it. That forward grows steeply with
+  the padded batch, 3 ms for one 12-token row against 400-900 ms for a
+  sub-batch of about 10 rows padded to 256, so the 32-row ratio measures
+  TEI's forward at that shape, not its router.
 - **Contexts.** A context is a command queue on its device and the
   kernels, compiled from their source without fast math, so `exp`,
   `sqrt` and division are the precise ones: with the macOS 15 SDK or
