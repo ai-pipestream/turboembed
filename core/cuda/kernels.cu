@@ -1252,19 +1252,18 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
     }
 }
 
-/* The tensor cores' tiles. The F16 default is cutlass's shape: warps of
- * 64 x 64, so each ldmatrix feeds four MMAs, one block to an SM at three
- * stages of k 32: 256 x 128 over eight warps for GELU (the feed-forward
- * input, the widest), 128 x 128 over four for the others. The eight-warp
- * tiles before it: 128 x 128 at two stages, warps of 32 x 64; 128 x 64
- * at three, warps of 32 x 32 (TF32's default, for every GEMM); and
- * TILE_EIGHT_WARPS, the F16 default they made, 128 x 128 for QKV and
- * GELU and 128 x 64 for the others. 64 x 64, four warps of 32 x 32, at
+/* The tensor cores' tiles. The F16 default is TILE_EIGHT_WARPS: 128 x 128
+ * at two stages over eight warps of 32 x 64 for QKV and GELU, 128 x 64 at
+ * three over eight warps of 32 x 32 for the others (128 x 64 is also
+ * TF32's default, for every GEMM). Cutlass's shape, warps of 64 x 64 so
+ * each ldmatrix feeds four MMAs, one block to an SM at three stages of
+ * k 32, is selectable: 256 x 128 over eight warps and 128 x 128 over
+ * four; on an RTX 4080 it is slower than the eight-warp tiles. 64 x 64, four warps of 32 x 32, at
  * four stages. An F32 output tile of 256 x 128 does not fit shared
  * memory, so such a GEMM takes 128 x 128 over four warps instead. */
 template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
     constexpr bool f16 = sizeof(TIn) == 2, wide = EPI == EPI_QKV || EPI == EPI_GELU;
-    if (t == TILE_DEFAULT && f16) t = EPI == EPI_GELU ? TILE_256x128 : TILE_128x128_4W;
+    if (t == TILE_DEFAULT && f16) t = TILE_EIGHT_WARPS;
     if (t == TILE_EIGHT_WARPS) t = wide && f16 ? TILE_128x128 : TILE_128x64;
     if (t == TILE_256x128 && sizeof(TOut) == 4) t = TILE_128x128_4W;
     switch (t) {
