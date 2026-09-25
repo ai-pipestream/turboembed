@@ -31,10 +31,12 @@
 #include <cstring>
 #include <mutex>
 #include <new>
+#include <string>
 #include <strings.h>
 #include <utility>
 #include <vector>
 
+#include "autotune.h"
 #include "kernels.h"
 
 /* TURBO_CUDA_ARCHS: the architectures build.rs compiled for, as
@@ -1046,121 +1048,153 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 /* The GEMMs TURBO_CUDA_CUBLAS may name. */
 enum : unsigned { CUBLAS_QKV = 1, CUBLAS_OUT = 2, CUBLAS_FFN1 = 4, CUBLAS_FFN2 = 8 };
 
-/* What the tests set in place of TURBO_CUDA_CUBLAS; -1 for the variable. */
+// ---- Choices from the environment ------------------------------------------------
+//
+// Each switch below is read when a session is made. The tests set an
+// override in place of each variable (turbo_cuda_use_*), -1 to read the
+// variable again. A switch that is set forces its knob in every token
+// bin; one that is not leaves the knob to the defaults.
+
 std::atomic<int> cublas_override{-1};
-
-/* What the tests set in place of TURBO_CUDA_TILE; -1 for the variable. */
 std::atomic<int> tile_override{-1};
+std::atomic<int> split_attention_override{-1};
+std::atomic<int> wide_attention_override{-1};
+std::atomic<int> tf32_override{-1};
+std::atomic<int> f16_accumulate_override{-1};
+std::atomic<int> separate_ln_override{-1};
+std::atomic<int> column_pool_override{-1};
+/* In place of TURBO_CUDA_SK_STEPS: 0 the kernels' own, 1 to 64 steps,
+ * SK_OVERRIDE_TILES whole tiles; -1 for the variable. */
+std::atomic<int> sk_override{-1};
+constexpr int SK_OVERRIDE_TILES = -2;
 
-Tile tile_named() {
-    const int o = tile_override.load(std::memory_order_relaxed);
-    if (o >= 0) return (Tile)o;
+int overridden(const std::atomic<int> &o) { return o.load(std::memory_order_relaxed); }
+
+/* TURBO_CUDA_TILE by name; TILE_DEFAULT, not forced, when unset or not a
+ * name it takes. The F16 accumulators' eight-warp tiles are
+ * TURBO_CUDA_F16_ACCUMULATE's; a whole-k tile it names (f16k, f16k3) sets
+ * that experiment as the switch does. */
+bool tile_named(Tile *out) {
+    const int o = overridden(tile_override);
+    if (o >= 0) {
+        *out = (Tile)o;
+        return true;
+    }
     const char *v = getenv("TURBO_CUDA_TILE");
-    if (!v) return TILE_DEFAULT;
-    if (!strcasecmp(v, "64x64")) return TILE_64x64;
-    if (!strcasecmp(v, "128x64")) return TILE_128x64;
-    if (!strcasecmp(v, "128x128")) return TILE_128x128;
-    if (!strcasecmp(v, "128x128-16x8")) return TILE_128x128_16x8;
-    if (!strcasecmp(v, "128x128-4w")) return TILE_128x128_4W;
-    if (!strcasecmp(v, "256x128")) return TILE_256x128;
-    if (!strcasecmp(v, "8w")) return TILE_EIGHT_WARPS;
-    if (!strcasecmp(v, "sw")) return TILE_SWIZZLED;
-    if (!strcasecmp(v, "sw8w")) return TILE_SWIZZLED_8W;
-    if (!strcasecmp(v, "sw256")) return TILE_SWIZZLED_256x128;
-    if (!strcasecmp(v, "swrow")) return TILE_SWIZZLED_ROWS;
-    if (!strcasecmp(v, "f16k")) return TILE_F16_WHOLE_K;
-    if (!strcasecmp(v, "f16k3")) return TILE_F16_WHOLE_K_3;
-    return TILE_DEFAULT;
+    if (!v) return false;
+    for (const TileName &n : TILE_NAMES)
+        if (n.switch_names && !strcasecmp(v, n.name)) {
+            *out = n.tile;
+            return true;
+        }
+    return false;
 }
 
-/* What the tests set in place of TURBO_CUDA_ATTENTION: 1 for the
- * key-split kernel, 0 for the default; -1 for the variable. */
-std::atomic<int> split_attention_override{-1};
-
-bool split_attention_named() {
-    const int o = split_attention_override.load(std::memory_order_relaxed);
-    if (o >= 0) return o != 0;
+/* TURBO_CUDA_ATTENTION: split gives an F32 session (and an F16 one without
+ * the tensor cores' attention) the FMA attention that splits each query's
+ * keys among four warps; 64 gives FASTEST's attention on the tensor cores
+ * 64 queries to a block in place of 128. */
+bool split_attention_named(bool *forced) {
+    const int o = overridden(split_attention_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
     const char *v = getenv("TURBO_CUDA_ATTENTION");
+    *forced = *forced || v;
     return v && !strcasecmp(v, "split");
 }
 
-/* What the tests set in place of TURBO_CUDA_ATTENTION=64: 1 for the
- * tensor cores' kernel of 128 queries, the default, 0 for the kernel of
- * 64; -1 for the variable. On an RTX 4080 SUPER at 32 x 256 full rows
- * the kernel of 128 takes 324 us a pass against 398 for 64's. */
-std::atomic<int> wide_attention_override{-1};
-
-bool wide_attention_named() {
-    const int o = wide_attention_override.load(std::memory_order_relaxed);
-    if (o >= 0) return o != 0;
+/* On an RTX 4080 SUPER at 32 x 256 full rows the kernel of 128 takes 324
+ * us a pass against 398 for 64's. */
+bool wide_attention_named(bool *forced) {
+    const int o = overridden(wide_attention_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
     const char *v = getenv("TURBO_CUDA_ATTENTION");
+    *forced = *forced || v;
     return !(v && !strcmp(v, "64"));
 }
-
-/* What the tests set in place of TURBO_CUDA_TF32: 1 for TF32 at MODEL,
- * 0 for the default; -1 for the variable. */
-std::atomic<int> tf32_override{-1};
 
 /* TURBO_CUDA_TF32=1 puts MODEL's F32 GEMMs on the tensor cores as TF32;
  * unset, they are EXACT's FMA kernels. */
 bool tf32_named() {
-    const int o = tf32_override.load(std::memory_order_relaxed);
+    const int o = overridden(tf32_override);
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_TF32");
     return v && strcmp(v, "1") == 0;
 }
 
-/* What the tests set in place of TURBO_CUDA_F16_ACCUMULATE: 1 for F16
- * accumulators at FASTEST, 0 for the default; -1 for the variable. */
-std::atomic<int> f16_accumulate_override{-1};
-
 /* TURBO_CUDA_F16_ACCUMULATE=1 gives FASTEST's GEMMs on the tensor cores
  * F16 accumulators over each 64 terms of k, added into F32 ones
  * (TILE_EIGHT_WARPS_F16_ACCUMULATE, or TILE_SWIZZLED_8W_F16_ACCUMULATE
- * when TURBO_CUDA_TILE=sw8w, whatever other tile it names); unset,
- * F32 accumulators throughout. */
+ * when TURBO_CUDA_TILE=sw8w, whatever other tile it names); unset, F32
+ * accumulators throughout. */
 bool f16_accumulate_named() {
-    const int o = f16_accumulate_override.load(std::memory_order_relaxed);
+    const int o = overridden(f16_accumulate_override);
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_F16_ACCUMULATE");
     return v && strcmp(v, "1") == 0;
 }
 
-/* What the tests set in place of TURBO_CUDA_LAYER_NORM: 1 for the
- * separate kernel (the default), 0 for the fused epilogue; -1 for the
- * variable. */
-std::atomic<int> separate_ln_override{-1};
-
-bool separate_ln_named() {
-    const int o = separate_ln_override.load(std::memory_order_relaxed);
-    if (o >= 0) return o != 0;
+/* TURBO_CUDA_LAYER_NORM=fused: the attention output and second
+ * feed-forward GEMMs' epilogue adds the bias and residual and runs the
+ * LayerNorm, in place of the default's kernel of their own after the
+ * product (the same bits either way). */
+bool separate_ln_named(bool *forced) {
+    const int o = overridden(separate_ln_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
     const char *v = getenv("TURBO_CUDA_LAYER_NORM");
+    *forced = v != nullptr;
     return !(v && !strcasecmp(v, "fused"));
 }
 
-/* What the tests set in place of TURBO_CUDA_POOL: 1 for the kernel of a
- * thread per column, 0 for the default; -1 for the variable. */
-std::atomic<int> column_pool_override{-1};
-
-bool column_pool_named() {
-    const int o = column_pool_override.load(std::memory_order_relaxed);
-    if (o >= 0) return o != 0;
+/* TURBO_CUDA_POOL=columns pools with a thread per column, in place of the
+ * default's groups of tokens summed apart. */
+bool column_pool_named(bool *forced) {
+    const int o = overridden(column_pool_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
     const char *v = getenv("TURBO_CUDA_POOL");
+    *forced = v != nullptr;
     return v && !strcasecmp(v, "columns");
 }
 
-/* TURBO_CUDA_SK_STEPS: the GEMMs' fewest k steps per block, 0 (the
- * kernels' own) when unset or not a count from 1 to 64. */
-int sk_steps_named() {
+/* TURBO_CUDA_SK_STEPS: the GEMMs' fewest k steps per block, a count from
+ * 1 to 64, or tiles for whole tiles to a block; not forced when unset or
+ * neither. */
+bool sk_named(GemmChoice *c) {
+    const int o = overridden(sk_override);
+    if (o == SK_OVERRIDE_TILES || (o < 0 && getenv("TURBO_CUDA_SK_STEPS") &&
+                                   !strcasecmp(getenv("TURBO_CUDA_SK_STEPS"), "tiles"))) {
+        c->sk = SK_TILES;
+        c->sk_steps = 0;
+        return true;
+    }
+    if (o >= 0) {
+        c->sk = SK_STREAM;
+        c->sk_steps = o;
+        return true;
+    }
     const char *v = getenv("TURBO_CUDA_SK_STEPS");
-    if (!v) return 0;
+    if (!v) return false;
     char *end = nullptr;
     const long n = strtol(v, &end, 10);
-    return end != v && *end == 0 && n >= 1 && n <= 64 ? (int)n : 0;
+    if (end == v || *end != 0 || n < 1 || n > 64) return false;
+    c->sk = SK_STREAM;
+    c->sk_steps = (int)n;
+    return true;
 }
 
 unsigned cublas_gemms() {
-    const int o = cublas_override.load(std::memory_order_relaxed);
+    const int o = overridden(cublas_override);
     if (o >= 0) return (unsigned)o;
     const char *v = getenv("TURBO_CUDA_CUBLAS");
     if (!v) return 0;
@@ -1180,14 +1214,178 @@ unsigned cublas_gemms() {
     return mask;
 }
 
+/* What the tests set in place of TURBO_CUDA_CHOICES, when set. */
+std::mutex choices_lock;
+bool choices_set = false;
+std::string choices_override;
+
+/* TURBO_CUDA_CHOICES, or the tests' string in its place: the items it
+ * names forced over the switches, each where it names it. */
+bool choices_named(Choices *c, uint32_t *absent, char *why, size_t len) {
+    *absent = 0;
+    std::string v;
+    {
+        std::lock_guard<std::mutex> g(choices_lock);
+        if (choices_set) {
+            v = choices_override;
+        } else {
+            const char *e = getenv("TURBO_CUDA_CHOICES");
+            if (!e) return true;
+            v = e;
+        }
+    }
+    return parse_choices(v.c_str(), c, absent, why, len);
+}
+
+/* The numeric classes each precision allows when the core hands none (a
+ * session made through session_create): the core's own table. */
+uint32_t default_numerics(uint32_t precision) {
+    return precision == TURBO_PRECISION_FASTEST ? TURBO_NUMERIC_F16_F32ACC : TURBO_NUMERIC_F32_FMA;
+}
+
+const char *precision_name(uint32_t p) {
+    return p == TURBO_PRECISION_FASTEST ? "FASTEST" : p == TURBO_PRECISION_EXACT ? "EXACT" : "MODEL";
+}
+
+/* Whether a session of the shape takes the tensor cores' attention. */
+bool mma_attention(const Shape &base) {
+    const int d = base.hidden / base.heads;
+    return base.half && base.tensor_cores && (d == 32 || d == 64);
+}
+
+/* The backend's own choices for a session of the shape, in every bin: the
+ * default tile and stream-K for each GEMM, the tensor cores' attention of
+ * 128 queries where it applies and else the FMA kernel of register tiles,
+ * the LayerNorm as a kernel of its own, and pooling by groups. */
+Choices defaults(const Shape &base) {
+    Choices c;
+    c.bins = bins_for(base.tcap);
+    for (BinChoices &b : c.bin) {
+        b = BinChoices{};
+        b.attention = mma_attention(base) ? ATT_MMA_128 : ATT_FMA_TILED;
+    }
+    return c;
+}
+
+/* The environment's and the tests' switches over *c, each forcing its knob
+ * in every bin. *tf32 and *f16_accumulate say whether the switch of that
+ * name is in effect for the session: TF32 needs F32 operands on a device
+ * with tensor cores at a precision other than EXACT, F16 accumulators F16
+ * operands on one. */
+void forced_from_environment(const Shape &base, uint32_t precision, Choices *c, bool *tf32, bool *f16_accumulate) {
+    Tile tile = TILE_DEFAULT;
+    const bool tile_forced = tile_named(&tile);
+    *f16_accumulate = base.half && base.tensor_cores && (f16_accumulate_named() || f16_accumulates(tile));
+    const bool acc_forced = *f16_accumulate && !f16_accumulates(tile);
+    if (acc_forced) tile = tile == TILE_SWIZZLED_8W ? TILE_SWIZZLED_8W_F16_ACCUMULATE : TILE_EIGHT_WARPS_F16_ACCUMULATE;
+    *tf32 = !base.half && base.tensor_cores && precision != TURBO_PRECISION_EXACT && tf32_named();
+    GemmChoice sk;
+    const bool sk_forced = sk_named(&sk);
+    bool attn_forced = false;
+    const bool split = split_attention_named(&attn_forced), wide = wide_attention_named(&attn_forced);
+    bool ln_forced = false, pool_forced = false;
+    const bool separate = separate_ln_named(&ln_forced);
+    const bool columns = column_pool_named(&pool_forced);
+    for (int b = 0; b < BIN_COUNT; b++) {
+        BinChoices &bc = c->bin[b];
+        for (int g = 0; g < GEMM_COUNT; g++) {
+            GemmChoice &gc = bc.gemm[g];
+            if (tile_forced || acc_forced) {
+                gc.tile = tile;
+                bc.gemm_forced[g] |= KNOB_TILE;
+            }
+            if (sk_forced) {
+                gc.sk = sk.sk;
+                gc.sk_steps = sk.sk_steps;
+                bc.gemm_forced[g] |= KNOB_SK;
+            }
+            if (*tf32) {
+                gc.tf32 = true;
+                bc.gemm_forced[g] |= KNOB_TF32;
+            }
+        }
+        if (attn_forced) {
+            if (mma_attention(base))
+                bc.attention = wide ? ATT_MMA_128 : ATT_MMA_64;
+            else
+                bc.attention = split ? ATT_FMA_SPLIT : ATT_FMA_TILED;
+            bc.forced |= KNOB_ATTN;
+        }
+        if (ln_forced) {
+            bc.ln = separate ? LN_SEPARATE : LN_FUSED;
+            bc.forced |= KNOB_LN;
+        }
+    }
+    if (pool_forced) {
+        c->pool = columns ? POOL_COLUMNS : POOL_GROUPS;
+        c->pool_forced = KNOB_POOL;
+    }
+}
+
+/* Whole rows take the LayerNorm in the epilogue of the attention output
+ * and second feed-forward GEMMs whose tile is TILE_SWIZZLED_ROWS, with F16
+ * operands on the tensor cores; hidden states wider than their tile take
+ * the eight-warp shapes instead. */
+void whole_rows(const Shape &base, Choices *c) {
+    if (!base.half || !base.tensor_cores) return;
+    for (BinChoices &bc : c->bin)
+        for (Gemm g : {GEMM_OUT, GEMM_FFN2}) {
+            if (bc.gemm[g].tile != TILE_SWIZZLED_ROWS) continue;
+            if (base.hidden <= ROW_LN_WIDTH) {
+                bc.ln = LN_FUSED;
+                if (bc.gemm_forced[g] & KNOB_TILE) bc.forced |= KNOB_LN;
+            } else {
+                bc.gemm[g].tile = TILE_SWIZZLED_8W;
+            }
+        }
+}
+
+/* The shape one bin's graph is captured from. */
+Shape shape_for(const Shape &base, const Choices &c, int bin) {
+    Shape sh = base;
+    const BinChoices &bc = c.bin[bin];
+    for (int g = 0; g < GEMM_COUNT; g++) sh.gemm[g] = bc.gemm[g];
+    sh.split_attention = bc.attention == ATT_FMA_SPLIT;
+    sh.wide_attention = bc.attention == ATT_MMA_128;
+    sh.fused_ln = bc.ln == LN_FUSED;
+    sh.column_pool = c.pool == POOL_COLUMNS;
+    return sh;
+}
+
+/* Whether two bins run the same kernels, and so can share a graph. */
+bool same_kernels(const BinChoices &a, const BinChoices &b) {
+    for (int g = 0; g < GEMM_COUNT; g++) {
+        const GemmChoice &x = a.gemm[g], &y = b.gemm[g];
+        if (x.tile != y.tile || x.sk != y.sk || x.sk_steps != y.sk_steps || x.tf32 != y.tf32) return false;
+    }
+    return a.attention == b.attention && a.ln == b.ln;
+}
+
+// ---- Sessions, continued -------------------------------------------------------------
+
+/* One captured run: its graph, its fetch and pack kernels' nodes, and the
+ * arguments last set in it. */
+struct Graph {
+    cudaGraph_t graph = nullptr;
+    cudaGraphExec_t exec = nullptr;
+    cudaGraphNode_t pack_node = nullptr, fetch_node = nullptr;
+    int bin = 0; /* the first bin it serves, whose shape and plan it was captured from */
+    RunArgs in_graph{};
+    int32_t fetch_in_graph = 0;
+    bool set = false;
+};
+
 struct Session {
     Model *model = nullptr;
     Context *ctx = nullptr;
     uint32_t max_batch = 0, max_seq = 0;
     /* F16 GEMMs and attention, else F32 throughout. */
     bool half = false;
-    Shape shape;
-    Plan plan;
+    /* The kernels, and by bin the shape each bin's graph is captured from
+     * and its launches' plan. */
+    Choices choices;
+    Shape shape[BIN_COUNT];
+    Plan plan[BIN_COUNT];
     /* The GEMMs cuBLAS computes; with any, the run is not a graph. */
     unsigned cublas = 0;
     void *scratch = nullptr;
@@ -1203,9 +1401,11 @@ struct Session {
     /* The attention output and feed-forward output GEMMs' products,
      * [tokens, hidden], which add_layer_norm adds. */
     float *part = nullptr;
-    /* The GEMMs' stream-K workspace and flags. */
+    /* The GEMMs' stream-K workspace and flags, sized for every bin's plan,
+     * then ADD_LN's counters of finished tiles. */
     float *ws = nullptr;
-    int *flags = nullptr;
+    int *flags = nullptr, *rows_done = nullptr;
+    int flag_ints = 0;
     /* A cuBLAS product before its epilogue, when cuBLAS computes one. */
     float *raw = nullptr;
     /* [max_batch, hidden] F32 on the device, handed out as the output. */
@@ -1218,21 +1418,19 @@ struct Session {
     /* The GEMMs' fault word, after the staging, as the host and the
      * device address it: set when a stream-K wait gave up. */
     int *fault = nullptr, *fault_dev = nullptr;
-    /* The run as a graph, its fetch and pack kernels' nodes and arguments,
-     * and the arguments last set in it. */
-    cudaGraph_t graph = nullptr;
-    cudaGraphExec_t exec = nullptr;
-    cudaGraphNode_t pack_node = nullptr, fetch_node = nullptr;
+    /* The run as graphs, one per distinct choice of kernels, and each
+     * bin's. */
+    Graph graphs[BIN_COUNT];
+    int graph_count = 0;
+    int graph_of[BIN_COUNT] = {0, 0, 0, 0, 0};
     PackArgs pack{};
     FetchArgs fetch{};
     void *pack_argv[1] = {nullptr}, *fetch_argv[1] = {nullptr};
-    RunArgs in_graph{};
-    int32_t fetch_in_graph = 0;
-    bool graph_set = false;
     /* What the last write left. */
     bool written = false;
     RunArgs run{};
-    /* The packed tokens, counted on the host for cuBLAS's GEMMs. */
+    /* The packed tokens the last write holds, counted on the host where
+     * cuBLAS or a second graph needs them, else 0. */
     uint32_t tokens = 0;
     uint64_t h2d = 0;
 };
@@ -1243,8 +1441,10 @@ void release_session(Session *s) {
         cudaEventSynchronize(s->sent);
         cudaEventDestroy(s->sent);
     }
-    if (s->exec) cudaGraphExecDestroy(s->exec);
-    if (s->graph) cudaGraphDestroy(s->graph);
+    for (Graph &g : s->graphs) {
+        if (g.exec) cudaGraphExecDestroy(g.exec);
+        if (g.graph) cudaGraphDestroy(g.graph);
+    }
     if (s->scratch) cudaFree(s->scratch);
     if (s->staging) cudaFreeHost(s->staging);
     delete s;
@@ -1263,18 +1463,22 @@ cublasStatus_t linear(cublasHandle_t h, bool half, const void *x, int tokens, in
                         n_in, &zero, y, CUDA_R_32F, n_out, CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT);
 }
 
-/* The encoder, queued on the context's stream: captured into the graph,
- * or run as it is queued when cuBLAS computes a GEMM. */
-int32_t encode(Session &s, turbo_error *err) {
+/* GemmArgs.min_steps for a GEMM's choice. */
+int min_steps(const GemmChoice &c) { return c.sk == SK_TILES ? SK_WHOLE_TILES : c.sk_steps; }
+
+/* The encoder with one bin's kernels, queued on the context's stream:
+ * captured into the bin's graph, or run as it is queued when cuBLAS
+ * computes a GEMM. */
+int32_t encode(Session &s, int bin, turbo_error *err) {
     const Model &mo = *s.model;
     const turbo_backend_model &d = mo.desc;
     const std::vector<const float *> &w = mo.f32;
-    const Plan &plan = s.plan;
-    const Shape &sh = s.shape;
+    const Plan &plan = s.plan[bin];
+    const Shape &sh = s.shape[bin];
     const int h = (int)d.hidden, inter = (int)d.intermediate, heads = (int)d.heads, hd = h / heads;
     const int tcap = sh.tcap, tokens = (int)s.tokens;
     const float eps = (float)d.layer_norm_eps;
-    const bool half = s.half, tc = sh.tensor_cores;
+    const bool half = s.half;
     cudaStream_t st = s.ctx->stream;
     cublasHandle_t blas = s.ctx->blas;
     auto at = [](uint32_t l, int r) { return (size_t)TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r; };
@@ -1285,7 +1489,13 @@ int32_t encode(Session &s, turbo_error *err) {
     };
     const void *xin = half ? static_cast<const void *>(s.x16) : s.x;
     const Info *info = s.pk.info;
+    // One GEMM of the layer with its own kernel.
+    auto gemm_as = [&](Gemm which, Epilogue e, GemmArgs &g) {
+        g.min_steps = min_steps(sh.gemm[which]);
+        return gemm(st, e, half, gemm_mma(sh, which), sh.gemm[which].tile, g, plan.gemm_grid[which]);
+    };
 
+    s.pack.queries = plan.attn_queries;
     TRY_CUDA(fetch_rows(st, s.fetch, plan), "fetching the rows");
     TRY_CUDA(pack_rows(st, s.pack, plan), "packing the rows");
     TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
@@ -1300,8 +1510,7 @@ int32_t encode(Session &s, turbo_error *err) {
     g.ws = s.ws;
     g.flags = s.flags;
     g.fault = s.fault_dev;
-    g.min_steps = s.shape.sk_steps;
-    g.rows_done = s.flags + plan.sk_flags;
+    g.rows_done = s.rows_done;
     g.eps = eps;
     g.x16 = s.x16;
     AttnArgs aa{};
@@ -1314,7 +1523,6 @@ int32_t encode(Session &s, turbo_error *err) {
     aa.tcap = tcap;
     aa.chunk = plan.attn_chunk;
     aa.queries = plan.attn_queries;
-    const Tile tile = sh.tile;
     aa.scale = 1.0f / sqrtf((float)hd);
     for (uint32_t l = 0; l < d.layers; l++) {
         // Q, K and V's weights back to back, as lay_out puts them: one GEMM
@@ -1330,7 +1538,7 @@ int32_t encode(Session &s, turbo_error *err) {
             TRY_CUBLAS(linear(blas, half, xin, tokens, h, g.w, 3 * h, s.raw), "the query, key and value projections");
             TRY_CUDA(qkv_epilogue(st, s.raw, g, half, plan), "the query, key and value biases");
         } else {
-            TRY_CUDA(gemm(st, EPI_QKV, half, tc, tile, g, plan.qkv_grid), "the query, key and value projections");
+            TRY_CUDA(gemm_as(GEMM_QKV, EPI_QKV, g), "the query, key and value projections");
         }
         TRY_CUDA(attention(st, aa, sh, plan), "attention");
 
@@ -1343,15 +1551,14 @@ int32_t encode(Session &s, turbo_error *err) {
             g.out = s.x;
             g.ln_w = layer(l, TURBO_BERT_ATTN_LN_WEIGHT);
             g.ln_b = layer(l, TURBO_BERT_ATTN_LN_BIAS);
-            TRY_CUDA(gemm(st, EPI_ADD_LN, half, tc, tile, g, plan.out_grid),
-                     "the attention output projection and LayerNorm");
+            TRY_CUDA(gemm_as(GEMM_OUT, EPI_ADD_LN, g), "the attention output projection and LayerNorm");
         } else {
             g.bias = nullptr;
             g.out = s.part;
             if (s.cublas & CUBLAS_OUT) {
                 TRY_CUBLAS(linear(blas, half, s.att, tokens, h, g.w, h, s.part), "the attention output projection");
             } else {
-                TRY_CUDA(gemm(st, EPI_PLAIN, half, tc, tile, g, plan.out_grid), "the attention output projection");
+                TRY_CUDA(gemm_as(GEMM_OUT, EPI_PLAIN, g), "the attention output projection");
             }
             TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
                                     layer(l, TURBO_BERT_ATTN_LN_WEIGHT), layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info,
@@ -1368,7 +1575,7 @@ int32_t encode(Session &s, turbo_error *err) {
             TRY_CUBLAS(linear(blas, half, xin, tokens, h, g.w, inter, s.raw), "the feed-forward input");
             TRY_CUDA(gelu_epilogue(st, s.raw, g, half, plan), "GELU");
         } else {
-            TRY_CUDA(gemm(st, EPI_GELU, half, tc, tile, g, plan.ffn1_grid), "the feed-forward input");
+            TRY_CUDA(gemm_as(GEMM_FFN1, EPI_GELU, g), "the feed-forward input");
         }
 
         g.a = s.ffn;
@@ -1380,14 +1587,14 @@ int32_t encode(Session &s, turbo_error *err) {
             g.out = s.x;
             g.ln_w = layer(l, TURBO_BERT_FFN_LN_WEIGHT);
             g.ln_b = layer(l, TURBO_BERT_FFN_LN_BIAS);
-            TRY_CUDA(gemm(st, EPI_ADD_LN, half, tc, tile, g, plan.ffn2_grid), "the feed-forward output and LayerNorm");
+            TRY_CUDA(gemm_as(GEMM_FFN2, EPI_ADD_LN, g), "the feed-forward output and LayerNorm");
         } else {
             g.bias = nullptr;
             g.out = s.part;
             if (s.cublas & CUBLAS_FFN2) {
                 TRY_CUBLAS(linear(blas, half, s.ffn, tokens, inter, g.w, h, s.part), "the feed-forward output");
             } else {
-                TRY_CUDA(gemm(st, EPI_PLAIN, half, tc, tile, g, plan.ffn2_grid), "the feed-forward output");
+                TRY_CUDA(gemm_as(GEMM_FFN2, EPI_PLAIN, g), "the feed-forward output");
             }
             TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_FFN_OUT_BIAS),
                                     layer(l, TURBO_BERT_FFN_LN_WEIGHT), layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info,
@@ -1399,12 +1606,13 @@ int32_t encode(Session &s, turbo_error *err) {
     return TURBO_OK;
 }
 
-/* The run captured into the session's graph, instantiated and uploaded,
- * and its pack kernel's node found. */
-int32_t capture(Session &s, turbo_error *err) {
+/* One bin's run captured into a graph, instantiated and uploaded, and its
+ * fetch and pack kernels' nodes found. */
+int32_t capture(Session &s, int bin, Graph *out, turbo_error *err) {
     cudaStream_t st = s.ctx->stream;
+    out->bin = bin;
     TRY_CUDA(cudaStreamBeginCapture(st, cudaStreamCaptureModeThreadLocal), "capturing the run");
-    const int32_t rc = encode(s, err);
+    const int32_t rc = encode(s, bin, err);
     cudaGraph_t graph = nullptr;
     const cudaError_t e = cudaStreamEndCapture(st, &graph);
     if (rc != TURBO_OK) {
@@ -1413,7 +1621,7 @@ int32_t capture(Session &s, turbo_error *err) {
         return rc;
     }
     TRY_CUDA(e, "capturing the run");
-    s.graph = graph;
+    out->graph = graph;
     size_t n = 0;
     TRY_CUDA(cudaGraphGetNodes(graph, nullptr, &n), "the run's graph");
     std::vector<cudaGraphNode_t> nodes(n);
@@ -1424,19 +1632,34 @@ int32_t capture(Session &s, turbo_error *err) {
         if (type != cudaGraphNodeTypeKernel) continue;
         cudaKernelNodeParams kp;
         TRY_CUDA(cudaGraphKernelNodeGetParams(node, &kp), "the run's graph");
-        if (kp.func == pack_rows_function()) s.pack_node = node;
-        if (kp.func == fetch_rows_function()) s.fetch_node = node;
+        if (kp.func == pack_rows_function()) out->pack_node = node;
+        if (kp.func == fetch_rows_function()) out->fetch_node = node;
     }
-    if (!s.pack_node || !s.fetch_node)
+    if (!out->pack_node || !out->fetch_node)
         return refuse(err, TURBO_E_INTERNAL, "the run's graph has no packing or fetch kernel");
-    TRY_CUDA(cudaGraphInstantiateWithFlags(&s.exec, graph, 0), "cudaGraphInstantiate");
-    TRY_CUDA(cudaGraphUpload(s.exec, st), "cudaGraphUpload");
+    TRY_CUDA(cudaGraphInstantiateWithFlags(&out->exec, graph, 0), "cudaGraphInstantiate");
+    TRY_CUDA(cudaGraphUpload(out->exec, st), "cudaGraphUpload");
     TRY_CUDA(cudaStreamSynchronize(st), "cudaGraphUpload");
     return TURBO_OK;
 }
 
-int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
-                       uint32_t *compute_dtype, void **out, turbo_error *err) {
+/* A graph per distinct choice of kernels, and each bin pointed at its
+ * own. */
+int32_t capture_bins(Session &s, turbo_error *err) {
+    for (int b = 0; b < s.choices.bins; b++) {
+        int same = 0;
+        while (same < s.graph_count && !same_kernels(s.choices.bin[s.graphs[same].bin], s.choices.bin[b])) same++;
+        if (same == s.graph_count) {
+            TRY(capture(s, b, &s.graphs[same], err));
+            s.graph_count++;
+        }
+        s.graph_of[b] = same;
+    }
+    return TURBO_OK;
+}
+
+int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                             turbo_backend_tuning *tuning, uint32_t *compute_dtype, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Model *m = static_cast<Model *>(model);
         Context *c = m->ctx;
@@ -1482,47 +1705,55 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         }
 
         ON_DEVICE(c->ordinal);
-        Shape sh;
-        sh.batch_cap = (int)max_batch;
-        sh.seq_cap = (int)max_seq;
-        sh.tcap = (int)tokens;
-        sh.hidden = (int)d.hidden;
-        sh.heads = (int)d.heads;
-        sh.inter = (int)d.intermediate;
-        sh.half = half;
+        Shape base;
+        base.batch_cap = (int)max_batch;
+        base.seq_cap = (int)max_seq;
+        base.tcap = (int)tokens;
+        base.hidden = (int)d.hidden;
+        base.heads = (int)d.heads;
+        base.inter = (int)d.intermediate;
+        base.half = half;
         int major = 0, sms = 0, optin = 0;
         TRY_CUDA(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, c->ordinal), "the device's sm");
         TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, c->ordinal), "the device's SMs");
         TRY_CUDA(cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, c->ordinal),
                  "the device's shared memory");
         // The tensor cores: F16 at FASTEST; TF32 for F32 products when
-        // TURBO_CUDA_TF32=1 asks, but at EXACT, F32 FMAs throughout.
-        sh.tensor_cores = major >= 8 && (half || (precision != TURBO_PRECISION_EXACT && tf32_named()));
-        sh.sms = sms;
-        sh.smem_optin = (size_t)optin;
-        sh.tile = tile_named();
-        if (sh.half && sh.tensor_cores && f16_accumulate_named())
-            sh.tile = sh.tile == TILE_SWIZZLED_8W ? TILE_SWIZZLED_8W_F16_ACCUMULATE : TILE_EIGHT_WARPS_F16_ACCUMULATE;
-        sh.split_attention = split_attention_named();
-        sh.wide_attention = wide_attention_named();
-        sh.sk_steps = sk_steps_named();
-        sh.fused_ln = !separate_ln_named();
-        // Whole rows take the LayerNorm in the epilogue; wider hidden
-        // states than their tile, the eight-warp shapes.
-        if (sh.tile == TILE_SWIZZLED_ROWS && sh.half && sh.tensor_cores) {
-            if (sh.hidden <= ROW_LN_WIDTH)
-                sh.fused_ln = true;
-            else
-                sh.tile = TILE_SWIZZLED_8W;
-        }
-        sh.column_pool = column_pool_named();
-        Plan plan;
-        TRY_CUDA(make_plan(sh, &plan), "planning the session's launches");
-        if (plan.gemm_crowded)
-            c->say(LOG_WARNING,
-                   "cuda device %d: a GEMM's kernel fits fewer blocks to an SM than it was built for, so it runs "
-                   "slower than it should",
-                   c->ordinal);
+        // TURBO_CUDA_TF32=1 asks, but at EXACT, F32 FMAs throughout
+        // (forced_from_environment).
+        base.tensor_cores = major >= 8;
+        base.sms = sms;
+        base.smem_optin = (size_t)optin;
+        Choices ch = defaults(base);
+        bool tf32 = false, f16_accumulate = false;
+        forced_from_environment(base, precision, &ch, &tf32, &f16_accumulate);
+        char why[TURBO_ERROR_MESSAGE_LEN];
+        uint32_t absent = 0;
+        if (!choices_named(&ch, &absent, why, sizeof why)) return refuse(err, TURBO_E_INVALID_ARGUMENT, "%s", why);
+        for (int b = 0; b < BIN_COUNT; b++)
+            if (absent & (1u << b))
+                c->say(LOG_DEBUG,
+                       "cuda device %d: TURBO_CUDA_CHOICES names %s, a token bin a session of %u x %u does not have",
+                       c->ordinal, BIN_NAME[b], max_batch, max_seq);
+        whole_rows(base, &ch);
+        canonicalize(base, &ch);
+        // The classes the precision allows, as the environment's
+        // experiments widen them; the F32 kernels are FASTEST's too, for a
+        // model past F16's range.
+        const uint32_t allowed = tuning ? tuning->numerics_allowed : default_numerics(precision);
+        const uint32_t tier = allowed | (half ? 0u : TURBO_NUMERIC_F32_FMA);
+        const uint32_t runs = tier | (tf32 ? TURBO_NUMERIC_TF32 : 0u) |
+                              (f16_accumulate ? TURBO_NUMERIC_F16_CHUNKACC : 0u);
+        char named[160];
+        const char *numeric = nullptr;
+        if (outside(base, ch, runs, named, sizeof named, &numeric))
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision %s: %s computes in %s, which the precision does not allow",
+                                precision_name(precision), named, numeric);
+        // What the kernels compute in: the precision's classes, widened
+        // only by a class a chosen kernel runs in beyond them.
+        const uint32_t ran = numerics_of(base, ch);
+        const uint32_t used = allowed | (ran & ~tier);
 
         Session *s = make<Session>();
         s->model = m;
@@ -1530,9 +1761,40 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         s->max_batch = max_batch;
         s->max_seq = max_seq;
         s->half = half;
-        s->shape = sh;
-        s->plan = plan;
+        s->choices = ch;
         s->cublas = cublas_gemms();
+        // Every bin's launches, and the workspace the largest of them needs.
+        size_t sk_floats = 0;
+        int sk_flags = 0, ln_counts = 0;
+        bool crowded = false;
+        for (int b = 0; b < ch.bins; b++) {
+            s->shape[b] = shape_for(base, ch, b);
+            int same = 0;
+            while (same < b && !same_kernels(ch.bin[same], ch.bin[b])) same++;
+            cudaError_t e = cudaSuccess;
+            if (same < b)
+                s->plan[b] = s->plan[same];
+            else
+                e = make_plan(s->shape[b], &s->plan[b]);
+            if (e != cudaSuccess) {
+                release_session(s);
+                return cuda_failed(err, e, "planning the session's launches");
+            }
+            const Plan &p = s->plan[b];
+            sk_floats = p.sk_floats > sk_floats ? p.sk_floats : sk_floats;
+            sk_flags = p.sk_flags > sk_flags ? p.sk_flags : sk_flags;
+            ln_counts = p.ln_counts > ln_counts ? p.ln_counts : ln_counts;
+            crowded = crowded || p.gemm_crowded;
+        }
+        // The pooling as the plan takes it: a thread per column for hidden
+        // states too wide for the groups.
+        ch.pool = s->plan[0].column_pool ? POOL_COLUMNS : POOL_GROUPS;
+        s->choices.pool = ch.pool;
+        if (crowded)
+            c->say(LOG_WARNING,
+                   "cuda device %d: a GEMM's kernel fits fewer blocks to an SM than it was built for, so it runs "
+                   "slower than it should",
+                   c->ordinal);
         const size_t act = half ? 2 : 4;
         const size_t h = d.hidden, inter = d.intermediate;
         const size_t ints = round_up(tokens * 4, DEVICE_ALIGN);
@@ -1544,8 +1806,9 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         const size_t att = round_up(tokens * h * act, DEVICE_ALIGN);
         const size_t ffn = round_up(tokens * inter * act, DEVICE_ALIGN);
         const size_t part = round_up(tokens * h * 4, DEVICE_ALIGN);
-        const size_t ws = round_up(plan.sk_floats * 4, DEVICE_ALIGN);
-        const size_t flags = round_up((size_t)(plan.sk_flags + plan.ln_counts) * 4, DEVICE_ALIGN);
+        const size_t ws = round_up(sk_floats * 4, DEVICE_ALIGN);
+        s->flag_ints = sk_flags + ln_counts;
+        const size_t flags = round_up((size_t)s->flag_ints * 4, DEVICE_ALIGN);
         const size_t widest = 3 * h > inter ? 3 * h : inter;
         const size_t raw = s->cublas & (CUBLAS_QKV | CUBLAS_FFN1) ? round_up(tokens * widest * 4, DEVICE_ALIGN) : 0;
         const size_t output = round_up((size_t)max_batch * h * 4, DEVICE_ALIGN);
@@ -1578,6 +1841,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             s->part = reinterpret_cast<float *>(take(part));
             s->ws = reinterpret_cast<float *>(take(ws));
             s->flags = reinterpret_cast<int *>(take(flags));
+            s->rows_done = s->flags + sk_flags;
             if (raw) s->raw = reinterpret_cast<float *>(take(raw));
             s->output.ctx = c;
             s->output.ptr = take(output);
@@ -1586,7 +1850,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             s->output.owned = false;
             s->pack.rows = s->rows;
             s->pack.heads = (int32_t)d.heads;
-            s->pack.queries = plan.attn_queries;
+            s->pack.queries = s->plan[0].attn_queries;
             s->pack.p = s->pk;
             void *staged = nullptr;
             TRY_CUDA(cudaHostGetDevicePointer(&staged, s->staging, 0), "the staging's device address");
@@ -1601,7 +1865,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             // once, they hold finite values whatever reads them.
             TRY_CUDA(cudaMemsetAsync(s->scratch, 0, total, c->stream), "clearing the session's memory");
             TRY_CUDA(cudaStreamSynchronize(c->stream), "clearing the session's memory");
-            if (!s->cublas) TRY(capture(*s, err));
+            if (!s->cublas) TRY(capture_bins(*s, err));
             return TURBO_OK;
         }();
         if (rc != TURBO_OK) {
@@ -1609,15 +1873,29 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             return rc;
         }
         c->say(LOG_DEBUG,
-               "cuda device %d: an embed session of %u rows of %u tokens, computing in %s%s; attention %zu bytes of "
-               "shared memory for %d keys at a time",
-               c->ordinal, max_batch, max_seq, half ? "F16 with F32 accumulation" : "F32",
-               s->cublas ? ", some GEMMs on cuBLAS, without a graph" : ", as one graph", plan.attn_smem,
-               plan.attn_chunk);
+               "cuda device %d: an embed session of %u rows of %u tokens, its GEMMs computing in %s%s; attention %zu "
+               "bytes of shared memory for %d keys at a time",
+               c->ordinal, max_batch, max_seq, numerics_named(ran).c_str(),
+               s->cublas ? ", some GEMMs on cuBLAS, without a graph" : ", as graphs", s->plan[0].attn_smem,
+               s->plan[0].attn_chunk);
+        if (tuning) {
+            tuning->tuned = all_forced(s->choices) ? TURBO_TUNED_FORCED : TURBO_TUNED_DEFAULT;
+            tuning->tune_ms = 0;
+            format_choices(s->choices, tuning->choices, sizeof tuning->choices);
+            if (tuning->timings && tuning->timings_len) tuning->timings[0] = 0;
+            tuning->numerics_used = used;
+        }
         *compute_dtype = half ? TURBO_DTYPE_F16 : TURBO_DTYPE_F32;
         *out = s;
         return TURBO_OK;
     });
+}
+
+/* A session with the built-in choices and what the environment forces, as
+ * session_create_tuned makes it with tuning OFF. */
+int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                       uint32_t *compute_dtype, void **out, turbo_error *err) {
+    return session_create_tuned(model, task, max_batch, max_seq, precision, nullptr, compute_dtype, out, err);
 }
 
 void session_release(void *session) {
@@ -1672,11 +1950,13 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
     return guarded(err, [&]() -> int32_t {
         Session &s = *static_cast<Session *>(session);
         s.written = false;
-        // The packed size, which only cuBLAS's GEMMs take from the host:
-        // each row through its last live token, as pack_rows finds it on
-        // the device from the same entries, the host memory the core read.
+        // The packed size, which picks the run's token bin and which
+        // cuBLAS's GEMMs take from the host: each row through its last
+        // live token, as pack_rows finds it on the device from the same
+        // entries, the host memory the core read. A session of one graph
+        // needs neither, and leaves it 0.
         uint32_t packed = 0;
-        if (s.cublas)
+        if (s.cublas || s.graph_count > 1)
             for (uint32_t b = 0; b < r->batch; b++) {
                 const int32_t *m = r->mask + (size_t)b * r->row_stride;
                 uint32_t n = r->seq;
@@ -1718,26 +1998,30 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
     });
 }
 
-/* The written rows through the encoder: the graph, with this run's rows'
- * shape and options set in its fetch and pack kernels when they differ
- * from the last run's, or the launches one by one when cuBLAS computes a
- * GEMM. */
+/* The written rows through the encoder with their bin's kernels: the
+ * bin's graph, with this run's rows' shape and options set in its fetch
+ * and pack kernels when they differ from the last run's in it, or the
+ * launches one by one when cuBLAS computes a GEMM. */
 int32_t launch(Session &s, turbo_error *err) {
+    const int bin = bin_of(s.tokens, s.choices.bins);
     s.pack.run = s.run;
-    if (s.cublas) return encode(s, err);
-    if (!s.graph_set || memcmp(&s.in_graph, &s.run, sizeof s.run) != 0 || s.fetch_in_graph != s.fetch.n) {
+    if (s.cublas) return encode(s, bin, err);
+    Graph &g = s.graphs[s.graph_of[bin]];
+    const Plan &plan = s.plan[g.bin];
+    if (!g.set || memcmp(&g.in_graph, &s.run, sizeof s.run) != 0 || g.fetch_in_graph != s.fetch.n) {
         // Marked unset first: a failure leaves the graph's arguments unknown.
-        s.graph_set = false;
+        g.set = false;
+        s.pack.queries = plan.attn_queries;
         cudaKernelNodeParams kp;
-        pack_rows_node(&s.pack, s.pack_argv, s.plan, &kp);
-        TRY_CUDA(cudaGraphExecKernelNodeSetParams(s.exec, s.pack_node, &kp), "setting the run's rows");
-        fetch_rows_node(&s.fetch, s.fetch_argv, s.plan, &kp);
-        TRY_CUDA(cudaGraphExecKernelNodeSetParams(s.exec, s.fetch_node, &kp), "setting the run's rows");
-        s.in_graph = s.run;
-        s.fetch_in_graph = s.fetch.n;
-        s.graph_set = true;
+        pack_rows_node(&s.pack, s.pack_argv, plan, &kp);
+        TRY_CUDA(cudaGraphExecKernelNodeSetParams(g.exec, g.pack_node, &kp), "setting the run's rows");
+        fetch_rows_node(&s.fetch, s.fetch_argv, plan, &kp);
+        TRY_CUDA(cudaGraphExecKernelNodeSetParams(g.exec, g.fetch_node, &kp), "setting the run's rows");
+        g.in_graph = s.run;
+        g.fetch_in_graph = s.fetch.n;
+        g.set = true;
     }
-    TRY_CUDA(cudaGraphLaunch(s.exec, s.ctx->stream), "cudaGraphLaunch");
+    TRY_CUDA(cudaGraphLaunch(g.exec, s.ctx->stream), "cudaGraphLaunch");
     return TURBO_OK;
 }
 
@@ -1763,8 +2047,7 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
                 // The flags a wait gave up on may be left raised: cleared,
                 // so the next run starts as the first did.
                 *reinterpret_cast<volatile int *>(s.fault) = 0;
-                TRY_CUDA(cudaMemsetAsync(s.flags, 0, (size_t)(s.plan.sk_flags + s.plan.ln_counts) * 4, s.ctx->stream),
-                         "the run");
+                TRY_CUDA(cudaMemsetAsync(s.flags, 0, (size_t)s.flag_ints * 4, s.ctx->stream), "the run");
                 TRY_CUDA(cudaStreamSynchronize(s.ctx->stream), "the run");
                 return refuse(err, TURBO_E_RUNTIME,
                               "a GEMM's block waited too long for another's partial product; the run's vectors "
@@ -1957,6 +2240,7 @@ const turbo_backend turbo_cuda_backend = {
     buffer_read,
     TURBO_FORMAT_BIT(TURBO_FORMAT_SAFETENSORS),
     0,
+    session_create_tuned,
 };
 
 /* Every allocation this backend has made in the process, host and device,
@@ -2022,6 +2306,50 @@ void turbo_cuda_use_cublas(int32_t gemms) { cublas_override.store(gemms, std::me
 /* The GEMMs' tile in sessions made from now on, as TURBO_CUDA_TILE would
  * name it (a Tile); -1 to read the variable again. */
 void turbo_cuda_use_tile(int32_t tile) { tile_override.store(tile, std::memory_order_relaxed); }
+
+/* The choices string of sessions made from now on, in place of
+ * TURBO_CUDA_CHOICES; NULL to read the variable again. */
+void turbo_cuda_use_choices(const char *choices) {
+    std::lock_guard<std::mutex> g(choices_lock);
+    choices_set = choices != nullptr;
+    choices_override = choices ? choices : "";
+}
+
+/* The GEMM kernel variants a session at precision on device ordinal may
+ * force, as lines of "<name> <TURBO_NUMERIC_*> <1 when the tuner times
+ * it, else 0>", into out (len bytes with the NUL). A FASTEST session is
+ * taken to have F16 operands. */
+int32_t turbo_cuda_variants(uint32_t ordinal, uint32_t precision, char *out, size_t len) {
+    try {
+        int major = 0;
+        if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, (int)ordinal) != cudaSuccess) {
+            (void)cudaGetLastError();
+            return TURBO_E_RUNTIME;
+        }
+        Shape base;
+        base.half = precision == TURBO_PRECISION_FASTEST;
+        base.tensor_cores = major >= 8;
+        Variant v[32];
+        const int n = gemm_variants(base, v, 32);
+        std::string s;
+        for (int i = 0; i < n; i++) {
+            s += v[i].name;
+            s += ' ';
+            s += std::to_string(v[i].numeric);
+            s += v[i].candidate ? " 1\n" : " 0\n";
+        }
+        copy_str(out, len, s.c_str());
+        return TURBO_OK;
+    } catch (...) {
+        return TURBO_E_INTERNAL;
+    }
+}
+
+/* The GEMMs' stream-K in sessions made from now on, as
+ * TURBO_CUDA_SK_STEPS would name it: 0 the kernels' own, 1 to 64 the
+ * fewest k steps a block takes, -2 whole tiles to a block; -1 to read the
+ * variable again. */
+void turbo_cuda_use_sk_steps(int32_t steps) { sk_override.store(steps, std::memory_order_relaxed); }
 
 /* The FMA attention of sessions made from now on: 1 the key-split kernel
  * (TURBO_CUDA_ATTENTION=split), 0 the default, -1 to read the variable

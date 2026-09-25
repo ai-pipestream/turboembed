@@ -137,7 +137,7 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend", "formats", offset_of!(turbo_backend, formats)),
         ("turbo_backend", "reserved2", offset_of!(turbo_backend, reserved2)),
     ];
-    use turbo::backend::{turbo_backend_embed_rows, turbo_backend_run};
+    use turbo::backend::{turbo_backend_embed_rows, turbo_backend_run, turbo_backend_tuning};
     let session_fields: &[(&str, &str, usize)] = &[
         ("turbo_session_desc", "max_batch", offset_of!(turbo_session_desc, max_batch)),
         ("turbo_session_desc", "max_seq", offset_of!(turbo_session_desc, max_seq)),
@@ -159,6 +159,22 @@ fn struct_layouts_match_the_header() {
         ("turbo_session_info", "precision", offset_of!(turbo_session_info, precision)),
         ("turbo_session_info", "compute_dtype", offset_of!(turbo_session_info, compute_dtype)),
         ("turbo_session_info", "reserved", offset_of!(turbo_session_info, reserved)),
+        ("turbo_session_info", "tuned", offset_of!(turbo_session_info, tuned)),
+        ("turbo_session_info", "tune_ms", offset_of!(turbo_session_info, tune_ms)),
+        ("turbo_session_info", "choices", offset_of!(turbo_session_info, choices)),
+        ("turbo_session_desc", "tuning", offset_of!(turbo_session_desc, tuning)),
+        ("turbo_session_desc", "tuning_budget_ms", offset_of!(turbo_session_desc, tuning_budget_ms)),
+        ("turbo_backend", "session_create_tuned", offset_of!(turbo_backend, session_create_tuned)),
+        ("turbo_backend_tuning", "mode", offset_of!(turbo_backend_tuning, mode)),
+        ("turbo_backend_tuning", "budget_ms", offset_of!(turbo_backend_tuning, budget_ms)),
+        ("turbo_backend_tuning", "numerics_allowed", offset_of!(turbo_backend_tuning, numerics_allowed)),
+        ("turbo_backend_tuning", "cached", offset_of!(turbo_backend_tuning, cached)),
+        ("turbo_backend_tuning", "tuned", offset_of!(turbo_backend_tuning, tuned)),
+        ("turbo_backend_tuning", "tune_ms", offset_of!(turbo_backend_tuning, tune_ms)),
+        ("turbo_backend_tuning", "choices", offset_of!(turbo_backend_tuning, choices)),
+        ("turbo_backend_tuning", "timings", offset_of!(turbo_backend_tuning, timings)),
+        ("turbo_backend_tuning", "timings_len", offset_of!(turbo_backend_tuning, timings_len)),
+        ("turbo_backend_tuning", "numerics_used", offset_of!(turbo_backend_tuning, numerics_used)),
         ("turbo_result_info", "task", offset_of!(turbo_result_info, task)),
         ("turbo_result_info", "batch", offset_of!(turbo_result_info, batch)),
         ("turbo_result_info", "dim", offset_of!(turbo_result_info, dim)),
@@ -272,6 +288,7 @@ fn struct_layouts_match_the_header() {
         ("turbo_result_info", size_of::<turbo_result_info>()),
         ("turbo_backend_embed_rows", size_of::<turbo_backend_embed_rows>()),
         ("turbo_backend_run", size_of::<turbo_backend_run>()),
+        ("turbo_backend_tuning", size_of::<turbo_backend_tuning>()),
     ];
     let mut src = String::from(
         "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
@@ -301,6 +318,24 @@ fn struct_layouts_match_the_header() {
     }
     assert_eq!(out, want);
     std::fs::remove_dir_all(d).unwrap();
+}
+
+/// The layout the tuning ABI was proposed with: the table's new function
+/// after reserved2, and the grown structs' sizes, old sizes kept.
+#[test]
+fn the_tuning_layout_is_the_one_proposed() {
+    use turbo::backend::{turbo_backend, turbo_backend_tuning};
+    assert_eq!(offset_of!(turbo_backend, session_create_tuned), 160);
+    assert_eq!(size_of::<turbo_backend>(), 168);
+    assert_eq!(size_of::<turbo_session_desc>(), 24);
+    assert_eq!(size_of::<turbo_session_info>(), 1056);
+    assert_eq!(offset_of!(turbo_session_info, choices), 32);
+    assert_eq!(offset_of!(turbo_backend_tuning, cached), 16);
+    assert_eq!(offset_of!(turbo_backend_tuning, choices), 32);
+    assert_eq!(offset_of!(turbo_backend_tuning, timings), 1056);
+    assert_eq!(offset_of!(turbo_backend_tuning, numerics_used), 1068);
+    assert_eq!(size_of::<turbo_backend_tuning>(), 1072);
+    assert_eq!((TURBO_SESSION_DESC_SIZE_V1, TURBO_SESSION_INFO_SIZE_V1), (16, 24));
 }
 
 #[test]
@@ -377,6 +412,19 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_PRECISION_MODEL", TURBO_PRECISION_MODEL.into()),
         ("TURBO_PRECISION_FASTEST", TURBO_PRECISION_FASTEST.into()),
         ("TURBO_PRECISION_EXACT", TURBO_PRECISION_EXACT.into()),
+        ("TURBO_AUTOTUNE_RUNTIME", TURBO_AUTOTUNE_RUNTIME.into()),
+        ("TURBO_AUTOTUNE_OFF", TURBO_AUTOTUNE_OFF.into()),
+        ("TURBO_AUTOTUNE_ON", TURBO_AUTOTUNE_ON.into()),
+        ("TURBO_AUTOTUNE_RETUNE", TURBO_AUTOTUNE_RETUNE.into()),
+        ("TURBO_TUNED_DEFAULT", TURBO_TUNED_DEFAULT.into()),
+        ("TURBO_TUNED_FORCED", TURBO_TUNED_FORCED.into()),
+        ("TURBO_TUNED_MEASURED", TURBO_TUNED_MEASURED.into()),
+        ("TURBO_TUNED_CACHE", TURBO_TUNED_CACHE.into()),
+        ("TURBO_CHOICES_LEN", TURBO_CHOICES_LEN as i64),
+        ("TURBO_NUMERIC_F32_FMA", turbo::backend::TURBO_NUMERIC_F32_FMA.into()),
+        ("TURBO_NUMERIC_TF32", turbo::backend::TURBO_NUMERIC_TF32.into()),
+        ("TURBO_NUMERIC_F16_F32ACC", turbo::backend::TURBO_NUMERIC_F16_F32ACC.into()),
+        ("TURBO_NUMERIC_F16_CHUNKACC", turbo::backend::TURBO_NUMERIC_F16_CHUNKACC.into()),
         ("TURBO_CAP_UNSUPPORTED", turbo::backend::TURBO_CAP_UNSUPPORTED.into()),
         ("TURBO_CAP_EXPERIMENTAL", turbo::backend::TURBO_CAP_EXPERIMENTAL.into()),
         ("TURBO_CAP_SUPPORTED", turbo::backend::TURBO_CAP_SUPPORTED.into()),

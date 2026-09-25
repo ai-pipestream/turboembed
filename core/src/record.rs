@@ -36,12 +36,26 @@ fn rows_mixed() -> String {
 
 /// The environment variables that change what a backend runs, each with
 /// its backend: a record names those that were set in library.settings.
-pub const LIBRARY_VARS: [(&str, &str); 5] = [
+///
+/// TURBO_CUDA_TUNED and TURBO_CUDA_CHOICES are not read from the
+/// environment: they are the session's turbo_session_info.tuned and
+/// choices, present in every record of a backend that reports choices, so
+/// a record made with nothing set still says which kernels ran, and
+/// TURBO_CUDA_CHOICES set to that string forces them back.
+pub const LIBRARY_VARS: [(&str, &str); 13] = [
     ("cpu", "TURBO_CPU_THREADS"),
     ("cuda", "TURBO_CUDA_TILE"),
     ("cuda", "TURBO_CUDA_SK_STEPS"),
     ("cuda", "TURBO_CUDA_ATTENTION"),
     ("cuda", "TURBO_CUDA_CUBLAS"),
+    ("cuda", "TURBO_CUDA_LAYER_NORM"),
+    ("cuda", "TURBO_CUDA_POOL"),
+    ("cuda", "TURBO_CUDA_TF32"),
+    ("cuda", "TURBO_CUDA_F16_ACCUMULATE"),
+    ("cuda", "TURBO_AUTOTUNE"),
+    ("cuda", "TURBO_AUTOTUNE_BUDGET_MS"),
+    ("cuda", "TURBO_CUDA_TUNED"),
+    ("cuda", "TURBO_CUDA_CHOICES"),
 ];
 
 /// The reason a cell without any record for it gives.

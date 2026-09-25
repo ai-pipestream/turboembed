@@ -696,8 +696,20 @@ pub fn tiny_bundle() -> PathBuf {
     testdata().join("tiny-bert-bundle")
 }
 
+/// A session's desc with tuning OFF, so a developer with TURBO_AUTOTUNE set
+/// in their shell still tests the defaults; TURBO_TEST_TUNING=1 turns it
+/// ON instead, for a second pass of the suite with tuned sessions.
 pub fn session_desc(max_batch: u32, max_seq: u32, precision: u32) -> turbo_session_desc {
-    turbo_session_desc { struct_size: size_of::<turbo_session_desc>() as u32, max_batch, max_seq, precision }
+    let tuning =
+        if std::env::var("TURBO_TEST_TUNING").is_ok_and(|v| v == "1") { TURBO_AUTOTUNE_ON } else { TURBO_AUTOTUNE_OFF };
+    turbo_session_desc {
+        struct_size: size_of::<turbo_session_desc>() as u32,
+        max_batch,
+        max_seq,
+        precision,
+        tuning,
+        tuning_budget_ms: 0,
+    }
 }
 
 pub fn embed_options() -> turbo_embed_options {

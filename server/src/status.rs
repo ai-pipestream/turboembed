@@ -41,7 +41,7 @@ pub const EMBED_OPTIONS: [&str; 6] = ["truncate", "max_tokens", "prompt_role", "
 
 /// The fields of turbo_session_desc, 1-based: what turbo_session_create's
 /// turbo_error.field names.
-pub const SESSION_DESC: [&str; 3] = ["max_batch", "max_seq", "precision"];
+pub const SESSION_DESC: [&str; 5] = ["max_batch", "max_seq", "precision", "tuning", "tuning_budget_ms"];
 
 /// `<name>: <message>`, or `<name> field <n> (<field>): <message>` when the
 /// failure names a field of `fields`, the struct the call took.
