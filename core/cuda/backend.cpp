@@ -1067,6 +1067,7 @@ Tile tile_named() {
     if (!strcasecmp(v, "sw")) return TILE_SWIZZLED;
     if (!strcasecmp(v, "sw8w")) return TILE_SWIZZLED_8W;
     if (!strcasecmp(v, "sw256")) return TILE_SWIZZLED_256x128;
+    if (!strcasecmp(v, "swrow")) return TILE_SWIZZLED_ROWS;
     return TILE_DEFAULT;
 }
 
@@ -1490,6 +1491,14 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         sh.split_attention = split_attention_named();
         sh.sk_steps = sk_steps_named();
         sh.fused_ln = !separate_ln_named();
+        // Whole rows take the LayerNorm in the epilogue; wider hidden
+        // states than their tile, the eight-warp shapes.
+        if (sh.tile == TILE_SWIZZLED_ROWS && sh.half && sh.tensor_cores) {
+            if (sh.hidden <= ROW_LN_WIDTH)
+                sh.fused_ln = true;
+            else
+                sh.tile = TILE_SWIZZLED_8W;
+        }
         sh.column_pool = column_pool_named();
         Plan plan;
         TRY_CUDA(make_plan(sh, &plan), "planning the session's launches");

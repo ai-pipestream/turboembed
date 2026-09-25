@@ -94,6 +94,10 @@ pub enum Tile {
     Swizzled256x128 = 11,
     /// `SwizzledEightWarps` with F16 accumulators over each 64 terms of k.
     SwizzledEightWarpsF16Accumulate = 12,
+    /// `SwizzledEightWarps`, but the attention output and second
+    /// feed-forward GEMMs 64 x 384, whole rows, with the residual and the
+    /// LayerNorm in their epilogue (hidden widths up to 384, F16).
+    SwizzledRows = 13,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random

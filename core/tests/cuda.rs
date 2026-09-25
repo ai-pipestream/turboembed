@@ -1202,6 +1202,55 @@ fn bert_weights(h: u64, i: u64) -> Vec<Tensor> {
         .collect()
 }
 
+/// The whole-row tile, TURBO_CUDA_TILE=swrow: the attention output and
+/// second feed-forward GEMMs add the residual and run the LayerNorm in
+/// their epilogue, summing each row in another order than the separate
+/// kernel, so FASTEST's vectors are the default's within FASTEST's bound
+/// (cosine 0.999), on hidden widths of 64 and 384 and rows of very
+/// different lengths; a row alone gives its vector in the batch within
+/// the bound, and the same rows the same bits again. A model wider than
+/// the tile runs the eight-warp shapes instead.
+#[test]
+fn whole_row_layer_norm_matches_the_separate_kernel() {
+    let _t = turn();
+    let Some(_) = cuda_device("whole_row_layer_norm_matches_the_separate_kernel") else { return };
+    use turbo::cuda::Tile;
+    for hidden in [64, 384, 512] {
+        let mut m = model_manifest();
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(hidden / 32);
+        m["architecture"]["intermediate"] = json!(4 * hidden);
+        m["embed"]["dim"] = json!(hidden);
+        m["embed"]["max_seq"] = json!(300);
+        m["embed"]["max_batch"] = json!(6);
+        m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+        let mut f = Fixture::new(&format!("cuda-row-ln-{hidden}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(hidden, 4 * hidden));
+        let g = f.load_on(cuda).unwrap();
+        let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+        let base = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST))).unwrap();
+        base.write_tokens(&t.batch(), None).unwrap();
+        let want = base.run().unwrap().rows();
+        let tol = record::tolerance(base.info().compute_dtype).unwrap();
+        turbo::cuda::use_tile(Some(Tile::SwizzledRows));
+        let s = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
+        turbo::cuda::use_tile(None);
+        let s = s.unwrap();
+        s.write_tokens(&t.batch(), None).unwrap();
+        let got = s.run().unwrap().rows();
+        let what = format!("hidden {hidden}, whole rows");
+        let (cos, abs) = within(&what, &got, &want, tol);
+        println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+        s.write_tokens(&t.batch(), None).unwrap();
+        assert_eq!(s.run().unwrap().rows(), got, "{what}: the same bits again");
+        for r in [0, 3, 5] {
+            s.write_tokens(&one_row(&t, r).batch(), None).unwrap();
+            let alone = s.run().unwrap().rows();
+            within(&format!("{what}: row {r} alone"), &alone, &got[r..r + 1], tol);
+        }
+    }
+}
+
 /// FASTEST with F16 accumulators over each 64 terms of k
 /// (TURBO_CUDA_F16_ACCUMULATE=1), on a model of MiniLM's widths, the
 /// LayerNorm separate and in the GEMMs: the CPU's vectors within

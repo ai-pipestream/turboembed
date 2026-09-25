@@ -1309,6 +1309,25 @@ struct SwzCursor {
 /* A stage's k step and its flags: the first of its segment, the last,
  * and the tile's last. */
 constexpr int STEP_K = 0xffffff, STEP_OPENS = 1 << 24, STEP_CLOSES = 1 << 25, STEP_ENDS = 1 << 26;
+
+/* A quad's F16 row of four n8 tiles, a half2 of each from each lane
+ * (mine[u] is tile u's), gathered so lane tq holds tile tq's 8 values in
+ * column order: a 4 x 4 transpose in two exchanges, across bit 0 of tq,
+ * then across bit 1. */
+__device__ inline uint4 quad_gather(const uint32_t (&mine)[4], int tq) {
+    const bool b = tq & 1, c1 = tq & 2;
+    const uint32_t y0 = __shfl_xor_sync(0xffffffffu, b ? mine[0] : mine[1], 1);
+    const uint32_t y1 = __shfl_xor_sync(0xffffffffu, b ? mine[2] : mine[3], 1);
+    // Tiles b and 2 + b: this lane's piece, then its partner's.
+    const uint32_t k0 = b ? mine[1] : mine[0], k2 = b ? mine[3] : mine[2];
+    const uint32_t w0 = __shfl_xor_sync(0xffffffffu, c1 ? k0 : k2, 2);
+    const uint32_t w1 = __shfl_xor_sync(0xffffffffu, c1 ? y0 : y1, 2);
+    const uint32_t own = c1 ? k2 : k0, other = c1 ? y1 : y0;
+    // In lane order: this pair of lanes, then the other.
+    const uint32_t plo = b ? other : own, phi = b ? own : other;
+    const uint32_t wlo = b ? w1 : w0, whi = b ? w0 : w1;
+    return make_uint4(c1 ? wlo : plo, c1 ? whi : phi, c1 ? plo : wlo, c1 ? phi : whi);
+}
 #endif
 
 template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut, bool ACC16, bool DB>
@@ -1320,6 +1339,10 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
     constexpr int ACC16_STEPS = 64 / MMA_K;
     static_assert(NI % 4 == 0, "F16 stores gather four n8 tiles");
     static_assert(STAGES >= 2, "a pipeline");
+    // ADD_LN on a tile of whole rows (N <= BN, which the plan sees to):
+    // the LayerNorm in the epilogue, from registers.
+    constexpr bool ROW_LN = EPI == EPI_ADD_LN && BN == ROW_LN_WIDTH;
+    __shared__ float row_sums[ROW_LN ? 2 : 1][ROW_LN ? BM : 1][WN];
     extern __shared__ __align__(16) unsigned char gemm_sm[];
     __half *As = reinterpret_cast<__half *>(gemm_sm);
     __half *Bs = As + STAGES * BM * MMA_K;
@@ -1533,6 +1556,100 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                 }
             }
         }
+        if constexpr (ROW_LN) {
+            // The residual, then the LayerNorm of each row, which this
+            // tile holds whole: a lane's 2 x NI values of a row summed, a
+            // quad's four by shuffles, then the WN warps across the row
+            // in warp order through shared memory; the mean, then the
+            // variance about it, each over the row's N columns.
+            float *x = static_cast<float *>(g.out);
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int h = 0; h < 2; h++) {
+                    const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+#pragma unroll
+                    for (int j = 0; j < NI; j++) {
+                        const int c = cw + j * 8 + tq * 2;
+                        float2 r = make_float2(0.0f, 0.0f);
+                        if (t < M && c < N) r = __ldcg(reinterpret_cast<const float2 *>(x + (size_t)t * N + c));
+                        acc[i][j][2 * h] = c < N ? acc[i][j][2 * h] + r.x : 0.0f;
+                        acc[i][j][2 * h + 1] = c < N ? acc[i][j][2 * h + 1] + r.y : 0.0f;
+                    }
+                }
+            float mean[MI][2], inv[MI][2];
+#pragma unroll
+            for (int pass = 0; pass < 2; pass++) {
+#pragma unroll
+                for (int i = 0; i < MI; i++)
+#pragma unroll
+                    for (int h = 0; h < 2; h++) {
+                        float q = 0.0f;
+#pragma unroll
+                        for (int j = 0; j < NI; j++) {
+                            const bool in = cw + j * 8 + tq * 2 < N;
+#pragma unroll
+                            for (int e = 0; e < 2; e++) {
+                                const float v = acc[i][j][2 * h + e];
+                                if (pass == 0) {
+                                    q += v;
+                                } else if (in) {
+                                    const float d = v - mean[i][h];
+                                    q += d * d;
+                                }
+                            }
+                        }
+                        q += __shfl_xor_sync(0xffffffffu, q, 1);
+                        q += __shfl_xor_sync(0xffffffffu, q, 2);
+                        if (tq == 0) row_sums[pass][wm * WTM + i * 16 + gq + h * 8][wn] = q;
+                    }
+                __syncthreads();
+#pragma unroll
+                for (int i = 0; i < MI; i++)
+#pragma unroll
+                    for (int h = 0; h < 2; h++) {
+                        const float *rs = row_sums[pass][wm * WTM + i * 16 + gq + h * 8];
+                        float q = rs[0];
+#pragma unroll
+                        for (int w = 1; w < WN; w++) q += rs[w];
+                        if (pass == 0)
+                            mean[i][h] = q / (float)N;
+                        else
+                            inv[i][h] = 1.0f / sqrtf(q / (float)N + g.eps);
+                    }
+            }
+            __half *x16 = reinterpret_cast<__half *>(g.x16);
+#pragma unroll
+            for (int jq = 0; jq < NI / 4; jq++)
+#pragma unroll
+                for (int i = 0; i < MI; i++)
+#pragma unroll
+                    for (int h = 0; h < 2; h++) {
+                        const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+                        uint32_t mine[4];
+#pragma unroll
+                        for (int u = 0; u < 4; u++) {
+                            const int c = cw + (jq * 4 + u) * 8 + tq * 2;
+                            float y0 = 0.0f, y1 = 0.0f;
+                            if (c < N) {
+                                const float2 wv = __ldg(reinterpret_cast<const float2 *>(g.ln_w + c));
+                                const float2 bv = __ldg(reinterpret_cast<const float2 *>(g.ln_b + c));
+                                const float *a = acc[i][jq * 4 + u] + 2 * h;
+                                y0 = __fadd_rn(__fmul_rn((a[0] - mean[i][h]) * inv[i][h], wv.x), bv.x);
+                                y1 = __fadd_rn(__fmul_rn((a[1] - mean[i][h]) * inv[i][h], wv.y), bv.y);
+                                if (t < M) *reinterpret_cast<float2 *>(x + (size_t)t * N + c) = make_float2(y0, y1);
+                            }
+                            const __half2 p = __floats2half2_rn(y0, y1);
+                            mine[u] = *reinterpret_cast<const uint32_t *>(&p);
+                        }
+                        if (x16) {
+                            const uint4 w = quad_gather(mine, tq);
+                            const int c = cw + (jq * 4 + tq) * 8;
+                            if (t < M && c < N) *reinterpret_cast<uint4 *>(x16 + (size_t)t * N + c) = w;
+                        }
+                    }
+            continue;
+        }
         if constexpr (sizeof(TOut) == 4) {
             // F32: a float2 a lane, 32 contiguous bytes a quad.
 #pragma unroll
@@ -1569,24 +1686,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                         mine[u] = *reinterpret_cast<const uint32_t *>(&p);
                     }
                     {
-                        // Lane tq gathers n8 tile jq * 4 + tq, a 4 x 4
-                        // transpose within the quad in two exchanges:
-                        // across bit 0 of tq, then across bit 1.
-                        const bool b = tq & 1, c1 = tq & 2;
-                        const uint32_t y0 = __shfl_xor_sync(0xffffffffu, b ? mine[0] : mine[1], 1);
-                        const uint32_t y1 = __shfl_xor_sync(0xffffffffu, b ? mine[2] : mine[3], 1);
-                        // Tiles b and 2 + b: this lane's piece, then its partner's.
-                        const uint32_t k0 = b ? mine[1] : mine[0], k2 = b ? mine[3] : mine[2];
-                        const uint32_t w0 = __shfl_xor_sync(0xffffffffu, c1 ? k0 : k2, 2);
-                        const uint32_t w1 = __shfl_xor_sync(0xffffffffu, c1 ? y0 : y1, 2);
-                        const uint32_t own = c1 ? k2 : k0, other = c1 ? y1 : y0;
-                        // In lane order: this pair of lanes, then the other.
-                        const uint32_t plo = b ? other : own, phi = b ? own : other;
-                        const uint32_t wlo = b ? w1 : w0, whi = b ? w0 : w1;
-                        const uint32_t got[4] = {c1 ? wlo : plo, c1 ? whi : phi, c1 ? plo : wlo, c1 ? phi : whi};
+                        const uint4 w = quad_gather(mine, tq);
                         const int c = cw + (jq * 4 + tq) * 8;
                         if (t < M && c < N) {
-                            const uint4 w = make_uint4(got[0], got[1], got[2], got[3]);
                             if constexpr (EPI == EPI_QKV) {
                                 TOut *o = static_cast<TOut *>(g.out) + (size_t)t * g.head_dim;
                                 if (g.head_dim % 8 == 0) {
@@ -1662,6 +1764,9 @@ GemmKernel swz_kernel() {
  * one block to an SM, for GELU; TILE_SWIZZLED_8W the eight-warp mix. */
 template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
     constexpr bool wide = EPI == EPI_QKV || EPI == EPI_GELU;
+    if constexpr (EPI == EPI_ADD_LN && !ACC16)
+        if (t == TILE_SWIZZLED_ROWS) return swz_kernel<64, ROW_LN_WIDTH, 2, 4, 3, EPI, TOut, false, true>();
+    if (t == TILE_SWIZZLED_ROWS) t = TILE_SWIZZLED_8W;
     // F16 accumulators only at the eight-warp mix's shapes.
     if constexpr (wide) {
         // Warps of 32 x 64 with F16 accumulators, 64 x 32 without: the
@@ -1713,7 +1818,8 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
         switch (t) {
         case TILE_SWIZZLED:
         case TILE_SWIZZLED_8W:
-        case TILE_SWIZZLED_256x128: return swz_for<TOut, EPI, false>(t);
+        case TILE_SWIZZLED_256x128:
+        case TILE_SWIZZLED_ROWS: return swz_for<TOut, EPI, false>(t);
         case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
         default: break;
         }
