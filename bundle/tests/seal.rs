@@ -39,6 +39,11 @@ fn tiny_recipe(dir: &Path) -> PathBuf {
     ]);
     let p = dir.join("recipe.json");
     fs::write(&p, serde_json::to_vec_pretty(&r).unwrap()).unwrap();
+    // The recipe's own files sit beside it.
+    for l in r["local"].as_array().into_iter().flatten() {
+        let f = l["path"].as_str().unwrap();
+        fs::copy(root().join("bundle/recipes").join(f), dir.join(f)).unwrap();
+    }
     p
 }
 
@@ -76,8 +81,17 @@ fn reported_f16() -> Value {
     json!({ "tool": "onnxconverter-common", "tool_version": "1.16.0 (onnx 1.23.0)", "settings": ["keep_io_types=True", "max_finite_val=10000.0", "min_positive_val=1e-07", "float_casts_into_f16_ops=FLOAT16"] })
 }
 
+/// The bytes the compiled HEF has here: copied and hashed, never parsed
+/// by the tool.
+const HEF: &[u8] = b"a compiled Hailo graph, as far as sealing is concerned";
+
+/// What the HEF compile reports, in the form hef_compile.py writes it.
+fn reported_hef() -> Value {
+    json!({ "tool": "hailo-dataflow-compiler", "tool_version": "5.4.0", "settings": ["hw_arch=hailo10h", "seq=128"] })
+}
+
 /// Each converted artifact as a run makes it: its file written, and its
-/// produced_by from what the run reported.
+/// produced_by from what the run reported, in the container it ran in.
 fn converted(r: &Recipe, bundle: &Path) -> Vec<(String, Value)> {
     convert::conversions(r)
         .unwrap()
@@ -85,8 +99,12 @@ fn converted(r: &Recipe, bundle: &Path) -> Vec<(String, Value)> {
         .map(|c| {
             let file = bundle.join(&c.file);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
-            fs::write(file, ONNX_F16).unwrap();
-            (c.name.clone(), convert::produced_by(&reported_f16(), CONTAINER, &c, true).unwrap())
+            let (bytes, reported, container) = match &c.container {
+                Some(k) => (HEF, reported_hef(), k.clone()),
+                None => (ONNX_F16, reported_f16(), CONTAINER.to_owned()),
+            };
+            fs::write(file, bytes).unwrap();
+            (c.name.clone(), convert::produced_by(&reported, &container, &c, true).unwrap())
         })
         .collect()
 }
@@ -125,6 +143,8 @@ fn a_sealed_bundle_loads_through_the_core() {
     assert_eq!(
         paths,
         [
+            "calibration/texts.jsonl",
+            "hailo/model-hailo10h-s128.hef",
             "onnx/model-f16.onnx",
             "onnx/model.onnx",
             "reference/reference.safetensors",
@@ -146,11 +166,20 @@ fn a_sealed_bundle_loads_through_the_core() {
             "reproducible": true
         })
     );
+    // The HEF's produced_by names its container and calibration texts,
+    // which are in the bundle, with the compile's settings from the run.
+    let hef = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "hef-hailo10h-s128").unwrap();
+    let pb = &hef["produced_by"];
+    assert_eq!(pb["tool"], "hailo-dataflow-compiler");
+    assert!(pb["container"].as_str().unwrap().starts_with("turbo-hailo-dfc@sha256:"));
+    assert_eq!(pb["inputs"], json!(["calibration/texts.jsonl"]));
+    assert_eq!(pb["args"], json!(["onnx/model.onnx", "hailo/model-hailo10h-s128.hef", "hw_arch=hailo10h", "seq=128"]));
     // The loader opens it as a machine would.
     seal::verify(&bundle).unwrap();
     let tok = bundle.join("tokenizer.json");
+    let tok_entry = m["files"].as_array().unwrap().iter().find(|f| f["path"] == "tokenizer.json").unwrap();
     assert_eq!(
-        m["files"][3]["sha256"].as_str().unwrap(),
+        tok_entry["sha256"].as_str().unwrap(),
         turbo::bundle::sha256_hex(&fs::read(tok).unwrap()),
         "hashes are computed, not copied from the recipe"
     );
@@ -184,14 +213,17 @@ fn the_recipe_carries_upstreams_onnx_export_for_reference_programs_only() {
     assert!(r.upstream.iter().all(|u| u.to.as_deref() != Some("onnx/model-f16.onnx")), "not fetched");
     let c = convert::conversions(&r).unwrap();
     assert_eq!(
-        c,
-        [convert::Conversion {
+        c[0],
+        convert::Conversion {
             name: "onnx-f16".into(),
             file: "onnx/model-f16.onnx".into(),
             from: "onnx-f32".into(),
             from_file: "onnx/model.onnx".into(),
             script: convert::ONNX_F16,
-        }]
+            container: None,
+            inputs: vec![],
+            args: vec![],
+        }
     );
 }
 
@@ -227,7 +259,7 @@ fn a_conversion_that_did_not_run_is_not_sealed() {
     let r = Recipe::load(&bundle.parent().unwrap().join("recipe.json")).unwrap();
     let pb = reference::produced_by(&reported(), CONTAINER).unwrap();
     let e = seal::seal(&r, &bundle, pb, vec![]).unwrap_err();
-    assert!(e.contains("the recipe converts [\"onnx-f16\"], and the runs made []"), "{e}");
+    assert!(e.contains("the recipe converts [\"onnx-f16\", \"hef-hailo10h-s128\"], and the runs made []"), "{e}");
     // A second run that gave other bytes is recorded as such.
     let c = &convert::conversions(&r).unwrap()[0];
     assert_eq!(convert::produced_by(&reported_f16(), CONTAINER, c, false).unwrap()["reproducible"], false);
@@ -386,4 +418,63 @@ fn upstream_files_are_fetched_at_the_commit() {
         ),
         "https://huggingface.co/org/model/resolve/c9745ed1d9f207416be6d2e6f8de32d1f16199bf/1_Pooling/config.json"
     );
+}
+
+#[test]
+fn a_hef_is_compiled_from_the_export_in_a_pinned_container() {
+    let d = scratch("hef");
+    let write = |edit: &dyn Fn(&mut Value)| {
+        let mut r: Value = serde_json::from_slice(&fs::read(tiny_recipe(&d)).unwrap()).unwrap();
+        let arts = r["manifest"]["artifacts"].as_array_mut().unwrap();
+        edit(arts.iter_mut().find(|a| a["name"] == "hef-hailo10h-s128").unwrap());
+        let p = d.join("edited.json");
+        fs::write(&p, serde_json::to_vec(&r).unwrap()).unwrap();
+        Recipe::load(&p).map(|r| convert::conversions(&r).unwrap())
+    };
+    let c = write(&|_| {}).unwrap();
+    let hef = c.iter().find(|c| c.name == "hef-hailo10h-s128").unwrap();
+    assert_eq!(hef.script, convert::HEF_COMPILE);
+    assert_eq!(hef.inputs, ["calibration/texts.jsonl"]);
+    assert_eq!(
+        hef.args,
+        [
+            "--tokenizer",
+            "/bundle/tokenizer.json",
+            "--calibration",
+            "/bundle/calibration/texts.jsonl",
+            "--target",
+            "hailo10h",
+            "--seq",
+            "128",
+            "--heads",
+            "4"
+        ]
+    );
+    let refused = |edit: &dyn Fn(&mut Value), says: &str| {
+        let e = write(edit).unwrap_err();
+        assert!(e.contains(says), "{says}: {e}");
+    };
+    refused(&|a| a["produced_by"]["tool"] = json!("typed by hand"), "names from, container and inputs");
+    refused(&|a| a["produced_by"]["container"] = json!("turbo-hailo-dfc:latest"), "sha256");
+    refused(&|a| a["produced_by"]["inputs"] = json!([]), "one file of calibration texts");
+    refused(&|a| a["produced_by"]["from"] = json!("onnx-f16"), "export with no compute_dtype");
+    refused(&|a| a["produced_by"]["from"] = json!("weights-f32"), "export with no compute_dtype");
+    refused(&|a| a["compute_dtype"] = json!("DTYPE_F16"), "DTYPE_I8 HEF");
+    refused(&|a| a["graph_input"] = json!("INPUT_TOKEN_IDS"), "DTYPE_I8 HEF");
+    refused(&|a| a["fixed_batch"] = json!(4), "fixed_batch 1");
+    refused(&|a| a["target"] = json!(""), "names its target");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_recipe_file_that_changed_is_not_staged() {
+    let d = scratch("local");
+    let r = Recipe::load(&tiny_recipe(&d)).unwrap();
+    let f = d.join(&r.local[0].path);
+    let mut bytes = fs::read(&f).unwrap();
+    bytes.extend_from_slice(b"{\"text\": \"one more\"}\n");
+    fs::write(&f, bytes).unwrap();
+    let e = seal::stage(&r, &upstream(&d), &d.join("bundle")).unwrap_err();
+    assert!(e.contains("the recipe pins"), "{e}");
+    fs::remove_dir_all(d).unwrap();
 }
