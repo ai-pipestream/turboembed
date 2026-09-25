@@ -40,6 +40,16 @@
 
 float gelu(float v) { return 0.5f * v * (1.0f + erf(v * 0.70710678118654752440f)); }
 
+/* GELU for the XMX kernels, which the host calls with it only where they
+ * write F16: erf(v / sqrt 2) as v Q(v^2), a least-squares fit for |v| <=
+ * 3 sqrt 2, scaled to pass +-1 there so the clamp holds it at +-1 past it;
+ * within 4.5e-5 of erf everywhere, far inside an F16 output's rounding.
+ * Multiply-adds only, where erf takes an exponential and a division. */
+float gelu_f16(float v) {
+    const float c = clamp(v, -4.2426406871f, 4.2426406871f), u = c * c;
+    return 0.5f * v * (1.0f + clamp(c * fma(fma(fma(fma(fma(fma(fma(fma(1.124930235e-10f, u, -1.075038494e-08f), u, 4.542513633e-07f), u, -1.131040558e-05f), u, 1.874531714e-04f), u, -2.221024817e-03f), u, 1.964596200e-02f), u, -1.327153964e-01f), u, 7.978386872e-01f), -1.0f, 1.0f));
+}
+
 
 /* ---- Linear layers ------------------------------------------------------
  *
@@ -371,7 +381,7 @@ __attribute__((overloadable)) void intel_sub_group_2d_block_write_16b_8r16x1c(__
                 float8 v = acc[i][j];                                                                               \
                 __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                                   \
                     if (flags & LINEAR_BIAS) v[m] = v[m] + bo;                                                      \
-                    if (flags & LINEAR_GELU) v[m] = gelu(v[m]);                                                     \
+                    if (flags & LINEAR_GELU) v[m] = gelu_f16(v[m]);                                                 \
                 }                                                                                                   \
                 STORE(y, n_out, tokens, o0 + 16 * j, t0 + 8 * i, v);                                                \
             }                                                                                                       \

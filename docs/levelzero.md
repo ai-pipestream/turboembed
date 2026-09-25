@@ -174,7 +174,8 @@ of any run.
   operands; where the projections take their LayerNorm in their epilogue
   the residual stream between layers is F16, and the last layer's output
   is written in F32 as well for the pooling; the
-  feed-forward block's middle and the attention context are F16; for
+  feed-forward block's middle and the attention context are F16, the
+  block's GELU taking erf from a polynomial within 4.5e-5 of it; for
   head widths 32 and 64 attention takes F16 operands, its softmax in base
   2 on the device's native exponential, and for other widths it runs as
   in F32 and rounds its context to F16. Every sum and the softmax are F32, and so are the LayerNorms in
