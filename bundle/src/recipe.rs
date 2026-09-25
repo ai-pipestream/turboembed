@@ -15,6 +15,25 @@ pub struct Recipe {
     pub manifest: Value,
     /// Files fetched from `model.source` at its commit.
     pub upstream: Vec<Upstream>,
+    /// Files that come with the recipe rather than from upstream: a
+    /// compiled artifact's calibration texts, say.
+    #[serde(default)]
+    pub local: Vec<Local>,
+    /// The directory the recipe was read from, which `local` paths are
+    /// relative to.
+    #[serde(skip)]
+    pub dir: std::path::PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Local {
+    /// The path beside the recipe.
+    pub path: String,
+    /// Where the bundle carries it.
+    pub to: String,
+    /// The bytes must have this SHA-256.
+    pub sha256: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,7 +53,8 @@ pub struct Upstream {
 impl Recipe {
     pub fn load(path: &Path) -> Result<Recipe> {
         let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let r: Recipe = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+        let mut r: Recipe = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+        r.dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
         if r.manifest.get("files").is_some() {
             return Err(format!("{}: manifest.files is written by the tool, not the recipe", path.display()));
         }
@@ -46,6 +66,13 @@ impl Recipe {
         // anything is fetched.
         crate::seal::named_paths(&r.manifest)?;
         crate::convert::conversions(&r)?;
+        for l in &r.local {
+            check_rel(&l.path)?;
+            check_rel(&l.to)?;
+            if l.sha256.len() != 64 || !l.sha256.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()) {
+                return Err(format!("local {}: sha256 {:?} is not 64 lowercase hex", l.path, l.sha256));
+            }
+        }
         for u in &r.upstream {
             check_rel(&u.path)?;
             if let Some(to) = &u.to {
