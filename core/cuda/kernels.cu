@@ -1592,8 +1592,13 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                                 if (g.head_dim % 8 == 0) {
                                     *reinterpret_cast<uint4 *>(o + qkv_column(g, c)) = w;
                                 } else {
-                                    const TOut *e = reinterpret_cast<const TOut *>(&w);
-                                    for (int u = 0; u < 8; u++) o[qkv_column(g, c + u)] = e[u];
+                                    // The halves by shifts, not through w's
+                                    // address, so w stays in registers.
+                                    const uint32_t wv[4] = {w.x, w.y, w.z, w.w};
+#pragma unroll
+                                    for (int u = 0; u < 8; u++)
+                                        o[qkv_column(g, c + u)] =
+                                            __ushort_as_half((unsigned short)(wv[u >> 1] >> ((u & 1) * 16)));
                                 }
                             } else {
                                 *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = w;
