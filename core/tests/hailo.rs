@@ -150,6 +150,7 @@ fn the_devices_listed_are_the_ones_hailort_scans() {
         }
         let name = field(&d.name);
         assert!(!name.is_empty());
+        assert_eq!(name, name.trim(), "no padding around the name");
         let runtime = field(&d.runtime_version);
         assert!(runtime.split('.').count() == 3 && runtime.split('.').all(|p| p.parse::<u32>().is_ok()), "{runtime}");
         let driver = field(&d.driver_version);
