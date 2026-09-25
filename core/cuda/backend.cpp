@@ -1026,6 +1026,10 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // TURBO_CUDA_POOL=columns pools with a thread per column, in place of
 // the default's groups of tokens summed apart.
 //
+// TURBO_CUDA_GELU=erf, read when a session is made, gives FASTEST's GELU
+// erff, as an F32 output's always is, in place of the default's fit
+// (gelu_f16 in kernels.cu); TURBO_CUDA_GELU=poly names the default.
+//
 // TURBO_CUDA_CUBLAS, read when a session is made, hands the GEMMs it names
 // to cuBLAS: a comma-separated list of qkv, out, ffn1 and ffn2, or all.
 // cuBLAS's product then goes through a kernel of the same epilogue, and
@@ -1063,6 +1067,7 @@ std::atomic<int> tf32_override{-1};
 std::atomic<int> f16_accumulate_override{-1};
 std::atomic<int> separate_ln_override{-1};
 std::atomic<int> column_pool_override{-1};
+std::atomic<int> gelu_erf_override{-1};
 /* In place of TURBO_CUDA_SK_STEPS: 0 the kernels' own, 1 to 64 steps,
  * SK_OVERRIDE_TILES whole tiles; -1 for the variable. */
 std::atomic<int> sk_override{-1};
@@ -1165,6 +1170,15 @@ bool column_pool_named(bool *forced) {
     const char *v = getenv("TURBO_CUDA_POOL");
     *forced = v != nullptr;
     return v && !strcasecmp(v, "columns");
+}
+
+/* TURBO_CUDA_GELU=erf gives an F16 output's GELU erff; unset or poly,
+ * the default's fit. */
+bool gelu_erf_named() {
+    const int o = overridden(gelu_erf_override);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_GELU");
+    return v && !strcasecmp(v, "erf");
 }
 
 /* TURBO_CUDA_SK_STEPS: the GEMMs' fewest k steps per block, a count from
@@ -1575,9 +1589,10 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
         g.n = inter;
         if (s.cublas & CUBLAS_FFN1) {
             TRY_CUBLAS(linear(blas, half, xin, tokens, h, g.w, inter, s.raw), "the feed-forward input");
-            TRY_CUDA(gelu_epilogue(st, s.raw, g, half, plan), "GELU");
+            TRY_CUDA(gelu_epilogue(st, s.raw, g, half, sh.gelu_erf, plan), "GELU");
         } else {
-            TRY_CUDA(gemm_as(GEMM_FFN1, EPI_GELU, g), "the feed-forward input");
+            TRY_CUDA(gemm_as(GEMM_FFN1, gemm_epilogue(GEMM_FFN1, plan.fused_ln, sh.gelu_erf), g),
+                     "the feed-forward input");
         }
 
         g.a = s.ffn;
@@ -1715,6 +1730,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         base.heads = (int)d.heads;
         base.inter = (int)d.intermediate;
         base.half = half;
+        base.gelu_erf = half && gelu_erf_named();
         int major = 0, sms = 0, optin = 0;
         TRY_CUDA(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, c->ordinal), "the device's sm");
         TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, c->ordinal), "the device's SMs");
@@ -2189,7 +2205,7 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
                 float want = ref[(size_t)t * n + c], have = 0;
                 if (epi == EPI_PLAIN) {
                     have = value((size_t)t * n + c);
-                } else if (epi == EPI_GELU) {
+                } else if (epi == EPI_GELU || epi == EPI_GELU_ERF) {
                     const float v = want + bias[c];
                     want = 0.5f * v * (1.0f + erff(v * 0.70710678118654752440f));
                     have = value((size_t)t * n + c);
@@ -2386,5 +2402,10 @@ void turbo_cuda_use_f16_accumulate(int32_t f16) { f16_accumulate_override.store(
  * column (TURBO_CUDA_POOL=columns), 0 the default, -1 to read the
  * variable again. */
 void turbo_cuda_use_column_pool(int32_t columns) { column_pool_override.store(columns, std::memory_order_relaxed); }
+
+/* FASTEST's GELU in sessions made from now on: 1 erff
+ * (TURBO_CUDA_GELU=erf), 0 the default's fit, -1 to read the variable
+ * again. */
+void turbo_cuda_use_gelu_erf(int32_t erf) { gelu_erf_override.store(erf, std::memory_order_relaxed); }
 
 } // extern "C"

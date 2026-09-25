@@ -47,6 +47,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_column_pool(columns: i32);
     fn turbo_cuda_use_tf32(tf32: i32);
     fn turbo_cuda_use_f16_accumulate(f16: i32);
+    fn turbo_cuda_use_gelu_erf(erf: i32);
 }
 
 /// The epilogues of the backend's own GEMMs, as [`gemm_check`] names them.
@@ -55,10 +56,12 @@ unsafe extern "C" {
 pub enum Epilogue {
     /// + bias, written head-major for attention.
     Qkv = 0,
-    /// + bias, then GELU with the error function.
+    /// + bias, then GELU with the error function (from a fit at an F16 output).
     Gelu = 1,
     /// The bare product, F32.
     Plain = 2,
+    /// GELU with erff at an F16 output too, as TURBO_CUDA_GELU=erf has it.
+    GeluErf = 4,
 }
 
 /// The GEMMs' tiles, rows by columns, as TURBO_CUDA_TILE names them.
@@ -301,6 +304,15 @@ pub fn use_tf32(tf32: Option<bool>) {
 #[cfg(feature = "internals")]
 pub fn use_f16_accumulate(f16: Option<bool>) {
     unsafe { turbo_cuda_use_f16_accumulate(f16.map_or(-1, i32::from)) };
+}
+
+/// The GELU of FASTEST sessions made from now on: `Some(true)` erff, as
+/// TURBO_CUDA_GELU=erf picks it, `Some(false)` erf from a fit, the
+/// default, `None` to read the variable again. Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn use_gelu_erf(erf: Option<bool>) {
+    unsafe { turbo_cuda_use_gelu_erf(erf.map_or(-1, i32::from)) };
 }
 
 /// The kernel choices of sessions made from now on, as TURBO_CUDA_CHOICES
