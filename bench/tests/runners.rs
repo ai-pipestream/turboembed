@@ -468,6 +468,51 @@ fn a_bundle_without_onnx_is_recorded_as_trtexec_not_run() {
     assert!(tensorrt::run(&unpinned, m, 0, 10).unwrap_err().contains("is not pinned"));
 }
 
+/// trtexec's output when TensorRT refuses the graph, in the form its
+/// samples print it (logger.cpp tags errors `[E]`).
+const TRTEXEC_FAILED: &str = "\
+&&&& RUNNING TensorRT.trtexec [TensorRT v110201] [b3] # trtexec --onnx=/bundle/onnx/model-f16.onnx --stronglyTyped
+[09/25/2026-10:00:00] [I] TensorRT version: 11.2.1
+[09/25/2026-10:00:02] [E] [TRT] ITensor::getDimensions: Error Code 4: API Usage Error (/Sub: ElementWiseOperation SUB must have same input types. But they are of types Half and Float.)
+[09/25/2026-10:00:02] [E] Failed to parse onnx file
+[09/25/2026-10:00:02] [E] Engine set up failed
+&&&& FAILED TensorRT.trtexec [TensorRT v110201] [b3] # trtexec --onnx=/bundle/onnx/model-f16.onnx --stronglyTyped
+";
+
+#[test]
+fn a_program_that_fails_is_a_reason_and_docker_failing_is_an_error() {
+    // A real process that prints trtexec's failure and exits 1, as trtexec
+    // does in its container; docker passes the code on.
+    let mut log = docker::Log::default();
+    let argv = strings(&["sh", "-c", "printf '%s' \"$0\"; exit 1", TRTEXEC_FAILED]);
+    let ran = log.run_program(&argv, strings(&["trtexec"]), &tensorrt::ERROR_TAGS).unwrap();
+    let why = "exited with code 1: [TRT] ITensor::getDimensions: Error Code 4: API Usage Error (/Sub: \
+               ElementWiseOperation SUB must have same input types. But they are of types Half and Float.)";
+    assert_eq!(ran, docker::Ran::Failed(why.into()));
+    assert_eq!(log.commands, [strings(&["trtexec"])], "the command is recorded");
+
+    // Success gives the output; docker's own codes and no error line.
+    let ok = log.run_program(&strings(&["sh", "-c", "echo fine"]), vec![], &tensorrt::ERROR_TAGS).unwrap();
+    assert_eq!(ok, docker::Ran::Done("fine\n".into()));
+    for code in [125, 126, 127] {
+        let e = log.run_program(&strings(&["sh", "-c", &format!("exit {code}")]), vec![], &[]).unwrap_err();
+        assert!(e.contains(&format!("exit status: {code}")), "{e}");
+    }
+    let bare = log.run_program(&strings(&["sh", "-c", "echo; echo last words >&2; exit 3"]), vec![], &[]).unwrap();
+    assert_eq!(bare, docker::Ran::Failed("exited with code 3: last words".into()));
+    let silent = log.run_program(&strings(&["sh", "-c", "exit 2"]), vec![], &[]).unwrap();
+    assert_eq!(silent, docker::Ran::Failed("exited with code 2: no output".into()));
+    assert_eq!(
+        docker::failure(
+            Some(1),
+            "[ INFO ] Loading\n[ ERROR ] Device with \"GPU\" name is not registered\n",
+            &openvino::ERROR_TAGS
+        ),
+        Some("exited with code 1: Device with \"GPU\" name is not registered".into())
+    );
+    assert_eq!(docker::failure(None, "killed", &[]), None, "a signal is not the program's answer");
+}
+
 // ---- the bundle's ONNX file ----
 
 /// The MiniLM recipe's manifest, sealed over stand-in files: every path it

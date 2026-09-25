@@ -22,7 +22,7 @@ use turbo::manifest::Dtype;
 use turbo::record::{Measured, ReferenceRun};
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
-use crate::docker::{self, Log, argv};
+use crate::docker::{self, Log, Ran, argv};
 use crate::measure::{Measurement, Rows};
 use crate::{Result, onnx};
 
@@ -191,9 +191,13 @@ pub fn onnx_file(m: &Measurement) -> std::result::Result<String, String> {
     onnx::file(&m.manifest, dtype, "for trtexec to build an engine from")
 }
 
+/// The tag trtexec's error lines carry.
+pub const ERROR_TAGS: [&str; 1] = ["[E] "];
+
 /// Build and time the engine on `gpu`, the device's CUDA ordinal. A thing
-/// trtexec cannot do for this bundle is a record that says so; a failure
-/// of docker or of trtexec is an error.
+/// trtexec cannot do for this bundle, trtexec failing to build or run the
+/// engine included, is a record that says so, with trtexec's first error
+/// line; a failure of docker is an error.
 pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<ReferenceRun> {
     let image = docker::check_pinned("--tensorrt-image", &t.image)?;
     let procedure = format!(
@@ -234,10 +238,16 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
             iterations,
             &precision,
         );
-        parse(&log.run_as(&cmd, shown)?)
+        match log.run_program(&cmd, shown, &ERROR_TAGS)? {
+            Ran::Done(out) => parse(&out).map(Ok),
+            Ran::Failed(why) => Ok(Err(format!("trtexec {why}"))),
+        }
     })();
     let _ = fs::remove_dir_all(&work);
-    let s = result?;
+    let s = match result? {
+        Ok(s) => s,
+        Err(why) => return Ok(not_run(image, log, &procedure, why)),
+    };
     Ok(ReferenceRun {
         name: NAME.into(),
         role: "kernel".into(),

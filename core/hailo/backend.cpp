@@ -71,11 +71,13 @@ void copy_str(char *dst, size_t len, const char *src) {
 }
 
 /* A fixed-width field HailoRT fills with a length beside it, which need not
- * be NUL-terminated. */
+ * be NUL-terminated, and may be padded with blanks: a Hailo-8's board name
+ * comes back as "Hailo-8" and trailing spaces. The blanks are dropped. */
 std::string counted(const char *s, size_t len, size_t cap) {
     if (len > cap) len = cap;
     size_t n = 0;
     while (n < len && s[n]) n++;
+    while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t')) n--;
     return std::string(s, n);
 }
 

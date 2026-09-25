@@ -418,10 +418,13 @@ struct Kernels {
     /// The linear layers in F32 by sub-group, where the terms come in
     /// sixteens.
     linear_sg: Kernel,
+    /// The same for 8 tokens at most, a group's sub-groups sharing the
+    /// terms.
+    linear_gemv: Kernel,
     /// The linear layers on the matrix engines, for a session at FASTEST:
     /// F32 activations to F32, F32 to F16, and F16 to F32; then the same
     /// with a group's sub-groups sharing its tile.
-    linear_xmx: Option<[Kernel; 9]>,
+    linear_xmx: Option<[Kernel; 12]>,
     embed_layer_norm: Kernel,
     add_layer_norm: Kernel,
     /// The same, a group per token, for few tokens.
@@ -453,6 +456,7 @@ impl Kernels {
         Ok(Kernels {
             linear: c.kernel("linear", [16, 16, 1])?,
             linear_sg: c.kernel("linear_sg", [16, 1, 1])?,
+            linear_gemv: c.kernel("linear_gemv", [16 * GEMV_SUBGROUPS, 1, 1])?,
             linear_xmx: if xmx {
                 let (one, shared) = ([16, 1, 1], [16 * XMX_SUBGROUPS, 1, 1]);
                 Some([
@@ -465,6 +469,9 @@ impl Kernels {
                     c.kernel("linear_xmx_wg", [128, 1, 1])?,
                     c.kernel("linear_xmx_wg_to_half", [128, 1, 1])?,
                     c.kernel("linear_xmx_wg_from_half", [128, 1, 1])?,
+                    c.kernel("linear_xmx_gemv", [16 * GEMV_SUBGROUPS, 1, 1])?,
+                    c.kernel("linear_xmx_gemv_to_half", [16 * GEMV_SUBGROUPS, 1, 1])?,
+                    c.kernel("linear_xmx_gemv_from_half", [16 * GEMV_SUBGROUPS, 1, 1])?,
                 ])
             } else {
                 None
@@ -509,6 +516,15 @@ const WG_M: u32 = 64;
 const WG_N: u32 = 128;
 const WG_K: u32 = 32;
 const XMX_WG_TILES: u32 = 64;
+/// The kernels for 8 tokens at most: GEMV_SUBGROUPS sub-groups a group,
+/// each summing a share of the terms, as encoder.cl's GV_KS and GV.
+const GEMV_SUBGROUPS: u32 = 8;
+
+/// The terms each of a GEMV group's sub-groups sums, as xmx_share.
+fn gemv_share(k_len: u32) -> Option<u32> {
+    let share = k_len.div_ceil(16 * GEMV_SUBGROUPS) * 16;
+    (k_len.is_multiple_of(share) && k_len / share <= GEMV_SUBGROUPS).then_some(share)
+}
 
 /// The terms each of an XMX group's sub-groups sums: an equal share, a
 /// multiple of 16, of k_len. None when no such share covers k_len
@@ -831,6 +847,25 @@ impl Session {
                     I32(k_len as i32),
                     I32(xmx_share(k_len).unwrap_or(k_len) as i32),
                 ];
+                // A handful of tokens: the layer is its weights' read, spread
+                // over as many sub-groups as the terms allow.
+                if tokens <= 8
+                    && let Some(share) = gemv_share(k_len)
+                {
+                    let args = [
+                        args[0],
+                        args[1],
+                        args[2],
+                        args[3],
+                        args[4],
+                        args[5],
+                        args[6],
+                        args[7],
+                        args[8],
+                        I32(share as i32),
+                    ];
+                    return kx[operands + 9].launch(c, q, what, &args, [n_out.div_ceil(32), 1, splits]);
+                }
                 // Tiles of 64 x 128 staged through local memory where
                 // there are enough of them to fill the device.
                 let wide = [n_out.div_ceil(WG_N), tokens.div_ceil(WG_M), splits];
@@ -850,6 +885,23 @@ impl Session {
                     [args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], I32(k_len as i32)]
                 };
                 return kernel.launch(c, q, what, &args, groups);
+            }
+            if tokens <= 8
+                && let Some(share) = gemv_share(k_len)
+            {
+                let args = [
+                    Ptr(x),
+                    Ptr(weight),
+                    Ptr(bias),
+                    Ptr(y),
+                    I32(tokens as i32),
+                    I32(n_out as i32),
+                    I32(n_in as i32),
+                    I32(flags),
+                    I32(k_len as i32),
+                    I32(share as i32),
+                ];
+                return k.linear_gemv.launch(c, q, what, &args, [n_out.div_ceil(32), 1, splits]);
             }
             if k_len.is_multiple_of(16) {
                 let groups = [n_out.div_ceil(SG_N), tokens.div_ceil(SG_T), splits];

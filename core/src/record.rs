@@ -34,6 +34,16 @@ fn rows_mixed() -> String {
     ROWS_MIXED.into()
 }
 
+/// The environment variables that change what a backend runs, each with
+/// its backend: a record names those that were set in library.settings.
+pub const LIBRARY_VARS: [(&str, &str); 5] = [
+    ("cpu", "TURBO_CPU_THREADS"),
+    ("cuda", "TURBO_CUDA_TILE"),
+    ("cuda", "TURBO_CUDA_SK_STEPS"),
+    ("cuda", "TURBO_CUDA_ATTENTION"),
+    ("cuda", "TURBO_CUDA_CUBLAS"),
+];
+
 /// The reason a cell without any record for it gives.
 pub const NO_RECORD: &str = "no benchmark record for this cell";
 
@@ -113,6 +123,11 @@ pub struct Library {
     /// The branches of origin that contain the commit, as the tree's
     /// remote-tracking refs showed them when the record was made.
     pub pushed_to: Vec<String>,
+    /// Each of LIBRARY_VARS for the backend that was set when the record
+    /// was made, as `NAME=value`, in that order; empty when none was, or
+    /// in a record made before the field was.
+    #[serde(default)]
+    pub settings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -388,6 +403,21 @@ impl Record {
                 self.library.build, self.library.version
             ));
         }
+        let vars: Vec<&str> = LIBRARY_VARS.iter().filter(|(b, _)| *b == self.device.backend).map(|&(_, v)| v).collect();
+        let mut at = 0;
+        for s in &self.library.settings {
+            let name = s.split_once('=').map(|(n, _)| n);
+            match name.and_then(|n| vars[at..].iter().position(|v| *v == n)) {
+                Some(i) => at += i + 1,
+                None => {
+                    return Err(format!(
+                        "library.settings {s:?} is not NAME=value, NAME one of {vars:?} for {}, each once and in \
+                         that order",
+                        self.device.backend
+                    ));
+                }
+            }
+        }
         if task_name(TURBO_TASK_EMBED) != Some(self.task.as_str()) {
             return Err(format!("task {:?} is not TASK_EMBED", self.task));
         }
@@ -559,11 +589,14 @@ pub enum Verdict {
 }
 
 impl Record {
-    /// Whether the record is for the cell: the same arch label, operating
-    /// system, backend, task and precision, and for a CPU the same
-    /// processor.
+    /// Whether the record is for the cell: measured on mixed rows, with
+    /// the same arch label, operating system, backend, task and precision,
+    /// and for a CPU the same processor. Mixed rows are what a server sees,
+    /// so only they back a capability and its speed_ratio; a dense record
+    /// is kept and parsed as reference evidence and backs nothing.
     pub fn is_for(&self, cell: &Cell) -> bool {
-        self.machine.arch == cell.arch
+        self.rows.kind == ROWS_MIXED
+            && self.machine.arch == cell.arch
             && self.machine.os == cell.os
             && self.device.backend == cell.backend
             && task_name(cell.task) == Some(self.task.as_str())

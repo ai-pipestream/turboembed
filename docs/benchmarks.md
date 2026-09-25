@@ -218,6 +218,7 @@ may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
 | `library.version` | The version number at the start of `turbo_version()`. |
 | `library.build` | `turbo_version()` whole: the version and the backends linked. |
 | `library.commit`, `.pushed_to` | See Provenance. |
+| `library.settings` | The environment variables that change what the backend runs, those that were set, as `NAME=value`: `TURBO_CPU_THREADS` on cpu; `TURBO_CUDA_TILE`, `TURBO_CUDA_SK_STEPS`, `TURBO_CUDA_ATTENTION` and `TURBO_CUDA_CUBLAS` on cuda. Empty when none was, or in a record made before the field was. |
 | `task`, `precision` | `TASK_EMBED`; `PRECISION_*` as the session asked. |
 | `compute_dtype` | `DTYPE_*` as `turbo_session_get_info` reported it. `DTYPE_I8` is accepted and has no floor. |
 | `bundle.*` | `turbo_model_info`: model id and revision, and the manifest, artifact and tokenizer hashes. |
@@ -251,6 +252,11 @@ truncates, so the row is exactly `seq` tokens. The batch then has
 longest case that fits the model, as for mixed rows, and no case is cut;
 a `--seq` longer than every case is refused. The hash is made the same
 way, and TEI, TensorRT and OpenVINO are given these rows.
+
+Only a mixed record backs a capability and its `speed_ratio`, since
+mixed rows are what a server sees; a dense record is committed and
+parsed like any other, as reference evidence for the kernels, and backs
+nothing.
 
 ### What each time covers
 
@@ -376,7 +382,14 @@ the MiniLM recipe's `onnx-f16`, docs/bundle.md) and the flag
 `--stronglyTyped`, so every layer runs in the type the graph gives it.
 TensorRT 11 removed weak typing, and with it `--fp16` and `--bf16`; a
 strongly typed build is the same on TensorRT 10. `procedure` names the
-file and the flag. The output must end in
+file and the flag. An F16 TensorRT time in an older record, built with
+`--fp16` on the F32 graph (weak typing), is not the same build as one
+made with `--stronglyTyped` on the F16 graph, and its `procedure` says
+which it was. When trtexec exits non-zero, failing to parse the graph,
+build the engine or run it, the reference is `not_run` with its exit
+code and its first `[E]` line, and the rest of the record is still
+written; docker's own failure (exit code 125 to 127) stops the tool.
+Otherwise the output must end in
 `&&&& PASSED`; the version is its `TensorRT version:` line, p50 and p99
 the summary's `Latency` median and `percentile(99%)` (the H2D copy, the
 GPU compute and the D2H copy of one batch), the iterations its `Timing
@@ -491,7 +504,9 @@ iterations its `Count`; rows per second the first run's count times the
 batch over its `Duration`. Its `Average` and `Throughput` go in
 `procedure`. The two runs must report the same version and count, and
 the second a p99 no lower than the first's median, or the tool stops
-with an error. `-infer_precision` is `f32` for F32 and `f16` for F16;
+with an error. When benchmark_app exits non-zero in either run, the
+reference is `not_run` with its exit code and its first `[ ERROR ]`
+line, as for trtexec. `-infer_precision` is `f32` for F32 and `f16` for F16;
 the GPU plugin has no BF16, so a BF16 session records `not_run`. With
 more than one Level Zero device listed the tool refuses to run it:
 benchmark_app's `GPU` is OpenVINO's first, which need not be the device

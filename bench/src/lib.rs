@@ -162,6 +162,7 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
             build: m.build.clone(),
             commit: p.commit.clone(),
             pushed_to: p.pushed_to.clone(),
+            settings: m.settings.clone(),
         },
         task: record::task_name(TURBO_TASK_EMBED).unwrap().into(),
         precision: record::precision_name(m.precision).ok_or("precision is not a TURBO_PRECISION_* value")?.into(),
