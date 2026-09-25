@@ -115,9 +115,7 @@ enum Tile : int {
     TILE_F16_WHOLE_K_ROWS = 16,
     /* TILE_F16_WHOLE_K_3, but QKV and GELU 256 x 128 over eight warps of
      * 64 x 64, one block to an SM. */
-    TILE_F16_WHOLE_K_256 = 17,
-    /* TILE_F16_WHOLE_K at two stages, three blocks to an SM. */
-    TILE_F16_WHOLE_K_2 = 18
+    TILE_F16_WHOLE_K_256 = 17
 };
 
 /* The four GEMMs of a layer, in the order a layer runs them. */

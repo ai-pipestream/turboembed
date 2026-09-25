@@ -348,7 +348,7 @@ int gemm_variants(const Shape &base, Variant *out, int cap) {
         // chunk, the block's segment of k, and are never timed.
         for (Tile t : {TILE_64x64, TILE_128x64, TILE_128x128, TILE_128x128_4W, TILE_256x128, TILE_SWIZZLED,
                        TILE_SWIZZLED_256x128, TILE_SWIZZLED_ROWS, TILE_F16_WHOLE_K, TILE_F16_WHOLE_K_3,
-                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256, TILE_F16_WHOLE_K_2})
+                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256})
             add(t, false, false);
         return n;
     }
