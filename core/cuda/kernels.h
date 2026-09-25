@@ -63,9 +63,10 @@ constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 /* The widest hidden state the row kernels hold in registers. */
 constexpr int MAX_HIDDEN = 2048;
 
-/* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64;
- * TURBO_CUDA_TILE names another. The tensor cores take 64 x 64 and
- * 128 x 64, the FMA GEMM those and 128 x 128. */
+/* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64 for the
+ * FMA GEMM, and on the tensor cores 128 x 128 for the wide GEMMs (QKV,
+ * GELU) and 128 x 64 for the others; TURBO_CUDA_TILE names one tile for
+ * all of them. */
 enum Tile : int { TILE_DEFAULT = 0, TILE_64x64 = 1, TILE_128x64 = 2, TILE_128x128 = 3 };
 
 /* A session's fixed shape, from which make_plan sizes every launch. */

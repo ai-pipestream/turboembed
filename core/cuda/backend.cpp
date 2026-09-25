@@ -998,9 +998,11 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // accumulate in F32; the QKV and feed-forward input GEMMs and attention
 // write F16, which only a GEMM or attention reads.
 //
-// TURBO_CUDA_TILE, read when a session is made, names the GEMMs' tile:
-// 64x64, 128x64 (the default) or 128x128 (the FMA kernel only), for
-// measuring one against another.
+// TURBO_CUDA_TILE, read when a session is made, names the GEMMs' tile
+// for all four: 64x64, 128x64 or 128x128, for measuring one against
+// another and against the default (128x64 for the FMA kernel; on the
+// tensor cores 128x128 for QKV and the first feed-forward GEMM, 128x64
+// for the other two).
 //
 // TURBO_CUDA_ATTENTION=split, read when a session is made, gives an F32
 // session (and an F16 one without the tensor cores' attention) the FMA

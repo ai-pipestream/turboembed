@@ -1257,7 +1257,7 @@ fn the_gemms_match_cublas() {
     ] {
         for (half, tensor_cores) in [(false, false), (true, true), (true, false)] {
             let tiles: &[Tile] = if half && tensor_cores {
-                &[Tile::T64x64, Tile::T128x64]
+                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128]
             } else {
                 &[Tile::T64x64, Tile::T128x64, Tile::T128x128]
             };

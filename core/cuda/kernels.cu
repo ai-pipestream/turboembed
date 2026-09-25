@@ -797,11 +797,16 @@ __global__ void __launch_bounds__((BM / 8) * (BN / 8), (simt_min_blocks<BM, BN>(
 // -- The F16 GEMM on the tensor cores --------------------------------------------------
 //
 // mma.sync m16n8k16, F16 operands, F32 accumulators. A block of WM x WN
-// warps, each a 32 x 32 accumulator tile, computes a BM x BN tile over k
-// in steps of 32, through a STAGES-deep cp.async pipeline in shared
-// memory (rows padded to 40 halves, which keeps ldmatrix free of bank
-// conflicts). The finished tile goes through shared memory, so every
-// store to global memory is 16 contiguous bytes.
+// warps, each a (BM / WM) x (BN / WN) accumulator tile, computes a
+// BM x BN tile over k in steps of 32, through a STAGES-deep cp.async
+// pipeline in shared memory (rows padded to 40 halves, which keeps
+// ldmatrix free of bank conflicts). The finished tile goes through
+// shared memory, so every store to global memory is 16 contiguous
+// bytes. The wide GEMMs (QKV and the first feed-forward) take 128 x 128
+// over eight warps of 32 x 64: each operand byte read from L2 feeds
+// twice the MMAs of 128 x 64, and each A fragment four B fragments'
+// worth. The N = 384 GEMMs keep 128 x 64, whose three N tiles already
+// leave few tiles to share among the SMs.
 
 constexpr int MMA_K = 32, MMA_LD = MMA_K + 8;
 
@@ -816,13 +821,15 @@ __device__ inline void put2(float *p, float a, float b) { *reinterpret_cast<floa
 __device__ inline void put2(__half *p, float a, float b) { *reinterpret_cast<__half2 *>(p) = __floats2half2_rn(a, b); }
 #endif
 
-/* Two blocks of the 128 x 64 kernel fit an SM at three stages. */
-template <int BM, int BN, int STAGES> constexpr int mma_min_blocks() {
-    return mma_gemm_smem<BM, BN, STAGES, float>() <= 48 * 1024 ? 2 : 1;
+/* Two blocks to an SM when the shared memory fits two (128 x 64 at three
+ * stages, 128 x 128 at two with an F16 output), else one. */
+template <int BM, int BN, int STAGES, typename TOut> constexpr int mma_min_blocks() {
+    return mma_gemm_smem<BM, BN, STAGES, TOut>() <= 48 * 1024 ? 2 : 1;
 }
 
 template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut>
-__global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES>())) gemm_mma_kernel(GemmArgs g) {
+__global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, TOut>()))
+    gemm_mma_kernel(GemmArgs g) {
 #ifndef TURBO_NO_MMA
     constexpr int NT = WM * WN * 32, WTM = BM / WM, WTN = BN / WN, MI = WTM / 16, NI = WTN / 8;
     constexpr int E = 16 / (int)sizeof(TOut), OLD = BN + E; // the output tile's row, in TOut
@@ -981,12 +988,11 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES>()
 #endif
 }
 
-/* The tile a GEMM runs: TILE_DEFAULT is 128 x 64; TURBO_CUDA_TILE
- * chooses another, 128 x 128 for the FMA kernel only. */
+/* The tile a GEMM runs: TURBO_CUDA_TILE's, or TILE_DEFAULT, which the
+ * FMA kernel takes as 128 x 64 and the tensor cores as their mix. */
 Tile resolve_tile(bool mma, Tile t) {
-    if (t == TILE_64x64) return t;
-    if (t == TILE_128x128 && !mma) return t;
-    return TILE_128x64;
+    if (t == TILE_DEFAULT && !mma) return TILE_128x64;
+    return t;
 }
 
 /* A GEMM kernel, its threads and its dynamic shared memory. */
@@ -1009,7 +1015,7 @@ template <int BM, int BN, int WM, int WN, int STAGES, int EPI, typename TOut> Ge
             mma_gemm_smem<BM, BN, STAGES, TOut>(),
             BM,
             BN,
-            mma_min_blocks<BM, BN, STAGES>()};
+            mma_min_blocks<BM, BN, STAGES, TOut>()};
 }
 
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
@@ -1020,9 +1026,14 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
     }
 }
 
-/* 128 x 64 at three stages, two blocks to an SM; 64 x 64 at four. */
+/* The tensor cores' tiles, eight warps each but 64 x 64's four:
+ * 128 x 128 at two stages, warps of 32 x 64; 128 x 64 at three, warps of
+ * 32 x 32; 64 x 64 at four. The default takes 128 x 128 for the wide
+ * GEMMs, QKV and GELU, and 128 x 64 for the N = 384 ones. */
 template <typename TOut, int EPI> GemmKernel mma_for(Tile t) {
     if (t == TILE_64x64) return mma_kernel<64, 64, 2, 2, 4, EPI, TOut>();
+    if (t == TILE_128x128 || (t == TILE_DEFAULT && EPI != EPI_PLAIN))
+        return mma_kernel<128, 128, 4, 2, 2, EPI, TOut>();
     return mma_kernel<128, 64, 4, 2, 3, EPI, TOut>();
 }
 

@@ -63,7 +63,7 @@ pub enum Tile {
     T64x64 = 1,
     /// 128 x 64.
     T128x64 = 2,
-    /// 128 x 128, F32 only (F16 on the tensor cores takes 128 x 64).
+    /// 128 x 128.
     T128x128 = 3,
 }
 
