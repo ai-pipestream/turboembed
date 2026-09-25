@@ -1072,7 +1072,7 @@ int overridden(const std::atomic<int> &o) { return o.load(std::memory_order_rela
 
 /* TURBO_CUDA_TILE by name; TILE_DEFAULT, not forced, when unset or not a
  * name it takes. The F16 accumulators' eight-warp tiles are
- * TURBO_CUDA_F16_ACCUMULATE's; a whole-k tile it names (f16k, f16k3) sets
+ * TURBO_CUDA_F16_ACCUMULATE's; a whole-k tile it names (f16k, f16k3, f16krow) sets
  * that experiment as the switch does. */
 bool tile_named(Tile *out) {
     const int o = overridden(tile_override);
@@ -1323,19 +1323,21 @@ void forced_from_environment(const Shape &base, uint32_t precision, Choices *c, 
 }
 
 /* Whole rows take the LayerNorm in the epilogue of the attention output
- * and second feed-forward GEMMs whose tile is TILE_SWIZZLED_ROWS, with F16
- * operands on the tensor cores; hidden states wider than their tile take
- * the eight-warp shapes instead. */
+ * and second feed-forward GEMMs whose tile is TILE_SWIZZLED_ROWS or
+ * TILE_F16_WHOLE_K_ROWS, with F16 operands on the tensor cores; hidden
+ * states wider than their tile take the eight-warp shapes instead, or
+ * TILE_F16_WHOLE_K_3. */
 void whole_rows(const Shape &base, Choices *c) {
     if (!base.half || !base.tensor_cores) return;
     for (BinChoices &bc : c->bin)
         for (Gemm g : {GEMM_OUT, GEMM_FFN2}) {
-            if (bc.gemm[g].tile != TILE_SWIZZLED_ROWS) continue;
+            const Tile t = bc.gemm[g].tile;
+            if (t != TILE_SWIZZLED_ROWS && t != TILE_F16_WHOLE_K_ROWS) continue;
             if (base.hidden <= ROW_LN_WIDTH) {
                 bc.ln = LN_FUSED;
                 if (bc.gemm_forced[g] & KNOB_TILE) bc.forced |= KNOB_LN;
             } else {
-                bc.gemm[g].tile = TILE_SWIZZLED_8W;
+                bc.gemm[g].tile = t == TILE_SWIZZLED_ROWS ? TILE_SWIZZLED_8W : TILE_F16_WHOLE_K_3;
             }
         }
 }

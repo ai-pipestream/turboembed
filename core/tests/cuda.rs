@@ -1202,14 +1202,15 @@ fn bert_weights(h: u64, i: u64) -> Vec<Tensor> {
         .collect()
 }
 
-/// The whole-row tile, TURBO_CUDA_TILE=swrow: the attention output and
-/// second feed-forward GEMMs add the residual and run the LayerNorm in
-/// their epilogue, summing each row in another order than the separate
-/// kernel, so FASTEST's vectors are the default's within FASTEST's bound
-/// (cosine 0.999), on hidden widths of 64 and 384 and rows of very
-/// different lengths; a row alone gives its vector in the batch within
-/// the bound, and the same rows the same bits again. A model wider than
-/// the tile runs the eight-warp shapes instead.
+/// The whole-row tiles, TURBO_CUDA_TILE=swrow and f16krow: the attention
+/// output and second feed-forward GEMMs add the residual and run the
+/// LayerNorm in their epilogue, summing each row in another order than
+/// the separate kernel, so FASTEST's vectors are the default's within
+/// FASTEST's bound (cosine 0.999), on hidden widths of 64 and 384 and
+/// rows of very different lengths; a row alone gives its vector in the
+/// batch within the bound, and the same rows the same bits again. A
+/// model wider than the tile runs the eight-warp shapes instead (f16k3's
+/// for f16krow).
 #[test]
 fn whole_row_layer_norm_matches_the_separate_kernel() {
     let _t = turn();
@@ -1232,28 +1233,30 @@ fn whole_row_layer_norm_matches_the_separate_kernel() {
         base.write_tokens(&t.batch(), None).unwrap();
         let want = base.run().unwrap().rows();
         let tol = record::tolerance(base.info().compute_dtype).unwrap();
-        turbo::cuda::use_tile(Some(Tile::SwizzledRows));
-        let s = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
-        turbo::cuda::use_tile(None);
-        let s = s.unwrap();
-        s.write_tokens(&t.batch(), None).unwrap();
-        let got = s.run().unwrap().rows();
-        let what = format!("hidden {hidden}, whole rows");
-        let (cos, abs) = within(&what, &got, &want, tol);
-        println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
-        s.write_tokens(&t.batch(), None).unwrap();
-        assert_eq!(s.run().unwrap().rows(), got, "{what}: the same bits again");
-        for r in [0, 3, 5] {
-            s.write_tokens(&one_row(&t, r).batch(), None).unwrap();
-            let alone = s.run().unwrap().rows();
-            within(&format!("{what}: row {r} alone"), &alone, &got[r..r + 1], tol);
+        for tile in [Tile::SwizzledRows, Tile::F16WholeKRows] {
+            turbo::cuda::use_tile(Some(tile));
+            let s = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
+            turbo::cuda::use_tile(None);
+            let s = s.unwrap();
+            s.write_tokens(&t.batch(), None).unwrap();
+            let got = s.run().unwrap().rows();
+            let what = format!("hidden {hidden}, tile {tile:?}");
+            let (cos, abs) = within(&what, &got, &want, tol);
+            println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+            s.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(s.run().unwrap().rows(), got, "{what}: the same bits again");
+            for r in [0, 3, 5] {
+                s.write_tokens(&one_row(&t, r).batch(), None).unwrap();
+                let alone = s.run().unwrap().rows();
+                within(&format!("{what}: row {r} alone"), &alone, &got[r..r + 1], tol);
+            }
         }
     }
 }
 
 /// FASTEST with F16 accumulators over each 64 terms of k
 /// (TURBO_CUDA_F16_ACCUMULATE=1), and over the whole of k (the tiles
-/// `f16k` and `f16k3`), on a model of MiniLM's widths, the LayerNorm
+/// `f16k`, `f16k3` and `f16krow`), on a model of MiniLM's widths, the LayerNorm
 /// separate and in the GEMMs: the CPU's vectors within FASTEST's bound
 /// (cosine 0.999), and the same bits when run again.
 #[test]
@@ -1276,8 +1279,9 @@ fn f16_accumulators_hold_fastest_s_bound() {
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
     use turbo::cuda::Tile;
-    for (tile, separate) in
-        [None, Some(Tile::F16WholeK), Some(Tile::F16WholeK3)].into_iter().flat_map(|tile| [(tile, true), (tile, false)])
+    for (tile, separate) in [None, Some(Tile::F16WholeK), Some(Tile::F16WholeK3), Some(Tile::F16WholeKRows)]
+        .into_iter()
+        .flat_map(|tile| [(tile, true), (tile, false)])
     {
         // The whole-k tiles are the F16 accumulators' experiment too.
         turbo::cuda::use_f16_accumulate(Some(true));
@@ -1705,9 +1709,10 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::Swizzled256x128,
             Tile::F16WholeK,
             Tile::F16WholeK3,
+            Tile::F16WholeKRows,
         ] {
             // The whole-k tiles sum in F16, the F16 accumulators' experiment.
-            let whole_k = matches!(tile, Tile::F16WholeK | Tile::F16WholeK3);
+            let whole_k = matches!(tile, Tile::F16WholeK | Tile::F16WholeK3 | Tile::F16WholeKRows);
             turbo::cuda::use_f16_accumulate(whole_k.then_some(true));
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));
@@ -1970,7 +1975,7 @@ fn a_whole_k_tile_is_refused_without_its_switch() {
     let (_f, g) = small_model("cuda-whole-k");
     let make =
         |line: &str| forcing(line, || Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_FASTEST))));
-    for tile in ["f16k", "f16k3"] {
+    for tile in ["f16k", "f16k3", "f16krow"] {
         let line = format!("all:ffn2={tile}");
         let e = make(&line).err().unwrap();
         assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{line}: {}", e.message);

@@ -1654,9 +1654,9 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         constexpr bool f16_out = sizeof(TOut) == 2;
         static_assert(!f16_out || EPI != EPI_PLAIN, "F16 outputs have a bias, which packs them");
         [[maybe_unused]] uint32_t packed[f16_out ? MI : 1][f16_out ? NI : 1][2];
-        static_assert(!WHOLE || !ROW_LN, "the whole-row LayerNorm reads the F32 sums");
         // WHOLE: an F16 output's values taken from the F16 sums as they
-        // are packed; an F32 output's bias added as it is stored.
+        // are packed; an F32 output's bias added as it is stored, or with
+        // the residual.
         if constexpr (EPI != EPI_PLAIN && (!WHOLE || f16_out))
             static_for<NI>([&](auto J) {
                 constexpr int j = J.value;
@@ -1707,8 +1707,15 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
                         const int c = cw + j * 8 + tq * 2;
                         float2 r = make_float2(0.0f, 0.0f);
                         if (t < M && c < N) r = __ldcg(reinterpret_cast<const float2 *>(x + (size_t)t * N + c));
-                        acc[i][j][2 * h] = c < N ? acc[i][j][2 * h] + r.x : 0.0f;
-                        acc[i][j][2 * h + 1] = c < N ? acc[i][j][2 * h + 1] + r.y : 0.0f;
+                        // WHOLE: the F32 sums made here, where the F16
+                        // ones end.
+                        float v0 = total(i, j, 2 * h), v1 = total(i, j, 2 * h + 1);
+                        if constexpr (WHOLE) {
+                            v0 += c < N ? __ldg(g.bias + c) : 0.0f;
+                            v1 += c < N ? __ldg(g.bias + c + 1) : 0.0f;
+                        }
+                        acc[i][j][2 * h] = c < N ? v0 + r.x : 0.0f;
+                        acc[i][j][2 * h + 1] = c < N ? v1 + r.y : 0.0f;
                     });
                 });
             });
@@ -1917,9 +1924,15 @@ GemmKernel swz_kernel() {
 template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
     constexpr bool wide = EPI == EPI_QKV || EPI == EPI_GELU;
     // F16 sums over the whole of k: 128 x 128 over four warps of 64 x 64,
-    // TensorRT's shape, at four stages (one block to an SM) or three (two).
+    // TensorRT's shape, at four stages (one block to an SM) or three (two);
+    // and 64 x 384, whole rows, over eight warps of 32 x 96 at three
+    // stages for the GEMMs with the LayerNorm in their epilogue (the
+    // others take 128 x 128 at three).
     if (t == TILE_F16_WHOLE_K) return swz_kernel<128, 128, 2, 2, 4, EPI, TOut, true, true, true>();
-    if (t == TILE_F16_WHOLE_K_3) return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, true, true, true>();
+    if constexpr (EPI == EPI_ADD_LN)
+        if (t == TILE_F16_WHOLE_K_ROWS) return swz_kernel<64, ROW_LN_WIDTH, 2, 4, 3, EPI, TOut, true, true, true>();
+    if (t == TILE_F16_WHOLE_K_3 || t == TILE_F16_WHOLE_K_ROWS)
+        return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, true, true, true>();
     if constexpr (EPI == EPI_ADD_LN && !ACC16)
         if (t == TILE_SWIZZLED_ROWS) return swz_kernel<64, ROW_LN_WIDTH, 2, 4, 3, EPI, TOut, false, true>();
     if (t == TILE_SWIZZLED_ROWS) t = TILE_SWIZZLED_8W;
@@ -1977,7 +1990,8 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
         case TILE_SWIZZLED_256x128:
         case TILE_SWIZZLED_ROWS:
         case TILE_F16_WHOLE_K:
-        case TILE_F16_WHOLE_K_3: return swz_for<TOut, EPI, false>(t);
+        case TILE_F16_WHOLE_K_3:
+        case TILE_F16_WHOLE_K_ROWS: return swz_for<TOut, EPI, false>(t);
         case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
         default: break;
         }
