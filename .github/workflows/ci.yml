@@ -27,6 +27,11 @@ jobs:
         run: cargo clippy --workspace --all-targets
       - name: test
         run: cargo test --workspace
+      - name: a benchmark record end to end, from the pushed commit
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          TURBO_BENCH_REQUIRE_RECORD: "1"
+        run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
       - name: header compiles as C11 and C++17 with no padding
         run: |
           printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"

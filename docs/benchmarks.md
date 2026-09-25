@@ -29,7 +29,8 @@ what was measured, and it is named in the record, but the cell does not
 depend on it. So the tool refuses a bundle under the repository's
 `testdata/` (compared as canonical paths, the manifest's too, so a link
 or a `..` path into it is refused as well): those are test fixtures, not
-models anyone runs.
+models anyone runs. The guard catches a mistake, not a determined copy:
+the same files copied elsewhere pass it.
 
 | Option | Meaning |
 |---|---|
@@ -78,8 +79,12 @@ the tree's changes (the same exemption as step 2 below). It is run
 again whenever HEAD, the branch HEAD names or `packed-refs` moves (found
 with `git rev-parse --git-path`, so a worktree, whose `.git` is a file,
 works), and whenever anything under `core/`, `include/`, `bench/` or
-`benchmarks/`, or the workspace's `Cargo.toml` or `Cargo.lock`, changes:
-what it compiled in is never older than the binary.
+`benchmarks/`, or the workspace's `Cargo.toml` or `Cargo.lock`, changes,
+or any path in the changes it found: what it compiled in is never older
+than the binary, and a build of a dirty tree runs again when the tree
+is put back. Only paths that exist are handed to cargo (a missing one
+reads as changed on every call): a branch that is only in `packed-refs`
+is watched through its directory, where its next commit writes it.
 
 Then, with git, in `--repo`, before measuring and again before writing:
 
@@ -360,7 +365,8 @@ rule; the tool writes records through the same types and checks, and
   bundle in `testdata/`, a reference neither named nor disabled, an
   unpinned image. And, only when this checkout is a clean commit on a
   branch of origin and the tool was built from it (otherwise the test
-  prints why and skips), a record made end to end on the CPU with a copy
+  prints why to stderr and skips, or fails when
+  `TURBO_BENCH_REQUIRE_RECORD=1`, as CI sets it on pushes to main), a record made end to end on the CPU with a copy
   of the small bundle and TEI disabled, into a temporary directory:
   every field is checked against what the library, git and the bundle
   say, and the record backs nothing.

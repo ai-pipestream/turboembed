@@ -54,7 +54,12 @@ fn unrecordable() -> Option<String> {
 #[test]
 fn a_cpu_record_is_measured_and_without_a_reference_backs_nothing() {
     if let Some(why) = unrecordable() {
-        println!("skipped: this checkout cannot be recorded from: {why}");
+        // CI on main sets this: there the checkout is a pushed commit, and
+        // a skip would hide that the tool cannot record from it.
+        if std::env::var("TURBO_BENCH_REQUIRE_RECORD").as_deref() == Ok("1") {
+            panic!("TURBO_BENCH_REQUIRE_RECORD=1, and this checkout cannot be recorded from: {why}");
+        }
+        eprintln!("skipped: this checkout cannot be recorded from: {why}");
         return;
     }
     let root = scratch("tool-cpu");
@@ -126,6 +131,12 @@ fn a_cpu_record_is_measured_and_without_a_reference_backs_nothing() {
 
 #[test]
 fn the_tool_refuses_a_tree_it_was_not_built_from() {
+    if turbo_bench::BUILD_COMMIT.is_empty() {
+        // Built outside git (from a tarball): the tool refuses every tree
+        // for that, which the_build_is_named_only_when_it_is_the_commit_and_clean covers.
+        eprintln!("skipped: this build is from no git commit, so there is no other tree to refuse");
+        return;
+    }
     let root = scratch("tool-other-tree");
     let repo = pushed_repo(&root);
     let out = root.join("records");
