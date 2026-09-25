@@ -37,7 +37,7 @@ cargo build -p turbo --release --features levelzero
 | Variable | Meaning |
 |---|---|
 | `TURBO_CLANG` | The clang that compiles the kernels. Unset: `clang` on the `PATH`. |
-| `TURBO_LEVELZERO_PROFILE` | At run time: every context times each kernel and copy on the device, and logs the totals at debug level when it is released. |
+| `TURBO_LEVELZERO_PROFILE` | At run time: every context times each kernel and copy on the device, and logs the totals at debug level when it is released. A profiled run allocates on the host to name what it times. |
 
 The driver builds the SPIR-V for the device the first time a context
 needs a kernel, when a model or session is made; that build is not part
@@ -87,7 +87,7 @@ of any run.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: device scratch, the
   output buffer, host staging the device reads, and the session's own
-  kernel objects. `embed_write` packs the rows on the host into the
+  kernel objects. `embed_write` packs the rows, wherever they are, on the host into the
   staging: each row's positions through its last live token, one after
   another, as ids, positions, types and mask, with a table of where each
   row starts and how long it is. The padding after a row's last live
@@ -105,9 +105,9 @@ of any run.
   LayerNorm; then one kernel pools (mean over the mask, the first token,
   or the last live one), cuts to `output_dim` and normalizes. The linear
   layers run by sub-group, 8 tokens by 64 outputs each, in F32 on the
-  vector engines or at FASTEST on the matrix engines, where a layer with
-  too few tiles to fill the device shares each tile among a group's
-  sub-groups instead. Attention for head widths 32, 64 and 128 keeps each
+  vector engines or at FASTEST on the matrix engines; there a layer with
+  too few of those tiles to fill the device runs as tiles of 32 tokens by
+  32 outputs instead, each shared by a group's four sub-groups. Attention for head widths 32, 64 and 128 keeps each
   query and its running context in registers and streams the row's keys
   and values through local memory; at FASTEST, for width 32, it runs on
   the matrix engines. The run waits for the queue before it returns, and
@@ -134,10 +134,11 @@ of any run.
   arrives), mean pooling sums in position order, the L2 norm is summed in
   F64 and floored at 1e-12. Products and sums round separately except in
   the linear layers' and attention's multiply-adds. Cosine against the
-  fp32 reference must reach 0.9999. At FASTEST the linear layers and
-  attention take F16 operands, the feed-forward block's middle and the
-  attention's inputs and output are F16, and every sum, the softmax and
-  the LayerNorms are F32; cosine must reach 0.999.
+  fp32 reference must reach 0.9999. At FASTEST the linear layers take F16
+  operands and the feed-forward block's middle is F16; for a head width
+  of 32 attention too takes F16 operands, its inputs and output F16, and
+  for other widths it runs as in F32. Every sum, the softmax and the
+  LayerNorms are F32; cosine must reach 0.999.
 - **What a result reports.** Stages: tokenize on the host for text,
   upload fused into the lookup kernel, which reads the packed rows over
   the bus, lookup, encode and pool on the device, normalize fused into the

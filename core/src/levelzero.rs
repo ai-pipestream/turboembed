@@ -113,7 +113,9 @@ unsafe extern "C" fn capability(
         let r = std::slice::from_raw_parts_mut(reason, reason_len as usize);
         if dev.fp64 {
             *status = TURBO_CAP_EXPERIMENTAL;
-            // FASTEST runs the linear layers on the matrix engines in F16.
+            // FASTEST runs the linear layers on the matrix engines in F16,
+            // for a model whose widths the kernels take; a session of any
+            // other falls back to F32 and says so in its info.
             *dtype = if precision == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
             *options_honored = EMBED_HONORED;
             write_str(r, "");
