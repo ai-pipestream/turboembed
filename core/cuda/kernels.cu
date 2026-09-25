@@ -1862,6 +1862,9 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
         // (The plain product fits in 128 registers only as warps of 16 x 64.)
         if constexpr (ACC16 && EPI == EPI_PLAIN) return swz_kernel<128, 64, 8, 1, 3, EPI, TOut, true, false>();
         if constexpr (ACC16 && EPI != EPI_PLAIN) return swz_kernel<128, 64, 4, 2, 3, EPI, TOut, true, false>();
+        // Probe: the plain product without the pipelined mainloop.
+        if constexpr (EPI == EPI_PLAIN)
+            if (t == TILE_SWIZZLED_8W) return swz_kernel<128, 64, 4, 2, 4, EPI, TOut, false, false>();
         if (t == TILE_SWIZZLED_8W) return swz_kernel<128, 64, 4, 2, 4, EPI, TOut, false, true>();
     }
     if constexpr (!ACC16) {
