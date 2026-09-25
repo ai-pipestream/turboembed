@@ -111,14 +111,17 @@ pub(crate) struct Model {
     f32: Mutex<Option<Weights>>,
     /// The linear layers' weights in F16, for the matrix engines, made by
     /// the first session at FASTEST.
-    f16: Mutex<Option<Half>>,
+    f16: Mutex<Option<Transposed>>,
+    /// The same in F32, for the sessions that compute in F32.
+    f32t: Mutex<Option<Transposed>>,
 }
 
-/// Each layer's linear weights in F16, transposed to [n_in, n_out] for the
-/// matrix engines' 2D reads, in one allocation: the fused Q, K and V, the
-/// attention output, and the feed-forward input and output.
+/// Each layer's linear weights transposed to [n_in, n_out] for the 2D
+/// block reads, in F16 for the matrix engines or in F32, in one
+/// allocation: the fused Q, K and V, the attention output, and the
+/// feed-forward input and output.
 #[derive(Clone)]
-struct Half {
+struct Transposed {
     layers: Vec<[u64; 4]>,
     alloc: *mut c_void,
 }
@@ -179,8 +182,27 @@ impl Model {
 
     /// The linear layers' weights in F16, made on first need from the F32
     /// ones.
-    fn f16_weights(&self, w: &Weights) -> Res<Half> {
-        let mut f = self.f16.lock().unwrap_or_else(|p| p.into_inner());
+    fn f16_weights(&self, w: &Weights) -> Res<Transposed> {
+        self.transposed(w, &self.f16, "narrow_f16_transposed", 2, "the F16 weights")
+    }
+
+    /// The linear layers' weights in F32 transposed, made on first need,
+    /// for linear_sgemm.
+    fn f32_transposed(&self, w: &Weights) -> Res<Transposed> {
+        self.transposed(w, &self.f32t, "transpose_f32", 4, "the transposed F32 weights")
+    }
+
+    /// The linear layers' weights transposed to [n_in, n_out] by `kernel`,
+    /// `bytes` a value, kept in `slot` for the sessions after the first.
+    fn transposed(
+        &self,
+        w: &Weights,
+        slot: &Mutex<Option<Transposed>>,
+        kernel: &str,
+        bytes: u64,
+        what: &str,
+    ) -> Res<Transposed> {
+        let mut f = slot.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(h) = f.as_ref() {
             return Ok(h.clone());
         }
@@ -201,18 +223,18 @@ impl Model {
         let mut total = 0usize;
         for &(_, n_out, n_in) in &parts {
             at.push(total as u64);
-            total += round_up((n_out * n_in) as usize * 2, DEVICE_ALIGN);
+            total += round_up((n_out * n_in * bytes) as usize, DEVICE_ALIGN);
         }
         let alloc = c.alloc_device(total)?;
         let narrowed = (|| {
-            let k = c.kernel("narrow_f16_transposed", [WIDE, 1, 1])?;
+            let k = c.kernel(kernel, [WIDE, 1, 1])?;
             let mut q = c.lock_queue()?;
             let appended = (|| {
                 for (p, &(src, n_out, n_in)) in parts.iter().enumerate() {
                     let args =
                         [Arg::Ptr(src), Arg::I32(n_out as i32), Arg::I32(n_in as i32), Arg::Ptr(alloc as u64 + at[p])];
                     let groups = [elementwise_groups(n_out * n_in), 1, 1];
-                    k.launch(c, &mut q, "narrow_f16_transposed", &args, groups)?;
+                    k.launch(c, &mut q, kernel, &args, groups)?;
                 }
                 Ok(())
             })();
@@ -221,11 +243,11 @@ impl Model {
             synced
         })();
         if let Err(e) = narrowed {
-            c.free(alloc, "the F16 weights");
+            c.free(alloc, what);
             return Err(e);
         }
         let layers = at.chunks(4).map(|a| [0, 1, 2, 3].map(|j| alloc as u64 + a[j])).collect();
-        let half = Half { layers, alloc };
+        let half = Transposed { layers, alloc };
         *f = Some(half.clone());
         Ok(half)
     }
@@ -323,6 +345,10 @@ impl Drop for Model {
         if let Some(h) = h.take() {
             c.free(h.alloc, "the F16 weights");
         }
+        let t = self.f32t.get_mut().unwrap_or_else(|p| p.into_inner());
+        if let Some(t) = t.take() {
+            c.free(t.alloc, "the transposed F32 weights");
+        }
         if !self.stored.is_null() {
             c.free(self.stored, "the weights");
         }
@@ -367,6 +393,7 @@ pub(crate) unsafe extern "C" fn model_load(
                 counts,
                 f32: Mutex::new(None),
                 f16: Mutex::new(None),
+                f32t: Mutex::new(None),
             });
             {
                 let mut q = c.lock_queue()?;
@@ -425,6 +452,8 @@ struct Kernels {
     /// The same for 8 tokens at most, a group's sub-groups sharing the
     /// terms.
     linear_gemv: Kernel,
+    /// In F32 for more than a handful of tokens, from transposed weights.
+    linear_sgemm: Kernel,
     /// The linear layers on the matrix engines, for a session at FASTEST,
     /// from F16 activations: to F32 and to F16, then the same for at most
     /// 8 tokens.
@@ -466,6 +495,7 @@ impl Kernels {
             linear: c.kernel("linear", [16, 16, 1])?,
             linear_sg: c.kernel("linear_sg", [16, 1, 1])?,
             linear_gemv: c.kernel("linear_gemv", [16 * GEMV_SUBGROUPS, 1, 1])?,
+            linear_sgemm: c.kernel("linear_sgemm", [16 * SGEMM_WM * SGEMM_WN, 1, 1])?,
             linear_dpas_layer_norm: if xmx && hidden / DPAS_TN <= DPAS_LN_SUBGROUPS {
                 Some(c.kernel("linear_dpas_layer_norm", [16 * (hidden / DPAS_TN), 1, 1])?)
             } else {
@@ -520,6 +550,12 @@ const DPAS_K: u32 = 32;
 /// sub-groups, DPAS_TN outputs each, as encoder.cl's.
 const DPAS_LN_TM: u32 = 16;
 const DPAS_LN_SUBGROUPS: u32 = 64;
+/// linear_sgemm's tiles, as encoder.cl's: a sub-group's SGEMM_TM tokens by
+/// SGEMM_TN outputs, a group's SGEMM_WM by SGEMM_WN sub-groups.
+const SGEMM_TM: u32 = 8;
+const SGEMM_TN: u32 = 32;
+const SGEMM_WM: u32 = 4;
+const SGEMM_WN: u32 = 2;
 /// The kernels for 8 tokens at most: GEMV_SUBGROUPS sub-groups a group,
 /// each summing a share of the terms, as encoder.cl's GV_KS and GV.
 const GEMV_SUBGROUPS: u32 = 8;
@@ -557,7 +593,10 @@ struct Session {
     kernels: Kernels,
     weights: Weights,
     /// The linear layers' F16 weights, for a session at FASTEST.
-    half: Option<Half>,
+    half: Option<Transposed>,
+    /// The linear layers' F32 weights transposed, for a session in F32
+    /// whose widths linear_sgemm takes.
+    f32t: Option<Transposed>,
     max_batch: u32,
     max_seq: u32,
     scratch: *mut c_void,
@@ -684,6 +723,8 @@ pub(crate) unsafe extern "C" fn session_create(
             }
             let weights = m.f32_weights()?;
             let half = if xmx { Some(m.f16_weights(&weights)?) } else { None };
+            let sgemm = !xmx && d.hidden.is_multiple_of(SGEMM_TN) && d.intermediate.is_multiple_of(SGEMM_TN);
+            let f32t = if sgemm { Some(m.f32_transposed(&weights)?) } else { None };
             let ints = round_up(tokens * 4, DEVICE_ALIGN);
             let table = round_up(max_batch as usize * 8, DEVICE_ALIGN);
             let wide = round_up(tokens * d.hidden as usize * 4, DEVICE_ALIGN);
@@ -700,6 +741,7 @@ pub(crate) unsafe extern "C" fn session_create(
                 kernels,
                 weights,
                 half,
+                f32t,
                 max_batch,
                 max_seq,
                 scratch,
@@ -862,6 +904,24 @@ impl Session {
                 // the batch.
                 let groups = [n_out.div_ceil(DPAS_TN * wn), tokens.div_ceil(tm * wm), 1];
                 return kernel.launch(c, q, what, &args, groups).map(|()| 1);
+            }
+            // More than a handful of tokens, in F32: from the transposed
+            // weights, unsplit.
+            if let Some(f32t) = &self.f32t
+                && tokens > 8
+            {
+                let args = [
+                    Ptr(x),
+                    Ptr(f32t.layers[l as usize][which]),
+                    Ptr(bias),
+                    Ptr(y),
+                    I32(tokens as i32),
+                    I32(n_out as i32),
+                    I32(n_in as i32),
+                    I32(flags),
+                ];
+                let groups = [n_out.div_ceil(SGEMM_TN * SGEMM_WN), tokens.div_ceil(SGEMM_TM * SGEMM_WM), 1];
+                return k.linear_sgemm.launch(c, q, what, &args, groups).map(|()| 1);
             }
             // A split takes an equal share of the terms, a multiple of 16.
             let splits = if n_in.is_multiple_of(splits * 16) { splits } else { 1 };
