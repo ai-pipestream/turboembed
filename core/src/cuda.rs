@@ -84,6 +84,16 @@ pub enum Tile {
     /// The eight-warp tiles with F16 accumulators over each 64 terms of
     /// k, added into F32 ones; F16 operands only.
     EightWarpsF16Accumulate = 8,
+    /// F16 operands on the swizzled kernel (stage rows of 64 bytes, loads
+    /// running ahead across tiles, the epilogue from registers): 128 x 128
+    /// over four warps of 64 x 64, two blocks to an SM.
+    Swizzled = 9,
+    /// The swizzled kernel at the eight-warp mix's shapes.
+    SwizzledEightWarps = 10,
+    /// `Swizzled`, but 256 x 128 over eight warps for GELU.
+    Swizzled256x128 = 11,
+    /// `SwizzledEightWarps` with F16 accumulators over each 64 terms of k.
+    SwizzledEightWarpsF16Accumulate = 12,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random

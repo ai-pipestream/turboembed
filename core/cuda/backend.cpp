@@ -1064,6 +1064,9 @@ Tile tile_named() {
     if (!strcasecmp(v, "128x128-4w")) return TILE_128x128_4W;
     if (!strcasecmp(v, "256x128")) return TILE_256x128;
     if (!strcasecmp(v, "8w")) return TILE_EIGHT_WARPS;
+    if (!strcasecmp(v, "sw")) return TILE_SWIZZLED;
+    if (!strcasecmp(v, "sw8w")) return TILE_SWIZZLED_8W;
+    if (!strcasecmp(v, "sw256")) return TILE_SWIZZLED_256x128;
     return TILE_DEFAULT;
 }
 
@@ -1097,7 +1100,8 @@ std::atomic<int> f16_accumulate_override{-1};
 
 /* TURBO_CUDA_F16_ACCUMULATE=1 gives FASTEST's GEMMs on the tensor cores
  * F16 accumulators over each 64 terms of k, added into F32 ones
- * (TILE_EIGHT_WARPS_F16_ACCUMULATE, whatever TURBO_CUDA_TILE says); unset,
+ * (TILE_EIGHT_WARPS_F16_ACCUMULATE, or TILE_SWIZZLED_8W_F16_ACCUMULATE
+ * when TURBO_CUDA_TILE=sw8w, whatever other tile it names); unset,
  * F32 accumulators throughout. */
 bool f16_accumulate_named() {
     const int o = f16_accumulate_override.load(std::memory_order_relaxed);
@@ -1480,7 +1484,9 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         sh.tensor_cores = major >= 8 && (half || (precision != TURBO_PRECISION_EXACT && tf32_named()));
         sh.sms = sms;
         sh.smem_optin = (size_t)optin;
-        sh.tile = sh.half && sh.tensor_cores && f16_accumulate_named() ? TILE_EIGHT_WARPS_F16_ACCUMULATE : tile_named();
+        sh.tile = tile_named();
+        if (sh.half && sh.tensor_cores && f16_accumulate_named())
+            sh.tile = sh.tile == TILE_SWIZZLED_8W ? TILE_SWIZZLED_8W_F16_ACCUMULATE : TILE_EIGHT_WARPS_F16_ACCUMULATE;
         sh.split_attention = split_attention_named();
         sh.sk_steps = sk_steps_named();
         sh.fused_ln = !separate_ln_named();
