@@ -24,7 +24,6 @@ const char *tile_name(Tile t) {
     return "?";
 }
 
-constexpr const char *GEMM_NAME[GEMM_COUNT] = {"qkv", "out", "ffn1", "ffn2"};
 constexpr const char *ATTN_NAME[] = {"fma-tiled", "fma-split", "mma64", "mma128"};
 constexpr const char *LN_NAME[] = {"separate", "fused"};
 constexpr const char *POOL_NAME[] = {"groups", "columns"};
@@ -171,8 +170,7 @@ void canonicalize(const Shape &base, Choices *c) {
     for (BinChoices &bc : c->bin) {
         for (int g = 0; g < GEMM_COUNT; g++) {
             GemmChoice &gc = bc.gemm[g];
-            gc.tf32 = gc.tf32 && !base.half && base.tensor_cores;
-            gc.tile = canonical_tile((Gemm)g, base, mma_of(base, gc), gc.tile);
+            gc = canonical_gemm((Gemm)g, base, gc);
             if (gc.sk == SK_TILES)
                 gc.sk_steps = 0;
             else if (gc.sk_steps <= 0)
@@ -187,6 +185,18 @@ void canonicalize(const Shape &base, Choices *c) {
             bc.attention = bc.attention == ATT_FMA_SPLIT ? ATT_FMA_SPLIT : ATT_FMA_TILED;
         if (base.hidden > LN_FUSED_MAX_HIDDEN) bc.ln = LN_SEPARATE;
     }
+}
+
+GemmChoice canonical_gemm(Gemm which, const Shape &base, GemmChoice g) {
+    g.tf32 = g.tf32 && !base.half && base.tensor_cores;
+    g.tile = canonical_tile(which, base, mma_of(base, g), g.tile);
+    return g;
+}
+
+std::string variant_name(const GemmChoice &g) {
+    std::string s = tile_name(g.tile);
+    if (g.tf32) s += "/tf32";
+    return s;
 }
 
 uint32_t gemm_numeric(const Shape &base, const GemmChoice &g) {
@@ -217,7 +227,7 @@ const char *outside(const Shape &base, const Choices &c, uint32_t allowed, char 
         for (int g = 0; g < GEMM_COUNT; g++) {
             const uint32_t n = gemm_numeric(base, c.bin[b].gemm[g]);
             if (n & allowed) continue;
-            snprintf(name, len, "%s:%s=%s", BIN_NAME[b], GEMM_NAME[g], gemm_item(c.bin[b].gemm[g]).c_str());
+            snprintf(name, len, "%s:%s=%s", BIN_NAME[b], GEMM_NAMES[g], gemm_item(c.bin[b].gemm[g]).c_str());
             *numeric = numeric_name(n);
             return name;
         }
@@ -231,7 +241,7 @@ size_t format_choices(const Choices &c, char *out, size_t len) {
         s += BIN_NAME[b];
         s += ':';
         for (int g = 0; g < GEMM_COUNT; g++) {
-            s += GEMM_NAME[g];
+            s += GEMM_NAMES[g];
             s += '=';
             s += gemm_item(bc.gemm[g]);
             s += ',';
@@ -292,7 +302,7 @@ bool parse_choices(const char *s, Choices *into, uint32_t *absent, char *why, si
             if (!all && bin >= into->bins) *absent |= 1u << bin;
             for (int b = all ? 0 : bin; b < (all ? into->bins : bin + 1) && b < into->bins; b++) {
                 BinChoices &bc = into->bin[b];
-                const int g = index_of(GEMM_NAME, part, kn);
+                const int g = index_of(GEMM_NAMES, part, kn);
                 if (g >= 0) {
                     if (!parse_gemm(v, vn, &bc.gemm[g], &bc.gemm_forced[g], why, why_len)) return false;
                 } else if (kn == 4 && !strncmp(part, "attn", 4)) {

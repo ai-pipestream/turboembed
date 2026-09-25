@@ -282,6 +282,10 @@ pub unsafe extern "C" fn turbo_session_create(
     }
 }
 
+/// The room a tuned session's timings lines have: a line per variant
+/// timed, per GEMM and bin.
+const TIMINGS_LEN: usize = 16384;
+
 fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner> {
     if d.precision > TURBO_PRECISION_EXACT {
         return Err(Error::new(INVALID_ENUM, format!("precision: {} is not a TURBO_PRECISION_* value", d.precision)));
@@ -331,8 +335,40 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
     let mut t: backend::turbo_backend_tuning = unsafe { std::mem::zeroed() };
     t.struct_size = size_of::<backend::turbo_backend_tuning>() as u32;
     t.mode = tuning_mode;
-    t.budget_ms = tuning::budget(tuning_mode, d.tuning_budget_ms, false)?;
+    let dir = tuning::cache_dir();
+    t.budget_ms = tuning::budget(tuning_mode, d.tuning_budget_ms, dir.is_some())?;
     t.numerics_allowed = tuning::numerics_allowed(d.precision);
+    // A tuned session's key, and the choice an earlier session with the
+    // same key measured, which the backend takes as its incumbent.
+    let rt = &c.runtime;
+    let key = (tuning_mode != TURBO_AUTOTUNE_OFF && tuned.is_some()).then(|| {
+        let dev = &rt.devices[c.device as usize].info;
+        tuning::TuneKey {
+            backend: b.name().to_owned(),
+            device_name: backend::cstr(&dev.name),
+            arch: backend::cstr(&dev.arch),
+            driver_version: backend::cstr(&dev.driver_version),
+            runtime_version: backend::cstr(&dev.runtime_version),
+            library_build: tuning::LIBRARY_BUILD.to_owned(),
+            manifest_sha256: backend::cstr(&mi.manifest_sha256),
+            artifact_sha256: backend::cstr(&mi.artifact_sha256),
+            precision: d.precision,
+            compute_dtype: cap.dtype,
+            numerics_allowed: t.numerics_allowed,
+            tcap_bin: tuning::tcap_bin(max_batch.saturating_mul(max_seq)),
+            max_seq_bin: tuning::max_seq_bin(max_seq),
+        }
+    });
+    let cached = key
+        .as_ref()
+        .and_then(|k| rt.tune_cache.get(k, dir.as_deref()))
+        .and_then(|e| std::ffi::CString::new(e.choices).ok());
+    t.cached = cached.as_ref().map_or(std::ptr::null(), |c| c.as_ptr());
+    let mut timings = vec![0 as c_char; TIMINGS_LEN];
+    if key.is_some() {
+        t.timings = timings.as_mut_ptr();
+        t.timings_len = TIMINGS_LEN as u32;
+    }
     match (tuned, create) {
         (Some(f), _) => backend::check(b, "session_create_tuned", |err| unsafe {
             f(m.raw, mi.task, max_batch, max_seq, d.precision, &mut t, &mut compute_dtype, &mut raw, err)
@@ -366,6 +402,35 @@ fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<SessionInner>
             INTERNAL,
             format!("{} backend: compute dtype {compute_dtype} is not a TURBO_DTYPE_* a model computes in", b.name()),
         ));
+    }
+    // Only a measured choice with nothing forced and nothing widened is
+    // kept: any other session's choice is not the key's to give.
+    if let Some(k) = key {
+        let choices = backend::cstr(&t.choices);
+        let forced = tuning::forced_knobs(&choices);
+        if t.tuned == TURBO_TUNED_MEASURED && !forced.is_empty() {
+            rt.log(LOG_INFO, &format!("the measured kernels are not cached: the session forces {}", forced.join(",")));
+        } else if t.tuned == TURBO_TUNED_MEASURED && t.numerics_used != t.numerics_allowed {
+            rt.log(
+                LOG_INFO,
+                &format!(
+                    "the measured kernels are not cached: they compute in numeric classes 0x{:x} beyond the \
+                     precision's 0x{:x}",
+                    t.numerics_used & !t.numerics_allowed,
+                    t.numerics_allowed
+                ),
+            );
+        }
+        if t.tuned == TURBO_TUNED_MEASURED && forced.is_empty() && t.numerics_used == t.numerics_allowed {
+            let timings = if t.timings.is_null() { String::new() } else { backend::cstr(&timings) };
+            let e = tuning::TuneEntry::measured(k, &choices, t.tune_ms, &timings);
+            if let Err(err) = rt.tune_cache.put(e, dir.as_deref()) {
+                rt.log(
+                    LOG_WARNING,
+                    &format!("the tuning cache in {} was not written: {err}", dir.unwrap_or_default().display()),
+                );
+            }
+        }
     }
     let info = turbo_session_info {
         struct_size: size_of::<turbo_session_info>() as u32,

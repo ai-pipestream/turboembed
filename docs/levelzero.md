@@ -141,7 +141,15 @@ of any run.
   for up to 4 blocks of 16 tokens (as many as 64 sub-groups hold; one
   block below a full group's tokens), so each block after the first
   reads the weights from cache; the rows' sums meet in local memory. For a hidden width over
-  2048 the LayerNorm kernel follows them instead. Attention for head widths 32
+  2048 the LayerNorm kernel follows them instead. From 4096 tokens the
+  whole feed-forward block runs as one kernel laid out the same way: each
+  group works through the intermediate width a hidden width at a time,
+  its sub-groups writing their slice of the GELU'd middle in F16 to local
+  memory and then adding its products into their outputs, so the middle
+  never goes through global memory (at 32 x 256 it would be 25 MB, more
+  than a B70's 24 MB cache). It computes what the two kernels do, bit for
+  bit; it needs the intermediate width to be a multiple of the hidden
+  width and its blocks' middle to fit the group's local memory. Attention for head widths 32
   and 64 runs on the matrix engines: a sub-group takes 16 queries, a lane
   each, and walks the row's keys 32 at a time (K and V by 2D block
   reads); a group's 4 sub-groups take consecutive blocks of queries, so
@@ -174,7 +182,8 @@ of any run.
   operands; where the projections take their LayerNorm in their epilogue
   the residual stream between layers is F16, and the last layer's output
   is written in F32 as well for the pooling; the
-  feed-forward block's middle and the attention context are F16; for
+  feed-forward block's middle and the attention context are F16, the
+  block's GELU taking erf from a polynomial within 4.5e-5 of it; for
   head widths 32 and 64 attention takes F16 operands, its softmax in base
   2 on the device's native exponential, and for other widths it runs as
   in F32 and rounds its context to F16. Every sum and the softmax are F32, and so are the LayerNorms in
