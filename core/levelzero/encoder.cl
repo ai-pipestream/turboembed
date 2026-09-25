@@ -35,20 +35,6 @@
 #define LINEAR_BIAS 1
 #define LINEAR_GELU 2
 
-/* The packed row a packed token belongs to: the last row starting at or
- * before it. rows holds each row's start and length. */
-int row_of(__global const int *rows, int batch, int t) {
-    int lo = 0, hi = batch - 1;
-    while (lo < hi) {
-        const int mid = (lo + hi + 1) / 2;
-        if (rows[2 * mid] <= t)
-            lo = mid;
-        else
-            hi = mid - 1;
-    }
-    return lo;
-}
-
 float gelu(float v) { return 0.5f * v * (1.0f + erf(v * 0.70710678118654752440f)); }
 
 /* ---- Linear layers ------------------------------------------------------
@@ -130,11 +116,12 @@ __attribute__((overloadable)) ushort intel_sub_group_block_read_us(const __globa
 /* One kernel per operand type: X the activations', Y the output's. A
  * split of the terms (group z of n_in / k_len) writes its partial sums to
  * its own [tokens, n_out] slice of y, for the next kernel to add; the
- * epilogue runs only unsplit. */
+ * epilogue runs only unsplit. One sub-group a group: for layers with
+ * tiles enough to fill the device. */
 #define LINEAR_XMX(NAME, X, Y, TO_A, FROM_F)                                                                     \
     __kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16, 1, 1))) void \
     NAME(__global const X *x, __global const half *w, __global const float *bias, __global Y *y, int tokens,     \
-         int n_out, int n_in, int flags, int k_len) {                                                            \
+         int n_out, int n_in, int flags, int k_len, int k_sub) {                                                            \
         const int lane = get_sub_group_local_id();                                                               \
         const int o0 = get_group_id(0) * XN, t0 = get_group_id(1) * XM;                                          \
         x += get_group_id(2) * k_len;                                                                            \
@@ -176,6 +163,66 @@ __attribute__((overloadable)) ushort intel_sub_group_block_read_us(const __globa
         }                                                                                                        \
     }
 
+/* The same, for layers with few tiles: a group is KS sub-groups, each summing its own k_sub of the terms into
+ * the group's tile; the sums meet in local memory, and each sub-group
+ * finishes 8 of the tile's 32 tokens, so a narrow layer still keeps the
+ * device busy. A split of the terms across groups (group z of n_in /
+ * k_len) writes its partial sums to its own [tokens, n_out] slice of y,
+ * for the next kernel to add; the epilogue runs only unsplit. */
+#define KS 4
+#define LINEAR_XMX_SHARED(NAME, X, Y, TO_A, FROM_F)                                                                     \
+    __kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * KS, 1, 1))) \
+    void NAME(__global const X *x, __global const half *w, __global const float *bias, __global Y *y,            \
+              int tokens, int n_out, int n_in, int flags, int k_len, int k_sub) {                                \
+        __local float part[KS][4][2][8][16];                                                                     \
+        const int lane = get_sub_group_local_id(), sg = get_sub_group_id();                                      \
+        const int o0 = get_group_id(0) * XN, t0 = get_group_id(1) * XM;                                          \
+        x += get_group_id(2) * k_len + sg * k_sub;                                                               \
+        w += get_group_id(2) * k_len + sg * k_sub;                                                               \
+        y += (size_t)get_group_id(2) * tokens * n_out;                                                           \
+        float8 acc[4][2];                                                                                        \
+        __attribute__((opencl_unroll_hint)) for (int i = 0; i < 4; i++)                                          \
+            __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) acc[i][j] = (float8)(0.0f);          \
+        if (sg * k_sub < k_len) {                                                                                \
+            for (int k0 = 0; k0 < k_sub; k0 += 16) {                                                             \
+                short8 a[4];                                                                                     \
+                __attribute__((opencl_unroll_hint)) for (int i = 0; i < 4; i++)                                  \
+                    __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                            \
+                    const int t = t0 + i * 8 + m;                                                                \
+                    a[i][m] = t < tokens ? TO_A(x + (size_t)t * n_in + k0) : 0;                                  \
+                }                                                                                                \
+                int8 b[2];                                                                                       \
+                __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                \
+                    const int o = o0 + j * 16 + lane;                                                            \
+                    b[j] = o < n_out ? as_int8(vload8(0, (__global const uint *)(w + (size_t)o * n_in + k0)))    \
+                                     : (int8)(0);                                                                \
+                }                                                                                                \
+                __attribute__((opencl_unroll_hint)) for (int i = 0; i < 4; i++)                                  \
+                    __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) acc[i][j] =                  \
+                    intel_sub_group_f16_f16_matrix_mad_k16(a[i], b[j], acc[i][j]);                               \
+            }                                                                                                    \
+        }                                                                                                        \
+        __attribute__((opencl_unroll_hint)) for (int i = 0; i < 4; i++)                                          \
+            __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++)                                      \
+                __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) part[sg][i][j][m][lane] =        \
+                acc[i][j][m];                                                                                    \
+        barrier(CLK_LOCAL_MEM_FENCE);                                                                            \
+        __attribute__((opencl_unroll_hint)) for (int j = 0; j < 2; j++) {                                        \
+            const int o = o0 + j * 16 + lane;                                                                    \
+            if (o >= n_out) continue;                                                                            \
+            const float bo = flags & LINEAR_BIAS ? bias[o] : 0.0f;                                               \
+            __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) {                                    \
+                const int t = t0 + sg * 8 + m;                                                                   \
+                if (t >= tokens) continue;                                                                       \
+                float v = part[0][sg][j][m][lane];                                                               \
+                __attribute__((opencl_unroll_hint)) for (int s = 1; s < KS; s++) v = v + part[s][sg][j][m][lane]; \
+                if (flags & LINEAR_BIAS) v = v + bo;                                                             \
+                if (flags & LINEAR_GELU) v = gelu(v);                                                            \
+                y[(size_t)t * n_out + o] = FROM_F(v);                                                            \
+            }                                                                                                    \
+        }                                                                                                        \
+    }
+
 #define F32_TO_A(p) as_short(convert_half(as_float(intel_sub_group_block_read((__global const uint *)(p)))))
 #define F16_TO_A(p) as_short(intel_sub_group_block_read_us((__global const ushort *)(p)))
 #define TO_F32(v) (v)
@@ -184,6 +231,9 @@ __attribute__((overloadable)) ushort intel_sub_group_block_read_us(const __globa
 LINEAR_XMX(linear_xmx, float, float, F32_TO_A, TO_F32)
 LINEAR_XMX(linear_xmx_to_half, float, half, F32_TO_A, TO_F16)
 LINEAR_XMX(linear_xmx_from_half, short, float, F16_TO_A, TO_F32)
+LINEAR_XMX_SHARED(linear_xmx_shared, float, float, F32_TO_A, TO_F32)
+LINEAR_XMX_SHARED(linear_xmx_shared_to_half, float, half, F32_TO_A, TO_F16)
+LINEAR_XMX_SHARED(linear_xmx_shared_from_half, short, float, F16_TO_A, TO_F32)
 
 /* ---- Rows ---------------------------------------------------------------- */
 
@@ -209,24 +259,24 @@ void layer_norm_row(__global float *row, int n, __global const float *w, __globa
 }
 
 /* One group per packed token: word + position + type, then LayerNorm; and
- * the token's mask entry, packed. ids, types and mask are the written
- * [batch, seq] rows; types is read only when has_types is set, else every
- * type is 0. */
+ * the token's mask entry. ids, positions, types (when has_types is set;
+ * else every type is 0) and mask are packed by the host into memory the
+ * device reads directly, with the row table, which the first groups copy
+ * to device memory for the kernels after this one. */
 __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void embed_layer_norm(
-    __global const int *ids, __global const int *types, int has_types, __global const int *mask,
-    __global const int *rows, int batch, int seq, __global const float *word, __global const float *position,
-    __global const float *type, __global const float *ln_w, __global const float *ln_b, float eps, int hidden,
-    __global float *x, __global int *packed_mask) {
+    __global const int *ids, __global const int *positions, __global const int *types, int has_types,
+    __global const int *mask, __global const int *rows, int batch, __global const float *word,
+    __global const float *position, __global const float *type, __global const float *ln_w,
+    __global const float *ln_b, float eps, int hidden, __global float *x, __global int *packed_mask,
+    __global int *device_rows) {
     const int t = get_group_id(0);
-    const int r = row_of(rows, batch, t);
-    const int p = t - rows[2 * r];
-    const size_t at = (size_t)r * seq + p;
-    __global const float *wr = word + (size_t)ids[at] * hidden;
-    __global const float *pr = position + (size_t)p * hidden;
-    __global const float *tr = type + (size_t)(has_types ? types[at] : 0) * hidden;
+    __global const float *wr = word + (size_t)ids[t] * hidden;
+    __global const float *pr = position + (size_t)positions[t] * hidden;
+    __global const float *tr = type + (size_t)(has_types ? types[t] : 0) * hidden;
     __global float *row = x + (size_t)t * hidden;
     for (int d = get_local_id(0); d < hidden; d += BLOCK) row[d] = wr[d] + pr[d] + tr[d];
-    if (get_local_id(0) == 0) packed_mask[t] = mask[at];
+    if (get_local_id(0) == 0) packed_mask[t] = mask[t];
+    if (t < batch && get_local_id(0) < 2) device_rows[2 * t + get_local_id(0)] = rows[2 * t + get_local_id(0)];
     layer_norm_row(row, hidden, ln_w, ln_b, eps);
 }
 

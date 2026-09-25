@@ -691,7 +691,7 @@ fn a_run_leaves_its_vectors_on_the_device_and_counts_what_crossed() {
     let mi = l.info();
     let s = Session::create(l.m, None).unwrap();
     let tok = Tok::create(&tiny_bundle()).unwrap();
-    let seq = TEXTS.iter().map(|t| tok.row(t, None).unwrap().len()).max().unwrap() as u64;
+    let live: u64 = TEXTS.iter().map(|t| tok.row(t, None).unwrap().len() as u64).sum();
 
     s.write_text(&TEXTS, None).unwrap();
     let r = s.run().unwrap();
@@ -700,11 +700,13 @@ fn a_run_leaves_its_vectors_on_the_device_and_counts_what_crossed() {
     assert_eq!((i.dtype, i.compute_dtype, i.placement), (TURBO_DTYPE_F32, TURBO_DTYPE_F32, TURBO_PLACE_DEVICE));
     assert_eq!(i.device, gpu(l.rt));
     assert_eq!(i.bytes, 3 * 32 * 4);
-    assert_eq!(i.h2d_bytes, 2 * 3 * seq * 4 + 3 * 8, "ids and mask, [3, {seq}] int32 each, and the row table");
+    // The packed rows the lookup kernel reads over the bus: ids, positions
+    // and mask for each live token, and the row table.
+    assert_eq!(i.h2d_bytes, 3 * live * 4 + 3 * 8, "{live} live tokens");
     assert_eq!(i.d2h_bytes, 0, "nothing came back yet");
     assert_eq!((i.host_allocs, i.device_allocs), (0, 0));
     let (h, d, f, u) = (TURBO_STAGE_HOST, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED, TURBO_STAGE_UNUSED);
-    assert_eq!(i.stage[..7], [h, d, d, d, d, f, u], "tokenize, upload, lookup, encode, pool, normalize, download");
+    assert_eq!(i.stage[..7], [h, f, d, d, d, f, u], "tokenize, upload, lookup, encode, pool, normalize, download");
     assert!(i.stage[7..].iter().all(|&s| s == u));
     assert_eq!(field(&i.backend), "levelzero");
     assert_eq!(field(&i.manifest_sha256), field(&mi.manifest_sha256));
@@ -734,8 +736,8 @@ fn a_run_leaves_its_vectors_on_the_device_and_counts_what_crossed() {
     b.types = Some(vec![0, 1, 1]);
     s.write_tokens(&b.batch(), Some(&opts(|o| o.normalize = TURBO_NORMALIZE_NONE))).unwrap();
     let i = s.run().unwrap().info();
-    assert_eq!(i.h2d_bytes, 3 * 3 * 4 + 8);
-    assert_eq!(i.stage[..7], [u, d, d, d, d, u, u]);
+    assert_eq!(i.h2d_bytes, 4 * 3 * 4 + 8, "types too");
+    assert_eq!(i.stage[..7], [u, f, d, d, d, u, u]);
     assert_eq!((i.batch, i.d2h_bytes), (1, 0), "a run's count starts again");
 }
 
@@ -753,6 +755,9 @@ fn rows_in_driver_memory_give_the_same_vectors() {
 
     let ctx = Ctx(l.ctx, false);
     let n = t.ids.len() as u64;
+    // Each row's positions through its last live token.
+    let packed: u64 =
+        t.mask.chunks(t.seq as usize).map(|m| m.iter().rposition(|&v| v != 0).map_or(0, |p| p + 1) as u64).sum();
     for placement in [TURBO_PLACE_PINNED, TURBO_PLACE_SHARED] {
         let bufs: Vec<Buf> = (0..3).map(|_| ctx.alloc(placement, n).unwrap()).collect();
         let at: Vec<*mut i32> = bufs.iter().map(|b| b.host().unwrap() as *mut i32).collect();
@@ -769,7 +774,7 @@ fn rows_in_driver_memory_give_the_same_vectors() {
         s.write_tokens(&b, None).unwrap();
         let r = s.run().unwrap();
         assert_eq!(r.rows(), want, "placement {placement}");
-        assert_eq!(r.info().h2d_bytes, 3 * n * 4 + 3 * 8);
+        assert_eq!(r.info().h2d_bytes, 4 * packed * 4 + 3 * 8);
     }
 }
 

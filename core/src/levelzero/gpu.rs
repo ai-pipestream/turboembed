@@ -545,7 +545,9 @@ pub(crate) unsafe fn create(
     let pd = ze::EventPoolDesc {
         stype: ze::STRUCTURE_TYPE_EVENT_POOL_DESC,
         p_next: std::ptr::null(),
-        flags: ze::EVENT_POOL_FLAG_HOST_VISIBLE | if profiling() { ze::EVENT_POOL_FLAG_KERNEL_TIMESTAMP } else { 0 },
+        // Timestamp events: on this driver plain host-visible ones make each
+        // append wait on the host, and a run takes twice as long.
+        flags: ze::EVENT_POOL_FLAG_HOST_VISIBLE | ze::EVENT_POOL_FLAG_KERNEL_TIMESTAMP,
         count: EVENTS,
     };
     let no_devices = std::ptr::null_mut();

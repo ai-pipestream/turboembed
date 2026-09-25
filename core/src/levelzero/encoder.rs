@@ -405,8 +405,9 @@ pub(crate) unsafe extern "C" fn model_release(model: *mut c_void) {
 struct Kernels {
     linear: Kernel,
     /// The linear layers on the matrix engines, for a session at FASTEST:
-    /// F32 activations to F32, F32 to F16, and F16 to F32.
-    linear_xmx: Option<[Kernel; 3]>,
+    /// F32 activations to F32, F32 to F16, and F16 to F32; then the same
+    /// with a group's sub-groups sharing its tile.
+    linear_xmx: Option<[Kernel; 6]>,
     embed_layer_norm: Kernel,
     add_layer_norm: Kernel,
     attention: Attention,
@@ -430,11 +431,14 @@ impl Kernels {
         Ok(Kernels {
             linear: c.kernel("linear", [16, 16, 1])?,
             linear_xmx: if xmx {
-                let one = [16, 1, 1];
+                let (one, shared) = ([16, 1, 1], [16 * XMX_SUBGROUPS, 1, 1]);
                 Some([
                     c.kernel("linear_xmx", one)?,
                     c.kernel("linear_xmx_to_half", one)?,
                     c.kernel("linear_xmx_from_half", one)?,
+                    c.kernel("linear_xmx_shared", shared)?,
+                    c.kernel("linear_xmx_shared_to_half", shared)?,
+                    c.kernel("linear_xmx_shared_from_half", shared)?,
                 ])
             } else {
                 None
@@ -458,8 +462,21 @@ const XMX_F32: usize = 0;
 const XMX_TO_F16: usize = 1;
 const XMX_FROM_F16: usize = 2;
 
-/// The XMX linear kernel's output tile, as encoder.cl's XM and XN.
+/// The XMX linear kernel's output tile, as encoder.cl's XM and XN, and the
+/// sub-groups of a group, each summing its own share of the terms, as
+/// encoder.cl's KS.
 const XMX_TILE: u32 = 32;
+const XMX_SUBGROUPS: u32 = 4;
+/// Below this many tiles a layer's groups share theirs among sub-groups.
+const XMX_FEW_TILES: u32 = 512;
+
+/// The terms each of an XMX group's sub-groups sums: an equal share, a
+/// multiple of 16, of k_len. None when no such share covers k_len
+/// exactly with the sub-groups there are.
+fn xmx_share(k_len: u32) -> Option<u32> {
+    let share = k_len.div_ceil(16 * XMX_SUBGROUPS) * 16;
+    (k_len.is_multiple_of(share) && k_len / share <= XMX_SUBGROUPS).then_some(share)
+}
 
 /// Queries a tiled attention group takes, as encoder.cl's QUERIES.
 const QUERIES: u32 = 256;
@@ -486,12 +503,9 @@ struct Session {
     max_batch: u32,
     max_seq: u32,
     scratch: *mut c_void,
-    // The written rows, [batch, seq] as written.
-    ids: u64,
-    mask: u64,
-    types: u64,
     /// Each row's first packed token and its length through its last live
-    /// token: [batch, 2] int32.
+    /// token, [batch, 2] int32, as the lookup kernel copies it from the
+    /// staging.
     rows: u64,
     // Packed, [tokens, ...]: the mask, the hidden states, the fused
     // projections, the attention context, a projection's output, and the
@@ -504,9 +518,9 @@ struct Session {
     ffn: u64,
     /// [max_batch, hidden] F32 on the device, handed out as the output.
     output: Box<Buffer>,
-    /// The device reads these directly: [3, max_batch * max_seq] int32 for
-    /// rows the driver did not allocate, then [max_batch, 2] for the row
-    /// table.
+    /// The packed rows, which the device reads directly: ids, positions,
+    /// types and mask, [max_batch * max_seq] int32 each, then the row
+    /// table, [max_batch, 2].
     staging: *mut c_void,
     /// What the last write left.
     written: bool,
@@ -577,9 +591,14 @@ pub(crate) unsafe extern "C" fn session_create(
             let head_dim = d.hidden / d.heads;
             // FASTEST runs the linear layers on the matrix engines, 16
             // terms at a time.
+            let ffn_out_terms =
+                if d.intermediate.is_multiple_of(SPLITS * 16) { d.intermediate / SPLITS } else { d.intermediate };
             let xmx = precision == TURBO_PRECISION_FASTEST
                 && d.hidden.is_multiple_of(16)
-                && d.intermediate.is_multiple_of(16);
+                && d.intermediate.is_multiple_of(16)
+                && xmx_share(d.hidden).is_some()
+                && xmx_share(d.intermediate).is_some()
+                && xmx_share(ffn_out_terms).is_some();
             let kernels = Kernels::new(c, head_dim, xmx)?;
             if let Attention::General(k) = &kernels.attention {
                 // The driver keeps some of a work-group's local memory for
@@ -614,7 +633,7 @@ pub(crate) unsafe extern "C" fn session_create(
             let wide = round_up(tokens * d.hidden as usize * 4, DEVICE_ALIGN);
             let ffn = round_up(tokens * d.intermediate as usize * 4, DEVICE_ALIGN);
             let output = round_up(max_batch as usize * d.hidden as usize * 4, DEVICE_ALIGN);
-            let scratch = c.alloc_device(4 * ints + table + (5 + SPLITS as usize) * wide + ffn + output)?;
+            let scratch = c.alloc_device(ints + table + (5 + SPLITS as usize) * wide + ffn + output)?;
             let mut s = Box::new(Session {
                 model: m,
                 ctx: c,
@@ -624,9 +643,6 @@ pub(crate) unsafe extern "C" fn session_create(
                 max_batch,
                 max_seq,
                 scratch,
-                ids: 0,
-                mask: 0,
-                types: 0,
                 rows: 0,
                 packed_mask: 0,
                 x: 0,
@@ -647,16 +663,13 @@ pub(crate) unsafe extern "C" fn session_create(
                 output_dim: 0,
                 h2d: 0,
             });
-            s.staging = c.alloc_pinned(3 * tokens * 4 + max_batch as usize * 8)?;
+            s.staging = c.alloc_pinned(4 * tokens * 4 + max_batch as usize * 8)?;
             let mut p = scratch as u64;
             let mut take = |n: usize| {
                 let at = p;
                 p += n as u64;
                 at
             };
-            s.ids = take(ints);
-            s.mask = take(ints);
-            s.types = take(ints);
             s.packed_mask = take(ints);
             s.rows = take(table);
             s.x = take(wide);
@@ -686,80 +699,50 @@ impl Session {
         unsafe { &*self.model }
     }
 
-    /// One [batch, seq] array of the rows to dst on the device, row_stride
-    /// elements apart in src, returning the bytes sent. Device memory is
-    /// refused: the core has read and checked the rows on the host. Host
-    /// memory the driver allocated goes straight to the device; any other
-    /// is copied into the session's staging first.
+    /// The written rows, packed on the host into the staging the device
+    /// reads: each row's positions through its last live token, one after
+    /// another, as ids, positions, types (when written) and mask; and the
+    /// row table, each row's first packed token and its length. Returns
+    /// the live tokens, the longest row, and the bytes the device will
+    /// read. Rows in device memory are refused: the core reads rows on the
+    /// host.
     ///
     /// # Safety
-    /// src holds (batch - 1) * stride + seq values; the caller holds the
-    /// queue and synchronizes it before the arrays go away.
-    unsafe fn upload(
-        &self,
-        q: &mut Queue,
-        r: &turbo_backend_embed_rows,
-        src: *const i32,
-        slot: usize,
-        dst: u64,
-    ) -> Res<u64> {
+    /// The arrays hold (batch - 1) * row_stride + seq values each.
+    unsafe fn pack(&self, r: &turbo_backend_embed_rows) -> Res<(u32, u32, u64)> {
         let c = self.ctx();
-        let row = r.seq as usize * 4;
-        let (batch, stride) = (r.batch as usize, r.row_stride as usize);
-        let (kind, _) = c.memory_type(src as *const c_void);
-        match kind {
-            ze::MEMORY_TYPE_DEVICE => {
+        for p in [r.ids, r.mask, r.types] {
+            if !p.is_null() && c.memory_type(p as *const c_void).0 == ze::MEMORY_TYPE_DEVICE {
                 return Err(fail(INVALID_ARGUMENT, "rows are device memory; the core reads rows on the host"));
             }
-            ze::MEMORY_TYPE_HOST | ze::MEMORY_TYPE_SHARED if stride == r.seq as usize => unsafe {
-                c.copy(q, dst as usize as *mut c_void, src as *const c_void, row * batch)?;
-            },
-            ze::MEMORY_TYPE_HOST | ze::MEMORY_TYPE_SHARED => {
-                for b in 0..batch {
-                    unsafe {
-                        c.copy(q, (dst as usize + b * row) as *mut c_void, src.add(b * stride) as *const c_void, row)?;
-                    }
-                }
-            }
-            _ => {
-                let tokens = self.max_batch as usize * self.max_seq as usize;
-                let staging = unsafe { (self.staging as *mut i32).add(slot * tokens) };
-                for b in 0..batch {
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(
-                            src.add(b * stride),
-                            staging.add(b * r.seq as usize),
-                            r.seq as usize,
-                        )
-                    };
-                }
-                unsafe { c.copy(q, dst as usize as *mut c_void, staging as *const c_void, row * batch)? };
-            }
         }
-        Ok((row * batch) as u64)
-    }
-
-    /// The row table, from the mask on the host: each row's first packed
-    /// token and its length through its last live token, into the staging
-    /// the device reads. Returns the live tokens and the longest row.
-    ///
-    /// # Safety
-    /// As for upload.
-    unsafe fn pack(&self, r: &turbo_backend_embed_rows) -> (u32, u32) {
-        let tokens = self.max_batch as usize * self.max_seq as usize;
-        let table = unsafe { (self.staging as *mut i32).add(3 * tokens) };
-        let (mut t, mut longest) = (0u32, 0u32);
+        let n = self.max_batch as usize * self.max_seq as usize;
+        let staging = self.staging as *mut i32;
+        let (ids, positions, types, mask) =
+            unsafe { (staging, staging.add(n), staging.add(2 * n), staging.add(3 * n)) };
+        let table = unsafe { staging.add(4 * n) };
+        let (mut t, mut longest) = (0usize, 0u32);
         for b in 0..r.batch as usize {
-            let m = unsafe { std::slice::from_raw_parts(r.mask.add(b * r.row_stride as usize), r.seq as usize) };
-            let len = m.iter().rposition(|&v| v != 0).map_or(0, |p| p + 1) as u32;
+            let at = b * r.row_stride as usize;
+            let m = unsafe { std::slice::from_raw_parts(r.mask.add(at), r.seq as usize) };
+            let len = m.iter().rposition(|&v| v != 0).map_or(0, |p| p + 1);
             unsafe {
                 *table.add(2 * b) = t as i32;
                 *table.add(2 * b + 1) = len as i32;
+                std::ptr::copy_nonoverlapping(r.ids.add(at), ids.add(t), len);
+                std::ptr::copy_nonoverlapping(r.mask.add(at), mask.add(t), len);
+                if !r.types.is_null() {
+                    std::ptr::copy_nonoverlapping(r.types.add(at), types.add(t), len);
+                }
+                for p in 0..len {
+                    *positions.add(t + p) = p as i32;
+                }
             }
             t += len;
-            longest = longest.max(len);
+            longest = longest.max(len as u32);
         }
-        (t, longest)
+        let arrays = if r.types.is_null() { 3 } else { 4 };
+        Ok((t as u32, longest, (arrays * t * 4 + r.batch as usize * 8) as u64))
     }
 
     /// The encoder over the packed rows, appended to the queue.
@@ -803,8 +786,18 @@ impl Session {
                     I32(n_in as i32),
                     I32(flags),
                     I32(k_len as i32),
+                    I32(xmx_share(k_len).unwrap_or(k_len) as i32),
                 ];
-                return kx[operands].launch(c, q, what, &args, groups);
+                // Too few tiles to fill the device: each group's
+                // sub-groups share one.
+                let few = groups[0] * groups[1] * groups[2] < XMX_FEW_TILES;
+                let kernel = &kx[operands + if few { 3 } else { 0 }];
+                let args = if few {
+                    args
+                } else {
+                    [args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], I32(k_len as i32)]
+                };
+                return kernel.launch(c, q, what, &args, groups);
             }
             let groups = [n_out.div_ceil(TILE), tokens.div_ceil(TILE), splits];
             let args = [
@@ -826,14 +819,16 @@ impl Session {
             k.add_layer_norm.launch(c, q, what, &args, [tokens, 1, 1])
         };
 
+        let n = self.max_batch as u64 * self.max_seq as u64 * 4;
+        let staging = self.staging as u64;
         let args = [
-            Ptr(self.ids),
-            Ptr(self.types),
+            Ptr(staging),
+            Ptr(staging + n),
+            Ptr(staging + 2 * n),
             I32(self.has_types as i32),
-            Ptr(self.mask),
-            Ptr(self.rows),
+            Ptr(staging + 3 * n),
+            Ptr(staging + 4 * n),
             I32(batch as i32),
-            I32(self.seq as i32),
             Ptr(w[WORD]),
             Ptr(w[POSITION]),
             Ptr(w[TOKEN_TYPE]),
@@ -843,6 +838,7 @@ impl Session {
             I32(h as i32),
             Ptr(self.x),
             Ptr(self.packed_mask),
+            Ptr(self.rows),
         ];
         k.embed_layer_norm.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1])?;
         for l in 0..d.layers {
@@ -942,29 +938,9 @@ pub(crate) unsafe extern "C" fn embed_write(
         guarded(err, || {
             let (s, r) = (&mut *(session as *mut Session), &*rows);
             s.written = false;
-            let c = s.ctx();
-            let (tokens, longest) = s.pack(r);
-            let mut sent = 0;
-            {
-                let mut q = c.lock_queue()?;
-                // The queue is left idle whether or not every copy was
-                // appended: the caller's arrays are valid for this call only.
-                let appended = (|| {
-                    sent += s.upload(&mut q, r, r.ids, 0, s.ids)?;
-                    sent += s.upload(&mut q, r, r.mask, 1, s.mask)?;
-                    if !r.types.is_null() {
-                        sent += s.upload(&mut q, r, r.types, 2, s.types)?;
-                    }
-                    let n = r.batch as usize * 8;
-                    let table = (s.staging as *const u8).add(3 * s.max_batch as usize * s.max_seq as usize * 4);
-                    c.copy(&mut q, s.rows as usize as *mut c_void, table as *const c_void, n)?;
-                    sent += n as u64;
-                    Ok(())
-                })();
-                let synced = c.sync(&mut q);
-                appended?;
-                synced?;
-            }
+            // No crossing yet: the lookup kernel reads the packed rows from
+            // the staging when the run starts.
+            let (tokens, longest, sent) = s.pack(r)?;
             s.has_types = !r.types.is_null();
             s.batch = r.batch;
             s.seq = r.seq;
@@ -1011,7 +987,8 @@ pub(crate) unsafe extern "C" fn session_run(
             out.host_allocs = 0;
             out.device_allocs = device_allocs_here() - device0;
             let st = &mut out.stage;
-            st[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_DEVICE;
+            // The lookup kernel reads the packed rows over the bus.
+            st[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_FUSED;
             st[TURBO_EMBED_STAGE_LOOKUP] = TURBO_STAGE_DEVICE;
             st[TURBO_EMBED_STAGE_ENCODE] = TURBO_STAGE_DEVICE;
             st[TURBO_EMBED_STAGE_POOL] = TURBO_STAGE_DEVICE;
