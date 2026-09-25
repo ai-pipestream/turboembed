@@ -99,6 +99,11 @@ pub enum Tile {
     /// feed-forward GEMMs 64 x 384, whole rows, with the residual and the
     /// LayerNorm in their epilogue (hidden widths up to 384, F16).
     SwizzledRows = 13,
+    /// F16 accumulators over the whole of k, no F32 sums: 128 x 128 over
+    /// four warps of 64 x 64, four stages, one block to an SM.
+    F16WholeK = 14,
+    /// `F16WholeK` at three stages, two blocks to an SM.
+    F16WholeK3 = 15,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
