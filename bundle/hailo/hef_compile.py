@@ -34,6 +34,7 @@ ran, then --tokenizer, --calibration (JSON lines, one {"text": ...} each),
 
 import argparse
 import json
+import os
 import sys
 
 import numpy as np
@@ -171,6 +172,9 @@ def main():
     p.add_argument("--heads", type=int, required=True)
     a = p.parse_args()
 
+    # The compiler reads USER, which a container run as the caller's uid
+    # does not set.
+    os.environ.setdefault("USER", "turbo")
     from hailo_sdk_client import ClientRunner, __version__ as dfc_version
     from hailo_sdk_client.exposed_definitions import Dims
 

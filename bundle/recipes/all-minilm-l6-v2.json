@@ -159,7 +159,7 @@
         "host_weights": "weights-f32",
         "produced_by": {
           "from": "onnx-f32",
-          "container": "turbo-hailo-dfc@sha256:a1976909afbbcf7f3623a50f82da1664b7ff2c582bcbe28d0f736fb7aeba3601",
+          "container": "turbo-hailo-dfc@sha256:7f544635bf649b2991321fb4ab7558a167f2abc8ecde36fce99aea85d00b8a71",
           "inputs": [
             "calibration/texts.jsonl"
           ]
