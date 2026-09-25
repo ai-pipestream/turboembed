@@ -2696,6 +2696,88 @@ template <int D> constexpr size_t fa_smem(int) {
 
 template <int D> constexpr int fa_min_blocks() { return fa_smem<D>(0) * 2 <= 96 * 1024 ? 2 : 1; }
 
+#ifndef TURBO_NO_MMA
+// One chunk of keys for a warp's 16 queries: S = Q K^T, the running
+// softmax, O += P V. WHOLE: the chunk's 64 keys are all the row's and
+// none is masked, so no score is tested or biased; the sums are the
+// same either way.
+template <int D, bool WHOLE>
+__device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[D / 16][4], float (&o)[D / 8][4], float (&m)[2],
+                                         float (&l)[2], const __half *Ks, const __half *Vs, const float *kb, int cn,
+                                         int holes, float sl2, int lane) {
+    constexpr int LD = D + 8, DK = D / 16, DN = D / 8;
+    float s[8][4];
+#pragma unroll
+    for (int j = 0; j < 8; j++)
+#pragma unroll
+        for (int e = 0; e < 4; e++) s[j][e] = 0.0f;
+#pragma unroll
+    for (int k = 0; k < DK; k++)
+#pragma unroll
+        for (int j = 0; j < 4; j++) {
+            uint32_t r[4];
+            ldsm_x4(r, Ks + (j * 16 + (lane >> 4) * 8 + (lane & 7)) * LD + k * 16 + ((lane >> 3) & 1) * 8);
+            mma16816(s[2 * j], qf[k], r[0], r[1]);
+            mma16816(s[2 * j + 1], qf[k], r[2], r[3]);
+        }
+    float mx[2] = {m[0], m[1]};
+#pragma unroll
+    for (int j = 0; j < 8; j++)
+#pragma unroll
+        for (int e = 0; e < 4; e++) {
+            float v = s[j][e] * sl2;
+            if constexpr (!WHOLE) {
+                const int key = j * 8 + (lane & 3) * 2 + (e & 1);
+                if (key >= cn)
+                    v = -INFINITY;
+                else if (holes)
+                    v += kb[key];
+            }
+            s[j][e] = v;
+            mx[e >> 1] = fmaxf(mx[e >> 1], v);
+        }
+#pragma unroll
+    for (int h = 0; h < 2; h++) {
+        mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 1));
+        mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 2));
+    }
+    const float corr[2] = {exp2f(m[0] - mx[0]), exp2f(m[1] - mx[1])};
+    float sum[2] = {0.0f, 0.0f};
+#pragma unroll
+    for (int j = 0; j < 8; j++)
+#pragma unroll
+        for (int e = 0; e < 4; e++) {
+            s[j][e] = exp2f(s[j][e] - mx[e >> 1]);
+            sum[e >> 1] += s[j][e];
+        }
+#pragma unroll
+    for (int h = 0; h < 2; h++) {
+        l[h] = l[h] * corr[h] + sum[h];
+        m[h] = mx[h];
+    }
+#pragma unroll
+    for (int j = 0; j < DN; j++) {
+        o[j][0] *= corr[0];
+        o[j][1] *= corr[0];
+        o[j][2] *= corr[1];
+        o[j][3] *= corr[1];
+    }
+#pragma unroll
+    for (int kk = 0; kk < 4; kk++) {
+        const uint32_t pa[4] = {pack_half2(s[2 * kk][0], s[2 * kk][1]), pack_half2(s[2 * kk][2], s[2 * kk][3]),
+                                pack_half2(s[2 * kk + 1][0], s[2 * kk + 1][1]),
+                                pack_half2(s[2 * kk + 1][2], s[2 * kk + 1][3])};
+#pragma unroll
+        for (int j = 0; j < D / 16; j++) {
+            uint32_t r[4];
+            ldsm_x4_trans(r, Vs + (kk * 16 + (lane & 7) + ((lane >> 3) & 1) * 8) * LD + j * 16 + (lane >> 4) * 8);
+            mma16816(o[2 * j], pa, r[0], r[1]);
+            mma16816(o[2 * j + 1], pa, r[2], r[3]);
+        }
+    }
+}
+#endif
+
 template <int D>
 __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa_kernel(AttnArgs a) {
 #ifndef TURBO_NO_MMA
@@ -2760,75 +2842,10 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
             if (live) {
                 const __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
                 const float *kb = kbs + b * FA_KEYS;
-                float s[8][4];
-#pragma unroll
-                for (int j = 0; j < 8; j++)
-#pragma unroll
-                    for (int e = 0; e < 4; e++) s[j][e] = 0.0f;
-#pragma unroll
-                for (int k = 0; k < DK; k++)
-#pragma unroll
-                    for (int j = 0; j < 4; j++) {
-                        uint32_t r[4];
-                        ldsm_x4(r, Ks + (j * 16 + (lane >> 4) * 8 + (lane & 7)) * LD + k * 16 + ((lane >> 3) & 1) * 8);
-                        mma16816(s[2 * j], qf[k], r[0], r[1]);
-                        mma16816(s[2 * j + 1], qf[k], r[2], r[3]);
-                    }
-                float mx[2] = {m[0], m[1]};
-#pragma unroll
-                for (int j = 0; j < 8; j++)
-#pragma unroll
-                    for (int e = 0; e < 4; e++) {
-                        const int key = j * 8 + (lane & 3) * 2 + (e & 1);
-                        float v = s[j][e] * sl2;
-                        if (key >= cn)
-                            v = -INFINITY;
-                        else if (it.holes)
-                            v += kb[key];
-                        s[j][e] = v;
-                        mx[e >> 1] = fmaxf(mx[e >> 1], v);
-                    }
-#pragma unroll
-                for (int h = 0; h < 2; h++) {
-                    mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 1));
-                    mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 2));
-                }
-                const float corr[2] = {exp2f(m[0] - mx[0]), exp2f(m[1] - mx[1])};
-                float sum[2] = {0.0f, 0.0f};
-#pragma unroll
-                for (int j = 0; j < 8; j++)
-#pragma unroll
-                    for (int e = 0; e < 4; e++) {
-                        s[j][e] = exp2f(s[j][e] - mx[e >> 1]);
-                        sum[e >> 1] += s[j][e];
-                    }
-#pragma unroll
-                for (int h = 0; h < 2; h++) {
-                    l[h] = l[h] * corr[h] + sum[h];
-                    m[h] = mx[h];
-                }
-#pragma unroll
-                for (int j = 0; j < DN; j++) {
-                    o[j][0] *= corr[0];
-                    o[j][1] *= corr[0];
-                    o[j][2] *= corr[1];
-                    o[j][3] *= corr[1];
-                }
-#pragma unroll
-                for (int kk = 0; kk < 4; kk++) {
-                    const uint32_t pa[4] = {pack_half2(s[2 * kk][0], s[2 * kk][1]),
-                                            pack_half2(s[2 * kk][2], s[2 * kk][3]),
-                                            pack_half2(s[2 * kk + 1][0], s[2 * kk + 1][1]),
-                                            pack_half2(s[2 * kk + 1][2], s[2 * kk + 1][3])};
-#pragma unroll
-                    for (int j = 0; j < D / 16; j++) {
-                        uint32_t r[4];
-                        ldsm_x4_trans(r, Vs + (kk * 16 + (lane & 7) + ((lane >> 3) & 1) * 8) * LD + j * 16 +
-                                             (lane >> 4) * 8);
-                        mma16816(o[2 * j], pa, r[0], r[1]);
-                        mma16816(o[2 * j + 1], pa, r[2], r[3]);
-                    }
-                }
+                if (cn == FA_KEYS && !it.holes)
+                    fa_chunk<D, true>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+                else
+                    fa_chunk<D, false>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
             }
             __syncthreads(); // buffer b is free for chunk c + 2
         }
