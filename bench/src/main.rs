@@ -232,8 +232,8 @@ fn record_cmd(args: &[String]) -> Result<()> {
     turbo_bench::check_build(&before.commit, turbo_bench::BUILD_COMMIT, turbo_bench::BUILD_CHANGES)?;
     let m = measure::measure(&plan)?;
     eprintln!(
-        "{} {}: p50 {:.4} ms, p99 {:.4} ms over {} runs of [{}, {}] {}, {} live tokens; min cosine {}, max abs \
-         diff {:e}",
+        "{} {}: p50 {:.4} ms, p99 {:.4} ms over {} runs of [{}, {}] {}, {} live tokens, {} computed; min cosine \
+         {}, max abs diff {:e}",
         m.backend(),
         turbo_bench::api::field(&m.device.name),
         m.timing.p50_ms,
@@ -243,6 +243,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         m.rows.seq,
         m.rows.kind.name(),
         m.rows.live_tokens(),
+        m.timing.computed_tokens,
         m.conformance.min_cosine,
         m.conformance.max_abs_diff
     );
@@ -254,6 +255,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let r = turbo_bench::record(&m, &after, references, turbo_bench::utc(SystemTime::now()))?;
     let dir = out.map_or_else(|| Path::new(&after.top).join(git::RECORDS_DIR), PathBuf::from);
     let path = turbo_bench::write(&r, &dir)?;
+    eprint!("{}", turbo_bench::report(&r));
     println!("{}", path.display());
     Ok(())
 }

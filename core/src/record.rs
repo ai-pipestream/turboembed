@@ -153,6 +153,12 @@ pub struct Timing {
     pub max_ms: f64,
     /// Rows embedded per second over the timed runs.
     pub rows_per_second: f64,
+    /// Token positions the library computed per run: each row's through
+    /// its last live token, since its backends pack the rows and skip the
+    /// padding after them. Beside rows.live_tokens, and a reference's
+    /// computed_tokens, so a padded and a packed time are not read as the
+    /// same work.
+    pub computed_tokens: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -197,6 +203,9 @@ pub struct Measured {
     /// Its lowest cosine against the bundle's reference, when its vectors
     /// were seen; null when the program does not return them.
     pub min_cosine: Option<f64>,
+    /// Token positions it computed per run: batch x seq for a kernel on
+    /// the padded rows; null when that cannot be known from outside it.
+    pub computed_tokens: Option<u64>,
 }
 
 /// What a compute dtype must reach against the fp32 reference.
@@ -412,6 +421,13 @@ impl Record {
             }
             k => return Err(format!("rows.kind {k:?} is not {ROWS_MIXED} or {ROWS_DENSE}")),
         }
+        let slots = rows.live_tokens..=rows.batch as u64 * rows.seq as u64;
+        if !slots.contains(&self.timing.computed_tokens) {
+            return Err(format!(
+                "timing.computed_tokens {} is not between the live tokens and batch x seq, {slots:?}",
+                self.timing.computed_tokens
+            ));
+        }
         let t = &self.timing;
         if t.iterations == 0
             || ![t.p50_ms, t.p99_ms, t.mean_ms, t.min_ms, t.max_ms, t.rows_per_second].into_iter().all(positive)
@@ -429,6 +445,15 @@ impl Record {
         for r in &self.references {
             if !REFERENCES.contains(&(r.name.as_str(), r.role.as_str())) {
                 return Err(format!("reference {:?} with role {:?} is not one of {REFERENCES:?}", r.name, r.role));
+            }
+            if let Some(m) = &r.measured
+                && let Some(n) = m.computed_tokens
+                && !slots.contains(&n)
+            {
+                return Err(format!(
+                    "reference {}: computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}",
+                    r.name
+                ));
             }
             if let Some(m) = &r.measured
                 && let Some(c) = m.min_cosine

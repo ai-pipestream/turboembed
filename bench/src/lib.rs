@@ -193,6 +193,32 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
     Ok(r)
 }
 
+/// What a record says of each side's time, a line each: its p50 and p99,
+/// and how many token positions it computed beside the rows' live
+/// tokens, so a padded time is not taken for a packed one.
+pub fn report(r: &Record) -> String {
+    let live = r.rows.live_tokens;
+    let rows = format!("[{}, {}] {}", r.rows.batch, r.rows.seq, r.rows.kind);
+    let mut out = format!(
+        "library ({} {}): p50 {:.4} ms, p99 {:.4} ms on {rows}: {} token positions computed of {live} live\n",
+        r.device.backend, r.device.name, r.timing.p50_ms, r.timing.p99_ms, r.timing.computed_tokens
+    );
+    for x in &r.references {
+        out += &match (&x.measured, &x.not_run) {
+            (Some(m), _) => {
+                let computed = m.computed_tokens.map_or_else(|| "unknown".to_owned(), |n| n.to_string());
+                format!(
+                    "{} ({}): p50 {:.4} ms, p99 {:.4} ms on {rows}: {computed} token positions computed of {live} \
+                     live\n",
+                    x.name, x.role, m.p50_ms, m.p99_ms
+                )
+            }
+            (None, why) => format!("{} ({}): not run: {}\n", x.name, x.role, why.as_deref().unwrap_or("")),
+        };
+    }
+    out
+}
+
 /// Write the record under its own name in `dir`, through the core's
 /// parser first; an existing record of that name is never replaced.
 pub fn write(r: &Record, dir: &Path) -> Result<PathBuf> {

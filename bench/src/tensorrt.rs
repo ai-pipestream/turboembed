@@ -242,6 +242,7 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
             p99_ms: s.latency_p99,
             rows_per_second: s.qps * m.rows.batch as f64,
             min_cosine: None,
+            computed_tokens: Some(m.rows.padded_tokens()),
         }),
         not_run: None,
     })

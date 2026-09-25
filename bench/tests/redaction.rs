@@ -318,10 +318,15 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
         tei_run.procedure
     );
     assert!(measured.min_cosine.unwrap() > 0.999_999);
+    // Rows of different lengths: what TEI pads them to is its own choice.
+    assert_eq!(measured.computed_tokens, None);
+    assert_eq!(trt_run.measured.as_ref().unwrap().computed_tokens, Some(4 * m.rows.seq as u64));
+    assert_eq!(ov_run.measured.as_ref().unwrap().computed_tokens, Some(4 * m.rows.seq as u64));
 
     // Dense rows go to TEI as they are, cut, through the same check, and
     // its vectors are compared with the library's of each cut row alone.
     assert!(dense_run.measured.as_ref().unwrap().min_cosine.unwrap() > 0.999_999, "{dense_run:?}");
+    assert_eq!(dense_run.measured.as_ref().unwrap().computed_tokens, Some(4 * 40), "every row 40 tokens");
     assert!(dense_run.procedure.contains("the library's vector of the row alone for a row cut to seq"));
     assert!(dense_run.procedure.contains("POST /embed with the batch's 4 rows as token ids"));
     let r = turbo_bench::record(&dense, &provenance("redaction-dense"), vec![dense_run], "2026-01-02T03:04:05Z".into())

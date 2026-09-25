@@ -233,8 +233,9 @@ pub fn onnx_file(m: &Measurement) -> std::result::Result<String, String> {
 }
 
 /// The measured reference from the median run and the 99th percentile
-/// run of the same arguments.
-pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report, batch: u32) -> Result<ReferenceRun> {
+/// run of the same arguments, on `rows` at their static shape.
+pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report, rows: &Rows) -> Result<ReferenceRun> {
+    let batch = rows.batch;
     if p50.version != p99.version || p50.count != p99.count {
         return Err(format!(
             "benchmark_app's two runs differ: OpenVINO {} and {}, {} and {} iterations",
@@ -265,6 +266,7 @@ pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report
             p99_ms: p99.latency_ms,
             rows_per_second: p50.count as f64 * batch as f64 / (p50.duration_ms / 1000.0),
             min_cosine: None,
+            computed_tokens: Some(rows.padded_tokens()),
         }),
         not_run: None,
     })
@@ -314,5 +316,5 @@ pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRu
     })();
     let _ = fs::remove_dir_all(&work);
     let (p50, p99) = result?;
-    measured(image, log, &procedure, p50, p99, m.rows.batch)
+    measured(image, log, &procedure, p50, p99, &m.rows)
 }

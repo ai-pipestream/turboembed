@@ -293,6 +293,13 @@ fn tei_is_sent_each_rows_live_ids_and_its_answers_are_checked() {
     .unwrap();
     assert_eq!(back, vec![vec![101, 7592]]);
     assert_eq!(tei::first_changed(&back, &back), None);
+    // What TEI computes is known only when every row is one length.
+    assert_eq!(tei::computed_tokens(&m.rows), None, "cases of different lengths");
+    let mut same = rows32();
+    for r in 0..32 {
+        same.mask[r * 64..r * 64 + 10].fill(1);
+    }
+    assert_eq!(tei::computed_tokens(&same), Some(32 * 10));
     assert_eq!(tei::first_changed(&back, &[vec![101, 7593]]), Some((0, vec![101, 7592], vec![101, 7593])));
 }
 
@@ -629,6 +636,20 @@ fn benchmark_app_output_without_a_figure_is_refused() {
     assert!(openvino::parse(failed, 50).is_err());
 }
 
+/// 32 padded rows of 64 tokens, as benchmark_app's static shape takes them.
+fn rows32() -> Rows {
+    let n = 32 * 64;
+    Rows {
+        kind: RowKind::Mixed,
+        batch: 32,
+        seq: 64,
+        ids: vec![0; n],
+        mask: vec![0; n],
+        types: vec![0; n],
+        cases: vec![0; 32],
+    }
+}
+
 #[test]
 fn the_two_runs_make_one_measured_reference() {
     let p50 = openvino::parse(BENCHMARK_APP_OUT, 50).unwrap();
@@ -636,23 +657,24 @@ fn the_two_runs_make_one_measured_reference() {
     p99.latency_ms = 2.6;
     let image = ov(Path::new("/w")).image;
     let log = docker::Log { commands: vec![strings(&["docker", "run"]), strings(&["docker", "run"])] };
-    let r = openvino::measured(&image, log.clone(), "two runs", p50.clone(), p99.clone(), 32).unwrap();
+    let r = openvino::measured(&image, log.clone(), "two runs", p50.clone(), p99.clone(), &rows32()).unwrap();
     assert_eq!((r.name.as_str(), r.role.as_str()), ("openvino", "kernel"));
     assert!(turbo::record::REFERENCES.contains(&(r.name.as_str(), r.role.as_str())));
     assert_eq!(r.version, "2025.3.0-19807-44526285f24-releases/2025/3");
     assert_eq!(r.commands.len(), 2, "both runs are recorded");
     let m = r.measured.unwrap();
     assert_eq!((m.iterations, m.p50_ms, m.p99_ms, m.min_cosine), (200, 2.03, 2.6, None));
+    assert_eq!(m.computed_tokens, Some(32 * 64), "every position of the static shape");
     assert!((m.rows_per_second - 200.0 * 32.0 / 0.41264).abs() < 1e-6, "{}", m.rows_per_second);
     assert!(r.procedure.contains("484.68 FPS"));
 
     let mut under = p99.clone();
     under.latency_ms = 2.0;
-    let e = openvino::measured(&image, log.clone(), "", p50.clone(), under, 32).unwrap_err();
+    let e = openvino::measured(&image, log.clone(), "", p50.clone(), under, &rows32()).unwrap_err();
     assert!(e.contains("under its median run's"), "{e}");
     let mut other = p99;
     other.count = 199;
-    assert!(openvino::measured(&image, log, "", p50, other, 32).unwrap_err().contains("two runs differ"));
+    assert!(openvino::measured(&image, log, "", p50, other, &rows32()).unwrap_err().contains("two runs differ"));
 }
 
 #[test]

@@ -222,6 +222,20 @@ impl Rows {
         self.mask.iter().filter(|&&m| m == 1).count() as u64
     }
 
+    /// The positions a packed run computes: each row's through its last
+    /// live token.
+    pub fn packed_tokens(&self) -> u64 {
+        let seq = self.seq as usize;
+        (0..self.batch as usize)
+            .map(|r| self.mask[r * seq..(r + 1) * seq].iter().rposition(|&m| m != 0).map_or(0, |p| p + 1) as u64)
+            .sum()
+    }
+
+    /// The positions a kernel on the padded rows computes: batch x seq.
+    pub fn padded_tokens(&self) -> u64 {
+        self.batch as u64 * self.seq as u64
+    }
+
     /// docs/benchmarks.md, "Token rows": SHA-256 of `turbo-bench rows 1`,
     /// a NUL, batch and seq as little-endian u32, then ids, mask and types
     /// as little-endian i32, row-major.
@@ -440,6 +454,7 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         min_ms: sorted[0],
         max_ms: sorted[sorted.len() - 1],
         rows_per_second: (batch as f64 * plan.iterations as f64) / total,
+        computed_tokens: rows.packed_tokens(),
     };
     Ok(Measurement {
         device,

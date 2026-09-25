@@ -180,7 +180,7 @@ small bundle's as it is now.
   "timing": {
     "warmup": 20, "iterations": 200, "p50_ms": 3.833206, "p99_ms": 3.950523,
     "mean_ms": 3.6571804100000027, "min_ms": 3.241942, "max_ms": 4.662617,
-    "rows_per_second": 8749.762009891207
+    "rows_per_second": 8749.762009891207, "computed_tokens": 621
   },
   "conformance": { "rows": 41, "min_cosine": 0.999999999999992, "max_abs_diff": 8.940696716308594e-8 },
   "references": [
@@ -215,9 +215,9 @@ field is required, and an unknown one is an error.
 | `compute_dtype` | `DTYPE_*` as `turbo_session_get_info` reported it. `DTYPE_I8` is accepted and has no floor. |
 | `bundle.*` | `turbo_model_info`: model id and revision, and the manifest, artifact and tokenizer hashes. |
 | `rows` | `kind`, `ROWS_MIXED` or `ROWS_DENSE` (`--rows`); the shape; `live_tokens`, the mask's ones across the batch, which for dense rows must be `batch` x `seq`; the reference case each row is; and the hash of the rows (below). |
-| `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. |
+| `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed, each row's through its last live token (What each time covers). |
 | `conformance` | Vectors compared with the bundle's fp32 reference on this device, through the C interface: each reference case no longer than `seq` alone, as a batch of one at its own length, then every row of the last timed batch that is its case whole. A dense row cut to `seq` has no reference vector; it must give, within the dtype's tolerance, what it gives alone, or the tool stops with an error. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
-| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, and `min_cosine` against the reference when the program returns vectors) or `not_run` with the reason. |
+| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and `batch` x `seq`. |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
 
 ### Token rows
@@ -268,6 +268,31 @@ read with that in mind:
   normalization in it. On mixed rows that is a full `batch` x `seq` of
   work where the library computes only the live tokens; on dense rows
   the two do the same work.
+
+Nor is the work the same unless the record says so. Each side's
+`computed_tokens` gives the token positions it computed per run, beside
+`rows.live_tokens`:
+
+- The library packs the rows (docs/cpu.md, docs/cuda.md,
+  docs/levelzero.md): it computes each row's positions through its last
+  live token and skips the padding after them, so for these rows its
+  count is the live tokens.
+- TensorRT and OpenVINO run the static `[batch, seq]` shape: `batch` x
+  `seq`, whatever the mask says.
+- TEI pads each batch it forms to that batch's longest input, or packs
+  where it runs flash attention (`core/src/queue.rs` and each backend's
+  `is_padded`, as of v1.8.3). With every row one length, dense rows,
+  either way it is `batch` x `seq`. With rows of different lengths it
+  depends on how TEI split the request (at most 8 inputs a batch with
+  ONNX Runtime, 4 with candle on a CPU) and on the order the inputs
+  reached its queue, which is not fixed, so it is null: unknown.
+
+At 32 x 256 on MiniLM's mixed rows, 1,353 tokens are live: the library
+computes 1,353 positions and TensorRT and OpenVINO 8,192. A time ratio
+there is packed against padded work, not one kernel against another;
+dense rows are where the kernels compare like for like. The tool prints
+each side's p50 and p99 with its computed and live tokens when it writes
+the record.
 
 ### Name
 

@@ -211,6 +211,20 @@ pub fn check_model_dir(dir: &Path, m: &Measurement) -> std::result::Result<(), S
     Ok(())
 }
 
+/// The token positions TEI computes for the rows, when that can be known
+/// from outside it. As of v1.8.3 it pads each batch it forms to the
+/// batch's longest input, or packs the inputs where it runs flash
+/// attention (core/src/queue.rs, and each backend's `is_padded`). With
+/// every row the same length L that is batch x L either way. Otherwise it
+/// depends on how it split the request (at most 8 inputs a batch with
+/// ONNX Runtime and 4 with candle on a CPU, each backend's
+/// `max_batch_size`) and on the order the inputs reached its queue, which
+/// is not fixed: unknown.
+pub fn computed_tokens(rows: &Rows) -> Option<u64> {
+    let first = rows.live(0).len();
+    (0..rows.batch as usize).all(|r| rows.live(r).len() == first).then_some(rows.batch as u64 * first as u64)
+}
+
 /// What TEI's vectors are compared with, in a clause.
 fn compared(m: &Measurement) -> &'static str {
     if (0..m.rows.batch as usize).all(|r| m.rows.whole(r, &m.reference)) {
@@ -407,6 +421,7 @@ pub fn run(
             p99_ms: percentile(&ms, 99.0),
             rows_per_second: m.rows.batch as f64 * iterations as f64 / total,
             min_cosine: Some(min_cosine),
+            computed_tokens: computed_tokens(&m.rows),
         }),
         not_run: None,
     })

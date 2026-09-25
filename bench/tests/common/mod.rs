@@ -166,6 +166,7 @@ pub fn measured_reference(name: &str) -> ReferenceRun {
             p99_ms: m.timing.p99_ms * 2.0,
             rows_per_second: m.timing.rows_per_second / 2.0,
             min_cosine: Some(m.conformance.min_cosine),
+            computed_tokens: Some(m.rows.padded_tokens()),
         }),
         not_run: None,
     }

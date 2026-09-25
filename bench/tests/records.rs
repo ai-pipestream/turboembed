@@ -67,6 +67,7 @@ fn a_record_holds_what_was_measured() {
     assert_eq!(r.rows.seq as usize, reference.ids.iter().map(Vec::len).max().unwrap());
     assert_eq!(r.rows.batch, 32);
     assert_eq!(r.rows.live_tokens, reference.ids.iter().cycle().take(32).map(|r| r.len() as u64).sum::<u64>());
+    assert_eq!(r.timing.computed_tokens, r.rows.live_tokens, "packed: no row has padding before its last live token");
     assert_eq!(r.bundle.manifest_sha256, bundle.manifest_sha256);
     assert_eq!(r.bundle.model_id, "sentence-transformers/all-MiniLM-L6-v2");
     assert_eq!((r.speed_ratio, r.speed_reference.as_deref()), (None, None));
@@ -135,6 +136,25 @@ fn dense_rows_are_the_long_cases_cut_to_seq_and_are_named_apart() {
     };
     let e = turbo_bench::measure::measure(&plan).err().unwrap();
     assert!(e.contains("no reference case has"), "{e}");
+}
+
+#[test]
+fn the_report_gives_each_sides_time_beside_the_tokens_it_computed() {
+    let mut tei = measured_reference(TEI);
+    tei.measured.as_mut().unwrap().computed_tokens = None;
+    let r = cpu_record("report", vec![tei, measured_reference(TRT)]);
+    let text = turbo_bench::report(&r);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3, "{text}");
+    let (live, padded) = (r.rows.live_tokens, r.rows.batch as u64 * r.rows.seq as u64);
+    assert!(lines[0].starts_with(&format!("library (cpu {}): p50 ", r.device.name)), "{text}");
+    let rows = format!("on [32, {}] ROWS_MIXED:", r.rows.seq);
+    assert!(lines.iter().all(|l| l.contains(&rows)), "{text}");
+    assert!(lines[0].ends_with(&format!(": {live} token positions computed of {live} live")), "{text}");
+    assert!(lines[1].starts_with("text-embeddings-inference (end_to_end): p50 "), "{text}");
+    assert!(lines[1].ends_with(&format!(": unknown token positions computed of {live} live")), "{text}");
+    assert!(lines[2].ends_with(&format!(": {padded} token positions computed of {live} live")), "{text}");
+    assert!(padded > live);
 }
 
 #[test]
@@ -223,6 +243,9 @@ fn a_record_that_is_not_well_formed_is_refused() {
     refused(&|x| x.rows.cases.pop().map(drop).unwrap_or(()), "cases one per row");
     refused(&|x| x.recorded_at = "yesterday".into(), "recorded_at");
     refused(&|x| x.rows.kind = "ROWS_SOME".into(), "is not ROWS_MIXED or ROWS_DENSE");
+    refused(&|x| x.timing.computed_tokens = x.rows.live_tokens - 1, "timing.computed_tokens");
+    refused(&|x| x.timing.computed_tokens = x.rows.batch as u64 * x.rows.seq as u64 + 1, "timing.computed_tokens");
+    refused(&|x| x.references[0].measured.as_mut().unwrap().computed_tokens = Some(0), "computed_tokens 0 is not");
     refused(&|x| x.rows.kind = "ROWS_DENSE".into(), "rows: dense, yet");
     refused(&|x| x.compute_dtype = "DTYPE_F64".into(), "not a DTYPE_* value");
     refused(&|x| x.precision = "PRECISION_BEST".into(), "not a PRECISION_* value");
