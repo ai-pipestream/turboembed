@@ -154,13 +154,21 @@ fn metal() {
         .filter(|o| o.status.success())
         .map(|o| PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()))
         .unwrap_or_else(|| fail("xcrun --find clang++ failed: the metal feature needs the Xcode command line tools"));
-    let sysroot = Command::new("xcrun").args(["--sdk", "macosx", "--show-sdk-path"]).output().unwrap();
-    let sysroot = String::from_utf8_lossy(&sysroot.stdout).trim().to_owned();
+    let sysroot = Command::new("xcrun")
+        .args(["--sdk", "macosx", "--show-sdk-path"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| {
+            fail("xcrun --sdk macosx --show-sdk-path failed: the metal feature needs the Xcode command line tools")
+        });
     let mut objects = Vec::new();
     for src in METAL_SOURCES {
         let obj = out.join(Path::new(src).file_name().unwrap()).with_extension("o");
         run(Command::new(&clang)
-            .args(["-c", "-O2", "-std=c++17", "-fobjc-arc", "-fPIC", "-Wall", "-Wextra"])
+            .args(["-c", "-O2", "-std=gnu++17", "-fobjc-arc", "-fobjc-arc-exceptions", "-fPIC", "-Wall", "-Wextra"])
             // The oldest macOS with what backend.mm calls and that the
             // SDK's libc++ still supports; rustc's x86_64 default is older.
             .args(["-arch", arch, "-mmacosx-version-min=11.0", "-isysroot", &sysroot])

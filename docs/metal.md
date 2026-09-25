@@ -8,8 +8,8 @@ clang into a static library that libturbo links, and the kernels,
 Metal compiles for the device when a context is made. The core reaches
 the backend only through its `turbo_backend` table
 (`include/turbo/turbo_backend.h`). It is off by default: the `metal`
-feature of the `turbo` crate links it, and `turbo_version()` then says
-`0.1.0 metal cpu`. Its devices come before the CPU's.
+feature of the `turbo` crate links it, and `turbo_version()` then lists
+`metal` before `cpu` (`0.1.0 metal cpu`). Its devices come before the CPU's.
 
 ## Requirements
 
@@ -70,8 +70,9 @@ frameworks and libc++, which every macOS has.
   every one but `DEVICE`. Any other kind is `TURBO_E_UNSUPPORTED`, naming
   it.
 - **Models.** Loading copies nothing: the pages the core holds the
-  weights in are mapped as one shared Metal buffer, and each tensor is
-  read where it is. Where Metal will not map them, they are copied once
+  weights in are mapped as shared Metal buffers, one per run of tensors
+  that lie together (a weights file's), and each tensor is read where it
+  is. Where Metal will not map them, they are copied once
   into a shared buffer, and the context's log says so. An F16 or BF16
   model's F32 copy is made on the device by the first session that
   computes in F32, shared by every later one, and freed with the model.
@@ -95,8 +96,8 @@ frameworks and libc++, which every macOS has.
   scores do not fit the threadgroup memory the device gives (about 4
   bytes per token plus the head's width; 32 KiB on Apple GPUs, so about
   8000 tokens) is `TURBO_E_UNSUPPORTED_OPTION` naming field 2, and a
-  session whose largest scratch array is more than one Metal buffer holds
-  names field 1.
+  session whose scratch is more than one Metal buffer holds names field
+  1.
 - **Numerics.** F32 throughout. Apple GPUs have no F64, so where the CPU
   encoder sums in F64 this backend sums in F32: LayerNorm takes the mean,
   then the variance around it, in two passes, and the L2 norm is summed
@@ -106,9 +107,9 @@ frameworks and libc++, which every macOS has.
   with relative error under 1.2e-7. Cosine against the fp32 reference
   must reach 0.9999.
 - **What a result reports.** Stages: tokenize on the host for text,
-  upload on the host (the copy into the session's shared memory), lookup,
-  encode and pool on the device, normalize fused into the pooling kernel
-  when it runs, and no download. With one memory nothing crosses to a
+  no upload (the rows were copied into the session's shared memory by
+  the write, as on the CPU), lookup, encode and pool on the device,
+  normalize fused into the pooling kernel when it runs, and no download. With one memory nothing crosses to a
   device: `h2d_bytes` is 0, and `d2h_bytes` is 0 after the run and grows
   by each read, as turbo.h counts reads. `host_allocs` and
   `device_allocs` are what the backend allocated on the running thread

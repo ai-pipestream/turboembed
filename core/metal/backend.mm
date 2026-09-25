@@ -152,7 +152,7 @@ id<MTLBuffer> wrap(id<MTLDevice> d, void *p, size_t n) {
     if ((uintptr_t)p % page != 0 || n == 0 || n % page != 0) return nil;
     id<MTLBuffer> b = [d newBufferWithBytesNoCopy:p
                                            length:n
-                                          options:MTLResourceStorageModeShared | MTLResourceHazardTrackingModeUntracked
+                                          options:MTLResourceStorageModeShared
                                       deallocator:nil];
     if (b) counted_device();
     return b;
@@ -383,6 +383,10 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
         c->queue = [d newCommandQueue];
         int32_t rc = c->queue ? TURBO_OK : refuse(err, TURBO_E_RUNTIME, "newCommandQueue gave none");
         if (rc == TURBO_OK) rc = compile(c, err);
+        // kernels.metal's reductions and matrices take SIMD groups of 32.
+        if (rc == TURBO_OK && c->kernels[LINEAR].threadExecutionWidth != 32)
+            rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs SIMD groups of %lu threads; the kernels need 32",
+                        ordinal, (unsigned long)c->kernels[LINEAR].threadExecutionWidth);
         if (rc != TURBO_OK) {
             delete c;
             return rc;
@@ -447,7 +451,7 @@ int32_t buffer_alloc(void *ctx, const turbo_buffer_desc *desc, void **out, void 
     return guarded(err, [&]() -> int32_t {
         Context *c = static_cast<Context *>(ctx);
         const uint64_t bytes = desc->bytes;
-        if (bytes > c->device.maxBufferLength)
+        if (desc->placement != TURBO_PLACE_HOST && bytes > c->device.maxBufferLength)
             return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes: device %u's largest buffer is %llu bytes",
                           (unsigned long long)bytes, c->ordinal, (unsigned long long)c->device.maxBufferLength);
         Buffer *b = make<Buffer>();
@@ -644,19 +648,47 @@ struct Ref {
 struct Model {
     Context *ctx = nullptr;
     turbo_backend_model desc{};
-    /* The weights as stored, and whether that is the core's own memory. */
-    id<MTLBuffer> stored = nil;
+    /* Each tensor as stored, and whether that is the core's own memory. */
+    std::vector<Ref> stored;
     bool in_place = false;
-    std::vector<uint64_t> offsets;
     std::vector<uint64_t> counts;
-    /* Every tensor in F32: into stored for an F32 model, else into widened
-     * once a session made it. */
+    /* Every tensor in F32: stored for an F32 model, else into widened once
+     * a session made it. */
     std::mutex widen_lock;
     id<MTLBuffer> widened = nil;
     std::vector<Ref> f32;
 };
 
 const char *dtype_name(uint32_t d) { return d == TURBO_DTYPE_F32 ? "F32" : d == TURBO_DTYPE_F16 ? "F16" : "BF16"; }
+
+/* The tensors where the core holds them: each run of tensors less than a
+ * page apart (one weights file's, packed) mapped as one shared buffer over
+ * the pages it lies on. False, with nothing kept, when Metal maps one of
+ * them not. */
+bool map_in_place(Model *m, const turbo_backend_model *desc) {
+    const uintptr_t page = (uintptr_t)getpagesize();
+    const uint32_t n = desc->tensor_count;
+    std::vector<uint32_t> order(n);
+    for (uint32_t i = 0; i < n; i++) order[i] = i;
+    auto start = [&](uint32_t i) { return (uintptr_t)desc->tensors[i].data; };
+    auto stop = [&](uint32_t i) { return start(i) + (uintptr_t)desc->tensors[i].bytes; };
+    std::sort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) { return start(a) < start(b); });
+    m->stored.assign(n, Ref{});
+    for (uint32_t k = 0; k < n;) {
+        const uintptr_t lo = start(order[k]) / page * page;
+        uintptr_t hi = stop(order[k]);
+        uint32_t e = k + 1;
+        while (e < n && start(order[e]) < hi + page) hi = std::max(hi, stop(order[e++]));
+        hi = (hi + page - 1) / page * page;
+        id<MTLBuffer> b = wrap(m->ctx->device, reinterpret_cast<void *>(lo), hi - lo);
+        if (!b) {
+            m->stored.clear();
+            return false;
+        }
+        for (; k < e; k++) m->stored[order[k]] = Ref{b, start(order[k]) - lo};
+    }
+    return true;
+}
 
 int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
@@ -667,46 +699,33 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
             return refuse(err, TURBO_E_UNSUPPORTED, "hidden %u is not a multiple of heads %u", desc->hidden,
                           desc->heads);
         const size_t elem = desc->dtype == TURBO_DTYPE_F32 ? 4 : 2;
-        // The pages the tensors lie on, first to last.
-        const uintptr_t page = (uintptr_t)getpagesize();
-        uintptr_t lo = UINTPTR_MAX, hi = 0;
-        for (uint32_t i = 0; i < desc->tensor_count; i++) {
-            const uintptr_t p = (uintptr_t)desc->tensors[i].data;
-            lo = std::min(lo, p);
-            hi = std::max(hi, p + (uintptr_t)desc->tensors[i].bytes);
-        }
-        lo = lo / page * page;
-        hi = (hi + page - 1) / page * page;
-
         Model *m = make<Model>();
         m->ctx = c;
         m->desc = *desc;
         m->desc.tensors = nullptr;
-        m->stored = wrap(c->device, reinterpret_cast<void *>(lo), hi - lo);
-        m->in_place = m->stored != nil;
-        if (m->in_place) {
-            for (uint32_t i = 0; i < desc->tensor_count; i++)
-                m->offsets.push_back((uintptr_t)desc->tensors[i].data - lo);
-        } else {
+        m->in_place = map_in_place(m, desc);
+        if (!m->in_place) {
             size_t total = 0;
+            std::vector<uint64_t> at;
             for (uint32_t i = 0; i < desc->tensor_count; i++) {
-                m->offsets.push_back(total);
+                at.push_back(total);
                 total += round_up(desc->tensors[i].bytes, 256);
             }
-            m->stored = new_buffer(c->device, total, MTLResourceStorageModeShared);
-            if (!m->stored) {
+            id<MTLBuffer> copy = new_buffer(c->device, total, MTLResourceStorageModeShared);
+            if (!copy) {
                 delete m;
                 return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the weights", total);
             }
-            char *base = static_cast<char *>(m->stored.contents);
-            for (uint32_t i = 0; i < desc->tensor_count; i++)
-                memcpy(base + m->offsets[i], desc->tensors[i].data, desc->tensors[i].bytes);
-            c->say(LOG_WARNING, "metal device %u: the weights are not on whole pages Metal can map; copied %zu bytes",
+            char *base = static_cast<char *>(copy.contents);
+            for (uint32_t i = 0; i < desc->tensor_count; i++) {
+                memcpy(base + at[i], desc->tensors[i].data, desc->tensors[i].bytes);
+                m->stored.push_back(Ref{copy, at[i]});
+            }
+            c->say(LOG_WARNING, "metal device %u: Metal did not map the pages the weights are on; copied %zu bytes",
                    c->ordinal, total);
         }
         for (uint32_t i = 0; i < desc->tensor_count; i++) m->counts.push_back(desc->tensors[i].bytes / elem);
-        if (desc->dtype == TURBO_DTYPE_F32)
-            for (uint32_t i = 0; i < desc->tensor_count; i++) m->f32.push_back(Ref{m->stored, m->offsets[i]});
+        if (desc->dtype == TURBO_DTYPE_F32) m->f32 = m->stored;
         c->say(LOG_DEBUG, "metal device %u: a BERT of %u layers, %s weights %s", c->ordinal, desc->layers,
                dtype_name(desc->dtype), m->in_place ? "read in place" : "copied");
         *out = m;
@@ -755,7 +774,7 @@ int32_t f32_weights(Model *m, turbo_error *err) {
         [enc setComputePipelineState:c->kernels[m->desc.dtype == TURBO_DTYPE_F16 ? WIDEN_F16 : WIDEN_BF16]];
         for (size_t i = 0; i < m->counts.size(); i++) {
             const uint32_t n = (uint32_t)m->counts[i];
-            [enc setBuffer:m->stored offset:m->offsets[i] atIndex:0];
+            [enc setBuffer:m->stored[i].buf offset:m->stored[i].at atIndex:0];
             [enc setBuffer:wide offset:at[i] atIndex:1];
             [enc setBytes:&n length:sizeof n atIndex:2];
             [enc dispatchThreads:MTLSizeMake(n, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
@@ -851,14 +870,14 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
                                 max_seq, shared, c->ordinal, most);
         const size_t tokens = (size_t)max_batch * max_seq;
         const size_t widest = std::max(d.intermediate, d.hidden);
-        if (tokens * widest * 4 > c->device.maxBufferLength || tokens > UINT32_MAX / widest)
+        const size_t wide = round_up(tokens * d.hidden * 4, 256);
+        const size_t ffn = round_up(tokens * d.intermediate * 4, 256);
+        if (tokens > UINT32_MAX / widest || 6 * wide + ffn > c->device.maxBufferLength)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1,
                                 "%u rows of %u tokens is more than one of device %u's buffers holds", max_batch,
                                 max_seq, c->ordinal);
         TRY(f32_weights(m, err));
 
-        const size_t wide = round_up(tokens * d.hidden * 4, 256);
-        const size_t ffn = round_up(tokens * d.intermediate * 4, 256);
         Session *s = make<Session>();
         s->model = m;
         s->ctx = c;
@@ -1045,9 +1064,9 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
         out->host_allocs = host_here - host0;
         out->device_allocs = device_here - device0;
         uint32_t *st = out->stage;
-        // The rows were copied into the session's shared memory by
-        // embed_write, on the host.
-        st[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_HOST;
+        // With one memory there is no upload: embed_write copied the rows
+        // into the session, as on the CPU.
+        st[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_UNUSED;
         st[TURBO_EMBED_STAGE_LOOKUP] = TURBO_STAGE_DEVICE;
         st[TURBO_EMBED_STAGE_ENCODE] = TURBO_STAGE_DEVICE;
         st[TURBO_EMBED_STAGE_POOL] = TURBO_STAGE_DEVICE;

@@ -175,7 +175,10 @@ fn the_backend_is_linked_before_the_cpu_and_names_itself() {
 fn the_gpu_is_listed_with_what_metal_says_about_it() {
     let rt = Rt::new();
     let metal = rt.metal();
-    assert!(!metal.is_empty(), "every Mac this builds on has a Metal device");
+    if metal.is_empty() {
+        assert!(!required(), "TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        return println!("skipped: the metal backend lists no device");
+    }
     for (ordinal, &i) in metal.iter().enumerate() {
         let info = rt.info(i);
         let name = field(&info.name);
@@ -217,7 +220,10 @@ fn ordinals_name_the_same_device_in_every_runtime() {
 #[test]
 fn nothing_but_memory_free_differs_between_queries() {
     let rt = Rt::new();
-    let i = rt.metal()[0];
+    let Some(&i) = rt.metal().first() else {
+        assert!(!required(), "TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        return println!("skipped: the metal backend lists no device");
+    };
     let (mut a, mut b) = (rt.info(i), rt.info(i));
     a.memory_free = 0;
     b.memory_free = 0;
@@ -249,6 +255,10 @@ fn the_table_refuses_an_ordinal_it_did_not_list() {
 #[test]
 fn a_reason_fits_the_buffer_it_is_given() {
     let b = table();
+    if Rt::new().metal().is_empty() {
+        assert!(!required(), "TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        return println!("skipped: the metal backend lists no device");
+    }
     let (mut st, mut dt, mut oh) = (0, 0, 0);
     let mut reason = [b'x' as c_char; 16];
     let rc = unsafe {
@@ -629,7 +639,7 @@ fn a_run_leaves_its_vectors_in_shared_memory_and_nothing_crosses() {
     assert_eq!((i.h2d_bytes, i.d2h_bytes), (0, 0), "one memory: nothing crosses");
     assert_eq!((i.host_allocs, i.device_allocs), (0, 0));
     let (h, d, f, u) = (TURBO_STAGE_HOST, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED, TURBO_STAGE_UNUSED);
-    assert_eq!(i.stage[..7], [h, h, d, d, d, f, u], "tokenize, upload, lookup, encode, pool, normalize, download");
+    assert_eq!(i.stage[..7], [h, u, d, d, d, f, u], "tokenize, upload, lookup, encode, pool, normalize, download");
     assert!(i.stage[7..].iter().all(|&s| s == u));
     assert_eq!(field(&i.backend), "metal");
     assert_eq!(field(&i.manifest_sha256), field(&mi.manifest_sha256));
@@ -657,7 +667,7 @@ fn a_run_leaves_its_vectors_in_shared_memory_and_nothing_crosses() {
     b.types = Some(vec![0, 1, 1]);
     s.write_tokens(&b.batch(), Some(&opts(|o| o.normalize = TURBO_NORMALIZE_NONE))).unwrap();
     let i = s.run().unwrap().info();
-    assert_eq!(i.stage[..7], [u, h, d, d, d, u, u]);
+    assert_eq!(i.stage[..7], [u, u, d, d, d, u, u]);
     assert_eq!((i.batch, i.h2d_bytes, i.d2h_bytes), (1, 0, 0), "a run's count starts again");
 }
 
