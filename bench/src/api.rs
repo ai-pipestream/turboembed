@@ -132,6 +132,43 @@ impl Tokenizer {
         check("turbo_tokenizer_get_info", |e| unsafe { turbo_tokenizer_get_info(self.0, &mut info, e) })?;
         Ok(info)
     }
+
+    /// One text's ids with the bundle's template and prompt role
+    /// (TURBO_PROMPT_*), cut to `max_tokens` the way the bundle truncates.
+    pub fn encode(&self, s: &str, prompt_role: u32, max_tokens: u32) -> Result<Vec<i32>> {
+        let opts = turbo_encode_options {
+            struct_size: size_of::<turbo_encode_options>() as u32,
+            omit_special_tokens: 0,
+            truncate: TURBO_TRUNCATE_MODEL,
+            max_tokens,
+            prompt_role,
+        };
+        let stride = max_tokens.max(1);
+        let (mut ids, mut mask) = (vec![0i32; stride as usize], vec![0i32; stride as usize]);
+        let mut len = 0u32;
+        let t = text(s);
+        check("turbo_tokenizer_encode", |e| {
+            // SAFETY: the handle is live for &self; `t` views `s`, which
+            // outlives the call; ids and mask hold one row of `stride`
+            // values, types may be null, and `len` takes the one length.
+            unsafe {
+                turbo_tokenizer_encode(
+                    self.0,
+                    &t,
+                    1,
+                    &opts,
+                    ids.as_mut_ptr(),
+                    mask.as_mut_ptr(),
+                    ptr::null_mut(),
+                    stride,
+                    &mut len,
+                    e,
+                )
+            }
+        })?;
+        ids.truncate(len as usize);
+        Ok(ids)
+    }
 }
 
 impl Drop for Tokenizer {

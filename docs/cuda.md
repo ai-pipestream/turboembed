@@ -43,15 +43,25 @@ output and the two feed-forward GEMMs), or `all`. cuBLAS's product then
 goes through a kernel doing the same epilogue, and such a session runs
 its launches one by one instead of as a graph. Unset, cuBLAS computes
 nothing. `TURBO_CUDA_TILE`, read the same way, picks the GEMMs' output
-tile: `128x64` (the default), `64x64`, or `128x128` (the F32 kernels
-only; the tensor-core kernels take `128x64` for it). A tile shares the
+tile for every GEMM: `64x64`, `128x64`, `128x128` or `128x128-16x8`
+(128 × 128 over 128 threads of 16 × 8 outputs each for the FMA
+kernels, where the other tiles give a thread 8 × 8; plain `128x128` on
+the tensor cores). Unset, the FMA kernels take `128x64`, and the
+tensor-core kernels `128x128` for the QKV and first feed-forward GEMMs
+and `128x64` for the other two. On an RTX 4080, FASTEST runs as fast
+with `128x64` for every GEMM as with that mix, and EXACT about 4%
+slower with `128x128-16x8` than with `128x64`. A tile shares the
 work among the blocks at other points, so the vectors agree within the
 precision's bound, not bit for bit; only the time should differ.
 `TURBO_CUDA_ATTENTION=split`, read the same way, gives the sessions
 that compute attention with FMAs the kernel that splits each query's
 keys among four warps (a lane per query, 64 queries to a block, the
 partial softmaxes merged in a fixed order), for measuring against the
-default. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
+default. `TURBO_CUDA_LAYER_NORM=separate` and `TURBO_CUDA_POOL=columns`,
+read the same way, give the LayerNorm after each GEMM as a kernel of its
+own and the pooling of a thread per column (see Pipeline), for
+measuring against the default; the LayerNorm's bits are the same either
+way. `TURBO_CUDA_SK_STEPS`, read the same way, is the fewest k steps
 a GEMM's block takes before the GEMM runs on fewer blocks (a count from
 1 to 64; 4 when unset), for measuring how finely the work is shared.
 Like the tile, it moves where the sums split, so the vectors agree
@@ -153,7 +163,8 @@ older than the runtime, it lists none and the runtime's log says why.
   hands out that memory, and `turbo_result_read` copies it back on the
   context's stream.
 - **Pipeline.** A run is one CUDA graph launch and one wait at its end.
-  The graph holds 4 + 7 × layers kernels (46 for MiniLM's 6 layers),
+  The graph holds 4 + 5 × layers kernels (34 for MiniLM's 6 layers;
+  4 + 7 × layers with the LayerNorms apart, see below),
   captured when the session is made and never again: nothing about a
   run's shape is a launch argument. The first kernel, `fetch_rows`,
   brings the rows from the staging when the write left them there. The
@@ -187,28 +198,45 @@ older than the runtime, it lists none and the runtime's log says why.
      of the head's values or the keys' positions. FASTEST with heads of
      32 or 64 computes QKᵀ and PV with `mma.sync` on the tensor cores, 64
      queries to a block, F32 accumulators, softmax in F32;
-  3. the attention output GEMM;
-  4. its bias, the residual and LayerNorm in one kernel, a warp per token
-     holding its row in registers (writing an F16 copy too for an F16
-     session);
-  5. the feed-forward input GEMM, its bias and GELU (erf) in its
+  3. the attention output GEMM, with its bias, the residual and
+     LayerNorm in its epilogue: each tile's finishing block adds the
+     bias and the residual into the hidden states and counts the tile
+     done for its block of rows; the block that finishes the last of a
+     block of rows' tiles then normalizes those rows, a warp per row
+     holding it in registers, two rows at a time (writing an F16 copy
+     too for an F16 session). The sums are those of the separate
+     LayerNorm kernel in the same order, so the bits are the same;
+  4. the feed-forward input GEMM, its bias and GELU (erf) in its
      epilogue;
-  6. the feed-forward output GEMM;
-  7. its bias, the residual and LayerNorm, as in 4.
+  5. the feed-forward output GEMM, with its bias, the residual and
+     LayerNorm, as in 3.
 
-  Last, one kernel pools each row, a block of 384 threads per row (mean
-  over its mask, its first token, or its last live one), cuts to
-  `output_dim` and normalizes.
+  Hidden widths past 512, and `TURBO_CUDA_LAYER_NORM=separate`, take
+  the product alone and then a kernel of their own for the bias,
+  residual and LayerNorm, a warp per token.
+
+  Last, one kernel pools each row, a block of 384 threads per row: a
+  thread per four columns, and for the mean up to eight groups of such
+  threads, each adding a contiguous run of the row's live tokens in
+  position order with eight 16-byte loads in flight, the groups' sums
+  then added in group order. It cuts to `output_dim` and normalizes,
+  writing the vector once. `TURBO_CUDA_POOL=columns`, and hidden
+  widths past 1536, take instead the kernel of a thread per column,
+  adding every token in turn.
   The GEMMs are the backend's own, their bias, GELU and head-major
   layout applied in the epilogue. At FASTEST they take F16 operands with
   `mma.sync.m16n8k16` and F32 accumulators, 32 values of k to a step
-  through a three-stage `cp.async` pipeline (two blocks of eight warps
-  to an SM), the outputs staged through shared memory to be stored 16
-  bytes at a time. At MODEL and EXACT they take F32 operands with F32
-  FMAs (no TF32), each thread 8 × 8 outputs, 16 values of k to a step
-  through a three-stage `cp.async` pipeline. Both take 128 × 64 tiles
-  (see `TURBO_CUDA_TILE`); devices before sm_80 take the FMA kernels at
-  every precision. The token count changes with every batch, so no
+  through a `cp.async` pipeline, eight warps to a block and two blocks
+  to an SM: 128 × 128 tiles over two stages, each warp 32 × 64, for the
+  QKV and first feed-forward GEMMs, and 128 × 64 tiles over three, each
+  warp 32 × 32, for the attention output and second feed-forward GEMMs,
+  whose outputs are a third or a quarter as wide. The outputs are staged
+  through shared memory to be stored 16 bytes at a time. At MODEL and
+  EXACT they take F32 operands with F32 FMAs (no TF32), each thread
+  8 × 8 outputs of a 128 × 64 tile, 16 values of k to a step through a
+  three-stage `cp.async` pipeline (see `TURBO_CUDA_TILE` for the other
+  tiles). Devices before sm_80 take the FMA kernels at every precision.
+  The token count changes with every batch, so no
   fixed tiling fills the device; each GEMM is scheduled stream-K
   instead. It launches as many blocks as the device holds at once and
   gives each an equal, contiguous share of the work, counted as tiles ×

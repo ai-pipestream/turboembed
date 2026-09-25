@@ -38,6 +38,7 @@ the same files copied elsewhere pass it.
 | `--device <index\|backend>` | A runtime device index, or a backend name for the first device it lists. Default `cpu`. |
 | `--precision model\|fastest\|exact` | The session's precision. Default `model`. |
 | `--batch <n>`, `--seq <n>` | The rows' shape. Default: 32 rows, or the model's `max_batch` if fewer; the longest reference case that fits the model's `max_seq`. |
+| `--rows mixed\|dense` | The token rows (Token rows, below). `mixed`: the reference cases that fit `seq`, cycled and padded. `dense`: every row a case of at least `seq` tokens, cut to `seq`, so all `batch` x `seq` tokens are live and packing skips none. Default `mixed`. |
 | `--cpus <list>` | Processors to run on, as `0-15` or `0-7,16-23` (Linux). The tool pins itself to them before it starts the library, sets `TURBO_CPU_THREADS` to their count (docs/cpu.md), and gives TEI's container the same processors, with MKL a thread per physical core and rayon one per processor (below). Default: unpinned. |
 | `--warmup <n>`, `--iterations <n>` | Untimed runs, then timed runs. Default 20 and 200. |
 | `--repo <dir>` | The git working tree the library was built from; its commit must be the tool's build commit (Provenance). Default: the one the tool was built in. |
@@ -70,8 +71,12 @@ CUDA_DEVICE_ORDER=PCI_BUS_ID TURBO_CUDA_ROOT=/usr/local/cuda cargo run --release
     --bundle all-minilm-l6-v2/ --device cuda --precision model \
     --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the 89-* image> \
     --tei-model upstream/ \
-    --tensorrt-image nvcr.io/nvidia/tensorrt@sha256:<digest>
+    --tensorrt-image nvcr.io/nvidia/tensorrt@sha256:3b127f45630cd56bf43d2ef70d7f50a7ee37e42bda4ba11adaaa069af2098125
 ```
+
+That TensorRT image is NVIDIA's `26.08-py3`, with trtexec 11.2.1. Its
+F16 build needs the bundle's `onnx-f16` artifact (TensorRT, below), so
+the bundle must be made from a recipe that has it.
 
 On a CPU, TEI's CPU image against the library on the same processors
 and threads. On a Ryzen 9 9950X3D the CCD with the stacked cache is the
@@ -172,14 +177,14 @@ small bundle's as it is now.
     "tokenizer_sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0"
   },
   "rows": {
-    "batch": 32, "seq": 64, "live_tokens": 621,
+    "kind": "ROWS_MIXED", "batch": 32, "seq": 64, "live_tokens": 621,
     "cases": [0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4],
     "sha256": "b7abcfa07e539dd88d3f5b08d06f184e065c3b6789163a9b2d0be45d3c1fedde"
   },
   "timing": {
     "warmup": 20, "iterations": 200, "p50_ms": 3.833206, "p99_ms": 3.950523,
     "mean_ms": 3.6571804100000027, "min_ms": 3.241942, "max_ms": 4.662617,
-    "rows_per_second": 8749.762009891207
+    "rows_per_second": 8749.762009891207, "computed_tokens": 621
   },
   "conformance": { "rows": 41, "min_cosine": 0.999999999999992, "max_abs_diff": 8.940696716308594e-8 },
   "references": [
@@ -197,7 +202,10 @@ small bundle's as it is now.
 The tool writes it with serde_json's pretty printer: two-space indent,
 every object member and every array element on a line of its own. Here
 most objects and `cases` are folded onto fewer lines. Every
-field is required, and an unknown one is an error.
+field is required, and an unknown one is an error, but for three the
+tool has always written since they were added and records made before
+may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
+`timing.computed_tokens` and `measured.computed_tokens`, read as null.
 
 | Field | Meaning |
 |---|---|
@@ -210,13 +218,14 @@ field is required, and an unknown one is an error.
 | `library.version` | The version number at the start of `turbo_version()`. |
 | `library.build` | `turbo_version()` whole: the version and the backends linked. |
 | `library.commit`, `.pushed_to` | See Provenance. |
+| `library.settings` | The environment variables that change what the backend runs, those that were set, as `NAME=value`: `TURBO_CPU_THREADS` on cpu; `TURBO_CUDA_TILE`, `TURBO_CUDA_SK_STEPS`, `TURBO_CUDA_ATTENTION` and `TURBO_CUDA_CUBLAS` on cuda. Empty when none was, or in a record made before the field was. |
 | `task`, `precision` | `TASK_EMBED`; `PRECISION_*` as the session asked. |
 | `compute_dtype` | `DTYPE_*` as `turbo_session_get_info` reported it. `DTYPE_I8` is accepted and has no floor. |
 | `bundle.*` | `turbo_model_info`: model id and revision, and the manifest, artifact and tokenizer hashes. |
-| `rows` | The shape, the live tokens, the reference case each row is, and the hash of the rows (below). |
-| `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. |
-| `conformance` | The rows compared with the bundle's fp32 reference on this device, through the C interface: each distinct case alone as a batch of one at its own length, then every row of the last timed batch. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
-| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, and `min_cosine` against the reference when the program returns vectors) or `not_run` with the reason. |
+| `rows` | `kind`, `ROWS_MIXED` or `ROWS_DENSE` (`--rows`); the shape; `live_tokens`, the mask's ones across the batch, which for dense rows must be `batch` x `seq`; the reference case each row is; and the hash of the rows (below). |
+| `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed, each row's through its last live token (What each time covers). |
+| `conformance` | Vectors compared with the bundle's fp32 reference on this device, through the C interface: each reference case no longer than `seq` alone, as a batch of one at its own length, then every row of the last timed batch that is its case whole. A dense row cut to `seq` has no reference vector; it must give, within the dtype's tolerance, what it gives alone, or the tool stops with an error. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
+| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and `batch` x `seq`. |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
 
 ### Token rows
@@ -230,10 +239,78 @@ then the ids, the mask and the types as little-endian i32, row-major:
 exactly what `turbo_embed_write_tokens` is given. Every reference program
 is given the same rows.
 
+Those are the mixed rows, the default: short and long texts together,
+as a server sees them, so most of the batch is padding, which the
+library packs away and a kernel on the padded shape computes. With
+`--rows dense`, every row is a reference case of at least `seq` tokens
+(the long cases), in case order, repeated until the batch is full. A
+case longer than `seq` is its text encoded again through
+`turbo_tokenizer_encode` with the bundle's template, its prompt role,
+`TURBO_TRUNCATE_MODEL` and `max_tokens` `seq`: cut the way the bundle
+truncates, so the row is exactly `seq` tokens. The batch then has
+`batch` x `seq` live tokens and no padding. Without `--seq` it is the
+longest case that fits the model, as for mixed rows, and no case is cut;
+a `--seq` longer than every case is refused. The hash is made the same
+way, and TEI, TensorRT and OpenVINO are given these rows.
+
+Only a mixed record backs a capability and its `speed_ratio`, since
+mixed rows are what a server sees; a dense record is committed and
+parsed like any other, as reference evidence for the kernels, and backs
+nothing.
+
+### What each time covers
+
+The figures side by side are not the same span, and a record should be
+read with that in mind:
+
+- **The library** (`timing`): write the token rows
+  (`turbo_embed_write_tokens`), run (`turbo_session_run`), and read every
+  vector into host memory (`turbo_result_read`, `turbo_result_release`),
+  through the C interface, in the tool's process.
+- **text-embeddings-inference** (`measured`, end to end): one HTTP
+  request with the rows as token ids, from sending it to reading the
+  whole response: TEI decodes the ids and tokenizes them again, queues
+  and batches the inputs, runs the forward pass, pools, and writes the
+  vectors as JSON, and the loopback carries it. Its own headers split
+  that up; `procedure` gives their p50 and p99 (below).
+- **TensorRT and OpenVINO** (`measured`, kernel): the model's graph
+  alone, on the rows padded to the batch's `seq`, as the vendor's tool
+  times it (trtexec: the inputs' copy to the GPU, the compute and the
+  hidden states' copy back; benchmark_app: one inference request). The
+  graph stops at the hidden states, so there is no pooling or
+  normalization in it. On mixed rows that is a full `batch` x `seq` of
+  work where the library computes only the live tokens; on dense rows
+  the two do the same work.
+
+Nor is the work the same unless the record says so. Each side's
+`computed_tokens` gives the token positions it computed per run, beside
+`rows.live_tokens`:
+
+- The library packs the rows (docs/cpu.md, docs/cuda.md,
+  docs/levelzero.md): it computes each row's positions through its last
+  live token and skips the padding after them, so for these rows its
+  count is the live tokens.
+- TensorRT and OpenVINO run the static `[batch, seq]` shape: `batch` x
+  `seq`, whatever the mask says.
+- TEI pads each batch it forms to that batch's longest input, or packs
+  where it runs flash attention (`core/src/queue.rs` and each backend's
+  `is_padded`, as of v1.8.3). With every row one length, dense rows,
+  either way it is `batch` x `seq`. With rows of different lengths it
+  depends on how TEI split the request (at most 8 inputs a batch with
+  ONNX Runtime, 4 with candle on a CPU) and on the order the inputs
+  reached its queue, which is not fixed, so it is null: unknown.
+
+At 32 x 256 on MiniLM's mixed rows, 1,353 tokens are live: the library
+computes 1,353 positions and TensorRT and OpenVINO 8,192. A time ratio
+there is packed against padded work, not one kernel against another;
+dense rows are where the kernels compare like for like. The tool prints
+each side's p50 and p99 with its computed and live tokens when it writes
+the record.
+
 ### Name
 
 ```
-<machine>.<backend>.<task>.<precision>.<model>-<manifest>.<commit>.json
+<machine>.<backend>.<task>.<precision>[-dense].<model>-<manifest>.<commit>.json
 ```
 
 `machine` is the arch label; for a CPU, the arch label, a dash and the
@@ -241,12 +318,15 @@ first 8 hex of the SHA-256 of the processor's name, since a CPU record
 is filed under both (`core/src/cpu.rs`). `task` and `precision` are the
 enum names without their prefix, in lower case. `model` is the last part
 of the model id, at most 32 characters; `manifest` the first 8 hex of the
-manifest hash; `commit` the first 12 of the commit. Every part is lower
+manifest hash; `commit` the first 12 of the commit. Dense rows add
+`-dense` after the precision, so a mixed and a dense record of one
+commit have different names and both are kept. Every part is lower
 case letters, digits and single dashes. The name must fit
 `turbo_capability.benchmark`, 95 bytes; the tool refuses a longer one,
 and the core refuses a record whose file name is not the one its
 contents give. For example
-`rtx4080.cuda.embed.model.all-minilm-l6-v2-<8 hex>.<12 hex>.json`.
+`rtx4080.cuda.embed.model.all-minilm-l6-v2-<8 hex>.<12 hex>.json`, and
+with dense rows `rtx4080.cuda.embed.model-dense.all-minilm-l6-v2-<8 hex>.<12 hex>.json`.
 
 ## Reference programs
 
@@ -278,10 +358,11 @@ names those directories the same way. The core refuses a record with
 `/home/` or `/Users/` anywhere in its text, so one written by hand or
 by an older tool cannot carry a home directory either.
 
-**TensorRT** builds an engine from the bundle's `FORMAT_ONNX` artifact,
-checked against its hash, and times the rows loaded from raw files. The
-library never executes ONNX; a reference program may. A bundle with no
-ONNX artifact gives a reference with `not_run` saying so. The command:
+**TensorRT** builds an engine from one of the bundle's `FORMAT_ONNX`
+artifacts, checked against its hash, and times the rows loaded from raw
+files. The library never executes ONNX; a reference program may. A
+bundle without the artifact the session's dtype needs gives a reference
+with `not_run` saying so. The command:
 
 ```
 docker run --rm --pull never --network none --gpus device=<ordinal> \
@@ -293,8 +374,22 @@ docker run --rm --pull never --network none --gpus device=<ordinal> \
     --warmUp=<ms> --iterations=<iterations> --duration=0 --percentile=99 <precision flag>
 ```
 
-The precision flag is `--noTF32` for F32 (the library computes F32 in
-F32), `--fp16` for F16, `--bf16` for BF16. The output must end in
+For F32 the graph is upstream's (the artifact with no `compute_dtype`)
+and the precision flag `--noTF32`, since the library computes F32 in
+F32. For F16 and BF16 it is the artifact converted to that dtype
+(`compute_dtype` `DTYPE_F16` or `DTYPE_BF16`, made by the bundle tool:
+the MiniLM recipe's `onnx-f16`, docs/bundle.md) and the flag
+`--stronglyTyped`, so every layer runs in the type the graph gives it.
+TensorRT 11 removed weak typing, and with it `--fp16` and `--bf16`; a
+strongly typed build is the same on TensorRT 10. `procedure` names the
+file and the flag. An F16 TensorRT time in an older record, built with
+`--fp16` on the F32 graph (weak typing), is not the same build as one
+made with `--stronglyTyped` on the F16 graph, and its `procedure` says
+which it was. When trtexec exits non-zero, failing to parse the graph,
+build the engine or run it, the reference is `not_run` with its exit
+code and its first `[E]` line, and the rest of the record is still
+written; docker's own failure (exit code 125 to 127) stops the tool.
+Otherwise the output must end in
 `&&&& PASSED`; the version is its `TensorRT version:` line, p50 and p99
 the summary's `Latency` median and `percentile(99%)` (the H2D copy, the
 GPU compute and the D2H copy of one batch), the iterations its `Timing
@@ -353,8 +448,21 @@ then `POST /tokenize` with `add_special_tokens: false`) and records
 `not_run` unless every row comes back as the same ids. Then `POST /embed`
 with the batch's rows as ids (no padding), the bundle's normalization
 and `truncate: false`, `--warmup` times untimed and `--iterations` times
-timed, each from sending the request to reading the whole response. The
-last response's vectors give `min_cosine`. The container is removed
+timed, each from sending the request to reading the whole response: that
+round trip is `measured`. The last response's vectors give `min_cosine`,
+against the reference vector of a row that is its case whole, and the
+library's vector of the row alone for a dense row cut to `seq`.
+
+Each `/embed` answer also carries TEI's own timing, in whole
+milliseconds (`router/src/lib.rs`, `impl From<ResponseMetadata> for
+HeaderMap`, and the embed handler in `router/src/http/server.rs`, as of
+v1.8.3): `x-total-time`, from the request's arrival to its headers being
+made, so without writing the JSON or the transfer;
+`x-tokenization-time`, `x-queue-time` and `x-inference-time`, for a
+request of several inputs the mean over its inputs of the time each
+spent being tokenized, waiting in the queue, and in the forward pass.
+`procedure` gives the round trip's p50 and p99 and each header's p50
+and p99 over the same timed requests, or that TEI did not send one. The container is removed
 when the tool is done with it. TEI has no BF16 dtype; a BF16 session
 records it as `not_run`.
 
@@ -396,7 +504,9 @@ iterations its `Count`; rows per second the first run's count times the
 batch over its `Duration`. Its `Average` and `Throughput` go in
 `procedure`. The two runs must report the same version and count, and
 the second a p99 no lower than the first's median, or the tool stops
-with an error. `-infer_precision` is `f32` for F32 and `f16` for F16;
+with an error. When benchmark_app exits non-zero in either run, the
+reference is `not_run` with its exit code and its first `[ ERROR ]`
+line, as for trtexec. `-infer_precision` is `f32` for F32 and `f16` for F16;
 the GPU plugin has no BF16, so a BF16 session records `not_run`. With
 more than one Level Zero device listed the tool refuses to run it:
 benchmark_app's `GPU` is OpenVINO's first, which need not be the device

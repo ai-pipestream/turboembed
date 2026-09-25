@@ -3,3 +3,6 @@ transformers==5.17.0
 torch==2.14.0+cpu
 safetensors==0.8.0
 numpy==2.5.3
+onnx==1.23.0
+onnxconverter-common==1.16.0
+protobuf==7.36.2

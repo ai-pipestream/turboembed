@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use turbo_bundle::recipe::Recipe;
-use turbo_bundle::{reference, seal};
+use turbo_bundle::{convert, reference, seal};
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
@@ -67,6 +67,30 @@ fn reported() -> Value {
     json!({ "tool": "sentence-transformers", "tool_version": "6.1.0", "args": ["--device", "cpu"] })
 }
 
+/// The bytes the converted F16 file has here: like the upstream ONNX
+/// file, it is copied and hashed and never parsed.
+const ONNX_F16: &[u8] = b"the same graph in float16, as far as sealing is concerned";
+
+/// What the conversion run reports, in the form onnx_f16.py writes it.
+fn reported_f16() -> Value {
+    json!({ "tool": "onnxconverter-common", "tool_version": "1.16.0 (onnx 1.23.0)", "settings": ["keep_io_types=True", "max_finite_val=10000.0", "min_positive_val=1e-07", "float_casts_into_f16_ops=FLOAT16"] })
+}
+
+/// Each converted artifact as a run makes it: its file written, and its
+/// produced_by from what the run reported.
+fn converted(r: &Recipe, bundle: &Path) -> Vec<(String, Value)> {
+    convert::conversions(r)
+        .unwrap()
+        .into_iter()
+        .map(|c| {
+            let file = bundle.join(&c.file);
+            fs::create_dir_all(file.parent().unwrap()).unwrap();
+            fs::write(file, ONNX_F16).unwrap();
+            (c.name.clone(), convert::produced_by(&reported_f16(), CONTAINER, &c, true).unwrap())
+        })
+        .collect()
+}
+
 const CONTAINER: &str = "turbo-reference@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 /// Stage, put the reference in, and seal: everything `make` does after the
@@ -84,7 +108,8 @@ fn sealed(name: &str, edit: impl FnOnce(&mut Recipe)) -> (PathBuf, Result<(), St
     )
     .unwrap();
     let pb = reference::produced_by(&reported(), CONTAINER).unwrap();
-    let out = seal::seal(&r, &bundle, pb);
+    let made = converted(&r, &bundle);
+    let out = seal::seal(&r, &bundle, pb, made);
     (bundle, out)
 }
 
@@ -99,13 +124,33 @@ fn a_sealed_bundle_loads_through_the_core() {
     let paths: Vec<&str> = m["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
     assert_eq!(
         paths,
-        ["onnx/model.onnx", "reference/reference.safetensors", "tokenizer.json", "weights/model.safetensors"]
+        [
+            "onnx/model-f16.onnx",
+            "onnx/model.onnx",
+            "reference/reference.safetensors",
+            "tokenizer.json",
+            "weights/model.safetensors"
+        ]
+    );
+    // The converted artifact's produced_by is the run's, beside what the
+    // recipe named.
+    let f16 = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "onnx-f16").unwrap();
+    assert_eq!(
+        f16["produced_by"],
+        json!({
+            "tool": "onnxconverter-common",
+            "tool_version": "1.16.0 (onnx 1.23.0)",
+            "container": CONTAINER,
+            "from": "onnx-f32",
+            "args": ["onnx/model.onnx", "onnx/model-f16.onnx", "keep_io_types=True", "max_finite_val=10000.0", "min_positive_val=1e-07", "float_casts_into_f16_ops=FLOAT16"],
+            "reproducible": true
+        })
     );
     // The loader opens it as a machine would.
     seal::verify(&bundle).unwrap();
     let tok = bundle.join("tokenizer.json");
     assert_eq!(
-        m["files"][2]["sha256"].as_str().unwrap(),
+        m["files"][3]["sha256"].as_str().unwrap(),
         turbo::bundle::sha256_hex(&fs::read(tok).unwrap()),
         "hashes are computed, not copied from the recipe"
     );
@@ -120,7 +165,7 @@ fn the_recipe_carries_upstreams_onnx_export_for_reference_programs_only() {
     let r = Recipe::load(&root().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap();
     let arts = r.manifest["artifacts"].as_array().unwrap();
     let onnx: Vec<&Value> = arts.iter().filter(|a| a["format"] == "FORMAT_ONNX").collect();
-    assert_eq!(onnx.len(), 1, "one ONNX artifact");
+    assert_eq!(onnx.len(), 2, "upstream's ONNX artifact and its F16 copy");
     assert_eq!(onnx[0]["name"], "onnx-f32");
     assert_eq!(onnx[0]["files"], json!(["onnx/model.onnx"]));
     assert_eq!(onnx[0]["backends"], json!([]), "no backend loads it");
@@ -129,6 +174,65 @@ fn the_recipe_carries_upstreams_onnx_export_for_reference_programs_only() {
     let up = r.upstream.iter().find(|u| u.path == "onnx/model.onnx").expect("fetched from upstream");
     assert_eq!(up.to.as_deref(), Some("onnx/model.onnx"), "and carried at the path the artifact names");
     assert!(seal::named_paths(&r.manifest).unwrap().contains("onnx/model.onnx"));
+
+    // The F16 copy: made from onnx-f32 in the reference container, for
+    // programs that build F16 only from a strongly typed graph.
+    assert_eq!(onnx[1]["name"], "onnx-f16");
+    assert_eq!(onnx[1]["compute_dtype"], "DTYPE_F16");
+    assert_eq!(onnx[1]["backends"], json!([]), "no backend loads it");
+    assert_eq!(onnx[1]["produced_by"], json!({ "from": "onnx-f32" }), "the rest comes from the run");
+    assert!(r.upstream.iter().all(|u| u.to.as_deref() != Some("onnx/model-f16.onnx")), "not fetched");
+    let c = convert::conversions(&r).unwrap();
+    assert_eq!(
+        c,
+        [convert::Conversion {
+            name: "onnx-f16".into(),
+            file: "onnx/model-f16.onnx".into(),
+            from: "onnx-f32".into(),
+            from_file: "onnx/model.onnx".into(),
+            script: convert::ONNX_F16,
+        }]
+    );
+}
+
+#[test]
+fn only_an_f16_onnx_file_from_the_upstream_one_is_made() {
+    let d = scratch("conversions");
+    let write = |edit: &dyn Fn(&mut Value)| {
+        let mut r: Value = serde_json::from_slice(&fs::read(tiny_recipe(&d)).unwrap()).unwrap();
+        let arts = r["manifest"]["artifacts"].as_array_mut().unwrap();
+        edit(arts.iter_mut().find(|a| a["name"] == "onnx-f16").unwrap());
+        let p = d.join("edited.json");
+        fs::write(&p, serde_json::to_vec(&r).unwrap()).unwrap();
+        Recipe::load(&p).map(|_| ())
+    };
+    write(&|_| {}).unwrap();
+    let e = write(&|a| a["produced_by"]["tool"] = json!("typed by hand")).unwrap_err();
+    assert!(e.contains("names only from"), "{e}");
+    let e = write(&|a| a["produced_by"]["from"] = json!("onnx-f64")).unwrap_err();
+    assert!(e.contains("names no artifact"), "{e}");
+    let e = write(&|a| a["compute_dtype"] = json!("DTYPE_BF16")).unwrap_err();
+    assert!(e.contains("only a DTYPE_F16 FORMAT_ONNX file"), "{e}");
+    let e = write(&|a| a["produced_by"]["from"] = json!("weights-f32")).unwrap_err();
+    assert!(e.contains("only a DTYPE_F16 FORMAT_ONNX file"), "{e}");
+    let e = write(&|a| a["files"] = json!(["onnx/a.onnx", "onnx/b.onnx"])).unwrap_err();
+    assert!(e.contains("one file each"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_conversion_that_did_not_run_is_not_sealed() {
+    let (bundle, out) = sealed("unconverted", |_| {});
+    out.unwrap();
+    let r = Recipe::load(&bundle.parent().unwrap().join("recipe.json")).unwrap();
+    let pb = reference::produced_by(&reported(), CONTAINER).unwrap();
+    let e = seal::seal(&r, &bundle, pb, vec![]).unwrap_err();
+    assert!(e.contains("the recipe converts [\"onnx-f16\"], and the runs made []"), "{e}");
+    // A second run that gave other bytes is recorded as such.
+    let c = &convert::conversions(&r).unwrap()[0];
+    assert_eq!(convert::produced_by(&reported_f16(), CONTAINER, c, false).unwrap()["reproducible"], false);
+    assert!(convert::produced_by(&json!({ "tool": "x", "tool_version": "1" }), CONTAINER, c, true).is_err());
+    fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
 }
 
 #[test]
@@ -193,7 +297,8 @@ fn a_reference_that_is_not_normalized_is_refused() {
     }
     fs::write(&path, &bytes).unwrap();
     let r = Recipe::load(&bundle.parent().unwrap().join("recipe.json")).unwrap();
-    let e = seal::seal(&r, &bundle, reference::produced_by(&reported(), CONTAINER).unwrap()).unwrap_err();
+    let made = converted(&r, &bundle);
+    let e = seal::seal(&r, &bundle, reference::produced_by(&reported(), CONTAINER).unwrap(), made).unwrap_err();
     assert!(e.contains("norm"), "{e}");
     fs::remove_dir_all(bundle.parent().unwrap()).unwrap();
 }

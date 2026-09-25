@@ -2,17 +2,49 @@
 //! token rows, the timed runs and the conformance check, all through the
 //! C interface.
 
+use std::collections::btree_map::Entry;
 use std::path::PathBuf;
 use std::time::Instant;
 
 use turbo::bundle::{Bundle, sha256_hex};
-use turbo::manifest::{Manifest, Normalize, Pooling};
-use turbo::record::{Conformance, Timing};
+use turbo::manifest::{Manifest, Normalize, Pooling, PromptRole};
+use turbo::record::{Conformance, ROWS_DENSE, ROWS_MIXED, Timing};
 use turbo::safetensors::{self, Dtype};
-use turbo::{TURBO_DEVICE_CPU, TURBO_TASK_EMBED, turbo_device_info, turbo_model_info};
+use turbo::{
+    TURBO_DEVICE_CPU, TURBO_PROMPT_DOCUMENT, TURBO_PROMPT_NONE, TURBO_PROMPT_QUERY, TURBO_TASK_EMBED,
+    turbo_device_info, turbo_model_info,
+};
 
 use crate::Result;
-use crate::api::{self, Batch, Runtime, field};
+use crate::api::{self, Batch, Runtime, Tokenizer, field};
+
+/// Which token rows are measured (`--rows`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RowKind {
+    /// The reference cases that fit seq, cycled, each padded to seq.
+    Mixed,
+    /// Every row a reference case of at least seq tokens, cut to seq the
+    /// way the bundle truncates: batch x seq live tokens, none padding.
+    Dense,
+}
+
+impl RowKind {
+    pub fn parse(s: &str) -> Result<RowKind> {
+        match s {
+            "mixed" => Ok(RowKind::Mixed),
+            "dense" => Ok(RowKind::Dense),
+            _ => Err(format!("--rows {s}: mixed or dense")),
+        }
+    }
+
+    /// As a record names it.
+    pub fn name(self) -> &'static str {
+        match self {
+            RowKind::Mixed => ROWS_MIXED,
+            RowKind::Dense => ROWS_DENSE,
+        }
+    }
+}
 
 /// What to measure, as the command line gave it.
 #[derive(Debug, Clone)]
@@ -26,12 +58,15 @@ pub struct Plan {
     pub batch: Option<u32>,
     /// Tokens per row; None: the longest reference case that fits the model.
     pub seq: Option<u32>,
+    pub rows: RowKind,
     pub warmup: u32,
     pub iterations: u32,
 }
 
-/// The bundle's reference: each case's ids and fp32 vector.
+/// The bundle's reference: each case's text and prompt role
+/// (TURBO_PROMPT_*), ids and fp32 vector.
 pub struct Reference {
+    pub texts: Vec<(String, u32)>,
     pub ids: Vec<Vec<i32>>,
     pub vectors: Vec<Vec<f32>>,
 }
@@ -48,14 +83,31 @@ impl Reference {
         let emb = st.get("embeddings", Dtype::F32, 2).map_err(|e| e.message)?;
         let (width, dim) = (ids.shape[1] as usize, emb.shape[1] as usize);
         let flat = ids.i32s();
-        let mut out = Reference { ids: Vec::new(), vectors: emb.f32s().chunks(dim).map(<[f32]>::to_vec).collect() };
+        let texts = bundle.manifest.reference.cases.iter().map(|c| {
+            let role = match c.prompt_role {
+                PromptRole::None => TURBO_PROMPT_NONE,
+                PromptRole::Query => TURBO_PROMPT_QUERY,
+                PromptRole::Document => TURBO_PROMPT_DOCUMENT,
+            };
+            (c.text.clone(), role)
+        });
+        let mut out = Reference {
+            texts: texts.collect(),
+            ids: Vec::new(),
+            vectors: emb.f32s().chunks(dim).map(<[f32]>::to_vec).collect(),
+        };
         for (i, &n) in lengths.iter().enumerate() {
             let n = usize::try_from(n).ok().filter(|&n| n >= 1 && n <= width);
             let n = n.ok_or_else(|| format!("{file}: case {i} has length {}", lengths[i]))?;
             out.ids.push(flat[i * width..i * width + n].to_vec());
         }
-        if out.ids.len() != out.vectors.len() {
-            return Err(format!("{file}: {} id rows and {} vectors", out.ids.len(), out.vectors.len()));
+        if out.ids.len() != out.vectors.len() || out.ids.len() != out.texts.len() {
+            return Err(format!(
+                "{file}: {} id rows and {} vectors for {} cases",
+                out.ids.len(),
+                out.vectors.len(),
+                out.texts.len()
+            ));
         }
         Ok(out)
     }
@@ -64,6 +116,7 @@ impl Reference {
 /// The token rows every program is measured on.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Rows {
+    pub kind: RowKind,
     pub batch: u32,
     pub seq: u32,
     pub ids: Vec<i32>,
@@ -84,7 +137,15 @@ impl Rows {
             return Err(format!("no reference case fits {seq} tokens, or the batch is empty"));
         }
         let n = batch as usize * seq as usize;
-        let mut rows = Rows { batch, seq, ids: vec![pad; n], mask: vec![0; n], types: vec![0; n], cases: Vec::new() };
+        let mut rows = Rows {
+            kind: RowKind::Mixed,
+            batch,
+            seq,
+            ids: vec![pad; n],
+            mask: vec![0; n],
+            types: vec![0; n],
+            cases: Vec::new(),
+        };
         for r in 0..batch as usize {
             let case = fit[r % fit.len()];
             let ids = &reference.ids[case as usize];
@@ -93,6 +154,61 @@ impl Rows {
             rows.cases.push(case);
         }
         Ok(rows)
+    }
+
+    /// `batch` rows of exactly `seq` live tokens: the reference cases of
+    /// `seq` tokens or more, in order, repeated until the batch is full; a
+    /// longer case is its text encoded again and cut to `seq` the way the
+    /// bundle truncates. Types all 0.
+    pub fn dense(reference: &Reference, tokenizer: &Tokenizer, batch: u32, seq: u32) -> Result<Rows> {
+        let long: Vec<u32> =
+            (0..reference.ids.len() as u32).filter(|&i| reference.ids[i as usize].len() >= seq as usize).collect();
+        if long.is_empty() || batch == 0 || seq == 0 {
+            return Err(format!("no reference case has {seq} tokens or more, or the batch is empty"));
+        }
+        let mut cut = Vec::new();
+        for &case in &long {
+            let whole = &reference.ids[case as usize];
+            let ids = if whole.len() == seq as usize {
+                whole.clone()
+            } else {
+                let (text, role) = &reference.texts[case as usize];
+                tokenizer.encode(text, *role, seq)?
+            };
+            if ids.len() != seq as usize {
+                return Err(format!("reference case {case} cut to {seq} tokens came back as {}", ids.len()));
+            }
+            cut.push(ids);
+        }
+        let n = batch as usize * seq as usize;
+        let mut ids = Vec::with_capacity(n);
+        let mut cases = Vec::new();
+        for r in 0..batch as usize {
+            ids.extend_from_slice(&cut[r % long.len()]);
+            cases.push(long[r % long.len()]);
+        }
+        Ok(Rows { kind: RowKind::Dense, batch, seq, ids, mask: vec![1; n], types: vec![0; n], cases })
+    }
+
+    /// Reference case `case` alone, at its own length.
+    pub fn case(reference: &Reference, case: u32) -> Rows {
+        let ids = reference.ids[case as usize].clone();
+        let n = ids.len();
+        Rows {
+            kind: RowKind::Mixed,
+            batch: 1,
+            seq: n as u32,
+            ids,
+            mask: vec![1; n],
+            types: vec![0; n],
+            cases: vec![case],
+        }
+    }
+
+    /// Whether row `r` is its reference case whole, as the reference
+    /// vector was made from it, rather than cut to seq.
+    pub fn whole(&self, r: usize, reference: &Reference) -> bool {
+        self.live(r) == reference.ids[self.cases[r] as usize].as_slice()
     }
 
     /// Row `r`'s live ids, without padding.
@@ -104,6 +220,20 @@ impl Rows {
 
     pub fn live_tokens(&self) -> u64 {
         self.mask.iter().filter(|&&m| m == 1).count() as u64
+    }
+
+    /// The positions a packed run computes: each row's through its last
+    /// live token.
+    pub fn packed_tokens(&self) -> u64 {
+        let seq = self.seq as usize;
+        (0..self.batch as usize)
+            .map(|r| self.mask[r * seq..(r + 1) * seq].iter().rposition(|&m| m != 0).map_or(0, |p| p + 1) as u64)
+            .sum()
+    }
+
+    /// The positions a kernel on the padded rows computes: batch x seq.
+    pub fn padded_tokens(&self) -> u64 {
+        self.batch as u64 * self.seq as u64
     }
 
     /// docs/benchmarks.md, "Token rows": SHA-256 of `turbo-bench rows 1`,
@@ -127,7 +257,15 @@ impl Rows {
     pub fn single(&self, r: usize) -> Rows {
         let ids = self.live(r).to_vec();
         let n = ids.len();
-        Rows { batch: 1, seq: n as u32, ids, mask: vec![1; n], types: vec![0; n], cases: vec![self.cases[r]] }
+        Rows {
+            kind: self.kind,
+            batch: 1,
+            seq: n as u32,
+            ids,
+            mask: vec![1; n],
+            types: vec![0; n],
+            cases: vec![self.cases[r]],
+        }
     }
 }
 
@@ -149,6 +287,13 @@ pub struct Measurement {
     pub conformance: Conformance,
     /// The vectors of the last timed run, row by row.
     pub vectors: Vec<Vec<f32>>,
+    /// What each row's vector should be: the reference vector for a
+    /// whole case, and for a row cut to seq, the library's vector of that
+    /// row run alone, which is all there is to compare it with.
+    pub expected: Vec<Vec<f32>>,
+    /// Each of record::LIBRARY_VARS for the backend that was set, as
+    /// `NAME=value`: what the library read besides the session's options.
+    pub settings: Vec<String>,
 }
 
 impl Measurement {
@@ -202,6 +347,16 @@ pub fn compare(vectors: &[Vec<f32>], cases: &[u32], reference: &Reference) -> Re
     Ok(c)
 }
 
+/// Each of record::LIBRARY_VARS for `backend` that is set in this
+/// process, as `NAME=value`, in that order.
+pub fn library_settings(backend: &str) -> Vec<String> {
+    turbo::record::LIBRARY_VARS
+        .iter()
+        .filter(|(b, _)| *b == backend)
+        .filter_map(|(_, v)| std::env::var(v).ok().map(|x| format!("{v}={x}")))
+        .collect()
+}
+
 /// Load the bundle on the device, time the runs, and check the vectors.
 pub fn measure(plan: &Plan) -> Result<Measurement> {
     if plan.iterations == 0 {
@@ -219,7 +374,8 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
     if cap.status == turbo::backend::TURBO_CAP_UNSUPPORTED {
         return Err(format!("device {index}: embed at this precision is unsupported: {}", field(&cap.reason)));
     }
-    let pad = rt.tokenizer(&bundle_dir)?.info()?.pad_id.max(0);
+    let tokenizer = rt.tokenizer(&bundle_dir)?;
+    let pad = tokenizer.info()?.pad_id.max(0);
     let ctx = rt.context(index)?;
     let model = ctx.load(&bundle_dir)?;
     let mi = model.info()?;
@@ -229,22 +385,43 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         None => reference.ids.iter().map(|r| r.len() as u32).filter(|&n| n <= mi.max_seq).max().unwrap_or(0),
     };
     let batch = plan.batch.unwrap_or(mi.max_batch.min(32));
-    let rows = Rows::build(&reference, pad, batch, seq)?;
+    let rows = match plan.rows {
+        RowKind::Mixed => Rows::build(&reference, pad, batch, seq)?,
+        RowKind::Dense => Rows::dense(&reference, &tokenizer, batch, seq)?,
+    };
+    drop(tokenizer);
     let session = model.session(batch, seq, plan.precision)?;
     let si = session.info()?;
     let dim = mi.dim as usize;
 
-    // Conformance: each row's case alone, then the timed batch below.
+    // Conformance: each reference case that fits the rows alone, then
+    // each whole row of the timed batch below.
     let mut vectors = Vec::new();
     let mut cases = Vec::new();
     let mut one = vec![0f32; dim];
-    let mut seen = std::collections::BTreeSet::new();
-    for r in 0..rows.batch as usize {
-        if seen.insert(rows.cases[r]) {
-            let single = rows.single(r);
-            session.embed_into(&single.as_batch(), &mut one)?;
+    for case in 0..reference.ids.len() as u32 {
+        if reference.ids[case as usize].len() <= seq as usize {
+            session.embed_into(&Rows::case(&reference, case).as_batch(), &mut one)?;
             vectors.push(one.clone());
-            cases.push(rows.cases[r]);
+            cases.push(case);
+        }
+    }
+    // A row cut to seq has no reference vector: it should give what it
+    // gives alone.
+    let mut expected = Vec::with_capacity(rows.batch as usize);
+    let mut alone = std::collections::BTreeMap::new();
+    for r in 0..rows.batch as usize {
+        if rows.whole(r, &reference) {
+            expected.push(reference.vectors[rows.cases[r] as usize].clone());
+        } else {
+            let v = match alone.entry(rows.cases[r]) {
+                Entry::Occupied(e) => e.into_mut(),
+                Entry::Vacant(e) => {
+                    session.embed_into(&rows.single(r).as_batch(), &mut one)?;
+                    e.insert(one.clone())
+                }
+            };
+            expected.push(v.clone());
         }
     }
 
@@ -262,8 +439,26 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
     }
     let total = started.elapsed().as_secs_f64();
     let timed: Vec<Vec<f32>> = out.chunks(dim).map(<[f32]>::to_vec).collect();
-    vectors.extend(timed.iter().cloned());
-    cases.extend(&rows.cases);
+    for (r, v) in timed.iter().enumerate() {
+        if rows.whole(r, &reference) {
+            vectors.push(v.clone());
+            cases.push(rows.cases[r]);
+        } else {
+            let Some(tol) = turbo::record::tolerance(si.compute_dtype) else {
+                let name = turbo::record::dtype_name(si.compute_dtype)
+                    .map_or_else(|| si.compute_dtype.to_string(), str::to_owned);
+                return Err(format!("no tolerance for dtype {name}; a dense run can't check its cut rows"));
+            };
+            let (c, d) = (cosine(v, &expected[r]), max_abs_diff(v, &expected[r]));
+            if c < tol.min_cosine || tol.max_abs_diff.is_some_and(|most| d > most) {
+                return Err(format!(
+                    "row {r}, reference case {} cut to {seq} tokens, differs in the batch from alone: \
+                     cosine {c}, max abs diff {d:e}",
+                    rows.cases[r]
+                ));
+            }
+        }
+    }
     let conformance = compare(&vectors, &cases, &reference)?;
 
     let mut sorted = ms.clone();
@@ -277,7 +472,9 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         min_ms: sorted[0],
         max_ms: sorted[sorted.len() - 1],
         rows_per_second: (batch as f64 * plan.iterations as f64) / total,
+        computed_tokens: Some(rows.packed_tokens()),
     };
+    let settings = library_settings(&field(&device.backend));
     Ok(Measurement {
         device,
         host_cpu,
@@ -292,5 +489,7 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         timing,
         conformance,
         vectors: timed,
+        expected,
+        settings,
     })
 }

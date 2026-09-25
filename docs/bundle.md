@@ -326,7 +326,22 @@ refuses to finish unless every hash matches.
   so rule 6 skips it on every device. If a fallback engine is ever
   built it is a backend like any other and gets its name in `backends`.
   The MiniLM recipe carries upstream's `onnx/model.onnx` unchanged, as
-  the artifact `onnx-f32`.
+  the artifact `onnx-f32`, and an F16 copy of it, `onnx-f16`
+  (`onnx/model-f16.onnx`, `compute_dtype` `DTYPE_F16`), for TensorRT,
+  which from version 11 builds F16 only from a strongly typed F16 graph.
+  The bundle tool makes the copy in the reference container with
+  onnxconverter-common (`bundle/reference/onnx_f16.py`): every float
+  becomes float16 except in the ops on the converter's default block
+  list, which stay float32 with casts around them; constants are clamped
+  to `max_finite_val` 1e4 and `min_positive_val` 1e-7 in magnitude (its
+  defaults, passed explicitly and recorded in `args`); the inputs and
+  the output keep their types. The converter leaves a Cast to float of
+  an integer input (BERT's attention mask) as it was, feeding F16 ops,
+  so the script makes each such Cast one to float16
+  (`float_casts_into_f16_ops=FLOAT16` in `args`) and refuses a result in
+  which any other op takes both float and float16 inputs. The recipe
+  names only `produced_by.from`; the tool fills in the rest from
+  the run, and runs it twice to say whether it is `reproducible`.
 - The header has no int8 dtype today. It is added when the Hailo
   backend lands, not before; the example shows the value it will use.
 - Every load verifies every file it opens. No hash cache. If a

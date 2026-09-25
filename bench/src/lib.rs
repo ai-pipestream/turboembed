@@ -162,6 +162,7 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
             build: m.build.clone(),
             commit: p.commit.clone(),
             pushed_to: p.pushed_to.clone(),
+            settings: m.settings.clone(),
         },
         task: record::task_name(TURBO_TASK_EMBED).unwrap().into(),
         precision: record::precision_name(m.precision).ok_or("precision is not a TURBO_PRECISION_* value")?.into(),
@@ -176,6 +177,7 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
             tokenizer_sha256: field(&m.model.tokenizer_sha256),
         },
         rows: record::Rows {
+            kind: m.rows.kind.name().into(),
             batch: m.rows.batch,
             seq: m.rows.seq,
             live_tokens: m.rows.live_tokens(),
@@ -190,6 +192,37 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
     };
     r.check()?;
     Ok(r)
+}
+
+/// What a record says of each side's time, a line each: its p50 and p99,
+/// and how many token positions it computed beside the rows' live
+/// tokens, so a padded time is not taken for a packed one.
+pub fn report(r: &Record) -> String {
+    let live = r.rows.live_tokens;
+    let rows = format!("[{}, {}] {}", r.rows.batch, r.rows.seq, r.rows.kind);
+    let count = |n: Option<u64>| n.map_or_else(|| "unknown".to_owned(), |n| n.to_string());
+    let mut out = format!(
+        "library ({} {}): p50 {:.4} ms, p99 {:.4} ms on {rows}: {} token positions computed of {live} live\n",
+        r.device.backend,
+        r.device.name,
+        r.timing.p50_ms,
+        r.timing.p99_ms,
+        count(r.timing.computed_tokens)
+    );
+    for x in &r.references {
+        out += &match (&x.measured, &x.not_run) {
+            (Some(m), _) => {
+                let computed = count(m.computed_tokens);
+                format!(
+                    "{} ({}): p50 {:.4} ms, p99 {:.4} ms on {rows}: {computed} token positions computed of {live} \
+                     live\n",
+                    x.name, x.role, m.p50_ms, m.p99_ms
+                )
+            }
+            (None, why) => format!("{} ({}): not run: {}\n", x.name, x.role, why.as_deref().unwrap_or("")),
+        };
+    }
+    out
 }
 
 /// Write the record under its own name in `dir`, through the core's

@@ -26,6 +26,24 @@ pub const NAME_MAX: usize = 95;
 /// tool writes each host path in it as a placeholder (docs/benchmarks.md).
 pub const HOST_PATHS: [&str; 4] = ["/home/", "/root/", "/var/home/", "/Users/"];
 
+/// The kinds of token rows a record may be measured on.
+pub const ROWS_MIXED: &str = "ROWS_MIXED";
+pub const ROWS_DENSE: &str = "ROWS_DENSE";
+
+fn rows_mixed() -> String {
+    ROWS_MIXED.into()
+}
+
+/// The environment variables that change what a backend runs, each with
+/// its backend: a record names those that were set in library.settings.
+pub const LIBRARY_VARS: [(&str, &str); 5] = [
+    ("cpu", "TURBO_CPU_THREADS"),
+    ("cuda", "TURBO_CUDA_TILE"),
+    ("cuda", "TURBO_CUDA_SK_STEPS"),
+    ("cuda", "TURBO_CUDA_ATTENTION"),
+    ("cuda", "TURBO_CUDA_CUBLAS"),
+];
+
 /// The reason a cell without any record for it gives.
 pub const NO_RECORD: &str = "no benchmark record for this cell";
 
@@ -105,6 +123,11 @@ pub struct Library {
     /// The branches of origin that contain the commit, as the tree's
     /// remote-tracking refs showed them when the record was made.
     pub pushed_to: Vec<String>,
+    /// Each of LIBRARY_VARS for the backend that was set when the record
+    /// was made, as `NAME=value`, in that order; empty when none was, or
+    /// in a record made before the field was.
+    #[serde(default)]
+    pub settings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -120,6 +143,12 @@ pub struct BundleId {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Rows {
+    /// `ROWS_MIXED`: the reference cases that fit seq, cycled, each
+    /// padded; `ROWS_DENSE`: every row a case of at least seq tokens, cut
+    /// to seq the way the bundle truncates, so no token is padding. A
+    /// record made before rows had a kind is mixed, the only kind then.
+    #[serde(default = "rows_mixed")]
+    pub kind: String,
     pub batch: u32,
     pub seq: u32,
     /// Mask entries of 1 across the batch.
@@ -145,6 +174,13 @@ pub struct Timing {
     pub max_ms: f64,
     /// Rows embedded per second over the timed runs.
     pub rows_per_second: f64,
+    /// Token positions the library computed per run: each row's through
+    /// its last live token, since its backends pack the rows and skip the
+    /// padding after them. Beside rows.live_tokens, and a reference's
+    /// computed_tokens, so a padded and a packed time are not read as the
+    /// same work. Null only in a record made before the field was.
+    #[serde(default)]
+    pub computed_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -189,6 +225,11 @@ pub struct Measured {
     /// Its lowest cosine against the bundle's reference, when its vectors
     /// were seen; null when the program does not return them.
     pub min_cosine: Option<f64>,
+    /// Token positions it computed per run: batch x seq for a kernel on
+    /// the padded rows; null when that cannot be known from outside it,
+    /// or in a record made before the field was.
+    #[serde(default)]
+    pub computed_tokens: Option<u64>,
 }
 
 /// What a compute dtype must reach against the fp32 reference.
@@ -258,14 +299,16 @@ fn slug(s: &str) -> String {
 
 /// A record's file name, from its contents alone:
 ///
-/// `<machine>.<backend>.<task>.<precision>.<model>-<manifest>.<commit>.json`
+/// `<machine>.<backend>.<task>.<precision>[-dense].<model>-<manifest>.<commit>.json`
 ///
 /// machine is the arch label, and for a CPU the arch label and the first 8
 /// hex of the SHA-256 of the processor's name, since a CPU record is filed
 /// under both; task and precision are the enum names without their
 /// prefix; model is the last part of the model id, at most 32 bytes;
 /// manifest is the first 8 hex of the bundle's manifest hash, commit the
-/// first 12 of the library's. Longer than NAME_MAX is an error.
+/// first 12 of the library's; `-dense` marks dense rows, so a mixed and a
+/// dense record of one commit are both kept. Longer than NAME_MAX is an
+/// error.
 pub fn file_name(r: &Record) -> Result<String, String> {
     let mut machine = slug(&r.machine.arch);
     if r.device.kind == "DEVICE_CPU" {
@@ -277,8 +320,9 @@ pub fn file_name(r: &Record) -> Result<String, String> {
     let model = model.trim_end_matches('-');
     let manifest = r.bundle.manifest_sha256.get(..8).unwrap_or("");
     let commit = r.library.commit.get(..12).unwrap_or("");
+    let dense = if r.rows.kind == ROWS_DENSE { "-dense" } else { "" };
     let name = format!(
-        "{machine}.{}.{}.{}.{model}-{manifest}.{commit}.json",
+        "{machine}.{}.{}.{}{dense}.{model}-{manifest}.{commit}.json",
         slug(&r.device.backend),
         bare(&r.task, "TASK_"),
         bare(&r.precision, "PRECISION_"),
@@ -359,6 +403,21 @@ impl Record {
                 self.library.build, self.library.version
             ));
         }
+        let vars: Vec<&str> = LIBRARY_VARS.iter().filter(|(b, _)| *b == self.device.backend).map(|&(_, v)| v).collect();
+        let mut at = 0;
+        for s in &self.library.settings {
+            let name = s.split_once('=').map(|(n, _)| n);
+            match name.and_then(|n| vars[at..].iter().position(|v| *v == n)) {
+                Some(i) => at += i + 1,
+                None => {
+                    return Err(format!(
+                        "library.settings {s:?} is not NAME=value, NAME one of {vars:?} for {}, each once and in \
+                         that order",
+                        self.device.backend
+                    ));
+                }
+            }
+        }
         if task_name(TURBO_TASK_EMBED) != Some(self.task.as_str()) {
             return Err(format!("task {:?} is not TASK_EMBED", self.task));
         }
@@ -389,6 +448,26 @@ impl Record {
         if rows.live_tokens < rows.batch as u64 || rows.live_tokens > rows.batch as u64 * rows.seq as u64 {
             return Err(format!("rows.live_tokens {} does not fit {} x {}", rows.live_tokens, rows.batch, rows.seq));
         }
+        match rows.kind.as_str() {
+            ROWS_MIXED => {}
+            ROWS_DENSE if rows.live_tokens == rows.batch as u64 * rows.seq as u64 => {}
+            ROWS_DENSE => {
+                return Err(format!(
+                    "rows: dense, yet {} of {} tokens are live",
+                    rows.live_tokens,
+                    rows.batch as u64 * rows.seq as u64
+                ));
+            }
+            k => return Err(format!("rows.kind {k:?} is not {ROWS_MIXED} or {ROWS_DENSE}")),
+        }
+        let slots = rows.live_tokens..=rows.batch as u64 * rows.seq as u64;
+        if let Some(n) = self.timing.computed_tokens
+            && !slots.contains(&n)
+        {
+            return Err(format!(
+                "timing.computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}"
+            ));
+        }
         let t = &self.timing;
         if t.iterations == 0
             || ![t.p50_ms, t.p99_ms, t.mean_ms, t.min_ms, t.max_ms, t.rows_per_second].into_iter().all(positive)
@@ -406,6 +485,15 @@ impl Record {
         for r in &self.references {
             if !REFERENCES.contains(&(r.name.as_str(), r.role.as_str())) {
                 return Err(format!("reference {:?} with role {:?} is not one of {REFERENCES:?}", r.name, r.role));
+            }
+            if let Some(m) = &r.measured
+                && let Some(n) = m.computed_tokens
+                && !slots.contains(&n)
+            {
+                return Err(format!(
+                    "reference {}: computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}",
+                    r.name
+                ));
             }
             if let Some(m) = &r.measured
                 && let Some(c) = m.min_cosine
@@ -501,11 +589,14 @@ pub enum Verdict {
 }
 
 impl Record {
-    /// Whether the record is for the cell: the same arch label, operating
-    /// system, backend, task and precision, and for a CPU the same
-    /// processor.
+    /// Whether the record is for the cell: measured on mixed rows, with
+    /// the same arch label, operating system, backend, task and precision,
+    /// and for a CPU the same processor. Mixed rows are what a server sees,
+    /// so only they back a capability and its speed_ratio; a dense record
+    /// is kept and parsed as reference evidence and backs nothing.
     pub fn is_for(&self, cell: &Cell) -> bool {
-        self.machine.arch == cell.arch
+        self.rows.kind == ROWS_MIXED
+            && self.machine.arch == cell.arch
             && self.machine.os == cell.os
             && self.device.backend == cell.backend
             && task_name(cell.task) == Some(self.task.as_str())

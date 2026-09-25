@@ -20,7 +20,7 @@ use turbo::bundle::Bundle;
 use turbo::record::{Measured, ReferenceRun};
 use turbo::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
-use crate::docker::{self, Log, argv};
+use crate::docker::{self, Log, Ran, argv};
 use crate::measure::{Measurement, Rows};
 use crate::{Result, onnx};
 
@@ -227,14 +227,16 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
     }
 }
 
-/// The bundle's ONNX file, or why there is none to run.
+/// The bundle's upstream ONNX file, or why there is none to run:
+/// benchmark_app sets the precision itself (`-infer_precision`).
 pub fn onnx_file(m: &Measurement) -> std::result::Result<String, String> {
-    onnx::file(&m.manifest, "for benchmark_app to compile")
+    onnx::file(&m.manifest, None, "for benchmark_app to compile")
 }
 
 /// The measured reference from the median run and the 99th percentile
-/// run of the same arguments.
-pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report, batch: u32) -> Result<ReferenceRun> {
+/// run of the same arguments, on `rows` at their static shape.
+pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report, rows: &Rows) -> Result<ReferenceRun> {
+    let batch = rows.batch;
     if p50.version != p99.version || p50.count != p99.count {
         return Err(format!(
             "benchmark_app's two runs differ: OpenVINO {} and {}, {} and {} iterations",
@@ -265,14 +267,19 @@ pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report
             p99_ms: p99.latency_ms,
             rows_per_second: p50.count as f64 * batch as f64 / (p50.duration_ms / 1000.0),
             min_cosine: None,
+            computed_tokens: Some(rows.padded_tokens()),
         }),
         not_run: None,
     })
 }
 
+/// The tag benchmark_app's error lines carry.
+pub const ERROR_TAGS: [&str; 1] = ["[ ERROR ] "];
+
 /// Compile the bundle's ONNX file for the GPU and time it, twice. A thing
-/// benchmark_app cannot do for this bundle is a record that says so; a
-/// failure of docker or of benchmark_app is an error.
+/// benchmark_app cannot do for this bundle, benchmark_app failing to
+/// compile or run the model included, is a record that says so, with its
+/// first error line; a failure of docker is an error.
 pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRun> {
     let image = docker::check_pinned("--openvino-image", &o.image)?;
     let procedure = format!(
@@ -308,11 +315,21 @@ pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRu
         };
         let (bundle, shown) = (Path::new(docker::BUNDLE), Path::new(docker::WORK));
         let [a, b] = PERCENTILES;
-        let p50 = parse(&log.run_as(&argv(&m.bundle_dir, &work, a), argv(bundle, shown, a))?, a)?;
-        let p99 = parse(&log.run_as(&argv(&m.bundle_dir, &work, b), argv(bundle, shown, b))?, b)?;
-        Ok::<_, String>((p50, p99))
+        let mut timed =
+            |p: u32| match log.run_program(&argv(&m.bundle_dir, &work, p), argv(bundle, shown, p), &ERROR_TAGS)? {
+                Ran::Done(out) => parse(&out, p).map(Ok),
+                Ran::Failed(why) => Ok(Err(format!("benchmark_app {why}"))),
+            };
+        let p50 = match timed(a)? {
+            Ok(r) => r,
+            Err(why) => return Ok(Err(why)),
+        };
+        Ok::<_, String>(timed(b)?.map(|p99| (p50, p99)))
     })();
     let _ = fs::remove_dir_all(&work);
-    let (p50, p99) = result?;
-    measured(image, log, &procedure, p50, p99, m.rows.batch)
+    let (p50, p99) = match result? {
+        Ok(r) => r,
+        Err(why) => return Ok(not_run(image, log, &procedure, why)),
+    };
+    measured(image, log, &procedure, p50, p99, &m.rows)
 }

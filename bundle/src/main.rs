@@ -4,17 +4,17 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use turbo_bundle::recipe::Recipe;
-use turbo_bundle::{Result, fetch, reference, seal};
+use turbo_bundle::{Result, convert, fetch, reference, seal};
 
 const USAGE: &str = "\
 usage:
   turbo-bundle make <recipe.json> <upstream-dir> <bundle-dir>
-      fetch, stage, reference, seal and verify, in that order
+      fetch, stage, reference, convert, seal and verify, in that order
   turbo-bundle fetch <recipe.json> <upstream-dir>
       fetch the upstream files at the recipe's commit
   turbo-bundle reference <recipe.json> <upstream-dir> <bundle-dir>
-      copy the files the bundle carries, run the reference container,
-      then seal and verify
+      copy the files the bundle carries, run the reference container
+      and the conversions, then seal and verify
   turbo-bundle verify <bundle-dir>
       load a bundle the way a machine does and check every file";
 
@@ -52,7 +52,8 @@ fn make_from_upstream(r: &Recipe, upstream: &Path, bundle: &Path) -> Result<()> 
     }
     seal::stage(r, upstream, bundle)?;
     let produced_by = reference::run(r, upstream, bundle)?;
-    seal::seal(r, bundle, produced_by)?;
+    let converted = convert::run(r, bundle)?;
+    seal::seal(r, bundle, produced_by, converted)?;
     println!("{}: verified", bundle.display());
     Ok(())
 }

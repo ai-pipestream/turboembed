@@ -12,6 +12,10 @@
 //! tokens. Before timing, the tool asks TEI to do exactly that (/decode,
 //! then /tokenize) and refuses to measure unless every row comes back as
 //! the same ids.
+//!
+//! Each /embed answer carries TEI's own account of the request in its
+//! headers (TIMING_HEADERS). The tool keeps the round trip as the
+//! measurement and gives their percentiles in the procedure beside it.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,6 +37,14 @@ pub const NAME: &str = "text-embeddings-inference";
 
 /// TEI's default --max-batch-tokens, kept when the rows need fewer.
 const DEFAULT_BATCH_TOKENS: u64 = 16384;
+
+/// The headers TEI 1.8.3 answers /embed with that time the request, as
+/// router/src/lib.rs names them (`impl From<ResponseMetadata> for
+/// HeaderMap`), each whole milliseconds: from the request's arrival to
+/// the headers being made, before the JSON is written; and for a request
+/// of several inputs, the mean over its inputs of the time each spent
+/// tokenized, queued, and in inference (router/src/http/server.rs, embed).
+pub const TIMING_HEADERS: [&str; 4] = ["x-total-time", "x-tokenization-time", "x-queue-time", "x-inference-time"];
 
 /// How long the server may take to load the model and answer /health.
 const START_TIMEOUT: Duration = Duration::from_secs(600);
@@ -199,6 +211,30 @@ pub fn check_model_dir(dir: &Path, m: &Measurement) -> std::result::Result<(), S
     Ok(())
 }
 
+/// The token positions TEI computes for the rows, when that can be known
+/// from outside it. As of v1.8.3 it pads each batch it forms to the
+/// batch's longest input, or packs the inputs where it runs flash
+/// attention (core/src/queue.rs, and each backend's `is_padded`). With
+/// every row the same length L that is batch x L either way. Otherwise it
+/// depends on how it split the request (at most 8 inputs a batch with
+/// ONNX Runtime and 4 with candle on a CPU, each backend's
+/// `max_batch_size`) and on the order the inputs reached its queue, which
+/// is not fixed: unknown.
+pub fn computed_tokens(rows: &Rows) -> Option<u64> {
+    let first = rows.live(0).len();
+    (0..rows.batch as usize).all(|r| rows.live(r).len() == first).then_some(rows.batch as u64 * first as u64)
+}
+
+/// What TEI's vectors are compared with, in a clause.
+fn compared(m: &Measurement) -> &'static str {
+    if (0..m.rows.batch as usize).all(|r| m.rows.whole(r, &m.reference)) {
+        "min_cosine is against the bundle's reference vectors"
+    } else {
+        "min_cosine is against the bundle's reference vector for a row that is its whole case, and the library's \
+         vector of the row alone for a row cut to seq"
+    }
+}
+
 fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun {
     ReferenceRun {
         name: NAME.into(),
@@ -212,12 +248,49 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
     }
 }
 
+/// One answer's TIMING_HEADERS, in their order, in milliseconds; None
+/// where the header is missing or is not a whole number.
+pub fn timing_headers(headers: &ureq::http::HeaderMap) -> [Option<u64>; 4] {
+    TIMING_HEADERS.map(|h| headers.get(h).and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse().ok()))
+}
+
+/// The timed requests' round trip and TEI's headers, as the procedure
+/// gives them: each header's p50 and p99 over the requests, or that TEI
+/// did not send it with every answer.
+pub fn timing_text(round_trip_sorted_ms: &[f64], headers: &[[Option<u64>; 4]]) -> String {
+    let mut out = format!(
+        "round trip (measured) p50 {:.3} ms, p99 {:.3} ms; TEI's own headers, whole ms, over the same requests:",
+        percentile(round_trip_sorted_ms, 50.0),
+        percentile(round_trip_sorted_ms, 99.0)
+    );
+    for (i, name) in TIMING_HEADERS.iter().enumerate() {
+        let got: Option<Vec<f64>> = headers.iter().map(|h| h[i].map(|v| v as f64)).collect();
+        let sep = if i == 0 { " " } else { ", " };
+        match got {
+            Some(mut v) if !v.is_empty() => {
+                v.sort_by(f64::total_cmp);
+                out += &format!("{sep}{name} p50 {} p99 {}", percentile(&v, 50.0), percentile(&v, 99.0));
+            }
+            _ => out += &format!("{sep}{name} not sent"),
+        }
+    }
+    out
+}
+
 fn post(url: &str, body: &str) -> Result<String> {
+    post_timed(url, body).map(|(text, _)| text)
+}
+
+/// The answer's body and its TIMING_HEADERS.
+fn post_timed(url: &str, body: &str) -> Result<(String, [Option<u64>; 4])> {
     let mut resp = ureq::post(url)
         .header("content-type", "application/json")
         .send(body)
         .map_err(|e| format!("POST {url}: {e}"))?;
-    resp.body_mut().with_config().limit(u64::MAX).read_to_string().map_err(|e| format!("POST {url}: {e}"))
+    let timing = timing_headers(resp.headers());
+    let text =
+        resp.body_mut().with_config().limit(u64::MAX).read_to_string().map_err(|e| format!("POST {url}: {e}"))?;
+    Ok((text, timing))
 }
 
 fn get(url: &str) -> Result<String> {
@@ -244,8 +317,10 @@ pub fn run(
     let mut procedure = format!(
         "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the \
          batch's {} rows as token ids, {warmup} untimed then {iterations} timed, each timed from sending the \
-         request to reading the whole response",
-        m.rows.batch
+         request to reading the whole response, the p50 and p99 of TEI's {} headers beside it; {}",
+        m.rows.batch,
+        TIMING_HEADERS.join(", "),
+        compared(m)
     );
     let mut log = Log::default();
     let dtype = match dtype(m.compute_dtype) {
@@ -259,7 +334,8 @@ pub fn run(
     docker::require_image(&mut log, image)?;
     let env =
         parse_env(&log.run(&argv(&["docker", "image", "inspect", "--format", "{{json .Config.Env}}", image]))?)?;
-    procedure = format!("{procedure}; {}", cpus::procedure(tei.cpus.as_ref(), library, &env));
+    let (what, threads) = (procedure, cpus::procedure(tei.cpus.as_ref(), library, &env));
+    procedure = format!("{what}; {threads}");
 
     let container = format!("turbo-bench-tei-{}", std::process::id());
     let start_argv = |dir: &Path| {
@@ -317,21 +393,21 @@ pub fn run(
         post(&url, &body)?;
     }
     let mut ms = Vec::with_capacity(iterations as usize);
+    let mut own = Vec::with_capacity(iterations as usize);
     let mut last = String::new();
     let started = Instant::now();
     for _ in 0..iterations {
         let t = Instant::now();
-        last = post(&url, &body)?;
+        let (text, timing) = post_timed(&url, &body)?;
         ms.push(t.elapsed().as_secs_f64() * 1e3);
+        last = text;
+        own.push(timing);
     }
     let total = started.elapsed().as_secs_f64();
     let vectors = parse_embed(&last, m.rows.batch as usize, m.model.dim as usize)?;
-    let min_cosine = vectors
-        .iter()
-        .zip(&m.rows.cases)
-        .map(|(v, &c)| cosine(v, &m.reference.vectors[c as usize]))
-        .fold(1.0, f64::min);
+    let min_cosine = vectors.iter().zip(&m.expected).map(|(v, want)| cosine(v, want)).fold(1.0, f64::min);
     ms.sort_by(f64::total_cmp);
+    let procedure = format!("{what}; {}; {threads}", timing_text(&ms, &own));
     Ok(ReferenceRun {
         name: NAME.into(),
         role: "end_to_end".into(),
@@ -345,6 +421,7 @@ pub fn run(
             p99_ms: percentile(&ms, 99.0),
             rows_per_second: m.rows.batch as f64 * iterations as f64 / total,
             min_cosine: Some(min_cosine),
+            computed_tokens: computed_tokens(&m.rows),
         }),
         not_run: None,
     })

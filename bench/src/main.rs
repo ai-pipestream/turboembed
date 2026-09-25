@@ -8,7 +8,7 @@ use std::time::SystemTime;
 
 use turbo::record::{self, Record, ReferenceRun};
 use turbo::{TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL};
-use turbo_bench::measure::{self, Measurement, Plan};
+use turbo_bench::measure::{self, Measurement, Plan, RowKind};
 use turbo_bench::openvino::{self, OpenVino};
 use turbo_bench::tei::{self, Tei};
 use turbo_bench::tensorrt::{self, TensorRt};
@@ -29,6 +29,10 @@ record options:
   --batch <n>, --seq <n>       the rows' shape (default: 32 or the model's
                                max_batch if smaller; the longest reference
                                case that fits)
+  --rows <kind>                mixed: the reference cases that fit seq,
+                               cycled and padded; dense: every row a case
+                               of at least seq tokens cut to seq, so all
+                               batch x seq tokens are live (default mixed)
   --cpus <list>                processors to run on, as 0-15 or 0-7,16-23:
                                the tool is pinned to them with a library
                                thread per CPU, and TEI's container is given
@@ -142,6 +146,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         precision,
         batch: o.number("--batch")?,
         seq: o.number("--seq")?,
+        rows: RowKind::parse(o.take("--rows").as_deref().unwrap_or("mixed"))?,
         warmup: o.number("--warmup")?.unwrap_or(20),
         iterations: o.number("--iterations")?.unwrap_or(200),
     };
@@ -227,7 +232,8 @@ fn record_cmd(args: &[String]) -> Result<()> {
     turbo_bench::check_build(&before.commit, turbo_bench::BUILD_COMMIT, turbo_bench::BUILD_CHANGES)?;
     let m = measure::measure(&plan)?;
     eprintln!(
-        "{} {}: p50 {:.4} ms, p99 {:.4} ms over {} runs of [{}, {}]; min cosine {}, max abs diff {:e}",
+        "{} {}: p50 {:.4} ms, p99 {:.4} ms over {} runs of [{}, {}] {}, {} live tokens, {} computed; min cosine \
+         {}, max abs diff {:e}",
         m.backend(),
         turbo_bench::api::field(&m.device.name),
         m.timing.p50_ms,
@@ -235,6 +241,9 @@ fn record_cmd(args: &[String]) -> Result<()> {
         m.timing.iterations,
         m.rows.batch,
         m.rows.seq,
+        m.rows.kind.name(),
+        m.rows.live_tokens(),
+        m.rows.packed_tokens(),
         m.conformance.min_cosine,
         m.conformance.max_abs_diff
     );
@@ -246,6 +255,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let r = turbo_bench::record(&m, &after, references, turbo_bench::utc(SystemTime::now()))?;
     let dir = out.map_or_else(|| Path::new(&after.top).join(git::RECORDS_DIR), PathBuf::from);
     let path = turbo_bench::write(&r, &dir)?;
+    eprint!("{}", turbo_bench::report(&r));
     println!("{}", path.display());
     Ok(())
 }

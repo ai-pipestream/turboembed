@@ -63,10 +63,12 @@ constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 /* The widest hidden state the row kernels hold in registers. */
 constexpr int MAX_HIDDEN = 2048;
 
-/* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64;
- * TURBO_CUDA_TILE names another. The tensor cores take 64 x 64 and
- * 128 x 64, the FMA GEMM those and 128 x 128. */
-enum Tile : int { TILE_DEFAULT = 0, TILE_64x64 = 1, TILE_128x64 = 2, TILE_128x128 = 3 };
+/* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64 for the
+ * FMA GEMM, and on the tensor cores 128 x 128 for the wide GEMMs (QKV,
+ * GELU) and 128 x 64 for the others; TURBO_CUDA_TILE names one tile for
+ * all of them. The FMA GEMM gives a thread 8 x 8 outputs but at
+ * TILE_128x128_16x8, 16 x 8 over 128 threads. */
+enum Tile : int { TILE_DEFAULT = 0, TILE_64x64 = 1, TILE_128x64 = 2, TILE_128x128 = 3, TILE_128x128_16x8 = 4 };
 
 /* A session's fixed shape, from which make_plan sizes every launch. */
 struct Shape {
@@ -85,6 +87,14 @@ struct Shape {
     /* The GEMMs' fewest k steps per block (TURBO_CUDA_SK_STEPS), 0 for
      * the kernels' own. */
     int sk_steps = 0;
+    /* LayerNorm in the attention output and second feed-forward GEMMs
+     * (EPI_ADD_LN) when the hidden width allows, unless
+     * TURBO_CUDA_LAYER_NORM=separate asks for the GEMM's product and
+     * add_layer_norm after it. */
+    bool fused_ln = true;
+    /* The pooling kernel of a thread per column
+     * (TURBO_CUDA_POOL=columns), for measuring against the default. */
+    bool column_pool = false;
 };
 
 /* Grids and shared memory for every launch of a session. */
@@ -101,6 +111,12 @@ struct Plan {
     int sk_flags = 0;
     /* A GEMM whose kernel was built for more blocks to an SM than fit. */
     bool gemm_crowded = false;
+    /* The attention output and second feed-forward GEMMs normalize their
+     * rows (EPI_ADD_LN; out_grid and ffn2_grid are its launch), with
+     * ln_counts counters after the stream-K flags. */
+    bool fused_ln = false;
+    int ln_counts = 0;
+    bool column_pool = false;
     int attn_grid = 0, attn_chunk = 0, attn_queries = 0;
     size_t attn_smem = 0;
 };
@@ -171,7 +187,13 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 //   QKV: + bias, written head-major, [3][heads][tcap][head_dim], so
 //        attention reads each (row, head)'s keys contiguously;
 //   GELU: + bias, then GELU with the error function, [tokens, n];
-//   PLAIN: the bare product, F32, [tokens, n], which add_layer_norm adds.
+//   PLAIN: the bare product, F32, [tokens, n], which add_layer_norm adds;
+//   ADD_LN: out is the hidden states, F32 [tokens, n], n = hidden; each
+//        output becomes out + (product + bias), and once every tile of
+//        a block of rows has, the block finishing the last of them
+//        normalizes those rows as add_layer_norm does, with the same
+//        sums in the same order, so the same bits: LayerNorm inside the
+//        GEMM, for hidden widths up to LN_FUSED_MAX_HIDDEN.
 //
 // QKV and GELU store F16 when the operands are F16, F32 otherwise. The
 // launch is the blocks the device holds at once, sharing the tiles' k
@@ -182,7 +204,14 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 // beside a row in a batch of the same token count. n and k are multiples
 // of 8.
 
-enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2 };
+enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2, EPI_ADD_LN = 3 };
+
+/* The widest hidden state ADD_LN normalizes, 16 values to a lane. */
+constexpr int LN_FUSED_MAX_HIDDEN = 512;
+
+/* ADD_LN's counters of finished tiles, one per block of rows: enough for
+ * the smallest tile's rows. */
+inline int ln_counters(int tcap) { return tcap / 64 + 1; }
 
 struct GemmArgs {
     const void *a, *w;
@@ -201,6 +230,14 @@ struct GemmArgs {
     /* The fewest k steps a block takes before the kernel runs on fewer
      * blocks; 0 for the kernels' own. */
     int min_steps;
+    /* ADD_LN only: the LayerNorm's weight and bias and epsilon, the F16
+     * copy of the hidden states (NULL at F32), and a counter per block of
+     * rows, 0 between launches, which the block finishing the rows'
+     * last tile clears. */
+    const float *ln_w, *ln_b;
+    float eps;
+    uint16_t *x16;
+    int *rows_done;
 };
 
 /* A GEMM's launch: the blocks the device holds at once, and the

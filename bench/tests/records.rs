@@ -8,6 +8,7 @@ use common::*;
 use turbo::record::{self, Cell, NO_RECORD, Record, ReferenceRun, Verdict, decide};
 use turbo::{TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_PRECISION_EXACT, TURBO_PRECISION_MODEL, TURBO_TASK_EMBED};
 use turbo_bench::api::{Runtime, field};
+use turbo_bench::measure::RowKind;
 use turbo_bench::measure::{Reference, Rows};
 
 /// The cell the core asks about for the CPU device, as the runtime lists it.
@@ -66,9 +67,94 @@ fn a_record_holds_what_was_measured() {
     assert_eq!(r.rows.seq as usize, reference.ids.iter().map(Vec::len).max().unwrap());
     assert_eq!(r.rows.batch, 32);
     assert_eq!(r.rows.live_tokens, reference.ids.iter().cycle().take(32).map(|r| r.len() as u64).sum::<u64>());
+    assert_eq!(r.timing.computed_tokens, Some(r.rows.live_tokens), "packed: no padding before a row's last live token");
     assert_eq!(r.bundle.manifest_sha256, bundle.manifest_sha256);
     assert_eq!(r.bundle.model_id, "sentence-transformers/all-MiniLM-L6-v2");
     assert_eq!((r.speed_ratio, r.speed_reference.as_deref()), (None, None));
+}
+
+#[test]
+fn dense_rows_are_the_long_cases_cut_to_seq_and_are_named_apart() {
+    let bundle = turbo::bundle::Bundle::open(&tiny_bundle()).unwrap();
+    let reference = Reference::read(&bundle).unwrap();
+    let longest = reference.ids.iter().map(Vec::len).max().unwrap();
+    let long: Vec<u32> =
+        (0..reference.ids.len() as u32).filter(|&c| reference.ids[c as usize].len() == longest).collect();
+    assert!(long.len() >= 2, "the small bundle has more than one long case");
+
+    // Cut: each row is 40 live tokens, the case's first 39 and its last,
+    // as the bundle's template truncates, and has no reference vector.
+    let m = dense_measurement(5, Some(40));
+    assert_eq!(m.rows.kind, RowKind::Dense);
+    assert_eq!((m.rows.batch, m.rows.seq, m.rows.live_tokens()), (5, 40, 200));
+    assert!(m.rows.mask.iter().all(|&v| v == 1), "no padding");
+    let cases: Vec<u32> = long.iter().cycle().take(5).copied().collect();
+    assert_eq!(m.rows.cases, cases);
+    for r in 0..5 {
+        let whole = &reference.ids[m.rows.cases[r] as usize];
+        let row = m.rows.live(r);
+        assert_eq!(row[..39], whole[..39], "row {r}");
+        assert_eq!(row[39], whole[whole.len() - 1], "row {r} ends with the template's last token");
+        assert!(!m.rows.whole(r, &reference));
+        assert!(turbo_bench::measure::cosine(&m.vectors[r], &m.expected[r]) > 0.9999);
+    }
+    let fit = reference.ids.iter().filter(|ids| ids.len() <= 40).count() as u32;
+    assert_eq!(m.conformance.rows, fit, "each case that fits, alone; no cut row has a reference vector");
+    let r = turbo_bench::record(&m, &provenance("dense-cut"), vec![], "2026-01-02T03:04:05Z".into()).unwrap();
+    assert_eq!((r.rows.kind.as_str(), r.rows.live_tokens), ("ROWS_DENSE", 200));
+
+    // Whole: without --seq, the longest case as the reference has it, so
+    // every timed row is compared with the reference too.
+    let w = dense_measurement(3, None);
+    assert_eq!((w.rows.seq as usize, w.rows.live_tokens()), (longest, 3 * longest as u64));
+    assert!((0..3).all(|r| w.rows.whole(r, &reference)));
+    for r in 0..3 {
+        assert_eq!(w.expected[r], reference.vectors[w.rows.cases[r] as usize]);
+    }
+    let fit = reference.ids.len() as u32;
+    assert_eq!(w.conformance.rows, fit + 3);
+    assert!(w.conformance.min_cosine >= 0.9999 && w.conformance.max_abs_diff <= 1e-4, "{:?}", w.conformance);
+
+    // A mixed and a dense record of one commit have different names.
+    let p = provenance("dense-name");
+    let d = turbo_bench::record(&w, &p, vec![], "2026-01-02T03:04:05Z".into()).unwrap();
+    let mixed = turbo_bench::record(cpu_measurement(), &p, vec![], "2026-01-02T03:04:05Z".into()).unwrap();
+    let (dn, mn) = (record::file_name(&d).unwrap(), record::file_name(&mixed).unwrap());
+    assert_eq!(dn, mn.replacen(".embed.model.", ".embed.model-dense.", 1));
+    reparse(&d).unwrap();
+
+    // No case is that long.
+    let plan = turbo_bench::measure::Plan {
+        bundle: tiny_bundle(),
+        device: "cpu".into(),
+        precision: TURBO_PRECISION_MODEL,
+        batch: Some(2),
+        seq: Some(longest as u32 + 1),
+        rows: RowKind::Dense,
+        warmup: 0,
+        iterations: 1,
+    };
+    let e = turbo_bench::measure::measure(&plan).err().unwrap();
+    assert!(e.contains("no reference case has"), "{e}");
+}
+
+#[test]
+fn the_report_gives_each_sides_time_beside_the_tokens_it_computed() {
+    let mut tei = measured_reference(TEI);
+    tei.measured.as_mut().unwrap().computed_tokens = None;
+    let r = cpu_record("report", vec![tei, measured_reference(TRT)]);
+    let text = turbo_bench::report(&r);
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3, "{text}");
+    let (live, padded) = (r.rows.live_tokens, r.rows.batch as u64 * r.rows.seq as u64);
+    assert!(lines[0].starts_with(&format!("library (cpu {}): p50 ", r.device.name)), "{text}");
+    let rows = format!("on [32, {}] ROWS_MIXED:", r.rows.seq);
+    assert!(lines.iter().all(|l| l.contains(&rows)), "{text}");
+    assert!(lines[0].ends_with(&format!(": {live} token positions computed of {live} live")), "{text}");
+    assert!(lines[1].starts_with("text-embeddings-inference (end_to_end): p50 "), "{text}");
+    assert!(lines[1].ends_with(&format!(": unknown token positions computed of {live} live")), "{text}");
+    assert!(lines[2].ends_with(&format!(": {padded} token positions computed of {live} live")), "{text}");
+    assert!(padded > live);
 }
 
 #[test]
@@ -156,6 +242,11 @@ fn a_record_that_is_not_well_formed_is_refused() {
     refused(&|x| x.bundle.artifact_sha256.make_ascii_uppercase(), "bundle.artifact_sha256");
     refused(&|x| x.rows.cases.pop().map(drop).unwrap_or(()), "cases one per row");
     refused(&|x| x.recorded_at = "yesterday".into(), "recorded_at");
+    refused(&|x| x.rows.kind = "ROWS_SOME".into(), "is not ROWS_MIXED or ROWS_DENSE");
+    refused(&|x| x.timing.computed_tokens = Some(x.rows.live_tokens - 1), "timing.computed_tokens");
+    refused(&|x| x.timing.computed_tokens = Some(x.rows.batch as u64 * x.rows.seq as u64 + 1), "timing.computed");
+    refused(&|x| x.references[0].measured.as_mut().unwrap().computed_tokens = Some(0), "computed_tokens 0 is not");
+    refused(&|x| x.rows.kind = "ROWS_DENSE".into(), "rows: dense, yet");
     refused(&|x| x.compute_dtype = "DTYPE_F64".into(), "not a DTYPE_* value");
     refused(&|x| x.precision = "PRECISION_BEST".into(), "not a PRECISION_* value");
     refused(&|x| x.record_version = 2, "record_version 2");
@@ -176,6 +267,18 @@ fn a_record_that_is_not_well_formed_is_refused() {
         "holds a host path",
     );
     refused(&|x| x.device.name = "/home/".into(), "holds a host path");
+    refused(&|x| x.library.settings = vec!["TURBO_CUDA_TILE=128x64".into()], "library.settings");
+    refused(&|x| x.library.settings = vec!["TURBO_CPU_THREADS".into()], "library.settings");
+    refused(&|x| x.library.settings = vec!["TURBO_CPU_THREADS=2".into(), "TURBO_CPU_THREADS=3".into()], "each once");
+
+    // The settings the library read are kept, and a record from before
+    // the field has none.
+    let mut x = r.clone();
+    x.library.settings = vec!["TURBO_CPU_THREADS=2".into()];
+    assert_eq!(reparse(&x).unwrap(), x);
+    let mut v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    v["library"].as_object_mut().unwrap().remove("settings");
+    assert_eq!(Record::parse(&name, &serde_json::to_vec(&v).unwrap()).unwrap(), r);
 }
 
 #[test]
@@ -399,6 +502,37 @@ fn the_newest_record_that_backs_the_cell_is_the_one_named() {
         bad.conformance.min_cosine = 0.5;
         let v = verdict(&[&bad, &newest_failing], cell);
         assert!(matches!(&v, Verdict::Not(w) if w.starts_with(&record::file_name(&newest_failing).unwrap())), "{v:?}");
+    });
+}
+
+#[test]
+fn only_a_mixed_record_backs_the_cell() {
+    let mixed = cpu_record("mixed-backs", vec![measured_reference(TEI)]);
+    // A real dense measurement, newer, with a reference that gives it a
+    // speed_ratio of its own.
+    let m = dense_measurement(3, None);
+    let mut fast = measured_reference(TEI);
+    let at = fast.measured.as_mut().unwrap();
+    let k = m.timing.p50_ms * 4.0 / at.p50_ms;
+    (at.p50_ms, at.p99_ms) = (at.p50_ms * k, at.p99_ms * k);
+    at.computed_tokens = Some(m.rows.padded_tokens());
+    let dense = turbo_bench::record(&m, &provenance("dense-backs"), vec![fast], "2026-06-01T00:00:00Z".into()).unwrap();
+    assert_eq!(dense.rows.kind, "ROWS_DENSE");
+    assert!((dense.speed_ratio.unwrap() - 0.25).abs() < 1e-9, "{:?}", dense.speed_ratio);
+    reparse(&dense).unwrap();
+    cpu_cell(|cell| {
+        assert!(dense.falls_short(cell).is_none(), "it would back the cell but for its rows");
+        assert!(!dense.is_for(cell));
+        let v = verdict(&[&dense, &mixed], cell);
+        assert_eq!(
+            v,
+            Verdict::Supported {
+                benchmark: record::file_name(&mixed).unwrap(),
+                cosine_floor: mixed.conformance.min_cosine,
+                speed_ratio: 0.5,
+            }
+        );
+        assert_eq!(verdict(&[&dense], cell), Verdict::Not(NO_RECORD.into()));
     });
 }
 

@@ -7,11 +7,11 @@ mod common;
 use std::path::Path;
 
 use common::*;
-use turbo::manifest::Pooling;
+use turbo::manifest::{Dtype, Pooling};
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 use turbo_bench::cpus::{self, Cpus};
 use turbo_bench::docker::{self, parse_port};
-use turbo_bench::measure::Rows;
+use turbo_bench::measure::{RowKind, Rows};
 use turbo_bench::openvino::{self, OpenVino};
 use turbo_bench::tei::{self, Tei};
 use turbo_bench::tensorrt::{self, TensorRt};
@@ -225,6 +225,42 @@ const TEI_INFO: &str = r#"{"model_id":"thenlper/gte-base","model_sha":"fca14538a
 "docker_label":null}"#;
 
 #[test]
+fn teis_timing_headers_are_read_as_its_router_writes_them() {
+    assert_eq!(tei::TIMING_HEADERS, ["x-total-time", "x-tokenization-time", "x-queue-time", "x-inference-time"]);
+    // As router/src/lib.rs writes them: whole milliseconds, with the
+    // compute headers beside them.
+    let mut h = ureq::http::HeaderMap::new();
+    for (k, v) in [
+        ("x-compute-type", "gpu+optimized"),
+        ("x-compute-time", "12"),
+        ("x-total-time", "12"),
+        ("x-tokenization-time", "2"),
+        ("x-queue-time", "0"),
+        ("x-inference-time", "9"),
+    ] {
+        h.insert(k, v.parse().unwrap());
+    }
+    assert_eq!(tei::timing_headers(&h), [Some(12), Some(2), Some(0), Some(9)]);
+    h.insert("x-queue-time", "soon".parse().unwrap());
+    h.remove("x-inference-time");
+    assert_eq!(tei::timing_headers(&h), [Some(12), Some(2), None, None]);
+
+    // Each header's p50 and p99 over the requests, by nearest rank.
+    let rt: Vec<f64> = (1..=100).map(f64::from).collect();
+    let got: Vec<[Option<u64>; 4]> = (1..=100).map(|i| [Some(i), Some(1), Some(0), Some(i / 2)]).collect();
+    assert_eq!(
+        tei::timing_text(&rt, &got),
+        "round trip (measured) p50 50.000 ms, p99 99.000 ms; TEI's own headers, whole ms, over the same requests: \
+         x-total-time p50 50 p99 99, x-tokenization-time p50 1 p99 1, x-queue-time p50 0 p99 0, x-inference-time \
+         p50 25 p99 49"
+    );
+    // One answer without a header: it is not given a figure.
+    let mut some = got.clone();
+    some[3][2] = None;
+    assert!(tei::timing_text(&rt, &some).contains("x-queue-time not sent, x-inference-time p50 25"));
+}
+
+#[test]
 fn tei_info_gives_its_version_and_dtype() {
     let i = tei::parse_info(TEI_INFO).unwrap();
     assert_eq!((i.version.as_str(), i.model_dtype.as_str()), ("0.5.0", "float16"));
@@ -257,6 +293,13 @@ fn tei_is_sent_each_rows_live_ids_and_its_answers_are_checked() {
     .unwrap();
     assert_eq!(back, vec![vec![101, 7592]]);
     assert_eq!(tei::first_changed(&back, &back), None);
+    // What TEI computes is known only when every row is one length.
+    assert_eq!(tei::computed_tokens(&m.rows), None, "cases of different lengths");
+    let mut same = rows32();
+    for r in 0..32 {
+        same.mask[r * 64..r * 64 + 10].fill(1);
+    }
+    assert_eq!(tei::computed_tokens(&same), Some(32 * 10));
     assert_eq!(tei::first_changed(&back, &[vec![101, 7593]]), Some((0, vec![101, 7592], vec![101, 7593])));
 }
 
@@ -318,9 +361,18 @@ fn trt(work: &Path) -> TensorRt {
 
 #[test]
 fn trtexec_is_run_with_every_setting_on_its_command_line() {
-    let rows = Rows { batch: 2, seq: 3, ids: vec![0; 6], mask: vec![0; 6], types: vec![0; 6], cases: vec![0, 1] };
+    let rows = Rows {
+        kind: RowKind::Mixed,
+        batch: 2,
+        seq: 3,
+        ids: vec![0; 6],
+        mask: vec![0; 6],
+        types: vec![0; 6],
+        cases: vec![0, 1],
+    };
     let t = trt(Path::new("/tmp"));
-    let flags = tensorrt::precision_flags(TURBO_DTYPE_F32).unwrap();
+    let (graph, flags) = tensorrt::precision(TURBO_DTYPE_F32).unwrap();
+    assert_eq!(graph, None, "F32: the upstream graph");
     let a = tensorrt::run_argv(&t, Path::new("/b"), Path::new("/w"), "onnx/model.onnx", 0, &rows, 200, &flags);
     let want = strings(&[
         "docker",
@@ -348,9 +400,11 @@ fn trtexec_is_run_with_every_setting_on_its_command_line() {
         "--noTF32",
     ]);
     assert_eq!(a, want);
-    assert_eq!(tensorrt::precision_flags(TURBO_DTYPE_F16).unwrap(), strings(&["--fp16"]));
-    assert_eq!(tensorrt::precision_flags(TURBO_DTYPE_BF16).unwrap(), strings(&["--bf16"]));
-    assert!(tensorrt::precision_flags(8).is_err());
+    // TensorRT 11 has no --fp16 or --bf16: F16 and BF16 build strongly
+    // typed from the graph converted to that dtype, as TensorRT 10 can.
+    assert_eq!(tensorrt::precision(TURBO_DTYPE_F16).unwrap(), (Some(Dtype::F16), strings(&["--stronglyTyped"])));
+    assert_eq!(tensorrt::precision(TURBO_DTYPE_BF16).unwrap(), (Some(Dtype::Bf16), strings(&["--stronglyTyped"])));
+    assert!(tensorrt::precision(8).is_err());
 }
 
 #[test]
@@ -414,6 +468,51 @@ fn a_bundle_without_onnx_is_recorded_as_trtexec_not_run() {
     assert!(tensorrt::run(&unpinned, m, 0, 10).unwrap_err().contains("is not pinned"));
 }
 
+/// trtexec's output when TensorRT refuses the graph, in the form its
+/// samples print it (logger.cpp tags errors `[E]`).
+const TRTEXEC_FAILED: &str = "\
+&&&& RUNNING TensorRT.trtexec [TensorRT v110201] [b3] # trtexec --onnx=/bundle/onnx/model-f16.onnx --stronglyTyped
+[09/25/2026-10:00:00] [I] TensorRT version: 11.2.1
+[09/25/2026-10:00:02] [E] [TRT] ITensor::getDimensions: Error Code 4: API Usage Error (/Sub: ElementWiseOperation SUB must have same input types. But they are of types Half and Float.)
+[09/25/2026-10:00:02] [E] Failed to parse onnx file
+[09/25/2026-10:00:02] [E] Engine set up failed
+&&&& FAILED TensorRT.trtexec [TensorRT v110201] [b3] # trtexec --onnx=/bundle/onnx/model-f16.onnx --stronglyTyped
+";
+
+#[test]
+fn a_program_that_fails_is_a_reason_and_docker_failing_is_an_error() {
+    // A real process that prints trtexec's failure and exits 1, as trtexec
+    // does in its container; docker passes the code on.
+    let mut log = docker::Log::default();
+    let argv = strings(&["sh", "-c", "printf '%s' \"$0\"; exit 1", TRTEXEC_FAILED]);
+    let ran = log.run_program(&argv, strings(&["trtexec"]), &tensorrt::ERROR_TAGS).unwrap();
+    let why = "exited with code 1: [TRT] ITensor::getDimensions: Error Code 4: API Usage Error (/Sub: \
+               ElementWiseOperation SUB must have same input types. But they are of types Half and Float.)";
+    assert_eq!(ran, docker::Ran::Failed(why.into()));
+    assert_eq!(log.commands, [strings(&["trtexec"])], "the command is recorded");
+
+    // Success gives the output; docker's own codes and no error line.
+    let ok = log.run_program(&strings(&["sh", "-c", "echo fine"]), vec![], &tensorrt::ERROR_TAGS).unwrap();
+    assert_eq!(ok, docker::Ran::Done("fine\n".into()));
+    for code in [125, 126, 127] {
+        let e = log.run_program(&strings(&["sh", "-c", &format!("exit {code}")]), vec![], &[]).unwrap_err();
+        assert!(e.contains(&format!("exit status: {code}")), "{e}");
+    }
+    let bare = log.run_program(&strings(&["sh", "-c", "echo; echo last words >&2; exit 3"]), vec![], &[]).unwrap();
+    assert_eq!(bare, docker::Ran::Failed("exited with code 3: last words".into()));
+    let silent = log.run_program(&strings(&["sh", "-c", "exit 2"]), vec![], &[]).unwrap();
+    assert_eq!(silent, docker::Ran::Failed("exited with code 2: no output".into()));
+    assert_eq!(
+        docker::failure(
+            Some(1),
+            "[ INFO ] Loading\n[ ERROR ] Device with \"GPU\" name is not registered\n",
+            &openvino::ERROR_TAGS
+        ),
+        Some("exited with code 1: Device with \"GPU\" name is not registered".into())
+    );
+    assert_eq!(docker::failure(None, "killed", &[]), None, "a signal is not the program's answer");
+}
+
 // ---- the bundle's ONNX file ----
 
 /// The MiniLM recipe's manifest, sealed over stand-in files: every path it
@@ -424,9 +523,22 @@ fn recipe_manifest() -> turbo::manifest::Manifest {
         serde_json::from_slice(&std::fs::read(workspace().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap())
             .unwrap();
     let mut m = r["manifest"].clone();
-    m["reference"]["produced_by"] =
+    let run =
         serde_json::json!({ "tool": "t", "tool_version": "1", "container": "c", "args": [], "reproducible": false });
-    let paths = ["tokenizer.json", "weights/model.safetensors", "onnx/model.onnx", "reference/reference.safetensors"];
+    m["reference"]["produced_by"] = run.clone();
+    for a in m["artifacts"].as_array_mut().unwrap() {
+        if let Some(from) = a.get("produced_by").map(|p| p["from"].clone()) {
+            a["produced_by"] = run.clone();
+            a["produced_by"]["from"] = from;
+        }
+    }
+    let paths = [
+        "tokenizer.json",
+        "weights/model.safetensors",
+        "onnx/model.onnx",
+        "onnx/model-f16.onnx",
+        "reference/reference.safetensors",
+    ];
     m["files"] = paths.iter().map(|p| serde_json::json!({ "path": p, "size": 1, "sha256": "0".repeat(64) })).collect();
     turbo::manifest::Manifest::parse(&serde_json::to_vec(&m).unwrap()).unwrap_or_else(|e| panic!("{}", e.message))
 }
@@ -434,10 +546,15 @@ fn recipe_manifest() -> turbo::manifest::Manifest {
 #[test]
 fn the_runners_find_the_recipes_onnx_file_by_its_format() {
     let m = recipe_manifest();
-    assert_eq!(turbo_bench::onnx::file(&m, "for a program").unwrap(), "onnx/model.onnx");
+    assert_eq!(turbo_bench::onnx::file(&m, None, "for a program").unwrap(), "onnx/model.onnx");
+    assert_eq!(turbo_bench::onnx::file(&m, Some(Dtype::F16), "for a program").unwrap(), "onnx/model-f16.onnx");
+    assert_eq!(
+        turbo_bench::onnx::file(&m, Some(Dtype::Bf16), "for a program").unwrap_err(),
+        "the bundle carries no FORMAT_ONNX artifact in DTYPE_BF16 for a program"
+    );
     let bundle = turbo::bundle::Bundle::open(&tiny_bundle()).unwrap();
     assert_eq!(
-        turbo_bench::onnx::file(&bundle.manifest, "for a program").unwrap_err(),
+        turbo_bench::onnx::file(&bundle.manifest, None, "for a program").unwrap_err(),
         "the bundle carries no FORMAT_ONNX artifact for a program"
     );
     // The inputs both runners default to are the export's.
@@ -464,7 +581,15 @@ fn ov(work: &Path) -> OpenVino {
 
 #[test]
 fn benchmark_app_is_run_with_every_setting_on_its_command_line() {
-    let rows = Rows { batch: 2, seq: 3, ids: vec![0; 6], mask: vec![0; 6], types: vec![0; 6], cases: vec![0, 1] };
+    let rows = Rows {
+        kind: RowKind::Mixed,
+        batch: 2,
+        seq: 3,
+        ids: vec![0; 6],
+        mask: vec![0; 6],
+        types: vec![0; 6],
+        cases: vec![0, 1],
+    };
     let o = ov(Path::new("/tmp"));
     let precision = openvino::infer_precision(TURBO_DTYPE_F32).unwrap();
     let a = openvino::run_argv(&o, Path::new("/b"), Path::new("/w"), "onnx/model.onnx", 993, &rows, 200, precision, 99);
@@ -577,6 +702,20 @@ fn benchmark_app_output_without_a_figure_is_refused() {
     assert!(openvino::parse(failed, 50).is_err());
 }
 
+/// 32 padded rows of 64 tokens, as benchmark_app's static shape takes them.
+fn rows32() -> Rows {
+    let n = 32 * 64;
+    Rows {
+        kind: RowKind::Mixed,
+        batch: 32,
+        seq: 64,
+        ids: vec![0; n],
+        mask: vec![0; n],
+        types: vec![0; n],
+        cases: vec![0; 32],
+    }
+}
+
 #[test]
 fn the_two_runs_make_one_measured_reference() {
     let p50 = openvino::parse(BENCHMARK_APP_OUT, 50).unwrap();
@@ -584,23 +723,24 @@ fn the_two_runs_make_one_measured_reference() {
     p99.latency_ms = 2.6;
     let image = ov(Path::new("/w")).image;
     let log = docker::Log { commands: vec![strings(&["docker", "run"]), strings(&["docker", "run"])] };
-    let r = openvino::measured(&image, log.clone(), "two runs", p50.clone(), p99.clone(), 32).unwrap();
+    let r = openvino::measured(&image, log.clone(), "two runs", p50.clone(), p99.clone(), &rows32()).unwrap();
     assert_eq!((r.name.as_str(), r.role.as_str()), ("openvino", "kernel"));
     assert!(turbo::record::REFERENCES.contains(&(r.name.as_str(), r.role.as_str())));
     assert_eq!(r.version, "2025.3.0-19807-44526285f24-releases/2025/3");
     assert_eq!(r.commands.len(), 2, "both runs are recorded");
     let m = r.measured.unwrap();
     assert_eq!((m.iterations, m.p50_ms, m.p99_ms, m.min_cosine), (200, 2.03, 2.6, None));
+    assert_eq!(m.computed_tokens, Some(32 * 64), "every position of the static shape");
     assert!((m.rows_per_second - 200.0 * 32.0 / 0.41264).abs() < 1e-6, "{}", m.rows_per_second);
     assert!(r.procedure.contains("484.68 FPS"));
 
     let mut under = p99.clone();
     under.latency_ms = 2.0;
-    let e = openvino::measured(&image, log.clone(), "", p50.clone(), under, 32).unwrap_err();
+    let e = openvino::measured(&image, log.clone(), "", p50.clone(), under, &rows32()).unwrap_err();
     assert!(e.contains("under its median run's"), "{e}");
     let mut other = p99;
     other.count = 199;
-    assert!(openvino::measured(&image, log, "", p50, other, 32).unwrap_err().contains("two runs differ"));
+    assert!(openvino::measured(&image, log, "", p50, other, &rows32()).unwrap_err().contains("two runs differ"));
 }
 
 #[test]
