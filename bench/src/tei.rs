@@ -197,7 +197,7 @@ pub fn native_argv(
 /// The native router as a record pins it: its file's SHA-256.
 pub fn native_pin(bin: &Path) -> Result<String> {
     let bytes = fs::read(bin).map_err(|e| format!("--tei-bin {}: {e}", bin.display()))?;
-    Ok(format!("text-embeddings-router sha256:{}", sha256_hex(&bytes)))
+    Ok(format!("text-embeddings-router@sha256:{}", sha256_hex(&bytes)))
 }
 
 /// A native router started by the tool, stopped when this goes.
