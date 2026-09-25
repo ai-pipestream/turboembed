@@ -161,6 +161,7 @@ Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, std:
 }
 
 Failure Session::write(const Rows &r) {
+    if (!broken_.empty()) return fail(TURBO_E_INVALID_STATE, broken_);
     if (r.types) {
         for (uint32_t b = 0; b < r.batch; b++)
             for (uint32_t t = 0; t < r.seq; t++)
@@ -236,6 +237,7 @@ void Session::pool(const Slot &slot, float *out) {
 }
 
 Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
+    if (!broken_.empty()) return fail(TURBO_E_INVALID_STATE, broken_);
     if (!written_) return fail(TURBO_E_INVALID_STATE, "the hailo session has no rows written since its last run");
     written_ = false;
     h2d = d2h = 0;
@@ -243,14 +245,20 @@ Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
     auto &cm = model_->configured();
     // Two frames in flight: one fills on the host while the other runs.
     Failure failed;
+    auto fault = [&](Failure f) {
+        if (!failed) failed = f;
+        broken_ = "a frame failed on the device (" + f.message + "); release the session";
+    };
     auto finish = [&](Slot &s) {
         if (!s.busy) return;
-        s.busy = false;
         const hailo_status st = s.job.wait(FRAME_TIMEOUT);
         if (st != HAILO_SUCCESS) {
-            if (!failed) failed = hailort_failed(st, "frame " + std::to_string(s.row));
+            // The device may still own this slot's memory: it stays busy,
+            // and the session is not used again.
+            fault(hailort_failed(st, "frame " + std::to_string(s.row)));
             return;
         }
+        s.busy = false;
         d2h += s.hidden.size();
         if (!failed) pool(s, out);
     };
@@ -261,12 +269,12 @@ Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
         fill(s, row);
         hailo_status st = cm.wait_for_async_ready(FRAME_TIMEOUT);
         if (st != HAILO_SUCCESS) {
-            failed = hailort_failed(st, "wait_for_async_ready");
+            fault(hailort_failed(st, "wait_for_async_ready"));
             break;
         }
         auto job = cm.run_async(*s.bindings);
         if (!job) {
-            failed = hailort_failed(job.status(), "run_async");
+            fault(hailort_failed(job.status(), "run_async"));
             break;
         }
         s.job = job.release();

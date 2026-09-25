@@ -21,6 +21,8 @@
 
 #include "embed.h"
 
+#include <algorithm>
+#include <condition_variable>
 #include <cstdarg>
 #include <cstdlib>
 #include <cstddef>
@@ -311,15 +313,25 @@ struct Context {
     std::shared_ptr<hailort::VDevice> vdevice;
 };
 
+/* The open vdevices by device id. An entry stays until its vdevice is
+ * destroyed, so a new one for the same device is made only after the old
+ * one is gone: HailoRT can refuse a vdevice while another on the device
+ * is still being torn down. */
 std::mutex vdevices_lock;
+std::condition_variable vdevices_gone;
+std::vector<std::pair<std::string, std::weak_ptr<hailort::VDevice>>> vdevices;
 
 std::shared_ptr<hailort::VDevice> shared_vdevice(const hailo_device_id_t &id, hailo_status &status) {
-    static std::vector<std::pair<std::string, std::weak_ptr<hailort::VDevice>>> open;
-    std::lock_guard<std::mutex> g(vdevices_lock);
+    std::unique_lock<std::mutex> g(vdevices_lock);
     const std::string key = counted(id.id, sizeof id.id, sizeof id.id);
-    for (auto &e : open)
-        if (e.first == key)
-            if (auto v = e.second.lock()) return v;
+    auto entry = [&] {
+        return std::find_if(vdevices.begin(), vdevices.end(), [&](const auto &e) { return e.first == key; });
+    };
+    for (auto e = entry(); e != vdevices.end(); e = entry()) {
+        if (auto v = e->second.lock()) return v;
+        // Expired: the last context let it go and its destructor is running.
+        vdevices_gone.wait(g);
+    }
     hailo_vdevice_params_t params;
     status = hailo_init_vdevice_params(&params);
     if (status != HAILO_SUCCESS) return nullptr;
@@ -331,14 +343,16 @@ std::shared_ptr<hailort::VDevice> shared_vdevice(const hailo_device_id_t &id, ha
         status = v.status();
         return nullptr;
     }
-    std::shared_ptr<hailort::VDevice> shared(v.release());
-    bool placed = false;
-    for (auto &e : open)
-        if (e.first == key) {
-            e.second = shared;
-            placed = true;
-        }
-    if (!placed) open.emplace_back(key, shared);
+    // The deleter destroys the vdevice first, then drops its entry and wakes
+    // any context waiting to make the next one.
+    std::shared_ptr<hailort::VDevice> shared(v.release().release(), [key](hailort::VDevice *d) {
+        delete d;
+        std::lock_guard<std::mutex> lg(vdevices_lock);
+        auto e = std::find_if(vdevices.begin(), vdevices.end(), [&](const auto &x) { return x.first == key; });
+        if (e != vdevices.end()) vdevices.erase(e);
+        vdevices_gone.notify_all();
+    });
+    vdevices.emplace_back(key, shared);
     return shared;
 }
 

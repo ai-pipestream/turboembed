@@ -36,6 +36,10 @@ unsafe extern "C" {
 
 struct Rt(*mut turbo_runtime);
 
+// turbo.h: a runtime may be used from any thread.
+unsafe impl Send for Rt {}
+unsafe impl Sync for Rt {}
+
 impl Rt {
     fn new() -> Rt {
         let mut rt = ptr::null_mut();
@@ -249,6 +253,30 @@ fn contexts_share_the_device_and_buffers_are_host_memory() {
     for p in [TURBO_PLACE_PINNED, TURBO_PLACE_DEVICE, TURBO_PLACE_SHARED] {
         let f = b.alloc(p, 4096).unwrap_err();
         assert!(f.is(UNSUPPORTED, "TURBO_PLACE_HOST only"), "placement {p}: {f:?}");
+    }
+}
+
+/// Contexts made and released from several threads at once: a device's
+/// vdevice is made again only after the last one is gone, so every
+/// create succeeds.
+#[test]
+fn contexts_come_and_go_from_many_threads() {
+    let rt = Rt::new();
+    let Some(d) = hailo_device(&rt, "contexts_come_and_go_from_many_threads") else { return };
+    let rt = std::sync::Arc::new(rt);
+    let threads: Vec<_> = (0..4)
+        .map(|_| {
+            let rt = rt.clone();
+            std::thread::spawn(move || {
+                for _ in 0..10 {
+                    let c = Ctx::create(&rt, d);
+                    drop(c);
+                }
+            })
+        })
+        .collect();
+    for t in threads {
+        t.join().unwrap();
     }
 }
 

@@ -97,7 +97,9 @@ class Session {
     static Failure create(Model &model, uint32_t max_batch, uint32_t max_seq, std::unique_ptr<Session> &out);
 
     /* The rows and options of the next run, copied. A token type other
-     * than 0 is refused: the HEF folds type 0 in as a constant. */
+     * than 0 is refused: the HEF folds type 0 in as a constant. After a
+     * run that failed on the device, write and run are TURBO_E_INVALID_STATE
+     * until the session is released. */
     Failure write(const Rows &rows);
 
     /* Runs every row, pooling and normalizing each into out, [batch,
@@ -125,6 +127,9 @@ class Session {
     std::vector<double> sum_;   // one row's pooled values, before the cut and the norm
     Slot slots_[2];
     bool written_ = false;
+    /* Set when a frame failed or timed out: the device may still own a
+     * slot's memory, so the session runs nothing more. */
+    std::string broken_;
 };
 
 } // namespace turbo_hailo

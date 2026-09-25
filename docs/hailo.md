@@ -88,7 +88,13 @@ device.
   fills on the host while the other runs, and each frame's hidden states
   are dequantized, pooled (mean over the mask, the first token, or the
   last live one), cut to `output_dim`, and normalized on the host as the
-  frame comes back. Runs on one model take turns. A token type other
+  frame comes back. Runs on one model take turns. A frame that fails or
+  times out on the device (10 s) fails the run with `TURBO_E_RUNTIME`
+  and HailoRT's status, and the session then refuses every write and run
+  with `TURBO_E_INVALID_STATE`: the device may still own the frame's
+  memory. Releasing the session waits for HailoRT to finish with its
+  frames, with no timeout, so on a device that stopped answering it
+  does not return. A token type other
   than 0 is `TURBO_E_UNSUPPORTED_OPTION`, naming the row: the HEF
   computes type 0 only.
 - **What a result reports.** Stages: upload and encode on the device,
