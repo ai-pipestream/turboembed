@@ -1406,6 +1406,62 @@ fn wide_attention_matches_the_cpu_at_heads_of_64() {
     attention_matches(&g, &t, 6, 300, &want, "heads of 64");
 }
 
+/// The attention of 128 queries, heads 32 and 64 wide, on rows that fill
+/// its chunks of 64 keys with no masked token (512, 256, 192, 128 and 64
+/// tokens, every chunk taking the path that tests and masks no score)
+/// and on rows with a masked token and a last chunk part full (300, 129,
+/// 65, 63, 17 and 1): the CPU's vectors within FASTEST's bound, with its
+/// default softmax and with TURBO_CUDA_ATTENTION=exact's, which is the
+/// earlier arithmetic; the same bits again; and the two softmaxes within
+/// the bound of each other. Each session reports the kernel it runs.
+#[test]
+fn attention_of_128_queries_matches_on_whole_chunks_and_holes() {
+    let _t = turn();
+    let Some(_) = cuda_device("attention_of_128_queries_matches_on_whole_chunks_and_holes") else { return };
+    for hidden in [64usize, 128] {
+        let mut m = model_manifest();
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(2);
+        m["architecture"]["intermediate"] = json!(2 * hidden);
+        m["embed"]["dim"] = json!(hidden);
+        m["embed"]["max_seq"] = json!(512);
+        m["embed"]["max_batch"] = json!(6);
+        m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+        let mut f = Fixture::new(&format!("cuda-attention-128-{hidden}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(hidden as u64, 2 * hidden as u64));
+        let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+        let cs = Session::create(c.m, Some(&session_desc(6, 512, 0))).unwrap();
+        for (lens, hole) in [(&[512, 256, 192, 128, 64][..], false), (&[300, 129, 65, 63, 17, 1][..], true)] {
+            let t = rows_of(&f.dir, lens, 512, hole);
+            cs.write_tokens(&t.batch(), None).unwrap();
+            let want = cs.run().unwrap().rows();
+            let mut runs = Vec::new();
+            for exact in [false, true] {
+                turbo::cuda::use_exact_attention(Some(exact));
+                let gs = Session::create(g.m, Some(&session_desc(6, 512, TURBO_PRECISION_FASTEST)));
+                turbo::cuda::use_exact_attention(None);
+                let gs = gs.unwrap();
+                let info = gs.info();
+                let choices = field(&info.choices);
+                let attn = if exact { "attn=mma128-exact," } else { "attn=mma128," };
+                assert!(choices.contains(attn), "{choices}");
+                let tol = record::tolerance(info.compute_dtype).unwrap();
+                gs.write_tokens(&t.batch(), None).unwrap();
+                let got = gs.run().unwrap().rows();
+                let what = format!("heads of {}, rows {lens:?}, exact {exact}", hidden / 2);
+                let (cos, abs) = within(&what, &got, &want, tol);
+                println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+                gs.write_tokens(&t.batch(), None).unwrap();
+                assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
+                runs.push((got, tol));
+            }
+            let what = format!("heads of {}, rows {lens:?}, exact against the default", hidden / 2);
+            let (cos, abs) = within(&what, &runs[1].0, &runs[0].0, runs[0].1);
+            println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+        }
+    }
+}
+
 /// The LayerNorm inside the attention output and second feed-forward
 /// GEMMs, which TURBO_CUDA_LAYER_NORM=fused picks, gives the bits of the
 /// separate kernel, the default, at every precision, with every tile

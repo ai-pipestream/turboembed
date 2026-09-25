@@ -21,8 +21,9 @@ namespace turbo_cuda {
 /* The attention kernels: the FMA kernel of register tiles or of keys
  * split among warps (F32, and F16 without the tensor cores' attention),
  * and the tensor cores' kernel of 64 or 128 queries to a block (F16 on
- * heads of 32 or 64). */
-enum AttnVariant : int { ATT_FMA_TILED = 0, ATT_FMA_SPLIT = 1, ATT_MMA_64 = 2, ATT_MMA_128 = 3 };
+ * heads of 32 or 64), the latter also with its earlier softmax of
+ * exp2f. */
+enum AttnVariant : int { ATT_FMA_TILED = 0, ATT_FMA_SPLIT = 1, ATT_MMA_64 = 2, ATT_MMA_128 = 3, ATT_MMA_128_EXACT = 4 };
 
 /* The attention output and second feed-forward GEMMs' LayerNorm: a kernel
  * of its own after the product, or in the GEMM's epilogue. */

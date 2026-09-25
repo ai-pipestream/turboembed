@@ -50,7 +50,9 @@ struct Info {
  * longest first (by query tiles), which only attention's schedule reads,
  * and item_start[i] the first work item of order[i], batch + 1 entries;
  * tok_row and key_bias are by packed token: the row a token is in, and 0
- * for a live token or -1e30 for a masked one. */
+ * for a live token or -1e30 for a masked one. The attention of 128
+ * queries tests key_bias for nonzero rather than adding it, so it must
+ * stay 0 or -1e30, not become a general additive bias. */
 struct Packing {
     Info *info;
     int32_t *start, *len, *holes, *order, *item_start, *tok_row;
@@ -168,6 +170,11 @@ struct Shape {
      * keys and values through cp.async (TURBO_CUDA_ATTENTION=128), for
      * measuring against the default of 64. */
     bool wide_attention = false;
+    /* That attention's softmax with exp2f and the scores scaled before
+     * the largest is taken (TURBO_CUDA_ATTENTION=exact), the arithmetic
+     * before ex2.approx and the scale in the exponent's multiply-add, for
+     * comparing bits and times with the default. */
+    bool exact_exp2 = false;
     /* LayerNorm in the attention output and second feed-forward GEMMs
      * (EPI_ADD_LN) when the hidden width allows and
      * TURBO_CUDA_LAYER_NORM=fused asks for it; otherwise the GEMM's

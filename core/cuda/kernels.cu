@@ -2684,11 +2684,13 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
 // by cp.async, the next two chunks' in flight while this one's products
 // and softmax run, one barrier to a chunk; the next item's queries and
 // first chunks load during an item's last. The softmax is in base 2:
-// scale x log2(e) goes into each exponent's one multiply-add, and exp2f
-// takes the place of expf (a masked key's p is 0, as the key bias of
-// -1e30 makes it in the other kernels). Only rows whose items the pack
-// puts first, longest first, change the schedule, not the sums: each
+// scale x log2(e) goes into each exponent's one multiply-add, and
+// ex2.approx takes the place of expf (a masked key's p is 0, as the key
+// bias of -1e30 makes it in the other kernels). Only rows whose items the
+// pack puts first, longest first, change the schedule, not the sums: each
 // query's keys go in position order, 64 at a time.
+// TURBO_CUDA_ATTENTION=exact keeps the earlier softmax, bit for bit: the
+// scores scaled before the largest is taken, and exp2f.
 
 constexpr int FA_QUERIES = 128, FA_THREADS = 256, FA_KEYS = 64;
 
@@ -2706,12 +2708,25 @@ template <int D> constexpr int fa_min_blocks() { return fa_smem<D>(0) * 2 <= 96 
 // takes them to 0.
 constexpr float FA_MASKED = -0x1p100f;
 
+/* 2^x by ex2.approx alone: within 2 ulp, and 0 for results below 2^-126,
+ * where exp2f takes four instructions to be exact. Each p is rounded to
+ * F16 for P V, far coarser than 2 ulp of F32 down to F16's least normal,
+ * and a result below 2^-24 is 0 in F16 either way. */
+__device__ inline float ex2_approx(float x) {
+    float y;
+    asm("ex2.approx.ftz.f32 %0, %1;\n" : "=f"(y) : "f"(x));
+    return y;
+}
+
 // One chunk of keys for a warp's 16 queries: S = Q K^T, the running
 // softmax, O += P V. The largest score and m are kept unscaled (the
-// scale is positive), and each p is exp2f of one fused multiply-add,
-// s sl2 - m sl2. WHOLE: the chunk's 64 keys are all the row's and none
-// is masked, so no score is tested; the sums are the same either way.
-template <int D, bool WHOLE>
+// scale is positive), and each p is ex2.approx of one fused
+// multiply-add, s sl2 - m sl2. EXACT (TURBO_CUDA_ATTENTION=exact): the
+// scores are scaled first and the key bias added, and each p is exp2f of
+// the scaled score less m, the arithmetic before either. WHOLE: the
+// chunk's 64 keys are all the row's and none is masked, so no score is
+// tested; the sums are the same either way.
+template <int D, bool WHOLE, bool EXACT>
 __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[D / 16][4], float (&o)[D / 8][4], float (&m)[2],
                                          float (&l)[2], const __half *Ks, const __half *Vs, const float *kb, int cn,
                                          int holes, float sl2, int lane) {
@@ -2735,12 +2750,14 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[D / 16][4], float 
     for (int j = 0; j < 8; j++)
 #pragma unroll
         for (int e = 0; e < 4; e++) {
-            float v = s[j][e];
+            float v = EXACT ? s[j][e] * sl2 : s[j][e];
             if constexpr (!WHOLE) {
                 const int key = j * 8 + (lane & 3) * 2 + (e & 1);
                 if (key >= cn)
                     v = -INFINITY;
-                else if (holes && kb[key] != 0.0f)
+                else if (EXACT && holes)
+                    v += kb[key];
+                else if (!EXACT && holes && kb[key] != 0.0f)
                     v = FA_MASKED;
             }
             s[j][e] = v;
@@ -2751,14 +2768,18 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[D / 16][4], float 
         mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 1));
         mx[h] = fmaxf(mx[h], __shfl_xor_sync(FULL, mx[h], 2));
     }
-    const float corr[2] = {exp2f((m[0] - mx[0]) * sl2), exp2f((m[1] - mx[1]) * sl2)};
-    const float nm[2] = {-mx[0] * sl2, -mx[1] * sl2};
+    float corr[2], nm[2];
+#pragma unroll
+    for (int h = 0; h < 2; h++) {
+        corr[h] = EXACT ? exp2f(m[h] - mx[h]) : ex2_approx((m[h] - mx[h]) * sl2);
+        nm[h] = EXACT ? -mx[h] : -mx[h] * sl2;
+    }
     float sum[2] = {0.0f, 0.0f};
 #pragma unroll
     for (int j = 0; j < 8; j++)
 #pragma unroll
         for (int e = 0; e < 4; e++) {
-            s[j][e] = exp2f(fmaf(s[j][e], sl2, nm[e >> 1]));
+            s[j][e] = EXACT ? exp2f(s[j][e] + nm[e >> 1]) : ex2_approx(fmaf(s[j][e], sl2, nm[e >> 1]));
             sum[e >> 1] += s[j][e];
         }
 #pragma unroll
@@ -2789,7 +2810,7 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[D / 16][4], float 
 }
 #endif
 
-template <int D>
+template <int D, bool EXACT>
 __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa_kernel(AttnArgs a) {
 #ifndef TURBO_NO_MMA
     constexpr int LD = D + 8, DK = D / 16, DN = D / 8, CH = D / 8; // CH: 16-byte chunks of a row
@@ -2884,9 +2905,9 @@ __global__ void __launch_bounds__(FA_THREADS, (fa_min_blocks<D>())) attention_fa
                 const __half *Ks = KV + (size_t)(2 * b) * FA_KEYS * LD, *Vs = Ks + FA_KEYS * LD;
                 const float *kb = kbs + b * FA_KEYS;
                 if (cn == FA_KEYS && !it.holes)
-                    fa_chunk<D, true>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+                    fa_chunk<D, true, EXACT>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
                 else
-                    fa_chunk<D, false>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+                    fa_chunk<D, false, EXACT>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
             }
         }
         if (live) {
@@ -2966,8 +2987,11 @@ AttnKernel attention_kernel_for(const Shape &s) {
     const int d = s.hidden / s.heads;
     if (s.half && s.tensor_cores && (d == 32 || d == 64)) {
         if (s.wide_attention) {
-            if (d == 32) return {attention_fa_kernel<32>, FA_THREADS, fa_smem<32>, FA_QUERIES, FA_KEYS};
-            return {attention_fa_kernel<64>, FA_THREADS, fa_smem<64>, FA_QUERIES, FA_KEYS};
+            if (d == 32)
+                return {s.exact_exp2 ? attention_fa_kernel<32, true> : attention_fa_kernel<32, false>, FA_THREADS,
+                        fa_smem<32>, FA_QUERIES, FA_KEYS};
+            return {s.exact_exp2 ? attention_fa_kernel<64, true> : attention_fa_kernel<64, false>, FA_THREADS,
+                    fa_smem<64>, FA_QUERIES, FA_KEYS};
         }
         if (d == 32) return {attention_mma_kernel<32>, MMA_ATT_THREADS, mma_smem<32>, MMA_QUERIES, 256};
         return {attention_mma_kernel<64>, MMA_ATT_THREADS, mma_smem<64>, MMA_QUERIES, 256};

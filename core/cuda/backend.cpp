@@ -1064,6 +1064,7 @@ std::atomic<int> cublas_override{-1};
 std::atomic<int> tile_override{-1};
 std::atomic<int> split_attention_override{-1};
 std::atomic<int> wide_attention_override{-1};
+std::atomic<int> exact_attention_override{-1};
 std::atomic<int> tf32_override{-1};
 std::atomic<int> f16_accumulate_override{-1};
 std::atomic<int> separate_ln_override{-1};
@@ -1121,6 +1122,21 @@ bool wide_attention_named(bool *forced) {
     const char *v = getenv("TURBO_CUDA_ATTENTION");
     *forced = *forced || v;
     return !(v && !strcmp(v, "64"));
+}
+
+/* TURBO_CUDA_ATTENTION=exact: the attention of 128 queries with its
+ * earlier softmax, exp2f on scores scaled before the largest is taken,
+ * in place of ex2.approx with the scale in the exponent's multiply-add.
+ * It gives the earlier bits, for comparing against the default. */
+bool exact_attention_named(bool *forced) {
+    const int o = overridden(exact_attention_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
+    const char *v = getenv("TURBO_CUDA_ATTENTION");
+    *forced = *forced || v;
+    return v && !strcasecmp(v, "exact");
 }
 
 /* TURBO_CUDA_TF32=1 puts MODEL's F32 GEMMs on the tensor cores as TF32;
@@ -1290,6 +1306,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
     const bool sk_forced = sk_named(&sk);
     bool attn_forced = false;
     const bool split = split_attention_named(&attn_forced), wide = wide_attention_named(&attn_forced);
+    const bool exact = exact_attention_named(&attn_forced);
     bool ln_forced = false, pool_forced = false;
     const bool separate = separate_ln_named(&ln_forced);
     const bool columns = column_pool_named(&pool_forced);
@@ -1313,7 +1330,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
         }
         if (attn_forced) {
             if (mma_attention(base))
-                bc.attention = wide ? ATT_MMA_128 : ATT_MMA_64;
+                bc.attention = !wide ? ATT_MMA_64 : exact ? ATT_MMA_128_EXACT : ATT_MMA_128;
             else
                 bc.attention = split ? ATT_FMA_SPLIT : ATT_FMA_TILED;
             bc.forced |= KNOB_ATTN;
@@ -1355,7 +1372,8 @@ Shape shape_for(const Shape &base, const Choices &c, int bin) {
     const BinChoices &bc = c.bin[bin];
     for (int g = 0; g < GEMM_COUNT; g++) sh.gemm[g] = bc.gemm[g];
     sh.split_attention = bc.attention == ATT_FMA_SPLIT;
-    sh.wide_attention = bc.attention == ATT_MMA_128;
+    sh.wide_attention = bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT;
+    sh.exact_exp2 = bc.attention == ATT_MMA_128_EXACT;
     sh.fused_ln = bc.ln == LN_FUSED;
     sh.column_pool = c.pool == POOL_COLUMNS;
     return sh;
@@ -2904,6 +2922,13 @@ void turbo_cuda_use_split_attention(int32_t split) {
  * 1 the kernel of 128 queries to a block, the default, 0 the kernel of
  * 64 (TURBO_CUDA_ATTENTION=64), -1 to read the variable again. */
 void turbo_cuda_use_wide_attention(int32_t wide) { wide_attention_override.store(wide, std::memory_order_relaxed); }
+
+/* The softmax of the attention of 128 queries in sessions made from now
+ * on: 1 exp2f on scores scaled first (TURBO_CUDA_ATTENTION=exact), 0 the
+ * default's ex2.approx, -1 to read the variable again. */
+void turbo_cuda_use_exact_attention(int32_t exact) {
+    exact_attention_override.store(exact, std::memory_order_relaxed);
+}
 
 /* The LayerNorms of sessions made from now on: 1 a kernel of their own
  * after the GEMM (the default), 0 the GEMM's epilogue
