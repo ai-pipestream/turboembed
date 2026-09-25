@@ -4,10 +4,11 @@
 //! A recipe is a manifest without `files`, plus the upstream files to fetch
 //! at the manifest's `model.source.commit`. The tool fetches them, copies
 //! the ones the bundle carries, runs the reference pipeline in its pinned
-//! container, fills in `files` and the reference's `produced_by` from what
-//! actually ran, writes the manifest, and loads the result through the
-//! core. Nothing it writes is typed by hand.
+//! container and makes the converted artifacts there, fills in `files`
+//! and each `produced_by` from what actually ran, writes the manifest, and
+//! loads the result through the core. Nothing it writes is typed by hand.
 
+pub mod convert;
 pub mod fetch;
 pub mod recipe;
 pub mod reference;

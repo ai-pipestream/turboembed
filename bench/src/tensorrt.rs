@@ -8,11 +8,17 @@
 //! at the hidden states, so trtexec's time has no pooling or
 //! normalization in it, and its inputs are named and typed as the export
 //! made them (the tool's options say which).
+//!
+//! F32 builds from the upstream graph with TF32 off. F16 and BF16 build
+//! from the bundle's graph converted to that dtype, with --stronglyTyped:
+//! TensorRT 11 removed weak typing, and --fp16 and --bf16 with it, and a
+//! strongly typed build is the same on TensorRT 10.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use turbo::bundle::Bundle;
+use turbo::manifest::Dtype;
 use turbo::record::{Measured, ReferenceRun};
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
@@ -38,14 +44,17 @@ pub struct TensorRt {
     pub work: PathBuf,
 }
 
-/// trtexec's precision flags for a compute dtype: F32 with TF32 off, as
-/// the library computes; F16 or BF16 allowed where asked.
-pub fn precision_flags(compute_dtype: u32) -> std::result::Result<Vec<String>, String> {
+/// The ONNX graph trtexec builds for a compute dtype, as its artifact's
+/// compute_dtype (None: the upstream graph), and trtexec's precision
+/// flags: F32 from the upstream graph with TF32 off, as the library
+/// computes; F16 and BF16 from the graph converted to that dtype, strongly
+/// typed, so every layer runs in the type the graph gives it.
+pub fn precision(compute_dtype: u32) -> std::result::Result<(Option<Dtype>, Vec<String>), String> {
     match compute_dtype {
-        TURBO_DTYPE_F32 => Ok(argv(&["--noTF32"])),
-        TURBO_DTYPE_F16 => Ok(argv(&["--fp16"])),
-        TURBO_DTYPE_BF16 => Ok(argv(&["--bf16"])),
-        d => Err(format!("trtexec has no flag for compute dtype {d}")),
+        TURBO_DTYPE_F32 => Ok((None, argv(&["--noTF32"]))),
+        TURBO_DTYPE_F16 => Ok((Some(Dtype::F16), argv(&["--stronglyTyped"]))),
+        TURBO_DTYPE_BF16 => Ok((Some(Dtype::Bf16), argv(&["--stronglyTyped"]))),
+        d => Err(format!("trtexec has no build for compute dtype {d}")),
     }
 }
 
@@ -175,9 +184,11 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
     }
 }
 
-/// The bundle's ONNX file, or why there is none to run.
+/// The bundle's ONNX file for the session's compute dtype, or why there
+/// is none to run.
 pub fn onnx_file(m: &Measurement) -> std::result::Result<String, String> {
-    onnx::file(&m.manifest, "for trtexec to build an engine from")
+    let (dtype, _) = precision(m.compute_dtype)?;
+    onnx::file(&m.manifest, dtype, "for trtexec to build an engine from")
 }
 
 /// Build and time the engine on `gpu`, the device's CUDA ordinal. A thing
@@ -196,10 +207,11 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
         Ok(f) => f,
         Err(why) => return Ok(not_run(image, log, &procedure, why)),
     };
-    let precision = match precision_flags(m.compute_dtype) {
-        Ok(p) => p,
+    let precision = match precision(m.compute_dtype) {
+        Ok((_, flags)) => flags,
         Err(why) => return Ok(not_run(image, log, &procedure, why)),
     };
+    let procedure = format!("{procedure}; the engine is built from {onnx} with {}", precision.join(" "));
     // The file the manifest lists, checked against its hash.
     Bundle::open(&m.bundle_dir).and_then(|b| b.read_verified(&onnx)).map_err(|e| e.message)?;
     let mut log = log;

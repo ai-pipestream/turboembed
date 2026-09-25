@@ -1,6 +1,7 @@
 //! The reference: the upstream pipeline, fp32 on CPU, run on the upstream
-//! files in the container the recipe pins. It is the only place Python
-//! runs, and only while a bundle is made.
+//! files in the container the recipe pins. That container is the only
+//! place Python runs (here and for the conversions, convert.rs), and only
+//! while a bundle is made.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -48,12 +49,7 @@ pub fn cases(recipe: &Recipe) -> Result<Value> {
 /// Returns the reference's `produced_by`, as the container reported it.
 pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Value> {
     let container = recipe.str_at("/reference/produced_by/container")?;
-    let hex = check_pinned(container)?;
-    // A registry image is found by its digest; one built here by its image id.
-    let image = if docker_has(container) { container.to_owned() } else { format!("sha256:{hex}") };
-    if !docker_has(&image) {
-        return Err(format!("the reference container {container} is not present; pull or build it first"));
-    }
+    let image = present(container)?;
 
     let work = scratch(bundle)?;
     fs::write(work.join("cases.json"), serde_json::to_vec_pretty(&cases(recipe)?).unwrap())
@@ -107,14 +103,25 @@ pub fn produced_by(reported: &Value, container: &str) -> Result<Value> {
     }))
 }
 
-fn docker_has(image: &str) -> bool {
+/// The image docker runs for a pinned container: a registry image is
+/// found by its digest, one built here by its image id.
+pub(crate) fn present(container: &str) -> Result<String> {
+    let hex = check_pinned(container)?;
+    let image = if docker_has(container) { container.to_owned() } else { format!("sha256:{hex}") };
+    if !docker_has(&image) {
+        return Err(format!("the reference container {container} is not present; pull or build it first"));
+    }
+    Ok(image)
+}
+
+pub(crate) fn docker_has(image: &str) -> bool {
     Command::new("docker")
         .args(["image", "inspect", "--format", "{{.Id}}", image])
         .output()
         .is_ok_and(|o| o.status.success())
 }
 
-fn current_user() -> Option<String> {
+pub(crate) fn current_user() -> Option<String> {
     let id = |flag: &str| {
         Command::new("id")
             .arg(flag)
@@ -128,7 +135,7 @@ fn current_user() -> Option<String> {
 
 /// Beside the bundle directory, not under /tmp, which some Docker
 /// installations cannot mount.
-fn scratch(bundle: &Path) -> Result<PathBuf> {
+pub(crate) fn scratch(bundle: &Path) -> Result<PathBuf> {
     let bundle = fs::canonicalize(bundle).map_err(|e| format!("{}: {e}", bundle.display()))?;
     let parent = bundle.parent().ok_or_else(|| format!("{} has no parent directory", bundle.display()))?;
     let d = parent.join(format!(".turbo-bundle-work-{}", std::process::id()));

@@ -51,10 +51,21 @@ pub fn named_paths(manifest: &Value) -> Result<BTreeSet<String>> {
 }
 
 /// Write `manifest.json` for the files now in `bundle`, then verify it.
-/// `produced_by` is the reference's, from the run.
-pub fn seal(recipe: &Recipe, bundle: &Path, produced_by: Value) -> Result<()> {
+/// `produced_by` is the reference's, from the run, and `converted` each
+/// converted artifact's name and `produced_by`, from its run.
+pub fn seal(recipe: &Recipe, bundle: &Path, produced_by: Value, converted: Vec<(String, Value)>) -> Result<()> {
     let mut m = recipe.manifest.clone();
     m["reference"]["produced_by"] = produced_by;
+    let made: Vec<String> = converted.iter().map(|(n, _)| n.clone()).collect();
+    let want: Vec<String> = crate::convert::conversions(recipe)?.into_iter().map(|c| c.name).collect();
+    if made != want {
+        return Err(format!("the recipe converts {want:?}, and the runs made {made:?}"));
+    }
+    for (name, pb) in converted {
+        let artifacts = m["artifacts"].as_array_mut().ok_or("manifest.artifacts: missing")?;
+        let a = artifacts.iter_mut().find(|a| a["name"] == name.as_str()).ok_or(format!("no artifact {name}"))?;
+        a["produced_by"] = pb;
+    }
     let mut files = Vec::new();
     for p in named_paths(&m)? {
         let bytes = fs::read(bundle.join(&p)).map_err(|e| format!("{p}: {e}"))?;

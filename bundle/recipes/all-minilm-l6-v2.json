@@ -126,6 +126,20 @@
         "backends": [],
         "graph_input": "INPUT_TOKEN_IDS",
         "graph_output": "OUTPUT_HIDDEN_STATES"
+      },
+      {
+        "name": "onnx-f16",
+        "format": "FORMAT_ONNX",
+        "files": [
+          "onnx/model-f16.onnx"
+        ],
+        "backends": [],
+        "compute_dtype": "DTYPE_F16",
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "produced_by": {
+          "from": "onnx-f32"
+        }
       }
     ],
     "reference": {

@@ -7,7 +7,7 @@ mod common;
 use std::path::Path;
 
 use common::*;
-use turbo::manifest::Pooling;
+use turbo::manifest::{Dtype, Pooling};
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 use turbo_bench::cpus::{self, Cpus};
 use turbo_bench::docker::{self, parse_port};
@@ -371,7 +371,8 @@ fn trtexec_is_run_with_every_setting_on_its_command_line() {
         cases: vec![0, 1],
     };
     let t = trt(Path::new("/tmp"));
-    let flags = tensorrt::precision_flags(TURBO_DTYPE_F32).unwrap();
+    let (graph, flags) = tensorrt::precision(TURBO_DTYPE_F32).unwrap();
+    assert_eq!(graph, None, "F32: the upstream graph");
     let a = tensorrt::run_argv(&t, Path::new("/b"), Path::new("/w"), "onnx/model.onnx", 0, &rows, 200, &flags);
     let want = strings(&[
         "docker",
@@ -399,9 +400,11 @@ fn trtexec_is_run_with_every_setting_on_its_command_line() {
         "--noTF32",
     ]);
     assert_eq!(a, want);
-    assert_eq!(tensorrt::precision_flags(TURBO_DTYPE_F16).unwrap(), strings(&["--fp16"]));
-    assert_eq!(tensorrt::precision_flags(TURBO_DTYPE_BF16).unwrap(), strings(&["--bf16"]));
-    assert!(tensorrt::precision_flags(8).is_err());
+    // TensorRT 11 has no --fp16 or --bf16: F16 and BF16 build strongly
+    // typed from the graph converted to that dtype, as TensorRT 10 can.
+    assert_eq!(tensorrt::precision(TURBO_DTYPE_F16).unwrap(), (Some(Dtype::F16), strings(&["--stronglyTyped"])));
+    assert_eq!(tensorrt::precision(TURBO_DTYPE_BF16).unwrap(), (Some(Dtype::Bf16), strings(&["--stronglyTyped"])));
+    assert!(tensorrt::precision(8).is_err());
 }
 
 #[test]
@@ -475,9 +478,22 @@ fn recipe_manifest() -> turbo::manifest::Manifest {
         serde_json::from_slice(&std::fs::read(workspace().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap())
             .unwrap();
     let mut m = r["manifest"].clone();
-    m["reference"]["produced_by"] =
+    let run =
         serde_json::json!({ "tool": "t", "tool_version": "1", "container": "c", "args": [], "reproducible": false });
-    let paths = ["tokenizer.json", "weights/model.safetensors", "onnx/model.onnx", "reference/reference.safetensors"];
+    m["reference"]["produced_by"] = run.clone();
+    for a in m["artifacts"].as_array_mut().unwrap() {
+        if let Some(from) = a.get("produced_by").map(|p| p["from"].clone()) {
+            a["produced_by"] = run.clone();
+            a["produced_by"]["from"] = from;
+        }
+    }
+    let paths = [
+        "tokenizer.json",
+        "weights/model.safetensors",
+        "onnx/model.onnx",
+        "onnx/model-f16.onnx",
+        "reference/reference.safetensors",
+    ];
     m["files"] = paths.iter().map(|p| serde_json::json!({ "path": p, "size": 1, "sha256": "0".repeat(64) })).collect();
     turbo::manifest::Manifest::parse(&serde_json::to_vec(&m).unwrap()).unwrap_or_else(|e| panic!("{}", e.message))
 }
@@ -485,10 +501,15 @@ fn recipe_manifest() -> turbo::manifest::Manifest {
 #[test]
 fn the_runners_find_the_recipes_onnx_file_by_its_format() {
     let m = recipe_manifest();
-    assert_eq!(turbo_bench::onnx::file(&m, "for a program").unwrap(), "onnx/model.onnx");
+    assert_eq!(turbo_bench::onnx::file(&m, None, "for a program").unwrap(), "onnx/model.onnx");
+    assert_eq!(turbo_bench::onnx::file(&m, Some(Dtype::F16), "for a program").unwrap(), "onnx/model-f16.onnx");
+    assert_eq!(
+        turbo_bench::onnx::file(&m, Some(Dtype::Bf16), "for a program").unwrap_err(),
+        "the bundle carries no FORMAT_ONNX artifact in DTYPE_BF16 for a program"
+    );
     let bundle = turbo::bundle::Bundle::open(&tiny_bundle()).unwrap();
     assert_eq!(
-        turbo_bench::onnx::file(&bundle.manifest, "for a program").unwrap_err(),
+        turbo_bench::onnx::file(&bundle.manifest, None, "for a program").unwrap_err(),
         "the bundle carries no FORMAT_ONNX artifact for a program"
     );
     // The inputs both runners default to are the export's.

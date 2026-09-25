@@ -227,9 +227,10 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
     }
 }
 
-/// The bundle's ONNX file, or why there is none to run.
+/// The bundle's upstream ONNX file, or why there is none to run:
+/// benchmark_app sets the precision itself (`-infer_precision`).
 pub fn onnx_file(m: &Measurement) -> std::result::Result<String, String> {
-    onnx::file(&m.manifest, "for benchmark_app to compile")
+    onnx::file(&m.manifest, None, "for benchmark_app to compile")
 }
 
 /// The measured reference from the median run and the 99th percentile

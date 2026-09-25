@@ -329,8 +329,35 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
     assert_eq!(dense_run.measured.as_ref().unwrap().computed_tokens, Some(4 * 40), "every row 40 tokens");
     assert!(dense_run.procedure.contains("the library's vector of the row alone for a row cut to seq"));
     assert!(dense_run.procedure.contains("POST /embed with the batch's 4 rows as token ids"));
-    let r = turbo_bench::record(&dense, &provenance("redaction-dense"), vec![dense_run], "2026-01-02T03:04:05Z".into())
-        .unwrap_or_else(|e| panic!("{e}"));
+    // trtexec is given the dense rows' shape, every position live.
+    let dense_trt = tensorrt::run(
+        &TensorRt {
+            image: format!("nvcr.io/nvidia/tensorrt@sha256:{DIGEST}"),
+            trtexec: "trtexec".into(),
+            inputs: ["input_ids".into(), "attention_mask".into(), "token_type_ids".into()],
+            input_dtype: "int64".into(),
+            warmup_ms: 100,
+            work: work.clone(),
+        },
+        &dense,
+        0,
+        5,
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert!(
+        joined(&dense_trt).contains("--shapes=input_ids:4x40,attention_mask:4x40,token_type_ids:4x40"),
+        "{}",
+        joined(&dense_trt)
+    );
+    assert!(dense_trt.procedure.contains("the engine is built from onnx/model.onnx with --noTF32"));
+    assert_eq!(dense_trt.measured.as_ref().unwrap().computed_tokens, Some(4 * 40));
+    let r = turbo_bench::record(
+        &dense,
+        &provenance("redaction-dense"),
+        vec![dense_run, dense_trt],
+        "2026-01-02T03:04:05Z".into(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     assert_eq!((r.rows.kind.as_str(), r.rows.live_tokens), ("ROWS_DENSE", 4 * 40));
     for r in [&trt_run, &ov_run] {
         let j = joined(r);

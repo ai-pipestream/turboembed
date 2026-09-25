@@ -71,8 +71,12 @@ CUDA_DEVICE_ORDER=PCI_BUS_ID TURBO_CUDA_ROOT=/usr/local/cuda cargo run --release
     --bundle all-minilm-l6-v2/ --device cuda --precision model \
     --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the 89-* image> \
     --tei-model upstream/ \
-    --tensorrt-image nvcr.io/nvidia/tensorrt@sha256:<digest>
+    --tensorrt-image nvcr.io/nvidia/tensorrt@sha256:3b127f45630cd56bf43d2ef70d7f50a7ee37e42bda4ba11adaaa069af2098125
 ```
+
+That TensorRT image is NVIDIA's `26.08-py3`, with trtexec 11.2.1. Its
+F16 build needs the bundle's `onnx-f16` artifact (TensorRT, below), so
+the bundle must be made from a recipe that has it.
 
 On a CPU, TEI's CPU image against the library on the same processors
 and threads. On a Ryzen 9 9950X3D the CCD with the stacked cache is the
@@ -345,10 +349,11 @@ names those directories the same way. The core refuses a record with
 `/home/` or `/Users/` anywhere in its text, so one written by hand or
 by an older tool cannot carry a home directory either.
 
-**TensorRT** builds an engine from the bundle's `FORMAT_ONNX` artifact,
-checked against its hash, and times the rows loaded from raw files. The
-library never executes ONNX; a reference program may. A bundle with no
-ONNX artifact gives a reference with `not_run` saying so. The command:
+**TensorRT** builds an engine from one of the bundle's `FORMAT_ONNX`
+artifacts, checked against its hash, and times the rows loaded from raw
+files. The library never executes ONNX; a reference program may. A
+bundle without the artifact the session's dtype needs gives a reference
+with `not_run` saying so. The command:
 
 ```
 docker run --rm --pull never --network none --gpus device=<ordinal> \
@@ -360,8 +365,15 @@ docker run --rm --pull never --network none --gpus device=<ordinal> \
     --warmUp=<ms> --iterations=<iterations> --duration=0 --percentile=99 <precision flag>
 ```
 
-The precision flag is `--noTF32` for F32 (the library computes F32 in
-F32), `--fp16` for F16, `--bf16` for BF16. The output must end in
+For F32 the graph is upstream's (the artifact with no `compute_dtype`)
+and the precision flag `--noTF32`, since the library computes F32 in
+F32. For F16 and BF16 it is the artifact converted to that dtype
+(`compute_dtype` `DTYPE_F16` or `DTYPE_BF16`, made by the bundle tool:
+the MiniLM recipe's `onnx-f16`, docs/bundle.md) and the flag
+`--stronglyTyped`, so every layer runs in the type the graph gives it.
+TensorRT 11 removed weak typing, and with it `--fp16` and `--bf16`; a
+strongly typed build is the same on TensorRT 10. `procedure` names the
+file and the flag. The output must end in
 `&&&& PASSED`; the version is its `TensorRT version:` line, p50 and p99
 the summary's `Latency` median and `percentile(99%)` (the H2D copy, the
 GPU compute and the D2H copy of one batch), the iterations its `Timing

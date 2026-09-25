@@ -5,19 +5,34 @@
 use std::fs;
 use std::path::Path;
 
-use turbo::manifest::{Format, Manifest};
+use turbo::manifest::{Dtype, Format, Manifest};
 
 use crate::Result;
 use crate::measure::Rows;
 
-/// The bundle's ONNX file, or why there is none for the program to run:
-/// `purpose` ends the sentence ("for trtexec to build an engine from").
-pub fn file(m: &Manifest, purpose: &str) -> std::result::Result<String, String> {
-    let a = m.artifacts.iter().find(|a| a.format == Format::Onnx);
+/// The bundle's ONNX file in `dtype`, or why there is none for the
+/// program to run: None is the upstream graph, the FORMAT_ONNX artifact
+/// with no compute_dtype, and Some a graph converted to that dtype
+/// (docs/bundle.md). `purpose` ends the sentence ("for trtexec to build
+/// an engine from").
+pub fn file(m: &Manifest, dtype: Option<Dtype>, purpose: &str) -> std::result::Result<String, String> {
+    let a = m.artifacts.iter().find(|a| a.format == Format::Onnx && a.compute_dtype == dtype);
     match a.map(|a| a.files.as_slice()) {
-        None => Err(format!("the bundle carries no FORMAT_ONNX artifact {purpose}")),
+        None if dtype.is_none() => Err(format!("the bundle carries no FORMAT_ONNX artifact {purpose}")),
+        None => Err(format!("the bundle carries no FORMAT_ONNX artifact in {} {purpose}", dtype_name(dtype))),
         Some([one]) => Ok(one.clone()),
         Some(_) => Err("the bundle's FORMAT_ONNX artifact is not one file".into()),
+    }
+}
+
+fn dtype_name(d: Option<Dtype>) -> &'static str {
+    match d {
+        None => "the upstream graph's types",
+        Some(Dtype::F32) => "DTYPE_F32",
+        Some(Dtype::F16) => "DTYPE_F16",
+        Some(Dtype::Bf16) => "DTYPE_BF16",
+        Some(Dtype::I8) => "DTYPE_I8",
+        Some(Dtype::I32) => "DTYPE_I32",
     }
 }
 
