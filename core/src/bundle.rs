@@ -1,14 +1,15 @@
 //! Opening a bundle directory: loader rules 1 to 4 of docs/bundle.md, and
 //! the verified read every later rule opens files through.
 
+use std::alloc::Layout;
 use std::fs;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
 use crate::manifest::Manifest;
-use crate::status::{BUNDLE_INTEGRITY, BUNDLE_NOT_FOUND, Error, Result, invalid};
+use crate::status::{BUNDLE_INTEGRITY, BUNDLE_NOT_FOUND, Error, OUT_OF_MEMORY, Result, invalid};
 
 pub struct Bundle {
     /// The directory's canonical path; every file must resolve under it.
@@ -41,6 +42,28 @@ impl Bundle {
     /// resolves inside the bundle and matches its size and hash. The bytes
     /// returned are the bytes hashed.
     pub fn read_verified(&self, rel: &str) -> Result<Vec<u8>> {
+        let (mut file, size) = self.open_listed(rel)?;
+        let mut bytes = vec![0u8; usize::try_from(size).map_err(|_| too_big(rel, size))?];
+        read_all(rel, &mut file, &mut bytes)?;
+        self.check_hash(rel, &bytes)?;
+        Ok(bytes)
+    }
+
+    /// As read_verified, into memory that starts on a 64-byte boundary, so
+    /// that a tensor at an offset that is a multiple of its element size is
+    /// aligned for that element.
+    pub fn read_verified_aligned(&self, rel: &str) -> Result<AlignedBytes> {
+        let (mut file, size) = self.open_listed(rel)?;
+        let mut bytes = AlignedBytes::zeroed(usize::try_from(size).map_err(|_| too_big(rel, size))?)
+            .ok_or_else(|| Error::new(OUT_OF_MEMORY, format!("{rel}: {size} bytes of host memory")))?;
+        read_all(rel, &mut file, &mut bytes)?;
+        self.check_hash(rel, &bytes)?;
+        Ok(bytes)
+    }
+
+    /// The file `rel` names, open, once it is known to resolve inside the
+    /// bundle, to be a regular file and to have the size the manifest says.
+    fn open_listed(&self, rel: &str) -> Result<(fs::File, u64)> {
         let entry = self.manifest.file(rel);
         let joined = self.dir.join(rel);
         let real = match fs::canonicalize(&joined) {
@@ -63,28 +86,85 @@ impl Bundle {
         if !real.is_file() {
             return Err(invalid(format!("{rel} is not a regular file")));
         }
-        let size = fs::metadata(&real).map_err(|e| invalid(format!("{rel}: {e}")))?.len();
+        let file = fs::File::open(&real).map_err(|e| invalid(format!("{rel}: {e}")))?;
+        let size = file.metadata().map_err(|e| invalid(format!("{rel}: {e}")))?.len();
         if size != entry.size {
             return Err(Error::new(
                 BUNDLE_INTEGRITY,
                 format!("{rel}: size is {size}, the manifest says {}", entry.size),
             ));
         }
-        let bytes = fs::read(&real).map_err(|e| invalid(format!("{rel}: {e}")))?;
-        if bytes.len() as u64 != entry.size {
-            return Err(Error::new(
-                BUNDLE_INTEGRITY,
-                format!("{rel}: size is {}, the manifest says {}", bytes.len(), entry.size),
-            ));
+        Ok((file, size))
+    }
+
+    fn check_hash(&self, rel: &str, bytes: &[u8]) -> Result<()> {
+        let want = &self.manifest.file(rel).sha256;
+        let hash = sha256_hex(bytes);
+        if hash != *want {
+            return Err(Error::new(BUNDLE_INTEGRITY, format!("{rel}: SHA-256 is {hash}, the manifest says {want}")));
         }
-        let hash = sha256_hex(&bytes);
-        if hash != entry.sha256 {
-            return Err(Error::new(
-                BUNDLE_INTEGRITY,
-                format!("{rel}: SHA-256 is {hash}, the manifest says {}", entry.sha256),
-            ));
-        }
-        Ok(bytes)
+        Ok(())
+    }
+}
+
+fn too_big(rel: &str, size: u64) -> Error {
+    Error::new(OUT_OF_MEMORY, format!("{rel}: {size} bytes is more than the host can address"))
+}
+
+/// Fill `buf` from `file`, which must then be at its end: a file that
+/// grew or shrank since its size was read is not the file that was sized.
+fn read_all(rel: &str, file: &mut fs::File, buf: &mut [u8]) -> Result<()> {
+    let changed = || Error::new(BUNDLE_INTEGRITY, format!("{rel}: changed size while it was read"));
+    file.read_exact(buf)
+        .map_err(|e| if e.kind() == ErrorKind::UnexpectedEof { changed() } else { invalid(format!("{rel}: {e}")) })?;
+    let mut more = [0u8; 1];
+    match file.read(&mut more) {
+        Ok(0) => Ok(()),
+        Ok(_) => Err(changed()),
+        Err(e) => Err(invalid(format!("{rel}: {e}"))),
+    }
+}
+
+/// Bytes on a 64-byte boundary: a cache line, and the widest alignment any
+/// element type asks for.
+pub struct AlignedBytes {
+    ptr: std::ptr::NonNull<u8>,
+    len: usize,
+}
+
+const ALIGN: usize = 64;
+
+// Plain owned bytes.
+unsafe impl Send for AlignedBytes {}
+unsafe impl Sync for AlignedBytes {}
+
+impl AlignedBytes {
+    /// `len` zero bytes, or None when the host cannot give them.
+    pub fn zeroed(len: usize) -> Option<AlignedBytes> {
+        // A zero-sized allocation is not allowed; one byte stands in.
+        let layout = Layout::from_size_align(len.max(1), ALIGN).ok()?;
+        let ptr = std::ptr::NonNull::new(unsafe { std::alloc::alloc_zeroed(layout) })?;
+        Some(AlignedBytes { ptr, len })
+    }
+}
+
+impl Drop for AlignedBytes {
+    fn drop(&mut self) {
+        let layout = Layout::from_size_align(self.len.max(1), ALIGN).expect("made with this layout");
+        unsafe { std::alloc::dealloc(self.ptr.as_ptr(), layout) };
+    }
+}
+
+impl std::ops::Deref for AlignedBytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+    }
+}
+
+impl std::ops::DerefMut for AlignedBytes {
+    fn deref_mut(&mut self) -> &mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
     }
 }
 

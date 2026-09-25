@@ -218,11 +218,11 @@ this form before it is written or loaded.
 | `model.license` | string | yes | SPDX identifier. Nothing is redistributed without one. |
 | `model.license_file` | path | no | The licence text. |
 | `task` | enum | yes | `TASK_EMBED`. Names the task block that follows. Any other `TASK_*` name is a task this build does not have. |
-| `embed.dim`, `.pooling`, `.normalize` | uint32, enum | yes | Vector width; what `TURBO_POOLING_MODEL` and `TURBO_NORMALIZE_MODEL` mean. |
+| `embed.dim`, `.pooling`, `.normalize` | uint32, enum | yes | Vector width; what `TURBO_POOLING_MODEL` and `TURBO_NORMALIZE_MODEL` mean. With an `architecture`, `dim` equals `architecture.hidden`: the vectors are pooled hidden states. |
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
-| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to. Any other `output_dim` is refused. |
+| `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to. Any other `output_dim` is refused. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged. Its hash is `tokenizer_sha256`. |
 | `tokenizer.normalizer.*` | bool, enum | yes | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. |
 | `tokenizer.wordpiece`, `.bpe`, `.unigram` | message | one of | The kind and its parameters. Only wordpiece is defined in this cut. |
@@ -236,8 +236,8 @@ this form before it is written or loaded.
 | `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |
 | `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. |
-| `artifacts[].compute_dtype` | enum | no | Fixed by the compilation. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
-| `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. |
+| `artifacts[].compute_dtype` | enum | no | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
+| `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. |
 | `artifacts[].host_weights` | string | when input is embeddings | The artifact whose embedding tensors the host lookup uses. |
 | `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. |
 | `artifacts[].produced_by` | message | no | Absent means the upstream file, unchanged. |
@@ -284,7 +284,11 @@ Status codes are the header's `TURBO_E_*`.
    hashed.
 8. For raw weights, every tensor the `tensor_names` map implies must
    exist with the shape the architecture implies (`[out, in]` for a
-   linear layer), else `BUNDLE_INVALID` naming the tensor.
+   linear layer), be `F32`, `F16` or `BF16` with every such tensor the
+   same, and start at a byte offset in its file that is a multiple of its
+   element size; each file's header length is a multiple of 8. Else
+   `BUNDLE_INVALID` naming the tensor or the file. Tensors the model does
+   not use are not checked.
 9. A vendor load failure is `RUNTIME` with the vendor's text.
 
 A size mismatch or a hash mismatch is `BUNDLE_INTEGRITY`, naming the
@@ -299,7 +303,8 @@ On a fixed-shape artifact, `turbo_model_info` reports the smaller
 with `CAPACITY` rather than being cut differently on one device.
 
 The artifact hash reported for a multi-file artifact is the SHA-256 of
-the files' hashes concatenated in listed order.
+the files' hashes, as the 64 hex digits `files` gives each, concatenated
+in listed order with nothing between.
 
 ## Bundles without their weights
 

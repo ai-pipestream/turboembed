@@ -853,6 +853,7 @@ dependencies = [
  "serde_path_to_error",
  "sha2",
  "tokenizers",
+ "turbo",
  "unicode-normalization-alignments",
  "unicode_categories",
 ]

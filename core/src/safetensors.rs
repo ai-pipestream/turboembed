@@ -11,14 +11,28 @@ use crate::status::{Result, invalid};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dtype {
     I32,
+    F16,
+    Bf16,
     F32,
     Other,
 }
 
 impl Dtype {
-    fn size(self) -> Option<usize> {
+    /// The safetensors header's spelling.
+    pub fn name(self) -> &'static str {
+        match self {
+            Dtype::I32 => "I32",
+            Dtype::F16 => "F16",
+            Dtype::Bf16 => "BF16",
+            Dtype::F32 => "F32",
+            Dtype::Other => "other",
+        }
+    }
+
+    pub fn size(self) -> Option<usize> {
         match self {
             Dtype::I32 | Dtype::F32 => Some(4),
+            Dtype::F16 | Dtype::Bf16 => Some(2),
             Dtype::Other => None,
         }
     }
@@ -26,6 +40,8 @@ impl Dtype {
 
 pub struct Tensor<'a> {
     pub dtype: Dtype,
+    /// The dtype as the header writes it, whether or not this build reads it.
+    pub dtype_name: String,
     pub shape: Vec<u64>,
     pub data: &'a [u8],
 }
@@ -65,6 +81,11 @@ impl<'a> File<'a> {
         if n > body.len() as u64 {
             return Err(bad(format!("header length {n} is past the end of the file")));
         }
+        // Every writer pads the header to 8 bytes, so the data starts
+        // aligned for any element type.
+        if !n.is_multiple_of(8) {
+            return Err(bad(format!("header length {n} is not a multiple of 8")));
+        }
         let (header, data) = body.split_at(n as usize);
         let raw: BTreeMap<String, serde_json::Value> =
             serde_json::from_slice(header).map_err(|e| bad(format!("header: {e}")))?;
@@ -76,6 +97,8 @@ impl<'a> File<'a> {
             let e: Entry = serde_json::from_value(v).map_err(|e| bad(format!("{key}: {e}")))?;
             let dtype = match e.dtype.as_str() {
                 "I32" => Dtype::I32,
+                "F16" => Dtype::F16,
+                "BF16" => Dtype::Bf16,
                 "F32" => Dtype::F32,
                 _ => Dtype::Other,
             };
@@ -90,9 +113,14 @@ impl<'a> File<'a> {
                 }
             }
             let data = &data[begin as usize..end as usize];
-            tensors.insert(key, Tensor { dtype, shape: e.shape, data });
+            tensors.insert(key, Tensor { dtype, dtype_name: e.dtype, shape: e.shape, data });
         }
         Ok(File { name: name.to_owned(), tensors })
+    }
+
+    /// The tensor `key`, if the file has it.
+    pub fn tensor(&self, key: &str) -> Option<&Tensor<'a>> {
+        self.tensors.get(key)
     }
 
     /// The tensor `key`, which must have `dtype` and `ndim` dimensions.
@@ -100,8 +128,11 @@ impl<'a> File<'a> {
         let t = self.tensors.get(key).ok_or_else(|| invalid(format!("{}: no tensor {key:?}", self.name)))?;
         if t.dtype != dtype || t.shape.len() != ndim {
             return Err(invalid(format!(
-                "{}: {key} is not {dtype:?} with {ndim} dimensions (shape {:?})",
-                self.name, t.shape
+                "{}: {key} is not {} with {ndim} dimensions ({} {:?})",
+                self.name,
+                dtype.name(),
+                t.dtype_name,
+                t.shape
             )));
         }
         Ok(t)

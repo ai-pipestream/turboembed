@@ -117,16 +117,17 @@ fn an_unknown_task_or_precision_is_refused() {
 }
 
 #[test]
-fn the_cpu_says_embed_is_not_built_and_why() {
+fn the_cpu_runs_embed_unmeasured_in_f32() {
     let rt = Rt::new();
     let i = cpu(&rt);
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
         let cap = rt.capability(i, TURBO_TASK_EMBED, p).unwrap();
-        assert_eq!(cap.status, backend::TURBO_CAP_UNSUPPORTED);
-        assert!(!s(&cap.reason).is_empty(), "an unsupported cell says why");
+        assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "it runs; no record measures it");
+        assert_eq!(s(&cap.reason), "no benchmark record for this cell");
         assert_eq!(s(&cap.benchmark), "", "no record backs it");
         assert_eq!((cap.cosine_floor, cap.speed_ratio), (0.0, 0.0), "no numbers without a record");
-        assert_eq!((cap.dtype, cap.options_honored), (0, 0), "a cell that does not run computes in nothing");
+        assert_eq!(cap.dtype, TURBO_DTYPE_F32, "FASTEST too: F32 is the one dtype it computes in");
+        assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");
     }
 }
 
@@ -139,7 +140,8 @@ fn selection_never_picks_a_cpu_and_says_why() {
     let rc = unsafe {
         turbo_runtime_select(rt.0, TURBO_TASK_EMBED, &mut pick, reason.as_mut_ptr(), reason.len() as u32, &mut err)
     };
-    // This build links only the cpu backend, so nothing can be selected.
+    // This build links only the cpu backend, so nothing can be selected,
+    // though the cpu runs the task.
     assert_eq!(rc, status::DEVICE_NOT_FOUND);
     assert_eq!(pick, 99, "out is untouched on failure");
     assert!(s(&reason).contains("a CPU is never selected"), "{}", s(&reason));
@@ -157,7 +159,7 @@ fn device_info_is_read_at_query_time() {
     let (mut a, mut b) = (rt.info(i).unwrap(), rt.info(i).unwrap());
     let mut free = Vec::new();
     for _ in 0..50 {
-        let _held = vec![1u8; 64 << 20];
+        let _held = std::hint::black_box(vec![1u8; 64 << 20]);
         free.push(rt.info(i).unwrap().memory_free);
     }
     if cfg!(target_os = "linux") {

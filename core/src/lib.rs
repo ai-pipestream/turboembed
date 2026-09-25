@@ -1,8 +1,9 @@
 //! libturbo: the C interface in include/turbo/turbo.h.
 //!
-//! This cut has the runtime handle, status names and the tokenizer. The
-//! types below mirror the header's; tests/abi.rs checks their layout
-//! against a C compiler's.
+//! This cut has the runtime handle, status names, contexts, buffers,
+//! models, the tokenizer, and embed sessions and their results. The types
+//! below mirror the header's; tests/abi.rs checks their layout against a
+//! C compiler's.
 
 #![allow(non_camel_case_types)]
 
@@ -16,13 +17,20 @@ pub mod bundle;
 #[cfg(feature = "cpu")]
 pub mod cpu;
 pub mod manifest;
+pub mod model;
 pub mod safetensors;
+mod session;
 pub mod status;
 pub mod tokenizer;
 
+pub use session::*;
+
 use backend::cstr;
 use manifest::{PromptRole, Truncation};
-use status::{Error, INVALID_ARGUMENT, INVALID_ENUM, INVALID_HANDLE, INVALID_STRUCT_SIZE, INVALID_UTF8, PANIC, Result};
+use status::{
+    Error, INVALID_ARGUMENT, INVALID_ENUM, INVALID_HANDLE, INVALID_SHAPE, INVALID_STRUCT_SIZE, INVALID_UTF8, PANIC,
+    Result,
+};
 use tokenizer::{Encode, Tokenizer};
 
 pub const TURBO_ERROR_MESSAGE_LEN: usize = 496;
@@ -39,6 +47,18 @@ pub const TURBO_DTYPE_F16: u32 = 10;
 pub const TURBO_DTYPE_BF16: u32 = 11;
 pub const TURBO_DTYPE_F32: u32 = 12;
 
+pub const TURBO_PLACE_HOST: u32 = 1;
+pub const TURBO_PLACE_PINNED: u32 = 2;
+pub const TURBO_PLACE_DEVICE: u32 = 3;
+pub const TURBO_PLACE_SHARED: u32 = 4;
+
+pub const TURBO_HANDLE_HOST_PTR: u32 = 1;
+pub const TURBO_HANDLE_CUDA_PTR: u32 = 2;
+pub const TURBO_HANDLE_CL_MEM: u32 = 3;
+pub const TURBO_HANDLE_ZE_USM: u32 = 4;
+pub const TURBO_HANDLE_MTL_BUFFER: u32 = 5;
+pub const TURBO_HANDLE_DMABUF_FD: u32 = 6;
+
 pub const TURBO_PRECISION_MODEL: u32 = 0;
 pub const TURBO_PRECISION_FASTEST: u32 = 1;
 pub const TURBO_PRECISION_EXACT: u32 = 2;
@@ -51,6 +71,31 @@ pub const TURBO_TRUNCATE_LEFT: u32 = 3;
 pub const TURBO_PROMPT_NONE: u32 = 0;
 pub const TURBO_PROMPT_QUERY: u32 = 1;
 pub const TURBO_PROMPT_DOCUMENT: u32 = 2;
+
+pub const TURBO_NORMALIZE_MODEL: u32 = 0;
+pub const TURBO_NORMALIZE_NONE: u32 = 1;
+pub const TURBO_NORMALIZE_L2: u32 = 2;
+
+pub const TURBO_POOLING_MODEL: u32 = 0;
+pub const TURBO_POOLING_MEAN: u32 = 1;
+pub const TURBO_POOLING_CLS: u32 = 2;
+pub const TURBO_POOLING_LAST: u32 = 3;
+
+pub const TURBO_STAGE_MAX: usize = 16;
+
+pub const TURBO_EMBED_STAGE_TOKENIZE: usize = 0;
+pub const TURBO_EMBED_STAGE_UPLOAD: usize = 1;
+pub const TURBO_EMBED_STAGE_LOOKUP: usize = 2;
+pub const TURBO_EMBED_STAGE_ENCODE: usize = 3;
+pub const TURBO_EMBED_STAGE_POOL: usize = 4;
+pub const TURBO_EMBED_STAGE_NORMALIZE: usize = 5;
+pub const TURBO_EMBED_STAGE_DOWNLOAD: usize = 6;
+pub const TURBO_EMBED_STAGE_COUNT: usize = 7;
+
+pub const TURBO_STAGE_UNUSED: u32 = 0;
+pub const TURBO_STAGE_HOST: u32 = 1;
+pub const TURBO_STAGE_DEVICE: u32 = 2;
+pub const TURBO_STAGE_FUSED: u32 = 3;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -108,6 +153,47 @@ pub struct turbo_capability {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct turbo_native_handle {
+    pub struct_size: u32,
+    pub kind: u32,
+    pub handle: u64,
+    pub aux: u64,
+    pub offset: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct turbo_buffer_desc {
+    pub struct_size: u32,
+    pub placement: u32,
+    pub dtype: u32,
+    pub ndim: u32,
+    pub shape: [u64; 2],
+    pub bytes: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct turbo_model_info {
+    pub struct_size: u32,
+    pub task: u32,
+    pub dim: u32,
+    pub pooling: u32,
+    pub normalize: u32,
+    pub max_seq: u32,
+    pub max_batch: u32,
+    pub dtype: u32,
+    pub model_id: [c_char; 128],
+    pub revision: [c_char; 64],
+    pub manifest_sha256: [c_char; 72],
+    pub artifact_sha256: [c_char; 72],
+    pub tokenizer_sha256: [c_char; 72],
+    pub prefix_query: [c_char; 128],
+    pub prefix_document: [c_char; 128],
+}
+
+#[repr(C)]
 pub struct turbo_tokenizer_info {
     pub struct_size: u32,
     pub vocab_size: u32,
@@ -135,6 +221,9 @@ pub struct turbo_encode_options {
 
 const RUNTIME_MAGIC: u64 = 0x7475_7262_6f72_7431; // "turbort1"
 const TOKENIZER_MAGIC: u64 = 0x7475_7262_6f74_6b31; // "turbotk1"
+const CONTEXT_MAGIC: u64 = 0x7475_7262_6f63_7431; // "turboct1"
+const BUFFER_MAGIC: u64 = 0x7475_7262_6f62_6631; // "turbobf1"
+const MODEL_MAGIC: u64 = 0x7475_7262_6f6d_6431; // "turbomd1"
 
 struct Runtime {
     log: turbo_log_fn,
@@ -218,7 +307,11 @@ impl Runtime {
                 cap.dtype = 0;
                 cap.options_honored = 0;
             }
-            backend::TURBO_CAP_EXPERIMENTAL => write_str(&mut cap.reason, "no benchmark record for this cell"),
+            backend::TURBO_CAP_EXPERIMENTAL => {
+                write_str(&mut cap.reason, "no benchmark record for this cell");
+                // The options the core applies before a backend sees the rows.
+                cap.options_honored |= session::CORE_HONORED;
+            }
             s => {
                 return Err(Error::new(
                     status::INTERNAL,
@@ -258,6 +351,80 @@ unsafe fn runtime<'a>(rt: *mut turbo_runtime) -> Result<&'a turbo_runtime> {
     match unsafe { rt.as_ref() } {
         Some(r) if r.magic == RUNTIME_MAGIC => Ok(r),
         _ => Err(Error::new(INVALID_HANDLE, "not a turbo_runtime")),
+    }
+}
+
+/// A device's context: the backend's own, released when the last handle,
+/// buffer or model holding it goes.
+struct Context {
+    runtime: Arc<Runtime>,
+    device: u32,
+    backend: &'static backend::turbo_backend,
+    raw: *mut c_void,
+    release: unsafe extern "C" fn(*mut c_void),
+}
+
+// turbo_backend.h: every function in the table may be called from any
+// thread, and what the context points to is the backend's.
+unsafe impl Send for Context {}
+unsafe impl Sync for Context {}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        unsafe { (self.release)(self.raw) };
+    }
+}
+
+pub struct turbo_context {
+    magic: u64,
+    inner: Arc<Context>,
+}
+
+/// A buffer the backend made or wrapped, or a result's output. It holds
+/// its context, so the backend's buffer is released before the backend's
+/// context.
+struct Buffer {
+    context: Arc<Context>,
+    desc: turbo_buffer_desc,
+    raw: *mut c_void,
+    host: *mut c_void,
+    release: Release,
+}
+
+/// What releasing a buffer does.
+enum Release {
+    /// The backend's buffer, released through its table.
+    Backend(unsafe extern "C" fn(*mut c_void)),
+    /// A session's output, which the session owns: the buffer holds the
+    /// result, and releasing it lets the result go.
+    Result(Arc<session::SessionInner>),
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        match &self.release {
+            Release::Backend(release) => unsafe { release(self.raw) },
+            Release::Result(s) => s.let_go(),
+        }
+    }
+}
+
+pub struct turbo_buffer {
+    magic: u64,
+    inner: Buffer,
+}
+
+unsafe fn context<'a>(c: *mut turbo_context) -> Result<&'a turbo_context> {
+    match unsafe { c.as_ref() } {
+        Some(r) if r.magic == CONTEXT_MAGIC => Ok(r),
+        _ => Err(Error::new(INVALID_HANDLE, "not a turbo_context")),
+    }
+}
+
+unsafe fn buffer<'a>(b: *mut turbo_buffer) -> Result<&'a turbo_buffer> {
+    match unsafe { b.as_ref() } {
+        Some(r) if r.magic == BUFFER_MAGIC => Ok(r),
+        _ => Err(Error::new(INVALID_HANDLE, "not a turbo_buffer")),
     }
 }
 
@@ -546,6 +713,443 @@ pub unsafe extern "C" fn turbo_runtime_release(rt: *mut turbo_runtime) {
         let mut b = unsafe { Box::from_raw(rt) };
         b.magic = 0;
     }
+}
+
+// ---- Context and buffers ---------------------------------------------------------
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_context_create(
+    rt: *mut turbo_runtime,
+    device: u32,
+    out: *mut *mut turbo_context,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let rt = runtime(rt)?;
+            let out = out_ptr(out, "out")?;
+            let d = rt.inner.device(device)?;
+            let b = d.backend;
+            let create = backend::offered!(b, context_create)?;
+            let release = backend::offered!(b, context_release)?;
+            let mut raw = std::ptr::null_mut();
+            let user = rt.inner.log_user_data as *mut c_void;
+            backend::check(b, "context_create", |err| create(d.ordinal, rt.inner.log, user, &mut raw, err))?;
+            let inner = Context { runtime: rt.inner.clone(), device, backend: b, raw, release };
+            *out = Box::into_raw(Box::new(turbo_context { magic: CONTEXT_MAGIC, inner: Arc::new(inner) }));
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// `ctx` is NULL or a handle from turbo_context_create, released once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_context_release(ctx: *mut turbo_context) {
+    if unsafe { context(ctx) }.is_ok() {
+        let mut b = unsafe { Box::from_raw(ctx) };
+        b.magic = 0;
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_context_device(ctx: *mut turbo_context, out: *mut u32, err: *mut turbo_error) -> i32 {
+    unsafe {
+        call(err, || {
+            let ctx = context(ctx)?;
+            *out_ptr(out, "out")? = ctx.inner.device;
+            Ok(())
+        })
+    }
+}
+
+fn dtype_size(dtype: u32) -> Option<u64> {
+    match dtype {
+        TURBO_DTYPE_I32 | TURBO_DTYPE_F32 => Some(4),
+        TURBO_DTYPE_F16 | TURBO_DTYPE_BF16 => Some(2),
+        _ => None,
+    }
+}
+
+/// The caller's desc as a backend gets it: every field checked, and bytes
+/// filled in from shape and dtype.
+unsafe fn buffer_desc(desc: *const turbo_buffer_desc) -> Result<turbo_buffer_desc> {
+    let d = *unsafe { desc.as_ref() }.ok_or_else(|| Error::new(INVALID_ARGUMENT, "desc is NULL"))?;
+    sized(d.struct_size, size_of::<turbo_buffer_desc>(), "turbo_buffer_desc")?;
+    if !(TURBO_PLACE_HOST..=TURBO_PLACE_SHARED).contains(&d.placement) {
+        return Err(Error::new(INVALID_ENUM, format!("placement: {} is not a TURBO_PLACE_* value", d.placement)));
+    }
+    let size = dtype_size(d.dtype)
+        .ok_or_else(|| Error::new(INVALID_ENUM, format!("dtype: {} is not a TURBO_DTYPE_* value", d.dtype)))?;
+    // Entries past ndim are not read, and the backend sees them as 0.
+    let mut d = d;
+    if d.ndim == 1 {
+        d.shape[1] = 0;
+    }
+    let dims = match d.ndim {
+        1 => &d.shape[..1],
+        2 => &d.shape[..],
+        n => return Err(Error::new(INVALID_SHAPE, format!("ndim is {n}, not 1 or 2"))),
+    };
+    if let Some(i) = dims.iter().position(|&n| n == 0) {
+        return Err(Error::new(INVALID_SHAPE, format!("shape[{i}] is 0")));
+    }
+    let bytes = dims.iter().try_fold(size, |a, &n| a.checked_mul(n)).ok_or_else(|| {
+        Error::new(INVALID_SHAPE, format!("shape {dims:?} of {size}-byte elements is past 2^64 bytes"))
+    })?;
+    if d.bytes != 0 && d.bytes != bytes {
+        return Err(Error::new(INVALID_ARGUMENT, format!("bytes is {}, shape and dtype make {bytes}", d.bytes)));
+    }
+    Ok(turbo_buffer_desc { bytes, ..d })
+}
+
+/// Wrap what the backend returned. Host memory has a host address; device
+/// memory has none.
+fn new_buffer(
+    ctx: &turbo_context,
+    desc: turbo_buffer_desc,
+    raw: *mut c_void,
+    host: *mut c_void,
+    release: unsafe extern "C" fn(*mut c_void),
+    out: &mut *mut turbo_buffer,
+) -> Result<()> {
+    let inner = Buffer { context: ctx.inner.clone(), desc, raw, host, release: Release::Backend(release) };
+    let device = desc.placement == TURBO_PLACE_DEVICE;
+    if host.is_null() != device {
+        let b = ctx.inner.backend.name();
+        return Err(Error::new(
+            status::INTERNAL,
+            format!("{b} backend: placement {} came back with host address {host:?}", desc.placement),
+        ));
+    }
+    *out = Box::into_raw(Box::new(turbo_buffer { magic: BUFFER_MAGIC, inner }));
+    Ok(())
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_alloc(
+    ctx: *mut turbo_context,
+    desc: *const turbo_buffer_desc,
+    out: *mut *mut turbo_buffer,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let ctx = context(ctx)?;
+            let out = out_ptr(out, "out")?;
+            let desc = buffer_desc(desc)?;
+            let b = ctx.inner.backend;
+            let alloc = backend::offered!(b, buffer_alloc)?;
+            let release = backend::offered!(b, buffer_release)?;
+            let (mut raw, mut host) = (std::ptr::null_mut(), std::ptr::null_mut());
+            backend::check(b, "buffer_alloc", |err| alloc(ctx.inner.raw, &desc, &mut raw, &mut host, err))?;
+            new_buffer(ctx, desc, raw, host, release, out)
+        })
+    }
+}
+
+fn handle_kind(kind: u32) -> Result<u32> {
+    if !(TURBO_HANDLE_HOST_PTR..=TURBO_HANDLE_DMABUF_FD).contains(&kind) {
+        return Err(Error::new(INVALID_ENUM, format!("kind: {kind} is not a TURBO_HANDLE_* value")));
+    }
+    Ok(kind)
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says; the memory
+/// `handle` names holds the buffer's bytes while the buffer is in use.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_import(
+    ctx: *mut turbo_context,
+    desc: *const turbo_buffer_desc,
+    handle: *const turbo_native_handle,
+    out: *mut *mut turbo_buffer,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let ctx = context(ctx)?;
+            let out = out_ptr(out, "out")?;
+            let desc = buffer_desc(desc)?;
+            let handle = *handle.as_ref().ok_or_else(|| Error::new(INVALID_ARGUMENT, "handle is NULL"))?;
+            sized(handle.struct_size, size_of::<turbo_native_handle>(), "turbo_native_handle")?;
+            handle_kind(handle.kind)?;
+            let b = ctx.inner.backend;
+            let import = backend::offered!(b, buffer_import)?;
+            let release = backend::offered!(b, buffer_release)?;
+            let (mut raw, mut host) = (std::ptr::null_mut(), std::ptr::null_mut());
+            backend::check(b, "buffer_import", |err| import(ctx.inner.raw, &desc, &handle, &mut raw, &mut host, err))?;
+            new_buffer(ctx, desc, raw, host, release, out)
+        })
+    }
+}
+
+/// # Safety
+/// `buf` is NULL or a handle from turbo_buffer_alloc or turbo_buffer_import,
+/// released once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_release(buf: *mut turbo_buffer) {
+    if unsafe { buffer(buf) }.is_ok() {
+        let mut b = unsafe { Box::from_raw(buf) };
+        b.magic = 0;
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_get_desc(
+    buf: *mut turbo_buffer,
+    out: *mut turbo_buffer_desc,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let buf = buffer(buf)?;
+            let out = out_ptr(out, "out")?;
+            sized(out.struct_size, size_of::<turbo_buffer_desc>(), "turbo_buffer_desc")?;
+            *out = buf.inner.desc;
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_host_ptr(
+    buf: *mut turbo_buffer,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let buf = &buffer(buf)?.inner;
+            let out = out_ptr(out, "out")?;
+            if buf.desc.placement == TURBO_PLACE_DEVICE {
+                return Err(Error::new(status::UNSUPPORTED, "a DEVICE buffer has no host pointer"));
+            }
+            *out = buf.host;
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_buffer_export(
+    buf: *mut turbo_buffer,
+    kind: u32,
+    out: *mut turbo_native_handle,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let buf = &buffer(buf)?.inner;
+            let out = out_ptr(out, "out")?;
+            sized(out.struct_size, size_of::<turbo_native_handle>(), "turbo_native_handle")?;
+            handle_kind(kind)?;
+            let b = buf.context.backend;
+            let export = backend::offered!(b, buffer_export)?;
+            let mut h: turbo_native_handle = std::mem::zeroed();
+            backend::check(b, "buffer_export", |err| export(buf.raw, kind, &mut h, err))?;
+            h.struct_size = size_of::<turbo_native_handle>() as u32;
+            *out = h;
+            Ok(())
+        })
+    }
+}
+
+// ---- Model -----------------------------------------------------------------------
+
+/// A bundle loaded on a context's device. It holds its context, so the
+/// backend's model is released before the backend's context.
+struct Model {
+    context: Arc<Context>,
+    raw: *mut c_void,
+    release: unsafe extern "C" fn(*mut c_void),
+    /// The core's one verified host copy of the weights. A backend with its
+    /// own memory copied them there at load; the CPU backend reads them
+    /// here, in place, so they live exactly as long as the backend's model.
+    weights: model::Weights,
+    /// The bundle's tokenizer, checked against its reference at load, for
+    /// turbo_embed_write_text.
+    tokenizer: Tokenizer,
+    info: turbo_model_info,
+    /// The widths embed.output_dims allows besides dim.
+    output_dims: Vec<u32>,
+}
+
+// As for Context: the backend's model may be used from any thread.
+unsafe impl Send for Model {}
+unsafe impl Sync for Model {}
+
+impl Drop for Model {
+    fn drop(&mut self) {
+        // The weights and the context are dropped after this, with the
+        // struct's fields.
+        unsafe { (self.release)(self.raw) };
+    }
+}
+
+pub struct turbo_model {
+    magic: u64,
+    inner: Arc<Model>,
+}
+
+unsafe fn model_handle<'a>(m: *mut turbo_model) -> Result<&'a turbo_model> {
+    match unsafe { m.as_ref() } {
+        Some(r) if r.magic == MODEL_MAGIC => Ok(r),
+        _ => Err(Error::new(INVALID_HANDLE, "not a turbo_model")),
+    }
+}
+
+/// docs/bundle.md's loader rules, in order, for the context's device.
+fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
+    let c = &ctx.inner;
+    let b = c.backend;
+    let load = backend::offered!(b, model_load)?;
+    let release = backend::offered!(b, model_release)?;
+    let bundle = bundle::Bundle::open(Path::new(path))?; // rules 1 to 4
+    let tokenizer = Tokenizer::load(&bundle)?; // rule 5
+    let m = &bundle.manifest;
+    let arch = cstr(&c.runtime.devices[c.device as usize].info.arch);
+    let index = model::choose(m, b.name(), &arch)?; // rule 6
+    let weights = model::Weights::load(&bundle, index)?; // rules 7 and 8
+    let art = &m.artifacts[index];
+
+    let e = m.embed();
+    let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
+    info.struct_size = size_of::<turbo_model_info>() as u32;
+    info.task = TURBO_TASK_EMBED;
+    info.dim = e.dim;
+    info.pooling = match e.pooling {
+        manifest::Pooling::Mean => TURBO_POOLING_MEAN,
+        manifest::Pooling::Cls => TURBO_POOLING_CLS,
+        manifest::Pooling::Last => TURBO_POOLING_LAST,
+    };
+    info.normalize = match e.normalize {
+        manifest::Normalize::None => TURBO_NORMALIZE_NONE,
+        manifest::Normalize::L2 => TURBO_NORMALIZE_L2,
+    };
+    // A fixed-shape artifact reports the smaller of its shape and the model's.
+    let fixed = |model: u32, artifact: u32| if artifact == 0 { model } else { model.min(artifact) };
+    info.max_seq = fixed(e.max_seq, art.fixed_seq);
+    info.max_batch = fixed(e.max_batch, art.fixed_batch);
+    // Raw weights fix no compute_dtype (the manifest refuses one), so the
+    // artifact's dtype is the one its weights are stored in.
+    info.dtype = weights.dtype;
+    // The manifest's strings were checked against these buffers when it
+    // was parsed (rule 2), and a hash is 64 hex digits: nothing is cut.
+    write_str(&mut info.model_id, &m.model.id);
+    write_str(&mut info.revision, &m.model.revision);
+    write_str(&mut info.manifest_sha256, &bundle.manifest_sha256);
+    write_str(&mut info.artifact_sha256, &model::artifact_sha256(m, art));
+    write_str(&mut info.tokenizer_sha256, &tokenizer.sha256);
+    write_str(&mut info.prefix_query, &e.prefix_query);
+    write_str(&mut info.prefix_document, &e.prefix_document);
+
+    let tensors = weights.tensors();
+    let desc = weights.desc(&tensors);
+    let mut raw = std::ptr::null_mut();
+    backend::check(b, "model_load", |err| unsafe { load(c.raw, &desc, &mut raw, err) })?; // rule 9
+    let output_dims = e.output_dims.clone();
+    Ok(Model { context: c.clone(), raw, release, weights, tokenizer, info, output_dims })
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_model_load(
+    ctx: *mut turbo_context,
+    bundle_path: turbo_text,
+    out: *mut *mut turbo_model,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let ctx = context(ctx)?;
+            let out = out_ptr(out, "out")?;
+            let path = text(bundle_path, "bundle_path")?;
+            let inner = load_model(ctx, path)?;
+            *out = Box::into_raw(Box::new(turbo_model { magic: MODEL_MAGIC, inner: Arc::new(inner) }));
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// `m` is NULL or a handle from turbo_model_load, released once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_model_release(m: *mut turbo_model) {
+    if unsafe { model_handle(m) }.is_ok() {
+        let mut b = unsafe { Box::from_raw(m) };
+        b.magic = 0;
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_model_get_info(
+    m: *mut turbo_model,
+    out: *mut turbo_model_info,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let m = model_handle(m)?;
+            let out = out_ptr(out, "out")?;
+            sized(out.struct_size, size_of::<turbo_model_info>(), "turbo_model_info")?;
+            *out = m.inner.info;
+            Ok(())
+        })
+    }
+}
+
+/// Where a model's weights are, for the tests that check the CPU backend
+/// holds no copy of its own. Not part of the C interface, and built only
+/// with the `internals` feature.
+#[cfg(feature = "internals")]
+pub struct ModelWeights<'a> {
+    /// The core's verified bytes of each weights file.
+    pub files: Vec<&'a [u8]>,
+    /// On the CPU backend, the address of each tensor the backend keeps.
+    pub held: Option<Vec<*const c_void>>,
+}
+
+/// # Safety
+/// `m` is a live handle from turbo_model_load, and outlives what is returned.
+#[cfg(feature = "internals")]
+pub unsafe fn model_weights<'a>(m: *mut turbo_model) -> Option<ModelWeights<'a>> {
+    let m = &unsafe { model_handle(m) }.ok()?.inner;
+    #[cfg(feature = "cpu")]
+    let held = std::ptr::eq(m.context.backend, &cpu::BACKEND).then(|| unsafe { cpu::tensor_data(m.raw) });
+    #[cfg(not(feature = "cpu"))]
+    let held = None;
+    Some(ModelWeights { files: m.weights.files(), held })
+}
+
+/// Where the CPU backend's F32 copy of an F16 or BF16 model's weights is,
+/// once a session has made it. Built only with the `internals` feature.
+///
+/// # Safety
+/// As for model_weights.
+#[cfg(feature = "internals")]
+pub unsafe fn model_converted_weights(m: *mut turbo_model) -> Option<Vec<*const c_void>> {
+    let m = &unsafe { model_handle(m) }.ok()?.inner;
+    #[cfg(feature = "cpu")]
+    if std::ptr::eq(m.context.backend, &cpu::BACKEND) {
+        return unsafe { cpu::converted_data(m.raw) };
+    }
+    None
 }
 
 // ---- Tokenizer -----------------------------------------------------------------
