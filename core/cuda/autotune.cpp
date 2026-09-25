@@ -191,6 +191,23 @@ uint32_t gemm_numeric(const Shape &base, const GemmChoice &g) {
     return mma_of(base, g) && f16_accumulates(g.tile) ? TURBO_NUMERIC_F16_CHUNKACC : TURBO_NUMERIC_F16_F32ACC;
 }
 
+uint32_t numerics_of(const Shape &base, const Choices &c) {
+    uint32_t n = 0;
+    for (int b = 0; b < c.bins; b++)
+        for (const GemmChoice &g : c.bin[b].gemm) n |= gemm_numeric(base, g);
+    return n;
+}
+
+std::string numerics_named(uint32_t n) {
+    std::string s;
+    for (uint32_t bit = 1; bit <= TURBO_NUMERIC_F16_CHUNKACC; bit <<= 1)
+        if (n & bit) {
+            if (!s.empty()) s += " and ";
+            s += numeric_name(bit);
+        }
+    return s;
+}
+
 const char *outside(const Shape &base, const Choices &c, uint32_t allowed, char *name, size_t len,
                     const char **numeric) {
     for (int b = 0; b < c.bins; b++)
@@ -235,7 +252,8 @@ size_t format_choices(const Choices &c, char *out, size_t len) {
     return s.size();
 }
 
-bool parse_choices(const char *s, Choices *into, char *why, size_t why_len) {
+bool parse_choices(const char *s, Choices *into, uint32_t *absent, char *why, size_t why_len) {
+    *absent = 0;
     const char *p = s;
     while (*p) {
         const char *item = p;
@@ -268,7 +286,8 @@ bool parse_choices(const char *s, Choices *into, char *why, size_t why_len) {
             if (!eq) return fail(why, why_len, "TURBO_CUDA_CHOICES: no part is", part, m);
             const size_t kn = (size_t)(eq - part), vn = m - kn - 1;
             const char *v = eq + 1;
-            for (int b = all ? 0 : bin; b < (all ? BIN_COUNT : bin + 1); b++) {
+            if (!all && bin >= into->bins) *absent |= 1u << bin;
+            for (int b = all ? 0 : bin; b < (all ? into->bins : bin + 1) && b < into->bins; b++) {
                 BinChoices &bc = into->bin[b];
                 const int g = index_of(GEMM_NAME, part, kn);
                 if (g >= 0) {

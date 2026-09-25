@@ -156,7 +156,9 @@ above, forces the items it names, over them: the line a session
 reported gives a session of the same kernels, so the same bits. It may
 name fewer items (`all:qkv=sw8w/tiles` forces the first GEMM of every
 bin, a GEMM's stream-K may be left out) and leaves the rest as they
-were. An unknown item or value is `TURBO_E_INVALID_ARGUMENT` naming it.
+were. A bin the session does not have is left out, with a DEBUG line,
+so one line forces sessions of any size. An unknown item or value is
+`TURBO_E_INVALID_ARGUMENT` naming it.
 
 A kernel is allowed a precision by the numeric class it computes in:
 F32 FMAs at EXACT and MODEL, F16 operands with F32 sums at FASTEST (and
@@ -166,7 +168,9 @@ either forced through `TURBO_CUDA_CHOICES` is
 `TURBO_E_UNSUPPORTED_OPTION` naming field 3 and the kernel, unless its
 experiment's switch is set for the session (`TURBO_CUDA_TF32=1` at MODEL,
 `TURBO_CUDA_F16_ACCUMULATE=1` at FASTEST), which widens that session's
-set.
+set. A session computes in its precision's classes, and in another only
+where a kernel it chose computes in it: a switch the line overrides
+widens nothing.
 
 The library links the toolkit's shared `libcudart.so.<major>` and
 `libcublas.so.<major>`, with the toolkit's library directory as its run

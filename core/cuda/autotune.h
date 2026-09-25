@@ -12,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 #include "kernels.h"
 
@@ -136,6 +137,13 @@ void canonicalize(const Shape &base, Choices *c);
 /* The TURBO_NUMERIC_* class a GEMM of the choice computes in. */
 uint32_t gemm_numeric(const Shape &base, const GemmChoice &g);
 
+/* The TURBO_NUMERIC_* classes the GEMMs of c compute in, in every bin
+ * that exists. */
+uint32_t numerics_of(const Shape &base, const Choices &c);
+
+/* The classes of n by name, joined by " and ". */
+std::string numerics_named(uint32_t n);
+
 /* NULL when every kernel c chooses computes in a class of allowed, else
  * the name of the first that does not, as the string spells it, and its
  * class's name in *numeric. */
@@ -150,9 +158,11 @@ size_t format_choices(const Choices &c, char *out, size_t len);
 
 /* Fills only the items s names, as format_choices writes them, and sets
  * their forced bits. "all:" names every bin; a GEMM's item may leave out
- * the stream-K, which is then not forced; forced= is ignored. An unknown
- * item or value fails with why naming it. */
-bool parse_choices(const char *s, Choices *into, char *why, size_t why_len);
+ * the stream-K, which is then not forced; forced= is ignored. A bin the
+ * session does not have (into->bins) is left out, its bit set in
+ * *absent: one line forces sessions of any size. An unknown item or
+ * value fails with why naming it. */
+bool parse_choices(const char *s, Choices *into, uint32_t *absent, char *why, size_t why_len);
 
 /* One kernel variant of a GEMM that a session of the shape can force:
  * its name as the string spells a GEMM's tile ("8w", "128x64/tf32"), its

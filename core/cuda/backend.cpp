@@ -1219,7 +1219,8 @@ std::string choices_override;
 
 /* TURBO_CUDA_CHOICES, or the tests' string in its place: the items it
  * names forced over the switches, each where it names it. */
-bool choices_named(Choices *c, char *why, size_t len) {
+bool choices_named(Choices *c, uint32_t *absent, char *why, size_t len) {
+    *absent = 0;
     std::string v;
     {
         std::lock_guard<std::mutex> g(choices_lock);
@@ -1231,7 +1232,7 @@ bool choices_named(Choices *c, char *why, size_t len) {
             v = e;
         }
     }
-    return parse_choices(v.c_str(), c, why, len);
+    return parse_choices(v.c_str(), c, absent, why, len);
 }
 
 /* The numeric classes each precision allows when the core hands none (a
@@ -1724,22 +1725,32 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         bool tf32 = false, f16_accumulate = false;
         forced_from_environment(base, precision, &ch, &tf32, &f16_accumulate);
         char why[TURBO_ERROR_MESSAGE_LEN];
-        if (!choices_named(&ch, why, sizeof why)) return refuse(err, TURBO_E_INVALID_ARGUMENT, "%s", why);
+        uint32_t absent = 0;
+        if (!choices_named(&ch, &absent, why, sizeof why)) return refuse(err, TURBO_E_INVALID_ARGUMENT, "%s", why);
+        for (int b = 0; b < BIN_COUNT; b++)
+            if (absent & (1u << b))
+                c->say(LOG_DEBUG,
+                       "cuda device %d: TURBO_CUDA_CHOICES names %s, a token bin a session of %u x %u does not have",
+                       c->ordinal, BIN_NAME[b], max_batch, max_seq);
         whole_rows(base, &ch);
         canonicalize(base, &ch);
         // The classes the precision allows, as the environment's
         // experiments widen them; the F32 kernels are FASTEST's too, for a
         // model past F16's range.
         const uint32_t allowed = tuning ? tuning->numerics_allowed : default_numerics(precision);
-        const uint32_t used = allowed | (tf32 ? TURBO_NUMERIC_TF32 : 0u) |
+        const uint32_t tier = allowed | (half ? 0u : TURBO_NUMERIC_F32_FMA);
+        const uint32_t runs = tier | (tf32 ? TURBO_NUMERIC_TF32 : 0u) |
                               (f16_accumulate ? TURBO_NUMERIC_F16_CHUNKACC : 0u);
-        const uint32_t runs = used | (half ? 0u : TURBO_NUMERIC_F32_FMA);
         char named[160];
         const char *numeric = nullptr;
         if (outside(base, ch, runs, named, sizeof named, &numeric))
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
                                 "precision %s: %s computes in %s, which the precision does not allow",
                                 precision_name(precision), named, numeric);
+        // What the kernels compute in: the precision's classes, widened
+        // only by a class a chosen kernel runs in beyond them.
+        const uint32_t ran = numerics_of(base, ch);
+        const uint32_t used = allowed | (ran & ~tier);
 
         Session *s = make<Session>();
         s->model = m;
@@ -1859,9 +1870,9 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             return rc;
         }
         c->say(LOG_DEBUG,
-               "cuda device %d: an embed session of %u rows of %u tokens, computing in %s%s; attention %zu bytes of "
-               "shared memory for %d keys at a time",
-               c->ordinal, max_batch, max_seq, half ? "F16 with F32 accumulation" : "F32",
+               "cuda device %d: an embed session of %u rows of %u tokens, its GEMMs computing in %s%s; attention %zu "
+               "bytes of shared memory for %d keys at a time",
+               c->ordinal, max_batch, max_seq, numerics_named(ran).c_str(),
                s->cublas ? ", some GEMMs on cuBLAS, without a graph" : ", as graphs", s->plan[0].attn_smem,
                s->plan[0].attn_chunk);
         if (tuning) {

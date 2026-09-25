@@ -1783,7 +1783,8 @@ fn a_sessions_choices_forced_back_give_its_bits() {
 
 /// Bins forced apart run apart: a batch in the bin up to 256 tokens runs
 /// that bin's kernels, one in another bin the others', each within the
-/// precision's bound of the default and repeating its bits.
+/// precision's bound of the default and repeating its bits. A bin the
+/// session does not have is left out of what it forces.
 #[test]
 fn bins_forced_apart_run_their_own_kernels() {
     let _t = turn();
@@ -1795,12 +1796,17 @@ fn bins_forced_apart_run_their_own_kernels() {
         let own = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
         let tol = record::tolerance(own.info().compute_dtype).unwrap();
         let tile = if precision == TURBO_PRECISION_FASTEST { "sw8w" } else { "64x64" };
-        let apart = format!("le256:qkv={tile}/sk2,out={tile}/tiles,ffn1={tile}/sk8,ffn2={tile}/sk1,ln=fused");
+        // The bin past 16384 tokens, which the session does not have, is
+        // left out: one line forces sessions of any size.
+        let apart = format!(
+            "le256:qkv={tile}/sk2,out={tile}/tiles,ffn1={tile}/sk8,ffn2={tile}/sk1,ln=fused;gt16k:qkv=64x64/tiles"
+        );
         let s = forcing(&apart, || strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision)))));
         let s = s.unwrap();
         let choices = field(&s.info().choices);
         assert!(choices.starts_with(&format!("le256:qkv={tile}/sk2,out={tile}/tiles,")), "{choices}");
         assert!(choices.ends_with(";forced=tile,sk,tf32,ln"), "{choices}");
+        assert!(!choices.contains("gt16k"), "{choices}");
         for t in [&small, &large] {
             own.write_tokens(&t.batch(), None).unwrap();
             let want = own.run().unwrap().rows();
@@ -1895,6 +1901,18 @@ fn every_variant_gives_the_same_vectors() {
             let got = s.run().unwrap().rows();
             s.write_tokens(&t.batch(), None).unwrap();
             assert_eq!(s.run().unwrap().rows(), got, "precision {precision}, {}: the same bits again", v.name);
+            // What the session reports it ran, forced back, runs the same
+            // kernels: the reported names are the kernels', not the asked.
+            let line = field(&s.info().choices);
+            let back = forcing(&line, || Session::create(g.m, Some(&session_desc(40, 160, precision)))).unwrap();
+            assert_eq!(
+                kernels_of(&field(&back.info().choices)),
+                kernels_of(&line),
+                "precision {precision}, {}",
+                v.name
+            );
+            back.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(back.run().unwrap().rows(), got, "precision {precision}, {} forced back as {line}", v.name);
             let (cos, abs) = within(&format!("precision {precision}, {}", v.name), &got, &want, tol);
             println!("precision {precision}, {}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}", v.name);
         }
