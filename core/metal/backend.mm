@@ -327,11 +327,19 @@ enum Kernel { EMBED_LN, ADD_LN, LINEAR, GELU, ATTENTION, POOL, WIDEN_F16, WIDEN_
 const char *const KERNEL_NAMES[KERNELS] = {"embed_layer_norm", "add_layer_norm", "linear", "bias_gelu",
                                            "attention", "pool", "widen_f16", "widen_bf16"};
 
+/* The kernels compiled for one device. */
+struct Kernels {
+    id<MTLComputePipelineState> k[KERNELS] = {};
+};
+
 struct Context {
     uint32_t ordinal = 0;
     id<MTLDevice> device = nil;
     id<MTLCommandQueue> queue = nil;
-    id<MTLComputePipelineState> kernels[KERNELS] = {};
+    const Kernels *kernels = nullptr;
+    /* A shared buffer buffer_read copies DEVICE memory through, grown to
+     * the largest read so far; used under lock. */
+    id<MTLBuffer> staging = nil;
     turbo_log_fn log = nullptr;
     void *log_user_data = nullptr;
     std::mutex lock;
@@ -348,25 +356,50 @@ struct Context {
     }
 };
 
-int32_t compile(Context *c, turbo_error *err) {
+/* Compile kernels.metal for a device into k, without fast math. */
+int32_t compile(id<MTLDevice> d, Kernels &k, turbo_error *err) {
     MTLCompileOptions *o = [MTLCompileOptions new];
+#if __MAC_OS_X_VERSION_MAX_ALLOWED >= 150000
     if (@available(macOS 15.0, *))
         o.mathMode = MTLMathModeSafe;
-    else {
+    else
+#endif
+    {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
         o.fastMathEnabled = NO;
 #pragma clang diagnostic pop
     }
     NSError *e = nil;
-    id<MTLLibrary> lib = [c->device newLibraryWithSource:@(TURBO_METAL_KERNELS) options:o error:&e];
+    id<MTLLibrary> lib = [d newLibraryWithSource:@(TURBO_METAL_KERNELS) options:o error:&e];
     if (!lib) return refuse(err, TURBO_E_RUNTIME, "compiling kernels.metal: %s", text(e));
-    for (int k = 0; k < KERNELS; k++) {
-        id<MTLFunction> f = [lib newFunctionWithName:@(KERNEL_NAMES[k])];
-        if (!f) return refuse(err, TURBO_E_INTERNAL, "kernels.metal has no kernel %s", KERNEL_NAMES[k]);
-        c->kernels[k] = [c->device newComputePipelineStateWithFunction:f error:&e];
-        if (!c->kernels[k]) return refuse(err, TURBO_E_RUNTIME, "the %s pipeline: %s", KERNEL_NAMES[k], text(e));
+    for (int i = 0; i < KERNELS; i++) {
+        id<MTLFunction> f = [lib newFunctionWithName:@(KERNEL_NAMES[i])];
+        if (!f) return refuse(err, TURBO_E_INTERNAL, "kernels.metal has no kernel %s", KERNEL_NAMES[i]);
+        k.k[i] = [d newComputePipelineStateWithFunction:f error:&e];
+        if (!k.k[i]) return refuse(err, TURBO_E_RUNTIME, "the %s pipeline: %s", KERNEL_NAMES[i], text(e));
     }
+    return TURBO_OK;
+}
+
+/* The kernels for a listed device, compiled by the first context made on
+ * it and held for the life of the process, as the device list is. A
+ * failed compile is tried again by the next context. */
+int32_t kernels_for(uint32_t ordinal, const Kernels **out, turbo_error *err) {
+    static std::mutex lock;
+    static std::vector<Kernels *> compiled;
+    std::lock_guard<std::mutex> g(lock);
+    if (compiled.size() < devices().count) compiled.resize(devices().count, nullptr);
+    if (!compiled[ordinal]) {
+        Kernels *k = make<Kernels>();
+        const int32_t rc = compile(device(ordinal), *k, err);
+        if (rc != TURBO_OK) {
+            delete k;
+            return rc;
+        }
+        compiled[ordinal] = k;
+    }
+    *out = compiled[ordinal];
     return TURBO_OK;
 }
 
@@ -382,11 +415,11 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
         c->log_user_data = log_user_data;
         c->queue = [d newCommandQueue];
         int32_t rc = c->queue ? TURBO_OK : refuse(err, TURBO_E_RUNTIME, "newCommandQueue gave none");
-        if (rc == TURBO_OK) rc = compile(c, err);
+        if (rc == TURBO_OK) rc = kernels_for(ordinal, &c->kernels, err);
         // kernels.metal's reductions and matrices take SIMD groups of 32.
-        if (rc == TURBO_OK && c->kernels[LINEAR].threadExecutionWidth != 32)
+        if (rc == TURBO_OK && c->kernels->k[LINEAR].threadExecutionWidth != 32)
             rc = refuse(err, TURBO_E_UNSUPPORTED, "device %u runs SIMD groups of %lu threads; the kernels need 32",
-                        ordinal, (unsigned long)c->kernels[LINEAR].threadExecutionWidth);
+                        ordinal, (unsigned long)c->kernels->k[LINEAR].threadExecutionWidth);
         if (rc != TURBO_OK) {
             delete c;
             return rc;
@@ -604,9 +637,14 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
             return TURBO_OK;
         }
         Context *c = b->ctx;
-        id<MTLBuffer> staging = new_buffer(c->device, bytes, MTLResourceStorageModeShared);
-        if (!staging) return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes to read through", (unsigned long long)bytes);
         std::lock_guard<std::mutex> g(c->lock);
+        if (!c->staging || c->staging.length < bytes) {
+            c->staging = nil;
+            c->staging = new_buffer(c->device, bytes, MTLResourceStorageModeShared);
+            if (!c->staging)
+                return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes to read through", (unsigned long long)bytes);
+        }
+        id<MTLBuffer> staging = c->staging;
         id<MTLCommandBuffer> cb = [c->queue commandBuffer];
         id<MTLBlitCommandEncoder> blit = [cb blitCommandEncoder];
         [blit copyFromBuffer:b->mtl sourceOffset:b->offset toBuffer:staging destinationOffset:0 size:bytes];
@@ -661,11 +699,12 @@ struct Model {
 
 const char *dtype_name(uint32_t d) { return d == TURBO_DTYPE_F32 ? "F32" : d == TURBO_DTYPE_F16 ? "F16" : "BF16"; }
 
-/* The tensors where the core holds them: each run of tensors less than a
- * page apart (one weights file's, packed) mapped as one shared buffer over
- * the pages it lies on. False, with nothing kept, when Metal maps one of
- * them not. */
-bool map_in_place(Model *m, const turbo_backend_model *desc) {
+/* The tensors where the core holds them, in runs: tensors that share a
+ * page lie in one allocation (a weights file's, packed), and each run is
+ * mapped as one shared buffer over the pages it lies on. A run Metal will
+ * not map is copied into a shared buffer of its own. Returns the bytes
+ * copied, or -1 when the host could not give them. */
+int64_t map_weights(Model *m, const turbo_backend_model *desc) {
     const uintptr_t page = (uintptr_t)getpagesize();
     const uint32_t n = desc->tensor_count;
     std::vector<uint32_t> order(n);
@@ -674,20 +713,31 @@ bool map_in_place(Model *m, const turbo_backend_model *desc) {
     auto stop = [&](uint32_t i) { return start(i) + (uintptr_t)desc->tensors[i].bytes; };
     std::sort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) { return start(a) < start(b); });
     m->stored.assign(n, Ref{});
+    int64_t copied = 0;
     for (uint32_t k = 0; k < n;) {
         const uintptr_t lo = start(order[k]) / page * page;
         uintptr_t hi = stop(order[k]);
         uint32_t e = k + 1;
-        while (e < n && start(order[e]) < hi + page) hi = std::max(hi, stop(order[e++]));
+        while (e < n && start(order[e]) < (hi + page - 1) / page * page) hi = std::max(hi, stop(order[e++]));
         hi = (hi + page - 1) / page * page;
-        id<MTLBuffer> b = wrap(m->ctx->device, reinterpret_cast<void *>(lo), hi - lo);
-        if (!b) {
-            m->stored.clear();
-            return false;
+        if (id<MTLBuffer> b = wrap(m->ctx->device, reinterpret_cast<void *>(lo), hi - lo)) {
+            for (; k < e; k++) m->stored[order[k]] = Ref{b, start(order[k]) - lo};
+            continue;
         }
-        for (; k < e; k++) m->stored[order[k]] = Ref{b, start(order[k]) - lo};
+        size_t total = 0;
+        for (uint32_t i = k; i < e; i++) total += round_up(desc->tensors[order[i]].bytes, 256);
+        id<MTLBuffer> copy = new_buffer(m->ctx->device, total, MTLResourceStorageModeShared);
+        if (!copy) return -1;
+        char *base = static_cast<char *>(copy.contents);
+        for (uint64_t at = 0; k < e; k++) {
+            const turbo_backend_tensor &t = desc->tensors[order[k]];
+            memcpy(base + at, t.data, t.bytes);
+            m->stored[order[k]] = Ref{copy, at};
+            at += round_up(t.bytes, 256);
+        }
+        copied += (int64_t)total;
     }
-    return true;
+    return copied;
 }
 
 int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo_error *err) {
@@ -703,27 +753,15 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
         m->ctx = c;
         m->desc = *desc;
         m->desc.tensors = nullptr;
-        m->in_place = map_in_place(m, desc);
-        if (!m->in_place) {
-            size_t total = 0;
-            std::vector<uint64_t> at;
-            for (uint32_t i = 0; i < desc->tensor_count; i++) {
-                at.push_back(total);
-                total += round_up(desc->tensors[i].bytes, 256);
-            }
-            id<MTLBuffer> copy = new_buffer(c->device, total, MTLResourceStorageModeShared);
-            if (!copy) {
-                delete m;
-                return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the weights", total);
-            }
-            char *base = static_cast<char *>(copy.contents);
-            for (uint32_t i = 0; i < desc->tensor_count; i++) {
-                memcpy(base + at[i], desc->tensors[i].data, desc->tensors[i].bytes);
-                m->stored.push_back(Ref{copy, at[i]});
-            }
-            c->say(LOG_WARNING, "metal device %u: Metal did not map the pages the weights are on; copied %zu bytes",
-                   c->ordinal, total);
+        const int64_t copied = map_weights(m, desc);
+        if (copied < 0) {
+            delete m;
+            return refuse(err, TURBO_E_OUT_OF_MEMORY, "host memory for a copy of the weights");
         }
+        m->in_place = copied == 0;
+        if (copied)
+            c->say(LOG_WARNING, "metal device %u: Metal did not map some pages the weights are on; copied %lld bytes",
+                   c->ordinal, (long long)copied);
         for (uint32_t i = 0; i < desc->tensor_count; i++) m->counts.push_back(desc->tensors[i].bytes / elem);
         if (desc->dtype == TURBO_DTYPE_F32) m->f32 = m->stored;
         c->say(LOG_DEBUG, "metal device %u: a BERT of %u layers, %s weights %s", c->ordinal, desc->layers,
@@ -748,7 +786,8 @@ int32_t finish(id<MTLCommandBuffer> cb, turbo_error *err, const char *what) {
     [cb waitUntilCompleted];
     if (cb.status != MTLCommandBufferStatusCompleted) {
         NSError *e = cb.error;
-        const bool oom = e && e.code == MTLCommandBufferErrorOutOfMemory;
+        const bool oom =
+            e && [e.domain isEqualToString:MTLCommandBufferErrorDomain] && e.code == MTLCommandBufferErrorOutOfMemory;
         return refuse(err, oom ? TURBO_E_OUT_OF_MEMORY : TURBO_E_RUNTIME, "%s: %s", what, text(e));
     }
     return TURBO_OK;
@@ -771,7 +810,7 @@ int32_t f32_weights(Model *m, turbo_error *err) {
         std::lock_guard<std::mutex> cg(c->lock);
         id<MTLCommandBuffer> cb = [c->queue commandBuffer];
         id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
-        [enc setComputePipelineState:c->kernels[m->desc.dtype == TURBO_DTYPE_F16 ? WIDEN_F16 : WIDEN_BF16]];
+        [enc setComputePipelineState:c->kernels->k[m->desc.dtype == TURBO_DTYPE_F16 ? WIDEN_F16 : WIDEN_BF16]];
         for (size_t i = 0; i < m->counts.size(); i++) {
             const uint32_t n = (uint32_t)m->counts[i];
             [enc setBuffer:m->stored[i].buf offset:m->stored[i].at atIndex:0];
@@ -862,7 +901,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 2, "max_seq %u is over the model's %u positions",
                                 max_seq, d.max_positions);
         const size_t shared = attention_bytes(max_seq, d.hidden / d.heads);
-        const size_t most = c->device.maxThreadgroupMemoryLength - c->kernels[ATTENTION].staticThreadgroupMemoryLength;
+        const size_t most = c->device.maxThreadgroupMemoryLength - c->kernels->k[ATTENTION].staticThreadgroupMemoryLength;
         if (shared > most)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 2,
                                 "max_seq %u: attention needs %zu bytes of threadgroup memory, and device %u gives it "
@@ -957,14 +996,14 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         return w[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
     };
     auto rows = [&](Kernel k) {
-        [enc setComputePipelineState:c->kernels[k]];
+        [enc setComputePipelineState:c->kernels->k[k]];
     };
     auto per_token = [&]() {
         [enc dispatchThreadgroups:MTLSizeMake(tokens, 1, 1) threadsPerThreadgroup:MTLSizeMake(BLOCK, 1, 1)];
     };
     auto linear = [&](uint64_t x, uint32_t n_in, const Ref &wt, uint32_t n_out, uint64_t y) {
         const LinearParams p{tokens, n_out, n_in};
-        [enc setComputePipelineState:c->kernels[LINEAR]];
+        [enc setComputePipelineState:c->kernels->k[LINEAR]];
         [enc setBuffer:sc offset:x atIndex:0];
         bind(wt, 1);
         [enc setBuffer:sc offset:y atIndex:2];
@@ -1003,7 +1042,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         linear(s.x, h, layer(l, TURBO_BERT_K_WEIGHT), h, s.k);
         linear(s.x, h, layer(l, TURBO_BERT_V_WEIGHT), h, s.v);
 
-        [enc setComputePipelineState:c->kernels[ATTENTION]];
+        [enc setComputePipelineState:c->kernels->k[ATTENTION]];
         [enc setBuffer:sc offset:s.q atIndex:0];
         [enc setBuffer:sc offset:s.k atIndex:1];
         [enc setBuffer:sc offset:s.v atIndex:2];
@@ -1021,7 +1060,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
                layer(l, TURBO_BERT_ATTN_LN_BIAS));
         linear(s.x, h, layer(l, TURBO_BERT_FFN_IN_WEIGHT), inter, s.ffn);
 
-        [enc setComputePipelineState:c->kernels[GELU]];
+        [enc setComputePipelineState:c->kernels->k[GELU]];
         [enc setBuffer:sc offset:s.ffn atIndex:0];
         bind(layer(l, TURBO_BERT_FFN_IN_BIAS), 1);
         [enc setBytes:&gp length:sizeof gp atIndex:2];
