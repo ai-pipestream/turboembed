@@ -420,8 +420,7 @@ pub(crate) unsafe fn converted_data(model: *mut c_void) -> Option<Vec<*const c_v
 
 struct Session {
     encoder: encoder::Encoder,
-    /// One thread per processor the system lets this process use, the
-    /// caller's among them; see pool.rs.
+    /// The threads `threads` gives, the caller's among them; see pool.rs.
     pool: pool::Pool,
     /// [max_batch, hidden] F32, the buffer handed out as the run's output.
     output: Box<Buffer>,
@@ -469,7 +468,10 @@ unsafe extern "C" fn session_create(
             return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the model's packed weights")) };
         }
     };
-    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    let threads = match threads(std::env::var("TURBO_CPU_THREADS").ok().as_deref()) {
+        Ok(n) => n,
+        Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
+    };
     let pool = pool::Pool::new(threads);
     let encoder =
         match encoder::Encoder::new(&m.desc, tensors, packed, pool.threads(), max_batch as usize, max_seq as usize) {
@@ -485,6 +487,22 @@ unsafe extern "C" fn session_create(
     }
     0
 }
+
+/// The threads a session runs on: TURBO_CPU_THREADS when set (docs/cpu.md),
+/// else one per processor this process may run on, which
+/// available_parallelism reads from its affinity mask and cgroup quota.
+fn threads(var: Option<&str>) -> Result<usize, String> {
+    match var {
+        None => Ok(std::thread::available_parallelism().map_or(1, std::num::NonZero::get)),
+        Some(v) => match v.trim().parse::<usize>() {
+            Ok(n @ 1..=MAX_THREADS) => Ok(n),
+            _ => Err(format!("TURBO_CPU_THREADS {v:?}: a count of threads from 1 to {MAX_THREADS}")),
+        },
+    }
+}
+
+/// The most threads TURBO_CPU_THREADS may ask for.
+const MAX_THREADS: usize = 1024;
 
 unsafe extern "C" fn session_release(session: *mut c_void) {
     drop(unsafe { Box::from_raw(session as *mut Session) });
@@ -576,5 +594,21 @@ impl Host {
     #[cfg(not(target_os = "linux"))]
     fn read() -> Host {
         Host::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::threads;
+
+    #[test]
+    fn turbo_cpu_threads_sets_the_count_or_is_refused() {
+        let all = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+        assert_eq!(threads(None), Ok(all));
+        assert_eq!(threads(Some("16")), Ok(16));
+        assert_eq!(threads(Some(" 3 ")), Ok(3));
+        for bad in ["0", "-1", "", "sixteen", "1025", "2.5"] {
+            assert!(threads(Some(bad)).unwrap_err().starts_with("TURBO_CPU_THREADS"), "{bad}");
+        }
     }
 }
