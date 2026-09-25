@@ -700,6 +700,14 @@ mod tests {
                 tensor_count: shapes.len() as u32,
                 reserved: 0,
                 tensors: std::ptr::null(),
+                format: crate::backend::TURBO_FORMAT_SAFETENSORS,
+                graph_input: crate::backend::TURBO_INPUT_TOKEN_IDS,
+                graph_output: crate::backend::TURBO_OUTPUT_HIDDEN_STATES,
+                compute_dtype: 0,
+                fixed_seq: 0,
+                fixed_batch: 0,
+                artifact: std::ptr::null(),
+                artifact_bytes: 0,
             };
             Model { desc, tensors }
         }
