@@ -233,7 +233,7 @@ this form before it is written or loaded.
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
 | `artifacts[].files` | path[] | yes | Each listed in `files`. |
-| `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it. |
+| `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it, as for an ONNX file carried only for the reference programs and the converters. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |
 | `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. |
 | `artifacts[].compute_dtype` | enum | no | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
@@ -319,9 +319,14 @@ refuses to finish unless every hash matches.
 ## Decisions taken with the design
 
 - ONNX is a file in the bundle because the IR and the HEF are compiled
-  from it and the manifest records that. Nothing executes it. If a
-  fallback engine is ever built it is a backend like any other and gets
-  its name in `backends`.
+  from it and the manifest records that, and because the benchmark's
+  reference programs (TensorRT's `trtexec`, OpenVINO's `benchmark_app`,
+  docs/benchmarks.md) run it; they find it by its format,
+  `FORMAT_ONNX`. The core never executes it: its `backends` is empty,
+  so rule 6 skips it on every device. If a fallback engine is ever
+  built it is a backend like any other and gets its name in `backends`.
+  The MiniLM recipe carries upstream's `onnx/model.onnx` unchanged, as
+  the artifact `onnx-f32`.
 - The header has no int8 dtype today. It is added when the Hailo
   backend lands, not before; the example shows the value it will use.
 - Every load verifies every file it opens. No hash cache. If a

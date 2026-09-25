@@ -49,7 +49,11 @@ the same files copied elsewhere pass it.
 | `--tensorrt-warmup-ms <n>` | trtexec's `--warmUp`. Default 1000. |
 | `--trtexec <path>` | trtexec inside the image. Default `trtexec`. |
 | `--no-tensorrt` | TensorRT is not run; the record says so. |
-| `--work <dir>` | Scratch for trtexec's input files. Default the system's temporary directory. |
+| `--openvino-image <name@sha256:…>` | An OpenVINO container with `benchmark_app` (levelzero). |
+| `--openvino-inputs <ids,mask,types>`, `--openvino-input-dtype int64\|int32` | As for TensorRT, for benchmark_app. Default `input_ids,attention_mask,token_type_ids` and `int64`. |
+| `--benchmark-app <path>` | benchmark_app inside the image. Default `benchmark_app`. |
+| `--no-openvino` | OpenVINO is not run; the record says so. |
+| `--work <dir>` | Scratch for trtexec's and benchmark_app's input files. Default the system's temporary directory. |
 
 Every reference program the tool knows for the device's backend must be
 named or disabled; leaving one out is an error, checked before anything
@@ -66,6 +70,17 @@ CUDA_DEVICE_ORDER=PCI_BUS_ID TURBO_CUDA_ROOT=/usr/local/cuda cargo run --release
     --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the 89-* image> \
     --tei-model upstream/ \
     --tensorrt-image nvcr.io/nvidia/tensorrt@sha256:<digest>
+```
+
+On an Intel Arc GPU, with Level Zero installed, one Intel GPU listed,
+and both images pulled:
+
+```
+cargo run --release -p turbo-bench --features levelzero -- record \
+    --bundle all-minilm-l6-v2/ --device levelzero --precision model \
+    --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu-* image> \
+    --tei-model upstream/ \
+    --openvino-image openvino/ubuntu24_dev@sha256:<digest>
 ```
 
 ## Provenance
@@ -186,7 +201,7 @@ field is required, and an unknown one is an error.
 | `rows` | The shape, the live tokens, the reference case each row is, and the hash of the rows (below). |
 | `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. |
 | `conformance` | The rows compared with the bundle's fp32 reference on this device, through the C interface: each distinct case alone as a batch of one at its own length, then every row of the last timed batch. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
-| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, or `tensorrt` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, and `min_cosine` against the reference when the program returns vectors) or `not_run` with the reason. |
+| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, and `min_cosine` against the reference when the program returns vectors) or `not_run` with the reason. |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
 
 ### Token rows
@@ -225,13 +240,28 @@ contents give. For example
 | cuda | TensorRT `trtexec` | kernel | NVIDIA's TensorRT container, on the bundle's ONNX file |
 | cuda | text-embeddings-inference | end to end | its GPU image, over HTTP |
 | cpu | text-embeddings-inference | end to end | its CPU image, over HTTP |
+| levelzero | OpenVINO `benchmark_app` | kernel | an OpenVINO container, on the bundle's ONNX file, on the GPU |
+| levelzero | text-embeddings-inference | end to end | its CPU image, over HTTP: the end-to-end baseline on that machine |
+| metal | none yet | | a record of it backs nothing |
 | any other | none yet | | a record of it backs nothing |
+
+Metal has no reference program yet, so a Metal cell cannot reach
+SUPPORTED.
 
 Images are pinned as `name@sha256:<64 hex>`, the name of lower-case
 letters, digits and `._/:-`, starting with a letter or digit (so never
 an option); a tag is refused. The tool
 never pulls (`--pull never`, and `docker image inspect` first), so what
-runs is what was fetched on purpose. Each command is recorded as run.
+runs is what was fetched on purpose. Each command is recorded as run,
+except that a host path in it is written as a fixed placeholder:
+`<bundle>` for the bundle directory, `<work>` for the directory the
+input files are written to, `<tei-model>` for the model directory TEI
+serves. Records are published, and the operator's paths say nothing
+about the measurement and may name a user. The command executed has the
+real paths; only the recorded copy is rewritten. A `not_run` reason
+names those directories the same way. The core refuses a record with
+`/home/` or `/Users/` anywhere in its text, so one written by hand or
+by an older tool cannot carry a home directory either.
 
 **TensorRT** builds an engine from the bundle's `FORMAT_ONNX` artifact,
 checked against its hash, and times the rows loaded from raw files. The
@@ -270,7 +300,7 @@ there; otherwise the reference is `not_run`. The command:
 ```
 docker run --detach --rm --pull never --name turbo-bench-tei-<pid> [--gpus device=<ordinal>] \
     --publish 127.0.0.1::80 --env HF_HUB_OFFLINE=1 \
-    --mount type=bind,src=<model dir>,dst=/model,readonly <image> \
+    --mount type=bind,src=<tei-model>,dst=/model,readonly <image> \
     --model-id /model --port 80 --dtype <float32|float16> --pooling <mean|cls|last-token> \
     --max-client-batch-size <batch> --max-batch-tokens <max(batch x seq, 16384)>
 ```
@@ -295,6 +325,43 @@ it is a stray argument and the router exits; from 1.9 it takes a value
 and defaults to true. Either way it only sets the default for a request
 that does not say, and every `/embed` request here says `truncate:
 false`, so an over-long row is an error, never cut.
+
+**OpenVINO** compiles the bundle's `FORMAT_ONNX` artifact, checked
+against its hash, for the Intel GPU with `benchmark_app`, and times the
+rows loaded from raw files, one synchronous request at a time, as the
+library runs. A bundle with no ONNX artifact gives a reference with
+`not_run` saying so. The command:
+
+```
+docker run --rm --pull never --network none --device /dev/dri --group-add <render gid> \
+    --mount type=bind,src=<bundle>,dst=/bundle,readonly \
+    --mount type=bind,src=<work>,dst=/work,readonly \
+    <image> benchmark_app -m /bundle/<onnx file> -d GPU -hint latency -api sync -nireq 1 \
+    -niter <iterations> \
+    -shape input_ids[<batch>,<seq>],attention_mask[<batch>,<seq>],token_type_ids[<batch>,<seq>] \
+    -i input_ids:/work/input_ids.bin,attention_mask:/work/attention_mask.bin,token_type_ids:/work/token_type_ids.bin \
+    -infer_precision <f32|f16> -latency_percentile <50|99>
+```
+
+`<render gid>` is the group of the first `/dev/dri/renderD*` node, so
+the container's user may open it. benchmark_app reports one latency
+percentile per run, so the command runs twice, the same but for
+`-latency_percentile`, 50 then 99; both are recorded. Each run makes
+one untimed first inference (benchmark_app's warm-up, which it does not
+let a count be set for), then `-niter` timed ones. From its report
+(`[ INFO ]` lines, as its Python and C++ forms print them): the version
+is the `Build` line under `OpenVINO:`; p50 is the first run's `Median`
+and p99 the second run's `99 percentile`, in the `Latency` block
+(microseconds when the average is under a millisecond, converted); the
+iterations its `Count`; rows per second the first run's count times the
+batch over its `Duration`. Its `Average` and `Throughput` go in
+`procedure`. The two runs must report the same version and count, and
+the second a p99 no lower than the first's median, or the tool stops
+with an error. `-infer_precision` is `f32` for F32 and `f16` for F16;
+the GPU plugin has no BF16, so a BF16 session records `not_run`. With
+more than one Level Zero device listed the tool refuses to run it:
+benchmark_app's `GPU` is OpenVINO's first, which need not be the device
+measured. On that machine TEI's CPU image is the end-to-end reference.
 
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
@@ -328,9 +395,10 @@ A record for the cell backs SUPPORTED when all of these hold:
    | I8 | none: never SUPPORTED | |
 
 4. At least one of the known reference programs,
-   `text-embeddings-inference` or `tensorrt`, was measured. (A record
-   naming any other program, or either with the other's role, does not
-   parse.)
+   `text-embeddings-inference`, `tensorrt` or `openvino`, was measured.
+   (A record naming any other program, or one with another's role, does
+   not parse.) The tool gives each backend its own programs (Reference
+   programs), so a levelzero record is backed by OpenVINO or TEI.
 
 Of the records that back the cell, the newest by `recorded_at` (then by
 name) is named: the cell is SUPPORTED, `benchmark` is its file name,
@@ -370,9 +438,16 @@ rule; the tool writes records through the same types and checks, and
   of the small bundle and TEI disabled, into a temporary directory:
   every field is checked against what the library, git and the bundle
   say, and the record backs nothing.
+- `redaction.rs`: every runner through its own code, with `docker` a
+  script that prints each program's canned report and TEI's API answered
+  from a local socket, on directories under a path with a sentinel user
+  name in it: the commands run name the real paths, and the records name
+  only the placeholders.
 - `runners.rs`: the reference programs' commands, argument by argument;
-  their output parsed from examples in the form TEI and trtexec print
-  it; and the cases recorded as not run.
+  their output parsed from examples in the form TEI, trtexec and
+  benchmark_app print it; which programs each backend gets; and the
+  cases recorded as not run.
 
-What they cannot check is the programs themselves: a TEI or trtexec run
-needs docker and the images, and trtexec a GPU.
+What they cannot check is the programs themselves: a TEI, trtexec or
+benchmark_app run needs docker and the images, trtexec an NVIDIA GPU,
+and benchmark_app an Intel one.
