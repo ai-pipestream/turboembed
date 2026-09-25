@@ -1,0 +1,135 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-09-25T09:00:31Z",
+  "machine": {
+    "arch": "m2",
+    "host_cpu": "",
+    "os": "macos"
+  },
+  "device": {
+    "backend": "metal",
+    "kind": "DEVICE_IGPU",
+    "name": "Apple M2",
+    "vendor": "Apple",
+    "driver_version": "macOS 27.0 (26A428)",
+    "runtime_version": "Metal, macOS SDK 27.0",
+    "memory_total": 19069665280
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 metal cpu",
+    "commit": "3cf357b699def5b1ed8d5b96f8a7e96efcfe204b",
+    "pushed_to": [
+      "origin/cuda-pipelined",
+      "origin/header-precision-and-task-rule-d35x0i",
+      "origin/main"
+    ],
+    "settings": []
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_MODEL",
+  "compute_dtype": "DTYPE_F32",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "3c305237a79d0b4bcae9513683b2373c84190d8a2d96941aacb25e035c30b9ea",
+    "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "rows": {
+    "kind": "ROWS_MIXED",
+    "batch": 32,
+    "seq": 256,
+    "live_tokens": 1353,
+    "cases": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "sha256": "a53c6056e65df1c667d58a9d4717f009cd9ebe530294cc40e46e9c2caee2d847"
+  },
+  "timing": {
+    "warmup": 5,
+    "iterations": 50,
+    "p50_ms": 25.305958,
+    "p99_ms": 26.965208,
+    "mean_ms": 25.21551408,
+    "min_ms": 23.580667,
+    "max_ms": 26.965208,
+    "rows_per_second": 1269.0534404582481,
+    "computed_tokens": 1353
+  },
+  "conformance": {
+    "rows": 41,
+    "min_cosine": 0.9999999999982552,
+    "max_abs_diff": 3.8370490074157715e-7
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "text-embeddings-router@sha256:2188ada492cca1af8f8c1c43c848636f17a268895b8183ab2d2878a447638adf",
+      "version": "1.8.3 (float32)",
+      "commands": [
+        [
+          "<tei-bin>",
+          "--model-id",
+          "<tei-model>",
+          "--hostname",
+          "127.0.0.1",
+          "--port",
+          "56142",
+          "--dtype",
+          "float32",
+          "--pooling",
+          "mean",
+          "--max-client-batch-size",
+          "32",
+          "--max-batch-tokens",
+          "16384"
+        ]
+      ],
+      "procedure": "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the batch's 32 rows as token ids, 5 untimed then 50 timed, each timed from sending the request to reading the whole response, the p50 and p99 of TEI's x-total-time, x-tokenization-time, x-queue-time, x-inference-time headers beside it, and TEI's /metrics read before and after the timed requests for its te_batch_next_size and te_batch_next_tokens histograms; min_cosine is against the bundle's reference vectors; TEI's router built natively and run on this machine, not in a container; round trip (measured) p50 1290.730 ms, p99 2920.164 ms; TEI's own headers, whole ms, over the same requests: x-total-time p50 1289 p99 2918, x-tokenization-time p50 0 p99 0, x-queue-time p50 128 p99 226, x-inference-time p50 609 p99 2263; TEI's /metrics over the timed requests: 1600 inputs in 50 requests, 150 backend batches (te_batch_next_size's 253 samples less the 103 empty polls te_batch_next_tokens shows), 3.00 batches per request, mean batch size 10.67 inputs (batches by size, 1: 7, 2: 1, 3 to 4: 17, 5 to 8: 63, 9 to 16: 18, 17 to 32: 44); the tool ran unpinned; TEI ran unpinned with the image's thread settings: OMP_NUM_THREADS=unset, MKL_NUM_THREADS=unset, RAYON_NUM_THREADS=unset",
+      "measured": {
+        "iterations": 50,
+        "p50_ms": 1290.729583,
+        "p99_ms": 2920.164292,
+        "rows_per_second": 21.538135768980595,
+        "min_cosine": 0.9999986010655892,
+        "computed_tokens": null
+      },
+      "not_run": null
+    }
+  ],
+  "speed_ratio": 0.019605933212735543,
+  "speed_reference": "text-embeddings-inference"
+}
