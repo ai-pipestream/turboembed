@@ -52,9 +52,11 @@ F32 output) or `8w`, the eight-warp tiles FASTEST took before: `128x128`
 over warps of 32 × 64 for the QKV and first feed-forward GEMMs and
 `128x64` for the other two (the FMA kernels take `128x64` for these
 three). Unset, the FMA kernels and TF32 take `128x64`, and F16 on the
-tensor cores `256x128` for the first feed-forward GEMM and `128x128-4w`
-for the others. On an RTX 4080, `8w` ran as fast as `128x64` for every
-GEMM, and EXACT about 4% slower with `128x128-16x8` than with `128x64`.
+tensor cores `8w`. On an RTX 4080 at 32 × 256, `8w` is faster than the
+four-warp tiles (`128x128-4w` with `256x128` for the first feed-forward
+GEMM): about 0.73 against 0.83 ms on mixed rows and 3.5 against 3.9 ms
+on full rows. EXACT is about 4% slower with `128x128-16x8` than with
+`128x64`.
 A tile shares the
 work among the blocks at other points, so the vectors agree within the
 precision's bound, not bit for bit; only the time should differ.

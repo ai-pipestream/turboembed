@@ -1909,6 +1909,8 @@ const turbo_backend turbo_cuda_backend = {
     embed_write,
     session_run,
     buffer_read,
+    TURBO_FORMAT_BIT(TURBO_FORMAT_SAFETENSORS),
+    0,
 };
 
 /* Every allocation this backend has made in the process, host and device,

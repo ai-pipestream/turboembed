@@ -13,7 +13,9 @@ mod ze;
 use std::ffi::{c_char, c_void};
 use std::sync::OnceLock;
 
-use crate::backend::{TURBO_CAP_EXPERIMENTAL, TURBO_CAP_UNSUPPORTED, refuse, turbo_backend};
+use crate::backend::{
+    TURBO_CAP_EXPERIMENTAL, TURBO_CAP_UNSUPPORTED, TURBO_FORMAT_SAFETENSORS, format_bit, refuse, turbo_backend,
+};
 use crate::status::{DEVICE_UNAVAILABLE, INVALID_ARGUMENT};
 use crate::{
     TURBO_DEVICE_GPU, TURBO_DEVICE_IGPU, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_PRECISION_FASTEST, turbo_device_info,
@@ -43,6 +45,8 @@ pub static BACKEND: turbo_backend = turbo_backend {
     embed_write: Some(encoder::embed_write),
     session_run: Some(encoder::session_run),
     buffer_read: Some(gpu::buffer_read),
+    formats: format_bit(TURBO_FORMAT_SAFETENSORS),
+    reserved2: 0,
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, err: *mut turbo_error) -> i32 {
