@@ -107,6 +107,12 @@ device.
 
 ## Bundles
 
+The bundle tool makes the HEF (bundle/README.md, step 4): the recipe's
+`hef-hailo10h-s128` artifact is compiled from the upstream ONNX export by
+Hailo's Dataflow Compiler, in a container built locally from
+`bundle/hailo/Dockerfile`, on the calibration texts the recipe carries
+(`recipes/all-minilm-l6-v2.calibration.jsonl`).
+
 The HEF is compiled for one architecture (`target`, `hailo10h`) and a
 fixed frame: `fixed_seq` tokens, one row. A case longer than `fixed_seq`
 is refused with `TURBO_E_CAPACITY`. On the Hailo-10H, all-MiniLM-L6-v2

@@ -101,7 +101,13 @@ enum Tile : int {
      * GEMMs 64 x 384, whole rows (hidden widths up to ROW_LN_WIDTH), over
      * eight warps of 32 x 96, one block to an SM, with the residual and
      * the LayerNorm in their epilogue. */
-    TILE_SWIZZLED_ROWS = 13
+    TILE_SWIZZLED_ROWS = 13,
+    /* F16 operands summed in F16 accumulators over the whole of k, with
+     * no F32 sums (TensorRT's F16 GEMMs): the swizzled kernel at 128 x 128
+     * over four warps of 64 x 64, four stages, one block to an SM; and at
+     * three stages, two. An experiment, for its accuracy first. */
+    TILE_F16_WHOLE_K = 14,
+    TILE_F16_WHOLE_K_3 = 15
 };
 
 /* The four GEMMs of a layer, in the order a layer runs them. */

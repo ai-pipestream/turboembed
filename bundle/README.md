@@ -4,7 +4,9 @@ Makes a model bundle (`docs/bundle.md`) from a recipe, and checks a
 bundle the way a machine loading it does.
 
 A recipe is the manifest without `files`, plus the upstream files to
-fetch at `model.source.commit`. `recipes/` holds one per model.
+fetch at `model.source.commit`, and `local`: files that come with the
+recipe, beside it in `recipes/`, each pinned by SHA-256. `recipes/`
+holds one per model.
 
 ```
 docker build -t turbo-reference bundle/reference
@@ -18,16 +20,26 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
 1. **fetch**: every upstream file at the commit, checked against its
    pinned SHA-256 where the recipe gives one. Each file's hash is printed.
 2. **stage**: the files the bundle carries are copied to their bundle
-   paths.
+   paths: the fetched ones, and the recipe's `local` files, each checked
+   against its pinned hash.
 3. **reference**: the upstream pipeline runs in the pinned container,
    with no network, on the fetched files: fp32 on CPU, one text at a time.
    It writes the reference ids and vectors, and reports what ran. Python
-   runs here and in the next step, in this container, and nowhere else.
-4. **convert**: each artifact whose `produced_by` in the recipe names
-   only `from` is made from that artifact in the same pinned container,
-   with no network, twice: today the F16 ONNX file, `onnx_f16.py`, run
-   with `--entrypoint python`. An image built before `onnx_f16.py` was
-   added to it cannot; build it again and pin the new id.
+   runs here and in the next step, in the pinned containers, and nowhere
+   else.
+4. **convert**: each artifact whose `produced_by` the recipe gives is
+   made from the artifact it names, with no network, twice:
+   - an F16 ONNX file (`produced_by` names only `from`), in the reference
+     container, by `onnx_f16.py`, run with `--entrypoint python`. An image
+     built before `onnx_f16.py` was added to it cannot; build it again and
+     pin the new id.
+   - a HEF for a Hailo device (`produced_by` names `from`, `container` and
+     `inputs`), in the Dataflow Compiler container that `container` pins,
+     by `bundle/hailo/hef_compile.py`: the export is cut at the
+     word-embedding gather and the attention mask, quantized to 8 bits on
+     the calibration texts `inputs` names, and compiled for `target` at a
+     frame of `fixed_seq` tokens. The compiler cannot be redistributed, so
+     its image is built locally; `bundle/hailo/Dockerfile` says how.
 5. **seal**: `files` is filled with each named file's size and SHA-256,
    the reference's and each converted artifact's `produced_by` with what
    its container reported and the image it ran in (and for a conversion,

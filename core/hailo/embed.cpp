@@ -281,6 +281,10 @@ Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
         s.busy = true;
         h2d += s.rows.size() + s.bias.size();
     }
+    // Every frame still in flight is waited for. After a frame timed out,
+    // this waits on the same slot once more, so a device that stopped
+    // answering costs up to two FRAME_TIMEOUTs in the run, and releasing
+    // the session then waits without a timeout (docs/hailo.md).
     for (Slot &s : slots_) finish(s);
     return failed;
 }
