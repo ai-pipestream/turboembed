@@ -11,7 +11,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 serde_path_to_error = "0.1"
 sha2 = "0.10"
 # The Unicode tables upstream tokenizers uses, so the ids match it exactly.
@@ -20,6 +20,10 @@ unicode_categories = "0.1.1"
 # Opens the Level Zero loader at run time, so a machine without it lists
 # no Intel GPU instead of failing to load libturbo.
 libloading = { version = "0.8", optional = true }
+
+[build-dependencies]
+# build.rs refuses a record that is not JSON, naming the file.
+serde_json = "1"
 
 [dev-dependencies]
 # The Level Zero loader, which tests/levelzero.rs calls to read device

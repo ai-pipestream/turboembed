@@ -1,10 +1,11 @@
-//! Builds the CUDA backend (core/cuda/) when the `cuda` feature is on;
-//! without it, nothing. docs/cuda.md says what it needs and which
+//! Builds the CUDA backend (core/cuda/) when the `cuda` feature is on.
+//! docs/cuda.md says what it needs and which
 //! variables it reads:
 //!
 //! - TURBO_CUDA_ROOT: the toolkit's directory, with bin/nvcc, include/ and
-//!   lib64/ (or lib/, or targets/<arch>-linux/lib/). Else CUDA_PATH, else
-//!   CUDA_HOME, else /usr/local/cuda.
+//!   lib64/ (or lib/, targets/<arch>-linux/lib/, or lib/<arch>-linux-gnu/,
+//!   where a distribution's package puts it, so /usr serves). Else
+//!   CUDA_PATH, else CUDA_HOME, else /usr/local/cuda.
 //! - TURBO_CUDA_ARCH: the SM architectures to compile for, comma
 //!   separated, as nvcc numbers them (89 for sm_89). Default 89. Each gets
 //!   its machine code, and the highest its PTX too, so a newer device can
@@ -13,6 +14,13 @@
 //! The kernels and the host side are compiled by nvcc into a static
 //! library linked into libturbo, against the toolkit's shared cudart and
 //! cuBLAS, with the toolkit's library directory as a run path.
+//!
+//! With the `levelzero` feature it compiles the levelzero backend's kernels
+//! (core/levelzero/encoder.cl) to SPIR-V with clang, which TURBO_CLANG
+//! names when the one on the PATH is not the one to use (docs/levelzero.md).
+//!
+//! It also compiles in the benchmark records in benchmarks/records/, with
+//! or without either feature (docs/benchmarks.md).
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -23,6 +31,7 @@ const DEPENDS: [&str; 3] = ["cuda/kernels.h", "../include/turbo/turbo.h", "../in
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    records();
     if env::var_os("CARGO_FEATURE_LEVELZERO").is_some() {
         levelzero();
     }
@@ -44,11 +53,17 @@ fn main() {
             nvcc.display()
         ));
     }
-    let lib = ["lib64", "lib", &format!("targets/{}-linux/lib", env::consts::ARCH)]
+    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_else(|_| env::consts::ARCH.to_owned());
+    let lib = ["lib64", "lib", &format!("targets/{arch}-linux/lib"), &format!("lib/{arch}-linux-gnu")]
         .iter()
         .map(|d| root.join(d))
         .find(|d| d.join("libcudart.so").exists())
-        .unwrap_or_else(|| fail(&format!("no libcudart.so under {}/lib64, lib or targets/*/lib", root.display())));
+        .unwrap_or_else(|| {
+            fail(&format!(
+                "no libcudart.so under {}/lib64, lib, targets/{arch}-linux/lib or lib/{arch}-linux-gnu",
+                root.display()
+            ))
+        });
     let archs = archs();
 
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
@@ -96,18 +111,60 @@ fn main() {
 }
 
 /// The levelzero backend's kernels, core/levelzero/encoder.cl, compiled to
-/// SPIR-V by clang (TURBO_CLANG, else clang on the PATH, 15 or later) into
-/// OUT_DIR, where the backend includes them. The driver builds them for
-/// the device when a context first needs them.
+/// SPIR-V by clang (TURBO_CLANG, else clang on the PATH) into OUT_DIR,
+/// where the backend includes them. The driver builds them for the device
+/// when a context first needs them.
 fn levelzero() {
     const SOURCE: &str = "levelzero/encoder.cl";
     println!("cargo:rerun-if-changed={SOURCE}");
     println!("cargo:rerun-if-env-changed=TURBO_CLANG");
     let clang = env::var_os("TURBO_CLANG").unwrap_or_else(|| "clang".into());
+    let shown = Path::new(&clang).display().to_string();
+    let needs = "the levelzero feature needs a clang that compiles OpenCL C to SPIR-V (--target=spirv64; a clang \
+                 that translates through llvm-spirv needs it on the PATH): set TURBO_CLANG to one";
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("levelzero_encoder.spv");
     let mut cmd = Command::new(&clang);
     cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-c", SOURCE, "-o"]).arg(&out);
-    run(&mut cmd);
+    let done = cmd.output().unwrap_or_else(|e| fail(&format!("{needs}; {shown} did not run: {e}")));
+    let stderr = String::from_utf8_lossy(&done.stderr);
+    if !done.status.success() {
+        fail(&format!("{needs}; {cmd:?} failed:\n{stderr}"));
+    }
+    for line in stderr.lines().filter(|l| !l.trim().is_empty()) {
+        println!("cargo:warning={line}");
+    }
+}
+
+/// Every `*.json` file in benchmarks/records/ as `EMBEDDED`, its file name
+/// and its text, sorted by name, in OUT_DIR/records.rs. The core parses
+/// them when a capability is first asked for; the library opens no file.
+fn records() {
+    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+    let dir = manifest.join("../benchmarks/records");
+    // A directory: cargo looks at every file under it.
+    println!("cargo:rerun-if-changed={}", dir.display());
+    let mut files: Vec<PathBuf> =
+        std::fs::read_dir(&dir).map(|d| d.filter_map(|e| e.ok().map(|e| e.path())).collect()).unwrap_or_default();
+    files.retain(|p| p.is_file() && p.extension().is_some_and(|e| e == "json"));
+    files.sort();
+    let mut code = String::from("/* Written by build.rs. */\npub static EMBEDDED: &[(&str, &str)] = &[\n");
+    for p in files {
+        let name = p.file_name().unwrap().to_str().unwrap_or_else(|| fail(&format!("{}: not UTF-8", p.display())));
+        let path = p.canonicalize().unwrap_or_else(|e| fail(&format!("{}: {e}", p.display())));
+        let path = path.to_str().unwrap_or_else(|| fail(&format!("{}: not UTF-8", p.display())));
+        // A record that is not even JSON fails the build here, by name; the
+        // core's parser judges the rest when a capability is asked for.
+        let bytes = std::fs::read(&p).unwrap_or_else(|e| fail(&format!("benchmarks/records/{name}: {e}")));
+        let text =
+            std::str::from_utf8(&bytes).unwrap_or_else(|e| fail(&format!("benchmarks/records/{name}: not UTF-8: {e}")));
+        if let Err(e) = serde_json::from_str::<serde_json::Value>(text) {
+            fail(&format!("benchmarks/records/{name}: not JSON: {e}"));
+        }
+        code.push_str(&format!("    ({name:?}, include_str!({path:?})),\n"));
+    }
+    code.push_str("];\n");
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    std::fs::write(out.join("records.rs"), code).unwrap();
 }
 
 fn toolkit_root() -> PathBuf {
