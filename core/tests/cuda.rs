@@ -2368,6 +2368,31 @@ fn forcing_beats_tuning() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// A tuned session whose every GEMM tile is forced has nothing to time:
+/// it reports FORCED, and says so at INFO.
+#[test]
+fn forced_tiles_leave_nothing_to_tune() {
+    let _t = turn();
+    let Some(dev) = cuda_device("forced_tiles_leave_nothing_to_tune") else { return };
+    use turbo::cuda::Tile;
+    let ordinal = Rt::new().info(dev).ordinal;
+    let (f, _) = small_model("cuda-forced-tiles");
+    let (g, lines) = load_logged(&f.dir);
+    let desc = tuned_desc(40, 160, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_ON, 0);
+    let s = caching(None, || {
+        turbo::cuda::use_tile(Some(Tile::T64x64));
+        let s = Session::create(g.m, Some(&desc));
+        turbo::cuda::use_tile(None);
+        s
+    });
+    let info = s.unwrap().info();
+    assert!(turbo::tuning::forced_knobs(&field(&info.choices)).contains(&"tile"));
+    assert_eq!((info.tuned, info.tune_ms), (TURBO_TUNED_FORCED, 0));
+    let want = format!("cuda device {ordinal}: not tuned: every GEMM tile is forced");
+    let lines = lines.lock().unwrap();
+    assert!(lines.iter().any(|(level, l)| *level == 2 && *l == want), "{lines:?}");
+}
+
 /// A variant that cannot launch is skipped: the tuner never chooses it
 /// and says so once, at INFO; forcing it fails the session, naming it.
 #[test]

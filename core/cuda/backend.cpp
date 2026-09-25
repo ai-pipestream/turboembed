@@ -2202,6 +2202,10 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             c->say(LOG_INFO,
                    "cuda device %d: not tuned: TURBO_CUDA_CUBLAS hands GEMMs to cuBLAS, whose kernels are its own",
                    c->ordinal);
+        // The tuner times only GEMM tiles: with every one forced, it has
+        // nothing to time, and the session reports FORCED.
+        const bool untimed = tuned && !cublas && tiles_forced(ch);
+        if (untimed) c->say(LOG_INFO, "cuda device %d: not tuned: every GEMM tile is forced", c->ordinal);
         bool cached = false;
         const bool plain = !forced_knobs(ch) && !tf32 && !f16_accumulate && !cublas;
         if (tuned && tuning->cached && *tuning->cached && plain) {
@@ -2233,7 +2237,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         }
         // ON with a cached choice takes it unmeasured; RETUNE measures
         // against it.
-        const bool measure = tuned && !cublas && !(cached && mode == TURBO_AUTOTUNE_ON);
+        const bool measure = tuned && !cublas && !untimed && !(cached && mode == TURBO_AUTOTUNE_ON);
 
         Session *s = make<Session>();
         s->model = m;
@@ -2403,7 +2407,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
             else if (cached)
                 tuning->tuned = TURBO_TUNED_CACHE;
             else
-                tuning->tuned = all_forced(s->choices) ? TURBO_TUNED_FORCED : TURBO_TUNED_DEFAULT;
+                tuning->tuned = untimed || all_forced(s->choices) ? TURBO_TUNED_FORCED : TURBO_TUNED_DEFAULT;
             tuning->tune_ms = found.measured ? tune_ms : 0;
             copy_str(tuning->choices, sizeof tuning->choices, line);
             if (tuning->timings && tuning->timings_len) {

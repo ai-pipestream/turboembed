@@ -167,8 +167,9 @@ stream-K (`sk<steps>` or `tiles`), then `/tf32` when it computes in TF32;
 the kernels that run: a tile the session's operands or device do not
 take is reported as the one that runs in its place. `forced=` lists the
 knobs (`tile`, `sk`, `tf32`, `attn`, `ln`, `pool`) the environment
-fixed; `tuned` says `default`, `forced` when every knob was, and
-`measured` or `cache` for a tuned session (below).
+fixed; `tuned` says `default`, `forced` when every knob was or a tuned
+session's every GEMM tile was, and `measured` or `cache` for a tuned
+session (below).
 
 `TURBO_CUDA_CHOICES`, read when a session is made after the switches
 above, forces the items it names, over them: the line a session
@@ -236,7 +237,10 @@ is held that long, so the context's other sessions wait: a server that
 makes sessions while it serves makes them on a context of their own, or
 with tuning off. A session whose GEMMs cuBLAS computes
 (`TURBO_CUDA_CUBLAS`) is not tuned and takes no cached choice: it
-reports `default`, and an INFO line says why.
+reports `default`, and an INFO line says why. Nor is a session whose
+every GEMM's tile is forced (`TURBO_CUDA_TILE`, or `TURBO_CUDA_CHOICES`
+naming each), since the tuner times only tiles: it reports `forced`,
+and an INFO line says so.
 
 A measured session reports `tuned` MEASURED and `tune_ms`, and logs at
 INFO `cuda device 0: kernels chosen in <ms> ms for <n> token bins:
