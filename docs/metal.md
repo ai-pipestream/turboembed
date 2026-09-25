@@ -109,7 +109,8 @@ frameworks and libc++, which every macOS has.
   LayerNorm; then one kernel pools (mean over the mask, the first token,
   or the last live one), cuts to `output_dim` and normalizes. The linear
   layers run one of two GEMM kernels. Up to 128 packed tokens, where
-  reading the weights is most of the work, a threadgroup computes a 32 x
+  reading the weights is most of the work, and for an output width that
+  is a multiple of 16, a threadgroup computes a 32 x
   16 tile of the output over all of k, its four SIMD groups each taking
   every fourth step of 8 along k and reading straight from device
   memory, and sums their four parts as it stores: many small

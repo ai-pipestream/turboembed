@@ -8,7 +8,8 @@
 // pos gives a token's column in its row, for its position embedding.
 //
 // The linear layers and attention run on SIMD-group matrices, 8 x 8 F32
-// tiles staged in threadgroup memory, with the next step fused into
+// tiles staged in threadgroup memory, or for few tokens read straight
+// from device memory, with the next step fused into
 // the linear layers' stores: the bias, or the bias and GELU. LayerNorm and
 // pooling take one SIMD group per token or row.
 //
