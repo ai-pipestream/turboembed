@@ -38,6 +38,9 @@ unsafe extern "C" {
     ) -> i32;
     fn turbo_cuda_use_cublas(gemms: i32);
     fn turbo_cuda_use_tile(tile: i32);
+    fn turbo_cuda_use_sk_steps(steps: i32);
+    fn turbo_cuda_use_choices(choices: *const std::ffi::c_char);
+    fn turbo_cuda_variants(ordinal: u32, precision: u32, out: *mut std::ffi::c_char, len: usize) -> i32;
     fn turbo_cuda_use_split_attention(split: i32);
     fn turbo_cuda_use_wide_attention(wide: i32);
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
@@ -207,6 +210,32 @@ pub fn use_tile(tile: Option<Tile>) {
     unsafe { turbo_cuda_use_tile(tile.map_or(-1, |t| t as i32)) };
 }
 
+/// How the GEMMs of a session share out their work, as TURBO_CUDA_SK_STEPS
+/// names it.
+#[cfg(feature = "internals")]
+#[derive(Clone, Copy, Debug)]
+pub enum StreamK {
+    /// Stream-K with the kernels' own fewest k steps to a block.
+    Default,
+    /// Stream-K with at least this many k steps to a block, 1 to 64.
+    Steps(u32),
+    /// Whole tiles to a block: no tile split between blocks.
+    Tiles,
+}
+
+/// The GEMMs' stream-K in sessions made from now on, or `None` to read
+/// TURBO_CUDA_SK_STEPS again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_stream_k(sk: Option<StreamK>) {
+    let v = match sk {
+        None => -1,
+        Some(StreamK::Default) => 0,
+        Some(StreamK::Steps(n)) => n as i32,
+        Some(StreamK::Tiles) => -2,
+    };
+    unsafe { turbo_cuda_use_sk_steps(v) };
+}
+
 /// The FMA attention of sessions made from now on: `Some(true)` the
 /// kernel that splits each query's keys among four warps, as
 /// TURBO_CUDA_ATTENTION=split picks it, `Some(false)` the default, `None`
@@ -262,4 +291,43 @@ pub fn use_tf32(tf32: Option<bool>) {
 #[cfg(feature = "internals")]
 pub fn use_f16_accumulate(f16: Option<bool>) {
     unsafe { turbo_cuda_use_f16_accumulate(f16.map_or(-1, i32::from)) };
+}
+
+/// The kernel choices of sessions made from now on, as TURBO_CUDA_CHOICES
+/// names them, or `None` to read the variable again. Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn use_choices(choices: Option<&str>) {
+    let c = choices.map(|c| std::ffi::CString::new(c).unwrap());
+    unsafe { turbo_cuda_use_choices(c.as_ref().map_or(std::ptr::null(), |c| c.as_ptr())) };
+}
+
+/// A GEMM kernel variant a session may force: its name as a choices
+/// string spells a GEMM's kernel, the TURBO_NUMERIC_* class it computes
+/// in, and whether the tuner times it.
+#[cfg(feature = "internals")]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Variant {
+    pub name: String,
+    pub numeric: u32,
+    pub candidate: bool,
+}
+
+/// The GEMM kernel variants of a session at `precision` on CUDA device
+/// `ordinal` (FASTEST taken as F16 operands). Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn variants(ordinal: u32, precision: u32) -> Result<Vec<Variant>, i32> {
+    let mut out = vec![0 as std::ffi::c_char; 4096];
+    let rc = unsafe { turbo_cuda_variants(ordinal, precision, out.as_mut_ptr(), out.len()) };
+    if rc != 0 {
+        return Err(rc);
+    }
+    Ok(crate::backend::cstr(&out)
+        .lines()
+        .map(|l| {
+            let f: Vec<&str> = l.split(' ').collect();
+            Variant { name: f[0].to_owned(), numeric: f[1].parse().unwrap(), candidate: f[2] == "1" }
+        })
+        .collect())
 }
