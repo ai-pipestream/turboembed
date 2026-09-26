@@ -434,7 +434,8 @@ older than the runtime, it lists none and the runtime's log says why.
      block of rows' tiles then normalizes those rows, a warp per row
      holding it in registers, two rows at a time (writing an F16 copy
      too for an F16 session). The sums are those of the separate
-     LayerNorm kernel in the same order, so the bits are the same;
+     LayerNorm kernel in the same order, so the bits are the same (at
+     FASTEST, those of the F32 residual stream, below);
   4. the feed-forward input GEMM, its bias and GELU (erf) in its
      epilogue, `erff`, or where it writes F16 (FASTEST) erfc from a fit
      with `TURBO_CUDA_GELU=poly` (below);
@@ -515,7 +516,15 @@ older than the runtime, it lists none and the runtime's log says why.
   exponential, a reciprocal and multiply-adds, without `erff`'s branch;
   on an RTX 4080 SUPER at 32 x 256 full rows it takes the same time as
   `erff` on the default tiles and 5% less on `sw8w`'s GELU launch, whose
-  `erff` instance spills registers. The arithmetic follows the
+  `erff` instance spills registers. At FASTEST the hidden states between
+  one LayerNorm and the next are kept in F16 alone, the copy the GEMMs
+  read: each LayerNorm adds the GEMM's F32 product and its bias to the F16
+  residual in F32, normalizes, and writes F16; the F32 hidden states are
+  written after the last layer, for the pooling. `TURBO_CUDA_RESIDUAL=f32`,
+  read when a session is made, keeps the F32 residual stream as well, the
+  earlier bits, for measuring against the default (`f16` names the
+  default); the LayerNorm epilogues (`TURBO_CUDA_LAYER_NORM=fused`, `swrow`,
+  `f16krow`) read the F32 stream and keep it. The arithmetic follows the
   CPU encoder where order matters: LayerNorm takes the mean, then the
   variance about it
   (in F32 here, F64 on the CPU), softmax subtracts the largest live

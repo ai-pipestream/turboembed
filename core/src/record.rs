@@ -42,7 +42,7 @@ fn rows_mixed() -> String {
 /// choices, present in every record of a backend that reports choices, so
 /// a record made with nothing set still says which kernels ran, and
 /// TURBO_CUDA_CHOICES set to that string forces them back.
-pub const LIBRARY_VARS: [(&str, &str); 14] = [
+pub const LIBRARY_VARS: [(&str, &str); 15] = [
     ("cpu", "TURBO_CPU_THREADS"),
     ("cuda", "TURBO_CUDA_TILE"),
     ("cuda", "TURBO_CUDA_SK_STEPS"),
@@ -53,6 +53,7 @@ pub const LIBRARY_VARS: [(&str, &str); 14] = [
     ("cuda", "TURBO_CUDA_TF32"),
     ("cuda", "TURBO_CUDA_F16_ACCUMULATE"),
     ("cuda", "TURBO_CUDA_GELU"),
+    ("cuda", "TURBO_CUDA_RESIDUAL"),
     ("cuda", "TURBO_AUTOTUNE"),
     ("cuda", "TURBO_AUTOTUNE_BUDGET_MS"),
     ("cuda", "TURBO_CUDA_TUNED"),

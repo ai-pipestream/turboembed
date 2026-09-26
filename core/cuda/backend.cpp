@@ -1035,6 +1035,11 @@ int32_t f16_weights(Model *m, turbo_error *err) {
 // erf from a fit (gelu_f16 in kernels.cu) in place of the default's erff,
 // which an F32 output's always is; TURBO_CUDA_GELU=erf names the default.
 //
+// TURBO_CUDA_RESIDUAL=f32, read when a session is made, keeps FASTEST's
+// hidden states in F32 between one LayerNorm and the next as well as in
+// F16, the earlier bits, in place of the default's F16 alone; f16 names
+// the default.
+//
 // TURBO_CUDA_CUBLAS, read when a session is made, hands the GEMMs it names
 // to cuBLAS: a comma-separated list of qkv, out, ffn1 and ffn2, or all.
 // cuBLAS's product then goes through a kernel of the same epilogue, and
@@ -1075,6 +1080,7 @@ std::atomic<int> f16_accumulate_override{-1};
 std::atomic<int> separate_ln_override{-1};
 std::atomic<int> column_pool_override{-1};
 std::atomic<int> gelu_erf_override{-1};
+std::atomic<int> residual16_override{-1};
 /* In place of TURBO_CUDA_SK_STEPS: 0 the kernels' own, 1 to 64 steps,
  * SK_OVERRIDE_TILES whole tiles; -1 for the variable. */
 std::atomic<int> sk_override{-1};
@@ -1215,6 +1221,15 @@ bool gelu_erf_named() {
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_GELU");
     return !(v && !strcasecmp(v, "poly"));
+}
+
+/* TURBO_CUDA_RESIDUAL=f32 keeps FASTEST's F32 residual stream, the earlier
+ * bits; unset or f16, the default's F16 stream alone. */
+bool residual16_named() {
+    const int o = overridden(residual16_override);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_RESIDUAL");
+    return !(v && !strcasecmp(v, "f32"));
 }
 
 /* TURBO_CUDA_SK_STEPS: the GEMMs' fewest k steps per block, a count from
@@ -1582,6 +1597,9 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     aa.chunk = plan.attn_chunk;
     aa.queries = plan.attn_queries;
     aa.scale = 1.0f / sqrtf((float)hd);
+    // The F16 residual stream, where every LayerNorm is the kernel of its
+    // own: the fused epilogues read the F32 one.
+    const bool res16 = sh.residual16 && !plan.fused_ln;
     for (uint32_t l = 0; l < d.layers; l++) {
         // Q, K and V's weights back to back, as lay_out puts them: one GEMM
         // of 3 * hidden outputs, their biases added and each head's
@@ -1618,9 +1636,9 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
             } else {
                 TRY_CUDA(gemm_as(GEMM_OUT, EPI_PLAIN, g), "the attention output projection");
             }
-            TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
+            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
                                     layer(l, TURBO_BERT_ATTN_LN_WEIGHT), layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info,
-                                    h, s.x16, plan),
+                                    h, s.x16, res16, plan),
                      "the attention LayerNorm");
         }
 
@@ -1655,9 +1673,10 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
             } else {
                 TRY_CUDA(gemm_as(GEMM_FFN2, EPI_PLAIN, g), "the feed-forward output");
             }
-            TRY_CUDA(add_layer_norm(st, s.x, s.part, layer(l, TURBO_BERT_FFN_OUT_BIAS),
-                                    layer(l, TURBO_BERT_FFN_LN_WEIGHT), layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info,
-                                    h, s.x16, plan),
+            // The last layer's F32 hidden states are the pooling's.
+            TRY_CUDA(add_layer_norm(st, res16 && l + 1 < d.layers ? nullptr : s.x, s.part,
+                                    layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
+                                    layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h, s.x16, res16, plan),
                      "the feed-forward LayerNorm");
         }
     }
@@ -2198,6 +2217,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         base.inter = (int)d.intermediate;
         base.half = half;
         base.gelu_erf = half && gelu_erf_named();
+        base.residual16 = half && residual16_named();
         int major = 0, sms = 0, optin = 0;
         TRY_CUDA(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, c->ordinal), "the device's sm");
         TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, c->ordinal), "the device's SMs");
@@ -2998,5 +3018,10 @@ void turbo_cuda_use_column_pool(int32_t columns) { column_pool_override.store(co
  * (TURBO_CUDA_GELU=erf), 0 the fit (TURBO_CUDA_GELU=poly), -1 to read the
  * variable again. */
 void turbo_cuda_use_gelu_erf(int32_t erf) { gelu_erf_override.store(erf, std::memory_order_relaxed); }
+
+/* FASTEST's residual stream in sessions made from now on: 1 F16 alone,
+ * the default, 0 F32 as well (TURBO_CUDA_RESIDUAL=f32), -1 to read the
+ * variable again. */
+void turbo_cuda_use_residual16(int32_t f16) { residual16_override.store(f16, std::memory_order_relaxed); }
 
 } // extern "C"
