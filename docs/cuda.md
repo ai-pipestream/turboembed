@@ -141,6 +141,16 @@ GEMMs as `swrow` takes them, 64 × 384 whole rows with the residual and
 the LayerNorm in their epilogue (`f16k3`'s tile for hidden states wider
 than 384); `f16k256` is `f16k3` but QKV and GELU at 256 × 128 over
 eight warps of 64 × 64, one block to an SM.
+`TURBO_CUDA_TILE=ct` runs the GEMMs' k loop on CUTLASS's sm80 threadblock
+mainloop (`MmaMultistage` and its iterators, the headers under
+`core/cuda/cutlass/`, BSD-3-Clause, the README's Licence section) inside a kernel of
+this backend's: 128 × 128 × 32 tiles at three stages over four warps of
+64 × 64, two blocks to an SM, F16 operands and F32 sums, with the
+swizzled kernel's tile schedule, partial products and epilogues; `ctk`
+is `ct` with F16 sums over the whole of a block's k, as `f16k3`. Both
+need K a multiple of 8 (the mainloop's loads are 16 bytes) and take the
+`8w` and `f16k3` tiles otherwise. `ct` is a candidate the tuner
+measures; `ctk`, like the other whole-k tiles, is not.
 Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
 uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
 F32 sums, sums over 64 and whole-k sums side by side, and hold the last
