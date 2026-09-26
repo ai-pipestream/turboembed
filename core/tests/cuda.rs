@@ -1279,10 +1279,16 @@ fn f16_accumulators_hold_fastest_s_bound() {
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
     use turbo::cuda::Tile;
-    for (tile, separate) in
-        [None, Some(Tile::F16WholeK), Some(Tile::F16WholeK3), Some(Tile::F16WholeKRows), Some(Tile::F16WholeK256)]
-            .into_iter()
-            .flat_map(|tile| [(tile, true), (tile, false)])
+    for (tile, separate) in [
+        None,
+        Some(Tile::F16WholeK),
+        Some(Tile::F16WholeK3),
+        Some(Tile::F16WholeKRows),
+        Some(Tile::F16WholeK256),
+        Some(Tile::CtK),
+    ]
+    .into_iter()
+    .flat_map(|tile| [(tile, true), (tile, false)])
     {
         // The whole-k tiles are the F16 accumulators' experiment too.
         turbo::cuda::use_f16_accumulate(Some(true));
@@ -1765,6 +1771,8 @@ fn the_gemms_match_cublas() {
                     Tile::F16WholeK,
                     Tile::F16WholeK3,
                     Tile::F16WholeK256,
+                    Tile::Ct,
+                    Tile::CtK,
                 ]
             } else {
                 &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
@@ -1792,6 +1800,7 @@ fn the_gemms_match_cublas() {
                                 | Tile::F16WholeK
                                 | Tile::F16WholeK3
                                 | Tile::F16WholeK256
+                                | Tile::CtK
                         );
                     let bound = if f16_sums {
                         1e-2
@@ -1841,7 +1850,7 @@ fn f16_sums_over_the_whole_of_k_stay_within_their_bound() {
             for (sums, tiles) in [
                 (0, &[Tile::SwizzledEightWarps][..]),
                 (1, &[Tile::SwizzledEightWarpsF16Accumulate][..]),
-                (2, &[Tile::F16WholeK, Tile::F16WholeK3, Tile::F16WholeK256][..]),
+                (2, &[Tile::F16WholeK, Tile::F16WholeK3, Tile::F16WholeK256, Tile::CtK][..]),
             ] {
                 for &tile in tiles {
                     let (diff, reference) =
@@ -1908,9 +1917,14 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::F16WholeK3,
             Tile::F16WholeKRows,
             Tile::F16WholeK256,
+            Tile::Ct,
+            Tile::CtK,
         ] {
             // The whole-k tiles sum in F16, the F16 accumulators' experiment.
-            let whole_k = matches!(tile, Tile::F16WholeK | Tile::F16WholeK3 | Tile::F16WholeKRows | Tile::F16WholeK256);
+            let whole_k = matches!(
+                tile,
+                Tile::F16WholeK | Tile::F16WholeK3 | Tile::F16WholeKRows | Tile::F16WholeK256 | Tile::CtK
+            );
             turbo::cuda::use_f16_accumulate(whole_k.then_some(true));
             turbo::cuda::use_tile(Some(tile));
             let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, precision))));

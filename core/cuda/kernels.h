@@ -117,7 +117,15 @@ enum Tile : int {
     TILE_F16_WHOLE_K_ROWS = 16,
     /* TILE_F16_WHOLE_K_3, but QKV and GELU 256 x 128 over eight warps of
      * 64 x 64, one block to an SM. */
-    TILE_F16_WHOLE_K_256 = 17
+    TILE_F16_WHOLE_K_256 = 17,
+    /* CUTLASS's sm80 mainloop in a kernel of our own: 128 x 128 x 32 at
+     * three stages over four warps of 64 x 64, two blocks to an SM, F16
+     * operands and F32 sums; the swizzled kernel's schedule, partial
+     * products and epilogues. K must be a multiple of 8. */
+    TILE_CT = 18,
+    /* TILE_CT with F16 sums over the whole of a block's k, as
+     * TILE_F16_WHOLE_K_3: an experiment. */
+    TILE_CT_K = 19
 };
 
 /* The four GEMMs of a layer, in the order a layer runs them. */

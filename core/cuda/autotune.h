@@ -90,13 +90,15 @@ constexpr TileName TILE_NAMES[] = {
     {"f16k3", TILE_F16_WHOLE_K_3, true},
     {"f16krow", TILE_F16_WHOLE_K_ROWS, true},
     {"f16k256", TILE_F16_WHOLE_K_256, true},
+    {"ct", TILE_CT, true},
+    {"ctk", TILE_CT_K, true},
 };
 
 /* Whether a tile sums F16 products in F16 accumulators: over each 64
  * terms of k, or over the whole of a block's k. */
 inline bool f16_accumulates(Tile t) {
     return t == TILE_EIGHT_WARPS_F16_ACCUMULATE || t == TILE_SWIZZLED_8W_F16_ACCUMULATE || t == TILE_F16_WHOLE_K ||
-           t == TILE_F16_WHOLE_K_3 || t == TILE_F16_WHOLE_K_ROWS || t == TILE_F16_WHOLE_K_256;
+           t == TILE_F16_WHOLE_K_3 || t == TILE_F16_WHOLE_K_ROWS || t == TILE_F16_WHOLE_K_256 || t == TILE_CT_K;
 }
 
 /* What a choice was fixed by, rather than left to the defaults: a bit per

@@ -125,6 +125,7 @@ fn cuda() {
     .unwrap();
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let include = manifest.join("../include");
+    let cutlass = manifest.join("cuda/cutlass/include");
     let mut objects = Vec::new();
     for src in SOURCES {
         let obj = object(&out, src);
@@ -132,6 +133,8 @@ fn cuda() {
         cmd.args(["-c", "-O3", "-std=c++17", "-Xcompiler", "-fPIC,-Wall,-Wextra"])
             .arg("-I")
             .arg(&include)
+            .arg("-isystem")
+            .arg(&cutlass)
             .arg("-I")
             .arg(&out)
             .arg("-o")

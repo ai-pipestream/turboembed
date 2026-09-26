@@ -65,6 +65,9 @@ Tile canonical_tile(Gemm which, const Shape &base, bool mma, Tile t) {
     case TILE_F16_WHOLE_K_ROWS: return narrow && base.hidden <= ROW_LN_WIDTH ? t : TILE_F16_WHOLE_K_3;
     // Whole-k 256 x 128 only for QKV and GELU, their F16 outputs.
     case TILE_F16_WHOLE_K_256: return narrow ? TILE_F16_WHOLE_K_3 : t;
+    // CUTLASS's mainloop loads 16 bytes at a time: K a multiple of 8.
+    case TILE_CT: return base.hidden % 8 || base.inter % 8 ? TILE_EIGHT_WARPS : t;
+    case TILE_CT_K: return base.hidden % 8 || base.inter % 8 ? TILE_F16_WHOLE_K_3 : t;
     default: return t;
     }
 }
@@ -353,14 +356,14 @@ int gemm_variants(const Shape &base, Variant *out, int cap) {
     if (base.half && base.tensor_cores) {
         // F16 on the tensor cores: the eight-warp shapes, plain and
         // swizzled, each with F32 sums and with F16 sums within a chunk.
-        for (Tile t : {TILE_EIGHT_WARPS, TILE_SWIZZLED_8W, TILE_EIGHT_WARPS_F16_ACCUMULATE,
+        for (Tile t : {TILE_EIGHT_WARPS, TILE_SWIZZLED_8W, TILE_CT, TILE_EIGHT_WARPS_F16_ACCUMULATE,
                        TILE_SWIZZLED_8W_F16_ACCUMULATE})
             add(t, false, true);
         // F16 sums over the whole of a block's k are F16 sums within a
         // chunk, the block's segment of k, and are never timed.
         for (Tile t : {TILE_64x64, TILE_128x64, TILE_128x128, TILE_128x128_4W, TILE_256x128, TILE_SWIZZLED,
                        TILE_SWIZZLED_256x128, TILE_SWIZZLED_ROWS, TILE_F16_WHOLE_K, TILE_F16_WHOLE_K_3,
-                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256})
+                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256, TILE_CT_K})
             add(t, false, false);
         return n;
     }

@@ -123,6 +123,12 @@ pub enum Tile {
     /// `F16WholeK3`, but QKV and GELU 256 x 128 over eight warps of
     /// 64 x 64, one block to an SM.
     F16WholeK256 = 17,
+    /// CUTLASS's sm80 mainloop in a kernel of our own: 128 x 128 x 32 at
+    /// three stages over four warps of 64 x 64, two blocks to an SM, F32
+    /// sums.
+    Ct = 18,
+    /// `Ct` with F16 sums over the whole of a block's k.
+    CtK = 19,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random

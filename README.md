@@ -136,4 +136,6 @@ the server after the core holds on every machine.
 
 ## Licence
 
-Apache-2.0. See `LICENSE`.
+Apache-2.0. See `LICENSE`. The CUDA backend carries a subset of NVIDIA's
+CUTLASS headers under `core/cuda/cutlass/`, BSD-3-Clause, with their
+licence in `core/cuda/cutlass/LICENSE.txt`.

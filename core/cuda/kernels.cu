@@ -29,6 +29,16 @@
 #include <type_traits>
 #include <utility>
 
+/* CUTLASS (BSD-3-Clause; core/cuda/cutlass/LICENSE.txt): its sm80
+ * threadblock mainloop, which the ct tiles run. */
+#include <cutlass/cutlass.h>
+#include <cutlass/numeric_types.h>
+#include <cutlass/layout/matrix.h>
+#include <cutlass/gemm/gemm.h>
+#include <cutlass/gemm/threadblock/default_mma_core_sm80.h>
+#include <cutlass/gemm/threadblock/mma_multistage.h>
+#include <cutlass/transform/threadblock/predicated_tile_access_iterator.h>
+
 /* mma.sync m16n8k16 with F16 inputs and cp.async are sm_80's. A build for
  * an older architecture carries the kernels that use them as stubs, which
  * the host side never launches there. */
@@ -1929,6 +1939,382 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
 #endif
 }
 
+/* CUTLASS's sm80 threadblock mainloop (MmaMultistage, BSD-3-Clause, the
+ * headers under core/cuda/cutlass) inside a kernel of our own: 128 x 128
+ * x 32 tiles at three stages over four warps of 64 x 64, two blocks to an
+ * SM, F16 operands, F32 sums (TILE_CT) or F16 sums over the whole of a
+ * block's k (TILE_CT_K, an experiment as the f16k tiles are). The tile
+ * schedule (stream-K, from the share's end), the partial products and
+ * every epilogue are the swizzled kernel's, unchanged; only the k loop is
+ * CUTLASS's. Its loads are 16 bytes, so K must be a multiple of 8: the
+ * plan gives the swizzled tiles otherwise. */
+#ifndef TURBO_NO_MMA
+template <typename ElemC> struct CtCfg {
+    using TBShape = cutlass::gemm::GemmShape<128, 128, 32>;
+    using WarpShape = cutlass::gemm::GemmShape<64, 64, 32>;
+    using InstShape = cutlass::gemm::GemmShape<16, 8, 16>;
+    using MmaCore = cutlass::gemm::threadblock::DefaultMmaCore<
+        TBShape, WarpShape, InstShape, cutlass::half_t, cutlass::layout::RowMajor, cutlass::half_t,
+        cutlass::layout::ColumnMajor, ElemC, cutlass::layout::RowMajor, cutlass::arch::OpClassTensorOp, 3,
+        cutlass::arch::OpMultiplyAdd>;
+    using IteratorA = cutlass::transform::threadblock::PredicatedTileAccessIterator<
+        cutlass::MatrixShape<128, 32>, cutlass::half_t, cutlass::layout::RowMajor, 1,
+        typename MmaCore::IteratorThreadMapA, cutlass::Array<cutlass::half_t, 8>>;
+    using IteratorB = cutlass::transform::threadblock::PredicatedTileAccessIterator<
+        cutlass::MatrixShape<32, 128>, cutlass::half_t, cutlass::layout::ColumnMajor, 0,
+        typename MmaCore::IteratorThreadMapB, cutlass::Array<cutlass::half_t, 8>>;
+    using Mma = cutlass::gemm::threadblock::MmaMultistage<
+        typename MmaCore::Shape, IteratorA, typename MmaCore::SmemIteratorA, MmaCore::kCacheOpA, IteratorB,
+        typename MmaCore::SmemIteratorB, MmaCore::kCacheOpB, ElemC, cutlass::layout::RowMajor,
+        typename MmaCore::MmaPolicy, 3>;
+};
+#endif
+
+template <int EPI, typename TOut, bool WHOLE>
+__global__ void __launch_bounds__(128, 2) gemm_ct_kernel(GemmArgs g) {
+#ifndef TURBO_NO_MMA
+    constexpr int BM = 128, BN = 128, WM = 2, WN = 2, NT = WM * WN * 32, WTM = BM / WM, WTN = BN / WN, MI = WTM / 16,
+                  NI = WTN / 8;
+    constexpr int MMA_K = 32, SLOT = BM * BN;
+    constexpr bool ACC16 = WHOLE, ROW_LN = false;
+    __shared__ float row_sums[1][1][WN]; // the LayerNorm-in-the-GEMM path, which this kernel has not
+    (void)row_sums;
+    using Cfg = CtCfg<std::conditional_t<WHOLE, cutlass::half_t, float>>;
+    using Mma = typename Cfg::Mma;
+    extern __shared__ __align__(16) unsigned char gemm_sm[];
+    typename Mma::SharedStorage &stages = *reinterpret_cast<typename Mma::SharedStorage *>(gemm_sm);
+    const __half *A = static_cast<const __half *>(g.a), *B = static_cast<const __half *>(g.w);
+    const int M = g.info->tokens, N = g.n, K = g.k;
+    const int mt = (M + BM - 1) / BM, nt = (N + BN - 1) / BN;
+    const int steps = (K + MMA_K - 1) / MMA_K;
+    auto share = [&]() { return share_of(mt * nt, steps, g.min_steps); };
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    // The warps as MmaMultistage places them: down the tile first.
+    const int wm = warp % WM, wn = warp / WM, gq = lane >> 2, tq = lane & 3;
+    float acc[MI][NI][4];
+    uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
+    auto first_fragments = [&]() {};
+    const typename Cfg::IteratorA::Params pA{cutlass::layout::RowMajor(K)};
+    const typename Cfg::IteratorB::Params pB{cutlass::layout::ColumnMajor(K)};
+    cutlass::half_t *Ah = const_cast<cutlass::half_t *>(reinterpret_cast<const cutlass::half_t *>(A));
+    cutlass::half_t *Bh = const_cast<cutlass::half_t *>(reinterpret_cast<const cutlass::half_t *>(B));
+    const Share sh0 = share();
+    // The share's segments from its end, as the swizzled kernel walks them.
+    for (long long at = sh0.hi; at > sh0.lo;) {
+        const int tile = (int)((at - 1) / steps);
+        const long long first = (long long)tile * steps;
+        const int kb = sh0.lo > first ? (int)(sh0.lo - first) : 0, ke = (int)(at - first);
+        const int flags = ke == steps ? STEP_ENDS : 0;
+        at = first + kb;
+        const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
+        __syncthreads(); // every warp is done with the stages of the tile before
+        // The iterators put K's remainder in the segment's first step,
+        // measured from the extent they are given: the segment's end, so
+        // a segment that stops short of K takes whole steps only.
+        const int kx = ke == steps ? K : ke * MMA_K;
+        typename Cfg::IteratorA it_a(pA, Ah, cutlass::MatrixCoord(M, kx), (int)threadIdx.x,
+                                     cutlass::MatrixCoord(m0, kb * MMA_K));
+        typename Cfg::IteratorB it_b(pB, Bh, cutlass::MatrixCoord(kx, N), (int)threadIdx.x,
+                                     cutlass::MatrixCoord(kb * MMA_K, n0));
+        Mma mma(stages, (int)threadIdx.x, warp, lane);
+        typename Mma::FragmentC frag;
+        frag.clear();
+        mma(ke - kb, frag, it_a, it_b, frag);
+        // The accumulators into the swizzled kernel's arrays: m16n8 tile
+        // (i, j) is fragment i + j * MI, its four values in mma.sync's order.
+        if constexpr (WHOLE) {
+            const cutlass::half_t *fp = frag.data();
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int h = 0; h < 2; h++)
+                        hacc[i][j][h] = *reinterpret_cast<const uint32_t *>(fp + (i + j * MI) * 4 + 2 * h);
+        } else {
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) acc[i][j][e] = frag[(i + j * MI) * 4 + e];
+        }
+        // This block's product of the tile. WHOLE: a segment is one chunk,
+        // and its F16 sum, in F32, the product.
+        auto product = [&](int i, int j, int e) -> float {
+            if constexpr (WHOLE) {
+                const float2 v = __half22float2(*reinterpret_cast<const __half2 *>(&hacc[i][j][e >> 1]));
+                return e & 1 ? v.y : v.x;
+            } else {
+                return acc[i][j][e];
+            }
+        };
+
+        if (!(flags & STEP_ENDS)) {
+            // The start of a tile a later block finishes.
+            float *slot = g.ws + (size_t)blockIdx.x * SLOT + threadIdx.x;
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) __stcg(slot + ((i * NI + j) * 4 + e) * NT, product(i, j, e));
+            sk_raise(g.flags + blockIdx.x);
+            first_fragments();
+            continue;
+        }
+        // WHOLE: the F32 sums first written here, from the F16 sums, once
+        // the fragments are dead, so none is live in the mainloop.
+        if constexpr (WHOLE) {
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) acc[i][j][e] = product(i, j, e);
+        }
+        // The earlier blocks' partial products, added in F32 from the
+        // last block to the first.
+        const Share sh = share();
+        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1, g.min_steps) > first; b--) {
+            sk_wait(g.flags + b, g.fault);
+            const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
+#pragma unroll
+            for (int i = 0; i < MI; i++)
+#pragma unroll
+                for (int j = 0; j < NI; j++)
+#pragma unroll
+                    for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
+        }
+        auto total = [&](int i, int j, int e) -> float { return acc[i][j][e]; };
+
+        // The finished tile, from registers.
+        const int cw = n0 + wn * WTN;
+        // Every index into acc below is a template constant (static_for),
+        // never a loop the compiler may leave rolled.
+        // Bias, and GELU, in place first. An F16 output is packed as each
+        // n8 tile is done, two half2 of its four values, and its floats
+        // not read again: half the registers live into the stores.
+        constexpr bool f16_out = sizeof(TOut) == 2;
+        static_assert(!f16_out || EPI != EPI_PLAIN, "F16 outputs have a bias, which packs them");
+        [[maybe_unused]] uint32_t packed[f16_out ? MI : 1][f16_out ? NI : 1][2];
+        // WHOLE: an F16 output's values taken from the F16 sums as they
+        // are packed; an F32 output's bias added as it is stored, or with
+        // the residual.
+        if constexpr (EPI != EPI_PLAIN && (!WHOLE || f16_out))
+            static_for<NI>([&](auto J) {
+                constexpr int j = J.value;
+                const int c = cw + j * 8 + tq * 2;
+                const float b0 = c < N ? __ldg(g.bias + c) : 0.0f, b1 = c < N ? __ldg(g.bias + c + 1) : 0.0f;
+                static_for<MI>([&](auto I) {
+                    constexpr int i = I.value;
+                    if constexpr (WHOLE) {
+                        static_for<2>([&](auto H) {
+                            constexpr int h = H.value;
+                            float v0 = total(i, j, 2 * h) + b0, v1 = total(i, j, 2 * h + 1) + b1;
+                            if constexpr (gelu_epilogue_of(EPI)) {
+                                v0 = gelu_for<EPI, TOut>(v0);
+                                v1 = gelu_for<EPI, TOut>(v1);
+                            }
+                            const __half2 p = __floats2half2_rn(v0, v1);
+                            packed[i][j][h] = *reinterpret_cast<const uint32_t *>(&p);
+                        });
+                    } else {
+#pragma unroll
+                        for (int e = 0; e < 4; e++) {
+                            float &v = acc[i][j][e];
+                            v += e & 1 ? b1 : b0;
+                            if constexpr (gelu_epilogue_of(EPI)) v = gelu_for<EPI, TOut>(v);
+                        }
+                        if constexpr (f16_out)
+                            static_for<2>([&](auto H) {
+                                constexpr int h = H.value;
+                                const __half2 p = __floats2half2_rn(acc[i][j][2 * h], acc[i][j][2 * h + 1]);
+                                packed[i][j][h] = *reinterpret_cast<const uint32_t *>(&p);
+                            });
+                    }
+                });
+            });
+        if constexpr (ROW_LN) {
+            // The residual, then the LayerNorm of each row, which this
+            // tile holds whole: a lane's 2 x NI values of a row summed, a
+            // quad's four by shuffles, then the WN warps across the row
+            // in warp order through shared memory; the mean, then the
+            // variance about it, each over the row's N columns.
+            float *x = static_cast<float *>(g.out);
+            static_for<MI>([&](auto I) {
+                static_for<2>([&](auto H) {
+                    constexpr int i = I.value, h = H.value;
+                    const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+                    static_for<NI>([&](auto J) {
+                        constexpr int j = J.value;
+                        const int c = cw + j * 8 + tq * 2;
+                        float2 r = make_float2(0.0f, 0.0f);
+                        if (t < M && c < N) r = __ldcg(reinterpret_cast<const float2 *>(x + (size_t)t * N + c));
+                        // WHOLE: the F32 sums made here, where the F16
+                        // ones end.
+                        float v0 = total(i, j, 2 * h), v1 = total(i, j, 2 * h + 1);
+                        if constexpr (WHOLE) {
+                            v0 += c < N ? __ldg(g.bias + c) : 0.0f;
+                            v1 += c < N ? __ldg(g.bias + c + 1) : 0.0f;
+                        }
+                        acc[i][j][2 * h] = c < N ? v0 + r.x : 0.0f;
+                        acc[i][j][2 * h + 1] = c < N ? v1 + r.y : 0.0f;
+                    });
+                });
+            });
+            float mean[MI][2], inv[MI][2];
+            static_for<2>([&](auto PASS) {
+                constexpr int pass = PASS.value;
+                static_for<MI>([&](auto I) {
+                    static_for<2>([&](auto H) {
+                        constexpr int i = I.value, h = H.value;
+                        float q = 0.0f;
+                        static_for<NI>([&](auto J) {
+                            constexpr int j = J.value;
+#pragma unroll
+                            for (int e = 0; e < 2; e++) {
+                                const float v = acc[i][j][2 * h + e];
+                                if constexpr (pass == 0) {
+                                    q += v;
+                                } else if (cw + j * 8 + tq * 2 < N) {
+                                    const float d = v - mean[i][h];
+                                    q += d * d;
+                                }
+                            }
+                        });
+                        q += __shfl_xor_sync(0xffffffffu, q, 1);
+                        q += __shfl_xor_sync(0xffffffffu, q, 2);
+                        if (tq == 0) row_sums[pass][wm * WTM + i * 16 + gq + h * 8][wn] = q;
+                    });
+                });
+                __syncthreads();
+                static_for<MI>([&](auto I) {
+                    static_for<2>([&](auto H) {
+                        constexpr int i = I.value, h = H.value;
+                        const float *rs = row_sums[pass][wm * WTM + i * 16 + gq + h * 8];
+                        float q = rs[0];
+#pragma unroll
+                        for (int w = 1; w < WN; w++) q += rs[w];
+                        if constexpr (pass == 0)
+                            mean[i][h] = q / (float)N;
+                        else
+                            inv[i][h] = 1.0f / sqrtf(q / (float)N + g.eps);
+                    });
+                });
+            });
+            __half *x16 = reinterpret_cast<__half *>(g.x16);
+            static_for<NI / 4>([&](auto JQ) {
+                static_for<MI>([&](auto I) {
+                    static_for<2>([&](auto H) {
+                        constexpr int jq = JQ.value, i = I.value, h = H.value;
+                        const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+                        uint32_t mine[4];
+                        static_for<4>([&](auto U) {
+                            constexpr int u = U.value;
+                            const int c = cw + (jq * 4 + u) * 8 + tq * 2;
+                            float y0 = 0.0f, y1 = 0.0f;
+                            if (c < N) {
+                                const float2 wv = __ldg(reinterpret_cast<const float2 *>(g.ln_w + c));
+                                const float2 bv = __ldg(reinterpret_cast<const float2 *>(g.ln_b + c));
+                                const float a0 = acc[i][jq * 4 + u][2 * h], a1 = acc[i][jq * 4 + u][2 * h + 1];
+                                y0 = __fadd_rn(__fmul_rn((a0 - mean[i][h]) * inv[i][h], wv.x), bv.x);
+                                y1 = __fadd_rn(__fmul_rn((a1 - mean[i][h]) * inv[i][h], wv.y), bv.y);
+                                if (t < M) *reinterpret_cast<float2 *>(x + (size_t)t * N + c) = make_float2(y0, y1);
+                            }
+                            const __half2 p = __floats2half2_rn(y0, y1);
+                            mine[u] = *reinterpret_cast<const uint32_t *>(&p);
+                        });
+                        if (x16) {
+                            const uint4 w = quad_gather(mine, tq);
+                            const int c = cw + (jq * 4 + tq) * 8;
+                            if (t < M && c < N) *reinterpret_cast<uint4 *>(x16 + (size_t)t * N + c) = w;
+                        }
+                    });
+                });
+            });
+            first_fragments();
+            continue;
+        }
+        if constexpr (sizeof(TOut) == 4) {
+            // F32: a float2 a lane, 32 contiguous bytes a quad.
+            static_for<MI>([&](auto I) {
+                static_for<2>([&](auto H) {
+                    constexpr int i = I.value, h = H.value;
+                    const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+                    if (t >= M) return;
+                    float2 *row = reinterpret_cast<float2 *>(out_at<float>(g, t, cw + tq * 2));
+                    static_for<NI>([&](auto J) {
+                        constexpr int j = J.value;
+                        if (cw + j * 8 >= N) return;
+                        float2 v = make_float2(total(i, j, 2 * h), total(i, j, 2 * h + 1));
+                        if constexpr (WHOLE && EPI != EPI_PLAIN) {
+                            const int c = cw + j * 8 + tq * 2;
+                            v.x += c < N ? __ldg(g.bias + c) : 0.0f;
+                            v.y += c < N ? __ldg(g.bias + c + 1) : 0.0f;
+                            if constexpr (gelu_epilogue_of(EPI)) {
+                                v.x = gelu_for<EPI, TOut>(v.x);
+                                v.y = gelu_for<EPI, TOut>(v.y);
+                            }
+                        }
+                        if constexpr (EPI == EPI_ADD_LN) {
+                            const float2 r = row[j * 4];
+                            v.x += r.x;
+                            v.y += r.y;
+                        }
+                        row[j * 4] = v;
+                    });
+                });
+            });
+        } else {
+            // F16: lane tq of a quad stores n8 tile jq * 4 + tq's 8 columns.
+            // Their head-major place (QKV) is worked out once for all the
+            // rows, outside the loops over them: its divisions compile to
+            // a call, which the loops must not hold.
+            const bool whole = EPI != EPI_QKV || g.head_dim % 8 == 0;
+            static_for<NI / 4>([&](auto JQ) {
+                const int c = cw + (JQ.value * 4 + tq) * 8;
+                [[maybe_unused]] size_t col = 0;
+                [[maybe_unused]] int d = 0;
+                if constexpr (EPI == EPI_QKV)
+                    if (c < N) {
+                        const int which = c / g.hidden, hc = c - which * g.hidden;
+                        const int head = hc / g.head_dim;
+                        d = hc - head * g.head_dim;
+                        col = ((size_t)(which * g.heads + head) * g.tcap) * g.head_dim + d;
+                    }
+                static_for<MI>([&](auto I) {
+                    static_for<2>([&](auto H) {
+                        constexpr int jq = JQ.value, i = I.value, h = H.value;
+                        const int t = m0 + wm * WTM + i * 16 + gq + h * 8;
+                        uint32_t mine[4];
+                        static_for<4>([&](auto U) { mine[U.value] = packed[i][jq * 4 + U.value][h]; });
+                        const uint4 w = quad_gather(mine, tq);
+                        if (t >= M || c >= N) return;
+                        if constexpr (EPI == EPI_QKV) {
+                            __half *o = static_cast<__half *>(g.out) + (size_t)t * g.head_dim;
+                            if (whole)
+                                *reinterpret_cast<uint4 *>(o + col) = w;
+                            else
+                                qkv_store8(g, o, col, d, w);
+                        } else {
+                            *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = w;
+                        }
+                    });
+                });
+            });
+        }
+        if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
+        first_fragments();
+    }
+#else
+    (void)g;
+    __trap();
+#endif
+}
+
+
+
 /* The tile a GEMM runs: TURBO_CUDA_TILE's, or TILE_DEFAULT, which each
  * kernel resolves to its own; the tensor cores take the FMA kernel's
  * 16 x 8 micro-tile as plain 128 x 128. */
@@ -1945,6 +2331,15 @@ struct GemmKernel {
     int bm, bn;
     int per_sm; /* the blocks to an SM its launch bounds ask for */
 };
+
+template <int EPI, typename TOut, bool WHOLE> GemmKernel ct_kernel() {
+#ifndef TURBO_NO_MMA
+    constexpr size_t smem = sizeof(typename CtCfg<std::conditional_t<WHOLE, cutlass::half_t, float>>::Mma::SharedStorage);
+#else
+    constexpr size_t smem = 3 * (128 + 128) * 32 * 2;
+#endif
+    return {gemm_ct_kernel<EPI, TOut, WHOLE>, 128, smem, 128, 128, 2};
+}
 
 template <int BM, int BN, int TM, typename TIn, int EPI, typename TOut> GemmKernel simt_kernel() {
     return {gemm_simt_kernel<BM, BN, TM, TIn, EPI, TOut>,
@@ -2061,6 +2456,8 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
         case TILE_F16_WHOLE_K_ROWS:
         case TILE_F16_WHOLE_K_256: return swz_for<TOut, EPI, false>(t);
         case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
+        case TILE_CT: return ct_kernel<EPI, TOut, false>();
+        case TILE_CT_K: return ct_kernel<EPI, TOut, true>();
         default: break;
         }
     }
