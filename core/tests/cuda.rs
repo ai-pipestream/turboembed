@@ -2192,27 +2192,28 @@ fn a_variant_outside_the_precision_is_refused() {
     }
 }
 
-/// The whole-k tiles sum in F16: FASTEST refuses one forced through
-/// TURBO_CUDA_CHOICES without the F16 accumulators' switch, naming field 3
-/// and the kernel, and takes it with the switch.
+/// The whole-k tiles sum in F16, which FASTEST allows: one forced through
+/// TURBO_CUDA_CHOICES is taken with no switch, and the session's choices
+/// name it; the default is `ctk`, F16 sums over the whole of a block's k
+/// on CUTLASS's mainloop, in a bin of any size.
 #[test]
-fn a_whole_k_tile_is_refused_without_its_switch() {
+fn a_whole_k_tile_is_taken_at_fastest() {
     let _t = turn();
-    let Some(_) = cuda_device("a_whole_k_tile_is_refused_without_its_switch") else { return };
+    let Some(_) = cuda_device("a_whole_k_tile_is_taken_at_fastest") else { return };
     let (_f, g) = small_model("cuda-whole-k");
     let make =
         |line: &str| forcing(line, || Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_FASTEST))));
     // (f16k256 is 256 x 128 only for QKV and GELU.)
-    for (gemm, tile) in [("ffn2", "f16k"), ("ffn2", "f16k3"), ("ffn2", "f16krow"), ("ffn1", "f16k256")] {
+    for (gemm, tile) in [("ffn2", "f16k"), ("ffn2", "f16k3"), ("ffn2", "f16krow"), ("ffn1", "f16k256"), ("out", "ctk")]
+    {
         let line = format!("all:{gemm}={tile}");
-        let e = make(&line).err().unwrap();
-        assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 3), "{line}: {}", e.message);
-        assert!(e.message.contains(&format!("{gemm}={tile}/")), "{}", e.message);
-        turbo::cuda::use_f16_accumulate(Some(true));
-        let s = make(&line);
-        turbo::cuda::use_f16_accumulate(None);
-        let choices = field(&s.unwrap().info().choices);
+        let choices = field(&make(&line).unwrap().info().choices);
         assert!(choices.contains(&format!("{gemm}={tile}/")), "{choices}");
+    }
+    let s = Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_FASTEST))).unwrap();
+    let choices = field(&s.info().choices);
+    for gemm in ["qkv", "out", "ffn1", "ffn2"] {
+        assert!(choices.contains(&format!("{gemm}=ctk/")), "{choices}");
     }
 }
 

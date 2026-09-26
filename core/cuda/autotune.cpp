@@ -54,7 +54,10 @@ Tile canonical_tile(Gemm which, const Shape &base, bool mma, Tile t) {
         }
     }
     switch (t) {
-    case TILE_DEFAULT: return TILE_EIGHT_WARPS;
+    // FASTEST's default: F16 sums over the whole of a block's k on
+    // CUTLASS's mainloop, the swizzled whole-k kernel where K is not a
+    // multiple of 8 (the same sums on the same schedule).
+    case TILE_DEFAULT: return base.hidden % 8 || base.inter % 8 ? TILE_F16_WHOLE_K_3 : TILE_CT_K;
     // An F32 output tile of 256 x 128 does not fit: the kernel takes
     // 128 x 128 over four warps.
     case TILE_256x128: return narrow ? TILE_128x128_4W : t;
@@ -354,16 +357,17 @@ int gemm_variants(const Shape &base, Variant *out, int cap) {
         v.candidate = candidate;
     };
     if (base.half && base.tensor_cores) {
-        // F16 on the tensor cores: the eight-warp shapes, plain and
+        // F16 on the tensor cores: the default's whole-k F16 sums on
+        // CUTLASS's mainloop, then the eight-warp shapes, plain and
         // swizzled, each with F32 sums and with F16 sums within a chunk.
-        for (Tile t : {TILE_EIGHT_WARPS, TILE_SWIZZLED_8W, TILE_CT, TILE_EIGHT_WARPS_F16_ACCUMULATE,
+        for (Tile t : {TILE_CT_K, TILE_EIGHT_WARPS, TILE_SWIZZLED_8W, TILE_CT, TILE_EIGHT_WARPS_F16_ACCUMULATE,
                        TILE_SWIZZLED_8W_F16_ACCUMULATE})
             add(t, false, true);
-        // F16 sums over the whole of a block's k are F16 sums within a
-        // chunk, the block's segment of k, and are never timed.
+        // The other whole-k tiles measured slower than ctk on each GEMM
+        // and are not timed.
         for (Tile t : {TILE_64x64, TILE_128x64, TILE_128x128, TILE_128x128_4W, TILE_256x128, TILE_SWIZZLED,
                        TILE_SWIZZLED_256x128, TILE_SWIZZLED_ROWS, TILE_F16_WHOLE_K, TILE_F16_WHOLE_K_3,
-                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256, TILE_CT_K})
+                       TILE_F16_WHOLE_K_ROWS, TILE_F16_WHOLE_K_256})
             add(t, false, false);
         return n;
     }

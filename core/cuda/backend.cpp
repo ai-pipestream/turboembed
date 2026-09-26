@@ -1305,7 +1305,8 @@ bool choices_named(Choices *c, uint32_t *absent, char *why, size_t len) {
 /* The numeric classes each precision allows when the core hands none (a
  * session made through session_create): the core's own table. */
 uint32_t default_numerics(uint32_t precision) {
-    return precision == TURBO_PRECISION_FASTEST ? TURBO_NUMERIC_F16_F32ACC : TURBO_NUMERIC_F32_FMA;
+    return precision == TURBO_PRECISION_FASTEST ? TURBO_NUMERIC_F16_F32ACC | TURBO_NUMERIC_F16_CHUNKACC
+                                                : TURBO_NUMERIC_F32_FMA;
 }
 
 const char *precision_name(uint32_t p) {

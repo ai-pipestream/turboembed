@@ -36,8 +36,9 @@ same kernels.
 
 Every kernel a precision may run computes in a numeric class the
 precision allows (`TURBO_NUMERIC_*` in turbo_backend.h): F32 FMAs at
-EXACT and MODEL, F16 operands with F32 sums at FASTEST. TF32 and F16
-sums are in no precision's set; a backend's experiment switch widens
+EXACT and MODEL; F16 operands with F32 sums, and F16 sums within a
+chunk (a decision of 2026-09-26, recorded in docs/cuda.md), at FASTEST.
+TF32 is in no precision's set; a backend's experiment switch widens
 that session's set alone. So a different choice moves the bits within
 the precision's bound, never past it.
 

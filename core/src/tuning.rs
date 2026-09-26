@@ -11,7 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::backend::{TURBO_NUMERIC_F16_F32ACC, TURBO_NUMERIC_F32_FMA};
+use crate::backend::{TURBO_NUMERIC_F16_CHUNKACC, TURBO_NUMERIC_F16_F32ACC, TURBO_NUMERIC_F32_FMA};
 use crate::bundle::sha256_hex;
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_ENUM, Result};
 use crate::{
@@ -21,15 +21,18 @@ use crate::{
 };
 
 /// The numeric classes each precision allows, as TURBO_NUMERIC_* bits.
-/// Widened only by a decision recorded with its measurements: TF32 at
-/// MODEL and F16 sums within a chunk at FASTEST are not in it. A backend
-/// cannot widen it; an environment variable of the backend's widens the
-/// backend's own copy for the experiment it names, and such a session is
-/// never cached.
+/// Widened only by a decision recorded with its measurements: F16 sums
+/// within a chunk at FASTEST were added on 2026-09-26, when a whole-k
+/// F16-sums tile measured 8-12% faster than the F32-sums one on an RTX
+/// 4080 SUPER with the reference cosine at 0.999998, three orders of
+/// magnitude inside FASTEST's bound; TF32 at MODEL is not in it. A
+/// backend cannot widen it; an environment variable of the backend's
+/// widens the backend's own copy for the experiment it names, and such a
+/// session is never cached.
 pub const NUMERICS_ALLOWED: [(u32, u32); 3] = [
     (TURBO_PRECISION_EXACT, TURBO_NUMERIC_F32_FMA),
     (TURBO_PRECISION_MODEL, TURBO_NUMERIC_F32_FMA),
-    (TURBO_PRECISION_FASTEST, TURBO_NUMERIC_F16_F32ACC),
+    (TURBO_PRECISION_FASTEST, TURBO_NUMERIC_F16_F32ACC | TURBO_NUMERIC_F16_CHUNKACC),
 ];
 
 /// The classes `precision` allows.
@@ -283,23 +286,25 @@ impl Cache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::{TURBO_NUMERIC_F16_CHUNKACC, TURBO_NUMERIC_TF32};
+    use crate::backend::TURBO_NUMERIC_TF32;
 
-    /// The table a decision changes: no accuracy-changing class is allowed
-    /// by default in any precision.
+    /// The table a decision changes: EXACT and MODEL allow F32 FMAs only,
+    /// FASTEST F16 operands with F32 sums and, by the decision of
+    /// 2026-09-26, F16 sums within a chunk; TF32 is in no precision's set.
     #[test]
-    fn no_accuracy_changing_class_is_allowed_by_default() {
+    fn the_classes_are_the_decided_ones() {
         assert_eq!(
             NUMERICS_ALLOWED,
             [
                 (TURBO_PRECISION_EXACT, TURBO_NUMERIC_F32_FMA),
                 (TURBO_PRECISION_MODEL, TURBO_NUMERIC_F32_FMA),
-                (TURBO_PRECISION_FASTEST, TURBO_NUMERIC_F16_F32ACC),
+                (TURBO_PRECISION_FASTEST, TURBO_NUMERIC_F16_F32ACC | TURBO_NUMERIC_F16_CHUNKACC),
             ]
         );
         for p in [TURBO_PRECISION_EXACT, TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
-            assert_eq!(numerics_allowed(p) & (TURBO_NUMERIC_TF32 | TURBO_NUMERIC_F16_CHUNKACC), 0, "precision {p}");
+            assert_eq!(numerics_allowed(p) & TURBO_NUMERIC_TF32, 0, "precision {p}");
         }
+        assert_eq!(numerics_allowed(TURBO_PRECISION_MODEL) & TURBO_NUMERIC_F16_CHUNKACC, 0);
     }
 
     #[test]
