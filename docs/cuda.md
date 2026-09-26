@@ -48,10 +48,11 @@ tile for every GEMM: `64x64`, `128x64`, `128x128` or `128x128-16x8`
 kernels, where the other tiles give a thread 8 × 8; plain `128x128` on
 the tensor cores), and for the tensor cores `128x128-4w` (four warps of
 64 × 64), `256x128` (eight such warps; `128x128-4w` for a GEMM with an
-F32 output) or `8w`, the eight-warp tiles, FASTEST's default: `128x128`
+F32 output) or `8w`, the eight-warp tiles, FASTEST's F32-sums shapes: `128x128`
 over warps of 32 × 64 for the QKV and first feed-forward GEMMs and
 `128x64` for the other two (the FMA kernels take `128x64` for these
-three). F16 on the tensor cores also takes `sw`, `sw8w` and `sw256`, the
+three). FASTEST's default is `ctk`, F16 sums over a block's whole k on
+CUTLASS's mainloop, described with the `f16k` tiles below. F16 on the tensor cores also takes `sw`, `sw8w` and `sw256`, the
 swizzled kernel: stage rows of 64 bytes with 16-byte chunk c of row r
 at c ^ ((r >> 1) & 3) in place of rows padded to 80 bytes, so three
 stages of 128 × 128 take 48 KB and two blocks share an SM; the loads
@@ -131,7 +132,7 @@ sums do not depend on which blocks share it. F16 accumulation is twice
 the tensor cores' F32 rate on GeForce cards. It is off by default; the
 CUDA tests hold it to FASTEST's bound, cosine 0.999, and print the
 cosine and largest absolute difference they measure.
-`TURBO_CUDA_TILE=f16k` goes further, for measuring: FASTEST's GEMMs sum
+`TURBO_CUDA_TILE=f16k` goes further: FASTEST's GEMMs sum
 in F16 over the whole of a block's k, with no F32 accumulators but the
 stream-K partial products and their total (TensorRT's F16 GEMMs), on the
 swizzled kernel at 128 × 128 over four warps of 64 × 64, four stages, one
@@ -147,10 +148,14 @@ mainloop (`MmaMultistage` and its iterators, the headers under
 this backend's: 128 × 128 × 32 tiles at three stages over four warps of
 64 × 64, two blocks to an SM, F16 operands and F32 sums, with the
 swizzled kernel's tile schedule, partial products and epilogues; `ctk`
-is `ct` with F16 sums over the whole of a block's k, as `f16k3`. Both
-need K a multiple of 8 (the mainloop's loads are 16 bytes) and take the
-`8w` and `f16k3` tiles otherwise. `ct` is a candidate the tuner
-measures; `ctk`, like the other whole-k tiles, is not.
+is `ct` with F16 sums over the whole of a block's k, as `f16k3`, and
+gives `f16k3`'s bits. Both need K a multiple of 8 (the mainloop's loads
+are 16 bytes) and take the `8w` and `f16k3` tiles otherwise. `ctk` is
+FASTEST's default (`f16k3` where K is not a multiple of 8): on an RTX
+4080 SUPER it measured 12% faster than `f16k3` and 35% faster than `8w`
+on dense input at a reference cosine of 0.999998, three orders of
+magnitude inside FASTEST's bound. `ct` and `ctk` are candidates the
+tuner measures; the other whole-k tiles are not.
 Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
 uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
 F32 sums, sums over 64 and whole-k sums side by side, and hold the last
@@ -207,17 +212,17 @@ so one line forces sessions of any size. An unknown item or value is
 `TURBO_E_INVALID_ARGUMENT` naming it.
 
 A kernel is allowed a precision by the numeric class it computes in:
-F32 FMAs at EXACT and MODEL, F16 operands with F32 sums at FASTEST (and
-F32 FMAs for a model past F16's range). TF32 and F16 sums within a
-chunk (the `acc16-` tiles, and the `f16k` tiles, whose chunk is a
-block's whole k) are in no precision's set until a decision adds them; a
-kernel of either forced through `TURBO_CUDA_CHOICES` is
-`TURBO_E_UNSUPPORTED_OPTION` naming field 3 and the kernel, unless its
-experiment's switch is set for the session (`TURBO_CUDA_TF32=1` at MODEL,
-`TURBO_CUDA_F16_ACCUMULATE=1` or `TURBO_CUDA_TILE` naming an `f16k` tile at
-FASTEST), which widens that session's set. A session computes in its
-precision's classes, and in another only where a kernel it chose
-computes in it: a switch the line overrides widens nothing.
+F32 FMAs at EXACT and MODEL; at FASTEST F16 operands with F32 sums and,
+by the decision of 2026-09-26 that made `ctk` the default, F16 sums
+within a chunk (the `acc16-` tiles, and the `f16k` and `ctk` tiles, whose
+chunk is a block's whole k), and F32 FMAs for a model past F16's range.
+TF32 is in no precision's set until a decision adds it; a kernel of it
+forced through `TURBO_CUDA_CHOICES` is `TURBO_E_UNSUPPORTED_OPTION`
+naming field 3 and the kernel, unless its experiment's switch is set for
+the session (`TURBO_CUDA_TF32=1` at MODEL), which widens that session's
+set. A session computes in its precision's classes, and in another only
+where a kernel it chose computes in it: a switch the line overrides
+widens nothing.
 
 ### Autotuning
 
@@ -228,13 +233,13 @@ the fastest; docs/autotune.md has the switches, the cache and what
 holds across backends. It is off by default.
 
 What is timed: each token bin's four GEMMs, each over the tiles its
-precision's classes allow: at FASTEST on tensor cores `8w` and `sw8w`
-(and `acc16-8w`, `acc16-sw8w` when the F16 accumulators' experiment is
-set); on the FMA kernels `128x64`, `128x128-16x8`, `128x128` and
-`64x64`; with `TURBO_CUDA_TF32=1` at MODEL, `128x64/tf32` and
-`128x128/tf32` too. The other tiles, and the `f16k` tiles, are forced
-only. A GEMM whose tile a switch forces is not timed. Stream-K,
-attention, the LayerNorm and the pooling keep their defaults.
+precision's classes allow: at FASTEST on tensor cores `ctk`, `8w`,
+`sw8w`, `ct`, `acc16-8w` and `acc16-sw8w`; on the FMA kernels `128x64`,
+`128x128-16x8`, `128x128` and `64x64`; with `TURBO_CUDA_TF32=1` at
+MODEL, `128x64/tf32` and `128x128/tf32` too. The other tiles, and the
+`f16k` tiles, are forced only. A GEMM whose tile a switch forces is not
+timed. Stream-K, attention, the LayerNorm and the pooling keep their
+defaults.
 
 How: after the session's memory is allocated and cleared, under the
 context's lock, on its stream and its own buffers. Each bin, those
