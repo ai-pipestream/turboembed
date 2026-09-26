@@ -68,6 +68,17 @@ __device__ inline void load4(const float *p, float (&v)[4]) {
     v[3] = x.w;
 }
 
+/* load4 of a row the kernel writes back: a plain load, not __ldg. */
+__device__ inline void load4_rw(const __half *p, float (&v)[4]) {
+    const uint2 u = *reinterpret_cast<const uint2 *>(p);
+    const float2 a = __half22float2(*reinterpret_cast<const __half2 *>(&u.x));
+    const float2 b = __half22float2(*reinterpret_cast<const __half2 *>(&u.y));
+    v[0] = a.x;
+    v[1] = a.y;
+    v[2] = b.x;
+    v[3] = b.y;
+}
+
 __device__ inline void load4(const __half *p, float (&v)[4]) {
     const uint2 u = __ldg(reinterpret_cast<const uint2 *>(p));
     const float2 a = __half22float2(*reinterpret_cast<const __half2 *>(&u.x));
@@ -373,7 +384,7 @@ __device__ void layer_norm_regs(float (&v)[V][4], int n, const float *w, const f
         load4(b + d, bv);
 #pragma unroll
         for (int j = 0; j < 4; j++) y[j] = __fadd_rn(__fmul_rn((v[i][j] - mean) * inv, wv[j]), bv[j]);
-        store_vec<4>(row + d, y);
+        if (row) store_vec<4>(row + d, y);
         if (row16) store_vec<4>(row16 + d, y);
     }
 }
@@ -412,14 +423,17 @@ __global__ void __launch_bounds__(ROW_BLOCK)
     }
 }
 
-template <int V>
+/* RES16: the residual is the F16 row of x16, which is written back; x
+ * is written only when it is not NULL. The sum's order is the same. */
+template <int V, bool RES16>
 __global__ void __launch_bounds__(ROW_BLOCK)
     add_layer_norm_kernel(float *x, const float *y, const float *bias, const float *ln_w, const float *ln_b,
                           float eps, const Info *info, int hidden, __half *x16) {
     const int tokens = info->tokens;
     const int lane = threadIdx.x & 31;
     for (int t = blockIdx.x * ROW_WARPS + (threadIdx.x >> 5); t < tokens; t += gridDim.x * ROW_WARPS) {
-        float *row = x + (size_t)t * hidden;
+        float *row = x ? x + (size_t)t * hidden : nullptr;
+        __half *row16 = x16 ? x16 + (size_t)t * hidden : nullptr;
         const float *pr = y + (size_t)t * hidden;
         float v[V][4];
 #pragma unroll
@@ -432,16 +446,20 @@ __global__ void __launch_bounds__(ROW_BLOCK)
             }
             float p[4], r[4], bv[4];
             load4(pr + d, p);
-            const float4 xr = *reinterpret_cast<const float4 *>(row + d);
-            r[0] = xr.x;
-            r[1] = xr.y;
-            r[2] = xr.z;
-            r[3] = xr.w;
+            if constexpr (RES16) {
+                load4_rw(row16 + d, r);
+            } else {
+                const float4 xr = *reinterpret_cast<const float4 *>(row + d);
+                r[0] = xr.x;
+                r[1] = xr.y;
+                r[2] = xr.z;
+                r[3] = xr.w;
+            }
             load4(bias + d, bv);
 #pragma unroll
             for (int j = 0; j < 4; j++) v[i][j] = r[j] + (p[j] + bv[j]);
         }
-        layer_norm_regs(v, hidden, ln_w, ln_b, eps, row, x16 ? x16 + (size_t)t * hidden : nullptr);
+        layer_norm_regs(v, hidden, ln_w, ln_b, eps, row, row16);
     }
 }
 
@@ -3230,12 +3248,13 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     if (e != cudaSuccess) return e;
 
     // The row kernels too, for this width.
-    const void *rows[5] = {reinterpret_cast<const void *>(pack_rows_kernel),
+    const void *rows[6] = {reinterpret_cast<const void *>(pack_rows_kernel),
                            reinterpret_cast<const void *>(pool_kernel), nullptr, nullptr,
-                           reinterpret_cast<const void *>(fetch_rows_kernel)};
+                           reinterpret_cast<const void *>(fetch_rows_kernel), nullptr};
     with_row_width(s.hidden, [&](auto v) {
         rows[2] = reinterpret_cast<const void *>(embed_layer_norm_kernel<decltype(v)::value>);
-        rows[3] = reinterpret_cast<const void *>(add_layer_norm_kernel<decltype(v)::value>);
+        rows[3] = reinterpret_cast<const void *>(add_layer_norm_kernel<decltype(v)::value, false>);
+        rows[5] = reinterpret_cast<const void *>(add_layer_norm_kernel<decltype(v)::value, true>);
         return cudaSuccess;
     });
     for (const void *fn : rows)
@@ -3289,10 +3308,14 @@ cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *w
 
 cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const float *bias,
                            const float *ln_w, const float *ln_b, float eps, const Info *info, int hidden,
-                           uint16_t *x16, const Plan &plan) {
+                           uint16_t *x16, bool residual16, const Plan &plan) {
     return with_row_width(hidden, [&](auto v) {
-        add_layer_norm_kernel<decltype(v)::value><<<plan.rows_grid, ROW_BLOCK, 0, s>>>(
-            x, y, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
+        if (residual16)
+            add_layer_norm_kernel<decltype(v)::value, true><<<plan.rows_grid, ROW_BLOCK, 0, s>>>(
+                x, y, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
+        else
+            add_layer_norm_kernel<decltype(v)::value, false><<<plan.rows_grid, ROW_BLOCK, 0, s>>>(
+                x, y, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
         return cudaGetLastError();
     });
 }

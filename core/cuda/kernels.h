@@ -189,6 +189,12 @@ struct Shape {
      * takes the fit (EPI_GELU, TURBO_CUDA_GELU=poly), for measuring against
      * it. */
     bool gelu_erf = true;
+    /* FASTEST: the hidden states between one LayerNorm and the next kept
+     * in F16 alone (x16), the F32 x written after the last layer for the
+     * pooling; false (TURBO_CUDA_RESIDUAL=f32) keeps the F32 stream too,
+     * the earlier bits, for measuring against it. Only with the LayerNorm
+     * kernel of its own: the fused epilogues read and keep the F32 stream. */
+    bool residual16 = false;
 };
 
 /* Whether a GEMM of the shape runs on the tensor cores. */
@@ -264,10 +270,12 @@ cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *w
                              const Packing &p, int hidden, float *x, uint16_t *x16, const Plan &plan);
 
 /* x[t] = LayerNorm(x[t] + (y[t] + bias)), y a GEMM's product; the result
- * into x16 as F16 too when it is not NULL. */
+ * into x16 as F16 too when it is not NULL. With residual16 the residual
+ * is read from x16 in place of x, and x, then NULL where nothing reads
+ * it before the next LayerNorm, is written only when it is not. */
 cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const float *bias,
                            const float *ln_w, const float *ln_b, float eps, const Info *info, int hidden,
-                           uint16_t *x16, const Plan &plan);
+                           uint16_t *x16, bool residual16, const Plan &plan);
 
 /* out[b] = the row's pooled vector, cut to output_dim, L2-normalized when
  * the run asks: the pooling, output_dim and normalization are the Info's. */

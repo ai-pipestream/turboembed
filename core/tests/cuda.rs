@@ -1308,6 +1308,62 @@ fn f16_accumulators_hold_fastest_s_bound() {
     }
 }
 
+/// FASTEST's residual stream, F16 alone by default and F32 as well as
+/// TURBO_CUDA_RESIDUAL=f32 keeps it, gives the CPU's vectors within
+/// FASTEST's bound either way and the same bits when run again; MODEL and
+/// EXACT, whose stream is F32 whatever the switch says, give the same
+/// bits with it set as without.
+#[test]
+fn the_residual_switch_moves_only_fastest() {
+    let _t = turn();
+    let Some(_) = cuda_device("the_residual_switch_moves_only_fastest") else { return };
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(64);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(64);
+    m["embed"]["max_seq"] = json!(300);
+    m["embed"]["max_batch"] = json!(6);
+    m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+    let mut f = Fixture::new("cuda-residual", m);
+    f.weights("weights/model.safetensors", &bert_weights(64, 256));
+    let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+    let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+    let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    let want = cs.run().unwrap().rows();
+    let mut got = Vec::new();
+    for f16 in [true, false] {
+        turbo::cuda::use_residual16(Some(f16));
+        let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
+        turbo::cuda::use_residual16(None);
+        let gs = gs.unwrap();
+        let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+        gs.write_tokens(&t.batch(), None).unwrap();
+        let rows = gs.run().unwrap().rows();
+        let what = format!("F16 residual stream {f16}");
+        let (cos, abs) = within(&what, &rows, &want, tol);
+        println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+        gs.write_tokens(&t.batch(), None).unwrap();
+        assert_eq!(gs.run().unwrap().rows(), rows, "{what}: the same bits again");
+        got.push(rows);
+    }
+    let differ = got[0].iter().zip(&got[1]).filter(|(a, b)| a != b).count();
+    println!("the F16 stream's vectors against the F32 stream's: {differ} rows differ");
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
+        let mut bits = Vec::new();
+        for f16 in [true, false] {
+            turbo::cuda::use_residual16(Some(f16));
+            let s = strict(|| Session::create(g.m, Some(&session_desc(6, 300, precision))));
+            turbo::cuda::use_residual16(None);
+            let s = s.unwrap();
+            s.write_tokens(&t.batch(), None).unwrap();
+            bits.push(s.run().unwrap().rows());
+        }
+        assert_eq!(bits[0], bits[1], "precision {precision}: TURBO_CUDA_RESIDUAL moved the bits");
+    }
+}
+
 /// FASTEST's GELU, erff by default and erf from a fit as
 /// TURBO_CUDA_GELU=poly picks it, gives the CPU's vectors within FASTEST's
 /// bound either way, in the GEMM's epilogue and after cuBLAS's product
@@ -1574,11 +1630,15 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
             ] {
                 let mut bits = Vec::new();
                 for separate in [true, false] {
+                    // The epilogues read the F32 residual stream: the
+                    // separate kernel is held to it here.
+                    turbo::cuda::use_residual16(Some(false));
                     turbo::cuda::use_tile(Some(tile));
                     turbo::cuda::use_separate_layer_norm(Some(separate));
                     let s = Session::create(g.m, Some(&session_desc(6, 300, precision)));
                     turbo::cuda::use_separate_layer_norm(None);
                     turbo::cuda::use_tile(None);
+                    turbo::cuda::use_residual16(None);
                     let s = s.unwrap();
                     s.write_tokens(&t.batch(), None).unwrap();
                     bits.push(s.run().unwrap().rows());
