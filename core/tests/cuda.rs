@@ -1370,6 +1370,73 @@ fn the_residual_switch_moves_only_fastest() {
     }
 }
 
+/// FASTEST's attention output and second feed-forward GEMMs write their
+/// product with its bias in F16 by default, which their LayerNorm kernel
+/// reads; TURBO_CUDA_PRODUCT=f32 keeps the F32 product and the kernel's
+/// bias. Either way the vectors are the CPU's within FASTEST's bound and
+/// the same bits when run again, with the product from the GEMM's
+/// epilogue and from cuBLAS (TURBO_CUDA_CUBLAS=out,ffn2, F32 either way);
+/// MODEL and EXACT, whose products are F32, give the same bits with the
+/// switch set as without.
+#[test]
+fn the_product_switch_moves_only_fastest() {
+    let _t = turn();
+    let Some(_) = cuda_device("the_product_switch_moves_only_fastest") else { return };
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(64);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(256);
+    m["embed"]["dim"] = json!(64);
+    m["embed"]["max_seq"] = json!(300);
+    m["embed"]["max_batch"] = json!(6);
+    m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 8].join(" "));
+    let mut f = Fixture::new("cuda-product", m);
+    f.weights("weights/model.safetensors", &bert_weights(64, 256));
+    let (g, c) = (f.load_on(cuda).unwrap(), f.load().unwrap());
+    let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
+    let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
+    cs.write_tokens(&t.batch(), None).unwrap();
+    let want = cs.run().unwrap().rows();
+    for cublas in [None, Some(2 | 8)] {
+        let mut got = Vec::new();
+        for f16 in [true, false] {
+            turbo::cuda::use_cublas(cublas);
+            turbo::cuda::use_product16(Some(f16));
+            let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
+            turbo::cuda::use_product16(None);
+            turbo::cuda::use_cublas(None);
+            let gs = gs.unwrap();
+            let tol = record::tolerance(gs.info().compute_dtype).unwrap();
+            gs.write_tokens(&t.batch(), None).unwrap();
+            let rows = gs.run().unwrap().rows();
+            let what = format!("F16 product {f16}, cuBLAS {cublas:?}");
+            let (cos, abs) = within(&what, &rows, &want, tol);
+            println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+            gs.write_tokens(&t.batch(), None).unwrap();
+            assert_eq!(gs.run().unwrap().rows(), rows, "{what}: the same bits again");
+            got.push(rows);
+        }
+        let differ = got[0].iter().zip(&got[1]).filter(|(a, b)| a != b).count();
+        println!("cuBLAS {cublas:?}: the F16 product's vectors against the F32 product's: {differ} rows differ");
+        // cuBLAS's product is F32 whatever the switch says.
+        if cublas.is_some() {
+            assert_eq!(got[0], got[1], "TURBO_CUDA_PRODUCT moved cuBLAS's bits");
+        }
+    }
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
+        let mut bits = Vec::new();
+        for f16 in [true, false] {
+            turbo::cuda::use_product16(Some(f16));
+            let s = strict(|| Session::create(g.m, Some(&session_desc(6, 300, precision))));
+            turbo::cuda::use_product16(None);
+            let s = s.unwrap();
+            s.write_tokens(&t.batch(), None).unwrap();
+            bits.push(s.run().unwrap().rows());
+        }
+        assert_eq!(bits[0], bits[1], "precision {precision}: TURBO_CUDA_PRODUCT moved the bits");
+    }
+}
+
 /// FASTEST's GELU, erff by default and erf from a fit as
 /// TURBO_CUDA_GELU=poly picks it, gives the CPU's vectors within FASTEST's
 /// bound either way, in the GEMM's epilogue and after cuBLAS's product
@@ -1636,14 +1703,16 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
             ] {
                 let mut bits = Vec::new();
                 for separate in [true, false] {
-                    // The epilogues read the F32 residual stream: the
-                    // separate kernel is held to it here.
+                    // The epilogues read the F32 residual stream and the
+                    // F32 product: the separate kernel is held to them here.
                     turbo::cuda::use_residual16(Some(false));
+                    turbo::cuda::use_product16(Some(false));
                     turbo::cuda::use_tile(Some(tile));
                     turbo::cuda::use_separate_layer_norm(Some(separate));
                     let s = Session::create(g.m, Some(&session_desc(6, 300, precision)));
                     turbo::cuda::use_separate_layer_norm(None);
                     turbo::cuda::use_tile(None);
+                    turbo::cuda::use_product16(None);
                     turbo::cuda::use_residual16(None);
                     let s = s.unwrap();
                     s.write_tokens(&t.batch(), None).unwrap();
@@ -1738,9 +1807,11 @@ fn the_gemms_match_cublas() {
     for (m, n, k, epilogue, heads) in [
         (1353, 1152, 384, Qkv, 12),
         (1353, 384, 384, Plain, 1),
+        (1353, 384, 384, Bias, 1),
         (1353, 1536, 384, Gelu, 1),
         (1353, 1536, 384, GeluErf, 1),
         (1353, 384, 1536, Plain, 1),
+        (1353, 384, 1536, Bias, 1),
         (1, 1152, 384, Qkv, 12),
         (37, 96, 32, Qkv, 4),
         (65, 24, 8, Qkv, 2),
@@ -1750,10 +1821,15 @@ fn the_gemms_match_cublas() {
         (200, 136, 72, GeluErf, 1),
         (33, 8, 16, Plain, 1),
         (200, 72, 96, Plain, 1),
+        (200, 72, 96, Bias, 1),
         (300, 384, 1536, Plain, 1),
         (8193, 384, 1536, Plain, 1),
     ] {
         for (half, tensor_cores) in [(false, false), (false, true), (true, true), (true, false)] {
+            // The F16 product with its bias is the tensor cores' at F16.
+            if matches!(epilogue, Bias) && !(half && tensor_cores) {
+                continue;
+            }
             let tiles: &[Tile] = if tensor_cores {
                 &[
                     Tile::Default,

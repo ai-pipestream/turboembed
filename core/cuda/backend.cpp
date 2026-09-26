@@ -1081,6 +1081,7 @@ std::atomic<int> separate_ln_override{-1};
 std::atomic<int> column_pool_override{-1};
 std::atomic<int> gelu_erf_override{-1};
 std::atomic<int> residual16_override{-1};
+std::atomic<int> product16_override{-1};
 /* In place of TURBO_CUDA_SK_STEPS: 0 the kernels' own, 1 to 64 steps,
  * SK_OVERRIDE_TILES whole tiles; -1 for the variable. */
 std::atomic<int> sk_override{-1};
@@ -1229,6 +1230,16 @@ bool residual16_named() {
     const int o = overridden(residual16_override);
     if (o >= 0) return o != 0;
     const char *v = getenv("TURBO_CUDA_RESIDUAL");
+    return !(v && !strcasecmp(v, "f32"));
+}
+
+/* TURBO_CUDA_PRODUCT=f32 keeps the F32 product of FASTEST's attention
+ * output and second feed-forward GEMMs, the earlier bits; unset or f16,
+ * the default's F16 product with the bias in it. */
+bool product16_named() {
+    const int o = overridden(product16_override);
+    if (o >= 0) return o != 0;
+    const char *v = getenv("TURBO_CUDA_PRODUCT");
     return !(v && !strcasecmp(v, "f32"));
 }
 
@@ -1599,8 +1610,11 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     aa.queries = plan.attn_queries;
     aa.scale = 1.0f / sqrtf((float)hd);
     // The F16 residual stream, where every LayerNorm is the kernel of its
-    // own: the fused epilogues read the F32 one.
+    // own: the fused epilogues read the F32 one. The F16 product likewise,
+    // in the first half of the F32 product's buffer.
     const bool res16 = sh.residual16 && !plan.fused_ln;
+    const bool prod16 = sh.product16 && !plan.fused_ln;
+    const uint16_t *part16 = reinterpret_cast<const uint16_t *>(s.part);
     for (uint32_t l = 0; l < d.layers; l++) {
         // Q, K and V's weights back to back, as lay_out puts them: one GEMM
         // of 3 * hidden outputs, their biases added and each head's
@@ -1630,16 +1644,20 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
             g.ln_b = layer(l, TURBO_BERT_ATTN_LN_BIAS);
             TRY_CUDA(gemm_as(GEMM_OUT, EPI_ADD_LN, g), "the attention output projection and LayerNorm");
         } else {
-            g.bias = nullptr;
+            // The product with its bias in F16 (prod16), or the F32 product
+            // with the bias added by the LayerNorm kernel; cuBLAS's product
+            // is F32.
+            const bool p16 = prod16 && !(s.cublas & CUBLAS_OUT);
+            g.bias = p16 ? layer(l, TURBO_BERT_ATTN_OUT_BIAS) : nullptr;
             g.out = s.part;
             if (s.cublas & CUBLAS_OUT) {
                 TRY_CUBLAS(linear(blas, half, s.att, tokens, h, g.w, h, s.part), "the attention output projection");
             } else {
-                TRY_CUDA(gemm_as(GEMM_OUT, EPI_PLAIN, g), "the attention output projection");
+                TRY_CUDA(gemm_as(GEMM_OUT, p16 ? EPI_BIAS : EPI_PLAIN, g), "the attention output projection");
             }
-            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, layer(l, TURBO_BERT_ATTN_OUT_BIAS),
-                                    layer(l, TURBO_BERT_ATTN_LN_WEIGHT), layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info,
-                                    h, s.x16, res16, plan),
+            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, p16 ? part16 : nullptr,
+                                    layer(l, TURBO_BERT_ATTN_OUT_BIAS), layer(l, TURBO_BERT_ATTN_LN_WEIGHT),
+                                    layer(l, TURBO_BERT_ATTN_LN_BIAS), eps, info, h, s.x16, res16, plan),
                      "the attention LayerNorm");
         }
 
@@ -1652,7 +1670,7 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
             TRY_CUBLAS(linear(blas, half, xin, tokens, h, g.w, inter, s.raw), "the feed-forward input");
             TRY_CUDA(gelu_epilogue(st, s.raw, g, half, sh.gelu_erf, plan), "GELU");
         } else {
-            TRY_CUDA(gemm_as(GEMM_FFN1, gemm_epilogue(GEMM_FFN1, plan.fused_ln, sh.gelu_erf), g),
+            TRY_CUDA(gemm_as(GEMM_FFN1, gemm_epilogue(GEMM_FFN1, plan.fused_ln, sh.gelu_erf, sh.product16), g),
                      "the feed-forward input");
         }
 
@@ -1667,15 +1685,16 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
             g.ln_b = layer(l, TURBO_BERT_FFN_LN_BIAS);
             TRY_CUDA(gemm_as(GEMM_FFN2, EPI_ADD_LN, g), "the feed-forward output and LayerNorm");
         } else {
-            g.bias = nullptr;
+            const bool p16 = prod16 && !(s.cublas & CUBLAS_FFN2);
+            g.bias = p16 ? layer(l, TURBO_BERT_FFN_OUT_BIAS) : nullptr;
             g.out = s.part;
             if (s.cublas & CUBLAS_FFN2) {
                 TRY_CUBLAS(linear(blas, half, s.ffn, tokens, inter, g.w, h, s.part), "the feed-forward output");
             } else {
-                TRY_CUDA(gemm_as(GEMM_FFN2, EPI_PLAIN, g), "the feed-forward output");
+                TRY_CUDA(gemm_as(GEMM_FFN2, p16 ? EPI_BIAS : EPI_PLAIN, g), "the feed-forward output");
             }
             // The last layer's F32 hidden states are the pooling's.
-            TRY_CUDA(add_layer_norm(st, res16 && l + 1 < d.layers ? nullptr : s.x, s.part,
+            TRY_CUDA(add_layer_norm(st, res16 && l + 1 < d.layers ? nullptr : s.x, s.part, p16 ? part16 : nullptr,
                                     layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                                     layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h, s.x16, res16, plan),
                      "the feed-forward LayerNorm");
@@ -1805,7 +1824,7 @@ void find_candidates(Context &c, const Shape &base, const Choices &ch, const Pla
             const BinChoices &bc = ch.bin[b];
             std::vector<Candidate> &list = t->cand[b][g];
             if (bc.gemm_forced[g] & KNOB_TILE) continue;
-            const Epilogue ep = gemm_epilogue((Gemm)g, plan[b].fused_ln, base.gelu_erf);
+            const Epilogue ep = gemm_epilogue((Gemm)g, plan[b].fused_ln, base.gelu_erf, base.product16);
             list.push_back(Candidate{bc.gemm[g], plan[b].gemm_grid[g]});
             for (int i = 0; i < nv; i++) {
                 if (!vs[i].candidate) continue;
@@ -1912,7 +1931,9 @@ GemmArgs layer_gemm(const Session &s, int bin, Gemm which, Epilogue ep) {
     case GEMM_OUT:
         g.a = s.att;
         g.w = weight(TURBO_BERT_ATTN_OUT_WEIGHT);
-        g.bias = ln ? layer(TURBO_BERT_ATTN_OUT_BIAS) : nullptr;
+        // The bias for the epilogues that add it (ADD_LN, BIAS); PLAIN
+        // does not read it.
+        g.bias = layer(TURBO_BERT_ATTN_OUT_BIAS);
         g.out = ln ? static_cast<void *>(s.x) : s.part;
         g.ln_w = layer(TURBO_BERT_ATTN_LN_WEIGHT);
         g.ln_b = layer(TURBO_BERT_ATTN_LN_BIAS);
@@ -1930,7 +1951,7 @@ GemmArgs layer_gemm(const Session &s, int bin, Gemm which, Epilogue ep) {
     default:
         g.a = s.ffn;
         g.w = weight(TURBO_BERT_FFN_OUT_WEIGHT);
-        g.bias = ln ? layer(TURBO_BERT_FFN_OUT_BIAS) : nullptr;
+        g.bias = layer(TURBO_BERT_FFN_OUT_BIAS);
         g.out = ln ? static_cast<void *>(s.x) : s.part;
         g.ln_w = layer(TURBO_BERT_FFN_LN_WEIGHT);
         g.ln_b = layer(TURBO_BERT_FFN_LN_BIAS);
@@ -2062,7 +2083,7 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
         for (int g = 0; g < GEMM_COUNT; g++) {
             const std::vector<Candidate> &list = t.cand[b][g];
             if (list.empty()) continue;
-            const Epilogue ep = gemm_epilogue((Gemm)g, plan.fused_ln, s.shape[b].gelu_erf);
+            const Epilogue ep = gemm_epilogue((Gemm)g, plan.fused_ln, s.shape[b].gelu_erf, s.shape[b].product16);
             GemmArgs ga = layer_gemm(s, b, (Gemm)g, ep);
             int best = -1;
             float incumbent = 0, fastest = 0;
@@ -2228,6 +2249,7 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         // TURBO_CUDA_TF32=1 asks, but at EXACT, F32 FMAs throughout
         // (forced_from_environment).
         base.tensor_cores = major >= 8;
+        base.product16 = half && base.tensor_cores && product16_named();
         base.sms = sms;
         base.smem_optin = (size_t)optin;
         const uint32_t mode = tuning ? tuning->mode : (uint32_t)TURBO_AUTOTUNE_OFF;
@@ -2703,8 +2725,9 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
     turbo_error e0{};
     turbo_error *err = &e0;
     ON_DEVICE((int)ordinal);
-    const Epilogue epi = (Epilogue)epilogue;
     const bool h16 = half != 0, tc = tensor_cores != 0;
+    // EPI_BIAS is the F16 tensor-core product's: the plain product elsewhere.
+    const Epilogue epi = (Epilogue)epilogue == EPI_BIAS && !(h16 && tc) ? EPI_PLAIN : (Epilogue)epilogue;
     const Tile tile = (Tile)tile_in;
     const int hidden = epi == EPI_QKV ? n / 3 : n;
     int sms = 0, grid = 0;
@@ -2794,7 +2817,8 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         for (int t = 0; t < m; t++)
             for (int c = 0; c < n; c++) {
                 float want = ref[(size_t)t * n + c], have = 0;
-                if (epi == EPI_PLAIN) {
+                if (epi == EPI_PLAIN || epi == EPI_BIAS) {
+                    if (epi == EPI_BIAS) want += bias[c];
                     have = value((size_t)t * n + c);
                 } else if (epi == EPI_GELU || epi == EPI_GELU_ERF) {
                     const float v = want + bias[c];
@@ -3024,5 +3048,11 @@ void turbo_cuda_use_gelu_erf(int32_t erf) { gelu_erf_override.store(erf, std::me
  * the default, 0 F32 as well (TURBO_CUDA_RESIDUAL=f32), -1 to read the
  * variable again. */
 void turbo_cuda_use_residual16(int32_t f16) { residual16_override.store(f16, std::memory_order_relaxed); }
+
+/* The product of FASTEST's attention output and second feed-forward
+ * GEMMs in sessions made from now on: 1 F16 with the bias in it, the
+ * default, 0 F32 with the bias added by the LayerNorm kernel
+ * (TURBO_CUDA_PRODUCT=f32), -1 to read the variable again. */
+void turbo_cuda_use_product16(int32_t f16) { product16_override.store(f16, std::memory_order_relaxed); }
 
 } // extern "C"
