@@ -543,8 +543,8 @@ older than the runtime, it lists none and the runtime's log says why.
   `erff` instance spills registers. At FASTEST the hidden states between
   one LayerNorm and the next are kept in F16 alone, the copy the GEMMs
   read: each LayerNorm adds the GEMM's F32 product and its bias to the F16
-  residual in F32, normalizes, and writes F16; the F32 hidden states are
-  written after the last layer, for the pooling. `TURBO_CUDA_RESIDUAL=f32`,
+  residual in F32, normalizes, and writes F16; the pooling reads the F16
+  copy too, so the F32 hidden states are never written. `TURBO_CUDA_RESIDUAL=f32`,
   read when a session is made, keeps the F32 residual stream as well, the
   earlier bits, for measuring against the default (`f16` names the
   default); the LayerNorm epilogues (`TURBO_CUDA_LAYER_NORM=fused`, `swrow`,

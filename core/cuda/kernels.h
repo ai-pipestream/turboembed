@@ -199,9 +199,9 @@ struct Shape {
      * for measuring against it. An F32 output's GELU is erff whatever this
      * says. */
     int gelu = 0;
-    /* FASTEST: the hidden states between one LayerNorm and the next kept
-     * in F16 alone (x16), the F32 x written after the last layer for the
-     * pooling; false (TURBO_CUDA_RESIDUAL=f32) keeps the F32 stream too,
+    /* FASTEST: the hidden states kept in F16 alone (x16), which the
+     * LayerNorms and the pooling read, the F32 x never written; false
+     * (TURBO_CUDA_RESIDUAL=f32) keeps the F32 stream too,
      * the earlier bits, for measuring against it. Only with the LayerNorm
      * kernel of its own: the fused epilogues read and keep the F32 stream. */
     bool residual16 = false;
@@ -297,9 +297,11 @@ cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const uint1
                            uint16_t *x16, bool residual16, const Plan &plan);
 
 /* out[b] = the row's pooled vector, cut to output_dim, L2-normalized when
- * the run asks: the pooling, output_dim and normalization are the Info's. */
-cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Packing &p, int hidden, float *out,
-                 const Plan &plan);
+ * the run asks: the pooling, output_dim and normalization are the Info's.
+ * The hidden states are read from x16, F16, when it is not NULL, else
+ * from x. */
+cudaError_t pool(cudaStream_t s, const float *x, const uint16_t *x16, const int32_t *rows, const Packing &p,
+                 int hidden, float *out, const Plan &plan);
 
 // ---- GEMMs --------------------------------------------------------------------
 //
