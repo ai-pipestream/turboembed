@@ -1598,8 +1598,13 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     s.pack.queries = plan.attn_queries;
     TRY_CUDA(fetch_rows(st, s.fetch, plan), "fetching the rows");
     TRY_CUDA(pack_rows(st, s.pack, plan), "packing the rows");
+    // The F16 residual stream, where every LayerNorm is the kernel of its
+    // own: nothing reads the F32 hidden states, so nothing writes them,
+    // and the pooling reads the F16 copy. The fused epilogues read and
+    // keep the F32 stream.
+    const bool stream16 = sh.residual16 && !plan.fused_ln;
     TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
-                              h, s.x, s.x16, plan),
+                              h, stream16 ? nullptr : s.x, s.x16, plan),
              "the embedding lookup");
     GemmArgs g{};
     g.info = info;
@@ -1708,14 +1713,14 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
             } else {
                 TRY_CUDA(gemm_as(GEMM_FFN2, p16 ? EPI_BIAS : EPI_PLAIN, g), "the feed-forward output");
             }
-            // The last layer's F32 hidden states are the pooling's.
-            TRY_CUDA(add_layer_norm(st, res16 && l + 1 < d.layers ? nullptr : s.x, s.part, p16 ? part16 : nullptr,
+            TRY_CUDA(add_layer_norm(st, res16 ? nullptr : s.x, s.part, p16 ? part16 : nullptr,
                                     layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                                     layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h, s.x16, res16, plan),
                      "the feed-forward LayerNorm");
         }
     }
-    TRY_CUDA(pool(st, s.x, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan), "pooling");
+    TRY_CUDA(pool(st, s.x, stream16 ? s.x16 : nullptr, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan),
+             "pooling");
     return TURBO_OK;
 }
 
