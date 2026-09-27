@@ -517,10 +517,16 @@ older than the runtime, it lists none and the runtime's log says why.
   `TURBO_CUDA_TILE` for the other tiles). Devices before sm_80 take the
   FMA kernels at every precision.
   The token count changes with every batch, so no
-  fixed tiling fills the device; each GEMM is scheduled stream-K
-  instead. It launches as many blocks as the device holds at once and
-  gives each an equal, contiguous share of the work, counted as tiles ×
-  steps of k. A tile whose steps fall to two or more blocks is finished
+  fixed tiling fills the device; a GEMM whose choice splits tiles is
+  scheduled stream-K instead. It launches as many blocks as the device
+  holds at once and gives each an equal, contiguous share of the work,
+  counted as tiles × steps of k. A GEMM whose choice is whole tiles
+  (`tiles`, the default for the QKV and first feed-forward GEMMs from
+  the `le4k` bin up) launches a block for each tile of the session's
+  largest M, so the device's scheduler hands the tiles out as blocks
+  finish; a block past the run's tiles exits at once. (A persistent
+  grid of equal shares cost 10-20% of the mainloop at 768-wide shapes
+  on an RTX 4080 SUPER.) A tile whose steps fall to two or more blocks is finished
   by the block holding its last step, which adds the others' partial
   products from a workspace, in a fixed order, and runs the epilogue.
   Each block works through its share from the end, so the partial

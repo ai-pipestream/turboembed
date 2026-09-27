@@ -401,17 +401,24 @@ struct GemmArgs {
     int *rows_done;
 };
 
-/* A GEMM's launch: the blocks the device holds at once, and the
- * workspace floats it needs; and the shared memory setting its kernel
- * needs, made outside any run. The launch never depends on the token
- * count, which only the device knows (the graph is made once for every
- * run): the kernel shares out the tiles of the run's M, and the launch
- * is sized for the device, not for the largest M's tiles. *crowded,
- * when given, is set when fewer blocks fit on an SM than the kernel was
- * built for. */
-cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int sms, int *grid, size_t *ws_floats,
-                      bool *crowded = nullptr);
+/* A GEMM's launch and the workspace floats it needs; and the shared
+ * memory setting its kernel needs, made outside any run. The launch
+ * never depends on the token count, which only the device knows (the
+ * graph is made once for every run). Stream-K (min_steps other than
+ * SK_WHOLE_TILES): the blocks the device holds at once, which share out
+ * the tiles of the run's M, and a workspace slot each. Whole tiles
+ * (SK_WHOLE_TILES): a block for each tile of the largest M, m_cap rows
+ * by n columns, so the device's scheduler hands the tiles out as blocks
+ * finish, and no workspace; a block past the run's tiles exits at once.
+ * On an RTX 4080 SUPER the persistent grid's equal shares cost 10-20% of
+ * the mainloop at 8192 x 2304 x 768 and 8192 x 3072 x 768 against a block
+ * a tile. *crowded, when given, is set when fewer blocks fit on an SM
+ * than the kernel was built for. */
+cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int min_steps, int m_cap, int n, int sms,
+                      int *grid, size_t *ws_floats, bool *crowded = nullptr);
 cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile);
+/* The columns of a GEMM of the shape: 3 x hidden, hidden, intermediate, hidden. */
+int gemm_n(const Shape &s, Gemm g);
 cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile tile, const GemmArgs &g, int grid);
 
 /* The same epilogues over a product cuBLAS made, raw [tokens, n] F32, for
