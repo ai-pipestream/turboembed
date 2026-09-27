@@ -1374,10 +1374,15 @@ Choices defaults(const Shape &base) {
         // tiles fill the device: 3-4 us a launch off at hidden widths of
         // 384 and 768 on an RTX 4080 SUPER (8192 tokens), level at 1024,
         // and 12-33% onto a mixed-length run below that bin. The second
-        // feed-forward GEMM keeps stream-K everywhere: whole tiles gain
-        // 1-2% at K of 3072 and 4096 and lose a third of the accuracy
-        // margin there (F16 sums over the whole of k), and lose at 1536.
-        if (base.half && base.tensor_cores && i >= 3) b.gemm[GEMM_OUT].sk = SK_TILES;
+        // feed-forward GEMM from that bin as well where its k is 3072 or
+        // more: at 16384 tokens of k = 4096 (BGE-M3 at 512 tokens) the
+        // split's partial products cost 16% of the run and whole tiles
+        // leave the accuracy margin where it was, at 8192 tokens they gain
+        // 1-2%; at k = 1536 whole tiles lose, and it keeps stream-K.
+        if (base.half && base.tensor_cores && i >= 3) {
+            b.gemm[GEMM_OUT].sk = SK_TILES;
+            if (base.inter >= 3072) b.gemm[GEMM_FFN2].sk = SK_TILES;
+        }
     }
     return c;
 }
