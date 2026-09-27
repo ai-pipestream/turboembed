@@ -1370,6 +1370,14 @@ Choices defaults(const Shape &base) {
             b.gemm[GEMM_QKV].sk = SK_TILES;
             b.gemm[GEMM_FFN1].sk = SK_TILES;
         }
+        // The attention output GEMM too from the le16k bin up, where its
+        // tiles fill the device: 3-4 us a launch off at hidden widths of
+        // 384 and 768 on an RTX 4080 SUPER (8192 tokens), level at 1024,
+        // and 12-33% onto a mixed-length run below that bin. The second
+        // feed-forward GEMM keeps stream-K everywhere: whole tiles gain
+        // 1-2% at K of 3072 and 4096 and lose a third of the accuracy
+        // margin there (F16 sums over the whole of k), and lose at 1536.
+        if (base.half && base.tensor_cores && i >= 3) b.gemm[GEMM_OUT].sk = SK_TILES;
     }
     return c;
 }
@@ -1877,7 +1885,8 @@ void find_candidates(Context &c, const Shape &base, const Choices &ch, const Pla
                 gc = canonical_gemm((Gemm)g, base, gc);
                 if (!(gemm_numeric(base, gc) & runs)) continue;
                 bool seen = false;
-                for (const Candidate &k : list) seen = seen || (k.c.tile == gc.tile && k.c.tf32 == gc.tf32);
+                for (const Candidate &k : list)
+                    seen = seen || (k.c.tile == gc.tile && k.c.tf32 == gc.tf32 && k.c.sk == gc.sk);
                 if (seen) continue;
                 int grid = 0;
                 size_t ws = 0;
@@ -1893,6 +1902,30 @@ void find_candidates(Context &c, const Shape &base, const Choices &ch, const Pla
                     }
                     continue;
                 }
+                *sk_floats = ws > *sk_floats ? ws : *sk_floats;
+                *sk_flags = grid > *sk_flags ? grid : *sk_flags;
+                list.push_back(Candidate{gc, grid});
+            }
+            // Each tile's other stream-K choice as well, unless the knob
+            // is forced: whole tiles where the choice splits them, and
+            // the split where it does not. Which is faster depends on
+            // the GEMM's tiles against the device (8192 tokens: whole
+            // tiles for the attention output GEMM at every width; 1353:
+            // stream-K for the N = hidden GEMMs by 12-33%), and the
+            // class is the same either way.
+            if (bc.gemm_forced[g] & KNOB_SK) continue;
+            const size_t n = list.size();
+            for (size_t i = 0; i < n; i++) {
+                GemmChoice gc = list[i].c;
+                gc.sk = gc.sk == SK_TILES ? SK_STREAM : SK_TILES;
+                gc.sk_steps = gc.sk == SK_TILES ? 0 : SK_MIN_STEPS;
+                bool seen = false;
+                for (const Candidate &k : list)
+                    seen = seen || (k.c.tile == gc.tile && k.c.tf32 == gc.tf32 && k.c.sk == gc.sk);
+                if (seen) continue;
+                int grid = 0;
+                size_t ws = 0;
+                if (launchable(base, (Gemm)g, ep, gc, &grid, &ws) != cudaSuccess) continue;
                 *sk_floats = ws > *sk_floats ? ws : *sk_floats;
                 *sk_flags = grid > *sk_flags ? grid : *sk_flags;
                 list.push_back(Candidate{gc, grid});
@@ -2210,6 +2243,8 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
                 GemmChoice &gc = s.choices.bin[b].gemm[g];
                 gc.tile = list[(size_t)best].c.tile;
                 gc.tf32 = list[(size_t)best].c.tf32;
+                gc.sk = list[(size_t)best].c.sk;
+                gc.sk_steps = list[(size_t)best].c.sk_steps;
                 chosen = fastest;
             }
             was += incumbent;

@@ -288,7 +288,8 @@ with tuning off. A session whose GEMMs cuBLAS computes
 (`TURBO_CUDA_CUBLAS`) is not tuned and takes no cached choice: it
 reports `default`, and an INFO line says why. Nor is a session whose
 every GEMM's tile is forced (`TURBO_CUDA_TILE`, or `TURBO_CUDA_CHOICES`
-naming each), since the tuner times only tiles: it reports `forced`,
+naming each), since the tuner times tiles (each with its other
+stream-K choice, unless that knob is forced too): it reports `forced`,
 and an INFO line says so.
 
 A measured session reports `tuned` MEASURED and `tune_ms`, and logs at
@@ -522,7 +523,9 @@ older than the runtime, it lists none and the runtime's log says why.
   holds at once and gives each an equal, contiguous share of the work,
   counted as tiles × steps of k. A GEMM whose choice is whole tiles
   (`tiles`, the default for the QKV and first feed-forward GEMMs from
-  the `le4k` bin up) launches a block for each tile of the session's
+  the `le4k` bin up and for the attention output GEMM from `le16k`;
+  the tuner times each tile with the other stream-K choice as well)
+  launches a block for each tile of the session's
   largest M, so the device's scheduler hands the tiles out as blocks
   finish; a block past the run's tiles exits at once. (A persistent
   grid of equal shares cost 10-20% of the mainloop at 768-wide shapes
