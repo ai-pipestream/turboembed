@@ -203,6 +203,13 @@ struct Shape {
      * the earlier bits, for measuring against it. Only with the LayerNorm
      * kernel of its own: the fused epilogues read and keep the F32 stream. */
     bool residual16 = false;
+    /* FASTEST on the tensor cores: the attention output and second
+     * feed-forward GEMMs write their product with its bias in F16
+     * (EPI_BIAS), which their LayerNorm kernel reads; false
+     * (TURBO_CUDA_PRODUCT=f32) keeps the F32 product and the bias added in
+     * the kernel, the earlier bits, for measuring against it. Only with
+     * the LayerNorm kernel of its own, and not for a GEMM cuBLAS runs. */
+    bool product16 = false;
 };
 
 /* Whether a GEMM of the shape runs on the tensor cores. */
@@ -280,8 +287,10 @@ cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *w
 /* x[t] = LayerNorm(x[t] + (y[t] + bias)), y a GEMM's product; the result
  * into x16 as F16 too when it is not NULL. With residual16 the residual
  * is read from x16 in place of x, and x, then NULL where nothing reads
- * it before the next LayerNorm, is written only when it is not. */
-cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const float *bias,
+ * it before the next LayerNorm, is written only when it is not. With y16
+ * not NULL the product is read from it, F16 with the bias already in
+ * (EPI_BIAS), and y and bias are not read. */
+cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const uint16_t *y16, const float *bias,
                            const float *ln_w, const float *ln_b, float eps, const Info *info, int hidden,
                            uint16_t *x16, bool residual16, const Plan &plan);
 
@@ -321,7 +330,11 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 // beside a row in a batch of the same token count. n and k are multiples
 // of 8.
 
-enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2, EPI_ADD_LN = 3, EPI_GELU_ERF = 4 };
+/* EPI_BIAS: the product plus its bias, written F16 (FASTEST's attention
+ * output and second feed-forward GEMMs, whose LayerNorm kernel then adds
+ * the residual to it); only for F16 operands on the tensor cores, the
+ * plain F32 product elsewhere. */
+enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2, EPI_ADD_LN = 3, EPI_GELU_ERF = 4, EPI_BIAS = 5 };
 
 /* The widest hidden state ADD_LN normalizes, 16 values to a lane. */
 constexpr int LN_FUSED_MAX_HIDDEN = 512;
@@ -331,12 +344,13 @@ constexpr int LN_FUSED_MAX_HIDDEN = 512;
 inline int ln_counters(int tcap) { return tcap / 64 + 1; }
 
 /* The epilogue a GEMM of a layer runs: the attention output and second
- * feed-forward GEMMs normalize their rows when the LayerNorm is fused;
- * the first feed-forward GEMM's GELU takes erff when gelu_erf. */
-inline Epilogue gemm_epilogue(Gemm g, bool fused_ln, bool gelu_erf) {
+ * feed-forward GEMMs normalize their rows when the LayerNorm is fused,
+ * else write the product with its bias in F16 when product16; the first
+ * feed-forward GEMM's GELU takes erff when gelu_erf. */
+inline Epilogue gemm_epilogue(Gemm g, bool fused_ln, bool gelu_erf, bool product16) {
     if (g == GEMM_QKV) return EPI_QKV;
     if (g == GEMM_FFN1) return gelu_erf ? EPI_GELU_ERF : EPI_GELU;
-    return fused_ln ? EPI_ADD_LN : EPI_PLAIN;
+    return fused_ln ? EPI_ADD_LN : product16 ? EPI_BIAS : EPI_PLAIN;
 }
 
 struct GemmArgs {

@@ -539,7 +539,13 @@ older than the runtime, it lists none and the runtime's log says why.
   read when a session is made, keeps the F32 residual stream as well, the
   earlier bits, for measuring against the default (`f16` names the
   default); the LayerNorm epilogues (`TURBO_CUDA_LAYER_NORM=fused`, `swrow`,
-  `f16krow`) read the F32 stream and keep it. The arithmetic follows the
+  `f16krow`) read the F32 stream and keep it. On the tensor cores the
+  attention output and feed-forward output GEMMs write their product
+  with its bias in F16 (1.5 KB a token in place of 3), which their
+  LayerNorm kernel reads in place of the F32 product and the bias;
+  `TURBO_CUDA_PRODUCT=f32`, read the same way, keeps the F32 product and
+  the kernel's bias, the earlier bits (`f16` names the default). A GEMM
+  cuBLAS runs (`TURBO_CUDA_CUBLAS`) keeps the F32 product. The arithmetic follows the
   CPU encoder where order matters: LayerNorm takes the mean, then the
   variance about it
   (in F32 here, F64 on the CPU), softmax subtracts the largest live

@@ -52,6 +52,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_f16_accumulate(f16: i32);
     fn turbo_cuda_use_gelu_erf(erf: i32);
     fn turbo_cuda_use_residual16(f16: i32);
+    fn turbo_cuda_use_product16(f16: i32);
 }
 
 /// The epilogues of the backend's own GEMMs, as [`gemm_check`] names them.
@@ -67,6 +68,9 @@ pub enum Epilogue {
     /// GELU with erff at an F16 output too, the default (`Gelu` takes the
     /// fit there, TURBO_CUDA_GELU=poly).
     GeluErf = 4,
+    /// The product plus its bias, written F16 (F16 operands on the tensor
+    /// cores only; the plain product elsewhere).
+    Bias = 5,
 }
 
 /// The GEMMs' tiles, rows by columns, as TURBO_CUDA_TILE names them.
@@ -350,6 +354,16 @@ pub fn use_gelu_erf(erf: Option<bool>) {
 #[cfg(feature = "internals")]
 pub fn use_residual16(f16: Option<bool>) {
     unsafe { turbo_cuda_use_residual16(f16.map_or(-1, i32::from)) };
+}
+
+/// The product of the attention output and second feed-forward GEMMs of
+/// FASTEST sessions made from now on: `Some(true)` F16 with the bias in
+/// it, the default, `Some(false)` F32 with the bias added by the
+/// LayerNorm kernel, as TURBO_CUDA_PRODUCT=f32 keeps it, `None` to read
+/// the variable again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_product16(f16: Option<bool>) {
+    unsafe { turbo_cuda_use_product16(f16.map_or(-1, i32::from)) };
 }
 
 /// The kernel choices of sessions made from now on, as TURBO_CUDA_CHOICES

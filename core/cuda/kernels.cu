@@ -434,17 +434,19 @@ __global__ void __launch_bounds__(ROW_BLOCK)
 }
 
 /* RES16: the residual is the F16 row of x16, which is written back; x
- * is written only when it is not NULL. The sum's order is the same. */
-template <int V, bool RES16>
+ * is written only when it is not NULL. PROD16: the product is the F16 row
+ * of y16 with the bias already in it. The sum's order is the same. */
+template <int V, bool RES16, bool PROD16>
 __global__ void __launch_bounds__(ROW_BLOCK)
-    add_layer_norm_kernel(float *x, const float *y, const float *bias, const float *ln_w, const float *ln_b,
-                          float eps, const Info *info, int hidden, __half *x16) {
+    add_layer_norm_kernel(float *x, const float *y, const __half *y16, const float *bias, const float *ln_w,
+                          const float *ln_b, float eps, const Info *info, int hidden, __half *x16) {
     const int tokens = info->tokens;
     const int lane = threadIdx.x & 31;
     for (int t = blockIdx.x * ROW_WARPS + (threadIdx.x >> 5); t < tokens; t += gridDim.x * ROW_WARPS) {
         float *row = x ? x + (size_t)t * hidden : nullptr;
         __half *row16 = x16 ? x16 + (size_t)t * hidden : nullptr;
-        const float *pr = y + (size_t)t * hidden;
+        const float *pr = PROD16 ? nullptr : y + (size_t)t * hidden;
+        const __half *pr16 = PROD16 ? y16 + (size_t)t * hidden : nullptr;
         float v[V][4];
 #pragma unroll
         for (int i = 0; i < V; i++) {
@@ -455,7 +457,14 @@ __global__ void __launch_bounds__(ROW_BLOCK)
                 continue;
             }
             float p[4], r[4], bv[4];
-            load4(pr + d, p);
+            if constexpr (PROD16) {
+                load4_rw(pr16 + d, p);
+#pragma unroll
+                for (int j = 0; j < 4; j++) bv[j] = 0.0f;
+            } else {
+                load4(pr + d, p);
+                load4(bias + d, bv);
+            }
             if constexpr (RES16) {
                 load4_rw(row16 + d, r);
             } else {
@@ -465,7 +474,6 @@ __global__ void __launch_bounds__(ROW_BLOCK)
                 r[2] = xr.z;
                 r[3] = xr.w;
             }
-            load4(bias + d, bv);
 #pragma unroll
             for (int j = 0; j < 4; j++) v[i][j] = r[j] + (p[j] + bv[j]);
         }
@@ -2483,9 +2491,12 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
         case EPI_GELU: return mma_for<__half, EPI_GELU, __half>(t);
         case EPI_GELU_ERF: return mma_for<__half, EPI_GELU_ERF, __half>(t);
         case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN, __half>(t);
+        case EPI_BIAS: return mma_for<__half, EPI_BIAS, __half>(t);
         default: return mma_for<float, EPI_PLAIN, __half>(t);
         }
     }
+    // EPI_BIAS is the F16 tensor-core product's alone: the plain F32
+    // product on the other paths.
     if (tc) {
         switch (e) {
         case EPI_QKV: return mma_for<float, EPI_QKV, float>(t);
@@ -3617,7 +3628,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     cudaError_t e = cudaSuccess;
     for (int i = 0; i < GEMM_COUNT && e == cudaSuccess; i++) {
         const Gemm g = (Gemm)i;
-        const Epilogue ep = gemm_epilogue(g, p->fused_ln, s.gelu_erf);
+        const Epilogue ep = gemm_epilogue(g, p->fused_ln, s.gelu_erf, s.product16);
         const bool mma = gemm_mma(s, g);
         size_t ws = 0;
         e = gemm_prepare(ep, s.half, mma, s.gemm[g].tile);
@@ -3645,13 +3656,21 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     if (e != cudaSuccess) return e;
 
     // The row kernels too, for this width.
-    const void *rows[6] = {reinterpret_cast<const void *>(pack_rows_kernel),
-                           reinterpret_cast<const void *>(pool_kernel), nullptr, nullptr,
-                           reinterpret_cast<const void *>(fetch_rows_kernel), nullptr};
+    const void *rows[8] = {reinterpret_cast<const void *>(pack_rows_kernel),
+                           reinterpret_cast<const void *>(pool_kernel),
+                           nullptr,
+                           nullptr,
+                           reinterpret_cast<const void *>(fetch_rows_kernel),
+                           nullptr,
+                           nullptr,
+                           nullptr};
     with_row_width(s.hidden, [&](auto v) {
-        rows[2] = reinterpret_cast<const void *>(embed_layer_norm_kernel<decltype(v)::value>);
-        rows[3] = reinterpret_cast<const void *>(add_layer_norm_kernel<decltype(v)::value, false>);
-        rows[5] = reinterpret_cast<const void *>(add_layer_norm_kernel<decltype(v)::value, true>);
+        constexpr int V = decltype(v)::value;
+        rows[2] = reinterpret_cast<const void *>(embed_layer_norm_kernel<V>);
+        rows[3] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, false, false>);
+        rows[5] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, true, false>);
+        rows[6] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, false, true>);
+        rows[7] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, true, true>);
         return cudaSuccess;
     });
     for (const void *fn : rows)
@@ -3703,16 +3722,24 @@ cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *w
     });
 }
 
-cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const float *bias,
+cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const uint16_t *y16, const float *bias,
                            const float *ln_w, const float *ln_b, float eps, const Info *info, int hidden,
                            uint16_t *x16, bool residual16, const Plan &plan) {
     return with_row_width(hidden, [&](auto v) {
-        if (residual16)
-            add_layer_norm_kernel<decltype(v)::value, true><<<plan.rows_grid, ROW_BLOCK, 0, s>>>(
-                x, y, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
+        constexpr int V = decltype(v)::value;
+        const __half *p16 = reinterpret_cast<const __half *>(y16);
+        if (residual16 && y16)
+            add_layer_norm_kernel<V, true, true>
+                <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
+        else if (residual16)
+            add_layer_norm_kernel<V, true, false>
+                <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
+        else if (y16)
+            add_layer_norm_kernel<V, false, true>
+                <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
         else
-            add_layer_norm_kernel<decltype(v)::value, false><<<plan.rows_grid, ROW_BLOCK, 0, s>>>(
-                x, y, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
+            add_layer_norm_kernel<V, false, false>
+                <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
         return cudaGetLastError();
     });
 }
