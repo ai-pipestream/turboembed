@@ -87,8 +87,14 @@ pub enum Normalize {
 #[serde(deny_unknown_fields)]
 pub struct Tokenizer {
     pub file: String,
-    pub normalizer: Normalizer,
-    pub wordpiece: WordPiece,
+    /// BertNormalizer's switches, with `wordpiece`. A `unigram` tokenizer
+    /// normalizes with the map its file carries, so it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normalizer: Option<Normalizer>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wordpiece: Option<WordPiece>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unigram: Option<Unigram>,
     pub special_tokens: Vec<SpecialToken>,
     pub template: Vec<String>,
     pub truncation: Truncation,
@@ -119,12 +125,33 @@ pub struct WordPiece {
     pub max_chars_per_word: u32,
 }
 
+/// SentencePiece's Unigram as upstream `tokenizers` runs it: the text is
+/// normalized by the precompiled character map the tokenizer file
+/// carries (when `precompiled_charsmap`), runs of spaces are collapsed to
+/// one (when `collapse_spaces`), every space becomes `metaspace` and each
+/// piece of text between special tokens gets one in front (when
+/// `add_prefix_space`); the text is then cut at each `metaspace` into
+/// words, and each word into the vocabulary's pieces of highest total
+/// score, a character no piece covers being the SPECIAL_UNK token.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Unigram {
+    pub precompiled_charsmap: bool,
+    pub collapse_spaces: bool,
+    pub metaspace: String,
+    pub add_prefix_space: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpecialToken {
     pub role: SpecialRole,
     pub content: String,
     pub id: u32,
+    /// The token takes the whitespace before it in the text, as upstream's
+    /// `lstrip` added tokens do.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub lstrip: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -163,6 +190,11 @@ pub struct Architecture {
     pub layer_norm_eps: f64,
     pub position_embedding: PositionEmbedding,
     pub max_positions: u32,
+    /// The row of the position table a row's first token reads: 0 for
+    /// BERT; RoBERTa counts positions from its padding id plus one, so
+    /// XLM-RoBERTa's is 2 and its table holds two rows more than it uses.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub position_offset: u32,
     pub token_types: u32,
     pub vocab_size: u32,
 }
@@ -171,6 +203,9 @@ pub struct Architecture {
 pub enum Family {
     #[serde(rename = "FAMILY_BERT")]
     Bert,
+    /// BERT's encoder with the positions counted from `position_offset`.
+    #[serde(rename = "FAMILY_ROBERTA")]
+    Roberta,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -281,6 +316,7 @@ impl GraphOutput {
     pub fn value(self) -> u32 {
         match self {
             GraphOutput::HiddenStates => crate::backend::TURBO_OUTPUT_HIDDEN_STATES,
+            GraphOutput::Embeddings => crate::backend::TURBO_OUTPUT_EMBEDDINGS,
         }
     }
 }
@@ -297,6 +333,11 @@ pub enum GraphInput {
 pub enum GraphOutput {
     #[serde(rename = "OUTPUT_HIDDEN_STATES")]
     HiddenStates,
+    /// The pooled and normalized vectors: the graph carries the embed
+    /// block's pooling and normalization, as a sentence-transformers
+    /// export does.
+    #[serde(rename = "OUTPUT_EMBEDDINGS")]
+    Embeddings,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -495,8 +536,29 @@ impl Manifest {
         // tokenizer
         let t = &self.tokenizer;
         listed_path("tokenizer.file", &t.file)?;
-        required("tokenizer.wordpiece.continuing_prefix", &t.wordpiece.continuing_prefix)?;
-        positive("tokenizer.wordpiece.max_chars_per_word", t.wordpiece.max_chars_per_word)?;
+        match (&t.wordpiece, &t.unigram) {
+            (Some(w), None) => {
+                required("tokenizer.wordpiece.continuing_prefix", &w.continuing_prefix)?;
+                positive("tokenizer.wordpiece.max_chars_per_word", w.max_chars_per_word)?;
+                if t.normalizer.is_none() {
+                    return Err(invalid("manifest.json: tokenizer.normalizer: required with wordpiece"));
+                }
+            }
+            (None, Some(u)) => {
+                if u.metaspace.chars().count() != 1 {
+                    return Err(invalid(format!(
+                        "manifest.json: tokenizer.unigram.metaspace: {:?} is not one character",
+                        u.metaspace
+                    )));
+                }
+                if t.normalizer.is_some() {
+                    return Err(invalid(
+                        "manifest.json: tokenizer.normalizer: a unigram tokenizer normalizes with its file's map, not BertNormalizer",
+                    ));
+                }
+            }
+            _ => return Err(invalid("manifest.json: tokenizer: one of wordpiece and unigram")),
+        }
         let mut roles = HashSet::new();
         let mut contents = HashSet::new();
         for (i, s) in t.special_tokens.iter().enumerate() {
@@ -512,7 +574,7 @@ impl Manifest {
             }
         }
         if !roles.contains(&SpecialRole::Unk) {
-            return Err(invalid("manifest.json: tokenizer.special_tokens: WordPiece needs a SPECIAL_UNK token"));
+            return Err(invalid("manifest.json: tokenizer.special_tokens: the tokenizer needs a SPECIAL_UNK token"));
         }
         let texts = t.template.iter().filter(|s| *s == "$TEXT").count();
         if texts != 1 {
@@ -567,10 +629,23 @@ impl Manifest {
                     e.dim, a.hidden
                 )));
             }
-            if e.max_seq > a.max_positions {
+            match a.family {
+                Family::Bert if a.position_offset != 0 => {
+                    return Err(invalid(
+                        "manifest.json: architecture.position_offset: FAMILY_BERT counts positions from 0",
+                    ));
+                }
+                Family::Roberta if a.position_offset == 0 => {
+                    return Err(invalid(
+                        "manifest.json: architecture.position_offset: required for FAMILY_ROBERTA (its padding id plus one)",
+                    ));
+                }
+                _ => {}
+            }
+            if e.max_seq as u64 + a.position_offset as u64 > a.max_positions as u64 {
                 return Err(invalid(format!(
-                    "manifest.json: embed.max_seq: {} is over architecture.max_positions {}",
-                    e.max_seq, a.max_positions
+                    "manifest.json: embed.max_seq: {} from position {} is over architecture.max_positions {}",
+                    e.max_seq, a.position_offset, a.max_positions
                 )));
             }
             for s in &t.special_tokens {
@@ -660,6 +735,12 @@ impl Manifest {
                         at("graph_input")
                     )));
                 }
+                if a.graph_output != GraphOutput::HiddenStates {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: raw weights stop at OUTPUT_HIDDEN_STATES; the backend pools",
+                        at("graph_output")
+                    )));
+                }
             }
             for (role, name) in &a.tensor_names {
                 let field = at(&format!("tensor_names.{}", role_name(*role)));
@@ -671,7 +752,9 @@ impl Manifest {
             }
             if let Some(p) = &a.produced_by {
                 self.check_produced_by(&at("produced_by"), p, &listed_path)?;
-                if p.from.is_empty() {
+                // Raw weights the tool wrote from the upstream checkpoint
+                // come from the upstream model, as the reference does.
+                if p.from.is_empty() && a.format != Format::Safetensors {
                     return Err(invalid(format!(
                         "manifest.json: {}: required for a converted artifact",
                         at("produced_by.from")

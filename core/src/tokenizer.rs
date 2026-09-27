@@ -1,6 +1,7 @@
-//! The one tokenizer (README rule 6): WordPiece as the bundle describes it,
-//! built from the upstream tokenizer.json and checked against the
-//! reference's ids on every load (docs/bundle.md loader rule 5).
+//! The tokenizer (README rule 6): WordPiece or SentencePiece's Unigram
+//! as the bundle describes it, built from the upstream tokenizer.json and
+//! checked against the reference's ids on every load (docs/bundle.md
+//! loader rule 5).
 
 use std::collections::HashMap;
 
@@ -12,14 +13,31 @@ use crate::bundle::Bundle;
 use crate::manifest::{Normalizer, PromptRole, SpecialRole, Truncation};
 use crate::safetensors::{self, Dtype};
 use crate::status::{CAPACITY, Error, INVALID_ARGUMENT, Result, invalid};
+use crate::unigram::Unigram;
+
+/// The two models the core runs.
+enum Kind {
+    WordPiece {
+        vocab: HashMap<String, u32>,
+        normalizer: Normalizer,
+        continuing_prefix: String,
+        max_chars_per_word: usize,
+    },
+    Unigram(Unigram),
+}
+
+/// A special token as it is matched in raw text.
+struct Special {
+    content: String,
+    id: i32,
+    /// The whitespace before it is part of the match.
+    lstrip: bool,
+}
 
 pub struct Tokenizer {
-    vocab: HashMap<String, u32>,
-    normalizer: Normalizer,
-    continuing_prefix: String,
-    max_chars_per_word: usize,
+    kind: Kind,
     /// Special tokens as they are matched in raw text: longest first.
-    specials: Vec<(String, i32)>,
+    specials: Vec<Special>,
     /// The row layout: Some(id) for a special token, None for the text.
     template: Vec<Option<i32>>,
     truncation: Truncation,
@@ -61,61 +79,78 @@ impl Tokenizer {
         let file = t.file.as_str();
         let bytes = bundle.read_verified(file)?;
         let json: Value = serde_json::from_slice(&bytes).map_err(|e| invalid(format!("{file}: {e}")))?;
-        let disagree = |what: &str| invalid(format!("{file}: {what} is not what manifest.json says"));
-
-        let model = &json["model"];
-        if model["type"] != "WordPiece" {
-            return Err(invalid(format!("{file}: model.type is {}, not WordPiece", model["type"])));
-        }
         let unk = t.special_tokens.iter().find(|s| s.role == SpecialRole::Unk).expect("validated");
-        if model["unk_token"] != unk.content.as_str() {
-            return Err(disagree("model.unk_token"));
-        }
-        if model["continuing_subword_prefix"] != t.wordpiece.continuing_prefix.as_str() {
-            return Err(disagree("model.continuing_subword_prefix"));
-        }
-        if model["max_input_chars_per_word"] != t.wordpiece.max_chars_per_word {
-            return Err(disagree("model.max_input_chars_per_word"));
-        }
 
-        let n = &json["normalizer"];
-        let lowercase = n["lowercase"].as_bool();
-        let strip = if n["strip_accents"].is_null() { lowercase } else { n["strip_accents"].as_bool() };
-        let norm = &t.normalizer;
-        if n["type"] != "BertNormalizer"
-            || n["clean_text"].as_bool() != Some(norm.clean_text)
-            || n["handle_chinese_chars"].as_bool() != Some(norm.split_cjk)
-            || lowercase != Some(norm.lowercase)
-            || strip != Some(norm.strip_accents)
-        {
-            return Err(disagree("normalizer"));
-        }
-        if json["pre_tokenizer"]["type"] != "BertPreTokenizer" {
-            return Err(invalid(format!(
-                "{file}: pre_tokenizer is {}, not BertPreTokenizer",
-                json["pre_tokenizer"]["type"]
-            )));
-        }
+        let kind = match (&t.wordpiece, &t.unigram) {
+            (Some(w), _) => {
+                let disagree = |what: &str| invalid(format!("{file}: {what} is not what manifest.json says"));
+                let model = &json["model"];
+                if model["type"] != "WordPiece" {
+                    return Err(invalid(format!("{file}: model.type is {}, not WordPiece", model["type"])));
+                }
+                if model["unk_token"] != unk.content.as_str() {
+                    return Err(disagree("model.unk_token"));
+                }
+                if model["continuing_subword_prefix"] != w.continuing_prefix.as_str() {
+                    return Err(disagree("model.continuing_subword_prefix"));
+                }
+                if model["max_input_chars_per_word"] != w.max_chars_per_word {
+                    return Err(disagree("model.max_input_chars_per_word"));
+                }
 
-        let raw = model["vocab"].as_object().ok_or_else(|| invalid(format!("{file}: model.vocab is not an object")))?;
-        let mut vocab = HashMap::with_capacity(raw.len());
-        let mut seen = vec![false; raw.len()];
-        for (piece, id) in raw {
-            let id = id.as_u64().filter(|&i| (i as usize) < raw.len());
-            let Some(id) = id else {
-                return Err(invalid(format!("{file}: model.vocab[{piece:?}] is not an id under {}", raw.len())));
-            };
-            if std::mem::replace(&mut seen[id as usize], true) {
-                return Err(invalid(format!("{file}: model.vocab: id {id} is used twice")));
+                let n = &json["normalizer"];
+                let lowercase = n["lowercase"].as_bool();
+                let strip = if n["strip_accents"].is_null() { lowercase } else { n["strip_accents"].as_bool() };
+                let norm = t.normalizer.as_ref().expect("validated");
+                if n["type"] != "BertNormalizer"
+                    || n["clean_text"].as_bool() != Some(norm.clean_text)
+                    || n["handle_chinese_chars"].as_bool() != Some(norm.split_cjk)
+                    || lowercase != Some(norm.lowercase)
+                    || strip != Some(norm.strip_accents)
+                {
+                    return Err(disagree("normalizer"));
+                }
+                if json["pre_tokenizer"]["type"] != "BertPreTokenizer" {
+                    return Err(invalid(format!(
+                        "{file}: pre_tokenizer is {}, not BertPreTokenizer",
+                        json["pre_tokenizer"]["type"]
+                    )));
+                }
+
+                let raw = model["vocab"]
+                    .as_object()
+                    .ok_or_else(|| invalid(format!("{file}: model.vocab is not an object")))?;
+                let mut vocab = HashMap::with_capacity(raw.len());
+                let mut seen = vec![false; raw.len()];
+                for (piece, id) in raw {
+                    let id = id.as_u64().filter(|&i| (i as usize) < raw.len());
+                    let Some(id) = id else {
+                        return Err(invalid(format!(
+                            "{file}: model.vocab[{piece:?}] is not an id under {}",
+                            raw.len()
+                        )));
+                    };
+                    if std::mem::replace(&mut seen[id as usize], true) {
+                        return Err(invalid(format!("{file}: model.vocab: id {id} is used twice")));
+                    }
+                    vocab.insert(piece.clone(), id as u32);
+                }
+                Kind::WordPiece {
+                    vocab,
+                    normalizer: norm.clone(),
+                    continuing_prefix: w.continuing_prefix.clone(),
+                    max_chars_per_word: w.max_chars_per_word as usize,
+                }
             }
-            vocab.insert(piece.clone(), id as u32);
-        }
+            (None, Some(u)) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
+            (None, None) => unreachable!("validated"),
+        };
+        let vocab_size = kind.vocab_size();
         if let Some(a) = &m.architecture
-            && vocab.len() as u64 > a.vocab_size as u64
+            && vocab_size as u64 > a.vocab_size as u64
         {
             return Err(invalid(format!(
-                "{file}: {} vocabulary entries, architecture.vocab_size is {}",
-                vocab.len(),
+                "{file}: {vocab_size} vocabulary entries, architecture.vocab_size is {}",
                 a.vocab_size
             )));
         }
@@ -123,7 +158,7 @@ impl Tokenizer {
         // Every special token is in the vocabulary under its id, and the
         // added tokens upstream matches in raw text are exactly these.
         for s in &t.special_tokens {
-            if vocab.get(&s.content) != Some(&s.id) {
+            if kind.id(&s.content) != Some(s.id) {
                 return Err(invalid(format!("{file}: model.vocab has no {:?} with id {}", s.content, s.id)));
             }
         }
@@ -137,12 +172,12 @@ impl Tokenizer {
             };
             if a["id"] != s.id
                 || a["normalized"] != false
-                || a["lstrip"] != false
+                || a["lstrip"] != s.lstrip
                 || a["rstrip"] != false
                 || a["single_word"] != false
             {
                 return Err(invalid(format!(
-                    "{file}: added_tokens[{i}] {content:?} is matched differently from a plain special token"
+                    "{file}: added_tokens[{i}] {content:?} is matched differently from what manifest.json says"
                 )));
             }
         }
@@ -156,15 +191,15 @@ impl Tokenizer {
 
         let id_of = |content: &str| t.special_tokens.iter().find(|s| s.content == content).map(|s| s.id as i32);
         let role = |r: SpecialRole| t.special_tokens.iter().find(|s| s.role == r).map_or(-1, |s| s.id as i32);
-        let mut specials: Vec<(String, i32)> =
-            t.special_tokens.iter().map(|s| (s.content.clone(), s.id as i32)).collect();
-        specials.sort_by_key(|a| std::cmp::Reverse(a.0.len()));
+        let mut specials: Vec<Special> = t
+            .special_tokens
+            .iter()
+            .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip })
+            .collect();
+        specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
         let e = m.embed();
         Ok(Tokenizer {
-            vocab,
-            normalizer: norm.clone(),
-            continuing_prefix: t.wordpiece.continuing_prefix.clone(),
-            max_chars_per_word: t.wordpiece.max_chars_per_word as usize,
+            kind,
             specials,
             template: t.template.iter().map(|s| if s == "$TEXT" { None } else { id_of(s) }).collect(),
             truncation: t.truncation,
@@ -250,7 +285,15 @@ impl Tokenizer {
     }
 
     pub fn vocab_size(&self) -> u32 {
-        self.vocab.len() as u32
+        self.kind.vocab_size()
+    }
+
+    /// `turbo_tokenizer_info.kind`.
+    pub fn kind_name(&self) -> &'static str {
+        match self.kind {
+            Kind::WordPiece { .. } => "wordpiece",
+            Kind::Unigram(_) => "unigram",
+        }
     }
 
     pub fn specials_per_sequence(&self) -> u32 {
@@ -316,19 +359,20 @@ impl Tokenizer {
     }
 
     /// Special tokens are matched in the raw text first, as upstream does
-    /// for its added tokens; the text between them is normalized, split
-    /// into words and cut into word pieces.
+    /// for its added tokens, one that takes the whitespace before it
+    /// taking it; each piece of text between them is encoded on its own.
     fn text_ids(&self, text: &str) -> Vec<i32> {
         let mut out = Vec::new();
         let mut rest = text;
         let mut plain = 0;
         while plain < rest.len() {
-            let hit = self.specials.iter().find(|(s, _)| rest[plain..].starts_with(s.as_str()));
+            let hit = self.specials.iter().find(|s| rest[plain..].starts_with(s.content.as_str()));
             match hit {
-                Some((s, id)) => {
-                    self.plain_ids(&rest[..plain], &mut out);
-                    out.push(*id);
-                    rest = &rest[plain + s.len()..];
+                Some(s) => {
+                    let before = if s.lstrip { rest[..plain].trim_end() } else { &rest[..plain] };
+                    self.plain_ids(before, &mut out);
+                    out.push(s.id);
+                    rest = &rest[plain + s.content.len()..];
                     plain = 0;
                 }
                 None => plain += rest[plain..].chars().next().map_or(1, char::len_utf8),
@@ -339,50 +383,28 @@ impl Tokenizer {
     }
 
     fn plain_ids(&self, text: &str, out: &mut Vec<i32>) {
-        let normalized = self.normalize(text);
-        for word in pre_tokenize(&normalized) {
-            self.word_pieces(word, out);
-        }
-    }
-
-    /// BertNormalizer, in upstream's order: clean, split CJK, strip
-    /// accents, lowercase.
-    fn normalize(&self, text: &str) -> String {
-        let n = &self.normalizer;
-        let mut s: String = if n.clean_text {
-            text.chars()
-                .filter(|&c| !(c == '\0' || c == '\u{fffd}' || is_control(c)))
-                .map(|c| if is_whitespace(c) { ' ' } else { c })
-                .collect()
-        } else {
-            text.to_owned()
-        };
-        if n.split_cjk {
-            let mut t = String::with_capacity(s.len());
-            for c in s.chars() {
-                if is_cjk(c) {
-                    t.push(' ');
-                    t.push(c);
-                    t.push(' ');
-                } else {
-                    t.push(c);
+        match &self.kind {
+            Kind::WordPiece { normalizer, .. } => {
+                let normalized = normalize(normalizer, text);
+                for word in pre_tokenize(&normalized) {
+                    self.word_pieces(word, out);
                 }
             }
-            s = t;
+            Kind::Unigram(u) => {
+                if !text.is_empty() {
+                    u.encode(text, out);
+                }
+            }
         }
-        if n.strip_accents {
-            s = s.nfd().map(|(c, _)| c).filter(|c| !c.is_mark_nonspacing()).collect();
-        }
-        if n.lowercase {
-            s = s.chars().flat_map(char::to_lowercase).collect();
-        }
-        s
     }
 
     /// Greedy longest-match-first; a word with any piece missing, or longer
     /// than max_chars_per_word, is one unknown token.
     fn word_pieces(&self, word: &str, out: &mut Vec<i32>) {
-        if word.chars().count() > self.max_chars_per_word {
+        let Kind::WordPiece { vocab, continuing_prefix, max_chars_per_word, .. } = &self.kind else {
+            unreachable!("WordPiece only");
+        };
+        if word.chars().count() > *max_chars_per_word {
             out.push(self.unk_id);
             return;
         }
@@ -395,10 +417,10 @@ impl Tokenizer {
             while start < end {
                 piece.clear();
                 if start > 0 {
-                    piece.push_str(&self.continuing_prefix);
+                    piece.push_str(continuing_prefix);
                 }
                 piece.push_str(&word[start..end]);
-                if let Some(&id) = self.vocab.get(&piece) {
+                if let Some(&id) = vocab.get(&piece) {
                     found = Some(id);
                     break;
                 }
@@ -415,6 +437,55 @@ impl Tokenizer {
             start = end;
         }
     }
+}
+
+impl Kind {
+    fn vocab_size(&self) -> u32 {
+        match self {
+            Kind::WordPiece { vocab, .. } => vocab.len() as u32,
+            Kind::Unigram(u) => u.vocab_size(),
+        }
+    }
+
+    fn id(&self, piece: &str) -> Option<u32> {
+        match self {
+            Kind::WordPiece { vocab, .. } => vocab.get(piece).copied(),
+            Kind::Unigram(u) => u.id(piece),
+        }
+    }
+}
+
+/// BertNormalizer, in upstream's order: clean, split CJK, strip accents,
+/// lowercase.
+fn normalize(n: &Normalizer, text: &str) -> String {
+    let mut s: String = if n.clean_text {
+        text.chars()
+            .filter(|&c| !(c == '\0' || c == '\u{fffd}' || is_control(c)))
+            .map(|c| if is_whitespace(c) { ' ' } else { c })
+            .collect()
+    } else {
+        text.to_owned()
+    };
+    if n.split_cjk {
+        let mut t = String::with_capacity(s.len());
+        for c in s.chars() {
+            if is_cjk(c) {
+                t.push(' ');
+                t.push(c);
+                t.push(' ');
+            } else {
+                t.push(c);
+            }
+        }
+        s = t;
+    }
+    if n.strip_accents {
+        s = s.nfd().map(|(c, _)| c).filter(|c| !c.is_mark_nonspacing()).collect();
+    }
+    if n.lowercase {
+        s = s.chars().flat_map(char::to_lowercase).collect();
+    }
+    s
 }
 
 /// BertPreTokenizer: split on whitespace, and each punctuation character

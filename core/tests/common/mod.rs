@@ -32,7 +32,12 @@ pub fn upstream_tokenizer_json() -> PathBuf {
 /// The upstream tokenizer as sentence-transformers runs it for this model:
 /// the file's own padding and truncation off, cut on the right at max_seq.
 pub fn upstream() -> tokenizers::Tokenizer {
-    let mut t = tokenizers::Tokenizer::from_file(upstream_tokenizer_json()).expect("upstream tokenizer.json");
+    upstream_at(&upstream_tokenizer_json())
+}
+
+/// As `upstream`, on the tokenizer file at `path`.
+pub fn upstream_at(path: &Path) -> tokenizers::Tokenizer {
+    let mut t = tokenizers::Tokenizer::from_file(path).expect("upstream tokenizer.json");
     t.with_padding(None);
     t.with_truncation(Some(tokenizers::TruncationParams {
         max_length: MAX_SEQ,
@@ -223,7 +228,12 @@ pub fn reference_file(ids: &[Vec<i32>], width: usize, pad: i32, dim: usize) -> V
 /// Upstream's ids for each case of `m`, with its prefixes applied and cut
 /// on the side its tokenizer.truncation names.
 pub fn reference_ids(m: &Value) -> Vec<Vec<i32>> {
-    let mut up = upstream();
+    reference_ids_at(m, &upstream_tokenizer_json())
+}
+
+/// As `reference_ids`, with the tokenizer file at `path`.
+pub fn reference_ids_at(m: &Value, path: &Path) -> Vec<Vec<i32>> {
+    let mut up = upstream_at(path);
     let mut t = up.get_truncation().unwrap().clone();
     // Cut where the manifest's max_seq says, MAX_SEQ in the standard one.
     t.max_length = m["embed"]["max_seq"].as_u64().map_or(MAX_SEQ, |n| n as usize);
@@ -255,14 +265,26 @@ impl Fixture {
     /// A fresh directory for `name`, with the tokenizer and a reference
     /// file made from `manifest`'s cases.
     pub fn new(name: &str, manifest: Value) -> Fixture {
+        Fixture::with_tokenizer(name, manifest, &upstream_tokenizer_json())
+    }
+
+    /// As `new`, with the tokenizer file at `tokenizer_json`, whose ids
+    /// the reference file carries, padded with the manifest's pad id.
+    pub fn with_tokenizer(name: &str, manifest: Value, tokenizer_json: &Path) -> Fixture {
         let dir = std::env::temp_dir().join(format!("turbo-test-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("reference")).unwrap();
-        fs::copy(upstream_tokenizer_json(), dir.join("tokenizer.json")).unwrap();
-        let ids = reference_ids(&manifest);
+        fs::copy(tokenizer_json, dir.join("tokenizer.json")).unwrap();
+        let ids = reference_ids_at(&manifest, tokenizer_json);
         let width = ids.iter().map(Vec::len).max().unwrap_or(1).max(1);
         let dim = manifest["embed"]["dim"].as_u64().unwrap() as usize;
-        fs::write(dir.join("reference/reference.safetensors"), reference_file(&ids, width, 0, dim)).unwrap();
+        let pad = manifest["tokenizer"]["special_tokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["role"] == "SPECIAL_PAD")
+            .map_or(0, |s| s["id"].as_i64().unwrap() as i32);
+        fs::write(dir.join("reference/reference.safetensors"), reference_file(&ids, width, pad, dim)).unwrap();
         let mut f = Fixture { dir, manifest };
         f.list("tokenizer.json");
         f.list("reference/reference.safetensors");
@@ -949,6 +971,8 @@ pub struct PlainBert {
     hidden: usize,
     heads: usize,
     eps: f64,
+    /// The position table row a row's first token reads.
+    position_offset: usize,
 }
 
 impl PlainBert {
@@ -962,6 +986,7 @@ impl PlainBert {
             hidden: a["hidden"].as_u64().unwrap() as usize,
             heads: a["heads"].as_u64().unwrap() as usize,
             eps: a["layer_norm_eps"].as_f64().unwrap(),
+            position_offset: a["position_offset"].as_u64().unwrap_or(0) as usize,
         }
     }
 
@@ -998,7 +1023,11 @@ impl PlainBert {
         let mut x: Vec<Vec<f64>> = (0..ids.len())
             .map(|p| {
                 let mut v: Vec<f64> = (0..h)
-                    .map(|i| word[ids[p] as usize * h + i] + pos[p * h + i] + ty[types[p] as usize * h + i])
+                    .map(|i| {
+                        word[ids[p] as usize * h + i]
+                            + pos[(p + self.position_offset) * h + i]
+                            + ty[types[p] as usize * h + i]
+                    })
                     .collect();
                 self.norm(&mut v, "embeddings.LayerNorm");
                 v

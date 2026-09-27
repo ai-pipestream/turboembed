@@ -124,7 +124,7 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_model", "token_types", offset_of!(turbo_backend_model, token_types)),
         ("turbo_backend_model", "layer_norm_eps", offset_of!(turbo_backend_model, layer_norm_eps)),
         ("turbo_backend_model", "tensor_count", offset_of!(turbo_backend_model, tensor_count)),
-        ("turbo_backend_model", "reserved", offset_of!(turbo_backend_model, reserved)),
+        ("turbo_backend_model", "position_offset", offset_of!(turbo_backend_model, position_offset)),
         ("turbo_backend_model", "tensors", offset_of!(turbo_backend_model, tensors)),
         ("turbo_backend_model", "format", offset_of!(turbo_backend_model, format)),
         ("turbo_backend_model", "graph_input", offset_of!(turbo_backend_model, graph_input)),

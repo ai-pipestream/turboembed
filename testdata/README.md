@@ -5,6 +5,24 @@
   `c9745ed1d9f207416be6d2e6f8de32d1f16199bf`, unchanged: 466247 bytes,
   SHA-256 `be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037`.
   Taken from the previous attempt's `testdata/bundles/minilm-tokenizer/`.
+- `bge-m3/tokenizer.json`: the upstream tokenizer file of BAAI/bge-m3 at
+  commit `5617a9f61b028005a4858fdac845db406aefb181` (17098108 bytes, SHA-256
+  `21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08`) cut
+  down for the tests: of its 250002 Unigram pieces it keeps, in the
+  file's order, the first 16384, every piece of one character, and
+  `<mask>`, 28233 in all, with ids renumbered to that order (`<mask>` is
+  28232; the added token and the post-processor's ids follow); the
+  normalizer with its precompiled character map, the pre-tokenizer, the
+  post-processor, the decoder, `unk_id` and `byte_fallback` are unchanged.
+  Read as JSON it equals the upstream file except in `model.vocab` and
+  those ids. 1152616 bytes, SHA-256
+  `c71be2d7663b73c2ab5d00585dfa25e34f43d1d2da983592ef1153c32e28a26b`,
+  written with compact separators and no ASCII escaping. The core's
+  Unigram is compared with upstream `tokenizers` on it
+  (`core/tests/tokenizer.rs`), on the parity texts and the corners of
+  the SentencePiece pipeline; a full-vocabulary check is what every
+  BGE-M3 bundle's reference cases give on load. Under MIT, the licence of
+  BAAI/bge-m3.
 - `tokenizer-texts.jsonl`: texts the core's tokenizer is compared with
   upstream `tokenizers` on: scripts, spacing, control characters, emoji,
   special-token strings. Taken from the previous attempt's
@@ -36,5 +54,5 @@
   file it is under Apache-2.0, the licence of
   sentence-transformers/all-MiniLM-L6-v2.
 
-Everything here is about 5.1 MB, 4 MB of it the tiny
-bundle's weights.
+Everything here is about 6.3 MB, 4 MB of it the tiny
+bundle's weights and 1.1 MB the cut-down BGE-M3 tokenizer.

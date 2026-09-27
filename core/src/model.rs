@@ -8,8 +8,8 @@ use std::ffi::{CString, c_void};
 use serde::Serialize;
 
 use crate::backend::{
-    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, format_bit, turbo_backend_model,
-    turbo_backend_tensor,
+    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA, format_bit,
+    turbo_backend_model, turbo_backend_tensor,
 };
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
@@ -160,6 +160,7 @@ fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Re
 fn family(a: &Architecture) -> u32 {
     match (a.family, a.activation, a.position_embedding) {
         (Family::Bert, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_BERT,
+        (Family::Roberta, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_ROBERTA,
     }
 }
 
@@ -184,6 +185,7 @@ pub struct Weights {
     pub dtype: u32,
     family: u32,
     arch: [u32; 7],
+    position_offset: u32,
     layer_norm_eps: f64,
     /// A compiled artifact's one file, as hashed.
     artifact: Option<AlignedBytes>,
@@ -239,6 +241,7 @@ impl Weights {
             dtype,
             family: family(a),
             arch: [a.layers, a.hidden, a.heads, a.intermediate, a.vocab_size, a.max_positions, a.token_types],
+            position_offset: a.position_offset,
             layer_norm_eps: a.layer_norm_eps,
             artifact,
             shape: [
@@ -293,7 +296,7 @@ impl Weights {
             token_types,
             layer_norm_eps: self.layer_norm_eps,
             tensor_count: tensors.len() as u32,
-            reserved: 0,
+            position_offset: self.position_offset,
             tensors: if tensors.is_empty() { std::ptr::null() } else { tensors.as_ptr() },
             format,
             graph_input,

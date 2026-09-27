@@ -285,10 +285,11 @@ const void *fetch_rows_function();
 
 /* x[t] = LayerNorm(word[ids] + position[p] + type[types]) for every packed
  * token t, its row and position from the packing, rows being the written
- * rows; types are read only when the run has them. */
+ * rows; types are read only when the run has them. The position table is
+ * read from row pos0 for a row's first token. */
 cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *word,
                              const float *position, const float *type, const float *ln_w, const float *ln_b, float eps,
-                             const Packing &p, int hidden, float *x, uint16_t *x16, const Plan &plan);
+                             const Packing &p, int hidden, int pos0, float *x, uint16_t *x16, const Plan &plan);
 
 /* x[t] = LayerNorm(x[t] + (y[t] + bias)), y a GEMM's product; the result
  * into x16 as F16 too when it is not NULL. With residual16 the residual

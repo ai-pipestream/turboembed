@@ -29,8 +29,8 @@ use super::gpu::{
 };
 use super::ze;
 use crate::backend::{
-    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, turbo_backend_embed_rows,
-    turbo_backend_model, turbo_backend_run,
+    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA,
+    turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run,
 };
 use crate::status::{INVALID_ARGUMENT, INVALID_STATE, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK};
 use crate::{
@@ -364,7 +364,7 @@ pub(crate) unsafe extern "C" fn model_load(
     unsafe {
         guarded(err, || {
             let (c, d) = (&*(ctx as *const Context), &*desc);
-            if d.family != TURBO_FAMILY_BERT {
+            if d.family != TURBO_FAMILY_BERT && d.family != TURBO_FAMILY_ROBERTA {
                 return Err(fail(
                     UNSUPPORTED,
                     format!("family {}: the levelzero backend holds BERT encoders", d.family),
@@ -732,11 +732,14 @@ pub(crate) unsafe extern "C" fn session_create(
                     ),
                 ));
             }
-            if max_seq > d.max_positions {
+            if max_seq as u64 + d.position_offset as u64 > d.max_positions as u64 {
                 return Err(fail_field(
                     UNSUPPORTED_OPTION,
                     2,
-                    format!("max_seq {max_seq} is over the model's {} positions", d.max_positions),
+                    format!(
+                        "max_seq {max_seq} from position {} is over the model's {} positions",
+                        d.position_offset, d.max_positions
+                    ),
                 ));
             }
             let head_dim = d.hidden / d.heads;
@@ -878,6 +881,7 @@ impl Session {
         let (ids, positions, types, mask) =
             unsafe { (staging, staging.add(n), staging.add(2 * n), staging.add(3 * n)) };
         let table = unsafe { staging.add(4 * n) };
+        let pos0 = self.model().desc.position_offset as usize;
         let (mut t, mut longest) = (0usize, 0u32);
         for b in 0..r.batch as usize {
             let at = b * r.row_stride as usize;
@@ -892,7 +896,7 @@ impl Session {
                     std::ptr::copy_nonoverlapping(r.types.add(at), types.add(t), len);
                 }
                 for p in 0..len {
-                    *positions.add(t + p) = p as i32;
+                    *positions.add(t + p) = (p + pos0) as i32;
                 }
             }
             t += len;

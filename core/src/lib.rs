@@ -32,6 +32,7 @@ mod session;
 pub mod status;
 pub mod tokenizer;
 pub mod tuning;
+pub mod unigram;
 
 pub use session::*;
 
@@ -1322,7 +1323,7 @@ pub unsafe extern "C" fn turbo_tokenizer_get_info(
             out.bos_id = tok.bos_id;
             out.eos_id = tok.eos_id;
             out.unk_id = tok.unk_id;
-            write_str(&mut out.kind, "wordpiece");
+            write_str(&mut out.kind, tok.kind_name());
             write_str(&mut out.sha256, &tok.sha256);
             write_str(&mut out.manifest_sha256, &tok.manifest_sha256);
             Ok(())

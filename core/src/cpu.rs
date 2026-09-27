@@ -12,8 +12,8 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT,
-    TURBO_FORMAT_SAFETENSORS, format_bit, refuse, refuse_field, turbo_backend, turbo_backend_embed_rows,
-    turbo_backend_model, turbo_backend_run, turbo_backend_tensor,
+    TURBO_FAMILY_ROBERTA, TURBO_FORMAT_SAFETENSORS, format_bit, refuse, refuse_field, turbo_backend,
+    turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run, turbo_backend_tensor,
 };
 use crate::status::{
     INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
@@ -373,7 +373,7 @@ unsafe extern "C" fn model_load(
     err: *mut turbo_error,
 ) -> i32 {
     let desc = unsafe { *desc };
-    if desc.family != TURBO_FAMILY_BERT {
+    if desc.family != TURBO_FAMILY_BERT && desc.family != TURBO_FAMILY_ROBERTA {
         return unsafe { refuse(err, UNSUPPORTED, &format!("family {}: the cpu holds BERT encoders", desc.family)) };
     }
     let tensors = unsafe { std::slice::from_raw_parts(desc.tensors, desc.tensor_count as usize) }
@@ -464,8 +464,11 @@ unsafe extern "C" fn session_create(
         );
         return unsafe { refuse_field(err, UNSUPPORTED_OPTION, 3, &msg) };
     }
-    if max_seq > m.desc.max_positions {
-        let msg = format!("max_seq {max_seq} is over the model's {} positions", m.desc.max_positions);
+    if max_seq as u64 + m.desc.position_offset as u64 > m.desc.max_positions as u64 {
+        let msg = format!(
+            "max_seq {max_seq} from position {} is over the model's {} positions",
+            m.desc.position_offset, m.desc.max_positions
+        );
         return unsafe { refuse_field(err, UNSUPPORTED_OPTION, 2, &msg) };
     }
     let hidden = m.desc.hidden as usize;

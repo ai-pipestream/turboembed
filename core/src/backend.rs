@@ -16,6 +16,7 @@ pub const TURBO_BERT_EMBEDDING_TENSORS: u32 = 5;
 pub const TURBO_BERT_LAYER_TENSORS: u32 = 16;
 
 pub const TURBO_FAMILY_BERT: u32 = 1;
+pub const TURBO_FAMILY_ROBERTA: u32 = 2;
 
 pub const TURBO_FORMAT_SAFETENSORS: u32 = 1;
 pub const TURBO_FORMAT_OPENVINO_IR: u32 = 2;
@@ -53,6 +54,7 @@ pub struct turbo_backend_tuning {
 pub const TURBO_INPUT_TOKEN_IDS: u32 = 1;
 pub const TURBO_INPUT_EMBEDDINGS: u32 = 2;
 pub const TURBO_OUTPUT_HIDDEN_STATES: u32 = 1;
+pub const TURBO_OUTPUT_EMBEDDINGS: u32 = 2;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -80,7 +82,7 @@ pub struct turbo_backend_model {
     pub token_types: u32,
     pub layer_norm_eps: f64,
     pub tensor_count: u32,
-    pub reserved: u32,
+    pub position_offset: u32,
     pub tensors: *const turbo_backend_tensor,
     pub format: u32,
     pub graph_input: u32,

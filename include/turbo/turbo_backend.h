@@ -89,7 +89,8 @@ extern "C" {
 #define TURBO_BERT_LAYER_TENSORS  16
 
 /* The encoder families a model may be. */
-#define TURBO_FAMILY_BERT 1   /* GELU (erf), absolute positions, post-LayerNorm */
+#define TURBO_FAMILY_BERT    1   /* GELU (erf), absolute positions, post-LayerNorm */
+#define TURBO_FAMILY_ROBERTA 2   /* as BERT, the positions counted from position_offset */
 
 /* An artifact's format, as docs/bundle.md's artifacts[].format names it.
  * turbo_backend.formats has bit TURBO_FORMAT_BIT(f) set for each format f
@@ -112,6 +113,9 @@ extern "C" {
                                            everything after, and computes token type 0 only */
 #define TURBO_OUTPUT_HIDDEN_STATES  1   /* the last layer's hidden states, [batch, seq, hidden];
                                            pooling and normalize are the backend's to add */
+#define TURBO_OUTPUT_EMBEDDINGS     2   /* the pooled, normalized vectors, [batch, dim]: the graph
+                                           carries the embed block's pooling and normalization.
+                                           Only graphs no backend runs (an ONNX export) stop here */
 
 /* What a kernel computes in: the classes a precision may run, as bits. A
  * backend's kernel variant computes in exactly one; the core allows a
@@ -192,7 +196,8 @@ typedef struct turbo_backend_model {
     double      layer_norm_eps;
     uint32_t    tensor_count;     /* BERT: TURBO_BERT_EMBEDDING_TENSORS + layers * TURBO_BERT_LAYER_TENSORS
                                      for raw weights; as above for a HEF */
-    uint32_t    reserved;
+    uint32_t    position_offset;  /* the position table row a row's first token reads: 0 for
+                                     BERT, the padding id plus one for RoBERTa */
     const turbo_backend_tensor *tensors;
     uint32_t    format;           /* TURBO_FORMAT_*, one turbo_backend.formats lists */
     uint32_t    graph_input;      /* TURBO_INPUT_* */

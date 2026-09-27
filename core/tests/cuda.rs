@@ -2802,3 +2802,37 @@ fn the_first_tuned_session_s_cost() {
         }
     }
 }
+
+/// The small BERT as FAMILY_ROBERTA on the device: the positions read
+/// from row 2 of the table, as the f64 encoder reads them with the
+/// offset, at every precision.
+#[test]
+fn a_roberta_model_reads_positions_from_its_offset() {
+    let _t = turn();
+    let Some(_) = cuda_device("a_roberta_model_reads_positions_from_its_offset") else { return };
+    let mut f = Fixture::new("cuda-roberta", {
+        let mut m = model_manifest();
+        m["architecture"]["family"] = json!("FAMILY_ROBERTA");
+        m["architecture"]["position_offset"] = json!(2);
+        m
+    });
+    f.weights("weights/model.safetensors", &tiny_weights(0));
+    f.write();
+    let g = on_cuda(&f.dir);
+    let tok = Tok::create(&f.dir).unwrap();
+    let plain = PlainBert::new(&f.dir);
+    for precision in [TURBO_PRECISION_EXACT, TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+        let s = Session::create(g.m, Some(&session_desc(0, 0, precision))).unwrap();
+        let got = s.embed(&TEXTS, None).unwrap();
+        for (i, t) in TEXTS.iter().enumerate() {
+            let ids = tok.row(t, None).unwrap();
+            let ones = vec![1; ids.len()];
+            let want = plain.embed(&ids, &ones, &vec![0; ids.len()], TURBO_POOLING_MEAN, 8, true);
+            let bound = if precision == TURBO_PRECISION_FASTEST { 1e-2 } else { 1e-5 };
+            for (a, w) in got[i].iter().zip(&want) {
+                assert!((*a as f64 - w).abs() < bound, "precision {precision} {t:?}: {a} vs {w}");
+            }
+        }
+    }
+    Session::create(g.m, Some(&session_desc(1, MAX_SEQ as u32, 0))).unwrap();
+}

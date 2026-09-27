@@ -76,6 +76,8 @@ pub(super) struct Encoder {
     packed: *const Packed,
 
     max_seq: usize,
+    /// The position table row a row's first token reads.
+    position_offset: usize,
     // The written rows, [batch, seq] packed with no stride.
     batch: usize,
     seq: usize,
@@ -145,6 +147,7 @@ impl Encoder {
             tensors: tensors.iter().map(|t| (t.as_ptr(), t.len())).collect(),
             packed,
             max_seq,
+            position_offset: d.position_offset as usize,
             batch: 0,
             seq: 0,
             ids: zeroed(tokens)?,
@@ -409,7 +412,7 @@ impl Job<'_> {
         let (ln_w, ln_b) = (e.tensor(EMB_LN_W), e.tensor(EMB_LN_B));
         for tok in self.chunk(t) {
             let at = e.at[tok] as usize;
-            let (id, ty_id, p) = (e.ids[at] as usize, e.types[at] as usize, at % e.seq);
+            let (id, ty_id, p) = (e.ids[at] as usize, e.types[at] as usize, at % e.seq + e.position_offset);
             let (w, ps, tt) = (&word[id * h..][..h], &pos[p * h..][..h], &ty[ty_id * h..][..h]);
             // SAFETY: this chunk's token.
             let dst = unsafe { self.x_row(tok) };
@@ -698,7 +701,7 @@ mod tests {
                 token_types: 2,
                 layer_norm_eps: 1e-12,
                 tensor_count: shapes.len() as u32,
-                reserved: 0,
+                position_offset: 0,
                 tensors: std::ptr::null(),
                 format: crate::backend::TURBO_FORMAT_SAFETENSORS,
                 graph_input: crate::backend::TURBO_INPUT_TOKEN_IDS,

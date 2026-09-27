@@ -17,6 +17,8 @@ sha2 = "0.10"
 # The Unicode tables upstream tokenizers uses, so the ids match it exactly.
 unicode-normalization-alignments = "0.1.12"
 unicode_categories = "0.1.1"
+# Grapheme clusters, which SentencePiece's character map is applied by.
+unicode-segmentation = "1"
 # Opens the Level Zero loader at run time, so a machine without it lists
 # no Intel GPU instead of failing to load libturbo.
 libloading = { version = "0.8", optional = true }
