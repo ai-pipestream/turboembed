@@ -219,6 +219,7 @@ fn the_recipe_carries_upstreams_onnx_export_for_reference_programs_only() {
             file: "onnx/model-f16.onnx".into(),
             from: "onnx-f32".into(),
             from_file: "onnx/model.onnx".into(),
+            from_upstream: false,
             script: convert::ONNX_F16,
             container: None,
             inputs: vec![],
@@ -248,7 +249,39 @@ fn only_an_f16_onnx_file_from_the_upstream_one_is_made() {
     let e = write(&|a| a["produced_by"]["from"] = json!("weights-f32")).unwrap_err();
     assert!(e.contains("only a DTYPE_F16 FORMAT_ONNX file"), "{e}");
     let e = write(&|a| a["files"] = json!(["onnx/a.onnx", "onnx/b.onnx"])).unwrap_err();
-    assert!(e.contains("one file each"), "{e}");
+    assert!(e.contains("a converted artifact is one file"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+/// Raw weights the tool writes from a PyTorch checkpoint: produced_by
+/// names the checkpoint among the upstream files, which is not carried.
+#[test]
+fn raw_weights_come_from_an_upstream_checkpoint_the_bundle_does_not_carry() {
+    let d = scratch("weights-conversion");
+    let write = |edit: &dyn Fn(&mut Value)| {
+        let mut r: Value = serde_json::from_slice(&fs::read(tiny_recipe(&d)).unwrap()).unwrap();
+        r["upstream"].as_array_mut().unwrap().retain(|u| u["path"] != "model.safetensors");
+        r["upstream"].as_array_mut().unwrap().push(json!({ "path": "pytorch_model.bin" }));
+        let arts = r["manifest"]["artifacts"].as_array_mut().unwrap();
+        let w = arts.iter_mut().find(|a| a["name"] == "weights-f32").unwrap();
+        w["produced_by"] = json!({ "upstream": "pytorch_model.bin" });
+        edit(&mut r);
+        let p = d.join("edited.json");
+        fs::write(&p, serde_json::to_vec(&r).unwrap()).unwrap();
+        Recipe::load(&p).map(|r| convert::conversions(&r).unwrap())
+    };
+    let c = write(&|_| {}).unwrap();
+    let w = c.iter().find(|c| c.name == "weights-f32").unwrap();
+    assert_eq!(
+        (w.from.as_str(), w.from_file.as_str(), w.from_upstream, w.script),
+        ("", "pytorch_model.bin", true, convert::BIN_TO_SAFETENSORS)
+    );
+    let e = write(&|r| r["manifest"]["artifacts"][0]["produced_by"]["from"] = json!("onnx-f32")).unwrap_err();
+    assert!(e.contains("names only upstream"), "{e}");
+    let e = write(&|r| r["manifest"]["artifacts"][0]["produced_by"]["upstream"] = json!("model.bin")).unwrap_err();
+    assert!(e.contains("is not in the recipe's upstream files"), "{e}");
+    let e = write(&|r| r["upstream"][2]["to"] = json!("weights/pytorch_model.bin")).unwrap_err();
+    assert!(e.contains("not carried"), "{e}");
     fs::remove_dir_all(d).unwrap();
 }
 

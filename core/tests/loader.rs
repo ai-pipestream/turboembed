@@ -356,3 +356,44 @@ fn files_not_opened_are_not_checked() {
     assert!(!f.dir.join("weights/model.safetensors").exists());
     f.open().expect("loads");
 }
+
+#[test]
+fn the_tokenizer_is_one_of_wordpiece_and_unigram() {
+    let unigram = json!({
+        "precompiled_charsmap": true, "collapse_spaces": true, "metaspace": "\u{2581}", "add_prefix_space": true
+    });
+    let e = with("both-kinds", |m| m["tokenizer"]["unigram"] = unigram.clone());
+    assert!(e.is(BUNDLE_INVALID, "one of wordpiece and unigram"), "{e:?}");
+    let e = with("no-kind", |m| m["tokenizer"]["wordpiece"] = json!(null));
+    assert!(e.is(BUNDLE_INVALID, "one of wordpiece and unigram"), "{e:?}");
+    let e = with("no-normalizer", |m| m["tokenizer"]["normalizer"] = json!(null));
+    assert!(e.is(BUNDLE_INVALID, "tokenizer.normalizer: required with wordpiece"), "{e:?}");
+    let e = with("unigram-with-bert-normalizer", |m| {
+        m["tokenizer"]["wordpiece"] = json!(null);
+        m["tokenizer"]["unigram"] = unigram.clone();
+    });
+    assert!(e.is(BUNDLE_INVALID, "tokenizer.normalizer: a unigram tokenizer"), "{e:?}");
+    let e = with("two-char-metaspace", |m| {
+        m["tokenizer"]["wordpiece"] = json!(null);
+        m["tokenizer"]["normalizer"] = json!(null);
+        m["tokenizer"]["unigram"] = unigram.clone();
+        m["tokenizer"]["unigram"]["metaspace"] = json!("__");
+    });
+    assert!(e.is(BUNDLE_INVALID, "tokenizer.unigram.metaspace"), "{e:?}");
+}
+
+#[test]
+fn the_position_offset_goes_with_the_family() {
+    let e = with("bert-offset", |m| m["architecture"]["position_offset"] = json!(2));
+    assert!(e.is(BUNDLE_INVALID, "architecture.position_offset: FAMILY_BERT"), "{e:?}");
+    let e = with("roberta-no-offset", |m| m["architecture"]["family"] = json!("FAMILY_ROBERTA"));
+    assert!(e.is(BUNDLE_INVALID, "architecture.position_offset: required for FAMILY_ROBERTA"), "{e:?}");
+    let e = with("roberta-past-the-table", |m| {
+        m["architecture"]["family"] = json!("FAMILY_ROBERTA");
+        m["architecture"]["position_offset"] = json!(2);
+        m["architecture"]["max_positions"] = json!(MAX_SEQ + 1);
+    });
+    assert!(e.is(BUNDLE_INVALID, "embed.max_seq: 256 from position 2 is over"), "{e:?}");
+    let e = with("unknown-family", |m| m["architecture"]["family"] = json!("FAMILY_T5"));
+    assert!(e.is(BUNDLE_INVALID, "architecture.family"), "{e:?}");
+}

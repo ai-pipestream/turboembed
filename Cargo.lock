@@ -1685,6 +1685,7 @@ dependencies = [
  "tokenizers",
  "turbo",
  "unicode-normalization-alignments",
+ "unicode-segmentation",
  "unicode_categories",
 ]
 

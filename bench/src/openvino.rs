@@ -35,8 +35,9 @@ pub struct OpenVino {
     pub image: String,
     /// benchmark_app inside the image.
     pub benchmark_app: String,
-    /// The ONNX inputs for ids, mask and types, in that order.
-    pub inputs: [String; 3],
+    /// The ONNX inputs for ids, mask and types, in that order; two when
+    /// the graph takes no types.
+    pub inputs: Vec<String>,
     /// `int64` or `int32`: the element type of those inputs.
     pub input_dtype: String,
     /// The host's DRI directory, handed to the container whole.

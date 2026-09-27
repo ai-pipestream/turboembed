@@ -225,25 +225,26 @@ this form before it is written or loaded.
 | `embed.prefix_query`, `.prefix_document` | string | no | Prepended for `TURBO_PROMPT_QUERY` and `TURBO_PROMPT_DOCUMENT`. |
 | `embed.output_dims` | uint32[] | no | The widths the model was trained to be cut to, each in 1 to `dim` and listed once, at most `TURBO_OUTPUT_DIMS_MAX` (16) of them. `turbo_model_info.output_dims` reports them ascending. An `output_dim` above `dim` is `INVALID_ARGUMENT`; one that is neither `dim` nor listed is `UNSUPPORTED_OPTION`. The cut comes before normalize: an L2-normalized vector is unit length at `output_dim`. |
 | `tokenizer.file` | path | yes | The upstream tokenizer file, unchanged. Its hash is `tokenizer_sha256`. |
-| `tokenizer.normalizer.*` | bool, enum | yes | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. |
-| `tokenizer.wordpiece`, `.bpe`, `.unigram` | message | one of | The kind and its parameters. Only wordpiece is defined in this cut. |
-| `tokenizer.special_tokens[]` | role, content, id | yes | Fills `pad_id`, `bos_id`, `eos_id`, `unk_id`. |
+| `tokenizer.normalizer.*` | bool, enum | with `wordpiece` | What the core applies to the text. The order is upstream BertNormalizer's, whatever the order of the fields: clean, split CJK, strip accents, lowercase. A `unigram` tokenizer has none: it normalizes with the map its file carries. |
+| `tokenizer.wordpiece`, `.bpe`, `.unigram` | message | one of | The kind and its parameters. `wordpiece` (`continuing_prefix`, `max_chars_per_word`) and `unigram` are defined in this cut; `bpe` is not. |
+| `tokenizer.unigram.*` | bool, string | with `unigram` | SentencePiece's Unigram as upstream `tokenizers` runs it (XLM-RoBERTa, BGE-M3): `precompiled_charsmap` applies the precompiled character map the file carries (SentencePiece's `nmt_nfkc` for XLM-RoBERTa), `collapse_spaces` folds runs of spaces to one, every space becomes `metaspace` (one character, `▁`) and each piece of text between special tokens gets one in front when `add_prefix_space`; the text is cut at each metaspace into words, and each word into the pieces of highest total score, a character no piece covers being the SPECIAL_UNK token, a run of them one token. Each switch must match the file. |
+| `tokenizer.special_tokens[]` | role, content, id, lstrip | yes | Fills `pad_id`, `bos_id`, `eos_id`, `unk_id`. `lstrip` (default false) says the token takes the whitespace before it in the text, as upstream's `lstrip` added tokens do (XLM-RoBERTa's `<mask>`); each must match the file's added token. |
 | `tokenizer.template` | string[] | yes | The row layout around `$TEXT`. |
 | `tokenizer.truncation` | enum | yes | What `TURBO_TRUNCATE_MODEL` means: `TRUNCATE_RIGHT` or `TRUNCATE_LEFT`. `TRUNCATE_NONE` is a caller option and is rejected here. |
-| `architecture.*` | message | when an artifact is raw weights or a HEF | Everything a kernel path needs that a weights file does not carry. |
+| `architecture.*` | message | when an artifact is raw weights or a HEF | Everything a kernel path needs that a weights file does not carry. `family` is `FAMILY_BERT` or `FAMILY_ROBERTA`: the same encoder, RoBERTa counting positions from `position_offset` (its padding id plus one: 2 for XLM-RoBERTa, whose table of `max_positions` 8194 rows serves 8192 tokens). `position_offset` is 0 for BERT and required for RoBERTa; `max_seq` plus it must fit `max_positions`. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
-| `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. |
+| `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
 | `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it, as for an ONNX file carried only for the reference programs and the converters. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |
 | `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. A FORMAT_HEF sets both. `fixed_batch` is a frame, not a limit on a session's batch. |
 | `artifacts[].compute_dtype` | enum | yes for `FORMAT_HEF` | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
-| `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. `INPUT_EMBEDDINGS` is defined under "Graph inputs" below. `OUTPUT_HIDDEN_STATES` is the last layer's hidden states, before pooling. |
+| `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. `INPUT_EMBEDDINGS` is defined under "Graph inputs" below. `OUTPUT_HIDDEN_STATES` is the last layer's hidden states, before pooling; raw weights stop there, the backend pools. `OUTPUT_EMBEDDINGS` is the pooled, normalized vectors, for a graph that carries the embed block's pooling and normalization (a sentence-transformers export); only graphs no backend runs stop there. |
 | `artifacts[].host_weights` | string | when input is embeddings | The `FORMAT_SAFETENSORS` artifact whose embedding tensors the host lookup uses. Its `tensor_names` must name the five embedding roles; the layer roles are not read. |
 | `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. |
 | `artifacts[].produced_by` | message | no | Absent means the upstream file, unchanged. |
 | `produced_by.tool`, `.tool_version`, `.container`, `.reproducible` | string, bool | yes when present | What ran, in which pinned container, and whether two runs give identical bytes. |
-| `produced_by.from` | string | yes in an artifact, empty in `reference` | The artifact this one was converted from. The reference is made from the upstream model, so its `from` is empty. |
+| `produced_by.from` | string | yes in a converted artifact but raw weights, empty in `reference` | The artifact this one was converted from. The reference, and raw weights the bundle tool wrote from an upstream PyTorch checkpoint the bundle does not carry, are made from the upstream model, so their `from` is empty; the weights' `args` name the checkpoint. |
 | `produced_by.inputs`, `.args` | path[], string[] | no | The other files read, the arguments. |
 | `reference.file` | path | yes | A safetensors file with `ids` (I32 `[n, L]`, padded with `pad_id`), `lengths` (I32 `[n]`) and `embeddings` (F32 `[n, dim]`), row `i` for `cases[i]`. |
 | `reference.cases[]` | text, prompt_role | yes | The exact bytes the core is handed. If a service normalizes text upstream, these are post-normalization. One case is longer than `max_seq`, so truncation is checked too. |
@@ -379,7 +380,21 @@ refuses to finish unless every hash matches.
   (`float_casts_into_f16_ops=FLOAT16` in `args`) and refuses a result in
   which any other op takes both float and float16 inputs. The recipe
   names only `produced_by.from`; the tool fills in the rest from
-  the run, and runs it twice to say whether it is `reproducible`.
+  the run, and runs it twice to say whether it is `reproducible`. An
+  export with external data (BGE-M3's `onnx/model.onnx` and
+  `onnx/model.onnx_data`) lists both files, the graph first; the F16
+  copy comes out as one file. A graph whose F32 tensors serialize past
+  protobuf's 2 GB message limit cannot go through the converter's shape
+  inference, so it is converted without it (`disable_shape_infer=True`
+  in `args`) on the graph as exported.
+- A model whose repository ships a PyTorch checkpoint and no
+  safetensors file (BAAI/bge-m3 at its pinned commit) gets its raw
+  weights from the bundle tool: `produced_by` on the
+  `FORMAT_SAFETENSORS` artifact names `upstream`, the checkpoint's path
+  among the recipe's upstream files, fetched and not carried, and the
+  reference container writes every tensor as stored
+  (`bundle/reference/bin_to_safetensors.py`). The library never reads the
+  checkpoint.
 - `DTYPE_I8` is `TURBO_DTYPE_I8` (6), the slot the header's numbering
   leaves for it below `TURBO_DTYPE_I32` (8). It is a compute dtype: a
   session, a capability or a compiled artifact computes in it; no buffer

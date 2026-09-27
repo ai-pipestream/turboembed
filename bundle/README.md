@@ -33,6 +33,10 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
      container, by `onnx_f16.py`, run with `--entrypoint python`. An image
      built before `onnx_f16.py` was added to it cannot; build it again and
      pin the new id.
+   - raw weights as safetensors (`produced_by` names only `upstream`, a
+     PyTorch checkpoint among the upstream files, fetched and not carried),
+     in the reference container, by `bin_to_safetensors.py`: every tensor
+     as stored, for a model whose repository ships no safetensors file.
    - a HEF for a Hailo device (`produced_by` names `from`, `container` and
      `inputs`), in the Dataflow Compiler container that `container` pins,
      by `bundle/hailo/hef_compile.py`: the export is cut at the

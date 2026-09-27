@@ -832,7 +832,7 @@ size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(si
 int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Context *c = static_cast<Context *>(ctx);
-        if (desc->family != TURBO_FAMILY_BERT)
+        if (desc->family != TURBO_FAMILY_BERT && desc->family != TURBO_FAMILY_ROBERTA)
             return refuse(err, TURBO_E_UNSUPPORTED, "family %u: the cuda backend holds BERT encoders", desc->family);
         if (desc->heads == 0 || desc->hidden % desc->heads != 0)
             return refuse(err, TURBO_E_UNSUPPORTED, "hidden %u is not a multiple of heads %u", desc->hidden,
@@ -1633,7 +1633,7 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     // keep the F32 stream.
     const bool stream16 = sh.residual16 && !plan.fused_ln;
     TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
-                              h, stream16 ? nullptr : s.x, s.x16, plan),
+                              h, (int)d.position_offset, stream16 ? nullptr : s.x, s.x16, plan),
              "the embedding lookup");
     GemmArgs g{};
     g.info = info;
@@ -2273,9 +2273,10 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
                                 "precision: MODEL computes in the weights' %s, and the cuda backend computes MODEL "
                                 "in F32 only; EXACT computes this model in F32, FASTEST in F16",
                                 dtype_name(d.dtype));
-        if (max_seq > d.max_positions)
-            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 2, "max_seq %u is over the model's %u positions",
-                                max_seq, d.max_positions);
+        if ((uint64_t)max_seq + d.position_offset > d.max_positions)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 2,
+                                "max_seq %u from position %u is over the model's %u positions", max_seq,
+                                d.position_offset, d.max_positions);
         if (max_batch > 65535)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1,
                                 "max_batch %u: the cuda backend runs at most 65535 rows", max_batch);

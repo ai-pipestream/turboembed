@@ -202,7 +202,7 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
     // environment while it changes.
     unsafe { std::env::set_var("PATH", path) };
 
-    let inputs: [String; 3] = ["input_ids".into(), "attention_mask".into(), "token_type_ids".into()];
+    let inputs: Vec<String> = vec!["input_ids".into(), "attention_mask".into(), "token_type_ids".into()];
     let tei_run = tei::run(
         &Tei {
             image: format!("ghcr.io/huggingface/text-embeddings-inference@sha256:{DIGEST}"),
@@ -337,7 +337,7 @@ fn a_record_names_no_host_path_and_the_commands_run_do() {
         &TensorRt {
             image: format!("nvcr.io/nvidia/tensorrt@sha256:{DIGEST}"),
             trtexec: "trtexec".into(),
-            inputs: ["input_ids".into(), "attention_mask".into(), "token_type_ids".into()],
+            inputs: vec!["input_ids".into(), "attention_mask".into(), "token_type_ids".into()],
             input_dtype: "int64".into(),
             warmup_ms: 100,
             work: work.clone(),

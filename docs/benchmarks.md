@@ -47,13 +47,13 @@ the same files copied elsewhere pass it.
 | `--tei-bin <path>` | TEI's router built natively, run in place of an image: for metal, whose GPU no container reaches (Reference programs). Goes with `--tei-model`, not `--tei-image`. |
 | `--no-tei` | TEI is not run; the record says so. |
 | `--tensorrt-image <name@sha256:…>` | NVIDIA's TensorRT container. |
-| `--tensorrt-inputs <ids,mask,types>` | The ONNX inputs, in that order, each of `[A-Za-z0-9_.]+` and neither `.` nor `..` (each names a file and a part of trtexec's lists). Default `input_ids,attention_mask,token_type_ids`. |
+| `--tensorrt-inputs <ids,mask[,types]>` | The ONNX inputs, in that order, each of `[A-Za-z0-9_.]+` and neither `.` nor `..` (each names a file and a part of trtexec's lists); two for a graph that takes no token types (an XLM-RoBERTa export). Default `input_ids,attention_mask,token_type_ids`. |
 | `--tensorrt-input-dtype int64\|int32` | Their element type. Default `int64`. |
 | `--tensorrt-warmup-ms <n>` | trtexec's `--warmUp`. Default 1000. |
 | `--trtexec <path>` | trtexec inside the image. Default `trtexec`. |
 | `--no-tensorrt` | TensorRT is not run; the record says so. |
 | `--openvino-image <name@sha256:…>` | An OpenVINO container with `benchmark_app` (levelzero). |
-| `--openvino-inputs <ids,mask,types>`, `--openvino-input-dtype int64\|int32` | As for TensorRT, for benchmark_app. Default `input_ids,attention_mask,token_type_ids` and `int64`. |
+| `--openvino-inputs <ids,mask[,types]>`, `--openvino-input-dtype int64\|int32` | As for TensorRT, for benchmark_app. Default `input_ids,attention_mask,token_type_ids` and `int64`. |
 | `--benchmark-app <path>` | benchmark_app inside the image. Default `benchmark_app`. |
 | `--no-openvino` | OpenVINO is not run; the record says so. |
 | `--work <dir>` | Scratch for trtexec's and benchmark_app's input files. Default the system's temporary directory. |

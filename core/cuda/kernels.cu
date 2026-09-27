@@ -419,8 +419,8 @@ __device__ void layer_norm_regs(float (&v)[V][4], int n, const float *w, const f
 template <int V>
 __global__ void __launch_bounds__(ROW_BLOCK)
     embed_layer_norm_kernel(const int32_t *rows, const float *word, const float *position, const float *type,
-                            const float *ln_w, const float *ln_b, float eps, Packing p, int hidden, float *x,
-                            __half *x16) {
+                            const float *ln_w, const float *ln_b, float eps, Packing p, int hidden, int pos0,
+                            float *x, __half *x16) {
     const Info in = *p.info;
     const int32_t *ids = ids_of(rows, in), *types = types_of(rows, in);
     const int lane = threadIdx.x & 31;
@@ -428,7 +428,7 @@ __global__ void __launch_bounds__(ROW_BLOCK)
         const int b = p.tok_row[t], pos = t - p.start[b];
         const size_t at = (size_t)b * in.seq + pos;
         const float *w = word + (size_t)ids[at] * hidden;
-        const float *ps = position + (size_t)pos * hidden;
+        const float *ps = position + (size_t)(pos + pos0) * hidden;
         const float *tt = type + (size_t)(in.has_types ? types[at] : 0) * hidden;
         float v[V][4];
 #pragma unroll
@@ -3863,10 +3863,10 @@ const void *fetch_rows_function() { return reinterpret_cast<const void *>(fetch_
 
 cudaError_t embed_layer_norm(cudaStream_t s, const int32_t *rows, const float *word, const float *position,
                              const float *type, const float *ln_w, const float *ln_b, float eps, const Packing &p,
-                             int hidden, float *x, uint16_t *x16, const Plan &plan) {
+                             int hidden, int pos0, float *x, uint16_t *x16, const Plan &plan) {
     return with_row_width(hidden, [&](auto v) {
         embed_layer_norm_kernel<decltype(v)::value><<<plan.rows_grid, ROW_BLOCK, 0, s>>>(
-            rows, word, position, type, ln_w, ln_b, eps, p, hidden, x, as_half(x16));
+            rows, word, position, type, ln_w, ln_b, eps, p, hidden, pos0, x, as_half(x16));
         return cudaGetLastError();
     });
 }

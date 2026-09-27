@@ -10,18 +10,20 @@ use turbo::manifest::{Dtype, Format, Manifest};
 use crate::Result;
 use crate::measure::Rows;
 
-/// The bundle's ONNX file in `dtype`, or why there is none for the
+/// The bundle's ONNX graph in `dtype`, or why there is none for the
 /// program to run: None is the upstream graph, the FORMAT_ONNX artifact
 /// with no compute_dtype, and Some a graph converted to that dtype
-/// (docs/bundle.md). `purpose` ends the sentence ("for trtexec to build
-/// an engine from").
+/// (docs/bundle.md). The graph is the artifact's first file; any others
+/// are its external data beside it, which the program reads from the
+/// bundle mounted whole. `purpose` ends the sentence ("for trtexec to
+/// build an engine from").
 pub fn file(m: &Manifest, dtype: Option<Dtype>, purpose: &str) -> std::result::Result<String, String> {
     let a = m.artifacts.iter().find(|a| a.format == Format::Onnx && a.compute_dtype == dtype);
     match a.map(|a| a.files.as_slice()) {
         None if dtype.is_none() => Err(format!("the bundle carries no FORMAT_ONNX artifact {purpose}")),
         None => Err(format!("the bundle carries no FORMAT_ONNX artifact in {} {purpose}", dtype_name(dtype))),
-        Some([one]) => Ok(one.clone()),
-        Some(_) => Err("the bundle's FORMAT_ONNX artifact is not one file".into()),
+        Some([graph, ..]) => Ok(graph.clone()),
+        Some([]) => Err("the bundle's FORMAT_ONNX artifact has no file".into()),
     }
 }
 
@@ -61,9 +63,9 @@ pub fn input_bytes(option: &str, values: &[i32], dtype: &str) -> Result<Vec<u8>>
     }
 }
 
-/// Write the ids, the mask and the types to `<name>.bin` in `dir`, for
-/// the inputs `names` in that order.
-pub fn write_inputs(dir: &Path, names: &[String; 3], dtype: &str, option: &str, rows: &Rows) -> Result<()> {
+/// Write the ids, the mask and, when the graph takes them, the types to
+/// `<name>.bin` in `dir`, for the inputs `names` in that order.
+pub fn write_inputs(dir: &Path, names: &[String], dtype: &str, option: &str, rows: &Rows) -> Result<()> {
     for (name, values) in names.iter().zip([&rows.ids, &rows.mask, &rows.types]) {
         let path = dir.join(format!("{name}.bin"));
         fs::write(&path, input_bytes(option, values, dtype)?).map_err(|e| format!("{}: {e}", path.display()))?;

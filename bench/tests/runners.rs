@@ -497,7 +497,7 @@ fn trt(work: &Path) -> TensorRt {
     TensorRt {
         image: format!("nvcr.io/nvidia/tensorrt@sha256:{DIGEST}"),
         trtexec: "trtexec".into(),
-        inputs: ["input_ids".into(), "attention_mask".into(), "token_type_ids".into()],
+        inputs: vec!["input_ids".into(), "attention_mask".into(), "token_type_ids".into()],
         input_dtype: "int64".into(),
         warmup_ms: 1000,
         work: work.to_owned(),
@@ -718,7 +718,7 @@ fn ov(work: &Path) -> OpenVino {
     OpenVino {
         image: format!("openvino/ubuntu24_dev@sha256:{DIGEST}"),
         benchmark_app: "benchmark_app".into(),
-        inputs: ["input_ids".into(), "attention_mask".into(), "token_type_ids".into()],
+        inputs: vec!["input_ids".into(), "attention_mask".into(), "token_type_ids".into()],
         input_dtype: "int64".into(),
         dri: "/dev/dri".into(),
         work: work.to_owned(),

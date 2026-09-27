@@ -763,7 +763,7 @@ int64_t map_weights(Model *m, const turbo_backend_model *desc) {
 int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Context *c = static_cast<Context *>(ctx);
-        if (desc->family != TURBO_FAMILY_BERT)
+        if (desc->family != TURBO_FAMILY_BERT && desc->family != TURBO_FAMILY_ROBERTA)
             return refuse(err, TURBO_E_UNSUPPORTED, "family %u: the metal backend holds BERT encoders", desc->family);
         if (desc->heads == 0 || desc->hidden % desc->heads != 0)
             return refuse(err, TURBO_E_UNSUPPORTED, "hidden %u is not a multiple of heads %u", desc->hidden,
@@ -948,9 +948,10 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
                                 "precision: MODEL computes in the weights' %s, and the metal backend computes in F32 "
                                 "only; EXACT and FASTEST compute this model in F32",
                                 dtype_name(d.dtype));
-        if (max_seq > d.max_positions)
-            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 2, "max_seq %u is over the model's %u positions",
-                                max_seq, d.max_positions);
+        if ((uint64_t)max_seq + d.position_offset > d.max_positions)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 2,
+                                "max_seq %u from position %u is over the model's %u positions", max_seq,
+                                d.position_offset, d.max_positions);
         const size_t shared = attention_bytes(d.hidden / d.heads, max_seq);
         const Kernel att = wide_heads(d.hidden / d.heads) ? ATTENTION : ATTENTION_NARROW;
         const size_t most = c->device.maxThreadgroupMemoryLength - c->kernels->k[att].staticThreadgroupMemoryLength;
@@ -1034,6 +1035,7 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
         uint32_t *starts = reinterpret_cast<uint32_t *>(base + s.starts);
         uint32_t *blocks = reinterpret_cast<uint32_t *>(base + s.blocks);
         uint32_t t = 0, nb = 0, longest = 0;
+        const int32_t pos0 = (int32_t)s.model->desc.position_offset;
         for (uint32_t row = 0; row < r->batch; row++) {
             const size_t at = (size_t)row * r->row_stride;
             const int32_t *m = r->mask + at;
@@ -1045,7 +1047,7 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
                 memcpy(types + t, r->types + at, (size_t)len * 4);
             else
                 memset(types + t, 0, (size_t)len * 4);
-            for (uint32_t p = 0; p < len; p++) pos[t + p] = (int32_t)p;
+            for (uint32_t p = 0; p < len; p++) pos[t + p] = (int32_t)p + pos0;
             starts[2 * row] = t;
             starts[2 * row + 1] = len;
             for (uint32_t b = 0; b * 32 < len; b++) {
