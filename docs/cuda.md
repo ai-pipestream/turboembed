@@ -168,7 +168,11 @@ a GEMM's block takes before the GEMM runs on fewer blocks (a count from
 1 to 64; 4 when unset), for measuring how finely the work is shared, or
 `tiles`: whole tiles to a block, so no tile is split between blocks and
 no block waits on another's partial product (the blocks then share the
-tiles, not the k steps, evenly). Like the tile, it moves where the sums
+tiles, not the k steps, evenly). Unset, F16 on the tensor cores takes
+whole tiles for the QKV and first feed-forward GEMMs in the bins of
+more than 1024 tokens (on the whole-k F16 sums a split tile's partial
+products cost more than whole tiles' idle SMs: 9% of a mixed-length run
+on an RTX 4080 SUPER) and stream-K elsewhere. Like the tile, it moves where the sums
 split, so the vectors agree within the bound, not bit for bit.
 
 A GEMM's block that finishes a tile waits for the blocks that computed

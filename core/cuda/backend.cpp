@@ -1340,9 +1340,21 @@ bool mma_attention(const Shape &base) {
 Choices defaults(const Shape &base) {
     Choices c;
     c.bins = bins_for(base.tcap);
-    for (BinChoices &b : c.bin) {
+    for (int i = 0; i < BIN_COUNT; i++) {
+        BinChoices &b = c.bin[i];
         b = BinChoices{};
         b.attention = mma_attention(base) ? ATT_MMA_128 : ATT_FMA_TILED;
+        // F16 on the tensor cores: whole tiles for QKV and the first
+        // feed-forward GEMM from the le4k bin up. On the whole-k F16 sums
+        // a split tile's partial products cost more than the idle SMs of
+        // whole tiles (an RTX 4080 SUPER: 9% of a mixed-length run at 1353
+        // tokens, 1.4% at 8192); the N = hidden GEMMs, at 1.2 waves of
+        // tiles, keep stream-K, as do the bins below, which are not
+        // measured.
+        if (base.half && base.tensor_cores && i >= 2) {
+            b.gemm[GEMM_QKV].sk = SK_TILES;
+            b.gemm[GEMM_FFN1].sk = SK_TILES;
+        }
     }
     return c;
 }
