@@ -46,6 +46,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_wide_attention(wide: i32);
     fn turbo_cuda_use_exact_attention(exact: i32);
     fn turbo_cuda_use_fa32_attention(fa32: i32);
+    fn turbo_cuda_use_acc32_attention(acc32: i32);
     fn turbo_cuda_use_separate_layer_norm(separate: i32);
     fn turbo_cuda_use_column_pool(columns: i32);
     fn turbo_cuda_use_tf32(tf32: i32);
@@ -314,6 +315,16 @@ pub fn use_exact_attention(exact: Option<bool>) {
 #[cfg(feature = "internals")]
 pub fn use_fa32_attention(fa32: Option<bool>) {
     unsafe { turbo_cuda_use_fa32_attention(fa32.map_or(-1, i32::from)) };
+}
+
+/// The sums of the attention of 128 queries in sessions made from now
+/// on: `Some(true)` F32 sums of the scores and the output, as
+/// TURBO_CUDA_ATTENTION=acc32 picks them, `Some(false)` the default's F16
+/// sums within a chunk, `None` to read the variable again. Built only
+/// with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_acc32_attention(acc32: Option<bool>) {
+    unsafe { turbo_cuda_use_acc32_attention(acc32.map_or(-1, i32::from)) };
 }
 
 /// The LayerNorms of sessions made from now on: `Some(true)` a kernel of

@@ -30,6 +30,7 @@ enum AttnVariant : int {
     ATT_MMA_128 = 3,
     ATT_MMA_128_EXACT = 4,
     ATT_MMA_128_FA32 = 5, /* heads of 32 only: 32 queries to a warp, four warps */
+    ATT_MMA_128_ACC32 = 6, /* the default's kernel with F32 sums of the scores and the output */
 };
 
 /* The attention output and second feed-forward GEMMs' LayerNorm: a kernel
@@ -169,8 +170,13 @@ std::string variant_name(const GemmChoice &g);
 /* The TURBO_NUMERIC_* class a GEMM of the choice computes in. */
 uint32_t gemm_numeric(const Shape &base, const GemmChoice &g);
 
-/* The TURBO_NUMERIC_* classes the GEMMs of c compute in, in every bin
- * that exists. */
+/* The TURBO_NUMERIC_* class the attention variant computes in: the
+ * tensor cores' default of 128 queries (and its fa32 form) sums the
+ * scores and the output in F16 within a chunk; exact and acc32 in F32. */
+uint32_t attention_numeric(const Shape &base, AttnVariant a);
+
+/* The TURBO_NUMERIC_* classes the GEMMs and the attention of c compute
+ * in, in every bin that exists. */
 uint32_t numerics_of(const Shape &base, const Choices &c);
 
 /* The classes of n by name, joined by " and ". */

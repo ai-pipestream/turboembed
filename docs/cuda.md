@@ -94,22 +94,35 @@ keys among four warps (a lane per query, 64 queries to a block, the
 partial softmaxes merged in a fixed order), for measuring against the
 default. FASTEST's attention on the tensor cores (heads 32 or 64 wide)
 runs 128 queries to a block of eight warps, so each chunk of keys and
-values in shared memory serves 128 queries; the keys and values go 64
-at a time through three buffers filled by `cp.async`, the next two
-chunks loading while this one's products and softmax run, with one
-barrier to a chunk, and a block loads its next item's queries and first
-two chunks during an item's last. A chunk whose 64 keys are all the
-row's and none masked (every chunk of a full row, all but the last of
-others) takes a path that tests no key against the row's end or the
-mask. The softmax is taken in base 2: the running maximum is of the
-unscaled scores, and each probability is `ex2.approx` of one fused
-multiply-add, the score times the scale times log2 e less the
-maximum's. `ex2.approx` is within 2 ulp of F32, below the F16 rounding
-the probabilities take for P V. `TURBO_CUDA_ATTENTION=exact` keeps the
-earlier softmax, the scores scaled before the maximum is taken and
-`exp2f` for each probability, which gives the earlier bits; the default
-agrees with it within FASTEST's bound. Heads of 32 fit two blocks to an
-SM, heads of 64 one. `TURBO_CUDA_ATTENTION=fa32`, for measuring, gives
+values in shared memory serves 128 queries; the keys and values go a
+chunk at a time (64 keys at heads of 32, 32 at heads of 64) through
+three buffers filled by `cp.async`, the next two chunks loading while
+this one's products and softmax run, with one barrier to a chunk, and
+a block loads its next item's queries and first two chunks during an
+item's last. A chunk whose keys are all the row's and none masked
+(every chunk of a full row, all but the last of others) takes a path
+that tests no key against the row's end or the mask. The scores and
+the output are summed in F16 on the tensor cores, F16 sums within a
+chunk as the `ctk` tile's: each score's F16 sum of the head's products
+is widened to F32 for the softmax, and the output's F16 sums are
+rescaled in F16 and widened once at the end; the running maximum and
+the row's sum are F32. On an RTX 4080 SUPER at 32 x 256 full rows and
+twelve heads the F16 sums took the kernel from 48 to 36 µs a launch at
+heads of 32 and, with the chunk of 32 keys, from 106 to 67 at heads of
+64 (96 with F32 sums and the smaller chunk alone); TensorRT's fused
+attention takes 32 and 56 at the same shapes. The softmax is taken in
+base 2: the running
+maximum is of the unscaled scores, and each probability is
+`ex2.approx` of one fused multiply-add, the score times the scale
+times log2 e less the maximum's. `ex2.approx` is within 2 ulp of F32,
+below the F16 rounding the probabilities take for P V.
+`TURBO_CUDA_ATTENTION=acc32` keeps F32 sums of the scores and the
+output, the arithmetic before the F16 sums, and
+`TURBO_CUDA_ATTENTION=exact` keeps the earlier softmax as well, the
+scores scaled before the maximum is taken and `exp2f` for each
+probability, which gives the earliest bits; the default agrees with
+each within FASTEST's bound. Both widths fit two blocks to an SM.
+`TURBO_CUDA_ATTENTION=fa32`, for measuring, gives
 heads of 32 the same kernel with two tiles of 16 queries to a warp over
 four warps, so each fragment of keys and values read from shared memory
 feeds four products in place of two, at two blocks of four warps to an
@@ -196,8 +209,8 @@ Each GEMM (`qkv`, `out`, `ffn1`, `ffn2`) names its tile as
 `TURBO_CUDA_TILE` spells it (`acc16-8w` and `acc16-sw8w` being the
 F16 accumulators' eight-warp and swizzled eight-warp tiles), then its
 stream-K (`sk<steps>` or `tiles`), then `/tf32` when it computes in TF32;
-`attn` is `fma-tiled`, `fma-split`, `mma64`, `mma128`, `mma128-exact`
-or `mma128-fa32`; `ln` is
+`attn` is `fma-tiled`, `fma-split`, `mma64`, `mma128`, `mma128-exact`,
+`mma128-fa32` or `mma128-acc32`; `ln` is
 `separate` or `fused`; `pool` is `groups` or `columns`. The names are of
 the kernels that run: a tile the session's operands or device do not
 take is reported as the one that runs in its place. `forced=` lists the
@@ -218,8 +231,9 @@ so one line forces sessions of any size. An unknown item or value is
 A kernel is allowed a precision by the numeric class it computes in:
 F32 FMAs at EXACT and MODEL; at FASTEST F16 operands with F32 sums and,
 by the decision of 2026-09-26 that made `ctk` the default, F16 sums
-within a chunk (the `acc16-` tiles, and the `f16k` and `ctk` tiles, whose
-chunk is a block's whole k), and F32 FMAs for a model past F16's range.
+within a chunk (the `acc16-` tiles, the `f16k` and `ctk` tiles, whose
+chunk is a block's whole k, and the `mma128` attention's scores and
+output), and F32 FMAs for a model past F16's range.
 TF32 is in no precision's set until a decision adds it; a kernel of it
 forced through `TURBO_CUDA_CHOICES` is `TURBO_E_UNSUPPORTED_OPTION`
 naming field 3 and the kernel, unless its experiment's switch is set for

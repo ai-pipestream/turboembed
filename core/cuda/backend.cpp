@@ -1076,6 +1076,7 @@ std::atomic<int> split_attention_override{-1};
 std::atomic<int> wide_attention_override{-1};
 std::atomic<int> exact_attention_override{-1};
 std::atomic<int> fa32_attention_override{-1};
+std::atomic<int> acc32_attention_override{-1};
 std::atomic<int> tf32_override{-1};
 std::atomic<int> f16_accumulate_override{-1};
 std::atomic<int> separate_ln_override{-1};
@@ -1165,6 +1166,20 @@ bool fa32_attention_named(bool *forced) {
     const char *v = getenv("TURBO_CUDA_ATTENTION");
     *forced = *forced || v;
     return v && !strcasecmp(v, "fa32");
+}
+
+/* TURBO_CUDA_ATTENTION=acc32: the attention of 128 queries with F32 sums
+ * of the scores and the output, the arithmetic before the default's F16
+ * sums within a chunk, for comparing bits and times with the default. */
+bool acc32_attention_named(bool *forced) {
+    const int o = overridden(acc32_attention_override);
+    if (o >= 0) {
+        *forced = true;
+        return o != 0;
+    }
+    const char *v = getenv("TURBO_CUDA_ATTENTION");
+    *forced = *forced || v;
+    return v && !strcasecmp(v, "acc32");
 }
 
 /* TURBO_CUDA_TF32=1 puts MODEL's F32 GEMMs on the tensor cores as TF32;
@@ -1378,6 +1393,7 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
     bool attn_forced = false;
     const bool split = split_attention_named(&attn_forced), wide = wide_attention_named(&attn_forced);
     const bool exact = exact_attention_named(&attn_forced), fa32 = fa32_attention_named(&attn_forced);
+    const bool acc32 = acc32_attention_named(&attn_forced);
     bool ln_forced = false, pool_forced = false;
     const bool separate = separate_ln_named(&ln_forced);
     const bool columns = column_pool_named(&pool_forced);
@@ -1401,7 +1417,11 @@ void forced_from_environment(const Shape &base, uint32_t precision, bool tuned, 
         }
         if (attn_forced) {
             if (mma_attention(base))
-                bc.attention = !wide ? ATT_MMA_64 : fa32 ? ATT_MMA_128_FA32 : exact ? ATT_MMA_128_EXACT : ATT_MMA_128;
+                bc.attention = !wide    ? ATT_MMA_64
+                               : fa32  ? ATT_MMA_128_FA32
+                               : exact ? ATT_MMA_128_EXACT
+                               : acc32 ? ATT_MMA_128_ACC32
+                                       : ATT_MMA_128;
             else
                 bc.attention = split ? ATT_FMA_SPLIT : ATT_FMA_TILED;
             bc.forced |= KNOB_ATTN;
@@ -1443,10 +1463,11 @@ Shape shape_for(const Shape &base, const Choices &c, int bin) {
     const BinChoices &bc = c.bin[bin];
     for (int g = 0; g < GEMM_COUNT; g++) sh.gemm[g] = bc.gemm[g];
     sh.split_attention = bc.attention == ATT_FMA_SPLIT;
-    sh.wide_attention =
-        bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT || bc.attention == ATT_MMA_128_FA32;
+    sh.wide_attention = bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT ||
+                        bc.attention == ATT_MMA_128_FA32 || bc.attention == ATT_MMA_128_ACC32;
     sh.exact_exp2 = bc.attention == ATT_MMA_128_EXACT;
     sh.fa32 = bc.attention == ATT_MMA_128_FA32;
+    sh.acc32_attn = bc.attention == ATT_MMA_128_ACC32;
     sh.fused_ln = bc.ln == LN_FUSED;
     sh.column_pool = c.pool == POOL_COLUMNS;
     return sh;
@@ -3036,6 +3057,14 @@ void turbo_cuda_use_exact_attention(int32_t exact) {
  * on: 1 with 32 queries to each of four warps (TURBO_CUDA_ATTENTION=fa32),
  * 0 the default of 16 to each of eight, -1 to read the variable again. */
 void turbo_cuda_use_fa32_attention(int32_t fa32) { fa32_attention_override.store(fa32, std::memory_order_relaxed); }
+
+/* The sums of the attention of 128 queries in sessions made from now
+ * on: 1 F32 sums of the scores and the output
+ * (TURBO_CUDA_ATTENTION=acc32), 0 the default's F16 sums within a chunk,
+ * -1 to read the variable again. */
+void turbo_cuda_use_acc32_attention(int32_t acc32) {
+    acc32_attention_override.store(acc32, std::memory_order_relaxed);
+}
 
 /* The LayerNorms of sessions made from now on: 1 a kernel of their own
  * after the GEMM (the default), 0 the GEMM's epilogue
