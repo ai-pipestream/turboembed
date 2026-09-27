@@ -1437,12 +1437,13 @@ fn the_product_switch_moves_only_fastest() {
     }
 }
 
-/// FASTEST's GELU, erff by default and erf from a fit as
-/// TURBO_CUDA_GELU=poly picks it, gives the CPU's vectors within FASTEST's
-/// bound either way, in the GEMM's epilogue and after cuBLAS's product
-/// (TURBO_CUDA_CUBLAS=ffn1), and the same bits when run again; MODEL and
-/// EXACT, whose GELU writes F32 and takes erff whatever the switch says,
-/// give the same bits with it set as without.
+/// FASTEST's GELU, the tanh form on the hardware tanh by default, erff or
+/// erf from a fit as TURBO_CUDA_GELU=erf or poly picks it, gives the CPU's
+/// vectors within FASTEST's bound each way, in the GEMM's epilogue and
+/// after cuBLAS's product (TURBO_CUDA_CUBLAS=ffn1), and the same bits when
+/// run again; the default is the tanh form's bits; MODEL and EXACT, whose
+/// GELU writes F32 and takes erff whatever the switch says, give the same
+/// bits with it set as without.
 #[test]
 fn the_gelu_switch_moves_only_fastest() {
     let _t = turn();
@@ -1462,39 +1463,51 @@ fn the_gelu_switch_moves_only_fastest() {
     let cs = Session::create(c.m, Some(&session_desc(6, 300, 0))).unwrap();
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
+    use turbo::cuda::Gelu;
+    const KINDS: [Gelu; 3] = [Gelu::Erf, Gelu::Poly, Gelu::Tanh];
     for cublas in [None, Some(4)] {
         let mut got = Vec::new();
-        for erf in [false, true] {
+        for kind in KINDS {
             turbo::cuda::use_cublas(cublas);
-            turbo::cuda::use_gelu_erf(Some(erf));
+            turbo::cuda::use_gelu(Some(kind));
             let gs = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
-            turbo::cuda::use_gelu_erf(None);
+            turbo::cuda::use_gelu(None);
             turbo::cuda::use_cublas(None);
             let gs = gs.unwrap();
             let tol = record::tolerance(gs.info().compute_dtype).unwrap();
             gs.write_tokens(&t.batch(), None).unwrap();
             let rows = gs.run().unwrap().rows();
-            let what = format!("cuBLAS {cublas:?}, erff {erf}");
+            let what = format!("cuBLAS {cublas:?}, GELU {kind:?}");
             let (cos, abs) = within(&what, &rows, &want, tol);
             println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
             gs.write_tokens(&t.batch(), None).unwrap();
             assert_eq!(gs.run().unwrap().rows(), rows, "{what}: the same bits again");
             got.push(rows);
         }
-        let differ = got[0].iter().zip(&got[1]).filter(|(a, b)| a != b).count();
-        println!("cuBLAS {cublas:?}: the fit's vectors against erff's: {differ} rows differ");
+        for k in 1..KINDS.len() {
+            let differ = got[k].iter().zip(&got[0]).filter(|(a, b)| a != b).count();
+            println!("cuBLAS {cublas:?}: {:?}'s vectors against erff's: {differ} rows differ", KINDS[k]);
+        }
+        // The default is the tanh form.
+        turbo::cuda::use_cublas(cublas);
+        let ds = Session::create(g.m, Some(&session_desc(6, 300, TURBO_PRECISION_FASTEST)));
+        turbo::cuda::use_cublas(None);
+        let ds = ds.unwrap();
+        ds.write_tokens(&t.batch(), None).unwrap();
+        assert_eq!(ds.run().unwrap().rows(), got[2], "cuBLAS {cublas:?}: the default is not the tanh form");
     }
     for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
         let mut bits = Vec::new();
-        for erf in [false, true] {
-            turbo::cuda::use_gelu_erf(Some(erf));
+        for kind in KINDS {
+            turbo::cuda::use_gelu(Some(kind));
             let s = strict(|| Session::create(g.m, Some(&session_desc(6, 300, precision))));
-            turbo::cuda::use_gelu_erf(None);
+            turbo::cuda::use_gelu(None);
             let s = s.unwrap();
             s.write_tokens(&t.batch(), None).unwrap();
             bits.push(s.run().unwrap().rows());
         }
         assert_eq!(bits[0], bits[1], "precision {precision}: TURBO_CUDA_GELU moved the bits");
+        assert_eq!(bits[0], bits[2], "precision {precision}: TURBO_CUDA_GELU=tanh moved the bits");
     }
 }
 
@@ -1810,6 +1823,7 @@ fn the_gemms_match_cublas() {
         (1353, 384, 384, Bias, 1),
         (1353, 1536, 384, Gelu, 1),
         (1353, 1536, 384, GeluErf, 1),
+        (1353, 1536, 384, GeluTanh, 1),
         (1353, 384, 1536, Plain, 1),
         (1353, 384, 1536, Bias, 1),
         (1, 1152, 384, Qkv, 12),
@@ -1819,6 +1833,7 @@ fn the_gemms_match_cublas() {
         (129, 64, 128, Gelu, 1),
         (200, 136, 72, Gelu, 1),
         (200, 136, 72, GeluErf, 1),
+        (200, 136, 72, GeluTanh, 1),
         (33, 8, 16, Plain, 1),
         (200, 72, 96, Plain, 1),
         (200, 72, 96, Bias, 1),

@@ -50,7 +50,7 @@ unsafe extern "C" {
     fn turbo_cuda_use_column_pool(columns: i32);
     fn turbo_cuda_use_tf32(tf32: i32);
     fn turbo_cuda_use_f16_accumulate(f16: i32);
-    fn turbo_cuda_use_gelu_erf(erf: i32);
+    fn turbo_cuda_use_gelu(kind: i32);
     fn turbo_cuda_use_residual16(f16: i32);
     fn turbo_cuda_use_product16(f16: i32);
 }
@@ -65,12 +65,26 @@ pub enum Epilogue {
     Gelu = 1,
     /// The bare product, F32.
     Plain = 2,
-    /// GELU with erff at an F16 output too, the default (`Gelu` takes the
-    /// fit there, TURBO_CUDA_GELU=poly).
+    /// GELU with erff at an F16 output too (TURBO_CUDA_GELU=erf; `Gelu`
+    /// takes the fit there, TURBO_CUDA_GELU=poly).
     GeluErf = 4,
     /// The product plus its bias, written F16 (F16 operands on the tensor
     /// cores only; the plain product elsewhere).
     Bias = 5,
+    /// GELU's tanh form on the hardware tanh at an F16 output, the default.
+    GeluTanh = 6,
+}
+
+/// FASTEST's GELU at an F16 output, as TURBO_CUDA_GELU names it.
+#[cfg(feature = "internals")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gelu {
+    /// The tanh form on the hardware tanh, the default.
+    Tanh = 0,
+    /// erff.
+    Erf = 1,
+    /// erf from the fit.
+    Poly = 2,
 }
 
 /// The GEMMs' tiles, rows by columns, as TURBO_CUDA_TILE names them.
@@ -339,12 +353,11 @@ pub fn use_f16_accumulate(f16: Option<bool>) {
     unsafe { turbo_cuda_use_f16_accumulate(f16.map_or(-1, i32::from)) };
 }
 
-/// The GELU of FASTEST sessions made from now on: `Some(true)` erff, the
-/// default, `Some(false)` erf from a fit, as TURBO_CUDA_GELU=poly picks
-/// it, `None` to read the variable again. Built only with `internals`.
+/// The GELU of FASTEST sessions made from now on, as TURBO_CUDA_GELU picks
+/// it, or `None` to read the variable again. Built only with `internals`.
 #[cfg(feature = "internals")]
-pub fn use_gelu_erf(erf: Option<bool>) {
-    unsafe { turbo_cuda_use_gelu_erf(erf.map_or(-1, i32::from)) };
+pub fn use_gelu(kind: Option<Gelu>) {
+    unsafe { turbo_cuda_use_gelu(kind.map_or(-1, |k| k as i32)) };
 }
 
 /// The residual stream of FASTEST sessions made from now on: `Some(true)`
