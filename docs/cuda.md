@@ -185,7 +185,10 @@ tiles, not the k steps, evenly). Unset, F16 on the tensor cores takes
 whole tiles for the QKV and first feed-forward GEMMs in the bins of
 more than 1024 tokens (on the whole-k F16 sums a split tile's partial
 products cost more than whole tiles' idle SMs: 9% of a mixed-length run
-on an RTX 4080 SUPER) and stream-K elsewhere. Like the tile, it moves where the sums
+on an RTX 4080 SUPER), for the attention output GEMM in the bins of
+more than 4096 tokens, and there for the second feed-forward GEMM too
+when its k is 3072 or more (at 16384 tokens of k = 4096 the split costs
+16% of a run), and stream-K elsewhere. Like the tile, it moves where the sums
 split, so the vectors agree within the bound, not bit for bit.
 
 A GEMM's block that finishes a tile waits for the blocks that computed
@@ -523,8 +526,9 @@ older than the runtime, it lists none and the runtime's log says why.
   holds at once and gives each an equal, contiguous share of the work,
   counted as tiles × steps of k. A GEMM whose choice is whole tiles
   (`tiles`, the default for the QKV and first feed-forward GEMMs from
-  the `le4k` bin up and for the attention output GEMM from `le16k`;
-  the tuner times each tile with the other stream-K choice as well)
+  the `le4k` bin up, and from `le16k` for the attention output GEMM and
+  for the second feed-forward GEMM at a k of 3072 or more; the tuner
+  times each tile with the other stream-K choice as well)
   launches a block for each tile of the session's
   largest M, so the device's scheduler hands the tiles out as blocks
   finish; a block past the run's tiles exits at once. (A persistent
