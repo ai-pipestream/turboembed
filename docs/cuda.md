@@ -106,7 +106,12 @@ the output are summed in F16 on the tensor cores, F16 sums within a
 chunk as the `ctk` tile's: each score's F16 sum of the head's products
 is widened to F32 for the softmax, and the output's F16 sums are
 rescaled in F16 and widened once at the end; the running maximum and
-the row's sum are F32. The softmax is taken in base 2: the running
+the row's sum are F32. On an RTX 4080 SUPER at 32 x 256 full rows and
+twelve heads the F16 sums took the kernel from 48 to 36 µs a launch at
+heads of 32 and, with the chunk of 32 keys, from 106 to 67 at heads of
+64 (96 with F32 sums and the smaller chunk alone); TensorRT's fused
+attention takes 32 and 56 at the same shapes. The softmax is taken in
+base 2: the running
 maximum is of the unscaled scores, and each probability is
 `ex2.approx` of one fused multiply-add, the score times the scale
 times log2 e less the maximum's. `ex2.approx` is within 2 ulp of F32,
