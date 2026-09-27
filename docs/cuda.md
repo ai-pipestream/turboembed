@@ -451,9 +451,10 @@ older than the runtime, it lists none and the runtime's log says why.
      too for an F16 session). The sums are those of the separate
      LayerNorm kernel in the same order, so the bits are the same (at
      FASTEST, those of the F32 residual stream, below);
-  4. the feed-forward input GEMM, its bias and GELU (erf) in its
-     epilogue, `erff`, or where it writes F16 (FASTEST) erfc from a fit
-     with `TURBO_CUDA_GELU=poly` (below);
+  4. the feed-forward input GEMM, its bias and GELU in its epilogue:
+     `erff` at an F32 output; where it writes F16 (FASTEST) GELU's tanh
+     form on the hardware tanh, or `erff` or erfc from a fit with
+     `TURBO_CUDA_GELU=erf` or `poly` (below);
   5. the feed-forward output GEMM, with its bias, the residual and
      LayerNorm, as in 3.
 
@@ -518,9 +519,17 @@ older than the runtime, it lists none and the runtime's log says why.
 - **Numerics.** An F32 session is F32 throughout: every GEMM output is
   a sum, in a fixed order, of chains of F32 FMAs over consecutive steps
   of k. An F16 session rounds its GEMMs' and attention's inputs to F16
-  and accumulates in F32. Its GELU takes `erff`. `TURBO_CUDA_GELU=poly`,
-  read when a session is made, gives an F16 output's GELU erf from a fit
-  instead, for measuring against the default (`erf` names the default):
+  and accumulates in F32. Its GELU at an F32 output takes `erff`. At an
+  F16 output it takes GELU's tanh form, 0.5 x (1 + tanh(sqrt(2 / pi) (x +
+  0.044715 x^3))), on the hardware tanh (`tanh.approx.f32`, within 2^-11
+  of tanh): within 4.7e-4 of GELU, which moves the F16 rounding on about
+  a tenth of the values by one ulp, at a sixth of `erff`'s cost in the
+  GEMM's epilogue (on an RTX 4080 SUPER at 32 x 256 full rows, `erff`
+  was 13 µs of the feed-forward input GEMM's 86 µs launch). The embedding
+  vectors stay within FASTEST's bound of the reference by three orders
+  of magnitude (`min_cosine` in the records). `TURBO_CUDA_GELU=erf`, read
+  when a session is made, gives an F16 output's GELU `erff`, the earlier
+  bits; `TURBO_CUDA_GELU=poly` erf from a fit (`tanh` names the default):
   0.5 x (2 - erfc(z)) for x >= 0 and 0.5 x erfc(z) below, z = |x| /
   sqrt 2, so the negative side has no cancellation, with erfc(z) =
   t P(t) exp(-z^2), t = 1 / (1 + p z), the form of Abramowitz and Stegun

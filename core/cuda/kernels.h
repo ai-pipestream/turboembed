@@ -193,10 +193,12 @@ struct Shape {
     /* The pooling kernel of a thread per column
      * (TURBO_CUDA_POOL=columns), for measuring against the default. */
     bool column_pool = false;
-    /* GELU with erff at an F16 output (EPI_GELU_ERF), the default; false
-     * takes the fit (EPI_GELU, TURBO_CUDA_GELU=poly), for measuring against
-     * it. */
-    bool gelu_erf = true;
+    /* FASTEST's GELU at an F16 output, a GeluKind: the tanh form on the
+     * hardware tanh (EPI_GELU_TANH), the default; erff (EPI_GELU_ERF,
+     * TURBO_CUDA_GELU=erf) or the erfc fit (EPI_GELU, TURBO_CUDA_GELU=poly)
+     * for measuring against it. An F32 output's GELU is erff whatever this
+     * says. */
+    int gelu = 0;
     /* FASTEST: the hidden states between one LayerNorm and the next kept
      * in F16 alone (x16), the F32 x written after the last layer for the
      * pooling; false (TURBO_CUDA_RESIDUAL=f32) keeps the F32 stream too,
@@ -310,9 +312,10 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
 //        attention reads each (row, head)'s keys contiguously;
 //   GELU: + bias, then GELU with the error function, [tokens, n]: erff
 //        at an F32 output, and at an F16 output erfc from a fit within
-//        2.4e-7 of GELU (gelu_f16 in kernels.cu);
-//   GELU_ERF: GELU with erff at an F16 output too, the default (GELU takes
-//   the fit there, TURBO_CUDA_GELU=poly);
+//        2.4e-7 of GELU (gelu_f16 in kernels.cu, TURBO_CUDA_GELU=poly);
+//   GELU_ERF: GELU with erff at an F16 output too (TURBO_CUDA_GELU=erf);
+//   GELU_TANH: at an F16 output GELU's tanh form on the hardware tanh
+//        (gelu_tanh in kernels.cu), the default; erff at an F32 output;
 //   PLAIN: the bare product, F32, [tokens, n], which add_layer_norm adds;
 //   ADD_LN: out is the hidden states, F32 [tokens, n], n = hidden; each
 //        output becomes out + (product + bias), and once every tile of
@@ -334,7 +337,18 @@ cudaError_t pool(cudaStream_t s, const float *x, const int32_t *rows, const Pack
  * output and second feed-forward GEMMs, whose LayerNorm kernel then adds
  * the residual to it); only for F16 operands on the tensor cores, the
  * plain F32 product elsewhere. */
-enum Epilogue : int { EPI_QKV = 0, EPI_GELU = 1, EPI_PLAIN = 2, EPI_ADD_LN = 3, EPI_GELU_ERF = 4, EPI_BIAS = 5 };
+enum Epilogue : int {
+    EPI_QKV = 0,
+    EPI_GELU = 1,
+    EPI_PLAIN = 2,
+    EPI_ADD_LN = 3,
+    EPI_GELU_ERF = 4,
+    EPI_BIAS = 5,
+    EPI_GELU_TANH = 6
+};
+
+/* FASTEST's GELU at an F16 output (Shape::gelu). */
+enum GeluKind : int { GELU_TANH = 0, GELU_ERF = 1, GELU_POLY = 2 };
 
 /* The widest hidden state ADD_LN normalizes, 16 values to a lane. */
 constexpr int LN_FUSED_MAX_HIDDEN = 512;
@@ -346,10 +360,10 @@ inline int ln_counters(int tcap) { return tcap / 64 + 1; }
 /* The epilogue a GEMM of a layer runs: the attention output and second
  * feed-forward GEMMs normalize their rows when the LayerNorm is fused,
  * else write the product with its bias in F16 when product16; the first
- * feed-forward GEMM's GELU takes erff when gelu_erf. */
-inline Epilogue gemm_epilogue(Gemm g, bool fused_ln, bool gelu_erf, bool product16) {
+ * feed-forward GEMM's GELU is the GeluKind's. */
+inline Epilogue gemm_epilogue(Gemm g, bool fused_ln, int gelu, bool product16) {
     if (g == GEMM_QKV) return EPI_QKV;
-    if (g == GEMM_FFN1) return gelu_erf ? EPI_GELU_ERF : EPI_GELU;
+    if (g == GEMM_FFN1) return gelu == GELU_ERF ? EPI_GELU_ERF : gelu == GELU_POLY ? EPI_GELU : EPI_GELU_TANH;
     return fused_ln ? EPI_ADD_LN : product16 ? EPI_BIAS : EPI_PLAIN;
 }
 
@@ -397,7 +411,7 @@ cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile 
 /* The same epilogues over a product cuBLAS made, raw [tokens, n] F32, for
  * sessions told to compute a GEMM with cuBLAS (TURBO_CUDA_CUBLAS). */
 cudaError_t qkv_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, const Plan &plan);
-cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, bool erf,
+cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, int gelu,
                           const Plan &plan);
 
 // ---- Attention ----------------------------------------------------------------

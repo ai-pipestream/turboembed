@@ -153,12 +153,29 @@ __device__ inline float gelu_f16(float v) {
     return __fmaf_rn(0.5f * fminf(v, 16.0f), copysignf(r, -v), fmaxf(v, 0.0f));
 }
 
-/* GELU as an epilogue computes it: gelu_f16 at an F16 output, but for
- * EPI_GELU_ERF; erff at an F32 output. */
-__host__ __device__ constexpr bool gelu_epilogue_of(int epi) { return epi == EPI_GELU || epi == EPI_GELU_ERF; }
+/* GELU's tanh form, 0.5 v (1 + tanh(sqrt(2 / pi) (v + 0.044715 v^3))), on
+ * the hardware tanh (tanh.approx.f32, within 2^-11 of tanh): within 4.7e-4
+ * of GELU, which moves an F16 rounding on about a tenth of the values, at
+ * a sixth of erff's cost on the tensor-core GEMM's epilogue (one MUFU
+ * and six multiply-adds a value). FASTEST's default at an F16 output. */
+__device__ inline float gelu_tanh(float v) {
+    const float u = 0.7978845608f * v * __fmaf_rn(0.044715f, v * v, 1.0f);
+    float t;
+    asm("tanh.approx.f32 %0, %1;" : "=f"(t) : "f"(u));
+    return 0.5f * v * (1.0f + t);
+}
+
+/* GELU as an epilogue computes it at an F16 output: gelu_tanh for
+ * EPI_GELU_TANH, gelu_f16 for EPI_GELU, erff for EPI_GELU_ERF; erff at an
+ * F32 output whichever it is. */
+__host__ __device__ constexpr bool gelu_epilogue_of(int epi) {
+    return epi == EPI_GELU || epi == EPI_GELU_ERF || epi == EPI_GELU_TANH;
+}
 
 template <int EPI, typename TOut> __device__ inline float gelu_for(float v) {
-    if constexpr (sizeof(TOut) == 2 && EPI == EPI_GELU)
+    if constexpr (sizeof(TOut) == 2 && EPI == EPI_GELU_TANH)
+        return gelu_tanh(v);
+    else if constexpr (sizeof(TOut) == 2 && EPI == EPI_GELU)
         return gelu_f16(v);
     else
         return gelu(v);
@@ -2490,18 +2507,20 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
         case EPI_QKV: return mma_for<__half, EPI_QKV, __half>(t);
         case EPI_GELU: return mma_for<__half, EPI_GELU, __half>(t);
         case EPI_GELU_ERF: return mma_for<__half, EPI_GELU_ERF, __half>(t);
+        case EPI_GELU_TANH: return mma_for<__half, EPI_GELU_TANH, __half>(t);
         case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN, __half>(t);
         case EPI_BIAS: return mma_for<__half, EPI_BIAS, __half>(t);
         default: return mma_for<float, EPI_PLAIN, __half>(t);
         }
     }
     // EPI_BIAS is the F16 tensor-core product's alone: the plain F32
-    // product on the other paths.
+    // product on the other paths. An F32 output's GELU is erff.
     if (tc) {
         switch (e) {
         case EPI_QKV: return mma_for<float, EPI_QKV, float>(t);
         case EPI_GELU:
-        case EPI_GELU_ERF: return mma_for<float, EPI_GELU, float>(t);
+        case EPI_GELU_ERF:
+        case EPI_GELU_TANH: return mma_for<float, EPI_GELU, float>(t);
         case EPI_ADD_LN: return mma_for<float, EPI_ADD_LN, float>(t);
         default: return mma_for<float, EPI_PLAIN, float>(t);
         }
@@ -2511,6 +2530,7 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
         case EPI_QKV: return simt_for<__half, __half, EPI_QKV>(t);
         case EPI_GELU: return simt_for<__half, __half, EPI_GELU>(t);
         case EPI_GELU_ERF: return simt_for<__half, __half, EPI_GELU_ERF>(t);
+        case EPI_GELU_TANH: return simt_for<__half, __half, EPI_GELU_TANH>(t);
         case EPI_ADD_LN: return simt_for<__half, float, EPI_ADD_LN>(t);
         default: return simt_for<__half, float, EPI_PLAIN>(t);
         }
@@ -2518,7 +2538,8 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     switch (e) {
     case EPI_QKV: return simt_for<float, float, EPI_QKV>(t);
     case EPI_GELU:
-    case EPI_GELU_ERF: return simt_for<float, float, EPI_GELU>(t);
+    case EPI_GELU_ERF:
+    case EPI_GELU_TANH: return simt_for<float, float, EPI_GELU>(t);
     case EPI_ADD_LN: return simt_for<float, float, EPI_ADD_LN>(t);
     default: return simt_for<float, float, EPI_PLAIN>(t);
     }
@@ -3600,12 +3621,14 @@ cudaError_t qkv_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bo
     return cudaGetLastError();
 }
 
-cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, bool erf,
+cudaError_t gelu_epilogue(cudaStream_t s, const float *raw, const GemmArgs &g, bool half, int gelu,
                           const Plan &plan) {
-    if (half && erf)
+    if (half && gelu == GELU_ERF)
         gelu_epilogue_kernel<__half, EPI_GELU_ERF><<<plan.epi_grid, 256, 0, s>>>(raw, g);
-    else if (half)
+    else if (half && gelu == GELU_POLY)
         gelu_epilogue_kernel<__half, EPI_GELU><<<plan.epi_grid, 256, 0, s>>>(raw, g);
+    else if (half)
+        gelu_epilogue_kernel<__half, EPI_GELU_TANH><<<plan.epi_grid, 256, 0, s>>>(raw, g);
     else
         gelu_epilogue_kernel<float, EPI_GELU><<<plan.epi_grid, 256, 0, s>>>(raw, g);
     return cudaGetLastError();
@@ -3628,7 +3651,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     cudaError_t e = cudaSuccess;
     for (int i = 0; i < GEMM_COUNT && e == cudaSuccess; i++) {
         const Gemm g = (Gemm)i;
-        const Epilogue ep = gemm_epilogue(g, p->fused_ln, s.gelu_erf, s.product16);
+        const Epilogue ep = gemm_epilogue(g, p->fused_ln, s.gelu, s.product16);
         const bool mma = gemm_mma(s, g);
         size_t ws = 0;
         e = gemm_prepare(ep, s.half, mma, s.gemm[g].tile);
