@@ -1796,11 +1796,12 @@ bool made_to_fail(const GemmChoice &g) {
 
 /* Whether a GEMM's variant can launch here: its kernel's shared memory
  * set, a grid of at least one block, its workspace in *ws floats. */
-cudaError_t launchable(const Shape &base, Epilogue ep, const GemmChoice &g, int *grid, size_t *ws) {
+cudaError_t launchable(const Shape &base, Gemm which, Epilogue ep, const GemmChoice &g, int *grid, size_t *ws) {
     if (made_to_fail(g)) return cudaErrorInvalidValue;
     const bool mma = base.tensor_cores && (base.half || g.tf32);
     cudaError_t e = gemm_prepare(ep, base.half, mma, g.tile);
-    if (e == cudaSuccess) e = gemm_grid(ep, base.half, mma, g.tile, base.sms, grid, ws);
+    if (e == cudaSuccess)
+        e = gemm_grid(ep, base.half, mma, g.tile, min_steps(g), base.tcap, gemm_n(base, which), base.sms, grid, ws);
     if (e == cudaSuccess && *grid <= 0) e = cudaErrorInvalidConfiguration;
     if (e != cudaSuccess) (void)cudaGetLastError();
     return e;
@@ -1859,7 +1860,7 @@ void find_candidates(Context &c, const Shape &base, const Choices &ch, const Pla
                 if (seen) continue;
                 int grid = 0;
                 size_t ws = 0;
-                const cudaError_t e = launchable(base, ep, gc, &grid, &ws);
+                const cudaError_t e = launchable(base, (Gemm)g, ep, gc, &grid, &ws);
                 if (e != cudaSuccess) {
                     const std::string name = variant_name(gc);
                     bool said = false;
@@ -2754,7 +2755,8 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
     size_t ws_floats = 0;
     TRY_CUDA(cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, (int)ordinal), "the device's SMs");
     TRY_CUDA(gemm_prepare(epi, h16, tc, tile), "gemm_prepare");
-    TRY_CUDA(gemm_grid(epi, h16, tc, tile, sms, &grid, &ws_floats), "gemm_grid");
+    // The stream-K grid: the check shares the work among blocks.
+    TRY_CUDA(gemm_grid(epi, h16, tc, tile, 0, m, n, sms, &grid, &ws_floats), "gemm_grid");
     // Fewer blocks than the device holds, when asked: other shares of the
     // same work. Never more, which could wait on a block not yet running.
     if (blocks > 0 && blocks < grid) grid = blocks;

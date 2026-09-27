@@ -3610,15 +3610,35 @@ cudaError_t gemm_prepare(Epilogue e, bool half, bool tensor_cores, Tile tile) {
     return err;
 }
 
-cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int sms, int *grid, size_t *ws_floats,
-                      bool *crowded) {
+cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int min_steps, int m_cap, int n, int sms,
+                      int *grid, size_t *ws_floats, bool *crowded) {
     const GemmKernel k = gemm_kernel_fitting(e, half, tensor_cores, tile);
+    int fit = 0;
+    const cudaError_t err = resident(reinterpret_cast<const void *>(k.fn), k.threads, k.smem, sms, &fit);
+    if (crowded && fit < k.per_sm * sms) *crowded = true;
+    if (min_steps == SK_WHOLE_TILES) {
+        // A block a tile of the largest M: the kernel counts the run's
+        // tiles, read on the device, and a block past them exits. No
+        // partial products, so no workspace.
+        const long long tiles = (long long)((m_cap + k.bm - 1) / k.bm) * ((n + k.bn - 1) / k.bn);
+        *grid = tiles < 1 ? 1 : tiles > INT32_MAX ? INT32_MAX : (int)tiles;
+        *ws_floats = 0;
+        return err;
+    }
     // As many blocks as fit, whatever the tokens: the kernel counts the
     // tiles of the run's M, read on the device, and shares them out.
-    const cudaError_t err = resident(reinterpret_cast<const void *>(k.fn), k.threads, k.smem, sms, grid);
+    *grid = fit;
     *ws_floats = (size_t)*grid * k.bm * k.bn;
-    if (crowded && *grid < k.per_sm * sms) *crowded = true;
     return err;
+}
+
+/* The columns of a GEMM of the shape. */
+int gemm_n(const Shape &s, Gemm g) {
+    switch (g) {
+    case GEMM_QKV: return 3 * s.hidden;
+    case GEMM_FFN1: return s.inter;
+    default: return s.hidden;
+    }
 }
 
 cudaError_t gemm(cudaStream_t s, Epilogue e, bool half, bool tensor_cores, Tile tile, const GemmArgs &g, int grid) {
@@ -3669,8 +3689,10 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
         const bool mma = gemm_mma(s, g);
         size_t ws = 0;
         e = gemm_prepare(ep, s.half, mma, s.gemm[g].tile);
+        const int steps = s.gemm[g].sk == SK_TILES ? SK_WHOLE_TILES : s.gemm[g].sk_steps;
         if (e == cudaSuccess)
-            e = gemm_grid(ep, s.half, mma, s.gemm[g].tile, s.sms, &p->gemm_grid[g], &ws, &p->gemm_crowded);
+            e = gemm_grid(ep, s.half, mma, s.gemm[g].tile, steps, s.tcap, gemm_n(s, g), s.sms, &p->gemm_grid[g], &ws,
+                          &p->gemm_crowded);
         p->sk_floats = ws > p->sk_floats ? ws : p->sk_floats;
         p->sk_flags = p->gemm_grid[g] > p->sk_flags ? p->gemm_grid[g] : p->sk_flags;
     }
