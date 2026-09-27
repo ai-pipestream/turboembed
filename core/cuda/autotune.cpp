@@ -24,7 +24,8 @@ const char *tile_name(Tile t) {
     return "?";
 }
 
-constexpr const char *ATTN_NAME[] = {"fma-tiled", "fma-split", "mma64", "mma128", "mma128-exact", "mma128-fa32"};
+constexpr const char *ATTN_NAME[] = {"fma-tiled",    "fma-split",   "mma64",       "mma128",
+                                     "mma128-exact", "mma128-fa32", "mma128-acc32"};
 constexpr const char *LN_NAME[] = {"separate", "fused"};
 constexpr const char *POOL_NAME[] = {"groups", "columns"};
 
@@ -196,7 +197,7 @@ void canonicalize(const Shape &base, Choices *c) {
             bc.attention = ATT_MMA_128;
         else if (mma_attention)
             bc.attention = bc.attention == ATT_MMA_128 || bc.attention == ATT_MMA_128_EXACT ||
-                                   bc.attention == ATT_MMA_128_FA32
+                                   bc.attention == ATT_MMA_128_FA32 || bc.attention == ATT_MMA_128_ACC32
                                ? bc.attention
                                : ATT_MMA_64;
         else
@@ -222,10 +223,18 @@ uint32_t gemm_numeric(const Shape &base, const GemmChoice &g) {
     return mma_of(base, g) && f16_accumulates(g.tile) ? TURBO_NUMERIC_F16_CHUNKACC : TURBO_NUMERIC_F16_F32ACC;
 }
 
+uint32_t attention_numeric(const Shape &base, AttnVariant a) {
+    if (!base.half) return TURBO_NUMERIC_F32_FMA;
+    return base.tensor_cores && (a == ATT_MMA_128 || a == ATT_MMA_128_FA32) ? TURBO_NUMERIC_F16_CHUNKACC
+                                                                             : TURBO_NUMERIC_F16_F32ACC;
+}
+
 uint32_t numerics_of(const Shape &base, const Choices &c) {
     uint32_t n = 0;
-    for (int b = 0; b < c.bins; b++)
+    for (int b = 0; b < c.bins; b++) {
         for (const GemmChoice &g : c.bin[b].gemm) n |= gemm_numeric(base, g);
+        n |= attention_numeric(base, c.bin[b].attention);
+    }
     return n;
 }
 
@@ -241,7 +250,7 @@ std::string numerics_named(uint32_t n) {
 
 const char *outside(const Shape &base, const Choices &c, uint32_t allowed, char *name, size_t len,
                     const char **numeric) {
-    for (int b = 0; b < c.bins; b++)
+    for (int b = 0; b < c.bins; b++) {
         for (int g = 0; g < GEMM_COUNT; g++) {
             const uint32_t n = gemm_numeric(base, c.bin[b].gemm[g]);
             if (n & allowed) continue;
@@ -249,6 +258,12 @@ const char *outside(const Shape &base, const Choices &c, uint32_t allowed, char 
             *numeric = numeric_name(n);
             return name;
         }
+        const uint32_t n = attention_numeric(base, c.bin[b].attention);
+        if (n & allowed) continue;
+        snprintf(name, len, "%s:attn=%s", BIN_NAME[b], ATTN_NAME[c.bin[b].attention]);
+        *numeric = numeric_name(n);
+        return name;
+    }
     return nullptr;
 }
 

@@ -185,6 +185,10 @@ struct Shape {
      * warp over four warps (TURBO_CUDA_ATTENTION=fa32), for measuring
      * against the default: the same sums. */
     bool fa32 = false;
+    /* That attention with F32 sums of the scores and the output
+     * (TURBO_CUDA_ATTENTION=acc32), the arithmetic before the default's
+     * F16 sums within a chunk, for comparing bits and times with it. */
+    bool acc32_attn = false;
     /* LayerNorm in the attention output and second feed-forward GEMMs
      * (EPI_ADD_LN) when the hidden width allows and
      * TURBO_CUDA_LAYER_NORM=fused asks for it; otherwise the GEMM's

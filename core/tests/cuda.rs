@@ -1604,15 +1604,17 @@ fn wide_attention_matches_the_cpu_at_heads_of_64() {
 }
 
 /// The attention of 128 queries, heads 32 and 64 wide, on rows that fill
-/// its chunks of 64 keys with no masked token (512, 256, 192, 128 and 64
-/// tokens, every chunk taking the path that tests and masks no score)
-/// and on rows with a masked token and a last chunk part full (300, 129,
-/// 65, 63, 17 and 1): the CPU's vectors within FASTEST's bound, with its
-/// default softmax and with TURBO_CUDA_ATTENTION=exact's, which is the
-/// earlier arithmetic; the same bits again; and the two softmaxes within
-/// the bound of each other. At heads of 32, TURBO_CUDA_ATTENTION=fa32's
-/// kernel of 32 queries to a warp gives the default's bits, so its
-/// bound too. Each session reports the kernel it runs.
+/// its chunks of keys (64 at heads of 32, 32 at heads of 64) with no
+/// masked token (512, 256, 192, 128 and 64 tokens, every chunk taking
+/// the path that tests and masks no score) and on rows with a masked
+/// token and a last chunk part full (300, 129, 65, 63, 17 and 1): the
+/// CPU's vectors within FASTEST's bound, with its default of F16 sums,
+/// with TURBO_CUDA_ATTENTION=acc32's F32 sums and with
+/// TURBO_CUDA_ATTENTION=exact's, which is the earlier arithmetic; the
+/// same bits again; and each of the two against the default within the
+/// bound. At heads of 32, TURBO_CUDA_ATTENTION=fa32's kernel of 32
+/// queries to a warp gives the default's bits, so its bound too. Each
+/// session reports the kernel it runs.
 #[test]
 fn attention_of_128_queries_matches_on_whole_chunks_and_holes() {
     let _t = turn();
@@ -1635,28 +1637,36 @@ fn attention_of_128_queries_matches_on_whole_chunks_and_holes() {
             cs.write_tokens(&t.batch(), None).unwrap();
             let want = cs.run().unwrap().rows();
             let mut runs = Vec::new();
-            for exact in [false, true] {
-                turbo::cuda::use_exact_attention(Some(exact));
+            for variant in ["default", "acc32", "exact"] {
+                turbo::cuda::use_acc32_attention(Some(variant == "acc32"));
+                turbo::cuda::use_exact_attention(Some(variant == "exact"));
                 let gs = Session::create(g.m, Some(&session_desc(6, 512, TURBO_PRECISION_FASTEST)));
+                turbo::cuda::use_acc32_attention(None);
                 turbo::cuda::use_exact_attention(None);
                 let gs = gs.unwrap();
                 let info = gs.info();
                 let choices = field(&info.choices);
-                let attn = if exact { "attn=mma128-exact," } else { "attn=mma128," };
+                let attn = match variant {
+                    "acc32" => "attn=mma128-acc32,",
+                    "exact" => "attn=mma128-exact,",
+                    _ => "attn=mma128,",
+                };
                 assert!(choices.contains(attn), "{choices}");
                 let tol = record::tolerance(info.compute_dtype).unwrap();
                 gs.write_tokens(&t.batch(), None).unwrap();
                 let got = gs.run().unwrap().rows();
-                let what = format!("heads of {}, rows {lens:?}, exact {exact}", hidden / 2);
+                let what = format!("heads of {}, rows {lens:?}, {variant}", hidden / 2);
                 let (cos, abs) = within(&what, &got, &want, tol);
                 println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
                 gs.write_tokens(&t.batch(), None).unwrap();
                 assert_eq!(gs.run().unwrap().rows(), got, "{what}: the same bits again");
                 runs.push((got, tol));
             }
-            let what = format!("heads of {}, rows {lens:?}, exact against the default", hidden / 2);
-            let (cos, abs) = within(&what, &runs[1].0, &runs[0].0, runs[0].1);
-            println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+            for (i, variant) in ["acc32", "exact"].into_iter().enumerate() {
+                let what = format!("heads of {}, rows {lens:?}, {variant} against the default", hidden / 2);
+                let (cos, abs) = within(&what, &runs[i + 1].0, &runs[0].0, runs[0].1);
+                println!("{what}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
+            }
             if hidden == 64 {
                 turbo::cuda::use_fa32_attention(Some(true));
                 let gs = Session::create(g.m, Some(&session_desc(6, 512, TURBO_PRECISION_FASTEST)));
