@@ -1,0 +1,272 @@
+{
+  "manifest": {
+    "bundle_version": 1,
+    "model": {
+      "id": "BAAI/bge-m3",
+      "revision": "1",
+      "source": {
+        "repository": "https://huggingface.co/BAAI/bge-m3",
+        "commit": "5617a9f61b028005a4858fdac845db406aefb181"
+      },
+      "license": "MIT"
+    },
+    "task": "TASK_EMBED",
+    "embed": {
+      "dim": 1024,
+      "pooling": "POOLING_CLS",
+      "normalize": "NORMALIZE_L2",
+      "max_seq": 512,
+      "max_batch": 64
+    },
+    "tokenizer": {
+      "file": "tokenizer.json",
+      "unigram": {
+        "precompiled_charsmap": true,
+        "collapse_spaces": true,
+        "metaspace": "▁",
+        "add_prefix_space": true
+      },
+      "special_tokens": [
+        {
+          "role": "SPECIAL_BOS",
+          "content": "<s>",
+          "id": 0
+        },
+        {
+          "role": "SPECIAL_PAD",
+          "content": "<pad>",
+          "id": 1
+        },
+        {
+          "role": "SPECIAL_EOS",
+          "content": "</s>",
+          "id": 2
+        },
+        {
+          "role": "SPECIAL_UNK",
+          "content": "<unk>",
+          "id": 3
+        },
+        {
+          "role": "SPECIAL_MASK",
+          "content": "<mask>",
+          "id": 250001,
+          "lstrip": true
+        }
+      ],
+      "template": [
+        "<s>",
+        "$TEXT",
+        "</s>"
+      ],
+      "truncation": "TRUNCATE_RIGHT"
+    },
+    "architecture": {
+      "family": "FAMILY_ROBERTA",
+      "layers": 24,
+      "hidden": 1024,
+      "heads": 16,
+      "intermediate": 4096,
+      "activation": "ACTIVATION_GELU_ERF",
+      "layer_norm_eps": 1e-05,
+      "position_embedding": "POSITION_ABSOLUTE",
+      "max_positions": 8194,
+      "position_offset": 2,
+      "token_types": 1,
+      "vocab_size": 250002
+    },
+    "artifacts": [
+      {
+        "name": "weights-f32",
+        "format": "FORMAT_SAFETENSORS",
+        "files": [
+          "weights/model.safetensors"
+        ],
+        "backends": [
+          "cuda",
+          "metal",
+          "levelzero",
+          "cpu"
+        ],
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "tensor_names": {
+          "word_embeddings": "embeddings.word_embeddings.weight",
+          "position_embeddings": "embeddings.position_embeddings.weight",
+          "token_type_embeddings": "embeddings.token_type_embeddings.weight",
+          "embeddings_ln_weight": "embeddings.LayerNorm.weight",
+          "embeddings_ln_bias": "embeddings.LayerNorm.bias",
+          "q_weight": "encoder.layer.{layer}.attention.self.query.weight",
+          "q_bias": "encoder.layer.{layer}.attention.self.query.bias",
+          "k_weight": "encoder.layer.{layer}.attention.self.key.weight",
+          "k_bias": "encoder.layer.{layer}.attention.self.key.bias",
+          "v_weight": "encoder.layer.{layer}.attention.self.value.weight",
+          "v_bias": "encoder.layer.{layer}.attention.self.value.bias",
+          "attn_out_weight": "encoder.layer.{layer}.attention.output.dense.weight",
+          "attn_out_bias": "encoder.layer.{layer}.attention.output.dense.bias",
+          "attn_ln_weight": "encoder.layer.{layer}.attention.output.LayerNorm.weight",
+          "attn_ln_bias": "encoder.layer.{layer}.attention.output.LayerNorm.bias",
+          "ffn_in_weight": "encoder.layer.{layer}.intermediate.dense.weight",
+          "ffn_in_bias": "encoder.layer.{layer}.intermediate.dense.bias",
+          "ffn_out_weight": "encoder.layer.{layer}.output.dense.weight",
+          "ffn_out_bias": "encoder.layer.{layer}.output.dense.bias",
+          "ffn_ln_weight": "encoder.layer.{layer}.output.LayerNorm.weight",
+          "ffn_ln_bias": "encoder.layer.{layer}.output.LayerNorm.bias"
+        },
+        "produced_by": {
+          "upstream": "pytorch_model.bin"
+        }
+      },
+      {
+        "name": "onnx-f32",
+        "format": "FORMAT_ONNX",
+        "files": [
+          "onnx/model.onnx",
+          "onnx/model.onnx_data"
+        ],
+        "backends": [],
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_EMBEDDINGS"
+      },
+      {
+        "name": "onnx-f16",
+        "format": "FORMAT_ONNX",
+        "files": [
+          "onnx/model-f16.onnx"
+        ],
+        "backends": [],
+        "compute_dtype": "DTYPE_F16",
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_EMBEDDINGS",
+        "produced_by": {
+          "from": "onnx-f32"
+        }
+      }
+    ],
+    "reference": {
+      "file": "reference/reference.safetensors",
+      "cases": [
+        {
+          "text": "",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "The quick brown fox jumps over the lazy dog.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Café naïve RÉSUMÉ, Ｆｕｌｌｗｉｄｔｈ and ﬁ ligatures",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "东京是日本的首都。日本語の文章にはスペースがありません。한국어 문장입니다.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "La recherche multilingue retrouve des documents écrits dans une autre langue que la requête.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Mehrsprachige Suche findet Dokumente, die in einer anderen Sprache als die Anfrage geschrieben sind.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "La búsqueda multilingüe encuentra documentos escritos en un idioma distinto al de la consulta.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Многоязычный поиск находит документы, написанные не на языке запроса.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "البحث متعدد اللغات يعثر على مستندات مكتوبة بلغة غير لغة الاستعلام.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "बहुभाषी खोज उन दस्तावेज़ों को ढूंढती है जो प्रश्न की भाषा से भिन्न भाषा में लिखे गए हैं।",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "การค้นหาหลายภาษาจะพบเอกสารที่เขียนด้วยภาษาอื่นที่ไม่ใช่ภาษาของคำค้น",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "emoji 🙂 👨‍👩‍👧 and tabs\tand\nnewlines  with   runs of spaces",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "how do I reset a password",
+          "prompt_role": "PROMPT_QUERY"
+        },
+        {
+          "text": "To reset a password, open Settings and choose Security.",
+          "prompt_role": "PROMPT_DOCUMENT"
+        },
+        {
+          "text": "A bundle is a directory that carries one model, so that the same program gives the same answer on every machine. The manifest names every file with its size and hash, says exactly how to tokenize for the model, what it computes, and which artifact each backend runs. It also carries a small reference: token ids and vectors produced by the upstream pipeline in full precision on a CPU. Every machine that loads the bundle encodes the reference texts again and compares the ids exactly, so a tokenizer that drifts is caught before a single vector is computed.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware. Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware. Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware.",
+          "prompt_role": "PROMPT_NONE"
+        }
+      ],
+      "produced_by": {
+        "container": "turbo-reference@sha256:0e153c1db87c62f55ff6f918c7d8a0120c3d2e5d45d3f5a0336e81153c12dd6b"
+      }
+    }
+  },
+  "upstream": [
+    {
+      "path": "tokenizer.json",
+      "to": "tokenizer.json",
+      "sha256": "21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08"
+    },
+    {
+      "path": "pytorch_model.bin",
+      "sha256": "b5e0ce3470abf5ef3831aa1bd5553b486803e83251590ab7ff35a117cf6aad38"
+    },
+    {
+      "path": "onnx/model.onnx",
+      "to": "onnx/model.onnx",
+      "sha256": "f84251230831afb359ab26d9fd37d5936d4d9bb5d1d5410e66442f630f24435b"
+    },
+    {
+      "path": "onnx/model.onnx_data",
+      "to": "onnx/model.onnx_data",
+      "sha256": "1eebfb28493f67bba03ce0ef64bfdc7fc5a3bd9d7493f818bb1d78cd798416b4"
+    },
+    {
+      "path": "config.json",
+      "sha256": "26159e7ad065073448460117eb24b7a4572f6f4e78eadff65dc0a11c052449fa"
+    },
+    {
+      "path": "config_sentence_transformers.json",
+      "sha256": "1eef72430e7194a1e59680e635aed81ffa083f05668dbc5bb1c56c04c0999c38"
+    },
+    {
+      "path": "modules.json",
+      "sha256": "84e40c8e006c9b1d6c122e02cba9b02458120b5fb0c87b746c41e0207cf642cf"
+    },
+    {
+      "path": "sentence_bert_config.json",
+      "sha256": "eb9b44b13c0f52a3b3685c3b1cbdea1ba8b04bea123b98f61610048940776eb1"
+    },
+    {
+      "path": "1_Pooling/config.json",
+      "sha256": "e54c164a07274f2eb45bb724f54a79d1efcc90c41573887cd9a29aeee0597352"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "a62b2b6784f990259fddef5f16388693a8043be4f69179e6a5257eeb3f9abac4"
+    },
+    {
+      "path": "special_tokens_map.json",
+      "sha256": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835"
+    },
+    {
+      "path": "sentencepiece.bpe.model",
+      "sha256": "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865"
+    }
+  ]
+}

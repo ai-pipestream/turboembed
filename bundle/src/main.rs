@@ -52,7 +52,7 @@ fn make_from_upstream(r: &Recipe, upstream: &Path, bundle: &Path) -> Result<()> 
     }
     seal::stage(r, upstream, bundle)?;
     let produced_by = reference::run(r, upstream, bundle)?;
-    let converted = convert::run(r, bundle)?;
+    let converted = convert::run(r, upstream, bundle)?;
     seal::seal(r, bundle, produced_by, converted)?;
     println!("{}: verified", bundle.display());
     Ok(())

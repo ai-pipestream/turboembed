@@ -22,6 +22,13 @@ FLOAT16 for them. Then the script checks the result: after shape
 inference, no op but a Cast or one on the block list may take both FLOAT
 and FLOAT16 inputs, or it fails naming the node.
 
+A graph whose F32 tensors serialize past protobuf's 2 GB message limit
+(an export with external data, such as BGE-M3's) cannot go through the
+converter's shape inference, which serializes the model whole; for such
+a graph the inference is skipped (`disable_shape_infer=True` in the
+settings) and the conversion runs on the graph as exported. The F16
+result is under the limit and is checked and saved as one file.
+
 Arguments: the F32 ONNX file, the file to write, and the JSON file that
 says what ran.
 """
@@ -42,6 +49,10 @@ SETTINGS = [
     f"min_positive_val={MIN_POSITIVE_VAL!r}",
     "float_casts_into_f16_ops=FLOAT16",
 ]
+
+# protobuf's largest message: a graph over it is converted without the
+# converter's shape inference, which serializes the model whole.
+PROTOBUF_LIMIT = 2**31 - 1
 
 FLOAT = onnx.TensorProto.FLOAT
 FLOAT16 = onnx.TensorProto.FLOAT16
@@ -121,11 +132,15 @@ def mixed_float_inputs(model):
 
 def main(src, out, produced_by_path):
     model = onnx.load(src)
+    # The message's own size cannot be asked past the limit; the
+    # initializers' bytes alone decide.
+    big = sum(len(t.raw_data) for t in model.graph.initializer) > PROTOBUF_LIMIT
     converted = float16.convert_float_to_float16(
         model,
         min_positive_val=MIN_POSITIVE_VAL,
         max_finite_val=MAX_FINITE_VAL,
         keep_io_types=KEEP_IO_TYPES,
+        disable_shape_infer=big,
     )
     retype_float_casts(converted)
     bad = mixed_float_inputs(converted)
@@ -138,7 +153,7 @@ def main(src, out, produced_by_path):
             {
                 "tool": "onnxconverter-common",
                 "tool_version": f"{onnxconverter_common.__version__} (onnx {onnx.__version__})",
-                "settings": SETTINGS,
+                "settings": SETTINGS + ([f"disable_shape_infer={big}"] if big else []),
             },
             f,
         )

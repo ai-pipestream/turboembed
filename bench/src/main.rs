@@ -55,7 +55,7 @@ record options:
   --no-tei                     record that TEI was not run
   --tensorrt-image <name@sha256:..>
                                NVIDIA's TensorRT container, pinned (cuda)
-  --tensorrt-inputs <a,b,c>    the ONNX inputs for ids, mask and types
+  --tensorrt-inputs <a,b[,c]>  the ONNX inputs for ids, mask and types
                                (default input_ids,attention_mask,token_type_ids)
   --tensorrt-input-dtype <t>   int64 or int32 (default int64)
   --tensorrt-warmup-ms <n>     trtexec --warmUp (default 1000)
@@ -64,7 +64,7 @@ record options:
   --openvino-image <name@sha256:..>
                                an OpenVINO container with benchmark_app,
                                pinned (levelzero)
-  --openvino-inputs <a,b,c>    the ONNX inputs for ids, mask and types
+  --openvino-inputs <a,b[,c]>  the ONNX inputs for ids, mask and types
                                (default input_ids,attention_mask,token_type_ids)
   --openvino-input-dtype <t>   int64 or int32 (default int64)
   --benchmark-app <path>       benchmark_app in the image (default
@@ -298,11 +298,15 @@ fn disabled(name: &str, role: &str, flag: &str) -> ReferenceRun {
     }
 }
 
-/// Three input names, from a comma-separated list or the default.
-fn onnx_inputs(list: Option<String>, option: &str) -> Result<[String; 3]> {
+/// The input names for ids, mask and types, from a comma-separated list
+/// or the default; two when the graph takes no types.
+fn onnx_inputs(list: Option<String>, option: &str) -> Result<Vec<String>> {
     let list = list.unwrap_or_else(|| "input_ids,attention_mask,token_type_ids".into());
     let v: Vec<String> = list.split(',').map(str::to_owned).collect();
-    v.try_into().map_err(|_| format!("{option} names three inputs: ids, mask, types"))
+    if v.len() != 2 && v.len() != 3 {
+        return Err(format!("{option} names the inputs for ids, mask and types, or for ids and mask alone"));
+    }
+    Ok(v)
 }
 
 /// Which reference programs the command line named, and which it
