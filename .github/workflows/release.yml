@@ -1,0 +1,93 @@
+name: release
+
+# A tag v<version> builds libturbo for Linux x86_64 with the CUDA backend
+# and publishes it with the header (docs/release.md). The runner has no
+# GPU: this builds and packages; what runs and how fast is what the
+# records in benchmarks/records say, on the machines they name.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+  # A change to this file or the build script runs the build on the pull
+  # request, keeping the archive as an artifact; nothing is published.
+  pull_request:
+    paths: [".github/workflows/release.yml", "core/build.rs"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # The toolkit the library is built with: its static runtime is linked
+  # in, so this fixes the driver a machine needs (12.x: 525 or newer).
+  CUDA_VERSION: "12.8"
+  CUDA_PACKAGE: "12-8"
+  # Machine code for each, and the PTX of the last for what comes after.
+  TURBO_CUDA_ARCH: "75,80,86,89,90,100,120"
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+      - name: the CUDA toolkit, nvcc and the runtime's headers and static library only
+        run: |
+          curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cuda-nvcc-$CUDA_PACKAGE cuda-cudart-dev-$CUDA_PACKAGE cuda-cccl-$CUDA_PACKAGE
+          /usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | tail -1
+      - name: build
+        env:
+          TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}
+        run: cargo build --release -p turbo --features cuda
+      - name: the library links no CUDA library dynamically
+        run: |
+          ldd target/release/libturbo.so
+          if ldd target/release/libturbo.so | grep -qE 'libcu(dart|blas)'; then
+            echo "libturbo.so links a CUDA library dynamically"; exit 1
+          fi
+      - name: the header compiles as C11 and C++17
+        run: |
+          printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
+          cc  -std=c11   -Wall -Wextra -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"
+      - name: package
+        id: package
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          name="turboembed-${tag}-linux-x86_64"
+          mkdir -p "$name/lib" "$name/include/turbo" "$name/licenses"
+          cp target/release/libturbo.so "$name/lib/"
+          cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
+          cp LICENSE "$name/licenses/LICENSE"
+          cp core/cuda/cutlass/LICENSE.txt "$name/licenses/CUTLASS-LICENSE.txt"
+          cp docs/release.md "$name/README.md"
+          {
+            echo "turboembed ${tag}, commit ${GITHUB_SHA}"
+            echo "linux x86_64, cpu and cuda backends"
+            echo "built with rustc $(rustc --version | cut -d' ' -f2) and CUDA ${CUDA_VERSION} (nvcc $(/usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | grep -oE 'V[0-9.]+'))"
+            echo "CUDA machine code for sm ${TURBO_CUDA_ARCH}, and PTX for the last"
+            echo "driver: any that supports CUDA ${CUDA_VERSION%%.*}.x"
+          } > "$name/BUILD"
+          tar czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - name: publish
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="${{ steps.package.outputs.name }}"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$name/BUILD" \
+            "$name.tar.gz" "$name.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'push'
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.name }}.tar.gz
+            ${{ steps.package.outputs.name }}.tar.gz.sha256
