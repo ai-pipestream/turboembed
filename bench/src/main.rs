@@ -55,6 +55,9 @@ record options:
   --no-tei                     record that TEI was not run
   --tensorrt-image <name@sha256:..>
                                NVIDIA's TensorRT container, pinned (cuda)
+  --tensorrt-bin <path>        trtexec installed on the machine, run in place
+                               of an image (a Jetson, whose TensorRT is
+                               JetPack's)
   --tensorrt-inputs <a,b[,c]>  the ONNX inputs for ids, mask and types
                                (default input_ids,attention_mask,token_type_ids)
   --tensorrt-input-dtype <t>   int64 or int32 (default int64)
@@ -172,17 +175,29 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let no_trt = o.flag("--no-tensorrt");
     let inputs = onnx_inputs(o.take("--tensorrt-inputs"), "--tensorrt-inputs")?;
     tensorrt::check_inputs(&inputs)?;
-    let trt = o.take("--tensorrt-image").map(|image| TensorRt {
-        image,
-        trtexec: String::new(),
-        inputs,
-        input_dtype: String::new(),
-        warmup_ms: 0,
-        work: work.clone(),
-    });
+    let trt = match (o.take("--tensorrt-image"), o.take("--tensorrt-bin")) {
+        (Some(_), Some(_)) => {
+            return Err("--tensorrt-image and --tensorrt-bin are two ways to run trtexec; give one".into());
+        }
+        (None, None) => None,
+        (image, bin) => Some(TensorRt {
+            image: image.unwrap_or_default(),
+            trtexec: String::new(),
+            inputs,
+            input_dtype: String::new(),
+            warmup_ms: 0,
+            work: work.clone(),
+            binary: bin.map(PathBuf::from),
+        }),
+    };
     let trt = match trt {
         Some(mut t) => {
-            t.trtexec = o.take("--trtexec").unwrap_or_else(|| "trtexec".into());
+            t.trtexec = match (o.take("--trtexec"), &t.binary) {
+                (Some(_), Some(_)) => {
+                    return Err("--trtexec names trtexec inside the image; --tensorrt-bin is the binary itself".into());
+                }
+                (given, _) => given.unwrap_or_else(|| "trtexec".into()),
+            };
             t.input_dtype = o.take("--tensorrt-input-dtype").unwrap_or_else(|| "int64".into());
             t.warmup_ms = o.number("--tensorrt-warmup-ms")?.unwrap_or(1000);
             tensorrt::input_bytes(&[], &t.input_dtype)?;
@@ -229,7 +244,15 @@ fn record_cmd(args: &[String]) -> Result<()> {
         }
     }
     if let Some(t) = &trt {
-        turbo_bench::docker::check_pinned("--tensorrt-image", &t.image)?;
+        match &t.binary {
+            // Read now, so a wrong path fails before anything is measured.
+            Some(bin) => {
+                tensorrt::native_pin(bin)?;
+            }
+            None => {
+                turbo_bench::docker::check_pinned("--tensorrt-image", &t.image)?;
+            }
+        }
     }
     if let Some(v) = &ov {
         turbo_bench::docker::check_pinned("--openvino-image", &v.image)?;
