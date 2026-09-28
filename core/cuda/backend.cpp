@@ -20,7 +20,18 @@
 
 #include <turbo/turbo_backend.h>
 
+#ifdef TURBO_CUDA_CUBLAS
 #include <cublas_v2.h>
+#else
+/* Without cuBLAS (build.rs sets TURBO_CUDA_CUBLAS for the cuda-cublas
+ * feature): the handle type and the status the encoder's cuBLAS paths
+ * name, so they compile; a session naming a GEMM for cuBLAS is refused
+ * before any of them runs, and the GEMM check against cuBLAS is refused. */
+typedef void *cublasHandle_t;
+typedef int cublasStatus_t;
+constexpr cublasStatus_t CUBLAS_STATUS_SUCCESS = 0;
+#endif
+#include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 #include <algorithm>
@@ -89,10 +100,17 @@ int32_t cuda_failed(turbo_error *err, cudaError_t e, const char *what) {
     return refuse(err, code, "%s: %s: %s", what, cudaGetErrorName(e), cudaGetErrorString(e));
 }
 
+#ifdef TURBO_CUDA_CUBLAS
 int32_t cublas_failed(turbo_error *err, cublasStatus_t s, const char *what) {
     const int32_t code = s == CUBLAS_STATUS_ALLOC_FAILED ? TURBO_E_OUT_OF_MEMORY : TURBO_E_RUNTIME;
     return refuse(err, code, "%s: %s: %s", what, cublasGetStatusName(s), cublasGetStatusString(s));
 }
+#else
+int32_t cublas_failed(turbo_error *err, cublasStatus_t, const char *what) {
+    return refuse(err, TURBO_E_UNSUPPORTED, "%s: this build has no cuBLAS (the turbo crate's cuda-cublas feature)",
+                  what);
+}
+#endif
 
 #define TRY_CUDA(expr, what)                                                                                           \
     do {                                                                                                               \
@@ -414,13 +432,15 @@ int32_t capability(uint32_t ordinal, uint32_t, uint32_t precision, uint32_t *sta
 
 // ---- Contexts and buffers ------------------------------------------------------
 //
-// A context is a stream and a cuBLAS handle on one device. The handle is
-// for the GEMMs TURBO_CUDA_CUBLAS hands to cuBLAS; it computes on the
-// stream with TF32 off (CUBLAS_DEFAULT_MATH: TF32 would round an F32
-// GEMM's inputs to 10 bits of mantissa), so an F32 GEMM is F32; an F16
-// session's GEMMs take F16 inputs and accumulate in F32
-// (CUBLAS_COMPUTE_32F). The handle has a fixed workspace of its own, so
-// a GEMM never allocates.
+// A context is a stream on one device and, in a build with cuBLAS
+// (TURBO_CUDA_CUBLAS), a cuBLAS handle. The handle is for the GEMMs
+// TURBO_CUDA_CUBLAS hands to cuBLAS; it computes on the stream with TF32
+// off (CUBLAS_DEFAULT_MATH: TF32 would round an F32 GEMM's inputs to 10
+// bits of mantissa), so an F32 GEMM is F32; an F16 session's GEMMs take
+// F16 inputs and accumulate in F32 (CUBLAS_COMPUTE_32F). The handle has a
+// fixed workspace of its own, so a GEMM never allocates. Without cuBLAS
+// the handle and workspace stay null, and a session naming a GEMM for
+// cuBLAS is refused.
 //
 // Placements: DEVICE is cudaMalloc memory, with no host address; PINNED is
 // page-locked host memory (cudaMallocHost); HOST is pageable, 64-byte
@@ -459,7 +479,9 @@ constexpr uint32_t LOG_DEBUG = 3;
 
 void release_context(Context *c) {
     DeviceScope scope(c->ordinal);
+#ifdef TURBO_CUDA_CUBLAS
     if (c->blas) cublasDestroy(c->blas);
+#endif
     if (c->stream) cudaStreamDestroy(c->stream);
     if (c->workspace) cudaFree(c->workspace);
     delete c;
@@ -476,6 +498,7 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
             cudaDeviceProp p;
             TRY_CUDA(cudaGetDeviceProperties(&p, (int)ordinal), "cudaGetDeviceProperties");
             TRY_CUDA(cudaStreamCreateWithFlags(&c->stream, cudaStreamNonBlocking), "cudaStreamCreateWithFlags");
+#ifdef TURBO_CUDA_CUBLAS
             TRY_CUDA(device_malloc(&c->workspace, CUBLAS_WORKSPACE), "the cuBLAS workspace");
             TRY_CUBLAS(cublasCreate(&c->blas), "cublasCreate");
             // cublasSetStream puts the handle back on cuBLAS's own
@@ -488,6 +511,10 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
                 LOG_DEBUG,
                 "cuda context on device %u (%s, sm %d%d): a stream, cuBLAS in F32 without TF32, %zu MiB of workspace",
                 ordinal, p.name, p.major, p.minor, CUBLAS_WORKSPACE >> 20);
+#else
+            c->say(LOG_DEBUG, "cuda context on device %u (%s, sm %d%d): a stream; this build has no cuBLAS", ordinal,
+                   p.name, p.major, p.minor);
+#endif
             return TURBO_OK;
         }();
         if (rc != TURBO_OK) {
@@ -1587,6 +1614,7 @@ void release_session(Session *s) {
 /* y[t, o] = sum_i x[t, i] w[o, i] for t under tokens, with w [n_out, n_in]
  * row-major: in cuBLAS's column-major terms, y^T = w x^T. x and w are F32
  * or F16; y is F32 in both. */
+#ifdef TURBO_CUDA_CUBLAS
 cublasStatus_t linear(cublasHandle_t h, bool half, const void *x, int tokens, int n_in, const void *w, int n_out,
                       float *y) {
     const float one = 1.0f, zero = 0.0f;
@@ -1596,6 +1624,10 @@ cublasStatus_t linear(cublasHandle_t h, bool half, const void *x, int tokens, in
     return cublasGemmEx(h, CUBLAS_OP_T, CUBLAS_OP_N, n_out, tokens, n_in, &one, w, CUDA_R_16F, n_in, x, CUDA_R_16F,
                         n_in, &zero, y, CUDA_R_32F, n_out, CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT);
 }
+#else
+/* Never reached: a session naming a GEMM for cuBLAS is refused first. */
+cublasStatus_t linear(cublasHandle_t, bool, const void *, int, int, const void *, int, float *) { return 1; }
+#endif
 
 /* GemmArgs.min_steps for a GEMM's choice. */
 int min_steps(const GemmChoice &c) { return c.sk == SK_TILES ? SK_WHOLE_TILES : c.sk_steps; }
@@ -2375,6 +2407,11 @@ int32_t session_create_tuned(void *model, uint32_t task, uint32_t max_batch, uin
         // and a cached line would name kernels they do not run: such a
         // session takes neither.
         const unsigned cublas = cublas_gemms();
+#ifndef TURBO_CUDA_CUBLAS
+        if (cublas)
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "TURBO_CUDA_CUBLAS: this build has no cuBLAS (the turbo crate's cuda-cublas feature)");
+#endif
         if (tuned && cublas)
             c->say(LOG_INFO,
                    "cuda device %d: not tuned: TURBO_CUDA_CUBLAS hands GEMMs to cuBLAS, whose kernels are its own",
@@ -2807,6 +2844,9 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
                    double *max_ref) {
     turbo_error e0{};
     turbo_error *err = &e0;
+#ifndef TURBO_CUDA_CUBLAS
+    return refuse(err, TURBO_E_UNSUPPORTED, "this build has no cuBLAS to check a GEMM against (cuda-cublas)");
+#endif
     ON_DEVICE((int)ordinal);
     const bool h16 = half != 0, tc = tensor_cores != 0;
     // EPI_BIAS is the F16 tensor-core product's: the plain product elsewhere.
@@ -2852,9 +2892,11 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
     cublasHandle_t blas = nullptr;
     const int32_t rc = [&]() -> int32_t {
         TRY_CUDA(cudaStreamCreate(&st), "cudaStreamCreate");
+#ifdef TURBO_CUDA_CUBLAS
         TRY_CUBLAS(cublasCreate(&blas), "cublasCreate");
         TRY_CUBLAS(cublasSetStream(blas, st), "cublasSetStream");
         TRY_CUBLAS(cublasSetMathMode(blas, CUBLAS_DEFAULT_MATH), "cublasSetMathMode");
+#endif
         char *pa = dev, *pw = pa + sa, *pb = pw + sw, *po = pb + sb, *pr = po + so, *pi = pr + sr;
         char *pws = pi + si, *pf = pws + sws;
         TRY_CUDA(cudaMemset(dev, 0, total), "cudaMemset");
@@ -2922,7 +2964,9 @@ int32_t gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k, int32_t ep
         *max_ref = largest;
         return TURBO_OK;
     }();
+#ifdef TURBO_CUDA_CUBLAS
     if (blas) cublasDestroy(blas);
+#endif
     if (st) cudaStreamDestroy(st);
     cudaFree(dev);
     return rc;
@@ -3019,6 +3063,16 @@ int32_t turbo_cuda_gemm_check(uint32_t ordinal, int32_t m, int32_t n, int32_t k,
  * would name them (1 QKV, 2 attention output, 4 feed-forward input, 8
  * feed-forward output); -1 to read the variable again. */
 void turbo_cuda_use_cublas(int32_t gemms) { cublas_override.store(gemms, std::memory_order_relaxed); }
+
+/* Whether this build links cuBLAS (the turbo crate's cuda-cublas feature):
+ * without it TURBO_CUDA_CUBLAS and the GEMM check are refused. */
+int32_t turbo_cuda_has_cublas(void) {
+#ifdef TURBO_CUDA_CUBLAS
+    return 1;
+#else
+    return 0;
+#endif
+}
 
 /* The GEMMs' tile in sessions made from now on, as TURBO_CUDA_TILE would
  * name it (a Tile); -1 to read the variable again. */

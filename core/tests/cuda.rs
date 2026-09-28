@@ -99,6 +99,17 @@ fn cuda_device(test: &str) -> Option<u32> {
     d
 }
 
+/// Whether this build links cuBLAS (the `cuda-cublas` feature), after
+/// saying that `what` is skipped when it does not: a check against
+/// cuBLAS, or a GEMM handed to it, needs that build.
+fn cublas_or_skip(test: &str, what: &str) -> bool {
+    let has = turbo::cuda::has_cublas();
+    if !has {
+        println!("{test}: {what} skipped: this build has no cuBLAS (the cuda-cublas feature)");
+    }
+    has
+}
+
 fn cuda(rt: *mut turbo_runtime) -> u32 {
     first_of(rt, "cuda").expect("a cuda device")
 }
@@ -1398,6 +1409,9 @@ fn the_product_switch_moves_only_fastest() {
     cs.write_tokens(&t.batch(), None).unwrap();
     let want = cs.run().unwrap().rows();
     for cublas in [None, Some(2 | 8)] {
+        if cublas.is_some() && !cublas_or_skip("the_product_switch_moves_only_fastest", "its cuBLAS half") {
+            continue;
+        }
         let mut got = Vec::new();
         for f16 in [true, false] {
             turbo::cuda::use_cublas(cublas);
@@ -1466,6 +1480,9 @@ fn the_gelu_switch_moves_only_fastest() {
     use turbo::cuda::Gelu;
     const KINDS: [Gelu; 3] = [Gelu::Erf, Gelu::Poly, Gelu::Tanh];
     for cublas in [None, Some(4)] {
+        if cublas.is_some() && !cublas_or_skip("the_gelu_switch_moves_only_fastest", "its cuBLAS half") {
+            continue;
+        }
         let mut got = Vec::new();
         for kind in KINDS {
             turbo::cuda::use_cublas(cublas);
@@ -1843,6 +1860,9 @@ fn both_fma_attentions_match_the_cpu() {
 fn the_gemms_match_cublas() {
     let _t = turn();
     let Some(dev) = cuda_device("the_gemms_match_cublas") else { return };
+    if !cublas_or_skip("the_gemms_match_cublas", "the test") {
+        return;
+    }
     let ordinal = Rt::new().info(dev).ordinal;
     use turbo::cuda::Epilogue::*;
     use turbo::cuda::Tile;
@@ -1954,6 +1974,9 @@ fn the_gemms_match_cublas() {
 fn f16_sums_over_the_whole_of_k_stay_within_their_bound() {
     let _t = turn();
     let Some(dev) = cuda_device("f16_sums_over_the_whole_of_k_stay_within_their_bound") else { return };
+    if !cublas_or_skip("f16_sums_over_the_whole_of_k_stay_within_their_bound", "the test") {
+        return;
+    }
     let ordinal = Rt::new().info(dev).ordinal;
     use turbo::cuda::Epilogue::*;
     use turbo::cuda::Tile;
@@ -2398,6 +2421,9 @@ fn every_variant_gives_the_same_vectors() {
 fn gemms_handed_to_cublas_give_the_same_vectors() {
     let _t = turn();
     let Some(_) = cuda_device("gemms_handed_to_cublas_give_the_same_vectors") else { return };
+    if !cublas_or_skip("gemms_handed_to_cublas_give_the_same_vectors", "the test") {
+        return;
+    }
     let dir = tiny_bundle();
     let g = on_cuda(&dir);
     let mi = g.info();
@@ -2760,12 +2786,52 @@ fn a_variant_that_cannot_launch_is_skipped() {
     assert!(e.message.contains(&v.name), "{}", e.message);
 }
 
+/// A build without cuBLAS (no `cuda-cublas` feature) refuses a session
+/// naming a GEMM for cuBLAS and the GEMM check against it, each as
+/// UNSUPPORTED naming the feature; a build with it takes both.
+#[test]
+fn a_build_without_cublas_refuses_what_needs_it() {
+    let _t = turn();
+    let Some(dev) = cuda_device("a_build_without_cublas_refuses_what_needs_it") else { return };
+    let (_f, g) = small_model("cuda-cublas-build");
+    turbo::cuda::use_cublas(Some(15));
+    let s = Session::create(g.m, Some(&session_desc(4, 64, TURBO_PRECISION_MODEL)));
+    turbo::cuda::use_cublas(None);
+    let ordinal = Rt::new().info(dev).ordinal;
+    let check = turbo::cuda::gemm_check(
+        ordinal,
+        64,
+        64,
+        64,
+        turbo::cuda::Epilogue::Plain,
+        false,
+        false,
+        turbo::cuda::Tile::Default,
+        0,
+        1,
+    );
+    match (turbo::cuda::has_cublas(), s) {
+        (true, s) => {
+            assert!(s.is_ok(), "a build with cuBLAS takes the session");
+            check.unwrap();
+        }
+        (false, Ok(_)) => panic!("a build without cuBLAS took a session naming GEMMs for it"),
+        (false, Err(e)) => {
+            assert!(e.is(UNSUPPORTED, "cuda-cublas"), "{e:?}");
+            assert_eq!(check.unwrap_err(), UNSUPPORTED);
+        }
+    }
+}
+
 /// A session whose GEMMs cuBLAS computes is not tuned and takes no cached
 /// choice, whose kernels its GEMMs would not run; the log says why.
 #[test]
 fn cublas_refuses_tuning() {
     let _t = turn();
     let Some(_) = cuda_device("cublas_refuses_tuning") else { return };
+    if !cublas_or_skip("cublas_refuses_tuning", "the test") {
+        return;
+    }
     let (f, _) = small_model("cuda-cublas-tuning");
     let (g, lines) = load_logged(&f.dir);
     let desc = tuned_desc(40, 160, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_ON, 0);
