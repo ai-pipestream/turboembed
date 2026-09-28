@@ -51,6 +51,7 @@ the same files copied elsewhere pass it.
 | `--tensorrt-input-dtype int64\|int32` | Their element type. Default `int64`. |
 | `--tensorrt-warmup-ms <n>` | trtexec's `--warmUp`. Default 1000. |
 | `--trtexec <path>` | trtexec inside the image. Default `trtexec`. |
+| `--tensorrt-bin <path>` | trtexec installed on the machine, run in place of an image: for a Jetson, whose TensorRT is JetPack's (Reference programs). In place of `--tensorrt-image`; `--trtexec` is refused with it. |
 | `--no-tensorrt` | TensorRT is not run; the record says so. |
 | `--openvino-image <name@sha256:…>` | An OpenVINO container with `benchmark_app` (levelzero). |
 | `--openvino-inputs <ids,mask[,types]>`, `--openvino-input-dtype int64\|int32` | As for TensorRT, for benchmark_app. Default `input_ids,attention_mask,token_type_ids` and `int64`. |
@@ -343,7 +344,7 @@ with dense rows `rtx4080.cuda.embed.model-dense.all-minilm-l6-v2-<8 hex>.<12 hex
 
 | Backend | Program | Role | How it runs |
 |---|---|---|---|
-| cuda | TensorRT `trtexec` | kernel | NVIDIA's TensorRT container, on the bundle's ONNX file |
+| cuda | TensorRT `trtexec` | kernel | NVIDIA's TensorRT container, or the machine's trtexec (`--tensorrt-bin`, a Jetson), on the bundle's ONNX file |
 | cuda | text-embeddings-inference | end to end | its GPU image, over HTTP |
 | cpu | text-embeddings-inference | end to end | its CPU image, over HTTP |
 | levelzero | OpenVINO `benchmark_app` | kernel | an OpenVINO container, on the bundle's ONNX file, on the GPU |
@@ -359,7 +360,8 @@ runs is what was fetched on purpose. Each command is recorded as run,
 except that a host path in it is written as a fixed placeholder:
 `<bundle>` for the bundle directory, `<work>` for the directory the
 input files are written to, `<tei-model>` for the model directory TEI
-serves. Records are published, and the operator's paths say nothing
+serves, `<tei-bin>` and `<trtexec-bin>` for a program run from the
+machine. Records are published, and the operator's paths say nothing
 about the measurement and may name a user. The command executed has the
 real paths; only the recorded copy is rewritten. A `not_run` reason
 names those directories the same way. The core refuses a record with
@@ -422,6 +424,25 @@ device ordinal the backend listed; docker's `--gpus device=` counts in
 the driver's order, so the two agree when `CUDA_DEVICE_ORDER=PCI_BUS_ID`
 is set for the tool. With more than one CUDA device listed, the tool
 refuses to run a reference program on a GPU without it.
+
+**trtexec on the machine.** Where TensorRT comes with the system and the
+pinned container does not serve the GPU (a Jetson, whose TensorRT is
+JetPack's and whose GPU the x86 container cannot reach), `--tensorrt-bin`
+names the machine's trtexec and runs it in place of the container, with
+the same arguments on the bundle's and the inputs' directories as they
+are and the GPU as `--device=<ordinal>`. The record pins it as
+`trtexec@sha256:<the binary's SHA-256>`, gives the version its
+`TensorRT version:` line reports as for the container, records the
+command with `<trtexec-bin>` for its path, and says in `procedure` that
+it was the machine's own. `--tensorrt-bin` goes in place of
+`--tensorrt-image`, not with it, and `--trtexec` (a path inside the
+image) is refused with it. The command:
+
+```
+<trtexec-bin> --device=<ordinal> --onnx=<bundle>/<onnx file> \
+    --shapes=... --loadInputs=input_ids:<work>/input_ids.bin,... \
+    --warmUp=<ms> --iterations=<iterations> --duration=0 --percentile=99 <precision flag>
+```
 
 **text-embeddings-inference** serves the model directory in the upstream
 layout. Its `tokenizer.json` must have the bundle tokenizer's hash and

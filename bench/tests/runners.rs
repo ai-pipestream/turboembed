@@ -501,6 +501,7 @@ fn trt(work: &Path) -> TensorRt {
         input_dtype: "int64".into(),
         warmup_ms: 1000,
         work: work.to_owned(),
+        binary: None,
     }
 }
 
@@ -550,6 +551,61 @@ fn trtexec_is_run_with_every_setting_on_its_command_line() {
     assert_eq!(tensorrt::precision(TURBO_DTYPE_F16).unwrap(), (Some(Dtype::F16), strings(&["--stronglyTyped"])));
     assert_eq!(tensorrt::precision(TURBO_DTYPE_BF16).unwrap(), (Some(Dtype::Bf16), strings(&["--stronglyTyped"])));
     assert!(tensorrt::precision(8).is_err());
+}
+
+#[test]
+fn the_machines_trtexec_is_pinned_by_its_bytes_and_run_in_place_of_the_container() {
+    let d = upstream_dir("trtexec-native-pin");
+    let bin = d.join("trtexec");
+    std::fs::write(&bin, b"an engine builder").unwrap();
+    let pin = tensorrt::native_pin(&bin).unwrap();
+    assert_eq!(pin, format!("trtexec@sha256:{}", turbo::bundle::sha256_hex(b"an engine builder")));
+    assert!(turbo::record::pinned(&pin).is_some(), "{pin} is pinned as a record reads it");
+    assert!(tensorrt::native_pin(&d.join("absent")).unwrap_err().contains("--tensorrt-bin"));
+
+    let rows = Rows {
+        kind: RowKind::Mixed,
+        batch: 2,
+        seq: 3,
+        ids: vec![0; 6],
+        mask: vec![0; 6],
+        types: vec![0; 6],
+        cases: vec![0, 1],
+    };
+    let mut t = trt(Path::new("/tmp"));
+    t.image = String::new();
+    t.binary = Some(bin.clone());
+    let (_, flags) = tensorrt::precision(TURBO_DTYPE_F16).unwrap();
+    let a = tensorrt::native_argv(
+        &t,
+        tensorrt::TRTEXEC_BIN,
+        Path::new("/b"),
+        Path::new("/w"),
+        "onnx/model-f16.onnx",
+        1,
+        &rows,
+        200,
+        &flags,
+    );
+    // No docker: the binary, the GPU by its ordinal, and the same flags on
+    // the directories as they are.
+    let want = strings(&[
+        "<trtexec-bin>",
+        "--device=1",
+        "--onnx=/b/onnx/model-f16.onnx",
+        "--shapes=input_ids:2x3,attention_mask:2x3,token_type_ids:2x3",
+        "--loadInputs=input_ids:/w/input_ids.bin,attention_mask:/w/attention_mask.bin,token_type_ids:/w/token_type_ids.bin",
+        "--warmUp=1000",
+        "--iterations=200",
+        "--duration=0",
+        "--percentile=99",
+        "--stronglyTyped",
+    ]);
+    assert_eq!(a, want);
+    let in_container =
+        tensorrt::run_argv(&t, Path::new("/b"), Path::new("/w"), "onnx/model-f16.onnx", 1, &rows, 200, &flags);
+    assert!(in_container.contains(&want[3]), "the same shapes");
+    assert_eq!(&in_container[in_container.len() - 5..], &want[5..], "the same timing and precision flags");
 }
 
 #[test]
@@ -611,6 +667,19 @@ fn a_bundle_without_onnx_is_recorded_as_trtexec_not_run() {
     let mut unpinned = trt(&work);
     unpinned.image = "nvcr.io/nvidia/tensorrt:24.08-py3".into();
     assert!(tensorrt::run(&unpinned, m, 0, 10).unwrap_err().contains("is not pinned"));
+    // The machine's trtexec: pinned by its bytes, and the same reference
+    // that says why it did not run, with no docker in it.
+    let bin = work.join("trtexec");
+    std::fs::write(&bin, b"an engine builder").unwrap();
+    let mut native = trt(&work);
+    native.image = String::new();
+    native.binary = Some(bin.clone());
+    let r = tensorrt::run(&native, m, 0, 10).unwrap();
+    assert_eq!(r.pinned, tensorrt::native_pin(&bin).unwrap());
+    assert!(r.procedure.contains("the machine's own (--tensorrt-bin)"), "{}", r.procedure);
+    assert!(r.measured.is_none() && r.not_run.is_some() && r.commands.is_empty());
+    native.binary = Some(work.join("absent"));
+    assert!(tensorrt::run(&native, m, 0, 10).unwrap_err().contains("--tensorrt-bin"));
 }
 
 /// trtexec's output when TensorRT refuses the graph, in the form its

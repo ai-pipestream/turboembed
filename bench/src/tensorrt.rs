@@ -1,6 +1,10 @@
 //! TensorRT, the kernel reference: trtexec in NVIDIA's TensorRT container,
 //! pinned by digest, building an engine from the ONNX file the bundle
-//! carries and timing it on the same token rows, on the same GPU.
+//! carries and timing it on the same token rows, on the same GPU. On a
+//! machine whose TensorRT comes with the system and that the pinned
+//! container does not serve (a Jetson, whose TensorRT is JetPack's),
+//! trtexec installed on the machine runs in place of the container
+//! (`--tensorrt-bin`), pinned by the binary's SHA-256.
 //!
 //! The library never executes ONNX; a reference program may. A bundle
 //! with no FORMAT_ONNX artifact gives a record that says trtexec could
@@ -17,7 +21,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use turbo::bundle::Bundle;
+use turbo::bundle::{Bundle, sha256_hex};
 use turbo::manifest::Dtype;
 use turbo::record::{Measured, ReferenceRun};
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
@@ -43,6 +47,18 @@ pub struct TensorRt {
     pub warmup_ms: u32,
     /// Where the input files are written for the container to read.
     pub work: PathBuf,
+    /// trtexec installed on the machine (`--tensorrt-bin`), run in place
+    /// of an image; `image` is then empty.
+    pub binary: Option<PathBuf>,
+}
+
+/// The machine's trtexec, as a recorded command names it.
+pub const TRTEXEC_BIN: &str = "<trtexec-bin>";
+
+/// The machine's trtexec as a record pins it: its file's SHA-256.
+pub fn native_pin(bin: &Path) -> Result<String> {
+    let bytes = fs::read(bin).map_err(|e| format!("--tensorrt-bin {}: {e}", bin.display()))?;
+    Ok(format!("trtexec@sha256:{}", sha256_hex(&bytes)))
 }
 
 /// The ONNX graph trtexec builds for a compute dtype, as its artifact's
@@ -70,6 +86,25 @@ pub fn input_bytes(values: &[i32], dtype: &str) -> Result<Vec<u8>> {
     onnx::input_bytes("--tensorrt-input-dtype", values, dtype)
 }
 
+/// trtexec's own arguments: the graph at `onnx`, the inputs loaded from
+/// `work` (a directory as trtexec sees it), the timing, the precision.
+fn flags(t: &TensorRt, onnx: &str, work: &str, rows: &Rows, iterations: u32, precision: &[String]) -> Vec<String> {
+    let shape = format!("{}x{}", rows.batch, rows.seq);
+    let shapes: Vec<String> = t.inputs.iter().map(|n| format!("{n}:{shape}")).collect();
+    let loads: Vec<String> = t.inputs.iter().map(|n| format!("{n}:{work}/{n}.bin")).collect();
+    let mut a = argv(&[
+        &format!("--onnx={onnx}"),
+        &format!("--shapes={}", shapes.join(",")),
+        &format!("--loadInputs={}", loads.join(",")),
+        &format!("--warmUp={}", t.warmup_ms),
+        &format!("--iterations={iterations}"),
+        "--duration=0",
+        "--percentile=99",
+    ]);
+    a.extend(precision.iter().cloned());
+    a
+}
+
 /// The `docker run` of trtexec: no network, no pulls, the bundle and the
 /// inputs mounted read-only.
 #[allow(clippy::too_many_arguments)]
@@ -83,9 +118,6 @@ pub fn run_argv(
     iterations: u32,
     precision: &[String],
 ) -> Vec<String> {
-    let shape = format!("{}x{}", rows.batch, rows.seq);
-    let shapes: Vec<String> = t.inputs.iter().map(|n| format!("{n}:{shape}")).collect();
-    let loads: Vec<String> = t.inputs.iter().map(|n| format!("{n}:/work/{n}.bin")).collect();
     let mut a = argv(&[
         "docker",
         "run",
@@ -102,15 +134,35 @@ pub fn run_argv(
         &format!("type=bind,src={},dst=/work,readonly", work.display()),
         &t.image,
         &t.trtexec,
-        &format!("--onnx=/bundle/{onnx}"),
-        &format!("--shapes={}", shapes.join(",")),
-        &format!("--loadInputs={}", loads.join(",")),
-        &format!("--warmUp={}", t.warmup_ms),
-        &format!("--iterations={iterations}"),
-        "--duration=0",
-        "--percentile=99",
     ]);
-    a.extend(precision.iter().cloned());
+    a.extend(flags(t, &format!("/bundle/{onnx}"), "/work", rows, iterations, precision));
+    a
+}
+
+/// The machine's trtexec run in place of the container: the same
+/// arguments on the bundle's and the inputs' directories as they are,
+/// and the GPU by its CUDA ordinal.
+#[allow(clippy::too_many_arguments)]
+pub fn native_argv(
+    t: &TensorRt,
+    bin: &str,
+    bundle: &Path,
+    work: &Path,
+    onnx: &str,
+    gpu: u32,
+    rows: &Rows,
+    iterations: u32,
+    precision: &[String],
+) -> Vec<String> {
+    let mut a = argv(&[bin, &format!("--device={gpu}")]);
+    a.extend(flags(
+        t,
+        &format!("{}/{onnx}", bundle.display()),
+        &work.display().to_string(),
+        rows,
+        iterations,
+        precision,
+    ));
     a
 }
 
@@ -200,12 +252,20 @@ pub const ERROR_TAGS: [&str; 1] = ["[E] "];
 /// engine included, is a record that says so, with trtexec's first error
 /// line; a failure of docker is an error.
 pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<ReferenceRun> {
-    let image = docker::check_pinned("--tensorrt-image", &t.image)?;
+    // What names the program: the image's digest, or the machine's
+    // trtexec by its SHA-256.
+    let pinned = match &t.binary {
+        Some(bin) => native_pin(bin)?,
+        None => docker::check_pinned("--tensorrt-image", &t.image)?.to_owned(),
+    };
+    let image = pinned.as_str();
     let procedure = format!(
-        "trtexec builds an engine from the bundle's ONNX file and times {iterations} queries of the batch's \
+        "trtexec{} builds an engine from the bundle's ONNX file and times {iterations} queries of the batch's \
          [{}, {}] rows loaded from files; p50 and p99 are its Latency (H2D, GPU compute, D2H) median and \
          percentile(99%)",
-        m.rows.batch, m.rows.seq
+        if t.binary.is_some() { ", the machine's own (--tensorrt-bin)," } else { "" },
+        m.rows.batch,
+        m.rows.seq
     );
     let log = Log::default();
     let onnx = match onnx_file(m) {
@@ -220,7 +280,9 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
     // The file the manifest lists, checked against its hash.
     Bundle::open(&m.bundle_dir).and_then(|b| b.read_verified(&onnx)).map_err(|e| e.message)?;
     let mut log = log;
-    docker::require_image(&mut log, image)?;
+    if t.binary.is_none() {
+        docker::require_image(&mut log, image)?;
+    }
 
     check_inputs(&t.inputs)?;
     let work = t.work.join(format!("turbo-bench-trtexec-{}", std::process::id()));
@@ -228,17 +290,17 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
     let result = (|| {
         onnx::write_inputs(&work, &t.inputs, &t.input_dtype, "--tensorrt-input-dtype", &m.rows)?;
         let work = fs::canonicalize(&work).map_err(|e| format!("{}: {e}", work.display()))?;
-        let cmd = run_argv(t, &m.bundle_dir, &work, &onnx, gpu, &m.rows, iterations, &precision);
-        let shown = run_argv(
-            t,
-            Path::new(docker::BUNDLE),
-            Path::new(docker::WORK),
-            &onnx,
-            gpu,
-            &m.rows,
-            iterations,
-            &precision,
-        );
+        let (bundle, shown_bundle, shown_work) = (&m.bundle_dir, Path::new(docker::BUNDLE), Path::new(docker::WORK));
+        let (cmd, shown) = match &t.binary {
+            Some(bin) => (
+                native_argv(t, &bin.display().to_string(), bundle, &work, &onnx, gpu, &m.rows, iterations, &precision),
+                native_argv(t, TRTEXEC_BIN, shown_bundle, shown_work, &onnx, gpu, &m.rows, iterations, &precision),
+            ),
+            None => (
+                run_argv(t, bundle, &work, &onnx, gpu, &m.rows, iterations, &precision),
+                run_argv(t, shown_bundle, shown_work, &onnx, gpu, &m.rows, iterations, &precision),
+            ),
+        };
         match log.run_program(&cmd, shown, &ERROR_TAGS)? {
             Ran::Done(out) => parse(&out).map(Ok),
             Ran::Failed(why) => Ok(Err(format!("trtexec {why}"))),
