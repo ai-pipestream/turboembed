@@ -18,6 +18,8 @@ ureq = "3"
 [features]
 # Links the CUDA backend into the library the tool measures (docs/cuda.md).
 cuda = ["turbo/cuda"]
+# cuBLAS in that library as well, for a record with TURBO_CUDA_CUBLAS set.
+cuda-cublas = ["turbo/cuda-cublas"]
 # Links the Level Zero backend (docs/levelzero.md).
 levelzero = ["turbo/levelzero"]
 # Links the Metal backend (docs/metal.md); TEI is then its router built

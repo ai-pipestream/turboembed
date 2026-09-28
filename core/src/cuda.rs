@@ -37,6 +37,7 @@ unsafe extern "C" {
         max_ref: *mut f64,
     ) -> i32;
     fn turbo_cuda_use_cublas(gemms: i32);
+    fn turbo_cuda_has_cublas() -> i32;
     fn turbo_cuda_use_tile(tile: i32);
     fn turbo_cuda_use_sk_steps(steps: i32);
     fn turbo_cuda_use_choices(choices: *const std::ffi::c_char);
@@ -201,6 +202,14 @@ pub fn gemm_check(
 #[cfg(feature = "internals")]
 pub fn use_cublas(gemms: Option<u32>) {
     unsafe { turbo_cuda_use_cublas(gemms.map_or(-1, |g| g as i32)) };
+}
+
+/// Whether this build links cuBLAS (the `cuda-cublas` feature): without
+/// it a session naming a GEMM for cuBLAS and [`gemm_check`] are refused
+/// with `TURBO_E_UNSUPPORTED`. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn has_cublas() -> bool {
+    unsafe { turbo_cuda_has_cublas() != 0 }
 }
 
 /// Every allocation the CUDA backend has made in this process, host and

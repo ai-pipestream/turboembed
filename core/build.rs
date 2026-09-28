@@ -15,8 +15,11 @@
 //!   compile that when it loads the library.
 //!
 //! The kernels and the host side are compiled by nvcc into a static
-//! library linked into libturbo, against the toolkit's shared cudart and
-//! cuBLAS, with the toolkit's library directory as a run path.
+//! library linked into libturbo, with the toolkit's static cudart, so
+//! the library needs the driver alone to run. With `cuda-cublas` the host
+//! side is compiled with TURBO_CUDA_CUBLAS and linked against the
+//! toolkit's shared cuBLAS as well, with the toolkit's library directory
+//! as a run path.
 //!
 //! The Metal backend (core/metal/), for `metal`, on macOS: its host side
 //! compiled by the Xcode command line tools' clang into a static library
@@ -104,13 +107,15 @@ fn cuda() {
         ));
     }
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_else(|_| env::consts::ARCH.to_owned());
+    let cublas = env::var_os("CARGO_FEATURE_CUDA_CUBLAS").is_some();
+    let needed = if cublas { "libcudart_static.a and libcublas.so" } else { "libcudart_static.a" };
     let lib = ["lib64", "lib", &format!("targets/{arch}-linux/lib"), &format!("lib/{arch}-linux-gnu")]
         .iter()
         .map(|d| root.join(d))
-        .find(|d| d.join("libcudart.so").exists())
+        .find(|d| d.join("libcudart_static.a").exists() && (!cublas || d.join("libcublas.so").exists()))
         .unwrap_or_else(|| {
             fail(&format!(
-                "no libcudart.so under {}/lib64, lib, targets/{arch}-linux/lib or lib/{arch}-linux-gnu",
+                "no {needed} under {}/lib64, lib, targets/{arch}-linux/lib or lib/{arch}-linux-gnu",
                 root.display()
             ))
         });
@@ -130,8 +135,11 @@ fn cuda() {
     for src in SOURCES {
         let obj = object(&out, src);
         let mut cmd = Command::new(&nvcc);
-        cmd.args(["-c", "-O3", "-std=c++17", "-Xcompiler", "-fPIC,-Wall,-Wextra"])
-            .arg("-I")
+        cmd.args(["-c", "-O3", "-std=c++17", "-Xcompiler", "-fPIC,-Wall,-Wextra"]);
+        if cublas {
+            cmd.arg("-DTURBO_CUDA_CUBLAS=1");
+        }
+        cmd.arg("-I")
             .arg(&include)
             .arg("-isystem")
             .arg(&cutlass)
@@ -157,10 +165,19 @@ fn cuda() {
     println!("cargo:rustc-link-search=native={}", out.display());
     println!("cargo:rustc-link-lib=static=turbo_cuda");
     println!("cargo:rustc-link-search=native={}", lib.display());
-    println!("cargo:rustc-link-lib=dylib=cublas");
-    println!("cargo:rustc-link-lib=dylib=cudart");
+    // The runtime linked in, so the library needs the driver alone; the
+    // runtime's own needs after it.
+    println!("cargo:rustc-link-lib=static=cudart_static");
+    for l in ["dl", "pthread", "rt"] {
+        println!("cargo:rustc-link-lib=dylib={l}");
+    }
+    if cublas {
+        // cuBLAS stays the toolkit's shared library, found through its
+        // directory as a run path.
+        println!("cargo:rustc-link-lib=dylib=cublas");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib.display());
+    }
     println!("cargo:rustc-link-lib=dylib=stdc++");
-    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib.display());
 }
 
 /// The levelzero backend's kernels, core/levelzero/encoder.cl, compiled to
