@@ -1688,7 +1688,16 @@ fn attention_of_128_queries_matches_on_whole_chunks_and_holes() {
 /// GEMMs, which TURBO_CUDA_LAYER_NORM=fused picks, gives the bits of the
 /// separate kernel, the default, at every precision, with every tile
 /// (rows split among blocks of 64, 128 and 256), on hidden widths of 64 and 384 and rows of
-/// very different lengths with masked tokens inside. And the pooling of
+/// very different lengths with masked tokens inside, with whole tiles to
+/// a block. The fused kernel holds more than the plain one, so fewer of
+/// its blocks fit a device, and where that launch is what bounds the
+/// blocks (the 8 SMs of a Jetson Orin Nano at these shapes; never the 66
+/// of an RTX 4080 SUPER) stream-K splits a tile's k steps at other points
+/// than the plain kernel's, and the F32 sums round apart (on the Orin at
+/// FASTEST, tile T64x64: 2.7e-7 at hidden 64, 1.4e-5 at 384, the same
+/// bits on every run). So under the default stream-K the fused vectors
+/// are held to the separate kernel's within the bound of the precision
+/// instead, and the distance is printed. And the pooling of
 /// a thread per column, TURBO_CUDA_POOL=columns, gives the default's
 /// vectors within the bound (it adds the tokens in another order), at
 /// every pooling.
@@ -1696,7 +1705,7 @@ fn attention_of_128_queries_matches_on_whole_chunks_and_holes() {
 fn layer_norm_in_the_gemms_gives_the_separate_bits() {
     let _t = turn();
     let Some(_) = cuda_device("layer_norm_in_the_gemms_gives_the_separate_bits") else { return };
-    use turbo::cuda::Tile;
+    use turbo::cuda::{StreamK, Tile};
     for hidden in [64, 384] {
         let mut m = model_manifest();
         m["architecture"]["hidden"] = json!(hidden);
@@ -1711,6 +1720,8 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
         let g = f.load_on(cuda).unwrap();
         let t = rows_of(&f.dir, &[300, 129, 64, 63, 17, 1], 300, true);
         for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+            let gs = Session::create(g.m, Some(&session_desc(6, 300, precision))).unwrap();
+            let tol = record::tolerance(gs.info().compute_dtype).unwrap();
             for tile in [
                 Tile::Default,
                 Tile::T64x64,
@@ -1724,31 +1735,39 @@ fn layer_norm_in_the_gemms_gives_the_separate_bits() {
                 Tile::Swizzled256x128,
                 Tile::SwizzledEightWarpsF16Accumulate,
             ] {
-                let mut bits = Vec::new();
-                for separate in [true, false] {
+                // A run with the LayerNorm separate or fused, under a
+                // stream-K forced, or the default's when none is.
+                let run = |separate: bool, sk: Option<StreamK>| {
                     // The epilogues read the F32 residual stream and the
                     // F32 product: the separate kernel is held to them here.
                     turbo::cuda::use_residual16(Some(false));
                     turbo::cuda::use_product16(Some(false));
                     turbo::cuda::use_tile(Some(tile));
+                    turbo::cuda::use_stream_k(sk);
                     turbo::cuda::use_separate_layer_norm(Some(separate));
                     let s = Session::create(g.m, Some(&session_desc(6, 300, precision)));
                     turbo::cuda::use_separate_layer_norm(None);
+                    turbo::cuda::use_stream_k(None);
                     turbo::cuda::use_tile(None);
                     turbo::cuda::use_product16(None);
                     turbo::cuda::use_residual16(None);
                     let s = s.unwrap();
                     s.write_tokens(&t.batch(), None).unwrap();
-                    bits.push(s.run().unwrap().rows());
-                }
-                assert_eq!(bits[0], bits[1], "hidden {hidden}, precision {precision}, tile {tile:?}: other bits");
+                    s.run().unwrap().rows()
+                };
+                let what = format!("hidden {hidden}, precision {precision}, tile {tile:?}");
+                // Whole tiles to a block: no split, so the two kernels sum
+                // the same FMA chains, and the epilogues alone are compared.
+                assert_eq!(run(true, Some(StreamK::Tiles)), run(false, Some(StreamK::Tiles)), "{what}: other bits");
+                // The default stream-K: the fused kernel's launch may
+                // split k at other points, so within the bound.
+                let (cos, abs) = within(&format!("{what}, stream-K"), &run(false, None), &run(true, None), tol);
+                println!("{what}: fused under stream-K, 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
             }
-            let gs = Session::create(g.m, Some(&session_desc(6, 300, precision))).unwrap();
             turbo::cuda::use_column_pool(Some(true));
             let cols = Session::create(g.m, Some(&session_desc(6, 300, precision)));
             turbo::cuda::use_column_pool(None);
             let cols = cols.unwrap();
-            let tol = record::tolerance(gs.info().compute_dtype).unwrap();
             for pooling in [TURBO_POOLING_MEAN, TURBO_POOLING_CLS, TURBO_POOLING_LAST] {
                 for normalize in [TURBO_NORMALIZE_NONE, TURBO_NORMALIZE_L2] {
                     let o = opts(|o| {
@@ -2045,7 +2064,12 @@ fn every_gemm_tile_gives_the_same_vectors() {
 /// TURBO_CUDA_SK_STEPS shares the GEMMs' k steps out among the blocks at
 /// other points, or gives each block whole tiles (`tiles`): every choice
 /// gives the vectors of the default within the bound of the precision,
-/// at every precision, on ragged rows, and repeats its own bits.
+/// at every precision, on ragged rows, and repeats its own bits. Forcing
+/// the kernels' own fewest steps (`Default`, 0) forces `Steps(4)`,
+/// SK_MIN_STEPS, bit for bit; it is not the default's choices, which hold
+/// whole tiles for some GEMMs at FASTEST from the le4k bin, and on a
+/// device with few SMs the two differ (on one with many, stream-K at
+/// these shapes never splits a tile, and they happen to agree).
 #[test]
 fn every_stream_k_mode_gives_the_same_vectors() {
     let _t = turn();
@@ -2067,8 +2091,10 @@ fn every_stream_k_mode_gives_the_same_vectors() {
         let tol = record::tolerance(own.info().compute_dtype).unwrap();
         own.write_tokens(&t.batch(), None).unwrap();
         let want = own.run().unwrap().rows();
+        let mut own = None;
         for sk in [
             StreamK::Default,
+            StreamK::Steps(4),
             StreamK::Steps(1),
             StreamK::Steps(2),
             StreamK::Steps(8),
@@ -2083,8 +2109,14 @@ fn every_stream_k_mode_gives_the_same_vectors() {
             let got = s.run().unwrap().rows();
             s.write_tokens(&t.batch(), None).unwrap();
             assert_eq!(s.run().unwrap().rows(), got, "precision {precision}, {sk:?}: the same bits again");
-            if matches!(sk, StreamK::Default) {
-                assert_eq!(got, want, "precision {precision}: the kernels' own steps, forced, are the default");
+            match sk {
+                StreamK::Default => own = Some(got.clone()),
+                StreamK::Steps(4) => assert_eq!(
+                    own.as_ref(),
+                    Some(&got),
+                    "precision {precision}: the kernels' own steps, forced, are Steps(4), SK_MIN_STEPS"
+                ),
+                _ => {}
             }
             let (cos, abs) = within(&format!("precision {precision}, {sk:?}"), &got, &want, tol);
             println!("precision {precision}, {sk:?}: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
