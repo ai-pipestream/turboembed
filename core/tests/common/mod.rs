@@ -445,7 +445,9 @@ impl Tok {
     }
 
     pub fn row(&self, text: &str, opts: Option<&turbo_encode_options>) -> Result<Vec<i32>, Failure> {
-        Ok(self.encode(&[text], opts, 1024)?.row(0))
+        // A row no text can overrun: a token is at least a byte, and the
+        // prefix a role adds is short.
+        Ok(self.encode(&[text], opts, (text.len() + 1024) as u32)?.row(0))
     }
 }
 
