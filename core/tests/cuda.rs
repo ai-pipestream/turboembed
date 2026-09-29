@@ -203,17 +203,29 @@ fn the_devices_listed_are_the_drivers() {
 // ---- Capability ------------------------------------------------------------------
 
 /// MODEL and EXACT compute in F32, FASTEST in F16, and a session says
-/// what its cell says.
+/// what its cell says; the cell is SUPPORTED where a record in the build
+/// backs it on this machine, naming the record, and EXPERIMENTAL else.
 #[test]
 fn embed_is_offered_in_the_dtype_sessions_run_it() {
     let _t = turn();
-    let Some(_) = cuda_device("embed_is_offered_in_the_dtype_sessions_run_it") else { return };
+    let Some(dev) = cuda_device("embed_is_offered_in_the_dtype_sessions_run_it") else { return };
     let l = on_cuda(&tiny_bundle());
+    let arch = field(&Rt::new().info(dev).arch);
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
         let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
         cap.struct_size = size_of::<turbo_capability>() as u32;
         assert_eq!(unsafe { turbo_runtime_capability(l.rt, cuda(l.rt), TURBO_TASK_EMBED, p, &mut cap, null_err()) }, 0);
-        assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&cap.reason));
+        // A benchmark record compiled into the build for this machine's
+        // cell makes it SUPPORTED, naming the record; else it runs
+        // unmeasured.
+        if cap.status == backend::TURBO_CAP_SUPPORTED {
+            let name = field(&cap.benchmark);
+            assert!(name.starts_with(&format!("{arch}.cuda.embed.")), "{name}");
+            assert!(cap.cosine_floor > 0.999 && cap.speed_ratio > 0.0, "a record's numbers");
+            println!("precision {p}: SUPPORTED, backed by {name}");
+        } else {
+            assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&cap.reason));
+        }
         let want = if p == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
         assert_eq!(cap.dtype, want, "precision {p}");
         assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");

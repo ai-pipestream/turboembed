@@ -1,0 +1,142 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-09-28T11:08:28Z",
+  "machine": {
+    "arch": "orin",
+    "host_cpu": "",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cuda",
+    "kind": "DEVICE_IGPU",
+    "name": "Orin",
+    "vendor": "NVIDIA",
+    "driver_version": "CUDA 13.2",
+    "runtime_version": "13.2",
+    "memory_total": 7848579072
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cuda cpu",
+    "commit": "4f703b073aec8efc10e035c742d5570859d67c5a",
+    "pushed_to": [
+      "origin/header-precision-and-task-rule-d35x0i",
+      "origin/main"
+    ],
+    "settings": [
+      "TURBO_CUDA_TUNED=default",
+      "TURBO_CUDA_CHOICES=le256:qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4,attn=fma-tiled,ln=separate;le1k:qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4,attn=fma-tiled,ln=separate;le4k:qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4,attn=fma-tiled,ln=separate;le16k:qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4,attn=fma-tiled,ln=separate;pool=groups;forced="
+    ]
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_EXACT",
+  "compute_dtype": "DTYPE_F32",
+  "bundle": {
+    "model_id": "BAAI/bge-small-en-v1.5",
+    "revision": "1",
+    "manifest_sha256": "cb28c3c7cd30bfafe809994c0c9ea0df921f75b2bc9c5856275854b14bcfcbaa",
+    "artifact_sha256": "3c9f31665447c8911517620762200d2245a2518d6e7208acc78cd9db317e21ad",
+    "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+  },
+  "rows": {
+    "kind": "ROWS_MIXED",
+    "batch": 32,
+    "seq": 256,
+    "live_tokens": 724,
+    "cases": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "sha256": "40c67917012cb68b0f6d006b4c688b4886a91e87097036097fb9223f1db806ad"
+  },
+  "timing": {
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 38.81383,
+    "p99_ms": 38.878088999999996,
+    "mean_ms": 38.818470695,
+    "min_ms": 38.780421000000004,
+    "max_ms": 39.056912,
+    "rows_per_second": 824.3395042578022,
+    "computed_tokens": 724
+  },
+  "conformance": {
+    "rows": 40,
+    "min_cosine": 0.9999999999981299,
+    "max_abs_diff": 4.3958425521850586e-7
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "",
+      "version": "",
+      "commands": [],
+      "procedure": "",
+      "measured": null,
+      "not_run": "disabled on the command line (--no-tei)"
+    },
+    {
+      "name": "tensorrt",
+      "role": "kernel",
+      "pinned": "trtexec@sha256:94a5b196c4706ad2277841573c66381431115a11bb7dbaae3242ef523ec1ecf5",
+      "version": "10.16.2",
+      "commands": [
+        [
+          "<trtexec-bin>",
+          "--device=0",
+          "--onnx=<bundle>/onnx/model.onnx",
+          "--shapes=input_ids:32x256,attention_mask:32x256,token_type_ids:32x256",
+          "--loadInputs=input_ids:<work>/input_ids.bin,attention_mask:<work>/attention_mask.bin,token_type_ids:<work>/token_type_ids.bin",
+          "--warmUp=1000",
+          "--iterations=200",
+          "--duration=0",
+          "--percentile=99",
+          "--noTF32"
+        ]
+      ],
+      "procedure": "trtexec, the machine's own (--tensorrt-bin), builds an engine from the bundle's ONNX file and times 200 queries of the batch's [32, 256] rows loaded from files; p50 and p99 are its Latency (H2D, GPU compute, D2H) median and percentile(99%); the engine is built from onnx/model.onnx with --noTF32; its GPU Compute Time was median 317.725 ms, percentile(99%) 323.457 ms",
+      "measured": {
+        "iterations": 200,
+        "p50_ms": 318.42,
+        "p99_ms": 324.141,
+        "rows_per_second": 100.07648,
+        "min_cosine": null,
+        "computed_tokens": 8192
+      },
+      "not_run": null
+    }
+  ],
+  "speed_ratio": 0.12189507568620062,
+  "speed_reference": "tensorrt"
+}
