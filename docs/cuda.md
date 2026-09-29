@@ -1,8 +1,9 @@
 # The CUDA backend
 
 The `cuda` backend runs embed sessions on NVIDIA GPUs through the CUDA
-runtime, with GEMMs of its own; it links cuBLAS to measure them against
-and to check them in the tests. It is C++ and CUDA in `core/cuda/`,
+runtime, with GEMMs of its own; with the `cuda-cublas` feature it links
+cuBLAS as well, to measure them against and to check them in the tests.
+It is C++ and CUDA in `core/cuda/`,
 compiled by `core/build.rs` with nvcc into a static library that libturbo
 links, and the core reaches it only through its `turbo_backend` table
 (`include/turbo/turbo_backend.h`). It is off by default: the `cuda`
@@ -12,10 +13,14 @@ feature of the `turbo` crate links it, and `turbo_version()` then says
 ## Requirements
 
 - Linux, with the NVIDIA driver loaded and a GPU it lists.
-- The CUDA toolkit, 12.x or 13.x: nvcc, the runtime's and cuBLAS's
-  headers, and `libcudart.so` and `libcublas.so` in its library
-  directory. The driver must support the toolkit's CUDA version (for
-  13.x, a 580 driver or newer; for 12.x, 525 or newer).
+- To build: the CUDA toolkit, 12.x or 13.x: nvcc, the runtime's
+  headers and `libcudart_static.a` in its library directory, and with
+  `cuda-cublas` the cuBLAS headers and `libcublas.so` as well.
+- To run: the NVIDIA driver alone. The runtime is linked in, so the
+  driver must support the toolkit's CUDA version the library was built
+  with (for 13.x, a 580 driver or newer; for 12.x, 525 or newer). A
+  build with `cuda-cublas` needs the toolkit's `libcublas.so.<major>` on
+  the machine as well.
 - A host C++ compiler nvcc accepts (gcc or clang, C++17).
 - A GPU whose architecture the build targets. The default is sm_89, an
   RTX 4080 (sm_89) for example. The highest architecture built also
@@ -42,7 +47,9 @@ comma-separated list of `qkv`, `out`, `ffn1` and `ffn2` (the attention
 output and the two feed-forward GEMMs), or `all`. cuBLAS's product then
 goes through a kernel doing the same epilogue, and such a session runs
 its launches one by one instead of as a graph. Unset, cuBLAS computes
-nothing. `TURBO_CUDA_TILE`, read the same way, picks the GEMMs' output
+nothing. In a build without `cuda-cublas` a session naming any GEMM for
+it is refused (`TURBO_E_UNSUPPORTED`, naming the feature).
+`TURBO_CUDA_TILE`, read the same way, picks the GEMMs' output
 tile for every GEMM: `64x64`, `128x64`, `128x128` or `128x128-16x8`
 (128 × 128 over 128 threads of 16 × 8 outputs each for the FMA
 kernels, where the other tiles give a thread 8 × 8; plain `128x128` on
@@ -322,14 +329,13 @@ TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_BUNDLE=<all-MiniLM-L6-v2 bundle> \
     -- --include-ignored --nocapture
 ```
 
-The library links the toolkit's shared `libcudart.so.<major>` and
-`libcublas.so.<major>`, with the toolkit's library directory as its run
-path. That run path covers this package's own library and tests only: a
-binary elsewhere that links the `turbo` rlib with the feature finds the
-libraries through `LD_LIBRARY_PATH` or a run path of its own. A machine
-that runs it needs those libraries, from the toolkit or a CUDA runtime
-install of the same major version; a build without the feature needs
-none of them. Without a driver, or with no GPU, the
+The library links the toolkit's static runtime, so it needs no CUDA
+library at run time: the driver alone. With `cuda-cublas` it links the
+toolkit's shared `libcublas.so.<major>` as well, with the toolkit's
+library directory as its run path. That run path covers this package's
+own library and tests only: a binary elsewhere that links the `turbo`
+rlib with that feature finds cuBLAS through `LD_LIBRARY_PATH` or a run
+path of its own. Without a driver, or with no GPU, the
 backend lists no device and the runtime is made as usual. With a driver
 older than the runtime, it lists none and the runtime's log says why.
 
@@ -623,8 +629,10 @@ so a run that found no GPU cannot pass.
 ```
 export TURBO_TEST_REQUIRE_CUDA=1
 
-# Everything, with the CUDA-only tests in core/tests/cuda.rs:
-cargo test -p turbo --features cuda
+# Everything, with the CUDA-only tests in core/tests/cuda.rs. The checks
+# against cuBLAS (the GEMMs against its products, the F16 sums, the GEMMs
+# handed to it) run with cuda-cublas, and say they were skipped without:
+cargo test -p turbo --features cuda,cuda-cublas
 
 # The CUDA-only tests, with what they print (the device, the largest
 # difference from the f64 encoder and the CPU), in release too for the
