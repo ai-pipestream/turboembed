@@ -37,9 +37,15 @@ its place.
   on Linux `intel/linux-npu-driver`'s `libze_intel_vpu.so` over the
   kernel's `intel_vpu` module and `/dev/accel`).
 - A driver whose graph extension is 1.8 or newer and whose compiler is
-  5.9 or newer. Model loading says plainly when either is older;
-  current drivers (graph extension 1.13 through 1.20) are well past
-  both.
+  5.9 or newer. Model loading says plainly when either is older.
+  The published graph header's current version is 1.20, and its
+  function table is 33 pointers. Versions 1.17, 1.18 and 1.19 add no
+  pointers, so a copy of that header that stops at 1.18 ends at
+  `pfnEvict` (31 pointers, index 30). Version 1.20 appends
+  `pfnGetArgumentProperties4` and `pfnGetArgumentNames`. This backend
+  does not call that pair. A driver that advertises 1.17, which is
+  what the Arrow Lake listing reported, is never read past the fields
+  that version covers.
 
 The loader is opened when the first runtime lists its devices, not when
 the library loads, so a machine without it runs everything else as
@@ -256,7 +262,8 @@ ONNX, and the IR are written, and it does not write `manifest.json`.
 kind verified here: artifacts `weights-f32`, `onnx-f32`, `onnx-f16`,
 and `openvino-f16`, the reference and both conversions recorded against
 the pin above, and the IR `produced_by.reproducible` true (two runs,
-identical bytes). That is not a session on the NPU. The weights, the
+identical bytes). That Linux seal is not the hardware session. The
+Arrow Lake session is recorded under Hardware. The weights, the
 ONNX files, and the IR are not in git.
 
 On the Arrow Lake machine, where OpenVINO 2026.3 is already installed
@@ -378,24 +385,44 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
     cargo test -p turbo --features npu --test conformance -- --include-ignored
 ```
 
+## Hardware
+
+Commit `90d7138`, on Windows Arrow Lake. The device lists as
+`Intel(R) AI Boost`, arch `arl-npu`, loader 1.28.2, driver
+`0.15.21738`. An earlier listing on that machine advertised graph
+extension 1.17. The bundle was a host seal of the MiniLM
+`openvino-f16` IR: `container` `host`, `reproducible` false. The
+reference file copied into that seal is
+`bundle/reference/out/all-minilm-l6-v2/`.
+
+```
+set TURBO_TEST_REQUIRE_NPU=1
+set TURBO_TEST_BUNDLE=<bundle>
+cargo test -p turbo --features npu --test npu -- --include-ignored
+```
+
+10 passed.
+
+`TURBO_TEST_BUNDLE` stays set from the command above.
+
+```
+set TURBO_TEST_DEVICE=npu
+cargo test -p turbo --features npu --test conformance -- --include-ignored
+```
+
+3 passed. One of the three is the `FORMAT_SAFETENSORS` case, which this
+backend skips. The numerical proof is the two tests that match the
+reference.
+
+Capability stays `EXPERIMENTAL` at `MODEL` and `FASTEST`. The dtype
+reported before a model is loaded is 0, and that is why a benchmark
+record is not `SUPPORTED`. `EXACT` stays `UNSUPPORTED`. The backend
+does not claim `SUPPORTED`. The output-precision check is unchanged:
+FP16 is `DTYPE_F16`, FP32 is `DTYPE_F32`, and a manifest
+`compute_dtype` that names the other is refused.
+
 ## Still to land
 
-- Execution proof. Device listing is proven on hardware (Arrow Lake
-  Windows, `Intel(R) AI Boost`, arch `arl-npu`, loader 1.28.2, graph
-  extension 1.17). The compile-and-run path has not run against a
-  device: the MiniLM recipe now carries `openvino-f16` for `npu`, and
-  the proof is still the ignored tests and the conformance run above,
-  on that machine, with `TURBO_TEST_REQUIRE_NPU=1` and
-  `TURBO_TEST_BUNDLE` set to a bundle `make` or `seal` produced from that recipe.
-  The reference file for the pinned image is
-  `bundle/reference/out/all-minilm-l6-v2/`. The conversion writes an IR
-  whose highest layer opset is at most 11, which is the cap that driver
-  reports, and whose Result port is FP16, which is the precision the
-  build flags name for the output. An earlier IR from this recipe had
-  FP16 weights and a FP32 Result; the compiler reported `DTYPE_F32` and
-  `model_load` refused the manifest's `DTYPE_F16`. A Linux `seal` of an
-  IR that image wrote has verified. The device has not compiled or run
-  this IR. Nothing in this tree claims a session has run on the NPU.
 - The `INPUT_EMBEDDINGS` host-gather path, should an NPU graph ever be
   cut at the embedding gather the way the Hailo one is.
 - `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which

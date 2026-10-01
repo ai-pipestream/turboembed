@@ -362,11 +362,12 @@ pub struct GraphDdi {
     pub pfn_set_argument_value2: *const c_void,
     // version 1.16
     pub pfn_evict: *const c_void,
-    // Versions 1.17, 1.18 and 1.19 add no pointers. Version 1.20, which
-    // the published header names ZE_GRAPH_EXT_VERSION_CURRENT, appends
-    // these two. This backend does not call them. They stay so the
-    // table is the header's size: a C compile of that header is 33
-    // pointers, with pfnEvict at index 30.
+    // The published header's CURRENT is 1.20, and a C compile of it is
+    // 33 pointers. Versions 1.17, 1.18 and 1.19 add none, so a copy
+    // that stops at 1.18 ends at pfnEvict, index 30 (31 pointers).
+    // Version 1.20 appends the two below. This backend does not call
+    // them. A driver that advertises 1.17 is not read past the fields
+    // that version covers.
     pub pfn_get_argument_properties4: *const c_void,
     pub pfn_get_argument_names: *const c_void,
 }
@@ -633,7 +634,8 @@ mod tests {
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_get_argument_properties4), 31 * p);
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_get_argument_names), 32 * p);
         // ze_graph_dditable_ext_t in the published header
-        // (ZE_GRAPH_EXT_VERSION_CURRENT 1.20) is 33 pointers.
+        // (ZE_GRAPH_EXT_VERSION_CURRENT 1.20) is 33 pointers. Through
+        // 1.18 the table ends at pfnEvict, 31 pointers.
         assert_eq!(size_of::<GraphDdi>(), 33 * p);
     }
 
