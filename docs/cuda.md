@@ -50,7 +50,7 @@ its launches one by one instead of as a graph. Unset, cuBLAS computes
 nothing. In a build without `cuda-cublas` a session naming any GEMM for
 it is refused (`TURBO_E_UNSUPPORTED`, naming the feature).
 `TURBO_CUDA_TILE`, read the same way, picks the GEMMs' output
-tile for every GEMM: `64x64`, `128x64`, `128x128` or `128x128-16x8`
+tile for every GEMM: `64x64`, `128x64`, `128x128`, `128x128-16x8` or `cs`
 (128 × 128 over 128 threads of 16 × 8 outputs each for the FMA
 kernels, where the other tiles give a thread 8 × 8; plain `128x128` on
 the tensor cores), and for the tensor cores `128x128-4w` (four warps of
@@ -176,6 +176,16 @@ FASTEST's default (`f16k3` where K is not a multiple of 8): on an RTX
 on dense input at a reference cosine of 0.999998, three orders of
 magnitude inside FASTEST's bound. `ct` and `ctk` are candidates the
 tuner measures; the other whole-k tiles are not.
+`TURBO_CUDA_TILE=cs` runs F32 operands on the same mainloop's SIMT form
+(`MmaMultistage` over `MmaSimt`): 128 × 128 × 8 tiles at four stages
+over eight warps of 32 × 64, each lane 8 × 8 outputs, two blocks to an
+SM, F32 FMAs in k order, the FMA kernel's class at MODEL and EXACT,
+with the FMA kernel's schedule, partial products and epilogue. Any K.
+It needs cp.async (sm_80 and newer) and is the FMA kernel's `128x64`
+below that or for F16 operands. The FMA kernel's own tiles fall behind
+as a model widens: on an RTX 4080 SUPER, bge-large at MODEL on dense
+32 × 256 took 290 ms against TensorRT's 186 with TF32 off; `cs` is the
+tile for that, and a candidate the tuner measures for F32 operands.
 Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
 uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
 F32 sums, sums over 64 and whole-k sums side by side, and hold the last
@@ -263,7 +273,8 @@ holds across backends. It is off by default.
 What is timed: each token bin's four GEMMs, each over the tiles its
 precision's classes allow: at FASTEST on tensor cores `ctk`, `8w`,
 `sw8w`, `ct`, `acc16-8w` and `acc16-sw8w`; on the FMA kernels `128x64`,
-`128x128-16x8`, `128x128` and `64x64`; with `TURBO_CUDA_TF32=1` at
+`128x128-16x8`, `128x128` and `64x64`, and `cs` for F32 operands on
+sm_80 and newer; with `TURBO_CUDA_TF32=1` at
 MODEL, `128x64/tf32` and `128x128/tf32` too. The other tiles, and the
 `f16k` tiles, are forced only. A GEMM whose tile a switch forces is not
 timed. Stream-K, attention, the LayerNorm and the pooling keep their

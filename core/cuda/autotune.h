@@ -93,6 +93,7 @@ constexpr TileName TILE_NAMES[] = {
     {"f16k256", TILE_F16_WHOLE_K_256, true},
     {"ct", TILE_CT, true},
     {"ctk", TILE_CT_K, true},
+    {"cs", TILE_CS, true},
 };
 
 /* Whether a tile sums F16 products in F16 accumulators: over each 64

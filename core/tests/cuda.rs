@@ -1927,7 +1927,7 @@ fn the_gemms_match_cublas() {
                     Tile::CtK,
                 ]
             } else {
-                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
+                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8, Tile::Cs]
             };
             for &tile in tiles {
                 // A token count past a few thousand only as many blocks
@@ -2074,6 +2074,7 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::F16WholeK256,
             Tile::Ct,
             Tile::CtK,
+            Tile::Cs,
         ] {
             // The whole-k tiles sum in F16, the F16 accumulators' experiment.
             let whole_k = matches!(

@@ -125,7 +125,12 @@ enum Tile : int {
     TILE_CT = 18,
     /* TILE_CT with F16 sums over the whole of a block's k, as
      * TILE_F16_WHOLE_K_3: an experiment. */
-    TILE_CT_K = 19
+    TILE_CT_K = 19,
+    /* F32 operands on CUTLASS's sm80 SIMT mainloop: 128 x 128 x 8 at four
+     * stages over eight warps of 32 x 64, two blocks to an SM, F32 FMAs in
+     * k order; the FMA kernel's schedule, partial products and epilogue.
+     * Any K. Needs cp.async (sm_80); the FMA kernel's 128 x 64 otherwise. */
+    TILE_CS = 20
 };
 
 /* The four GEMMs of a layer, in the order a layer runs them. */
