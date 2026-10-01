@@ -267,6 +267,24 @@ fn on_npu() -> Loaded {
     Loaded::load_on(&ir_bundle(), |rt| first_of(rt, "npu").expect("an npu device")).unwrap_or_else(|e| panic!("{e:?}"))
 }
 
+/// LOOKUP for the artifact this load reported. The hash is the one
+/// `turbo_model_info.artifact_sha256` carries, so the expectation
+/// follows the file the device compiled: host for INPUT_EMBEDDINGS,
+/// device for INPUT_TOKEN_IDS.
+fn lookup_stage_for(bundle: &std::path::Path, artifact_sha: &str) -> u32 {
+    let opened = turbo::bundle::Bundle::open(bundle).unwrap_or_else(|e| panic!("{}: {e}", bundle.display()));
+    let art = opened
+        .manifest
+        .artifacts
+        .iter()
+        .find(|a| turbo::model::artifact_sha256(&opened.manifest, a) == artifact_sha)
+        .unwrap_or_else(|| panic!("no artifact hashes to {artifact_sha}"));
+    match art.graph_input {
+        turbo::manifest::GraphInput::Embeddings => TURBO_STAGE_HOST,
+        turbo::manifest::GraphInput::TokenIds => TURBO_STAGE_DEVICE,
+    }
+}
+
 #[test]
 #[ignore = "needs an Intel NPU and TURBO_TEST_BUNDLE with an OpenVINO IR for it"]
 fn a_session_computes_in_the_compiled_dtype_and_exact_is_refused() {
@@ -282,11 +300,14 @@ fn a_session_computes_in_the_compiled_dtype_and_exact_is_refused() {
 
 /// The rows go to the device as the graph's own input precisions, the
 /// encoder runs on the NPU, and pooling and normalize run on the host:
-/// the vectors stay in host memory, unit length by default.
+/// the vectors stay in host memory, unit length by default. Lookup is
+/// on the host when the loaded artifact is INPUT_EMBEDDINGS, because
+/// the host gathers the word rows, and on the device for a token-id IR.
 #[test]
 #[ignore = "needs an Intel NPU and TURBO_TEST_BUNDLE with an OpenVINO IR for it"]
 fn a_run_reports_its_frames_and_where_each_stage_ran() {
     let l = on_npu();
+    let lookup = lookup_stage_for(&ir_bundle(), &field(&l.info().artifact_sha256));
     let s = Session::create(l.m, Some(&session_desc(4, 0, TURBO_PRECISION_MODEL))).unwrap();
     let seq = s.info().max_seq as u64;
     let dim = l.info().dim as u64;
@@ -306,7 +327,7 @@ fn a_run_reports_its_frames_and_where_each_stage_ran() {
     let st = &info.stage;
     assert_eq!(st[TURBO_EMBED_STAGE_TOKENIZE], TURBO_STAGE_HOST);
     assert_eq!(st[TURBO_EMBED_STAGE_UPLOAD], TURBO_STAGE_DEVICE);
-    assert_eq!(st[TURBO_EMBED_STAGE_LOOKUP], TURBO_STAGE_DEVICE);
+    assert_eq!(st[TURBO_EMBED_STAGE_LOOKUP], lookup);
     assert_eq!(st[TURBO_EMBED_STAGE_ENCODE], TURBO_STAGE_DEVICE);
     assert_eq!(st[TURBO_EMBED_STAGE_POOL], TURBO_STAGE_HOST);
     assert_eq!(st[TURBO_EMBED_STAGE_NORMALIZE], TURBO_STAGE_HOST);

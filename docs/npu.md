@@ -456,6 +456,15 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
     cargo test -p turbo --features npu --test conformance -- --include-ignored
 ```
 
+`a_run_reports_its_frames_and_where_each_stage_ran` reads the loaded
+artifact. Lookup is `TURBO_STAGE_HOST` when that artifact is
+`INPUT_EMBEDDINGS` and `TURBO_STAGE_DEVICE` when it is
+`INPUT_TOKEN_IDS`. Upload, encode and download stay on the device.
+Pooling and normalize stay on the host. The loader takes the first
+`npu` artifact, so a bundle that lists `openvino-f16` first still
+reports lookup on the device. A seal that drops that artifact, or
+lists `openvino-embeddings-f16` first, reports lookup on the host.
+
 ## Hardware
 
 Commit `90d7138`, on Windows Arrow Lake. The device lists as
@@ -485,6 +494,17 @@ cargo test -p turbo --features npu --test conformance -- --include-ignored
 backend skips. The numerical proof is the two tests that match the
 reference.
 
+An embeddings-sealed MiniLM at tip `93f0d76` compiled
+`openvino-embeddings-f16` on AI Boost. The script reported
+`cut_max_abs_diff` 0.00451, and `turbo-bundle verify` exited 0.
+Conformance with `TURBO_TEST_DEVICE=npu` passed 3. The npu tests passed
+9. `a_run_reports_its_frames_and_where_each_stage_ran` failed: it
+expected lookup on the device, and the run reported the host. That
+gather is a host stage. The test now expects `TURBO_STAGE_HOST` for an
+`INPUT_EMBEDDINGS` artifact and `TURBO_STAGE_DEVICE` for a token-id
+artifact. A re-run of the npu tests on that bundle is what confirms
+the assertion. This tree has no NPU.
+
 Capability stays `EXPERIMENTAL` at `MODEL` and `FASTEST`. The dtype
 reported before a model is loaded is 0, and that is why a benchmark
 record is not `SUPPORTED`. `EXACT` stays `UNSUPPORTED`. The backend
@@ -494,11 +514,12 @@ FP16 is `DTYPE_F16`, FP32 is `DTYPE_F32`, and a manifest
 
 ## Still to land
 
-- An AI Boost compile of `openvino-embeddings-f16`: `devicePrecision`
-  and `deviceLayout` for `word_rows` and `attn_bias`, and a reference
-  embed on that graph. No NPU here has compiled this IR, so it is not
-  part of the Arrow Lake receipt above. Capability stays `EXPERIMENTAL`.
+- A re-run of `cargo test -p turbo --features npu --test npu -- --include-ignored`
+  on the embeddings-sealed MiniLM, which is the confirmation that
+  lookup is reported on the host. The compile, the reference match,
+  and conformance already passed on that machine.
 - `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which
   would need its own artifact format in docs/bundle.md, decided when a
   bundle wants to carry one.
-- No benchmark record marks this backend `SUPPORTED`.
+- No benchmark record marks this backend `SUPPORTED`. Capability stays
+  `EXPERIMENTAL`.

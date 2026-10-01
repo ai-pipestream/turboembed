@@ -1646,10 +1646,7 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
     out.host_allocs = 0;
     out.device_allocs = 0;
     out.stage[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_DEVICE;
-    out.stage[TURBO_EMBED_STAGE_LOOKUP] = match &m.inputs {
-        GraphInputs::Embeddings { .. } => TURBO_STAGE_HOST,
-        GraphInputs::Tokens { .. } => TURBO_STAGE_DEVICE,
-    };
+    out.stage[TURBO_EMBED_STAGE_LOOKUP] = lookup_stage(&m.inputs);
     out.stage[TURBO_EMBED_STAGE_ENCODE] = TURBO_STAGE_DEVICE;
     out.stage[TURBO_EMBED_STAGE_POOL] = TURBO_STAGE_HOST;
     if normalize == TURBO_NORMALIZE_L2 {
@@ -1657,6 +1654,16 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
     }
     out.stage[TURBO_EMBED_STAGE_DOWNLOAD] = TURBO_STAGE_DEVICE;
     Ok(())
+}
+
+/// Where the word-row lookup ran. An embeddings graph gathers on the
+/// host. A token-id graph hands ids to the device, and the graph does
+/// the lookup.
+fn lookup_stage(inputs: &GraphInputs) -> u32 {
+    match inputs {
+        GraphInputs::Embeddings { .. } => TURBO_STAGE_HOST,
+        GraphInputs::Tokens { .. } => TURBO_STAGE_DEVICE,
+    }
 }
 
 #[cfg(test)]
@@ -2059,6 +2066,22 @@ mod tests {
             }
         }
         assert!(host_bias[2 * bias_elems..].iter().all(|&v| v == MASKED), "the unused bias is dropped");
+    }
+
+    #[test]
+    fn an_embeddings_gather_reports_lookup_on_the_host() {
+        let arg =
+            |name: &str| Arg { index: 0, name: name.into(), precision: ze::GRAPH_ARGUMENT_PRECISION_FP32, elem: 4 };
+        let embeddings = GraphInputs::Embeddings {
+            rows: arg("word_rows"),
+            bias: arg("attn_bias"),
+            heads: 1,
+            table: std::ptr::null(),
+            vocab: 1,
+        };
+        assert_eq!(lookup_stage(&embeddings), TURBO_STAGE_HOST);
+        let tokens = GraphInputs::Tokens { ids: arg("input_ids"), mask: arg("attention_mask"), types: None };
+        assert_eq!(lookup_stage(&tokens), TURBO_STAGE_DEVICE);
     }
 
     #[test]
