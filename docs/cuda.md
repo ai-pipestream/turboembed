@@ -86,7 +86,9 @@ hidden states and their F16 copy once, with no LayerNorm kernel after
 it. It sums in another order than the separate kernel, so its vectors
 agree with the default's within FASTEST's bound, not bit for bit; a
 hidden width over 384 takes `sw8w`. The other precisions take `128x64`
-for these. Unset, the FMA kernels and TF32 take `128x64`,
+for these. Unset, the FMA kernels and TF32 take `128x64` (`cs` for the
+attention output and feed-forward GEMMs of a model 1024 wide or more on
+sm_80 and newer, from the le1k bin),
 and F16 on the tensor cores `8w`. On an RTX 4080 at 32 × 256, `8w` is faster than the
 four-warp tiles (`128x128-4w` with `256x128` for the first feed-forward
 GEMM): about 0.73 against 0.83 ms on mixed rows and 3.5 against 3.9 ms
@@ -177,15 +179,22 @@ on dense input at a reference cosine of 0.999998, three orders of
 magnitude inside FASTEST's bound. `ct` and `ctk` are candidates the
 tuner measures; the other whole-k tiles are not.
 `TURBO_CUDA_TILE=cs` runs F32 operands on the same mainloop's SIMT form
-(`MmaMultistage` over `MmaSimt`): 128 × 128 × 8 tiles at four stages
-over eight warps of 32 × 64, each lane 8 × 8 outputs, two blocks to an
+(`MmaMultistage` over `MmaSimt`): 256 × 128 × 8 tiles at three stages
+over eight warps of 64 × 64, each lane 16 × 8 outputs, one block to an
 SM, F32 FMAs in k order, the FMA kernel's class at MODEL and EXACT,
 with the FMA kernel's schedule, partial products and epilogue. Any K.
 It needs cp.async (sm_80 and newer) and is the FMA kernel's `128x64`
 below that or for F16 operands. The FMA kernel's own tiles fall behind
 as a model widens: on an RTX 4080 SUPER, bge-large at MODEL on dense
-32 × 256 took 290 ms against TensorRT's 186 with TF32 off; `cs` is the
-tile for that, and a candidate the tuner measures for F32 operands.
+32 × 256 took 290 ms against TensorRT's 186 with TF32 off. `cs` is the
+default for the attention output and feed-forward GEMMs of a model
+1024 wide or more from the le1k bin (the tuner's per-GEMM timings on
+bge-large at 8192 tokens: 6-13% off those three, QKV 4% behind the FMA
+`128x128`, so QKV keeps the FMA kernel); forced for every GEMM it took
+29% off that run, left bge-base within noise and cost bge-small 4%, so
+the width. Of 128 × 128 over warps of 32 × 64 at four stages and at
+three, and this shape, the tuner picked only this one. It is a
+candidate the tuner measures for F32 operands.
 Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
 uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
 F32 sums, sums over 64 and whole-k sums side by side, and hold the last

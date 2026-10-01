@@ -70,7 +70,9 @@ constexpr int ATTENTION_MAX_HEAD_DIM = 64;
 constexpr int MAX_HIDDEN = 2048;
 
 /* The GEMMs' tile, rows by columns: TILE_DEFAULT is 128 x 64 for the
- * FMA GEMM and TF32, and for F16 on the tensor cores TILE_EIGHT_WARPS;
+ * FMA GEMM and TF32 (but TILE_CS for the attention output and feed-forward
+ * GEMMs of a model 1024 wide or more on sm_80 and newer, from the le1k
+ * bin), and for F16 on the tensor cores TILE_EIGHT_WARPS;
  * TURBO_CUDA_TILE names one tile for all of them. The FMA GEMM gives a
  * thread 8 x 8 outputs but at TILE_128x128_16x8, 16 x 8 over 128
  * threads, and takes 128 x 64 for the tensor cores' own tiles. */
@@ -126,15 +128,12 @@ enum Tile : int {
     /* TILE_CT with F16 sums over the whole of a block's k, as
      * TILE_F16_WHOLE_K_3: an experiment. */
     TILE_CT_K = 19,
-    /* F32 operands on CUTLASS's sm80 SIMT mainloop: 128 x 128 x 8 at four
-     * stages over eight warps of 32 x 64, two blocks to an SM, F32 FMAs in
-     * k order; the FMA kernel's schedule, partial products and epilogue.
-     * Any K. Needs cp.async (sm_80); the FMA kernel's 128 x 64 otherwise. */
-    TILE_CS = 20,
-    /* TILE_CS at 256 x 128 over eight warps of 64 x 64, three stages, one
-     * block to an SM; and at three stages. */
-    TILE_CS_256 = 21,
-    TILE_CS_3 = 22
+    /* F32 operands on CUTLASS's sm80 SIMT mainloop: 256 x 128 x 8 at
+     * three stages over eight warps of 64 x 64, one block to an SM, F32
+     * FMAs in k order; the FMA kernel's schedule, partial products and
+     * epilogue. Any K. Needs cp.async (sm_80); the FMA kernel's 128 x 64
+     * otherwise, and for F16 operands. */
+    TILE_CS = 20
 };
 
 /* The four GEMMs of a layer, in the order a layer runs them. */

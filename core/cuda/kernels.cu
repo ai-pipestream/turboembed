@@ -2374,7 +2374,13 @@ __global__ void __launch_bounds__(128, 2) gemm_ct_kernel(GemmArgs g) {
  * RTX 4080 SUPER, dense 32 x 256: 290 ms against TensorRT's 186), this
  * tile's reason. Its schedule (stream-K), partial products and epilogue
  * are the FMA kernel's; only the k loop is CUTLASS's. The loads are one
- * float each, so any K serves. */
+ * float each, so any K serves. TILE_CS is 256 x 128 over warps of 64 x 64
+ * at three stages, one block to an SM: of 128 x 128 over warps of 32 x 64
+ * at four stages and at three, and this, the only shape the tuner picked
+ * on an RTX 4080 SUPER (bge-large, 8192 tokens: the attention output and
+ * feed-forward GEMMs 6-13% under the FMA kernel's 128 x 64; QKV not,
+ * where the FMA 128 x 128 leads by 4%). The template keeps the shape
+ * open for a device with fewer SMs. */
 #ifndef TURBO_NO_MMA
 template <int BM, int WM, int STAGES> struct CsCfg {
     using TBShape = cutlass::gemm::GemmShape<BM, 128, 8>;
@@ -2530,9 +2536,8 @@ template <int EPI, typename TOut, bool WHOLE> GemmKernel ct_kernel() {
     return {gemm_ct_kernel<EPI, TOut, WHOLE>, 128, smem, 128, 128, 2};
 }
 
-/* The SIMT mainloop's tiles: 128 x 128 over warps of 32 x 64 at four
- * stages (TILE_CS, two blocks to an SM) or three (TILE_CS_3); 256 x 128
- * over warps of 64 x 64 at three stages, one block to an SM (TILE_CS_256). */
+/* The SIMT mainloop's tile: 256 x 128 over warps of 64 x 64 at three
+ * stages, one block to an SM. */
 template <int BM, int WM, int STAGES, int MINB, int EPI, typename TOut> GemmKernel cs_kernel() {
 #ifndef TURBO_NO_MMA
     constexpr size_t smem = sizeof(typename CsCfg<BM, WM, STAGES>::Mma::SharedStorage);
@@ -2623,11 +2628,8 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
  * 128 x 128 over 128 threads; 128 x 64 by default. */
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
     // F32 operands on CUTLASS's SIMT mainloop (sm_80's cp.async).
-    if constexpr (std::is_same_v<TIn, float>) {
-        if (t == TILE_CS) return cs_kernel<128, 32, 4, 2, EPI, TOut>();
-        if (t == TILE_CS_3) return cs_kernel<128, 32, 3, 2, EPI, TOut>();
-        if (t == TILE_CS_256) return cs_kernel<256, 64, 3, 1, EPI, TOut>();
-    }
+    if constexpr (std::is_same_v<TIn, float>)
+        if (t == TILE_CS) return cs_kernel<256, 64, 3, 1, EPI, TOut>();
     if (t == TILE_DEFAULT) t = TILE_128x64;
     switch (t) {
     case TILE_64x64: return simt_kernel<64, 64, 8, TIn, EPI, TOut>();

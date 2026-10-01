@@ -1410,6 +1410,19 @@ Choices defaults(const Shape &base) {
             b.gemm[GEMM_OUT].sk = SK_TILES;
             if (base.inter >= 3072) b.gemm[GEMM_FFN2].sk = SK_TILES;
         }
+        // F32 operands on sm_80 and newer, a model 1024 wide or more: the
+        // SIMT mainloop's 256 x 128 tile for the attention output and the
+        // feed-forward GEMMs from the le1k bin up. On an RTX 4080 SUPER at
+        // MODEL on dense 32 x 256 it takes 29% off bge-large's run (the
+        // tuner's per-GEMM timings: 6-13% off those three GEMMs at 8192
+        // tokens, 2-6% at 1024, behind at 256), leaves bge-base within
+        // noise and costs bge-small 4%, so the width; mixed rows of 724
+        // tokens level. QKV keeps the FMA kernel, 4% faster there.
+        if (!base.half && base.tensor_cores && base.hidden >= 1024 && i >= 1) {
+            b.gemm[GEMM_OUT].tile = TILE_CS;
+            b.gemm[GEMM_FFN1].tile = TILE_CS;
+            b.gemm[GEMM_FFN2].tile = TILE_CS;
+        }
     }
     return c;
 }
