@@ -62,7 +62,13 @@ No build variables: there is nothing to point at.
   Each of the driver's devices of type NPU is then probed with the
   extension's `pfnDeviceGetGraphProperties`; a device is listed only
   when the probe answers, and one that does not answer is left out with
-  nothing standing in for it. No driver, no NPU device, or no graph
+  nothing standing in for it. The version that gates later calls is the
+  one `ZE_extension_graph` advertises. On a driver of 1.6 or newer the
+  probe also calls `pfnDeviceGetGraphProperties2`. A
+  `graphExtensionVersion` of 0 in either struct is the field left
+  unwritten, not version 0.0, and the advertised version is kept. A
+  non-zero device version older than the advertised one is the one
+  used. No driver, no NPU device, or no graph
   extension lists nothing, and that is not an error. `kind` is
   `TURBO_DEVICE_NPU`, `unified_memory` 1 (the NPU computes over the
   host's memory), `memory_total` what the driver reports for the

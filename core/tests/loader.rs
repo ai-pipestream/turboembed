@@ -221,6 +221,7 @@ fn the_example_artifacts_parse() {
 
 // Rule 3
 
+#[cfg(unix)]
 #[test]
 fn a_link_out_of_the_bundle_is_invalid() {
     let outside = std::env::temp_dir().join(format!("turbo-test-{}-outside.json", std::process::id()));
@@ -234,6 +235,7 @@ fn a_link_out_of_the_bundle_is_invalid() {
     assert!(e.is(BUNDLE_INVALID, "outside the bundle"), "{e:?}");
 }
 
+#[cfg(unix)]
 #[test]
 fn a_link_inside_the_bundle_is_followed() {
     let f = Fixture::standard("symlink-in");

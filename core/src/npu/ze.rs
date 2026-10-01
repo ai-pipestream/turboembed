@@ -44,7 +44,20 @@ pub const fn version(major: u32, minor: u32) -> u32 {
     (major << 16) | minor
 }
 
+/// The version that gates the DDI table.
+///
+/// `advertised` is what `zeDriverGetExtensionProperties` reports for
+/// `ZE_extension_graph`. `reported` is `graphExtensionVersion` from the
+/// device graph properties. A driver fills the compiler and leaves that
+/// field 0: that is the field unwritten, not extension 0.0, and the
+/// advertised version stands. A non-zero report older than the table is
+/// the one used, so a field past it is not read.
+pub fn extension_version(advertised: u32, reported: u32) -> u32 {
+    if reported == 0 { advertised } else { reported.min(advertised) }
+}
+
 pub const STRUCTURE_TYPE_DEVICE_GRAPH_PROPERTIES: u32 = 0x1;
+pub const STRUCTURE_TYPE_DEVICE_GRAPH_PROPERTIES_2: u32 = 0xF;
 pub const STRUCTURE_TYPE_GRAPH_DESC_2: u32 = 0xE;
 pub const STRUCTURE_TYPE_GRAPH_PROPERTIES_2: u32 = 0x10;
 pub const STRUCTURE_TYPE_GRAPH_ARGUMENT_PROPERTIES_3: u32 = 0xD;
@@ -181,7 +194,9 @@ pub struct CompilerVersion {
     pub minor: u16,
 }
 
-/// ze_device_graph_properties_t.
+/// ze_device_graph_properties_t. A C compile of ze_graph_ext.h puts
+/// graphExtensionVersion at 16 and compilerVersion at 20; the whole
+/// struct is 32 bytes.
 #[repr(C)]
 pub struct DeviceGraphProperties {
     pub stype: u32,
@@ -190,6 +205,31 @@ pub struct DeviceGraphProperties {
     pub compiler_version: CompilerVersion,
     pub graph_formats_supported: u32,
     pub max_ov_opset_version_supported: u32,
+}
+
+/// ze_graph_version_info_t, the elf and runtime versions on the 1.6
+/// device graph properties.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct GraphVersionInfo {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+/// ze_device_graph_properties_2_t. Same prefix as
+/// ze_device_graph_properties_t, then elfVersion at 32 and
+/// runtimeVersion at 44. A C compile of the header sizes it at 56.
+#[repr(C)]
+pub struct DeviceGraphProperties2 {
+    pub stype: u32,
+    pub p_next: *mut c_void,
+    pub graph_extension_version: u32,
+    pub compiler_version: CompilerVersion,
+    pub graph_formats_supported: u32,
+    pub max_ov_opset_version_supported: u32,
+    pub elf_version: GraphVersionInfo,
+    pub runtime_version: GraphVersionInfo,
 }
 
 /// ze_graph_desc_2_t.
@@ -250,6 +290,7 @@ zeroed_default!(
     DeviceMemoryProperties,
     ComponentVersion,
     DeviceGraphProperties,
+    DeviceGraphProperties2,
     GraphProperties2,
     GraphArgumentProperties3
 );
@@ -263,6 +304,7 @@ pub type PfnGraphSetArgumentValue = unsafe extern "C" fn(Handle, u32, *const c_v
 pub type PfnAppendGraph = unsafe extern "C" fn(Handle, Handle, Handle, u32, *mut Handle) -> Status;
 pub type PfnAppendGraphExecute = unsafe extern "C" fn(Handle, Handle, Handle, Handle, u32, *mut Handle) -> Status;
 pub type PfnDeviceGetGraphProperties = unsafe extern "C" fn(Handle, *mut DeviceGraphProperties) -> Status;
+pub type PfnDeviceGetGraphProperties2 = unsafe extern "C" fn(Handle, *mut DeviceGraphProperties2) -> Status;
 pub type PfnGraphGetProperties2 = unsafe extern "C" fn(Handle, *mut GraphProperties2) -> Status;
 pub type PfnGraphGetArgumentProperties3 = unsafe extern "C" fn(Handle, u32, *mut GraphArgumentProperties3) -> Status;
 pub type PfnGraphInitialize = unsafe extern "C" fn(Handle) -> Status;
@@ -302,7 +344,7 @@ pub struct GraphDdi {
     pub pfn_query_network_create2: *const c_void,
     pub pfn_query_context_memory: *const c_void,
     // version 1.6
-    pub pfn_device_get_graph_properties2: *const c_void,
+    pub pfn_device_get_graph_properties2: Option<PfnDeviceGetGraphProperties2>,
     // version 1.7
     pub pfn_get_native_binary2: *const c_void,
     // version 1.8
@@ -376,6 +418,10 @@ impl GraphExt {
 
     pub fn device_get_graph_properties(&self) -> Option<PfnDeviceGetGraphProperties> {
         covered!(self, version(1, 0), pfn_device_get_graph_properties)
+    }
+
+    pub fn device_get_graph_properties2(&self) -> Option<PfnDeviceGetGraphProperties2> {
+        covered!(self, version(1, 6), pfn_device_get_graph_properties2)
     }
 
     pub fn get_argument_properties3(&self) -> Option<PfnGraphGetArgumentProperties3> {
@@ -532,8 +578,24 @@ mod tests {
         assert_eq!(std::mem::offset_of!(DeviceProperties, name), 112);
         assert_eq!(size_of::<DeviceMemoryProperties>(), 296);
         assert_eq!(size_of::<CompilerVersion>(), 4);
+        // ze_device_graph_properties_t, from a C compile of ze_graph_ext.h
+        // (ZE_GRAPH_EXT_VERSION_CURRENT 1.20): size 32, graphExtensionVersion
+        // at 16, compilerVersion at 20, graphFormatsSupported at 24,
+        // maxOVOpsetVersionSupported at 28.
         assert_eq!(size_of::<DeviceGraphProperties>(), 32);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties, graph_extension_version), 16);
         assert_eq!(std::mem::offset_of!(DeviceGraphProperties, compiler_version), 20);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties, graph_formats_supported), 24);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties, max_ov_opset_version_supported), 28);
+        // ze_device_graph_properties_2_t: the same prefix, elfVersion at 32,
+        // runtimeVersion at 44, size 56.
+        assert_eq!(size_of::<DeviceGraphProperties2>(), 56);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties2, graph_extension_version), 16);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties2, compiler_version), 20);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties2, graph_formats_supported), 24);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties2, max_ov_opset_version_supported), 28);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties2, elf_version), 32);
+        assert_eq!(std::mem::offset_of!(DeviceGraphProperties2, runtime_version), 44);
         assert_eq!(size_of::<GraphDesc2>(), 56);
         assert_eq!(std::mem::offset_of!(GraphDesc2, input_size), 24);
         assert_eq!(std::mem::offset_of!(GraphDesc2, flags), 48);
@@ -561,6 +623,7 @@ mod tests {
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_device_get_graph_properties), 8 * p);
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_get_argument_properties3), 11 * p);
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_create2), 16 * p);
+        assert_eq!(std::mem::offset_of!(GraphDdi, pfn_device_get_graph_properties2), 19 * p);
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_get_properties2), 21 * p);
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_graph_initialize), 22 * p);
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_create3), 25 * p);
@@ -587,5 +650,21 @@ mod tests {
         assert!(ext.create2().is_none(), "the field is covered but this driver left it NULL");
         let ext = unsafe { GraphExt::new(bytes.as_ptr() as *const GraphDdi, version(1, 7)) };
         assert!(ext.get_properties2().is_none(), "1.8's get_properties2 is past a 1.7 version");
+        // 1.5's table ends before pfnDeviceGetGraphProperties2. The slot
+        // is not read.
+        let bytes = vec![0xABu8; std::mem::offset_of!(GraphDdi, pfn_device_get_graph_properties2)];
+        let ext = unsafe { GraphExt::new(bytes.as_ptr() as *const GraphDdi, version(1, 5)) };
+        assert!(ext.device_get_graph_properties2().is_none());
+    }
+
+    /// A device properties version of 0 is the field left unwritten.
+    /// The version the driver advertised for ZE_extension_graph stands,
+    /// which on the Arrow Lake machine is 1.17.
+    #[test]
+    fn a_zero_device_graph_version_keeps_the_advertised_one() {
+        assert_eq!(extension_version(version(1, 17), 0), version(1, 17));
+        assert_eq!(extension_version(version(1, 17), version(1, 8)), version(1, 8));
+        assert_eq!(extension_version(version(1, 17), version(1, 20)), version(1, 17));
+        assert_eq!(version(1, 17), 0x0001_0011);
     }
 }

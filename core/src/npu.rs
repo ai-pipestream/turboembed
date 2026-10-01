@@ -320,6 +320,33 @@ impl Driver {
                         .push(format!("{}: pfnDeviceGetGraphProperties failed with 0x{rc:08x}", ze::string(&p.name)));
                     continue;
                 }
+                // 1.6 added pfnDeviceGetGraphProperties2. A 1.17 driver
+                // fills graphExtensionVersion there; the 1.0 struct can
+                // come back with that field still 0 while the compiler
+                // version is real. A zero is not extension 0.0.
+                let mut reported = gp.graph_extension_version;
+                let mut compiler = gp.compiler_version;
+                let mut formats_supported = gp.graph_formats_supported;
+                let mut max_opset = gp.max_ov_opset_version_supported;
+                if ext_version >= ze::version(1, 6)
+                    && let Some(get2) = ext.device_get_graph_properties2()
+                {
+                    let mut gp2 = ze::DeviceGraphProperties2 {
+                        stype: ze::STRUCTURE_TYPE_DEVICE_GRAPH_PROPERTIES_2,
+                        ..Default::default()
+                    };
+                    if unsafe { get2(dev, &mut gp2) } == 0
+                        && (gp2.graph_extension_version != 0
+                            || gp2.compiler_version.major != 0
+                            || gp2.compiler_version.minor != 0)
+                    {
+                        reported = gp2.graph_extension_version;
+                        compiler = gp2.compiler_version;
+                        formats_supported = gp2.graph_formats_supported;
+                        max_opset = gp2.max_ov_opset_version_supported;
+                    }
+                }
+                let graph_version = ze::extension_version(ext_version, reported);
                 let mut n = 0u32;
                 let rc = unsafe { (api.device_get_memory_properties)(dev, &mut n, std::ptr::null_mut()) };
                 ze::check("zeDeviceGetMemoryProperties", rc)?;
@@ -335,14 +362,12 @@ impl Driver {
                 devices.push(Device {
                     driver: drv,
                     handle: dev,
-                    // The device's graph extension version, which may
-                    // trail the driver's table.
-                    ext: unsafe {
-                        ze::GraphExt::new(table as *const ze::GraphDdi, gp.graph_extension_version.min(ext_version))
-                    },
-                    compiler: gp.compiler_version,
-                    formats_supported: gp.graph_formats_supported,
-                    max_opset: gp.max_ov_opset_version_supported,
+                    // The advertised extension version, unless the device
+                    // named an older non-zero one.
+                    ext: unsafe { ze::GraphExt::new(table as *const ze::GraphDdi, graph_version) },
+                    compiler,
+                    formats_supported,
+                    max_opset,
                     memory_total: mem.iter().map(|m| m.total_size).sum(),
                     arch: arch(p.vendor_id, p.device_id),
                     name: ze::string(&p.name),
