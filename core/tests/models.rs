@@ -338,11 +338,13 @@ fn no_artifact_for_the_cpu_is_no_artifact_and_says_why() {
 fn openvino(f: &mut Fixture) {
     fs::create_dir_all(f.dir.join("openvino")).unwrap();
     fs::write(f.dir.join("openvino/model.xml"), b"<net/>").unwrap();
+    fs::write(f.dir.join("openvino/model.bin"), b"\0\0\0\0").unwrap();
     f.list("openvino/model.xml");
+    f.list("openvino/model.bin");
     let ir = json!({
         "name": "openvino-f16",
         "format": "FORMAT_OPENVINO_IR",
-        "files": ["openvino/model.xml"],
+        "files": ["openvino/model.xml", "openvino/model.bin"],
         "backends": ["openvino", "cpu"],
         "compute_dtype": "DTYPE_F16",
         "graph_input": "INPUT_TOKEN_IDS",
@@ -375,6 +377,22 @@ fn the_first_artifact_the_device_can_load_is_chosen() {
         "{e:?}"
     );
     assert!(e.message.contains("weights-f32: backends"), "{e:?}");
+}
+
+/// An OpenVINO IR is two files, the xml then its weights, with the
+/// compute dtype its conversion fixed.
+#[test]
+fn an_openvino_ir_without_its_two_files_or_its_dtype_is_invalid() {
+    let mut f = Fixture::model("ir-one-file");
+    openvino(&mut f);
+    f.manifest["artifacts"][0]["files"] = json!(["openvino/model.xml"]);
+    let e = refused(&f);
+    assert!(e.is(BUNDLE_INVALID, "artifacts[0].files: an OpenVINO IR is two files"), "{e:?}");
+    let mut f = Fixture::model("ir-no-dtype");
+    openvino(&mut f);
+    f.manifest["artifacts"][0].as_object_mut().unwrap().remove("compute_dtype");
+    let e = refused(&f);
+    assert!(e.is(BUNDLE_INVALID, "artifacts[0].compute_dtype: required for a compiled OpenVINO IR"), "{e:?}");
 }
 
 #[test]

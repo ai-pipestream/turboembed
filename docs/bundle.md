@@ -231,14 +231,14 @@ this form before it is written or loaded.
 | `tokenizer.special_tokens[]` | role, content, id, lstrip | yes | Fills `pad_id`, `bos_id`, `eos_id`, `unk_id`. `lstrip` (default false) says the token takes the whitespace before it in the text, as upstream's `lstrip` added tokens do (XLM-RoBERTa's `<mask>`); each must match the file's added token. |
 | `tokenizer.template` | string[] | yes | The row layout around `$TEXT`. |
 | `tokenizer.truncation` | enum | yes | What `TURBO_TRUNCATE_MODEL` means: `TRUNCATE_RIGHT` or `TRUNCATE_LEFT`. `TRUNCATE_NONE` is a caller option and is rejected here. |
-| `architecture.*` | message | when an artifact is raw weights or a HEF | Everything a kernel path needs that a weights file does not carry. `family` is `FAMILY_BERT` or `FAMILY_ROBERTA`: the same encoder, RoBERTa counting positions from `position_offset` (its padding id plus one: 2 for XLM-RoBERTa, whose table of `max_positions` 8194 rows serves 8192 tokens). `position_offset` is 0 for BERT and required for RoBERTa; `max_seq` plus it must fit `max_positions`. |
+| `architecture.*` | message | when an artifact is raw weights, a HEF or an OpenVINO IR | Everything a kernel path needs that a weights file does not carry. `family` is `FAMILY_BERT` or `FAMILY_ROBERTA`: the same encoder, RoBERTa counting positions from `position_offset` (its padding id plus one: 2 for XLM-RoBERTa, whose table of `max_positions` 8194 rows serves 8192 tokens). `position_offset` is 0 for BERT and required for RoBERTa; `max_seq` plus it must fit `max_positions`. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
-| `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
+| `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_OPENVINO_IR` artifact is two: the xml, then its weights. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
 | `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it, as for an ONNX file carried only for the reference programs and the converters. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |
 | `artifacts[].fixed_seq`, `.fixed_batch` | uint32 | no | The shape compiled in; 0 is dynamic. A FORMAT_HEF sets both. `fixed_batch` is a frame, not a limit on a session's batch. |
-| `artifacts[].compute_dtype` | enum | yes for `FORMAT_HEF` | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
+| `artifacts[].compute_dtype` | enum | yes for `FORMAT_HEF` and `FORMAT_OPENVINO_IR` | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
 | `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. `INPUT_EMBEDDINGS` is defined under "Graph inputs" below. `OUTPUT_HIDDEN_STATES` is the last layer's hidden states, before pooling; raw weights stop there, the backend pools. `OUTPUT_EMBEDDINGS` is the pooled, normalized vectors, for a graph that carries the embed block's pooling and normalization (a sentence-transformers export); only graphs no backend runs stop there. |
 | `artifacts[].host_weights` | string | when input is embeddings | The `FORMAT_SAFETENSORS` artifact whose embedding tensors the host lookup uses. Its `tensor_names` must name the five embedding roles; the layer roles are not read. |
 | `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. |
@@ -308,8 +308,8 @@ Status codes are the header's `TURBO_E_*`.
    implements. The backend says which formats it loads in
    `turbo_backend.formats` (turbo_backend.h); a backend that does not say
    loads `FORMAT_SAFETENSORS` alone. The core hands a backend
-   `FORMAT_SAFETENSORS` and `FORMAT_HEF` artifacts only, whatever it
-   says. Manifest order is the preference. None:
+   `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR` and `FORMAT_HEF` artifacts
+   only, whatever it says. Manifest order is the preference. None:
    `BUNDLE_NO_ARTIFACT`, with the message saying why each was skipped.
    A session's `precision` never picks another artifact; it says how the
    chosen one computes.
@@ -317,8 +317,9 @@ Status codes are the header's `TURBO_E_*`.
    are verified by size, then SHA-256, before any byte is used. Where a
    backend's API takes memory, the bytes handed to it are the bytes
    hashed: a HEF reaches `model_load` as the bytes read and hashed, in
-   `turbo_backend_model.artifact`, and the embedding tensors as they
-   lie in the verified `host_weights` file.
+   `turbo_backend_model.artifact`, an OpenVINO IR as its two files' bytes
+   in `artifact` (the xml) and `artifact2` (the weights), and the
+   embedding tensors as they lie in the verified `host_weights` file.
 8. For raw weights, and for a `host_weights` artifact's embedding
    tensors, every tensor the `tensor_names` map implies must
    exist with the shape the architecture implies (`[out, in]` for a

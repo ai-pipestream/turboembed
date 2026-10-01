@@ -705,6 +705,28 @@ impl Manifest {
                     }
                 }
             }
+            if a.format == Format::OpenvinoIr {
+                // The core hands a backend the IR as two blocks of bytes:
+                // the xml, then its weights.
+                if a.files.len() != 2 {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: an OpenVINO IR is two files, the xml then its weights",
+                        at("files")
+                    )));
+                }
+                if a.compute_dtype.is_none() {
+                    return Err(invalid(format!(
+                        "manifest.json: {}: required for a compiled OpenVINO IR",
+                        at("compute_dtype")
+                    )));
+                }
+                if self.architecture.is_none() {
+                    return Err(invalid(format!(
+                        "manifest.json: architecture: required by the OpenVINO IR in {}",
+                        at("name")
+                    )));
+                }
+            }
             if a.graph_input == GraphInput::Embeddings && a.host_weights.is_empty() {
                 return Err(invalid(format!(
                     "manifest.json: {}: required when graph_input is INPUT_EMBEDDINGS",
