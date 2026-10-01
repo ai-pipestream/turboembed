@@ -71,15 +71,23 @@ No build variables: there is nothing to point at.
   `mtl-npu` (0x7d1d), `arl-npu` (0xad1d), `lnl-npu` (0x643e), `ptl-npu`
   (0xb03e), `intel-npu-<id>` for an Intel id not named yet.
   `runtime_version` is the loader's version and `driver_version` the
-  driver's, in Intel's packing. The list is made the first time a
-  runtime asks and kept for the life of the process.
+  driver's, in Intel's packing. When NPU hardware is seen and every
+  device had to be skipped (no graph extension on its driver, or a
+  probe that failed), listing is an error carrying each reason, never
+  a quiet empty list on a machine that has the hardware. The list, or
+  that error, is made the first time a runtime asks and kept for the
+  life of the process: a driver fixed underneath a running process is
+  seen by the next process, not this one.
 - **Capability.** Embed is EXPERIMENTAL at `MODEL` and `FASTEST`,
   honoring `normalize`, `pooling` and `output_dim` (the core owns
-  `truncate`, `max_tokens` and `prompt_role`). The reported dtype is
-  F16, the compute dtype of the F16 IRs bundles carry for this backend;
-  what a session really resolved is the artifact's `compute_dtype`, and
-  `turbo_session_get_info` says it. `EXACT` is UNSUPPORTED: a compiled
-  graph computes in the dtype its IR fixed, never F32 throughout. The
+  `truncate`, `max_tokens` and `prompt_role`, and sets their bits
+  itself, so `turbo_capability.options_honored` reads 0b111111). The
+  reported dtype is 0: no dtype is claimed before an artifact is seen,
+  because the IR's compilation fixes it; `model_load` reads it from
+  the compiled graph and `turbo_session_get_info` says what a session
+  really resolved. A benchmark record names a dtype, so the 0 also
+  backs no SUPPORTED claim. `EXACT` is UNSUPPORTED: a compiled graph
+  computes in the dtype its IR fixed, never F32 throughout. The
   backend never claims SUPPORTED; only the core says that, and only
   over a benchmark record.
 - **Contexts.** A context is a Level Zero context on the device and one
@@ -90,12 +98,16 @@ No build variables: there is nothing to point at.
   `SHARED` are `TURBO_E_UNSUPPORTED`.
 - **Models.** A `FORMAT_OPENVINO_IR` artifact from `INPUT_TOKEN_IDS` to
   `OUTPUT_HIDDEN_STATES`; anything else is refused, naming what (the
-  host-gather path for `INPUT_EMBEDDINGS` is not built). The IR's two
-  verified files are handed to the driver's compiler as the graph
-  extension takes them: the `ZE_GRAPH_FORMAT_NGRAPH_LITE` container
-  (the compiler's version, a block count of 2, then the xml and the
-  weights, each behind its u64 size), with build flags naming each
-  input's and output's precision and layout by index, exactly as
+  host-gather path for `INPUT_EMBEDDINGS` is not built). Before any
+  compile is tried, the device's own graph properties are checked:
+  NGRAPH_LITE must be among its graph formats, and the highest opset
+  any of the IR's layers names must be within
+  `maxOVOpsetVersionSupported`; either refusal says so in words. The
+  IR's two verified files are then handed to the driver's compiler as
+  the graph extension takes them: the `ZE_GRAPH_FORMAT_NGRAPH_LITE`
+  container (the compiler's version, a block count of 2, then the xml
+  and the weights, each behind its u64 size), with build flags naming
+  each input's and output's precision and layout by index, exactly as
   OpenVINO's own NPU plugin serializes them. What those flags need, and
   nothing else, is read from the IR's xml: each Parameter's element
   type and rank, each Result's port precision and rank. The graph is
@@ -104,21 +116,42 @@ No build variables: there is nothing to point at.
   `TURBO_E_RUNTIME` message, else `pfnCreate2`; it is then initialized
   (`pfnGraphInitialize`, or appended and synchronized, as its
   properties ask), which is the weights' move to the device. The
-  compiled arguments are checked: token ids and mask (token types where
-  the graph takes them) as I64 or I32 `[batch, seq]`, hidden states
-  back as FP32 or FP16 `[batch, seq, hidden]`, `hidden` equal to the
+  compiled arguments are taken by name, `input_ids`, `attention_mask`
+  and optionally `token_type_ids`, the names a BERT export gives; a
+  graph whose input is named anything else is refused naming it, and
+  no argument is ever assigned a role by position. Among several
+  outputs only `last_hidden_state` is taken; a single output is the
+  hidden states whatever its name. The compiled boundary is checked:
+  ids and mask as I64 or I32 `[batch, seq]`, hidden states back as
+  FP32 or FP16 `[batch, seq, hidden]`, `hidden` equal to the
   manifest's, and the compiled shape equal to `fixed_seq` and
   `fixed_batch` where the manifest sets them. The NPU compiles static
   shapes: export the IR with the shape fixed and say it in the
   manifest, so the core caps sessions at it; a dynamic IR fails in the
   driver's compiler with its own message.
+- **The container is an implicit contract.** The graph extension's
+  header defines NGRAPH_LITE's enum value and nothing about the
+  buffer's layout: the bytes above are the contract between OpenVINO's
+  NPU plugin (`serializeIR` in its compiler adapter) and the compiler
+  in the driver, read from the plugin's source and pinned byte for
+  byte in this backend's unit tests. The leading compiler version is
+  what couples it: the compiler reads the buffer it is handed against
+  its own version, which this backend takes from the same device probe
+  the plugin uses. The accepted risk is that Intel changes the layout
+  in a future compiler major version; the serializer side has been
+  stable across compiler majors 4 through 7, a change would surface as
+  a compile refusal carrying the compiler's own log (never a silent
+  wrong answer), and the fix would be versioned here the way the
+  plugin versions it.
 - **Sessions.** Every byte a run touches is allocated when the session
   is made: one host buffer per graph input and one for the hidden
   states, a frame (`fixed_batch` rows of the compiled seq) each; the
   result vectors; and the session's copy of the rows. `embed_write`
   keeps the rows; a row whose token type is not 0, on a graph with no
   token type input, is `TURBO_E_UNSUPPORTED_OPTION`, naming the row and
-  position. A run binds the session's buffers to the graph's arguments
+  position, and a row with no live token, which the core never sends,
+  is `TURBO_E_INVALID_ARGUMENT` rather than a NaN from pooling over
+  nothing. A run binds the session's buffers to the graph's arguments
   (argument values live on the graph, so runs on one model take turns),
   then per frame writes each row's live tokens in the argument's own
   precision with zeros after, appends `pfnAppendGraphExecute` on the
@@ -151,12 +184,23 @@ an IR to one NPU generation, or stay empty for any.
 The machine this backend is for first (an Arrow Lake laptop with Intel
 AI Boost) runs Windows: the loader is `ze_loader.dll`, installed with
 Intel's driver package, and the AI Boost driver advertises
-`ZE_extension_graph` 1.17 there. Nothing else differs: the same tests,
-the same environment variables, `cargo test -p turbo --features npu`
-from a shell whose PATH finds `ze_loader.dll`. A machine where Device
-Manager shows "Intel(R) AI Boost" but the backend lists nothing has a
-loader or NPU driver problem, and `TURBO_TEST_REQUIRE_NPU=1` makes the
-tests say so instead of passing.
+`ZE_extension_graph` 1.17 there; the device lists as
+`Intel(R) AI Boost`, arch `arl-npu`. Nothing else differs: the same
+tests, the same environment variables,
+`cargo test -p turbo --features npu` from a shell whose PATH finds
+`ze_loader.dll`. A machine where Device Manager shows "Intel(R) AI
+Boost" but the backend lists nothing has a loader or NPU driver
+problem, and `TURBO_TEST_REQUIRE_NPU=1` makes the tests say so instead
+of passing.
+
+The sealed test bundles under `testdata/` are verified by size and
+SHA-256 on every load, so their bytes must come out of a checkout
+exactly as committed: `.gitattributes` marks them `-text`, which keeps
+`core.autocrlf` from rewriting their line endings. A Windows clone
+made before that file existed holds rewritten copies (tokenizer.json
+reads 742346 bytes against the manifest's 711661); refresh them once
+with `git rm -r --cached testdata && git checkout -- testdata`, or
+reclone.
 
 ## Testing on an NPU machine
 
@@ -182,10 +226,23 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
 
 ## Still to land
 
+- Execution proof. Device listing is proven on hardware (Arrow Lake
+  Windows, `Intel(R) AI Boost`, arch `arl-npu`, loader 1.28.2, graph
+  extension 1.17); the compile-and-run path has not run against a
+  device yet, because no bundle carries an IR for this backend, and
+  nothing in this tree claims it has. The proof is the ignored tests
+  and the conformance run above, on that machine, with
+  `TURBO_TEST_REQUIRE_NPU=1` set.
 - A `FORMAT_OPENVINO_IR` artifact with `backends: ["npu"]` in a recipe,
   so the conformance run above has a bundle to hold against the
   reference; the artifact format itself, rule 6 and `model_load` are
-  wired and tested.
+  wired and tested. The recipe entry is the MiniLM `openvino-f16`
+  example of docs/bundle.md with `backends: ["npu"]`, converted from
+  `onnx-f32` by `ovc` in a pinned container with the shape fixed
+  (`--input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]"`,
+  `--compress_to_fp16=True`), `fixed_seq` 128 and `fixed_batch` 1 in
+  the manifest; the bundle tool's convert step needs a two-file
+  conversion kind for it, which is its own change.
 - The `INPUT_EMBEDDINGS` host-gather path, should an NPU graph ever be
   cut at the embedding gather the way the Hailo one is.
 - `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which
