@@ -53,9 +53,10 @@ the same files copied elsewhere pass it.
 | `--trtexec <path>` | trtexec inside the image. Default `trtexec`. |
 | `--tensorrt-bin <path>` | trtexec installed on the machine, run in place of an image: for a Jetson, whose TensorRT is JetPack's (Reference programs). In place of `--tensorrt-image`; `--trtexec` is refused with it. |
 | `--no-tensorrt` | TensorRT is not run; the record says so. |
-| `--openvino-image <name@sha256:…>` | An OpenVINO container with `benchmark_app` (levelzero). |
+| `--openvino-image <name@sha256:…>` | An OpenVINO container with `benchmark_app` (levelzero, and npu on Linux). |
+| `--openvino-bin <path>` | `benchmark_app` installed on the machine, in place of an image. For npu, when the container cannot see the NPU driver. The record pins the file as `benchmark-app@sha256:<its SHA-256>` and writes the command with `<benchmark-app>`. |
 | `--openvino-inputs <ids,mask[,types]>`, `--openvino-input-dtype int64\|int32` | As for TensorRT, for benchmark_app. Default `input_ids,attention_mask,token_type_ids` and `int64`. |
-| `--benchmark-app <path>` | benchmark_app inside the image. Default `benchmark_app`. |
+| `--benchmark-app <path>` | `benchmark_app` inside the image. Default `benchmark_app`. Refused with `--openvino-bin`. |
 | `--no-openvino` | OpenVINO is not run; the record says so. |
 | `--work <dir>` | Scratch for trtexec's and benchmark_app's input files. Default the system's temporary directory. |
 
@@ -101,6 +102,31 @@ and both images pulled:
 cargo run --release -p turbo-bench --features levelzero -- record \
     --bundle all-minilm-l6-v2/ --device levelzero --precision model \
     --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu-* image> \
+    --tei-model upstream/ \
+    --openvino-image openvino/ubuntu24_dev@sha256:<digest>
+```
+
+On intel-npu the same MiniLM bundle, with the `npu` feature. The tool's
+default batch is 32 and its default seq is the longest reference case
+that fits the loaded artifact. The NPU IR is fixed at sequence 128 and
+batch 1, so that default seq is at most 128, and the library runs the
+batch as frames of 1. Do not copy `--seq 256` from a GPU record: this
+IR does not compile that sequence. No record of this run is in the tree
+yet; the command is what a follow-up on that machine records. Docs for
+the device, the graph format, and which seal to use are in docs/npu.md.
+
+Windows, where a container cannot see the NPU driver:
+
+```
+cargo run --release -p turbo-bench --features npu -- record --bundle <bundle> --device npu --precision model --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu image> --tei-model <upstream> --openvino-bin <benchmark_app>
+```
+
+Linux, where `/dev/accel/accel0` is the NPU node:
+
+```
+cargo run --release -p turbo-bench --features npu -- record \
+    --bundle all-minilm-l6-v2/ --device npu --precision model \
+    --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu image> \
     --tei-model upstream/ \
     --openvino-image openvino/ubuntu24_dev@sha256:<digest>
 ```
@@ -349,6 +375,8 @@ with dense rows `rtx4080.cuda.embed.model-dense.all-minilm-l6-v2-<8 hex>.<12 hex
 | cpu | text-embeddings-inference | end to end | its CPU image, over HTTP |
 | levelzero | OpenVINO `benchmark_app` | kernel | an OpenVINO container, on the bundle's ONNX file, on the GPU |
 | levelzero | text-embeddings-inference | end to end | its CPU image, over HTTP: the end-to-end baseline on that machine |
+| npu | OpenVINO `benchmark_app` | kernel | an OpenVINO container with `-d NPU`, or `benchmark_app` on the machine (`--openvino-bin`) when the container cannot see the NPU driver |
+| npu | text-embeddings-inference | end to end | its CPU image, over HTTP: the end-to-end baseline on that machine |
 | metal | text-embeddings-inference | end to end | its router built natively with the Metal feature, over HTTP |
 | any other | none yet | | a record of it backs nothing |
 
@@ -360,13 +388,16 @@ runs is what was fetched on purpose. Each command is recorded as run,
 except that a host path in it is written as a fixed placeholder:
 `<bundle>` for the bundle directory, `<work>` for the directory the
 input files are written to, `<tei-model>` for the model directory TEI
-serves, `<tei-bin>` and `<trtexec-bin>` for a program run from the
-machine. Records are published, and the operator's paths say nothing
-about the measurement and may name a user. The command executed has the
-real paths; only the recorded copy is rewritten. A `not_run` reason
-names those directories the same way. The core refuses a record with
-`/home/` or `/Users/` anywhere in its text, so one written by hand or
-by an older tool cannot carry a home directory either.
+serves, `<tei-bin>`, `<trtexec-bin>` and `<benchmark-app>` for a program
+run from the machine. Records are published, and the operator's paths
+say nothing about the measurement and may name a user. The command
+executed has the real paths; only the recorded copy is rewritten. A
+`not_run` reason names those directories the same way, and a home
+directory in benchmark_app's own error is written as `<home>`. The core
+refuses a record with `/home/`, `/Users/`, `C:\Users\` or `C:/Users/`
+anywhere in its text, so one written by hand or by an older tool cannot
+carry a home directory either. The machine label in a file name is the
+device arch (`arl-npu` on Arrow Lake), not a hostname.
 
 **TEI on Metal** is its router built from source with the Metal feature
 (`cargo build --release -p text-embeddings-router -F metal` in TEI's
@@ -575,6 +606,23 @@ more than one Level Zero device listed the tool refuses to run it:
 benchmark_app's `GPU` is OpenVINO's first, which need not be the device
 measured. On that machine TEI's CPU image is the end-to-end reference.
 
+For the NPU backend the same program is the kernel reference, with
+`-d NPU` in place of `-d GPU`. The container is given
+`/dev/accel/accel0` and that node's group, and it is not given
+`/dev/dri`. A missing node is an error. `--openvino-bin` runs the
+machine's own `benchmark_app` with the same arguments on the bundle and
+the input files, which is how a Windows host reaches the NPU driver a
+Linux container cannot see. The record pins that binary as
+`benchmark-app@sha256:<its SHA-256>`. With more than one NPU listed the
+tool refuses to run it, for the same reason as the GPU. The NPU plugin
+has no BF16 either. A bundle with no ONNX artifact is `not_run`, as for
+the GPU. The library's own graph is the OpenVINO IR through Level Zero,
+not this ONNX compile: benchmark_app is the reference. On the MiniLM IR
+the library's frame is batch 1, so a batch of 32 is 32 frames, while
+benchmark_app times one request of the whole static shape. Both sides
+see the same token rows. TEI's CPU image is again the end-to-end
+reference. No npu record is committed in this tree.
+
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
 
@@ -610,7 +658,9 @@ A record for the cell backs SUPPORTED when all of these hold:
    `text-embeddings-inference`, `tensorrt` or `openvino`, was measured.
    (A record naming any other program, or one with another's role, does
    not parse.) The tool gives each backend its own programs (Reference
-   programs), so a levelzero record is backed by OpenVINO or TEI.
+   programs), so a levelzero or npu record is backed by OpenVINO or TEI.
+   The npu backend reports dtype 0 before a model is loaded, so a record
+   of an F16 session does not by itself move that cell to SUPPORTED.
 
 Of the records that back the cell, the newest by `recorded_at` (then by
 name) is named: the cell is SUPPORTED, `benchmark` is its file name,

@@ -284,6 +284,8 @@ fn a_record_that_is_not_well_formed_is_refused() {
         "holds a host path",
     );
     refused(&|x| x.device.name = "/home/".into(), "holds a host path");
+    refused(&|x| x.device.name = r"C:\Users\someone".into(), "holds a host path");
+    refused(&|x| x.references[0].procedure = "read C:/Users/someone/upstream".into(), "holds a host path");
     refused(&|x| x.library.settings = vec!["TURBO_CUDA_TILE=128x64".into()], "library.settings");
     refused(&|x| x.library.settings = vec!["TURBO_CPU_THREADS".into()], "library.settings");
     refused(&|x| x.library.settings = vec!["TURBO_CPU_THREADS=2".into(), "TURBO_CPU_THREADS=3".into()], "each once");

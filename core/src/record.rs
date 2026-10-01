@@ -24,7 +24,7 @@ pub const NAME_MAX: usize = 95;
 /// Text no record may hold anywhere: the start of a user's home directory
 /// on Linux (root's included) and on macOS. A record is published, and the
 /// tool writes each host path in it as a placeholder (docs/benchmarks.md).
-pub const HOST_PATHS: [&str; 4] = ["/home/", "/root/", "/var/home/", "/Users/"];
+pub const HOST_PATHS: [&str; 6] = ["/home/", "/root/", "/var/home/", "/Users/", "C:\\Users\\", "C:/Users/"];
 
 /// The kinds of token rows a record may be measured on.
 pub const ROWS_MIXED: &str = "ROWS_MIXED";
@@ -66,7 +66,7 @@ pub const NO_RECORD: &str = "no benchmark record for this cell";
 
 /// The reference programs a record may name, each with its role: the
 /// vendors' fastest kernel paths (TensorRT for NVIDIA GPUs, OpenVINO for
-/// Intel GPUs) and the fastest known embedding server.
+/// Intel GPUs and for the NPU) and the fastest known embedding server.
 pub const REFERENCES: [(&str, &str); 3] =
     [("text-embeddings-inference", "end_to_end"), ("tensorrt", "kernel"), ("openvino", "kernel")];
 
@@ -545,6 +545,9 @@ impl Record {
             }
         }
         let text = serde_json::to_string(self).map_err(|e| e.to_string())?;
+        // JSON writes a backslash as two, so a Windows home directory is
+        // folded back to one before the prefixes are looked for.
+        let text = text.replace("\\\\", "\\");
         if let Some(home) = HOST_PATHS.iter().find(|h| text.contains(*h)) {
             return Err(format!(
                 "the record holds a host path ({home}...): a path on the machine that made it is written as a \

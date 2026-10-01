@@ -1047,6 +1047,15 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
     // the copy exists. A refusal here does not keep that graph.
     if ctx.formats_supported & ze::GRAPH_FORMAT_NATIVE != 0 {
         graph = native_graph(ctx, graph)?;
+    } else {
+        ctx.say(
+            LOG_DEBUG,
+            &format!(
+                "npu device {}: the graph is NGRAPH_LITE; ZE_GRAPH_FORMAT_NATIVE is not among the device's graph \
+                 formats (0x{:x})",
+                ctx.ordinal, ctx.formats_supported
+            ),
+        );
     }
 
     let model = describe(ctx, desc, graph, embeddings);

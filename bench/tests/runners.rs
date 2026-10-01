@@ -753,6 +753,8 @@ fn recipe_manifest() -> turbo::manifest::Manifest {
         "onnx/model-f16.onnx",
         "openvino/model.xml",
         "openvino/model.bin",
+        "openvino/embeddings.xml",
+        "openvino/embeddings.bin",
         "hailo/model-hailo10h-s128.hef",
         "reference/reference.safetensors",
     ];
@@ -791,8 +793,11 @@ fn ov(work: &Path) -> OpenVino {
         benchmark_app: "benchmark_app".into(),
         inputs: vec!["input_ids".into(), "attention_mask".into(), "token_type_ids".into()],
         input_dtype: "int64".into(),
+        device: openvino::DEVICE_GPU.into(),
         dri: "/dev/dri".into(),
+        accel: "/dev/accel/accel0".into(),
         work: work.to_owned(),
+        binary: None,
     }
 }
 
@@ -808,7 +813,7 @@ fn benchmark_app_is_run_with_every_setting_on_its_command_line() {
         cases: vec![0, 1],
     };
     let o = ov(Path::new("/tmp"));
-    let precision = openvino::infer_precision(TURBO_DTYPE_F32).unwrap();
+    let precision = openvino::infer_precision(openvino::DEVICE_GPU, TURBO_DTYPE_F32).unwrap();
     let a = openvino::run_argv(&o, Path::new("/b"), Path::new("/w"), "onnx/model.onnx", 993, &rows, 200, precision, 99);
     let want = strings(&[
         "docker",
@@ -855,9 +860,40 @@ fn benchmark_app_is_run_with_every_setting_on_its_command_line() {
     let differ: Vec<usize> = (0..a.len()).filter(|&i| a[i] != b[i]).collect();
     assert_eq!((a.len(), differ), (b.len(), vec![a.len() - 1]));
     assert_eq!(openvino::PERCENTILES, [50, 99]);
-    assert_eq!(openvino::infer_precision(TURBO_DTYPE_F16).unwrap(), "f16");
-    let e = openvino::infer_precision(TURBO_DTYPE_BF16).unwrap_err();
-    assert!(e.contains("no inference precision"), "{e}");
+    assert_eq!(openvino::infer_precision(openvino::DEVICE_GPU, TURBO_DTYPE_F16).unwrap(), "f16");
+    let e = openvino::infer_precision(openvino::DEVICE_NPU, TURBO_DTYPE_BF16).unwrap_err();
+    assert!(e.contains("NPU") && e.contains("no inference precision"), "{e}");
+}
+
+#[test]
+fn benchmark_app_on_the_npu_is_not_given_the_gpu() {
+    let rows = rows32();
+    let mut o = ov(Path::new("/tmp"));
+    o.device = openvino::DEVICE_NPU.into();
+    o.accel = "/dev/accel/accel0".into();
+    let precision = openvino::infer_precision(openvino::DEVICE_NPU, TURBO_DTYPE_F16).unwrap();
+    let a = openvino::run_argv(&o, Path::new("/b"), Path::new("/w"), "onnx/model.onnx", 44, &rows, 200, precision, 50);
+    assert!(a.iter().any(|s| s == "-d"));
+    assert!(a.contains(&"NPU".to_owned()));
+    assert!(!a.iter().any(|s| s.contains("/dev/dri")), "the NPU container is not given the GPU nodes: {a:?}");
+    assert!(a.iter().any(|s| s == "/dev/accel/accel0"));
+    let shown = openvino::native_argv(
+        &o,
+        openvino::BENCHMARK_APP_BIN,
+        Path::new("<bundle>"),
+        Path::new("<work>"),
+        "onnx/model.onnx",
+        &rows,
+        200,
+        precision,
+        50,
+    );
+    assert_eq!(shown[0], "<benchmark-app>");
+    assert!(shown.contains(&"-d".to_owned()) && shown.contains(&"NPU".to_owned()));
+    assert!(!shown.iter().any(|s| s.contains("/home/") || s.contains("Users")), "{shown:?}");
+    let leaked = openvino::redact_user_paths(r"failed: C:\Users\someone\bundle\onnx\model.onnx");
+    assert!(!leaked.to_ascii_lowercase().contains("someone"), "{leaked}");
+    assert!(leaked.contains("<home>"), "{leaked}");
 }
 
 #[test]
@@ -983,15 +1019,24 @@ fn each_backend_gets_its_reference_programs() {
     assert_eq!(applies("cuda"), [TEI, TRT]);
     assert_eq!(applies("cpu"), [TEI]);
     assert_eq!(applies("levelzero"), [TEI, openvino::NAME], "OpenVINO, and TEI's CPU image as the end-to-end baseline");
+    assert_eq!(
+        applies("npu"),
+        [TEI, openvino::NAME],
+        "OpenVINO on the NPU, and TEI's CPU image as the end-to-end baseline"
+    );
     assert_eq!(applies("metal"), [TEI], "TEI's router built natively with Metal");
-    for backend in ["cuda", "cpu", "levelzero", "metal"] {
+    for backend in ["cuda", "cpu", "levelzero", "npu", "metal"] {
         for name in applies(backend) {
             assert!(turbo::record::REFERENCES.iter().any(|r| r.0 == *name), "{name}");
         }
     }
     wanted("levelzero", |n| n == TEI || n == openvino::NAME).unwrap();
     let e = wanted("levelzero", |n| n == TEI).unwrap_err();
-    assert_eq!(e, "levelzero: OpenVINO is a reference here: give --openvino-image, or --no-openvino");
+    assert_eq!(e, "levelzero: OpenVINO is a reference here: give --openvino-image or --openvino-bin, or --no-openvino");
+    wanted("npu", |n| n == TEI || n == openvino::NAME).unwrap();
+    let e = wanted("npu", |n| n == TEI).unwrap_err();
+    assert_eq!(e, "npu: OpenVINO is a reference here: give --openvino-image or --openvino-bin, or --no-openvino");
+    assert_eq!(wanted("npu", |_| true).unwrap_err(), "npu: TensorRT is not a reference for this backend");
     let e = wanted("levelzero", |_| true).unwrap_err();
     assert_eq!(e, "levelzero: TensorRT is not a reference for this backend");
     let e = wanted("cuda", |n| n != openvino::NAME).map(|_| ());

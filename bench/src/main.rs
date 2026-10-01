@@ -66,7 +66,10 @@ record options:
   --no-tensorrt                record that TensorRT was not run
   --openvino-image <name@sha256:..>
                                an OpenVINO container with benchmark_app,
-                               pinned (levelzero)
+                               pinned (levelzero, and npu on Linux)
+  --openvino-bin <path>        benchmark_app installed on the machine, run
+                               in place of an image (npu, when the container
+                               cannot see the NPU driver)
   --openvino-inputs <a,b[,c]>  the ONNX inputs for ids, mask and types
                                (default input_ids,attention_mask,token_type_ids)
   --openvino-input-dtype <t>   int64 or int32 (default int64)
@@ -208,21 +211,37 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let no_ov = o.flag("--no-openvino");
     let ov_inputs = onnx_inputs(o.take("--openvino-inputs"), "--openvino-inputs")?;
     turbo_bench::onnx::check_inputs("--openvino-inputs", &ov_inputs)?;
-    let ov = match o.take("--openvino-image") {
-        Some(image) => {
+    let benchmark_app = o.take("--benchmark-app");
+    let benchmark_app_given = benchmark_app.is_some();
+    let ov = match (o.take("--openvino-image"), o.take("--openvino-bin")) {
+        (Some(_), Some(_)) => {
+            return Err("--openvino-image and --openvino-bin are two ways to run benchmark_app; give one".into());
+        }
+        (None, None) => None,
+        (image, bin) => {
+            if bin.is_some() && benchmark_app.is_some() {
+                return Err(
+                    "--benchmark-app names benchmark_app inside the image; --openvino-bin is the binary itself".into(),
+                );
+            }
             let input_dtype = o.take("--openvino-input-dtype").unwrap_or_else(|| "int64".into());
             turbo_bench::onnx::input_bytes("--openvino-input-dtype", &[], &input_dtype)?;
             Some(OpenVino {
-                image,
-                benchmark_app: o.take("--benchmark-app").unwrap_or_else(|| "benchmark_app".into()),
+                image: image.unwrap_or_default(),
+                benchmark_app: benchmark_app.unwrap_or_else(|| "benchmark_app".into()),
                 inputs: ov_inputs,
                 input_dtype,
+                device: String::new(),
                 dri: PathBuf::from("/dev/dri"),
+                accel: PathBuf::from("/dev/accel/accel0"),
                 work: work.clone(),
+                binary: bin.map(PathBuf::from),
             })
         }
-        None => None,
     };
+    if ov.is_none() && benchmark_app_given {
+        return Err("--benchmark-app names benchmark_app inside the image; give --openvino-image".into());
+    }
     if let Some(unknown) = o.0.keys().next() {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
     }
@@ -255,7 +274,14 @@ fn record_cmd(args: &[String]) -> Result<()> {
         }
     }
     if let Some(v) = &ov {
-        turbo_bench::docker::check_pinned("--openvino-image", &v.image)?;
+        match &v.binary {
+            Some(bin) => {
+                openvino::native_pin(bin)?;
+            }
+            None => {
+                turbo_bench::docker::check_pinned("--openvino-image", &v.image)?;
+            }
+        }
     }
     // Before the runtime starts a thread, which would not inherit it.
     if let Some(c) = &cpus {
@@ -272,6 +298,11 @@ fn record_cmd(args: &[String]) -> Result<()> {
     // GPU; elsewhere TEI runs from its image.
     if tei.as_ref().is_some_and(|t| t.binary.is_some()) && backend != "metal" {
         return Err(format!("--tei-bin is TEI's native router for metal; give --tei-image for {backend}"));
+    }
+    if ov.as_ref().is_some_and(|v| v.binary.is_some()) && backend != "npu" {
+        return Err(format!(
+            "--openvino-bin is benchmark_app on the machine for npu; give --openvino-image for {backend}"
+        ));
     }
 
     // Refused before anything is measured, and checked again after.
@@ -400,13 +431,22 @@ fn references(
         }
     }
     // benchmark_app's GPU is OpenVINO's first, which with several Intel
-    // GPUs need not be the one measured.
+    // GPUs need not be the one measured. The same for NPU.
     if backend == "levelzero" && ov.is_some() {
         let n = devices_of("levelzero")?;
         if n > 1 {
             return Err(format!(
                 "{n} Level Zero devices are listed: OpenVINO's GPU need not be the device measured, so \
                  benchmark_app is run only where there is one"
+            ));
+        }
+    }
+    if backend == "npu" && ov.is_some() {
+        let n = devices_of("npu")?;
+        if n > 1 {
+            return Err(format!(
+                "{n} NPU devices are listed: OpenVINO's NPU need not be the device measured, so benchmark_app is \
+                 run only where there is one"
             ));
         }
     }
@@ -421,8 +461,11 @@ fn references(
                 Some(t) => tensorrt::run(t, m, m.device.ordinal, plan.iterations)?,
                 None => disabled(tensorrt::NAME, "kernel", "--no-tensorrt"),
             },
-            openvino::NAME => match &ov {
-                Some(o) => openvino::run(o, m, plan.iterations)?,
+            openvino::NAME => match ov.clone() {
+                Some(mut o) => {
+                    o.device = if backend == "npu" { openvino::DEVICE_NPU } else { openvino::DEVICE_GPU }.into();
+                    openvino::run(&o, m, plan.iterations)?
+                }
                 None => disabled(openvino::NAME, "kernel", "--no-openvino"),
             },
             other => return Err(format!("{other}: no runner")),

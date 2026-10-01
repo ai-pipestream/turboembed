@@ -135,9 +135,12 @@ No build variables: there is nothing to point at.
   An empty blob, a missing export, or a driver refusal of the blob is
   `TURBO_E_RUNTIME` or `TURBO_E_UNSUPPORTED`, and the `NGRAPH_LITE`
   graph is not kept. A device that does not list `NATIVE` initializes
-  the `NGRAPH_LITE` graph. That is the path the `7cd162a` receipt ran.
-  A load whose graph was created as `NATIVE` has not been run on
-  intel-npu. Initialization (`pfnGraphInitialize`, or appended and
+  the `NGRAPH_LITE` graph and says so in the debug log, with the
+  formats bitfield. That is the path the `57c302f` receipt ran: on
+  intel-npu, driver `0.15.21738`, `graphFormatsSupported` was `0x2`,
+  so bit `0x1` was clear and the load stayed on `NGRAPH_LITE`. A load
+  whose graph was created as `NATIVE` has not been run on intel-npu.
+  Initialization (`pfnGraphInitialize`, or appended and
   synchronized, as the graph's properties ask) is the weights' move to
   the device. The
   compiled arguments are taken by name, `input_ids`, `attention_mask`
@@ -517,8 +520,20 @@ tokenizer file hashed to
 Tip `93f0d76` is where `openvino-embeddings-f16` compiled on AI Boost
 (`cut_max_abs_diff` 0.00451, `turbo-bundle verify` exited 0) and the
 npu tests passed 9. The stage assertion was the failure there. The
-`7cd162a` receipt is the `ZE_GRAPH_FORMAT_NGRAPH_LITE` graph. This
-tree has no NPU.
+`7cd162a` receipt is the `ZE_GRAPH_FORMAT_NGRAPH_LITE` graph. The
+`NATIVE` create path was not in that commit.
+
+At tip `57c302f` the same intel-npu machine ran again. Arrow Lake, the
+device listed as `Intel(R) AI Boost`, driver `0.15.21738`.
+`TURBO_TEST_REQUIRE_NPU=1` and
+`cargo test -p turbo --features npu --test npu -- --include-ignored`
+passed 10, and none failed. The driver reported
+`graphFormatsSupported` `0x2`, which is `ZE_GRAPH_FORMAT_NGRAPH_LITE`.
+Bit `0x1`, `ZE_GRAPH_FORMAT_NATIVE`, was not set. The load initialized
+the lite graph. That is the fallback `model_load` takes when the device
+does not advertise `NATIVE`. The run did not create a graph with
+`ZE_GRAPH_FORMAT_NATIVE`. The code that would, when a driver advertises
+the bit, is in this tree and was not taken. This tree has no NPU.
 
 Capability stays `EXPERIMENTAL` at `MODEL` and `FASTEST`. The dtype
 reported before a model is loaded is 0, and that is why a benchmark
@@ -527,13 +542,61 @@ does not claim `SUPPORTED`. The output-precision check is unchanged:
 FP16 is `DTYPE_F16`, FP32 is `DTYPE_F32`, and a manifest
 `compute_dtype` that names the other is refused.
 
+## Speed
+
+No file under `benchmarks/records/` is an npu record, and none was
+written here: this tree has no NPU, so there are no timings to enter.
+The harness is `turbo-bench` with `--features npu`
+(docs/benchmarks.md). It measures the library on `--device npu` and
+the same two references levelzero uses. OpenVINO `benchmark_app` is
+the kernel reference. TEI's CPU image is the end-to-end baseline.
+Both are references only. The product path stays the Level Zero graph
+extension.
+
+The model is `sentence-transformers/all-MiniLM-L6-v2`, the one the
+other optimized paths record. The comparable cell is the token-id
+seal (`openvino-f16`): `benchmark_app` compiles that bundle's ONNX
+encoder, which is the file the IR was converted from. An
+embeddings-sealed copy measures the host-gather path. Its OpenVINO
+reference is still the full ONNX encoder, which includes the
+embedding lookup the cut removed, so that pair is not the same graph.
+Leave `--batch` and `--seq` at the tool's defaults. The IR is fixed
+at sequence 128 and batch 1, the model's `max_batch` is 64, and the
+tool's default batch is 32, so the library runs 32 frames of 1. The
+default seq is the longest reference case that fits 128. A GPU record
+at sequence 256 is a different shape. `EXACT` is `UNSUPPORTED` and is
+not a speed cell.
+
+Labels. The machine in a published record is the device arch, `arl-npu`
+on this part, and the device name the driver reports. Do not put a
+hostname in the record; the tool rewrites host paths, and a home
+directory is refused. Capability stays `EXPERIMENTAL`. The graph
+format is not a field of the record. On driver `0.15.21738` a record
+is a `NGRAPH_LITE` measurement: `graphFormatsSupported` is `0x2`, and
+the debug log says `the graph is NGRAPH_LITE`. Do not label that
+record `NATIVE`. A `NATIVE` timing waits on a driver that advertises
+bit `0x1`. The same command records it, because `model_load` follows
+the bit, and the debug log then says `the graph is the native blob`.
+
+The follow-up is that command on intel-npu, from a clean pushed tree,
+for the token-id MiniLM seal at `model` and `fastest`, mixed rows.
+`--no-tei` is honest when Docker cannot run TEI's CPU image; the
+record says TEI was not run, and the speed cell is against OpenVINO
+when `benchmark_app` ran. `--no-openvino` leaves the kernel cell
+empty. A disabled reference is recorded as not run. It is not filled
+with a time.
+
 ## Still to land
 
 - A load on intel-npu whose graph is created with
-  `ZE_GRAPH_FORMAT_NATIVE`. The bundle still carries the OpenVINO IR.
-  When the device lists `NATIVE`, `model_load` compiles that IR, copies
-  the driver's blob, destroys the `NGRAPH_LITE` graph, and initializes
-  the native one. That session has not been run. The `7cd162a` receipt
-  is the lite graph.
+  `ZE_GRAPH_FORMAT_NATIVE`. The `57c302f` run on driver `0.15.21738`
+  reported `graphFormatsSupported` `0x2`. `NATIVE` (bit `0x1`) was not
+  advertised, so `model_load` initialized the `NGRAPH_LITE` graph and
+  did not create the native one. The code path remains for a driver
+  that lists the bit. That create has not been exercised on hardware.
+- Speed cells. The harness and the command are in Speed, above. No
+  record is committed. Timings wait on a follow-up intel-npu run. A
+  record on driver `0.15.21738` is `NGRAPH_LITE`. A `NATIVE` timing
+  waits on a driver that advertises bit `0x1`.
 - No benchmark record marks this backend `SUPPORTED`. Capability stays
   `EXPERIMENTAL`.
