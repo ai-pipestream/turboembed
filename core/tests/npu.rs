@@ -147,8 +147,12 @@ fn embed_is_offered_and_exact_is_refused() {
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
         let c = cap(p);
         assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
-        assert_eq!(c.dtype, TURBO_DTYPE_F16);
-        assert_eq!(c.options_honored, 0b111000, "normalize, pooling and output_dim; the core owns the rest");
+        assert_eq!(c.dtype, 0, "no dtype is claimed before an artifact is seen; the IR's compilation fixes it");
+        // The backend claims normalize, pooling and output_dim
+        // (0b111000); the core sets the bits of truncate, max_tokens and
+        // prompt_role itself, which it applies before any backend sees
+        // the rows.
+        assert_eq!(c.options_honored, 0b111111, "every field of turbo_embed_options");
     }
     let c = cap(TURBO_PRECISION_EXACT);
     assert_eq!((c.status, c.dtype, c.options_honored), (backend::TURBO_CAP_UNSUPPORTED, 0, 0));
@@ -310,6 +314,63 @@ fn a_run_reports_its_frames_and_where_each_stage_ran() {
     for v in r.rows() {
         let norm = v.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
         assert!((norm - 1.0).abs() < 1e-5, "unit length: {norm}");
+    }
+}
+
+/// Two models on one context, their sessions run at once from two
+/// threads: an execute and the synchronization that waits for it are
+/// one critical section on the context's immediate command list, and
+/// runs on one model take turns on its graph. Interleaved runs must
+/// give each thread its own rows' vectors, the same from both models.
+#[test]
+#[ignore = "needs an Intel NPU and TURBO_TEST_BUNDLE with an OpenVINO IR for it"]
+fn two_models_on_one_context_run_at_once() {
+    struct SendModel(*mut turbo_model);
+    unsafe impl Send for SendModel {}
+
+    let rt = Rt::new();
+    let d = rt.npu().first().copied().expect("an npu device");
+    let ctx = Ctx::create(&rt, d);
+    let path = ir_bundle();
+    let load = || {
+        let mut m = ptr::null_mut();
+        let mut err = new_error();
+        let rc = unsafe { turbo_model_load(ctx.0, text(path.to_str().unwrap()), &mut m, &mut err) };
+        assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+        m
+    };
+    let models = [load(), load()];
+    let texts = [
+        ["threads share one context", "and two compiled graphs"],
+        ["each run keeps its own rows", "whatever the other is doing"],
+    ];
+    let vectors: Vec<Vec<Vec<f32>>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = models
+            .iter()
+            .map(|&m| {
+                let m = SendModel(m);
+                scope.spawn(move || {
+                    // The whole wrapper moves in, not its raw field.
+                    let m = m;
+                    let s = Session::create(m.0, Some(&session_desc(2, 0, TURBO_PRECISION_MODEL))).unwrap();
+                    let mut last = Vec::new();
+                    for row in texts.iter().cycle().take(8) {
+                        last = s.embed(row, None).unwrap();
+                    }
+                    last
+                })
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
+    // Both threads ended on texts[1]: one model's vectors match the
+    // other's, so no run read another run's hidden states.
+    for (a, b) in vectors[0].iter().zip(&vectors[1]) {
+        let cos: f64 = a.iter().zip(b).map(|(x, y)| *x as f64 * *y as f64).sum();
+        assert!(cos > 0.9999, "the two models agree on the same rows: cosine {cos}");
+    }
+    for m in models {
+        unsafe { turbo_model_release(m) };
     }
 }
 

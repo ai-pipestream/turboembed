@@ -1,0 +1,6 @@
+# The sealed test bundles are verified by size and SHA-256 on every
+# load (docs/bundle.md): their bytes must come out of a checkout exactly
+# as committed. Without this, a Windows clone with core.autocrlf
+# rewrites the JSON files' line endings and every load fails with a
+# size mismatch (tokenizer.json 742346 vs the manifest's 711661, say).
+testdata/** -text
