@@ -92,6 +92,10 @@ pub(crate) struct Context {
     /// takes.
     list: Mutex<Shared>,
     compiler: ze::CompilerVersion,
+    /// ze_graph_format_t bits and the highest OpenVINO opset the
+    /// device's compiler takes, from the listing probe.
+    formats_supported: u32,
+    max_opset: u32,
     ordinal: u32,
     log: turbo_log_fn,
     log_user_data: *mut c_void,
@@ -129,6 +133,14 @@ impl Context {
         Ok(ptr)
     }
 
+    /// The immediate command list, held under its lock for the whole of
+    /// `f`: an append and the synchronization that waits for it are one
+    /// critical section, and the raw handle never leaves it.
+    fn with_list<T>(&self, f: impl FnOnce(Handle) -> T) -> T {
+        let guard = self.list.lock().unwrap_or_else(|p| p.into_inner());
+        f(guard.0)
+    }
+
     /// Runs the graph once over whatever its arguments point at, and
     /// returns when the device is done.
     fn execute(&self, graph: Handle) -> Res<()> {
@@ -136,10 +148,11 @@ impl Context {
             .ext
             .append_graph_execute()
             .ok_or_else(|| fail(UNSUPPORTED, "npu: the driver's graph extension has no pfnAppendGraphExecute"))?;
-        let list = self.list.lock().unwrap_or_else(|p| p.into_inner()).0;
-        let null = std::ptr::null_mut();
-        ze_res("pfnAppendGraphExecute", unsafe { execute(list, graph, null, null, 0, std::ptr::null_mut()) })?;
-        ze_res("zeCommandListHostSynchronize", unsafe { (self.api.command_list_host_synchronize)(list, u64::MAX) })
+        self.with_list(|list| {
+            let null = std::ptr::null_mut();
+            ze_res("pfnAppendGraphExecute", unsafe { execute(list, graph, null, null, 0, std::ptr::null_mut()) })?;
+            ze_res("zeCommandListHostSynchronize", unsafe { (self.api.command_list_host_synchronize)(list, u64::MAX) })
+        })
     }
 }
 
@@ -178,6 +191,8 @@ pub(crate) fn create(
         handle,
         list: Mutex::new(Shared(list)),
         compiler: dev.compiler,
+        formats_supported: dev.formats_supported,
+        max_opset: dev.max_opset,
         ordinal,
         log,
         log_user_data,
@@ -191,7 +206,8 @@ pub(crate) fn create(
 pub(crate) unsafe extern "C" fn context_release(ctx: *mut c_void) {
     quietly(|| {
         let ctx = unsafe { Box::from_raw(ctx as *mut Context) };
-        let list = ctx.list.lock().unwrap_or_else(|p| p.into_inner()).0;
+        // The box is the last owner: the mutex is consumed, not locked.
+        let list = ctx.list.into_inner().unwrap_or_else(|p| p.into_inner()).0;
         unsafe {
             (ctx.api.command_list_destroy)(list);
             (ctx.api.context_destroy)(ctx.handle);
@@ -425,9 +441,28 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
         )
     })?;
 
+    // What the device said it compiles, checked before any compile is
+    // tried, so a refusal says why in words rather than a status code.
+    if ctx.formats_supported & ze::GRAPH_FORMAT_NGRAPH_LITE == 0 {
+        return Err(fail(
+            UNSUPPORTED,
+            "npu: the device's compiler does not take an OpenVINO IR (NGRAPH_LITE is not among its graph formats); \
+             only pre-compiled blobs would run, and no bundle format carries one",
+        ));
+    }
     let xml = unsafe { std::slice::from_raw_parts(desc.artifact as *const u8, desc.artifact_bytes as usize) };
     let bin = unsafe { std::slice::from_raw_parts(desc.artifact2 as *const u8, desc.artifact2_bytes as usize) };
     let io = ir::interface(xml).map_err(|e| fail(RUNTIME, e))?;
+    if ctx.max_opset != 0 && io.max_opset > ctx.max_opset {
+        return Err(fail(
+            UNSUPPORTED,
+            format!(
+                "npu: the IR uses opset {}, and the device's compiler supports up to opset {}; update the NPU \
+                 driver or export the IR for an older opset",
+                io.max_opset, ctx.max_opset
+            ),
+        ));
+    }
     let flags = ir::build_flags(&io).map_err(|e| fail(RUNTIME, e))?;
     let container = ir::container((maj, min), xml, bin);
     let cflags = CString::new(flags.clone()).map_err(|_| fail(RUNTIME, "npu: a NUL in the build flags"))?;
@@ -507,39 +542,61 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
     }
 
     // The encoder's boundary: ids and mask, token types where the graph
-    // takes them, and the hidden states back. Names first, the usual
-    // order for whatever a name does not say.
+    // takes them, and the hidden states back. Each input is taken by its
+    // name, the ones a BERT export gives, and an input named anything
+    // else is refused: a graph is never run on a guess about which
+    // argument is which.
+    let names = |v: &[(Arg, [u32; 5], u32)]| v.iter().map(|(a, _, _)| a.name.clone()).collect::<Vec<_>>();
     if !(2..=3).contains(&inputs.len()) || outputs.is_empty() {
-        let names = |v: &[(Arg, [u32; 5], u32)]| v.iter().map(|(a, _, _)| a.name.clone()).collect::<Vec<_>>();
         return Err(fail(
             RUNTIME,
             format!(
-                "npu: the graph takes {:?} and returns {:?}; an encoder takes ids, mask and optional types",
+                "npu: the graph takes {:?} and returns {:?}; an encoder takes input_ids, attention_mask and \
+                 optionally token_type_ids, and returns last_hidden_state",
                 names(&inputs),
                 names(&outputs)
             ),
         ));
     }
-    let by_name = |what: &str| inputs.iter().position(|(a, _, _)| a.name.contains(what));
-    let mut order = match (by_name("input_ids"), by_name("attention_mask")) {
-        (Some(i), Some(m)) if i != m => vec![i, m],
-        _ => Vec::new(),
-    };
-    if let Some(t) = by_name("token_type").filter(|t| order.len() == 2 && !order.contains(t)) {
-        order.push(t);
-    }
-    for i in 0..inputs.len() {
-        if !order.contains(&i) {
-            order.push(i);
+    let (mut ids, mut mask, mut types) = (None, None, None);
+    for entry in inputs {
+        let slot = match entry.0.name.as_str() {
+            "input_ids" => &mut ids,
+            "attention_mask" => &mut mask,
+            "token_type_ids" => &mut types,
+            other => {
+                return Err(fail(
+                    RUNTIME,
+                    format!(
+                        "npu: the graph takes an input named {other:?}, which this backend does not know; it runs \
+                         graphs whose inputs are input_ids, attention_mask and optionally token_type_ids"
+                    ),
+                ));
+            }
+        };
+        if slot.replace(entry).is_some() {
+            return Err(fail(RUNTIME, "npu: the graph takes two inputs of one name"));
         }
     }
-    let mut slots: Vec<Option<(Arg, [u32; 5], u32)>> = inputs.into_iter().map(Some).collect();
-    let mut grab = |at: usize| slots[at].take().expect("each index appears once in order");
-    let (ids, ids_dims, ids_rank) = grab(order[0]);
-    let (mask, _, _) = grab(order[1]);
-    let types = order.get(2).map(|&at| grab(at)).map(|(a, _, _)| a);
-    let at = outputs.iter().position(|(a, _, _)| a.name.contains("last_hidden_state")).unwrap_or(0);
-    let output = outputs.remove(at);
+    let (Some(ids), Some(mask)) = (ids, mask) else {
+        return Err(fail(RUNTIME, "npu: the graph takes no input_ids or no attention_mask"));
+    };
+    // One output is the hidden states whatever its name; among several,
+    // only the one named last_hidden_state is, and anything else is
+    // refused rather than guessed at.
+    let output = match outputs.len() {
+        1 => outputs.remove(0),
+        _ => {
+            let at = outputs.iter().position(|(a, _, _)| a.name == "last_hidden_state").ok_or_else(|| {
+                fail(RUNTIME, format!("npu: the graph returns {:?} and none is last_hidden_state", names(&outputs)))
+            })?;
+            outputs.remove(at)
+        }
+    };
+
+    let (ids, ids_dims, ids_rank) = ids;
+    let (mask, _, _) = mask;
+    let types = types.map(|(a, _, _)| a);
     if ids_rank != 2 {
         return Err(fail(RUNTIME, format!("npu: {:?} has rank {ids_rank}; token ids are [batch, seq]", ids.name)));
     }
@@ -615,11 +672,14 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
             let init = ctx.ext.append_graph_initialize().ok_or_else(|| {
                 fail(RUNTIME, "npu: the graph asks for pfnAppendGraphInitialize and the driver's table has none")
             })?;
-            let list = ctx.list.lock().unwrap_or_else(|p| p.into_inner()).0;
-            ze_res("pfnAppendGraphInitialize", unsafe {
-                init(list, graph, std::ptr::null_mut(), 0, std::ptr::null_mut())
+            ctx.with_list(|list| {
+                ze_res("pfnAppendGraphInitialize", unsafe {
+                    init(list, graph, std::ptr::null_mut(), 0, std::ptr::null_mut())
+                })?;
+                ze_res("zeCommandListHostSynchronize", unsafe {
+                    (ctx.api.command_list_host_synchronize)(list, u64::MAX)
+                })
             })?;
-            ze_res("zeCommandListHostSynchronize", unsafe { (ctx.api.command_list_host_synchronize)(list, u64::MAX) })?;
         }
         s => {
             return Err(fail(
@@ -786,6 +846,13 @@ pub(crate) unsafe extern "C" fn embed_write(
                 let dst = row * dst_stride;
                 let ids = std::slice::from_raw_parts(r.ids.add(src), seq);
                 let mask = std::slice::from_raw_parts(r.mask.add(src), seq);
+                // The core promises at least one live token per row; a
+                // row without one would pool a mean over nothing, so it
+                // is refused here rather than returned as NaN.
+                if !mask.contains(&1) {
+                    rows.state.written = false;
+                    return Err(fail(INVALID_ARGUMENT, format!("npu: row {row} has no token with mask 1")));
+                }
                 rows.ids[dst..dst + seq].copy_from_slice(ids);
                 rows.mask[dst..dst + seq].copy_from_slice(mask);
                 match r.types.is_null() {

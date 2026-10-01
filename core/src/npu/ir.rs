@@ -28,11 +28,14 @@ pub struct Port {
     pub dims: Vec<Option<u64>>,
 }
 
-/// The IR's boundary: its Parameters and Results, in document order.
+/// The IR's boundary: its Parameters and Results, in document order,
+/// and the highest opset any of its layers names, for the check against
+/// what the driver's compiler supports.
 #[derive(Debug, Default)]
 pub struct Interface {
     pub inputs: Vec<Port>,
     pub outputs: Vec<Port>,
+    pub max_opset: u32,
 }
 
 /// The ov element type names an IR's Parameter carries, as the compiler's
@@ -190,6 +193,10 @@ pub fn interface(xml: &[u8]) -> Result<Interface, String> {
         let attrs = attributes(&xml[astart..aend]);
         let kind = attr(&attrs, "type").unwrap_or("");
         let name = attr(&attrs, "name").unwrap_or("").to_owned();
+        if let Some(opset) = attr(&attrs, "version").and_then(|v| v.strip_prefix("opset")).and_then(|v| v.parse().ok())
+        {
+            io.max_opset = io.max_opset.max(opset);
+        }
         let body_end = match xml[aend..].find("</layer>") {
             Some(r) => aend + r,
             None => xml.len(),
@@ -295,7 +302,7 @@ mod tests {
                 <port id="0" precision="I64" names="token_type_ids"><dim>1</dim><dim>128</dim></port>
             </output>
         </layer>
-        <layer id="3" name="Constant_1" type="Const" version="opset1">
+        <layer id="3" name="Constant_1" type="Const" version="opset8">
             <data element_type="f16" shape="30522,384" offset="0" size="23440896" />
             <output><port id="0" precision="FP16"><dim>30522</dim><dim>384</dim></port></output>
         </layer>
@@ -319,6 +326,7 @@ mod tests {
         assert_eq!(io.outputs[0].name, "last_hidden_state");
         assert_eq!(io.outputs[0].precision, "FP32");
         assert_eq!(io.outputs[0].dims, vec![Some(1), Some(128), Some(384)]);
+        assert_eq!(io.max_opset, 8, "the highest opset any layer names");
     }
 
     #[test]

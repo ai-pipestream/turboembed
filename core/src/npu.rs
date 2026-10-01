@@ -20,9 +20,7 @@ use crate::backend::{
     TURBO_CAP_EXPERIMENTAL, TURBO_CAP_UNSUPPORTED, TURBO_FORMAT_OPENVINO_IR, format_bit, refuse, turbo_backend,
 };
 use crate::status::{DEVICE_UNAVAILABLE, INVALID_ARGUMENT};
-use crate::{
-    TURBO_DEVICE_NPU, TURBO_DTYPE_F16, TURBO_PRECISION_EXACT, turbo_device_info, turbo_error, turbo_log_fn, write_str,
-};
+use crate::{TURBO_DEVICE_NPU, TURBO_PRECISION_EXACT, turbo_device_info, turbo_error, turbo_log_fn, write_str};
 
 pub static BACKEND: turbo_backend = turbo_backend {
     struct_size: size_of::<turbo_backend>() as u32,
@@ -125,20 +123,28 @@ unsafe extern "C" fn capability(
         return rc;
     }
     unsafe {
-        let r = std::slice::from_raw_parts_mut(reason, reason_len as usize);
+        // The core always hands a buffer; a caller of the table that
+        // does not is not written through.
+        let say = |text: &str| {
+            if !reason.is_null() && reason_len != 0 {
+                write_str(std::slice::from_raw_parts_mut(reason, reason_len as usize), text);
+            }
+        };
         if precision == TURBO_PRECISION_EXACT {
             *status = TURBO_CAP_UNSUPPORTED;
             *dtype = 0;
             *options_honored = 0;
-            write_str(r, "EXACT asks for F32 throughout, and a compiled graph computes in the dtype its IR fixed");
+            say("EXACT asks for F32 throughout, and a compiled graph computes in the dtype its IR fixed");
         } else {
             *status = TURBO_CAP_EXPERIMENTAL;
-            // The artifact's compute_dtype decides a session; the bundles
-            // compiled for this backend are F16 IRs, and
-            // turbo_session_get_info says what a session really resolved.
-            *dtype = TURBO_DTYPE_F16;
+            // No dtype is claimed before an artifact is seen: the IR's
+            // compilation fixes it, model_load reads it from the
+            // compiled graph, and turbo_session_get_info reports what a
+            // session really resolved. Benchmark records name a dtype,
+            // so a 0 here also backs no SUPPORTED claim.
+            *dtype = 0;
             *options_honored = EMBED_HONORED;
-            write_str(r, "");
+            say("");
         }
     }
     0
@@ -203,6 +209,13 @@ pub(crate) struct Device {
     ext: ze::GraphExt,
     /// The compiler in the driver, from the device's graph properties.
     compiler: ze::CompilerVersion,
+    /// ze_graph_format_t bits the device's compiler takes, from the same
+    /// probe: model_load refuses an IR when NGRAPH_LITE is not among
+    /// them, before any compile is tried.
+    formats_supported: u32,
+    /// The highest OpenVINO opset the device's compiler supports; 0 when
+    /// the driver does not say.
+    max_opset: u32,
     memory_total: u64,
     arch: String,
     name: String,
@@ -217,7 +230,10 @@ unsafe impl Sync for Device {}
 unsafe impl Send for Device {}
 
 /// Ok(None) when there is no loader or no NPU driver: nothing to list,
-/// not an error. Err when a driver is there and answers wrongly.
+/// not an error. Err when a driver is there and answers wrongly, or NPU
+/// hardware is there and every device had to be skipped. The result,
+/// an Err too, is found once and kept for the life of the process: a
+/// driver fixed underneath a running process is seen by the next one.
 fn driver() -> Result<Option<&'static Driver>, &'static str> {
     static DRIVER: OnceLock<Result<Option<Driver>, String>> = OnceLock::new();
     match DRIVER.get_or_init(Driver::open) {
@@ -249,13 +265,31 @@ impl Driver {
         drivers.truncate(n as usize);
 
         let mut devices = Vec::new();
+        // An NPU device seen and not listed, with why: when every one is
+        // skipped nothing is listed, and that is an error with these
+        // reasons, never a quiet empty list on a machine that has the
+        // hardware.
+        let mut skipped: Vec<String> = Vec::new();
         for &drv in &drivers {
             let mut props = ze::DriverProperties { stype: ze::STRUCTURE_TYPE_DRIVER_PROPERTIES, ..Default::default() };
             ze::check("zeDriverGetProperties", unsafe { (api.driver_get_properties)(drv, &mut props) })?;
-            // The graph extension, named among the driver's extensions. A
-            // driver without it has no NPU this backend can feed: its
-            // devices are not listed, and that is not an error.
+            let mut npus = Vec::new();
+            for dev in ze::list("zeDeviceGet", |n, out| unsafe { (api.device_get)(drv, n, out) })? {
+                let mut p = ze::DeviceProperties { stype: ze::STRUCTURE_TYPE_DEVICE_PROPERTIES, ..Default::default() };
+                ze::check("zeDeviceGetProperties", unsafe { (api.device_get_properties)(dev, &mut p) })?;
+                if p.kind == ze::DEVICE_TYPE_NPU {
+                    npus.push((dev, p));
+                }
+            }
+            if npus.is_empty() {
+                continue;
+            }
+            // The graph extension, named among the driver's extensions.
             let Some(ext_version) = graph_extension_version(&api, drv)? else {
+                skipped.push(format!(
+                    "{} NPU device(s) on a driver without ZE_extension_graph; the NPU driver is too old or broken",
+                    npus.len()
+                ));
                 continue;
             };
             // Advertised and not handed out is a broken runtime, not a
@@ -265,23 +299,25 @@ impl Driver {
                 (api.driver_get_extension_function_address)(drv, ze::GRAPH_EXT_NAME.as_ptr(), &mut table)
             })?;
             let ext = unsafe { ze::GraphExt::new(table as *const ze::GraphDdi, ext_version) };
-            for dev in ze::list("zeDeviceGet", |n, out| unsafe { (api.device_get)(drv, n, out) })? {
-                let mut p = ze::DeviceProperties { stype: ze::STRUCTURE_TYPE_DEVICE_PROPERTIES, ..Default::default() };
-                ze::check("zeDeviceGetProperties", unsafe { (api.device_get_properties)(dev, &mut p) })?;
-                if p.kind != ze::DEVICE_TYPE_NPU {
-                    continue;
-                }
+            for (dev, p) in npus {
                 // The probe: the device must answer for its own graph
-                // properties. One that does not is not listed; nothing
-                // stands in for it.
+                // properties. One that does not is not listed, nothing
+                // stands in for it, and why is kept for the error below.
                 let Some(get) = ext.device_get_graph_properties() else {
+                    skipped.push(format!(
+                        "{}: the driver's table has no pfnDeviceGetGraphProperties",
+                        ze::string(&p.name)
+                    ));
                     continue;
                 };
                 let mut gp = ze::DeviceGraphProperties {
                     stype: ze::STRUCTURE_TYPE_DEVICE_GRAPH_PROPERTIES,
                     ..Default::default()
                 };
-                if unsafe { get(dev, &mut gp) } != 0 {
+                let rc = unsafe { get(dev, &mut gp) };
+                if rc != 0 {
+                    skipped
+                        .push(format!("{}: pfnDeviceGetGraphProperties failed with 0x{rc:08x}", ze::string(&p.name)));
                     continue;
                 }
                 let mut n = 0u32;
@@ -305,6 +341,8 @@ impl Driver {
                         ze::GraphExt::new(table as *const ze::GraphDdi, gp.graph_extension_version.min(ext_version))
                     },
                     compiler: gp.compiler_version,
+                    formats_supported: gp.graph_formats_supported,
+                    max_opset: gp.max_ov_opset_version_supported,
                     memory_total: mem.iter().map(|m| m.total_size).sum(),
                     arch: arch(p.vendor_id, p.device_id),
                     name: ze::string(&p.name),
@@ -314,6 +352,12 @@ impl Driver {
             }
         }
         if devices.is_empty() {
+            // NPU hardware seen and every device skipped is an error
+            // with the reasons; a machine without the hardware or its
+            // driver lists nothing quietly.
+            if !skipped.is_empty() {
+                return Err(format!("npu: no device is listed: {}", skipped.join("; ")));
+            }
             return Ok(None);
         }
         let loader_version = api.loader_version();
