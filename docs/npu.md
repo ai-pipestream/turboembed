@@ -333,7 +333,7 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
   device: the MiniLM recipe now carries `openvino-f16` for `npu`, and
   the proof is still the ignored tests and the conformance run above,
   on that machine, with `TURBO_TEST_REQUIRE_NPU=1` and
-  `TURBO_TEST_BUNDLE` set to a bundle `make` sealed from that recipe.
+  `TURBO_TEST_BUNDLE` set to a bundle `make` or `seal` produced from that recipe.
   Nothing in this tree claims a session has run on the NPU.
 - The `INPUT_EMBEDDINGS` host-gather path, should an NPU graph ever be
   cut at the embedding gather the way the Hailo one is.
