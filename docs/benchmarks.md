@@ -108,13 +108,18 @@ cargo run --release -p turbo-bench --features levelzero -- record \
 ```
 
 On intel-npu the token-id MiniLM seal (`openvino-f16`), with the `npu`
-feature. The published cell is `--batch 1 --seq 128`: one library frame
+feature. The published shape is `--batch 1 --seq 128`: one library frame
 is one `benchmark_app` request of `[1, 128]`. The tool refuses a run
 that omits those flags. Do not copy `--seq 256` or a batch of 32 from a
-GPU record. No record of this run is in the tree yet; the command is
-what a follow-up on that machine records. On driver `0.15.21738` the
-record's `library.settings` include `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE`.
-Docs for the device and the seal are in docs/npu.md.
+GPU record. `--precision model` and `--precision fastest` are two cells
+at that shape. The files start
+`arl-npu.npu.ngraph-lite.embed.model.` and
+`arl-npu.npu.ngraph-lite.embed.fastest.`. A record of one does not fill
+the other. Neither file is in `benchmarks/records/` yet. The fastest
+one is what the intel-npu host is expected to commit from tip
+`2b7c942`. On driver `0.15.21738` the record's `library.settings`
+include `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE`. Docs for the device, the
+seal, and the host-only CI job are in docs/npu.md.
 
 Windows, where a container cannot see the NPU driver:
 

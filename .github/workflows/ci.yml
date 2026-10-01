@@ -29,9 +29,12 @@ jobs:
         run: cargo clippy -p turbo --features npu --all-targets
       - name: test
         run: cargo test --workspace
-      # The npu feature builds with nothing installed (the Level Zero
-      # loader is opened at run time), so the backend always compiles
-      # and its device-less tests always run, even without hardware.
+      # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
+      # The job does not pass --include-ignored and does not set
+      # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
+      # stay ignored and a missing device is a skip. There is no
+      # self-hosted NPU runner. A green job is not a device run.
+      # docs/npu.md, "Host-only blocker".
       - name: test (npu)
         run: cargo test -p turbo --features npu
       - name: a benchmark record end to end, from the pushed commit

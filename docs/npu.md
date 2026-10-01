@@ -487,6 +487,32 @@ Pooling and normalize stay on the host. The loader takes the first
 reports lookup on the device. A seal that drops that artifact, or
 lists `openvino-embeddings-f16` first, reports lookup on the host.
 
+## Host-only blocker
+
+GitHub Actions does not run this backend on an NPU. The `test (npu)`
+step in `.github/workflows/ci.yml` is `cargo test -p turbo --features npu`
+on `ubuntu-24.04`. That machine has no Intel NPU driver and no
+`/dev/accel` node. The job does not pass `--include-ignored` and does
+not set `TURBO_TEST_REQUIRE_NPU`.
+
+What that job does run: the library tests that need no device (the IR
+container, the build flags, the host gather, the native-blob copy
+against a stand-in table) and the integration tests that return when
+the backend lists nothing. A missing device is a skip line, not a
+measured session.
+
+What it does not run: the four tests in `core/tests/npu.rs` marked
+`needs an Intel NPU and TURBO_TEST_BUNDLE with an OpenVINO IR for it`.
+Those stay ignored. Conformance with `TURBO_TEST_DEVICE=npu` is the
+ignored test in `core/tests/conformance.rs`, and this job does not
+include it. `turbo-bench` is not pointed at an NPU here either.
+
+There is no self-hosted NPU runner in this workflow. Adding one means
+a machine that lists the device and runs the ignored tests with
+`TURBO_TEST_REQUIRE_NPU=1` and a real bundle. A green `test (npu)` on
+`ubuntu-24.04` is not that run, and it is not coverage of the graph
+the driver compiles.
+
 ## Hardware
 
 Commit `90d7138`, on Windows Arrow Lake. The device lists as
@@ -560,13 +586,19 @@ Both are references only. The product path stays the Level Zero graph
 extension.
 
 The model is `sentence-transformers/all-MiniLM-L6-v2`, the one the
-other optimized paths record. The published cell is the token-id seal
-(`openvino-f16`) at `--batch 1 --seq 128`. That artifact's
+other optimized paths record. The published shape on the token-id seal
+(`openvino-f16`) is `--batch 1 --seq 128`. That artifact's
 `fixed_batch` is 1 and its `fixed_seq` is 128. One library frame is
 one `benchmark_app` request of `[1, 128]`. The tool refuses any other
 shape for an npu load, including the shape it would pick when
-`--batch` and `--seq` are omitted. `EXACT` is `UNSUPPORTED` and is
-not a speed cell.
+`--batch` and `--seq` are omitted.
+
+`PRECISION_MODEL` and `PRECISION_FASTEST` are two cells at that same
+shape. `--precision model` is filed as
+`arl-npu.npu.ngraph-lite.embed.model.`. `--precision fastest` is filed
+as `arl-npu.npu.ngraph-lite.embed.fastest.`. On this IR both sessions
+compute in the compiled F16 graph. A record of one precision does not
+fill the other. `EXACT` is `UNSUPPORTED` and is not a speed cell.
 
 `timing.computed_tokens` for this cell is 128: the device executes
 the compiled frame, and the zeros after the live tokens are part of
@@ -594,9 +626,10 @@ on this part, and the device name the driver reports. Do not put a
 hostname in the record; the tool rewrites host paths, and a home
 directory is refused. Capability stays `EXPERIMENTAL`.
 
-The follow-up is that command on intel-npu, from a clean pushed tree,
-for the token-id MiniLM seal at `model` and `fastest`, mixed rows,
-`--batch 1 --seq 128`. `--no-tei` is honest when Docker cannot run
+The follow-up is that command on intel-npu, from a clean tree at tip
+`2b7c942`, twice: `--precision fastest` and `--precision model`, each
+with `--batch 1 --seq 128` and mixed rows. The two files are separate
+records. `--no-tei` is honest when Docker cannot run
 TEI's CPU image; the record says TEI was not run, and the speed cell
 is against OpenVINO when `benchmark_app` ran. `--no-openvino` leaves
 the kernel cell empty. A disabled reference is recorded as not run.
@@ -615,11 +648,19 @@ and the command has no per-device index.
   that lists the bit. That create has not been exercised on hardware.
   A record from that driver would say `TURBO_NPU_GRAPH_FORMAT=NATIVE`
   and would not match an `NGRAPH_LITE` cell.
-- Speed cells. The harness and the command are in Speed, above. No
-  record is committed. Timings wait on a follow-up intel-npu run of
-  the token-id seal at `--batch 1 --seq 128`. On driver `0.15.21738`
-  that record's `TURBO_NPU_GRAPH_FORMAT` is `NGRAPH_LITE`. A `NATIVE`
-  timing waits on a driver that advertises bit `0x1`.
+- Speed cells. No file under `benchmarks/records/` is an npu record.
+  The measured token-id fastest cell must be committed there by the
+  intel-npu host, built from tip `2b7c942`. Its name starts with
+  `arl-npu.npu.ngraph-lite.embed.fastest.`. That file is not in this
+  tree and is not written here. The `model` cell is a separate record
+  at the same `--batch 1 --seq 128`, named
+  `arl-npu.npu.ngraph-lite.embed.model.`, and is also not committed.
+  On driver `0.15.21738` either record's `TURBO_NPU_GRAPH_FORMAT` is
+  `NGRAPH_LITE`. A `NATIVE` timing waits on a driver that advertises
+  bit `0x1`.
+- Host-only CI. `test (npu)` on GitHub Actions is `ubuntu-24.04` with
+  no device. The ignored NPU tests are not that job. There is no
+  self-hosted NPU runner. See Host-only blocker.
 - No benchmark record marks this backend `SUPPORTED`. Capability stays
   `EXPERIMENTAL`.
 - Several NPU devices. `benchmark_app -d NPU` is OpenVINO's first
