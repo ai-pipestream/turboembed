@@ -598,3 +598,109 @@ fn a_recipe_file_that_changed_is_not_staged() {
     assert!(e.contains("the recipe pins"), "{e}");
     fs::remove_dir_all(d).unwrap();
 }
+
+/// The pin is the LF bytes in the commit. A Windows checkout that
+/// rewrote CR LF hashes to the other value and make refuses it.
+#[test]
+fn the_calibration_pin_is_the_committed_lf_bytes() {
+    let path = root().join("bundle/recipes/all-minilm-l6-v2.calibration.jsonl");
+    let bytes = fs::read(&path).unwrap();
+    assert!(!bytes.contains(&b'\r'), "the committed calibration file is LF");
+    let r = Recipe::load(&root().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap();
+    let pin = &r.local.iter().find(|l| l.path.ends_with(".jsonl")).unwrap().sha256;
+    assert_eq!(turbo::bundle::sha256_hex(&bytes), *pin);
+    let mut crlf = Vec::with_capacity(bytes.len() + bytes.iter().filter(|b| **b == b'\n').count());
+    for b in &bytes {
+        if *b == b'\n' {
+            crlf.push(b'\r');
+        }
+        crlf.push(*b);
+    }
+    assert_eq!(turbo::bundle::sha256_hex(&crlf), "9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940");
+}
+
+/// The files a host IR conversion leaves, plus a reference copied from a
+/// bundle the pinned image already sealed. No container is run.
+fn staged_ir(dir: &Path) -> (Recipe, PathBuf, PathBuf) {
+    let recipe = tiny_recipe(dir);
+    let r = Recipe::load(&recipe).unwrap();
+    let bundle = dir.join("bundle");
+    fs::create_dir_all(bundle.join("openvino")).unwrap();
+    fs::write(bundle.join("openvino/model.xml"), b"<ir>").unwrap();
+    fs::write(bundle.join("openvino/model.bin"), b"<weights>").unwrap();
+    fs::write(bundle.join("openvino/report.json"), serde_json::to_vec(&reported_ir()).unwrap()).unwrap();
+    fs::create_dir_all(bundle.join("reference")).unwrap();
+    fs::copy(
+        root().join("testdata/tiny-bert-reference/reference.safetensors"),
+        bundle.join("reference/reference.safetensors"),
+    )
+    .unwrap();
+    let container = r.str_at("/reference/produced_by/container").unwrap();
+    fs::write(
+        bundle.join("reference/report.json"),
+        serde_json::to_vec(&json!({
+            "tool": "sentence-transformers",
+            "tool_version": "6.1.0",
+            "container": container,
+            "args": ["--device", "cpu"]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let upstream = upstream(dir);
+    (r, upstream, bundle)
+}
+
+#[test]
+fn a_staged_ir_seals_without_a_container() {
+    let d = scratch("staged-ir");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    seal::seal_staged(&mut r, &upstream, &bundle).expect("sealed from the staged IR");
+    let m: Value = serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+    let names: Vec<&str> = m["artifacts"].as_array().unwrap().iter().map(|a| a["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["weights-f32", "onnx-f32", "openvino-f16"], "the conversions that were not staged are omitted");
+    let ir = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "openvino-f16").unwrap();
+    assert_eq!(ir["produced_by"]["container"], "host");
+    assert_eq!(ir["produced_by"]["reproducible"], json!(false));
+    assert_eq!(ir["produced_by"]["tool"], "openvino.save_model");
+    assert_eq!(
+        ir["produced_by"]["args"],
+        json!([
+            "onnx/model.onnx",
+            "openvino/model.xml",
+            "openvino/model.bin",
+            "seq=128",
+            "batch=1",
+            "compress_to_fp16=True"
+        ])
+    );
+    let paths: Vec<&str> = m["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
+    assert!(!paths.contains(&"calibration/texts.jsonl"), "the HEF's texts are not carried when the HEF is omitted");
+    assert!(!bundle.join("openvino/report.json").exists(), "the report is not a bundle file");
+    assert!(!bundle.join("reference/report.json").exists());
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_staged_ir_without_its_report_or_its_reference_is_refused() {
+    let d = scratch("staged-no-report");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::remove_file(bundle.join("openvino/report.json")).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("no report"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+
+    let d = scratch("staged-partial");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::remove_file(bundle.join("openvino/model.bin")).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("model.bin"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+
+    let d = scratch("staged-no-reference");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::remove_file(bundle.join("reference/reference.safetensors")).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("reference/reference.safetensors"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}

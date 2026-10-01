@@ -16,14 +16,26 @@ use crate::{Result, check_rel};
 
 /// Copy the upstream files the bundle carries from `upstream` into `bundle`.
 pub fn stage(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
+    stage_named(recipe, upstream, bundle, None)
+}
+
+/// As `stage`, copying a local file only when `keep` names its bundle
+/// path. `None` copies every local file.
+fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BTreeSet<String>>) -> Result<()> {
     for u in &recipe.upstream {
         if let Some(to) = &u.to {
+            if keep.is_some_and(|k| !k.contains(to)) {
+                continue;
+            }
             let bytes = fs::read(upstream.join(&u.path)).map_err(|e| format!("upstream {}: {e}", u.path))?;
             crate::fetch::write_atomic(&bundle.join(to), &bytes)?;
         }
     }
     // The recipe's own files, each checked against its pinned hash.
     for l in &recipe.local {
+        if keep.is_some_and(|k| !k.contains(&l.to)) {
+            continue;
+        }
         let from = recipe.dir.join(&l.path);
         let bytes = fs::read(&from).map_err(|e| format!("local {}: {e}", from.display()))?;
         let got = sha256_hex(&bytes);
@@ -33,6 +45,168 @@ pub fn stage(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
         crate::fetch::write_atomic(&bundle.join(&l.to), &bytes)?;
     }
     Ok(())
+}
+
+/// Seal a bundle from files already in `bundle`, without running a
+/// container. The reference file and its report must already be there.
+/// An OpenVINO IR the recipe converts must already be there too, with
+/// the report `onnx_to_openvino_ir.py` writes; that report names no
+/// container, and the manifest records `host`. Any other conversion
+/// whose files are absent is left out of the manifest, and one whose
+/// files are present must bring a report that names its container.
+/// A report is `report.json` in the output file's directory, or
+/// `<file>.report.json`, and it is not left in the bundle.
+pub fn seal_staged(recipe: &mut Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
+    if bundle.join("manifest.json").exists() {
+        return Err(format!("{} already holds a bundle; make it into an empty directory", bundle.display()));
+    }
+    let reference_file = recipe.str_at("/reference/file")?;
+    if !bundle.join(reference_file).is_file() {
+        return Err(format!(
+            "{reference_file} is not in the bundle. The loader checks the reference, and this command does not run \
+             the container that writes it: copy the file, and reference/report.json holding its produced_by \
+             (including container), from a bundle sealed with the pinned image (docs/npu.md)"
+        ));
+    }
+    let reference_report = find_report(bundle, reference_file).ok_or_else(|| {
+        format!(
+            "{reference_file}: no report (report.json in its directory, or {reference_file}.report.json). Copy \
+             reference.produced_by from a bundle sealed with the pinned image"
+        )
+    })?;
+
+    let mut manifest = recipe.manifest.clone();
+    let mut made = Vec::new();
+    let mut drop_names = Vec::new();
+    let mut reports = vec![reference_report];
+    for c in crate::convert::conversions(recipe)? {
+        match staged_outputs(bundle, &c)? {
+            Staged::Absent => {
+                if c.script == crate::convert::ONNX_TO_OPENVINO_IR {
+                    return Err(format!(
+                        "{}: {} and its weights must already be in the bundle. This command does not run docker \
+                         (docs/npu.md)",
+                        c.name, c.file
+                    ));
+                }
+                println!("seal: omitted {} ({} is not in the bundle)", c.name, c.file);
+                drop_names.push(c.name);
+            }
+            Staged::Ready(report_path) => {
+                let reported: Value = read_json(&report_path)?;
+                made.push((c.name.clone(), conversion_produced_by(&reported, &c)?));
+                reports.push(report_path);
+            }
+        }
+    }
+    let arts = manifest["artifacts"].as_array_mut().ok_or("manifest.artifacts: missing")?;
+    arts.retain(|a| a["name"].as_str().is_none_or(|n| !drop_names.iter().any(|d| d == n)));
+    recipe.manifest = manifest;
+
+    let reported = read_json(&reports[0])?;
+    let container = reported["container"].as_str().ok_or(
+        "reference/report.json has no container. Copy reference.produced_by from a bundle sealed with the pinned \
+         image; this command does not run that image and does not fill the field in",
+    )?;
+    let produced_by = crate::reference::produced_by(&reported, container)?;
+    for path in &reports {
+        fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+
+    let keep = named_paths(&recipe.manifest)?;
+    stage_named(recipe, upstream, bundle, Some(&keep))?;
+    seal(recipe, bundle, produced_by, made)
+}
+
+fn read_json(path: &Path) -> Result<Value> {
+    serde_json::from_slice(&fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?)
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+enum Staged {
+    Absent,
+    Ready(std::path::PathBuf),
+}
+
+/// Both outputs present, or neither. One of the two is an error.
+fn staged_outputs(bundle: &Path, c: &crate::convert::Conversion) -> Result<Staged> {
+    let primary = bundle.join(&c.file).is_file();
+    let secondary = match &c.file2 {
+        Some(f) => bundle.join(f).is_file(),
+        None => primary,
+    };
+    if primary != secondary {
+        let missing = match &c.file2 {
+            Some(f) if !bundle.join(f).is_file() => f.as_str(),
+            _ => c.file.as_str(),
+        };
+        return Err(format!("{}: {missing} is not in the bundle, and the other output is", c.name));
+    }
+    if !primary {
+        return Ok(Staged::Absent);
+    }
+    Ok(Staged::Ready(find_report(bundle, &c.file).ok_or_else(|| {
+        format!(
+            "{}: no report for {} (report.json in its directory, or {}.report.json). The host script writes it; \
+             this command does not run docker",
+            c.name, c.file, c.file
+        )
+    })?))
+}
+
+fn find_report(bundle: &Path, file: &str) -> Option<std::path::PathBuf> {
+    let path = bundle.join(file);
+    let dir_report = path.parent().map(|d| d.join("report.json"));
+    // `<file>.report.json` keeps the original suffix: model.xml.report.json.
+    let mut named = path.into_os_string();
+    named.push(".report.json");
+    [dir_report, Some(std::path::PathBuf::from(named))].into_iter().flatten().find(|p| p.is_file())
+}
+
+/// A script report (`tool`, `tool_version`, `settings`) or a finished
+/// `produced_by`. The OpenVINO host script names no container; that run
+/// is recorded as `host`, and as not reproducible, because it ran once.
+fn conversion_produced_by(reported: &Value, c: &crate::convert::Conversion) -> Result<Value> {
+    if reported.get("settings").is_some() {
+        let container = match reported["container"].as_str() {
+            Some(container) => container.to_owned(),
+            None if c.script == crate::convert::ONNX_TO_OPENVINO_IR => "host".to_owned(),
+            None => {
+                return Err(format!(
+                    "{}: the report has no container. A conversion that ran in an image names that image; only the \
+                     OpenVINO host script may omit it",
+                    c.name
+                ));
+            }
+        };
+        let reproducible = reported["reproducible"].as_bool().unwrap_or(false);
+        return crate::convert::produced_by(reported, &container, c, reproducible);
+    }
+    // A produced_by copied from a bundle already sealed. Its args stay as
+    // that seal wrote them.
+    let tool = reported["tool"].as_str().ok_or(format!("{}: the report has no tool", c.name))?;
+    let tool_version =
+        reported["tool_version"].as_str().ok_or(format!("{}: the report has no tool_version", c.name))?;
+    let container = reported["container"].as_str().ok_or(format!(
+        "{}: the report has no container. A conversion that ran in an image names that image; only the OpenVINO \
+         host script may omit it",
+        c.name
+    ))?;
+    let args = reported["args"].as_array().ok_or(format!("{}: the report has no args or settings", c.name))?;
+    let mut pb = json!({
+        "tool": tool,
+        "tool_version": tool_version,
+        "container": container,
+        "args": args,
+        "reproducible": reported["reproducible"].as_bool().unwrap_or(false),
+    });
+    if !c.from.is_empty() {
+        pb["from"] = json!(c.from);
+    }
+    if !c.inputs.is_empty() {
+        pb["inputs"] = json!(c.inputs);
+    }
+    Ok(pb)
 }
 
 /// Every path the manifest names, which is what `files` must list.

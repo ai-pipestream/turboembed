@@ -222,25 +222,46 @@ step writes `openvino/model.xml` and `openvino/model.bin` and seals
 both into `files`.
 
 On the Arrow Lake machine, where OpenVINO 2026.3 is already installed
-and Docker is not, the same script produces the two files the seal
-step hashes. With that install's `python` on `PATH` (`py -3.12` is the
-usual launcher), from a directory that already holds the staged
-`onnx/model.onnx` (the bundle directory after `stage`, or the upstream
-checkout):
+and Docker Desktop is not, `make` still cannot convert the IR: that
+step runs inside the pinned reference image, and the image the recipe
+pins was built before `onnx_to_openvino_ir.py` was added. The host
+script produces the same two files, and `turbo-bundle seal` writes the
+manifest from them without running docker.
+
+With that install's `python` on `PATH` (`py -3.12` is the usual
+launcher), after `fetch` has put the export in `<upstream>`:
 
 ```
 py -3.12 -c "import openvino; print(openvino.get_version())"
-py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py onnx\model.onnx openvino\model.xml openvino\model.bin report.json --seq 128 --batch 1
+mkdir <bundle>\openvino
+py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.onnx <bundle>\openvino\model.xml <bundle>\openvino\model.bin <bundle>\openvino\report.json --seq 128 --batch 1
 ```
 
 The first line must print a 2026.3 version. The script refuses an input
-whose rank is not 2. `openvino\model.xml` and `openvino\model.bin` are
-what `make` would have written; `report.json` is the `produced_by`
-report and is not a bundle file. Sealing still goes through
-`turbo-bundle`, because only that fills `files` with the sizes and
-SHA-256 the core checks, and the reference vectors still come from the
-pinned container. A hand-copied IR in a bundle whose manifest was
-sealed without it will not load.
+whose rank is not 2. `report.json` is the `produced_by` report. `seal`
+reads it and does not leave it in the bundle. The report names no
+container, so the manifest records `container` `host` and
+`reproducible` false: the script ran once on the machine, not twice in
+the pinned image.
+
+The loader still checks the reference file, and `seal` does not run the
+container that writes it. Copy `reference\reference.safetensors` and
+`reference\report.json` from a bundle already sealed with the image the
+recipe pins (`reference.produced_by.container`). `report.json` is that
+bundle's `reference.produced_by`, including `container`. `seal` does
+not fill the container in. The F16 ONNX file and the HEF are left out
+of the manifest when their files are not in the bundle; they are not
+claimed as made. Then, from the repo root:
+
+```
+cargo run -p turbo-bundle -- seal bundle/recipes/all-minilm-l6-v2.json <upstream> <bundle>
+```
+
+`<bundle>` must not already hold a `manifest.json`. `seal` copies the
+upstream files the remaining artifacts name, checks each recipe-local
+file it still carries against its pin, fills `files` with sizes and
+SHA-256, and verifies through the core. A partial IR (the xml without
+the weights, or the files without `report.json`) is refused.
 
 ## Windows notes
 
@@ -264,6 +285,23 @@ made before that file existed holds rewritten copies (tokenizer.json
 reads 742346 bytes against the manifest's 711661); refresh them once
 with `git rm -r --cached testdata && git checkout -- testdata`, or
 reclone.
+
+The same rewrite breaks `make` and `seal` on the recipe's calibration
+file. `bundle/recipes/*.jsonl` is marked `-text` for the same reason:
+`stage` hashes those bytes, and the MiniLM pin
+`bde646a9a523e6dbb93315343bd363890ef31510625aee4a2e8c7a6fda65c3b4` is
+the LF file in the commit. A checkout that turned the line endings into
+CR LF hashes to
+`9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940` and
+is refused. A clone made before that attribute existed holds the
+rewritten copy; refresh it once, from the repo root:
+
+```
+git rm --cached bundle/recipes/all-minilm-l6-v2.calibration.jsonl
+git checkout -- bundle/recipes/all-minilm-l6-v2.calibration.jsonl
+```
+
+or reclone.
 
 ## Testing on an NPU machine
 

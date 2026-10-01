@@ -15,6 +15,11 @@ usage:
   turbo-bundle reference <recipe.json> <upstream-dir> <bundle-dir>
       copy the files the bundle carries, run the reference container
       and the conversions, then seal and verify
+  turbo-bundle seal <recipe.json> <upstream-dir> <bundle-dir>
+      stage, then seal from files already in the bundle. Does not run
+      docker. The reference file and its report must already be there,
+      and so must an OpenVINO IR the recipe converts (docs/npu.md).
+      A conversion whose files are absent is left out of the manifest
   turbo-bundle verify <bundle-dir>
       load a bundle the way a machine does and check every file";
 
@@ -40,6 +45,10 @@ fn run(args: &[&str]) -> Result<()> {
         ["fetch", recipe, upstream] => fetch::fetch(&Recipe::load(Path::new(recipe))?, Path::new(upstream)),
         ["reference", recipe, upstream, bundle] => {
             make_from_upstream(&Recipe::load(Path::new(recipe))?, Path::new(upstream), Path::new(bundle))
+        }
+        ["seal", recipe, upstream, bundle] => {
+            let mut r = Recipe::load(Path::new(recipe))?;
+            seal::seal_staged(&mut r, Path::new(upstream), Path::new(bundle))
         }
         ["verify", bundle] => seal::verify(Path::new(bundle)),
         _ => Err(USAGE.into()),

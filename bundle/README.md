@@ -25,8 +25,9 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
 3. **reference**: the upstream pipeline runs in the pinned container,
    with no network, on the fetched files: fp32 on CPU, one text at a time.
    It writes the reference ids and vectors, and reports what ran. Python
-   runs here and in the next step, in the pinned containers, and nowhere
-   else.
+   runs here and in the next step, in the pinned containers. `seal`
+   (below) is the one path that adopts a report the host script already
+   wrote, and it does not run Python.
 4. **convert**: each artifact whose `produced_by` the recipe gives is
    made from the artifact it names, with no network, twice:
    - an F16 ONNX file (`produced_by` names only `from`), in the reference
@@ -61,4 +62,12 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
    every reference vector is finite, non-zero and, when the bundle says
    `NORMALIZE_L2`, of unit length.
 
-`turbo-bundle verify <dir>` runs step 5 alone.
+`turbo-bundle verify <dir>` runs step 6 alone.
+
+`turbo-bundle seal <recipe.json> <upstream-dir> <bundle-dir>` does
+steps 2 and 5 without a container. The reference file and a report
+that names its container must already be in the bundle, copied from a
+bundle this pin already sealed. An OpenVINO IR the recipe converts
+must already be there too, with the report the host script writes
+(docs/npu.md); that manifest entry records `container` `host`. A
+conversion whose files are absent is left out of the manifest.
