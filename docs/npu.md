@@ -255,7 +255,7 @@ recipe's `reference.produced_by.container` is the image built from
 `bundle/reference` on this tree, which contains
 `onnx_to_openvino_ir.py`:
 
-`turbo-reference@sha256:56aa40360cd70e733b566d716a72b745d142020dc7b9b4fafed46ded4ea89c2e`
+`turbo-reference@sha256:994f2d1b0c61669a2cf3c3d89b1b6d58fe9b82b7560602801e0da69d83b5786a`
 
 That string is `turbo-reference@` plus `docker image inspect --format "{{.Id}}" turbo-reference`
 after `docker build -t turbo-reference bundle/reference`. A later build
@@ -305,10 +305,11 @@ py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.on
 The first line must print a 2026.3 version. The script refuses an input
 whose rank is not 2, a layer opset above `--max-opset`, and a Result
 port that is not FP16. Omitting `--max-opset` is the same cap, 11.
-`report.json`
-is the `produced_by` report. `seal`
-reads it and does not leave it in the bundle. The report names no
-container, so the manifest records `container` `host` and
+`openvino\report.json` is the token-id IR's `produced_by` report.
+`seal` opens `<file>.report.json` first (`openvino\model.xml.report.json`),
+then `report.json` in that file's directory when the named report is
+absent. It does not leave the report in the bundle. The report names
+no container, so the manifest records `container` `host` and
 `reproducible` false: the script ran once on the machine, not twice in
 the pinned image.
 
@@ -344,30 +345,40 @@ cargo run -p turbo-bundle -- seal bundle/recipes/all-minilm-l6-v2.json <upstream
 upstream files the remaining artifacts name, checks each recipe-local
 file it still carries against its pin, fills `files` with sizes and
 SHA-256, and verifies through the core. A partial IR (the xml without
-the weights, or the files without `report.json`) is refused.
+the weights, or the files without the report `seal` opens) is refused.
 
 ### The embeddings cut
 
 `openvino-embeddings-f16` is a second IR, `INPUT_EMBEDDINGS`,
 `host_weights` `weights-f32`, the same frame (`fixed_seq` 128,
-`fixed_batch` 1). The script cuts the export, checks the cut against
-it on CPU, then saves the IR. On the same OpenVINO 2026.3 install:
+`fixed_batch` 1). The script cuts the export, checks the ONNX cut
+against it, lowers the graph, saves the IR, and checks that saved IR
+again. On the same OpenVINO 2026.3 install:
 
 ```
-mkdir <bundle>\openvino
-py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.onnx <bundle>\openvino\embeddings.xml <bundle>\openvino\embeddings.bin <bundle>\openvino\embeddings-report.json --seq 128 --batch 1 --max-opset 11 --cut embeddings --heads 12
+py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.onnx <bundle>\openvino\embeddings.xml <bundle>\openvino\embeddings.bin <bundle>\openvino\embeddings.xml.report.json --seq 128 --batch 1 --max-opset 11 --cut embeddings --heads 12 --tokenizer <upstream>\tokenizer.json --calibration <repo>\bundle\recipes\all-minilm-l6-v2.calibration.jsonl
 ```
 
-The script exits if the cut is more than 1e-4 from the export on a
-kept position, if a layer opset is above the cap, or if a Result is
-not FP16. The check compiles both graphs with
-`INFERENCE_PRECISION_HINT` `f32`. The CPU plugin's default hint lowers
-the fused attention, and the static cut then disagrees with the export
-by about 1e-2 on a kept position. The gathered inputs stay FP32. Rename the report to
-`openvino\embeddings.xml.report.json` when the token-id IR is in the
-same directory (`openvino\report.json` is that IR's report). The seal
-looks at `report.json` in the xml's directory first, then at
-`<file>.report.json`.
+The fourth path is the report `seal` opens for this artifact:
+`openvino\embeddings.xml.report.json`. It is not `openvino\report.json`.
+That file is the token-id IR's report, and a seal of both files that
+bound it here would be refused. The embeddings report must contain
+`cut=embeddings` and `cut_max_abs_diff`. The token-id report must
+contain neither.
+
+The rows are the Hailo calibration texts plus one synthetic row with a
+mask hole. The ONNX cut, before lowering, must be within 1e-4 of the
+export on a kept position. After `save_model` (`compress_to_fp16`,
+FP16 Results, SDPA lowered to opset 11 or below) the saved IR is
+compared the same way. `cut_max_abs_diff` is that second difference.
+FP16 compression is not the 1e-4 ONNX tolerance. The saved IR must be
+within 0.02. The MiniLM cut measured 0.00451 on these texts. Both
+checks compile with `INFERENCE_PRECISION_HINT`
+`f32`. The CPU plugin's default hint lowers the fused attention, and
+the static cut then disagrees with the export by about 1e-2 on a kept
+position. The script exits if either check is over its tolerance, if a
+layer opset is above the cap, or if a Result is not FP16. The gathered
+inputs stay FP32.
 
 The recipe lists `openvino-f16` before `openvino-embeddings-f16`, and
 both name `npu`. The loader takes the first artifact it can run, so a
@@ -483,10 +494,11 @@ FP16 is `DTYPE_F16`, FP32 is `DTYPE_F32`, and a manifest
 
 ## Still to land
 
+- An AI Boost compile of `openvino-embeddings-f16`: `devicePrecision`
+  and `deviceLayout` for `word_rows` and `attn_bias`, and a reference
+  embed on that graph. No NPU here has compiled this IR, so it is not
+  part of the Arrow Lake receipt above. Capability stays `EXPERIMENTAL`.
 - `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which
   would need its own artifact format in docs/bundle.md, decided when a
   bundle wants to carry one.
-- A device compile of the embeddings-cut IR. The host gather and the
-  conversion are in this tree. No NPU here has compiled
-  `openvino-embeddings-f16`, so that path is not part of the Arrow Lake
-  receipt above, and capability stays `EXPERIMENTAL`.
+- No benchmark record marks this backend `SUPPORTED`.

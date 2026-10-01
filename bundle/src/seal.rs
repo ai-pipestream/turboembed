@@ -54,8 +54,10 @@ fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BT
 /// container, and the manifest records `host`. Any other conversion
 /// whose files are absent is left out of the manifest, and one whose
 /// files are present must bring a report that names its container.
-/// A report is `report.json` in the output file's directory, or
-/// `<file>.report.json`, and it is not left in the bundle.
+/// A report is `<file>.report.json`, or `report.json` in the output
+/// file's directory when that named report is absent. The named file
+/// wins, so two IRs in one directory do not share a receipt. The
+/// report is not left in the bundle.
 pub fn seal_staged(recipe: &mut Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
     if bundle.join("manifest.json").exists() {
         return Err(format!("{} already holds a bundle; make it into an empty directory", bundle.display()));
@@ -70,7 +72,7 @@ pub fn seal_staged(recipe: &mut Recipe, upstream: &Path, bundle: &Path) -> Resul
     }
     let reference_report = find_report(bundle, reference_file).ok_or_else(|| {
         format!(
-            "{reference_file}: no report (report.json in its directory, or {reference_file}.report.json). Copy \
+            "{reference_file}: no report ({reference_file}.report.json, or report.json in its directory). Copy \
              reference.produced_by from a bundle sealed with the pinned image"
         )
     })?;
@@ -100,6 +102,7 @@ pub fn seal_staged(recipe: &mut Recipe, upstream: &Path, bundle: &Path) -> Resul
             }
             Staged::Ready(report_path) => {
                 let reported: Value = read_json(&report_path)?;
+                require_ir_report(&c, &report_path, &reported)?;
                 made.push((c.name.clone(), conversion_produced_by(&reported, &c)?));
                 reports.push(report_path);
             }
@@ -153,7 +156,7 @@ fn staged_outputs(bundle: &Path, c: &crate::convert::Conversion) -> Result<Stage
     }
     Ok(Staged::Ready(find_report(bundle, &c.file).ok_or_else(|| {
         format!(
-            "{}: no report for {} (report.json in its directory, or {}.report.json). The host script writes it; \
+            "{}: no report for {} ({}.report.json, or report.json in its directory). The host script writes it; \
              this command does not run docker",
             c.name, c.file, c.file
         )
@@ -162,11 +165,63 @@ fn staged_outputs(bundle: &Path, c: &crate::convert::Conversion) -> Result<Stage
 
 fn find_report(bundle: &Path, file: &str) -> Option<std::path::PathBuf> {
     let path = bundle.join(file);
-    let dir_report = path.parent().map(|d| d.join("report.json"));
-    // `<file>.report.json` keeps the original suffix: model.xml.report.json.
-    let mut named = path.into_os_string();
+    // `<file>.report.json` keeps the original suffix: embeddings.xml.report.json.
+    // It is this output's own report. `report.json` beside it is the
+    // fallback for a directory that holds one conversion, which is how
+    // the token-id IR's openvino/report.json is found when
+    // model.xml.report.json is absent.
+    let mut named = path.clone().into_os_string();
     named.push(".report.json");
-    [dir_report, Some(std::path::PathBuf::from(named))].into_iter().flatten().find(|p| p.is_file())
+    let named = std::path::PathBuf::from(named);
+    if named.is_file() {
+        return Some(named);
+    }
+    path.parent().map(|d| d.join("report.json")).filter(|p| p.is_file())
+}
+
+/// The strings a script report or a copied produced_by carries.
+fn report_strings(name: &str, reported: &Value) -> Result<Vec<String>> {
+    let mut out = Vec::new();
+    for key in ["settings", "args"] {
+        let Some(arr) = reported.get(key).filter(|v| !v.is_null()) else { continue };
+        let arr = arr.as_array().ok_or(format!("{name}: the report's {key} is not a list"))?;
+        for v in arr {
+            out.push(v.as_str().ok_or(format!("{name}: a report {key} entry is not a string"))?.to_owned());
+        }
+    }
+    if out.is_empty() {
+        return Err(format!("{name}: the report has no settings or args"));
+    }
+    Ok(out)
+}
+
+/// Two OpenVINO IRs in one directory must not share a receipt. The
+/// embeddings artifact's report carries `cut=embeddings` and
+/// `cut_max_abs_diff`. The token-id IR's report carries neither.
+fn require_ir_report(c: &crate::convert::Conversion, report: &Path, reported: &Value) -> Result<()> {
+    if c.script != crate::convert::ONNX_TO_OPENVINO_IR {
+        return Ok(());
+    }
+    let fields = report_strings(&c.name, reported)?;
+    let embeddings = c.args.iter().any(|a| a == "embeddings");
+    let has_cut = fields.iter().any(|s| s == "cut=embeddings");
+    let has_diff = fields.iter().any(|s| s.starts_with("cut_max_abs_diff="));
+    let path = report.display();
+    if embeddings && !(has_cut && has_diff) {
+        return Err(format!(
+            "{}: {path} is not the embeddings cut. The report needs cut=embeddings and cut_max_abs_diff. This \
+             artifact's report is {}.report.json",
+            c.name, c.file
+        ));
+    }
+    if !embeddings && (has_cut || has_diff) {
+        return Err(format!(
+            "{}: {path} is an embeddings cut (it has cut=embeddings or cut_max_abs_diff). The token-id IR's report \
+             does not",
+            c.name
+        ));
+    }
+    Ok(())
 }
 
 /// A script report (`tool`, `tool_version`, `settings`) or a finished

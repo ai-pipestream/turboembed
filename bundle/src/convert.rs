@@ -161,8 +161,7 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
         let from_file = graph_file(src, from)?;
         if !hef {
             if a["format"] == "FORMAT_OPENVINO_IR" {
-                let heads = recipe.manifest["architecture"]["heads"].as_u64();
-                out.push(ir_conversion(a, name, from, from_file, upstream_export, heads)?);
+                out.push(ir_conversion(recipe, a, name, from, from_file, upstream_export)?);
                 continue;
             }
             if !(a["format"] == "FORMAT_ONNX" && a["compute_dtype"] == "DTYPE_F16" && upstream_export) {
@@ -224,20 +223,31 @@ fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Res
     })
 }
 
+/// The recipe's one local calibration jsonl, staged at `to`. The
+/// embeddings cut checks the saved IR on these texts, the same file the
+/// HEF compile reads. A recipe with none, or with two, is refused.
+fn calibration_texts(recipe: &Recipe) -> Result<String> {
+    let paths: Vec<&str> = recipe.local.iter().filter(|l| l.to.ends_with(".jsonl")).map(|l| l.to.as_str()).collect();
+    match paths.as_slice() {
+        [p] => Ok((*p).to_owned()),
+        _ => Err("an embeddings cut needs the recipe's one local calibration jsonl".into()),
+    }
+}
+
 /// A FORMAT_OPENVINO_IR artifact for the npu backend: DTYPE_F16, static
 /// shapes (fixed_seq and fixed_batch given, because the NPU driver's
 /// compiler takes no dynamic IR), from INPUT_TOKEN_IDS or from
 /// INPUT_EMBEDDINGS to OUTPUT_HIDDEN_STATES, converted from the upstream
 /// export in the reference container by onnx_to_openvino_ir.py
-/// (docs/npu.md). The embeddings cut passes `--cut embeddings` and the
-/// architecture's head count.
+/// (docs/npu.md). The embeddings cut passes `--cut embeddings`, the
+/// architecture's head count, the tokenizer, and the calibration texts.
 fn ir_conversion(
+    recipe: &Recipe,
     a: &Value,
     name: &str,
     from: &str,
     from_file: String,
     upstream_export: bool,
-    heads: Option<u64>,
 ) -> Result<Conversion> {
     let refuse = |why: &str| format!("artifact {name}: {why}");
     if !upstream_export {
@@ -257,7 +267,10 @@ fn ir_conversion(
         return Err(refuse("an INPUT_EMBEDDINGS OpenVINO IR names its host_weights"));
     }
     let heads = match embeddings {
-        true => heads.filter(|&h| h > 0).ok_or(refuse("an embeddings cut needs manifest.architecture.heads"))?,
+        true => recipe.manifest["architecture"]["heads"]
+            .as_u64()
+            .filter(|&h| h > 0)
+            .ok_or(refuse("an embeddings cut needs manifest.architecture.heads"))?,
         false => 0,
     };
     let seq = a["fixed_seq"]
@@ -274,7 +287,20 @@ fn ir_conversion(
     let mut args =
         vec!["--seq".into(), seq.to_string(), "--batch".into(), batch.to_string(), "--max-opset".into(), "11".into()];
     if embeddings {
-        args.extend(["--cut".into(), "embeddings".into(), "--heads".into(), heads.to_string()]);
+        let tokenizer = recipe.str_at("/tokenizer/file")?;
+        let calibration = calibration_texts(recipe).map_err(|e| refuse(&e))?;
+        // The container sees the staged bundle at /bundle. A host run of
+        // the script passes the same files by their own paths (docs/npu.md).
+        args.extend([
+            "--cut".into(),
+            "embeddings".into(),
+            "--heads".into(),
+            heads.to_string(),
+            "--tokenizer".into(),
+            format!("/bundle/{tokenizer}"),
+            "--calibration".into(),
+            format!("/bundle/{calibration}"),
+        ]);
     }
     Ok(Conversion {
         name: name.to_owned(),

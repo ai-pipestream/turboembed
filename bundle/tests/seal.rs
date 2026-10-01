@@ -291,11 +291,25 @@ fn an_openvino_ir_is_two_files_at_a_fixed_shape() {
     let cut = c.iter().find(|c| c.name == "openvino-embeddings-f16").expect("the recipe converts an embeddings IR");
     assert_eq!(cut.file, "openvino/embeddings.xml");
     assert_eq!(cut.file2.as_deref(), Some("openvino/embeddings.bin"));
-    let want: Vec<String> =
-        ["--seq", "128", "--batch", "1", "--max-opset", "11", "--cut", "embeddings", "--heads", "12"]
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
+    let want: Vec<String> = [
+        "--seq",
+        "128",
+        "--batch",
+        "1",
+        "--max-opset",
+        "11",
+        "--cut",
+        "embeddings",
+        "--heads",
+        "12",
+        "--tokenizer",
+        "/bundle/tokenizer.json",
+        "--calibration",
+        "/bundle/calibration/texts.jsonl",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
     assert_eq!(cut.args, want);
     let d = scratch("ir-conversion");
     let write = |edit: &dyn Fn(&mut Value)| {
@@ -695,6 +709,66 @@ fn a_staged_ir_seals_without_a_container() {
     assert!(!paths.contains(&"calibration/texts.jsonl"), "the HEF's texts are not carried when the HEF is omitted");
     assert!(!bundle.join("openvino/report.json").exists(), "the report is not a bundle file");
     assert!(!bundle.join("reference/report.json").exists());
+    fs::remove_dir_all(d).unwrap();
+}
+
+/// What the embeddings cut reports, in the form onnx_to_openvino_ir.py writes it.
+fn reported_embeddings() -> Value {
+    json!({
+        "tool": "openvino.save_model",
+        "tool_version": "2026.3.0",
+        "settings": [
+            "seq=128",
+            "batch=1",
+            "max_opset=11",
+            "compress_to_fp16=True",
+            "output_precision=FP16",
+            "cut=embeddings",
+            "heads=12",
+            "masked=-100.0",
+            "calibration_texts=180",
+            "onnx_cut_max_abs_diff=3.34e-06",
+            "cut_max_abs_diff=0.012"
+        ],
+    })
+}
+
+#[test]
+fn both_openvino_irs_bind_their_own_reports() {
+    let d = scratch("both-irs");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::write(bundle.join("openvino/embeddings.xml"), b"<emb-ir>").unwrap();
+    fs::write(bundle.join("openvino/embeddings.bin"), b"<emb-weights>").unwrap();
+    fs::write(bundle.join("openvino/embeddings.xml.report.json"), serde_json::to_vec(&reported_embeddings()).unwrap())
+        .unwrap();
+    seal::seal_staged(&mut r, &upstream, &bundle).expect("both irs, each with its own report");
+    let m: Value = serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+    let args = |name: &str| -> Vec<String> {
+        m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == name).unwrap()["produced_by"]["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_owned())
+            .collect()
+    };
+    let token = args("openvino-f16");
+    let emb = args("openvino-embeddings-f16");
+    assert!(!token.iter().any(|s| s.contains("cut=")), "the token-id IR kept its own report: {token:?}");
+    assert!(emb.iter().any(|s| s == "cut=embeddings"), "{emb:?}");
+    assert!(emb.iter().any(|s| s == "cut_max_abs_diff=0.012"), "{emb:?}");
+    assert!(!bundle.join("openvino/report.json").exists());
+    assert!(!bundle.join("openvino/embeddings.xml.report.json").exists());
+    fs::remove_dir_all(d).unwrap();
+
+    // The directory report.json is the token-id receipt. Without
+    // embeddings.xml.report.json the embeddings artifact would bind it,
+    // and that is refused.
+    let d = scratch("both-irs-shared-report");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::write(bundle.join("openvino/embeddings.xml"), b"<emb-ir>").unwrap();
+    fs::write(bundle.join("openvino/embeddings.bin"), b"<emb-weights>").unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("openvino-embeddings-f16") && e.contains("cut=embeddings") && e.contains("report.json"), "{e}");
     fs::remove_dir_all(d).unwrap();
 }
 

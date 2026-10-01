@@ -225,8 +225,10 @@ pub(crate) unsafe extern "C" fn context_release(ctx: *mut c_void) {
 /// placement this backend has. The session's result vectors are one too,
 /// so buffer_export serves them alike.
 pub(crate) struct Buffer {
-    api: &'static ze::Api,
-    context: Handle,
+    /// zeMemFree for a device allocation. None when `ptr` is memory the
+    /// caller owns. A test buffer is not a Level Zero allocation, and
+    /// Drop does not call the driver for it.
+    free: Option<(&'static ze::Api, Handle)>,
     ptr: *mut c_void,
     bytes: u64,
 }
@@ -237,13 +239,15 @@ unsafe impl Sync for Buffer {}
 impl Buffer {
     fn new(ctx: &Context, bytes: u64, what: &str) -> Res<Buffer> {
         let ptr = ctx.alloc_host(bytes as usize, what)?;
-        Ok(Buffer { api: ctx.api, context: ctx.handle, ptr, bytes })
+        Ok(Buffer { free: Some((ctx.api, ctx.handle)), ptr, bytes })
     }
 }
 
 impl Drop for Buffer {
     fn drop(&mut self) {
-        unsafe { (self.api.mem_free)(self.context, self.ptr) };
+        if let Some((api, context)) = self.free {
+            unsafe { (api.mem_free)(context, self.ptr) };
+        }
     }
 }
 
@@ -1658,6 +1662,7 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TURBO_NORMALIZE_NONE;
 
     #[test]
     fn halves_read_back_as_the_f32_they_name() {
@@ -1976,5 +1981,156 @@ mod tests {
         assert!(e.contains("[1, 64, ...]"), "{e}");
         let e = err_msg(expect_frame("last_hidden_state", &[2, 128, 384], 1, 128));
         assert!(e.contains("the token frame is [1, 128]"), "{e}");
+    }
+
+    #[test]
+    fn two_rows_of_one_frame_are_gathered_into_the_host_buffers() {
+        // Frame of three. Two rows are written, at a stride longer than
+        // the compiled seq, with ids past the written length that must
+        // not be read. The third row stays zero word rows and an all
+        // MASKED bias, and both land in the host buffers.
+        let table = [1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let hidden = 2usize;
+        let model_seq = 4usize;
+        let heads = 2usize;
+        let stride = 8usize;
+        let written = 3usize;
+        let frame = 3usize;
+        let mut ids = vec![99i32; frame * stride];
+        let mut mask = vec![1i32; frame * stride];
+        ids[..3].copy_from_slice(&[2, 0, 1]);
+        mask[..3].copy_from_slice(&[1, 0, 1]);
+        ids[stride..stride + 3].copy_from_slice(&[1, 3, 0]);
+        mask[stride..stride + 3].copy_from_slice(&[1, 1, 0]);
+        let row_elems = model_seq * hidden;
+        let bias_elems = heads * model_seq * model_seq;
+        let mut rows = Rows {
+            ids,
+            mask,
+            types: vec![0; frame * stride],
+            acc: vec![0.0; hidden],
+            gathered_rows: vec![7.0; frame * row_elems],
+            gathered_bias: vec![7.0; frame * bias_elems],
+            state: State {
+                batch: 2,
+                seq: written as u32,
+                pooling: 0,
+                normalize: 0,
+                output_dim: hidden as u32,
+                written: true,
+            },
+        };
+        let mut host_rows = vec![9.0f32; frame * row_elems];
+        let mut host_bias = vec![9.0f32; frame * bias_elems];
+        let rows_buf = Buffer { free: None, ptr: host_rows.as_mut_ptr().cast(), bytes: (host_rows.len() * 4) as u64 };
+        let bias_buf = Buffer { free: None, ptr: host_bias.as_mut_ptr().cast(), bytes: (host_bias.len() * 4) as u64 };
+        let rows_arg =
+            Arg { index: 0, name: "word_rows".into(), precision: ze::GRAPH_ARGUMENT_PRECISION_FP32, elem: 4 };
+        let bias_arg =
+            Arg { index: 1, name: "attn_bias".into(), precision: ze::GRAPH_ARGUMENT_PRECISION_FP32, elem: 4 };
+        ok_msg(write_embedding_frame(
+            &EmbedFrame {
+                rows_arg: &rows_arg,
+                bias_arg: &bias_arg,
+                rows_buf: &rows_buf,
+                bias_buf: &bias_buf,
+                table: table.as_ptr(),
+                vocab: 4,
+                heads: heads as u32,
+                hidden,
+                model_seq,
+                written,
+            },
+            2,
+            0,
+            stride,
+            &mut rows,
+        ));
+        assert_eq!(&host_rows[0..8], &[5.0, 6.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "row 0");
+        assert_eq!(&host_rows[8..16], &[3.0, 4.0, 7.0, 8.0, 1.0, 2.0, 3.0, 4.0], "row 1");
+        assert!(host_rows[16..].iter().all(|&v| v == 0.0), "the unused row is zero");
+        let plane = model_seq * model_seq;
+        for head in 0..heads {
+            for q in 0..model_seq {
+                let base = head * plane + q * model_seq;
+                assert_eq!(&host_bias[base..base + 4], &[0.0, MASKED, 0.0, MASKED], "row 0 head {head} query {q}");
+                let base = bias_elems + base;
+                assert_eq!(&host_bias[base..base + 4], &[0.0, 0.0, MASKED, MASKED], "row 1 head {head} query {q}");
+            }
+        }
+        assert!(host_bias[2 * bias_elems..].iter().all(|&v| v == MASKED), "the unused bias is dropped");
+    }
+
+    #[test]
+    fn embed_write_refuses_a_nonzero_token_type_and_does_not_run() {
+        let table = [1.0f32, 2.0];
+        let model = Model {
+            ctx: std::ptr::null(),
+            graph: std::ptr::null_mut(),
+            run: Mutex::new(()),
+            inputs: GraphInputs::Embeddings {
+                rows: Arg { index: 0, name: "word_rows".into(), precision: ze::GRAPH_ARGUMENT_PRECISION_FP32, elem: 4 },
+                bias: Arg { index: 1, name: "attn_bias".into(), precision: ze::GRAPH_ARGUMENT_PRECISION_FP32, elem: 4 },
+                heads: 1,
+                table: table.as_ptr(),
+                vocab: 1,
+            },
+            output: Arg {
+                index: 2,
+                name: "last_hidden_state".into(),
+                precision: ze::GRAPH_ARGUMENT_PRECISION_FP16,
+                elem: 2,
+            },
+            frame_batch: 1,
+            seq: 4,
+            hidden: 2,
+            compute_dtype: TURBO_DTYPE_F16,
+        };
+        let empty = || Buffer { free: None, ptr: std::ptr::null_mut(), bytes: 0 };
+        let mut session = Session {
+            model: &model,
+            max_seq: 4,
+            frames: Frames::Embeddings { rows: empty(), bias: empty() },
+            out_buf: empty(),
+            result: Box::new(empty()),
+            rows: Mutex::new(Rows {
+                ids: vec![0; 4],
+                mask: vec![0; 4],
+                types: vec![0; 4],
+                acc: vec![0.0; 2],
+                gathered_rows: Vec::new(),
+                gathered_bias: Vec::new(),
+                state: State { batch: 0, seq: 0, pooling: 0, normalize: 0, output_dim: 0, written: false },
+            }),
+        };
+        let ids = [1i32, 2, 3, 4];
+        let mask = [1i32, 1, 0, 0];
+        let types = [0i32, 2, 0, 0];
+        let input = turbo_backend_embed_rows {
+            struct_size: std::mem::size_of::<turbo_backend_embed_rows>() as u32,
+            batch: 1,
+            seq: 4,
+            row_stride: 4,
+            ids: ids.as_ptr(),
+            mask: mask.as_ptr(),
+            types: types.as_ptr(),
+            pooling: TURBO_POOLING_MEAN,
+            normalize: TURBO_NORMALIZE_NONE,
+            output_dim: 2,
+            reserved: 0,
+        };
+        let mut err: turbo_error = unsafe { std::mem::zeroed() };
+        let rc = unsafe { embed_write(&mut session as *mut Session as *mut c_void, &input, &mut err) };
+        assert_eq!(rc, UNSUPPORTED_OPTION);
+        assert_eq!(err.code, UNSUPPORTED_OPTION);
+        let msg = crate::backend::cstr(&err.message);
+        assert!(msg.contains("token type 2") && msg.contains("row 0") && msg.contains("position 1"), "{msg}");
+        assert!(!session.rows.lock().unwrap().state.written, "a refused write does not arm a run");
+
+        let mut out: turbo_backend_run = unsafe { std::mem::zeroed() };
+        let rc = unsafe { session_run(&mut session as *mut Session as *mut c_void, &mut out, &mut err) };
+        assert_eq!(rc, INVALID_STATE);
+        let msg = crate::backend::cstr(&err.message);
+        assert!(msg.contains("no rows are written"), "{msg}");
     }
 }
