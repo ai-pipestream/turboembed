@@ -70,4 +70,8 @@ that names its container must already be in the bundle, copied from a
 bundle this pin already sealed. An OpenVINO IR the recipe converts
 must already be there too, with the report the host script writes
 (docs/npu.md); that manifest entry records `container` `host`. A
-conversion whose files are absent is left out of the manifest.
+conversion whose files are absent is left out of the manifest. The
+MiniLM reference the current pin sealed is
+`bundle/reference/out/all-minilm-l6-v2/` (`reference.safetensors` and
+`report.json`). Copy those two files into the bundle, then `seal`
+(docs/npu.md). The model's weights are not in the repository.

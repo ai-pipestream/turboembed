@@ -194,10 +194,17 @@ a reshape of every rank-2 input to `[fixed_batch, fixed_seq]`, then
 conversion the `ovc` command line performs
 (`ovc onnx/model.onnx --input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]" --compress_to_fp16=True --output_model openvino/model.xml`);
 the script is what the tool runs, because it also writes the
-`produced_by` report. The library never links OpenVINO. The image the
-recipe currently pins was built before this script existed, so `make`
-refuses the conversion until the image is built again and the pin in
-`reference.produced_by.container` is the new id.
+`produced_by` report. The library never links OpenVINO. The MiniLM
+recipe's `reference.produced_by.container` is the image built from
+`bundle/reference` on this tree, which contains
+`onnx_to_openvino_ir.py`:
+
+`turbo-reference@sha256:37e6b3da39352c17790d89c09b68b65a114010401009b7fef20c0c3f1e7204b1`
+
+That string is `turbo-reference@` plus `docker image inspect --format "{{.Id}}" turbo-reference`
+after `docker build -t turbo-reference bundle/reference`. A later build
+gets a new id, and the pin moves with it. The bge recipes still name
+an older image, which does not contain this script.
 
 From the workspace root, on Linux or on Windows with Docker Desktop
 (PowerShell; the same commands):
@@ -205,28 +212,29 @@ From the workspace root, on Linux or on Windows with Docker Desktop
 ```
 docker build -t turbo-reference bundle/reference
 docker image inspect --format "{{.Id}}" turbo-reference
-```
-
-The id prints as `sha256:<64 hex>`. Put
-`turbo-reference@sha256:<64 hex>` in the recipe's
-`reference.produced_by.container`, then:
-
-```
 cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json <upstream-dir> <bundle-dir>
 ```
 
 `<upstream-dir>` is a checkout of the model's repository at the commit
 the recipe names (the tool fetches when it can; a directory already
 holding those files is the offline path, bundle/README.md). The convert
-step writes `openvino/model.xml` and `openvino/model.bin` and seals
-both into `files`.
+step writes `openvino/model.xml` and `openvino/model.bin`. `make` then
+seals every conversion the recipe names. The Hailo image
+(`turbo-hailo-dfc@sha256:0972b97df2cfba9ba20abf9efa99a7f57ec675a00e6712a610f6cbd410a575b2`)
+is built locally, and `bundle/hailo/Dockerfile` needs a wheel this
+repository does not carry, so `make` stops after the reference, the F16
+ONNX, and the IR are written, and it does not write `manifest.json`.
+`turbo-bundle seal` on those files leaves the HEF out. A seal of that
+kind verified here: artifacts `weights-f32`, `onnx-f32`, `onnx-f16`,
+and `openvino-f16`, the reference and both conversions recorded against
+the pin above, and the IR `produced_by.reproducible` true (two runs,
+identical bytes). That is not a session on the NPU. The weights, the
+ONNX files, and the IR are not in git.
 
 On the Arrow Lake machine, where OpenVINO 2026.3 is already installed
-and Docker Desktop is not, `make` still cannot convert the IR: that
-step runs inside the pinned reference image, and the image the recipe
-pins was built before `onnx_to_openvino_ir.py` was added. The host
-script produces the same two files, and `turbo-bundle seal` writes the
-manifest from them without running docker.
+and Docker Desktop is not, the host script produces the same two IR
+files, and `turbo-bundle seal` writes the manifest from them without
+running docker.
 
 With that install's `python` on `PATH` (`py -3.12` is the usual
 launcher), after `fetch` has put the export in `<upstream>`:
@@ -245,13 +253,27 @@ container, so the manifest records `container` `host` and
 the pinned image.
 
 The loader still checks the reference file, and `seal` does not run the
-container that writes it. Copy `reference\reference.safetensors` and
-`reference\report.json` from a bundle already sealed with the image the
-recipe pins (`reference.produced_by.container`). `report.json` is that
-bundle's `reference.produced_by`, including `container`. `seal` does
-not fill the container in. The F16 ONNX file and the HEF are left out
-of the manifest when their files are not in the bundle; they are not
-claimed as made. Then, from the repo root:
+container that writes it. The file this pin sealed, and the report, are
+in the repo:
+
+```
+bundle/reference/out/all-minilm-l6-v2/reference.safetensors
+bundle/reference/out/all-minilm-l6-v2/report.json
+```
+
+`reference.safetensors` is 23292 bytes, SHA-256
+`b773a9f83f5017e5bbcb26ffd9a5087d5def4aa68e8c199598869231398b795b`.
+`report.json` is that sealed bundle's `reference.produced_by`, and its
+`container` is the pin above. Copy them to
+`<bundle>\reference\reference.safetensors` and
+`<bundle>\reference\report.json`. Keep the host-produced
+`openvino\model.xml`, `openvino\model.bin`, and `openvino\report.json`.
+`seal` does not fill the container in. The F16 ONNX file and the HEF
+are left out of the manifest when their files are not in the bundle;
+they are not claimed as made. A seal that copied these two files and a
+host IR report verified here: the IR is recorded as `container` `host`
+and `reproducible` false, and the reference keeps the pin. Then, from
+the repo root:
 
 ```
 cargo run -p turbo-bundle -- seal bundle/recipes/all-minilm-l6-v2.json <upstream> <bundle>
@@ -334,6 +356,9 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
   the proof is still the ignored tests and the conformance run above,
   on that machine, with `TURBO_TEST_REQUIRE_NPU=1` and
   `TURBO_TEST_BUNDLE` set to a bundle `make` or `seal` produced from that recipe.
+  The reference file for the pinned image is
+  `bundle/reference/out/all-minilm-l6-v2/`. A Linux `seal` of an IR that
+  image wrote has verified. The device has not compiled or run it.
   Nothing in this tree claims a session has run on the NPU.
 - The `INPUT_EMBEDDINGS` host-gather path, should an NPU graph ever be
   cut at the embedding gather the way the Hailo one is.
