@@ -95,7 +95,7 @@ fn reported_ir() -> Value {
     json!({
         "tool": "openvino.save_model",
         "tool_version": "2026.3.0",
-        "settings": ["seq=128", "batch=1", "compress_to_fp16=True"],
+        "settings": ["seq=128", "batch=1", "max_opset=11", "compress_to_fp16=True"],
     })
 }
 
@@ -194,6 +194,7 @@ fn a_sealed_bundle_loads_through_the_core() {
             "openvino/model.bin",
             "seq=128",
             "batch=1",
+            "max_opset=11",
             "compress_to_fp16=True"
         ])
     );
@@ -281,7 +282,7 @@ fn an_openvino_ir_is_two_files_at_a_fixed_shape() {
             script: convert::ONNX_TO_OPENVINO_IR,
             container: None,
             inputs: vec![],
-            args: vec!["--seq".into(), "128".into(), "--batch".into(), "1".into()],
+            args: vec!["--seq".into(), "128".into(), "--batch".into(), "1".into(), "--max-opset".into(), "11".into()],
         }
     );
     let d = scratch("ir-conversion");
@@ -671,6 +672,7 @@ fn a_staged_ir_seals_without_a_container() {
             "openvino/model.bin",
             "seq=128",
             "batch=1",
+            "max_opset=11",
             "compress_to_fp16=True"
         ])
     );

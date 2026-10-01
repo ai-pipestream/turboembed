@@ -200,12 +200,24 @@ a reshape of every rank-2 input to `[fixed_batch, fixed_seq]`, then
 conversion the `ovc` command line performs
 (`ovc onnx/model.onnx --input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]" --compress_to_fp16=True --output_model openvino/model.xml`);
 the script is what the tool runs, because it also writes the
-`produced_by` report. The library never links OpenVINO. The MiniLM
+`produced_by` report and lowers the opset. The library never links
+OpenVINO.
+
+`convert_model` fuses attention into `ScaledDotProductAttention`, an
+opset 13 layer. The Arrow Lake driver reports
+`maxOVOpsetVersionSupported` 11, and `model_load` refuses an IR whose
+highest layer opset is above that. The script builds the subgraph
+OpenVINO's `ScaledDotProductAttentionDecomposition` pass builds (the
+Python package does not wrap that pass): MatMul, scale, mask, softmax,
+MatMul, ops at opset 8 or below. After `save_model` it reads every
+layer `version="opsetN"` the backend reads, and exits if any is above
+the cap, naming the type. The cap is `--max-opset` (default 11). It
+does not rewrite a layer's version attribute. The MiniLM
 recipe's `reference.produced_by.container` is the image built from
 `bundle/reference` on this tree, which contains
 `onnx_to_openvino_ir.py`:
 
-`turbo-reference@sha256:37e6b3da39352c17790d89c09b68b65a114010401009b7fef20c0c3f1e7204b1`
+`turbo-reference@sha256:4424a19868081d9cb8531eb58e0c5dfc9324b19407a69f83ecc1ae9d7f05bdda`
 
 That string is `turbo-reference@` plus `docker image inspect --format "{{.Id}}" turbo-reference`
 after `docker build -t turbo-reference bundle/reference`. A later build
@@ -248,11 +260,13 @@ launcher), after `fetch` has put the export in `<upstream>`:
 ```
 py -3.12 -c "import openvino; print(openvino.get_version())"
 mkdir <bundle>\openvino
-py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.onnx <bundle>\openvino\model.xml <bundle>\openvino\model.bin <bundle>\openvino\report.json --seq 128 --batch 1
+py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.onnx <bundle>\openvino\model.xml <bundle>\openvino\model.bin <bundle>\openvino\report.json --seq 128 --batch 1 --max-opset 11
 ```
 
 The first line must print a 2026.3 version. The script refuses an input
-whose rank is not 2. `report.json` is the `produced_by` report. `seal`
+whose rank is not 2, and it refuses the xml if a layer opset is above
+`--max-opset`. Omitting `--max-opset` is the same cap, 11. `report.json`
+is the `produced_by` report. `seal`
 reads it and does not leave it in the bundle. The report names no
 container, so the manifest records `container` `host` and
 `reproducible` false: the script ran once on the machine, not twice in
@@ -363,9 +377,11 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
   on that machine, with `TURBO_TEST_REQUIRE_NPU=1` and
   `TURBO_TEST_BUNDLE` set to a bundle `make` or `seal` produced from that recipe.
   The reference file for the pinned image is
-  `bundle/reference/out/all-minilm-l6-v2/`. A Linux `seal` of an IR that
-  image wrote has verified. The device has not compiled or run it.
-  Nothing in this tree claims a session has run on the NPU.
+  `bundle/reference/out/all-minilm-l6-v2/`. The conversion writes an IR
+  whose highest layer opset is at most 11, which is the cap that driver
+  reports. A Linux `seal` of an IR that image wrote has verified. The
+  device has not compiled or run it. Nothing in this tree claims a
+  session has run on the NPU.
 - The `INPUT_EMBEDDINGS` host-gather path, should an NPU graph ever be
   cut at the embedding gather the way the Hailo one is.
 - `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which

@@ -147,6 +147,7 @@ this form before it is written or loaded.
           "openvino/model.bin",
           "seq=128",
           "batch=1",
+          "max_opset=11",
           "compress_to_fp16=True"
         ],
         "reproducible": true

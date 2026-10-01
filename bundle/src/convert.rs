@@ -260,7 +260,16 @@ fn ir_conversion(a: &Value, name: &str, from: &str, from_file: String, upstream_
         script: ONNX_TO_OPENVINO_IR,
         container: None,
         inputs: Vec::new(),
-        args: vec!["--seq".into(), seq.to_string(), "--batch".into(), batch.to_string()],
+        // 11 is what the Arrow Lake compiler reports as
+        // maxOVOpsetVersionSupported. The script's default is the same cap.
+        args: vec![
+            "--seq".into(),
+            seq.to_string(),
+            "--batch".into(),
+            batch.to_string(),
+            "--max-opset".into(),
+            "11".into(),
+        ],
     })
 }
 
