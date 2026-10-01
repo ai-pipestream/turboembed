@@ -348,7 +348,9 @@ fn openvino(f: &mut Fixture) {
         "backends": ["openvino", "cpu"],
         "compute_dtype": "DTYPE_F16",
         "graph_input": "INPUT_TOKEN_IDS",
-        "graph_output": "OUTPUT_HIDDEN_STATES"
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "fixed_seq": 128,
+        "fixed_batch": 1
     });
     f.manifest["artifacts"].as_array_mut().unwrap().insert(0, ir);
 }
@@ -393,6 +395,24 @@ fn an_openvino_ir_without_its_two_files_or_its_dtype_is_invalid() {
     f.manifest["artifacts"][0].as_object_mut().unwrap().remove("compute_dtype");
     let e = refused(&f);
     assert!(e.is(BUNDLE_INVALID, "artifacts[0].compute_dtype: required for a compiled OpenVINO IR"), "{e:?}");
+}
+
+/// A compiled OpenVINO IR names the static frame it was built for, the
+/// same way a HEF does. Absent and zero are the same refusal.
+#[test]
+fn an_openvino_ir_without_a_fixed_shape_is_invalid() {
+    for field in ["fixed_seq", "fixed_batch"] {
+        let mut f = Fixture::model(&format!("ir-no-{field}"));
+        openvino(&mut f);
+        f.manifest["artifacts"][0].as_object_mut().unwrap().remove(field);
+        let e = refused(&f);
+        assert!(e.is(BUNDLE_INVALID, &format!("artifacts[0].{field}: required for a compiled OpenVINO IR")), "{e:?}");
+        let mut f = Fixture::model(&format!("ir-zero-{field}"));
+        openvino(&mut f);
+        f.manifest["artifacts"][0][field] = json!(0);
+        let e = refused(&f);
+        assert!(e.is(BUNDLE_INVALID, &format!("artifacts[0].{field}: required for a compiled OpenVINO IR")), "{e:?}");
+    }
 }
 
 #[test]

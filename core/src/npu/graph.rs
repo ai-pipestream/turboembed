@@ -308,6 +308,16 @@ struct Arg {
     elem: usize,
 }
 
+/// One compiled argument, with the dims, rank and device layout the
+/// driver reported. The layout is what the host buffer must be when
+/// `pfnSetArgumentValue` is called.
+struct Compiled {
+    arg: Arg,
+    dims: [u32; 5],
+    rank: u32,
+    layout: u32,
+}
+
 pub(crate) struct Model {
     ctx: *const Context,
     graph: Handle,
@@ -333,6 +343,94 @@ unsafe impl Sync for Model {}
 impl Model {
     fn ctx(&self) -> &Context {
         unsafe { &*self.ctx }
+    }
+}
+
+/// The packed device layout the build flags name for a rank: NC for the
+/// rank-2 token frame, CHW for the rank-3 hidden states.
+fn packed_layout(rank: u32) -> Option<u32> {
+    match rank {
+        2 => Some(ze::GRAPH_ARGUMENT_LAYOUT_NC),
+        3 => Some(ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+        _ => None,
+    }
+}
+
+fn layout_label(layout: u32) -> String {
+    match layout {
+        ze::GRAPH_ARGUMENT_LAYOUT_NC => "NC".to_string(),
+        ze::GRAPH_ARGUMENT_LAYOUT_CHW => "CHW".to_string(),
+        0 => "ANY".to_string(),
+        0xC8 => "BLOCKED".to_string(),
+        n => format!("0x{n:02x}"),
+    }
+}
+
+/// Refuse unless `layout` is the packed layout the build flags asked for
+/// at this rank. BLOCKED and ANY are not that layout: the host writes
+/// packed rows.
+fn expect_packed_layout(name: &str, rank: u32, layout: u32) -> Res<()> {
+    let Some(want) = packed_layout(rank) else {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: {name:?} has rank {rank}; the build flags name a packed layout for rank 2 or 3"),
+        ));
+    };
+    if layout != want {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: {name:?} has device layout {}; the build flags asked for {}",
+                layout_label(layout),
+                layout_label(want)
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// The leading two dims are the token frame `[batch, seq]`.
+fn expect_frame(name: &str, dims: &[u32], batch: u32, seq: u32) -> Res<()> {
+    let (d0, d1) = (dims.first().copied().unwrap_or(0), dims.get(1).copied().unwrap_or(0));
+    if d0 != batch || d1 != seq {
+        return Err(fail(RUNTIME, format!("npu: {name:?} is [{d0}, {d1}, ...]; the token frame is [{batch}, {seq}]")));
+    }
+    Ok(())
+}
+
+/// The TURBO_DTYPE_* the compiled output precision is. FP16 is
+/// TURBO_DTYPE_F16 and FP32 is TURBO_DTYPE_F32. A manifest dtype of 0
+/// takes that; any other value must be it. The session reports this
+/// dtype, not a manifest value that disagrees.
+fn session_dtype(manifest: u32, precision: u32) -> Res<u32> {
+    let dtype = match precision {
+        ze::GRAPH_ARGUMENT_PRECISION_FP16 => TURBO_DTYPE_F16,
+        ze::GRAPH_ARGUMENT_PRECISION_FP32 => TURBO_DTYPE_F32,
+        p => {
+            return Err(fail(
+                RUNTIME,
+                format!("npu: the graph computes in argument precision 0x{p:02x}; FP16 and FP32 are a session dtype"),
+            ));
+        }
+    };
+    if manifest != 0 && manifest != dtype {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: the graph computes in {}; the manifest's compute_dtype is {}",
+                dtype_label(dtype),
+                dtype_label(manifest)
+            ),
+        ));
+    }
+    Ok(dtype)
+}
+
+fn dtype_label(d: u32) -> String {
+    match d {
+        TURBO_DTYPE_F16 => "DTYPE_F16".to_string(),
+        TURBO_DTYPE_F32 => "DTYPE_F32".to_string(),
+        n => n.to_string(),
     }
 }
 
@@ -519,8 +617,8 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
     let mut props = ze::GraphProperties2 { stype: ze::STRUCTURE_TYPE_GRAPH_PROPERTIES_2, ..Default::default() };
     ze_res("pfnGetProperties2", unsafe { get_props(graph, &mut props) })?;
 
-    let mut inputs: Vec<(Arg, [u32; 5], u32)> = Vec::new();
-    let mut outputs: Vec<(Arg, [u32; 5], u32)> = Vec::new();
+    let mut inputs: Vec<Compiled> = Vec::new();
+    let mut outputs: Vec<Compiled> = Vec::new();
     for i in 0..props.num_graph_args {
         let mut a = ze::GraphArgumentProperties3 {
             stype: ze::STRUCTURE_TYPE_GRAPH_ARGUMENT_PROPERTIES_3,
@@ -535,9 +633,10 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
             name,
         };
         let rank = if a.dims_count != 0 { a.dims_count } else { a.dims.iter().take_while(|&&d| d > 0).count() as u32 };
+        let compiled = Compiled { arg, dims: a.dims, rank, layout: a.device_layout };
         match a.kind {
-            ze::GRAPH_ARGUMENT_TYPE_INPUT => inputs.push((arg, a.dims, rank)),
-            _ => outputs.push((arg, a.dims, rank)),
+            ze::GRAPH_ARGUMENT_TYPE_INPUT => inputs.push(compiled),
+            _ => outputs.push(compiled),
         }
     }
 
@@ -546,7 +645,7 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
     // name, the ones a BERT export gives, and an input named anything
     // else is refused: a graph is never run on a guess about which
     // argument is which.
-    let names = |v: &[(Arg, [u32; 5], u32)]| v.iter().map(|(a, _, _)| a.name.clone()).collect::<Vec<_>>();
+    let names = |v: &[Compiled]| v.iter().map(|c| c.arg.name.clone()).collect::<Vec<_>>();
     if !(2..=3).contains(&inputs.len()) || outputs.is_empty() {
         return Err(fail(
             RUNTIME,
@@ -560,7 +659,7 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
     }
     let (mut ids, mut mask, mut types) = (None, None, None);
     for entry in inputs {
-        let slot = match entry.0.name.as_str() {
+        let slot = match entry.arg.name.as_str() {
             "input_ids" => &mut ids,
             "attention_mask" => &mut mask,
             "token_type_ids" => &mut types,
@@ -587,28 +686,63 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
     let output = match outputs.len() {
         1 => outputs.remove(0),
         _ => {
-            let at = outputs.iter().position(|(a, _, _)| a.name == "last_hidden_state").ok_or_else(|| {
+            let at = outputs.iter().position(|c| c.arg.name == "last_hidden_state").ok_or_else(|| {
                 fail(RUNTIME, format!("npu: the graph returns {:?} and none is last_hidden_state", names(&outputs)))
             })?;
             outputs.remove(at)
         }
     };
 
-    let (ids, ids_dims, ids_rank) = ids;
-    let (mask, _, _) = mask;
-    let types = types.map(|(a, _, _)| a);
-    if ids_rank != 2 {
-        return Err(fail(RUNTIME, format!("npu: {:?} has rank {ids_rank}; token ids are [batch, seq]", ids.name)));
-    }
-    let (frame_batch, seq) = (ids_dims[0], ids_dims[1]);
-    let (output, out_dims, out_rank) = output;
-    if out_rank != 3 {
+    // Every token input shares the ids frame, and the hidden states'
+    // leading dims are that same frame. The device layout is the packed
+    // one the build flags asked for: NC on the rank-2 inputs, CHW on the
+    // rank-3 output. A blocked layout is refused, because the host
+    // writes packed rows.
+    if ids.rank != 2 {
         return Err(fail(
             RUNTIME,
-            format!("npu: {:?} has rank {out_rank}; OUTPUT_HIDDEN_STATES is [batch, seq, hidden]", output.name),
+            format!("npu: {:?} has rank {}; token ids are [batch, seq]", ids.arg.name, ids.rank),
         ));
     }
-    let hidden = out_dims[2];
+    expect_packed_layout(&ids.arg.name, ids.rank, ids.layout)?;
+    let (frame_batch, seq) = (ids.dims[0], ids.dims[1]);
+    if mask.rank != 2 {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: {:?} has rank {}; the mask is [batch, seq]", mask.arg.name, mask.rank),
+        ));
+    }
+    expect_frame(&mask.arg.name, &mask.dims, frame_batch, seq)?;
+    expect_packed_layout(&mask.arg.name, mask.rank, mask.layout)?;
+    let types = match types {
+        Some(t) => {
+            if t.rank != 2 {
+                return Err(fail(
+                    RUNTIME,
+                    format!("npu: {:?} has rank {}; token types are [batch, seq]", t.arg.name, t.rank),
+                ));
+            }
+            expect_frame(&t.arg.name, &t.dims, frame_batch, seq)?;
+            expect_packed_layout(&t.arg.name, t.rank, t.layout)?;
+            Some(t.arg)
+        }
+        None => None,
+    };
+    if output.rank != 3 {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: {:?} has rank {}; OUTPUT_HIDDEN_STATES is [batch, seq, hidden]",
+                output.arg.name, output.rank
+            ),
+        ));
+    }
+    expect_frame(&output.arg.name, &output.dims, frame_batch, seq)?;
+    expect_packed_layout(&output.arg.name, output.rank, output.layout)?;
+    let hidden = output.dims[2];
+    let ids = ids.arg;
+    let mask = mask.arg;
+    let output = output.arg;
     if !matches!(output.precision, ze::GRAPH_ARGUMENT_PRECISION_FP32 | ze::GRAPH_ARGUMENT_PRECISION_FP16) {
         return Err(fail(
             RUNTIME,
@@ -637,26 +771,27 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
     }
 
     // The compiled shape against the manifest: a mismatch is the
-    // bundle's fault, said plainly.
+    // bundle's fault, said plainly. A dynamic graph is refused before a
+    // zero manifest shape, so the message stays about the graph.
     if hidden != desc.hidden {
         return Err(fail(RUNTIME, format!("npu: the graph's hidden is {hidden}; the manifest says {}", desc.hidden)));
-    }
-    if desc.fixed_seq != 0 && desc.fixed_seq != seq {
-        return Err(fail(
-            RUNTIME,
-            format!("npu: the graph's seq is {seq}; the manifest's fixed_seq is {}", desc.fixed_seq),
-        ));
-    }
-    if desc.fixed_batch != 0 && desc.fixed_batch != frame_batch {
-        return Err(fail(
-            RUNTIME,
-            format!("npu: the graph's frame is {frame_batch} rows; the manifest's fixed_batch is {}", desc.fixed_batch),
-        ));
     }
     if frame_batch == 0 || seq == 0 {
         return Err(fail(
             RUNTIME,
             format!("npu: the graph compiled to [{frame_batch}, {seq}]; a static shape is needed"),
+        ));
+    }
+    if desc.fixed_seq != seq {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: the graph's seq is {seq}; the manifest's fixed_seq is {}", desc.fixed_seq),
+        ));
+    }
+    if desc.fixed_batch != frame_batch {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: the graph's frame is {frame_batch} rows; the manifest's fixed_batch is {}", desc.fixed_batch),
         ));
     }
 
@@ -689,13 +824,7 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
         }
     }
 
-    let compute_dtype = match desc.compute_dtype {
-        0 => match output.precision {
-            ze::GRAPH_ARGUMENT_PRECISION_FP16 => TURBO_DTYPE_F16,
-            _ => TURBO_DTYPE_F32,
-        },
-        d => d,
-    };
+    let compute_dtype = session_dtype(desc.compute_dtype, output.precision)?;
     Ok(Model { ctx, graph, run: Mutex::new(()), ids, mask, types, output, frame_batch, seq, hidden, compute_dtype })
 }
 
@@ -781,7 +910,7 @@ pub(crate) unsafe extern "C" fn session_create(
                     3,
                     format!(
                         "npu: EXACT asks for F32 throughout, and the graph was compiled to compute in {}",
-                        if m.compute_dtype == TURBO_DTYPE_F16 { "F16" } else { "its own dtype" }
+                        if m.compute_dtype == TURBO_DTYPE_F16 { "F16" } else { "F32" }
                     ),
                 ));
             }
@@ -1047,10 +1176,8 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
             let dim = st.output_dim as usize;
             let vector = &acc[..dim];
             let norm = match st.normalize {
-                TURBO_NORMALIZE_L2 => {
-                    let n = vector.iter().map(|v| v * v).sum::<f64>().sqrt();
-                    if n == 0.0 { 1.0 } else { n }
-                }
+                // The same floor the cpu uses: a zero vector stays finite.
+                TURBO_NORMALIZE_L2 => vector.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-12),
                 _ => 1.0,
             };
             for (h, v) in vector.iter().enumerate() {
@@ -1095,5 +1222,64 @@ mod tests {
         assert_eq!(half_to_f32(0x7c00), f32::INFINITY);
         assert_eq!(half_to_f32(0xfc00), f32::NEG_INFINITY);
         assert!(half_to_f32(0x7e00).is_nan());
+    }
+
+    fn ok_dtype(manifest: u32, precision: u32) -> u32 {
+        match session_dtype(manifest, precision) {
+            Ok(d) => d,
+            Err(e) => panic!("{}", e.message),
+        }
+    }
+
+    fn err_msg(r: Res<()>) -> String {
+        match r {
+            Ok(()) => panic!("expected a refusal"),
+            Err(e) => e.message,
+        }
+    }
+
+    #[test]
+    fn the_session_dtype_is_the_compiled_precision() {
+        assert_eq!(ok_dtype(0, ze::GRAPH_ARGUMENT_PRECISION_FP16), TURBO_DTYPE_F16);
+        assert_eq!(ok_dtype(0, ze::GRAPH_ARGUMENT_PRECISION_FP32), TURBO_DTYPE_F32);
+        assert_eq!(ok_dtype(TURBO_DTYPE_F16, ze::GRAPH_ARGUMENT_PRECISION_FP16), TURBO_DTYPE_F16);
+        assert_eq!(ok_dtype(TURBO_DTYPE_F32, ze::GRAPH_ARGUMENT_PRECISION_FP32), TURBO_DTYPE_F32);
+        let e = match session_dtype(TURBO_DTYPE_F32, ze::GRAPH_ARGUMENT_PRECISION_FP16) {
+            Ok(d) => panic!("kept manifest dtype {d}"),
+            Err(e) => e.message,
+        };
+        assert!(e.contains("DTYPE_F16") && e.contains("DTYPE_F32"), "{e}");
+        let e = match session_dtype(TURBO_DTYPE_F16, ze::GRAPH_ARGUMENT_PRECISION_FP32) {
+            Ok(d) => panic!("kept manifest dtype {d}"),
+            Err(e) => e.message,
+        };
+        assert!(e.contains("computes in DTYPE_F32"), "{e}");
+        let e = match session_dtype(TURBO_DTYPE_F16, ze::GRAPH_ARGUMENT_PRECISION_BF16) {
+            Ok(_) => panic!("BF16 became a session dtype"),
+            Err(e) => e.message,
+        };
+        assert!(e.contains("FP16 and FP32"), "{e}");
+    }
+
+    #[test]
+    fn the_device_layout_is_the_packed_one_the_flags_named() {
+        assert!(expect_packed_layout("input_ids", 2, ze::GRAPH_ARGUMENT_LAYOUT_NC).is_ok());
+        assert!(expect_packed_layout("last_hidden_state", 3, ze::GRAPH_ARGUMENT_LAYOUT_CHW).is_ok());
+        let e = err_msg(expect_packed_layout("input_ids", 2, 0xC8));
+        assert!(e.contains("BLOCKED") && e.contains("NC"), "{e}");
+        let e = err_msg(expect_packed_layout("attention_mask", 2, 0));
+        assert!(e.contains("ANY"), "{e}");
+        assert!(expect_packed_layout("input_ids", 4, ze::GRAPH_ARGUMENT_LAYOUT_NC).is_err());
+    }
+
+    #[test]
+    fn the_mask_and_the_output_share_the_ids_frame() {
+        assert!(expect_frame("attention_mask", &[1, 128], 1, 128).is_ok());
+        assert!(expect_frame("token_type_ids", &[1, 128, 0, 0, 0], 1, 128).is_ok());
+        assert!(expect_frame("last_hidden_state", &[1, 128, 384], 1, 128).is_ok());
+        let e = err_msg(expect_frame("attention_mask", &[1, 64], 1, 128));
+        assert!(e.contains("[1, 64, ...]"), "{e}");
+        let e = err_msg(expect_frame("last_hidden_state", &[2, 128, 384], 1, 128));
+        assert!(e.contains("the token frame is [1, 128]"), "{e}");
     }
 }

@@ -65,6 +65,13 @@ pub const GRAPH_ARGUMENT_PRECISION_INT64: u32 = 0x11;
 pub const GRAPH_ARGUMENT_PRECISION_UINT64: u32 = 0x10;
 pub const GRAPH_ARGUMENT_PRECISION_UINT32: u32 = 0x0A;
 
+/// ze_graph_argument_layout_t, the packed layouts the build flags name.
+/// The enum is not contiguous: CHW is 0x80 and NC follows HW (0xC0), so
+/// NC is 0xC1. BLOCKED (0xC8) is a device tiling the host buffers are
+/// not written as.
+pub const GRAPH_ARGUMENT_LAYOUT_CHW: u32 = 0x80;
+pub const GRAPH_ARGUMENT_LAYOUT_NC: u32 = 0xC1;
+
 /// ze_graph_init_stage_t.
 pub const GRAPH_STAGE_COMMAND_LIST_INITIALIZE: u32 = 0x1;
 pub const GRAPH_STAGE_INITIALIZE: u32 = 0x2;
@@ -313,7 +320,11 @@ pub struct GraphDdi {
     pub pfn_set_argument_value2: *const c_void,
     // version 1.16
     pub pfn_evict: *const c_void,
-    // version 1.20
+    // Versions 1.17, 1.18 and 1.19 add no pointers. Version 1.20, which
+    // the published header names ZE_GRAPH_EXT_VERSION_CURRENT, appends
+    // these two. This backend does not call them. They stay so the
+    // table is the header's size: a C compile of that header is 33
+    // pointers, with pfnEvict at index 30.
     pub pfn_get_argument_properties4: *const c_void,
     pub pfn_get_argument_names: *const c_void,
 }
@@ -555,6 +566,11 @@ mod tests {
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_create3), 25 * p);
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_build_log_get_string2), 27 * p);
         assert_eq!(std::mem::offset_of!(GraphDdi, pfn_build_log_destroy), 28 * p);
+        assert_eq!(std::mem::offset_of!(GraphDdi, pfn_evict), 30 * p);
+        assert_eq!(std::mem::offset_of!(GraphDdi, pfn_get_argument_properties4), 31 * p);
+        assert_eq!(std::mem::offset_of!(GraphDdi, pfn_get_argument_names), 32 * p);
+        // ze_graph_dditable_ext_t in the published header
+        // (ZE_GRAPH_EXT_VERSION_CURRENT 1.20) is 33 pointers.
         assert_eq!(size_of::<GraphDdi>(), 33 * p);
     }
 

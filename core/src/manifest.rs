@@ -726,6 +726,16 @@ impl Manifest {
                         at("name")
                     )));
                 }
+                // The NPU compiles a static shape; the manifest names it,
+                // the same way a HEF's compiled frame is named.
+                for (field, v) in [("fixed_seq", a.fixed_seq), ("fixed_batch", a.fixed_batch)] {
+                    if v == 0 {
+                        return Err(invalid(format!(
+                            "manifest.json: {}: required for a compiled OpenVINO IR",
+                            at(field)
+                        )));
+                    }
+                }
             }
             if a.graph_input == GraphInput::Embeddings && a.host_weights.is_empty() {
                 return Err(invalid(format!(

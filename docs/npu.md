@@ -121,11 +121,18 @@ No build variables: there is nothing to point at.
   graph whose input is named anything else is refused naming it, and
   no argument is ever assigned a role by position. Among several
   outputs only `last_hidden_state` is taken; a single output is the
-  hidden states whatever its name. The compiled boundary is checked:
-  ids and mask as I64 or I32 `[batch, seq]`, hidden states back as
-  FP32 or FP16 `[batch, seq, hidden]`, `hidden` equal to the
-  manifest's, and the compiled shape equal to `fixed_seq` and
-  `fixed_batch` where the manifest sets them. The NPU compiles static
+  hidden states whatever its name. The compiled boundary is checked
+  in full: ids, the mask and token types (where the graph takes them)
+  are I64 or I32 of the same `[batch, seq]`, with device layout NC;
+  the hidden states are FP32 or FP16 `[batch, seq, hidden]`, with
+  device layout CHW. Those are the packed layouts the build flags
+  asked for. A blocked or other device layout is refused, because the
+  host writes packed rows. `hidden` equals the manifest's, and the
+  compiled batch and seq equal `fixed_seq` and `fixed_batch`, which
+  the manifest requires. The output precision is the session's
+  compute dtype: FP16 is `DTYPE_F16` and FP32 is `DTYPE_F32`, and a
+  manifest `compute_dtype` that names the other is refused.
+  `turbo_session_get_info` reports that dtype. The NPU compiles static
   shapes: export the IR with the shape fixed and say it in the
   manifest, so the core caps sessions at it; a dynamic IR fails in the
   driver's compiler with its own message.
