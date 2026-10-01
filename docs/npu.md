@@ -382,17 +382,20 @@ inputs stay FP32.
 
 The recipe lists `openvino-f16` before `openvino-embeddings-f16`, and
 both name `npu`. The loader takes the first artifact it can run, so a
-bundle that contains both still loads the token-id IR. That is the
-Arrow Lake session above. To run the gather, seal a copy of the recipe
-that drops the `openvino-f16` artifact (or lists the embeddings
-artifact first and keeps both files). `seal` copies
-`weights/model.safetensors`, which is the host table. Point
-`TURBO_TEST_BUNDLE` at that directory. What still blocks that proof:
-the driver's compiler has not been shown to accept this IR. A refusal
-comes back as `TURBO_E_RUNTIME` with the compiler log. If the compiler
-reports an FP32 hidden state, `model_load` refuses the manifest's
-`DTYPE_F16`; that check stays. `ZE_GRAPH_FORMAT_NATIVE` is not this
-path.
+bundle that contains both still loads the token-id IR. To run the
+gather, seal a copy of the recipe that drops the `openvino-f16`
+artifact (or lists the embeddings artifact first and keeps both files).
+`seal` copies `weights/model.safetensors`, which is the host table.
+Point `TURBO_TEST_BUNDLE` at that directory.
+
+Hardware records that seal. At tip `93f0d76`, `openvino-embeddings-f16`
+compiled on AI Boost. `cut_max_abs_diff` was 0.00451, `turbo-bundle
+verify` exited 0, and conformance passed 3. The npu tests passed 9.
+`a_run_reports_its_frames_and_where_each_stage_ran` was the failure: it
+expected lookup on the device, and the run reported the host. Tip
+`7cd162a` expects `TURBO_STAGE_HOST` for an `INPUT_EMBEDDINGS` artifact.
+The remaining device proof is a re-run of that test on the embeddings
+bundle.
 
 ## Windows notes
 
