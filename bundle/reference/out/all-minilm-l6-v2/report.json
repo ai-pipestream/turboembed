@@ -1,7 +1,7 @@
 {
   "tool": "sentence-transformers",
   "tool_version": "6.1.0 (transformers 5.17.0, torch 2.14.0+cpu, cpu, float32)",
-  "container": "turbo-reference@sha256:5b519a38369b48b9f2fc561a4e8b9014f7b0725ac54608b2c9c288517b7f34fa",
+  "container": "turbo-reference@sha256:56aa40360cd70e733b566d716a72b745d142020dc7b9b4fafed46ded4ea89c2e",
   "args": [
     "/model",
     "/work/cases.json",

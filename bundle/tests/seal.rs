@@ -164,6 +164,8 @@ fn a_sealed_bundle_loads_through_the_core() {
             "hailo/model-hailo10h-s128.hef",
             "onnx/model-f16.onnx",
             "onnx/model.onnx",
+            "openvino/embeddings.bin",
+            "openvino/embeddings.xml",
             "openvino/model.bin",
             "openvino/model.xml",
             "reference/reference.safetensors",
@@ -286,6 +288,15 @@ fn an_openvino_ir_is_two_files_at_a_fixed_shape() {
             args: vec!["--seq".into(), "128".into(), "--batch".into(), "1".into(), "--max-opset".into(), "11".into()],
         }
     );
+    let cut = c.iter().find(|c| c.name == "openvino-embeddings-f16").expect("the recipe converts an embeddings IR");
+    assert_eq!(cut.file, "openvino/embeddings.xml");
+    assert_eq!(cut.file2.as_deref(), Some("openvino/embeddings.bin"));
+    let want: Vec<String> =
+        ["--seq", "128", "--batch", "1", "--max-opset", "11", "--cut", "embeddings", "--heads", "12"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+    assert_eq!(cut.args, want);
     let d = scratch("ir-conversion");
     let write = |edit: &dyn Fn(&mut Value)| {
         let mut r: Value = serde_json::from_slice(&fs::read(tiny_recipe(&d)).unwrap()).unwrap();
@@ -379,7 +390,9 @@ fn a_conversion_that_did_not_run_is_not_sealed() {
     let pb = reference::produced_by(&reported(), CONTAINER).unwrap();
     let e = seal::seal(&r, &bundle, pb, vec![]).unwrap_err();
     assert!(
-        e.contains("the recipe converts [\"onnx-f16\", \"openvino-f16\", \"hef-hailo10h-s128\"], and the runs made []"),
+        e.contains(
+            "the recipe converts [\"onnx-f16\", \"openvino-f16\", \"openvino-embeddings-f16\", \"hef-hailo10h-s128\"], and the runs made []"
+        ),
         "{e}"
     );
     // A second run that gave other bytes is recorded as such.

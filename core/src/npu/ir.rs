@@ -375,6 +375,47 @@ mod tests {
         assert_eq!(b.len(), 4 + 4 + 8 + 6 + 8 + 3);
     }
 
+    /// The Hailo-style cut: word rows and an attention bias, FP16 hidden states.
+    const EMBEDDINGS_XML: &str = r#"<?xml version="1.0"?>
+<net name="cut" version="11">
+    <layers>
+        <layer id="0" name="word_rows" type="Parameter" version="opset1">
+            <data shape="1,128,384" element_type="f32" />
+            <output>
+                <port id="0" precision="FP32" names="word_rows"><dim>1</dim><dim>128</dim><dim>384</dim></port>
+            </output>
+        </layer>
+        <layer id="1" name="attn_bias" type="Parameter" version="opset1">
+            <data shape="1,12,128,128" element_type="f32" />
+            <output>
+                <port id="0" precision="FP32" names="attn_bias"><dim>1</dim><dim>12</dim><dim>128</dim><dim>128</dim></port>
+            </output>
+        </layer>
+        <layer id="2" name="last_hidden_state" type="Result" version="opset1">
+            <input>
+                <port id="0" precision="FP16"><dim>1</dim><dim>128</dim><dim>384</dim></port>
+            </input>
+        </layer>
+    </layers>
+</net>"#;
+
+    #[test]
+    fn an_embeddings_cut_names_word_rows_and_the_bias() {
+        let io = interface(EMBEDDINGS_XML.as_bytes()).unwrap();
+        assert_eq!(io.inputs.len(), 2);
+        assert_eq!(io.inputs[0].name, "word_rows");
+        assert_eq!(io.inputs[0].precision, "FP32");
+        assert_eq!(io.inputs[0].rank, 3);
+        assert_eq!(io.inputs[1].name, "attn_bias");
+        assert_eq!(io.inputs[1].rank, 4);
+        assert_eq!(io.outputs[0].precision, "FP16");
+        assert_eq!(
+            build_flags(&io).unwrap(),
+            "--inputs_precisions=\"0:FP32 1:FP32\" --inputs_layouts=\"0:CHW 1:NCHW\" \
+             --outputs_precisions=\"0:FP16\" --outputs_layouts=\"0:CHW\""
+        );
+    }
+
     #[test]
     fn ranks_map_to_the_legacy_layouts() {
         assert_eq!(layout(2).unwrap(), "NC");

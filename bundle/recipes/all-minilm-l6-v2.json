@@ -161,6 +161,26 @@
         }
       },
       {
+        "name": "openvino-embeddings-f16",
+        "format": "FORMAT_OPENVINO_IR",
+        "files": [
+          "openvino/embeddings.xml",
+          "openvino/embeddings.bin"
+        ],
+        "backends": [
+          "npu"
+        ],
+        "compute_dtype": "DTYPE_F16",
+        "graph_input": "INPUT_EMBEDDINGS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "fixed_seq": 128,
+        "fixed_batch": 1,
+        "host_weights": "weights-f32",
+        "produced_by": {
+          "from": "onnx-f32"
+        }
+      },
+      {
         "name": "hef-hailo10h-s128",
         "format": "FORMAT_HEF",
         "files": [
@@ -226,7 +246,7 @@
         }
       ],
       "produced_by": {
-        "container": "turbo-reference@sha256:5b519a38369b48b9f2fc561a4e8b9014f7b0725ac54608b2c9c288517b7f34fa"
+        "container": "turbo-reference@sha256:56aa40360cd70e733b566d716a72b745d142020dc7b9b4fafed46ded4ea89c2e"
       }
     }
   },

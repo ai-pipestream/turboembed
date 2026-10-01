@@ -9,18 +9,22 @@
 //! graph's hidden states, and the result vectors. A run binds the
 //! session's buffers to the graph's arguments, executes it one frame of
 //! fixed_batch rows at a time, and pools and normalizes on the host.
-//! Argument values live on the graph, so runs on one model are
-//! serialized under the model's lock.
+//! An INPUT_EMBEDDINGS graph does not take token ids. The host gathers
+//! each token's word row and writes the attention bias the mask asks
+//! for, and the graph owns everything after that gather. Argument
+//! values live on the graph, so runs on one model are serialized under
+//! the model's lock.
 
-use std::ffi::{CString, c_char, c_void};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Mutex;
 
 use super::ze::{self, GraphExt, Handle};
 use super::{Device, Driver, ir};
 use crate::backend::{
-    TURBO_FORMAT_OPENVINO_IR, TURBO_INPUT_TOKEN_IDS, TURBO_OUTPUT_HIDDEN_STATES, refuse, refuse_field,
-    turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run,
+    TURBO_BERT_EMBEDDING_TENSORS, TURBO_FORMAT_OPENVINO_IR, TURBO_INPUT_EMBEDDINGS, TURBO_INPUT_TOKEN_IDS,
+    TURBO_OUTPUT_HIDDEN_STATES, refuse, refuse_field, turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run,
+    turbo_backend_tensor,
 };
 use crate::status::{INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, PANIC, RUNTIME, UNSUPPORTED, UNSUPPORTED_OPTION};
 use crate::{
@@ -318,16 +322,21 @@ struct Compiled {
     layout: u32,
 }
 
+/// What the compiled graph takes, after the boundary check.
+enum GraphInputs {
+    /// Token ids, the mask, and token types where the graph takes them.
+    Tokens { ids: Arg, mask: Arg, types: Option<Arg> },
+    /// The Hailo-style cut: gathered word rows and an attention bias.
+    /// `table` is the core's F32 `word_embeddings`, alive until model_release.
+    Embeddings { rows: Arg, bias: Arg, heads: u32, table: *const f32, vocab: u32 },
+}
+
 pub(crate) struct Model {
     ctx: *const Context,
     graph: Handle,
     /// Argument values live on the graph: one run at a time per model.
     run: Mutex<()>,
-    /// The graph's inputs, in argument order: token ids, then the mask,
-    /// then token type ids where the graph takes them.
-    ids: Arg,
-    mask: Arg,
-    types: Option<Arg>,
+    inputs: GraphInputs,
     output: Arg,
     /// The shapes compiled in: a frame of rows, each of seq tokens.
     frame_batch: u32,
@@ -346,12 +355,14 @@ impl Model {
     }
 }
 
-/// The packed device layout the build flags name for a rank: NC for the
-/// rank-2 token frame, CHW for the rank-3 hidden states.
+/// The packed device layout the build flags name for a rank: NC for a
+/// rank-2 token frame, CHW for rank 3 (word rows, or the hidden states),
+/// NCHW for a rank-4 attention bias.
 fn packed_layout(rank: u32) -> Option<u32> {
     match rank {
         2 => Some(ze::GRAPH_ARGUMENT_LAYOUT_NC),
         3 => Some(ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+        4 => Some(ze::GRAPH_ARGUMENT_LAYOUT_NCHW),
         _ => None,
     }
 }
@@ -359,6 +370,7 @@ fn packed_layout(rank: u32) -> Option<u32> {
 fn layout_label(layout: u32) -> String {
     match layout {
         ze::GRAPH_ARGUMENT_LAYOUT_NC => "NC".to_string(),
+        ze::GRAPH_ARGUMENT_LAYOUT_NCHW => "NCHW".to_string(),
         ze::GRAPH_ARGUMENT_LAYOUT_CHW => "CHW".to_string(),
         0 => "ANY".to_string(),
         0xC8 => "BLOCKED".to_string(),
@@ -373,7 +385,7 @@ fn expect_packed_layout(name: &str, rank: u32, layout: u32) -> Res<()> {
     let Some(want) = packed_layout(rank) else {
         return Err(fail(
             RUNTIME,
-            format!("npu: {name:?} has rank {rank}; the build flags name a packed layout for rank 2 or 3"),
+            format!("npu: {name:?} has rank {rank}; the build flags name a packed layout for rank 2, 3 or 4"),
         ));
     };
     if layout != want {
@@ -452,6 +464,455 @@ fn elem_bytes(what: &str, precision: u32) -> Res<usize> {
     })
 }
 
+/// The bias a dropped key gets. exp(-100) underflows to 0 in the softmax,
+/// the value the Hailo cut is checked with (core/hailo/embed.cpp).
+const MASKED: f32 = -100.0;
+
+/// Why a non-zero token type is refused, or None when the graph takes the
+/// type ids and will run them.
+fn type_refusal(inputs: &GraphInputs) -> Option<&'static str> {
+    match inputs {
+        GraphInputs::Tokens { types: None, .. } => Some("the graph takes no token type input and computes type 0 only"),
+        GraphInputs::Embeddings { .. } => Some("an INPUT_EMBEDDINGS graph computes token type 0 only"),
+        GraphInputs::Tokens { types: Some(_), .. } => None,
+    }
+}
+
+fn type_error(row: usize, at: usize, ty: i32, why: &str) -> Fail {
+    fail(UNSUPPORTED_OPTION, format!("npu: token type {ty} in row {row} position {at}: {why}"))
+}
+
+/// F32 as F16, round to nearest even, for writing a gathered tensor the
+/// compiler kept in FP16.
+fn f32_to_half(x: f32) -> u16 {
+    let bits = x.to_bits();
+    let sign = ((bits >> 16) & 0x8000) as u16;
+    let exp = ((bits >> 23) & 0xff) as i32;
+    let frac = bits & 0x007f_ffff;
+    if exp == 0xff {
+        let payload = if frac == 0 { 0 } else { 0x200 };
+        return sign | 0x7c00 | payload;
+    }
+    let half_exp = exp - 127 + 15;
+    if half_exp >= 31 {
+        return sign | 0x7c00;
+    }
+    if half_exp <= 0 {
+        if half_exp < -10 {
+            return sign;
+        }
+        let frac = frac | 0x0080_0000;
+        let shift = (1 - half_exp) as u32;
+        let mut half_frac = frac >> (shift + 13);
+        let round = (frac >> (shift + 12)) & 1;
+        let sticky = (frac & ((1 << (shift + 12)) - 1)) != 0;
+        if round == 1 && (sticky || (half_frac & 1) == 1) {
+            half_frac += 1;
+        }
+        return sign | (half_frac as u16);
+    }
+    let mut out = ((half_exp as u16) << 10) | ((frac >> 13) as u16);
+    let round = (frac >> 12) & 1;
+    let sticky = (frac & 0xfff) != 0;
+    if round == 1 && (sticky || (out & 1) == 1) {
+        out += 1;
+    }
+    sign | out
+}
+
+/// `src` into `dst` at the argument's float precision.
+///
+/// # Safety
+/// `dst` holds `src.len()` elements of that precision.
+unsafe fn write_floats(dst: *mut c_void, precision: u32, src: &[f32]) -> Res<()> {
+    unsafe {
+        match precision {
+            ze::GRAPH_ARGUMENT_PRECISION_FP32 => {
+                (dst as *mut f32).copy_from_nonoverlapping(src.as_ptr(), src.len());
+            }
+            ze::GRAPH_ARGUMENT_PRECISION_FP16 => {
+                let d = dst as *mut u16;
+                for (i, &v) in src.iter().enumerate() {
+                    d.add(i).write(f32_to_half(v));
+                }
+            }
+            p => {
+                return Err(fail(
+                    RUNTIME,
+                    format!("npu: a gathered tensor is argument precision 0x{p:02x}; FP32 and FP16 are written"),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// One written row, as the Hailo backend gathers it.
+struct Gather<'a> {
+    table: &'a [f32],
+    vocab: usize,
+    hidden: usize,
+    heads: usize,
+    /// The compiled frame length.
+    model_seq: usize,
+    /// Tokens `embed_write` copied. Past this the frame repeats the first id.
+    written: usize,
+    ids: &'a [i32],
+    mask: &'a [i32],
+}
+
+/// `rows_out` is `[model_seq, hidden]`. `bias_out` is `[heads, model_seq, model_seq]`,
+/// and every query sees the same keys: 0 where the mask keeps a key, MASKED
+/// where it drops one.
+fn gather_row(g: &Gather<'_>, rows_out: &mut [f32], bias_out: &mut [f32]) -> Res<()> {
+    if g.written == 0 || g.written > g.model_seq || g.ids.len() < g.written || g.mask.len() < g.written {
+        return Err(fail(INVALID_ARGUMENT, "npu: a gathered row is longer than the frame or empty"));
+    }
+    if rows_out.len() != g.model_seq * g.hidden || bias_out.len() != g.heads * g.model_seq * g.model_seq {
+        return Err(fail(INVALID_ARGUMENT, "npu: the gather buffers are not the frame"));
+    }
+    for t in 0..g.model_seq {
+        let id = if t < g.written { g.ids[t] } else { g.ids[0] };
+        if id < 0 || id as usize >= g.vocab {
+            return Err(fail(
+                INVALID_ARGUMENT,
+                format!("npu: token id {id} is outside the word table of {} rows", g.vocab),
+            ));
+        }
+        let src = id as usize * g.hidden;
+        let dst = t * g.hidden;
+        rows_out[dst..dst + g.hidden].copy_from_slice(&g.table[src..src + g.hidden]);
+    }
+    let plane = g.model_seq * g.model_seq;
+    for k in 0..g.model_seq {
+        let v = if k < g.written && g.mask[k] == 1 { 0.0 } else { MASKED };
+        for head in 0..g.heads {
+            let base = head * plane;
+            for q in 0..g.model_seq {
+                bias_out[base + q * g.model_seq + k] = v;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The host_weights word table an INPUT_EMBEDDINGS graph gathers from.
+/// The core hands it first, TURBO_BERT_WORD_EMBEDDINGS, F32, [vocab, hidden].
+fn word_table(desc: &turbo_backend_model) -> Res<(*const f32, u32)> {
+    if desc.tensors.is_null() || desc.tensor_count == 0 {
+        return Err(fail(
+            UNSUPPORTED,
+            "npu: INPUT_EMBEDDINGS needs the host_weights word_embeddings table, and none was handed over",
+        ));
+    }
+    if desc.tensor_count != TURBO_BERT_EMBEDDING_TENSORS {
+        return Err(fail(
+            UNSUPPORTED,
+            format!(
+                "npu: INPUT_EMBEDDINGS needs the {TURBO_BERT_EMBEDDING_TENSORS} host embedding tensors; {} were handed \
+                 over",
+                desc.tensor_count
+            ),
+        ));
+    }
+    if desc.dtype != TURBO_DTYPE_F32 {
+        return Err(fail(
+            UNSUPPORTED,
+            format!("npu: the host gather reads F32 word rows; the weights are {}", dtype_label(desc.dtype)),
+        ));
+    }
+    let t = unsafe { &*desc.tensors };
+    let name = tensor_name(t);
+    if t.dtype != TURBO_DTYPE_F32 {
+        return Err(fail(
+            UNSUPPORTED,
+            format!("npu: {name} is {}; the host gather reads F32 word rows", dtype_label(t.dtype)),
+        ));
+    }
+    if t.ndim != 2 || t.shape[0] != desc.vocab_size as u64 || t.shape[1] != desc.hidden as u64 {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: {name} is {:?} of rank {}; word_embeddings is [{}, {}]",
+                &t.shape[..t.ndim as usize],
+                t.ndim,
+                desc.vocab_size,
+                desc.hidden
+            ),
+        ));
+    }
+    let n = (desc.vocab_size as u64).saturating_mul(desc.hidden as u64);
+    if n == 0 || t.bytes != n * 4 || t.data.is_null() {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: {name} is {} bytes; [{}, {}] F32 is {} bytes", t.bytes, desc.vocab_size, desc.hidden, n * 4),
+        ));
+    }
+    if !(t.data as usize).is_multiple_of(4) {
+        return Err(fail(INVALID_ARGUMENT, format!("npu: {name} is not aligned to 4 bytes")));
+    }
+    Ok((t.data as *const f32, desc.vocab_size))
+}
+
+fn tensor_name(t: &turbo_backend_tensor) -> String {
+    if t.name.is_null() {
+        return "<unnamed>".to_string();
+    }
+    unsafe { CStr::from_ptr(t.name).to_string_lossy().into_owned() }
+}
+
+fn expect_float(name: &str, precision: u32) -> Res<()> {
+    if !matches!(precision, ze::GRAPH_ARGUMENT_PRECISION_FP32 | ze::GRAPH_ARGUMENT_PRECISION_FP16) {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: {name:?} is argument precision 0x{precision:02x}; FP32 and FP16 are written"),
+        ));
+    }
+    Ok(())
+}
+
+/// The compiled batch and seq against the manifest. A dynamic graph is
+/// refused before a zero manifest shape, so the message stays about the graph.
+fn expect_manifest_frame(frame_batch: u32, seq: u32, hidden: u32, desc: &turbo_backend_model) -> Res<()> {
+    if hidden != desc.hidden {
+        return Err(fail(RUNTIME, format!("npu: the graph's hidden is {hidden}; the manifest says {}", desc.hidden)));
+    }
+    if frame_batch == 0 || seq == 0 {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: the graph compiled to [{frame_batch}, {seq}]; a static shape is needed"),
+        ));
+    }
+    if desc.fixed_seq != seq {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: the graph's seq is {seq}; the manifest's fixed_seq is {}", desc.fixed_seq),
+        ));
+    }
+    if desc.fixed_batch != frame_batch {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: the graph's frame is {frame_batch} rows; the manifest's fixed_batch is {}", desc.fixed_batch),
+        ));
+    }
+    Ok(())
+}
+
+fn take_hidden(mut outputs: Vec<Compiled>) -> Res<Compiled> {
+    if outputs.is_empty() {
+        return Err(fail(RUNTIME, "npu: the graph returns nothing"));
+    }
+    let names: Vec<String> = outputs.iter().map(|c| c.arg.name.clone()).collect();
+    match outputs.len() {
+        1 => Ok(outputs.remove(0)),
+        _ => {
+            let at = outputs.iter().position(|c| c.arg.name == "last_hidden_state").ok_or_else(|| {
+                fail(RUNTIME, format!("npu: the graph returns {names:?} and none is last_hidden_state"))
+            })?;
+            Ok(outputs.remove(at))
+        }
+    }
+}
+
+/// The hidden states are FP32 or FP16 `[batch, seq, hidden]`, layout CHW.
+fn expect_hidden(output: &Compiled, frame_batch: u32, seq: u32) -> Res<u32> {
+    if output.rank != 3 {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: {:?} has rank {}; OUTPUT_HIDDEN_STATES is [batch, seq, hidden]",
+                output.arg.name, output.rank
+            ),
+        ));
+    }
+    expect_frame(&output.arg.name, &output.dims, frame_batch, seq)?;
+    expect_packed_layout(&output.arg.name, output.rank, output.layout)?;
+    if !matches!(output.arg.precision, ze::GRAPH_ARGUMENT_PRECISION_FP32 | ze::GRAPH_ARGUMENT_PRECISION_FP16) {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: {:?} is argument precision 0x{:02x}; FP32 and FP16 are read back",
+                output.arg.name, output.arg.precision
+            ),
+        ));
+    }
+    Ok(output.dims[2])
+}
+
+fn arg_names(v: &[Compiled]) -> Vec<String> {
+    v.iter().map(|c| c.arg.name.clone()).collect()
+}
+
+/// INPUT_TOKEN_IDS: ids, mask, and token types where the graph takes them,
+/// each I64 or I32 of one `[batch, seq]`, layout NC.
+fn accept_tokens(
+    inputs: Vec<Compiled>,
+    output: Compiled,
+    desc: &turbo_backend_model,
+) -> Res<(GraphInputs, Arg, u32, u32, u32)> {
+    if !(2..=3).contains(&inputs.len()) {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: the graph takes {:?}; an encoder takes input_ids, attention_mask and optionally token_type_ids",
+                arg_names(&inputs)
+            ),
+        ));
+    }
+    let (mut ids, mut mask, mut types) = (None, None, None);
+    for entry in inputs {
+        let slot = match entry.arg.name.as_str() {
+            "input_ids" => &mut ids,
+            "attention_mask" => &mut mask,
+            "token_type_ids" => &mut types,
+            other => {
+                return Err(fail(
+                    RUNTIME,
+                    format!(
+                        "npu: the graph takes an input named {other:?}, which this backend does not know; it runs \
+                         graphs whose inputs are input_ids, attention_mask and optionally token_type_ids"
+                    ),
+                ));
+            }
+        };
+        if slot.replace(entry).is_some() {
+            return Err(fail(RUNTIME, "npu: the graph takes two inputs of one name"));
+        }
+    }
+    let (Some(ids), Some(mask)) = (ids, mask) else {
+        return Err(fail(RUNTIME, "npu: the graph takes no input_ids or no attention_mask"));
+    };
+    if ids.rank != 2 {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: {:?} has rank {}; token ids are [batch, seq]", ids.arg.name, ids.rank),
+        ));
+    }
+    expect_packed_layout(&ids.arg.name, ids.rank, ids.layout)?;
+    let (frame_batch, seq) = (ids.dims[0], ids.dims[1]);
+    if mask.rank != 2 {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: {:?} has rank {}; the mask is [batch, seq]", mask.arg.name, mask.rank),
+        ));
+    }
+    expect_frame(&mask.arg.name, &mask.dims, frame_batch, seq)?;
+    expect_packed_layout(&mask.arg.name, mask.rank, mask.layout)?;
+    let types = match types {
+        Some(t) => {
+            if t.rank != 2 {
+                return Err(fail(
+                    RUNTIME,
+                    format!("npu: {:?} has rank {}; token types are [batch, seq]", t.arg.name, t.rank),
+                ));
+            }
+            expect_frame(&t.arg.name, &t.dims, frame_batch, seq)?;
+            expect_packed_layout(&t.arg.name, t.rank, t.layout)?;
+            Some(t.arg)
+        }
+        None => None,
+    };
+    let hidden = expect_hidden(&output, frame_batch, seq)?;
+    let ids = ids.arg;
+    let mask = mask.arg;
+    for a in [&ids, &mask].into_iter().chain(types.iter()) {
+        if !matches!(
+            a.precision,
+            ze::GRAPH_ARGUMENT_PRECISION_INT64
+                | ze::GRAPH_ARGUMENT_PRECISION_INT32
+                | ze::GRAPH_ARGUMENT_PRECISION_UINT64
+                | ze::GRAPH_ARGUMENT_PRECISION_UINT32
+        ) {
+            return Err(fail(
+                RUNTIME,
+                format!(
+                    "npu: {:?} is argument precision 0x{:02x}; rows are written as I64 or I32",
+                    a.name, a.precision
+                ),
+            ));
+        }
+    }
+    expect_manifest_frame(frame_batch, seq, hidden, desc)?;
+    Ok((GraphInputs::Tokens { ids, mask, types }, output.arg, frame_batch, seq, hidden))
+}
+
+/// INPUT_EMBEDDINGS: `word_rows` `[batch, seq, hidden]` and `attn_bias`
+/// `[batch, heads, seq, seq]`, the cut hef_compile.py makes, kept at the
+/// batch the IR was reshaped to. Layouts are the packed ones the build
+/// flags name. The host writes FP32 or FP16, whichever the compiler kept.
+fn accept_embeddings(
+    inputs: Vec<Compiled>,
+    output: Compiled,
+    desc: &turbo_backend_model,
+) -> Res<(Arg, Arg, Arg, u32, u32, u32)> {
+    if inputs.len() != 2 {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: the graph takes {:?}; an INPUT_EMBEDDINGS graph takes word_rows and attn_bias",
+                arg_names(&inputs)
+            ),
+        ));
+    }
+    let (mut rows, mut bias) = (None, None);
+    for entry in inputs {
+        let slot = match entry.arg.name.as_str() {
+            "word_rows" => &mut rows,
+            "attn_bias" => &mut bias,
+            other => {
+                return Err(fail(
+                    RUNTIME,
+                    format!(
+                        "npu: the graph takes an input named {other:?}; an INPUT_EMBEDDINGS graph takes word_rows and \
+                         attn_bias"
+                    ),
+                ));
+            }
+        };
+        if slot.replace(entry).is_some() {
+            return Err(fail(RUNTIME, "npu: the graph takes two inputs of one name"));
+        }
+    }
+    let (Some(rows), Some(bias)) = (rows, bias) else {
+        return Err(fail(RUNTIME, "npu: the graph takes no word_rows or no attn_bias"));
+    };
+    if rows.rank != 3 {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: {:?} has rank {}; word rows are [batch, seq, hidden]", rows.arg.name, rows.rank),
+        ));
+    }
+    expect_packed_layout(&rows.arg.name, rows.rank, rows.layout)?;
+    let (frame_batch, seq, hidden) = (rows.dims[0], rows.dims[1], rows.dims[2]);
+    if bias.rank != 4 {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: {:?} has rank {}; the attention bias is [batch, heads, seq, seq]", bias.arg.name, bias.rank),
+        ));
+    }
+    expect_packed_layout(&bias.arg.name, bias.rank, bias.layout)?;
+    if bias.dims[0] != frame_batch || bias.dims[2] != seq || bias.dims[3] != seq || bias.dims[1] != desc.heads {
+        return Err(fail(
+            RUNTIME,
+            format!(
+                "npu: {:?} is [{}, {}, {}, {}]; the attention bias is [{frame_batch}, {}, {seq}, {seq}]",
+                bias.arg.name, bias.dims[0], bias.dims[1], bias.dims[2], bias.dims[3], desc.heads
+            ),
+        ));
+    }
+    expect_float(&rows.arg.name, rows.arg.precision)?;
+    expect_float(&bias.arg.name, bias.arg.precision)?;
+    let out_hidden = expect_hidden(&output, frame_batch, seq)?;
+    if out_hidden != hidden {
+        return Err(fail(
+            RUNTIME,
+            format!("npu: word_rows hidden is {hidden}; {:?} hidden is {out_hidden}", output.arg.name),
+        ));
+    }
+    expect_manifest_frame(frame_batch, seq, hidden, desc)?;
+    Ok((rows.arg, bias.arg, output.arg, frame_batch, seq, hidden))
+}
+
 /// The build log's text, read and destroyed. Empty when there is none.
 fn build_log(ext: &GraphExt, log: Handle) -> String {
     if log.is_null() {
@@ -506,12 +967,16 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
     if !covers {
         return Err(fail(UNSUPPORTED, "npu: the core's turbo_backend_model ends before artifact2, the IR's weights"));
     }
-    if desc.graph_input != TURBO_INPUT_TOKEN_IDS {
-        return Err(fail(
-            UNSUPPORTED,
-            "npu: only INPUT_TOKEN_IDS artifacts run; the host-gather path for INPUT_EMBEDDINGS is not built",
-        ));
-    }
+    let embeddings = match desc.graph_input {
+        TURBO_INPUT_TOKEN_IDS => None,
+        TURBO_INPUT_EMBEDDINGS => Some(word_table(desc)?),
+        other => {
+            return Err(fail(
+                UNSUPPORTED,
+                format!("npu: graph_input {other} is not INPUT_TOKEN_IDS or INPUT_EMBEDDINGS"),
+            ));
+        }
+    };
     if desc.graph_output != TURBO_OUTPUT_HIDDEN_STATES {
         return Err(fail(
             UNSUPPORTED,
@@ -596,7 +1061,7 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
     ze_res("pfnGraphCreate2", rc)?;
     ctx.say(LOG_DEBUG, &format!("npu device {}: the IR is compiled ({flags})", ctx.ordinal));
 
-    let model = describe(ctx, desc, graph);
+    let model = describe(ctx, desc, graph, embeddings);
     if model.is_err()
         && let Some(destroy) = ctx.ext.destroy()
     {
@@ -607,7 +1072,12 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
 
 /// The compiled graph's arguments and shapes, checked against the
 /// manifest, and the graph initialized: the weights' move to the device.
-fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Model> {
+fn describe(
+    ctx: &Context,
+    desc: &turbo_backend_model,
+    graph: Handle,
+    embeddings: Option<(*const f32, u32)>,
+) -> Res<Model> {
     let get_props = ctx.ext.get_properties2().ok_or_else(|| {
         fail(UNSUPPORTED, "npu: the driver's graph extension predates 1.8; pfnGetProperties2 is needed")
     })?;
@@ -640,160 +1110,25 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
         }
     }
 
-    // The encoder's boundary: ids and mask, token types where the graph
-    // takes them, and the hidden states back. Each input is taken by its
-    // name, the ones a BERT export gives, and an input named anything
-    // else is refused: a graph is never run on a guess about which
-    // argument is which.
-    let names = |v: &[Compiled]| v.iter().map(|c| c.arg.name.clone()).collect::<Vec<_>>();
-    if !(2..=3).contains(&inputs.len()) || outputs.is_empty() {
-        return Err(fail(
-            RUNTIME,
-            format!(
-                "npu: the graph takes {:?} and returns {:?}; an encoder takes input_ids, attention_mask and \
-                 optionally token_type_ids, and returns last_hidden_state",
-                names(&inputs),
-                names(&outputs)
-            ),
-        ));
-    }
-    let (mut ids, mut mask, mut types) = (None, None, None);
-    for entry in inputs {
-        let slot = match entry.arg.name.as_str() {
-            "input_ids" => &mut ids,
-            "attention_mask" => &mut mask,
-            "token_type_ids" => &mut types,
-            other => {
-                return Err(fail(
-                    RUNTIME,
-                    format!(
-                        "npu: the graph takes an input named {other:?}, which this backend does not know; it runs \
-                         graphs whose inputs are input_ids, attention_mask and optionally token_type_ids"
-                    ),
-                ));
-            }
-        };
-        if slot.replace(entry).is_some() {
-            return Err(fail(RUNTIME, "npu: the graph takes two inputs of one name"));
+    // Inputs are taken by name. A graph is never run on a guess about
+    // which argument is which. One output is the hidden states whatever
+    // its name; among several, only last_hidden_state is.
+    let output = take_hidden(outputs)?;
+    let (inputs, output, frame_batch, seq, hidden) = match desc.graph_input {
+        TURBO_INPUT_TOKEN_IDS => accept_tokens(inputs, output, desc)?,
+        TURBO_INPUT_EMBEDDINGS => {
+            let (table, vocab) = embeddings
+                .ok_or_else(|| fail(RUNTIME, "npu: INPUT_EMBEDDINGS reached the compiler with no word table"))?;
+            let (rows, bias, output, frame_batch, seq, hidden) = accept_embeddings(inputs, output, desc)?;
+            (GraphInputs::Embeddings { rows, bias, heads: desc.heads, table, vocab }, output, frame_batch, seq, hidden)
         }
-    }
-    let (Some(ids), Some(mask)) = (ids, mask) else {
-        return Err(fail(RUNTIME, "npu: the graph takes no input_ids or no attention_mask"));
-    };
-    // One output is the hidden states whatever its name; among several,
-    // only the one named last_hidden_state is, and anything else is
-    // refused rather than guessed at.
-    let output = match outputs.len() {
-        1 => outputs.remove(0),
-        _ => {
-            let at = outputs.iter().position(|c| c.arg.name == "last_hidden_state").ok_or_else(|| {
-                fail(RUNTIME, format!("npu: the graph returns {:?} and none is last_hidden_state", names(&outputs)))
-            })?;
-            outputs.remove(at)
-        }
-    };
-
-    // Every token input shares the ids frame, and the hidden states'
-    // leading dims are that same frame. The device layout is the packed
-    // one the build flags asked for: NC on the rank-2 inputs, CHW on the
-    // rank-3 output. A blocked layout is refused, because the host
-    // writes packed rows.
-    if ids.rank != 2 {
-        return Err(fail(
-            RUNTIME,
-            format!("npu: {:?} has rank {}; token ids are [batch, seq]", ids.arg.name, ids.rank),
-        ));
-    }
-    expect_packed_layout(&ids.arg.name, ids.rank, ids.layout)?;
-    let (frame_batch, seq) = (ids.dims[0], ids.dims[1]);
-    if mask.rank != 2 {
-        return Err(fail(
-            RUNTIME,
-            format!("npu: {:?} has rank {}; the mask is [batch, seq]", mask.arg.name, mask.rank),
-        ));
-    }
-    expect_frame(&mask.arg.name, &mask.dims, frame_batch, seq)?;
-    expect_packed_layout(&mask.arg.name, mask.rank, mask.layout)?;
-    let types = match types {
-        Some(t) => {
-            if t.rank != 2 {
-                return Err(fail(
-                    RUNTIME,
-                    format!("npu: {:?} has rank {}; token types are [batch, seq]", t.arg.name, t.rank),
-                ));
-            }
-            expect_frame(&t.arg.name, &t.dims, frame_batch, seq)?;
-            expect_packed_layout(&t.arg.name, t.rank, t.layout)?;
-            Some(t.arg)
-        }
-        None => None,
-    };
-    if output.rank != 3 {
-        return Err(fail(
-            RUNTIME,
-            format!(
-                "npu: {:?} has rank {}; OUTPUT_HIDDEN_STATES is [batch, seq, hidden]",
-                output.arg.name, output.rank
-            ),
-        ));
-    }
-    expect_frame(&output.arg.name, &output.dims, frame_batch, seq)?;
-    expect_packed_layout(&output.arg.name, output.rank, output.layout)?;
-    let hidden = output.dims[2];
-    let ids = ids.arg;
-    let mask = mask.arg;
-    let output = output.arg;
-    if !matches!(output.precision, ze::GRAPH_ARGUMENT_PRECISION_FP32 | ze::GRAPH_ARGUMENT_PRECISION_FP16) {
-        return Err(fail(
-            RUNTIME,
-            format!(
-                "npu: {:?} is argument precision 0x{:02x}; FP32 and FP16 are read back",
-                output.name, output.precision
-            ),
-        ));
-    }
-    for a in [&ids, &mask].into_iter().chain(types.iter()) {
-        if !matches!(
-            a.precision,
-            ze::GRAPH_ARGUMENT_PRECISION_INT64
-                | ze::GRAPH_ARGUMENT_PRECISION_INT32
-                | ze::GRAPH_ARGUMENT_PRECISION_UINT64
-                | ze::GRAPH_ARGUMENT_PRECISION_UINT32
-        ) {
+        other => {
             return Err(fail(
-                RUNTIME,
-                format!(
-                    "npu: {:?} is argument precision 0x{:02x}; rows are written as I64 or I32",
-                    a.name, a.precision
-                ),
+                UNSUPPORTED,
+                format!("npu: graph_input {other} is not INPUT_TOKEN_IDS or INPUT_EMBEDDINGS"),
             ));
         }
-    }
-
-    // The compiled shape against the manifest: a mismatch is the
-    // bundle's fault, said plainly. A dynamic graph is refused before a
-    // zero manifest shape, so the message stays about the graph.
-    if hidden != desc.hidden {
-        return Err(fail(RUNTIME, format!("npu: the graph's hidden is {hidden}; the manifest says {}", desc.hidden)));
-    }
-    if frame_batch == 0 || seq == 0 {
-        return Err(fail(
-            RUNTIME,
-            format!("npu: the graph compiled to [{frame_batch}, {seq}]; a static shape is needed"),
-        ));
-    }
-    if desc.fixed_seq != seq {
-        return Err(fail(
-            RUNTIME,
-            format!("npu: the graph's seq is {seq}; the manifest's fixed_seq is {}", desc.fixed_seq),
-        ));
-    }
-    if desc.fixed_batch != frame_batch {
-        return Err(fail(
-            RUNTIME,
-            format!("npu: the graph's frame is {frame_batch} rows; the manifest's fixed_batch is {}", desc.fixed_batch),
-        ));
-    }
+    };
 
     // Initialize now: the weights' move to the device is the load.
     match props.init_stage_required {
@@ -825,7 +1160,7 @@ fn describe(ctx: &Context, desc: &turbo_backend_model, graph: Handle) -> Res<Mod
     }
 
     let compute_dtype = session_dtype(desc.compute_dtype, output.precision)?;
-    Ok(Model { ctx, graph, run: Mutex::new(()), ids, mask, types, output, frame_batch, seq, hidden, compute_dtype })
+    Ok(Model { ctx, graph, run: Mutex::new(()), inputs, output, frame_batch, seq, hidden, compute_dtype })
 }
 
 /// # Safety
@@ -856,9 +1191,7 @@ pub(crate) struct Session {
     max_seq: u32,
     /// One host buffer per graph input, a frame each, bound to the graph
     /// at every run.
-    ids_buf: Buffer,
-    mask_buf: Buffer,
-    types_buf: Option<Buffer>,
+    frames: Frames,
     /// The graph's hidden states, one frame.
     out_buf: Buffer,
     /// The run's vectors, [batch, output_dim] F32: handed to
@@ -868,12 +1201,23 @@ pub(crate) struct Session {
     rows: Mutex<Rows>,
 }
 
+/// The host buffers of one graph input kind.
+enum Frames {
+    Tokens { ids: Buffer, mask: Buffer, types: Option<Buffer> },
+    Embeddings { rows: Buffer, bias: Buffer },
+}
+
 struct Rows {
     ids: Vec<i32>,
     mask: Vec<i32>,
     types: Vec<i32>,
     /// Pooling scratch, one token's sums: no allocation in a run.
     acc: Vec<f64>,
+    /// One embeddings frame, filled on the host and then written at the
+    /// argument's precision. Empty for a token-id graph, and sized when
+    /// the session is made so a run allocates nothing.
+    gathered_rows: Vec<f32>,
+    gathered_bias: Vec<f32>,
     state: State,
 }
 
@@ -923,15 +1267,36 @@ pub(crate) unsafe extern "C" fn session_create(
             }
             let ctx = m.ctx();
             let frame = m.frame_batch as u64 * m.seq as u64;
+            let (frames, gathered_rows, gathered_bias) = match &m.inputs {
+                GraphInputs::Tokens { ids, mask, types } => (
+                    Frames::Tokens {
+                        ids: Buffer::new(ctx, frame * ids.elem as u64, "token ids")?,
+                        mask: Buffer::new(ctx, frame * mask.elem as u64, "the mask")?,
+                        types: match types {
+                            Some(t) => Some(Buffer::new(ctx, frame * t.elem as u64, "token types")?),
+                            None => None,
+                        },
+                    },
+                    Vec::new(),
+                    Vec::new(),
+                ),
+                GraphInputs::Embeddings { rows, bias, heads, .. } => {
+                    let n_rows = frame * m.hidden as u64;
+                    let n_bias = m.frame_batch as u64 * u64::from(*heads) * m.seq as u64 * m.seq as u64;
+                    (
+                        Frames::Embeddings {
+                            rows: Buffer::new(ctx, n_rows * rows.elem as u64, "word rows")?,
+                            bias: Buffer::new(ctx, n_bias * bias.elem as u64, "the attention bias")?,
+                        },
+                        vec![0.0; n_rows as usize],
+                        vec![0.0; n_bias as usize],
+                    )
+                }
+            };
             let s = Session {
                 model: m,
                 max_seq,
-                ids_buf: Buffer::new(ctx, frame * m.ids.elem as u64, "token ids")?,
-                mask_buf: Buffer::new(ctx, frame * m.mask.elem as u64, "the mask")?,
-                types_buf: match &m.types {
-                    Some(t) => Some(Buffer::new(ctx, frame * t.elem as u64, "token types")?),
-                    None => None,
-                },
+                frames,
                 out_buf: Buffer::new(ctx, frame * m.hidden as u64 * m.output.elem as u64, "hidden states")?,
                 result: Box::new(Buffer::new(ctx, max_batch as u64 * m.hidden as u64 * 4, "the vectors")?),
                 rows: Mutex::new(Rows {
@@ -939,6 +1304,8 @@ pub(crate) unsafe extern "C" fn session_create(
                     mask: vec![0; (max_batch * max_seq) as usize],
                     types: vec![0; (max_batch * max_seq) as usize],
                     acc: vec![0.0; m.hidden as usize],
+                    gathered_rows,
+                    gathered_bias,
                     state: State { batch: 0, seq: 0, pooling: 0, normalize: 0, output_dim: 0, written: false },
                 }),
             };
@@ -988,17 +1355,11 @@ pub(crate) unsafe extern "C" fn embed_write(
                     true => rows.types[dst..dst + seq].fill(0),
                     false => {
                         let types = std::slice::from_raw_parts(r.types.add(src), seq);
-                        if m.types.is_none()
+                        if let Some(why) = type_refusal(&m.inputs)
                             && let Some(at) = types.iter().position(|&t| t != 0)
                         {
                             rows.state.written = false;
-                            return Err(fail(
-                                UNSUPPORTED_OPTION,
-                                format!(
-                                    "npu: token type {} in row {row} position {at}: the graph takes no token type input and computes type 0 only",
-                                    types[at]
-                                ),
-                            ));
+                            return Err(type_error(row, at, types[at], why));
                         }
                         rows.types[dst..dst + seq].copy_from_slice(types);
                     }
@@ -1074,6 +1435,55 @@ pub(crate) unsafe extern "C" fn session_run(
     }
 }
 
+/// One embeddings frame: the compiled arguments, the host buffers, and the
+/// word table the gather reads.
+struct EmbedFrame<'a> {
+    rows_arg: &'a Arg,
+    bias_arg: &'a Arg,
+    rows_buf: &'a Buffer,
+    bias_buf: &'a Buffer,
+    table: *const f32,
+    vocab: u32,
+    heads: u32,
+    hidden: usize,
+    model_seq: usize,
+    written: usize,
+}
+
+/// Word rows gathered from the table, and the bias, written at the
+/// precision the compiler kept.
+fn write_embedding_frame(frame: &EmbedFrame<'_>, live: usize, first: usize, stride: usize, rows: &mut Rows) -> Res<()> {
+    let vocab = frame.vocab as usize;
+    let heads = frame.heads as usize;
+    let table = unsafe { std::slice::from_raw_parts(frame.table, vocab * frame.hidden) };
+    rows.gathered_rows.fill(0.0);
+    rows.gathered_bias.fill(MASKED);
+    let row_elems = frame.model_seq * frame.hidden;
+    let bias_elems = heads * frame.model_seq * frame.model_seq;
+    for r in 0..live {
+        let src = (first + r) * stride;
+        gather_row(
+            &Gather {
+                table,
+                vocab,
+                hidden: frame.hidden,
+                heads,
+                model_seq: frame.model_seq,
+                written: frame.written,
+                ids: &rows.ids[src..src + frame.written],
+                mask: &rows.mask[src..src + frame.written],
+            },
+            &mut rows.gathered_rows[r * row_elems..(r + 1) * row_elems],
+            &mut rows.gathered_bias[r * bias_elems..(r + 1) * bias_elems],
+        )?;
+    }
+    unsafe {
+        write_floats(frame.rows_buf.ptr, frame.rows_arg.precision, &rows.gathered_rows)?;
+        write_floats(frame.bias_buf.ptr, frame.bias_arg.precision, &rows.gathered_bias)?;
+    }
+    Ok(())
+}
+
 fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
     let m = s.model();
     let ctx = m.ctx();
@@ -1087,15 +1497,26 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
     // The session's buffers onto the graph's arguments: values live on
     // the graph, and another session's are whatever it set last.
     let bind = |arg: &Arg, buf: &Buffer| ze_res("pfnSetArgumentValue", unsafe { set(m.graph, arg.index, buf.ptr) });
-    bind(&m.ids, &s.ids_buf)?;
-    bind(&m.mask, &s.mask_buf)?;
-    if let (Some(t), Some(b)) = (&m.types, &s.types_buf) {
-        bind(t, b)?;
-    }
+    let h2d_frame = match (&m.inputs, &s.frames) {
+        (GraphInputs::Tokens { ids, mask, types }, Frames::Tokens { ids: ib, mask: mb, types: tb }) => {
+            bind(ids, ib)?;
+            bind(mask, mb)?;
+            if let (Some(t), Some(b)) = (types, tb) {
+                bind(t, b)?;
+            }
+            ib.bytes + mb.bytes + tb.as_ref().map_or(0, |b| b.bytes)
+        }
+        (GraphInputs::Embeddings { rows, bias, .. }, Frames::Embeddings { rows: rb, bias: bb }) => {
+            bind(rows, rb)?;
+            bind(bias, bb)?;
+            rb.bytes + bb.bytes
+        }
+        _ => return Err(fail(INVALID_STATE, "npu: the session was not made for this model")),
+    };
     bind(&m.output, &s.out_buf)?;
 
-    let st = &rows.state;
-    let (batch, seq) = (st.batch as usize, st.seq as usize);
+    let (batch, seq) = (rows.state.batch as usize, rows.state.seq as usize);
+    let (pooling, normalize, output_dim) = (rows.state.pooling, rows.state.normalize, rows.state.output_dim);
     let (frame_batch, model_seq, hidden) = (m.frame_batch as usize, m.seq as usize, m.hidden as usize);
     let stride = s.max_seq as usize;
     let frames = batch.div_ceil(frame_batch);
@@ -1106,26 +1527,53 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
     for frame in 0..frames {
         let first = frame * frame_batch;
         let live = (batch - first).min(frame_batch);
-        // The frame's inputs: each row's live tokens, zeros after, zeros
-        // in rows past the batch (their mask is 0 and nothing reads
-        // their output).
-        unsafe {
-            std::ptr::write_bytes(s.ids_buf.ptr as *mut u8, 0, s.ids_buf.bytes as usize);
-            std::ptr::write_bytes(s.mask_buf.ptr as *mut u8, 0, s.mask_buf.bytes as usize);
-            if let Some(b) = &s.types_buf {
-                std::ptr::write_bytes(b.ptr as *mut u8, 0, b.bytes as usize);
-            }
-            for r in 0..live {
-                let src = (first + r) * stride;
-                let dst = r * model_seq;
-                write_tokens(s.ids_buf.ptr, m.ids.precision, dst, &rows.ids[src..src + seq]);
-                write_tokens(s.mask_buf.ptr, m.mask.precision, dst, &rows.mask[src..src + seq]);
-                if let (Some(t), Some(b)) = (&m.types, &s.types_buf) {
-                    write_tokens(b.ptr, t.precision, dst, &rows.types[src..src + seq]);
+        // The frame's inputs. Token ids are the live tokens and zeros
+        // after. An embeddings graph is gathered here: each token's word
+        // row, and the bias the mask asks for. Rows past the batch stay
+        // zero (and, for the bias, dropped), and nothing reads them.
+        match (&m.inputs, &s.frames) {
+            (GraphInputs::Tokens { ids, mask, types }, Frames::Tokens { ids: ib, mask: mb, types: tb }) => unsafe {
+                std::ptr::write_bytes(ib.ptr as *mut u8, 0, ib.bytes as usize);
+                std::ptr::write_bytes(mb.ptr as *mut u8, 0, mb.bytes as usize);
+                if let Some(b) = tb {
+                    std::ptr::write_bytes(b.ptr as *mut u8, 0, b.bytes as usize);
                 }
+                for r in 0..live {
+                    let src = (first + r) * stride;
+                    let dst = r * model_seq;
+                    write_tokens(ib.ptr, ids.precision, dst, &rows.ids[src..src + seq]);
+                    write_tokens(mb.ptr, mask.precision, dst, &rows.mask[src..src + seq]);
+                    if let (Some(t), Some(b)) = (types, tb) {
+                        write_tokens(b.ptr, t.precision, dst, &rows.types[src..src + seq]);
+                    }
+                }
+            },
+            (
+                GraphInputs::Embeddings { rows: rows_arg, bias: bias_arg, heads, table, vocab },
+                Frames::Embeddings { rows: rb, bias: bb },
+            ) => {
+                write_embedding_frame(
+                    &EmbedFrame {
+                        rows_arg,
+                        bias_arg,
+                        rows_buf: rb,
+                        bias_buf: bb,
+                        table: *table,
+                        vocab: *vocab,
+                        heads: *heads,
+                        hidden,
+                        model_seq,
+                        written: seq,
+                    },
+                    live,
+                    first,
+                    stride,
+                    rows,
+                )?;
             }
+            _ => return Err(fail(INVALID_STATE, "npu: the session was not made for this model")),
         }
-        h2d += s.ids_buf.bytes + s.mask_buf.bytes + s.types_buf.as_ref().map_or(0, |b| b.bytes);
+        h2d += h2d_frame;
 
         ctx.execute(m.graph)?;
         d2h += s.out_buf.bytes;
@@ -1145,7 +1593,7 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
                     _ => (unsafe { (s.out_buf.ptr as *const f32).add(at).read() }) as f64,
                 }
             };
-            match st.pooling {
+            match pooling {
                 TURBO_POOLING_CLS => {
                     for (h, a) in acc.iter_mut().enumerate() {
                         *a = read(0, h);
@@ -1158,7 +1606,7 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
                     }
                 }
                 _ => {
-                    debug_assert_eq!(st.pooling, TURBO_POOLING_MEAN);
+                    debug_assert_eq!(pooling, TURBO_POOLING_MEAN);
                     let mut live_tokens = 0f64;
                     for (t, &v) in mask.iter().enumerate() {
                         if v == 1 {
@@ -1173,9 +1621,9 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
                     }
                 }
             }
-            let dim = st.output_dim as usize;
+            let dim = output_dim as usize;
             let vector = &acc[..dim];
-            let norm = match st.normalize {
+            let norm = match normalize {
                 // The same floor the cpu uses: a zero vector stays finite.
                 TURBO_NORMALIZE_L2 => vector.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-12),
                 _ => 1.0,
@@ -1194,10 +1642,13 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
     out.host_allocs = 0;
     out.device_allocs = 0;
     out.stage[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_DEVICE;
-    out.stage[TURBO_EMBED_STAGE_LOOKUP] = TURBO_STAGE_DEVICE;
+    out.stage[TURBO_EMBED_STAGE_LOOKUP] = match &m.inputs {
+        GraphInputs::Embeddings { .. } => TURBO_STAGE_HOST,
+        GraphInputs::Tokens { .. } => TURBO_STAGE_DEVICE,
+    };
     out.stage[TURBO_EMBED_STAGE_ENCODE] = TURBO_STAGE_DEVICE;
     out.stage[TURBO_EMBED_STAGE_POOL] = TURBO_STAGE_HOST;
-    if rows.state.normalize == TURBO_NORMALIZE_L2 {
+    if normalize == TURBO_NORMALIZE_L2 {
         out.stage[TURBO_EMBED_STAGE_NORMALIZE] = TURBO_STAGE_HOST;
     }
     out.stage[TURBO_EMBED_STAGE_DOWNLOAD] = TURBO_STAGE_DEVICE;
@@ -1238,6 +1689,20 @@ mod tests {
         }
     }
 
+    fn ok_msg<T>(r: Result<T, Fail>) -> T {
+        match r {
+            Ok(v) => v,
+            Err(e) => panic!("{}", e.message),
+        }
+    }
+
+    fn err_any<T>(r: Result<T, Fail>) -> String {
+        match r {
+            Ok(_) => panic!("expected a refusal"),
+            Err(e) => e.message,
+        }
+    }
+
     #[test]
     fn the_session_dtype_is_the_compiled_precision() {
         assert_eq!(ok_dtype(0, ze::GRAPH_ARGUMENT_PRECISION_FP16), TURBO_DTYPE_F16);
@@ -1270,6 +1735,236 @@ mod tests {
         let e = err_msg(expect_packed_layout("attention_mask", 2, 0));
         assert!(e.contains("ANY"), "{e}");
         assert!(expect_packed_layout("input_ids", 4, ze::GRAPH_ARGUMENT_LAYOUT_NC).is_err());
+        assert!(expect_packed_layout("attn_bias", 4, ze::GRAPH_ARGUMENT_LAYOUT_NCHW).is_ok());
+        let e = err_msg(expect_packed_layout("attn_bias", 4, ze::GRAPH_ARGUMENT_LAYOUT_NC));
+        assert!(e.contains("NCHW"), "{e}");
+    }
+
+    fn manifest(graph_input: u32, hidden: u32, heads: u32, seq: u32, batch: u32) -> turbo_backend_model {
+        turbo_backend_model {
+            struct_size: 0,
+            family: 0,
+            dtype: 0,
+            layers: 0,
+            hidden,
+            heads,
+            intermediate: 0,
+            vocab_size: 0,
+            max_positions: 0,
+            token_types: 0,
+            layer_norm_eps: 0.0,
+            tensor_count: 0,
+            position_offset: 0,
+            tensors: std::ptr::null(),
+            format: 0,
+            graph_input,
+            graph_output: 0,
+            compute_dtype: 0,
+            fixed_seq: seq,
+            fixed_batch: batch,
+            artifact: std::ptr::null(),
+            artifact_bytes: 0,
+            artifact2: std::ptr::null(),
+            artifact2_bytes: 0,
+        }
+    }
+
+    fn compiled(name: &str, precision: u32, dims: &[u32], layout: u32) -> Compiled {
+        let mut d = [0u32; 5];
+        d[..dims.len()].copy_from_slice(dims);
+        let elem = if precision == ze::GRAPH_ARGUMENT_PRECISION_FP16 { 2 } else { 4 };
+        Compiled { arg: Arg { index: 0, name: name.into(), precision, elem }, dims: d, rank: dims.len() as u32, layout }
+    }
+
+    #[test]
+    fn the_host_gathers_word_rows_and_a_mask_bias() {
+        // Four word rows of hidden 2. Written length 3 of a frame of 4:
+        // the last position repeats the first id, and keys the mask drops
+        // are MASKED for every head and every query.
+        let table = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let mut rows = vec![0.0; 8];
+        let mut bias = vec![0.0; 2 * 16];
+        ok_msg(gather_row(
+            &Gather {
+                table: &table,
+                vocab: 4,
+                hidden: 2,
+                heads: 2,
+                model_seq: 4,
+                written: 3,
+                ids: &[2, 0, 1],
+                mask: &[1, 0, 1],
+            },
+            &mut rows,
+            &mut bias,
+        ));
+        assert_eq!(rows, [5.0, 6.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        for head in 0..2 {
+            for q in 0..4 {
+                let base = (head * 4 + q) * 4;
+                assert_eq!(&bias[base..base + 4], &[0.0, MASKED, 0.0, MASKED], "head {head} query {q}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_token_id_outside_the_table_is_refused() {
+        let table = [1.0, 2.0];
+        let mut rows = vec![0.0; 2];
+        let mut bias = vec![0.0; 1];
+        let e = err_any(gather_row(
+            &Gather { table: &table, vocab: 1, hidden: 2, heads: 1, model_seq: 1, written: 1, ids: &[3], mask: &[1] },
+            &mut rows,
+            &mut bias,
+        ));
+        assert!(e.contains("token id 3") && e.contains("1 rows"), "{e}");
+    }
+
+    #[test]
+    fn halves_round_trip_the_values_the_gather_writes() {
+        for v in [0.0, -0.0, 1.0, -1.0, 2.0, MASKED] {
+            assert_eq!(half_to_f32(f32_to_half(v)).to_bits(), v.to_bits());
+        }
+        for bits in 0u16..=0xffff {
+            let f = half_to_f32(bits);
+            if f.is_nan() {
+                assert!(half_to_f32(f32_to_half(f)).is_nan());
+            } else {
+                assert_eq!(f32_to_half(f), bits, "half {bits:#06x}");
+            }
+        }
+    }
+
+    #[test]
+    fn an_embeddings_graph_is_word_rows_and_an_attention_bias() {
+        let desc = manifest(TURBO_INPUT_EMBEDDINGS, 2, 2, 4, 1);
+        let inputs = vec![
+            compiled("word_rows", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+            compiled("attn_bias", ze::GRAPH_ARGUMENT_PRECISION_FP16, &[1, 2, 4, 4], ze::GRAPH_ARGUMENT_LAYOUT_NCHW),
+        ];
+        let output =
+            compiled("last_hidden_state", ze::GRAPH_ARGUMENT_PRECISION_FP16, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW);
+        let (rows, bias, out, batch, seq, hidden) = ok_msg(accept_embeddings(inputs, output, &desc));
+        assert_eq!(
+            (rows.name.as_str(), bias.name.as_str(), out.name.as_str(), batch, seq, hidden),
+            ("word_rows", "attn_bias", "last_hidden_state", 1, 4, 2)
+        );
+
+        let inputs = vec![
+            compiled("input_ids", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+            compiled("attn_bias", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 2, 4, 4], ze::GRAPH_ARGUMENT_LAYOUT_NCHW),
+        ];
+        let e = err_any(accept_embeddings(
+            inputs,
+            compiled("h", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+            &desc,
+        ));
+        assert!(e.contains("input_ids") && e.contains("word_rows"), "{e}");
+
+        let inputs = vec![
+            compiled("word_rows", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+            compiled("attn_bias", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 3, 4, 4], ze::GRAPH_ARGUMENT_LAYOUT_NCHW),
+        ];
+        let e = err_any(accept_embeddings(
+            inputs,
+            compiled("h", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+            &desc,
+        ));
+        assert!(e.contains("[1, 3, 4, 4]") && e.contains("[1, 2, 4, 4]"), "{e}");
+
+        let inputs = vec![
+            compiled("word_rows", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_NC),
+            compiled("attn_bias", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 2, 4, 4], ze::GRAPH_ARGUMENT_LAYOUT_NCHW),
+        ];
+        let e = err_any(accept_embeddings(
+            inputs,
+            compiled("h", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+            &desc,
+        ));
+        assert!(e.contains("CHW"), "{e}");
+    }
+
+    #[test]
+    fn a_token_id_graph_still_refuses_an_embeddings_input_name() {
+        let desc = manifest(TURBO_INPUT_TOKEN_IDS, 2, 2, 4, 1);
+        let inputs = vec![
+            compiled("input_ids", ze::GRAPH_ARGUMENT_PRECISION_INT64, &[1, 4], ze::GRAPH_ARGUMENT_LAYOUT_NC),
+            compiled("attention_mask", ze::GRAPH_ARGUMENT_PRECISION_INT32, &[1, 4], ze::GRAPH_ARGUMENT_LAYOUT_NC),
+        ];
+        let (got, out, batch, seq, hidden) = ok_msg(accept_tokens(
+            inputs,
+            compiled("last_hidden_state", ze::GRAPH_ARGUMENT_PRECISION_FP16, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+            &desc,
+        ));
+        assert!(matches!(got, GraphInputs::Tokens { types: None, .. }));
+        assert_eq!((batch, seq, hidden, out.name.as_str()), (1, 4, 2, "last_hidden_state"));
+
+        let inputs = vec![
+            compiled("word_rows", ze::GRAPH_ARGUMENT_PRECISION_INT64, &[1, 4], ze::GRAPH_ARGUMENT_LAYOUT_NC),
+            compiled("attention_mask", ze::GRAPH_ARGUMENT_PRECISION_INT64, &[1, 4], ze::GRAPH_ARGUMENT_LAYOUT_NC),
+        ];
+        let e = err_any(accept_tokens(
+            inputs,
+            compiled("h", ze::GRAPH_ARGUMENT_PRECISION_FP32, &[1, 4, 2], ze::GRAPH_ARGUMENT_LAYOUT_CHW),
+            &desc,
+        ));
+        assert!(e.contains("word_rows"), "{e}");
+    }
+
+    #[test]
+    fn a_nonzero_token_type_on_an_embeddings_graph_names_the_row() {
+        let e = type_error(1, 4, 2, "an INPUT_EMBEDDINGS graph computes token type 0 only");
+        assert_eq!(e.code, UNSUPPORTED_OPTION);
+        assert!(
+            e.message.contains("token type 2") && e.message.contains("row 1") && e.message.contains("position 4"),
+            "{}",
+            e.message
+        );
+        assert!(
+            type_refusal(&GraphInputs::Embeddings {
+                rows: Arg { index: 0, name: String::new(), precision: 0, elem: 4 },
+                bias: Arg { index: 1, name: String::new(), precision: 0, elem: 4 },
+                heads: 1,
+                table: std::ptr::null(),
+                vocab: 1,
+            })
+            .unwrap()
+            .contains("INPUT_EMBEDDINGS")
+        );
+    }
+
+    #[test]
+    fn the_word_table_is_the_f32_host_tensor() {
+        let data = [1.0f32, 2.0, 3.0, 4.0];
+        let name = CString::new("embeddings.word_embeddings.weight").unwrap();
+        let tensor = turbo_backend_tensor {
+            name: name.as_ptr(),
+            data: data.as_ptr() as *const _,
+            shape: [2, 2],
+            ndim: 2,
+            dtype: TURBO_DTYPE_F32,
+            bytes: 16,
+        };
+        let tensors = [tensor, tensor, tensor, tensor, tensor];
+        let mut desc = manifest(TURBO_INPUT_EMBEDDINGS, 2, 1, 4, 1);
+        desc.vocab_size = 2;
+        desc.dtype = TURBO_DTYPE_F32;
+        desc.tensor_count = TURBO_BERT_EMBEDDING_TENSORS;
+        desc.tensors = tensors.as_ptr();
+        let (p, vocab) = ok_msg(word_table(&desc));
+        assert_eq!(vocab, 2);
+        assert_eq!(unsafe { std::slice::from_raw_parts(p, 4) }, &data);
+
+        desc.dtype = TURBO_DTYPE_F16;
+        let e = err_any(word_table(&desc));
+        assert!(e.contains("DTYPE_F16"), "{e}");
+        desc.tensor_count = 1;
+        desc.dtype = TURBO_DTYPE_F32;
+        let e = err_any(word_table(&desc));
+        assert!(e.contains("5 host embedding tensors") && e.contains("1 were handed"), "{e}");
+        desc.tensor_count = 0;
+        let e = err_any(word_table(&desc));
+        assert!(e.contains("none was handed"), "{e}");
     }
 
     #[test]

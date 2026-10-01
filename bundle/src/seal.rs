@@ -82,7 +82,13 @@ pub fn seal_staged(recipe: &mut Recipe, upstream: &Path, bundle: &Path) -> Resul
     for c in crate::convert::conversions(recipe)? {
         match staged_outputs(bundle, &c)? {
             Staged::Absent => {
-                if c.script == crate::convert::ONNX_TO_OPENVINO_IR {
+                // A token-id IR is the artifact a host seal of this backend
+                // is expected to have. The embeddings cut is a second IR:
+                // absent files omit it, the way a missing HEF is omitted,
+                // so a seal of the token-id IR still finishes. A partial
+                // pair is still an error, from staged_outputs.
+                let embeddings_cut = c.args.iter().any(|a| a == "embeddings");
+                if c.script == crate::convert::ONNX_TO_OPENVINO_IR && !embeddings_cut {
                     return Err(format!(
                         "{}: {} and its weights must already be in the bundle. This command does not run docker \
                          (docs/npu.md)",

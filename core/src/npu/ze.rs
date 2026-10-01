@@ -79,9 +79,10 @@ pub const GRAPH_ARGUMENT_PRECISION_UINT64: u32 = 0x10;
 pub const GRAPH_ARGUMENT_PRECISION_UINT32: u32 = 0x0A;
 
 /// ze_graph_argument_layout_t, the packed layouts the build flags name.
-/// The enum is not contiguous: CHW is 0x80 and NC follows HW (0xC0), so
-/// NC is 0xC1. BLOCKED (0xC8) is a device tiling the host buffers are
-/// not written as.
+/// The enum is not contiguous: NCHW follows ANY (0), CHW is 0x80, and NC
+/// follows HW (0xC0), so NC is 0xC1. BLOCKED (0xC8) is a device tiling
+/// the host buffers are not written as.
+pub const GRAPH_ARGUMENT_LAYOUT_NCHW: u32 = 0x01;
 pub const GRAPH_ARGUMENT_LAYOUT_CHW: u32 = 0x80;
 pub const GRAPH_ARGUMENT_LAYOUT_NC: u32 = 0xC1;
 

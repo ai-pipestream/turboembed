@@ -108,9 +108,9 @@ No build variables: there is nothing to point at.
   (`zeMemAllocHost`, 64-byte aligned), which the device reads directly,
   exported as a `TURBO_HANDLE_HOST_PTR`. `PINNED`, `DEVICE` and
   `SHARED` are `TURBO_E_UNSUPPORTED`.
-- **Models.** A `FORMAT_OPENVINO_IR` artifact from `INPUT_TOKEN_IDS` to
-  `OUTPUT_HIDDEN_STATES`; anything else is refused, naming what (the
-  host-gather path for `INPUT_EMBEDDINGS` is not built). Before any
+- **Models.** A `FORMAT_OPENVINO_IR` artifact to
+  `OUTPUT_HIDDEN_STATES`, from `INPUT_TOKEN_IDS` or from
+  `INPUT_EMBEDDINGS`. Anything else is refused, naming what. Before any
   compile is tried, the device's own graph properties are checked:
   NGRAPH_LITE must be among its graph formats, and the highest opset
   any of the IR's layers names must be within
@@ -148,6 +148,22 @@ No build variables: there is nothing to point at.
   shapes: export the IR with the shape fixed and say it in the
   manifest, so the core caps sessions at it; a dynamic IR fails in the
   driver's compiler with its own message.
+- **INPUT_EMBEDDINGS.** The host gathers each token's row from the
+  `host_weights` artifact's `word_embeddings` table, F32
+  `[vocab, hidden]`, and writes it as the graph's `word_rows` input
+  `[batch, seq, hidden]`. Past the written length the frame repeats
+  the first id. The mask becomes `attn_bias`
+  `[batch, heads, seq, seq]`: 0 for a key the mask keeps and -100 for
+  one it drops, the same value for every head and every query. Those
+  are the input names the Hailo cut uses (`bundle/hailo/hef_compile.py`).
+  A graph whose input is named anything else is refused, naming it.
+  The device layout is CHW for the rows and NCHW for the bias, the
+  packed layouts the build flags name. The host writes FP32 or FP16,
+  whichever precision the compiler kept for that argument, and refuses
+  any other. A token type other than 0 is
+  `TURBO_E_UNSUPPORTED_OPTION`, naming the row and position, and the
+  graph is not run: the cut folds type 0 in as a constant. Lookup is a
+  host stage. The token-id path is unchanged.
 - **The container is an implicit contract.** The graph extension's
   header defines NGRAPH_LITE's enum value and nothing about the
   buffer's layout: the bytes above are the contract between OpenVINO's
@@ -166,22 +182,28 @@ No build variables: there is nothing to point at.
   is made: one host buffer per graph input and one for the hidden
   states, a frame (`fixed_batch` rows of the compiled seq) each; the
   result vectors; and the session's copy of the rows. `embed_write`
-  keeps the rows; a row whose token type is not 0, on a graph with no
-  token type input, is `TURBO_E_UNSUPPORTED_OPTION`, naming the row and
-  position, and a row with no live token, which the core never sends,
+  keeps the rows. A row whose token type is not 0 is
+  `TURBO_E_UNSUPPORTED_OPTION`, naming the row and position, when the
+  graph takes no token type input or when the artifact is
+  `INPUT_EMBEDDINGS`. A row with no live token, which the core never sends,
   is `TURBO_E_INVALID_ARGUMENT` rather than a NaN from pooling over
   nothing. A run binds the session's buffers to the graph's arguments
   (argument values live on the graph, so runs on one model take turns),
-  then per frame writes each row's live tokens in the argument's own
-  precision with zeros after, appends `pfnAppendGraphExecute` on the
+  then per frame writes the inputs. A token-id graph writes each row's
+  live tokens in the argument's own precision with zeros after. An
+  embeddings graph writes the gathered word rows and the bias. The run
+  appends `pfnAppendGraphExecute` on the
   context's immediate list, synchronizes, and pools each row's hidden
   states on the host (mean over the mask, the first token, or the last
   live one, summed in F64), cuts to `output_dim`, and normalizes when
   asked.
-- **What a result reports.** Stages: upload, lookup, encode and
-  download on the device, pooling and normalize on the host; the
-  vectors are `TURBO_PLACE_HOST`. `h2d_bytes` is the frames' input
-  buffers, `d2h_bytes` the frames' hidden states. `host_allocs` and
+- **What a result reports.** Stages: upload, encode and download on
+  the device, pooling and normalize on the host. Lookup is on the
+  device for a token-id graph and on the host for an embeddings graph,
+  where the host does the gather. The vectors are `TURBO_PLACE_HOST`.
+  `h2d_bytes` is the frames' input buffers (the gathered rows and the
+  bias, for an embeddings graph), `d2h_bytes` the frames' hidden
+  states. `host_allocs` and
   `device_allocs` are 0: the backend allocates nothing in a run. What
   the driver moves inside an execute is its own and is not counted.
 
@@ -233,7 +255,7 @@ recipe's `reference.produced_by.container` is the image built from
 `bundle/reference` on this tree, which contains
 `onnx_to_openvino_ir.py`:
 
-`turbo-reference@sha256:5b519a38369b48b9f2fc561a4e8b9014f7b0725ac54608b2c9c288517b7f34fa`
+`turbo-reference@sha256:56aa40360cd70e733b566d716a72b745d142020dc7b9b4fafed46ded4ea89c2e`
 
 That string is `turbo-reference@` plus `docker image inspect --format "{{.Id}}" turbo-reference`
 after `docker build -t turbo-reference bundle/reference`. A later build
@@ -306,9 +328,10 @@ bundle/reference/out/all-minilm-l6-v2/report.json
 `<bundle>\reference\reference.safetensors` and
 `<bundle>\reference\report.json`. Keep the host-produced
 `openvino\model.xml`, `openvino\model.bin`, and `openvino\report.json`.
-`seal` does not fill the container in. The F16 ONNX file and the HEF
-are left out of the manifest when their files are not in the bundle;
-they are not claimed as made. A seal that copied these two files and a
+`seal` does not fill the container in. The F16 ONNX file, the HEF,
+and `openvino-embeddings-f16` are left out of the manifest when their
+files are not in the bundle; they are not claimed as made. The token-id
+IR is not optional: a seal without both of its files is refused. A seal that copied these two files and a
 host IR report verified here: the IR is recorded as `container` `host`
 and `reproducible` false, and the reference keeps the pin. Then, from
 the repo root:
@@ -322,6 +345,43 @@ upstream files the remaining artifacts name, checks each recipe-local
 file it still carries against its pin, fills `files` with sizes and
 SHA-256, and verifies through the core. A partial IR (the xml without
 the weights, or the files without `report.json`) is refused.
+
+### The embeddings cut
+
+`openvino-embeddings-f16` is a second IR, `INPUT_EMBEDDINGS`,
+`host_weights` `weights-f32`, the same frame (`fixed_seq` 128,
+`fixed_batch` 1). The script cuts the export, checks the cut against
+it on CPU, then saves the IR. On the same OpenVINO 2026.3 install:
+
+```
+mkdir <bundle>\openvino
+py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.onnx <bundle>\openvino\embeddings.xml <bundle>\openvino\embeddings.bin <bundle>\openvino\embeddings-report.json --seq 128 --batch 1 --max-opset 11 --cut embeddings --heads 12
+```
+
+The script exits if the cut is more than 1e-4 from the export on a
+kept position, if a layer opset is above the cap, or if a Result is
+not FP16. The check compiles both graphs with
+`INFERENCE_PRECISION_HINT` `f32`. The CPU plugin's default hint lowers
+the fused attention, and the static cut then disagrees with the export
+by about 1e-2 on a kept position. The gathered inputs stay FP32. Rename the report to
+`openvino\embeddings.xml.report.json` when the token-id IR is in the
+same directory (`openvino\report.json` is that IR's report). The seal
+looks at `report.json` in the xml's directory first, then at
+`<file>.report.json`.
+
+The recipe lists `openvino-f16` before `openvino-embeddings-f16`, and
+both name `npu`. The loader takes the first artifact it can run, so a
+bundle that contains both still loads the token-id IR. That is the
+Arrow Lake session above. To run the gather, seal a copy of the recipe
+that drops the `openvino-f16` artifact (or lists the embeddings
+artifact first and keeps both files). `seal` copies
+`weights/model.safetensors`, which is the host table. Point
+`TURBO_TEST_BUNDLE` at that directory. What still blocks that proof:
+the driver's compiler has not been shown to accept this IR. A refusal
+comes back as `TURBO_E_RUNTIME` with the compiler log. If the compiler
+reports an FP32 hidden state, `model_load` refuses the manifest's
+`DTYPE_F16`; that check stays. `ZE_GRAPH_FORMAT_NATIVE` is not this
+path.
 
 ## Windows notes
 
@@ -423,8 +483,10 @@ FP16 is `DTYPE_F16`, FP32 is `DTYPE_F32`, and a manifest
 
 ## Still to land
 
-- The `INPUT_EMBEDDINGS` host-gather path, should an NPU graph ever be
-  cut at the embedding gather the way the Hailo one is.
 - `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which
   would need its own artifact format in docs/bundle.md, decided when a
   bundle wants to carry one.
+- A device compile of the embeddings-cut IR. The host gather and the
+  conversion are in this tree. No NPU here has compiled
+  `openvino-embeddings-f16`, so that path is not part of the Arrow Lake
+  receipt above, and capability stays `EXPERIMENTAL`.

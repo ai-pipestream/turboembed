@@ -161,7 +161,8 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
         let from_file = graph_file(src, from)?;
         if !hef {
             if a["format"] == "FORMAT_OPENVINO_IR" {
-                out.push(ir_conversion(a, name, from, from_file, upstream_export)?);
+                let heads = recipe.manifest["architecture"]["heads"].as_u64();
+                out.push(ir_conversion(a, name, from, from_file, upstream_export, heads)?);
                 continue;
             }
             if !(a["format"] == "FORMAT_ONNX" && a["compute_dtype"] == "DTYPE_F16" && upstream_export) {
@@ -225,22 +226,40 @@ fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Res
 
 /// A FORMAT_OPENVINO_IR artifact for the npu backend: DTYPE_F16, static
 /// shapes (fixed_seq and fixed_batch given, because the NPU driver's
-/// compiler takes no dynamic IR), from INPUT_TOKEN_IDS to
-/// OUTPUT_HIDDEN_STATES, converted from the upstream export in the
-/// reference container by onnx_to_openvino_ir.py (docs/npu.md).
-fn ir_conversion(a: &Value, name: &str, from: &str, from_file: String, upstream_export: bool) -> Result<Conversion> {
+/// compiler takes no dynamic IR), from INPUT_TOKEN_IDS or from
+/// INPUT_EMBEDDINGS to OUTPUT_HIDDEN_STATES, converted from the upstream
+/// export in the reference container by onnx_to_openvino_ir.py
+/// (docs/npu.md). The embeddings cut passes `--cut embeddings` and the
+/// architecture's head count.
+fn ir_conversion(
+    a: &Value,
+    name: &str,
+    from: &str,
+    from_file: String,
+    upstream_export: bool,
+    heads: Option<u64>,
+) -> Result<Conversion> {
     let refuse = |why: &str| format!("artifact {name}: {why}");
     if !upstream_export {
         return Err(refuse("an OpenVINO IR is converted from the FORMAT_ONNX export with no compute_dtype"));
     }
+    let embeddings = a["graph_input"] == "INPUT_EMBEDDINGS";
     if a["compute_dtype"] != "DTYPE_F16"
-        || a["graph_input"] != "INPUT_TOKEN_IDS"
         || a["graph_output"] != "OUTPUT_HIDDEN_STATES"
+        || (!embeddings && a["graph_input"] != "INPUT_TOKEN_IDS")
     {
         return Err(refuse(
-            "the bundle tool converts a DTYPE_F16 OpenVINO IR from INPUT_TOKEN_IDS to OUTPUT_HIDDEN_STATES",
+            "the bundle tool converts a DTYPE_F16 OpenVINO IR from INPUT_TOKEN_IDS or INPUT_EMBEDDINGS to \
+             OUTPUT_HIDDEN_STATES",
         ));
     }
+    if embeddings && a["host_weights"].as_str().filter(|s| !s.is_empty()).is_none() {
+        return Err(refuse("an INPUT_EMBEDDINGS OpenVINO IR names its host_weights"));
+    }
+    let heads = match embeddings {
+        true => heads.filter(|&h| h > 0).ok_or(refuse("an embeddings cut needs manifest.architecture.heads"))?,
+        false => 0,
+    };
     let seq = a["fixed_seq"]
         .as_u64()
         .filter(|&s| s > 0)
@@ -250,6 +269,13 @@ fn ir_conversion(a: &Value, name: &str, from: &str, from_file: String, upstream_
         .filter(|&b| b > 0)
         .ok_or(refuse("the NPU compiles static shapes: an OpenVINO IR gives fixed_batch"))?;
     let (xml, weights) = two_files(a, name)?;
+    // 11 is what the Arrow Lake compiler reports as
+    // maxOVOpsetVersionSupported. The script's default is the same cap.
+    let mut args =
+        vec!["--seq".into(), seq.to_string(), "--batch".into(), batch.to_string(), "--max-opset".into(), "11".into()];
+    if embeddings {
+        args.extend(["--cut".into(), "embeddings".into(), "--heads".into(), heads.to_string()]);
+    }
     Ok(Conversion {
         name: name.to_owned(),
         file: xml,
@@ -260,16 +286,7 @@ fn ir_conversion(a: &Value, name: &str, from: &str, from_file: String, upstream_
         script: ONNX_TO_OPENVINO_IR,
         container: None,
         inputs: Vec::new(),
-        // 11 is what the Arrow Lake compiler reports as
-        // maxOVOpsetVersionSupported. The script's default is the same cap.
-        args: vec![
-            "--seq".into(),
-            seq.to_string(),
-            "--batch".into(),
-            batch.to_string(),
-            "--max-opset".into(),
-            "11".into(),
-        ],
+        args,
     })
 }
 

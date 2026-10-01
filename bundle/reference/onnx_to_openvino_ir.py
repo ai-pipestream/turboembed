@@ -27,9 +27,21 @@ or below) and then refuses the saved xml if any layer is still above
 the cap. Retagging a layer's version would leave an op the compiler
 does not implement.
 
+With --cut embeddings the export is cut the way the Hailo HEF is
+(bundle/hailo/hef_compile.py) before that conversion. The graph's inputs
+become word_rows [batch, seq, hidden] and attn_bias [batch, heads, seq, seq].
+input_ids and token_type_ids become zeros and attention_mask becomes ones,
+so the position lookup and the type-0 lookup fold into constants. The word
+Gather's output becomes word_rows. The bias every attention Softmax adds
+becomes attn_bias, 0 for a key the mask keeps and -100 for one it drops.
+The cut is checked against the export on CPU, on the positions the mask
+keeps, and the script exits if they differ by more than 1e-4. --heads is
+required for that cut and refused without it. The gathered inputs stay
+FP32, which is the dtype of the host word table. The Result is still FP16.
+
 Arguments: the source ONNX file, the output xml, the output bin, the
 produced_by report path, then --seq N --batch B, and optionally
---max-opset N (default 11).
+--max-opset N (default 11). --cut embeddings --heads N selects the cut.
 """
 
 import json
@@ -221,22 +233,259 @@ def refuse_above(xml_path, cap):
     return max(opset for _, opset in layers)
 
 
+# The bias a dropped key gets. exp(-100) underflows to 0 in the softmax.
+# The same value the Hailo backend writes (core/hailo/embed.cpp).
+MASKED = -100.0
+
+# How far the cut graph may be from the export on a kept position, in f32,
+# before the IR is saved. The same tolerance hef_compile.py uses.
+CUT_TOLERANCE = 1e-4
+
+# The CPU plugin's default hint lowers ScaledDotProductAttention. The
+# static cut and the dynamic export then disagree by about 1e-2 on a
+# kept position. f32 is the precision the tolerance is about.
+CHECK_COMPILE = {"INFERENCE_PRECISION_HINT": "f32"}
+
+
+def _producers(graph):
+    return {o: n for n in graph.node for o in n.output}
+
+
+def _word_gather(graph):
+    """The Gather on input_ids: its data is the word-embedding table."""
+    found = [n for n in graph.node if n.op_type == "Gather" and len(n.input) > 1 and n.input[1] == "input_ids"]
+    if len(found) != 1:
+        sys.exit(
+            f"onnx_to_openvino_ir: {len(found)} Gathers read input_ids; a BERT export has one, the word embeddings"
+        )
+    return found[0]
+
+
+def _attention_bias(graph):
+    """The tensor every attention Softmax adds to its scores."""
+    made = _producers(graph)
+    biases = set()
+    softmaxes = [n for n in graph.node if n.op_type == "Softmax"]
+    if not softmaxes:
+        sys.exit("onnx_to_openvino_ir: the export has no Softmax; the embeddings cut replaces the attention bias")
+    for sm in softmaxes:
+        add = made.get(sm.input[0]) if sm.input else None
+        if add is None or add.op_type != "Add":
+            sys.exit(f"onnx_to_openvino_ir: Softmax {sm.name} does not read an Add of the scores and a bias")
+        scores = [i for i in add.input if i in made and made[i].op_type == "MatMul"]
+        others = [i for i in add.input if i not in scores]
+        if len(scores) != 1 or len(others) != 1:
+            sys.exit(f"onnx_to_openvino_ir: Add {add.name} before a Softmax is not scores plus one bias")
+        biases.add(others[0])
+    if len(biases) != 1:
+        sys.exit(
+            f"onnx_to_openvino_ir: the Softmaxes add {len(biases)} different biases; a BERT export adds one mask"
+        )
+    return biases.pop()
+
+
+def _prune(model):
+    """Drop nodes and initializers that do not feed an output.
+
+    The word Gather and the original mask are dead after the cut. Leaving
+    them would keep the word table in the IR.
+    """
+    g = model.graph
+    produced = _producers(g)
+    live = set()
+    stack = [o.name for o in g.output]
+    while stack:
+        name = stack.pop()
+        if not name or name in live:
+            continue
+        live.add(name)
+        node = produced.get(name)
+        if node is None:
+            continue
+        for i in node.input:
+            stack.append(i)
+    kept = [n for n in g.node if any(o in live for o in n.output)]
+    del g.node[:]
+    g.node.extend(kept)
+    kept_init = [t for t in g.initializer if t.name in live]
+    del g.initializer[:]
+    g.initializer.extend(kept_init)
+    del g.value_info[:]
+
+
+def cut_embeddings(src, seq, heads):
+    """The export with word_rows and attn_bias as its inputs, fixed at [1, seq].
+
+    The same cut bundle/hailo/hef_compile.py makes. Returns the cut model
+    and the F32 word table the check gathers from.
+    """
+    import onnx
+    from onnx import TensorProto, helper, numpy_helper
+
+    model = onnx.load(src)
+    g = model.graph
+    word = _word_gather(g)
+    table_init = next((t for t in g.initializer if t.name == word.input[0]), None)
+    if table_init is None:
+        sys.exit("onnx_to_openvino_ir: the word Gather's table is not an initializer")
+    table = numpy_helper.to_array(table_init).astype(np.float32)
+    if table.ndim != 2:
+        sys.exit(f"onnx_to_openvino_ir: the word table has rank {table.ndim}; it is [vocab, hidden]")
+    hidden = int(table.shape[1])
+    bias = _attention_bias(g)
+    for name in ["input_ids", "attention_mask", "token_type_ids"]:
+        inp = [i for i in g.input if i.name == name]
+        if not inp:
+            if name == "token_type_ids":
+                continue
+            sys.exit(f"onnx_to_openvino_ir: the export has no input {name}")
+        if any(t.name == name for t in g.initializer):
+            sys.exit(f"onnx_to_openvino_ir: {name} is already an initializer")
+        g.input.remove(inp[0])
+        value = np.ones((1, seq), np.int64) if name == "attention_mask" else np.zeros((1, seq), np.int64)
+        g.initializer.append(numpy_helper.from_array(value, name))
+    g.input.append(helper.make_tensor_value_info("word_rows", TensorProto.FLOAT, [1, seq, hidden]))
+    g.input.append(helper.make_tensor_value_info("attn_bias", TensorProto.FLOAT, [1, heads, seq, seq]))
+    for n in g.node:
+        for k, i in enumerate(n.input):
+            if i == word.output[0]:
+                n.input[k] = "word_rows"
+            elif i == bias:
+                n.input[k] = "attn_bias"
+    _prune(model)
+    onnx.checker.check_model(model)
+    return model, table
+
+
+def _compiled_output(compiled, values):
+    feed = {}
+    for inp in compiled.inputs:
+        name = inp.get_any_name()
+        if name not in values:
+            sys.exit(f"onnx_to_openvino_ir: the cut check did not feed input {name}")
+        feed[name] = values[name]
+    result = compiled(feed)
+    return np.array(result[compiled.output(0)])
+
+
+def check_cut(export_path, cut_path, table, seq, heads):
+    """The cut graph gives the export's hidden states on every kept position."""
+    full = ov.convert_model(export_path)
+    for inp in full.inputs:
+        rank = len(inp.get_partial_shape())
+        if rank != 2:
+            sys.exit(f"input {inp.any_name}: rank {rank}; the export's inputs are [batch, seq]")
+    full.reshape({inp.any_name: ov.PartialShape([1, seq]) for inp in full.inputs})
+    full_c = ov.compile_model(full, "CPU", CHECK_COMPILE)
+    part = ov.convert_model(cut_path)
+    part_c = ov.compile_model(part, "CPU", CHECK_COMPILE)
+
+    live_n = min(6, seq)
+    if live_n < 1:
+        sys.exit(f"--seq {seq}: the cut check needs a sequence")
+    ids = np.zeros((1, seq), np.int64)
+    ids[0, :live_n] = np.arange(1, live_n + 1)
+    if int(ids.max()) >= table.shape[0]:
+        sys.exit("onnx_to_openvino_ir: the cut check's ids are outside the word table")
+    mask = np.zeros((1, seq), np.int64)
+    mask[0, :live_n] = 1
+    if live_n > 3:
+        mask[0, 3] = 0
+    full_names = {inp.any_name for inp in full.inputs}
+    feed = {"input_ids": ids, "attention_mask": mask}
+    if "token_type_ids" in full_names:
+        feed["token_type_ids"] = np.zeros_like(ids)
+    a = _compiled_output(full_c, feed)
+    rows = table[ids[0]].astype(np.float32)[None, :, :]
+    keys = np.where(mask[0] == 1, 0.0, MASKED).astype(np.float32)
+    bias = np.broadcast_to(keys, (1, heads, seq, seq)).astype(np.float32)
+    b = _compiled_output(part_c, {"word_rows": rows, "attn_bias": np.array(bias)})
+    kept = mask[0] == 1
+    if not kept.any():
+        sys.exit("onnx_to_openvino_ir: the cut check kept no position")
+    worst = float(np.abs(a[0][kept] - b[0][kept]).max())
+    if worst > CUT_TOLERANCE:
+        sys.exit(
+            f"onnx_to_openvino_ir: the cut graph is {worst} from the export on a kept position, over {CUT_TOLERANCE}"
+        )
+    return worst
+
+
+def _convert(src, seq, batch, cut, heads):
+    """The model to lower, and the extra produced_by settings for a cut."""
+    if cut is None:
+        if heads is not None:
+            sys.exit("onnx_to_openvino_ir: --heads is only for --cut embeddings")
+        model = ov.convert_model(src)
+        shapes = {}
+        for inp in model.inputs:
+            rank = len(inp.get_partial_shape())
+            if rank != 2:
+                sys.exit(f"input {inp.any_name}: rank {rank}; the export's inputs are [batch, seq]")
+            shapes[inp.any_name] = ov.PartialShape([batch, seq])
+        model.reshape(shapes)
+        return model, []
+    if cut != "embeddings":
+        sys.exit(f"onnx_to_openvino_ir: --cut {cut} is not embeddings")
+    if heads is None or heads < 1:
+        sys.exit("onnx_to_openvino_ir: --cut embeddings needs --heads of at least 1")
+
+    import onnx
+
+    cut_model, table = cut_embeddings(src, seq, heads)
+    hidden = int(table.shape[1])
+    # The source is mounted read-only. The cut file is a scratch copy.
+    fd, cut_path = tempfile.mkstemp(suffix=".onnx")
+    os.close(fd)
+    try:
+        onnx.save(cut_model, cut_path)
+        worst = check_cut(src, cut_path, table, seq, heads)
+        model = ov.convert_model(cut_path)
+    finally:
+        os.remove(cut_path)
+    shapes = {}
+    seen = set()
+    for inp in model.inputs:
+        name = inp.any_name
+        seen.add(name)
+        rank = len(inp.get_partial_shape())
+        if name == "word_rows":
+            if rank != 3:
+                sys.exit(f"input word_rows: rank {rank}; the cut's word rows are [batch, seq, hidden]")
+            shapes[name] = ov.PartialShape([batch, seq, hidden])
+        elif name == "attn_bias":
+            if rank != 4:
+                sys.exit(f"input attn_bias: rank {rank}; the cut's bias is [batch, heads, seq, seq]")
+            shapes[name] = ov.PartialShape([batch, heads, seq, seq])
+        else:
+            sys.exit(f"input {name}: an embeddings cut takes word_rows and attn_bias")
+    if seen != {"word_rows", "attn_bias"}:
+        sys.exit(f"onnx_to_openvino_ir: the cut converted to {sorted(seen)}; it takes word_rows and attn_bias")
+    model.reshape(shapes)
+    return model, [
+        "cut=embeddings",
+        f"heads={heads}",
+        f"masked={MASKED}",
+        f"cut_max_abs_diff={worst:.3g}",
+    ]
+
+
 def main(src, out_xml, out_bin, produced_by_path, *rest):
+    if len(rest) % 2 != 0:
+        sys.exit("onnx_to_openvino_ir: arguments after the report path come in --name value pairs")
     opts = dict(zip(rest[0::2], rest[1::2]))
+    unknown = [k for k in opts if k not in ("--seq", "--batch", "--max-opset", "--cut", "--heads")]
+    if unknown:
+        sys.exit("onnx_to_openvino_ir: unknown arguments " + " ".join(unknown))
+    if "--seq" not in opts or "--batch" not in opts:
+        sys.exit("onnx_to_openvino_ir: --seq and --batch are required")
     seq = int(opts["--seq"])
     batch = int(opts["--batch"])
     cap = int(opts.get("--max-opset", DEFAULT_MAX_OPSET))
     if cap < 1:
         sys.exit(f"--max-opset {cap}: the cap is a layer opset, at least 1")
-
-    model = ov.convert_model(src)
-    shapes = {}
-    for inp in model.inputs:
-        rank = len(inp.get_partial_shape())
-        if rank != 2:
-            sys.exit(f"input {inp.any_name}: rank {rank}; the export's inputs are [batch, seq]")
-        shapes[inp.any_name] = ov.PartialShape([batch, seq])
-    model.reshape(shapes)
+    heads = int(opts["--heads"]) if "--heads" in opts else None
+    model, extra = _convert(src, seq, batch, opts.get("--cut"), heads)
     lower_above_max_opset(model, cap)
     model = f16_outputs(model)
 
@@ -263,6 +512,7 @@ def main(src, out_xml, out_bin, produced_by_path, *rest):
                     f"max_opset={cap}",
                     f"compress_to_fp16={COMPRESS_TO_FP16}",
                     f"output_precision={OUTPUT_PRECISION}",
+                    *extra,
                 ],
             },
             f,
