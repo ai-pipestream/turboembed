@@ -125,9 +125,21 @@ No build variables: there is nothing to point at.
   type and rank, each Result's port precision and rank. The graph is
   created with `pfnCreate3` where the extension has it (1.12+), so a
   compile failure carries the compiler's own log in the
-  `TURBO_E_RUNTIME` message, else `pfnCreate2`; it is then initialized
-  (`pfnGraphInitialize`, or appended and synchronized, as its
-  properties ask), which is the weights' move to the device. The
+  `TURBO_E_RUNTIME` message, else `pfnCreate2`. When the device lists
+  `ZE_GRAPH_FORMAT_NATIVE`, that compiled graph is not the one
+  initialized. Its blob is copied from `pfnGetNativeBinary2` (extension
+  1.7 or later; the driver owns the view) or from `pfnGetNativeBinary`
+  (the caller owns the buffer). The `NGRAPH_LITE` graph is destroyed.
+  A new graph is created with `ZE_GRAPH_FORMAT_NATIVE` from those
+  bytes and an empty build-flag string, and that graph is initialized.
+  An empty blob, a missing export, or a driver refusal of the blob is
+  `TURBO_E_RUNTIME` or `TURBO_E_UNSUPPORTED`, and the `NGRAPH_LITE`
+  graph is not kept. A device that does not list `NATIVE` initializes
+  the `NGRAPH_LITE` graph. That is the path the `7cd162a` receipt ran.
+  A load whose graph was created as `NATIVE` has not been run on
+  intel-npu. Initialization (`pfnGraphInitialize`, or appended and
+  synchronized, as the graph's properties ask) is the weights' move to
+  the device. The
   compiled arguments are taken by name, `input_ids`, `attention_mask`
   and optionally `token_type_ids`, the names a BERT export gives; a
   graph whose input is named anything else is refused naming it, and
@@ -388,14 +400,12 @@ artifact (or lists the embeddings artifact first and keeps both files).
 `seal` copies `weights/model.safetensors`, which is the host table.
 Point `TURBO_TEST_BUNDLE` at that directory.
 
-Hardware records that seal. At tip `93f0d76`, `openvino-embeddings-f16`
-compiled on AI Boost. `cut_max_abs_diff` was 0.00451, `turbo-bundle
-verify` exited 0, and conformance passed 3. The npu tests passed 9.
-`a_run_reports_its_frames_and_where_each_stage_ran` was the failure: it
-expected lookup on the device, and the run reported the host. Tip
-`7cd162a` expects `TURBO_STAGE_HOST` for an `INPUT_EMBEDDINGS` artifact.
-The remaining device proof is a re-run of that test on the embeddings
-bundle.
+Hardware records that seal. At tip `7cd162a` the embeddings-sealed
+MiniLM passed the npu tests 10, including
+`a_run_reports_its_frames_and_where_each_stage_ran` with lookup on the
+host, and conformance passed 3. Tip `93f0d76` is where the IR compiled
+(`cut_max_abs_diff` 0.00451, `turbo-bundle verify` exited 0) and the
+npu tests passed 9, that stage assertion being the one that failed.
 
 ## Windows notes
 
@@ -497,16 +507,18 @@ cargo test -p turbo --features npu --test conformance -- --include-ignored
 backend skips. The numerical proof is the two tests that match the
 reference.
 
-An embeddings-sealed MiniLM at tip `93f0d76` compiled
-`openvino-embeddings-f16` on AI Boost. The script reported
-`cut_max_abs_diff` 0.00451, and `turbo-bundle verify` exited 0.
-Conformance with `TURBO_TEST_DEVICE=npu` passed 3. The npu tests passed
-9. `a_run_reports_its_frames_and_where_each_stage_ran` failed: it
-expected lookup on the device, and the run reported the host. That
-gather is a host stage. The test now expects `TURBO_STAGE_HOST` for an
-`INPUT_EMBEDDINGS` artifact and `TURBO_STAGE_DEVICE` for a token-id
-artifact. A re-run of the npu tests on that bundle is what confirms
-the assertion. This tree has no NPU.
+An embeddings-sealed MiniLM at tip `7cd162a` ran on intel-npu.
+`cargo test -p turbo --features npu --test npu -- --include-ignored`
+with `TURBO_TEST_REQUIRE_NPU=1` passed 10, and none failed.
+`a_run_reports_its_frames_and_where_each_stage_ran` passed: lookup was
+on the host. Conformance with `TURBO_TEST_DEVICE=npu` passed 3. The
+tokenizer file hashed to
+`be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037`.
+Tip `93f0d76` is where `openvino-embeddings-f16` compiled on AI Boost
+(`cut_max_abs_diff` 0.00451, `turbo-bundle verify` exited 0) and the
+npu tests passed 9. The stage assertion was the failure there. The
+`7cd162a` receipt is the `ZE_GRAPH_FORMAT_NGRAPH_LITE` graph. This
+tree has no NPU.
 
 Capability stays `EXPERIMENTAL` at `MODEL` and `FASTEST`. The dtype
 reported before a model is loaded is 0, and that is why a benchmark
@@ -517,12 +529,11 @@ FP16 is `DTYPE_F16`, FP32 is `DTYPE_F32`, and a manifest
 
 ## Still to land
 
-- A re-run of `cargo test -p turbo --features npu --test npu -- --include-ignored`
-  on the embeddings-sealed MiniLM, which is the confirmation that
-  lookup is reported on the host. The compile, the reference match,
-  and conformance already passed on that machine.
-- `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which
-  would need its own artifact format in docs/bundle.md, decided when a
-  bundle wants to carry one.
+- A load on intel-npu whose graph is created with
+  `ZE_GRAPH_FORMAT_NATIVE`. The bundle still carries the OpenVINO IR.
+  When the device lists `NATIVE`, `model_load` compiles that IR, copies
+  the driver's blob, destroys the `NGRAPH_LITE` graph, and initializes
+  the native one. That session has not been run. The `7cd162a` receipt
+  is the lite graph.
 - No benchmark record marks this backend `SUPPORTED`. Capability stays
   `EXPERIMENTAL`.

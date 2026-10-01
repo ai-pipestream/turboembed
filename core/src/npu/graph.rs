@@ -19,6 +19,7 @@ use std::ffi::{CStr, CString, c_char, c_void};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Mutex;
 
+use super::native::{self, BlobError};
 use super::ze::{self, GraphExt, Handle};
 use super::{Device, Driver, ir};
 use crate::backend::{
@@ -997,24 +998,23 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
             format!("npu: the driver's compiler is {maj}.{min}; indexed IO build flags need 5.9 or later"),
         ));
     }
-    let create2 = ctx.ext.create2().ok_or_else(|| {
-        fail(
+    if ctx.ext.create2().is_none() {
+        return Err(fail(
             UNSUPPORTED,
             format!(
                 "npu: the driver's graph extension is {}.{}; compiling an IR needs 1.5 or later",
                 ctx.ext.version >> 16,
                 ctx.ext.version & 0xffff
             ),
-        )
-    })?;
+        ));
+    }
 
     // What the device said it compiles, checked before any compile is
     // tried, so a refusal says why in words rather than a status code.
     if ctx.formats_supported & ze::GRAPH_FORMAT_NGRAPH_LITE == 0 {
         return Err(fail(
             UNSUPPORTED,
-            "npu: the device's compiler does not take an OpenVINO IR (NGRAPH_LITE is not among its graph formats); \
-             only pre-compiled blobs would run, and no bundle format carries one",
+            "npu: the device's compiler does not take an OpenVINO IR (NGRAPH_LITE is not among its graph formats)",
         ));
     }
     let xml = unsafe { std::slice::from_raw_parts(desc.artifact as *const u8, desc.artifact_bytes as usize) };
@@ -1033,37 +1033,21 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
     let flags = ir::build_flags(&io).map_err(|e| fail(RUNTIME, e))?;
     let container = ir::container((maj, min), xml, bin);
     let cflags = CString::new(flags.clone()).map_err(|_| fail(RUNTIME, "npu: a NUL in the build flags"))?;
-    let gdesc = ze::GraphDesc2 {
-        stype: ze::STRUCTURE_TYPE_GRAPH_DESC_2,
-        p_next: std::ptr::null(),
-        format: ze::GRAPH_FORMAT_NGRAPH_LITE,
-        input_size: container.len(),
-        input: container.as_ptr(),
-        build_flags: cflags.as_ptr(),
-        flags: 0,
-    };
-
-    // pfnCreate3 returns the compiler's log beside a failure; without it
-    // (extension 1.5 to 1.11) the status code stands alone.
-    let mut graph = std::ptr::null_mut();
-    let rc = match ctx.ext.create3() {
-        Some(create3) => {
-            let mut log = std::ptr::null_mut();
-            let rc = unsafe { create3(ctx.handle, ctx.device, &gdesc, &mut graph, &mut log) };
-            if rc != 0 {
-                let text = build_log(&ctx.ext, log);
-                return Err(fail(
-                    RUNTIME,
-                    format!("npu: the driver's compiler refused the IR with 0x{rc:08x}: {text}"),
-                ));
-            }
-            build_log(&ctx.ext, log);
-            rc
-        }
-        None => unsafe { create2(ctx.handle, ctx.device, &gdesc, &mut graph) },
-    };
-    ze_res("pfnGraphCreate2", rc)?;
+    let mut graph = create_graph(
+        ctx,
+        ze::GRAPH_FORMAT_NGRAPH_LITE,
+        &container,
+        cflags.as_ptr(),
+        "the driver's compiler refused the IR",
+    )?;
     ctx.say(LOG_DEBUG, &format!("npu device {}: the IR is compiled ({flags})", ctx.ordinal));
+
+    // The graph that runs, when the device lists it, is the blob that
+    // compile just produced. The NGRAPH_LITE graph is destroyed once
+    // the copy exists. A refusal here does not keep that graph.
+    if ctx.formats_supported & ze::GRAPH_FORMAT_NATIVE != 0 {
+        graph = native_graph(ctx, graph)?;
+    }
 
     let model = describe(ctx, desc, graph, embeddings);
     if model.is_err()
@@ -1072,6 +1056,83 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
         unsafe { destroy(graph) };
     }
     model
+}
+
+fn destroy_graph(ctx: &Context, graph: Handle) {
+    if let Some(destroy) = ctx.ext.destroy() {
+        unsafe { destroy(graph) };
+    }
+}
+
+/// pfnCreate3 where the extension has it, so a refusal carries the
+/// driver's log, else pfnCreate2. `refused` is the start of the
+/// TURBO_E_RUNTIME message.
+fn create_graph(ctx: &Context, format: u32, input: &[u8], build_flags: *const c_char, refused: &str) -> Res<Handle> {
+    let gdesc = if format == ze::GRAPH_FORMAT_NATIVE {
+        native::descriptor(input, build_flags)
+    } else {
+        ze::GraphDesc2 {
+            stype: ze::STRUCTURE_TYPE_GRAPH_DESC_2,
+            p_next: std::ptr::null(),
+            format,
+            input_size: input.len(),
+            input: input.as_ptr(),
+            build_flags,
+            flags: 0,
+        }
+    };
+    let mut graph = std::ptr::null_mut();
+    match ctx.ext.create3() {
+        Some(create3) => {
+            let mut log = std::ptr::null_mut();
+            let rc = unsafe { create3(ctx.handle, ctx.device, &gdesc, &mut graph, &mut log) };
+            if rc != 0 {
+                let text = build_log(&ctx.ext, log);
+                return Err(fail(RUNTIME, format!("npu: {refused} with 0x{rc:08x}: {text}")));
+            }
+            build_log(&ctx.ext, log);
+        }
+        None => {
+            let create2 = ctx.ext.create2().ok_or_else(|| {
+                fail(UNSUPPORTED, "npu: the driver's graph extension predates 1.5; pfnCreate2 is needed")
+            })?;
+            ze_res("pfnGraphCreate2", unsafe { create2(ctx.handle, ctx.device, &gdesc, &mut graph) })?;
+        }
+    }
+    Ok(graph)
+}
+
+/// The native graph for a compiled IR graph. `lite` is destroyed
+/// whether the blob loads or the driver refuses it.
+fn native_graph(ctx: &Context, lite: Handle) -> Res<Handle> {
+    let blob = match native::copy(&ctx.ext, lite) {
+        Ok(blob) => blob,
+        Err(e) => {
+            destroy_graph(ctx, lite);
+            return Err(blob_fail(e));
+        }
+    };
+    match create_graph(ctx, ze::GRAPH_FORMAT_NATIVE, &blob, c"".as_ptr(), "the driver refused the native blob") {
+        Ok(native) => {
+            destroy_graph(ctx, lite);
+            ctx.say(
+                LOG_DEBUG,
+                &format!("npu device {}: the graph is the native blob, {} bytes", ctx.ordinal, blob.len()),
+            );
+            Ok(native)
+        }
+        Err(e) => {
+            destroy_graph(ctx, lite);
+            Err(e)
+        }
+    }
+}
+
+fn blob_fail(e: BlobError) -> Fail {
+    match e {
+        BlobError::Unsupported(m) => fail(UNSUPPORTED, m),
+        BlobError::Runtime(m) => fail(RUNTIME, m),
+    }
 }
 
 /// The compiled graph's arguments and shapes, checked against the

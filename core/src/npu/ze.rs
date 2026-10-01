@@ -62,9 +62,9 @@ pub const STRUCTURE_TYPE_GRAPH_DESC_2: u32 = 0xE;
 pub const STRUCTURE_TYPE_GRAPH_PROPERTIES_2: u32 = 0x10;
 pub const STRUCTURE_TYPE_GRAPH_ARGUMENT_PROPERTIES_3: u32 = 0xD;
 
-/// ze_graph_format_t's ZE_GRAPH_FORMAT_NGRAPH_LITE: "ngraph lite", the
-/// serialized OpenVINO IR the driver's compiler takes (NATIVE, 0x1, is a
-/// pre-compiled blob, which no bundle carries yet).
+/// ze_graph_format_t. NATIVE is a blob the driver already compiled
+/// (ELF or flatbuffers). NGRAPH_LITE is the serialized OpenVINO IR.
+pub const GRAPH_FORMAT_NATIVE: u32 = 0x1;
 pub const GRAPH_FORMAT_NGRAPH_LITE: u32 = 0x2;
 
 pub const GRAPH_ARGUMENT_TYPE_INPUT: u32 = 0;
@@ -311,6 +311,12 @@ pub type PfnGraphGetArgumentProperties3 = unsafe extern "C" fn(Handle, u32, *mut
 pub type PfnGraphInitialize = unsafe extern "C" fn(Handle) -> Status;
 pub type PfnBuildLogGetString2 = unsafe extern "C" fn(Handle, *mut u32, *mut c_char) -> Status;
 pub type PfnBuildLogDestroy = unsafe extern "C" fn(Handle) -> Status;
+/// ze_pfnGraphGetNativeBinary_ext_t. A null buffer asks for the size.
+/// The caller owns the buffer filled on the second call.
+pub type PfnGraphGetNativeBinary = unsafe extern "C" fn(Handle, *mut usize, *mut u8) -> Status;
+/// ze_pfnGraphGetNativeBinary_ext_2_t, extension 1.7. The driver owns
+/// the bytes the pointer names. They die with the graph.
+pub type PfnGraphGetNativeBinary2 = unsafe extern "C" fn(Handle, *mut usize, *mut *const u8) -> Status;
 
 /// ze_graph_dditable_ext_t, field for field. Only the fields this backend
 /// calls are typed; the rest are placeholders that keep every offset as
@@ -327,7 +333,7 @@ pub struct GraphDdi {
     pub pfn_set_argument_value: Option<PfnGraphSetArgumentValue>,
     pub pfn_append_graph_initialize: Option<PfnAppendGraph>,
     pub pfn_append_graph_execute: Option<PfnAppendGraphExecute>,
-    pub pfn_get_native_binary: *const c_void,
+    pub pfn_get_native_binary: Option<PfnGraphGetNativeBinary>,
     pub pfn_device_get_graph_properties: Option<PfnDeviceGetGraphProperties>,
     // version 1.1
     pub pfn_graph_get_argument_metadata: *const c_void,
@@ -347,7 +353,7 @@ pub struct GraphDdi {
     // version 1.6
     pub pfn_device_get_graph_properties2: Option<PfnDeviceGetGraphProperties2>,
     // version 1.7
-    pub pfn_get_native_binary2: *const c_void,
+    pub pfn_get_native_binary2: Option<PfnGraphGetNativeBinary2>,
     // version 1.8
     pub pfn_get_properties2: Option<PfnGraphGetProperties2>,
     pub pfn_graph_initialize: Option<PfnGraphInitialize>,
@@ -452,6 +458,16 @@ impl GraphExt {
 
     pub fn build_log_destroy(&self) -> Option<PfnBuildLogDestroy> {
         covered!(self, version(1, 12), pfn_build_log_destroy)
+    }
+
+    pub fn get_native_binary(&self) -> Option<PfnGraphGetNativeBinary> {
+        covered!(self, version(1, 0), pfn_get_native_binary)
+    }
+
+    /// Extension 1.7. A driver that advertises an older version is not
+    /// read here, even if the struct the test built has the field.
+    pub fn get_native_binary2(&self) -> Option<PfnGraphGetNativeBinary2> {
+        covered!(self, version(1, 7), pfn_get_native_binary2)
     }
 }
 

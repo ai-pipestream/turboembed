@@ -6,11 +6,14 @@
 //! graph extension and that answer its device probe; a device that does
 //! not is never listed and nothing stands in for it. Models are OpenVINO
 //! IR artifacts the driver's own compiler builds into a graph on the
-//! device (npu/ir.rs, npu/graph.rs); the library carries no OpenVINO and
-//! no ONNX Runtime. docs/npu.md says how to build and test it.
+//! device (npu/ir.rs, npu/graph.rs). When the device lists
+//! ZE_GRAPH_FORMAT_NATIVE, the graph that is initialized is that blob
+//! (npu/native.rs). The library carries no OpenVINO and no ONNX Runtime.
+//! docs/npu.md says how to build and test it.
 
 mod graph;
 mod ir;
+mod native;
 mod ze;
 
 use std::ffi::{c_char, c_void};
@@ -211,7 +214,8 @@ pub(crate) struct Device {
     compiler: ze::CompilerVersion,
     /// ze_graph_format_t bits the device's compiler takes, from the same
     /// probe: model_load refuses an IR when NGRAPH_LITE is not among
-    /// them, before any compile is tried.
+    /// them, before any compile is tried. NATIVE, when listed, is how
+    /// the compiled blob is loaded back.
     formats_supported: u32,
     /// The highest OpenVINO opset the device's compiler supports; 0 when
     /// the driver does not say.
