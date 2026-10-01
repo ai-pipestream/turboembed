@@ -148,7 +148,8 @@ this form before it is written or loaded.
           "seq=128",
           "batch=1",
           "max_opset=11",
-          "compress_to_fp16=True"
+          "compress_to_fp16=True",
+          "output_precision=FP16"
         ],
         "reproducible": true
       }

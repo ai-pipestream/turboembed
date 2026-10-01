@@ -42,8 +42,10 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
      only `from`), two files, the xml then its weights, in the reference
      container, by `onnx_to_openvino_ir.py`: the export's inputs reshaped
      to the artifact's `fixed_batch` and `fixed_seq`, weights compressed
-     to FP16, and ScaledDotProductAttention lowered so the highest layer
-     opset is at most 11 (the cap the Arrow Lake driver reports). An image
+     to FP16, the hidden-state Result converted to FP16 (that port is
+     what `--outputs_precisions` copies), and ScaledDotProductAttention
+     lowered so the highest layer opset is at most 11 (the cap the Arrow
+     Lake driver reports). An image
      built before that script was added to it cannot; build it again and
      pin the new id (docs/npu.md).
    - a HEF for a Hailo device (`produced_by` names `from`, `container` and

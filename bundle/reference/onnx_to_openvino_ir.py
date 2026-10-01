@@ -7,10 +7,15 @@ reference container, with no network.
 The export's inputs (token ids, the attention mask, and token type ids
 where the export takes them) are reshaped to one fixed [batch, seq],
 because the NPU compiles static shapes: a dynamic IR fails in the
-driver's compiler. The weights are compressed to FP16
-(compress_to_fp16=True, the artifact's DTYPE_F16); the inputs and the
-output keep their types, so the ids stay integer and the hidden states
-come back F32.
+driver's compiler. The weights are compressed to FP16 (compress_to_fp16=True). That pass
+rewrites Constant weights only. The Result stays FP32, and the npu
+backend's build flags copy that port into --outputs_precisions, so the
+driver's compiler reports an FP32 output and model_load refuses a
+manifest compute_dtype of DTYPE_F16. The hidden states are converted to
+f16 before the Result, the same PrePostProcessor step OpenVINO's NPU
+compile tool uses for an FP16 output, so the port and the flag are
+FP16. The ids stay integer. The script then refuses a Result that is
+not FP16.
 
 convert_model fuses attention into ScaledDotProductAttention, which is
 opset 13. The Arrow Lake driver reports maxOVOpsetVersionSupported 11,
@@ -162,6 +167,46 @@ def layer_opsets(xml_path):
     return found
 
 
+OUTPUT_PRECISION = "FP16"
+
+
+def f16_outputs(model):
+    """Make each Result f16. compress_to_fp16 does not. The compiler's
+    output argument precision is this port, via --outputs_precisions."""
+    ppp = ov.preprocess.PrePostProcessor(model)
+    for i in range(len(model.outputs)):
+        ppp.output(i).tensor().set_element_type(ov.Type.f16)
+    return ppp.build()
+
+
+def result_precisions(xml_path):
+    """(name, precision) for every Result port, the attribute build_flags
+    copies into --outputs_precisions."""
+    found = []
+    for el in ET.parse(xml_path).iter():
+        if not (el.tag == "layer" or el.tag.endswith("}layer")):
+            continue
+        if el.attrib.get("type") != "Result":
+            continue
+        for port in el.iter():
+            if port is el or not (port.tag == "port" or port.tag.endswith("}port")):
+                continue
+            prec = port.attrib.get("precision")
+            if prec:
+                found.append((el.attrib.get("name", "?"), prec))
+    return found
+
+
+def refuse_output_precision(xml_path, want):
+    found = result_precisions(xml_path)
+    if not found:
+        sys.exit(f"{xml_path}: the IR xml has no Result precision")
+    bad = [f"{name} {prec}" for name, prec in found if prec != want]
+    if bad:
+        sys.exit(f"IR Result precision is not {want}: " + ", ".join(bad))
+    return found
+
+
 def refuse_above(xml_path, cap):
     layers = layer_opsets(xml_path)
     if not layers:
@@ -193,6 +238,7 @@ def main(src, out_xml, out_bin, produced_by_path, *rest):
         shapes[inp.any_name] = ov.PartialShape([batch, seq])
     model.reshape(shapes)
     lower_above_max_opset(model, cap)
+    model = f16_outputs(model)
 
     # save_model writes the weights beside the xml under the xml's stem,
     # so it runs in a scratch directory on the same filesystem and the
@@ -202,6 +248,7 @@ def main(src, out_xml, out_bin, produced_by_path, *rest):
         xml = os.path.join(d, "model.xml")
         ov.save_model(model, xml, compress_to_fp16=COMPRESS_TO_FP16)
         highest = refuse_above(xml, cap)
+        refuse_output_precision(xml, OUTPUT_PRECISION)
         os.replace(xml, out_xml)
         os.replace(os.path.join(d, "model.bin"), out_bin)
 
@@ -215,6 +262,7 @@ def main(src, out_xml, out_bin, produced_by_path, *rest):
                     f"batch={batch}",
                     f"max_opset={cap}",
                     f"compress_to_fp16={COMPRESS_TO_FP16}",
+                    f"output_precision={OUTPUT_PRECISION}",
                 ],
             },
             f,

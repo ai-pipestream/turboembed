@@ -95,7 +95,7 @@ fn reported_ir() -> Value {
     json!({
         "tool": "openvino.save_model",
         "tool_version": "2026.3.0",
-        "settings": ["seq=128", "batch=1", "max_opset=11", "compress_to_fp16=True"],
+        "settings": ["seq=128", "batch=1", "max_opset=11", "compress_to_fp16=True", "output_precision=FP16"],
     })
 }
 
@@ -195,7 +195,8 @@ fn a_sealed_bundle_loads_through_the_core() {
             "seq=128",
             "batch=1",
             "max_opset=11",
-            "compress_to_fp16=True"
+            "compress_to_fp16=True",
+            "output_precision=FP16"
         ])
     );
     assert_eq!(ir["produced_by"]["tool"], "openvino.save_model");
@@ -673,7 +674,8 @@ fn a_staged_ir_seals_without_a_container() {
             "seq=128",
             "batch=1",
             "max_opset=11",
-            "compress_to_fp16=True"
+            "compress_to_fp16=True",
+            "output_precision=FP16"
         ])
     );
     let paths: Vec<&str> = m["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();

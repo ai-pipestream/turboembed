@@ -196,12 +196,22 @@ OpenVINO is used only while the bundle is made. The reference image
 (`bundle/reference`, `openvino==2026.3.0`) runs
 `onnx_to_openvino_ir.py`: `openvino.convert_model` on the F32 export,
 a reshape of every rank-2 input to `[fixed_batch, fixed_seq]`, then
-`openvino.save_model` with `compress_to_fp16=True`. That is the same
-conversion the `ovc` command line performs
-(`ovc onnx/model.onnx --input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]" --compress_to_fp16=True --output_model openvino/model.xml`);
-the script is what the tool runs, because it also writes the
-`produced_by` report and lowers the opset. The library never links
-OpenVINO.
+`openvino.save_model` with `compress_to_fp16=True`. That pass rewrites
+Constant weights. It does not change the Result, so an IR saved that
+way has a FP32 hidden-state port. The build flags copy that port into
+`--outputs_precisions`, and the driver's compiler reports the output
+argument at that precision. `model_load` then refuses a manifest
+`compute_dtype` of `DTYPE_F16` with "the graph computes in DTYPE_F32".
+That check stays. The script sets each output tensor to f16 with
+`PrePostProcessor` before saving, which is the step OpenVINO's NPU
+compile tool takes for an FP16 output (`-op FP16`). The saved Result
+port is FP16, the flag is `0:FP16`, and the script exits if a Result
+is anything else. The ids stay integer. That is the same weight
+compression `ovc` performs
+(`ovc onnx/model.onnx --input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]" --compress_to_fp16=True --output_model openvino/model.xml`),
+plus the output conversion and the opset lowering. The script is what
+the tool runs, because it also writes the `produced_by` report. The
+library never links OpenVINO.
 
 `convert_model` fuses attention into `ScaledDotProductAttention`, an
 opset 13 layer. The Arrow Lake driver reports
@@ -217,7 +227,7 @@ recipe's `reference.produced_by.container` is the image built from
 `bundle/reference` on this tree, which contains
 `onnx_to_openvino_ir.py`:
 
-`turbo-reference@sha256:4424a19868081d9cb8531eb58e0c5dfc9324b19407a69f83ecc1ae9d7f05bdda`
+`turbo-reference@sha256:5b519a38369b48b9f2fc561a4e8b9014f7b0725ac54608b2c9c288517b7f34fa`
 
 That string is `turbo-reference@` plus `docker image inspect --format "{{.Id}}" turbo-reference`
 after `docker build -t turbo-reference bundle/reference`. A later build
@@ -264,8 +274,9 @@ py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.on
 ```
 
 The first line must print a 2026.3 version. The script refuses an input
-whose rank is not 2, and it refuses the xml if a layer opset is above
-`--max-opset`. Omitting `--max-opset` is the same cap, 11. `report.json`
+whose rank is not 2, a layer opset above `--max-opset`, and a Result
+port that is not FP16. Omitting `--max-opset` is the same cap, 11.
+`report.json`
 is the `produced_by` report. `seal`
 reads it and does not leave it in the bundle. The report names no
 container, so the manifest records `container` `host` and
@@ -379,9 +390,12 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
   The reference file for the pinned image is
   `bundle/reference/out/all-minilm-l6-v2/`. The conversion writes an IR
   whose highest layer opset is at most 11, which is the cap that driver
-  reports. A Linux `seal` of an IR that image wrote has verified. The
-  device has not compiled or run it. Nothing in this tree claims a
-  session has run on the NPU.
+  reports, and whose Result port is FP16, which is the precision the
+  build flags name for the output. An earlier IR from this recipe had
+  FP16 weights and a FP32 Result; the compiler reported `DTYPE_F32` and
+  `model_load` refused the manifest's `DTYPE_F16`. A Linux `seal` of an
+  IR that image wrote has verified. The device has not compiled or run
+  this IR. Nothing in this tree claims a session has run on the NPU.
 - The `INPUT_EMBEDDINGS` host-gather path, should an NPU graph ever be
   cut at the embedding gather the way the Hailo one is.
 - `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which
