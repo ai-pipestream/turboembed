@@ -1927,7 +1927,16 @@ fn the_gemms_match_cublas() {
                     Tile::CtK,
                 ]
             } else {
-                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8, Tile::Cs]
+                &[
+                    Tile::Default,
+                    Tile::T64x64,
+                    Tile::T128x64,
+                    Tile::T128x128,
+                    Tile::T128x128Thread16x8,
+                    Tile::Cs,
+                    Tile::Cs256,
+                    Tile::Cs3,
+                ]
             };
             for &tile in tiles {
                 // A token count past a few thousand only as many blocks
@@ -2075,6 +2084,8 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::Ct,
             Tile::CtK,
             Tile::Cs,
+            Tile::Cs256,
+            Tile::Cs3,
         ] {
             // The whole-k tiles sum in F16, the F16 accumulators' experiment.
             let whole_k = matches!(
@@ -2900,16 +2911,31 @@ fn the_first_tuned_session_s_cost() {
     let _t = turn();
     let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
     let Some(_) = cuda_device("the_first_tuned_session_s_cost") else { return };
-    for precision in [TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
-        // A runtime of its own each time, so the cache is empty.
+    for precision in [TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
+        // A runtime of its own each time, so the cache is empty; written
+        // to a directory of its own, whose entry prints the timings each
+        // choice was made on.
         let (g, lines) = load_logged(&dir);
-        let s = caching(None, || {
+        let keep = Fixture::new(&format!("cuda-tuned-cost-{precision}"), model_manifest());
+        let cache = keep.dir.clone();
+        std::fs::create_dir_all(&cache).unwrap();
+        let s = caching(Some(&cache), || {
             Session::create(g.m, Some(&tuned_desc(32, 256, precision, TURBO_AUTOTUNE_ON, 0))).unwrap()
         });
         let info = s.info();
         println!("precision {precision}: tuned {} in {} ms", info.tuned, info.tune_ms);
         for (level, l) in lines.lock().unwrap().iter().filter(|(level, _)| *level <= 2) {
             println!("  [{level}] {l}");
+        }
+        for entry in std::fs::read_dir(&cache).unwrap().map(|e| e.unwrap().path()) {
+            if entry.extension().is_some_and(|x| x == "json") {
+                let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&entry).unwrap()).unwrap();
+                if let Some(timings) = v["timings"].as_array() {
+                    for t in timings {
+                        println!("  timing {} = {} ms", t[0].as_str().unwrap_or("?"), t[1]);
+                    }
+                }
+            }
         }
     }
 }
