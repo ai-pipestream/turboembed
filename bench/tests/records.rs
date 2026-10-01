@@ -26,6 +26,7 @@ fn cpu_cell(f: impl FnOnce(&Cell)) {
         dtype: TURBO_DTYPE_F32,
         version: record::library_version(),
         os: std::env::consts::OS,
+        graph_format: None,
     };
     f(&cell)
 }
@@ -401,6 +402,7 @@ fn levelzero_cell(f: impl FnOnce(&Cell)) {
         dtype: TURBO_DTYPE_F32,
         version: record::library_version(),
         os: std::env::consts::OS,
+        graph_format: None,
     })
 }
 
@@ -630,4 +632,68 @@ fn the_capability_is_what_the_compiled_in_records_decide() {
             }
         });
     }
+}
+
+/// An npu record as the tool would file one: the CPU measurement's
+/// figures, the compiled frame as computed tokens, and the two settings
+/// the bench writes. No NPU is measured here.
+fn npu_record(name: &str, format: &str, input: &str, references: Vec<ReferenceRun>) -> Record {
+    let mut r = cpu_record(name, references);
+    r.device.backend = "npu".into();
+    r.device.kind = "DEVICE_NPU".into();
+    r.device.name = "Intel(R) AI Boost".into();
+    r.machine.arch = "arl-npu".into();
+    r.library.settings = vec![format!("TURBO_NPU_GRAPH_FORMAT={format}"), format!("TURBO_NPU_GRAPH_INPUT={input}")];
+    r.timing.computed_tokens = Some(r.rows.batch as u64 * r.rows.seq as u64);
+    r
+}
+
+fn npu_cell<'a>(format: &'a str) -> Cell<'a> {
+    Cell {
+        arch: "arl-npu",
+        name: "Intel(R) AI Boost",
+        cpu: false,
+        backend: "npu",
+        task: TURBO_TASK_EMBED,
+        precision: TURBO_PRECISION_MODEL,
+        dtype: TURBO_DTYPE_F32,
+        version: record::library_version(),
+        os: std::env::consts::OS,
+        graph_format: Some(format),
+    }
+}
+
+#[test]
+fn an_npu_record_names_its_graph_format_and_refuses_a_host_gather_ratio() {
+    let r = npu_record("lite", "NGRAPH_LITE", "INPUT_TOKEN_IDS", vec![measured_reference(OV)]);
+    let name = record::file_name(&r).unwrap();
+    assert!(name.contains(".npu.ngraph-lite."), "{name}");
+    assert!(reparse(&r).is_ok());
+    assert!(r.is_for(&npu_cell("NGRAPH_LITE")));
+    assert!(!r.is_for(&npu_cell("NATIVE")), "a later driver advertising bit 0x1 is another cell");
+
+    let mut bare = r.clone();
+    bare.library.settings.clear();
+    assert!(reparse(&bare).unwrap_err().contains("TURBO_NPU_GRAPH_FORMAT"));
+
+    let mut packed = r.clone();
+    packed.timing.computed_tokens = Some(packed.rows.live_tokens);
+    assert!(
+        packed.rows.live_tokens < packed.rows.batch as u64 * packed.rows.seq as u64,
+        "the fixture must have padding, or this does not tell the frame from the packed count"
+    );
+    assert!(reparse(&packed).unwrap_err().contains("compiled frame"));
+
+    let native = npu_record("native", "NATIVE", "INPUT_TOKEN_IDS", vec![measured_reference(OV)]);
+    assert!(record::file_name(&native).unwrap().contains(".npu.native."));
+    assert!(reparse(&native).is_ok());
+    assert!(!native.is_for(&npu_cell("NGRAPH_LITE")));
+
+    let embeddings = npu_record("gather", "NGRAPH_LITE", "INPUT_EMBEDDINGS", vec![measured_reference(OV)]);
+    assert!(reparse(&embeddings).unwrap_err().contains("INPUT_EMBEDDINGS has no speed_ratio"));
+
+    let mut library_only = npu_record("gather-only", "NGRAPH_LITE", "INPUT_EMBEDDINGS", vec![]);
+    library_only.speed_ratio = None;
+    library_only.speed_reference = None;
+    assert!(reparse(&library_only).is_ok(), "{}", reparse(&library_only).unwrap_err());
 }

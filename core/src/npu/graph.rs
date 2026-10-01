@@ -349,6 +349,8 @@ pub(crate) struct Model {
     hidden: u32,
     /// TURBO_DTYPE_* a session computes in.
     pub compute_dtype: u32,
+    /// `NGRAPH_LITE` or `NATIVE`: what this graph was initialized as.
+    pub graph_format: &'static str,
 }
 
 unsafe impl Send for Model {}
@@ -1234,7 +1236,8 @@ fn describe(
     }
 
     let compute_dtype = session_dtype(desc.compute_dtype, output.precision)?;
-    Ok(Model { ctx, graph, run: Mutex::new(()), inputs, output, frame_batch, seq, hidden, compute_dtype })
+    let graph_format = super::format_name(ctx.formats_supported);
+    Ok(Model { ctx, graph, run: Mutex::new(()), inputs, output, frame_batch, seq, hidden, compute_dtype, graph_format })
 }
 
 /// # Safety
@@ -1302,6 +1305,43 @@ impl Session {
     fn model(&self) -> &Model {
         unsafe { &*self.model }
     }
+}
+
+/// Write `text` into the tuning choices, NUL-terminated.
+fn write_choices(dst: &mut [c_char; crate::TURBO_CHOICES_LEN], text: &str) {
+    dst.fill(0);
+    let n = text.len().min(crate::TURBO_CHOICES_LEN - 1);
+    for (i, b) in text.as_bytes().iter().take(n).enumerate() {
+        dst[i] = *b as c_char;
+    }
+}
+
+/// # Safety
+/// As turbo_backend.h says for session_create_tuned. The session is the
+/// one `session_create` makes. `choices` is the graph format the driver
+/// selected (`NGRAPH_LITE` or `NATIVE`). `cached` is not read: nothing
+/// in the environment selects the format, and a measured choice is not
+/// stored (`tuned` is DEFAULT).
+pub(crate) unsafe extern "C" fn session_create_tuned(
+    model: *mut c_void,
+    task: u32,
+    max_batch: u32,
+    max_seq: u32,
+    precision: u32,
+    tuning: *mut crate::backend::turbo_backend_tuning,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let rc = unsafe { session_create(model, task, max_batch, max_seq, precision, compute_dtype, out, err) };
+    if rc == 0 && !tuning.is_null() {
+        let format = unsafe { (*(model as *const Model)).graph_format };
+        let t = unsafe { &mut *tuning };
+        t.tuned = crate::TURBO_TUNED_DEFAULT;
+        t.tune_ms = 0;
+        write_choices(&mut t.choices, format);
+    }
+    rc
 }
 
 /// # Safety
@@ -2178,6 +2218,7 @@ mod tests {
             seq: 4,
             hidden: 2,
             compute_dtype: TURBO_DTYPE_F16,
+            graph_format: "NGRAPH_LITE",
         };
         let empty = || Buffer { free: None, ptr: std::ptr::null_mut(), bytes: 0 };
         let mut session = Session {

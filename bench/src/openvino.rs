@@ -37,6 +37,12 @@ pub const DEVICE_GPU: &str = "GPU";
 /// benchmark_app's `-d` for the NPU.
 pub const DEVICE_NPU: &str = "NPU";
 
+/// The NPU device node handed to the container when `--openvino-accel`
+/// is omitted. Another node is that flag. Several NPUs are still
+/// refused: `-d NPU` is OpenVINO's first device, and there is no
+/// per-device index on this command.
+pub const DEFAULT_ACCEL: &str = "/dev/accel/accel0";
+
 /// The machine's benchmark_app, as a recorded command names it.
 pub const BENCHMARK_APP_BIN: &str = "<benchmark-app>";
 

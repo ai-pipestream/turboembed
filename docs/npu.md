@@ -205,8 +205,14 @@ No build variables: there is nothing to point at.
   nothing. A run binds the session's buffers to the graph's arguments
   (argument values live on the graph, so runs on one model take turns),
   then per frame writes the inputs. A token-id graph writes each row's
-  live tokens in the argument's own precision with zeros after. An
-  embeddings graph writes the gathered word rows and the bias. The run
+  session tokens in the argument's own precision and leaves the rest of
+  the compiled row zero. An embeddings graph writes the gathered word
+  rows and the bias, and leaves unused rows zero. The execute is the
+  whole compiled frame, including those zeros. `session_create_tuned`
+  reports the format that frame was initialized as (`NGRAPH_LITE` or
+  `NATIVE`) in `turbo_session_info.choices`. It does not measure
+  kernels, and it does not read a cached choice or an environment
+  variable: the driver's bit selects the format. The run
   appends `pfnAppendGraphExecute` on the
   context's immediate list, synchronizes, and pools each row's hidden
   states on the host (mean over the mask, the first token, or the last
@@ -554,37 +560,50 @@ Both are references only. The product path stays the Level Zero graph
 extension.
 
 The model is `sentence-transformers/all-MiniLM-L6-v2`, the one the
-other optimized paths record. The comparable cell is the token-id
-seal (`openvino-f16`): `benchmark_app` compiles that bundle's ONNX
-encoder, which is the file the IR was converted from. An
-embeddings-sealed copy measures the host-gather path. Its OpenVINO
-reference is still the full ONNX encoder, which includes the
-embedding lookup the cut removed, so that pair is not the same graph.
-Leave `--batch` and `--seq` at the tool's defaults. The IR is fixed
-at sequence 128 and batch 1, the model's `max_batch` is 64, and the
-tool's default batch is 32, so the library runs 32 frames of 1. The
-default seq is the longest reference case that fits 128. A GPU record
-at sequence 256 is a different shape. `EXACT` is `UNSUPPORTED` and is
+other optimized paths record. The published cell is the token-id seal
+(`openvino-f16`) at `--batch 1 --seq 128`. That artifact's
+`fixed_batch` is 1 and its `fixed_seq` is 128. One library frame is
+one `benchmark_app` request of `[1, 128]`. The tool refuses any other
+shape for an npu load, including the shape it would pick when
+`--batch` and `--seq` are omitted. `EXACT` is `UNSUPPORTED` and is
 not a speed cell.
+
+`timing.computed_tokens` for this cell is 128: the device executes
+the compiled frame, and the zeros after the live tokens are part of
+that frame. The count is compiled frames times `fixed_seq`, which
+with one frame of batch 1 is `batch` x `seq`.
+
+`library.settings` names `TURBO_NPU_GRAPH_FORMAT` and
+`TURBO_NPU_GRAPH_INPUT`. On driver `0.15.21738` the format is
+`NGRAPH_LITE`, because `graphFormatsSupported` is `0x2` and bit `0x1`
+is clear. The file name carries `ngraph-lite` after `npu`. A driver
+that advertises bit `0x1` loads `NATIVE`, writes
+`TURBO_NPU_GRAPH_FORMAT=NATIVE`, and is filed as `native`. That
+record is a different cell. The format is what the device selected.
+Setting an environment variable does not change it.
+
+An embeddings-sealed copy (`openvino-embeddings-f16`,
+`INPUT_EMBEDDINGS`) is the host-gather path. `benchmark_app` still
+compiles the full ONNX encoder, which includes the lookup the cut
+removed. The tool refuses a `speed_ratio` for that artifact. A
+library-only record is `--no-tei` and `--no-openvino` together, and
+its `speed_ratio` stays null.
 
 Labels. The machine in a published record is the device arch, `arl-npu`
 on this part, and the device name the driver reports. Do not put a
 hostname in the record; the tool rewrites host paths, and a home
-directory is refused. Capability stays `EXPERIMENTAL`. The graph
-format is not a field of the record. On driver `0.15.21738` a record
-is a `NGRAPH_LITE` measurement: `graphFormatsSupported` is `0x2`, and
-the debug log says `the graph is NGRAPH_LITE`. Do not label that
-record `NATIVE`. A `NATIVE` timing waits on a driver that advertises
-bit `0x1`. The same command records it, because `model_load` follows
-the bit, and the debug log then says `the graph is the native blob`.
+directory is refused. Capability stays `EXPERIMENTAL`.
 
 The follow-up is that command on intel-npu, from a clean pushed tree,
-for the token-id MiniLM seal at `model` and `fastest`, mixed rows.
-`--no-tei` is honest when Docker cannot run TEI's CPU image; the
-record says TEI was not run, and the speed cell is against OpenVINO
-when `benchmark_app` ran. `--no-openvino` leaves the kernel cell
-empty. A disabled reference is recorded as not run. It is not filled
-with a time.
+for the token-id MiniLM seal at `model` and `fastest`, mixed rows,
+`--batch 1 --seq 128`. `--no-tei` is honest when Docker cannot run
+TEI's CPU image; the record says TEI was not run, and the speed cell
+is against OpenVINO when `benchmark_app` ran. `--no-openvino` leaves
+the kernel cell empty. A disabled reference is recorded as not run.
+It is not filled with a time. On Linux the container is given
+`/dev/accel/accel0` unless `--openvino-accel` names another node.
+Several NPUs are refused, because `-d NPU` is OpenVINO's first device
+and the command has no per-device index.
 
 ## Still to land
 
@@ -594,9 +613,16 @@ with a time.
   advertised, so `model_load` initialized the `NGRAPH_LITE` graph and
   did not create the native one. The code path remains for a driver
   that lists the bit. That create has not been exercised on hardware.
+  A record from that driver would say `TURBO_NPU_GRAPH_FORMAT=NATIVE`
+  and would not match an `NGRAPH_LITE` cell.
 - Speed cells. The harness and the command are in Speed, above. No
-  record is committed. Timings wait on a follow-up intel-npu run. A
-  record on driver `0.15.21738` is `NGRAPH_LITE`. A `NATIVE` timing
-  waits on a driver that advertises bit `0x1`.
+  record is committed. Timings wait on a follow-up intel-npu run of
+  the token-id seal at `--batch 1 --seq 128`. On driver `0.15.21738`
+  that record's `TURBO_NPU_GRAPH_FORMAT` is `NGRAPH_LITE`. A `NATIVE`
+  timing waits on a driver that advertises bit `0x1`.
 - No benchmark record marks this backend `SUPPORTED`. Capability stays
   `EXPERIMENTAL`.
+- Several NPU devices. `benchmark_app -d NPU` is OpenVINO's first
+  device. The tool refuses the reference when more than one NPU is
+  listed. `--openvino-accel` selects the device node for the one
+  device that is listed. There is no per-device index.

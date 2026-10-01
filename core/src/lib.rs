@@ -349,6 +349,7 @@ impl Runtime {
             backend::TURBO_CAP_EXPERIMENTAL => {
                 // The options the core applies before a backend sees the rows.
                 cap.options_honored |= session::CORE_HONORED;
+                let graph_format = cell_graph_format(b.name(), d.ordinal);
                 let cell = record::Cell {
                     arch: &cstr(&d.info.arch),
                     name: &cstr(&d.info.name),
@@ -359,6 +360,7 @@ impl Runtime {
                     dtype: cap.dtype,
                     version: record::library_version(),
                     os: std::env::consts::OS,
+                    graph_format,
                 };
                 match record::decide_embedded(&cell) {
                     record::Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
@@ -383,6 +385,17 @@ impl Runtime {
         }
         Ok(cap)
     }
+}
+
+/// The graph format an npu device loads, so a NGRAPH_LITE record and a
+/// NATIVE record are different cells. None for every other backend.
+fn cell_graph_format(backend: &str, ordinal: u32) -> Option<&'static str> {
+    #[cfg(feature = "npu")]
+    if backend == "npu" {
+        return crate::npu::load_format(ordinal);
+    }
+    let _ = (backend, ordinal);
+    None
 }
 
 /// Ask a backend about one of its devices, now.

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use turbo::bundle::{Bundle, sha256_hex};
-use turbo::manifest::{Manifest, Normalize, Pooling, PromptRole};
+use turbo::manifest::{Artifact, GraphInput, Manifest, Normalize, Pooling, PromptRole};
 use turbo::record::{Conformance, ROWS_DENSE, ROWS_MIXED, Timing};
 use turbo::safetensors::{self, Dtype};
 use turbo::{
@@ -364,9 +364,75 @@ pub fn library_settings(backend: &str, session: &turbo_session_info) -> Vec<Stri
                 .then(|| turbo::tuning::tuned_name(session.tuned).map(|t| format!("{v}={t}")))
                 .flatten(),
             Some("CHOICES") => (!choices.is_empty()).then(|| format!("{v}={choices}")),
+            // The device selected this. The environment cannot rename it.
+            Some("GRAPH_FORMAT") => (!choices.is_empty()).then(|| format!("{v}={choices}")),
+            // The bench appends this from the loaded artifact.
+            Some("GRAPH_INPUT") => None,
             _ => std::env::var(v).ok().map(|x| format!("{v}={x}")),
         })
         .collect()
+}
+
+/// The artifact the model loaded, by the hash `turbo_model_info` reports.
+pub fn loaded_artifact<'a>(manifest: &'a Manifest, artifact_sha256: &str) -> Result<&'a Artifact> {
+    manifest
+        .artifacts
+        .iter()
+        .find(|a| turbo::model::artifact_sha256(manifest, a) == artifact_sha256)
+        .ok_or_else(|| format!("the loaded artifact {artifact_sha256} is not in the manifest"))
+}
+
+/// The published npu cell is one compiled frame. `--batch` and `--seq`
+/// are the loaded artifact's `fixed_batch` and `fixed_seq`, both above
+/// 0. One library frame is one `benchmark_app` request of
+/// `[fixed_batch, fixed_seq]`. The token-id MiniLM seal
+/// (`openvino-f16`) is `--batch 1 --seq 128`. Omitting either flag is
+/// the tool's default shape, which is not that cell.
+pub fn require_compiled_frame(batch: Option<u32>, seq: Option<u32>, fixed_batch: u32, fixed_seq: u32) -> Result<()> {
+    if fixed_batch == 0 || fixed_seq == 0 {
+        return Err(
+            "npu: the loaded artifact has no fixed_batch and fixed_seq, so there is no one-frame cell to publish"
+                .into(),
+        );
+    }
+    if batch == Some(fixed_batch) && seq == Some(fixed_seq) {
+        return Ok(());
+    }
+    Err(format!(
+        "npu: the published cell is one compiled frame, --batch {fixed_batch} --seq {fixed_seq}. One library frame \
+         is one benchmark_app request of [{fixed_batch}, {fixed_seq}]. The token-id MiniLM seal (openvino-f16) is \
+         --batch 1 --seq 128"
+    ))
+}
+
+/// Token positions one library run computed. The npu graph executes
+/// each compiled frame whole, including positions the mask marks as
+/// padding, so with the published cell the count is `batch` x `seq`.
+/// Other backends pack through each row's last live token.
+pub fn library_computed_tokens(backend: &str, rows: &Rows) -> u64 {
+    if backend == "npu" { rows.padded_tokens() } else { rows.packed_tokens() }
+}
+
+/// As a record names a graph input.
+pub fn graph_input_name(input: GraphInput) -> &'static str {
+    match input {
+        GraphInput::TokenIds => "INPUT_TOKEN_IDS",
+        GraphInput::Embeddings => "INPUT_EMBEDDINGS",
+    }
+}
+
+/// Why an npu `INPUT_EMBEDDINGS` run must not be given a speed_ratio.
+/// The host gather is not `benchmark_app`'s full ONNX encoder. A
+/// library-only record (both references disabled) is allowed.
+pub fn npu_embeddings_speed<'a>(backend: &str, settings: &[String], tei: bool, openvino: bool) -> Option<&'a str> {
+    if backend == "npu" && settings.iter().any(|s| s == "TURBO_NPU_GRAPH_INPUT=INPUT_EMBEDDINGS") && (tei || openvino) {
+        Some(
+            "INPUT_EMBEDDINGS has no speed_ratio: the host gather is not benchmark_app's full ONNX encoder. Pass \
+             --no-tei and --no-openvino to write a library-only record",
+        )
+    } else {
+        None
+    }
 }
 
 /// Load the bundle on the device, time the runs, and check the vectors.
@@ -391,6 +457,12 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
     let ctx = rt.context(index)?;
     let model = ctx.load(&bundle_dir)?;
     let mi = model.info()?;
+    let backend_name = field(&device.backend);
+    let loaded = loaded_artifact(&bundle.manifest, &field(&mi.artifact_sha256))?;
+    if backend_name == "npu" {
+        require_compiled_frame(plan.batch, plan.seq, loaded.fixed_batch, loaded.fixed_seq)?;
+    }
+    let graph_input = graph_input_name(loaded.graph_input);
 
     let seq = match plan.seq {
         Some(s) => s,
@@ -484,9 +556,12 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         min_ms: sorted[0],
         max_ms: sorted[sorted.len() - 1],
         rows_per_second: (batch as f64 * plan.iterations as f64) / total,
-        computed_tokens: Some(rows.packed_tokens()),
+        computed_tokens: Some(library_computed_tokens(&backend_name, &rows)),
     };
-    let settings = library_settings(&field(&device.backend), &si);
+    let mut settings = library_settings(&backend_name, &si);
+    if backend_name == "npu" {
+        settings.push(format!("TURBO_NPU_GRAPH_INPUT={graph_input}"));
+    }
     Ok(Measurement {
         device,
         host_cpu,
@@ -504,4 +579,69 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         expected,
         settings,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn padded_row() -> Rows {
+        // One row of 128, four live tokens at the start. A packed count
+        // stops at the last live token. The npu frame runs all 128.
+        let mut mask = vec![0; 128];
+        mask[..4].fill(1);
+        Rows { kind: RowKind::Mixed, batch: 1, seq: 128, ids: vec![1; 128], mask, types: vec![0; 128], cases: vec![0] }
+    }
+
+    #[test]
+    fn npu_counts_the_compiled_frame_and_other_backends_pack() {
+        let rows = padded_row();
+        assert_eq!(rows.packed_tokens(), 4);
+        assert_eq!(library_computed_tokens("npu", &rows), 128);
+        assert_eq!(library_computed_tokens("cpu", &rows), 4);
+        assert_eq!(library_computed_tokens("levelzero", &rows), 4);
+    }
+
+    #[test]
+    fn the_published_npu_cell_is_the_compiled_frame() {
+        assert!(require_compiled_frame(Some(1), Some(128), 1, 128).is_ok());
+        let omitted = require_compiled_frame(None, None, 1, 128).unwrap_err();
+        assert!(omitted.contains("--batch 1 --seq 128"), "{omitted}");
+        assert!(omitted.contains("openvino-f16"), "{omitted}");
+        assert!(omitted.contains("[1, 128]"), "{omitted}");
+        let other = require_compiled_frame(Some(32), Some(128), 1, 128).unwrap_err();
+        assert!(other.contains("--batch 1 --seq 128"), "{other}");
+        assert!(require_compiled_frame(Some(1), Some(64), 1, 128).is_err());
+    }
+
+    #[test]
+    fn npu_graph_format_comes_from_the_session_choices() {
+        let mut session: turbo_session_info = unsafe { std::mem::zeroed() };
+        session.tuned = turbo::TURBO_TUNED_DEFAULT;
+        for (i, b) in b"NGRAPH_LITE".iter().enumerate() {
+            session.choices[i] = *b as _;
+        }
+        assert_eq!(library_settings("npu", &session), ["TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE"]);
+        session.choices = [0; turbo::TURBO_CHOICES_LEN];
+        for (i, b) in b"NATIVE".iter().enumerate() {
+            session.choices[i] = *b as _;
+        }
+        assert_eq!(library_settings("npu", &session), ["TURBO_NPU_GRAPH_FORMAT=NATIVE"]);
+        // Empty choices do not invent a format, and GRAPH_INPUT is not
+        // taken from the environment.
+        session.choices[0] = 0;
+        assert!(library_settings("npu", &session).is_empty());
+    }
+
+    #[test]
+    fn embeddings_have_no_speed_ratio() {
+        let settings = vec!["TURBO_NPU_GRAPH_INPUT=INPUT_EMBEDDINGS".into()];
+        let why = npu_embeddings_speed("npu", &settings, true, false).unwrap();
+        assert!(why.contains("INPUT_EMBEDDINGS has no speed_ratio"), "{why}");
+        assert!(npu_embeddings_speed("npu", &settings, false, true).is_some());
+        assert!(npu_embeddings_speed("npu", &settings, false, false).is_none());
+        let token = vec!["TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS".into()];
+        assert!(npu_embeddings_speed("npu", &token, true, true).is_none());
+        assert!(npu_embeddings_speed("levelzero", &settings, true, true).is_none());
+    }
 }

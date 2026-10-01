@@ -42,7 +42,13 @@ fn rows_mixed() -> String {
 /// choices, present in every record of a backend that reports choices, so
 /// a record made with nothing set still says which kernels ran, and
 /// TURBO_CUDA_CHOICES set to that string forces them back.
-pub const LIBRARY_VARS: [(&str, &str); 16] = [
+///
+/// TURBO_NPU_GRAPH_FORMAT is the same kind of report: the graph format
+/// the device selected (`NGRAPH_LITE` or `NATIVE`), from the session's
+/// choices. It is not an environment override. TURBO_NPU_GRAPH_INPUT is
+/// the loaded artifact's graph input (`INPUT_TOKEN_IDS` or
+/// `INPUT_EMBEDDINGS`), written by the bench from that artifact.
+pub const LIBRARY_VARS: [(&str, &str); 18] = [
     ("cpu", "TURBO_CPU_THREADS"),
     ("cuda", "TURBO_CUDA_TILE"),
     ("cuda", "TURBO_CUDA_SK_STEPS"),
@@ -59,6 +65,8 @@ pub const LIBRARY_VARS: [(&str, &str); 16] = [
     ("cuda", "TURBO_AUTOTUNE_BUDGET_MS"),
     ("cuda", "TURBO_CUDA_TUNED"),
     ("cuda", "TURBO_CUDA_CHOICES"),
+    ("npu", "TURBO_NPU_GRAPH_FORMAT"),
+    ("npu", "TURBO_NPU_GRAPH_INPUT"),
 ];
 
 /// The reason a cell without any record for it gives.
@@ -319,16 +327,18 @@ fn slug(s: &str) -> String {
 
 /// A record's file name, from its contents alone:
 ///
-/// `<machine>.<backend>.<task>.<precision>[-dense].<model>-<manifest>.<commit>.json`
+/// `<machine>.<backend>[.<graph format>].<task>.<precision>[-dense].<model>-<manifest>.<commit>.json`
 ///
 /// machine is the arch label, and for a CPU the arch label and the first 8
 /// hex of the SHA-256 of the processor's name, since a CPU record is filed
-/// under both; task and precision are the enum names without their
-/// prefix; model is the last part of the model id, at most 32 bytes;
-/// manifest is the first 8 hex of the bundle's manifest hash, commit the
-/// first 12 of the library's; `-dense` marks dense rows, so a mixed and a
-/// dense record of one commit are both kept. Longer than NAME_MAX is an
-/// error.
+/// under both; an npu record inserts the graph format (`ngraph-lite` or
+/// `native`) after the backend, so a later driver that advertises
+/// ZE_GRAPH_FORMAT_NATIVE does not share a file with an NGRAPH_LITE
+/// record; task and precision are the enum names without their prefix;
+/// model is the last part of the model id, at most 32 bytes; manifest is
+/// the first 8 hex of the bundle's manifest hash, commit the first 12 of
+/// the library's; `-dense` marks dense rows, so a mixed and a dense
+/// record of one commit are both kept. Longer than NAME_MAX is an error.
 pub fn file_name(r: &Record) -> Result<String, String> {
     let mut machine = slug(&r.machine.arch);
     if r.device.kind == "DEVICE_CPU" {
@@ -341,8 +351,9 @@ pub fn file_name(r: &Record) -> Result<String, String> {
     let manifest = r.bundle.manifest_sha256.get(..8).unwrap_or("");
     let commit = r.library.commit.get(..12).unwrap_or("");
     let dense = if r.rows.kind == ROWS_DENSE { "-dense" } else { "" };
+    let format = npu_format_slug(r)?;
     let name = format!(
-        "{machine}.{}.{}.{}{dense}.{model}-{manifest}.{commit}.json",
+        "{machine}.{}{format}.{}.{}{dense}.{model}-{manifest}.{commit}.json",
         slug(&r.device.backend),
         bare(&r.task, "TASK_"),
         bare(&r.precision, "PRECISION_"),
@@ -351,6 +362,26 @@ pub fn file_name(r: &Record) -> Result<String, String> {
         return Err(format!("the record's name {name} is {} bytes, over {NAME_MAX}", name.len()));
     }
     Ok(name)
+}
+
+/// `.<slug>` for an npu record, from TURBO_NPU_GRAPH_FORMAT. Empty for
+/// every other backend.
+fn npu_format_slug(r: &Record) -> Result<String, String> {
+    if r.device.backend != "npu" {
+        return Ok(String::new());
+    }
+    let fmt = setting(r, "TURBO_NPU_GRAPH_FORMAT")
+        .ok_or_else(|| "an npu record names TURBO_NPU_GRAPH_FORMAT as NGRAPH_LITE or NATIVE".to_owned())?;
+    if !matches!(fmt, "NGRAPH_LITE" | "NATIVE") {
+        return Err(format!("TURBO_NPU_GRAPH_FORMAT={fmt} is not NGRAPH_LITE or NATIVE"));
+    }
+    Ok(format!(".{}", slug(fmt)))
+}
+
+/// The value of `NAME=value` in library.settings, when that name is set.
+fn setting<'a>(r: &'a Record, name: &str) -> Option<&'a str> {
+    let prefix = format!("{name}=");
+    r.library.settings.iter().find_map(|s| s.strip_prefix(prefix.as_str()))
 }
 
 fn is_hex(s: &str, len: usize) -> bool {
@@ -480,7 +511,8 @@ impl Record {
             }
             k => return Err(format!("rows.kind {k:?} is not {ROWS_MIXED} or {ROWS_DENSE}")),
         }
-        let slots = rows.live_tokens..=rows.batch as u64 * rows.seq as u64;
+        let frame = rows.batch as u64 * rows.seq as u64;
+        let slots = rows.live_tokens..=frame;
         if let Some(n) = self.timing.computed_tokens
             && !slots.contains(&n)
         {
@@ -488,6 +520,17 @@ impl Record {
                 "timing.computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}"
             ));
         }
+        // The npu graph executes every position of each compiled frame,
+        // including padding. The published cell's batch and seq are that
+        // frame, so the count is batch x seq.
+        if self.device.backend == "npu" && self.timing.computed_tokens != Some(frame) {
+            return Err(
+                "timing.computed_tokens for npu is the compiled frame, batch x seq: the device runs every position \
+                 of the frame"
+                    .into(),
+            );
+        }
+        npu_record_settings(self)?;
         let t = &self.timing;
         if t.iterations == 0
             || ![t.p50_ms, t.p99_ms, t.mean_ms, t.min_ms, t.max_ms, t.rows_per_second].into_iter().all(positive)
@@ -566,7 +609,32 @@ impl Record {
                 self.speed_ratio, self.speed_reference
             ));
         }
+        if setting(self, "TURBO_NPU_GRAPH_INPUT") == Some("INPUT_EMBEDDINGS") && self.speed_ratio.is_some() {
+            return Err(
+                "INPUT_EMBEDDINGS has no speed_ratio: the host gather is not benchmark_app's full ONNX encoder".into(),
+            );
+        }
         Ok(())
+    }
+}
+
+/// An npu record names the graph format the device selected and the
+/// loaded artifact's graph input. Skipping either would let a later
+/// NATIVE driver, or a host-gather artifact, parse as the token-id
+/// NGRAPH_LITE cell.
+fn npu_record_settings(r: &Record) -> Result<(), String> {
+    if r.device.backend != "npu" {
+        return Ok(());
+    }
+    match setting(r, "TURBO_NPU_GRAPH_FORMAT") {
+        Some("NGRAPH_LITE" | "NATIVE") => {}
+        Some(other) => return Err(format!("TURBO_NPU_GRAPH_FORMAT={other} is not NGRAPH_LITE or NATIVE")),
+        None => return Err("an npu record names TURBO_NPU_GRAPH_FORMAT (NGRAPH_LITE or NATIVE)".into()),
+    }
+    match setting(r, "TURBO_NPU_GRAPH_INPUT") {
+        Some("INPUT_TOKEN_IDS" | "INPUT_EMBEDDINGS") => Ok(()),
+        Some(other) => Err(format!("TURBO_NPU_GRAPH_INPUT={other} is not INPUT_TOKEN_IDS or INPUT_EMBEDDINGS")),
+        None => Err("an npu record names TURBO_NPU_GRAPH_INPUT (INPUT_TOKEN_IDS or INPUT_EMBEDDINGS)".into()),
     }
 }
 
@@ -598,6 +666,10 @@ pub struct Cell<'a> {
     pub version: &'a str,
     /// The operating system this build is for, std::env::consts::OS.
     pub os: &'a str,
+    /// The graph format an npu cell loads (`NGRAPH_LITE` or `NATIVE`).
+    /// None for every other backend. A record is for the cell only when
+    /// library.settings names that format.
+    pub graph_format: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -625,6 +697,7 @@ impl Record {
             && task_name(cell.task) == Some(self.task.as_str())
             && precision_name(cell.precision) == Some(self.precision.as_str())
             && (!cell.cpu || (self.device.kind == "DEVICE_CPU" && self.device.name == cell.name))
+            && cell.graph_format.is_none_or(|fmt| setting(self, "TURBO_NPU_GRAPH_FORMAT") == Some(fmt))
     }
 
     /// Why a record for the cell does not back SUPPORTED, or None when it

@@ -37,7 +37,7 @@ the same files copied elsewhere pass it.
 | `--bundle <dir>` | The bundle. Required; not one under `testdata/`. |
 | `--device <index\|backend>` | A runtime device index, or a backend name for the first device it lists. Default `cpu`. |
 | `--precision model\|fastest\|exact` | The session's precision. Default `model`. |
-| `--batch <n>`, `--seq <n>` | The rows' shape. Default: 32 rows, or the model's `max_batch` if fewer; the longest reference case that fits the model's `max_seq`. |
+| `--batch <n>`, `--seq <n>` | The rows' shape. Default: 32 rows, or the model's `max_batch` if fewer; the longest reference case that fits the model's `max_seq`. The npu backend refuses that default. Both flags must be the loaded artifact's `fixed_batch` and `fixed_seq`. The token-id MiniLM seal (`openvino-f16`) is `--batch 1 --seq 128`, and one library frame is one `benchmark_app` request of `[1, 128]`. |
 | `--rows mixed\|dense` | The token rows (Token rows, below). `mixed`: the reference cases that fit `seq`, cycled and padded. `dense`: every row a case of at least `seq` tokens, cut to `seq`, so all `batch` x `seq` tokens are live and packing skips none. Default `mixed`. |
 | `--cpus <list>` | Processors to run on, as `0-15` or `0-7,16-23` (Linux). The tool pins itself to them before it starts the library, sets `TURBO_CPU_THREADS` to their count (docs/cpu.md), and gives TEI's container the same processors, with MKL a thread per physical core and rayon one per processor (below). Default: unpinned. |
 | `--warmup <n>`, `--iterations <n>` | Untimed runs, then timed runs. Default 20 and 200. |
@@ -56,6 +56,7 @@ the same files copied elsewhere pass it.
 | `--openvino-image <name@sha256:…>` | An OpenVINO container with `benchmark_app` (levelzero, and npu on Linux). |
 | `--openvino-bin <path>` | `benchmark_app` installed on the machine, in place of an image. For npu, when the container cannot see the NPU driver. The record pins the file as `benchmark-app@sha256:<its SHA-256>` and writes the command with `<benchmark-app>`. |
 | `--openvino-inputs <ids,mask[,types]>`, `--openvino-input-dtype int64\|int32` | As for TensorRT, for benchmark_app. Default `input_ids,attention_mask,token_type_ids` and `int64`. |
+| `--openvino-accel <path>` | The NPU device node handed to the OpenVINO container. Default `/dev/accel/accel0`. For npu with `--openvino-image`. Refused for any other backend, and refused with `--openvino-bin` (the host binary is not given a node path). Several NPUs are still refused: `-d NPU` is OpenVINO's first device, and there is no per-device index. |
 | `--benchmark-app <path>` | `benchmark_app` inside the image. Default `benchmark_app`. Refused with `--openvino-bin`. |
 | `--no-openvino` | OpenVINO is not run; the record says so. |
 | `--work <dir>` | Scratch for trtexec's and benchmark_app's input files. Default the system's temporary directory. |
@@ -106,26 +107,28 @@ cargo run --release -p turbo-bench --features levelzero -- record \
     --openvino-image openvino/ubuntu24_dev@sha256:<digest>
 ```
 
-On intel-npu the same MiniLM bundle, with the `npu` feature. The tool's
-default batch is 32 and its default seq is the longest reference case
-that fits the loaded artifact. The NPU IR is fixed at sequence 128 and
-batch 1, so that default seq is at most 128, and the library runs the
-batch as frames of 1. Do not copy `--seq 256` from a GPU record: this
-IR does not compile that sequence. No record of this run is in the tree
-yet; the command is what a follow-up on that machine records. Docs for
-the device, the graph format, and which seal to use are in docs/npu.md.
+On intel-npu the token-id MiniLM seal (`openvino-f16`), with the `npu`
+feature. The published cell is `--batch 1 --seq 128`: one library frame
+is one `benchmark_app` request of `[1, 128]`. The tool refuses a run
+that omits those flags. Do not copy `--seq 256` or a batch of 32 from a
+GPU record. No record of this run is in the tree yet; the command is
+what a follow-up on that machine records. On driver `0.15.21738` the
+record's `library.settings` include `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE`.
+Docs for the device and the seal are in docs/npu.md.
 
 Windows, where a container cannot see the NPU driver:
 
 ```
-cargo run --release -p turbo-bench --features npu -- record --bundle <bundle> --device npu --precision model --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu image> --tei-model <upstream> --openvino-bin <benchmark_app>
+cargo run --release -p turbo-bench --features npu -- record --bundle <bundle> --device npu --precision model --batch 1 --seq 128 --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu image> --tei-model <upstream> --openvino-bin <benchmark_app>
 ```
 
-Linux, where `/dev/accel/accel0` is the NPU node:
+Linux. The container is given `/dev/accel/accel0` unless
+`--openvino-accel` names another node:
 
 ```
 cargo run --release -p turbo-bench --features npu -- record \
     --bundle all-minilm-l6-v2/ --device npu --precision model \
+    --batch 1 --seq 128 \
     --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu image> \
     --tei-model upstream/ \
     --openvino-image openvino/ubuntu24_dev@sha256:<digest>
@@ -246,12 +249,12 @@ may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
 | `library.version` | The version number at the start of `turbo_version()`. |
 | `library.build` | `turbo_version()` whole: the version and the backends linked. |
 | `library.commit`, `.pushed_to` | See Provenance. |
-| `library.settings` | What changed what the backend ran, as `NAME=value`, in this order and each once: the environment variables that were set, `TURBO_CPU_THREADS` on cpu; `TURBO_CUDA_TILE`, `TURBO_CUDA_SK_STEPS`, `TURBO_CUDA_ATTENTION`, `TURBO_CUDA_CUBLAS`, `TURBO_CUDA_LAYER_NORM`, `TURBO_CUDA_POOL`, `TURBO_CUDA_TF32`, `TURBO_CUDA_F16_ACCUMULATE`, `TURBO_CUDA_GELU`, `TURBO_CUDA_RESIDUAL`, `TURBO_CUDA_PRODUCT`, `TURBO_AUTOTUNE` and `TURBO_AUTOTUNE_BUDGET_MS` on cuda; then, on cuda, always, what the session reported of its kernels (`turbo_session_info`, docs/autotune.md): `TURBO_CUDA_TUNED`, where the choices came from (`default`, `forced`, `measured` or `cache`), and `TURBO_CUDA_CHOICES`, the choices themselves, whatever the environment said. Setting `TURBO_CUDA_CHOICES` to a record's value runs the same kernels again. Empty when nothing was set on a backend that reports no choices, or in a record made before the field was; a record made before the choices has only the variables. |
+| `library.settings` | What changed what the backend ran, as `NAME=value`, in this order and each once: the environment variables that were set, `TURBO_CPU_THREADS` on cpu; `TURBO_CUDA_TILE`, `TURBO_CUDA_SK_STEPS`, `TURBO_CUDA_ATTENTION`, `TURBO_CUDA_CUBLAS`, `TURBO_CUDA_LAYER_NORM`, `TURBO_CUDA_POOL`, `TURBO_CUDA_TF32`, `TURBO_CUDA_F16_ACCUMULATE`, `TURBO_CUDA_GELU`, `TURBO_CUDA_RESIDUAL`, `TURBO_CUDA_PRODUCT`, `TURBO_AUTOTUNE` and `TURBO_AUTOTUNE_BUDGET_MS` on cuda; then, on cuda, always, what the session reported of its kernels (`turbo_session_info`, docs/autotune.md): `TURBO_CUDA_TUNED`, where the choices came from (`default`, `forced`, `measured` or `cache`), and `TURBO_CUDA_CHOICES`, the choices themselves, whatever the environment said. Setting `TURBO_CUDA_CHOICES` to a record's value runs the same kernels again. On npu, always, `TURBO_NPU_GRAPH_FORMAT` (`NGRAPH_LITE` or `NATIVE`, the format the device selected; an environment variable does not change it) and `TURBO_NPU_GRAPH_INPUT` (`INPUT_TOKEN_IDS` or `INPUT_EMBEDDINGS`, the loaded artifact). An npu record that omits either does not parse. `INPUT_EMBEDDINGS` with a `speed_ratio` does not parse. Empty when nothing was set on a backend that reports no choices, or in a record made before the field was; a record made before the choices has only the variables. |
 | `task`, `precision` | `TASK_EMBED`; `PRECISION_*` as the session asked. |
 | `compute_dtype` | `DTYPE_*` as `turbo_session_get_info` reported it. `DTYPE_I8` is accepted and has no floor. |
 | `bundle.*` | `turbo_model_info`: model id and revision, and the manifest, artifact and tokenizer hashes. |
 | `rows` | `kind`, `ROWS_MIXED` or `ROWS_DENSE` (`--rows`); the shape; `live_tokens`, the mask's ones across the batch, which for dense rows must be `batch` x `seq`; the reference case each row is; and the hash of the rows (below). |
-| `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed, each row's through its last live token (What each time covers). |
+| `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed. cpu, cuda and levelzero count each row through its last live token. npu counts the compiled frame, `batch` x `seq`, because the device executes every position of that frame (What each time covers). An npu record whose count is anything else does not parse. |
 | `conformance` | Vectors compared with the bundle's fp32 reference on this device, through the C interface: each reference case no longer than `seq` alone, as a batch of one at its own length, then every row of the last timed batch that is its case whole. A dense row cut to `seq` has no reference vector; it must give, within the dtype's tolerance, what it gives alone, or the tool stops with an error. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
 | `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and `batch` x `seq`. |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
@@ -324,10 +327,15 @@ Nor is the work the same unless the record says so. Each side's
 `computed_tokens` gives the token positions it computed per run, beside
 `rows.live_tokens`:
 
-- The library packs the rows (docs/cpu.md, docs/cuda.md,
-  docs/levelzero.md): it computes each row's positions through its last
-  live token and skips the padding after them, so for these rows its
+- cpu, cuda and levelzero pack the rows (docs/cpu.md, docs/cuda.md,
+  docs/levelzero.md): each computes a row's positions through its last
+  live token and skips the padding after them, so for these rows the
   count is the live tokens.
+- npu executes each compiled frame whole. The published cell's
+  `--batch` and `--seq` are the artifact's `fixed_batch` and
+  `fixed_seq`, so `computed_tokens` is that frame: `batch` x `seq`
+  (128 positions for one frame of the token-id MiniLM seal). The zeros
+  after the live tokens are computed.
 - TensorRT and OpenVINO run the static `[batch, seq]` shape: `batch` x
   `seq`, whatever the mask says.
 - TEI pads each batch it forms to that batch's longest input, or packs
@@ -348,12 +356,14 @@ the record.
 ### Name
 
 ```
-<machine>.<backend>.<task>.<precision>[-dense].<model>-<manifest>.<commit>.json
+<machine>.<backend>[.<graph format>].<task>.<precision>[-dense].<model>-<manifest>.<commit>.json
 ```
 
 `machine` is the arch label; for a CPU, the arch label, a dash and the
 first 8 hex of the SHA-256 of the processor's name, since a CPU record
-is filed under both (`core/src/cpu.rs`). `task` and `precision` are the
+is filed under both (`core/src/cpu.rs`). An npu record inserts the
+graph format after the backend, `ngraph-lite` or `native`, so the two
+formats do not share a file. `task` and `precision` are the
 enum names without their prefix, in lower case. `model` is the last part
 of the model id, at most 32 characters; `manifest` the first 8 hex of the
 manifest hash; `commit` the first 12 of the commit. Dense rows add
@@ -608,20 +618,24 @@ measured. On that machine TEI's CPU image is the end-to-end reference.
 
 For the NPU backend the same program is the kernel reference, with
 `-d NPU` in place of `-d GPU`. The container is given
-`/dev/accel/accel0` and that node's group, and it is not given
-`/dev/dri`. A missing node is an error. `--openvino-bin` runs the
-machine's own `benchmark_app` with the same arguments on the bundle and
-the input files, which is how a Windows host reaches the NPU driver a
-Linux container cannot see. The record pins that binary as
-`benchmark-app@sha256:<its SHA-256>`. With more than one NPU listed the
-tool refuses to run it, for the same reason as the GPU. The NPU plugin
-has no BF16 either. A bundle with no ONNX artifact is `not_run`, as for
-the GPU. The library's own graph is the OpenVINO IR through Level Zero,
-not this ONNX compile: benchmark_app is the reference. On the MiniLM IR
-the library's frame is batch 1, so a batch of 32 is 32 frames, while
-benchmark_app times one request of the whole static shape. Both sides
-see the same token rows. TEI's CPU image is again the end-to-end
-reference. No npu record is committed in this tree.
+`/dev/accel/accel0` (or the node `--openvino-accel` names) and that
+node's group, and it is not given `/dev/dri`. A missing node is an
+error. `--openvino-bin` runs the machine's own `benchmark_app` with
+the same arguments on the bundle and the input files, which is how a
+Windows host reaches the NPU driver a Linux container cannot see. The
+record pins that binary as `benchmark-app@sha256:<its SHA-256>`. The
+host binary is not given a device-node path. With more than one NPU
+listed the tool refuses to run it, for the same reason as the GPU:
+`-d NPU` is OpenVINO's first device, and there is no per-device index.
+The NPU plugin has no BF16 either. A bundle with no ONNX artifact is
+`not_run`, as for the GPU. The library's own graph is the OpenVINO IR
+through Level Zero, not this ONNX compile: benchmark_app is the
+reference. The published cell pins both sides to one request of the
+artifact's fixed shape. For the token-id MiniLM seal that shape is
+`[1, 128]`. An `INPUT_EMBEDDINGS` artifact has no `speed_ratio`: the
+host gather is not this full ONNX encoder. TEI's CPU image is the
+end-to-end reference for the token-id cell. No npu record is committed
+in this tree.
 
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
@@ -636,9 +650,13 @@ A record is for the cell when its `machine.arch` is the device's arch
 label, `machine.os` the operating system this build is for,
 `device.backend` the device's backend, and `task` and `precision` the
 cell's; for a CPU, `device.kind` is `DEVICE_CPU` and `device.name` is
-the processor's name too. The bundle is not part of the key: a record
-backs the (backend, task, precision) cell on that machine and OS,
-whatever model is later loaded there.
+the processor's name too. For npu, `library.settings` must name
+`TURBO_NPU_GRAPH_FORMAT` as the format that device loads (`NGRAPH_LITE`
+unless bit `0x1` is set, then `NATIVE`). The bundle is not part of the
+key: a record backs the (backend, task, precision) cell on that machine
+and OS, whatever model is later loaded there. The graph format is part
+of the npu key, so a `NATIVE` record does not back an `NGRAPH_LITE`
+cell.
 
 A record for the cell backs SUPPORTED when all of these hold:
 

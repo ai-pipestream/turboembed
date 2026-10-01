@@ -51,7 +51,11 @@ pub static BACKEND: turbo_backend = turbo_backend {
     buffer_read: None,
     formats: format_bit(TURBO_FORMAT_OPENVINO_IR),
     reserved2: 0,
-    session_create_tuned: None,
+    // The slot the core calls when a backend has more than one path.
+    // Here it creates the same session and writes the graph format the
+    // driver selected into choices (NGRAPH_LITE or NATIVE). It does not
+    // measure kernels, and it does not read a cached choice.
+    session_create_tuned: Some(graph::session_create_tuned),
 };
 
 /// The backend's table, for the tests.
@@ -394,6 +398,20 @@ impl Driver {
     }
 }
 
+/// `NATIVE` when bit 0x1 (`ZE_GRAPH_FORMAT_NATIVE`) is among the device's
+/// graph formats, otherwise `NGRAPH_LITE`. A driver that later sets the
+/// bit is a different cell from one that reports only 0x2.
+pub fn format_name(formats_supported: u32) -> &'static str {
+    if formats_supported & ze::GRAPH_FORMAT_NATIVE != 0 { "NATIVE" } else { "NGRAPH_LITE" }
+}
+
+/// The graph format `model_load` initializes on the listed device.
+/// None when that ordinal is not listed.
+pub fn load_format(ordinal: u32) -> Option<&'static str> {
+    let d = driver().ok().flatten()?;
+    d.devices.get(ordinal as usize).map(|dev| format_name(dev.formats_supported))
+}
+
 /// ZE_extension_graph's version among the driver's extensions, None when
 /// the driver does not list it.
 fn graph_extension_version(api: &ze::Api, drv: ze::Handle) -> Result<Option<u32>, String> {
@@ -425,5 +443,13 @@ mod tests {
         assert_eq!(arch(0x10de, 0x2704), "10de-2704");
         assert_eq!(vendor(0x8086), "Intel");
         assert_eq!(driver_version(0x8086, 0x0103_909c), "1.3.37020");
+    }
+
+    #[test]
+    fn the_graph_format_is_native_only_when_bit_0x1_is_set() {
+        assert_eq!(format_name(0x2), "NGRAPH_LITE");
+        assert_eq!(format_name(0), "NGRAPH_LITE");
+        assert_eq!(format_name(0x1), "NATIVE");
+        assert_eq!(format_name(0x3), "NATIVE");
     }
 }

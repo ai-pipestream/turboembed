@@ -91,7 +91,10 @@ fn the_table_is_whole_and_loads_openvino_ir_alone() {
     assert!(b.model_load.is_some() && b.session_run.is_some() && b.buffer_alloc.is_some());
     assert!(b.buffer_read.is_none(), "every buffer it gives has a host address");
     assert!(b.buffer_import.is_none(), "no import path is built");
-    assert!(b.session_create_tuned.is_none(), "one path, no tuned sessions");
+    assert!(
+        b.session_create_tuned.is_some(),
+        "the graph format the driver selected is reported through session_create_tuned"
+    );
     assert!(turbo::backend::linked().iter().any(|l| std::ptr::eq(*l, b)));
     let v = unsafe { std::ffi::CStr::from_ptr(turbo_version()) }.to_str().unwrap();
     assert!(v.split(' ').any(|w| w == "npu"), "turbo_version() = {v}");
