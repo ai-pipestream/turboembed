@@ -26,6 +26,8 @@ pub mod manifest;
 #[cfg(feature = "metal")]
 pub mod metal;
 pub mod model;
+#[cfg(feature = "npu")]
+pub mod npu;
 pub mod record;
 pub mod safetensors;
 mod session;

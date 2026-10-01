@@ -101,6 +101,7 @@ fn the_version_lists_the_linked_backends() {
         (cfg!(feature = "levelzero"), "levelzero"),
         (cfg!(feature = "metal"), "metal"),
         (cfg!(feature = "hailo"), "hailo"),
+        (cfg!(feature = "npu"), "npu"),
         (true, "cpu"),
     ] {
         if on {

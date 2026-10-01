@@ -20,7 +20,8 @@ unicode_categories = "0.1.1"
 # Grapheme clusters, which SentencePiece's character map is applied by.
 unicode-segmentation = "1"
 # Opens the Level Zero loader at run time, so a machine without it lists
-# no Intel GPU instead of failing to load libturbo.
+# no Intel GPU (levelzero) or NPU (npu) instead of failing to load
+# libturbo.
 libloading = { version = "0.8", optional = true }
 
 [build-dependencies]
@@ -57,3 +58,7 @@ hailo = []
 # Test-only views of the core's state, never in a release library.
 internals = []
 levelzero = ["dep:libloading"]
+# Intel NPUs (AI Boost) through the Level Zero graph extension: the
+# loader is opened at run time, so nothing is needed to build
+# (docs/npu.md). Distinct from `levelzero`, the Intel GPU backend.
+npu = ["dep:libloading"]
