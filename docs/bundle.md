@@ -130,16 +130,25 @@ this form before it is written or loaded.
       "name": "openvino-f16",
       "format": "FORMAT_OPENVINO_IR",
       "files": ["openvino/model.xml", "openvino/model.bin"],
-      "backends": ["openvino"],
+      "backends": ["npu"],
       "compute_dtype": "DTYPE_F16",
       "graph_input": "INPUT_TOKEN_IDS",
       "graph_output": "OUTPUT_HIDDEN_STATES",
+      "fixed_seq": 128,
+      "fixed_batch": 1,
       "produced_by": {
-        "tool": "ovc",
-        "tool_version": "<version>",
-        "container": "<registry>/openvino-tools@sha256:<digest>",
+        "tool": "openvino.save_model",
+        "tool_version": "2026.3.0",
+        "container": "turbo-reference@sha256:<digest>",
         "from": "onnx-f32",
-        "args": ["onnx/model.onnx", "--compress_to_fp16=True", "--output_model", "openvino/model.xml"],
+        "args": [
+          "onnx/model.onnx",
+          "openvino/model.xml",
+          "openvino/model.bin",
+          "seq=128",
+          "batch=1",
+          "compress_to_fp16=True"
+        ],
         "reproducible": true
       }
     },

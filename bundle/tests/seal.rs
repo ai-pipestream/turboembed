@@ -90,6 +90,15 @@ fn reported_hef() -> Value {
     json!({ "tool": "hailo-dataflow-compiler", "tool_version": "5.4.0", "settings": ["hw_arch=hailo10h", "seq=128"] })
 }
 
+/// What the IR conversion reports, in the form onnx_to_openvino_ir.py writes it.
+fn reported_ir() -> Value {
+    json!({
+        "tool": "openvino.save_model",
+        "tool_version": "2026.3.0",
+        "settings": ["seq=128", "batch=1", "compress_to_fp16=True"],
+    })
+}
+
 /// Each converted artifact as a run makes it: its file written, and its
 /// produced_by from what the run reported, in the container it ran in.
 fn converted(r: &Recipe, bundle: &Path) -> Vec<(String, Value)> {
@@ -99,11 +108,19 @@ fn converted(r: &Recipe, bundle: &Path) -> Vec<(String, Value)> {
         .map(|c| {
             let file = bundle.join(&c.file);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
-            let (bytes, reported, container) = match &c.container {
-                Some(k) => (HEF, reported_hef(), k.clone()),
-                None => (ONNX_F16, reported_f16(), CONTAINER.to_owned()),
+            let (bytes, reported, container) = if c.file2.is_some() {
+                (b"<ir>".as_slice(), reported_ir(), CONTAINER.to_owned())
+            } else {
+                match &c.container {
+                    Some(k) => (HEF, reported_hef(), k.clone()),
+                    None => (ONNX_F16, reported_f16(), CONTAINER.to_owned()),
+                }
             };
             fs::write(file, bytes).unwrap();
+            if let Some(f2) = &c.file2 {
+                fs::create_dir_all(bundle.join(f2).parent().unwrap()).unwrap();
+                fs::write(bundle.join(f2), b"<weights>").unwrap();
+            }
             (c.name.clone(), convert::produced_by(&reported, &container, &c, true).unwrap())
         })
         .collect()
@@ -147,6 +164,8 @@ fn a_sealed_bundle_loads_through_the_core() {
             "hailo/model-hailo10h-s128.hef",
             "onnx/model-f16.onnx",
             "onnx/model.onnx",
+            "openvino/model.bin",
+            "openvino/model.xml",
             "reference/reference.safetensors",
             "tokenizer.json",
             "weights/model.safetensors"
@@ -166,6 +185,20 @@ fn a_sealed_bundle_loads_through_the_core() {
             "reproducible": true
         })
     );
+    let ir = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "openvino-f16").unwrap();
+    assert_eq!(
+        ir["produced_by"]["args"],
+        json!([
+            "onnx/model.onnx",
+            "openvino/model.xml",
+            "openvino/model.bin",
+            "seq=128",
+            "batch=1",
+            "compress_to_fp16=True"
+        ])
+    );
+    assert_eq!(ir["produced_by"]["tool"], "openvino.save_model");
+    assert_eq!(ir["backends"], json!(["npu"]));
     // The HEF's produced_by names its container and calibration texts,
     // which are in the bundle, with the compile's settings from the run.
     let hef = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "hef-hailo10h-s128").unwrap();
@@ -220,12 +253,63 @@ fn the_recipe_carries_upstreams_onnx_export_for_reference_programs_only() {
             from: "onnx-f32".into(),
             from_file: "onnx/model.onnx".into(),
             from_upstream: false,
+            file2: None,
             script: convert::ONNX_F16,
             container: None,
             inputs: vec![],
             args: vec![],
         }
     );
+}
+
+/// The static-shape OpenVINO IR the npu backend loads: two files, made
+/// from the upstream export in the reference container.
+#[test]
+fn an_openvino_ir_is_two_files_at_a_fixed_shape() {
+    let r = Recipe::load(&root().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap();
+    let c = convert::conversions(&r).unwrap();
+    let ir = c.iter().find(|c| c.name == "openvino-f16").expect("the recipe converts an IR");
+    assert_eq!(
+        ir,
+        &convert::Conversion {
+            name: "openvino-f16".into(),
+            file: "openvino/model.xml".into(),
+            file2: Some("openvino/model.bin".into()),
+            from: "onnx-f32".into(),
+            from_file: "onnx/model.onnx".into(),
+            from_upstream: false,
+            script: convert::ONNX_TO_OPENVINO_IR,
+            container: None,
+            inputs: vec![],
+            args: vec!["--seq".into(), "128".into(), "--batch".into(), "1".into()],
+        }
+    );
+    let d = scratch("ir-conversion");
+    let write = |edit: &dyn Fn(&mut Value)| {
+        let mut r: Value = serde_json::from_slice(&fs::read(tiny_recipe(&d)).unwrap()).unwrap();
+        edit(
+            r["manifest"]["artifacts"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|a| a["name"] == "openvino-f16")
+                .unwrap(),
+        );
+        let p = d.join("edited.json");
+        fs::write(&p, serde_json::to_vec(&r).unwrap()).unwrap();
+        Recipe::load(&p).map(|_| ())
+    };
+    write(&|_| {}).unwrap();
+    let e = write(&|a| {
+        a.as_object_mut().unwrap().remove("fixed_seq");
+    })
+    .unwrap_err();
+    assert!(e.contains("gives fixed_seq"), "{e}");
+    let e = write(&|a| a["files"] = json!(["openvino/model.xml"])).unwrap_err();
+    assert!(e.contains("two files"), "{e}");
+    let e = write(&|a| a["compute_dtype"] = json!("DTYPE_F32")).unwrap_err();
+    assert!(e.contains("DTYPE_F16 OpenVINO IR"), "{e}");
+    fs::remove_dir_all(d).unwrap();
 }
 
 #[test]
@@ -292,7 +376,10 @@ fn a_conversion_that_did_not_run_is_not_sealed() {
     let r = Recipe::load(&bundle.parent().unwrap().join("recipe.json")).unwrap();
     let pb = reference::produced_by(&reported(), CONTAINER).unwrap();
     let e = seal::seal(&r, &bundle, pb, vec![]).unwrap_err();
-    assert!(e.contains("the recipe converts [\"onnx-f16\", \"hef-hailo10h-s128\"], and the runs made []"), "{e}");
+    assert!(
+        e.contains("the recipe converts [\"onnx-f16\", \"openvino-f16\", \"hef-hailo10h-s128\"], and the runs made []"),
+        "{e}"
+    );
     // A second run that gave other bytes is recorded as such.
     let c = &convert::conversions(&r).unwrap()[0];
     assert_eq!(convert::produced_by(&reported_f16(), CONTAINER, c, false).unwrap()["reproducible"], false);

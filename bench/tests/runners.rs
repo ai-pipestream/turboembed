@@ -751,6 +751,8 @@ fn recipe_manifest() -> turbo::manifest::Manifest {
         "weights/model.safetensors",
         "onnx/model.onnx",
         "onnx/model-f16.onnx",
+        "openvino/model.xml",
+        "openvino/model.bin",
         "hailo/model-hailo10h-s128.hef",
         "reference/reference.safetensors",
     ];

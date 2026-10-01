@@ -172,12 +172,68 @@ A bundle runs on this backend when it carries a `FORMAT_OPENVINO_IR`
 artifact whose `backends` lists `npu`: two files, the xml then its
 weights, `compute_dtype` as the conversion fixed it, `graph_input`
 `INPUT_TOKEN_IDS`, `graph_output` `OUTPUT_HIDDEN_STATES`, and the shape
-compiled in as `fixed_seq` and `fixed_batch`. The IR must be exported
-with static shapes (`ovc model.onnx --input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]"`,
-say, recorded in `produced_by` like every converted artifact); the
-driver's compiler, not OpenVINO on the machine, builds it for the
-device at `turbo_model_load`. `target` may name an `arch` label to pin
-an IR to one NPU generation, or stay empty for any.
+compiled in as `fixed_seq` and `fixed_batch`. The MiniLM recipe's
+`openvino-f16` artifact is that file: `backends: ["npu"]`, `fixed_seq`
+128, `fixed_batch` 1, converted from `onnx-f32`. The driver's compiler,
+not OpenVINO on the machine, builds it for the device at
+`turbo_model_load`. `target` may name an `arch` label to pin an IR to
+one NPU generation, or stay empty for any.
+
+OpenVINO is used only while the bundle is made. The reference image
+(`bundle/reference`, `openvino==2026.3.0`) runs
+`onnx_to_openvino_ir.py`: `openvino.convert_model` on the F32 export,
+a reshape of every rank-2 input to `[fixed_batch, fixed_seq]`, then
+`openvino.save_model` with `compress_to_fp16=True`. That is the same
+conversion the `ovc` command line performs
+(`ovc onnx/model.onnx --input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]" --compress_to_fp16=True --output_model openvino/model.xml`);
+the script is what the tool runs, because it also writes the
+`produced_by` report. The library never links OpenVINO. The image the
+recipe currently pins was built before this script existed, so `make`
+refuses the conversion until the image is built again and the pin in
+`reference.produced_by.container` is the new id.
+
+From the workspace root, on Linux or on Windows with Docker Desktop
+(PowerShell; the same commands):
+
+```
+docker build -t turbo-reference bundle/reference
+docker image inspect --format "{{.Id}}" turbo-reference
+```
+
+The id prints as `sha256:<64 hex>`. Put
+`turbo-reference@sha256:<64 hex>` in the recipe's
+`reference.produced_by.container`, then:
+
+```
+cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json <upstream-dir> <bundle-dir>
+```
+
+`<upstream-dir>` is a checkout of the model's repository at the commit
+the recipe names (the tool fetches when it can; a directory already
+holding those files is the offline path, bundle/README.md). The convert
+step writes `openvino/model.xml` and `openvino/model.bin` and seals
+both into `files`.
+
+On the Arrow Lake machine, where OpenVINO 2026.3 is already installed
+and Docker is not, the same script produces the two files the seal
+step hashes. With that install's `python` on `PATH` (`py -3.12` is the
+usual launcher), from a directory that already holds the staged
+`onnx/model.onnx` (the bundle directory after `stage`, or the upstream
+checkout):
+
+```
+py -3.12 -c "import openvino; print(openvino.get_version())"
+py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py onnx\model.onnx openvino\model.xml openvino\model.bin report.json --seq 128 --batch 1
+```
+
+The first line must print a 2026.3 version. The script refuses an input
+whose rank is not 2. `openvino\model.xml` and `openvino\model.bin` are
+what `make` would have written; `report.json` is the `produced_by`
+report and is not a bundle file. Sealing still goes through
+`turbo-bundle`, because only that fills `files` with the sizes and
+SHA-256 the core checks, and the reference vectors still come from the
+pinned container. A hand-copied IR in a bundle whose manifest was
+sealed without it will not load.
 
 ## Windows notes
 
@@ -228,21 +284,12 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
 
 - Execution proof. Device listing is proven on hardware (Arrow Lake
   Windows, `Intel(R) AI Boost`, arch `arl-npu`, loader 1.28.2, graph
-  extension 1.17); the compile-and-run path has not run against a
-  device yet, because no bundle carries an IR for this backend, and
-  nothing in this tree claims it has. The proof is the ignored tests
-  and the conformance run above, on that machine, with
-  `TURBO_TEST_REQUIRE_NPU=1` set.
-- A `FORMAT_OPENVINO_IR` artifact with `backends: ["npu"]` in a recipe,
-  so the conformance run above has a bundle to hold against the
-  reference; the artifact format itself, rule 6 and `model_load` are
-  wired and tested. The recipe entry is the MiniLM `openvino-f16`
-  example of docs/bundle.md with `backends: ["npu"]`, converted from
-  `onnx-f32` by `ovc` in a pinned container with the shape fixed
-  (`--input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]"`,
-  `--compress_to_fp16=True`), `fixed_seq` 128 and `fixed_batch` 1 in
-  the manifest; the bundle tool's convert step needs a two-file
-  conversion kind for it, which is its own change.
+  extension 1.17). The compile-and-run path has not run against a
+  device: the MiniLM recipe now carries `openvino-f16` for `npu`, and
+  the proof is still the ignored tests and the conformance run above,
+  on that machine, with `TURBO_TEST_REQUIRE_NPU=1` and
+  `TURBO_TEST_BUNDLE` set to a bundle `make` sealed from that recipe.
+  Nothing in this tree claims a session has run on the NPU.
 - The `INPUT_EMBEDDINGS` host-gather path, should an NPU graph ever be
   cut at the embedding gather the way the Hailo one is.
 - `ZE_GRAPH_FORMAT_NATIVE`: loading a driver-precompiled blob, which
