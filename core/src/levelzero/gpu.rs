@@ -140,6 +140,10 @@ pub(crate) struct Context {
     profile: Mutex<std::collections::BTreeMap<String, (u64, u64)>>,
     log: turbo_log_fn,
     log_user_data: *mut c_void,
+    /// oneDNN on this context (the levelzero-onednn feature), opened on
+    /// first need; None where it could not open.
+    #[cfg(feature = "levelzero-onednn")]
+    dnnl: std::sync::OnceLock<Option<super::onednn::Dnnl>>,
 }
 
 // The handles are the driver's, for any thread; the log function is the
@@ -148,6 +152,28 @@ unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 
 impl Context {
+    /// oneDNN for the F16 linear layers, opened on this context the first
+    /// time; None where it cannot open, which the log says once.
+    #[cfg(feature = "levelzero-onednn")]
+    pub fn dnnl(&self) -> Option<&super::onednn::Dnnl> {
+        self.dnnl
+            .get_or_init(|| match super::onednn::Dnnl::open(self.device, self.handle) {
+                Ok(d) => {
+                    let v = super::onednn::Dnnl::version();
+                    self.say(LOG_DEBUG, &format!("levelzero device {}: {v} runs the F16 linear layers", self.ordinal));
+                    Some(d)
+                }
+                Err(e) => {
+                    self.say(
+                        LOG_WARNING,
+                        &format!("levelzero device {}: oneDNN not used: {}", self.ordinal, e.message),
+                    );
+                    None
+                }
+            })
+            .as_ref()
+    }
+
     pub fn say(&self, level: u32, message: &str) {
         if let Some(f) = self.log {
             let t = turbo_text { ptr: message.as_ptr() as *const _, len: message.len() as u64 };
@@ -162,8 +188,21 @@ impl Context {
         built.as_ref().map(|s| s.0).map_err(|e| fail(RUNTIME, e.clone()))
     }
 
+    /// The driver's compiler picks each kernel's register file
+    /// (-ze-intel-enable-auto-large-GRF-mode): the XMX kernels with 32-token
+    /// tiles and the attention need the large one and spill without it. A
+    /// driver that refuses the flag builds without it.
     fn build(&self) -> Result<Handle, String> {
-        let flags = c"";
+        match self.build_with(c"-ze-intel-enable-auto-large-GRF-mode") {
+            Ok(h) => Ok(h),
+            Err(e) => {
+                self.say(LOG_WARNING, &format!("{e}; building without the flag"));
+                self.build_with(c"")
+            }
+        }
+    }
+
+    fn build_with(&self, flags: &std::ffi::CStr) -> Result<Handle, String> {
         let desc = ze::ModuleDesc {
             stype: ze::STRUCTURE_TYPE_MODULE_DESC,
             p_next: std::ptr::null(),
@@ -217,6 +256,24 @@ impl Context {
         ze(&format!("zeKernelSetGroupSize({name})"), unsafe {
             (self.api.kernel_set_group_size)(handle, group[0], group[1], group[2])
         })?;
+        if profiling() {
+            let mut p = ze::KernelProperties { stype: ze::STRUCTURE_TYPE_KERNEL_PROPERTIES, ..Default::default() };
+            if unsafe { (self.api.kernel_get_properties)(handle, &mut p) } == 0 {
+                self.say(
+                    LOG_DEBUG,
+                    &format!(
+                        "levelzero kernel {name}: group {}x{}x{}, spill {} B, private {} B, local {} B, group at most {:?}",
+                        group[0],
+                        group[1],
+                        group[2],
+                        p.spill_mem_size,
+                        p.private_mem_size,
+                        p.local_mem_size,
+                        k.max_group_size().ok().flatten()
+                    ),
+                );
+            }
+        }
         Ok(k)
     }
 
@@ -394,6 +451,16 @@ pub(crate) struct Queue {
     /// With TURBO_LEVELZERO_PROFILE set, what each signalled event's
     /// append was.
     names: Vec<String>,
+    /// An event of another queue the next launch waits for, or null.
+    pub pending_wait: Handle,
+}
+
+impl Queue {
+    /// The event the last append signals, or null after a sync.
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    pub fn last_event(&self) -> Handle {
+        if self.used > 0 { self.events[self.used - 1] } else { std::ptr::null_mut() }
+    }
 }
 
 /// TURBO_LEVELZERO_PROFILE set in the environment: every context times
@@ -464,6 +531,24 @@ pub(crate) enum Arg {
 }
 
 impl Kernel {
+    /// The largest work-group the kernel can run with, which depends on the
+    /// register file the driver's compiler gave it; None from a driver that
+    /// does not say.
+    pub fn max_group_size(&self) -> Res<Option<u32>> {
+        let mut ext = ze::KernelMaxGroupSizeExt {
+            stype: ze::STRUCTURE_TYPE_KERNEL_MAX_GROUP_SIZE_EXT_PROPERTIES,
+            p_next: std::ptr::null_mut(),
+            max_group_size: 0,
+        };
+        let mut p = ze::KernelProperties {
+            stype: ze::STRUCTURE_TYPE_KERNEL_PROPERTIES,
+            p_next: &mut ext as *mut ze::KernelMaxGroupSizeExt as *mut c_void,
+            ..Default::default()
+        };
+        ze("zeKernelGetProperties", unsafe { (self.api.kernel_get_properties)(self.handle, &mut p) })?;
+        Ok((ext.max_group_size > 0).then_some(ext.max_group_size))
+    }
+
     /// The local memory the driver gives the kernel itself, beyond what its
     /// arguments ask for.
     pub fn local_bytes(&self) -> Res<u32> {
@@ -489,8 +574,11 @@ impl Kernel {
         }
         let g = ze::GroupCount { x: groups[0], y: groups[1], z: groups[2] };
         let e = c.next_event(q)?;
-        let no_waits = std::ptr::null_mut();
-        let rc = unsafe { (self.api.command_list_append_launch_kernel)(q.list, self.handle, &g, e, 0, no_waits) };
+        let (waits, mut wait) = (u32::from(!q.pending_wait.is_null()), q.pending_wait);
+        let rc = unsafe { (self.api.command_list_append_launch_kernel)(q.list, self.handle, &g, e, waits, &mut wait) };
+        if rc == 0 {
+            q.pending_wait = std::ptr::null_mut();
+        }
         c.appended(q, name, rc)
     }
 }
@@ -524,6 +612,7 @@ pub(crate) unsafe fn create(
             used: 0,
             wedged: false,
             names: Vec::new(),
+            pending_wait: std::ptr::null_mut(),
         }),
         module: Mutex::new(None),
         max_local: dev.max_local,
@@ -531,6 +620,8 @@ pub(crate) unsafe fn create(
         profile: Mutex::new(std::collections::BTreeMap::new()),
         log,
         log_user_data,
+        #[cfg(feature = "levelzero-onednn")]
+        dnnl: std::sync::OnceLock::new(),
     });
     let q = ctx.queue.get_mut().unwrap_or_else(|p| p.into_inner());
     let pd = ze::EventPoolDesc {

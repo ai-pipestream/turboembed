@@ -124,6 +124,12 @@ pub(crate) struct Model {
 struct Transposed {
     layers: Vec<[u64; 4]>,
     alloc: *mut c_void,
+    /// With oneDNN (levelzero-onednn): each layer's four weights packed in
+    /// oneDNN's layout, in one allocation; empty without it.
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    packed: Vec<[u64; 4]>,
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    packed_alloc: *mut c_void,
 }
 
 /// A model's weights in F32 on the device: every tensor, into stored for
@@ -183,7 +189,49 @@ impl Model {
     /// The linear layers' weights in F16, made on first need from the F32
     /// ones.
     fn f16_weights(&self, w: &Weights) -> Res<Transposed> {
-        self.transposed(w, &self.f16, "narrow_f16_transposed", 2, "the F16 weights")
+        let t = self.transposed(w, &self.f16, "narrow_f16_transposed", 2, "the F16 weights")?;
+        #[cfg(feature = "levelzero-onednn")]
+        if t.packed.is_empty() {
+            return self.packed_for_onednn(t);
+        }
+        Ok(t)
+    }
+
+    /// The F16 weights packed in oneDNN's layout as well, once; the
+    /// Transposed without them where oneDNN is not open.
+    #[cfg(feature = "levelzero-onednn")]
+    fn packed_for_onednn(&self, t: Transposed) -> Res<Transposed> {
+        let c = self.ctx();
+        let Some(dn) = c.dnnl() else { return Ok(t) };
+        let d = &self.desc;
+        let (h, i) = (d.hidden, d.intermediate);
+        // (k, n) of each layer's four weights, as transposed() orders them.
+        let shapes = [(h, 3 * h), (h, h), (h, i), (i, h)];
+        let mut at = Vec::with_capacity(t.layers.len() * 4);
+        let mut total = 0usize;
+        for _ in &t.layers {
+            for &(k, n) in &shapes {
+                at.push(total as u64);
+                total += round_up(dn.weights_bytes(k, n)?, DEVICE_ALIGN);
+            }
+        }
+        let alloc = c.alloc_device(total)?;
+        let packed = (|| {
+            for (l, layer) in t.layers.iter().enumerate() {
+                for (j, &(k, n)) in shapes.iter().enumerate() {
+                    dn.pack(layer[j], k, n, alloc as u64 + at[l * 4 + j])?;
+                }
+            }
+            Ok(())
+        })();
+        if let Err(e) = packed {
+            c.free(alloc, "the packed F16 weights");
+            return Err(e);
+        }
+        let packed = at.chunks(4).map(|a| [0, 1, 2, 3].map(|j| alloc as u64 + a[j])).collect();
+        let done = Transposed { layers: t.layers, alloc: t.alloc, packed, packed_alloc: alloc };
+        *self.f16.lock().unwrap_or_else(|p| p.into_inner()) = Some(done.clone());
+        Ok(done)
     }
 
     /// The linear layers' weights in F32 transposed, made on first need,
@@ -247,7 +295,7 @@ impl Model {
             return Err(e);
         }
         let layers = at.chunks(4).map(|a| [0, 1, 2, 3].map(|j| alloc as u64 + a[j])).collect();
-        let half = Transposed { layers, alloc };
+        let half = Transposed { layers, alloc, packed: Vec::new(), packed_alloc: std::ptr::null_mut() };
         *f = Some(half.clone());
         Ok(half)
     }
@@ -343,6 +391,9 @@ impl Drop for Model {
         }
         let h = self.f16.get_mut().unwrap_or_else(|p| p.into_inner());
         if let Some(h) = h.take() {
+            if !h.packed_alloc.is_null() {
+                c.free(h.packed_alloc, "the packed F16 weights");
+            }
             c.free(h.alloc, "the F16 weights");
         }
         let t = self.f32t.get_mut().unwrap_or_else(|p| p.into_inner());
@@ -458,14 +509,21 @@ struct Kernels {
     /// from F16 activations: to F32 and to F16, then the same for at most
     /// 8 tokens.
     linear_dpas: Option<[Kernel; 4]>,
+    /// The main XMX linear tile: tokens and outputs a sub-group, sub-groups a group each way.
+    dpas: (u32, u32, u32, u32),
     /// At FASTEST, the attention output and the feed-forward output with
     /// the LayerNorm after them, for a hidden width a group spans: groups of
     /// one block of tokens, and of as many as dpas_ln_blocks gives.
     linear_dpas_layer_norm: Option<[Kernel; 2]>,
+    /// Its tokens a sub-group and blocks a group.
+    ln: (u32, u32),
     /// At FASTEST, the whole feed-forward block in one kernel for large
     /// batches, and its blocks of tokens a group.
     linear_dpas_mlp: Option<(Kernel, u32)>,
     embed_layer_norm: Kernel,
+    /// F16 hidden states widened to F32, for the pooling after oneDNN's last LayerNorm.
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    widen_f16: Kernel,
     add_layer_norm: Kernel,
     /// The same, a group per token, for few tokens.
     embed_layer_norm_group: Kernel,
@@ -482,7 +540,10 @@ enum Attention {
     General(Kernel),
     /// At FASTEST, on the matrix engines, from F16 projections to an F16
     /// context.
-    Xmx(Kernel),
+    /// The plain kernel, and for head width 64 the one with K and V
+    /// staged in local memory, for the runs whose longest row fills its
+    /// group.
+    Xmx(Kernel, Option<Kernel>),
 }
 
 impl Kernels {
@@ -491,32 +552,47 @@ impl Kernels {
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
             32 | 64 if xmx => {
-                Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_SUBGROUPS, 1, 1])?)
+                let staged = if head_dim == 64 {
+                    Some(c.kernel("attention_xmx2_64", [16 * ATT2_SUBGROUPS, 1, 1])?)
+                } else {
+                    None
+                };
+                Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_SUBGROUPS, 1, 1])?, staged)
             }
             128 if xmx => Attention::Tiled(c.kernel(&format!("attention_{head_dim}_to_half"), [QUERIES, 1, 1])?),
             32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
             _ => Attention::General(c.kernel("attention", row)?),
         };
+        let wide = wide(hidden);
+        let dpas = if wide { (WIDE_TM, WIDE_TN, WIDE_WM, WIDE_WN) } else { (DPAS_TM, DPAS_TN, DPAS_WM, DPAS_WN) };
+        let (ln_tm, ln_tn, ln_name) = if wide {
+            (WIDE_LN_TM, WIDE_TN, "linear_dpas_layer_norm_32x64")
+        } else {
+            (DPAS_LN_TM, DPAS_TN, "linear_dpas_layer_norm")
+        };
+        let mut ln_blocks = 1;
         Ok(Kernels {
             linear: c.kernel("linear", [16, 16, 1])?,
             linear_sg: c.kernel("linear_sg", [16, 1, 1])?,
             linear_gemv: c.kernel("linear_gemv", [16 * GEMV_SUBGROUPS, 1, 1])?,
             linear_sgemm: c.kernel("linear_sgemm", [16 * SGEMM_WM * SGEMM_WN, 1, 1])?,
-            linear_dpas_layer_norm: if xmx && hidden / DPAS_TN <= DPAS_LN_SUBGROUPS {
-                let (cols, blocks) = (hidden / DPAS_TN, dpas_ln_blocks(hidden));
-                Some([
-                    c.kernel("linear_dpas_layer_norm", [16 * cols, 1, 1])?,
-                    c.kernel("linear_dpas_layer_norm", [16 * cols * blocks, 1, 1])?,
-                ])
+            linear_dpas_layer_norm: if xmx && hidden.is_multiple_of(ln_tn) && hidden / ln_tn <= DPAS_LN_SUBGROUPS {
+                let cols = hidden / ln_tn;
+                let one = c.kernel(ln_name, [16 * cols, 1, 1])?;
+                ln_blocks = dpas_ln_blocks(cols, one.max_group_size()?.map(|m| m / (16 * cols)));
+                Some([one, c.kernel(ln_name, [16 * cols * ln_blocks, 1, 1])?])
             } else {
                 None
             },
-            linear_dpas_mlp: if xmx { mlp_kernel(c, hidden, intermediate)? } else { None },
+            ln: (ln_tm, ln_blocks),
+            linear_dpas_mlp: if xmx && !wide { mlp_kernel(c, hidden, intermediate)? } else { None },
+            dpas,
             linear_dpas: if xmx {
-                let (main, few) = ([16 * DPAS_WM * DPAS_WN, 1, 1], [16 * FEW_WM * FEW_WN, 1, 1]);
+                let (main, few) = ([16 * dpas.2 * dpas.3, 1, 1], [16 * FEW_WM * FEW_WN, 1, 1]);
+                let name = if wide { "linear_dpas_32x64" } else { "linear_dpas" };
                 Some([
-                    c.kernel("linear_dpas", main)?,
-                    c.kernel("linear_dpas_to_half", main)?,
+                    c.kernel(name, main)?,
+                    c.kernel(&format!("{name}_to_half"), main)?,
                     c.kernel("linear_dpas_few", few)?,
                     c.kernel("linear_dpas_few_to_half", few)?,
                 ])
@@ -524,6 +600,7 @@ impl Kernels {
                 None
             },
             embed_layer_norm: c.kernel("embed_layer_norm", [16 * ROWS, 1, 1])?,
+            widen_f16: c.kernel("widen_f16", [WIDE, 1, 1])?,
             add_layer_norm: c.kernel("add_layer_norm", [16 * ROWS, 1, 1])?,
             embed_layer_norm_group: c.kernel("embed_layer_norm_group", row)?,
             add_layer_norm_group: c.kernel("add_layer_norm_group", row)?,
@@ -557,17 +634,35 @@ const FEW_TM: u32 = 8;
 const FEW_WM: u32 = 1;
 const FEW_WN: u32 = 4;
 const DPAS_K: u32 = 32;
+/// From this hidden width (a multiple of 64), the XMX linear kernels take
+/// the wide tiles: a sub-group's WIDE_TM tokens by WIDE_TN outputs, WIDE_WM
+/// by WIDE_WN sub-groups a group; the LayerNorm-fused kernel WIDE_LN_TM
+/// tokens by WIDE_TN outputs a sub-group; and the feed-forward block runs
+/// as two kernels at every batch. The narrow models keep the tiles above:
+/// on the wide ones they lose to the weights' traffic, on the narrow ones
+/// the wide tiles leave the device half filled (docs/levelzero.md).
+const WIDE_HIDDEN: u32 = 768;
+const WIDE_TM: u32 = 32;
+const WIDE_TN: u32 = 64;
+const WIDE_WM: u32 = 4;
+const WIDE_WN: u32 = 1;
+const WIDE_LN_TM: u32 = 32;
+
+fn wide(hidden: u32) -> bool {
+    hidden >= WIDE_HIDDEN && hidden.is_multiple_of(64)
+}
 /// The LayerNorm-fused XMX kernel's tokens a group, and its most
 /// sub-groups, DPAS_TN outputs each, as encoder.cl's.
 const DPAS_LN_TM: u32 = 16;
 const DPAS_LN_SUBGROUPS: u32 = 64;
 const DPAS_LN_BLOCKS: u32 = 4;
 
-/// Blocks of DPAS_LN_TM tokens a LayerNorm-fused group takes: as many as
-/// its sub-groups allow, up to DPAS_LN_BLOCKS, so more tokens share each
-/// read of the weights.
-fn dpas_ln_blocks(hidden: u32) -> u32 {
-    (1..=DPAS_LN_BLOCKS).rev().find(|b| hidden / DPAS_TN * b <= DPAS_LN_SUBGROUPS).unwrap_or(1)
+/// Blocks of tokens a LayerNorm-fused group of `cols` sub-groups a block
+/// takes: as many as its sub-groups and the kernel's largest group (`most`
+/// blocks) allow, up to DPAS_LN_BLOCKS, so more tokens share each read of
+/// the weights.
+fn dpas_ln_blocks(cols: u32, most: Option<u32>) -> u32 {
+    (1..=DPAS_LN_BLOCKS).rev().find(|b| cols * b <= DPAS_LN_SUBGROUPS && most.is_none_or(|m| *b <= m)).unwrap_or(1)
 }
 /// linear_sgemm's tiles, as encoder.cl's: a sub-group's SGEMM_TM tokens by
 /// SGEMM_TN outputs, a group's SGEMM_WM by SGEMM_WN sub-groups.
@@ -608,8 +703,9 @@ fn mlp_kernel(c: &Context, hidden: u32, intermediate: u32) -> Res<Option<(Kernel
         return Ok(None);
     }
     let cols = hidden / DPAS_TN;
-    let most = dpas_ln_blocks(hidden);
-    let k = c.kernel("linear_dpas_mlp", [16 * cols * most, 1, 1])?;
+    let one = c.kernel("linear_dpas_mlp", [16 * cols, 1, 1])?;
+    let most = dpas_ln_blocks(cols, one.max_group_size()?.map(|m| m / (16 * cols)));
+    let k = if most == 1 { one } else { c.kernel("linear_dpas_mlp", [16 * cols * most, 1, 1])? };
     let own = k.local_bytes()?;
     match (1..=most).rev().find(|&b| own + mlp_local_bytes(hidden, b) <= c.max_local) {
         Some(b) if b == most => Ok(Some((k, b))),
@@ -621,6 +717,9 @@ fn mlp_kernel(c: &Context, hidden: u32, intermediate: u32) -> Res<Option<(Kernel
 /// Sub-groups of an XMX attention group, 16 queries each, as encoder.cl's
 /// ATT_SUBGROUPS.
 const ATT_SUBGROUPS: u32 = 4;
+/// The staged XMX attention's sub-groups a group (encoder.cl's ATT2_SG);
+/// it runs where the longest row fills a group.
+const ATT2_SUBGROUPS: u32 = 8;
 
 /// Queries a tiled attention group takes, as encoder.cl's QUERIES.
 const QUERIES: u32 = 256;
@@ -922,6 +1021,17 @@ impl Session {
         // Attention on the matrix engines reads F16 projections and writes
         // an F16 context.
         let half_attention = matches!(k.attention, Attention::Xmx(..));
+        // oneDNN takes the F16 linear layers of a batch past the few-token
+        // kernels, with its own LayerNorm after the projections back to
+        // the hidden width; the two queues are ordered by waiting.
+        #[cfg(feature = "levelzero-onednn")]
+        let dnnl = if tokens > FEW_TOKENS_DPAS && self.half.as_ref().is_some_and(|h| !h.packed.is_empty()) {
+            c.dnnl()
+        } else {
+            None
+        };
+        #[cfg(not(feature = "levelzero-onednn"))]
+        let dnnl: Option<()> = None;
         // Few tokens: a group per token keeps each LayerNorm short.
         let few_tokens = tokens < FEW_TOKENS;
         let xmx = k.linear_dpas.is_some();
@@ -941,11 +1051,30 @@ impl Session {
                       (splits, to_half): (u32, bool),
                       what: &str|
          -> Res<u32> {
+            #[cfg(feature = "levelzero-onednn")]
+            if let (Some(dn), Some(half), true) = (dnnl, &self.half, to_half) {
+                let signal = dn.matmul(&super::onednn::Matmul {
+                    a: x,
+                    packed: half.packed[l as usize][which],
+                    bias,
+                    residual: 0,
+                    c: y,
+                    m: tokens,
+                    k: n_in,
+                    n: n_out,
+                    gelu: flags & LINEAR_GELU != 0,
+                    wait: q.last_event() as u64,
+                })?;
+                q.pending_wait = signal as super::ze::Handle;
+                let _ = (weight, splits, what);
+                return Ok(1);
+            }
             if let (Some(kd), Some(half)) = (&k.linear_dpas, &self.half) {
-                let (tm, wm, wn, kernel) = if tokens <= FEW_TOKENS_DPAS {
-                    (FEW_TM, FEW_WM, FEW_WN, &kd[2 + to_half as usize])
+                let (tm, tn, wm, wn, kernel) = if tokens <= FEW_TOKENS_DPAS {
+                    (FEW_TM, DPAS_TN, FEW_WM, FEW_WN, &kd[2 + to_half as usize])
                 } else {
-                    (DPAS_TM, DPAS_WM, DPAS_WN, &kd[to_half as usize])
+                    let (tm, tn, wm, wn) = k.dpas;
+                    (tm, tn, wm, wn, &kd[to_half as usize])
                 };
                 let args = [
                     Ptr(x),
@@ -959,7 +1088,7 @@ impl Session {
                 ];
                 // Unsplit, so each output's sum runs in one order whatever
                 // the batch.
-                let groups = [n_out.div_ceil(DPAS_TN * wn), tokens.div_ceil(tm * wm), 1];
+                let groups = [n_out.div_ceil(tn * wn), tokens.div_ceil(tm * wm), 1];
                 return kernel.launch(c, q, what, &args, groups).map(|()| 1);
             }
             // More than a handful of tokens, in F32: from the transposed
@@ -1054,6 +1183,42 @@ impl Session {
         // residual stream; false where that kernel does not run, for a
         // hidden width wider than a group spans.
         let fused = |q: &mut Queue, act: u64, n_in: u32, (l, which): (u32, usize), (bias, lnw, lnb), what: &str| {
+            #[cfg(feature = "levelzero-onednn")]
+            if let (Some(dn), Some(half)) = (dnnl, &self.half) {
+                // The projection with its residual added, into a scratch
+                // the run is done with, then the LayerNorm onto the F16
+                // residual stream; the last layer's also widened to F32.
+                let scratch = if which == 1 { self.ffn } else { self.att };
+                let signal = dn.matmul(&super::onednn::Matmul {
+                    a: act,
+                    packed: half.packed[l as usize][which],
+                    bias,
+                    residual: self.xh,
+                    c: scratch,
+                    m: tokens,
+                    k: n_in,
+                    n: h,
+                    gelu: false,
+                    wait: q.last_event() as u64,
+                })?;
+                let signal = dn.layer_norm(&super::onednn::LayerNorm {
+                    src: scratch,
+                    gamma: lnw,
+                    beta: lnb,
+                    eps,
+                    dst: self.xh,
+                    m: tokens,
+                    n: h,
+                    wait: signal,
+                })?;
+                q.pending_wait = signal as super::ze::Handle;
+                if l + 1 == d.layers && which == 3 {
+                    let n = tokens as u64 * h as u64;
+                    let args = [Ptr(self.xh), U64(n), Ptr(self.x)];
+                    k.widen_f16.launch(c, q, what, &args, [elementwise_groups(n), 1, 1])?;
+                }
+                return Ok(true);
+            }
             let (Some(kln), Some(half)) = (&k.linear_dpas_layer_norm, &self.half) else { return Ok(false) };
             let args = [
                 Ptr(act),
@@ -1073,9 +1238,8 @@ impl Session {
             // Fewer tokens than a full group of blocks: one block a group,
             // so at most one block's tail computes rows past the last token. A row's
             // sums run in one order either way.
-            let blocks = dpas_ln_blocks(h);
-            let (kln, rows) =
-                if tokens < DPAS_LN_TM * blocks { (&kln[0], DPAS_LN_TM) } else { (&kln[1], DPAS_LN_TM * blocks) };
+            let (tm, blocks) = k.ln;
+            let (kln, rows) = if tokens < tm * blocks { (&kln[0], tm) } else { (&kln[1], tm * blocks) };
             kln.launch(c, q, what, &args, [tokens.div_ceil(rows), 1, 1]).map(|()| true)
         };
         let n = self.max_batch as u64 * self.max_seq as u64 * 4;
@@ -1124,7 +1288,7 @@ impl Session {
                 "the query, key and value projection",
             )?;
             match &k.attention {
-                Attention::Xmx(a) => {
+                Attention::Xmx(a, staged) => {
                     let args = [
                         Ptr(self.qkv),
                         Ptr(self.packed_mask),
@@ -1133,7 +1297,12 @@ impl Session {
                         F32(scale),
                         Ptr(self.att),
                     ];
-                    let groups = [self.longest.div_ceil(16 * ATT_SUBGROUPS), d.heads, batch];
+                    // The staged kernel where the longest row fills its group.
+                    let (a, sgs) = match staged {
+                        Some(s) if self.longest >= 16 * ATT2_SUBGROUPS => (s, ATT2_SUBGROUPS),
+                        _ => (a, ATT_SUBGROUPS),
+                    };
+                    let groups = [self.longest.div_ceil(16 * sgs), d.heads, batch];
                     a.launch(c, q, "attention", &args, groups)?;
                 }
                 Attention::Tiled(a) => {
@@ -1173,6 +1342,7 @@ impl Session {
             // in local memory.
             if let (Some((kmlp, blocks)), Some(half)) = (&k.linear_dpas_mlp, &self.half)
                 && tokens >= MLP_TOKENS
+                && dnnl.is_none()
             {
                 let args = [
                     Ptr(half.layers[l as usize][2]),
@@ -1278,6 +1448,14 @@ pub(crate) unsafe extern "C" fn session_run(
                 let synced = c.sync(&mut q);
                 encoded?;
                 synced?;
+                // oneDNN's work is done too, its last event waited for by
+                // the backend's last kernel; its events are let go.
+                #[cfg(feature = "levelzero-onednn")]
+                if s.half.as_ref().is_some_and(|h| !h.packed.is_empty())
+                    && let Some(dn) = c.dnnl()
+                {
+                    dn.wait()?;
+                }
             }
             out.placement = TURBO_PLACE_DEVICE;
             out.output = &*s.output as *const Buffer as *mut c_void;
