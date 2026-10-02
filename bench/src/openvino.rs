@@ -372,7 +372,6 @@ pub fn model_file(device: &str, manifest: &Manifest) -> std::result::Result<Stri
 /// The measured reference from the median run and the 99th percentile
 /// run of the same arguments, on `rows` at their static shape.
 pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report, rows: &Rows) -> Result<ReferenceRun> {
-    let batch = rows.batch;
     if p50.version != p99.version || p50.count != p99.count {
         return Err(format!(
             "benchmark_app's two runs differ: OpenVINO {} and {}, {} and {} iterations",
@@ -401,7 +400,71 @@ pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report
             iterations: p50.count,
             p50_ms: p50.latency_ms,
             p99_ms: p99.latency_ms,
-            rows_per_second: p50.count as f64 * batch as f64 / (p50.duration_ms / 1000.0),
+            rows_per_second: p50.count as f64 * rows.row_count() as f64 / (p50.duration_ms / 1000.0),
+            min_cosine: None,
+            computed_tokens: Some(rows.padded_tokens()),
+        }),
+        not_run: None,
+    })
+}
+
+/// One pass over a batch-1 cycle: each pair is one case's median run and
+/// its 99th percentile run, in case order. p50 and p99 are the sums of
+/// those latencies. A single pair is `measured` unchanged.
+pub fn measured_frames(
+    image: &str,
+    log: Log,
+    procedure: &str,
+    pairs: &[(Report, Report)],
+    rows: &Rows,
+) -> Result<ReferenceRun> {
+    if pairs.len() != rows.frames() || pairs.is_empty() {
+        return Err(format!("benchmark_app ran {} frames and the rows have {}", pairs.len(), rows.frames()));
+    }
+    let (first, _) = &pairs[0];
+    for (p50, p99) in pairs {
+        if p50.version != first.version
+            || p99.version != first.version
+            || p50.count != first.count
+            || p99.count != first.count
+        {
+            return Err(format!(
+                "benchmark_app's frames differ: OpenVINO {} and {}, {} and {} iterations",
+                p50.version, p99.version, p50.count, p99.count
+            ));
+        }
+        if p99.latency_ms < p50.latency_ms {
+            return Err(format!(
+                "benchmark_app's 99th percentile run gave {} ms, under its median run's {} ms: the two runs are not \
+                 comparable; run again",
+                p99.latency_ms, p50.latency_ms
+            ));
+        }
+    }
+    if pairs.len() == 1 {
+        return measured(image, log, procedure, pairs[0].0.clone(), pairs[0].1.clone(), rows);
+    }
+    let p50_ms: f64 = pairs.iter().map(|(p, _)| p.latency_ms).sum();
+    let p99_ms: f64 = pairs.iter().map(|(_, p)| p.latency_ms).sum();
+    let duration_ms: f64 = pairs.iter().map(|(p, _)| p.duration_ms).sum();
+    let count = first.count;
+    let n = rows.row_count() as f64;
+    Ok(ReferenceRun {
+        name: NAME.into(),
+        role: "kernel".into(),
+        pinned: image.into(),
+        version: first.version.clone(),
+        commands: log.commands,
+        procedure: format!(
+            "{procedure}; {n} cases, each its own [{}, {}] request: median latencies sum to {p50_ms} ms over {count} \
+             inferences a case (durations sum to {duration_ms} ms), and the 99th percentile latencies sum to {p99_ms} ms",
+            rows.batch, rows.seq
+        ),
+        measured: Some(Measured {
+            iterations: count,
+            p50_ms,
+            p99_ms,
+            rows_per_second: count as f64 * n / (duration_ms / 1000.0),
             min_cosine: None,
             computed_tokens: Some(rows.padded_tokens()),
         }),
@@ -428,13 +491,25 @@ pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRu
     let image = pinned.as_str();
     let own = if o.binary.is_some() { ", the machine's own (--openvino-bin)," } else { "" };
     let graph = if o.device == DEVICE_NPU { "static OpenVINO IR" } else { "ONNX file" };
-    let procedure = format!(
-        "benchmark_app{own} compiles the bundle's {graph} for the {} at the batch's static [{}, {}] shape and times \
-         {iterations} synchronous inferences of the rows loaded from files, one request, after its one warm-up \
-         inference; it runs twice with the same arguments, -latency_percentile 50 then 99, and p50 and p99 are \
-         those runs' latencies; rows per second is the median run's count times the batch over its duration",
-        o.device, m.rows.batch, m.rows.seq
-    );
+    let frames = m.rows.frames();
+    let procedure = if frames == 1 {
+        format!(
+            "benchmark_app{own} compiles the bundle's {graph} for the {} at the batch's static [{}, {}] shape and times \
+             {iterations} synchronous inferences of the rows loaded from files, one request, after its one warm-up \
+             inference; it runs twice with the same arguments, -latency_percentile 50 then 99, and p50 and p99 are \
+             those runs' latencies; rows per second is the median run's count times the batch over its duration",
+            o.device, m.rows.batch, m.rows.seq
+        )
+    } else {
+        format!(
+            "benchmark_app{own} compiles the bundle's {graph} for the {} at the frame's static [{}, {}] shape and times \
+             {iterations} synchronous inferences of each of {frames} fitting cases, each case padded to seq in its own \
+             [{}, {}] request, after that request's one warm-up inference; each case runs twice, -latency_percentile \
+             50 then 99; p50 and p99 are the sums of those cases' latencies, one pass over the case set; rows per \
+             second is the median runs' count times the case count over the sum of their durations",
+            o.device, m.rows.batch, m.rows.seq, m.rows.batch, m.rows.seq
+        )
+    };
     let log = Log::default();
     let model = match model_file(&o.device, &m.manifest) {
         Ok(f) => f,
@@ -462,38 +537,82 @@ pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRu
     let work = o.work.join(format!("turbo-bench-openvino-{}", std::process::id()));
     fs::create_dir_all(&work).map_err(|e| format!("{}: {e}", work.display()))?;
     let result = (|| {
-        onnx::write_inputs(&work, &o.inputs, &o.input_dtype, "--openvino-input-dtype", &m.rows)?;
-        let work = fs::canonicalize(&work).map_err(|e| format!("{}: {e}", work.display()))?;
-        let (bundle, shown_bundle, shown_work) = (&m.bundle_dir, Path::new(docker::BUNDLE), Path::new(docker::WORK));
+        let (bundle, shown_bundle) = (&m.bundle_dir, Path::new(docker::BUNDLE));
         let gid = gid.unwrap_or(0);
-        let argv_for = |p: u32| match &o.binary {
-            Some(bin) => (
-                native_argv(o, &bin.display().to_string(), bundle, &work, &model, &m.rows, iterations, precision, p),
-                native_argv(o, BENCHMARK_APP_BIN, shown_bundle, shown_work, &model, &m.rows, iterations, precision, p),
-            ),
-            None => (
-                run_argv(o, bundle, &work, &model, gid, &m.rows, iterations, precision, p),
-                run_argv(o, shown_bundle, shown_work, &model, gid, &m.rows, iterations, precision, p),
-            ),
-        };
-        let [a, b] = PERCENTILES;
-        let mut timed = |p: u32| {
-            let (cmd, shown) = argv_for(p);
-            match log.run_program(&cmd, shown, &ERROR_TAGS)? {
-                Ran::Done(out) => parse(&out, p).map(Ok),
-                Ran::Failed(why) => Ok(Err(format!("benchmark_app {why}"))),
+        // One frame keeps the single input directory. A cycle writes each
+        // case under frame-<n> and mounts that directory, so every request
+        // stays [batch, seq] and the recorded command names the case.
+        let mut run_pair =
+            |dir: &Path, shown: &Path, frame_rows: &Rows| -> Result<std::result::Result<(Report, Report), String>> {
+                let argv_for = |p: u32| match &o.binary {
+                    Some(bin) => (
+                        native_argv(
+                            o,
+                            &bin.display().to_string(),
+                            bundle,
+                            dir,
+                            &model,
+                            frame_rows,
+                            iterations,
+                            precision,
+                            p,
+                        ),
+                        native_argv(
+                            o,
+                            BENCHMARK_APP_BIN,
+                            shown_bundle,
+                            shown,
+                            &model,
+                            frame_rows,
+                            iterations,
+                            precision,
+                            p,
+                        ),
+                    ),
+                    None => (
+                        run_argv(o, bundle, dir, &model, gid, frame_rows, iterations, precision, p),
+                        run_argv(o, shown_bundle, shown, &model, gid, frame_rows, iterations, precision, p),
+                    ),
+                };
+                let [a, b] = PERCENTILES;
+                let mut timed = |p: u32| {
+                    let (cmd, shown) = argv_for(p);
+                    match log.run_program(&cmd, shown, &ERROR_TAGS)? {
+                        Ran::Done(out) => parse(&out, p).map(Ok),
+                        Ran::Failed(why) => Ok(Err(format!("benchmark_app {why}"))),
+                    }
+                };
+                let p50 = match timed(a)? {
+                    Ok(r) => r,
+                    Err(why) => return Ok(Err(why)),
+                };
+                Ok(timed(b)?.map(|p99| (p50, p99)))
+            };
+        let mut pairs = Vec::with_capacity(frames);
+        for f in 0..frames {
+            let (dir, shown, frame_rows) = if frames == 1 {
+                onnx::write_inputs(&work, &o.inputs, &o.input_dtype, "--openvino-input-dtype", &m.rows)?;
+                let dir = fs::canonicalize(&work).map_err(|e| format!("{}: {e}", work.display()))?;
+                (dir, PathBuf::from(docker::WORK), m.rows.frame(0))
+            } else {
+                let dir = Rows::frame_dir(&work, f);
+                fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                let frame_rows = m.rows.frame(f);
+                onnx::write_inputs(&dir, &o.inputs, &o.input_dtype, "--openvino-input-dtype", &frame_rows)?;
+                let dir = fs::canonicalize(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                (dir, PathBuf::from(format!("{}/frame-{f}", docker::WORK)), frame_rows)
+            };
+            match run_pair(&dir, &shown, &frame_rows)? {
+                Ok(pair) => pairs.push(pair),
+                Err(why) => return Ok(Err(why)),
             }
-        };
-        let p50 = match timed(a)? {
-            Ok(r) => r,
-            Err(why) => return Ok(Err(why)),
-        };
-        Ok::<_, String>(timed(b)?.map(|p99| (p50, p99)))
+        }
+        Ok::<_, String>(Ok(pairs))
     })();
     let _ = fs::remove_dir_all(&work);
-    let (p50, p99) = match result? {
+    let pairs = match result? {
         Ok(r) => r,
         Err(why) => return Ok(not_run(image, log, &procedure, why)),
     };
-    measured(image, log, &procedure, p50, p99, &m.rows)
+    measured_frames(image, log, &procedure, &pairs, &m.rows)
 }

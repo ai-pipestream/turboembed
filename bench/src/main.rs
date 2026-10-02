@@ -33,7 +33,9 @@ record options:
                                shape. The token-id MiniLM seal is
                                --batch 1 --seq 128
   --rows <kind>                mixed: the reference cases that fit seq,
-                               cycled and padded; dense: every row a case
+                               cycled and padded. A frame of batch 1 (the
+                               npu cell) is one [1, seq] frame per case,
+                               not case 0 alone. dense: every row a case
                                of at least seq tokens cut to seq, so all
                                batch x seq tokens are live (default mixed)
   --cpus <list>                processors to run on, as 0-15 or 0-7,16-23:

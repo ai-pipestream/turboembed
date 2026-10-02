@@ -147,17 +147,57 @@ fn embed_is_offered_and_exact_is_refused() {
         assert_eq!(unsafe { turbo_runtime_capability(rt.0, d, TURBO_TASK_EMBED, p, &mut cap, ptr::null_mut()) }, 0);
         cap
     };
+    let arch = field(&rt.info(d).arch);
+    // The first listed npu device is ordinal 0 in the backend's own list.
+    let format = turbo::npu::load_format(0).expect("a listed device has a graph format");
+    // The committed ROWS_MIXED files match windows, arl-npu, NGRAPH_LITE
+    // and list cases 0 through 7, each its own [1, 128] frame.
+    // falls_short is none, so decide_embedded promotes those cells.
+    let backed = std::env::consts::OS == "windows" && arch == "arl-npu" && format == "NGRAPH_LITE";
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
         let c = cap(p);
-        assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
         assert_eq!(c.dtype, TURBO_DTYPE_F16, "the recipe's declared compute dtype, without a load");
         assert!(!field(&c.reason).contains("dtype 0"), "{}", field(&c.reason));
-        assert_ne!(c.status, backend::TURBO_CAP_SUPPORTED, "{}", field(&c.reason));
         // The backend claims normalize, pooling and output_dim
         // (0b111000); the core sets the bits of truncate, max_tokens and
         // prompt_role itself, which it applies before any backend sees
         // the rows.
         assert_eq!(c.options_honored, 0b111111, "every field of turbo_embed_options");
+        let name = match p {
+            TURBO_PRECISION_MODEL => "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json",
+            TURBO_PRECISION_FASTEST => {
+                "arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json"
+            }
+            _ => unreachable!(),
+        };
+        if backed {
+            assert_eq!(c.status, backend::TURBO_CAP_SUPPORTED, "{}", field(&c.reason));
+            assert_eq!(field(&c.benchmark), name);
+            assert_eq!(field(&c.reason), "");
+            let cell = record::Cell {
+                arch: &arch,
+                name: "Intel(R) AI Boost",
+                cpu: false,
+                backend: "npu",
+                task: TURBO_TASK_EMBED,
+                precision: p,
+                dtype: TURBO_DTYPE_F16,
+                version: record::library_version(),
+                os: "windows",
+                graph_format: Some("NGRAPH_LITE"),
+            };
+            match record::decide_embedded(&cell) {
+                record::Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
+                    assert_eq!(benchmark, name);
+                    assert_eq!((c.cosine_floor, c.speed_ratio), (cosine_floor as f32, speed_ratio as f32));
+                }
+                record::Verdict::Not(why) => panic!("{name} not supported: {why}"),
+            }
+        } else {
+            assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
+            assert!(field(&c.benchmark).is_empty(), "{}", field(&c.benchmark));
+            assert_eq!(field(&c.reason), "no benchmark record for this cell");
+        }
     }
     let c = cap(TURBO_PRECISION_EXACT);
     assert_eq!((c.status, c.dtype, c.options_honored), (backend::TURBO_CAP_UNSUPPORTED, 0, 0));

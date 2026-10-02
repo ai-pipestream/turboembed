@@ -11,7 +11,7 @@ use turbo::manifest::{Dtype, Pooling};
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 use turbo_bench::cpus::{self, Cpus};
 use turbo_bench::docker::{self, parse_port};
-use turbo_bench::measure::{RowKind, Rows};
+use turbo_bench::measure::{Reference, RowKind, Rows};
 use turbo_bench::openvino::{self, OpenVino};
 use turbo_bench::tei::{self, Tei};
 use turbo_bench::tensorrt::{self, TensorRt};
@@ -991,6 +991,52 @@ fn the_two_runs_make_one_measured_reference() {
     assert_eq!(m.computed_tokens, Some(32 * 64), "every position of the static shape");
     assert!((m.rows_per_second - 200.0 * 32.0 / 0.41264).abs() < 1e-6, "{}", m.rows_per_second);
     assert!(r.procedure.contains("484.68 FPS"));
+
+    // A batch-1 cycle: each case is its own [1, seq] request, and the
+    // record's latency is the sum. The shape is not [case count, seq].
+    let precision = openvino::infer_precision(openvino::DEVICE_NPU, TURBO_DTYPE_F16).unwrap();
+    let reference = Reference {
+        texts: vec![("a".into(), 0), ("b".into(), 0)],
+        ids: vec![vec![1, 2], vec![3, 4, 5]],
+        vectors: vec![vec![0.0], vec![0.0]],
+    };
+    let cycled = Rows::cycle(&reference, 0, 8).unwrap();
+    assert_eq!((cycled.batch, cycled.cases.as_slice()), (1, &[0, 1][..]));
+    let frame = cycled.frame(1);
+    let argv = openvino::run_argv(
+        &ov(Path::new("/tmp")),
+        Path::new("/b"),
+        &Rows::frame_dir(Path::new("/w"), 1),
+        "openvino/model.xml",
+        7,
+        &frame,
+        200,
+        precision,
+        50,
+    );
+    let shape = argv.iter().find(|s| s.contains("input_ids[")).unwrap();
+    assert!(shape.contains("input_ids[1,8]"), "{shape}");
+    assert!(!shape.contains("[2,8]"), "{shape}");
+    // The frame directory is mounted at /work, so the request stays one
+    // [1, seq] file and the recorded mount names the case.
+    assert!(argv.iter().any(|s| s.contains("src=/w/frame-1,dst=/work")), "{argv:?}");
+    assert!(argv.iter().any(|s| s.contains("input_ids:/work/input_ids.bin")), "{argv:?}");
+    let one = |latency: f64, duration: f64| openvino::Report {
+        version: "2026.5.0".into(),
+        count: 200,
+        duration_ms: duration,
+        latency_ms: latency,
+        average_ms: latency,
+        throughput_fps: 1.0,
+    };
+    let pairs = [(one(1.5, 200.0), one(2.0, 210.0)), (one(2.5, 300.0), one(3.0, 310.0))];
+    let summed = openvino::measured_frames(&image, log.clone(), "cycle", &pairs, &cycled).unwrap();
+    let sm = summed.measured.unwrap();
+    assert_eq!((sm.p50_ms, sm.p99_ms, sm.iterations), (4.0, 5.0, 200));
+    assert_eq!(sm.computed_tokens, Some(2 * 8));
+    assert!((sm.rows_per_second - 200.0 * 2.0 / 0.5).abs() < 1e-9, "{}", sm.rows_per_second);
+    assert!(summed.procedure.contains("[1, 8]"), "{}", summed.procedure);
+    assert!(!summed.procedure.contains("[2, 8]"), "{}", summed.procedure);
 
     let mut under = p99.clone();
     under.latency_ms = 2.0;

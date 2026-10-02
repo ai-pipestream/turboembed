@@ -172,13 +172,17 @@ pub struct Rows {
     /// padded; `ROWS_DENSE`: every row a case of at least seq tokens, cut
     /// to seq the way the bundle truncates, so no token is padding. A
     /// record made before rows had a kind is mixed, the only kind then.
+    /// A mixed pass whose frame batch is 1 lists every fitting case,
+    /// each its own `[1, seq]` frame, so `cases` is longer than `batch`.
     #[serde(default = "rows_mixed")]
     pub kind: String,
     pub batch: u32,
     pub seq: u32,
-    /// Mask entries of 1 across the batch.
+    /// Mask entries of 1 across the measured rows.
     pub live_tokens: u64,
-    /// Which reference case each row is, in row order.
+    /// Which reference case each measured row is, in row order. One per
+    /// row of the single batch, or one per frame when `batch` is 1 and
+    /// the pass cycles every fitting case.
     pub cases: Vec<u32>,
     /// docs/benchmarks.md, "Token rows": the hash of exactly what was
     /// written.
@@ -201,9 +205,12 @@ pub struct Timing {
     pub rows_per_second: f64,
     /// Token positions the library computed per run: each row's through
     /// its last live token, since its backends pack the rows and skip the
-    /// padding after them. Beside rows.live_tokens, and a reference's
-    /// computed_tokens, so a padded and a packed time are not read as the
-    /// same work. Null only in a record made before the field was.
+    /// padding after them. npu counts every position of each compiled
+    /// frame in the pass (one frame is batch x seq; a frame of batch 1
+    /// that cycles cases counts one frame per case). Beside
+    /// rows.live_tokens, and a reference's computed_tokens, so a padded
+    /// and a packed time are not read as the same work. Null only in a
+    /// record made before the field was.
     #[serde(default)]
     pub computed_tokens: Option<u64>,
 }
@@ -250,9 +257,10 @@ pub struct Measured {
     /// Its lowest cosine against the bundle's reference, when its vectors
     /// were seen; null when the program does not return them.
     pub min_cosine: Option<f64>,
-    /// Token positions it computed per run: batch x seq for a kernel on
-    /// the padded rows; null when that cannot be known from outside it,
-    /// or in a record made before the field was.
+    /// Token positions it computed per run: every padded row of the pass
+    /// for a kernel on the static shape (one frame is batch x seq; a
+    /// batch-1 cycle is one frame per case); null when that cannot be
+    /// known from outside it, or in a record made before the field was.
     #[serde(default)]
     pub computed_tokens: Option<u64>,
 }
@@ -401,6 +409,20 @@ pub fn fastest(references: &[ReferenceRun]) -> Option<(&str, f64)> {
         .min_by(|a, b| a.1.total_cmp(&b.1))
 }
 
+/// Rows in one measured pass. A single batch has one case per row.
+/// A mixed pass whose frame batch is 1 has one case per frame of the
+/// cycle, each frame `[1, seq]`.
+fn pass_rows(rows: &Rows) -> Result<u64, String> {
+    let n = rows.cases.len();
+    if rows.batch == 0 || rows.seq == 0 || n == 0 || !is_hex(&rows.sha256, 64) {
+        return Err("rows: batch and seq must be above 0, cases one per row, sha256 64 lowercase hex".into());
+    }
+    if n != rows.batch as usize && rows.batch != 1 {
+        return Err("rows: batch and seq must be above 0, cases one per row, sha256 64 lowercase hex".into());
+    }
+    Ok(n as u64)
+}
+
 /// speed_ratio and speed_reference as the references give them.
 pub fn speed(p50_ms: f64, references: &[ReferenceRun]) -> (Option<f64>, Option<String>) {
     match fastest(references) {
@@ -493,11 +515,9 @@ impl Record {
             return Err("bundle.model_id is empty".into());
         }
         let rows = &self.rows;
-        if rows.batch == 0 || rows.seq == 0 || rows.cases.len() != rows.batch as usize || !is_hex(&rows.sha256, 64) {
-            return Err("rows: batch and seq must be above 0, cases one per row, sha256 64 lowercase hex".into());
-        }
-        if rows.live_tokens < rows.batch as u64 || rows.live_tokens > rows.batch as u64 * rows.seq as u64 {
-            return Err(format!("rows.live_tokens {} does not fit {} x {}", rows.live_tokens, rows.batch, rows.seq));
+        let n = pass_rows(rows)?;
+        if rows.live_tokens < n || rows.live_tokens > n * u64::from(rows.seq) {
+            return Err(format!("rows.live_tokens {} does not fit {n} x {}", rows.live_tokens, rows.seq));
         }
         match rows.kind.as_str() {
             ROWS_MIXED => {}
@@ -511,22 +531,24 @@ impl Record {
             }
             k => return Err(format!("rows.kind {k:?} is not {ROWS_MIXED} or {ROWS_DENSE}")),
         }
-        let frame = rows.batch as u64 * rows.seq as u64;
-        let slots = rows.live_tokens..=frame;
-        if let Some(n) = self.timing.computed_tokens
-            && !slots.contains(&n)
+        // One frame is batch x seq. A batch-1 cycle is one [1, seq]
+        // frame per case, and the pass computes every one of them.
+        let positions = n * u64::from(rows.seq);
+        let slots = rows.live_tokens..=positions;
+        if let Some(got) = self.timing.computed_tokens
+            && !slots.contains(&got)
         {
             return Err(format!(
-                "timing.computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}"
+                "timing.computed_tokens {got} is not between the live tokens and the padded pass, {slots:?}"
             ));
         }
         // The npu graph executes every position of each compiled frame,
-        // including padding. The published cell's batch and seq are that
-        // frame, so the count is batch x seq.
-        if self.device.backend == "npu" && self.timing.computed_tokens != Some(frame) {
+        // including padding. The count is that frame times the frames in
+        // the pass: batch x seq, or one [1, seq] frame per case.
+        if self.device.backend == "npu" && self.timing.computed_tokens != Some(positions) {
             return Err(
-                "timing.computed_tokens for npu is the compiled frame, batch x seq: the device runs every position \
-                 of the frame"
+                "timing.computed_tokens for npu is every position of each compiled frame in the pass: batch x seq \
+                 for one frame, and one [1, seq] frame per case when the frame batch is 1"
                     .into(),
             );
         }
@@ -554,7 +576,7 @@ impl Record {
                 && !slots.contains(&n)
             {
                 return Err(format!(
-                    "reference {}: computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}",
+                    "reference {}: computed_tokens {n} is not between the live tokens and the padded pass, {slots:?}",
                     r.name
                 ));
             }
@@ -667,8 +689,8 @@ pub struct Cell<'a> {
     /// The operating system this build is for, std::env::consts::OS.
     pub os: &'a str,
     /// The graph format an npu cell loads (`NGRAPH_LITE` or `NATIVE`).
-    /// None for every other backend. A record is for the cell only when
-    /// library.settings names that format.
+    /// None for every other backend. An npu cell with None matches no
+    /// record. A named format matches only when library.settings names it.
     pub graph_format: Option<&'a str>,
 }
 
@@ -697,13 +719,26 @@ impl Record {
             && task_name(cell.task) == Some(self.task.as_str())
             && precision_name(cell.precision) == Some(self.precision.as_str())
             && (!cell.cpu || (self.device.kind == "DEVICE_CPU" && self.device.name == cell.name))
-            && cell.graph_format.is_none_or(|fmt| setting(self, "TURBO_NPU_GRAPH_FORMAT") == Some(fmt))
+            && match (cell.backend, cell.graph_format) {
+                // A listed npu device always names NGRAPH_LITE or NATIVE.
+                // None is an unlisted ordinal, and it must not inherit a
+                // record of either format.
+                ("npu", None) => false,
+                (_, None) => true,
+                (_, Some(fmt)) => setting(self, "TURBO_NPU_GRAPH_FORMAT") == Some(fmt),
+            }
     }
 
     /// Why a record for the cell does not back SUPPORTED, or None when it
     /// does: it is for this library version, computed in the dtype the
     /// backend resolves the precision to, reached that dtype's tolerance,
-    /// and measured at least one reference program.
+    /// measured at least one reference program, and its mixed rows list
+    /// every reference case that fits `seq`. `is_for` can match a thinner
+    /// file. Conformance counts each fitting case run alone and then every
+    /// measured row. That second count is `rows.cases.len()`: one row of
+    /// a single batch, or one `[1, seq]` frame per case when the frame
+    /// batch is 1. `conformance.rows` minus that count is how many cases
+    /// fit, and the rows have to list that many distinct cases.
     pub fn falls_short(&self, cell: &Cell) -> Option<String> {
         if self.library.version != cell.version {
             return Some(format!("recorded with library {}, this is {}", self.library.version, cell.version));
@@ -725,6 +760,25 @@ impl Record {
         }
         if !self.references.iter().any(|r| r.measured.is_some() && REFERENCES.iter().any(|&(n, _)| n == r.name)) {
             return Some("no reference program measured".into());
+        }
+        // Mixed rows are the cases that fit seq. A file that times one of
+        // them still parses and still matches `is_for`. The measured rows
+        // are `cases.len()`: one per row of a single batch (so the count
+        // equals `batch`), or one [1, seq] frame per case when batch is 1.
+        if self.rows.kind == ROWS_MIXED {
+            let timed = self.rows.cases.len() as u32;
+            let compared = self.conformance.rows;
+            if compared < timed {
+                return Some(format!("conformance compared {compared} vectors, fewer than the {timed} measured rows"));
+            }
+            let fit = compared - timed;
+            let mut cases = self.rows.cases.clone();
+            cases.sort_unstable();
+            cases.dedup();
+            let n = cases.len() as u32;
+            if n != fit {
+                return Some(format!("rows cover {n} of {fit} reference cases that fit seq"));
+            }
         }
         None
     }
@@ -804,5 +858,123 @@ mod tests {
         }
         assert_eq!(pinned("nvcr.io/nvidia/tensorrt:25.01"), None);
         assert_eq!(pinned(&format!("tei@sha256:{}", "A".repeat(64))), None);
+    }
+
+    #[test]
+    fn mixed_arl_npu_minilm_records_support_model_and_fastest() {
+        fn cell<'a>(precision: u32, os: &'a str, arch: &'a str, graph_format: Option<&'a str>) -> Cell<'a> {
+            Cell {
+                arch,
+                name: "Intel(R) AI Boost",
+                cpu: false,
+                backend: "npu",
+                task: TURBO_TASK_EMBED,
+                precision,
+                dtype: TURBO_DTYPE_F16,
+                version: library_version(),
+                os,
+                graph_format,
+            }
+        }
+        // Cases 0 through 7, each its own [1, 128] frame, live_tokens 181.
+        // conformance.rows is 16: those eight compared alone, then the
+        // eight measured rows. is_for matches the windows arl-npu
+        // NGRAPH_LITE cell and falls_short is none, so the cell is
+        // SUPPORTED. Committed at bc15354, measured at 99c9264.
+        let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json";
+        let fastest = "arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json";
+        let windows = cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NGRAPH_LITE"));
+        let model_rec = embedded().iter().find(|(n, _)| *n == model).unwrap().1.as_ref().unwrap();
+        let fastest_rec = embedded().iter().find(|(n, _)| *n == fastest).unwrap().1.as_ref().unwrap();
+        assert!(model_rec.is_for(&windows));
+        assert!(fastest_rec.is_for(&cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", Some("NGRAPH_LITE"))));
+        assert!(
+            !model_rec.is_for(&cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", None)),
+            "an npu cell with no graph format matches no record"
+        );
+        assert!(
+            !fastest_rec.is_for(&cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", None)),
+            "an npu cell with no graph format matches no record"
+        );
+        assert_eq!(model_rec.rows.cases, [0, 1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(fastest_rec.rows.cases, model_rec.rows.cases);
+        assert_eq!(model_rec.rows.live_tokens, 181);
+        assert_eq!((model_rec.rows.batch, model_rec.rows.seq, model_rec.conformance.rows), (1, 128, 16));
+        assert_eq!(model_rec.timing.computed_tokens, Some(1024));
+        assert_eq!(model_rec.device.driver_version, "0.15.21738");
+        assert_eq!(fastest_rec.device.driver_version, "0.15.21738");
+        assert_eq!(model_rec.library.version, "0.1.0");
+        assert!(model_rec.library.commit.starts_with("99c92648aa9a"));
+        assert_eq!(model_rec.falls_short(&windows), None);
+        assert_eq!(model_rec.timing.p50_ms, 30.2244);
+        assert_eq!(model_rec.speed_ratio, Some(1.0001455989410986));
+        let model_ov = model_rec.references.iter().find(|r| r.name == "openvino").unwrap();
+        assert_eq!(model_ov.measured.as_ref().unwrap().p50_ms, 30.22);
+        assert_eq!(fastest_rec.timing.p50_ms, 29.9935);
+        assert_eq!(fastest_rec.speed_ratio, Some(0.9911929940515533));
+        let fastest_ov = fastest_rec.references.iter().find(|r| r.name == "openvino").unwrap();
+        assert_eq!(fastest_ov.measured.as_ref().unwrap().p50_ms, 30.259999999999998);
+        for (label, name, precision, rec) in [
+            ("model", model, TURBO_PRECISION_MODEL, model_rec),
+            ("fastest", fastest, TURBO_PRECISION_FASTEST, fastest_rec),
+        ] {
+            match decide_embedded(&cell(precision, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
+                Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
+                    assert_eq!(benchmark, name, "{label}");
+                    assert_eq!(cosine_floor, rec.conformance.min_cosine, "{label}");
+                    assert_eq!(speed_ratio, rec.speed_ratio.unwrap(), "{label}");
+                }
+                Verdict::Not(why) => panic!("{label} not supported: {why}"),
+            }
+        }
+        for (label, c) in [
+            ("linux", cell(TURBO_PRECISION_MODEL, "linux", "arl-npu", Some("NGRAPH_LITE"))),
+            ("native", cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NATIVE"))),
+            ("mtl", cell(TURBO_PRECISION_MODEL, "windows", "mtl-npu", Some("NGRAPH_LITE"))),
+            ("exact", cell(TURBO_PRECISION_EXACT, "windows", "arl-npu", Some("NGRAPH_LITE"))),
+        ] {
+            match decide_embedded(&c) {
+                Verdict::Not(why) => assert_eq!(why, NO_RECORD, "{label}"),
+                Verdict::Supported { benchmark, .. } => panic!("{label} supported by {benchmark}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_batch_1_cycle_covers_the_set_only_when_every_frame_was_compared() {
+        let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json";
+        let cell = Cell {
+            arch: "arl-npu",
+            name: "Intel(R) AI Boost",
+            cpu: false,
+            backend: "npu",
+            task: TURBO_TASK_EMBED,
+            precision: TURBO_PRECISION_MODEL,
+            dtype: TURBO_DTYPE_F16,
+            version: library_version(),
+            os: "windows",
+            graph_format: Some("NGRAPH_LITE"),
+        };
+        let full = embedded().iter().find(|(n, _)| *n == model).unwrap().1.as_ref().unwrap().clone();
+        // The committed file is this record: eight fitting cases, each
+        // its own [1, 128] frame, plus those eight compared alone.
+        assert_eq!(full.falls_short(&cell), None);
+        // Naming the cases without comparing them does not cover the set.
+        let mut covered = full.clone();
+        covered.conformance.rows = 9;
+        assert_eq!(covered.falls_short(&cell).as_deref(), Some("rows cover 8 of 1 reference cases that fit seq"));
+        // Eight frames of case 0 are still one case.
+        covered.rows.cases = vec![0; 8];
+        covered.conformance.rows = 16;
+        assert_eq!(covered.falls_short(&cell).as_deref(), Some("rows cover 1 of 8 reference cases that fit seq"));
+        // A wider batch is unchanged: distinct cases equal conformance
+        // rows minus the batch, and cases.len() is that batch.
+        let mut wide = full;
+        wide.rows.batch = 32;
+        wide.rows.cases = (0..9).cycle().take(32).collect();
+        wide.conformance.rows = 41;
+        assert_eq!(wide.falls_short(&cell), None);
+        wide.rows.cases = vec![0; 32];
+        assert_eq!(wide.falls_short(&cell).as_deref(), Some("rows cover 1 of 9 reference cases that fit seq"));
     }
 }
