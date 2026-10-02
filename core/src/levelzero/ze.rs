@@ -22,6 +22,7 @@ pub const STRUCTURE_TYPE_DEVICE_COMPUTE_PROPERTIES: u32 = 0x4;
 pub const STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES: u32 = 0x5;
 pub const STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES: u32 = 0x17;
 pub const STRUCTURE_TYPE_KERNEL_PROPERTIES: u32 = 0x1e;
+pub const STRUCTURE_TYPE_KERNEL_MAX_GROUP_SIZE_EXT_PROPERTIES: u32 = 0x1_0013;
 pub const STRUCTURE_TYPE_EVENT_POOL_DESC: u32 = 0x10;
 pub const STRUCTURE_TYPE_EVENT_DESC: u32 = 0x11;
 pub const EVENT_POOL_FLAG_HOST_VISIBLE: u32 = 1;
@@ -163,6 +164,15 @@ pub struct EventDesc {
     pub index: u32,
     pub signal: u32,
     pub wait: u32,
+}
+
+/// Chained to KernelProperties: the largest group the kernel can run with,
+/// which depends on the register file its build gave it.
+#[repr(C)]
+pub struct KernelMaxGroupSizeExt {
+    pub stype: u32,
+    pub p_next: *mut c_void,
+    pub max_group_size: u32,
 }
 
 #[repr(C)]

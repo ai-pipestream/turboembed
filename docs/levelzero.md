@@ -130,18 +130,24 @@ of any run.
   read's VNNI transform. A sub-group computes 16 tokens by 32 outputs, 32
   terms a step, and a group of 8 by 2 sub-groups shares its rows of both
   in cache; with 8 tokens or fewer, 8 tokens by 32 outputs, 4 sub-groups a
-  group. A layer's sums are never split, so each output is summed in one
-  order at every batch size. The LayerNorms write the hidden states in F16
+  group. For a hidden width of 768 or more (a multiple of 64: bge-base,
+  bge-large) a sub-group computes 32 tokens by 64 outputs and a group is
+  4 by 1 sub-groups, twice the products for each byte read; the kernels
+  are built with the driver's compiler choosing each kernel's register
+  file size, and that tile takes the large one. A layer's sums are never
+  split, so each output is summed in one order at every batch size. The LayerNorms write the hidden states in F16
   too, for the layers that read them, and the LayerNorm-fused projections
   keep the residual stream in F16 alone; the feed-forward input writes F16,
   and so does the Q, K and V projection for the head widths whose
   attention runs on the matrix engines. The attention output and the feed-forward output each
   take their residual and LayerNorm in their own epilogue: a sub-group
-  computes 16 tokens by 32 outputs, and a group the whole hidden width
-  for up to 4 blocks of 16 tokens (as many as 64 sub-groups hold; one
-  block below a full group's tokens), so each block after the first
-  reads the weights from cache; the rows' sums meet in local memory. For a hidden width over
-  2048 the LayerNorm kernel follows them instead. From 4096 tokens the
+  computes 16 tokens by 32 outputs (32 by 64 for the wide models), and a
+  group the whole hidden width for up to 4 blocks of those tokens (as
+  many as 64 sub-groups and the kernel's largest group hold, which the
+  driver is asked; one block below a full group's tokens), so each block
+  after the first reads the weights from cache; the rows' sums meet in
+  local memory. For a hidden width over 2048 the LayerNorm kernel follows
+  them instead. For the narrow models, from 4096 tokens the
   whole feed-forward block runs as one kernel laid out the same way: each
   group works through the intermediate width a hidden width at a time,
   its sub-groups writing their slice of the GELU'd middle in F16 to local
@@ -149,11 +155,19 @@ of any run.
   never goes through global memory (at 32 x 256 it would be 25 MB, more
   than a B70's 24 MB cache). It computes what the two kernels do, bit for
   bit; it needs the intermediate width to be a multiple of the hidden
-  width and its blocks' middle to fit the group's local memory. Attention for head widths 32
+  width and its blocks' middle to fit the group's local memory. The
+  wide models run the block as two kernels at every batch: measured on
+  a B70, the one kernel is the slower of the two ways for them, with
+  their middle through memory and all. Attention for head widths 32
   and 64 runs on the matrix engines: a sub-group takes 16 queries, a lane
   each, and walks the row's keys 32 at a time (K and V by 2D block
   reads); a group's 4 sub-groups take consecutive blocks of queries, so
-  they read the row's keys and values from cache between them. Other
+  they read the row's keys and values from cache between them. For head
+  width 64, when the longest row has 128 tokens or more, a group of 8
+  sub-groups stages each 32-key tile of K and V in local memory once and
+  its sub-groups read it from there, which on a B70 takes 13 to 15% off
+  the attention of bge-base and bge-large; on shorter rows and on head
+  width 32 the plain kernel is the faster one and runs. Other
   widths write an F16 context from the kernels above. The run waits for the queue before it returns, and
   leaves the vectors in the session's `DEVICE` buffer:
   `turbo_result_buffer` hands out that memory, and `turbo_result_read`

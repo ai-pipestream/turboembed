@@ -1181,3 +1181,73 @@ fn the_largest_shape_of_a_real_bundle_matches_the_cpu() {
     let Some(_) = gpu_device("the_largest_shape_of_a_real_bundle_matches_the_cpu") else { return };
     largest_shape_matches_the_cpu(&dir);
 }
+
+/// Where a real bundle's time goes on the device: TURBO_TEST_BUNDLE at
+/// 32 rows of 256 tokens, FASTEST then MODEL, 20 runs each after 5 of
+/// warm-up, with the runtime's log printed. With TURBO_LEVELZERO_PROFILE
+/// set, each context prints its per-kernel totals when it is released.
+#[test]
+#[ignore = "measures; needs a real bundle directory in TURBO_TEST_BUNDLE; run with --ignored --nocapture"]
+fn the_profile_of_a_real_bundle() {
+    let _t = turn();
+    let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
+    let Some(_) = gpu_device("the_profile_of_a_real_bundle") else { return };
+    unsafe extern "C" fn say(_: *mut c_void, level: u32, m: turbo_text) {
+        let s = unsafe { std::slice::from_raw_parts(m.ptr as *const u8, m.len as usize) };
+        println!("log {level}: {}", String::from_utf8_lossy(s));
+    }
+    let (batch, seq) = (32usize, 256usize);
+    let vocab = Tok::create(&dir).unwrap().info().vocab_size as usize;
+    // TURBO_TEST_ROWS=short: rows of 8 to 47 tokens in the same frame.
+    let short = std::env::var("TURBO_TEST_ROWS").is_ok_and(|v| v == "short");
+    let rows: Vec<Vec<i32>> = (0..batch)
+        .map(|r| {
+            let len = if short { 8 + (r * 13) % 40 } else { seq };
+            (0..len).map(|p| (1000 + (r * 131 + p * 17) % (vocab - 1000)) as i32).collect()
+        })
+        .collect();
+    let t = Tokens::new(&rows, 0);
+    // TURBO_TEST_PRECISION=fastest or model runs one of the two.
+    let which: Vec<u32> = match std::env::var("TURBO_TEST_PRECISION").as_deref() {
+        Ok("fastest") => vec![TURBO_PRECISION_FASTEST],
+        Ok("model") => vec![TURBO_PRECISION_MODEL],
+        _ => vec![TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL],
+    };
+    for precision in which {
+        let desc = turbo_runtime_desc {
+            struct_size: size_of::<turbo_runtime_desc>() as u32,
+            reserved: 0,
+            log: Some(say),
+            log_user_data: ptr::null_mut(),
+        };
+        let mut err = new_error();
+        let mut rt = ptr::null_mut();
+        assert_eq!(unsafe { turbo_runtime_create(&desc, &mut rt, &mut err) }, 0);
+        let mut ctx = ptr::null_mut();
+        let rc = unsafe { turbo_context_create(rt, gpu(rt), &mut ctx, &mut err) };
+        assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+        let mut m = ptr::null_mut();
+        let rc = unsafe { turbo_model_load(ctx, text(dir.to_str().unwrap()), &mut m, &mut err) };
+        assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+        let l = Loaded { rt, ctx, m };
+        let s = Session::create(l.m, Some(&session_desc(batch as u32, seq as u32, precision))).unwrap();
+        for _ in 0..5 {
+            s.write_tokens(&t.batch(), None).unwrap();
+            s.run().unwrap();
+        }
+        // TURBO_TEST_RUNS: the timed runs, 20 by default.
+        let n: usize = std::env::var("TURBO_TEST_RUNS").ok().and_then(|v| v.parse().ok()).unwrap_or(20);
+        let start = std::time::Instant::now();
+        for _ in 0..n {
+            s.write_tokens(&t.batch(), None).unwrap();
+            s.run().unwrap();
+        }
+        let ms = start.elapsed().as_secs_f64() * 1e3 / n as f64;
+        println!(
+            "{}: precision {precision}: {ms:.3} ms a run of {batch} x {seq} (profile below if enabled)",
+            dir.display()
+        );
+        drop(s);
+        drop(l);
+    }
+}
