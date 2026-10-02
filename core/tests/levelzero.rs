@@ -1201,7 +1201,13 @@ fn the_profile_of_a_real_bundle() {
     let rows: Vec<Vec<i32>> =
         (0..batch).map(|r| (0..seq).map(|p| (1000 + (r * 131 + p * 17) % (vocab - 1000)) as i32).collect()).collect();
     let t = Tokens::new(&rows, 0);
-    for precision in [TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL] {
+    // TURBO_TEST_PRECISION=fastest or model runs one of the two.
+    let which: Vec<u32> = match std::env::var("TURBO_TEST_PRECISION").as_deref() {
+        Ok("fastest") => vec![TURBO_PRECISION_FASTEST],
+        Ok("model") => vec![TURBO_PRECISION_MODEL],
+        _ => vec![TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL],
+    };
+    for precision in which {
         let desc = turbo_runtime_desc {
             struct_size: size_of::<turbo_runtime_desc>() as u32,
             reserved: 0,
@@ -1223,7 +1229,8 @@ fn the_profile_of_a_real_bundle() {
             s.write_tokens(&t.batch(), None).unwrap();
             s.run().unwrap();
         }
-        let n = 20;
+        // TURBO_TEST_RUNS: the timed runs, 20 by default.
+        let n: usize = std::env::var("TURBO_TEST_RUNS").ok().and_then(|v| v.parse().ok()).unwrap_or(20);
         let start = std::time::Instant::now();
         for _ in 0..n {
             s.write_tokens(&t.batch(), None).unwrap();
