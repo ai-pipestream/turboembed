@@ -182,20 +182,24 @@ fn selection_never_picks_a_cpu_and_says_why() {
 
 #[test]
 fn device_info_is_read_at_query_time() {
-    // The host's free memory moves between calls; everything else is the
-    // same device.
+    // The host's free memory is read on each call, not kept from the
+    // listing: with 64 MiB allocated it reads lower than released.
+    // Everything else is the same device.
     let rt = Rt::new();
     let i = cpu(&rt);
     let (mut a, mut b) = (rt.info(i).unwrap(), rt.info(i).unwrap());
-    let mut free = Vec::new();
-    for _ in 0..50 {
-        let _held = std::hint::black_box(vec![1u8; 64 << 20]);
-        free.push(rt.info(i).unwrap().memory_free);
-    }
     if cfg!(target_os = "linux") {
-        free.sort();
-        free.dedup();
-        assert!(free.len() > 1, "memory_free is read again on each call: {free:?}");
+        // Another process may move the figure between the two reads of
+        // one try, so the allocated read must be the lower one at least
+        // once.
+        let lower = (0..20).any(|_| {
+            let released = rt.info(i).unwrap().memory_free;
+            let block = std::hint::black_box(vec![1u8; 64 << 20]);
+            let allocated = rt.info(i).unwrap().memory_free;
+            drop(block);
+            allocated < released
+        });
+        assert!(lower, "memory_free is read again on each call");
     }
     a.memory_free = 0;
     b.memory_free = 0;
