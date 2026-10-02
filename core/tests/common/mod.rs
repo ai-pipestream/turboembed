@@ -19,6 +19,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use turbo::*;
 
+pub mod conformance;
+
 pub const MAX_SEQ: usize = 256;
 
 pub fn testdata() -> PathBuf {

@@ -64,10 +64,13 @@ further from the reference's than the largest absolute difference.
 |---|---|---|
 | F32 | 0.9999 | 1e-4 |
 | F16, BF16 | 0.999 | not bounded |
+| I8 | 0.93 | not bounded |
 
-The table is `turbo::record::tolerance`, the rule a benchmark record
-is held to as well (docs/benchmarks.md). Int8 has no row: there is no
-int8 compute dtype yet, and a record of one backs nothing.
+The F32, F16 and BF16 rows are `turbo::record::tolerance`, the rule a
+benchmark record is held to as well (docs/benchmarks.md). The I8 row is
+the test's own (`I8_MIN_COSINE` in `core/tests/common/conformance.rs`): a Hailo
+session computes in int8, and a benchmark record of int8 has no
+tolerance.
 
 `a_fixed_shape_refuses_the_cases_it_cannot_hold` runs the same check on
 the small bundle with its artifact fixed at 32 tokens, so the capacity
