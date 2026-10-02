@@ -124,6 +124,12 @@ pub(crate) struct Model {
 struct Transposed {
     layers: Vec<[u64; 4]>,
     alloc: *mut c_void,
+    /// With oneDNN (levelzero-onednn): each layer's four weights packed in
+    /// oneDNN's layout, in one allocation; empty without it.
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    packed: Vec<[u64; 4]>,
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    packed_alloc: *mut c_void,
 }
 
 /// A model's weights in F32 on the device: every tensor, into stored for
@@ -183,7 +189,49 @@ impl Model {
     /// The linear layers' weights in F16, made on first need from the F32
     /// ones.
     fn f16_weights(&self, w: &Weights) -> Res<Transposed> {
-        self.transposed(w, &self.f16, "narrow_f16_transposed", 2, "the F16 weights")
+        let t = self.transposed(w, &self.f16, "narrow_f16_transposed", 2, "the F16 weights")?;
+        #[cfg(feature = "levelzero-onednn")]
+        if t.packed.is_empty() {
+            return self.packed_for_onednn(t);
+        }
+        Ok(t)
+    }
+
+    /// The F16 weights packed in oneDNN's layout as well, once; the
+    /// Transposed without them where oneDNN is not open.
+    #[cfg(feature = "levelzero-onednn")]
+    fn packed_for_onednn(&self, t: Transposed) -> Res<Transposed> {
+        let c = self.ctx();
+        let Some(dn) = c.dnnl() else { return Ok(t) };
+        let d = &self.desc;
+        let (h, i) = (d.hidden, d.intermediate);
+        // (k, n) of each layer's four weights, as transposed() orders them.
+        let shapes = [(h, 3 * h), (h, h), (h, i), (i, h)];
+        let mut at = Vec::with_capacity(t.layers.len() * 4);
+        let mut total = 0usize;
+        for _ in &t.layers {
+            for &(k, n) in &shapes {
+                at.push(total as u64);
+                total += round_up(dn.weights_bytes(k, n)?, DEVICE_ALIGN);
+            }
+        }
+        let alloc = c.alloc_device(total)?;
+        let packed = (|| {
+            for (l, layer) in t.layers.iter().enumerate() {
+                for (j, &(k, n)) in shapes.iter().enumerate() {
+                    dn.pack(layer[j], k, n, alloc as u64 + at[l * 4 + j])?;
+                }
+            }
+            Ok(())
+        })();
+        if let Err(e) = packed {
+            c.free(alloc, "the packed F16 weights");
+            return Err(e);
+        }
+        let packed = at.chunks(4).map(|a| [0, 1, 2, 3].map(|j| alloc as u64 + a[j])).collect();
+        let done = Transposed { layers: t.layers, alloc: t.alloc, packed, packed_alloc: alloc };
+        *self.f16.lock().unwrap_or_else(|p| p.into_inner()) = Some(done.clone());
+        Ok(done)
     }
 
     /// The linear layers' weights in F32 transposed, made on first need,
@@ -247,7 +295,7 @@ impl Model {
             return Err(e);
         }
         let layers = at.chunks(4).map(|a| [0, 1, 2, 3].map(|j| alloc as u64 + a[j])).collect();
-        let half = Transposed { layers, alloc };
+        let half = Transposed { layers, alloc, packed: Vec::new(), packed_alloc: std::ptr::null_mut() };
         *f = Some(half.clone());
         Ok(half)
     }
@@ -343,6 +391,9 @@ impl Drop for Model {
         }
         let h = self.f16.get_mut().unwrap_or_else(|p| p.into_inner());
         if let Some(h) = h.take() {
+            if !h.packed_alloc.is_null() {
+                c.free(h.packed_alloc, "the packed F16 weights");
+            }
             c.free(h.alloc, "the F16 weights");
         }
         let t = self.f32t.get_mut().unwrap_or_else(|p| p.into_inner());
@@ -470,6 +521,9 @@ struct Kernels {
     /// batches, and its blocks of tokens a group.
     linear_dpas_mlp: Option<(Kernel, u32)>,
     embed_layer_norm: Kernel,
+    /// F16 hidden states widened to F32, for the pooling after oneDNN's last LayerNorm.
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    widen_f16: Kernel,
     add_layer_norm: Kernel,
     /// The same, a group per token, for few tokens.
     embed_layer_norm_group: Kernel,
@@ -538,6 +592,7 @@ impl Kernels {
                 None
             },
             embed_layer_norm: c.kernel("embed_layer_norm", [16 * ROWS, 1, 1])?,
+            widen_f16: c.kernel("widen_f16", [WIDE, 1, 1])?,
             add_layer_norm: c.kernel("add_layer_norm", [16 * ROWS, 1, 1])?,
             embed_layer_norm_group: c.kernel("embed_layer_norm_group", row)?,
             add_layer_norm_group: c.kernel("add_layer_norm_group", row)?,
@@ -955,6 +1010,17 @@ impl Session {
         // Attention on the matrix engines reads F16 projections and writes
         // an F16 context.
         let half_attention = matches!(k.attention, Attention::Xmx(..));
+        // oneDNN takes the F16 linear layers of a batch past the few-token
+        // kernels, with its own LayerNorm after the projections back to
+        // the hidden width; the two queues are ordered by waiting.
+        #[cfg(feature = "levelzero-onednn")]
+        let dnnl = if tokens > FEW_TOKENS_DPAS && self.half.as_ref().is_some_and(|h| !h.packed.is_empty()) {
+            c.dnnl()
+        } else {
+            None
+        };
+        #[cfg(not(feature = "levelzero-onednn"))]
+        let dnnl: Option<()> = None;
         // Few tokens: a group per token keeps each LayerNorm short.
         let few_tokens = tokens < FEW_TOKENS;
         let xmx = k.linear_dpas.is_some();
@@ -974,6 +1040,24 @@ impl Session {
                       (splits, to_half): (u32, bool),
                       what: &str|
          -> Res<u32> {
+            #[cfg(feature = "levelzero-onednn")]
+            if let (Some(dn), Some(half), true) = (dnnl, &self.half, to_half) {
+                c.sync(q)?;
+                dn.matmul(&super::onednn::Matmul {
+                    a: x,
+                    packed: half.packed[l as usize][which],
+                    bias,
+                    residual: 0,
+                    c: y,
+                    m: tokens,
+                    k: n_in,
+                    n: n_out,
+                    gelu: flags & LINEAR_GELU != 0,
+                })?;
+                dn.wait()?;
+                let _ = (weight, splits, what);
+                return Ok(1);
+            }
             if let (Some(kd), Some(half)) = (&k.linear_dpas, &self.half) {
                 let (tm, tn, wm, wn, kernel) = if tokens <= FEW_TOKENS_DPAS {
                     (FEW_TM, DPAS_TN, FEW_WM, FEW_WN, &kd[2 + to_half as usize])
@@ -1088,6 +1172,41 @@ impl Session {
         // residual stream; false where that kernel does not run, for a
         // hidden width wider than a group spans.
         let fused = |q: &mut Queue, act: u64, n_in: u32, (l, which): (u32, usize), (bias, lnw, lnb), what: &str| {
+            #[cfg(feature = "levelzero-onednn")]
+            if let (Some(dn), Some(half)) = (dnnl, &self.half) {
+                // The projection with its residual added, into a scratch
+                // the run is done with, then the LayerNorm onto the F16
+                // residual stream; the last layer's also widened to F32.
+                let scratch = if which == 1 { self.ffn } else { self.att };
+                c.sync(q)?;
+                dn.matmul(&super::onednn::Matmul {
+                    a: act,
+                    packed: half.packed[l as usize][which],
+                    bias,
+                    residual: self.xh,
+                    c: scratch,
+                    m: tokens,
+                    k: n_in,
+                    n: h,
+                    gelu: false,
+                })?;
+                dn.layer_norm(&super::onednn::LayerNorm {
+                    src: scratch,
+                    gamma: lnw,
+                    beta: lnb,
+                    eps,
+                    dst: self.xh,
+                    m: tokens,
+                    n: h,
+                })?;
+                dn.wait()?;
+                if l + 1 == d.layers && which == 3 {
+                    let n = tokens as u64 * h as u64;
+                    let args = [Ptr(self.xh), U64(n), Ptr(self.x)];
+                    k.widen_f16.launch(c, q, what, &args, [elementwise_groups(n), 1, 1])?;
+                }
+                return Ok(true);
+            }
             let (Some(kln), Some(half)) = (&k.linear_dpas_layer_norm, &self.half) else { return Ok(false) };
             let args = [
                 Ptr(act),
@@ -1206,6 +1325,7 @@ impl Session {
             // in local memory.
             if let (Some((kmlp, blocks)), Some(half)) = (&k.linear_dpas_mlp, &self.half)
                 && tokens >= MLP_TOKENS
+                && dnnl.is_none()
             {
                 let args = [
                     Ptr(half.layers[l as usize][2]),

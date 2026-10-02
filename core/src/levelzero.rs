@@ -8,6 +8,8 @@
 
 mod encoder;
 mod gpu;
+#[cfg(feature = "levelzero-onednn")]
+mod onednn;
 mod ze;
 
 use std::ffi::{c_char, c_void};

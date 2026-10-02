@@ -140,6 +140,10 @@ pub(crate) struct Context {
     profile: Mutex<std::collections::BTreeMap<String, (u64, u64)>>,
     log: turbo_log_fn,
     log_user_data: *mut c_void,
+    /// oneDNN on this context (the levelzero-onednn feature), opened on
+    /// first need; None where it could not open.
+    #[cfg(feature = "levelzero-onednn")]
+    dnnl: std::sync::OnceLock<Option<super::onednn::Dnnl>>,
 }
 
 // The handles are the driver's, for any thread; the log function is the
@@ -148,6 +152,28 @@ unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 
 impl Context {
+    /// oneDNN for the F16 linear layers, opened on this context the first
+    /// time; None where it cannot open, which the log says once.
+    #[cfg(feature = "levelzero-onednn")]
+    pub fn dnnl(&self) -> Option<&super::onednn::Dnnl> {
+        self.dnnl
+            .get_or_init(|| match super::onednn::Dnnl::open(self.device, self.handle) {
+                Ok(d) => {
+                    let v = super::onednn::Dnnl::version();
+                    self.say(LOG_DEBUG, &format!("levelzero device {}: {v} runs the F16 linear layers", self.ordinal));
+                    Some(d)
+                }
+                Err(e) => {
+                    self.say(
+                        LOG_WARNING,
+                        &format!("levelzero device {}: oneDNN not used: {}", self.ordinal, e.message),
+                    );
+                    None
+                }
+            })
+            .as_ref()
+    }
+
     pub fn say(&self, level: u32, message: &str) {
         if let Some(f) = self.log {
             let t = turbo_text { ptr: message.as_ptr() as *const _, len: message.len() as u64 };
@@ -580,6 +606,8 @@ pub(crate) unsafe fn create(
         profile: Mutex::new(std::collections::BTreeMap::new()),
         log,
         log_user_data,
+        #[cfg(feature = "levelzero-onednn")]
+        dnnl: std::sync::OnceLock::new(),
     });
     let q = ctx.queue.get_mut().unwrap_or_else(|p| p.into_inner());
     let pd = ze::EventPoolDesc {
