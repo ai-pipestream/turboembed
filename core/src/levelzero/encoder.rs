@@ -1042,8 +1042,7 @@ impl Session {
          -> Res<u32> {
             #[cfg(feature = "levelzero-onednn")]
             if let (Some(dn), Some(half), true) = (dnnl, &self.half, to_half) {
-                c.sync(q)?;
-                dn.matmul(&super::onednn::Matmul {
+                let signal = dn.matmul(&super::onednn::Matmul {
                     a: x,
                     packed: half.packed[l as usize][which],
                     bias,
@@ -1053,8 +1052,9 @@ impl Session {
                     k: n_in,
                     n: n_out,
                     gelu: flags & LINEAR_GELU != 0,
+                    wait: q.last_event() as u64,
                 })?;
-                dn.wait()?;
+                q.pending_wait = signal as super::ze::Handle;
                 let _ = (weight, splits, what);
                 return Ok(1);
             }
@@ -1178,8 +1178,7 @@ impl Session {
                 // the run is done with, then the LayerNorm onto the F16
                 // residual stream; the last layer's also widened to F32.
                 let scratch = if which == 1 { self.ffn } else { self.att };
-                c.sync(q)?;
-                dn.matmul(&super::onednn::Matmul {
+                let signal = dn.matmul(&super::onednn::Matmul {
                     a: act,
                     packed: half.packed[l as usize][which],
                     bias,
@@ -1189,8 +1188,9 @@ impl Session {
                     k: n_in,
                     n: h,
                     gelu: false,
+                    wait: q.last_event() as u64,
                 })?;
-                dn.layer_norm(&super::onednn::LayerNorm {
+                let signal = dn.layer_norm(&super::onednn::LayerNorm {
                     src: scratch,
                     gamma: lnw,
                     beta: lnb,
@@ -1198,8 +1198,9 @@ impl Session {
                     dst: self.xh,
                     m: tokens,
                     n: h,
+                    wait: signal,
                 })?;
-                dn.wait()?;
+                q.pending_wait = signal as super::ze::Handle;
                 if l + 1 == d.layers && which == 3 {
                     let n = tokens as u64 * h as u64;
                     let args = [Ptr(self.xh), U64(n), Ptr(self.x)];
@@ -1431,6 +1432,14 @@ pub(crate) unsafe extern "C" fn session_run(
                 let synced = c.sync(&mut q);
                 encoded?;
                 synced?;
+                // oneDNN's work is done too, its last event waited for by
+                // the backend's last kernel; its events are let go.
+                #[cfg(feature = "levelzero-onednn")]
+                if s.half.as_ref().is_some_and(|h| !h.packed.is_empty())
+                    && let Some(dn) = c.dnnl()
+                {
+                    dn.wait()?;
+                }
             }
             out.placement = TURBO_PLACE_DEVICE;
             out.output = &*s.output as *const Buffer as *mut c_void;

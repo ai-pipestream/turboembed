@@ -13,6 +13,7 @@
 #include <sycl/sycl.hpp>
 
 #include <cstdio>
+#include <vector>
 #include <cstring>
 #include <stdexcept>
 #include <unordered_map>
@@ -33,6 +34,9 @@ struct Handle {
     std::map<std::tuple<int, int, int, int, int>, dnnl::matmul> matmuls;
     std::map<std::tuple<int, int>, dnnl::memory::desc> weights;
     std::map<std::tuple<int, int>, dnnl::layer_normalization_forward> norms;
+    // The events of the work queued since the last wait, kept so their
+    // Level Zero handles stay valid for the backend's list to wait on.
+    std::vector<sycl::event> events;
 };
 
 // The weights' layout the matmul asks for at the widest batch the backend
@@ -111,6 +115,23 @@ dnnl::layer_normalization_forward &norm_for(Handle &h, int m, int n, float eps) 
     return h.norms.emplace(key, layer_normalization_forward(pd)).first->second;
 }
 
+// The dependencies of a primitive: the backend's event, where given.
+std::vector<sycl::event> deps_of(Handle &h, void *ze_wait) {
+    std::vector<sycl::event> deps;
+    if (ze_wait) {
+        namespace lz = sycl::ext::oneapi::level_zero;
+        deps.push_back(sycl::make_event<sycl::backend::ext_oneapi_level_zero>(
+            {(ze_event_handle_t)ze_wait, lz::ownership::keep}, h.context));
+    }
+    return deps;
+}
+
+// Keeps the primitive's event and hands out its Level Zero handle.
+void *signal_of(Handle &h, sycl::event ev) {
+    h.events.push_back(ev);
+    return sycl::get_native<sycl::backend::ext_oneapi_level_zero>(h.events.back());
+}
+
 dnnl::memory usm(Handle &h, const dnnl::memory::desc &md, const void *p) {
     return dnnl::sycl_interop::make_memory(md, h.engine, dnnl::sycl_interop::memory_kind::usm, const_cast<void *>(p));
 }
@@ -158,9 +179,10 @@ int turbo_dnnl_pack(void *hp, const void *src, int k, int n, void *dst, char *er
 
 // c [m, n] F16 = a [m, k] F16 times the packed weights, plus bias (F32, n)
 // where given, plus residual [m, n] F16 where given, then GELU where
-// asked. Queued; turbo_dnnl_wait waits.
+// asked. Queued after the Level Zero event ze_wait where given; the
+// event it signals is handed out in ze_signal, valid until turbo_dnnl_wait.
 int turbo_dnnl_matmul(void *hp, const void *a, const void *packed, const float *bias, const void *residual, void *c,
-                      int m, int k, int n, int gelu, char *err, size_t n_err) {
+                      int m, int k, int n, int gelu, void *ze_wait, void **ze_signal, char *err, size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
     return guarded(err, n_err, [&] {
         using namespace dnnl;
@@ -176,14 +198,14 @@ int turbo_dnnl_matmul(void *hp, const void *a, const void *packed, const float *
         if (residual) {
             args.emplace(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1, usm(h, cmd, residual));
         }
-        mm.execute(h.stream, args);
+        *ze_signal = signal_of(h, sycl_interop::execute(mm, h.stream, args, deps_of(h, ze_wait)));
     });
 }
 
 // dst [m, n] F16 = LayerNorm of src over n, scaled by gamma and shifted by
 // beta (F32, n). Queued.
 int turbo_dnnl_layer_norm(void *hp, const void *src, const float *gamma, const float *beta, float eps, void *dst,
-                          int m, int n, char *err, size_t n_err) {
+                          int m, int n, void *ze_wait, void **ze_signal, char *err, size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
     return guarded(err, n_err, [&] {
         using namespace dnnl;
@@ -194,14 +216,17 @@ int turbo_dnnl_layer_norm(void *hp, const void *src, const float *gamma, const f
                                                 {DNNL_ARG_DST, usm(h, x, dst)},
                                                 {DNNL_ARG_SCALE, usm(h, g, gamma)},
                                                 {DNNL_ARG_SHIFT, usm(h, g, beta)}};
-        ln.execute(h.stream, args);
+        *ze_signal = signal_of(h, sycl_interop::execute(ln, h.stream, args, deps_of(h, ze_wait)));
     });
 }
 
 // Waits for everything queued.
 int turbo_dnnl_wait(void *hp, char *err, size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
-    return guarded(err, n_err, [&] { h.stream.wait(); });
+    return guarded(err, n_err, [&] {
+        h.stream.wait();
+        h.events.clear();
+    });
 }
 
 const char *turbo_dnnl_version(void) {

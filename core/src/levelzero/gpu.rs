@@ -451,6 +451,16 @@ pub(crate) struct Queue {
     /// With TURBO_LEVELZERO_PROFILE set, what each signalled event's
     /// append was.
     names: Vec<String>,
+    /// An event of another queue the next launch waits for, or null.
+    pub pending_wait: Handle,
+}
+
+impl Queue {
+    /// The event the last append signals, or null after a sync.
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    pub fn last_event(&self) -> Handle {
+        if self.used > 0 { self.events[self.used - 1] } else { std::ptr::null_mut() }
+    }
 }
 
 /// TURBO_LEVELZERO_PROFILE set in the environment: every context times
@@ -564,8 +574,11 @@ impl Kernel {
         }
         let g = ze::GroupCount { x: groups[0], y: groups[1], z: groups[2] };
         let e = c.next_event(q)?;
-        let no_waits = std::ptr::null_mut();
-        let rc = unsafe { (self.api.command_list_append_launch_kernel)(q.list, self.handle, &g, e, 0, no_waits) };
+        let (waits, mut wait) = (u32::from(!q.pending_wait.is_null()), q.pending_wait);
+        let rc = unsafe { (self.api.command_list_append_launch_kernel)(q.list, self.handle, &g, e, waits, &mut wait) };
+        if rc == 0 {
+            q.pending_wait = std::ptr::null_mut();
+        }
         c.appended(q, name, rc)
     }
 }
@@ -599,6 +612,7 @@ pub(crate) unsafe fn create(
             used: 0,
             wedged: false,
             names: Vec::new(),
+            pending_wait: std::ptr::null_mut(),
         }),
         module: Mutex::new(None),
         max_local: dev.max_local,

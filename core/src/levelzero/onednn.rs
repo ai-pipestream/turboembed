@@ -40,6 +40,8 @@ unsafe extern "C" {
         k: i32,
         n: i32,
         gelu: i32,
+        ze_wait: *mut c_void,
+        ze_signal: *mut *mut c_void,
         err: *mut c_char,
         n_err: usize,
     ) -> i32;
@@ -52,6 +54,8 @@ unsafe extern "C" {
         dst: *mut c_void,
         m: i32,
         n: i32,
+        ze_wait: *mut c_void,
+        ze_signal: *mut *mut c_void,
         err: *mut c_char,
         n_err: usize,
     ) -> i32;
@@ -72,6 +76,8 @@ pub(crate) struct Matmul {
     pub k: u32,
     pub n: u32,
     pub gelu: bool,
+    /// The backend's event to run after, or 0.
+    pub wait: u64,
 }
 
 /// dst [m, n] F16 = LayerNorm of src over n with gamma and beta (F32, n).
@@ -83,6 +89,8 @@ pub(crate) struct LayerNorm {
     pub dst: u64,
     pub m: u32,
     pub n: u32,
+    /// The event to run after, or 0.
+    pub wait: u64,
 }
 
 /// oneDNN on one context: a SYCL queue of its own on the backend's Level
@@ -135,9 +143,10 @@ impl Dnnl {
         check("oneDNN pack", rc, &err)
     }
 
-    /// Queues a matmul.
-    pub fn matmul(&self, mm: &Matmul) -> Res<()> {
-        let mut err = [0 as c_char; ERR];
+    /// Queues a matmul after `wait`; the event it signals, valid until
+    /// `wait` is called.
+    pub fn matmul(&self, mm: &Matmul) -> Res<u64> {
+        let (mut signal, mut err) = (std::ptr::null_mut::<c_void>(), [0 as c_char; ERR]);
         let rc = unsafe {
             turbo_dnnl_matmul(
                 self.0,
@@ -150,16 +159,19 @@ impl Dnnl {
                 mm.k as i32,
                 mm.n as i32,
                 mm.gelu as i32,
+                mm.wait as *mut c_void,
+                &mut signal,
                 err.as_mut_ptr(),
                 ERR,
             )
         };
-        check("oneDNN matmul", rc, &err)
+        check("oneDNN matmul", rc, &err)?;
+        Ok(signal as u64)
     }
 
-    /// Queues a LayerNorm.
-    pub fn layer_norm(&self, ln: &LayerNorm) -> Res<()> {
-        let mut err = [0 as c_char; ERR];
+    /// Queues a LayerNorm after `wait`; the event it signals.
+    pub fn layer_norm(&self, ln: &LayerNorm) -> Res<u64> {
+        let (mut signal, mut err) = (std::ptr::null_mut::<c_void>(), [0 as c_char; ERR]);
         let rc = unsafe {
             turbo_dnnl_layer_norm(
                 self.0,
@@ -170,14 +182,17 @@ impl Dnnl {
                 ln.dst as *mut c_void,
                 ln.m as i32,
                 ln.n as i32,
+                ln.wait as *mut c_void,
+                &mut signal,
                 err.as_mut_ptr(),
                 ERR,
             )
         };
-        check("oneDNN layer norm", rc, &err)
+        check("oneDNN layer norm", rc, &err)?;
+        Ok(signal as u64)
     }
 
-    /// Waits for everything queued.
+    /// Waits for everything queued, and drops the events handed out.
     pub fn wait(&self) -> Res<()> {
         let mut err = [0 as c_char; ERR];
         let rc = unsafe { turbo_dnnl_wait(self.0, err.as_mut_ptr(), ERR) };
