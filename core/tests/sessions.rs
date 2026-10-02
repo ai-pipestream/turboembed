@@ -264,6 +264,34 @@ fn a_failed_write_leaves_nothing_written() {
 }
 
 #[test]
+fn a_write_refused_before_its_rows_are_read_leaves_nothing_written() {
+    let l = tiny();
+    let s = session(&l);
+    s.write_text(&TEXTS, None).unwrap();
+    let mut err = new_error();
+    let rc = unsafe { turbo_embed_write_tokens(s.0, ptr::null(), ptr::null(), &mut err) };
+    assert_eq!(rc, INVALID_ARGUMENT, "{:?}", failure(rc, &err));
+    assert_eq!(s.run().err().unwrap().code, INVALID_STATE, "a NULL batch drops the write before it");
+    s.write_text(&TEXTS, None).unwrap();
+    let b = Tokens::new(&[vec![101, 102]], 0);
+    let mut tb = b.batch();
+    tb.struct_size = 8;
+    assert_eq!(s.write_tokens(&tb, None).err().unwrap().code, INVALID_STRUCT_SIZE);
+    assert_eq!(s.run().err().unwrap().code, INVALID_STATE, "a short struct_size drops the write before it");
+}
+
+#[test]
+fn a_failed_run_takes_the_write() {
+    let l = tiny();
+    let s = session(&l);
+    s.write_text(&TEXTS, None).unwrap();
+    let mut err = new_error();
+    let rc = unsafe { turbo_session_run(s.0, ptr::null_mut(), &mut err) };
+    assert_eq!(rc, INVALID_ARGUMENT, "{:?}", failure(rc, &err));
+    assert_eq!(s.run().err().unwrap().code, INVALID_STATE, "the failed run took the write");
+}
+
+#[test]
 fn a_held_result_or_its_buffer_makes_the_session_busy() {
     let l = tiny();
     let s = session(&l);
