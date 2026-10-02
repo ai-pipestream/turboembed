@@ -139,7 +139,7 @@ No build variables: there is nothing to point at.
   `TURBO_E_RUNTIME` or `TURBO_E_UNSUPPORTED`, and the `NGRAPH_LITE`
   graph is not kept. A device that does not list `NATIVE` initializes
   the `NGRAPH_LITE` graph and says so in the debug log, with the
-  formats bitfield. That is the path the `57c302f` receipt ran: on
+  formats bitfield. That is the path the `5717dc5` receipt ran: on
   intel-npu, driver `0.15.21738`, `graphFormatsSupported` was `0x2`,
   so bit `0x1` was clear and the load stayed on `NGRAPH_LITE`. A load
   whose graph was created as `NATIVE` has not been run on intel-npu.
@@ -375,10 +375,10 @@ artifact (or lists the embeddings artifact first and keeps both files).
 `seal` copies `weights/model.safetensors`, which is the host table.
 Point `TURBO_TEST_BUNDLE` at that directory.
 
-Hardware records that seal. At tip `7cd162a` the embeddings-sealed
+Hardware records that seal. At tip `9533e4c` the embeddings-sealed
 MiniLM passed the npu tests 10, including
 `a_run_reports_its_frames_and_where_each_stage_ran` with lookup on the
-host, and conformance passed 3. Tip `93f0d76` is where the IR compiled
+host, and conformance passed 3. Tip `0ee0e1a` is where the IR compiled
 (`cut_max_abs_diff` 0.00451, `turbo-bundle verify` exited 0) and the
 npu tests passed 9, that stage assertion being the one that failed.
 
@@ -481,7 +481,7 @@ the driver compiles.
 
 ## Hardware
 
-Commit `90d7138`, on Windows Arrow Lake. The device lists as
+Commit `829d641`, on Windows Arrow Lake. The device lists as
 `Intel(R) AI Boost`, arch `arl-npu`, loader 1.28.2, driver
 `0.15.21738`. An earlier listing on that machine advertised graph
 extension 1.17. The bundle that ran was a host seal of the MiniLM
@@ -509,20 +509,20 @@ cargo test -p turbo --features npu --test conformance -- --include-ignored
 backend skips. The numerical proof is the two tests that match the
 reference.
 
-An embeddings-sealed MiniLM at tip `7cd162a` ran on intel-npu.
+An embeddings-sealed MiniLM at tip `9533e4c` ran on intel-npu.
 `cargo test -p turbo --features npu --test npu -- --include-ignored`
 with `TURBO_TEST_REQUIRE_NPU=1` passed 10, and none failed.
 `a_run_reports_its_frames_and_where_each_stage_ran` passed: lookup was
 on the host. Conformance with `TURBO_TEST_DEVICE=npu` passed 3. The
 tokenizer file hashed to
 `be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037`.
-Tip `93f0d76` is where `openvino-embeddings-f16` compiled on AI Boost
+Tip `0ee0e1a` is where `openvino-embeddings-f16` compiled on AI Boost
 (`cut_max_abs_diff` 0.00451, `turbo-bundle verify` exited 0) and the
 npu tests passed 9. The stage assertion was the failure there. The
-`7cd162a` receipt is the `ZE_GRAPH_FORMAT_NGRAPH_LITE` graph. The
+`9533e4c` receipt is the `ZE_GRAPH_FORMAT_NGRAPH_LITE` graph. The
 `NATIVE` create path was not in that commit.
 
-At tip `57c302f` the same intel-npu machine ran again. Arrow Lake, the
+At tip `5717dc5` the same intel-npu machine ran again. Arrow Lake, the
 device listed as `Intel(R) AI Boost`, driver `0.15.21738`.
 `TURBO_TEST_REQUIRE_NPU=1` and
 `cargo test -p turbo --features npu --test npu -- --include-ignored`
@@ -534,7 +534,7 @@ does not advertise `NATIVE`. The run did not create a graph with
 `ZE_GRAPH_FORMAT_NATIVE`. The code that would, when a driver advertises
 the bit, is in this tree and was not taken on that run.
 
-Two speed records that were committed at tip `228a6b3` are not in
+Two speed records that were committed in `726f1da` are not in
 this tree. Each was one two-token text at shape `[1, 128]`, TEI was
 `not_run` on both, and `benchmark_app` either exited 1 or was
 disabled. A number with no comparison is not a record here. No npu
@@ -624,7 +624,7 @@ matched install and the standard case set is measured.
 ## Still to land
 
 - A load on intel-npu whose graph is created with
-  `ZE_GRAPH_FORMAT_NATIVE`. The `57c302f` run on driver `0.15.21738`
+  `ZE_GRAPH_FORMAT_NATIVE`. The `5717dc5` run on driver `0.15.21738`
   reported `graphFormatsSupported` `0x2`. `NATIVE` (bit `0x1`) was not
   advertised, so `model_load` initialized the `NGRAPH_LITE` graph and
   did not create the native one. The code path remains for a driver
