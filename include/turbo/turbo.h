@@ -277,8 +277,7 @@ typedef struct turbo_device_info {
 typedef struct turbo_capability {
     uint32_t struct_size;
     uint32_t status;              /* TURBO_CAP_* */
-    uint32_t dtype;               /* compute dtype used, TURBO_DTYPE_*; 0 when UNSUPPORTED, or when
-                                   * only a loaded artifact's compilation decides it (npu) */
+    uint32_t dtype;               /* compute dtype used, TURBO_DTYPE_*; 0 when UNSUPPORTED */
     uint32_t options_honored;     /* bit (i-1) set: field i of the task's options struct is
                                    * honored; 0 when UNSUPPORTED */
     float    cosine_floor;        /* lowest cosine against the fp32 reference in the record, 0 if none */

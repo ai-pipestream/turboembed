@@ -23,7 +23,9 @@ use crate::backend::{
     TURBO_CAP_EXPERIMENTAL, TURBO_CAP_UNSUPPORTED, TURBO_FORMAT_OPENVINO_IR, format_bit, refuse, turbo_backend,
 };
 use crate::status::{DEVICE_UNAVAILABLE, INVALID_ARGUMENT};
-use crate::{TURBO_DEVICE_NPU, TURBO_PRECISION_EXACT, turbo_device_info, turbo_error, turbo_log_fn, write_str};
+use crate::{
+    TURBO_DEVICE_NPU, TURBO_DTYPE_F16, TURBO_PRECISION_EXACT, turbo_device_info, turbo_error, turbo_log_fn, write_str,
+};
 
 pub static BACKEND: turbo_backend = turbo_backend {
     struct_size: size_of::<turbo_backend>() as u32,
@@ -144,14 +146,15 @@ unsafe extern "C" fn capability(
             say("EXACT asks for F32 throughout, and a compiled graph computes in the dtype its IR fixed");
         } else {
             *status = TURBO_CAP_EXPERIMENTAL;
-            // No dtype is claimed before an artifact is seen: the IR's
-            // compilation fixes it, model_load reads it from the
+            // The published npu recipes declare DTYPE_F16. That is known
+            // without loading an artifact. model_load still reads the
             // compiled graph, and turbo_session_get_info reports what a
-            // session really resolved. Benchmark records name a dtype,
-            // so a 0 here also backs no SUPPORTED claim.
-            *dtype = 0;
+            // session resolved. SUPPORTED is not claimed here: the core
+            // sets it only from a benchmark record, and the reason names
+            // what that record lacks.
+            *dtype = TURBO_DTYPE_F16;
             *options_honored = EMBED_HONORED;
-            say("");
+            say("experimental: SUPPORTED waits on a benchmark record that measures a reference for this cell");
         }
     }
     0
@@ -252,7 +255,7 @@ fn driver() -> Result<Option<&'static Driver>, &'static str> {
 
 impl Driver {
     fn open() -> Result<Option<Driver>, String> {
-        let Some(api) = ze::Api::load()? else {
+        let Some(api) = ze::Api::load("npu")? else {
             return Ok(None);
         };
         let mut desc = ze::InitDriverTypeDesc {
@@ -261,11 +264,19 @@ impl Driver {
             flags: ze::INIT_DRIVER_TYPE_FLAG_NPU,
         };
         let mut n = 0u32;
-        // No NPU driver is installed: nothing to list. Any other failure
-        // says why.
+        // No NPU driver is installed: nothing to list. UNINITIALIZED is
+        // a driver that is present and did not start (on Linux, no
+        // access to the accel node), which is not an empty machine.
         match unsafe { (api.init_drivers)(&mut n, std::ptr::null_mut(), &mut desc) } {
             0 if n > 0 => {}
-            0 | ze::RESULT_ERROR_UNINITIALIZED => return Ok(None),
+            0 => return Ok(None),
+            ze::RESULT_ERROR_UNINITIALIZED => {
+                return Err(
+                    "npu: zeInitDrivers returned ZE_RESULT_ERROR_UNINITIALIZED. The loader is present and the driver \
+                     did not initialize, which on Linux is no access to the accel device node, not an absent NPU"
+                        .into(),
+                );
+            }
             rc => ze::check("zeInitDrivers", rc)?,
         }
         let mut drivers = vec![std::ptr::null_mut(); n as usize];
@@ -306,6 +317,13 @@ impl Driver {
             ze::check("zeDriverGetExtensionFunctionAddress(ZE_extension_graph)", unsafe {
                 (api.driver_get_extension_function_address)(drv, ze::GRAPH_EXT_NAME.as_ptr(), &mut table)
             })?;
+            if table.is_null() {
+                skipped.push(format!(
+                    "{} NPU device(s): zeDriverGetExtensionFunctionAddress returned success and a null ZE_extension_graph table",
+                    npus.len()
+                ));
+                continue;
+            }
             let ext = unsafe { ze::GraphExt::new(table as *const ze::GraphDdi, ext_version) };
             for (dev, p) in npus {
                 // The probe: the device must answer for its own graph

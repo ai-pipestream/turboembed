@@ -1,17 +1,19 @@
 //! OpenVINO, the kernel reference for Intel GPUs and for the NPU: its
-//! `benchmark_app` in an OpenVINO container, pinned by digest, compiling
-//! the ONNX file the bundle carries and timing it on the same token rows,
-//! one request at a time. Level Zero measures the GPU (`-d GPU`, the DRI
-//! nodes). The NPU backend measures the NPU (`-d NPU`). On Linux the
-//! container is given the accel device node. On a machine whose container
-//! cannot see the NPU driver (the Windows intel-npu host), `benchmark_app`
-//! installed with OpenVINO runs in place of the container
+//! `benchmark_app` in an OpenVINO container, pinned by digest, timing the
+//! same token rows, one request at a time. Level Zero measures the GPU
+//! (`-d GPU`, the DRI nodes) from the bundle's ONNX file. The NPU
+//! reference measures the NPU (`-d NPU`) from the static OpenVINO IR
+//! (`model.xml` and `model.bin`), never from `onnx/model.onnx`. On Linux
+//! the container is given the accel device node. On a machine whose
+//! container cannot see the NPU driver (the Windows intel-npu host),
+//! `benchmark_app` installed with OpenVINO runs in place of the container
 //! (`--openvino-bin`), pinned by the binary's SHA-256.
 //!
-//! The library never executes ONNX; a reference program may. A bundle
-//! with no FORMAT_ONNX artifact gives a record that says benchmark_app
-//! could not run. As for trtexec, the graph stops at the hidden states,
-//! so its time has no pooling or normalization in it.
+//! The library never executes ONNX and never links OpenVINO. The NPU
+//! product path is the Level Zero graph extension and FORMAT_OPENVINO_IR.
+//! A bundle with no file for the device's reference gives a record that
+//! says benchmark_app could not run. As for trtexec, the graph stops at
+//! the hidden states, so its time has no pooling or normalization in it.
 //!
 //! benchmark_app reports one latency percentile per run
 //! (`-latency_percentile`, the median by default), so the tool runs it
@@ -22,6 +24,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use turbo::bundle::{Bundle, sha256_hex};
+use turbo::manifest::{Format, GraphInput, Manifest};
 use turbo::record::{Measured, ReferenceRun};
 use turbo::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
@@ -342,10 +345,28 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
     }
 }
 
-/// The bundle's upstream ONNX file, or why there is none to run:
-/// benchmark_app sets the precision itself (`-infer_precision`).
-pub fn onnx_file(m: &Measurement) -> std::result::Result<String, String> {
-    onnx::file(&m.manifest, None, "for benchmark_app to compile")
+/// The file `benchmark_app -m` is given. GPU compiles the upstream ONNX
+/// file. NPU compiles the static token-id IR (the xml; the bin sits
+/// beside it). The dynamic ONNX file is not the NPU input.
+pub fn model_file(device: &str, manifest: &Manifest) -> std::result::Result<String, String> {
+    if device == DEVICE_NPU {
+        let ir = manifest.artifacts.iter().find(|a| {
+            a.format == Format::OpenvinoIr
+                && a.graph_input == GraphInput::TokenIds
+                && a.backends.iter().any(|b| b == "npu")
+        });
+        match ir.map(|a| a.files.as_slice()) {
+            Some([xml, ..]) if xml.ends_with(".xml") => Ok(xml.clone()),
+            Some(_) => Err("the npu OpenVINO IR's first file is not the xml benchmark_app -d NPU compiles".into()),
+            None => {
+                Err("the bundle carries no static OpenVINO IR (FORMAT_OPENVINO_IR, INPUT_TOKEN_IDS, backend npu) for \
+                 benchmark_app -d NPU. The NPU plugin is not given onnx/model.onnx"
+                    .into())
+            }
+        }
+    } else {
+        onnx::file(manifest, None, "for benchmark_app to compile")
+    }
 }
 
 /// The measured reference from the median run and the 99th percentile
@@ -406,15 +427,16 @@ pub fn run(o: &OpenVino, m: &Measurement, iterations: u32) -> Result<ReferenceRu
     };
     let image = pinned.as_str();
     let own = if o.binary.is_some() { ", the machine's own (--openvino-bin)," } else { "" };
+    let graph = if o.device == DEVICE_NPU { "static OpenVINO IR" } else { "ONNX file" };
     let procedure = format!(
-        "benchmark_app{own} compiles the bundle's ONNX file for the {} at the batch's static [{}, {}] shape and times \
+        "benchmark_app{own} compiles the bundle's {graph} for the {} at the batch's static [{}, {}] shape and times \
          {iterations} synchronous inferences of the rows loaded from files, one request, after its one warm-up \
          inference; it runs twice with the same arguments, -latency_percentile 50 then 99, and p50 and p99 are \
          those runs' latencies; rows per second is the median run's count times the batch over its duration",
         o.device, m.rows.batch, m.rows.seq
     );
     let log = Log::default();
-    let model = match onnx_file(m) {
+    let model = match model_file(&o.device, &m.manifest) {
         Ok(f) => f,
         Err(why) => return Ok(not_run(image, log, &procedure, why)),
     };

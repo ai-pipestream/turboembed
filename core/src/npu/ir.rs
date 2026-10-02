@@ -10,12 +10,14 @@
 //!
 //! The compiler also takes the graph's boundary in pBuildFlags:
 //! --inputs_precisions, --inputs_layouts, --outputs_precisions and
-//! --outputs_layouts, each argument named by its index (compilers 5.9 and
-//! later; this backend refuses older ones rather than guessing names).
+//! --outputs_layouts. Each entry is keyed by the Parameter or Result
+//! name, the same name a compiled argument is matched by. An index taken
+//! from XML document order is not that name: when every port has the
+//! same precision and layout, a swapped index still passes the later
+//! layout check.
 //! `interface` reads what those flags need, and nothing else, from the
 //! IR's xml: each Parameter layer's element type and rank, and each
-//! Result layer's port precision and rank, in document order, which is
-//! the order the IR front end numbers them in.
+//! Result layer's port precision and rank.
 
 /// One Parameter or Result of the IR: what the build flags say about it.
 #[derive(Debug, PartialEq, Eq)]
@@ -236,9 +238,14 @@ pub fn interface(xml: &[u8]) -> Result<Interface, String> {
     Ok(io)
 }
 
-/// The compiler's build flags for the boundary, each argument named by
-/// its index, exactly as OpenVINO's adapter writes them for compilers 5.9
-/// and later.
+/// The compiler's build flags for the boundary. Each entry is
+/// `<name>:<value>`, the Parameter or Result name, so the flag follows
+/// the port the compiled argument is matched by. OpenVINO's NPU adapter
+/// from compiler 5.9 writes these as `<index>:<value>` in
+/// `model->get_parameters()` order. An index is the XML document order
+/// when that order matches the parameter list, and it is the wrong key
+/// when it does not. The flags here use the name. A 5.9 compiler that
+/// accepts only the index form has not been measured on a device.
 pub fn build_flags(io: &Interface) -> Result<String, String> {
     let group = |ports: &[Port], value: &dyn Fn(&Port) -> Result<String, String>| -> Result<String, String> {
         let mut s = String::new();
@@ -246,7 +253,10 @@ pub fn build_flags(io: &Interface) -> Result<String, String> {
             if i > 0 {
                 s.push(' ');
             }
-            s.push_str(&format!("{i}:{}", value(p)?));
+            if p.name.is_empty() {
+                return Err("npu: a build flag has no Parameter or Result name".to_string());
+            }
+            s.push_str(&format!("{}:{}", p.name, value(p)?));
         }
         Ok(s)
     };
@@ -342,8 +352,9 @@ mod tests {
         let io = interface(XML.as_bytes()).unwrap();
         assert_eq!(
             build_flags(&io).unwrap(),
-            "--inputs_precisions=\"0:I64 1:I64 2:I64\" --inputs_layouts=\"0:NC 1:NC 2:NC\" \
-             --outputs_precisions=\"0:FP32\" --outputs_layouts=\"0:CHW\""
+            "--inputs_precisions=\"input_ids:I64 attention_mask:I64 token_type_ids:I64\" \
+             --inputs_layouts=\"input_ids:NC attention_mask:NC token_type_ids:NC\" \
+             --outputs_precisions=\"last_hidden_state:FP32\" --outputs_layouts=\"last_hidden_state:CHW\""
         );
     }
 
@@ -411,9 +422,34 @@ mod tests {
         assert_eq!(io.outputs[0].precision, "FP16");
         assert_eq!(
             build_flags(&io).unwrap(),
-            "--inputs_precisions=\"0:FP32 1:FP32\" --inputs_layouts=\"0:CHW 1:NCHW\" \
-             --outputs_precisions=\"0:FP16\" --outputs_layouts=\"0:CHW\""
+            "--inputs_precisions=\"word_rows:FP32 attn_bias:FP32\" --inputs_layouts=\"word_rows:CHW attn_bias:NCHW\" \
+             --outputs_precisions=\"last_hidden_state:FP16\" --outputs_layouts=\"last_hidden_state:CHW\""
         );
+    }
+
+    /// attn_bias listed before word_rows still names each layout. An index
+    /// from document order would call the bias CHW and the rows NCHW.
+    #[test]
+    fn the_flags_follow_the_parameter_name_when_the_xml_order_changes() {
+        let xml = r#"<?xml version="1.0"?>
+<net name="cut" version="11">
+    <layers>
+        <layer id="0" name="attn_bias" type="Parameter" version="opset1">
+            <data shape="1,12,128,128" element_type="f32" />
+        </layer>
+        <layer id="1" name="word_rows" type="Parameter" version="opset1">
+            <data shape="1,128,384" element_type="f32" />
+        </layer>
+        <layer id="2" name="last_hidden_state" type="Result" version="opset1">
+            <input><port id="0" precision="FP16"><dim>1</dim><dim>128</dim><dim>384</dim></port></input>
+        </layer>
+    </layers>
+</net>"#;
+        let flags = build_flags(&interface(xml.as_bytes()).unwrap()).unwrap();
+        assert!(flags.contains("attn_bias:NCHW"), "{flags}");
+        assert!(flags.contains("word_rows:CHW"), "{flags}");
+        assert!(flags.contains("last_hidden_state:FP16"), "{flags}");
+        assert!(!flags.contains("0:"), "{flags}");
     }
 
     #[test]

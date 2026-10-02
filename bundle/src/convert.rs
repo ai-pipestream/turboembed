@@ -289,8 +289,7 @@ fn ir_conversion(
     if embeddings {
         let tokenizer = recipe.str_at("/tokenizer/file")?;
         let calibration = calibration_texts(recipe).map_err(|e| refuse(&e))?;
-        // The container sees the staged bundle at /bundle. A host run of
-        // the script passes the same files by their own paths (docs/npu.md).
+        // The container sees the staged bundle at /bundle.
         args.extend([
             "--cut".into(),
             "embeddings".into(),

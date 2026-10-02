@@ -94,11 +94,14 @@ No build variables: there is nothing to point at.
   honoring `normalize`, `pooling` and `output_dim` (the core owns
   `truncate`, `max_tokens` and `prompt_role`, and sets their bits
   itself, so `turbo_capability.options_honored` reads 0b111111). The
-  reported dtype is 0: no dtype is claimed before an artifact is seen,
-  because the IR's compilation fixes it; `model_load` reads it from
-  the compiled graph and `turbo_session_get_info` says what a session
-  really resolved. A benchmark record names a dtype, so the 0 also
-  backs no SUPPORTED claim. `EXACT` is UNSUPPORTED: a compiled graph
+  reported dtype is `TURBO_DTYPE_F16`, the compute dtype the published
+  npu recipes declare, which the backend knows without loading an
+  artifact. `model_load` still reads the compiled graph, and
+  `turbo_session_get_info` says what a session really resolved.
+  `SUPPORTED` is withheld by name: the core sets it only from a
+  benchmark record, and `reason` says what that record lacks. A dtype
+  of 0 is not used to keep a record from matching. `EXACT` is
+  UNSUPPORTED: a compiled graph
   computes in the dtype its IR fixed, never F32 throughout. The
   backend never claims SUPPORTED; only the core says that, and only
   over a benchmark record.
@@ -254,8 +257,8 @@ argument at that precision. `model_load` then refuses a manifest
 That check stays. The script sets each output tensor to f16 with
 `PrePostProcessor` before saving, which is the step OpenVINO's NPU
 compile tool takes for an FP16 output (`-op FP16`). The saved Result
-port is FP16, the flag is `0:FP16`, and the script exits if a Result
-is anything else. The ids stay integer. That is the same weight
+port is FP16, the flag names that Result (`last_hidden_state:FP16`),
+and the script exits if a Result is anything else. The ids stay integer. That is the same weight
 compression `ovc` performs
 (`ovc onnx/model.onnx --input "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]" --compress_to_fp16=True --output_model openvino/model.xml`),
 plus the output conversion and the opset lowering. The script is what
@@ -281,7 +284,14 @@ recipe's `reference.produced_by.container` is the image built from
 That string is `turbo-reference@` plus `docker image inspect --format "{{.Id}}" turbo-reference`
 after `docker build -t turbo-reference bundle/reference`. A later build
 gets a new id, and the pin moves with it. The bge recipes still name
-an older image, which does not contain this script.
+an older image (`sha256:0e153c1d...` on the machines that have it),
+which does not contain this script. This environment has the
+`994f2d1b` image locally. The pin is a local image id, not a registry
+name, so it cannot be published from here onto those machines.
+Pinning `0e153c1d` would point the IR conversion at an image that
+does not contain `onnx_to_openvino_ir.py`. The pin stays
+`994f2d1b` until the Dockerfile is built on a machine the team uses
+and that image id replaces it. That publish is still open.
 
 From the workspace root, on Linux or on Windows with Docker Desktop
 (PowerShell; the same commands):
@@ -309,54 +319,16 @@ identical bytes). That Linux seal is not the hardware session. The
 Arrow Lake session is recorded under Hardware. The weights, the
 ONNX files, and the IR are not in git.
 
-On the Arrow Lake machine, where OpenVINO 2026.3 is already installed
-and Docker Desktop is not, the host script produces the same two IR
-files, and `turbo-bundle seal` writes the manifest from them without
-running docker.
-
-With that install's `python` on `PATH` (`py -3.12` is the usual
-launcher), after `fetch` has put the export in `<upstream>`:
-
-```
-py -3.12 -c "import openvino; print(openvino.get_version())"
-mkdir <bundle>\openvino
-py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.onnx <bundle>\openvino\model.xml <bundle>\openvino\model.bin <bundle>\openvino\report.json --seq 128 --batch 1 --max-opset 11
-```
-
-The first line must print a 2026.3 version. The script refuses an input
-whose rank is not 2, a layer opset above `--max-opset`, and a Result
-port that is not FP16. Omitting `--max-opset` is the same cap, 11.
-`openvino\report.json` is the token-id IR's `produced_by` report.
-`seal` opens `<file>.report.json` first (`openvino\model.xml.report.json`),
-then `report.json` in that file's directory when the named report is
-absent. It does not leave the report in the bundle. The report names
-no container, so the manifest records `container` `host` and
-`reproducible` false: the script ran once on the machine, not twice in
-the pinned image.
-
-The loader still checks the reference file, and `seal` does not run the
-container that writes it. The file this pin sealed, and the report, are
-in the repo:
-
-```
-bundle/reference/out/all-minilm-l6-v2/reference.safetensors
-bundle/reference/out/all-minilm-l6-v2/report.json
-```
-
-`reference.safetensors` is 23292 bytes, SHA-256
-`b773a9f83f5017e5bbcb26ffd9a5087d5def4aa68e8c199598869231398b795b`.
-`report.json` is that sealed bundle's `reference.produced_by`, and its
-`container` is the pin above. Copy them to
-`<bundle>\reference\reference.safetensors` and
-`<bundle>\reference\report.json`. Keep the host-produced
-`openvino\model.xml`, `openvino\model.bin`, and `openvino\report.json`.
-`seal` does not fill the container in. The F16 ONNX file, the HEF,
-and `openvino-embeddings-f16` are left out of the manifest when their
-files are not in the bundle; they are not claimed as made. The token-id
-IR is not optional: a seal without both of its files is refused. A seal that copied these two files and a
-host IR report verified here: the IR is recorded as `container` `host`
-and `reproducible` false, and the reference keeps the pin. Then, from
-the repo root:
+A machine without Docker does not run the script on the host. Make
+the bundle on a Linux machine that has the pinned image, and copy the
+sealed bundle over. `seal` assembles a manifest from files a container
+already wrote. Each conversion report names that image. A report with
+no container, or with `container` `host`, is refused. `seal` opens
+`<file>.report.json` first. For the token-id IR that name is
+`model.xml.report.json` in the openvino directory. `report.json` in
+that file's directory is used when the named report is absent. It does not leave the report in the bundle. A conversion
+whose files are absent is omitted. A partial IR (the xml without the
+weights, or the files without the report) is refused.
 
 ```
 cargo run -p turbo-bundle -- seal bundle/recipes/all-minilm-l6-v2.json <upstream> <bundle>
@@ -365,8 +337,7 @@ cargo run -p turbo-bundle -- seal bundle/recipes/all-minilm-l6-v2.json <upstream
 `<bundle>` must not already hold a `manifest.json`. `seal` copies the
 upstream files the remaining artifacts name, checks each recipe-local
 file it still carries against its pin, fills `files` with sizes and
-SHA-256, and verifies through the core. A partial IR (the xml without
-the weights, or the files without the report `seal` opens) is refused.
+SHA-256, and verifies through the core.
 
 ### The embeddings cut
 
@@ -374,13 +345,8 @@ the weights, or the files without the report `seal` opens) is refused.
 `host_weights` `weights-f32`, the same frame (`fixed_seq` 128,
 `fixed_batch` 1). The script cuts the export, checks the ONNX cut
 against it, lowers the graph, saves the IR, and checks that saved IR
-again. On the same OpenVINO 2026.3 install:
-
-```
-py -3.12 <repo>\bundle\reference\onnx_to_openvino_ir.py <upstream>\onnx\model.onnx <bundle>\openvino\embeddings.xml <bundle>\openvino\embeddings.bin <bundle>\openvino\embeddings.xml.report.json --seq 128 --batch 1 --max-opset 11 --cut embeddings --heads 12 --tokenizer <upstream>\tokenizer.json --calibration <repo>\bundle\recipes\all-minilm-l6-v2.calibration.jsonl
-```
-
-The fourth path is the report `seal` opens for this artifact:
+again. The container runs the same script with `--cut embeddings`. The
+report `seal` opens for this artifact is:
 `openvino\embeddings.xml.report.json`. It is not `openvino\report.json`.
 That file is the token-id IR's report, and a seal of both files that
 bound it here would be refused. The embeddings report must contain
@@ -518,10 +484,11 @@ the driver compiles.
 Commit `90d7138`, on Windows Arrow Lake. The device lists as
 `Intel(R) AI Boost`, arch `arl-npu`, loader 1.28.2, driver
 `0.15.21738`. An earlier listing on that machine advertised graph
-extension 1.17. The bundle was a host seal of the MiniLM
-`openvino-f16` IR: `container` `host`, `reproducible` false. The
-reference file copied into that seal is
-`bundle/reference/out/all-minilm-l6-v2/`.
+extension 1.17. The bundle that ran was a host seal of the MiniLM
+`openvino-f16` IR (`container` `host`, `reproducible` false). That
+host path is gone: a conversion report must name the pinned image,
+and the copied reference under `bundle/reference/out/` is not in
+this tree.
 
 ```
 set TURBO_TEST_REQUIRE_NPU=1
@@ -567,55 +534,29 @@ does not advertise `NATIVE`. The run did not create a graph with
 `ZE_GRAPH_FORMAT_NATIVE`. The code that would, when a driver advertises
 the bit, is in this tree and was not taken on that run.
 
-At tip `228a6b3` the tree holds two speed records measured on intel-npu.
-Each file's `library.commit` is `2b7c942`. The device is
-`Intel(R) AI Boost`, arch `arl-npu`, loader `1.28.2`, driver
-`0.15.21738`, the same part as the `57c302f` receipt. Both are the
-token-id MiniLM seal (`openvino-f16`), `ROWS_MIXED`, batch 1, seq 128,
-`computed_tokens` 128, `live_tokens` 2, `DTYPE_F16`,
-`TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE`, and
-`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. Conformance on both is 9 rows,
-min cosine `0.999996097954919`, max abs diff `0.000713348388671875`.
-`speed_ratio` is null on both. TEI is `not_run` (`--no-tei`) on both.
-The recorded format is `NGRAPH_LITE`, which is what `model_load` writes
-when bit `0x1` is clear. These runs did not create a graph with
-`ZE_GRAPH_FORMAT_NATIVE`.
-
-`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-f7411123.2b7c9421eea1.json`
-is `PRECISION_FASTEST`, recorded `2026-10-01T22:55:22Z`. After 20
-warmup runs, 200 timed runs give p50 `3.7566` ms, p99 `4.038` ms, and
-`267.2739844323595` rows per second. OpenVINO is `not_run`:
-`benchmark_app` exited with code 1,
-`Exception from src\inference\src\cpp\core.cpp:120:`. The binary is
-pinned
-`benchmark-app@sha256:929658b399f0c1273958906c14f6640929402d4fd7e1033946b57443decea7c8`.
-The recorded command asks for shape `[1, 128]`.
-
-`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-f7411123.2b7c9421eea1.json`
-is `PRECISION_MODEL`, recorded `2026-10-01T23:23:12Z`. p50 `3.7575` ms,
-p99 `4.126` ms, `266.54199609036203` rows per second. OpenVINO is
-`not_run` because `--no-openvino` was passed. That record did not run
-`benchmark_app`.
-
-Capability stays `EXPERIMENTAL` at `MODEL` and `FASTEST`. The dtype
-reported before a model is loaded is 0, and neither record measured a
-reference, so neither moves its cell to `SUPPORTED`. `EXACT` stays
-`UNSUPPORTED`. The backend does not claim `SUPPORTED`. The
-output-precision check is unchanged: FP16 is `DTYPE_F16`, FP32 is
+Two speed records that were committed at tip `228a6b3` are not in
+this tree. Each was one two-token text at shape `[1, 128]`, TEI was
+`not_run` on both, and `benchmark_app` either exited 1 or was
+disabled. A number with no comparison is not a record here. No npu
+speed record is committed. Capability stays `EXPERIMENTAL` at
+`MODEL` and `FASTEST`, reporting `TURBO_DTYPE_F16` before a load.
+`EXACT` stays `UNSUPPORTED`. The backend does not claim `SUPPORTED`.
+The output-precision check is unchanged: FP16 is `DTYPE_F16`, FP32 is
 `DTYPE_F32`, and a manifest `compute_dtype` that names the other is
 refused.
 
 ## Speed
 
-Two npu records are under `benchmarks/records/`, committed at tip
-`228a6b3` and measured from library commit `2b7c942`. The figures are
-in Hardware, above. The harness is `turbo-bench` with `--features npu`
-(docs/benchmarks.md). It measures the library on `--device npu` and
-the same two references levelzero uses. OpenVINO `benchmark_app` is
-the kernel reference. TEI's CPU image is the end-to-end baseline.
-Both are references only. The product path stays the Level Zero graph
-extension. On these two records both references are `not_run`, so
-`speed_ratio` is null.
+No npu speed record is committed. The harness is `turbo-bench` with
+`--features npu` (docs/benchmarks.md). It measures the library on
+`--device npu`. OpenVINO `benchmark_app` is the kernel reference.
+TEI's CPU image is the end-to-end baseline. Both are references only.
+The product path stays the Level Zero graph extension and
+`FORMAT_OPENVINO_IR`. It does not run ONNX and it does not link
+OpenVINO. An npu record is worth committing once the input is the
+standard case set in `[1, 128]` frames and `benchmark_app` runs
+with an OpenVINO install matched to the NPU driver. That has not
+happened.
 
 The model is `sentence-transformers/all-MiniLM-L6-v2`, the one the
 other optimized paths record. The published shape on the token-id seal
@@ -647,26 +588,38 @@ record is a different cell. The format is what the device selected.
 Setting an environment variable does not change it.
 
 An embeddings-sealed copy (`openvino-embeddings-f16`,
-`INPUT_EMBEDDINGS`) is the host-gather path. `benchmark_app` still
-compiles the full ONNX encoder, which includes the lookup the cut
-removed. The tool refuses a `speed_ratio` for that artifact. A
-library-only record is `--no-tei` and `--no-openvino` together, and
-its `speed_ratio` stays null.
+`INPUT_EMBEDDINGS`) is the host-gather path. `benchmark_app -d NPU`
+compiles the static token-id IR, which is not that cut. The tool
+refuses a `speed_ratio` for the embeddings artifact. A library-only
+record is `--no-tei` and `--no-openvino` together, and its
+`speed_ratio` stays null.
 
 Labels. The machine in a published record is the device arch, `arl-npu`
 on this part, and the device name the driver reports. Do not put a
 hostname in the record; the tool rewrites host paths, and a home
 directory is refused. Capability stays `EXPERIMENTAL`.
 
-The two files are separate cells at the same shape. The fastest record
-ran `benchmark_app` and it exited 1. The model record passed
-`--no-openvino` and did not run it. `--no-tei` on both says TEI was
-not run. A disabled reference is recorded as not run. It is not filled
-with a time. A later run that gets a measured OpenVINO p50 is what
-would set `speed_ratio`. On Linux the container is given
-`/dev/accel/accel0` unless `--openvino-accel` names another node.
-Several NPUs are refused, because `-d NPU` is OpenVINO's first device
-and the command has no per-device index.
+On Linux the container is given `/dev/accel/accel0` unless
+`--openvino-accel` names another node. Several NPUs are refused,
+because `-d NPU` is OpenVINO's first device and the command has no
+per-device index.
+
+`benchmark_app -d NPU` is given `openvino/model.xml` (the bin sits
+beside it), not `onnx/model.onnx`. On intel-npu that command fails
+at compile. The report says IR serialized API found 8.1, expected
+8.2, and NPU-VCL returns
+`ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file is not the
+versioned party. The OpenVINO NPU plugin re-serializes the graph for
+the driver, and the library already compiles this same IR through
+the Level Zero graph extension. The credible gap is the OpenVINO
+package and the NPU driver compiler out of step, for example
+OpenVINO 2026.3 against driver `0.15.x`. The fix is an OpenVINO
+install matched to that driver, or a driver update from Intel's
+pairing table. Passing the dynamic ONNX file instead fails earlier,
+at `core.cpp:120`, and that file is not the NPU reference input.
+Neither failure is a timing. This reference is still open. No new
+npu speed record is committed until `benchmark_app` runs with a
+matched install and the standard case set is measured.
 
 ## Still to land
 
@@ -678,15 +631,26 @@ and the command has no per-device index.
   that lists the bit. That create has not been exercised on hardware.
   A record from that driver would say `TURBO_NPU_GRAPH_FORMAT=NATIVE`
   and would not match an `NGRAPH_LITE` cell.
-- OpenVINO `speed_ratio`. Both committed cells leave it null. On the
-  fastest record `benchmark_app` exited 1. On the model record
-  OpenVINO was disabled with `--no-openvino`. TEI is disabled on both.
-  A measured kernel reference is still open. The library timings in
-  Hardware stand on their own.
-- A `NATIVE` timing. Both committed cells say
-  `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` on driver `0.15.21738`. A
-  record from a driver that advertises bit `0x1` would say `NATIVE`
-  and would not match these cells.
+- OpenVINO `speed_ratio`. No npu record is committed. On intel-npu,
+  `benchmark_app -d NPU` on the static IR (`model.xml` + `model.bin`)
+  fails at compile. The report says IR serialized API found 8.1,
+  expected 8.2, and NPU-VCL returns
+  `ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file is not the
+  versioned party: the plugin re-serializes for the driver, and the
+  library already compiles this IR through the graph extension. The
+  OpenVINO package and the NPU driver compiler are out of step
+  (OpenVINO 2026.3 against driver `0.15.x` is the example). Still
+  open until `benchmark_app` runs with an OpenVINO install matched
+  to the driver, or with a driver from Intel's pairing table. The
+  earlier `core.cpp:120` failure was the dynamic ONNX file, which
+  is not the NPU reference input.
+- Publishing `turbo-reference@sha256:994f2d1b...`. This environment
+  has that image locally. Team machines have `sha256:0e153c1d...`,
+  which does not contain `onnx_to_openvino_ir.py`. The pin is a local
+  image id. It has not been published to those machines.
+- A `NATIVE` timing. Driver `0.15.21738` reports
+  `graphFormatsSupported` `0x2`. A record from a driver that
+  advertises bit `0x1` would say `NATIVE`.
 - Host-only CI. `test (npu)` on GitHub Actions is `ubuntu-24.04` with
   no device. The ignored NPU tests are not that job. There is no
   self-hosted NPU runner. See Host-only blocker.

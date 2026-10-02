@@ -35,6 +35,8 @@ pub mod status;
 pub mod tokenizer;
 pub mod tuning;
 pub mod unigram;
+#[cfg(any(feature = "levelzero", feature = "npu"))]
+pub mod ze;
 
 pub use session::*;
 

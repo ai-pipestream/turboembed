@@ -766,6 +766,8 @@ fn recipe_manifest() -> turbo::manifest::Manifest {
 fn the_runners_find_the_recipes_onnx_file_by_its_format() {
     let m = recipe_manifest();
     assert_eq!(turbo_bench::onnx::file(&m, None, "for a program").unwrap(), "onnx/model.onnx");
+    assert_eq!(openvino::model_file(openvino::DEVICE_GPU, &m).unwrap(), "onnx/model.onnx");
+    assert_eq!(openvino::model_file(openvino::DEVICE_NPU, &m).unwrap(), "openvino/model.xml");
     assert_eq!(turbo_bench::onnx::file(&m, Some(Dtype::F16), "for a program").unwrap(), "onnx/model-f16.onnx");
     assert_eq!(
         turbo_bench::onnx::file(&m, Some(Dtype::Bf16), "for a program").unwrap_err(),
@@ -872,17 +874,20 @@ fn benchmark_app_on_the_npu_is_not_given_the_gpu() {
     o.device = openvino::DEVICE_NPU.into();
     o.accel = "/dev/accel/accel0".into();
     let precision = openvino::infer_precision(openvino::DEVICE_NPU, TURBO_DTYPE_F16).unwrap();
-    let a = openvino::run_argv(&o, Path::new("/b"), Path::new("/w"), "onnx/model.onnx", 44, &rows, 200, precision, 50);
+    let a =
+        openvino::run_argv(&o, Path::new("/b"), Path::new("/w"), "openvino/model.xml", 44, &rows, 200, precision, 50);
     assert!(a.iter().any(|s| s == "-d"));
     assert!(a.contains(&"NPU".to_owned()));
     assert!(!a.iter().any(|s| s.contains("/dev/dri")), "the NPU container is not given the GPU nodes: {a:?}");
     assert!(a.iter().any(|s| s == "/dev/accel/accel0"));
+    assert!(a.iter().any(|s| s.ends_with("openvino/model.xml")), "{a:?}");
+    assert!(!a.iter().any(|s| s.ends_with("onnx/model.onnx")), "{a:?}");
     let shown = openvino::native_argv(
         &o,
         openvino::BENCHMARK_APP_BIN,
         Path::new("<bundle>"),
         Path::new("<work>"),
-        "onnx/model.onnx",
+        "openvino/model.xml",
         &rows,
         200,
         precision,

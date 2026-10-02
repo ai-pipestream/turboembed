@@ -55,6 +55,24 @@ fn fail_field(code: i32, field: u32, message: impl Into<String>) -> Fail {
     Fail { code, field, message: message.into() }
 }
 
+/// How long a command list may be waited on. The wait holds the
+/// context lock, so a device that never finishes must come back as an
+/// error instead of blocking every model on the context.
+const DEVICE_WAIT_NS: u64 = 30_000_000_000;
+
+fn wait_for_device(api: &ze::Api, list: Handle, ordinal: u32, what: &str) -> Res<()> {
+    let rc = unsafe { (api.command_list_host_synchronize)(list, DEVICE_WAIT_NS) };
+    if rc == 0 {
+        return Ok(());
+    }
+    Err(fail(
+        RUNTIME,
+        format!(
+            "npu device {ordinal}: the device did not answer {what} within 30s (zeCommandListHostSynchronize 0x{rc:08x})"
+        ),
+    ))
+}
+
 /// A Level Zero status as a refusal: running out of memory is
 /// OUT_OF_MEMORY, anything else RUNTIME with the call and its code.
 pub(crate) fn ze_res(what: &str, rc: ze::Status) -> Res<()> {
@@ -156,7 +174,7 @@ impl Context {
         self.with_list(|list| {
             let null = std::ptr::null_mut();
             ze_res("pfnAppendGraphExecute", unsafe { execute(list, graph, null, null, 0, std::ptr::null_mut()) })?;
-            ze_res("zeCommandListHostSynchronize", unsafe { (self.api.command_list_host_synchronize)(list, u64::MAX) })
+            wait_for_device(self.api, list, self.ordinal, "pfnAppendGraphExecute")
         })
     }
 }
@@ -997,7 +1015,7 @@ fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
     if (maj, min) < (5, 9) {
         return Err(fail(
             UNSUPPORTED,
-            format!("npu: the driver's compiler is {maj}.{min}; indexed IO build flags need 5.9 or later"),
+            format!("npu: the driver's compiler is {maj}.{min}; this IR path needs 5.9 or later"),
         ));
     }
     if ctx.ext.create2().is_none() {
@@ -1176,9 +1194,15 @@ fn describe(
             index: i,
             precision: a.device_precision,
             elem: elem_bytes(&format!("argument {name:?}"), a.device_precision)?,
-            name,
+            name: name.clone(),
         };
-        let rank = if a.dims_count != 0 { a.dims_count } else { a.dims.iter().take_while(|&&d| d > 0).count() as u32 };
+        if a.dims_count == 0 {
+            return Err(fail(
+                RUNTIME,
+                format!("npu: argument {name:?} reports dims_count 0; the rank is not guessed from the dimension list"),
+            ));
+        }
+        let rank = a.dims_count;
         let compiled = Compiled { arg, dims: a.dims, rank, layout: a.device_layout };
         match a.kind {
             ze::GRAPH_ARGUMENT_TYPE_INPUT => inputs.push(compiled),
@@ -1222,9 +1246,7 @@ fn describe(
                 ze_res("pfnAppendGraphInitialize", unsafe {
                     init(list, graph, std::ptr::null_mut(), 0, std::ptr::null_mut())
                 })?;
-                ze_res("zeCommandListHostSynchronize", unsafe {
-                    (ctx.api.command_list_host_synchronize)(list, u64::MAX)
-                })
+                wait_for_device(ctx.api, list, ctx.ordinal, "pfnAppendGraphInitialize")
             })?;
         }
         s => {

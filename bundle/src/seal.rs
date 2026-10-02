@@ -48,16 +48,16 @@ fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BT
 }
 
 /// Seal a bundle from files already in `bundle`, without running a
-/// container. The reference file and its report must already be there.
-/// An OpenVINO IR the recipe converts must already be there too, with
-/// the report `onnx_to_openvino_ir.py` writes; that report names no
-/// container, and the manifest records `host`. Any other conversion
-/// whose files are absent is left out of the manifest, and one whose
-/// files are present must bring a report that names its container.
-/// A report is `<file>.report.json`, or `report.json` in the output
-/// file's directory when that named report is absent. The named file
-/// wins, so two IRs in one directory do not share a receipt. The
-/// report is not left in the bundle.
+/// container. The reference file and its report must already be there,
+/// and that report names the image that wrote it. A conversion whose
+/// files are absent is left out of the manifest. One whose files are
+/// present must bring a report that names the image that produced them.
+/// `container` `host` is refused: a vendor tool runs in the pinned
+/// image, and a machine without Docker copies a bundle sealed where
+/// that image runs. A report is `<file>.report.json`, or `report.json`
+/// in the output file's directory when that named report is absent.
+/// The named file wins, so two IRs in one directory do not share a
+/// receipt. The report is not left in the bundle.
 pub fn seal_staged(recipe: &mut Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
     if bundle.join("manifest.json").exists() {
         return Err(format!("{} already holds a bundle; make it into an empty directory", bundle.display()));
@@ -84,19 +84,9 @@ pub fn seal_staged(recipe: &mut Recipe, upstream: &Path, bundle: &Path) -> Resul
     for c in crate::convert::conversions(recipe)? {
         match staged_outputs(bundle, &c)? {
             Staged::Absent => {
-                // A token-id IR is the artifact a host seal of this backend
-                // is expected to have. The embeddings cut is a second IR:
-                // absent files omit it, the way a missing HEF is omitted,
-                // so a seal of the token-id IR still finishes. A partial
-                // pair is still an error, from staged_outputs.
-                let embeddings_cut = c.args.iter().any(|a| a == "embeddings");
-                if c.script == crate::convert::ONNX_TO_OPENVINO_IR && !embeddings_cut {
-                    return Err(format!(
-                        "{}: {} and its weights must already be in the bundle. This command does not run docker \
-                         (docs/npu.md)",
-                        c.name, c.file
-                    ));
-                }
+                // The files are what a container run left. An IR that was
+                // not produced is omitted, the same as a missing HEF. A
+                // partial pair is still an error, from staged_outputs.
                 println!("seal: omitted {} ({} is not in the bundle)", c.name, c.file);
                 drop_names.push(c.name);
             }
@@ -113,11 +103,8 @@ pub fn seal_staged(recipe: &mut Recipe, upstream: &Path, bundle: &Path) -> Resul
     recipe.manifest = manifest;
 
     let reported = read_json(&reports[0])?;
-    let container = reported["container"].as_str().ok_or(
-        "reference/report.json has no container. Copy reference.produced_by from a bundle sealed with the pinned \
-         image; this command does not run that image and does not fill the field in",
-    )?;
-    let produced_by = crate::reference::produced_by(&reported, container)?;
+    let container = image_container("reference", reported["container"].as_str())?;
+    let produced_by = crate::reference::produced_by(&reported, &container)?;
     for path in &reports {
         fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
     }
@@ -156,8 +143,8 @@ fn staged_outputs(bundle: &Path, c: &crate::convert::Conversion) -> Result<Stage
     }
     Ok(Staged::Ready(find_report(bundle, &c.file).ok_or_else(|| {
         format!(
-            "{}: no report for {} ({}.report.json, or report.json in its directory). The host script writes it; \
-             this command does not run docker",
+            "{}: no report for {} ({}.report.json, or report.json in its directory). Copy the report the container \
+             wrote; this command does not run docker",
             c.name, c.file, c.file
         )
     })?))
@@ -224,23 +211,28 @@ fn require_ir_report(c: &crate::convert::Conversion, report: &Path, reported: &V
     Ok(())
 }
 
+/// The image a report names. Absent, empty, or the word `host`, is a
+/// refusal: the files were written in a pinned image, or they are not
+/// sealed from here.
+fn image_container(name: &str, container: Option<&str>) -> Result<String> {
+    match container {
+        Some(container) if container != "host" && !container.is_empty() => Ok(container.to_owned()),
+        _ => Err(format!(
+            "{name}: the report has no container. The files were written in a pinned image and the report names \
+             that image. A machine without Docker copies a bundle sealed where the image runs"
+        )),
+    }
+}
+
 /// A script report (`tool`, `tool_version`, `settings`) or a finished
-/// `produced_by`. The OpenVINO host script names no container; that run
-/// is recorded as `host`, and as not reproducible, because it ran once.
+/// `produced_by`. The report names the image that ran. `host` is not an
+/// image.
 fn conversion_produced_by(reported: &Value, c: &crate::convert::Conversion) -> Result<Value> {
     if reported.get("settings").is_some() {
-        let container = match reported["container"].as_str() {
-            Some(container) => container.to_owned(),
-            None if c.script == crate::convert::ONNX_TO_OPENVINO_IR => "host".to_owned(),
-            None => {
-                return Err(format!(
-                    "{}: the report has no container. A conversion that ran in an image names that image; only the \
-                     OpenVINO host script may omit it",
-                    c.name
-                ));
-            }
-        };
-        let reproducible = reported["reproducible"].as_bool().unwrap_or(false);
+        let container = image_container(&c.name, reported["container"].as_str())?;
+        let reproducible = reported["reproducible"]
+            .as_bool()
+            .ok_or(format!("{}: the report does not say whether the conversion is reproducible", c.name))?;
         return crate::convert::produced_by(reported, &container, c, reproducible);
     }
     // A produced_by copied from a bundle already sealed. Its args stay as
@@ -248,18 +240,17 @@ fn conversion_produced_by(reported: &Value, c: &crate::convert::Conversion) -> R
     let tool = reported["tool"].as_str().ok_or(format!("{}: the report has no tool", c.name))?;
     let tool_version =
         reported["tool_version"].as_str().ok_or(format!("{}: the report has no tool_version", c.name))?;
-    let container = reported["container"].as_str().ok_or(format!(
-        "{}: the report has no container. A conversion that ran in an image names that image; only the OpenVINO \
-         host script may omit it",
-        c.name
-    ))?;
+    let container = image_container(&c.name, reported["container"].as_str())?;
     let args = reported["args"].as_array().ok_or(format!("{}: the report has no args or settings", c.name))?;
     let mut pb = json!({
         "tool": tool,
         "tool_version": tool_version,
         "container": container,
         "args": args,
-        "reproducible": reported["reproducible"].as_bool().unwrap_or(false),
+        "reproducible": reported["reproducible"].as_bool().ok_or(format!(
+            "{}: the report does not say whether the conversion is reproducible",
+            c.name
+        ))?,
     });
     if !c.from.is_empty() {
         pb["from"] = json!(c.from);

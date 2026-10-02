@@ -150,7 +150,9 @@ fn embed_is_offered_and_exact_is_refused() {
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
         let c = cap(p);
         assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
-        assert_eq!(c.dtype, 0, "no dtype is claimed before an artifact is seen; the IR's compilation fixes it");
+        assert_eq!(c.dtype, TURBO_DTYPE_F16, "the recipe's declared compute dtype, without a load");
+        assert!(!field(&c.reason).contains("dtype 0"), "{}", field(&c.reason));
+        assert_ne!(c.status, backend::TURBO_CAP_SUPPORTED, "{}", field(&c.reason));
         // The backend claims normalize, pooling and output_dim
         // (0b111000); the core sets the bits of truncate, max_tokens and
         // prompt_role itself, which it applies before any backend sees
@@ -324,7 +326,7 @@ fn a_run_reports_its_frames_and_where_each_stage_ran() {
     assert_eq!(field(&info.backend), "npu");
     // Per frame: the token rows over, at least a byte an element, and
     // the hidden states back.
-    assert!(info.h2d_bytes >= n.div_ceil(1) * seq, "{}", info.h2d_bytes);
+    assert!(info.h2d_bytes >= n * seq, "{}", info.h2d_bytes);
     assert!(info.d2h_bytes >= seq * dim, "{}", info.d2h_bytes);
     assert_eq!((info.host_allocs, info.device_allocs), (0, 0));
     let st = &info.stage;

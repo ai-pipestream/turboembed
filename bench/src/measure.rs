@@ -427,7 +427,7 @@ pub fn graph_input_name(input: GraphInput) -> &'static str {
 pub fn npu_embeddings_speed<'a>(backend: &str, settings: &[String], tei: bool, openvino: bool) -> Option<&'a str> {
     if backend == "npu" && settings.iter().any(|s| s == "TURBO_NPU_GRAPH_INPUT=INPUT_EMBEDDINGS") && (tei || openvino) {
         Some(
-            "INPUT_EMBEDDINGS has no speed_ratio: the host gather is not benchmark_app's full ONNX encoder. Pass \
+            "INPUT_EMBEDDINGS has no speed_ratio: the host gather is not benchmark_app's token-id graph. Pass \
              --no-tei and --no-openvino to write a library-only record",
         )
     } else {

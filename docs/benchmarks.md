@@ -112,17 +112,18 @@ feature. The published shape is `--batch 1 --seq 128`: one library frame
 is one `benchmark_app` request of `[1, 128]`. The tool refuses a run
 that omits those flags. Do not copy `--seq 256` or a batch of 32 from a
 GPU record. `--precision model` and `--precision fastest` are two cells
-at that shape. The committed files, measured from library commit
-`2b7c942` and added at tip `228a6b3`, are
-`arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-f7411123.2b7c9421eea1.json`
-and
-`arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-f7411123.2b7c9421eea1.json`.
-A record of one does not fill the other. On driver `0.15.21738` both
-say `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
-`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. `speed_ratio` is null on
-both: the fastest record's `benchmark_app` exited 1, and the model
-record disabled OpenVINO. Docs for the figures, the device, and the
-host-only CI job are in docs/npu.md.
+at that shape. A record of one does not fill the other. No npu speed
+record is committed. On intel-npu, `benchmark_app` given the static IR
+(`openvino/model.xml` and the `model.bin` beside it) fails at compile.
+The report says IR serialized API found 8.1, expected 8.2, and NPU-VCL
+returns `ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file is not the
+versioned party: the NPU plugin re-serializes the graph for the driver,
+and the library already compiles this same IR through the Level Zero
+graph extension. The OpenVINO package and the driver compiler are out
+of step (OpenVINO 2026.3 against driver `0.15.x` is the example). The
+reference stays open until `benchmark_app` runs with an install matched
+to that driver, or with a driver from Intel's pairing table. Docs for
+the device and the host-only CI job are in docs/npu.md.
 
 Windows, where a container cannot see the NPU driver:
 
@@ -635,16 +636,24 @@ record pins that binary as `benchmark-app@sha256:<its SHA-256>`. The
 host binary is not given a device-node path. With more than one NPU
 listed the tool refuses to run it, for the same reason as the GPU:
 `-d NPU` is OpenVINO's first device, and there is no per-device index.
-The NPU plugin has no BF16 either. A bundle with no ONNX artifact is
-`not_run`, as for the GPU. The library's own graph is the OpenVINO IR
-through Level Zero, not this ONNX compile: benchmark_app is the
-reference. The published cell pins both sides to one request of the
-artifact's fixed shape. For the token-id MiniLM seal that shape is
-`[1, 128]`. An `INPUT_EMBEDDINGS` artifact has no `speed_ratio`: the
-host gather is not this full ONNX encoder. TEI's CPU image is the
-end-to-end reference for the token-id cell. The two committed npu
-records (docs/npu.md, Hardware at tip `228a6b3`) leave both references
-`not_run`, so their `speed_ratio` is null.
+The NPU plugin has no BF16 either. For `-d NPU` the model is the
+bundle's static token-id OpenVINO IR (`model.xml`, with `model.bin`
+beside it), not `onnx/model.onnx`. A bundle with no such IR is
+`not_run`. The GPU reference is still the ONNX file. The library's
+own NPU graph is that same IR through Level Zero, not this
+`benchmark_app` compile. The published cell pins both sides to one
+request of the artifact's fixed shape. For the token-id MiniLM seal
+that shape is `[1, 128]`. An `INPUT_EMBEDDINGS` artifact has no
+`speed_ratio`: the host gather is not the token-id IR. TEI's CPU
+image is the end-to-end reference for the token-id cell. No npu
+speed record is committed. On intel-npu, `benchmark_app` given that
+static IR fails at compile. The report says IR serialized API found
+8.1, expected 8.2, and NPU-VCL returns
+`ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file is not the
+versioned party: the plugin re-serializes for the driver, and the
+library already compiles this IR through the graph extension. The
+OpenVINO package and the NPU driver compiler are out of step. That
+reference is still open until a matched install runs (docs/npu.md).
 
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
@@ -686,10 +695,11 @@ A record for the cell backs SUPPORTED when all of these hold:
    (A record naming any other program, or one with another's role, does
    not parse.) The tool gives each backend its own programs (Reference
    programs), so a levelzero or npu record is backed by OpenVINO or TEI.
-   The npu backend reports dtype 0 before a model is loaded, so a record
-   of an F16 session does not by itself move that cell to SUPPORTED.
-   The two npu records at tip `228a6b3` also measured no reference, so
-   `speed_ratio` is null and they do not back SUPPORTED.
+   The npu backend reports `TURBO_DTYPE_F16` before a model is loaded,
+   the compute dtype the published recipes declare. `SUPPORTED` still
+   needs a record that measures a reference. No npu record is
+   committed, so the cell stays `EXPERIMENTAL` and `reason` names the
+   missing record.
 
 Of the records that back the cell, the newest by `recorded_at` (then by
 name) is named: the cell is SUPPORTED, `benchmark` is its file name,

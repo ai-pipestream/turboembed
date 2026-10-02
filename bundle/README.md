@@ -26,8 +26,8 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
    with no network, on the fetched files: fp32 on CPU, one text at a time.
    It writes the reference ids and vectors, and reports what ran. Python
    runs here and in the next step, in the pinned containers. `seal`
-   (below) is the one path that adopts a report the host script already
-   wrote, and it does not run Python.
+   (below) does not run Python. It copies files a container already
+   wrote, and the report that names that image.
 4. **convert**: each artifact whose `produced_by` the recipe gives is
    made from the artifact it names, with no network, twice:
    - an F16 ONNX file (`produced_by` names only `from`), in the reference
@@ -71,13 +71,13 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
 `turbo-bundle verify <dir>` runs step 6 alone.
 
 `turbo-bundle seal <recipe.json> <upstream-dir> <bundle-dir>` does
-steps 2 and 5 without a container. The reference file and a report
-that names its container must already be in the bundle, copied from a
-bundle this pin already sealed. An OpenVINO IR the recipe converts
-must already be there too, with the report the host script writes
-(docs/npu.md); that manifest entry records `container` `host`. A
-conversion whose files are absent is left out of the manifest. The
-MiniLM reference the current pin sealed is
-`bundle/reference/out/all-minilm-l6-v2/` (`reference.safetensors` and
-`report.json`). Copy those two files into the bundle, then `seal`
-(docs/npu.md). The model's weights are not in the repository.
+steps 2 and 5 without starting a container. The reference file and a
+report that names the image that wrote it must already be in the
+bundle, copied from a bundle this pin already sealed. An OpenVINO IR
+the recipe converts must already be there too, with the report the
+container wrote (docs/npu.md). That report's `container` is the image.
+`container` `host` is refused, and so is a report that does not say
+whether the conversion is reproducible. A conversion whose files are
+absent is left out of the manifest. This tree does not carry a sealed
+reference output to copy. The model's weights are not in the
+repository.

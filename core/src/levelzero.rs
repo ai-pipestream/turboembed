@@ -257,30 +257,38 @@ impl Driver {
             flags: ze::INIT_DRIVER_TYPE_FLAG_GPU,
         };
         let mut n = 0u32;
-        // No GPU driver is installed: nothing to list. Any other failure,
-        // such as a user outside the render group, says why.
-        match unsafe { (api.init_drivers)(&mut n, std::ptr::null_mut(), &mut desc) } {
+        // No GPU driver is installed: nothing to list. UNINITIALIZED is
+        // a driver that is present and did not start (on Linux, no
+        // access to the render node), which is not an empty machine.
+        match unsafe { (api.core.init_drivers)(&mut n, std::ptr::null_mut(), &mut desc) } {
             0 if n > 0 => {}
-            0 | ze::RESULT_ERROR_UNINITIALIZED => return Ok(None),
+            0 => return Ok(None),
+            ze::RESULT_ERROR_UNINITIALIZED => {
+                return Err(
+                    "levelzero: zeInitDrivers returned ZE_RESULT_ERROR_UNINITIALIZED. The loader is present and the \
+                     driver did not initialize, which on Linux is no access to the render node, not an absent GPU"
+                        .into(),
+                );
+            }
             rc => ze::check("zeInitDrivers", rc)?,
         }
         let mut drivers = vec![std::ptr::null_mut(); n as usize];
-        ze::check("zeInitDrivers", unsafe { (api.init_drivers)(&mut n, drivers.as_mut_ptr(), &mut desc) })?;
+        ze::check("zeInitDrivers", unsafe { (api.core.init_drivers)(&mut n, drivers.as_mut_ptr(), &mut desc) })?;
         drivers.truncate(n as usize);
 
         let sysman = Sysman::open(&api);
         let mut devices = Vec::new();
         for &drv in &drivers {
             let mut props = ze::DriverProperties { stype: ze::STRUCTURE_TYPE_DRIVER_PROPERTIES, ..Default::default() };
-            ze::check("zeDriverGetProperties", unsafe { (api.driver_get_properties)(drv, &mut props) })?;
-            for dev in ze::list("zeDeviceGet", |n, out| unsafe { (api.device_get)(drv, n, out) })? {
+            ze::check("zeDriverGetProperties", unsafe { (api.core.driver_get_properties)(drv, &mut props) })?;
+            for dev in ze::list("zeDeviceGet", |n, out| unsafe { (api.core.device_get)(drv, n, out) })? {
                 let mut p = ze::DeviceProperties { stype: ze::STRUCTURE_TYPE_DEVICE_PROPERTIES, ..Default::default() };
-                ze::check("zeDeviceGetProperties", unsafe { (api.device_get_properties)(dev, &mut p) })?;
+                ze::check("zeDeviceGetProperties", unsafe { (api.core.device_get_properties)(dev, &mut p) })?;
                 if p.kind != ze::DEVICE_TYPE_GPU {
                     continue;
                 }
                 let mut n = 0u32;
-                let rc = unsafe { (api.device_get_memory_properties)(dev, &mut n, std::ptr::null_mut()) };
+                let rc = unsafe { (api.core.device_get_memory_properties)(dev, &mut n, std::ptr::null_mut()) };
                 ze::check("zeDeviceGetMemoryProperties", rc)?;
                 let mut mem: Vec<ze::DeviceMemoryProperties> = (0..n)
                     .map(|_| ze::DeviceMemoryProperties {
@@ -288,7 +296,7 @@ impl Driver {
                         ..Default::default()
                     })
                     .collect();
-                let rc = unsafe { (api.device_get_memory_properties)(dev, &mut n, mem.as_mut_ptr()) };
+                let rc = unsafe { (api.core.device_get_memory_properties)(dev, &mut n, mem.as_mut_ptr()) };
                 ze::check("zeDeviceGetMemoryProperties", rc)?;
                 mem.truncate(n as usize);
                 let mut compute = ze::DeviceComputeProperties {

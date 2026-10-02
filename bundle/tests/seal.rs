@@ -95,6 +95,8 @@ fn reported_ir() -> Value {
     json!({
         "tool": "openvino.save_model",
         "tool_version": "2026.3.0",
+        "container": CONTAINER,
+        "reproducible": true,
         "settings": ["seq=128", "batch=1", "max_opset=11", "compress_to_fp16=True", "output_precision=FP16"],
     })
 }
@@ -681,7 +683,7 @@ fn staged_ir(dir: &Path) -> (Recipe, PathBuf, PathBuf) {
 }
 
 #[test]
-fn a_staged_ir_seals_without_a_container() {
+fn a_staged_ir_seals_from_the_image_the_report_names() {
     let d = scratch("staged-ir");
     let (mut r, upstream, bundle) = staged_ir(&d);
     seal::seal_staged(&mut r, &upstream, &bundle).expect("sealed from the staged IR");
@@ -689,8 +691,8 @@ fn a_staged_ir_seals_without_a_container() {
     let names: Vec<&str> = m["artifacts"].as_array().unwrap().iter().map(|a| a["name"].as_str().unwrap()).collect();
     assert_eq!(names, ["weights-f32", "onnx-f32", "openvino-f16"], "the conversions that were not staged are omitted");
     let ir = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "openvino-f16").unwrap();
-    assert_eq!(ir["produced_by"]["container"], "host");
-    assert_eq!(ir["produced_by"]["reproducible"], json!(false));
+    assert_eq!(ir["produced_by"]["container"], CONTAINER);
+    assert_eq!(ir["produced_by"]["reproducible"], json!(true));
     assert_eq!(ir["produced_by"]["tool"], "openvino.save_model");
     assert_eq!(
         ir["produced_by"]["args"],
@@ -712,11 +714,49 @@ fn a_staged_ir_seals_without_a_container() {
     fs::remove_dir_all(d).unwrap();
 }
 
+#[test]
+fn a_staged_ir_refuses_a_host_container() {
+    let d = scratch("staged-ir-host");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    let mut report: Value = serde_json::from_slice(&fs::read(bundle.join("openvino/report.json")).unwrap()).unwrap();
+    report["container"] = json!("host");
+    fs::write(bundle.join("openvino/report.json"), serde_json::to_vec(&report).unwrap()).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("openvino-f16") && e.contains("no container"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_staged_reference_refuses_a_host_container() {
+    let d = scratch("staged-ref-host");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    let mut report: Value = serde_json::from_slice(&fs::read(bundle.join("reference/report.json")).unwrap()).unwrap();
+    report["container"] = json!("host");
+    fs::write(bundle.join("reference/report.json"), serde_json::to_vec(&report).unwrap()).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("reference") && e.contains("no container"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_staged_ir_refuses_a_report_that_omits_reproducible() {
+    let d = scratch("staged-ir-repro");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    let mut report: Value = serde_json::from_slice(&fs::read(bundle.join("openvino/report.json")).unwrap()).unwrap();
+    report.as_object_mut().unwrap().remove("reproducible");
+    fs::write(bundle.join("openvino/report.json"), serde_json::to_vec(&report).unwrap()).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("reproducible"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
 /// What the embeddings cut reports, in the form onnx_to_openvino_ir.py writes it.
 fn reported_embeddings() -> Value {
     json!({
         "tool": "openvino.save_model",
         "tool_version": "2026.3.0",
+        "container": CONTAINER,
+        "reproducible": true,
         "settings": [
             "seq=128",
             "batch=1",
