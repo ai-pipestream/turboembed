@@ -2,9 +2,8 @@
 //! every placement, import and export of Metal buffers and host memory,
 //! weights read where the core holds them, a run's vectors left in shared
 //! memory, and a warm run's allocation count. The encoder's vectors are
-//! held to the f64 arithmetic of tests/common and to the CPU backend's;
-//! tests/conformance.rs with TURBO_TEST_DEVICE=metal holds them to the
-//! upstream reference.
+//! held to the f64 arithmetic of tests/common, to the CPU backend's, and
+//! to the bundle's reference vectors (tests/common/conformance.rs).
 //!
 //! Built with the `metal` feature only, on macOS. A test that needs a
 //! device that runs the kernels says it was skipped, and passes, when the
@@ -965,4 +964,29 @@ fn the_largest_shape_of_a_real_bundle_matches_the_cpu() {
     let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
     let Some(_) = metal_device("the_largest_shape_of_a_real_bundle_matches_the_cpu") else { return };
     largest_shape_matches_the_cpu(&dir);
+}
+
+/// The bundle's reference cases on the Metal device at each precision,
+/// against the upstream vectors, within the tolerance of the compute
+/// dtype the session reports (tests/common/conformance.rs).
+fn reference_cases_match_upstream(dir: &std::path::Path) {
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+        conformance::check(dir, metal, p);
+    }
+}
+
+#[test]
+fn the_reference_cases_match_upstream() {
+    let _t = turn();
+    let Some(_) = metal_device("the_reference_cases_match_upstream") else { return };
+    reference_cases_match_upstream(&tiny_bundle());
+}
+
+#[test]
+#[ignore = "needs a real bundle directory in TURBO_TEST_BUNDLE"]
+fn the_reference_cases_of_a_real_bundle_match_upstream() {
+    let _t = turn();
+    let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
+    let Some(_) = metal_device("the_reference_cases_of_a_real_bundle_match_upstream") else { return };
+    reference_cases_match_upstream(&dir);
 }
