@@ -99,8 +99,12 @@ No build variables: there is nothing to point at.
   artifact. `model_load` still reads the compiled graph, and
   `turbo_session_get_info` says what a session really resolved.
   `SUPPORTED` is withheld by name: the core sets it only from a
-  benchmark record, and `reason` says what that record lacks. A dtype
-  of 0 is not used to keep a record from matching. `EXACT` is
+  mixed-row benchmark record for the cell, and `reason` says what
+  that record lacks. The two committed npu files are ROWS_DENSE
+  (Speed, below). A dense record is reference evidence, so it is
+  outside the cell, and `reason` stays `no benchmark record for this
+  cell`. A dtype of 0 is not used to keep a record from matching.
+  `EXACT` is
   UNSUPPORTED: a compiled graph
   computes in the dtype its IR fixed, never F32 throughout. The
   backend never claims SUPPORTED; only the core says that, and only
@@ -536,11 +540,22 @@ does not advertise `NATIVE`. The run did not create a graph with
 `ZE_GRAPH_FORMAT_NATIVE`. The code that would, when a driver advertises
 the bit, is in this tree and was not taken on that run.
 
-No npu speed record is committed. Earlier intel-npu timings were
+Two npu speed records are committed at `00aa734`, measured at
+library commit `febfed530`. They are ROWS_DENSE MiniLM
+(`all-MiniLM-L6-v2`) `INPUT_TOKEN_IDS` F16, batch 1, seq 128, case
+8, on Windows Arrow Lake. The device is `Intel(R) AI Boost`, arch
+`arl-npu`. Settings are `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
+`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. The files are
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`
+and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`.
+The numbers are in Speed, below. Earlier intel-npu timings were
 one two-token text at shape `[1, 128]` each, TEI was `not_run`, and
 `benchmark_app` either exited 1 or was disabled. Those files are not
 in this tree. A number with no comparison is not a record here.
-Capability stays `EXPERIMENTAL` at `MODEL` and `FASTEST`, reporting
+These two files compare the library with the static IR. Only mixed
+rows back a capability, so these dense records leave the cell
+`EXPERIMENTAL` at `MODEL` and `FASTEST`, reporting
 `TURBO_DTYPE_F16` before a load.
 `EXACT` stays `UNSUPPORTED`. The backend does not claim `SUPPORTED`.
 The output-precision check is unchanged: FP16 is `DTYPE_F16`, FP32 is
@@ -549,16 +564,17 @@ refused.
 
 ## Speed
 
-No npu speed record is committed. The harness is `turbo-bench` with
+Two npu speed records are committed at `00aa734`, measured at
+library commit `febfed530`. The harness is `turbo-bench` with
 `--features npu` (docs/benchmarks.md). It measures the library on
 `--device npu`. OpenVINO `benchmark_app` is the kernel reference.
 TEI's CPU image is the end-to-end baseline. Both are references only.
 The product path stays the Level Zero graph extension and
 `FORMAT_OPENVINO_IR`. It does not run ONNX and it does not link
-OpenVINO. An npu record is worth committing once the input is the
-standard case set in `[1, 128]` frames and `benchmark_app` compiles
-on NPU with an OpenVINO install paired to driver `32.0.100.4778`.
-That has not happened.
+OpenVINO. The committed cells are ROWS_DENSE, batch 1, seq 128,
+case 8, on intel-npu (Windows Arrow Lake, device `Intel(R) AI Boost`,
+arch `arl-npu`). TEI was `--no-tei`. The OpenVINO side is the static
+IR.
 
 The model is `sentence-transformers/all-MiniLM-L6-v2`, the one the
 other optimized paths record. The published shape on the token-id seal
@@ -569,11 +585,13 @@ shape for an npu load, including the shape it would pick when
 `--batch` and `--seq` are omitted.
 
 `PRECISION_MODEL` and `PRECISION_FASTEST` are two cells at that same
-shape. `--precision model` is filed as
-`arl-npu.npu.ngraph-lite.embed.model.`. `--precision fastest` is filed
-as `arl-npu.npu.ngraph-lite.embed.fastest.`. On this IR both sessions
-compute in the compiled F16 graph. A record of one precision does not
-fill the other. `EXACT` is `UNSUPPORTED` and is not a speed cell.
+shape. `--precision model` with `--rows dense` is filed as
+`arl-npu.npu.ngraph-lite.embed.model-dense.`. `--precision fastest`
+with `--rows dense` is filed as
+`arl-npu.npu.ngraph-lite.embed.fastest-dense.`. On this IR both
+sessions compute in the compiled F16 graph. A record of one precision
+does not fill the other. `EXACT` is `UNSUPPORTED` and is not a speed
+cell.
 
 `timing.computed_tokens` for this cell is 128: the device executes
 the compiled frame, and the zeros after the live tokens are part of
@@ -607,20 +625,33 @@ because `-d NPU` is OpenVINO's first device and the command has no
 per-device index.
 
 `benchmark_app -d NPU` is given `openvino/model.xml` (the bin sits
-beside it), not `onnx/model.onnx`. On intel-npu that command fails
-at compile. The report says IR serialized API found 8.1, expected
-8.2, and NPU-VCL returns
-`ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file is not the
+beside it), not `onnx/model.onnx`. The prior blocker on intel-npu
+was a compile failure: the report said IR serialized API found 8.1,
+expected 8.2, and NPU-VCL returned
+`ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file was not the
 versioned party. The OpenVINO NPU plugin re-serializes the graph for
 the driver, and the library already compiles this same IR through
-the Level Zero graph extension. The credible gap is the OpenVINO
-package and the NPU driver compiler out of step. The pairing this
-waits on is an OpenVINO install matched to driver `32.0.100.4778`.
-Passing the dynamic ONNX file instead fails earlier, at
-`core.cpp:120`, and that file is not the NPU reference input.
-Neither failure is a timing. This reference is still open. No new
-npu speed record is committed until `benchmark_app` compiles on NPU
-with that pairing and the standard case set is measured.
+the Level Zero graph extension. That mismatch was the OpenVINO
+package and the NPU driver compiler out of step. It is resolved for
+the measured cells. They were timed with OpenVINO nightly 2026.5.0
+(`2026.5.0-23311-786052d995f`) paired to driver `32.0.100.4778`.
+The Level Zero driver string in the records is `0.15.21738`.
+`benchmark_app` compiled the static IR (`-m openvino/model.xml`)
+and wrote a kernel measurement. Passing the dynamic ONNX file
+instead fails earlier, at `core.cpp:120`, and that file is not the
+NPU reference input.
+
+The two files, both `NGRAPH_LITE` and `INPUT_TOKEN_IDS`, `DTYPE_F16`:
+
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`:
+  library p50 3.9668 ms, about 252.93 rows/s; OpenVINO IR p50 3.82 ms;
+  `speed_ratio` about 1.038.
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`:
+  library p50 3.97 ms, about 251.27 rows/s; OpenVINO IR p50 3.87 ms;
+  `speed_ratio` about 1.026.
+
+Only mixed rows back a capability (docs/benchmarks.md). These records
+are ROWS_DENSE, case 8, so the cell stays `EXPERIMENTAL`.
 
 ## Still to land
 
@@ -632,18 +663,26 @@ with that pairing and the standard case set is measured.
   that lists the bit. That create has not been exercised on hardware.
   A record from that driver would say `TURBO_NPU_GRAPH_FORMAT=NATIVE`
   and would not match an `NGRAPH_LITE` cell.
-- OpenVINO `speed_ratio`. No npu record is committed. On intel-npu,
-  `benchmark_app -d NPU` on the static IR (`model.xml` + `model.bin`)
-  fails at compile. The report says IR serialized API found 8.1,
-  expected 8.2, and NPU-VCL returns
-  `ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file is not the
-  versioned party: the plugin re-serializes for the driver, and the
-  library already compiles this IR through the graph extension. The
-  OpenVINO package and the NPU driver compiler are out of step.
-  Still open until `benchmark_app` compiles on NPU with an OpenVINO
-  install paired to driver `32.0.100.4778`. The earlier
-  `core.cpp:120` failure was the dynamic ONNX file, which is not the
-  NPU reference input.
+- OpenVINO `speed_ratio` on a mixed-row cell. Two ROWS_DENSE records
+  are committed at `00aa734`, measured at library commit `febfed530`:
+  MiniLM `INPUT_TOKEN_IDS` F16, batch 1, seq 128, case 8, static IR
+  (`-m openvino/model.xml`), on intel-npu (Windows Arrow Lake,
+  `Intel(R) AI Boost`, arch `arl-npu`).
+  `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`
+  is library p50 3.9668 ms, about 252.93 rows/s, OpenVINO IR p50
+  3.82 ms, `speed_ratio` about 1.038.
+  `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`
+  is library p50 3.97 ms, about 251.27 rows/s, OpenVINO IR p50
+  3.87 ms, `speed_ratio` about 1.026. TEI was `--no-tei`. Settings
+  are `NGRAPH_LITE` and `INPUT_TOKEN_IDS`. `benchmark_app` compiled
+  those cells with OpenVINO nightly 2026.5.0
+  (`2026.5.0-23311-786052d995f`) paired to driver `32.0.100.4778`.
+  The IR serialized API 8.1 against expected 8.2 report, with
+  NPU-VCL `ZE_RESULT_ERROR_INVALID_NULL_POINTER`, was the prior
+  blocker. It is resolved for these measured cells. The records'
+  Level Zero driver string is `0.15.21738`. Dense rows leave the
+  capability `EXPERIMENTAL`. The earlier `core.cpp:120` failure was
+  the dynamic ONNX file, which is not the NPU reference input.
 - Machines that only have `sha256:0e153c1d...` still need the MiniLM
   image `turbo-reference@sha256:994f2d1b...` present before they
   convert. That id is what `docker build -t turbo-reference
@@ -655,7 +694,8 @@ with that pairing and the standard case set is measured.
 - Host-only CI. `test (npu)` on GitHub Actions is `ubuntu-24.04` with
   no device. The ignored NPU tests are not that job. There is no
   self-hosted NPU runner. See Host-only blocker.
-- No benchmark record marks this backend `SUPPORTED`. Capability stays
+- No benchmark record marks this backend `SUPPORTED`. The two
+  committed files are ROWS_DENSE reference evidence. Capability stays
   `EXPERIMENTAL`.
 - Several NPU devices. `benchmark_app -d NPU` is OpenVINO's first
   device. The tool refuses the reference when more than one NPU is
