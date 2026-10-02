@@ -47,6 +47,34 @@ The driver builds the SPIR-V for the device the first time a context
 needs a kernel, when a model or session is made; that build is not part
 of any run.
 
+### oneDNN for the F16 linear layers
+
+With the `levelzero-onednn` feature, the linear layers of a FASTEST
+session with more than 8 tokens run on oneDNN's kernels for the matrix
+engines, as OpenVINO's do, instead of the backend's own: the Q, K and V
+projection, the feed-forward input with its GELU, and the two projections
+back to the hidden width with their residual added, each followed by
+oneDNN's LayerNorm; the last layer's hidden states are then widened to F32
+for the pooling. oneDNN runs on the backend's own device, context and
+memory through a SYCL queue of its own, which the backend orders against
+its command list by waiting on the host. The F16 weights are packed once
+more at load, in the layout oneDNN's kernels read. Everything else, the
+attention above all, is the backend's.
+
+The build needs the oneAPI compiler (`TURBO_ICPX`, else `icpx` on the
+`PATH`, with its environment set) and oneDNN's headers and library; it
+makes `libturbo_onednn.so` in the build directory, which the library then
+needs at run time together with oneDNN and the SYCL runtime from the
+oneAPI installation (their directory is written into the library as a
+run-time path). A device oneDNN cannot open runs the backend's own kernels,
+and the log says so.
+
+What the feature changes in the contract: a row's bits at FASTEST then
+depend on the rows around it, since oneDNN's kernel for a batch sums in
+its own order and the few-token kernels in theirs; the F32 precisions are
+untouched. On a B70 at 32 x 256 it takes bge-base from 19.8 to 17.4 ms
+and bge-large from 60.1 to 56.8, the narrow models unchanged.
+
 ## What it does
 
 - **Devices.** One per GPU the loader's GPU drivers list, in their order,
