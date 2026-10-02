@@ -748,7 +748,9 @@ The dense files are the same settings and the same static IR, case
   `MODEL` and `FASTEST` for `arl-npu`, windows, `NGRAPH_LITE`,
   library `0.1.0` stay `EXPERIMENTAL` until a mixed record lists
   every case that fits seq, each row its own `[1, 128]` frame, with
-  OpenVINO measured on those same rows. `EXACT` is `UNSUPPORTED`.
+  OpenVINO measured on those same rows. The record tool writes that
+  pass for `--batch 1`. The files in the tree are still the case-0
+  measurement. `EXACT` is `UNSUPPORTED`.
   A `NATIVE` graph, another arch, and a build whose OS is not
   windows have no mixed record for the cell and stay
   `EXPERIMENTAL`. The thin ROWS_MIXED files and the ROWS_DENSE

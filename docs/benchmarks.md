@@ -307,7 +307,7 @@ may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
 | `bundle.*` | `turbo_model_info`: model id and revision, and the manifest, artifact and tokenizer hashes. |
 | `rows` | `kind`, `ROWS_MIXED` or `ROWS_DENSE` (`--rows`); the shape; `live_tokens`, the mask's ones across the measured rows, which for dense rows must be `batch` x `seq`; the reference case each row is (one per row of the batch, or one per frame when `batch` is 1 and the pass cycles every fitting case); and the hash of the rows (below). |
 | `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a pass over the rows (`turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`), timed from the host. A batch-1 mixed cycle's pass is one embed per fitting case. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed. cpu, cuda and levelzero count each row through its last live token. npu counts every position of each compiled frame in the pass: `batch` x `seq` for one frame, and one `[1, seq]` frame per fitting case when the frame batch is 1 (What each time covers). An npu record whose count is anything else does not parse. |
-| `conformance` | Vectors compared with the bundle's fp32 reference on this device, through the C interface: each reference case no longer than `seq` alone, as a batch of one at its own length, then every row of the last timed batch that is its case whole. A dense row cut to `seq` has no reference vector; it must give, within the dtype's tolerance, what it gives alone, or the tool stops with an error. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
+| `conformance` | Vectors compared with the bundle's fp32 reference on this device, through the C interface: each reference case no longer than `seq` alone, as a batch of one at its own length, then every measured row of the pass that is its case whole. A batch-1 mixed cycle measures one row per fitting case. A dense row cut to `seq` has no reference vector; it must give, within the dtype's tolerance, what it gives alone, or the tool stops with an error. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
 | `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and the padded pass (one frame is `batch` x `seq`; a batch-1 cycle is one frame per case). |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
 
@@ -773,17 +773,22 @@ A record for the cell backs SUPPORTED when all of these hold:
    a mixed-row record that measures a reference, does not fall short
    of the dtype floor, and lists every reference case that fits
    `seq`. Conformance counts those cases run alone and then every
-   row of the timed batch, so the distinct cases in `rows.cases`
-   must equal `conformance.rows` minus `rows.batch`. Two ROWS_MIXED
-   MiniLM IR records are committed (docs/npu.md). They match the
-   `arl-npu` windows `NGRAPH_LITE` `MODEL` and `FASTEST` cells at
-   library `0.1.0` and `DTYPE_F16`, and each lists case 0 only
-   (`live_tokens` 2, one `[1, 128]` frame). `conformance.rows` is 9
-   and the batch is 1, so they cover 1 of 8 cases and those cells
-   stay EXPERIMENTAL. The files remain. The ROWS_DENSE npu files are
-   not for a cell. Another arch, a `NATIVE` graph, and a build for
-   another OS stay EXPERIMENTAL, and `reason` is `no benchmark
-   record for this cell`.
+   measured row. The timed count is `rows.cases.len()`, which equals
+   `rows.batch` when the pass is one batch and is one row per case
+   when `batch` is 1 and the pass cycles. The distinct cases in
+   `rows.cases` must equal `conformance.rows` minus that count. Two
+   ROWS_MIXED MiniLM IR records are committed (docs/npu.md). They
+   match the `arl-npu` windows `NGRAPH_LITE` `MODEL` and `FASTEST`
+   cells at library `0.1.0` and `DTYPE_F16`, and each lists case 0
+   only (`live_tokens` 2, one `[1, 128]` frame). `conformance.rows`
+   is 9 and the batch is 1, so they cover 1 of 8 cases and those
+   cells stay EXPERIMENTAL. The files remain. A later record can
+   back the cell when it lists every fitting case, each in its own
+   `[1, 128]` frame, and conformance counts those cases alone and
+   again in the timed pass. The ROWS_DENSE npu files are not for a
+   cell. Another arch, a `NATIVE` graph, and a build for another OS
+   stay EXPERIMENTAL, and `reason` is `no benchmark record for this
+   cell`.
 
 Of the records that back the cell, the newest by `recorded_at` (then by
 name) is named: the cell is SUPPORTED, `benchmark` is its file name,

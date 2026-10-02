@@ -728,8 +728,10 @@ impl Record {
     /// measured at least one reference program, and its mixed rows list
     /// every reference case that fits `seq`. `is_for` can match a thinner
     /// file. Conformance counts each fitting case run alone and then every
-    /// row of the timed batch, so that count minus `rows.batch` is how
-    /// many cases fit, and the rows have to list that many distinct cases.
+    /// measured row. That second count is `rows.cases.len()`: one row of
+    /// a single batch, or one `[1, seq]` frame per case when the frame
+    /// batch is 1. `conformance.rows` minus that count is how many cases
+    /// fit, and the rows have to list that many distinct cases.
     pub fn falls_short(&self, cell: &Cell) -> Option<String> {
         if self.library.version != cell.version {
             return Some(format!("recorded with library {}, this is {}", self.library.version, cell.version));
@@ -753,14 +755,16 @@ impl Record {
             return Some("no reference program measured".into());
         }
         // Mixed rows are the cases that fit seq. A file that times one of
-        // them still parses and still matches `is_for`.
+        // them still parses and still matches `is_for`. The measured rows
+        // are `cases.len()`: one per row of a single batch (so the count
+        // equals `batch`), or one [1, seq] frame per case when batch is 1.
         if self.rows.kind == ROWS_MIXED {
-            let batch = self.rows.batch;
+            let timed = self.rows.cases.len() as u32;
             let compared = self.conformance.rows;
-            if compared < batch {
-                return Some(format!("conformance compared {compared} vectors, fewer than the batch of {batch}"));
+            if compared < timed {
+                return Some(format!("conformance compared {compared} vectors, fewer than the {timed} measured rows"));
             }
-            let fit = compared - batch;
+            let fit = compared - timed;
             let mut cases = self.rows.cases.clone();
             cases.sort_unstable();
             cases.dedup();
@@ -897,5 +901,46 @@ mod tests {
                 Verdict::Supported { benchmark, .. } => panic!("{label} supported by {benchmark}"),
             }
         }
+    }
+
+    #[test]
+    fn a_batch_1_cycle_covers_the_set_only_when_every_frame_was_compared() {
+        let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json";
+        let cell = Cell {
+            arch: "arl-npu",
+            name: "Intel(R) AI Boost",
+            cpu: false,
+            backend: "npu",
+            task: TURBO_TASK_EMBED,
+            precision: TURBO_PRECISION_MODEL,
+            dtype: TURBO_DTYPE_F16,
+            version: library_version(),
+            os: "windows",
+            graph_format: Some("NGRAPH_LITE"),
+        };
+        let thin = embedded().iter().find(|(n, _)| *n == model).unwrap().1.as_ref().unwrap().clone();
+        // Eight fitting cases, each its own [1, 128] frame, plus those
+        // eight compared alone: conformance.rows is 16. The committed
+        // file is not this record.
+        let mut covered = thin.clone();
+        covered.rows.cases = (0..8).collect();
+        covered.conformance.rows = 16;
+        assert_eq!(covered.falls_short(&cell), None);
+        // Naming the cases without comparing them does not cover the set.
+        covered.conformance.rows = 9;
+        assert_eq!(covered.falls_short(&cell).as_deref(), Some("rows cover 8 of 1 reference cases that fit seq"));
+        // Eight frames of case 0 are still one case.
+        covered.rows.cases = vec![0; 8];
+        covered.conformance.rows = 16;
+        assert_eq!(covered.falls_short(&cell).as_deref(), Some("rows cover 1 of 8 reference cases that fit seq"));
+        // A wider batch is unchanged: distinct cases equal conformance
+        // rows minus the batch, and cases.len() is that batch.
+        let mut wide = thin;
+        wide.rows.batch = 32;
+        wide.rows.cases = (0..9).cycle().take(32).collect();
+        wide.conformance.rows = 41;
+        assert_eq!(wide.falls_short(&cell), None);
+        wide.rows.cases = vec![0; 32];
+        assert_eq!(wide.falls_short(&cell).as_deref(), Some("rows cover 1 of 9 reference cases that fit seq"));
     }
 }
