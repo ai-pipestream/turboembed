@@ -1120,17 +1120,18 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
 // kernel's schedule (stream-K), partial products and epilogue. Any K: a
 // K that is not a multiple of four reads one value at a time.
 
-constexpr int KT_BM = 128, KT_BN = 128, KT_BK = 16, KT_LD = KT_BM + 4, KT_THREADS = 256;
+constexpr int KT_BM = 128, KT_BN = 64, KT_BK = 16, KT_THREADS = 128, KT_PER_SM = 3;
 
-constexpr size_t kt_gemm_smem() { return (size_t)2 * 2 * KT_BK * KT_LD * sizeof(float); }
+constexpr size_t kt_gemm_smem() { return (size_t)2 * KT_BK * (KT_BM + 4 + KT_BN + 4) * sizeof(float); }
 
-template <int EPI, typename TOut> __global__ void __launch_bounds__(KT_THREADS, 2) gemm_kt_kernel(GemmArgs g) {
-    constexpr int BM = KT_BM, BN = KT_BN, BK = KT_BK, LD = KT_LD, NT = KT_THREADS, SLOT = BM * BN;
-    // A stage's loads: four 16-byte reads to a row of k, 64 rows a pass.
-    constexpr int PER_ROW = BK / 4, ROWS = NT / PER_ROW, PASSES = BM / ROWS;
+template <int EPI, typename TOut>
+__global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs g) {
+    constexpr int BM = KT_BM, BN = KT_BN, BK = KT_BK, LDA = BM + 4, LDB = BN + 4, NT = KT_THREADS, SLOT = BM * BN;
+    // A stage's loads: four 16-byte reads to a row of k, NT / 4 rows a pass.
+    constexpr int PER_ROW = BK / 4, ROWS = NT / PER_ROW, PASSES_A = BM / ROWS, PASSES_B = BN / ROWS;
     extern __shared__ __align__(16) unsigned char gemm_sm[];
-    float *As = reinterpret_cast<float *>(gemm_sm); // [2][BK][LD]
-    float *Bs = As + 2 * BK * LD;                   // [2][BK][LD]
+    float *As = reinterpret_cast<float *>(gemm_sm); // [2][BK][LDA]
+    float *Bs = As + 2 * BK * LDA;                  // [2][BK][LDB]
     const float *A = static_cast<const float *>(g.a), *B = static_cast<const float *>(g.w);
     const int M = g.info->tokens, N = g.n, K = g.k;
     const int mt = (M + BM - 1) / BM, nt = (N + BN - 1) / BN;
@@ -1138,7 +1139,7 @@ template <int EPI, typename TOut> __global__ void __launch_bounds__(KT_THREADS, 
     const bool vec = K % 4 == 0;
     const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
     const int lr = (lane >> 4) * 2 + (lane & 1), lc = (lane & 15) >> 1;
-    const int am = (warp & 3) * 32 + lr * 4, bn = (warp >> 2) * 64 + lc * 4;
+    const int am = warp * 32 + lr * 4, bn = lc * 4;
     const int lrow = threadIdx.x / PER_ROW, lk = (threadIdx.x % PER_ROW) * 4;
 
     for (long long at = sh.hi; at > sh.lo;) {
@@ -1148,38 +1149,67 @@ template <int EPI, typename TOut> __global__ void __launch_bounds__(KT_THREADS, 
         const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
         const int kb = (int)(begin - first) * BK, ke = min(K, (int)(at - first) * BK);
 
-        float ra[PASSES][4], rb[PASSES][4];
-        auto load_row = [&](const float *src, int rows, int r0, int k0, float(&v)[4]) {
-            const int gr = r0, gk = k0 + lk;
-            if (gr >= rows || gk >= ke) {
-                v[0] = v[1] = v[2] = v[3] = 0.0f;
-            } else if (vec) {
-                const float4 q = __ldg(reinterpret_cast<const float4 *>(src + (size_t)gr * K + gk));
-                v[0] = q.x;
-                v[1] = q.y;
-                v[2] = q.z;
-                v[3] = q.w;
-            } else {
+        // This thread's rows of the stage, a pass of ROWS apart: the first
+        // row's address (clamped into the operand) and which rows exist.
+        const int ra0 = m0 + lrow, rb0 = n0 + lrow;
+        const float *pa = A + (size_t)min(ra0, M - 1) * K + lk, *pb = B + (size_t)min(rb0, N - 1) * K + lk;
+        const size_t pass = (size_t)ROWS * K;
+        unsigned rows_ok = 0;
 #pragma unroll
-                for (int u = 0; u < 4; u++) v[u] = gk + u < ke ? __ldg(src + (size_t)gr * K + gk + u) : 0.0f;
-            }
+        for (int p = 0; p < PASSES_A; p++) rows_ok |= (ra0 + p * ROWS < M ? 1u : 0u) << p;
+#pragma unroll
+        for (int p = 0; p < PASSES_B; p++) rows_ok |= (rb0 + p * ROWS < N ? 1u : 0u) << (p + PASSES_A);
+        float4 ra[PASSES_A], rb[PASSES_B];
+        // One value at a time where K is not a multiple of four, a branch
+        // taken the same way by every thread, outside the 16-byte loads.
+        auto load4 = [&](const float *src, bool ok, int k0) {
+            float4 v = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+            const int gk = k0 + lk;
+            if (ok && gk < ke) v = __ldg(reinterpret_cast<const float4 *>(src + k0));
+            return v;
+        };
+        auto load1 = [&](const float *src, bool ok, int k0) {
+            float4 v = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+            const int gk = k0 + lk;
+            if (ok && gk < ke) v.x = __ldg(src + k0);
+            if (ok && gk + 1 < ke) v.y = __ldg(src + k0 + 1);
+            if (ok && gk + 2 < ke) v.z = __ldg(src + k0 + 2);
+            if (ok && gk + 3 < ke) v.w = __ldg(src + k0 + 3);
+            return v;
         };
         auto load_stage = [&](int k0) {
+            if (vec) {
 #pragma unroll
-            for (int p = 0; p < PASSES; p++) {
-                load_row(A, M, m0 + lrow + p * ROWS, k0, ra[p]);
-                load_row(B, N, n0 + lrow + p * ROWS, k0, rb[p]);
+                for (int p = 0; p < PASSES_A; p++) ra[p] = load4(pa + p * pass, rows_ok >> p & 1, k0);
+#pragma unroll
+                for (int p = 0; p < PASSES_B; p++)
+                    rb[p] = load4(pb + p * pass, rows_ok >> (p + PASSES_A) & 1, k0);
+            } else {
+#pragma unroll
+                for (int p = 0; p < PASSES_A; p++) ra[p] = load1(pa + p * pass, rows_ok >> p & 1, k0);
+#pragma unroll
+                for (int p = 0; p < PASSES_B; p++)
+                    rb[p] = load1(pb + p * pass, rows_ok >> (p + PASSES_A) & 1, k0);
             }
         };
         auto store_stage = [&](int st) {
-            float *as = As + st * BK * LD, *bs = Bs + st * BK * LD;
+            float *as = As + st * BK * LDA, *bs = Bs + st * BK * LDB;
 #pragma unroll
-            for (int p = 0; p < PASSES; p++)
+            for (int p = 0; p < PASSES_A; p++) {
+                float *a = as + lk * LDA + lrow + p * ROWS;
+                a[0] = ra[p].x;
+                a[LDA] = ra[p].y;
+                a[2 * LDA] = ra[p].z;
+                a[3 * LDA] = ra[p].w;
+            }
 #pragma unroll
-                for (int u = 0; u < 4; u++) {
-                    as[(lk + u) * LD + lrow + p * ROWS] = ra[p][u];
-                    bs[(lk + u) * LD + lrow + p * ROWS] = rb[p][u];
-                }
+            for (int p = 0; p < PASSES_B; p++) {
+                float *b = bs + lk * LDB + lrow + p * ROWS;
+                b[0] = rb[p].x;
+                b[LDB] = rb[p].y;
+                b[2 * LDB] = rb[p].z;
+                b[3 * LDB] = rb[p].w;
+            }
         };
 
         float acc[8][8];
@@ -1196,14 +1226,14 @@ template <int EPI, typename TOut> __global__ void __launch_bounds__(KT_THREADS, 
         for (int kt = 0; kt < ktiles; kt++) {
             const int st = kt & 1;
             if (kt + 1 < ktiles) load_stage(kb + (kt + 1) * BK);
-            const float *as = As + st * BK * LD + am, *bs = Bs + st * BK * LD + bn;
+            const float *as = As + st * BK * LDA + am, *bs = Bs + st * BK * LDB + bn;
 #pragma unroll
             for (int k = 0; k < BK; k++) {
                 float a[8], b[8];
-                *reinterpret_cast<float4 *>(a) = *reinterpret_cast<const float4 *>(as + k * LD);
-                *reinterpret_cast<float4 *>(a + 4) = *reinterpret_cast<const float4 *>(as + k * LD + 16);
-                *reinterpret_cast<float4 *>(b) = *reinterpret_cast<const float4 *>(bs + k * LD);
-                *reinterpret_cast<float4 *>(b + 4) = *reinterpret_cast<const float4 *>(bs + k * LD + 32);
+                *reinterpret_cast<float4 *>(a) = *reinterpret_cast<const float4 *>(as + k * LDA);
+                *reinterpret_cast<float4 *>(a + 4) = *reinterpret_cast<const float4 *>(as + k * LDA + 16);
+                *reinterpret_cast<float4 *>(b) = *reinterpret_cast<const float4 *>(bs + k * LDB);
+                *reinterpret_cast<float4 *>(b + 4) = *reinterpret_cast<const float4 *>(bs + k * LDB + 32);
 #pragma unroll
                 for (int i = 0; i < 8; i++)
 #pragma unroll
@@ -1234,30 +1264,57 @@ template <int EPI, typename TOut> __global__ void __launch_bounds__(KT_THREADS, 
         }
         at = begin;
 
-        // Output (i, j) is row am + (i & 3) + 16 (i >> 2), column bn + (j & 3) + 32 (j >> 2).
-        size_t col[8];
+        // Output (i, j) is row am + (i & 3) + 16 (i >> 2), column
+        // bn + (j & 3) + 32 (j >> 2): a lane's columns are two runs of four,
+        // stored 16 bytes at a time where the run is whole and its four
+        // outputs are contiguous (N, or for QKV the head width, a multiple
+        // of four), else one at a time.
+        const bool wide = EPI == EPI_QKV ? g.head_dim % 4 == 0 : N % 4 == 0;
 #pragma unroll
-        for (int j = 0; j < 8; j++) {
-            const int c = n0 + bn + (j & 3) + 32 * (j >> 2);
-            col[j] = EPI == EPI_QKV && c < N ? qkv_column(g, c) : 0;
-        }
+        for (int h = 0; h < 2; h++) {
+            const int c = n0 + bn + 32 * h;
+            if (c >= N) continue;
+            const bool whole = std::is_same_v<TOut, float> && wide && c + 3 < N;
+            float bias[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            if constexpr (EPI != EPI_PLAIN)
 #pragma unroll
-        for (int i = 0; i < 8; i++) {
-            const int t = m0 + am + (i & 3) + 16 * (i >> 2);
-            if (t >= M) continue;
+                for (int u = 0; u < 4; u++) bias[u] = c + u < N ? g.bias[c + u] : 0.0f;
+            const size_t qcol = EPI == EPI_QKV ? qkv_column(g, c) : 0;
 #pragma unroll
-            for (int j = 0; j < 8; j++) {
-                const int c = n0 + bn + (j & 3) + 32 * (j >> 2);
-                if (c >= N) continue;
-                if constexpr (EPI == EPI_QKV)
-                    put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, acc[i][j] + g.bias[c]);
-                else if constexpr (gelu_epilogue_of(EPI))
-                    put(out_at<TOut>(g, t, c), gelu_for<EPI, TOut>(acc[i][j] + g.bias[c]));
-                else if constexpr (EPI == EPI_ADD_LN) {
-                    float *o = out_at<float>(g, t, c);
-                    *o = *o + (acc[i][j] + g.bias[c]);
-                } else
-                    put(out_at<TOut>(g, t, c), acc[i][j]);
+            for (int i = 0; i < 8; i++) {
+                const int t = m0 + am + (i & 3) + 16 * (i >> 2);
+                if (t >= M) continue;
+                float v[4];
+#pragma unroll
+                for (int u = 0; u < 4; u++) {
+                    v[u] = acc[i][4 * h + u] + bias[u];
+                    if constexpr (gelu_epilogue_of(EPI)) v[u] = gelu_for<EPI, TOut>(v[u]);
+                }
+                if constexpr (EPI == EPI_PLAIN)
+#pragma unroll
+                    for (int u = 0; u < 4; u++) v[u] = acc[i][4 * h + u];
+                if (whole) {
+                    float *o = EPI == EPI_QKV ? reinterpret_cast<float *>(g.out) + qcol + (size_t)t * g.head_dim
+                                              : reinterpret_cast<float *>(g.out) + (size_t)t * N + c;
+                    float4 q = make_float4(v[0], v[1], v[2], v[3]);
+                    if constexpr (EPI == EPI_ADD_LN) {
+                        const float4 r = *reinterpret_cast<const float4 *>(o);
+                        q = make_float4(r.x + q.x, r.y + q.y, r.z + q.z, r.w + q.w);
+                    }
+                    *reinterpret_cast<float4 *>(o) = q;
+                    continue;
+                }
+#pragma unroll
+                for (int u = 0; u < 4; u++) {
+                    if (c + u >= N) break;
+                    if constexpr (EPI == EPI_QKV)
+                        put(static_cast<TOut *>(g.out) + qkv_column(g, c + u) + (size_t)t * g.head_dim, v[u]);
+                    else if constexpr (EPI == EPI_ADD_LN) {
+                        float *o = out_at<float>(g, t, c + u);
+                        *o = *o + v[u];
+                    } else
+                        put(out_at<TOut>(g, t, c + u), v[u]);
+                }
             }
         }
         if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
@@ -2711,7 +2768,7 @@ template <int BM, int WM, int STAGES, int MINB, int EPI, typename TOut> GemmKern
 }
 
 template <int EPI, typename TOut> GemmKernel kt_kernel() {
-    return {gemm_kt_kernel<EPI, TOut>, KT_THREADS, kt_gemm_smem(), KT_BM, KT_BN, 2};
+    return {gemm_kt_kernel<EPI, TOut>, KT_THREADS, kt_gemm_smem(), KT_BM, KT_BN, KT_PER_SM};
 }
 
 template <int BM, int BN, int TM, typename TIn, int EPI, typename TOut> GemmKernel simt_kernel() {
