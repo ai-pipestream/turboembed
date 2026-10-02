@@ -11,7 +11,3 @@ testdata/** -text
 # Without this, core.autocrlf rewrites it and make refuses the file
 # (local sha256 9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940).
 bundle/recipes/*.jsonl -text
-
-# The MiniLM reference sealed by the pinned image. Windows copies these
-# bytes before seal (docs/npu.md). The safetensors must not be rewritten.
-bundle/reference/out/** -text

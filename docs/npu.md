@@ -147,8 +147,10 @@ No build variables: there is nothing to point at.
   the graph extension takes them: the `ZE_GRAPH_FORMAT_NGRAPH_LITE`
   container (the compiler's version, a block count of 2, then the xml
   and the weights, each behind its u64 size), with build flags naming
-  each input's and output's precision and layout by index, exactly as
-  OpenVINO's own NPU plugin serializes them. What those flags need, and
+  each input's and output's precision and layout as `<name>:<value>`,
+  the Parameter or Result name. OpenVINO's NPU adapter from compiler
+  5.9 writes `<index>:<value>` in `get_parameters()` order. The flags
+  here use the name. What those flags need, and
   nothing else, is read from the IR's xml: each Parameter's element
   type and rank, each Result's port precision and rank. The graph is
   created with `pfnCreate3` where the extension has it (1.12+), so a
@@ -300,20 +302,26 @@ MatMul, ops at opset 8 or below. After `save_model` it reads every
 layer `version="opsetN"` the backend reads, and exits if any is above
 the cap, naming the type. The cap is `--max-opset` (default 11). It
 does not rewrite a layer's version attribute. The MiniLM
-recipe's `reference.produced_by.container` is the image built from
-`bundle/reference` on this branch:
+recipe's `reference.produced_by.container` is the image the seal
+recorded:
 
 `turbo-reference@sha256:994f2d1b0c61669a2cf3c3d89b1b6d58fe9b82b7560602801e0da69d83b5786a`
 
 That string is `turbo-reference@` plus `docker image inspect --format "{{.Id}}" turbo-reference`
-after `docker build -t turbo-reference bundle/reference`. On this
-Linux agent that command produced this id. The image contains
-`onnx_to_openvino_ir.py` and OpenVINO 2026.3.0. A later build gets a
-new id, and the pin moves with it. The bge recipes name an older
-image, `sha256:0e153c1d...`, and that image has no
-`onnx_to_openvino_ir.py`. The MiniLM pin is this local image id.
-A machine converts when that id is present. The MiniLM pin stays
-`994f2d1b`.
+after `docker build -t turbo-reference bundle/reference` on the
+machine that sealed the MiniLM bundle. The image contains
+`onnx_to_openvino_ir.py` and OpenVINO 2026.3.0. A machine converts
+when that id is present. The MiniLM pin stays `994f2d1b`.
+
+On main, the MiniLM recipe and `bge-small-en-v1.5`,
+`bge-base-en-v1.5`, and `bge-large-en-v1.5` pin
+`turbo-reference@sha256:c3ceae1e238e7ec3ac6ece401c1138727d4e80977bd63a1ba8ec64841ffa2934`.
+`bge-m3` and `bge-m3-8192` pin
+`turbo-reference@sha256:0e153c1db87c62f55ff6f918c7d8a0120c3d2e5d45d3f5a0336e81153c12dd6b`.
+Those bge pins are unchanged here. Only the bge-m3 recipes pin
+`0e153c1d`. Main's `bundle/reference` Dockerfile does not copy
+`onnx_to_openvino_ir.py` and does not install OpenVINO, so those
+pins are not this MiniLM image.
 
 From the workspace root, on Linux or on Windows with Docker Desktop
 (PowerShell; the same commands):
@@ -333,8 +341,8 @@ embeddings cut writes `openvino/embeddings.xml` and
 recipe names. The Hailo image
 (`turbo-hailo-dfc@sha256:0972b97df2cfba9ba20abf9efa99a7f57ec675a00e6712a610f6cbd410a575b2`)
 is built locally, and `bundle/hailo/Dockerfile` needs a wheel this
-repository does not carry. That image is absent on this agent, so the
-HEF was left out of the make that sealed the other artifacts. That
+repository does not carry. That image was absent for the make that
+sealed the other MiniLM artifacts, so the HEF was left out. That
 make ran in `994f2d1b`, and `turbo-bundle verify` passed. The sealed
 artifacts are `weights-f32`, `onnx-f32`, `onnx-f16`, `openvino-f16`,
 and `openvino-embeddings-f16`. The reference and each conversion
@@ -489,21 +497,18 @@ on `ubuntu-24.04`. That machine has no Intel NPU driver and no
 not set `TURBO_TEST_REQUIRE_NPU`.
 
 What that job does run: the library tests that need no device (the IR
-container, the build flags, the host gather, the native-blob copy
-against a stand-in table) and the integration tests that return when
-the backend lists nothing. A missing device is a skip line, not a
-measured session.
+container, the build flags, the host gather, and the native descriptor)
+and the integration tests that return when the backend lists nothing.
+A missing device is a skip line, not a measured session.
 
 What it does not run: the four tests in `core/tests/npu.rs` marked
 `needs an Intel NPU and TURBO_TEST_BUNDLE with an OpenVINO IR for it`.
 Those stay ignored. Conformance with `TURBO_TEST_DEVICE=npu` is the
 ignored test in `core/tests/conformance.rs`, and this job does not
-include it. `turbo-bench` is not pointed at an NPU here either.
+include it. `turbo-bench` is not pointed at an NPU in that job either.
 
-There is no self-hosted NPU runner in this workflow. Adding one means
-a machine that lists the device and runs the ignored tests with
-`TURBO_TEST_REQUIRE_NPU=1` and a real bundle. A green `test (npu)` on
-`ubuntu-24.04` is not that run, and it is not coverage of the graph
+There is no self-hosted NPU runner in this workflow. A green `test (npu)`
+on `ubuntu-24.04` is not a device run, and it is not coverage of the graph
 the driver compiles.
 
 ## Hardware
@@ -690,10 +695,8 @@ the driver, and the library already compiles this same IR through
 the Level Zero graph extension. That mismatch was the OpenVINO
 package and the NPU driver compiler out of step. It is resolved for
 the measured cells. They were timed with OpenVINO nightly 2026.5.0
-(`2026.5.0-23311-786052d995f`). The Windows installer package cited
-for that pairing is `32.0.100.4778`. No record stores that package
-number. The binding driver string is the Level Zero version the
-records report, `0.15.21738`.
+(`2026.5.0-23311-786052d995f`). The binding driver string is the
+Level Zero version the records report, `0.15.21738`.
 `benchmark_app` compiled the static IR (`-m openvino/model.xml`)
 and wrote a kernel measurement. Passing the dynamic ONNX file
 instead fails earlier, at `core.cpp:120`, and that file is not the
@@ -734,29 +737,3 @@ The dense files are the same settings and the same static IR, case
 - `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`:
   library p50 3.97 ms, about 251.27 rows/s; OpenVINO IR p50 3.87 ms;
   `speed_ratio` about 1.026.
-
-## Still to land
-
-- A load on intel-npu whose graph is created with
-  `ZE_GRAPH_FORMAT_NATIVE`. The `383a7d1` run on driver `0.15.21738`
-  reported `graphFormatsSupported` `0x2`. `NATIVE` (bit `0x1`) was not
-  advertised, so `model_load` initialized the `NGRAPH_LITE` graph and
-  did not create the native one. The code path remains for a driver
-  that lists the bit. That create has not been exercised on hardware.
-  A record from that driver would say `TURBO_NPU_GRAPH_FORMAT=NATIVE`
-  and would not match an `NGRAPH_LITE` cell.
-- Machines that only have `sha256:0e153c1d...` still need the MiniLM
-  image `turbo-reference@sha256:994f2d1b...` present before they
-  convert. That id is what `docker build -t turbo-reference
-  bundle/reference` produced on this agent. It contains
-  `onnx_to_openvino_ir.py`. The pin is that local image id.
-- A `NATIVE` timing. Driver `0.15.21738` reports
-  `graphFormatsSupported` `0x2`. A record from a driver that
-  advertises bit `0x1` would say `NATIVE`.
-- Host-only CI. `test (npu)` on GitHub Actions is `ubuntu-24.04` with
-  no device. The ignored NPU tests are not that job. There is no
-  self-hosted NPU runner. See Host-only blocker.
-- Several NPU devices. `benchmark_app -d NPU` is OpenVINO's first
-  device. The tool refuses the reference when more than one NPU is
-  listed. `--openvino-accel` selects the device node for the one
-  device that is listed. There is no per-device index.

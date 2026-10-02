@@ -159,10 +159,9 @@ not bind:
 serialized API 8.1 against expected 8.2, with NPU-VCL returning
 `ZE_RESULT_ERROR_INVALID_NULL_POINTER`. That mismatch is resolved for
 these cells: `benchmark_app` compiled `-m openvino/model.xml` with
-OpenVINO nightly 2026.5.0 (`2026.5.0-23311-786052d995f`). The Windows
-installer package cited for that pairing is `32.0.100.4778`. No
-record stores that package number. The binding driver string is the
-Level Zero version the records report, `0.15.21738`. Docs for the
+OpenVINO nightly 2026.5.0 (`2026.5.0-23311-786052d995f`). The binding
+driver string is the Level Zero version the records report,
+`0.15.21738`. Docs for the
 device and the host-only CI job are in docs/npu.md.
 
 Windows, where a container cannot see the NPU driver. `--rows mixed` is
@@ -715,9 +714,8 @@ The earlier intel-npu compile report, IR serialized API found
 8.1, expected 8.2, NPU-VCL
 `ZE_RESULT_ERROR_INVALID_NULL_POINTER`, was the OpenVINO package and
 the driver compiler out of step. It is resolved for the measured
-cells by OpenVINO nightly 2026.5.0. The Windows installer package
-cited for that pairing is `32.0.100.4778`, which no record stores.
-The binding driver string is Level Zero `0.15.21738`.
+cells by OpenVINO nightly 2026.5.0. The binding driver string is
+Level Zero `0.15.21738`.
 The IR file is not the versioned party: the plugin re-serializes for
 the driver, and the library compiles this IR through the graph
 extension. The product path is that Level Zero graph and
