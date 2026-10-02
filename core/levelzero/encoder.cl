@@ -754,7 +754,10 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
  * row's keys and values stream through local memory 64 at a time, and
  * each work-item keeps an online softmax over them, so every key and value
  * is read from global memory once per group. One kernel per head width, so
- * the registers are sized at compile time. */
+ * the registers are sized at compile time. Every attention kernel walks
+ * the batch's rows newest first: the projection wrote them in order, and
+ * a batch's projections can outgrow the cache, so the rows written last
+ * are the ones still in it. */
 
 #define KEYS 64
 #define QUERIES 256
@@ -766,7 +769,7 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
         __local float4 ks[KEYS][HD / 4];                                                                           \
         __local float4 vs[KEYS][HD / 4];                                                                           \
         __local int live[KEYS];                                                                                    \
-        const int head = get_group_id(1), r = get_group_id(2);                                                     \
+        const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);                                                     \
         const int start = rows[2 * r], len = rows[2 * r + 1];                                                      \
         const int i = get_group_id(0) * QUERIES + get_local_id(0);                                                    \
         if (get_group_id(0) * QUERIES >= len) return;                                                                 \
@@ -834,7 +837,9 @@ FLASH(attention_128_to_half, 128, half, vstore_half4)
  * runs in base 2 on scores scaled by log2(e). qkv and ctx are F16, the
  * sums and the softmax F32. The head width is a multiple of 32, and so is
  * hidden, so a head's keys and values start 64-byte aligned for the 2D
- * reads. */
+ * reads, and a query's context goes out as whole 64-byte lines, a lane's
+ * 32 dims at a time: the same values in 16-byte pieces cost a B70 a
+ * tenth of the kernel. */
 #define ATT_SUBGROUPS 4
 
 __attribute__((overloadable)) void intel_sub_group_2d_block_read_transpose_32b_16r8x1c(__global void *base, int width,
@@ -860,7 +865,7 @@ int8 pack_probabilities(float8 lo, float8 hi) {
                        float scale, __global half *ctx) {                                                          \
         const int lane = get_sub_group_local_id();                                                                 \
         const int q0 = (get_group_id(0) * ATT_SUBGROUPS + get_sub_group_id()) * 16;                                \
-        const int head = get_group_id(1), r = get_group_id(2);                                                     \
+        const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);                                                     \
         const int start = rows[2 * r], len = rows[2 * r + 1];                                                      \
         if (q0 >= len) return;                                                                                     \
         const int stride = 3 * hidden, col = head * HD;                                                            \
@@ -929,8 +934,11 @@ int8 pack_probabilities(float8 lo, float8 hi) {
         if (q0 + lane >= len) return;                                                                              \
         const float inv = 1.0f / l;                                                                                \
         __global half *out = ctx + (size_t)(start + q0 + lane) * hidden + col;                                     \
-        __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++)                                       \
-            vstore_half8(acc[b] * inv, b, out);                                                                    \
+        __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 32; b++) {                                   \
+            const half16 h0 = convert_half16((float16)(acc[4 * b] * inv, acc[4 * b + 1] * inv));                   \
+            const half16 h1 = convert_half16((float16)(acc[4 * b + 2] * inv, acc[4 * b + 3] * inv));               \
+            vstore8((ulong8)(as_ulong4(h0), as_ulong4(h1)), b, (__global ulong *)out);                             \
+        }                                                                                                          \
     }
 
 FLASH_XMX(32)
@@ -955,7 +963,7 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
     __local ushort Vs[2][8 * 2 * 128];
     const int sg = get_sub_group_id(), lane = get_sub_group_local_id();
     const int q0 = (get_group_id(0) * ATT2_SG + sg) * 16;
-    const int head = get_group_id(1), r = get_group_id(2);
+    const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);
     const int start = rows[2 * r], len = rows[2 * r + 1];
     const int stride = 3 * hidden, col = head * 64;
     __global const half *base = qkv + (size_t)start * stride + col;
@@ -1060,7 +1068,11 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
     if (q0 + lane >= len) return;
     const float inv = 1.0f / l;
     __global half *out = ctx + (size_t)(start + q0 + lane) * hidden + col;
-    __attribute__((opencl_unroll_hint)) for (int b = 0; b < 8; b++) vstore_half8(acc[b] * inv, b, out);
+    __attribute__((opencl_unroll_hint)) for (int b = 0; b < 2; b++) {
+        const half16 h0 = convert_half16((float16)(acc[4 * b] * inv, acc[4 * b + 1] * inv));
+        const half16 h1 = convert_half16((float16)(acc[4 * b + 2] * inv, acc[4 * b + 3] * inv));
+        vstore8((ulong8)(as_ulong4(h0), as_ulong4(h1)), b, (__global ulong *)out);
+    }
 }
 #undef ATT2_SG
 
@@ -1071,7 +1083,7 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
 __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention(
     __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, int head_dim,
     float scale, __global float *ctx, __global half *ctx_half, __local float *sm) {
-    const int i = get_group_id(0), head = get_group_id(1), r = get_group_id(2);
+    const int i = get_group_id(0), head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);
     const int start = rows[2 * r], len = rows[2 * r + 1];
     if (i >= len) return;
     __local float *qi = sm;
