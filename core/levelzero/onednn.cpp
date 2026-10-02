@@ -29,19 +29,14 @@ struct Handle {
     sycl::queue queue;
     dnnl::engine engine;
     dnnl::stream stream;
-    // The matmul primitives by (m, k, n, gelu, residual), each with its
-    // weights' layout, and the LayerNorms by (m, n).
+    // The matmul primitives by (m, k, n, gelu, residual) and the LayerNorms
+    // by (m, n).
     std::map<std::tuple<int, int, int, int, int>, dnnl::matmul> matmuls;
-    std::map<std::tuple<int, int>, dnnl::memory::desc> weights;
     std::map<std::tuple<int, int>, dnnl::layer_normalization_forward> norms;
     // The events of the work queued since the last wait, kept so their
     // Level Zero handles stay valid for the backend's list to wait on.
     std::vector<sycl::event> events;
 };
-
-// The weights' layout the matmul asks for at the widest batch the backend
-// runs, which every batch then uses.
-constexpr int PACK_M = 8192;
 
 void say(char *err, size_t n, const std::string &what) {
     if (err && n) {
@@ -63,20 +58,13 @@ template <typename F> int guarded(char *err, size_t n, F f) {
     return 1;
 }
 
-dnnl::memory::desc weights_desc(Handle &h, int k, int n) {
-    auto key = std::make_tuple(k, n);
-    auto it = h.weights.find(key);
-    if (it != h.weights.end()) {
-        return it->second;
-    }
+// The weights' layout: [k, n] stored transposed, n rows of k. Left to
+// choose, oneDNN pads n to a multiple of 32 and keeps the rows of n, and
+// its kernels on a B70 run 2% slower from that on bge-base and bge-large;
+// the transposed plain layout is what OpenVINO hands it.
+dnnl::memory::desc weights_desc(int k, int n) {
     using namespace dnnl;
-    memory::desc a({PACK_M, k}, memory::data_type::f16, memory::format_tag::ab);
-    memory::desc w({k, n}, memory::data_type::f16, memory::format_tag::any);
-    memory::desc bias({1, n}, memory::data_type::f32, memory::format_tag::ab);
-    memory::desc c({PACK_M, n}, memory::data_type::f16, memory::format_tag::ab);
-    matmul::primitive_desc pd(h.engine, a, w, bias, c);
-    h.weights.emplace(key, pd.weights_desc());
-    return pd.weights_desc();
+    return memory::desc({k, n}, memory::data_type::f16, memory::format_tag::ba);
 }
 
 dnnl::matmul &matmul_for(Handle &h, int m, int k, int n, int gelu, int residual) {
@@ -98,7 +86,7 @@ dnnl::matmul &matmul_for(Handle &h, int m, int k, int n, int gelu, int residual)
         po.append_eltwise(algorithm::eltwise_gelu_erf, 0.f, 0.f);
     }
     attr.set_post_ops(po);
-    matmul::primitive_desc pd(h.engine, a, weights_desc(h, k, n), bias, c, attr);
+    matmul::primitive_desc pd(h.engine, a, weights_desc(k, n), bias, c, attr);
     return h.matmuls.emplace(key, matmul(pd)).first->second;
 }
 
@@ -159,19 +147,19 @@ void turbo_dnnl_close(void *h) {
     delete static_cast<Handle *>(h);
 }
 
-// Bytes the packed weights of a [k, n] F16 matrix take.
+// Bytes the packed (transposed) weights of a [k, n] F16 matrix take.
 int turbo_dnnl_weights_bytes(void *hp, int k, int n, size_t *bytes, char *err, size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
-    return guarded(err, n_err, [&] { *bytes = weights_desc(h, k, n).get_size(); });
+    return guarded(err, n_err, [&] { *bytes = weights_desc(k, n).get_size(); });
 }
 
-// src, [k, n] F16 row-major, packed into dst; waits.
+// src, [k, n] F16 row-major, packed (transposed) into dst; waits.
 int turbo_dnnl_pack(void *hp, const void *src, int k, int n, void *dst, char *err, size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
     return guarded(err, n_err, [&] {
         using namespace dnnl;
         memory::desc s({k, n}, memory::data_type::f16, memory::format_tag::ab);
-        memory from = usm(h, s, src), to = usm(h, weights_desc(h, k, n), dst);
+        memory from = usm(h, s, src), to = usm(h, weights_desc(k, n), dst);
         reorder(from, to).execute(h.stream, from, to);
         h.stream.wait();
     });
@@ -192,7 +180,7 @@ int turbo_dnnl_matmul(void *hp, const void *a, const void *packed, const float *
         memory::desc cmd({m, n}, memory::data_type::f16, memory::format_tag::ab);
         if (!bias) throw std::runtime_error("a bias is required");
         std::unordered_map<int, memory> args = {{DNNL_ARG_SRC, usm(h, amd, a)},
-                                                {DNNL_ARG_WEIGHTS, usm(h, weights_desc(h, k, n), packed)},
+                                                {DNNL_ARG_WEIGHTS, usm(h, weights_desc(k, n), packed)},
                                                 {DNNL_ARG_BIAS, usm(h, biasmd, bias)},
                                                 {DNNL_ARG_DST, usm(h, cmd, c)}};
         if (residual) {
