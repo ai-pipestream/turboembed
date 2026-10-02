@@ -689,8 +689,8 @@ pub struct Cell<'a> {
     /// The operating system this build is for, std::env::consts::OS.
     pub os: &'a str,
     /// The graph format an npu cell loads (`NGRAPH_LITE` or `NATIVE`).
-    /// None for every other backend. A record is for the cell only when
-    /// library.settings names that format.
+    /// None for every other backend. An npu cell with None matches no
+    /// record. A named format matches only when library.settings names it.
     pub graph_format: Option<&'a str>,
 }
 
@@ -719,7 +719,14 @@ impl Record {
             && task_name(cell.task) == Some(self.task.as_str())
             && precision_name(cell.precision) == Some(self.precision.as_str())
             && (!cell.cpu || (self.device.kind == "DEVICE_CPU" && self.device.name == cell.name))
-            && cell.graph_format.is_none_or(|fmt| setting(self, "TURBO_NPU_GRAPH_FORMAT") == Some(fmt))
+            && match (cell.backend, cell.graph_format) {
+                // A listed npu device always names NGRAPH_LITE or NATIVE.
+                // None is an unlisted ordinal, and it must not inherit a
+                // record of either format.
+                ("npu", None) => false,
+                (_, None) => true,
+                (_, Some(fmt)) => setting(self, "TURBO_NPU_GRAPH_FORMAT") == Some(fmt),
+            }
     }
 
     /// Why a record for the cell does not back SUPPORTED, or None when it
@@ -881,6 +888,14 @@ mod tests {
         let fastest_rec = embedded().iter().find(|(n, _)| *n == fastest).unwrap().1.as_ref().unwrap();
         assert!(model_rec.is_for(&windows));
         assert!(fastest_rec.is_for(&cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", Some("NGRAPH_LITE"))));
+        assert!(
+            !model_rec.is_for(&cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", None)),
+            "an npu cell with no graph format matches no record"
+        );
+        assert!(
+            !fastest_rec.is_for(&cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", None)),
+            "an npu cell with no graph format matches no record"
+        );
         assert_eq!(model_rec.rows.cases, [0, 1, 2, 3, 4, 5, 6, 7]);
         assert_eq!(fastest_rec.rows.cases, model_rec.rows.cases);
         assert_eq!(model_rec.rows.live_tokens, 181);
