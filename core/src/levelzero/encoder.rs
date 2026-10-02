@@ -486,7 +486,10 @@ enum Attention {
     General(Kernel),
     /// At FASTEST, on the matrix engines, from F16 projections to an F16
     /// context.
-    Xmx(Kernel),
+    /// The plain kernel, and for head width 64 the one with K and V
+    /// staged in local memory, for the runs whose longest row fills its
+    /// group.
+    Xmx(Kernel, Option<Kernel>),
 }
 
 impl Kernels {
@@ -495,7 +498,12 @@ impl Kernels {
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
             32 | 64 if xmx => {
-                Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_SUBGROUPS, 1, 1])?)
+                let staged = if head_dim == 64 {
+                    Some(c.kernel("attention_xmx2_64", [16 * ATT2_SUBGROUPS, 1, 1])?)
+                } else {
+                    None
+                };
+                Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_SUBGROUPS, 1, 1])?, staged)
             }
             128 if xmx => Attention::Tiled(c.kernel(&format!("attention_{head_dim}_to_half"), [QUERIES, 1, 1])?),
             32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
@@ -654,6 +662,9 @@ fn mlp_kernel(c: &Context, hidden: u32, intermediate: u32) -> Res<Option<(Kernel
 /// Sub-groups of an XMX attention group, 16 queries each, as encoder.cl's
 /// ATT_SUBGROUPS.
 const ATT_SUBGROUPS: u32 = 4;
+/// The staged XMX attention's sub-groups a group (encoder.cl's ATT2_SG);
+/// it runs where the longest row fills a group.
+const ATT2_SUBGROUPS: u32 = 8;
 
 /// Queries a tiled attention group takes, as encoder.cl's QUERIES.
 const QUERIES: u32 = 256;
@@ -1157,7 +1168,7 @@ impl Session {
                 "the query, key and value projection",
             )?;
             match &k.attention {
-                Attention::Xmx(a) => {
+                Attention::Xmx(a, staged) => {
                     let args = [
                         Ptr(self.qkv),
                         Ptr(self.packed_mask),
@@ -1166,7 +1177,12 @@ impl Session {
                         F32(scale),
                         Ptr(self.att),
                     ];
-                    let groups = [self.longest.div_ceil(16 * ATT_SUBGROUPS), d.heads, batch];
+                    // The staged kernel where the longest row fills its group.
+                    let (a, sgs) = match staged {
+                        Some(s) if self.longest >= 16 * ATT2_SUBGROUPS => (s, ATT2_SUBGROUPS),
+                        _ => (a, ATT_SUBGROUPS),
+                    };
+                    let groups = [self.longest.div_ceil(16 * sgs), d.heads, batch];
                     a.launch(c, q, "attention", &args, groups)?;
                 }
                 Attention::Tiled(a) => {

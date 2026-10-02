@@ -162,7 +162,12 @@ of any run.
   and 64 runs on the matrix engines: a sub-group takes 16 queries, a lane
   each, and walks the row's keys 32 at a time (K and V by 2D block
   reads); a group's 4 sub-groups take consecutive blocks of queries, so
-  they read the row's keys and values from cache between them. Other
+  they read the row's keys and values from cache between them. For head
+  width 64, when the longest row has 128 tokens or more, a group of 8
+  sub-groups stages each 32-key tile of K and V in local memory once and
+  its sub-groups read it from there, which on a B70 takes 13 to 15% off
+  the attention of bge-base and bge-large; on shorter rows and on head
+  width 32 the plain kernel is the faster one and runs. Other
   widths write an F16 context from the kernels above. The run waits for the queue before it returns, and
   leaves the vectors in the session's `DEVICE` buffer:
   `turbo_result_buffer` hands out that memory, and `turbo_result_read`
