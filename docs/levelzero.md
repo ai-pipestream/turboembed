@@ -57,9 +57,11 @@ back to the hidden width with their residual added, each followed by
 oneDNN's LayerNorm; the last layer's hidden states are then widened to F32
 for the pooling. oneDNN runs on the backend's own device, context and
 memory through a SYCL queue of its own, which the backend orders against
-its command list by waiting on the host. The F16 weights are packed once
-more at load, in the layout oneDNN's kernels read. Everything else, the
-attention above all, is the backend's.
+its command list by waiting on the host. The F16 weights are transposed
+once more at load, into the plain layout OpenVINO hands oneDNN: left to
+choose, oneDNN pads and keeps the rows, and runs 2% slower from that on a
+B70 on bge-base and bge-large. Everything else, the attention above all,
+is the backend's.
 
 The build needs the oneAPI compiler (`TURBO_ICPX`, else `icpx` on the
 `PATH`, with its environment set) and oneDNN's headers and library; it
