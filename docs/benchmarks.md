@@ -121,11 +121,10 @@ path is the Level Zero graph extension and `FORMAT_OPENVINO_IR`.
 `benchmark_app` is the reference control and is given the static IR
 (`-m openvino/model.xml`).
 
-Two ROWS_MIXED records bind those cells. They are committed at
-`74dfe34`, measured at library commit `0c7efb5`, case 0,
-`live_tokens` 2, `INPUT_TOKEN_IDS`, `DTYPE_F16`, library version
-`0.1.0`, `machine.os` windows, on Windows Arrow Lake (`Intel(R) AI
-Boost`, arch `arl-npu`):
+Two ROWS_MIXED records are committed at `74dfe34`, measured at
+library commit `0c7efb5`, case 0, `live_tokens` 2, `INPUT_TOKEN_IDS`,
+`DTYPE_F16`, library version `0.1.0`, `machine.os` windows, on
+Windows Arrow Lake (`Intel(R) AI Boost`, arch `arl-npu`):
 `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json`
 (library p50 3.7056 ms, 269.45066688366427 rows/s; OpenVINO IR p50
 3.72 ms; `speed_ratio` 0.9961290322580645) and
@@ -134,11 +133,17 @@ Boost`, arch `arl-npu`):
 3.74 ms; `speed_ratio` 1.0037967914438501). TEI was `--no-tei`. Both
 name `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
 `TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. `conformance.min_cosine` is
-0.999996097954919. `decide_embedded` promotes `MODEL` and `FASTEST`
-to SUPPORTED on a Windows build of library `0.1.0` whose device arch
-is `arl-npu` and whose graph format is `NGRAPH_LITE` (The SUPPORTED
-rule). Another arch, a `NATIVE` graph, and a build whose OS is not
-windows stay EXPERIMENTAL.
+0.999996097954919. Each file is one `[1, 128]` frame of case 0.
+`conformance.rows` is 9 and the batch is 1, so eight reference cases
+fit seq and the rows list one. `is_for` matches. `falls_short`
+reports that gap, so they do not back SUPPORTED (The SUPPORTED
+rule). `decide_embedded` leaves `MODEL` and `FASTEST` EXPERIMENTAL
+on a Windows build of library `0.1.0` whose
+device arch is `arl-npu` and whose graph format is `NGRAPH_LITE`.
+The files stay until a mixed record covers every case that fits,
+each row its own `[1, 128]` frame, with OpenVINO measured on those
+same rows. Another arch, a `NATIVE` graph, and a build whose OS is
+not windows stay EXPERIMENTAL with no record for the cell.
 
 Two ROWS_DENSE records of the same IR are committed at `00aa734`,
 measured at library commit `febfed530`, case 8, and are reference
@@ -153,10 +158,11 @@ not bind:
 serialized API 8.1 against expected 8.2, with NPU-VCL returning
 `ZE_RESULT_ERROR_INVALID_NULL_POINTER`. That mismatch is resolved for
 these cells: `benchmark_app` compiled `-m openvino/model.xml` with
-OpenVINO nightly 2026.5.0 (`2026.5.0-23311-786052d995f`) paired to
-driver `32.0.100.4778`. The records' Level Zero driver string is
-`0.15.21738`. Docs for the device and the host-only CI job are in
-docs/npu.md.
+OpenVINO nightly 2026.5.0 (`2026.5.0-23311-786052d995f`). The Windows
+installer package cited for that pairing is `32.0.100.4778`. No
+record stores that package number. The binding driver string is the
+Level Zero version the records report, `0.15.21738`. Docs for the
+device and the host-only CI job are in docs/npu.md.
 
 Windows, where a container cannot see the NPU driver. `--rows mixed` is
 the default. It cycles every fitting case. Repeat with `--precision
@@ -708,15 +714,19 @@ The earlier intel-npu compile report, IR serialized API found
 8.1, expected 8.2, NPU-VCL
 `ZE_RESULT_ERROR_INVALID_NULL_POINTER`, was the OpenVINO package and
 the driver compiler out of step. It is resolved for the measured
-cells by OpenVINO nightly 2026.5.0 paired to driver `32.0.100.4778`.
+cells by OpenVINO nightly 2026.5.0. The Windows installer package
+cited for that pairing is `32.0.100.4778`, which no record stores.
+The binding driver string is Level Zero `0.15.21738`.
 The IR file is not the versioned party: the plugin re-serializes for
 the driver, and the library compiles this IR through the graph
 extension. The product path is that Level Zero graph and
 `FORMAT_OPENVINO_IR`. The mixed records are case 0 at `[1, 128]`,
-`INPUT_TOKEN_IDS`, F16, `NGRAPH_LITE`, and they bind the `arl-npu`
-windows `MODEL` and `FASTEST` cells. The dense records are case 8
-at the same shape. They are reference evidence and back no
-capability cell.
+`live_tokens` 2, `INPUT_TOKEN_IDS`, F16, `NGRAPH_LITE`. They match
+the `arl-npu` windows `MODEL` and `FASTEST` cells and cover 1 of 8
+reference cases that fit seq, so those cells stay EXPERIMENTAL.
+The dense records are case 8 at the same shape. They are reference
+evidence and back no capability cell. The thin mixed files stay in
+the tree on the same terms.
 
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
@@ -760,12 +770,18 @@ A record for the cell backs SUPPORTED when all of these hold:
    programs), so a levelzero or npu record is backed by OpenVINO or TEI.
    The npu backend reports `TURBO_DTYPE_F16` before a model is loaded,
    the compute dtype the published recipes declare. `SUPPORTED` needs
-   a mixed-row record that measures a reference and does not fall
-   short. Two ROWS_MIXED MiniLM IR records are committed
-   (docs/npu.md). They are for the `arl-npu` windows `NGRAPH_LITE`
-   `MODEL` and `FASTEST` cells at library `0.1.0` and `DTYPE_F16`,
-   and those cells are SUPPORTED. The ROWS_DENSE npu files are not
-   for a cell. Another arch, a `NATIVE` graph, and a build for
+   a mixed-row record that measures a reference, does not fall short
+   of the dtype floor, and lists every reference case that fits
+   `seq`. Conformance counts those cases run alone and then every
+   row of the timed batch, so the distinct cases in `rows.cases`
+   must equal `conformance.rows` minus `rows.batch`. Two ROWS_MIXED
+   MiniLM IR records are committed (docs/npu.md). They match the
+   `arl-npu` windows `NGRAPH_LITE` `MODEL` and `FASTEST` cells at
+   library `0.1.0` and `DTYPE_F16`, and each lists case 0 only
+   (`live_tokens` 2, one `[1, 128]` frame). `conformance.rows` is 9
+   and the batch is 1, so they cover 1 of 8 cases and those cells
+   stay EXPERIMENTAL. The files remain. The ROWS_DENSE npu files are
+   not for a cell. Another arch, a `NATIVE` graph, and a build for
    another OS stay EXPERIMENTAL, and `reason` is `no benchmark
    record for this cell`.
 
