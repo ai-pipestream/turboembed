@@ -172,13 +172,17 @@ pub struct Rows {
     /// padded; `ROWS_DENSE`: every row a case of at least seq tokens, cut
     /// to seq the way the bundle truncates, so no token is padding. A
     /// record made before rows had a kind is mixed, the only kind then.
+    /// A mixed pass whose frame batch is 1 lists every fitting case,
+    /// each its own `[1, seq]` frame, so `cases` is longer than `batch`.
     #[serde(default = "rows_mixed")]
     pub kind: String,
     pub batch: u32,
     pub seq: u32,
-    /// Mask entries of 1 across the batch.
+    /// Mask entries of 1 across the measured rows.
     pub live_tokens: u64,
-    /// Which reference case each row is, in row order.
+    /// Which reference case each measured row is, in row order. One per
+    /// row of the single batch, or one per frame when `batch` is 1 and
+    /// the pass cycles every fitting case.
     pub cases: Vec<u32>,
     /// docs/benchmarks.md, "Token rows": the hash of exactly what was
     /// written.
@@ -201,9 +205,12 @@ pub struct Timing {
     pub rows_per_second: f64,
     /// Token positions the library computed per run: each row's through
     /// its last live token, since its backends pack the rows and skip the
-    /// padding after them. Beside rows.live_tokens, and a reference's
-    /// computed_tokens, so a padded and a packed time are not read as the
-    /// same work. Null only in a record made before the field was.
+    /// padding after them. npu counts every position of each compiled
+    /// frame in the pass (one frame is batch x seq; a frame of batch 1
+    /// that cycles cases counts one frame per case). Beside
+    /// rows.live_tokens, and a reference's computed_tokens, so a padded
+    /// and a packed time are not read as the same work. Null only in a
+    /// record made before the field was.
     #[serde(default)]
     pub computed_tokens: Option<u64>,
 }
@@ -250,9 +257,10 @@ pub struct Measured {
     /// Its lowest cosine against the bundle's reference, when its vectors
     /// were seen; null when the program does not return them.
     pub min_cosine: Option<f64>,
-    /// Token positions it computed per run: batch x seq for a kernel on
-    /// the padded rows; null when that cannot be known from outside it,
-    /// or in a record made before the field was.
+    /// Token positions it computed per run: every padded row of the pass
+    /// for a kernel on the static shape (one frame is batch x seq; a
+    /// batch-1 cycle is one frame per case); null when that cannot be
+    /// known from outside it, or in a record made before the field was.
     #[serde(default)]
     pub computed_tokens: Option<u64>,
 }
@@ -401,6 +409,20 @@ pub fn fastest(references: &[ReferenceRun]) -> Option<(&str, f64)> {
         .min_by(|a, b| a.1.total_cmp(&b.1))
 }
 
+/// Rows in one measured pass. A single batch has one case per row.
+/// A mixed pass whose frame batch is 1 has one case per frame of the
+/// cycle, each frame `[1, seq]`.
+fn pass_rows(rows: &Rows) -> Result<u64, String> {
+    let n = rows.cases.len();
+    if rows.batch == 0 || rows.seq == 0 || n == 0 || !is_hex(&rows.sha256, 64) {
+        return Err("rows: batch and seq must be above 0, cases one per row, sha256 64 lowercase hex".into());
+    }
+    if n != rows.batch as usize && rows.batch != 1 {
+        return Err("rows: batch and seq must be above 0, cases one per row, sha256 64 lowercase hex".into());
+    }
+    Ok(n as u64)
+}
+
 /// speed_ratio and speed_reference as the references give them.
 pub fn speed(p50_ms: f64, references: &[ReferenceRun]) -> (Option<f64>, Option<String>) {
     match fastest(references) {
@@ -493,11 +515,9 @@ impl Record {
             return Err("bundle.model_id is empty".into());
         }
         let rows = &self.rows;
-        if rows.batch == 0 || rows.seq == 0 || rows.cases.len() != rows.batch as usize || !is_hex(&rows.sha256, 64) {
-            return Err("rows: batch and seq must be above 0, cases one per row, sha256 64 lowercase hex".into());
-        }
-        if rows.live_tokens < rows.batch as u64 || rows.live_tokens > rows.batch as u64 * rows.seq as u64 {
-            return Err(format!("rows.live_tokens {} does not fit {} x {}", rows.live_tokens, rows.batch, rows.seq));
+        let n = pass_rows(rows)?;
+        if rows.live_tokens < n || rows.live_tokens > n * u64::from(rows.seq) {
+            return Err(format!("rows.live_tokens {} does not fit {n} x {}", rows.live_tokens, rows.seq));
         }
         match rows.kind.as_str() {
             ROWS_MIXED => {}
@@ -511,22 +531,24 @@ impl Record {
             }
             k => return Err(format!("rows.kind {k:?} is not {ROWS_MIXED} or {ROWS_DENSE}")),
         }
-        let frame = rows.batch as u64 * rows.seq as u64;
-        let slots = rows.live_tokens..=frame;
-        if let Some(n) = self.timing.computed_tokens
-            && !slots.contains(&n)
+        // One frame is batch x seq. A batch-1 cycle is one [1, seq]
+        // frame per case, and the pass computes every one of them.
+        let positions = n * u64::from(rows.seq);
+        let slots = rows.live_tokens..=positions;
+        if let Some(got) = self.timing.computed_tokens
+            && !slots.contains(&got)
         {
             return Err(format!(
-                "timing.computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}"
+                "timing.computed_tokens {got} is not between the live tokens and the padded pass, {slots:?}"
             ));
         }
         // The npu graph executes every position of each compiled frame,
-        // including padding. The published cell's batch and seq are that
-        // frame, so the count is batch x seq.
-        if self.device.backend == "npu" && self.timing.computed_tokens != Some(frame) {
+        // including padding. The count is that frame times the frames in
+        // the pass: batch x seq, or one [1, seq] frame per case.
+        if self.device.backend == "npu" && self.timing.computed_tokens != Some(positions) {
             return Err(
-                "timing.computed_tokens for npu is the compiled frame, batch x seq: the device runs every position \
-                 of the frame"
+                "timing.computed_tokens for npu is every position of each compiled frame in the pass: batch x seq \
+                 for one frame, and one [1, seq] frame per case when the frame batch is 1"
                     .into(),
             );
         }
@@ -554,7 +576,7 @@ impl Record {
                 && !slots.contains(&n)
             {
                 return Err(format!(
-                    "reference {}: computed_tokens {n} is not between the live tokens and batch x seq, {slots:?}",
+                    "reference {}: computed_tokens {n} is not between the live tokens and the padded pass, {slots:?}",
                     r.name
                 ));
             }

@@ -240,7 +240,7 @@ pub fn parse_info(body: &str) -> Result<Info> {
 /// The /embed request for the rows: each row's live ids, the bundle's
 /// normalization, and no truncation.
 pub fn embed_body(rows: &Rows, normalize: bool) -> String {
-    let inputs: Vec<&[i32]> = (0..rows.batch as usize).map(|r| rows.live(r)).collect();
+    let inputs: Vec<&[i32]> = (0..rows.row_count()).map(|r| rows.live(r)).collect();
     json!({ "inputs": inputs, "normalize": normalize, "truncate": false }).to_string()
 }
 
@@ -307,12 +307,12 @@ pub fn check_model_dir(dir: &Path, m: &Measurement) -> std::result::Result<(), S
 /// is not fixed: unknown.
 pub fn computed_tokens(rows: &Rows) -> Option<u64> {
     let first = rows.live(0).len();
-    (0..rows.batch as usize).all(|r| rows.live(r).len() == first).then_some(rows.batch as u64 * first as u64)
+    (0..rows.row_count()).all(|r| rows.live(r).len() == first).then_some(rows.row_count() as u64 * first as u64)
 }
 
 /// What TEI's vectors are compared with, in a clause.
 fn compared(m: &Measurement) -> &'static str {
-    if (0..m.rows.batch as usize).all(|r| m.rows.whole(r, &m.reference)) {
+    if (0..m.rows.row_count()).all(|r| m.rows.whole(r, &m.reference)) {
         "min_cosine is against the bundle's reference vectors"
     } else {
         "min_cosine is against the bundle's reference vector for a row that is its whole case, and the library's \
@@ -608,7 +608,7 @@ pub fn run(
          batch's {} rows as token ids, {warmup} untimed then {iterations} timed, each timed from sending the \
          request to reading the whole response, the p50 and p99 of TEI's {} headers beside it, and TEI's /metrics read \
          before and after the timed requests for its {BATCH_SIZE_METRIC} and {BATCH_TOKENS_METRIC} histograms; {}",
-        m.rows.batch,
+        m.rows.row_count(),
         TIMING_HEADERS.join(", "),
         compared(m)
     );
@@ -631,7 +631,17 @@ pub fn run(
 
     let container = format!("turbo-bench-tei-{}", std::process::id());
     let start_argv = |dir: &Path| {
-        run_argv(image, dir, &container, gpu, tei.cpus.as_ref(), dtype, pooling(m.pooling()), m.rows.batch, m.rows.seq)
+        run_argv(
+            image,
+            dir,
+            &container,
+            gpu,
+            tei.cpus.as_ref(),
+            dtype,
+            pooling(m.pooling()),
+            m.rows.row_count() as u32,
+            m.rows.seq,
+        )
     };
     log.run_as(&start_argv(&dir), start_argv(Path::new(docker::TEI_MODEL)))?;
     let _running = Running { name: container.clone() };
@@ -672,7 +682,7 @@ fn run_native(
         .and_then(|l| l.local_addr())
         .map_err(|e| format!("a loopback port for TEI: {e}"))?
         .port();
-    let (pool, batch, seq) = (pooling(m.pooling()), m.rows.batch, m.rows.seq);
+    let (pool, batch, seq) = (pooling(m.pooling()), m.rows.row_count() as u32, m.rows.seq);
     let run = native_argv(&bin.to_string_lossy(), &dir.to_string_lossy(), port, dtype, pool, batch, seq);
     let mut log = log;
     log.commands.push(native_argv(TEI_BIN, docker::TEI_MODEL, port, dtype, pool, batch, seq));
@@ -721,7 +731,7 @@ fn against(
     // The rows as TEI will see them.
     let distinct: Vec<usize> = {
         let mut seen = std::collections::BTreeSet::new();
-        (0..m.rows.batch as usize).filter(|&r| seen.insert(m.rows.cases[r])).collect()
+        (0..m.rows.row_count()).filter(|&r| seen.insert(m.rows.cases[r])).collect()
     };
     let sent: Vec<Vec<i32>> = distinct.iter().map(|&r| m.rows.live(r).to_vec()).collect();
     let texts: Vec<String> = serde_json::from_str(&post(
@@ -767,9 +777,9 @@ fn against(
         own.push(timing);
     }
     let total = started.elapsed().as_secs_f64();
-    let min_row_tokens = (0..m.rows.batch as usize).map(|r| m.rows.live(r).len()).min().unwrap_or(0);
+    let min_row_tokens = (0..m.rows.row_count()).map(|r| m.rows.live(r).len()).min().unwrap_or(0);
     let batches = batches_text(before.as_ref(), metrics().as_ref(), iterations, warmup, min_row_tokens);
-    let vectors = parse_embed(&last, m.rows.batch as usize, m.model.dim as usize)?;
+    let vectors = parse_embed(&last, m.rows.row_count(), m.model.dim as usize)?;
     let min_cosine = vectors.iter().zip(&m.expected).map(|(v, want)| cosine(v, want)).fold(1.0, f64::min);
     ms.sort_by(f64::total_cmp);
     let procedure = format!("{what}; {}; {batches}; {threads}", timing_text(&ms, &own));
@@ -784,7 +794,7 @@ fn against(
             iterations: iterations as u64,
             p50_ms: percentile(&ms, 50.0),
             p99_ms: percentile(&ms, 99.0),
-            rows_per_second: m.rows.batch as f64 * iterations as f64 / total,
+            rows_per_second: m.rows.row_count() as f64 * iterations as f64 / total,
             min_cosine: Some(min_cosine),
             computed_tokens: computed_tokens(&m.rows),
         }),

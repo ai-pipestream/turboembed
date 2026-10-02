@@ -615,7 +615,13 @@ other optimized paths record. The published shape on the token-id seal
 `fixed_batch` is 1 and its `fixed_seq` is 128. One library frame is
 one `benchmark_app` request of `[1, 128]`. The tool refuses any other
 shape for an npu load, including the shape it would pick when
-`--batch` and `--seq` are omitted.
+`--batch` and `--seq` are omitted. Mixed rows on that frame cycle
+every reference case that fits 128, each padded into its own
+`[1, 128]` request. OpenVINO times the same cases, one request each.
+The two ROWS_MIXED files above are the earlier measurement, case 0
+and `live_tokens` 2. They stay until the intel-npu host runs the
+command in docs/benchmarks.md again. This page does not treat that
+unmeasured cycle as a new SUPPORTED record.
 
 `PRECISION_MODEL` and `PRECISION_FASTEST` are two cells at that same
 shape. `--precision model` on mixed rows is filed as
@@ -626,10 +632,13 @@ precision. On this IR both sessions compute in the compiled F16
 graph. A record of one precision does not fill the other. `EXACT`
 is `UNSUPPORTED` and is not a speed cell.
 
-`timing.computed_tokens` for this cell is 128: the device executes
-the compiled frame, and the zeros after the live tokens are part of
-that frame. The count is compiled frames times `fixed_seq`, which
-with one frame of batch 1 is `batch` x `seq`.
+`timing.computed_tokens` for a single frame of this cell is 128: the
+device executes the compiled frame, and the zeros after the live
+tokens are part of that frame. The count is compiled frames times
+`fixed_seq`. The files committed below are one frame, case 0, so the
+count is `batch` x `seq`. A mixed pass made with the current tool
+runs every reference case that fits 128, each in its own `[1, 128]`
+frame, and the count is the case count times 128. `--batch` stays 1.
 
 `library.settings` names `TURBO_NPU_GRAPH_FORMAT` and
 `TURBO_NPU_GRAPH_INPUT`. On driver `0.15.21738` the format is

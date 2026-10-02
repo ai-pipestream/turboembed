@@ -37,8 +37,8 @@ the same files copied elsewhere pass it.
 | `--bundle <dir>` | The bundle. Required; not one under `testdata/`. |
 | `--device <index\|backend>` | A runtime device index, or a backend name for the first device it lists. Default `cpu`. |
 | `--precision model\|fastest\|exact` | The session's precision. Default `model`. |
-| `--batch <n>`, `--seq <n>` | The rows' shape. Default: 32 rows, or the model's `max_batch` if fewer; the longest reference case that fits the model's `max_seq`. The npu backend refuses that default. Both flags must be the loaded artifact's `fixed_batch` and `fixed_seq`. The token-id MiniLM seal (`openvino-f16`) is `--batch 1 --seq 128`, and one library frame is one `benchmark_app` request of `[1, 128]`. |
-| `--rows mixed\|dense` | The token rows (Token rows, below). `mixed`: the reference cases that fit `seq`, cycled and padded. `dense`: every row a case of at least `seq` tokens, cut to `seq`, so all `batch` x `seq` tokens are live and packing skips none. Default `mixed`. |
+| `--batch <n>`, `--seq <n>` | The rows' shape. Default: 32 rows, or the model's `max_batch` if fewer; the longest reference case that fits the model's `max_seq`. The npu backend refuses that default. Both flags must be the loaded artifact's `fixed_batch` and `fixed_seq`. The token-id MiniLM seal (`openvino-f16`) is `--batch 1 --seq 128`, and one library frame is one `benchmark_app` request of `[1, 128]`. Mixed rows on that frame cycle every fitting case through its own `[1, 128]` request. The flag stays `--batch 1`. |
+| `--rows mixed\|dense` | The token rows (Token rows, below). `mixed`: the reference cases that fit `seq`, cycled and padded. When the frame batch is 1, that is one frame per fitting case, not case 0 alone. `dense`: every row a case of at least `seq` tokens, cut to `seq`, so all `batch` x `seq` tokens are live and packing skips none. Default `mixed`. |
 | `--cpus <list>` | Processors to run on, as `0-15` or `0-7,16-23` (Linux). The tool pins itself to them before it starts the library, sets `TURBO_CPU_THREADS` to their count (docs/cpu.md), and gives TEI's container the same processors, with MKL a thread per physical core and rayon one per processor (below). Default: unpinned. |
 | `--warmup <n>`, `--iterations <n>` | Untimed runs, then timed runs. Default 20 and 200. |
 | `--repo <dir>` | The git working tree the library was built from; its commit must be the tool's build commit (Provenance). Default: the one the tool was built in. |
@@ -111,7 +111,11 @@ On intel-npu the token-id MiniLM seal (`openvino-f16`), with the `npu`
 feature. The published shape is `--batch 1 --seq 128`: one library frame
 is one `benchmark_app` request of `[1, 128]`. The tool refuses a run
 that omits those flags. Do not copy `--seq 256` or a batch of 32 from a
-GPU record. `--precision model` and `--precision fastest` are two cells
+GPU record, and do not raise `--batch` to the case count: the graph is
+not that shape. Mixed rows (the default) on this frame run every
+reference case that fits 128, each padded to 128 in its own `[1, 128]`
+request. OpenVINO times that same set, one request per case.
+`--precision model` and `--precision fastest` are two cells
 at that shape. A record of one does not fill the other. The product
 path is the Level Zero graph extension and `FORMAT_OPENVINO_IR`.
 `benchmark_app` is the reference control and is given the static IR
@@ -154,10 +158,14 @@ driver `32.0.100.4778`. The records' Level Zero driver string is
 `0.15.21738`. Docs for the device and the host-only CI job are in
 docs/npu.md.
 
-Windows, where a container cannot see the NPU driver:
+Windows, where a container cannot see the NPU driver. `--rows mixed` is
+the default. It cycles every fitting case. Repeat with `--precision
+fastest` for the other cell. The files already in
+`benchmarks/records/` are the earlier case-0 measurement and are not
+what this command writes:
 
 ```
-cargo run --release -p turbo-bench --features npu -- record --bundle <bundle> --device npu --precision model --batch 1 --seq 128 --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the cpu image> --tei-model <upstream> --openvino-bin <benchmark_app>
+cargo run --release -p turbo-bench --features npu -- record --bundle <bundle> --device npu --precision model --batch 1 --seq 128 --rows mixed --no-tei --openvino-bin <benchmark_app>
 ```
 
 Linux. The container is given `/dev/accel/accel0` unless
@@ -291,10 +299,10 @@ may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
 | `task`, `precision` | `TASK_EMBED`; `PRECISION_*` as the session asked. |
 | `compute_dtype` | `DTYPE_*` as `turbo_session_get_info` reported it. `DTYPE_I8` is accepted and has no floor. |
 | `bundle.*` | `turbo_model_info`: model id and revision, and the manifest, artifact and tokenizer hashes. |
-| `rows` | `kind`, `ROWS_MIXED` or `ROWS_DENSE` (`--rows`); the shape; `live_tokens`, the mask's ones across the batch, which for dense rows must be `batch` x `seq`; the reference case each row is; and the hash of the rows (below). |
-| `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a `turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`, timed from the host. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed. cpu, cuda and levelzero count each row through its last live token. npu counts the compiled frame, `batch` x `seq`, because the device executes every position of that frame (What each time covers). An npu record whose count is anything else does not parse. |
+| `rows` | `kind`, `ROWS_MIXED` or `ROWS_DENSE` (`--rows`); the shape; `live_tokens`, the mask's ones across the measured rows, which for dense rows must be `batch` x `seq`; the reference case each row is (one per row of the batch, or one per frame when `batch` is 1 and the pass cycles every fitting case); and the hash of the rows (below). |
+| `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a pass over the rows (`turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`), timed from the host. A batch-1 mixed cycle's pass is one embed per fitting case. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed. cpu, cuda and levelzero count each row through its last live token. npu counts every position of each compiled frame in the pass: `batch` x `seq` for one frame, and one `[1, seq]` frame per fitting case when the frame batch is 1 (What each time covers). An npu record whose count is anything else does not parse. |
 | `conformance` | Vectors compared with the bundle's fp32 reference on this device, through the C interface: each reference case no longer than `seq` alone, as a batch of one at its own length, then every row of the last timed batch that is its case whole. A dense row cut to `seq` has no reference vector; it must give, within the dtype's tolerance, what it gives alone, or the tool stops with an error. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
-| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and `batch` x `seq`. |
+| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and the padded pass (one frame is `batch` x `seq`; a batch-1 cycle is one frame per case). |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
 
 ### Token rows
@@ -307,6 +315,19 @@ id and mask 0, and every type is 0. Their hash is SHA-256 of the bytes
 then the ids, the mask and the types as little-endian i32, row-major:
 exactly what `turbo_embed_write_tokens` is given. Every reference program
 is given the same rows.
+
+A frame whose batch is 1 holds one case, so filling that batch and
+stopping would measure case 0 only. The npu graph is that frame
+(`fixed_batch` 1). Mixed rows there do not raise `--batch` to the case
+count. Every reference case that fits `seq` is padded to `seq` and run
+in its own `[1, seq]` frame, in case order. One library pass is those
+frames in order. `rows.batch` stays 1 and `rows.cases` lists every case.
+The hash header's `batch` stays 1 and the payload is every frame's ids,
+mask and types in order. OpenVINO is the same set: one `benchmark_app`
+request of `[1, seq]` per case, inputs under `frame-<n>`, and the
+record's p50 and p99 are the sums of those requests' percentile
+latencies. A wider batch is unchanged: one frame, the cases cycled
+until it is full. Dense rows are unchanged.
 
 Those are the mixed rows, the default: short and long texts together,
 as a server sees them, so most of the batch is padding, which the
@@ -371,11 +392,14 @@ Nor is the work the same unless the record says so. Each side's
   count is the live tokens.
 - npu executes each compiled frame whole. The published cell's
   `--batch` and `--seq` are the artifact's `fixed_batch` and
-  `fixed_seq`, so `computed_tokens` is that frame: `batch` x `seq`
-  (128 positions for one frame of the token-id MiniLM seal). The zeros
-  after the live tokens are computed.
+  `fixed_seq`, so one frame is `batch` x `seq` (128 positions for one
+  frame of the token-id MiniLM seal). A mixed pass on a frame of batch
+  1 runs every fitting case, and `computed_tokens` is that many frames
+  times `seq`. The zeros after the live tokens are computed.
 - TensorRT and OpenVINO run the static `[batch, seq]` shape: `batch` x
-  `seq`, whatever the mask says.
+  `seq` per request, whatever the mask says. On a batch-1 mixed cycle,
+  OpenVINO runs one request per case and `computed_tokens` is every
+  frame.
 - TEI pads each batch it forms to that batch's longest input, or packs
   where it runs flash attention (`core/src/queue.rs` and each backend's
   `is_padded`, as of v1.8.3). With every row one length, dense rows,
@@ -672,7 +696,9 @@ beside it), not `onnx/model.onnx`. A bundle with no such IR is
 own NPU graph is that same IR through Level Zero, not this
 `benchmark_app` compile. The published cell pins both sides to one
 request of the artifact's fixed shape. For the token-id MiniLM seal
-that shape is `[1, 128]`. An `INPUT_EMBEDDINGS` artifact has no
+that shape is `[1, 128]`. A mixed pass runs one such request per
+fitting case, and the OpenVINO p50 is the sum of those requests'
+median latencies. An `INPUT_EMBEDDINGS` artifact has no
 `speed_ratio`: the host gather is not the token-id IR. TEI's CPU
 image is the end-to-end reference for the token-id cell. Two
 ROWS_MIXED npu records and two ROWS_DENSE npu records are committed

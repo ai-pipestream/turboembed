@@ -697,3 +697,28 @@ fn an_npu_record_names_its_graph_format_and_refuses_a_host_gather_ratio() {
     library_only.speed_reference = None;
     assert!(reparse(&library_only).is_ok(), "{}", reparse(&library_only).unwrap_err());
 }
+
+#[test]
+fn a_batch_1_mixed_cycle_counts_every_frame() {
+    let mut r = npu_record("cycle", "NGRAPH_LITE", "INPUT_TOKEN_IDS", vec![measured_reference(OV)]);
+    r.rows.batch = 1;
+    r.rows.seq = 128;
+    r.rows.cases = vec![0, 1, 3, 4];
+    r.rows.live_tokens = 40;
+    let positions = 4 * 128;
+    r.timing.computed_tokens = Some(positions);
+    r.references[0].measured.as_mut().unwrap().computed_tokens = Some(positions);
+    assert!(reparse(&r).is_ok(), "{}", reparse(&r).unwrap_err());
+    assert!(r.is_for(&npu_cell("NGRAPH_LITE")));
+
+    // One frame's positions are not the pass.
+    r.timing.computed_tokens = Some(128);
+    assert!(reparse(&r).unwrap_err().contains("compiled frame"));
+
+    // A wider batch still needs one case per row.
+    r.rows.batch = 4;
+    r.timing.computed_tokens = Some(positions);
+    assert!(reparse(&r).is_ok(), "{}", reparse(&r).unwrap_err());
+    r.rows.cases.push(5);
+    assert!(reparse(&r).unwrap_err().contains("cases one per row"));
+}
