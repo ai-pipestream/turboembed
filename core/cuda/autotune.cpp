@@ -40,6 +40,9 @@ Tile canonical_tile(Gemm which, const Shape &base, bool mma, Tile t) {
         case TILE_64x64:
         case TILE_128x128:
         case TILE_128x128_16x8: return t;
+        // CUTLASS's SIMT mainloop: F32 operands, and cp.async (sm_80, which
+        // tensor_cores says here).
+        case TILE_CS: return !base.half && base.tensor_cores ? t : TILE_128x64;
         default: return TILE_128x64;
         }
     }
@@ -388,6 +391,7 @@ int gemm_variants(const Shape &base, Variant *out, int cap) {
     }
     // The FMA kernel's tiles, F32 or F16 operands.
     for (Tile t : {TILE_128x64, TILE_128x128_16x8, TILE_128x128, TILE_64x64}) add(t, false, true);
+    if (!base.half && base.tensor_cores) add(TILE_CS, false, true);
     if (!base.half && base.tensor_cores) {
         for (Tile t : {TILE_128x64, TILE_128x128}) add(t, true, true);
         for (Tile t : {TILE_64x64, TILE_128x128_4W}) add(t, true, false);

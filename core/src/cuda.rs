@@ -149,6 +149,10 @@ pub enum Tile {
     Ct = 18,
     /// `Ct` with F16 sums over the whole of a block's k.
     CtK = 19,
+    /// F32 operands on CUTLASS's SIMT mainloop: 256 x 128 x 8 at three
+    /// stages over eight warps of 64 x 64; the FMA kernel's 128 x 64 for
+    /// F16 operands or below sm_80.
+    Cs = 20,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
