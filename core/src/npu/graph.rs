@@ -1801,7 +1801,6 @@ fn lookup_stage(inputs: &GraphInputs) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TURBO_NORMALIZE_NONE;
 
     #[test]
     fn halves_read_back_as_the_f32_they_name() {
