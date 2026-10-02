@@ -104,14 +104,66 @@ pub fn produced_by(reported: &Value, container: &str) -> Result<Value> {
 }
 
 /// The image docker runs for a pinned container: a registry image is
-/// found by its digest, one built here by its image id.
+/// found by its digest, one built here by its config digest, which is the
+/// image id docker's classic store reports. Docker's containerd store
+/// reports a manifest digest as the id instead, so there the image is found
+/// among the ones carrying the pin's name by the config its saved manifest
+/// names.
 pub(crate) fn present(container: &str) -> Result<String> {
     let hex = check_pinned(container)?;
-    let image = if docker_has(container) { container.to_owned() } else { format!("sha256:{hex}") };
-    if !docker_has(&image) {
-        return Err(format!("the reference container {container} is not present; pull or build it first"));
+    if docker_has(container) {
+        return Ok(container.to_owned());
     }
-    Ok(image)
+    let id = format!("sha256:{hex}");
+    if docker_has(&id) {
+        return Ok(id);
+    }
+    let name = container.split_once('@').map_or(container, |(n, _)| n);
+    if let Some(image) = image_with_config(name, hex) {
+        return Ok(image);
+    }
+    Err(format!("the reference container {container} is not present; pull or build it first"))
+}
+
+/// The local image tagged with `name` whose config digest is `hex`, if any.
+fn image_with_config(name: &str, hex: &str) -> Option<String> {
+    let out = Command::new("docker")
+        .args(["image", "ls", "--format", "{{.Repository}}:{{.Tag}}", name])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+    let listed = String::from_utf8_lossy(&out.stdout);
+    listed
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .find(|image| config_digest(image).as_deref() == Some(hex))
+        .map(str::to_owned)
+}
+
+/// An image's config digest, read from the manifest `docker image save`
+/// writes, which names the config the same way under either store: as
+/// `<hex>.json` from the classic store, as `blobs/sha256/<hex>` from the
+/// containerd store.
+fn config_digest(image: &str) -> Option<String> {
+    use std::process::Stdio;
+    let mut save = Command::new("docker")
+        .args(["image", "save", image])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let tar = Command::new("tar")
+        .args(["-xO", "manifest.json"])
+        .stdin(save.stdout.take()?)
+        .stderr(Stdio::null())
+        .output()
+        .ok();
+    let _ = save.wait();
+    let manifest: Value = serde_json::from_slice(&tar?.stdout).ok()?;
+    let config = manifest.get(0)?.get("Config")?.as_str()?;
+    let hex = config.trim_end_matches(".json").rsplit('/').next()?.trim_start_matches("sha256:");
+    (hex.len() == 64).then(|| hex.to_owned())
 }
 
 pub(crate) fn docker_has(image: &str) -> bool {
@@ -142,4 +194,16 @@ pub(crate) fn scratch(bundle: &Path) -> Result<PathBuf> {
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).map_err(|e| format!("{}: {e}", d.display()))?;
     Ok(d)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore = "needs docker and the pinned image: TURBO_TEST_IMAGE_PIN=name@sha256:<64 hex>"]
+    fn a_pinned_image_is_found_under_either_store() {
+        let pin = std::env::var("TURBO_TEST_IMAGE_PIN").expect("TURBO_TEST_IMAGE_PIN");
+        let image = super::present(&pin).unwrap();
+        println!("{pin} -> {image}");
+        assert!(super::docker_has(&image));
+    }
 }
