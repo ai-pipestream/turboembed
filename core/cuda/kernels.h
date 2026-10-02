@@ -133,7 +133,14 @@ enum Tile : int {
      * FMAs in k order; the FMA kernel's schedule, partial products and
      * epilogue. Any K. Needs cp.async (sm_80); the FMA kernel's 128 x 64
      * otherwise, and for F16 operands. */
-    TILE_CS = 20
+    TILE_CS = 20,
+    /* F32 operands with FMAs, each stage read into registers and stored
+     * to shared memory transposed: 128 x 128 x 16 at two stages over
+     * eight warps of 32 x 64, each lane 8 x 8 outputs, two blocks to an
+     * SM, F32 FMAs in k order; the FMA kernel's schedule, partial
+     * products and epilogue. Any K, any device. The FMA kernel's
+     * 128 x 64 for F16 operands. */
+    TILE_KT = 21
 };
 
 /* The four GEMMs of a layer, in the order a layer runs them. */

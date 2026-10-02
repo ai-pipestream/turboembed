@@ -153,6 +153,10 @@ pub enum Tile {
     /// stages over eight warps of 64 x 64; the FMA kernel's 128 x 64 for
     /// F16 operands or below sm_80.
     Cs = 20,
+    /// F32 operands with FMAs, transposed into shared memory: 128 x 128 x
+    /// 16 at two stages over eight warps of 32 x 64; the FMA kernel's
+    /// 128 x 64 for F16 operands.
+    Kt = 21,
 }
 
 /// One GEMM of the CUDA backend's own, `[m, k]` by `[n, k]`, on random
