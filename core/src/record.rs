@@ -703,7 +703,11 @@ impl Record {
     /// Why a record for the cell does not back SUPPORTED, or None when it
     /// does: it is for this library version, computed in the dtype the
     /// backend resolves the precision to, reached that dtype's tolerance,
-    /// and measured at least one reference program.
+    /// measured at least one reference program, and its mixed rows list
+    /// every reference case that fits `seq`. `is_for` can match a thinner
+    /// file. Conformance counts each fitting case run alone and then every
+    /// row of the timed batch, so that count minus `rows.batch` is how
+    /// many cases fit, and the rows have to list that many distinct cases.
     pub fn falls_short(&self, cell: &Cell) -> Option<String> {
         if self.library.version != cell.version {
             return Some(format!("recorded with library {}, this is {}", self.library.version, cell.version));
@@ -725,6 +729,23 @@ impl Record {
         }
         if !self.references.iter().any(|r| r.measured.is_some() && REFERENCES.iter().any(|&(n, _)| n == r.name)) {
             return Some("no reference program measured".into());
+        }
+        // Mixed rows are the cases that fit seq. A file that times one of
+        // them still parses and still matches `is_for`.
+        if self.rows.kind == ROWS_MIXED {
+            let batch = self.rows.batch;
+            let compared = self.conformance.rows;
+            if compared < batch {
+                return Some(format!("conformance compared {compared} vectors, fewer than the batch of {batch}"));
+            }
+            let fit = compared - batch;
+            let mut cases = self.rows.cases.clone();
+            cases.sort_unstable();
+            cases.dedup();
+            let n = cases.len() as u32;
+            if n != fit {
+                return Some(format!("rows cover {n} of {fit} reference cases that fit seq"));
+            }
         }
         None
     }
@@ -807,7 +828,7 @@ mod tests {
     }
 
     #[test]
-    fn mixed_arl_npu_minilm_records_support_model_and_fastest_on_windows() {
+    fn mixed_arl_npu_minilm_records_do_not_support_model_or_fastest() {
         fn cell<'a>(precision: u32, os: &'a str, arch: &'a str, graph_format: Option<&'a str>) -> Cell<'a> {
             Cell {
                 arch,
@@ -822,23 +843,26 @@ mod tests {
                 graph_format,
             }
         }
+        // Case 0 only, two live tokens, one [1, 128] frame. `is_for`
+        // matches the windows arl-npu NGRAPH_LITE cell. conformance.rows
+        // is 9 and the batch is 1, so eight cases fit seq and the rows
+        // list one. That does not back the cell.
+        let gap = "rows cover 1 of 8 reference cases that fit seq";
         let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json";
         let fastest = "arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json";
-        match decide_embedded(&cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
-            Verdict::Supported { benchmark, speed_ratio, cosine_floor } => {
-                assert_eq!(benchmark, model);
-                assert!((speed_ratio - 0.9961290322580645).abs() < 1e-12, "{speed_ratio}");
-                assert!((cosine_floor - 0.999996097954919).abs() < 1e-12, "{cosine_floor}");
+        let windows = cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NGRAPH_LITE"));
+        let model_rec = embedded().iter().find(|(n, _)| *n == model).unwrap().1.as_ref().unwrap();
+        assert!(model_rec.is_for(&windows));
+        assert_eq!(model_rec.rows.cases, [0]);
+        assert_eq!(model_rec.rows.live_tokens, 2);
+        assert_eq!((model_rec.rows.batch, model_rec.rows.seq, model_rec.conformance.rows), (1, 128, 9));
+        for (label, name, precision) in
+            [("model", model, TURBO_PRECISION_MODEL), ("fastest", fastest, TURBO_PRECISION_FASTEST)]
+        {
+            match decide_embedded(&cell(precision, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
+                Verdict::Not(why) => assert_eq!(why, format!("{name}: {gap}"), "{label}"),
+                Verdict::Supported { benchmark, .. } => panic!("{label} supported by {benchmark}"),
             }
-            Verdict::Not(why) => panic!("model: {why}"),
-        }
-        match decide_embedded(&cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
-            Verdict::Supported { benchmark, speed_ratio, cosine_floor } => {
-                assert_eq!(benchmark, fastest);
-                assert!((speed_ratio - 1.0037967914438501).abs() < 1e-12, "{speed_ratio}");
-                assert!((cosine_floor - 0.999996097954919).abs() < 1e-12, "{cosine_floor}");
-            }
-            Verdict::Not(why) => panic!("fastest: {why}"),
         }
         for (label, c) in [
             ("linux", cell(TURBO_PRECISION_MODEL, "linux", "arl-npu", Some("NGRAPH_LITE"))),
