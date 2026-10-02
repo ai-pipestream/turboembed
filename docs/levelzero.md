@@ -195,7 +195,12 @@ and bge-large from 60.1 to 56.8, the narrow models unchanged.
   sub-groups stages each 32-key tile of K and V in local memory once and
   its sub-groups read it from there, which on a B70 takes 13 to 15% off
   the attention of bge-base and bge-large; on shorter rows and on head
-  width 32 the plain kernel is the faster one and runs. Other
+  width 32 the plain kernel is the faster one and runs. Both store a
+  query's context as whole 64-byte lines, and every attention kernel
+  walks the batch's rows newest first, since the projection wrote them
+  in order and a batch's projections can outgrow the cache: on a B70
+  the two together take another 16% off the attention of bge-base at
+  32 rows of 256, with the same bits. Other
   widths write an F16 context from the kernels above. The run waits for the queue before it returns, and
   leaves the vectors in the session's `DEVICE` buffer:
   `turbo_result_buffer` hands out that memory, and `turbo_result_read`
