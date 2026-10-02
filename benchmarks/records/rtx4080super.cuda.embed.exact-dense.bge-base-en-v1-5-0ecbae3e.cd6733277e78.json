@@ -1,0 +1,267 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-02T02:17:22Z",
+  "machine": {
+    "arch": "rtx4080super",
+    "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cuda",
+    "kind": "DEVICE_GPU",
+    "name": "NVIDIA GeForce RTX 4080 SUPER",
+    "vendor": "NVIDIA",
+    "driver_version": "595.91.07, CUDA 13.2",
+    "runtime_version": "12.4",
+    "memory_total": 16717119488
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cuda cpu",
+    "commit": "cd6733277e785c3d72175b5901b6fb54ea06db6e",
+    "pushed_to": [
+      "origin/header-precision-and-task-rule-d35x0i",
+      "origin/main"
+    ],
+    "settings": [
+      "TURBO_CUDA_TUNED=default",
+      "TURBO_CUDA_CHOICES=le256:qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4,attn=fma-tiled,ln=separate;le1k:qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4,attn=fma-tiled,ln=separate;le4k:qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4,attn=fma-tiled,ln=separate;le16k:qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4,attn=fma-tiled,ln=separate;pool=groups;forced="
+    ]
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_EXACT",
+  "compute_dtype": "DTYPE_F32",
+  "bundle": {
+    "model_id": "BAAI/bge-base-en-v1.5",
+    "revision": "1",
+    "manifest_sha256": "0ecbae3e134445be5963318db4ff8a94cbb0757e0864c96d3653d1279ab92848",
+    "artifact_sha256": "c7c1988aae201f80cf91a5dbbd5866409503b89dcaba877ca6dba7dd0a5167d7",
+    "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+  },
+  "rows": {
+    "kind": "ROWS_DENSE",
+    "batch": 32,
+    "seq": 256,
+    "live_tokens": 8192,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "0c85ff407a58448a04661fa81fda7ae4e5ff72e378e19e3bbcafe070f9fdfcc3"
+  },
+  "timing": {
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 67.367039,
+    "p99_ms": 67.977734,
+    "mean_ms": 67.39114859000006,
+    "min_ms": 66.766755,
+    "max_ms": 68.236553,
+    "rows_per_second": 474.83933164801556,
+    "computed_tokens": 8192
+  },
+  "conformance": {
+    "rows": 8,
+    "min_cosine": 0.9999999999976253,
+    "max_abs_diff": 2.454034984111786e-7
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "ghcr.io/huggingface/text-embeddings-inference@sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64",
+      "version": "1.8.3 (float32)",
+      "commands": [
+        [
+          "docker",
+          "image",
+          "inspect",
+          "--format",
+          "{{.Id}}",
+          "ghcr.io/huggingface/text-embeddings-inference@sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64"
+        ],
+        [
+          "docker",
+          "image",
+          "inspect",
+          "--format",
+          "{{json .Config.Env}}",
+          "ghcr.io/huggingface/text-embeddings-inference@sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64"
+        ],
+        [
+          "docker",
+          "run",
+          "--detach",
+          "--rm",
+          "--pull",
+          "never",
+          "--name",
+          "turbo-bench-tei-1385200",
+          "--gpus",
+          "device=0",
+          "--cpuset-cpus",
+          "0-7,16-23",
+          "--env",
+          "OMP_NUM_THREADS=8",
+          "--env",
+          "MKL_NUM_THREADS=8",
+          "--env",
+          "RAYON_NUM_THREADS=16",
+          "--publish",
+          "127.0.0.1::80",
+          "--env",
+          "HF_HUB_OFFLINE=1",
+          "--mount",
+          "type=bind,src=<tei-model>,dst=/model,readonly",
+          "ghcr.io/huggingface/text-embeddings-inference@sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64",
+          "--model-id",
+          "/model",
+          "--port",
+          "80",
+          "--dtype",
+          "float32",
+          "--pooling",
+          "cls",
+          "--max-client-batch-size",
+          "32",
+          "--max-batch-tokens",
+          "16384"
+        ],
+        [
+          "docker",
+          "port",
+          "turbo-bench-tei-1385200",
+          "80/tcp"
+        ],
+        [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.State.Running}}",
+          "turbo-bench-tei-1385200"
+        ],
+        [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.State.Running}}",
+          "turbo-bench-tei-1385200"
+        ],
+        [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.State.Running}}",
+          "turbo-bench-tei-1385200"
+        ],
+        [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.State.Running}}",
+          "turbo-bench-tei-1385200"
+        ],
+        [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.State.Running}}",
+          "turbo-bench-tei-1385200"
+        ]
+      ],
+      "procedure": "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the batch's 32 rows as token ids, 20 untimed then 200 timed, each timed from sending the request to reading the whole response, the p50 and p99 of TEI's x-total-time, x-tokenization-time, x-queue-time, x-inference-time headers beside it, and TEI's /metrics read before and after the timed requests for its te_batch_next_size and te_batch_next_tokens histograms; min_cosine is against the bundle's reference vector for a row that is its whole case, and the library's vector of the row alone for a row cut to seq; round trip (measured) p50 83.497 ms, p99 87.037 ms; TEI's own headers, whole ms, over the same requests: x-total-time p50 82 p99 85, x-tokenization-time p50 0 p99 1, x-queue-time p50 11 p99 21, x-inference-time p50 60 p99 81; TEI's /metrics over the timed requests: 6400 inputs in 200 requests, 551 backend batches (te_batch_next_size's 1042 samples less the 491 empty polls te_batch_next_tokens shows), 2.75 batches per request, mean batch size 11.62 inputs (batches by size, 1: 133, 2: 71, 3 to 4: 59, 5 to 8: 56, 9 to 16: 40, 17 to 32: 192); the tool ran pinned to CPUs 0-7,16-23; TEI ran with --cpuset-cpus 0-7,16-23 and OMP_NUM_THREADS=8, MKL_NUM_THREADS=8, RAYON_NUM_THREADS=16 (MKL's threads one per physical core of the list, as MKL itself defaults, since two on a core contend for its vector units; candle's rayon threads one per logical CPU); its ONNX Runtime and tokenizer threads counted from those CPUs",
+      "measured": {
+        "iterations": 200,
+        "p50_ms": 83.496573,
+        "p99_ms": 87.036927,
+        "rows_per_second": 390.804118880475,
+        "min_cosine": 0.9999941478253566,
+        "computed_tokens": 8192
+      },
+      "not_run": null
+    },
+    {
+      "name": "tensorrt",
+      "role": "kernel",
+      "pinned": "nvcr.io/nvidia/tensorrt@sha256:3b127f45630cd56bf43d2ef70d7f50a7ee37e42bda4ba11adaaa069af2098125",
+      "version": "11.2.1",
+      "commands": [
+        [
+          "docker",
+          "image",
+          "inspect",
+          "--format",
+          "{{.Id}}",
+          "nvcr.io/nvidia/tensorrt@sha256:3b127f45630cd56bf43d2ef70d7f50a7ee37e42bda4ba11adaaa069af2098125"
+        ],
+        [
+          "docker",
+          "run",
+          "--rm",
+          "--pull",
+          "never",
+          "--network",
+          "none",
+          "--gpus",
+          "device=0",
+          "--mount",
+          "type=bind,src=<bundle>,dst=/bundle,readonly",
+          "--mount",
+          "type=bind,src=<work>,dst=/work,readonly",
+          "nvcr.io/nvidia/tensorrt@sha256:3b127f45630cd56bf43d2ef70d7f50a7ee37e42bda4ba11adaaa069af2098125",
+          "trtexec",
+          "--onnx=/bundle/onnx/model.onnx",
+          "--shapes=input_ids:32x256,attention_mask:32x256,token_type_ids:32x256",
+          "--loadInputs=input_ids:/work/input_ids.bin,attention_mask:/work/attention_mask.bin,token_type_ids:/work/token_type_ids.bin",
+          "--warmUp=1000",
+          "--iterations=200",
+          "--duration=0",
+          "--percentile=99",
+          "--noTF32"
+        ]
+      ],
+      "procedure": "trtexec builds an engine from the bundle's ONNX file and times 200 queries of the batch's [32, 256] rows loaded from files; p50 and p99 are its Latency (H2D, GPU compute, D2H) median and percentile(99%); the engine is built from onnx/model.onnx with --noTF32; its GPU Compute Time was median 59.5566 ms, percentile(99%) 60.2754 ms",
+      "measured": {
+        "iterations": 201,
+        "p50_ms": 59.5566,
+        "p99_ms": 60.2754,
+        "rows_per_second": 538.08,
+        "min_cosine": null,
+        "computed_tokens": 8192
+      },
+      "not_run": null
+    }
+  ],
+  "speed_ratio": 1.131143131071955,
+  "speed_reference": "tensorrt"
+}

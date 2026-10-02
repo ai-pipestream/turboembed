@@ -58,6 +58,10 @@ hailo = []
 # Test-only views of the core's state, never in a release library.
 internals = []
 levelzero = ["dep:libloading"]
+# oneDNN's kernels for the levelzero backend's F16 linear layers: needs the
+# oneAPI compiler and oneDNN to build and oneDNN and the SYCL runtime to
+# run (build.rs, docs/levelzero.md).
+levelzero-onednn = ["levelzero"]
 # Intel NPUs (AI Boost) through the Level Zero graph extension: the
 # loader is opened at run time, so nothing is needed to build
 # (docs/npu.md). Distinct from `levelzero`, the Intel GPU backend.

@@ -56,6 +56,9 @@ fn main() {
     if env::var_os("CARGO_FEATURE_LEVELZERO").is_some() {
         levelzero();
     }
+    if env::var_os("CARGO_FEATURE_LEVELZERO_ONEDNN").is_some() {
+        onednn();
+    }
     if env::var_os("CARGO_FEATURE_METAL").is_some() {
         metal();
     }
@@ -205,6 +208,45 @@ fn levelzero() {
     }
     for line in stderr.lines().filter(|l| !l.trim().is_empty()) {
         println!("cargo:warning={line}");
+    }
+}
+
+/// For `levelzero-onednn`: core/levelzero/onednn.cpp, oneDNN's kernels
+/// behind a C interface, built by the oneAPI compiler (TURBO_ICPX, else
+/// icpx on the PATH) into a shared library in OUT_DIR that the library
+/// links; the oneAPI lib directory next to the compiler is its run-time
+/// path for oneDNN and the SYCL runtime.
+fn onednn() {
+    const SOURCE: &str = "levelzero/onednn.cpp";
+    println!("cargo:rerun-if-changed={SOURCE}");
+    println!("cargo:rerun-if-env-changed=TURBO_ICPX");
+    let icpx = env::var_os("TURBO_ICPX").unwrap_or_else(|| "icpx".into());
+    let needs = "the levelzero-onednn feature needs the oneAPI compiler (icpx) with oneDNN: set TURBO_ICPX to it";
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let lib = out_dir.join("libturbo_onednn.so");
+    let resolved = Command::new("sh")
+        .args(["-c", &format!("command -v {}", Path::new(&icpx).display())])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .unwrap_or_else(|| fail(&format!("{needs}; {} is not on the PATH", Path::new(&icpx).display())));
+    let oneapi_lib = Path::new(&resolved).parent().and_then(Path::parent).map(|p| p.join("lib"));
+    let mut cmd = Command::new(&icpx);
+    cmd.args(["-fsycl", "-O2", "-std=c++17", "-fPIC", "-shared", SOURCE, "-ldnnl", "-lze_loader", "-o"]).arg(&lib);
+    if let Some(l) = &oneapi_lib {
+        cmd.arg(format!("-Wl,-rpath,{}", l.display()));
+    }
+    let done =
+        cmd.output().unwrap_or_else(|e| fail(&format!("{needs}; {} did not run: {e}", Path::new(&icpx).display())));
+    if !done.status.success() {
+        fail(&format!("{needs}; {cmd:?} failed:\n{}", String::from_utf8_lossy(&done.stderr)));
+    }
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!("cargo:rustc-link-lib=dylib=turbo_onednn");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", out_dir.display());
+    if let Some(l) = &oneapi_lib {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", l.display());
     }
 }
 
