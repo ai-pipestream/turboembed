@@ -1204,8 +1204,14 @@ fn the_profile_of_a_real_bundle() {
     }
     let (batch, seq) = (32usize, 256usize);
     let vocab = Tok::create(&dir).unwrap().info().vocab_size as usize;
-    let rows: Vec<Vec<i32>> =
-        (0..batch).map(|r| (0..seq).map(|p| (1000 + (r * 131 + p * 17) % (vocab - 1000)) as i32).collect()).collect();
+    // TURBO_TEST_ROWS=short: rows of 8 to 47 tokens in the same frame.
+    let short = std::env::var("TURBO_TEST_ROWS").is_ok_and(|v| v == "short");
+    let rows: Vec<Vec<i32>> = (0..batch)
+        .map(|r| {
+            let len = if short { 8 + (r * 13) % 40 } else { seq };
+            (0..len).map(|p| (1000 + (r * 131 + p * 17) % (vocab - 1000)) as i32).collect()
+        })
+        .collect();
     let t = Tokens::new(&rows, 0);
     // TURBO_TEST_PRECISION=fastest or model runs one of the two.
     let which: Vec<u32> = match std::env::var("TURBO_TEST_PRECISION").as_deref() {
