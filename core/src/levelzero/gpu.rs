@@ -162,8 +162,21 @@ impl Context {
         built.as_ref().map(|s| s.0).map_err(|e| fail(RUNTIME, e.clone()))
     }
 
+    /// The driver's compiler picks each kernel's register file
+    /// (-ze-intel-enable-auto-large-GRF-mode): the XMX kernels with 32-token
+    /// tiles and the attention need the large one and spill without it. A
+    /// driver that refuses the flag builds without it.
     fn build(&self) -> Result<Handle, String> {
-        let flags = c"";
+        match self.build_with(c"-ze-intel-enable-auto-large-GRF-mode") {
+            Ok(h) => Ok(h),
+            Err(e) => {
+                self.say(LOG_WARNING, &format!("{e}; building without the flag"));
+                self.build_with(c"")
+            }
+        }
+    }
+
+    fn build_with(&self, flags: &std::ffi::CStr) -> Result<Handle, String> {
         let desc = ze::ModuleDesc {
             stype: ze::STRUCTURE_TYPE_MODULE_DESC,
             p_next: std::ptr::null(),
@@ -217,6 +230,24 @@ impl Context {
         ze(&format!("zeKernelSetGroupSize({name})"), unsafe {
             (self.api.kernel_set_group_size)(handle, group[0], group[1], group[2])
         })?;
+        if profiling() {
+            let mut p = ze::KernelProperties { stype: ze::STRUCTURE_TYPE_KERNEL_PROPERTIES, ..Default::default() };
+            if unsafe { (self.api.kernel_get_properties)(handle, &mut p) } == 0 {
+                self.say(
+                    LOG_DEBUG,
+                    &format!(
+                        "levelzero kernel {name}: group {}x{}x{}, spill {} B, private {} B, local {} B, group at most {:?}",
+                        group[0],
+                        group[1],
+                        group[2],
+                        p.spill_mem_size,
+                        p.private_mem_size,
+                        p.local_mem_size,
+                        k.max_group_size().ok().flatten()
+                    ),
+                );
+            }
+        }
         Ok(k)
     }
 
@@ -464,6 +495,24 @@ pub(crate) enum Arg {
 }
 
 impl Kernel {
+    /// The largest work-group the kernel can run with, which depends on the
+    /// register file the driver's compiler gave it; None from a driver that
+    /// does not say.
+    pub fn max_group_size(&self) -> Res<Option<u32>> {
+        let mut ext = ze::KernelMaxGroupSizeExt {
+            stype: ze::STRUCTURE_TYPE_KERNEL_MAX_GROUP_SIZE_EXT_PROPERTIES,
+            p_next: std::ptr::null_mut(),
+            max_group_size: 0,
+        };
+        let mut p = ze::KernelProperties {
+            stype: ze::STRUCTURE_TYPE_KERNEL_PROPERTIES,
+            p_next: &mut ext as *mut ze::KernelMaxGroupSizeExt as *mut c_void,
+            ..Default::default()
+        };
+        ze("zeKernelGetProperties", unsafe { (self.api.kernel_get_properties)(self.handle, &mut p) })?;
+        Ok((ext.max_group_size > 0).then_some(ext.max_group_size))
+    }
+
     /// The local memory the driver gives the kernel itself, beyond what its
     /// arguments ask for.
     pub fn local_bytes(&self) -> Res<u32> {
