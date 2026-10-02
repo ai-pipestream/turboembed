@@ -2366,6 +2366,150 @@ __global__ void __launch_bounds__(128, 2) gemm_ct_kernel(GemmArgs g) {
 
 
 
+/* CUTLASS's sm80 SIMT mainloop (MmaMultistage over MmaSimt, the same
+ * headers) for F32 operands: BM x 128 x 8 tiles at STAGES stages over
+ * eight warps of WM x 64, each lane (WM / 4) x 8 outputs as blocks of
+ * 4 x 4, F32 FMAs in k order, the FMA kernel's class (MODEL and EXACT).
+ * The FMA kernel above falls behind as the model widens (bge-large on an
+ * RTX 4080 SUPER, dense 32 x 256: 290 ms against TensorRT's 186), this
+ * tile's reason. Its schedule (stream-K), partial products and epilogue
+ * are the FMA kernel's; only the k loop is CUTLASS's. The loads are one
+ * float each, so any K serves. TILE_CS is 256 x 128 over warps of 64 x 64
+ * at three stages, one block to an SM: of 128 x 128 over warps of 32 x 64
+ * at four stages and at three, and this, the only shape the tuner picked
+ * on an RTX 4080 SUPER (bge-large, 8192 tokens: the attention output and
+ * feed-forward GEMMs 6-13% under the FMA kernel's 128 x 64; QKV not,
+ * where the FMA 128 x 128 leads by 4%). The template keeps the shape
+ * open for a device with fewer SMs. */
+#ifndef TURBO_NO_MMA
+template <int BM, int WM, int STAGES> struct CsCfg {
+    using TBShape = cutlass::gemm::GemmShape<BM, 128, 8>;
+    using WarpShape = cutlass::gemm::GemmShape<WM, 64, 8>;
+    using InstShape = cutlass::gemm::GemmShape<1, 1, 1>;
+    using MmaCore = cutlass::gemm::threadblock::DefaultMmaCore<
+        TBShape, WarpShape, InstShape, float, cutlass::layout::RowMajor, float, cutlass::layout::ColumnMajor, float,
+        cutlass::layout::RowMajor, cutlass::arch::OpClassSimt, STAGES, cutlass::arch::OpMultiplyAdd>;
+    using IteratorA = cutlass::transform::threadblock::PredicatedTileAccessIterator<
+        cutlass::MatrixShape<BM, 8>, float, cutlass::layout::RowMajor, 1, typename MmaCore::IteratorThreadMapA,
+        cutlass::Array<float, 1>>;
+    using IteratorB = cutlass::transform::threadblock::PredicatedTileAccessIterator<
+        cutlass::MatrixShape<8, 128>, float, cutlass::layout::ColumnMajor, 0, typename MmaCore::IteratorThreadMapB,
+        cutlass::Array<float, 1>>;
+    using Mma = cutlass::gemm::threadblock::MmaMultistage<
+        typename MmaCore::Shape, IteratorA, typename MmaCore::SmemIteratorA, MmaCore::kCacheOpA, IteratorB,
+        typename MmaCore::SmemIteratorB, MmaCore::kCacheOpB, float, cutlass::layout::RowMajor,
+        typename MmaCore::MmaPolicy, STAGES>;
+};
+#endif
+
+/* Eight warps: BM / WM down the tile by two across. */
+template <int BM, int WM> __host__ __device__ constexpr int cs_threads() { return (BM / WM) * 2 * 32; }
+
+template <int BM, int WM, int STAGES, int MINB, int EPI, typename TOut>
+__global__ void __launch_bounds__((cs_threads<BM, WM>()), MINB) gemm_cs_kernel(GemmArgs g) {
+#ifndef TURBO_NO_MMA
+    constexpr int BN = 128, BK = 8, NT = cs_threads<BM, WM>(), SLOT = BM * BN, WARPS_M = BM / WM;
+    // A lane's outputs as MmaSimt lays them out: blocks of LM x LN, IM
+    // down by IN across, DM and DN apart; lanes four down by eight across,
+    // interleaved by two (RowMajorInterleaved<2> over 4 x 8).
+    constexpr int LM = 4, LN = 4, IM = WM / 4 / LM, IN = 2, DM = 16, DN = 32, NE = IM * IN * LM * LN;
+    using Mma = typename CsCfg<BM, WM, STAGES>::Mma;
+    static_assert(Mma::FragmentC::kElements == NE, "the lane's fragment is (WM / 4) x 8");
+    extern __shared__ __align__(16) unsigned char gemm_sm[];
+    typename Mma::SharedStorage &stages = *reinterpret_cast<typename Mma::SharedStorage *>(gemm_sm);
+    float *A = const_cast<float *>(static_cast<const float *>(g.a));
+    float *B = const_cast<float *>(static_cast<const float *>(g.w));
+    const int M = g.info->tokens, N = g.n, K = g.k;
+    const int mt = (M + BM - 1) / BM, nt = (N + BN - 1) / BN;
+    const int steps = (K + BK - 1) / BK;
+    const Share sh = share_of(mt * nt, steps, g.min_steps);
+    const int lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    // The warps as MmaMultistage places them: down the tile first.
+    const int wm = warp % WARPS_M, wn = warp / WARPS_M;
+    const int lr = (lane >> 4) * 2 + (lane & 1), lc = (lane & 15) >> 1;
+    // Element e of the fragment: ((mma_m * LM + m) * IN + mma_n) * LN + c.
+    auto at_e = [](int mma_m, int m, int mma_n, int c) { return ((mma_m * LM + m) * IN + mma_n) * LN + c; };
+    const typename CsCfg<BM, WM, STAGES>::IteratorA::Params pA{cutlass::layout::RowMajor(K)};
+    const typename CsCfg<BM, WM, STAGES>::IteratorB::Params pB{cutlass::layout::ColumnMajor(K)};
+    // The share's segments from its end, as the FMA kernel walks them.
+    for (long long at = sh.hi; at > sh.lo;) {
+        const int tile = (int)((at - 1) / steps);
+        const long long first = (long long)tile * steps;
+        const int kb = sh.lo > first ? (int)(sh.lo - first) : 0, ke = (int)(at - first);
+        const bool ends = ke == steps;
+        at = first + kb;
+        const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
+        __syncthreads(); // every warp is done with the stages of the tile before
+        // The iterators put K's remainder in the segment's first step,
+        // measured from the extent they are given: the segment's end.
+        const int kx = ends ? K : ke * BK;
+        typename CsCfg<BM, WM, STAGES>::IteratorA it_a(pA, A, cutlass::MatrixCoord(M, kx), (int)threadIdx.x,
+                                                       cutlass::MatrixCoord(m0, kb * BK));
+        typename CsCfg<BM, WM, STAGES>::IteratorB it_b(pB, B, cutlass::MatrixCoord(kx, N), (int)threadIdx.x,
+                                                       cutlass::MatrixCoord(kb * BK, n0));
+        Mma mma(stages, (int)threadIdx.x, warp, lane);
+        typename Mma::FragmentC frag;
+        frag.clear();
+        mma(ke - kb, frag, it_a, it_b, frag);
+
+        if (!ends) {
+            // The start of a tile a later block finishes.
+            float *slot = g.ws + (size_t)blockIdx.x * SLOT + threadIdx.x;
+#pragma unroll
+            for (int e = 0; e < NE; e++) __stcg(slot + e * NT, frag[e]);
+            sk_raise(g.flags + blockIdx.x);
+            continue;
+        }
+        // The earlier blocks' partial products, from the last block to the first.
+        for (int b = (int)blockIdx.x - 1; b >= 0 && share_start(sh, b + 1, g.min_steps) > first; b--) {
+            sk_wait(g.flags + b, g.fault);
+            const float *slot = g.ws + (size_t)b * SLOT + threadIdx.x;
+#pragma unroll
+            for (int e = 0; e < NE; e++) frag[e] += __ldcg(slot + e * NT);
+        }
+
+        // The finished tile, from registers, as the FMA kernel stores it.
+        const int r0 = m0 + wm * WM + lr * LM, c0 = n0 + wn * 64 + lc * LN;
+        size_t col[IN][LN];
+#pragma unroll
+        for (int mma_n = 0; mma_n < IN; mma_n++)
+#pragma unroll
+            for (int c = 0; c < LN; c++) {
+                const int cc = c0 + mma_n * DN + c;
+                col[mma_n][c] = EPI == EPI_QKV && cc < N ? qkv_column(g, cc) : 0;
+            }
+#pragma unroll
+        for (int mma_m = 0; mma_m < IM; mma_m++)
+#pragma unroll
+            for (int m = 0; m < LM; m++) {
+                const int t = r0 + mma_m * DM + m;
+                if (t >= M) continue;
+#pragma unroll
+                for (int mma_n = 0; mma_n < IN; mma_n++)
+#pragma unroll
+                    for (int c = 0; c < LN; c++) {
+                        const int cc = c0 + mma_n * DN + c;
+                        if (cc >= N) continue;
+                        const float v = frag[at_e(mma_m, m, mma_n, c)];
+                        if constexpr (EPI == EPI_QKV)
+                            put(static_cast<TOut *>(g.out) + col[mma_n][c] + (size_t)t * g.head_dim, v + g.bias[cc]);
+                        else if constexpr (gelu_epilogue_of(EPI))
+                            put(out_at<TOut>(g, t, cc), gelu_for<EPI, TOut>(v + g.bias[cc]));
+                        else if constexpr (EPI == EPI_ADD_LN) {
+                            float *o = out_at<float>(g, t, cc);
+                            *o = *o + (v + g.bias[cc]);
+                        } else
+                            put(out_at<TOut>(g, t, cc), v);
+                    }
+            }
+        if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
+    }
+#else
+    (void)g;
+    __trap();
+#endif
+}
+
 /* The tile a GEMM runs: TURBO_CUDA_TILE's, or TILE_DEFAULT, which each
  * kernel resolves to its own; the tensor cores take the FMA kernel's
  * 16 x 8 micro-tile as plain 128 x 128. */
@@ -2390,6 +2534,17 @@ template <int EPI, typename TOut, bool WHOLE> GemmKernel ct_kernel() {
     constexpr size_t smem = 3 * (128 + 128) * 32 * 2;
 #endif
     return {gemm_ct_kernel<EPI, TOut, WHOLE>, 128, smem, 128, 128, 2};
+}
+
+/* The SIMT mainloop's tile: 256 x 128 over warps of 64 x 64 at three
+ * stages, one block to an SM. */
+template <int BM, int WM, int STAGES, int MINB, int EPI, typename TOut> GemmKernel cs_kernel() {
+#ifndef TURBO_NO_MMA
+    constexpr size_t smem = sizeof(typename CsCfg<BM, WM, STAGES>::Mma::SharedStorage);
+#else
+    constexpr size_t smem = (size_t)STAGES * (BM + 128) * 8 * 4;
+#endif
+    return {gemm_cs_kernel<BM, WM, STAGES, MINB, EPI, TOut>, cs_threads<BM, WM>(), smem, BM, 128, MINB};
 }
 
 template <int BM, int BN, int TM, typename TIn, int EPI, typename TOut> GemmKernel simt_kernel() {
@@ -2472,6 +2627,9 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
 /* The FMA kernel's tiles, 8 x 8 outputs to a thread but the 16 x 8 of
  * 128 x 128 over 128 threads; 128 x 64 by default. */
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
+    // F32 operands on CUTLASS's SIMT mainloop (sm_80's cp.async).
+    if constexpr (std::is_same_v<TIn, float>)
+        if (t == TILE_CS) return cs_kernel<256, 64, 3, 1, EPI, TOut>();
     if (t == TILE_DEFAULT) t = TILE_128x64;
     switch (t) {
     case TILE_64x64: return simt_kernel<64, 64, 8, TIn, EPI, TOut>();

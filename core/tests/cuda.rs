@@ -1927,7 +1927,7 @@ fn the_gemms_match_cublas() {
                     Tile::CtK,
                 ]
             } else {
-                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8]
+                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8, Tile::Cs]
             };
             for &tile in tiles {
                 // A token count past a few thousand only as many blocks
@@ -2074,6 +2074,7 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::F16WholeK256,
             Tile::Ct,
             Tile::CtK,
+            Tile::Cs,
         ] {
             // The whole-k tiles sum in F16, the F16 accumulators' experiment.
             let whole_k = matches!(
@@ -2244,6 +2245,60 @@ fn a_sessions_choices_forced_back_give_its_bits() {
             });
             assert_eq!(field(&again.unwrap().info().choices), field(&bi.choices));
         }
+    }
+}
+
+/// F32 operands on a model 1024 wide or more take the SIMT mainloop's
+/// tile (`cs`) for the attention output and the feed-forward GEMMs from
+/// the le1k bin, on a device with cp.async (where the tuner lists `cs`);
+/// QKV, the le256 bin, and every GEMM of a narrower model keep the FMA
+/// kernel's 128 x 64. The wide model's default gives the vectors of the
+/// FMA kernel forced everywhere, within EXACT's bound, and repeats its
+/// bits.
+#[test]
+fn f32_defaults_take_the_simt_tile_where_the_model_is_wide() {
+    let _t = turn();
+    let Some(ordinal) = cuda_device("f32_defaults_take_the_simt_tile_where_the_model_is_wide") else { return };
+    let simt = turbo::cuda::variants(ordinal, TURBO_PRECISION_EXACT).unwrap().iter().any(|v| v.name == "cs");
+    for (hidden, heads, inter) in [(1024u64, 16u64, 4096u64), (64, 2, 256)] {
+        let mut m = model_manifest();
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(heads);
+        m["architecture"]["intermediate"] = json!(inter);
+        m["embed"]["dim"] = json!(hidden);
+        m["embed"]["max_seq"] = json!(160);
+        m["embed"]["max_batch"] = json!(40);
+        let mut f = Fixture::new(&format!("cuda-f32-defaults-{hidden}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(hidden, inter));
+        let g = f.load_on(cuda).unwrap();
+        let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_EXACT)))).unwrap();
+        let choices = kernels_of(&field(&s.info().choices));
+        let fma = "qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4";
+        assert!(choices.starts_with(&format!("le256:{fma},")), "hidden {hidden}: {choices}");
+        let wide = simt && hidden >= 1024;
+        let from_le1k = if wide {
+            "le1k:qkv=128x64/sk4,out=cs/sk4,ffn1=cs/sk4,ffn2=cs/sk4,"
+        } else {
+            "le1k:qkv=128x64/sk4,out=128x64/sk4,"
+        };
+        assert!(choices.contains(from_le1k), "hidden {hidden}: {choices}");
+        assert_eq!(choices.contains("=cs/"), wide, "hidden {hidden}: {choices}");
+        if !wide {
+            continue;
+        }
+        let t = ragged_rows(&f.dir, 40, 160);
+        s.write_tokens(&t.batch(), None).unwrap();
+        let got = s.run().unwrap().rows();
+        s.write_tokens(&t.batch(), None).unwrap();
+        assert_eq!(s.run().unwrap().rows(), got, "the same bits again");
+        let all = "all:qkv=128x64,out=128x64,ffn1=128x64,ffn2=128x64";
+        let o = forcing(all, || strict(|| Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_EXACT)))));
+        let o = o.unwrap();
+        o.write_tokens(&t.batch(), None).unwrap();
+        let want = o.run().unwrap().rows();
+        let tol = record::tolerance(o.info().compute_dtype).unwrap();
+        let (cos, abs) = within("the wide model's default against the FMA kernel", &got, &want, tol);
+        println!("hidden {hidden}: default against 128x64: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
     }
 }
 
@@ -2899,16 +2954,31 @@ fn the_first_tuned_session_s_cost() {
     let _t = turn();
     let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
     let Some(_) = cuda_device("the_first_tuned_session_s_cost") else { return };
-    for precision in [TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
-        // A runtime of its own each time, so the cache is empty.
+    for precision in [TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
+        // A runtime of its own each time, so the cache is empty; written
+        // to a directory of its own, whose entry prints the timings each
+        // choice was made on.
         let (g, lines) = load_logged(&dir);
-        let s = caching(None, || {
+        let keep = Fixture::new(&format!("cuda-tuned-cost-{precision}"), model_manifest());
+        let cache = keep.dir.clone();
+        std::fs::create_dir_all(&cache).unwrap();
+        let s = caching(Some(&cache), || {
             Session::create(g.m, Some(&tuned_desc(32, 256, precision, TURBO_AUTOTUNE_ON, 0))).unwrap()
         });
         let info = s.info();
         println!("precision {precision}: tuned {} in {} ms", info.tuned, info.tune_ms);
         for (level, l) in lines.lock().unwrap().iter().filter(|(level, _)| *level <= 2) {
             println!("  [{level}] {l}");
+        }
+        for entry in std::fs::read_dir(&cache).unwrap().map(|e| e.unwrap().path()) {
+            if entry.extension().is_some_and(|x| x == "json") {
+                let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&entry).unwrap()).unwrap();
+                if let Some(timings) = v["timings"].as_array() {
+                    for t in timings {
+                        println!("  timing {} = {} ms", t[0].as_str().unwrap_or("?"), t[1]);
+                    }
+                }
+            }
         }
     }
 }
