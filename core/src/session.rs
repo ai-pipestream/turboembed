@@ -748,11 +748,12 @@ pub unsafe extern "C" fn turbo_embed_write_text(
                 rows.push(row);
             }
             let seq = rows.iter().map(Vec::len).max().unwrap_or(0);
+            let pad = tok.fill_id();
             let state = &mut *state;
             for (i, row) in rows.iter().enumerate() {
                 let (ids, mask) = (&mut state.ids[i * seq..(i + 1) * seq], &mut state.mask[i * seq..(i + 1) * seq]);
                 ids[..row.len()].copy_from_slice(row);
-                ids[row.len()..].fill(tok.pad_id);
+                ids[row.len()..].fill(pad);
                 mask[..row.len()].fill(1);
                 mask[row.len()..].fill(0);
             }
@@ -837,6 +838,16 @@ unsafe fn check_tokens(s: &SessionInner, b: &turbo_token_batch, max_tokens: u32)
         for p in 0..seq {
             let (id, m) = (ids[at + p], mask[at + p]);
             if id < 0 || id as u32 >= vocab {
+                if id == -1 && m == 0 && s.model.tokenizer.pad_id < 0 {
+                    return Err(Error::new(
+                        INVALID_ARGUMENT,
+                        format!(
+                            "ids[{r}][{p}] is -1: the bundle has no pad token, so pad under mask 0 with \
+                             an id in the vocabulary, such as unk id {}",
+                            s.model.tokenizer.unk_id
+                        ),
+                    ));
+                }
                 return Err(Error::new(
                     INVALID_ARGUMENT,
                     format!("ids[{r}][{p}] is {id}, outside the model's vocabulary of {vocab}"),

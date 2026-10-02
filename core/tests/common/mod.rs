@@ -283,7 +283,7 @@ impl Fixture {
             .unwrap()
             .iter()
             .find(|s| s["role"] == "SPECIAL_PAD")
-            .map_or(0, |s| s["id"].as_i64().unwrap() as i32);
+            .map_or(-1, |s| s["id"].as_i64().unwrap() as i32);
         fs::write(dir.join("reference/reference.safetensors"), reference_file(&ids, width, pad, dim)).unwrap();
         let mut f = Fixture { dir, manifest };
         f.list("tokenizer.json");
