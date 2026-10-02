@@ -121,29 +121,30 @@ path is the Level Zero graph extension and `FORMAT_OPENVINO_IR`.
 `benchmark_app` is the reference control and is given the static IR
 (`-m openvino/model.xml`).
 
-Two ROWS_MIXED records are committed at `74dfe34`, measured at
-library commit `0c7efb5`, case 0, `live_tokens` 2, `INPUT_TOKEN_IDS`,
-`DTYPE_F16`, library version `0.1.0`, `machine.os` windows, on
-Windows Arrow Lake (`Intel(R) AI Boost`, arch `arl-npu`):
-`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json`
-(library p50 3.7056 ms, 269.45066688366427 rows/s; OpenVINO IR p50
-3.72 ms; `speed_ratio` 0.9961290322580645) and
-`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json`
-(library p50 3.7542 ms, 266.4581897789836 rows/s; OpenVINO IR p50
-3.74 ms; `speed_ratio` 1.0037967914438501). TEI was `--no-tei`. Both
-name `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
+Two ROWS_MIXED records are committed at `bc15354`, measured at
+library commit `99c9264`, cases 0 through 7, `live_tokens` 181,
+`computed_tokens` 1024, `INPUT_TOKEN_IDS`, `DTYPE_F16`, library
+version `0.1.0`, `machine.os` windows, driver Level Zero
+`0.15.21738`, on Windows Arrow Lake (`Intel(R) AI Boost`, arch
+`arl-npu`):
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json`
+(library p50 30.2244 ms, 261.2454192860806 rows/s; OpenVINO IR p50
+30.22 ms; `speed_ratio` 1.0001455989410986) and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json`
+(library p50 29.9935 ms, 262.28463787892775 rows/s; OpenVINO IR p50
+30.259999999999998 ms; `speed_ratio` 0.9911929940515533). TEI was
+`--no-tei`. Both name `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
 `TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. `conformance.min_cosine` is
-0.999996097954919. Each file is one `[1, 128]` frame of case 0.
-`conformance.rows` is 9 and the batch is 1, so eight reference cases
-fit seq and the rows list one. `is_for` matches. `falls_short`
-reports that gap, so they do not back SUPPORTED (The SUPPORTED
-rule). `decide_embedded` leaves `MODEL` and `FASTEST` EXPERIMENTAL
-on a Windows build of library `0.1.0` whose
-device arch is `arl-npu` and whose graph format is `NGRAPH_LITE`.
-The files stay until a mixed record covers every case that fits,
-each row its own `[1, 128]` frame, with OpenVINO measured on those
-same rows. Another arch, a `NATIVE` graph, and a build whose OS is
-not windows stay EXPERIMENTAL with no record for the cell.
+0.999996097954919. Each file is eight `[1, 128]` frames, one per
+fitting case. `conformance.rows` is 16 and `rows.cases.len()` is 8,
+so eight reference cases fit seq and the rows list all eight.
+`is_for` matches. `falls_short` is none, so they back SUPPORTED
+(The SUPPORTED rule). `decide_embedded` sets `MODEL` and `FASTEST`
+to SUPPORTED on a Windows build of library `0.1.0` whose device
+arch is `arl-npu` and whose graph format is `NGRAPH_LITE`. The
+library p50 is the sum of the eight frames, about 30 ms. Another
+arch, a `NATIVE` graph, and a build whose OS is not windows stay
+EXPERIMENTAL with no record for the cell.
 
 Two ROWS_DENSE records of the same IR are committed at `00aa734`,
 measured at library commit `febfed530`, case 8, and are reference
@@ -167,8 +168,8 @@ device and the host-only CI job are in docs/npu.md.
 Windows, where a container cannot see the NPU driver. `--rows mixed` is
 the default. It cycles every fitting case. Repeat with `--precision
 fastest` for the other cell. The files already in
-`benchmarks/records/` are the earlier case-0 measurement and are not
-what this command writes:
+`benchmarks/records/` for these cells are that pass, committed at
+`bc15354`:
 
 ```
 cargo run --release -p turbo-bench --features npu -- record --bundle <bundle> --device npu --precision model --batch 1 --seq 128 --rows mixed --no-tei --openvino-bin <benchmark_app>
@@ -720,13 +721,13 @@ The binding driver string is Level Zero `0.15.21738`.
 The IR file is not the versioned party: the plugin re-serializes for
 the driver, and the library compiles this IR through the graph
 extension. The product path is that Level Zero graph and
-`FORMAT_OPENVINO_IR`. The mixed records are case 0 at `[1, 128]`,
-`live_tokens` 2, `INPUT_TOKEN_IDS`, F16, `NGRAPH_LITE`. They match
-the `arl-npu` windows `MODEL` and `FASTEST` cells and cover 1 of 8
-reference cases that fit seq, so those cells stay EXPERIMENTAL.
+`FORMAT_OPENVINO_IR`. The mixed records, committed at `bc15354`,
+are cases 0 through 7 at `[1, 128]`, `live_tokens` 181,
+`computed_tokens` 1024, `INPUT_TOKEN_IDS`, F16, `NGRAPH_LITE`. They
+match the `arl-npu` windows `MODEL` and `FASTEST` cells and cover
+every reference case that fits seq, so those cells are SUPPORTED.
 The dense records are case 8 at the same shape. They are reference
-evidence and back no capability cell. The thin mixed files stay in
-the tree on the same terms.
+evidence and back no capability cell.
 
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
@@ -777,18 +778,17 @@ A record for the cell backs SUPPORTED when all of these hold:
    `rows.batch` when the pass is one batch and is one row per case
    when `batch` is 1 and the pass cycles. The distinct cases in
    `rows.cases` must equal `conformance.rows` minus that count. Two
-   ROWS_MIXED MiniLM IR records are committed (docs/npu.md). They
-   match the `arl-npu` windows `NGRAPH_LITE` `MODEL` and `FASTEST`
-   cells at library `0.1.0` and `DTYPE_F16`, and each lists case 0
-   only (`live_tokens` 2, one `[1, 128]` frame). `conformance.rows`
-   is 9 and the batch is 1, so they cover 1 of 8 cases and those
-   cells stay EXPERIMENTAL. The files remain. A later record can
-   back the cell when it lists every fitting case, each in its own
-   `[1, 128]` frame, and conformance counts those cases alone and
-   again in the timed pass. The ROWS_DENSE npu files are not for a
-   cell. Another arch, a `NATIVE` graph, and a build for another OS
-   stay EXPERIMENTAL, and `reason` is `no benchmark record for this
-   cell`.
+   ROWS_MIXED MiniLM IR records are committed at `bc15354`
+   (docs/npu.md). They match the `arl-npu` windows `NGRAPH_LITE`
+   `MODEL` and `FASTEST` cells at library `0.1.0` and `DTYPE_F16`.
+   Each lists cases 0 through 7 (`live_tokens` 181, eight `[1, 128]`
+   frames). `conformance.rows` is 16 and `rows.cases.len()` is 8, so
+   they cover 8 of 8 cases. OpenVINO was measured on those rows.
+   `falls_short` is none, and `decide_embedded` sets those cells to
+   SUPPORTED. `benchmark` is the file name. The ROWS_DENSE npu files
+   are not for a cell. Another arch, a `NATIVE` graph, and a build
+   for another OS stay EXPERIMENTAL, and `reason` is `no benchmark
+   record for this cell`.
 
 Of the records that back the cell, the newest by `recorded_at` (then by
 name) is named: the cell is SUPPORTED, `benchmark` is its file name,

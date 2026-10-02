@@ -854,7 +854,7 @@ mod tests {
     }
 
     #[test]
-    fn mixed_arl_npu_minilm_records_do_not_support_model_or_fastest() {
+    fn mixed_arl_npu_minilm_records_support_model_and_fastest() {
         fn cell<'a>(precision: u32, os: &'a str, arch: &'a str, graph_format: Option<&'a str>) -> Cell<'a> {
             Cell {
                 arch,
@@ -869,25 +869,47 @@ mod tests {
                 graph_format,
             }
         }
-        // Case 0 only, two live tokens, one [1, 128] frame. `is_for`
-        // matches the windows arl-npu NGRAPH_LITE cell. conformance.rows
-        // is 9 and the batch is 1, so eight cases fit seq and the rows
-        // list one. That does not back the cell.
-        let gap = "rows cover 1 of 8 reference cases that fit seq";
-        let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json";
-        let fastest = "arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json";
+        // Cases 0 through 7, each its own [1, 128] frame, live_tokens 181.
+        // conformance.rows is 16: those eight compared alone, then the
+        // eight measured rows. is_for matches the windows arl-npu
+        // NGRAPH_LITE cell and falls_short is none, so the cell is
+        // SUPPORTED. Committed at bc15354, measured at 99c9264.
+        let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json";
+        let fastest = "arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json";
         let windows = cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NGRAPH_LITE"));
         let model_rec = embedded().iter().find(|(n, _)| *n == model).unwrap().1.as_ref().unwrap();
+        let fastest_rec = embedded().iter().find(|(n, _)| *n == fastest).unwrap().1.as_ref().unwrap();
         assert!(model_rec.is_for(&windows));
-        assert_eq!(model_rec.rows.cases, [0]);
-        assert_eq!(model_rec.rows.live_tokens, 2);
-        assert_eq!((model_rec.rows.batch, model_rec.rows.seq, model_rec.conformance.rows), (1, 128, 9));
-        for (label, name, precision) in
-            [("model", model, TURBO_PRECISION_MODEL), ("fastest", fastest, TURBO_PRECISION_FASTEST)]
-        {
+        assert!(fastest_rec.is_for(&cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", Some("NGRAPH_LITE"))));
+        assert_eq!(model_rec.rows.cases, [0, 1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(fastest_rec.rows.cases, model_rec.rows.cases);
+        assert_eq!(model_rec.rows.live_tokens, 181);
+        assert_eq!((model_rec.rows.batch, model_rec.rows.seq, model_rec.conformance.rows), (1, 128, 16));
+        assert_eq!(model_rec.timing.computed_tokens, Some(1024));
+        assert_eq!(model_rec.device.driver_version, "0.15.21738");
+        assert_eq!(fastest_rec.device.driver_version, "0.15.21738");
+        assert_eq!(model_rec.library.version, "0.1.0");
+        assert!(model_rec.library.commit.starts_with("99c92648aa9a"));
+        assert_eq!(model_rec.falls_short(&windows), None);
+        assert_eq!(model_rec.timing.p50_ms, 30.2244);
+        assert_eq!(model_rec.speed_ratio, Some(1.0001455989410986));
+        let model_ov = model_rec.references.iter().find(|r| r.name == "openvino").unwrap();
+        assert_eq!(model_ov.measured.as_ref().unwrap().p50_ms, 30.22);
+        assert_eq!(fastest_rec.timing.p50_ms, 29.9935);
+        assert_eq!(fastest_rec.speed_ratio, Some(0.9911929940515533));
+        let fastest_ov = fastest_rec.references.iter().find(|r| r.name == "openvino").unwrap();
+        assert_eq!(fastest_ov.measured.as_ref().unwrap().p50_ms, 30.259999999999998);
+        for (label, name, precision, rec) in [
+            ("model", model, TURBO_PRECISION_MODEL, model_rec),
+            ("fastest", fastest, TURBO_PRECISION_FASTEST, fastest_rec),
+        ] {
             match decide_embedded(&cell(precision, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
-                Verdict::Not(why) => assert_eq!(why, format!("{name}: {gap}"), "{label}"),
-                Verdict::Supported { benchmark, .. } => panic!("{label} supported by {benchmark}"),
+                Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
+                    assert_eq!(benchmark, name, "{label}");
+                    assert_eq!(cosine_floor, rec.conformance.min_cosine, "{label}");
+                    assert_eq!(speed_ratio, rec.speed_ratio.unwrap(), "{label}");
+                }
+                Verdict::Not(why) => panic!("{label} not supported: {why}"),
             }
         }
         for (label, c) in [
@@ -905,7 +927,7 @@ mod tests {
 
     #[test]
     fn a_batch_1_cycle_covers_the_set_only_when_every_frame_was_compared() {
-        let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json";
+        let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json";
         let cell = Cell {
             arch: "arl-npu",
             name: "Intel(R) AI Boost",
@@ -918,15 +940,12 @@ mod tests {
             os: "windows",
             graph_format: Some("NGRAPH_LITE"),
         };
-        let thin = embedded().iter().find(|(n, _)| *n == model).unwrap().1.as_ref().unwrap().clone();
-        // Eight fitting cases, each its own [1, 128] frame, plus those
-        // eight compared alone: conformance.rows is 16. The committed
-        // file is not this record.
-        let mut covered = thin.clone();
-        covered.rows.cases = (0..8).collect();
-        covered.conformance.rows = 16;
-        assert_eq!(covered.falls_short(&cell), None);
+        let full = embedded().iter().find(|(n, _)| *n == model).unwrap().1.as_ref().unwrap().clone();
+        // The committed file is this record: eight fitting cases, each
+        // its own [1, 128] frame, plus those eight compared alone.
+        assert_eq!(full.falls_short(&cell), None);
         // Naming the cases without comparing them does not cover the set.
+        let mut covered = full.clone();
         covered.conformance.rows = 9;
         assert_eq!(covered.falls_short(&cell).as_deref(), Some("rows cover 8 of 1 reference cases that fit seq"));
         // Eight frames of case 0 are still one case.
@@ -935,7 +954,7 @@ mod tests {
         assert_eq!(covered.falls_short(&cell).as_deref(), Some("rows cover 1 of 8 reference cases that fit seq"));
         // A wider batch is unchanged: distinct cases equal conformance
         // rows minus the batch, and cases.len() is that batch.
-        let mut wide = thin;
+        let mut wide = full;
         wide.rows.batch = 32;
         wide.rows.cases = (0..9).cycle().take(32).collect();
         wide.conformance.rows = 41;
