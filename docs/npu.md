@@ -276,22 +276,19 @@ layer `version="opsetN"` the backend reads, and exits if any is above
 the cap, naming the type. The cap is `--max-opset` (default 11). It
 does not rewrite a layer's version attribute. The MiniLM
 recipe's `reference.produced_by.container` is the image built from
-`bundle/reference` on this tree, which contains
-`onnx_to_openvino_ir.py`:
+`bundle/reference` on this branch:
 
 `turbo-reference@sha256:994f2d1b0c61669a2cf3c3d89b1b6d58fe9b82b7560602801e0da69d83b5786a`
 
 That string is `turbo-reference@` plus `docker image inspect --format "{{.Id}}" turbo-reference`
-after `docker build -t turbo-reference bundle/reference`. A later build
-gets a new id, and the pin moves with it. The bge recipes still name
-an older image (`sha256:0e153c1d...` on the machines that have it),
-which does not contain this script. This environment has the
-`994f2d1b` image locally. The pin is a local image id, not a registry
-name, so it cannot be published from here onto those machines.
-Pinning `0e153c1d` would point the IR conversion at an image that
-does not contain `onnx_to_openvino_ir.py`. The pin stays
-`994f2d1b` until the Dockerfile is built on a machine the team uses
-and that image id replaces it. That publish is still open.
+after `docker build -t turbo-reference bundle/reference`. On this
+Linux agent that command produced this id. The image contains
+`onnx_to_openvino_ir.py` and OpenVINO 2026.3.0. A later build gets a
+new id, and the pin moves with it. The bge recipes name an older
+image, `sha256:0e153c1d...`, and that image has no
+`onnx_to_openvino_ir.py`. The MiniLM pin is this local image id.
+A machine converts when that id is present. The MiniLM pin stays
+`994f2d1b`.
 
 From the workspace root, on Linux or on Windows with Docker Desktop
 (PowerShell; the same commands):
@@ -305,19 +302,23 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json <upstream
 `<upstream-dir>` is a checkout of the model's repository at the commit
 the recipe names (the tool fetches when it can; a directory already
 holding those files is the offline path, bundle/README.md). The convert
-step writes `openvino/model.xml` and `openvino/model.bin`. `make` then
-seals every conversion the recipe names. The Hailo image
+step writes `openvino/model.xml` and `openvino/model.bin`, and the
+embeddings cut writes `openvino/embeddings.xml` and
+`openvino/embeddings.bin`. `make` then seals every conversion the
+recipe names. The Hailo image
 (`turbo-hailo-dfc@sha256:0972b97df2cfba9ba20abf9efa99a7f57ec675a00e6712a610f6cbd410a575b2`)
 is built locally, and `bundle/hailo/Dockerfile` needs a wheel this
-repository does not carry, so `make` stops after the reference, the F16
-ONNX, and the IR are written, and it does not write `manifest.json`.
-`turbo-bundle seal` on those files leaves the HEF out. A seal of that
-kind verified here: artifacts `weights-f32`, `onnx-f32`, `onnx-f16`,
-and `openvino-f16`, the reference and both conversions recorded against
-the pin above, and the IR `produced_by.reproducible` true (two runs,
-identical bytes). That Linux seal is not the hardware session. The
+repository does not carry. That image is absent on this agent, so the
+HEF was left out of the make that sealed the other artifacts. That
+make ran in `994f2d1b`, and `turbo-bundle verify` passed. The sealed
+artifacts are `weights-f32`, `onnx-f32`, `onnx-f16`, `openvino-f16`,
+and `openvino-embeddings-f16`. The reference and each conversion
+record the pin above. `openvino-f16` has `produced_by.reproducible`
+true. `openvino-embeddings-f16` records `cut_max_abs_diff` 0.00451
+and `produced_by.reproducible` false: the two runs differed. That
+seal is the bundle made here. It is not the hardware session. The
 Arrow Lake session is recorded under Hardware. The weights, the
-ONNX files, and the IR are not in git.
+ONNX files, and both IRs are not in git.
 
 A machine without Docker does not run the script on the host. Make
 the bundle on a Linux machine that has the pinned image, and copy the
@@ -555,9 +556,9 @@ TEI's CPU image is the end-to-end baseline. Both are references only.
 The product path stays the Level Zero graph extension and
 `FORMAT_OPENVINO_IR`. It does not run ONNX and it does not link
 OpenVINO. An npu record is worth committing once the input is the
-standard case set in `[1, 128]` frames and `benchmark_app` runs
-with an OpenVINO install matched to the NPU driver. That has not
-happened.
+standard case set in `[1, 128]` frames and `benchmark_app` compiles
+on NPU with an OpenVINO install paired to driver `32.0.100.4778`.
+That has not happened.
 
 The model is `sentence-transformers/all-MiniLM-L6-v2`, the one the
 other optimized paths record. The published shape on the token-id seal
@@ -613,14 +614,13 @@ at compile. The report says IR serialized API found 8.1, expected
 versioned party. The OpenVINO NPU plugin re-serializes the graph for
 the driver, and the library already compiles this same IR through
 the Level Zero graph extension. The credible gap is the OpenVINO
-package and the NPU driver compiler out of step, for example
-OpenVINO 2026.3 against driver `0.15.x`. The fix is an OpenVINO
-install matched to that driver, or a driver update from Intel's
-pairing table. Passing the dynamic ONNX file instead fails earlier,
-at `core.cpp:120`, and that file is not the NPU reference input.
+package and the NPU driver compiler out of step. The pairing this
+waits on is an OpenVINO install matched to driver `32.0.100.4778`.
+Passing the dynamic ONNX file instead fails earlier, at
+`core.cpp:120`, and that file is not the NPU reference input.
 Neither failure is a timing. This reference is still open. No new
-npu speed record is committed until `benchmark_app` runs with a
-matched install and the standard case set is measured.
+npu speed record is committed until `benchmark_app` compiles on NPU
+with that pairing and the standard case set is measured.
 
 ## Still to land
 
@@ -639,16 +639,16 @@ matched install and the standard case set is measured.
   `ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file is not the
   versioned party: the plugin re-serializes for the driver, and the
   library already compiles this IR through the graph extension. The
-  OpenVINO package and the NPU driver compiler are out of step
-  (OpenVINO 2026.3 against driver `0.15.x` is the example). Still
-  open until `benchmark_app` runs with an OpenVINO install matched
-  to the driver, or with a driver from Intel's pairing table. The
-  earlier `core.cpp:120` failure was the dynamic ONNX file, which
-  is not the NPU reference input.
-- Publishing `turbo-reference@sha256:994f2d1b...`. This environment
-  has that image locally. Team machines have `sha256:0e153c1d...`,
-  which does not contain `onnx_to_openvino_ir.py`. The pin is a local
-  image id. It has not been published to those machines.
+  OpenVINO package and the NPU driver compiler are out of step.
+  Still open until `benchmark_app` compiles on NPU with an OpenVINO
+  install paired to driver `32.0.100.4778`. The earlier
+  `core.cpp:120` failure was the dynamic ONNX file, which is not the
+  NPU reference input.
+- Machines that only have `sha256:0e153c1d...` still need the MiniLM
+  image `turbo-reference@sha256:994f2d1b...` present before they
+  convert. That id is what `docker build -t turbo-reference
+  bundle/reference` produced on this agent. It contains
+  `onnx_to_openvino_ir.py`. The pin is that local image id.
 - A `NATIVE` timing. Driver `0.15.21738` reports
   `graphFormatsSupported` `0x2`. A record from a driver that
   advertises bit `0x1` would say `NATIVE`.

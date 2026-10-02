@@ -120,10 +120,9 @@ returns `ZE_RESULT_ERROR_INVALID_NULL_POINTER`. The IR file is not the
 versioned party: the NPU plugin re-serializes the graph for the driver,
 and the library already compiles this same IR through the Level Zero
 graph extension. The OpenVINO package and the driver compiler are out
-of step (OpenVINO 2026.3 against driver `0.15.x` is the example). The
-reference stays open until `benchmark_app` runs with an install matched
-to that driver, or with a driver from Intel's pairing table. Docs for
-the device and the host-only CI job are in docs/npu.md.
+of step. The reference stays open until `benchmark_app` compiles on
+NPU with an OpenVINO install paired to driver `32.0.100.4778`. Docs
+for the device and the host-only CI job are in docs/npu.md.
 
 Windows, where a container cannot see the NPU driver:
 
@@ -653,7 +652,8 @@ static IR fails at compile. The report says IR serialized API found
 versioned party: the plugin re-serializes for the driver, and the
 library already compiles this IR through the graph extension. The
 OpenVINO package and the NPU driver compiler are out of step. That
-reference is still open until a matched install runs (docs/npu.md).
+reference is still open until `benchmark_app` compiles on NPU with
+an OpenVINO install paired to driver `32.0.100.4778` (docs/npu.md).
 
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
