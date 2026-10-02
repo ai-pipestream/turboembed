@@ -805,4 +805,51 @@ mod tests {
         assert_eq!(pinned("nvcr.io/nvidia/tensorrt:25.01"), None);
         assert_eq!(pinned(&format!("tei@sha256:{}", "A".repeat(64))), None);
     }
+
+    #[test]
+    fn mixed_arl_npu_minilm_records_support_model_and_fastest_on_windows() {
+        fn cell<'a>(precision: u32, os: &'a str, arch: &'a str, graph_format: Option<&'a str>) -> Cell<'a> {
+            Cell {
+                arch,
+                name: "Intel(R) AI Boost",
+                cpu: false,
+                backend: "npu",
+                task: TURBO_TASK_EMBED,
+                precision,
+                dtype: TURBO_DTYPE_F16,
+                version: library_version(),
+                os,
+                graph_format,
+            }
+        }
+        let model = "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json";
+        let fastest = "arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json";
+        match decide_embedded(&cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
+            Verdict::Supported { benchmark, speed_ratio, cosine_floor } => {
+                assert_eq!(benchmark, model);
+                assert!((speed_ratio - 0.9961290322580645).abs() < 1e-12, "{speed_ratio}");
+                assert!((cosine_floor - 0.999996097954919).abs() < 1e-12, "{cosine_floor}");
+            }
+            Verdict::Not(why) => panic!("model: {why}"),
+        }
+        match decide_embedded(&cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
+            Verdict::Supported { benchmark, speed_ratio, cosine_floor } => {
+                assert_eq!(benchmark, fastest);
+                assert!((speed_ratio - 1.0037967914438501).abs() < 1e-12, "{speed_ratio}");
+                assert!((cosine_floor - 0.999996097954919).abs() < 1e-12, "{cosine_floor}");
+            }
+            Verdict::Not(why) => panic!("fastest: {why}"),
+        }
+        for (label, c) in [
+            ("linux", cell(TURBO_PRECISION_MODEL, "linux", "arl-npu", Some("NGRAPH_LITE"))),
+            ("native", cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NATIVE"))),
+            ("mtl", cell(TURBO_PRECISION_MODEL, "windows", "mtl-npu", Some("NGRAPH_LITE"))),
+            ("exact", cell(TURBO_PRECISION_EXACT, "windows", "arl-npu", Some("NGRAPH_LITE"))),
+        ] {
+            match decide_embedded(&c) {
+                Verdict::Not(why) => assert_eq!(why, NO_RECORD, "{label}"),
+                Verdict::Supported { benchmark, .. } => panic!("{label} supported by {benchmark}"),
+            }
+        }
+    }
 }

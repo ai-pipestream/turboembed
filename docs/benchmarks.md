@@ -112,26 +112,47 @@ feature. The published shape is `--batch 1 --seq 128`: one library frame
 is one `benchmark_app` request of `[1, 128]`. The tool refuses a run
 that omits those flags. Do not copy `--seq 256` or a batch of 32 from a
 GPU record. `--precision model` and `--precision fastest` are two cells
-at that shape. A record of one does not fill the other. Two ROWS_DENSE
-records are committed at `00aa734`, measured at library commit
-`febfed530`, case 8, `INPUT_TOKEN_IDS`, `DTYPE_F16`, static IR, on
-Windows Arrow Lake (`Intel(R) AI Boost`, arch `arl-npu`):
+at that shape. A record of one does not fill the other. The product
+path is the Level Zero graph extension and `FORMAT_OPENVINO_IR`.
+`benchmark_app` is the reference control and is given the static IR
+(`-m openvino/model.xml`).
+
+Two ROWS_MIXED records bind those cells. They are committed at
+`74dfe34`, measured at library commit `0c7efb5`, case 0,
+`live_tokens` 2, `INPUT_TOKEN_IDS`, `DTYPE_F16`, library version
+`0.1.0`, `machine.os` windows, on Windows Arrow Lake (`Intel(R) AI
+Boost`, arch `arl-npu`):
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json`
+(library p50 3.7056 ms, 269.45066688366427 rows/s; OpenVINO IR p50
+3.72 ms; `speed_ratio` 0.9961290322580645) and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.0c7efb5c5732.json`
+(library p50 3.7542 ms, 266.4581897789836 rows/s; OpenVINO IR p50
+3.74 ms; `speed_ratio` 1.0037967914438501). TEI was `--no-tei`. Both
+name `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
+`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. `conformance.min_cosine` is
+0.999996097954919. `decide_embedded` promotes `MODEL` and `FASTEST`
+to SUPPORTED on a Windows build of library `0.1.0` whose device arch
+is `arl-npu` and whose graph format is `NGRAPH_LITE` (The SUPPORTED
+rule). Another arch, a `NATIVE` graph, and a build whose OS is not
+windows stay EXPERIMENTAL.
+
+Two ROWS_DENSE records of the same IR are committed at `00aa734`,
+measured at library commit `febfed530`, case 8, and are reference
+evidence only. `Record::is_for` requires `ROWS_MIXED`, so they do
+not bind:
 `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`
 (library p50 3.9668 ms, about 252.93 rows/s; OpenVINO IR p50 3.82 ms;
 `speed_ratio` about 1.038) and
 `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`
 (library p50 3.97 ms, about 251.27 rows/s; OpenVINO IR p50 3.87 ms;
-`speed_ratio` about 1.026). TEI was `--no-tei`. Both name
-`TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
-`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. The prior compile blocker
-was IR serialized API 8.1 against expected 8.2, with NPU-VCL returning
+`speed_ratio` about 1.026). The prior compile blocker was IR
+serialized API 8.1 against expected 8.2, with NPU-VCL returning
 `ZE_RESULT_ERROR_INVALID_NULL_POINTER`. That mismatch is resolved for
 these cells: `benchmark_app` compiled `-m openvino/model.xml` with
 OpenVINO nightly 2026.5.0 (`2026.5.0-23311-786052d995f`) paired to
 driver `32.0.100.4778`. The records' Level Zero driver string is
-`0.15.21738`. Dense rows are reference evidence and leave the cell
-`EXPERIMENTAL` (The SUPPORTED rule). Docs for the device and the
-host-only CI job are in docs/npu.md.
+`0.15.21738`. Docs for the device and the host-only CI job are in
+docs/npu.md.
 
 Windows, where a container cannot see the NPU driver:
 
@@ -654,18 +675,22 @@ request of the artifact's fixed shape. For the token-id MiniLM seal
 that shape is `[1, 128]`. An `INPUT_EMBEDDINGS` artifact has no
 `speed_ratio`: the host gather is not the token-id IR. TEI's CPU
 image is the end-to-end reference for the token-id cell. Two
-ROWS_DENSE npu records are committed (the intel-npu paragraph above,
-and docs/npu.md). On those cells `benchmark_app` compiled the static
-IR. The earlier intel-npu compile report, IR serialized API found
+ROWS_MIXED npu records and two ROWS_DENSE npu records are committed
+(the intel-npu paragraph above, and docs/npu.md). On those cells
+`benchmark_app` compiled the static IR (`-m openvino/model.xml`).
+The earlier intel-npu compile report, IR serialized API found
 8.1, expected 8.2, NPU-VCL
 `ZE_RESULT_ERROR_INVALID_NULL_POINTER`, was the OpenVINO package and
 the driver compiler out of step. It is resolved for the measured
 cells by OpenVINO nightly 2026.5.0 paired to driver `32.0.100.4778`.
 The IR file is not the versioned party: the plugin re-serializes for
 the driver, and the library compiles this IR through the graph
-extension. The committed records are case 8 at `[1, 128]`,
-`INPUT_TOKEN_IDS`, F16, `NGRAPH_LITE`. They are dense, so they back
-no capability cell.
+extension. The product path is that Level Zero graph and
+`FORMAT_OPENVINO_IR`. The mixed records are case 0 at `[1, 128]`,
+`INPUT_TOKEN_IDS`, F16, `NGRAPH_LITE`, and they bind the `arl-npu`
+windows `MODEL` and `FASTEST` cells. The dense records are case 8
+at the same shape. They are reference evidence and back no
+capability cell.
 
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
@@ -708,11 +733,15 @@ A record for the cell backs SUPPORTED when all of these hold:
    not parse.) The tool gives each backend its own programs (Reference
    programs), so a levelzero or npu record is backed by OpenVINO or TEI.
    The npu backend reports `TURBO_DTYPE_F16` before a model is loaded,
-   the compute dtype the published recipes declare. `SUPPORTED` still
-   needs a mixed-row record that measures a reference. The two
-   committed npu records are ROWS_DENSE (docs/npu.md), so they are
-   not for the cell. The cell stays `EXPERIMENTAL` and `reason` is
-   `no benchmark record for this cell`.
+   the compute dtype the published recipes declare. `SUPPORTED` needs
+   a mixed-row record that measures a reference and does not fall
+   short. Two ROWS_MIXED MiniLM IR records are committed
+   (docs/npu.md). They are for the `arl-npu` windows `NGRAPH_LITE`
+   `MODEL` and `FASTEST` cells at library `0.1.0` and `DTYPE_F16`,
+   and those cells are SUPPORTED. The ROWS_DENSE npu files are not
+   for a cell. Another arch, a `NATIVE` graph, and a build for
+   another OS stay EXPERIMENTAL, and `reason` is `no benchmark
+   record for this cell`.
 
 Of the records that back the cell, the newest by `recorded_at` (then by
 name) is named: the cell is SUPPORTED, `benchmark` is its file name,
