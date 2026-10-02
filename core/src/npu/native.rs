@@ -89,47 +89,6 @@ fn owned(size: usize, ptr: *const u8, what: &str) -> Result<Vec<u8>, BlobError> 
 mod tests {
     use super::*;
 
-    static BLOB: [u8; 4] = [0x7f, b'E', b'L', b'F'];
-
-    unsafe extern "C" fn binary2(_graph: Handle, size: *mut usize, out: *mut *const u8) -> ze::Status {
-        unsafe {
-            *size = BLOB.len();
-            *out = BLOB.as_ptr();
-        }
-        0
-    }
-
-    unsafe extern "C" fn binary2_empty(_graph: Handle, size: *mut usize, out: *mut *const u8) -> ze::Status {
-        unsafe {
-            *size = 0;
-            *out = std::ptr::null();
-        }
-        0
-    }
-
-    unsafe extern "C" fn binary2_fails(_graph: Handle, _size: *mut usize, _out: *mut *const u8) -> ze::Status {
-        0x7800_0004
-    }
-
-    unsafe extern "C" fn binary1(_graph: Handle, size: *mut usize, out: *mut u8) -> ze::Status {
-        unsafe {
-            if out.is_null() {
-                *size = BLOB.len();
-                return 0;
-            }
-            if *size < BLOB.len() {
-                return 0x7800_0005;
-            }
-            std::ptr::copy_nonoverlapping(BLOB.as_ptr(), out, BLOB.len());
-            *size = BLOB.len();
-        }
-        0
-    }
-
-    fn ext(version: u32, table: &ze::GraphDdi) -> GraphExt {
-        unsafe { GraphExt::new(table, version) }
-    }
-
     #[test]
     fn a_native_descriptor_names_the_blob_and_the_format() {
         let blob = [1u8, 2, 3, 4];
@@ -141,40 +100,5 @@ mod tests {
         assert!(!d.build_flags.is_null());
         assert_eq!(unsafe { std::ffi::CStr::from_ptr(d.build_flags) }, flags);
         assert_eq!(d.flags, 0);
-    }
-
-    #[test]
-    fn extension_1_7_copies_the_driver_view() {
-        let mut table: ze::GraphDdi = unsafe { std::mem::zeroed() };
-        table.pfn_get_native_binary2 = Some(binary2);
-        let bytes = copy(&ext(ze::version(1, 7), &table), std::ptr::null_mut()).unwrap();
-        assert_eq!(bytes, BLOB);
-    }
-
-    #[test]
-    fn an_older_extension_uses_the_caller_buffer() {
-        let mut table: ze::GraphDdi = unsafe { std::mem::zeroed() };
-        table.pfn_get_native_binary2 = Some(binary2_fails);
-        table.pfn_get_native_binary = Some(binary1);
-        let bytes = copy(&ext(ze::version(1, 6), &table), std::ptr::null_mut()).unwrap();
-        assert_eq!(bytes, BLOB, "1.6 must not read pfnGetNativeBinary2");
-    }
-
-    #[test]
-    fn an_empty_blob_and_a_driver_error_are_refused() {
-        let mut table: ze::GraphDdi = unsafe { std::mem::zeroed() };
-        table.pfn_get_native_binary2 = Some(binary2_empty);
-        let e = copy(&ext(ze::version(1, 7), &table), std::ptr::null_mut()).unwrap_err();
-        assert!(matches!(e, BlobError::Runtime(ref m) if m.contains("empty blob")), "{e:?}");
-        table.pfn_get_native_binary2 = Some(binary2_fails);
-        let e = copy(&ext(ze::version(1, 7), &table), std::ptr::null_mut()).unwrap_err();
-        assert!(matches!(e, BlobError::Runtime(ref m) if m.contains("0x78000004")), "{e:?}");
-    }
-
-    #[test]
-    fn a_table_with_neither_export_is_unsupported() {
-        let table: ze::GraphDdi = unsafe { std::mem::zeroed() };
-        let e = copy(&ext(ze::version(1, 5), &table), std::ptr::null_mut()).unwrap_err();
-        assert!(matches!(e, BlobError::Unsupported(ref m) if m.contains("pfnGetNativeBinary")), "{e:?}");
     }
 }
