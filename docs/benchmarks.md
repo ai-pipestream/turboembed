@@ -112,14 +112,17 @@ feature. The published shape is `--batch 1 --seq 128`: one library frame
 is one `benchmark_app` request of `[1, 128]`. The tool refuses a run
 that omits those flags. Do not copy `--seq 256` or a batch of 32 from a
 GPU record. `--precision model` and `--precision fastest` are two cells
-at that shape. The files start
-`arl-npu.npu.ngraph-lite.embed.model.` and
-`arl-npu.npu.ngraph-lite.embed.fastest.`. A record of one does not fill
-the other. Neither file is in `benchmarks/records/` yet. The fastest
-one is what the intel-npu host is expected to commit from tip
-`2b7c942`. On driver `0.15.21738` the record's `library.settings`
-include `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE`. Docs for the device, the
-seal, and the host-only CI job are in docs/npu.md.
+at that shape. The committed files, measured from library commit
+`2b7c942` and added at tip `228a6b3`, are
+`arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-f7411123.2b7c9421eea1.json`
+and
+`arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-f7411123.2b7c9421eea1.json`.
+A record of one does not fill the other. On driver `0.15.21738` both
+say `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
+`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. `speed_ratio` is null on
+both: the fastest record's `benchmark_app` exited 1, and the model
+record disabled OpenVINO. Docs for the figures, the device, and the
+host-only CI job are in docs/npu.md.
 
 Windows, where a container cannot see the NPU driver:
 
@@ -639,8 +642,9 @@ reference. The published cell pins both sides to one request of the
 artifact's fixed shape. For the token-id MiniLM seal that shape is
 `[1, 128]`. An `INPUT_EMBEDDINGS` artifact has no `speed_ratio`: the
 host gather is not this full ONNX encoder. TEI's CPU image is the
-end-to-end reference for the token-id cell. No npu record is committed
-in this tree.
+end-to-end reference for the token-id cell. The two committed npu
+records (docs/npu.md, Hardware at tip `228a6b3`) leave both references
+`not_run`, so their `speed_ratio` is null.
 
 For the CPU backend the reference is TEI's CPU image, which runs on any
 x86_64 machine. A CPU record without it measured backs nothing.
@@ -684,6 +688,8 @@ A record for the cell backs SUPPORTED when all of these hold:
    programs), so a levelzero or npu record is backed by OpenVINO or TEI.
    The npu backend reports dtype 0 before a model is loaded, so a record
    of an F16 session does not by itself move that cell to SUPPORTED.
+   The two npu records at tip `228a6b3` also measured no reference, so
+   `speed_ratio` is null and they do not back SUPPORTED.
 
 Of the records that back the cell, the newest by `recorded_at` (then by
 name) is named: the cell is SUPPORTED, `benchmark` is its file name,

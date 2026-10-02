@@ -565,25 +565,57 @@ Bit `0x1`, `ZE_GRAPH_FORMAT_NATIVE`, was not set. The load initialized
 the lite graph. That is the fallback `model_load` takes when the device
 does not advertise `NATIVE`. The run did not create a graph with
 `ZE_GRAPH_FORMAT_NATIVE`. The code that would, when a driver advertises
-the bit, is in this tree and was not taken. This tree has no NPU.
+the bit, is in this tree and was not taken on that run.
+
+At tip `228a6b3` the tree holds two speed records measured on intel-npu.
+Each file's `library.commit` is `2b7c942`. The device is
+`Intel(R) AI Boost`, arch `arl-npu`, loader `1.28.2`, driver
+`0.15.21738`, the same part as the `57c302f` receipt. Both are the
+token-id MiniLM seal (`openvino-f16`), `ROWS_MIXED`, batch 1, seq 128,
+`computed_tokens` 128, `live_tokens` 2, `DTYPE_F16`,
+`TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE`, and
+`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. Conformance on both is 9 rows,
+min cosine `0.999996097954919`, max abs diff `0.000713348388671875`.
+`speed_ratio` is null on both. TEI is `not_run` (`--no-tei`) on both.
+The recorded format is `NGRAPH_LITE`, which is what `model_load` writes
+when bit `0x1` is clear. These runs did not create a graph with
+`ZE_GRAPH_FORMAT_NATIVE`.
+
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-f7411123.2b7c9421eea1.json`
+is `PRECISION_FASTEST`, recorded `2026-10-01T22:55:22Z`. After 20
+warmup runs, 200 timed runs give p50 `3.7566` ms, p99 `4.038` ms, and
+`267.2739844323595` rows per second. OpenVINO is `not_run`:
+`benchmark_app` exited with code 1,
+`Exception from src\inference\src\cpp\core.cpp:120:`. The binary is
+pinned
+`benchmark-app@sha256:929658b399f0c1273958906c14f6640929402d4fd7e1033946b57443decea7c8`.
+The recorded command asks for shape `[1, 128]`.
+
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-f7411123.2b7c9421eea1.json`
+is `PRECISION_MODEL`, recorded `2026-10-01T23:23:12Z`. p50 `3.7575` ms,
+p99 `4.126` ms, `266.54199609036203` rows per second. OpenVINO is
+`not_run` because `--no-openvino` was passed. That record did not run
+`benchmark_app`.
 
 Capability stays `EXPERIMENTAL` at `MODEL` and `FASTEST`. The dtype
-reported before a model is loaded is 0, and that is why a benchmark
-record is not `SUPPORTED`. `EXACT` stays `UNSUPPORTED`. The backend
-does not claim `SUPPORTED`. The output-precision check is unchanged:
-FP16 is `DTYPE_F16`, FP32 is `DTYPE_F32`, and a manifest
-`compute_dtype` that names the other is refused.
+reported before a model is loaded is 0, and neither record measured a
+reference, so neither moves its cell to `SUPPORTED`. `EXACT` stays
+`UNSUPPORTED`. The backend does not claim `SUPPORTED`. The
+output-precision check is unchanged: FP16 is `DTYPE_F16`, FP32 is
+`DTYPE_F32`, and a manifest `compute_dtype` that names the other is
+refused.
 
 ## Speed
 
-No file under `benchmarks/records/` is an npu record, and none was
-written here: this tree has no NPU, so there are no timings to enter.
-The harness is `turbo-bench` with `--features npu`
+Two npu records are under `benchmarks/records/`, committed at tip
+`228a6b3` and measured from library commit `2b7c942`. The figures are
+in Hardware, above. The harness is `turbo-bench` with `--features npu`
 (docs/benchmarks.md). It measures the library on `--device npu` and
 the same two references levelzero uses. OpenVINO `benchmark_app` is
 the kernel reference. TEI's CPU image is the end-to-end baseline.
 Both are references only. The product path stays the Level Zero graph
-extension.
+extension. On these two records both references are `not_run`, so
+`speed_ratio` is null.
 
 The model is `sentence-transformers/all-MiniLM-L6-v2`, the one the
 other optimized paths record. The published shape on the token-id seal
@@ -626,14 +658,12 @@ on this part, and the device name the driver reports. Do not put a
 hostname in the record; the tool rewrites host paths, and a home
 directory is refused. Capability stays `EXPERIMENTAL`.
 
-The follow-up is that command on intel-npu, from a clean tree at tip
-`2b7c942`, twice: `--precision fastest` and `--precision model`, each
-with `--batch 1 --seq 128` and mixed rows. The two files are separate
-records. `--no-tei` is honest when Docker cannot run
-TEI's CPU image; the record says TEI was not run, and the speed cell
-is against OpenVINO when `benchmark_app` ran. `--no-openvino` leaves
-the kernel cell empty. A disabled reference is recorded as not run.
-It is not filled with a time. On Linux the container is given
+The two files are separate cells at the same shape. The fastest record
+ran `benchmark_app` and it exited 1. The model record passed
+`--no-openvino` and did not run it. `--no-tei` on both says TEI was
+not run. A disabled reference is recorded as not run. It is not filled
+with a time. A later run that gets a measured OpenVINO p50 is what
+would set `speed_ratio`. On Linux the container is given
 `/dev/accel/accel0` unless `--openvino-accel` names another node.
 Several NPUs are refused, because `-d NPU` is OpenVINO's first device
 and the command has no per-device index.
@@ -648,16 +678,15 @@ and the command has no per-device index.
   that lists the bit. That create has not been exercised on hardware.
   A record from that driver would say `TURBO_NPU_GRAPH_FORMAT=NATIVE`
   and would not match an `NGRAPH_LITE` cell.
-- Speed cells. No file under `benchmarks/records/` is an npu record.
-  The measured token-id fastest cell must be committed there by the
-  intel-npu host, built from tip `2b7c942`. Its name starts with
-  `arl-npu.npu.ngraph-lite.embed.fastest.`. That file is not in this
-  tree and is not written here. The `model` cell is a separate record
-  at the same `--batch 1 --seq 128`, named
-  `arl-npu.npu.ngraph-lite.embed.model.`, and is also not committed.
-  On driver `0.15.21738` either record's `TURBO_NPU_GRAPH_FORMAT` is
-  `NGRAPH_LITE`. A `NATIVE` timing waits on a driver that advertises
-  bit `0x1`.
+- OpenVINO `speed_ratio`. Both committed cells leave it null. On the
+  fastest record `benchmark_app` exited 1. On the model record
+  OpenVINO was disabled with `--no-openvino`. TEI is disabled on both.
+  A measured kernel reference is still open. The library timings in
+  Hardware stand on their own.
+- A `NATIVE` timing. Both committed cells say
+  `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` on driver `0.15.21738`. A
+  record from a driver that advertises bit `0x1` would say `NATIVE`
+  and would not match these cells.
 - Host-only CI. `test (npu)` on GitHub Actions is `ubuntu-24.04` with
   no device. The ignored NPU tests are not that job. There is no
   self-hosted NPU runner. See Host-only blocker.
