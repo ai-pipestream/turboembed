@@ -153,6 +153,14 @@ pub(crate) unsafe fn widened(model: *mut c_void) -> Option<*const c_void> {
     unsafe { encoder::widened(model) }
 }
 
+/// The linear layers' kernels of sessions made from now on, as
+/// TURBO_LEVELZERO_CHOICES names them, or `None` to read the variable
+/// again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_choices(choices: Option<&str>) {
+    encoder::use_choices(choices);
+}
+
 /// Recovery from a failed append on the first listed device's queue, as
 /// gpu.rs describes it. Built only with `internals`.
 #[cfg(feature = "internals")]

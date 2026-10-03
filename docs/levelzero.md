@@ -41,41 +41,98 @@ cargo build -p turbo --release --features levelzero
 | Variable | Meaning |
 |---|---|
 | `TURBO_CLANG` | The clang that compiles the kernels. Unset: `clang` on the `PATH`. |
+| `TURBO_LEVELZERO_CHOICES` | At run time: forces the session's kernel choice (Kernel choices, below). |
 | `TURBO_LEVELZERO_PROFILE` | At run time: every context times each kernel and copy on the device, and logs the totals at debug level when it is released. A profiled run allocates on the host to name what it times. |
 
 The driver builds the SPIR-V for the device the first time a context
 needs a kernel, when a model or session is made; that build is not part
 of any run.
 
-### oneDNN for the F16 linear layers
+### oneDNN for the linear layers
 
-With the `levelzero-onednn` feature, the linear layers of a FASTEST
-session with more than 8 tokens run on oneDNN's kernels for the matrix
-engines, as OpenVINO's do, instead of the backend's own: the Q, K and V
-projection, the feed-forward input with its GELU, and the two projections
-back to the hidden width with their residual added, each followed by
-oneDNN's LayerNorm; the last layer's hidden states are then widened to F32
-for the pooling. oneDNN runs on the backend's own device, context and
-memory through a SYCL queue of its own, which the backend orders against
-its command list by waiting on the host. The F16 weights are transposed
-once more at load, into the plain layout OpenVINO hands oneDNN: left to
-choose, oneDNN pads and keeps the rows, and runs 2% slower from that on a
-B70 on bge-base and bge-large. Everything else, the attention above all,
-is the backend's.
+With the `levelzero-onednn` feature, the linear layers of a batch of
+more than 8 tokens may run on oneDNN's kernels instead of the backend's
+own, at every precision; which ones a session runs is its `linear` choice
+(Kernel choices, below). At FASTEST oneDNN runs on the matrix engines in
+F16, as OpenVINO's kernels do: the Q, K and V projection, the
+feed-forward input with its GELU, and the two projections back to the
+hidden width with their residual added, each followed by oneDNN's
+LayerNorm; the last layer's hidden states are then widened to F32 for the
+pooling. In F32 (MODEL and EXACT) it runs the same four matrix products
+in F32, reading each layer's weights as they are stored, `[out, in]`; the
+projections back to the hidden width keep the backend's LayerNorm, which
+adds their bias and sums in F64. oneDNN runs on the backend's own device,
+context and memory through a SYCL queue of its own, which the backend
+orders against its command list by events. The F16 weights are
+transposed once more at load, into the plain layout OpenVINO hands
+oneDNN: left to choose, oneDNN pads and keeps the rows, and runs 2%
+slower from that on a B70 on bge-base and bge-large. Everything else,
+the attention above all, is the backend's.
 
 The build needs the oneAPI compiler (`TURBO_ICPX`, else `icpx` on the
 `PATH`, with its environment set) and oneDNN's headers and library; it
 makes `libturbo_onednn.so` in the build directory, which the library then
 needs at run time together with oneDNN and the SYCL runtime from the
-oneAPI installation (their directory is written into the library as a
-run-time path). A device oneDNN cannot open runs the backend's own kernels,
-and the log says so.
+oneAPI installation. The compiler's lib directory is written into both as
+a run-time path; oneDNN's own directory is not, so a program run outside
+the oneAPI environment (`source /opt/intel/oneapi/setvars.sh`) finds
+`libdnnl.so` through `LD_LIBRARY_PATH`. A program built in another crate,
+such as `turbo-bench`, also finds `libturbo_onednn.so` that way. A device
+oneDNN cannot open runs the backend's own kernels, and the log says so.
 
-What the feature changes in the contract: a row's bits at FASTEST then
-depend on the rows around it, since oneDNN's kernel for a batch sums in
-its own order and the few-token kernels in theirs; the F32 precisions are
-untouched. On a B70 at 32 x 256 it takes bge-base from 19.8 to 17.4 ms
-and bge-large from 60.1 to 56.8, the narrow models unchanged.
+What the feature changes in the contract: where a session runs oneDNN, a
+row's bits depend on the rows around it, since oneDNN's kernel for a batch
+sums in its own order and the few-token kernels in theirs. The backend's
+own kernels, forced with `linear=own`, keep a row's bits the same alone
+and among others.
+
+### Kernel choices
+
+A session reports one choice in `turbo_session_get_info`'s `choices`
+(docs/autotune.md): which kernels run its linear layers past 8 tokens,
+
+```
+linear=onednn;forced=
+```
+
+`linear=own` is the backend's kernels, `linear=onednn` oneDNN's; `forced=`
+names `linear` when the environment fixed it. A build without the
+feature, or a device where oneDNN does not open, has one path and reports
+no choices unless the environment names one. A session nothing forces or
+tunes runs oneDNN where it runs, at every precision: on a B70 it is the
+faster at each precision, row mix and model measured (all-MiniLM-L6-v2,
+bge-small, bge-base, bge-large, at 32 rows of 256 tokens and in mixed
+rows), but for all-MiniLM-L6-v2's mixed rows at FASTEST, where the two
+are within 2% of each other.
+
+`TURBO_LEVELZERO_CHOICES`, read when a session is made, forces the item
+it names (`linear=own` or `linear=onednn`); a line a session reported,
+`forced=` and all, forces the same kernels back. `linear=onednn` where
+oneDNN does not run is `TURBO_E_UNSUPPORTED_OPTION`, and any other item
+is `TURBO_E_INVALID_ARGUMENT`.
+
+### Autotuning
+
+A session made with `turbo_session_desc.tuning` ON or RETUNE (or
+`TURBO_AUTOTUNE=on` or `retune`) where both kernels run times them when
+it is made and runs the faster; docs/autotune.md has the switches, the
+cache and what holds across backends. It is off by default, and a forced
+choice is never timed.
+
+How: on the session's own memory, under the context's lock, with rows of
+`max_seq` tokens, ids 1, as many as fill 8192 tokens (all of the
+session's rows when it holds fewer). Each variant runs the encoder's
+first layer once untimed, which builds its kernels, then five times timed
+from the host, each run waited for. The least time ranks, and the
+challenger replaces the incumbent (the cached choice, else the default)
+only when 5% faster. A variant whose median is more than 25% above its
+least is timed again, up to three times in all; still apart, the device
+is shared or throttling, and the session keeps the incumbent, reports
+`default`, is not cached, and an INFO line says so. The budget
+(docs/autotune.md) counts the timed runs alone; past it, what is left is
+not timed. A measured session reports `measured` and logs at INFO
+`levelzero device <n>: linear layers chosen in <ms> ms: <choice> (<bin>,
+a layer: own <ms> ms, onednn <ms> ms)`.
 
 ## What it does
 

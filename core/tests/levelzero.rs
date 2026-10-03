@@ -1103,18 +1103,18 @@ fn largest_shape_on(dir: &std::path::Path, gs: &Session, cs: &Session, floor: f6
 /// its two kernels do. So a row of a few tokens
 /// alone, which runs the 8-token tiles, gives the same bits as the same row
 /// among others, which run the wider ones.
+/// oneDNN's kernel for a batch past the few-token kernels sums in its own
+/// order, so this holds for the backend's own kernels, which the test
+/// forces.
 #[test]
 fn a_row_at_fastest_gives_the_same_bits_alone_and_among_others() {
     let _t = turn();
-    if cfg!(feature = "levelzero-onednn") {
-        // oneDNN's kernel for a batch past the few-token kernels sums in
-        // its own order, so a row's bits there differ from its bits alone.
-        println!("a_row_at_fastest_gives_the_same_bits_alone_and_among_others: skipped: the levelzero-onednn feature");
-        return;
-    }
     let Some(_) = gpu_device("a_row_at_fastest_gives_the_same_bits_alone_and_among_others") else { return };
     let g = on_gpu(&tiny_bundle());
-    let s = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
+    turbo::levelzero::use_choices(Some("linear=own"));
+    let s = Session::create(g.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST)));
+    turbo::levelzero::use_choices(None);
+    let s = s.unwrap();
     assert_eq!(s.info().compute_dtype, TURBO_DTYPE_F16);
     // Rows of 5, 16, 27 and 38 tokens: 86 in all, enough for the fused
     // LayerNorm's groups of several blocks of tokens, and below the
@@ -1169,6 +1169,62 @@ fn a_full_batch_at_fastest_matches_the_cpu() {
         let cos = cosine(&a[0], &b[0]);
         assert!(cos >= 0.999, "{text:?}: cosine {cos} with the cpu");
     }
+}
+
+/// Each precision's sessions with the linear layers' kernels forced each
+/// way the build has, held to the dtype's floor against the CPU at the
+/// largest shape; then what a session reports of the choice, forced,
+/// untuned and tuned.
+#[test]
+fn each_linear_kernel_matches_the_cpu_and_is_reported() {
+    let _t = turn();
+    let Some(_) = gpu_device("each_linear_kernel_matches_the_cpu_and_is_reported") else { return };
+    let dir = tiny_bundle();
+    let (g, c) = (on_gpu(&dir), Loaded::load(&dir).unwrap());
+    let cs = Session::create(c.m, None).unwrap();
+    let onednn = cfg!(feature = "levelzero-onednn");
+    let make = |choices: Option<&str>, precision: u32, tuning: u32| {
+        turbo::levelzero::use_choices(choices);
+        let mut d = session_desc(0, 0, precision);
+        d.tuning = tuning;
+        let s = Session::create(g.m, Some(&d));
+        turbo::levelzero::use_choices(None);
+        s
+    };
+    for (precision, floor) in
+        [(TURBO_PRECISION_MODEL, 0.9999), (TURBO_PRECISION_EXACT, 0.9999), (TURBO_PRECISION_FASTEST, 0.999)]
+    {
+        for linear in ["own", "onednn"] {
+            let line = format!("linear={linear}");
+            let s = make(Some(&line), precision, TURBO_AUTOTUNE_OFF);
+            if linear == "onednn" && !onednn {
+                let e = s.err().expect("linear=onednn without oneDNN");
+                assert_eq!(e.code, UNSUPPORTED_OPTION, "{e:?}");
+                continue;
+            }
+            let s = s.unwrap();
+            let i = s.info();
+            assert_eq!((field(&i.choices), i.tuned), (format!("{line};forced=linear"), TURBO_TUNED_FORCED));
+            largest_shape_on(&dir, &s, &cs, floor);
+        }
+        // Untuned: oneDNN where the build has it, else one path and no
+        // choices.
+        let i = make(None, precision, TURBO_AUTOTUNE_OFF).unwrap().info();
+        let want = if onednn { "linear=onednn;forced=" } else { "" };
+        assert_eq!((field(&i.choices), i.tuned), (want.to_owned(), TURBO_TUNED_DEFAULT));
+        // Tuned: measured where there are two to time.
+        let i = make(None, precision, TURBO_AUTOTUNE_RETUNE).unwrap().info();
+        if onednn {
+            assert_eq!(i.tuned, TURBO_TUNED_MEASURED, "{}", field(&i.choices));
+            assert!(["linear=own;forced=", "linear=onednn;forced="].contains(&field(&i.choices).as_str()));
+        } else {
+            assert_eq!((field(&i.choices), i.tuned), (String::new(), TURBO_TUNED_DEFAULT));
+        }
+    }
+    // A reported line forces back; anything else is refused.
+    assert!(make(Some("linear=own;forced=linear"), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).is_ok());
+    let e = make(Some("linear=fast"), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).err().unwrap();
+    assert_eq!(e.code, INVALID_ARGUMENT, "{e:?}");
 }
 
 #[test]

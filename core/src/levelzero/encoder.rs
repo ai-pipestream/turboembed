@@ -25,7 +25,8 @@ use std::ffi::c_void;
 use std::sync::Mutex;
 
 use super::gpu::{
-    Arg, Buffer, Context, Kernel, LOG_DEBUG, LOG_INFO, Queue, Res, device_allocs_here, fail, fail_field, guarded, quietly,
+    Arg, Buffer, Context, Kernel, LOG_DEBUG, LOG_INFO, Queue, Res, device_allocs_here, fail, fail_field, guarded,
+    quietly,
 };
 use super::ze;
 use crate::backend::{
@@ -990,14 +991,28 @@ fn onednn_runs(c: &Context, half: Option<&Transposed>) -> bool {
 }
 
 /// The linear layers' kernels of a session nothing forces or tunes:
-/// oneDNN's at FASTEST where it runs, the backend's own in F32.
+/// oneDNN's where it runs, at every precision, as the faster on a B70
+/// (docs/levelzero.md).
 fn default_linear(c: &Context, half: Option<&Transposed>) -> Linear {
-    if half.is_some() && onednn_runs(c, half) { Linear::Onednn } else { Linear::Own }
+    if onednn_runs(c, half) { Linear::Onednn } else { Linear::Own }
+}
+
+/// A test's choices line in place of TURBO_LEVELZERO_CHOICES (use_choices).
+#[cfg(feature = "internals")]
+static TEST_CHOICES: Mutex<Option<String>> = Mutex::new(None);
+
+#[cfg(feature = "internals")]
+pub(crate) fn use_choices(choices: Option<&str>) {
+    *TEST_CHOICES.lock().unwrap_or_else(|p| p.into_inner()) = choices.map(str::to_owned);
 }
 
 /// The linear layers' kernels TURBO_LEVELZERO_CHOICES forces, read when a
 /// session is made; None when unset or it names no linear item.
 fn forced_linear() -> Res<Option<Linear>> {
+    #[cfg(feature = "internals")]
+    if let Some(line) = TEST_CHOICES.lock().unwrap_or_else(|p| p.into_inner()).clone() {
+        return parse_linear(&line).map_err(|e| fail(INVALID_ARGUMENT, format!("TURBO_LEVELZERO_CHOICES: {e}")));
+    }
     match std::env::var("TURBO_LEVELZERO_CHOICES") {
         Ok(line) => parse_linear(&line).map_err(|e| fail(INVALID_ARGUMENT, format!("TURBO_LEVELZERO_CHOICES: {e}"))),
         Err(_) => Ok(None),
@@ -1152,10 +1167,8 @@ fn tune(s: &mut Session, t: &mut turbo_backend_tuning) -> Res<()> {
     {
         s.linear = challenger;
     }
-    let lines: Vec<String> = times
-        .iter()
-        .map(|(l, ms)| format!("{bin}/linear/{}={:.4}", l.name(), least_and_median(ms).0))
-        .collect();
+    let lines: Vec<String> =
+        times.iter().map(|(l, ms)| format!("{bin}/linear/{}={:.4}", l.name(), least_and_median(ms).0)).collect();
     if !t.timings.is_null() && t.timings_len > 0 {
         let text = lines.join("\n");
         let n = text.len().min(t.timings_len as usize - 1);
@@ -1260,7 +1273,6 @@ fn measure(s: &mut Session, order: [Linear; 2], budget_ms: u32) -> Res<Measured>
     }
     Ok(Measured::Timed(bin, timed))
 }
-
 
 pub(crate) unsafe extern "C" fn session_release(session: *mut c_void) {
     quietly(|| drop(unsafe { Box::from_raw(session as *mut Session) }));
