@@ -37,18 +37,19 @@ fn rows_mixed() -> String {
 /// The environment variables that change what a backend runs, each with
 /// its backend: a record names those that were set in library.settings.
 ///
-/// TURBO_CUDA_TUNED and TURBO_CUDA_CHOICES are not read from the
-/// environment: they are the session's turbo_session_info.tuned and
+/// TURBO_CUDA_TUNED and TURBO_CUDA_CHOICES, and the levelzero backend's
+/// TURBO_LEVELZERO_TUNED and TURBO_LEVELZERO_CHOICES, are not read from
+/// the environment: they are the session's turbo_session_info.tuned and
 /// choices, present in every record of a backend that reports choices, so
-/// a record made with nothing set still says which kernels ran, and
-/// TURBO_CUDA_CHOICES set to that string forces them back.
+/// a record made with nothing set still says which kernels ran, and the
+/// CHOICES variable set to that string forces them back.
 ///
 /// TURBO_NPU_GRAPH_FORMAT is the same kind of report: the graph format
 /// the device selected (`NGRAPH_LITE` or `NATIVE`), from the session's
 /// choices. It is not an environment override. TURBO_NPU_GRAPH_INPUT is
 /// the loaded artifact's graph input (`INPUT_TOKEN_IDS` or
 /// `INPUT_EMBEDDINGS`), written by the bench from that artifact.
-pub const LIBRARY_VARS: [(&str, &str); 18] = [
+pub const LIBRARY_VARS: [(&str, &str); 22] = [
     ("cpu", "TURBO_CPU_THREADS"),
     ("cuda", "TURBO_CUDA_TILE"),
     ("cuda", "TURBO_CUDA_SK_STEPS"),
@@ -65,6 +66,10 @@ pub const LIBRARY_VARS: [(&str, &str); 18] = [
     ("cuda", "TURBO_AUTOTUNE_BUDGET_MS"),
     ("cuda", "TURBO_CUDA_TUNED"),
     ("cuda", "TURBO_CUDA_CHOICES"),
+    ("levelzero", "TURBO_AUTOTUNE"),
+    ("levelzero", "TURBO_AUTOTUNE_BUDGET_MS"),
+    ("levelzero", "TURBO_LEVELZERO_TUNED"),
+    ("levelzero", "TURBO_LEVELZERO_CHOICES"),
     ("npu", "TURBO_NPU_GRAPH_FORMAT"),
     ("npu", "TURBO_NPU_GRAPH_INPUT"),
 ];

@@ -4,7 +4,8 @@ A backend with more than one kernel for a step of the encoder chooses one
 per session, when the session is made. This page says how a session's
 choices are reported, forced, measured and cached, the same for every
 backend that offers them; each backend's own page says what its choices
-are and how it times them (docs/cuda.md, Kernel choices and Autotuning).
+are and how it times them (docs/cuda.md and docs/levelzero.md, Kernel
+choices and Autotuning).
 
 ## What a session reports
 
@@ -22,8 +23,9 @@ are and how it times them (docs/cuda.md, Kernel choices and Autotuning).
 - `tune_ms`: the time spent measuring, 0 unless MEASURED.
 
 A benchmark record carries the first two in `library.settings`, as
-`TURBO_CUDA_TUNED` and `TURBO_CUDA_CHOICES` for the CUDA backend
-(docs/benchmarks.md).
+`TURBO_CUDA_TUNED` and `TURBO_CUDA_CHOICES` for the CUDA backend and
+`TURBO_LEVELZERO_TUNED` and `TURBO_LEVELZERO_CHOICES` for the levelzero
+backend (docs/benchmarks.md).
 
 ## The promise
 
