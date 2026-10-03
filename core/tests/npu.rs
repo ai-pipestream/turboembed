@@ -164,9 +164,9 @@ fn embed_is_offered_and_exact_is_refused() {
         // the rows.
         assert_eq!(c.options_honored, 0b111111, "every field of turbo_embed_options");
         let name = match p {
-            TURBO_PRECISION_MODEL => "arl-npu.npu.ngraph-lite.embed.model.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json",
+            TURBO_PRECISION_MODEL => "arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json",
             TURBO_PRECISION_FASTEST => {
-                "arl-npu.npu.ngraph-lite.embed.fastest.all-minilm-l6-v2-da08a0f9.99c92648aa9a.json"
+                "arl-npu.npu.ngraph-lite.embed.fastest.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json"
             }
             _ => unreachable!(),
         };

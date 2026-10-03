@@ -814,8 +814,23 @@ pub fn embedded() -> &'static [(&'static str, Result<Record, String>)] {
 
 /// The verdict of the compiled-in records on a cell. A record that does
 /// not parse backs nothing; a test keeps the committed ones parsing.
+/// When `model_id` is set, only records of that bundle are considered.
+pub fn decide_embedded_for(cell: &Cell, model_id: Option<&str>) -> Verdict {
+    decide(
+        embedded().iter().filter_map(|(n, r)| {
+            r.as_ref()
+                .ok()
+                .filter(|r| model_id.is_none() || model_id == Some(r.bundle.model_id.as_str()))
+                .map(|r| (*n, r))
+        }),
+        cell,
+    )
+}
+
+/// The verdict of the compiled-in records on a cell. A record that does
+/// not parse backs nothing; a test keeps the committed ones parsing.
 pub fn decide_embedded(cell: &Cell) -> Verdict {
-    decide(embedded().iter().filter_map(|(n, r)| r.as_ref().ok().map(|r| (*n, r))), cell)
+    decide_embedded_for(cell, None)
 }
 
 #[cfg(test)]
@@ -914,15 +929,34 @@ mod tests {
         assert_eq!(fastest_rec.speed_ratio, Some(0.9911929940515533));
         let fastest_ov = fastest_rec.references.iter().find(|r| r.name == "openvino").unwrap();
         assert_eq!(fastest_ov.measured.as_ref().unwrap().p50_ms, 30.259999999999998);
+        let minilm = "sentence-transformers/all-MiniLM-L6-v2";
         for (label, name, precision, rec) in [
             ("model", model, TURBO_PRECISION_MODEL, model_rec),
             ("fastest", fastest, TURBO_PRECISION_FASTEST, fastest_rec),
         ] {
-            match decide_embedded(&cell(precision, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
+            let c = cell(precision, "windows", "arl-npu", Some("NGRAPH_LITE"));
+            match decide_embedded_for(&c, Some(minilm)) {
                 Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
                     assert_eq!(benchmark, name, "{label}");
                     assert_eq!(cosine_floor, rec.conformance.min_cosine, "{label}");
                     assert_eq!(speed_ratio, rec.speed_ratio.unwrap(), "{label}");
+                }
+                Verdict::Not(why) => panic!("{label} not supported: {why}"),
+            }
+        }
+        // The cell is the device, not the model: the newest arl-npu mixed
+        // record of the precision backs it, whichever model it measured.
+        for (label, precision) in [("model", TURBO_PRECISION_MODEL), ("fastest", TURBO_PRECISION_FASTEST)] {
+            match decide_embedded(&cell(precision, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
+                Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
+                    assert!(
+                        benchmark.starts_with(&format!("arl-npu.npu.ngraph-lite.embed.{label}.")),
+                        "{label}: {benchmark}"
+                    );
+                    let backing = embedded().iter().find(|(n, _)| *n == benchmark).unwrap().1.as_ref().unwrap();
+                    assert_eq!(backing.rows.kind, ROWS_MIXED, "{label}");
+                    assert_eq!(cosine_floor, backing.conformance.min_cosine, "{label}");
+                    assert_eq!(speed_ratio, backing.speed_ratio.unwrap(), "{label}");
                 }
                 Verdict::Not(why) => panic!("{label} not supported: {why}"),
             }
@@ -936,6 +970,81 @@ mod tests {
             match decide_embedded(&c) {
                 Verdict::Not(why) => assert_eq!(why, NO_RECORD, "{label}"),
                 Verdict::Supported { benchmark, .. } => panic!("{label} supported by {benchmark}"),
+            }
+        }
+    }
+
+    #[test]
+    fn mixed_arl_npu_bge_records_support_model_and_fastest() {
+        fn cell(precision: u32) -> Cell<'static> {
+            Cell {
+                arch: "arl-npu",
+                name: "Intel(R) AI Boost",
+                cpu: false,
+                backend: "npu",
+                task: TURBO_TASK_EMBED,
+                precision,
+                dtype: TURBO_DTYPE_F16,
+                version: library_version(),
+                os: "windows",
+                graph_format: Some("NGRAPH_LITE"),
+            }
+        }
+        let cases = [
+            (
+                "BAAI/bge-small-en-v1.5",
+                "arl-npu.npu.ngraph-lite.embed.model.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json",
+                "arl-npu.npu.ngraph-lite.embed.fastest.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json",
+                "arl-npu.npu.ngraph-lite.embed.model-dense.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json",
+                "arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json",
+            ),
+            (
+                "BAAI/bge-base-en-v1.5",
+                "arl-npu.npu.ngraph-lite.embed.model.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json",
+                "arl-npu.npu.ngraph-lite.embed.fastest.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json",
+                "arl-npu.npu.ngraph-lite.embed.model-dense.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json",
+                "arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json",
+            ),
+            (
+                "BAAI/bge-large-en-v1.5",
+                "arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json",
+                "arl-npu.npu.ngraph-lite.embed.fastest.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json",
+                "arl-npu.npu.ngraph-lite.embed.model-dense.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json",
+                "arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json",
+            ),
+        ];
+        for (model_id, model, fastest, model_dense, fastest_dense) in cases {
+            let model_rec = embedded().iter().find(|(n, _)| *n == model).unwrap().1.as_ref().unwrap();
+            let fastest_rec = embedded().iter().find(|(n, _)| *n == fastest).unwrap().1.as_ref().unwrap();
+            let model_dense_rec = embedded().iter().find(|(n, _)| *n == model_dense).unwrap().1.as_ref().unwrap();
+            let fastest_dense_rec = embedded().iter().find(|(n, _)| *n == fastest_dense).unwrap().1.as_ref().unwrap();
+            assert_eq!(model_rec.bundle.model_id, model_id);
+            assert_eq!(model_rec.rows.kind, ROWS_MIXED);
+            assert_eq!(fastest_rec.rows.kind, ROWS_MIXED);
+            assert_eq!(model_dense_rec.rows.kind, ROWS_DENSE);
+            assert_eq!(fastest_dense_rec.rows.kind, ROWS_DENSE);
+            let windows_model = cell(TURBO_PRECISION_MODEL);
+            let windows_fastest = cell(TURBO_PRECISION_FASTEST);
+            assert!(model_rec.is_for(&windows_model));
+            assert!(fastest_rec.is_for(&windows_fastest));
+            assert!(!model_dense_rec.is_for(&windows_model));
+            assert!(!fastest_dense_rec.is_for(&windows_fastest));
+            assert_eq!(model_rec.falls_short(&windows_model), None);
+            assert_eq!(fastest_rec.falls_short(&windows_fastest), None);
+            assert_eq!(model_rec.rows.cases, [0, 1, 2, 3, 4, 5, 6, 7]);
+            assert_eq!(model_rec.rows.live_tokens, 181);
+            assert_eq!(model_rec.timing.computed_tokens, Some(1024));
+            for (name, precision, rec) in
+                [(model, TURBO_PRECISION_MODEL, model_rec), (fastest, TURBO_PRECISION_FASTEST, fastest_rec)]
+            {
+                match decide_embedded_for(&cell(precision), Some(model_id)) {
+                    Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
+                        assert_eq!(benchmark, name, "{model_id}");
+                        assert_eq!(cosine_floor, rec.conformance.min_cosine, "{model_id}");
+                        assert_eq!(speed_ratio, rec.speed_ratio.unwrap(), "{model_id}");
+                    }
+                    Verdict::Not(why) => panic!("{model_id} {name} not supported: {why}"),
+                }
             }
         }
     }

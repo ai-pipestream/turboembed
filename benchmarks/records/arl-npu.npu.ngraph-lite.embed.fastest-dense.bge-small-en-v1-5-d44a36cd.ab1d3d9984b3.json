@@ -1,0 +1,144 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-03T01:42:27Z",
+  "machine": {
+    "arch": "arl-npu",
+    "host_cpu": "",
+    "os": "windows"
+  },
+  "device": {
+    "backend": "npu",
+    "kind": "DEVICE_NPU",
+    "name": "Intel(R) AI Boost",
+    "vendor": "Intel",
+    "driver_version": "0.15.21738",
+    "runtime_version": "1.28.2",
+    "memory_total": 0
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 npu cpu",
+    "commit": "ab1d3d9984b3d3c4b27bf061db3432dc64dd5db7",
+    "pushed_to": [
+      "origin/npu-bge-speed-records"
+    ],
+    "settings": [
+      "TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE",
+      "TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS"
+    ]
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_FASTEST",
+  "compute_dtype": "DTYPE_F16",
+  "bundle": {
+    "model_id": "BAAI/bge-small-en-v1.5",
+    "revision": "1",
+    "manifest_sha256": "d44a36cd22071f7545443839fcc6878adbe3af2b69282a7cbc2c448822f0f0cc",
+    "artifact_sha256": "13bd5537ed2285d56eddc9b605e5f1e4b709089138818e812c3d282c38d5bb0a",
+    "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+  },
+  "rows": {
+    "kind": "ROWS_DENSE",
+    "batch": 1,
+    "seq": 128,
+    "live_tokens": 128,
+    "cases": [
+      8
+    ],
+    "sha256": "3b36106754ce1f97b0bec829da206a73625810750620b0a07ff12647faa47bde"
+  },
+  "timing": {
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 6.9062,
+    "p99_ms": 7.8896999999999995,
+    "mean_ms": 6.911572,
+    "min_ms": 6.6285,
+    "max_ms": 8.3807,
+    "rows_per_second": 144.6802901968325,
+    "computed_tokens": 128
+  },
+  "conformance": {
+    "rows": 8,
+    "min_cosine": 0.9999971877963036,
+    "max_abs_diff": 0.0006827116012573242
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "",
+      "version": "",
+      "commands": [],
+      "procedure": "",
+      "measured": null,
+      "not_run": "disabled on the command line (--no-tei)"
+    },
+    {
+      "name": "openvino",
+      "role": "kernel",
+      "pinned": "benchmark-app@sha256:ca1a680cdfcc4acbd518b03eeab506ea071c65a806f4395221db7c85fbc3fc67",
+      "version": "2026.5.0-23311-786052d995f",
+      "commands": [
+        [
+          "<benchmark-app>",
+          "-m",
+          "<bundle>/openvino/model.xml",
+          "-d",
+          "NPU",
+          "-hint",
+          "latency",
+          "-api",
+          "sync",
+          "-nireq",
+          "1",
+          "-niter",
+          "200",
+          "-shape",
+          "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]",
+          "-i",
+          "input_ids:<work>/input_ids.bin,attention_mask:<work>/attention_mask.bin,token_type_ids:<work>/token_type_ids.bin",
+          "-infer_precision",
+          "f16",
+          "-latency_percentile",
+          "50"
+        ],
+        [
+          "<benchmark-app>",
+          "-m",
+          "<bundle>/openvino/model.xml",
+          "-d",
+          "NPU",
+          "-hint",
+          "latency",
+          "-api",
+          "sync",
+          "-nireq",
+          "1",
+          "-niter",
+          "200",
+          "-shape",
+          "input_ids[1,128],attention_mask[1,128],token_type_ids[1,128]",
+          "-i",
+          "input_ids:<work>/input_ids.bin,attention_mask:<work>/attention_mask.bin,token_type_ids:<work>/token_type_ids.bin",
+          "-infer_precision",
+          "f16",
+          "-latency_percentile",
+          "99"
+        ]
+      ],
+      "procedure": "benchmark_app, the machine's own (--openvino-bin), compiles the bundle's static OpenVINO IR for the NPU at the batch's static [1, 128] shape and times 200 synchronous inferences of the rows loaded from files, one request, after its one warm-up inference; it runs twice with the same arguments, -latency_percentile 50 then 99, and p50 and p99 are those runs' latencies; rows per second is the median run's count times the batch over its duration; the median run took 1389.09 ms for 200 inferences, average 6.88 ms, and reported 143.98 FPS; the 99th percentile run averaged 6.86 ms and reported 144.48 FPS",
+      "measured": {
+        "iterations": 200,
+        "p50_ms": 6.87,
+        "p99_ms": 7.55,
+        "rows_per_second": 143.97915181881663,
+        "min_cosine": null,
+        "computed_tokens": 128
+      },
+      "not_run": null
+    }
+  ],
+  "speed_ratio": 1.005269286754003,
+  "speed_reference": "openvino"
+}
