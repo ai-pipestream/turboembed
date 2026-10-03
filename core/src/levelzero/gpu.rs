@@ -484,6 +484,10 @@ impl Drop for Context {
                 self.say(LOG_DEBUG, &line);
             }
         }
+        // oneDNN's primitives free their memory through the Level Zero
+        // context, so they go before it.
+        #[cfg(feature = "levelzero-onednn")]
+        drop(self.dnnl.take());
         let module = self.module.get_mut().unwrap_or_else(|p| p.into_inner());
         if let Some(Ok(m)) = module.take() {
             unsafe { (self.api.module_destroy)(m.0) };
