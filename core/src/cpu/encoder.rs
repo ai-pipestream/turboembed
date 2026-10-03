@@ -711,6 +711,8 @@ mod tests {
                 fixed_batch: 0,
                 artifact: std::ptr::null(),
                 artifact_bytes: 0,
+                artifact2: std::ptr::null(),
+                artifact2_bytes: 0,
             };
             Model { desc, tensors }
         }

@@ -10,16 +10,20 @@
 //!   `produced_by.inputs` names;
 //! - the raw weights as safetensors, from an upstream PyTorch checkpoint
 //!   (`pytorch_model.bin`) for a model that ships no safetensors file, in
-//!   the reference container: every tensor as stored, and nothing else.
+//!   the reference container: every tensor as stored, and nothing else;
+//! - a static-shape OpenVINO IR (two files, the xml then its weights)
+//!   from the upstream F32 export, for the npu backend, in the reference
+//!   container: the Intel NPU driver's compiler builds the graph from it
+//!   on the machine, and the library links no OpenVINO (docs/npu.md).
 //!
 //! Each runs with no network, twice. The library never reads the ONNX
-//! files or the checkpoint; it loads the HEF and the safetensors. In the
-//! recipe an F16 file's `produced_by` names only `from`, the artifact it
-//! is made from, a HEF's names `from`, `container` and `inputs`, and the
-//! weights' names only `upstream`, the checkpoint's upstream path, which
-//! is fetched and not carried. The rest comes from the run: what the
-//! container reports, the container itself, the files and settings, and
-//! whether a second run gave the same bytes.
+//! files or the checkpoint; it loads the HEF, the IR and the safetensors.
+//! In the recipe an F16 file's and an IR's `produced_by` names only
+//! `from`, the artifact it is made from, a HEF's names `from`,
+//! `container` and `inputs`, and the weights' names only `upstream`, the
+//! checkpoint's upstream path, which is fetched and not carried. The rest
+//! comes from the run: what the container reports, the container itself,
+//! the files and settings, and whether a second run gave the same bytes.
 
 use std::fs;
 use std::path::Path;
@@ -41,16 +45,22 @@ pub const HEF_COMPILE: &str = "/hef_compile.py";
 /// tensors as a safetensors file.
 pub const BIN_TO_SAFETENSORS: &str = "/bin_to_safetensors.py";
 
-/// One artifact to make: its name, its one file, the file it is made
-/// from (a bundle file, or an upstream file the bundle does not carry)
-/// and that artifact's name (empty for an upstream file), the script
-/// that makes it, the pinned container it runs in (None: the reference
-/// container), the bundle files it reads besides, and the arguments that
-/// follow the files.
+/// The script in the reference image that converts the export to a
+/// static-shape OpenVINO IR for the npu backend.
+pub const ONNX_TO_OPENVINO_IR: &str = "/onnx_to_openvino_ir.py";
+
+/// One artifact to make: its name, its file (and for an OpenVINO IR a
+/// second, the weights beside the xml), the file it is made from (a
+/// bundle file, or an upstream file the bundle does not carry) and that
+/// artifact's name (empty for an upstream file), the script that makes
+/// it, the pinned container it runs in (None: the reference container),
+/// the bundle files it reads besides, and the arguments that follow the
+/// files.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Conversion {
     pub name: String,
     pub file: String,
+    pub file2: Option<String>,
     pub from: String,
     pub from_file: String,
     /// The source is `from_file` in the upstream directory, not the bundle.
@@ -72,6 +82,19 @@ fn one_file(a: &Value, name: &str) -> Result<String> {
     }
 }
 
+fn two_files(a: &Value, name: &str) -> Result<(String, String)> {
+    match a["files"].as_array().map(Vec::as_slice) {
+        Some([x, w]) => {
+            let x = x.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
+            let w = w.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
+            check_rel(x)?;
+            check_rel(w)?;
+            Ok((x.to_owned(), w.to_owned()))
+        }
+        _ => Err(format!("artifact {name}: an OpenVINO IR is two files, the xml then its weights")),
+    }
+}
+
 /// A FORMAT_ONNX source's graph: its first file, the others being the
 /// graph's external data beside it, which the converters read from the
 /// bundle where they are staged.
@@ -87,10 +110,11 @@ fn graph_file(a: &Value, name: &str) -> Result<String> {
 }
 
 /// The recipe's artifacts with a `produced_by`, each one the tool can
-/// make: a FORMAT_ONNX file in DTYPE_F16, or a FORMAT_HEF in DTYPE_I8
-/// from INPUT_EMBEDDINGS, each from a FORMAT_ONNX file with no
-/// compute_dtype that starts at INPUT_TOKEN_IDS (the upstream export);
-/// or FORMAT_SAFETENSORS raw weights from an upstream PyTorch checkpoint
+/// make: a FORMAT_ONNX file in DTYPE_F16, a static-shape
+/// FORMAT_OPENVINO_IR in DTYPE_F16, or a FORMAT_HEF in DTYPE_I8 from
+/// INPUT_EMBEDDINGS, each from a FORMAT_ONNX file with no compute_dtype
+/// that starts at INPUT_TOKEN_IDS (the upstream export); or
+/// FORMAT_SAFETENSORS raw weights from an upstream PyTorch checkpoint
 /// the recipe fetches and the bundle does not carry. Anything else is
 /// refused, before anything runs.
 pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
@@ -136,15 +160,21 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
             && src["graph_input"] == "INPUT_TOKEN_IDS";
         let from_file = graph_file(src, from)?;
         if !hef {
+            if a["format"] == "FORMAT_OPENVINO_IR" {
+                out.push(ir_conversion(recipe, a, name, from, from_file, upstream_export)?);
+                continue;
+            }
             if !(a["format"] == "FORMAT_ONNX" && a["compute_dtype"] == "DTYPE_F16" && upstream_export) {
                 return Err(format!(
-                    "artifact {name}: the bundle tool makes only a DTYPE_F16 FORMAT_ONNX file or a FORMAT_HEF \
-                     from the FORMAT_ONNX export with no compute_dtype"
+                    "artifact {name}: the bundle tool makes only a DTYPE_F16 FORMAT_ONNX file, a static-shape \
+                     DTYPE_F16 FORMAT_OPENVINO_IR, or a FORMAT_HEF from the FORMAT_ONNX export with no \
+                     compute_dtype"
                 ));
             }
             out.push(Conversion {
                 name: name.to_owned(),
                 file: one_file(a, name)?,
+                file2: None,
                 from: from.to_owned(),
                 from_file,
                 from_upstream: false,
@@ -182,6 +212,7 @@ fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Res
     Ok(Conversion {
         name: name.to_owned(),
         file: one_file(a, name)?,
+        file2: None,
         from: String::new(),
         from_file: path.to_owned(),
         from_upstream: true,
@@ -189,6 +220,98 @@ fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Res
         container: None,
         inputs: Vec::new(),
         args: Vec::new(),
+    })
+}
+
+/// The recipe's one local calibration jsonl, staged at `to`. The
+/// embeddings cut checks the saved IR on these texts, the same file the
+/// HEF compile reads. A recipe with none, or with two, is refused.
+fn calibration_texts(recipe: &Recipe) -> Result<String> {
+    let paths: Vec<&str> = recipe.local.iter().filter(|l| l.to.ends_with(".jsonl")).map(|l| l.to.as_str()).collect();
+    match paths.as_slice() {
+        [p] => Ok((*p).to_owned()),
+        _ => Err("an embeddings cut needs the recipe's one local calibration jsonl".into()),
+    }
+}
+
+/// A FORMAT_OPENVINO_IR artifact for the npu backend: DTYPE_F16, static
+/// shapes (fixed_seq and fixed_batch given, because the NPU driver's
+/// compiler takes no dynamic IR), from INPUT_TOKEN_IDS or from
+/// INPUT_EMBEDDINGS to OUTPUT_HIDDEN_STATES, converted from the upstream
+/// export in the reference container by onnx_to_openvino_ir.py
+/// (docs/npu.md). The embeddings cut passes `--cut embeddings`, the
+/// architecture's head count, the tokenizer, and the calibration texts.
+fn ir_conversion(
+    recipe: &Recipe,
+    a: &Value,
+    name: &str,
+    from: &str,
+    from_file: String,
+    upstream_export: bool,
+) -> Result<Conversion> {
+    let refuse = |why: &str| format!("artifact {name}: {why}");
+    if !upstream_export {
+        return Err(refuse("an OpenVINO IR is converted from the FORMAT_ONNX export with no compute_dtype"));
+    }
+    let embeddings = a["graph_input"] == "INPUT_EMBEDDINGS";
+    if a["compute_dtype"] != "DTYPE_F16"
+        || a["graph_output"] != "OUTPUT_HIDDEN_STATES"
+        || (!embeddings && a["graph_input"] != "INPUT_TOKEN_IDS")
+    {
+        return Err(refuse(
+            "the bundle tool converts a DTYPE_F16 OpenVINO IR from INPUT_TOKEN_IDS or INPUT_EMBEDDINGS to \
+             OUTPUT_HIDDEN_STATES",
+        ));
+    }
+    if embeddings && a["host_weights"].as_str().filter(|s| !s.is_empty()).is_none() {
+        return Err(refuse("an INPUT_EMBEDDINGS OpenVINO IR names its host_weights"));
+    }
+    let heads = match embeddings {
+        true => recipe.manifest["architecture"]["heads"]
+            .as_u64()
+            .filter(|&h| h > 0)
+            .ok_or(refuse("an embeddings cut needs manifest.architecture.heads"))?,
+        false => 0,
+    };
+    let seq = a["fixed_seq"]
+        .as_u64()
+        .filter(|&s| s > 0)
+        .ok_or(refuse("the NPU compiles static shapes: an OpenVINO IR gives fixed_seq"))?;
+    let batch = a["fixed_batch"]
+        .as_u64()
+        .filter(|&b| b > 0)
+        .ok_or(refuse("the NPU compiles static shapes: an OpenVINO IR gives fixed_batch"))?;
+    let (xml, weights) = two_files(a, name)?;
+    // 11 is what the Arrow Lake compiler reports as
+    // maxOVOpsetVersionSupported. The script's default is the same cap.
+    let mut args =
+        vec!["--seq".into(), seq.to_string(), "--batch".into(), batch.to_string(), "--max-opset".into(), "11".into()];
+    if embeddings {
+        let tokenizer = recipe.str_at("/tokenizer/file")?;
+        let calibration = calibration_texts(recipe).map_err(|e| refuse(&e))?;
+        // The container sees the staged bundle at /bundle.
+        args.extend([
+            "--cut".into(),
+            "embeddings".into(),
+            "--heads".into(),
+            heads.to_string(),
+            "--tokenizer".into(),
+            format!("/bundle/{tokenizer}"),
+            "--calibration".into(),
+            format!("/bundle/{calibration}"),
+        ]);
+    }
+    Ok(Conversion {
+        name: name.to_owned(),
+        file: xml,
+        file2: Some(weights),
+        from: from.to_owned(),
+        from_file,
+        from_upstream: false,
+        script: ONNX_TO_OPENVINO_IR,
+        container: None,
+        inputs: Vec::new(),
+        args,
     })
 }
 
@@ -235,6 +358,7 @@ fn hef_conversion(
     Ok(Conversion {
         name: name.to_owned(),
         file: one_file(a, name)?,
+        file2: None,
         from: from.to_owned(),
         from_file,
         from_upstream: false,
@@ -263,6 +387,9 @@ pub fn produced_by(reported: &Value, container: &str, c: &Conversion, reproducib
     let s = |k: &str| reported[k].as_str().map(str::to_owned).ok_or(format!("{}: the run reported no {k}", c.name));
     let settings = reported["settings"].as_array().ok_or(format!("{}: the run reported no settings", c.name))?;
     let mut args = vec![Value::from(c.from_file.clone()), Value::from(c.file.clone())];
+    if let Some(f2) = &c.file2 {
+        args.push(Value::from(f2.clone()));
+    }
     for v in settings {
         args.push(Value::from(v.as_str().ok_or(format!("{}: a setting is not a string", c.name))?));
     }
@@ -298,6 +425,7 @@ pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Vec<(Strin
         let image = present(container)?;
         let work = scratch(bundle)?;
         let mut bytes = Vec::new();
+        let mut bytes2 = Vec::new();
         let mut reported = Value::Null;
         for run in ["a", "b"] {
             let mut cmd = Command::new("docker");
@@ -312,11 +440,11 @@ pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Vec<(Strin
                 cmd.args(["--user", &user]);
             }
             let source = format!("{}/{}", if c.from_upstream { "/model" } else { "/bundle" }, c.from_file);
-            cmd.args(["--entrypoint", "python"])
-                .arg(&image)
-                .arg(c.script)
-                .args([source, format!("/work/{run}.out"), format!("/work/{run}.json")])
-                .args(&c.args);
+            cmd.args(["--entrypoint", "python"]).arg(&image).arg(c.script).arg(source).arg(format!("/work/{run}.out"));
+            if c.file2.is_some() {
+                cmd.arg(format!("/work/{run}.out2"));
+            }
+            cmd.arg(format!("/work/{run}.json")).args(&c.args);
             let o = cmd.output().map_err(|e| format!("docker: {e}"))?;
             if !o.status.success() {
                 return Err(format!(
@@ -329,6 +457,9 @@ pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Vec<(Strin
                 ));
             }
             bytes.push(fs::read(work.join(format!("{run}.out"))).map_err(|e| format!("{}: {e}", c.name))?);
+            if c.file2.is_some() {
+                bytes2.push(fs::read(work.join(format!("{run}.out2"))).map_err(|e| format!("{}: {e}", c.name))?);
+            }
             reported = serde_json::from_slice(
                 &fs::read(work.join(format!("{run}.json"))).map_err(|e| format!("{}: {e}", c.name))?,
             )
@@ -336,7 +467,11 @@ pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Vec<(Strin
         }
         let _ = fs::remove_dir_all(&work);
         crate::fetch::write_atomic(&bundle.join(&c.file), &bytes[0])?;
-        out.push((c.name.clone(), produced_by(&reported, container, c, bytes[0] == bytes[1])?));
+        if let Some(f2) = &c.file2 {
+            crate::fetch::write_atomic(&bundle.join(f2), &bytes2[0])?;
+        }
+        let reproducible = bytes[0] == bytes[1] && bytes2.first() == bytes2.get(1);
+        out.push((c.name.clone(), produced_by(&reported, container, c, reproducible)?));
     }
     Ok(out)
 }

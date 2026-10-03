@@ -200,7 +200,8 @@ fn the_example_artifacts_parse() {
     arts.push(json!({
       "name": "openvino-f16", "format": "FORMAT_OPENVINO_IR",
       "files": ["openvino/model.xml", "openvino/model.bin"], "backends": ["openvino"],
-      "compute_dtype": "DTYPE_F16", "graph_input": "INPUT_TOKEN_IDS", "graph_output": "OUTPUT_HIDDEN_STATES",
+      "compute_dtype": "DTYPE_F16", "fixed_seq": 128, "fixed_batch": 1,
+      "graph_input": "INPUT_TOKEN_IDS", "graph_output": "OUTPUT_HIDDEN_STATES",
       "produced_by": { "tool": "ovc", "tool_version": "v", "container": "c", "from": "onnx-f32",
         "args": ["onnx/model.onnx", "--compress_to_fp16=True"], "reproducible": true }
     }));
@@ -220,6 +221,7 @@ fn the_example_artifacts_parse() {
 
 // Rule 3
 
+#[cfg(unix)]
 #[test]
 fn a_link_out_of_the_bundle_is_invalid() {
     let outside = std::env::temp_dir().join(format!("turbo-test-{}-outside.json", std::process::id()));
@@ -233,6 +235,7 @@ fn a_link_out_of_the_bundle_is_invalid() {
     assert!(e.is(BUNDLE_INVALID, "outside the bundle"), "{e:?}");
 }
 
+#[cfg(unix)]
 #[test]
 fn a_link_inside_the_bundle_is_followed() {
     let f = Fixture::standard("symlink-in");

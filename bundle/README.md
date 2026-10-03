@@ -25,8 +25,9 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
 3. **reference**: the upstream pipeline runs in the pinned container,
    with no network, on the fetched files: fp32 on CPU, one text at a time.
    It writes the reference ids and vectors, and reports what ran. Python
-   runs here and in the next step, in the pinned containers, and nowhere
-   else.
+   runs here and in the next step, in the pinned containers. `seal`
+   (below) does not run Python. It copies files a container already
+   wrote, and the report that names that image.
 4. **convert**: each artifact whose `produced_by` the recipe gives is
    made from the artifact it names, with no network, twice:
    - an F16 ONNX file (`produced_by` names only `from`), in the reference
@@ -37,6 +38,18 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
      PyTorch checkpoint among the upstream files, fetched and not carried),
      in the reference container, by `bin_to_safetensors.py`: every tensor
      as stored, for a model whose repository ships no safetensors file.
+   - a static-shape OpenVINO IR for the npu backend (`produced_by` names
+     only `from`), two files, the xml then its weights, in the reference
+     container, by `onnx_to_openvino_ir.py`: the export's inputs reshaped
+     to the artifact's `fixed_batch` and `fixed_seq`, weights compressed
+     to FP16, the hidden-state Result converted to FP16 (that port is
+     what `--outputs_precisions` copies), and ScaledDotProductAttention
+     lowered so the highest layer opset is at most 11 (the cap the Arrow
+     Lake driver reports). An `INPUT_EMBEDDINGS` IR is the same
+     conversion after the Hailo cut: `word_rows` and `attn_bias`,
+     checked against the export on CPU before it is saved. An image
+     built before that script was added to it cannot; build it again and
+     pin the new id (docs/npu.md).
    - a HEF for a Hailo device (`produced_by` names `from`, `container` and
      `inputs`), in the Dataflow Compiler container that `container` pins,
      by `bundle/hailo/hef_compile.py`: the export is cut at the
@@ -55,4 +68,16 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
    every reference vector is finite, non-zero and, when the bundle says
    `NORMALIZE_L2`, of unit length.
 
-`turbo-bundle verify <dir>` runs step 5 alone.
+`turbo-bundle verify <dir>` runs step 6 alone.
+
+`turbo-bundle seal <recipe.json> <upstream-dir> <bundle-dir>` does
+steps 2 and 5 without starting a container. The reference file and a
+report that names the image that wrote it must already be in the
+bundle, copied from a bundle this pin already sealed. An OpenVINO IR
+the recipe converts must already be there too, with the report the
+container wrote (docs/npu.md). That report's `container` is the image.
+`container` `host` is refused, and so is a report that does not say
+whether the conversion is reproducible. A conversion whose files are
+absent is left out of the manifest. This tree does not carry a sealed
+reference output to copy. The model's weights are not in the
+repository.
