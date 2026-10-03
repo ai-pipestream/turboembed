@@ -736,6 +736,24 @@ fn attention_local_bytes(seq: u32, head_dim: u32) -> u64 {
     4 * (head_dim as u64 + seq as u64 + part as u64)
 }
 
+/// Whose kernels run a session's linear layers past a few tokens: the
+/// backend's own, or oneDNN's (the levelzero-onednn feature).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Linear {
+    Own,
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    Onednn,
+}
+
+impl Linear {
+    fn name(self) -> &'static str {
+        match self {
+            Linear::Own => "own",
+            Linear::Onednn => "onednn",
+        }
+    }
+}
+
 struct Session {
     model: *const Model,
     ctx: *const Context,
@@ -746,6 +764,8 @@ struct Session {
     /// The linear layers' F32 weights transposed, for a session in F32
     /// whose widths linear_sgemm takes.
     f32t: Option<Transposed>,
+    /// The linear layers' kernels.
+    linear: Linear,
     max_batch: u32,
     max_seq: u32,
     scratch: *mut c_void,
@@ -897,6 +917,7 @@ pub(crate) unsafe extern "C" fn session_create(
                 weights,
                 half,
                 f32t,
+                linear: Linear::Own,
                 max_batch,
                 max_seq,
                 scratch,
@@ -938,11 +959,60 @@ pub(crate) unsafe extern "C" fn session_create(
             s.ffn = take(ffn);
             let out_ptr = take(output) as usize as *mut c_void;
             s.output = Box::new(Buffer::session_output(c, out_ptr, max_batch as u64 * d.hidden as u64 * 4));
+            s.linear = match forced_linear()? {
+                Some(l) if l == Linear::Onednn && !onednn_runs(c, s.half.as_ref()) => {
+                    return Err(fail(
+                        UNSUPPORTED_OPTION,
+                        "TURBO_LEVELZERO_CHOICES: linear=onednn, and oneDNN does not run on this device in this build",
+                    ));
+                }
+                Some(l) => l,
+                None => default_linear(c, s.half.as_ref()),
+            };
             *compute_dtype = if xmx { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
             *out = Box::into_raw(s) as *mut c_void;
             Ok(())
         })
     }
+}
+
+/// Whether oneDNN can run a session's linear layers: it opened on the
+/// context and, for one at FASTEST, packed the F16 weights.
+fn onednn_runs(c: &Context, half: Option<&Transposed>) -> bool {
+    #[cfg(feature = "levelzero-onednn")]
+    return c.dnnl().is_some() && half.is_none_or(|h| !h.packed.is_empty());
+    #[cfg(not(feature = "levelzero-onednn"))]
+    {
+        let _ = (c, half);
+        false
+    }
+}
+
+/// The linear layers' kernels of a session nothing forces or tunes:
+/// oneDNN's at FASTEST where it runs, the backend's own in F32.
+fn default_linear(c: &Context, half: Option<&Transposed>) -> Linear {
+    if half.is_some() && onednn_runs(c, half) { Linear::Onednn } else { Linear::Own }
+}
+
+/// The linear layers' kernels TURBO_LEVELZERO_CHOICES forces, read when a
+/// session is made: `linear=own` or `linear=onednn`; None when unset or
+/// it names no linear item.
+fn forced_linear() -> Res<Option<Linear>> {
+    let Ok(line) = std::env::var("TURBO_LEVELZERO_CHOICES") else { return Ok(None) };
+    let mut linear = None;
+    for item in line.split([',', ';']).filter(|i| !i.is_empty()) {
+        linear = match item.split_once('=') {
+            Some(("linear", "own")) => Some(Linear::Own),
+            Some(("linear", "onednn")) => Some(Linear::Onednn),
+            _ => {
+                return Err(fail(
+                    INVALID_ARGUMENT,
+                    format!("TURBO_LEVELZERO_CHOICES: {item:?} is not linear=own or linear=onednn"),
+                ));
+            }
+        };
+    }
+    Ok(linear)
 }
 
 pub(crate) unsafe extern "C" fn session_release(session: *mut c_void) {
@@ -1021,15 +1091,12 @@ impl Session {
         // Attention on the matrix engines reads F16 projections and writes
         // an F16 context.
         let half_attention = matches!(k.attention, Attention::Xmx(..));
-        // oneDNN takes the F16 linear layers of a batch past the few-token
-        // kernels, with its own LayerNorm after the projections back to
-        // the hidden width; the two queues are ordered by waiting.
+        // With linear=onednn, oneDNN takes the linear layers of a batch
+        // past the few-token kernels: at FASTEST in F16 with its own
+        // LayerNorm after the projections back to the hidden width, in
+        // F32 with the backend's; the two queues are ordered by waiting.
         #[cfg(feature = "levelzero-onednn")]
-        let dnnl = if tokens > FEW_TOKENS_DPAS && self.half.as_ref().is_some_and(|h| !h.packed.is_empty()) {
-            c.dnnl()
-        } else {
-            None
-        };
+        let dnnl = if self.linear == Linear::Onednn && tokens > FEW_TOKENS_DPAS { c.dnnl() } else { None };
         #[cfg(not(feature = "levelzero-onednn"))]
         let dnnl: Option<()> = None;
         // Few tokens: a group per token keeps each LayerNorm short.
@@ -1052,22 +1119,33 @@ impl Session {
                       what: &str|
          -> Res<u32> {
             #[cfg(feature = "levelzero-onednn")]
-            if let (Some(dn), Some(half), true) = (dnnl, &self.half, to_half) {
-                let signal = dn.matmul(&super::onednn::Matmul {
-                    a: x,
-                    packed: half.packed[l as usize][which],
-                    bias,
-                    residual: 0,
-                    c: y,
-                    m: tokens,
-                    k: n_in,
-                    n: n_out,
-                    gelu: flags & LINEAR_GELU != 0,
-                    wait: q.last_event() as u64,
-                })?;
-                q.pending_wait = signal as super::ze::Handle;
-                let _ = (weight, splits, what);
-                return Ok(1);
+            if let Some(dn) = dnnl {
+                // F16 from the packed weights where the output is F16, F32
+                // from the layer's own [n_out, n_in] weights in an F32
+                // session; the backend's kernels for the rest.
+                let packed = match &self.half {
+                    Some(half) if to_half => Some(half.packed[l as usize][which]),
+                    None => Some(weight),
+                    Some(_) => None,
+                };
+                if let Some(packed) = packed {
+                    let signal = dn.matmul(&super::onednn::Matmul {
+                        a: x,
+                        packed,
+                        bias: if flags & LINEAR_BIAS != 0 { bias } else { 0 },
+                        residual: 0,
+                        c: y,
+                        m: tokens,
+                        k: n_in,
+                        n: n_out,
+                        gelu: flags & LINEAR_GELU != 0,
+                        f32: self.half.is_none(),
+                        wait: q.last_event() as u64,
+                    })?;
+                    q.pending_wait = signal as super::ze::Handle;
+                    let _ = (splits, what);
+                    return Ok(1);
+                }
             }
             if let (Some(kd), Some(half)) = (&k.linear_dpas, &self.half) {
                 let (tm, tn, wm, wn, kernel) = if tokens <= FEW_TOKENS_DPAS {
@@ -1199,6 +1277,7 @@ impl Session {
                     k: n_in,
                     n: h,
                     gelu: false,
+                    f32: false,
                     wait: q.last_event() as u64,
                 })?;
                 let signal = dn.layer_norm(&super::onednn::LayerNorm {
@@ -1451,7 +1530,7 @@ pub(crate) unsafe extern "C" fn session_run(
                 // oneDNN's work is done too, its last event waited for by
                 // the backend's last kernel; its events are let go.
                 #[cfg(feature = "levelzero-onednn")]
-                if s.half.as_ref().is_some_and(|h| !h.packed.is_empty())
+                if s.linear == Linear::Onednn
                     && let Some(dn) = c.dnnl()
                 {
                     dn.wait()?;
