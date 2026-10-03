@@ -406,10 +406,10 @@ fn two_models_on_one_context_run_at_once() {
         m
     };
     let models = [load(), load()];
-    let texts = [["threads share one context", "and two compiled graphs"], [
-        "each run keeps its own rows",
-        "whatever the other is doing",
-    ]];
+    let texts = [
+        ["threads share one context", "and two compiled graphs"],
+        ["each run keeps its own rows", "whatever the other is doing"],
+    ];
     let vectors: Vec<Vec<Vec<f32>>> = std::thread::scope(|scope| {
         let handles: Vec<_> = models
             .iter()
