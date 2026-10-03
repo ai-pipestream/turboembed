@@ -164,6 +164,76 @@ driver string is the Level Zero version the records report,
 `0.15.21738`. Docs for the
 device and the host-only CI job are in docs/npu.md.
 
+For `bge-small-en-v1.5`, `bge-base-en-v1.5`, and `bge-large-en-v1.5` on
+the same token-id seal (`openvino-f16`) at `--batch 1 --seq 128`, twelve
+arl-npu speed records are committed at `e56bb0b`, `de964e7`, and
+`15631ce`, measured at library commits `ab1d3d9`, `e56bb0b`, and
+`de964e7` respectively. Each model has two ROWS_MIXED records (`MODEL`
+and `FASTEST`) and two ROWS_DENSE records (reference evidence only).
+Settings are `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
+`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. The npu backend has no EXACT
+tier, so no EXACT records exist.
+
+`bge-small-en-v1.5` (`BAAI/bge-small-en-v1.5`), committed at `e56bb0b`,
+measured at library commit `ab1d3d9`, cases 0 through 7, `live_tokens`
+181, `computed_tokens` 1024, `INPUT_TOKEN_IDS`, `DTYPE_F16`, library
+version `0.1.0`, `machine.os` windows, driver Level Zero `0.15.21738`,
+arch `arl-npu`:
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json`
+(library p50 54.4216 ms, 146.85366167535852 rows/s; OpenVINO IR p50
+54.52 ms; `speed_ratio` 0.9981951577402787) and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json`
+(library p50 54.080499999999994 ms, 147.55331292554203 rows/s; OpenVINO
+IR p50 54.52 ms; `speed_ratio` 0.9919387380777694). `conformance.min_cosine`
+is 0.9999971877963036. Two ROWS_DENSE records of the same IR, case 8,
+do not bind:
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json`
+(library p50 6.9042 ms, 145.07147236228872 rows/s; OpenVINO IR p50 6.87
+ms; `speed_ratio` 1.0049781659388646) and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json`
+(library p50 6.9062 ms, 144.6802901968325 rows/s; OpenVINO IR p50 6.87
+ms; `speed_ratio` 1.005269286754003).
+
+`bge-base-en-v1.5` (`BAAI/bge-base-en-v1.5`), committed at `de964e7`,
+measured at library commit `e56bb0b`, cases 0 through 7, `live_tokens`
+181, `computed_tokens` 1024, `INPUT_TOKEN_IDS`, `DTYPE_F16`, library
+version `0.1.0`, `machine.os` windows, driver Level Zero `0.15.21738`,
+arch `arl-npu`:
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json`
+(library p50 107.0687 ms, 74.21637779379553 rows/s; OpenVINO IR p50
+107.20000000000002 ms; `speed_ratio` 0.9987751865671641) and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json`
+(library p50 107.27069999999999 ms, 73.764727686881 rows/s; OpenVINO IR
+p50 107.15999999999998 ms; `speed_ratio` 1.0010330347144458).
+`conformance.min_cosine` is 0.999987270221037. Two ROWS_DENSE records
+of the same IR, case 8, do not bind:
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json`
+(library p50 13.5734 ms, 73.17402007639001 rows/s; OpenVINO IR p50 13.5
+ms; `speed_ratio` 1.005437037037037) and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json`
+(library p50 13.606200000000001 ms, 72.94838857739117 rows/s; OpenVINO
+IR p50 13.58 ms; `speed_ratio` 1.0019293078055966).
+
+`bge-large-en-v1.5` (`BAAI/bge-large-en-v1.5`), committed at `15631ce`,
+measured at library commit `de964e7`, cases 0 through 7, `live_tokens`
+181, `computed_tokens` 1024, `INPUT_TOKEN_IDS`, `DTYPE_F16`, library
+version `0.1.0`, `machine.os` windows, driver Level Zero `0.15.21738`,
+arch `arl-npu`:
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`
+(library p50 323.12330000000003 ms, 24.681533098611542 rows/s; OpenVINO
+IR p50 322.96 ms; `speed_ratio` 1.0005056353728017) and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`
+(library p50 320.53249999999997 ms, 24.864098355112777 rows/s; OpenVINO
+IR p50 322.86 ms; `speed_ratio` 0.9927909930000618).
+`conformance.min_cosine` is 0.9996791858674714. Two ROWS_DENSE records
+of the same IR, case 8, do not bind:
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`
+(library p50 41.6858 ms, 23.55128093002972 rows/s; OpenVINO IR p50
+40.59 ms; `speed_ratio` 1.0269967972406997) and
+`benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`
+(library p50 40.89340000000001 ms, 24.2899285709714 rows/s; OpenVINO IR
+p50 40.32 ms; `speed_ratio` 1.0142212301587303).
+
 Windows, where a container cannot see the NPU driver. `--rows mixed` is
 the default. It cycles every fitting case. Repeat with `--precision
 fastest` for the other cell. The files already in

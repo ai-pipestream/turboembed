@@ -313,15 +313,17 @@ machine that sealed the MiniLM bundle. The image contains
 `onnx_to_openvino_ir.py` and OpenVINO 2026.3.0. A machine converts
 when that id is present. The MiniLM pin stays `994f2d1b`.
 
-On main, the MiniLM recipe and `bge-small-en-v1.5`,
-`bge-base-en-v1.5`, and `bge-large-en-v1.5` pin
-`turbo-reference@sha256:c3ceae1e238e7ec3ac6ece401c1138727d4e80977bd63a1ba8ec64841ffa2934`.
-`bge-m3` and `bge-m3-8192` pin
+On main, the MiniLM recipe pins
+`turbo-reference@sha256:994f2d1b0c61669a2cf3c3d89b1b6d58fe9b82b7560602801e0da69d83b5786a`.
+Commit `ab1d3d9` adds an `openvino-f16` artifact to `bge-small-en-v1.5`,
+`bge-base-en-v1.5`, and `bge-large-en-v1.5`: `FORMAT_OPENVINO_IR` with
+`openvino/model.xml` and `openvino/model.bin`, backend `npu`,
+`INPUT_TOKEN_IDS`, `DTYPE_F16`, `fixed_batch` 1, `fixed_seq` 128,
+produced from `onnx-f32`. The same commit repins each recipe's
+`reference.produced_by.container` to the MiniLM image above. `bge-m3`
+and `bge-m3-8192` pin
 `turbo-reference@sha256:0e153c1db87c62f55ff6f918c7d8a0120c3d2e5d45d3f5a0336e81153c12dd6b`.
-Those bge pins are unchanged here. Only the bge-m3 recipes pin
-`0e153c1d`. Main's `bundle/reference` Dockerfile does not copy
-`onnx_to_openvino_ir.py` and does not install OpenVINO, so those
-pins are not this MiniLM image.
+Only the bge-m3 recipes pin `0e153c1d`.
 
 From the workspace root, on Linux or on Windows with Docker Desktop
 (PowerShell; the same commands):
@@ -600,6 +602,20 @@ stay EXPERIMENTAL. The product path is the Level Zero graph
 extension and `FORMAT_OPENVINO_IR`. `benchmark_app` is the reference
 control on the static IR (`openvino/model.xml`).
 
+Twelve ROWS_MIXED and ROWS_DENSE npu speed records for
+`bge-small-en-v1.5`, `bge-base-en-v1.5`, and `bge-large-en-v1.5` are
+committed at `e56bb0b`, `de964e7`, and `15631ce`, measured at library
+commits `ab1d3d9`, `e56bb0b`, and `de964e7`. Each model is
+`INPUT_TOKEN_IDS` F16, batch 1, seq 128, on Windows Arrow Lake. The
+device is `Intel(R) AI Boost`, arch `arl-npu`. Settings are
+`TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
+`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. The six ROWS_MIXED files bind
+the `MODEL` and `FASTEST` cells for each model. The six ROWS_DENSE
+files are case 8 reference evidence. `Record::is_for` requires
+`ROWS_MIXED`, so the dense files do not bind a cell. The npu backend
+has no EXACT tier, so no EXACT records exist. The numbers are in Speed,
+below. Another arch and a `NATIVE` load stay EXPERIMENTAL.
+
 Earlier intel-npu timings were one two-token text at shape
 `[1, 128]` each, TEI was `not_run`, and `benchmark_app` either
 exited 1 or was disabled. Those files are not in this tree. A
@@ -609,7 +625,8 @@ manifest `compute_dtype` that names the other is refused.
 
 ## Speed
 
-Four npu speed records are committed. The harness is `turbo-bench`
+Sixteen npu speed records are committed for MiniLM and the three BGE
+models. The harness is `turbo-bench`
 with `--features npu` (docs/benchmarks.md). It measures the library
 on `--device npu`. OpenVINO `benchmark_app` is the kernel reference.
 TEI's CPU image is the end-to-end baseline. Both are references only.
@@ -737,3 +754,74 @@ The dense files are the same settings and the same static IR, case
 - `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.all-minilm-l6-v2-da08a0f9.febfed530b66.json`:
   library p50 3.97 ms, about 251.27 rows/s; OpenVINO IR p50 3.87 ms;
   `speed_ratio` about 1.026.
+
+The BGE token-id seals use the same shape and settings. Each model has
+two ROWS_MIXED files that bind `MODEL` and `FASTEST`, and two ROWS_DENSE
+files that do not bind. The npu backend has no EXACT tier, so no EXACT
+records exist.
+
+`bge-small-en-v1.5` (`BAAI/bge-small-en-v1.5`), committed at `e56bb0b`,
+measured at library commit `ab1d3d9`, cases 0 through 7, `live_tokens`
+181, `computed_tokens` 1024, `DTYPE_F16`, `ROWS_MIXED`, library version
+`0.1.0`, `machine.os` windows, driver `0.15.21738`. `conformance.min_cosine`
+is 0.9999971877963036:
+
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json`:
+  library p50 54.4216 ms, 146.85366167535852 rows/s; OpenVINO IR p50
+  54.52 ms; `speed_ratio` 0.9981951577402787.
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json`:
+  library p50 54.080499999999994 ms, 147.55331292554203 rows/s; OpenVINO
+  IR p50 54.52 ms; `speed_ratio` 0.9919387380777694.
+
+Dense reference evidence, case 8:
+
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json`:
+  library p50 6.9042 ms, 145.07147236228872 rows/s; OpenVINO IR p50 6.87
+  ms; `speed_ratio` 1.0049781659388646.
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json`:
+  library p50 6.9062 ms, 144.6802901968325 rows/s; OpenVINO IR p50 6.87
+  ms; `speed_ratio` 1.005269286754003.
+
+`bge-base-en-v1.5` (`BAAI/bge-base-en-v1.5`), committed at `de964e7`,
+measured at library commit `e56bb0b`, cases 0 through 7, `live_tokens`
+181, `computed_tokens` 1024, `DTYPE_F16`, `ROWS_MIXED`, library version
+`0.1.0`, `machine.os` windows, driver `0.15.21738`. `conformance.min_cosine`
+is 0.999987270221037:
+
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json`:
+  library p50 107.0687 ms, 74.21637779379553 rows/s; OpenVINO IR p50
+  107.20000000000002 ms; `speed_ratio` 0.9987751865671641.
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json`:
+  library p50 107.27069999999999 ms, 73.764727686881 rows/s; OpenVINO IR
+  p50 107.15999999999998 ms; `speed_ratio` 1.0010330347144458.
+
+Dense reference evidence, case 8:
+
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json`:
+  library p50 13.5734 ms, 73.17402007639001 rows/s; OpenVINO IR p50 13.5
+  ms; `speed_ratio` 1.005437037037037.
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json`:
+  library p50 13.606200000000001 ms, 72.94838857739117 rows/s; OpenVINO
+  IR p50 13.58 ms; `speed_ratio` 1.0019293078055966.
+
+`bge-large-en-v1.5` (`BAAI/bge-large-en-v1.5`), committed at `15631ce`,
+measured at library commit `de964e7`, cases 0 through 7, `live_tokens`
+181, `computed_tokens` 1024, `DTYPE_F16`, `ROWS_MIXED`, library version
+`0.1.0`, `machine.os` windows, driver `0.15.21738`. `conformance.min_cosine`
+is 0.9996791858674714:
+
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`:
+  library p50 323.12330000000003 ms, 24.681533098611542 rows/s; OpenVINO
+  IR p50 322.96 ms; `speed_ratio` 1.0005056353728017.
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`:
+  library p50 320.53249999999997 ms, 24.864098355112777 rows/s; OpenVINO
+  IR p50 322.86 ms; `speed_ratio` 0.9927909930000618.
+
+Dense reference evidence, case 8:
+
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.model-dense.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`:
+  library p50 41.6858 ms, 23.55128093002972 rows/s; OpenVINO IR p50
+  40.59 ms; `speed_ratio` 1.0269967972406997.
+- `benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`:
+  library p50 40.89340000000001 ms, 24.2899285709714 rows/s; OpenVINO IR
+  p50 40.32 ms; `speed_ratio` 1.0142212301587303.
