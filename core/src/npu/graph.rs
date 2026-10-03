@@ -1312,6 +1312,8 @@ struct Rows {
     types: Vec<i32>,
     /// Pooling scratch, one token's sums: no allocation in a run.
     acc: Vec<f64>,
+    /// One token's hidden row widened from FP16, so pooling reads f32.
+    token: Vec<f32>,
     /// One embeddings frame, filled on the host and then written at the
     /// argument's precision. Empty for a token-id graph, and sized when
     /// the session is made so a run allocates nothing.
@@ -1440,6 +1442,7 @@ pub(crate) unsafe extern "C" fn session_create(
                     mask: vec![0; (max_batch * max_seq) as usize],
                     types: vec![0; (max_batch * max_seq) as usize],
                     acc: vec![0.0; m.hidden as usize],
+                    token: vec![0.0; m.hidden as usize],
                     gathered_rows,
                     gathered_bias,
                     state: State { batch: 0, seq: 0, pooling: 0, normalize: 0, output_dim: 0, written: false },
@@ -1550,6 +1553,36 @@ fn half_to_f32(h: u16) -> f32 {
         _ => (sign << 31) | ((exp + 127 - 15) << 23) | (frac << 13),
     };
     f32::from_bits(bits)
+}
+
+/// half_to_f32 over a row. With F16C the CPU widens eight at a time,
+/// exactly, so a value is the same either way; a NaN stays a NaN.
+fn widen_f16(src: &[u16], dst: &mut [f32]) {
+    assert_eq!(src.len(), dst.len());
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("f16c") {
+        // SAFETY: f16c was detected, and both slices are dst.len() long.
+        return unsafe { widen_f16c(src, dst) };
+    }
+    for (d, &h) in dst.iter_mut().zip(src) {
+        *d = half_to_f32(h);
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx,f16c")]
+unsafe fn widen_f16c(src: &[u16], dst: &mut [f32]) {
+    use std::arch::x86_64::{__m128i, _mm_loadu_si128, _mm256_cvtph_ps, _mm256_storeu_ps};
+    let whole = src.len() / 8 * 8;
+    for i in (0..whole).step_by(8) {
+        unsafe {
+            let h = _mm_loadu_si128(src.as_ptr().add(i) as *const __m128i);
+            _mm256_storeu_ps(dst.as_mut_ptr().add(i), _mm256_cvtph_ps(h));
+        }
+    }
+    for i in whole..src.len() {
+        dst[i] = half_to_f32(src[i]);
+    }
 }
 
 /// # Safety
@@ -1714,42 +1747,40 @@ fn run(s: &Session, rows: &mut Rows, out: &mut turbo_backend_run) -> Res<()> {
         ctx.execute(m.graph)?;
         d2h += s.out_buf.bytes;
 
-        // Pool, cut and normalize each live row on the host.
+        // Pool, cut and normalize each live row on the host. Each token
+        // row is read once, as f32: widened from FP16 or read in place.
+        let frame_elems = live * model_seq * hidden;
+        let fp16 = m.output.precision == ze::GRAPH_ARGUMENT_PRECISION_FP16;
         for r in 0..live {
             let row = first + r;
             let mask = &rows.mask[row * stride..row * stride + seq];
-            let acc = &mut rows.acc;
-            acc.fill(0.0);
-            let read = |t: usize, h: usize| -> f64 {
-                let at = (r * model_seq + t) * hidden + h;
-                match m.output.precision {
-                    ze::GRAPH_ARGUMENT_PRECISION_FP16 => {
-                        half_to_f32(unsafe { (s.out_buf.ptr as *const u16).add(at).read() }) as f64
-                    }
-                    _ => (unsafe { (s.out_buf.ptr as *const f32).add(at).read() }) as f64,
+            let (acc, token) = (&mut rows.acc, &mut rows.token);
+            let mut add = |t: usize, acc: &mut [f64]| {
+                let at = (r * model_seq + t) * hidden;
+                debug_assert!(at + hidden <= frame_elems);
+                let values: &[f32] = if fp16 {
+                    // SAFETY: out_buf holds the frame at the output's precision.
+                    let h = unsafe { std::slice::from_raw_parts((s.out_buf.ptr as *const u16).add(at), hidden) };
+                    widen_f16(h, token);
+                    token
+                } else {
+                    unsafe { std::slice::from_raw_parts((s.out_buf.ptr as *const f32).add(at), hidden) }
+                };
+                for (a, &v) in acc.iter_mut().zip(values) {
+                    *a += v as f64;
                 }
             };
+            acc.fill(0.0);
             match pooling {
-                TURBO_POOLING_CLS => {
-                    for (h, a) in acc.iter_mut().enumerate() {
-                        *a = read(0, h);
-                    }
-                }
-                TURBO_POOLING_LAST => {
-                    let last = mask.iter().rposition(|&v| v == 1).unwrap_or(0);
-                    for (h, a) in acc.iter_mut().enumerate() {
-                        *a = read(last, h);
-                    }
-                }
+                TURBO_POOLING_CLS => add(0, acc),
+                TURBO_POOLING_LAST => add(mask.iter().rposition(|&v| v == 1).unwrap_or(0), acc),
                 _ => {
                     debug_assert_eq!(pooling, TURBO_POOLING_MEAN);
                     let mut live_tokens = 0f64;
                     for (t, &v) in mask.iter().enumerate() {
                         if v == 1 {
                             live_tokens += 1.0;
-                            for (h, a) in acc.iter_mut().enumerate() {
-                                *a += read(t, h);
-                            }
+                            add(t, acc);
                         }
                     }
                     for a in acc.iter_mut() {
@@ -1822,6 +1853,23 @@ mod tests {
         match session_dtype(manifest, precision) {
             Ok(d) => d,
             Err(e) => panic!("{}", e.message),
+        }
+    }
+
+    #[test]
+    fn widen_f16_is_half_to_f32_for_every_half() {
+        let all: Vec<u16> = (0..=u16::MAX).collect();
+        // An odd length runs the tail after the eight-wide steps.
+        let src = &all[..all.len() - 3];
+        let mut wide = vec![0.0f32; src.len()];
+        widen_f16(src, &mut wide);
+        for (&h, &w) in src.iter().zip(&wide) {
+            let one = half_to_f32(h);
+            if one.is_nan() {
+                assert!(w.is_nan(), "{h:#06x}");
+            } else {
+                assert_eq!(w.to_bits(), one.to_bits(), "{h:#06x}");
+            }
         }
     }
 
@@ -2147,6 +2195,7 @@ mod tests {
             mask,
             types: vec![0; frame * stride],
             acc: vec![0.0; hidden],
+            token: vec![0.0; hidden],
             gathered_rows: vec![7.0; frame * row_elems],
             gathered_bias: vec![7.0; frame * bias_elems],
             state: State {
