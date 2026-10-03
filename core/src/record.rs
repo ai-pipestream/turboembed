@@ -1034,10 +1034,9 @@ mod tests {
             assert_eq!(model_rec.rows.cases, [0, 1, 2, 3, 4, 5, 6, 7]);
             assert_eq!(model_rec.rows.live_tokens, 181);
             assert_eq!(model_rec.timing.computed_tokens, Some(1024));
-            for (name, precision, rec) in [
-                (model, TURBO_PRECISION_MODEL, model_rec),
-                (fastest, TURBO_PRECISION_FASTEST, fastest_rec),
-            ] {
+            for (name, precision, rec) in
+                [(model, TURBO_PRECISION_MODEL, model_rec), (fastest, TURBO_PRECISION_FASTEST, fastest_rec)]
+            {
                 match decide_embedded_for(&cell(precision), Some(model_id)) {
                     Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
                         assert_eq!(benchmark, name, "{model_id}");

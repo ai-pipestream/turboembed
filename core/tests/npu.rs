@@ -164,9 +164,7 @@ fn embed_is_offered_and_exact_is_refused() {
         // the rows.
         assert_eq!(c.options_honored, 0b111111, "every field of turbo_embed_options");
         let name = match p {
-            TURBO_PRECISION_MODEL => {
-                "arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json"
-            }
+            TURBO_PRECISION_MODEL => "arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json",
             TURBO_PRECISION_FASTEST => {
                 "arl-npu.npu.ngraph-lite.embed.fastest.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json"
             }
@@ -408,10 +406,10 @@ fn two_models_on_one_context_run_at_once() {
         m
     };
     let models = [load(), load()];
-    let texts = [
-        ["threads share one context", "and two compiled graphs"],
-        ["each run keeps its own rows", "whatever the other is doing"],
-    ];
+    let texts = [["threads share one context", "and two compiled graphs"], [
+        "each run keeps its own rows",
+        "whatever the other is doing",
+    ]];
     let vectors: Vec<Vec<Vec<f32>>> = std::thread::scope(|scope| {
         let handles: Vec<_> = models
             .iter()
