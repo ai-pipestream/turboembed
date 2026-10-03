@@ -118,10 +118,13 @@ No build variables: there is nothing to point at.
   `falls_short` is none. On a Windows build of `0.1.0` whose device
   arch is `arl-npu` and whose graph format is `NGRAPH_LITE`,
   `decide_embedded` sets `MODEL` and `FASTEST` to SUPPORTED.
-  `benchmark` is the record's file name, `cosine_floor` is
-  `conformance.min_cosine` (0.999996097954919), and `speed_ratio` is
-  the record's. The bundle is not part of the cell key. The files
-  were measured on `sentence-transformers/all-MiniLM-L6-v2`. The two
+  The bundle is not part of the cell key: the cell is the device, so
+  the MiniLM records and the BGE records below are all for it, and
+  the newest one that does not fall short backs it. `benchmark` is
+  that record's file name, `cosine_floor` its
+  `conformance.min_cosine`, and `speed_ratio` its own. With the
+  committed records that is bge-large (Speed, below), whose
+  `conformance.min_cosine` is 0.9996791858674714. The two
   ROWS_DENSE files are reference evidence. `is_for` skips them, so
   they do not bind. A cell with no mixed record for it stays
   EXPERIMENTAL and `reason` is `no benchmark record for this cell`:
@@ -594,9 +597,10 @@ OpenVINO was measured on those eight frames. Library version is
 `0.1.0` and `compute_dtype` is `DTYPE_F16`. `conformance.rows` is
 16, so eight reference cases fit seq 128 and `rows.cases` lists
 each of them. `is_for` matches and `falls_short` is none.
-`decide_embedded` sets `MODEL` and `FASTEST` to SUPPORTED on a
-Windows build of library `0.1.0` whose device arch is `arl-npu` and
-whose graph format is `NGRAPH_LITE`. The numbers are in Speed,
+They are for the `MODEL` and `FASTEST` cells of a Windows build of
+library `0.1.0` whose device arch is `arl-npu` and whose graph format
+is `NGRAPH_LITE`. The newest record for a cell backs it, which with
+the BGE records below is bge-large's. The numbers are in Speed,
 below. `EXACT` stays UNSUPPORTED. Another arch and a `NATIVE` load
 stay EXPERIMENTAL. The product path is the Level Zero graph
 extension and `FORMAT_OPENVINO_IR`. `benchmark_app` is the reference
@@ -609,8 +613,10 @@ commits `ab1d3d9`, `e56bb0b`, and `de964e7`. Each model is
 `INPUT_TOKEN_IDS` F16, batch 1, seq 128, on Windows Arrow Lake. The
 device is `Intel(R) AI Boost`, arch `arl-npu`. Settings are
 `TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE` and
-`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. The six ROWS_MIXED files bind
-the `MODEL` and `FASTEST` cells for each model. The six ROWS_DENSE
+`TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS`. The six ROWS_MIXED files are
+for the same `arl-npu` `MODEL` and `FASTEST` cells as the MiniLM ones,
+since the model is not part of the cell key. The newest, bge-large's,
+backs them. The six ROWS_DENSE
 files are case 8 reference evidence. `Record::is_for` requires
 `ROWS_MIXED`, so the dense files do not bind a cell. The npu backend
 has no EXACT tier, so no EXACT records exist. The numbers are in Speed,
@@ -638,8 +644,9 @@ OpenVINO side is the static IR (`-m openvino/model.xml`).
 
 The two ROWS_MIXED records, committed at `bc15354` and measured at
 library commit `99c9264`, are batch 1, seq 128, cases 0 through 7,
-`live_tokens` 181, `computed_tokens` 1024. They bind the `arl-npu`
-windows `NGRAPH_LITE` `MODEL` and `FASTEST` cells. The two
+`live_tokens` 181, `computed_tokens` 1024. They are for the `arl-npu`
+windows `NGRAPH_LITE` `MODEL` and `FASTEST` cells, which the newer
+bge-large records back. The two
 ROWS_DENSE records, committed at `00aa734` and measured at library
 commit `febfed530`, are case 8 at the same shape. They stay in the
 tree as reference evidence. `Record::is_for` requires `ROWS_MIXED`,
@@ -726,8 +733,8 @@ windows, driver `0.15.21738`. `conformance.min_cosine` is
 measured on the same eight frames. `rows.cases` is
 `[0, 1, 2, 3, 4, 5, 6, 7]` and `live_tokens` is 181.
 `conformance.rows` is 16, so they cover 8 of 8 reference cases that
-fit seq. `falls_short` is none. `decide_embedded` sets the `arl-npu`
-windows `NGRAPH_LITE` `MODEL` and `FASTEST` cells to SUPPORTED.
+fit seq. `falls_short` is none, so they are for the `arl-npu`
+windows `NGRAPH_LITE` `MODEL` and `FASTEST` cells.
 The files, committed at `bc15354` and measured at library commit
 `99c9264`:
 
@@ -740,8 +747,13 @@ The files, committed at `bc15354` and measured at library commit
 
 On a Windows build of library `0.1.0` whose device arch is `arl-npu`
 and whose graph format is `NGRAPH_LITE`, `MODEL` and `FASTEST` are
-SUPPORTED. `turbo_capability.benchmark` is that file name.
-`cosine_floor` is 0.999996097954919. `reason` is empty. Another
+SUPPORTED. The newest matching record backs each cell, so
+`turbo_capability.benchmark` is
+`arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json` for `MODEL`
+and
+`arl-npu.npu.ngraph-lite.embed.fastest.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`
+for `FASTEST`. `cosine_floor` is 0.9996791858674714, and
+`speed_ratio` is that record's. `reason` is empty. Another
 arch, a `NATIVE` graph, and a build whose OS is not windows stay
 EXPERIMENTAL with `no benchmark record for this cell`.
 
@@ -756,8 +768,9 @@ The dense files are the same settings and the same static IR, case
   `speed_ratio` about 1.026.
 
 The BGE token-id seals use the same shape and settings. Each model has
-two ROWS_MIXED files that bind `MODEL` and `FASTEST`, and two ROWS_DENSE
-files that do not bind. The npu backend has no EXACT tier, so no EXACT
+two ROWS_MIXED files for the `MODEL` and `FASTEST` cells, and two
+ROWS_DENSE files that do not bind. The newest mixed files, bge-large's,
+back the cells. The npu backend has no EXACT tier, so no EXACT
 records exist.
 
 `bge-small-en-v1.5` (`BAAI/bge-small-en-v1.5`), committed at `e56bb0b`,

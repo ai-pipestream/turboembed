@@ -914,15 +914,19 @@ mod tests {
         assert_eq!(fastest_rec.speed_ratio, Some(0.9911929940515533));
         let fastest_ov = fastest_rec.references.iter().find(|r| r.name == "openvino").unwrap();
         assert_eq!(fastest_ov.measured.as_ref().unwrap().p50_ms, 30.259999999999998);
-        for (label, name, precision, rec) in [
-            ("model", model, TURBO_PRECISION_MODEL, model_rec),
-            ("fastest", fastest, TURBO_PRECISION_FASTEST, fastest_rec),
-        ] {
+        // The cell is the device, not the model: the newest arl-npu mixed
+        // record of the precision backs it, whichever model it measured.
+        for (label, precision) in [("model", TURBO_PRECISION_MODEL), ("fastest", TURBO_PRECISION_FASTEST)] {
             match decide_embedded(&cell(precision, "windows", "arl-npu", Some("NGRAPH_LITE"))) {
                 Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
-                    assert_eq!(benchmark, name, "{label}");
-                    assert_eq!(cosine_floor, rec.conformance.min_cosine, "{label}");
-                    assert_eq!(speed_ratio, rec.speed_ratio.unwrap(), "{label}");
+                    assert!(
+                        benchmark.starts_with(&format!("arl-npu.npu.ngraph-lite.embed.{label}.")),
+                        "{label}: {benchmark}"
+                    );
+                    let backing = embedded().iter().find(|(n, _)| *n == benchmark).unwrap().1.as_ref().unwrap();
+                    assert_eq!(backing.rows.kind, ROWS_MIXED, "{label}");
+                    assert_eq!(cosine_floor, backing.conformance.min_cosine, "{label}");
+                    assert_eq!(speed_ratio, backing.speed_ratio.unwrap(), "{label}");
                 }
                 Verdict::Not(why) => panic!("{label} not supported: {why}"),
             }
