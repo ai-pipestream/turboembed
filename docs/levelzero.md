@@ -60,8 +60,11 @@ hidden width with their residual added, each followed by oneDNN's
 LayerNorm; the last layer's hidden states are then widened to F32 for the
 pooling. In F32 (MODEL and EXACT) it runs the same four matrix products
 in F32, reading each layer's weights as they are stored, `[out, in]`; the
-projections back to the hidden width keep the backend's LayerNorm, which
-adds their bias and sums in F64. oneDNN runs on the backend's own device,
+projections back to the hidden width add their bias and residual there,
+and the backend's LayerNorm, which sums in F64, follows from that one
+array. For a hidden width that is a multiple of 64 up to 1024, the F32
+LayerNorm after a projection holds each token's row in registers, so it
+reads the row from memory once instead of once per pass. oneDNN runs on the backend's own device,
 context and memory through a SYCL queue of its own, which the backend
 orders against its command list by events. The F16 weights are
 transposed once more at load, into the plain layout OpenVINO hands

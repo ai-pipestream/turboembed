@@ -527,6 +527,9 @@ struct Kernels {
     #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
     widen_f16: Kernel,
     add_layer_norm: Kernel,
+    /// The same with each row held in registers, for a hidden width that
+    /// is a multiple of 64 up to 1024.
+    add_layer_norm_v4: Option<Kernel>,
     /// The same, a group per token, for few tokens.
     embed_layer_norm_group: Kernel,
     add_layer_norm_group: Kernel,
@@ -604,6 +607,11 @@ impl Kernels {
             embed_layer_norm: c.kernel("embed_layer_norm", [16 * ROWS, 1, 1])?,
             widen_f16: c.kernel("widen_f16", [WIDE, 1, 1])?,
             add_layer_norm: c.kernel("add_layer_norm", [16 * ROWS, 1, 1])?,
+            add_layer_norm_v4: if hidden.is_multiple_of(64) && hidden <= 1024 {
+                Some(c.kernel("add_layer_norm_v4", [16 * ROWS, 1, 1])?)
+            } else {
+                None
+            },
             embed_layer_norm_group: c.kernel("embed_layer_norm_group", row)?,
             add_layer_norm_group: c.kernel("add_layer_norm_group", row)?,
             attention,
@@ -1534,7 +1542,13 @@ impl Session {
             if few_tokens {
                 k.add_layer_norm_group.launch(c, q, what, &args, [tokens, 1, 1])
             } else {
-                k.add_layer_norm.launch(c, q, what, &args, [tokens.div_ceil(ROWS), 1, 1])
+                k.add_layer_norm_v4.as_ref().unwrap_or(&k.add_layer_norm).launch(
+                    c,
+                    q,
+                    what,
+                    &args,
+                    [tokens.div_ceil(ROWS), 1, 1],
+                )
             }
         };
 
@@ -1578,6 +1592,40 @@ impl Session {
                     let args = [Ptr(self.xh), U64(n), Ptr(self.x)];
                     k.widen_f16.launch(c, q, what, &args, [elementwise_groups(n), 1, 1])?;
                 }
+                return Ok(true);
+            }
+            // In F32, oneDNN's projection with its bias and the residual
+            // added, then the LayerNorm from that alone.
+            #[cfg(feature = "levelzero-onednn")]
+            if let (Some(dn), None, Some(kln)) = (dnnl, &self.half, &k.add_layer_norm_v4) {
+                let weight = layer(l, if which == 1 { ATTN_OUT_WEIGHT } else { FFN_OUT_WEIGHT });
+                let signal = dn.matmul(&super::onednn::Matmul {
+                    a: act,
+                    packed: weight,
+                    bias,
+                    residual: self.x,
+                    c: self.tmp,
+                    m: tokens,
+                    k: n_in,
+                    n: h,
+                    gelu: false,
+                    f32: true,
+                    wait: q.last_event() as u64,
+                })?;
+                q.pending_wait = signal as super::ze::Handle;
+                let args = [
+                    Ptr(self.x),
+                    Ptr(self.tmp),
+                    Ptr(0),
+                    Ptr(lnw),
+                    Ptr(lnb),
+                    F32(eps),
+                    I32(h as i32),
+                    I32(0),
+                    I32(tokens as i32),
+                    Ptr(0),
+                ];
+                kln.launch(c, q, what, &args, [tokens.div_ceil(ROWS), 1, 1])?;
                 return Ok(true);
             }
             let (Some(kln), Some(half)) = (&k.linear_dpas_layer_norm, &self.half) else { return Ok(false) };
