@@ -748,11 +748,12 @@ pub unsafe extern "C" fn turbo_embed_write_text(
                 rows.push(row);
             }
             let seq = rows.iter().map(Vec::len).max().unwrap_or(0);
+            let pad = tok.fill_id();
             let state = &mut *state;
             for (i, row) in rows.iter().enumerate() {
                 let (ids, mask) = (&mut state.ids[i * seq..(i + 1) * seq], &mut state.mask[i * seq..(i + 1) * seq]);
                 ids[..row.len()].copy_from_slice(row);
-                ids[row.len()..].fill(tok.pad_id);
+                ids[row.len()..].fill(pad);
                 mask[..row.len()].fill(1);
                 mask[row.len()..].fill(0);
             }
@@ -777,9 +778,9 @@ pub unsafe extern "C" fn turbo_embed_write_tokens(
     unsafe {
         call(err, || {
             let s = &session(s)?.inner;
+            let mut state = begin_write(s)?;
             let tb = *batch.as_ref().ok_or_else(|| Error::new(INVALID_ARGUMENT, "batch is NULL"))?;
             sized(tb.struct_size, size_of::<turbo_token_batch>(), "turbo_token_batch")?;
-            let mut state = begin_write(s)?;
             let o = embed_options(s, opts)?;
             if o.truncate_given {
                 return Err(Error::field(INVALID_ARGUMENT, 1, "truncate: rows written as tokens are already cut"));
@@ -837,6 +838,16 @@ unsafe fn check_tokens(s: &SessionInner, b: &turbo_token_batch, max_tokens: u32)
         for p in 0..seq {
             let (id, m) = (ids[at + p], mask[at + p]);
             if id < 0 || id as u32 >= vocab {
+                if id == -1 && m == 0 && s.model.tokenizer.pad_id < 0 {
+                    return Err(Error::new(
+                        INVALID_ARGUMENT,
+                        format!(
+                            "ids[{r}][{p}] is -1: the bundle has no pad token, so pad under mask 0 with \
+                             an id in the vocabulary, such as unk id {}",
+                            s.model.tokenizer.unk_id
+                        ),
+                    ));
+                }
                 return Err(Error::new(
                     INVALID_ARGUMENT,
                     format!("ids[{r}][{p}] is {id}, outside the model's vocabulary of {vocab}"),
@@ -883,12 +894,11 @@ pub unsafe extern "C" fn turbo_session_run(
         call(err, || {
             let handle = session(s)?;
             let s = &handle.inner;
-            let out = out_ptr(out, "out")?;
             let mut state = s.lock()?;
-            let w = state
-                .written
-                .take()
-                .ok_or_else(|| Error::new(INVALID_STATE, "nothing is written: a run takes one write"))?;
+            // The run takes the write before it checks its arguments.
+            let w = state.written.take();
+            let out = out_ptr(out, "out")?;
+            let w = w.ok_or_else(|| Error::new(INVALID_STATE, "nothing is written: a run takes one write"))?;
             let mut r: turbo_backend_run = std::mem::zeroed();
             r.struct_size = size_of::<turbo_backend_run>() as u32;
             r.stage[TURBO_EMBED_STAGE_TOKENIZE] = if w.tokenized { TURBO_STAGE_HOST } else { TURBO_STAGE_UNUSED };

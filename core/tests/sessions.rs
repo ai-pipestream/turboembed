@@ -264,6 +264,65 @@ fn a_failed_write_leaves_nothing_written() {
 }
 
 #[test]
+fn a_write_refused_before_its_rows_are_read_leaves_nothing_written() {
+    let l = tiny();
+    let s = session(&l);
+    s.write_text(&TEXTS, None).unwrap();
+    let mut err = new_error();
+    let rc = unsafe { turbo_embed_write_tokens(s.0, ptr::null(), ptr::null(), &mut err) };
+    assert_eq!(rc, INVALID_ARGUMENT, "{:?}", failure(rc, &err));
+    assert_eq!(s.run().err().unwrap().code, INVALID_STATE, "a NULL batch drops the write before it");
+    s.write_text(&TEXTS, None).unwrap();
+    let b = Tokens::new(&[vec![101, 102]], 0);
+    let mut tb = b.batch();
+    tb.struct_size = 8;
+    assert_eq!(s.write_tokens(&tb, None).err().unwrap().code, INVALID_STRUCT_SIZE);
+    assert_eq!(s.run().err().unwrap().code, INVALID_STATE, "a short struct_size drops the write before it");
+}
+
+#[test]
+fn a_failed_run_takes_the_write() {
+    let l = tiny();
+    let s = session(&l);
+    s.write_text(&TEXTS, None).unwrap();
+    let mut err = new_error();
+    let rc = unsafe { turbo_session_run(s.0, ptr::null_mut(), &mut err) };
+    assert_eq!(rc, INVALID_ARGUMENT, "{:?}", failure(rc, &err));
+    assert_eq!(s.run().err().unwrap().code, INVALID_STATE, "the failed run took the write");
+}
+
+#[test]
+fn a_bundle_without_a_pad_token_pads_text_rows_with_ids_in_the_vocabulary() {
+    let mut tj: serde_json::Value = serde_json::from_slice(&std::fs::read(upstream_tokenizer_json()).unwrap()).unwrap();
+    tj["added_tokens"].as_array_mut().unwrap().retain(|t| t["content"] != "[PAD]");
+    let tj_path = std::env::temp_dir().join(format!("turbo-test-{}-no-pad-tokenizer.json", std::process::id()));
+    std::fs::write(&tj_path, serde_json::to_vec(&tj).unwrap()).unwrap();
+    let mut m = model_manifest();
+    m["tokenizer"]["special_tokens"].as_array_mut().unwrap().retain(|t| t["role"] != "SPECIAL_PAD");
+    let mut f = Fixture::with_tokenizer("no-pad", m, &tj_path);
+    f.weights("weights/model.safetensors", &tiny_weights(0));
+    let l = f.load().unwrap_or_else(|e| panic!("{e:?}"));
+    let s = session(&l);
+    let tok = Tok::create(&f.dir).unwrap();
+    assert_eq!(tok.info().pad_id, -1);
+    // Rows of different lengths, so the shorter ones are padded.
+    let together = s.embed(&TEXTS, None).unwrap();
+    for (i, t) in TEXTS.iter().enumerate() {
+        let alone = s.embed(&[t], None).unwrap();
+        assert_eq!(together[i], alone[0], "row {i}: padding changed the vector");
+    }
+    // The tokenizer pads with pad_id, -1; the write names what to do instead.
+    let e = tok.encode(&TEXTS, None, 64).unwrap();
+    let rows: Vec<Vec<i32>> = (0..TEXTS.len()).map(|i| e.row(i)).collect();
+    let padded = Tokens::new(&rows, -1);
+    let err = s.write_tokens(&padded.batch(), None).err().unwrap();
+    assert!(err.is(INVALID_ARGUMENT, "the bundle has no pad token"), "{err:?}");
+    let padded = Tokens::new(&rows, tok.info().unk_id);
+    s.write_tokens(&padded.batch(), None).unwrap();
+    assert_eq!(s.run().unwrap().rows(), together);
+}
+
+#[test]
 fn a_held_result_or_its_buffer_makes_the_session_busy() {
     let l = tiny();
     let s = session(&l);

@@ -3,9 +3,8 @@
 //! placement; import and export of USM pointers; a run's vectors left on
 //! the device; the bytes a run moves; and a run's allocations, counted by
 //! this binary's allocator and by the backend. The encoder's vectors are
-//! held to the f64 arithmetic of tests/common and to the CPU backend's;
-//! tests/conformance.rs with TURBO_TEST_DEVICE=levelzero holds them to the
-//! upstream reference.
+//! held to the f64 arithmetic of tests/common, to the CPU backend's, and
+//! to the bundle's reference vectors (tests/common/conformance.rs).
 //!
 //! Built with the `levelzero` feature only. A test that needs a device
 //! says it was skipped, and passes, when the backend lists none; nothing is
@@ -1186,6 +1185,31 @@ fn the_largest_shape_of_a_real_bundle_matches_the_cpu() {
     let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
     let Some(_) = gpu_device("the_largest_shape_of_a_real_bundle_matches_the_cpu") else { return };
     largest_shape_matches_the_cpu(&dir);
+}
+
+/// The bundle's reference cases on the Level Zero device at each
+/// precision, against the upstream vectors, within the tolerance of the
+/// compute dtype the session reports (tests/common/conformance.rs).
+fn reference_cases_match_upstream(dir: &std::path::Path) {
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+        conformance::check(dir, gpu, p);
+    }
+}
+
+#[test]
+fn the_reference_cases_match_upstream() {
+    let _t = turn();
+    let Some(_) = gpu_device("the_reference_cases_match_upstream") else { return };
+    reference_cases_match_upstream(&tiny_bundle());
+}
+
+#[test]
+#[ignore = "needs a real bundle directory in TURBO_TEST_BUNDLE"]
+fn the_reference_cases_of_a_real_bundle_match_upstream() {
+    let _t = turn();
+    let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
+    let Some(_) = gpu_device("the_reference_cases_of_a_real_bundle_match_upstream") else { return };
+    reference_cases_match_upstream(&dir);
 }
 
 /// Where a real bundle's time goes on the device: TURBO_TEST_BUNDLE at

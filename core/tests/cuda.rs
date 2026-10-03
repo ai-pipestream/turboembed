@@ -2,8 +2,8 @@
 //! every placement, import and export of CUDA pointers, a run's vectors
 //! left on the device, the bytes a run moves, and a warm run's allocation
 //! count. The encoder's vectors are held to the f64 arithmetic of
-//! tests/common and to the CPU backend's; tests/conformance.rs with
-//! TURBO_TEST_DEVICE=cuda holds them to the upstream reference.
+//! tests/common, to the CPU backend's, and to the bundle's reference
+//! vectors (tests/common/conformance.rs).
 //!
 //! Built with the `cuda` feature only. A test that needs a device says it
 //! was skipped, and passes, when the backend lists none; nothing is run
@@ -971,10 +971,10 @@ fn many_rows_pack_as_the_cpu_packs_them() {
     }
 }
 
-/// The encoder at FASTEST: F16 in the cell and the session, and every
-/// reference case of the small bundle within the F16 bound of the
-/// upstream vectors (tests/conformance.rs with TURBO_TEST_PRECISION=fastest
-/// runs the whole check).
+/// The encoder at FASTEST: F16 in the cell and the session, and its
+/// vectors within the F16 bound of the CPU's
+/// (the_reference_cases_match_upstream holds them to the upstream
+/// vectors).
 #[test]
 fn fastest_computes_in_f16_within_its_bound() {
     let _t = turn();
@@ -2585,6 +2585,31 @@ fn the_largest_shape_of_a_real_bundle_matches_the_cpu() {
     let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
     let Some(_) = cuda_device("the_largest_shape_of_a_real_bundle_matches_the_cpu") else { return };
     largest_shape_matches_the_cpu(&dir);
+}
+
+/// The bundle's reference cases on the CUDA device at each precision,
+/// against the upstream vectors, within the tolerance of the compute
+/// dtype the session reports (tests/common/conformance.rs).
+fn reference_cases_match_upstream(dir: &std::path::Path) {
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+        strict(|| conformance::check(dir, cuda, p));
+    }
+}
+
+#[test]
+fn the_reference_cases_match_upstream() {
+    let _t = turn();
+    let Some(_) = cuda_device("the_reference_cases_match_upstream") else { return };
+    reference_cases_match_upstream(&tiny_bundle());
+}
+
+#[test]
+#[ignore = "needs a real bundle directory in TURBO_TEST_BUNDLE"]
+fn the_reference_cases_of_a_real_bundle_match_upstream() {
+    let _t = turn();
+    let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
+    let Some(_) = cuda_device("the_reference_cases_of_a_real_bundle_match_upstream") else { return };
+    reference_cases_match_upstream(&dir);
 }
 
 // ---- Tuned sessions ---------------------------------------------------------------
