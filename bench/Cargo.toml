@@ -22,6 +22,9 @@ cuda = ["turbo/cuda"]
 cuda-cublas = ["turbo/cuda-cublas"]
 # Links the Level Zero backend (docs/levelzero.md).
 levelzero = ["turbo/levelzero"]
+# Links the NPU backend (docs/npu.md). OpenVINO is the kernel reference
+# (benchmark_app -d NPU); the library still loads through Level Zero.
+npu = ["turbo/npu"]
 # Links the Metal backend (docs/metal.md); TEI is then its router built
 # natively with Metal (--tei-bin).
 metal = ["turbo/metal"]

@@ -134,6 +134,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_model", "fixed_batch", offset_of!(turbo_backend_model, fixed_batch)),
         ("turbo_backend_model", "artifact", offset_of!(turbo_backend_model, artifact)),
         ("turbo_backend_model", "artifact_bytes", offset_of!(turbo_backend_model, artifact_bytes)),
+        ("turbo_backend_model", "artifact2", offset_of!(turbo_backend_model, artifact2)),
+        ("turbo_backend_model", "artifact2_bytes", offset_of!(turbo_backend_model, artifact2_bytes)),
         ("turbo_backend", "formats", offset_of!(turbo_backend, formats)),
         ("turbo_backend", "reserved2", offset_of!(turbo_backend, reserved2)),
     ];

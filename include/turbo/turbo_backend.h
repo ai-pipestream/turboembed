@@ -95,8 +95,8 @@ extern "C" {
 /* An artifact's format, as docs/bundle.md's artifacts[].format names it.
  * turbo_backend.formats has bit TURBO_FORMAT_BIT(f) set for each format f
  * the backend's model_load takes. The core hands a backend
- * FORMAT_SAFETENSORS and FORMAT_HEF; it never chooses an artifact of the
- * other formats for any backend. */
+ * FORMAT_SAFETENSORS, FORMAT_OPENVINO_IR and FORMAT_HEF; it never chooses
+ * an artifact of the other formats for any backend. */
 #define TURBO_FORMAT_SAFETENSORS 1   /* raw weights: tensors, no artifact bytes */
 #define TURBO_FORMAT_OPENVINO_IR 2
 #define TURBO_FORMAT_HEF         3   /* a Hailo compiled graph: one file, as artifact */
@@ -178,9 +178,20 @@ typedef struct turbo_backend_tensor {
  *                       usual order, for the lookup the backend does on
  *                       the host; with TOKEN_IDS, tensors is NULL and
  *                       tensor_count 0.
+ *   FORMAT_OPENVINO_IR  artifact is the first file's bytes (the IR's xml)
+ *                       and artifact2 the second's (its weights, the
+ *                       .bin), both as hashed. tensors is as for a HEF:
+ *                       the host_weights artifact's embedding tensors
+ *                       with graph_input EMBEDDINGS, NULL with TOKEN_IDS.
  *
- * artifact, like each tensor's data, stays where it is, unchanged, until
- * model_release returns. */
+ * artifact and artifact2, like each tensor's data, stay where they are,
+ * unchanged, until model_release returns.
+ *
+ * Like the table, this struct grows only at its end, and struct_size says
+ * how much of it the core filled. A backend reads a field appended after
+ * the first release (artifact2 and artifact2_bytes) only when struct_size
+ * covers it, and one that needs it refuses a load whose struct ends
+ * before. */
 typedef struct turbo_backend_model {
     uint32_t    struct_size;
     uint32_t    family;           /* TURBO_FAMILY_*, which says how tensors is laid out */
@@ -209,6 +220,9 @@ typedef struct turbo_backend_model {
                                      the backend runs as many frames as a batch needs */
     const void *artifact;         /* the compiled artifact's bytes; NULL for raw weights */
     uint64_t    artifact_bytes;
+    const void *artifact2;        /* a second file's bytes: an OpenVINO IR's weights (.bin);
+                                     NULL for every one-file format */
+    uint64_t    artifact2_bytes;
 } turbo_backend_model;
 
 /* Rows for an embed run, as the core hands them to embed_write, [batch,

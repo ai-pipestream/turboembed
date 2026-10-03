@@ -99,7 +99,7 @@ A few rules hold the shape:
   `turbo-bench`, and how records back capabilities.
 - `docs/autotune.md`: the tuner and its cache.
 - `docs/cpu.md`, `docs/cuda.md`, `docs/levelzero.md`, `docs/metal.md`,
-  `docs/hailo.md`: one page per backend.
+  `docs/hailo.md`, `docs/npu.md`: one page per backend.
 - `docs/kserve.md`: the gRPC server.
 
 ## The previous attempt
