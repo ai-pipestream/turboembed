@@ -140,6 +140,25 @@
         "produced_by": {
           "from": "onnx-f32"
         }
+      },
+      {
+        "name": "openvino-f16",
+        "format": "FORMAT_OPENVINO_IR",
+        "files": [
+          "openvino/model.xml",
+          "openvino/model.bin"
+        ],
+        "backends": [
+          "npu"
+        ],
+        "compute_dtype": "DTYPE_F16",
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "fixed_seq": 128,
+        "fixed_batch": 1,
+        "produced_by": {
+          "from": "onnx-f32"
+        }
       }
     ],
     "reference": {
@@ -183,7 +202,7 @@
         }
       ],
       "produced_by": {
-        "container": "turbo-reference@sha256:c3ceae1e238e7ec3ac6ece401c1138727d4e80977bd63a1ba8ec64841ffa2934"
+        "container": "turbo-reference@sha256:994f2d1b0c61669a2cf3c3d89b1b6d58fe9b82b7560602801e0da69d83b5786a"
       }
     }
   },
