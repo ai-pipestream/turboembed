@@ -296,6 +296,13 @@ impl Tokenizer {
         }
     }
 
+    /// The id under mask 0 in rows the session lays out: the pad token,
+    /// or the unk token (which every bundle has) when there is no pad
+    /// token, so every id a backend reads is in the vocabulary.
+    pub fn fill_id(&self) -> i32 {
+        if self.pad_id < 0 { self.unk_id } else { self.pad_id }
+    }
+
     pub fn specials_per_sequence(&self) -> u32 {
         self.template.iter().filter(|p| p.is_some()).count() as u32
     }

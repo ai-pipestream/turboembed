@@ -1,8 +1,8 @@
 //! The Hailo backend through the C interface: its table, the devices it
 //! lists against what HailoRT scans, its capability, contexts and host
 //! buffers, and, on a bundle with a HEF for the device, what a session
-//! computes in and what a run reports. tests/conformance.rs holds the
-//! vectors to the bundle's reference.
+//! computes in and what a run reports, and its vectors against the
+//! bundle's reference within the int8 floor.
 //!
 //! Built with the `hailo` feature only. A test that needs a device says it
 //! was skipped, and passes, when the backend lists none; nothing is run on
@@ -394,4 +394,16 @@ fn pooling_and_normalize_follow_the_options() {
     assert!((n - 1.0).abs() > 1e-3, "NONE leaves the length as pooled: {n}");
     let back: f64 = raw.iter().zip(&mean).map(|(a, b)| *a as f64 / n * *b as f64).sum();
     assert!(back > 0.99999, "the same direction as the normalized vector: {back}");
+}
+
+/// The bundle's reference cases on the device at MODEL and FASTEST,
+/// against the upstream vectors, within the int8 floor
+/// (tests/common/conformance.rs). Cases longer than the HEF's fixed shape
+/// are refused with TURBO_E_CAPACITY rather than compared.
+#[test]
+#[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
+fn the_reference_cases_match_upstream() {
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+        conformance::check(&hef_bundle(), |rt| first_of(rt, "hailo").expect("a hailo device"), p);
+    }
 }
