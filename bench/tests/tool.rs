@@ -114,6 +114,7 @@ fn a_cpu_record_is_measured_and_without_a_reference_backs_nothing() {
         dtype: TURBO_DTYPE_F32,
         version: record::library_version(),
         os: std::env::consts::OS,
+        graph_format: None,
     };
     assert_eq!(record::decide([(name, &r)], &cell), Verdict::Not(format!("{name}: no reference program measured")));
     let o = tool(&["check", path.to_str().unwrap()]);

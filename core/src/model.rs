@@ -27,8 +27,8 @@ fn enum_name(v: impl Serialize) -> String {
 /// Rule 6: the first artifact, in manifest order, that lists `backend`,
 /// was built for `arch` or for any device, is in one of `formats` (the
 /// backend's TURBO_FORMAT_BIT set, turbo_backend::formats), and is
-/// something this build hands a backend: raw weights, or a HEF. None is
-/// BUNDLE_NO_ARTIFACT, saying why each was skipped.
+/// something this build hands a backend: raw weights, a HEF, or an
+/// OpenVINO IR. None is BUNDLE_NO_ARTIFACT, saying why each was skipped.
 pub fn choose(m: &Manifest, backend: &str, formats: u32, arch: &str) -> Result<usize> {
     let mut skipped = Vec::new();
     for (i, a) in m.artifacts.iter().enumerate() {
@@ -38,7 +38,7 @@ pub fn choose(m: &Manifest, backend: &str, formats: u32, arch: &str) -> Result<u
             format!("target {} is not this device's {arch}", a.target)
         } else if formats & format_bit(a.format.value()) == 0 {
             format!("{} is not a format the {backend} backend loads", enum_name(a.format))
-        } else if !matches!(a.format, Format::Safetensors | Format::Hef) {
+        } else if !matches!(a.format, Format::Safetensors | Format::Hef | Format::OpenvinoIr) {
             format!("{} is not a format this build hands a backend", enum_name(a.format))
         } else {
             return Ok(i);
@@ -187,8 +187,11 @@ pub struct Weights {
     arch: [u32; 7],
     position_offset: u32,
     layer_norm_eps: f64,
-    /// A compiled artifact's one file, as hashed.
+    /// A compiled artifact's first file, as hashed: the whole HEF, or an
+    /// OpenVINO IR's xml.
     artifact: Option<AlignedBytes>,
+    /// An OpenVINO IR's second file, its weights (.bin), as hashed.
+    artifact2: Option<AlignedBytes>,
     /// TURBO_FORMAT_*, TURBO_INPUT_*, TURBO_OUTPUT_*, TURBO_DTYPE_* or 0,
     /// fixed_seq and fixed_batch, as the manifest gives the artifact.
     shape: [u32; 6],
@@ -208,11 +211,16 @@ impl Weights {
         let host = (!art.host_weights.is_empty())
             .then(|| m.artifacts.iter().position(|h| h.name == art.host_weights).expect("validate() checks the name"));
 
-        let (artifact, tensor_art) = match art.format {
-            Format::Safetensors => (None, Some(index)),
+        let (artifact, artifact2, tensor_art) = match art.format {
+            Format::Safetensors => (None, None, Some(index)),
             Format::Hef => {
                 let hef = bundle.read_verified_aligned(&art.files[0])?;
-                (Some(hef), if art.graph_input == GraphInput::Embeddings { host } else { None })
+                (Some(hef), None, if art.graph_input == GraphInput::Embeddings { host } else { None })
+            }
+            Format::OpenvinoIr => {
+                let xml = bundle.read_verified_aligned(&art.files[0])?;
+                let bin = bundle.read_verified_aligned(&art.files[1])?;
+                (Some(xml), Some(bin), if art.graph_input == GraphInput::Embeddings { host } else { None })
             }
             f => return Err(Error::new(INTERNAL, format!("artifact {:?}: the core hands on no {f:?}", art.name))),
         };
@@ -244,6 +252,7 @@ impl Weights {
             position_offset: a.position_offset,
             layer_norm_eps: a.layer_norm_eps,
             artifact,
+            artifact2,
             shape: [
                 art.format.value(),
                 art.graph_input.value(),
@@ -283,6 +292,10 @@ impl Weights {
             Some(a) => (a.as_ptr() as *const c_void, a.len() as u64),
             None => (std::ptr::null(), 0),
         };
+        let (artifact2, artifact2_bytes) = match &self.artifact2 {
+            Some(a) => (a.as_ptr() as *const c_void, a.len() as u64),
+            None => (std::ptr::null(), 0),
+        };
         turbo_backend_model {
             struct_size: size_of::<turbo_backend_model>() as u32,
             family: self.family,
@@ -306,6 +319,8 @@ impl Weights {
             fixed_batch,
             artifact,
             artifact_bytes,
+            artifact2,
+            artifact2_bytes,
         }
     }
 

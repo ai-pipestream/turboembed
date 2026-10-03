@@ -28,9 +28,14 @@ record options:
   --precision <p>              model, fastest or exact (default model)
   --batch <n>, --seq <n>       the rows' shape (default: 32 or the model's
                                max_batch if smaller; the longest reference
-                               case that fits)
+                               case that fits). npu refuses that default:
+                               both must be the loaded artifact's fixed
+                               shape. The token-id MiniLM seal is
+                               --batch 1 --seq 128
   --rows <kind>                mixed: the reference cases that fit seq,
-                               cycled and padded; dense: every row a case
+                               cycled and padded. A frame of batch 1 (the
+                               npu cell) is one [1, seq] frame per case,
+                               not case 0 alone. dense: every row a case
                                of at least seq tokens cut to seq, so all
                                batch x seq tokens are live (default mixed)
   --cpus <list>                processors to run on, as 0-15 or 0-7,16-23:
@@ -66,7 +71,15 @@ record options:
   --no-tensorrt                record that TensorRT was not run
   --openvino-image <name@sha256:..>
                                an OpenVINO container with benchmark_app,
-                               pinned (levelzero)
+                               pinned (levelzero, and npu on Linux)
+  --openvino-bin <path>        benchmark_app installed on the machine, run
+                               in place of an image (npu, when the container
+                               cannot see the NPU driver)
+  --openvino-accel <path>      the NPU device node handed to the container
+                               (default /dev/accel/accel0; npu with
+                               --openvino-image). Several NPUs are refused:
+                               benchmark_app's -d NPU is OpenVINO's first,
+                               and there is no per-device index
   --openvino-inputs <a,b[,c]>  the ONNX inputs for ids, mask and types
                                (default input_ids,attention_mask,token_type_ids)
   --openvino-input-dtype <t>   int64 or int32 (default int64)
@@ -208,21 +221,42 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let no_ov = o.flag("--no-openvino");
     let ov_inputs = onnx_inputs(o.take("--openvino-inputs"), "--openvino-inputs")?;
     turbo_bench::onnx::check_inputs("--openvino-inputs", &ov_inputs)?;
-    let ov = match o.take("--openvino-image") {
-        Some(image) => {
+    let benchmark_app = o.take("--benchmark-app");
+    let benchmark_app_given = benchmark_app.is_some();
+    let accel = o.take("--openvino-accel");
+    let accel_given = accel.is_some();
+    let ov = match (o.take("--openvino-image"), o.take("--openvino-bin")) {
+        (Some(_), Some(_)) => {
+            return Err("--openvino-image and --openvino-bin are two ways to run benchmark_app; give one".into());
+        }
+        (None, None) => None,
+        (image, bin) => {
+            if bin.is_some() && benchmark_app.is_some() {
+                return Err(
+                    "--benchmark-app names benchmark_app inside the image; --openvino-bin is the binary itself".into(),
+                );
+            }
             let input_dtype = o.take("--openvino-input-dtype").unwrap_or_else(|| "int64".into());
             turbo_bench::onnx::input_bytes("--openvino-input-dtype", &[], &input_dtype)?;
             Some(OpenVino {
-                image,
-                benchmark_app: o.take("--benchmark-app").unwrap_or_else(|| "benchmark_app".into()),
+                image: image.unwrap_or_default(),
+                benchmark_app: benchmark_app.unwrap_or_else(|| "benchmark_app".into()),
                 inputs: ov_inputs,
                 input_dtype,
+                device: String::new(),
                 dri: PathBuf::from("/dev/dri"),
+                accel: accel.map_or_else(|| PathBuf::from(openvino::DEFAULT_ACCEL), PathBuf::from),
                 work: work.clone(),
+                binary: bin.map(PathBuf::from),
             })
         }
-        None => None,
     };
+    if ov.is_none() && benchmark_app_given {
+        return Err("--benchmark-app names benchmark_app inside the image; give --openvino-image".into());
+    }
+    if accel_given && ov.as_ref().is_none_or(|v| v.binary.is_some()) {
+        return Err("--openvino-accel names the NPU device node handed to the container; give --openvino-image".into());
+    }
     if let Some(unknown) = o.0.keys().next() {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
     }
@@ -255,7 +289,14 @@ fn record_cmd(args: &[String]) -> Result<()> {
         }
     }
     if let Some(v) = &ov {
-        turbo_bench::docker::check_pinned("--openvino-image", &v.image)?;
+        match &v.binary {
+            Some(bin) => {
+                openvino::native_pin(bin)?;
+            }
+            None => {
+                turbo_bench::docker::check_pinned("--openvino-image", &v.image)?;
+            }
+        }
     }
     // Before the runtime starts a thread, which would not inherit it.
     if let Some(c) = &cpus {
@@ -273,11 +314,22 @@ fn record_cmd(args: &[String]) -> Result<()> {
     if tei.as_ref().is_some_and(|t| t.binary.is_some()) && backend != "metal" {
         return Err(format!("--tei-bin is TEI's native router for metal; give --tei-image for {backend}"));
     }
+    if ov.as_ref().is_some_and(|v| v.binary.is_some()) && backend != "npu" {
+        return Err(format!(
+            "--openvino-bin is benchmark_app on the machine for npu; give --openvino-image for {backend}"
+        ));
+    }
+    if accel_given && backend != "npu" {
+        return Err(format!("--openvino-accel names the NPU device node; it is only for npu, not {backend}"));
+    }
 
     // Refused before anything is measured, and checked again after.
     let before = git::provenance(&repo)?;
     turbo_bench::check_build(&before.commit, turbo_bench::BUILD_COMMIT, turbo_bench::BUILD_CHANGES)?;
     let m = measure::measure(&plan)?;
+    if let Some(why) = measure::npu_embeddings_speed(&m.backend(), &m.settings, tei.is_some(), ov.is_some()) {
+        return Err(why.into());
+    }
     eprintln!(
         "{} {}: p50 {:.4} ms, p99 {:.4} ms over {} runs of [{}, {}] {}, {} live tokens, {} computed; min cosine \
          {}, max abs diff {:e}",
@@ -290,7 +342,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         m.rows.seq,
         m.rows.kind.name(),
         m.rows.live_tokens(),
-        m.rows.packed_tokens(),
+        m.timing.computed_tokens.unwrap_or(0),
         m.conformance.min_cosine,
         m.conformance.max_abs_diff
     );
@@ -400,13 +452,22 @@ fn references(
         }
     }
     // benchmark_app's GPU is OpenVINO's first, which with several Intel
-    // GPUs need not be the one measured.
+    // GPUs need not be the one measured. The same for NPU.
     if backend == "levelzero" && ov.is_some() {
         let n = devices_of("levelzero")?;
         if n > 1 {
             return Err(format!(
                 "{n} Level Zero devices are listed: OpenVINO's GPU need not be the device measured, so \
                  benchmark_app is run only where there is one"
+            ));
+        }
+    }
+    if backend == "npu" && ov.is_some() {
+        let n = devices_of("npu")?;
+        if n > 1 {
+            return Err(format!(
+                "{n} NPU devices are listed: OpenVINO's NPU need not be the device measured, so benchmark_app is \
+                 run only where there is one"
             ));
         }
     }
@@ -421,8 +482,11 @@ fn references(
                 Some(t) => tensorrt::run(t, m, m.device.ordinal, plan.iterations)?,
                 None => disabled(tensorrt::NAME, "kernel", "--no-tensorrt"),
             },
-            openvino::NAME => match &ov {
-                Some(o) => openvino::run(o, m, plan.iterations)?,
+            openvino::NAME => match ov.clone() {
+                Some(mut o) => {
+                    o.device = if backend == "npu" { openvino::DEVICE_NPU } else { openvino::DEVICE_GPU }.into();
+                    openvino::run(&o, m, plan.iterations)?
+                }
                 None => disabled(openvino::NAME, "kernel", "--no-openvino"),
             },
             other => return Err(format!("{other}: no runner")),
@@ -453,6 +517,7 @@ fn check(path: &Path) -> Result<()> {
             .unwrap_or(0),
         version: record::library_version(),
         os: &r.machine.os,
+        graph_format: r.library.settings.iter().find_map(|s| s.strip_prefix("TURBO_NPU_GRAPH_FORMAT=")),
     };
     // Only mixed rows back a capability; a dense record is a measurement.
     if r.rows.kind != record::ROWS_MIXED {

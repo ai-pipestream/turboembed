@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use turbo::bundle::{Bundle, sha256_hex};
-use turbo::manifest::{Manifest, Normalize, Pooling, PromptRole};
+use turbo::manifest::{Artifact, GraphInput, Manifest, Normalize, Pooling, PromptRole};
 use turbo::record::{Conformance, ROWS_DENSE, ROWS_MIXED, Timing};
 use turbo::safetensors::{self, Dtype};
 use turbo::{
@@ -129,7 +129,9 @@ pub struct Rows {
 impl Rows {
     /// `batch` rows of `seq` tokens: the reference cases no longer than
     /// `seq`, in order, repeated until the batch is full, each padded with
-    /// `pad` and mask 0; types all 0.
+    /// `pad` and mask 0; types all 0. A frame of one row holds one case;
+    /// the npu mixed path uses `cycle` so that frame still covers every
+    /// case that fits.
     pub fn build(reference: &Reference, pad: i32, batch: u32, seq: u32) -> Result<Rows> {
         let fit: Vec<u32> =
             (0..reference.ids.len() as u32).filter(|&i| reference.ids[i as usize].len() <= seq as usize).collect();
@@ -154,6 +156,31 @@ impl Rows {
             rows.cases.push(case);
         }
         Ok(rows)
+    }
+
+    /// Every reference case no longer than `seq`, in case order, each
+    /// padded to `seq` in its own frame of one row. `batch` stays 1.
+    /// That is the compiled frame: the cases are not stacked into a
+    /// wider batch the graph was not built for. Types are 0. One fitting
+    /// case is the same rows `build` makes at batch 1.
+    pub fn cycle(reference: &Reference, pad: i32, seq: u32) -> Result<Rows> {
+        let fit: Vec<u32> =
+            (0..reference.ids.len() as u32).filter(|&i| reference.ids[i as usize].len() <= seq as usize).collect();
+        if fit.is_empty() || seq == 0 {
+            return Err(format!("no reference case fits {seq} tokens"));
+        }
+        let seq_n = seq as usize;
+        let mut ids = vec![pad; fit.len() * seq_n];
+        let mut mask = vec![0i32; fit.len() * seq_n];
+        let mut cases = Vec::with_capacity(fit.len());
+        for (r, &case) in fit.iter().enumerate() {
+            let src = &reference.ids[case as usize];
+            let at = r * seq_n;
+            ids[at..at + src.len()].copy_from_slice(src);
+            mask[at..at + src.len()].fill(1);
+            cases.push(case);
+        }
+        Ok(Rows { kind: RowKind::Mixed, batch: 1, seq, ids, mask, types: vec![0; fit.len() * seq_n], cases })
     }
 
     /// `batch` rows of exactly `seq` live tokens: the reference cases of
@@ -222,23 +249,73 @@ impl Rows {
         self.mask.iter().filter(|&&m| m == 1).count() as u64
     }
 
+    /// Measured rows. One frame has `batch` of them. A batch-1 cycle has
+    /// one per fitting case.
+    pub fn row_count(&self) -> usize {
+        self.cases.len()
+    }
+
+    /// Compiled frames in this pass. A cycle of batch 1 is one frame per
+    /// case. Every other set is one frame.
+    pub fn frames(&self) -> usize {
+        self.row_count() / self.batch.max(1) as usize
+    }
+
+    /// Frame `frame` alone: `batch` rows of `seq`, its own cases.
+    pub fn frame(&self, frame: usize) -> Rows {
+        let rows = self.batch as usize;
+        let n = rows * self.seq as usize;
+        let start = frame * n;
+        let case_at = frame * rows;
+        Rows {
+            kind: self.kind,
+            batch: self.batch,
+            seq: self.seq,
+            ids: self.ids[start..start + n].to_vec(),
+            mask: self.mask[start..start + n].to_vec(),
+            types: self.types[start..start + n].to_vec(),
+            cases: self.cases[case_at..case_at + rows].to_vec(),
+        }
+    }
+
+    /// Frame `frame` as the batch `turbo_embed_write_tokens` is given.
+    pub fn frame_batch(&self, frame: usize) -> Batch<'_> {
+        let n = self.batch as usize * self.seq as usize;
+        let start = frame * n;
+        Batch {
+            batch: self.batch,
+            seq: self.seq,
+            ids: &self.ids[start..start + n],
+            mask: &self.mask[start..start + n],
+            types: &self.types[start..start + n],
+        }
+    }
+
+    /// Where frame `frame`'s input files are written, under `work`.
+    pub fn frame_dir(work: &std::path::Path, frame: usize) -> std::path::PathBuf {
+        work.join(format!("frame-{frame}"))
+    }
+
     /// The positions a packed run computes: each row's through its last
     /// live token.
     pub fn packed_tokens(&self) -> u64 {
         let seq = self.seq as usize;
-        (0..self.batch as usize)
+        (0..self.row_count())
             .map(|r| self.mask[r * seq..(r + 1) * seq].iter().rposition(|&m| m != 0).map_or(0, |p| p + 1) as u64)
             .sum()
     }
 
-    /// The positions a kernel on the padded rows computes: batch x seq.
+    /// The positions a kernel on the padded rows computes. One frame is
+    /// batch x seq. A batch-1 cycle is one frame per case, so the count
+    /// is every frame.
     pub fn padded_tokens(&self) -> u64 {
-        self.batch as u64 * self.seq as u64
+        self.row_count() as u64 * self.seq as u64
     }
 
     /// docs/benchmarks.md, "Token rows": SHA-256 of `turbo-bench rows 1`,
     /// a NUL, batch and seq as little-endian u32, then ids, mask and types
-    /// as little-endian i32, row-major.
+    /// as little-endian i32, row-major. A batch-1 cycle hashes every
+    /// frame in order; `batch` in the header stays 1.
     pub fn sha256(&self) -> String {
         let mut b = b"turbo-bench rows 1\0".to_vec();
         b.extend(self.batch.to_le_bytes());
@@ -364,9 +441,77 @@ pub fn library_settings(backend: &str, session: &turbo_session_info) -> Vec<Stri
                 .then(|| turbo::tuning::tuned_name(session.tuned).map(|t| format!("{v}={t}")))
                 .flatten(),
             Some("CHOICES") => (!choices.is_empty()).then(|| format!("{v}={choices}")),
+            // The device selected this. The environment cannot rename it.
+            Some("GRAPH_FORMAT") => (!choices.is_empty()).then(|| format!("{v}={choices}")),
+            // The bench appends this from the loaded artifact.
+            Some("GRAPH_INPUT") => None,
             _ => std::env::var(v).ok().map(|x| format!("{v}={x}")),
         })
         .collect()
+}
+
+/// The artifact the model loaded, by the hash `turbo_model_info` reports.
+pub fn loaded_artifact<'a>(manifest: &'a Manifest, artifact_sha256: &str) -> Result<&'a Artifact> {
+    manifest
+        .artifacts
+        .iter()
+        .find(|a| turbo::model::artifact_sha256(manifest, a) == artifact_sha256)
+        .ok_or_else(|| format!("the loaded artifact {artifact_sha256} is not in the manifest"))
+}
+
+/// The published npu cell is one compiled frame. `--batch` and `--seq`
+/// are the loaded artifact's `fixed_batch` and `fixed_seq`, both above
+/// 0. One library frame is one `benchmark_app` request of
+/// `[fixed_batch, fixed_seq]`. The token-id MiniLM seal
+/// (`openvino-f16`) is `--batch 1 --seq 128`. Omitting either flag is
+/// the tool's default shape, which is not that cell.
+pub fn require_compiled_frame(batch: Option<u32>, seq: Option<u32>, fixed_batch: u32, fixed_seq: u32) -> Result<()> {
+    if fixed_batch == 0 || fixed_seq == 0 {
+        return Err(
+            "npu: the loaded artifact has no fixed_batch and fixed_seq, so there is no one-frame cell to publish"
+                .into(),
+        );
+    }
+    if batch == Some(fixed_batch) && seq == Some(fixed_seq) {
+        return Ok(());
+    }
+    Err(format!(
+        "npu: the published cell is one compiled frame, --batch {fixed_batch} --seq {fixed_seq}. One library frame \
+         is one benchmark_app request of [{fixed_batch}, {fixed_seq}]. The token-id MiniLM seal (openvino-f16) is \
+         --batch 1 --seq 128"
+    ))
+}
+
+/// Token positions one library run computed. The npu graph executes
+/// each compiled frame whole, including positions the mask marks as
+/// padding. One frame is `batch` x `seq`. A mixed npu pass whose frame
+/// batch is 1 runs every fitting case as its own frame, so the count is
+/// that many frames times `seq`. Other backends pack through each row's
+/// last live token.
+pub fn library_computed_tokens(backend: &str, rows: &Rows) -> u64 {
+    if backend == "npu" { rows.padded_tokens() } else { rows.packed_tokens() }
+}
+
+/// As a record names a graph input.
+pub fn graph_input_name(input: GraphInput) -> &'static str {
+    match input {
+        GraphInput::TokenIds => "INPUT_TOKEN_IDS",
+        GraphInput::Embeddings => "INPUT_EMBEDDINGS",
+    }
+}
+
+/// Why an npu `INPUT_EMBEDDINGS` run must not be given a speed_ratio.
+/// The host gather is not `benchmark_app`'s full ONNX encoder. A
+/// library-only record (both references disabled) is allowed.
+pub fn npu_embeddings_speed<'a>(backend: &str, settings: &[String], tei: bool, openvino: bool) -> Option<&'a str> {
+    if backend == "npu" && settings.iter().any(|s| s == "TURBO_NPU_GRAPH_INPUT=INPUT_EMBEDDINGS") && (tei || openvino) {
+        Some(
+            "INPUT_EMBEDDINGS has no speed_ratio: the host gather is not benchmark_app's token-id graph. Pass \
+             --no-tei and --no-openvino to write a library-only record",
+        )
+    } else {
+        None
+    }
 }
 
 /// Load the bundle on the device, time the runs, and check the vectors.
@@ -391,13 +536,24 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
     let ctx = rt.context(index)?;
     let model = ctx.load(&bundle_dir)?;
     let mi = model.info()?;
+    let backend_name = field(&device.backend);
+    let loaded = loaded_artifact(&bundle.manifest, &field(&mi.artifact_sha256))?;
+    if backend_name == "npu" {
+        require_compiled_frame(plan.batch, plan.seq, loaded.fixed_batch, loaded.fixed_seq)?;
+    }
+    let graph_input = graph_input_name(loaded.graph_input);
 
     let seq = match plan.seq {
         Some(s) => s,
         None => reference.ids.iter().map(|r| r.len() as u32).filter(|&n| n <= mi.max_seq).max().unwrap_or(0),
     };
     let batch = plan.batch.unwrap_or(mi.max_batch.min(32));
+    // A compiled frame of one row holds case 0 only if the batch is
+    // filled and stopped. On npu that frame is fixed, so mixed rows
+    // cycle every case that fits, each in its own [1, seq] frame.
+    // Raising batch would name a shape the graph was not built for.
     let rows = match plan.rows {
+        RowKind::Mixed if backend_name == "npu" && batch == 1 => Rows::cycle(&reference, pad, seq)?,
         RowKind::Mixed => Rows::build(&reference, pad, batch, seq)?,
         RowKind::Dense => Rows::dense(&reference, &tokenizer, batch, seq)?,
     };
@@ -420,9 +576,9 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
     }
     // A row cut to seq has no reference vector: it should give what it
     // gives alone.
-    let mut expected = Vec::with_capacity(rows.batch as usize);
+    let mut expected = Vec::with_capacity(rows.row_count());
     let mut alone = std::collections::BTreeMap::new();
-    for r in 0..rows.batch as usize {
+    for r in 0..rows.row_count() {
         if rows.whole(r, &reference) {
             expected.push(reference.vectors[rows.cases[r] as usize].clone());
         } else {
@@ -437,20 +593,34 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         }
     }
 
-    let batch_rows = rows.as_batch();
-    let mut out = vec![0f32; batch as usize * dim];
+    // One pass is every frame, in order. A single frame is one embed of
+    // the batch, as before. A batch-1 cycle embeds each case on its own.
+    let frames = rows.frames();
+    let mut out = vec![0f32; rows.batch as usize * dim];
+    let mut last = Vec::with_capacity(rows.row_count());
     for _ in 0..plan.warmup {
-        session.embed_into(&batch_rows, &mut out)?;
+        for f in 0..frames {
+            session.embed_into(&rows.frame_batch(f), &mut out)?;
+        }
     }
     let mut ms = Vec::with_capacity(plan.iterations as usize);
     let started = Instant::now();
-    for _ in 0..plan.iterations {
+    for i in 0..plan.iterations {
         let t = Instant::now();
-        session.embed_into(&batch_rows, &mut out)?;
+        let keep = i + 1 == plan.iterations;
+        if keep {
+            last.clear();
+        }
+        for f in 0..frames {
+            session.embed_into(&rows.frame_batch(f), &mut out)?;
+            if keep {
+                last.extend(out.chunks(dim).map(<[f32]>::to_vec));
+            }
+        }
         ms.push(t.elapsed().as_secs_f64() * 1e3);
     }
     let total = started.elapsed().as_secs_f64();
-    let timed: Vec<Vec<f32>> = out.chunks(dim).map(<[f32]>::to_vec).collect();
+    let timed = last;
     for (r, v) in timed.iter().enumerate() {
         if rows.whole(r, &reference) {
             vectors.push(v.clone());
@@ -483,10 +653,13 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         mean_ms: ms.iter().sum::<f64>() / ms.len() as f64,
         min_ms: sorted[0],
         max_ms: sorted[sorted.len() - 1],
-        rows_per_second: (batch as f64 * plan.iterations as f64) / total,
-        computed_tokens: Some(rows.packed_tokens()),
+        rows_per_second: (rows.row_count() as f64 * plan.iterations as f64) / total,
+        computed_tokens: Some(library_computed_tokens(&backend_name, &rows)),
     };
-    let settings = library_settings(&field(&device.backend), &si);
+    let mut settings = library_settings(&backend_name, &si);
+    if backend_name == "npu" {
+        settings.push(format!("TURBO_NPU_GRAPH_INPUT={graph_input}"));
+    }
     Ok(Measurement {
         device,
         host_cpu,
@@ -504,4 +677,112 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         expected,
         settings,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn padded_row() -> Rows {
+        // One row of 128, four live tokens at the start. A packed count
+        // stops at the last live token. The npu frame runs all 128.
+        let mut mask = vec![0; 128];
+        mask[..4].fill(1);
+        Rows { kind: RowKind::Mixed, batch: 1, seq: 128, ids: vec![1; 128], mask, types: vec![0; 128], cases: vec![0] }
+    }
+
+    #[test]
+    fn npu_counts_the_compiled_frame_and_other_backends_pack() {
+        let rows = padded_row();
+        assert_eq!(rows.packed_tokens(), 4);
+        assert_eq!(library_computed_tokens("npu", &rows), 128);
+        assert_eq!(library_computed_tokens("cpu", &rows), 4);
+        assert_eq!(library_computed_tokens("levelzero", &rows), 4);
+    }
+
+    #[test]
+    fn the_published_npu_cell_is_the_compiled_frame() {
+        assert!(require_compiled_frame(Some(1), Some(128), 1, 128).is_ok());
+        let omitted = require_compiled_frame(None, None, 1, 128).unwrap_err();
+        assert!(omitted.contains("--batch 1 --seq 128"), "{omitted}");
+        assert!(omitted.contains("openvino-f16"), "{omitted}");
+        assert!(omitted.contains("[1, 128]"), "{omitted}");
+        let other = require_compiled_frame(Some(32), Some(128), 1, 128).unwrap_err();
+        assert!(other.contains("--batch 1 --seq 128"), "{other}");
+        assert!(require_compiled_frame(Some(1), Some(64), 1, 128).is_err());
+    }
+
+    #[test]
+    fn npu_graph_format_comes_from_the_session_choices() {
+        let mut session: turbo_session_info = unsafe { std::mem::zeroed() };
+        session.tuned = turbo::TURBO_TUNED_DEFAULT;
+        for (i, b) in b"NGRAPH_LITE".iter().enumerate() {
+            session.choices[i] = *b as _;
+        }
+        assert_eq!(library_settings("npu", &session), ["TURBO_NPU_GRAPH_FORMAT=NGRAPH_LITE"]);
+        session.choices = [0; turbo::TURBO_CHOICES_LEN];
+        for (i, b) in b"NATIVE".iter().enumerate() {
+            session.choices[i] = *b as _;
+        }
+        assert_eq!(library_settings("npu", &session), ["TURBO_NPU_GRAPH_FORMAT=NATIVE"]);
+        // Empty choices do not invent a format, and GRAPH_INPUT is not
+        // taken from the environment.
+        session.choices[0] = 0;
+        assert!(library_settings("npu", &session).is_empty());
+    }
+
+    #[test]
+    fn embeddings_have_no_speed_ratio() {
+        let settings = vec!["TURBO_NPU_GRAPH_INPUT=INPUT_EMBEDDINGS".into()];
+        let why = npu_embeddings_speed("npu", &settings, true, false).unwrap();
+        assert!(why.contains("INPUT_EMBEDDINGS has no speed_ratio"), "{why}");
+        assert!(npu_embeddings_speed("npu", &settings, false, true).is_some());
+        assert!(npu_embeddings_speed("npu", &settings, false, false).is_none());
+        let token = vec!["TURBO_NPU_GRAPH_INPUT=INPUT_TOKEN_IDS".into()];
+        assert!(npu_embeddings_speed("npu", &token, true, true).is_none());
+        assert!(npu_embeddings_speed("levelzero", &settings, true, true).is_none());
+    }
+
+    fn cases_of(lengths: &[usize]) -> Reference {
+        Reference {
+            texts: lengths.iter().map(|_| ("t".into(), 0)).collect(),
+            ids: lengths.iter().map(|&n| vec![7; n]).collect(),
+            vectors: lengths.iter().map(|_| vec![1.0]).collect(),
+        }
+    }
+
+    #[test]
+    fn a_batch_of_one_cycles_every_fitting_case_in_its_own_frame() {
+        // Length 200 does not fit seq 128. The other three do, in case order.
+        let reference = cases_of(&[2, 5, 200, 4]);
+        let rows = Rows::cycle(&reference, 0, 128).unwrap();
+        assert_eq!((rows.batch, rows.seq, rows.frames()), (1, 128, 3));
+        assert_eq!(rows.cases, vec![0, 1, 3]);
+        assert_eq!(rows.ids.len(), 3 * 128);
+        assert_eq!(rows.live(0), &[7, 7]);
+        assert_eq!(rows.live(1).len(), 5);
+        assert_eq!(rows.live(2).len(), 4);
+        assert!(rows.mask[2..128].iter().all(|&m| m == 0), "case 0 is padded out to the frame");
+        for f in 0..rows.frames() {
+            let frame = rows.frame(f);
+            assert_eq!((frame.batch, frame.seq, frame.frames(), frame.ids.len()), (1, 128, 1, 128));
+            assert_eq!(frame.cases, vec![rows.cases[f]]);
+            assert_eq!(frame.ids, rows.frame_batch(f).ids);
+        }
+        // One fitting case is the single frame build already made.
+        let only = cases_of(&[2]);
+        assert_eq!(Rows::cycle(&only, 9, 16).unwrap(), Rows::build(&only, 9, 1, 16).unwrap());
+        // A wider batch still fills one frame and cycles inside it.
+        let wide = Rows::build(&reference, 0, 4, 128).unwrap();
+        assert_eq!(wide.frames(), 1);
+        assert_eq!(wide.cases, vec![0, 1, 3, 0]);
+        assert_eq!(wide.padded_tokens(), 4 * 128);
+        // The cycle does not pretend the graph's batch is the case count.
+        assert_eq!(rows.padded_tokens(), 3 * 128);
+        assert_eq!(library_computed_tokens("npu", &rows), 3 * 128);
+        assert_eq!(library_computed_tokens("cpu", &rows), 2 + 5 + 4);
+        assert_ne!(rows.sha256(), Rows::build(&reference, 0, 1, 128).unwrap().sha256());
+        assert!(Rows::cycle(&reference, 0, 1).is_err(), "no case is one token");
+        assert_eq!(Rows::frame_dir(std::path::Path::new("/w"), 2), std::path::Path::new("/w/frame-2"));
+    }
 }

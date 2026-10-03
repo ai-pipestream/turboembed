@@ -1,0 +1,13 @@
+# The sealed test bundles are verified by size and SHA-256 on every
+# load (docs/bundle.md): their bytes must come out of a checkout exactly
+# as committed. Without this, a Windows clone with core.autocrlf
+# rewrites the JSON files' line endings and every load fails with a
+# size mismatch (tokenizer.json 742346 vs the manifest's 711661, say).
+testdata/** -text
+
+# Recipe-local files are hashed when a bundle is staged. The MiniLM
+# calibration jsonl is pinned at the LF bytes in the commit
+# (bde646a9a523e6dbb93315343bd363890ef31510625aee4a2e8c7a6fda65c3b4).
+# Without this, core.autocrlf rewrites it and make refuses the file
+# (local sha256 9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940).
+bundle/recipes/*.jsonl -text

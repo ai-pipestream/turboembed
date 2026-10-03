@@ -1,20 +1,19 @@
-//! The part of the Level Zero C API this backend calls, from
-//! level_zero/ze_api.h, zes_api.h and loader/ze_loader.h. zeInitDrivers
-//! needs a 1.10 or later loader.
+//! The GPU-only part of the Level Zero C API this backend calls, from
+//! level_zero/ze_api.h and zes_api.h: modules, kernels, events and
+//! sysman. The loader and the structs both backends share live in
+//! crate::ze.
 
 use std::ffi::{c_char, c_void};
 
-pub type Handle = *mut c_void;
-pub type Status = i32;
+pub use crate::ze::{
+    Api as CoreApi, COMMAND_QUEUE_FLAG_IN_ORDER, COMMAND_QUEUE_MODE_ASYNCHRONOUS, COMMAND_QUEUE_PRIORITY_NORMAL,
+    CommandQueueDesc, ContextDesc, DeviceMemoryProperties, DeviceProperties, DriverProperties, Handle,
+    HostMemAllocDesc, InitDriverTypeDesc, RESULT_ERROR_OUT_OF_DEVICE_MEMORY, RESULT_ERROR_OUT_OF_HOST_MEMORY,
+    RESULT_ERROR_UNINITIALIZED, STRUCTURE_TYPE_COMMAND_QUEUE_DESC, STRUCTURE_TYPE_CONTEXT_DESC,
+    STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES, STRUCTURE_TYPE_DEVICE_PROPERTIES, STRUCTURE_TYPE_DRIVER_PROPERTIES,
+    STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC, STRUCTURE_TYPE_INIT_DRIVER_TYPE_DESC, Status, string,
+};
 
-pub const RESULT_ERROR_UNINITIALIZED: Status = 0x7800_0001;
-pub const RESULT_ERROR_OUT_OF_HOST_MEMORY: Status = 0x7000_0002;
-pub const RESULT_ERROR_OUT_OF_DEVICE_MEMORY: Status = 0x7000_0003;
-
-pub const STRUCTURE_TYPE_DRIVER_PROPERTIES: u32 = 0x1;
-pub const STRUCTURE_TYPE_DEVICE_PROPERTIES: u32 = 0x3;
-pub const STRUCTURE_TYPE_DEVICE_MEMORY_PROPERTIES: u32 = 0x7;
-pub const STRUCTURE_TYPE_INIT_DRIVER_TYPE_DESC: u32 = 0x0002_0021;
 pub const ZES_STRUCTURE_TYPE_DEVICE_PROPERTIES: u32 = 0x1;
 pub const ZES_STRUCTURE_TYPE_MEM_PROPERTIES: u32 = 0xb;
 pub const ZES_STRUCTURE_TYPE_MEM_STATE: u32 = 0x1e;
@@ -33,34 +32,14 @@ pub const MEMORY_TYPE_UNKNOWN: u32 = 0;
 pub const MEMORY_TYPE_HOST: u32 = 1;
 pub const MEMORY_TYPE_DEVICE: u32 = 2;
 pub const MEMORY_TYPE_SHARED: u32 = 3;
-pub const STRUCTURE_TYPE_COMMAND_QUEUE_DESC: u32 = 0xe;
 pub const STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC: u32 = 0x15;
-pub const STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC: u32 = 0x16;
 pub const STRUCTURE_TYPE_MODULE_DESC: u32 = 0x1b;
 pub const STRUCTURE_TYPE_KERNEL_DESC: u32 = 0x1d;
-pub const STRUCTURE_TYPE_CONTEXT_DESC: u32 = 0xd;
 pub const MODULE_FORMAT_IL_SPIRV: u32 = 0;
-pub const COMMAND_QUEUE_FLAG_IN_ORDER: u32 = 2;
-pub const COMMAND_QUEUE_MODE_ASYNCHRONOUS: u32 = 2;
-pub const COMMAND_QUEUE_PRIORITY_NORMAL: u32 = 0;
 pub const INIT_DRIVER_TYPE_FLAG_GPU: u32 = 1;
 pub const DEVICE_TYPE_GPU: u32 = 1;
 pub const DEVICE_PROPERTY_FLAG_INTEGRATED: u32 = 1;
 pub const ZES_MEM_LOC_DEVICE: u32 = 1;
-
-#[repr(C)]
-pub struct InitDriverTypeDesc {
-    pub stype: u32,
-    pub p_next: *const c_void,
-    pub flags: u32,
-}
-
-#[repr(C)]
-pub struct ContextDesc {
-    pub stype: u32,
-    pub p_next: *const c_void,
-    pub flags: u32,
-}
 
 #[repr(C)]
 pub struct ModuleDesc {
@@ -87,24 +66,6 @@ pub struct DeviceMemAllocDesc {
     pub p_next: *const c_void,
     pub flags: u32,
     pub ordinal: u32,
-}
-
-#[repr(C)]
-pub struct HostMemAllocDesc {
-    pub stype: u32,
-    pub p_next: *const c_void,
-    pub flags: u32,
-}
-
-#[repr(C)]
-pub struct CommandQueueDesc {
-    pub stype: u32,
-    pub p_next: *const c_void,
-    pub ordinal: u32,
-    pub index: u32,
-    pub flags: u32,
-    pub mode: u32,
-    pub priority: u32,
 }
 
 #[repr(C)]
@@ -192,50 +153,6 @@ pub struct KernelProperties {
 }
 
 #[repr(C)]
-pub struct DriverProperties {
-    pub stype: u32,
-    pub p_next: *mut c_void,
-    pub uuid: [u8; 16],
-    pub driver_version: u32,
-}
-
-#[repr(C)]
-pub struct DeviceProperties {
-    pub stype: u32,
-    pub p_next: *mut c_void,
-    pub kind: u32,
-    pub vendor_id: u32,
-    pub device_id: u32,
-    pub flags: u32,
-    pub subdevice_id: u32,
-    pub core_clock_rate: u32,
-    pub max_mem_alloc_size: u64,
-    pub max_hardware_contexts: u32,
-    pub max_command_queue_priority: u32,
-    pub num_threads_per_eu: u32,
-    pub physical_eu_simd_width: u32,
-    pub num_eus_per_subslice: u32,
-    pub num_subslices_per_slice: u32,
-    pub num_slices: u32,
-    pub timer_resolution: u64,
-    pub timestamp_valid_bits: u32,
-    pub kernel_timestamp_valid_bits: u32,
-    pub uuid: [u8; 16],
-    pub name: [c_char; 256],
-}
-
-#[repr(C)]
-pub struct DeviceMemoryProperties {
-    pub stype: u32,
-    pub p_next: *mut c_void,
-    pub flags: u32,
-    pub max_clock_rate: u32,
-    pub max_bus_width: u32,
-    pub total_size: u64,
-    pub name: [c_char; 256],
-}
-
-#[repr(C)]
 pub struct SysmanDeviceProperties {
     pub stype: u32,
     pub p_next: *mut c_void,
@@ -271,15 +188,6 @@ pub struct MemState {
     pub size: u64,
 }
 
-#[repr(C)]
-pub struct ComponentVersion {
-    pub component_name: [c_char; 64],
-    pub spec_version: u32,
-    pub major: i32,
-    pub minor: i32,
-    pub patch: i32,
-}
-
 // Every struct here is plain data whose all-zero value is valid.
 macro_rules! zeroed_default {
     ($($t:ty),*) => {$(
@@ -295,27 +203,16 @@ zeroed_default!(
     DeviceComputeProperties,
     DeviceModuleProperties,
     MemoryAllocationProperties,
-    DriverProperties,
-    DeviceProperties,
-    DeviceMemoryProperties,
     SysmanDeviceProperties,
     MemProperties,
-    MemState,
-    ComponentVersion
+    MemState
 );
 
 pub struct Api {
-    // Keeps the function pointers below valid.
-    _lib: libloading::Library,
-    pub init_drivers: unsafe extern "C" fn(*mut u32, *mut Handle, *mut InitDriverTypeDesc) -> Status,
-    pub driver_get_properties: unsafe extern "C" fn(Handle, *mut DriverProperties) -> Status,
-    pub device_get: unsafe extern "C" fn(Handle, *mut u32, *mut Handle) -> Status,
-    pub device_get_properties: unsafe extern "C" fn(Handle, *mut DeviceProperties) -> Status,
-    pub device_get_memory_properties: unsafe extern "C" fn(Handle, *mut u32, *mut DeviceMemoryProperties) -> Status,
+    pub core: CoreApi,
     pub device_get_compute_properties: unsafe extern "C" fn(Handle, *mut DeviceComputeProperties) -> Status,
     pub device_get_module_properties: unsafe extern "C" fn(Handle, *mut DeviceModuleProperties) -> Status,
     pub compute: ComputeApi,
-    loader_get_versions: Option<unsafe extern "C" fn(*mut usize, *mut ComponentVersion) -> Status>,
     pub sysman: Option<SysmanApi>,
 }
 
@@ -374,27 +271,23 @@ pub struct SysmanApi {
     pub memory_get_state: unsafe extern "C" fn(Handle, *mut MemState) -> Status,
 }
 
-#[cfg(windows)]
-const LOADER: &str = "ze_loader.dll";
-#[cfg(not(windows))]
-const LOADER: &str = "libze_loader.so.1";
-
 impl Api {
     /// None when the loader is not installed. A loader without
     /// zeInitDrivers predates Level Zero 1.10 and is an error.
     pub fn load() -> Result<Option<Api>, String> {
-        let Ok(lib) = (unsafe { libloading::Library::new(LOADER) }) else {
+        let Some(core) = CoreApi::load("levelzero")? else {
             return Ok(None);
         };
-        let need = |name: &str| format!("levelzero: {LOADER} has no {name}; Level Zero 1.10 or later is needed");
+        // A closure is one type. Each symbol is a different function
+        // pointer, so the lookup is expanded at the field.
         macro_rules! sym {
             ($name:literal) => {
-                *unsafe { lib.get(concat!($name, "\0").as_bytes()) }.map_err(|_| need($name))?
+                core.symbol("levelzero", $name)?
             };
         }
         macro_rules! opt {
             ($name:literal) => {
-                unsafe { lib.get(concat!($name, "\0").as_bytes()) }.ok().map(|s| *s)
+                core.optional_symbol($name)
             };
         }
         let sysman = (|| {
@@ -409,20 +302,15 @@ impl Api {
             })
         })();
         Ok(Some(Api {
-            init_drivers: sym!("zeInitDrivers"),
-            driver_get_properties: sym!("zeDriverGetProperties"),
-            device_get: sym!("zeDeviceGet"),
-            device_get_properties: sym!("zeDeviceGetProperties"),
-            device_get_memory_properties: sym!("zeDeviceGetMemoryProperties"),
             device_get_compute_properties: sym!("zeDeviceGetComputeProperties"),
             device_get_module_properties: sym!("zeDeviceGetModuleProperties"),
             compute: ComputeApi {
-                context_create: sym!("zeContextCreate"),
-                context_destroy: sym!("zeContextDestroy"),
+                context_create: core.context_create,
+                context_destroy: core.context_destroy,
                 mem_alloc_device: sym!("zeMemAllocDevice"),
-                mem_alloc_host: sym!("zeMemAllocHost"),
+                mem_alloc_host: core.mem_alloc_host,
                 mem_alloc_shared: sym!("zeMemAllocShared"),
-                mem_free: sym!("zeMemFree"),
+                mem_free: core.mem_free,
                 mem_get_alloc_properties: sym!("zeMemGetAllocProperties"),
                 module_create: sym!("zeModuleCreate"),
                 module_destroy: sym!("zeModuleDestroy"),
@@ -433,11 +321,11 @@ impl Api {
                 kernel_get_properties: sym!("zeKernelGetProperties"),
                 kernel_set_group_size: sym!("zeKernelSetGroupSize"),
                 kernel_set_argument_value: sym!("zeKernelSetArgumentValue"),
-                command_list_create_immediate: sym!("zeCommandListCreateImmediate"),
-                command_list_destroy: sym!("zeCommandListDestroy"),
+                command_list_create_immediate: core.command_list_create_immediate,
+                command_list_destroy: core.command_list_destroy,
                 command_list_append_launch_kernel: sym!("zeCommandListAppendLaunchKernel"),
                 command_list_append_memory_copy: sym!("zeCommandListAppendMemoryCopy"),
-                command_list_host_synchronize: sym!("zeCommandListHostSynchronize"),
+                command_list_host_synchronize: core.command_list_host_synchronize,
                 event_pool_create: sym!("zeEventPoolCreate"),
                 event_pool_destroy: sym!("zeEventPoolDestroy"),
                 event_create: sym!("zeEventCreate"),
@@ -446,48 +334,24 @@ impl Api {
                 event_host_reset: sym!("zeEventHostReset"),
                 event_query_kernel_timestamp: sym!("zeEventQueryKernelTimestamp"),
             },
-            loader_get_versions: opt!("zelLoaderGetVersions"),
             sysman,
-            _lib: lib,
+            core,
         }))
     }
 
     /// The loader's own version, "" when it does not say.
     pub fn loader_version(&self) -> String {
-        let Some(f) = self.loader_get_versions else {
-            return String::new();
-        };
-        let mut n = 0usize;
-        if unsafe { f(&mut n, std::ptr::null_mut()) } != 0 {
-            return String::new();
-        }
-        let mut v: Vec<ComponentVersion> = (0..n).map(|_| ComponentVersion::default()).collect();
-        if unsafe { f(&mut n, v.as_mut_ptr()) } != 0 {
-            return String::new();
-        }
-        v.truncate(n);
-        v.iter()
-            .find(|c| string(&c.component_name) == "loader")
-            .map_or_else(String::new, |c| format!("{}.{}.{}", c.major, c.minor, c.patch))
+        self.core.loader_version()
     }
 }
 
 pub fn check(what: &str, rc: Status) -> Result<(), String> {
-    if rc != 0 { Err(format!("levelzero: {what} failed with 0x{rc:08x}")) } else { Ok(()) }
+    crate::ze::check("levelzero", what, rc)
 }
 
 /// The two-call pattern: ask for the count, then fill that many.
-pub fn list(what: &str, mut f: impl FnMut(*mut u32, *mut Handle) -> Status) -> Result<Vec<Handle>, String> {
-    let mut n = 0u32;
-    check(what, f(&mut n, std::ptr::null_mut()))?;
-    let mut out = vec![std::ptr::null_mut(); n as usize];
-    check(what, f(&mut n, out.as_mut_ptr()))?;
-    out.truncate(n as usize);
-    Ok(out)
-}
-
-pub fn string(b: &[c_char]) -> String {
-    crate::backend::cstr(b)
+pub fn list(what: &str, f: impl FnMut(*mut u32, *mut Handle) -> Status) -> Result<Vec<Handle>, String> {
+    crate::ze::list("levelzero", what, f)
 }
 
 #[cfg(test)]

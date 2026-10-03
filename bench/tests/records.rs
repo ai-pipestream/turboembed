@@ -26,6 +26,7 @@ fn cpu_cell(f: impl FnOnce(&Cell)) {
         dtype: TURBO_DTYPE_F32,
         version: record::library_version(),
         os: std::env::consts::OS,
+        graph_format: None,
     };
     f(&cell)
 }
@@ -284,6 +285,8 @@ fn a_record_that_is_not_well_formed_is_refused() {
         "holds a host path",
     );
     refused(&|x| x.device.name = "/home/".into(), "holds a host path");
+    refused(&|x| x.device.name = r"C:\Users\someone".into(), "holds a host path");
+    refused(&|x| x.references[0].procedure = "read C:/Users/someone/upstream".into(), "holds a host path");
     refused(&|x| x.library.settings = vec!["TURBO_CUDA_TILE=128x64".into()], "library.settings");
     refused(&|x| x.library.settings = vec!["TURBO_CPU_THREADS".into()], "library.settings");
     refused(&|x| x.library.settings = vec!["TURBO_CPU_THREADS=2".into(), "TURBO_CPU_THREADS=3".into()], "each once");
@@ -399,6 +402,7 @@ fn levelzero_cell(f: impl FnOnce(&Cell)) {
         dtype: TURBO_DTYPE_F32,
         version: record::library_version(),
         os: std::env::consts::OS,
+        graph_format: None,
     })
 }
 
@@ -628,4 +632,93 @@ fn the_capability_is_what_the_compiled_in_records_decide() {
             }
         });
     }
+}
+
+/// An npu record as the tool would file one: the CPU measurement's
+/// figures, the compiled frame as computed tokens, and the two settings
+/// the bench writes. No NPU is measured here.
+fn npu_record(name: &str, format: &str, input: &str, references: Vec<ReferenceRun>) -> Record {
+    let mut r = cpu_record(name, references);
+    r.device.backend = "npu".into();
+    r.device.kind = "DEVICE_NPU".into();
+    r.device.name = "Intel(R) AI Boost".into();
+    r.machine.arch = "arl-npu".into();
+    r.library.settings = vec![format!("TURBO_NPU_GRAPH_FORMAT={format}"), format!("TURBO_NPU_GRAPH_INPUT={input}")];
+    r.timing.computed_tokens = Some(r.rows.batch as u64 * r.rows.seq as u64);
+    r
+}
+
+fn npu_cell<'a>(format: &'a str) -> Cell<'a> {
+    Cell {
+        arch: "arl-npu",
+        name: "Intel(R) AI Boost",
+        cpu: false,
+        backend: "npu",
+        task: TURBO_TASK_EMBED,
+        precision: TURBO_PRECISION_MODEL,
+        dtype: TURBO_DTYPE_F32,
+        version: record::library_version(),
+        os: std::env::consts::OS,
+        graph_format: Some(format),
+    }
+}
+
+#[test]
+fn an_npu_record_names_its_graph_format_and_refuses_a_host_gather_ratio() {
+    let r = npu_record("lite", "NGRAPH_LITE", "INPUT_TOKEN_IDS", vec![measured_reference(OV)]);
+    let name = record::file_name(&r).unwrap();
+    assert!(name.contains(".npu.ngraph-lite."), "{name}");
+    assert!(reparse(&r).is_ok());
+    assert!(r.is_for(&npu_cell("NGRAPH_LITE")));
+    assert!(!r.is_for(&npu_cell("NATIVE")), "a later driver advertising bit 0x1 is another cell");
+
+    let mut bare = r.clone();
+    bare.library.settings.clear();
+    assert!(reparse(&bare).unwrap_err().contains("TURBO_NPU_GRAPH_FORMAT"));
+
+    let mut packed = r.clone();
+    packed.timing.computed_tokens = Some(packed.rows.live_tokens);
+    assert!(
+        packed.rows.live_tokens < packed.rows.batch as u64 * packed.rows.seq as u64,
+        "the fixture must have padding, or this does not tell the frame from the packed count"
+    );
+    assert!(reparse(&packed).unwrap_err().contains("compiled frame"));
+
+    let native = npu_record("native", "NATIVE", "INPUT_TOKEN_IDS", vec![measured_reference(OV)]);
+    assert!(record::file_name(&native).unwrap().contains(".npu.native."));
+    assert!(reparse(&native).is_ok());
+    assert!(!native.is_for(&npu_cell("NGRAPH_LITE")));
+
+    let embeddings = npu_record("gather", "NGRAPH_LITE", "INPUT_EMBEDDINGS", vec![measured_reference(OV)]);
+    assert!(reparse(&embeddings).unwrap_err().contains("INPUT_EMBEDDINGS has no speed_ratio"));
+
+    let mut library_only = npu_record("gather-only", "NGRAPH_LITE", "INPUT_EMBEDDINGS", vec![]);
+    library_only.speed_ratio = None;
+    library_only.speed_reference = None;
+    assert!(reparse(&library_only).is_ok(), "{}", reparse(&library_only).unwrap_err());
+}
+
+#[test]
+fn a_batch_1_mixed_cycle_counts_every_frame() {
+    let mut r = npu_record("cycle", "NGRAPH_LITE", "INPUT_TOKEN_IDS", vec![measured_reference(OV)]);
+    r.rows.batch = 1;
+    r.rows.seq = 128;
+    r.rows.cases = vec![0, 1, 3, 4];
+    r.rows.live_tokens = 40;
+    let positions = 4 * 128;
+    r.timing.computed_tokens = Some(positions);
+    r.references[0].measured.as_mut().unwrap().computed_tokens = Some(positions);
+    assert!(reparse(&r).is_ok(), "{}", reparse(&r).unwrap_err());
+    assert!(r.is_for(&npu_cell("NGRAPH_LITE")));
+
+    // One frame's positions are not the pass.
+    r.timing.computed_tokens = Some(128);
+    assert!(reparse(&r).unwrap_err().contains("compiled frame"));
+
+    // A wider batch still needs one case per row.
+    r.rows.batch = 4;
+    r.timing.computed_tokens = Some(positions);
+    assert!(reparse(&r).is_ok(), "{}", reparse(&r).unwrap_err());
+    r.rows.cases.push(5);
+    assert!(reparse(&r).unwrap_err().contains("cases one per row"));
 }

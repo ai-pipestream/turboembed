@@ -92,6 +92,8 @@ pub struct turbo_backend_model {
     pub fixed_batch: u32,
     pub artifact: *const c_void,
     pub artifact_bytes: u64,
+    pub artifact2: *const c_void,
+    pub artifact2_bytes: u64,
 }
 
 #[repr(C)]
@@ -270,6 +272,8 @@ static LINKED: &[&turbo_backend] = &[
     unsafe {
         &crate::hailo::turbo_hailo_backend
     },
+    #[cfg(feature = "npu")]
+    &crate::npu::BACKEND,
     #[cfg(feature = "cpu")]
     &crate::cpu::BACKEND,
 ];

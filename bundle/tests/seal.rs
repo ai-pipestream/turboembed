@@ -90,6 +90,17 @@ fn reported_hef() -> Value {
     json!({ "tool": "hailo-dataflow-compiler", "tool_version": "5.4.0", "settings": ["hw_arch=hailo10h", "seq=128"] })
 }
 
+/// What the IR conversion reports, in the form onnx_to_openvino_ir.py writes it.
+fn reported_ir() -> Value {
+    json!({
+        "tool": "openvino.save_model",
+        "tool_version": "2026.3.0",
+        "container": CONTAINER,
+        "reproducible": true,
+        "settings": ["seq=128", "batch=1", "max_opset=11", "compress_to_fp16=True", "output_precision=FP16"],
+    })
+}
+
 /// Each converted artifact as a run makes it: its file written, and its
 /// produced_by from what the run reported, in the container it ran in.
 fn converted(r: &Recipe, bundle: &Path) -> Vec<(String, Value)> {
@@ -99,11 +110,19 @@ fn converted(r: &Recipe, bundle: &Path) -> Vec<(String, Value)> {
         .map(|c| {
             let file = bundle.join(&c.file);
             fs::create_dir_all(file.parent().unwrap()).unwrap();
-            let (bytes, reported, container) = match &c.container {
-                Some(k) => (HEF, reported_hef(), k.clone()),
-                None => (ONNX_F16, reported_f16(), CONTAINER.to_owned()),
+            let (bytes, reported, container) = if c.file2.is_some() {
+                (b"<ir>".as_slice(), reported_ir(), CONTAINER.to_owned())
+            } else {
+                match &c.container {
+                    Some(k) => (HEF, reported_hef(), k.clone()),
+                    None => (ONNX_F16, reported_f16(), CONTAINER.to_owned()),
+                }
             };
             fs::write(file, bytes).unwrap();
+            if let Some(f2) = &c.file2 {
+                fs::create_dir_all(bundle.join(f2).parent().unwrap()).unwrap();
+                fs::write(bundle.join(f2), b"<weights>").unwrap();
+            }
             (c.name.clone(), convert::produced_by(&reported, &container, &c, true).unwrap())
         })
         .collect()
@@ -147,6 +166,10 @@ fn a_sealed_bundle_loads_through_the_core() {
             "hailo/model-hailo10h-s128.hef",
             "onnx/model-f16.onnx",
             "onnx/model.onnx",
+            "openvino/embeddings.bin",
+            "openvino/embeddings.xml",
+            "openvino/model.bin",
+            "openvino/model.xml",
             "reference/reference.safetensors",
             "tokenizer.json",
             "weights/model.safetensors"
@@ -166,6 +189,22 @@ fn a_sealed_bundle_loads_through_the_core() {
             "reproducible": true
         })
     );
+    let ir = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "openvino-f16").unwrap();
+    assert_eq!(
+        ir["produced_by"]["args"],
+        json!([
+            "onnx/model.onnx",
+            "openvino/model.xml",
+            "openvino/model.bin",
+            "seq=128",
+            "batch=1",
+            "max_opset=11",
+            "compress_to_fp16=True",
+            "output_precision=FP16"
+        ])
+    );
+    assert_eq!(ir["produced_by"]["tool"], "openvino.save_model");
+    assert_eq!(ir["backends"], json!(["npu"]));
     // The HEF's produced_by names its container and calibration texts,
     // which are in the bundle, with the compile's settings from the run.
     let hef = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "hef-hailo10h-s128").unwrap();
@@ -220,12 +259,86 @@ fn the_recipe_carries_upstreams_onnx_export_for_reference_programs_only() {
             from: "onnx-f32".into(),
             from_file: "onnx/model.onnx".into(),
             from_upstream: false,
+            file2: None,
             script: convert::ONNX_F16,
             container: None,
             inputs: vec![],
             args: vec![],
         }
     );
+}
+
+/// The static-shape OpenVINO IR the npu backend loads: two files, made
+/// from the upstream export in the reference container.
+#[test]
+fn an_openvino_ir_is_two_files_at_a_fixed_shape() {
+    let r = Recipe::load(&root().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap();
+    let c = convert::conversions(&r).unwrap();
+    let ir = c.iter().find(|c| c.name == "openvino-f16").expect("the recipe converts an IR");
+    assert_eq!(
+        ir,
+        &convert::Conversion {
+            name: "openvino-f16".into(),
+            file: "openvino/model.xml".into(),
+            file2: Some("openvino/model.bin".into()),
+            from: "onnx-f32".into(),
+            from_file: "onnx/model.onnx".into(),
+            from_upstream: false,
+            script: convert::ONNX_TO_OPENVINO_IR,
+            container: None,
+            inputs: vec![],
+            args: vec!["--seq".into(), "128".into(), "--batch".into(), "1".into(), "--max-opset".into(), "11".into()],
+        }
+    );
+    let cut = c.iter().find(|c| c.name == "openvino-embeddings-f16").expect("the recipe converts an embeddings IR");
+    assert_eq!(cut.file, "openvino/embeddings.xml");
+    assert_eq!(cut.file2.as_deref(), Some("openvino/embeddings.bin"));
+    let want: Vec<String> = [
+        "--seq",
+        "128",
+        "--batch",
+        "1",
+        "--max-opset",
+        "11",
+        "--cut",
+        "embeddings",
+        "--heads",
+        "12",
+        "--tokenizer",
+        "/bundle/tokenizer.json",
+        "--calibration",
+        "/bundle/calibration/texts.jsonl",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(cut.args, want);
+    let d = scratch("ir-conversion");
+    let write = |edit: &dyn Fn(&mut Value)| {
+        let mut r: Value = serde_json::from_slice(&fs::read(tiny_recipe(&d)).unwrap()).unwrap();
+        edit(
+            r["manifest"]["artifacts"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|a| a["name"] == "openvino-f16")
+                .unwrap(),
+        );
+        let p = d.join("edited.json");
+        fs::write(&p, serde_json::to_vec(&r).unwrap()).unwrap();
+        Recipe::load(&p).map(|_| ())
+    };
+    write(&|_| {}).unwrap();
+    let e = write(&|a| {
+        a.as_object_mut().unwrap().remove("fixed_seq");
+    })
+    .unwrap_err();
+    assert!(e.contains("gives fixed_seq"), "{e}");
+    let e = write(&|a| a["files"] = json!(["openvino/model.xml"])).unwrap_err();
+    assert!(e.contains("two files"), "{e}");
+    let e = write(&|a| a["compute_dtype"] = json!("DTYPE_F32")).unwrap_err();
+    assert!(e.contains("DTYPE_F16 OpenVINO IR"), "{e}");
+    fs::remove_dir_all(d).unwrap();
 }
 
 #[test]
@@ -292,7 +405,12 @@ fn a_conversion_that_did_not_run_is_not_sealed() {
     let r = Recipe::load(&bundle.parent().unwrap().join("recipe.json")).unwrap();
     let pb = reference::produced_by(&reported(), CONTAINER).unwrap();
     let e = seal::seal(&r, &bundle, pb, vec![]).unwrap_err();
-    assert!(e.contains("the recipe converts [\"onnx-f16\", \"hef-hailo10h-s128\"], and the runs made []"), "{e}");
+    assert!(
+        e.contains(
+            "the recipe converts [\"onnx-f16\", \"openvino-f16\", \"openvino-embeddings-f16\", \"hef-hailo10h-s128\"], and the runs made []"
+        ),
+        "{e}"
+    );
     // A second run that gave other bytes is recorded as such.
     let c = &convert::conversions(&r).unwrap()[0];
     assert_eq!(convert::produced_by(&reported_f16(), CONTAINER, c, false).unwrap()["reproducible"], false);
@@ -509,5 +627,211 @@ fn a_recipe_file_that_changed_is_not_staged() {
     fs::write(&f, bytes).unwrap();
     let e = seal::stage(&r, &upstream(&d), &d.join("bundle")).unwrap_err();
     assert!(e.contains("the recipe pins"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+/// The pin is the LF bytes in the commit. A Windows checkout that
+/// rewrote CR LF hashes to the other value and make refuses it.
+#[test]
+fn the_calibration_pin_is_the_committed_lf_bytes() {
+    let path = root().join("bundle/recipes/all-minilm-l6-v2.calibration.jsonl");
+    let bytes = fs::read(&path).unwrap();
+    assert!(!bytes.contains(&b'\r'), "the committed calibration file is LF");
+    let r = Recipe::load(&root().join("bundle/recipes/all-minilm-l6-v2.json")).unwrap();
+    let pin = &r.local.iter().find(|l| l.path.ends_with(".jsonl")).unwrap().sha256;
+    assert_eq!(turbo::bundle::sha256_hex(&bytes), *pin);
+    let mut crlf = Vec::with_capacity(bytes.len() + bytes.iter().filter(|b| **b == b'\n').count());
+    for b in &bytes {
+        if *b == b'\n' {
+            crlf.push(b'\r');
+        }
+        crlf.push(*b);
+    }
+    assert_eq!(turbo::bundle::sha256_hex(&crlf), "9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940");
+}
+
+/// The files a host IR conversion leaves, plus a reference copied from a
+/// bundle the pinned image already sealed. No container is run.
+fn staged_ir(dir: &Path) -> (Recipe, PathBuf, PathBuf) {
+    let recipe = tiny_recipe(dir);
+    let r = Recipe::load(&recipe).unwrap();
+    let bundle = dir.join("bundle");
+    fs::create_dir_all(bundle.join("openvino")).unwrap();
+    fs::write(bundle.join("openvino/model.xml"), b"<ir>").unwrap();
+    fs::write(bundle.join("openvino/model.bin"), b"<weights>").unwrap();
+    fs::write(bundle.join("openvino/report.json"), serde_json::to_vec(&reported_ir()).unwrap()).unwrap();
+    fs::create_dir_all(bundle.join("reference")).unwrap();
+    fs::copy(
+        root().join("testdata/tiny-bert-reference/reference.safetensors"),
+        bundle.join("reference/reference.safetensors"),
+    )
+    .unwrap();
+    let container = r.str_at("/reference/produced_by/container").unwrap();
+    fs::write(
+        bundle.join("reference/report.json"),
+        serde_json::to_vec(&json!({
+            "tool": "sentence-transformers",
+            "tool_version": "6.1.0",
+            "container": container,
+            "args": ["--device", "cpu"]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let upstream = upstream(dir);
+    (r, upstream, bundle)
+}
+
+#[test]
+fn a_staged_ir_seals_from_the_image_the_report_names() {
+    let d = scratch("staged-ir");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    seal::seal_staged(&mut r, &upstream, &bundle).expect("sealed from the staged IR");
+    let m: Value = serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+    let names: Vec<&str> = m["artifacts"].as_array().unwrap().iter().map(|a| a["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["weights-f32", "onnx-f32", "openvino-f16"], "the conversions that were not staged are omitted");
+    let ir = m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == "openvino-f16").unwrap();
+    assert_eq!(ir["produced_by"]["container"], CONTAINER);
+    assert_eq!(ir["produced_by"]["reproducible"], json!(true));
+    assert_eq!(ir["produced_by"]["tool"], "openvino.save_model");
+    assert_eq!(
+        ir["produced_by"]["args"],
+        json!([
+            "onnx/model.onnx",
+            "openvino/model.xml",
+            "openvino/model.bin",
+            "seq=128",
+            "batch=1",
+            "max_opset=11",
+            "compress_to_fp16=True",
+            "output_precision=FP16"
+        ])
+    );
+    let paths: Vec<&str> = m["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
+    assert!(!paths.contains(&"calibration/texts.jsonl"), "the HEF's texts are not carried when the HEF is omitted");
+    assert!(!bundle.join("openvino/report.json").exists(), "the report is not a bundle file");
+    assert!(!bundle.join("reference/report.json").exists());
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_staged_ir_refuses_a_host_container() {
+    let d = scratch("staged-ir-host");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    let mut report: Value = serde_json::from_slice(&fs::read(bundle.join("openvino/report.json")).unwrap()).unwrap();
+    report["container"] = json!("host");
+    fs::write(bundle.join("openvino/report.json"), serde_json::to_vec(&report).unwrap()).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("openvino-f16") && e.contains("no container"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_staged_reference_refuses_a_host_container() {
+    let d = scratch("staged-ref-host");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    let mut report: Value = serde_json::from_slice(&fs::read(bundle.join("reference/report.json")).unwrap()).unwrap();
+    report["container"] = json!("host");
+    fs::write(bundle.join("reference/report.json"), serde_json::to_vec(&report).unwrap()).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("reference") && e.contains("no container"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_staged_ir_refuses_a_report_that_omits_reproducible() {
+    let d = scratch("staged-ir-repro");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    let mut report: Value = serde_json::from_slice(&fs::read(bundle.join("openvino/report.json")).unwrap()).unwrap();
+    report.as_object_mut().unwrap().remove("reproducible");
+    fs::write(bundle.join("openvino/report.json"), serde_json::to_vec(&report).unwrap()).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("reproducible"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+/// What the embeddings cut reports, in the form onnx_to_openvino_ir.py writes it.
+fn reported_embeddings() -> Value {
+    json!({
+        "tool": "openvino.save_model",
+        "tool_version": "2026.3.0",
+        "container": CONTAINER,
+        "reproducible": true,
+        "settings": [
+            "seq=128",
+            "batch=1",
+            "max_opset=11",
+            "compress_to_fp16=True",
+            "output_precision=FP16",
+            "cut=embeddings",
+            "heads=12",
+            "masked=-100.0",
+            "calibration_texts=180",
+            "onnx_cut_max_abs_diff=3.34e-06",
+            "cut_max_abs_diff=0.012"
+        ],
+    })
+}
+
+#[test]
+fn both_openvino_irs_bind_their_own_reports() {
+    let d = scratch("both-irs");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::write(bundle.join("openvino/embeddings.xml"), b"<emb-ir>").unwrap();
+    fs::write(bundle.join("openvino/embeddings.bin"), b"<emb-weights>").unwrap();
+    fs::write(bundle.join("openvino/embeddings.xml.report.json"), serde_json::to_vec(&reported_embeddings()).unwrap())
+        .unwrap();
+    seal::seal_staged(&mut r, &upstream, &bundle).expect("both irs, each with its own report");
+    let m: Value = serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+    let args = |name: &str| -> Vec<String> {
+        m["artifacts"].as_array().unwrap().iter().find(|a| a["name"] == name).unwrap()["produced_by"]["args"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_owned())
+            .collect()
+    };
+    let token = args("openvino-f16");
+    let emb = args("openvino-embeddings-f16");
+    assert!(!token.iter().any(|s| s.contains("cut=")), "the token-id IR kept its own report: {token:?}");
+    assert!(emb.iter().any(|s| s == "cut=embeddings"), "{emb:?}");
+    assert!(emb.iter().any(|s| s == "cut_max_abs_diff=0.012"), "{emb:?}");
+    assert!(!bundle.join("openvino/report.json").exists());
+    assert!(!bundle.join("openvino/embeddings.xml.report.json").exists());
+    fs::remove_dir_all(d).unwrap();
+
+    // The directory report.json is the token-id receipt. Without
+    // embeddings.xml.report.json the embeddings artifact would bind it,
+    // and that is refused.
+    let d = scratch("both-irs-shared-report");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::write(bundle.join("openvino/embeddings.xml"), b"<emb-ir>").unwrap();
+    fs::write(bundle.join("openvino/embeddings.bin"), b"<emb-weights>").unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("openvino-embeddings-f16") && e.contains("cut=embeddings") && e.contains("report.json"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
+
+#[test]
+fn a_staged_ir_without_its_report_or_its_reference_is_refused() {
+    let d = scratch("staged-no-report");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::remove_file(bundle.join("openvino/report.json")).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("no report"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+
+    let d = scratch("staged-partial");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::remove_file(bundle.join("openvino/model.bin")).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("model.bin"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+
+    let d = scratch("staged-no-reference");
+    let (mut r, upstream, bundle) = staged_ir(&d);
+    fs::remove_file(bundle.join("reference/reference.safetensors")).unwrap();
+    let e = seal::seal_staged(&mut r, &upstream, &bundle).unwrap_err();
+    assert!(e.contains("reference/reference.safetensors"), "{e}");
     fs::remove_dir_all(d).unwrap();
 }

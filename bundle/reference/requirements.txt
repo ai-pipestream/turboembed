@@ -5,4 +5,8 @@ safetensors==0.8.0
 numpy==2.5.3
 onnx==1.23.0
 onnxconverter-common==1.16.0
+# The OpenVINO converter, for the static-shape IR the npu backend loads
+# (onnx_to_openvino_ir.py, docs/npu.md). The library itself links no
+# OpenVINO; this runs only while a bundle is made.
+openvino==2026.3.0
 protobuf==7.36.2
