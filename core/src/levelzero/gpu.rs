@@ -111,6 +111,7 @@ fn counted_device() {
 // ---- Contexts ----------------------------------------------------------------------
 
 const LOG_WARNING: u32 = 1;
+pub(crate) const LOG_INFO: u32 = 2;
 pub(crate) const LOG_DEBUG: u32 = 3;
 
 /// A handle the driver lets any thread use.
@@ -152,7 +153,7 @@ unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 
 impl Context {
-    /// oneDNN for the F16 linear layers, opened on this context the first
+    /// oneDNN for the linear layers, opened on this context the first
     /// time; None where it cannot open, which the log says once.
     #[cfg(feature = "levelzero-onednn")]
     pub fn dnnl(&self) -> Option<&super::onednn::Dnnl> {
@@ -160,7 +161,7 @@ impl Context {
             .get_or_init(|| match super::onednn::Dnnl::open(self.device, self.handle) {
                 Ok(d) => {
                     let v = super::onednn::Dnnl::version();
-                    self.say(LOG_DEBUG, &format!("levelzero device {}: {v} runs the F16 linear layers", self.ordinal));
+                    self.say(LOG_DEBUG, &format!("levelzero device {}: {v} can run the linear layers", self.ordinal));
                     Some(d)
                 }
                 Err(e) => {
