@@ -50,7 +50,7 @@ its launches one by one instead of as a graph. Unset, cuBLAS computes
 nothing. In a build without `cuda-cublas` a session naming any GEMM for
 it is refused (`TURBO_E_UNSUPPORTED`, naming the feature).
 `TURBO_CUDA_TILE`, read the same way, picks the GEMMs' output
-tile for every GEMM: `64x64`, `128x64`, `128x128`, `128x128-16x8` or `cs`
+tile for every GEMM: `64x64`, `128x64`, `128x128`, `128x128-16x8`, `cs` or `kt`
 (128 × 128 over 128 threads of 16 × 8 outputs each for the FMA
 kernels, where the other tiles give a thread 8 × 8; plain `128x128` on
 the tensor cores), and for the tensor cores `128x128-4w` (four warps of
@@ -86,9 +86,8 @@ hidden states and their F16 copy once, with no LayerNorm kernel after
 it. It sums in another order than the separate kernel, so its vectors
 agree with the default's within FASTEST's bound, not bit for bit; a
 hidden width over 384 takes `sw8w`. The other precisions take `128x64`
-for these. Unset, the FMA kernels and TF32 take `128x64` (`cs` for the
-attention output and feed-forward GEMMs of a model 1024 wide or more on
-sm_80 and newer, from the le1k bin),
+for these. Unset, F32 operands on the FMA kernels take `kt` (described
+below), F16 operands on the FMA kernels and TF32 take `128x64`,
 and F16 on the tensor cores `8w`. On an RTX 4080 at 32 × 256, `8w` is faster than the
 four-warp tiles (`128x128-4w` with `256x128` for the first feed-forward
 GEMM): about 0.73 against 0.83 ms on mixed rows and 3.5 against 3.9 ms
@@ -186,15 +185,48 @@ with the FMA kernel's schedule, partial products and epilogue. Any K.
 It needs cp.async (sm_80 and newer) and is the FMA kernel's `128x64`
 below that or for F16 operands. The FMA kernel's own tiles fall behind
 as a model widens: on an RTX 4080 SUPER, bge-large at MODEL on dense
-32 × 256 took 290 ms against TensorRT's 186 with TF32 off. `cs` is the
-default for the attention output and feed-forward GEMMs of a model
-1024 wide or more from the le1k bin (the tuner's per-GEMM timings on
-bge-large at 8192 tokens: 6-13% off those three, QKV 4% behind the FMA
-`128x128`, so QKV keeps the FMA kernel); forced for every GEMM it took
-29% off that run, left bge-base within noise and cost bge-small 4%, so
-the width. Of 128 × 128 over warps of 32 × 64 at four stages and at
-three, and this shape, the tuner picked only this one. It is a
-candidate the tuner measures for F32 operands.
+32 × 256 took 290 ms against TensorRT's 186 with TF32 off. On
+bge-large at 8192 tokens the tuner's per-GEMM timings put `cs` 6-13%
+under the FMA `128x64` on the attention output and feed-forward GEMMs
+and 4% behind the FMA `128x128` on QKV; forced for every GEMM it took
+29% off that run, left bge-base within noise and cost bge-small 4%. Of
+128 × 128 over warps of 32 × 64 at four stages and at three, and this
+shape, the tuner picked only this one. It is a candidate the tuner
+measures for F32 operands.
+`TURBO_CUDA_TILE=kt` is the F32 default: the FMA kernel with both
+operands transposed in shared memory. Both operands are k contiguous in
+global memory (the activations `[M, K]`, the weight `[N, K]`), and the
+FMA kernel's own tiles keep them so in shared memory, a lane reading
+four k values of each of its rows and columns. `kt` reads each stage of
+16 values of k as 16-byte loads of four k values of a row into
+registers and stores them to shared memory one value at a time,
+transposed: k rows of 128 values of A and 64 of the weight, padded by 4
+so a warp's stores fall in distinct banks. A lane then reads, for each
+k, its 8 rows of A and 8 columns of the weight as four 16-byte reads
+(one wavefront each across the warp) for 64 FMAs. Two stages: the next
+stage's loads are in flight in registers while this one's FMAs run, and
+are stored after them, one barrier a stage. 128 × 64 tiles over four
+warps of 32 × 64, each lane 8 × 8 outputs as 2 × 2 blocks of 4 × 4
+(rows 16 apart, columns 32 apart), three blocks to an SM, F32 FMAs in k
+order; the FMA kernel's stream-K schedule and partial products, and its
+epilogue storing each lane's runs of four outputs 16 bytes at a time.
+Any K (a K that is not a multiple of four is read one value at a time)
+and any device; F16 operands take `128x64`. On an RTX 4080 SUPER, the
+least of 15 rounds of four launches per GEMM at MiniLM's, bge-base's and
+bge-large's shapes from 128 to 8192 tokens puts it level with cuBLAS's
+F32 SGEMM (`CUBLAS_PEDANTIC_MATH`, no epilogue) and under the FMA
+`128x64` at 8192 tokens by 10-26% (bge-base's QKV 0.98 against 1.31 ms,
+its first feed-forward GEMM 1.31 against 1.78). The second feed-forward
+GEMM at 8192 tokens of k = 3072 or 4096 is the exception under
+stream-K: the equal shares keep every block's rows of A in flight at
+once, more than L2 holds, and it ran 1.93 ms against 1.35 with whole
+tiles at bge-base's shape, 6.3 against 2.39 at bge-large's; so that
+GEMM takes whole tiles from the le16k bin where its k is 3072 or more.
+At 2048 tokens and below stream-K is the faster. End to end against
+main's default on the same card, interleaved (MODEL, 32 × 256): dense
+MiniLM 16% faster, bge-small 16%, bge-base 17%, bge-large 13%; mixed
+rows 13-16%; EXACT on bge-base and bge-large 16% and 10%; FASTEST
+unchanged.
 Each F16 sum rounds to 11 bits all along k, so the error grows with k: on
 uniform operands in [-1, 1] the CUDA tests print it against cuBLAS for
 F32 sums, sums over 64 and whole-k sums side by side, and hold the last
@@ -282,8 +314,8 @@ holds across backends. It is off by default.
 What is timed: each token bin's four GEMMs, each over the tiles its
 precision's classes allow: at FASTEST on tensor cores `ctk`, `8w`,
 `sw8w`, `ct`, `acc16-8w` and `acc16-sw8w`; on the FMA kernels `128x64`,
-`128x128-16x8`, `128x128` and `64x64`, and `cs` for F32 operands on
-sm_80 and newer; with `TURBO_CUDA_TF32=1` at
+`128x128-16x8`, `128x128` and `64x64`, `kt` for F32 operands, and
+`cs` for F32 operands on sm_80 and newer; with `TURBO_CUDA_TF32=1` at
 MODEL, `128x64/tf32` and `128x128/tf32` too. The other tiles, and the
 `f16k` tiles, are forced only. A GEMM whose tile a switch forces is not
 timed. Stream-K, attention, the LayerNorm and the pooling keep their
@@ -542,9 +574,10 @@ older than the runtime, it lists none and the runtime's log says why.
   of 32 × 32 and three stages, two blocks to an SM, for every GEMM
   (`TURBO_CUDA_TILE=128x128` for the other; its F32 output tile fits
   one block to an SM). Otherwise, at MODEL and EXACT, they take F32
-  operands with F32 FMAs (no TF32), each thread 8 × 8 outputs of a 128 × 64 tile, 16 values of
-  k to a step through a three-stage `cp.async` pipeline (see
-  `TURBO_CUDA_TILE` for the other tiles). Devices before sm_80 take the
+  operands with F32 FMAs (no TF32), each thread 8 × 8 outputs of a
+  128 × 64 tile, 16 values of k to a step, both operands transposed into
+  shared memory through registers (`kt`; see `TURBO_CUDA_TILE` for the
+  other tiles). Devices before sm_80 take the
   FMA kernels at every precision.
   The token count changes with every batch, so no
   fixed tiling fills the device; a GEMM whose choice splits tiles is

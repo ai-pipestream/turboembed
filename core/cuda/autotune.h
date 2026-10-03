@@ -94,6 +94,7 @@ constexpr TileName TILE_NAMES[] = {
     {"ct", TILE_CT, true},
     {"ctk", TILE_CT_K, true},
     {"cs", TILE_CS, true},
+    {"kt", TILE_KT, true},
 };
 
 /* Whether a tile sums F16 products in F16 accumulators: over each 64

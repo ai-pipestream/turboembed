@@ -1927,7 +1927,15 @@ fn the_gemms_match_cublas() {
                     Tile::CtK,
                 ]
             } else {
-                &[Tile::Default, Tile::T64x64, Tile::T128x64, Tile::T128x128, Tile::T128x128Thread16x8, Tile::Cs]
+                &[
+                    Tile::Default,
+                    Tile::T64x64,
+                    Tile::T128x64,
+                    Tile::T128x128,
+                    Tile::T128x128Thread16x8,
+                    Tile::Cs,
+                    Tile::Kt,
+                ]
             };
             for &tile in tiles {
                 // A token count past a few thousand only as many blocks
@@ -2075,6 +2083,7 @@ fn every_gemm_tile_gives_the_same_vectors() {
             Tile::Ct,
             Tile::CtK,
             Tile::Cs,
+            Tile::Kt,
         ] {
             // The whole-k tiles sum in F16, the F16 accumulators' experiment.
             let whole_k = matches!(
@@ -2248,18 +2257,15 @@ fn a_sessions_choices_forced_back_give_its_bits() {
     }
 }
 
-/// F32 operands on a model 1024 wide or more take the SIMT mainloop's
-/// tile (`cs`) for the attention output and the feed-forward GEMMs from
-/// the le1k bin, on a device with cp.async (where the tuner lists `cs`);
-/// QKV, the le256 bin, and every GEMM of a narrower model keep the FMA
-/// kernel's 128 x 64. The wide model's default gives the vectors of the
-/// FMA kernel forced everywhere, within EXACT's bound, and repeats its
-/// bits.
+/// F32 operands take the transposed FMA tile (`kt`) for the four GEMMs
+/// at every bin, stream-K, but the second feed-forward GEMM with whole
+/// tiles from the le16k bin where its k is 3072 or more; F16 operands
+/// keep their own. The default gives the vectors of the FMA kernel's
+/// 128 x 64 forced everywhere, within EXACT's bound, and repeats its bits.
 #[test]
-fn f32_defaults_take_the_simt_tile_where_the_model_is_wide() {
+fn f32_defaults_take_the_transposed_tile() {
     let _t = turn();
-    let Some(ordinal) = cuda_device("f32_defaults_take_the_simt_tile_where_the_model_is_wide") else { return };
-    let simt = turbo::cuda::variants(ordinal, TURBO_PRECISION_EXACT).unwrap().iter().any(|v| v.name == "cs");
+    let Some(_) = cuda_device("f32_defaults_take_the_transposed_tile") else { return };
     for (hidden, heads, inter) in [(1024u64, 16u64, 4096u64), (64, 2, 256)] {
         let mut m = model_manifest();
         m["architecture"]["hidden"] = json!(hidden);
@@ -2273,19 +2279,12 @@ fn f32_defaults_take_the_simt_tile_where_the_model_is_wide() {
         let g = f.load_on(cuda).unwrap();
         let s = strict(|| Session::create(g.m, Some(&session_desc(40, 160, TURBO_PRECISION_EXACT)))).unwrap();
         let choices = kernels_of(&field(&s.info().choices));
-        let fma = "qkv=128x64/sk4,out=128x64/sk4,ffn1=128x64/sk4,ffn2=128x64/sk4";
-        assert!(choices.starts_with(&format!("le256:{fma},")), "hidden {hidden}: {choices}");
-        let wide = simt && hidden >= 1024;
-        let from_le1k = if wide {
-            "le1k:qkv=128x64/sk4,out=cs/sk4,ffn1=cs/sk4,ffn2=cs/sk4,"
-        } else {
-            "le1k:qkv=128x64/sk4,out=128x64/sk4,"
-        };
-        assert!(choices.contains(from_le1k), "hidden {hidden}: {choices}");
-        assert_eq!(choices.contains("=cs/"), wide, "hidden {hidden}: {choices}");
-        if !wide {
-            continue;
+        let kt = "qkv=kt/sk4,out=kt/sk4,ffn1=kt/sk4,ffn2=kt/sk4";
+        for bin in ["le256", "le1k", "le4k"] {
+            assert!(choices.contains(&format!("{bin}:{kt},")), "hidden {hidden}: {choices}");
         }
+        let last = if inter >= 3072 { "qkv=kt/sk4,out=kt/sk4,ffn1=kt/sk4,ffn2=kt/tiles" } else { kt };
+        assert!(choices.contains(&format!("le16k:{last},")), "hidden {hidden}: {choices}");
         let t = ragged_rows(&f.dir, 40, 160);
         s.write_tokens(&t.batch(), None).unwrap();
         let got = s.run().unwrap().rows();
@@ -2297,7 +2296,7 @@ fn f32_defaults_take_the_simt_tile_where_the_model_is_wide() {
         o.write_tokens(&t.batch(), None).unwrap();
         let want = o.run().unwrap().rows();
         let tol = record::tolerance(o.info().compute_dtype).unwrap();
-        let (cos, abs) = within("the wide model's default against the FMA kernel", &got, &want, tol);
+        let (cos, abs) = within("the default against the FMA kernel's 128 x 64", &got, &want, tol);
         println!("hidden {hidden}: default against 128x64: 1 - lowest cosine {cos:.3e}, max abs diff {abs:.3e}");
     }
 }
