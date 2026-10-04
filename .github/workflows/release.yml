@@ -1,16 +1,17 @@
 name: release
 
 # A tag v<version> builds libturbo for Linux x86_64 with the CUDA backend
-# and publishes it with the header (docs/release.md). The runner has no
-# GPU: this builds and packages; what runs and how fast is what the
-# records in benchmarks/records say, on the machines they name.
+# and for macOS arm64 with the Metal backend, and publishes both with the
+# header (docs/release.md). The runners run nothing on a GPU: this builds
+# and packages; what runs and how fast is what the records in
+# benchmarks/records say, on the machines they name.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-  # A change to this file or the build script runs the build on the pull
-  # request, keeping the archive as an artifact; nothing is published.
+  # A change to this file or the build script runs the builds on the pull
+  # request, keeping the archives as artifacts; nothing is published.
   pull_request:
     paths: [".github/workflows/release.yml", "core/build.rs"]
 
@@ -58,7 +59,8 @@ jobs:
       - name: package
         id: package
         run: |
-          tag="${GITHUB_REF_NAME}"
+          # A pull request's ref is <number>/merge; an artifact's name has no /.
+          tag="${GITHUB_REF_NAME//\//-}"
           name="turboembed-${tag}-linux-x86_64"
           mkdir -p "$name/lib" "$name/include/turbo" "$name/licenses"
           cp target/release/libturbo.so "$name/lib/"
@@ -75,19 +77,103 @@ jobs:
           } > "$name/BUILD"
           tar czf "$name.tar.gz" "$name"
           sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          cp "$name/BUILD" "$name.BUILD"
           echo "name=$name" >> "$GITHUB_OUTPUT"
-      - name: publish
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          name="${{ steps.package.outputs.name }}"
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$name/BUILD" \
-            "$name.tar.gz" "$name.tar.gz.sha256"
       - uses: actions/upload-artifact@v4
-        if: github.event_name != 'push'
         with:
           name: ${{ steps.package.outputs.name }}
           path: |
             ${{ steps.package.outputs.name }}.tar.gz
             ${{ steps.package.outputs.name }}.tar.gz.sha256
+            ${{ steps.package.outputs.name }}.BUILD
+          if-no-files-found: error
+
+  macos-arm64:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+      - name: the Xcode command line tools and the macOS SDK
+        run: |
+          xcode-select -p
+          xcrun --sdk macosx --show-sdk-version
+          xcrun --sdk macosx --find clang++
+      - name: build
+        run: cargo build --release -p turbo --features metal
+      - name: the library links only what every macOS has, and loads through @rpath
+        run: |
+          lib=target/release/libturbo.dylib
+          lipo -archs "$lib"
+          otool -D "$lib"
+          otool -L "$lib"
+          if [ "$(lipo -archs "$lib")" != "arm64" ]; then
+            echo "libturbo.dylib is not arm64 alone"; exit 1
+          fi
+          if [ "$(otool -D "$lib" | tail -1)" != "@rpath/libturbo.dylib" ]; then
+            echo "libturbo.dylib's install name is not @rpath/libturbo.dylib"; exit 1
+          fi
+          if otool -L "$lib" | tail -n +2 | grep -vE '^[[:space:]]+(/usr/lib/|/System/Library/|@rpath/libturbo\.dylib)'; then
+            echo "libturbo.dylib links a library outside /usr/lib and /System/Library"; exit 1
+          fi
+      - name: the header compiles as C11 and C++17
+        run: |
+          printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
+          cc  -std=c11   -Wall -Wextra -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"
+      - name: a C program links the library and it lists the metal backend
+        run: |
+          printf '#include <stdio.h>\n#include <turbo/turbo.h>\nint main(void) { puts(turbo_version()); return 0; }\n' > "$RUNNER_TEMP/v.c"
+          cc -std=c11 -Wall -Wextra -Werror -Iinclude "$RUNNER_TEMP/v.c" -Ltarget/release -lturbo \
+            -Wl,-rpath,"$PWD/target/release" -o "$RUNNER_TEMP/v"
+          v="$("$RUNNER_TEMP/v")"
+          echo "$v"
+          case "$v" in *" metal cpu"*) ;; *) echo "turbo_version() does not list metal and cpu"; exit 1 ;; esac
+      - name: package
+        id: package
+        run: |
+          # A pull request's ref is <number>/merge; an artifact's name has no /.
+          tag="${GITHUB_REF_NAME//\//-}"
+          name="turboembed-${tag}-macos-arm64"
+          mkdir -p "$name/lib" "$name/include/turbo" "$name/licenses"
+          cp target/release/libturbo.dylib "$name/lib/"
+          cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
+          cp LICENSE "$name/licenses/LICENSE"
+          cp docs/release.md "$name/README.md"
+          {
+            echo "turboembed ${tag}, commit ${GITHUB_SHA}"
+            echo "macos arm64, metal and cpu backends"
+            echo "built with rustc $(rustc --version | cut -d' ' -f2) against the macOS SDK $(xcrun --sdk macosx --show-sdk-version) ($(xcrun --sdk macosx clang --version | head -1))"
+            echo "runs on Apple silicon with macOS 14 or later; the Metal kernels compile when a context is made"
+          } > "$name/BUILD"
+          tar czf "$name.tar.gz" "$name"
+          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          cp "$name/BUILD" "$name.BUILD"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.name }}.tar.gz
+            ${{ steps.package.outputs.name }}.tar.gz.sha256
+            ${{ steps.package.outputs.name }}.BUILD
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push'
+    needs: [linux-x86_64, macos-arm64]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd dist
+          ls -l
+          for b in *.BUILD; do cat "$b"; echo; done > notes
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes \
+            *.tar.gz *.tar.gz.sha256
