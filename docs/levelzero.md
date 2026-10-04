@@ -24,8 +24,8 @@ then says `0.1.0 levelzero cpu`. Its devices come before the CPU's.
   Xe2, such as the B70, and Xe-HPC), which the kernels are built with;
   on an older part, such as the Arc A-series, the module does not build
   and no session runs.
-- A GPU whose driver computes in F64: the encoder sums LayerNorm and the
-  L2 norm in F64. A device without it is listed, and its capability cell
+- A GPU whose driver computes in F64: the encoder sums the L2 norm in
+  F64. A device without it is listed, and its capability cell
   says UNSUPPORTED with that reason.
 
 The loader is opened when the first runtime lists its devices, not when
@@ -61,8 +61,7 @@ LayerNorm; the last layer's hidden states are then widened to F32 for the
 pooling. In F32 (MODEL and EXACT) it runs the same four matrix products
 in F32, reading each layer's weights as they are stored, `[out, in]`; the
 projections back to the hidden width add their bias and residual there,
-and the backend's LayerNorm, which sums in F64, follows from that one
-array. For a hidden width that is a multiple of 64 up to 1024, the F32
+and the backend's LayerNorm follows from that one array. For a hidden width that is a multiple of 64 up to 1024, the F32
 LayerNorm after a projection holds each token's row in registers, so it
 reads the row from memory once instead of once per pass. oneDNN runs on the backend's own device,
 context and memory through a SYCL queue of its own, which the backend
@@ -282,7 +281,8 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   aside, gives the context a new one, logs a warning, and returns the
   failure.
 - **Numerics.** In F32 the arithmetic follows the CPU encoder where order
-  matters: LayerNorm sums its mean and variance in F64, softmax is taken
+  matters: LayerNorm takes the mean, then the variance about it (summed
+  in F32 here, as on CUDA, and in F64 on the CPU), softmax is taken
   from the largest live score (online, rescaling as a larger one
   arrives), mean pooling sums in position order, the L2 norm is summed in
   F64 and floored at 1e-12. Products and sums round separately except in

@@ -618,23 +618,23 @@ __kernel __attribute__((intel_reqd_sub_group_size(16))) void linear_dpas_mlp(
  * sums are sub-group reductions with no barrier. */
 #define ROWS 8
 
-/* row = (row - mean) / sqrt(var + eps) * w + b, with the mean and the
- * biased variance summed in F64, by one sub-group; and the same in F16 to
- * half_row where that is given. Each lane touches only the columns it
+/* row = (row - mean) / sqrt(var + eps) * w + b, with the mean, then the
+ * biased variance about it, summed in F32 by one sub-group; and the same
+ * in F16 to half_row where that is given. Each lane touches only the columns it
  * wrote, so nothing need be waited for before this. */
 void layer_norm_row(__global float *row, int n, __global const float *w, __global const float *b, float eps,
                     __global half *half_row) {
     const int lane = get_sub_group_local_id();
-    double s = 0;
+    float s = 0;
     for (int d = lane; d < n; d += 16) s += row[d];
-    const double mean = sub_group_reduce_add(s) / n;
-    double v = 0;
+    const float mean = sub_group_reduce_add(s) / n;
+    float v = 0;
     for (int d = lane; d < n; d += 16) {
-        const double c = row[d] - mean;
+        const float c = row[d] - mean;
         v += c * c;
     }
-    const double var = sub_group_reduce_add(v) / n;
-    const double inv = 1.0 / sqrt(var + (double)eps);
+    const float var = sub_group_reduce_add(v) / n;
+    const float inv = 1.0f / sqrt(var + eps);
     for (int d = lane; d < n; d += 16) {
         const float xn = (float)((row[d] - mean) * inv);
         const float y = xn * w[d] + b[d];
@@ -691,9 +691,9 @@ add_layer_norm(__global float *x, __global const float *y, __global const float 
  * 16 * 64: each lane holds its columns of the row in registers, four at a
  * time, so the row is read once from memory and written once, where
  * add_layer_norm reads it back for each of its three passes. The same
- * F32 arithmetic for each element and the same F64 sums. With parts 0, y
- * already holds the sum with the residual and the bias added, and x is
- * only written: x = LayerNorm(y). */
+ * F32 arithmetic for each element, with the sums taken four columns at a
+ * time. With parts 0, y already holds the sum with the residual and the
+ * bias added, and x is only written: x = LayerNorm(y). */
 #define LN_V4_MOST 16
 __kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * ROWS, 1, 1))) void
 add_layer_norm_v4(__global float *x, __global const float *y, __global const float *bias,
@@ -707,7 +707,7 @@ add_layer_norm_v4(__global float *x, __global const float *y, __global const flo
     __global float *row = x + (size_t)t * hidden;
     __global const float *yr = y + (size_t)t * hidden;
     float4 v[LN_V4_MOST];
-    double s = 0;
+    float s = 0;
     __attribute__((opencl_unroll_hint(LN_V4_MOST))) for (int j = 0; j < LN_V4_MOST; j++) {
         if (j >= steps) continue;
         const int at = j * 16 + lane;
@@ -717,16 +717,16 @@ add_layer_norm_v4(__global float *x, __global const float *y, __global const flo
             r = vload4(at, row) + (r + vload4(at, bias));
         }
         v[j] = r;
-        s += (double)r.x + (double)r.y + (double)r.z + (double)r.w;
+        s += r.x + r.y + r.z + r.w;
     }
-    const double mean = sub_group_reduce_add(s) / hidden;
-    double var = 0;
+    const float mean = sub_group_reduce_add(s) / hidden;
+    float var = 0;
     __attribute__((opencl_unroll_hint(LN_V4_MOST))) for (int j = 0; j < LN_V4_MOST; j++) {
         if (j >= steps) continue;
-        const double cx = v[j].x - mean, cy = v[j].y - mean, cz = v[j].z - mean, cw = v[j].w - mean;
+        const float cx = v[j].x - mean, cy = v[j].y - mean, cz = v[j].z - mean, cw = v[j].w - mean;
         var += cx * cx + cy * cy + cz * cz + cw * cw;
     }
-    const double inv = 1.0 / sqrt(sub_group_reduce_add(var) / hidden + (double)eps);
+    const float inv = 1.0f / sqrt(sub_group_reduce_add(var) / hidden + eps);
     __global half *hr = xh ? xh + (size_t)t * hidden : 0;
     __attribute__((opencl_unroll_hint(LN_V4_MOST))) for (int j = 0; j < LN_V4_MOST; j++) {
         if (j >= steps) continue;
@@ -746,16 +746,16 @@ add_layer_norm_v4(__global float *x, __global const float *y, __global const flo
 void layer_norm_row_group(__global float *row, int n, __global const float *w, __global const float *b, float eps,
                           __global half *half_row) {
     const int lid = get_local_id(0);
-    double s = 0;
+    float s = 0;
     for (int d = lid; d < n; d += BLOCK) s += row[d];
-    const double mean = work_group_reduce_add(s) / n;
-    double v = 0;
+    const float mean = work_group_reduce_add(s) / n;
+    float v = 0;
     for (int d = lid; d < n; d += BLOCK) {
-        const double c = row[d] - mean;
+        const float c = row[d] - mean;
         v += c * c;
     }
-    const double var = work_group_reduce_add(v) / n;
-    const double inv = 1.0 / sqrt(var + (double)eps);
+    const float var = work_group_reduce_add(v) / n;
+    const float inv = 1.0f / sqrt(var + eps);
     for (int d = lid; d < n; d += BLOCK) {
         const float xn = (float)((row[d] - mean) * inv);
         const float v = xn * w[d] + b[d];
