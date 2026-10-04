@@ -29,9 +29,9 @@ struct Handle {
     sycl::queue queue;
     dnnl::engine engine;
     dnnl::stream stream;
-    // The matmul primitives by (m, k, n, gelu, residual) and the LayerNorms
-    // by (m, n).
-    std::map<std::tuple<int, int, int, int, int>, dnnl::matmul> matmuls;
+    // The matmul primitives by (m, k, n, gelu, residual, f32, bias) and the
+    // LayerNorms by (m, n).
+    std::map<std::tuple<int, int, int, int, int, int, int>, dnnl::matmul> matmuls;
     std::map<std::tuple<int, int>, dnnl::layer_normalization_forward> norms;
     // The events of the work queued since the last wait, kept so their
     // Level Zero handles stay valid for the backend's list to wait on.
@@ -58,25 +58,32 @@ template <typename F> int guarded(char *err, size_t n, F f) {
     return 1;
 }
 
-// The weights' layout: [k, n] stored transposed, n rows of k. Left to
-// choose, oneDNN pads n to a multiple of 32 and keeps the rows of n, and
-// its kernels on a B70 run 2% slower from that on bge-base and bge-large;
-// the transposed plain layout is what OpenVINO hands it.
-dnnl::memory::desc weights_desc(int k, int n) {
-    using namespace dnnl;
-    return memory::desc({k, n}, memory::data_type::f16, memory::format_tag::ba);
+// The operands' type: F32, or F16 for the matrix engines.
+dnnl::memory::data_type type_of(int f32) {
+    return f32 ? dnnl::memory::data_type::f32 : dnnl::memory::data_type::f16;
 }
 
-dnnl::matmul &matmul_for(Handle &h, int m, int k, int n, int gelu, int residual) {
-    auto key = std::make_tuple(m, k, n, gelu, residual);
+// The weights' layout: [k, n] stored transposed, n rows of k, which is a
+// linear layer's own [out, in]. Left to choose, oneDNN pads n to a
+// multiple of 32 and keeps the rows of n, and its F16 kernels on a B70 run
+// 2% slower from that on bge-base and bge-large; the transposed plain
+// layout is what OpenVINO hands it.
+dnnl::memory::desc weights_desc(int k, int n, int f32 = 0) {
+    using namespace dnnl;
+    return memory::desc({k, n}, type_of(f32), memory::format_tag::ba);
+}
+
+dnnl::matmul &matmul_for(Handle &h, int m, int k, int n, int gelu, int residual, int f32, int has_bias) {
+    auto key = std::make_tuple(m, k, n, gelu, residual, f32, has_bias);
     auto it = h.matmuls.find(key);
     if (it != h.matmuls.end()) {
         return it->second;
     }
     using namespace dnnl;
-    memory::desc a({m, k}, memory::data_type::f16, memory::format_tag::ab);
-    memory::desc bias({1, n}, memory::data_type::f32, memory::format_tag::ab);
-    memory::desc c({m, n}, memory::data_type::f16, memory::format_tag::ab);
+    memory::desc a({m, k}, type_of(f32), memory::format_tag::ab);
+    memory::desc bias = has_bias ? memory::desc({1, n}, memory::data_type::f32, memory::format_tag::ab)
+                                 : memory::desc();
+    memory::desc c({m, n}, type_of(f32), memory::format_tag::ab);
     primitive_attr attr;
     post_ops po;
     if (residual) {
@@ -86,7 +93,7 @@ dnnl::matmul &matmul_for(Handle &h, int m, int k, int n, int gelu, int residual)
         po.append_eltwise(algorithm::eltwise_gelu_erf, 0.f, 0.f);
     }
     attr.set_post_ops(po);
-    matmul::primitive_desc pd(h.engine, a, weights_desc(k, n), bias, c, attr);
+    matmul::primitive_desc pd(h.engine, a, weights_desc(k, n, f32), bias, c, attr);
     return h.matmuls.emplace(key, matmul(pd)).first->second;
 }
 
@@ -165,24 +172,27 @@ int turbo_dnnl_pack(void *hp, const void *src, int k, int n, void *dst, char *er
     });
 }
 
-// c [m, n] F16 = a [m, k] F16 times the packed weights, plus bias (F32, n)
-// where given, plus residual [m, n] F16 where given, then GELU where
-// asked. Queued after the Level Zero event ze_wait where given; the
+// c [m, n] = a [m, k] times the weights, [k, n] stored as [n, k], plus
+// bias (F32, n) where given, plus residual [m, n] where given, then GELU
+// where asked; in F32 where f32 is set, else in F16 from the packed
+// weights. Queued after the Level Zero event ze_wait where given; the
 // event it signals is handed out in ze_signal, valid until turbo_dnnl_wait.
 int turbo_dnnl_matmul(void *hp, const void *a, const void *packed, const float *bias, const void *residual, void *c,
-                      int m, int k, int n, int gelu, void *ze_wait, void **ze_signal, char *err, size_t n_err) {
+                      int m, int k, int n, int gelu, int f32, void *ze_wait, void **ze_signal, char *err,
+                      size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
     return guarded(err, n_err, [&] {
         using namespace dnnl;
-        matmul &mm = matmul_for(h, m, k, n, gelu ? 1 : 0, residual ? 1 : 0);
-        memory::desc amd({m, k}, memory::data_type::f16, memory::format_tag::ab);
+        matmul &mm = matmul_for(h, m, k, n, gelu ? 1 : 0, residual ? 1 : 0, f32 ? 1 : 0, bias ? 1 : 0);
+        memory::desc amd({m, k}, type_of(f32), memory::format_tag::ab);
         memory::desc biasmd({1, n}, memory::data_type::f32, memory::format_tag::ab);
-        memory::desc cmd({m, n}, memory::data_type::f16, memory::format_tag::ab);
-        if (!bias) throw std::runtime_error("a bias is required");
+        memory::desc cmd({m, n}, type_of(f32), memory::format_tag::ab);
         std::unordered_map<int, memory> args = {{DNNL_ARG_SRC, usm(h, amd, a)},
-                                                {DNNL_ARG_WEIGHTS, usm(h, weights_desc(k, n), packed)},
-                                                {DNNL_ARG_BIAS, usm(h, biasmd, bias)},
+                                                {DNNL_ARG_WEIGHTS, usm(h, weights_desc(k, n, f32), packed)},
                                                 {DNNL_ARG_DST, usm(h, cmd, c)}};
+        if (bias) {
+            args.emplace(DNNL_ARG_BIAS, usm(h, biasmd, bias));
+        }
         if (residual) {
             args.emplace(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1, usm(h, cmd, residual));
         }

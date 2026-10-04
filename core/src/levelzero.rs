@@ -49,7 +49,7 @@ pub static BACKEND: turbo_backend = turbo_backend {
     buffer_read: Some(gpu::buffer_read),
     formats: format_bit(TURBO_FORMAT_SAFETENSORS),
     reserved2: 0,
-    session_create_tuned: None,
+    session_create_tuned: Some(encoder::session_create_tuned),
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, err: *mut turbo_error) -> i32 {
@@ -151,6 +151,14 @@ pub fn allocations() -> u64 {
 #[cfg(feature = "internals")]
 pub(crate) unsafe fn widened(model: *mut c_void) -> Option<*const c_void> {
     unsafe { encoder::widened(model) }
+}
+
+/// The linear layers' kernels of sessions made from now on, as
+/// TURBO_LEVELZERO_CHOICES names them, or `None` to read the variable
+/// again. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn use_choices(choices: Option<&str>) {
+    encoder::use_choices(choices);
 }
 
 /// Recovery from a failed append on the first listed device's queue, as

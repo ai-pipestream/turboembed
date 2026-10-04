@@ -40,6 +40,7 @@ unsafe extern "C" {
         k: i32,
         n: i32,
         gelu: i32,
+        f32: i32,
         ze_wait: *mut c_void,
         ze_signal: *mut *mut c_void,
         err: *mut c_char,
@@ -63,9 +64,10 @@ unsafe extern "C" {
     fn turbo_dnnl_version() -> *const c_char;
 }
 
-/// c [m, n] F16 = a [m, k] F16 times the weights packed by `pack`, plus
-/// bias (F32, n), plus residual [m, n] F16 where not 0, then GELU where
-/// asked. Device addresses.
+/// c [m, n] = a [m, k] times the weights, plus bias (F32, n) where not 0,
+/// plus residual [m, n] where not 0, then GELU where asked: in F16 from the
+/// weights packed by `pack`, or with `f32` in F32 from a linear layer's
+/// own [n, k] weights. Device addresses.
 pub(crate) struct Matmul {
     pub a: u64,
     pub packed: u64,
@@ -76,6 +78,7 @@ pub(crate) struct Matmul {
     pub k: u32,
     pub n: u32,
     pub gelu: bool,
+    pub f32: bool,
     /// The backend's event to run after, or 0.
     pub wait: u64,
 }
@@ -159,6 +162,7 @@ impl Dnnl {
                 mm.k as i32,
                 mm.n as i32,
                 mm.gelu as i32,
+                mm.f32 as i32,
                 mm.wait as *mut c_void,
                 &mut signal,
                 err.as_mut_ptr(),

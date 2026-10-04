@@ -25,19 +25,21 @@ use std::ffi::c_void;
 use std::sync::Mutex;
 
 use super::gpu::{
-    Arg, Buffer, Context, Kernel, LOG_DEBUG, Queue, Res, device_allocs_here, fail, fail_field, guarded, quietly,
+    Arg, Buffer, Context, Kernel, LOG_DEBUG, LOG_INFO, Queue, Res, device_allocs_here, fail, fail_field, guarded,
+    quietly,
 };
 use super::ze;
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA,
-    turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run,
+    turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run, turbo_backend_tuning,
 };
 use crate::status::{INVALID_ARGUMENT, INVALID_STATE, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK};
 use crate::{
-    TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_EMBED_STAGE_DOWNLOAD, TURBO_EMBED_STAGE_ENCODE, TURBO_EMBED_STAGE_LOOKUP,
-    TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL, TURBO_EMBED_STAGE_UPLOAD, TURBO_NORMALIZE_L2,
-    TURBO_PLACE_DEVICE, TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED,
-    TURBO_STAGE_UNUSED, TURBO_TASK_EMBED, turbo_error,
+    TURBO_AUTOTUNE_ON, TURBO_AUTOTUNE_RETUNE, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_EMBED_STAGE_DOWNLOAD,
+    TURBO_EMBED_STAGE_ENCODE, TURBO_EMBED_STAGE_LOOKUP, TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL,
+    TURBO_EMBED_STAGE_UPLOAD, TURBO_NORMALIZE_L2, TURBO_NORMALIZE_NONE, TURBO_PLACE_DEVICE, TURBO_POOLING_MEAN,
+    TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED, TURBO_STAGE_UNUSED,
+    TURBO_TASK_EMBED, TURBO_TUNED_CACHE, TURBO_TUNED_DEFAULT, TURBO_TUNED_FORCED, TURBO_TUNED_MEASURED, turbo_error,
 };
 
 /// TURBO_BERT_* in turbo_backend.h: the embedding tensors, then each
@@ -525,6 +527,9 @@ struct Kernels {
     #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
     widen_f16: Kernel,
     add_layer_norm: Kernel,
+    /// The same with each row held in registers, for a hidden width that
+    /// is a multiple of 64 up to 1024.
+    add_layer_norm_v4: Option<Kernel>,
     /// The same, a group per token, for few tokens.
     embed_layer_norm_group: Kernel,
     add_layer_norm_group: Kernel,
@@ -602,6 +607,11 @@ impl Kernels {
             embed_layer_norm: c.kernel("embed_layer_norm", [16 * ROWS, 1, 1])?,
             widen_f16: c.kernel("widen_f16", [WIDE, 1, 1])?,
             add_layer_norm: c.kernel("add_layer_norm", [16 * ROWS, 1, 1])?,
+            add_layer_norm_v4: if hidden.is_multiple_of(64) && hidden <= 1024 {
+                Some(c.kernel("add_layer_norm_v4", [16 * ROWS, 1, 1])?)
+            } else {
+                None
+            },
             embed_layer_norm_group: c.kernel("embed_layer_norm_group", row)?,
             add_layer_norm_group: c.kernel("add_layer_norm_group", row)?,
             attention,
@@ -736,6 +746,24 @@ fn attention_local_bytes(seq: u32, head_dim: u32) -> u64 {
     4 * (head_dim as u64 + seq as u64 + part as u64)
 }
 
+/// Whose kernels run a session's linear layers past a few tokens: the
+/// backend's own, or oneDNN's (the levelzero-onednn feature).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Linear {
+    Own,
+    #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+    Onednn,
+}
+
+impl Linear {
+    fn name(self) -> &'static str {
+        match self {
+            Linear::Own => "own",
+            Linear::Onednn => "onednn",
+        }
+    }
+}
+
 struct Session {
     model: *const Model,
     ctx: *const Context,
@@ -746,6 +774,8 @@ struct Session {
     /// The linear layers' F32 weights transposed, for a session in F32
     /// whose widths linear_sgemm takes.
     f32t: Option<Transposed>,
+    /// The linear layers' kernels.
+    linear: Linear,
     max_batch: u32,
     max_seq: u32,
     scratch: *mut c_void,
@@ -897,6 +927,7 @@ pub(crate) unsafe extern "C" fn session_create(
                 weights,
                 half,
                 f32t,
+                linear: Linear::Own,
                 max_batch,
                 max_seq,
                 scratch,
@@ -938,11 +969,317 @@ pub(crate) unsafe extern "C" fn session_create(
             s.ffn = take(ffn);
             let out_ptr = take(output) as usize as *mut c_void;
             s.output = Box::new(Buffer::session_output(c, out_ptr, max_batch as u64 * d.hidden as u64 * 4));
+            s.linear = match forced_linear()? {
+                Some(l) if l == Linear::Onednn && !onednn_runs(c, s.half.as_ref()) => {
+                    return Err(fail(
+                        UNSUPPORTED_OPTION,
+                        "TURBO_LEVELZERO_CHOICES: linear=onednn, and oneDNN does not run on this device in this build",
+                    ));
+                }
+                Some(l) => l,
+                None => default_linear(c, s.half.as_ref()),
+            };
             *compute_dtype = if xmx { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
             *out = Box::into_raw(s) as *mut c_void;
             Ok(())
         })
     }
+}
+
+/// Whether oneDNN can run a session's linear layers: it opened on the
+/// context and, for one at FASTEST, packed the F16 weights.
+fn onednn_runs(c: &Context, half: Option<&Transposed>) -> bool {
+    #[cfg(feature = "levelzero-onednn")]
+    return c.dnnl().is_some() && half.is_none_or(|h| !h.packed.is_empty());
+    #[cfg(not(feature = "levelzero-onednn"))]
+    {
+        let _ = (c, half);
+        false
+    }
+}
+
+/// The linear layers' kernels of a session nothing forces or tunes:
+/// oneDNN's where it runs, at every precision, as the faster on a B70
+/// (docs/levelzero.md).
+fn default_linear(c: &Context, half: Option<&Transposed>) -> Linear {
+    if onednn_runs(c, half) { Linear::Onednn } else { Linear::Own }
+}
+
+/// A test's choices line in place of TURBO_LEVELZERO_CHOICES (use_choices).
+#[cfg(feature = "internals")]
+static TEST_CHOICES: Mutex<Option<String>> = Mutex::new(None);
+
+#[cfg(feature = "internals")]
+pub(crate) fn use_choices(choices: Option<&str>) {
+    *TEST_CHOICES.lock().unwrap_or_else(|p| p.into_inner()) = choices.map(str::to_owned);
+}
+
+/// The linear layers' kernels TURBO_LEVELZERO_CHOICES forces, read when a
+/// session is made; None when unset or it names no linear item.
+fn forced_linear() -> Res<Option<Linear>> {
+    #[cfg(feature = "internals")]
+    if let Some(line) = TEST_CHOICES.lock().unwrap_or_else(|p| p.into_inner()).clone() {
+        return parse_linear(&line).map_err(|e| fail(INVALID_ARGUMENT, format!("TURBO_LEVELZERO_CHOICES: {e}")));
+    }
+    match std::env::var("TURBO_LEVELZERO_CHOICES") {
+        Ok(line) => parse_linear(&line).map_err(|e| fail(INVALID_ARGUMENT, format!("TURBO_LEVELZERO_CHOICES: {e}"))),
+        Err(_) => Ok(None),
+    }
+}
+
+/// The linear item of a choices line, `linear=own` or `linear=onednn`,
+/// among `;`-separated items; a `forced=` item, as a session reports it,
+/// is passed over. None when it names no linear item.
+fn parse_linear(line: &str) -> Result<Option<Linear>, String> {
+    let mut linear = None;
+    for item in line.split(';').filter(|i| !i.is_empty() && !i.starts_with("forced=")) {
+        linear = match item.split_once('=') {
+            Some(("linear", "own")) => Some(Linear::Own),
+            Some(("linear", "onednn")) => Some(Linear::Onednn),
+            _ => return Err(format!("{item:?} is not linear=own or linear=onednn")),
+        };
+    }
+    Ok(linear)
+}
+
+/// The tuner times a session's linear layers on rows of max_seq tokens,
+/// this many tokens in all at most (fewer when the session holds fewer).
+const TUNE_TOKENS: u32 = 8192;
+/// Timed runs of each variant, after an untimed one.
+const TUNE_RUNS: usize = 5;
+/// A variant replaces the incumbent only when this much faster.
+const TUNE_MARGIN: f64 = 0.05;
+/// Times whose median is more than this far above their least are apart:
+/// the clocks still coming up, or a device shared or throttling.
+const TUNE_APART: f64 = 0.25;
+/// How many times a variant whose times are apart is timed in all.
+const TUNE_TRIES: usize = 3;
+
+/// As turbo_backend.h says for session_create_tuned: the session
+/// session_create makes, then its linear layers' kernels chosen as
+/// docs/levelzero.md says (Kernel choices), and the choice reported.
+///
+/// # Safety
+/// As turbo_backend.h says for session_create_tuned.
+#[allow(clippy::too_many_arguments)]
+pub(crate) unsafe extern "C" fn session_create_tuned(
+    model: *mut c_void,
+    task: u32,
+    max_batch: u32,
+    max_seq: u32,
+    precision: u32,
+    tuning: *mut turbo_backend_tuning,
+    compute_dtype: *mut u32,
+    out: *mut *mut c_void,
+    err: *mut turbo_error,
+) -> i32 {
+    let rc = unsafe { session_create(model, task, max_batch, max_seq, precision, compute_dtype, out, err) };
+    if rc != 0 || tuning.is_null() {
+        return rc;
+    }
+    let rc = unsafe { guarded(err, || tune(&mut *(*out as *mut Session), &mut *tuning)) };
+    if rc != 0 {
+        unsafe {
+            session_release(*out);
+            *out = std::ptr::null_mut();
+        }
+    }
+    rc
+}
+
+fn write_choices(dst: &mut [std::ffi::c_char; crate::TURBO_CHOICES_LEN], text: &str) {
+    dst.fill(0);
+    for (d, b) in dst.iter_mut().zip(text.bytes().take(crate::TURBO_CHOICES_LEN - 1)) {
+        *d = b as std::ffi::c_char;
+    }
+}
+
+/// The least and the median of `times`.
+fn least_and_median(times: &[f64]) -> (f64, f64) {
+    let mut t = times.to_vec();
+    t.sort_by(f64::total_cmp);
+    (t[0], t[t.len() / 2])
+}
+
+/// The session's linear layers chosen as the tuning struct asks, with
+/// session_create's choice (forced, else the default) as the default.
+fn tune(s: &mut Session, t: &mut turbo_backend_tuning) -> Res<()> {
+    t.tuned = TURBO_TUNED_DEFAULT;
+    t.tune_ms = 0;
+    t.numerics_used = t.numerics_allowed;
+    // The context outlives its sessions.
+    let c = unsafe { &*s.ctx };
+    let line = |l: Linear, forced: bool| format!("linear={};forced={}", l.name(), if forced { "linear" } else { "" });
+    if let Some(l) = forced_linear()? {
+        write_choices(&mut t.choices, &line(l, true));
+        t.tuned = TURBO_TUNED_FORCED;
+        return Ok(());
+    }
+    // One path: nothing to choose, nothing reported.
+    if !onednn_runs(c, s.half.as_ref()) {
+        write_choices(&mut t.choices, "");
+        return Ok(());
+    }
+    let default = s.linear;
+    let cached = if t.cached.is_null() {
+        None
+    } else {
+        let text = unsafe { std::ffi::CStr::from_ptr(t.cached) }.to_string_lossy();
+        parse_linear(&text).ok().flatten()
+    };
+    match (t.mode, cached) {
+        (TURBO_AUTOTUNE_ON, Some(l)) => {
+            s.linear = l;
+            write_choices(&mut t.choices, &line(l, false));
+            t.tuned = TURBO_TUNED_CACHE;
+            return Ok(());
+        }
+        (TURBO_AUTOTUNE_ON | TURBO_AUTOTUNE_RETUNE, _) => {}
+        _ => {
+            write_choices(&mut t.choices, &line(default, false));
+            return Ok(());
+        }
+    }
+    let incumbent = cached.unwrap_or(default);
+    let challenger = if incumbent == Linear::Own { Linear::Onednn } else { Linear::Own };
+    let started = std::time::Instant::now();
+    let measured = measure(s, [incumbent, challenger], t.budget_ms);
+    // The session runs the incumbent unless the challenger was timed and
+    // beat it by the margin.
+    s.linear = incumbent;
+    let measured = measured?;
+    let tune_ms = started.elapsed().as_millis().min(u32::MAX as u128) as u32;
+    let (bin, times) = match measured {
+        Measured::Timed(bin, times) => (bin, times),
+        Measured::Apart(l) => {
+            c.say(
+                LOG_INFO,
+                &format!(
+                    "levelzero device {}: not tuned: linear={}'s times stayed more than {:.0}% apart, so the device \
+                     is shared or throttling; the next session measures again",
+                    c.ordinal,
+                    l.name(),
+                    TUNE_APART * 100.0
+                ),
+            );
+            write_choices(&mut t.choices, &line(incumbent, false));
+            return Ok(());
+        }
+    };
+    let least = |l: Linear| times.iter().find(|(v, _)| *v == l).map(|(_, ms)| least_and_median(ms).0);
+    let (Some(inc), challenged) = (least(incumbent), least(challenger)) else {
+        return Err(fail(INVALID_STATE, "levelzero: the tuner timed no incumbent"));
+    };
+    if let Some(ch) = challenged
+        && ch < inc * (1.0 - TUNE_MARGIN)
+    {
+        s.linear = challenger;
+    }
+    let lines: Vec<String> =
+        times.iter().map(|(l, ms)| format!("{bin}/linear/{}={:.4}", l.name(), least_and_median(ms).0)).collect();
+    if !t.timings.is_null() && t.timings_len > 0 {
+        let text = lines.join("\n");
+        let n = text.len().min(t.timings_len as usize - 1);
+        unsafe {
+            std::ptr::copy_nonoverlapping(text.as_ptr(), t.timings as *mut u8, n);
+            *t.timings.add(n) = 0;
+        }
+    }
+    c.say(
+        LOG_INFO,
+        &format!(
+            "levelzero device {}: linear layers chosen in {tune_ms} ms: {} ({bin}, a layer: {}{})",
+            c.ordinal,
+            s.linear.name(),
+            times
+                .iter()
+                .map(|(l, ms)| format!("{} {:.3} ms", l.name(), least_and_median(ms).0))
+                .collect::<Vec<_>>()
+                .join(", "),
+            if challenged.is_none() { "; the challenger not timed, past the budget" } else { "" }
+        ),
+    );
+    write_choices(&mut t.choices, &line(s.linear, false));
+    t.tune_ms = tune_ms;
+    t.tuned = TURBO_TUNED_MEASURED;
+    Ok(())
+}
+
+enum Measured {
+    /// The token bin timed at, and each variant timed with its times in
+    /// ms; a variant past the budget is left out.
+    Timed(&'static str, Vec<(Linear, Vec<f64>)>),
+    /// This variant's times stayed apart.
+    Apart(Linear),
+}
+
+/// Times one layer of the encoder with each variant's linear layers, in
+/// order, on rows of max_seq tokens with ids 1 (TUNE_TOKENS in all at
+/// most): one untimed run, then TUNE_RUNS timed ones while the budget
+/// lasts, which the untimed runs (where a variant's kernels are built)
+/// do not count against. A variant whose times are apart is timed again,
+/// TUNE_TRIES times in all.
+fn measure(s: &mut Session, order: [Linear; 2], budget_ms: u32) -> Res<Measured> {
+    let d = &s.model().desc;
+    let batch = (TUNE_TOKENS / s.max_seq).clamp(1, s.max_batch);
+    let n = batch as usize * s.max_seq as usize;
+    let (ids, mask) = (vec![1i32; n], vec![1i32; n]);
+    let rows = turbo_backend_embed_rows {
+        struct_size: size_of::<turbo_backend_embed_rows>() as u32,
+        batch,
+        seq: s.max_seq,
+        row_stride: s.max_seq,
+        ids: ids.as_ptr(),
+        mask: mask.as_ptr(),
+        types: std::ptr::null(),
+        pooling: TURBO_POOLING_MEAN,
+        normalize: TURBO_NORMALIZE_NONE,
+        output_dim: d.hidden,
+        reserved: 0,
+    };
+    let (tokens, longest, _) = unsafe { s.pack(&rows)? };
+    s.has_types = false;
+    s.batch = batch;
+    s.tokens = tokens;
+    s.longest = longest;
+    s.pooling = rows.pooling;
+    s.normalize = rows.normalize;
+    s.output_dim = rows.output_dim;
+    s.written = false;
+    let bin = ["le256", "le1k", "le4k", "le16k", "gt16k"][crate::tuning::tcap_bin(tokens) as usize];
+    let budget = std::time::Duration::from_millis(budget_ms as u64);
+    let mut spent = std::time::Duration::ZERO;
+    let mut timed = Vec::new();
+    for l in order {
+        s.linear = l;
+        s.encode_and_wait(1)?;
+        let mut tries = 0;
+        let times = loop {
+            let mut times = Vec::with_capacity(TUNE_RUNS);
+            while times.len() < TUNE_RUNS && spent < budget {
+                let t0 = std::time::Instant::now();
+                s.encode_and_wait(1)?;
+                let e = t0.elapsed();
+                spent += e;
+                times.push(e.as_secs_f64() * 1e3);
+            }
+            tries += 1;
+            if times.len() < 2 {
+                break times;
+            }
+            let (least, median) = least_and_median(&times);
+            if median <= least * (1.0 + TUNE_APART) {
+                break times;
+            }
+            if tries == TUNE_TRIES {
+                return Ok(Measured::Apart(l));
+            }
+        };
+        if !times.is_empty() {
+            timed.push((l, times));
+        }
+    }
+    Ok(Measured::Timed(bin, timed))
 }
 
 pub(crate) unsafe extern "C" fn session_release(session: *mut c_void) {
@@ -952,6 +1289,27 @@ pub(crate) unsafe extern "C" fn session_release(session: *mut c_void) {
 impl Session {
     fn ctx(&self) -> &Context {
         unsafe { &*self.ctx }
+    }
+
+    /// The encoder through `layers` layers over the written rows, waited
+    /// for.
+    fn encode_and_wait(&self, layers: u32) -> Res<()> {
+        let c = self.ctx();
+        let mut q = c.lock_queue()?;
+        let encoded = self.encode(&mut q, layers);
+        // The queue is left idle whether or not the run finished.
+        let synced = c.sync(&mut q);
+        encoded?;
+        synced?;
+        // oneDNN's work is done too, its last event waited for by the
+        // backend's last kernel; its events are let go.
+        #[cfg(feature = "levelzero-onednn")]
+        if self.linear == Linear::Onednn
+            && let Some(dn) = c.dnnl()
+        {
+            dn.wait()?;
+        }
+        Ok(())
     }
 
     fn model(&self) -> &Model {
@@ -1005,8 +1363,10 @@ impl Session {
         Ok((t as u32, longest, (arrays * t * 4 + r.batch as usize * 8) as u64))
     }
 
-    /// The encoder over the packed rows, appended to the queue.
-    fn encode(&self, q: &mut Queue) -> Res<()> {
+    /// The encoder over the packed rows through `layers` layers, appended
+    /// to the queue: all of them for a run, fewer for the tuner, whose
+    /// output is not read.
+    fn encode(&self, q: &mut Queue, layers: u32) -> Res<()> {
         let c = self.ctx();
         let d = &self.model().desc;
         let w = &self.weights.tensors;
@@ -1021,15 +1381,12 @@ impl Session {
         // Attention on the matrix engines reads F16 projections and writes
         // an F16 context.
         let half_attention = matches!(k.attention, Attention::Xmx(..));
-        // oneDNN takes the F16 linear layers of a batch past the few-token
-        // kernels, with its own LayerNorm after the projections back to
-        // the hidden width; the two queues are ordered by waiting.
+        // With linear=onednn, oneDNN takes the linear layers of a batch
+        // past the few-token kernels: at FASTEST in F16 with its own
+        // LayerNorm after the projections back to the hidden width, in
+        // F32 with the backend's; the two queues are ordered by waiting.
         #[cfg(feature = "levelzero-onednn")]
-        let dnnl = if tokens > FEW_TOKENS_DPAS && self.half.as_ref().is_some_and(|h| !h.packed.is_empty()) {
-            c.dnnl()
-        } else {
-            None
-        };
+        let dnnl = if self.linear == Linear::Onednn && tokens > FEW_TOKENS_DPAS { c.dnnl() } else { None };
         #[cfg(not(feature = "levelzero-onednn"))]
         let dnnl: Option<()> = None;
         // Few tokens: a group per token keeps each LayerNorm short.
@@ -1052,22 +1409,33 @@ impl Session {
                       what: &str|
          -> Res<u32> {
             #[cfg(feature = "levelzero-onednn")]
-            if let (Some(dn), Some(half), true) = (dnnl, &self.half, to_half) {
-                let signal = dn.matmul(&super::onednn::Matmul {
-                    a: x,
-                    packed: half.packed[l as usize][which],
-                    bias,
-                    residual: 0,
-                    c: y,
-                    m: tokens,
-                    k: n_in,
-                    n: n_out,
-                    gelu: flags & LINEAR_GELU != 0,
-                    wait: q.last_event() as u64,
-                })?;
-                q.pending_wait = signal as super::ze::Handle;
-                let _ = (weight, splits, what);
-                return Ok(1);
+            if let Some(dn) = dnnl {
+                // F16 from the packed weights where the output is F16, F32
+                // from the layer's own [n_out, n_in] weights in an F32
+                // session; the backend's kernels for the rest.
+                let packed = match &self.half {
+                    Some(half) if to_half => Some(half.packed[l as usize][which]),
+                    None => Some(weight),
+                    Some(_) => None,
+                };
+                if let Some(packed) = packed {
+                    let signal = dn.matmul(&super::onednn::Matmul {
+                        a: x,
+                        packed,
+                        bias: if flags & LINEAR_BIAS != 0 { bias } else { 0 },
+                        residual: 0,
+                        c: y,
+                        m: tokens,
+                        k: n_in,
+                        n: n_out,
+                        gelu: flags & LINEAR_GELU != 0,
+                        f32: self.half.is_none(),
+                        wait: q.last_event() as u64,
+                    })?;
+                    q.pending_wait = signal as super::ze::Handle;
+                    let _ = (splits, what);
+                    return Ok(1);
+                }
             }
             if let (Some(kd), Some(half)) = (&k.linear_dpas, &self.half) {
                 let (tm, tn, wm, wn, kernel) = if tokens <= FEW_TOKENS_DPAS {
@@ -1174,7 +1542,13 @@ impl Session {
             if few_tokens {
                 k.add_layer_norm_group.launch(c, q, what, &args, [tokens, 1, 1])
             } else {
-                k.add_layer_norm.launch(c, q, what, &args, [tokens.div_ceil(ROWS), 1, 1])
+                k.add_layer_norm_v4.as_ref().unwrap_or(&k.add_layer_norm).launch(
+                    c,
+                    q,
+                    what,
+                    &args,
+                    [tokens.div_ceil(ROWS), 1, 1],
+                )
             }
         };
 
@@ -1199,6 +1573,7 @@ impl Session {
                     k: n_in,
                     n: h,
                     gelu: false,
+                    f32: false,
                     wait: q.last_event() as u64,
                 })?;
                 let signal = dn.layer_norm(&super::onednn::LayerNorm {
@@ -1217,6 +1592,40 @@ impl Session {
                     let args = [Ptr(self.xh), U64(n), Ptr(self.x)];
                     k.widen_f16.launch(c, q, what, &args, [elementwise_groups(n), 1, 1])?;
                 }
+                return Ok(true);
+            }
+            // In F32, oneDNN's projection with its bias and the residual
+            // added, then the LayerNorm from that alone.
+            #[cfg(feature = "levelzero-onednn")]
+            if let (Some(dn), None, Some(kln)) = (dnnl, &self.half, &k.add_layer_norm_v4) {
+                let weight = layer(l, if which == 1 { ATTN_OUT_WEIGHT } else { FFN_OUT_WEIGHT });
+                let signal = dn.matmul(&super::onednn::Matmul {
+                    a: act,
+                    packed: weight,
+                    bias,
+                    residual: self.x,
+                    c: self.tmp,
+                    m: tokens,
+                    k: n_in,
+                    n: h,
+                    gelu: false,
+                    f32: true,
+                    wait: q.last_event() as u64,
+                })?;
+                q.pending_wait = signal as super::ze::Handle;
+                let args = [
+                    Ptr(self.x),
+                    Ptr(self.tmp),
+                    Ptr(0),
+                    Ptr(lnw),
+                    Ptr(lnb),
+                    F32(eps),
+                    I32(h as i32),
+                    I32(0),
+                    I32(tokens as i32),
+                    Ptr(0),
+                ];
+                kln.launch(c, q, what, &args, [tokens.div_ceil(ROWS), 1, 1])?;
                 return Ok(true);
             }
             let (Some(kln), Some(half)) = (&k.linear_dpas_layer_norm, &self.half) else { return Ok(false) };
@@ -1270,7 +1679,7 @@ impl Session {
         } else {
             k.embed_layer_norm.launch(c, q, "the embedding lookup", &args, [tokens.div_ceil(ROWS), 1, 1])?;
         }
-        for l in 0..d.layers {
+        for l in 0..layers.min(d.layers) {
             // The linear layers that read the hidden states read them in F16 at
             // FASTEST, as the LayerNorms leave them.
             let x = if xmx { self.xh } else { self.x };
@@ -1440,23 +1849,7 @@ pub(crate) unsafe extern "C" fn session_run(
                 return Err(fail(INVALID_STATE, "the levelzero session has no rows written since its last run"));
             }
             let device0 = device_allocs_here();
-            {
-                let c = s.ctx();
-                let mut q = c.lock_queue()?;
-                let encoded = s.encode(&mut q);
-                // The queue is left idle whether or not the run finished.
-                let synced = c.sync(&mut q);
-                encoded?;
-                synced?;
-                // oneDNN's work is done too, its last event waited for by
-                // the backend's last kernel; its events are let go.
-                #[cfg(feature = "levelzero-onednn")]
-                if s.half.as_ref().is_some_and(|h| !h.packed.is_empty())
-                    && let Some(dn) = c.dnnl()
-                {
-                    dn.wait()?;
-                }
-            }
+            s.encode_and_wait(s.model().desc.layers)?;
             out.placement = TURBO_PLACE_DEVICE;
             out.output = &*s.output as *const Buffer as *mut c_void;
             out.host = std::ptr::null_mut();
