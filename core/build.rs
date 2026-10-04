@@ -50,6 +50,11 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     records();
     kernels_id();
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        // The library's install name, which a program linked to it loads it
+        // by: through the program's rpath, not the directory it was built in.
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-install_name,@rpath/libturbo.dylib");
+    }
     if env::var_os("CARGO_FEATURE_CUDA").is_some() {
         cuda();
     }
