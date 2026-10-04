@@ -22,6 +22,15 @@ namespace {
  * dtype minimum does. */
 constexpr float MASKED = -100.f;
 
+/* The batch the model is configured with: on a HEF of several contexts the
+ * device runs up to this many frames through each context before it loads
+ * the next, so the cost of a switch is shared by the burst. With HailoRT's
+ * scheduler it is the most frames run at once, not a number a run waits
+ * for: a single frame runs alone. 32 is the largest HailoRT configures
+ * all-MiniLM-L6-v2's HEF with on the Hailo-10H; docs/hailo.md has what
+ * each burst gives. */
+constexpr uint16_t BURST = 32;
+
 /* How long a frame may take before the run gives up on the device. */
 constexpr std::chrono::milliseconds FRAME_TIMEOUT{10000};
 
@@ -99,30 +108,39 @@ Failure Model::load(hailort::VDevice &vdevice, const ModelDesc &desc, std::uniqu
                                                 " outputs; an embed hef has the rows and the bias in and the "
                                                 "hidden states out");
     const size_t rows = (size_t)desc.seq * desc.hidden, bias = (size_t)desc.seq * desc.heads * desc.seq;
-    // The inputs are told apart by size: the rows are [seq, hidden], the
-    // bias [seq, heads * seq].
+    // The inputs are told apart by the names the compiler gives them in the
+    // order the graph declares them (bundle/hailo/hef_compile.py): the rows
+    // [seq, hidden] first, then the bias [seq, heads * seq]. Their sizes
+    // alone do not tell them apart when heads * seq is hidden (MiniLM at 32
+    // tokens), so each is checked against the size its name implies.
     for (const auto &name : inputs) {
+        const auto ends = [&](const std::string &tail) {
+            return name.size() >= tail.size() && name.compare(name.size() - tail.size(), tail.size(), tail) == 0;
+        };
+        const bool is_rows = ends("/input_layer1"), is_bias = ends("/input_layer2");
+        if (!is_rows && !is_bias)
+            return fail(TURBO_E_BUNDLE_INVALID, "hef input " + name +
+                                                    ": an embed hef's inputs are input_layer1, the rows, and "
+                                                    "input_layer2, the bias");
         auto in = m->infer_->input(name);
         if (!in) return hailort_failed(in.status(), "input " + name);
-        const size_t f = in->get_frame_size();
-        Stream &s = (f == rows || f == 2 * rows) ? m->rows_ : m->bias_;
-        if (!s.name.empty())
-            return fail(TURBO_E_BUNDLE_INVALID, "hef inputs " + s.name + " and " + name + " are the same size");
-        Failure e = describe(*in, name, &s == &m->rows_ ? rows : bias, s);
+        Failure e = describe(*in, name, is_rows ? rows : bias, is_rows ? m->rows_ : m->bias_);
         if (e) return e;
     }
     if (m->rows_.name.empty() || m->bias_.name.empty())
-        return fail(TURBO_E_BUNDLE_INVALID,
-                    "the hef's inputs are not [" + std::to_string(desc.seq) + ", " + std::to_string(desc.hidden) +
-                        "] rows and a [" + std::to_string(desc.seq) + ", " + std::to_string(desc.heads * desc.seq) +
-                        "] bias");
+        return fail(TURBO_E_BUNDLE_INVALID, "the hef's inputs are not input_layer1 and input_layer2");
     auto o = m->infer_->output(outputs[0]);
     if (!o) return hailort_failed(o.status(), "output " + outputs[0]);
     Failure e = describe(*o, outputs[0], rows, m->hidden_);
     if (e) return e;
+    m->burst_ = BURST;
+    m->infer_->set_batch_size(BURST);
     auto configured = m->infer_->configure();
     if (!configured) return hailort_failed(configured.status(), "configure");
     m->configured_.reset(new hailort::ConfiguredInferModel(configured.release()));
+    auto queue = m->configured_->get_async_queue_size();
+    if (!queue) return hailort_failed(queue.status(), "get_async_queue_size");
+    m->queue_ = (uint32_t)*queue;
     out = std::move(m);
     return {};
 }
@@ -139,7 +157,12 @@ Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, std:
     s->ids_.resize((size_t)max_batch * max_seq);
     s->mask_.resize((size_t)max_batch * max_seq);
     s->sum_.resize(model.desc().hidden);
-    for (Slot &slot : s->slots_) {
+    // Two bursts in flight, so one fills on the host while the other runs,
+    // and no more than HailoRT queues or the session's rows need.
+    const uint32_t slots = std::min({2 * model.burst(), model.queue(), std::max(max_batch, 2u)});
+    for (uint32_t i = 0; i < std::max(slots, 1u); i++) {
+        s->slots_.emplace_back(new Slot());
+        Slot &slot = *s->slots_.back();
         slot.rows.resize(model.rows().frame_bytes);
         slot.bias.resize(model.bias().frame_bytes);
         slot.hidden.resize(model.hidden().frame_bytes);
@@ -243,7 +266,8 @@ Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
     h2d = d2h = 0;
     std::lock_guard<std::mutex> g(model_->runs());
     auto &cm = model_->configured();
-    // Two frames in flight: one fills on the host while the other runs.
+    // Up to slots_.size() frames in flight: each slot is filled again as
+    // soon as its frame comes back.
     Failure failed;
     auto fault = [&](Failure f) {
         if (!failed) failed = f;
@@ -263,7 +287,7 @@ Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
         if (!failed) pool(s, out);
     };
     for (uint32_t row = 0; row < rows_.batch && !failed; row++) {
-        Slot &s = slots_[row % 2];
+        Slot &s = *slots_[row % slots_.size()];
         finish(s);
         if (failed) break;
         fill(s, row);
@@ -281,11 +305,12 @@ Failure Session::run(float *out, uint64_t &h2d, uint64_t &d2h) {
         s.busy = true;
         h2d += s.rows.size() + s.bias.size();
     }
-    // Every frame still in flight is waited for. After a frame timed out,
-    // this waits on the same slot once more, so a device that stopped
-    // answering costs up to two FRAME_TIMEOUTs in the run, and releasing
-    // the session then waits without a timeout (docs/hailo.md).
-    for (Slot &s : slots_) finish(s);
+    // Every frame still in flight is waited for, until one fails: then the
+    // rest stay busy, the run returns after one FRAME_TIMEOUT at most, and
+    // releasing the session waits for them without a timeout
+    // (docs/hailo.md).
+    for (auto &s : slots_)
+        if (!failed) finish(*s);
     return failed;
 }
 

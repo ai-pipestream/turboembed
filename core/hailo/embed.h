@@ -4,9 +4,9 @@
  * that takes the word-embedding rows of a fixed-length frame and an
  * additive attention bias per head, and gives the encoder's hidden states;
  * a session looks the rows up on the host, quantizing each value as it
- * writes it into the frame HailoRT sends, keeps two frames in flight, and
- * pools and normalizes each frame's hidden states on the host as it comes
- * back. backend.cpp puts these behind the turbo_backend table.
+ * writes it into the frame HailoRT sends, keeps two bursts of frames in
+ * flight, and pools and normalizes each frame's hidden states on the host
+ * as it comes back. backend.cpp puts these behind the turbo_backend table.
  */
 
 #ifndef TURBO_HAILO_EMBED_H
@@ -72,11 +72,18 @@ class Model {
     std::mutex &runs() { return runs_; }
     hailort::ConfiguredInferModel &configured() { return *configured_; }
 
+    /* Frames the device runs through each context before it switches to
+     * the next: the batch the model is configured with. */
+    uint32_t burst() const { return burst_; }
+    /* Frames HailoRT queues at once. */
+    uint32_t queue() const { return queue_; }
+
   private:
     ModelDesc desc_;
     std::shared_ptr<hailort::InferModel> infer_;
     std::unique_ptr<hailort::ConfiguredInferModel> configured_;
     Stream rows_, bias_, hidden_;
+    uint32_t burst_ = 0, queue_ = 0;
     std::mutex runs_;
 };
 
@@ -91,9 +98,9 @@ struct Rows {
 
 class Session {
   public:
-    /* Frames for max_batch rows of up to max_seq tokens: two in flight,
-     * and the session's copy of the rows. Everything a run touches is
-     * allocated here. */
+    /* Frames for max_batch rows of up to max_seq tokens: up to two of the
+     * model's bursts in flight, and the session's copy of the rows.
+     * Everything a run touches is allocated here. */
     static Failure create(Model &model, uint32_t max_batch, uint32_t max_seq, std::unique_ptr<Session> &out);
 
     /* The rows and options of the next run, copied. A token type other
@@ -125,7 +132,7 @@ class Session {
     Rows rows_;
     std::vector<int32_t> ids_, mask_;
     std::vector<double> sum_;   // one row's pooled values, before the cut and the norm
-    Slot slots_[2];
+    std::vector<std::unique_ptr<Slot>> slots_;
     bool written_ = false;
     /* Set when a frame failed or timed out: the device may still own a
      * slot's memory, so the session runs nothing more. */
