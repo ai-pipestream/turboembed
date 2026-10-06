@@ -90,6 +90,13 @@ A few rules hold the shape:
   `orin-nano`, `pi5-hailo8` or `m2`, and nothing from a particular
   machine (host names, user names, paths) is committed.
 
+## Setting it up
+
+`docs/setup/README.md` has one page per kind of machine (CPU, NVIDIA,
+Intel GPU, Intel NPU, Apple silicon, Hailo-10H, Hailo-8), each from
+installing the toolchain to checking the vectors against a bundle's
+reference, and `scripts/setup/` checks or installs what each one needs.
+
 ## Reading further
 
 - `docs/bundle.md`: the bundle format and the `turbo-bundle` tool.
