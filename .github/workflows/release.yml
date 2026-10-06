@@ -64,7 +64,8 @@ jobs:
       - name: package
         id: package
         run: |
-          tag="${GITHUB_REF_NAME}"
+          # A pull request's ref is <number>/merge; an artifact's name has no /.
+          tag="${GITHUB_REF_NAME//\//-}"
           name="turboembed-${tag}-linux-x86_64"
           mkdir -p "$name/lib" "$name/include/turbo" "$name/licenses"
           cp target/release/libturbo.so "$name/lib/"

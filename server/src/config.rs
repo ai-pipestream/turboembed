@@ -160,7 +160,10 @@ impl Args {
             match flag.as_str() {
                 "--listen" => {
                     let v = value()?;
-                    listen = Some(v.parse().map_err(|_| format!("--listen {v}: not ADDR:PORT"))?);
+                    let addr = v.parse().map_err(|_| format!("--listen {v}: not ADDR:PORT"))?;
+                    if listen.replace(addr).is_some() {
+                        return Err("--listen given twice".into());
+                    }
                 }
                 "--model" => models.push(ModelConfig::parse(&value()?)?),
                 "--max-message-bytes" => {
@@ -313,6 +316,7 @@ mod tests {
             "--listen 127.0.0.1:0 --model bundle=a/.,device=0,sessions=1",
             "--listen 127.0.0.1:0 --model bundle=..,device=0,sessions=1",
             "--listen nowhere --model bundle=x,device=0,sessions=1",
+            "--listen 127.0.0.1:0 --listen 127.0.0.1:1 --model bundle=x,device=0,sessions=1",
             "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes -1",
             "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes 64MiB",
             "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes 1 --max-message-bytes 2",

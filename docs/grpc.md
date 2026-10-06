@@ -43,7 +43,18 @@ while the bundles load, and `ServerReady` turns true once every model
 and all its sessions are made. It logs `listening on ADDR:PORT`, then
 `ready`. A model that fails to load stops the server with a non-zero
 exit, naming the model, the failing call, its status, the field it names
-and the library's message. Ctrl-C (SIGINT) stops it.
+and the library's message.
+
+The connection is plaintext gRPC with no authentication: put it behind
+whatever your deployment uses for that, and listen on `0.0.0.0` only
+where that is in place.
+
+SIGTERM, what Kubernetes and `docker stop` send, and SIGINT (Ctrl-C)
+stop it the same way: it logs `stopping on SIGTERM` or `stopping on
+SIGINT`, closes the listener, lets every request in flight finish and
+be answered, refuses new connections, logs `stopped` and exits 0. A
+signal during load takes effect once the load returns; the library has
+no way to stop a load part way.
 
 ### Flags
 
@@ -66,6 +77,8 @@ and the library's message. Ctrl-C (SIGINT) stops it.
 | `max_seq` | The sessions' sequence limit. | 0, the model's. |
 
 A bundle path may not contain a comma. Two models may not share a name.
+`--listen` and `--max-message-bytes` are refused when given twice;
+`--model` repeats, once per model.
 The tier and the device are the model's, not a request's: a request
 that names `precision` or `device` is refused. To offer one bundle at
 two tiers, serve it twice under two names:
@@ -84,7 +97,8 @@ reports each index's kind and name.
 ### Environment
 
 Each variable is read when its flag is absent; a flag on the command
-line replaces it.
+line replaces it. A variable holds one value, so none can be given
+twice; `TURBO_KSERVE_MODELS` lists every model in one.
 
 | Variable | Flag |
 |---|---|
@@ -128,6 +142,40 @@ names: `truncate`, `max_tokens`, `prompt_role`, `normalize`, `pooling`,
 `output_dim`; one left out is what the bundle says. A batch is one run:
 to embed many texts at once, send them in one request, up to the
 model's `session_info.max_batch`.
+
+### Texts longer than the model takes
+
+A served model has two lengths, both in its metadata: the bundle's
+`model_info.max_seq`, the length the model was evaluated at, and the
+sessions' `session_info.max_seq`, what this device runs. They differ
+where the artifact is compiled for a fixed shape (an NPU IR or a Hailo
+HEF at 128 tokens, say, for a bundle evaluated at 256 or 512), or where
+`max_seq` is configured below the model's.
+
+With no options, a text is cut as the bundle says (`TRUNCATE_MODEL`, at
+`model_info.max_seq`), and a row that then does not fit the session is
+refused with `OUT_OF_RANGE` (`TURBO_E_CAPACITY`, `turbo-code` 771) and a
+message naming the row and the limit:
+
+```
+TURBO_E_CAPACITY: texts[0]: 203 tokens is over the session's max_seq 128
+```
+
+The server never cuts a text on its own: that is the library's rule,
+and it keeps the vectors the same for the same request on every device.
+A client that wants long texts cut to what the device runs asks for it
+in the request:
+
+```
+"parameters": {"max_tokens": {"int64_param": 128},
+               "truncate": {"string_param": "TRUNCATE_RIGHT"}}
+```
+
+`max_tokens` is the budget per row, specials included, at most
+`session_info.max_seq`; `truncate` says which end to cut (`TRUNCATE_LEFT`
+keeps the end), and `TRUNCATE_NONE` refuses instead. Rows sent as
+tokens are never cut: a row longer than `session_info.max_seq` is the
+same `OUT_OF_RANGE`.
 
 Errors are gRPC statuses with the library's status name and message,
 and trailing metadata `turbo-code` and `turbo-field` (kserve.md,
