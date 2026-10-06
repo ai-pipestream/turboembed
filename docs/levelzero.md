@@ -97,15 +97,15 @@ which takes host memory and, for a shape whose kernel oneDNN has not
 compiled, tens of milliseconds. So oneDNN runs a batch at its tokens
 rounded up to a bin: a multiple of 16 up to 512 tokens, then of a 32nd of
 the next power of two (32 up to 1024, 64 up to 2048, and so on), at most
-the session's `max_batch` times `max_seq`. A session whose linear layers
-run on oneDNN builds the primitives of every bin it can take when it is
-made, about a quarter of a second for 32 rows of 256 tokens on a B70, and
-the context keeps them for its later sessions, so a run builds none. The
-rows of a bin past the batch's tokens are computed into scratch no other
-kernel reads, a row at a time, so they change no vector; a batch computes
-at most 15 rows more than it holds up to 512 tokens, and at most a 16th
-more past that. A primitive a run
-does build all the same is counted in its `host_allocs`.
+the session's `max_batch` times `max_seq`. The context keeps the
+primitives it builds for every session on it, so their number is bounded
+by the bins, and only the first run at a bin builds any: that run counts
+them in its `host_allocs`, and later runs at the bin allocate nothing.
+(Built for every bin when a session is made instead, the same primitives
+ran 0.6% to 1% slower on a B70, so they are not.) The rows of a bin past
+the batch's tokens are computed into scratch no other kernel reads, a row
+at a time, so they change no vector; a batch computes at most 15 rows
+more than it holds up to 512 tokens, and at most a 16th more past that.
 
 What the feature changes in the contract: where a session runs oneDNN, a
 row's bits depend on the rows around it, since oneDNN's kernel for a batch
@@ -331,8 +331,9 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   and 8 per row for the table. `d2h_bytes` is 0 after the run and grows by
   each read. `host_allocs` and `device_allocs` are what
   the backend allocated on the running thread during the run; a run
-  allocates nothing, cold or warm, oneDNN's primitives included (oneDNN
-  for the linear layers, above).
+  allocates nothing, cold or warm, but for oneDNN's primitives the first
+  time a context runs a bin of tokens (oneDNN for the linear layers,
+  above).
 
 ## Testing on a machine with an Intel GPU
 

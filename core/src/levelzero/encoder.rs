@@ -667,9 +667,12 @@ const WIDE_LN_TM: u32 = 32;
 /// building one takes the host's memory and up to tens of milliseconds. So
 /// oneDNN runs a batch at its tokens rounded up to a bin, a multiple of a
 /// 32nd of the next power of two and of ONEDNN_STEP at least, and at most
-/// the session's tokens; and a session builds the primitives of every bin
-/// when it is made, so a run builds none. The rows past the batch's tokens
-/// are scratch the other kernels never read, each computed on its own.
+/// the session's tokens, which bounds the primitives a context keeps and
+/// the runs that build one: the first at each bin, which counts them in
+/// host_allocs. (Built when the session is made instead, the same
+/// primitives ran 0.6% to 1% slower on a B70.) The rows past the batch's
+/// tokens are scratch the other kernels never read, each computed on its
+/// own.
 const ONEDNN_STEP: u32 = 16;
 
 #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
@@ -1000,10 +1003,6 @@ pub(crate) unsafe extern "C" fn session_create(
                 Some(l) => l,
                 None => default_linear(c, s.half.as_ref()),
             };
-            #[cfg(feature = "levelzero-onednn")]
-            if s.linear == Linear::Onednn {
-                s.prepare_onednn()?;
-            }
             *compute_dtype = if xmx { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
             *out = Box::into_raw(s) as *mut c_void;
             Ok(())
@@ -1341,61 +1340,6 @@ impl Session {
         Ok(built)
     }
 
-    /// oneDNN's primitives for every bin of tokens a run of the session
-    /// can take (onednn_tokens), built where the context has not built
-    /// them yet: the shapes encode() hands oneDNN.
-    #[cfg(feature = "levelzero-onednn")]
-    fn prepare_onednn(&self) -> Res<()> {
-        use super::onednn::{LayerNorm, Matmul};
-        let c = self.ctx();
-        let Some(dn) = c.dnnl() else { return Ok(()) };
-        let d = &self.model().desc;
-        let (h, inter, eps) = (d.hidden, d.intermediate, d.layer_norm_eps as f32);
-        let most = self.max_batch * self.max_seq;
-        let half = self.half.is_some();
-        let half_attention = matches!(self.kernels.attention, Attention::Xmx(..));
-        let fused_f32 = self.kernels.add_layer_norm_v4.is_some();
-        // oneDNN's handle is the context's, used under its queue lock.
-        let _q = c.lock_queue()?;
-        let mut tokens = FEW_TOKENS_DPAS + 1;
-        while tokens <= most {
-            let m = onednn_tokens(tokens, most);
-            let mm = |k, n, gelu, residual: bool, bias: bool| Matmul {
-                a: 0,
-                packed: 0,
-                bias: bias as u64,
-                residual: residual as u64,
-                c: 0,
-                m,
-                k,
-                n,
-                gelu,
-                f32: !half,
-                wait: 0,
-            };
-            // The projections in, then the two back to the hidden width.
-            let mut shapes = Vec::with_capacity(4);
-            if !half || half_attention {
-                shapes.push(mm(h, 3 * h, false, false, true));
-            }
-            shapes.push(mm(h, inter, true, false, true));
-            if half || fused_f32 {
-                shapes.extend([mm(h, h, false, true, true), mm(inter, h, false, true, true)]);
-            } else {
-                shapes.extend([mm(h, h, false, false, false), mm(inter, h, false, false, false)]);
-            }
-            for s in &shapes {
-                dn.prepare_matmul(s)?;
-            }
-            if half {
-                let ln = LayerNorm { src: 0, gamma: 0, beta: 0, eps, dst: 0, m, n: h, wait: 0 };
-                dn.prepare_layer_norm(&ln)?;
-            }
-            tokens = m + 1;
-        }
-        Ok(())
-    }
-
     fn model(&self) -> &Model {
         unsafe { &*self.model }
     }
@@ -1474,7 +1418,7 @@ impl Session {
         #[cfg(not(feature = "levelzero-onednn"))]
         let dnnl: Option<()> = None;
         // oneDNN's tokens, the batch's binned, and the primitives the run
-        // built, which the session's preparation leaves none of.
+        // built: some the first time at a bin, none after.
         #[cfg(feature = "levelzero-onednn")]
         let dm = onednn_tokens(tokens, self.max_batch * self.max_seq);
         let built = std::cell::Cell::new(0u64);
@@ -1951,7 +1895,7 @@ pub(crate) unsafe extern "C" fn session_run(
             out.d2h_bytes = 0;
             // The run appends launches to memory the session holds: the
             // kernels' arguments are set in place and nothing is allocated,
-            // but for a oneDNN primitive the session did not prepare.
+            // but for oneDNN's primitives the first time at a bin of tokens.
             out.host_allocs = built;
             out.device_allocs = device_allocs_here() - device0;
             let st = &mut out.stage;

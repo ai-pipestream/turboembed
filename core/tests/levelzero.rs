@@ -742,7 +742,12 @@ fn a_run_leaves_its_vectors_on_the_device_and_counts_what_crossed() {
     // and mask for each live token, and the row table.
     assert_eq!(i.h2d_bytes, 3 * live * 4 + 3 * 8, "{live} live tokens");
     assert_eq!(i.d2h_bytes, 0, "nothing came back yet");
-    assert_eq!((i.host_allocs, i.device_allocs), (0, 0));
+    // The context's first run at these tokens builds oneDNN's primitives
+    // for them, where the build has it.
+    assert_eq!(i.device_allocs, 0);
+    if !cfg!(feature = "levelzero-onednn") {
+        assert_eq!(i.host_allocs, 0);
+    }
     let (h, d, f, u) = (TURBO_STAGE_HOST, TURBO_STAGE_DEVICE, TURBO_STAGE_FUSED, TURBO_STAGE_UNUSED);
     assert_eq!(i.stage[..7], [h, f, d, d, d, d, u], "tokenize, upload, lookup, encode, pool, normalize, download");
     assert!(i.stage[7..].iter().all(|&s| s == u));
@@ -816,11 +821,12 @@ fn rows_in_driver_memory_give_the_same_vectors() {
     }
 }
 
-/// A run allocates nothing on the host or the device, cold or warm, at
-/// each precision and at token counts that land in different bins of
-/// oneDNN's (where the build has it): this binary's allocator counts
-/// nothing on the running thread, the backend's own count does not move,
-/// and the result says 0, oneDNN's primitives included.
+/// A run allocates nothing on the device, cold or warm, at each precision
+/// and at token counts that land in different bins of oneDNN's (where the
+/// build has it): this binary's allocator counts nothing on the running
+/// thread and the backend's own count does not move. On the host the
+/// result says 0, but for oneDNN's primitives the first time the context
+/// runs a bin; a second run at the same tokens says 0.
 #[test]
 fn a_run_allocates_nothing() {
     let _t = turn();
@@ -855,10 +861,19 @@ fn a_run_allocates_nothing() {
             (i.host_allocs, i.device_allocs, counted)
         };
         let before = turbo::levelzero::allocations();
-        for (i, t) in [&small, &long, &small, &long].into_iter().chain(&odd).enumerate() {
+        for (i, t) in [&small, &long].into_iter().chain(&odd).enumerate() {
             let (host, device, counted) = run(t);
-            assert_eq!((host, device), (0, 0), "precision {precision} run {i}: the result's count");
-            assert_eq!(counted, host, "precision {precision} run {i}: what this thread's allocator counted");
+            assert_eq!(device, 0, "precision {precision} run {i}: the result's device count");
+            assert_eq!(counted, 0, "precision {precision} run {i}: what this thread's allocator counted");
+            if !cfg!(feature = "levelzero-onednn") {
+                assert_eq!(host, 0, "precision {precision} run {i}: the result's host count");
+            }
+            let again = run(t);
+            assert_eq!(
+                again,
+                (0, 0, 0),
+                "precision {precision} run {i} again: the result's counts and the allocator's"
+            );
         }
         assert_eq!(turbo::levelzero::allocations(), before, "precision {precision}: the backend allocated nothing");
     }

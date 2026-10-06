@@ -227,22 +227,6 @@ int turbo_dnnl_layer_norm(void *hp, const void *src, const float *gamma, const f
     });
 }
 
-// The primitives turbo_dnnl_matmul and turbo_dnnl_layer_norm would take for
-// these shapes, built now where not yet, so a run finds them; *built says
-// whether they were.
-int turbo_dnnl_prepare_matmul(void *hp, int m, int k, int n, int gelu, int residual, int f32, int has_bias, int *built,
-                              char *err, size_t n_err) {
-    Handle &h = *static_cast<Handle *>(hp);
-    return guarded(err, n_err, [&] {
-        matmul_for(h, m, k, n, gelu ? 1 : 0, residual ? 1 : 0, f32 ? 1 : 0, has_bias ? 1 : 0, built);
-    });
-}
-
-int turbo_dnnl_prepare_layer_norm(void *hp, int m, int n, float eps, int *built, char *err, size_t n_err) {
-    Handle &h = *static_cast<Handle *>(hp);
-    return guarded(err, n_err, [&] { norm_for(h, m, n, eps, built); });
-}
-
 // Waits for everything queued.
 int turbo_dnnl_wait(void *hp, char *err, size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
