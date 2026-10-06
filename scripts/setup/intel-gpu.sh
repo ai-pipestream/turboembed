@@ -34,32 +34,44 @@ check_c_compiler
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-section "A clang that compiles OpenCL C to SPIR-V (build time)"
-# The same flags core/build.rs passes, on a kernel that uses the sub-group
-# extension.
+section "clang 20 or newer, which compiles OpenCL C to SPIR-V (build time)"
+# The same version rule and flags core/build.rs uses, on a kernel that uses
+# the sub-group extension: clang 19 and older are refused, and clang 20 and
+# newer get -fintegrated-objemitter so they emit SPIR-V themselves.
 cat > "$scratch/probe.cl" <<'CL'
 __attribute__((intel_reqd_sub_group_size(16)))
 kernel void probe(global float *x) { x[get_global_id(0)] = sub_group_broadcast(x[0], 0); }
 CL
+clang_major() { "$1" --version 2>/dev/null | sed -n 's/.*clang version \([0-9][0-9]*\)\..*/\1/p' | head -n1; }
 probe_clang() {
-    "$1" -cl-std=CL3.0 --target=spirv64 -O2 -mllvm --spirv-ext=+SPV_INTEL_subgroups -c "$scratch/probe.cl" -o "$scratch/probe.spv" >/dev/null 2>&1
+    have "$1" || return 1
+    local major; major=$(clang_major "$1")
+    [ -n "$major" ] && [ "$major" -lt 20 ] && return 1
+    "$1" -cl-std=CL3.0 --target=spirv64 -O2 -mllvm --spirv-ext=+SPV_INTEL_subgroups -fintegrated-objemitter \
+        -c "$scratch/probe.cl" -o "$scratch/probe.spv" >/dev/null 2>&1
 }
-wrapper="$TURBO_ROOT/scripts/setup/clang-spirv.sh"
-if [ -n "${TURBO_CLANG:-}" ]; then
-    if probe_clang "$TURBO_CLANG"; then ok "TURBO_CLANG=$TURBO_CLANG compiles the kernels"
-    else missing "TURBO_CLANG=$TURBO_CLANG does not compile OpenCL C to SPIR-V with --spirv-ext"; fi
-elif probe_clang clang; then
-    ok "clang on the PATH compiles the kernels ($(clang -dumpversion))"
-elif probe_clang "$wrapper"; then
-    ok "scripts/setup/clang-spirv.sh compiles the kernels"
-    note "set: export TURBO_CLANG=$wrapper"
+clang=${TURBO_CLANG:-clang}
+if probe_clang "$clang"; then
+    ok "$clang (clang $(clang_major "$clang")) compiles the kernels"
 else
-    missing "a clang 20 or newer with LLVM's SPIR-V backend (clang $(clang -dumpversion 2>/dev/null || echo 'not found') on the PATH does not take --spirv-ext)"
-    case "$(os_id)" in
-        ubuntu|debian) apt_install clang-20 && note "then: export TURBO_CLANG=$wrapper" ;;
-        fedora) install_step "$(as_root dnf install -y clang)" ;;
-        *) note "install clang 20 or newer, then: export TURBO_CLANG=$wrapper" ;;
-    esac
+    if [ -n "${TURBO_CLANG:-}" ]; then
+        missing "TURBO_CLANG=$TURBO_CLANG is not clang 20 or newer with a SPIR-V backend"
+    else
+        missing "clang on the PATH is $(clang_major clang 2>/dev/null | sed 's/^/clang /' || true)$(have clang || echo 'not installed'): the build needs clang 20 or newer"
+    fi
+    other=""
+    for c in clang-22 clang-21 clang-20; do
+        if probe_clang "$c"; then other=$c; break; fi
+    done
+    if [ -n "$other" ]; then
+        note "$other compiles the kernels: export TURBO_CLANG=$other"
+    else
+        case "$(os_id)" in
+            ubuntu|debian) apt_install clang-20 && note "then: export TURBO_CLANG=clang-20" ;;
+            fedora) install_step "$(as_root dnf install -y clang)" ;;
+            *) note "install clang 20 or newer and set TURBO_CLANG to it" ;;
+        esac
+    fi
 fi
 
 section "Intel GPU and kernel driver (run time)"

@@ -14,11 +14,12 @@ the encoder sums the L2 norm in F64, which the GPU's driver must offer.
 
 To build `levelzero`:
 
-- A clang whose own SPIR-V backend compiles OpenCL C
-  (`--target=spirv64`) and takes `--spirv-ext`. Clang 21 and newer do as
-  shipped. Clang 20 does with `-fintegrated-objemitter`, which
-  `scripts/setup/clang-spirv.sh` adds; point `TURBO_CLANG` at it.
-  Clang 18 and older do not.
+- Clang 20 or newer, whose own SPIR-V backend compiles OpenCL C
+  (`--target=spirv64`). The build asks clang its version, refuses an
+  older one with that reason, and passes `-fintegrated-objemitter` so
+  clang 20 emits SPIR-V itself rather than through `llvm-spirv`.
+  Ubuntu 24.04's default clang is 18; its `clang-20` package works with
+  `TURBO_CLANG=clang-20`.
 - Nothing of Level Zero.
 
 To build `levelzero-onednn`, also:
@@ -49,7 +50,7 @@ scripts/setup/intel-gpu.sh --onednn --install # Ubuntu: clang, Level Zero, compu
 
 The check compiles a small kernel with the flags the build uses, so it
 reports whether the clang on the machine will do. On Ubuntu `--install`
-installs `clang-20`, the Level Zero loader and Intel's compute runtime
+installs `clang-20` (when no clang 20 or newer is installed), the Level Zero loader and Intel's compute runtime
 (from Intel's graphics PPA on Ubuntu 24.04 to 25.04, whose own packages
 predate Xe2), and with `--onednn` the oneAPI compiler and oneDNN from
 Intel's public apt repository. It never changes the kernel driver or
@@ -58,7 +59,7 @@ adds the user to `render`; the check prints the `usermod` line.
 ## Build
 
 ```
-export TURBO_CLANG=$PWD/scripts/setup/clang-spirv.sh    # unless clang on the PATH compiles the kernels
+export TURBO_CLANG=clang-20    # when clang on the PATH is older than 20
 cargo build --release -p turbo --features levelzero
 
 # or with oneDNN for the linear layers
@@ -69,7 +70,6 @@ cargo build --release -p turbo --features levelzero-onednn
 | Variable | Meaning |
 |---|---|
 | `TURBO_CLANG` | The clang that compiles the kernels. Unset: `clang` on the `PATH`. |
-| `TURBO_SPIRV_CLANG` | For `clang-spirv.sh` only: the clang it runs. Unset: the first of `clang-22`, `clang-21`, `clang-20`, `clang`. |
 | `TURBO_ICPX` | The oneAPI compiler, for `levelzero-onednn`. Unset: `icpx` on the `PATH`. |
 
 The loader is opened at run time, so a machine without it runs everything
