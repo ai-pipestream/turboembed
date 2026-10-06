@@ -164,6 +164,7 @@ fn a_sealed_bundle_loads_through_the_core() {
         [
             "calibration/texts.jsonl",
             "hailo/model-hailo10h-s128.hef",
+            "hailo/model-hailo8-s128.hef",
             "onnx/model-f16.onnx",
             "onnx/model.onnx",
             "openvino/embeddings.bin",
@@ -407,7 +408,8 @@ fn a_conversion_that_did_not_run_is_not_sealed() {
     let e = seal::seal(&r, &bundle, pb, vec![]).unwrap_err();
     assert!(
         e.contains(
-            "the recipe converts [\"onnx-f16\", \"openvino-f16\", \"openvino-embeddings-f16\", \"hef-hailo10h-s128\"], and the runs made []"
+            "the recipe converts [\"onnx-f16\", \"openvino-f16\", \"openvino-embeddings-f16\", \"hef-hailo10h-s128\", \
+             \"hef-hailo8-s128\"], and the runs made []"
         ),
         "{e}"
     );

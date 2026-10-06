@@ -203,6 +203,30 @@
             "calibration/texts.jsonl"
           ]
         }
+      },
+      {
+        "name": "hef-hailo8-s128",
+        "format": "FORMAT_HEF",
+        "files": [
+          "hailo/model-hailo8-s128.hef"
+        ],
+        "backends": [
+          "hailo"
+        ],
+        "target": "hailo8",
+        "fixed_seq": 128,
+        "fixed_batch": 1,
+        "compute_dtype": "DTYPE_I8",
+        "graph_input": "INPUT_EMBEDDINGS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "host_weights": "weights-f32",
+        "produced_by": {
+          "from": "onnx-f32",
+          "container": "turbo-hailo-dfc3@sha256:c79441999ce17db5954976f16eb3d0b9e686137d5bddfb3b65ce9517b9406d28",
+          "inputs": [
+            "calibration/texts.jsonl"
+          ]
+        }
       }
     ],
     "reference": {
