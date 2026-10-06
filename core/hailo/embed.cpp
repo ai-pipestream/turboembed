@@ -145,6 +145,18 @@ Failure Model::load(hailort::VDevice &vdevice, const ModelDesc &desc, std::uniqu
     return {};
 }
 
+// The alignment HailoRT asks of a frame it reads or writes in place.
+constexpr size_t FRAME_ALIGN = 16384;
+
+bool Session::Frame::resize(size_t bytes) {
+    const size_t len = (bytes + FRAME_ALIGN - 1) / FRAME_ALIGN * FRAME_ALIGN;
+    p.reset(static_cast<uint8_t *>(std::aligned_alloc(FRAME_ALIGN, len ? len : FRAME_ALIGN)));
+    if (!p) return false;
+    std::memset(p.get(), 0, len ? len : FRAME_ALIGN);
+    n = bytes;
+    return true;
+}
+
 Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, std::unique_ptr<Session> &out) {
     if (max_seq > model.desc().seq)
         return fail(TURBO_E_UNSUPPORTED_OPTION,
@@ -163,9 +175,9 @@ Failure Session::create(Model &model, uint32_t max_batch, uint32_t max_seq, std:
     for (uint32_t i = 0; i < std::max(slots, 1u); i++) {
         s->slots_.emplace_back(new Slot());
         Slot &slot = *s->slots_.back();
-        slot.rows.resize(model.rows().frame_bytes);
-        slot.bias.resize(model.bias().frame_bytes);
-        slot.hidden.resize(model.hidden().frame_bytes);
+        if (!slot.rows.resize(model.rows().frame_bytes) || !slot.bias.resize(model.bias().frame_bytes) ||
+            !slot.hidden.resize(model.hidden().frame_bytes))
+            return fail(TURBO_E_OUT_OF_MEMORY, "a frame's memory", 0);
         auto b = model.configured().create_bindings();
         if (!b) return hailort_failed(b.status(), "create_bindings");
         slot.bindings.emplace(b.release());

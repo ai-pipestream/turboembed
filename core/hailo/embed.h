@@ -17,6 +17,7 @@
 #include <hailo/hailort.hpp>
 
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -116,8 +117,19 @@ class Session {
     uint32_t normalize() const { return rows_.normalize; }
 
   private:
+    /* A frame's memory, aligned to FRAME_ALIGN (embed.cpp): HailoRT warns
+     * on every frame in memory it finds unaligned, and moves it slower. */
+    struct Frame {
+        std::unique_ptr<uint8_t, void (*)(void *)> p{nullptr, std::free};
+        size_t n = 0;
+        bool resize(size_t bytes);
+        uint8_t *data() { return p.get(); }
+        const uint8_t *data() const { return p.get(); }
+        size_t size() const { return n; }
+    };
+
     struct Slot {
-        std::vector<uint8_t> rows, bias, hidden;
+        Frame rows, bias, hidden;
         std::optional<hailort::ConfiguredInferModel::Bindings> bindings;
         hailort::AsyncInferJob job;
         bool busy = false;
