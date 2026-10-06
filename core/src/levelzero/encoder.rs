@@ -666,7 +666,7 @@ const WIDE_LN_TM: u32 = 32;
 /// oneDNN's primitives are built for a shape, tokens included, and
 /// building one takes the host's memory and up to tens of milliseconds. So
 /// oneDNN runs a batch at its tokens rounded up to a bin, a multiple of a
-/// 32nd of the next power of two and of ONEDNN_STEP at least, and at most
+/// 128th of the next power of two and of ONEDNN_STEP at least, and at most
 /// the session's tokens, which bounds the primitives a context keeps and
 /// the runs that build one: the first at each bin, which counts them in
 /// host_allocs. (Built when the session is made instead, the same
@@ -677,7 +677,7 @@ const ONEDNN_STEP: u32 = 16;
 
 #[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
 fn onednn_tokens(tokens: u32, most: u32) -> u32 {
-    tokens.next_multiple_of((tokens.next_power_of_two() / 32).max(ONEDNN_STEP)).min(most)
+    tokens.next_multiple_of((tokens.next_power_of_two() / 128).max(ONEDNN_STEP)).min(most)
 }
 
 fn wide(hidden: u32) -> bool {

@@ -836,9 +836,9 @@ fn a_run_allocates_nothing() {
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();
     let small = Tokens::new(&rows, 0);
     let long = Tokens::new(&vec![(0..64).map(|i| 1000 + i).collect(); 64], 0);
-    // 9 to 1700 tokens: past the few-token kernels, in bins of 16, 32
-    // and 64.
-    let odd: Vec<Tokens> = [(1, 9), (3, 17), (5, 41), (13, 50), (27, 63)]
+    // 9 to 2580 tokens: past the few-token kernels, in bins of 16 and,
+    // past 2048, of 32.
+    let odd: Vec<Tokens> = [(1, 9), (3, 17), (5, 41), (13, 50), (27, 63), (43, 60)]
         .iter()
         .map(|&(batch, len)| Tokens::new(&vec![(0..len).map(|i| 1000 + i).collect(); batch], 0))
         .collect();
