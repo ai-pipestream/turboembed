@@ -816,42 +816,139 @@ fn rows_in_driver_memory_give_the_same_vectors() {
     }
 }
 
-/// A run allocates nothing on the host or the device, cold or warm: this
-/// binary's allocator counts nothing on the running thread, the backend's
-/// own count does not move, and the result says 0.
+/// A run allocates nothing on the host or the device, cold or warm, at
+/// each precision and at token counts that land in different bins of
+/// oneDNN's (where the build has it): this binary's allocator counts
+/// nothing on the running thread, the backend's own count does not move,
+/// and the result says 0, oneDNN's primitives included.
 #[test]
 fn a_run_allocates_nothing() {
     let _t = turn();
     let Some(_) = gpu_device("a_run_allocates_nothing") else { return };
     let l = on_gpu(&tiny_bundle());
-    let s = Session::create(l.m, None).unwrap();
     let tok = Tok::create(&tiny_bundle()).unwrap();
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();
     let small = Tokens::new(&rows, 0);
     let long = Tokens::new(&vec![(0..64).map(|i| 1000 + i).collect(); 64], 0);
+    // 9 to 1700 tokens: past the few-token kernels, in bins of 16, 32
+    // and 64.
+    let odd: Vec<Tokens> = [(1, 9), (3, 17), (5, 41), (13, 50), (27, 63)]
+        .iter()
+        .map(|&(batch, len)| Tokens::new(&vec![(0..len).map(|i| 1000 + i).collect(); batch], 0))
+        .collect();
     let mut dst = vec![0f32; 64 * 32];
-    let mut run = |t: &Tokens| {
-        let batch = t.batch();
-        s.write_tokens(&batch, None).unwrap();
-        let mut r = ptr::null_mut();
-        let before = COUNT.with(Cell::get);
-        assert_eq!(unsafe { turbo_session_run(s.0, &mut r, null_err()) }, 0);
-        let counted = COUNT.with(Cell::get) - before;
-        let r = Outcome(r);
-        let i = r.info();
-        let rc = unsafe {
-            turbo_result_read(r.0, dst.as_mut_ptr() as *mut _, (dst.len() * 4) as u64, ptr::null_mut(), null_err())
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST] {
+        let s = Session::create(l.m, Some(&session_desc(0, 0, precision))).unwrap();
+        let mut run = |t: &Tokens| {
+            let batch = t.batch();
+            s.write_tokens(&batch, None).unwrap();
+            let mut r = ptr::null_mut();
+            let before = COUNT.with(Cell::get);
+            assert_eq!(unsafe { turbo_session_run(s.0, &mut r, null_err()) }, 0);
+            let counted = COUNT.with(Cell::get) - before;
+            let r = Outcome(r);
+            let i = r.info();
+            let rc = unsafe {
+                turbo_result_read(r.0, dst.as_mut_ptr() as *mut _, (dst.len() * 4) as u64, ptr::null_mut(), null_err())
+            };
+            assert_eq!(rc, 0);
+            (i.host_allocs, i.device_allocs, counted)
         };
-        assert_eq!(rc, 0);
-        (i.host_allocs, i.device_allocs, counted)
-    };
-    let before = turbo::levelzero::allocations();
-    for (i, t) in [&small, &long, &small, &long].into_iter().enumerate() {
-        let (host, device, counted) = run(t);
-        assert_eq!((host, device), (0, 0), "run {i}: the result's count");
-        assert_eq!(counted, host, "run {i}: what this thread's allocator counted in turbo_session_run");
+        let before = turbo::levelzero::allocations();
+        for (i, t) in [&small, &long, &small, &long].into_iter().chain(&odd).enumerate() {
+            let (host, device, counted) = run(t);
+            assert_eq!((host, device), (0, 0), "precision {precision} run {i}: the result's count");
+            assert_eq!(counted, host, "precision {precision} run {i}: what this thread's allocator counted");
+        }
+        assert_eq!(turbo::levelzero::allocations(), before, "precision {precision}: the backend allocated nothing");
     }
-    assert_eq!(turbo::levelzero::allocations(), before, "the backend allocated nothing in runs");
+}
+
+/// A BERT of hidden width 32, whose linear layers run on the matrix
+/// engines at FASTEST, with LayerNorm epsilon `eps`.
+fn wide_enough(name: &str, eps: f64, seed: u32) -> Fixture {
+    let mut m = model_manifest();
+    m["architecture"]["hidden"] = json!(32);
+    m["architecture"]["intermediate"] = json!(64);
+    m["architecture"]["layer_norm_eps"] = json!(eps);
+    m["embed"]["dim"] = json!(32);
+    let mut f = Fixture::new(name, m);
+    f.weights("weights/model.safetensors", &bert_weights(2, 32, 64, seed, 1.0));
+    f
+}
+
+/// Two models of one width whose LayerNorms differ only in epsilon, on one
+/// context, each at FASTEST after the other at the same token counts:
+/// each matches the CPU, so neither takes the other's LayerNorm, which on
+/// oneDNN the context keeps for both.
+#[test]
+fn models_of_one_width_and_different_epsilon_share_a_context() {
+    let _t = turn();
+    let Some(_) = gpu_device("models_of_one_width_and_different_epsilon_share_a_context") else { return };
+    let (fa, fb) = (wide_enough("levelzero-eps-a", 1e-12, 3), wide_enough("levelzero-eps-b", 100.0, 3));
+    let a = fa.load_on(gpu).unwrap();
+    fb.write();
+    let mut mb = ptr::null_mut();
+    let mut err = new_error();
+    let rc = unsafe { turbo_model_load(a.ctx, text(fb.dir.to_str().unwrap()), &mut mb, &mut err) };
+    assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+    let b = Loaded::model(mb);
+    let (ca, cb) = (fa.load().unwrap(), fb.load().unwrap());
+    // 4 rows of 20 tokens: past the few-token kernels.
+    let rows: Vec<Vec<i32>> = (0..4i32).map(|r| (0..20).map(|p| 1000 + r * 131 + p * 17).collect()).collect();
+    let t = Tokens::new(&rows, 0);
+    let embed = |m: *mut turbo_model, precision: u32| {
+        let s = Session::create(m, Some(&session_desc(0, 0, precision))).unwrap();
+        s.write_tokens(&t.batch(), None).unwrap();
+        (s.run().unwrap().rows(), s.info().compute_dtype)
+    };
+    let (want_a, want_b) = (embed(ca.m, TURBO_PRECISION_EXACT).0, embed(cb.m, TURBO_PRECISION_EXACT).0);
+    let apart = want_a.iter().zip(&want_b).map(|(x, y)| cosine(x, y)).fold(1f64, f64::min);
+    assert!(apart < 0.99, "the two epsilons give vectors this test tells apart: cosine {apart}");
+    for (name, m, want) in [("1e-12", a.m, &want_a), ("100", b.m, &want_b), ("1e-12", a.m, &want_a)] {
+        let (got, dtype) = embed(m, TURBO_PRECISION_FASTEST);
+        assert_eq!(dtype, TURBO_DTYPE_F16);
+        for (r, (g, w)) in got.iter().zip(want).enumerate() {
+            let cos = cosine(g, w);
+            assert!(cos >= 0.999, "epsilon {name} row {r}: cosine {cos} with the cpu");
+        }
+    }
+}
+
+/// Sessions at FASTEST made at once on a new model make its F16 weights,
+/// and oneDNN's packed copy, once: when the sessions and the model are
+/// released, every allocation the backend made for them is freed.
+#[test]
+fn fastest_sessions_made_at_once_leave_nothing_allocated() {
+    let _t = turn();
+    let Some(_) = gpu_device("fastest_sessions_made_at_once_leave_nothing_allocated") else { return };
+    for round in 0..8 {
+        let live = turbo::levelzero::live_allocations();
+        {
+            let l = on_gpu(&tiny_bundle());
+            let m = l.m as usize;
+            let go = std::sync::Barrier::new(2);
+            std::thread::scope(|scope| {
+                let made: Vec<_> = (0..2)
+                    .map(|_| {
+                        scope.spawn(|| {
+                            go.wait();
+                            let s = Session::create(
+                                m as *mut turbo_model,
+                                Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST)),
+                            );
+                            let s = s.unwrap();
+                            assert_eq!(s.info().compute_dtype, TURBO_DTYPE_F16);
+                            s.embed(&TEXTS, None).unwrap()
+                        })
+                    })
+                    .collect();
+                let got: Vec<_> = made.into_iter().map(|h| h.join().unwrap()).collect();
+                assert_eq!(got[0], got[1], "round {round}");
+            });
+        }
+        assert_eq!(turbo::levelzero::live_allocations(), live, "round {round}: allocations left after the release");
+    }
 }
 
 /// A model stored in F16 or BF16: MODEL is refused, EXACT and FASTEST

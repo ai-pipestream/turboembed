@@ -11,19 +11,26 @@ then says `0.1.0 levelzero cpu`. Its devices come before the CPU's.
 
 ## Requirements
 
-- To build: a clang whose own SPIR-V backend compiles OpenCL C to
-  SPIR-V (`--target=spirv64`) and takes `--spirv-ext`, for the Intel
-  sub-group extension the kernels use; the clang 21 Ubuntu ships does.
-  Nothing of Level Zero is needed at build time.
+- To build: clang 20 or newer, whose own SPIR-V backend compiles OpenCL
+  C to SPIR-V (`--target=spirv64`) and takes `--spirv-ext`, for the
+  Intel sub-group extension the kernels use. The build asks clang its
+  version: an older one is refused with that reason, and to clang 20,
+  which otherwise hands its output to `llvm-spirv`, it adds
+  `-fintegrated-objemitter` (Ubuntu 24.04's `clang-20` builds it, and
+  clang 21). Nothing of Level Zero is needed at build
+  time without `levelzero-onednn`.
 - To run: the Level Zero loader (`libze_loader.so.1`, 1.10 or newer) and
   Intel's GPU driver for it (`libze_intel_gpu.so.1`, the compute runtime,
   at Level Zero 1.9 or newer for in-order immediate lists), with the
   kernel's `xe` or `i915` driver bound to the GPU and
   the user able to open its render node (the `render` group).
 - A GPU with 2D block reads and writes (`cl_intel_subgroup_2d_block_io`:
-  Xe2, such as the B70, and Xe-HPC), which the kernels are built with;
-  on an older part, such as the Arc A-series, the module does not build
-  and no session runs.
+  Xe2 and later, such as the B70, and Xe-HPC), which the kernels are
+  built with. An older part, such as the Arc A-series, is listed, and
+  its capability cells say UNSUPPORTED with that reason, from the IP
+  version the driver gives (`ZE_extension_device_ip_version`); a driver
+  that gives none leaves the cell as it would be, and the module's build
+  says why no session runs.
 - A GPU whose driver computes in F64: the encoder sums the L2 norm in
   F64. A device without it is listed, and its capability cell
   says UNSUPPORTED with that reason.
@@ -72,7 +79,10 @@ slower from that on a B70 on bge-base and bge-large. Everything else,
 the attention above all, is the backend's.
 
 The build needs the oneAPI compiler (`TURBO_ICPX`, else `icpx` on the
-`PATH`, with its environment set) and oneDNN's headers and library; it
+`PATH`, with its environment set), oneDNN's headers and library, and
+Level Zero's headers (`ze_api.h`) and loader
+(`libze_loader.so`, which `onednn.cpp` links), from the oneAPI
+installation or the distribution's Level Zero development package; it
 makes `libturbo_onednn.so` in the build directory, which the library then
 needs at run time together with oneDNN and the SYCL runtime from the
 oneAPI installation. The compiler's lib directory is written into both as
@@ -81,6 +91,21 @@ the oneAPI environment (`source /opt/intel/oneapi/setvars.sh`) finds
 `libdnnl.so` through `LD_LIBRARY_PATH`. A program built in another crate,
 such as `turbo-bench`, also finds `libturbo_onednn.so` that way. A device
 oneDNN cannot open runs the backend's own kernels, and the log says so.
+
+oneDNN builds a kernel (a primitive) for one shape, its tokens included,
+which takes host memory and, for a shape whose kernel oneDNN has not
+compiled, tens of milliseconds. So oneDNN runs a batch at its tokens
+rounded up to a bin: a multiple of 16 up to 512 tokens, then of a 32nd of
+the next power of two (32 up to 1024, 64 up to 2048, and so on), at most
+the session's `max_batch` times `max_seq`. A session whose linear layers
+run on oneDNN builds the primitives of every bin it can take when it is
+made, about a quarter of a second for 32 rows of 256 tokens on a B70, and
+the context keeps them for its later sessions, so a run builds none. The
+rows of a bin past the batch's tokens are computed into scratch no other
+kernel reads, a row at a time, so they change no vector; a batch computes
+at most 15 rows more than it holds up to 512 tokens, and at most a 16th
+more past that. A primitive a run
+does build all the same is counted in its `host_allocs`.
 
 What the feature changes in the contract: where a session runs oneDNN, a
 row's bits depend on the rows around it, since oneDNN's kernel for a batch
@@ -306,7 +331,8 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   and 8 per row for the table. `d2h_bytes` is 0 after the run and grows by
   each read. `host_allocs` and `device_allocs` are what
   the backend allocated on the running thread during the run; a run
-  allocates nothing, cold or warm.
+  allocates nothing, cold or warm, oneDNN's primitives included (oneDNN
+  for the linear layers, above).
 
 ## Testing on a machine with an Intel GPU
 

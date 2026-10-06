@@ -43,6 +43,7 @@ unsafe extern "C" {
         f32: i32,
         ze_wait: *mut c_void,
         ze_signal: *mut *mut c_void,
+        built: *mut i32,
         err: *mut c_char,
         n_err: usize,
     ) -> i32;
@@ -57,6 +58,29 @@ unsafe extern "C" {
         n: i32,
         ze_wait: *mut c_void,
         ze_signal: *mut *mut c_void,
+        built: *mut i32,
+        err: *mut c_char,
+        n_err: usize,
+    ) -> i32;
+    fn turbo_dnnl_prepare_matmul(
+        h: *mut c_void,
+        m: i32,
+        k: i32,
+        n: i32,
+        gelu: i32,
+        residual: i32,
+        f32: i32,
+        has_bias: i32,
+        built: *mut i32,
+        err: *mut c_char,
+        n_err: usize,
+    ) -> i32;
+    fn turbo_dnnl_prepare_layer_norm(
+        h: *mut c_void,
+        m: i32,
+        n: i32,
+        eps: f32,
+        built: *mut i32,
         err: *mut c_char,
         n_err: usize,
     ) -> i32;
@@ -97,7 +121,9 @@ pub(crate) struct LayerNorm {
 }
 
 /// oneDNN on one context: a SYCL queue of its own on the backend's Level
-/// Zero context, and the primitives it has built.
+/// Zero context, and the primitives it has built, one per shape: a
+/// primitive's shape includes its tokens, so the sessions build theirs for
+/// each bin of tokens when they are made (encoder.rs).
 pub(crate) struct Dnnl(*mut c_void);
 
 // The handle is used from any thread under the context's queue lock.
@@ -147,9 +173,9 @@ impl Dnnl {
     }
 
     /// Queues a matmul after `wait`; the event it signals, valid until
-    /// `wait` is called.
-    pub fn matmul(&self, mm: &Matmul) -> Res<u64> {
-        let (mut signal, mut err) = (std::ptr::null_mut::<c_void>(), [0 as c_char; ERR]);
+    /// `wait` is called, and whether its primitive was built for it.
+    pub fn matmul(&self, mm: &Matmul) -> Res<(u64, bool)> {
+        let (mut signal, mut built, mut err) = (std::ptr::null_mut::<c_void>(), 0, [0 as c_char; ERR]);
         let rc = unsafe {
             turbo_dnnl_matmul(
                 self.0,
@@ -165,17 +191,19 @@ impl Dnnl {
                 mm.f32 as i32,
                 mm.wait as *mut c_void,
                 &mut signal,
+                &mut built,
                 err.as_mut_ptr(),
                 ERR,
             )
         };
         check("oneDNN matmul", rc, &err)?;
-        Ok(signal as u64)
+        Ok((signal as u64, built != 0))
     }
 
-    /// Queues a LayerNorm after `wait`; the event it signals.
-    pub fn layer_norm(&self, ln: &LayerNorm) -> Res<u64> {
-        let (mut signal, mut err) = (std::ptr::null_mut::<c_void>(), [0 as c_char; ERR]);
+    /// Queues a LayerNorm after `wait`; the event it signals, and whether
+    /// its primitive was built for it.
+    pub fn layer_norm(&self, ln: &LayerNorm) -> Res<(u64, bool)> {
+        let (mut signal, mut built, mut err) = (std::ptr::null_mut::<c_void>(), 0, [0 as c_char; ERR]);
         let rc = unsafe {
             turbo_dnnl_layer_norm(
                 self.0,
@@ -188,12 +216,47 @@ impl Dnnl {
                 ln.n as i32,
                 ln.wait as *mut c_void,
                 &mut signal,
+                &mut built,
                 err.as_mut_ptr(),
                 ERR,
             )
         };
         check("oneDNN layer norm", rc, &err)?;
-        Ok(signal as u64)
+        Ok((signal as u64, built != 0))
+    }
+
+    /// Builds the primitive `matmul` would take for `mm`'s shape, where not
+    /// built yet; its addresses are not read, only whether bias and
+    /// residual are given. Whether it was built.
+    pub fn prepare_matmul(&self, mm: &Matmul) -> Res<bool> {
+        let (mut built, mut err) = (0, [0 as c_char; ERR]);
+        let rc = unsafe {
+            turbo_dnnl_prepare_matmul(
+                self.0,
+                mm.m as i32,
+                mm.k as i32,
+                mm.n as i32,
+                mm.gelu as i32,
+                (mm.residual != 0) as i32,
+                mm.f32 as i32,
+                (mm.bias != 0) as i32,
+                &mut built,
+                err.as_mut_ptr(),
+                ERR,
+            )
+        };
+        check("oneDNN matmul", rc, &err)?;
+        Ok(built != 0)
+    }
+
+    /// As prepare_matmul, for `layer_norm`.
+    pub fn prepare_layer_norm(&self, ln: &LayerNorm) -> Res<bool> {
+        let (mut built, mut err) = (0, [0 as c_char; ERR]);
+        let rc = unsafe {
+            turbo_dnnl_prepare_layer_norm(self.0, ln.m as i32, ln.n as i32, ln.eps, &mut built, err.as_mut_ptr(), ERR)
+        };
+        check("oneDNN layer norm", rc, &err)?;
+        Ok(built != 0)
     }
 
     /// Waits for everything queued, and drops the events handed out.

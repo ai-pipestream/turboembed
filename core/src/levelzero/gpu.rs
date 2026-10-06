@@ -16,7 +16,7 @@ use std::cell::Cell;
 use std::ffi::{CString, c_void};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
 use super::ze::{self, ComputeApi, Handle};
 use crate::backend::{refuse, refuse_field};
@@ -85,9 +85,11 @@ pub(crate) fn quietly(f: impl FnOnce()) {
 // functions, which count it twice: in the process's total, which the tests
 // read, and in the calling thread's own count, whose change across
 // session_run is what a result reports. Driver allocations, host ones from
-// zeMemAllocHost included, count as device allocations.
+// zeMemAllocHost included, count as device allocations. Those not yet freed
+// are counted too, for the tests.
 
 static DEVICE_TOTAL: AtomicU64 = AtomicU64::new(0);
+static DEVICE_LIVE: AtomicI64 = AtomicI64::new(0);
 
 thread_local! {
     static DEVICE_HERE: Cell<u64> = const { Cell::new(0) };
@@ -99,12 +101,19 @@ pub(crate) fn device_allocs_total() -> u64 {
     DEVICE_TOTAL.load(Ordering::Relaxed)
 }
 
+/// The device allocations this backend has made and not freed.
+#[cfg(feature = "internals")]
+pub(crate) fn device_allocs_live() -> i64 {
+    DEVICE_LIVE.load(Ordering::Relaxed)
+}
+
 pub(crate) fn device_allocs_here() -> u64 {
     DEVICE_HERE.with(Cell::get)
 }
 
 fn counted_device() {
     DEVICE_TOTAL.fetch_add(1, Ordering::Relaxed);
+    DEVICE_LIVE.fetch_add(1, Ordering::Relaxed);
     DEVICE_HERE.with(|c| c.set(c.get() + 1));
 }
 
@@ -167,7 +176,10 @@ impl Context {
                 Err(e) => {
                     self.say(
                         LOG_WARNING,
-                        &format!("levelzero device {}: oneDNN not used: {}", self.ordinal, e.message),
+                        &format!(
+                            "levelzero device {}: oneDNN not used, the backend's own kernels run the linear layers: {}",
+                            self.ordinal, e.message
+                        ),
                     );
                     None
                 }
@@ -324,7 +336,9 @@ impl Context {
     /// log when the driver refuses.
     pub fn free(&self, ptr: *mut c_void, what: &str) {
         let rc = unsafe { (self.api.mem_free)(self.handle, ptr) };
-        if rc != 0 {
+        if rc == 0 {
+            DEVICE_LIVE.fetch_sub(1, Ordering::Relaxed);
+        } else {
             self.say(LOG_WARNING, &format!("levelzero backend: freeing {what}: zeMemFree failed with 0x{rc:08x}"));
         }
     }

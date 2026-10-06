@@ -19,6 +19,7 @@ pub const ZES_STRUCTURE_TYPE_MEM_PROPERTIES: u32 = 0xb;
 pub const ZES_STRUCTURE_TYPE_MEM_STATE: u32 = 0x1e;
 pub const STRUCTURE_TYPE_DEVICE_COMPUTE_PROPERTIES: u32 = 0x4;
 pub const STRUCTURE_TYPE_DEVICE_MODULE_PROPERTIES: u32 = 0x5;
+pub const STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT: u32 = 0x1_000f;
 pub const STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES: u32 = 0x17;
 pub const STRUCTURE_TYPE_KERNEL_PROPERTIES: u32 = 0x1e;
 pub const STRUCTURE_TYPE_KERNEL_MAX_GROUP_SIZE_EXT_PROPERTIES: u32 = 0x1_0013;
@@ -99,6 +100,16 @@ pub struct DeviceModuleProperties {
     pub max_argument_size: u32,
     pub printf_buffer_size: u32,
     pub native_kernel_supported: [u8; 16],
+}
+
+/// Chained to DeviceProperties (ZE_extension_device_ip_version): the
+/// device's IP version, on Intel's GPUs its architecture in bits 22 and up
+/// and its release in bits 14 to 21.
+#[repr(C)]
+pub struct DeviceIpVersion {
+    pub stype: u32,
+    pub p_next: *const c_void,
+    pub ip_version: u32,
 }
 
 #[repr(C)]

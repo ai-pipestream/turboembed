@@ -184,23 +184,37 @@ fn cuda() {
 }
 
 /// The levelzero backend's kernels, core/levelzero/encoder.cl, compiled to
-/// SPIR-V by clang (TURBO_CLANG, else clang on the PATH) into OUT_DIR,
-/// where the backend includes them. The driver builds them for the device
-/// when a context first needs them.
+/// SPIR-V by clang 20 or newer (TURBO_CLANG, else clang on the PATH) into
+/// OUT_DIR, where the backend includes them. The driver builds them for the
+/// device when a context first needs them.
 fn levelzero() {
     const SOURCE: &str = "levelzero/encoder.cl";
     println!("cargo:rerun-if-changed={SOURCE}");
     println!("cargo:rerun-if-env-changed=TURBO_CLANG");
     let clang = env::var_os("TURBO_CLANG").unwrap_or_else(|| "clang".into());
     let shown = Path::new(&clang).display().to_string();
-    let needs = "the levelzero feature needs a clang that compiles OpenCL C to SPIR-V (--target=spirv64; a clang \
-                 that translates through llvm-spirv needs it on the PATH): set TURBO_CLANG to one";
+    let needs = "the levelzero feature needs clang 20 or newer, which compiles OpenCL C to SPIR-V with its own \
+                 SPIR-V backend (--target=spirv64): set TURBO_CLANG to one";
+    let version = Command::new(&clang)
+        .arg("--version")
+        .output()
+        .unwrap_or_else(|e| fail(&format!("{needs}; {shown} did not run: {e}")));
+    // A compiler that names no clang version is let try with the flags
+    // alone.
+    let major = clang_major(&String::from_utf8_lossy(&version.stdout));
+    if let Some(major) = major.filter(|&m| m < 20) {
+        fail(&format!("{needs}; {shown} is clang {major}, whose SPIR-V target takes no --spirv-ext"));
+    }
     let out = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("levelzero_encoder.spv");
     let mut cmd = Command::new(&clang);
     // The kernels read a sub-group's operands with Intel's block reads.
-    cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-mllvm", "--spirv-ext=+SPV_INTEL_subgroups", "-c", SOURCE])
-        .arg("-o")
-        .arg(&out);
+    cmd.args(["-cl-std=CL3.0", "--target=spirv64", "-O2", "-mllvm", "--spirv-ext=+SPV_INTEL_subgroups"]);
+    // Clang 20 hands spirv64 objects to llvm-spirv unless told to emit them
+    // itself; clang 21 emits them itself, and the flag changes nothing.
+    if major.is_some() {
+        cmd.arg("-fintegrated-objemitter");
+    }
+    cmd.args(["-c", SOURCE]).arg("-o").arg(&out);
     let done = cmd.output().unwrap_or_else(|e| fail(&format!("{needs}; {shown} did not run: {e}")));
     let stderr = String::from_utf8_lossy(&done.stderr);
     if !done.status.success() {
@@ -209,6 +223,13 @@ fn levelzero() {
     for line in stderr.lines().filter(|l| !l.trim().is_empty()) {
         println!("cargo:warning={line}");
     }
+}
+
+/// The major version in clang's --version output: "Ubuntu clang version
+/// 20.1.2 (0ubuntu1~24.04.3)" is 20.
+fn clang_major(version: &str) -> Option<u32> {
+    let (_, rest) = version.split_once("clang version ")?;
+    rest.split('.').next()?.trim().parse().ok()
 }
 
 /// For `levelzero-onednn`: core/levelzero/onednn.cpp, oneDNN's kernels
