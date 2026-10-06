@@ -230,7 +230,7 @@ async fn infer(State(app): State<App>, body: Result<Json<Infer>, axum::extract::
     let shape = out.shape.clone();
     let dim = shape.get(1).copied().unwrap_or(0).max(0) as usize;
     let raw = r.raw_output_contents.first().map(Vec::as_slice).unwrap_or(&[]);
-    let floats: Vec<f32> = raw.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect();
+    let floats: Vec<f32> = raw.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
     let vectors: Vec<&[f32]> = if dim == 0 { vec![] } else { floats.chunks(dim).collect() };
     let summary: serde_json::Map<String, Value> = r
         .parameters
