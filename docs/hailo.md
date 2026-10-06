@@ -132,16 +132,23 @@ runs at 224 rows a second with two frames in flight, the rate
 5.1.1, 2026-09-25).
 
 On the Hailo-8 (26 TOPS, on a Raspberry Pi 5 and on a Compute Module 5,
-HailoRT 4.23.0), the same model compiled by 3.34.0 is a HEF of four
-contexts, with a minimum cosine of 0.936 to the F32 reference vectors,
-over the tier's floor of 0.93. The Hailo-8 has no memory of its own, so
-its contexts are loaded in turn from the host for every burst of frames:
-a run of one row pays for all four, and rows a second climb with the
-batch. Through the library (one session, `TURBO_PRECISION_MODEL`, mean
-pooling, normalized), one row takes 14.7 ms (the median of 500 runs, 68
-rows a second), 32 rows a run give 282 rows a second and 64 give 301,
-the same on both boards (2026-10-06). `hailortcli run --batch-size 32`
-gives the same HEF 333 frames a second, with no host work.
+HailoRT 4.23.0), the same model is compiled by 3.34.0 with
+`compiler_optimization` `"max"`, with a minimum cosine of 0.936 to the
+F32 reference vectors, over the tier's floor of 0.93. The Hailo-8 has no
+memory of its own, so a HEF's contexts are loaded in turn from the host
+for every burst of frames: a run of one row pays for all of them, and
+rows a second climb with the batch. Through the library (one session,
+`TURBO_PRECISION_MODEL`, mean pooling, normalized; one row the median of
+500 runs), the same on both boards (2026-10-06):
+
+| Compile | Contexts | Compile time (32 cores) | One row | 32 rows a run | 64 rows a run | `hailortcli run --batch-size 32` |
+|---|---|---|---|---|---|---|
+| default | 4 | about 6 min | 14.7 ms | 282 rows/s | 301 rows/s | 333 frames/s |
+| `"max"` | 3 | 45 to 50 min | 14.1 ms | 337 rows/s | 365 rows/s | 424 frames/s |
+
+The two give the same vectors to the last digit the conformance suite
+reports: the setting moves layers between the device's resources and
+changes no weight or quantization.
 
 ## Testing on a Hailo machine
 
