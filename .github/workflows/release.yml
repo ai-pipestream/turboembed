@@ -44,12 +44,18 @@ jobs:
         env:
           TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}
         run: cargo build --release -p turbo --features cuda
-      - name: the library links no CUDA library dynamically
+      - name: build the gRPC server
+        env:
+          TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}
+        run: cargo build --release -p turbo-kserve --features cuda
+      - name: the library and the server link no CUDA library dynamically
         run: |
-          ldd target/release/libturbo.so
-          if ldd target/release/libturbo.so | grep -qE 'libcu(dart|blas)'; then
-            echo "libturbo.so links a CUDA library dynamically"; exit 1
-          fi
+          for f in target/release/libturbo.so target/release/turbo-kserve; do
+            ldd "$f"
+            if ldd "$f" | grep -qE 'libcu(dart|blas)'; then
+              echo "$f links a CUDA library dynamically"; exit 1
+            fi
+          done
       - name: the header compiles as C11 and C++17
         run: |
           printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
@@ -63,12 +69,14 @@ jobs:
           mkdir -p "$name/lib" "$name/include/turbo" "$name/licenses"
           cp target/release/libturbo.so "$name/lib/"
           cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
+          mkdir -p "$name/bin"
+          cp target/release/turbo-kserve "$name/bin/"
           cp LICENSE "$name/licenses/LICENSE"
           cp core/cuda/cutlass/LICENSE.txt "$name/licenses/CUTLASS-LICENSE.txt"
           cp docs/release.md "$name/README.md"
           {
             echo "turboembed ${tag}, commit ${GITHUB_SHA}"
-            echo "linux x86_64, cpu and cuda backends"
+            echo "linux x86_64, cpu and cuda backends; bin/turbo-kserve, the gRPC server, with the same"
             echo "built with rustc $(rustc --version | cut -d' ' -f2) and CUDA ${CUDA_VERSION} (nvcc $(/usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | grep -oE 'V[0-9.]+'))"
             echo "CUDA machine code for sm ${TURBO_CUDA_ARCH}, and PTX for the last"
             echo "driver: any that supports CUDA ${CUDA_VERSION%%.*}.x"

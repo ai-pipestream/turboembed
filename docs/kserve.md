@@ -31,10 +31,12 @@ device it uses (`turbo_context_create`), and for each model one
 
 The model name is the bundle: the name of the bundle directory, the
 last component of the path handed to `turbo_model_load`, exactly as it
-is spelled. A path whose last component is empty (a trailing `/`), `.`
-or `..` names no bundle, and the server refuses to start. Two models
-with the same name cannot be served together; the server refuses to
-start. The model has one version, its `turbo_model_info.revision`.
+is spelled, unless the configuration gives the model a `name`. A path
+whose last component is empty (a trailing `/`), `.` or `..` names no
+bundle, and the server refuses to start. Two models with the same name
+cannot be served together; the server refuses to start. One bundle may
+be served under two names, each with its own device and precision. The
+model has one version, its `turbo_model_info.revision`.
 
 These are set in the server's configuration, per model, and never by a
 request:
@@ -42,6 +44,7 @@ request:
 | Setting | Header | Absent |
 |---|---|---|
 | `bundle` | `bundle_path` of `turbo_model_load` | Required. |
+| `name` | The model name requests use; no header call. | The last component of `bundle`. |
 | `device` | the runtime device index for `turbo_context_create`, or `select` for the index `turbo_runtime_select` gives for `TURBO_TASK_EMBED` | Required. The header has no default device. `turbo_runtime_select` never picks a CPU, so on a host with no other device `select` fails with `TURBO_E_DEVICE_NOT_FOUND` and the server exits; there the configuration names the CPU's index. |
 | `precision` | `turbo_session_desc.precision`: `PRECISION_MODEL`, `PRECISION_FASTEST` or `PRECISION_EXACT` | 0, `TURBO_PRECISION_MODEL`. |
 | `max_batch` | `turbo_session_desc.max_batch` | 0, the model's. |
@@ -54,7 +57,8 @@ no per-run choice, so a request cannot name either; a request parameter
 `precision` or `device` is an unknown parameter (Errors).
 
 The command line gives each model as one `--model` of comma-separated
-settings, so a bundle path may not contain a comma.
+settings, so a bundle path may not contain a comma. Each flag has an
+environment variable read when the flag is absent (docs/grpc.md).
 
 One setting is the server's, not a model's: `--max-message-bytes`, the
 largest request message gRPC reads, 64 MiB when absent. A request larger

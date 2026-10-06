@@ -33,6 +33,7 @@ fn cpu() -> u32 {
 fn model(bundle: &Path, sessions: u32) -> ModelConfig {
     ModelConfig {
         bundle: bundle.to_str().unwrap().to_string(),
+        name: None,
         device: Device::Index(cpu()),
         precision: 0,
         max_batch: 0,
@@ -912,19 +913,87 @@ async fn startup_refusals() {
     s.stop().await;
 }
 
+/// One bundle served three times in one process, under its own name at
+/// PRECISION_MODEL and under two more at PRECISION_FASTEST and
+/// PRECISION_EXACT: each model says its tier, and each gives the reference
+/// vectors (the cpu computes every tier in F32). The tier is the model's,
+/// never a request's.
+#[tokio::test]
+async fn a_tier_per_model() {
+    let t = tiny();
+    let tier = |name: &str, precision: u32| ModelConfig { name: Some(name.into()), precision, ..model(&t, 1) };
+    let models = vec![model(&t, 1), tier("tiny-fastest", 1), tier("tiny-exact", 2)];
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), models, MAX).await.unwrap();
+    s.load().await.unwrap();
+    let mut c = client(&s).await;
+    assert!(c.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
+    let cases = reference();
+    let group: Vec<&Case> = cases.iter().filter(|k| k.role == "PROMPT_NONE").collect();
+    let texts_of: Vec<&str> = group.iter().map(|k| k.text.as_str()).collect();
+    let mut manifests = Vec::new();
+    for (name, want) in
+        [(NAME, "PRECISION_MODEL"), ("tiny-fastest", "PRECISION_FASTEST"), ("tiny-exact", "PRECISION_EXACT")]
+    {
+        let ready = ModelReadyRequest { name: name.into(), version: String::new() };
+        assert!(c.model_ready(ready).await.unwrap().into_inner().ready, "{name}");
+        let m = c
+            .model_metadata(ModelMetadataRequest { name: name.into(), version: String::new() })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(m.name, name);
+        assert_eq!(m.properties["session_info.precision"], want, "{name}");
+        assert_eq!(m.properties["session_info.compute_dtype"], "DTYPE_F32", "{name}");
+        manifests.push(m.properties["model_info.manifest_sha256"].clone());
+
+        // The batch, and then each row alone, give the reference.
+        let mut r = texts(&texts_of);
+        r.model_name = name.into();
+        let resp = c.model_infer(r).await.unwrap().into_inner();
+        assert_eq!(resp.model_name, name);
+        assert_eq!(resp.outputs[0].shape, [group.len() as i64, 32]);
+        for (k, v) in group.iter().zip(vectors(&resp)) {
+            matches(&format!("{name} batch `{}`", k.text), &v, &k.vector);
+        }
+        for k in &group {
+            let mut r = texts(&[&k.text]);
+            r.model_name = name.into();
+            let v = embed(&mut c, r).await;
+            matches(&format!("{name} alone `{}`", k.text), &v[0], &k.vector);
+        }
+    }
+    assert!(manifests.iter().all(|m| m == &manifests[0]), "one bundle: {manifests:?}");
+    let e = refused(&mut c, with(texts(&["a"]), "precision", st("PRECISION_FASTEST"))).await;
+    assert_eq!(refusal(&e), (Code::InvalidArgument, 256, 0));
+    s.stop().await;
+}
+
 /// The binary exits non-zero with the library's message when a bundle does
-/// not load.
+/// not load, configured by flags or by the environment.
 #[test]
 fn the_binary_exits_on_a_load_failure() {
     let bundle = tiny().join("../no-such-bundle");
+    let model = format!("bundle={},device={},sessions=1", bundle.display(), cpu());
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-kserve"))
-        .args(["--listen", "127.0.0.1:0", "--model"])
-        .arg(format!("bundle={},device={},sessions=1", bundle.display(), cpu()))
+        .args(["--listen", "127.0.0.1:0", "--model", &model])
         .output()
         .unwrap();
     assert!(!out.status.success());
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(err.contains("turbo_model_load: TURBO_E_BUNDLE_NOT_FOUND: "), "{err}");
-    let out = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-kserve")).output().unwrap();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-kserve"))
+        .env("TURBO_KSERVE_LISTEN", "127.0.0.1:0")
+        .env("TURBO_KSERVE_MODELS", &model)
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("turbo_model_load: TURBO_E_BUNDLE_NOT_FOUND: "), "{err}");
+    assert!(err.contains("listening on 127.0.0.1:"), "{err}");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-kserve"))
+        .env_remove("TURBO_KSERVE_LISTEN")
+        .env_remove("TURBO_KSERVE_MODELS")
+        .output()
+        .unwrap();
     assert_eq!(out.status.code(), Some(2));
 }

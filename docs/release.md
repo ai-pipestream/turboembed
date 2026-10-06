@@ -9,6 +9,7 @@ with its SHA-256. Nothing else is published: no crate, no image.
 
 ```
 lib/libturbo.so            the library: the cpu and cuda backends
+bin/turbo-kserve           the gRPC server (docs/grpc.md), the same backends linked in
 include/turbo/turbo.h      the C interface; the design
 include/turbo/turbo_backend.h
 licenses/LICENSE           Apache-2.0
@@ -17,9 +18,10 @@ BUILD                      the commit, the compilers, the architectures
 README.md                  this file
 ```
 
-`libturbo.so` links the CUDA runtime statically and cuBLAS not at all
-(docs/cuda.md, Requirements), so a machine needs the NVIDIA driver alone
-to use the cuda backend, and nothing at all for the cpu backend: a
+`libturbo.so` and `turbo-kserve` link the CUDA runtime statically and
+cuBLAS not at all (docs/cuda.md, Requirements), so a machine needs the
+NVIDIA driver alone to use the cuda backend, and nothing at all for the
+cpu backend: a
 machine without a driver, or without an NVIDIA GPU, lists no CUDA device
 and runs everything else as usual. The driver must support the CUDA
 version the archive's `BUILD` line names; a 12.x build needs a 525
