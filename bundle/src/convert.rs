@@ -20,7 +20,8 @@
 //! files or the checkpoint; it loads the HEF, the IR and the safetensors.
 //! In the recipe an F16 file's and an IR's `produced_by` names only
 //! `from`, the artifact it is made from, a HEF's names `from`,
-//! `container` and `inputs`, and the weights' names only `upstream`, the
+//! `container` and `inputs`, and may name `compiler_optimization`, and
+//! the weights' names only `upstream`, the
 //! checkpoint's upstream path, which is fetched and not carried. The rest
 //! comes from the run: what the container reports, the container itself,
 //! the files and settings, and whether a second run gave the same bytes.
@@ -126,6 +127,9 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
         let mut keys: Vec<&str> = pb.as_object().map(|o| o.keys().map(String::as_str).collect()).unwrap_or_default();
         keys.sort_unstable();
         let hef = a["format"] == "FORMAT_HEF";
+        if hef {
+            keys.retain(|k| *k != "compiler_optimization");
+        }
         let weights = a["format"] == "FORMAT_SAFETENSORS";
         let named = if hef {
             &["container", "from", "inputs"][..]
@@ -136,7 +140,7 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
         };
         if keys != named {
             let names = if hef {
-                "from, container and inputs"
+                "from, container and inputs, and optionally compiler_optimization"
             } else if weights {
                 "only upstream"
             } else {
@@ -318,7 +322,9 @@ fn ir_conversion(
 /// A FORMAT_HEF artifact: DTYPE_I8, from INPUT_EMBEDDINGS to
 /// OUTPUT_HIDDEN_STATES, for one target at a fixed frame of fixed_seq
 /// tokens and one row, compiled in a pinned container on one file of
-/// calibration texts.
+/// calibration texts. `produced_by.compiler_optimization` "max" has the
+/// compiler search for the fastest allocation of the graph on the device
+/// instead of the first that fits.
 fn hef_conversion(
     recipe: &Recipe,
     a: &Value,
@@ -355,6 +361,11 @@ fn hef_conversion(
     };
     let heads = recipe.manifest["architecture"]["heads"].as_u64().ok_or("manifest.architecture.heads: missing")?;
     let tokenizer = recipe.str_at("/tokenizer/file")?;
+    let optimization = match pb.get("compiler_optimization") {
+        None => None,
+        Some(v) if v == "max" => Some("max"),
+        Some(v) => return Err(refuse(&format!("produced_by.compiler_optimization is \"max\" or absent, not {v}"))),
+    };
     Ok(Conversion {
         name: name.to_owned(),
         file: one_file(a, name)?,
@@ -375,7 +386,10 @@ fn hef_conversion(
             seq.to_string(),
             "--heads".into(),
             heads.to_string(),
-        ],
+        ]
+        .into_iter()
+        .chain(optimization.into_iter().flat_map(|o| ["--compiler-optimization".to_owned(), o.to_owned()]))
+        .collect(),
         inputs,
     })
 }

@@ -29,7 +29,11 @@ compiles it.
 
 Arguments: the ONNX file, the HEF to write, the JSON file that says what
 ran, then --tokenizer, --calibration (JSON lines, one {"text": ...} each),
---target, --seq and --heads.
+--target, --seq and --heads, and optionally --compiler-optimization max,
+which has the compiler search for the fastest allocation of the graph on
+the device instead of the first that fits: it takes longer to compile
+(MiniLM at 128 tokens: about 45 minutes on 32 cores, against about 6)
+and changes no weight or quantization, only where the layers run.
 """
 
 import argparse
@@ -177,6 +181,7 @@ def main():
     p.add_argument("--target", required=True)
     p.add_argument("--seq", type=int, required=True)
     p.add_argument("--heads", type=int, required=True)
+    p.add_argument("--compiler-optimization", choices=["default", "max"], default="default")
     a = p.parse_args()
 
     # The compiler reads USER, which a container run as the caller's uid
@@ -221,6 +226,8 @@ def main():
     }
     runner.translate_onnx_model(cut_path, "encoder", net_input_format=fmt)
     script = [line.format(calibset=len(texts)) for line in MODEL_SCRIPT]
+    if a.compiler_optimization == "max":
+        script.append("performance_param(compiler_optimization_level=max)")
     runner.load_model_script("\n".join(script) + "\n")
     # The compiler's layout of the bias: [seq, heads * seq], each query's
     # keys once per head.

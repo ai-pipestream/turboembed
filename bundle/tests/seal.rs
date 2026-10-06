@@ -603,6 +603,10 @@ fn a_hef_is_compiled_from_the_export_in_a_pinned_container() {
             "4"
         ]
     );
+    // compiler_optimization "max" is passed on; absent, the compiler's default.
+    let c = write(&|a| a["produced_by"]["compiler_optimization"] = json!("max")).unwrap();
+    let hef = c.iter().find(|c| c.name == "hef-hailo10h-s128").unwrap();
+    assert_eq!(hef.args[10..], ["--compiler-optimization", "max"]);
     let refused = |edit: &dyn Fn(&mut Value), says: &str| {
         let e = write(edit).unwrap_err();
         assert!(e.contains(says), "{says}: {e}");
@@ -616,6 +620,7 @@ fn a_hef_is_compiled_from_the_export_in_a_pinned_container() {
     refused(&|a| a["graph_input"] = json!("INPUT_TOKEN_IDS"), "DTYPE_I8 HEF");
     refused(&|a| a["fixed_batch"] = json!(4), "fixed_batch 1");
     refused(&|a| a["target"] = json!(""), "names its target");
+    refused(&|a| a["produced_by"]["compiler_optimization"] = json!("fast"), "\"max\" or absent");
     fs::remove_dir_all(d).unwrap();
 }
 
