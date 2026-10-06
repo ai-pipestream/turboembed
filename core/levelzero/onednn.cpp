@@ -12,6 +12,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #include <sycl/sycl.hpp>
 
+#include <cstdint>
 #include <cstdio>
 #include <vector>
 #include <cstring>
@@ -30,9 +31,10 @@ struct Handle {
     dnnl::engine engine;
     dnnl::stream stream;
     // The matmul primitives by (m, k, n, gelu, residual, f32, bias) and the
-    // LayerNorms by (m, n).
+    // LayerNorms by (m, n, eps's bits): the context's models share them, and
+    // models of one width may differ in eps.
     std::map<std::tuple<int, int, int, int, int, int, int>, dnnl::matmul> matmuls;
-    std::map<std::tuple<int, int>, dnnl::layer_normalization_forward> norms;
+    std::map<std::tuple<int, int, uint32_t>, dnnl::layer_normalization_forward> norms;
     // The events of the work queued since the last wait, kept so their
     // Level Zero handles stay valid for the backend's list to wait on.
     std::vector<sycl::event> events;
@@ -73,10 +75,13 @@ dnnl::memory::desc weights_desc(int k, int n, int f32 = 0) {
     return memory::desc({k, n}, type_of(f32), memory::format_tag::ba);
 }
 
-dnnl::matmul &matmul_for(Handle &h, int m, int k, int n, int gelu, int residual, int f32, int has_bias) {
+// The primitive for the shape, built and kept the first time; *built says
+// whether this call built it.
+dnnl::matmul &matmul_for(Handle &h, int m, int k, int n, int gelu, int residual, int f32, int has_bias, int *built) {
     auto key = std::make_tuple(m, k, n, gelu, residual, f32, has_bias);
     auto it = h.matmuls.find(key);
-    if (it != h.matmuls.end()) {
+    *built = it == h.matmuls.end();
+    if (!*built) {
         return it->second;
     }
     using namespace dnnl;
@@ -97,10 +102,13 @@ dnnl::matmul &matmul_for(Handle &h, int m, int k, int n, int gelu, int residual,
     return h.matmuls.emplace(key, matmul(pd)).first->second;
 }
 
-dnnl::layer_normalization_forward &norm_for(Handle &h, int m, int n, float eps) {
-    auto key = std::make_tuple(m, n);
+dnnl::layer_normalization_forward &norm_for(Handle &h, int m, int n, float eps, int *built) {
+    uint32_t bits;
+    std::memcpy(&bits, &eps, sizeof bits);
+    auto key = std::make_tuple(m, n, bits);
     auto it = h.norms.find(key);
-    if (it != h.norms.end()) {
+    *built = it == h.norms.end();
+    if (!*built) {
         return it->second;
     }
     using namespace dnnl;
@@ -177,13 +185,14 @@ int turbo_dnnl_pack(void *hp, const void *src, int k, int n, void *dst, char *er
 // where asked; in F32 where f32 is set, else in F16 from the packed
 // weights. Queued after the Level Zero event ze_wait where given; the
 // event it signals is handed out in ze_signal, valid until turbo_dnnl_wait.
+// *built says whether the primitive was built for this call.
 int turbo_dnnl_matmul(void *hp, const void *a, const void *packed, const float *bias, const void *residual, void *c,
-                      int m, int k, int n, int gelu, int f32, void *ze_wait, void **ze_signal, char *err,
+                      int m, int k, int n, int gelu, int f32, void *ze_wait, void **ze_signal, int *built, char *err,
                       size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
     return guarded(err, n_err, [&] {
         using namespace dnnl;
-        matmul &mm = matmul_for(h, m, k, n, gelu ? 1 : 0, residual ? 1 : 0, f32 ? 1 : 0, bias ? 1 : 0);
+        matmul &mm = matmul_for(h, m, k, n, gelu ? 1 : 0, residual ? 1 : 0, f32 ? 1 : 0, bias ? 1 : 0, built);
         memory::desc amd({m, k}, type_of(f32), memory::format_tag::ab);
         memory::desc biasmd({1, n}, memory::data_type::f32, memory::format_tag::ab);
         memory::desc cmd({m, n}, type_of(f32), memory::format_tag::ab);
@@ -201,13 +210,13 @@ int turbo_dnnl_matmul(void *hp, const void *a, const void *packed, const float *
 }
 
 // dst [m, n] F16 = LayerNorm of src over n, scaled by gamma and shifted by
-// beta (F32, n). Queued.
+// beta (F32, n). Queued; *built as for turbo_dnnl_matmul.
 int turbo_dnnl_layer_norm(void *hp, const void *src, const float *gamma, const float *beta, float eps, void *dst,
-                          int m, int n, void *ze_wait, void **ze_signal, char *err, size_t n_err) {
+                          int m, int n, void *ze_wait, void **ze_signal, int *built, char *err, size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
     return guarded(err, n_err, [&] {
         using namespace dnnl;
-        layer_normalization_forward &ln = norm_for(h, m, n, eps);
+        layer_normalization_forward &ln = norm_for(h, m, n, eps, built);
         memory::desc x({m, n}, memory::data_type::f16, memory::format_tag::ab);
         memory::desc g({n}, memory::data_type::f32, memory::format_tag::a);
         std::unordered_map<int, memory> args = {{DNNL_ARG_SRC, usm(h, x, src)},

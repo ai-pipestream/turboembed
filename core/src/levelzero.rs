@@ -118,7 +118,12 @@ unsafe extern "C" fn capability(
     };
     unsafe {
         let r = std::slice::from_raw_parts_mut(reason, reason_len as usize);
-        if dev.fp64 {
+        if let Err(why) = &dev.block_io {
+            *status = TURBO_CAP_UNSUPPORTED;
+            *dtype = 0;
+            *options_honored = 0;
+            write_str(r, why);
+        } else if dev.fp64 {
             *status = TURBO_CAP_EXPERIMENTAL;
             // FASTEST runs the linear layers on the matrix engines in F16,
             // for a model whose widths the kernels take; a session of any
@@ -141,6 +146,13 @@ unsafe extern "C" fn capability(
 #[cfg(feature = "internals")]
 pub fn allocations() -> u64 {
     gpu::device_allocs_total()
+}
+
+/// The device allocations this backend has made in the process and not
+/// freed. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn live_allocations() -> i64 {
+    gpu::device_allocs_live()
 }
 
 /// The device address of the F32 copy of an F16 or BF16 model's weights,
@@ -186,6 +198,22 @@ unsafe extern "C" fn context_create(
         Err(rc) => return rc,
     };
     unsafe { gpu::guarded(err, || gpu::create(d, dev, ordinal, log, log_user_data, out)) }
+}
+
+/// Whether a device has Intel's 2D block reads
+/// (cl_intel_subgroup_2d_block_io), which the encoder's kernels are built
+/// with, so the module of a device without them does not build: Xe-HPC
+/// (IP 12.60 and 12.61) and Xe2 (IP 20) on. A device whose driver does not
+/// give its IP version is let try, and its first session says why not.
+fn block_io(vendor_id: u32, ip_version: u32) -> Result<(), String> {
+    let (arch, release) = (ip_version >> 22, (ip_version >> 14) & 0xff);
+    if vendor_id != 0x8086 || ip_version == 0 || arch >= 20 || (arch == 12 && (60..=61).contains(&release)) {
+        return Ok(());
+    }
+    Err(format!(
+        "the encoder's kernels read with 2D block reads (cl_intel_subgroup_2d_block_io), which Xe-HPC and Xe2 on \
+         have; this GPU's IP is {arch}.{release}"
+    ))
 }
 
 /// The label benchmarks are filed under, by PCI device id. A device not
@@ -236,6 +264,9 @@ pub(crate) struct Device {
     timer_ns: u64,
     /// Whether the device computes in F64, which the encoder sums in.
     fp64: bool,
+    /// Whether the device has the 2D block reads the encoder's kernels
+    /// take: Err with what it is when it does not.
+    block_io: Result<(), String>,
     arch: String,
     name: String,
     vendor: String,
@@ -292,7 +323,16 @@ impl Driver {
             let mut props = ze::DriverProperties { stype: ze::STRUCTURE_TYPE_DRIVER_PROPERTIES, ..Default::default() };
             ze::check("zeDriverGetProperties", unsafe { (api.core.driver_get_properties)(drv, &mut props) })?;
             for dev in ze::list("zeDeviceGet", |n, out| unsafe { (api.core.device_get)(drv, n, out) })? {
-                let mut p = ze::DeviceProperties { stype: ze::STRUCTURE_TYPE_DEVICE_PROPERTIES, ..Default::default() };
+                let mut ip = ze::DeviceIpVersion {
+                    stype: ze::STRUCTURE_TYPE_DEVICE_IP_VERSION_EXT,
+                    p_next: std::ptr::null(),
+                    ip_version: 0,
+                };
+                let mut p = ze::DeviceProperties {
+                    stype: ze::STRUCTURE_TYPE_DEVICE_PROPERTIES,
+                    p_next: &mut ip as *mut ze::DeviceIpVersion as *mut c_void,
+                    ..Default::default()
+                };
                 ze::check("zeDeviceGetProperties", unsafe { (api.core.device_get_properties)(dev, &mut p) })?;
                 if p.kind != ze::DEVICE_TYPE_GPU {
                     continue;
@@ -332,6 +372,7 @@ impl Driver {
                     max_local: compute.max_shared_local_memory,
                     timer_ns: p.timer_resolution,
                     fp64: module.flags & ze::DEVICE_MODULE_FLAG_FP64 != 0,
+                    block_io: block_io(p.vendor_id, ip.ip_version),
                     arch: arch(p.vendor_id, p.device_id),
                     name: ze::string(&p.name),
                     vendor: vendor(p.vendor_id),
@@ -419,5 +460,22 @@ mod tests {
         assert_eq!(vendor(0x10de), "0x10de");
         assert_eq!(driver_version(0x8086, 0x0103_909c), "1.3.37020");
         assert_eq!(driver_version(0x10de, 0x0103_909c), "17010844");
+    }
+
+    #[test]
+    fn only_gpus_with_2d_block_reads_take_the_kernels() {
+        let ip = |arch: u32, release: u32| (arch << 22) | (release << 14);
+        // A B70 as its driver reports it, Lunar Lake, and Xe-HPC.
+        for v in [0x0500_8000, ip(20, 4), ip(12, 60), ip(12, 61), ip(30, 0)] {
+            assert_eq!(block_io(0x8086, v), Ok(()), "{v:#x}");
+        }
+        // The Arc A-series (Xe-HPG) and Meteor Lake (Xe-LPG).
+        for (a, r) in [(12, 55), (12, 56), (12, 57), (12, 70), (12, 71)] {
+            let why = block_io(0x8086, ip(a, r)).unwrap_err();
+            assert!(why.ends_with(&format!("IP is {a}.{r}")) && why.len() < 160, "{why}");
+        }
+        // No IP version, or not Intel's: let try.
+        assert_eq!(block_io(0x8086, 0), Ok(()));
+        assert_eq!(block_io(0x10de, ip(12, 55)), Ok(()));
     }
 }

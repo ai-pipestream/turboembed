@@ -189,20 +189,22 @@ impl Model {
     }
 
     /// The linear layers' weights in F16, made on first need from the F32
-    /// ones.
+    /// ones, and packed for oneDNN where it runs. The lock is held from the
+    /// look to the store, so sessions made at once make them once.
     fn f16_weights(&self, w: &Weights) -> Res<Transposed> {
-        let t = self.transposed(w, &self.f16, "narrow_f16_transposed", 2, "the F16 weights")?;
+        let mut slot = self.f16.lock().unwrap_or_else(|p| p.into_inner());
+        let t = self.transposed(w, &mut slot, "narrow_f16_transposed", 2, "the F16 weights")?;
         #[cfg(feature = "levelzero-onednn")]
         if t.packed.is_empty() {
-            return self.packed_for_onednn(t);
+            return self.packed_for_onednn(t, &mut slot);
         }
         Ok(t)
     }
 
-    /// The F16 weights packed in oneDNN's layout as well, once; the
-    /// Transposed without them where oneDNN is not open.
+    /// The F16 weights packed in oneDNN's layout as well, kept in `slot`;
+    /// the Transposed without them where oneDNN is not open.
     #[cfg(feature = "levelzero-onednn")]
-    fn packed_for_onednn(&self, t: Transposed) -> Res<Transposed> {
+    fn packed_for_onednn(&self, t: Transposed, slot: &mut Option<Transposed>) -> Res<Transposed> {
         let c = self.ctx();
         let Some(dn) = c.dnnl() else { return Ok(t) };
         let d = &self.desc;
@@ -219,6 +221,8 @@ impl Model {
         }
         let alloc = c.alloc_device(total)?;
         let packed = (|| {
+            // oneDNN's handle is the context's, used under its queue lock.
+            let _q = c.lock_queue()?;
             for (l, layer) in t.layers.iter().enumerate() {
                 for (j, &(k, n)) in shapes.iter().enumerate() {
                     dn.pack(layer[j], k, n, alloc as u64 + at[l * 4 + j])?;
@@ -232,28 +236,29 @@ impl Model {
         }
         let packed = at.chunks(4).map(|a| [0, 1, 2, 3].map(|j| alloc as u64 + a[j])).collect();
         let done = Transposed { layers: t.layers, alloc: t.alloc, packed, packed_alloc: alloc };
-        *self.f16.lock().unwrap_or_else(|p| p.into_inner()) = Some(done.clone());
+        *slot = Some(done.clone());
         Ok(done)
     }
 
     /// The linear layers' weights in F32 transposed, made on first need,
     /// for linear_sgemm.
     fn f32_transposed(&self, w: &Weights) -> Res<Transposed> {
-        self.transposed(w, &self.f32t, "transpose_f32", 4, "the transposed F32 weights")
+        let mut slot = self.f32t.lock().unwrap_or_else(|p| p.into_inner());
+        self.transposed(w, &mut slot, "transpose_f32", 4, "the transposed F32 weights")
     }
 
     /// The linear layers' weights transposed to [n_in, n_out] by `kernel`,
-    /// `bytes` a value, kept in `slot` for the sessions after the first.
+    /// `bytes` a value, kept in `slot`, whose lock the caller holds, for
+    /// the sessions after the first.
     fn transposed(
         &self,
         w: &Weights,
-        slot: &Mutex<Option<Transposed>>,
+        slot: &mut Option<Transposed>,
         kernel: &str,
         bytes: u64,
         what: &str,
     ) -> Res<Transposed> {
-        let mut f = slot.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some(h) = f.as_ref() {
+        if let Some(h) = slot.as_ref() {
             return Ok(h.clone());
         }
         let c = self.ctx();
@@ -298,7 +303,7 @@ impl Model {
         }
         let layers = at.chunks(4).map(|a| [0, 1, 2, 3].map(|j| alloc as u64 + a[j])).collect();
         let half = Transposed { layers, alloc, packed: Vec::new(), packed_alloc: std::ptr::null_mut() };
-        *f = Some(half.clone());
+        *slot = Some(half.clone());
         Ok(half)
     }
 
@@ -658,6 +663,23 @@ const WIDE_WM: u32 = 4;
 const WIDE_WN: u32 = 1;
 const WIDE_LN_TM: u32 = 32;
 
+/// oneDNN's primitives are built for a shape, tokens included, and
+/// building one takes the host's memory and up to tens of milliseconds. So
+/// oneDNN runs a batch at its tokens rounded up to a bin, a multiple of a
+/// 128th of the next power of two and of ONEDNN_STEP at least, and at most
+/// the session's tokens, which bounds the primitives a context keeps and
+/// the runs that build one: the first at each bin, which counts them in
+/// host_allocs. (Built when the session is made instead, the same
+/// primitives ran 0.6% to 1% slower on a B70.) The rows past the batch's
+/// tokens are scratch the other kernels never read, each computed on its
+/// own.
+const ONEDNN_STEP: u32 = 16;
+
+#[cfg_attr(not(feature = "levelzero-onednn"), allow(dead_code))]
+fn onednn_tokens(tokens: u32, most: u32) -> u32 {
+    tokens.next_multiple_of((tokens.next_power_of_two() / 128).max(ONEDNN_STEP)).min(most)
+}
+
 fn wide(hidden: u32) -> bool {
     hidden >= WIDE_HIDDEN && hidden.is_multiple_of(64)
 }
@@ -855,9 +877,11 @@ pub(crate) unsafe extern "C" fn session_create(
                     UNSUPPORTED_OPTION,
                     3,
                     format!(
-                        "precision: MODEL computes in the weights' {}, and the levelzero backend computes in F32 \
-                         only; EXACT and FASTEST compute this model in F32",
-                        dtype_name(d.dtype)
+                        "precision: MODEL computes in the weights' {}, which the levelzero backend does not; EXACT \
+                         computes this model in F32, and FASTEST in F16 where its widths are multiples of {}, else \
+                         in F32",
+                        dtype_name(d.dtype),
+                        DPAS_K.max(DPAS_TN)
                     ),
                 ));
             }
@@ -1292,24 +1316,28 @@ impl Session {
     }
 
     /// The encoder through `layers` layers over the written rows, waited
-    /// for.
-    fn encode_and_wait(&self, layers: u32) -> Res<()> {
+    /// for. Returns the oneDNN primitives the run built.
+    fn encode_and_wait(&self, layers: u32) -> Res<u64> {
         let c = self.ctx();
         let mut q = c.lock_queue()?;
         let encoded = self.encode(&mut q, layers);
         // The queue is left idle whether or not the run finished.
         let synced = c.sync(&mut q);
-        encoded?;
-        synced?;
-        // oneDNN's work is done too, its last event waited for by the
-        // backend's last kernel; its events are let go.
+        // So is oneDNN's: a run that finished has its last event waited for
+        // by the backend's last kernel, and one that failed part way may
+        // have oneDNN work queued that nothing waits for, still writing to
+        // the scratch. Its events are let go.
         #[cfg(feature = "levelzero-onednn")]
-        if self.linear == Linear::Onednn
-            && let Some(dn) = c.dnnl()
-        {
-            dn.wait()?;
-        }
-        Ok(())
+        let waited = match c.dnnl() {
+            Some(dn) if self.linear == Linear::Onednn => dn.wait(),
+            _ => Ok(()),
+        };
+        #[cfg(not(feature = "levelzero-onednn"))]
+        let waited: Res<()> = Ok(());
+        let built = encoded?;
+        synced?;
+        waited?;
+        Ok(built)
     }
 
     fn model(&self) -> &Model {
@@ -1365,8 +1393,8 @@ impl Session {
 
     /// The encoder over the packed rows through `layers` layers, appended
     /// to the queue: all of them for a run, fewer for the tuner, whose
-    /// output is not read.
-    fn encode(&self, q: &mut Queue, layers: u32) -> Res<()> {
+    /// output is not read. Returns the oneDNN primitives it built.
+    fn encode(&self, q: &mut Queue, layers: u32) -> Res<u64> {
         let c = self.ctx();
         let d = &self.model().desc;
         let w = &self.weights.tensors;
@@ -1389,6 +1417,16 @@ impl Session {
         let dnnl = if self.linear == Linear::Onednn && tokens > FEW_TOKENS_DPAS { c.dnnl() } else { None };
         #[cfg(not(feature = "levelzero-onednn"))]
         let dnnl: Option<()> = None;
+        // oneDNN's tokens, the batch's binned, and the primitives the run
+        // built: some the first time at a bin, none after.
+        #[cfg(feature = "levelzero-onednn")]
+        let dm = onednn_tokens(tokens, self.max_batch * self.max_seq);
+        let built = std::cell::Cell::new(0u64);
+        #[cfg(feature = "levelzero-onednn")]
+        let count = |(signal, b): (u64, bool)| {
+            built.set(built.get() + b as u64);
+            signal
+        };
         // Few tokens: a group per token keeps each LayerNorm short.
         let few_tokens = tokens < FEW_TOKENS;
         let xmx = k.linear_dpas.is_some();
@@ -1419,19 +1457,19 @@ impl Session {
                     Some(_) => None,
                 };
                 if let Some(packed) = packed {
-                    let signal = dn.matmul(&super::onednn::Matmul {
+                    let signal = count(dn.matmul(&super::onednn::Matmul {
                         a: x,
                         packed,
                         bias: if flags & LINEAR_BIAS != 0 { bias } else { 0 },
                         residual: 0,
                         c: y,
-                        m: tokens,
+                        m: dm,
                         k: n_in,
                         n: n_out,
                         gelu: flags & LINEAR_GELU != 0,
                         f32: self.half.is_none(),
                         wait: q.last_event() as u64,
-                    })?;
+                    })?);
                     q.pending_wait = signal as super::ze::Handle;
                     let _ = (splits, what);
                     return Ok(1);
@@ -1563,29 +1601,29 @@ impl Session {
                 // the run is done with, then the LayerNorm onto the F16
                 // residual stream; the last layer's also widened to F32.
                 let scratch = if which == 1 { self.ffn } else { self.att };
-                let signal = dn.matmul(&super::onednn::Matmul {
+                let signal = count(dn.matmul(&super::onednn::Matmul {
                     a: act,
                     packed: half.packed[l as usize][which],
                     bias,
                     residual: self.xh,
                     c: scratch,
-                    m: tokens,
+                    m: dm,
                     k: n_in,
                     n: h,
                     gelu: false,
                     f32: false,
                     wait: q.last_event() as u64,
-                })?;
-                let signal = dn.layer_norm(&super::onednn::LayerNorm {
+                })?);
+                let signal = count(dn.layer_norm(&super::onednn::LayerNorm {
                     src: scratch,
                     gamma: lnw,
                     beta: lnb,
                     eps,
                     dst: self.xh,
-                    m: tokens,
+                    m: dm,
                     n: h,
                     wait: signal,
-                })?;
+                })?);
                 q.pending_wait = signal as super::ze::Handle;
                 if l + 1 == d.layers && which == 3 {
                     let n = tokens as u64 * h as u64;
@@ -1599,19 +1637,19 @@ impl Session {
             #[cfg(feature = "levelzero-onednn")]
             if let (Some(dn), None, Some(kln)) = (dnnl, &self.half, &k.add_layer_norm_v4) {
                 let weight = layer(l, if which == 1 { ATTN_OUT_WEIGHT } else { FFN_OUT_WEIGHT });
-                let signal = dn.matmul(&super::onednn::Matmul {
+                let signal = count(dn.matmul(&super::onednn::Matmul {
                     a: act,
                     packed: weight,
                     bias,
                     residual: self.x,
                     c: self.tmp,
-                    m: tokens,
+                    m: dm,
                     k: n_in,
                     n: h,
                     gelu: false,
                     f32: true,
                     wait: q.last_event() as u64,
-                })?;
+                })?);
                 q.pending_wait = signal as super::ze::Handle;
                 let args = [
                     Ptr(self.x),
@@ -1803,11 +1841,11 @@ impl Session {
             Ptr(self.output.ptr as u64),
         ];
         k.pool.launch(c, q, "pooling", &args, [batch, self.output_dim.div_ceil(16), 1])?;
-        if self.normalize != TURBO_NORMALIZE_L2 {
-            return Ok(());
+        if self.normalize == TURBO_NORMALIZE_L2 {
+            let args = [Ptr(self.output.ptr as u64), I32(self.output_dim as i32)];
+            k.normalize.launch(c, q, "normalization", &args, [batch, 1, 1])?;
         }
-        let args = [Ptr(self.output.ptr as u64), I32(self.output_dim as i32)];
-        k.normalize.launch(c, q, "normalization", &args, [batch, 1, 1])
+        Ok(built.get())
     }
 }
 
@@ -1849,15 +1887,16 @@ pub(crate) unsafe extern "C" fn session_run(
                 return Err(fail(INVALID_STATE, "the levelzero session has no rows written since its last run"));
             }
             let device0 = device_allocs_here();
-            s.encode_and_wait(s.model().desc.layers)?;
+            let built = s.encode_and_wait(s.model().desc.layers)?;
             out.placement = TURBO_PLACE_DEVICE;
             out.output = &*s.output as *const Buffer as *mut c_void;
             out.host = std::ptr::null_mut();
             out.h2d_bytes = s.h2d;
             out.d2h_bytes = 0;
             // The run appends launches to memory the session holds: the
-            // kernels' arguments are set in place and nothing is allocated.
-            out.host_allocs = 0;
+            // kernels' arguments are set in place and nothing is allocated,
+            // but for oneDNN's primitives the first time at a bin of tokens.
+            out.host_allocs = built;
             out.device_allocs = device_allocs_here() - device0;
             let st = &mut out.stage;
             // The lookup kernel reads the packed rows over the bus.
