@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>turboembed demo</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>turboembed <span class="sub">KServe v2 gRPC demo</span></h1>
+  <p id="server" class="muted">Checking the server…</p>
+</header>
+
+<main>
+  <section class="panel" id="input">
+    <h2>Texts</h2>
+    <p class="muted">One text per line; all of them go in one request.</p>
+    <textarea id="texts" rows="7" wrap="off" spellcheck="false">A cat is sleeping on the windowsill.
+A kitten naps in the warm sun by the window.
+The central bank raised interest rates again.
+Inflation pushed borrowing costs higher this quarter.
+How do I reset my router?</textarea>
+
+    <div class="options">
+      <label>Prompt role
+        <select id="prompt_role">
+          <option value="">none</option>
+          <option value="PROMPT_QUERY">query</option>
+          <option value="PROMPT_DOCUMENT">document</option>
+        </select>
+      </label>
+      <label>Cut each text to
+        <input id="max_tokens" type="number" min="0" step="1" placeholder="all"> tokens
+      </label>
+    </div>
+
+    <h2>Models</h2>
+    <p class="muted">Each name is one model the server serves, with its own tier and device.
+      Pick several to send the same texts to each and compare.</p>
+    <div id="models"></div>
+    <form id="add" class="add">
+      <input id="add-name" placeholder="another served model name" autocomplete="off">
+      <button type="submit">Add</button>
+    </form>
+
+    <button id="run" class="primary">Embed</button>
+    <p id="error" class="error" hidden></p>
+  </section>
+
+  <section id="results"></section>
+</main>
+
+<footer class="muted">
+  Times shown are the round trip the browser saw, through this demo and the server, one request at a time:
+  a look at the call, not a benchmark.
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

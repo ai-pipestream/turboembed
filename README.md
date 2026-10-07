@@ -105,6 +105,7 @@ reference, and `scripts/setup/` checks or installs what each one needs.
 - `docs/benchmarks.md`: what a benchmark record is, how it is made with
   `turbo-bench`, and how records back capabilities.
 - `docs/autotune.md`: the tuner and its cache.
+- `docs/demo.md`: a web page for trying the gRPC server from a browser.
 - `docs/cpu.md`, `docs/cuda.md`, `docs/levelzero.md`, `docs/metal.md`,
   `docs/hailo.md`, `docs/npu.md`: one page per backend.
 - `docs/grpc.md`: the gRPC server, `turbo-kserve`: building, starting and
