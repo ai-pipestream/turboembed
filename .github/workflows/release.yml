@@ -31,7 +31,7 @@ jobs:
   linux-x86_64:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.98
       - name: the CUDA toolkit, nvcc and the runtime's headers and static library only
         run: |
