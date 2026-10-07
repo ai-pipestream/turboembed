@@ -107,19 +107,48 @@ device.
 
 ## Bundles
 
-The bundle tool makes the HEF (bundle/README.md, step 4): the recipe's
-`hef-hailo10h-s128` artifact is compiled from the upstream ONNX export by
-Hailo's Dataflow Compiler, in a container built locally from
-`bundle/hailo/Dockerfile`, on the calibration texts the recipe carries
-(`recipes/all-minilm-l6-v2.calibration.jsonl`).
+The bundle tool makes the HEFs (bundle/README.md, step 4): the recipe's
+`hef-hailo10h-s128` and `hef-hailo8-s128` artifacts are compiled from the
+upstream ONNX export by Hailo's Dataflow Compiler, in a container built
+locally, on the calibration texts the recipe carries
+(`recipes/all-minilm-l6-v2.calibration.jsonl`). The compiler is not the
+same for every chip: the Hailo-10H's is the 5.x line
+(`bundle/hailo/Dockerfile`, image `turbo-hailo-dfc`), the Hailo-8's and
+Hailo-8L's the 3.x line on Python 3.10 (`bundle/hailo/Dockerfile.hailo8`,
+image `turbo-hailo-dfc3`). Each runs the same `hef_compile.py`, with the
+artifact's `target` as the compiler's architecture. A HEF made by a 3.x
+compiler loads in HailoRT 4.x; 3.34.0 makes HEFs that HailoRT 4.23.0
+runs.
 
-The HEF is compiled for one architecture (`target`, `hailo10h`) and a
-fixed frame: `fixed_seq` tokens, one row. A case longer than `fixed_seq`
-is refused with `TURBO_E_CAPACITY`. On the Hailo-10H, all-MiniLM-L6-v2
-compiled in I8 from the upstream ONNX cut at the word-embedding gather
-and the attention mask (128 tokens) runs at 224 rows a second with two
-frames in flight, the rate `hailortcli benchmark` gives the same HEF
-(Raspberry Pi 5, HailoRT 5.1.1, 2026-09-25).
+A HEF is compiled for one architecture (`target`) and a fixed frame:
+`fixed_seq` tokens, one row. A case longer than `fixed_seq` is refused
+with `TURBO_E_CAPACITY`. The backend loads the HEF whose `target` is the
+device's `arch`.
+
+On the Hailo-10H, all-MiniLM-L6-v2 compiled in I8 from the upstream ONNX
+cut at the word-embedding gather and the attention mask (128 tokens)
+runs at 224 rows a second with two frames in flight, the rate
+`hailortcli benchmark` gives the same HEF (Raspberry Pi 5, HailoRT
+5.1.1, 2026-09-25).
+
+On the Hailo-8 (26 TOPS, on a Raspberry Pi 5 and on a Compute Module 5,
+HailoRT 4.23.0), the same model is compiled by 3.34.0 with
+`compiler_optimization` `"max"`, with a minimum cosine of 0.936 to the
+F32 reference vectors, over the tier's floor of 0.93. The Hailo-8 has no
+memory of its own, so a HEF's contexts are loaded in turn from the host
+for every burst of frames: a run of one row pays for all of them, and
+rows a second climb with the batch. Through the library (one session,
+`TURBO_PRECISION_MODEL`, mean pooling, normalized; one row the median of
+500 runs), the same on both boards (2026-10-06):
+
+| Compile | Contexts | Compile time (32 cores) | One row | 32 rows a run | 64 rows a run | `hailortcli run --batch-size 32` |
+|---|---|---|---|---|---|---|
+| default | 4 | about 6 min | 14.7 ms | 282 rows/s | 301 rows/s | 333 frames/s |
+| `"max"` | 3 | 45 to 50 min | 14.1 ms | 337 rows/s | 365 rows/s | 424 frames/s |
+
+The two give the same vectors to the last digit the conformance suite
+reports: the setting moves layers between the device's resources and
+changes no weight or quantization.
 
 ## Testing on a Hailo machine
 

@@ -1,0 +1,27 @@
+# Hailo's Dataflow Compiler 3.x, for the Hailo-8 and Hailo-8L, which
+# compiles a bundle's ONNX export into a HEF (hef_compile.py). It runs
+# only while a bundle is made, with no network, on files the bundle tool
+# fetched and hashed.
+#
+# The compiler's wheel is not in this repository: its licence does not
+# allow redistribution. Download it from Hailo's Developer Zone (Software
+# Downloads, Dataflow Compiler 3.x, Linux x86_64, Python 3.10) into this directory, then:
+#
+#   docker build --build-arg WHEEL=<the wheel's file name> -f bundle/hailo/Dockerfile.hailo8 -t turbo-hailo-dfc3 bundle/hailo
+#   docker image inspect --format '{{.Id}}' turbo-hailo-dfc3
+#
+# The recipe pins the image as turbo-hailo-dfc3@sha256:<that id>, in the
+# HEF artifact's produced_by.container.
+FROM python:3.10-slim-bookworm@sha256:fba6bd3122c5f8861df53eaa2476b1a443b242a93cebdc9c0beb75a0a3008455
+ARG WHEEL
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends graphviz graphviz-dev build-essential pkg-config libgl1 cmake git \
+    && rm -rf /var/lib/apt/lists/*
+COPY ${WHEEL} /tmp/
+RUN pip install --no-cache-dir /tmp/${WHEEL} tokenizers==0.22.2 && rm /tmp/${WHEEL}
+# hef_compile.py seeds torch; the 3.x compiler does not install it.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.9.1
+COPY hef_compile.py /
+ENV HOME=/tmp PYTHONHASHSEED=0
+WORKDIR /tmp
+ENTRYPOINT ["python", "/hef_compile.py"]

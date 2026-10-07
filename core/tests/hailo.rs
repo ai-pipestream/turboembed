@@ -354,6 +354,25 @@ fn a_run_reports_its_frames_and_where_each_stage_ran() {
     }
 }
 
+/// A full batch runs as bursts of frames, several in flight, each frame
+/// reused as soon as it comes back: every row still gets its own vector,
+/// the one it gets in a run of its own.
+#[test]
+#[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
+fn every_row_of_a_full_batch_keeps_its_own_vector() {
+    let l = on_hailo();
+    let batch = l.info().max_batch;
+    assert!(batch > 32, "the bundle's max_batch {batch} is not more than one burst of 32");
+    let texts: Vec<String> = (0..batch).map(|i| format!("sentence number {i} about item {}", i * 7 % 13)).collect();
+    let texts: Vec<&str> = texts.iter().map(String::as_str).collect();
+    let s = Session::create(l.m, Some(&session_desc(batch, 0, TURBO_PRECISION_MODEL))).unwrap();
+    let all = s.embed(&texts, None).unwrap();
+    let one = Session::create(l.m, Some(&session_desc(1, 0, TURBO_PRECISION_MODEL))).unwrap();
+    for (i, t) in texts.iter().enumerate() {
+        assert_eq!(all[i], one.embed(&[t], None).unwrap()[0], "row {i}");
+    }
+}
+
 /// The HEF computes token type 0 only: rows with another type are refused,
 /// naming the row, and nothing runs.
 #[test]

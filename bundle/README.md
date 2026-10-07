@@ -51,12 +51,18 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
      built before that script was added to it cannot; build it again and
      pin the new id (docs/npu.md).
    - a HEF for a Hailo device (`produced_by` names `from`, `container` and
-     `inputs`), in the Dataflow Compiler container that `container` pins,
-     by `bundle/hailo/hef_compile.py`: the export is cut at the
+     `inputs`, and may name `compiler_optimization`), in the Dataflow
+     Compiler container that `container` pins, by
+     `bundle/hailo/hef_compile.py`: the export is cut at the
      word-embedding gather and the attention mask, quantized to 8 bits on
      the calibration texts `inputs` names, and compiled for `target` at a
-     frame of `fixed_seq` tokens. The compiler cannot be redistributed, so
-     its image is built locally; `bundle/hailo/Dockerfile` says how.
+     frame of `fixed_seq` tokens. `compiler_optimization` `"max"` has the
+     compiler search for the fastest allocation of the graph on the
+     device instead of the first that fits: the same weights and
+     quantization, a HEF that runs faster, and a compile many times
+     longer. The compiler cannot be redistributed, so its image is built
+     locally; `bundle/hailo/Dockerfile` (Hailo-10H) and
+     `bundle/hailo/Dockerfile.hailo8` (Hailo-8, Hailo-8L) say how.
 5. **seal**: `files` is filled with each named file's size and SHA-256,
    the reference's and each converted artifact's `produced_by` with what
    its container reported and the image it ran in (and for a conversion,
