@@ -1,6 +1,6 @@
-//! The per-model configuration (docs/kserve.md, Serving a bundle), from the
-//! command line: one `--model` per model,
-//! `bundle=PATH,device=INDEX|select,sessions=N[,precision=P][,max_batch=N][,max_seq=N]`.
+//! The server's configuration (docs/kserve.md, Serving a bundle), from the
+//! command line and the environment: one `--model` per model,
+//! `bundle=PATH,device=INDEX|select,sessions=N[,name=NAME][,precision=P][,max_batch=N][,max_seq=N]`.
 
 use std::net::SocketAddr;
 
@@ -18,6 +18,8 @@ pub enum Device {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelConfig {
     pub bundle: String,
+    /// The model name a request uses; None is the bundle's directory name.
+    pub name: Option<String>,
     pub device: Device,
     /// turbo_session_desc.precision, TURBO_PRECISION_*.
     pub precision: u32,
@@ -30,22 +32,31 @@ pub struct ModelConfig {
 }
 
 impl ModelConfig {
-    /// The model name: the last component of the bundle path, exactly as it
-    /// is spelled. None for a path whose last component is empty, `.` or
-    /// `..`, which names no bundle.
+    /// The model name: the `name` setting, or the last component of the
+    /// bundle path, exactly as it is spelled. None for a path whose last
+    /// component is empty, `.` or `..`, which names no bundle.
     pub fn name(&self) -> Option<&str> {
+        if let Some(n) = &self.name {
+            return Some(n);
+        }
         let last = self.bundle.rsplit(std::path::is_separator).next().unwrap_or("");
         (!matches!(last, "" | "." | "..")).then_some(last)
     }
 
     /// One `--model` value.
     pub fn parse(s: &str) -> Result<ModelConfig, String> {
-        let (mut bundle, mut device, mut sessions) = (None, None, None);
+        let (mut bundle, mut name, mut device, mut sessions) = (None, None, None, None);
         let (mut precision, mut max_batch, mut max_seq) = (None, None, None);
         for part in s.split(',') {
             let (k, v) = part.split_once('=').ok_or_else(|| format!("--model {s}: `{part}` is not key=value"))?;
             let seen = match k {
                 "bundle" => bundle.replace(v.to_string()).is_some(),
+                "name" => {
+                    if v.is_empty() {
+                        return Err(format!("--model {s}: name is empty"));
+                    }
+                    name.replace(v.to_string()).is_some()
+                }
                 "device" => {
                     let d = if v == "select" { Device::Select } else { Device::Index(number(k, v)?) };
                     device.replace(d).is_some()
@@ -71,6 +82,7 @@ impl ModelConfig {
         }
         Ok(ModelConfig {
             bundle: bundle.ok_or_else(|| format!("--model {s}: bundle is required"))?,
+            name,
             device: device.ok_or_else(|| format!("--model {s}: device is required"))?,
             precision: precision.unwrap_or(0),
             max_batch: max_batch.unwrap_or(0),
@@ -110,11 +122,31 @@ pub struct Args {
 /// `--max-message-bytes` when absent: 64 MiB.
 pub const DEFAULT_MAX_MESSAGE_BYTES: usize = 64 << 20;
 
+/// The environment variables, each what the flag of the same name is when
+/// the flag is absent. `TURBO_KSERVE_MODELS` holds `--model` values
+/// separated by `;`, and is read only when no `--model` is given.
+pub const ENV_LISTEN: &str = "TURBO_KSERVE_LISTEN";
+pub const ENV_MODELS: &str = "TURBO_KSERVE_MODELS";
+pub const ENV_MAX_MESSAGE_BYTES: &str = "TURBO_KSERVE_MAX_MESSAGE_BYTES";
+
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT --model bundle=PATH,device=INDEX|select,sessions=N\
-[,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] [--model ...] [--max-message-bytes N]";
+[,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] [--model ...] \
+[--max-message-bytes N]\n\
+environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
+TURBO_KSERVE_MAX_MESSAGE_BYTES; a flag on the command line replaces its variable";
 
 impl Args {
+    /// The command line, with the process environment filling in what it
+    /// leaves out.
     pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Args, String> {
+        Args::parse_with(args, |k| std::env::var(k).ok())
+    }
+
+    /// `parse` with `env` as the environment.
+    pub fn parse_with(
+        args: impl IntoIterator<Item = String>,
+        env: impl Fn(&str) -> Option<String>,
+    ) -> Result<Args, String> {
         let mut listen = None;
         let mut max_message_bytes = None;
         let mut models = Vec::new();
@@ -128,7 +160,10 @@ impl Args {
             match flag.as_str() {
                 "--listen" => {
                     let v = value()?;
-                    listen = Some(v.parse().map_err(|_| format!("--listen {v}: not ADDR:PORT"))?);
+                    let addr = v.parse().map_err(|_| format!("--listen {v}: not ADDR:PORT"))?;
+                    if listen.replace(addr).is_some() {
+                        return Err("--listen given twice".into());
+                    }
                 }
                 "--model" => models.push(ModelConfig::parse(&value()?)?),
                 "--max-message-bytes" => {
@@ -140,6 +175,23 @@ impl Args {
                 }
                 _ => return Err(format!("unknown argument {a}")),
             }
+        }
+        if listen.is_none()
+            && let Some(v) = env(ENV_LISTEN)
+        {
+            listen = Some(v.parse().map_err(|_| format!("{ENV_LISTEN}={v}: not ADDR:PORT"))?);
+        }
+        if models.is_empty()
+            && let Some(v) = env(ENV_MODELS)
+        {
+            for m in v.split(';').map(str::trim).filter(|m| !m.is_empty()) {
+                models.push(ModelConfig::parse(m).map_err(|e| format!("{ENV_MODELS}: {e}"))?);
+            }
+        }
+        if max_message_bytes.is_none()
+            && let Some(v) = env(ENV_MAX_MESSAGE_BYTES)
+        {
+            max_message_bytes = Some(v.parse().map_err(|_| format!("{ENV_MAX_MESSAGE_BYTES}={v}: not a byte count"))?);
         }
         let listen = listen.ok_or("--listen is required")?;
         if models.is_empty() {
@@ -155,7 +207,7 @@ mod tests {
     use super::*;
 
     fn args(s: &str) -> Result<Args, String> {
-        Args::parse(s.split_whitespace().map(String::from))
+        Args::parse_with(s.split_whitespace().map(String::from), |_| None)
     }
 
     #[test]
@@ -168,6 +220,7 @@ mod tests {
             a.models,
             [ModelConfig {
                 bundle: "/b/tiny".into(),
+                name: None,
                 device: Device::Index(0),
                 precision: 0,
                 max_batch: 0,
@@ -182,6 +235,65 @@ mod tests {
         let m = &a.models[0];
         assert_eq!((m.device, m.precision, m.max_batch, m.max_seq), (Device::Select, 2, 8, 128));
         assert_eq!(m.name(), Some("x"));
+    }
+
+    #[test]
+    fn one_bundle_under_two_names() {
+        let a = args(
+            "--listen 127.0.0.1:0 --model bundle=/b/tiny,device=0,sessions=1 \
+             --model name=tiny-fastest,bundle=/b/tiny,device=0,sessions=1,precision=PRECISION_FASTEST",
+        )
+        .unwrap();
+        assert_eq!(names(&a.models).unwrap(), ["tiny", "tiny-fastest"]);
+        assert_eq!(a.models[1].name.as_deref(), Some("tiny-fastest"));
+        assert!(args("--listen 127.0.0.1:0 --model name=,bundle=/b/tiny,device=0,sessions=1").is_err());
+        assert!(args("--listen 127.0.0.1:0 --model name=a,name=b,bundle=/b/tiny,device=0,sessions=1").is_err());
+        // A name is a name wherever it comes from.
+        assert!(
+            args("--listen 127.0.0.1:0 --model bundle=/b/tiny,device=0,sessions=1 --model name=tiny,bundle=/c/x,device=0,sessions=1")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn the_environment_fills_in_absent_flags() {
+        let env = |k: &str| match k {
+            ENV_LISTEN => Some("127.0.0.1:9000".to_string()),
+            ENV_MODELS => Some("bundle=/b/a,device=0,sessions=1; bundle=/b/b,device=1,sessions=2".to_string()),
+            ENV_MAX_MESSAGE_BYTES => Some("4096".to_string()),
+            _ => None,
+        };
+        let a = Args::parse_with(std::iter::empty(), env).unwrap();
+        assert_eq!(a.listen, "127.0.0.1:9000".parse().unwrap());
+        assert_eq!(a.max_message_bytes, 4096);
+        assert_eq!(names(&a.models).unwrap(), ["a", "b"]);
+        assert_eq!((a.models[1].device, a.models[1].sessions), (Device::Index(1), 2));
+
+        // A flag replaces its variable; one --model replaces every model
+        // of the variable.
+        let a = Args::parse_with(
+            "--listen 127.0.0.1:0 --model bundle=/b/c,device=0,sessions=1 --max-message-bytes 1"
+                .split_whitespace()
+                .map(String::from),
+            env,
+        )
+        .unwrap();
+        assert_eq!(a.listen, "127.0.0.1:0".parse().unwrap());
+        assert_eq!(a.max_message_bytes, 1);
+        assert_eq!(names(&a.models).unwrap(), ["c"]);
+
+        // A bad variable is refused by name.
+        let bad = |k: &str, v: &str| {
+            let v = v.to_string();
+            let k = k.to_string();
+            Args::parse_with(std::iter::empty(), move |q| if q == k { Some(v.clone()) } else { env(q) }).unwrap_err()
+        };
+        assert!(bad(ENV_LISTEN, "nowhere").starts_with("TURBO_KSERVE_LISTEN=nowhere"));
+        assert!(bad(ENV_MODELS, "bundle=/b/a,device=0").starts_with("TURBO_KSERVE_MODELS: "));
+        assert!(bad(ENV_MAX_MESSAGE_BYTES, "64MiB").starts_with("TURBO_KSERVE_MAX_MESSAGE_BYTES=64MiB"));
+        // An empty variable gives nothing.
+        let e = Args::parse_with(std::iter::empty(), |k| (k == ENV_MODELS).then(String::new)).unwrap_err();
+        assert_eq!(e, "--listen is required");
     }
 
     #[test]
@@ -204,6 +316,7 @@ mod tests {
             "--listen 127.0.0.1:0 --model bundle=a/.,device=0,sessions=1",
             "--listen 127.0.0.1:0 --model bundle=..,device=0,sessions=1",
             "--listen nowhere --model bundle=x,device=0,sessions=1",
+            "--listen 127.0.0.1:0 --listen 127.0.0.1:1 --model bundle=x,device=0,sessions=1",
             "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes -1",
             "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes 64MiB",
             "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1 --max-message-bytes 1 --max-message-bytes 2",
@@ -221,5 +334,8 @@ mod tests {
         assert_eq!(m("/a/b/").name(), None);
         assert_eq!(m("").name(), None);
         assert_eq!(m("a/..").name(), None);
+        // A name setting is used as given, whatever the path.
+        let n = ModelConfig { name: Some("Other".into()), ..m("/a/b/") };
+        assert_eq!(n.name(), Some("Other"));
     }
 }

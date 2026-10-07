@@ -100,7 +100,10 @@ A few rules hold the shape:
 - `docs/autotune.md`: the tuner and its cache.
 - `docs/cpu.md`, `docs/cuda.md`, `docs/levelzero.md`, `docs/metal.md`,
   `docs/hailo.md`, `docs/npu.md`: one page per backend.
-- `docs/kserve.md`: the gRPC server.
+- `docs/grpc.md`: the gRPC server, `turbo-kserve`: building, starting and
+  calling it.
+- `docs/kserve.md`: how the server maps the Open Inference Protocol onto
+  the C interface, call by call.
 
 ## The previous attempt
 
