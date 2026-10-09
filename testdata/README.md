@@ -54,5 +54,21 @@
   file it is under Apache-2.0, the licence of
   sentence-transformers/all-MiniLM-L6-v2.
 
-Everything here is about 6.3 MB, 4 MB of it the tiny
-bundle's weights and 1.1 MB the cut-down BGE-M3 tokenizer.
+- `tiny-static-recipe/`: the recipe `turbo-bundle distill` made the
+  next bundle from: a 16-wide static model distilled from
+  `tiny-bert-bundle/`, with the quality texts of
+  `bundle/recipes/static-quality.jsonl` (docs/static.md).
+- `tiny-static-bundle/`: that static bundle, sealed: its table
+  (`weights/static.safetensors`, F16, 1037908 bytes, SHA-256
+  `1e3014311b0931a58b4fe9a56a8fb3e064ae81f938362edea39ed19d3d566f16`),
+  the tokenizer file of `tiny-bert-bundle/`, the quality texts, and a
+  reference written by Model2Vec 0.9.0's `StaticModel`
+  (`bundle/reference/static_reference.py`) in a virtual environment with
+  the versions the manifest names, not in the pinned container: it is
+  test data. Its base model has random weights, so its quality numbers
+  say nothing about a real model. `core/tests/static_model.rs` checks
+  the static path against it.
+
+Everything here is about 8.2 MB, 4 MB of it the tiny
+BERT bundle's weights, 1.8 MB the static bundle and 1.1 MB the cut-down
+BGE-M3 tokenizer.

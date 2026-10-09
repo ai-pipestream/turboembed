@@ -4,7 +4,8 @@
 //! each times the token's weight, averaged over the live tokens whose
 //! weight is not 0; the zero vector when there are none. Then the row is
 //! cut to output_dim and L2-normalized when asked. CLS pooling takes the
-//! row's first column and LAST its last live token, each times its weight.
+//! row's first column and LAST its last live token, each times its weight;
+//! a row with no live token is the zero vector under every pooling.
 //!
 //! `write` keeps only what the run reads: each row's live ids, in order,
 //! one after another. A run splits the rows over the session's threads;
@@ -162,6 +163,7 @@ impl Static {
         let ids = &self.ids[self.starts[r]..self.starts[r + 1]];
         let t = &self.table;
         match self.pooling {
+            TURBO_POOLING_CLS if ids.is_empty() => dst.fill(0.0),
             TURBO_POOLING_CLS => self.one(self.first[r] as usize, dst),
             TURBO_POOLING_LAST => match ids.last() {
                 Some(&id) => self.one(id as usize, dst),

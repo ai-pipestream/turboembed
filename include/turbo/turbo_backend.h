@@ -93,7 +93,9 @@ extern "C" {
  * live token's row of the embedding table times the token's weight, the
  * mean of those products over the live tokens whose weight is not 0 (the
  * zero vector when none is), then the row's output_dim cut and
- * normalize. hidden is the table's width; layers, heads, intermediate and
+ * normalize. CLS pooling takes the row's first column and LAST its last
+ * live token, each times its weight; a row with no live token is the
+ * zero vector under every pooling. hidden is the table's width; layers, heads, intermediate and
  * max_positions are 0, token_types is 1. */
 #define TURBO_STATIC_EMBEDDINGS    0   /* [vocab_size, hidden] */
 #define TURBO_STATIC_WEIGHTS       1   /* [vocab_size]: 0 leaves the token out of the mean */

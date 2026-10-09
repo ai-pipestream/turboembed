@@ -502,7 +502,7 @@ fn write_table(table: &[f32], weights: &[f32], vocab: usize, k: usize, dtype: &s
         WEIGHTS: { "dtype": dtype, "shape": [vocab], "data_offsets": [e.len(), e.len() + w.len()] },
     });
     let mut h = serde_json::to_vec(&header).unwrap();
-    while h.len() % 8 != 0 {
+    while !h.len().is_multiple_of(8) {
         h.push(b' ');
     }
     let mut out = Vec::with_capacity(8 + h.len() + e.len() + w.len());

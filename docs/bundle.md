@@ -242,7 +242,11 @@ this form before it is written or loaded.
 | `tokenizer.special_tokens[]` | role, content, id, lstrip | yes | Fills `pad_id`, `bos_id`, `eos_id`, `unk_id`. `lstrip` (default false) says the token takes the whitespace before it in the text, as upstream's `lstrip` added tokens do (XLM-RoBERTa's `<mask>`); each must match the file's added token. |
 | `tokenizer.template` | string[] | yes | The row layout around `$TEXT`. |
 | `tokenizer.truncation` | enum | yes | What `TURBO_TRUNCATE_MODEL` means: `TRUNCATE_RIGHT` or `TRUNCATE_LEFT`. `TRUNCATE_NONE` is a caller option and is rejected here. |
-| `architecture.*` | message | when an artifact is raw weights, a HEF or an OpenVINO IR | Everything a kernel path needs that a weights file does not carry. `family` is `FAMILY_BERT` or `FAMILY_ROBERTA`: the same encoder, RoBERTa counting positions from `position_offset` (its padding id plus one: 2 for XLM-RoBERTa, whose table of `max_positions` 8194 rows serves 8192 tokens). `position_offset` is 0 for BERT and required for RoBERTa; `max_seq` plus it must fit `max_positions`. |
+| `architecture.*` | message | when an artifact is raw weights, a HEF or an OpenVINO IR, except in a static model | Everything a kernel path needs that a weights file does not carry. `family` is `FAMILY_BERT` or `FAMILY_ROBERTA`: the same encoder, RoBERTa counting positions from `position_offset` (its padding id plus one: 2 for XLM-RoBERTa, whose table of `max_positions` 8194 rows serves 8192 tokens). `position_offset` is 0 for BERT and required for RoBERTa; `max_seq` plus it must fit `max_positions`. |
+| `static_embedding.vocab_size` | uint32 | in a static model | A static model (docs/static.md): one vector per vocabulary entry and no encoder, in place of `architecture`; the two never appear together. The table's rows; every special token's id is under it. Its artifacts are `FORMAT_SAFETENSORS`, naming `static_embeddings` (`[vocab_size, dim]`) and `static_weights` (`[vocab_size]`). |
+| `static_embedding.distilled_from.model_id`, `.revision`, `.manifest_sha256` | string | in a static model | The base bundle the table was distilled from, by its manifest's SHA-256. |
+| `static_embedding.quality.texts` | path | in a static model | The texts the cost was measured on, JSON lines of `text` and `group`. |
+| `static_embedding.quality.base_top1`, `.static_top1`, `.similarity_spearman` | double | in a static model | The measured cost: the share of texts whose nearest other text is of their group, with the base model and the static one (0 to 1), and the rank correlation of the two models' similarities over every pair (-1 to 1). |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
 | `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_OPENVINO_IR` artifact is two: the xml, then its weights. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
@@ -252,7 +256,7 @@ this form before it is written or loaded.
 | `artifacts[].compute_dtype` | enum | yes for `FORMAT_HEF` and `FORMAT_OPENVINO_IR` | Fixed by the compilation, so never on `FORMAT_SAFETENSORS`. Absent: the session's `precision` decides, and `TURBO_PRECISION_MODEL` computes in the dtype the weights are stored in. |
 | `artifacts[].graph_input`, `.graph_output` | enum | yes | Where the artifact starts and stops, so the backend knows which stages it must add. Raw weights (`FORMAT_SAFETENSORS`) start at `INPUT_TOKEN_IDS`. `INPUT_EMBEDDINGS` is defined under "Graph inputs" below. `OUTPUT_HIDDEN_STATES` is the last layer's hidden states, before pooling; raw weights stop there, the backend pools. `OUTPUT_EMBEDDINGS` is the pooled, normalized vectors, for a graph that carries the embed block's pooling and normalization (a sentence-transformers export); only graphs no backend runs stop there. |
 | `artifacts[].host_weights` | string | when input is embeddings | The `FORMAT_SAFETENSORS` artifact whose embedding tensors the host lookup uses. Its `tensor_names` must name the five embedding roles; the layer roles are not read. |
-| `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. |
+| `artifacts[].tensor_names` | map | raw weights | Role to tensor name; `{layer}` is the layer index. A static model's roles (`static_embeddings`, `static_weights`) and an encoder's are never mixed. |
 | `artifacts[].produced_by` | message | no | Absent means the upstream file, unchanged. |
 | `produced_by.tool`, `.tool_version`, `.container`, `.reproducible` | string, bool | yes when present | What ran, in which pinned container, and whether two runs give identical bytes. |
 | `produced_by.from` | string | yes in a converted artifact but raw weights, empty in `reference` | The artifact this one was converted from. The reference, and raw weights the bundle tool wrote from an upstream PyTorch checkpoint the bundle does not carry, are made from the upstream model, so their `from` is empty; the weights' `args` name the checkpoint. |
@@ -333,8 +337,8 @@ Status codes are the header's `TURBO_E_*`.
    embedding tensors as they lie in the verified `host_weights` file.
 8. For raw weights, and for a `host_weights` artifact's embedding
    tensors, every tensor the `tensor_names` map implies must
-   exist with the shape the architecture implies (`[out, in]` for a
-   linear layer), be `F32`, `F16` or `BF16` with every such tensor the
+   exist with the shape the architecture or the `static_embedding` block
+   implies (`[out, in]` for a linear layer), be `F32`, `F16` or `BF16` with every such tensor the
    same, and start at a byte offset in its file that is a multiple of its
    element size; each file's header length is a multiple of 8. Else
    `BUNDLE_INVALID` naming the tensor or the file. Tensors the model does

@@ -515,7 +515,7 @@ unsafe extern "C" fn session_create(
                 return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of scratch for the session")) };
             }
         };
-    let s = Session { work: Work::Encoder(encoder), pool, output: Box::new(output), written: false };
+    let s = Session { work: Work::Encoder(Box::new(encoder)), pool, output: Box::new(output), written: false };
     unsafe {
         *compute_dtype = TURBO_DTYPE_F32;
         *out = Box::into_raw(Box::new(s)) as *mut c_void;
@@ -525,7 +525,7 @@ unsafe extern "C" fn session_create(
 
 /// What a session computes with: an encoder, or a static model's table.
 enum Work {
-    Encoder(encoder::Encoder),
+    Encoder(Box<encoder::Encoder>),
     Static(table::Static),
 }
 
