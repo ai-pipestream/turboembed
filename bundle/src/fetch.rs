@@ -18,6 +18,10 @@ pub fn url(repository: &str, commit: &str, path: &str) -> String {
 /// file's hash so it can be pinned in the recipe.
 pub fn fetch(recipe: &Recipe, dir: &Path) -> Result<()> {
     let (repository, commit) = recipe.source()?;
+    println!("{repository} at {commit}, licence {}", recipe.str_at("/model/license").unwrap_or("not stated"));
+    if let Some(n) = &recipe.notice {
+        println!("notice: {n}");
+    }
     for u in &recipe.upstream {
         let dest = dir.join(&u.path);
         let have = fs::read(&dest).ok().map(|b| sha256_hex(&b));

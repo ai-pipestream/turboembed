@@ -4,14 +4,16 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use turbo_bundle::recipe::Recipe;
-use turbo_bundle::{Result, convert, distill, fetch, reference, seal};
+use turbo_bundle::{Result, catalogue, convert, distill, fetch, reference, seal};
 
 const USAGE: &str = "\
 usage:
-  turbo-bundle make <recipe.json> <upstream-dir> <bundle-dir>
+  turbo-bundle make <recipe.json | model-id> <upstream-dir> <bundle-dir>
       fetch, stage, reference, convert, seal and verify, in that order
-  turbo-bundle fetch <recipe.json> <upstream-dir>
+  turbo-bundle fetch <recipe.json | model-id> <upstream-dir>
       fetch the upstream files at the recipe's commit
+  turbo-bundle catalogue
+      the models a model-id names, with their licences (docs/static.md)
   turbo-bundle reference <recipe.json> <upstream-dir> <bundle-dir>
       copy the files the bundle carries, run the reference container
       and the conversions, then seal and verify
@@ -59,6 +61,18 @@ fn run(args: &[&str]) -> Result<()> {
             seal::seal_staged(&mut r, Path::new(upstream), Path::new(bundle))
         }
         ["verify", bundle] => seal::verify(Path::new(bundle)),
+        ["catalogue"] => {
+            for (id, _) in catalogue::MODELS {
+                let r = Recipe::load(Path::new(id))?;
+                let license = r.str_at("/model/license")?;
+                let (_, commit) = r.source()?;
+                println!("{id}  {license}  {commit}");
+                if let Some(n) = &r.notice {
+                    println!("    {n}");
+                }
+            }
+            Ok(())
+        }
         ["distill", recipe, base, bundle] => {
             let mut r = Recipe::load(Path::new(recipe))?;
             distill::stage(&r, Path::new(base), Path::new(bundle))?;

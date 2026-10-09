@@ -462,4 +462,84 @@ mod unigram {
         });
         assert!(e.is(turbo::status::BUNDLE_INVALID, "not WordPiece"), "{e:?}");
     }
+
+    /// The BGE-M3 tokenizer with the normalizer and pre-tokenizer of
+    /// Model2Vec's multilingual models: the map and the collapse of spaces
+    /// in a nested sequence, a space around each ASCII punctuation
+    /// character, runs of whitespace to one space, the strip, and the
+    /// metaspace with no cut at it.
+    #[test]
+    fn the_multilingual_static_normalizer_matches_upstream() {
+        let mut json: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
+        let first = json["normalizer"].clone();
+        let mut steps = vec![first];
+        for c in "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".chars() {
+            steps.push(
+                json!({ "type": "Replace", "pattern": { "String": c.to_string() }, "content": format!(" {c} ") }),
+            );
+        }
+        steps.push(json!({ "type": "Replace", "pattern": { "Regex": "\\s+" }, "content": " " }));
+        steps.push(json!({ "type": "Strip", "strip_left": true, "strip_right": true }));
+        json["normalizer"] = json!({ "type": "Sequence", "normalizers": steps });
+        json["pre_tokenizer"]["split"] = json!(false);
+        let path = std::env::temp_dir().join(format!("turbo-m3-static-{}.json", std::process::id()));
+        std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
+        let mut m = manifest_m3();
+        let u = &mut m["tokenizer"]["unigram"];
+        for flag in ["space_punctuation", "collapse_whitespace", "strip", "whole_text"] {
+            u[flag] = json!(true);
+        }
+        let f = Fixture::with_tokenizer("m3-static", m, &path);
+        let tok = f.open().expect("tokenizer loads");
+        let up = upstream_at(&path);
+        let mut all = texts();
+        all.extend(["a,b.c!d", "  ¿qué?  ", "x\u{3000}\u{3000}y", "...", "\t \n"].map(str::to_owned));
+        for text in all {
+            assert_eq!(tok.row(&text, None).unwrap(), upstream_ids(&up, &text), "text {text:?}");
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
+/// MiniLM's tokenizer with its [PAD] matched as Model2Vec's code models
+/// add it: in the normalized text, as a whole word, taking the whitespace
+/// around it.
+#[test]
+fn a_normalized_special_token_matches_upstream() {
+    let mut json: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(upstream_tokenizer_json()).unwrap()).unwrap();
+    let pad = json["added_tokens"].as_array_mut().unwrap().iter_mut().find(|a| a["content"] == "[PAD]").unwrap();
+    for flag in ["normalized", "single_word", "lstrip", "rstrip"] {
+        pad[flag] = json!(true);
+    }
+    let path = std::env::temp_dir().join(format!("turbo-normalized-pad-{}.json", std::process::id()));
+    std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
+    let mut m = manifest();
+    let specials = m["tokenizer"]["special_tokens"].as_array_mut().unwrap();
+    let pad = specials.iter_mut().find(|s| s["content"] == "[PAD]").unwrap();
+    for flag in ["normalized", "single_word", "lstrip", "rstrip"] {
+        pad[flag] = json!(true);
+    }
+    let f = Fixture::with_tokenizer("normalized-pad", m, &path);
+    let tok = f.open().expect("tokenizer loads");
+    let up = upstream_at(&path);
+    let mut all = texts();
+    all.extend(
+        [
+            "x [PAD] y",
+            "x [pad] y",
+            "[PAD]",
+            "[Pad][pAd]",
+            "a[pad]b",
+            "a [pad]b",
+            "[pad]. and [pad],",
+            "\u{e9}[pad] \u{e9} [pad]_ _[pad]",
+            "[UNK] [pad] [CLS]",
+        ]
+        .map(str::to_owned),
+    );
+    for text in all {
+        assert_eq!(tok.row(&text, None).unwrap(), upstream_ids(&up, &text), "text {text:?}");
+    }
+    std::fs::remove_file(path).unwrap();
 }
