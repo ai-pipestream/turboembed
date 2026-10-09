@@ -755,7 +755,7 @@ fn tokenizing_pool() -> Option<std::sync::MutexGuard<'static, crate::cpu::pool::
     let pool = POOL.get_or_init(|| {
         // available_parallelism reads the cgroup files on Linux: once.
         let cpus = std::thread::available_parallelism().map_or(1, |n| n.get());
-        std::sync::Mutex::new(crate::cpu::pool::Pool::new(cpus))
+        std::sync::Mutex::new(crate::cpu::pool::Pool::with_spin(cpus, crate::cpu::pool::SPIN_BATCH))
     });
     pool.try_lock().ok()
 }

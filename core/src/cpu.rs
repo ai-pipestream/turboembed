@@ -485,7 +485,12 @@ unsafe extern "C" fn session_create(
             Ok(w) => w,
             Err(rc) => return rc,
         };
-        let s = Session { work, pool: pool::Pool::new(threads), output: Box::new(output), written: false };
+        let s = Session {
+            work,
+            pool: pool::Pool::with_spin(threads, pool::SPIN_BATCH),
+            output: Box::new(output),
+            written: false,
+        };
         unsafe {
             *compute_dtype = if quantize { TURBO_DTYPE_I8 } else { TURBO_DTYPE_F32 };
             *out = Box::into_raw(Box::new(s)) as *mut c_void;

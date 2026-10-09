@@ -26,9 +26,15 @@ use std::time::{Duration, Instant};
 /// A job's function.
 type Task<'a> = dyn Fn(usize, usize) + Sync + 'a;
 
-/// How long a worker waits for the next job before it parks. Jobs within
-/// a run follow each other in microseconds; between runs it sleeps.
-const SPIN: Duration = Duration::from_micros(200);
+/// How long a worker of an encoder's pool waits for the next job before
+/// it parks: an encoder's jobs follow each other in microseconds, and a
+/// worker woken from a park costs one of them tens of microseconds.
+pub(crate) const SPIN: Duration = Duration::from_micros(200);
+
+/// The same for a pool that runs one job per batch, as the static table's
+/// and the tokenizer's do: the next job is a batch away, so a worker parks
+/// almost at once rather than burn a processor waiting for it.
+pub(crate) const SPIN_BATCH: Duration = Duration::from_micros(20);
 
 /// The claim word: the job's number in the top 32 bits, its units in the
 /// next 16, the next unit to take in the low 16. A job of more tasks than
@@ -51,6 +57,8 @@ struct Shared {
     /// Units of the current job done.
     done: AtomicUsize,
     stop: AtomicBool,
+    /// How long a worker spins before it parks.
+    spin: Duration,
     /// Workers parked on `wake`.
     sleepers: Mutex<usize>,
     wake: Condvar,
@@ -79,8 +87,14 @@ impl Drop for AbortOnUnwind {
 impl Pool {
     /// A pool of `threads` threads, the caller's among them, so
     /// `threads - 1` are spawned. Fewer are when the system will not
-    /// start more; the pool computes the same with any number.
+    /// start more; the pool computes the same with any number. Its
+    /// workers spin for SPIN before they park.
     pub(crate) fn new(threads: usize) -> Pool {
+        Pool::with_spin(threads, SPIN)
+    }
+
+    /// The same, with workers that spin for `spin` before they park.
+    pub(crate) fn with_spin(threads: usize, spin: Duration) -> Pool {
         let shared = Arc::new(Shared {
             claim: AtomicU64::new(0),
             job: AtomicPtr::new(std::ptr::null_mut()),
@@ -88,6 +102,7 @@ impl Pool {
             tasks: AtomicUsize::new(0),
             done: AtomicUsize::new(0),
             stop: AtomicBool::new(false),
+            spin,
             sleepers: Mutex::new(0),
             wake: Condvar::new(),
         });
@@ -133,8 +148,13 @@ impl Pool {
         s.tasks.store(tasks, Ordering::Relaxed);
         s.done.store(0, Ordering::Relaxed);
         s.claim.store(word(self.jobs, units, 0), Ordering::Release);
-        if *lock(&s.sleepers) > 0 {
-            s.wake.notify_all();
+        // Wake only the parked workers the job has units for: the
+        // caller takes one, and workers still spinning take theirs.
+        {
+            let sleepers = lock(&s.sleepers);
+            for _ in 0..(*sleepers).min(units - 1) {
+                s.wake.notify_one();
+            }
         }
         take_units(s, 0);
         let mut spins = 0u32;
@@ -194,7 +214,7 @@ fn worker(s: &Shared, id: usize) {
         let mut spins = 0u32;
         while s.claim.load(Ordering::Acquire) == seen && !s.stop.load(Ordering::Acquire) {
             spins = spins.wrapping_add(1);
-            if !spins.is_multiple_of(256) || start.elapsed() < SPIN {
+            if !spins.is_multiple_of(256) || start.elapsed() < s.spin {
                 spin_loop();
                 continue;
             }
@@ -261,6 +281,21 @@ mod tests {
                 n.fetch_add(1, Ordering::Relaxed);
             });
             assert_eq!(n.load(Ordering::Relaxed), 64);
+        }
+    }
+
+    /// The same for a pool that parks at once, with fewer units than
+    /// workers: those not woken still are when the next job wants them.
+    #[test]
+    fn a_batch_pool_wakes_the_workers_a_job_wants() {
+        let mut p = Pool::with_spin(8, SPIN_BATCH);
+        for tasks in [2, 3, 64, 2, 1000] {
+            std::thread::sleep(SPIN * 5);
+            let n = AtomicUsize::new(0);
+            p.run(tasks, &|_, _| {
+                n.fetch_add(1, Ordering::Relaxed);
+            });
+            assert_eq!(n.load(Ordering::Relaxed), tasks);
         }
     }
 
