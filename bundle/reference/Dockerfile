@@ -14,6 +14,9 @@
 #
 # The recipe pins the image as turbo-reference@sha256:<that id>.
 FROM python:3.12-slim
+# Model2Vec installs from its git repository: setuptools_scm finds its
+# version and its subpackages from the git metadata, which an archive lacks.
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r /requirements.txt
 COPY reference.py onnx_f16.py bin_to_safetensors.py onnx_to_openvino_ir.py static_reference.py static_golden.py /

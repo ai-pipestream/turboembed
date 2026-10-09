@@ -32,9 +32,13 @@ def model2vec_version():
     """The installed Model2Vec, with the commit it was installed from."""
     version = metadata.version("model2vec")
     try:
-        url = json.loads(metadata.distribution("model2vec").read_text("direct_url.json") or "{}").get("url", "")
+        direct = json.loads(metadata.distribution("model2vec").read_text("direct_url.json") or "{}")
     except (FileNotFoundError, ValueError):
-        url = ""
+        direct = {}
+    url = direct.get("url", "")
+    commit = direct.get("vcs_info", {}).get("commit_id")
+    if commit:
+        url = f"{url}@{commit}"
     return f"{version} ({url})" if url else version
 
 
