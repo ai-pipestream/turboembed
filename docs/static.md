@@ -98,8 +98,8 @@ processor, since the AVX2 sums fuse the multiply and the add.
 On the CPU each row is summed by one task in token order, so a batch
 gives the same bits on any number of threads (docs/cpu.md). The rows of
 a run are split over the session's threads once a batch holds a few
-thousand tokens. `turbo_embed_write_text` tokenizes a batch of 64 texts
-or more on one thread per processor.
+thousand tokens. `turbo_embed_write_text` tokenizes a batch on up to
+one thread per processor, one thread for each 4 KiB of text.
 
 ## Beyond the reference
 
@@ -295,7 +295,23 @@ The table is the base model's, so it keeps the base model's licence.
 ## References
 
 The speed references, on the same machine and the same table: Model2Vec's
-own `StaticModel.encode`, and sentence-transformers' `StaticEmbedding`
-(a PyTorch `EmbeddingBag` in mean mode). `StaticEmbedding` keeps the
-unknown token in the mean and neither cuts the text nor its ids;
-Model2Vec and this library drop it and cut both.
+own `StaticModel.encode` at the pinned commit, model2vec-rs (Model2Vec's
+Rust port), and sentence-transformers' `StaticEmbedding` (a PyTorch
+`EmbeddingBag` in mean mode). `StaticEmbedding` keeps the unknown token
+in the mean and neither cuts the text nor its ids; Model2Vec,
+model2vec-rs and this library drop it and cut both.
+
+`core/tests/static_speed.rs` times a bundle in texts a second, the way
+each reference is timed beside it: a JSON array of texts embedded in
+order, batch by batch, at `max_length` with normalization, one warm pass
+and then at least two seconds three times, the best of the three, at
+`PRECISION_MODEL` and `FASTEST`, for each batch size up to the bundle's
+`max_batch`:
+
+```
+TURBO_SPEED_BUNDLE=<bundle-dir> TURBO_SPEED_TEXTS=<texts.json> TURBO_SPEED_BATCHES=1,32,256,1024 \
+  cargo test --release -p turbo --test static_speed -- --nocapture
+```
+
+The potion bundles take batches of up to 1024 texts, Model2Vec's default
+batch.

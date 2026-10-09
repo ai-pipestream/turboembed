@@ -690,10 +690,10 @@ fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u32) -> turb
     }
 }
 
-/// Texts per thread below which write_text tokenizes on the caller's
-/// thread alone: starting a thread costs about as much as tokenizing a
-/// few short texts.
-const TEXTS_PER_THREAD: usize = 32;
+/// Bytes of text per thread below which write_text tokenizes on the
+/// caller's thread alone: starting a thread costs about as much as
+/// tokenizing a few hundred bytes.
+const BYTES_PER_THREAD: u64 = 4096;
 
 /// The caller's text views, which the threads of tokenize_all read.
 #[derive(Clone, Copy)]
@@ -711,7 +711,8 @@ unsafe impl Sync for View {}
 fn tokenize_all(texts: &[View], one: &(dyn Fn(usize, turbo_text) -> Result<Vec<i32>> + Sync)) -> Result<Vec<Vec<i32>>> {
     // available_parallelism reads the cgroup files on Linux: once.
     static CPUS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    let threads = texts.len() / TEXTS_PER_THREAD;
+    let bytes: u64 = texts.iter().map(|t| t.0.len).sum();
+    let threads = ((bytes / BYTES_PER_THREAD) as usize).min(texts.len());
     let threads = if threads > 1 {
         threads.min(*CPUS.get_or_init(|| std::thread::available_parallelism().map_or(1, |n| n.get())))
     } else {
