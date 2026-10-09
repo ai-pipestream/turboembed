@@ -39,6 +39,8 @@ libloading = "0.9"
 # The upstream tokenizer sentence-transformers runs through; the tests
 # compare the core's ids with it on the upstream tokenizer.json.
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
+# Grapheme clusters, for where the tests expect a span to end.
+unicode-segmentation = "1"
 # The tests read where a model's weights are through `internals`.
 turbo = { path = ".", features = ["internals"] }
 

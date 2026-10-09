@@ -581,6 +581,14 @@ int main(int argc, char **argv) {
         printf("encode %s\n", err.message); return 1;
     }
     for (uint32_t i = 0; i < len; i++) printf("%d%s", ids[i], i + 1 < len ? " " : "\n");
+    uint32_t spans[64][2];
+    int32_t sids[64];
+    if (turbo_tokenizer_encode_spans(tok, &text, 1, NULL, sids, mask, NULL, &spans[0][0], 64, &len, &err)) {
+        printf("encode spans %s\n", err.message); return 1;
+    }
+    printf("spans same ids %d:", memcmp(ids, sids, len * sizeof(int32_t)) == 0);
+    for (uint32_t i = 0; i < len; i++) printf(" %u-%u", spans[i][0], spans[i][1]);
+    printf(", padding %u-%u\n", spans[len][0], spans[len][1]);
     turbo_tokenizer_release(tok);
     turbo_tokenizer_release(NULL);
 
@@ -719,6 +727,8 @@ fn a_c_program_loads_a_model_tokenizes_and_embeds() {
         })
         .collect();
     let ids: Vec<String> = upstream_ids(&upstream(), text).iter().map(i32::to_string).collect();
+    let spans: String =
+        upstream().encode(text, true).unwrap().get_offsets().iter().map(|(a, b)| format!(" {a}-{b}")).collect();
     let want = format!(
         "devices 1, device 0 is cpu kind 1, embed status 1\nselect TURBO_E_DEVICE_NOT_FOUND 99\n\
          context on device 0, buffer 48 bytes, aligned 1\nimport at +8, stack[3] 7, export same 1\n\
@@ -726,7 +736,7 @@ fn a_c_program_loads_a_model_tokenizes_and_embeds() {
          missing TURBO_E_BUNDLE_NOT_FOUND {}\n\
          model task 1 dim 8 pooling 1 normalize 2 max_seq 256 max_batch 64 dtype 12\n\
          sentence-transformers/all-MiniLM-L6-v2 revision 3\nartifact {}\n\
-         output_dims 2: 2 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n{}\n\
+         output_dims 2: 2 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n{}\nspans same ids 1:{spans}, padding 0-0\n\
          session max_batch 4 max_seq 64 precision 2 compute 12\nrun before write TURBO_E_INVALID_STATE\n\
          write while held TURBO_E_BUSY\n\
          result task 1 batch 2 dim 32 dtype 12 compute 12 placement 1 bytes 256 read 256\n\
