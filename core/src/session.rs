@@ -690,6 +690,54 @@ fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u32) -> turb
     }
 }
 
+/// Texts per thread below which write_text tokenizes on the caller's
+/// thread alone: starting a thread costs about as much as tokenizing a
+/// few short texts.
+const TEXTS_PER_THREAD: usize = 32;
+
+/// The caller's text views, which the threads of tokenize_all read.
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+struct View(turbo_text);
+
+// SAFETY: a view points at bytes the caller keeps valid and unchanged for
+// the call (turbo.h), and tokenize_all's threads end within the call.
+unsafe impl Send for View {}
+unsafe impl Sync for View {}
+
+/// `one` over every text, in order, on up to one thread per processor.
+/// The rows, or the error of the first text that fails, are the same as
+/// on one thread.
+fn tokenize_all(texts: &[View], one: &(dyn Fn(usize, turbo_text) -> Result<Vec<i32>> + Sync)) -> Result<Vec<Vec<i32>>> {
+    // available_parallelism reads the cgroup files on Linux: once.
+    static CPUS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    let threads = texts.len() / TEXTS_PER_THREAD;
+    let threads = if threads > 1 {
+        threads.min(*CPUS.get_or_init(|| std::thread::available_parallelism().map_or(1, |n| n.get())))
+    } else {
+        threads
+    };
+    if threads <= 1 {
+        return texts.iter().enumerate().map(|(i, t)| one(i, t.0)).collect();
+    }
+    let per = texts.len().div_ceil(threads);
+    let parts: Vec<Result<Vec<Vec<i32>>>> = std::thread::scope(|scope| {
+        let handles: Vec<_> = texts
+            .chunks(per)
+            .enumerate()
+            .map(|(c, chunk)| {
+                scope.spawn(move || chunk.iter().enumerate().map(|(j, t)| one(c * per + j, t.0)).collect())
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().unwrap_or_else(|p| std::panic::resume_unwind(p))).collect()
+    });
+    let mut rows = Vec::with_capacity(texts.len());
+    for part in parts {
+        rows.extend(part?);
+    }
+    Ok(rows)
+}
+
 /// # Safety
 /// `texts` holds `count` views; other pointers are NULL or valid for the
 /// call, as turbo.h says.
@@ -733,8 +781,7 @@ pub unsafe extern "C" fn turbo_embed_write_text(
             }
             let e = Encode { add_special_tokens: true, truncation: o.truncation, max_tokens, prompt: o.prompt };
             let texts = std::slice::from_raw_parts(texts, count as usize);
-            let mut rows = Vec::with_capacity(texts.len());
-            for (i, &t) in texts.iter().enumerate() {
+            let one = |i: usize, t: turbo_text| -> Result<Vec<i32>> {
                 let row = tok.encode(text(t, &format!("texts[{i}]"))?, e).map_err(|mut err| {
                     err.message = format!("texts[{i}]: {}", err.message);
                     err
@@ -751,8 +798,11 @@ pub unsafe extern "C" fn turbo_embed_write_text(
                         format!("texts[{i}]: {} tokens is over the session's max_seq {}", row.len(), s.info.max_seq),
                     ));
                 }
-                rows.push(row);
-            }
+                Ok(row)
+            };
+            // SAFETY: View is a transparent wrapper of turbo_text.
+            let views = std::slice::from_raw_parts(texts.as_ptr().cast::<View>(), texts.len());
+            let rows = tokenize_all(views, &one)?;
             // At least one column, padding under mask 0, when every text
             // gave no tokens.
             let seq = rows.iter().map(Vec::len).max().unwrap_or(0).max(1);

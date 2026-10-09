@@ -3,7 +3,9 @@
 //! checked against the reference's ids on every load (docs/bundle.md
 //! loader rule 5).
 
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hasher};
 
 use serde_json::Value;
 use unicode_categories::UnicodeCategories;
@@ -15,14 +17,49 @@ use crate::safetensors::{self, Dtype};
 use crate::status::{CAPACITY, Error, INVALID_ARGUMENT, Result, invalid};
 use crate::unigram::Unigram;
 
+/// FxHash, as rustc uses it: a multiply and a rotate per word. The vocab
+/// is fixed and comes from the bundle, so the keys need no defence against
+/// collisions; SipHash, the std default, was most of a short text's time.
+#[derive(Default)]
+struct Fx(u64);
+
+impl Hasher for Fx {
+    fn write(&mut self, bytes: &[u8]) {
+        let mut chunks = bytes.chunks_exact(8);
+        for c in &mut chunks {
+            self.add(u64::from_le_bytes(c.try_into().unwrap()));
+        }
+        let mut tail = 0u64;
+        for (i, &b) in chunks.remainder().iter().enumerate() {
+            tail |= (b as u64) << (8 * i);
+        }
+        self.add(tail);
+    }
+
+    fn write_u8(&mut self, i: u8) {
+        self.add(i as u64);
+    }
+
+    fn write_usize(&mut self, i: usize) {
+        self.add(i as u64);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+impl Fx {
+    fn add(&mut self, w: u64) {
+        self.0 = (self.0.rotate_left(5) ^ w).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+}
+
+type Vocab = HashMap<String, u32, BuildHasherDefault<Fx>>;
+
 /// The two models the core runs.
 enum Kind {
-    WordPiece {
-        vocab: HashMap<String, u32>,
-        normalizer: Normalizer,
-        continuing_prefix: String,
-        max_chars_per_word: usize,
-    },
+    WordPiece { vocab: Vocab, normalizer: Normalizer, continuing_prefix: String, max_chars_per_word: usize },
     Unigram(Unigram),
 }
 
@@ -38,6 +75,9 @@ pub struct Tokenizer {
     kind: Kind,
     /// Special tokens as they are matched in raw text: longest first.
     specials: Vec<Special>,
+    /// The bytes a special token starts with, so text_ids looks for a
+    /// match only where one can begin.
+    special_starts: [bool; 256],
     /// The row layout: Some(id) for a special token, None for the text.
     template: Vec<Option<i32>>,
     truncation: Truncation,
@@ -120,7 +160,7 @@ impl Tokenizer {
                 let raw = model["vocab"]
                     .as_object()
                     .ok_or_else(|| invalid(format!("{file}: model.vocab is not an object")))?;
-                let mut vocab = HashMap::with_capacity(raw.len());
+                let mut vocab = Vocab::with_capacity_and_hasher(raw.len(), Default::default());
                 let mut seen = vec![false; raw.len()];
                 for (piece, id) in raw {
                     let id = id.as_u64().filter(|&i| (i as usize) < raw.len());
@@ -199,10 +239,17 @@ impl Tokenizer {
             .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip })
             .collect();
         specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
+        let mut special_starts = [false; 256];
+        for s in &specials {
+            if let Some(&b) = s.content.as_bytes().first() {
+                special_starts[b as usize] = true;
+            }
+        }
         let e = m.embed();
         Ok(Tokenizer {
             kind,
             specials,
+            special_starts,
             template: t.template.iter().map(|s| if s == "$TEXT" { None } else { id_of(s) }).collect(),
             truncation: t.truncation,
             max_seq: e.max_seq,
@@ -358,13 +405,13 @@ impl Tokenizer {
         self.text_ids(&self.prompted(text, prompt)).len() + self.specials_per_sequence() as usize
     }
 
-    fn prompted(&self, text: &str, prompt: PromptRole) -> String {
+    fn prompted<'a>(&self, text: &'a str, prompt: PromptRole) -> Cow<'a, str> {
         let prefix = match prompt {
             PromptRole::None => "",
             PromptRole::Query => &self.prefix_query,
             PromptRole::Document => &self.prefix_document,
         };
-        format!("{prefix}{text}")
+        if prefix.is_empty() { Cow::Borrowed(text) } else { Cow::Owned(format!("{prefix}{text}")) }
     }
 
     /// Special tokens are matched in the raw text first, as upstream does
@@ -375,7 +422,15 @@ impl Tokenizer {
         let mut rest = text;
         let mut plain = 0;
         while plain < rest.len() {
-            let hit = self.specials.iter().find(|s| rest[plain..].starts_with(s.content.as_str()));
+            // A byte a special token starts with is never inside a UTF-8
+            // sequence, so `plain` is on a character boundary wherever
+            // this looks.
+            let b = rest.as_bytes()[plain];
+            let hit = if self.special_starts[b as usize] {
+                self.specials.iter().find(|s| rest[plain..].starts_with(s.content.as_str()))
+            } else {
+                None
+            };
             match hit {
                 Some(s) => {
                     let before = if s.lstrip { rest[..plain].trim_end() } else { &rest[..plain] };
@@ -384,6 +439,7 @@ impl Tokenizer {
                     rest = &rest[plain + s.content.len()..];
                     plain = 0;
                 }
+                None if b < 0x80 => plain += 1,
                 None => plain += rest[plain..].chars().next().map_or(1, char::len_utf8),
             }
         }
@@ -395,9 +451,7 @@ impl Tokenizer {
         match &self.kind {
             Kind::WordPiece { normalizer, .. } => {
                 let normalized = normalize(normalizer, text);
-                for word in pre_tokenize(&normalized) {
-                    self.word_pieces(word, out);
-                }
+                pre_tokenize(&normalized, |word| self.word_pieces(word, out));
             }
             Kind::Unigram(u) => {
                 if !text.is_empty() {
@@ -424,12 +478,15 @@ impl Tokenizer {
             let mut end = word.len();
             let mut found = None;
             while start < end {
-                piece.clear();
-                if start > 0 {
+                let key = if start == 0 {
+                    &word[..end]
+                } else {
+                    piece.clear();
                     piece.push_str(continuing_prefix);
-                }
-                piece.push_str(&word[start..end]);
-                if let Some(&id) = vocab.get(&piece) {
+                    piece.push_str(&word[start..end]);
+                    piece.as_str()
+                };
+                if let Some(&id) = vocab.get(key) {
                     found = Some(id);
                     break;
                 }
@@ -467,6 +524,9 @@ impl Kind {
 /// BertNormalizer, in upstream's order: clean, split CJK, strip accents,
 /// lowercase.
 fn normalize(n: &Normalizer, text: &str) -> String {
+    if text.is_ascii() {
+        return normalize_ascii(n, text);
+    }
     let mut s: String = if n.clean_text {
         text.chars()
             .filter(|&c| !(c == '\0' || c == '\u{fffd}' || is_control(c)))
@@ -497,26 +557,43 @@ fn normalize(n: &Normalizer, text: &str) -> String {
     s
 }
 
+/// normalize() of ASCII text in one pass: no ASCII character is CJK or
+/// decomposes, and an ASCII character's lowercase is its ASCII lowercase.
+fn normalize_ascii(n: &Normalizer, text: &str) -> String {
+    let mut s = String::with_capacity(text.len());
+    for c in text.chars() {
+        if n.clean_text {
+            if c == '\0' || is_control(c) {
+                continue;
+            }
+            if is_whitespace(c) {
+                s.push(' ');
+                continue;
+            }
+        }
+        s.push(if n.lowercase { c.to_ascii_lowercase() } else { c });
+    }
+    s
+}
+
 /// BertPreTokenizer: split on whitespace, and each punctuation character
 /// is a word of its own.
-fn pre_tokenize(s: &str) -> Vec<&str> {
-    let mut words = Vec::new();
+fn pre_tokenize<'a>(s: &'a str, mut word: impl FnMut(&'a str)) {
     for chunk in s.split(char::is_whitespace) {
         let mut begin = 0;
         for (i, c) in chunk.char_indices() {
-            if c.is_ascii_punctuation() || c.is_punctuation() {
+            if c.is_ascii_punctuation() || (!c.is_ascii() && c.is_punctuation()) {
                 if begin < i {
-                    words.push(&chunk[begin..i]);
+                    word(&chunk[begin..i]);
                 }
-                words.push(&chunk[i..i + c.len_utf8()]);
+                word(&chunk[i..i + c.len_utf8()]);
                 begin = i + c.len_utf8();
             }
         }
         if begin < chunk.len() {
-            words.push(&chunk[begin..]);
+            word(&chunk[begin..]);
         }
     }
-    words
 }
 
 fn is_whitespace(c: char) -> bool {
