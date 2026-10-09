@@ -845,7 +845,7 @@ fn a_staged_ir_without_its_report_or_its_reference_is_refused() {
 
 /// Every model the catalogue names loads by its id, pinned to a commit
 /// with the SHA-256 of every file it fetches, as a static model whose
-/// reference the static reference script makes.
+/// reference the tool writes.
 #[test]
 fn the_catalogue_names_pinned_recipes() {
     for (id, _) in turbo_bundle::catalogue::MODELS {
@@ -853,9 +853,9 @@ fn the_catalogue_names_pinned_recipes() {
         assert_eq!(r.str_at("/model/id").unwrap(), *id);
         assert!(r.manifest.get("static_embedding").is_some(), "{id}");
         assert!(r.upstream.iter().all(|u| u.sha256.is_some()), "{id}: every file pinned");
-        let cases = turbo_bundle::reference::cases(&r).unwrap();
-        assert_eq!(cases["max_length"], 512, "{id}");
-        assert_eq!(cases["normalize"], true, "{id}");
+        assert_eq!(r.manifest["static_embedding"]["max_length"], 512, "{id}");
+        assert_eq!(r.manifest["embed"]["normalize"], "NORMALIZE_L2", "{id}");
+        assert!(r.manifest["reference"].get("produced_by").is_none(), "{id}");
     }
     assert!(Recipe::load(Path::new("minishlab/not-a-model")).is_err());
 }

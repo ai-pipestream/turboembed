@@ -154,10 +154,7 @@
           "text": "international international international international international international international international international international international international international international international international international international international international ",
           "prompt_role": "PROMPT_NONE"
         }
-      ],
-      "produced_by": {
-        "container": "turbo-reference@sha256:"
-      }
+      ]
     }
   },
   "upstream": [],

@@ -25,7 +25,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use regex::Regex;
 use serde::Deserialize;
@@ -245,25 +244,15 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
     });
     let report_path = report_path(bundle, &p.weights);
     crate::fetch::write_atomic(&report_path, &serde_json::to_vec_pretty(&report).unwrap())?;
-
-    // What the reference script reads.
-    let mut cases = crate::reference::cases(recipe)?;
-    cases["weights"] = json!(p.weights);
-    cases["tokenizer"] = json!(p.tokenizer);
-    crate::fetch::write_atomic(&cases_path(bundle), &serde_json::to_vec_pretty(&cases).unwrap())?;
     Ok(())
 }
 
-fn turbo_version() -> String {
+pub(crate) fn turbo_version() -> String {
     unsafe { std::ffi::CStr::from_ptr(turbo::turbo_version()) }.to_string_lossy().into_owned()
 }
 
 fn report_path(bundle: &Path, weights: &str) -> PathBuf {
     bundle.join(format!("{weights}.report.json"))
-}
-
-fn cases_path(bundle: &Path) -> PathBuf {
-    bundle.join("reference/cases.json")
 }
 
 fn round4(v: f64) -> f64 {
@@ -647,57 +636,11 @@ fn pearson(a: &[f64], b: &[f64]) -> f64 {
     cov / (va * vb).sqrt()
 }
 
-/// Run the reference script in the recipe's pinned container on the
-/// staged bundle, and put the reference file and its report in it.
-pub fn reference(recipe: &Recipe, bundle: &Path) -> Result<()> {
-    let container = recipe.str_at("/reference/produced_by/container")?;
-    let image = crate::reference::present(container)?;
-    let p = paths(recipe)?;
-    let work = crate::reference::scratch(bundle)?;
-    fs::copy(cases_path(bundle), work.join("cases.json")).map_err(|e| format!("cases: {e}"))?;
-    let abs = |p: &Path| fs::canonicalize(p).map_err(|e| format!("{}: {e}", p.display()));
-    let mut cmd = Command::new("docker");
-    cmd.args(["run", "--rm", "--network", "none", "--entrypoint", "python", "--mount"])
-        .arg(format!("type=bind,src={},dst=/model,readonly", abs(bundle)?.display()))
-        .arg("--mount")
-        .arg(format!("type=bind,src={},dst=/work", abs(&work)?.display()));
-    if let Some(user) = crate::reference::current_user() {
-        cmd.args(["--user", &user]);
-    }
-    cmd.arg(&image).args([
-        "/static_reference.py",
-        "/model",
-        "/work/cases.json",
-        "/work/reference.safetensors",
-        "/work/produced_by.json",
-    ]);
-    let out = cmd.output().map_err(|e| format!("docker: {e}"))?;
-    if !out.status.success() {
-        return Err(format!(
-            "the reference container failed:\n{}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        ));
-    }
-    let bytes = fs::read(work.join("reference.safetensors")).map_err(|e| format!("reference output: {e}"))?;
-    crate::fetch::write_atomic(&bundle.join(&p.reference), &bytes)?;
-    let mut reported: Value = serde_json::from_slice(
-        &fs::read(work.join("produced_by.json")).map_err(|e| format!("produced_by output: {e}"))?,
-    )
-    .map_err(|e| format!("produced_by output: {e}"))?;
-    reported["container"] = json!(container);
-    crate::fetch::write_atomic(
-        &bundle.join(format!("{}.report.json", p.reference)),
-        &serde_json::to_vec_pretty(&reported).unwrap(),
-    )?;
-    let _ = fs::remove_dir_all(&work);
-    Ok(())
-}
-
 /// Seal a staged bundle: the table's report fills `static_embedding` and
-/// the artifact's `produced_by`, the reference's report the reference's.
-/// Then the core loads the bundle on the CPU, and its vectors must match
-/// the reference's and the tool's own for the quality texts.
+/// the artifact's `produced_by`, and the tool writes the reference
+/// (static_reference.rs). Then the core loads the bundle on the CPU, and
+/// its vectors must match the reference's and the tool's own for the
+/// quality texts.
 pub fn seal(recipe: &mut Recipe, bundle: &Path) -> Result<()> {
     spec(recipe)?;
     let p = paths(recipe)?;
@@ -710,20 +653,6 @@ pub fn seal(recipe: &mut Recipe, bundle: &Path) -> Result<()> {
     };
     let table_report_path = report_path(bundle, &p.weights);
     let table_report = read(&table_report_path)?;
-    let reference_report_path = bundle.join(format!("{}.report.json", p.reference));
-    if !bundle.join(&p.reference).is_file() {
-        return Err(format!(
-            "{} is not in the bundle: run static_reference.py on the staged bundle (docs/static.md)",
-            p.reference
-        ));
-    }
-    let reference_report = read(&reference_report_path)?;
-    let container = reference_report["container"]
-        .as_str()
-        .filter(|c| !c.is_empty() && *c != "host")
-        .ok_or("the reference report names no container")?;
-    let produced_by = crate::reference::produced_by(&reference_report, container)?;
-
     let m = &mut recipe.manifest;
     m["static_embedding"]["distilled_from"] = table_report["distilled_from"].clone();
     m["static_embedding"]["quality"] = table_report["quality"].clone();
@@ -732,10 +661,9 @@ pub fn seal(recipe: &mut Recipe, bundle: &Path) -> Result<()> {
         pb[key] = table_report[key].clone();
     }
     m["artifacts"][0]["produced_by"] = pb;
-    m["reference"]["produced_by"] = produced_by;
-    // The reports leave the bundle, which lists every file in it; they are
-    // put back if it does not seal, so the run can be repeated.
-    let kept: Vec<(PathBuf, Vec<u8>)> = [table_report_path, reference_report_path, cases_path(bundle)]
+    // The report leaves the bundle, which lists every file in it; it is
+    // put back if the bundle does not seal, so the run can be repeated.
+    let kept: Vec<(PathBuf, Vec<u8>)> = [table_report_path]
         .into_iter()
         .map(|path| {
             let bytes = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -745,9 +673,14 @@ pub fn seal(recipe: &mut Recipe, bundle: &Path) -> Result<()> {
     for (path, _) in &kept {
         fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
     }
-    let sealed = crate::seal::seal_manifest(m.clone(), bundle).and_then(|()| check(bundle, &table_report["quality"]));
+    let sealed = crate::static_reference::write(m, bundle).and_then(|produced_by| {
+        m["reference"]["produced_by"] = produced_by;
+        crate::seal::seal_manifest(m.clone(), bundle)?;
+        check(bundle, &table_report["quality"])
+    });
     if let Err(e) = sealed {
         let _ = fs::remove_file(bundle.join("manifest.json"));
+        let _ = fs::remove_file(bundle.join(&p.reference));
         for (path, bytes) in &kept {
             crate::fetch::write_atomic(path, bytes)?;
         }
@@ -758,10 +691,11 @@ pub fn seal(recipe: &mut Recipe, bundle: &Path) -> Result<()> {
 }
 
 /// The sealed bundle on the library's CPU device: every reference case
-/// within the F32 tolerance of the reference (docs/conformance.md), and
-/// the quality texts within it of the tool's own arithmetic, ranking to
-/// the same static_top1.
+/// to the bit (static_reference::check), and the quality texts within the
+/// F32 tolerance (docs/conformance.md) of the tool's own arithmetic in
+/// F64, ranking to the same static_top1.
 pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
+    crate::static_reference::check(bundle)?;
     let b = Bundle::open(bundle).map_err(|e| e.message)?;
     let m = &b.manifest;
     let st = m.static_embedding.as_ref().ok_or("not a static bundle")?;
@@ -772,6 +706,7 @@ pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
     let info = model.info()?;
     let session = model.session(info.max_batch, info.max_seq)?;
     let o = api::options(0, 0);
+    let mut got = vec![0f32; k];
     // The library's vectors are rounded as the table's dtype rounds them;
     // the tool's own are not.
     let close = |what: &str, got: &[f32], want: &[f64]| -> Result<()> {
@@ -783,26 +718,6 @@ pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
         }
         Ok(())
     };
-
-    let bytes = b.read_verified(&m.reference.file).map_err(|e| e.message)?;
-    let refs = safetensors::File::parse(&m.reference.file, &bytes).map_err(|e| e.message)?;
-    let want = refs.get("embeddings", Dtype::F32, 2).map_err(|e| e.message)?.f32s();
-    let mut got = vec![0f32; k];
-    for (i, c) in m.reference.cases.iter().enumerate() {
-        let role = match c.prompt_role {
-            PromptRole::None => 0,
-            PromptRole::Query => turbo::TURBO_PROMPT_QUERY,
-            PromptRole::Document => turbo::TURBO_PROMPT_DOCUMENT,
-        };
-        let mut oc = o;
-        oc.prompt_role = role;
-        session.texts(&[c.text.as_str()], &oc, &mut got)?;
-        // StaticModel's own arithmetic, to the bit (docs/static.md).
-        let w = &want[i * k..(i + 1) * k];
-        if let Some(j) = (0..k).find(|&j| got[j].to_bits() != w[j].to_bits()) {
-            return Err(format!("reference case {i}: value {j} is {} in the library, {} in StaticModel", got[j], w[j]));
-        }
-    }
 
     // The table as stored, and the tool's arithmetic on it.
     let art = &m.artifacts[0];

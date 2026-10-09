@@ -4,21 +4,16 @@
 # converts the F32 ONNX file to the F16 one the recipe asks for
 # (onnx_f16.py), writes a PyTorch checkpoint as safetensors
 # (bin_to_safetensors.py), and converts the export to a static-shape
-# OpenVINO IR for the npu backend (onnx_to_openvino_ir.py), and gives a
-# static bundle its reference from Model2Vec (static_reference.py) and a
-# Model2Vec model its golden vectors (static_golden.py), each
-# run with --entrypoint python.
+# OpenVINO IR for the npu backend (onnx_to_openvino_ir.py), each run
+# with --entrypoint python.
 #
 #   docker build -t turbo-reference bundle/reference
 #   docker image inspect --format '{{.Id}}' turbo-reference
 #
 # The recipe pins the image as turbo-reference@sha256:<that id>.
 FROM python:3.12-slim
-# Model2Vec installs from its git repository: setuptools_scm finds its
-# version and its subpackages from the git metadata, which an archive lacks.
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r /requirements.txt
-COPY reference.py onnx_f16.py bin_to_safetensors.py onnx_to_openvino_ir.py static_reference.py static_golden.py /
+COPY reference.py onnx_f16.py bin_to_safetensors.py onnx_to_openvino_ir.py /
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HOME=/tmp
 ENTRYPOINT ["python", "/reference.py"]

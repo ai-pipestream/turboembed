@@ -179,16 +179,15 @@
       }
     ],
     "produced_by": {
-      "tool": "model2vec",
-      "tool_version": "model2vec 0.9.0 (file:///tmp/claude-0/ref/m2v-main), tokenizers 0.23.2, numpy 2.5.3, StaticModel.encode, table as stored",
-      "container": "none: a Python virtual environment with the versions named, for test data",
+      "tool": "turbo-bundle",
+      "tool_version": "0.1.0 (libturbo 0.1.0 cpu)",
+      "container": "host",
       "args": [
-        "/model",
-        "/work/cases.json",
-        "/work/reference.safetensors",
-        "/work/produced_by.json"
+        "static reference",
+        "ids: the core tokenizer",
+        "vectors: the table as stored"
       ],
-      "reproducible": false
+      "reproducible": true
     }
   },
   "files": [
@@ -200,7 +199,7 @@
     {
       "path": "reference/reference.safetensors",
       "size": 3352,
-      "sha256": "d66864997190791b288fa30a293c305e6ef2aea488808feeb69e358c1429fe94"
+      "sha256": "87317405b89c868b4206f483ca64c7c278de83bbeb7e64eaac4a48ace0939c96"
     },
     {
       "path": "tokenizer.json",

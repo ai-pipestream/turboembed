@@ -132,6 +132,12 @@ impl Tokenizer {
         Ok(tok)
     }
 
+    /// Build the tokenizer the bundle names without checking it against
+    /// the reference ids: for the bundle tool, which writes those ids.
+    pub fn unchecked(bundle: &Bundle) -> Result<Tokenizer> {
+        Self::from_bundle(bundle)
+    }
+
     fn from_bundle(bundle: &Bundle) -> Result<Tokenizer> {
         let m = &bundle.manifest;
         let t = &m.tokenizer;

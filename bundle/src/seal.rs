@@ -310,10 +310,24 @@ pub fn seal(recipe: &Recipe, bundle: &Path, produced_by: Value, converted: Vec<(
 
 /// Fill `files` of manifest `m` for the files now in `bundle`, write it,
 /// then verify the bundle.
-pub fn seal_manifest(mut m: Value, bundle: &Path) -> Result<()> {
+pub fn seal_manifest(m: Value, bundle: &Path) -> Result<()> {
+    write_manifest(&m, bundle, None)?;
+    verify(bundle)
+}
+
+/// Fill `files` of manifest `m` for the files now in `bundle` and write
+/// it. `unwritten` names a file the manifest names that is not written
+/// yet, listed as empty: a static bundle's reference, which the tool
+/// computes with the bundle's tokenizer, loaded through this manifest.
+pub fn write_manifest(m: &Value, bundle: &Path, unwritten: Option<&str>) -> Result<()> {
+    let mut m = m.clone();
     let mut files = Vec::new();
     for p in named_paths(&m)? {
-        let bytes = fs::read(bundle.join(&p)).map_err(|e| format!("{p}: {e}"))?;
+        let bytes = if unwritten == Some(p.as_str()) {
+            Vec::new()
+        } else {
+            fs::read(bundle.join(&p)).map_err(|e| format!("{p}: {e}"))?
+        };
         files.push(json!({ "path": p, "size": bytes.len(), "sha256": sha256_hex(&bytes) }));
     }
     m["files"] = Value::Array(files);
@@ -322,8 +336,7 @@ pub fn seal_manifest(mut m: Value, bundle: &Path) -> Result<()> {
     let parsed = Manifest::parse(&serde_json::to_vec(&m).unwrap()).map_err(|e| e.message)?;
     let mut bytes = serde_json::to_vec_pretty(&parsed).unwrap();
     bytes.push(b'\n');
-    crate::fetch::write_atomic(&bundle.join("manifest.json"), &bytes)?;
-    verify(bundle)
+    crate::fetch::write_atomic(&bundle.join("manifest.json"), &bytes)
 }
 
 /// Check a bundle the way a machine will: loader rules 1 to 5 through the

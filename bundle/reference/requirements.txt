@@ -10,7 +10,3 @@ onnxconverter-common==1.16.0
 # OpenVINO; this runs only while a bundle is made.
 openvino==2026.3.0
 protobuf==7.36.2
-# Model2Vec's StaticModel, the reference a static bundle's vectors come
-# from (static_reference.py, docs/static.md), at a pinned commit of its
-# repository.
-model2vec @ git+https://github.com/MinishLab/model2vec@3ef2bf257d16429b9f822c6c5508a01b9b17b85f
