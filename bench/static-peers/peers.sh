@@ -47,7 +47,7 @@ setup() {
   local z=$W/src/model2vec-zig
   [ -d "$z" ] || git clone -q https://github.com/PaytonWebber/model2vec-zig "$z"
   git -C "$z" checkout -q ed5b443910b833b710f7213ddebff4d064d94828
-  zig fetch "$z"
+  (cd "$H/zig" && zig fetch "$z")
   [ -d "$W/venv" ] || python3 -m venv "$W/venv"
   "$W/venv/bin/pip" install -q --extra-index-url https://download.pytorch.org/whl/cpu \
     numpy==2.5.3 torch==2.14.0+cpu sentence-transformers==6.1.0 \
