@@ -225,20 +225,21 @@ impl Unigram {
         for c in normalized.chars() {
             s.push(if c == ' ' { self.metaspace } else { c });
         }
+        let mut best = Vec::new();
         if self.whole_text {
-            self.segment(&s, out);
+            self.segment(&s, &mut best, out);
             return;
         }
         // Cut at each metaspace, which starts the word after it.
         let mut start = 0;
         for (i, c) in s.char_indices() {
             if c == self.metaspace && i > start {
-                self.segment(&s[start..i], out);
+                self.segment(&s[start..i], &mut best, out);
                 start = i;
             }
         }
         if start < s.len() {
-            self.segment(&s[start..], out);
+            self.segment(&s[start..], &mut best, out);
         }
     }
 
@@ -306,16 +307,11 @@ impl Unigram {
     /// the lattice of every piece at every position, as upstream's
     /// optimized encode walks it, with the unknown token for a character
     /// no piece starts at, and runs of unknown characters fused into one.
-    fn segment(&self, word: &str, out: &mut Vec<i32>) {
-        #[derive(Clone, Copy)]
-        struct Best {
-            score: f64,
-            start: usize,
-            id: u32,
-            set: bool,
-        }
+    /// `best` is room for the lattice, kept between words.
+    fn segment(&self, word: &str, best: &mut Vec<Best>, out: &mut Vec<i32>) {
         let n = word.len();
-        let mut best = vec![Best { score: 0.0, start: 0, id: 0, set: false }; n + 1];
+        best.clear();
+        best.resize(n + 1, Best { score: 0.0, start: 0, id: 0, set: false });
         let mut start = 0;
         while start < n {
             let base = best[start].score;
@@ -360,10 +356,26 @@ impl Unigram {
     }
 }
 
+/// The best way found to a byte of a word.
+#[derive(Clone, Copy)]
+struct Best {
+    score: f64,
+    start: usize,
+    id: u32,
+    set: bool,
+}
+
 /// The pieces as a trie over their bytes: each node's children are one
-/// run of `nodes`, in byte order, so a walk is a binary search a byte.
+/// run of `nodes`, in byte order; a walk scans a node's few children, or
+/// reads a table of its many.
 struct Trie {
     nodes: Vec<Node>,
+    /// Each node's `byte`, apart, so a search through a node's children
+    /// reads one byte each.
+    bytes: Vec<u8>,
+    /// For a node of many children, each byte's child as its place among
+    /// them, or u16::MAX: no search there.
+    wide: Vec<[u16; 256]>,
     /// The root's child for each first byte, or NONE: no search there,
     /// where every walk starts.
     root: Box<[u32; 256]>,
@@ -378,6 +390,8 @@ struct Node {
     /// The children: nodes[first..first + count].
     first: u32,
     count: u32,
+    /// The node's table in `wide`, or NONE.
+    wide: u32,
 }
 
 impl Trie {
@@ -392,7 +406,7 @@ impl Trie {
         if let Some(w) = pieces.windows(2).find(|w| w[0].0 == w[1].0) {
             return Err(String::from_utf8_lossy(w[0].0).into_owned());
         }
-        let mut nodes = vec![Node { byte: 0, id: Self::NONE, first: 0, count: 0 }];
+        let mut nodes = vec![Node { byte: 0, id: Self::NONE, first: 0, count: 0, wide: Self::NONE }];
         // Depth first, a node's children appended together when it is
         // reached, so that a walk down the trie stays near where it
         // started: (node, the pieces under it, its depth).
@@ -408,7 +422,7 @@ impl Trie {
                 let byte = pieces[lo].0[depth];
                 let end = lo + pieces[lo..hi].partition_point(|p| p.0[depth] == byte);
                 stack.push((nodes.len(), lo, end, depth + 1));
-                nodes.push(Node { byte, id: Self::NONE, first: 0, count: 0 });
+                nodes.push(Node { byte, id: Self::NONE, first: 0, count: 0, wide: Self::NONE });
                 lo = end;
             }
             nodes[node].count = nodes.len() as u32 - nodes[node].first;
@@ -420,7 +434,20 @@ impl Trie {
         for k in r.first..r.first + r.count {
             root[nodes[k as usize].byte as usize] = k;
         }
-        Ok(Trie { nodes, root })
+        let bytes = nodes.iter().map(|n| n.byte).collect();
+        let mut wide = Vec::new();
+        for i in 0..nodes.len() {
+            let n = nodes[i];
+            if n.count as usize > Self::NARROW {
+                let mut t = [u16::MAX; 256];
+                for k in 0..n.count {
+                    t[nodes[(n.first + k) as usize].byte as usize] = k as u16;
+                }
+                nodes[i].wide = wide.len() as u32;
+                wide.push(t);
+            }
+        }
+        Ok(Trie { nodes, bytes, wide, root })
     }
 
     /// The id of the piece that is exactly `piece`.
@@ -428,8 +455,7 @@ impl Trie {
         let (&b0, rest) = piece.split_first()?;
         let mut node = *self.nodes.get(self.root[b0 as usize] as usize)?;
         for &b in rest {
-            let kids = &self.nodes[node.first as usize..(node.first + node.count) as usize];
-            node = kids[kids.binary_search_by_key(&b, |k| k.byte).ok()?];
+            node = self.nodes[self.child(node, b)?];
         }
         (node.id != Self::NONE).then_some(node.id)
     }
@@ -445,15 +471,28 @@ impl Trie {
         }
         let mut node = first;
         for (i, &b) in text.iter().enumerate().skip(1) {
-            let kids = &self.nodes[node.first as usize..(node.first + node.count) as usize];
-            match kids.binary_search_by_key(&b, |k| k.byte) {
-                Ok(k) => node = kids[k],
-                Err(_) => return,
-            }
+            let Some(k) = self.child(node, b) else { return };
+            node = self.nodes[k];
             if node.id != Self::NONE {
                 found(i + 1, node.id);
             }
         }
+    }
+
+    /// The most children a node has with no table of them.
+    const NARROW: usize = 8;
+
+    /// The index of `node`'s child on byte `b`: a scan of a few children,
+    /// a table of many.
+    #[inline]
+    fn child(&self, node: Node, b: u8) -> Option<usize> {
+        if node.wide != Self::NONE {
+            let k = self.wide[node.wide as usize][b as usize];
+            return (k != u16::MAX).then_some(node.first as usize + k as usize);
+        }
+        let first = node.first as usize;
+        let kids = &self.bytes[first..first + node.count as usize];
+        kids.iter().position(|&k| k == b).map(|k| first + k)
     }
 }
 
@@ -631,6 +670,40 @@ mod tests {
         assert_eq!(base64("YWJjZA==").unwrap(), b"abcd");
         assert!(base64("YQ=").is_none());
         assert!(base64("Y!==").is_none());
+    }
+
+    /// The trie finds every piece of XLM-RoBERTa's vocabulary (bge-m3)
+    /// by its bytes, and every piece a text starts with, shortest first,
+    /// as a search of the whole list does: at nodes with a table of their
+    /// children and nodes without.
+    #[test]
+    fn the_trie_finds_what_the_list_holds() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata");
+        let json: Value = serde_json::from_slice(&std::fs::read(root.join("bge-m3/tokenizer.json")).unwrap()).unwrap();
+        let pieces: Vec<Box<str>> =
+            json["model"]["vocab"].as_array().unwrap().iter().map(|p| p[0].as_str().unwrap().into()).collect();
+        let trie = Trie::new(&pieces).unwrap();
+        assert!(trie.wide.len() > 100 && trie.nodes.iter().any(|n| n.count > 1 && n.wide == Trie::NONE));
+        for (id, p) in pieces.iter().enumerate() {
+            assert_eq!(trie.get(p.as_bytes()), Some(id as u32), "{p:?}");
+        }
+        let file = std::fs::read_to_string(root.join("tokenizer-texts.jsonl")).unwrap();
+        for line in file.lines() {
+            let text = serde_json::from_str::<Value>(line).unwrap()["text"].as_str().unwrap().replace(' ', "\u{2581}");
+            for (at, _) in text.char_indices() {
+                let rest = &text.as_bytes()[at..];
+                let mut got = Vec::new();
+                trie.prefixes(rest, |len, id| got.push((len, id)));
+                let mut want: Vec<(usize, u32)> = pieces
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, p)| rest.starts_with(p.as_bytes()))
+                    .map(|(id, p)| (p.len(), id as u32))
+                    .collect();
+                want.sort();
+                assert_eq!(got, want, "{:?}", &text[at..]);
+            }
+        }
     }
 
     /// The ASCII shortcut gives what the map gives cluster by cluster:
