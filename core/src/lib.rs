@@ -554,7 +554,7 @@ pub(crate) fn write_str(dst: &mut [c_char], s: &str) {
     dst[n] = 0;
 }
 
-unsafe fn text<'a>(t: turbo_text, what: &str) -> Result<&'a str> {
+unsafe fn text<'a, W: std::fmt::Display + ?Sized>(t: turbo_text, what: &W) -> Result<&'a str> {
     if t.len == 0 {
         return Ok("");
     }
@@ -1429,7 +1429,7 @@ pub unsafe extern "C" fn turbo_tokenizer_encode(
             // leaves the caller's arrays as they were.
             let mut rows = Vec::with_capacity(texts.len());
             for (i, &tx) in texts.iter().enumerate() {
-                let row = tok.encode(text(tx, &format!("texts[{i}]"))?, e).map_err(|mut err| {
+                let row = tok.encode(text(tx, &format_args!("texts[{i}]"))?, e).map_err(|mut err| {
                     err.message = format!("texts[{i}]: {}", err.message);
                     err
                 })?;
