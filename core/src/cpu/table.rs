@@ -653,14 +653,14 @@ fn pairwise_squares(x: &[f32]) -> f32 {
 #[target_feature(enable = "avx2,f16c")]
 unsafe fn round_f16_f16c(x: &mut [f32]) {
     use std::arch::x86_64::*;
-    let mut chunks = x.chunks_exact_mut(8);
-    for c in &mut chunks {
+    let (chunks, rest) = x.as_chunks_mut::<8>();
+    for c in chunks {
         unsafe {
             let h = _mm256_cvtps_ph::<_MM_FROUND_TO_NEAREST_INT>(_mm256_loadu_ps(c.as_ptr()));
             _mm256_storeu_ps(c.as_mut_ptr(), _mm256_cvtph_ps(h));
         }
     }
-    round_f16(chunks.into_remainder());
+    round_f16(rest);
 }
 
 fn round_f16(x: &mut [f32]) {
