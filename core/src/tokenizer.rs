@@ -25,12 +25,12 @@ struct Fx(u64);
 
 impl Hasher for Fx {
     fn write(&mut self, bytes: &[u8]) {
-        let mut chunks = bytes.chunks_exact(8);
-        for c in &mut chunks {
-            self.add(u64::from_le_bytes(c.try_into().unwrap()));
+        let (words, rest) = bytes.as_chunks::<8>();
+        for &w in words {
+            self.add(u64::from_le_bytes(w));
         }
         let mut tail = 0u64;
-        for (i, &b) in chunks.remainder().iter().enumerate() {
+        for (i, &b) in rest.iter().enumerate() {
             tail |= (b as u64) << (8 * i);
         }
         self.add(tail);

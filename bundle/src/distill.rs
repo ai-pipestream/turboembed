@@ -803,7 +803,7 @@ pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
         let t = wf.tensor(name).ok_or(format!("{}: no {name}", art.files[0]))?;
         Ok(match t.dtype {
             Dtype::F32 => t.f32s(),
-            Dtype::F16 => t.data.chunks_exact(2).map(|c| half::f16::from_le_bytes([c[0], c[1]]).to_f32()).collect(),
+            Dtype::F16 => t.data.as_chunks::<2>().0.iter().map(|&c| half::f16::from_le_bytes(c).to_f32()).collect(),
             _ => return Err(format!("{}: {name} is {}", art.files[0], t.dtype_name)),
         })
     };
