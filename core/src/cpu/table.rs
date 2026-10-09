@@ -297,7 +297,7 @@ impl Static {
         // numpy stores an F16 table's mean as F16.
         let half = t.dtype == TURBO_DTYPE_F16;
         if half {
-            round_f16(dst);
+            self.round_f16(dst);
         }
         if self.normalize == TURBO_NORMALIZE_L2 {
             // As StaticModel: x / (norm + 1e-32) in F32, so the zero vector
@@ -307,9 +307,21 @@ impl Static {
                 *d /= norm;
             }
             if half {
-                round_f16(dst);
+                self.round_f16(dst);
             }
         }
+    }
+
+    /// Each value rounded to F16 and back, eight at a time where the
+    /// processor converts them (the same rounding to nearest even).
+    #[inline(always)]
+    fn round_f16(&self, x: &mut [f32]) {
+        #[cfg(target_arch = "x86_64")]
+        if self.f16c {
+            // SAFETY: f16c and avx2 are present (Static::new).
+            return unsafe { round_f16_f16c(x) };
+        }
+        round_f16(x)
     }
 
     /// One token's row times its weight, as one row's mean.
@@ -635,6 +647,22 @@ fn pairwise_squares(x: &[f32]) -> f32 {
 }
 
 /// Each value rounded to the nearest F16, ties to even, and back.
+/// `round_f16` with F16C: VCVTPS2PH rounds to nearest even, as numpy's
+/// conversion does, subnormals and overflow included.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,f16c")]
+unsafe fn round_f16_f16c(x: &mut [f32]) {
+    use std::arch::x86_64::*;
+    let mut chunks = x.chunks_exact_mut(8);
+    for c in &mut chunks {
+        unsafe {
+            let h = _mm256_cvtps_ph::<_MM_FROUND_TO_NEAREST_INT>(_mm256_loadu_ps(c.as_ptr()));
+            _mm256_storeu_ps(c.as_mut_ptr(), _mm256_cvtph_ps(h));
+        }
+    }
+    round_f16(chunks.into_remainder());
+}
+
 fn round_f16(x: &mut [f32]) {
     for v in x.iter_mut() {
         *v = f16_to_f32(f32_to_f16(*v));
@@ -737,6 +765,33 @@ fn f16_to_f32(h: u16) -> f32 {
 #[cfg(all(test, target_arch = "x86_64"))]
 mod tests {
     use super::*;
+
+    /// F16C's rounding to F16 against the portable one, bit for bit, over
+    /// values of every exponent F16 has and beyond.
+    #[test]
+    fn the_f16c_rounding_is_the_portable_rounding() {
+        if !std::arch::is_x86_feature_detected!("avx2") || !std::arch::is_x86_feature_detected!("f16c") {
+            return;
+        }
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        let mut values: Vec<f32> = (0..100_003)
+            .map(|_| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                // Exponents from 2^-30 to 2^20, either sign, any mantissa.
+                let bits = (seed as u32 & 0x807f_ffff) | ((97 + (seed >> 32) % 51) as u32) << 23;
+                f32::from_bits(bits)
+            })
+            .collect();
+        values.extend([0.0, -0.0, 65504.0, 65519.0, 65520.0, 1e-8, 5.96e-8, 2.98e-8, 2.99e-8, f32::INFINITY]);
+        let mut want = values.clone();
+        round_f16(&mut want);
+        unsafe { round_f16_f16c(&mut values) };
+        for (g, w) in values.iter().zip(&want) {
+            assert_eq!(g.to_bits(), w.to_bits(), "{g} vs {w}");
+        }
+    }
 
     /// The AVX2 I8 mean against the portable one, with and without
     /// weights, on widths that take each of its loops. They differ only by

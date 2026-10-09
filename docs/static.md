@@ -187,13 +187,16 @@ be the ones the model's `config.json` gives (512 when it gives none).
 `core/tests/static_parity.rs` holds such a bundle to the model's own
 ids and vectors, written by `bundle/reference/static_golden.py` in the
 reference image for a texts file and a list of edge cases, at the
-model's `max_length` and at none:
+model's `max_length` and at none. `<reference-image>` is the
+image built from `bundle/reference/Dockerfile`, by its tag or its ID;
+the recipes pin its config digest, which `docker run` does not take as
+a reference:
 
 ```
 docker run --rm --network none --entrypoint python \
   --mount type=bind,src=<upstream-dir>,dst=/model,readonly \
   --mount type=bind,src=<golden-dir>,dst=/golden \
-  turbo-reference@sha256:<pinned> /static_golden.py /model /golden/texts.jsonl /golden/out
+  <reference-image> /static_golden.py /model /golden/texts.jsonl /golden/out
 TURBO_PARITY_BUNDLE=<bundle-dir> TURBO_PARITY_GOLDEN=<golden-dir>/out \
   cargo test --release -p turbo --test static_parity
 ```

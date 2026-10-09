@@ -6,7 +6,8 @@
 //! The bundle and the texts are not in the repository: the test runs when
 //! TURBO_SPEED_BUNDLE names the bundle and TURBO_SPEED_TEXTS a JSON array
 //! of strings, and passes with a note otherwise. TURBO_SPEED_BATCHES lists
-//! the batch sizes (default 1,32,256,1024). Each cell embeds the texts in
+//! the batch sizes (default 1,32,256,1024), each up to the bundle's
+//! max_batch. Each cell embeds the texts in
 //! order, batch by batch, for at least two seconds after one warm pass,
 //! three times, and prints the best. A release build is the one to time.
 
@@ -36,6 +37,11 @@ fn texts_a_second() {
     let start = Instant::now();
     let l = Loaded::load(std::path::Path::new(&bundle)).unwrap_or_else(|e| panic!("{e:?}"));
     println!("{}: loaded in {:.1} ms, {} texts", bundle.display(), ms(start.elapsed()), texts.len());
+    let max_batch = l.info().max_batch as usize;
+    let (batches, over): (Vec<usize>, Vec<usize>) = batches.into_iter().partition(|&b| b <= max_batch);
+    if !over.is_empty() {
+        println!("  batches {over:?} are over the bundle's max_batch {max_batch}: not timed");
+    }
     let mut o = embed_options();
     o.truncate = TURBO_TRUNCATE_MODEL;
     o.normalize = TURBO_NORMALIZE_L2;
