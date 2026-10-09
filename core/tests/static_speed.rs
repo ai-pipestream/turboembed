@@ -9,7 +9,10 @@
 //! the batch sizes (default 1,32,256,1024), each up to the bundle's
 //! max_batch. Each cell embeds the texts in
 //! order, batch by batch, for at least two seconds after one warm pass,
-//! three times, and prints the best. A release build is the one to time.
+//! three times, and prints the best. Each batch's vectors are read into
+//! one buffer kept for the cell, as a caller embedding a stream of texts
+//! would read them, and the best run's time per batch in write_text, run
+//! and the read follows. A release build is the one to time.
 
 mod common;
 
@@ -52,26 +55,44 @@ fn texts_a_second() {
             let s =
                 Session::create(l.m, Some(&session_desc(b as u32, 0, precision))).unwrap_or_else(|e| panic!("{e:?}"));
             let made = start.elapsed();
-            let pass = || {
+            let mut vectors = Vec::new();
+            // Time in write_text, run and the read, and batches embedded.
+            let mut phases = ([Duration::ZERO; 3], 0u32);
+            let mut pass = |phases: &mut ([Duration; 3], u32)| {
                 for chunk in texts.chunks(b) {
-                    s.embed(chunk, Some(&o)).unwrap_or_else(|e| panic!("{e:?}"));
+                    let t0 = Instant::now();
+                    s.write_text(chunk, Some(&o)).unwrap_or_else(|e| panic!("{e:?}"));
+                    let t1 = Instant::now();
+                    let r = s.run().unwrap_or_else(|e| panic!("{e:?}"));
+                    let t2 = Instant::now();
+                    r.read_into(&mut vectors);
+                    let t3 = Instant::now();
+                    phases.0[0] += t1 - t0;
+                    phases.0[1] += t2 - t1;
+                    phases.0[2] += t3 - t2;
+                    phases.1 += 1;
                 }
             };
-            pass();
-            let best = (0..3)
+            pass(&mut phases);
+            let (best, at) = (0..3)
                 .map(|_| {
+                    let mut ph = ([Duration::ZERO; 3], 0u32);
                     let (start, mut done) = (Instant::now(), 0);
                     while start.elapsed() < Duration::from_secs(2) {
-                        pass();
+                        pass(&mut ph);
                         done += texts.len();
                     }
-                    done as f64 / start.elapsed().as_secs_f64()
+                    (done as f64 / start.elapsed().as_secs_f64(), ph)
                 })
-                .fold(0f64, f64::max);
+                .fold((0f64, phases), |a, c| if c.0 > a.0 { c } else { a });
+            let us = |d: Duration| d.as_secs_f64() * 1e6 / at.1 as f64;
             println!(
-                "  turbo {name} ({}): batch {b}: {best:.0} texts/s (session made in {:.1} ms)",
+                "  turbo {name} ({}): batch {b}: {best:.0} texts/s (session made in {:.1} ms; per batch {:.1} us write, {:.1} run, {:.1} read)",
                 dtype_name(s.info().compute_dtype),
-                ms(made)
+                ms(made),
+                us(at.0[0]),
+                us(at.0[1]),
+                us(at.0[2])
             );
         }
     }
