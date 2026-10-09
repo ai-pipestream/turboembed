@@ -1525,6 +1525,50 @@ unsafe fn encode_rows(
 }
 
 /// # Safety
+/// `ids` holds `count` ids and `out` `capacity` bytes; `written` is valid.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_tokenizer_decode(
+    t: *mut turbo_tokenizer,
+    ids: *const i32,
+    count: u32,
+    skip_special_tokens: u32,
+    out: *mut c_char,
+    capacity: u64,
+    written: *mut u64,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let tok = &tokenizer(t)?.tok;
+            let written = out_ptr(written, "written")?;
+            if ids.is_null() && count > 0 {
+                return Err(Error::new(INVALID_ARGUMENT, "ids may not be NULL"));
+            }
+            let skip = match skip_special_tokens {
+                0 => false,
+                1 => true,
+                v => return Err(Error::new(INVALID_ARGUMENT, format!("skip_special_tokens is {v}, not 0 or 1"))),
+            };
+            let ids = if count == 0 { &[][..] } else { std::slice::from_raw_parts(ids, count as usize) };
+            let text = tok.decode(ids, skip)?;
+            *written = text.len() as u64;
+            if (text.len() as u64) >= capacity {
+                return Err(Error::new(
+                    status::CAPACITY,
+                    format!("{} bytes and a NUL, capacity is {capacity}", text.len()),
+                ));
+            }
+            if out.is_null() {
+                return Err(Error::new(INVALID_ARGUMENT, "out may not be NULL"));
+            }
+            std::ptr::copy_nonoverlapping(text.as_ptr(), out as *mut u8, text.len());
+            *out.add(text.len()) = 0;
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
 /// Pointers are NULL or valid for the call, as turbo.h says.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn turbo_tokenizer_count(

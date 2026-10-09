@@ -738,3 +738,47 @@ fn static_spans_drop_the_unknown_token() {
         check_well_formed(&text, &ids.iter().copied().zip(spans.iter().copied()).collect::<Vec<_>>());
     }
 }
+
+// ---- Decode -----------------------------------------------------------------------
+
+/// The core's decode of `text`'s ids is upstream's, with the special
+/// tokens and without.
+fn decode_matches_upstream(tok: &turbo::tokenizer::Tokenizer, up: &tokenizers::Tokenizer, text: &str) {
+    let ids = tok.encode(text, whole_text_opts()).unwrap();
+    let raw: Vec<u32> = ids.iter().map(|&i| i as u32).collect();
+    for skip in [true, false] {
+        assert_eq!(tok.decode(&ids, skip).unwrap(), up.decode(&raw, skip).unwrap(), "{text:?} skip {skip}");
+    }
+}
+
+#[test]
+fn decode_matches_upstream_wordpiece() {
+    let f = Fixture::standard("decode");
+    let tok = core_tokenizer(&f);
+    let up = upstream();
+    for text in texts() {
+        decode_matches_upstream(&tok, &up, &text);
+    }
+}
+
+#[test]
+fn decode_matches_upstream_unigram() {
+    let path = testdata().join("bge-m3/tokenizer.json");
+    let f = Fixture::with_tokenizer("m3-decode", unigram::manifest_m3(), &path);
+    let tok = core_tokenizer(&f);
+    let up = upstream_at(&path);
+    for text in unigram::texts() {
+        decode_matches_upstream(&tok, &up, &text);
+    }
+}
+
+#[test]
+fn decode_refuses_an_id_outside_the_vocabulary() {
+    let f = Fixture::standard("decode-bad");
+    let tok = core_tokenizer(&f);
+    for id in [-1, 30522] {
+        let e = tok.decode(&[101, id], false).unwrap_err();
+        assert!(e.code == turbo::status::INVALID_ARGUMENT && e.message.contains("ids[1]"), "{e:?}");
+    }
+    assert_eq!(tok.decode(&[], false).unwrap(), "");
+}

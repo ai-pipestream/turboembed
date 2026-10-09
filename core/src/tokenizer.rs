@@ -126,6 +126,12 @@ pub struct Tokenizer {
     /// A static model's rules (manifest static_embedding), None for an
     /// encoder.
     stat: Option<StaticRules>,
+    /// How ids are written back as text.
+    decoder: Decoder,
+    /// Each id's piece, for decode.
+    pieces: Vec<Box<str>>,
+    /// The ids of the special tokens, which decode can leave out.
+    special_ids: Vec<i32>,
     /// SHA-256 of the tokenizer file.
     pub sha256: String,
     /// SHA-256 of the manifest the tokenizer was made from.
@@ -489,6 +495,9 @@ impl Tokenizer {
             }
         }
         let stat = m.static_embedding.as_ref().map(|_| StaticRules { median_chars: kind.median_chars() });
+        let decoder = Decoder::parse(&json["decoder"]);
+        let mut pieces = vec![Box::<str>::from(""); vocab_size as usize];
+        kind.each_piece(|piece, id| pieces[id as usize] = piece.into());
         let e = m.embed();
         Ok(Tokenizer {
             kind,
@@ -506,6 +515,9 @@ impl Tokenizer {
             eos_id: role(SpecialRole::Eos),
             unk_id: role(SpecialRole::Unk),
             stat,
+            decoder,
+            pieces,
+            special_ids: t.special_tokens.iter().map(|s| s.id as i32).collect(),
             sha256: crate::bundle::sha256_hex(&bytes),
             manifest_sha256: bundle.manifest_sha256.clone(),
         })
@@ -721,6 +733,29 @@ impl Tokenizer {
         Ok(())
     }
 
+    /// The text `ids` stand for, as the tokenizer file's decoder writes
+    /// it, the special tokens left out when `skip_special_tokens`. The
+    /// way back from ids to text for a model's output; for where a token
+    /// of the input came from, encode_spans gives its span.
+    pub fn decode(&self, ids: &[i32], skip_special_tokens: bool) -> Result<String> {
+        let mut out = String::new();
+        let mut first = true;
+        for (i, &id) in ids.iter().enumerate() {
+            let Some(piece) = usize::try_from(id).ok().and_then(|i| self.pieces.get(i)) else {
+                return Err(Error::new(
+                    INVALID_ARGUMENT,
+                    format!("ids[{i}]: {id} is not an id under {}", self.pieces.len()),
+                ));
+            };
+            if skip_special_tokens && self.special_ids.contains(&id) {
+                continue;
+            }
+            self.decoder.piece(piece, first, &mut out)?;
+            first = false;
+        }
+        Ok(out)
+    }
+
     /// Tokens `text` produces, with special tokens and no truncation.
     pub fn count(&self, text: &str, prompt: PromptRole) -> usize {
         let mut ids = Vec::new();
@@ -907,7 +942,117 @@ impl Tokenizer {
     }
 }
 
+/// The tokenizer file's decoder: how a row of pieces is written as text.
+enum Decoder {
+    /// WordPiece's: a piece with the continuing prefix joins the one
+    /// before it, any other is put after a space; with `cleanup`, the
+    /// space before punctuation and English contractions is taken out.
+    WordPiece { prefix: String, cleanup: bool },
+    /// Metaspace's: the metaspace is a space, and the one the first piece
+    /// starts with, the one put in front of the text, is dropped.
+    Metaspace { replacement: char, prepended: bool },
+    /// A decoder the core does not run, by its type.
+    Other(String),
+}
+
+impl Decoder {
+    fn parse(d: &Value) -> Decoder {
+        match d["type"].as_str() {
+            Some("WordPiece") => Decoder::WordPiece {
+                prefix: d["prefix"].as_str().unwrap_or("##").to_owned(),
+                cleanup: d["cleanup"].as_bool().unwrap_or(true),
+            },
+            Some("Metaspace") => {
+                let prepended = match d.get("prepend_scheme").and_then(Value::as_str) {
+                    Some(scheme) => scheme != "never",
+                    None => d["add_prefix_space"].as_bool().unwrap_or(true),
+                };
+                match d["replacement"].as_str().map(|r| (r.chars().next(), r.chars().count())) {
+                    Some((Some(replacement), 1)) => Decoder::Metaspace { replacement, prepended },
+                    _ => Decoder::Other("Metaspace with no one-character replacement".into()),
+                }
+            }
+            Some(other) => Decoder::Other(other.to_owned()),
+            None => Decoder::Other("none".into()),
+        }
+    }
+
+    /// One piece, written after those before it in `out`.
+    fn piece(&self, piece: &str, first: bool, out: &mut String) -> Result<()> {
+        match self {
+            Decoder::WordPiece { prefix, cleanup } => {
+                let at = out.len();
+                match piece.strip_prefix(prefix.as_str()) {
+                    Some(rest) if !first => out.push_str(rest),
+                    _ => {
+                        if !first {
+                            out.push(' ');
+                        }
+                        out.push_str(piece);
+                    }
+                }
+                if *cleanup {
+                    let cleaned = cleanup_piece(&out[at..]);
+                    if let Cow::Owned(c) = cleaned {
+                        out.truncate(at);
+                        out.push_str(&c);
+                    }
+                }
+            }
+            Decoder::Metaspace { replacement, prepended } => {
+                let piece = match piece.strip_prefix(*replacement) {
+                    Some(rest) if first && *prepended => rest,
+                    _ => piece,
+                };
+                out.extend(piece.chars().map(|c| if c == *replacement { ' ' } else { c }));
+            }
+            Decoder::Other(kind) => {
+                return Err(Error::new(
+                    crate::status::UNSUPPORTED,
+                    format!("the tokenizer file's decoder is {kind}, which the core does not run"),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// WordPiece's cleanup of one piece as written, its space included: no
+/// space before . ? ! , and the English contractions.
+fn cleanup_piece(p: &str) -> Cow<'_, str> {
+    if !p.starts_with(' ') {
+        return Cow::Borrowed(p);
+    }
+    const JOINED: [(&str, &str); 10] = [
+        (" .", "."),
+        (" ?", "?"),
+        (" !", "!"),
+        (" ,", ","),
+        (" ' ", "'"),
+        (" n't", "n't"),
+        (" 'm", "'m"),
+        (" 's", "'s"),
+        (" 've", "'ve"),
+        (" 're", "'re"),
+    ];
+    let mut s = Cow::Borrowed(p);
+    for (from, to) in JOINED {
+        if s.contains(from) {
+            s = Cow::Owned(s.replace(from, to));
+        }
+    }
+    s
+}
+
 impl Kind {
+    /// `f(piece, id)` for every piece of the vocabulary.
+    fn each_piece(&self, mut f: impl FnMut(&str, u32)) {
+        match self {
+            Kind::WordPiece { vocab, .. } => vocab.iter().for_each(|(p, &id)| f(p, id)),
+            Kind::Unigram(u) => u.pieces().enumerate().for_each(|(id, p)| f(p, id as u32)),
+        }
+    }
+
     fn vocab_size(&self) -> u32 {
         match self {
             Kind::WordPiece { vocab, .. } => vocab.len() as u32,
