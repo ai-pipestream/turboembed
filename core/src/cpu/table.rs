@@ -54,6 +54,8 @@ pub(super) struct Table {
     /// TURBO_DTYPE_F32, F16, BF16, F64 or I8.
     dtype: u32,
     pub(super) dim: usize,
+    /// Rows.
+    height: usize,
     /// Each token's weight, exact: an F32 or F16 weight is an F64 too.
     weights: Option<Box<[f64]>>,
     mapping: Option<Box<[u32]>>,
@@ -97,7 +99,15 @@ impl Table {
         });
         let wide =
             matches!(e.dtype, TURBO_DTYPE_I8 | TURBO_DTYPE_F64) || (weights.is_some() && w.dtype == TURBO_DTYPE_F64);
-        Table { rows: e.data as *const u8, dtype: e.dtype, dim: e.shape[1] as usize, weights, mapping, wide }
+        Table {
+            rows: e.data as *const u8,
+            dtype: e.dtype,
+            dim: e.shape[1] as usize,
+            height: e.shape[0] as usize,
+            weights,
+            mapping,
+            wide,
+        }
     }
 
     /// The table row token `id` reads.
@@ -105,10 +115,51 @@ impl Table {
     fn row_of(&self, id: usize) -> usize {
         self.mapping.as_ref().map_or(id, |m| m[id] as usize)
     }
+
+    /// Value j of row `row` as F64, whatever the stored dtype.
+    fn value(&self, row: usize, j: usize) -> f64 {
+        match self.dtype {
+            TURBO_DTYPE_F16 => F16::at64(self, row, j),
+            TURBO_DTYPE_BF16 => Bf16::at64(self, row, j),
+            TURBO_DTYPE_F64 => F64::at64(self, row, j),
+            TURBO_DTYPE_I8 => I8::at64(self, row, j),
+            _ => F32::at64(self, row, j),
+        }
+    }
+}
+
+/// The table for TURBO_PRECISION_FASTEST: each row as I8 values over the
+/// row's own F32 scale (its largest magnitude over 127, the values
+/// rounded to the nearest step), a quarter of an F32 table's bytes. The
+/// model makes it once, for its first FASTEST session; the token weights
+/// and the mapping stay the table's.
+pub(super) struct Quantized {
+    values: Box<[i8]>,
+    scales: Box<[f32]>,
+}
+
+impl Quantized {
+    pub(super) fn new(t: &Table) -> Quantized {
+        let mut values = vec![0i8; t.height * t.dim].into_boxed_slice();
+        let mut scales = vec![0f32; t.height].into_boxed_slice();
+        for (row, (q, scale)) in values.chunks_exact_mut(t.dim).zip(scales.iter_mut()).enumerate() {
+            let most = (0..t.dim).map(|j| t.value(row, j).abs()).fold(0f64, f64::max);
+            if most == 0.0 || !most.is_finite() {
+                continue;
+            }
+            *scale = (most / 127.0) as f32;
+            for (j, v) in q.iter_mut().enumerate() {
+                *v = (t.value(row, j) / *scale as f64).round().clamp(-127.0, 127.0) as i8;
+            }
+        }
+        Quantized { values, scales }
+    }
 }
 
 pub(super) struct Static {
     table: Arc<Table>,
+    /// The I8 table a FASTEST session sums instead of the stored one.
+    quantized: Option<Arc<Quantized>>,
     isa: Isa,
     /// The processor converts F16 to F32 eight at a time (x86_64's F16C,
     /// with AVX2).
@@ -128,13 +179,20 @@ pub(super) struct Static {
 impl Static {
     /// A session's state for rows of up to `max_seq` tokens, `max_batch`
     /// of them. Err is the bytes that could not be allocated.
-    pub(super) fn new(table: Arc<Table>, isa: Isa, max_batch: usize, max_seq: usize) -> Result<Static, usize> {
+    pub(super) fn new(
+        table: Arc<Table>,
+        quantized: Option<Arc<Quantized>>,
+        isa: Isa,
+        max_batch: usize,
+        max_seq: usize,
+    ) -> Result<Static, usize> {
         let tokens = max_batch.checked_mul(max_seq).ok_or(usize::MAX)?;
         let mut ids = Vec::new();
         ids.try_reserve_exact(tokens).map_err(|_| tokens.saturating_mul(4))?;
         ids.resize(tokens, 0);
         Ok(Static {
             table,
+            quantized,
             isa,
             f16c: f16c(isa),
             ids,
@@ -199,6 +257,27 @@ impl Static {
         let t = &*self.table;
         if ids.is_empty() {
             dst.fill(0.0);
+            return;
+        }
+        if let Some(q) = &self.quantized {
+            let first = [self.first[r]];
+            let ids = match self.pooling {
+                TURBO_POOLING_CLS => &first[..],
+                TURBO_POOLING_LAST => &ids[ids.len() - 1..],
+                _ => ids,
+            };
+            match self.isa {
+                #[cfg(target_arch = "x86_64")]
+                // SAFETY: Isa::Avx2 and Avx512 have avx2 and fma.
+                Isa::Avx2 | Isa::Avx512 => unsafe { mean_quantized_avx2(t, q, ids, dst) },
+                _ => mean_quantized(t, q, ids, dst),
+            }
+            if self.normalize == TURBO_NORMALIZE_L2 {
+                let norm = pairwise_squares(dst).sqrt() + 1e-32;
+                for d in dst.iter_mut() {
+                    *d /= norm;
+                }
+            }
             return;
         }
         match self.pooling {
@@ -372,6 +451,85 @@ fn mean<S: Stored>(t: &Table, ids: &[u32], dst: &mut [f32]) {
             }
         }
         from += w;
+    }
+}
+
+/// The mean of the rows of `ids` in the quantized table: each token's I8
+/// values times its row's scale and its weight, summed in F32 a block of
+/// the width at a time, then divided by the count.
+#[inline(always)]
+fn mean_quantized(t: &Table, q: &Quantized, ids: &[u32], dst: &mut [f32]) {
+    mean_quantized_from(t, q, ids, dst, 0)
+}
+
+/// `mean_quantized` from value `from` of the width on.
+#[inline(always)]
+fn mean_quantized_from(t: &Table, q: &Quantized, ids: &[u32], dst: &mut [f32], mut from: usize) {
+    let (od, dim) = (dst.len(), t.dim);
+    let n = ids.len() as f32;
+    while from < od {
+        let w = BLOCK.min(od - from);
+        let mut acc = [0f32; BLOCK];
+        for &id in ids {
+            let row = t.row_of(id as usize);
+            let x = match &t.weights {
+                Some(ws) => q.scales[row] * ws[id as usize] as f32,
+                None => q.scales[row],
+            };
+            let v = &q.values[row * dim + from..row * dim + from + w];
+            for (a, &v) in acc[..w].iter_mut().zip(v) {
+                *a += v as f32 * x;
+            }
+        }
+        for (d, a) in dst[from..from + w].iter_mut().zip(&acc[..w]) {
+            *d = a / n;
+        }
+        from += w;
+    }
+}
+
+/// `mean_quantized` eight values at a time: per token, each I8 value
+/// widened to F32 and multiplied into its sum with the token's scale.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn mean_quantized_avx2(t: &Table, q: &Quantized, ids: &[u32], dst: &mut [f32]) {
+    use std::arch::x86_64::*;
+    let (od, dim) = (dst.len(), t.dim);
+    let base = q.values.as_ptr();
+    let n = _mm256_set1_ps(ids.len() as f32);
+    let scale = |id: u32, row: usize| match &t.weights {
+        Some(ws) => q.scales[row] * ws[id as usize] as f32,
+        None => q.scales[row],
+    };
+    let mut from = 0;
+    while from + 64 <= od {
+        let mut acc = [_mm256_setzero_ps(); 8];
+        for &id in ids {
+            let row = t.row_of(id as usize);
+            let x = _mm256_set1_ps(scale(id, row));
+            let p = unsafe { base.add(row * dim + from) };
+            for (k, a) in acc.iter_mut().enumerate() {
+                let v = unsafe { _mm_loadl_epi64(p.add(8 * k) as *const __m128i) };
+                *a = _mm256_fmadd_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(v)), x, *a);
+            }
+        }
+        for (k, a) in acc.iter().enumerate() {
+            unsafe { _mm256_storeu_ps(dst.as_mut_ptr().add(from + 8 * k), _mm256_div_ps(*a, n)) };
+        }
+        from += 64;
+    }
+    while from + 8 <= od {
+        let mut acc = _mm256_setzero_ps();
+        for &id in ids {
+            let row = t.row_of(id as usize);
+            let v = unsafe { _mm_loadl_epi64(base.add(row * dim + from) as *const __m128i) };
+            acc = _mm256_fmadd_ps(_mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(v)), _mm256_set1_ps(scale(id, row)), acc);
+        }
+        unsafe { _mm256_storeu_ps(dst.as_mut_ptr().add(from), _mm256_div_ps(acc, n)) };
+        from += 8;
+    }
+    if from < od {
+        mean_quantized_from(t, q, ids, dst, from);
     }
 }
 
@@ -580,6 +738,39 @@ fn f16_to_f32(h: u16) -> f32 {
 mod tests {
     use super::*;
 
+    /// The AVX2 I8 mean against the portable one, with and without
+    /// weights, on widths that take each of its loops. They differ only by
+    /// the fused multiply-add's roundings.
+    #[test]
+    fn the_avx2_quantized_mean_is_the_portable_one() {
+        if !Isa::Avx2.available() {
+            return;
+        }
+        for dim in [1, 7, 8, 63, 64, 77, 136, 256, 300] {
+            let vocab = 40;
+            let values: Vec<f32> = (0..vocab * dim).map(|i| ((i * 7919 % 1013) as f32 - 506.0) / 97.0).collect();
+            for weights in [None, Some((0..vocab).map(|i| 0.25 + i as f64 / 16.0).collect::<Box<[f64]>>())] {
+                let t = Table {
+                    rows: values.as_ptr() as *const u8,
+                    dtype: crate::TURBO_DTYPE_F32,
+                    dim,
+                    height: vocab,
+                    weights,
+                    mapping: None,
+                    wide: false,
+                };
+                let q = Quantized::new(&t);
+                let ids: Vec<u32> = (0..23).map(|i| (i * 17 % vocab) as u32).collect();
+                let (mut want, mut got) = (vec![0f32; dim], vec![0f32; dim]);
+                mean_quantized(&t, &q, &ids, &mut want);
+                unsafe { mean_quantized_avx2(&t, &q, &ids, &mut got) };
+                for (g, w) in got.iter().zip(&want) {
+                    assert!((g - w).abs() <= 1e-5 * (1.0 + w.abs()), "dim {dim}: {g} vs {w}");
+                }
+            }
+        }
+    }
+
     /// The F16C mean against the portable one, on widths that take each of
     /// its loops, over halves of every exponent: the same bits.
     #[test]
@@ -607,6 +798,7 @@ mod tests {
                 rows: halves.as_ptr() as *const u8,
                 dtype: TURBO_DTYPE_F16,
                 dim,
+                height: vocab,
                 weights: None,
                 mapping: None,
                 wide: false,

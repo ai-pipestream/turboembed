@@ -21,11 +21,11 @@ use crate::status::{
     INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
 };
 use crate::{
-    TURBO_DEVICE_CPU, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_EMBED_STAGE_DOWNLOAD, TURBO_EMBED_STAGE_ENCODE,
-    TURBO_EMBED_STAGE_LOOKUP, TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL, TURBO_EMBED_STAGE_UPLOAD,
-    TURBO_HANDLE_HOST_PTR, TURBO_NORMALIZE_L2, TURBO_PLACE_DEVICE, TURBO_PLACE_HOST, TURBO_PRECISION_MODEL,
-    TURBO_STAGE_FUSED, TURBO_STAGE_HOST, TURBO_STAGE_UNUSED, TURBO_TASK_EMBED, turbo_buffer_desc, turbo_device_info,
-    turbo_error, turbo_log_fn, turbo_native_handle, write_str,
+    TURBO_DEVICE_CPU, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_EMBED_STAGE_DOWNLOAD,
+    TURBO_EMBED_STAGE_ENCODE, TURBO_EMBED_STAGE_LOOKUP, TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL,
+    TURBO_EMBED_STAGE_UPLOAD, TURBO_HANDLE_HOST_PTR, TURBO_NORMALIZE_L2, TURBO_PLACE_DEVICE, TURBO_PLACE_HOST,
+    TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_STAGE_FUSED, TURBO_STAGE_HOST, TURBO_STAGE_UNUSED,
+    TURBO_TASK_EMBED, turbo_buffer_desc, turbo_device_info, turbo_error, turbo_log_fn, turbo_native_handle, write_str,
 };
 
 pub static BACKEND: turbo_backend = turbo_backend {
@@ -302,6 +302,8 @@ struct Model {
     /// A static model's table, its weights and mapping widened, made by the
     /// first session and shared by every later one.
     table: OnceLock<std::sync::Arc<table::Table>>,
+    /// The table in I8 for FASTEST sessions, made by the first.
+    quantized: OnceLock<std::sync::Arc<table::Quantized>>,
 }
 
 // The tensors point into the core's weights, which it keeps unchanged
@@ -395,6 +397,7 @@ unsafe extern "C" fn model_load(
             packed: OnceLock::new(),
             packing: Mutex::new(()),
             table: OnceLock::new(),
+            quantized: OnceLock::new(),
         })) as *mut c_void
     };
     0
@@ -474,13 +477,17 @@ unsafe extern "C" fn session_create(
             Ok(n) => n,
             Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
         };
-        let work = match static_session(m, max_batch, max_seq, err) {
+        let quantize = match static_table(precision, std::env::var("TURBO_CPU_STATIC_TABLE").ok().as_deref()) {
+            Ok(q) => q,
+            Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
+        };
+        let work = match static_session(m, quantize, max_batch, max_seq, err) {
             Ok(w) => w,
             Err(rc) => return rc,
         };
         let s = Session { work, pool: pool::Pool::new(threads), output: Box::new(output), written: false };
         unsafe {
-            *compute_dtype = TURBO_DTYPE_F32;
+            *compute_dtype = if quantize { TURBO_DTYPE_I8 } else { TURBO_DTYPE_F32 };
             *out = Box::into_raw(Box::new(s)) as *mut c_void;
         }
         return 0;
@@ -536,11 +543,24 @@ enum Work {
 /// A static model's session: no weights to convert or pack, since the
 /// table is read in place in its stored dtype and summed in F32 at every
 /// precision.
-fn static_session(m: &Model, max_batch: u32, max_seq: u32, err: *mut turbo_error) -> Result<Work, i32> {
+fn static_session(m: &Model, quantize: bool, max_batch: u32, max_seq: u32, err: *mut turbo_error) -> Result<Work, i32> {
     let t = m.table.get_or_init(|| std::sync::Arc::new(table::Table::new(&m.tensors))).clone();
-    table::Static::new(t, kernels::Isa::detect(), max_batch as usize, max_seq as usize)
+    let q = quantize.then(|| m.quantized.get_or_init(|| std::sync::Arc::new(table::Quantized::new(&t))).clone());
+    table::Static::new(t, q, kernels::Isa::detect(), max_batch as usize, max_seq as usize)
         .map(Work::Static)
         .map_err(|bytes| unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's rows")) })
+}
+
+/// Whether a static model's session sums the I8 table: at FASTEST, unless
+/// TURBO_CPU_STATIC_TABLE says `stored` (docs/cpu.md); `i8` makes every
+/// precision sum it.
+fn static_table(precision: u32, var: Option<&str>) -> Result<bool, String> {
+    match var.map(str::trim) {
+        None | Some("") => Ok(precision == TURBO_PRECISION_FASTEST),
+        Some("stored") => Ok(false),
+        Some("i8") => Ok(true),
+        Some(v) => Err(format!("TURBO_CPU_STATIC_TABLE={v:?}: stored or i8")),
+    }
 }
 
 /// The threads a session runs on: TURBO_CPU_THREADS when set (docs/cpu.md),

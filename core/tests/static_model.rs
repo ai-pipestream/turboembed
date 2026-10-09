@@ -215,14 +215,36 @@ fn a_text_of_no_tokens_or_only_unknown_ones_is_the_zero_vector() {
     assert!(got.iter().flatten().all(|&x| x == 0.0));
 }
 
+/// MODEL and EXACT sum the stored table, to the same bits. FASTEST sums
+/// the table quantized to I8, each row over its own scale, and reports
+/// I8: its vectors are that arithmetic's, and close to the stored
+/// table's.
 #[test]
-fn every_precision_computes_the_same_f32() {
-    let l = load(&bundle());
+fn fastest_sums_the_table_in_i8() {
+    let dir = bundle();
+    let l = load(&dir);
     let want = session(&l).embed(&TEXTS, None).unwrap();
-    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
+    for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
         let s = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap();
         assert_eq!(s.info().compute_dtype, TURBO_DTYPE_F32, "precision {p}");
         assert_eq!(s.embed(&TEXTS, None).unwrap(), want, "precision {p}");
+    }
+    let s = Session::create(l.m, Some(&session_desc(0, 0, TURBO_PRECISION_FASTEST))).unwrap();
+    assert_eq!(s.info().compute_dtype, TURBO_DTYPE_I8);
+    let mut plain = Plain { tolerance: 1e-5, ..Plain::new(&dir) };
+    for row in plain.table.chunks_exact_mut(plain.dim) {
+        let scale = (row.iter().fold(0f64, |m, v| m.max(v.abs())) / 127.0) as f32 as f64;
+        if scale > 0.0 {
+            row.iter_mut().for_each(|v| *v = (*v / scale).round() * scale);
+        }
+    }
+    let tok = Tok::create(&dir).unwrap();
+    let got = s.embed(&TEXTS, None).unwrap();
+    for ((t, g), w) in TEXTS.iter().zip(&got).zip(&want) {
+        let row = tok.row(t, None).unwrap();
+        plain.close(g, &plain.embed(&row, &vec![1; row.len()], TURBO_POOLING_MEAN, true), t);
+        let cos: f32 = g.iter().zip(w).map(|(a, b)| a * b).sum();
+        assert!(cos > 0.999, "{t}: cosine {cos} against the stored table");
     }
 }
 

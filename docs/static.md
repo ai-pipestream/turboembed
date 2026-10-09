@@ -74,9 +74,26 @@ the table as stored:
   sums a row (eight running sums over blocks of up to 128 values, halves
   above that), then the square root.
 
-Every precision computes the same: `PRECISION_MODEL`, `FASTEST` and
-`EXACT` give the same bits. `turbo_result_info.stage` reports `LOOKUP`
-on the host, `ENCODE` unused and `POOL` fused into the lookup.
+`PRECISION_MODEL` and `EXACT` compute this and give the same bits.
+`turbo_result_info.stage` reports `LOOKUP` on the host, `ENCODE` unused
+and `POOL` fused into the lookup.
+
+### FASTEST: the table in I8
+
+`PRECISION_FASTEST` sums a copy of the table in I8, and the session
+reports the compute dtype `I8`. Each row is stored as its largest
+magnitude over 127, an F32 scale, and its values divided by that scale
+and rounded to the nearest integer. A token adds its row's I8 values
+times the scale (times its weight) to F32 sums; the mean and the norm
+are as above, with no F16 rounding. The copy is a quarter of an F32
+table's bytes; the model makes it for its first FASTEST session and
+keeps it for the others.
+
+The cost is measured against Model2Vec's own vectors for every text the
+parity test reads (`core/tests/static_parity.rs`), and held to a cosine
+of at least 0.999. The vectors are not bit-for-bit those of another
+processor, since the AVX2 sums fuse the multiply and the add.
+`TURBO_CPU_STATIC_TABLE` forces either table (docs/cpu.md).
 
 On the CPU each row is summed by one task in token order, so a batch
 gives the same bits on any number of threads (docs/cpu.md). The rows of

@@ -1,7 +1,10 @@
 //! A static bundle made from a Model2Vec model against that model's own
 //! golden ids and vectors (bundle/reference/static_golden.py), through
 //! the C interface on the CPU backend: every text's ids exactly, and
-//! every vector to the bit, at the model's max_length and at none.
+//! every vector to the bit, at the model's max_length and at none. A
+//! FASTEST session, which sums the table in I8, is held to the lowest
+//! cosine FASTEST_MIN_COSINE against the same vectors, and its cost is
+//! printed.
 //!
 //! The bundle and the goldens are not in the repository: the test runs
 //! when TURBO_PARITY_BUNDLE names the bundle and TURBO_PARITY_GOLDEN the
@@ -19,6 +22,9 @@ use turbo::*;
 
 /// Texts embedded per call: the session's batch.
 const BATCH: u32 = 256;
+
+/// The lowest cosine a FASTEST vector may have against Model2Vec's.
+const FASTEST_MIN_COSINE: f64 = 0.999;
 
 #[test]
 fn every_golden_text_gives_model2vecs_ids_and_vector_to_the_bit() {
@@ -38,6 +44,9 @@ fn every_golden_text_gives_model2vecs_ids_and_vector_to_the_bit() {
     let max_seq = mi.max_seq;
     let s = Session::create(l.m, Some(&session_desc(BATCH, max_seq, TURBO_PRECISION_MODEL)))
         .unwrap_or_else(|e| panic!("{e:?}"));
+    let fastest = Session::create(l.m, Some(&session_desc(BATCH, max_seq, TURBO_PRECISION_FASTEST)))
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    assert_eq!(fastest.info().compute_dtype, TURBO_DTYPE_I8);
     let tok = Tok::create(&bundle).unwrap();
     let dim = mi.dim as usize;
 
@@ -89,9 +98,20 @@ fn every_golden_text_gives_model2vecs_ids_and_vector_to_the_bit() {
         o.truncate = truncate;
         o.max_tokens = max_tokens;
         let (mut bits, mut worst_ulps) = (0, 0u32);
+        let (mut min_cosine, mut max_abs) = (1f64, 0f64);
         for chunk in fits.chunks(BATCH as usize) {
             let batch: Vec<&str> = chunk.iter().map(|&i| texts[i].as_str()).collect();
             let got = s.embed(&batch, Some(&o)).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+            let fast = fastest.embed(&batch, Some(&o)).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+            for (&i, f) in chunk.iter().zip(&fast) {
+                let w = &want[i * dim..(i + 1) * dim];
+                if w.iter().all(|&x| x == 0.0) {
+                    assert!(f.iter().all(|&x| x == 0.0), "{name} text {i}: FASTEST gives a vector for no tokens");
+                    continue;
+                }
+                min_cosine = min_cosine.min(cosine(f, w));
+                max_abs = f.iter().zip(w).map(|(a, b)| (a - b).abs() as f64).fold(max_abs, f64::max);
+            }
             for (&i, g) in chunk.iter().zip(&got) {
                 let w = &want[i * dim..(i + 1) * dim];
                 let ulps = g.iter().zip(w).map(|(a, b)| ulps(*a, *b)).max().unwrap_or(0);
@@ -111,6 +131,10 @@ fn every_golden_text_gives_model2vecs_ids_and_vector_to_the_bit() {
             fits.len(),
             texts.len() - fits.len()
         );
+        println!("  {name}: FASTEST (I8), 1 - min cosine {:.3e}, max abs diff {max_abs:.3e}", 1.0 - min_cosine);
+        if min_cosine < FASTEST_MIN_COSINE {
+            failures.push(format!("{name}: FASTEST's lowest cosine {min_cosine} is under {FASTEST_MIN_COSINE}"));
+        }
         if id_mismatch > 5 || bits > 5 {
             failures.push(format!("{name}: {id_mismatch} texts with other ids, {bits} vectors not to the bit"));
         }
@@ -122,6 +146,11 @@ fn every_golden_text_gives_model2vecs_ids_and_vector_to_the_bit() {
 fn tok_max_length(bundle: &std::path::Path) -> u32 {
     let m: Value = serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
     m["static_embedding"]["max_length"].as_u64().unwrap() as u32
+}
+
+fn cosine(a: &[f32], b: &[f32]) -> f64 {
+    let dot = |x: &[f32], y: &[f32]| x.iter().zip(y).map(|(p, q)| *p as f64 * *q as f64).sum::<f64>();
+    dot(a, b) / (dot(a, a).sqrt() * dot(b, b).sqrt())
 }
 
 /// How many representable F32 values lie between a and b.
