@@ -151,11 +151,16 @@ fn read_all(rel: &str, file: &mut fs::File, buf: &mut [u8]) -> Result<()> {
 pub struct AlignedBytes {
     ptr: std::ptr::NonNull<u8>,
     len: usize,
+    /// The allocation's alignment: ALIGN, or HUGE.
+    align: usize,
     /// A private mapping of a file (on a page boundary), not an allocation.
     mapped: bool,
 }
 
 const ALIGN: usize = 64;
+
+/// A huge page on x86_64 and aarch64 Linux: 2 MiB.
+const HUGE: usize = 2 << 20;
 
 // Plain owned bytes.
 unsafe impl Send for AlignedBytes {}
@@ -167,7 +172,24 @@ impl AlignedBytes {
         // A zero-sized allocation is not allowed; one byte stands in.
         let layout = Layout::from_size_align(len.max(1), ALIGN).ok()?;
         let ptr = std::ptr::NonNull::new(unsafe { std::alloc::alloc_zeroed(layout) })?;
-        Some(AlignedBytes { ptr, len, mapped: false })
+        Some(AlignedBytes { ptr, len, align: ALIGN, mapped: false })
+    }
+
+    /// `len` zero bytes on a huge-page boundary, which Linux is asked to
+    /// back with huge pages before any is touched, so that reading rows
+    /// from anywhere in them misses the TLB far less; or None when the
+    /// host cannot give them. Elsewhere, plain aligned bytes.
+    pub fn zeroed_huge(len: usize) -> Option<AlignedBytes> {
+        let layout = Layout::from_size_align(len.max(1), HUGE).ok()?;
+        let ptr = std::ptr::NonNull::new(unsafe { std::alloc::alloc(layout) })?;
+        // Advice only, and before the zeroing touches a page: a kernel
+        // without transparent huge pages leaves them small.
+        #[cfg(target_os = "linux")]
+        unsafe {
+            libc::madvise(ptr.as_ptr() as *mut libc::c_void, len, libc::MADV_HUGEPAGE)
+        };
+        unsafe { std::ptr::write_bytes(ptr.as_ptr(), 0, len) };
+        Some(AlignedBytes { ptr, len, align: HUGE, mapped: false })
     }
 
     /// The first `len` bytes of `file`, mapped private and writable, or None
@@ -191,7 +213,7 @@ impl AlignedBytes {
         // Read ahead now: the hash reads every page, and a run gathers
         // rows from anywhere in it.
         unsafe { libc::madvise(p, len, libc::MADV_WILLNEED) };
-        Some(AlignedBytes { ptr: std::ptr::NonNull::new(p as *mut u8)?, len, mapped: true })
+        Some(AlignedBytes { ptr: std::ptr::NonNull::new(p as *mut u8)?, len, align: ALIGN, mapped: true })
     }
 }
 
@@ -202,7 +224,7 @@ impl Drop for AlignedBytes {
             unsafe { libc::munmap(self.ptr.as_ptr() as *mut libc::c_void, self.len) };
             return;
         }
-        let layout = Layout::from_size_align(self.len.max(1), ALIGN).expect("made with this layout");
+        let layout = Layout::from_size_align(self.len.max(1), self.align).expect("made with this layout");
         unsafe { std::alloc::dealloc(self.ptr.as_ptr(), layout) };
     }
 }

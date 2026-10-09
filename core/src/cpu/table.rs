@@ -31,6 +31,7 @@ use std::sync::Arc;
 use crate::backend::{
     TURBO_STATIC_EMBEDDINGS, TURBO_STATIC_MAPPING, TURBO_STATIC_WEIGHTS, turbo_backend_embed_rows, turbo_backend_tensor,
 };
+use crate::bundle::AlignedBytes;
 use crate::{
     TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F64, TURBO_DTYPE_I8, TURBO_DTYPE_I32, TURBO_NORMALIZE_L2,
     TURBO_POOLING_CLS, TURBO_POOLING_LAST,
@@ -63,6 +64,9 @@ pub(super) struct Table {
     /// The sum runs in F64: numpy promotes an I8 or F64 table, or F64
     /// weights, to it.
     wide: bool,
+    /// The copy of the table in huge pages that `rows` points into, when
+    /// the model's sessions read one (docs/cpu.md).
+    _copy: Option<AlignedBytes>,
 }
 
 // The core's verified bytes, unchanged until model_release.
@@ -72,7 +76,9 @@ unsafe impl Sync for Table {}
 impl Table {
     /// The tensors model_load was handed, in TURBO_STATIC_* order; the
     /// core has checked their shapes, dtypes and every mapping value.
-    pub(super) fn new(tensors: &[turbo_backend_tensor]) -> Table {
+    /// `huge`: read a copy of the table in huge pages, where the host
+    /// gives them.
+    pub(super) fn new(tensors: &[turbo_backend_tensor], huge: bool) -> Table {
         let e = &tensors[TURBO_STATIC_EMBEDDINGS as usize];
         let (w, m) = (&tensors[TURBO_STATIC_WEIGHTS as usize], &tensors[TURBO_STATIC_MAPPING as usize]);
         let weights = (!w.data.is_null()).then(|| {
@@ -100,14 +106,21 @@ impl Table {
         });
         let wide =
             matches!(e.dtype, TURBO_DTYPE_I8 | TURBO_DTYPE_F64) || (weights.is_some() && w.dtype == TURBO_DTYPE_F64);
+        let bytes = e.shape[0] as usize * e.shape[1] as usize * dtype_bytes(e.dtype);
+        let copy = huge.then(|| AlignedBytes::zeroed_huge(bytes)).flatten().map(|mut c| {
+            // SAFETY: the core verified `bytes` bytes of the table at e.data.
+            c.copy_from_slice(unsafe { std::slice::from_raw_parts(e.data as *const u8, bytes) });
+            c
+        });
         Table {
-            rows: e.data as *const u8,
+            rows: copy.as_ref().map_or(e.data as *const u8, |c| c.as_ptr()),
             dtype: e.dtype,
             dim: e.shape[1] as usize,
             height: e.shape[0] as usize,
             weights,
             mapping,
             wide,
+            _copy: copy,
         }
     }
 
@@ -134,14 +147,56 @@ impl Table {
 /// rounded to the nearest step), a quarter of an F32 table's bytes. The
 /// model makes it once, for its first FASTEST session; the token weights
 /// and the mapping stay the table's.
+/// Bytes a value of a table dtype.
+fn dtype_bytes(dtype: u32) -> usize {
+    match dtype {
+        TURBO_DTYPE_F16 | TURBO_DTYPE_BF16 => 2,
+        TURBO_DTYPE_F64 => 8,
+        TURBO_DTYPE_I8 => 1,
+        _ => 4,
+    }
+}
+
 pub(super) struct Quantized {
-    values: Box<[i8]>,
+    values: I8s,
     scales: Box<[f32]>,
 }
 
+/// The I8 table's values: on the heap, or in huge pages.
+enum I8s {
+    Heap(Box<[i8]>),
+    Huge(AlignedBytes),
+}
+
+impl std::ops::Deref for I8s {
+    type Target = [i8];
+    fn deref(&self) -> &[i8] {
+        match self {
+            I8s::Heap(v) => v,
+            // SAFETY: i8 has u8's size and alignment.
+            I8s::Huge(b) => unsafe { std::slice::from_raw_parts(b.as_ptr() as *const i8, b.len()) },
+        }
+    }
+}
+
+impl std::ops::DerefMut for I8s {
+    fn deref_mut(&mut self) -> &mut [i8] {
+        match self {
+            I8s::Heap(v) => v,
+            // SAFETY: i8 has u8's size and alignment.
+            I8s::Huge(b) => unsafe { std::slice::from_raw_parts_mut(b.as_mut_ptr() as *mut i8, b.len()) },
+        }
+    }
+}
+
 impl Quantized {
-    pub(super) fn new(t: &Table) -> Quantized {
-        let mut values = vec![0i8; t.height * t.dim].into_boxed_slice();
+    /// `huge`: in huge pages, where the host gives them.
+    pub(super) fn new(t: &Table, huge: bool) -> Quantized {
+        let n = t.height * t.dim;
+        let mut values = match huge.then(|| AlignedBytes::zeroed_huge(n)).flatten() {
+            Some(b) => I8s::Huge(b),
+            None => I8s::Heap(vec![0i8; n].into_boxed_slice()),
+        };
         let mut scales = vec![0f32; t.height].into_boxed_slice();
         for (row, (q, scale)) in values.chunks_exact_mut(t.dim).zip(scales.iter_mut()).enumerate() {
             let most = (0..t.dim).map(|j| t.value(row, j).abs()).fold(0f64, f64::max);
@@ -856,8 +911,9 @@ mod tests {
                     weights,
                     mapping: None,
                     wide: false,
+                    _copy: None,
                 };
-                let q = Quantized::new(&t);
+                let q = Quantized::new(&t, false);
                 let ids: Vec<u32> = (0..23).map(|i| (i * 17 % vocab) as u32).collect();
                 let (mut want, mut got) = (vec![0f32; dim], vec![0f32; dim]);
                 mean_quantized(&t, &q, &ids, &mut want);
@@ -900,6 +956,7 @@ mod tests {
                 weights: None,
                 mapping: None,
                 wide: false,
+                _copy: None,
             };
             for len in [1, 2, 5, 33] {
                 let ids: Vec<u32> = (0..len).map(|_| (next() % vocab as u64) as u32).collect();

@@ -481,7 +481,11 @@ unsafe extern "C" fn session_create(
             Ok(q) => q,
             Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
         };
-        let work = match static_session(m, quantize, max_batch, max_seq, err) {
+        let huge = match static_pages(std::env::var("TURBO_CPU_STATIC_PAGES").ok().as_deref()) {
+            Ok(h) => h,
+            Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
+        };
+        let work = match static_session(m, quantize, huge, max_batch, max_seq, err) {
             Ok(w) => w,
             Err(rc) => return rc,
         };
@@ -548,9 +552,18 @@ enum Work {
 /// A static model's session: no weights to convert or pack, since the
 /// table is read in place in its stored dtype and summed in F32 at every
 /// precision.
-fn static_session(m: &Model, quantize: bool, max_batch: u32, max_seq: u32, err: *mut turbo_error) -> Result<Work, i32> {
-    let t = m.table.get_or_init(|| std::sync::Arc::new(table::Table::new(&m.tensors))).clone();
-    let q = quantize.then(|| m.quantized.get_or_init(|| std::sync::Arc::new(table::Quantized::new(&t))).clone());
+/// `huge`: the model's first session makes copies of its tables in huge
+/// pages, which every later session reads.
+fn static_session(
+    m: &Model,
+    quantize: bool,
+    huge: bool,
+    max_batch: u32,
+    max_seq: u32,
+    err: *mut turbo_error,
+) -> Result<Work, i32> {
+    let t = m.table.get_or_init(|| std::sync::Arc::new(table::Table::new(&m.tensors, huge))).clone();
+    let q = quantize.then(|| m.quantized.get_or_init(|| std::sync::Arc::new(table::Quantized::new(&t, huge))).clone());
     table::Static::new(t, q, kernels::Isa::detect(), max_batch as usize, max_seq as usize)
         .map(Work::Static)
         .map_err(|bytes| unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's rows")) })
@@ -565,6 +578,17 @@ fn static_table(precision: u32, var: Option<&str>) -> Result<bool, String> {
         Some("stored") => Ok(false),
         Some("i8") => Ok(true),
         Some(v) => Err(format!("TURBO_CPU_STATIC_TABLE={v:?}: stored or i8")),
+    }
+}
+
+/// Whether a static model's tables are read from copies in huge pages:
+/// TURBO_CPU_STATIC_PAGES `huge` (docs/cpu.md); unset or `mapped`, the
+/// stored table is read where the bundle's file is mapped.
+fn static_pages(var: Option<&str>) -> Result<bool, String> {
+    match var.map(str::trim) {
+        None | Some("") | Some("mapped") => Ok(false),
+        Some("huge") => Ok(true),
+        Some(v) => Err(format!("TURBO_CPU_STATIC_PAGES={v:?}: mapped or huge")),
     }
 }
 
