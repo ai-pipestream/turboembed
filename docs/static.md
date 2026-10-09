@@ -98,8 +98,9 @@ processor, since the AVX2 sums fuse the multiply and the add.
 On the CPU each row is summed by one task in token order, so a batch
 gives the same bits on any number of threads (docs/cpu.md). The rows of
 a run are split over the session's threads once a batch holds a few
-thousand tokens. `turbo_embed_write_text` tokenizes a batch on up to
-one thread per processor, one thread for each 4 KiB of text.
+thousand tokens. `turbo_embed_write_text` tokenizes a batch of more
+than 1 KiB of text in tasks of about 1 KiB on the process's tokenizing
+threads, one per processor, which wait between batches.
 
 ## Beyond the reference
 

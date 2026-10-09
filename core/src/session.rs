@@ -690,10 +690,12 @@ fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u32) -> turb
     }
 }
 
-/// Bytes of text per thread below which write_text tokenizes on the
-/// caller's thread alone: starting a thread costs about as much as
-/// tokenizing a few hundred bytes.
-const BYTES_PER_THREAD: u64 = 4096;
+/// A run of texts' ids, or the first error among them.
+type Rows = Result<Vec<Vec<i32>>>;
+
+/// Bytes of text a tokenizing task takes at least: a batch of less is
+/// tokenized on the caller's thread alone.
+const BYTES_PER_TASK: u64 = 1024;
 
 /// The caller's text views, which the threads of tokenize_all read.
 #[derive(Clone, Copy)]
@@ -705,38 +707,72 @@ struct View(turbo_text);
 unsafe impl Send for View {}
 unsafe impl Sync for View {}
 
-/// `one` over every text, in order, on up to one thread per processor.
-/// The rows, or the error of the first text that fails, are the same as
-/// on one thread.
+/// `one` over every text, in order, as tasks of about BYTES_PER_TASK on
+/// the process's tokenizing threads, which wait between batches, or on
+/// threads of its own while another batch has them. The rows, or the
+/// error of the first text that fails, are the same as on one thread.
 fn tokenize_all(texts: &[View], one: &(dyn Fn(usize, turbo_text) -> Result<Vec<i32>> + Sync)) -> Result<Vec<Vec<i32>>> {
-    // available_parallelism reads the cgroup files on Linux: once.
-    static CPUS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     let bytes: u64 = texts.iter().map(|t| t.0.len).sum();
-    let threads = ((bytes / BYTES_PER_THREAD) as usize).min(texts.len());
-    let threads = if threads > 1 {
-        threads.min(*CPUS.get_or_init(|| std::thread::available_parallelism().map_or(1, |n| n.get())))
-    } else {
-        threads
-    };
-    if threads <= 1 {
+    let tasks = ((bytes / BYTES_PER_TASK) as usize).min(texts.len());
+    if tasks <= 1 {
         return texts.iter().enumerate().map(|(i, t)| one(i, t.0)).collect();
     }
-    let per = texts.len().div_ceil(threads);
-    let parts: Vec<Result<Vec<Vec<i32>>>> = std::thread::scope(|scope| {
-        let handles: Vec<_> = texts
-            .chunks(per)
-            .enumerate()
-            .map(|(c, chunk)| {
-                scope.spawn(move || chunk.iter().enumerate().map(|(j, t)| one(c * per + j, t.0)).collect())
-            })
-            .collect();
-        handles.into_iter().map(|h| h.join().unwrap_or_else(|p| std::panic::resume_unwind(p))).collect()
-    });
+    let per = texts.len().div_ceil(tasks);
+    let chunks: Vec<&[View]> = texts.chunks(per).collect();
+    let part = |c: usize| -> Result<Vec<Vec<i32>>> {
+        chunks[c].iter().enumerate().map(|(j, t)| one(c * per + j, t.0)).collect()
+    };
+    let parts: Vec<Result<Vec<Vec<i32>>>> = match tokenizing_pool() {
+        Some(mut pool) => {
+            let slots: Vec<std::sync::Mutex<Option<Rows>>> =
+                chunks.iter().map(|_| std::sync::Mutex::new(None)).collect();
+            pool.run(chunks.len(), &|c, _| {
+                *slots[c].lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(part(c));
+            });
+            slots
+                .into_iter()
+                .map(|s| s.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner).expect("every task ran"))
+                .collect()
+        }
+        None => std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..chunks.len()).map(|c| scope.spawn(move || part(c))).collect();
+            handles.into_iter().map(|h| h.join().unwrap_or_else(|p| std::panic::resume_unwind(p))).collect()
+        }),
+    };
     let mut rows = Vec::with_capacity(texts.len());
     for part in parts {
         rows.extend(part?);
     }
     Ok(rows)
+}
+
+/// The process's tokenizing threads, one per processor, made by the first
+/// batch that needs them; None while another batch has them, or in a
+/// build without the cpu backend, whose pool they are.
+#[cfg(feature = "cpu")]
+fn tokenizing_pool() -> Option<std::sync::MutexGuard<'static, crate::cpu::pool::Pool>> {
+    static POOL: std::sync::OnceLock<std::sync::Mutex<crate::cpu::pool::Pool>> = std::sync::OnceLock::new();
+    let pool = POOL.get_or_init(|| {
+        // available_parallelism reads the cgroup files on Linux: once.
+        let cpus = std::thread::available_parallelism().map_or(1, |n| n.get());
+        std::sync::Mutex::new(crate::cpu::pool::Pool::new(cpus))
+    });
+    pool.try_lock().ok()
+}
+
+#[cfg(not(feature = "cpu"))]
+fn tokenizing_pool() -> Option<NoPool> {
+    None
+}
+
+#[cfg(not(feature = "cpu"))]
+struct NoPool;
+
+#[cfg(not(feature = "cpu"))]
+impl NoPool {
+    fn run(&mut self, _: usize, _: &(dyn Fn(usize, usize) + Sync)) {
+        unreachable!("tokenizing_pool gives none")
+    }
 }
 
 /// # Safety

@@ -56,7 +56,7 @@ struct Shared {
     wake: Condvar,
 }
 
-pub(super) struct Pool {
+pub(crate) struct Pool {
     shared: Arc<Shared>,
     workers: Vec<JoinHandle<()>>,
     /// The number of the last job published.
@@ -80,7 +80,7 @@ impl Pool {
     /// A pool of `threads` threads, the caller's among them, so
     /// `threads - 1` are spawned. Fewer are when the system will not
     /// start more; the pool computes the same with any number.
-    pub(super) fn new(threads: usize) -> Pool {
+    pub(crate) fn new(threads: usize) -> Pool {
         let shared = Arc::new(Shared {
             claim: AtomicU64::new(0),
             job: AtomicPtr::new(std::ptr::null_mut()),
@@ -104,13 +104,13 @@ impl Pool {
     }
 
     /// The threads a job runs on, the caller's included.
-    pub(super) fn threads(&self) -> usize {
+    pub(crate) fn threads(&self) -> usize {
         self.workers.len() + 1
     }
 
     /// f(task, thread) for every task in 0..tasks, spread over the pool's
     /// threads; returns when all are done. `thread` is under threads().
-    pub(super) fn run(&mut self, tasks: usize, f: &Task<'_>) {
+    pub(crate) fn run(&mut self, tasks: usize, f: &Task<'_>) {
         // A task that panics on this thread must not unwind out of here
         // while workers may still call f, which borrows this frame.
         let _abort = AbortOnUnwind;

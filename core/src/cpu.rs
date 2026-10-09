@@ -5,7 +5,7 @@
 
 mod encoder;
 mod kernels;
-mod pool;
+pub(crate) mod pool;
 mod table;
 
 use std::alloc::Layout;
