@@ -623,21 +623,16 @@ fn pairwise_squares(x: &[f32]) -> f32 {
         }
         res
     } else if n <= 128 {
-        let mut r = [0f32; 8];
-        for (k, v) in r.iter_mut().enumerate() {
-            *v = x[k] * x[k];
-        }
-        let mut i = 8;
-        while i < n - n % 8 {
-            for (k, v) in r.iter_mut().enumerate() {
-                *v += x[i + k] * x[i + k];
+        let (chunks, rest) = x.as_chunks::<8>();
+        let mut r = chunks[0].map(|v| v * v);
+        for c in &chunks[1..] {
+            for k in 0..8 {
+                r[k] += c[k] * c[k];
             }
-            i += 8;
         }
         let mut res = ((r[0] + r[1]) + (r[2] + r[3])) + ((r[4] + r[5]) + (r[6] + r[7]));
-        while i < n {
-            res += x[i] * x[i];
-            i += 1;
+        for &v in rest {
+            res += v * v;
         }
         res
     } else {
@@ -766,6 +761,53 @@ fn f16_to_f32(h: u16) -> f32 {
 #[cfg(all(test, target_arch = "x86_64"))]
 mod tests {
     use super::*;
+
+    /// numpy's pairwise sum of squares as its loops read, one running sum
+    /// at a time.
+    fn numpy_squares(x: &[f32]) -> f32 {
+        let n = x.len();
+        if n < 8 {
+            x.iter().fold(0f32, |res, &v| res + v * v)
+        } else if n <= 128 {
+            let mut r = [0f32; 8];
+            for k in 0..8 {
+                r[k] = x[k] * x[k];
+            }
+            let mut i = 8;
+            while i < n - n % 8 {
+                for k in 0..8 {
+                    r[k] += x[i + k] * x[i + k];
+                }
+                i += 8;
+            }
+            let mut res = ((r[0] + r[1]) + (r[2] + r[3])) + ((r[4] + r[5]) + (r[6] + r[7]));
+            for &v in &x[i..] {
+                res += v * v;
+            }
+            res
+        } else {
+            let n2 = n / 2 - n / 2 % 8;
+            numpy_squares(&x[..n2]) + numpy_squares(&x[n2..])
+        }
+    }
+
+    /// The norm's sum of squares is numpy's, bit for bit, at every length
+    /// up to well past a split.
+    #[test]
+    fn the_sum_of_squares_is_numpy_s() {
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let x: Vec<f32> = (0..700)
+            .map(|_| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                (seed >> 40) as f32 / (1u64 << 23) as f32 - 1.0
+            })
+            .collect();
+        for n in 0..x.len() {
+            assert_eq!(pairwise_squares(&x[..n]).to_bits(), numpy_squares(&x[..n]).to_bits(), "{n} values");
+        }
+    }
 
     /// F16C's rounding to F16 against the portable one, bit for bit, over
     /// values of every exponent F16 has and beyond.
