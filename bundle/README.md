@@ -85,10 +85,9 @@ Zipf's law, Model2Vec writes the reference in the pinned container
 is sealed with the quality it measured against the base model.
 `distill-stage` and `distill-seal` run the first and last steps alone.
 `recipes/all-minilm-l6-v2-static.json` and
-`recipes/bge-base-en-v1.5-static.json` are the two recipes; their
-reference container pin is empty until an image with Model2Vec in it is
-built and pinned. An image built before `static_reference.py` was added
-to it cannot; build it again and pin the new id.
+`recipes/bge-base-en-v1.5-static.json` are the two recipes. An image
+built before `static_reference.py` and Model2Vec were added to it
+cannot run the reference; build it again and pin the new id.
 
 `turbo-bundle seal <recipe.json> <upstream-dir> <bundle-dir>` does
 steps 2 and 5 without starting a container. The reference file and a
