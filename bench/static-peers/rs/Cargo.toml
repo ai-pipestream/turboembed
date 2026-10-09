@@ -1,0 +1,20 @@
+[package]
+name = "static-peers"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+statembed = { version = "=1.0.0", default-features = true }
+model2vec-rs = { git = "https://github.com/MinishLab/model2vec-rs", rev = "1567eaa" }
+serde_json = "1"
+
+[features]
+rayon = ["statembed/rayon"]
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+
+# Not a member of the turbo workspace.
+[workspace]
