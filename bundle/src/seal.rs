@@ -275,6 +275,9 @@ pub fn named_paths(manifest: &Value) -> Result<BTreeSet<String>> {
     if let Some(l) = manifest["model"].get("license_file") {
         add(l, "model.license_file")?;
     }
+    if let Some(t) = manifest.pointer("/static_embedding/quality/texts") {
+        add(t, "static_embedding.quality.texts")?;
+    }
     for (i, a) in manifest["artifacts"].as_array().ok_or("manifest.artifacts: missing")?.iter().enumerate() {
         for f in a["files"].as_array().ok_or(format!("manifest.artifacts[{i}].files: missing"))? {
             add(f, &format!("artifacts[{i}].files"))?;
@@ -302,6 +305,12 @@ pub fn seal(recipe: &Recipe, bundle: &Path, produced_by: Value, converted: Vec<(
         let a = artifacts.iter_mut().find(|a| a["name"] == name.as_str()).ok_or(format!("no artifact {name}"))?;
         a["produced_by"] = pb;
     }
+    seal_manifest(m, bundle)
+}
+
+/// Fill `files` of manifest `m` for the files now in `bundle`, write it,
+/// then verify the bundle.
+pub fn seal_manifest(mut m: Value, bundle: &Path) -> Result<()> {
     let mut files = Vec::new();
     for p in named_paths(&m)? {
         let bytes = fs::read(bundle.join(&p)).map_err(|e| format!("{p}: {e}"))?;

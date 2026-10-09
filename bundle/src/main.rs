@@ -4,7 +4,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use turbo_bundle::recipe::Recipe;
-use turbo_bundle::{Result, convert, fetch, reference, seal};
+use turbo_bundle::{Result, convert, distill, fetch, reference, seal};
 
 const USAGE: &str = "\
 usage:
@@ -21,7 +21,15 @@ usage:
       and so must an OpenVINO IR the recipe converts (docs/npu.md).
       A conversion whose files are absent is left out of the manifest
   turbo-bundle verify <bundle-dir>
-      load a bundle the way a machine does and check every file";
+      load a bundle the way a machine does and check every file
+  turbo-bundle distill <recipe.json> <base-bundle-dir> <bundle-dir>
+      distil a static model from the base bundle, run the reference
+      container on it, then seal and verify (docs/static.md)
+  turbo-bundle distill-stage <recipe.json> <base-bundle-dir> <bundle-dir>
+      distil and write the bundle's files, without docker
+  turbo-bundle distill-seal <recipe.json> <bundle-dir>
+      seal a staged static bundle whose reference file and report are
+      already there, then verify";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -51,6 +59,16 @@ fn run(args: &[&str]) -> Result<()> {
             seal::seal_staged(&mut r, Path::new(upstream), Path::new(bundle))
         }
         ["verify", bundle] => seal::verify(Path::new(bundle)),
+        ["distill", recipe, base, bundle] => {
+            let mut r = Recipe::load(Path::new(recipe))?;
+            distill::stage(&r, Path::new(base), Path::new(bundle))?;
+            distill::reference(&r, Path::new(bundle))?;
+            distill::seal(&mut r, Path::new(bundle))
+        }
+        ["distill-stage", recipe, base, bundle] => {
+            distill::stage(&Recipe::load(Path::new(recipe))?, Path::new(base), Path::new(bundle))
+        }
+        ["distill-seal", recipe, bundle] => distill::seal(&mut Recipe::load(Path::new(recipe))?, Path::new(bundle)),
         _ => Err(USAGE.into()),
     }
 }

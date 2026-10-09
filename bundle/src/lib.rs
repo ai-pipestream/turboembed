@@ -8,7 +8,9 @@
 //! and each `produced_by` from what actually ran, writes the manifest, and
 //! loads the result through the core. Nothing it writes is typed by hand.
 
+pub mod api;
 pub mod convert;
+pub mod distill;
 pub mod fetch;
 pub mod recipe;
 pub mod reference;

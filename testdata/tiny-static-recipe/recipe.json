@@ -1,0 +1,145 @@
+{
+  "manifest": {
+    "bundle_version": 1,
+    "model": {
+      "id": "turbo-testdata/tiny-bert-static-16",
+      "revision": "1",
+      "source": {
+        "repository": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2",
+        "commit": "c9745ed1d9f207416be6d2e6f8de32d1f16199bf"
+      },
+      "license": "Apache-2.0"
+    },
+    "task": "TASK_EMBED",
+    "embed": {
+      "dim": 16,
+      "pooling": "POOLING_MEAN",
+      "normalize": "NORMALIZE_L2",
+      "max_seq": 128,
+      "max_batch": 256
+    },
+    "tokenizer": {
+      "file": "tokenizer.json",
+      "normalizer": {
+        "clean_text": true,
+        "lowercase": true,
+        "strip_accents": true,
+        "split_cjk": true,
+        "unicode_form": "UNICODE_NONE"
+      },
+      "wordpiece": {
+        "continuing_prefix": "##",
+        "max_chars_per_word": 100
+      },
+      "special_tokens": [
+        {
+          "role": "SPECIAL_PAD",
+          "content": "[PAD]",
+          "id": 0
+        },
+        {
+          "role": "SPECIAL_UNK",
+          "content": "[UNK]",
+          "id": 100
+        },
+        {
+          "role": "SPECIAL_BOS",
+          "content": "[CLS]",
+          "id": 101
+        },
+        {
+          "role": "SPECIAL_EOS",
+          "content": "[SEP]",
+          "id": 102
+        },
+        {
+          "role": "SPECIAL_MASK",
+          "content": "[MASK]",
+          "id": 103
+        }
+      ],
+      "template": [
+        "$TEXT"
+      ],
+      "truncation": "TRUNCATE_RIGHT"
+    },
+    "static_embedding": {
+      "vocab_size": 30522,
+      "quality": {
+        "texts": "quality/texts.jsonl"
+      }
+    },
+    "artifacts": [
+      {
+        "name": "table-f16",
+        "format": "FORMAT_SAFETENSORS",
+        "files": [
+          "weights/static.safetensors"
+        ],
+        "backends": [
+          "cpu"
+        ],
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "tensor_names": {
+          "static_embeddings": "embeddings",
+          "static_weights": "weights"
+        }
+      }
+    ],
+    "reference": {
+      "file": "reference/reference.safetensors",
+      "cases": [
+        {
+          "text": "The quick brown fox jumps over the lazy dog.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Café naïve RÉSUMÉ",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "东京是日本的首都。",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "emoji 🙂 and tabs\tand\nnewlines",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "how do I reset a password",
+          "prompt_role": "PROMPT_QUERY"
+        },
+        {
+          "text": "To reset a password, open Settings and choose Security.",
+          "prompt_role": "PROMPT_DOCUMENT"
+        },
+        {
+          "text": "A bundle is a directory that carries one model, so that the same program gives the same answer on every machine. The manifest names every file with its size and hash, says exactly how to tokenize for the model, what it computes, and which artifact each backend runs. It also carries a small reference: token ids and vectors produced by the upstream pipeline in full precision on a CPU. Every machine that loads the bundle encodes the reference texts again and compares the ids exactly, so a tokenizer that drifts is caught before a single vector is computed.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware.",
+          "prompt_role": "PROMPT_NONE"
+        }
+      ],
+      "produced_by": {
+        "container": "turbo-reference@sha256:"
+      }
+    }
+  },
+  "upstream": [],
+  "local": [
+    {
+      "path": "static-quality.jsonl",
+      "to": "quality/texts.jsonl",
+      "sha256": "9762f55deed8c6e0f7e7bffb2d2bca5a914fb858a1387722d3f3ac43ddde7481"
+    }
+  ],
+  "distill": {
+    "pca_dims": 16,
+    "sif_coefficient": 0.0001,
+    "skip": "\\[unused\\d+\\]",
+    "dtype": "F16"
+  }
+}

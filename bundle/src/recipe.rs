@@ -19,6 +19,10 @@ pub struct Recipe {
     /// compiled artifact's calibration texts, say.
     #[serde(default)]
     pub local: Vec<Local>,
+    /// For a static model: how it is distilled from a base bundle
+    /// (distill.rs).
+    #[serde(default)]
+    pub distill: Option<crate::distill::Spec>,
     /// The directory the recipe was read from, which `local` paths are
     /// relative to.
     #[serde(skip)]

@@ -14,3 +14,7 @@ turbo = { path = "../core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ureq = "3"
+# F16 tables for a distilled static model (distill.rs).
+half = "2"
+# The pattern a static recipe leaves vocabulary entries out by.
+regex = "1"

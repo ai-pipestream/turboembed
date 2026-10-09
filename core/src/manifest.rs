@@ -26,6 +26,8 @@ pub struct Manifest {
     pub tokenizer: Tokenizer,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub architecture: Option<Architecture>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub static_embedding: Option<StaticEmbedding>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,
@@ -199,6 +201,42 @@ pub struct Architecture {
     pub vocab_size: u32,
 }
 
+/// A static model: one vector per vocabulary entry, distilled from a
+/// transformer, and no encoder. A row's vector is the weighted mean of its
+/// tokens' rows (turbo_backend.h, TURBO_FAMILY_STATIC). Its vectors live in
+/// a space of their own, not the base model's.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StaticEmbedding {
+    pub vocab_size: u32,
+    pub distilled_from: DistilledFrom,
+    pub quality: Quality,
+}
+
+/// The bundle the static model was distilled from, as its manifest names
+/// it.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DistilledFrom {
+    pub model_id: String,
+    pub revision: String,
+    pub manifest_sha256: String,
+}
+
+/// What the distillation cost, measured on the texts the bundle carries:
+/// each text's nearest other text by cosine shares its group in
+/// `base_top1` of them with the base model and `static_top1` with the
+/// static one, and `similarity_spearman` is the rank correlation of the two
+/// models' cosines over every pair of texts.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Quality {
+    pub texts: String,
+    pub base_top1: f64,
+    pub static_top1: f64,
+    pub similarity_spearman: f64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Family {
     #[serde(rename = "FAMILY_BERT")]
@@ -364,6 +402,10 @@ pub enum TensorRole {
     FfnOutBias,
     FfnLnWeight,
     FfnLnBias,
+    /// A static model's table, `[vocab_size, dim]`.
+    StaticEmbeddings,
+    /// A static model's weight per token, `[vocab_size]`.
+    StaticWeights,
 }
 
 impl TensorRole {
@@ -376,7 +418,14 @@ impl TensorRole {
                 | TensorRole::TokenTypeEmbeddings
                 | TensorRole::EmbeddingsLnWeight
                 | TensorRole::EmbeddingsLnBias
+                | TensorRole::StaticEmbeddings
+                | TensorRole::StaticWeights
         )
+    }
+
+    /// Roles a static model's weights have, and an encoder's do not.
+    pub fn is_static(self) -> bool {
+        matches!(self, TensorRole::StaticEmbeddings | TensorRole::StaticWeights)
     }
 }
 
@@ -483,7 +532,7 @@ impl Manifest {
             if !listed.insert(f.path.as_str()) {
                 return Err(invalid(format!("manifest.json: {field}: {:?} is listed twice", f.path)));
             }
-            if f.sha256.len() != 64 || !f.sha256.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+            if !is_hex64(&f.sha256) {
                 return Err(invalid(format!("manifest.json: files[{i}].sha256: not 64 lowercase hex digits")));
             }
         }
@@ -658,6 +707,45 @@ impl Manifest {
             }
         }
 
+        // static_embedding
+        if let Some(st) = &self.static_embedding {
+            if self.architecture.is_some() {
+                return Err(invalid(
+                    "manifest.json: static_embedding: a static model has no architecture; the bundle names one of them",
+                ));
+            }
+            positive("static_embedding.vocab_size", st.vocab_size)?;
+            let d = &st.distilled_from;
+            required("static_embedding.distilled_from.model_id", &d.model_id)?;
+            required("static_embedding.distilled_from.revision", &d.revision)?;
+            if !is_hex64(&d.manifest_sha256) {
+                return Err(invalid(
+                    "manifest.json: static_embedding.distilled_from.manifest_sha256: not 64 lowercase hex digits",
+                ));
+            }
+            let q = &st.quality;
+            listed_path("static_embedding.quality.texts", &q.texts)?;
+            for (field, v, lo) in [
+                ("base_top1", q.base_top1, 0.0),
+                ("static_top1", q.static_top1, 0.0),
+                ("similarity_spearman", q.similarity_spearman, -1.0),
+            ] {
+                if !(lo..=1.0).contains(&v) {
+                    return Err(invalid(format!(
+                        "manifest.json: static_embedding.quality.{field}: {v} is not in {lo}..=1"
+                    )));
+                }
+            }
+            for s in &t.special_tokens {
+                if s.id >= st.vocab_size {
+                    return Err(invalid(format!(
+                        "manifest.json: tokenizer.special_tokens: id {} of {:?} is not under static_embedding.vocab_size {}",
+                        s.id, s.content, st.vocab_size
+                    )));
+                }
+            }
+        }
+
         // artifacts
         if self.artifacts.is_empty() {
             return Err(invalid("manifest.json: artifacts: empty"));
@@ -743,11 +831,17 @@ impl Manifest {
                     at("host_weights")
                 )));
             }
+            if self.static_embedding.is_some() && a.format != Format::Safetensors {
+                return Err(invalid(format!(
+                    "manifest.json: {}: a static model's artifacts are raw weights, FORMAT_SAFETENSORS",
+                    at("format")
+                )));
+            }
             if a.format == Format::Safetensors {
                 if a.tensor_names.is_empty() {
                     return Err(invalid(format!("manifest.json: {}: required for raw weights", at("tensor_names"))));
                 }
-                if self.architecture.is_none() {
+                if self.architecture.is_none() && self.static_embedding.is_none() {
                     return Err(invalid(format!(
                         "manifest.json: architecture: required by raw weights in {}",
                         at("name")
@@ -777,6 +871,10 @@ impl Manifest {
             for (role, name) in &a.tensor_names {
                 let field = at(&format!("tensor_names.{}", role_name(*role)));
                 required(&field, name)?;
+                if role.is_static() != self.static_embedding.is_some() {
+                    let whose = if role.is_static() { "a static model's" } else { "an encoder's" };
+                    return Err(invalid(format!("manifest.json: {field}: {whose} role, and the bundle is not one")));
+                }
                 if role.per_layer() != name.contains("{layer}") {
                     let want = if role.per_layer() { "must" } else { "must not" };
                     return Err(invalid(format!("manifest.json: {field}: {want} contain {{layer}}")));
@@ -888,6 +986,10 @@ fn check_path(field: &str, p: &str) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn is_hex64(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 fn required(field: &str, v: &str) -> Result<()> {

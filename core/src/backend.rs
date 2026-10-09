@@ -17,6 +17,11 @@ pub const TURBO_BERT_LAYER_TENSORS: u32 = 16;
 
 pub const TURBO_FAMILY_BERT: u32 = 1;
 pub const TURBO_FAMILY_ROBERTA: u32 = 2;
+pub const TURBO_FAMILY_STATIC: u32 = 3;
+
+pub const TURBO_STATIC_EMBEDDINGS: u32 = 0;
+pub const TURBO_STATIC_WEIGHTS: u32 = 1;
+pub const TURBO_STATIC_TENSORS: u32 = 2;
 
 pub const TURBO_FORMAT_SAFETENSORS: u32 = 1;
 pub const TURBO_FORMAT_OPENVINO_IR: u32 = 2;

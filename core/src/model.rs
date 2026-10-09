@@ -8,8 +8,8 @@ use std::ffi::{CString, c_void};
 use serde::Serialize;
 
 use crate::backend::{
-    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA, format_bit,
-    turbo_backend_model, turbo_backend_tensor,
+    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA,
+    TURBO_FAMILY_STATIC, TURBO_STATIC_TENSORS, format_bit, turbo_backend_model, turbo_backend_tensor,
 };
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
@@ -76,6 +76,7 @@ fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
         FfnOutWeight => vec![h, i],
         EmbeddingsLnWeight | EmbeddingsLnBias | QBias | KBias | VBias | AttnOutBias | AttnLnWeight | AttnLnBias
         | FfnOutBias | FfnLnWeight | FfnLnBias => vec![h],
+        StaticEmbeddings | StaticWeights => unreachable!("an encoder's tensor_names has no static role (validate)"),
     }
 }
 
@@ -154,6 +155,31 @@ fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Re
     Ok(out)
 }
 
+/// A static model's tensors, in TURBO_STATIC_* order: its table
+/// `[vocab_size, dim]` and its weight per token `[vocab_size]`.
+pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
+    [TensorRole::StaticEmbeddings, TensorRole::StaticWeights];
+
+/// Every tensor a static model needs, in TURBO_STATIC_* order.
+pub fn static_tensors(index: usize, art: &Artifact, vocab_size: u32, dim: u32) -> Result<Vec<Expected>> {
+    STATIC_ROLES
+        .iter()
+        .map(|&role| {
+            let name = art.tensor_names.get(&role).ok_or_else(|| {
+                invalid(format!(
+                    "manifest.json: artifacts[{index}].tensor_names: no {}, which a static model needs",
+                    role_name(role)
+                ))
+            })?;
+            let shape = match role {
+                TensorRole::StaticEmbeddings => vec![vocab_size as u64, dim as u64],
+                _ => vec![vocab_size as u64],
+            };
+            Ok(Expected { name: name.clone(), shape, what: role_name(role) })
+        })
+        .collect()
+}
+
 /// The family model_load is told. Every combination the manifest can name
 /// is listed, so a new family, activation or position embedding does not
 /// compile until it has a place here.
@@ -207,6 +233,25 @@ impl Weights {
     pub fn load(bundle: &Bundle, index: usize) -> Result<Weights> {
         let m = &bundle.manifest;
         let art = &m.artifacts[index];
+        // A static model's artifacts are raw weights alone (validate()).
+        if let Some(st) = &m.static_embedding {
+            let dim = m.embed().dim;
+            let expected = static_tensors(index, art, st.vocab_size, dim)?;
+            let files = art.files.iter().map(|f| bundle.read_verified_aligned(f)).collect::<Result<Vec<_>>>()?;
+            let (tensors, dtype) = place(art, &files, &expected)?;
+            return Ok(Weights {
+                files,
+                tensors,
+                dtype,
+                family: TURBO_FAMILY_STATIC,
+                arch: [0, dim, 0, 0, st.vocab_size, 0, 1],
+                position_offset: 0,
+                layer_norm_eps: 0.0,
+                artifact: None,
+                artifact2: None,
+                shape: [art.format.value(), art.graph_input.value(), art.graph_output.value(), 0, 0, 0],
+            });
+        }
         let a = m.architecture.as_ref().expect("validate() requires architecture for raw weights and HEFs");
         let host = (!art.host_weights.is_empty())
             .then(|| m.artifacts.iter().position(|h| h.name == art.host_weights).expect("validate() checks the name"));
@@ -333,6 +378,11 @@ impl Weights {
         }
     }
 
+    /// Whether the model is a static one (TURBO_FAMILY_STATIC).
+    pub fn is_static(&self) -> bool {
+        self.family == TURBO_FAMILY_STATIC
+    }
+
     /// Ids a row may hold: the rows of the word embedding table.
     pub fn vocab_size(&self) -> u32 {
         self.arch[4]
@@ -423,7 +473,7 @@ fn place(art: &Artifact, files: &[AlignedBytes], expected: &[Expected]) -> Resul
             shape: t.shape.clone(),
         });
     }
-    Ok((tensors, dtype.expect("a BERT encoder has tensors")))
+    Ok((tensors, dtype.expect("a model has tensors")))
 }
 
 fn dtype_name(d: u32) -> &'static str {

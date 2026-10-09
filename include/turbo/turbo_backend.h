@@ -88,9 +88,21 @@ extern "C" {
 #define TURBO_BERT_FFN_LN_BIAS    15
 #define TURBO_BERT_LAYER_TENSORS  16
 
-/* The encoder families a model may be. */
+/* Where each tensor of a static model sits in turbo_backend_model.tensors.
+ * A row's vector is computed from its tokens alone, with no encoder: each
+ * live token's row of the embedding table times the token's weight, the
+ * mean of those products over the live tokens whose weight is not 0 (the
+ * zero vector when none is), then the row's output_dim cut and
+ * normalize. hidden is the table's width; layers, heads, intermediate and
+ * max_positions are 0, token_types is 1. */
+#define TURBO_STATIC_EMBEDDINGS    0   /* [vocab_size, hidden] */
+#define TURBO_STATIC_WEIGHTS       1   /* [vocab_size]: 0 leaves the token out of the mean */
+#define TURBO_STATIC_TENSORS       2
+
+/* The model families a model may be. */
 #define TURBO_FAMILY_BERT    1   /* GELU (erf), absolute positions, post-LayerNorm */
 #define TURBO_FAMILY_ROBERTA 2   /* as BERT, the positions counted from position_offset */
+#define TURBO_FAMILY_STATIC  3   /* one vector per vocabulary entry, no encoder: TURBO_STATIC_* */
 
 /* An artifact's format, as docs/bundle.md's artifacts[].format names it.
  * turbo_backend.formats has bit TURBO_FORMAT_BIT(f) set for each format f
@@ -167,10 +179,13 @@ typedef struct turbo_backend_tensor {
 
 /* The artifact rule 6 of docs/bundle.md chose, as model_load receives it.
  * layers through layer_norm_eps are the manifest's architecture, whatever
- * the format.
+ * the format; for a static model, its static_embedding block, as
+ * TURBO_STATIC_* says.
  *
  *   FORMAT_SAFETENSORS  graph_input TOKEN_IDS; tensors holds every tensor
- *                       of the encoder; artifact NULL, artifact_bytes 0.
+ *                       of the family, in its TURBO_BERT_* or
+ *                       TURBO_STATIC_* order; artifact NULL,
+ *                       artifact_bytes 0.
  *   FORMAT_HEF          artifact is the one file's bytes, as hashed. With
  *                       graph_input EMBEDDINGS, tensors holds the
  *                       host_weights artifact's embedding tensors,
@@ -228,7 +243,9 @@ typedef struct turbo_backend_model {
 /* Rows for an embed run, as the core hands them to embed_write, [batch,
  * seq] int32 with row_stride elements between row starts. The core has
  * checked every value: each id is below vocab_size, each type below
- * token_types, each mask entry 0 or 1 with at least one 1 per row, batch
+ * token_types, each mask entry 0 or 1 with at least one 1 per row (on a
+ * TURBO_FAMILY_STATIC model a row written as text may have none: its text
+ * gave no tokens, and its vector is the zero vector), batch
  * and seq within the session's, and the options resolved from
  * turbo_embed_options against the bundle, so none of them is a MODEL
  * value. A backend on a TURBO_INPUT_EMBEDDINGS artifact refuses rows with

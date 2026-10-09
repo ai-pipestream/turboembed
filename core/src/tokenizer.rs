@@ -146,13 +146,15 @@ impl Tokenizer {
             (None, None) => unreachable!("validated"),
         };
         let vocab_size = kind.vocab_size();
-        if let Some(a) = &m.architecture
-            && vocab_size as u64 > a.vocab_size as u64
+        let table = m
+            .architecture
+            .as_ref()
+            .map(|a| ("architecture", a.vocab_size))
+            .or(m.static_embedding.as_ref().map(|st| ("static_embedding", st.vocab_size)));
+        if let Some((block, rows)) = table
+            && vocab_size as u64 > rows as u64
         {
-            return Err(invalid(format!(
-                "{file}: {vocab_size} vocabulary entries, architecture.vocab_size is {}",
-                a.vocab_size
-            )));
+            return Err(invalid(format!("{file}: {vocab_size} vocabulary entries, {block}.vocab_size is {rows}")));
         }
 
         // Every special token is in the vocabulary under its id, and the

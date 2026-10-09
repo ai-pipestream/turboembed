@@ -739,6 +739,12 @@ pub unsafe extern "C" fn turbo_embed_write_text(
                     err.message = format!("texts[{i}]: {}", err.message);
                     err
                 })?;
+                // A static model's template may have no special tokens, so
+                // a text can give none: its vector is the zero vector. An
+                // encoder has no output for a row of no tokens.
+                if row.is_empty() && !s.model.weights.is_static() {
+                    return Err(Error::new(INVALID_ARGUMENT, format!("texts[{i}]: gives no tokens")));
+                }
                 if row.len() > s.info.max_seq as usize {
                     return Err(Error::new(
                         CAPACITY,
@@ -747,7 +753,9 @@ pub unsafe extern "C" fn turbo_embed_write_text(
                 }
                 rows.push(row);
             }
-            let seq = rows.iter().map(Vec::len).max().unwrap_or(0);
+            // At least one column, padding under mask 0, when every text
+            // gave no tokens.
+            let seq = rows.iter().map(Vec::len).max().unwrap_or(0).max(1);
             let pad = tok.fill_id();
             let state = &mut *state;
             for (i, row) in rows.iter().enumerate() {
