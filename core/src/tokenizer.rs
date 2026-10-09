@@ -109,6 +109,8 @@ pub struct Tokenizer {
     /// The bytes a special token starts with, so text_ids looks for a
     /// match only where one can begin.
     special_starts: [bool; 256],
+    /// The same for the normalized special tokens, in normalized text.
+    normalized_starts: [bool; 256],
     /// The row layout: Some(id) for a special token, None for the text.
     template: Vec<Option<i32>>,
     truncation: Truncation,
@@ -319,6 +321,12 @@ impl Tokenizer {
                 special_starts[b as usize] = true;
             }
         }
+        let mut normalized_starts = [false; 256];
+        for s in &normalized_specials {
+            if let Some(&b) = s.content.as_bytes().first() {
+                normalized_starts[b as usize] = true;
+            }
+        }
         let stat = m.static_embedding.as_ref().map(|_| StaticRules { median_chars: kind.median_chars() });
         let e = m.embed();
         Ok(Tokenizer {
@@ -326,6 +334,7 @@ impl Tokenizer {
             specials,
             normalized_specials,
             special_starts,
+            normalized_starts,
             template: t.template.iter().map(|s| if s == "$TEXT" { None } else { id_of(s) }).collect(),
             truncation: t.truncation,
             max_seq: m.static_embedding.as_ref().map_or(e.max_seq, |st| st.max_length),
@@ -560,6 +569,12 @@ impl Tokenizer {
                 // be is passed over, its text left to the words around it.
                 let mut from = 0;
                 while !self.normalized_specials.is_empty() && from < rest.len() {
+                    // On to a byte a special token starts with: the first
+                    // byte of a character, never one inside it.
+                    match rest.as_bytes()[from..].iter().position(|&b| self.normalized_starts[b as usize]) {
+                        Some(k) => from += k,
+                        None => break,
+                    }
                     let at = &rest[from..];
                     let hit = self.normalized_specials.iter().find(|s| at.starts_with(s.content.as_str()));
                     let Some(s) = hit else {
