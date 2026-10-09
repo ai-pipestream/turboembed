@@ -5,7 +5,8 @@
 # (onnx_f16.py), writes a PyTorch checkpoint as safetensors
 # (bin_to_safetensors.py), and converts the export to a static-shape
 # OpenVINO IR for the npu backend (onnx_to_openvino_ir.py), and gives a
-# static bundle its reference from Model2Vec (static_reference.py), each
+# static bundle its reference from Model2Vec (static_reference.py) and a
+# Model2Vec model its golden vectors (static_golden.py), each
 # run with --entrypoint python.
 #
 #   docker build -t turbo-reference bundle/reference
@@ -15,6 +16,6 @@
 FROM python:3.12-slim
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r /requirements.txt
-COPY reference.py onnx_f16.py bin_to_safetensors.py onnx_to_openvino_ir.py static_reference.py /
+COPY reference.py onnx_f16.py bin_to_safetensors.py onnx_to_openvino_ir.py static_reference.py static_golden.py /
 ENV HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HOME=/tmp
 ENTRYPOINT ["python", "/reference.py"]
