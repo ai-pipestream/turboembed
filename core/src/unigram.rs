@@ -7,8 +7,6 @@
 //! A character no piece covers is the unknown token, and a run of them
 //! is one unknown token, as upstream fuses them.
 
-use std::collections::HashMap;
-
 use serde_json::Value;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -20,11 +18,12 @@ use crate::status::{Result, invalid};
 const UNK_PENALTY: f64 = 10.0;
 
 pub struct Unigram {
-    ids: HashMap<String, u32>,
+    /// Each piece, by id.
+    pieces: Vec<Box<str>>,
+    /// Every piece, for the lattice's walk from each position.
+    trie: Trie,
     /// Each piece's log probability, by id.
     scores: Vec<f64>,
-    /// The longest piece, in characters: no lookup goes past it.
-    max_piece_chars: usize,
     unk_score: f64,
     unk_id: u32,
     charsmap: Option<Charsmap>,
@@ -53,9 +52,8 @@ impl Unigram {
             return Err(invalid(format!("{file}: model.byte_fallback: the core has no byte fallback")));
         }
         let raw = model["vocab"].as_array().ok_or_else(|| invalid(format!("{file}: model.vocab is not an array")))?;
-        let mut ids = HashMap::with_capacity(raw.len());
+        let mut pieces = Vec::with_capacity(raw.len());
         let mut scores = Vec::with_capacity(raw.len());
-        let mut max_piece_chars = 0;
         for (id, entry) in raw.iter().enumerate() {
             let (piece, score) = match entry.as_array().map(Vec::as_slice) {
                 Some([p, s]) => (p.as_str(), s.as_f64()),
@@ -67,11 +65,8 @@ impl Unigram {
             if piece.is_empty() {
                 return Err(invalid(format!("{file}: model.vocab[{id}] is an empty piece")));
             }
-            if ids.insert(piece.to_owned(), id as u32).is_some() {
-                return Err(invalid(format!("{file}: model.vocab: piece {piece:?} is listed twice")));
-            }
+            pieces.push(Box::<str>::from(piece));
             scores.push(score);
-            max_piece_chars = max_piece_chars.max(piece.chars().count());
         }
         if (unk_id as usize) >= scores.len() {
             return Err(invalid(format!("{file}: model.unk_id {unk_id} is not under {} pieces", scores.len())));
@@ -182,10 +177,12 @@ impl Unigram {
             return Err(disagree("pre_tokenizer.split"));
         }
 
+        let trie =
+            Trie::new(&pieces).map_err(|p| invalid(format!("{file}: model.vocab: piece {p:?} is listed twice")))?;
         Ok(Unigram {
-            ids,
+            pieces,
+            trie,
             scores,
-            max_piece_chars,
             unk_score: min_score - UNK_PENALTY,
             unk_id,
             charsmap,
@@ -205,12 +202,12 @@ impl Unigram {
 
     /// Every piece of the vocabulary.
     pub fn pieces(&self) -> impl Iterator<Item = &str> {
-        self.ids.keys().map(String::as_str)
+        self.pieces.iter().map(|p| &**p)
     }
 
     /// The id of `piece`, if it is one.
     pub fn id(&self, piece: &str) -> Option<u32> {
-        self.ids.get(piece).copied()
+        self.trie.get(piece.as_bytes())
     }
 
     /// The ids of one piece of text between special tokens.
@@ -330,18 +327,14 @@ impl Unigram {
                     *b = Best { score, start, id, set: true };
                 }
             };
-            for (chars, (end, c)) in word[start..].char_indices().enumerate() {
-                if chars >= self.max_piece_chars {
-                    break;
+            // Every piece the word continues with here, shortest first:
+            // one walk down the trie, which ends where no piece goes on.
+            self.trie.prefixes(&word.as_bytes()[start..], |len, id| {
+                update(start + len, base + self.scores[id as usize], id);
+                if len == mblen {
+                    has_single = true;
                 }
-                let end = start + end + c.len_utf8();
-                if let Some(&id) = self.ids.get(&word[start..end]) {
-                    update(end, base + self.scores[id as usize], id);
-                    if end - start == mblen {
-                        has_single = true;
-                    }
-                }
-            }
+            });
             if !has_single {
                 update(start + mblen, base + self.unk_score, self.unk_id);
             }
@@ -367,6 +360,103 @@ impl Unigram {
     }
 }
 
+/// The pieces as a trie over their bytes: each node's children are one
+/// run of `nodes`, in byte order, so a walk is a binary search a byte.
+struct Trie {
+    nodes: Vec<Node>,
+    /// The root's child for each first byte, or NONE: no search there,
+    /// where every walk starts.
+    root: Box<[u32; 256]>,
+}
+
+#[derive(Clone, Copy)]
+struct Node {
+    /// The byte on the edge into this node.
+    byte: u8,
+    /// The piece that ends here, or NONE.
+    id: u32,
+    /// The children: nodes[first..first + count].
+    first: u32,
+    count: u32,
+}
+
+impl Trie {
+    const NONE: u32 = u32::MAX;
+
+    /// The trie of `pieces`, each the id of its place; Err is a piece
+    /// listed twice.
+    fn new(pieces: &[Box<str>]) -> std::result::Result<Trie, String> {
+        let mut pieces: Vec<(&[u8], u32)> =
+            pieces.iter().enumerate().map(|(id, p)| (p.as_bytes(), id as u32)).collect();
+        pieces.sort_unstable();
+        if let Some(w) = pieces.windows(2).find(|w| w[0].0 == w[1].0) {
+            return Err(String::from_utf8_lossy(w[0].0).into_owned());
+        }
+        let mut nodes = vec![Node { byte: 0, id: Self::NONE, first: 0, count: 0 }];
+        // Depth first, a node's children appended together when it is
+        // reached, so that a walk down the trie stays near where it
+        // started: (node, the pieces under it, its depth).
+        let mut stack = vec![(0usize, 0usize, pieces.len(), 0usize)];
+        while let Some((node, mut lo, hi, depth)) = stack.pop() {
+            if lo < hi && pieces[lo].0.len() == depth {
+                nodes[node].id = pieces[lo].1;
+                lo += 1;
+            }
+            nodes[node].first = nodes.len() as u32;
+            let pushed = stack.len();
+            while lo < hi {
+                let byte = pieces[lo].0[depth];
+                let end = lo + pieces[lo..hi].partition_point(|p| p.0[depth] == byte);
+                stack.push((nodes.len(), lo, end, depth + 1));
+                nodes.push(Node { byte, id: Self::NONE, first: 0, count: 0 });
+                lo = end;
+            }
+            nodes[node].count = nodes.len() as u32 - nodes[node].first;
+            // The first child next.
+            stack[pushed..].reverse();
+        }
+        let mut root = Box::new([Self::NONE; 256]);
+        let r = nodes[0];
+        for k in r.first..r.first + r.count {
+            root[nodes[k as usize].byte as usize] = k;
+        }
+        Ok(Trie { nodes, root })
+    }
+
+    /// The id of the piece that is exactly `piece`.
+    fn get(&self, piece: &[u8]) -> Option<u32> {
+        let (&b0, rest) = piece.split_first()?;
+        let mut node = *self.nodes.get(self.root[b0 as usize] as usize)?;
+        for &b in rest {
+            let kids = &self.nodes[node.first as usize..(node.first + node.count) as usize];
+            node = kids[kids.binary_search_by_key(&b, |k| k.byte).ok()?];
+        }
+        (node.id != Self::NONE).then_some(node.id)
+    }
+
+    /// `found(len, id)` for every piece that `text` starts with, shortest
+    /// first.
+    #[inline]
+    fn prefixes(&self, text: &[u8], mut found: impl FnMut(usize, u32)) {
+        let Some(&b0) = text.first() else { return };
+        let Some(&first) = self.nodes.get(self.root[b0 as usize] as usize) else { return };
+        if first.id != Self::NONE {
+            found(1, first.id);
+        }
+        let mut node = first;
+        for (i, &b) in text.iter().enumerate().skip(1) {
+            let kids = &self.nodes[node.first as usize..(node.first + node.count) as usize];
+            match kids.binary_search_by_key(&b, |k| k.byte) {
+                Ok(k) => node = kids[k],
+                Err(_) => return,
+            }
+            if node.id != Self::NONE {
+                found(i + 1, node.id);
+            }
+        }
+    }
+}
+
 /// The ASCII punctuation characters, which `space_punctuation` spaces.
 const PUNCTUATION: &str = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
 
@@ -386,6 +476,8 @@ fn punctuation_step(n: &Value) -> Option<char> {
 struct Charsmap {
     trie: Vec<u32>,
     normalized: Vec<u8>,
+    /// What the map makes of each ASCII character alone.
+    ascii: Vec<Option<Box<str>>>,
 }
 
 impl Charsmap {
@@ -405,7 +497,11 @@ impl Charsmap {
             return Err(bad("empty trie"));
         }
         let normalized = bytes[4 + trie_bytes..].to_vec();
-        Ok(Charsmap { trie, normalized })
+        let mut map = Charsmap { trie, normalized, ascii: Vec::new() };
+        map.ascii = (0..128u8)
+            .map(|b| map.transform(&[b]).map(|n| String::from_utf8_lossy(n).into_owned().into_boxed_str()))
+            .collect();
+        Ok(map)
     }
 
     /// The replacement for the longest prefix of `key` in the map: the
@@ -438,23 +534,52 @@ impl Charsmap {
 
     fn normalize(&self, text: &str) -> String {
         let mut out = String::with_capacity(text.len());
+        let b = text.as_bytes();
+        let mut i = 0;
+        while i < b.len() {
+            // An ASCII character followed by another (CR LF aside) is a
+            // grapheme cluster of its own: the table's.
+            if b[i].is_ascii() && b.get(i + 1).is_none_or(|n| n.is_ascii() && !(b[i] == b'\r' && *n == b'\n')) {
+                match &self.ascii[b[i] as usize] {
+                    Some(n) => out.push_str(n),
+                    None => out.push(b[i] as char),
+                }
+                i += 1;
+                continue;
+            }
+            // Otherwise, up to and including the next ASCII character that
+            // another ASCII character follows (a cluster boundary), as
+            // clusters.
+            let mut end = i + 1;
+            while end < b.len()
+                && !(b[end - 1].is_ascii() && b[end].is_ascii() && !(b[end - 1] == b'\r' && b[end] == b'\n'))
+            {
+                end += 1;
+            }
+            self.clusters(&text[i..end], &mut out);
+            i = end;
+        }
+        out
+    }
+
+    /// `text`'s grapheme clusters through the map.
+    fn clusters(&self, text: &str, out: &mut String) {
         let push = |out: &mut String, bytes: &[u8]| out.push_str(&String::from_utf8_lossy(bytes));
         for grapheme in text.graphemes(true) {
             if grapheme.len() < 6
                 && let Some(n) = self.transform(grapheme.as_bytes())
             {
-                push(&mut out, n);
+                push(out, n);
                 continue;
             }
             for c in grapheme.chars() {
                 let mut buf = [0u8; 4];
                 match self.transform(c.encode_utf8(&mut buf).as_bytes()) {
-                    Some(n) => push(&mut out, n),
+                    Some(n) => push(out, n),
                     None => out.push(c),
                 }
             }
         }
-        out
     }
 }
 
@@ -506,5 +631,54 @@ mod tests {
         assert_eq!(base64("YWJjZA==").unwrap(), b"abcd");
         assert!(base64("YQ=").is_none());
         assert!(base64("Y!==").is_none());
+    }
+
+    /// The ASCII shortcut gives what the map gives cluster by cluster:
+    /// on XLM-RoBERTa's map (bge-m3), for the tokenizer texts and for
+    /// ASCII next to what joins a cluster.
+    #[test]
+    fn the_ascii_shortcut_is_the_cluster_by_cluster_map() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata");
+        let json: Value = serde_json::from_slice(&std::fs::read(root.join("bge-m3/tokenizer.json")).unwrap()).unwrap();
+        let mut norms = Vec::new();
+        fn find<'a>(n: &'a Value, out: &mut Vec<&'a Value>) {
+            if n["type"] == "Precompiled" {
+                out.push(n);
+            }
+            for c in n["normalizers"].as_array().into_iter().flatten() {
+                find(c, out);
+            }
+        }
+        find(&json["normalizer"], &mut norms);
+        let map = Charsmap::parse("bge-m3", norms[0]["precompiled_charsmap"].as_str().unwrap()).unwrap();
+        let file = std::fs::read_to_string(root.join("tokenizer-texts.jsonl")).unwrap();
+        let mut texts: Vec<String> = file
+            .lines()
+            .map(|l| serde_json::from_str::<Value>(l).unwrap()["text"].as_str().unwrap().to_owned())
+            .collect();
+        texts.extend(
+            [
+                "a\r\nb",
+                "\r\n",
+                "x\r",
+                "e\u{301}a",
+                "ae\u{301}",
+                "\u{600}1a",
+                "a\u{600}1",
+                "\u{0}\u{1}a\u{7f}",
+                "ＡＢＣ abc",
+                "ﬁ ligature ㎏",
+                "a\u{200d}b",
+                "🇫🇷x",
+                "x🇫🇷",
+                "e\u{301}\u{302}\u{303}\u{304}xyz",
+            ]
+            .map(String::from),
+        );
+        for t in &texts {
+            let mut want = String::new();
+            map.clusters(t, &mut want);
+            assert_eq!(map.normalize(t), want, "{t:?}");
+        }
     }
 }
