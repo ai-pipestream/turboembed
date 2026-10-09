@@ -2,7 +2,7 @@
 //! links, over the sealed bundle in testdata/tiny-static-bundle: what it
 //! reports, every option against the same arithmetic written plainly in
 //! f64, rows with no tokens, every precision, and the table stored in each
-//! dtype. tests/conformance.rs holds its vectors to the Model2Vec
+//! dtype. tests/conformance.rs holds its vectors to the bundle's
 //! reference with TURBO_TEST_BUNDLE.
 
 mod common;
@@ -45,14 +45,14 @@ fn from_f16(h: u16) -> f32 {
 }
 
 /// The bundle's table, weights and mapping widened to f64, and its
-/// width: StaticModel's arithmetic written plainly, in f64.
+/// width: the static arithmetic written plainly, in f64.
 struct Plain {
     table: Vec<f64>,
     weights: Option<Vec<f64>>,
     mapping: Option<Vec<usize>>,
     dim: usize,
-    /// The library rounds an F16 table's vectors to F16, as StaticModel
-    /// does; the plain arithmetic does not.
+    /// The library rounds an F16 table's vectors to F16; the plain
+    /// arithmetic does not.
     tolerance: f64,
 }
 
@@ -199,8 +199,7 @@ fn a_text_of_no_tokens_or_only_unknown_ones_is_the_zero_vector() {
     let l = load(&dir);
     let s = session(&l);
     let tok = Tok::create(&dir).unwrap();
-    // A character the vocabulary does not hold is [UNK], which is dropped
-    // as StaticModel drops it.
+    // A character the vocabulary does not hold is [UNK], which is dropped.
     let unk = "\u{2603}\u{2603}";
     assert_eq!(tok.row(unk, None).unwrap(), Vec::<i32>::new());
     for pooling in [TURBO_POOLING_MEAN, TURBO_POOLING_CLS, TURBO_POOLING_LAST] {
@@ -492,7 +491,7 @@ fn a_static_manifest_is_checked_field_by_field() {
 }
 
 #[test]
-fn every_reference_case_matches_model2vec() {
+fn every_reference_case_matches_the_reference() {
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST, TURBO_PRECISION_EXACT] {
         assert_eq!(common::conformance::check(&bundle(), cpu, p), 0, "precision {p}: every case fits the session");
     }

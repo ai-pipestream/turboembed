@@ -136,9 +136,9 @@ copy of the recipe.
 The ONNX files are for the reference programs and the converters; the
 library never executes them.
 
-### Model2Vec's static models
+### The potion static models
 
-`bundle/recipes/potion/` pins Model2Vec's nine potion models, and
+`bundle/recipes/potion/` pins the nine potion models, and
 `make` and `fetch` take each by name:
 
 ```
@@ -148,7 +148,7 @@ cargo run --release -p turbo-bundle -- make \
 ```
 
 Each is fetched from its Hugging Face repository at a pinned commit, each
-file checked against its SHA-256, only when a command names it. The
-bundle computes what Model2Vec computes, to the bit (docs/static.md).
+file checked against its SHA-256, only when a command names it. No
+container runs: the tool writes the reference itself (docs/static.md).
 `potion-retrieval-32M` was fine-tuned on MS MARCO, whose terms allow
 non-commercial use only, so it is fetched only with `--accept-terms`.

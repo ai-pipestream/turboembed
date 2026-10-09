@@ -1,7 +1,8 @@
 //! A static model on the host: the family TURBO_FAMILY_STATIC names.
 //!
-//! There is no encoder. A row's vector is computed as model2vec's
-//! StaticModel computes it, to the bit where numpy's order allows: each
+//! There is no encoder. A row's vector is computed by the rules of
+//! docs/static.md, in numpy's order and dtypes, so a correct numpy
+//! implementation gives the same bits: each
 //! live token's table row (the row the token mapping names, when the
 //! model has one) times the token's weight (no product without weights),
 //! summed in token order and divided by the count of live tokens; the
@@ -300,7 +301,7 @@ impl Static {
             self.round_f16(dst);
         }
         if self.normalize == TURBO_NORMALIZE_L2 {
-            // As StaticModel: x / (norm + 1e-32) in F32, so the zero vector
+            // x / (norm + 1e-32) in F32, so the zero vector
             // stays zero, the norm's squares summed as numpy sums them.
             let norm = pairwise_squares(dst).sqrt() + 1e-32;
             for d in dst.iter_mut() {
@@ -352,7 +353,7 @@ struct F32;
 struct F16;
 struct Bf16;
 struct F64;
-/// An I8 value is the number it holds, as StaticModel reads it.
+/// An I8 value is the number it holds.
 struct I8;
 
 impl Stored for F32 {

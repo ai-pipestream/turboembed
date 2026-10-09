@@ -106,9 +106,9 @@ reference, and `scripts/setup/` checks or installs what each one needs.
   `turbo-bench`, and how records back capabilities.
 - `docs/autotune.md`: the tuner and its cache.
 - `docs/static.md`: static models, one vector per token and no encoder:
-  Model2Vec's potion models, fetched by name and computed as Model2Vec
-  computes them, to the bit, or distilled from a bundle by
-  `turbo-bundle distill`.
+  the potion models in Model2Vec's format, fetched by name, or distilled
+  from a bundle by `turbo-bundle distill`; what the library fixes
+  against Model2Vec.
 - `docs/demo.md`: a web page for trying the gRPC server from a browser.
 - `docs/cpu.md`, `docs/cuda.md`, `docs/levelzero.md`, `docs/metal.md`,
   `docs/hailo.md`, `docs/npu.md`: one page per backend.

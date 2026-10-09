@@ -525,7 +525,7 @@ fn base_vectors(model: &api::Model, info: &turbo::turbo_model_info, texts: &[Qua
 }
 
 /// The median length of the vocabulary's entries in characters, rounded
-/// down, as StaticModel takes it.
+/// down.
 fn median_chars(vocab: &[Option<String>]) -> usize {
     let mut lens: Vec<usize> = vocab.iter().flatten().map(|t| t.chars().count()).collect();
     lens.sort_unstable();
@@ -537,7 +537,7 @@ fn median_chars(vocab: &[Option<String>]) -> usize {
 }
 
 /// A text's ids for the static model, from the base tokenizer, as
-/// StaticModel takes them: the text cut to `max_length` times the median
+/// a static model takes them: the text cut to `max_length` times the median
 /// entry length in characters, encoded with no special tokens and cut to
 /// `max_length` tokens, then the unknown token dropped.
 fn static_ids(tok: &Tokenizer, median: usize, text: &str, max_length: u32) -> Result<Vec<i32>> {
@@ -736,7 +736,7 @@ pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
     let quality_file = st.quality.as_ref().ok_or("static_embedding.quality: missing")?;
     let texts = quality_texts(&bundle.join(&quality_file.texts))?;
     let mut lib = Vec::with_capacity(texts.len());
-    // The bundle's own tokenizer applies StaticModel's rules itself.
+    // The bundle's own tokenizer applies the static rules itself.
     let e = Encode {
         add_special_tokens: true,
         truncation: Truncation::Right,

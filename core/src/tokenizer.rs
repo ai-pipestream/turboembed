@@ -55,14 +55,15 @@ impl Fx {
     }
 }
 
-/// How StaticModel turns a text into ids, beside the encoding itself:
-/// when truncating at the right, the text is cut to max_tokens times
-/// `median_chars` characters and its encoding to max_tokens; then the
-/// unknown token is dropped. The tokenizer file's own truncation and
-/// padding are not used, as StaticModel replaces them.
+/// How a static model turns a text into ids, beside the encoding itself
+/// (docs/static.md): when truncating at the right, the text is cut to
+/// max_tokens times `median_chars` characters and its encoding to
+/// max_tokens; then the unknown token is dropped. The tokenizer file's
+/// own truncation and padding are never used, so a text's ids do not
+/// depend on its batch.
 struct StaticRules {
     /// The median length of the vocabulary's entries in characters,
-    /// rounded down, as StaticModel takes it.
+    /// rounded down.
     median_chars: usize,
 }
 

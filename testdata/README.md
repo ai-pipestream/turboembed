@@ -61,11 +61,10 @@
 - `tiny-static-bundle/`: that static bundle, sealed: its table
   (`weights/static.safetensors`, F16, 1037908 bytes, SHA-256
   `1e3014311b0931a58b4fe9a56a8fb3e064ae81f938362edea39ed19d3d566f16`),
-  the tokenizer file of `tiny-bert-bundle/`, the quality texts, and a
-  reference written by Model2Vec 0.9.0's `StaticModel`
-  (`bundle/reference/static_reference.py`) in a virtual environment with
-  the versions the manifest names, not in the pinned container: it is
-  test data. Its base model has random weights, so its quality numbers
+  the tokenizer file of `tiny-bert-bundle/`, the quality texts, and the
+  reference the tool wrote. Its ids and vectors are byte for byte the
+  ones Model2Vec's `StaticModel` gives for the same table and
+  tokenizer. Its base model has random weights, so its quality numbers
   say nothing about a real model. `core/tests/static_model.rs` checks
   the static path against it.
 

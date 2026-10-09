@@ -367,8 +367,7 @@ pub fn verify(bundle: &Path) -> Result<()> {
     }
     let values = emb.f32s();
     // A static model's text of no tokens is the zero vector, and an F16
-    // table's vectors are rounded to F16 after they are normalized, as
-    // StaticModel rounds them.
+    // table's vectors are rounded to F16 after they are normalized.
     let is_static = m.static_embedding.is_some();
     let tolerance = if is_static { 2e-3 } else { 1e-4 };
     for (i, row) in values.chunks_exact(dim).enumerate() {

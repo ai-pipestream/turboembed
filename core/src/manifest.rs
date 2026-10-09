@@ -226,8 +226,8 @@ pub struct Architecture {
     pub vocab_size: u32,
 }
 
-/// A static model: one vector per vocabulary entry and no encoder, as
-/// Model2Vec makes them. A row's vector is the mean of its tokens' rows,
+/// A static model: one vector per vocabulary entry and no encoder
+/// (docs/static.md). A row's vector is the mean of its tokens' rows,
 /// each times its weight (turbo_backend.h, TURBO_FAMILY_STATIC). Its
 /// vectors live in a space of their own, not that of any model it was
 /// distilled from.
@@ -239,8 +239,7 @@ pub struct StaticEmbedding {
     /// table has vocab_size rows and this is 0.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub rows: u32,
-    /// The tokens TURBO_TRUNCATE_MODEL keeps: StaticModel's max_length.
-    /// As StaticModel cuts, a text is first cut to max_length times the
+    /// The tokens TURBO_TRUNCATE_MODEL keeps. A text is first cut to max_length times the
     /// vocabulary's median entry length in characters, its encoding to
     /// max_length tokens, and then the unknown token is dropped.
     pub max_length: u32,
@@ -775,8 +774,8 @@ impl Manifest {
                     st.max_length, e.max_seq
                 )));
             }
-            // StaticModel tokenizes the text alone and cuts it on the
-            // right; the core does the same and nothing else.
+            // A static model tokenizes the text alone and cuts it on the
+            // right, and nothing else.
             if t.template != ["$TEXT"] {
                 return Err(invalid(
                     "manifest.json: tokenizer.template: a static model's rows are the text's tokens alone, [\"$TEXT\"]",

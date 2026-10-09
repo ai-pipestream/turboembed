@@ -89,8 +89,8 @@ extern "C" {
 #define TURBO_BERT_LAYER_TENSORS  16
 
 /* Where each tensor of a static model sits in turbo_backend_model.tensors.
- * A row's vector is computed from its tokens alone, with no encoder, as
- * Model2Vec's StaticModel computes it: each live token's table row (the
+ * A row's vector is computed from its tokens alone, with no encoder
+ * (docs/static.md): each live token's table row (the
  * row its mapping names, when there is a mapping) times the token's weight
  * (1 when there are no weights), the mean of those over the live tokens
  * (the zero vector when there are none), then the row's output_dim cut

@@ -1,5 +1,5 @@
 //! A static bundle made from a Model2Vec model against that model's own
-//! golden ids and vectors (bundle/reference/static_golden.py), through
+//! golden ids and vectors (bundle/model2vec-golden/golden.py), through
 //! the C interface on the CPU backend: every text's ids exactly, and
 //! every vector to the bit, at the model's max_length and at none. A
 //! FASTEST session, which sums the table in I8, is held to the lowest
@@ -8,7 +8,7 @@
 //!
 //! The bundle and the goldens are not in the repository: the test runs
 //! when TURBO_PARITY_BUNDLE names the bundle and TURBO_PARITY_GOLDEN the
-//! directory static_golden.py wrote, and passes with a note otherwise.
+//! directory golden.py wrote, and passes with a note otherwise.
 
 mod common;
 
