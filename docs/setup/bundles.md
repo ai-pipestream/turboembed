@@ -114,7 +114,8 @@ copy of the recipe.
 
 | Command | What it does |
 |---|---|
-| `turbo-bundle fetch <recipe> <upstream-dir>` | Fetch only. A file already there is kept when its hash matches the pin. |
+| `turbo-bundle fetch <recipe> <upstream-dir>` | Fetch only. A file already there is kept when its hash matches the pin. Writes `turbo-fetch.json`, where the files came from and their hashes. A model with terms beyond its licence needs `--accept-terms`, here and in `make`. |
+| `turbo-bundle catalogue` | The models `make` and `fetch` take by name instead of a recipe path, with their licences. |
 | `turbo-bundle reference <recipe> <upstream-dir> <bundle-dir>` | Everything `make` does after the fetch: the offline path, for an upstream directory filled another way. |
 | `turbo-bundle seal <recipe> <upstream-dir> <bundle-dir>` | Stage and seal with no container, from a reference and conversion reports a container already wrote into the bundle directory (see [../../bundle/README.md](../../bundle/README.md)). |
 | `turbo-bundle verify <bundle-dir>` | Check a bundle as the library loads it. |
@@ -134,3 +135,20 @@ copy of the recipe.
 
 The ONNX files are for the reference programs and the converters; the
 library never executes them.
+
+### Model2Vec's static models
+
+`bundle/recipes/potion/` pins Model2Vec's nine potion models, and
+`make` and `fetch` take each by name:
+
+```
+cargo run --release -p turbo-bundle -- catalogue
+cargo run --release -p turbo-bundle -- make \
+    minishlab/potion-base-8M models/upstream/potion-base-8M models/bundles/potion-base-8M
+```
+
+Each is fetched from its Hugging Face repository at a pinned commit, each
+file checked against its SHA-256, only when a command names it. The
+bundle computes what Model2Vec computes, to the bit (docs/static.md).
+`potion-retrieval-32M` was fine-tuned on MS MARCO, whose terms allow
+non-commercial use only, so it is fetched only with `--accept-terms`.

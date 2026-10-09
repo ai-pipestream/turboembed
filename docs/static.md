@@ -122,6 +122,14 @@ or does only in part:
   when the bundle is loaded, not when a text reaches it.
 - Every file of the bundle is hashed in its manifest and checked when it
   is loaded, and the tokenizer is checked against the reference's ids.
+- `PRECISION_FASTEST` sums the table in I8, a quarter of an F32 table's
+  memory traffic, at a cost measured against Model2Vec's own vectors.
+- The table is mapped from its file and read in place in its stored
+  dtype: an F16 table stays F16 in memory, converted eight values at a
+  time as it is summed.
+- A model is fetched at a pinned commit with every file's SHA-256
+  checked, only when a command names it, and its provenance is written
+  beside the files.
 
 Older Model2Vec differs from the pinned commit, and so from the
 library, in ways a caller comparing against it may see: 0.9.0 cuts to
