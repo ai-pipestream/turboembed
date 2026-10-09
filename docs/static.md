@@ -213,6 +213,12 @@ A static bundle has a `static_embedding` block instead of
 }
 ```
 
+The table is mapped from its file where the host can map files (Linux
+and macOS), not copied: the model's pages are the page cache's, shared
+by every process that loads the same bundle. Every byte is still hashed
+against the manifest when the model is loaded, so the files must not
+change while a model is loaded from them.
+
 Its one artifact is `FORMAT_SAFETENSORS` with the `static_embeddings`
 tensor role, and `static_weights` and `static_mapping` when the table
 has them (with `rows`, the table's height). `embed.dim` is the table's

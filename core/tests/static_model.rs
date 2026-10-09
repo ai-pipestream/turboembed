@@ -497,3 +497,29 @@ fn every_reference_case_matches_model2vec() {
         assert_eq!(common::conformance::check(&bundle(), cpu, p), 0, "precision {p}: every case fits the session");
     }
 }
+
+/// The table is mapped, not read, and still hashed: a byte changed in it
+/// refuses the load, and the file as it was loads.
+#[test]
+fn a_changed_table_is_refused() {
+    let dir = std::env::temp_dir().join(format!("turbo-static-changed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    for sub in ["", "weights", "reference", "quality"] {
+        fs::create_dir_all(dir.join(sub)).unwrap();
+    }
+    for f in ["manifest.json", "tokenizer.json", "weights/static.safetensors", "reference/reference.safetensors"] {
+        fs::copy(bundle().join(f), dir.join(f)).unwrap();
+    }
+    for f in fs::read_dir(bundle().join("quality")).unwrap() {
+        let f = f.unwrap().path();
+        fs::copy(&f, dir.join("quality").join(f.file_name().unwrap())).unwrap();
+    }
+    load(&dir);
+    let table = dir.join("weights/static.safetensors");
+    let mut bytes = fs::read(&table).unwrap();
+    *bytes.last_mut().unwrap() ^= 1;
+    fs::write(&table, bytes).unwrap();
+    let e = Loaded::load(&dir).err().expect("refused");
+    assert!(e.is(turbo::status::BUNDLE_INTEGRITY, "weights/static.safetensors: SHA-256 is"), "{e:?}");
+    fs::remove_dir_all(&dir).unwrap();
+}

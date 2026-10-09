@@ -333,7 +333,8 @@ impl Weights {
         // A static model's artifacts are raw weights alone (validate()).
         if let Some(st) = &m.static_embedding {
             let dim = m.embed().dim;
-            let files = art.files.iter().map(|f| bundle.read_verified_aligned(f)).collect::<Result<Vec<_>>>()?;
+            // The table is read in place, never converted: mapped, not copied.
+            let files = art.files.iter().map(|f| bundle.map_verified(f)).collect::<Result<Vec<_>>>()?;
             let tensors = place_static(index, art, &files, st, dim)?;
             let dtype = tensors[0].as_ref().expect("validate() requires static_embeddings").dtype;
             return Ok(Weights {
