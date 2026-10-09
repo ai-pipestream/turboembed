@@ -23,6 +23,17 @@
   the SentencePiece pipeline; a full-vocabulary check is what every
   BGE-M3 bundle's reference cases give on load. Under MIT, the licence of
   BAAI/bge-m3.
+- `tiny-bpe/tokenizer.json`: a byte-level BPE in RoBERTa's form, 1200
+  pieces and 939 merges, that upstream `tokenizers` 0.23.2 trained on the
+  texts the tokenizer tests encode, with GPT-2's byte alphabet, RoBERTa's
+  special tokens (`<mask>` taking the whitespace before it),
+  pre-tokenizer, post-processor and decoder (`bpe::make_tiny_bpe` in
+  `core/tests/tokenizer.rs`, which writes the same bytes again). 28901
+  bytes, SHA-256
+  `ea6c2eeefe26149a84e65d6694da4838d0051667e9e8cd6fe0d97e6d205d771e`. The
+  core's byte-level BPE is compared with upstream on it, on those texts
+  and on texts drawn at random from their characters, so that merges
+  stop part way.
 - `tokenizer-texts.jsonl`: texts the core's tokenizer is compared with
   upstream `tokenizers` on: scripts, spacing, control characters, emoji,
   special-token strings. Taken from the previous attempt's

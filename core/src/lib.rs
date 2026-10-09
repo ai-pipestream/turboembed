@@ -13,7 +13,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub mod backend;
+pub mod bpe;
 pub mod bundle;
+mod classes;
 #[cfg(feature = "cpu")]
 pub mod cpu;
 #[cfg(feature = "cuda")]

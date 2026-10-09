@@ -13,6 +13,7 @@ use serde_json::Value;
 use unicode_categories::UnicodeCategories;
 use unicode_normalization_alignments::UnicodeNormalization;
 
+use crate::bpe::Bpe;
 use crate::bundle::Bundle;
 use crate::manifest::{Normalizer, PromptRole, SpecialRole, Truncation};
 use crate::safetensors::{self, Dtype};
@@ -23,7 +24,7 @@ use crate::unigram::Unigram;
 /// is fixed and comes from the bundle, so the keys need no defence against
 /// collisions; SipHash, the std default, was most of a short text's time.
 #[derive(Default)]
-struct Fx(u64);
+pub(crate) struct Fx(u64);
 
 impl Hasher for Fx {
     fn write(&mut self, bytes: &[u8]) {
@@ -71,7 +72,7 @@ struct StaticRules {
 
 type Vocab = HashMap<String, u32, BuildHasherDefault<Fx>>;
 
-/// The two models the core runs.
+/// The models the core runs.
 enum Kind {
     WordPiece {
         vocab: Vocab,
@@ -89,6 +90,7 @@ enum Kind {
         max_chars_per_word: usize,
     },
     Unigram(Unigram),
+    Bpe(Bpe),
 }
 
 /// A special token as it is matched in raw text, or in normalized text.
@@ -298,6 +300,12 @@ pub(crate) fn covering(text: &str, sources: &[Span]) -> Span {
     for a in &sources[1..] {
         s = [s[0].min(a[0]), s[1].max(a[1])];
     }
+    trim_span(text, s)
+}
+
+/// `s` with whitespace at either end of `text` left out, unless that is
+/// all there is.
+pub(crate) fn trim_span(text: &str, s: Span) -> Span {
     let piece = &text[s[0] as usize..s[1] as usize];
     let inner = piece.trim();
     if inner.is_empty() {
@@ -330,8 +338,8 @@ impl Tokenizer {
         let json: Value = serde_json::from_slice(&bytes).map_err(|e| invalid(format!("{file}: {e}")))?;
         let unk = t.special_tokens.iter().find(|s| s.role == SpecialRole::Unk).expect("validated");
 
-        let kind = match (&t.wordpiece, &t.unigram) {
-            (Some(w), _) => {
+        let kind = match (&t.wordpiece, &t.unigram, &t.bpe) {
+            (Some(w), ..) => {
                 let disagree = |what: &str| invalid(format!("{file}: {what} is not what manifest.json says"));
                 let model = &json["model"];
                 if model["type"] != "WordPiece" {
@@ -406,8 +414,9 @@ impl Tokenizer {
                     max_chars_per_word: w.max_chars_per_word as usize,
                 }
             }
-            (None, Some(u)) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
-            (None, None) => unreachable!("validated"),
+            (None, Some(u), _) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
+            (None, None, Some(b)) => Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?),
+            (None, None, None) => unreachable!("validated"),
         };
         let vocab_size = kind.vocab_size();
         let table = m
@@ -479,7 +488,7 @@ impl Tokenizer {
                 })
                 .filter(|s| !s.content.is_empty())
                 .collect(),
-            Kind::Unigram(_) => Vec::new(),
+            Kind::Unigram(_) | Kind::Bpe(_) => Vec::new(),
         };
         normalized_specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
         let mut special_starts = [false; 256];
@@ -601,6 +610,7 @@ impl Tokenizer {
         match self.kind {
             Kind::WordPiece { .. } => "wordpiece",
             Kind::Unigram(_) => "unigram",
+            Kind::Bpe(_) => "bpe",
         }
     }
 
@@ -738,7 +748,8 @@ impl Tokenizer {
     /// way back from ids to text for a model's output; for where a token
     /// of the input came from, encode_spans gives its span.
     pub fn decode(&self, ids: &[i32], skip_special_tokens: bool) -> Result<String> {
-        let mut out = String::new();
+        // Bytes, as a byte-level piece can hold part of a character.
+        let mut out = Vec::new();
         let mut first = true;
         for (i, &id) in ids.iter().enumerate() {
             let Some(piece) = usize::try_from(id).ok().and_then(|i| self.pieces.get(i)) else {
@@ -753,7 +764,10 @@ impl Tokenizer {
             self.decoder.piece(piece, first, &mut out)?;
             first = false;
         }
-        Ok(out)
+        Ok(match String::from_utf8(out) {
+            Ok(s) => s,
+            Err(e) => String::from_utf8_lossy(e.as_bytes()).into_owned(),
+        })
     }
 
     /// Tokens `text` produces, with special tokens and no truncation.
@@ -882,6 +896,11 @@ impl Tokenizer {
                     u.encode(text, base, piece, out);
                 }
             }
+            Kind::Bpe(b) => {
+                if !piece.is_empty() {
+                    b.encode(text, base, piece, out);
+                }
+            }
         }
     }
 
@@ -951,6 +970,10 @@ enum Decoder {
     /// Metaspace's: the metaspace is a space, and the one the first piece
     /// starts with, the one put in front of the text, is dropped.
     Metaspace { replacement: char, prepended: bool },
+    /// ByteLevel's: each GPT-2 character is its byte, and the bytes are
+    /// read as UTF-8, a sequence that is not being U+FFFD. A piece with a
+    /// character that stands for no byte, a special token, is its text.
+    ByteLevel,
     /// A decoder the core does not run, by its type.
     Other(String),
 }
@@ -972,39 +995,52 @@ impl Decoder {
                     _ => Decoder::Other("Metaspace with no one-character replacement".into()),
                 }
             }
+            Some("ByteLevel") => Decoder::ByteLevel,
             Some(other) => Decoder::Other(other.to_owned()),
             None => Decoder::Other("none".into()),
         }
     }
 
     /// One piece, written after those before it in `out`.
-    fn piece(&self, piece: &str, first: bool, out: &mut String) -> Result<()> {
+    fn piece(&self, piece: &str, first: bool, out: &mut Vec<u8>) -> Result<()> {
         match self {
             Decoder::WordPiece { prefix, cleanup } => {
-                let at = out.len();
+                let mut written = String::with_capacity(piece.len() + 1);
                 match piece.strip_prefix(prefix.as_str()) {
-                    Some(rest) if !first => out.push_str(rest),
+                    Some(rest) if !first => written.push_str(rest),
                     _ => {
                         if !first {
-                            out.push(' ');
+                            written.push(' ');
                         }
-                        out.push_str(piece);
+                        written.push_str(piece);
                     }
                 }
-                if *cleanup {
-                    let cleaned = cleanup_piece(&out[at..]);
-                    if let Cow::Owned(c) = cleaned {
-                        out.truncate(at);
-                        out.push_str(&c);
-                    }
-                }
+                let written = if *cleanup { cleanup_piece(&written) } else { Cow::Borrowed(written.as_str()) };
+                out.extend_from_slice(written.as_bytes());
             }
             Decoder::Metaspace { replacement, prepended } => {
                 let piece = match piece.strip_prefix(*replacement) {
                     Some(rest) if first && *prepended => rest,
                     _ => piece,
                 };
-                out.extend(piece.chars().map(|c| if c == *replacement { ' ' } else { c }));
+                let mut buf = [0u8; 4];
+                for c in piece.chars() {
+                    let c = if c == *replacement { ' ' } else { c };
+                    out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+                }
+            }
+            Decoder::ByteLevel => {
+                let at = out.len();
+                for c in piece.chars() {
+                    match crate::bpe::char_byte(c) {
+                        Some(b) => out.push(b),
+                        None => {
+                            out.truncate(at);
+                            out.extend_from_slice(piece.as_bytes());
+                            break;
+                        }
+                    }
+                }
             }
             Decoder::Other(kind) => {
                 return Err(Error::new(
@@ -1050,6 +1086,7 @@ impl Kind {
         match self {
             Kind::WordPiece { vocab, .. } => vocab.iter().for_each(|(p, &id)| f(p, id)),
             Kind::Unigram(u) => u.pieces().enumerate().for_each(|(id, p)| f(p, id as u32)),
+            Kind::Bpe(b) => b.pieces().enumerate().for_each(|(id, p)| f(p, id as u32)),
         }
     }
 
@@ -1057,6 +1094,7 @@ impl Kind {
         match self {
             Kind::WordPiece { vocab, .. } => vocab.len() as u32,
             Kind::Unigram(u) => u.vocab_size(),
+            Kind::Bpe(b) => b.vocab_size(),
         }
     }
 
@@ -1064,6 +1102,7 @@ impl Kind {
         match self {
             Kind::WordPiece { vocab, .. } => vocab.get(piece).copied(),
             Kind::Unigram(u) => u.id(piece),
+            Kind::Bpe(b) => b.id(piece),
         }
     }
 
@@ -1073,6 +1112,7 @@ impl Kind {
         let mut lens: Vec<usize> = match self {
             Kind::WordPiece { vocab, .. } => vocab.keys().map(|p| p.chars().count()).collect(),
             Kind::Unigram(u) => u.pieces().map(|p| p.chars().count()).collect(),
+            Kind::Bpe(b) => b.pieces().map(|p| p.chars().count()).collect(),
         };
         lens.sort_unstable();
         let n = lens.len();
@@ -1328,30 +1368,50 @@ fn is_control(c: char) -> bool {
 const OTHER: u8 = 1;
 const MARK_NONSPACING: u8 = 2;
 const PUNCTUATION: u8 = 4;
+pub(crate) const LETTER: u8 = 8;
+pub(crate) const NUMBER: u8 = 16;
 
-/// Whether `c` is in the categories `bits` names (Unicode's C, Mn and P):
-/// from a table of the Basic Multilingual Plane, made once (about 7 ms),
+/// Whether `c` is in the categories `bits` names (Unicode's C, Mn, P, L
+/// and N): from a table of the Basic Multilingual Plane, made once,
 /// rather than a binary search per character.
-fn category(c: char, bits: u8) -> bool {
+pub(crate) fn category(c: char, bits: u8) -> bool {
     static BMP: std::sync::OnceLock<Box<[u8; 0x10000]>> = std::sync::OnceLock::new();
     let Ok(at) = u16::try_from(c as u32) else {
-        return (bits & OTHER != 0 && c.is_other())
-            || (bits & MARK_NONSPACING != 0 && c.is_mark_nonspacing())
-            || (bits & PUNCTUATION != 0 && c.is_punctuation());
+        return categories(c) & bits != 0;
     };
     let table = BMP.get_or_init(|| {
         let mut t = Box::new([0u8; 0x10000]);
         for (i, f) in t.iter_mut().enumerate() {
             // A surrogate is no char, and in category C.
-            let Some(c) = char::from_u32(i as u32) else {
-                *f = OTHER;
-                continue;
-            };
-            *f = (c.is_other() as u8) | ((c.is_mark_nonspacing() as u8) << 1) | ((c.is_punctuation() as u8) << 2);
+            *f = char::from_u32(i as u32).map_or(OTHER, categories);
         }
         t
     });
     table[at as usize] & bits != 0
+}
+
+/// `c`'s bits: C, Mn and P from the tables upstream's BertNormalizer
+/// reads, L and N from those of the regular expressions its
+/// pre-tokenizers run (classes.rs).
+fn categories(c: char) -> u8 {
+    let within = |runs: &[(u32, u32)]| {
+        let u = c as u32;
+        runs.binary_search_by(|&(a, b)| {
+            if b < u {
+                std::cmp::Ordering::Less
+            } else if a > u {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+    };
+    (c.is_other() as u8)
+        | ((c.is_mark_nonspacing() as u8) << 1)
+        | ((c.is_punctuation() as u8) << 2)
+        | ((within(crate::classes::LETTERS) as u8) << 3)
+        | ((within(crate::classes::NUMBERS) as u8) << 4)
 }
 
 fn is_cjk(c: char) -> bool {

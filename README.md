@@ -100,6 +100,8 @@ reference, and `scripts/setup/` checks or installs what each one needs.
 ## Reading further
 
 - `docs/bundle.md`: the bundle format and the `turbo-bundle` tool.
+- `docs/tokenizer.md`: the tokenizers, where each token came from in the
+  text, and writing ids back as text.
 - `docs/conformance.md`: how a backend is checked against a bundle's
   reference outputs.
 - `docs/benchmarks.md`: what a benchmark record is, how it is made with
