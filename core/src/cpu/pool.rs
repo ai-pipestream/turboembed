@@ -74,6 +74,11 @@ struct Shared {
     /// caller's, at 0, is never set. Whoever clears a set flag unparks
     /// that thread.
     parked: Box<[AtomicBool]>,
+    /// Workers the current job still wants beside the caller: its units
+    /// less one, less each worker that has joined it or been woken for
+    /// it. A wake takes one first, so a job wakes no more workers than
+    /// it has units for, however many workers spinning see it.
+    want: AtomicUsize,
     /// The workers' threads, worker 1 first, from when `new` has made
     /// them.
     threads: OnceLock<Box<[Thread]>>,
@@ -118,6 +123,7 @@ impl Pool {
             done: AtomicUsize::new(0),
             stop: AtomicBool::new(false),
             spin,
+            want: AtomicUsize::new(0),
             parked: (0..threads.max(1)).map(|_| AtomicBool::new(false)).collect(),
             threads: OnceLock::new(),
         });
@@ -163,6 +169,7 @@ impl Pool {
         s.per.store(per, Ordering::Relaxed);
         s.tasks.store(tasks, Ordering::Relaxed);
         s.done.store(0, Ordering::Relaxed);
+        s.want.store(units - 1, Ordering::Relaxed);
         // SeqCst, as the parked flags: a worker that sets its flag and
         // then reads the word either sees this job or is seen parked.
         s.claim.store(word(self.jobs, units, 0), Ordering::SeqCst);
@@ -180,20 +187,28 @@ impl Pool {
     }
 }
 
-/// Unparks up to FAN parked workers while the current job has units no
-/// thread has taken; a worker spinning takes its own.
+/// Unparks up to FAN parked workers while the current job wants more
+/// and has units no thread has taken.
 fn wake(s: &Shared) {
     let Some(threads) = s.threads.get() else { return };
     let mut woken = 0;
-    for (flag, t) in s.parked[1..].iter().zip(threads.iter()) {
-        if woken == FAN || !has_units(s) {
+    let mut flags = s.parked[1..].iter().zip(threads.iter());
+    while woken < FAN && has_units(s) && take_want(s) {
+        let Some(t) = flags
+            .find_map(|(flag, t)| (flag.load(Ordering::Relaxed) && flag.swap(false, Ordering::SeqCst)).then_some(t))
+        else {
+            // No worker is parked: the one taken goes back.
+            s.want.fetch_add(1, Ordering::Relaxed);
             return;
-        }
-        if flag.load(Ordering::Relaxed) && flag.swap(false, Ordering::SeqCst) {
-            t.unpark();
-            woken += 1;
-        }
+        };
+        t.unpark();
+        woken += 1;
     }
+}
+
+/// Takes one of the workers the current job wants, if it wants any.
+fn take_want(s: &Shared) -> bool {
+    s.want.try_update(Ordering::Relaxed, Ordering::Relaxed, |w| w.checked_sub(1)).is_ok()
 }
 
 /// Whether the current job has a unit no thread has taken.
@@ -241,6 +256,8 @@ fn worker(s: &Shared, id: usize) {
         let start = Instant::now();
         let mut spins = 0u32;
         let moved = |s: &Shared| s.claim.load(Ordering::SeqCst) != seen || s.stop.load(Ordering::SeqCst);
+        // Whether the waker of this thread counted it in the job's want.
+        let mut counted = false;
         while !moved(s) {
             spins = spins.wrapping_add(1);
             if !spins.is_multiple_of(256) || start.elapsed() < s.spin {
@@ -254,15 +271,18 @@ fn worker(s: &Shared, id: usize) {
             while flag.load(Ordering::SeqCst) && !moved(s) {
                 std::thread::park();
             }
-            // Woken by a job, or saw it first: either way not parked. A
-            // waker that cleared the flag meanwhile left an unpark token,
-            // which at worst ends a later park early.
-            flag.store(false, Ordering::SeqCst);
+            // Not parked now. A flag still set was cleared by no waker:
+            // this thread saw the job itself. One a waker cleared was
+            // counted by it, and its unpark token at worst ends a later
+            // park early.
+            counted = !flag.swap(false, Ordering::SeqCst);
         }
         if s.stop.load(Ordering::Acquire) {
             return;
         }
-        wake(s);
+        if counted || take_want(s) {
+            wake(s);
+        }
         seen = take_units(s, id);
     }
 }
