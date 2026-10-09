@@ -134,7 +134,16 @@ release archives.
 `fetch` prints the model's licence, and any terms the model carries
 beyond it, before it downloads: every potion model is MIT, and
 `potion-retrieval-32M` was fine-tuned on MS MARCO, whose terms allow
-non-commercial use only.
+non-commercial use only. A model with such terms is fetched only with
+`--accept-terms`, given once they have been read:
+
+```
+turbo-bundle fetch --accept-terms minishlab/potion-retrieval-32M <upstream-dir>
+```
+
+Beside the files, `fetch` writes `turbo-fetch.json`: the repository,
+the commit, the licence, the terms and whether they were accepted, and
+the SHA-256 of every file.
 
 The reference step builds `StaticModel` from the upstream files in the
 pinned reference image, and checks that `StaticModel.from_pretrained`

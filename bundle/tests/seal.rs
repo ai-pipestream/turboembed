@@ -859,3 +859,39 @@ fn the_catalogue_names_pinned_recipes() {
     }
     assert!(Recipe::load(Path::new("minishlab/not-a-model")).is_err());
 }
+
+/// Files already in the upstream directory with their pinned hashes are
+/// kept, so this fetch reads no network: it records where they came from,
+/// and a model with terms beyond its licence is fetched only once they
+/// are accepted.
+#[test]
+fn a_fetch_records_its_provenance_and_asks_for_terms() {
+    let d = scratch("fetch-terms");
+    let up = upstream(&d);
+    let p = tiny_recipe(&d);
+    let mut r: Value = serde_json::from_slice(&fs::read(&p).unwrap()).unwrap();
+    for u in r["upstream"].as_array_mut().unwrap() {
+        let bytes = fs::read(up.join(u["path"].as_str().unwrap())).unwrap();
+        u["sha256"] = json!(turbo::bundle::sha256_hex(&bytes));
+    }
+    fs::write(&p, serde_json::to_vec_pretty(&r).unwrap()).unwrap();
+    turbo_bundle::fetch::fetch(&Recipe::load(&p).unwrap(), &up, false).unwrap();
+    let got: Value = serde_json::from_slice(&fs::read(up.join(turbo_bundle::fetch::PROVENANCE)).unwrap()).unwrap();
+    let (repository, revision) = Recipe::load(&p).unwrap().source().map(|(a, b)| (a.to_owned(), b.to_owned())).unwrap();
+    assert_eq!(got["repository"], json!(repository));
+    assert_eq!(got["revision"], json!(revision));
+    assert_eq!(got["terms_accepted"], json!(false));
+    assert_eq!(got["sha256"].as_object().unwrap().len(), 3);
+    assert_eq!(got["sha256"]["tokenizer.json"], r["upstream"][0]["sha256"]);
+
+    r["notice"] = json!("Some terms.");
+    fs::write(&p, serde_json::to_vec_pretty(&r).unwrap()).unwrap();
+    fs::remove_file(up.join(turbo_bundle::fetch::PROVENANCE)).unwrap();
+    let e = turbo_bundle::fetch::fetch(&Recipe::load(&p).unwrap(), &up, false).unwrap_err();
+    assert!(e.contains("--accept-terms"), "{e}");
+    assert!(!up.join(turbo_bundle::fetch::PROVENANCE).exists(), "refused before anything is written");
+    turbo_bundle::fetch::fetch(&Recipe::load(&p).unwrap(), &up, true).unwrap();
+    let got: Value = serde_json::from_slice(&fs::read(up.join(turbo_bundle::fetch::PROVENANCE)).unwrap()).unwrap();
+    assert_eq!(got["notice"], json!("Some terms."));
+    assert_eq!(got["terms_accepted"], json!(true));
+}

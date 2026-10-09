@@ -8,10 +8,11 @@ use turbo_bundle::{Result, catalogue, convert, distill, fetch, reference, seal};
 
 const USAGE: &str = "\
 usage:
-  turbo-bundle make <recipe.json | model-id> <upstream-dir> <bundle-dir>
+  turbo-bundle make [--accept-terms] <recipe.json | model-id> <upstream-dir> <bundle-dir>
       fetch, stage, reference, convert, seal and verify, in that order
-  turbo-bundle fetch <recipe.json | model-id> <upstream-dir>
-      fetch the upstream files at the recipe's commit
+  turbo-bundle fetch [--accept-terms] <recipe.json | model-id> <upstream-dir>
+      fetch the upstream files at the recipe's commit. A model with terms
+      beyond its licence is fetched only with --accept-terms
   turbo-bundle catalogue
       the models a model-id names, with their licences (docs/static.md)
   turbo-bundle reference <recipe.json> <upstream-dir> <bundle-dir>
@@ -46,13 +47,15 @@ fn main() -> ExitCode {
 }
 
 fn run(args: &[&str]) -> Result<()> {
-    match args {
+    let accept = args.contains(&"--accept-terms");
+    let args: Vec<&str> = args.iter().copied().filter(|a| *a != "--accept-terms").collect();
+    match args.as_slice() {
         ["make", recipe, upstream, bundle] => {
             let r = Recipe::load(Path::new(recipe))?;
-            fetch::fetch(&r, Path::new(upstream))?;
+            fetch::fetch(&r, Path::new(upstream), accept)?;
             make_from_upstream(&r, Path::new(upstream), Path::new(bundle))
         }
-        ["fetch", recipe, upstream] => fetch::fetch(&Recipe::load(Path::new(recipe))?, Path::new(upstream)),
+        ["fetch", recipe, upstream] => fetch::fetch(&Recipe::load(Path::new(recipe))?, Path::new(upstream), accept),
         ["reference", recipe, upstream, bundle] => {
             make_from_upstream(&Recipe::load(Path::new(recipe))?, Path::new(upstream), Path::new(bundle))
         }

@@ -14,14 +14,27 @@ pub fn url(repository: &str, commit: &str, path: &str) -> String {
     format!("{}/resolve/{commit}/{path}", repository.trim_end_matches('/'))
 }
 
+/// What `fetch` writes beside the files: where they came from, under
+/// which licence and terms, and their hashes.
+pub const PROVENANCE: &str = "turbo-fetch.json";
+
 /// Fetch every upstream file into `dir` at its upstream path. Prints each
-/// file's hash so it can be pinned in the recipe.
-pub fn fetch(recipe: &Recipe, dir: &Path) -> Result<()> {
+/// file's hash so it can be pinned in the recipe, and writes
+/// PROVENANCE. A recipe with a notice, terms beyond its licence, is
+/// fetched only when `accept_terms` says the caller accepted them.
+pub fn fetch(recipe: &Recipe, dir: &Path, accept_terms: bool) -> Result<()> {
     let (repository, commit) = recipe.source()?;
-    println!("{repository} at {commit}, licence {}", recipe.str_at("/model/license").unwrap_or("not stated"));
+    let license = recipe.str_at("/model/license").unwrap_or("not stated");
+    println!("{repository} at {commit}, licence {license}");
     if let Some(n) = &recipe.notice {
         println!("notice: {n}");
+        if !accept_terms {
+            return Err("this model carries terms beyond its licence (the notice above): \
+                        fetch it with --accept-terms once you have read them"
+                .into());
+        }
     }
+    let mut files = serde_json::Map::new();
     for u in &recipe.upstream {
         let dest = dir.join(&u.path);
         let have = fs::read(&dest).ok().map(|b| sha256_hex(&b));
@@ -43,8 +56,18 @@ pub fn fetch(recipe: &Recipe, dir: &Path) -> Result<()> {
             }
         };
         println!("{hash}  {}", u.path);
+        files.insert(u.path.clone(), hash.into());
     }
-    Ok(())
+    let provenance = serde_json::json!({
+        "repository": repository,
+        "revision": commit,
+        "license": license,
+        "notice": recipe.notice,
+        "terms_accepted": recipe.notice.is_some(),
+        "sha256": files,
+    });
+    let text = serde_json::to_vec_pretty(&provenance).map_err(|e| e.to_string())?;
+    write_atomic(&dir.join(PROVENANCE), &text)
 }
 
 fn get(url: &str) -> Result<Vec<u8>> {
