@@ -59,9 +59,11 @@ pub const TURBO_DEVICE_NPU: u32 = 4;
 
 pub const TURBO_DTYPE_I8: u32 = 6;
 pub const TURBO_DTYPE_I32: u32 = 8;
+pub const TURBO_DTYPE_I64: u32 = 9;
 pub const TURBO_DTYPE_F16: u32 = 10;
 pub const TURBO_DTYPE_BF16: u32 = 11;
 pub const TURBO_DTYPE_F32: u32 = 12;
+pub const TURBO_DTYPE_F64: u32 = 13;
 
 pub const TURBO_PLACE_HOST: u32 = 1;
 pub const TURBO_PLACE_PINNED: u32 = 2;

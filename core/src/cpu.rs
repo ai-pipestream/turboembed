@@ -299,6 +299,9 @@ struct Model {
     /// Held while `packed` is made. A failed pack leaves it unset, and the
     /// next session tries again.
     packing: Mutex<()>,
+    /// A static model's table, its weights and mapping widened, made by the
+    /// first session and shared by every later one.
+    table: OnceLock<std::sync::Arc<table::Table>>,
 }
 
 // The tensors point into the core's weights, which it keeps unchanged
@@ -391,6 +394,7 @@ unsafe extern "C" fn model_load(
             f32: OnceLock::new(),
             packed: OnceLock::new(),
             packing: Mutex::new(()),
+            table: OnceLock::new(),
         })) as *mut c_void
     };
     0
@@ -533,7 +537,7 @@ enum Work {
 /// table is read in place in its stored dtype and summed in F32 at every
 /// precision.
 fn static_session(m: &Model, max_batch: u32, max_seq: u32, err: *mut turbo_error) -> Result<Work, i32> {
-    let t = table::Table::new(&m.tensors, m.desc.dtype);
+    let t = m.table.get_or_init(|| std::sync::Arc::new(table::Table::new(&m.tensors))).clone();
     table::Static::new(t, kernels::Isa::detect(), max_batch as usize, max_seq as usize)
         .map(Work::Static)
         .map_err(|bytes| unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's rows")) })

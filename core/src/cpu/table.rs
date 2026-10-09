@@ -1,10 +1,17 @@
 //! A static model on the host: the family TURBO_FAMILY_STATIC names.
 //!
-//! There is no encoder. A row's vector is its tokens' rows of the table,
-//! each times the token's weight, averaged over the live tokens whose
-//! weight is not 0; the zero vector when there are none. Then the row is
-//! cut to output_dim and L2-normalized when asked. CLS pooling takes the
-//! row's first column and LAST its last live token, each times its weight;
+//! There is no encoder. A row's vector is computed as model2vec's
+//! StaticModel computes it, to the bit where numpy's order allows: each
+//! live token's table row (the row the token mapping names, when the
+//! model has one) times the token's weight (no product without weights),
+//! summed in token order and divided by the count of live tokens; the
+//! zero vector when there are none. The sum runs in F32, or in F64 where
+//! numpy promotes to it (an I8 or F64 table, or F64 weights), and the
+//! mean is rounded to F32, and to F16 for an F16 table, as numpy stores
+//! it. Then the row is cut to output_dim and, when asked, divided by its
+//! L2 norm plus 1e-32, the norm summed pairwise as numpy sums it, the
+//! quotient rounded to F16 again for an F16 table. CLS pooling takes the
+//! row's first column and LAST its last live token instead of the mean;
 //! a row with no live token is the zero vector under every pooling.
 //!
 //! `write` keeps only what the run reads: each row's live ids, in order,
@@ -18,8 +25,15 @@
 //! Every buffer is allocated by `new`, for the session's largest batch and
 //! its longest rows; `write` and `run` allocate nothing.
 
-use crate::backend::{TURBO_STATIC_EMBEDDINGS, TURBO_STATIC_WEIGHTS, turbo_backend_embed_rows, turbo_backend_tensor};
-use crate::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_NORMALIZE_L2, TURBO_POOLING_CLS, TURBO_POOLING_LAST};
+use std::sync::Arc;
+
+use crate::backend::{
+    TURBO_STATIC_EMBEDDINGS, TURBO_STATIC_MAPPING, TURBO_STATIC_WEIGHTS, turbo_backend_embed_rows, turbo_backend_tensor,
+};
+use crate::{
+    TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F64, TURBO_DTYPE_I8, TURBO_DTYPE_I32, TURBO_NORMALIZE_L2,
+    TURBO_POOLING_CLS, TURBO_POOLING_LAST,
+};
 
 use super::kernels::Isa;
 use super::pool::Pool;
@@ -33,15 +47,19 @@ const BLOCK: usize = 64;
 const TOKENS_PER_TASK: usize = 2048;
 
 /// The table as the model holds it: the bytes the core verified, in their
-/// stored dtype, read in place.
-#[derive(Clone, Copy)]
+/// stored dtype, read in place; the weights and the mapping, which are a
+/// value per token, widened once when the model is loaded.
 pub(super) struct Table {
     rows: *const u8,
-    weights: *const u8,
-    /// TURBO_DTYPE_F32, F16 or BF16, for both tensors.
+    /// TURBO_DTYPE_F32, F16, BF16, F64 or I8.
     dtype: u32,
     pub(super) dim: usize,
-    vocab: usize,
+    /// Each token's weight, exact: an F32 or F16 weight is an F64 too.
+    weights: Option<Box<[f64]>>,
+    mapping: Option<Box<[u32]>>,
+    /// The sum runs in F64: numpy promotes an I8 or F64 table, or F64
+    /// weights, to it.
+    wide: bool,
 }
 
 // The core's verified bytes, unchanged until model_release.
@@ -49,34 +67,48 @@ unsafe impl Send for Table {}
 unsafe impl Sync for Table {}
 
 impl Table {
-    /// The two tensors model_load was handed, in TURBO_STATIC_* order.
-    pub(super) fn new(tensors: &[turbo_backend_tensor], dtype: u32) -> Table {
-        let (e, w) = (&tensors[TURBO_STATIC_EMBEDDINGS as usize], &tensors[TURBO_STATIC_WEIGHTS as usize]);
-        Table {
-            rows: e.data as *const u8,
-            weights: w.data as *const u8,
-            dtype,
-            dim: e.shape[1] as usize,
-            vocab: e.shape[0] as usize,
-        }
+    /// The tensors model_load was handed, in TURBO_STATIC_* order; the
+    /// core has checked their shapes, dtypes and every mapping value.
+    pub(super) fn new(tensors: &[turbo_backend_tensor]) -> Table {
+        let e = &tensors[TURBO_STATIC_EMBEDDINGS as usize];
+        let (w, m) = (&tensors[TURBO_STATIC_WEIGHTS as usize], &tensors[TURBO_STATIC_MAPPING as usize]);
+        let weights = (!w.data.is_null()).then(|| {
+            let n = w.shape[0] as usize;
+            (0..n)
+                .map(|i| unsafe {
+                    match w.dtype {
+                        TURBO_DTYPE_F16 => f16_to_f32(*(w.data as *const u16).add(i)) as f64,
+                        TURBO_DTYPE_F64 => *(w.data as *const f64).add(i),
+                        _ => *(w.data as *const f32).add(i) as f64,
+                    }
+                })
+                .collect()
+        });
+        let mapping = (!m.data.is_null()).then(|| {
+            let n = m.shape[0] as usize;
+            (0..n)
+                .map(|i| unsafe {
+                    match m.dtype {
+                        TURBO_DTYPE_I32 => *(m.data as *const i32).add(i) as u32,
+                        _ => *(m.data as *const i64).add(i) as u32,
+                    }
+                })
+                .collect()
+        });
+        let wide =
+            matches!(e.dtype, TURBO_DTYPE_I8 | TURBO_DTYPE_F64) || (weights.is_some() && w.dtype == TURBO_DTYPE_F64);
+        Table { rows: e.data as *const u8, dtype: e.dtype, dim: e.shape[1] as usize, weights, mapping, wide }
     }
 
-    /// Token `id`'s weight as F32.
+    /// The table row token `id` reads.
     #[inline(always)]
-    fn weight(&self, id: usize) -> f32 {
-        debug_assert!(id < self.vocab);
-        unsafe {
-            match self.dtype {
-                TURBO_DTYPE_F16 => f16_to_f32(*(self.weights as *const u16).add(id)),
-                TURBO_DTYPE_BF16 => f32::from_bits((*(self.weights as *const u16).add(id) as u32) << 16),
-                _ => *(self.weights as *const f32).add(id),
-            }
-        }
+    fn row_of(&self, id: usize) -> usize {
+        self.mapping.as_ref().map_or(id, |m| m[id] as usize)
     }
 }
 
 pub(super) struct Static {
-    table: Table,
+    table: Arc<Table>,
     isa: Isa,
     /// Every row's live ids, one row after another.
     ids: Vec<u32>,
@@ -93,7 +125,7 @@ pub(super) struct Static {
 impl Static {
     /// A session's state for rows of up to `max_seq` tokens, `max_batch`
     /// of them. Err is the bytes that could not be allocated.
-    pub(super) fn new(table: Table, isa: Isa, max_batch: usize, max_seq: usize) -> Result<Static, usize> {
+    pub(super) fn new(table: Arc<Table>, isa: Isa, max_batch: usize, max_seq: usize) -> Result<Static, usize> {
         let tokens = max_batch.checked_mul(max_seq).ok_or(usize::MAX)?;
         let mut ids = Vec::new();
         ids.try_reserve_exact(tokens).map_err(|_| tokens.saturating_mul(4))?;
@@ -107,7 +139,7 @@ impl Static {
             batch: 0,
             pooling: 0,
             normalize: 0,
-            output_dim: table.dim,
+            output_dim: 0,
         })
     }
 
@@ -156,156 +188,263 @@ impl Static {
         pool.run(tasks, &|t, _| unsafe { entry(&job, t) });
     }
 
-    /// Row `r` into `dst`, output_dim values, fusing each multiply-add
-    /// when FMA.
+    /// Row `r` into `dst`, output_dim values.
     #[inline(always)]
-    fn row<const FMA: bool>(&self, r: usize, dst: &mut [f32]) {
+    fn row(&self, r: usize, dst: &mut [f32]) {
         let ids = &self.ids[self.starts[r]..self.starts[r + 1]];
-        let t = &self.table;
+        let t = &*self.table;
+        if ids.is_empty() {
+            dst.fill(0.0);
+            return;
+        }
         match self.pooling {
-            TURBO_POOLING_CLS if ids.is_empty() => dst.fill(0.0),
             TURBO_POOLING_CLS => self.one(self.first[r] as usize, dst),
-            TURBO_POOLING_LAST => match ids.last() {
-                Some(&id) => self.one(id as usize, dst),
-                None => dst.fill(0.0),
+            TURBO_POOLING_LAST => self.one(*ids.last().expect("not empty") as usize, dst),
+            _ => match t.dtype {
+                TURBO_DTYPE_F16 => mean::<F16>(t, ids, dst),
+                TURBO_DTYPE_BF16 => mean::<Bf16>(t, ids, dst),
+                TURBO_DTYPE_F64 => mean::<F64>(t, ids, dst),
+                TURBO_DTYPE_I8 => mean::<I8>(t, ids, dst),
+                _ => mean::<F32>(t, ids, dst),
             },
-            _ => {
-                let n = ids.iter().filter(|&&id| t.weight(id as usize) != 0.0).count();
-                if n == 0 {
-                    dst.fill(0.0);
-                } else {
-                    match t.dtype {
-                        TURBO_DTYPE_F16 => sum::<F16, FMA>(t, ids, dst),
-                        TURBO_DTYPE_BF16 => sum::<Bf16, FMA>(t, ids, dst),
-                        _ => sum::<F32, FMA>(t, ids, dst),
-                    }
-                    let inv = 1.0 / n as f32;
-                    for d in dst.iter_mut() {
-                        *d *= inv;
-                    }
-                }
-            }
+        }
+        // numpy stores an F16 table's mean as F16.
+        let half = t.dtype == TURBO_DTYPE_F16;
+        if half {
+            round_f16(dst);
         }
         if self.normalize == TURBO_NORMALIZE_L2 {
-            // As upstream: divided by the norm, or by 1e-12 when the norm
-            // is smaller. The zero vector stays zero.
-            let norm = dst.iter().map(|&v| v as f64 * v as f64).sum::<f64>().sqrt().max(1e-12);
-            let inv = (1.0 / norm) as f32;
+            // As StaticModel: x / (norm + 1e-32) in F32, so the zero vector
+            // stays zero, the norm's squares summed as numpy sums them.
+            let norm = pairwise_squares(dst).sqrt() + 1e-32;
             for d in dst.iter_mut() {
-                *d *= inv;
+                *d /= norm;
+            }
+            if half {
+                round_f16(dst);
             }
         }
     }
 
-    /// One token's row times its weight.
+    /// One token's row times its weight, as one row's mean.
     fn one(&self, id: usize, dst: &mut [f32]) {
-        let t = &self.table;
-        let w = t.weight(id);
-        let od = dst.len();
+        let t = &*self.table;
         match t.dtype {
-            TURBO_DTYPE_F16 => F16::widen(t, id, 0, od, dst),
-            TURBO_DTYPE_BF16 => Bf16::widen(t, id, 0, od, dst),
-            _ => F32::widen(t, id, 0, od, dst),
-        }
-        for d in dst.iter_mut() {
-            *d *= w;
+            TURBO_DTYPE_F16 => mean::<F16>(t, &[id as u32], dst),
+            TURBO_DTYPE_BF16 => mean::<Bf16>(t, &[id as u32], dst),
+            TURBO_DTYPE_F64 => mean::<F64>(t, &[id as u32], dst),
+            TURBO_DTYPE_I8 => mean::<I8>(t, &[id as u32], dst),
+            _ => mean::<F32>(t, &[id as u32], dst),
         }
     }
 }
 
 /// A stored dtype of the table.
 trait Stored {
-    /// Values from..from + n of token id's row, as F32, into dst[..n].
-    fn widen(t: &Table, id: usize, from: usize, n: usize, dst: &mut [f32]);
-    /// Value j of token id's row, as F32.
-    fn at(t: &Table, id: usize, j: usize) -> f32;
+    /// Value j of table row `row`, as F32: exact, except an F64 value.
+    fn at(t: &Table, row: usize, j: usize) -> f32;
+    /// Value j of table row `row`, as F64, exact.
+    #[inline(always)]
+    fn at64(t: &Table, row: usize, j: usize) -> f64 {
+        Self::at(t, row, j) as f64
+    }
 }
 
 struct F32;
 struct F16;
 struct Bf16;
+struct F64;
+/// An I8 value is the number it holds, as StaticModel reads it.
+struct I8;
 
 impl Stored for F32 {
     #[inline(always)]
-    fn widen(t: &Table, id: usize, from: usize, n: usize, dst: &mut [f32]) {
-        let row = unsafe { std::slice::from_raw_parts((t.rows as *const f32).add(id * t.dim + from), n) };
-        dst[..n].copy_from_slice(row);
-    }
-    #[inline(always)]
-    fn at(t: &Table, id: usize, j: usize) -> f32 {
-        unsafe { *(t.rows as *const f32).add(id * t.dim + j) }
+    fn at(t: &Table, row: usize, j: usize) -> f32 {
+        unsafe { *(t.rows as *const f32).add(row * t.dim + j) }
     }
 }
 
 impl Stored for F16 {
     #[inline(always)]
-    fn widen(t: &Table, id: usize, from: usize, n: usize, dst: &mut [f32]) {
-        for (j, d) in dst[..n].iter_mut().enumerate() {
-            *d = F16::at(t, id, from + j);
-        }
-    }
-    #[inline(always)]
-    fn at(t: &Table, id: usize, j: usize) -> f32 {
-        f16_to_f32(unsafe { *(t.rows as *const u16).add(id * t.dim + j) })
+    fn at(t: &Table, row: usize, j: usize) -> f32 {
+        f16_to_f32(unsafe { *(t.rows as *const u16).add(row * t.dim + j) })
     }
 }
 
 impl Stored for Bf16 {
     #[inline(always)]
-    fn widen(t: &Table, id: usize, from: usize, n: usize, dst: &mut [f32]) {
-        for (j, d) in dst[..n].iter_mut().enumerate() {
-            *d = Bf16::at(t, id, from + j);
-        }
+    fn at(t: &Table, row: usize, j: usize) -> f32 {
+        f32::from_bits((unsafe { *(t.rows as *const u16).add(row * t.dim + j) } as u32) << 16)
+    }
+}
+
+impl Stored for F64 {
+    #[inline(always)]
+    fn at(t: &Table, row: usize, j: usize) -> f32 {
+        Self::at64(t, row, j) as f32
     }
     #[inline(always)]
-    fn at(t: &Table, id: usize, j: usize) -> f32 {
-        f32::from_bits((unsafe { *(t.rows as *const u16).add(id * t.dim + j) } as u32) << 16)
+    fn at64(t: &Table, row: usize, j: usize) -> f64 {
+        unsafe { *(t.rows as *const f64).add(row * t.dim + j) }
     }
 }
 
-/// The weighted sum of the rows of `ids` into `dst`, its first dst.len()
-/// values: block by block of the width, each block's sum in registers
-/// over every token, in the row's order.
+impl Stored for I8 {
+    #[inline(always)]
+    fn at(t: &Table, row: usize, j: usize) -> f32 {
+        unsafe { *(t.rows as *const i8).add(row * t.dim + j) as f32 }
+    }
+}
+
+/// The mean of the rows of `ids` into `dst`, its first dst.len() values,
+/// as numpy's mean over the token axis computes it: summed in token
+/// order, in F64 when the table is wide, else in F32, each value times
+/// its token's weight first when there are weights; then divided by the
+/// count and rounded to F32. Block by block of the width, each block's
+/// sum in registers over every token.
 #[inline(always)]
-fn sum<S: Stored, const FMA: bool>(t: &Table, ids: &[u32], dst: &mut [f32]) {
+fn mean<S: Stored>(t: &Table, ids: &[u32], dst: &mut [f32]) {
     let od = dst.len();
+    let n = ids.len();
     let mut from = 0;
     while from < od {
-        let n = BLOCK.min(od - from);
-        let mut acc = [0f32; BLOCK];
-        if n == BLOCK {
+        let w = BLOCK.min(od - from);
+        if t.wide {
+            let mut acc = [0f64; BLOCK];
             for &id in ids {
-                let id = id as usize;
-                let w = t.weight(id);
-                if w == 0.0 {
-                    continue;
+                let row = t.row_of(id as usize);
+                match &t.weights {
+                    Some(ws) => {
+                        let x = ws[id as usize];
+                        for (j, a) in acc[..w].iter_mut().enumerate() {
+                            *a += S::at64(t, row, from + j) * x;
+                        }
+                    }
+                    None => {
+                        for (j, a) in acc[..w].iter_mut().enumerate() {
+                            *a += S::at64(t, row, from + j);
+                        }
+                    }
                 }
-                for (j, a) in acc.iter_mut().enumerate() {
-                    *a = madd::<FMA>(S::at(t, id, from + j), w, *a);
-                }
+            }
+            for (d, a) in dst[from..from + w].iter_mut().zip(&acc[..w]) {
+                *d = (a / n as f64) as f32;
             }
         } else {
-            for &id in ids {
-                let id = id as usize;
-                let w = t.weight(id);
-                if w == 0.0 {
-                    continue;
+            let mut acc = [0f32; BLOCK];
+            match &t.weights {
+                Some(ws) => {
+                    for &id in ids {
+                        let (row, x) = (t.row_of(id as usize), ws[id as usize] as f32);
+                        // A product, then a sum: two roundings, as numpy
+                        // makes them, never fused.
+                        for (j, a) in acc[..w].iter_mut().enumerate() {
+                            *a += S::at(t, row, from + j) * x;
+                        }
+                    }
                 }
-                for (j, a) in acc[..n].iter_mut().enumerate() {
-                    *a = madd::<FMA>(S::at(t, id, from + j), w, *a);
+                None if w == BLOCK => {
+                    for &id in ids {
+                        let row = t.row_of(id as usize);
+                        for (j, a) in acc.iter_mut().enumerate() {
+                            *a += S::at(t, row, from + j);
+                        }
+                    }
+                }
+                None => {
+                    for &id in ids {
+                        let row = t.row_of(id as usize);
+                        for (j, a) in acc[..w].iter_mut().enumerate() {
+                            *a += S::at(t, row, from + j);
+                        }
+                    }
                 }
             }
+            for (d, a) in dst[from..from + w].iter_mut().zip(&acc[..w]) {
+                *d = a / n as f32;
+            }
         }
-        dst[from..from + n].copy_from_slice(&acc[..n]);
-        from += n;
+        from += w;
     }
 }
 
-/// x * w + a, in one rounding when FMA: only where the instruction set
-/// has it, since elsewhere mul_add is a library call.
-#[inline(always)]
-fn madd<const FMA: bool>(x: f32, w: f32, a: f32) -> f32 {
-    if FMA { x.mul_add(w, a) } else { x * w + a }
+/// The sum of the squares of `x`, each square rounded to F32, summed as
+/// numpy's pairwise_sum sums a contiguous F32 axis: under 8 values one by
+/// one; up to 128 in eight running sums, combined as a tree, then the
+/// rest one by one; above, the two halves (the first a multiple of 8)
+/// apart.
+fn pairwise_squares(x: &[f32]) -> f32 {
+    let n = x.len();
+    if n < 8 {
+        let mut res = 0f32;
+        for &v in x {
+            res += v * v;
+        }
+        res
+    } else if n <= 128 {
+        let mut r = [0f32; 8];
+        for (k, v) in r.iter_mut().enumerate() {
+            *v = x[k] * x[k];
+        }
+        let mut i = 8;
+        while i < n - n % 8 {
+            for (k, v) in r.iter_mut().enumerate() {
+                *v += x[i + k] * x[i + k];
+            }
+            i += 8;
+        }
+        let mut res = ((r[0] + r[1]) + (r[2] + r[3])) + ((r[4] + r[5]) + (r[6] + r[7]));
+        while i < n {
+            res += x[i] * x[i];
+            i += 1;
+        }
+        res
+    } else {
+        let mut n2 = n / 2;
+        n2 -= n2 % 8;
+        pairwise_squares(&x[..n2]) + pairwise_squares(&x[n2..])
+    }
+}
+
+/// Each value rounded to the nearest F16, ties to even, and back.
+fn round_f16(x: &mut [f32]) {
+    for v in x.iter_mut() {
+        *v = f16_to_f32(f32_to_f16(*v));
+    }
+}
+
+/// An F32 to the nearest IEEE half, ties to even: infinity past the
+/// largest, subnormals below the smallest normal.
+fn f32_to_f16(v: f32) -> u16 {
+    let b = v.to_bits();
+    let sign = ((b >> 16) & 0x8000) as u16;
+    let exp = ((b >> 23) & 0xff) as i32;
+    let man = b & 0x7f_ffff;
+    if exp == 0xff {
+        return sign | 0x7c00 | if man != 0 { 0x200 } else { 0 };
+    }
+    let e = exp - 127 + 15;
+    if e >= 0x1f {
+        return sign | 0x7c00;
+    }
+    if e <= 0 {
+        if e < -10 {
+            return sign;
+        }
+        // Subnormal: the implicit bit made explicit, shifted into place.
+        let m = man | 0x80_0000;
+        let shift = (14 - e) as u32;
+        let half = m >> shift;
+        let rest = m & ((1 << shift) - 1);
+        let mid = 1 << (shift - 1);
+        let up = rest > mid || (rest == mid && half & 1 == 1);
+        return sign | (half + up as u32) as u16;
+    }
+    let half = ((e as u32) << 10) | (man >> 13);
+    let rest = man & 0x1fff;
+    let up = rest > 0x1000 || (rest == 0x1000 && half & 1 == 1);
+    // A carry out of the mantissa raises the exponent, to infinity at most.
+    sign | (half + up as u32) as u16
 }
 
 /// What a task reads and where it writes.
@@ -321,14 +460,14 @@ unsafe impl Sync for Out {}
 
 impl Job<'_> {
     #[inline(always)]
-    fn task<const FMA: bool>(&self, t: usize) {
+    fn task(&self, t: usize) {
         let s = self.s;
         let od = s.output_dim;
         let rows = t * self.rows_per_task..((t + 1) * self.rows_per_task).min(s.batch);
         for r in rows {
             // SAFETY: row r is this task's alone, inside the output.
             let dst = unsafe { std::slice::from_raw_parts_mut(self.out.0.add(r * od), od) };
-            s.row::<FMA>(r, dst);
+            s.row(r, dst);
         }
     }
 }
@@ -346,20 +485,19 @@ fn entry(isa: Isa) -> Entry {
 }
 
 unsafe fn entry_portable(j: &Job, t: usize) {
-    // Every aarch64 processor has FMA.
-    j.task::<{ cfg!(target_arch = "aarch64") }>(t)
+    j.task(t)
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2,fma,f16c")]
 unsafe fn entry_avx2(j: &Job, t: usize) {
-    j.task::<true>(t)
+    j.task(t)
 }
 
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx512f,avx512vl,avx2,fma,f16c")]
 unsafe fn entry_avx512(j: &Job, t: usize) {
-    j.task::<true>(t)
+    j.task(t)
 }
 
 /// An IEEE half to the single it names exactly.

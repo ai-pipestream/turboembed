@@ -135,6 +135,13 @@ pub struct WordPiece {
 /// `add_prefix_space`); the text is then cut at each `metaspace` into
 /// words, and each word into the vocabulary's pieces of highest total
 /// score, a character no piece covers being the SPECIAL_UNK token.
+///
+/// After the collapse of spaces, as BGE-M3's static models normalize:
+/// each ASCII punctuation character gets a space on each side (when
+/// `space_punctuation`), each run of whitespace becomes one space (when
+/// `collapse_whitespace`) and the text is trimmed (when `strip`). With
+/// `whole_text` the text is not cut at the metaspace: it is segmented at
+/// once, as a Metaspace pre-tokenizer with `split` false leaves it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Unigram {
@@ -142,6 +149,14 @@ pub struct Unigram {
     pub collapse_spaces: bool,
     pub metaspace: String,
     pub add_prefix_space: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub space_punctuation: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub collapse_whitespace: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub strip: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub whole_text: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,6 +169,16 @@ pub struct SpecialToken {
     /// `lstrip` added tokens do.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub lstrip: bool,
+    /// The token is matched in the normalized text, its content
+    /// normalized too, as upstream matches a `normalized` added token,
+    /// and only as a whole word when `single_word`; it takes the
+    /// whitespace after it when `rstrip`. A WordPiece tokenizer only.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub normalized: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub single_word: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rstrip: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -201,16 +226,31 @@ pub struct Architecture {
     pub vocab_size: u32,
 }
 
-/// A static model: one vector per vocabulary entry, distilled from a
-/// transformer, and no encoder. A row's vector is the weighted mean of its
-/// tokens' rows (turbo_backend.h, TURBO_FAMILY_STATIC). Its vectors live in
-/// a space of their own, not the base model's.
+/// A static model: one vector per vocabulary entry and no encoder, as
+/// Model2Vec makes them. A row's vector is the mean of its tokens' rows,
+/// each times its weight (turbo_backend.h, TURBO_FAMILY_STATIC). Its
+/// vectors live in a space of their own, not that of any model it was
+/// distilled from.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StaticEmbedding {
     pub vocab_size: u32,
-    pub distilled_from: DistilledFrom,
-    pub quality: Quality,
+    /// The table's rows when a token mapping picks them; without one, the
+    /// table has vocab_size rows and this is 0.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub rows: u32,
+    /// The tokens TURBO_TRUNCATE_MODEL keeps: StaticModel's max_length.
+    /// As StaticModel cuts, a text is first cut to max_length times the
+    /// vocabulary's median entry length in characters, its encoding to
+    /// max_length tokens, and then the unknown token is dropped.
+    pub max_length: u32,
+    /// The bundle the table was distilled from by `turbo-bundle distill`;
+    /// absent for a model made elsewhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub distilled_from: Option<DistilledFrom>,
+    /// What the distillation cost; with distilled_from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality: Option<Quality>,
 }
 
 /// The bundle the static model was distilled from, as its manifest names
@@ -402,10 +442,12 @@ pub enum TensorRole {
     FfnOutBias,
     FfnLnWeight,
     FfnLnBias,
-    /// A static model's table, `[vocab_size, dim]`.
+    /// A static model's table, `[rows, dim]`.
     StaticEmbeddings,
-    /// A static model's weight per token, `[vocab_size]`.
+    /// A static model's weight per token, `[vocab_size]`; optional.
     StaticWeights,
+    /// A static model's table row per token, `[vocab_size]`; optional.
+    StaticMapping,
 }
 
 impl TensorRole {
@@ -420,12 +462,13 @@ impl TensorRole {
                 | TensorRole::EmbeddingsLnBias
                 | TensorRole::StaticEmbeddings
                 | TensorRole::StaticWeights
+                | TensorRole::StaticMapping
         )
     }
 
     /// Roles a static model's weights have, and an encoder's do not.
     pub fn is_static(self) -> bool {
-        matches!(self, TensorRole::StaticEmbeddings | TensorRole::StaticWeights)
+        matches!(self, TensorRole::StaticEmbeddings | TensorRole::StaticWeights | TensorRole::StaticMapping)
     }
 }
 
@@ -618,6 +661,16 @@ impl Manifest {
             if !contents.insert(s.content.as_str()) {
                 return Err(invalid(format!("manifest.json: tokenizer.special_tokens[{i}].content: listed twice")));
             }
+            if (s.single_word || s.rstrip) && !s.normalized {
+                return Err(invalid(format!(
+                    "manifest.json: tokenizer.special_tokens[{i}]: single_word and rstrip are read with normalized"
+                )));
+            }
+            if s.normalized && t.wordpiece.is_none() {
+                return Err(invalid(format!(
+                    "manifest.json: tokenizer.special_tokens[{i}].normalized: a wordpiece tokenizer only"
+                )));
+            }
             if s.id > i32::MAX as u32 {
                 return Err(invalid(format!("manifest.json: tokenizer.special_tokens[{i}].id: over INT32_MAX")));
             }
@@ -715,24 +768,64 @@ impl Manifest {
                 ));
             }
             positive("static_embedding.vocab_size", st.vocab_size)?;
-            let d = &st.distilled_from;
-            required("static_embedding.distilled_from.model_id", &d.model_id)?;
-            required("static_embedding.distilled_from.revision", &d.revision)?;
-            if !is_hex64(&d.manifest_sha256) {
+            positive("static_embedding.max_length", st.max_length)?;
+            if st.max_length > e.max_seq {
+                return Err(invalid(format!(
+                    "manifest.json: static_embedding.max_length: {} is over embed.max_seq {}, the longest row a session takes",
+                    st.max_length, e.max_seq
+                )));
+            }
+            // StaticModel tokenizes the text alone and cuts it on the
+            // right; the core does the same and nothing else.
+            if t.template != ["$TEXT"] {
                 return Err(invalid(
-                    "manifest.json: static_embedding.distilled_from.manifest_sha256: not 64 lowercase hex digits",
+                    "manifest.json: tokenizer.template: a static model's rows are the text's tokens alone, [\"$TEXT\"]",
                 ));
             }
-            let q = &st.quality;
-            listed_path("static_embedding.quality.texts", &q.texts)?;
-            for (field, v, lo) in [
-                ("base_top1", q.base_top1, 0.0),
-                ("static_top1", q.static_top1, 0.0),
-                ("similarity_spearman", q.similarity_spearman, -1.0),
-            ] {
-                if !(lo..=1.0).contains(&v) {
+            if t.truncation != Truncation::Right {
+                return Err(invalid(
+                    "manifest.json: tokenizer.truncation: a static model cuts on the right, TRUNCATE_RIGHT",
+                ));
+            }
+            match (&st.distilled_from, &st.quality) {
+                (Some(d), Some(q)) => {
+                    required("static_embedding.distilled_from.model_id", &d.model_id)?;
+                    required("static_embedding.distilled_from.revision", &d.revision)?;
+                    if !is_hex64(&d.manifest_sha256) {
+                        return Err(invalid(
+                            "manifest.json: static_embedding.distilled_from.manifest_sha256: not 64 lowercase hex digits",
+                        ));
+                    }
+                    listed_path("static_embedding.quality.texts", &q.texts)?;
+                    for (field, v, lo) in [
+                        ("base_top1", q.base_top1, 0.0),
+                        ("static_top1", q.static_top1, 0.0),
+                        ("similarity_spearman", q.similarity_spearman, -1.0),
+                    ] {
+                        if !(lo..=1.0).contains(&v) {
+                            return Err(invalid(format!(
+                                "manifest.json: static_embedding.quality.{field}: {v} is not in {lo}..=1"
+                            )));
+                        }
+                    }
+                }
+                (None, None) => {}
+                _ => {
+                    return Err(invalid(
+                        "manifest.json: static_embedding: distilled_from and quality come together, or neither",
+                    ));
+                }
+            }
+            for (i, a) in self.artifacts.iter().enumerate() {
+                let names = |r: TensorRole| a.tensor_names.contains_key(&r);
+                if !names(TensorRole::StaticEmbeddings) {
                     return Err(invalid(format!(
-                        "manifest.json: static_embedding.quality.{field}: {v} is not in {lo}..=1"
+                        "manifest.json: artifacts[{i}].tensor_names: no static_embeddings, which a static model needs"
+                    )));
+                }
+                if names(TensorRole::StaticMapping) != (st.rows != 0) {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts[{i}].tensor_names: static_mapping and static_embedding.rows come together, or neither"
                     )));
                 }
             }

@@ -89,17 +89,23 @@ extern "C" {
 #define TURBO_BERT_LAYER_TENSORS  16
 
 /* Where each tensor of a static model sits in turbo_backend_model.tensors.
- * A row's vector is computed from its tokens alone, with no encoder: each
- * live token's row of the embedding table times the token's weight, the
- * mean of those products over the live tokens whose weight is not 0 (the
- * zero vector when none is), then the row's output_dim cut and
- * normalize. CLS pooling takes the row's first column and LAST its last
- * live token, each times its weight; a row with no live token is the
- * zero vector under every pooling. hidden is the table's width; layers, heads, intermediate and
- * max_positions are 0, token_types is 1. */
-#define TURBO_STATIC_EMBEDDINGS    0   /* [vocab_size, hidden] */
-#define TURBO_STATIC_WEIGHTS       1   /* [vocab_size]: 0 leaves the token out of the mean */
-#define TURBO_STATIC_TENSORS       2
+ * A row's vector is computed from its tokens alone, with no encoder, as
+ * Model2Vec's StaticModel computes it: each live token's table row (the
+ * row its mapping names, when there is a mapping) times the token's weight
+ * (1 when there are no weights), the mean of those over the live tokens
+ * (the zero vector when there are none), then the row's output_dim cut
+ * and normalize. CLS pooling takes the row's first column and LAST its
+ * last live token instead of the mean. The embeddings are F32, F16, BF16,
+ * F64 or I8 (an I8 value is the number it holds); the weights F32, F16 or
+ * F64; the mapping I32 or I64, each value under the table's rows, checked
+ * by the core. Each tensor's dtype is its own. A model without weights or
+ * a mapping has that entry's data NULL and bytes 0. hidden is the table's
+ * width; layers, heads, intermediate and max_positions are 0, token_types
+ * is 1. */
+#define TURBO_STATIC_EMBEDDINGS    0   /* [rows, hidden]: rows is vocab_size without a mapping */
+#define TURBO_STATIC_WEIGHTS       1   /* [vocab_size], or absent */
+#define TURBO_STATIC_MAPPING       2   /* [vocab_size], token id to table row, or absent */
+#define TURBO_STATIC_TENSORS       3
 
 /* The model families a model may be. */
 #define TURBO_FAMILY_BERT    1   /* GELU (erf), absolute positions, post-LayerNorm */
@@ -175,7 +181,8 @@ typedef struct turbo_backend_tensor {
     const void *data;       /* aligned to at least the dtype's element size */
     uint64_t    shape[2];   /* entries past ndim are 0 */
     uint32_t    ndim;       /* 1 or 2 */
-    uint32_t    dtype;      /* TURBO_DTYPE_*: the model's dtype */
+    uint32_t    dtype;      /* TURBO_DTYPE_*: the model's dtype; a static model's
+                               tensors each have their own */
     uint64_t    bytes;
 } turbo_backend_tensor;
 

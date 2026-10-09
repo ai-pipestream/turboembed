@@ -55,6 +55,17 @@ impl Fx {
     }
 }
 
+/// How StaticModel turns a text into ids, beside the encoding itself:
+/// when truncating at the right, the text is cut to max_tokens times
+/// `median_chars` characters and its encoding to max_tokens; then the
+/// unknown token is dropped. The tokenizer file's own truncation and
+/// padding are not used, as StaticModel replaces them.
+struct StaticRules {
+    /// The median length of the vocabulary's entries in characters,
+    /// rounded down, as StaticModel takes it.
+    median_chars: usize,
+}
+
 type Vocab = HashMap<String, u32, BuildHasherDefault<Fx>>;
 
 /// The two models the core runs.
@@ -63,18 +74,23 @@ enum Kind {
     Unigram(Unigram),
 }
 
-/// A special token as it is matched in raw text.
+/// A special token as it is matched in raw text, or in normalized text.
 struct Special {
     content: String,
     id: i32,
     /// The whitespace before it is part of the match.
     lstrip: bool,
+    /// Matched only with no word character on either side.
+    single_word: bool,
 }
 
 pub struct Tokenizer {
     kind: Kind,
     /// Special tokens as they are matched in raw text: longest first.
     specials: Vec<Special>,
+    /// Special tokens matched in each piece of normalized text, their
+    /// content normalized: longest first.
+    normalized_specials: Vec<Special>,
     /// The bytes a special token starts with, so text_ids looks for a
     /// match only where one can begin.
     special_starts: [bool; 256],
@@ -88,6 +104,9 @@ pub struct Tokenizer {
     pub bos_id: i32,
     pub eos_id: i32,
     pub unk_id: i32,
+    /// A static model's rules (manifest static_embedding), None for an
+    /// encoder.
+    stat: Option<StaticRules>,
     /// SHA-256 of the tokenizer file.
     pub sha256: String,
     /// SHA-256 of the manifest the tokenizer was made from.
@@ -213,10 +232,10 @@ impl Tokenizer {
                 )));
             };
             if a["id"] != s.id
-                || a["normalized"] != false
+                || a["normalized"] != s.normalized
                 || a["lstrip"] != s.lstrip
-                || a["rstrip"] != false
-                || a["single_word"] != false
+                || a["rstrip"] != s.rstrip
+                || a["single_word"] != s.single_word
             {
                 return Err(invalid(format!(
                     "{file}: added_tokens[{i}] {content:?} is matched differently from what manifest.json says"
@@ -236,29 +255,51 @@ impl Tokenizer {
         let mut specials: Vec<Special> = t
             .special_tokens
             .iter()
-            .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip })
+            .filter(|s| !s.normalized)
+            .map(|s| Special { content: s.content.clone(), id: s.id as i32, lstrip: s.lstrip, single_word: false })
             .collect();
         specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
+        // Whitespace around a normalized special token is dropped by the
+        // pre-tokenizer either way, so lstrip and rstrip change no id.
+        let mut normalized_specials: Vec<Special> = match &kind {
+            Kind::WordPiece { normalizer, .. } => t
+                .special_tokens
+                .iter()
+                .filter(|s| s.normalized)
+                .map(|s| Special {
+                    content: normalize(normalizer, &s.content),
+                    id: s.id as i32,
+                    lstrip: s.lstrip,
+                    single_word: s.single_word,
+                })
+                .filter(|s| !s.content.is_empty())
+                .collect(),
+            Kind::Unigram(_) => Vec::new(),
+        };
+        normalized_specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
         let mut special_starts = [false; 256];
         for s in &specials {
             if let Some(&b) = s.content.as_bytes().first() {
                 special_starts[b as usize] = true;
             }
         }
+        let stat = m.static_embedding.as_ref().map(|_| StaticRules { median_chars: kind.median_chars() });
         let e = m.embed();
         Ok(Tokenizer {
             kind,
             specials,
+            normalized_specials,
             special_starts,
             template: t.template.iter().map(|s| if s == "$TEXT" { None } else { id_of(s) }).collect(),
             truncation: t.truncation,
-            max_seq: e.max_seq,
+            max_seq: m.static_embedding.as_ref().map_or(e.max_seq, |st| st.max_length),
             prefix_query: e.prefix_query.clone(),
             prefix_document: e.prefix_document.clone(),
             pad_id: role(SpecialRole::Pad),
             bos_id: role(SpecialRole::Bos),
             eos_id: role(SpecialRole::Eos),
             unk_id: role(SpecialRole::Unk),
+            stat,
             sha256: crate::bundle::sha256_hex(&bytes),
             manifest_sha256: bundle.manifest_sha256.clone(),
         })
@@ -368,7 +409,28 @@ impl Tokenizer {
             ));
         }
         let budget = (opts.max_tokens - specials) as usize;
-        let mut body = self.text_ids(&self.prompted(text, opts.prompt));
+        let text = self.prompted(text, opts.prompt);
+        let mut body = match &self.stat {
+            None => self.text_ids(&text),
+            Some(st) => {
+                let mut ids = match opts.truncation {
+                    Truncation::Right => {
+                        let mut ids = self.text_ids(char_prefix(&text, budget.saturating_mul(st.median_chars)));
+                        ids.truncate(budget);
+                        ids
+                    }
+                    Truncation::Left => {
+                        let mut ids = self.text_ids(&text);
+                        ids.drain(..ids.len().saturating_sub(budget));
+                        ids
+                    }
+                    Truncation::None => self.text_ids(&text),
+                };
+                let unk = self.unk_id;
+                ids.retain(|&id| id != unk);
+                ids
+            }
+        };
         if body.len() > budget {
             match opts.truncation {
                 Truncation::None => {
@@ -402,7 +464,12 @@ impl Tokenizer {
 
     /// Tokens `text` produces, with special tokens and no truncation.
     pub fn count(&self, text: &str, prompt: PromptRole) -> usize {
-        self.text_ids(&self.prompted(text, prompt)).len() + self.specials_per_sequence() as usize
+        let mut ids = self.text_ids(&self.prompted(text, prompt));
+        if self.stat.is_some() {
+            let unk = self.unk_id;
+            ids.retain(|&id| id != unk);
+        }
+        ids.len() + self.specials_per_sequence() as usize
     }
 
     fn prompted<'a>(&self, text: &'a str, prompt: PromptRole) -> Cow<'a, str> {
@@ -451,7 +518,32 @@ impl Tokenizer {
         match &self.kind {
             Kind::WordPiece { normalizer, .. } => {
                 let normalized = normalize(normalizer, text);
-                pre_tokenize(&normalized, |word| self.word_pieces(word, out));
+                let mut rest = normalized.as_str();
+                // Upstream's leftmost-longest matches, each searched for
+                // after the last; one that is not a whole word when it must
+                // be is passed over, its text left to the words around it.
+                let mut from = 0;
+                while !self.normalized_specials.is_empty() && from < rest.len() {
+                    let at = &rest[from..];
+                    let hit = self.normalized_specials.iter().find(|s| at.starts_with(s.content.as_str()));
+                    let Some(s) = hit else {
+                        from += at.chars().next().map_or(1, char::len_utf8);
+                        continue;
+                    };
+                    let end = from + s.content.len();
+                    let whole = !s.single_word
+                        || (!rest[..from].chars().next_back().is_some_and(is_word)
+                            && !rest[end..].chars().next().is_some_and(is_word));
+                    if whole {
+                        pre_tokenize(&rest[..from], |word| self.word_pieces(word, out));
+                        out.push(s.id);
+                        rest = &rest[end..];
+                        from = 0;
+                    } else {
+                        from = end;
+                    }
+                }
+                pre_tokenize(rest, |word| self.word_pieces(word, out));
             }
             Kind::Unigram(u) => {
                 if !text.is_empty() {
@@ -519,6 +611,30 @@ impl Kind {
             Kind::Unigram(u) => u.id(piece),
         }
     }
+
+    /// The median length of the vocabulary's entries in characters,
+    /// rounded down: numpy's median of the lengths, then int().
+    fn median_chars(&self) -> usize {
+        let mut lens: Vec<usize> = match self {
+            Kind::WordPiece { vocab, .. } => vocab.keys().map(|p| p.chars().count()).collect(),
+            Kind::Unigram(u) => u.pieces().map(|p| p.chars().count()).collect(),
+        };
+        lens.sort_unstable();
+        let n = lens.len();
+        match n {
+            0 => 0,
+            _ if n % 2 == 1 => lens[n / 2],
+            _ => (lens[n / 2 - 1] + lens[n / 2]) / 2,
+        }
+    }
+}
+
+/// The first `n` characters of `text`, all of it when it has fewer.
+fn char_prefix(text: &str, n: usize) -> &str {
+    if text.len() <= n {
+        return text;
+    }
+    text.char_indices().nth(n).map_or(text, |(at, _)| &text[..at])
 }
 
 /// BertNormalizer, in upstream's order: clean, split CJK, strip accents,
@@ -594,6 +710,16 @@ fn pre_tokenize<'a>(s: &'a str, mut word: impl FnMut(&'a str)) {
             word(&chunk[begin..]);
         }
     }
+}
+
+/// A character of regex's Unicode \\w, which upstream's single_word
+/// reads: alphabetic, a mark, a decimal digit, a connector, or a joiner.
+fn is_word(c: char) -> bool {
+    c.is_alphabetic()
+        || c.is_mark()
+        || c.is_number_decimal_digit()
+        || c.is_punctuation_connector()
+        || matches!(c, '\u{200c}' | '\u{200d}')
 }
 
 fn is_whitespace(c: char) -> bool {

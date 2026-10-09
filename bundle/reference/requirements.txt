@@ -11,5 +11,6 @@ onnxconverter-common==1.16.0
 openvino==2026.3.0
 protobuf==7.36.2
 # Model2Vec's StaticModel, the reference a static bundle's vectors come
-# from (static_reference.py, docs/static.md).
-model2vec==0.9.0
+# from (static_reference.py, docs/static.md), at a pinned commit of its
+# repository.
+model2vec @ https://github.com/MinishLab/model2vec/archive/3ef2bf257d16429b9f822c6c5508a01b9b17b85f.tar.gz

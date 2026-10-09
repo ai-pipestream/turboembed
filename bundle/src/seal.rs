@@ -353,12 +353,17 @@ pub fn verify(bundle: &Path) -> Result<()> {
         return Err(format!("{}: embeddings are {:?}, not [{n}, {dim}]", m.reference.file, emb.shape));
     }
     let values = emb.f32s();
+    // A static model's text of no tokens is the zero vector, and an F16
+    // table's vectors are rounded to F16 after they are normalized, as
+    // StaticModel rounds them.
+    let is_static = m.static_embedding.is_some();
+    let tolerance = if is_static { 2e-3 } else { 1e-4 };
     for (i, row) in values.chunks_exact(dim).enumerate() {
         let norm = row.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>().sqrt();
-        if !row.iter().all(|v| v.is_finite()) || norm == 0.0 {
+        if !row.iter().all(|v| v.is_finite()) || (norm == 0.0 && !is_static) {
             return Err(format!("{}: case {i} has no real vector", m.reference.file));
         }
-        if embed.normalize == Normalize::L2 && (norm - 1.0).abs() > 1e-4 {
+        if embed.normalize == Normalize::L2 && norm != 0.0 && (norm - 1.0).abs() > tolerance {
             return Err(format!("{}: case {i} has norm {norm}, and the bundle says NORMALIZE_L2", m.reference.file));
         }
     }

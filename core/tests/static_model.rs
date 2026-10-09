@@ -44,19 +44,24 @@ fn from_f16(h: u16) -> f32 {
     }
 }
 
-/// The bundle's table and weights widened to f64, and its width.
+/// The bundle's table, weights and mapping widened to f64, and its
+/// width: StaticModel's arithmetic written plainly, in f64.
 struct Plain {
     table: Vec<f64>,
-    weights: Vec<f64>,
+    weights: Option<Vec<f64>>,
+    mapping: Option<Vec<usize>>,
     dim: usize,
+    /// The library rounds an F16 table's vectors to F16, as StaticModel
+    /// does; the plain arithmetic does not.
+    tolerance: f64,
 }
 
 impl Plain {
     fn new(dir: &Path) -> Plain {
         let bytes = fs::read(dir.join("weights/static.safetensors")).unwrap();
         let f = File::parse("static.safetensors", &bytes).unwrap();
-        let wide = |name: &str| -> (Vec<f64>, Vec<u64>) {
-            let t = f.tensor(name).unwrap();
+        let wide = |name: &str| -> Option<(Vec<f64>, Vec<u64>, Dtype)> {
+            let t = f.tensor(name)?;
             let v = match t.dtype {
                 Dtype::F16 => t.data.chunks(2).map(|c| from_f16(u16::from_le_bytes([c[0], c[1]])) as f64).collect(),
                 Dtype::Bf16 => t
@@ -65,18 +70,28 @@ impl Plain {
                     .map(|c| f32::from_bits((u16::from_le_bytes([c[0], c[1]]) as u32) << 16) as f64)
                     .collect(),
                 Dtype::F32 => t.f32s().into_iter().map(f64::from).collect(),
+                Dtype::F64 => t.data.chunks(8).map(|c| f64::from_le_bytes(c.try_into().unwrap())).collect(),
+                Dtype::I8 => t.data.iter().map(|&b| b as i8 as f64).collect(),
+                Dtype::I64 => t.data.chunks(8).map(|c| i64::from_le_bytes(c.try_into().unwrap()) as f64).collect(),
                 other => panic!("{other:?}"),
             };
-            (v, t.shape.clone())
+            Some((v, t.shape.clone(), t.dtype))
         };
-        let (table, shape) = wide("embeddings");
-        let (weights, _) = wide("weights");
-        Plain { table, weights, dim: shape[1] as usize }
+        let (table, shape, dtype) = wide("embeddings").unwrap();
+        Plain {
+            table,
+            weights: wide("weights").map(|w| w.0),
+            mapping: wide("mapping").map(|m| m.0.iter().map(|&v| v as usize).collect()),
+            dim: shape[1] as usize,
+            tolerance: if dtype == Dtype::F16 { 1e-3 } else { 1e-5 },
+        }
     }
 
     fn scaled(&self, id: i32) -> Vec<f64> {
         let (id, d) = (id as usize, self.dim);
-        self.table[id * d..(id + 1) * d].iter().map(|v| v * self.weights[id]).collect()
+        let row = self.mapping.as_ref().map_or(id, |m| m[id]);
+        let w = self.weights.as_ref().map_or(1.0, |w| w[id]);
+        self.table[row * d..(row + 1) * d].iter().map(|v| v * w).collect()
     }
 
     /// One row of `ids` under `mask`: the static model's vector in f64.
@@ -89,30 +104,28 @@ impl Plain {
                 TURBO_POOLING_CLS => self.scaled(ids[0]),
                 TURBO_POOLING_LAST => self.scaled(*live.last().unwrap()),
                 _ => {
-                    let kept: Vec<i32> = live.into_iter().filter(|&id| self.weights[id as usize] != 0.0).collect();
                     let mut acc = vec![0.0; self.dim];
-                    for &id in &kept {
+                    for &id in &live {
                         for (a, x) in acc.iter_mut().zip(self.scaled(id)) {
                             *a += x;
                         }
                     }
-                    let n = kept.len().max(1) as f64;
-                    acc.iter().map(|a| if kept.is_empty() { 0.0 } else { a / n }).collect()
+                    acc.iter().map(|a| a / live.len() as f64).collect()
                 }
             }
         };
         if normalize {
-            let norm = v.iter().map(|x| x * x).sum::<f64>().sqrt().max(1e-12);
+            let norm = v.iter().map(|x| x * x).sum::<f64>().sqrt() + 1e-32;
             v.iter_mut().for_each(|x| *x /= norm);
         }
         v
     }
-}
 
-fn close(got: &[f32], want: &[f64], what: &str) {
-    assert_eq!(got.len(), want.len(), "{what}");
-    for (g, w) in got.iter().zip(want) {
-        assert!((*g as f64 - w).abs() < 1e-5 * (1.0 + w.abs()), "{what}: {g} vs {w}");
+    fn close(&self, got: &[f32], want: &[f64], what: &str) {
+        assert_eq!(got.len(), want.len(), "{what}");
+        for (g, w) in got.iter().zip(want) {
+            assert!((*g as f64 - w).abs() < self.tolerance * (1.0 + w.abs()), "{what}: {g} vs {w}");
+        }
     }
 }
 
@@ -164,7 +177,7 @@ fn every_option_matches_the_arithmetic_written_plainly() {
             for (r, row) in got.iter().enumerate() {
                 let at = r * seq..(r + 1) * seq;
                 let want = plain.embed(&t.ids[at.clone()], &t.mask[at], pooling, normalize == TURBO_NORMALIZE_L2);
-                close(row, &want, &format!("pooling {pooling} normalize {normalize} row {r}"));
+                plain.close(row, &want, &format!("pooling {pooling} normalize {normalize} row {r}"));
             }
         }
     }
@@ -172,7 +185,11 @@ fn every_option_matches_the_arithmetic_written_plainly() {
     // Text is tokenized with no special tokens: the same as its ids.
     let from_text = s.embed(&TEXTS, None).unwrap();
     for (r, row) in rows.iter().enumerate() {
-        close(&from_text[r], &plain.embed(row, &vec![1; row.len()], TURBO_POOLING_MEAN, true), &format!("text {r}"));
+        plain.close(
+            &from_text[r],
+            &plain.embed(row, &vec![1; row.len()], TURBO_POOLING_MEAN, true),
+            &format!("text {r}"),
+        );
     }
 }
 
@@ -182,9 +199,10 @@ fn a_text_of_no_tokens_or_only_unknown_ones_is_the_zero_vector() {
     let l = load(&dir);
     let s = session(&l);
     let tok = Tok::create(&dir).unwrap();
-    // A character the vocabulary does not hold is [UNK], whose weight is 0.
+    // A character the vocabulary does not hold is [UNK], which is dropped
+    // as StaticModel drops it.
     let unk = "\u{2603}\u{2603}";
-    assert_eq!(tok.row(unk, None).unwrap(), vec![100]);
+    assert_eq!(tok.row(unk, None).unwrap(), Vec::<i32>::new());
     for pooling in [TURBO_POOLING_MEAN, TURBO_POOLING_CLS, TURBO_POOLING_LAST] {
         let got = s.embed(&["", "   ", "a", unk], Some(&opts(pooling, TURBO_NORMALIZE_L2))).unwrap();
         assert!(got[0].iter().all(|&x| x == 0.0), "pooling {pooling}: {:?}", got[0]);
@@ -248,9 +266,9 @@ fn a_large_batch_gives_what_one_text_at_a_time_gives() {
     assert!(e.message.starts_with("texts[77]:"), "{e:?}");
 }
 
-/// The bundle copied with its table stored as `dtype`, from the F16
-/// values, and its manifest's hashes and sizes made to match.
-fn restored(name: &str, dtype: &str) -> PathBuf {
+/// The bundle copied with `tensors` as its table file, and its manifest's
+/// hashes, sizes and tensor names made to match.
+fn restored(name: &str, tensors: &[Tensor]) -> PathBuf {
     let src = bundle();
     let dir = std::env::temp_dir().join(format!("turbo-static-{name}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
@@ -260,28 +278,7 @@ fn restored(name: &str, dtype: &str) -> PathBuf {
     for f in ["tokenizer.json", "reference/reference.safetensors", "quality/texts.jsonl"] {
         fs::copy(src.join(f), dir.join(f)).unwrap();
     }
-    let bytes = fs::read(src.join("weights/static.safetensors")).unwrap();
-    let f = File::parse("static.safetensors", &bytes).unwrap();
-    let tensors: Vec<Tensor> = ["embeddings", "weights"]
-        .iter()
-        .map(|&n| {
-            let t = f.tensor(n).unwrap();
-            let wide: Vec<f32> = t.data.chunks(2).map(|c| from_f16(u16::from_le_bytes([c[0], c[1]]))).collect();
-            let data = match dtype {
-                "F32" => wide.iter().flat_map(|v| v.to_le_bytes()).collect(),
-                // Rounded to nearest even.
-                _ => wide
-                    .iter()
-                    .flat_map(|v| {
-                        let b = v.to_bits();
-                        (((b + 0x7fff + ((b >> 16) & 1)) >> 16) as u16).to_le_bytes()
-                    })
-                    .collect(),
-            };
-            Tensor { name: n.into(), dtype: if dtype == "F32" { "F32" } else { "BF16" }, shape: t.shape.clone(), data }
-        })
-        .collect();
-    let file = safetensors_file(&tensors);
+    let file = safetensors_file(tensors);
     fs::write(dir.join("weights/static.safetensors"), &file).unwrap();
     let mut m: Value = serde_json::from_slice(&fs::read(src.join("manifest.json")).unwrap()).unwrap();
     for e in m["files"].as_array_mut().unwrap() {
@@ -290,32 +287,123 @@ fn restored(name: &str, dtype: &str) -> PathBuf {
             e["sha256"] = sha256_hex(&file).into();
         }
     }
+    let names = &mut m["artifacts"][0]["tensor_names"];
+    for t in tensors {
+        let role = match t.name.as_str() {
+            "embeddings" => "static_embeddings",
+            "weights" => "static_weights",
+            _ => "static_mapping",
+        };
+        names[role] = t.name.clone().into();
+    }
+    if let Some(map) = tensors.iter().find(|t| t.name == "mapping") {
+        let rows = tensors.iter().find(|t| t.name == "embeddings").unwrap().shape[0];
+        m["static_embedding"]["rows"] = rows.into();
+        assert_eq!(map.shape[0], m["static_embedding"]["vocab_size"].as_u64().unwrap());
+    }
     fs::write(dir.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
     dir
 }
 
+/// The bundle's F16 table, widened, and its shape.
+fn table_values() -> (Vec<f32>, Vec<u64>) {
+    let bytes = fs::read(bundle().join("weights/static.safetensors")).unwrap();
+    let f = File::parse("static.safetensors", &bytes).unwrap();
+    let t = f.tensor("embeddings").unwrap();
+    (t.data.chunks(2).map(|c| from_f16(u16::from_le_bytes([c[0], c[1]]))).collect(), t.shape.clone())
+}
+
+fn tensor(name: &str, dtype: &'static str, shape: Vec<u64>, data: Vec<u8>) -> Tensor {
+    Tensor { name: name.into(), dtype, shape, data }
+}
+
+/// The table stored in F32, BF16, F64 and I8, and in F32 behind a token
+/// mapping with F64 weights, as Model2Vec's vocabulary quantization
+/// stores it: each against the arithmetic written plainly.
 #[test]
 fn the_table_in_each_dtype_gives_its_values_arithmetic() {
     let f16 = session(&load(&bundle())).embed(&TEXTS, None).unwrap();
-    for dtype in ["F32", "BF16"] {
-        let dir = restored(&dtype.to_lowercase(), dtype);
+    let (wide, shape) = table_values();
+    let (vocab, dim) = (shape[0] as usize, shape[1] as usize);
+    let max = wide.iter().fold(0f32, |m, v| m.max(v.abs()));
+    // Rows in reverse order, each token's weight a value of its own.
+    let reversed: Vec<f32> = (0..vocab).rev().flat_map(|r| wide[r * dim..(r + 1) * dim].to_vec()).collect();
+    let mapping: Vec<u8> = (0..vocab as i64).flat_map(|id| (vocab as i64 - 1 - id).to_le_bytes()).collect();
+    let weights: Vec<u8> = (0..vocab).flat_map(|id| (0.5 + (id % 7) as f64 / 8.0).to_le_bytes()).collect();
+    let cases: Vec<(&str, u32, Vec<Tensor>)> = vec![
+        (
+            "f32",
+            TURBO_DTYPE_F32,
+            vec![tensor("embeddings", "F32", shape.clone(), wide.iter().flat_map(|v| v.to_le_bytes()).collect())],
+        ),
+        (
+            "bf16",
+            TURBO_DTYPE_BF16,
+            vec![tensor(
+                "embeddings",
+                "BF16",
+                shape.clone(),
+                // Rounded to nearest even.
+                wide.iter()
+                    .flat_map(|v| {
+                        let b = v.to_bits();
+                        (((b + 0x7fff + ((b >> 16) & 1)) >> 16) as u16).to_le_bytes()
+                    })
+                    .collect(),
+            )],
+        ),
+        (
+            "f64",
+            TURBO_DTYPE_F64,
+            vec![tensor(
+                "embeddings",
+                "F64",
+                shape.clone(),
+                wide.iter().flat_map(|&v| (v as f64).to_le_bytes()).collect(),
+            )],
+        ),
+        (
+            "i8",
+            TURBO_DTYPE_I8,
+            vec![tensor(
+                "embeddings",
+                "I8",
+                shape.clone(),
+                wide.iter().map(|v| (v / max * 127.0).round() as i8 as u8).collect(),
+            )],
+        ),
+        (
+            "mapped",
+            TURBO_DTYPE_F32,
+            vec![
+                tensor("mapping", "I64", vec![vocab as u64], mapping),
+                tensor("weights", "F64", vec![vocab as u64], weights),
+                tensor("embeddings", "F32", shape.clone(), reversed.iter().flat_map(|v| v.to_le_bytes()).collect()),
+            ],
+        ),
+    ];
+    for (name, dtype, tensors) in cases {
+        let dir = restored(name, &tensors);
         let plain = Plain::new(&dir);
         let l = load(&dir);
-        assert_eq!(l.info().dtype, if dtype == "F32" { TURBO_DTYPE_F32 } else { TURBO_DTYPE_BF16 });
+        assert_eq!(l.info().dtype, dtype, "{name}");
         let s = session(&l);
         let tok = Tok::create(&dir).unwrap();
         let got = s.embed(&TEXTS, None).unwrap();
         for (r, t) in TEXTS.iter().enumerate() {
-            if dtype == "F32" {
-                // The same values as the F16 table: the same vectors.
-                assert_eq!(got[r], f16[r], "{dtype} row {r}");
-            }
             let row = tok.row(t, None).unwrap();
-            close(
+            plain.close(
                 &got[r],
                 &plain.embed(&row, &vec![1; row.len()], TURBO_POOLING_MEAN, true),
-                &format!("{dtype} row {r}"),
+                &format!("{name} row {r}"),
             );
+            if name == "f32" {
+                // The F16 table's values: its vectors, but for the F16
+                // table's rounding of the mean and of the result.
+                let f16_plain = Plain { tolerance: 1e-3, ..Plain::new(&dir) };
+                let want: Vec<f64> = got[r].iter().map(|&v| v as f64).collect();
+                f16_plain.close(&f16[r], &want, &format!("{name} row {r} against F16"));
+            }
         }
         drop(s);
         drop(l);
@@ -356,6 +444,18 @@ fn a_static_manifest_is_checked_field_by_field() {
     refused(|m| m["static_embedding"]["quality"]["similarity_spearman"] = (-2.0).into(), "similarity_spearman");
     refused(|m| m["static_embedding"]["vocab_size"] = 101.into(), "is not under static_embedding.vocab_size 101");
     refused(|m| m["static_embedding"]["quality"]["extra"] = 1.into(), "extra");
+    refused(|m| m["static_embedding"]["max_length"] = 0.into(), "static_embedding.max_length");
+    refused(|m| m["static_embedding"]["max_length"] = 4096.into(), "is over embed.max_seq");
+    refused(|m| m["tokenizer"]["template"] = serde_json::json!(["[CLS]", "$TEXT"]), "a static model's rows");
+    refused(|m| m["static_embedding"]["rows"] = 30.into(), "static_mapping and static_embedding.rows come together");
+    refused(
+        |m| m["artifacts"][0]["tensor_names"]["static_mapping"] = "mapping".into(),
+        "static_mapping and static_embedding.rows come together",
+    );
+    refused(
+        |m| m["tokenizer"]["special_tokens"][0]["single_word"] = true.into(),
+        "single_word and rstrip are read with normalized",
+    );
     refused(|m| m["artifacts"][0]["format"] = "FORMAT_ONNX".into(), "a static model's artifacts are raw weights");
     refused(
         |m| m["artifacts"][0]["tensor_names"]["word_embeddings"] = "embeddings".into(),

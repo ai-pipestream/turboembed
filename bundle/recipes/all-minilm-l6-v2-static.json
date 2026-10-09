@@ -65,6 +65,7 @@
     },
     "static_embedding": {
       "vocab_size": 30522,
+      "max_length": 512,
       "quality": {
         "texts": "quality/texts.jsonl"
       }
@@ -82,8 +83,7 @@
         "graph_input": "INPUT_TOKEN_IDS",
         "graph_output": "OUTPUT_HIDDEN_STATES",
         "tensor_names": {
-          "static_embeddings": "embeddings",
-          "static_weights": "weights"
+          "static_embeddings": "embeddings"
         }
       }
     ],

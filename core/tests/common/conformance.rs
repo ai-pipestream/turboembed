@@ -39,6 +39,12 @@ impl Worst {
 
     fn add(&mut self, what: &str, got: &[f32], want: &[f32], floor: record::Tolerance) {
         assert_eq!(got.len(), want.len(), "{what}: width");
+        // A static model's text of no tokens: the zero vector, exactly.
+        if want.iter().all(|&v| v == 0.0) {
+            assert!(got.iter().all(|&v| v == 0.0), "{what}: the reference is the zero vector, the library's is not");
+            self.rows += 1;
+            return;
+        }
         let c = cosine(got, want);
         assert!(c >= floor.min_cosine, "{what}: cosine {c} is under {}", floor.min_cosine);
         let d = max_abs_diff(got, want);
@@ -147,15 +153,18 @@ pub fn check(dir: &Path, device: impl Fn(*mut turbo_runtime) -> u32, precision: 
         }
     }
 
-    // write_tokens with the reference's ids, one at a time and batched.
+    // write_tokens with the reference's ids, one at a time and batched: a
+    // row there has a live token, so a static model's case of no tokens
+    // is left to write_text.
     let pad = mi_pad(&tok);
+    let live: Vec<(usize, &Case)> = run.iter().copied().filter(|(_, c)| !c.ids.is_empty()).collect();
     let mut tokens1 = Worst::new();
-    for &(i, c) in &run {
+    for &(i, c) in &live {
         s.write_tokens(&Tokens::new(std::slice::from_ref(&c.ids), pad).batch(), None).unwrap();
         tokens1.add(&format!("write_tokens case {i}"), &s.run().unwrap().rows()[0], &c.vector, floor);
     }
     let mut tokens_full = Worst::new();
-    for group in run.chunks(si.max_batch as usize) {
+    for group in live.chunks(si.max_batch as usize) {
         let rows: Vec<Vec<i32>> = group.iter().map(|(_, c)| c.ids.clone()).collect();
         s.write_tokens(&Tokens::new(&rows, pad).batch(), None).unwrap();
         for ((i, c), v) in group.iter().zip(s.run().unwrap().rows()) {
@@ -179,8 +188,9 @@ pub fn check(dir: &Path, device: impl Fn(*mut turbo_runtime) -> u32, precision: 
         ("write_tokens, full batch", &tokens_full),
     ] {
         println!("  {what}: {} rows, 1 - min cosine {:.3e}, max abs diff {:.3e}", w.rows, 1.0 - w.cosine, w.abs);
-        assert_eq!(w.rows, run.len(), "{what}");
     }
+    assert_eq!((text1.rows, text_full.rows), (run.len(), run.len()));
+    assert_eq!((tokens1.rows, tokens_full.rows), (live.len(), live.len()));
     assert!(!run.is_empty(), "no case fits the session");
     println!("  {} cases longer than max_seq {} refused with TURBO_E_CAPACITY", cases.len() - run.len(), si.max_seq);
     cases.len() - run.len()

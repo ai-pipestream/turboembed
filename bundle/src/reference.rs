@@ -42,7 +42,28 @@ pub fn cases(recipe: &Recipe) -> Result<Value> {
         let role = c["prompt_role"].as_str().ok_or(format!("reference.cases[{i}].prompt_role: missing"))?;
         out.push(json!({ "text": text, "prefix": prefix(role)? }));
     }
-    Ok(json!({ "max_seq": max_seq, "max_batch": max_batch, "cases": out }))
+    let mut spec = json!({ "max_seq": max_seq, "max_batch": max_batch, "cases": out });
+    if let Some(st) = m.get("static_embedding") {
+        // What StaticModel is built with: the row of ids padded with the
+        // pad token, or the unknown one when there is none.
+        let specials =
+            m["tokenizer"]["special_tokens"].as_array().ok_or("manifest.tokenizer.special_tokens: missing")?;
+        let id = |role: &str| specials.iter().find(|s| s["role"] == role).and_then(|s| s["id"].as_u64());
+        spec["max_length"] = st["max_length"].clone();
+        spec["normalize"] = json!(m["embed"]["normalize"] == "NORMALIZE_L2");
+        spec["pad_id"] = json!(id("SPECIAL_PAD").or(id("SPECIAL_UNK")).ok_or("manifest.tokenizer: no SPECIAL_UNK")?);
+    }
+    Ok(spec)
+}
+
+/// The upstream path of the file the bundle carries at `to`.
+fn upstream_of<'a>(recipe: &'a Recipe, to: &str) -> Result<&'a str> {
+    recipe
+        .upstream
+        .iter()
+        .find(|u| u.to.as_deref() == Some(to))
+        .map(|u| u.path.as_str())
+        .ok_or_else(|| format!("recipe.upstream: no file is carried at {to}"))
 }
 
 /// Run the container on `upstream` and put the reference file in `bundle`.
@@ -52,7 +73,15 @@ pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Value> {
     let image = present(container)?;
 
     let work = scratch(bundle)?;
-    fs::write(work.join("cases.json"), serde_json::to_vec_pretty(&cases(recipe)?).unwrap())
+    let mut spec = cases(recipe)?;
+    // A static model's upstream is Model2Vec's own files: the static
+    // reference builds StaticModel from them.
+    let is_static = recipe.manifest.get("static_embedding").is_some();
+    if is_static {
+        spec["weights"] = json!(upstream_of(recipe, recipe.str_at("/artifacts/0/files/0")?)?);
+        spec["tokenizer"] = json!(upstream_of(recipe, recipe.str_at("/tokenizer/file")?)?);
+    }
+    fs::write(work.join("cases.json"), serde_json::to_vec_pretty(&spec).unwrap())
         .map_err(|e| format!("{}: {e}", work.display()))?;
     let abs = |p: &Path| fs::canonicalize(p).map_err(|e| format!("{}: {e}", p.display()));
     let mut cmd = Command::new("docker");
@@ -63,7 +92,12 @@ pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Value> {
     if let Some(user) = current_user() {
         cmd.args(["--user", &user]);
     }
-    cmd.arg(&image).args(["/model", "/work/cases.json", "/work/reference.safetensors", "/work/produced_by.json"]);
+    if is_static {
+        cmd.args(["--entrypoint", "python", &image, "/static_reference.py"]);
+    } else {
+        cmd.arg(&image);
+    }
+    cmd.args(["/model", "/work/cases.json", "/work/reference.safetensors", "/work/produced_by.json"]);
     let out = cmd.output().map_err(|e| format!("docker: {e}"))?;
     if !out.status.success() {
         return Err(format!(

@@ -29,6 +29,10 @@ pub struct Unigram {
     unk_id: u32,
     charsmap: Option<Charsmap>,
     collapse_spaces: bool,
+    space_punctuation: bool,
+    collapse_whitespace: bool,
+    strip: bool,
+    whole_text: bool,
     metaspace: char,
     add_prefix_space: bool,
 }
@@ -74,36 +78,80 @@ impl Unigram {
         }
         let min_score = scores.iter().copied().fold(f64::INFINITY, f64::min);
 
-        // The normalizer: the precompiled map, then the collapse of
-        // spaces, each present exactly when the manifest says so, and
-        // nothing else.
-        let mut steps: Vec<&Value> = Vec::new();
-        match json["normalizer"]["type"].as_str() {
-            Some("Sequence") => {
-                let list = json["normalizer"]["normalizers"].as_array();
-                steps.extend(list.map(Vec::as_slice).unwrap_or_default());
-            }
-            Some(_) => steps.push(&json["normalizer"]),
-            None => {}
-        }
-        let mut charsmap = None;
-        let mut collapse_spaces = false;
-        for (i, n) in steps.iter().enumerate() {
+        // The normalizer, its sequences flattened: the precompiled map,
+        // the collapse of spaces, the spacing of punctuation, the collapse
+        // of whitespace and the strip, each in that order exactly when the
+        // manifest says so, and nothing else.
+        fn flatten<'a>(n: &'a Value, out: &mut Vec<&'a Value>) {
             match n["type"].as_str() {
+                Some("Sequence") => {
+                    for step in n["normalizers"].as_array().map(Vec::as_slice).unwrap_or_default() {
+                        flatten(step, out);
+                    }
+                }
+                Some(_) => out.push(n),
+                None => {}
+            }
+        }
+        let mut steps: Vec<&Value> = Vec::new();
+        flatten(&json["normalizer"], &mut steps);
+        let mut charsmap = None;
+        let (mut collapse_spaces, mut collapse_whitespace, mut strip) = (false, false, false);
+        let mut punctuation = String::new();
+        // Each step's place in the order; a step may not come before one
+        // already seen.
+        let mut stage = 0;
+        for (i, n) in steps.iter().enumerate() {
+            let replace = |pattern: &str, regex: bool| {
+                n["type"] == "Replace" && n["pattern"][if regex { "Regex" } else { "String" }] == pattern
+            };
+            let at = match n["type"].as_str() {
                 Some("Precompiled") if i == 0 => {
                     let b64 = n["precompiled_charsmap"].as_str().unwrap_or_default();
                     charsmap = Some(Charsmap::parse(file, b64)?);
+                    0
                 }
-                Some("Replace") if n["pattern"]["Regex"] == " {2,}" && n["content"] == " " => collapse_spaces = true,
+                Some("Replace") if replace(" {2,}", true) && n["content"] == " " && !collapse_spaces => {
+                    collapse_spaces = true;
+                    1
+                }
+                Some("Replace") if punctuation_step(n).is_some_and(|c| !punctuation.contains(c)) => {
+                    punctuation.push(punctuation_step(n).expect("matched"));
+                    2
+                }
+                Some("Replace") if replace("\\s+", true) && n["content"] == " " && !collapse_whitespace => {
+                    collapse_whitespace = true;
+                    3
+                }
+                Some("Strip") if n["strip_left"] == true && n["strip_right"] == true && !strip => {
+                    strip = true;
+                    4
+                }
                 _ => {
                     return Err(invalid(format!(
-                        "{file}: normalizer {}: the core runs the precompiled map and the collapse of spaces",
+                        "{file}: normalizer step {i}, {}: the core runs the precompiled map, the collapse of \
+                         spaces, the spacing of punctuation, the collapse of whitespace and the strip, in that order",
                         n["type"]
                     )));
                 }
+            };
+            if at < stage {
+                return Err(invalid(format!("{file}: normalizer step {i} is out of the core's order")));
             }
+            stage = at;
         }
-        if charsmap.is_some() != m.precompiled_charsmap || collapse_spaces != m.collapse_spaces {
+        let space_punctuation = !punctuation.is_empty();
+        if space_punctuation && punctuation.len() != PUNCTUATION.len() {
+            return Err(invalid(format!(
+                "{file}: normalizer: punctuation spaced is {punctuation:?}, not every ASCII punctuation character"
+            )));
+        }
+        if charsmap.is_some() != m.precompiled_charsmap
+            || collapse_spaces != m.collapse_spaces
+            || space_punctuation != m.space_punctuation
+            || collapse_whitespace != m.collapse_whitespace
+            || strip != m.strip
+        {
             return Err(disagree("normalizer"));
         }
 
@@ -130,8 +178,8 @@ impl Unigram {
         if prepend != m.add_prefix_space {
             return Err(disagree("pre_tokenizer.add_prefix_space"));
         }
-        if pre.get("split").is_some_and(|s| s == false) {
-            return Err(invalid(format!("{file}: pre_tokenizer.split is false; the core cuts at the metaspace")));
+        if pre.get("split").is_some_and(|s| s == false) != m.whole_text {
+            return Err(disagree("pre_tokenizer.split"));
         }
 
         Ok(Unigram {
@@ -142,6 +190,10 @@ impl Unigram {
             unk_id,
             charsmap,
             collapse_spaces,
+            space_punctuation,
+            collapse_whitespace,
+            strip,
+            whole_text: m.whole_text,
             metaspace: m.metaspace.chars().next().expect("validated"),
             add_prefix_space: m.add_prefix_space,
         })
@@ -149,6 +201,11 @@ impl Unigram {
 
     pub fn vocab_size(&self) -> u32 {
         self.scores.len() as u32
+    }
+
+    /// Every piece of the vocabulary.
+    pub fn pieces(&self) -> impl Iterator<Item = &str> {
+        self.ids.keys().map(String::as_str)
     }
 
     /// The id of `piece`, if it is one.
@@ -159,6 +216,10 @@ impl Unigram {
     /// The ids of one piece of text between special tokens.
     pub fn encode(&self, text: &str, out: &mut Vec<i32>) {
         let normalized = self.normalize(text);
+        if normalized.is_empty() {
+            // Upstream prepends nothing to an empty text.
+            return;
+        }
         // The metaspace in place of each space, and in front.
         let mut s = String::with_capacity(normalized.len() + 3);
         if self.add_prefix_space && !normalized.starts_with(' ') && !normalized.starts_with(self.metaspace) {
@@ -166,6 +227,10 @@ impl Unigram {
         }
         for c in normalized.chars() {
             s.push(if c == ' ' { self.metaspace } else { c });
+        }
+        if self.whole_text {
+            self.segment(&s, out);
+            return;
         }
         // Cut at each metaspace, which starts the word after it.
         let mut start = 0;
@@ -186,17 +251,56 @@ impl Unigram {
             Some(c) => c.normalize(text),
             None => text.to_owned(),
         };
-        if !self.collapse_spaces {
-            return mapped;
-        }
-        let mut out = String::with_capacity(mapped.len());
-        let mut last_space = false;
-        for c in mapped.chars() {
-            if c == ' ' && last_space {
-                continue;
+        let mut out = if self.collapse_spaces {
+            let mut out = String::with_capacity(mapped.len());
+            let mut last_space = false;
+            for c in mapped.chars() {
+                if c == ' ' && last_space {
+                    continue;
+                }
+                last_space = c == ' ';
+                out.push(c);
             }
-            last_space = c == ' ';
-            out.push(c);
+            out
+        } else {
+            mapped
+        };
+        if self.space_punctuation {
+            let mut spaced = String::with_capacity(out.len() + out.len() / 4);
+            for c in out.chars() {
+                if c.is_ascii_punctuation() {
+                    spaced.push(' ');
+                    spaced.push(c);
+                    spaced.push(' ');
+                } else {
+                    spaced.push(c);
+                }
+            }
+            out = spaced;
+        }
+        if self.collapse_whitespace {
+            // Regex \s+ as upstream's Oniguruma reads it in UTF-8: the
+            // Unicode White_Space characters, which char::is_whitespace is.
+            let mut folded = String::with_capacity(out.len());
+            let mut in_run = false;
+            for c in out.chars() {
+                if c.is_whitespace() {
+                    if !in_run {
+                        folded.push(' ');
+                    }
+                    in_run = true;
+                } else {
+                    folded.push(c);
+                    in_run = false;
+                }
+            }
+            out = folded;
+        }
+        if self.strip {
+            let t = out.trim();
+            if t.len() != out.len() {
+                out = t.to_owned();
+            }
         }
         out
     }
@@ -261,6 +365,18 @@ impl Unigram {
         }
         out[first..].reverse();
     }
+}
+
+/// The ASCII punctuation characters, which `space_punctuation` spaces.
+const PUNCTUATION: &str = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+
+/// The character a Replace step spaces, when it is one of PUNCTUATION
+/// replaced by itself between two spaces.
+fn punctuation_step(n: &Value) -> Option<char> {
+    let p = n["pattern"]["String"].as_str()?;
+    let mut chars = p.chars();
+    let c = chars.next().filter(|c| c.is_ascii_punctuation() && chars.next().is_none())?;
+    (n["content"] == format!(" {c} ")).then_some(c)
 }
 
 /// SentencePiece's precompiled character map: a double-array trie over

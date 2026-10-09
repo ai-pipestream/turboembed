@@ -12,11 +12,11 @@
 //! probability p_r proportional to 1 / (r + 2), and its row is scaled by
 //! sif / (sif + p_r). That is Model2Vec's distillation (its `distill` with
 //! mean pooling and no vocabulary of its own), written here so the library
-//! that serves the base model is the one that distils it.
-//!
-//! The table has a weight per token besides: 0 for the unknown token and
-//! for every entry left out, 1 for the rest. A 0 leaves the token out of a
-//! text's mean, as Model2Vec leaves the unknown token out.
+//! that serves the base model is the one that distils it. As Model2Vec
+//! does, the special tokens a text never gives ([CLS], [SEP], [MASK]: every
+//! special token but the padding and the unknown one) are left out too.
+//! An entry left out keeps a row of zeros, so the table has a row per id
+//! of the base tokenizer, and the file holds the table alone: no weights.
 //!
 //! The cost is measured on the texts the recipe carries, with groups of
 //! texts that mean the same thing: how often each text's nearest other text
@@ -31,7 +31,7 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use turbo::bundle::Bundle;
-use turbo::manifest::{Manifest, PromptRole, Truncation};
+use turbo::manifest::{Manifest, PromptRole, SpecialRole, Truncation};
 use turbo::safetensors::{self, Dtype};
 use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::{TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN};
@@ -55,9 +55,8 @@ pub struct Spec {
     pub dtype: String,
 }
 
-/// The table's tensor names in the weights file.
+/// The table's tensor name in the weights file, as Model2Vec names it.
 const EMBEDDINGS: &str = "embeddings";
-const WEIGHTS: &str = "weights";
 
 /// One text of the quality set.
 #[derive(Deserialize)]
@@ -86,10 +85,9 @@ fn paths(recipe: &Recipe) -> Result<Paths> {
         return Err("a static recipe's artifact is one file".into());
     };
     let names = &art["tensor_names"];
-    if names["static_embeddings"] != EMBEDDINGS || names["static_weights"] != WEIGHTS {
+    if *names != json!({ "static_embeddings": EMBEDDINGS }) {
         return Err(format!(
-            "manifest.artifacts[0].tensor_names: the tool writes static_embeddings {EMBEDDINGS:?} and \
-             static_weights {WEIGHTS:?}"
+            "manifest.artifacts[0].tensor_names: the tool writes static_embeddings {EMBEDDINGS:?} alone"
         ));
     }
     if art.get("produced_by").is_some() {
@@ -158,14 +156,20 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
     // Which entries are kept.
     let vocab = vocabulary(&tok_bytes, vocab_size)?;
     let skip = Regex::new(&format!("^(?:{})$", spec.skip)).map_err(|e| format!("distill.skip: {e}"))?;
-    let kept: Vec<usize> =
-        (0..vocab_size).filter(|&id| vocab[id].as_ref().is_some_and(|t| !skip.is_match(t))).collect();
+    let unused_special = |id: usize| {
+        bm.tokenizer
+            .special_tokens
+            .iter()
+            .any(|s| s.id as usize == id && !matches!(s.role, SpecialRole::Pad | SpecialRole::Unk))
+    };
+    let kept: Vec<usize> = (0..vocab_size)
+        .filter(|&id| !unused_special(id) && vocab[id].as_ref().is_some_and(|t| !skip.is_match(t)))
+        .collect();
     if kept.len() <= k {
         return Err(format!("{} entries are kept, and PCA to {k} needs more", kept.len()));
     }
-    let unk = base_tok.unk_id as usize;
     println!(
-        "distill: {} of {vocab_size} entries kept, {} left out by {:?}",
+        "distill: {} of {vocab_size} entries kept, {} left out by {:?} or as special tokens",
         kept.len(),
         vocab_size - kept.len(),
         spec.skip
@@ -183,33 +187,29 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
     let n = kept.len();
     let total: f64 = (0..n).map(|r| 1.0 / (r as f64 + 2.0)).sum();
     let mut table = vec![0f32; vocab_size * k];
-    let mut weights = vec![0f32; vocab_size];
     for (r, &id) in kept.iter().enumerate() {
         let p = (1.0 / (r as f64 + 2.0)) / total;
         let w = spec.sif_coefficient / (spec.sif_coefficient + p);
         for (t, v) in table[id * k..(id + 1) * k].iter_mut().zip(&projected[r * k..(r + 1) * k]) {
-            *t = (v * w) as f32;
-        }
-        weights[id] = if id == unk { 0.0 } else { 1.0 };
-    }
-    // As stored: what the library reads, and what quality is measured on.
-    if spec.dtype == "F16" {
-        for v in table.iter_mut().chain(weights.iter_mut()) {
-            *v = half::f16::from_f32(*v).to_f32();
+            // Rounded once, from F64, to what is stored.
+            *t = if spec.dtype == "F16" { half::f16::from_f64(v * w).to_f32() } else { (v * w) as f32 };
         }
     }
-    let file = write_table(&table, &weights, vocab_size, k, &spec.dtype);
+    let file = write_table(&table, vocab_size, k, &spec.dtype);
     crate::fetch::write_atomic(&bundle.join(&p.weights), &file)?;
 
     // The cost, on the quality texts.
     let texts = quality_texts(&bundle.join(&p.texts))?;
-    let max_seq = recipe.manifest["embed"]["max_seq"].as_u64().ok_or("manifest.embed.max_seq: missing")? as u32;
+    let max_length = recipe.manifest["static_embedding"]["max_length"]
+        .as_u64()
+        .ok_or("manifest.static_embedding.max_length: missing")? as u32;
+    let median = median_chars(&vocab);
     let base_vecs = base_vectors(&model, &info, &texts)?;
     let static_vecs: Vec<Vec<f64>> = texts
         .iter()
         .map(|t| {
-            let ids = static_ids(&base_tok, &t.text, max_seq)?;
-            Ok(static_vector(&table, &weights, k, &ids))
+            let ids = static_ids(&base_tok, median, &t.text, max_length)?;
+            Ok(static_vector(&table, k, &ids))
         })
         .collect::<Result<_>>()?;
     let groups: Vec<u32> = texts.iter().map(|t| t.group).collect();
@@ -250,8 +250,6 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
     let mut cases = crate::reference::cases(recipe)?;
     cases["weights"] = json!(p.weights);
     cases["tokenizer"] = json!(p.tokenizer);
-    cases["unk_id"] = json!(base_tok.unk_id);
-    cases["pad_id"] = json!(base_tok.fill_id());
     crate::fetch::write_atomic(&cases_path(bundle), &serde_json::to_vec_pretty(&cases).unwrap())?;
     Ok(())
 }
@@ -488,28 +486,23 @@ fn jacobi(a: &mut [f64], n: usize) -> (Vec<f64>, Vec<f64>) {
 
 /// The table as a safetensors file: `embeddings` [vocab, k] then `weights`
 /// [vocab], in `dtype`, the header padded to a multiple of 8.
-fn write_table(table: &[f32], weights: &[f32], vocab: usize, k: usize, dtype: &str) -> Vec<u8> {
-    let bytes = |v: &[f32]| -> Vec<u8> {
-        if dtype == "F16" {
-            v.iter().flat_map(|&x| half::f16::from_f32(x).to_le_bytes()).collect()
-        } else {
-            v.iter().flat_map(|&x| x.to_le_bytes()).collect()
-        }
+fn write_table(table: &[f32], vocab: usize, k: usize, dtype: &str) -> Vec<u8> {
+    let e: Vec<u8> = if dtype == "F16" {
+        table.iter().flat_map(|&x| half::f16::from_f32(x).to_le_bytes()).collect()
+    } else {
+        table.iter().flat_map(|&x| x.to_le_bytes()).collect()
     };
-    let (e, w) = (bytes(table), bytes(weights));
     let header = json!({
         EMBEDDINGS: { "dtype": dtype, "shape": [vocab, k], "data_offsets": [0, e.len()] },
-        WEIGHTS: { "dtype": dtype, "shape": [vocab], "data_offsets": [e.len(), e.len() + w.len()] },
     });
     let mut h = serde_json::to_vec(&header).unwrap();
     while !h.len().is_multiple_of(8) {
         h.push(b' ');
     }
-    let mut out = Vec::with_capacity(8 + h.len() + e.len() + w.len());
+    let mut out = Vec::with_capacity(8 + h.len() + e.len());
     out.extend((h.len() as u64).to_le_bytes());
     out.extend(h);
     out.extend(e);
-    out.extend(w);
     out
 }
 
@@ -542,40 +535,51 @@ fn base_vectors(model: &api::Model, info: &turbo::turbo_model_info, texts: &[Qua
     Ok(out)
 }
 
-/// A text's ids for the static model: the base tokenizer with no special
-/// tokens, cut on the right at `max_seq`.
-fn static_ids(tok: &Tokenizer, text: &str, max_seq: u32) -> Result<Vec<i32>> {
+/// The median length of the vocabulary's entries in characters, rounded
+/// down, as StaticModel takes it.
+fn median_chars(vocab: &[Option<String>]) -> usize {
+    let mut lens: Vec<usize> = vocab.iter().flatten().map(|t| t.chars().count()).collect();
+    lens.sort_unstable();
+    match lens.len() {
+        0 => 0,
+        n if n % 2 == 1 => lens[n / 2],
+        n => (lens[n / 2 - 1] + lens[n / 2]) / 2,
+    }
+}
+
+/// A text's ids for the static model, from the base tokenizer, as
+/// StaticModel takes them: the text cut to `max_length` times the median
+/// entry length in characters, encoded with no special tokens and cut to
+/// `max_length` tokens, then the unknown token dropped.
+fn static_ids(tok: &Tokenizer, median: usize, text: &str, max_length: u32) -> Result<Vec<i32>> {
+    let cut: String = text.chars().take(max_length as usize * median).collect();
     let e = Encode {
         add_special_tokens: false,
         truncation: Truncation::Right,
-        max_tokens: max_seq,
+        max_tokens: max_length,
         prompt: PromptRole::None,
     };
-    tok.encode(text, e).map_err(|e| e.message)
+    let mut ids = tok.encode(&cut, e).map_err(|e| e.message)?;
+    ids.retain(|&id| id != tok.unk_id);
+    Ok(ids)
 }
 
-/// The static vector of `ids` in f64, L2-normalized: the mean of weight
-/// times row over the ids whose weight is not 0.
-fn static_vector(table: &[f32], weights: &[f32], k: usize, ids: &[i32]) -> Vec<f64> {
+/// The static vector of `ids` in f64, L2-normalized: the mean of the rows;
+/// zeros for no ids.
+fn static_vector(table: &[f32], k: usize, ids: &[i32]) -> Vec<f64> {
     let mut acc = vec![0f64; k];
-    let mut n = 0;
     for &id in ids {
         let id = id as usize;
-        let w = weights[id] as f64;
-        if w == 0.0 {
-            continue;
-        }
-        n += 1;
         for (a, &v) in acc.iter_mut().zip(&table[id * k..(id + 1) * k]) {
-            *a += w * v as f64;
+            *a += v as f64;
         }
     }
-    if n > 0 {
+    if !ids.is_empty() {
         for a in &mut acc {
-            *a /= n as f64;
+            *a /= ids.len() as f64;
         }
     }
-    let norm = acc.iter().map(|v| v * v).sum::<f64>().sqrt().max(1e-12);
+    let norm = acc.iter().map(|v| v * v).sum::<f64>().sqrt() + 1e-32;
     acc.iter().map(|v| v / norm).collect()
 }
 
@@ -768,11 +772,13 @@ pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
     let info = model.info()?;
     let session = model.session(info.max_batch, info.max_seq)?;
     let o = api::options(0, 0);
+    // The library's vectors are rounded as the table's dtype rounds them;
+    // the tool's own are not.
     let close = |what: &str, got: &[f32], want: &[f64]| -> Result<()> {
         let g: Vec<f64> = got.iter().map(|&v| v as f64).collect();
         let cos = cosine(&g, want);
         let diff = g.iter().zip(want).map(|(a, b)| (a - b).abs()).fold(0f64, f64::max);
-        if cos < 0.9999 || diff > 1e-4 {
+        if cos < 0.9999 || diff > 1e-3 {
             return Err(format!("{what}: cosine {cos}, largest difference {diff} from the library's vector"));
         }
         Ok(())
@@ -791,8 +797,11 @@ pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
         let mut oc = o;
         oc.prompt_role = role;
         session.texts(&[c.text.as_str()], &oc, &mut got)?;
-        let w: Vec<f64> = want[i * k..(i + 1) * k].iter().map(|&v| v as f64).collect();
-        close(&format!("reference case {i}"), &got, &w)?;
+        // StaticModel's own arithmetic, to the bit (docs/static.md).
+        let w = &want[i * k..(i + 1) * k];
+        if let Some(j) = (0..k).find(|&j| got[j].to_bits() != w[j].to_bits()) {
+            return Err(format!("reference case {i}: value {j} is {} in the library, {} in StaticModel", got[j], w[j]));
+        }
     }
 
     // The table as stored, and the tool's arithmetic on it.
@@ -807,13 +816,21 @@ pub fn check(bundle: &Path, quality: &Value) -> Result<()> {
             _ => return Err(format!("{}: {name} is {}", art.files[0], t.dtype_name)),
         })
     };
-    let (table, weights) = (floats(EMBEDDINGS)?, floats(WEIGHTS)?);
+    let table = floats(EMBEDDINGS)?;
     let tok = Tokenizer::load(&b).map_err(|e| e.message)?;
-    let texts = quality_texts(&bundle.join(&st.quality.texts))?;
+    let quality_file = st.quality.as_ref().ok_or("static_embedding.quality: missing")?;
+    let texts = quality_texts(&bundle.join(&quality_file.texts))?;
     let mut lib = Vec::with_capacity(texts.len());
+    // The bundle's own tokenizer applies StaticModel's rules itself.
+    let e = Encode {
+        add_special_tokens: true,
+        truncation: Truncation::Right,
+        max_tokens: st.max_length,
+        prompt: PromptRole::None,
+    };
     for (i, t) in texts.iter().enumerate() {
-        let ids = static_ids(&tok, &t.text, m.embed().max_seq)?;
-        let mine = static_vector(&table, &weights, k, &ids);
+        let ids = tok.encode(&t.text, e).map_err(|e| e.message)?;
+        let mine = static_vector(&table, k, &ids);
         session.texts(&[t.text.as_str()], &o, &mut got)?;
         close(&format!("quality text {i}"), &got, &mine)?;
         lib.push(got.iter().map(|&v| v as f64).collect::<Vec<f64>>());
@@ -887,13 +904,13 @@ mod tests {
 
     #[test]
     fn the_table_file_is_what_the_core_reads() {
-        let file = write_table(&[1.0, -2.0, 0.5, 4.0], &[1.0, 0.0], 2, 2, "F16");
+        let file = write_table(&[1.0, -2.0, 0.5, 4.0], 2, 2, "F16");
         let f = safetensors::File::parse("t", &file).unwrap();
         let e = f.tensor(EMBEDDINGS).unwrap();
         assert_eq!(e.shape, [2, 2]);
         assert_eq!(e.dtype, Dtype::F16);
         let header = u64::from_le_bytes(file[..8].try_into().unwrap());
         assert_eq!(header % 8, 0);
-        assert_eq!(f.tensor(WEIGHTS).unwrap().shape, [2]);
+        assert!(f.tensor("weights").is_none());
     }
 }
