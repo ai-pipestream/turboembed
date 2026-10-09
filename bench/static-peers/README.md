@@ -27,6 +27,7 @@ model2vec-zig reads WordPiece tables in F32 or I8 only, so it is skipped for pot
 export MODELS_DIR=... GOLDEN_DIR=... TURBO_BUNDLES=...
 bench/static-peers/peers.sh setup      # toolchains, builds, model copies, text sets
 bench/static-peers/peers.sh accuracy   # each tool against the goldens, all nine models
+bench/static-peers/peers.sh score      # the same vectors scored again, without running the tools
 bench/static-peers/peers.sh timing     # texts/s per tool, model, text set and batch
 ```
 
@@ -34,4 +35,4 @@ bench/static-peers/peers.sh timing     # texts/s per tool, model, text set and b
 
 The timing sets come from the golden texts: the texts as they are (`golden`), 2000 texts of 45 words (`t60`), and 1000 chunks of 256 words (`w256`). `TIMED` and `BATCHES` override the models and batch sizes timed. Timing means something only on an idle machine with the same load for every tool.
 
-Each line `accuracy` prints gives: the rows equal to the golden to the bit, the texts refused, the worst cosine, the largest absolute difference, and how many rows fall under cosine 0.99999 and under 0.999.
+Each line `accuracy` prints gives: the rows equal to the golden to the bit, the texts refused, the worst cosine, the largest absolute difference, and how many rows fall under cosine 0.99999 and under 0.999. Up to ten of the rows under 0.999 follow, each with both norms and the start of its text.

@@ -3,6 +3,7 @@
 # potion models. Usage, from anywhere:
 #   peers.sh setup      toolchains, builds, model copies, text sets
 #   peers.sh accuracy   every tool's vectors for the golden texts, scored
+#   peers.sh score      the vectors accuracy wrote, scored again
 #   peers.sh timing     texts/s per tool, model, text set and batch
 # Inputs (directories with one subdirectory per model name):
 #   MODELS_DIR    Model2Vec files: config.json, tokenizer.json, model.safetensors
@@ -91,10 +92,21 @@ accuracy() {
     for tool in statembed model2vec-rs go-potion model2vec-zig model2vec st; do
       o=$W/out/$tool-$m.f32; rm -f "$o"
       if run $tool "$m" "$G/texts.json" - "$o" > "$W/out/$tool-$m.log" 2>&1 && [ -f "$o" ]; then
-        "$W/venv/bin/python" -I "$H/score.py" "$G/golden-512.safetensors" "$o" "$tool $m"
+        "$W/venv/bin/python" -I "$H/score.py" "$G/golden-512.safetensors" "$o" "$tool $m" "$G/texts.json"
       else
         echo "$tool $m: not run ($(tail -1 "$W/out/$tool-$m.log"))"
       fi
+    done
+  done
+}
+
+# score: the vectors accuracy wrote, scored again without running the tools.
+score() {
+  : "${GOLDEN_DIR:?}"
+  for m in $MODELS; do
+    for tool in statembed model2vec-rs go-potion model2vec-zig model2vec st; do
+      o=$W/out/$tool-$m.f32
+      [ -f "$o" ] && "$W/venv/bin/python" -I "$H/score.py" "$GOLDEN_DIR/$m/golden-512.safetensors" "$o" "$tool $m" "$GOLDEN_DIR/$m/texts.json"
     done
   done
 }
