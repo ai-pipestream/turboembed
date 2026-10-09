@@ -133,7 +133,7 @@
         }
       ],
       "produced_by": {
-        "container": "turbo-reference@sha256:cc3fad2e147d1d0954db6da1b4bed750c0f525b6db11b81e0137776efa5a0f46"
+        "container": "turbo-reference@sha256:4e24f918246f58b2d02893b76290b01f917e5c3a42e26f6a73c2350d1b7c632a"
       }
     }
   },

@@ -110,6 +110,9 @@ impl Table {
 pub(super) struct Static {
     table: Arc<Table>,
     isa: Isa,
+    /// The processor converts F16 to F32 eight at a time (x86_64's F16C,
+    /// with AVX2).
+    f16c: bool,
     /// Every row's live ids, one row after another.
     ids: Vec<u32>,
     /// Row r's ids are ids[starts[r]..starts[r + 1]].
@@ -133,6 +136,7 @@ impl Static {
         Ok(Static {
             table,
             isa,
+            f16c: f16c(isa),
             ids,
             starts: vec![0; max_batch + 1],
             first: vec![0; max_batch],
@@ -201,6 +205,9 @@ impl Static {
             TURBO_POOLING_CLS => self.one(self.first[r] as usize, dst),
             TURBO_POOLING_LAST => self.one(*ids.last().expect("not empty") as usize, dst),
             _ => match t.dtype {
+                #[cfg(target_arch = "x86_64")]
+                // SAFETY: f16c and avx2 are present (Static::new).
+                TURBO_DTYPE_F16 if self.f16c && t.weights.is_none() => unsafe { mean_f16c(t, ids, dst) },
                 TURBO_DTYPE_F16 => mean::<F16>(t, ids, dst),
                 TURBO_DTYPE_BF16 => mean::<Bf16>(t, ids, dst),
                 TURBO_DTYPE_F64 => mean::<F64>(t, ids, dst),
@@ -368,6 +375,69 @@ fn mean<S: Stored>(t: &Table, ids: &[u32], dst: &mut [f32]) {
     }
 }
 
+/// Whether `isa` comes with F16C, which every AVX2 processor made has but
+/// which is its own feature bit.
+fn f16c(isa: Isa) -> bool {
+    #[cfg(target_arch = "x86_64")]
+    {
+        isa != Isa::Portable && std::arch::is_x86_feature_detected!("f16c")
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        let _ = isa;
+        false
+    }
+}
+
+/// `mean::<F16>` for a table without weights, the F16 values converted
+/// eight at a time: the same sums in the same order, so the same bits.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,f16c")]
+unsafe fn mean_f16c(t: &Table, ids: &[u32], dst: &mut [f32]) {
+    use std::arch::x86_64::*;
+    let od = dst.len();
+    let base = t.rows as *const u16;
+    let n = _mm256_set1_ps(ids.len() as f32);
+    let mut from = 0;
+    // Eight registers of eight sums: 64 values a pass, as BLOCK.
+    while from + 64 <= od {
+        let mut acc = [_mm256_setzero_ps(); 8];
+        for &id in ids {
+            let p = unsafe { base.add(t.row_of(id as usize) * t.dim + from) };
+            for (k, a) in acc.iter_mut().enumerate() {
+                let h = unsafe { _mm_loadu_si128(p.add(8 * k) as *const __m128i) };
+                *a = _mm256_add_ps(*a, _mm256_cvtph_ps(h));
+            }
+        }
+        for (k, a) in acc.iter().enumerate() {
+            unsafe { _mm256_storeu_ps(dst.as_mut_ptr().add(from + 8 * k), _mm256_div_ps(*a, n)) };
+        }
+        from += 64;
+    }
+    while from + 8 <= od {
+        let mut acc = _mm256_setzero_ps();
+        for &id in ids {
+            let p = unsafe { base.add(t.row_of(id as usize) * t.dim + from) };
+            acc = _mm256_add_ps(acc, _mm256_cvtph_ps(unsafe { _mm_loadu_si128(p as *const __m128i) }));
+        }
+        unsafe { _mm256_storeu_ps(dst.as_mut_ptr().add(from), _mm256_div_ps(acc, n)) };
+        from += 8;
+    }
+    if from < od {
+        let tail = od - from;
+        let mut sums = [0f32; 8];
+        for &id in ids {
+            let row = t.row_of(id as usize);
+            for (j, s) in sums[..tail].iter_mut().enumerate() {
+                *s += F16::at(t, row, from + j);
+            }
+        }
+        for (d, s) in dst[from..].iter_mut().zip(&sums[..tail]) {
+            *d = s / ids.len() as f32;
+        }
+    }
+}
+
 /// The sum of the squares of `x`, each square rounded to F32, summed as
 /// numpy's pairwise_sum sums a contiguous F32 axis: under 8 values one by
 /// one; up to 128 in eight running sums, combined as a tree, then the
@@ -504,4 +574,52 @@ unsafe fn entry_avx512(j: &Job, t: usize) {
 #[inline(always)]
 fn f16_to_f32(h: u16) -> f32 {
     super::f16_to_f32(h)
+}
+
+#[cfg(all(test, target_arch = "x86_64"))]
+mod tests {
+    use super::*;
+
+    /// The F16C mean against the portable one, on widths that take each of
+    /// its loops, over halves of every exponent: the same bits.
+    #[test]
+    fn the_f16c_mean_is_the_portable_mean() {
+        if !std::arch::is_x86_feature_detected!("avx2") || !std::arch::is_x86_feature_detected!("f16c") {
+            return;
+        }
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for dim in [1, 7, 8, 63, 64, 77, 136, 256, 300] {
+            let vocab = 50;
+            // Finite halves only: exponent 31 is Inf and NaN.
+            let halves: Vec<u16> = (0..vocab * dim)
+                .map(|_| {
+                    let h = next() as u16;
+                    if (h >> 10) & 0x1f == 0x1f { h & !0x4000 } else { h }
+                })
+                .collect();
+            let t = Table {
+                rows: halves.as_ptr() as *const u8,
+                dtype: TURBO_DTYPE_F16,
+                dim,
+                weights: None,
+                mapping: None,
+                wide: false,
+            };
+            for len in [1, 2, 5, 33] {
+                let ids: Vec<u32> = (0..len).map(|_| (next() % vocab as u64) as u32).collect();
+                let (mut want, mut got) = (vec![0f32; dim], vec![0f32; dim]);
+                mean::<F16>(&t, &ids, &mut want);
+                unsafe { mean_f16c(&t, &ids, &mut got) };
+                let (w, g): (Vec<u32>, Vec<u32>) =
+                    (want.iter().map(|v| v.to_bits()).collect(), got.iter().map(|v| v.to_bits()).collect());
+                assert_eq!(w, g, "dim {dim}, {len} ids");
+            }
+        }
+    }
 }
