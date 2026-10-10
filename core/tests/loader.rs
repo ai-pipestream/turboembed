@@ -361,14 +361,21 @@ fn files_not_opened_are_not_checked() {
 }
 
 #[test]
-fn the_tokenizer_is_one_of_wordpiece_and_unigram() {
+fn the_tokenizer_is_one_of_wordpiece_unigram_and_bpe() {
     let unigram = json!({
         "precompiled_charsmap": true, "collapse_spaces": true, "metaspace": "\u{2581}", "add_prefix_space": true
     });
     let e = with("both-kinds", |m| m["tokenizer"]["unigram"] = unigram.clone());
-    assert!(e.is(BUNDLE_INVALID, "one of wordpiece and unigram"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram and bpe"), "{e:?}");
+    let e = with("wordpiece-and-bpe", |m| m["tokenizer"]["bpe"] = json!({ "add_prefix_space": false }));
+    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram and bpe"), "{e:?}");
     let e = with("no-kind", |m| m["tokenizer"]["wordpiece"] = json!(null));
-    assert!(e.is(BUNDLE_INVALID, "one of wordpiece and unigram"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "one of wordpiece, unigram and bpe"), "{e:?}");
+    let e = with("bpe-with-bert-normalizer", |m| {
+        m["tokenizer"]["wordpiece"] = json!(null);
+        m["tokenizer"]["bpe"] = json!({ "add_prefix_space": false });
+    });
+    assert!(e.is(BUNDLE_INVALID, "tokenizer.normalizer: a bpe tokenizer"), "{e:?}");
     let e = with("no-normalizer", |m| m["tokenizer"]["normalizer"] = json!(null));
     assert!(e.is(BUNDLE_INVALID, "tokenizer.normalizer: required with wordpiece"), "{e:?}");
     let e = with("unigram-with-bert-normalizer", |m| {

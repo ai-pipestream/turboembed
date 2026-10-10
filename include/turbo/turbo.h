@@ -431,6 +431,28 @@ int32_t turbo_tokenizer_encode(turbo_tokenizer *t, const turbo_text *texts, uint
                                int32_t *ids, int32_t *mask, int32_t *types,
                                uint32_t row_stride, uint32_t *lengths, turbo_error *err);
 
+/* turbo_tokenizer_encode, and where each token came from: spans is a
+ * caller-owned [count, row_stride, 2] uint32 array, each token's bytes
+ * [start, end) of its text, whitespace at either end left out unless the
+ * token is nothing else. A special token the template adds, a token of
+ * the prompt role's prefix, and padding are [0, 0]; a special token
+ * written in the text is where it is written. The other arrays are what
+ * turbo_tokenizer_encode writes. */
+int32_t turbo_tokenizer_encode_spans(turbo_tokenizer *t, const turbo_text *texts, uint32_t count,
+                                     const turbo_encode_options *opts,
+                                     int32_t *ids, int32_t *mask, int32_t *types, uint32_t *spans,
+                                     uint32_t row_stride, uint32_t *lengths, turbo_error *err);
+
+/* The text count ids stand for, as the tokenizer file's decoder writes
+ * it; special tokens are left out when skip_special_tokens is 1. Written
+ * to out, capacity bytes, with a NUL after it; *written receives its
+ * length without the NUL. A capacity too small for both is
+ * TURBO_E_CAPACITY with *written the length, and out as it was. A
+ * decoder the library does not run is TURBO_E_UNSUPPORTED. */
+int32_t turbo_tokenizer_decode(turbo_tokenizer *t, const int32_t *ids, uint32_t count,
+                               uint32_t skip_special_tokens, char *out, uint64_t capacity,
+                               uint64_t *written, turbo_error *err);
+
 /* Tokens text produces with the prompt role's prefix (TURBO_PROMPT_*), with
  * special tokens and no truncation. */
 int32_t turbo_tokenizer_count(turbo_tokenizer *t, turbo_text text, uint32_t prompt_role,

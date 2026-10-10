@@ -4,13 +4,16 @@
 //! loader rule 5).
 
 use std::borrow::Cow;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
+use std::ops::Range;
 
 use serde_json::Value;
 use unicode_categories::UnicodeCategories;
 use unicode_normalization_alignments::UnicodeNormalization;
 
+use crate::bpe::Bpe;
 use crate::bundle::Bundle;
 use crate::manifest::{Normalizer, PromptRole, SpecialRole, Truncation};
 use crate::safetensors::{self, Dtype};
@@ -21,7 +24,7 @@ use crate::unigram::Unigram;
 /// is fixed and comes from the bundle, so the keys need no defence against
 /// collisions; SipHash, the std default, was most of a short text's time.
 #[derive(Default)]
-struct Fx(u64);
+pub(crate) struct Fx(u64);
 
 impl Hasher for Fx {
     fn write(&mut self, bytes: &[u8]) {
@@ -69,7 +72,7 @@ struct StaticRules {
 
 type Vocab = HashMap<String, u32, BuildHasherDefault<Fx>>;
 
-/// The two models the core runs.
+/// The models the core runs.
 enum Kind {
     WordPiece {
         vocab: Vocab,
@@ -87,6 +90,7 @@ enum Kind {
         max_chars_per_word: usize,
     },
     Unigram(Unigram),
+    Bpe(Bpe),
 }
 
 /// A special token as it is matched in raw text, or in normalized text.
@@ -124,6 +128,12 @@ pub struct Tokenizer {
     /// A static model's rules (manifest static_embedding), None for an
     /// encoder.
     stat: Option<StaticRules>,
+    /// How ids are written back as text.
+    decoder: Decoder,
+    /// Each id's piece, for decode.
+    pieces: Vec<Box<str>>,
+    /// The ids of the special tokens, which decode can leave out.
+    special_ids: Vec<i32>,
     /// SHA-256 of the tokenizer file.
     pub sha256: String,
     /// SHA-256 of the manifest the tokenizer was made from.
@@ -138,6 +148,171 @@ pub struct Encode {
     pub truncation: Truncation,
     pub max_tokens: u32,
     pub prompt: PromptRole,
+}
+
+/// Where a token came from: the bytes `[start, end)` of the caller's
+/// text, with any whitespace at either end left out unless the token is
+/// nothing else. A token that came from no character of the text, a
+/// special token the template adds or a token of the prompt's prefix,
+/// is [`NOWHERE`].
+pub type Span = [u32; 2];
+
+/// The span of a token that came from no character of the text.
+pub const NOWHERE: Span = [0, 0];
+
+/// Where a row's tokens go: their ids alone, or their ids and spans. The
+/// tokenizer is generic over it, so a row of ids alone makes no span and
+/// pays nothing for them.
+pub(crate) trait Sink {
+    /// Whether spans are kept; when not, `span` is never called.
+    const SPANS: bool;
+    fn len(&self) -> usize;
+    fn push(&mut self, id: i32, span: impl FnOnce() -> Span);
+    /// The last token's span, widened to cover `span` as well.
+    fn widen_last(&mut self, span: impl FnOnce() -> Span);
+    fn truncate(&mut self, len: usize);
+    fn drain(&mut self, r: Range<usize>);
+    fn reverse_from(&mut self, at: usize);
+    /// The tokens from `at` on whose id `keep` refuses are dropped.
+    fn retain_from(&mut self, at: usize, keep: impl Fn(i32) -> bool);
+    /// The tokens from `at` on, taken out: their ids and, when kept,
+    /// their spans.
+    fn split_off(&mut self, at: usize) -> (Vec<i32>, Vec<Span>);
+    fn extend_with(&mut self, ids: &[i32], spans: &[Span]);
+}
+
+impl Sink for Vec<i32> {
+    const SPANS: bool = false;
+
+    #[inline]
+    fn len(&self) -> usize {
+        Vec::len(self)
+    }
+
+    #[inline]
+    fn push(&mut self, id: i32, _: impl FnOnce() -> Span) {
+        Vec::push(self, id);
+    }
+
+    #[inline]
+    fn widen_last(&mut self, _: impl FnOnce() -> Span) {}
+
+    fn truncate(&mut self, len: usize) {
+        Vec::truncate(self, len);
+    }
+
+    fn drain(&mut self, r: Range<usize>) {
+        Vec::drain(self, r);
+    }
+
+    fn reverse_from(&mut self, at: usize) {
+        self[at..].reverse();
+    }
+
+    fn retain_from(&mut self, at: usize, keep: impl Fn(i32) -> bool) {
+        let mut kept = at;
+        for i in at..Vec::len(self) {
+            if keep(self[i]) {
+                self[kept] = self[i];
+                kept += 1;
+            }
+        }
+        Vec::truncate(self, kept);
+    }
+
+    fn split_off(&mut self, at: usize) -> (Vec<i32>, Vec<Span>) {
+        (Vec::split_off(self, at), Vec::new())
+    }
+
+    fn extend_with(&mut self, ids: &[i32], _: &[Span]) {
+        self.extend_from_slice(ids);
+    }
+}
+
+/// A row's ids and spans, one span per id.
+pub(crate) struct Spanned<'a> {
+    ids: &'a mut Vec<i32>,
+    spans: &'a mut Vec<Span>,
+}
+
+impl Sink for Spanned<'_> {
+    const SPANS: bool = true;
+
+    fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    fn push(&mut self, id: i32, span: impl FnOnce() -> Span) {
+        self.ids.push(id);
+        self.spans.push(span());
+    }
+
+    fn widen_last(&mut self, span: impl FnOnce() -> Span) {
+        let s = span();
+        if let Some(last) = self.spans.last_mut() {
+            *last = [last[0].min(s[0]), last[1].max(s[1])];
+        }
+    }
+
+    fn truncate(&mut self, len: usize) {
+        self.ids.truncate(len);
+        self.spans.truncate(len);
+    }
+
+    fn drain(&mut self, r: Range<usize>) {
+        self.ids.drain(r.clone());
+        self.spans.drain(r);
+    }
+
+    fn reverse_from(&mut self, at: usize) {
+        self.ids[at..].reverse();
+        self.spans[at..].reverse();
+    }
+
+    fn retain_from(&mut self, at: usize, keep: impl Fn(i32) -> bool) {
+        let mut kept = at;
+        for i in at..self.ids.len() {
+            if keep(self.ids[i]) {
+                self.ids[kept] = self.ids[i];
+                self.spans[kept] = self.spans[i];
+                kept += 1;
+            }
+        }
+        self.truncate(kept);
+    }
+
+    fn split_off(&mut self, at: usize) -> (Vec<i32>, Vec<Span>) {
+        (self.ids.split_off(at), self.spans.split_off(at))
+    }
+
+    fn extend_with(&mut self, ids: &[i32], spans: &[Span]) {
+        self.ids.extend_from_slice(ids);
+        self.spans.extend_from_slice(spans);
+    }
+}
+
+/// The span of a token made of normalized bytes whose sources are
+/// `sources`: from the first source byte to the last, whitespace at
+/// either end of `text` left out unless that is all there is.
+pub(crate) fn covering(text: &str, sources: &[Span]) -> Span {
+    let Some(&first) = sources.first() else { return NOWHERE };
+    let mut s = first;
+    for a in &sources[1..] {
+        s = [s[0].min(a[0]), s[1].max(a[1])];
+    }
+    trim_span(text, s)
+}
+
+/// `s` with whitespace at either end of `text` left out, unless that is
+/// all there is.
+pub(crate) fn trim_span(text: &str, s: Span) -> Span {
+    let piece = &text[s[0] as usize..s[1] as usize];
+    let inner = piece.trim();
+    if inner.is_empty() {
+        return s;
+    }
+    let start = s[0] + (inner.as_ptr() as usize - piece.as_ptr() as usize) as u32;
+    [start, start + inner.len() as u32]
 }
 
 impl Tokenizer {
@@ -163,8 +338,8 @@ impl Tokenizer {
         let json: Value = serde_json::from_slice(&bytes).map_err(|e| invalid(format!("{file}: {e}")))?;
         let unk = t.special_tokens.iter().find(|s| s.role == SpecialRole::Unk).expect("validated");
 
-        let kind = match (&t.wordpiece, &t.unigram) {
-            (Some(w), _) => {
+        let kind = match (&t.wordpiece, &t.unigram, &t.bpe) {
+            (Some(w), ..) => {
                 let disagree = |what: &str| invalid(format!("{file}: {what} is not what manifest.json says"));
                 let model = &json["model"];
                 if model["type"] != "WordPiece" {
@@ -239,8 +414,9 @@ impl Tokenizer {
                     max_chars_per_word: w.max_chars_per_word as usize,
                 }
             }
-            (None, Some(u)) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
-            (None, None) => unreachable!("validated"),
+            (None, Some(u), _) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
+            (None, None, Some(b)) => Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?),
+            (None, None, None) => unreachable!("validated"),
         };
         let vocab_size = kind.vocab_size();
         let table = m
@@ -312,7 +488,7 @@ impl Tokenizer {
                 })
                 .filter(|s| !s.content.is_empty())
                 .collect(),
-            Kind::Unigram(_) => Vec::new(),
+            Kind::Unigram(_) | Kind::Bpe(_) => Vec::new(),
         };
         normalized_specials.sort_by_key(|a| std::cmp::Reverse(a.content.len()));
         let mut special_starts = [false; 256];
@@ -328,6 +504,9 @@ impl Tokenizer {
             }
         }
         let stat = m.static_embedding.as_ref().map(|_| StaticRules { median_chars: kind.median_chars() });
+        let decoder = Decoder::parse(&json["decoder"]);
+        let mut pieces = vec![Box::<str>::from(""); vocab_size as usize];
+        kind.each_piece(|piece, id| pieces[id as usize] = piece.into());
         let e = m.embed();
         Ok(Tokenizer {
             kind,
@@ -345,6 +524,9 @@ impl Tokenizer {
             eos_id: role(SpecialRole::Eos),
             unk_id: role(SpecialRole::Unk),
             stat,
+            decoder,
+            pieces,
+            special_ids: t.special_tokens.iter().map(|s| s.id as i32).collect(),
             sha256: crate::bundle::sha256_hex(&bytes),
             manifest_sha256: bundle.manifest_sha256.clone(),
         })
@@ -428,6 +610,7 @@ impl Tokenizer {
         match self.kind {
             Kind::WordPiece { .. } => "wordpiece",
             Kind::Unigram(_) => "unigram",
+            Kind::Bpe(_) => "bpe",
         }
     }
 
@@ -461,7 +644,31 @@ impl Tokenizer {
         r
     }
 
-    fn append_row(&self, text: &str, opts: Encode, out: &mut Vec<i32>) -> Result<()> {
+    /// The row `encode_into` appends, and beside it each token's span in
+    /// `text`: the same ids, and `spans` as long as `ids` after it as
+    /// before. An error leaves both as they were.
+    pub fn encode_spans(&self, text: &str, opts: Encode, ids: &mut Vec<i32>, spans: &mut Vec<Span>) -> Result<()> {
+        if ids.len() != spans.len() {
+            return Err(invalid(format!("{} ids and {} spans: a span for each id", ids.len(), spans.len())));
+        }
+        let start = ids.len();
+        let r = self.append_row(text, opts, &mut Spanned { ids, spans });
+        if r.is_err() {
+            ids.truncate(start);
+            spans.truncate(start);
+            return r;
+        }
+        // Spans are into the text with the prompt's prefix in front.
+        let prefix = self.prefix(opts.prompt).len() as u32;
+        if prefix > 0 {
+            for s in &mut spans[start..] {
+                *s = if s[1] <= prefix { NOWHERE } else { [s[0].saturating_sub(prefix), s[1] - prefix] };
+            }
+        }
+        Ok(())
+    }
+
+    fn append_row<S: Sink>(&self, text: &str, opts: Encode, out: &mut S) -> Result<()> {
         let specials = if opts.add_special_tokens { self.specials_per_sequence() } else { 0 };
         if opts.max_tokens < specials {
             return Err(Error::field(
@@ -480,7 +687,9 @@ impl Tokenizer {
             Some(at) if once => (&self.template[..at], &self.template[at + 1..]),
             _ => (&[][..], &[][..]),
         };
-        out.extend(head.iter().flatten());
+        for &id in head.iter().flatten() {
+            out.push(id, || NOWHERE);
+        }
         let body = out.len();
         match &self.stat {
             None => self.text_ids(&text, out),
@@ -497,14 +706,7 @@ impl Tokenizer {
                     Truncation::None => self.text_ids(&text, out),
                 }
                 let unk = self.unk_id;
-                let mut kept = body;
-                for i in body..out.len() {
-                    if out[i] != unk {
-                        out[kept] = out[i];
-                        kept += 1;
-                    }
-                }
-                out.truncate(kept);
+                out.retain_from(body, |id| id != unk);
             }
         }
         let len = out.len() - body;
@@ -526,17 +728,46 @@ impl Tokenizer {
                 }
             }
         }
-        out.extend(tail.iter().flatten());
+        for &id in tail.iter().flatten() {
+            out.push(id, || NOWHERE);
+        }
         if opts.add_special_tokens && !once {
-            let body: Vec<i32> = out.drain(start..).collect();
+            let (ids, spans) = out.split_off(start);
             for piece in &self.template {
                 match piece {
-                    Some(id) => out.push(*id),
-                    None => out.extend_from_slice(&body),
+                    Some(id) => out.push(*id, || NOWHERE),
+                    None => out.extend_with(&ids, &spans),
                 }
             }
         }
         Ok(())
+    }
+
+    /// The text `ids` stand for, as the tokenizer file's decoder writes
+    /// it, the special tokens left out when `skip_special_tokens`. The
+    /// way back from ids to text for a model's output; for where a token
+    /// of the input came from, encode_spans gives its span.
+    pub fn decode(&self, ids: &[i32], skip_special_tokens: bool) -> Result<String> {
+        // Bytes, as a byte-level piece can hold part of a character.
+        let mut out = Vec::new();
+        let mut first = true;
+        for (i, &id) in ids.iter().enumerate() {
+            let Some(piece) = usize::try_from(id).ok().and_then(|i| self.pieces.get(i)) else {
+                return Err(Error::new(
+                    INVALID_ARGUMENT,
+                    format!("ids[{i}]: {id} is not an id under {}", self.pieces.len()),
+                ));
+            };
+            if skip_special_tokens && self.special_ids.contains(&id) {
+                continue;
+            }
+            self.decoder.piece(piece, first, &mut out)?;
+            first = false;
+        }
+        Ok(match String::from_utf8(out) {
+            Ok(s) => s,
+            Err(e) => String::from_utf8_lossy(e.as_bytes()).into_owned(),
+        })
     }
 
     /// Tokens `text` produces, with special tokens and no truncation.
@@ -550,19 +781,23 @@ impl Tokenizer {
         ids.len() + self.specials_per_sequence() as usize
     }
 
-    fn prompted<'a>(&self, text: &'a str, prompt: PromptRole) -> Cow<'a, str> {
-        let prefix = match prompt {
+    fn prefix(&self, prompt: PromptRole) -> &str {
+        match prompt {
             PromptRole::None => "",
             PromptRole::Query => &self.prefix_query,
             PromptRole::Document => &self.prefix_document,
-        };
+        }
+    }
+
+    fn prompted<'a>(&self, text: &'a str, prompt: PromptRole) -> Cow<'a, str> {
+        let prefix = self.prefix(prompt);
         if prefix.is_empty() { Cow::Borrowed(text) } else { Cow::Owned(format!("{prefix}{text}")) }
     }
 
     /// Special tokens are matched in the raw text first, as upstream does
     /// for its added tokens, one that takes the whitespace before it
     /// taking it; each piece of text between them is encoded on its own.
-    fn text_ids(&self, text: &str, out: &mut Vec<i32>) {
+    fn text_ids<S: Sink>(&self, text: &str, out: &mut S) {
         let mut rest = text;
         let mut plain = 0;
         while plain < rest.len() {
@@ -577,9 +812,11 @@ impl Tokenizer {
             };
             match hit {
                 Some(s) => {
+                    let base = text.len() - rest.len();
                     let before = if s.lstrip { rest[..plain].trim_end() } else { &rest[..plain] };
-                    self.plain_ids(before, out);
-                    out.push(s.id);
+                    self.plain_ids(text, base, before, out);
+                    let at = (base + plain) as u32;
+                    out.push(s.id, || [at, at + s.content.len() as u32]);
                     rest = &rest[plain + s.content.len()..];
                     plain = 0;
                 }
@@ -587,18 +824,33 @@ impl Tokenizer {
                 None => plain += rest[plain..].chars().next().map_or(1, char::len_utf8),
             }
         }
-        self.plain_ids(rest, out);
+        self.plain_ids(text, text.len() - rest.len(), rest, out);
     }
 
-    fn plain_ids(&self, text: &str, out: &mut Vec<i32>) {
+    /// The ids of `piece`, the bytes of `text` from `base` on with no
+    /// special token in them.
+    fn plain_ids<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
         match &self.kind {
             Kind::WordPiece { normalizer, ascii, .. } => {
                 // A buffer per thread: a text's normalized form is gone
                 // before the thread's next text, and a batch's threads
                 // would otherwise allocate and free one per text.
                 let mut normalized = NORMALIZED.take();
-                normalize(normalizer, ascii, text, &mut normalized);
-                let mut rest = normalized.as_str();
+                // Each normalized byte's source in `text`, for spans.
+                let mut sources = if S::SPANS { SOURCES.take() } else { Vec::new() };
+                if S::SPANS {
+                    normalize_aligned(normalizer, ascii, piece, base, &mut normalized, &mut sources);
+                } else {
+                    normalize(normalizer, ascii, piece, &mut normalized);
+                }
+                let whole = normalized.as_str();
+                let pos = |s: &str| s.as_ptr() as usize - whole.as_ptr() as usize;
+                let span = |from: usize, to: usize| covering(text, &sources[from..to]);
+                let word = |w: &str, out: &mut S| {
+                    let w0 = pos(w);
+                    self.word_pieces(w, |a, b| span(w0 + a, w0 + b), out);
+                };
+                let mut rest = whole;
                 // Upstream's leftmost-longest matches, each searched for
                 // after the last; one that is not a whole word when it must
                 // be is passed over, its text left to the words around it.
@@ -617,27 +869,36 @@ impl Tokenizer {
                         continue;
                     };
                     let end = from + s.content.len();
-                    let whole = !s.single_word
+                    let alone = !s.single_word
                         || (!rest[..from].chars().next_back().is_some_and(is_word)
                             && !rest[end..].chars().next().is_some_and(is_word));
-                    if whole {
-                        pre_tokenize(&rest[..from], |word| self.word_pieces(word, out));
-                        out.push(s.id);
+                    if alone {
+                        pre_tokenize(&rest[..from], |w| word(w, out));
+                        let s0 = pos(&rest[from..]);
+                        out.push(s.id, || span(s0, s0 + s.content.len()));
                         rest = &rest[end..];
                         from = 0;
                     } else {
                         from = end;
                     }
                 }
-                pre_tokenize(rest, |word| self.word_pieces(word, out));
-                // A long text's buffer is not kept for the thread's life.
+                pre_tokenize(rest, |w| word(w, out));
+                // A long text's buffers are not kept for the thread's life.
                 if normalized.capacity() <= KEPT_NORMALIZED {
                     NORMALIZED.set(normalized);
                 }
+                if S::SPANS && sources.capacity() <= KEPT_NORMALIZED {
+                    SOURCES.set(sources);
+                }
             }
             Kind::Unigram(u) => {
-                if !text.is_empty() {
-                    u.encode(text, out);
+                if !piece.is_empty() {
+                    u.encode(text, base, piece, out);
+                }
+            }
+            Kind::Bpe(b) => {
+                if !piece.is_empty() {
+                    b.encode(text, base, piece, out);
                 }
             }
         }
@@ -646,7 +907,8 @@ impl Tokenizer {
     /// Greedy longest-match-first; a word with any piece missing, or longer
     /// than max_chars_per_word, is one unknown token. A piece is never
     /// looked for longer than the longest entry.
-    fn word_pieces(&self, word: &str, out: &mut Vec<i32>) {
+    /// `span(start, end)` is the span of the word's bytes start..end.
+    fn word_pieces<S: Sink>(&self, word: &str, span: impl Fn(usize, usize) -> Span, out: &mut S) {
         let Kind::WordPiece {
             vocab,
             continuing,
@@ -661,7 +923,7 @@ impl Tokenizer {
         };
         // A character is at least one byte.
         if word.len() > *max_chars_per_word && word.chars().count() > *max_chars_per_word {
-            out.push(self.unk_id);
+            out.push(self.unk_id, || span(0, word.len()));
             return;
         }
         let first = out.len();
@@ -687,10 +949,10 @@ impl Tokenizer {
                 end -= word[..end].chars().next_back().map_or(1, char::len_utf8);
             }
             match found {
-                Some(id) => out.push(id as i32),
+                Some(id) => out.push(id as i32, || span(start, end)),
                 None => {
                     out.truncate(first);
-                    out.push(self.unk_id);
+                    out.push(self.unk_id, || span(0, word.len()));
                     return;
                 }
             }
@@ -699,11 +961,140 @@ impl Tokenizer {
     }
 }
 
+/// The tokenizer file's decoder: how a row of pieces is written as text.
+enum Decoder {
+    /// WordPiece's: a piece with the continuing prefix joins the one
+    /// before it, any other is put after a space; with `cleanup`, the
+    /// space before punctuation and English contractions is taken out.
+    WordPiece { prefix: String, cleanup: bool },
+    /// Metaspace's: the metaspace is a space, and the one the first piece
+    /// starts with, the one put in front of the text, is dropped.
+    Metaspace { replacement: char, prepended: bool },
+    /// ByteLevel's: each GPT-2 character is its byte, and the bytes are
+    /// read as UTF-8, a sequence that is not being U+FFFD. A piece with a
+    /// character that stands for no byte, a special token, is its text.
+    ByteLevel,
+    /// A decoder the core does not run, by its type.
+    Other(String),
+}
+
+impl Decoder {
+    fn parse(d: &Value) -> Decoder {
+        match d["type"].as_str() {
+            Some("WordPiece") => Decoder::WordPiece {
+                prefix: d["prefix"].as_str().unwrap_or("##").to_owned(),
+                cleanup: d["cleanup"].as_bool().unwrap_or(true),
+            },
+            Some("Metaspace") => {
+                let prepended = match d.get("prepend_scheme").and_then(Value::as_str) {
+                    Some(scheme) => scheme != "never",
+                    None => d["add_prefix_space"].as_bool().unwrap_or(true),
+                };
+                match d["replacement"].as_str().map(|r| (r.chars().next(), r.chars().count())) {
+                    Some((Some(replacement), 1)) => Decoder::Metaspace { replacement, prepended },
+                    _ => Decoder::Other("Metaspace with no one-character replacement".into()),
+                }
+            }
+            Some("ByteLevel") => Decoder::ByteLevel,
+            Some(other) => Decoder::Other(other.to_owned()),
+            None => Decoder::Other("none".into()),
+        }
+    }
+
+    /// One piece, written after those before it in `out`.
+    fn piece(&self, piece: &str, first: bool, out: &mut Vec<u8>) -> Result<()> {
+        match self {
+            Decoder::WordPiece { prefix, cleanup } => {
+                let mut written = String::with_capacity(piece.len() + 1);
+                match piece.strip_prefix(prefix.as_str()) {
+                    Some(rest) if !first => written.push_str(rest),
+                    _ => {
+                        if !first {
+                            written.push(' ');
+                        }
+                        written.push_str(piece);
+                    }
+                }
+                let written = if *cleanup { cleanup_piece(&written) } else { Cow::Borrowed(written.as_str()) };
+                out.extend_from_slice(written.as_bytes());
+            }
+            Decoder::Metaspace { replacement, prepended } => {
+                let piece = match piece.strip_prefix(*replacement) {
+                    Some(rest) if first && *prepended => rest,
+                    _ => piece,
+                };
+                let mut buf = [0u8; 4];
+                for c in piece.chars() {
+                    let c = if c == *replacement { ' ' } else { c };
+                    out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+                }
+            }
+            Decoder::ByteLevel => {
+                let at = out.len();
+                for c in piece.chars() {
+                    match crate::bpe::char_byte(c) {
+                        Some(b) => out.push(b),
+                        None => {
+                            out.truncate(at);
+                            out.extend_from_slice(piece.as_bytes());
+                            break;
+                        }
+                    }
+                }
+            }
+            Decoder::Other(kind) => {
+                return Err(Error::new(
+                    crate::status::UNSUPPORTED,
+                    format!("the tokenizer file's decoder is {kind}, which the core does not run"),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// WordPiece's cleanup of one piece as written, its space included: no
+/// space before . ? ! , and the English contractions.
+fn cleanup_piece(p: &str) -> Cow<'_, str> {
+    if !p.starts_with(' ') {
+        return Cow::Borrowed(p);
+    }
+    const JOINED: [(&str, &str); 10] = [
+        (" .", "."),
+        (" ?", "?"),
+        (" !", "!"),
+        (" ,", ","),
+        (" ' ", "'"),
+        (" n't", "n't"),
+        (" 'm", "'m"),
+        (" 's", "'s"),
+        (" 've", "'ve"),
+        (" 're", "'re"),
+    ];
+    let mut s = Cow::Borrowed(p);
+    for (from, to) in JOINED {
+        if s.contains(from) {
+            s = Cow::Owned(s.replace(from, to));
+        }
+    }
+    s
+}
+
 impl Kind {
+    /// `f(piece, id)` for every piece of the vocabulary.
+    fn each_piece(&self, mut f: impl FnMut(&str, u32)) {
+        match self {
+            Kind::WordPiece { vocab, .. } => vocab.iter().for_each(|(p, &id)| f(p, id)),
+            Kind::Unigram(u) => u.pieces().enumerate().for_each(|(id, p)| f(p, id as u32)),
+            Kind::Bpe(b) => b.pieces().enumerate().for_each(|(id, p)| f(p, id as u32)),
+        }
+    }
+
     fn vocab_size(&self) -> u32 {
         match self {
             Kind::WordPiece { vocab, .. } => vocab.len() as u32,
             Kind::Unigram(u) => u.vocab_size(),
+            Kind::Bpe(b) => b.vocab_size(),
         }
     }
 
@@ -711,6 +1102,7 @@ impl Kind {
         match self {
             Kind::WordPiece { vocab, .. } => vocab.get(piece).copied(),
             Kind::Unigram(u) => u.id(piece),
+            Kind::Bpe(b) => b.id(piece),
         }
     }
 
@@ -720,6 +1112,7 @@ impl Kind {
         let mut lens: Vec<usize> = match self {
             Kind::WordPiece { vocab, .. } => vocab.keys().map(|p| p.chars().count()).collect(),
             Kind::Unigram(u) => u.pieces().map(|p| p.chars().count()).collect(),
+            Kind::Bpe(b) => b.pieces().map(|p| p.chars().count()).collect(),
         };
         lens.sort_unstable();
         let n = lens.len();
@@ -781,7 +1174,9 @@ fn normalized(n: &Normalizer, ascii: &[u8; 128], text: &str) -> String {
 
 thread_local! {
     /// plain_ids' normalized text.
-    static NORMALIZED: std::cell::Cell<String> = const { std::cell::Cell::new(String::new()) };
+    static NORMALIZED: Cell<String> = const { Cell::new(String::new()) };
+    /// The source of each of its bytes, when spans are kept.
+    static SOURCES: Cell<Vec<Span>> = const { Cell::new(Vec::new()) };
 }
 
 /// What normalize() makes of each ASCII character: no ASCII character is
@@ -834,6 +1229,104 @@ fn lowercased(n: &Normalizer, chars: impl Iterator<Item = char>, out: &mut Strin
     }
 }
 
+/// normalize(), and the source of each byte it writes: the span in the
+/// caller's text of the character it came from, `base` being where
+/// `text` starts there. Upstream's alignments, step by step: a character
+/// a step writes in place of one, or beside it (a space around CJK, the
+/// marks NFD splits off, a lowercase longer than one character), comes
+/// from that character.
+fn normalize_aligned(
+    n: &Normalizer,
+    ascii: &[u8; 128],
+    text: &str,
+    base: usize,
+    s: &mut String,
+    sources: &mut Vec<Span>,
+) {
+    s.clear();
+    sources.clear();
+    s.reserve(text.len());
+    sources.reserve(text.len());
+    // ASCII through the table and each run of other text on its own, as
+    // normalize() does.
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b < 0x80 {
+            let m = ascii[b as usize];
+            if m != DROP {
+                s.push(m as char);
+                let at = (base + i) as u32;
+                sources.push([at, at + 1]);
+            }
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < bytes.len() && bytes[i] >= 0x80 {
+            i += 1;
+        }
+        normalize_run_aligned(n, &text[start..i], base + start, s, sources);
+    }
+}
+
+/// normalize_run(), and the source of each byte it writes.
+fn normalize_run_aligned(n: &Normalizer, text: &str, base: usize, s: &mut String, sources: &mut Vec<Span>) {
+    let clean = n.clean_text;
+    let mut chars: Vec<(char, Span)> = text
+        .char_indices()
+        .filter(|&(_, c)| !(clean && (c == '\0' || c == '\u{fffd}' || is_control(c))))
+        .map(|(i, c)| {
+            let at = (base + i) as u32;
+            (if clean && is_whitespace(c) { ' ' } else { c }, [at, at + c.len_utf8() as u32])
+        })
+        .collect();
+    if n.split_cjk && chars.iter().any(|&(c, _)| is_cjk(c)) {
+        let mut spaced = Vec::with_capacity(chars.len() + 8);
+        for (c, at) in chars {
+            if is_cjk(c) {
+                spaced.extend([(' ', at), (c, at), (' ', at)]);
+            } else {
+                spaced.push((c, at));
+            }
+        }
+        chars = spaced;
+    }
+    if n.strip_accents && chars.iter().any(|&(c, _)| !c.is_ascii()) {
+        // NFD writes a character's decomposition in its place, the first
+        // character with change 0 and the rest with 1, and reorders runs
+        // of combining marks: a character of change 0 takes the next
+        // source in order, the others the last one taken.
+        let mut stripped = Vec::with_capacity(chars.len());
+        let mut next = 0;
+        let mut last = chars.first().map_or([base as u32; 2], |c| c.1);
+        for (c, change) in chars.iter().map(|&(c, _)| c).nfd() {
+            if change <= 0
+                && let Some(&(_, at)) = chars.get(next)
+            {
+                last = at;
+                next += 1 + change.unsigned_abs();
+            }
+            if !category(c, MARK_NONSPACING) {
+                stripped.push((c, last));
+            }
+        }
+        chars = stripped;
+    }
+    for (c, at) in chars {
+        if n.lowercase {
+            for l in c.to_lowercase() {
+                s.push(l);
+                sources.extend(std::iter::repeat_n(at, l.len_utf8()));
+            }
+        } else {
+            s.push(c);
+            sources.extend(std::iter::repeat_n(at, c.len_utf8()));
+        }
+    }
+}
+
 /// BertPreTokenizer: split on whitespace, and each punctuation character
 /// is a word of its own.
 fn pre_tokenize<'a>(s: &'a str, mut word: impl FnMut(&'a str)) {
@@ -875,30 +1368,50 @@ fn is_control(c: char) -> bool {
 const OTHER: u8 = 1;
 const MARK_NONSPACING: u8 = 2;
 const PUNCTUATION: u8 = 4;
+pub(crate) const LETTER: u8 = 8;
+pub(crate) const NUMBER: u8 = 16;
 
-/// Whether `c` is in the categories `bits` names (Unicode's C, Mn and P):
-/// from a table of the Basic Multilingual Plane, made once (about 7 ms),
+/// Whether `c` is in the categories `bits` names (Unicode's C, Mn, P, L
+/// and N): from a table of the Basic Multilingual Plane, made once,
 /// rather than a binary search per character.
-fn category(c: char, bits: u8) -> bool {
+pub(crate) fn category(c: char, bits: u8) -> bool {
     static BMP: std::sync::OnceLock<Box<[u8; 0x10000]>> = std::sync::OnceLock::new();
     let Ok(at) = u16::try_from(c as u32) else {
-        return (bits & OTHER != 0 && c.is_other())
-            || (bits & MARK_NONSPACING != 0 && c.is_mark_nonspacing())
-            || (bits & PUNCTUATION != 0 && c.is_punctuation());
+        return categories(c) & bits != 0;
     };
     let table = BMP.get_or_init(|| {
         let mut t = Box::new([0u8; 0x10000]);
         for (i, f) in t.iter_mut().enumerate() {
             // A surrogate is no char, and in category C.
-            let Some(c) = char::from_u32(i as u32) else {
-                *f = OTHER;
-                continue;
-            };
-            *f = (c.is_other() as u8) | ((c.is_mark_nonspacing() as u8) << 1) | ((c.is_punctuation() as u8) << 2);
+            *f = char::from_u32(i as u32).map_or(OTHER, categories);
         }
         t
     });
     table[at as usize] & bits != 0
+}
+
+/// `c`'s bits: C, Mn and P from the tables upstream's BertNormalizer
+/// reads, L and N from those of the regular expressions its
+/// pre-tokenizers run (classes.rs).
+fn categories(c: char) -> u8 {
+    let within = |runs: &[(u32, u32)]| {
+        let u = c as u32;
+        runs.binary_search_by(|&(a, b)| {
+            if b < u {
+                std::cmp::Ordering::Less
+            } else if a > u {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+    };
+    (c.is_other() as u8)
+        | ((c.is_mark_nonspacing() as u8) << 1)
+        | ((c.is_punctuation() as u8) << 2)
+        | ((within(crate::classes::LETTERS) as u8) << 3)
+        | ((within(crate::classes::NUMBERS) as u8) << 4)
 }
 
 fn is_cjk(c: char) -> bool {
@@ -1126,7 +1639,7 @@ mod tests {
         words.extend(["東京", "😀x", "qqqzzz", "ab\u{301}c"].map(String::from));
         for w in words.iter().filter(|w| !w.is_empty()) {
             let mut got = Vec::new();
-            tok.word_pieces(w, &mut got);
+            tok.word_pieces(w, |_, _| NOWHERE, &mut got);
             assert_eq!(got, pieces(vocab, continuing_prefix, *max_chars_per_word, tok.unk_id, w), "{w:?}");
         }
     }
@@ -1172,8 +1685,19 @@ mod tests {
                 lowercase: bits & 8 != 0,
                 unicode_form: crate::manifest::UnicodeForm::None,
             };
+            let (mut s, mut sources) = (String::new(), Vec::new());
             for t in &texts {
-                assert_eq!(normalized(&n, &ascii_map(&n), t), steps(&n, t), "{t:?} with {n:?}");
+                let want = steps(&n, t);
+                assert_eq!(normalized(&n, &ascii_map(&n), t), want, "{t:?} with {n:?}");
+                // The aligned normalizer writes the same text, and each
+                // byte's source is a whole character of the text.
+                normalize_aligned(&n, &ascii_map(&n), t, 3, &mut s, &mut sources);
+                assert_eq!(s, want, "aligned: {t:?} with {n:?}");
+                assert_eq!(sources.len(), s.len());
+                for &[a, b] in &sources {
+                    let (a, b) = (a as usize - 3, b as usize - 3);
+                    assert_eq!(t[a..b].chars().count(), 1, "{t:?} with {n:?}: {a}..{b}");
+                }
             }
         }
     }

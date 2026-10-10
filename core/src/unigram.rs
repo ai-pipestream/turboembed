@@ -12,6 +12,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::manifest;
 use crate::status::{Result, invalid};
+use crate::tokenizer::{Sink, Span, covering};
 
 /// Upstream's penalty under the lowest score for a character no piece
 /// covers.
@@ -210,36 +211,118 @@ impl Unigram {
         self.trie.get(piece.as_bytes())
     }
 
-    /// The ids of one piece of text between special tokens.
-    pub fn encode(&self, text: &str, out: &mut Vec<i32>) {
-        let normalized = self.normalize(text);
-        if normalized.is_empty() {
+    /// The ids of `piece`, the bytes of `text` from `base` on with no
+    /// special token in them.
+    pub(crate) fn encode<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
+        // The normalized text with the metaspace in place of each space
+        // and in front, and when spans are kept, each byte's source.
+        let mut s = String::new();
+        let mut sources = Vec::new();
+        if S::SPANS {
+            self.normalize_aligned(piece, base, &mut s, &mut sources);
+        } else {
+            let normalized = self.normalize(piece);
+            s.reserve(normalized.len() + 3);
             // Upstream prepends nothing to an empty text.
-            return;
+            if self.add_prefix_space
+                && !normalized.is_empty()
+                && !normalized.starts_with(' ')
+                && !normalized.starts_with(self.metaspace)
+            {
+                s.push(self.metaspace);
+            }
+            for c in normalized.chars() {
+                s.push(if c == ' ' { self.metaspace } else { c });
+            }
         }
-        // The metaspace in place of each space, and in front.
-        let mut s = String::with_capacity(normalized.len() + 3);
-        if self.add_prefix_space && !normalized.starts_with(' ') && !normalized.starts_with(self.metaspace) {
-            s.push(self.metaspace);
-        }
-        for c in normalized.chars() {
-            s.push(if c == ' ' { self.metaspace } else { c });
-        }
+        let span = |from: usize, to: usize| covering(text, &sources[from..to]);
         let mut best = Vec::new();
         if self.whole_text {
-            self.segment(&s, &mut best, out);
+            self.segment(&s, span, &mut best, out);
             return;
         }
         // Cut at each metaspace, which starts the word after it.
         let mut start = 0;
         for (i, c) in s.char_indices() {
             if c == self.metaspace && i > start {
-                self.segment(&s[start..i], &mut best, out);
+                self.segment(&s[start..i], |a, b| span(start + a, start + b), &mut best, out);
                 start = i;
             }
         }
         if start < s.len() {
-            self.segment(&s[start..], &mut best, out);
+            self.segment(&s[start..], |a, b| span(start + a, start + b), &mut best, out);
+        }
+    }
+
+    /// What encode cuts into words, and the source of each of its bytes:
+    /// the span in the caller's text of the character, or the grapheme
+    /// cluster the precompiled map replaces as a whole, it came from.
+    /// A space written around punctuation, and the metaspace in front,
+    /// come from the character they are written beside.
+    fn normalize_aligned(&self, piece: &str, base: usize, s: &mut String, sources: &mut Vec<Span>) {
+        let mut chars: Vec<(char, Span)> = Vec::with_capacity(piece.len());
+        match &self.charsmap {
+            Some(c) => c.normalize_aligned(piece, base, &mut chars),
+            None => chars.extend(piece.char_indices().map(|(i, c)| {
+                let at = (base + i) as u32;
+                (c, [at, at + c.len_utf8() as u32])
+            })),
+        }
+        // A run collapsed to one space comes from its last character, as
+        // upstream's replacement does.
+        if self.collapse_spaces {
+            let mut kept: Vec<(char, Span)> = Vec::with_capacity(chars.len());
+            for (c, at) in chars {
+                match kept.last_mut() {
+                    Some(last) if c == ' ' && last.0 == ' ' => last.1 = at,
+                    _ => kept.push((c, at)),
+                }
+            }
+            chars = kept;
+        }
+        // The spaces written around punctuation come from it.
+        if self.space_punctuation {
+            let mut spaced = Vec::with_capacity(chars.len() + chars.len() / 4);
+            for (c, at) in chars {
+                if c.is_ascii_punctuation() {
+                    spaced.extend([(' ', at), (c, at), (' ', at)]);
+                } else {
+                    spaced.push((c, at));
+                }
+            }
+            chars = spaced;
+        }
+        if self.collapse_whitespace {
+            let mut kept: Vec<(char, Span)> = Vec::with_capacity(chars.len());
+            let mut in_run = false;
+            for (c, at) in chars {
+                let space = c.is_whitespace();
+                match kept.last_mut() {
+                    Some(last) if space && in_run => last.1 = at,
+                    _ => kept.push((if space { ' ' } else { c }, at)),
+                }
+                in_run = space;
+            }
+            chars = kept;
+        }
+        if self.strip {
+            let lead = chars.iter().take_while(|(c, _)| c.is_whitespace()).count();
+            chars.drain(..lead);
+            let trail = chars.iter().rev().take_while(|(c, _)| c.is_whitespace()).count();
+            chars.truncate(chars.len() - trail);
+        }
+        let Some(&(first, at)) = chars.first() else { return };
+        let mut put = |c: char, at: Span| {
+            s.push(c);
+            sources.extend(std::iter::repeat_n(at, c.len_utf8()));
+        };
+        // The metaspace in front comes from the character it is put
+        // before.
+        if self.add_prefix_space && first != ' ' && first != self.metaspace {
+            put(self.metaspace, at);
+        }
+        for (c, at) in chars {
+            put(if c == ' ' { self.metaspace } else { c }, at);
         }
     }
 
@@ -308,7 +391,8 @@ impl Unigram {
     /// optimized encode walks it, with the unknown token for a character
     /// no piece starts at, and runs of unknown characters fused into one.
     /// `best` is room for the lattice, kept between words.
-    fn segment(&self, word: &str, best: &mut Vec<Best>, out: &mut Vec<i32>) {
+    /// `span(start, end)` is the span of the word's bytes start..end.
+    fn segment<S: Sink>(&self, word: &str, span: impl Fn(usize, usize) -> Span, best: &mut Vec<Best>, out: &mut S) {
         let n = word.len();
         best.clear();
         best.resize(n + 1, Best { score: 0.0, start: 0, id: 0, set: false });
@@ -342,17 +426,19 @@ impl Unigram {
         while end > 0 {
             let b = best[end];
             if b.id == self.unk_id {
-                if !unk_run {
-                    out.push(self.unk_id as i32);
+                if unk_run {
+                    out.widen_last(|| span(b.start, end));
+                } else {
+                    out.push(self.unk_id as i32, || span(b.start, end));
                 }
                 unk_run = true;
             } else {
-                out.push(b.id as i32);
+                out.push(b.id as i32, || span(b.start, end));
                 unk_run = false;
             }
             end = b.start;
         }
-        out[first..].reverse();
+        out.reverse_from(first);
     }
 }
 
@@ -599,6 +685,53 @@ impl Charsmap {
             i = end;
         }
         out
+    }
+
+    /// normalize(), each character beside its source: the span in the
+    /// caller's text of the character, or of the grapheme cluster the
+    /// map replaces as a whole, it came from; `base` is where `text`
+    /// starts there.
+    fn normalize_aligned(&self, text: &str, base: usize, out: &mut Vec<(char, Span)>) {
+        let b = text.as_bytes();
+        let span = |from: usize, to: usize| [(base + from) as u32, (base + to) as u32];
+        let mut i = 0;
+        while i < b.len() {
+            if b[i].is_ascii() && b.get(i + 1).is_none_or(|n| n.is_ascii() && !(b[i] == b'\r' && *n == b'\n')) {
+                let at = span(i, i + 1);
+                match &self.ascii[b[i] as usize] {
+                    Some(n) => out.extend(n.chars().map(|c| (c, at))),
+                    None => out.push((b[i] as char, at)),
+                }
+                i += 1;
+                continue;
+            }
+            let mut end = i + 1;
+            while end < b.len()
+                && !(b[end - 1].is_ascii() && b[end].is_ascii() && !(b[end - 1] == b'\r' && b[end] == b'\n'))
+            {
+                end += 1;
+            }
+            let run = &text[i..end];
+            for (g0, grapheme) in run.grapheme_indices(true) {
+                let g0 = i + g0;
+                if grapheme.len() < 6
+                    && let Some(n) = self.transform(grapheme.as_bytes())
+                {
+                    let at = span(g0, g0 + grapheme.len());
+                    out.extend(String::from_utf8_lossy(n).chars().map(|c| (c, at)));
+                    continue;
+                }
+                for (c0, c) in grapheme.char_indices() {
+                    let at = span(g0 + c0, g0 + c0 + c.len_utf8());
+                    let mut buf = [0u8; 4];
+                    match self.transform(c.encode_utf8(&mut buf).as_bytes()) {
+                        Some(n) => out.extend(String::from_utf8_lossy(n).chars().map(|c| (c, at))),
+                        None => out.push((c, at)),
+                    }
+                }
+            }
+            i = end;
+        }
     }
 
     /// `text`'s grapheme clusters through the map.

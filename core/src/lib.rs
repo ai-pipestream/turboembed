@@ -13,7 +13,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub mod backend;
+pub mod bpe;
 pub mod bundle;
+mod classes;
 #[cfg(feature = "cpu")]
 pub mod cpu;
 #[cfg(feature = "cuda")]
@@ -1412,53 +1414,157 @@ pub unsafe extern "C" fn turbo_tokenizer_encode(
     err: *mut turbo_error,
 ) -> i32 {
     unsafe {
+        call(err, || encode_rows(t, texts, count, opts, ids, mask, types, std::ptr::null_mut(), row_stride, lengths))
+    }
+}
+
+/// # Safety
+/// As turbo_tokenizer_encode, and `spans` holds `count * row_stride * 2`
+/// elements.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_tokenizer_encode_spans(
+    t: *mut turbo_tokenizer,
+    texts: *const turbo_text,
+    count: u32,
+    opts: *const turbo_encode_options,
+    ids: *mut i32,
+    mask: *mut i32,
+    types: *mut i32,
+    spans: *mut u32,
+    row_stride: u32,
+    lengths: *mut u32,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            if spans.is_null() && count > 0 {
+                return Err(Error::new(INVALID_ARGUMENT, "spans may not be NULL"));
+            }
+            encode_rows(t, texts, count, opts, ids, mask, types, spans, row_stride, lengths)
+        })
+    }
+}
+
+/// turbo_tokenizer_encode, and the spans when `spans` is not NULL.
+#[allow(clippy::too_many_arguments)]
+unsafe fn encode_rows(
+    t: *mut turbo_tokenizer,
+    texts: *const turbo_text,
+    count: u32,
+    opts: *const turbo_encode_options,
+    ids: *mut i32,
+    mask: *mut i32,
+    types: *mut i32,
+    spans: *mut u32,
+    row_stride: u32,
+    lengths: *mut u32,
+) -> Result<()> {
+    unsafe {
+        let tok = &tokenizer(t)?.tok;
+        let e = encode_options(tok, opts)?;
+        if count == 0 {
+            return Ok(());
+        }
+        if texts.is_null() || ids.is_null() || mask.is_null() {
+            return Err(Error::new(INVALID_ARGUMENT, "texts, ids and mask may not be NULL"));
+        }
+        if row_stride == 0 {
+            return Err(Error::new(INVALID_ARGUMENT, "row_stride is 0"));
+        }
+        let texts = std::slice::from_raw_parts(texts, count as usize);
+        // Every row is encoded before any is written, so a failed call
+        // leaves the caller's arrays as they were.
+        let mut rows = Vec::with_capacity(texts.len());
+        let mut row_spans = Vec::with_capacity(if spans.is_null() { 0 } else { texts.len() });
+        for (i, &tx) in texts.iter().enumerate() {
+            let at = |mut err: Error| {
+                err.message = format!("texts[{i}]: {}", err.message);
+                err
+            };
+            let tx = text(tx, &format_args!("texts[{i}]"))?;
+            let row = if spans.is_null() {
+                tok.encode(tx, e).map_err(at)?
+            } else {
+                let (mut row, mut s) = (Vec::new(), Vec::new());
+                tok.encode_spans(tx, e, &mut row, &mut s).map_err(at)?;
+                row_spans.push(s);
+                row
+            };
+            if row.len() > row_stride as usize {
+                return Err(Error::new(
+                    status::CAPACITY,
+                    format!("texts[{i}]: {} tokens, row_stride is {row_stride}", row.len()),
+                ));
+            }
+            rows.push(row);
+        }
+        let n = count as usize * row_stride as usize;
+        let ids = std::slice::from_raw_parts_mut(ids, n);
+        let mask = std::slice::from_raw_parts_mut(mask, n);
+        let mut types = (!types.is_null()).then(|| std::slice::from_raw_parts_mut(types, n));
+        let mut spans = (!spans.is_null()).then(|| std::slice::from_raw_parts_mut(spans, 2 * n));
+        for (i, row) in rows.iter().enumerate() {
+            let at = i * row_stride as usize;
+            let end = at + row_stride as usize;
+            ids[at..at + row.len()].copy_from_slice(row);
+            ids[at + row.len()..end].fill(tok.pad_id);
+            mask[at..at + row.len()].fill(1);
+            mask[at + row.len()..end].fill(0);
+            if let Some(ty) = types.as_deref_mut() {
+                ty[at..end].fill(0);
+            }
+            if let Some(sp) = spans.as_deref_mut() {
+                let out = &mut sp[2 * at..2 * end];
+                out.fill(0);
+                out[..2 * row.len()].copy_from_slice(row_spans[i].as_flattened());
+            }
+            if !lengths.is_null() {
+                *lengths.add(i) = row.len() as u32;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// # Safety
+/// `ids` holds `count` ids and `out` `capacity` bytes; `written` is valid.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_tokenizer_decode(
+    t: *mut turbo_tokenizer,
+    ids: *const i32,
+    count: u32,
+    skip_special_tokens: u32,
+    out: *mut c_char,
+    capacity: u64,
+    written: *mut u64,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
         call(err, || {
             let tok = &tokenizer(t)?.tok;
-            let e = encode_options(tok, opts)?;
-            if count == 0 {
-                return Ok(());
+            let written = out_ptr(written, "written")?;
+            if ids.is_null() && count > 0 {
+                return Err(Error::new(INVALID_ARGUMENT, "ids may not be NULL"));
             }
-            if texts.is_null() || ids.is_null() || mask.is_null() {
-                return Err(Error::new(INVALID_ARGUMENT, "texts, ids and mask may not be NULL"));
+            let skip = match skip_special_tokens {
+                0 => false,
+                1 => true,
+                v => return Err(Error::new(INVALID_ARGUMENT, format!("skip_special_tokens is {v}, not 0 or 1"))),
+            };
+            let ids = if count == 0 { &[][..] } else { std::slice::from_raw_parts(ids, count as usize) };
+            let text = tok.decode(ids, skip)?;
+            *written = text.len() as u64;
+            if (text.len() as u64) >= capacity {
+                return Err(Error::new(
+                    status::CAPACITY,
+                    format!("{} bytes and a NUL, capacity is {capacity}", text.len()),
+                ));
             }
-            if row_stride == 0 {
-                return Err(Error::new(INVALID_ARGUMENT, "row_stride is 0"));
+            if out.is_null() {
+                return Err(Error::new(INVALID_ARGUMENT, "out may not be NULL"));
             }
-            let texts = std::slice::from_raw_parts(texts, count as usize);
-            // Every row is encoded before any is written, so a failed call
-            // leaves the caller's arrays as they were.
-            let mut rows = Vec::with_capacity(texts.len());
-            for (i, &tx) in texts.iter().enumerate() {
-                let row = tok.encode(text(tx, &format_args!("texts[{i}]"))?, e).map_err(|mut err| {
-                    err.message = format!("texts[{i}]: {}", err.message);
-                    err
-                })?;
-                if row.len() > row_stride as usize {
-                    return Err(Error::new(
-                        status::CAPACITY,
-                        format!("texts[{i}]: {} tokens, row_stride is {row_stride}", row.len()),
-                    ));
-                }
-                rows.push(row);
-            }
-            let n = count as usize * row_stride as usize;
-            let ids = std::slice::from_raw_parts_mut(ids, n);
-            let mask = std::slice::from_raw_parts_mut(mask, n);
-            let mut types = (!types.is_null()).then(|| std::slice::from_raw_parts_mut(types, n));
-            for (i, row) in rows.iter().enumerate() {
-                let at = i * row_stride as usize;
-                let end = at + row_stride as usize;
-                ids[at..at + row.len()].copy_from_slice(row);
-                ids[at + row.len()..end].fill(tok.pad_id);
-                mask[at..at + row.len()].fill(1);
-                mask[at + row.len()..end].fill(0);
-                if let Some(ty) = types.as_deref_mut() {
-                    ty[at..end].fill(0);
-                }
-                if !lengths.is_null() {
-                    *lengths.add(i) = row.len() as u32;
-                }
-            }
+            std::ptr::copy_nonoverlapping(text.as_ptr(), out as *mut u8, text.len());
+            *out.add(text.len()) = 0;
             Ok(())
         })
     }

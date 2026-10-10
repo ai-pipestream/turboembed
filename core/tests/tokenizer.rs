@@ -261,7 +261,7 @@ mod unigram {
     }
 
     /// The MiniLM fixture's manifest with BGE-M3's tokenizer and family.
-    fn manifest_m3() -> serde_json::Value {
+    pub fn manifest_m3() -> serde_json::Value {
         let mut m = manifest();
         m["model"]["id"] = json!("BAAI/bge-m3");
         m["tokenizer"] = json!({
@@ -305,7 +305,7 @@ mod unigram {
     /// graphemes over and under six bytes, scripts with no spaces, runs
     /// of whitespace, the metaspace itself in the text, special tokens in
     /// the text with and without the whitespace `<mask>` takes.
-    fn texts() -> Vec<String> {
+    pub fn texts() -> Vec<String> {
         let mut t = super::texts();
         t.extend(
             [
@@ -494,8 +494,13 @@ mod unigram {
         let up = upstream_at(&path);
         let mut all = texts();
         all.extend(["a,b.c!d", "  ¿qué?  ", "x\u{3000}\u{3000}y", "...", "\t \n"].map(str::to_owned));
+        let core = core_tokenizer(&f);
+        let mut whole = upstream_at(&path);
+        whole.with_truncation(None).unwrap();
         for text in all {
             assert_eq!(tok.row(&text, None).unwrap(), upstream_ids(&up, &text), "text {text:?}");
+            let (ours, theirs) = both_spans(&core, &whole, &text);
+            spans_near_upstream(&text, &ours, &theirs);
         }
         std::fs::remove_file(path).unwrap();
     }
@@ -538,8 +543,476 @@ fn a_normalized_special_token_matches_upstream() {
         ]
         .map(str::to_owned),
     );
+    let core = core_tokenizer(&f);
+    let mut whole = upstream_at(&path);
+    whole.with_truncation(None).unwrap();
     for text in all {
         assert_eq!(tok.row(&text, None).unwrap(), upstream_ids(&up, &text), "text {text:?}");
+        let (ours, theirs) = both_spans(&core, &whole, &text);
+        assert_eq!(ours, theirs, "spans of {text:?}");
     }
     std::fs::remove_file(path).unwrap();
+}
+
+// ---- Spans ------------------------------------------------------------------------
+
+/// The core's tokenizer on the bundle `f` describes, through the Rust
+/// interface, which has the spans.
+fn core_tokenizer(f: &Fixture) -> turbo::tokenizer::Tokenizer {
+    f.write();
+    turbo::tokenizer::Tokenizer::load(&turbo::bundle::Bundle::open(&f.dir).unwrap()).unwrap()
+}
+
+fn whole_text_opts() -> turbo::tokenizer::Encode {
+    turbo::tokenizer::Encode {
+        add_special_tokens: true,
+        truncation: turbo::manifest::Truncation::None,
+        max_tokens: u32::MAX,
+        prompt: turbo::manifest::PromptRole::None,
+    }
+}
+
+/// `span` with the whitespace at either end left out, unless that is all.
+fn trimmed(text: &str, span: [u32; 2]) -> [u32; 2] {
+    // Upstream's offset can be inside a character; it is compared as it is.
+    let Some(piece) = text.get(span[0] as usize..span[1] as usize) else { return span };
+    let inner = piece.trim();
+    if inner.is_empty() {
+        return span;
+    }
+    let start = span[0] + (inner.as_ptr() as usize - piece.as_ptr() as usize) as u32;
+    [start, start + inner.len() as u32]
+}
+
+/// Each token's id and span.
+type Tokens = Vec<(i32, [u32; 2])>;
+
+/// Each token's ids and span, the core's and upstream's, for `text`:
+/// upstream's spans trimmed of whitespace as the core's are.
+fn both_spans(tok: &turbo::tokenizer::Tokenizer, up: &tokenizers::Tokenizer, text: &str) -> (Tokens, Tokens) {
+    let (mut ids, mut spans) = (Vec::new(), Vec::new());
+    tok.encode_spans(text, whole_text_opts(), &mut ids, &mut spans).unwrap();
+    let e = up.encode(text, true).unwrap();
+    let theirs = e
+        .get_ids()
+        .iter()
+        .zip(e.get_offsets())
+        .map(|(&id, &(a, b))| (id as i32, trimmed(text, [a as u32, b as u32])))
+        .collect();
+    (ids.into_iter().zip(spans).collect(), theirs)
+}
+
+/// Every token's span is inside the text and on character boundaries,
+/// and the spans of the text's tokens start in order.
+fn check_well_formed(text: &str, ours: &[(i32, [u32; 2])]) {
+    let mut last = 0;
+    for &(id, [a, b]) in ours {
+        assert!(a <= b && b as usize <= text.len(), "{text:?}: token {id} span {a}..{b}");
+        assert!(text.is_char_boundary(a as usize) && text.is_char_boundary(b as usize), "{text:?}: {a}..{b}");
+        if [a, b] != turbo::tokenizer::NOWHERE {
+            assert!(a >= last, "{text:?}: token {id} at {a} starts before {last}");
+            last = a;
+        }
+    }
+}
+
+/// WordPiece's spans are upstream's offsets, trimmed of whitespace, on
+/// every text, the special tokens of the template at [0, 0].
+#[test]
+fn spans_match_upstream_offsets() {
+    let f = Fixture::standard("spans");
+    let tok = core_tokenizer(&f);
+    let mut up = upstream();
+    up.with_truncation(None).unwrap();
+    for text in texts() {
+        let (ours, theirs) = both_spans(&tok, &up, &text);
+        assert_eq!(ours, theirs, "text {text:?}");
+        check_well_formed(&text, &ours);
+    }
+}
+
+/// A row cut to fewer tokens keeps the spans of the tokens it keeps; a
+/// row that fails leaves the ids and spans as they were.
+#[test]
+fn spans_follow_truncation() {
+    let f = Fixture::standard("spans-truncation");
+    let tok = core_tokenizer(&f);
+    let text = long_text();
+    let (mut ids, mut spans) = (Vec::new(), Vec::new());
+    tok.encode_spans(&text, whole_text_opts(), &mut ids, &mut spans).unwrap();
+    let n = ids.len();
+    let body = &spans[1..n - 1];
+    for (truncation, max) in [(turbo::manifest::Truncation::Right, 32), (turbo::manifest::Truncation::Left, 40)] {
+        let opts = turbo::tokenizer::Encode { truncation, max_tokens: max, ..whole_text_opts() };
+        let (mut i2, mut s2) = (vec![7], vec![[1, 2]]);
+        tok.encode_spans(&text, opts, &mut i2, &mut s2).unwrap();
+        assert_eq!(i2[1..], tok.encode(&text, opts).unwrap()[..], "{truncation:?}");
+        assert_eq!(s2[0], [1, 2], "what was there stays");
+        let kept = &s2[2..s2.len() - 1];
+        let want = match truncation {
+            turbo::manifest::Truncation::Left => &body[body.len() - kept.len()..],
+            _ => &body[..kept.len()],
+        };
+        assert_eq!(kept, want, "{truncation:?}");
+        assert_eq!((s2[1], s2[s2.len() - 1]), (turbo::tokenizer::NOWHERE, turbo::tokenizer::NOWHERE));
+    }
+    let none =
+        turbo::tokenizer::Encode { truncation: turbo::manifest::Truncation::None, max_tokens: 32, ..whole_text_opts() };
+    let (mut i3, mut s3) = (vec![7], vec![[1, 2]]);
+    assert!(tok.encode_spans(&text, none, &mut i3, &mut s3).is_err());
+    assert_eq!((i3, s3), (vec![7], vec![[1, 2]]));
+    let (mut i4, mut s4) = (vec![7], Vec::new());
+    assert!(tok.encode_spans(&text, whole_text_opts(), &mut i4, &mut s4).is_err(), "a span for each id");
+}
+
+/// With a prompt's prefix in front, spans are into the caller's text and
+/// the prefix's tokens come from nowhere.
+#[test]
+fn spans_are_into_the_text_without_the_prefix() {
+    let mut m = manifest();
+    m["embed"]["prefix_query"] = json!("query: ");
+    let f = Fixture::new("spans-prompt", m);
+    let tok = core_tokenizer(&f);
+    let mut up = upstream();
+    up.with_truncation(None).unwrap();
+    for text in ["reset a password", "", "  Ünïcödé text", "[SEP] at the start"] {
+        let opts = turbo::tokenizer::Encode { prompt: turbo::manifest::PromptRole::Query, ..whole_text_opts() };
+        let (mut ids, mut spans) = (Vec::new(), Vec::new());
+        tok.encode_spans(text, opts, &mut ids, &mut spans).unwrap();
+        let prompted = format!("query: {text}");
+        let (_, theirs) = both_spans(&tok, &up, &prompted);
+        let want: Vec<(i32, [u32; 2])> =
+            theirs.into_iter().map(|(id, [a, b])| (id, if b <= 7 { [0, 0] } else { [a - 7, b - 7] })).collect();
+        assert_eq!(ids.into_iter().zip(spans).collect::<Vec<_>>(), want, "{text:?}");
+    }
+}
+
+/// The core's spans are upstream's offsets, trimmed of whitespace,
+/// except where upstream's offset ends inside a grapheme cluster that the
+/// character map replaced as a whole: the core's span covers the cluster.
+/// The number of such spans.
+fn spans_near_upstream(text: &str, ours: &[(i32, [u32; 2])], theirs: &[(i32, [u32; 2])]) -> usize {
+    use unicode_segmentation::UnicodeSegmentation;
+    assert_eq!(ours.len(), theirs.len(), "{text:?}");
+    let bounds: Vec<usize> = text.grapheme_indices(true).map(|(i, _)| i).chain([text.len()]).collect();
+    let inside = |x: u32| !bounds.contains(&(x as usize));
+    let mut widened = 0;
+    for (o, t) in ours.iter().zip(theirs) {
+        assert_eq!(o.0, t.0, "{text:?}");
+        if o.1 != t.1 {
+            let (a, b) = (o.1, t.1);
+            assert!(a[0] <= b[0] && a[1] >= b[1], "{text:?}: ours {a:?} theirs {b:?}");
+            assert!(inside(b[1]) && !inside(a[1]), "{text:?}: upstream's {b:?} ends on a cluster");
+            widened += 1;
+        }
+    }
+    check_well_formed(text, ours);
+    widened
+}
+
+#[test]
+fn unigram_spans_match_upstream_offsets() {
+    let path = testdata().join("bge-m3/tokenizer.json");
+    let f = Fixture::with_tokenizer("m3-spans", unigram::manifest_m3(), &path);
+    let tok = core_tokenizer(&f);
+    let mut up = upstream_at(&path);
+    up.with_truncation(None).unwrap();
+    let mut widened = 0;
+    for text in unigram::texts() {
+        let (ours, theirs) = both_spans(&tok, &up, &text);
+        widened += spans_near_upstream(&text, &ours, &theirs);
+    }
+    assert!(widened > 0, "the texts have a cluster the map composes");
+}
+
+/// A static model's spans are its tokens' spans with the unknown token
+/// dropped, as its ids are.
+#[test]
+fn static_spans_drop_the_unknown_token() {
+    let bundle = turbo::bundle::Bundle::open(&testdata().join("tiny-static-bundle")).unwrap();
+    let tok = turbo::tokenizer::Tokenizer::unchecked(&bundle).unwrap();
+    for text in texts() {
+        let (mut ids, mut spans) = (Vec::new(), Vec::new());
+        tok.encode_spans(&text, whole_text_opts(), &mut ids, &mut spans).unwrap();
+        assert_eq!(ids, tok.encode(&text, whole_text_opts()).unwrap(), "{text:?}");
+        assert!(!ids.contains(&tok.unk_id));
+        check_well_formed(&text, &ids.iter().copied().zip(spans.iter().copied()).collect::<Vec<_>>());
+    }
+}
+
+// ---- Decode -----------------------------------------------------------------------
+
+/// The core's decode of `text`'s ids is upstream's, with the special
+/// tokens and without.
+fn decode_matches_upstream(tok: &turbo::tokenizer::Tokenizer, up: &tokenizers::Tokenizer, text: &str) {
+    let ids = tok.encode(text, whole_text_opts()).unwrap();
+    let raw: Vec<u32> = ids.iter().map(|&i| i as u32).collect();
+    for skip in [true, false] {
+        assert_eq!(tok.decode(&ids, skip).unwrap(), up.decode(&raw, skip).unwrap(), "{text:?} skip {skip}");
+    }
+}
+
+#[test]
+fn decode_matches_upstream_wordpiece() {
+    let f = Fixture::standard("decode");
+    let tok = core_tokenizer(&f);
+    let up = upstream();
+    for text in texts() {
+        decode_matches_upstream(&tok, &up, &text);
+    }
+}
+
+#[test]
+fn decode_matches_upstream_unigram() {
+    let path = testdata().join("bge-m3/tokenizer.json");
+    let f = Fixture::with_tokenizer("m3-decode", unigram::manifest_m3(), &path);
+    let tok = core_tokenizer(&f);
+    let up = upstream_at(&path);
+    for text in unigram::texts() {
+        decode_matches_upstream(&tok, &up, &text);
+    }
+}
+
+#[test]
+fn decode_refuses_an_id_outside_the_vocabulary() {
+    let f = Fixture::standard("decode-bad");
+    let tok = core_tokenizer(&f);
+    for id in [-1, 30522] {
+        let e = tok.decode(&[101, id], false).unwrap_err();
+        assert!(e.code == turbo::status::INVALID_ARGUMENT && e.message.contains("ids[1]"), "{e:?}");
+    }
+    assert_eq!(tok.decode(&[], false).unwrap(), "");
+}
+
+// ---- Byte-level BPE, on a tokenizer trained for the tests ----------------------------
+
+/// A RoBERTa-style byte-level BPE (testdata/README.md).
+mod bpe {
+    use super::*;
+    use std::path::PathBuf;
+
+    pub fn tokenizer_json() -> PathBuf {
+        testdata().join("tiny-bpe/tokenizer.json")
+    }
+
+    /// What the tokenizer was trained on: the texts the tests encode, so
+    /// that their words merge deep, twice over.
+    fn corpus() -> Vec<String> {
+        let mut t = unigram::texts();
+        t.push(long_text());
+        t.extend(t.clone());
+        t
+    }
+
+    /// Writes testdata/tiny-bpe/tokenizer.json: upstream's BPE trainer on
+    /// corpus() with GPT-2's byte-level alphabet, 1200 pieces, RoBERTa's
+    /// special tokens, pre-tokenizer, post-processor and decoder.
+    #[test]
+    #[ignore = "writes the test data; run by hand"]
+    fn make_tiny_bpe() {
+        use tokenizers::models::TrainerWrapper;
+        use tokenizers::models::bpe::{BPE, BpeTrainerBuilder};
+        use tokenizers::pre_tokenizers::byte_level::ByteLevel;
+        use tokenizers::processors::roberta::RobertaProcessing;
+        use tokenizers::{AddedToken, Tokenizer};
+        let mut tok = Tokenizer::new(BPE::default());
+        tok.with_pre_tokenizer(Some(ByteLevel::new(false, true, true)));
+        tok.with_decoder(Some(ByteLevel::default()));
+        tok.with_post_processor(Some(
+            RobertaProcessing::new(("</s>".into(), 2), ("<s>".into(), 0)).trim_offsets(true).add_prefix_space(false),
+        ));
+        let mut specials = ["<s>", "<pad>", "</s>", "<unk>"].map(|s| AddedToken::from(s, true)).to_vec();
+        specials.push(AddedToken::from("<mask>", true).lstrip(true));
+        let mut trainer: TrainerWrapper = BpeTrainerBuilder::new()
+            .show_progress(false)
+            .vocab_size(1200)
+            .min_frequency(1)
+            .special_tokens(specials)
+            .initial_alphabet(ByteLevel::alphabet().into_iter().collect())
+            .build()
+            .into();
+        tok.train(&mut trainer, corpus().into_iter()).unwrap();
+        std::fs::create_dir_all(tokenizer_json().parent().unwrap()).unwrap();
+        tok.save(tokenizer_json(), false).unwrap();
+    }
+    /// The MiniLM fixture's manifest with this tokenizer: RoBERTa's
+    /// special tokens and template.
+    pub fn manifest_bpe() -> serde_json::Value {
+        let mut m = manifest();
+        m["tokenizer"] = json!({
+            "file": "tokenizer.json",
+            "bpe": { "add_prefix_space": false },
+            "special_tokens": [
+                { "role": "SPECIAL_BOS",  "content": "<s>",    "id": 0 },
+                { "role": "SPECIAL_PAD",  "content": "<pad>",  "id": 1 },
+                { "role": "SPECIAL_EOS",  "content": "</s>",   "id": 2 },
+                { "role": "SPECIAL_UNK",  "content": "<unk>",  "id": 3 },
+                { "role": "SPECIAL_MASK", "content": "<mask>", "id": 4, "lstrip": true }
+            ],
+            "template": ["<s>", "$TEXT", "</s>"],
+            "truncation": "TRUNCATE_RIGHT"
+        });
+        m
+    }
+
+    /// The test texts, and texts the tokenizer was not trained on: its
+    /// characters drawn at random, so merges stop part way, and the
+    /// corners of GPT-2's pattern.
+    pub fn texts() -> Vec<String> {
+        let mut t = unigram::texts();
+        let pool: Vec<char> = corpus().concat().chars().collect();
+        let mut x: u64 = 0x5851_f42d_4c95_7f2d;
+        for _ in 0..400 {
+            let mut s = String::new();
+            for _ in 0..(x >> 58) + 1 {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                s.push(pool[(x % pool.len() as u64) as usize]);
+            }
+            t.push(s);
+        }
+        t.extend(
+            [
+                "it's they're we've I'm you'll he'd don't 'S 'RE 'tis '' ' s",
+                "a  b   c\t\td \n\ne \u{3000}f \u{a0}g",
+                "trailing   ",
+                "   ",
+                " x",
+                "x ",
+                "1234567890 12,345.67 ①②③ Ⅻ ½ ٣٤٥ ௧௨",
+                "!!! ??? ... --- ''' \"\"\" (((",
+                "a!b?c.d,e;f:g",
+                "e\u{301}\u{302} \u{0} \u{1} \u{7f} \u{fffd} \u{feff}",
+                "<mask> <s>x</s> <pad><unk>",
+                "before   <mask>   after",
+            ]
+            .map(str::to_owned),
+        );
+        t
+    }
+
+    fn fixture(name: &str, m: serde_json::Value, path: &std::path::Path) -> Fixture {
+        Fixture::with_tokenizer(&format!("bpe-{name}"), m, path)
+    }
+
+    /// The core against upstream on the tokenizer file at `path`: ids,
+    /// spans and decode.
+    fn check(name: &str, m: serde_json::Value, path: &std::path::Path) {
+        let prefixed = m["tokenizer"]["bpe"]["add_prefix_space"] == true;
+        let f = fixture(name, m, path);
+        let tok = core_tokenizer(&f);
+        let mut up = upstream_at(path);
+        up.with_truncation(None).unwrap();
+        for text in texts() {
+            let (ours, theirs) = both_spans(&tok, &up, &text);
+            spans_near_upstream(&text, &ours, &theirs, prefixed);
+            check_well_formed(&text, &ours);
+            decode_matches_upstream(&tok, &up, &text);
+        }
+    }
+
+    /// The core's spans are upstream's offsets, but where upstream's are
+    /// wrong: a token of whitespace alone is that whitespace, not the
+    /// empty offset at its end that upstream's trim leaves; and the first
+    /// token of a text that a space was put in front of starts at the
+    /// text's start, where upstream's trim counts the space put in front
+    /// as one of the text's and starts it a byte late (inside a character
+    /// that is more than one).
+    fn spans_near_upstream(text: &str, ours: &[(i32, [u32; 2])], theirs: &[(i32, [u32; 2])], prefixed: bool) {
+        assert_eq!(ours.len(), theirs.len(), "{text:?}");
+        // The ids under 5 are the special tokens.
+        let first = ours.iter().position(|o| o.1 != [0, 0]);
+        for (i, (o, t)) in ours.iter().zip(theirs).enumerate() {
+            assert_eq!(o.0, t.0, "{text:?}");
+            let (a, b) = (o.1, t.1);
+            let blank = text[a[0] as usize..a[1] as usize].trim().is_empty();
+            // The first token of a piece of text a space was put in front
+            // of (the text, or what follows a special token in it); the
+            // space alone comes from the character it is put before.
+            let starts_piece = Some(i) == first || (i > 0 && ours[i - 1].0 <= 4);
+            let lead = text[a[0] as usize..].chars().next().map_or(0, char::len_utf8) as u32;
+            let late_start = prefixed
+                && starts_piece
+                && !text[..a[0] as usize].ends_with(' ')
+                && (b == [a[0] + 1, a[1]] || (a == [a[0], a[0] + lead] && b[0] > a[0] && b[1] <= a[1]));
+            assert!(
+                a == b || (blank && b[0] == b[1] && b[1] == a[1]) || late_start,
+                "{text:?}: token {i} ({}): ours {a:?} {:?}, upstream {b:?} {:?}",
+                o.0,
+                &text[a[0] as usize..a[1] as usize],
+                text.get(b[0] as usize..b[1] as usize)
+            );
+        }
+    }
+
+    #[test]
+    fn matches_upstream() {
+        check("plain", manifest_bpe(), &tokenizer_json());
+    }
+
+    /// The same with a space put in front, merges written as "left right",
+    /// and whole words taken as pieces.
+    #[test]
+    fn matches_upstream_with_each_option() {
+        let base: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
+        for variant in ["prefix", "legacy", "ignore_merges"] {
+            let mut json = base.clone();
+            let mut m = manifest_bpe();
+            match variant {
+                "prefix" => {
+                    json["pre_tokenizer"]["add_prefix_space"] = json!(true);
+                    m["tokenizer"]["bpe"]["add_prefix_space"] = json!(true);
+                }
+                "legacy" => {
+                    let merges = json["model"]["merges"].as_array().unwrap();
+                    let legacy: Vec<String> = merges
+                        .iter()
+                        .map(|p| format!("{} {}", p[0].as_str().unwrap(), p[1].as_str().unwrap()))
+                        .collect();
+                    json["model"]["merges"] = json!(legacy);
+                }
+                _ => {
+                    json["model"]["ignore_merges"] = json!(true);
+                    m["tokenizer"]["bpe"]["ignore_merges"] = json!(true);
+                }
+            }
+            let path = std::env::temp_dir().join(format!("turbo-bpe-{variant}-{}.json", std::process::id()));
+            std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
+            check(variant, m, &path);
+            std::fs::remove_file(path).unwrap();
+        }
+    }
+
+    /// A file that is not what the manifest says, or not what the core
+    /// runs, is refused when the tokenizer is made.
+    #[test]
+    fn the_manifest_must_agree_with_the_file() {
+        let base: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
+        type Edit = fn(&mut serde_json::Value);
+        let cases: [(&str, Edit); 5] = [
+            ("add_prefix_space", |j| j["pre_tokenizer"]["add_prefix_space"] = json!(true)),
+            ("ByteLevel", |j| j["pre_tokenizer"]["use_regex"] = json!(false)),
+            ("normalizer", |j| j["normalizer"] = json!({ "type": "NFC" })),
+            ("dropout", |j| j["model"]["dropout"] = json!(0.1)),
+            ("no piece", |j| j["model"]["merges"].as_array_mut().unwrap().push(json!(["zzzz", "qqqq"]))),
+        ];
+        for (want, edit) in cases {
+            let mut json = base.clone();
+            edit(&mut json);
+            let mut f = fixture("bad", manifest_bpe(), &tokenizer_json());
+            std::fs::write(f.dir.join("tokenizer.json"), serde_json::to_vec(&json).unwrap()).unwrap();
+            f.list("tokenizer.json");
+            let e = f.open().unwrap_err();
+            assert!(e.message.contains(want), "{want}: {e:?}");
+        }
+    }
+
+    #[test]
+    fn info_names_the_kind() {
+        let f = fixture("info", manifest_bpe(), &tokenizer_json());
+        let info = f.open().unwrap().info();
+        assert_eq!(field(&info.kind), "bpe");
+        assert_eq!(info.vocab_size, 1200);
+    }
 }

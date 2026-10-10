@@ -97,6 +97,8 @@ pub struct Tokenizer {
     pub wordpiece: Option<WordPiece>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unigram: Option<Unigram>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bpe: Option<Bpe>,
     pub special_tokens: Vec<SpecialToken>,
     pub template: Vec<String>,
     pub truncation: Truncation,
@@ -157,6 +159,22 @@ pub struct Unigram {
     pub strip: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub whole_text: bool,
+}
+
+/// Byte-level BPE as upstream `tokenizers` runs it for GPT-2 and
+/// RoBERTa: the text, unnormalized, is cut into words by GPT-2's pattern
+/// (with a space put in front of each piece of text between special
+/// tokens that does not start with one, when `add_prefix_space`), each
+/// word's bytes are written as GPT-2's printable characters, and the
+/// tokenizer file's merges join them pair by pair, lowest rank first. With
+/// `ignore_merges`, a word that is a piece of the vocabulary is that
+/// piece.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Bpe {
+    pub add_prefix_space: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ignore_merges: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -627,15 +645,15 @@ impl Manifest {
         // tokenizer
         let t = &self.tokenizer;
         listed_path("tokenizer.file", &t.file)?;
-        match (&t.wordpiece, &t.unigram) {
-            (Some(w), None) => {
+        match (&t.wordpiece, &t.unigram, &t.bpe) {
+            (Some(w), None, None) => {
                 required("tokenizer.wordpiece.continuing_prefix", &w.continuing_prefix)?;
                 positive("tokenizer.wordpiece.max_chars_per_word", w.max_chars_per_word)?;
                 if t.normalizer.is_none() {
                     return Err(invalid("manifest.json: tokenizer.normalizer: required with wordpiece"));
                 }
             }
-            (None, Some(u)) => {
+            (None, Some(u), None) => {
                 if u.metaspace.chars().count() != 1 {
                     return Err(invalid(format!(
                         "manifest.json: tokenizer.unigram.metaspace: {:?} is not one character",
@@ -648,7 +666,14 @@ impl Manifest {
                     ));
                 }
             }
-            _ => return Err(invalid("manifest.json: tokenizer: one of wordpiece and unigram")),
+            (None, None, Some(_)) => {
+                if t.normalizer.is_some() {
+                    return Err(invalid(
+                        "manifest.json: tokenizer.normalizer: a bpe tokenizer reads the text as it is, not BertNormalizer",
+                    ));
+                }
+            }
+            _ => return Err(invalid("manifest.json: tokenizer: one of wordpiece, unigram and bpe")),
         }
         let mut roles = HashSet::new();
         let mut contents = HashSet::new();
