@@ -1,0 +1,157 @@
+{
+  "manifest": {
+    "bundle_version": 1,
+    "model": {
+      "id": "minishlab/potion-multilingual-128M",
+      "revision": "1",
+      "source": {
+        "repository": "https://huggingface.co/minishlab/potion-multilingual-128M",
+        "commit": "73908c3438cf03b6a01bcb9611d62b23d0726f08"
+      },
+      "license": "MIT"
+    },
+    "task": "TASK_EMBED",
+    "embed": {
+      "dim": 256,
+      "pooling": "POOLING_MEAN",
+      "normalize": "NORMALIZE_L2",
+      "max_seq": 8192,
+      "max_batch": 1024
+    },
+    "tokenizer": {
+      "file": "tokenizer.json",
+      "unigram": {
+        "precompiled_charsmap": true,
+        "collapse_spaces": true,
+        "metaspace": "▁",
+        "add_prefix_space": true,
+        "space_punctuation": true,
+        "collapse_whitespace": true,
+        "strip": true,
+        "whole_text": true
+      },
+      "special_tokens": [
+        {
+          "role": "SPECIAL_PAD",
+          "content": "[PAD]",
+          "id": 0
+        },
+        {
+          "role": "SPECIAL_UNK",
+          "content": "[UNK]",
+          "id": 1
+        }
+      ],
+      "template": [
+        "$TEXT"
+      ],
+      "truncation": "TRUNCATE_RIGHT"
+    },
+    "static_embedding": {
+      "vocab_size": 500353,
+      "max_length": 512
+    },
+    "artifacts": [
+      {
+        "name": "table-f32",
+        "format": "FORMAT_SAFETENSORS",
+        "files": [
+          "weights/model.safetensors"
+        ],
+        "backends": [
+          "cpu"
+        ],
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "tensor_names": {
+          "static_embeddings": "embeddings"
+        }
+      }
+    ],
+    "reference": {
+      "file": "reference/reference.safetensors",
+      "cases": [
+        {
+          "text": "",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "   \t\n",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "☃☃",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "The quick brown fox jumps over the lazy dog.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Café naïve RÉSUMÉ",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "东京是日本的首都。",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "서울은 한국의 수도입니다.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Москва — столица России.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "emoji 🙂 and tabs\tand\nnewlines",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "[CLS] hello [SEP] [UNK] [PAD] [cls] [pad]",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "def f(x):\n    return x ** 2  # square",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "café😀x and aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa end",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "☃ ☃ ☃ ☃ ☃ ☃ ☃ ☃ ☃ ☃ word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international international ",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware. A second machine, on a different device and a different build, runs the same tokenizer over the same bytes and must reach the same token ids before it computes a single vector, because a tokenizer that drifts by even one position changes every vector after it, and no amount of numerical tolerance in the arithmetic that follows can repair a row that was never the row the model was evaluated on in the first place. Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware.",
+          "prompt_role": "PROMPT_NONE"
+        }
+      ]
+    }
+  },
+  "upstream": [
+    {
+      "path": "tokenizer.json",
+      "to": "tokenizer.json",
+      "sha256": "19f1909063da3cfe3bd83a782381f040dccea475f4816de11116444a73e1b6a1"
+    },
+    {
+      "path": "model.safetensors",
+      "to": "weights/model.safetensors",
+      "sha256": "14b5eb39cb4ce5666da8ad1f3dc6be4346e9b2d601c073302fa0a31bf7943397"
+    },
+    {
+      "path": "config.json",
+      "sha256": "595e4cab2093732efd5dbe084fd5c1826b5eea693b73b4c1fd971672867d2e54"
+    },
+    {
+      "path": "README.md",
+      "sha256": "9505454b6a3efbb25257124de875cb73e02bd663a822528525a3c29b1c4d91ac"
+    }
+  ]
+}

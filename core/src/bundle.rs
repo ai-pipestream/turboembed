@@ -61,6 +61,27 @@ impl Bundle {
         Ok(bytes)
     }
 
+    /// As read_verified_aligned, the file mapped instead of read where the
+    /// host can map it (unix): its pages are the page cache's, shared with
+    /// every process that maps the file, and no copy is made. The mapping
+    /// is private, so a write through it changes this copy alone. The
+    /// hash is checked over the mapped bytes, as over read ones; the
+    /// bundle's files must not change while a model is loaded from them.
+    pub fn map_verified(&self, rel: &str) -> Result<AlignedBytes> {
+        #[cfg(unix)]
+        {
+            let (file, size) = self.open_listed(rel)?;
+            let len = usize::try_from(size).map_err(|_| too_big(rel, size))?;
+            if len > 0 {
+                let bytes = AlignedBytes::map(&file, len)
+                    .ok_or_else(|| Error::new(OUT_OF_MEMORY, format!("{rel}: {size} bytes could not be mapped")))?;
+                self.check_hash(rel, &bytes)?;
+                return Ok(bytes);
+            }
+        }
+        self.read_verified_aligned(rel)
+    }
+
     /// The file `rel` names, open, once it is known to resolve inside the
     /// bundle, to be a regular file and to have the size the manifest says.
     fn open_listed(&self, rel: &str) -> Result<(fs::File, u64)> {
@@ -130,9 +151,16 @@ fn read_all(rel: &str, file: &mut fs::File, buf: &mut [u8]) -> Result<()> {
 pub struct AlignedBytes {
     ptr: std::ptr::NonNull<u8>,
     len: usize,
+    /// The allocation's alignment: ALIGN, or HUGE.
+    align: usize,
+    /// A private mapping of a file (on a page boundary), not an allocation.
+    mapped: bool,
 }
 
 const ALIGN: usize = 64;
+
+/// A huge page on x86_64 and aarch64 Linux: 2 MiB.
+const HUGE: usize = 2 << 20;
 
 // Plain owned bytes.
 unsafe impl Send for AlignedBytes {}
@@ -144,13 +172,59 @@ impl AlignedBytes {
         // A zero-sized allocation is not allowed; one byte stands in.
         let layout = Layout::from_size_align(len.max(1), ALIGN).ok()?;
         let ptr = std::ptr::NonNull::new(unsafe { std::alloc::alloc_zeroed(layout) })?;
-        Some(AlignedBytes { ptr, len })
+        Some(AlignedBytes { ptr, len, align: ALIGN, mapped: false })
+    }
+
+    /// `len` zero bytes on a huge-page boundary, which Linux is asked to
+    /// back with huge pages before any is touched, so that reading rows
+    /// from anywhere in them misses the TLB far less; or None when the
+    /// host cannot give them. Elsewhere, plain aligned bytes.
+    pub fn zeroed_huge(len: usize) -> Option<AlignedBytes> {
+        let layout = Layout::from_size_align(len.max(1), HUGE).ok()?;
+        let ptr = std::ptr::NonNull::new(unsafe { std::alloc::alloc(layout) })?;
+        // Advice only, and before the zeroing touches a page: a kernel
+        // without transparent huge pages leaves them small.
+        #[cfg(target_os = "linux")]
+        unsafe {
+            libc::madvise(ptr.as_ptr() as *mut libc::c_void, len, libc::MADV_HUGEPAGE)
+        };
+        unsafe { std::ptr::write_bytes(ptr.as_ptr(), 0, len) };
+        Some(AlignedBytes { ptr, len, align: HUGE, mapped: false })
+    }
+
+    /// The first `len` bytes of `file`, mapped private and writable, or None
+    /// when the host refuses. `len` must not be 0.
+    #[cfg(unix)]
+    fn map(file: &fs::File, len: usize) -> Option<AlignedBytes> {
+        use std::os::fd::AsRawFd;
+        let p = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                len,
+                libc::PROT_READ | libc::PROT_WRITE,
+                libc::MAP_PRIVATE,
+                file.as_raw_fd(),
+                0,
+            )
+        };
+        if p == libc::MAP_FAILED {
+            return None;
+        }
+        // Read ahead now: the hash reads every page, and a run gathers
+        // rows from anywhere in it.
+        unsafe { libc::madvise(p, len, libc::MADV_WILLNEED) };
+        Some(AlignedBytes { ptr: std::ptr::NonNull::new(p as *mut u8)?, len, align: ALIGN, mapped: true })
     }
 }
 
 impl Drop for AlignedBytes {
     fn drop(&mut self) {
-        let layout = Layout::from_size_align(self.len.max(1), ALIGN).expect("made with this layout");
+        #[cfg(unix)]
+        if self.mapped {
+            unsafe { libc::munmap(self.ptr.as_ptr() as *mut libc::c_void, self.len) };
+            return;
+        }
+        let layout = Layout::from_size_align(self.len.max(1), self.align).expect("made with this layout");
         unsafe { std::alloc::dealloc(self.ptr.as_ptr(), layout) };
     }
 }

@@ -23,6 +23,23 @@ instead: 1 to 1024. Any other value refuses the session with
 the process's affinity (`taskset`, `sched_setaffinity`), which they
 inherit. `turbo-bench record --cpus` does both (docs/benchmarks.md).
 
+`TURBO_CPU_STATIC_TABLE`, read when a static model's session is
+created, chooses the table it sums (docs/static.md): `stored` the table
+as the bundle stores it at every precision, `i8` the I8 copy at every
+precision. Unset, `TURBO_PRECISION_FASTEST` sums the I8 copy and the
+other precisions the stored table. Any other value refuses the session
+with `TURBO_E_INVALID_ARGUMENT`.
+
+`TURBO_CPU_STATIC_PAGES`, read when a static model's first session is
+created, chooses where its tables are read from: `mapped` (or unset) the
+stored table where the bundle's file is mapped, and the I8 copy on the
+heap; `huge` copies of both on 2 MiB boundaries, which Linux is asked to
+back with transparent huge pages (`madvise`), so that gathering rows
+from anywhere in a large table misses the TLB less. The copy costs the
+table's size in memory and the time to copy it, once per model; the
+vectors are the same bits either way. Any other value refuses the
+session with `TURBO_E_INVALID_ARGUMENT`.
+
 The vectors do not depend on the count: no sum is split between tasks,
 and each output is computed in one fixed order whichever thread takes
 it, so a batch gives the same bits on any number of threads.

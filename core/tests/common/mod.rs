@@ -875,6 +875,21 @@ impl Outcome {
         info
     }
 
+    /// The vectors through turbo_result_read into `flat`, batch x dim
+    /// values, as a caller that keeps one buffer for every batch reads
+    /// them.
+    pub fn read_into(&self, flat: &mut Vec<f32>) {
+        let info = self.info();
+        flat.resize(info.batch as usize * info.dim as usize, 0.0);
+        let mut written = 0u64;
+        let mut err = new_error();
+        let rc = unsafe {
+            turbo_result_read(self.0, flat.as_mut_ptr() as *mut _, (flat.len() * 4) as u64, &mut written, &mut err)
+        };
+        assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+        assert_eq!(written, info.bytes);
+    }
+
     /// The vectors through turbo_result_read, one Vec per row.
     pub fn rows(&self) -> Vec<Vec<f32>> {
         let info = self.info();

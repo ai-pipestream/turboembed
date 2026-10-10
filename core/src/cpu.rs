@@ -1,10 +1,12 @@
 //! The CPU backend: the host processor, through turbo_backend.h like any
 //! other backend. It lists the device and its memory, holds the models
-//! loaded on it, and runs embed sessions with the encoder in encoder.rs.
+//! loaded on it, and runs embed sessions with the encoder in encoder.rs,
+//! or for a static model the table in table.rs.
 
 mod encoder;
 mod kernels;
-mod pool;
+pub(crate) mod pool;
+mod table;
 
 use std::alloc::Layout;
 use std::ffi::{c_char, c_void};
@@ -12,18 +14,18 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_CAP_EXPERIMENTAL, TURBO_FAMILY_BERT,
-    TURBO_FAMILY_ROBERTA, TURBO_FORMAT_SAFETENSORS, format_bit, refuse, refuse_field, turbo_backend,
-    turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run, turbo_backend_tensor,
+    TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC, TURBO_FORMAT_SAFETENSORS, format_bit, refuse, refuse_field,
+    turbo_backend, turbo_backend_embed_rows, turbo_backend_model, turbo_backend_run, turbo_backend_tensor,
 };
 use crate::status::{
     INVALID_ARGUMENT, INVALID_STATE, OUT_OF_MEMORY, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
 };
 use crate::{
-    TURBO_DEVICE_CPU, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_EMBED_STAGE_DOWNLOAD, TURBO_EMBED_STAGE_ENCODE,
-    TURBO_EMBED_STAGE_LOOKUP, TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL, TURBO_EMBED_STAGE_UPLOAD,
-    TURBO_HANDLE_HOST_PTR, TURBO_NORMALIZE_L2, TURBO_PLACE_DEVICE, TURBO_PLACE_HOST, TURBO_PRECISION_MODEL,
-    TURBO_STAGE_HOST, TURBO_STAGE_UNUSED, TURBO_TASK_EMBED, turbo_buffer_desc, turbo_device_info, turbo_error,
-    turbo_log_fn, turbo_native_handle, write_str,
+    TURBO_DEVICE_CPU, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_EMBED_STAGE_DOWNLOAD,
+    TURBO_EMBED_STAGE_ENCODE, TURBO_EMBED_STAGE_LOOKUP, TURBO_EMBED_STAGE_NORMALIZE, TURBO_EMBED_STAGE_POOL,
+    TURBO_EMBED_STAGE_UPLOAD, TURBO_HANDLE_HOST_PTR, TURBO_NORMALIZE_L2, TURBO_PLACE_DEVICE, TURBO_PLACE_HOST,
+    TURBO_PRECISION_FASTEST, TURBO_PRECISION_MODEL, TURBO_STAGE_FUSED, TURBO_STAGE_HOST, TURBO_STAGE_UNUSED,
+    TURBO_TASK_EMBED, turbo_buffer_desc, turbo_device_info, turbo_error, turbo_log_fn, turbo_native_handle, write_str,
 };
 
 pub static BACKEND: turbo_backend = turbo_backend {
@@ -297,6 +299,11 @@ struct Model {
     /// Held while `packed` is made. A failed pack leaves it unset, and the
     /// next session tries again.
     packing: Mutex<()>,
+    /// A static model's table, its weights and mapping widened, made by the
+    /// first session and shared by every later one.
+    table: OnceLock<std::sync::Arc<table::Table>>,
+    /// The table in I8 for FASTEST sessions, made by the first.
+    quantized: OnceLock<std::sync::Arc<table::Quantized>>,
 }
 
 // The tensors point into the core's weights, which it keeps unchanged
@@ -373,8 +380,9 @@ unsafe extern "C" fn model_load(
     err: *mut turbo_error,
 ) -> i32 {
     let desc = unsafe { *desc };
-    if desc.family != TURBO_FAMILY_BERT && desc.family != TURBO_FAMILY_ROBERTA {
-        return unsafe { refuse(err, UNSUPPORTED, &format!("family {}: the cpu holds BERT encoders", desc.family)) };
+    if !matches!(desc.family, TURBO_FAMILY_BERT | TURBO_FAMILY_ROBERTA | TURBO_FAMILY_STATIC) {
+        let msg = format!("family {}: the cpu holds BERT encoders and static models", desc.family);
+        return unsafe { refuse(err, UNSUPPORTED, &msg) };
     }
     let tensors = unsafe { std::slice::from_raw_parts(desc.tensors, desc.tensor_count as usize) }
         .iter()
@@ -388,6 +396,8 @@ unsafe extern "C" fn model_load(
             f32: OnceLock::new(),
             packed: OnceLock::new(),
             packing: Mutex::new(()),
+            table: OnceLock::new(),
+            quantized: OnceLock::new(),
         })) as *mut c_void
     };
     0
@@ -432,7 +442,7 @@ pub(crate) unsafe fn converted_data(model: *mut c_void) -> Option<Vec<*const c_v
 // not run here, and h2d_bytes and d2h_bytes are 0.
 
 struct Session {
-    encoder: encoder::Encoder,
+    work: Work,
     /// The threads `threads` gives, the caller's among them; see pool.rs.
     pool: pool::Pool,
     /// [max_batch, hidden] F32, the buffer handed out as the run's output.
@@ -456,6 +466,41 @@ unsafe extern "C" fn session_create(
     if task != TURBO_TASK_EMBED {
         return unsafe { refuse(err, UNSUPPORTED_TASK, &format!("task {task}: the cpu runs embed")) };
     }
+    let hidden = m.desc.hidden as usize;
+    let bytes = max_batch as usize * hidden * 4;
+    let output = Layout::from_size_align(bytes, ALIGN).ok().and_then(Buffer::alloc);
+    let Some(output) = output else {
+        return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's vectors")) };
+    };
+    if m.desc.family == TURBO_FAMILY_STATIC {
+        let threads = match threads(std::env::var("TURBO_CPU_THREADS").ok().as_deref()) {
+            Ok(n) => n,
+            Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
+        };
+        let quantize = match static_table(precision, std::env::var("TURBO_CPU_STATIC_TABLE").ok().as_deref()) {
+            Ok(q) => q,
+            Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
+        };
+        let huge = match static_pages(std::env::var("TURBO_CPU_STATIC_PAGES").ok().as_deref()) {
+            Ok(h) => h,
+            Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
+        };
+        let work = match static_session(m, quantize, huge, max_batch, max_seq, err) {
+            Ok(w) => w,
+            Err(rc) => return rc,
+        };
+        let s = Session {
+            work,
+            pool: pool::Pool::with_spin(threads, pool::SPIN_BATCH),
+            output: Box::new(output),
+            written: false,
+        };
+        unsafe {
+            *compute_dtype = if quantize { TURBO_DTYPE_I8 } else { TURBO_DTYPE_F32 };
+            *out = Box::into_raw(Box::new(s)) as *mut c_void;
+        }
+        return 0;
+    }
     if precision == TURBO_PRECISION_MODEL && m.desc.dtype != TURBO_DTYPE_F32 {
         let stored = if m.desc.dtype == TURBO_DTYPE_F16 { "F16" } else { "BF16" };
         let msg = format!(
@@ -471,12 +516,6 @@ unsafe extern "C" fn session_create(
         );
         return unsafe { refuse_field(err, UNSUPPORTED_OPTION, 2, &msg) };
     }
-    let hidden = m.desc.hidden as usize;
-    let bytes = max_batch as usize * hidden * 4;
-    let output = Layout::from_size_align(bytes, ALIGN).ok().and_then(Buffer::alloc);
-    let Some(output) = output else {
-        return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's vectors")) };
-    };
     let tensors = m.f32_tensors();
     let packed = match m.packed(&tensors) {
         Ok(p) => p,
@@ -496,12 +535,61 @@ unsafe extern "C" fn session_create(
                 return unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes of scratch for the session")) };
             }
         };
-    let s = Session { encoder, pool, output: Box::new(output), written: false };
+    let s = Session { work: Work::Encoder(Box::new(encoder)), pool, output: Box::new(output), written: false };
     unsafe {
         *compute_dtype = TURBO_DTYPE_F32;
         *out = Box::into_raw(Box::new(s)) as *mut c_void;
     }
     0
+}
+
+/// What a session computes with: an encoder, or a static model's table.
+enum Work {
+    Encoder(Box<encoder::Encoder>),
+    Static(table::Static),
+}
+
+/// A static model's session: no weights to convert or pack, since the
+/// table is read in place in its stored dtype and summed in F32 at every
+/// precision.
+/// `huge`: the model's first session makes copies of its tables in huge
+/// pages, which every later session reads.
+fn static_session(
+    m: &Model,
+    quantize: bool,
+    huge: bool,
+    max_batch: u32,
+    max_seq: u32,
+    err: *mut turbo_error,
+) -> Result<Work, i32> {
+    let t = m.table.get_or_init(|| std::sync::Arc::new(table::Table::new(&m.tensors, huge))).clone();
+    let q = quantize.then(|| m.quantized.get_or_init(|| std::sync::Arc::new(table::Quantized::new(&t, huge))).clone());
+    table::Static::new(t, q, kernels::Isa::detect(), max_batch as usize, max_seq as usize)
+        .map(Work::Static)
+        .map_err(|bytes| unsafe { refuse(err, OUT_OF_MEMORY, &format!("{bytes} bytes for the session's rows")) })
+}
+
+/// Whether a static model's session sums the I8 table: at FASTEST, unless
+/// TURBO_CPU_STATIC_TABLE says `stored` (docs/cpu.md); `i8` makes every
+/// precision sum it.
+fn static_table(precision: u32, var: Option<&str>) -> Result<bool, String> {
+    match var.map(str::trim) {
+        None | Some("") => Ok(precision == TURBO_PRECISION_FASTEST),
+        Some("stored") => Ok(false),
+        Some("i8") => Ok(true),
+        Some(v) => Err(format!("TURBO_CPU_STATIC_TABLE={v:?}: stored or i8")),
+    }
+}
+
+/// Whether a static model's tables are read from copies in huge pages:
+/// TURBO_CPU_STATIC_PAGES `huge` (docs/cpu.md); unset or `mapped`, the
+/// stored table is read where the bundle's file is mapped.
+fn static_pages(var: Option<&str>) -> Result<bool, String> {
+    match var.map(str::trim) {
+        None | Some("") | Some("mapped") => Ok(false),
+        Some("huge") => Ok(true),
+        Some(v) => Err(format!("TURBO_CPU_STATIC_PAGES={v:?}: mapped or huge")),
+    }
 }
 
 /// The threads a session runs on: TURBO_CPU_THREADS when set (docs/cpu.md),
@@ -534,7 +622,11 @@ unsafe extern "C" fn embed_write(
     let span = (r.batch as usize - 1) * r.row_stride as usize + r.seq as usize;
     let (ids, mask) = unsafe { (std::slice::from_raw_parts(r.ids, span), std::slice::from_raw_parts(r.mask, span)) };
     let types = (!r.types.is_null()).then(|| unsafe { std::slice::from_raw_parts(r.types, span) });
-    s.encoder.write(r, ids, mask, types);
+    match &mut s.work {
+        Work::Encoder(e) => e.write(r, ids, mask, types),
+        // A static model has one token type, so the core passes only 0s.
+        Work::Static(t) => t.write(r, ids, mask),
+    }
     s.written = true;
     0
 }
@@ -545,7 +637,17 @@ unsafe extern "C" fn session_run(session: *mut c_void, out: *mut turbo_backend_r
         return unsafe { refuse(err, INVALID_STATE, "the cpu session has no rows written since its last run") };
     }
     let floats = unsafe { std::slice::from_raw_parts_mut(s.output.ptr as *mut f32, s.output_len()) };
-    s.encoder.run(&mut s.pool, floats);
+    let normalize = match &mut s.work {
+        Work::Encoder(e) => {
+            e.run(&mut s.pool, floats);
+            e.normalize()
+        }
+        Work::Static(t) => {
+            t.run(&mut s.pool, floats);
+            t.normalize()
+        }
+    };
+    let encoded = matches!(s.work, Work::Encoder(_));
     out.placement = TURBO_PLACE_HOST;
     out.output = &*s.output as *const Buffer as *mut c_void;
     out.host = s.output.ptr as *mut c_void;
@@ -560,10 +662,12 @@ unsafe extern "C" fn session_run(session: *mut c_void, out: *mut turbo_backend_r
     let st = &mut out.stage;
     st[TURBO_EMBED_STAGE_UPLOAD] = TURBO_STAGE_UNUSED;
     st[TURBO_EMBED_STAGE_LOOKUP] = TURBO_STAGE_HOST;
-    st[TURBO_EMBED_STAGE_ENCODE] = TURBO_STAGE_HOST;
-    st[TURBO_EMBED_STAGE_POOL] = TURBO_STAGE_HOST;
+    // A static model's lookup and pool are one sum: the pool is fused
+    // into it, and there is no encoder.
+    st[TURBO_EMBED_STAGE_ENCODE] = if encoded { TURBO_STAGE_HOST } else { TURBO_STAGE_UNUSED };
+    st[TURBO_EMBED_STAGE_POOL] = if encoded { TURBO_STAGE_HOST } else { TURBO_STAGE_FUSED };
     st[TURBO_EMBED_STAGE_NORMALIZE] =
-        if s.encoder.normalize() == TURBO_NORMALIZE_L2 { TURBO_STAGE_HOST } else { TURBO_STAGE_UNUSED };
+        if normalize == TURBO_NORMALIZE_L2 { TURBO_STAGE_HOST } else { TURBO_STAGE_UNUSED };
     st[TURBO_EMBED_STAGE_DOWNLOAD] = TURBO_STAGE_UNUSED;
     0
 }

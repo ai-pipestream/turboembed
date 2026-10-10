@@ -24,3 +24,7 @@ __pycache__/
 hailort.log
 # Hailo's Dataflow Compiler wheel, which may not be redistributed (bundle/hailo/Dockerfile).
 bundle/hailo/*.whl
+# Zig 0.16 unpacks a package's dependencies beside its build.zig.
+zig-pkg/
+.zig-cache/
+zig-out/

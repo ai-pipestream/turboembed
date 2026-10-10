@@ -69,9 +69,16 @@ fn counted_all<T>(f: impl FnOnce() -> T) -> (T, u64, u64) {
 
 #[test]
 fn a_run_reports_the_allocations_it_made() {
-    let l = Loaded::load(&tiny_bundle()).unwrap();
+    // An encoder, and a static model, which has none.
+    for dir in [tiny_bundle(), testdata().join("tiny-static-bundle")] {
+        runs_of(&dir);
+    }
+}
+
+fn runs_of(dir: &std::path::Path) {
+    let l = Loaded::load(dir).unwrap();
     let s = Session::create(l.m, None).unwrap();
-    let tok = Tok::create(&tiny_bundle()).unwrap();
+    let tok = Tok::create(dir).unwrap();
     let texts = ["The quick brown fox jumps over the lazy dog.", "how do I reset a password", "a"];
     let rows: Vec<Vec<i32>> = texts.iter().map(|t| tok.row(t, None).unwrap()).collect();
     let small = Tokens::new(&rows, 0);
@@ -85,11 +92,16 @@ fn a_run_reports_the_allocations_it_made() {
         let (rc, writes) =
             counted(|| unsafe { turbo_embed_write_tokens(s.0, &b, std::ptr::null(), std::ptr::null_mut()) });
         assert_eq!(rc, 0);
-        assert_eq!(writes, 0, "run {i}: writing tokens allocates nothing either");
+        assert_eq!(writes, 0, "{}: run {i}: writing tokens allocates nothing either", dir.display());
         let mut r = std::ptr::null_mut();
         let (rc, allocs, anywhere) = counted_all(|| unsafe { turbo_session_run(s.0, &mut r, std::ptr::null_mut()) });
         assert_eq!(rc, 0);
-        assert_eq!(anywhere, 0, "run {i}: nothing allocates on any thread, the session's own included");
+        assert_eq!(
+            anywhere,
+            0,
+            "{}: run {i}: nothing allocates on any thread, the session's own included",
+            dir.display()
+        );
         let r = Outcome(r);
         let mut info: turbo_result_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_result_info>() as u32;

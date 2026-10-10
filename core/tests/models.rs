@@ -760,9 +760,9 @@ fn a_tensor_of_the_wrong_dtype_is_invalid_and_named() {
     });
     let e = with_weights("dtype-mixed", &t);
     assert!(e.is(BUNDLE_INVALID, "is F16; the other weights are F32"), "{e:?}");
-    let t = edited("encoder.layer.1.output.LayerNorm.weight", |t| t.dtype = "I64");
+    let t = edited("encoder.layer.1.output.LayerNorm.weight", |t| t.dtype = "U32");
     let e = with_weights("dtype-other", &t);
-    assert!(e.is(BUNDLE_INVALID, "(ffn_ln_weight of layer 1) is I64; weights are F32, F16 or BF16"), "{e:?}");
+    assert!(e.is(BUNDLE_INVALID, "(ffn_ln_weight of layer 1) is U32; weights are F32, F16 or BF16"), "{e:?}");
 }
 
 #[test]

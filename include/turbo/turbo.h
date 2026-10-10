@@ -140,12 +140,14 @@ typedef struct turbo_tokenizer turbo_tokenizer; /* the bundle's tokenizer   */
                                       benchmark record named in the cell exists; the rule
                                       is in docs/benchmarks.md */
 
-#define TURBO_DTYPE_I8    6   /* a compute dtype only: a session's or a capability's, never a
-                                  buffer's */
+#define TURBO_DTYPE_I8    6   /* a compute dtype (a session's or a capability's) or a static
+                                  model's stored table, never a buffer's */
 #define TURBO_DTYPE_I32   8
+#define TURBO_DTYPE_I64   9   /* a static model's stored token mapping, never a buffer's */
 #define TURBO_DTYPE_F16  10
 #define TURBO_DTYPE_BF16 11
 #define TURBO_DTYPE_F32  12
+#define TURBO_DTYPE_F64  13   /* a static model's stored table or weights, never a buffer's */
 
 #define TURBO_PLACE_HOST    1   /* pageable host memory */
 #define TURBO_PLACE_PINNED  2   /* page-locked host memory the device can read */

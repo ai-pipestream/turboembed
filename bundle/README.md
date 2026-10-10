@@ -76,6 +76,17 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
 
 `turbo-bundle verify <dir>` runs step 6 alone.
 
+`turbo-bundle distill <recipe.json> <base-bundle-dir> <bundle-dir>`
+makes a static model (docs/static.md) from a sealed bundle of its base
+model instead: the base encoder, run by the library on the CPU, embeds
+every vocabulary entry, the rows are reduced by PCA and weighted by
+Zipf's law, the tool writes the reference from the table, and the
+bundle is sealed with the quality it measured against the base model.
+`recipes/all-minilm-l6-v2-static.json` and
+`recipes/bge-base-en-v1.5-static.json` are the two recipes. A static
+bundle, distilled or made from a potion model, is made with no
+container: the tool writes its reference itself.
+
 `turbo-bundle seal <recipe.json> <upstream-dir> <bundle-dir>` does
 steps 2 and 5 without starting a container. The reference file and a
 report that names the image that wrote it must already be in the

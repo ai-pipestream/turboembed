@@ -10,10 +10,13 @@ use crate::status::{Result, invalid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dtype {
+    I8,
     I32,
+    I64,
     F16,
     Bf16,
     F32,
+    F64,
     Other,
 }
 
@@ -21,17 +24,22 @@ impl Dtype {
     /// The safetensors header's spelling.
     pub fn name(self) -> &'static str {
         match self {
+            Dtype::I8 => "I8",
             Dtype::I32 => "I32",
+            Dtype::I64 => "I64",
             Dtype::F16 => "F16",
             Dtype::Bf16 => "BF16",
             Dtype::F32 => "F32",
+            Dtype::F64 => "F64",
             Dtype::Other => "other",
         }
     }
 
     pub fn size(self) -> Option<usize> {
         match self {
+            Dtype::I8 => Some(1),
             Dtype::I32 | Dtype::F32 => Some(4),
+            Dtype::I64 | Dtype::F64 => Some(8),
             Dtype::F16 | Dtype::Bf16 => Some(2),
             Dtype::Other => None,
         }
@@ -96,7 +104,10 @@ impl<'a> File<'a> {
             }
             let e: Entry = serde_json::from_value(v).map_err(|e| bad(format!("{key}: {e}")))?;
             let dtype = match e.dtype.as_str() {
+                "I8" => Dtype::I8,
                 "I32" => Dtype::I32,
+                "I64" => Dtype::I64,
+                "F64" => Dtype::F64,
                 "F16" => Dtype::F16,
                 "BF16" => Dtype::Bf16,
                 "F32" => Dtype::F32,

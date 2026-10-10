@@ -690,6 +690,117 @@ fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u32) -> turb
     }
 }
 
+/// A run of texts' ids, one after the other in one buffer, and where each
+/// text's end: a batch allocates per run, not per text.
+struct Part {
+    ids: Vec<i32>,
+    ends: Vec<usize>,
+}
+
+impl Part {
+    fn rows(&self) -> impl Iterator<Item = &[i32]> {
+        self.ends.iter().scan(0, |at, &end| {
+            let row = &self.ids[*at..end];
+            *at = end;
+            Some(row)
+        })
+    }
+}
+
+/// A run's Part, or the first error among its texts.
+type Rows = Result<Part>;
+
+/// Bytes of text a tokenizing task takes at least: a batch of less is
+/// tokenized on the caller's thread alone.
+const BYTES_PER_TASK: u64 = 1024;
+
+/// The caller's text views, which the threads of tokenize_all read.
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+struct View(turbo_text);
+
+// SAFETY: a view points at bytes the caller keeps valid and unchanged for
+// the call (turbo.h), and tokenize_all's threads end within the call.
+unsafe impl Send for View {}
+unsafe impl Sync for View {}
+
+/// A text's ids, appended to the buffer it is given.
+type One<'a> = dyn Fn(usize, turbo_text, &mut Vec<i32>) -> Result<()> + Sync + 'a;
+
+/// `one` over every text, in order, as tasks of about BYTES_PER_TASK on
+/// the process's tokenizing threads, which wait between batches, or on
+/// threads of its own while another batch has them. The rows, or the
+/// error of the first text that fails, are the same as on one thread.
+fn tokenize_all(texts: &[View], one: &One<'_>) -> Result<Vec<Part>> {
+    let bytes: u64 = texts.iter().map(|t| t.0.len).sum();
+    let tasks = ((bytes / BYTES_PER_TASK) as usize).min(texts.len());
+    let part = |first: usize, run: &[View]| -> Rows {
+        // About a token per three bytes of text, and a few specials.
+        let bytes: u64 = run.iter().map(|t| t.0.len).sum();
+        let mut p =
+            Part { ids: Vec::with_capacity(bytes as usize / 3 + 4 * run.len()), ends: Vec::with_capacity(run.len()) };
+        for (j, t) in run.iter().enumerate() {
+            one(first + j, t.0, &mut p.ids)?;
+            p.ends.push(p.ids.len());
+        }
+        Ok(p)
+    };
+    if tasks <= 1 {
+        return Ok(vec![part(0, texts)?]);
+    }
+    let per = texts.len().div_ceil(tasks);
+    let chunks: Vec<&[View]> = texts.chunks(per).collect();
+    let parts: Vec<Rows> = match tokenizing_pool() {
+        Some(mut pool) => {
+            let slots: Vec<std::sync::Mutex<Option<Rows>>> =
+                chunks.iter().map(|_| std::sync::Mutex::new(None)).collect();
+            pool.run(chunks.len(), &|c, _| {
+                *slots[c].lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(part(c * per, chunks[c]));
+            });
+            slots
+                .into_iter()
+                .map(|s| s.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner).expect("every task ran"))
+                .collect()
+        }
+        None => std::thread::scope(|scope| {
+            let part = &part;
+            let handles: Vec<_> =
+                chunks.iter().enumerate().map(|(c, &run)| scope.spawn(move || part(c * per, run))).collect();
+            handles.into_iter().map(|h| h.join().unwrap_or_else(|p| std::panic::resume_unwind(p))).collect()
+        }),
+    };
+    parts.into_iter().collect()
+}
+
+/// The process's tokenizing threads, one per processor, made by the first
+/// batch that needs them; None while another batch has them, or in a
+/// build without the cpu backend, whose pool they are.
+#[cfg(feature = "cpu")]
+fn tokenizing_pool() -> Option<std::sync::MutexGuard<'static, crate::cpu::pool::Pool>> {
+    static POOL: std::sync::OnceLock<std::sync::Mutex<crate::cpu::pool::Pool>> = std::sync::OnceLock::new();
+    let pool = POOL.get_or_init(|| {
+        // available_parallelism reads the cgroup files on Linux: once.
+        let cpus = std::thread::available_parallelism().map_or(1, |n| n.get());
+        std::sync::Mutex::new(crate::cpu::pool::Pool::with_spin(cpus, crate::cpu::pool::SPIN_BATCH))
+    });
+    pool.try_lock().ok()
+}
+
+#[cfg(not(feature = "cpu"))]
+fn tokenizing_pool() -> Option<NoPool> {
+    None
+}
+
+#[cfg(not(feature = "cpu"))]
+struct NoPool;
+
+#[cfg(not(feature = "cpu"))]
+impl NoPool {
+    fn run(&mut self, _: usize, _: &(dyn Fn(usize, usize) + Sync)) {
+        unreachable!("tokenizing_pool gives none")
+    }
+}
+
 /// # Safety
 /// `texts` holds `count` views; other pointers are NULL or valid for the
 /// call, as turbo.h says.
@@ -733,24 +844,37 @@ pub unsafe extern "C" fn turbo_embed_write_text(
             }
             let e = Encode { add_special_tokens: true, truncation: o.truncation, max_tokens, prompt: o.prompt };
             let texts = std::slice::from_raw_parts(texts, count as usize);
-            let mut rows = Vec::with_capacity(texts.len());
-            for (i, &t) in texts.iter().enumerate() {
-                let row = tok.encode(text(t, &format!("texts[{i}]"))?, e).map_err(|mut err| {
+            let one = |i: usize, t: turbo_text, out: &mut Vec<i32>| -> Result<()> {
+                let start = out.len();
+                tok.encode_into(text(t, &format_args!("texts[{i}]"))?, e, out).map_err(|mut err| {
                     err.message = format!("texts[{i}]: {}", err.message);
                     err
                 })?;
-                if row.len() > s.info.max_seq as usize {
+                let len = out.len() - start;
+                // A static model's template may have no special tokens, so
+                // a text can give none: its vector is the zero vector. An
+                // encoder has no output for a row of no tokens.
+                if len == 0 && !s.model.weights.is_static() {
+                    return Err(Error::new(INVALID_ARGUMENT, format!("texts[{i}]: gives no tokens")));
+                }
+                if len > s.info.max_seq as usize {
                     return Err(Error::new(
                         CAPACITY,
-                        format!("texts[{i}]: {} tokens is over the session's max_seq {}", row.len(), s.info.max_seq),
+                        format!("texts[{i}]: {len} tokens is over the session's max_seq {}", s.info.max_seq),
                     ));
                 }
-                rows.push(row);
-            }
-            let seq = rows.iter().map(Vec::len).max().unwrap_or(0);
+                Ok(())
+            };
+            // SAFETY: View is a transparent wrapper of turbo_text.
+            let views = std::slice::from_raw_parts(texts.as_ptr().cast::<View>(), texts.len());
+            let parts = tokenize_all(views, &one)?;
+            let rows = || parts.iter().flat_map(Part::rows);
+            // At least one column, padding under mask 0, when every text
+            // gave no tokens.
+            let seq = rows().map(<[i32]>::len).max().unwrap_or(0).max(1);
             let pad = tok.fill_id();
             let state = &mut *state;
-            for (i, row) in rows.iter().enumerate() {
+            for (i, row) in rows().enumerate() {
                 let (ids, mask) = (&mut state.ids[i * seq..(i + 1) * seq], &mut state.mask[i * seq..(i + 1) * seq]);
                 ids[..row.len()].copy_from_slice(row);
                 ids[row.len()..].fill(pad);

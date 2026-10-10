@@ -8,16 +8,20 @@ use std::ffi::{CString, c_void};
 use serde::Serialize;
 
 use crate::backend::{
-    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA, format_bit,
-    turbo_backend_model, turbo_backend_tensor,
+    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA,
+    TURBO_FAMILY_STATIC, TURBO_STATIC_TENSORS, format_bit, turbo_backend_model, turbo_backend_tensor,
 };
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
-    Activation, Architecture, Artifact, Family, Format, GraphInput, Manifest, PositionEmbedding, TensorRole, role_name,
+    Activation, Architecture, Artifact, Family, Format, GraphInput, Manifest, PositionEmbedding, StaticEmbedding,
+    TensorRole, role_name,
 };
 use crate::safetensors;
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, Result, invalid};
-use crate::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
+use crate::{
+    TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_F64, TURBO_DTYPE_I8, TURBO_DTYPE_I32,
+    TURBO_DTYPE_I64,
+};
 
 /// The manifest's name for an enum value, as it is written there.
 fn enum_name(v: impl Serialize) -> String {
@@ -76,6 +80,9 @@ fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
         FfnOutWeight => vec![h, i],
         EmbeddingsLnWeight | EmbeddingsLnBias | QBias | KBias | VBias | AttnOutBias | AttnLnWeight | AttnLnBias
         | FfnOutBias | FfnLnWeight | FfnLnBias => vec![h],
+        StaticEmbeddings | StaticWeights | StaticMapping => {
+            unreachable!("an encoder's tensor_names has no static role (validate)")
+        }
     }
 }
 
@@ -154,6 +161,117 @@ fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Re
     Ok(out)
 }
 
+/// A static model's tensors, in TURBO_STATIC_* order: its table, its
+/// weight per token and its token mapping, the last two optional.
+pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
+    [TensorRole::StaticEmbeddings, TensorRole::StaticWeights, TensorRole::StaticMapping];
+
+/// The dtypes a static model's tensor in each role may be stored in.
+fn static_dtypes(role: TensorRole) -> &'static [safetensors::Dtype] {
+    use safetensors::Dtype::*;
+    match role {
+        TensorRole::StaticEmbeddings => &[F32, F16, Bf16, F64, I8],
+        TensorRole::StaticWeights => &[F32, F16, F64],
+        _ => &[I32, I64],
+    }
+}
+
+/// Rule 8 for a static model: each role the artifact names, found in its
+/// files with the shape the static_embedding block implies, a dtype the
+/// role takes and an aligned start; a role it does not name is None. Every
+/// mapping value is checked to be a row of the table.
+fn place_static(
+    index: usize,
+    art: &Artifact,
+    files: &[AlignedBytes],
+    st: &StaticEmbedding,
+    dim: u32,
+) -> Result<Vec<Option<Placed>>> {
+    let parsed = art
+        .files
+        .iter()
+        .zip(files)
+        .map(|(name, bytes)| safetensors::File::parse(name, &bytes[..]))
+        .collect::<Result<Vec<_>>>()?;
+    let rows = if st.rows == 0 { st.vocab_size } else { st.rows };
+    let mut out = Vec::with_capacity(STATIC_ROLES.len());
+    for role in STATIC_ROLES {
+        let Some(name) = art.tensor_names.get(&role) else {
+            out.push(None);
+            continue;
+        };
+        let what = role_name(role);
+        let mut found = parsed.iter().enumerate().filter_map(|(i, f)| f.tensor(name).map(|t| (i, t)));
+        let Some((file, t)) = found.next() else {
+            return Err(invalid(format!("{}: no tensor {name:?} ({what})", art.files.join(", "))));
+        };
+        if let Some((other, _)) = found.next() {
+            return Err(invalid(format!("{name:?} ({what}) is in both {} and {}", art.files[file], art.files[other])));
+        }
+        let at = &art.files[file];
+        let allowed = static_dtypes(role);
+        if !allowed.contains(&t.dtype) {
+            let names: Vec<&str> = allowed.iter().map(|d| d.name()).collect();
+            return Err(invalid(format!("{at}: {name} ({what}) is {}; it may be {}", t.dtype_name, names.join(", "))));
+        }
+        let shape = match role {
+            TensorRole::StaticEmbeddings => vec![rows as u64, dim as u64],
+            _ => vec![st.vocab_size as u64],
+        };
+        if t.shape != shape {
+            return Err(invalid(format!(
+                "{at}: {name} ({what}) has shape {:?}; static_embedding implies {shape:?}",
+                t.shape
+            )));
+        }
+        let begin = t.data.as_ptr() as usize - files[file].as_ptr() as usize;
+        let size = t.dtype.size().expect("a static dtype has a size");
+        if !begin.is_multiple_of(size) {
+            return Err(invalid(format!(
+                "{at}: {name} ({what}) starts at byte {begin}, not a multiple of its {size}-byte elements"
+            )));
+        }
+        if role == TensorRole::StaticMapping {
+            let bad = match t.dtype {
+                safetensors::Dtype::I32 => t
+                    .data
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .position(|b| !(0..rows as i64).contains(&(i32::from_le_bytes(*b) as i64))),
+                _ => t.data.as_chunks::<8>().0.iter().position(|b| !(0..rows as i64).contains(&i64::from_le_bytes(*b))),
+            };
+            if let Some(id) = bad {
+                return Err(invalid(format!(
+                    "{at}: {name} ({what}) maps token {id} outside the table's {rows} rows (artifacts[{index}])"
+                )));
+            }
+        }
+        out.push(Some(Placed {
+            name: CString::new(name.as_str()).map_err(|_| invalid(format!("{name:?}: a NUL in the name")))?,
+            file,
+            range: begin..begin + t.data.len(),
+            shape: t.shape.clone(),
+            dtype: backend_dtype(t.dtype),
+        }));
+    }
+    Ok(out)
+}
+
+/// TURBO_DTYPE_* for a safetensors dtype the core hands a backend.
+fn backend_dtype(d: safetensors::Dtype) -> u32 {
+    use safetensors::Dtype::*;
+    match d {
+        I8 => TURBO_DTYPE_I8,
+        I32 => TURBO_DTYPE_I32,
+        I64 => TURBO_DTYPE_I64,
+        F16 => TURBO_DTYPE_F16,
+        Bf16 => TURBO_DTYPE_BF16,
+        F64 => TURBO_DTYPE_F64,
+        _ => TURBO_DTYPE_F32,
+    }
+}
+
 /// The family model_load is told. Every combination the manifest can name
 /// is listed, so a new family, activation or position embedding does not
 /// compile until it has a place here.
@@ -170,6 +288,8 @@ struct Placed {
     file: usize,
     range: std::ops::Range<usize>,
     shape: Vec<u64>,
+    /// TURBO_DTYPE_* it is stored in.
+    dtype: u32,
 }
 
 /// The chosen artifact as the core holds it: the verified bytes of each
@@ -180,8 +300,11 @@ pub struct Weights {
     /// The files the tensors are in: the raw-weights artifact's, or for a
     /// HEF that starts at embeddings, its host_weights artifact's.
     files: Vec<AlignedBytes>,
-    tensors: Vec<Placed>,
-    /// TURBO_DTYPE_* every tensor is stored in; 0 when there are none.
+    /// In the family's TURBO_* order; None for a static model's optional
+    /// tensor its artifact does not have.
+    tensors: Vec<Option<Placed>>,
+    /// TURBO_DTYPE_* every tensor is stored in, a static model's table's;
+    /// 0 when there are none.
     pub dtype: u32,
     family: u32,
     arch: [u32; 7],
@@ -207,6 +330,26 @@ impl Weights {
     pub fn load(bundle: &Bundle, index: usize) -> Result<Weights> {
         let m = &bundle.manifest;
         let art = &m.artifacts[index];
+        // A static model's artifacts are raw weights alone (validate()).
+        if let Some(st) = &m.static_embedding {
+            let dim = m.embed().dim;
+            // The table is read in place, never converted: mapped, not copied.
+            let files = art.files.iter().map(|f| bundle.map_verified(f)).collect::<Result<Vec<_>>>()?;
+            let tensors = place_static(index, art, &files, st, dim)?;
+            let dtype = tensors[0].as_ref().expect("validate() requires static_embeddings").dtype;
+            return Ok(Weights {
+                files,
+                tensors,
+                dtype,
+                family: TURBO_FAMILY_STATIC,
+                arch: [0, dim, 0, 0, st.vocab_size, 0, 1],
+                position_offset: 0,
+                layer_norm_eps: 0.0,
+                artifact: None,
+                artifact2: None,
+                shape: [art.format.value(), art.graph_input.value(), art.graph_output.value(), 0, 0, 0],
+            });
+        }
         let a = m.architecture.as_ref().expect("validate() requires architecture for raw weights and HEFs");
         let host = (!art.host_weights.is_empty())
             .then(|| m.artifacts.iter().position(|h| h.name == art.host_weights).expect("validate() checks the name"));
@@ -245,7 +388,7 @@ impl Weights {
         }
         Ok(Weights {
             files,
-            tensors,
+            tensors: tensors.into_iter().map(Some).collect(),
             dtype,
             family: family(a),
             arch: [a.layers, a.hidden, a.heads, a.intermediate, a.vocab_size, a.max_positions, a.token_types],
@@ -269,17 +412,27 @@ impl Weights {
     pub fn tensors(&self) -> Vec<turbo_backend_tensor> {
         self.tensors
             .iter()
-            .map(|t| {
-                let mut shape = [0u64; 2];
-                shape[..t.shape.len()].copy_from_slice(&t.shape);
-                turbo_backend_tensor {
-                    name: t.name.as_ptr(),
-                    data: self.files[t.file][t.range.clone()].as_ptr() as *const c_void,
-                    shape,
-                    ndim: t.shape.len() as u32,
-                    dtype: self.dtype,
-                    bytes: t.range.len() as u64,
+            .map(|t| match t {
+                Some(t) => {
+                    let mut shape = [0u64; 2];
+                    shape[..t.shape.len()].copy_from_slice(&t.shape);
+                    turbo_backend_tensor {
+                        name: t.name.as_ptr(),
+                        data: self.files[t.file][t.range.clone()].as_ptr() as *const c_void,
+                        shape,
+                        ndim: t.shape.len() as u32,
+                        dtype: t.dtype,
+                        bytes: t.range.len() as u64,
+                    }
                 }
+                None => turbo_backend_tensor {
+                    name: std::ptr::null(),
+                    data: std::ptr::null(),
+                    shape: [0; 2],
+                    ndim: 0,
+                    dtype: 0,
+                    bytes: 0,
+                },
             })
             .collect()
     }
@@ -331,6 +484,11 @@ impl Weights {
             0 => self.dtype,
             d => d,
         }
+    }
+
+    /// Whether the model is a static one (TURBO_FAMILY_STATIC).
+    pub fn is_static(&self) -> bool {
+        self.family == TURBO_FAMILY_STATIC
     }
 
     /// Ids a row may hold: the rows of the word embedding table.
@@ -421,9 +579,10 @@ fn place(art: &Artifact, files: &[AlignedBytes], expected: &[Expected]) -> Resul
             file,
             range: begin..begin + t.data.len(),
             shape: t.shape.clone(),
+            dtype: d,
         });
     }
-    Ok((tensors, dtype.expect("a BERT encoder has tensors")))
+    Ok((tensors, dtype.expect("a model has tensors")))
 }
 
 fn dtype_name(d: u32) -> &'static str {

@@ -13,12 +13,20 @@ use crate::{Result, check_rel};
 pub struct Recipe {
     /// The manifest, without `files`: the tool adds it.
     pub manifest: Value,
+    /// Terms the upstream model carries beyond its licence, shown before
+    /// its files are fetched.
+    #[serde(default)]
+    pub notice: Option<String>,
     /// Files fetched from `model.source` at its commit.
     pub upstream: Vec<Upstream>,
     /// Files that come with the recipe rather than from upstream: a
     /// compiled artifact's calibration texts, say.
     #[serde(default)]
     pub local: Vec<Local>,
+    /// For a static model: how it is distilled from a base bundle
+    /// (distill.rs).
+    #[serde(default)]
+    pub distill: Option<crate::distill::Spec>,
     /// The directory the recipe was read from, which `local` paths are
     /// relative to.
     #[serde(skip)]
@@ -51,8 +59,16 @@ pub struct Upstream {
 }
 
 impl Recipe {
+    /// The recipe at `path`, or, when no file is there, the catalogue's
+    /// recipe for the model id `path` names (crate::catalogue).
     pub fn load(path: &Path) -> Result<Recipe> {
-        let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let bytes = match fs::read(path) {
+            Ok(b) => b,
+            Err(e) => match path.to_str().and_then(crate::catalogue::recipe) {
+                Some(json) => json.as_bytes().to_vec(),
+                None => return Err(format!("{}: {e}, and no model of the catalogue has that id", path.display())),
+            },
+        };
         let mut r: Recipe = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
         r.dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
         if r.manifest.get("files").is_some() {
