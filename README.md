@@ -1,137 +1,221 @@
 # TurboEmbed
 
-TurboEmbed is a native embedding and inference library for text models.
-It presents one small C interface, and behind that interface each
-backend is written against the lowest layer the hardware vendor gives:
-CUDA kernels on NVIDIA, Level Zero on Intel GPUs, Metal on Apple
-silicon, HailoRT on Hailo boards, and a plain CPU path. The aim is an
-API that reads cleanly on top and, underneath, a path picked for speed
-on the hardware the program is running on and the model it has loaded,
-with as little hardware churn and memory copying as the job allows.
+TurboEmbed is a native library for running text embedding models fast on
+the hardware you already have. It exposes a small C API, and behind that
+API each backend is written directly against the vendor's own low-level
+interface: CUDA on NVIDIA, Level Zero on Intel GPUs and NPUs, Metal on
+Apple silicon, HailoRT on Hailo accelerators, and an optimized CPU path
+everywhere else.
 
-## What it does
+Embedding is supported today: text in, vectors out. Reranking,
+classification, token tagging and chunking will be added to the API as
+they are built.
 
-Embedding works today: text in, vectors out, from one header, on a CPU,
-an NVIDIA GPU, an Intel GPU, an Apple GPU or a Hailo accelerator. Other
-tasks, such as reranking, classification, token tagging and chunking,
-are added to the header when they are built, not before.
+## Supported hardware
 
-The unit of work is a task, not a tensor operation. "Embed these texts"
-is one call. The backend runs the stages on the device and keeps the
-data there between them; the only bytes that come back are the vectors
-the caller asked for. The library counts each copy between host and
-device and returns the count with the result, so a slow path shows up
-as a number rather than a feeling.
+| Hardware | Backend | Cargo feature | Model format | Setup |
+|---|---|---|---|---|
+| Any CPU (Linux, macOS, Windows) | `cpu` | default | safetensors | [cpu.md](docs/setup/cpu.md) |
+| NVIDIA GPU (RTX 4080, data-centre cards, Jetson Orin) | `cuda` | `cuda` | safetensors | [cuda.md](docs/setup/cuda.md) |
+| Intel Arc GPU, Xe2 / Battlemage (Arc Pro B70) | `levelzero` | `levelzero` | safetensors | [intel-gpu.md](docs/setup/intel-gpu.md) |
+| Intel Core Ultra NPU (AI Boost) | `npu` | `npu` | OpenVINO IR | [intel-npu.md](docs/setup/intel-npu.md) |
+| Apple silicon Mac (M1 and later) | `metal` | `metal` | safetensors | [apple-metal.md](docs/setup/apple-metal.md) |
+| Raspberry Pi 5 with Hailo-10H | `hailo` | `hailo` | HEF | [hailo-10h.md](docs/setup/hailo-10h.md) |
+| Hailo-8 / Hailo-8L board | `hailo` | `hailo` | HEF | [hailo-8.md](docs/setup/hailo-8.md) |
 
-A model travels as a bundle: a directory with a manifest, hashes, the
-weights, the tokenizer and the model's settings, such as pooling,
-normalization, sequence length, prefixes and output dimension. Point
-different machines at the same bundle and they give the same answer.
-Tokenization happens once, in the core, so tokens are the same on any
-machine.
+Backends combine in one build (`--features cuda,levelzero`), and the
+library lists every device it finds, accelerators first, then the CPU.
 
-Selection is part of the interface. The caller names a task and, if it
-wants, constraints; the library answers with the bundles on this machine
-that can do it, the backend and device that will do it fastest, and the
-evidence that answer rests on.
+### Choosing a backend
 
-## Speed, and how it is claimed
+```mermaid
+flowchart TD
+    start([What hardware is in the machine?])
+    start --> nv{NVIDIA GPU?}
+    nv -- yes --> cuda["cuda<br/>F32 / TF32 / F16 tensor cores<br/>raw safetensors weights"]
+    nv -- no --> intel{Intel?}
+    intel -- "Arc GPU (Xe2)" --> lz["levelzero<br/>F32 / F16 on XMX engines<br/>raw safetensors weights"]
+    intel -- "Core Ultra NPU" --> npu["npu<br/>F16 graph<br/>OpenVINO IR, compiled on the machine"]
+    intel -- no --> apple{Apple silicon?}
+    apple -- yes --> metal["metal<br/>F32, unified memory<br/>raw safetensors weights"]
+    apple -- no --> hailo{Hailo accelerator?}
+    hailo -- "Hailo-10H / Hailo-8" --> hef["hailo<br/>INT8<br/>precompiled HEF"]
+    hailo -- no --> cpu["cpu<br/>F32, all cores<br/>raw safetensors weights"]
+```
 
-The library adapts to the device and the model rather than running one
-generic graph. On NVIDIA, for example, GEMM tiles, split strategies and
-attention kernels are chosen per architecture and per shape, and an
-autotuner keeps what it measured. Each backend is held to the same
-standard: slower than the vendor's fastest program on the same inputs is
-a bug, not a trade-off.
+GPU backends run the model from its raw weights with kernels of their
+own. The NPU and Hailo backends run a graph compiled for the device, so
+a bundle needs that compiled artifact to use them. If a device cannot
+run a model, the call fails with the reason; the library never quietly
+falls back to another device.
 
-A claim here is a test, not a sentence. A capability is reported as
-supported only when a benchmark record in `benchmarks/records/` backs
-it: one measurement, on a named class of device, at a named commit,
-against the vendor's fastest program at a pinned version, on the same
-inputs, with the command that produced it. There are no hand-written
-numbers, and a comparison that is not fair produces no number at all.
-Conformance tests compare each backend's vectors with the reference
-outputs the bundle carries, at each precision the backend offers.
+### Precision tiers
 
-The tests and the record tool live in the tree and run on your hardware
-the same way they run on ours, so a result you read here is one you can
-reproduce. A packaged suite that runs the full set on a machine of your
-choosing and reports the outcome as a claim for that machine is the
-next piece of this.
+A session picks one of three tiers. What each resolves to depends on the
+device:
 
-## Shape of the code
+| Backend | `MODEL` | `FASTEST` | `EXACT` |
+|---|---|---|---|
+| CPU | F32 | F32 | F32 |
+| CUDA | F32 (TF32 opt-in) | F16 on tensor cores | F32 |
+| Intel GPU | F32 | F16 on matrix engines | F32 |
+| Intel NPU | F16 | F16 | not available |
+| Apple Metal | F32 | F32 | F32 |
+| Hailo | INT8 | INT8 | not available |
 
-The header is the design. `include/turbo/turbo.h` is one hand-written
-file that compiles standalone as C11 and as C++17. Changing it is a
-design decision made in the open, not a build step, and nothing is
-added to it that a built feature does not need.
+Every tier is held to an accuracy bound against the reference vectors
+shipped with the model (cosine ≥ 0.9999 for F32, ≥ 0.999 for F16/BF16,
+≥ 0.93 for INT8).
 
-The core is Rust. It loads bundles, tokenizes on the host, hands token
-rows to a backend and hands results back. Backends are written in what
-the vendor speaks: CUDA C++ on NVIDIA, C++ against Level Zero and
-HailoRT, Objective-C++ on Metal. The gRPC server in `server/` speaks the
-Open Inference Protocol so it runs under KServe. Language bindings sit
-on the same header and add nothing to it; Java, for one, goes through
-JDK 25's foreign function interface.
+## How it works
 
-A few rules hold the shape:
+```mermaid
+flowchart LR
+    subgraph clients[Callers]
+        c["C / C++"]
+        j["Java (FFM)"]
+        g["gRPC clients<br/>(KServe Open Inference Protocol)"]
+    end
+    g --> srv["turbo-kserve<br/>server/"]
+    c --> h
+    j --> h
+    srv --> h
+    h["include/turbo/turbo.h<br/>C11 / C++17 API"] --> core
+    subgraph core[Rust core]
+        b["Bundle loader<br/>manifest, hashes, settings"]
+        t["Tokenizer<br/>(host, once)"]
+        s["Device selection<br/>+ autotune cache"]
+    end
+    core --> be["turbo_backend.h"]
+    be --> cpu["CPU"]
+    be --> cuda["CUDA<br/>CUDA C++"]
+    be --> lz["Level Zero GPU<br/>OpenCL C → SPIR-V"]
+    be --> npu["Level Zero NPU<br/>graph extension"]
+    be --> metal["Metal<br/>Objective-C++ / MSL"]
+    be --> hailo["HailoRT<br/>C++"]
+```
 
-- Nothing is called working until it has run on the real hardware.
-  There is no fake device in the normal path. A test that cannot run on
-  the current machine is skipped and says so.
-- A stage runs where its data is. Copies between host and device are
-  counted and reported.
-- The model's settings live in the bundle, not in code.
-- If the hardware cannot do what was asked, the call fails and says what
-  it cannot do. Nothing is substituted, defaulted or clamped.
-- No Python in the tree. A vendor's Python tool runs inside a pinned
-  container, driven from Rust.
-- Machines are named by what they are, such as `rtx4080`, `b70`,
-  `orin-nano`, `pi5-hailo8` or `m2`, and nothing from a particular
-  machine (host names, user names, paths) is committed.
+- **One task per call.** "Embed these texts" is one call. The backend
+  runs every stage on the device and keeps intermediate data there; only
+  the final vectors come back. Each host-device copy is counted and
+  returned with the result.
+- **Models travel as bundles.** A bundle is a directory with a manifest,
+  hashes, weights, the tokenizer and the model's settings (pooling,
+  normalization, sequence length, prefixes, output dimension). The same
+  bundle gives the same answer on every machine.
+- **Tokenization happens once, on the host,** so token ids are identical
+  regardless of backend.
+- **Selection is part of the API.** Ask for a task and optional
+  constraints; the library returns the bundles that can do it, the
+  fastest device for it, and the benchmark record behind that choice.
 
-## Setting it up
+```mermaid
+sequenceDiagram
+    participant App
+    participant Core as Rust core
+    participant Dev as Device backend
+    App->>Core: turbo_embed_write_text(texts)
+    Core->>Core: tokenize
+    Core->>Dev: token ids (one copy in)
+    Dev->>Dev: embed → encoder layers → pool → normalize
+    Dev-->>Core: vectors (one copy out)
+    Core-->>App: turbo_result_read() + copy count
+```
 
-`docs/setup/README.md` has one page per kind of machine (CPU, NVIDIA,
-Intel GPU, Intel NPU, Apple silicon, Hailo-10H, Hailo-8), each from
-installing the toolchain to checking the vectors against a bundle's
-reference, and `scripts/setup/` checks or installs what each one needs.
+## Speed over elegance
 
-## Reading further
+TurboEmbed deliberately trades elegance for speed. A portable graph
+runtime would mean one code path for every device and far less code.
+We chose the opposite:
 
-- `docs/bundle.md`: the bundle format and the `turbo-bundle` tool.
-- `docs/tokenizer.md`: the tokenizers, where each token came from in the
-  text, and writing ids back as text.
-- `docs/conformance.md`: how a backend is checked against a bundle's
-  reference outputs.
-- `docs/benchmarks.md`: what a benchmark record is, how it is made with
-  `turbo-bench`, and how records back capabilities.
-- `docs/autotune.md`: the tuner and its cache.
-- `docs/static.md`: static models, one vector per token and no encoder:
-  the potion models in Model2Vec's format, fetched by name, or distilled
-  from a bundle by `turbo-bundle distill`; what the library fixes
-  against Model2Vec.
-- `docs/demo.md`: a web page for trying the gRPC server from a browser.
-- `docs/cpu.md`, `docs/cuda.md`, `docs/levelzero.md`, `docs/metal.md`,
-  `docs/hailo.md`, `docs/npu.md`: one page per backend.
-- `docs/grpc.md`: the gRPC server, `turbo-kserve`: building, starting and
-  calling it.
-- `docs/kserve.md`: how the server maps the Open Inference Protocol onto
-  the C interface, call by call.
+- **A separate backend per vendor,** each in the vendor's own language
+  and at the lowest layer it exposes. That means duplicated logic across
+  CUDA, OpenCL C, Metal Shading Language and C++, and that is accepted.
+- **Kernels tuned per architecture and per shape.** On NVIDIA, GEMM
+  tiles, split strategies and attention kernels are chosen per GPU
+  generation and input shape, and an autotuner caches what it measures.
+- **No generic fallback.** A device either runs the model at full speed
+  or refuses it with a reason. Nothing is silently substituted.
+- **The vendor's fastest program is the baseline.** If a backend is
+  slower than the best reference program on the same inputs (TensorRT,
+  OpenVINO, Hugging Face TEI), that is treated as a bug.
 
-## The previous attempt
+Performance claims are backed by data, not prose. A capability is
+reported as supported only when a record in `benchmarks/records/` backs
+it: a measurement on a named class of device, at a named commit, against
+the vendor's fastest program at a pinned version, with the command that
+produced it. See [docs/benchmarks.md](docs/benchmarks.md).
 
-This code is a restart. An earlier attempt is kept in
-`ai-slop-generated-shit/`, with its history, for reading. Its audits in
-`docs/reviews/` there explain what went wrong: benchmarks that compared
-the code with itself, hand-written test records, a fake default device,
-and an interface with several copies of the same data on the way to the
-caller. The header files were the part worth keeping and are where this
-tree started. Nothing else comes back from that folder without being
-read first.
+## Quick start
 
-## Licence
+```sh
+# Build the library with the backend for your hardware
+cargo build --release -p turbo --features cuda    # or levelzero, npu, metal, hailo; omit for CPU only
 
-Apache-2.0. See `LICENSE`. The CUDA backend carries a subset of NVIDIA's
-CUTLASS headers under `core/cuda/cutlass/`, BSD-3-Clause, with their
-licence in `core/cuda/cutlass/LICENSE.txt`.
+# Build and run the C example against the bundled test model
+cc -std=c11 -I include docs/setup/embed.c -L target/release -lturbo \
+    -Wl,-rpath,$PWD/target/release -o embed
+./embed testdata/tiny-bert-bundle 0 model
+```
+
+Each setup page has a check script under `scripts/setup/` that reports
+what is missing and, with `--install`, installs it. To run the gRPC
+server instead, see [docs/grpc.md](docs/grpc.md).
+
+To verify a machine produces correct vectors:
+
+```sh
+TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<backend> TURBO_TEST_PRECISION=<tier> \
+    cargo test --release -p turbo --features <feature> --test conformance -- --include-ignored
+```
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `include/turbo/` | The public C API (`turbo.h`) and the backend interface |
+| `core/` | Rust core and every backend (`cuda/`, `levelzero/`, `metal/`, `hailo/`, `src/`) |
+| `bundle/` | `turbo-bundle`: build, verify and distill model bundles |
+| `bench/` | `turbo-bench`: produce benchmark records |
+| `server/` | `turbo-kserve`: gRPC server (Open Inference Protocol) |
+| `demo/` | Browser page for trying the server |
+| `benchmarks/records/` | Benchmark records that back capability claims |
+| `docs/` | Design, backend and setup documentation |
+| `scripts/setup/` | Per-machine check and install scripts |
+
+## Project principles
+
+- Nothing is called working until it has run on real hardware. Tests
+  that cannot run on the current machine are skipped and say so.
+- Model settings live in the bundle, not in code.
+- No Python in the tree. Vendor Python tools run in pinned containers,
+  driven from Rust.
+- The C header is designed by hand; changes to it are design decisions,
+  and nothing is added that a built feature does not need.
+
+## Documentation
+
+| Topic | Page |
+|---|---|
+| Bundle format and `turbo-bundle` | [docs/bundle.md](docs/bundle.md) |
+| Tokenizers | [docs/tokenizer.md](docs/tokenizer.md) |
+| Conformance testing | [docs/conformance.md](docs/conformance.md) |
+| Benchmark records and `turbo-bench` | [docs/benchmarks.md](docs/benchmarks.md) |
+| Autotuning | [docs/autotune.md](docs/autotune.md) |
+| Static (Model2Vec-style) models | [docs/static.md](docs/static.md) |
+| gRPC server and KServe mapping | [docs/grpc.md](docs/grpc.md), [docs/kserve.md](docs/kserve.md) |
+| Web demo | [docs/demo.md](docs/demo.md) |
+| Backends | [CPU](docs/cpu.md), [CUDA](docs/cuda.md), [Intel GPU](docs/levelzero.md), [Intel NPU](docs/npu.md), [Metal](docs/metal.md), [Hailo](docs/hailo.md) |
+| Releases | [docs/release.md](docs/release.md) |
+
+## History
+
+This codebase is a restart. An earlier attempt is kept, with its audits,
+in `ai-slop-generated-shit/` for reference only; its header files were
+the starting point for this tree.
+
+## License
+
+Apache-2.0; see [LICENSE](LICENSE). The CUDA backend includes a subset of
+NVIDIA's CUTLASS headers under `core/cuda/cutlass/` (BSD-3-Clause; see
+`core/cuda/cutlass/LICENSE.txt`).
