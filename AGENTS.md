@@ -1,7 +1,8 @@
-# Working rules for agents on the project machines
+# Working rules for agents
 
 This file is the set of rules every coding agent follows when it works on
-TurboEmbed from one of the project's own machines. It covers how work is
+TurboEmbed, whether it runs on one of the project's own machines or in a
+cloud checkout of its own. It covers how work is
 handed out, how agents talk to each other, how work is proven and how it
 reaches `main`. It does not restate how the library works.
 
@@ -14,8 +15,14 @@ Read these first, in this order, before touching the tree:
    [`docs/conformance.md`](docs/conformance.md),
    [`docs/benchmarks.md`](docs/benchmarks.md), or the backend page such as
    [`docs/npu.md`](docs/npu.md)).
-3. The GitHub issue you were assigned and the `INSTRUCTIONS.md` in your
-   worktree.
+3. [`docs/decisions.md`](docs/decisions.md), the decisions already made.
+   A pull request does not reopen one; a question about one goes on the
+   issue first.
+4. The GitHub issue you were assigned and, on a project machine, the
+   `INSTRUCTIONS.md` in your worktree.
+
+Work on the document analysis crates (`analysis/`) and the OpenNLP port
+also follows section 14.
 
 The earlier attempt in `ai-slop-generated-shit/` has its own `AGENTS.md`
 and `CONTRIBUTING.md`. They are kept for reference only and describe a
@@ -39,10 +46,13 @@ of each of the following, and they are tied together by the issue number:
 | `INSTRUCTIONS.md` | The root of that worktree, untracked | The brief the agent works from. |
 | Draft pull request | GitHub Pull Requests | Opened early; progress, proof and review happen here. |
 
-Architecture notes, design writeups, research results and the decision log
-live in the GitHub wiki. Issues link to wiki pages; wiki pages link back
-to the issues and pull requests that settled them. A research issue
-(`type:research`) ends with a wiki page, not merged code.
+Architecture notes, design writeups and research results live in `docs/`,
+and the decision log is [`docs/decisions.md`](docs/decisions.md). They are
+in the tree rather than the GitHub wiki so that every agent, including
+ones that only see a cloud checkout, reads them, and so a change to them
+is reviewed in a pull request like any other. Issues link to docs pages;
+a decision entry links back to the issue or pull request that settled it.
+A research issue (`type:research`) ends with a merged docs page, not code.
 
 ## 2. Worktrees and INSTRUCTIONS.md
 
@@ -58,6 +68,12 @@ Then it writes `INSTRUCTIONS.md` at the root of that worktree. The file is
 listed in `.gitignore` and is never committed: it is a local brief, and
 the issue holds the same content in public. If the brief changes, the
 issue is updated first and the file second.
+
+Agents that run in a cloud checkout of their own (for example a cloud
+coding agent started from the issue) have no worktree on a project
+machine and no `INSTRUCTIONS.md`: the issue body is their brief, and the
+worktree rules below do not apply to them. Everything else in this file
+does.
 
 Rules for worktrees:
 
@@ -102,8 +118,8 @@ issue (link it).
 - [ ] `cargo fmt --all --check`, `cargo clippy --workspace --all-targets`
       and `cargo test --workspace` pass, plus the feature-gated lines from
       `.github/workflows/ci.yml` that apply.
-- [ ] Docs updated (the docs page for the area, and the wiki page if the
-      design changed).
+- [ ] Docs updated (the docs page for the area, and `docs/decisions.md`
+      if a decision was made).
 - [ ] Hardware proof below is attached to the pull request.
 - [ ] Adversary review finished with no open findings.
 
@@ -115,7 +131,7 @@ The exact commands to run on the machine above, including every
 device claim.
 
 ## Context
-Links to wiki pages, docs, earlier issues and pull requests.
+Links to docs pages, decisions, earlier issues and pull requests.
 ```
 
 ## 3. Branch names
@@ -126,6 +142,11 @@ example, `142-chunk-planner-api` or `150-npu-two-models-one-context`. One
 branch per issue. If the work turns out to need two independent changes,
 open a second issue and a second branch rather than growing the first.
 
+Some agents choose their own branch prefix and cannot be told otherwise
+(`claude/`, `cursor/`, `codex/` and so on). They name the branch
+`<prefix>/<issue>-<slug>`. The pull request's `Closes #<issue>` line, not
+the branch name, is what ties the work to its issue.
+
 ## 4. Labels
 
 Every issue carries one label from each of these groups. Pull requests
@@ -133,9 +154,10 @@ carry the same labels as their issue.
 
 | Group | Labels | Meaning |
 |---|---|---|
-| Owner | `agent:<name>` | The one agent that owns the issue. `agent:turboembed` is the coordinator. There is exactly one owner label at a time. |
+| Owner | `agent:<name>` | The one agent that owns the issue. `agent:turboembed` is the coordinator. There is exactly one owner label at a time. The names are `agent:claude`, `agent:cursor`, `agent:codex` (ChatGPT), `agent:junie`, `agent:kimi`, `agent:agy` (Antigravity), `agent:muse` and `agent:grok`. |
 | State | `status:ready`, `status:in-progress`, `status:blocked`, `status:needs-review`, `status:needs-hardware-proof`, `status:ready-to-merge` | Where the work is. There is exactly one state label at a time. |
-| Area | `area:chunking`, `area:embedding`, `area:core`, `area:bundle`, `area:bench`, `area:grpc`, `area:ffi`, `area:docs`, `area:ci` | Which part of the tree. More than one is allowed. |
+| Area | `area:analysis`, `area:chunking`, `area:embedding`, `area:core`, `area:bundle`, `area:bench`, `area:grpc`, `area:ffi`, `area:docs`, `area:ci` | Which part of the tree. More than one is allowed. `area:analysis` is the analysis crates and the OpenNLP port. |
+| Stage | `stage:0` to `stage:7` | Analysis work only: the landing stage from the analysis design, which is also the issue's milestone. |
 | Hardware | `hw:cuda`, `hw:levelzero`, `hw:npu`, `hw:metal`, `hw:cpu`, `hw:hailo` | Which backend the work touches and so which device must prove it. More than one is allowed. |
 | Type | `type:feature`, `type:bug`, `type:research`, `type:chore` | What kind of work it is. |
 | Priority | `priority:p0`, `priority:p1`, `priority:p2` | Order of work. `p0` blocks other work. |
@@ -182,8 +204,9 @@ until it is written down on GitHub.
 - To ask another agent something, comment on that agent's issue or pull
   request and link your own. Do not change its code, its labels or its
   worktree.
-- When a decision affects more than one issue, add an entry to the
-  Decisions page in the wiki and link it from each issue.
+- When a decision affects more than one issue, add an entry to
+  `docs/decisions.md` in the pull request that acts on it, and link it
+  from each issue.
 - Write in complete sentences with enough context that a reader who has
   never seen your session can follow. Name the file, the function, the
   command and the result. Short status lines such as "done" or "fixed it"
@@ -221,7 +244,7 @@ These rules are absolute. A pull request that breaks one is sent back.
   even one naming Kristian under another address), no `Made-with`, no
   `Generated-by`, no `Signed-off-by` from a tool, and no line that names a
   tool, an assistant or an agent product. The same rule applies to code
-  comments, docs, wiki pages, issue comments and pull request bodies.
+  comments, docs, issue comments and pull request bodies.
 - Some machines have a `commit-msg` hook that appends a `Co-authored-by`
   line. Check every commit after you make it. If a trailer appeared, amend
   the commit with `git commit --amend --no-verify` before pushing, and use
@@ -245,7 +268,7 @@ These rules are absolute. A pull request that breaks one is sent back.
   Add a body when the reason is not obvious from the diff.
 - One logical change per commit.
 - Never use the em dash character anywhere: commits, code, comments, docs,
-  wiki, issues or pull requests. Use a comma, a colon, parentheses or a
+  issues or pull requests. Use a comma, a colon, parentheses or a
   new sentence.
 
 ## 9. Engineering rules
@@ -281,11 +304,11 @@ they are the ones most often broken.
 - No Python in the tree. Vendor Python tools run in pinned containers,
   driven from Rust (README, "Project principles").
 - The C header is designed by hand. Changing `include/turbo/` is a design
-  decision that goes on the issue and the wiki Decisions page first.
+  decision that goes on the issue and in `docs/decisions.md` first.
 
 ## 10. Public text and machine names
 
-The repository, the wiki, issues and pull requests are public.
+The repository, issues and pull requests are public.
 
 - Never write a real host name, user name, IP address or private checkout
   path. Refer to machines as Machine A, Machine B or Machine C, or by
@@ -343,3 +366,43 @@ The issue's "Machine" field decides where the work runs. If the work needs
 a device on a machine that is offline, the agent marks the issue
 `status:needs-hardware-proof` or `status:blocked` and says which device it
 is waiting for. It never substitutes another device for the proof.
+
+## 14. The OpenNLP port and the analysis crates
+
+TurboEmbed is rewriting what Apache OpenNLP 3.x does in Rust, as
+annotators over the layered document in `analysis/`. OpenNLP is the
+reference; the Rust side follows it on its own schedule and aims to be
+faster and more capable, not a line-by-line copy. Read
+[`docs/analysis.md`](docs/analysis.md) before writing an annotator.
+
+- Build on the crates that are there: `turbo-analysis` (`analysis/core/`),
+  `turbo-analysis-layers` (`analysis/layers/`) for layers that more than
+  one add-on reads, and a crate per add-on with a small schema crate
+  beside it for its own layers. Do not add a second document or layer
+  model.
+- Shared layers use the standard `opennlp:` ids (`opennlp:sentences`,
+  `opennlp:tokens`, `opennlp:pos` and so on) and TurboEmbed's own use
+  `turbo:` ids. Retrieval chunks are `turbo:chunks`, because
+  `opennlp:chunks` means phrase chunks. One id names one layer type.
+- Offsets are UTF-8 byte offsets into one view until the open offsets
+  decision in `docs/decisions.md` is settled. Do not add UTF-16 handling
+  ahead of it.
+- An annotator that ports an OpenNLP component proves it matches
+  OpenNLP: golden files produced by the OpenNLP 3.x JVM on the same input
+  and model, checked in with the command that made them, and a test that
+  compares against them. Where the Rust side is meant to differ (better
+  boundaries, a bug OpenNLP has), the pull request says where and why,
+  with the evaluation numbers.
+- Read OpenNLP 3.x `.bin` models directly. Do not call into the JVM or a
+  native OpenNLP library at run time; the JVM is only for producing
+  golden files and evaluation baselines.
+- Ignore OpenNLP 2.x entirely.
+- Chunking is never greedy token-budget packing. A chunker reads the
+  layers below it (sentences, structure, boundaries) and must keep exact
+  offsets back to the source text.
+- Training and golden-file generation run in pinned containers, driven
+  from Rust, like the bundle recipes. No Python in the tree.
+- An issue for a ported component names the OpenNLP class or package it
+  ports, the layers it reads and writes, its stage, and the golden files
+  and evaluation set that prove it. Use the "OpenNLP port" issue
+  template.

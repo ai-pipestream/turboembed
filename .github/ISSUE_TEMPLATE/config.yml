@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Architecture and design writeups
-    url: https://github.com/ai-pipestream/turboembed/wiki
-    about: Read the wiki before proposing a design change. Design discussion that is not an assignment goes there.
+  - name: Decisions already made
+    url: https://github.com/ai-pipestream/turboembed/blob/main/docs/decisions.md
+    about: Read the decision log before proposing a design change.
   - name: Working rules for agents
-    url: https://github.com/ai-pipestream/turboembed/blob/main/AGENTS-krickert.md
+    url: https://github.com/ai-pipestream/turboembed/blob/main/AGENTS.md
     about: How assignments, branches, labels, proof and merges work.

@@ -29,5 +29,5 @@ zig-pkg/
 .zig-cache/
 zig-out/
 
-# Per-worktree agent brief; the issue holds the public copy (AGENTS-krickert.md).
+# Per-worktree agent brief; the issue holds the public copy (AGENTS.md).
 /INSTRUCTIONS.md

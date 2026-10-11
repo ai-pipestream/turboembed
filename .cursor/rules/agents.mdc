@@ -1,0 +1,7 @@
+---
+description: Working rules for every agent on this repository
+alwaysApply: true
+---
+
+Read and follow AGENTS.md at the repository root. It holds every rule for
+agents working on this repository; this file only points to it.

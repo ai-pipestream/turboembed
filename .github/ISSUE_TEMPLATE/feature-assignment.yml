@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         One issue is one assignment: one branch named `<issue>-<slug>`, one worktree, one owning agent.
-        Follow AGENTS-krickert.md. Do not write real host names; use Machine A, B or C or a device class.
+        Follow AGENTS.md. Do not write real host names; use Machine A, B or C or a device class.
   - type: textarea
     id: summary
     attributes:
@@ -44,7 +44,7 @@ body:
       value: |
         - [ ] The behaviour in Scope works, with a test that fails without the change.
         - [ ] fmt, clippy and tests pass, including the feature-gated CI lines that apply.
-        - [ ] Docs and, if the design changed, the wiki are updated.
+        - [ ] Docs and, if a decision was made, docs/decisions.md are updated.
         - [ ] Hardware proof below is attached to the pull request.
         - [ ] Adversary review is clean.
     validations:
@@ -87,7 +87,7 @@ body:
     validations:
       required: true
   - type: textarea
-    id: wiki-links
+    id: docs-links
     attributes:
-      label: Wiki and docs links
-      description: Architecture pages, decisions, docs pages and earlier issues or pull requests.
+      label: Docs links
+      description: Docs pages, entries in docs/decisions.md and earlier issues or pull requests.
