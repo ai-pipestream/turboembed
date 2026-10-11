@@ -1742,6 +1742,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-analysis"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis-layers",
+]
+
+[[package]]
+name = "turbo-analysis-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+]
+
+[[package]]
 name = "turbo-bench"
 version = "0.1.0"
 dependencies = [
@@ -1761,6 +1775,14 @@ dependencies = [
  "serde_json",
  "turbo",
  "ureq",
+]
+
+[[package]]
+name = "turbo-chunker"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
 ]
 
 [[package]]
