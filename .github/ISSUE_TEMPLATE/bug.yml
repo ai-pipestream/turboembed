@@ -1,0 +1,57 @@
+name: Bug
+description: A wrong result, a crash, a refusal that should not happen, or a regression.
+title: "<area>: <what goes wrong>"
+labels: ["type:bug", "status:ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Name machines as Machine A, B or C or by device class (rtx4080super, b70, arl-npu, m2, orin, pi5-hailo10h).
+        Do not paste host names, user names or private paths.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The observed behaviour, with the full error, status code and message.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What was expected
+      description: The behaviour the docs or tests promise, with a link to the docs page or test.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The exact commands, environment variables, bundle and precision tier.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: The full 40-character commit hash that showed the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Device and machine
+      description: Backend, device class, device name the driver reports, driver and runtime versions, and Machine A, B or C.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Full output
+      description: Test or tool output. Paste it whole rather than summarizing.
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: What was already ruled out, and any related issues or pull requests.
