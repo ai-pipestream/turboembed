@@ -9,8 +9,9 @@ open and what the code does until it is settled.
 
 ## Document analysis and the OpenNLP port
 
-Settled in the analysis design (October 2026). The design is described
-in [`docs/analysis.md`](analysis.md).
+Settled in the analysis design (October 2026). The analysis docs page,
+added with the analysis crates in
+[#142](https://github.com/ai-pipestream/turboembed/pull/142), describes it.
 
 1. **A type per layer.** Each kind of analysis result is its own Rust
    type, and annotators declare the layer types they read and write.
