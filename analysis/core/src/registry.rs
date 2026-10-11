@@ -1,11 +1,13 @@
 //! How add-ons offer their parts to pipelines built from configuration.
-//! The shape is OpenNLP's `ComponentProvider` (#1290): a name, a priority,
-//! a cheap availability check, a claim on a spec, and a constructor. Two
-//! things differ. The contract is the registry's type parameter, so a
-//! `Registry<dyn Step>` can only hand out steps and the "exact class or
-//! assignable" question does not arise. And registration is explicit: an
-//! add-on crate exports its providers and the program lists the add-ons it
-//! links, so nothing is found by scanning, reflection or link order.
+//! The shape is OpenNLP 3.x's `Provider` SPI (`Provider`, `ProviderSpec`,
+//! `Providers`): a name, a priority, a cheap availability check, a claim
+//! on a spec, and a constructor. What a provider makes is the registry's
+//! type parameter, as the service interface is in Java
+//! (`DocumentAnnotatorProvider`, `TextEmbedderProvider`): a
+//! `Registry<dyn Step>` hands out steps and nothing else. One thing
+//! differs: registration is explicit. An add-on crate exports its
+//! providers and the program lists the add-ons it links, so nothing is
+//! found by scanning, reflection or link order.
 
 use std::path::PathBuf;
 

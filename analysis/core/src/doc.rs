@@ -60,19 +60,25 @@ impl Layer for View {
 struct Entry {
     key: KeyId,
     len: usize,
-    /// None when the layer was skipped.
+    /// None when the layer was skipped or failed.
     value: Option<Arc<dyn Any + Send + Sync>>,
+    /// The instances its items point into: an aligned layer's anchor
+    /// first, then the layers it indexes.
+    on: Vec<KeyId>,
     provenance: Arc<Provenance>,
     status: Status,
 }
 
 /// What became of a layer on a document, kept apart from its data. A
 /// layer never written has no status at all; one written with no items
-/// is `Complete` and empty; one its annotator declined is `Skipped`.
+/// is `Complete` and empty; one its annotator declined is `Skipped`, and
+/// one its annotator failed to make is `Failed`, with the error. Steps that
+/// need a skipped or failed layer are skipped in turn, and say why.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Status {
     Complete,
     Skipped(String),
+    Failed(Error),
 }
 
 /// One document: an immutable source text, the views made from it, and
@@ -93,6 +99,7 @@ impl Document {
             key: Key::<View>::DEFAULT.id(),
             len: 1,
             value: Some(source.clone()),
+            on: Vec::new(),
             provenance: Arc::new(Provenance::by("turbo:source")),
             status: Status::Complete,
         };
@@ -151,19 +158,45 @@ impl Document {
         self.entries.iter().find(|e| e.key == key).map(|e| &e.status)
     }
 
-    /// Whether the layer is here with data, not skipped.
+    /// Whether the layer is here with data, not skipped or failed.
     pub fn present(&self, key: KeyId) -> bool {
         self.entries.iter().any(|e| e.key == key && e.value.is_some())
     }
 
+    /// The layer instances a layer's items point into: the tokens a tag is
+    /// for, the sentence a token is in. Gold tokens and predicted ones are
+    /// two instances, so this says which, and a step is not handed the
+    /// layer beside the other one.
+    pub fn made_on(&self, key: KeyId) -> &[KeyId] {
+        self.entries.iter().find(|e| e.key == key).map_or(&[], |e| &e.on)
+    }
+
     /// Records that a layer was declined on this document, and why.
     pub fn skip(&mut self, key: KeyId, reason: String, provenance: Provenance) -> Result<(), Error> {
+        self.record(key, Status::Skipped(reason), provenance)
+    }
+
+    /// Records that a layer's annotator failed on this document.
+    pub fn fail(&mut self, key: KeyId, error: Error, provenance: Provenance) -> Result<(), Error> {
+        self.record(key, Status::Failed(error), provenance)
+    }
+
+    fn record(&mut self, key: KeyId, status: Status, provenance: Provenance) -> Result<(), Error> {
         if self.has(key) {
             return Err(Error::Duplicate(key));
         }
-        let status = Status::Skipped(reason);
-        self.entries.push(Arc::new(Entry { key, len: 0, value: None, provenance: Arc::new(provenance), status }));
+        if self.clashes(key) {
+            return Err(Error::Clash(key));
+        }
+        let entry = Entry { key, len: 0, value: None, on: Vec::new(), provenance: Arc::new(provenance), status };
+        self.entries.push(Arc::new(entry));
         Ok(())
+    }
+
+    /// Whether another layer type already has this key's id here: one id
+    /// names one type, whatever the instance.
+    fn clashes(&self, key: KeyId) -> bool {
+        self.entries.iter().any(|e| e.key.ty != key.ty && e.key.layer == key.layer)
     }
 
     pub fn require<L: Layer>(&self, key: &Key<L>) -> Result<&L, Error> {
@@ -182,25 +215,22 @@ impl Document {
         self.entries.iter().any(|e| e.key == key)
     }
 
-    /// Adds a layer. It is checked before it is taken: once only, spans in
-    /// bounds and on character boundaries, aligned lengths equal, and the
-    /// layer's own invariants.
-    pub fn add<L: Layer>(&mut self, key: &Key<L>, layer: L, provenance: Provenance) -> Result<(), Error> {
-        self.add_anchored(key, layer, provenance, None)
-    }
-
-    pub(crate) fn add_anchored<L: Layer>(
-        &mut self,
-        key: &Key<L>,
-        mut layer: L,
-        provenance: Provenance,
-        anchor: Option<KeyId>,
-    ) -> Result<(), Error> {
+    /// Adds a layer. It is checked before it is taken: once only, its id
+    /// not another type's, its own invariants, spans in bounds and on
+    /// character boundaries, an aligned layer as long as its anchor, and
+    /// every index into another layer inside it. The anchor and the
+    /// indexed layers are the instances the provenance says were read (the
+    /// gold tokens, when a tagger read those), or the default ones.
+    pub fn add<L: Layer>(&mut self, key: &Key<L>, mut layer: L, provenance: Provenance) -> Result<(), Error> {
         let id = key.id();
         if self.has(id) {
             return Err(Error::Duplicate(id));
         }
+        if self.clashes(id) {
+            return Err(Error::Clash(id));
+        }
         layer.check().map_err(|detail| Error::Invalid { layer: id, detail })?;
+        let mut on = Vec::new();
         match L::anchor() {
             Anchor::Text => {
                 if let Some((view, starts, ends)) = layer.text_spans() {
@@ -211,15 +241,25 @@ impl Document {
                 }
             }
             Anchor::Aligned { ty, layer: of } => {
-                let anchor = anchor.unwrap_or(KeyId { ty, layer: of, name: "" });
-                let Some(base) = self.entries.iter().find(|e| e.key == anchor) else {
-                    return Err(Error::Missing(anchor));
-                };
-                if base.len != layer.len() {
-                    return Err(Error::Misaligned { layer: id, anchor, len: layer.len(), anchor_len: base.len });
+                let anchor = made_on(KeyId { ty, layer: of, name: "" }, &provenance);
+                let len = self.len_of(anchor)?;
+                if len != layer.len() {
+                    return Err(Error::Misaligned { layer: id, anchor, len: layer.len(), anchor_len: len });
                 }
+                on.push(anchor);
             }
             Anchor::Document => {}
+        }
+        for (of, bound) in layer.indexes() {
+            let target = made_on(of, &provenance);
+            let len = self.len_of(target)?;
+            if bound > len {
+                return Err(Error::Invalid {
+                    layer: id,
+                    detail: format!("an index past the end of {target}, which has {len}"),
+                });
+            }
+            on.push(target);
         }
         let len = layer.len();
         // A view gets the next id and joins the view table.
@@ -233,8 +273,14 @@ impl Document {
             view.id = ViewId(self.views.len() as u16);
             let shared = Arc::new(view.clone());
             self.views.push(shared.clone());
-            let entry =
-                Entry { key: id, len, value: Some(shared), provenance: Arc::new(provenance), status: Status::Complete };
+            let entry = Entry {
+                key: id,
+                len,
+                value: Some(shared),
+                on: Vec::new(),
+                provenance: Arc::new(provenance),
+                status: Status::Complete,
+            };
             self.entries.push(Arc::new(entry));
             return Ok(());
         }
@@ -242,6 +288,7 @@ impl Document {
             key: id,
             len,
             value: Some(Arc::new(layer)),
+            on,
             provenance: Arc::new(provenance),
             status: Status::Complete,
         };
@@ -249,11 +296,16 @@ impl Document {
         Ok(())
     }
 
+    /// How many items a layer here has: it must be present, with data.
+    fn len_of(&self, key: KeyId) -> Result<usize, Error> {
+        self.entries.iter().find(|e| e.key == key && e.value.is_some()).map(|e| e.len).ok_or(Error::Missing(key))
+    }
+
     /// Joins a copy grown on another branch of a pipeline: its new views
     /// and layers are added here. Both must be copies of one document, and
-    /// the branches must not both have written a layer or both made a
-    /// view, since either would leave two answers under one name. A
-    /// refused merge changes nothing.
+    /// the branches must not both have written a layer, both made a view,
+    /// or written two layer types under one id, since each would leave two
+    /// answers under one name. A refused merge changes nothing.
     pub fn merge(&mut self, other: &Document) -> Result<(), Error> {
         if !Arc::ptr_eq(&self.views[0], &other.views[0]) {
             return Err(Error::Pipeline("merge needs two copies of one document".into()));
@@ -263,10 +315,10 @@ impl Document {
             return Err(Error::Pipeline("both branches made a view".into()));
         }
         for e in &other.entries {
-            if let Some(mine) = self.entries.iter().find(|m| m.key == e.key)
-                && !Arc::ptr_eq(mine, e)
-            {
-                return Err(Error::Duplicate(e.key));
+            match self.entries.iter().find(|m| m.key == e.key) {
+                Some(mine) if !Arc::ptr_eq(mine, e) => return Err(Error::Duplicate(e.key)),
+                None if self.clashes(e.key) => return Err(Error::Clash(e.key)),
+                _ => {}
             }
         }
         for e in &other.entries {
@@ -277,6 +329,12 @@ impl Document {
         self.views.extend(other.views[shared..].iter().cloned());
         Ok(())
     }
+}
+
+/// The instance of `of`'s layer type a layer was made on: the one its step
+/// read (the first, if it read several), or the default.
+fn made_on(of: KeyId, p: &Provenance) -> KeyId {
+    p.reads.iter().copied().find(|r| r.ty == of.ty).unwrap_or(of)
 }
 
 /// Every span inside the text, start before end, and both ends on a

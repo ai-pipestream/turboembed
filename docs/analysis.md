@@ -22,8 +22,8 @@ nothing here is in the C header or the gRPC server.
 
 They need nothing beyond the standard library and each other. A shared
 layer lives in `turbo-analysis-layers`, so a consumer of a layer never
-depends on the add-on that produces it; an add-on's own layers live in
-the add-on.
+depends on the add-on that produces it; an add-on's own layers live in a
+small schema crate beside it, for the same reason.
 
 ## Offsets
 
@@ -68,9 +68,11 @@ as an index into sentences does not compile. It is stored as i + 1 in a
 be the root) is still four bytes.
 
 A layer is added once and never changed. Before it is taken the
-document checks that the layer is not already there, that its spans are
+document checks that the layer is not already there, that no other
+layer type has its id, the layer's own invariants, that its spans are
 in bounds and on character boundaries, that an aligned layer is as long
-as its anchor, and the layer's own invariants. A document clones
+as its anchor, and that every index into another layer (a token's
+sentence, an entity's tokens) is inside it. A document clones
 cheaply, since its layers are shared, so branches of a pipeline can
 grow copies and merge them; a merge where both branches wrote the same
 layer, or both made a view, is refused and changes nothing.
@@ -84,6 +86,19 @@ normalized view beside the source, are named instances
 pipelines built at run time; it prints as the layer's id and the name,
 `opennlp:tokens@gold`.
 
+A layer keeps the instances it was made on: an aligned layer's anchor,
+and the layers it indexes. They are the instances its step read (for a
+layer added by hand, those its provenance lists, or the default ones),
+so tags made on the gold tokens say so (`Document::made_on`). A step
+that would read such a layer beside another instance of the one it was
+made on (those tags, with the predicted tokens) fails on that document
+with `Error::Unaligned` instead of being handed items that do not line
+up. Reading both instances, as an evaluation does, is fine.
+
+One id names one layer type. A second type under an id is refused on
+the document, whatever its instance name, and a pipeline holding both is
+refused when it is built: on the wire they would be one layer.
+
 ## Provenance and status
 
 Every layer records where it came from: the annotator and its version,
@@ -94,24 +109,30 @@ it.
 
 A layer's status is kept apart from its data. A layer never written has
 no status; one written with no items is `Complete` and empty; one its
-annotator declined is `Skipped`, with the reason. An annotator declines
-a document by returning `Error::Skipped`. A step that needs a skipped
-layer is skipped in turn, and says why: `opennlp:language was skipped:
-no language evidence`. So "skipped" is never mistaken for "found
-nothing".
+annotator declined is `Skipped`, with the reason; one its annotator
+failed to make is `Failed`, with the error. An annotator declines a
+document by returning `Error::Skipped`. A step that needs a skipped or
+failed layer is skipped in turn, and says why: `opennlp:language was
+skipped: no language evidence`, or `opennlp:tokens failed: ...`. So
+"skipped" is never mistaken for "found nothing", and a stored document
+says why a layer is missing.
 
 ## Annotators
 
 An `Annotator` declares what it reads and writes as tuples of layer
 types, up to six of each. One that reads `(View, Tokens)` and writes
 `(PosTags,)` is handed a `&View` and a `&Tokens` and must return a
-`PosTags`. An input it uses only when it is there is written
-`Option<L>`, and arrives as `Option<&L>`.
+`PosTags`. It is handed nothing else, not the document, so it cannot
+read a layer it did not declare and its provenance is complete; text
+comes the same way, through a declared `View`. An input it uses only
+when it is there is written `Option<L>`, and arrives as `Option<&L>`.
 
 `annotate` handles one document. `annotate_batch` handles a whole batch
 at once: by default it calls `annotate` on each, and a neural annotator
 overrides it to pack every document's input into one device run. An
-annotator that returns `Error::Annotator` fails that document alone.
+annotator that returns `Error::Annotator` fails that document alone. A
+panic does too: it is caught, and a batch that panics is run again one
+document at a time to find the documents that cause it.
 
 `Bound` binds an annotator to the instances it reads and writes:
 the default ones, or named ones (`.read(0, "folded")`).
@@ -120,16 +141,19 @@ the default ones, or named ones (`.read(0, "folded")`).
 
 `Analyzer::builder()` takes the steps in any order, and the layers the
 documents arrive with (`given`), such as structure from the parser
-upstream. `build` refuses a pipeline that cannot run, naming why: a
-layer two steps write, a required input nothing writes, an aligned
-output whose anchor the step does not read, or a cycle. It then orders
-the steps by what they read and write into stages.
+upstream. `build` refuses a pipeline that cannot run, naming why: two
+layer types under one id, a layer two steps write, a required input
+nothing writes, an aligned output whose anchor the step does not read,
+or a cycle. It then orders the steps by what they read and write into
+stages.
 
 `run` takes a batch of documents. Each stage runs over the whole batch
 before the next starts, so a batching annotator sees every document at
 once; steps in one stage compute side by side on threads, then store
-their layers. Each document gets its own result, and one document's
-failure does not stop the others. `plan` lists the stages.
+their layers. A step that fails on a document fails only its own layers
+there: the steps that need them are skipped and say why, the others
+still run, and no other document is touched. Each document's result is
+its first failure. `plan` lists the stages.
 
 ## The registry
 
@@ -140,7 +164,9 @@ have a name, a priority, a cheap availability check and a claim on a
 spec. The best available provider that supports the spec wins, and two
 that tie at the top priority are an error, not a silent pick. Add-ons
 are registered by the program that links them; nothing is found by
-scanning. The shape is OpenNLP's `ComponentProvider`.
+scanning. The shape is OpenNLP 3.x's `Provider` SPI (`Provider`,
+`ProviderSpec`, `Providers`), and what a provider makes is the
+registry's type parameter, as the service interface is in Java.
 
 ## Layer ids
 
@@ -178,8 +204,13 @@ chunker will write under that id.
 
 `turbo-chunker` reads the sentences, the embedder's subwords, the
 boundary costs and, when the document has it, its structure, and writes
-the chunks. Every length is counted in the embedder's own tokens, so a
-chunk's size is exact.
+the chunks. Every length is counted in the embedder's own tokens, over
+each chunk's whole span: what lies between two of its sentences (a
+paragraph break, which byte-level BPE makes a token of) is in the chunk
+too, and a subword a chunk's edge cuts counts on both sides, as each
+chunk's own tokenization makes a token of its part. `Subwords` holds
+only the text's own pieces; the special tokens a template adds and a
+prompt prefix are the budget's overhead.
 
 It chooses every boundary of a run of sentences together, the way TeX
 breaks a paragraph into lines, rather than filling each chunk to the
@@ -192,9 +223,10 @@ budget, for a clause splitter to cut further. Time is the number of
 sentences times the most that fit in one chunk.
 
 What a boundary costs is the `Boundaries` layer: a cost and a reason
-after each sentence. Signal annotators (structure, topic shifts,
-coreference, discourse markers) are summed into it, and the chunker
-reads only that.
+after each sentence. Each signal annotator (structure, topic shifts,
+coreference, discourse markers) writes its own named instance, and one
+step weighs and sums them into the default instance, since a layer has
+one writer; the chunker reads only that.
 
 With structure, no chunk crosses a top-level section. Each section is
 its own run, so an edit re-chunks only its own section, and each
@@ -211,12 +243,14 @@ runs them on any machine:
 - `analysis/core/tests/pipeline.rs` runs a pipeline of toy annotators
   over the shared layers: ordering by data, a normalized view whose
   tokens land on exact source bytes, a batch reaching a batching
-  annotator in one call, failures and skips per document, gold and
-  predicted layers side by side, and a pipeline from configuration.
+  annotator in one call, failures, panics and skips per document, gold
+  and predicted layers side by side and never read across, one type
+  per id, and a pipeline from configuration.
 - `analysis/chunker/tests/chunker.rs` chunks hand-made layers: a cut
-  where the topic shifts instead of where the budget fills, and
-  sections that are never crossed. The chunker's unit tests hold the
-  optimizer against filling each chunk to the budget.
+  where the topic shifts instead of where the budget fills, sections
+  that are never crossed, and a paragraph break's token counted inside
+  a chunk. The chunker's unit tests hold the optimizer against filling
+  each chunk to the budget.
 - A doctest on `Ix` checks that an index into the wrong layer does not
   compile.
 

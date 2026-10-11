@@ -1,6 +1,7 @@
 //! Annotators: typed steps that read layers and write layers.
 
 use std::any::Any;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::doc::{Document, Status};
 use crate::error::Error;
@@ -54,13 +55,7 @@ pub trait Writes: Send + 'static {
     const N: usize;
     fn ids(names: &[&'static str]) -> Vec<KeyId>;
     fn anchors() -> Vec<Anchor>;
-    fn store(
-        self,
-        doc: &mut Document,
-        names: &[&'static str],
-        anchors: &[Option<KeyId>],
-        p: &Provenance,
-    ) -> Result<(), Error>;
+    fn store(self, doc: &mut Document, names: &[&'static str], p: &Provenance) -> Result<(), Error>;
 }
 
 impl Reads for () {
@@ -100,8 +95,8 @@ macro_rules! tuples {
             fn anchors() -> Vec<Anchor> {
                 vec![$($L::anchor()),+]
             }
-            fn store(self, doc: &mut Document, names: &[&'static str], anchors: &[Option<KeyId>], p: &Provenance) -> Result<(), Error> {
-                $(doc.add_anchored(&Key::<$L>::named(names[$i]), self.$i, p.clone(), anchors[$i])?;)+
+            fn store(self, doc: &mut Document, names: &[&'static str], p: &Provenance) -> Result<(), Error> {
+                $(doc.add(&Key::<$L>::named(names[$i]), self.$i, p.clone())?;)+
                 Ok(())
             }
         }
@@ -119,25 +114,25 @@ pub type Refs<'d, A> = <<A as Annotator>::Reads as Reads>::Refs<'d>;
 /// One analysis step. Its inputs and outputs are types, so a tagger that
 /// says it reads `(Sentences, Tokens)` and writes `(PosTags,)` is handed
 /// `(&Sentences, &Tokens)` and must return a `PosTags`; the compiler holds
-/// it to that.
+/// it to that. It is handed nothing else, not the document, so it cannot
+/// read a layer it did not declare, and its provenance is complete. Text
+/// is read the same way: a `View` is a layer.
 pub trait Annotator: Send + Sync + 'static {
     const ID: &'static str;
     const VERSION: &'static str = "0";
     type Reads: Reads;
     type Writes: Writes;
 
-    /// One document. Returning `Error::Skipped` declines it with a reason.
-    fn annotate(&self, doc: &Document, input: Refs<'_, Self>) -> Result<Self::Writes, Error>;
+    /// One document's inputs. Returning `Error::Skipped` declines the
+    /// document with a reason.
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error>;
 
-    /// A whole batch of documents at once. The default runs `annotate` on
-    /// each; a neural annotator packs every document's tokens into one
-    /// device run here, which is where its speed comes from.
-    fn annotate_batch<'d>(
-        &self,
-        docs: &[&'d Document],
-        inputs: Vec<Refs<'d, Self>>,
-    ) -> Vec<Result<Self::Writes, Error>> {
-        docs.iter().zip(inputs).map(|(d, i)| self.annotate(d, i)).collect()
+    /// The inputs of a whole batch of documents at once, a result for
+    /// each. The default runs `annotate` on each; a neural annotator packs
+    /// every document's tokens into one device run here, which is where its
+    /// speed comes from.
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        inputs.into_iter().map(|i| self.annotate(i)).collect()
     }
 
     /// The model it runs, recorded on every layer it writes.
@@ -218,15 +213,59 @@ impl<A: Annotator> Bound<A> {
             .collect()
     }
 
-    /// The first required input that was skipped on this document, and why.
+    /// The first required input that was skipped or failed on this
+    /// document, and why.
     fn skipped_input(&self, doc: &Document) -> Option<String> {
         A::Reads::ids(&self.reads).into_iter().zip(A::Reads::required()).filter(|&(_, r)| r).find_map(
             |(k, _)| match doc.status(k) {
                 Some(Status::Skipped(why)) => Some(format!("{k} was skipped: {why}")),
+                Some(Status::Failed(e)) => Some(format!("{k} failed: {e}")),
                 _ => None,
             },
         )
     }
+
+    /// An input this step would read beside the wrong instance of the
+    /// layer it was made on: tags made on the gold tokens, beside the
+    /// predicted ones. Reading that instance as well is fine (an
+    /// evaluation compares the two).
+    fn unaligned(&self, doc: &Document) -> Option<Error> {
+        let reads = A::Reads::ids(&self.reads);
+        reads.iter().find_map(|&layer| {
+            doc.made_on(layer).iter().filter(|on| !reads.contains(on)).find_map(|&on| {
+                let read = reads.iter().copied().find(|&r| r.ty == on.ty && doc.present(r))?;
+                Some(Error::Unaligned { layer, on, read: read.name })
+            })
+        })
+    }
+
+    /// Runs the annotator over the inputs of documents `at`, a result for
+    /// each. A panic fails only the documents that cause it: a batch that
+    /// panics is run again one document at a time to find them. The
+    /// annotator is assumed to hold nothing a panic could leave half
+    /// changed.
+    fn run<'d>(&self, docs: &'d [Document], at: &[usize], inputs: Vec<Refs<'d, A>>) -> Vec<Result<A::Writes, Error>> {
+        match catch_unwind(AssertUnwindSafe(|| self.annotator.annotate_batch(inputs))) {
+            Ok(out) if out.len() == at.len() => out,
+            Ok(out) => {
+                let detail = format!("{} results for {} documents", out.len(), at.len());
+                at.iter().map(|_| Err(Error::Annotator { annotator: A::ID, detail: detail.clone() })).collect()
+            }
+            Err(panic) if at.len() == 1 => vec![Err(panicked(A::ID, panic))],
+            Err(_) => at
+                .iter()
+                .flat_map(|&i| match A::Reads::fetch(&docs[i], &self.reads) {
+                    Ok(input) => self.run(docs, &[i], vec![input]),
+                    Err(e) => vec![Err(e)],
+                })
+                .collect(),
+        }
+    }
+}
+
+fn panicked(annotator: &'static str, panic: Box<dyn Any + Send>) -> Error {
+    let what = panic.downcast_ref::<&str>().copied().or_else(|| panic.downcast_ref::<String>().map(String::as_str));
+    Error::Annotator { annotator, detail: format!("panicked: {}", what.unwrap_or("with no message")) }
 }
 
 /// What an output is aligned to.
@@ -241,15 +280,6 @@ pub enum AnchorUse {
     Unread(&'static LayerName),
 }
 
-impl AnchorUse {
-    fn key(self) -> Option<KeyId> {
-        match self {
-            AnchorUse::To(k) => Some(k),
-            _ => None,
-        }
-    }
-}
-
 /// A bound annotator with its types erased, for the analyzer and for
 /// pipelines assembled from configuration. Running is split in two: the
 /// computation reads the documents and can run beside other steps; the
@@ -262,7 +292,10 @@ pub trait Step: Send + Sync {
     fn writes(&self) -> Vec<KeyId>;
     /// For each output, what it is aligned to.
     fn anchors(&self) -> Vec<AnchorUse>;
-    fn compute(&self, docs: &[Document], live: &[bool]) -> Box<dyn Any + Send>;
+    fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send>;
+    /// Adds what `compute` made. An output the step did not deliver on a
+    /// document is recorded as skipped or failed there, and the first
+    /// failure is that document's result.
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]);
 }
 
@@ -287,26 +320,28 @@ impl<A: Annotator> Step for Bound<A> {
         Bound::anchors(self)
     }
 
-    fn compute(&self, docs: &[Document], live: &[bool]) -> Box<dyn Any + Send> {
+    fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
         let mut out: Vec<Option<Result<A::Writes, Error>>> = (0..docs.len()).map(|_| None).collect();
-        let mut batch = Vec::new();
         let mut inputs = Vec::new();
         let mut at = Vec::new();
-        for (i, d) in docs.iter().enumerate().filter(|(i, _)| live[*i]) {
+        for (i, d) in docs.iter().enumerate() {
             if let Some(why) = self.skipped_input(d) {
                 out[i] = Some(Err(Error::Skipped(why)));
                 continue;
             }
+            if let Some(e) = self.unaligned(d) {
+                out[i] = Some(Err(e));
+                continue;
+            }
             match A::Reads::fetch(d, &self.reads) {
                 Ok(r) => {
-                    batch.push(d);
                     inputs.push(r);
                     at.push(i);
                 }
                 Err(e) => out[i] = Some(Err(e)),
             }
         }
-        for (i, r) in at.into_iter().zip(self.annotator.annotate_batch(&batch, inputs)) {
+        for (&i, r) in at.iter().zip(self.run(docs, &at, inputs)) {
             out[i] = Some(r);
         }
         Box::new(out)
@@ -314,17 +349,28 @@ impl<A: Annotator> Step for Bound<A> {
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
         let out = *out.downcast::<Vec<Option<Result<A::Writes, Error>>>>().expect("this step's own output");
-        let anchors: Vec<Option<KeyId>> = Bound::anchors(self).into_iter().map(AnchorUse::key).collect();
         let writes = A::Writes::ids(&self.writes);
         for (i, r) in out.into_iter().enumerate() {
             let Some(r) = r else { continue };
             let p = self.provenance(&docs[i]);
-            let stored = match r {
-                Ok(w) => w.store(&mut docs[i], &self.writes, &anchors, &p),
-                Err(Error::Skipped(why)) => writes.iter().try_for_each(|&k| docs[i].skip(k, why.clone(), p.clone())),
-                Err(e) => Err(e),
+            let failure = match r {
+                Ok(w) => w.store(&mut docs[i], &self.writes, &p).err(),
+                Err(Error::Skipped(why)) => {
+                    writes.iter().try_for_each(|&k| docs[i].skip(k, why.clone(), p.clone())).err()
+                }
+                Err(e) => Some(e),
             };
-            if let Err(e) = stored {
+            let Some(e) = failure else { continue };
+            // Every output not stored is failed with the error, so the
+            // document says why it is missing and what needs it is skipped.
+            // Recording is refused only when another layer type holds the
+            // id, and the document's result still says what failed.
+            for &k in &writes {
+                if !docs[i].has(k) {
+                    let _ = docs[i].fail(k, e.clone(), p.clone());
+                }
+            }
+            if status[i].is_ok() {
                 status[i] = Err(e);
             }
         }

@@ -119,3 +119,31 @@ fn sections_are_never_crossed_and_become_the_level_above() {
     assert_eq!(reads.last(), Some(&Key::<Structure>::DEFAULT.id()));
     assert_eq!(docs[0].provenance(Key::<Chunks>::DEFAULT.id()).unwrap().reads.len(), 3);
 }
+
+#[test]
+fn what_lies_between_sentences_counts_inside_a_chunk() {
+    // Byte-level BPE makes a token of the paragraph break, which neither
+    // sentence holds: the sentences are 3 tokens each, and 7 together.
+    let mut doc = Document::new("One two.\n\nThree four.");
+    let (mut sentences, mut pieces) = (Spans::new(ViewId::SOURCE), Spans::new(ViewId::SOURCE));
+    for (a, b) in [(0, 8), (10, 21)] {
+        sentences.push(Span::new(a, b));
+    }
+    for (a, b) in [(0, 3), (4, 7), (7, 8), (8, 10), (10, 15), (16, 20), (20, 21)] {
+        pieces.push(Span::new(a, b));
+    }
+    doc.add(&Key::DEFAULT, Sentences { spans: sentences }, Provenance::by("t")).unwrap();
+    doc.add(&Key::DEFAULT, Subwords { spans: pieces, ids: vec![0; 7], model: toy_model() }, Provenance::by("t"))
+        .unwrap();
+    let bounds = Boundaries { cost: vec![1.0; 2], reason: vec![Cut::Paragraph, Cut::Sentence] };
+    doc.add(&Key::DEFAULT, bounds, Provenance::by("t")).unwrap();
+
+    let lengths = |max| {
+        let mut docs = vec![doc.clone()];
+        assert!(chunker(Budget { max, target: max, size_weight: 1.0, overhead: 0 }).run(&mut docs)[0].is_ok());
+        docs[0].get::<Chunks>().unwrap().model_tokens.clone()
+    };
+    assert_eq!(lengths(7), [7]);
+    // A sum over the sentences alone would fit them in 6.
+    assert_eq!(lengths(6), [3, 3]);
+}

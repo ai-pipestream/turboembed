@@ -1,6 +1,7 @@
 //! The shared layers: the types every add-on agrees on, so a lemmatizer
 //! from one add-on reads the tags of a tagger from another. An add-on's
-//! own layers live in the add-on.
+//! own layers live in a small schema crate beside it, so another add-on
+//! reads them without depending on the code that makes them.
 //!
 //! A layer the OpenNLP gRPC standard defines (the layer ids in
 //! opennlp_document.proto) has the standard's id, so Java, Rust and the
@@ -13,7 +14,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Anchor, Ix, IxRange, Layer, ModelRef, Spans, ViewId};
+use turbo_analysis::{Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Spans, ViewId};
 
 /// A closed set of labels (a POS tag set, entity kinds, dependency
 /// relations), interned: a layer stores a u16 per item, never a string.
@@ -175,6 +176,10 @@ impl Tokens {
 impl Layer for Tokens {
     const ID: &'static str = "opennlp:tokens";
     positional!(Tokens);
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        let Some(s) = &self.sentence else { return Vec::new() };
+        vec![(Key::<Sentences>::DEFAULT.id(), s.last().map_or(0, |i| i.get() + 1))]
+    }
     fn check(&self) -> Result<(), String> {
         match &self.sentence {
             Some(s) if s.len() != self.spans.len() => Err("a sentence for every token".into()),
@@ -185,7 +190,10 @@ impl Layer for Tokens {
 }
 
 /// A model's subword pieces, aligned to the text: what turboembed's
-/// tokenizer already produces with its spans.
+/// tokenizer already produces with its spans. Only the text's own pieces:
+/// the special tokens a template adds and a prompt prefix are not in the
+/// text, and a chunker's budget counts them as overhead. Two pieces can
+/// share a span (byte-level pieces of one character).
 pub struct Subwords {
     pub spans: Spans<Subwords>,
     pub ids: Vec<i32>,
@@ -195,6 +203,16 @@ pub struct Subwords {
 impl Layer for Subwords {
     const ID: &'static str = "opennlp:subwords";
     positional!(Subwords);
+    fn check(&self) -> Result<(), String> {
+        let (start, end) = self.spans.columns();
+        if self.ids.len() != start.len() {
+            return Err("an id for every subword".into());
+        }
+        if !start.windows(2).all(|w| w[0] <= w[1]) || !end.windows(2).all(|w| w[0] <= w[1]) {
+            return Err("subwords in text order".into());
+        }
+        Ok(())
+    }
 }
 
 /// One tag per token.
@@ -263,6 +281,22 @@ pub struct Entities {
 impl Layer for Entities {
     const ID: &'static str = "opennlp:entities";
     positional!(Entities);
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        vec![(Key::<Tokens>::DEFAULT.id(), self.tokens.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn check(&self) -> Result<(), String> {
+        let n = self.spans.len();
+        if self.tokens.len() != n || self.kind.len() != n || self.score.len() != n {
+            return Err("tokens, a kind and a score for every entity".into());
+        }
+        if self.tokens.iter().any(|r| r.start > r.end) {
+            return Err("no token range that ends before it starts".into());
+        }
+        if self.kind.iter().any(|k| k.0 as usize >= self.kinds.len()) {
+            return Err(format!("a kind outside {}", self.kinds.name));
+        }
+        Ok(())
+    }
 }
 
 /// Why a chunk starts where it does: the evaluation and the debugger read
@@ -281,8 +315,10 @@ pub enum Cut {
 }
 
 /// What a chunk boundary after each sentence would cost, and the strongest
-/// reason at it. Signal annotators (structure, topic shifts, coreference,
-/// discourse markers) are summed into it; the chunker reads only this.
+/// reason at it. Each signal annotator (structure, topic shifts,
+/// coreference, discourse markers) writes its own named instance, and one
+/// step weighs and sums them into the default instance, since a layer has
+/// one writer; the chunker reads only that.
 pub struct Boundaries {
     pub cost: Vec<f32>,
     pub reason: Vec<Cut>,
@@ -317,19 +353,38 @@ pub struct Chunks {
     pub cut: Vec<Cut>,
     /// What choosing this boundary cost the optimizer.
     pub cost: Vec<f32>,
-    /// Exact token count under the target embedder's tokenizer.
+    /// Its row's length in the embedder's tokens: counted over its whole
+    /// span, with the overhead every row carries.
     pub model_tokens: Vec<u32>,
 }
 
 impl Layer for Chunks {
     const ID: &'static str = "turbo:chunks";
     positional!(Chunks);
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        vec![(Key::<Sentences>::DEFAULT.id(), self.sentences.iter().map(|r| r.end.get()).max().unwrap_or(0))]
+    }
+    fn check(&self) -> Result<(), String> {
+        let columns = [
+            self.level.len(),
+            self.parent.len(),
+            self.sentences.len(),
+            self.cut.len(),
+            self.cost.len(),
+            self.model_tokens.len(),
+        ];
+        if columns.iter().any(|&l| l != self.spans.len()) {
+            return Err("every column as long as the spans".into());
+        }
+        if self.parent.iter().enumerate().any(|(i, p)| p.is_some_and(|p| p.get() >= i)) {
+            return Err("a parent before its children".into());
+        }
+        Ok(())
+    }
 }
 
 /// One vector per item of layer `L`: per sentence, per chunk, per token.
-/// Stored as one block, `[len, dim]`, on the host. A device-resident
-/// variant, which keeps the block where the embedder wrote it for the
-/// chunker's similarity work, comes with the vectors annotator.
+/// Stored as one block, `[len, dim]`, on the host.
 pub struct Vectors<L> {
     pub dim: u32,
     pub data: Vec<f32>,

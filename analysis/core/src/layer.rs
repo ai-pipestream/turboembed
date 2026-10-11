@@ -46,6 +46,15 @@ pub trait Layer: Any + Send + Sync + Sized {
         None
     }
 
+    /// The other layers its items point into by index, besides an anchor:
+    /// a token's sentence, an entity's tokens. Each is named by its
+    /// default key, with one past the largest index held. The document
+    /// checks that every index is inside that layer, and records which
+    /// instance of it the layer was made on, as it does an anchor.
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        Vec::new()
+    }
+
     /// Invariants only the layer knows: tags inside their tag set, heads
     /// inside their sentence, columns of one length.
     fn check(&self) -> Result<(), String> {

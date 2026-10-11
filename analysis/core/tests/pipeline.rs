@@ -16,7 +16,7 @@ impl Annotator for Fold {
     type Reads = (View,);
     type Writes = (View,);
 
-    fn annotate(&self, _: &Document, (src,): Refs<'_, Self>) -> Result<(View,), Error> {
+    fn annotate(&self, (src,): Refs<'_, Self>) -> Result<(View,), Error> {
         let text = src.text();
         let mut b = ViewBuilder::new(text);
         let mut chars = text.char_indices().peekable();
@@ -52,7 +52,7 @@ impl Annotator for Sentencer {
     type Reads = (View,);
     type Writes = (Sentences,);
 
-    fn annotate(&self, _: &Document, (view,): Refs<'_, Self>) -> Result<(Sentences,), Error> {
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Sentences,), Error> {
         let text = view.text();
         let mut spans = Spans::new(view.id());
         let mut start = 0;
@@ -75,8 +75,8 @@ impl Annotator for Tokenizer {
     type Reads = (View, Sentences);
     type Writes = (Tokens,);
 
-    fn annotate(&self, doc: &Document, (view, sentences): Refs<'_, Self>) -> Result<(Tokens,), Error> {
-        if doc.source().contains("FAIL") {
+    fn annotate(&self, (view, sentences): Refs<'_, Self>) -> Result<(Tokens,), Error> {
+        if view.text().contains("FAIL") {
             return Err(Error::Annotator { annotator: Self::ID, detail: "asked to fail".into() });
         }
         let text = view.text();
@@ -106,13 +106,11 @@ impl Annotator for Tagger {
     type Reads = (View, Tokens);
     type Writes = (PosTags,);
 
-    fn annotate(&self, doc: &Document, (_, tokens): Refs<'_, Self>) -> Result<(PosTags,), Error> {
+    fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<(PosTags,), Error> {
         let (vbz, x) = (self.tagset.tag("VBZ").unwrap(), self.tagset.tag("X").unwrap());
-        let tags: Vec<Tag> = tokens
-            .spans
-            .iter()
-            .map(|(_, s)| if doc.text(tokens.spans.view())[s.range()].ends_with('s') { vbz } else { x })
-            .collect();
+        let text = view.text();
+        let tags: Vec<Tag> =
+            tokens.spans.iter().map(|(_, s)| if text[s.range()].ends_with('s') { vbz } else { x }).collect();
         Ok((PosTags { tagset: self.tagset.clone(), tags, prob: None },))
     }
 }
@@ -128,15 +126,11 @@ impl Annotator for Embedder {
     type Reads = (View, Sentences);
     type Writes = (Vectors<Sentences>,);
 
-    fn annotate(&self, d: &Document, i: Refs<'_, Self>) -> Result<(Vectors<Sentences>,), Error> {
-        self.annotate_batch(&[d], vec![i]).pop().unwrap()
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<(Vectors<Sentences>,), Error> {
+        self.annotate_batch(vec![input]).pop().unwrap()
     }
 
-    fn annotate_batch<'d>(
-        &self,
-        _: &[&'d Document],
-        inputs: Vec<Refs<'d, Self>>,
-    ) -> Vec<Result<(Vectors<Sentences>,), Error>> {
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<(Vectors<Sentences>,), Error>> {
         self.calls.fetch_add(1, Ordering::Relaxed);
         // Pack every sentence of every document into one run, then split.
         let packed: Vec<&str> =
@@ -176,7 +170,7 @@ impl Annotator for Detect {
     type Reads = (View,);
     type Writes = (Language,);
 
-    fn annotate(&self, _: &Document, (view,): Refs<'_, Self>) -> Result<(Language,), Error> {
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Language,), Error> {
         if !view.text().chars().any(char::is_alphabetic) {
             return Err(Error::Skipped("no language evidence".into()));
         }
@@ -190,11 +184,11 @@ struct Stemmer;
 
 impl Annotator for Stemmer {
     const ID: &'static str = "test:stemmer";
-    type Reads = (Language, Tokens);
+    type Reads = (View, Language, Tokens);
     type Writes = (Lemmas,);
 
-    fn annotate(&self, doc: &Document, (language, tokens): Refs<'_, Self>) -> Result<(Lemmas,), Error> {
-        let text = doc.text(tokens.spans.view());
+    fn annotate(&self, (view, language, tokens): Refs<'_, Self>) -> Result<(Lemmas,), Error> {
+        let text = view.text();
         let mut lemma = Strs::default();
         for (_, s) in tokens.spans.iter() {
             let word = &text[s.range()];
@@ -213,7 +207,7 @@ impl Annotator for LooseTokenizer {
     type Reads = (View, Option<Sentences>);
     type Writes = (Tokens,);
 
-    fn annotate(&self, _: &Document, (view, sentences): Refs<'_, Self>) -> Result<(Tokens,), Error> {
+    fn annotate(&self, (view, sentences): Refs<'_, Self>) -> Result<(Tokens,), Error> {
         let text = view.text();
         let ranges: Vec<(Option<Ix<Sentences>>, Span)> = match sentences {
             Some(s) => s.spans.iter().map(|(i, span)| (Some(i), span)).collect(),
@@ -232,6 +226,40 @@ impl Annotator for LooseTokenizer {
             }
         }
         Ok((Tokens { spans, sentence: sentences.map(|_| sentence) },))
+    }
+}
+
+/// Lowercases each word, and strips the "s" of one tagged VBZ: it reads
+/// the tags and the tokens they are for.
+struct Lemmatizer;
+
+impl Annotator for Lemmatizer {
+    const ID: &'static str = "test:lemmatizer";
+    type Reads = (View, Tokens, PosTags);
+    type Writes = (Lemmas,);
+
+    fn annotate(&self, (view, tokens, tags): Refs<'_, Self>) -> Result<(Lemmas,), Error> {
+        let mut lemma = Strs::default();
+        for ((_, s), &t) in tokens.spans.iter().zip(&tags.tags) {
+            let word = view.text()[s.range()].to_lowercase();
+            lemma.push(if tags.tagset.label(t) == "VBZ" { word.strip_suffix('s').unwrap_or(&word) } else { &word });
+        }
+        Ok((Lemmas { lemma },))
+    }
+}
+
+/// Panics on a text it cannot handle. Run over a batch, the panic takes
+/// every document of the batch down with it.
+struct Fragile;
+
+impl Annotator for Fragile {
+    const ID: &'static str = "test:fragile";
+    type Reads = (View,);
+    type Writes = (Language,);
+
+    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Language,), Error> {
+        assert!(!view.text().contains("PANIC"), "cannot handle this one");
+        Ok((Language { code: "en".into(), score: 1.0 },))
     }
 }
 
@@ -308,9 +336,32 @@ fn one_document_failing_leaves_the_rest() {
     let mut docs = vec![Document::new("Fine. Fine."), Document::new("FAIL here."), Document::new("Also fine.")];
     let status = pipeline(Arc::default()).run(&mut docs);
     assert!(status[0].is_ok() && status[2].is_ok());
-    assert_eq!(status[1], Err(Error::Annotator { annotator: "test:tokens", detail: "asked to fail".into() }));
-    assert!(docs[1].get::<PosTags>().is_none());
+    let failed = Error::Annotator { annotator: "test:tokens", detail: "asked to fail".into() };
+    assert_eq!(status[1], Err(failed.clone()));
     assert!(docs[2].get::<PosTags>().is_some());
+
+    // The failed layer says so, what needs it is skipped and says why, and
+    // the step that did not need it still ran.
+    let d = &docs[1];
+    assert_eq!(d.status(Key::<Tokens>::DEFAULT.id()), Some(&Status::Failed(failed)));
+    let why = "opennlp:tokens failed: test:tokens: asked to fail";
+    assert_eq!(d.status(Key::<PosTags>::DEFAULT.id()), Some(&Status::Skipped(why.into())));
+    assert!(d.get::<Vectors<Sentences>>().is_some());
+}
+
+#[test]
+fn a_panic_fails_only_the_document_that_caused_it() {
+    let a = Analyzer::builder().add(Fragile).add(Sentencer).build().unwrap();
+    let mut docs = vec![Document::new("Fine."), Document::new("PANIC now."), Document::new("Fine too.")];
+    let status = a.run(&mut docs);
+    assert!(status[0].is_ok() && status[2].is_ok(), "{status:?}");
+    let panicked = Error::Annotator { annotator: "test:fragile", detail: "panicked: cannot handle this one".into() };
+    assert_eq!(status[1], Err(panicked.clone()));
+    assert_eq!(docs[1].status(Key::<Language>::DEFAULT.id()), Some(&Status::Failed(panicked)));
+    // The batch was run again one document at a time, so the others have
+    // their layer, and the step beside it in its stage ran on all three.
+    assert!(docs[0].get::<Language>().is_some() && docs[2].get::<Language>().is_some());
+    assert!(docs.iter().all(|d| d.get::<Sentences>().is_some()));
 }
 
 #[test]
@@ -345,7 +396,84 @@ fn gold_and_predicted_layers_live_side_by_side() {
     let tags = docs[0].get::<PosTags>().unwrap();
     assert_eq!(tags.tags.len(), 3);
     assert!(docs[0].get::<Tokens>().is_none());
-    assert_eq!(docs[0].provenance(Key::<PosTags>::DEFAULT.id()).unwrap().reads[1], GOLD.id());
+    let pos = Key::<PosTags>::DEFAULT.id();
+    assert_eq!(docs[0].provenance(pos).unwrap().reads[1], GOLD.id());
+    // The tags keep which tokens they are for.
+    assert_eq!(docs[0].made_on(pos), [GOLD.id()]);
+}
+
+#[test]
+fn a_layer_is_read_only_beside_the_instance_it_was_made_on() {
+    const GOLD: Key<Tokens> = Key::named("gold");
+    let words = |spans: &[(u32, u32)]| {
+        let mut s = Spans::new(ViewId::SOURCE);
+        for &(a, b) in spans {
+            s.push(Span::new(a, b));
+        }
+        Tokens { spans: s, sentence: None }
+    };
+    let mut doc = Document::new("Dogs bark.");
+    doc.add(&GOLD, words(&[(0, 4), (5, 9), (9, 10)]), Provenance::by("corpus:gold")).unwrap();
+    doc.add(&Key::DEFAULT, words(&[(0, 4), (5, 10)]), Provenance::by("corpus:predicted")).unwrap();
+    let pipeline = |lemmatizer: Bound<Lemmatizer>| {
+        Analyzer::builder()
+            .given(GOLD)
+            .given(Key::<Tokens>::DEFAULT)
+            .step(Bound::new(Tagger { tagset: TagSet::new("toy", &["X", "VBZ"]) }).read(1, "gold"))
+            .step(lemmatizer)
+            .build()
+            .unwrap()
+    };
+
+    // Tags made on the gold tokens, read beside the predicted ones: item i
+    // of the one is not about item i of the other.
+    let mut docs = vec![doc.clone()];
+    let e = pipeline(Bound::new(Lemmatizer)).run(&mut docs).remove(0).unwrap_err();
+    assert_eq!(e.to_string(), "opennlp:pos was made on opennlp:tokens@gold, not on the opennlp:tokens the step reads");
+    assert_eq!(docs[0].status(Key::<Lemmas>::DEFAULT.id()), Some(&Status::Failed(e)));
+
+    // Beside the gold tokens they line up.
+    let mut docs = vec![doc];
+    assert!(pipeline(Bound::new(Lemmatizer).read(1, "gold")).run(&mut docs)[0].is_ok());
+    let lemmas = docs[0].get::<Lemmas>().unwrap();
+    assert_eq!(lemmas.lemma.iter().collect::<Vec<_>>(), ["dog", "bark", "."]);
+}
+
+#[test]
+fn one_id_names_one_layer_type() {
+    /// Another crate's idea of sentences, under the shared id.
+    struct OtherSentences;
+    impl Layer for OtherSentences {
+        const ID: &'static str = "opennlp:sentences";
+        fn anchor() -> Anchor {
+            Anchor::Document
+        }
+        fn len(&self) -> usize {
+            1
+        }
+    }
+    struct OtherSentencer;
+    impl Annotator for OtherSentencer {
+        const ID: &'static str = "test:other-sentences";
+        type Reads = (View,);
+        type Writes = (OtherSentences,);
+        fn annotate(&self, _: Refs<'_, Self>) -> Result<(OtherSentences,), Error> {
+            Ok((OtherSentences,))
+        }
+    }
+
+    // On the wire both would be opennlp:sentences, so the second is refused,
+    // under any instance name.
+    let mut doc = Document::new("Dogs bark.");
+    let mut s = Spans::new(ViewId::SOURCE);
+    s.push(Span::new(0, 10));
+    doc.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("t")).unwrap();
+    let e = doc.add(&Key::named("other"), OtherSentences, Provenance::by("t")).unwrap_err();
+    assert_eq!(e.to_string(), "opennlp:sentences@other already names another layer type");
+
+    // And a pipeline holding both is refused when it is built.
+    let both = Analyzer::builder().add(Sentencer).step(Bound::new(OtherSentencer).write(0, "other")).build();
+    assert_eq!(both.err().unwrap(), Error::Pipeline("two layer types are both opennlp:sentences".into()));
 }
 
 #[test]
@@ -369,6 +497,18 @@ fn layers_are_checked_when_they_are_added() {
     let tags = PosTags { tagset: TagSet::new("toy", &["X"]), tags: vec![Tag(0), Tag(0)], prob: None };
     let e = doc.add(&Key::DEFAULT, tags, Provenance::by("t")).unwrap_err();
     assert!(matches!(e, Error::Misaligned { len: 2, anchor_len: 1, .. }));
+
+    // An index into another layer must be inside it: a token's sentence is
+    // one the document has.
+    let mut doc = Document::new("Dogs bark.");
+    let mut s = Spans::new(ViewId::SOURCE);
+    s.push(Span::new(0, 10));
+    doc.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("t")).unwrap();
+    let mut t = Spans::new(ViewId::SOURCE);
+    t.push(Span::new(0, 4));
+    let tokens = Tokens { spans: t, sentence: Some(vec![Ix::new(1)]) };
+    let e = doc.add(&Key::DEFAULT, tokens, Provenance::by("t")).unwrap_err();
+    assert_eq!(e.to_string(), "opennlp:tokens: an index past the end of opennlp:sentences, which has 1");
 }
 
 #[test]

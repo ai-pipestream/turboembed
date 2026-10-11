@@ -1,5 +1,6 @@
 //! The analyzer: a validated graph of steps, run over batches.
 
+use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 
 use crate::annotate::{AnchorUse, Annotator, Bound, Step};
@@ -32,20 +33,21 @@ impl Analyzer {
         self.stages.iter().map(|s| s.iter().map(|&i| self.steps[i].id()).collect()).collect()
     }
 
-    /// Runs every stage over the batch. Each document gets its own result:
-    /// one document's failure does not stop the others.
+    /// Runs every stage over the batch. A step that fails on a document,
+    /// by an error or a panic, fails only its own layers there: the steps
+    /// that need them are skipped and say why, the others still run, and
+    /// no other document is touched. Each document's result is its first
+    /// failure.
     pub fn run(&self, docs: &mut [Document]) -> Vec<Result<(), Error>> {
         let mut status: Vec<Result<(), Error>> = (0..docs.len()).map(|_| Ok(())).collect();
         for stage in &self.stages {
-            let live: Vec<bool> = status.iter().map(|s| s.is_ok()).collect();
             let outputs: Vec<_> = if stage.len() == 1 {
-                vec![self.steps[stage[0]].compute(docs, &live)]
+                vec![self.steps[stage[0]].compute(docs)]
             } else {
-                let (docs, live) = (&*docs, &live);
+                let docs = &*docs;
                 std::thread::scope(|s| {
-                    let running: Vec<_> =
-                        stage.iter().map(|&i| s.spawn(move || self.steps[i].compute(docs, live))).collect();
-                    running.into_iter().map(|h| h.join().expect("a step panicked")).collect()
+                    let running: Vec<_> = stage.iter().map(|&i| s.spawn(move || self.steps[i].compute(docs))).collect();
+                    running.into_iter().map(|h| h.join().expect("an annotator's panics are caught")).collect()
                 })
             };
             for (&i, out) in stage.iter().zip(outputs) {
@@ -80,10 +82,17 @@ impl Builder {
         self
     }
 
-    /// Checks the graph and orders it: every read has exactly one producer
-    /// (a step or a given layer), every aligned output's anchor is one of
-    /// its step's reads, and there is no cycle.
+    /// Checks the graph and orders it: one layer type per id, every read
+    /// with exactly one producer (a step or a given layer), every aligned
+    /// output's anchor one of its step's reads, and no cycle.
     pub fn build(self) -> Result<Analyzer, Error> {
+        let mut types: HashMap<(&str, &str), TypeId> = HashMap::new();
+        let keys = self.steps.iter().flat_map(|s| s.reads().into_iter().chain(s.writes()));
+        for k in self.given.iter().copied().chain(keys) {
+            if *types.entry((k.layer.id, k.layer.of)).or_insert(k.ty) != k.ty {
+                return Err(Error::Pipeline(format!("two layer types are both {}", k.layer)));
+            }
+        }
         let mut producer: HashMap<KeyId, Option<usize>> = self.given.iter().map(|&k| (k, None)).collect();
         for (i, s) in self.steps.iter().enumerate() {
             for w in s.writes() {
