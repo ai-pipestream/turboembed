@@ -159,7 +159,7 @@ carry the same labels as their issue.
 | Area | `area:analysis`, `area:chunking`, `area:embedding`, `area:core`, `area:bundle`, `area:bench`, `area:grpc`, `area:ffi`, `area:docs`, `area:ci` | Which part of the tree. More than one is allowed. `area:analysis` is the analysis crates and the OpenNLP port. |
 | Stage | `stage:0` to `stage:7` | Analysis work only: the landing stage from the analysis design, which is also the issue's milestone. |
 | Hardware | `hw:cuda`, `hw:levelzero`, `hw:npu`, `hw:metal`, `hw:cpu`, `hw:hailo` | Which backend the work touches and so which device must prove it. More than one is allowed. |
-| Type | `type:feature`, `type:bug`, `type:research`, `type:chore` | What kind of work it is. |
+| Type | `type:feature`, `type:bug`, `type:research`, `type:chore`, `type:epic` | What kind of work it is. An epic is a stage's parent issue: it lists the work as sub-issues, belongs to the coordinator, and is never claimed by a coding agent. |
 | Priority | `priority:p0`, `priority:p1`, `priority:p2` | Order of work. `p0` blocks other work. |
 | Review | `adversary-review` | The work is waiting for, or under, adversary review. |
 
