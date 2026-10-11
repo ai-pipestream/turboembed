@@ -384,9 +384,9 @@ faster and more capable, not a line-by-line copy. Read
   `opennlp:tokens`, `opennlp:pos` and so on) and TurboEmbed's own use
   `turbo:` ids. Retrieval chunks are `turbo:chunks`, because
   `opennlp:chunks` means phrase chunks. One id names one layer type.
-- Offsets are UTF-8 byte offsets into one view until the open offsets
-  decision in `docs/decisions.md` is settled. Do not add UTF-16 handling
-  ahead of it.
+- Offsets are UTF-8 byte offsets into one view. UTF-16 and code point
+  offsets exist only at the Java and wire edge, through a checkpoint
+  table per view (`docs/decisions.md`).
 - An annotator that ports an OpenNLP component proves it matches
   OpenNLP: golden files produced by the OpenNLP 3.x JVM on the same input
   and model, checked in with the command that made them, and a test that

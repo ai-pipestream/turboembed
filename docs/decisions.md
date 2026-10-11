@@ -14,32 +14,48 @@ added with the analysis crates in
 [#142](https://github.com/ai-pipestream/turboembed/pull/142), describes it.
 
 1. **A type per layer.** Each kind of analysis result is its own Rust
-   type, and annotators declare the layer types they read and write.
-2. **Crates in this workspace.** The analysis core, one crate for shared
-   layers, and a crate per add-on with its own small schema crate.
-3. **Standard ids.** Shared layers use `opennlp:` ids; TurboEmbed's own
-   layers use `turbo:` ids.
-4. **OpenNLP parity by golden files.** The OpenNLP 3.x JVM produces
-   golden files that the Rust annotators are tested against.
-5. **No run-time bridge to OpenNLP.** No JVM and no native OpenNLP
-   library at run time.
-6. **OpenNLP 3.x models are read directly.** The `.bin` model files load
-   without conversion.
-7. **Normalizers first.** Text normalization, which writes new views,
-   lands before the annotators that read normalized text.
-8. **Evaluation sets.** Ported components report numbers on the agreed
-   evaluation sets next to OpenNLP's.
-9. **Training in pinned containers.** Model training and golden-file
-   generation run in pinned containers driven from Rust.
-10. **OpenNLP 2.x is out of scope.**
-11. **No greedy chunking.** Chunking reads the analysis layers and keeps
-    exact offsets to the source; token-budget packing is not a chunker.
+   type, stored by column, with tags, lemmas and parses as layers aligned
+   to tokens. A step gets only the layers it declares.
+2. **Crates in this workspace.** An analysis core, one schema crate for
+   the shared layers, and a crate per add-on. A consumer of a layer never
+   depends on the add-on that produces it.
+3. **Standard ids.** Shared layers take the OpenNLP standard's
+   `opennlp:` ids, each mapped to its `StandardLayer` value. Layers the
+   standard lacks (structure, boundaries, confidence) are `turbo:` and
+   are proposed to it. A shared-layer change bumps the schema version.
+4. **Offsets.** UTF-8 byte offsets inside. Exact UTF-16 and code point
+   offsets at the Java and wire edge, through a checkpoint table per
+   view.
+5. **Keeping up with OpenNLP.** Golden typed-layer files are made on the
+   JVM from a pinned OpenNLP 3.x commit, and CI compares Rust against
+   them, so CI needs no JVM. Regenerating them at a newer commit lists
+   what Rust must catch up on.
+6. **No native OpenNLP library in turboembed.** `libopennlp.so` stays a
+   local tool for differential fuzzing only.
+7. **Models.** OpenNLP 3.x `.bin` models are read as they are, by format
+   id, with the manifest hash in provenance. New models ship as
+   turboembed bundles.
+8. **Normalizers first.** Offset-aware NFC, NFKC, case folding,
+   whitespace and dehyphenation come first; confusables and the emoji and
+   social-media folds come later.
+9. **C header additions.** One write and one field, added when stage 2
+   is built: late pooling (token ranges in, one vector per range out) and
+   a thread count in `turbo_session_desc`. A device-side copy for a
+   vectors layer waits for a benchmark record that shows it pays.
+10. **Evaluation sets.** A BEIR subset, LegalBench-RAG mini, ConTEB,
+    GutenQA, HiCBench and Qasper first; then an enterprise-document
+    benchmark built and published by the project.
+11. **Training.** Models are trained in a pinned container driven by
+    `turbo-bundle`, and the result is sealed as a bundle.
 
-Open:
+Also settled:
 
-- **Offsets at the edge.** Inside, offsets are UTF-8 byte offsets into
-  one view. How UTF-16 offsets are produced for Java and the wire is not
-  decided; until it is, the code is UTF-8 only.
-- **Additions to the C header for analysis.** Which writes go into
-  `include/turbo/` at stage 2 is still being decided. Do not change the
-  header for analysis until it is.
+- **OpenNLP 2.x is out of scope.**
+- **No greedy chunking.** Chunking reads the analysis layers and keeps
+  exact offsets to the source; token-budget packing is not a chunker.
+- **When a stage lands.** Its ported annotators reproduce the JVM
+  goldens' spans and labels exactly and their probabilities within a
+  stated tolerance, with benchmark records on each backend they run on.
+  Work with no OpenNLP counterpart (the chunker, boundary costs, late
+  pooling, the normalization offset maps) lands through the chunker
+  gates and its own tests instead.
