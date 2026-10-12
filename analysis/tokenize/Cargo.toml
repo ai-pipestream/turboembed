@@ -11,9 +11,8 @@ name = "turbo_tokenize"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
-# The model file, the classifier and the abbreviation dictionary.
+# OpenNLP model files and dictionary XML: the maxent tokenizer's model
+# and abbreviations, and the detokenizer dictionary.
 turbo-maxent = { path = "../maxent" }
-# Java's character classes, the whitespace modes, the UTF-16 cursor and
-# modified UTF-8.
 turbo-tokenize-layers = { path = "../tokenize-layers" }
 turbo-unicode = { path = "../unicode" }
