@@ -120,9 +120,9 @@ two separators with an empty piece between them that is dropped;
 `str::lines` is not used because it does not split on a lone `\r`. The
 separators are ASCII, so the scan is over bytes, eight at a time, and
 whitespace is decoded only where a byte is not ASCII. The function
-`newline_spans` gives the same spans outside a pipeline. The golden
-files `newline` and `newline-legacy` are matched exactly, in UTF-8 and
-UTF-16 offsets.
+`newline_spans` gives the same spans outside a pipeline. The goldens of
+the runs `newline` and `newline+legacy` are matched exactly, in UTF-8
+and UTF-16 offsets.
 
 ### `ParagraphDetector`
 
@@ -214,13 +214,15 @@ The model's `ModelRef` is `opennlp:SentenceDetectorME:<language>`, the
 OpenNLP version in the manifest as the revision, and the SHA-256 of the
 model file.
 
-The golden files are `sentdetect-me-de`, `sentdetect-me-en` and
-`sentdetect-me-pt`, made with the three published UD models checked in
-under `analysis/sentdetect/tests/models`. The published models have no
-abbreviation dictionary, so two small English models trained on the JVM
-(`analysis/sentdetect/tests/fixtures`, with the Java sources and the
-commands) cover the dictionary, `useTokenEnd=false` and both whitespace
-modes, with every context compared feature by feature.
+The goldens are the runs of the three published UD models checked in
+under `analysis/sentdetect/tests/models`
+(`analysis/goldens/data/sentdetect/opennlp-<language>-...`). The
+published models have no abbreviation dictionary, so two small English
+models trained on the JVM (`en-abbrev.bin` and `en-plain.bin` in
+`analysis/goldens/data/fixtures`; the training sentences, the Java
+source and the commands are in `analysis/sentdetect/tests/fixtures`)
+cover the dictionary, `useTokenEnd=false` and both whitespace modes,
+with every context of their dumps compared feature by feature.
 
 ## Tokenization
 

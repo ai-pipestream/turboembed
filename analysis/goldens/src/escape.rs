@@ -12,6 +12,9 @@
 //! the BMP written as two of them (a high surrogate, then a low one) is
 //! that one character. A lone surrogate is refused, as is a raw character
 //! below U+0020, which a conforming writer never leaves unescaped.
+//! `unescape_utf16` is the one exception: it decodes to UTF-16 units and
+//! takes a lone surrogate, which a decision point dump's contexts can
+//! hold.
 
 use std::fmt;
 
