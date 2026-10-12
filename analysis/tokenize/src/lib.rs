@@ -10,13 +10,20 @@
 //! - [`whitespace`]: `WhitespaceTokenizer`, runs of non-whitespace.
 //! - [`uax29`]: the UAX #29 word segmenter and `WordTokenizer`, which
 //!   also writes the word type of each token.
+//! - [`me`]: the maxent tokenizer, `TokenizerME`, which reads an OpenNLP
+//!   tokenizer model and writes a confidence per token; the model file's
+//!   SHA-256 from turbo-maxent identifies it in the provenance.
 //!
-//! Each tokenizer is also a plain function over a `&str` that appends
-//! spans to a caller's buffer, for use outside a pipeline. The maxent
-//! tokenizer and the dictionary detokenizer are later additions to this
-//! crate. docs/segmentation.md describes the design and every place the
-//! ports differ from OpenNLP on purpose.
+//! Each rule tokenizer is also a plain function over a `&str` that appends
+//! spans to a caller's buffer, for use outside a pipeline.
+//!
+//! [`detok`] is OpenNLP's `DictionaryDetokenizer`, which rebuilds text
+//! from tokens with a detokenizer dictionary. It is not an annotator.
+//!
+//! docs/segmentation.md describes the design and every place the ports
+//! differ from OpenNLP on purpose.
 
+pub mod me;
 pub mod simple;
 pub mod uax29;
 pub mod unit;
@@ -28,11 +35,13 @@ pub use simple::{SimpleTokenizer, simple_spans};
 pub use turbo_tokenize_layers::{WordType, WordTypes};
 pub use turbo_unicode::WhitespaceMode;
 pub use uax29::{UntypedWordTokenizer, WordTokenizer, word_boundaries, word_tokens};
-pub use unit::tokenize_units;
+pub use unit::{UnitToken, tokenize_units, tokenize_units_with};
 pub use whitespace::{WhitespaceTokenizer, whitespace_spans};
 
-/// The options the simple and whitespace tokenizers share, as OpenNLP's
-/// `WhitespaceMode` and `AbstractTokenizer.setKeepNewLines` set them.
+/// The options the simple, whitespace and maxent tokenizers share, as
+/// OpenNLP's `WhitespaceMode` and `AbstractTokenizer.setKeepNewLines` set
+/// them. For the maxent tokenizer they decide the whitespace units the
+/// model sees, and the mode also decides its `_ws` feature.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TokenizerOptions {
     /// Which characters are whitespace.
@@ -42,8 +51,9 @@ pub struct TokenizerOptions {
 }
 
 impl TokenizerOptions {
-    /// The options as a configuration hash, for provenance.
-    pub(crate) fn config_hash(self) -> u64 {
+    /// The options as a configuration hash, for provenance: 64-bit FNV-1a
+    /// over one byte per option, the same on every platform.
+    pub fn config_hash(self) -> u64 {
         let mode = match self.whitespace {
             WhitespaceMode::Legacy => 0,
             WhitespaceMode::Unicode => 1,
