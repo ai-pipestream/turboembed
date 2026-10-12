@@ -9,6 +9,7 @@ the Unicode 17.0.0 release and are used under the Unicode License v3
 |---|---|
 | `UnicodeData.txt`, `CaseFolding.txt`, `SpecialCasing.txt`, `DerivedNormalizationProps.txt`, `DerivedCoreProperties.txt`, `NormalizationTest.txt`, `PropList.txt`, `Scripts.txt`, `CompositionExclusions.txt` | UCD 17.0.0, `https://www.unicode.org/Public/17.0.0/ucd/` |
 | `DerivedGeneralCategory.txt`, `DerivedCombiningClass.txt` | UCD 17.0.0, `ucd/extracted/` |
+| `WordBreakProperty.txt` | UCD 17.0.0, `ucd/auxiliary/`; the same bytes as the copy OpenNLP bundles for its UAX #29 tokenizer |
 | `emoji-data.txt`, `emoji-variation-sequences.txt` | UCD 17.0.0, `ucd/emoji/` |
 | `emoji-sequences.txt`, `emoji-zwj-sequences.txt`, `emoji-test.txt` | Unicode Emoji 17.0, `https://www.unicode.org/Public/emoji/17.0/` |
 | `confusables.txt` | Unicode Security Mechanisms 17.0.0 (UTS #39), `https://www.unicode.org/Public/security/17.0.0/` |
