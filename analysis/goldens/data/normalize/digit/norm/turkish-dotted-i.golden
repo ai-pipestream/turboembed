@@ -1,7 +1,7 @@
 golden 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	norm/turkish-dotted-i	199	179	45d1c7b73bc6d7d81f026ccc7e40b9f8a7dcb89879faafc6f1a20e6058b973d2
 annotator	opennlp.tools.util.normalizer.DigitCharSequenceNormalizer	normalizeAligned

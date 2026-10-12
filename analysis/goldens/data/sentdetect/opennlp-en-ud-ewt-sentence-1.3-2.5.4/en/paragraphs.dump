@@ -1,7 +1,7 @@
 dump 1
 generator	turbo-goldens-java	1
 opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
-jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
 unicode	15.0
 input	en/paragraphs	356	356	eaca16d3efa3ea3ed6853381c5ad6ccb382a2096f35004fa4557113f9454a1a0
 model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
@@ -17,6 +17,7 @@ context	n=Over
 context	ncap
 outcome	s	3fefc54ce58ebbfd 0.9928345187707915
 outcome	n	3f7d598d38a20114 0.007165481229208365
+acceptable	1
 end	0
 point	1	98	8	2	0	none
 context	sn
@@ -29,6 +30,7 @@ context	n=When
 context	ncap
 outcome	s	3feff769074de702 0.9989514486944417
 outcome	n	3f512df16431fb6a 0.0010485513055582215
+acceptable	1
 end	1
 point	2	148	8	2	0	none
 context	sn
@@ -41,6 +43,7 @@ context	n=Farmers
 context	ncap
 outcome	s	3fefc125292beaa6 0.9923272899753399
 outcome	n	3f7f6d6b6a0aad64 0.0076727100246601655
+acceptable	1
 end	2
 point	3	219	8	2	0	none
 context	sn
@@ -53,6 +56,7 @@ context	n=The
 context	ncap
 outcome	s	3fef8ae2c7b6e8a9 0.9857038403199755
 outcome	n	3f8d474e1245d5fc 0.014296159680024616
+acceptable	1
 end	3
 point	4	255	8	2	0	none
 context	sn
@@ -65,6 +69,7 @@ context	n=Today
 context	ncap
 outcome	s	3fefdeaa56cdf5e5 0.9959308333779374
 outcome	n	3f70aad499050d5d 0.004069166622062551
+acceptable	1
 end	4
 point	5	297	8	2	0	none
 context	sn
@@ -77,6 +82,7 @@ context	n=That
 context	ncap
 outcome	s	3feffcd03f820390 0.9996110191715264
 outcome	n	3f397e03efe37e96 3.8898082847358664E-4
+acceptable	1
 end	5
 point	6	354	7	2	0	none
 context	sn
@@ -88,4 +94,5 @@ context	s=
 context	n=
 outcome	s	3fefff912cb6cb31 0.9999471543618254
 outcome	n	3f0bb4d24d33eced 5.284563817472576E-5
+acceptable	1
 end	6

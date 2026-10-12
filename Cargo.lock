@@ -1757,6 +1757,7 @@ dependencies = [
  "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-chunker",
 ]
 
 [[package]]
@@ -1795,6 +1796,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-normalize",
+ "turbo-structure",
 ]
 
 [[package]]
@@ -1913,6 +1915,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-maxent",
  "turbo-unicode",
 ]
@@ -1945,6 +1948,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-stopword"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-stopword-layers",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-stopword-layers"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+]
+
+[[package]]
 name = "turbo-structure"
 version = "0.1.0"
 dependencies = [
@@ -1959,6 +1980,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-goldens",
  "turbo-maxent",
  "turbo-tokenize-layers",
  "turbo-unicode",

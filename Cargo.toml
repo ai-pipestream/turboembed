@@ -27,6 +27,8 @@ members = [
     "analysis/langdetect",
     "analysis/stem",
     "analysis/stem-layers",
+    "analysis/stopword",
+    "analysis/stopword-layers",
 ]
 resolver = "3"
 

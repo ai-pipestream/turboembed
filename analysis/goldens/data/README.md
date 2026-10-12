@@ -23,22 +23,76 @@ are not taken from any corpus.
   Italian, Dutch, Russian, Japanese, Chinese and Arabic, and a mixed
   script text with emoji, CJK Extension B characters and mathematical
   letters outside the Basic Multilingual Plane.
+- `inputs/edge/`: 34 short texts for the edge cases of the segmenters:
+  abbreviations, numbers, quotes and brackets, dashes and hyphens,
+  ellipses, URLs and e-mail addresses, apostrophes, CR LF and lone CR,
+  tabs, no-break and ideographic spaces, `U+0085`, `U+2028`, `U+2029`,
+  the separators `U+001C..U+001F`, leading and trailing whitespace, an
+  empty input and a whitespace only input, Spanish, French and German,
+  Greek, Cyrillic, Hebrew, Arabic, Japanese, Chinese, Korean, Thai, emoji
+  (single, with skin tone, ZWJ sequence, flags, keycap), combining marks,
+  characters outside the Basic Multilingual Plane, and two long words (300
+  letters, and 254 letters followed by an emoji so that a cut after 255
+  UTF-16 units falls inside a pair).
+- `inputs/surrogate/`: texts on which a tokenizer model splits between the
+  two halves of a surrogate pair. The name starts with the language whose
+  model splits it; every model runs every file.
+- `inputs/abbreviations/`: texts for the abbreviation dictionary of a
+  tokenizer: known abbreviations, units, and a run of dots that the
+  dictionary check jumps over.
+- `inputs/alphanumeric/mixed.txt`: letters, digits and accented letters
+  for the alphanumeric optimization.
+- `inputs/detokenizer/`: one token per line, each line ending with a line
+  feed (an empty file is an empty token list). The part of the name before
+  the first `-` names the dictionary, `fixtures/<name>-detokenizer.xml`.
+- `inputs/sentence-fixture/`: 17 texts for the two fixture sentence
+  models: abbreviations at the start, in upper case, after a bracket or an
+  apostrophe; numbers with dots; quotes after the period; `z.B.` style
+  runs and an upper case letter after a period; a split whose token runs
+  on past it (`hard.Bekannt.`); a lone `.`; a text without a final
+  period; whitespace only; CR LF and lone CR; leading and trailing
+  whitespace; `U+0085`, `U+2028`, `U+2029`; `U+001C` and `U+001F`; emoji
+  inside a sentence; a character outside the Basic Multilingual Plane
+  right after a period, also at the very end.
+
+`analysis/goldens-tool/README.md` ("Runs") lists which run reads which set.
+
+## Fixtures
+
+`fixtures/` holds the models and dictionaries that are not published
+models. They are checked in, and `analysis/goldens-tool/src/recipe.rs`
+lists each with its SHA-512; `generate` and `verify` refuse a directory
+that differs.
+
+| File | What it is |
+|---|---|
+| `en-abbrev.bin`, `en-plain.bin` | English sentence models trained by `analysis/sentdetect/tests/fixtures/src/TrainSentenceModel.java` (see the README there): `en-abbrev` has an abbreviation dictionary of 13 entries and `useTokenEnd=true`, `en-plain` has no dictionary and `useTokenEnd=false` |
+| `tokenizer-abbreviations.bin` | a copy of `analysis/maxent/tests/fixtures/models/tokenizer.bin`, a tokenizer model OpenNLP trained on six sentences with the case-insensitive dictionary `Dr.`, `U.S.`, `e.g.` (`analysis/maxent/tests/fixtures/README.md`) |
+| `english-dictionary.xml` | an abbreviation dictionary written for this project, added to the English tokenizer model |
+| `latin-detokenizer.xml` | Apache OpenNLP's test resource of `DictionaryDetokenizerTest`, unchanged (license header kept) |
+| `en-detokenizer.xml`, `fr-detokenizer.xml`, `pt-detokenizer.xml` | Apache OpenNLP's English, French and Portuguese detokenizer dictionaries, `opennlp-tools/lang/{en,fr,pt}/tokenizer/`, unchanged (license header kept) |
+| `quotes-detokenizer.xml` | two `RIGHT_LEFT_MATCHING` entries, written for this project |
 
 ## Goldens
 
 `<annotator>/<model>/<set>/<id>.golden` is what the OpenNLP annotator
 `<annotator>` produced with model `<model>` (the model file's name
-without `.bin`) on `inputs/<set>/<id>.txt`. Each file's header names the
-OpenNLP commit, the JDK, the input's hash and the model's hash.
+without `.bin` or `.xml`) on `inputs/<set>/<id>.txt`. A run with options
+has `+` and their names after the model (`+legacy`, `+keep-new-lines`,
+`+alphanumeric`, `+english-dictionary`), and a run without a model names
+itself there (`simple`, `whitespace`, `uax29`, `newline`). Each file's
+header names the OpenNLP commit, the JDK, the input's hash, each model's
+hash and the run's options.
 
 Where a token or sentence starts or ends between the two halves of a
 surrogate pair, its row holds the whole character's bytes and the golden
 also has `turbo:utf16<opennlp:tokens>` (or `<opennlp:sentences>`) with
-the JVM's exact UTF-16 spans; only
-`tokenize/opennlp-en-ud-ewt-tokens-1.3-2.5.4/en/emoji-split.golden` has
-one now. A golden whose annotator threw on its input has an `error`
-record and no layers; none of the checked in goldens has one, as none of
-the annotators throws on these inputs. `docs/analysis.md` ("Generating
+the JVM's exact UTF-16 spans. `en/emoji-split`, eight of the
+`surrogate` goldens, the `simple` goldens of inputs with characters
+outside the Basic Multilingual Plane (`SimpleTokenizer` classifies UTF-16
+units) and four of the `tokenizer-abbreviations` goldens have one. A golden whose annotator threw on its input has an `error`
+record and no layers; `SimpleTokenizer` with `keepNewLines` throws on a
+whitespace only input, and those goldens have one. `docs/analysis.md` ("Generating
 golden files") describes both.
 
 Do not edit the goldens by hand. They are regenerated with the driver in
@@ -113,7 +167,8 @@ the set, and they have no dumps.
 ## Decision point dumps
 
 `<annotator>/<model>/<set>/<id>.dump`, beside each golden of
-`sentdetect`, `tokenize` and `langdetect`, records every
+`sentdetect`, `tokenize` and `langdetect` that names a model and has no
+`error` record, records every
 decision the annotator asked its maxent model for on that input: the
 context strings, at the UTF-8 byte offset the decision is about, and the
 probability of each outcome the model returned. `docs/analysis.md`
@@ -122,10 +177,7 @@ decisions are paired with positions. `generate` writes the dumps
 together with the goldens, and the same rule holds: do not edit them by
 hand.
 
-The dumps checked in now were made by running the Java generator
-directly with `--dumps` (see `analysis/goldens-tool/README.md`) under the
-JDK named in their headers, in the same run as the goldens, with the
-OpenNLP build and models named there. A normalizer asks no model, so the
-`normalize` goldens have no dumps; neither do the `numbers` goldens. The run in the pinned container,
-through `turbo-goldens generate` and `verify`, is still to be done on a
-machine with Docker.
+The goldens and dumps checked in now were made in the generator container by
+`turbo-goldens generate`, in one run, and `turbo-goldens verify`
+reproduces them byte for byte. A normalizer asks no model, so the
+`normalize` goldens have no dumps; neither do the `numbers` goldens.

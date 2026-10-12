@@ -1,9 +1,0 @@
-component: sentdetect-me-fixture-en-abbrev
-opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
-jdk: 21.0.12.1
-whitespace: legacy
-model: en-abbrev.bin
-model-sha256: 40a1d56b460d0c6b4f878c32858419136c89c75f40b84b0f9795a77a083cf2ec
-input: He thought hard.Bekannt. Sie kam.
-span: 0 24 0 24 0.9143696226128369
-span: 25 33 25 33 0.5792726955734898

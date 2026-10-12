@@ -14,8 +14,17 @@ package ai.pipestream.turbo.goldens;
  * @param values the feature value of each context, or {@code null} when {@code eval} was called
  *     without values
  * @param outcomes the probability of each outcome, in the model's outcome index order
+ * @param acceptable what the sentence detector's {@code isAcceptableBreak} returned for the point,
+ *     which it asks only when the model's best outcome is a split; {@code null} for every other
+ *     point and every other annotator
  */
-record DecisionPoint(long position, int unit, String[] contexts, float[] values, double[] outcomes) {
+record DecisionPoint(long position, int unit, String[] contexts, float[] values, double[] outcomes,
+    Boolean acceptable) {
+
+  /** A point the annotator asked nothing else about. */
+  DecisionPoint(long position, int unit, String[] contexts, float[] values, double[] outcomes) {
+    this(position, unit, contexts, values, outcomes, null);
+  }
 
   DecisionPoint {
     if (unit != 0 && unit != 1) {
@@ -24,6 +33,11 @@ record DecisionPoint(long position, int unit, String[] contexts, float[] values,
     if (values != null && values.length != contexts.length) {
       throw new IllegalArgumentException(values.length + " values for " + contexts.length + " contexts");
     }
+  }
+
+  /** This point with what {@code isAcceptableBreak} returned for it. */
+  DecisionPoint withAcceptable(boolean ok) {
+    return new DecisionPoint(position, unit, contexts, values, outcomes, ok);
   }
 
   /** A decision at a UTF-16 index of the input, converted to its UTF-8 byte offset. */

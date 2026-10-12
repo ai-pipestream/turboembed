@@ -51,7 +51,7 @@ fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
 }
 
 fn fixture(name: &str) -> ModelFile {
-    ModelFile::read(common::fixtures().join("models").join(name)).unwrap()
+    ModelFile::read(common::fixtures_dir().join(name)).unwrap()
 }
 
 /// The fixture model with abbreviations, with a different manifest and,
@@ -84,9 +84,12 @@ fn fixture_models_settings() {
     let r = m.model_ref();
     assert_eq!(r.id, "opennlp:SentenceDetectorME:en");
     assert_eq!(r.revision, "3.0.0-SNAPSHOT");
-    // The SHA-256 the golden files record for this file.
-    let golden = common::read(&common::fixtures().join("golden/sentdetect-me-fixture-en-abbrev/lone-period.txt"));
-    assert_eq!(Some(r.sha256.as_str()), golden.model_sha256.as_deref());
+    // The file the goldens were made with, by the SHA-512 they record,
+    // and the SHA-256 of the same bytes in the model reference.
+    let bytes = std::fs::read(common::fixtures_dir().join("en-abbrev.bin")).unwrap();
+    let golden = common::run("en-abbrev").into_iter().find(|c| c.golden.header.input.id == "lone-period").unwrap();
+    assert_eq!(golden.golden.header.models[0].sha512, turbo_goldens::sha512(&bytes));
+    assert_eq!(r.sha256, turbo_goldens::hex::to_hex(&turbo_goldens::sha256(&bytes)));
 
     let m = SentenceModel::open(fixture("en-plain.bin")).unwrap();
     assert!(!m.use_token_end());

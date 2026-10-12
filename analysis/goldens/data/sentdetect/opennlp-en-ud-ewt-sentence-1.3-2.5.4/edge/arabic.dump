@@ -1,0 +1,32 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/arabic	82	48	5aeeaa567149bf3362840f0155ba9116a1a099afc184f13bb0255bee8c6e8879
+model	opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin	fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	25	7	2	0	none
+context	sn
+context	eos=!
+context	x=بالعالم
+context	7
+context	v=مرحبا
+context	s=
+context	n=هذا
+outcome	s	3feed9a1f7d4a090 0.964066490215389
+outcome	n	3fa265e082b5f707 0.03593350978461101
+acceptable	1
+end	0
+point	1	62	7	2	0	none
+context	sn
+context	eos=.
+context	x=456
+context	3
+context	v=و
+context	s=
+context	n=كيف
+outcome	s	3fede5e45b3d7664 0.9343129903824772
+outcome	n	3fb0d0dd26144ce2 0.06568700961752286
+acceptable	1
+end	1

@@ -1,0 +1,19 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/leading-trailing	38	38	c68e6d28338346858ce49a6a2d3fad17811b099fea923812518b06f16ab68274
+annotator	opennlp.tools.tokenize.uax29.WordTokenizer	tokenizeTyped
+layer	opennlp:tokens	text	4	start:u32	end:u32
+4	11
+12	15
+16	24
+25	31
+end	opennlp:tokens
+layer	turbo:word-types	aligned:opennlp:tokens	4	kind:str
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+ALPHANUMERIC
+end	turbo:word-types

@@ -1,0 +1,75 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/greek-cyrillic	191	110	79aa0a28a938d78b6093561b7b74ca326c3b23be13e3028964a50fd8c7128d8a
+model	opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin	c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	27	9	2	0	none
+context	sn
+context	eos=!
+context	x=κόσμε
+context	5
+context	v=Καλημέρα
+context	vcap
+context	s=
+context	n=Ο
+context	ncap
+outcome	s	3feebb459bd7d87a 0.9603603404818977
+outcome	n	3fa44ba64282786b 0.03963965951810241
+acceptable	1
+end	0
+point	1	103	8	2	0	none
+context	sn
+context	eos=.
+context	x=οίδα»
+context	5
+context	v=ουδέν
+context	s=
+context	n=Привет,
+context	ncap
+outcome	s	3fefddb82c075101 0.9958153591092299
+outcome	n	3f7123e9fc577fc7 0.004184640890770148
+acceptable	1
+end	1
+point	2	125	9	2	0	none
+context	sn
+context	eos=!
+context	x=мир
+context	3
+context	v=Привет,
+context	vcap
+context	s=
+context	n=Как
+context	ncap
+outcome	s	3fea48f1e6df53dc 0.8214044102884333
+outcome	n	3fc6dc386482b093 0.17859558971156683
+acceptable	1
+end	2
+point	3	142	9	2	0	none
+context	sn
+context	eos=?
+context	x=дела
+context	4
+context	v=Как
+context	vcap
+context	s=
+context	n=Это
+context	ncap
+outcome	s	3fec501ee492e0ad 0.8847803558665156
+outcome	n	3fbd7f08db68fa9f 0.1152196441334845
+acceptable	1
+end	3
+point	4	189	7	2	0	none
+context	sn
+context	eos=.
+context	x=раза
+context	4
+context	v=3,5
+context	s=
+context	n=
+outcome	s	3feffd4fe3b0143d 0.9996718832995907
+outcome	n	3f3580e27f5e1b86 3.2811670040937995E-4
+acceptable	1
+end	4

@@ -1,6 +1,0 @@
-component: newline
-opennlp: cdf33c653d5d61d5af7d37ffee189a83bd8392ea
-jdk: 21.0.12.1
-whitespace: legacy
-input: El Sr. Garc\u00EDa dijo: \u00AB\u00BFD\u00F3nde est\u00E1 la ni\u00F1a?\u00BB y se fue a la se\u00F1al de tr\u00E1fico. \u00A1Qu\u00E9 d\u00EDa! Hab\u00EDa 1.000 a\u00F1os\u2026 ping\u00FCino, canci\u00F3n.\n
-span: 0 139 0 121

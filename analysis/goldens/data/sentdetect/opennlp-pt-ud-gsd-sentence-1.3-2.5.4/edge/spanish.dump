@@ -1,0 +1,105 @@
+dump 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	edge/spanish	140	122	f9fd56df613aecfdec7800f95eccc7f457cbd15ee602da070166ddeeed8c181d
+model	opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin	0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8
+annotator	opennlp.tools.sentdetect.SentenceDetectorME	sentPosDetect
+point	0	5	10	2	0	none
+context	sn
+context	eos=.
+context	x=Sr
+context	2
+context	xcap
+context	v=El
+context	vcap
+context	s=
+context	n=García
+context	ncap
+outcome	s	3fec2354c2709295 0.8793128774310214
+outcome	n	3fbee559ec7b6b56 0.1206871225689786
+acceptable	1
+end	0
+point	1	19	8	2	0	none
+context	sn
+context	eos=:
+context	x=dijo
+context	4
+context	v=García
+context	vcap
+context	s=
+context	n=«¿Dónde
+outcome	s	3f926fa198513786 0.018003964349467626
+outcome	n	3fef6c82f33d7643 0.9819960356505323
+end	1
+point	2	21	6	2	0	none
+context	sp
+context	eos=«
+context	x=
+context	v=dijo:
+context	s=¿Dónde
+context	n=está
+outcome	s	3f758f814813992f 0.00526381016354653
+outcome	n	3fefd4e0fd6fd8cd 0.9947361898364534
+end	2
+point	3	47	7	2	0	none
+context	sn
+context	eos=»
+context	x=?
+context	1
+context	v=niña
+context	s=
+context	n=y
+outcome	s	3feff897f56bac43 0.9990958970423737
+outcome	n	3f4da02a514ef614 9.04102957626387E-4
+acceptable	1
+end	3
+point	4	82	7	2	0	none
+context	sn
+context	eos=.
+context	x=tráfico
+context	7
+context	v=de
+context	s=
+context	n=¡Qué
+outcome	s	3fef3bf5d7ec5371 0.9760693757294644
+outcome	n	3f988145027591ec 0.023930624270535647
+acceptable	1
+end	4
+point	5	95	8	2	0	none
+context	sn
+context	eos=!
+context	x=día
+context	3
+context	v=¡Qué
+context	s=
+context	n=Había
+context	ncap
+outcome	s	3feca6532dcb5f53 0.8953033346578912
+outcome	n	3fbacd6691a50567 0.10469666534210874
+acceptable	1
+end	5
+point	6	105	7	2	0	none
+context	eos=.
+context	x=1
+context	1
+context	v=Había
+context	vcap
+context	s=000
+context	n=años…
+outcome	s	3f67843319bb2dd0 0.0028706548745043095
+outcome	n	3fefe87bcce644d3 0.9971293451254958
+end	6
+point	7	138	7	2	0	none
+context	sn
+context	eos=.
+context	x=canción
+context	7
+context	v=pingüino,
+context	s=
+context	n=
+outcome	s	3feffc3a42f1bb5a 0.9995394999985863
+outcome	n	3f3e2de872252eec 4.6050000141371786E-4
+acceptable	1
+end	7

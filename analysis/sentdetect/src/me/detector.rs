@@ -258,7 +258,7 @@ mod tests {
     use super::*;
 
     fn detector(name: &str, mode: WhitespaceMode) -> SentenceDetector {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/models").join(name);
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures").join(name);
         SentenceDetector::new(SentenceModel::open(ModelFile::read(path).unwrap()).unwrap(), mode)
     }
 
@@ -310,8 +310,8 @@ mod tests {
         // detect_traced builds every feature as the Java does. On texts
         // without whitespace every word reaches to an end of the text.
         let models = [
-            "tests/fixtures/models/en-abbrev.bin",
-            "tests/fixtures/models/en-plain.bin",
+            "../goldens/data/fixtures/en-abbrev.bin",
+            "../goldens/data/fixtures/en-plain.bin",
             "tests/models/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
             "tests/models/opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
         ];

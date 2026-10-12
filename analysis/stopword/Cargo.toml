@@ -1,0 +1,17 @@
+[package]
+name = "turbo-stopword"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[lib]
+name = "turbo_stopword"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
+turbo-stopword-layers = { path = "../stopword-layers" }
+# Character.toLowerCase(int), which OpenNLP's case-insensitive lookup applies.
+turbo-unicode = { path = "../unicode" }
