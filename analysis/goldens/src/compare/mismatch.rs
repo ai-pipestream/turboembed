@@ -15,6 +15,10 @@ use crate::hex::to_hex;
 pub enum Mismatch {
     /// The document's text is not the golden's input.
     Input { layer: String, expected_len: u32, found_len: usize, expected_sha256: [u8; 32], found_sha256: [u8; 32] },
+    /// The annotator threw on the JVM, so the golden has no layers. A test
+    /// of an input where the Rust port corrects the defect asserts this
+    /// and then the Rust output itself.
+    JvmError { layer: String, class: String, message: String },
     /// The golden file has no layer with this id.
     MissingGolden { layer: String, available: Vec<String> },
     /// The document has no data for the layer; `status` says why when it
@@ -42,8 +46,8 @@ pub enum Mismatch {
     /// One side has more items. `extra` is the first item past the
     /// shorter side, from the longer one.
     Count { layer: String, rust: usize, golden: usize, extra: Box<Item> },
-    /// Item `index` differs in `what`: `span`, `tokens`, or the name of a
-    /// label or value column. Both items are reported whole.
+    /// Item `index` differs in `what`: `span`, `tokens`, `UTF-16 span`,
+    /// `cut`, or the name of a label or value column. Both items are reported whole.
     Item { layer: String, index: usize, what: &'static str, tolerance: Tolerance, rust: Box<Item>, golden: Box<Item> },
 }
 
@@ -59,6 +63,9 @@ pub struct Item {
     pub text: Option<String>,
     /// For an entity, its tokens `[start, end)`.
     pub tokens: Option<(u32, u32)>,
+    /// For a `turbo:utf16<L>` row, its span in UTF-16 units `[start, end)`
+    /// and whether it cuts a character.
+    pub units: Option<(u32, u32, bool)>,
     /// The label column's name and value: a tag, a lemma, a kind, a code.
     pub label: Option<(&'static str, String)>,
     /// The value column's name and value: a probability or confidence.
@@ -72,6 +79,7 @@ impl Mismatch {
         use Mismatch::*;
         match self {
             Input { layer, .. }
+            | JvmError { layer, .. }
             | MissingGolden { layer, .. }
             | MissingLayer { layer, .. }
             | Anchor { layer, .. }
@@ -97,6 +105,9 @@ impl fmt::Display for Mismatch {
                 to_hex(found_sha256),
                 to_hex(expected_sha256)
             ),
+            JvmError { layer, class, message } => {
+                write!(f, "{layer}: the annotator threw on the JVM, so the golden has no layers: {class}: {message:?}")
+            }
             MissingGolden { layer, available } => {
                 write!(f, "{layer}: the golden has no such layer; it has [{}]", available.join(", "))
             }
@@ -157,6 +168,10 @@ impl fmt::Display for Item {
         }
         if let Some((a, b)) = self.tokens {
             write!(f, "{sep}tokens {a}..{b}")?;
+            sep = ", ";
+        }
+        if let Some((a, b, cut)) = self.units {
+            write!(f, "{sep}UTF-16 units {a}..{b}{}", if cut { ", cut" } else { ", not cut" })?;
             sep = ", ";
         }
         if let Some((name, l)) = &self.label {
