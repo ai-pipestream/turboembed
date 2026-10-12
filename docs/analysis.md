@@ -46,7 +46,11 @@ the whole edit (a start to its start, an end to its end), so a mapped
 span covers everything the original covered.
 
 A normalizer writes its text through a `ViewBuilder`, which records the
-alignment as it goes, so no view exists without one. A layer's spans
+alignment as it goes, so no view exists without one. Each `replace` call
+is one edit, never merged with the edit before it, so the caller chooses
+the granularity: three characters replaced one call each keep a
+one-to-one mapping per character, and a run replaced in one call is one
+edit over the whole run. A layer's spans
 name the view they are in, and `Document::to_source` maps them back
 through any chain of views to exact source bytes.
 
