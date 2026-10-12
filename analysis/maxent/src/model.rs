@@ -97,6 +97,12 @@ impl MaxentModel {
         self.pred_param.len()
     }
 
+    /// The distinct predicate names, as Java modified UTF-8, in no
+    /// particular order.
+    pub fn predicates(&self) -> impl Iterator<Item = &[u8]> {
+        self.predicates.keys().map(|k| &**k)
+    }
+
     /// Whether the model has a predicate with this name.
     pub fn has_predicate(&self, name: &str) -> bool {
         match modified_utf8(name, &mut Vec::new()) {
@@ -109,12 +115,6 @@ impl MaxentModel {
     /// modified UTF-8.
     pub fn has_predicate_modified_utf8(&self, name: &[u8]) -> bool {
         self.predicates.contains_key(name)
-    }
-
-    /// The distinct predicate names, as Java modified UTF-8, in no
-    /// particular order.
-    pub fn predicates(&self) -> impl Iterator<Item = &[u8]> {
-        self.predicates.keys().map(|k| &**k)
     }
 
     /// Writes the probability of each outcome given the context's features
@@ -319,6 +319,15 @@ mod tests {
     }
 
     #[test]
+    fn predicates_are_listed_as_modified_utf8() {
+        let m = model(ModelKind::Gis);
+        let mut names: Vec<&[u8]> = m.predicates().collect();
+        names.sort();
+        assert_eq!(names, [&b"e\xED\xA0\xBD\xED\xB8\x80"[..], b"n\xC0\x80", b"p", b"q"]);
+        assert!(names.iter().all(|n| m.has_predicate_modified_utf8(n)));
+    }
+
+    #[test]
     fn gis_adds_the_uniform_prior_then_normalizes() {
         let got = eval(&model(ModelKind::Gis), &["p", "q", "unknown"]);
         let r = log(1.0 / 3.0);
@@ -394,10 +403,6 @@ mod tests {
         assert_eq!(m.num_parameters(), 5);
         assert!(m.has_predicate("q"));
         assert!(!m.has_predicate("r"));
-        let mut names: Vec<&[u8]> = m.predicates().collect();
-        names.sort();
-        let want: [&[u8]; 4] = [b"e\xED\xA0\xBD\xED\xB8\x80", b"n\xC0\x80", b"p", b"q"];
-        assert_eq!(names, want);
     }
 
     #[test]
