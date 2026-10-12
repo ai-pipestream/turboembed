@@ -119,7 +119,7 @@ impl TokenizerMe {
                     for _ in 0..dots {
                         at.step_forward();
                     }
-                    let mut next = at.clone();
+                    let mut next = at;
                     next.step_forward();
                     start = if next.char_start() { next.byte_offset() } else { next.byte_offset() + 4 };
                 } else if at.char_start() {

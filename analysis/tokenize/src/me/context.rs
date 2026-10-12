@@ -244,7 +244,7 @@ pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMod
     }
 
     out.char_features(b"p1", p1, mode);
-    let mut back = at.clone();
+    let mut back = *at;
     back.step_back();
     match back.peek_prev_unit() {
         Some(p2) => {
