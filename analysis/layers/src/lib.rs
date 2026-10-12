@@ -219,7 +219,7 @@ impl Layer for Subwords {
 pub struct PosTags {
     pub tagset: Arc<TagSet>,
     pub tags: Vec<Tag>,
-    pub prob: Option<Vec<f32>>,
+    pub prob: Option<Vec<f64>>,
 }
 
 impl Layer for PosTags {
@@ -275,7 +275,7 @@ pub struct Entities {
     pub tokens: Vec<IxRange<Tokens>>,
     pub kind: Vec<Tag>,
     pub kinds: Arc<TagSet>,
-    pub score: Vec<f32>,
+    pub score: Vec<f64>,
 }
 
 impl Layer for Entities {
@@ -320,6 +320,8 @@ pub enum Cut {
 /// step weighs and sums them into the default instance, since a layer has
 /// one writer; the chunker reads only that.
 pub struct Boundaries {
+    /// f32, unlike the model probabilities in other layers: costs are
+    /// computed here in Rust and never compared against OpenNLP's output.
     pub cost: Vec<f32>,
     pub reason: Vec<Cut>,
 }
@@ -423,12 +425,12 @@ impl<L: Layer> Layer for Vectors<L> {
 /// A confidence per item of layer `L`, for any layer whose producer has
 /// one: a tokenizer's, a name finder's, a parser's arcs.
 pub struct Confidence<L> {
-    pub value: Vec<f32>,
+    pub value: Vec<f64>,
     pub _of: PhantomData<fn() -> L>,
 }
 
 impl<L: Layer> Confidence<L> {
-    pub fn new(value: Vec<f32>) -> Confidence<L> {
+    pub fn new(value: Vec<f64>) -> Confidence<L> {
         Confidence { value, _of: PhantomData }
     }
 }
@@ -453,7 +455,7 @@ impl<L: Layer> Layer for Confidence<L> {
 /// The document's language: a document-scoped layer.
 pub struct Language {
     pub code: String,
-    pub score: f32,
+    pub score: f64,
 }
 
 impl Layer for Language {

@@ -46,9 +46,25 @@ the whole edit (a start to its start, an end to its end), so a mapped
 span covers everything the original covered.
 
 A normalizer writes its text through a `ViewBuilder`, which records the
-alignment as it goes, so no view exists without one. A layer's spans
+alignment as it goes, so no view exists without one. Each `replace` call
+is one edit, never merged with the edit before it, so the caller chooses
+the granularity: three characters replaced one call each keep a
+one-to-one mapping per character, and a run replaced in one call is one
+edit over the whole run. A layer's spans
 name the view they are in, and `Document::to_source` maps them back
 through any chain of views to exact source bytes.
+
+Inserted or deleted bytes (an edit with one empty side) belong to
+neither neighbour: a start offset at them maps to after them and an end
+offset to before them. An empty span at them stays empty and lands
+before them, at the smaller of the two mapped offsets, so mapping any
+span either way never builds a span that ends before it starts. Deleting
+the whole text, for example, maps the empty view span at 0 to the empty
+source span at 0. An empty span strictly inside an edit widens to the
+whole edit like any other span. `Document::offset_from_source` and
+`Document::offset_to_source` map one offset through the chain of views
+for the side given, so a start at an insertion point goes after every
+byte inserted there and an end goes before them.
 
 ## Layers
 
@@ -66,6 +82,14 @@ an object per item. An item is anchored one of three ways:
 as an index into sentences does not compile. It is stored as i + 1 in a
 `NonZeroU32`, so an index that may be absent (a dependency head that may
 be the root) is still four bytes.
+
+Model probabilities and scores (`PosTags.prob`, `Entities.score`,
+`Confidence<L>`, `Language.score`) are stored as f64. OpenNLP computes
+them as Java doubles, and the parity tests compare them with the JVM's
+output to within 1e-9, which f32 (about seven significant digits) cannot
+hold. Vectors (`Vectors<L>`) and the chunker's costs (`Boundaries.cost`,
+`Chunks.cost`) are f32: they are computed in Rust and never compared
+with OpenNLP.
 
 A layer is added once and never changed. Before it is taken the
 document checks that the layer is not already there, that no other
@@ -246,6 +270,11 @@ runs them on any machine:
   annotator in one call, failures, panics and skips per document, gold
   and predicted layers side by side and never read across, one type
   per id, and a pipeline from configuration.
+- `analysis/core/tests/empty_spans.rs` maps empty spans at insertions
+  and deletions, at both ends of the text and after the whole text is
+  deleted, single offsets through a chain of two views, and every span
+  of every alignment four `replace` calls can make over a three-byte
+  text, checking that none panics.
 - `analysis/chunker/tests/chunker.rs` chunks hand-made layers: a cut
   where the topic shifts instead of where the budget fills, sections
   that are never crossed, and a paragraph break's token counted inside
