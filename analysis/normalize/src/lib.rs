@@ -30,8 +30,8 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use turbo_analysis::text::Side;
 use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder};
 
-pub mod assets;
 pub mod accent_fold;
+pub mod assets;
 pub mod bullets;
 pub mod case_fold;
 pub mod chain;
@@ -56,8 +56,8 @@ pub mod unicode_form;
 pub mod url;
 pub mod whitespace;
 
-pub use assets::{Asset, AssetDetector, AssetFold};
 pub use accent_fold::{AccentFold, StrokeLetters};
+pub use assets::{Asset, AssetDetector, AssetFold};
 pub use bullets::Bullets;
 pub use case_fold::{CaseFold, CaseFoldMode};
 pub use chain::Chain;
