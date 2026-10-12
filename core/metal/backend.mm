@@ -27,6 +27,7 @@
 #include <atomic>
 #include <cctype>
 #include <cstdarg>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -328,9 +329,11 @@ int32_t capability(uint32_t ordinal, uint32_t, uint32_t, uint32_t *status, uint3
 constexpr uint32_t LOG_WARNING = 1;
 constexpr uint32_t LOG_DEBUG = 3;
 
-enum Kernel { EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, WIDEN_F16, WIDEN_BF16, KERNELS };
+enum Kernel {
+    EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16, KERNELS
+};
 const char *const KERNEL_NAMES[KERNELS] = {"embed_layer_norm", "add_layer_norm", "gemm", "gemm_small", "attention",
-                                           "attention_narrow", "pool", "widen_f16", "widen_bf16"};
+                                           "attention_narrow", "pool", "pool_ranges", "widen_f16", "widen_bf16"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -868,6 +871,12 @@ int32_t f32_weights(Model *m, turbo_error *err) {
 // nothing crosses to a device, so h2d_bytes and d2h_bytes are 0. The
 // vectors are left in the session's shared buffer, which the host reads
 // where they are.
+//
+// embed_write_ranges packs the rows the same way and copies its ranges
+// into a region of the same shared memory after the blocks, sized for the
+// session's max_ranges when it is made. The run then pools one vector per
+// range instead of one per row, so the output buffer holds
+// max(max_batch, max_ranges) vectors of hidden F32.
 
 /* Kernel parameter blocks, as kernels.metal declares them. */
 struct RowParams {
@@ -884,6 +893,8 @@ struct AttentionParams {
 struct PoolParams {
     uint32_t hidden, output_dim, pooling, l2;
 };
+/* pool_ranges reads each range as three uints, as turbo.h lays it out. */
+static_assert(sizeof(turbo_token_range) == 12, "turbo_token_range is three uint32");
 
 enum : uint32_t { EPILOGUE_NONE = 0, EPILOGUE_BIAS = 1, EPILOGUE_BIAS_GELU = 2 };
 
@@ -915,28 +926,36 @@ struct Session {
     Model *model = nullptr;
     Context *ctx = nullptr;
     uint32_t max_batch = 0, max_seq = 0, cap = 0;
+    /* The most ranges one embed_write_ranges holds. */
+    uint32_t max_ranges = 0;
     /* Shared, int32 each: ids, types, mask and pos [cap]; rows [max_batch]
      * of (start, length); blocks [cap / 32 + max_batch] of (row, block of
-     * 32 queries). */
+     * 32 queries); ranges [max_ranges] of (row, start, end), as
+     * turbo_token_range lays them out. */
     id<MTLBuffer> rows = nil;
-    uint64_t ids = 0, types = 0, mask = 0, pos = 0, starts = 0, blocks = 0;
+    uint64_t ids = 0, types = 0, mask = 0, pos = 0, starts = 0, blocks = 0, ranges = 0;
     id<MTLBuffer> scratch = nil;
     uint64_t x = 0, q = 0, k = 0, v = 0, att = 0, tmp = 0, ffn = 0;
     /* The session's own queue: sessions run at the same time, each on the
      * GPU cores the others leave free, and a session has one owner at a
      * time, so its queue needs no lock. */
     id<MTLCommandQueue> queue = nil;
-    /* [max_batch, hidden] F32, handed out as the output. */
+    /* [max(max_batch, max_ranges), hidden] F32, handed out as the output:
+     * a vector per row after embed_write, per range after
+     * embed_write_ranges, each output_dim values, packed. */
     Buffer output;
     bool written = false;
     /* What the last write left: the rows, the tokens packed and rounded
-     * up, the attention blocks, and the options. */
-    uint32_t batch = 0, tokens = 0, padded = 0, nblocks = 0, longest = 0;
+     * up, the attention blocks, the ranges (0 after embed_write), and the
+     * options. */
+    uint32_t batch = 0, tokens = 0, padded = 0, nblocks = 0, longest = 0, nranges = 0;
     uint32_t pooling = 0, normalize = 0, output_dim = 0;
 };
 
-int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
-                       uint32_t *compute_dtype, void **out, turbo_error *err) {
+/* A session for session_create and session_open: max_ranges is
+ * max_batch for the first, the description's for the second. */
+int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                     uint32_t max_ranges, uint32_t *compute_dtype, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Model *m = static_cast<Model *>(model);
         Context *c = m->ctx;
@@ -966,7 +985,8 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         const size_t ffn = round_up(cap * d.intermediate * 4, 256);
         const size_t nblk = cap / 32 + max_batch;
         const size_t ints = round_up(cap * 4, 256), pairs = round_up(max_batch * 8, 256),
-                     block_pairs = round_up(nblk * 8, 256);
+                     block_pairs = round_up(nblk * 8, 256),
+                     triples = round_up((size_t)max_ranges * sizeof(turbo_token_range), 256);
         if (cap > UINT32_MAX / widest || 6 * wide + ffn > c->device.maxBufferLength)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1,
                                 "%u rows of %u tokens is more than one of device %u's buffers holds", max_batch,
@@ -979,15 +999,20 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         s->max_batch = max_batch;
         s->max_seq = max_seq;
         s->cap = (uint32_t)cap;
-        s->rows = new_buffer(c->device, 4 * ints + pairs + block_pairs, MTLResourceStorageModeShared);
+        s->max_ranges = max_ranges;
+        s->rows = new_buffer(c->device, 4 * ints + pairs + block_pairs + triples, MTLResourceStorageModeShared);
         s->scratch = new_buffer(c->device, 6 * wide + ffn, MTLResourceStorageModePrivate);
         s->queue = [c->device newCommandQueue];
-        const uint64_t vectors = (uint64_t)max_batch * d.hidden * 4;
+        // The row path and the range path write their vectors to this one
+        // buffer, so it holds the larger of the two counts. max_ranges is
+        // at most max_batch * max_seq, so this is no more than the scratch
+        // checked above.
+        const uint64_t vectors = (uint64_t)std::max(max_batch, max_ranges) * d.hidden * 4;
         id<MTLBuffer> output = new_buffer(c->device, vectors, MTLResourceStorageModeShared);
         if (!s->rows || !s->scratch || !output || !s->queue) {
             delete s;
             return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes for the session", (unsigned long long)(
-                          4 * ints + pairs + block_pairs + 6 * wide + ffn + vectors));
+                          4 * ints + pairs + block_pairs + triples + 6 * wide + ffn + vectors));
         }
         s->ids = 0;
         s->types = ints;
@@ -995,6 +1020,7 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
         s->pos = 3 * ints;
         s->starts = 4 * ints;
         s->blocks = 4 * ints + pairs;
+        s->ranges = 4 * ints + pairs + block_pairs;
         s->x = 0;
         s->q = wide;
         s->k = 2 * wide;
@@ -1014,6 +1040,30 @@ int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t 
     });
 }
 
+int32_t session_create(void *model, uint32_t task, uint32_t max_batch, uint32_t max_seq, uint32_t precision,
+                       uint32_t *compute_dtype, void **out, turbo_error *err) {
+    return open_session(model, task, max_batch, max_seq, precision, max_batch, compute_dtype, out, err);
+}
+
+/* The session's whole description. Metal has one path, so tuning is left
+ * as the core set it. Its device is a GPU, so cpu_threads is 0 alone. */
+int32_t session_open(void *model, const turbo_backend_session_desc *desc, turbo_backend_tuning *tuning,
+                     uint32_t *compute_dtype, void **out, turbo_error *err) {
+    (void)tuning;
+    const size_t need = offsetof(turbo_backend_session_desc, max_ranges) + sizeof(uint32_t);
+    if (desc->struct_size < need)
+        return refuse(err, TURBO_E_INVALID_STRUCT_SIZE,
+                      "turbo_backend_session_desc of %u bytes: the metal backend reads it through max_ranges, %zu "
+                      "bytes",
+                      desc->struct_size, need);
+    if (desc->cpu_threads != 0)
+        return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 6,
+                            "cpu_threads %u: the metal backend's device is not a CPU; cpu_threads must be 0",
+                            desc->cpu_threads);
+    return open_session(model, desc->task, desc->max_batch, desc->max_seq, desc->precision, desc->max_ranges,
+                        compute_dtype, out, err);
+}
+
 void session_release(void *session) {
     @autoreleasepool {
         try {
@@ -1023,55 +1073,79 @@ void session_release(void *session) {
     }
 }
 
-/* The rows, packed into the session: see above. */
+/* The rows, packed into the session, and the options: see above. Leaves
+ * the ranges for the caller to set. */
+void pack(Session &s, const turbo_backend_embed_rows *r) {
+    char *base = static_cast<char *>(s.rows.contents);
+    int32_t *ids = reinterpret_cast<int32_t *>(base + s.ids);
+    int32_t *types = reinterpret_cast<int32_t *>(base + s.types);
+    int32_t *mask = reinterpret_cast<int32_t *>(base + s.mask);
+    int32_t *pos = reinterpret_cast<int32_t *>(base + s.pos);
+    uint32_t *starts = reinterpret_cast<uint32_t *>(base + s.starts);
+    uint32_t *blocks = reinterpret_cast<uint32_t *>(base + s.blocks);
+    uint32_t t = 0, nb = 0, longest = 0;
+    const int32_t pos0 = (int32_t)s.model->desc.position_offset;
+    for (uint32_t row = 0; row < r->batch; row++) {
+        const size_t at = (size_t)row * r->row_stride;
+        const int32_t *m = r->mask + at;
+        uint32_t len = r->seq;
+        while (m[len - 1] == 0) len--;   // the core guarantees a live token
+        memcpy(ids + t, r->ids + at, (size_t)len * 4);
+        memcpy(mask + t, m, (size_t)len * 4);
+        if (r->types)
+            memcpy(types + t, r->types + at, (size_t)len * 4);
+        else
+            memset(types + t, 0, (size_t)len * 4);
+        for (uint32_t p = 0; p < len; p++) pos[t + p] = (int32_t)p + pos0;
+        starts[2 * row] = t;
+        starts[2 * row + 1] = len;
+        for (uint32_t b = 0; b * 32 < len; b++) {
+            blocks[2 * nb] = row;
+            blocks[2 * nb + 1] = b;
+            nb++;
+        }
+        t += len;
+        longest = std::max(longest, len);
+    }
+    const uint32_t padded = (uint32_t)capacity(t);
+    memset(ids + t, 0, (size_t)(padded - t) * 4);
+    memset(types + t, 0, (size_t)(padded - t) * 4);
+    memset(mask + t, 0, (size_t)(padded - t) * 4);
+    memset(pos + t, 0, (size_t)(padded - t) * 4);
+    s.batch = r->batch;
+    s.tokens = t;
+    s.padded = padded;
+    s.nblocks = nb;
+    s.longest = longest;
+    s.pooling = r->pooling;
+    s.normalize = r->normalize;
+    s.output_dim = r->output_dim;
+    s.written = true;
+}
+
 int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Session &s = *static_cast<Session *>(session);
-        char *base = static_cast<char *>(s.rows.contents);
-        int32_t *ids = reinterpret_cast<int32_t *>(base + s.ids);
-        int32_t *types = reinterpret_cast<int32_t *>(base + s.types);
-        int32_t *mask = reinterpret_cast<int32_t *>(base + s.mask);
-        int32_t *pos = reinterpret_cast<int32_t *>(base + s.pos);
-        uint32_t *starts = reinterpret_cast<uint32_t *>(base + s.starts);
-        uint32_t *blocks = reinterpret_cast<uint32_t *>(base + s.blocks);
-        uint32_t t = 0, nb = 0, longest = 0;
-        const int32_t pos0 = (int32_t)s.model->desc.position_offset;
-        for (uint32_t row = 0; row < r->batch; row++) {
-            const size_t at = (size_t)row * r->row_stride;
-            const int32_t *m = r->mask + at;
-            uint32_t len = r->seq;
-            while (m[len - 1] == 0) len--;   // the core guarantees a live token
-            memcpy(ids + t, r->ids + at, (size_t)len * 4);
-            memcpy(mask + t, m, (size_t)len * 4);
-            if (r->types)
-                memcpy(types + t, r->types + at, (size_t)len * 4);
-            else
-                memset(types + t, 0, (size_t)len * 4);
-            for (uint32_t p = 0; p < len; p++) pos[t + p] = (int32_t)p + pos0;
-            starts[2 * row] = t;
-            starts[2 * row + 1] = len;
-            for (uint32_t b = 0; b * 32 < len; b++) {
-                blocks[2 * nb] = row;
-                blocks[2 * nb + 1] = b;
-                nb++;
-            }
-            t += len;
-            longest = std::max(longest, len);
-        }
-        const uint32_t padded = (uint32_t)capacity(t);
-        memset(ids + t, 0, (size_t)(padded - t) * 4);
-        memset(types + t, 0, (size_t)(padded - t) * 4);
-        memset(mask + t, 0, (size_t)(padded - t) * 4);
-        memset(pos + t, 0, (size_t)(padded - t) * 4);
-        s.batch = r->batch;
-        s.tokens = t;
-        s.padded = padded;
-        s.nblocks = nb;
-        s.longest = longest;
-        s.pooling = r->pooling;
-        s.normalize = r->normalize;
-        s.output_dim = r->output_dim;
-        s.written = true;
+        pack(s, r);
+        s.nranges = 0;
+        return TURBO_OK;
+    });
+}
+
+/* The rows as embed_write packs them, and the ranges copied after the
+ * blocks, where pool_ranges reads them. The core has checked each range
+ * and count against max_ranges, and set pooling to MEAN. */
+int32_t embed_write_ranges(void *session, const turbo_backend_embed_rows *r, const turbo_token_range *ranges,
+                           uint32_t count, turbo_error *err) {
+    return guarded(err, [&]() -> int32_t {
+        Session &s = *static_cast<Session *>(session);
+        if (count == 0 || count > s.max_ranges)
+            return refuse(err, TURBO_E_INTERNAL, "%u ranges for a metal session of max_ranges %u", count,
+                          s.max_ranges);
+        pack(s, r);
+        memcpy(static_cast<char *>(s.rows.contents) + s.ranges, ranges, (size_t)count * sizeof(turbo_token_range));
+        s.nranges = count;
+        s.pooling = TURBO_POOLING_MEAN;
         return TURBO_OK;
     });
 }
@@ -1194,6 +1268,18 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     }
 
     const PoolParams pp{h, s.output_dim, s.pooling, s.normalize == TURBO_NORMALIZE_L2 ? 1u : 0u};
+    if (s.nranges > 0) {
+        // One SIMD group per range, after embed_write_ranges.
+        [enc setComputePipelineState:kn.k[POOL_RANGES]];
+        [enc setBuffer:sc offset:s.x atIndex:0];
+        [enc setBuffer:rows offset:s.mask atIndex:1];
+        [enc setBuffer:rows offset:s.starts atIndex:2];
+        [enc setBuffer:rows offset:s.ranges atIndex:3];
+        [enc setBuffer:s.output.mtl offset:0 atIndex:4];
+        [enc setBytes:&pp length:sizeof pp atIndex:5];
+        [enc dispatchThreadgroups:MTLSizeMake(s.nranges, 1, 1) threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
+        return;
+    }
     [enc setComputePipelineState:kn.k[POOL]];
     [enc setBuffer:sc offset:s.x atIndex:0];
     [enc setBuffer:rows offset:s.mask atIndex:1];
@@ -1268,6 +1354,8 @@ const turbo_backend turbo_metal_backend = {
     TURBO_FORMAT_BIT(TURBO_FORMAT_SAFETENSORS),
     0,
     nullptr,
+    session_open,
+    embed_write_ranges,
 };
 
 /* Every allocation this backend has made in the process, host and device,

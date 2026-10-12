@@ -1,0 +1,12 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/hosts-schemeless	284	284	59b6663e3fb5619c591fd36257a51dd9849ffbce644acfaa8883a6856a86d266
+annotator	opennlp.tools.util.normalizer.ParagraphPreservingWhitespaceCharSequenceNormalizer	normalizeAligned
+layer	turbo:view	text	3	start:u32	end:u32	with:str
+98	99	 
+187	188	 
+283	284	
+end	turbo:view

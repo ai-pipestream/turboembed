@@ -108,8 +108,9 @@ final class ContextRuns {
   /**
    * The pattern {@code TokenizerME} uses when the optimization is on: the factory's pattern, and
    * {@code Factory.DEFAULT_ALPHANUMERIC} if there is none. {@code TokenizerFactory.getAlphaNumericPattern}
-   * itself falls back to the pattern of the model's language, so the second case does not arise for a
-   * model.
+   * never returns null: without a manifest pattern it calls {@code Factory.getAlphanumeric} with its
+   * {@code languageCode} field, which is null on a factory loaded from a model file and so gives
+   * {@code DEFAULT_ALPHANUMERIC}. The second case is kept to match {@code TokenizerME}.
    */
   static Pattern effectivePattern(TokenizerFactory factory) {
     Pattern p = factory.getAlphaNumericPattern();

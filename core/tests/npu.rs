@@ -95,6 +95,10 @@ fn the_table_is_whole_and_loads_openvino_ir_alone() {
         b.session_create_tuned.is_some(),
         "the graph format the driver selected is reported through session_create_tuned"
     );
+    assert!(
+        b.session_open.is_some() && b.embed_write_ranges.is_some(),
+        "sessions take the whole description, and ranges are pooled on the host"
+    );
     assert!(turbo::backend::linked().iter().any(|l| std::ptr::eq(*l, b)));
     let v = unsafe { std::ffi::CStr::from_ptr(turbo_version()) }.to_str().unwrap();
     assert!(v.split(' ').any(|w| w == "npu"), "turbo_version() = {v}");
@@ -462,4 +466,70 @@ fn pooling_and_normalize_follow_the_options() {
     assert!((norm - 1.0).abs() > 1e-3, "NONE leaves the length as pooled: {norm}");
     let back: f64 = raw.iter().zip(&mean).map(|(a, b)| *a as f64 / norm * *b as f64).sum();
     assert!(back > 0.99999, "the same direction as the normalized vector: {back}");
+}
+
+/// Late pooling on the NPU: the device encodes the rows, and the host
+/// pools each range from the hidden states the device hands back, in
+/// range order. A range over a whole row sums the same tokens in the
+/// same order as the row's mean, so its vector is the row's bit for
+/// bit, including a range that runs into the row's padding. A range is
+/// pooled the same way wherever it sits in the list. The session takes
+/// no CPU thread count.
+#[test]
+#[ignore = "needs an Intel NPU and TURBO_TEST_BUNDLE with an OpenVINO IR for it"]
+fn ranges_match_rows_pooled_on_the_host() {
+    let l = on_npu();
+    let mut d = session_desc(3, 0, TURBO_PRECISION_MODEL);
+    d.cpu_threads = 2;
+    let f = Session::create(l.m, Some(&d)).err().expect("refused");
+    assert!(f.is(UNSUPPORTED_OPTION, "cpu_threads 2") && f.field == 6, "{f:?}");
+    d.cpu_threads = 0;
+    d.max_ranges = 8;
+    let s = Session::create(l.m, Some(&d)).unwrap();
+
+    let tok = Tok::create(&ir_bundle()).unwrap_or_else(|e| panic!("{e:?}"));
+    let texts = [
+        "Late pooling encodes a document once and pools each chunk from it.",
+        "a short row",
+        "Each range is the mean of its own tokens' final hidden states.",
+    ];
+    let rows: Vec<Vec<i32>> = texts.iter().map(|t| tok.row(t, None).unwrap()).collect();
+    let len: Vec<u32> = rows.iter().map(|r| r.len() as u32).collect();
+    let t = Tokens::new(&rows, 0);
+    assert!(len[1] < t.seq, "row 1 is padded, so a range over the whole of seq covers padding");
+    let mut o = embed_options();
+    o.pooling = TURBO_POOLING_MEAN;
+
+    s.write_tokens(&t.batch(), Some(&o)).unwrap();
+    let by_row = s.run().unwrap().rows();
+    let dim = l.info().dim as usize;
+
+    // Out of row order, a range over row 1's padding, a sub-range twice
+    // with another between, and one sub-range of the last row.
+    let ranges = [
+        range(2, 0, len[2]),
+        range(0, 1, len[0] - 1),
+        range(1, 0, t.seq),
+        range(0, 0, len[0]),
+        range(2, 1, 4),
+        range(0, 1, len[0] - 1),
+    ];
+    s.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
+    let r = s.run().unwrap();
+    let info = r.info();
+    assert_eq!((info.batch as usize, info.dim as usize), (ranges.len(), dim));
+    assert_eq!((info.host_allocs, info.device_allocs), (0, 0));
+    assert_eq!(info.stage[TURBO_EMBED_STAGE_ENCODE], TURBO_STAGE_DEVICE);
+    assert_eq!(info.stage[TURBO_EMBED_STAGE_POOL], TURBO_STAGE_HOST);
+    let by_range = r.rows();
+    let bits = |v: &[f32]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+    for (i, row) in [(0, 2), (2, 1), (3, 0)] {
+        assert_eq!(bits(&by_range[i]), bits(&by_row[row]), "range {i} over the whole of row {row}");
+    }
+    assert_eq!(bits(&by_range[1]), bits(&by_range[5]), "the same range gives the same bits wherever it is");
+    for (i, v) in by_range.iter().enumerate() {
+        let norm = v.iter().map(|x| (*x as f64).powi(2)).sum::<f64>().sqrt();
+        assert!((norm - 1.0).abs() < 1e-5, "range {i} is unit length: {norm}");
+    }
+    assert_ne!(bits(&by_range[1]), bits(&by_row[0]), "a sub-range is not its row's mean");
 }

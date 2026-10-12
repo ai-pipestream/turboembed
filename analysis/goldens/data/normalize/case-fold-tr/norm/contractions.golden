@@ -1,0 +1,28 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/contractions	336	336	ccf717db1a99abe899dbc19b16aae5988d964e06a6a7a4cfe4c4e6f2a03a190f
+annotator	opennlp.tools.util.normalizer.CaseFoldCharSequenceNormalizer	normalize
+config	locale	tr
+layer	turbo:view	text	18	start:u32	end:u32	with:str
+0	1	ı
+14	15	w
+47	48	ı
+94	95	t
+119	120	ı
+150	151	ı
+159	160	s
+197	198	d
+198	199	o
+199	200	n
+201	202	t
+203	204	s
+204	205	h
+205	206	o
+206	207	u
+207	208	t
+210	211	ı
+220	221	w
+end	turbo:view

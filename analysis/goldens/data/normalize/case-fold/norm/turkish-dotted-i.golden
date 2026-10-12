@@ -1,0 +1,29 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-1-24.04.4-Ubuntu	Ubuntu
+unicode	15.0
+input	norm/turkish-dotted-i	199	179	45d1c7b73bc6d7d81f026ccc7e40b9f8a7dcb89879faafc6f1a20e6058b973d2
+annotator	opennlp.tools.util.normalizer.CaseFoldCharSequenceNormalizer	normalize
+layer	turbo:view	text	20	start:u32	end:u32	with:str
+0	2	i̇
+11	12	i
+12	13	s
+13	14	p
+14	15	a
+15	16	r
+16	17	t
+17	18	a
+29	36	i̇zmi̇r
+48	49	i
+68	69	i
+74	76	i̇
+114	152	i̇, şehi̇r, çocuk, ğ, öğrenci̇.\nt
+158	160	i̇
+170	171	i
+171	172	l
+172	173	i
+173	174	k
+176	177	i
+191	197	i̇nsan
+end	turbo:view

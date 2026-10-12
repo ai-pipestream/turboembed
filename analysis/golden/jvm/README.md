@@ -84,7 +84,7 @@ input.
 
 ## Variant runs
 
-`Variants` writes four sets of files that the plain run cannot, because no UD model has an
+`Variants` writes the files below, which the plain run cannot, because no UD model has an
 abbreviation dictionary or the alphanumeric optimization, and the detokenizer has no model.
 It reads `variants/` (committed data, below) and the same `inputs/` and models directory, and
 leaves the files above untouched.
@@ -100,8 +100,14 @@ leaves the files above untouched.
 
 Tokenizer files have the format above plus a line after the model lines: `abbreviations:` (the
 dictionary file and its SHA-256) for the English run and `effective-alpha-numeric-pattern:` for the
-alphanumeric runs. The `alpha-numeric-pattern` line of a rebuilt model is the pattern the factory
-wrote to the manifest, which is the pattern of the model's language.
+alphanumeric runs. The `alpha-numeric-pattern` line of a rebuilt model is the pattern of the loaded
+model, which for every UD model is its manifest's pattern, the pattern of the model's language.
+
+`variants/abbreviations/tokenizer-abbreviations.bin` is a copy of
+`analysis/maxent/tests/fixtures/models/tokenizer.bin` (SHA-256
+`bd5334327d3c4ffab19765bec7755b71a9eaea50e4c23ce10712f48bdb14c7e1`), which `MakeModelFixtures.java`
+trains as described in `analysis/maxent/tests/fixtures/README.md` (added by PR #277). This
+program does not write it.
 
 A detokenizer case file has one token per line (the part of the name before the first `-` names
 the dictionary `<name>-detokenizer.xml`; an empty file is an empty token list). The golden file is:
@@ -132,13 +138,14 @@ java -cp "/path/to/classes:$CP" Variants "$OPENNLP_COMMIT" analysis/golden/jvm/v
 
 ## Alphanumeric pattern
 
-`TokenizerFactory.getAlphaNumericPattern` never returns `null`: without a manifest value it returns
-the pattern of the model's language (`lang.Factory.getAlphanumeric`), which is
-`Factory.DEFAULT_ALPHANUMERIC` only for a language without its own pattern. `TokenizerME`'s
-fallback to `DEFAULT_ALPHANUMERIC` therefore never runs for a model, and `ContextRuns` takes the
-factory's pattern with the same fallback. The UD models carry a manifest pattern only for their
-language, so with the optimization on, French accepts `caf\u00E9` as one alphanumeric token and
-English does not.
+`TokenizerFactory.getAlphaNumericPattern` returns the manifest's `alphaNumericPattern`. Without
+one it asks `lang.Factory.getAlphanumeric` with the factory's `languageCode` field, and a factory
+made for a loaded model leaves that field null (only `getLanguageCode()` reads the language from
+the model). A loaded model without the property therefore always gets `^[A-Za-z0-9]+$`, never its
+language's pattern; this was checked on the JVM with a German model whose pattern was removed.
+`ContextRuns` takes the factory's pattern with `TokenizerME`'s fallback to
+`Factory.DEFAULT_ALPHANUMERIC`. Each UD model's manifest holds the pattern of its language, so with
+the optimization on, French accepts `caf\u00E9` as one alphanumeric token and English does not.
 
 ## Provenance
 
@@ -147,9 +154,25 @@ English does not.
   line). The class path is the runtime, API and ML (commons, maxent, perceptron, bayes)
   jars of that build plus `slf4j-api` 2.0.19.
 - JDK: OpenJDK 21.0.12.1 (the `jdk:` line of each file).
-- Models: OpenNLP 2.5.4 UD models (Spanish, French, German, English, Portuguese
-  tokenizers; German, English, Portuguese sentence models). Each file records the model
-  name and SHA-256. The models are not in the repository.
+- Models: Apache OpenNLP's Universal Dependencies 1.3 models, trained with OpenNLP 2.5.4
+  (Spanish, French, German, English and Portuguese tokenizers; German, English and
+  Portuguese sentence models). Each golden file records the model name and SHA-256. The
+  models are not in the repository. They are downloaded from
+  `https://downloads.apache.org/opennlp/models/ud-models-1.3/<file>`, and their SHA-512
+  is the one published beside each file as `<file>.sha512`:
+
+  | File | SHA-512 |
+  |---|---|
+  | `opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin` | `c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa` |
+  | `opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin` | `343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf` |
+  | `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin` | `fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191` |
+  | `opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin` | `147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b986605e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a` |
+  | `opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin` | `ba5280ca74b190515f630ed2b2257a758e8baa876a8da3c02735f81a5543c37f7bc57614fd1ecb2850b4a2df98b2d2e452718de43f676f9b63b064206f86c467` |
+  | `opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin` | `18e56e96eae9741935c5f54f16d3c6933e151ec550b882d2e5e1194ac02c6b1e56063843ff3805a35cf44810091674ef6bf2f080d1bc761770d8b09ee9a01277` |
+  | `opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin` | `0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8` |
+  | `opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin` | `6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b959c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb` |
+
+  The English entries are the ones `analysis/goldens-tool/src/recipe.rs` pins.
 
 ## Running it
 

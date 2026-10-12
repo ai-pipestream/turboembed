@@ -1,0 +1,3 @@
+Pages 10–14, a long—dash—sentence, and a minus −3 next to a hyphen-minus -3.
+U+2010 ‐ U+2011 non‑breaking U+2012 figure‒2 U+2015 bar ― U+2212 −.
+A double hyphen -- and a triple --- stay as they are, ⸺ and ﹘ too.

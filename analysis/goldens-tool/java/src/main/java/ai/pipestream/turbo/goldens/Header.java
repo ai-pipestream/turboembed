@@ -1,10 +1,13 @@
 package ai.pipestream.turbo.goldens;
 
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Everything a golden file's header records, in the order it is written: which OpenNLP and which
- * JDK produced it, the input it was produced from, the models loaded and the annotator called.
+ * JDK produced it, the input it was produced from, the models loaded, the annotator called and
+ * the options it was run with.
  *
  * @param opennlpCommit the 40 hex digit commit of the OpenNLP checkout the runtime was built from
  * @param opennlpVersion the Maven version of the OpenNLP runtime jar
@@ -16,11 +19,21 @@ import java.util.List;
  * @param models the model files the annotator loaded, in the order loaded
  * @param annotatorClass the fully qualified class of the OpenNLP annotator
  * @param method the method called on it
+ * @param config the options the annotator was run with, written as {@code config} lines sorted by key
  */
 record Header(String opennlpCommit, String opennlpVersion, Jdk jdk, String inputId, long utf8Length,
-    long utf16Length, String inputSha256, List<ModelRef> models, String annotatorClass, String method) {
+    long utf16Length, String inputSha256, List<ModelRef> models, String annotatorClass, String method,
+    Map<String, String> config) {
 
   Header {
     models = List.copyOf(models);
+    config = java.util.Collections.unmodifiableSortedMap(new TreeMap<>(config));
+  }
+
+  /** A header for an annotator run with its default options. */
+  Header(String opennlpCommit, String opennlpVersion, Jdk jdk, String inputId, long utf8Length,
+      long utf16Length, String inputSha256, List<ModelRef> models, String annotatorClass, String method) {
+    this(opennlpCommit, opennlpVersion, jdk, inputId, utf8Length, utf16Length, inputSha256, models,
+        annotatorClass, method, Map.of());
   }
 }
