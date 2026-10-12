@@ -19,6 +19,8 @@ pub struct Items<'a> {
     pub context: Option<SpanCols<'a>>,
     /// An entity's tokens, compared.
     pub tokens: Option<TokenCols<'a>>,
+    /// UTF-16 spans and whether each cuts a character, compared.
+    pub units: Option<UnitCols<'a>>,
     /// A label per item, compared as text.
     pub labels: Option<Labels<'a>>,
     /// A value per item, compared within the tolerance.
@@ -45,6 +47,37 @@ impl TokenCols<'_> {
         match self {
             TokenCols::Ranges(r) => (r[i].start.get() as u32, r[i].end.get() as u32),
             TokenCols::Columns { start, end } => (start[i], end[i]),
+        }
+    }
+}
+
+/// Spans in UTF-16 units of the source, half open, and a flag per item
+/// saying whether its span starts or ends inside a surrogate pair: the
+/// Rust layer's `bool` column, or the golden's `u32` column, 0 or 1.
+#[derive(Copy, Clone)]
+pub struct UnitCols<'a> {
+    pub start: &'a [u32],
+    pub end: &'a [u32],
+    pub cut: CutCol<'a>,
+}
+
+#[derive(Copy, Clone)]
+pub enum CutCol<'a> {
+    Bools(&'a [bool]),
+    /// 0 or 1 per item: the comparison refuses a golden with another value
+    /// before it builds this.
+    U32s(&'a [u32]),
+}
+
+impl UnitCols<'_> {
+    fn span(&self, i: usize) -> (u32, u32) {
+        (self.start[i], self.end[i])
+    }
+
+    fn cut(&self, i: usize) -> bool {
+        match self.cut {
+            CutCol::Bools(c) => c[i],
+            CutCol::U32s(c) => c[i] != 0,
         }
     }
 }
@@ -76,7 +109,8 @@ pub struct Names {
 }
 
 /// Compares two layers' items in order, stopping at the first
-/// difference: an item's span, then its tokens, its label and its value.
+/// difference: an item's span, then its tokens, its UTF-16 span, whether
+/// it cuts a character, its label and its value.
 /// When every item both sides have is the same and one side has more, the
 /// counts differ.
 pub fn compare_items(
@@ -96,6 +130,14 @@ pub fn compare_items(
             && r.get(i) != g.get(i)
         {
             Some("tokens")
+        } else if let (Some(r), Some(g)) = (rust.units, golden.units)
+            && r.span(i) != g.span(i)
+        {
+            Some("UTF-16 span")
+        } else if let (Some(r), Some(g)) = (rust.units, golden.units)
+            && r.cut(i) != g.cut(i)
+        {
+            Some("cut")
         } else if let (Some(r), Some(g)) = (rust.labels, golden.labels)
             && r.get(i) != g.get(i)
         {
@@ -145,6 +187,7 @@ fn item(cx: &Cx<'_>, items: &Items<'_>, names: Names, i: usize) -> Item {
         span,
         text,
         tokens: items.tokens.map(|t| t.get(i)),
+        units: items.units.map(|u| (u.start[i], u.end[i], u.cut(i))),
         label: items.labels.and_then(|l| Some((names.label?, l.get(i).to_string()))),
         value: items.values.and_then(|v| Some((names.value?, v[i]))),
     }
