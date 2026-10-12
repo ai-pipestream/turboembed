@@ -46,14 +46,16 @@ cargo run -p turbo-goldens-tool -- verify [--models <dir>]
   directories in `analysis/goldens/data` (or `<dir>`) with what it wrote.
   The generator is always given `--dumps` (`GENERATOR_ARGS` in
   `src/recipe.rs`), so the goldens and their dumps are made and installed
-  together; before installing, every golden must have a dump beside it
-  whose header parses.
+  together; before installing, every golden of `sentdetect`, `tokenize`
+  and `langdetect` must have a dump beside it whose header parses, except
+  a golden with an error record (the annotator threw on that input), which
+  must have none, and a normalizer golden must have none.
 - `verify` generates into a scratch directory and compares every golden
   and dump byte for byte with the checked in ones. It lists each file that
   differs, is missing or is extra, and exits non zero if there is any. It
-  also checks that every checked in golden has a dump beside it whose
-  header parses and names the golden's input and model; it does not read
-  the decision points.
+  also checks the checked in dumps by the same rule, and that each one's
+  header names the golden's input and model; it does not read the
+  decision points.
 
 ## Normalizer goldens
 
